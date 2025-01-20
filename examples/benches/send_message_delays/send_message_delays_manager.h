@@ -47,6 +47,13 @@ class SendMessageDelaysManager {
       kTest100Bytes,
       kTest1000Bytes,
       kTest1500Bytes,
+      kSwitchToSafeStream,
+      kSsWarmUp,
+      kSsTest2Bytes,
+      kSsTest10Bytes,
+      kSsTest100Bytes,
+      kSsTest1000Bytes,
+      kSsTest1500Bytes,
       kDone,
       kError,
       kStop,
@@ -64,6 +71,8 @@ class SendMessageDelaysManager {
 
    private:
     void WarmUp();
+    void SwitchToSafeStream();
+    void SafeStreamWarmUp();
     void Test2Bytes();
     void Test10Bytes();
     void Test100Bytes();

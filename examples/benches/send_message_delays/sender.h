@@ -22,15 +22,18 @@
 #include "aether/events/multi_subscription.h"
 #include "aether/actions/action_view.h"
 #include "aether/actions/action_context.h"
+#include "aether/stream_api/safe_stream/safe_stream_config.h"
 
 #include "send_message_delays/timed_sender.h"
 
 namespace ae::bench {
 class Sender {
  public:
-  Sender(ActionContext action_context, Client::ptr client, Uid destination_uid);
+  Sender(ActionContext action_context, Client::ptr client, Uid destination_uid,
+         SafeStreamConfig safe_stream_config);
 
-  void Connect();
+  void ConnectP2pStream();
+  void ConnectP2pSafeStream();
   void Disconnect();
 
   ActionView<ITimedSender> WarmUp(std::size_t message_count,
@@ -53,6 +56,7 @@ class Sender {
   ActionContext action_context_;
   Client::ptr client_;
   Uid destination_uid_;
+  SafeStreamConfig safe_stream_config_;
   Ptr<ByteStream> send_message_stream_;
   ProtocolContext protocol_context_;
 

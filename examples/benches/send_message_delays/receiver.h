@@ -23,6 +23,7 @@
 #include "aether/events/multi_subscription.h"
 #include "aether/stream_api/protocol_stream.h"
 #include "aether/client_connections/client_connection.h"
+#include "aether/stream_api/safe_stream/safe_stream_config.h"
 
 #include "send_message_delays/timed_receiver.h"
 #include "send_message_delays/api/bench_delays_api.h"
@@ -30,7 +31,8 @@
 namespace ae::bench {
 class Receiver {
  public:
-  Receiver(ActionContext action_context, Client::ptr client);
+  Receiver(ActionContext action_context, Client::ptr client,
+           SafeStreamConfig safe_stream_config);
 
   void Connect();
   void Disconnect();
@@ -48,6 +50,7 @@ class Receiver {
 
   ActionContext action_context_;
   Client::ptr client_;
+  SafeStreamConfig safe_stream_config_;
 
   ProtocolContext protocol_context_;
   Ptr<ClientConnection> connection_stream_;
