@@ -59,17 +59,6 @@ struct SendingChunk {
   std::uint16_t repeat_count;
   TimePoint send_time;
 };
-
-struct SafeStreamConfig {
-  SafeStreamRingIndex::type buffer_capacity;  //< sending buffer capacity
-  SafeStreamRingIndex::type window_size;      //< size of sending window
-  SafeStreamRingIndex::type max_data_size;    //< max size of sending data
-  Duration wait_confirm_timeout;  //< Timeout for waiting confirmation
-  Duration send_confirm_timeout;  //< max time to wait before send confirmation
-  Duration send_repeat_timeout;  //< max time to wait before send repeat request
-  std::uint16_t max_repeat_count;  //< max repeat count for sending packet
-};
-
 }  // namespace ae
 
 #endif  // AETHER_STREAM_API_SAFE_STREAM_SAFE_STREAM_TYPES_H_
