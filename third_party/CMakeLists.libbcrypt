@@ -23,9 +23,9 @@ else()
     idf_build_get_property(CM_PLATFORM CM_PLATFORM)
     if(CM_PLATFORM STREQUAL "ESP32")
         #ESP32 CMake
-        project(bcrypt LANGUAGES CXX)
+        #project(bcrypt LANGUAGES CXX)
 
-        add_library(${PROJECT_NAME} STATIC
+        add_library(bcrypt STATIC
                     ${libbcryp_srcs}
                     ${crypt_blowfish_srcs})
     else()

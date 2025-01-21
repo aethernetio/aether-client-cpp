@@ -203,7 +203,7 @@ else()
     idf_build_get_property(CM_PLATFORM CM_PLATFORM)
     if(CM_PLATFORM STREQUAL "ESP32")
         #ESP32 CMake
-        project(sodium LANGUAGES CXX)
+        #project(sodium LANGUAGES CXX)
 
         add_library(${PROJECT_NAME} STATIC
                     ${libsodium_sodium_srcs}
@@ -226,12 +226,12 @@ else()
                     ${libsodium_crypto_verify_srcs}
                     ${libsodium_randombytes_srcs})
 
-        target_compile_options(${PROJECT_NAME} PRIVATE "-Wno-unknown-pragmas"
-                                                       "-Wno-nonnull"
-                                                       "-Wno-unused-variable"
-                                                       "-Wno-unused-function"
-                                                       "-Wno-type-limits"
-                                                       "-Wno-deprecated-declarations")
+        target_compile_options(sodium PRIVATE "-Wno-unknown-pragmas"
+                                              "-Wno-nonnull"
+                                              "-Wno-unused-variable"
+                                              "-Wno-unused-function"
+                                              "-Wno-type-limits"
+                                              "-Wno-deprecated-declarations")
 
         target_include_directories(${PROJECT_NAME} PRIVATE ${include_dirs})
         target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
