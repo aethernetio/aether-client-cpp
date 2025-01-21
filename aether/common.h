@@ -68,11 +68,11 @@ enum class CompressionMethod : std::uint8_t {
   class_name(class_name const& other) = impl; \
   class_name& operator=(class_name const& other) = impl;
 
-#define AE_CLASS_MOVE_DEFAULT(class_name) AE_CLASS_MOVE_(class_name, default)
-#define AE_CLASS_MOVE_DELETE(class_name) AE_CLASS_MOVE_(class_name, delete)
+#define AE_CLASS_DEFAULT_MOVE(class_name) AE_CLASS_MOVE_(class_name, default)
+#define AE_CLASS_NO_MOVE(class_name) AE_CLASS_MOVE_(class_name, delete)
 
-#define AE_CLASS_COPY_DEFAULT(class_name) AE_CLASS_COPY_(class_name, default)
-#define AE_CLASS_COPY_DELETE(class_name) AE_CLASS_COPY_(class_name, delete)
+#define AE_CLASS_DEFAULT_COPY(class_name) AE_CLASS_COPY_(class_name, default)
+#define AE_CLASS_NO_COPY(class_name) AE_CLASS_COPY_(class_name, delete)
 
 #define AE_CLASS_MOVE_ONLY(class_name) \
   AE_CLASS_COPY_(class_name, delete)   \

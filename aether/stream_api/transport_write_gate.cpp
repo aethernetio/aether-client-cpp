@@ -33,16 +33,16 @@ TransportWriteGate::TransportStreamWriteAction::TransportStreamWriteAction(
       packet_send_action_{std::move(packet_send_action)} {
   subscriptions_.Push(
       packet_send_action_->SubscribeOnResult([this](auto const& /* action */) {
-        state_.Set(State::kDone);
+        state_ = State::kDone;
         Action::Result(*this);
       }),
       packet_send_action_->SubscribeOnError([this](auto const& action) {
         switch (action.state()) {
           case PacketSendAction::State::kTimeout:
-            state_.Set(State::kTimeout);
+            state_ = State::kTimeout;
             break;
           case PacketSendAction::State::kFailed:
-            state_.Set(State::kFailed);
+            state_ = State::kFailed;
             break;
           default:
             AE_TELED_ERROR("What kind of error is this?");
@@ -51,7 +51,7 @@ TransportWriteGate::TransportStreamWriteAction::TransportStreamWriteAction(
         Action::Error(*this);
       }),
       packet_send_action_->SubscribeOnStop([this](auto const&) {
-        state_.Set(State::kStopped);
+        state_ = State::kStopped;
         Action::Stop(*this);
       }));
 }
@@ -68,39 +68,24 @@ void TransportWriteGate::TransportStreamWriteAction::Stop() {
 TransportWriteGate::TransportWriteGate(ActionContext action_context,
                                        Ptr<ITransport> transport)
     : transport_{std::move(transport)},
-      stream_info_{transport_->GetConnectionInfo().max_packet_size, {}, {}, {}},
+      stream_info_{},
       transport_connection_subscription_{
-          transport_->ConnectionSuccess().Subscribe([this]() {
-            stream_info_.max_element_size =
-                transport_->GetConnectionInfo().max_packet_size;
-            stream_info_.is_linked = true;
-            stream_info_.is_writeble = true;
-            stream_info_.is_soft_writable = true;
-            gate_update_event_.Emit();
-          })},
+          transport_->ConnectionSuccess().Subscribe(
+              [this]() { GateUpdate(); })},
+      transport_disconnection_subscription_{
+          transport_->ConnectionError().Subscribe([this]() { GateUpdate(); })},
       transport_read_data_subscription_{transport_->ReceiveEvent().Subscribe(
           [this](auto const& buffer, auto time_point) {
             ReceiveData(buffer, time_point);
           })},
-      write_actions_{std::move(action_context)} {}
-
-TransportWriteGate::TransportWriteGate(TransportWriteGate&& other) noexcept
-    : transport_{std::move(other.transport_)},
-      stream_info_{other.stream_info_},
-      transport_connection_subscription_{
-          transport_->ConnectionSuccess().Subscribe([this]() {
-            stream_info_.max_element_size =
-                transport_->GetConnectionInfo().max_packet_size;
-            stream_info_.is_linked = true;
-            stream_info_.is_writeble = true;
-            stream_info_.is_soft_writable = true;
-            gate_update_event_.Emit();
-          })},
-      transport_read_data_subscription_{transport_->ReceiveEvent().Subscribe(
-          [this](auto const& buffer, auto time_point) {
-            ReceiveData(buffer, time_point);
-          })},
-      write_actions_{std::move(other.write_actions_)} {}
+      write_actions_{std::move(action_context)} {
+  auto connection_info = transport_->GetConnectionInfo();
+  stream_info_.max_element_size = connection_info.max_packet_size;
+  stream_info_.is_linked =
+      connection_info.connection_state == ConnectionState::kConnected;
+  stream_info_.is_writeble = stream_info_.is_linked;
+  stream_info_.is_soft_writable = stream_info_.is_linked;
+}
 
 TransportWriteGate::~TransportWriteGate() = default;
 
@@ -124,6 +109,16 @@ TransportWriteGate::gate_update_event() {
 }
 
 StreamInfo TransportWriteGate::stream_info() const { return stream_info_; }
+
+void TransportWriteGate::GateUpdate() {
+  auto connection_info = transport_->GetConnectionInfo();
+  stream_info_.max_element_size = connection_info.max_packet_size;
+  stream_info_.is_linked =
+      connection_info.connection_state == ConnectionState::kConnected;
+  stream_info_.is_writeble = stream_info_.is_linked;
+  stream_info_.is_soft_writable = stream_info_.is_linked;
+  gate_update_event_.Emit();
+}
 
 void TransportWriteGate::ReceiveData(DataBuffer const& data,
                                      TimePoint current_time) {
