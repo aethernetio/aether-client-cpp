@@ -167,11 +167,11 @@ list(APPEND libsodium_randombytes_srcs
             "src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c")
 
 set(include_dirs "../../"
-                     "src/libsodium/include"
-                     "src/libsodium/include/sodium"
-                     "src/libsodium/include/sodium/private"
-                     "")
-                     
+                 "src/libsodium/include"
+                 "src/libsodium/include/sodium"
+                 "src/libsodium/include/sodium/private"
+                 "")
+
 if(NOT CM_PLATFORM )
     project(sodium VERSION 1.0.0 LANGUAGES CXX)
 
@@ -203,36 +203,39 @@ else()
     idf_build_get_property(CM_PLATFORM CM_PLATFORM)
     if(CM_PLATFORM STREQUAL "ESP32")
         #ESP32 CMake
-        idf_component_register(SRCS
-                            ${libsodium_sodium_srcs}
-                            ${libsodium_crypto_aead_srcs}
-                            ${libsodium_crypto_auth_srcs}
-                            ${libsodium_crypto_box_srcs}
-                            ${libsodium_crypto_core_srcs}
-                            ${libsodium_crypto_generichash_srcs}
-                            ${libsodium_crypto_hash_srcs}
-                            ${libsodium_crypto_kdf_srcs}
-                            ${libsodium_crypto_kx_srcs}
-                            ${libsodium_crypto_onetimeauth_srcs}
-                            ${libsodium_crypto_pwhash_srcs}
-                            ${libsodium_crypto_scalarmult_srcs}
-                            ${libsodium_crypto_secretbox_srcs}
-                            ${libsodium_crypto_secretstream_srcs}
-                            ${libsodium_crypto_shorthash_srcs}
-                            ${libsodium_crypto_sign_srcs}
-                            ${libsodium_crypto_stream_srcs}
-                            ${libsodium_crypto_verify_srcs}
-                            ${libsodium_randombytes_srcs}
-                            INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
-                            INCLUDE_DIRS ${include_dirs}
-                            REQUIRES unity esp_timer)
+        project(sodium LANGUAGES CXX)
 
-        target_compile_options(${COMPONENT_LIB} PRIVATE "-Wno-unknown-pragmas"
-                                                        "-Wno-nonnull"
-                                                        "-Wno-unused-variable"
-                                                        "-Wno-unused-function"
-                                                        "-Wno-type-limits"
-                                                        "-Wno-deprecated-declarations")
+        add_library(${PROJECT_NAME} STATIC
+                    ${libsodium_sodium_srcs}
+                    ${libsodium_crypto_aead_srcs}
+                    ${libsodium_crypto_auth_srcs}
+                    ${libsodium_crypto_box_srcs}
+                    ${libsodium_crypto_core_srcs}
+                    ${libsodium_crypto_generichash_srcs}
+                    ${libsodium_crypto_hash_srcs}
+                    ${libsodium_crypto_kdf_srcs}
+                    ${libsodium_crypto_kx_srcs}
+                    ${libsodium_crypto_onetimeauth_srcs}
+                    ${libsodium_crypto_pwhash_srcs}
+                    ${libsodium_crypto_scalarmult_srcs}
+                    ${libsodium_crypto_secretbox_srcs}
+                    ${libsodium_crypto_secretstream_srcs}
+                    ${libsodium_crypto_shorthash_srcs}
+                    ${libsodium_crypto_sign_srcs}
+                    ${libsodium_crypto_stream_srcs}
+                    ${libsodium_crypto_verify_srcs}
+                    ${libsodium_randombytes_srcs})
+
+        target_compile_options(${PROJECT_NAME} PRIVATE "-Wno-unknown-pragmas"
+                                                       "-Wno-nonnull"
+                                                       "-Wno-unused-variable"
+                                                       "-Wno-unused-function"
+                                                       "-Wno-type-limits"
+                                                       "-Wno-deprecated-declarations")
+
+        target_include_directories(${PROJECT_NAME} PRIVATE ${include_dirs})
+        target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+        target_include_directories(${PROJECT_NAME} PRIVATE src/libsodium/include/)
     else()
         #ERROR
         message(SEND_ERROR "You must specify the CMAKE version!")
