@@ -36,7 +36,7 @@ else()
     #ESP32 CMake
     idf_component_register(SRCS ${src_list}
       INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
-      PRIV_REQUIRES aether libbcrypt libsodium)
+      PRIV_REQUIRES aether)
   else()
     #Other platforms
     message(FATAL_ERROR "Platform ${CM_PLATFORM} is not supported")

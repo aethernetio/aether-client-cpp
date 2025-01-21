@@ -44,10 +44,7 @@ list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/cloud"
                                  "../../../../examples/button"
                                  "../../../../examples/benches/send_message_delays"
-                                 "../../../../third_party/libbcrypt"
-                                 "../../../../third_party/libhydrogen"
-                                 "../../../../third_party/libsodium"
-                                 "../../../../third_party/gcem")
+)
 
 if(COMPILE_EXAMPLE)
   set(COMPONENTS ${COMPILE_EXAMPLE})
