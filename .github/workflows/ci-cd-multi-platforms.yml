@@ -232,7 +232,7 @@ jobs:
         with:
           esp_idf_version: ${{ matrix.idf_ver }}
           target: ${{ matrix.idf_target }}
-          path: "projects/github_ci_cd/cmake/esp32"
+          path: "projects/xtensa_lx6/vscode/aether-client-cpp"
           command: idf.py build 
             -DCOMPILE_EXAMPLE=${{ matrix.compile_example }}
             -DUSER_CONFIG=${{ matrix.platforms.user_config }}
@@ -242,9 +242,9 @@ jobs:
       - name: Rename artifact
         run: |
           ls -lah 
-          cp projects/github_ci_cd/cmake/esp32/build/bootloader/bootloader.bin bootloader-${{ matrix.idf_ver }}.bin
-          cp projects/github_ci_cd/cmake/esp32/build/partition_table/partition-table.bin partition-table-${{ matrix.idf_ver }}.bin
-          cp projects/github_ci_cd/cmake/esp32/build/Aether.bin Aether-${{ matrix.compile_example }}-${{ matrix.idf_ver }}.bin
+          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/bootloader/bootloader.bin bootloader-${{ matrix.idf_ver }}.bin
+          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/partition_table/partition-table.bin partition-table-${{ matrix.idf_ver }}.bin
+          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/Aether.bin Aether-${{ matrix.compile_example }}-${{ matrix.idf_ver }}.bin
 
       - name: Upload
         uses: actions/upload-artifact@v4
