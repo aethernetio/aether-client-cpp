@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-    
+
   #Allows you to start workflow manually from the actions tab in the interface github.com
   workflow_dispatch:
   
@@ -183,7 +183,7 @@ jobs:
       with:
         name: Aether_${{ matrix.config.name }}_${{ matrix.platforms.name }}
         path: "build/**/aether-client-cpp*"
-          
+
   #ESP32 Build
   build-esp-idf-component:
     name: Build with ESP-IDF ${{ matrix.idf_ver }} for ${{ matrix.idf_target }}
@@ -203,13 +203,13 @@ jobs:
             user_config: "../config/user_config_optimized.h",
             fs_init: "../../../../config/file_system_init.h",
             }
-        
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           submodules: 'recursive'
-      
+
       - name: Apply library paths
         # Apply library paths.
         shell: bash
@@ -238,7 +238,7 @@ jobs:
             -DUSER_CONFIG=${{ matrix.platforms.user_config }}
             -DFS_INIT="${{ matrix.platforms.fs_init }}"
             -DAE_DISTILLATION=Off
-          
+
       - name: Rename artifact
         run: |
           ls -lah 
