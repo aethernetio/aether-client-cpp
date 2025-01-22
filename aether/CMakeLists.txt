@@ -105,12 +105,7 @@ list(APPEND adapters_srcs
 list(APPEND transport_srcs
             "transport/actions/ip_channel_connection.cpp"
             "transport/actions/name_address_channel_connection.cpp"
-            "transport/server/server_channel_selector.cpp"
-            "transport/server/server_channel_transport.cpp"
-            "transport/server/server_send_packet_action.cpp"
-            "transport/server/server_send_queue_manager.cpp"
-            "transport/server/server_transport.cpp"
-            "transport/server/server_transport_factory.cpp"
+            "transport/server/server_channel_stream.cpp"
             "transport/low_level/tcp/socket_packet_send_action.cpp"
             "transport/low_level/tcp/lwip_tcp.cpp"
             "transport/low_level/tcp/unix_tcp.cpp"
