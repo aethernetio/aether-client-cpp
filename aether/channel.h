@@ -32,7 +32,7 @@ class Channel : public Obj {
  public:
   using TokenType = std::uint32_t;
 
-  Channel(Domain* domain);
+  explicit Channel(Domain* domain);
 
   template <typename Dnv>
   void Visit(Dnv& dnv) {
