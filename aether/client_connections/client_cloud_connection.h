@@ -25,6 +25,7 @@
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/stream_api/istream.h"
+#include "aether/stream_api/stream_api.h"
 #include "aether/stream_api/splitter_gate.h"
 
 #include "aether/client_connections/client_connection.h"
@@ -56,10 +57,10 @@ class ClientCloudConnection final : public ClientConnection {
 
   ActionContext action_context_;
   Ptr<ServerConnectionSelector> server_connection_selector_;
-  Ptr<AsyncForLoop> connection_selector_loop_;
+  Ptr<AsyncForLoop<Ptr<ClientServerConnection>>> connection_selector_loop_;
 
   // currently selected connection
-  Ptr<ClientServerConnection> client_server_connection_;
+  Ptr<ClientServerConnection> server_connection_;
 
   NewStreamEvent new_stream_event_;
   Subscription new_stream_event_subscription_;

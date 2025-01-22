@@ -32,25 +32,23 @@ ClientCloudConnection::ClientCloudConnection(
 
 void ClientCloudConnection::Connect() {
   connection_selector_loop_ = MakePtr<AsyncForLoop>(
-      MakeAsyncForLoop(*server_connection_selector_, [this]() {
-        client_server_connection_ =
-            server_connection_selector_->GetConnection();
-        return false;
-      }));
+      AsyncForLoop<Ptr<ClientServerConnection>>::Construct(
+          *server_connection_selector_,
+          [this]() { return server_connection_selector_->GetConnection(); }));
 
   SelectConnection();
 }
 
 Ptr<ByteStream> ClientCloudConnection::CreateStream(Uid destination_uid,
                                                     StreamId stream_id) {
-  assert(client_server_connection_);
+  assert(server_connection_);
 
   auto gate_it = gates_.find(destination_uid);
   if (gate_it != gates_.end()) {
     return MakePtr<OneGateStream>(gate_it->second->RegisterStream(stream_id));
   }
 
-  auto& stream = client_server_connection_->GetStream(destination_uid);
+  auto& stream = server_connection_->GetStream(destination_uid);
   gate_it =
       gates_.emplace_hint(gate_it, destination_uid, MakePtr<SplitterGate>());
   Tie(*gate_it->second, stream);
@@ -77,22 +75,23 @@ void ClientCloudConnection::CloseStream(Uid uid, StreamId stream_id) {
   it->second->CloseStream(stream_id);
   if (it->second->stream_count() == 0) {
     gates_.erase(it);
-    client_server_connection_->CloseStream(uid);
+    server_connection_->CloseStream(uid);
   }
 }
 
 void ClientCloudConnection::SelectConnection() {
-  if (!connection_selector_loop_->Update()) {
+  if (server_connection_ = connection_selector_loop_->Update();
+      !server_connection_) {
     AE_TELED_ERROR("Server channel list is ended");
     return;
   }
 
   connection_status_subscription_ =
-      client_server_connection_->server_stream()
+      server_connection_->server_stream()
           ->in()
           .gate_update_event()
           .Subscribe([this]() {
-            if (client_server_connection_->server_stream()
+            if (server_connection_->server_stream()
                     ->in()
                     .stream_info()
                     .is_linked) {
@@ -105,11 +104,11 @@ void ClientCloudConnection::SelectConnection() {
 
   // restore all known streams to a new server
   for (auto& [uid, gate] : gates_) {
-    Tie(*gate, client_server_connection_->GetStream(uid));
+    Tie(*gate, server_connection_->GetStream(uid));
   }
 
   new_stream_event_subscription_ =
-      client_server_connection_->new_stream_event().Subscribe(
+      server_connection_->new_stream_event().Subscribe(
           [this](auto uid, auto stream) { NewStream(uid, std::move(stream)); });
 }
 

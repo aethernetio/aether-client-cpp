@@ -35,9 +35,8 @@
 #  include "aether/stream_api/istream.h"
 #  include "aether/crypto/ikey_provider.h"
 
-#  include "aether/transport/itransport.h"
 #  include "aether/server_list/server_list.h"
-#  include "aether/server_list/server_transport_factory.h"
+#  include "aether/transport/server/server_channel_stream.h"
 
 #  include "aether/methods/server_reg_api/server_registration_api.h"
 #  include "aether/methods/client_reg_api/client_reg_api.h"
@@ -49,7 +48,7 @@ class Aether;
 
 class Registration : public Action<Registration> {
   enum class State : std::uint8_t {
-    kConnection,
+    kSelectConnection,
     kWaitingConnection,
     kConnected,
     kGetKeys,
@@ -66,19 +65,13 @@ class Registration : public Action<Registration> {
                Uid parent_uid, Client::ptr client);
   ~Registration() override;
 
-  TimePoint Update(TimePoint t) override;
+  TimePoint Update(TimePoint current_time) override;
 
   Client::ptr client() const;
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(aether_, client_, server_transport_factory_, server_transport_list_,
-        current_server_transport_, reg_server_stream_,
-        global_reg_server_stream_);
-  }
-
  private:
   void IterateConnection();
+  void IterateChannel();
 
   void Connected(TimePoint current_time);
 
@@ -107,11 +100,9 @@ class Registration : public Action<Registration> {
   Ptr<Client> client_;
   Uid parent_uid_;
 
-  Ptr<IServerTransportFactory> server_transport_factory_;
-  Ptr<ServerList> server_transport_list_;
-  ServerList::iterator server_transport_list_iterator_;
-  Ptr<ITransport> current_server_transport_;
-
+  Ptr<ServerList> server_list_;
+  Ptr<AsyncForLoop<Ptr<ServerChannelStream>>> connection_selection_;
+  Ptr<ServerChannelStream> server_channel_stream_;
   ProtocolContext protocol_context_;
   ClientApiRegSafe root_api_;
 
@@ -136,9 +127,7 @@ class Registration : public Action<Registration> {
   Ptr<ByteStream> global_reg_server_stream_;
 
   ActionView<StreamWriteAction> packet_write_action_;
-  Subscription connection_success_subscription_;
-  Subscription connection_error_subscription_;
-  Subscription receive_data_subscription_;
+  Subscription connection_subscription_;
   Subscription raw_transport_send_action_subscription_;
   Subscription reg_server_write_subscription_;
   MultiSubscription subscriptions_;
