@@ -16,15 +16,20 @@
 
 #include "send_message_delays/receiver.h"
 
+#include <cstdlib>
 #include <utility>
 
 #include "aether/client_messages/p2p_message_stream.h"
+#include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-Receiver::Receiver(ActionContext action_context, Client::ptr client)
-    : action_context_{action_context}, client_{std::move(client)} {}
+Receiver::Receiver(ActionContext action_context, Client::ptr client,
+                   SafeStreamConfig safe_stream_config)
+    : action_context_{action_context},
+      client_{std::move(client)},
+      safe_stream_config_{safe_stream_config} {}
 
 void Receiver::Connect() {
   AE_TELED_DEBUG("Receiver::Connect()");
@@ -34,9 +39,28 @@ void Receiver::Connect() {
   message_stream_subscription_ =
       connection_stream_->new_stream_event().Subscribe(
           [this](auto uid, auto stream_id, auto message_stream) {
-            receive_message_stream_ =
-                MakePtr<P2pStream>(action_context_, client_, uid, stream_id,
-                                   std::move(message_stream));
+            switch (stream_id) {
+              case 0:  // p2p stream
+              {
+                AE_TELED_DEBUG("Receiver::Connect with p2p stream");
+                receive_message_stream_ =
+                    MakePtr<P2pStream>(action_context_, client_, uid, stream_id,
+                                       std::move(message_stream));
+                break;
+              }
+              case 1:  // p2p safe stream
+              {
+                AE_TELED_DEBUG("Receiver::Connect with p2p safe stream");
+                receive_message_stream_ = MakePtr<P2pSafeStream>(
+                    action_context_, safe_stream_config_,
+                    MakePtr<P2pStream>(action_context_, client_, uid, stream_id,
+                                       std::move(message_stream)));
+                break;
+              }
+              default:  // unknown stream
+                std::abort();
+            }
+
             protocol_read_gate_ =
                 MakePtr<ProtocolReadGate>(protocol_context_, BenchDelaysApi{});
             Tie(*protocol_read_gate_, *receive_message_stream_);

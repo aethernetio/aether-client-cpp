@@ -34,10 +34,10 @@ constexpr auto config = SafeStreamConfig{
     20 * 1024,
     10 * 1024,
     100,
+    2,
     std::chrono::milliseconds{50},
     std::chrono::milliseconds{0},
     std::chrono::milliseconds{10},
-    2,
 };
 
 constexpr char _100_bytes_data[] =

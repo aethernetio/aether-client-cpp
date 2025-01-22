@@ -39,41 +39,47 @@ class Event;
  */
 template <typename... TArgs>
 class Event<void(TArgs...)> {
-  class EventEmitter : public std::enable_shared_from_this<EventEmitter> {
+  class EventEmitter {
    public:
-    void Emit(TArgs... args) {
-      // store self to prevent removing while emit
-      auto self_ptr = this->shared_from_this();
+    ~EventEmitter() {
+      for (auto& subscription : subscriptions_) {
+        subscription.Reset();
+      }
+    }
 
+    // store self to prevent removing while emit
+    void Emit(std::shared_ptr<EventEmitter> self_ptr, TArgs... args) {
       // TODO: find a better way to invoke all handlers
       /*
        * invoke_list is using to prevent iterator invalidation while new
-       * handlers added during invocation and recursive event emit clean up
-       * after invocation used for the same reason using second list lead to use
-       * std::shared_ptr<HandlerType> instead of storing plain HandlerType
+       * handlers added during invocation and recursive event emit.
+       * Clean up after invocation used for the same reason.
        */
 
       // add new subscriptions
       auto invoke_list = subscriptions_;
       for (auto& subscription : invoke_list) {
         // invoke subscription handler
-        subscription->invoke(std::forward<TArgs>(args)...);
+        subscription.invoke(std::forward<TArgs>(args)...);
       }
       // clean up dead subscriptions
       subscriptions_.erase(
           std::remove_if(std::begin(subscriptions_), std::end(subscriptions_),
                          [](auto const& subscription) {
-                           return !subscription->is_alive();
+                           return !subscription.is_alive();
                          }),
           std::end(subscriptions_));
+
+      // just to be used
+      self_ptr.reset();
     }
 
-    void Add(std::unique_ptr<EventHandlerSubscription>&& handler) {
+    void Add(EventHandlerSubscription&& handler) {
       subscriptions_.emplace_back(std::move(handler));
     }
 
    private:
-    std::vector<std::shared_ptr<EventHandlerSubscription>> subscriptions_;
+    std::vector<EventHandlerSubscription> subscriptions_;
   };
 
  public:
@@ -98,13 +104,15 @@ class Event<void(TArgs...)> {
    * Some handlers may call this recursively and either unsubscribe or make new
    * subscriptions.
    */
-  void Emit(TArgs... args) { emitter_->Emit(std::forward<TArgs>(args)...); }
+  void Emit(TArgs... args) {
+    emitter_->Emit(emitter_, std::forward<TArgs>(args)...);
+  }
 
   /**
    * \brief Add new subscription to this event
    * Users should use EventSubscriber.
    */
-  void Add(std::unique_ptr<EventHandlerSubscription>&& handler) {
+  void Add(EventHandlerSubscription&& handler) {
     emitter_->Add(std::move(handler));
   }
 
@@ -136,7 +144,7 @@ class EventSubscriber {
     std::shared_ptr<IEventHandler> event_handler =
         std::make_unique<EventHandler<TSignature>>(std::forward<TCallback>(cb));
 
-    event_->Add(std::make_unique<EventHandlerSubscription>(event_handler));
+    event_->Add(EventHandlerSubscription{event_handler});
     return Subscription(std::move(event_handler));
   }
 

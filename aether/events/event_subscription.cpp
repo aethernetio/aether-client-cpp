@@ -24,17 +24,19 @@ EventHandlerSubscription::EventHandlerSubscription(
     std::shared_ptr<IEventHandler> handler)
     : handler_(std::move(handler)) {}
 
-EventHandlerSubscription::~EventHandlerSubscription() {
-  if (auto handler = handler_.lock(); handler) {
-    handler->set_dead();
-  }
-}
+EventHandlerSubscription::~EventHandlerSubscription() = default;
 
 bool EventHandlerSubscription::is_alive() const {
   if (auto handler = handler_.lock(); handler) {
     return handler->is_alive();
   }
   return false;
+}
+
+void EventHandlerSubscription::Reset() {
+  if (auto handler = handler_.lock(); handler) {
+    handler->set_dead();
+  }
 }
 
 Subscription::Subscription() = default;

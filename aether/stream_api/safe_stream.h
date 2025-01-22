@@ -18,15 +18,15 @@
 #define AETHER_STREAM_API_SAFE_STREAM_H_
 
 #include "aether/common.h"
-#include "aether/obj/ptr.h"
 #include "aether/actions/action_view.h"
 #include "aether/actions/action_list.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
 
-#include "aether/stream_api/safe_stream/safe_stream_receiving.h"
-#include "aether/stream_api/safe_stream/safe_stream_sending.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
+#include "aether/stream_api/safe_stream/safe_stream_config.h"
+#include "aether/stream_api/safe_stream/safe_stream_sending.h"
+#include "aether/stream_api/safe_stream/safe_stream_receiving.h"
 
 #include "aether/stream_api/istream.h"
 

@@ -40,19 +40,30 @@ TimePoint SendMessageDelaysManager::TestAction::Update(TimePoint current_time) {
         WarmUp();
         break;
       case State::kTest2Bytes:
+      case State::kSsTest2Bytes:
         Test2Bytes();
         break;
       case State::kTest10Bytes:
+      case State::kSsTest10Bytes:
         Test10Bytes();
         break;
       case State::kTest100Bytes:
+      case State::kSsTest100Bytes:
         Test100Bytes();
         break;
       case State::kTest1000Bytes:
+      case State::kSsTest1000Bytes:
         Test1000Bytes();
         break;
       case State::kTest1500Bytes:
+      case State::kSsTest1500Bytes:
         Test1500Bytes();
+        break;
+      case State::kSwitchToSafeStream:
+        SwitchToSafeStream();
+        break;
+      case State::kSsWarmUp:
+        SafeStreamWarmUp();
         break;
       case State::kDone:
         Action::Result(*this);
@@ -77,10 +88,10 @@ SendMessageDelaysManager::TestAction::result_table() const {
 }
 
 void SendMessageDelaysManager::TestAction::WarmUp() {
-  AE_TELED_INFO("WarmUp");
+  AE_TELED_INFO("WarmUp p2p stream");
   res_event_ = MakePtr<BarrierEvent<TimeTable, 2>>();
 
-  sender_->Connect();
+  sender_->ConnectP2pStream();
   receiver_->Connect();
 
   auto sender_warm_up =
@@ -107,8 +118,50 @@ void SendMessageDelaysManager::TestAction::WarmUp() {
       }),
       // on success go to connection
       res_event_->Subscribe([this](auto const&) {
-        AE_TELED_INFO("WarmUp finished");
+        AE_TELED_INFO("WarmUp p2p stream finished");
         state_.Set(State::kTest2Bytes);
+      }));
+}
+
+void SendMessageDelaysManager::TestAction::SwitchToSafeStream() {
+  sender_->Disconnect();
+  receiver_->Disconnect();
+  state_ = State::kSsWarmUp;
+}
+
+void SendMessageDelaysManager::TestAction::SafeStreamWarmUp() {
+  AE_TELED_INFO("WarmUp p2p safe stream");
+  res_event_ = MakePtr<BarrierEvent<TimeTable, 2>>();
+
+  sender_->ConnectP2pSafeStream();
+  receiver_->Connect();
+
+  auto sender_warm_up =
+      sender_->WarmUp(config_.warm_up_message_count, config_.min_send_interval);
+  auto receiver_warm_up = receiver_->WarmUp(config_.warm_up_message_count);
+
+  test_subscriptions_.Push(  //
+      receiver_warm_up->OnReceived().Subscribe([sender_warm_up]() mutable {
+        if (sender_warm_up) {
+          sender_warm_up->Sync();
+        }
+      }),
+      sender_warm_up->SubscribeOnResult(
+          [this](auto const&) { res_event_->Emit<0>({}); }),
+      receiver_warm_up->SubscribeOnResult(
+          [this](auto const&) { res_event_->Emit<1>({}); }),
+      sender_warm_up->SubscribeOnError([this](auto const&) {
+        AE_TELED_ERROR("Warm up sender error");
+        state_ = State::kError;
+      }),
+      receiver_warm_up->SubscribeOnError([this](auto const&) {
+        AE_TELED_ERROR("Warm up receiver error");
+        state_ = State::kError;
+      }),
+      // on success go to connection
+      res_event_->Subscribe([this](auto const&) {
+        AE_TELED_INFO("WarmUp p2p safe stream finished");
+        state_.Set(State::kSsTest2Bytes);
       }));
 }
 
@@ -118,7 +171,9 @@ void SendMessageDelaysManager::TestAction::Test2Bytes() {
   auto sender_event = sender_->Send2Bytes(config_.test_message_count,
                                           config_.min_send_interval);
   auto receiver_event = receiver_->Receive2Bytes(config_.test_message_count);
-  SubscribeToTest(sender_event, receiver_event, State::kTest10Bytes);
+  SubscribeToTest(sender_event, receiver_event,
+                  state_.get() == State::kTest2Bytes ? State::kTest10Bytes
+                                                     : State::kSsTest10Bytes);
 }
 
 void SendMessageDelaysManager::TestAction::Test10Bytes() {
@@ -127,7 +182,9 @@ void SendMessageDelaysManager::TestAction::Test10Bytes() {
   auto sender_event = sender_->Send10Bytes(config_.test_message_count,
                                            config_.min_send_interval);
   auto receiver_event = receiver_->Receive10Bytes(config_.test_message_count);
-  SubscribeToTest(sender_event, receiver_event, State::kTest100Bytes);
+  SubscribeToTest(sender_event, receiver_event,
+                  state_.get() == State::kTest10Bytes ? State::kTest100Bytes
+                                                      : State::kSsTest100Bytes);
 }
 
 void SendMessageDelaysManager::TestAction::Test100Bytes() {
@@ -136,7 +193,10 @@ void SendMessageDelaysManager::TestAction::Test100Bytes() {
   auto sender_event = sender_->Send100Bytes(config_.test_message_count,
                                             config_.min_send_interval);
   auto receiver_event = receiver_->Receive100Bytes(config_.test_message_count);
-  SubscribeToTest(sender_event, receiver_event, State::kTest1000Bytes);
+  SubscribeToTest(sender_event, receiver_event,
+                  state_.get() == State::kTest100Bytes
+                      ? State::kTest1000Bytes
+                      : State::kSsTest1000Bytes);
 }
 
 void SendMessageDelaysManager::TestAction::Test1000Bytes() {
@@ -145,17 +205,22 @@ void SendMessageDelaysManager::TestAction::Test1000Bytes() {
   auto sender_event = sender_->Send1000Bytes(config_.test_message_count,
                                              config_.min_send_interval);
   auto receiver_event = receiver_->Receive1000Bytes(config_.test_message_count);
-  SubscribeToTest(sender_event, receiver_event, State::kTest1500Bytes);
+  SubscribeToTest(sender_event, receiver_event,
+                  state_.get() == State::kTest1000Bytes
+                      ? State::kTest1500Bytes
+                      : State::kSsTest1500Bytes);
 }
 
 void SendMessageDelaysManager::TestAction::Test1500Bytes() {
-  // TODO: test 1500 bytes is not supported yet
   AE_TELED_INFO("Test1500Bytes");
 
   auto sender_event = sender_->Send1500Bytes(config_.test_message_count,
                                              config_.min_send_interval);
   auto receiver_event = receiver_->Receive1500Bytes(config_.test_message_count);
-  SubscribeToTest(sender_event, receiver_event, State::kDone);
+  SubscribeToTest(sender_event, receiver_event,
+                  state_.get() == State::kTest1500Bytes
+                      ? State::kSwitchToSafeStream
+                      : State::kDone);
 }
 
 void SendMessageDelaysManager::TestAction::SubscribeToTest(

@@ -20,6 +20,8 @@
 #include <memory>
 #include <utility>
 
+#include "aether/common.h"
+
 #include "aether/events/event_handler.h"
 
 namespace ae {
@@ -31,10 +33,9 @@ class EventHandlerSubscription {
  public:
   explicit EventHandlerSubscription(std::shared_ptr<IEventHandler> handler);
 
-  EventHandlerSubscription(EventHandlerSubscription const&) = delete;
-  EventHandlerSubscription(EventHandlerSubscription&&) = delete;
-
   ~EventHandlerSubscription();
+
+  AE_CLASS_COPY_MOVE(EventHandlerSubscription)
 
   template <typename... TArgs>
   void invoke(TArgs&&... args) {
@@ -48,6 +49,9 @@ class EventHandlerSubscription {
   }
 
   bool is_alive() const;
+
+  // call before remove handler
+  void Reset();
 
  private:
   // IEventHandler used to reduce shared_ptr template instantiations

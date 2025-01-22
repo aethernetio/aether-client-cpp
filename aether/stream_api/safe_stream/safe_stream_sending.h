@@ -28,8 +28,9 @@
 
 #include "aether/stream_api/safe_stream/safe_stream_api.h"
 #include "aether/stream_api/safe_stream/send_data_buffer.h"
-#include "aether/stream_api/safe_stream/sending_chunk_list.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
+#include "aether/stream_api/safe_stream/safe_stream_config.h"
+#include "aether/stream_api/safe_stream/sending_chunk_list.h"
 #include "aether/stream_api/safe_stream/sending_data_action.h"
 
 namespace ae {

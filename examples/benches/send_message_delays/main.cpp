@@ -176,10 +176,21 @@ int test_send_message_delays(std::ostream& result_stream) {
 
   domain.SaveRoot(aether);
 
-  auto sender = MakePtr<Sender>(ActionContext{*aether->action_processor},
-                                client_sender, client_receiver->uid());
+  SafeStreamConfig safe_stream_config;
+  safe_stream_config.buffer_capacity =
+      std::numeric_limits<std::uint16_t>::max();
+  safe_stream_config.window_size = (safe_stream_config.buffer_capacity / 2) - 1;
+  safe_stream_config.max_data_size = safe_stream_config.window_size;
+  safe_stream_config.max_repeat_count = 5;
+  safe_stream_config.send_repeat_timeout = std::chrono::milliseconds{300};
+  safe_stream_config.send_confirm_timeout = std::chrono::milliseconds{0};
+  safe_stream_config.wait_confirm_timeout = std::chrono::milliseconds{200};
+
+  auto sender =
+      MakePtr<Sender>(ActionContext{*aether->action_processor}, client_sender,
+                      client_receiver->uid(), safe_stream_config);
   auto receiver = MakePtr<Receiver>(ActionContext{*aether->action_processor},
-                                    client_receiver);
+                                    client_receiver, safe_stream_config);
 
   auto send_message_delays_manager = MakePtr<SendMessageDelaysManager>(
       ActionContext{*aether->action_processor}, std::move(sender),
@@ -197,9 +208,16 @@ int test_send_message_delays(std::ostream& result_stream) {
   auto result_subscription =
       test_action->SubscribeOnResult([&](auto const& action) {
         auto res_name_table = std::array{
-            std::string_view{"2 Bytes"},    std::string_view{"10 Bytes"},
-            std::string_view{"100 Bytes"},  std::string_view{"1000 Bytes"},
-            std::string_view{"1500 Bytes"},
+            std::string_view{"p2p 2 Bytes"},
+            std::string_view{"p2p 10 Bytes"},
+            std::string_view{"p2p 100 Bytes"},
+            std::string_view{"p2p 1000 Bytes"},
+            std::string_view{"p2p 1500 Bytes"},
+            std::string_view{"p2pss 2 Bytes"},
+            std::string_view{"p2pss 10 Bytes"},
+            std::string_view{"p2pss 100 Bytes"},
+            std::string_view{"p2pss 1000 Bytes"},
+            std::string_view{"p2pss 1500 Bytes"},
         };
         auto const& results = action.result_table();
 

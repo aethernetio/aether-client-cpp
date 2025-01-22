@@ -48,10 +48,10 @@ constexpr auto config = SafeStreamConfig{
     20 * 1024,
     10 * 1024,
     100,
+    2,
     std::chrono::milliseconds{50},
     std::chrono::milliseconds{10},
     std::chrono::milliseconds{10},
-    2,
 };
 
 void test_SafeStreamSendingFewChunks() {
