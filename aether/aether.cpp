@@ -20,10 +20,11 @@
 
 #include "aether/actions/action_context.h"
 
+#include "aether/obj/obj_ptr.h"
 #include "aether/global_ids.h"
 #include "aether/client.h"
 #include "aether/crypto.h"
-#include "aether/obj/obj_ptr.h"
+#include "aether/server.h"
 
 #include "aether/registration_cloud.h"
 #include "aether/work_cloud.h"
@@ -130,6 +131,17 @@ tele::TeleStatistics::ptr const& Aether::tele_statistics() const {
 
 void Aether::AddServer(Server::ptr&& s) {
   servers_.insert({s->server_id, std::move(s)});
+}
+
+Server::ptr Aether::GetServer(ServerId server_id) {
+  auto it = servers_.find(server_id);
+  if (it == std::end(servers_)) {
+    return {};
+  }
+  if (!it->second) {
+    domain_->LoadRoot(it->second);
+  }
+  return it->second;
 }
 
 void Aether::Update(TimePoint current_time) {
