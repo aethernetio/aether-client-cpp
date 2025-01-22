@@ -20,11 +20,12 @@
 #include "aether/server_list/list_policy.h"
 
 namespace ae {
-class NoFilterServerListPolicy : public ServeListPolicy {
+class NoFilterServerListPolicy : public ServerListPolicy {
  public:
-  bool Preferred(Server const& left, Server const& right) const override;
+  bool Preferred(ServerListItem const& left,
+                 ServerListItem const& right) const override;
 
-  bool Filter(Server const& /* info */) const override;
+  bool Filter(ServerListItem const& /* info */) const override;
 };
 }  // namespace ae
 

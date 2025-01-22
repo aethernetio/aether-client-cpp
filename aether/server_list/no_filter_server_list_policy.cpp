@@ -19,13 +19,27 @@
 #include "aether/server.h"
 
 namespace ae {
-bool NoFilterServerListPolicy::Preferred(Server const& left,
-                                         Server const& right) const {
+bool NoFilterServerListPolicy::Preferred(ServerListItem const& left,
+                                         ServerListItem const& right) const {
   // simple ordering comparison
-  return left.server_id < right.server_id;
+  if (left.server() == right.server()) {
+    for (auto const& i : left.server()->channels) {
+      if (i.get() == left.channel().get()) {
+        // left first
+        return true;
+      }
+      if (i.get() == right.channel().get()) {
+        // right first
+        break;
+      }
+    }
+    return false;
+  }
+
+  return left.server()->server_id < right.server()->server_id;
 }
 
-bool NoFilterServerListPolicy::Filter(Server const& /* info */) const {
+bool NoFilterServerListPolicy::Filter(ServerListItem const& /* info */) const {
   return false;
 }
 
