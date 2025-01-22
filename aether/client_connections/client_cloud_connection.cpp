@@ -23,56 +23,22 @@
 namespace ae {
 ClientCloudConnection::ClientCloudConnection(
     ActionContext action_context,
-    Ptr<ClientServerConnectionSelector> client_server_connection_selector)
+    Ptr<ServerConnectionSelector> client_server_connection_selector)
     : action_context_{action_context},
-      client_server_connection_selector_{
+      server_connection_selector_{
           std::move(client_server_connection_selector)} {
   Connect();
 }
 
 void ClientCloudConnection::Connect() {
-  for (auto i = 0; i < 2; i++) {
-    client_server_connection_ =
-        client_server_connection_selector_->NextServer();
-    if (client_server_connection_) {
-      break;
-    }
-  }
-  if (!client_server_connection_) {
-    AE_TELED_ERROR("Got null server connection, try again");
-    OnConnectionError();
-    return;
-  }
+  connection_selector_loop_ = MakePtr<AsyncForLoop>(
+      MakeAsyncForLoop(*server_connection_selector_, [this]() {
+        client_server_connection_ =
+            server_connection_selector_->GetConnection();
+        return false;
+      }));
 
-  auto connection_state = client_server_connection_->connection_state();
-  switch (connection_state) {
-    case ConnectionState::kConnecting: {
-      connection_success_subscription_ =
-          client_server_connection_->connected_event().Subscribe(
-              []() { AE_TELED_INFO("Client cloud connection is connected"); });
-      break;
-    }
-    case ConnectionState::kDisconnected: {
-      AE_TELED_ERROR("Got disconnected connection stream");
-      OnConnectionError();
-      break;
-    }
-    default:
-      break;
-  }
-
-  connection_error_subscription_ =
-      client_server_connection_->connection_error_event().Subscribe(
-          [this]() { OnConnectionError(); });
-
-  // restore all known streams to a new server
-  for (auto& [uid, gate] : gates_) {
-    Tie(*gate, client_server_connection_->GetStream(uid));
-  }
-
-  new_stream_event_subscription_ =
-      client_server_connection_->new_stream_event().Subscribe(
-          [this](auto uid, auto stream) { NewStream(uid, std::move(stream)); });
+  SelectConnection();
 }
 
 Ptr<ByteStream> ClientCloudConnection::CreateStream(Uid destination_uid,
@@ -113,6 +79,38 @@ void ClientCloudConnection::CloseStream(Uid uid, StreamId stream_id) {
     gates_.erase(it);
     client_server_connection_->CloseStream(uid);
   }
+}
+
+void ClientCloudConnection::SelectConnection() {
+  if (!connection_selector_loop_->Update()) {
+    AE_TELED_ERROR("Server channel list is ended");
+    return;
+  }
+
+  connection_status_subscription_ =
+      client_server_connection_->server_stream()
+          ->in()
+          .gate_update_event()
+          .Subscribe([this]() {
+            if (client_server_connection_->server_stream()
+                    ->in()
+                    .stream_info()
+                    .is_linked) {
+              AE_TELED_INFO("Client cloud connection is connected");
+            } else {
+              OnConnectionError();
+            }
+          })
+          .Once();
+
+  // restore all known streams to a new server
+  for (auto& [uid, gate] : gates_) {
+    Tie(*gate, client_server_connection_->GetStream(uid));
+  }
+
+  new_stream_event_subscription_ =
+      client_server_connection_->new_stream_event().Subscribe(
+          [this](auto uid, auto stream) { NewStream(uid, std::move(stream)); });
 }
 
 void ClientCloudConnection::OnConnectionError() {

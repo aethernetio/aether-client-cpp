@@ -17,57 +17,69 @@
 #include "aether/client_connections/client_connection_manager.h"
 
 #include <utility>
+#include <cassert>
 
 #include "aether/aether.h"
 #include "aether/client.h"
 
-#include "aether/server_list/server_list.h"
-#include "aether/server_list/no_filter_server_list_policy.h"
-
-#include "aether/transport/server/server_transport_factory.h"
+#include "aether/transport/server/server_channel_stream.h"
 #include "aether/client_connections/client_cloud_connection.h"
-#include "aether/client_connections/iclient_server_connection_factory.h"
+#include "aether/client_connections/client_to_server_stream.h"
+#include "aether/client_connections/iserver_connection_factory.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae {
 
-class CachedClientServerConnectionFactory
-    : public IClientServerConnectionFactory {
+class CachedServerConnectionFactory : public IServerConnectionFactory {
  public:
-  CachedClientServerConnectionFactory(
+  CachedServerConnectionFactory(
       Ptr<ClientConnectionManager> const& client_connection_manager,
-      ActionContext action_context, Ptr<Client> client,
-      Ptr<IServerTransportFactory> server_transport_factory)
+      Ptr<Aether> const& aether, Ptr<Adapter> const& adapter,
+      Ptr<Client> const& client)
       : client_connection_manager_{client_connection_manager},
-        action_context_{action_context},
-        client_{std::move(client)},
-        server_transport_factory_{std::move(server_transport_factory)} {}
+        aether_{aether},
+        adapter_{adapter},
+        client_{client} {}
 
   Ptr<ClientServerConnection> CreateConnection(
-      Ptr<Server> const& server) override {
+      Server::ptr const& server, Channel::ptr const& channel) override {
     auto ccm = client_connection_manager_.Lock();
     assert(ccm);
-    auto cached_connection =
-        ccm->FindCacheClientServerConnection(server->server_id);
+    auto cached_connection = ccm->client_server_connection_pull_.Find(
+        server->server_id, channel.GetId());
     if (cached_connection) {
       return cached_connection;
     }
 
+    auto aether = aether_.Lock();
+    auto adapter = adapter_.Lock();
+    auto client = client_.Lock();
+    if (!aether || !adapter || !client) {
+      AE_TELED_ERROR(
+          "Unable to create connection, aether or adapter or client is null");
+      assert(false);
+      return {};
+    }
+
+    auto server_channel_stream =
+        MakePtr<ServerChannelStream>(aether, adapter, server, channel);
+
     auto connection =
         MakePtr<ClientServerConnection>(MakePtr<ClientToServerStream>(
-            action_context_, client_, server->server_id,
-            server_transport_factory_->CreateTransport(server)));
+            ActionContext{*aether->action_processor}, client, server->server_id,
+            std::move(server_channel_stream)));
 
-    ccm->CacheClientServerConnection(server->server_id, connection);
+    ccm->client_server_connection_pull_.Add(server->server_id, channel.GetId(),
+                                            connection);
     return connection;
   }
 
  private:
   PtrView<ClientConnectionManager> client_connection_manager_;
-  ActionContext action_context_;
-  Ptr<Client> client_;
-  Ptr<IServerTransportFactory> server_transport_factory_;
+  PtrView<Aether> aether_;
+  PtrView<Adapter> adapter_;
+  PtrView<Client> client_;
 };
 
 ClientConnectionManager::ClientConnectionManager(ObjPtr<Aether> aether,
@@ -110,7 +122,8 @@ ClientConnectionManager::GetClientConnection(Uid client_uid) {
       GetCloudServerConnectionSelector(client_ptr->uid());
 
   auto action = get_client_cloud_connections_->Emplace(
-      self_ptr, client_uid, std::move(client_server_connection_selector));
+      self_ptr, client_ptr, client_uid,
+      std::move(client_server_connection_selector));
 
   return action;
 }
@@ -125,9 +138,9 @@ void ClientConnectionManager::RegisterCloud(
 
   for (auto const& descriptor : server_descriptors) {
     auto server_id = descriptor.server_id;
-    auto s_cache_it = client_servers_.find(server_id);
-    if (s_cache_it != std::end(client_servers_)) {
-      new_cloud->AddServer(s_cache_it->second.server);
+    auto cached_server = aether->GetServer(server_id);
+    if (cached_server) {
+      new_cloud->AddServer(cached_server);
       continue;
     }
 
@@ -141,39 +154,30 @@ void ClientConnectionManager::RegisterCloud(
         server->AddChannel(std::move(channel));
       }
     }
-    client_servers_[server_id].server = server;
     new_cloud->AddServer(server);
     aether->AddServer(std::move(server));
   }
 
-  // TODO: add adapter logic
-  auto& client_cloud = client_clouds_[client_ptr->uid()];
-  new_cloud->set_adapter(client_cloud.cloud->adapter());
+  auto* client_cloud = cloud_cache_.GetCache(client_ptr->uid());
+  assert(client_cloud != nullptr);
+  new_cloud->set_adapter(client_cloud->cloud->adapter());
 
-  client_clouds_[uid].cloud = std::move(new_cloud);
+  cloud_cache_.AddCloud(uid, std::move(new_cloud));
 }
 
 void ClientConnectionManager::RegisterCloud(Uid uid, Cloud::ptr cloud) {
-  for (auto const& s : cloud->servers()) {
-    auto& s_cache = client_servers_[s->server_id];
-    if (s_cache.server) {
-      continue;
-    }
-    s_cache.server = s;
-  }
-
-  client_clouds_[uid].cloud = std::move(cloud);
+  cloud_cache_.AddCloud(uid, std::move(cloud));
 }
 
-Ptr<ClientServerConnectionSelector>
+Ptr<ServerConnectionSelector>
 ClientConnectionManager::GetCloudServerConnectionSelector(Uid uid) {
-  auto cloud_cache = client_clouds_.find(uid);
-  if (cloud_cache == client_clouds_.end()) {
+  auto* cache = cloud_cache_.GetCache(uid);
+  if (cache == nullptr) {
     return {};
   }
 
-  if (cloud_cache->second.client_stream_selector) {
-    return cloud_cache->second.client_stream_selector;
+  if (cache->client_stream_selector) {
+    return cache->client_stream_selector;
   }
 
   auto aether = Ptr<Aether>{aether_};
@@ -181,50 +185,16 @@ ClientConnectionManager::GetCloudServerConnectionSelector(Uid uid) {
   auto self_ptr = SelfObjPtr(this);
   assert(self_ptr);
 
-  if (!cloud_cache->second.cloud) {
-    domain_->LoadRoot(cloud_cache->second.cloud);
+  if (!cache->cloud) {
+    domain_->LoadRoot(cache->cloud);
   }
 
-  auto server_list = MakePtr<ServerList>(MakePtr<NoFilterServerListPolicy>(),
-                                         cloud_cache->second.cloud);
+  auto client_to_server_stream_factory = MakePtr<CachedServerConnectionFactory>(
+      self_ptr, aether, cache->cloud->adapter(), client_ptr);
 
-  // TODO: add select adapter logic
-  auto server_transport_factory = MakePtr<ServerTransportFactory>(
-      Ptr<Aether>{aether_}, cloud_cache->second.cloud->adapter());
+  cache->client_stream_selector = MakePtr<ServerConnectionSelector>(
+      cache->cloud, std::move(client_to_server_stream_factory));
 
-  auto client_to_server_stream_factory =
-      MakePtr<CachedClientServerConnectionFactory>(
-          self_ptr, ActionContext{*aether->action_processor}, client_ptr,
-          std::move(server_transport_factory));
-
-  cloud_cache->second.client_stream_selector =
-      MakePtr<ClientServerConnectionSelector>(
-          std::move(server_list), std::move(client_to_server_stream_factory));
-
-  return cloud_cache->second.client_stream_selector;
-}
-
-void ClientConnectionManager::CacheClientServerConnection(
-    ServerId server_id, Ptr<ClientServerConnection> const& connection) {
-  auto it = client_servers_.find(server_id);
-
-  if (it != std::end(client_servers_)) {
-    it->second.client_server_connection = connection;
-  } else {
-    AE_TELED_DEBUG("CacheClientServerStream: server_id {} not found",
-                   server_id);
-    assert(false);
-  }
-}
-
-Ptr<ClientServerConnection>
-ClientConnectionManager::FindCacheClientServerConnection(ServerId server_id) {
-  auto it = client_servers_.find(server_id);
-  if (it != std::end(client_servers_)) {
-    if (auto s = it->second.client_server_connection.Lock()) {
-      return s;
-    }
-  }
-  return {};
+  return cache->client_stream_selector;
 }
 }  // namespace ae

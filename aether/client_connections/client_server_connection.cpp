@@ -33,16 +33,6 @@ Ptr<ClientToServerStream> const& ClientServerConnection::server_stream() const {
   return server_stream_;
 }
 
-EventSubscriber<void()> ClientServerConnection::connected_event() {
-  return server_stream_->connected_event();
-}
-EventSubscriber<void()> ClientServerConnection::connection_error_event() {
-  return server_stream_->connection_error_event();
-}
-ConnectionState ClientServerConnection::connection_state() const {
-  return server_stream_->connection_state();
-}
-
 ByteStream& ClientServerConnection::GetStream(Uid destination_uid) {
   return message_stream_dispatcher_->GetMessageStream(destination_uid);
 }

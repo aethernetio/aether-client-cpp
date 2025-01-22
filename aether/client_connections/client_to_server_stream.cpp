@@ -28,7 +28,6 @@
 #include "aether/stream_api/tied_stream.h"
 #include "aether/stream_api/crypto_stream.h"
 #include "aether/stream_api/protocol_stream.h"
-#include "aether/stream_api/transport_write_gate.h"
 
 #include "aether/methods/work_server_api/login_api.h"
 #include "aether/methods/client_api/client_safe_api.h"
@@ -89,61 +88,15 @@ class ClientDecryptKeyProvider : public ClientKeyProvider {
 ClientToServerStream::ClientToServerStream(ActionContext action_context,
                                            Ptr<Client> client,
                                            ServerId server_id,
-                                           Ptr<ITransport> server_transport)
+                                           Ptr<ByteStream> server_stream)
     : action_context_{action_context},
       client_{std::move(client)},
-      server_id_{server_id},
-      server_transport_{std::move(server_transport)} {
+      server_id_{server_id} {
   AE_TELED_DEBUG("Create ClientToServerStreamGate");
-  connection_success_subscription_ =
-      server_transport_->ConnectionSuccess().Subscribe(
-          [this]() { OnConnected(); });
-  connection_failed_subscription_ =
-      server_transport_->ConnectionError().Subscribe(
-          [this]() { OnDisconnected(); });
-
-  server_transport_->Connect();
-  InitStreams();
-}
-
-ClientToServerStream::~ClientToServerStream() {
-  AE_TELED_DEBUG("Destroy ClientToServerStreamGate");
-}
-
-ClientToServerStream::InGate& ClientToServerStream::in() {
-  assert(server_stream_);
-  return server_stream_->in();
-}
-
-void ClientToServerStream::LinkOut(OutGate& /* out */) { assert(false); }
-
-EventSubscriber<void()> ClientToServerStream::connected_event() {
-  return connected_event_;
-}
-EventSubscriber<void()> ClientToServerStream::connection_error_event() {
-  return connection_error_event_;
-}
-
-ConnectionState ClientToServerStream::connection_state() const {
-  return server_transport_->GetConnectionInfo().connection_state;
-}
-
-void ClientToServerStream::OnConnected() {
-  AE_TELED_INFO("Connected to server");
-  connected_event_.Emit();
-}
-
-void ClientToServerStream::OnDisconnected() {
-  AE_TELED_INFO("Server connection lost");
-  connection_error_event_.Emit();
-}
-
-void ClientToServerStream::InitStreams() {
-  AE_TELED_INFO("Make server stream");
 
   auto stream_id = StreamIdGenerator::GetNextClientStreamId();
 
-  server_stream_.emplace(
+  client_auth_stream_.emplace(
       DebugGate{
           Format(
               "ClientToServerStreamGate server id {} client_uid {} \nwrite {}",
@@ -162,11 +115,34 @@ void ClientToServerStream::InitStreams() {
       ProtocolWriteGate{protocol_context_, LoginApi{},
                         LoginApi::LoginByUid{{}, stream_id, client_->uid()}},
       ProtocolReadGate{protocol_context_, ClientSafeApi{}},
-      TransportWriteGate{action_context_, server_transport_});
+      std::move(server_stream));
 
+  InitStreams();
+}
+
+ClientToServerStream::~ClientToServerStream() = default;
+
+ClientToServerStream::InGate& ClientToServerStream::in() {
+  assert(client_auth_stream_);
+  return client_auth_stream_->in();
+}
+
+void ClientToServerStream::LinkOut(OutGate& /* out */) { assert(false); }
+
+void ClientToServerStream::OnConnected() {
+  AE_TELED_INFO("Connected to server");
+  connected_event_.Emit();
+}
+
+void ClientToServerStream::OnDisconnected() {
+  AE_TELED_INFO("Server connection lost");
+  connection_error_event_.Emit();
+}
+
+void ClientToServerStream::InitStreams() {
   // write something to init the stream
   AE_TELED_DEBUG("Send authorization ping");
-  server_stream_->in().Write(
+  client_auth_stream_->in().Write(
       PacketBuilder{protocol_context_,
                     PackMessage{AuthorizedApi{}, AuthorizedApi::Ping{}}},
       TimePoint::clock::now());

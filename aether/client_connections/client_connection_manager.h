@@ -17,7 +17,6 @@
 #ifndef AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTION_MANAGER_H_
 #define AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTION_MANAGER_H_
 
-#include <map>
 #include <vector>
 
 #include "aether/obj/obj.h"
@@ -29,7 +28,9 @@
 
 #include "aether/ae_actions/get_client_cloud_connection.h"
 #include "aether/client_connections/client_connection.h"
-#include "aether/client_connections/client_server_connection_selector.h"
+#include "aether/client_connections/server_connection_selector.h"
+#include "aether/client_connections/cloud_cache.h"
+#include "aether/client_connections/client_server_connection_pull.h"
 
 namespace ae {
 class Aether;
@@ -38,31 +39,13 @@ class Client;
 class ClientConnectionManager : public Obj {
   AE_OBJECT(ClientConnectionManager, Obj, 0)
 
-  friend class CachedClientServerConnectionFactory;
-
-  struct CloudCache {
-    template <typename T>
-    void Serializator(T& s) {
-      s & cloud;
-    }
-
-    Cloud::ptr cloud;
-    Ptr<ClientServerConnectionSelector> client_stream_selector;
-  };
-
-  struct ServerCache {
-    template <typename T>
-    void Serializator(T& s) {
-      s & server;
-    }
-
-    Server::ptr server;
-    PtrView<ClientServerConnection> client_server_connection;
-  };
+  friend class CachedServerConnectionFactory;
 
  public:
   explicit ClientConnectionManager(ObjPtr<Aether> aether, ObjPtr<Client> client,
                                    Domain* domain);
+
+  AE_CLASS_NO_COPY_MOVE(ClientConnectionManager)
 
   Ptr<ClientConnection> GetClientConnection();
   ActionView<GetClientCloudConnection> GetClientConnection(Uid client_uid);
@@ -70,26 +53,22 @@ class ClientConnectionManager : public Obj {
   void RegisterCloud(Uid uid,
                      std::vector<ServerDescriptor> const& server_descriptors);
 
-  Ptr<ClientServerConnectionSelector> GetCloudServerConnectionSelector(Uid uid);
+  Ptr<ServerConnectionSelector> GetCloudServerConnectionSelector(Uid uid);
 
   template <typename Dnv>
   void Visit(Dnv& dnv) {
     dnv(*base_ptr_);
-    dnv(aether_, client_, client_clouds_, client_servers_);
+    dnv(aether_, client_, cloud_cache_);
   }
 
  private:
   void RegisterCloud(Uid uid, Cloud::ptr cloud);
-  void CacheClientServerConnection(
-      ServerId server_id, Ptr<ClientServerConnection> const& connection);
-  Ptr<ClientServerConnection> FindCacheClientServerConnection(
-      ServerId server_id);
 
   Obj::ptr aether_;
   Obj::ptr client_;
 
-  std::map<Uid, CloudCache> client_clouds_;
-  std::map<ServerId, ServerCache> client_servers_;
+  CloudCache cloud_cache_;
+  ClientServerConnectionPull client_server_connection_pull_;
 
   Ptr<ActionList<GetClientCloudConnection>> get_client_cloud_connections_;
 };

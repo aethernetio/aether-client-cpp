@@ -20,8 +20,8 @@
 #include <map>
 
 #include "aether/uid.h"
+#include "aether/async_for_loop.h"
 #include "aether/actions/action.h"
-#include "aether/actions/action_view.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/stream_api/istream.h"
@@ -29,10 +29,10 @@
 
 #include "aether/client_connections/client_connection.h"
 #include "aether/client_connections/client_server_connection.h"
-#include "aether/client_connections/client_server_connection_selector.h"
+#include "aether/client_connections/server_connection_selector.h"
 
 namespace ae {
-class ClientCloudConnection : public ClientConnection {
+class ClientCloudConnection final : public ClientConnection {
   class ReconnectNotify : public NotifyAction<ReconnectNotify> {
     using NotifyAction<ReconnectNotify>::NotifyAction;
   };
@@ -40,7 +40,7 @@ class ClientCloudConnection : public ClientConnection {
  public:
   explicit ClientCloudConnection(
       ActionContext action_context,
-      Ptr<ClientServerConnectionSelector> client_server_connection_selector);
+      Ptr<ServerConnectionSelector> client_server_connection_selector);
 
   void Connect() override;
   Ptr<ByteStream> CreateStream(Uid destination_uid,
@@ -49,12 +49,15 @@ class ClientCloudConnection : public ClientConnection {
   void CloseStream(Uid uid, StreamId stream_id) override;
 
  private:
-  void OnConnected();
+  void SelectConnection();
+
   void OnConnectionError();
   void NewStream(Uid uid, Ptr<ByteStream> stream);
 
   ActionContext action_context_;
-  Ptr<ClientServerConnectionSelector> client_server_connection_selector_;
+  Ptr<ServerConnectionSelector> server_connection_selector_;
+  Ptr<AsyncForLoop> connection_selector_loop_;
+
   // currently selected connection
   Ptr<ClientServerConnection> client_server_connection_;
 
@@ -62,8 +65,7 @@ class ClientCloudConnection : public ClientConnection {
   Subscription new_stream_event_subscription_;
   MultiSubscription new_split_stream_subscription_;
 
-  Subscription connection_success_subscription_;
-  Subscription connection_error_subscription_;
+  Subscription connection_status_subscription_;
 
   // known streams to clients
   std::map<Uid, Ptr<SplitterGate>> gates_;

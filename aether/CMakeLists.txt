@@ -170,10 +170,12 @@ list(APPEND methods_srcs
 
 
 list(APPEND client_connections_srcs
+            "client_connections/cloud_cache.cpp"
+            "client_connections/client_server_connection_pull.cpp"
             "client_connections/client_cloud_connection.cpp"
             "client_connections/client_connection_manager.cpp"
             "client_connections/client_server_connection.cpp"
-            "client_connections/client_server_connection_selector.cpp"
+            "client_connections/server_connection_selector.cpp"
             "client_connections/client_to_server_stream.cpp")
 
 list(APPEND client_messages_srcs
