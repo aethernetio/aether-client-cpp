@@ -19,18 +19,17 @@
 #include "aether/config.h"
 
 extern "C" void app_main();
-extern void AetherRegistrator(const std::string &ini_file);
+extern int AetherRegistrator(const std::string &ini_file);
 
 // Test function.
-void test(const std::string &ini_file) { AetherRegistrator(ini_file); }
+int test(const std::string &ini_file) { return AetherRegistrator(ini_file); }
 
 #if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
      defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
 int main(int argc, char *argv[]) {
   const std::string ini_file{
-      "G:/projects/prj_aether/GitHub/aether-client-cpp-"
-      "new/config/config.ini"};
+      "G:/projects/prj_aether/GitHub/aether-client-cpp/config/config.ini"};
 
-  test(ini_file);
+  return test(ini_file);
 }
 #endif

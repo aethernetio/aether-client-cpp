@@ -15,6 +15,8 @@
  */
 
 #include <string>
+#include <tuple>
+#include <vector>
 
 #include "third_party/ini.h/ini.h"
 
@@ -24,19 +26,23 @@
 #include "aether/global_ids.h"
 #include "aether/port/tele_init.h"
 #include "aether/tele/tele.h"
+#include "aether/literal_array.h"
 
+#include "aether/port/file_systems/file_system_header.h"
+#include "aether/adapters/register_wifi.h"
+
+constexpr std::uint8_t clients_max = 16;
 
 namespace ae {
 #if defined AE_DISTILLATION
-static Aether::ptr CreateAetherInstrument(Domain& domain) {
+static Aether::ptr CreateAetherInstrument(Domain& domain, std::string wifi_ssid, std::string wifi_pass) {
   Aether::ptr aether = domain.CreateObj<ae::Aether>(GlobalId::kAether);
 
 
   RegisterWifiAdapter::ptr adapter = domain.CreateObj<RegisterWifiAdapter>(
       GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-      std::string(WIFI_SSID), std::string(WIFI_PASS));
+      std::string(wifi_ssid), std::string(wifi_pass));
   adapter.SetFlags(ae::ObjFlags::kUnloadedByDefault);
-  adapter->Connect();
 
   aether->adapter_factories.emplace_back(std::move(adapter));
 
@@ -67,9 +73,9 @@ static Aether::ptr LoadAether(Domain& domain) {
 
 }  // namespace ae
 
-void AetherRegistrator(const std::string &ini_file);
+int AetherRegistrator(const std::string &ini_file);
 
-void AetherRegistrator(const std::string &ini_file) {
+int AetherRegistrator(const std::string &ini_file) {
   ae::TeleInit::Init();
 
   {
@@ -78,6 +84,7 @@ void AetherRegistrator(const std::string &ini_file) {
     ae::Registry::Log();
   }
 
+  // Reading settings from the ini file.
   ini::File file = ini::open(ini_file);
 
   std::string wifi_ssid = file["Aether"]["wifiSsid"];
@@ -92,26 +99,88 @@ void AetherRegistrator(const std::string &ini_file) {
   AE_TELED_DEBUG("Sodium key={}", sodium_key);
   AE_TELED_DEBUG("Hydrogen key={}", hydrogen_key);
 
-    auto fs =
-      ae::FileSystemHeaderFacility{};
+  std::int8_t parents_num = file["Aether"].get<int>("parentsNum");
+
+  std::string uid;
+  std::uint8_t clients_num, clients_total{0};
+  std::tuple<std::string, std::uint8_t> parent;
+  std::vector<std::tuple<std::string, std::int8_t>> parents;
+
+  for (std::uint8_t i{0}; i < parents_num; i++) {
+    uid = file["ParentID" + std::to_string(i+1)]["uid"];
+    clients_num =
+        file["ParentID" + std::to_string(i+1)].get<int>("clientsNum");
+    parent = make_tuple(uid, clients_num);
+    parents.push_back(parent);
+    clients_total += clients_num;
+  }
+
+  // Clients max assertion
+  if (clients_total > clients_max) {
+    std::cerr << "Total clients must be < " << clients_max << " clients\n";
+    return 1;
+  }
+
+  auto fs = ae::FileSystemHeaderFacility{};
 
 #ifdef AE_DISTILLATION
   // create objects in instrument mode
   {
     ae::Domain domain{ae::ClockType::now(), fs};
     fs.remove_all();
-    ae::Aether::ptr aether = ae::CreateAetherInstrument(domain);
+    ae::Aether::ptr aether = ae::CreateAetherInstrument(domain, wifi_ssid, wifi_pass);
 #  if AE_SIGNATURE == AE_ED25519
-    aether->crypto->signs_pk_[ae::SignatureMethod::kEd25519] =
-        ae::SodiumSignPublicKey{
-            ae::MakeLiteralArray(sodium_key)};
-
+    auto sspk_str = sodium_key;
+    auto sspk_arr = ae::MakeArray(sspk_str);
+    auto sspk = ae::SodiumSignPublicKey{};
+    if (sspk_arr.size() != sspk.key.size()) {
+      std::cerr << "SodiumSignPublicKey size must be " << sspk.key.size()
+                << " bytes\n";
+      return 2;
+    }
+    
+    std::copy(std::begin(sspk_arr), std::end(sspk_arr), std::begin(sspk.key));    
+    aether->crypto->signs_pk_[ae::SignatureMethod::kEd25519] = sspk;
 #  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-    aether->crypto->signs_pk_[ae::SignatureMethod::kHydroSignature] =
-        ae::HydrogenSignPublicKey{
-            ae::MakeLiteralArray(hydrogen_key)};
+    auto hspk_str = hydrogen_key;
+    auto hspk_arr = ae::MakeArray(hspk_str);
+    auto hspk = ae::HydrogenSignPublicKey{};
+    if (hspk_arr.size() != hspk.key.size()) {
+      std::cerr << "HydrogenSignPublicKey size must be " << hspk.key.size()
+                << " bytes\n";
+      return 2;
+    }
+
+    std::copy(std::begin(hspk_arr), std::end(hspk_arr), std::begin(hspk.key));
+    aether->crypto->signs_pk_[ae::SignatureMethod::kHydroSignature] = hspk;
 #  endif  // AE_SIGNATURE == AE_ED25519
     domain.SaveRoot(aether);
   }
 #endif  // AE_DISTILLATION
+
+  ae::Domain domain{ae::ClockType::now(), fs};
+  ae::Aether::ptr aether = ae::LoadAether(domain);
+  ae::TeleInit::Init(aether);
+
+  ae::Adapter::ptr adapter{domain.LoadCopy(aether->adapter_factories.front())};
+
+  ae::Client::ptr client;
+
+  for (auto p : parents) {
+    std::string uid = std::get<0>(p);
+    std::uint8_t clients_num = std::get<1>(p);
+    for (std::uint8_t i{0}; i < clients_num; i++) {
+#if AE_SUPPORT_REGISTRATION
+      // Creating the actual adapter.
+      auto& cloud = aether->registration_cloud;
+      domain.LoadRoot(cloud);
+      cloud->set_adapter(adapter);
+
+      auto registration1 = aether->RegisterClient(
+          ae::Uid{ae::MakeLiteralArray(uid)});
+#endif
+    }
+  }
+
+
 }
