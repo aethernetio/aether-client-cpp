@@ -21,6 +21,8 @@
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
 
+#include "aether/tele/tele.h"
+
 namespace ae {
 
 ActionView<StreamWriteAction> SizedPacketGate::Write(DataBuffer&& buffer,
@@ -50,20 +52,22 @@ StreamInfo SizedPacketGate::stream_info() const {
 
 void SizedPacketGate::LinkOut(OutGate& out) {
   out_ = &out;
-  out_data_subscription_ =
-      out.out_data_event().Subscribe([this](DataBuffer const& buffer) {
-        data_packet_collector_.AddData(buffer);
-
-        for (auto packet = data_packet_collector_.PopPacket(); !packet.empty();
-             packet = data_packet_collector_.PopPacket()) {
-          out_data_event_.Emit(packet);
-        }
-      });
+  out_data_subscription_ = out.out_data_event().Subscribe(
+      [this](DataBuffer const& buffer) { DataReceived(buffer); });
 
   gate_update_subscription_ = out.gate_update_event().Subscribe(
       [this]() { gate_update_event_.Emit(); });
 
   gate_update_event_.Emit();
+}
+
+void SizedPacketGate::DataReceived(DataBuffer const& buffer) {
+  data_packet_collector_.AddData(buffer);
+
+  for (auto packet = data_packet_collector_.PopPacket(); !packet.empty();
+       packet = data_packet_collector_.PopPacket()) {
+    out_data_event_.Emit(packet);
+  }
 }
 
 }  // namespace ae
