@@ -48,8 +48,8 @@ static Aether::ptr CreateAetherInstrument(Domain& domain, std::string wifi_ssid,
 
 #  if AE_SUPPORT_REGISTRATION
   // localhost
-  aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
-      {IpAddress{IpAddress::Version::kIpV4, {127, 0, 0, 1}}, 9010},
+  aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{      
+   {IpAddress{IpAddress::Version::kIpV4, {127, 0, 0, 1}}, 9010},
       Protocol::kTcp});
   // cloud address
   aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
@@ -118,7 +118,7 @@ int AetherRegistrator(const std::string &ini_file) {
   // Clients max assertion
   if (clients_total > clients_max) {
     std::cerr << "Total clients must be < " << clients_max << " clients\n";
-    return 1;
+    return -1;
   }
 
   auto fs = ae::FileSystemHeaderFacility{};
@@ -136,7 +136,7 @@ int AetherRegistrator(const std::string &ini_file) {
     if (sspk_arr.size() != sspk.key.size()) {
       std::cerr << "SodiumSignPublicKey size must be " << sspk.key.size()
                 << " bytes\n";
-      return 2;
+      return -2;
     }
     
     std::copy(std::begin(sspk_arr), std::end(sspk_arr), std::begin(sspk.key));    
@@ -148,7 +148,7 @@ int AetherRegistrator(const std::string &ini_file) {
     if (hspk_arr.size() != hspk.key.size()) {
       std::cerr << "HydrogenSignPublicKey size must be " << hspk.key.size()
                 << " bytes\n";
-      return 2;
+      return -2;
     }
 
     std::copy(std::begin(hspk_arr), std::end(hspk_arr), std::begin(hspk.key));
@@ -166,21 +166,51 @@ int AetherRegistrator(const std::string &ini_file) {
 
   ae::Client::ptr client;
 
+  // Creating the actual adapter.
+  auto& cloud = aether->registration_cloud;
+  domain.LoadRoot(cloud);
+  cloud->set_adapter(adapter);
+
   for (auto p : parents) {
-    std::string uid = std::get<0>(p);
+    std::string uid_str = std::get<0>(p);
     std::uint8_t clients_num = std::get<1>(p);
     for (std::uint8_t i{0}; i < clients_num; i++) {
 #if AE_SUPPORT_REGISTRATION
-      // Creating the actual adapter.
-      auto& cloud = aether->registration_cloud;
-      domain.LoadRoot(cloud);
-      cloud->set_adapter(adapter);
+      auto uid_arr = ae::MakeArray(uid_str);
+      if (uid_arr.size() != ae::Uid::kSize) {
+        std::cerr << "Uid size must be " << ae::Uid::kSize << " bytes\n";
+        return -3;
+      }
+      auto uid = ae::Uid{};
+      std::copy(std::begin(uid_arr), std::end(uid_arr), std::begin(uid.value));
+      auto registration = aether->RegisterClient(uid);
 
-      auto registration1 = aether->RegisterClient(
-          ae::Uid{ae::MakeLiteralArray(uid)});
+      bool register_done = false;
+      bool register_failed = false;
+
+      auto reg = registration->SubscribeOnResult([&](auto const& reg) {
+        register_done = true;
+        client = reg.client();
+      });
+      auto reg_failed = registration->SubscribeOnError(
+          [&](auto const&) { register_failed = true; });
+
+      while (!register_done && !register_failed) {
+        auto time = ae::TimePoint::clock::now();
+        auto next_time = domain.Update(time);
+        aether->action_processor->get_trigger().WaitUntil(next_time);
+
+        if (register_failed) {
+          std::cerr << "Registration failed\n";
+          return -4;
+        }
+      }
 #endif
     }
   }
 
+  // save objects state
+  domain.SaveRoot(aether);
 
+  return 0;
 }
