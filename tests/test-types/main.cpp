@@ -22,11 +22,13 @@ void tearDown() {}
 extern int test_fixed_point();
 extern int test_literal_array();
 extern int test_ring_buffer();
+extern int test_async_for_loop();
 
 int main() {
   int res = 0;
   res += test_fixed_point();
   res += test_literal_array();
   res += test_ring_buffer();
+  res += test_async_for_loop();
   return res;
 }

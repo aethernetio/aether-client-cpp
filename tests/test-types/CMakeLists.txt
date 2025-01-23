@@ -19,6 +19,7 @@ list(APPEND test_srcs
     test-fixed-point.cpp
     test-literal-array.cpp
     test-ring-buffer.cpp
+    test-async-for-loop.cpp
 )
 
 if(NOT CM_PLATFORM)
