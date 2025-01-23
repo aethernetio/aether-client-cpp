@@ -71,6 +71,7 @@ class TransportWriteGate final : public ByteIGate {
   Subscription transport_read_data_subscription_;
 
   ActionList<TransportStreamWriteAction> write_actions_;
+  ActionList<FailedStreamWriteAction> failed_write_actions_;
 };
 }  // namespace ae
 

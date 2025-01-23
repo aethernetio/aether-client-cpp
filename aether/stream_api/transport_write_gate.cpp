@@ -78,7 +78,8 @@ TransportWriteGate::TransportWriteGate(ActionContext action_context,
           [this](auto const& buffer, auto time_point) {
             ReceiveData(buffer, time_point);
           })},
-      write_actions_{std::move(action_context)} {
+      write_actions_{action_context},
+      failed_write_actions_{action_context} {
   auto connection_info = transport_->GetConnectionInfo();
   stream_info_.max_element_size = connection_info.max_packet_size;
   stream_info_.is_linked =
@@ -94,6 +95,9 @@ ActionView<StreamWriteAction> TransportWriteGate::Write(
   AE_TELED_DEBUG("Write bytes: size: {}\n data: {}", buffer.size(), buffer);
 
   // TODO: add checks for writeable and soft writable
+  if (!stream_info_.is_linked) {
+    return failed_write_actions_.Emplace();
+  }
 
   return write_actions_.Emplace(
       transport_->Send(std::move(buffer), current_time));
