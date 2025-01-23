@@ -80,7 +80,7 @@ ServerList::ServerList(Ptr<ServerListPolicy> policy, Ptr<Cloud> cloud)
 void ServerList::Init() { iter_ = std::begin(server_list_); }
 bool ServerList::End() const { return iter_ == std::end(server_list_); }
 void ServerList::Next() { ++iter_; }
-ServerList::value_type ServerList::Get() const { return *iter_; };
+ServerList::value_type ServerList::Get() const { return *iter_; }
 
 void ServerList::BuildList() {
   auto& servers = cloud_->servers();
