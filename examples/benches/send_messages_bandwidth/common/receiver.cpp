@@ -50,7 +50,7 @@ EventSubscriber<void()> Receiver::Handshake() {
           .OnMessage<BandwidthApi::Handshake>([this](auto const& msg) {
             auto req_id = msg.message().request_id;
             AE_TELED_DEBUG("Received handshake request {}", req_id);
-            message_stream_->in().WriteIn(
+            message_stream_->in().Write(
                 PacketBuilder{
                     protocol_context_,
                     PackMessage{ReturnResultApi{}, SendResult{req_id, true}}},

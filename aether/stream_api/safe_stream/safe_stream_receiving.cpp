@@ -200,11 +200,13 @@ void SafeStreamReceivingAction::MakeResponse(TimePoint current_time) {
 
   auto packet = PacketBuilder{protocol_context_};
   for (auto const& confirm : confirmation_queue_) {
+    AE_TELED_DEBUG("Send confirm to offset {}", confirm);
     packet.Push(safe_stream_api_, SafeStreamApi::Confirm{
                                       {}, static_cast<std::uint16_t>(confirm)});
   }
   confirmation_queue_.clear();
   for (auto const& repeat : repeat_queue_) {
+    AE_TELED_DEBUG("Send repeat request to offset {}", repeat);
     packet.Push(safe_stream_api_, SafeStreamApi::RequestRepeat{
                                       {}, static_cast<std::uint16_t>(repeat)});
   }

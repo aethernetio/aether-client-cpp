@@ -148,8 +148,6 @@ void AetherButtonExample() {
 
   ae::Adapter::ptr adapter{domain.LoadCopy(aether->adapter_factories.front())};
 
-  adapter->Update(ae::ClockType::now());
-
   ae::Client::ptr client_sender;
   ae::Client::ptr client_receiver;
 
@@ -257,7 +255,7 @@ void AetherButtonExample() {
         if (button_action.GetKey()) {
           AE_TELED_INFO("Hi level Press");
           if (use_aether) {
-            sender_to_receiver_stream->in().WriteIn(
+            sender_to_receiver_stream->in().Write(
                 {std::begin(messages[0]), std::end(messages[0])},
                 ae::TimePoint::clock::now());
           } else {
@@ -266,7 +264,7 @@ void AetherButtonExample() {
         } else {
           AE_TELED_INFO("Low level Press");
           if (use_aether) {
-            sender_to_receiver_stream->in().WriteIn(
+            sender_to_receiver_stream->in().Write(
                 {std::begin(messages[1]), std::end(messages[1])},
                 ae::TimePoint::clock::now());
           } else {

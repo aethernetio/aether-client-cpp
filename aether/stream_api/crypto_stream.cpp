@@ -31,11 +31,11 @@ void CryptoGate::OnOutData(DataBuffer const& buffer) {
   out_data_event_.Emit(std::move(decrypted));
 }
 
-ActionView<StreamWriteAction> CryptoGate::WriteIn(DataBuffer buffer,
-                                                  TimePoint current_time) {
+ActionView<StreamWriteAction> CryptoGate::Write(DataBuffer&& buffer,
+                                                TimePoint current_time) {
   assert(out_);
   auto encrypted = crypto_encrypt_->Encrypt(std::move(buffer));
-  return out_->WriteIn(std::move(encrypted), current_time);
+  return out_->Write(std::move(encrypted), current_time);
 }
 
 void CryptoGate::LinkOut(OutGate& out) {
@@ -48,8 +48,14 @@ void CryptoGate::LinkOut(OutGate& out) {
   gate_update_event_.Emit();
 }
 
-std::size_t CryptoGate::max_write_in_size() const {
+StreamInfo CryptoGate::stream_info() const {
   assert(out_);
-  return out_->max_write_in_size() - crypto_encrypt_->EncryptOverhead();
+  auto s_info = out_->stream_info();
+  s_info.max_element_size =
+      s_info.max_element_size > crypto_encrypt_->EncryptOverhead()
+          ? s_info.max_element_size - crypto_encrypt_->EncryptOverhead()
+          : 0;
+  return s_info;
 }
+
 }  // namespace ae

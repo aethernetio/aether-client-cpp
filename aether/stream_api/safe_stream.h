@@ -17,20 +17,21 @@
 #ifndef AETHER_STREAM_API_SAFE_STREAM_H_
 #define AETHER_STREAM_API_SAFE_STREAM_H_
 
-#include "aether/obj/ptr.h"
+#include "aether/common.h"
 #include "aether/actions/action_view.h"
 #include "aether/actions/action_list.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
 
-#include "aether/stream_api/safe_stream/safe_stream_receiving.h"
-#include "aether/stream_api/safe_stream/safe_stream_sending.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
+#include "aether/stream_api/safe_stream/safe_stream_config.h"
+#include "aether/stream_api/safe_stream/safe_stream_sending.h"
+#include "aether/stream_api/safe_stream/safe_stream_receiving.h"
 
 #include "aether/stream_api/istream.h"
 
 namespace ae {
-class SafeStreamWriteAction : public StreamWriteAction {
+class SafeStreamWriteAction final : public StreamWriteAction {
  public:
   explicit SafeStreamWriteAction(
       ActionContext action_context,
@@ -45,35 +46,35 @@ class SafeStreamWriteAction : public StreamWriteAction {
   MultiSubscription subscriptions_;
 };
 
-class SafeStream : public ByteStream {
-  class SafeStreamInGate : public ByteGate {
+class SafeStream final : public ByteStream {
+  class SafeStreamInGate final : public ByteGate {
    public:
     explicit SafeStreamInGate(
         ActionContext action_context,
         ActionView<SafeStreamSendingAction> safe_stream_sending,
         std::size_t max_data_size);
 
-    ActionView<StreamWriteAction> WriteIn(DataBuffer buffer,
-                                          TimePoint current_time) override;
+    ActionView<StreamWriteAction> Write(DataBuffer &&buffer,
+                                        TimePoint current_time) override;
 
     void WriteOut(DataBuffer const &buffer);
 
     void LinkOut(OutGate &gate) override;
 
-    std::size_t max_write_in_size() const override;
+    StreamInfo stream_info() const override;
 
    private:
     ActionList<SafeStreamWriteAction> packet_send_actions_;
     ActionView<SafeStreamSendingAction> safe_stream_sending_;
-    std::size_t max_data_size_;
+    StreamInfo stream_info_;
   };
 
-  class SafeStreamOutGate : public ByteGate {
+  class SafeStreamOutGate final : public ByteGate {
    public:
     explicit SafeStreamOutGate(ProtocolContext &protocol_context);
 
-    ActionView<StreamWriteAction> WriteIn(DataBuffer buffer,
-                                          TimePoint current_time) override;
+    ActionView<StreamWriteAction> Write(DataBuffer &&buffer,
+                                        TimePoint current_time) override;
 
     void LinkOut(OutGate &gate) override;
 
@@ -82,26 +83,27 @@ class SafeStream : public ByteStream {
   };
 
  public:
-  SafeStream(ProtocolContext &protocol_context, ActionContext action_context,
-             SafeStreamConfig config);
+  SafeStream(ActionContext action_context, SafeStreamConfig config);
+
+  AE_CLASS_NO_COPY_MOVE(SafeStream);
 
   ByteGate::Base &in() override;
   void LinkOut(OutGate &gate) override;
 
  private:
-  void OnDataWrite(SafeStreamRingIndex offset, DataBuffer data,
+  void OnDataWrite(SafeStreamRingIndex offset, DataBuffer &&data,
                    TimePoint current_time);
 
-  void OnDataReaderSend(DataBuffer data, TimePoint current_time);
+  void OnDataReaderSend(DataBuffer &&data, TimePoint current_time);
 
-  ProtocolContext &protocol_context_;
   ActionContext action_context_;
 
+  ProtocolContext protocol_context_;
   SafeStreamSendingAction safe_stream_sending_;
   SafeStreamReceivingAction safe_stream_receiving_;
 
-  Ptr<SafeStreamInGate> in_;
-  Ptr<SafeStreamOutGate> out_;
+  SafeStreamInGate in_;
+  SafeStreamOutGate out_;
 
   MultiSubscription subscriptions_;
 };

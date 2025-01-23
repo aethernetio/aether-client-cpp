@@ -106,10 +106,10 @@ StreamApiGate& StreamApiGate::operator=(StreamApiGate&& other) noexcept {
   return *this;
 }
 
-ActionView<StreamWriteAction> StreamApiGate::WriteIn(DataBuffer buffer,
-                                                     TimePoint current_time) {
+ActionView<StreamWriteAction> StreamApiGate::Write(DataBuffer&& buffer,
+                                                   TimePoint current_time) {
   assert(out_);
-  return out_->WriteIn(
+  return out_->Write(
       PacketBuilder{
           protocol_context_.get(),
           PackMessage{
@@ -129,9 +129,14 @@ void StreamApiGate::LinkOut(OutGate& out) {
   gate_update_event_.Emit();
 }
 
-std::size_t StreamApiGate::max_write_in_size() const {
+StreamInfo StreamApiGate::stream_info() const {
   assert(out_);
-  return out_->max_write_in_size() - kStreamMessageOverhead;
+  auto s_info = out_->stream_info();
+  s_info.max_element_size =
+      s_info.max_element_size > kStreamMessageOverhead
+          ? s_info.max_element_size - kStreamMessageOverhead
+          : 0;
+  return s_info;
 }
 
 void StreamApiGate::PutData(DataBuffer const& data) {

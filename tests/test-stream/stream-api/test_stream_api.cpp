@@ -57,7 +57,7 @@ void test_SteamApiMakePacket() {
 
   Tie(read_stream, stream_api_gate, write_stream);
 
-  stream_api_gate.WriteIn({test_data, test_data + sizeof(test_data)}, epoch);
+  stream_api_gate.Write({test_data, test_data + sizeof(test_data)}, epoch);
 
   ap.Update(epoch += std::chrono::milliseconds{1});
 

@@ -202,7 +202,8 @@ LwipTcpTransport::LwipTcpTransport(ActionContext action_context,
                                    IpAddressPort const &endpoint)
     : action_context_{action_context},
       poller_{std::move(poller)},
-      endpoint_{endpoint} {
+      endpoint_{endpoint},
+      connection_info_{} {
   AE_TELE_DEBUG("TcpTransport");
 }
 

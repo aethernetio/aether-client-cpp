@@ -22,6 +22,7 @@
 
 #include "aether/common.h"
 #include "aether/obj/obj.h"
+#include "aether/obj/dummy_obj.h"
 #include "aether/client.h"
 #include "aether/cloud.h"
 #include "aether/registration_cloud.h"
@@ -52,15 +53,8 @@ class Aether : public Obj {
   template <typename Dnv>
   void Visit(Dnv& dnv) {
     dnv(*base_ptr_);
-    dnv(client_prefab, cloud_prefab,
-#if AE_SUPPORT_REGISTRATION
-        registration_cloud,
-#endif
-        crypto, clients_, servers_, tele_statistics_, poller,
-#if AE_SUPPORT_CLOUD_DNS
-        dns_resolver,
-#endif
-        adapter_factories);
+    dnv(client_prefab, cloud_prefab, registration_cloud, crypto, clients_,
+        servers_, tele_statistics_, poller, dns_resolver, adapter_factories);
   }
 
   void Update(TimePoint current_time) override;
@@ -79,13 +73,18 @@ class Aether : public Obj {
   Cloud::ptr cloud_prefab;
 #if AE_SUPPORT_REGISTRATION
   RegistrationCloud::ptr registration_cloud;
+#else
+  DummyObj::ptr registration_cloud;
 #endif
 
   Crypto::ptr crypto;
   IPoller::ptr poller;
 #if AE_SUPPORT_CLOUD_DNS
   DnsResolver::ptr dns_resolver;
+#else
+  DummyObj::ptr dns_resolver;
 #endif
+
   std::vector<Adapter::ptr> adapter_factories;
 
  private:

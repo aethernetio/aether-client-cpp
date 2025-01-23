@@ -23,25 +23,29 @@
 
 namespace ae {
 
-ActionView<StreamWriteAction> SizedPacketGate::WriteIn(DataBuffer buffer,
-                                                       TimePoint current_time) {
+ActionView<StreamWriteAction> SizedPacketGate::Write(DataBuffer&& buffer,
+                                                     TimePoint current_time) {
   assert(out_);
 
   PacketSize size = buffer.size();
   DataBuffer write_buffer;
-  auto buffer_writer = VectorWriter<PacketSize>(buffer);
+  auto buffer_writer = VectorWriter<PacketSize>(write_buffer);
   auto os = omstream{buffer_writer};
   os << size;
   os.write(buffer.data(), buffer.size());
 
-  return out_->WriteIn(std::move(write_buffer), current_time);
+  return out_->Write(std::move(write_buffer), current_time);
 }
 
 static constexpr std::size_t kSizedPacketOverhead = 4;  // max for packet size
 
-std::size_t SizedPacketGate::max_write_in_size() const {
+StreamInfo SizedPacketGate::stream_info() const {
   assert(out_);
-  return out_->max_write_in_size() - kSizedPacketOverhead;
+  auto s_info = out_->stream_info();
+  s_info.max_element_size = s_info.max_element_size > kSizedPacketOverhead
+                                ? s_info.max_element_size - kSizedPacketOverhead
+                                : 0;
+  return s_info;
 }
 
 void SizedPacketGate::LinkOut(OutGate& out) {

@@ -52,7 +52,7 @@ EventSubscriber<void()> Sender::Handshake() {
         }
       });
 
-  message_stream_->in().WriteIn(
+  message_stream_->in().Write(
       PacketBuilder{protocol_context_, PackMessage{BandwidthApi{},
                                                    BandwidthApi::Handshake{
                                                        {}, handshake_request}}},

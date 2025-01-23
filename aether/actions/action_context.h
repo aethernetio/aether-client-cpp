@@ -30,7 +30,7 @@ class ActionContext {
   ActionRegistry& get_registry();
 
  private:
-  ActionProcessor& processor_;
+  ActionProcessor* processor_;
 };
 }  // namespace ae
 

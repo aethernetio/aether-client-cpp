@@ -24,7 +24,7 @@
 namespace ae {
 class StreamWriteAction : public Action<StreamWriteAction> {
  public:
-  enum class State {
+  enum class State : std::uint8_t {
     kQueued,
     kInProgress,
     kDone,
@@ -47,7 +47,7 @@ class StreamWriteAction : public Action<StreamWriteAction> {
   StateMachine<State> state_{State::kQueued};
 };
 
-class FailedStreamWriteAction : public StreamWriteAction {
+class FailedStreamWriteAction final : public StreamWriteAction {
  public:
   using StreamWriteAction::StreamWriteAction;
   FailedStreamWriteAction();

@@ -213,7 +213,7 @@ void Registration::GetKeys(TimePoint current_time) {
   };
 
   packet_write_action_ =
-      reg_server_stream_->in().WriteIn(std::move(packet), current_time);
+      reg_server_stream_->in().Write(std::move(packet), current_time);
 
   // on error try repeat
   raw_transport_send_action_subscription_ =
@@ -265,7 +265,7 @@ void Registration::RequestPowParams(TimePoint current_time) {
       StreamIdGenerator::GetNextClientStreamId(), server_async_key_provider_,
       server_sync_key_provider_);
 
-  packet_write_action_ = reg_server_stream_->in().WriteIn(
+  packet_write_action_ = reg_server_stream_->in().Write(
       PacketBuilder{
           protocol_context_,
           PackMessage{
@@ -353,7 +353,7 @@ void Registration::MakeRegistration(TimePoint current_time) {
 
   Tie(*global_reg_server_stream_, *reg_server_stream_);
 
-  packet_write_action_ = global_reg_server_stream_->in().WriteIn(
+  packet_write_action_ = global_reg_server_stream_->in().Write(
       PacketBuilder{
           protocol_context_,
           PackMessage{
@@ -388,7 +388,7 @@ void Registration::OnConfirmRegistration(
 void Registration::ResolveCloud(TimePoint current_time) {
   AE_TELED_DEBUG("Registration::ResolveCloud");
 
-  packet_write_action_ = reg_server_stream_->in().WriteIn(
+  packet_write_action_ = reg_server_stream_->in().Write(
       PacketBuilder{
           protocol_context_,
           PackMessage{

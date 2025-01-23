@@ -20,20 +20,26 @@
 #include <list>
 #include <cstddef>
 
+#include "aether/common.h"
+
+#include "aether/actions/action_list.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
 
 #include "aether/stream_api/istream.h"
 
 namespace ae {
+// TODO: add Buffer gate tests
 /**
  * \brief Buffers write requests until gate is not ready to accept them.
  */
-class BufferGate : public ByteGate {
-  class BufferedWriteAction : public StreamWriteAction {
+class BufferGate final : public ByteGate {
+  class BufferedWriteAction final : public StreamWriteAction {
    public:
     BufferedWriteAction(ActionContext action_context, DataBuffer data,
                         TimePoint current_time);
+
+    AE_CLASS_MOVE_ONLY(BufferedWriteAction)
 
     TimePoint Update(TimePoint current_time) override;
     void Stop() override;
@@ -53,36 +59,31 @@ class BufferGate : public ByteGate {
     MultiSubscription write_action_subscription_;
   };
 
-  class BufferOverflowWriteAction : public StreamWriteAction {
-   public:
-    using StreamWriteAction::StreamWriteAction;
-    explicit BufferOverflowWriteAction(ActionContext action_context);
-
-    TimePoint Update(TimePoint current_time) override;
-    void Stop() override;
-  };
-
  public:
   explicit BufferGate(ActionContext action_context,
-                      std::size_t buffer_max_size =
-                          static_cast<std::size_t>(20 * 1024) /*20 kB*/);
+                      std::size_t buffer_max = static_cast<std::size_t>(100));
 
-  ActionView<StreamWriteAction> WriteIn(DataBuffer data,
-                                        TimePoint current_time) override;
+  AE_CLASS_NO_COPY_MOVE(BufferGate)
 
-  bool is_write_buffered() const override;
-  std::size_t buffer_free_size() const override;
-  bool is_linked() const override;
+  ActionView<StreamWriteAction> Write(DataBuffer&& data,
+                                      TimePoint current_time) override;
+
+  void LinkOut(OutGate& out) override;
+
+  StreamInfo stream_info() const override;
 
  private:
+  void SetSoftWriteable(bool value);
+  void UpdateGate();
   void DrainBuffer(OutGate& out);
 
   ActionContext action_context_;
-  std::size_t buffer_max_size_;
-  std::size_t buffer_current_size_;
+  std::size_t buffer_max_;
 
+  StreamInfo stream_info_;
+  StreamInfo last_out_stream_info_;
+  ActionList<FailedStreamWriteAction> failed_write_list_;
   std::list<BufferedWriteAction> write_in_buffer_;
-  Subscription gate_update_subscription_;
   MultiSubscription write_in_subscription_;
 };
 }  // namespace ae

@@ -33,11 +33,47 @@
 #  include "lwip/err.h"
 #  include "lwip/sys.h"
 
+#  include "aether/events/events.h"
+#  include "aether/actions/action_list.h"
+#  include "aether/events/event_subscription.h"
 #  include "aether/adapters/parent_wifi.h"
 
 namespace ae {
 class Esp32WifiAdapter : public ParentWifiAdapter {
   AE_OBJECT(Esp32WifiAdapter, ParentWifiAdapter, 0)
+
+  class CreateTransportAction : public ae::CreateTransportAction {
+   public:
+    // immediately create the transport
+    CreateTransportAction(ActionContext action_context,
+                          Esp32WifiAdapter* adapter, Obj::ptr aether,
+                          IPoller::ptr poller,
+                          IpAddressPortProtocol address_port_protocol_);
+    // create the transport when wifi is connected
+    CreateTransportAction(ActionContext action_context,
+                          EventSubscriber<void(bool)> wifi_connected_event,
+                          Esp32WifiAdapter* adapter, Obj::ptr aether,
+                          IPoller::ptr poller,
+                          IpAddressPortProtocol address_port_protocol_);
+
+    TimePoint Update(TimePoint current_time) override;
+    Ptr<ITransport> transport() const;
+
+   private:
+    void CreateTransport();
+
+    Esp32WifiAdapter* adapter_;
+    Obj::ptr aether_;
+    IPoller::ptr poller_;
+    IpAddressPortProtocol address_port_protocol_;
+
+    bool once_;
+    bool failed_;
+    Subscription wifi_connected_subscription_;
+    Ptr<ITransport> transport_;
+  };
+
+  static constexpr int kMaxRetry = 10;
 
  public:
 #  ifdef AE_DISTILLATION
@@ -51,7 +87,7 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
     dnv(*base_ptr_);
   }
 
-  Ptr<ITransport> CreateTransport(
+  ActionView<ae::CreateTransportAction> CreateTransport(
       IpAddressPortProtocol const& address_port_protocol) override;
 
   void Update(TimePoint p) override;
@@ -60,14 +96,15 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
   void Connect(void);
   void DisConnect(void);
 
-  static void event_handler(void* arg, esp_event_base_t event_base,
-                            int32_t event_id, void* event_data);
-  void wifi_init_sta(void);
-  void wifi_init_nvs(void);
+  static void EventHandler(void* arg, esp_event_base_t event_base,
+                           int32_t event_id, void* event_data);
+  void WifiInitSta(void);
+  void WifiInitNvs(void);
 
   esp_netif_t* esp_netif_{};
   bool connected_{false};
-  static constexpr int MAX_RETRY = 10;
+  Event<void(bool result)> wifi_connected_event_;
+  Ptr<ActionList<CreateTransportAction>> create_transport_actions_;
 };
 }  // namespace ae
 

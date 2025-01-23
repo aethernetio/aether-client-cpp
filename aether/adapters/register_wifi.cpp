@@ -16,10 +16,7 @@
 
 #include "aether/adapters/register_wifi.h"
 
-#include <memory>
-
-#include "aether/transport/low_level/tcp/unix_tcp.h"
-#include "aether/transport/low_level/tcp/win_tcp.h"
+#include "aether/aether.h"
 
 namespace ae {
 
@@ -27,25 +24,14 @@ namespace ae {
 RegisterWifiAdapter::RegisterWifiAdapter(ObjPtr<Aether> aether,
                                          IPoller::ptr poller, std::string ssid,
                                          std::string pass, Domain* domain)
-    : ParentWifiAdapter(aether, poller, ssid, pass, domain)
-      {}
+    : ParentWifiAdapter{std::move(aether), std::move(poller), std::move(ssid),
+                        std::move(pass), domain},
+      ethernet_adapter_{domain->CreateObj<EthernetAdapter>(aether_, poller_)} {}
 #endif  // AE_DISTILLATION
 
-Ptr<ITransport> RegisterWifiAdapter::CreateTransport(
+ActionView<CreateTransportAction> RegisterWifiAdapter::CreateTransport(
     IpAddressPortProtocol const& address_port_protocol) {
-#if defined UNIX_TCP_TRANSPORT_ENABLED
-  assert(address_port_protocol.protocol == Protocol::kTcp);
-  return MakePtr<UnixTcpTransport>(
-      *static_cast<Aether::ptr>(aether_)->action_processor, poller_,
-      address_port_protocol);
-#elif defined WIN_TCP_TRANSPORT_ENABLED
-  assert(address_port_protocol.protocol == Protocol::kTcp);
-  return MakePtr<WinTcpTransport>(
-      *static_cast<Aether::ptr>(aether_)->action_processor, poller_,
-      address_port_protocol);
-#else
-  return {};
-#endif
+  return ethernet_adapter_->CreateTransport(address_port_protocol);
 }
 
 }  // namespace ae

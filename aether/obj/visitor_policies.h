@@ -155,7 +155,7 @@ struct DeepVisitPolicy {
           !IsContainer<std::decay_t<T>>::value,
       bool>
   ApplyDeeper(T& t, Visitor& visitor) {
-    return VisitPolicy::template ApplyVisit(t, visitor);
+    return VisitPolicy::template ApplyVisit<>(t, visitor);
   }
 
   template <typename T, typename Visitor>
@@ -164,7 +164,7 @@ struct DeepVisitPolicy {
           !IsContainer<std::decay_t<T>>::value,
       bool>
   ApplyDeeper(T* t, Visitor& visitor) {
-    return VisitPolicy::template ApplyVisit(t, visitor);
+    return VisitPolicy::template ApplyVisit<>(t, visitor);
   }
 
   template <typename T, typename Visitor>
@@ -271,7 +271,7 @@ struct MultiplexVisitorPolicy {
   static constexpr bool ApplyVisitImpl(T& t, Visitor& visitor) {
     // apply visit by first applicable policy
     if constexpr (TVisitPolicy::template VisitorApplicable<T, Visitor>::value) {
-      return TVisitPolicy::template ApplyVisit(t, visitor);
+      return TVisitPolicy::template ApplyVisit<>(t, visitor);
     } else {
       // if not applied, try next policy
       if constexpr (sizeof...(TVPs) > 0) {

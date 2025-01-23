@@ -26,8 +26,8 @@
 #include "aether/stream_api/istream.h"
 
 namespace ae {
-class TransportWriteGate : public ByteIGate {
-  class TransportStreamWriteAction : public StreamWriteAction {
+class TransportWriteGate final : public ByteIGate {
+  class TransportStreamWriteAction final : public StreamWriteAction {
    public:
     explicit TransportStreamWriteAction(
         ActionContext action_context,
@@ -48,21 +48,20 @@ class TransportWriteGate : public ByteIGate {
 
   ~TransportWriteGate() override;
 
-  ActionView<StreamWriteAction> WriteIn(DataBuffer buffer,
-                                        TimePoint current_time) override;
+  ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
+                                      TimePoint current_time) override;
   OutDataEvent::Subscriber out_data_event() override;
   GateUpdateEvent::Subscriber gate_update_event() override;
-  std::size_t max_write_in_size() const override;
-  bool is_write_buffered() const override;
-  std::size_t buffer_free_size() const override;
-  bool is_linked() const override;
+
+  StreamInfo stream_info() const override;
 
  private:
   void ReceiveData(DataBuffer const& data, TimePoint current_time);
 
   Ptr<ITransport> transport_;
 
-  std::size_t max_data_size_;
+  StreamInfo stream_info_;
+
   OutDataEvent out_data_event_;
   GateUpdateEvent gate_update_event_;
 

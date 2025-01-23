@@ -22,12 +22,20 @@
 
 #include "aether/obj/obj.h"
 #include "aether/obj/ptr.h"
+#include "aether/actions/action.h"
 #include "aether/obj/ptr_view.h"
 #include "aether/adapters/proxy.h"
 
 #include "aether/transport/itransport.h"
 
 namespace ae {
+class CreateTransportAction : public Action<CreateTransportAction> {
+ public:
+  using Action::Action;
+  using Action::operator=;
+
+  virtual Ptr<ITransport> transport() const = 0;
+};
 
 // TODO: make it pure virtual
 
@@ -44,7 +52,7 @@ class Adapter : public Obj {
     dnv(proxies_, proxy_prefab_);
   }
 
-  virtual Ptr<ITransport> CreateTransport(
+  virtual ActionView<CreateTransportAction> CreateTransport(
       IpAddressPortProtocol const& /* address_port_protocol */) {
     return {};
   }

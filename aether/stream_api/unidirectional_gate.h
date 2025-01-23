@@ -22,7 +22,7 @@
 #include "aether/stream_api/istream.h"
 
 namespace ae {
-class WriteOnlyGate : public ByteGate {
+class WriteOnlyGate final : public ByteGate {
  public:
   void LinkOut(OutGate& out) override;
 };
@@ -31,15 +31,15 @@ class ReadOnlyGate : public ByteGate {
  public:
   explicit ReadOnlyGate(ActionContext action_context);
 
-  ActionView<StreamWriteAction> WriteIn(DataBuffer data,
-                                        TimePoint current_time) override;
+  ActionView<StreamWriteAction> Write(DataBuffer&& data,
+                                      TimePoint current_time) override;
 
  private:
   ActionList<FailedStreamWriteAction> failed_write_actions_;
 };
 
 template <typename TWriteGate, typename TReadGate>
-class ParallelGate : public ByteIGate {
+class ParallelGate final : public ByteIGate {
  public:
   ParallelGate(TWriteGate write_gate, TReadGate read_gate)
       : write_gate_{std::move(write_gate)},
@@ -49,26 +49,20 @@ class ParallelGate : public ByteIGate {
         read_gate_update_{read_gate_.gate_update_event().Subscribe(
             [this]() { gate_update_event_.Emit(); })} {}
 
-  ActionView<StreamWriteAction> WriteIn(DataBuffer data,
-                                        TimePoint current_time) override {
-    return write_gate_.WriteIn(std::move(data), current_time);
+  ActionView<StreamWriteAction> Write(DataBuffer&& data,
+                                      TimePoint current_time) override {
+    return write_gate_.Write(std::move(data), current_time);
   }
+
   typename OutDataEvent::Subscriber out_data_event() override {
     return read_gate_.out_data_event();
   }
-  std::size_t max_write_in_size() const override {
-    return write_gate_.max_write_in_size();
-  }
+
   GateUpdateEvent::Subscriber gate_update_event() override {
     return gate_update_event_;
   }
-  bool is_write_buffered() const override {
-    return write_gate_.is_write_buffered();
-  }
-  std::size_t buffer_free_size() const override {
-    return write_gate_.buffer_free_size();
-  }
-  bool is_linked() const override { return write_gate_.is_linked(); }
+
+  StreamInfo stream_info() const override { return write_gate_.stream_info(); }
 
   auto& get_write_gate() { return write_gate_; }
   auto& get_read_gate() { return read_gate_; }

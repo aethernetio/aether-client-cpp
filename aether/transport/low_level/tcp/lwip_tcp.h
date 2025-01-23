@@ -21,6 +21,8 @@
 
 #  define LWIP_TCP_TRANSPORT_ENABLED 1
 
+#  include <optional>
+
 #  include "aether/common.h"
 #  include "aether/poller/poller.h"
 

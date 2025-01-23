@@ -27,19 +27,19 @@
 
 namespace ae {
 template <typename TIn, typename TOut>
-class SerializeGate : public Gate<TIn, TOut, DataBuffer, DataBuffer> {
+class SerializeGate final : public Gate<TIn, TOut, DataBuffer, DataBuffer> {
  public:
   using Base = Gate<TIn, TOut, DataBuffer, DataBuffer>;
 
-  ActionView<StreamWriteAction> WriteIn(TIn in_data,
-                                        TimePoint current_time) override {
+  ActionView<StreamWriteAction> Write(TIn&& in_data,
+                                      TimePoint current_time) override {
     DataBuffer buffer;
     auto wb = VectorWriter<PackedSize>{buffer};
     auto os = omstream{wb};
-    os << in_data;
+    os << std::move(in_data);
 
     assert(Base::out_);
-    return Base::out_->WriteIn(std::move(buffer), current_time);
+    return Base::out_->Write(std::move(buffer), current_time);
   }
 
   void LinkOut(typename Base::OutGate& out) override {

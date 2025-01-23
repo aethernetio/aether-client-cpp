@@ -30,7 +30,7 @@ namespace ae {
 /**
  * \brief Wraps written buffer into messages's child_data
  */
-class ProtocolWriteGate : public AddHeaderGate {
+class ProtocolWriteGate final : public AddHeaderGate {
  public:
   template <typename TApi, typename TMsg>
   ProtocolWriteGate(ProtocolContext& protocol_context, TApi&& api_class,
@@ -46,7 +46,7 @@ class ProtocolWriteGate : public AddHeaderGate {
  * \brief Parses read buffer as TApiClass
  */
 template <typename TApiClass>
-class ProtocolReadGate : public ByteGate {
+class ProtocolReadGate final : public ByteGate {
  public:
   template <typename TApi>
   ProtocolReadGate(ProtocolContext& protocol_context, TApi&& api_class)

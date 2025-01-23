@@ -28,6 +28,26 @@
 #include "aether/stream_api/stream_write_action.h"
 
 namespace ae {
+struct StreamInfo {
+  std::size_t max_element_size;  //< Max size of element available to write,
+                                 // mostly the max packet size
+  bool is_linked;                //< is stream linked somewhere
+  bool is_writeble;              //< is stream writeable */
+  bool is_soft_writable;         //< is stream soft writeable (!is_soft_writable
+                                 //&& !is_writeble means write returns error)
+};
+
+inline bool operator==(StreamInfo const& left, StreamInfo const& right) {
+  return (left.max_element_size == right.max_element_size) &&
+         (left.is_linked == right.is_linked) &&
+         (left.is_soft_writable == right.is_soft_writable) &&
+         (left.is_writeble == right.is_writeble);
+}
+
+inline bool operator!=(StreamInfo const& left, StreamInfo const& right) {
+  return !operator==(left, right);
+}
+
 /**
  * \brief Pass TIn data to write through and returns TOut data.
  * To write int and get std::string back specify IGate<int, std::string>
@@ -49,43 +69,32 @@ class IGate {
    * \param current_time Current time to control write timeouts
    * \return Action to control write process or subscribe to result.
    */
-  virtual ActionView<StreamWriteAction> WriteIn(TIn in_data,
-                                                TimePoint current_time) = 0;
+  virtual ActionView<StreamWriteAction> Write(TIn&& in_data,
+                                              TimePoint current_time) = 0;
   /**
    * \brief New data received event.
    */
   virtual typename OutDataEvent::Subscriber out_data_event() = 0;
 
   /**
-   * \brief Max size of data to write through this gate in bytes.
-   * This accumulates each linked gate size overhead.
-   */
-  virtual std::size_t max_write_in_size() const = 0;
-  /**
    * \brief Gate update event.
    */
   virtual GateUpdateEvent::Subscriber gate_update_event() = 0;
 
   /**
-   * \brief Write to this gate will be buffered.
+   * \brief Gate stream info
    */
-  virtual bool is_write_buffered() const = 0;
-  /**
-   * \brief Data size available to write. Write data more than this will be
-   * declined.
-   */
-  virtual std::size_t buffer_free_size() const = 0;
-  /**
-   * \brief Is gate chain started linked to some write end.
-   */
-  virtual bool is_linked() const = 0;
+  virtual StreamInfo stream_info() const = 0;
 };
 
-template <typename TIn, typename TOut, typename TWriteIn, typename TReadOut>
+template <typename TIn, typename TOut, typename TWrite, typename TReadOut>
 class Gate : public IGate<TIn, TOut> {
  public:
   using Base = IGate<TIn, TOut>;
-  using OutGate = IGate<TWriteIn, TReadOut>;
+  using OutGate = IGate<TWrite, TReadOut>;
+
+  Gate() = default;
+  AE_CLASS_MOVE_ONLY(Gate)
 
   // Link this Gate to some other Gate
   virtual void LinkOut(OutGate& out) = 0;
@@ -94,27 +103,15 @@ class Gate : public IGate<TIn, TOut> {
     return out_data_event_;
   }
 
-  std::size_t max_write_in_size() const override {
-    assert(out_);
-    return out_->max_write_in_size();
-  }
-
   typename Base::GateUpdateEvent::Subscriber gate_update_event() override {
     return typename Base::GateUpdateEvent::Subscriber{gate_update_event_};
   }
 
-  bool is_write_buffered() const override {
-    assert(out_);
-    return out_->is_write_buffered();
-  }
-
-  std::size_t buffer_free_size() const override {
-    assert(out_);
-    return out_->buffer_free_size();
-  }
-
-  bool is_linked() const override {
-    return (out_ != nullptr) && out_->is_linked();
+  StreamInfo stream_info() const override {
+    if (out_ == nullptr) {
+      return {};
+    }
+    return out_->stream_info();
   }
 
  protected:
@@ -133,11 +130,13 @@ class Gate<TIn, TOut, TIn, TOut> : public IGate<TIn, TOut> {
   using Base = IGate<TIn, TOut>;
   using OutGate = IGate<TIn, TOut>;
 
-  // write data from left to right
-  ActionView<StreamWriteAction> WriteIn(TIn in_data,
-                                        TimePoint current_time) override {
+  Gate() = default;
+  AE_CLASS_MOVE_ONLY(Gate)
+
+  ActionView<StreamWriteAction> Write(TIn&& in_data,
+                                      TimePoint current_time) override {
     assert(out_);
-    return out_->WriteIn(std::move(in_data), current_time);
+    return out_->Write(std::move(in_data), current_time);
   }
 
   typename Base::OutDataEvent::Subscriber out_data_event() override {
@@ -155,27 +154,15 @@ class Gate<TIn, TOut, TIn, TOut> : public IGate<TIn, TOut> {
     gate_update_event_.Emit();
   }
 
-  std::size_t max_write_in_size() const override {
-    assert(out_);
-    return out_->max_write_in_size();
-  }
-
   typename Base::GateUpdateEvent::Subscriber gate_update_event() override {
     return typename Base::GateUpdateEvent::Subscriber{gate_update_event_};
   }
 
-  bool is_write_buffered() const override {
-    assert(out_);
-    return out_->is_write_buffered();
-  }
-
-  std::size_t buffer_free_size() const override {
-    assert(out_);
-    return out_->buffer_free_size();
-  }
-
-  bool is_linked() const override {
-    return (out_ != nullptr) && out_->is_linked();
+  StreamInfo stream_info() const override {
+    if (out_ == nullptr) {
+      return {};
+    }
+    return out_->stream_info();
   }
 
  protected:

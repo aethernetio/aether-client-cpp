@@ -139,6 +139,8 @@ list(APPEND stream_api_src
             "stream_api/safe_stream/safe_stream_api.cpp"  
             "stream_api/safe_stream/safe_stream_sending.cpp"
             "stream_api/safe_stream/sending_data_action.cpp"
+            "stream_api/safe_stream/send_data_buffer.cpp"
+            "stream_api/safe_stream/sending_chunk_list.cpp"
             "stream_api/safe_stream/safe_stream_receiving.cpp"
 )
 
@@ -182,7 +184,9 @@ list(APPEND client_connections_srcs
 list(APPEND client_messages_srcs
             "client_messages/message_stream.cpp"
             "client_messages/message_stream_dispatcher.cpp"
-            "client_messages/p2p_message_stream.cpp")
+            "client_messages/p2p_message_stream.cpp"
+            "client_messages/p2p_safe_message_stream.cpp"
+            )
 
 list(APPEND port_srcs            
             "port/tele_init.cpp"
@@ -276,10 +280,20 @@ else()
                             ${port_srcs}
                             ${tele_srcs}
                             INCLUDE_DIRS ${include_dirs}
-                            REQUIRES libsodium libhydrogen libbcrypt gcem esp_wifi nvs_flash spiffs)
+                            REQUIRES esp_wifi nvs_flash spiffs)
 
     set(TARGET_NAME "${COMPONENT_LIB}")
 
+    foreach(dep ${common_dependancies})
+      get_filename_component(DEP_NAME ${dep} NAME)
+      add_subdirectory(${dep} ${DEP_NAME})
+    endforeach()
+    
+    target_link_libraries(${TARGET_NAME} PUBLIC 
+                                         bcrypt
+                                         sodium
+                                         hydrogen
+                                         gcem)
   else()
     #ERROR
     message(SEND_ERROR "You must specify the CMAKE version!")

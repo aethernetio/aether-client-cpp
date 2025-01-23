@@ -22,14 +22,14 @@
 #include "aether/stream_api/istream.h"
 
 namespace ae {
-class SizedPacketGate : public ByteGate {
+class SizedPacketGate final : public ByteGate {
  public:
-  ActionView<StreamWriteAction> WriteIn(DataBuffer buffer,
-                                        TimePoint current_time) override;
+  ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
+                                      TimePoint current_time) override;
 
   void LinkOut(OutGate& out) override;
 
-  std::size_t max_write_in_size() const override;
+  StreamInfo stream_info() const override;
 
  private:
   StreamDataPacketCollector data_packet_collector_;

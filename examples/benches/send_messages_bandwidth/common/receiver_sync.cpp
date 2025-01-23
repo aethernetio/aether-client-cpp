@@ -66,11 +66,10 @@ TimePoint ReceiverSyncAction::Update(TimePoint current_time) {
 void ReceiverSyncAction::OnReceivedSync(RequestId request_id) {
   AE_TELED_DEBUG("Received sync message");
 
-  stream_->in().WriteIn(
-      PacketBuilder{
-          protocol_context_,
-          PackMessage{ReturnResultApi{}, SendResult{request_id, true}}},
-      Now());
+  stream_->in().Write(PacketBuilder{protocol_context_,
+                                    PackMessage{ReturnResultApi{},
+                                                SendResult{request_id, true}}},
+                      Now());
 
   state_.Set(State::kReceived);
 }

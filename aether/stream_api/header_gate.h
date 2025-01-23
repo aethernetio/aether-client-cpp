@@ -27,10 +27,10 @@ class AddHeaderGate : public ByteGate {
  public:
   explicit AddHeaderGate(DataBuffer header);
 
-  ActionView<StreamWriteAction> WriteIn(DataBuffer buffer,
-                                        TimePoint current_time) override;
+  ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
+                                      TimePoint current_time) override;
 
-  std::size_t max_write_in_size() const override;
+  StreamInfo stream_info() const override;
 
  private:
   DataBuffer header_;

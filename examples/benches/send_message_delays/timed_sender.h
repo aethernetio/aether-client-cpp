@@ -120,7 +120,7 @@ class TimedSender : public ITimedSender {
 
     message_times_.emplace(current_id_, HighResTimePoint::clock::now());
 
-    stream_->in().WriteIn(
+    stream_->in().Write(
         PacketBuilder{protocol_context_,
                       PackMessage{api_class_, TMessage{current_id_}}},
         current_time);

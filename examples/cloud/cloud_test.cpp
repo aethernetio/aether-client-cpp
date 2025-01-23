@@ -24,6 +24,7 @@
 #include "aether/literal_array.h"
 #include "aether/crypto/sign.h"
 #include "aether/client_messages/p2p_message_stream.h"
+#include "aether/client_messages/p2p_safe_message_stream.h"
 
 #if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
      defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
@@ -220,14 +221,25 @@ void AetherCloudExample() {
 
   auto receiver_connection = client_receiver->client_connection();
 
-  ae::Ptr<ae::P2pStream> receiver_stream;
+  ae::SafeStreamConfig config;
+  config.buffer_capacity = std::numeric_limits<std::uint16_t>::max();
+  config.max_repeat_count = 4;
+  config.window_size = (config.buffer_capacity / 2) - 1;
+  config.wait_confirm_timeout = std::chrono::milliseconds{200};
+  config.send_confirm_timeout = {};
+  config.send_repeat_timeout = std::chrono::milliseconds{200};
+  config.max_data_size = config.window_size - 1;
+
+  ae::Ptr<ae::P2pSafeStream> receiver_stream;
   ae::Subscription receiver_subscription;
   auto _s0 = receiver_connection->new_stream_event().Subscribe(
       [&](auto uid, auto stream_id, auto const& message_stream) {
         AE_TELED_DEBUG("Received stream from {}", uid);
-        receiver_stream = ae::MakePtr<ae::P2pStream>(*aether->action_processor,
-                                                     client_receiver, uid,
-                                                     stream_id, message_stream);
+        receiver_stream = ae::MakePtr<ae::P2pSafeStream>(
+            *aether->action_processor, config,
+            ae::MakePtr<ae::P2pStream>(*aether->action_processor,
+                                       client_receiver, uid, stream_id,
+                                       message_stream));
         receiver_subscription =
             receiver_stream->in().out_data_event().Subscribe(
                 [&](auto const& data) {
@@ -240,21 +252,22 @@ void AetherCloudExample() {
                     receive_count++;
                   }
                   auto confirm_msg = std::string{"confirmed "} + str_msg;
-                  receiver_stream->in().WriteIn(
+                  receiver_stream->in().Write(
                       {confirm_msg.data(),
                        confirm_msg.data() + confirm_msg.size()},
                       ae::Now());
                 });
       });
 
-  auto sender_stream =
+  auto sender_stream = ae::MakePtr<ae::P2pSafeStream>(
+      *aether->action_processor, config,
       ae::MakePtr<ae::P2pStream>(*aether->action_processor, client_sender,
-                                 client_receiver->uid(), ae::StreamId{0});
+                                 client_receiver->uid(), ae::StreamId{0}));
 
-  AE_TELED_DEBUG("Send messages from client2 to client1");
+  AE_TELED_DEBUG("SEND MESSAGES FROM SENDER TO RECEIVER");
   for (auto const& message : messages) {
-    sender_stream->in().WriteIn({std::begin(message), std::end(message)},
-                                ae::Now());
+    sender_stream->in().Write({std::begin(message), std::end(message)},
+                              ae::Now());
   }
 
   auto _s1 =

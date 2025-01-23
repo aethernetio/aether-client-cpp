@@ -18,6 +18,7 @@
 #define AETHER_ADAPTERS_REGISTER_WIFI_H_
 
 #include "aether/adapters/parent_wifi.h"
+#include "aether/adapters/ethernet.h"
 
 namespace ae {
 class RegisterWifiAdapter : public ParentWifiAdapter {
@@ -32,10 +33,15 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
   template <typename Dnv>
   void Visit(Dnv& dnv) {
     dnv(*base_ptr_);
+    dnv(ethernet_adapter_);
   }
 
-  Ptr<ITransport> CreateTransport(
+  ActionView<CreateTransportAction> CreateTransport(
       IpAddressPortProtocol const& address_port_protocol) override;
+
+ private:
+  // whose doing all job
+  EthernetAdapter::ptr ethernet_adapter_;
 };
 }  // namespace ae
 

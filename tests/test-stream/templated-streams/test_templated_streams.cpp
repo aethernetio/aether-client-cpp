@@ -29,13 +29,13 @@ namespace ae::tes_templated_streams {
 
 class IntToBytesGate : public Gate<int, int, DataBuffer, DataBuffer> {
  public:
-  ActionView<StreamWriteAction> WriteIn(int in_data,
-                                        TimePoint current_time) override {
+  ActionView<StreamWriteAction> Write(int&& in_data,
+                                      TimePoint current_time) override {
     assert(out_);
-    return out_->WriteIn(DataBuffer{reinterpret_cast<uint8_t const*>(&in_data),
-                                    reinterpret_cast<uint8_t const*>(&in_data) +
-                                        sizeof(in_data)},
-                         current_time);
+    return out_->Write(DataBuffer{reinterpret_cast<uint8_t const*>(&in_data),
+                                  reinterpret_cast<uint8_t const*>(&in_data) +
+                                      sizeof(in_data)},
+                       current_time);
   }
 
   void LinkOut(OutGate& out) override {
@@ -53,10 +53,10 @@ class IntToBytesGate : public Gate<int, int, DataBuffer, DataBuffer> {
 
 class StringIntGate : public Gate<std::string, int, int, int> {
  public:
-  ActionView<StreamWriteAction> WriteIn(std::string in_data,
-                                        TimePoint current_time) override {
+  ActionView<StreamWriteAction> Write(std::string&& in_data,
+                                      TimePoint current_time) override {
     assert(out_);
-    return out_->WriteIn(std::stoi(in_data), current_time);
+    return out_->Write(std::stoi(in_data), current_time);
   }
 
   void LinkOut(OutGate& out) override {
@@ -84,7 +84,7 @@ void test_IntToBytesGate() {
   auto _0 = write_gate.on_write_event().Subscribe(
       [&](auto data, auto /* time */) { written_data = std::move(data); });
 
-  gate.WriteIn(10, TimePoint::clock::now());
+  gate.Write(10, TimePoint::clock::now());
 
   auto _1 = gate.out_data_event().Subscribe(
       [&](auto const& data) { read_data = data; });
@@ -112,7 +112,7 @@ void test_StringIntGate() {
   auto _1 = stream.in().out_data_event().Subscribe(
       [&](auto const& data) { read_data = data; });
 
-  stream.in().WriteIn("10", TimePoint::clock::now());
+  stream.in().Write("10", TimePoint::clock::now());
 
   TEST_ASSERT_EQUAL(sizeof(int), written_data.size());
 

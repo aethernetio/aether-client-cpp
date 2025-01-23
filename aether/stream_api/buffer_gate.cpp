@@ -55,7 +55,7 @@ void BufferGate::BufferedWriteAction::Stop() {
 void BufferGate::BufferedWriteAction::Send(ByteIGate& out_gate) {
   is_sent_ = true;
   // TODO: is it correct to use current_time_ here?
-  write_action_ = out_gate.WriteIn(std::move(data_), current_time_);
+  write_action_ = out_gate.Write(std::move(data_), current_time_);
   state_changed_subscription_ =
       write_action_->state().changed_event().Subscribe(
           [this](auto state) { state_ = state; });
@@ -79,88 +79,92 @@ bool BufferGate::BufferedWriteAction::is_sent() const { return is_sent_; }
 
 std::size_t BufferGate::BufferedWriteAction::size() const { return data_size_; }
 
-BufferGate::BufferOverflowWriteAction::BufferOverflowWriteAction(
-    ActionContext action_context)
-    : StreamWriteAction(action_context) {
-  state_ = State::kFailed;
-}
-
-TimePoint BufferGate::BufferOverflowWriteAction::Update(
-    TimePoint current_time) {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kFailed:
-        Action::Error(*this);
-        break;
-      default:
-        break;
-    }
-  }
-  return current_time;
-}
-
-void BufferGate::BufferOverflowWriteAction::Stop() {}
-
-BufferGate::BufferGate(ActionContext action_context,
-                       std::size_t buffer_max_size)
+BufferGate::BufferGate(ActionContext action_context, std::size_t buffer_max)
     : action_context_{action_context},
-      buffer_max_size_{buffer_max_size},
-      buffer_current_size_{0} {
-  gate_update_subscription_ =
-      EventSubscriber{gate_update_event_}.Subscribe([this]() {
-        if ((out_ != nullptr) && out_->is_linked()) {
-          DrainBuffer(*out_);
-        }
-      });
+      buffer_max_{buffer_max},
+      stream_info_{},
+      last_out_stream_info_{},
+      failed_write_list_{action_context_} {
+  stream_info_.is_soft_writable = true;
 }
 
-ActionView<StreamWriteAction> BufferGate::WriteIn(DataBuffer data,
-                                                  TimePoint current_time) {
-  auto add_to_buffer = is_write_buffered();
+ActionView<StreamWriteAction> BufferGate::Write(DataBuffer&& data,
+                                                TimePoint current_time) {
+  auto add_to_buffer =
+      !last_out_stream_info_.is_writeble || !last_out_stream_info_.is_linked;
   // add to buffer either if is write buffered or buffer is not empty to observe
   // write order
   if (add_to_buffer || !write_in_buffer_.empty()) {
-    if (buffer_free_size() < data.size()) {
+    if (!stream_info_.is_soft_writable) {
       AE_TELED_ERROR("Buffer overflow");
       // decline write
-      // TODO: return value
-      return BufferOverflowWriteAction{action_context_};
+      return failed_write_list_.Emplace();
     }
 
     AE_TELED_DEBUG("Make a buffered write");
-
-    buffer_current_size_ += data.size();
 
     auto action_it =
         write_in_buffer_.emplace(std::end(write_in_buffer_), action_context_,
                                  std::move(data), current_time);
     auto remove_action = [this, action_it]() {
-      buffer_current_size_ -= action_it->size();
       write_in_buffer_.erase(action_it);
-      gate_update_event_.Emit();
+      SetSoftWriteable(true);
+      DrainBuffer(*out_);
     };
     write_in_subscription_.Push(
         action_it->FinishedEvent().Subscribe(remove_action));
+
+    if (write_in_buffer_.size() == buffer_max_) {
+      SetSoftWriteable(false);
+    }
+
     return *action_it;
   }
 
   AE_TELED_DEBUG("Make a direct write");
-  return out_->WriteIn(std::move(data), current_time);
+  return out_->Write(std::move(data), current_time);
 }
 
-bool BufferGate::is_write_buffered() const {
-  return (out_ == nullptr) || !out_->is_linked() || out_->is_write_buffered();
+void BufferGate::LinkOut(OutGate& out) {
+  out_ = &out;
+
+  out_data_subscription_ = out_->out_data_event().Subscribe(
+      [this](auto const& data) { out_data_event_.Emit(data); });
+
+  gate_update_subscription_ =
+      out_->gate_update_event().Subscribe([this]() { UpdateGate(); });
+  gate_update_event_.Emit();
 }
 
-std::size_t BufferGate::buffer_free_size() const {
-  return buffer_max_size_ - buffer_current_size_;
+StreamInfo BufferGate::stream_info() const { return stream_info_; }
+
+void BufferGate::SetSoftWriteable(bool value) {
+  if (stream_info_.is_soft_writable != value) {
+    stream_info_.is_soft_writable = value;
+    gate_update_event_.Emit();
+  }
 }
 
-bool BufferGate::is_linked() const { return out_ && out_->is_linked(); }
+void BufferGate::UpdateGate() {
+  auto out_info = out_->stream_info();
+  if (last_out_stream_info_ != out_info) {
+    stream_info_.is_linked = out_info.is_linked;
+    stream_info_.max_element_size = out_info.max_element_size;
+    stream_info_.is_writeble = out_info.is_writeble;
+
+    last_out_stream_info_ = out_info;
+
+    gate_update_event_.Emit();
+  }
+
+  if (stream_info_.is_linked) {
+    DrainBuffer(*out_);
+  }
+}
 
 void BufferGate::DrainBuffer(OutGate& out) {
   for (auto& action : write_in_buffer_) {
-    if (out_->is_write_buffered()) {
+    if (!last_out_stream_info_.is_writeble) {
       break;
     }
     if (action.is_sent()) {

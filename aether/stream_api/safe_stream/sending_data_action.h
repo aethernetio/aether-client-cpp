@@ -28,44 +28,17 @@
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 
 namespace ae {
-
-struct SendingData;
-class SendingDataIter {
- public:
-  SendingDataIter(SafeStreamRingIndex b_off, std::size_t max_size,
-                  SendingData const& s_data);
-
-  DataBuffer::const_iterator begin() const;
-  DataBuffer::const_iterator end() const;
-  SafeStreamRingIndex begin_offset() const;
-  SafeStreamRingIndex end_offset() const;
-
-  std::size_t size() const;
-
- private:
-  SafeStreamRingIndex begin_offset_;
-  SafeStreamRingIndex end_offset_;
-  SendingData const* sending_data_;
-};
-
 struct SendingData {
-  std::pair<SafeStreamRingIndex, SafeStreamRingIndex> OffsetRange() const;
-
-  SendingDataIter Iter(SafeStreamRingIndex start_offset,
-                       std::size_t max_size) const;
+  OffsetRange get_offset_range(SafeStreamRingIndex::type window_size) const;
 
   SafeStreamRingIndex offset;
   DataBuffer data;
 };
 
-struct SendingChunk {
-  std::uint16_t repeat_count{};
-  SendingDataIter data_iter;
-};
-
 class SendingDataAction : public Action<SendingDataAction> {
   enum class State : std::uint8_t {
     kWaiting,
+    kSending,
     kDone,
     kStopped,
     kFailed,
@@ -81,9 +54,10 @@ class SendingDataAction : public Action<SendingDataAction> {
   SendingData& sending_data();
   EventSubscriber<void()> stop_event();
 
+  void Sending();
   void Stop();
 
-  void Success();
+  void SentConfirmed();
   void Stopped();
   void Failed();
 

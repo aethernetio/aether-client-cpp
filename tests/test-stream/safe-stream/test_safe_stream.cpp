@@ -34,10 +34,10 @@ constexpr auto config = SafeStreamConfig{
     20 * 1024,
     10 * 1024,
     100,
+    2,
     std::chrono::milliseconds{50},
     std::chrono::milliseconds{0},
     std::chrono::milliseconds{10},
-    2,
 };
 
 constexpr char _100_bytes_data[] =
@@ -53,14 +53,13 @@ void test_SafeStreamWriteFewData() {
   auto epoch = TimePoint::clock::now();
 
   auto ap = ActionProcessor{};
-  auto pc = ProtocolContext{};
 
   auto received_packet = DataBuffer{};
 
   auto read_stream = MockReadStream{};
   auto write_stream = MockWriteGate{ap, std::size_t{100}};
 
-  auto safe_stream = SafeStream{pc, ap, config};
+  auto safe_stream = SafeStream{ap, config};
 
   Tie(read_stream, safe_stream, write_stream);
 
@@ -72,7 +71,7 @@ void test_SafeStreamWriteFewData() {
                            std::end(data));
   });
 
-  safe_stream.in().WriteIn(
+  safe_stream.in().Write(
       {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)}, epoch);
 
   for (auto i = 0; (i < 10) && received_packet.empty(); ++i) {
@@ -83,7 +82,7 @@ void test_SafeStreamWriteFewData() {
 
   received_packet.clear();
 
-  safe_stream.in().WriteIn(
+  safe_stream.in().Write(
       {_200_bytes_data, _200_bytes_data + sizeof(_200_bytes_data)}, epoch);
 
   for (auto i = 0;
@@ -104,7 +103,7 @@ void test_SafeStreamPacketLoss() {
   auto read_stream = MockReadStream{};
   auto write_stream = MockWriteGate{ap, std::size_t{100}};
 
-  auto safe_stream = SafeStream{pc, ap, config};
+  auto safe_stream = SafeStream{ap, config};
   Tie(read_stream, safe_stream, write_stream);
 
   // loop data to itself
@@ -123,23 +122,23 @@ void test_SafeStreamPacketLoss() {
                            std::end(data));
   });
 
-  safe_stream.in().WriteIn(
+  safe_stream.in().Write(
       {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)}, epoch);
 
   for (auto i = 0; (i < 10) && received_packet.empty(); ++i) {
-    ap.Update(epoch += std::chrono::milliseconds{1});
+    ap.Update(epoch += std::chrono::milliseconds{10});
   }
 
   TEST_ASSERT_EQUAL(sizeof(_100_bytes_data), received_packet.size());
 
   received_packet.clear();
 
-  safe_stream.in().WriteIn(
+  safe_stream.in().Write(
       {_200_bytes_data, _200_bytes_data + sizeof(_200_bytes_data)}, epoch);
 
   for (auto i = 0;
        (i < 10) && (received_packet.size() < sizeof(_200_bytes_data)); ++i) {
-    ap.Update(epoch += std::chrono::milliseconds{1});
+    ap.Update(epoch += std::chrono::milliseconds{10});
   }
   TEST_ASSERT_EQUAL(sizeof(_200_bytes_data), received_packet.size());
 }

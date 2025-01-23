@@ -48,10 +48,10 @@ constexpr auto config = SafeStreamConfig{
     20 * 1024,
     10 * 1024,
     100,
+    2,
     std::chrono::milliseconds{50},
     std::chrono::milliseconds{10},
     std::chrono::milliseconds{10},
-    2,
 };
 
 void test_SafeStreamSendingFewChunks() {
@@ -68,7 +68,7 @@ void test_SafeStreamSendingFewChunks() {
 
   auto sending = SafeStreamSendingAction(ac, pc, config);
   sending.set_max_data_size(100);
-  auto _0 = sending.send_data_event().Subscribe([&](auto, auto data, auto) {
+  auto _0 = sending.write_data_event().Subscribe([&](auto, auto data, auto) {
     received_packet = std::move(data);
     auto api_parser = ae::ApiParser(pc, received_packet);
     auto mid = api_parser.Extract<MessageId>();
@@ -127,7 +127,7 @@ void test_SafeStreamSendingWaitConfirm() {
   auto sending = SafeStreamSendingAction{ac, pc, config};
   sending.set_max_data_size(100);
 
-  auto _0 = sending.send_data_event().Subscribe([&](auto, auto data, auto) {
+  auto _0 = sending.write_data_event().Subscribe([&](auto, auto data, auto) {
     received_packet = std::move(data);
     auto api_parser = ae::ApiParser(pc, received_packet);
     auto mid = api_parser.Extract<MessageId>();
@@ -172,7 +172,7 @@ void test_SafeStreamSendingRepeat() {
   auto sending = SafeStreamSendingAction{ac, pc, config};
   sending.set_max_data_size(100);
 
-  auto _0 = sending.send_data_event().Subscribe([&](auto, auto data, auto) {
+  auto _0 = sending.write_data_event().Subscribe([&](auto, auto data, auto) {
     received_packet = std::move(data);
     auto api_parser = ae::ApiParser(pc, received_packet);
     auto mid = api_parser.Extract<MessageId>();
@@ -231,11 +231,12 @@ void test_SafeStreamSendingRepeatRequest() {
   auto received_packet = DataBuffer{};
   auto received_data = DataBuffer{};
   auto received_offset = std::uint16_t{};
+  auto sending_error = bool{};
 
   auto sending = SafeStreamSendingAction{ac, pc, config};
   sending.set_max_data_size(100);
 
-  auto _ = sending.send_data_event().Subscribe([&](auto, auto data, auto) {
+  auto _ = sending.write_data_event().Subscribe([&](auto, auto data, auto) {
     received_packet = std::move(data);
     auto api_parser = ae::ApiParser(pc, received_packet);
     auto mid = api_parser.Extract<MessageId>();
@@ -260,8 +261,10 @@ void test_SafeStreamSendingRepeatRequest() {
     }
   });
 
-  sending.SendData(
+  auto send_action = sending.SendData(
       {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  auto _1 =
+      send_action->SubscribeOnError([&](auto const&) { sending_error = true; });
 
   ap.Update(epoch += std::chrono::milliseconds{2});
   TEST_ASSERT_EQUAL(100, received_data.size());
@@ -279,7 +282,8 @@ void test_SafeStreamSendingRepeatRequest() {
   sending.RequestRepeatSend(SafeStreamRingIndex{received_offset});
 
   ap.Update(epoch += std::chrono::milliseconds{1});
-  TEST_ASSERT_EQUAL(400, received_data.size());
+  TEST_ASSERT_EQUAL(300, received_data.size());
+  TEST_ASSERT(sending_error);
 }
 
 }  // namespace ae::test_safe_stream_sending

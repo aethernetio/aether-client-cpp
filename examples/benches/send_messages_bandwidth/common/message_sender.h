@@ -105,7 +105,7 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
     auto packet =
         PacketBuilder{protocol_context_, PackMessage{api_class_, TMessage{}}};
 
-    auto write_action = stream_->in().WriteIn(std::move(packet), current_time);
+    auto write_action = stream_->in().Write(std::move(packet), current_time);
     message_send_.Push(  //
         write_action->SubscribeOnResult([this](auto const&) {
           message_send_confirm_count_++;

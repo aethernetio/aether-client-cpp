@@ -133,10 +133,10 @@ void test_ProtocolWriteStream() {
 
   Tie(protocol_stream, write_stream);
 
-  auto data_size = protocol_stream.max_write_in_size();
+  auto data_size = protocol_stream.stream_info().max_element_size;
   TEST_ASSERT_EQUAL(1 + 2 + 4, 1000 - data_size);
 
-  protocol_stream.WriteIn(
+  protocol_stream.Write(
       PacketBuilder{
           pc, PackMessage{TestApiClass{},
                           TestApiClass::DataMessage{
@@ -155,10 +155,10 @@ void test_ProtocolWriteStream() {
 
   Tie(protocol_stream2, write_stream);
 
-  auto data_size2 = protocol_stream2.max_write_in_size();
+  auto data_size2 = protocol_stream2.stream_info().max_element_size;
   TEST_ASSERT_EQUAL(1 + 1 + str.size(), 1000 - data_size2);
 
-  protocol_stream2.WriteIn(
+  protocol_stream2.Write(
       PacketBuilder{
           pc,
           PackMessage{TestApiClass{},

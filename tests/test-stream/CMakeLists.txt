@@ -16,7 +16,7 @@ cmake_minimum_required( VERSION 3.18 )
 
 list(APPEND test_srcs
   main.cpp
-  safe-stream/test_send_data_action.cpp
+  safe-stream/test_safe_stream_types.cpp
   safe-stream/test_safe_stream_sending.cpp
   safe-stream/test_safe_stream_receiving.cpp
   safe-stream/test_safe_stream.cpp

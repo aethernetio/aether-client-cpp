@@ -27,35 +27,62 @@
 
 namespace ae {
 
+EthernetAdapter::EthernetCreateTransportAction::EthernetCreateTransportAction(
+    ActionContext action_context, Ptr<ITransport> transport)
+    : CreateTransportAction{action_context},
+      transport_{std::move(transport)},
+      once_{true} {}
+
+TimePoint EthernetAdapter::EthernetCreateTransportAction::Update(
+    TimePoint current_time) {
+  if (transport_ && once_) {
+    once_ = false;
+    Action::Result(*this);
+  }
+  return current_time;
+}
+
+Ptr<ITransport> EthernetAdapter::EthernetCreateTransportAction::transport()
+    const {
+  return transport_;
+}
+
 #ifdef AE_DISTILLATION
 EthernetAdapter::EthernetAdapter(Aether::ptr aether, IPoller::ptr poller,
                                  Domain* domain)
     : Adapter(domain), aether_{std::move(aether)}, poller_{std::move(poller)} {}
 #endif  // AE_DISTILLATION
 
-Ptr<ITransport> EthernetAdapter::CreateTransport(
+ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
     IpAddressPortProtocol const& address_port_protocol) {
+  if (!create_transport_actions_) {
+    create_transport_actions_ =
+        MakePtr<ActionList<EthernetCreateTransportAction>>(
+            ActionContext{*aether_.as<Aether>()->action_processor});
+  }
+
   CleanDeadTransports();
   auto transport = FindInCache(address_port_protocol);
-  if (transport) {
-    AE_TELED_DEBUG("Got transport from cache");
-    return transport;
-  }
+  if (!transport) {
 #if defined UNIX_TCP_TRANSPORT_ENABLED
-  assert(address_port_protocol.protocol == Protocol::kTcp);
-  transport = MakePtr<UnixTcpTransport>(
-      *static_cast<Aether::ptr>(aether_)->action_processor, poller_,
-      address_port_protocol);
+    assert(address_port_protocol.protocol == Protocol::kTcp);
+    transport =
+        MakePtr<UnixTcpTransport>(*aether_.as<Aether>()->action_processor,
+                                  poller_, address_port_protocol);
 #elif defined WIN_TCP_TRANSPORT_ENABLED
-  transport = MakePtr<WinTcpTransport>(
-      *static_cast<Aether::ptr>(aether_)->action_processor, poller_,
-      address_port_protocol);
+    assert(address_port_protocol.protocol == Protocol::kTcp);
+    transport =
+        MakePtr<WinTcpTransport>(*aether_.as<Aether>()->action_processor,
+                                 poller_, address_port_protocol);
 #else
-  return {};
+    return {};
 #endif
+    AddToCache(address_port_protocol, transport);
+  } else {
+    AE_TELED_DEBUG("Got transport from cache");
+  }
 
-  AddToCache(address_port_protocol, transport);
-  return transport;
+  return create_transport_actions_->Emplace(std::move(transport));
 }
 
 }  // namespace ae

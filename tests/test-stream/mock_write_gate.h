@@ -64,25 +64,25 @@ class MockWriteGate : public ByteGate {
  public:
   explicit MockWriteGate(ActionContext action_context,
                          std::size_t max_data_size)
-      : action_list_{action_context}, max_data_size_{max_data_size} {}
+      : action_list_{action_context}, stream_info_{max_data_size, {}, {}, {}} {}
 
-  ActionView<StreamWriteAction> WriteIn(DataBuffer buffer,
-                                        TimePoint current_time) override {
+  ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
+                                      TimePoint current_time) override {
     on_write_.Emit(std::move(buffer), current_time);
     return action_list_.Emplace();
   }
 
-  std::size_t max_write_in_size() const override { return max_data_size_; };
+  StreamInfo stream_info() const override { return stream_info_; }
 
   EventSubscriber<void(DataBuffer, TimePoint)> on_write_event() {
     return on_write_;
   }
 
-  void WriteOut(DataBuffer buffer) { out_data_event_.Emit(buffer); }
+  void WriteOut(DataBuffer const& buffer) { out_data_event_.Emit(buffer); }
 
  private:
   ActionList<MockStreamWriteAction> action_list_;
-  std::size_t max_data_size_;
+  StreamInfo stream_info_;
   Event<void(DataBuffer, TimePoint)> on_write_;
 };
 }  // namespace ae

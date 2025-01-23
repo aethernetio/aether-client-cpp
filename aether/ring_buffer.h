@@ -36,7 +36,7 @@ struct RingIndex {
   using type = T;
   static constexpr T max = Max;
 
-  explicit RingIndex(T val = 0) : value_(val % Max) {}
+  explicit constexpr RingIndex(T val = 0) : value_(val % Max) {}
 
   constexpr void Clockwise(T val) {
     val = val % Max;

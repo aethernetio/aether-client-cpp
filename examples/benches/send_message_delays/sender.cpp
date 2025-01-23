@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "aether/client_messages/p2p_message_stream.h"
+#include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "aether/tele/tele.h"
 
@@ -26,16 +27,25 @@
 
 namespace ae::bench {
 Sender::Sender(ActionContext action_context, Client::ptr client,
-               Uid destination_uid)
+               Uid destination_uid, SafeStreamConfig safe_stream_config)
     : action_context_{action_context},
       client_{std::move(client)},
-      destination_uid_{destination_uid} {}
+      destination_uid_{destination_uid},
+      safe_stream_config_{safe_stream_config} {}
 
-void Sender::Connect() {
-  AE_TELED_DEBUG("Sender::Connect()");
+void Sender::ConnectP2pStream() {
+  AE_TELED_DEBUG("Sender::ConnectP2pStream()");
 
   send_message_stream_ = MakePtr<P2pStream>(action_context_, client_,
                                             destination_uid_, StreamId{0});
+}
+
+void Sender::ConnectP2pSafeStream() {
+  AE_TELED_DEBUG("Sender::ConnectP2pSafeStream()");
+  send_message_stream_ =
+      MakePtr<P2pSafeStream>(action_context_, safe_stream_config_,
+                             MakePtr<P2pStream>(action_context_, client_,
+                                                destination_uid_, StreamId{1}));
 }
 
 void Sender::Disconnect() {

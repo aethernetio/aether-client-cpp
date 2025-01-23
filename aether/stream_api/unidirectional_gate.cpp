@@ -30,8 +30,8 @@ void WriteOnlyGate::LinkOut(OutGate& out) {
 ReadOnlyGate::ReadOnlyGate(ActionContext action_context)
     : failed_write_actions_{action_context} {}
 
-ActionView<StreamWriteAction> ReadOnlyGate::WriteIn(
-    DataBuffer /* data */, TimePoint /* current_time */) {
+ActionView<StreamWriteAction> ReadOnlyGate::Write(
+    DataBuffer&& /* data */, TimePoint /* current_time */) {
   return failed_write_actions_.Emplace();
 }
 

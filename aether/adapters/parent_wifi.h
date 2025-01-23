@@ -19,13 +19,12 @@
 
 #include <string>
 
-#include "aether/aether.h"
-
 #include "aether/adapters/adapter.h"
 #include "aether/poller/poller.h"
 
 namespace ae {
 class Aether;
+
 class ParentWifiAdapter : public Adapter {
   AE_OBJECT(ParentWifiAdapter, Adapter, 0)
 
@@ -45,10 +44,8 @@ class ParentWifiAdapter : public Adapter {
   Obj::ptr aether_;
   IPoller::ptr poller_;
 
-  std::string ssid_{};
-  std::string pass_{};
-
- private:
+  std::string ssid_;
+  std::string pass_;
 };
 }  // namespace ae
 

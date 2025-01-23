@@ -17,14 +17,30 @@
 #ifndef AETHER_ADAPTERS_ETHERNET_H_
 #define AETHER_ADAPTERS_ETHERNET_H_
 
-#include "aether/adapters/adapter.h"
+#include "aether/obj/ptr.h"
 #include "aether/poller/poller.h"
+#include "aether/adapters/adapter.h"
+#include "aether/actions/action_list.h"
 
 namespace ae {
 class Aether;
 
 class EthernetAdapter : public Adapter {
   AE_OBJECT(EthernetAdapter, Adapter, 0)
+
+  class EthernetCreateTransportAction : public CreateTransportAction {
+   public:
+    explicit EthernetCreateTransportAction(ActionContext action_context,
+                                           Ptr<ITransport> transport);
+
+    TimePoint Update(TimePoint current_time) override;
+
+    Ptr<ITransport> transport() const override;
+
+   private:
+    Ptr<ITransport> transport_;
+    bool once_;
+  };
 
  public:
 #ifdef AE_DISTILLATION
@@ -37,12 +53,13 @@ class EthernetAdapter : public Adapter {
     dnv(aether_, poller_);
   }
 
-  Ptr<ITransport> CreateTransport(
+  ActionView<CreateTransportAction> CreateTransport(
       IpAddressPortProtocol const& address_port_protocol) override;
 
  private:
   Obj::ptr aether_;
   IPoller::ptr poller_;
+  Ptr<ActionList<EthernetCreateTransportAction>> create_transport_actions_;
 };
 }  // namespace ae
 

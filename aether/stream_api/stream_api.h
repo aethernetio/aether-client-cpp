@@ -58,7 +58,7 @@ class StreamIdGenerator {
   static StreamId GetNextServerStreamId();
 };
 
-class StreamApiGate : public ByteGate {
+class StreamApiGate final : public ByteGate {
  public:
   StreamApiGate(ProtocolContext& protocol_context, StreamId stream_id);
   StreamApiGate(StreamApiGate&& other) noexcept;
@@ -66,12 +66,12 @@ class StreamApiGate : public ByteGate {
   StreamApiGate& operator=(StreamApiGate const& other) = delete;
   StreamApiGate& operator=(StreamApiGate&& other) noexcept;
 
-  ActionView<StreamWriteAction> WriteIn(DataBuffer buffer,
-                                        TimePoint current_time) override;
+  ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
+                                      TimePoint current_time) override;
 
   void LinkOut(OutGate& out) override;
 
-  std::size_t max_write_in_size() const override;
+  StreamInfo stream_info() const override;
 
   void PutData(DataBuffer const& data);
 

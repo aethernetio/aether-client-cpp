@@ -18,10 +18,13 @@
 
 namespace ae {
 ActionContext::ActionContext(ActionProcessor& processor)
-    : processor_{processor} {}
-ActionTrigger& ActionContext::get_trigger() { return processor_.get_trigger(); }
+    : processor_{&processor} {}
+
+ActionTrigger& ActionContext::get_trigger() {
+  return processor_->get_trigger();
+}
 ActionRegistry& ActionContext::get_registry() {
-  return processor_.get_registry();
+  return processor_->get_registry();
 }
 
 }  // namespace ae

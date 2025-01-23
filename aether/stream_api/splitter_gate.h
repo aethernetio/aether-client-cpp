@@ -25,13 +25,14 @@
 #include "aether/stream_api/stream_api.h"
 
 namespace ae {
-class SplitterGate : public ByteGate {
+class SplitterGate final : public ByteGate {
  public:
   using NewStreamEvent = Event<void(StreamId stream_id, StreamApiGate& stream)>;
 
   SplitterGate();
 
   void LinkOut(OutGate& out) override;
+
   StreamApiGate& RegisterStream(StreamId stream_id);
   NewStreamEvent::Subscriber new_stream_event();
   void CloseStream(StreamId stream_id);

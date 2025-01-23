@@ -16,13 +16,15 @@
 
 #include "aether/adapters/parent_wifi.h"
 
+#include "aether/aether.h"
+
 namespace ae {
 
 #if defined AE_DISTILLATION
 ParentWifiAdapter::ParentWifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                                      std::string ssid, std::string pass,
                                      Domain* domain)
-    : Adapter(domain),
+    : Adapter{domain},
       aether_{std::move(aether)},
       poller_{std::move(poller)},
       ssid_{std::move(ssid)},

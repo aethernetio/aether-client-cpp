@@ -79,7 +79,7 @@ void SenderSyncAction::SendSync(TimePoint current_time) {
   auto packet = PacketBuilder{
       protocol_context_,
       PackMessage{BandwidthApi{}, BandwidthApi::Sync{{}, request_id}}};
-  stream_->in().WriteIn(std::move(packet), current_time);
+  stream_->in().Write(std::move(packet), current_time);
   send_time_ = current_time;
   current_repeat_++;
   state_.Set(State::kWaitResponse);

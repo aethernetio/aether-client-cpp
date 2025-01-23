@@ -68,8 +68,8 @@ struct PrintToStream<T,
   static void Print(std::ostream& s, T const& t) {
     s << "[";
     if constexpr (std::is_integral_v<typename T::value_type>) {
-      s << std::setfill('0') << std::setw(2) << std::hex;
       for (auto it = std::begin(t); it != std::end(t); ++it) {
+        s << std::setfill('0') << std::setw(2) << std::hex;
         if constexpr (std::is_unsigned_v<typename T::value_type>) {
           s << std::uint64_t{*it};
         } else {

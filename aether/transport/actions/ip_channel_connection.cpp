@@ -73,8 +73,21 @@ ConnectionInfo IpAddressChannelConnectionAction::connection_info() const {
 void IpAddressChannelConnectionAction::TryConnect(
     TimePoint /* current_time */) {
   AE_TELED_DEBUG("TryConnection to address {}", ip_address_port_protocol_);
+  auto transport_create_action =
+      adapter_.CreateTransport(ip_address_port_protocol_);
 
-  transport_ = adapter_.CreateTransport(ip_address_port_protocol_);
+  subscriptions_.Push(
+      transport_create_action->SubscribeOnResult(
+          [this](auto const& action) { TransportCreated(action.transport()); }),
+      transport_create_action->SubscribeOnError([this](auto const&) {
+        AE_TELED_ERROR("Transport create failed");
+        state_.Set(State::Failed);
+      }));
+}
+
+void IpAddressChannelConnectionAction::TransportCreated(
+    Ptr<ITransport> transport) {
+  transport_ = std::move(transport);
 
   auto connection_info = transport_->GetConnectionInfo();
   switch (connection_info.connection_state) {

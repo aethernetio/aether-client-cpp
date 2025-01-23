@@ -20,6 +20,8 @@
 #include <vector>
 #include <utility>
 
+#include "aether/common.h"
+
 #include "aether/events/event_subscription.h"
 
 namespace ae {
@@ -31,8 +33,7 @@ class MultiSubscription {
   MultiSubscription() = default;
   ~MultiSubscription() = default;
 
-  MultiSubscription(MultiSubscription const&) = delete;
-  MultiSubscription(MultiSubscription&&) noexcept = default;
+  AE_CLASS_MOVE_ONLY(MultiSubscription)
 
   /**
    * \brief Push as many as you need subscriptions to the list.

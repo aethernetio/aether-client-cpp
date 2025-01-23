@@ -117,7 +117,7 @@ void GetClientCloudAction::RequestCloud(TimePoint current_time) {
                  FormatTimePoint("%H:%M:%S", current_time));
 
   cloud_request_action_ =
-      cloud_request_stream_->in().WriteIn(client_uid_, current_time);
+      cloud_request_stream_->in().Write(Uid{client_uid_}, current_time);
 
   cloud_request_subscriptions_.Push(
       cloud_request_action_->SubscribeOnStop(
@@ -134,7 +134,8 @@ void GetClientCloudAction::RequestServerResolve(TimePoint current_time) {
 
   server_resolve_actions_.reserve(uid_and_cloud_.cloud.size());
   for (auto server_id : uid_and_cloud_.cloud) {
-    auto swa = server_resolver_stream_->in().WriteIn(server_id, current_time);
+    auto swa =
+        server_resolver_stream_->in().Write(std::move(server_id), current_time);
     server_resolve_subscriptions_.Push(
         swa->SubscribeOnStop([this, server_id](auto const&) {
           AE_TELED_ERROR("Resolve server id {} stopped", server_id);

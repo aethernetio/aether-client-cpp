@@ -68,10 +68,14 @@ void TransportWriteGate::TransportStreamWriteAction::Stop() {
 TransportWriteGate::TransportWriteGate(ActionContext action_context,
                                        Ptr<ITransport> transport)
     : transport_{std::move(transport)},
-      max_data_size_{transport_->GetConnectionInfo().max_packet_size},
+      stream_info_{transport_->GetConnectionInfo().max_packet_size, {}, {}, {}},
       transport_connection_subscription_{
           transport_->ConnectionSuccess().Subscribe([this]() {
-            max_data_size_ = transport_->GetConnectionInfo().max_packet_size;
+            stream_info_.max_element_size =
+                transport_->GetConnectionInfo().max_packet_size;
+            stream_info_.is_linked = true;
+            stream_info_.is_writeble = true;
+            stream_info_.is_soft_writable = true;
             gate_update_event_.Emit();
           })},
       transport_read_data_subscription_{transport_->ReceiveEvent().Subscribe(
@@ -82,10 +86,14 @@ TransportWriteGate::TransportWriteGate(ActionContext action_context,
 
 TransportWriteGate::TransportWriteGate(TransportWriteGate&& other) noexcept
     : transport_{std::move(other.transport_)},
-      max_data_size_{other.max_data_size_},
+      stream_info_{other.stream_info_},
       transport_connection_subscription_{
           transport_->ConnectionSuccess().Subscribe([this]() {
-            max_data_size_ = transport_->GetConnectionInfo().max_packet_size;
+            stream_info_.max_element_size =
+                transport_->GetConnectionInfo().max_packet_size;
+            stream_info_.is_linked = true;
+            stream_info_.is_writeble = true;
+            stream_info_.is_soft_writable = true;
             gate_update_event_.Emit();
           })},
       transport_read_data_subscription_{transport_->ReceiveEvent().Subscribe(
@@ -96,9 +104,11 @@ TransportWriteGate::TransportWriteGate(TransportWriteGate&& other) noexcept
 
 TransportWriteGate::~TransportWriteGate() = default;
 
-ActionView<StreamWriteAction> TransportWriteGate::WriteIn(
-    DataBuffer buffer, TimePoint current_time) {
+ActionView<StreamWriteAction> TransportWriteGate::Write(
+    DataBuffer&& buffer, TimePoint current_time) {
   AE_TELED_DEBUG("Write bytes: size: {}\n data: {}", buffer.size(), buffer);
+
+  // TODO: add checks for writeable and soft writable
 
   return write_actions_.Emplace(
       transport_->Send(std::move(buffer), current_time));
@@ -113,21 +123,7 @@ TransportWriteGate::gate_update_event() {
   return gate_update_event_;
 }
 
-std::size_t TransportWriteGate::max_write_in_size() const {
-  return max_data_size_;
-}
-
-bool TransportWriteGate::is_write_buffered() const { return false; }
-
-std::size_t TransportWriteGate::buffer_free_size() const {
-  // TODO: transport buffer size
-  return std::numeric_limits<std::size_t>::max();
-}
-
-bool TransportWriteGate::is_linked() const {
-  return transport_->GetConnectionInfo().connection_state ==
-         ConnectionState::kConnected;
-}
+StreamInfo TransportWriteGate::stream_info() const { return stream_info_; }
 
 void TransportWriteGate::ReceiveData(DataBuffer const& data,
                                      TimePoint current_time) {

@@ -166,7 +166,7 @@ void ClientToServerStream::InitStreams() {
 
   // write something to init the stream
   AE_TELED_DEBUG("Send authorization ping");
-  server_stream_->in().WriteIn(
+  server_stream_->in().Write(
       PacketBuilder{protocol_context_,
                     PackMessage{AuthorizedApi{}, AuthorizedApi::Ping{}}},
       TimePoint::clock::now());

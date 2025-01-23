@@ -99,8 +99,8 @@ void test_SyncCryptoStream() {
   auto _1 = read_stream.out_data_event().Subscribe(
       [&](auto data) { received_data = std::move(data); });
 
-  crypto_gate.WriteIn({test_data, test_data + sizeof(test_data)},
-                      TimePoint::clock::now());
+  crypto_gate.Write({test_data, test_data + sizeof(test_data)},
+                    TimePoint::clock::now());
 
   TEST_ASSERT_GREATER_THAN(sizeof(test_data), written_data.size());
   TEST_ASSERT_EQUAL(sizeof(test_data), received_data.size());
@@ -132,8 +132,8 @@ void test_AsyncCryptoStream() {
   auto _1 = read_stream.out_data_event().Subscribe(
       [&](auto data) { received_data = std::move(data); });
 
-  crypto_gate.WriteIn({test_data, test_data + sizeof(test_data)},
-                      TimePoint::clock::now());
+  crypto_gate.Write({test_data, test_data + sizeof(test_data)},
+                    TimePoint::clock::now());
 
   TEST_ASSERT_GREATER_THAN(sizeof(test_data), written_data.size());
   TEST_ASSERT_EQUAL(sizeof(test_data), received_data.size());

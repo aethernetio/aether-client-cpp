@@ -47,7 +47,7 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       stream_id_{stream_id},
       receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
-      buffer_gate_{action_context, 20 * 1024},
+      buffer_gate_{action_context, 100},
       send_receive_gate_{WriteOnlyGate{}, ReadOnlyGate{action_context_}},
       receive_stream_{std::move(receive_stream)} {
   AE_TELED_DEBUG("P2pStream received {} for {}", static_cast<int>(stream_id_),
@@ -68,6 +68,10 @@ P2pStream::~P2pStream() {
     send_client_connection_->CloseStream(destination_, stream_id_);
   }
 }
+
+P2pStream::InGate& P2pStream::in() { return buffer_gate_; }
+
+void P2pStream::LinkOut(OutGate& /* out */) { assert(false); }
 
 void P2pStream::ConnectReceive() {
   receive_stream_ =

@@ -50,6 +50,7 @@ class IpAddressChannelConnectionAction : public ChannelConnectionAction {
 
  private:
   void TryConnect(TimePoint current_time);
+  void TransportCreated(Ptr<ITransport> transport);
 
   IpAddressPortProtocol ip_address_port_protocol_;
   Adapter& adapter_;

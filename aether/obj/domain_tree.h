@@ -68,7 +68,7 @@ class DomainNodeVisitor {
   template <typename T>
   void VisitNode(T& t) {
     if constexpr (VisitPolicy::template VisitorApplicable<T, Visitor>::value) {
-      auto propagate = VisitPolicy::template ApplyVisit(t, visitor);
+      auto propagate = VisitPolicy::template ApplyVisit<>(t, visitor);
       if (!propagate) {
         return;
       }

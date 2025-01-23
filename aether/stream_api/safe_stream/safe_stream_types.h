@@ -26,21 +26,39 @@ namespace ae {
 
 using SafeStreamRingIndex = RingIndex<std::uint16_t>;
 
+struct OffsetRange {
+  SafeStreamRingIndex begin;
+  SafeStreamRingIndex end;
+  SafeStreamRingIndex::type window_size;
+
+  // offset in [begin:end] range
+  constexpr bool InRange(SafeStreamRingIndex offset) const {
+    return (begin.Distance(offset) <= window_size) &&
+           (offset.Distance(end) <= window_size);
+  }
+
+  // offset range is before offset ( end < offset)
+  constexpr bool Before(SafeStreamRingIndex offset) const {
+    return offset.Distance(end) > window_size;
+  }
+
+  // offset range is after offset ( begin > offset)
+  constexpr bool After(SafeStreamRingIndex offset) const {
+    return begin.Distance(offset) > window_size;
+  }
+};
+
 struct OffsetTime {
   TimePoint time;
   SafeStreamRingIndex offset;
 };
 
-struct SafeStreamConfig {
-  std::uint16_t buffer_capacity;  //< sending buffer capacity
-  std::uint16_t window_size;      //< size of sending window
-  std::uint16_t max_data_size;    //< max size of sending data
-  Duration wait_confirm_timeout;  //< Timeout for waiting confirmation
-  Duration send_confirm_timeout;  //< max time to wait before send confirmation
-  Duration send_repeat_timeout;  //< max time to wait before send repeat request
-  std::uint16_t max_repeat_count;  //< max repeat count for sending packet
+struct SendingChunk {
+  SafeStreamRingIndex begin_offset;
+  SafeStreamRingIndex end_offset;
+  std::uint16_t repeat_count;
+  TimePoint send_time;
 };
-
 }  // namespace ae
 
 #endif  // AETHER_STREAM_API_SAFE_STREAM_SAFE_STREAM_TYPES_H_

@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-    
+
   #Allows you to start workflow manually from the actions tab in the interface github.com
   workflow_dispatch:
   
@@ -117,6 +117,14 @@ jobs:
           cmake
         update: true
 
+    - name: Set Ubuntu environment
+      if: ${{ (runner.os == 'Linux') }}
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        packages: libx11-dev
+        version: 1.0
+
+
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
     - name: Configure CMake (Win)
@@ -175,7 +183,7 @@ jobs:
       with:
         name: Aether_${{ matrix.config.name }}_${{ matrix.platforms.name }}
         path: "build/**/aether-client-cpp*"
-          
+
   #ESP32 Build
   build-esp-idf-component:
     name: Build with ESP-IDF ${{ matrix.idf_ver }} for ${{ matrix.idf_target }}
@@ -186,7 +194,7 @@ jobs:
         # See https://hub.docker.com/r/espressif/idf/tags and
         # https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/tools/idf-docker-image.html
         # for details.
-        idf_ver: ["release-v5.3"]
+        idf_ver: ["latest"]
         idf_target: ["esp32"]
         compile_example: ["cloud", "button"]
         platforms:
@@ -195,13 +203,13 @@ jobs:
             user_config: "../config/user_config_optimized.h",
             fs_init: "../../../../config/file_system_init.h",
             }
-        
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           submodules: 'recursive'
-      
+
       - name: Apply library paths
         # Apply library paths.
         shell: bash
@@ -224,19 +232,19 @@ jobs:
         with:
           esp_idf_version: ${{ matrix.idf_ver }}
           target: ${{ matrix.idf_target }}
-          path: "projects/github_ci_cd/cmake/esp32"
+          path: "projects/xtensa_lx6/vscode/aether-client-cpp"
           command: idf.py build 
             -DCOMPILE_EXAMPLE=${{ matrix.compile_example }}
             -DUSER_CONFIG=${{ matrix.platforms.user_config }}
             -DFS_INIT="${{ matrix.platforms.fs_init }}"
             -DAE_DISTILLATION=Off
-          
+
       - name: Rename artifact
         run: |
           ls -lah 
-          cp projects/github_ci_cd/cmake/esp32/build/bootloader/bootloader.bin bootloader-${{ matrix.idf_ver }}.bin
-          cp projects/github_ci_cd/cmake/esp32/build/partition_table/partition-table.bin partition-table-${{ matrix.idf_ver }}.bin
-          cp projects/github_ci_cd/cmake/esp32/build/Aether.bin Aether-${{ matrix.compile_example }}-${{ matrix.idf_ver }}.bin
+          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/bootloader/bootloader.bin bootloader-${{ matrix.idf_ver }}.bin
+          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/partition_table/partition-table.bin partition-table-${{ matrix.idf_ver }}.bin
+          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/Aether.bin Aether-${{ matrix.compile_example }}-${{ matrix.idf_ver }}.bin
 
       - name: Upload
         uses: actions/upload-artifact@v4
