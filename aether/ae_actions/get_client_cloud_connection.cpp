@@ -49,7 +49,7 @@ GetClientCloudConnection::~GetClientCloudConnection() {
 }
 
 TimePoint GetClientCloudConnection::Update(TimePoint current_time) {
-  AE_TELED_DEBUG("Update()");
+  AE_TELED_DEBUG("Update() state_ {}", state_.get());
 
   if (state_.changed()) {
     switch (state_.Acquire()) {
@@ -126,6 +126,7 @@ void GetClientCloudConnection::SelectConnection(TimePoint /* current_time */) {
 
   if (server_connection_->server_stream()->in().stream_info().is_linked) {
     state_ = State::kGetCloud;
+    return;
   }
 
   connection_subscription_ = server_connection_->server_stream()
