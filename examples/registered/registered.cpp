@@ -35,9 +35,9 @@ constexpr std::uint8_t clients_max = 16;
 
 namespace ae {
 #if defined AE_DISTILLATION
-static Aether::ptr CreateAetherInstrument(Domain& domain, std::string wifi_ssid,
-                                          std::string wifi_pass) {
+static Aether::ptr CreateAetherInstrument(Domain& domain, std::string wifi_ssid, std::string wifi_pass) {
   Aether::ptr aether = domain.CreateObj<ae::Aether>(GlobalId::kAether);
+
 
   RegisterWifiAdapter::ptr adapter = domain.CreateObj<RegisterWifiAdapter>(
       GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
@@ -48,8 +48,8 @@ static Aether::ptr CreateAetherInstrument(Domain& domain, std::string wifi_ssid,
 
 #  if AE_SUPPORT_REGISTRATION
   // localhost
-  aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
-      {IpAddress{IpAddress::Version::kIpV4, {127, 0, 0, 1}}, 9010},
+  aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{      
+   {IpAddress{IpAddress::Version::kIpV4, {127, 0, 0, 1}}, 9010},
       Protocol::kTcp});
   // cloud address
   aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
@@ -73,9 +73,9 @@ static Aether::ptr LoadAether(Domain& domain) {
 
 }  // namespace ae
 
-int AetherRegistrator(const std::string& ini_file);
+int AetherRegistrator(const std::string &ini_file);
 
-int AetherRegistrator(const std::string& ini_file) {
+int AetherRegistrator(const std::string &ini_file) {
   ae::TeleInit::Init();
 
   {
@@ -107,9 +107,9 @@ int AetherRegistrator(const std::string& ini_file) {
   std::vector<std::tuple<std::string, std::int8_t>> parents;
 
   for (std::uint8_t i{0}; i < parents_num; i++) {
-    uid = file["ParentID" + std::to_string(i + 1)]["uid"];
+    uid = file["ParentID" + std::to_string(i+1)]["uid"];
     clients_num =
-        file["ParentID" + std::to_string(i + 1)].get<int>("clientsNum");
+        file["ParentID" + std::to_string(i+1)].get<int>("clientsNum");
     parent = make_tuple(uid, clients_num);
     parents.push_back(parent);
     clients_total += clients_num;
@@ -128,8 +128,7 @@ int AetherRegistrator(const std::string& ini_file) {
   {
     ae::Domain domain{ae::ClockType::now(), fs};
     fs.remove_all();
-    ae::Aether::ptr aether =
-        ae::CreateAetherInstrument(domain, wifi_ssid, wifi_pass);
+    ae::Aether::ptr aether = ae::CreateAetherInstrument(domain, wifi_ssid, wifi_pass);
 #  if AE_SIGNATURE == AE_ED25519
     auto sspk_str = sodium_key;
     auto sspk_arr = ae::MakeArray(sspk_str);
@@ -139,8 +138,8 @@ int AetherRegistrator(const std::string& ini_file) {
                 << " bytes\n";
       return -2;
     }
-
-    std::copy(std::begin(sspk_arr), std::end(sspk_arr), std::begin(sspk.key));
+    
+    std::copy(std::begin(sspk_arr), std::end(sspk_arr), std::begin(sspk.key));    
     aether->crypto->signs_pk_[ae::SignatureMethod::kEd25519] = sspk;
 #  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
     auto hspk_str = hydrogen_key;
