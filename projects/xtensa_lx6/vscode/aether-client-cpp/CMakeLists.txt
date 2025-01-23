@@ -43,6 +43,7 @@ set(AE_DISTILLATION OFF CACHE BOOL "" FORCE)
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/cloud"
                                  "../../../../examples/button"
+                                 "../../../../examples/registered"
                                  "../../../../examples/benches/send_message_delays"
 )
 

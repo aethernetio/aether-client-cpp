@@ -28,7 +28,7 @@ extern "C" void app_main();
 extern int AetherRegistered();
 
 // Test function.
-int test(const std::string &ini_file) { return AetherRegistered(ini_file); }
+int test() { return AetherRegistered(); }
 
 #if defined(ESP_PLATFORM)
 void app_main(void) {
