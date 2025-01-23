@@ -36,10 +36,6 @@ class ClientServerConnection {
 
   Ptr<ClientToServerStream> const& server_stream() const;
 
-  EventSubscriber<void()> connected_event();
-  EventSubscriber<void()> connection_error_event();
-  ConnectionState connection_state() const;
-
   ByteStream& GetStream(Uid destination);
   NewStreamEvent::Subscriber new_stream_event();
   void CloseStream(Uid uid);

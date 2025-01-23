@@ -32,6 +32,8 @@ class SizedPacketGate final : public ByteGate {
   StreamInfo stream_info() const override;
 
  private:
+  void DataReceived(DataBuffer const& buffer);
+
   StreamDataPacketCollector data_packet_collector_;
 };
 }  // namespace ae

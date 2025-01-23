@@ -22,7 +22,6 @@
 #include "aether/events/events.h"
 #include "aether/actions/action_context.h"
 
-#include "aether/transport/itransport.h"
 #include "aether/api_protocol/protocol_context.h"
 
 #include "aether/stream_api/istream.h"
@@ -31,7 +30,6 @@
 #include "aether/stream_api/tied_stream.h"
 #include "aether/stream_api/crypto_stream.h"
 #include "aether/stream_api/protocol_stream.h"
-#include "aether/stream_api/transport_write_gate.h"
 
 #include "aether/methods/client_api/client_safe_api.h"
 
@@ -41,17 +39,14 @@ class Client;
 class ClientToServerStream : public ByteStream {
  public:
   ClientToServerStream(ActionContext action_context, Ptr<Client> client,
-                       ServerId server_id, Ptr<ITransport> server_transport);
+                       ServerId server_id, Ptr<ByteStream> server_stream);
 
   ~ClientToServerStream() override;
 
+  AE_CLASS_NO_COPY_MOVE(ClientToServerStream);
+
   InGate& in() override;
   void LinkOut(OutGate& out) override;
-
-  EventSubscriber<void()> connected_event();
-  EventSubscriber<void()> connection_error_event();
-
-  ConnectionState connection_state() const;
 
  private:
   void OnConnected();
@@ -61,7 +56,6 @@ class ClientToServerStream : public ByteStream {
   ActionContext action_context_;
   Ptr<Client> client_;
   ServerId server_id_;
-  Ptr<ITransport> server_transport_;
 
   ProtocolContext protocol_context_;
 
@@ -71,8 +65,8 @@ class ClientToServerStream : public ByteStream {
   // stream to the server with login api and encryption
   std::optional<
       TiedStream<DebugGate, CryptoGate, StreamApiGate, ProtocolWriteGate,
-                 ProtocolReadGate<ClientSafeApi>, TransportWriteGate>>
-      server_stream_;
+                 ProtocolReadGate<ClientSafeApi>, Ptr<ByteStream>>>
+      client_auth_stream_;
 
   Subscription connection_success_subscription_;
   Subscription connection_failed_subscription_;

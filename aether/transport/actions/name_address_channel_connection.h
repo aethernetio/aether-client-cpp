@@ -51,7 +51,8 @@ class NameAddressChannelConnectionAction : public ChannelConnectionAction {
  public:
   NameAddressChannelConnectionAction(ActionContext action_context,
                                      NameAddress name_address,
-                                     Ptr<Aether>& aether, Adapter& adapter);
+                                     Ptr<Aether> const& aether,
+                                     Ptr<Adapter> const& adapter);
 
   ~NameAddressChannelConnectionAction() override;
 
@@ -66,7 +67,7 @@ class NameAddressChannelConnectionAction : public ChannelConnectionAction {
   NameAddress name_address_;
   Ptr<DnsResolver> dns_resolver_;
   ActionContext action_context_;
-  Adapter& adapter_;
+  PtrView<Adapter> adapter_;
 
   Ptr<ITransport> transport_;
   ConnectionInfo connection_info_;

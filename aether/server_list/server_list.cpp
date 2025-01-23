@@ -22,64 +22,54 @@
 #include "aether/cloud.h"
 
 namespace ae {
-ServerList::ServerInfo::ServerInfo(Server::ptr server)
-    : server_{std::move(server)} {}
+ServerList::ServerListIterator::ServerListIterator() : item_{} {}
+ServerList::ServerListIterator::ServerListIterator(
+    container_type::iterator iter)
+    : item_{std::move(iter)} {}
 
-Server const& ServerList::ServerInfo::server() const { return *server_; }
-
-Server::ptr& ServerList::ServerInfo::get_server() { return server_; }
-
-ServerList::ServerTransportListIterator::ServerTransportListIterator()
-    : item_{} {}
-ServerList::ServerTransportListIterator::ServerTransportListIterator(
-    container_type::iterator it)
-    : item_{std::move(it)} {}
-
-ServerList::ServerTransportListIterator
-ServerList::ServerTransportListIterator::operator++(int) {
+ServerList::ServerListIterator ServerList::ServerListIterator::operator++(int) {
   auto temp = *this;
   ++item_;
   return temp;
 }
 
-ServerList::ServerTransportListIterator&
-ServerList::ServerTransportListIterator::operator++() {
+ServerList::ServerListIterator& ServerList::ServerListIterator::operator++() {
   ++item_;
   return *this;
 }
 
-bool ServerList::ServerTransportListIterator::operator==(
-    ServerTransportListIterator const& other) const {
+bool ServerList::ServerListIterator::operator==(
+    ServerListIterator const& other) const {
   if (this == &other) {
     return true;
   }
   return item_ == other.item_;
 }
 
-bool ServerList::ServerTransportListIterator::operator!=(
-    ServerTransportListIterator const& other) const {
+bool ServerList::ServerListIterator::operator!=(
+    ServerListIterator const& other) const {
   return !(*this == other);
 }
 
-ServerList::value_type& ServerList::ServerTransportListIterator::operator*() {
+ServerList::value_type& ServerList::ServerListIterator::operator*() {
   return *item_;
 }
 
-ServerList::value_type const&
-ServerList::ServerTransportListIterator::operator*() const {
+ServerList::value_type const& ServerList::ServerListIterator::operator*()
+    const {
   return *item_;
 }
 
-ServerList::value_type& ServerList::ServerTransportListIterator::operator->() {
+ServerList::value_type& ServerList::ServerListIterator::operator->() {
   return *item_;
 }
 
-ServerList::value_type const&
-ServerList::ServerTransportListIterator::operator->() const {
+ServerList::value_type const& ServerList::ServerListIterator::operator->()
+    const {
   return *item_;
 }
 
-ServerList::ServerList(Ptr<ServeListPolicy> policy, Ptr<Cloud> cloud)
+ServerList::ServerList(Ptr<ServerListPolicy> policy, Ptr<Cloud> cloud)
     : policy_{std::move(policy)}, cloud_{std::move(cloud)} {
   assert(cloud_);
   assert(!cloud_->servers().empty());
@@ -87,15 +77,10 @@ ServerList::ServerList(Ptr<ServeListPolicy> policy, Ptr<Cloud> cloud)
   BuildList();
 }
 
-ServerList::iterator ServerList::begin() {
-  return iterator{std::begin(server_transport_list_)};
-}
-
-ServerList::iterator ServerList::end() {
-  return iterator{std::end(server_transport_list_)};
-}
-
-std::size_t ServerList::size() const { return server_transport_list_.size(); }
+void ServerList::Init() { iter_ = std::begin(server_list_); }
+bool ServerList::End() const { return iter_ == std::end(server_list_); }
+void ServerList::Next() { ++iter_; }
+ServerList::value_type ServerList::Get() const { return *iter_; }
 
 void ServerList::BuildList() {
   auto& servers = cloud_->servers();
@@ -104,20 +89,23 @@ void ServerList::BuildList() {
     if (!s) {
       cloud_->LoadServer(s);
     }
-    server_transport_list_.emplace_back(s);
+    for (auto& chan : s->channels) {
+      if (!chan) {
+        s->LoadChannel(chan);
+      }
+      server_list_.emplace_back(s, chan);
+    }
   }
 
   // apply list policy
-  server_transport_list_.erase(
-      std::remove_if(std::begin(server_transport_list_),
-                     std::end(server_transport_list_),
-                     [&](auto const& item) { return policy_->Filter(*item); }),
-      std::end(server_transport_list_));
+  server_list_.erase(
+      std::remove_if(std::begin(server_list_), std::end(server_list_),
+                     [&](auto const& item) { return policy_->Filter(item); }),
+      std::end(server_list_));
 
-  std::sort(std::begin(server_transport_list_),
-            std::end(server_transport_list_),
+  std::sort(std::begin(server_list_), std::end(server_list_),
             [&](auto const& left, auto const& right) {
-              return policy_->Preferred(*left, *right);
+              return policy_->Preferred(left, right);
             });
 }
 }  // namespace ae

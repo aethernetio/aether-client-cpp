@@ -17,9 +17,10 @@
 #ifndef AETHER_TYPE_TRAITS_H_
 #define AETHER_TYPE_TRAITS_H_
 
-#include <type_traits>
-#include <string>
 #include <array>
+#include <string>
+#include <optional>
+#include <type_traits>
 
 namespace ae {
 
@@ -106,6 +107,19 @@ struct IsAbleToCast {
       std::is_base_of_v<T1, T2> || std::is_base_of_v<T2, T1>;
 };
 
+template <typename T>
+struct IsOptional : std::false_type {};
+
+template <typename T>
+struct IsOptional<std::optional<T>> : std::true_type {};
+
+template <typename T, typename _ = void>
+struct IsOptionalLike : std::false_type {};
+
+template <typename T>
+struct IsOptionalLike<
+    T, std::void_t<decltype(!!std::declval<T>()), decltype(*std::declval<T>())>>
+    : std::true_type {};
 }  // namespace ae
 
 #endif  // AETHER_TYPE_TRAITS_H_ */

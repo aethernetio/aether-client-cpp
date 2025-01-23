@@ -65,6 +65,7 @@ class Aether : public Obj {
 #endif
 
   void AddServer(Server::ptr&& s);
+  Server::ptr GetServer(ServerId server_id);
   std::vector<Client::ptr>& clients();
   tele::TeleStatistics::ptr const& tele_statistics() const;
 

@@ -133,7 +133,7 @@ void BufferGate::LinkOut(OutGate& out) {
 
   gate_update_subscription_ =
       out_->gate_update_event().Subscribe([this]() { UpdateGate(); });
-  gate_update_event_.Emit();
+  UpdateGate();
 }
 
 StreamInfo BufferGate::stream_info() const { return stream_info_; }

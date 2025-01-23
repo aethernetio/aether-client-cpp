@@ -21,7 +21,6 @@
 
 #include "aether/obj/ptr.h"
 
-#include "aether/server.h"
 #include "aether/server_list/list_policy.h"
 
 namespace ae {
@@ -29,34 +28,22 @@ class Aether;
 class Cloud;
 
 class ServerList {
-  class ServerInfo {
-   public:
-    explicit ServerInfo(Server::ptr server);
-
-    Server const& server() const;
-
-    Server::ptr& get_server();
-
-   private:
-    Server::ptr server_;
-  };
-
-  friend class ServerTransportListIterator;
+  friend class ServerListIterator;
 
  public:
-  using container_type = std::vector<Server::ptr>;
-  using value_type = Server::ptr;
+  using container_type = std::vector<ServerListItem>;
+  using value_type = ServerListItem;
 
-  class ServerTransportListIterator {
+  class ServerListIterator {
    public:
-    ServerTransportListIterator();
-    explicit ServerTransportListIterator(container_type::iterator it);
+    ServerListIterator();
+    explicit ServerListIterator(container_type::iterator iter);
 
-    ServerTransportListIterator operator++(int);
-    ServerTransportListIterator& operator++();
+    ServerListIterator operator++(int);
+    ServerListIterator& operator++();
 
-    bool operator==(ServerTransportListIterator const& other) const;
-    bool operator!=(ServerTransportListIterator const& other) const;
+    bool operator==(ServerListIterator const& other) const;
+    bool operator!=(ServerListIterator const& other) const;
 
     value_type& operator*();
     value_type const& operator*() const;
@@ -68,21 +55,21 @@ class ServerList {
     container_type::iterator item_;
   };
 
-  using iterator = ServerTransportListIterator;
+  ServerList(Ptr<ServerListPolicy> policy, Ptr<Cloud> cloud);
 
-  ServerList(Ptr<ServeListPolicy> policy, Ptr<Cloud> cloud);
-
-  iterator begin();
-  iterator end();
-  std::size_t size() const;
+  void Init();
+  bool End() const;
+  void Next();
+  value_type Get() const;
 
  private:
   void BuildList();
 
-  Ptr<ServeListPolicy> policy_;
+  Ptr<ServerListPolicy> policy_;
   Ptr<Cloud> cloud_;
 
-  container_type server_transport_list_;
+  container_type server_list_;
+  container_type::iterator iter_;
 };
 }  // namespace ae
 

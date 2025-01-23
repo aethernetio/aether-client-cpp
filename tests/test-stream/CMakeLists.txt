@@ -16,6 +16,7 @@ cmake_minimum_required( VERSION 3.18 )
 
 list(APPEND test_srcs
   main.cpp
+  mock_transport.cpp
   safe-stream/test_safe_stream_types.cpp
   safe-stream/test_safe_stream_sending.cpp
   safe-stream/test_safe_stream_receiving.cpp
@@ -24,6 +25,7 @@ list(APPEND test_srcs
   crypto-stream/test_crypto_stream.cpp
   protocol-stream/test_protocol_stream.cpp
   templated-streams/test_templated_streams.cpp
+  client-to-server-stream/test_client_to_server_stream.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -33,6 +35,7 @@ if(NOT CM_PLATFORM)
    add_executable(${PROJECT_NAME})
    target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
    # for aether
+   target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
    target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
    target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
 

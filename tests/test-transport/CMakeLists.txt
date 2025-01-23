@@ -15,10 +15,8 @@
 cmake_minimum_required( VERSION 3.18 )
 
 list(APPEND test_srcs
-  mock_transport.cpp
   main.cpp
   test-data-packet-collector.cpp
-  client-to-server-stream/test_client_to_server_stream.cpp
 )
 
 if(NOT CM_PLATFORM)

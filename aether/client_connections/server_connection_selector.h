@@ -14,30 +14,34 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_SELECTOR_H_
-#define AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_SELECTOR_H_
+#ifndef AETHER_CLIENT_CONNECTIONS_SERVER_CONNECTION_SELECTOR_H_
+#define AETHER_CLIENT_CONNECTIONS_SERVER_CONNECTION_SELECTOR_H_
 
+#include <type_traits>
+
+#include "aether/cloud.h"
 #include "aether/server_list/server_list.h"
 #include "aether/client_connections/client_server_connection.h"
-#include "aether/client_connections/iclient_server_connection_factory.h"
+#include "aether/client_connections/iserver_connection_factory.h"
 
 namespace ae {
 // TODO: add an iterator interface maybe ?
-class ClientServerConnectionSelector {
+class ServerConnectionSelector {
  public:
-  ClientServerConnectionSelector(
-      Ptr<ServerList> server_list,
-      Ptr<IClientServerConnectionFactory> client_server_connection_factory);
+  ServerConnectionSelector(
+      Ptr<Cloud> cloud,
+      Ptr<IServerConnectionFactory> client_server_connection_factory);
 
-  // Return stream to next server
-  Ptr<ClientServerConnection> NextServer();
+  void Init();
+  void Next();
+  // Return stream to current server
+  Ptr<ClientServerConnection> GetConnection();
+  bool End();
 
  private:
   Ptr<ServerList> server_list_;
-  ServerList::iterator server_list_it_;
-
-  Ptr<IClientServerConnectionFactory> client_server_connection_factory_;
+  Ptr<IServerConnectionFactory> server_connection_factory_;
 };
 }  // namespace ae
 
-#endif  // AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_SELECTOR_H_
+#endif  // AETHER_CLIENT_CONNECTIONS_SERVER_CONNECTION_SELECTOR_H_
