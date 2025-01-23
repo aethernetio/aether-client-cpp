@@ -21,11 +21,8 @@ void tearDown() {}
 
 extern int test_data_packet_collector();
 
-extern int test_client_to_server_stream();
-
 int main() {
   int res = 0;
   res += test_data_packet_collector();
-  res += test_client_to_server_stream();
   return res;
 }

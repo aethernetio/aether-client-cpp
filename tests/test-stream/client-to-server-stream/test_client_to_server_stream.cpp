@@ -23,10 +23,13 @@
 #include "aether/work_cloud.h"
 #include "aether/port/tele_init.h"
 
+#include "aether/stream_api/tied_stream.h"
+#include "aether/stream_api/buffer_gate.h"
+#include "aether/stream_api/transport_write_gate.h"
 #include "aether/client_connections/client_to_server_stream.h"
 
 #include "test-object-system/map_facility.h"
-#include "test-transport/mock_transport.h"
+#include "test-stream/mock_transport.h"
 
 #if defined AE_DISTILLATION
 
@@ -53,8 +56,13 @@ class TestClientToServerStreamFixture {
 
   auto ClientToServerStream() {
     if (!client_to_server_stream) {
+      MockTransport()->Connect();
       client_to_server_stream = MakePtr<ae::ClientToServerStream>(
-          *aether->action_processor, client, server->server_id, mock_transport);
+          *aether->action_processor, client, server->server_id,
+          MakePtr<TiedStream>(
+              MakePtr<BufferGate>(*aether->action_processor, std::size_t{5}),
+              MakePtr<TransportWriteGate>(*aether->action_processor,
+                                          MockTransport())));
     }
     return client_to_server_stream;
   }
@@ -105,7 +113,7 @@ void test_clientToServerStreamConnectionFailed() {
 
   auto client_to_server_stream = fixture.ClientToServerStream();
 
-  TEST_ASSERT(data_received);
+  TEST_ASSERT(!data_received);
 }
 
 void test_clientToServerStreamConnectionDeferred() {
