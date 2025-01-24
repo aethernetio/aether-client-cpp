@@ -110,6 +110,7 @@ TimePoint Registration::Update(TimePoint current_time) {
                  FormatTimePoint("UTC :%Y-%m-%d %H:%M:%S", current_time));
 
   // TODO: add check for actual packet sending or method timeouts
+
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kSelectConnection:
@@ -134,19 +135,16 @@ TimePoint Registration::Update(TimePoint current_time) {
         break;
       case State::kRegistered:
         Action::Result(*this);
-        break;
+        return current_time;
       case State::kRegistrationFailed:
         Action::Error(*this);
-        break;
+        return current_time;
       default:
         break;
     }
   }
-  switch (state_.get()) {
-    case State::kWaitKeys:
-      return WaitKeys(current_time);
-    default:
-      break;
+  if (state_.get() == State::kWaitKeys) {
+    return WaitKeys(current_time);
   }
 
   return current_time;
