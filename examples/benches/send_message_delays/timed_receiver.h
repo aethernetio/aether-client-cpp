@@ -79,17 +79,18 @@ class TimedReceiver : public ITimedReceiver {
           break;
         case State::kReceived:
           this->Result(*this);
-          break;
+          return current_time;
         case State::kTimeOut:
         case State::kError:
           this->Error(*this);
-          break;
+          return current_time;
       }
     }
 
     if (state_.get() == State::kWaiting) {
       return CheckTimeout(current_time);
     }
+
     return current_time;
   }
 

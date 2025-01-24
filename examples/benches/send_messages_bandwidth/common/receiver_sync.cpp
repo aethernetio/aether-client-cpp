@@ -49,10 +49,10 @@ TimePoint ReceiverSyncAction::Update(TimePoint current_time) {
         break;
       case State::kReceived:
         Action::Result(*this);
-        break;
+        return current_time;
       case State::kError:
         Action::Error(*this);
-        break;
+        return current_time;
     }
   }
 
