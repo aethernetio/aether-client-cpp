@@ -16,6 +16,7 @@
 
 #include <unity.h>
 
+#include <vector>
 #include <chrono>
 #include <iterator>
 
@@ -43,6 +44,18 @@ constexpr char _200_bytes_data[] =
     "This is a precisely two hundred byte long string created for testing "
     "purposes. It contains random words and phrases to fill up space. The goal "
     "is to reach exactly two hundred bytes without using lore";
+
+
+template <typename TRes, typename T, std::size_t size>
+static auto ToVector(T const (&arr)[size]) {
+  return std::vector<TRes>(reinterpret_cast<TRes const*>(arr),
+                           reinterpret_cast<TRes const*>(arr + size));
+}
+
+template <typename T, std::size_t size>
+static auto ToDataBuffer(T const (&arr)[size]) {
+  return ToVector<std::uint8_t>(arr);
+}
 
 constexpr auto config = SafeStreamConfig{
     20 * 1024,
@@ -78,8 +91,7 @@ void test_SafeStreamSendingFewChunks() {
     received_offset = send.offset;
   });
 
-  auto send_100 = sending.SendData(
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  auto send_100 = sending.SendData(ToDataBuffer(_100_bytes_data));
   ap.Update(epoch + std::chrono::milliseconds{1});
 
   auto _1 =
@@ -91,8 +103,7 @@ void test_SafeStreamSendingFewChunks() {
 
   ap.Update(epoch + std::chrono::milliseconds{3});
 
-  auto send_200 = sending.SendData(
-      {_200_bytes_data, _200_bytes_data + sizeof(_200_bytes_data)});
+  auto send_200 = sending.SendData(ToDataBuffer(_200_bytes_data));
 
   auto _2 =
       send_200->SubscribeOnResult([&](auto const&) { received_200 = true; });
@@ -137,10 +148,8 @@ void test_SafeStreamSendingWaitConfirm() {
     received_offset = send.offset;
   });
 
-  sending.SendData(
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
-  sending.SendData(
-      {_200_bytes_data, _200_bytes_data + sizeof(_200_bytes_data)});
+  sending.SendData(ToDataBuffer(_100_bytes_data));
+  sending.SendData(ToDataBuffer(_200_bytes_data));
 
   for (auto i = 0; i < 3; ++i) {
     ap.Update(epoch + std::chrono::milliseconds{i});
@@ -197,8 +206,7 @@ void test_SafeStreamSendingRepeat() {
     }
   });
 
-  auto send_action = sending.SendData(
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  auto send_action = sending.SendData(ToDataBuffer(_100_bytes_data));
 
   ap.Update(epoch + std::chrono::milliseconds{1});
 
@@ -261,8 +269,7 @@ void test_SafeStreamSendingRepeatRequest() {
     }
   });
 
-  auto send_action = sending.SendData(
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  auto send_action = sending.SendData(ToDataBuffer(_100_bytes_data));
   auto _1 =
       send_action->SubscribeOnError([&](auto const&) { sending_error = true; });
 
