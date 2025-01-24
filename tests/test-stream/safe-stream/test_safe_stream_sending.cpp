@@ -16,6 +16,7 @@
 
 #include <unity.h>
 
+#include <vector>
 #include <chrono>
 #include <iterator>
 
@@ -44,10 +45,41 @@ constexpr char _200_bytes_data[] =
     "purposes. It contains random words and phrases to fill up space. The goal "
     "is to reach exactly two hundred bytes without using lore";
 
+constexpr char _1183_bytes_data[] =
+    "In the heart of the cosmos, where the stars weave their eternal dance, "
+    "lies a secret known to few. It is a tale of the Everlight, "
+    "a radiant beacon that illuminates the boundless depths of space. For "
+    "centuries, scholars and dreamers alike have sought its origin, "
+    "chasing myths and whispers carried on the stellar winds. Legends speak of "
+    "a time when the Everlight was born, a moment of celestial "
+    "harmony that bridged worlds and united realms. Through the void, a song "
+    "resonates a melody of creation, infinite and unyielding, "
+    "echoing through the corridors of time. The Everlight, they say, holds the "
+    "power to transform, to inspire, and to reveal the unseen. "
+    "Travelers who have ventured near its glow recount visions of galaxies "
+    "forming, of life emerging, and of an unspoken truth that binds "
+    "all existence. Yet, the Everlight remains elusive, its brilliance both a "
+    "guide and a mystery. To reach it is to embrace the unknown, "
+    "to journey through shadows and starlight, to seek not just the "
+    "destination but the adventure itself. And so, the story continues, "
+    "woven into the fabric of the universe, eternal and unbroken, calling to "
+    "those who dare to dream beyond the horizon of the possible.";
+
+template <typename TRes, typename T, std::size_t size>
+static auto ToVector(T const (&arr)[size]) {
+  return std::vector<TRes>(reinterpret_cast<TRes const*>(arr),
+                           reinterpret_cast<TRes const*>(arr + size));
+}
+
+template <typename T, std::size_t size>
+static auto ToDataBuffer(T const (&arr)[size]) {
+  return ToVector<std::uint8_t>(arr);
+}
+
 constexpr auto config = SafeStreamConfig{
     20 * 1024,
-    10 * 1024,
-    100,
+    (10 * 1024) - 1,
+    (10 * 1024) - 1,
     2,
     std::chrono::milliseconds{50},
     std::chrono::milliseconds{10},
@@ -78,8 +110,7 @@ void test_SafeStreamSendingFewChunks() {
     received_offset = send.offset;
   });
 
-  auto send_100 = sending.SendData(
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  auto send_100 = sending.SendData(ToDataBuffer(_100_bytes_data));
   ap.Update(epoch + std::chrono::milliseconds{1});
 
   auto _1 =
@@ -91,8 +122,7 @@ void test_SafeStreamSendingFewChunks() {
 
   ap.Update(epoch + std::chrono::milliseconds{3});
 
-  auto send_200 = sending.SendData(
-      {_200_bytes_data, _200_bytes_data + sizeof(_200_bytes_data)});
+  auto send_200 = sending.SendData(ToDataBuffer(_200_bytes_data));
 
   auto _2 =
       send_200->SubscribeOnResult([&](auto const&) { received_200 = true; });
@@ -137,10 +167,8 @@ void test_SafeStreamSendingWaitConfirm() {
     received_offset = send.offset;
   });
 
-  sending.SendData(
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
-  sending.SendData(
-      {_200_bytes_data, _200_bytes_data + sizeof(_200_bytes_data)});
+  sending.SendData(ToDataBuffer(_100_bytes_data));
+  sending.SendData(ToDataBuffer(_200_bytes_data));
 
   for (auto i = 0; i < 3; ++i) {
     ap.Update(epoch + std::chrono::milliseconds{i});
@@ -197,8 +225,7 @@ void test_SafeStreamSendingRepeat() {
     }
   });
 
-  auto send_action = sending.SendData(
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  auto send_action = sending.SendData(ToDataBuffer(_100_bytes_data));
 
   ap.Update(epoch + std::chrono::milliseconds{1});
 
@@ -221,9 +248,6 @@ void test_SafeStreamSendingRepeat() {
 
 void test_SafeStreamSendingRepeatRequest() {
   auto epoch = TimePoint::clock::now();
-
-  auto connection_info = ConnectionInfo{};
-  connection_info.max_packet_size = 100;
 
   auto ap = ActionProcessor{};
   auto ac = ActionContext(ap);
@@ -261,8 +285,7 @@ void test_SafeStreamSendingRepeatRequest() {
     }
   });
 
-  auto send_action = sending.SendData(
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  auto send_action = sending.SendData(ToDataBuffer(_100_bytes_data));
   auto _1 =
       send_action->SubscribeOnError([&](auto const&) { sending_error = true; });
 
@@ -286,6 +309,55 @@ void test_SafeStreamSendingRepeatRequest() {
   TEST_ASSERT(sending_error);
 }
 
+void test_SafeStreamSendingOverBufferCapacity() {
+  auto epoch = TimePoint::clock::now();
+
+  auto ap = ActionProcessor{};
+  auto ac = ActionContext(ap);
+  auto pc = ProtocolContext{};
+  auto received_packet = DataBuffer{};
+  auto received_data = DataBuffer{};
+  auto received_offset = SafeStreamRingIndex{};
+  auto sending_error = bool{};
+
+  auto sending = SafeStreamSendingAction{ac, pc, config};
+  sending.set_max_data_size(500);
+
+  auto _ =
+      sending.write_data_event().Subscribe([&](auto offset, auto data, auto) {
+        auto api_parser = ae::ApiParser(pc, data);
+        auto mid = api_parser.Extract<MessageId>();
+        TEST_ASSERT_EQUAL(SafeStreamApi::Send::kMessageCode, mid);
+
+        auto send = api_parser.Extract<SafeStreamApi::Send>();
+        received_data.insert(std::end(received_data), std::begin(send.data),
+                             std::end(send.data));
+        received_offset = SafeStreamRingIndex{send.offset};
+      });
+
+  for (auto i = 0; i < 15; i++) {
+    auto old_received_offset = received_offset;
+    for (auto j = 0; j < 5; j++) {
+      sending.SendData(ToDataBuffer(_1183_bytes_data));
+    }
+    // update for each sent data chunk
+    for (auto k = 0; k < (5 * ((sizeof(_1183_bytes_data) / 500) + 1)); k++) {
+      ap.Update(epoch += std::chrono::milliseconds{1});
+    }
+    // confirm all received
+    sending.Confirm(old_received_offset + received_data.size() - 1);
+
+    // test all data received
+    for (auto j = 0; j < 5; j++) {
+      auto msg = Format("check i,j {},{}", i, j);
+      TEST_ASSERT_EQUAL_STRING_MESSAGE(
+          _1183_bytes_data,
+          received_data.data() + (sizeof(_1183_bytes_data) * j), msg.c_str());
+    }
+    received_data.clear();
+  }
+}
+
 }  // namespace ae::test_safe_stream_sending
 
 int test_safe_stream_sending() {
@@ -296,6 +368,7 @@ int test_safe_stream_sending() {
   RUN_TEST(ae::test_safe_stream_sending::test_SafeStreamSendingWaitConfirm);
   RUN_TEST(ae::test_safe_stream_sending::test_SafeStreamSendingRepeat);
   RUN_TEST(ae::test_safe_stream_sending::test_SafeStreamSendingRepeatRequest);
-
+  RUN_TEST(
+      ae::test_safe_stream_sending::test_SafeStreamSendingOverBufferCapacity);
   return UNITY_END();
 }

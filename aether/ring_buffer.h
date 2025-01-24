@@ -28,7 +28,7 @@ namespace ae {
 /**
  * \brief Struct to apply addition and subtraction operations to ring buffer
  * index.
- * Value is always in range [0, Max) and value overflow leads to
+ * Value is always in range [0, Max] and value overflow leads to
  * start from zero
  */
 template <typename T, T Max = std::numeric_limits<T>::max()>
@@ -36,21 +36,21 @@ struct RingIndex {
   using type = T;
   static constexpr T max = Max;
 
-  explicit constexpr RingIndex(T val = 0) : value_(val % Max) {}
+  explicit constexpr RingIndex(T val = 0) : value_{Mod(val)} {}
 
   constexpr void Clockwise(T val) {
-    val = val % Max;
-    if ((Max - val) < value_) {
+    val = Mod(val);
+    if ((Max - val + 1) < value_) {
       // -1 for zero value
-      value_ = static_cast<T>(val - (Max - value_) - 1);
+      value_ = static_cast<T>(val - (Max - value_));
     } else {
       value_ += val;
     }
   }
   constexpr void CounterClockwise(T val) {
-    val = val % Max;
+    val = Mod(val);
     if (value_ < val) {
-      value_ = static_cast<T>(Max - (val - value_));
+      value_ = static_cast<T>(Max - (val - value_) + 1);
     } else {
       value_ -= val;
     }
@@ -61,9 +61,8 @@ struct RingIndex {
     auto b = Max - other.value_;
     if (a >= b) {
       return static_cast<T>(a - b);
-    } else {
-      return static_cast<T>(a + other.value_);
     }
+    return static_cast<T>(a + other.value_);
   }
 
   constexpr RingIndex& operator+=(T val) {
@@ -145,6 +144,14 @@ struct RingIndex {
   explicit constexpr operator T() const { return value_; }
 
  private:
+  static constexpr T Mod(T val) {
+    if constexpr (Max != std::numeric_limits<T>::max()) {
+      return val % (Max + 1);
+    } else {
+      return val;
+    }
+  }
+
   T value_;
 };
 

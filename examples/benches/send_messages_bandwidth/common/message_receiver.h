@@ -57,6 +57,9 @@ class MessageReceiver : public Action<MessageReceiver<TMessage>> {
             })} {}
 
   TimePoint Update(TimePoint current_time) {
+    if (state_.get() == State::kReceiving) {
+      return CheckReceiveTimeout(current_time);
+    }
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kReceiving:
@@ -72,9 +75,6 @@ class MessageReceiver : public Action<MessageReceiver<TMessage>> {
           SelfAction::Error(*this);
           break;
       }
-    }
-    if (state_.get() == State::kReceiving) {
-      return CheckReceiveTimeout(current_time);
     }
     return current_time;
   }

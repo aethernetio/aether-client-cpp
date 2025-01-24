@@ -49,8 +49,12 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
     auto cached_connection = ccm->client_server_connection_pull_.Find(
         server->server_id, channel.GetId());
     if (cached_connection) {
+      AE_TELED_DEBUG("Return cached connection");
       return cached_connection;
     }
+
+    AE_TELED_DEBUG("Create new connection to server {}, channel id {}",
+                   server->server_id, channel.GetId().id());
 
     auto aether = aether_.Lock();
     auto adapter = adapter_.Lock();

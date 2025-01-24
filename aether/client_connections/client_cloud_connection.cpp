@@ -41,6 +41,8 @@ void ClientCloudConnection::Connect() {
 
 Ptr<ByteStream> ClientCloudConnection::CreateStream(Uid destination_uid,
                                                     StreamId stream_id) {
+  AE_TELED_DEBUG("CreateStream destination uid {}, stream id {}",
+                 destination_uid, static_cast<int>(stream_id));
   assert(server_connection_);
 
   auto gate_it = gates_.find(destination_uid);
@@ -67,6 +69,8 @@ ClientCloudConnection::new_stream_event() {
 }
 
 void ClientCloudConnection::CloseStream(Uid uid, StreamId stream_id) {
+  AE_TELED_DEBUG("Close stream uid {}, stream id {}", uid,
+                 static_cast<int>(stream_id));
   auto it = gates_.find(uid);
   if (it == std::end(gates_)) {
     return;
@@ -118,13 +122,15 @@ void ClientCloudConnection::OnConnectionError() {
   reconnect_notify_subscription_ = reconnect_notify_
                                        .SubscribeOnResult([this](auto const&) {
                                          AE_TELED_DEBUG("Reconnect");
-                                         Connect();
+                                         SelectConnection();
                                        })
                                        .Once();
   reconnect_notify_.Notify();
 }
 
 void ClientCloudConnection::NewStream(Uid uid, Ptr<ByteStream> stream) {
+  AE_TELED_DEBUG("New stream for uid {}", uid);
+
   auto gate_it = gates_.find(uid);
   if (gate_it != std::end(gates_)) {
     // retie existing stream
