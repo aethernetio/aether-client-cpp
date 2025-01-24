@@ -29,12 +29,15 @@ ActionView<StreamWriteAction> SizedPacketGate::Write(DataBuffer&& buffer,
                                                      TimePoint current_time) {
   assert(out_);
 
-  PacketSize size = buffer.size();
   DataBuffer write_buffer;
+  write_buffer.reserve(buffer.size() + sizeof(PacketSize::ValueType));
+
   auto buffer_writer = VectorWriter<PacketSize>(write_buffer);
   auto os = omstream{buffer_writer};
-  os << size;
-  os.write(buffer.data(), buffer.size());
+  os << buffer;
+
+  AE_TELED_DEBUG("SizedPacketGate write size:{}\ndata:{}", write_buffer.size(),
+                 write_buffer);
 
   return out_->Write(std::move(write_buffer), current_time);
 }
@@ -66,6 +69,8 @@ void SizedPacketGate::DataReceived(DataBuffer const& buffer) {
 
   for (auto packet = data_packet_collector_.PopPacket(); !packet.empty();
        packet = data_packet_collector_.PopPacket()) {
+    AE_TELED_DEBUG("SizedPacketGate received size:{}\ndata:{}", packet.size(),
+                   packet);
     out_data_event_.Emit(packet);
   }
 }
