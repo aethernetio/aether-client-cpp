@@ -122,7 +122,7 @@ void ClientCloudConnection::OnConnectionError() {
   reconnect_notify_subscription_ = reconnect_notify_
                                        .SubscribeOnResult([this](auto const&) {
                                          AE_TELED_DEBUG("Reconnect");
-                                         Connect();
+                                         SelectConnection();
                                        })
                                        .Once();
   reconnect_notify_.Notify();
