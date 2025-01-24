@@ -17,6 +17,8 @@
 #include <string>
 
 #include "aether/config.h"
+#include "aether/tele/tele.h"
+#include "aether/port/tele_init.h"
 
 #if (defined(CM_ESP32))
 #  include <freertos/FreeRTOS.h>
