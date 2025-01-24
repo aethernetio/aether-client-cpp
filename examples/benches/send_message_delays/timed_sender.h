@@ -107,6 +107,7 @@ class TimedSender : public ITimedSender {
     AE_TELED_DEBUG("Sync");
     auto current_time = Now();
     if (current_time - last_send_time_ < min_send_interval_) {
+      AE_TELED_DEBUG("Wait interval");
       state_.Set(State::kWaitInterval);
       return;
     }
