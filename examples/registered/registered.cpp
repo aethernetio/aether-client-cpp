@@ -98,7 +98,7 @@ int AetherRegistered() {
   config.send_repeat_timeout = std::chrono::milliseconds{200};
   config.max_data_size = config.window_size - 1;
 
-  // Load clients
+  // Load clients  
   for (std::size_t i{0}; i < aether->clients().size(); i++) {
     clients.insert(clients.begin() + i, aether->clients()[i]);
     auto msg_str = std::string("Test message for client ") + std::to_string(i);
@@ -107,24 +107,20 @@ int AetherRegistered() {
     assert(clients[i]);
     // Set adapter for all clouds in the client to work though.
     clients[i]->cloud()->set_adapter(adapter);
-    auto receiver_connection = clients[i]->client_connection();
+
     receiver_connections.insert(receiver_connections.begin() + i,
-                                receiver_connection);
-    ae::Ptr<ae::P2pSafeStream> receiver_stream{};
-    ae::Subscription receiver_subscription{};
+                                clients[i]->client_connection());
 
     stream_subscriptions.insert(
         stream_subscriptions.begin() + i,
         receiver_connections[i]->new_stream_event().Subscribe(
             [&](auto uid, auto stream_id, auto const& message_stream) {
               AE_TELED_DEBUG("Received stream from {}", uid);
-              receiver_stream = ae::MakePtr<ae::P2pSafeStream>(
+              receiver_streams.insert(receiver_streams.begin() + i, ae::MakePtr<ae::P2pSafeStream>(
                   *aether->action_processor, config,
                   ae::MakePtr<ae::P2pStream>(*aether->action_processor,
                                              clients[i], uid, stream_id,
-                                             message_stream));
-              receiver_streams.insert(receiver_streams.begin() + i,
-                                      receiver_stream);
+                                             message_stream)));
 
               receiver_subscriptions.insert(
                   receiver_subscriptions.begin() + i,
@@ -147,11 +143,10 @@ int AetherRegistered() {
                       }));
             }));
 
-    auto sender_stream = ae::MakePtr<ae::P2pSafeStream>(
+    sender_streams.insert(sender_streams.begin() + i,ae::MakePtr<ae::P2pSafeStream>(
         *aether->action_processor, config,
         ae::MakePtr<ae::P2pStream>(*aether->action_processor, clients[i],
-                                   clients[i]->uid(), ae::StreamId{static_cast<std::uint8_t>(i)}));
-    sender_streams.insert(sender_streams.begin() + i, sender_stream);
+                                   clients[i]->uid(), ae::StreamId{static_cast<std::uint8_t>(i)})));
 
     AE_TELED_DEBUG("Send messages from sender {} to receiver {} message {}", i,
                    i, messages[i]);
