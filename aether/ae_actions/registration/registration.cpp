@@ -423,12 +423,22 @@ void Registration::OnResolveCloudResponse(
   Cloud::ptr new_cloud = aether->domain_->LoadCopy(aether->cloud_prefab);
   assert(new_cloud);
 
-  for (const auto& d : message.servers) {
+  for (const auto& description : message.servers) {
+    auto server_id = description.server_id;
+    auto cached_server = aether->GetServer(server_id);
+    if (cached_server) {
+      AE_TELED_DEBUG("Use cached server");
+      new_cloud->AddServer(cached_server);
+      continue;
+    }
+
+    AE_TELED_DEBUG("Create new server id: {}", server_id);
+
     Server::ptr server = aether->domain_->CreateObj<Server>();
     assert(server);
-    server->server_id = d.server_id;
+    server->server_id = server_id;
 
-    for (const auto& i : d.ips) {
+    for (const auto& i : description.ips) {
       for (const auto& protocol_port : i.protocol_and_ports) {
         AE_TELED_DEBUG("Add channel ip {}, port {} protocol {}", i.ip,
                        protocol_port.port, protocol_port.protocol);
