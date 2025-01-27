@@ -18,6 +18,8 @@ list(APPEND test_srcs
   main.cpp
   test-events.cpp
   test-action-registry.cpp
+  test-delegates.cpp
+  test-std-function.cpp
 )
 
 if(NOT CM_PLATFORM)
