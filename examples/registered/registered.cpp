@@ -54,7 +54,7 @@ static Aether::ptr LoadAether(Domain& domain) {
   Aether::ptr aether;
   aether.SetId(GlobalId::kAether);
   domain.LoadRoot(aether);
-  //assert(aether);
+  assert(aether);
   return aether;
 }
 
