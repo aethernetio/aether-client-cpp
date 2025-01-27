@@ -49,15 +49,17 @@ static Aether::ptr CreateAetherInstrument(Domain& domain, std::string wifi_ssid,
 #  if AE_SUPPORT_REGISTRATION
   // localhost
   aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
-      {IpAddress{IpAddress::Version::kIpV4, {127, 0, 0, 1}}, 9010},
+      {IpAddress{IpAddress::Version::kIpV4, {95, 52, 244, 165}}, 9090},
       Protocol::kTcp});
+      /*{IpAddress{IpAddress::Version::kIpV4, {127, 0, 0, 1}}, 9010},
+      Protocol::kTcp});*/
   // cloud address
-  aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
+  /*aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
       {IpAddress{IpAddress::Version::kIpV4, {35, 224, 1, 127}}, 9010},
       Protocol::kTcp});
   // cloud name address
   aether->registration_cloud->AddServerSettings(
-      NameAddress{"registration.aethernet.io", 9010, Protocol::kTcp});
+      NameAddress{"registration.aethernet.io", 9010, Protocol::kTcp});*/
 #  endif  // AE_SUPPORT_REGISTRATION
   return aether;
 }
