@@ -21,6 +21,7 @@
 #include <cstdint>
 
 #include "aether/address.h"
+#include "aether/obj/obj.h"
 #include "aether/statistics.h"
 
 namespace ae {

@@ -226,4 +226,7 @@
 #  define AE_TELE_LOG_CONSOLE 1
 #endif  // AE_TELE_LOG_CONSOLE
 
+#ifndef NDEBUG
+#  define DEBUG 1
+#endif
 #endif  // AETHER_CONFIG_H_

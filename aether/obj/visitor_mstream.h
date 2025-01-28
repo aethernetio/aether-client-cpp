@@ -27,8 +27,9 @@ namespace ae {
 template <typename Imstream>
 struct ImstreamVisitor {
   template <typename T>
-  void operator()(T& t) {
+  bool operator()(T& t) {
     s >> t;
+    return false;
   }
 
   Imstream& s;
@@ -37,8 +38,9 @@ struct ImstreamVisitor {
 template <typename Omstream>
 struct OmstreamVisitor {
   template <typename T>
-  void operator()(T const& t) {
+  bool operator()(T const& t) {
     s << t;
+    return false;
   }
 
   Omstream& s;
