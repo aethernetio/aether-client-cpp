@@ -28,6 +28,13 @@ namespace ae {
 #define _QUOTE(x) #x
 #define STR(x) _QUOTE(x)
 
+// remove () around X
+#define AE_DEPAREN(X) AE_ESC(AE_ISH X)
+#define AE_ISH(...) AE_ISH __VA_ARGS__
+#define AE_ESC(...) AE_ESC_(__VA_ARGS__)
+#define AE_ESC_(...) AE_VAN_##__VA_ARGS__
+#define AE_VAN_AE_ISH
+
 using ServerId = std::uint16_t;
 
 using Duration = std::chrono::duration<uint32_t, std::micro>;
@@ -60,6 +67,7 @@ enum class CompressionMethod : std::uint8_t {
 
 }  // namespace ae
 
+// default copy move constructors
 #define AE_CLASS_MOVE_(class_name, impl)          \
   class_name(class_name&& other) noexcept = impl; \
   class_name& operator=(class_name&& other) noexcept = impl;
@@ -85,5 +93,9 @@ enum class CompressionMethod : std::uint8_t {
 #define AE_CLASS_NO_COPY_MOVE(class_name) \
   AE_CLASS_COPY_(class_name, delete)      \
   AE_CLASS_MOVE_(class_name, delete)
+
+// concepts
+#define AE_REQUIRERS(Condition) \
+  std::enable_if_t<AE_DEPAREN(Condition)::value, int> = 0
 
 #endif  // AETHER_COMMON_H_
