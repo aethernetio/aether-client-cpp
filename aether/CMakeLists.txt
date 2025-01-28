@@ -187,6 +187,7 @@ list(APPEND client_messages_srcs
 
 list(APPEND port_srcs            
             "port/tele_init.cpp"
+            "port/file_systems/facility_factory.cpp"
             "port/file_systems/file_system_header.cpp"
             "port/file_systems/file_system_ram.cpp"
             "port/file_systems/file_system_spifs_v1.cpp"

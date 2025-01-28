@@ -16,7 +16,11 @@
 
 #include "aether/port/file_systems/file_system_ram.h"
 
-#include "aether/tele/tele.h"
+#if defined AE_FILE_SYSTEM_RAM_ENABLED
+
+#  include "aether/transport/low_level/tcp/data_packet_collector.h"
+
+#  include "aether/tele/tele.h"
 
 namespace ae {
 /*
@@ -119,3 +123,5 @@ void FileSystemRamFacility::out_header() {
   driver_fs->DriverHeaderWrite(path, data_vector);
 }
 }  // namespace ae
+
+#endif  // AE_FILE_SYSTEM_RAM_ENABLED

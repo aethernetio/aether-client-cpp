@@ -17,11 +17,12 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_
 #define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_
 
+#define AE_FILE_SYSTEM_RAM_ENABLED 1
+
 #include <map>
 #include <vector>
 #include <cstdint>
 
-#include "aether/transport/low_level/tcp/data_packet_collector.h"
 #include "aether/port/file_systems/file_system_base.h"
 #include "aether/port/file_systems/drivers/driver_header.h"
 
@@ -34,7 +35,7 @@ class FileSystemRamFacility : public FileSystemBase {
 
  public:
   FileSystemRamFacility();
-  ~FileSystemRamFacility();
+  ~FileSystemRamFacility() override;
 
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,

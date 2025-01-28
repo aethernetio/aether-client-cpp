@@ -15,8 +15,11 @@
  */
 
 #include "aether/port/file_systems/file_system_header.h"
-#include "aether/transport/low_level/tcp/data_packet_collector.h"
-#include "aether/tele/tele.h"
+
+#if defined AE_FILE_SYSTEM_HEADER_ENABLED
+
+#  include "aether/transport/low_level/tcp/data_packet_collector.h"
+#  include "aether/tele/tele.h"
 
 namespace ae {
 
@@ -174,3 +177,5 @@ void FileSystemHeaderFacility::SaveObjData(ObjClassData& obj_data) {
 }
 
 }  // namespace ae
+
+#endif  // AE_FILE_SYSTEM_HEADER_ENABLED
