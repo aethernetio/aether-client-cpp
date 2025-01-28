@@ -43,6 +43,7 @@ list(APPEND common_dependancies
 )
 
 list(APPEND aether_srcs
+            "aether_app.cpp"
             "aether.cpp"
             "address.cpp"
             "channel.cpp"
