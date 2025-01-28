@@ -16,7 +16,7 @@
 
 #include "aether/port/file_systems/file_system_spifs_v1.h"
 
-#if (defined(ESP_PLATFORM))
+#if defined AE_FILE_SYSTEM_SPIFS_V1_ENABLED
 
 #  include "aether/tele/tele.h"
 
@@ -158,4 +158,4 @@ void FileSystemSpiFsV1Facility::_SaveObjData(ObjClassData& obj_data) {
 
 }  // namespace ae
 
-#endif
+#endif  // AE_FILE_SYSTEM_SPIFS_V1_ENABLED

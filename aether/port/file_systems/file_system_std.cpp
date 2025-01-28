@@ -16,14 +16,16 @@
 
 #include "aether/port/file_systems/file_system_std.h"
 
-#include <ios>
-#include <set>
-#include <string>
-#include <fstream>
-#include <filesystem>
-#include <system_error>
+#if defined AE_FILE_SYSTEM_STD_ENABLED
 
-#include "aether/tele/tele.h"
+#  include <ios>
+#  include <set>
+#  include <string>
+#  include <fstream>
+#  include <filesystem>
+#  include <system_error>
+
+#  include "aether/tele/tele.h"
 
 namespace ae {
 
@@ -124,3 +126,5 @@ void FileSystemStdFacility::remove_all() {
   AE_TELE_DEBUG("Started", "Removed all!", 0);
 }
 }  // namespace ae
+
+#endif  // AE_FILE_SYSTEM_STD_ENABLED
