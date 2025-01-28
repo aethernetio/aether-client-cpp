@@ -42,8 +42,9 @@
 #  define ADD_WARNING(name) DO_PRAGMA(GCC diagnostic warning name)
 
 #  if defined __clang__
-#    define IGNORE_IMPLICIT_CONVERSION()          \
-      IGNORE_WARNING("-Wimplicit-int-conversion") \
+#    define IGNORE_IMPLICIT_CONVERSION()                \
+      IGNORE_WARNING("-Wimplicit-int-conversion")       \
+      IGNORE_WARNING("-Wimplicit-int-float-conversion") \
       IGNORE_WARNING("-Wsign-conversion")
 #    if __clang_major__ >= 18
 #      define IGNORE_WNAN_INFINITY_DISABLED() \
@@ -52,7 +53,10 @@
 #      define IGNORE_WNAN_INFINITY_DISABLED()
 #    endif
 #  else
-#    define IGNORE_IMPLICIT_CONVERSION() IGNORE_WARNING("-Wsign-conversion")
+#    define IGNORE_IMPLICIT_CONVERSION()  \
+      IGNORE_WARNING("-Wsign-conversion") \
+      IGNORE_WARNING("-Wconversion")
+
 #    define IGNORE_WNAN_INFINITY_DISABLED()
 #  endif
 #  define IGNORE_DEPRECATED() IGNORE_WARNING("-Wdeprecated")
