@@ -21,17 +21,17 @@ option(USER_CONFIG "Path to user provided configuration header file" "")
 
 find_program(GIT_COMMAND git)
 if ( GIT_COMMAND )
-    # get current git version
-    execute_process(
+  # get current git version
+  execute_process(
         COMMAND ${GIT_COMMAND} -C ${CMAKE_CURRENT_SOURCE_DIR} rev-parse --verify HEAD
         OUTPUT_VARIABLE GIT_VERSION
-    )    
-    if ( NOT GIT_VERSION )
-        message(WARNING "Not a git repo")
-    else()
-        string(STRIP ${GIT_VERSION} GIT_VERSION)
-        message(STATUS "get aether git version ${GIT_VERSION}")
-    endif()
+    )
+  if ( NOT GIT_VERSION )
+    message(WARNING "Not a git repo")
+  else()
+    string(STRIP ${GIT_VERSION} GIT_VERSION)
+    message(STATUS "get aether git version ${GIT_VERSION}")
+  endif()
 endif()
 
 # list a common dependancies
@@ -95,6 +95,7 @@ list(APPEND actions_srcs
             "actions/action_processor.cpp")
 
 list(APPEND adapters_srcs
+            "adapters/adapter_factory.cpp"
             "adapters/adapter.cpp"
             "adapters/esp32_wifi.cpp"
             "adapters/ethernet.cpp"
@@ -131,7 +132,7 @@ list(APPEND stream_api_src
             "stream_api/unidirectional_gate.cpp"
 
             "stream_api/safe_stream.cpp"
-            "stream_api/safe_stream/safe_stream_api.cpp"  
+            "stream_api/safe_stream/safe_stream_api.cpp"
             "stream_api/safe_stream/safe_stream_sending.cpp"
             "stream_api/safe_stream/sending_data_action.cpp"
             "stream_api/safe_stream/send_data_buffer.cpp"
@@ -185,7 +186,7 @@ list(APPEND client_messages_srcs
             "client_messages/p2p_safe_message_stream.cpp"
             )
 
-list(APPEND port_srcs            
+list(APPEND port_srcs
             "port/tele_init.cpp"
             "port/file_systems/facility_factory.cpp"
             "port/file_systems/file_system_header.cpp"
@@ -204,7 +205,7 @@ list(APPEND tele_srcs
 message(STATUS "Cmake system name is ${CMAKE_SYSTEM_NAME}")
 
 if(NOT CM_PLATFORM AND (
-  CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR 
+  CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR
   CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
   CMAKE_SYSTEM_NAME STREQUAL "Windows" OR
   CMAKE_SYSTEM_NAME MATCHES ".*BSD"))
@@ -245,8 +246,8 @@ if(REGULAR_CMAKE_PROJECT)
                             )
 
   target_include_directories(${PROJECT_NAME} PUBLIC ../)
-  target_link_libraries(${PROJECT_NAME} PUBLIC 
-                                        bcrypt 
+  target_link_libraries(${PROJECT_NAME} PUBLIC
+                                        bcrypt
                                         sodium
                                         hydrogen
                                         gcem)
@@ -256,10 +257,10 @@ if(REGULAR_CMAKE_PROJECT)
 else()
   idf_build_get_property(CM_PLATFORM CM_PLATFORM)
   if(CM_PLATFORM STREQUAL "ESP32")
-    #ESP32 CMake    
+    #ESP32 CMake
     set(include_dirs "../")
 
-    idf_component_register( SRCS 
+    idf_component_register( SRCS
                             ${aether_srcs}
                             ${poller_srcs}
                             ${dns_srcs}
@@ -286,8 +287,8 @@ else()
       get_filename_component(DEP_NAME ${dep} NAME)
       add_subdirectory(${dep} ${DEP_NAME})
     endforeach()
-    
-    target_link_libraries(${TARGET_NAME} PUBLIC 
+
+    target_link_libraries(${TARGET_NAME} PUBLIC
                                          bcrypt
                                          sodium
                                          hydrogen
@@ -299,14 +300,14 @@ else()
 endif()
 
 if (CMAKE_SYSTEM_NAME MATCHES ".*BSD.*" )
-    target_link_libraries(${TARGET_NAME} PRIVATE pthread)
+  target_link_libraries(${TARGET_NAME} PRIVATE pthread)
 endif()
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    target_compile_definitions(${TARGET_NAME} PUBLIC 
+  target_compile_definitions(${TARGET_NAME} PUBLIC
                 NOMINMAX # remove legacy max macro
                 WIN32_LEAN_AND_MEAN
     )
-    target_link_libraries(${TARGET_NAME} PRIVATE ws2_32)
+  target_link_libraries(${TARGET_NAME} PRIVATE ws2_32)
 endif()
 
 if (GIT_VERSION)
@@ -341,18 +342,18 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Cla
 
   if (CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_options(${TARGET_NAME} PUBLIC
-                           -ffast-math 
-                           -fno-math-errno 
-                           -funsafe-math-optimizations 
-                           -fassociative-math 
-                           -freciprocal-math 
-                           -ffinite-math-only 
-                           -fno-signed-zeros 
+                           -ffast-math
+                           -fno-math-errno
+                           -funsafe-math-optimizations
+                           -fassociative-math
+                           -freciprocal-math
+                           -ffinite-math-only
+                           -fno-signed-zeros
                            -fno-trapping-math)
 
     # clang does not support this
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-      target_compile_options(${TARGET_NAME} PUBLIC 
+      target_compile_options(${TARGET_NAME} PUBLIC
                             -fsingle-precision-constant
                             -fno-fp-int-builtin-inexact)
     endif()
@@ -380,30 +381,30 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Cla
   endif()
 
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    target_compile_options(${TARGET_NAME}
+  target_compile_options(${TARGET_NAME}
         PRIVATE
             /W4
             /WX
             /wd4388 #Wno-sign-compare
             /wd4389 #Wno-sign-compare
             /wd4244
-            /w15262 #implisitfallthrough 
+            /w15262 #implisitfallthrough
             )
-    target_compile_options(${TARGET_NAME} PUBLIC /Zc:preprocessor)
+  target_compile_options(${TARGET_NAME} PUBLIC /Zc:preprocessor)
 endif()
 
 if(REGULAR_CMAKE_PROJECT)
 
-    ## Target installation
-    install(TARGETS   ${TARGET_NAME}
+  ## Target installation
+  install(TARGETS   ${TARGET_NAME}
         EXPORT        ${TARGET_NAME}Targets
         ARCHIVE       DESTINATION ${CMAKE_INSTALL_LIBDIR}
         LIBRARY       DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}
         COMPONENT     library)
 
-    ## Target's cmake files: targets export
-    install(EXPORT  ${TARGET_NAME}Targets
+  ## Target's cmake files: targets export
+  install(EXPORT  ${TARGET_NAME}Targets
         NAMESPACE   ${TARGET_NAME}::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME})
 endif()
