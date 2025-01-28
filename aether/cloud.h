@@ -41,7 +41,7 @@ class Cloud : public Obj {
   void LoadServer(Server::ptr& server);
 
   void set_adapter(Adapter::ptr const& adapter);
-  Adapter::ptr const& adapter() const;
+  Adapter::ptr& adapter();
 
   std::vector<Server::ptr>& servers();
 

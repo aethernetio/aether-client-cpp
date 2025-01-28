@@ -40,7 +40,7 @@ void Cloud::LoadServer(Server::ptr& server) {
 }
 
 void Cloud::set_adapter(Adapter::ptr const& adapter) { adapter_ = adapter; }
-Adapter::ptr const& Cloud::adapter() const { return adapter_; }
+Adapter::ptr& Cloud::adapter() { return adapter_; }
 
 std::vector<Server::ptr>& Cloud::servers() { return servers_; }
 

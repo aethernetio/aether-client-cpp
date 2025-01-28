@@ -61,7 +61,9 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
     auto client = client_.Lock();
     if (!aether || !adapter || !client) {
       AE_TELED_ERROR(
-          "Unable to create connection, aether or adapter or client is null");
+          "Unable to create connection, aether or adapter or client is null {} "
+          "{} {} ",
+          !!aether, !!adapter, !!client);
       assert(false);
       return {};
     }
@@ -102,8 +104,12 @@ Ptr<ClientConnection> ClientConnectionManager::GetClientConnection() {
 
   AE_TELED_DEBUG("GetClientConnection to self client {}", client_ptr->uid());
 
+  auto cloud_server_connection_selector =
+      GetCloudServerConnectionSelector(client_ptr->uid());
+  assert(cloud_server_connection_selector);
+
   return MakePtr<ClientCloudConnection>(
-      action_context, GetCloudServerConnectionSelector(client_ptr->uid()));
+      action_context, std::move(cloud_server_connection_selector));
 }
 
 ActionView<GetClientCloudConnection>
@@ -192,9 +198,13 @@ ClientConnectionManager::GetCloudServerConnectionSelector(Uid uid) {
   if (!cache->cloud) {
     domain_->LoadRoot(cache->cloud);
   }
+  auto& adapter = cache->cloud->adapter();
+  if (!adapter) {
+    domain_->LoadRoot(adapter);
+  }
 
   auto client_to_server_stream_factory = MakePtr<CachedServerConnectionFactory>(
-      self_ptr, aether, cache->cloud->adapter(), client_ptr);
+      self_ptr, aether, adapter, client_ptr);
 
   cache->client_stream_selector = MakePtr<ServerConnectionSelector>(
       cache->cloud, std::move(client_to_server_stream_factory));
