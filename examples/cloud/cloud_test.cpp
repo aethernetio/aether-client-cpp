@@ -14,283 +14,289 @@
  * limitations under the License.
  */
 
-#include <thread>
-
-#include "aether/aether.h"
-#include "aether/ae_actions/registration/registration.h"
+#include <chrono>
+#include <cstdint>
 #include "aether/common.h"
-#include "aether/global_ids.h"
-#include "aether/port/tele_init.h"
+#include "aether/state_machine.h"
 #include "aether/literal_array.h"
-#include "aether/crypto/sign.h"
+#include "aether/actions/action.h"
+#include "aether/stream_api/istream.h"
+#include "aether/transport/data_buffer.h"
+#include "aether/events/event_subscription.h"
+#include "aether/events/multi_subscription.h"
+
+#include "aether/global_ids.h"
+#include "aether/aether_app.h"
+#include "aether/ae_actions/registration/registration.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
-#if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-     defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
-#  include "aether/port/file_systems/file_system_std.h"
-#  include "aether/adapters/ethernet.h"
-#elif (defined(ESP_PLATFORM))
-#  include "aether/port/file_systems/file_system_ram.h"
-#  include "aether/adapters/esp32_wifi.h"
-#endif
+#include "aether/port/tele_init.h"
+
+#include "aether/adapters/ethernet.h"
+#include "aether/adapters/esp32_wifi.h"
 
 #include "aether/tele/tele.h"
 #include "aether/tele/ios_time.h"
 
-using std::vector;
-
 static constexpr char WIFI_SSID[] = "Test123";
 static constexpr char WIFI_PASS[] = "Test123";
 
-namespace ae {
-#if defined AE_DISTILLATION
-static Aether::ptr CreateAetherInstrument(Domain& domain) {
-  Aether::ptr aether = domain.CreateObj<ae::Aether>(GlobalId::kAether);
+namespace ae::cloud_test {
+constexpr ae::SafeStreamConfig kSafeStreamConfig{
+    std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
+    (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
+    (std::numeric_limits<std::uint16_t>::max() / 2) - 1 - 1,  // max_data_size
+    4,                               // max_repeat_count
+    std::chrono::milliseconds{200},  // wait_confirm_timeout
+    {},                              // send_confirm_timeout
+    std::chrono::milliseconds{200},  // send_repeat_timeout
+};
 
-#  if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-       defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
-  EthernetAdapter::ptr adapter = domain.CreateObj<EthernetAdapter>(
-      GlobalId::kEthernetAdapter, aether, aether->poller);
-  adapter.SetFlags(ae::ObjFlags::kUnloadedByDefault);
-#  elif ((defined(ESP_PLATFORM)))
-  Esp32WifiAdapter::ptr adapter = domain.CreateObj<Esp32WifiAdapter>(
-      GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-      std::string(WIFI_SSID), std::string(WIFI_PASS));
-  adapter.SetFlags(ae::ObjFlags::kUnloadedByDefault);
-  adapter->Connect();
-#  else
-  #error "Unsupported configuration specified"
-#  endif
+class CloudTestAction : public Action<CloudTestAction> {
+  enum class State : std::uint8_t {
+    kRegistration,
+    kConfigureReceiver,
+    kConfigureSender,
+    kSendMessages,
+    kWaitDone,
+    kResult,
+    kError,
+  };
 
-  aether->adapter_factories.emplace_back(std::move(adapter));
+ public:
+  explicit CloudTestAction(Ptr<AetherApp> const& aether_app)
+      : Action{*aether_app},
+        aether_{aether_app->aether()},
+        state_{State::kRegistration},
+        messages_{
+            "Hello, it's me",
+            "I was wondering if, after all these years, you'd like to meet",
+            "To go over everything",
+            "They say that time's supposed to heal ya",
+            "But I ain't done much healin'",
+            "Hello, can you hear me?",
+            "I'm in California dreaming about who we used to be",
+            "When we were younger and free",
+            "I've forgotten how it felt before the world fell at our feet"},
+        receive_count_{},
+        confirm_count_{},
+        state_changed_{state_.changed_event().Subscribe(
+            [this](auto) { Action::Trigger(); })} {
+    AE_TELED_INFO("Cloud test");
+  }
 
-#  if AE_SUPPORT_REGISTRATION
-  // localhost
-  aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
-      {IpAddress{IpAddress::Version::kIpV4, {127, 0, 0, 1}}, 9010},
-      Protocol::kTcp});
-  // cloud address
-  aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
-      {IpAddress{IpAddress::Version::kIpV4, {35, 224, 1, 127}}, 9010},
-      Protocol::kTcp});
-  // cloud name address
-  aether->registration_cloud->AddServerSettings(
-      NameAddress{"registration.aethernet.io", 9010, Protocol::kTcp});
-#  endif  // AE_SUPPORT_REGISTRATION
-  return aether;
-}
+  TimePoint Update(TimePoint current_time) override {
+    if (state_.changed()) {
+      switch (state_.Acquire()) {
+        case State::kRegistration:
+#if AE_SUPPORT_REGISTRATION
+        {
+          AE_TELED_INFO("Client registration");
+          // register receiver and sender
+          clients_registered_ = aether_->clients().size();
+          if (clients_registered_ == 2) {
+            state_ = State::kConfigureReceiver;
+            break;
+          }
+          for (auto i = clients_registered_; i < 2; i++) {
+            auto reg_action = aether_->RegisterClient(
+                Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
+            registration_subscriptions_.Push(
+                reg_action->SubscribeOnResult([&](auto const&) {
+                  ++clients_registered_;
+                  if (clients_registered_ == 2) {
+                    state_ = State::kConfigureReceiver;
+                  }
+                }),
+                reg_action->SubscribeOnError([&](auto const&) {
+                  AE_TELED_ERROR("Registration error");
+                  state_ = State::kError;
+                }));
+          }
+        }
+#else
+          state_ = State::kConfigureReceiver;
 #endif
+        break;
+        case State::kConfigureReceiver: {
+          AE_TELED_INFO("Receiver configuration");
+          assert(!aether_->clients().empty());
+          receiver_ = aether_->clients()[0];
+          auto receiver_connection = receiver_->client_connection();
+          receiver_new_stream_subscription_ =
+              receiver_connection->new_stream_event().Subscribe(
+                  [&](auto uid, auto stream_id, auto raw_stream) {
+                    receiver_stream_ = MakePtr<P2pSafeStream>(
+                        *aether_->action_processor, kSafeStreamConfig,
+                        MakePtr<P2pStream>(*aether_->action_processor,
+                                           receiver_, uid, stream_id,
+                                           std::move(raw_stream)));
+                    receiver_message_subscription_ =
+                        receiver_stream_->in().out_data_event().Subscribe(
+                            [&](auto const& data) {
+                              auto str_msg = std::string(
+                                  reinterpret_cast<const char*>(data.data()),
+                                  data.size());
+                              AE_TELED_DEBUG("Received a message [{}]",
+                                             str_msg);
+                              receive_count_++;
+                              auto confirm_msg =
+                                  std::string{"confirmed "} + str_msg;
+                              auto response_action =
+                                  receiver_stream_->in().Write(
+                                      {confirm_msg.data(),
+                                       confirm_msg.data() + confirm_msg.size()},
+                                      ae::Now());
+                              response_subscriptions_.Push(
+                                  response_action->SubscribeOnError(
+                                      [&](auto const&) {
+                                        AE_TELED_ERROR("Send response failed");
+                                        state_ = State::kError;
+                                      }));
+                            });
+                  });
+          state_ = State::kConfigureSender;
+          break;
+        }
+        case State::kConfigureSender: {
+          AE_TELED_INFO("Sender configuration");
+          assert(aether_->clients().size() > 1);
+          sender_ = aether_->clients()[1];
+          sender_stream_ = MakePtr<P2pSafeStream>(
+              *aether_->action_processor, kSafeStreamConfig,
+              MakePtr<P2pStream>(*aether_->action_processor, sender_,
+                                 receiver_->uid(), StreamId{0}));
+          sender_message_subscription_ =
+              sender_stream_->in().out_data_event().Subscribe(
+                  [&](auto const& data) {
+                    auto str_response =
+                        std::string(reinterpret_cast<const char*>(data.data()),
+                                    data.size());
+                    AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
+                                   str_response, confirm_count_);
+                    confirm_count_++;
+                  });
+          state_ = State::kSendMessages;
+          break;
+        }
+        case State::kSendMessages: {
+          AE_TELED_INFO("Send messages");
+          for (auto const& msg : messages_) {
+            auto send_action = sender_stream_->in().Write(
+                DataBuffer{std::begin(msg), std::end(msg)}, current_time);
+            send_subscriptions_.Push(
+                send_action->SubscribeOnError([&](auto const&) {
+                  AE_TELED_ERROR("Send message failed");
+                  state_ = State::kError;
+                }));
+          }
+          state_ = State::kWaitDone;
+          break;
+        }
+        case State::kWaitDone:
+          break;
+        case State::kResult:
+          Action::Result(*this);
+          return current_time;
+        case State::kError:
+          Action::Error(*this);
+          return current_time;
+      }
+    }
+    if (state_.get() == State::kWaitDone) {
+      AE_TELED_DEBUG("Wait done receive_count {}, confirm_count {}",
+                     receive_count_, confirm_count_);
+      if ((receive_count_ == messages_.size()) &&
+          (confirm_count_ == messages_.size())) {
+        state_ = State::kResult;
+      }
+      return current_time + std::chrono::milliseconds{1000};
+    }
+    return current_time;
+  }
 
-static Aether::ptr LoadAether(Domain& domain) {
-  Aether::ptr aether;
-  aether.SetId(GlobalId::kAether);
-  domain.LoadRoot(aether);
-  assert(aether);
-  return aether;
-}
+ private:
+  Aether::ptr aether_;
+  std::vector<std::string> messages_;
 
-}  // namespace ae
+  Client::ptr receiver_;
+  Ptr<ByteStream> receiver_stream_;
+  std::size_t receive_count_;
+  Client::ptr sender_;
+  Ptr<ByteStream> sender_stream_;
+  std::size_t confirm_count_;
+
+  MultiSubscription registration_subscriptions_;
+  Subscription receiver_new_stream_subscription_;
+  Subscription receiver_message_subscription_;
+  MultiSubscription response_subscriptions_;
+  Subscription sender_message_subscription_;
+  MultiSubscription send_subscriptions_;
+  std::size_t clients_registered_;
+  StateMachine<State> state_;
+  Subscription state_changed_;
+};
+
+}  // namespace ae::cloud_test
 
 void AetherCloudExample();
 
 void AetherCloudExample() {
-  ae::TeleInit::Init();
-
-  {
-    AE_TELE_ENV();
-    AE_TELE_INFO("Started");
-    ae::Registry::Log();
-  }
-
-  auto fs =
-#if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-     defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
-      ae::FileSystemStdFacility{};
-#elif ((defined(ESP_PLATFORM)))
-      ae::FileSystemRamFacility{};
+  auto aether_app = ae::AetherApp::Construct(
+      ae::AetherAppConstructor{}
+#if defined AE_DISTILLATION
+          .Adapter([](ae::Ptr<ae::Domain> const& domain,
+                      ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
+#  if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
+       defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
+            auto adapter = domain->CreateObj<ae::EthernetAdapter>(
+                ae::GlobalId::kEthernetAdapter, aether, aether->poller);
+#  elif (defined(ESP_PLATFORM))
+            auto adapter = domain.CreateObj<ae::Esp32WifiAdapter>(
+                ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
+                std::string(WIFI_SSID), std::string(WIFI_PASS));
+#  else
+#    error "Unsupported configuration specified"
+#  endif
+            return adapter;
+          })
+#  if AE_SUPPORT_REGISTRATION
+          .RegCloud([](ae::Ptr<ae::Domain> const& domain,
+                       ae::Aether::ptr const& /* aether */) {
+            auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
+                ae::kRegistrationCloud);
+            // localhost
+            registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
+                {ae::IpAddress{ae::IpAddress::Version::kIpV4, {127, 0, 0, 1}},
+                 9010},
+                ae::Protocol::kTcp});
+            // cloud address
+            registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
+                {ae::IpAddress{ae::IpAddress::Version::kIpV4,
+                               {35, 224, 1, 127}},
+                 9010},
+                ae::Protocol::kTcp});
+            // cloud name address
+            registration_cloud->AddServerSettings(ae::NameAddress{
+                "registration.aethernet.io", 9010, ae::Protocol::kTcp});
+            return registration_cloud;
+          })
+#  endif  // AE_SUPPORT_REGISTRATION
 #endif
+  );
 
-#ifdef AE_DISTILLATION
-  // create objects in instrument mode
-  {
-    ae::Domain domain{ae::ClockType::now(), fs};
-    fs.remove_all();
-    ae::Aether::ptr aether = ae::CreateAetherInstrument(domain);
-#  if AE_SIGNATURE == AE_ED25519
-    aether->crypto->signs_pk_[ae::SignatureMethod::kEd25519] =
-        ae::SodiumSignPublicKey{
-            ae::MakeLiteralArray("4F202A94AB729FE9B381613AE77A8A7D89EDAB9299C33"
-                                 "20D1A0B994BA710CCEB")};
+  auto cloud_test_action = ae::cloud_test::CloudTestAction{aether_app};
 
-#  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-    aether->crypto->signs_pk_[ae::SignatureMethod::kHydroSignature] =
-        ae::HydrogenSignPublicKey{
-            ae::MakeLiteralArray("883B4D7E0FB04A38CA12B3A451B00942048858263EE6E"
-                                 "6D61150F2EF15F40343")};
-#  endif  // AE_SIGNATURE == AE_ED25519
-    domain.SaveRoot(aether);
-  }
-#endif  // AE_DISTILLATION
+  auto success = cloud_test_action.SubscribeOnResult(
+      [&](auto const&) { aether_app->Exit(0); });
+  auto failed = cloud_test_action.SubscribeOnError(
+      [&](auto const&) { aether_app->Exit(1); });
 
-  ae::Domain domain{ae::ClockType::now(), fs};
-  ae::Aether::ptr aether = ae::LoadAether(domain);
-  ae::TeleInit::Init(aether);
-
-  ae::Adapter::ptr adapter{domain.LoadCopy(aether->adapter_factories.front())};
-
-  ae::Client::ptr client_sender;
-  ae::Client::ptr client_receiver;
-
-  // Create ad client and perform registration
-  if (aether->clients().size() < 2) {
-#if AE_SUPPORT_REGISTRATION
-    // Creating the actual adapter.
-    auto& cloud = aether->registration_cloud;
-    domain.LoadRoot(cloud);
-    cloud->set_adapter(adapter);
-
-    auto registration1 = aether->RegisterClient(
-        ae::Uid{ae::MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
-    auto registration2 = aether->RegisterClient(
-        ae::Uid{ae::MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
-
-    bool reg_failed = false;
-
-    auto reg1 =
-        registration1->SubscribeOnResult([&client_sender](auto const& action) {
-          client_sender = action.client();
-        });
-    auto reg1_failed = registration1->SubscribeOnError([&](auto const&) {
-      AE_TELED_ERROR("Registration rejected");
-      reg_failed = true;
-    });
-
-    auto reg2 = registration2->SubscribeOnResult(
-        [&client_receiver](auto const& action) {
-          client_receiver = action.client();
-        });
-    auto reg2_failed = registration2->SubscribeOnError([&](auto const&) {
-      AE_TELED_ERROR("Registration rejected");
-      reg_failed = true;
-    });
-
-    while ((!client_sender || !client_receiver) && !reg_failed) {
-      auto next_time = aether->domain_->Update(ae::Now());
-      AE_TELED_DEBUG(
-          "Waiting for registration from sender {}, receiver {}, reg_failed "
-          "{}, "
-          "{} until {}",
-          static_cast<bool>(client_sender), static_cast<bool>(client_receiver),
-          reg_failed, ae::FormatTimePoint("%H:%M:%S", ae::Now()),
-          ae::FormatTimePoint("%H:%M:%S", next_time));
-      aether->action_processor->get_trigger().WaitUntil(next_time);
-    }
-    if (reg_failed) {
-      return;
-    }
-#else
-    assert(false);
-#endif
-  } else {
-    client_sender = aether->clients()[0];
-    client_receiver = aether->clients()[1];
-    aether->domain_->LoadRoot(client_sender);
-    aether->domain_->LoadRoot(client_receiver);
-  }
-
-  assert(client_sender);
-  assert(client_receiver);
-
-  // Set adapter for all clouds in the client to work though.
-  client_sender->cloud()->set_adapter(adapter);
-  client_receiver->cloud()->set_adapter(adapter);
-
-  int receive_count = 0;
-  int confirm_count = 0;
-  std::vector<std::string> messages = {
-      "Hello, it's me",
-      "I was wondering if, after all these years, you'd like to meet",
-      "To go over everything",
-      "They say that time's supposed to heal ya",
-      "But I ain't done much healin'",
-      "Hello, can you hear me?",
-      "I'm in California dreaming about who we used to be",
-      "When we were younger and free",
-      "I've forgotten how it felt before the world fell at our feet"};
-
-  auto receiver_connection = client_receiver->client_connection();
-
-  ae::SafeStreamConfig config;
-  config.buffer_capacity = std::numeric_limits<std::uint16_t>::max();
-  config.max_repeat_count = 4;
-  config.window_size = (config.buffer_capacity / 2) - 1;
-  config.wait_confirm_timeout = std::chrono::milliseconds{200};
-  config.send_confirm_timeout = {};
-  config.send_repeat_timeout = std::chrono::milliseconds{200};
-  config.max_data_size = config.window_size - 1;
-
-  ae::Ptr<ae::P2pSafeStream> receiver_stream;
-  ae::Subscription receiver_subscription;
-  auto _s0 = receiver_connection->new_stream_event().Subscribe(
-      [&](auto uid, auto stream_id, auto const& message_stream) {
-        AE_TELED_DEBUG("Received stream from {}", uid);
-        receiver_stream = ae::MakePtr<ae::P2pSafeStream>(
-            *aether->action_processor, config,
-            ae::MakePtr<ae::P2pStream>(*aether->action_processor,
-                                       client_receiver, uid, stream_id,
-                                       message_stream));
-        receiver_subscription =
-            receiver_stream->in().out_data_event().Subscribe(
-                [&](auto const& data) {
-                  auto str_msg = std::string(
-                      reinterpret_cast<const char*>(data.data()), data.size());
-                  AE_TELED_DEBUG("Received a message [{}]", str_msg);
-                  auto msgit = std::find(std::begin(messages),
-                                         std::end(messages), str_msg);
-                  if (msgit != std::end(messages)) {
-                    receive_count++;
-                  }
-                  auto confirm_msg = std::string{"confirmed "} + str_msg;
-                  receiver_stream->in().Write(
-                      {confirm_msg.data(),
-                       confirm_msg.data() + confirm_msg.size()},
-                      ae::Now());
-                });
-      });
-
-  auto sender_stream = ae::MakePtr<ae::P2pSafeStream>(
-      *aether->action_processor, config,
-      ae::MakePtr<ae::P2pStream>(*aether->action_processor, client_sender,
-                                 client_receiver->uid(), ae::StreamId{0}));
-
-  AE_TELED_DEBUG("SEND MESSAGES FROM SENDER TO RECEIVER");
-  for (auto const& message : messages) {
-    sender_stream->in().Write({std::begin(message), std::end(message)},
-                              ae::Now());
-  }
-
-  auto _s1 =
-      sender_stream->in().out_data_event().Subscribe([&](auto const& data) {
-        auto str_response = std::string(
-            reinterpret_cast<const char*>(data.data()), data.size());
-        AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
-                       str_response, confirm_count);
-        confirm_count++;
-      });
-
-  while ((receive_count < messages.size()) ||
-         (confirm_count < messages.size())) {
-    AE_TELED_DEBUG("receive_count {} confirm_count {}", receive_count,
-                   confirm_count);
+  while (!aether_app->IsExited()) {
     auto current_time = ae::Now();
-    auto next_time = aether->domain_->Update(current_time);
-    aether->action_processor->get_trigger().WaitUntil(
+    auto next_time = aether_app->Update(current_time);
+    aether_app->WaitUntil(
         std::min(next_time, current_time + std::chrono::seconds{5}));
   }
-
-  aether->domain_->Update(ae::ClockType::now());
-
-  // save objects state
-  domain.SaveRoot(aether);
 }
