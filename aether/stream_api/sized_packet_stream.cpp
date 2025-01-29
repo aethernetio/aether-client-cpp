@@ -21,18 +21,23 @@
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
 
+#include "aether/tele/tele.h"
+
 namespace ae {
 
 ActionView<StreamWriteAction> SizedPacketGate::Write(DataBuffer&& buffer,
                                                      TimePoint current_time) {
   assert(out_);
 
-  PacketSize size = buffer.size();
   DataBuffer write_buffer;
+  write_buffer.reserve(buffer.size() + sizeof(PacketSize::ValueType));
+
   auto buffer_writer = VectorWriter<PacketSize>(write_buffer);
   auto os = omstream{buffer_writer};
-  os << size;
-  os.write(buffer.data(), buffer.size());
+  os << buffer;
+
+  AE_TELED_DEBUG("SizedPacketGate write size:{}\ndata:{}", write_buffer.size(),
+                 write_buffer);
 
   return out_->Write(std::move(write_buffer), current_time);
 }
@@ -50,20 +55,24 @@ StreamInfo SizedPacketGate::stream_info() const {
 
 void SizedPacketGate::LinkOut(OutGate& out) {
   out_ = &out;
-  out_data_subscription_ =
-      out.out_data_event().Subscribe([this](DataBuffer const& buffer) {
-        data_packet_collector_.AddData(buffer);
-
-        for (auto packet = data_packet_collector_.PopPacket(); !packet.empty();
-             packet = data_packet_collector_.PopPacket()) {
-          out_data_event_.Emit(packet);
-        }
-      });
+  out_data_subscription_ = out.out_data_event().Subscribe(
+      [this](DataBuffer const& buffer) { DataReceived(buffer); });
 
   gate_update_subscription_ = out.gate_update_event().Subscribe(
       [this]() { gate_update_event_.Emit(); });
 
   gate_update_event_.Emit();
+}
+
+void SizedPacketGate::DataReceived(DataBuffer const& buffer) {
+  data_packet_collector_.AddData(buffer);
+
+  for (auto packet = data_packet_collector_.PopPacket(); !packet.empty();
+       packet = data_packet_collector_.PopPacket()) {
+    AE_TELED_DEBUG("SizedPacketGate received size:{}\ndata:{}", packet.size(),
+                   packet);
+    out_data_event_.Emit(packet);
+  }
 }
 
 }  // namespace ae

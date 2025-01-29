@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef TESTS_TEST_TRANSPORT_MOCK_TRANSPORT_H_
-#define TESTS_TEST_TRANSPORT_MOCK_TRANSPORT_H_
+#ifndef TESTS_TEST_STREAM_MOCK_TRANSPORT_H_
+#define TESTS_TEST_STREAM_MOCK_TRANSPORT_H_
 
 #include "aether/events/events.h"
 #include "aether/actions/action_list.h"
@@ -91,4 +91,4 @@ class MockTransport : public ITransport {
 };
 }  // namespace ae
 
-#endif  // TESTS_TEST_TRANSPORT_MOCK_TRANSPORT_H_
+#endif  // TESTS_TEST_STREAM_MOCK_TRANSPORT_H_

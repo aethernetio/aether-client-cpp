@@ -230,6 +230,7 @@ class Ptr {
     if (ptr_manager->ref_counter() == 0) {
       ptr_manager->Delete(ptr);
     }
+    shared_pointer_.Reset();
   }
 
  private:

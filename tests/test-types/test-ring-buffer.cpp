@@ -31,31 +31,33 @@ void test_RingBufferShifting() {
   TEST_ASSERT_EQUAL(1, static_cast<std::uint8_t>(b2));
 
   auto b3 = b1 - 1;
-  TEST_ASSERT_EQUAL(9, static_cast<std::uint8_t>(b3));
+  TEST_ASSERT_EQUAL(10, static_cast<std::uint8_t>(b3));
 
   auto b4 = b1 + 10;
-  TEST_ASSERT_EQUAL(0, static_cast<std::uint8_t>(b4));
+  TEST_ASSERT_EQUAL(10, static_cast<std::uint8_t>(b4));
 
   auto b5 = b1 + 9;
   TEST_ASSERT_EQUAL(9, static_cast<std::uint8_t>(b5));
 
   auto b6 = b1 + 11;
-  TEST_ASSERT_EQUAL(1, static_cast<std::uint8_t>(b6));
+  TEST_ASSERT_EQUAL(0, static_cast<std::uint8_t>(b6));
 
   auto b7 = b1 - 10;
-  TEST_ASSERT_EQUAL(0, static_cast<std::uint8_t>(b7));
+  TEST_ASSERT_EQUAL(1, static_cast<std::uint8_t>(b7));
 
   auto b8 = b1 - 8;
-  TEST_ASSERT_EQUAL(2, static_cast<std::uint8_t>(b8));
+  TEST_ASSERT_EQUAL(3, static_cast<std::uint8_t>(b8));
 
   using U8RI_MAX = RingIndex<std::uint8_t>;
   auto a1 = U8RI_MAX{};
   auto a2 = a1 + 1;
   TEST_ASSERT_EQUAL(1, static_cast<std::uint8_t>(a2));
   auto a3 = a1 + 255;
-  TEST_ASSERT_EQUAL(0, static_cast<std::uint8_t>(a3));
+  TEST_ASSERT_EQUAL(255, static_cast<std::uint8_t>(a3));
+  auto a3_1 = a3 + 1;
+  TEST_ASSERT_EQUAL(0, static_cast<std::uint8_t>(a3_1));
   auto a4 = a1 - 200;
-  TEST_ASSERT_EQUAL(55, static_cast<std::uint8_t>(a4));
+  TEST_ASSERT_EQUAL(56, static_cast<std::uint8_t>(a4));
 }
 
 void test_RingBufferDistance() {
@@ -69,11 +71,11 @@ void test_RingBufferDistance() {
   TEST_ASSERT_EQUAL(9, d2);
 
   auto d3 = b1.Distance(b1 + 10);
-  TEST_ASSERT_EQUAL(0, d3);
+  TEST_ASSERT_EQUAL(10, d3);
 
   auto b2 = U8RI{9};
   auto d4 = b2.Distance(b2 + 5);
-  TEST_ASSERT_EQUAL(4, d4);
+  TEST_ASSERT_EQUAL(5, d4);
 }
 
 }  // namespace ae::test_ring_buffer

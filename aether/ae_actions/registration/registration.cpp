@@ -30,7 +30,6 @@
 #  include "aether/stream_api/stream_api.h"
 #  include "aether/stream_api/crypto_stream.h"
 #  include "aether/stream_api/protocol_stream.h"
-#  include "aether/stream_api/transport_write_gate.h"
 #  include "aether/stream_api/tied_stream.h"
 
 #  include "aether/crypto/async_crypto_provider.h"
@@ -42,7 +41,6 @@
 #  include "aether/methods/server_reg_api/server_registration_api.h"
 
 #  include "aether/server_list/no_filter_server_list_policy.h"
-#  include "aether/transport/server/server_transport_factory.h"
 
 #  include "aether/ae_actions/registration/registration_key_provider.h"
 
@@ -52,13 +50,14 @@
 #  include "aether/tele/ios_time.h"
 
 namespace ae {
+
 Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
                            Uid parent_uid, Client::ptr client)
     : Action{action_context},
       aether_{std::move(aether)},
       client_{std::move(client)},
       parent_uid_{std::move(parent_uid)},
-      state_{State::kConnection},
+      state_{State::kSelectConnection},
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
       sign_pk_{aether_.Lock()->crypto->signs_pk_[kDefaultSignatureMethod]} {
@@ -73,12 +72,20 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
     assert(cloud);
   }
 
-  server_transport_factory_ =
-      MakePtr<ServerTransportFactory>(aether_ptr, cloud->adapter());
+  auto adapter = cloud->adapter();
+  if (!adapter) {
+    aether_ptr->domain_->LoadRoot(adapter);
+  }
 
-  server_transport_list_ =
+  server_list_ =
       MakePtr<ServerList>(MakePtr<NoFilterServerListPolicy>(), cloud);
-  server_transport_list_iterator_ = server_transport_list_->begin();
+  connection_selection_ =
+      MakePtr<AsyncForLoop>(AsyncForLoop<Ptr<ServerChannelStream>>::Construct(
+          *server_list_, [this, aether_ptr, adapter{adapter}]() {
+            auto item = server_list_->Get();
+            return MakePtr<ServerChannelStream>(aether_ptr, adapter,
+                                                item.server(), item.channel());
+          }));
 
   // trigger action on state change
   state_change_subscription_ =
@@ -108,9 +115,10 @@ TimePoint Registration::Update(TimePoint current_time) {
                  FormatTimePoint("UTC :%Y-%m-%d %H:%M:%S", current_time));
 
   // TODO: add check for actual packet sending or method timeouts
+
   if (state_.changed()) {
     switch (state_.Acquire()) {
-      case State::kConnection:
+      case State::kSelectConnection:
         IterateConnection();
         break;
       case State::kWaitingConnection:
@@ -132,19 +140,16 @@ TimePoint Registration::Update(TimePoint current_time) {
         break;
       case State::kRegistered:
         Action::Result(*this);
-        break;
+        return current_time;
       case State::kRegistrationFailed:
         Action::Error(*this);
-        break;
+        return current_time;
       default:
         break;
     }
   }
-  switch (state_.get()) {
-    case State::kWaitKeys:
-      return WaitKeys(current_time);
-    default:
-      break;
+  if (state_.get() == State::kWaitKeys) {
+    return WaitKeys(current_time);
   }
 
   return current_time;
@@ -153,33 +158,31 @@ TimePoint Registration::Update(TimePoint current_time) {
 Client::ptr Registration::client() const { return client_; }
 
 void Registration::IterateConnection() {
-  if (server_transport_list_iterator_ == server_transport_list_->end()) {
-    AE_TELED_ERROR("Server transport list is over");
-    state_.Set(State::kRegistrationFailed);
+  if (server_channel_stream_ = connection_selection_->Update();
+      !server_channel_stream_) {
+    AE_TELED_ERROR("Server connection list is over");
+    state_ = State::kRegistrationFailed;
     return;
   }
 
-  current_server_transport_ = server_transport_factory_->CreateTransport(
-      *server_transport_list_iterator_);
-  current_server_transport_->Connect();
+  if (server_channel_stream_->in().stream_info().is_linked) {
+    state_ = State::kConnected;
+    return;
+  }
 
-  connection_success_subscription_ =
-      current_server_transport_->ConnectionSuccess()
+  connection_subscription_ =
+      server_channel_stream_->in()
+          .gate_update_event()
           .Subscribe([this]() {
-            AE_TELED_DEBUG("Connection success");
-            state_.Set(State::kConnected);
+            if (server_channel_stream_->in().stream_info().is_linked) {
+              state_ = State::kConnected;
+            } else {
+              AE_TELED_ERROR("Connection error, try next");
+              state_ = State::kSelectConnection;
+            }
           })
           .Once();
 
-  connection_error_subscription_ =
-      current_server_transport_->ConnectionError()
-          .Subscribe([this]() {
-            AE_TELED_ERROR("Connection error, try next");
-            state_.Set(State::kConnection);
-          })
-          .Once();
-
-  ++server_transport_list_iterator_;
   state_ = State::kWaitingConnection;
 }
 
@@ -194,15 +197,14 @@ void Registration::Connected(TimePoint current_time) {
   // create simplest stream to server
   // On RequestPowParams will be created a more complicated one
   reg_server_stream_ = MakePtr<TiedStream>(
-      ProtocolReadGate{protocol_context_, root_api_},
-      TransportWriteGate{*aether->action_processor, current_server_transport_});
+      ProtocolReadGate{protocol_context_, root_api_}, server_channel_stream_);
 
-  state_.Set(State::kGetKeys);
+  state_ = State::kGetKeys;
 }
 
 void Registration::GetKeys(TimePoint current_time) {
   AE_TELED_DEBUG("Registration::GetKeys");
-  state_.Set(State::kWaitKeys);
+  state_ = State::kWaitKeys;
   auto packet = PacketBuilder{
       protocol_context_,
       PackMessage{
@@ -218,14 +220,14 @@ void Registration::GetKeys(TimePoint current_time) {
   // on error try repeat
   raw_transport_send_action_subscription_ =
       packet_write_action_->SubscribeOnError(
-          [this](auto const&) { state_.Set(State::kConnection); });
+          [this](auto const&) { state_ = State::kSelectConnection; });
   last_request_time_ = current_time;
 }
 
 TimePoint Registration::WaitKeys(TimePoint current_time) {
   if (last_request_time_ + response_timeout_ < current_time) {
     AE_TELED_DEBUG("Registration::WaitKeys: timeout");
-    state_.Set(State::kGetKeys);
+    state_ = State::kGetKeys;
     return current_time;
   }
   return last_request_time_ + response_timeout_;
@@ -239,13 +241,13 @@ void Registration::OnGetKeysResponse(
                             sign_pk_);
   if (!r) {
     AE_TELED_ERROR("Registration::OnGetKeysResponse: Sign verification failed");
-    state_.Set(State::kRegistrationFailed);
+    state_ = State::kRegistrationFailed;
     return;
   }
 
   server_pub_key_ = std::move(message.signed_key.key);
 
-  state_.Set(State::kGetPowParams);
+  state_ = State::kGetPowParams;
 }
 
 void Registration::RequestPowParams(TimePoint current_time) {
@@ -285,7 +287,7 @@ void Registration::RequestPowParams(TimePoint current_time) {
       packet_write_action_
           ->SubscribeOnError([this](auto const&) {
             AE_TELED_ERROR("RequestPowParams stream write failed");
-            state_.Set(State::kRegistrationFailed);
+            state_ = State::kRegistrationFailed;
           })
           .Once();
 }
@@ -300,7 +302,7 @@ void Registration::OnResponsePowParams(
   if (!res) {
     AE_TELED_ERROR(
         "Registration::OnResponsePowParams: Sign verification failed");
-    state_.Set(State::kRegistrationFailed);
+    state_ = State::kRegistrationFailed;
     return;
   }
 
@@ -311,7 +313,7 @@ void Registration::OnResponsePowParams(
   pow_params_.password_suffix = message.pow_params.password_suffix;
   pow_params_.pool_size = message.pow_params.pool_size;
 
-  state_.Set(State::kMakeRegistration);
+  state_ = State::kMakeRegistration;
 }
 
 void Registration::MakeRegistration(TimePoint current_time) {
@@ -368,7 +370,7 @@ void Registration::MakeRegistration(TimePoint current_time) {
       packet_write_action_
           ->SubscribeOnError([this](auto const&) {
             AE_TELED_ERROR("MakeRegistration stream write failed");
-            state_.Set(State::kRegistrationFailed);
+            state_ = State::kRegistrationFailed;
           })
           .Once();
 }
@@ -382,7 +384,7 @@ void Registration::OnConfirmRegistration(
   uid_ = message.registration_response.uid;
   cloud_ = message.registration_response.cloud;
 
-  state_.Set(State::kRequestCloudResolving);
+  state_ = State::kRequestCloudResolving;
 }
 
 void Registration::ResolveCloud(TimePoint current_time) {
@@ -406,7 +408,7 @@ void Registration::ResolveCloud(TimePoint current_time) {
       packet_write_action_
           ->SubscribeOnError([this](auto const&) {
             AE_TELED_ERROR("ResolveCloud stream write failed");
-            state_.Set(State::kRegistrationFailed);
+            state_ = State::kRegistrationFailed;
           })
           .Once();
 }
@@ -424,12 +426,22 @@ void Registration::OnResolveCloudResponse(
   Cloud::ptr new_cloud = aether->domain_->LoadCopy(aether->cloud_prefab);
   assert(new_cloud);
 
-  for (const auto& d : message.servers) {
+  for (const auto& description : message.servers) {
+    auto server_id = description.server_id;
+    auto cached_server = aether->GetServer(server_id);
+    if (cached_server) {
+      AE_TELED_DEBUG("Use cached server");
+      new_cloud->AddServer(cached_server);
+      continue;
+    }
+
+    AE_TELED_DEBUG("Create new server id: {}", server_id);
+
     Server::ptr server = aether->domain_->CreateObj<Server>();
     assert(server);
-    server->server_id = d.server_id;
+    server->server_id = server_id;
 
-    for (const auto& i : d.ips) {
+    for (const auto& i : description.ips) {
       for (const auto& protocol_port : i.protocol_and_ports) {
         AE_TELED_DEBUG("Add channel ip {}, port {} protocol {}", i.ip,
                        protocol_port.port, protocol_port.protocol);
@@ -450,7 +462,7 @@ void Registration::OnResolveCloudResponse(
   AE_TELED_DEBUG("Client registered with uid {} and ephemeral uid {}",
                  client_->uid(), client_->ephemeral_uid());
 
-  state_.Set(State::kRegistered);
+  state_ = State::kRegistered;
 }
 
 Ptr<ByteStream> Registration::CreateRegServerStream(
@@ -472,8 +484,7 @@ Ptr<ByteStream> Registration::CreateRegServerStream(
                             stream_id,
                             kDefaultCryptoLibProfile,
                         }},
-      ProtocolReadGate{protocol_context_, root_api_},
-      TransportWriteGate{*aether->action_processor, current_server_transport_});
+      ProtocolReadGate{protocol_context_, root_api_}, server_channel_stream_);
 
   return tied_stream;
 }

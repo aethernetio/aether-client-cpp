@@ -162,6 +162,7 @@ class SharedPointer {
     pointer_ = nullptr;
     visitor_ = nullptr;
   }
+
   void Reset() noexcept {
     if (!pointer_manager_) {
       return;
@@ -170,6 +171,9 @@ class SharedPointer {
     if (pointer_manager_->manage_counter() == 0) {
       delete pointer_manager_;
     }
+    pointer_manager_ = nullptr;
+    pointer_ = nullptr;
+    visitor_ = nullptr;
   }
 
   PointerManager* pointer_manager() const { return pointer_manager_; }

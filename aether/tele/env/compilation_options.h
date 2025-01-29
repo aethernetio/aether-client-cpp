@@ -97,8 +97,6 @@ constexpr inline auto _compile_options_list = std::array{
     _OPTION(AE_SUPPORT_DYNAMIC_CLOUD_IPS),
     _OPTION(AE_SUPPORT_REGISTRATION),
     _OPTION(AE_SUPPORT_REGISTRATION_DYNAMIC_IP),
-    _OPTION(AE_SUPPORT_REGISTRATION_DNS),
-    _OPTION(AE_SUPPORT_REGISTRATION_DYNAMIC_DNS),
     _OPTION(AE_BCRYPT_CRC32),
     _OPTION(AE_POW),
     _OPTION(AE_SIGNATURE),
@@ -126,6 +124,7 @@ constexpr inline auto _compile_options_list = std::array{
 #else
     _OPTION_VALUE(AE_DISTILLATION, 0),
 #endif
+    _OPTION(DEBUG),
 };
 }  // namespace ae
 #endif  // AETHER_TELE_ENV_COMPILATION_OPTIONS_H_ */

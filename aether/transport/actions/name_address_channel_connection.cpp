@@ -25,10 +25,12 @@
 #  include "aether/transport/itransport.h"
 #  include "aether/transport/actions/ip_channel_connection.h"
 
+#  include "aether/tele/tele.h"
+
 namespace ae {
 NameAddressChannelConnectionAction::NameAddressChannelConnectionAction(
-    ActionContext action_context, NameAddress name_address, Ptr<Aether>& aether,
-    Adapter& adapter)
+    ActionContext action_context, NameAddress name_address,
+    Ptr<Aether> const& aether, Ptr<Adapter> const& adapter)
     : ChannelConnectionAction(action_context),
       name_address_{std::move(name_address)},
       action_context_{action_context},
@@ -102,8 +104,15 @@ void NameAddressChannelConnectionAction::TryConnection(
     return;
   }
 
+  auto adapter = adapter_.Lock();
+  if (!adapter) {
+    AE_TELED_ERROR("Adapter is null");
+    state_.Set(State::NotConnected);
+    return;
+  }
+
   ip_address_channel_connection_.emplace(
-      action_context_, *ip_address_port_protocol_it_, adapter_);
+      action_context_, *ip_address_port_protocol_it_, *adapter);
 
   address_subscriptions_.Push(
       ip_address_channel_connection_

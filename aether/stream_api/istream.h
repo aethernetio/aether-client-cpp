@@ -98,6 +98,10 @@ class Gate : public IGate<TIn, TOut> {
 
   // Link this Gate to some other Gate
   virtual void LinkOut(OutGate& out) = 0;
+  virtual void Unlink() {
+    out_ = nullptr;
+    gate_update_event_.Emit();
+  }
 
   typename Base::OutDataEvent::Subscriber out_data_event() override {
     return out_data_event_;
@@ -151,6 +155,11 @@ class Gate<TIn, TOut, TIn, TOut> : public IGate<TIn, TOut> {
 
     gate_update_subscription_ = out_->gate_update_event().Subscribe(
         [this]() { gate_update_event_.Emit(); });
+    gate_update_event_.Emit();
+  }
+
+  virtual void Unlink() {
+    out_ = nullptr;
     gate_update_event_.Emit();
   }
 

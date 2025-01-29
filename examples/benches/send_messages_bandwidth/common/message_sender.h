@@ -67,13 +67,13 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
           break;
         case State::kSuccess:
           SelfAction::Result(*this);
-          break;
+          return current_time;
         case State::kStoped:
           SelfAction::Stop(*this);
-          break;
+          return current_time;
         case State::kError:
           SelfAction::Error(*this);
-          break;
+          return current_time;
       }
     }
     if (state_.get() == State::kSending) {

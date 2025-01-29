@@ -21,22 +21,24 @@
 #include <optional>
 
 #include "aether/uid.h"
+#include "aether/async_for_loop.h"
 #include "aether/obj/ptr_view.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/client_connections/client_connection.h"
-#include "aether/client_connections/client_server_connection_selector.h"
+#include "aether/client_connections/server_connection_selector.h"
 
 #include "aether/ae_actions/get_client_cloud.h"
 
 namespace ae {
+class Client;
 class ClientConnectionManager;
 
 class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   enum class State : std::uint8_t {
     kTryCache,
-    kSelectServer,
+    kSelectConnection,
     kConnection,
     kGetCloud,
     kCreateConnection,
@@ -49,8 +51,8 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   GetClientCloudConnection(
       ActionContext action_context,
       Ptr<ClientConnectionManager> const& client_connection_manager,
-      Uid client_uid,
-      Ptr<ClientServerConnectionSelector> client_server_connection_selector);
+      ObjPtr<Client> const& client, Uid client_uid,
+      Ptr<ServerConnectionSelector> client_server_connection_selector);
 
   ~GetClientCloudConnection() override;
 
@@ -62,23 +64,24 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
 
  private:
   void TryCache(TimePoint current_time);
-  void SelectServer(TimePoint current_time);
+  void SelectConnection(TimePoint current_time);
   void GetCloud(TimePoint current_time);
   void CreateConnection(TimePoint current_time);
 
   Ptr<ClientConnection> CreateConnection(
-      Ptr<ClientServerConnectionSelector> client_to_server_stream_selector);
+      Ptr<ServerConnectionSelector> client_to_server_stream_selector);
 
   ActionContext action_context_;
+  PtrView<Client> client_;
   Uid client_uid_;
   PtrView<ClientConnectionManager> client_connection_manager_;
-  Ptr<ClientServerConnectionSelector> client_server_connection_selector_;
+  Ptr<ServerConnectionSelector> server_connection_selector_;
+  Ptr<AsyncForLoop<Ptr<ClientServerConnection>>> connection_selection_loop_;
 
   StateMachine<State> state_;
 
-  Ptr<ClientServerConnection> client_server_connection_;
+  Ptr<ClientServerConnection> server_connection_;
   Subscription connection_subscription_;
-  Subscription disconnection_subscription_;
 
   std::optional<GetClientCloudAction> get_client_cloud_action_;
   MultiSubscription get_client_cloud_subscriptions_;

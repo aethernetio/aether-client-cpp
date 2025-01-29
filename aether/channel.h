@@ -21,6 +21,7 @@
 #include <cstdint>
 
 #include "aether/address.h"
+#include "aether/obj/obj.h"
 #include "aether/statistics.h"
 
 namespace ae {
@@ -32,7 +33,7 @@ class Channel : public Obj {
  public:
   using TokenType = std::uint32_t;
 
-  Channel(Domain* domain);
+  explicit Channel(Domain* domain);
 
   template <typename Dnv>
   void Visit(Dnv& dnv) {

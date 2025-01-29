@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_SERVER_LIST_SERVER_TRANSPORT_FACTORY_H_
-#define AETHER_SERVER_LIST_SERVER_TRANSPORT_FACTORY_H_
+#ifndef AETHER_CLIENT_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
+#define AETHER_CLIENT_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
+
+#include "aether/obj/ptr.h"
 
 #include "aether/server.h"
-
-#include "aether/transport/itransport.h"
+#include "aether/channel.h"
+#include "aether/client_connections/client_server_connection.h"
 
 namespace ae {
-class IServerTransportFactory {
+class IServerConnectionFactory {
  public:
-  virtual ~IServerTransportFactory() = default;
+  virtual ~IServerConnectionFactory() = default;
 
-  /**
-   * \brief Create a transport based for server.
-   */
-  virtual Ptr<ITransport> CreateTransport(Server::ptr server) = 0;
+  virtual Ptr<ClientServerConnection> CreateConnection(
+      Server::ptr const& server, Channel::ptr const& channel) = 0;
 };
 }  // namespace ae
 
-#endif  // AETHER_SERVER_LIST_SERVER_TRANSPORT_FACTORY_H_
+#endif  // AETHER_CLIENT_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_

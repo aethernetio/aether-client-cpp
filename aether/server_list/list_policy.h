@@ -17,26 +17,46 @@
 #ifndef AETHER_SERVER_LIST_LIST_POLICY_H_
 #define AETHER_SERVER_LIST_LIST_POLICY_H_
 
+#include "aether/common.h"
+
+#include "aether/obj/ptr.h"
+
+#include "aether/server.h"
+#include "aether/channel.h"
+
 namespace ae {
-class Server;
-class Channel;
+class ServerListItem {
+ public:
+  ServerListItem(Ptr<Server> server, Ptr<Channel> channel)
+      : server_{std::move(server)}, channel_{std::move(channel)} {}
+
+  AE_CLASS_COPY_MOVE(ServerListItem)
+
+  Ptr<Server> const& server() const { return server_; }
+  Ptr<Channel> const& channel() const { return channel_; }
+
+ private:
+  Ptr<Server> server_;
+  Ptr<Channel> channel_;
+};
 
 // Policy interface to make server list
-class ServeListPolicy {
+class ServerListPolicy {
  public:
-  virtual ~ServeListPolicy() = default;
+  virtual ~ServerListPolicy() = default;
   /**
    * \brief Returns true if left must be placed before right
    * By places before it means that left will be preferred over right.
    * \note Preferred(a, b) must satisfy Compare requirements \see
    * https://en.cppreference.com/w/cpp/named_req/Compare
    */
-  virtual bool Preferred(Server const& left, Server const& right) const = 0;
+  virtual bool Preferred(ServerListItem const& left,
+                         ServerListItem const& right) const = 0;
 
   /**
    * \brief Returns true if item must be filtered out
    */
-  virtual bool Filter(Server const& item) const = 0;
+  virtual bool Filter(ServerListItem const& item) const = 0;
 };
 }  // namespace ae
 

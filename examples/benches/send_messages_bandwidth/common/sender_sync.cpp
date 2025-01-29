@@ -46,14 +46,14 @@ TimePoint SenderSyncAction::Update(TimePoint current_time) {
         break;
       case State::kSuccess:
         Action::Result(*this);
-        break;
+        return current_time;
       case State::kError:
         Action::Error(*this);
-        break;
+        return current_time;
     }
   }
   if (state_.get() == State::kWaitResponse) {
-    current_time = CheckInterval(current_time);
+    return CheckInterval(current_time);
   }
   return current_time;
 }

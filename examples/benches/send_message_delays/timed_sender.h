@@ -74,28 +74,27 @@ class TimedSender : public ITimedSender {
   }
 
   TimePoint Update(TimePoint current_time) override {
-    if (state_.changed()) {
-      switch (state_.Acquire()) {
-        case State::kSend:
-          Send(current_time);
-          break;
-        case State::kWaitSync:
-        case State::kWaitInterval:
-          break;
-        case State::kFinished:
-          this->Result(*this);
-          break;
-        case State::kError:
-          this->Error(*this);
-          break;
-      }
-    }
-
     if (state_.get() == State::kWaitSync) {
       return CheckSyncTimeout(current_time);
     }
     if (state_.get() == State::kWaitInterval) {
       return CheckIntervalTimeout(current_time);
+    }
+
+    if (state_.changed()) {
+      switch (state_.Acquire()) {
+        case State::kSend:
+          Send(current_time);
+          break;
+        case State::kFinished:
+          this->Result(*this);
+          return current_time;
+        case State::kError:
+          this->Error(*this);
+          return current_time;
+        default:
+          break;
+      }
     }
 
     return current_time;
@@ -107,6 +106,7 @@ class TimedSender : public ITimedSender {
     AE_TELED_DEBUG("Sync");
     auto current_time = Now();
     if (current_time - last_send_time_ < min_send_interval_) {
+      AE_TELED_DEBUG("Wait interval");
       state_.Set(State::kWaitInterval);
       return;
     }

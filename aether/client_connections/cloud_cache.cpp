@@ -14,21 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_ICLIENT_SERVER_CONNECTION_FACTORY_H_
-#define AETHER_CLIENT_CONNECTIONS_ICLIENT_SERVER_CONNECTION_FACTORY_H_
-
-#include "aether/server.h"
-#include "aether/obj/ptr.h"
-#include "aether/client_connections/client_server_connection.h"
+#include "aether/client_connections/cloud_cache.h"
 
 namespace ae {
-class IClientServerConnectionFactory {
- public:
-  virtual ~IClientServerConnectionFactory() = default;
+CloudCache::Entry* CloudCache::GetCache(Uid uid) {
+  auto it = clouds_.find(uid);
+  if (it == std::end(clouds_)) {
+    return nullptr;
+  }
+  return &it->second;
+}
 
-  virtual Ptr<ClientServerConnection> CreateConnection(
-      Ptr<Server> const& server) = 0;
-};
+void CloudCache::AddCloud(Uid uid, Cloud::ptr cloud) {
+  clouds_[uid] = Entry{std::move(cloud), {}};
+}
+
 }  // namespace ae
-
-#endif  // AETHER_CLIENT_CONNECTIONS_ICLIENT_SERVER_CONNECTION_FACTORY_H_
