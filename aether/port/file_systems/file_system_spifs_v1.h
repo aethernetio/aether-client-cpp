@@ -17,7 +17,10 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_SPIFS_V1_H_
 #define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_SPIFS_V1_H_
 
-#if (defined(ESP_PLATFORM))
+#include "aether/config.h"
+
+#if defined ESP_PLATFORM && AE_SUPPORT_SPIFS_V1_FS
+#  define AE_FILE_SYSTEM_SPIFS_V1_ENABLED 1
 
 #  include <map>
 #  include <cstdint>
@@ -37,7 +40,7 @@ class FileSystemSpiFsV1Facility : public FileSystemBase {
 
  public:
   FileSystemSpiFsV1Facility();
-  ~FileSystemSpiFsV1Facility();
+  ~FileSystemSpiFsV1Facility() override;
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,
              std::uint8_t version, const std::vector<uint8_t>& os) override;

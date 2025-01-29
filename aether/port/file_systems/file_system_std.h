@@ -19,7 +19,12 @@
 
 #include <vector>
 
-#include "aether/port/file_systems/file_system_base.h"
+#if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
+     defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
+
+#  define AE_FILE_SYSTEM_STD_ENABLED 1
+
+#  include "aether/port/file_systems/file_system_base.h"
 
 namespace ae {
 class FileSystemStdFacility : public FileSystemBase {
@@ -36,4 +41,6 @@ class FileSystemStdFacility : public FileSystemBase {
   void remove_all() override;
 };
 }  // namespace ae
+
+#endif
 #endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_STD_H_ */

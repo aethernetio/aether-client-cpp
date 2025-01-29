@@ -16,7 +16,7 @@
 
 #include "aether/port/file_systems/file_system_spifs_v2.h"
 
-#if (defined(ESP_PLATFORM))
+#if defined AE_FILE_SYSTEM_SPIFS_V2_ENABLED
 
 #  include "aether/tele/tele.h"
 
@@ -112,4 +112,4 @@ void FileSystemSpiFsV2Facility::remove_all() {
 
 }  // namespace ae
 
-#endif
+#endif  // AE_FILE_SYSTEM_SPIFS_V2_ENABLED

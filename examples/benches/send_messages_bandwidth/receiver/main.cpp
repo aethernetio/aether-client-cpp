@@ -14,114 +14,57 @@
  * limitations under the License.
  */
 
-#include "aether/aether.h"
-#include "aether/client.h"
-#include "aether/global_ids.h"
 #include "aether/obj/domain.h"
 #include "aether/port/tele_init.h"
 #include "aether/literal_array.h"
 
-#include "aether/tele/tele.h"
-#include "aether/tele/ios_time.h"
-
-#if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-     defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
-#  include "aether/port/file_systems/file_system_std.h"
-#  include "aether/adapters/ethernet.h"
-#elif (defined(ESP_PLATFORM))
-#  include "aether/port/file_systems/file_system_ram.h"
-#  include "aether/adapters/esp32_wifi.h"
-#endif
+#include "aether/aether.h"
+#include "aether/client.h"
+#include "aether/global_ids.h"
+#include "aether/aether_app.h"
 
 #include "send_messages_bandwidth/common/receiver.h"
 #include "send_messages_bandwidth/common/test_action.h"
 
+#include "aether/tele/tele.h"
+
 namespace ae::bench {
 
-static constexpr char WIFI_SSID[] = "Test123";
-static constexpr char WIFI_PASS[] = "Test123";
-
 int test_receiver_bandwidth() {
-  TeleInit::Init();
-  AE_TELE_ENV();
-
-  auto fs =
-#if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-     defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
-      ae::FileSystemStdFacility{};
-#elif ((defined(ESP_PLATFORM)))
-      ae::FileSystemRamFacility{};
-#endif
-
-#if AE_DISTILLATION
-  {
-    fs.remove_all();
-    auto domain = Domain{TimePoint::clock::now(), fs};
-    auto aether = domain.CreateObj<ae::Aether>(GlobalId::kAether);
-
-#  if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-       defined(__FreeBSD__) || defined(_WIN64))
-    EthernetAdapter::ptr adapter = domain.CreateObj<EthernetAdapter>(
-        GlobalId::kEthernetAdapter, aether, aether->poller);
-#  elif ((defined(ESP_PLATFORM)))
-    Esp32WifiAdapter::ptr adapter = domain.CreateObj<Esp32WifiAdapter>(
-        GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-        std::string(WIFI_SSID), std::string(WIFI_PASS));
-#  endif
-
-    adapter.SetFlags(ae::ObjFlags::kUnloadedByDefault);
-    aether->adapter_factories.emplace_back(std::move(adapter));
-
-#  if AE_SIGNATURE == AE_ED25519
-    aether->crypto->signs_pk_[ae::SignatureMethod::kEd25519] =
-        ae::SodiumSignPublicKey{
-            ae::MakeLiteralArray("4F202A94AB729FE9B381613AE77A8A7D89EDAB9299C33"
-                                 "20D1A0B994BA710CCEB")};
-
-#  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-    aether->crypto->signs_pk_[ae::SignatureMethod::kHydroSignature] =
-        ae::HydrogenSignPublicKey{
-            ae::MakeLiteralArray("883B4D7E0FB04A38CA12B3A451B00942048858263EE6E"
-                                 "6D61150F2EF15F40343")};
-#  endif  // AE_SIGNATURE == AE_ED25519
-
+  auto aether_app = ae::AetherApp::Construct(
+      AetherAppConstructor{}
+#if defined AE_DISTILLATION
 #  if AE_SUPPORT_REGISTRATION
-    // localhost
-    aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
-        {IpAddress{IpAddress::Version::kIpV4, {127, 0, 0, 1}}, 9010},
-        Protocol::kTcp});
-    // cloud address
-    aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
-        {IpAddress{IpAddress::Version::kIpV4, {35, 224, 1, 127}}, 9010},
-        Protocol::kTcp});
-    // cloud name address
-    aether->registration_cloud->AddServerSettings(
-        NameAddress{"registration.aethernet.io", 9010, Protocol::kTcp});
+          .RegCloud([](ae::Ptr<ae::Domain> const& domain,
+                       ae::Aether::ptr const& /* aether */) {
+            auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
+                ae::kRegistrationCloud);
+            // localhost
+            registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
+                {ae::IpAddress{ae::IpAddress::Version::kIpV4, {{127, 0, 0, 1}}},
+                 9010},
+                ae::Protocol::kTcp});
+            // cloud address
+            registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
+                {ae::IpAddress{ae::IpAddress::Version::kIpV4,
+                               {{35, 224, 1, 127}}},
+                 9010},
+                ae::Protocol::kTcp});
+            // cloud name address
+            registration_cloud->AddServerSettings(ae::NameAddress{
+                "registration.aethernet.io", 9010, ae::Protocol::kTcp});
+            return registration_cloud;
+          })
 #  endif  // AE_SUPPORT_REGISTRATION
-
-    domain.SaveRoot(aether);
-  }
-#endif  // AE_DISTILLATION
-
-  auto domain = Domain{TimePoint::clock::now(), fs};
-  auto aether = Aether::ptr{};
-  aether.SetId(GlobalId::kAether);
-  domain.LoadRoot(aether);
-  assert(aether);
-  ae::TeleInit::Init(aether);
-
-  ae::Adapter::ptr adapter{domain.LoadCopy(aether->adapter_factories.front())};
+#endif
+  );
 
   ae::Client::ptr client;
 
-  // register two clients
-  if (aether->clients().empty()) {
+  // register one client
+  if (aether_app->aether()->clients().empty()) {
 #if AE_SUPPORT_REGISTRATION
-    auto& cloud = aether->registration_cloud;
-    domain.LoadRoot(cloud);
-    cloud->set_adapter(adapter);
-
-    auto client_register = aether->RegisterClient(
+    auto client_register = aether_app->aether()->RegisterClient(
         ae::Uid{ae::MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
 
     bool register_done = false;
@@ -135,33 +78,23 @@ int test_receiver_bandwidth() {
         [&](auto const&) { register_failed = true; });
 
     while (!register_done && !register_failed) {
-      auto time = ae::TimePoint::clock::now();
-      auto next_time = domain.Update(time);
-      aether->action_processor->get_trigger().WaitUntil(next_time);
-
-      if (register_failed) {
-        AE_TELED_ERROR("Registration failed");
-        return -1;
-      }
+      auto next_time = aether_app->Update(ae::Now());
+      aether_app->WaitUntil(next_time);
+    }
+    if (register_failed) {
+      AE_TELED_ERROR("Registration failed");
+      return -1;
     }
 #endif
   } else {
-    client = aether->clients()[0];
+    client = aether_app->aether()->clients()[0];
   }
 
-  // Set adapter for all clouds in the client to work through.
-  client->cloud()->set_adapter(adapter);
-
-  domain.SaveRoot(aether);
-
-  auto action_context = ActionContext{*aether->action_processor};
+  auto action_context = ActionContext{*aether_app->aether()->action_processor};
   auto receiver = MakePtr<Receiver>(action_context, client);
 
   auto test_action =
-      TestAction<Receiver>(action_context, receiver, std::size_t{3000});
-
-  auto test_done = false;
-  auto test_failed = false;
+      TestAction<Receiver>(action_context, receiver, std::size_t{10000});
 
   auto result_subscription =
       test_action.SubscribeOnResult([&](auto const& action) {
@@ -178,24 +111,23 @@ int test_receiver_bandwidth() {
         }
         AE_TELED_DEBUG("Test results: \n {}", res_string);
 
-        test_done = true;
+        aether_app->Exit(0);
       });
 
   auto error_subscription = test_action.SubscribeOnError([&](auto const&) {
     AE_TELED_ERROR("Test failed");
-    test_failed = true;
+    aether_app->Exit(1);
   });
 
   AE_TELED_INFO("Receiver prepared for test width uid {}", client->uid());
 
-  while (!(test_done || test_failed)) {
+  while (!aether_app->IsExited()) {
     auto time = ae::TimePoint::clock::now();
-    auto next_time = domain.Update(time);
-    aether->action_processor->get_trigger().WaitUntil(
-        std::min(next_time, time + std::chrono::seconds(5)));
+    auto next_time = aether_app->Update(time);
+    aether_app->WaitUntil(std::min(next_time, time + std::chrono::seconds(5)));
   }
 
-  return 0;
+  return aether_app->ExitCode();
 }
 }  // namespace ae::bench
 

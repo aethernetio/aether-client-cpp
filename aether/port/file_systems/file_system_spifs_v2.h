@@ -17,7 +17,10 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_SPIFS_V2_H_
 #define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_SPIFS_V2_H_
 
-#if (defined(ESP_PLATFORM))
+#include "aether/config.h"
+
+#if defined ESP_PLATFORM && AE_SUPPORT_SPIFS_V2_FS
+#  define AE_FILE_SYSTEM_SPIFS_V2_ENABLED 1
 
 #  include <map>
 #  include <cstdint>

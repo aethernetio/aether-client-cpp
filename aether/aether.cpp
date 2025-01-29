@@ -50,12 +50,6 @@ Aether::Aether(Domain* domain) : Obj{domain} {
   client_prefab = domain->CreateObj<Client>(GlobalId::kClientFactory, self_ptr);
   client_prefab.SetFlags(ae::ObjFlags::kUnloadedByDefault);
 
-#  if AE_SUPPORT_REGISTRATION
-  registration_cloud =
-      domain->CreateObj<RegistrationCloud>(GlobalId::kRegistrationCloud);
-  registration_cloud.SetFlags(ae::ObjFlags::kUnloadedByDefault);
-#  endif
-
   crypto = domain->CreateObj<Crypto>(GlobalId::kCrypto);
 
   cloud_prefab = domain->CreateObj<WorkCloud>(GlobalId::kCloudFactory);

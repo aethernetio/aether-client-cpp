@@ -19,6 +19,8 @@
 
 #if (defined(ESP_PLATFORM))
 
+#  define ESP32_WIFI_ADAPTER_ENABLED 1
+
 #  include <string>
 
 #  include "freertos/FreeRTOS.h"
