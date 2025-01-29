@@ -285,15 +285,9 @@ void Domain::LoadVersion(Version<V> version, T& obj) {
   imstream<DomainBufferReader<VectorReader<>>> is(reader);
 
   auto visitor_func = [&is](auto& v) {
-    if constexpr (IsPtr<std::decay_t<decltype(v)>>::value ||
-                  IsObjType<std::decay_t<decltype(v)>>::value) {
-      is >> v;
-      // do not propagate for objects
-      return false;
-    } else {
-      is >> v;
-      return true;
-    }
+    is >> v;
+    // do not propagate for objects
+    return false;
   };
 
   // if T has any versioned, it also must have Load for this version
@@ -343,15 +337,9 @@ void Domain::SaveVersion(Version<V> version, T const& obj) {
   omstream<DomainBufferWriter<VectorWriter<>>> os(writer);
 
   auto visitor_func = [&os](auto& v) {
-    if constexpr (IsPtr<std::decay_t<decltype(v)>>::value ||
-                  IsObjType<std::decay_t<decltype(v)>>::value) {
-      os << v;
-      // do not propagate for objects
-      return false;
-    } else {
-      os << v;
-      return true;
-    }
+    os << v;
+    // do not propagate for objects
+    return false;
   };
 
   if constexpr (HasAnyVersionedSave<T>::value) {

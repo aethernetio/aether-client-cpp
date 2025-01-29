@@ -72,11 +72,16 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
     assert(cloud);
   }
 
+  auto adapter = cloud->adapter();
+  if (!adapter) {
+    aether_ptr->domain_->LoadRoot(adapter);
+  }
+
   server_list_ =
       MakePtr<ServerList>(MakePtr<NoFilterServerListPolicy>(), cloud);
   connection_selection_ =
       MakePtr<AsyncForLoop>(AsyncForLoop<Ptr<ServerChannelStream>>::Construct(
-          *server_list_, [this, aether_ptr, adapter{cloud->adapter()}]() {
+          *server_list_, [this, aether_ptr, adapter{adapter}]() {
             auto item = server_list_->Get();
             return MakePtr<ServerChannelStream>(aether_ptr, adapter,
                                                 item.server(), item.channel());
