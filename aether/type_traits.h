@@ -122,4 +122,12 @@ struct IsOptionalLike<
     : std::true_type {};
 }  // namespace ae
 
+template <typename T, typename TSignature, typename _ = void>
+struct IsFunctor : std::false_type {};
+
+template <typename T, typename TRes, typename... TArgs>
+struct IsFunctor<T, TRes(TArgs...),
+                 std::enable_if_t<std::is_invocable_r_v<TRes, T, TArgs...>>>
+    : std::true_type {};
+
 #endif  // AETHER_TYPE_TRAITS_H_ */

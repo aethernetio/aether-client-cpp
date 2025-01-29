@@ -33,7 +33,6 @@
 #include "aether/config.h"
 #include "aether/tele/tele.h"
 #include "aether/port/tele_init.h"
-#include "aether/fixed_point.h"
 
 #if (defined(CM_ESP32))
 #  include <freertos/FreeRTOS.h>
@@ -42,10 +41,10 @@
 #endif
 
 extern "C" void app_main();
-extern void AetherCloudExample();
+extern int AetherCloudExample();
 
 // Test function.
-void test(void) { AetherCloudExample(); }
+int test(void) { return AetherCloudExample(); }
 
 #if (defined(ESP_PLATFORM))
 void app_main(void) {
@@ -71,5 +70,5 @@ void app_main(void) {
 
 #if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
      defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
-int main(int argc, char *argv[]) { test(); }
+int main() { return test(); }
 #endif

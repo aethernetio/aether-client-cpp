@@ -17,6 +17,8 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
 #define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
 
+#define AE_FILE_SYSTEM_HEADER_ENABLED 1
+
 #include <map>
 #include <cstdint>
 
@@ -33,7 +35,7 @@ class FileSystemHeaderFacility : public FileSystemBase {
 
  public:
   FileSystemHeaderFacility();
-  ~FileSystemHeaderFacility();
+  ~FileSystemHeaderFacility() override;
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,
              std::uint8_t version, const std::vector<uint8_t>& os) override;

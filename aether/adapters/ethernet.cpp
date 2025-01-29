@@ -24,6 +24,7 @@
 
 #include "aether/transport/low_level/tcp/unix_tcp.h"
 #include "aether/transport/low_level/tcp/win_tcp.h"
+#include "aether/transport/low_level/tcp/lwip_tcp.h"
 
 namespace ae {
 
@@ -68,6 +69,11 @@ ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
     assert(address_port_protocol.protocol == Protocol::kTcp);
     transport =
         MakePtr<UnixTcpTransport>(*aether_.as<Aether>()->action_processor,
+                                  poller_, address_port_protocol);
+#elif defined LWIP_TCP_TRANSPORT_ENABLED
+    assert(address_port_protocol.protocol == Protocol::kTcp);
+    transport =
+        MakePtr<LwipTcpTransport>(*aether_.as<Aether>()->action_processor,
                                   poller_, address_port_protocol);
 #elif defined WIN_TCP_TRANSPORT_ENABLED
     assert(address_port_protocol.protocol == Protocol::kTcp);
