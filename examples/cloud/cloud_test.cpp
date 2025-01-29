@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <cstdint>
+
 #include "aether/common.h"
 #include "aether/state_machine.h"
 #include "aether/literal_array.h"
@@ -53,6 +54,9 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::chrono::milliseconds{200},  // send_repeat_timeout
 };
 
+/**
+ * \brief This is the main action to perform all busyness logic here.
+ */
 class CloudTestAction : public Action<CloudTestAction> {
   enum class State : std::uint8_t {
     kRegistration,
@@ -79,8 +83,6 @@ class CloudTestAction : public Action<CloudTestAction> {
             "I'm in California dreaming about who we used to be",
             "When we were younger and free",
             "I've forgotten how it felt before the world fell at our feet"},
-        receive_count_{},
-        confirm_count_{},
         state_changed_{state_.changed_event().Subscribe(
             [this](auto) { Action::Trigger(); })} {
     AE_TELED_INFO("Cloud test");
@@ -90,110 +92,17 @@ class CloudTestAction : public Action<CloudTestAction> {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kRegistration:
-#if AE_SUPPORT_REGISTRATION
-        {
-          AE_TELED_INFO("Client registration");
-          // register receiver and sender
-          clients_registered_ = aether_->clients().size();
-          if (clients_registered_ == 2) {
-            state_ = State::kConfigureReceiver;
-            break;
-          }
-          for (auto i = clients_registered_; i < 2; i++) {
-            auto reg_action = aether_->RegisterClient(
-                Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
-            registration_subscriptions_.Push(
-                reg_action->SubscribeOnResult([&](auto const&) {
-                  ++clients_registered_;
-                  if (clients_registered_ == 2) {
-                    state_ = State::kConfigureReceiver;
-                  }
-                }),
-                reg_action->SubscribeOnError([&](auto const&) {
-                  AE_TELED_ERROR("Registration error");
-                  state_ = State::kError;
-                }));
-          }
-        }
-#else
-          state_ = State::kConfigureReceiver;
-#endif
-        break;
-        case State::kConfigureReceiver: {
-          AE_TELED_INFO("Receiver configuration");
-          assert(!aether_->clients().empty());
-          receiver_ = aether_->clients()[0];
-          auto receiver_connection = receiver_->client_connection();
-          receiver_new_stream_subscription_ =
-              receiver_connection->new_stream_event().Subscribe(
-                  [&](auto uid, auto stream_id, auto raw_stream) {
-                    receiver_stream_ = MakePtr<P2pSafeStream>(
-                        *aether_->action_processor, kSafeStreamConfig,
-                        MakePtr<P2pStream>(*aether_->action_processor,
-                                           receiver_, uid, stream_id,
-                                           std::move(raw_stream)));
-                    receiver_message_subscription_ =
-                        receiver_stream_->in().out_data_event().Subscribe(
-                            [&](auto const& data) {
-                              auto str_msg = std::string(
-                                  reinterpret_cast<const char*>(data.data()),
-                                  data.size());
-                              AE_TELED_DEBUG("Received a message [{}]",
-                                             str_msg);
-                              receive_count_++;
-                              auto confirm_msg =
-                                  std::string{"confirmed "} + str_msg;
-                              auto response_action =
-                                  receiver_stream_->in().Write(
-                                      {confirm_msg.data(),
-                                       confirm_msg.data() + confirm_msg.size()},
-                                      ae::Now());
-                              response_subscriptions_.Push(
-                                  response_action->SubscribeOnError(
-                                      [&](auto const&) {
-                                        AE_TELED_ERROR("Send response failed");
-                                        state_ = State::kError;
-                                      }));
-                            });
-                  });
-          state_ = State::kConfigureSender;
+          RegisterClients();
           break;
-        }
-        case State::kConfigureSender: {
-          AE_TELED_INFO("Sender configuration");
-          assert(aether_->clients().size() > 1);
-          sender_ = aether_->clients()[1];
-          sender_stream_ = MakePtr<P2pSafeStream>(
-              *aether_->action_processor, kSafeStreamConfig,
-              MakePtr<P2pStream>(*aether_->action_processor, sender_,
-                                 receiver_->uid(), StreamId{0}));
-          sender_message_subscription_ =
-              sender_stream_->in().out_data_event().Subscribe(
-                  [&](auto const& data) {
-                    auto str_response =
-                        std::string(reinterpret_cast<const char*>(data.data()),
-                                    data.size());
-                    AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
-                                   str_response, confirm_count_);
-                    confirm_count_++;
-                  });
-          state_ = State::kSendMessages;
+        case State::kConfigureReceiver:
+          ConfigureReceiver();
           break;
-        }
-        case State::kSendMessages: {
-          AE_TELED_INFO("Send messages");
-          for (auto const& msg : messages_) {
-            auto send_action = sender_stream_->in().Write(
-                DataBuffer{std::begin(msg), std::end(msg)}, current_time);
-            send_subscriptions_.Push(
-                send_action->SubscribeOnError([&](auto const&) {
-                  AE_TELED_ERROR("Send message failed");
-                  state_ = State::kError;
-                }));
-          }
-          state_ = State::kWaitDone;
+        case State::kConfigureSender:
+          ConfigureSender();
           break;
-        }
+        case State::kSendMessages:
+          SendMessages(current_time);
+          break;
         case State::kWaitDone:
           break;
         case State::kResult:
@@ -204,6 +113,7 @@ class CloudTestAction : public Action<CloudTestAction> {
           return current_time;
       }
     }
+    // wait till all sent messages received and confirmed
     if (state_.get() == State::kWaitDone) {
       AE_TELED_DEBUG("Wait done receive_count {}, confirm_count {}",
                      receive_count_, confirm_count_);
@@ -211,20 +121,144 @@ class CloudTestAction : public Action<CloudTestAction> {
           (confirm_count_ == messages_.size())) {
         state_ = State::kResult;
       }
-      return current_time + std::chrono::milliseconds{1000};
+      // if no any events happens wake up after 1 second
+      return current_time + std::chrono::seconds{1};
     }
     return current_time;
   }
 
  private:
+  /**
+   * \brief Perform a client registration.
+   * We need a two clients for this test.
+   */
+  void RegisterClients() {
+#if AE_SUPPORT_REGISTRATION
+    {
+      AE_TELED_INFO("Client registration");
+      // register receiver and sender
+      clients_registered_ = aether_->clients().size();
+
+      for (auto i = clients_registered_; i < 2; i++) {
+        auto reg_action = aether_->RegisterClient(
+            Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
+        registration_subscriptions_.Push(
+            reg_action->SubscribeOnResult([&](auto const&) {
+              ++clients_registered_;
+              if (clients_registered_ == 2) {
+                state_ = State::kConfigureReceiver;
+              }
+            }),
+            reg_action->SubscribeOnError([&](auto const&) {
+              AE_TELED_ERROR("Registration error");
+              state_ = State::kError;
+            }));
+      }
+      // all required clients already registered
+      if (clients_registered_ == 2) {
+        state_ = State::kConfigureReceiver;
+        return;
+      }
+    }
+#else
+    // skip registration
+    state_ = State::kConfigureReceiver;
+#endif
+  }
+
+  /**
+   * \brief Make required preparation for receiving messages.
+   * Subscribe to opening new stream event.
+   * Subscribe to receiving message event.
+   * Send confirmation to received message.
+   */
+  void ConfigureReceiver() {
+    AE_TELED_INFO("Receiver configuration");
+    receive_count_ = 0;
+    assert(!aether_->clients().empty());
+    receiver_ = aether_->clients()[0];
+    auto receiver_connection = receiver_->client_connection();
+    receiver_new_stream_subscription_ =
+        receiver_connection->new_stream_event().Subscribe(
+            [&](auto uid, auto stream_id, auto raw_stream) {
+              receiver_stream_ = MakePtr<P2pSafeStream>(
+                  *aether_->action_processor, kSafeStreamConfig,
+                  MakePtr<P2pStream>(*aether_->action_processor, receiver_, uid,
+                                     stream_id, std::move(raw_stream)));
+              receiver_message_subscription_ =
+                  receiver_stream_->in().out_data_event().Subscribe(
+                      [&](auto const& data) {
+                        auto str_msg = std::string(
+                            reinterpret_cast<const char*>(data.data()),
+                            data.size());
+                        AE_TELED_DEBUG("Received a message [{}]", str_msg);
+                        receive_count_++;
+                        auto confirm_msg = std::string{"confirmed "} + str_msg;
+                        auto response_action = receiver_stream_->in().Write(
+                            {confirm_msg.data(),
+                             confirm_msg.data() + confirm_msg.size()},
+                            ae::Now());
+                        response_subscriptions_.Push(
+                            response_action->SubscribeOnError([&](auto const&) {
+                              AE_TELED_ERROR("Send response failed");
+                              state_ = State::kError;
+                            }));
+                      });
+            });
+    state_ = State::kConfigureSender;
+  }
+
+  /**
+   * \brief Make required preparation to send messages.
+   * Create a sender to receiver stream.
+   * Subscribe to receiving message event for confirmations \see
+   * ConfigureReceiver.
+   */
+  void ConfigureSender() {
+    AE_TELED_INFO("Sender configuration");
+    confirm_count_ = 0;
+    assert(aether_->clients().size() > 1);
+    sender_ = aether_->clients()[1];
+    sender_stream_ = MakePtr<P2pSafeStream>(
+        *aether_->action_processor, kSafeStreamConfig,
+        MakePtr<P2pStream>(*aether_->action_processor, sender_,
+                           receiver_->uid(), StreamId{0}));
+    sender_message_subscription_ =
+        sender_stream_->in().out_data_event().Subscribe([&](auto const& data) {
+          auto str_response = std::string(
+              reinterpret_cast<const char*>(data.data()), data.size());
+          AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
+                         str_response, confirm_count_);
+          confirm_count_++;
+        });
+    state_ = State::kSendMessages;
+  }
+
+  /**
+   * \brief Send all messages at once.
+   */
+  void SendMessages(TimePoint current_time) {
+    AE_TELED_INFO("Send messages");
+    for (auto const& msg : messages_) {
+      auto send_action = sender_stream_->in().Write(
+          DataBuffer{std::begin(msg), std::end(msg)}, current_time);
+      send_subscriptions_.Push(send_action->SubscribeOnError([&](auto const&) {
+        AE_TELED_ERROR("Send message failed");
+        state_ = State::kError;
+      }));
+    }
+    state_ = State::kWaitDone;
+  }
+
   Aether::ptr aether_;
   std::vector<std::string> messages_;
 
   Client::ptr receiver_;
   Ptr<ByteStream> receiver_stream_;
-  std::size_t receive_count_;
   Client::ptr sender_;
   Ptr<ByteStream> sender_stream_;
+  std::size_t clients_registered_;
+  std::size_t receive_count_;
   std::size_t confirm_count_;
 
   MultiSubscription registration_subscriptions_;
@@ -233,16 +267,23 @@ class CloudTestAction : public Action<CloudTestAction> {
   MultiSubscription response_subscriptions_;
   Subscription sender_message_subscription_;
   MultiSubscription send_subscriptions_;
-  std::size_t clients_registered_;
   StateMachine<State> state_;
   Subscription state_changed_;
 };
 
 }  // namespace ae::cloud_test
 
-void AetherCloudExample();
+int AetherCloudExample();
 
-void AetherCloudExample() {
+int AetherCloudExample() {
+  /**
+   * Construct a main aether application class.
+   * It's include a Domain and Aether instances accessible by getter methods.
+   * It has Update, WaitUntil, Exit, IsExit, ExitCode methods to integrate it in
+   * your update loop.
+   * Also it has action context protocol implementation \see Action.
+   * To configure its creation \see AetherAppConstructor.
+   */
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{}
 #if defined AE_DISTILLATION
@@ -296,4 +337,6 @@ void AetherCloudExample() {
     aether_app->WaitUntil(
         std::min(next_time, current_time + std::chrono::seconds{5}));
   }
+
+  return aether_app->ExitCode();
 }
