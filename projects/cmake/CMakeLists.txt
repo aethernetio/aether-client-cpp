@@ -22,6 +22,8 @@ project(Aether LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(AE_ADDRESS_SANITIZE Off "Enable address sanitizer")
+
 # enable doubles in unity tests
 add_compile_definitions("UNITY_INCLUDE_DOUBLE")
 
@@ -29,8 +31,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 set(AE_DISTILLATION ON CACHE BOOL "" FORCE)
 
-# add_compile_options(-fsanitize=address)
-# add_link_options(-fsanitize=address)
+if (AE_ADDRESS_SANITIZE)
+  add_compile_options(-fsanitize=address)
+  add_link_options(-fsanitize=address)
+endif()
 
 # for unit tests
 enable_testing()
