@@ -14,24 +14,20 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#ifndef TESTS_TEST_EVENTS_USE_DELEGATES_CLASS_H_
+#define TESTS_TEST_EVENTS_USE_DELEGATES_CLASS_H_
 
-void setUp() {}
-void tearDown() {}
+#include "aether/events/delegate.h"
 
-extern int test_events();
+namespace ae::test_events {
+class UseDelegateClass {
+ public:
+  void SetGetInt(Delegate<int(int x)>&& delegate);
+  int Invoke(int x);
 
-#if defined AE_TEST_EVENTS_BENCH
-extern int test_event_delegates();
-extern int test_std_function();
-#endif
+ private:
+  Delegate<int(int x)> get_int_;
+};
+}  // namespace ae::test_events
 
-int main() {
-  auto res = 0;
-  res += test_events();
-#if defined AE_TEST_EVENTS_BENCH
-  res += test_event_delegates();
-  res += test_std_function();
-#endif
-  return res;
-}
+#endif  // TESTS_TEST_EVENTS_USE_DELEGATES_CLASS_H_

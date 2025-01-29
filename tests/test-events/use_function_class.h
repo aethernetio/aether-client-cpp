@@ -14,24 +14,22 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#ifndef TESTS_TEST_EVENTS_USE_FUNCTION_CLASS_H_
+#define TESTS_TEST_EVENTS_USE_FUNCTION_CLASS_H_
 
-void setUp() {}
-void tearDown() {}
+#include <functional>
 
-extern int test_events();
+namespace ae::test_events {
+class WorkerClass;
 
-#if defined AE_TEST_EVENTS_BENCH
-extern int test_event_delegates();
-extern int test_std_function();
-#endif
+class UseFunctionClass {
+ public:
+  void SetFunction(std::function<int(WorkerClass*, int)>&& func);
+  int Invoke(WorkerClass* instance, int x);
 
-int main() {
-  auto res = 0;
-  res += test_events();
-#if defined AE_TEST_EVENTS_BENCH
-  res += test_event_delegates();
-  res += test_std_function();
-#endif
-  return res;
-}
+ private:
+  std::function<int(WorkerClass*, int)> get_int_;
+};
+}  // namespace ae::test_events
+
+#endif  // TESTS_TEST_EVENTS_USE_FUNCTION_CLASS_H_

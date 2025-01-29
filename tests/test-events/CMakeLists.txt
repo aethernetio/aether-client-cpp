@@ -14,9 +14,16 @@
 
 cmake_minimum_required( VERSION 3.16 )
 
+option(AE_TEST_EVENTS_BENCH "Enable benchmark test events tests" Off)
+
 list(APPEND test_srcs
   main.cpp
   test-events.cpp
+  use_delegate_class.cpp
+  use_function_class.cpp
+  worker_class.cpp
+  test-delegates.cpp
+  test-std-function.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -27,6 +34,9 @@ if(NOT CM_PLATFORM)
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
+  if (AE_TEST_EVENTS_BENCH)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE "AE_TEST_EVENTS_BENCH=1")
+  endif()
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()
