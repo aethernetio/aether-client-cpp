@@ -19,6 +19,7 @@
 
 #include <map>
 #include <optional>
+#include <cassert>
 
 #include "aether/config.h"
 #include "aether/common.h"
@@ -133,7 +134,10 @@ class AetherApp {
   }
 
   bool IsExited() const { return exit_code_.has_value(); }
-  int ExitCode() const { return *exit_code_; }
+  int ExitCode() const {
+    assert(exit_code_.has_value());
+    return *exit_code_;
+  }
 
   TimePoint Update(TimePoint current_time) {
     return domain_->Update(current_time);
