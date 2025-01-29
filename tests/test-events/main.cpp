@@ -19,10 +19,10 @@
 void setUp() {}
 void tearDown() {}
 
-extern int test_action_registry();
+extern int test_events();
 
 int main() {
   auto res = 0;
-  res += test_action_registry();
+  res += test_events();
   return res;
 }

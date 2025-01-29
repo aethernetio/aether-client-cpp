@@ -12,24 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required( VERSION 3.18 )
+cmake_minimum_required( VERSION 3.16 )
 
 list(APPEND test_srcs
   main.cpp
-  test-action-registry.cpp
+  test-events.cpp
 )
 
 if(NOT CM_PLATFORM)
+  project(test-events LANGUAGES CXX)
 
-   project(test-actions LANGUAGES CXX)
+  add_executable(${PROJECT_NAME})
+  target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
+  # for aether
+  target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
+  target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
 
-   add_executable(${PROJECT_NAME})
-   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
-   # for aether
-   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-   target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
-
-   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+  add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()
-    message(WARNING "Not implemented for ${CM_PLATFORM}")
+  message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()

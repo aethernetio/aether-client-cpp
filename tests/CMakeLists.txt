@@ -45,6 +45,7 @@ add_subdirectory(test-types)
 add_subdirectory(test-object-system)
 add_subdirectory(test-api-protocol)
 add_subdirectory(test-actions)
+add_subdirectory(test-events)
 add_subdirectory(test-transport)
 add_subdirectory(test-stream)
 
