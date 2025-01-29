@@ -248,16 +248,13 @@ void AetherCloudExample() {
 #if defined AE_DISTILLATION
           .Adapter([](ae::Ptr<ae::Domain> const& domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
-#  if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-       defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
-            auto adapter = domain->CreateObj<ae::EthernetAdapter>(
-                ae::GlobalId::kEthernetAdapter, aether, aether->poller);
-#  elif (defined(ESP_PLATFORM))
+#  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = domain.CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
                 std::string(WIFI_SSID), std::string(WIFI_PASS));
 #  else
-#    error "Unsupported configuration specified"
+            auto adapter = domain->CreateObj<ae::EthernetAdapter>(
+                ae::GlobalId::kEthernetAdapter, aether, aether->poller);
 #  endif
             return adapter;
           })
