@@ -360,25 +360,26 @@ template <class T>
 struct Registrar {
   Registrar(uint32_t cls_id, std::uint32_t base_id,
             [[maybe_unused]] const char* class_name) {
-    Registry::RegisterClass(cls_id, base_id,
-                            {// create
-                             []() { return ObjPtr<T>(new T()); },
-                             // load
-                             [](Domain* domain, ObjPtr<Obj> obj) {
-                               auto self_ptr = ObjPtr<T>{std::move(obj)};
-                               domain->Load(*self_ptr.get());
-                               return self_ptr;
-                             },
-                             // save
-                             [](Domain* domain, ObjPtr<Obj> const& obj) {
-                               auto self_ptr = static_cast<T*>(obj.get());
-                               domain->Save(*self_ptr);
-                             }
+    Registry::RegisterClass(
+        cls_id, base_id,
+        {// create
+         Delegate([]() -> ObjPtr<Obj> { return ObjPtr<T>(new T()); }),
+         // load
+         Delegate([](Domain* domain, ObjPtr<Obj> obj) -> ObjPtr<Obj> {
+           auto self_ptr = ObjPtr<T>{std::move(obj)};
+           domain->Load(*self_ptr.get());
+           return self_ptr;
+         }),
+         // save
+         Delegate([](Domain* domain, ObjPtr<Obj> const& obj) -> void {
+           auto self_ptr = static_cast<T*>(obj.get());
+           domain->Save(*self_ptr);
+         })
 #ifdef DEBUG
-                             ,
-                             class_name
+             ,
+         class_name
 #endif  // DEBUG
-                            });
+        });
   }
 };
 
