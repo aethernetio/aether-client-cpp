@@ -24,11 +24,13 @@ namespace ae::test_events {
 void test_EventCreate() {
   Event<void(int)> event;
   bool cb_called = false;
+  auto lambda = [&cb_called](int i) {
+    cb_called = true;
+    TEST_ASSERT_EQUAL(i, 1);
+  };
   {
-    auto s = EventSubscriber{event}.Subscribe([&cb_called](int i) {
-      cb_called = true;
-      TEST_ASSERT_EQUAL(i, 1);
-    });
+    auto s = EventSubscriber{event}.Subscribe(
+        lambda, MethodPtr<&decltype(lambda)::operator()>{});
     // callback must be called until s is alive
     event.Emit(1);
     TEST_ASSERT(cb_called);
@@ -42,11 +44,12 @@ void test_EventCreate() {
 void test_EventOnce() {
   Event<void(int)> event;
   bool cb_called = false;
+  auto lambda = [&cb_called](int i) {
+    cb_called = true;
+    TEST_ASSERT_EQUAL(i, 1);
+  };
   auto s = EventSubscriber{event}
-               .Subscribe([&cb_called](int i) {
-                 cb_called = true;
-                 TEST_ASSERT_EQUAL(i, 1);
-               })
+               .Subscribe(lambda, MethodPtr<&decltype(lambda)::operator()>{})
                .Once();
 
   // callback must be called
@@ -95,18 +98,23 @@ void test_MultiSubscription() {
   std::vector<bool> cb_called(3, false);
   auto subscriptions_ = MultiSubscription{};
 
-  subscriptions_.Push(sub.Subscribe([&](int x) {
+  auto lambda1 = [&](int x) {
     cb_called[0] = true;
     TEST_ASSERT_EQUAL(1, x);
-  }),
-                      sub.Subscribe([&](int x) {
-                        cb_called[1] = true;
-                        TEST_ASSERT_EQUAL(1, x);
-                      }),
-                      sub.Subscribe([&](int x) {
-                        cb_called[2] = true;
-                        TEST_ASSERT_EQUAL(1, x);
-                      }));
+  };
+  auto lambda2 = [&](int x) {
+    cb_called[1] = true;
+    TEST_ASSERT_EQUAL(1, x);
+  };
+  auto lambda3 = [&](int x) {
+    cb_called[2] = true;
+    TEST_ASSERT_EQUAL(1, x);
+  };
+
+  subscriptions_.Push(
+      sub.Subscribe(lambda1, MethodPtr<&decltype(lambda1)::operator()>{}),
+      sub.Subscribe(lambda2, MethodPtr<&decltype(lambda2)::operator()>{}),
+      sub.Subscribe(lambda3, MethodPtr<&decltype(lambda3)::operator()>{}));
   event.Emit(1);
   for (auto b : cb_called) {
     TEST_ASSERT(b);
@@ -120,7 +128,7 @@ void test_EventRecursionCall() {
   bool cb_called_first = false;
   bool cb_called_second = false;
 
-  auto s = sub.Subscribe([&](int x) {
+  auto lambda = [&](int x) {
     if (x == 1) {
       cb_called_first = true;
       event.Emit(2);
@@ -128,7 +136,9 @@ void test_EventRecursionCall() {
     }
     cb_called_second = true;
     TEST_ASSERT_EQUAL(2, x);
-  });
+  };
+
+  auto s = sub.Subscribe(lambda, MethodPtr<&decltype(lambda)::operator()>{});
 
   event.Emit(1);
   TEST_ASSERT(cb_called_first);
@@ -144,14 +154,20 @@ void test_EventReSubscribeOnHandler() {
 
   Subscription s;
 
-  s = sub.Subscribe([&](int x) {
+  auto inner_lambda = [&](int x) {
+    TEST_ASSERT_EQUAL(2, x);
+    cb_called_second = true;
+  };
+
+  auto outer_lambda = [&](int x) {
     TEST_ASSERT_EQUAL(1, x);
     cb_called_first = true;
-    s = sub.Subscribe([&](int x) {
-      TEST_ASSERT_EQUAL(2, x);
-      cb_called_second = true;
-    });
-  });
+    s = sub.Subscribe(inner_lambda,
+                      MethodPtr<&decltype(inner_lambda)::operator()>{});
+  };
+
+  s = sub.Subscribe(outer_lambda,
+                    MethodPtr<&decltype(outer_lambda)::operator()>{});
 
   event.Emit(1);
   TEST_ASSERT(cb_called_first);
