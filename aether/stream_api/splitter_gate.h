@@ -40,7 +40,7 @@ class SplitterGate final : public ByteGate {
 
  private:
   void OnDataEvent(DataBuffer const& data_buffer);
-  void OnStream(StreamApi::Stream const& message);
+  void OnStream(MessageEventData<StreamApi::Stream> const& message);
 
   ProtocolContext protocol_context_;
   Subscription stream_message_event_;

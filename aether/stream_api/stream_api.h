@@ -76,6 +76,8 @@ class StreamApiGate final : public ByteGate {
   void PutData(DataBuffer const& data);
 
  private:
+  void OnStream(MessageEventData<StreamApi::Stream> const& msg);
+
   std::reference_wrapper<ProtocolContext> protocol_context_;
   StreamId stream_id_;
   StreamApi api_;

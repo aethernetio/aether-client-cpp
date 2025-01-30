@@ -70,7 +70,7 @@ ActionView<StreamWriteAction> SafeStream::SafeStreamInGate::Write(
   return action;
 }
 
-void SafeStream::SafeStreamInGate::WriteOut(DataBuffer const& buffer) {
+void SafeStream::SafeStreamInGate::WriteOut(DataBuffer&& buffer) {
   out_data_event_.Emit(buffer);
 }
 
@@ -127,44 +127,21 @@ SafeStream::SafeStream(ActionContext action_context, SafeStreamConfig config)
       in_{action_context_, safe_stream_sending_, config.max_data_size},
       out_{protocol_context_} {
   subscriptions_.Push(safe_stream_sending_.write_data_event().Subscribe(
-                          [this](auto offset, auto&& data, auto current_time) {
-                            OnDataWrite(offset,
-                                        std::forward<decltype(data)>(data),
-                                        current_time);
-                          }),
+                          *this, MethodPtr<&SafeStream::OnDataWrite>{}),
                       safe_stream_receiving_.receive_event().Subscribe(
-                          [this](auto const& data) { in_.WriteOut(data); }));
+                          in_, MethodPtr<&SafeStreamInGate::WriteOut>{}));
 
   subscriptions_.Push(
       safe_stream_receiving_.send_data_event().Subscribe(
-          [this](auto&& data, auto current_time) {
-            OnDataReaderSend(std::forward<decltype(data)>(data), current_time);
-          }),
-      protocol_context_.OnMessage<SafeStreamApi::Confirm>(
-          [this](auto const& message) {
-            safe_stream_sending_.Confirm(
-                SafeStreamRingIndex{message.message().offset});
-          }),
-      protocol_context_.OnMessage<SafeStreamApi::RequestRepeat>(
-          [this](auto const& message) {
-            safe_stream_sending_.RequestRepeatSend(
-                SafeStreamRingIndex{message.message().offset});
-          }),
-      protocol_context_.OnMessage<SafeStreamApi::Send>(
-          [this](auto const& message) {
-            safe_stream_receiving_.ReceiveSend(
-                SafeStreamRingIndex{message.message().offset},
-                std::move(
-                    const_cast<SafeStreamApi::Send&>(message.message()).data));
-          }),
-      protocol_context_.OnMessage<SafeStreamApi::Repeat>(
-          [this](auto const& message) {
-            safe_stream_receiving_.ReceiveRepeat(
-                SafeStreamRingIndex{message.message().offset},
-                message.message().repeat_count,
-                std::move(const_cast<SafeStreamApi::Repeat&>(message.message())
-                              .data));
-          }));
+          *this, MethodPtr<&SafeStream::OnDataReaderSend>{}),
+      protocol_context_.MessageEvent<SafeStreamApi::Confirm>().Subscribe(
+          *this, MethodPtr<&SafeStream::Confirm>{}),
+      protocol_context_.MessageEvent<SafeStreamApi::RequestRepeat>().Subscribe(
+          *this, MethodPtr<&SafeStream::RequestRepeatSend>{}),
+      protocol_context_.MessageEvent<SafeStreamApi::Send>().Subscribe(
+          *this, MethodPtr<&SafeStream::ReceiveSend>{}),
+      protocol_context_.MessageEvent<SafeStreamApi::Repeat>().Subscribe(
+          *this, MethodPtr<&SafeStream::ReceiveRepeat>{}));
 
   Tie(in_, out_);
 }
@@ -193,6 +170,29 @@ void SafeStream::OnDataWrite(SafeStreamRingIndex offset, DataBuffer&& data,
 
 void SafeStream::OnDataReaderSend(DataBuffer&& data, TimePoint current_time) {
   out_.Write(std::move(data), current_time);
+}
+
+void SafeStream::Confirm(MessageEventData<SafeStreamApi::Confirm> const& msg) {
+  safe_stream_sending_.Confirm(SafeStreamRingIndex{msg.message().offset});
+}
+
+void SafeStream::RequestRepeatSend(
+    MessageEventData<SafeStreamApi::RequestRepeat> const& msg) {
+  safe_stream_sending_.RequestRepeatSend(
+      SafeStreamRingIndex{msg.message().offset});
+}
+
+void SafeStream::ReceiveSend(MessageEventData<SafeStreamApi::Send> const& msg) {
+  safe_stream_receiving_.ReceiveSend(
+      SafeStreamRingIndex{msg.message().offset},
+      std::move(const_cast<SafeStreamApi::Send&>(msg.message()).data));
+}
+
+void SafeStream::ReceiveRepeat(
+    MessageEventData<SafeStreamApi::Repeat> const& msg) {
+  safe_stream_receiving_.ReceiveRepeat(
+      SafeStreamRingIndex{msg.message().offset}, msg.message().repeat_count,
+      std::move(const_cast<SafeStreamApi::Repeat&>(msg.message()).data));
 }
 
 }  // namespace ae

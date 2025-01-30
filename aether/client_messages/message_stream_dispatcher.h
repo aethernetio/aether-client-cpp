@@ -45,7 +45,8 @@ class MessageStreamDispatcher {
 
  private:
   Ptr<MessageStream> CreateMessageStream(Uid uid, StreamId stream_id);
-  void OnStreamToClient(ClientSafeApi::StreamToClient const& msg);
+  void OnStreamToClient(
+      MessageEventData<ClientSafeApi::StreamToClient> const& msg);
 
   ProtocolContext protocol_context_;
 

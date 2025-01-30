@@ -18,8 +18,9 @@
 
 namespace ae {
 SplitterGate::SplitterGate() {
-  stream_message_event_ = protocol_context_.OnMessage<StreamApi::Stream>(
-      [this](auto const& message) { OnStream(message.message()); });
+  stream_message_event_ =
+      protocol_context_.MessageEvent<StreamApi::Stream>().Subscribe(
+          *this, MethodPtr<&SplitterGate::OnStream>{});
 }
 
 void SplitterGate::LinkOut(OutGate& out) {
@@ -58,15 +59,16 @@ void SplitterGate::OnDataEvent(DataBuffer const& data) {
   api_parser.Parse(api);
 }
 
-void SplitterGate::OnStream(StreamApi::Stream const& message) {
-  auto it = streams_.find(message.stream_id);
+void SplitterGate::OnStream(
+    MessageEventData<StreamApi::Stream> const& message) {
+  auto it = streams_.find(message.message().stream_id);
   if (it != streams_.end()) {
     return;
   }
 
-  auto& new_stream = RegisterStream(message.stream_id);
-  new_stream_event_.Emit(message.stream_id, new_stream);
+  auto& new_stream = RegisterStream(message.message().stream_id);
+  new_stream_event_.Emit(message.message().stream_id, new_stream);
 
-  new_stream.PutData(message.child_data.PackData());
+  new_stream.PutData(message.message().child_data.PackData());
 }
 }  // namespace ae
