@@ -51,8 +51,8 @@ class MessageReceiver : public Action<MessageReceiver<TMessage>> {
         state_{State::kReceiving},
         state_changed_{state_.changed_event().Subscribe(
             [this](auto) { SelfAction::Trigger(); })},
-        message_received_{
-            protocol_context_.OnMessage<TMessage>([this](auto const& message) {
+        message_received_{protocol_context_.MessageEvent<TMessage>().Subscribe(
+            [this](auto const& message) {
               MessageReceived(message.message());
             })} {}
 
