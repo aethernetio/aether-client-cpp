@@ -124,9 +124,10 @@ void test_ProtocolWriteStream() {
     api_parser.Parse(api);
   });
 
-  auto _1 = pc.OnMessage<TestApiClass::DataMessage>([&](auto const& message) {
-    received_child_data = message.message().data;
-  });
+  auto _1 = pc.MessageEvent<TestApiClass::DataMessage>().Subscribe(
+      [&](auto const& message) {
+        received_child_data = message.message().data;
+      });
 
   auto protocol_stream =
       ProtocolWriteGate{pc, TestApiClass{}, TestApiClass::Message1{{}, 1, 2}};
@@ -178,10 +179,10 @@ void test_ProtocolReadStream() {
   auto msg1_received = false;
   auto msg2_received = false;
 
-  auto _0 = pc.OnMessage<TestApiClass::Message1>(
+  auto _0 = pc.MessageEvent<TestApiClass::Message1>().Subscribe(
       [&](auto const& /* message */) { msg1_received = true; });
 
-  auto _1 = pc.OnMessage<TestApiClass::Message2>(
+  auto _1 = pc.MessageEvent<TestApiClass::Message2>().Subscribe(
       [&](auto const& /* message */) { msg2_received = true; });
 
   auto write_stream = MockWriteGate{ap, std::size_t{1000}};

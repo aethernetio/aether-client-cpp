@@ -29,8 +29,7 @@ void test_EventCreate() {
     TEST_ASSERT_EQUAL(i, 1);
   };
   {
-    auto s = EventSubscriber{event}.Subscribe(
-        lambda, MethodPtr<&decltype(lambda)::operator()>{});
+    auto s = EventSubscriber{event}.Subscribe(lambda, FunctorPtr(lambda));
     // callback must be called until s is alive
     event.Emit(1);
     TEST_ASSERT(cb_called);
@@ -48,9 +47,7 @@ void test_EventOnce() {
     cb_called = true;
     TEST_ASSERT_EQUAL(i, 1);
   };
-  auto s = EventSubscriber{event}
-               .Subscribe(lambda, MethodPtr<&decltype(lambda)::operator()>{})
-               .Once();
+  auto s = EventSubscriber{event}.Subscribe(lambda, FunctorPtr(lambda)).Once();
 
   // callback must be called
   event.Emit(1);
@@ -111,10 +108,9 @@ void test_MultiSubscription() {
     TEST_ASSERT_EQUAL(1, x);
   };
 
-  subscriptions_.Push(
-      sub.Subscribe(lambda1, MethodPtr<&decltype(lambda1)::operator()>{}),
-      sub.Subscribe(lambda2, MethodPtr<&decltype(lambda2)::operator()>{}),
-      sub.Subscribe(lambda3, MethodPtr<&decltype(lambda3)::operator()>{}));
+  subscriptions_.Push(sub.Subscribe(lambda1, FunctorPtr(lambda1)),
+                      sub.Subscribe(lambda2, FunctorPtr(lambda2)),
+                      sub.Subscribe(lambda3, FunctorPtr(lambda3)));
   event.Emit(1);
   for (auto b : cb_called) {
     TEST_ASSERT(b);
@@ -138,7 +134,7 @@ void test_EventRecursionCall() {
     TEST_ASSERT_EQUAL(2, x);
   };
 
-  auto s = sub.Subscribe(lambda, MethodPtr<&decltype(lambda)::operator()>{});
+  auto s = sub.Subscribe(lambda, FunctorPtr(lambda));
 
   event.Emit(1);
   TEST_ASSERT(cb_called_first);
@@ -162,12 +158,10 @@ void test_EventReSubscribeOnHandler() {
   auto outer_lambda = [&](int x) {
     TEST_ASSERT_EQUAL(1, x);
     cb_called_first = true;
-    s = sub.Subscribe(inner_lambda,
-                      MethodPtr<&decltype(inner_lambda)::operator()>{});
+    s = sub.Subscribe(inner_lambda, FunctorPtr(inner_lambda));
   };
 
-  s = sub.Subscribe(outer_lambda,
-                    MethodPtr<&decltype(outer_lambda)::operator()>{});
+  s = sub.Subscribe(outer_lambda, FunctorPtr(outer_lambda));
 
   event.Emit(1);
   TEST_ASSERT(cb_called_first);
