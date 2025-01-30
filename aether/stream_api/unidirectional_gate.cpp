@@ -22,7 +22,7 @@ void WriteOnlyGate::LinkOut(OutGate& out) {
   out_ = &out;
 
   gate_update_subscription_ = out.gate_update_event().Subscribe(
-      [this]() { gate_update_event_.Emit(); });
+      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
   gate_update_event_.Emit();
   // Do not subscribe to out_data_event
 }

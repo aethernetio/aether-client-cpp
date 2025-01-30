@@ -71,13 +71,12 @@ TransportWriteGate::TransportWriteGate(ActionContext action_context,
       stream_info_{},
       transport_connection_subscription_{
           transport_->ConnectionSuccess().Subscribe(
-              [this]() { GateUpdate(); })},
+              *this, MethodPtr<&TransportWriteGate::GateUpdate>{})},
       transport_disconnection_subscription_{
-          transport_->ConnectionError().Subscribe([this]() { GateUpdate(); })},
+          transport_->ConnectionError().Subscribe(
+              *this, MethodPtr<&TransportWriteGate::GateUpdate>{})},
       transport_read_data_subscription_{transport_->ReceiveEvent().Subscribe(
-          [this](auto const& buffer, auto time_point) {
-            ReceiveData(buffer, time_point);
-          })},
+          *this, MethodPtr<&TransportWriteGate::ReceiveData>{})},
       write_actions_{action_context},
       failed_write_actions_{action_context} {
   auto connection_info = transport_->GetConnectionInfo();

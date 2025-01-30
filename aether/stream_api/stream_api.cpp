@@ -125,7 +125,7 @@ void StreamApiGate::LinkOut(OutGate& out) {
   // do not subscribe to out data event
   // data would be read in read_subscription_
   gate_update_subscription_ = out_->gate_update_event().Subscribe(
-      [this]() { gate_update_event_.Emit(); });
+      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
   gate_update_event_.Emit();
 }
 

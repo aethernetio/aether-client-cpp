@@ -47,7 +47,7 @@ TimePoint SafeStreamWriteAction::Update(TimePoint current_time) {
   return current_time;
 }
 
-  // TODO: add tests for stop
+// TODO: add tests for stop
 void SafeStreamWriteAction::Stop() {
   if (sending_data_action_) {
     sending_data_action_->Stop();
@@ -116,7 +116,7 @@ void SafeStream::SafeStreamOutGate::LinkOut(OutGate& gate) {
       });
 
   gate_update_subscription_ = out_->gate_update_event().Subscribe(
-      [this]() { gate_update_event_.Emit(); });
+      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
   gate_update_event_.Emit();
 }
 

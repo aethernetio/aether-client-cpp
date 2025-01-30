@@ -16,7 +16,6 @@
 
 #include "aether/stream_api/crypto_stream.h"
 
-#include <cstddef>
 #include <utility>
 
 namespace ae {
@@ -26,25 +25,20 @@ CryptoGate::CryptoGate(Ptr<IEncryptProvider> crypto_encrypt,
     : crypto_encrypt_{std::move(crypto_encrypt)},
       crypto_decrypt_{std::move(crypto_decrypt)} {}
 
-void CryptoGate::OnOutData(DataBuffer const& buffer) {
-  auto decrypted = crypto_decrypt_->Decrypt(std::move(buffer));
-  out_data_event_.Emit(std::move(decrypted));
-}
-
 ActionView<StreamWriteAction> CryptoGate::Write(DataBuffer&& buffer,
                                                 TimePoint current_time) {
   assert(out_);
-  auto encrypted = crypto_encrypt_->Encrypt(std::move(buffer));
+  auto encrypted = crypto_encrypt_->Encrypt(buffer);
   return out_->Write(std::move(encrypted), current_time);
 }
 
 void CryptoGate::LinkOut(OutGate& out) {
   out_ = &out;
   out_data_subscription_ = out.out_data_event().Subscribe(
-      [this](DataBuffer const& buffer) { OnOutData(buffer); });
+      *this, MethodPtr<&CryptoGate::OnOutData>{});
 
   gate_update_subscription_ = out.gate_update_event().Subscribe(
-      [this]() { gate_update_event_.Emit(); });
+      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
   gate_update_event_.Emit();
 }
 
@@ -56,6 +50,11 @@ StreamInfo CryptoGate::stream_info() const {
           ? s_info.max_element_size - crypto_encrypt_->EncryptOverhead()
           : 0;
   return s_info;
+}
+
+void CryptoGate::OnOutData(DataBuffer const& buffer) {
+  auto decrypted = crypto_decrypt_->Decrypt(buffer);
+  out_data_event_.Emit(decrypted);
 }
 
 }  // namespace ae

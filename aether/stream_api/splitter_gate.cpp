@@ -25,14 +25,10 @@ SplitterGate::SplitterGate() {
 void SplitterGate::LinkOut(OutGate& out) {
   out_ = &out;
   gate_update_subscription_ = out_->gate_update_event().Subscribe(
-      [this]() { gate_update_event_.Emit(); });
+      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
 
-  out_data_subscription_ =
-      out_->out_data_event().Subscribe([this](auto const& data) {
-        auto api_parser = ApiParser(protocol_context_, data);
-        auto api = StreamApi{};
-        api_parser.Parse(api);
-      });
+  out_data_subscription_ = out_->out_data_event().Subscribe(
+      *this, MethodPtr<&SplitterGate::OnDataEvent>{});
 
   gate_update_event_.Emit();
 }
@@ -55,6 +51,12 @@ void SplitterGate::CloseStream(StreamId stream_id) {
 }
 
 std::size_t SplitterGate::stream_count() const { return streams_.size(); }
+
+void SplitterGate::OnDataEvent(DataBuffer const& data) {
+  auto api_parser = ApiParser(protocol_context_, data);
+  auto api = StreamApi{};
+  api_parser.Parse(api);
+}
 
 void SplitterGate::OnStream(StreamApi::Stream const& message) {
   auto it = streams_.find(message.stream_id);
