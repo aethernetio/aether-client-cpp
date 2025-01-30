@@ -98,4 +98,7 @@ enum class CompressionMethod : std::uint8_t {
 #define AE_REQUIRERS(Condition) \
   std::enable_if_t<AE_DEPAREN(Condition)::value, int> = 0
 
+#define AE_REQUIRERS_NOT(Condition) \
+  std::enable_if_t<!AE_DEPAREN(Condition)::value, int> = 0
+
 #endif  // AETHER_COMMON_H_
