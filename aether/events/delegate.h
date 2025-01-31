@@ -24,8 +24,8 @@
 #include "aether/type_traits.h"
 
 #if defined __GNUC__ && !defined __clang__
-#  pragma message STR(COMPILER_VERSION_NUM)
 #  if COMPILER_VERSION_NUM <= 1320
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=83258
 #    define AE_HAS_GCC_NO_LINKAGE_POINTER_BUG 1
 #  endif
 #endif
@@ -81,7 +81,7 @@ class Delegate<TRet(TArgs...)> {
       MethodPtr<FuncPtr> const& /* method_ptr */) noexcept
       : instance_{}, v_call_func_{CallFunctionPointer<FuncPtr>} {}
 
-#if defined AE_HAS_GCC_NO_LINKAGE_POINTER_BUG
+#if !defined AE_HAS_GCC_NO_LINKAGE_POINTER_BUG
   // For no capturing functor objects
   template <typename TFunctor,
             AE_REQUIRERS((IsFunctionPtr<TRet (*)(TArgs...), TFunctor>))>
