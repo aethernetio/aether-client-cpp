@@ -21,7 +21,7 @@
 #include "aether/aether.h"
 #include "aether/common.h"
 #include "aether/literal_array.h"
-#include "third_party/ini.h/ini.h"
+#include "aether/address_parser.h"
 
 #include "aether/global_ids.h"
 #include "aether/aether_app.h"
@@ -34,6 +34,8 @@
 
 #include "aether/port/tele_init.h"
 #include "aether/tele/tele.h"
+
+#include "third_party/ini.h/ini.h"
 
 constexpr std::uint8_t clients_max = 4;
 constexpr std::uint8_t servers_max = 4;
@@ -276,11 +278,11 @@ int AetherRegistrator(const std::string& ini_file);
 
 int AetherRegistrator(const std::string& ini_file) {
   ae::TeleInit::Init();
-  {
+  /* {
     AE_TELE_ENV();
     AE_TELE_INFO("Started");
     ae::Registry::Log();
-  }
+  }*/
 
   // Reading settings from the ini file.
   ini::File file = ini::open(ini_file);
@@ -288,14 +290,14 @@ int AetherRegistrator(const std::string& ini_file) {
   std::string wifi_ssid = file["Aether"]["wifiSsid"];
   std::string wifi_pass = file["Aether"]["wifiPass"];
 
-  AE_TELED_DEBUG("WiFi ssid={}", wifi_ssid);
-  AE_TELED_DEBUG("WiFi pass={}", wifi_pass);
+  //AE_TELED_DEBUG("WiFi ssid={}", wifi_ssid);
+  //AE_TELED_DEBUG("WiFi pass={}", wifi_pass);
 
   std::string sodium_key = file["Aether"]["sodiumKey"];
   std::string hydrogen_key = file["Aether"]["hydrogenKey"];
 
-  AE_TELED_DEBUG("Sodium key={}", sodium_key);
-  AE_TELED_DEBUG("Hydrogen key={}", hydrogen_key);
+  //AE_TELED_DEBUG("Sodium key={}", sodium_key);
+  //AE_TELED_DEBUG("Hydrogen key={}", hydrogen_key);
 
   // Clients configuration
   std::int8_t parents_num = file["Aether"].get<int>("parentsNum");
@@ -400,18 +402,39 @@ int AetherRegistrator(const std::string& ini_file) {
             auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
                 ae::kRegistrationCloud);
             for (auto s : servers) {
-              AE_TELED_DEBUG("Server address type={}", s.server_address_type);
+              /* AE_TELED_DEBUG("Server address type={}",
+                                  s.server_address_type);
               AE_TELED_DEBUG("Server ip address version={}",
                              s.server_ip_address_version);
               AE_TELED_DEBUG("Server address={}", s.server_address);
               AE_TELED_DEBUG("Server port={}", s.server_port);
-              AE_TELED_DEBUG("Server protocol={}", s.server_protocol);
+              AE_TELED_DEBUG("Server protocol={}", s.server_protocol);*/
 
               if (s.server_address_type == ae::ServerAddressType::kIpAddress) {
-                registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
-                    {ae::IpAddress{s.server_ip_address_version, {127, 0, 0, 1}},
-                     s.server_port},
-                    s.server_protocol});
+                ae::IpAddress ip_adress{};
+                ae::IpAddressParser ip_adress_parser{};
+                ae::IpAddressPortProtocol settings{
+                          {ae::IpAddress{s.server_ip_address_version,{}},
+                           s.server_port},
+                           s.server_protocol};
+
+                ip_adress.version = s.server_ip_address_version;
+                ip_adress_parser.stringToIP(s.server_address, ip_adress);
+
+                if (s.server_ip_address_version ==
+                        ae::IpAddress::Version::kIpV4) {
+                  for (std::size_t i{0}; i < 4; i++) {
+                    settings.ip.value.ipv4_value[i] =
+                        ip_adress.value.ipv4_value[i];
+                  }                                
+                } else if (s.server_ip_address_version ==
+                               ae::IpAddress::Version::kIpV6) {
+                  for (std::size_t i{0}; i < 16; i++) {
+                    settings.ip.value.ipv6_value[i] =
+                        ip_adress.value.ipv6_value[i];
+                  }
+                }
+                registration_cloud->AddServerSettings(settings);    
               } else if (s.server_address_type ==
                          ae::ServerAddressType::kUrlAddress) {
                 registration_cloud->AddServerSettings(ae::NameAddress{
