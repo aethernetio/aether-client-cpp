@@ -78,7 +78,8 @@ class Delegate<TRet(TArgs...)> {
   template <typename TFunctor,
             AE_REQUIRERS((IsFunctionPtr<TRet (*)(TArgs...), TFunctor>))>
   constexpr explicit Delegate(TFunctor functor) noexcept
-      : Delegate{FunctorPtr(functor)} {}
+      : instance_{&functor},
+        v_call_func_{CallFunctionPointer<FunctorPtr(functor).kMethod>} {}
 
   // For regular functor objects
   template <typename TFunctor,
