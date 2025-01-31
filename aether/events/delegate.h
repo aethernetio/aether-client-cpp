@@ -20,7 +20,14 @@
 #include <utility>
 
 #include "aether/common.h"
+#include "aether/tele/env/compiler.h"
 #include "aether/type_traits.h"
+
+#if defined __GNUC__ && not defined __clang__
+#  if COMPILER_VERSION_NUM <= 0x1320
+#    define AE_HAS_GCC_NO_LINKAGE_POINTER_BUG 1
+#  endif
+#endif
 
 namespace ae {
 
@@ -52,14 +59,13 @@ template <typename Signature>
 class Delegate;
 
 /**
- * \brief Make a not owning functor based on function pointer, functor, or class
- * member function pointer and it's instance.
+ * \brief Make a not owning functor based on function pointer, functor, or
+ * class member function pointer and it's instance.
  *
- * Not owning means no instance is copied or moved into Delegate, it stores only
- * pointers. User must use objects with proper lifetime only, otherwise the
- * behavior is undefined.
- * All provided function pointers should be constexpr. MethodPtr is used as
- * helper to pass such pointers.
+ * Not owning means no instance is copied or moved into Delegate, it stores
+ * only pointers. User must use objects with proper lifetime only, otherwise
+ * the behavior is undefined. All provided function pointers should be
+ * constexpr. MethodPtr is used as helper to pass such pointers.
  */
 template <typename TRet, typename... TArgs>
 class Delegate<TRet(TArgs...)> {
@@ -74,18 +80,24 @@ class Delegate<TRet(TArgs...)> {
       MethodPtr<FuncPtr> const& /* method_ptr */) noexcept
       : instance_{}, v_call_func_{CallFunctionPointer<FuncPtr>} {}
 
+#if defined AE_HAS_GCC_NO_LINKAGE_POINTER_BUG
   // For no capturing functor objects
   template <typename TFunctor,
             AE_REQUIRERS((IsFunctionPtr<TRet (*)(TArgs...), TFunctor>))>
   constexpr explicit Delegate(TFunctor functor) noexcept
-      : instance_{&functor},
+      : instance_{},
         v_call_func_{CallFunctionPointer<FunctorPtr(functor).kMethod>} {}
-
   // For regular functor objects
   template <typename TFunctor,
             AE_REQUIRERS_NOT((IsFunctionPtr<TRet (*)(TArgs...), TFunctor>))>
   constexpr explicit Delegate(TFunctor& functor) noexcept
       : instance_{&functor}, v_call_func_{CallFunctor<TFunctor>} {}
+#else
+  // For regular functor objects
+  template <typename TFunctor>
+  constexpr explicit Delegate(TFunctor& functor) noexcept
+      : instance_{&functor}, v_call_func_{CallFunctor<TFunctor>} {}
+#endif
 
   // For pointer to member function
   template <typename TClass, TRet (TClass::*Method)(TArgs...)>
