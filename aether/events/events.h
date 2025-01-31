@@ -39,12 +39,10 @@ class Event;
  */
 template <typename... TArgs>
 class Event<void(TArgs...)> {
- public:
-  using CallbackSignature = void(TArgs...);
-  using Subscriber = EventSubscriber<CallbackSignature>;
-
   class EventEmitter {
    public:
+    using CallbackSignature = void(TArgs...);
+
     ~EventEmitter() {
       for (auto& handler : handlers_) {
         handler.Reset();
@@ -84,6 +82,10 @@ class Event<void(TArgs...)> {
    private:
     std::vector<EventHandlerSubscription<CallbackSignature>> handlers_;
   };
+
+ public:
+  using CallbackSignature = typename EventEmitter::CallbackSignature;
+  using Subscriber = EventSubscriber<CallbackSignature>;
 
   template <typename TCallback>
   static constexpr bool kIsInvocable =
