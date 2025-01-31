@@ -28,6 +28,13 @@ namespace ae {
 #define _QUOTE(x) #x
 #define STR(x) _QUOTE(x)
 
+#define _AE_CONCAT_0(A, B, ...) A##B
+#define _AE_CONCAT_1(A, ...) _AE_CONCAT_0(A##__VA_ARGS__)
+#define _AE_CONCAT_2(A, ...) _AE_CONCAT_1(A##__VA_ARGS__)
+#define _AE_CONCAT_3(A, ...) _AE_CONCAT_2(A##__VA_ARGS__)
+#define _AE_CONCAT_N(_3, _2, _1, _0, X, ...) _AE_CONCAT##X(_3, _2, _1, _0)
+#define AE_CONCAT(...) _AE_CONCAT_N(__VA_ARGS__, _2, _1, _0)
+
 // remove () around X
 #define AE_DEPAREN(X) AE_ESC(AE_ISH X)
 #define AE_ISH(...) AE_ISH __VA_ARGS__
