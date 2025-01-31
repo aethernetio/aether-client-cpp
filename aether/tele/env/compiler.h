@@ -28,6 +28,8 @@
 #  define COMPILER_VERSION \
     STR(__clang_major__)   \
     "." STR(__clang_minor__) "." STR(__clang_patchlevel__)
+#  define COMPILER_VERSION_NUM \
+    AE_CONCAT(__clang_major__, __clang_minor__, __clang_patchlevel__)
 #elif defined __GNUC__
 #  if defined __MINGW32__
 #    define COMPILER "mingw gcc"
@@ -36,9 +38,12 @@
 #  endif
 #  define COMPILER_VERSION \
     STR(__GNUC__) "." STR(__GNUC_MINOR__) "." STR(__GNUC_PATCHLEVEL__)
+#  define COMPILER_VERSION_NUM \
+    AE_CONCAT(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__)
 #elif defined _MSC_VER
 #  define COMPILER "msvc"
 #  define COMPILER_VERSION STR(_MSC_FULL_VER)
+#  define COMPILER_VERSION_NUM _MSC_FULL_VER
 #else
 #  warning "unknown compiler"
 #  define COMPILER "unknown"
@@ -46,6 +51,7 @@
 #    define COMPILER_VERSION __VERSION__
 #  else
 #    define COMPILER_VERSION "unknown"
+#    define COMPILER_VERSION_NUM 0
 #  endif
 #endif
 
