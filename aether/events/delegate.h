@@ -24,7 +24,7 @@
 #include "aether/type_traits.h"
 
 #if defined __GNUC__ && !defined __clang__
-#  if COMPILER_VERSION_NUM <= 0x1320
+#  if COMPILER_VERSION_NUM <= 1320
 #    define AE_HAS_GCC_NO_LINKAGE_POINTER_BUG 1
 #  endif
 #endif
