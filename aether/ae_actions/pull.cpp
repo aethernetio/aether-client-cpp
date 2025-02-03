@@ -44,7 +44,7 @@ Pull::Pull(Descriptor&& descriptor, Client* client,
       state_{State::MakePullRequest} {
   push_message_subscription_ =
       client_connection_->protocol_context()
-          .OnMessage<ClientSafeApi::SendMessage>(
+          .MessageEvent<ClientSafeApi::SendMessage>().Subscribe(
               [this](auto const& action) { OnPushMessage(action.message()); });
 }
 
@@ -102,7 +102,7 @@ void Pull::PullMessages(TimePoint current_time) {
 
   select_result_subscription_ =
       client_connection_->protocol_context()
-          .OnMessage<DataSetApi<AeMessage>::SelectAllResult>(
+          .MessageEvent<DataSetApi<AeMessage>::SelectAllResult>().Subscribe(
               [this](auto const& action) { OnPullResponse(action.message()); })
           .Once();
 

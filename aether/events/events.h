@@ -41,9 +41,11 @@ template <typename... TArgs>
 class Event<void(TArgs...)> {
   class EventEmitter {
    public:
+    using CallbackSignature = void(TArgs...);
+
     ~EventEmitter() {
-      for (auto& subscription : subscriptions_) {
-        subscription.Reset();
+      for (auto& handler : handlers_) {
+        handler.Reset();
       }
     }
 
@@ -57,33 +59,32 @@ class Event<void(TArgs...)> {
        */
 
       // add new subscriptions
-      auto invoke_list = subscriptions_;
-      for (auto& subscription : invoke_list) {
+      auto invoke_list = handlers_;
+      for (auto& handler : invoke_list) {
         // invoke subscription handler
-        subscription.invoke(std::forward<TArgs>(args)...);
+        handler.Invoke(std::forward<TArgs>(args)...);
       }
       // clean up dead subscriptions
-      subscriptions_.erase(
-          std::remove_if(std::begin(subscriptions_), std::end(subscriptions_),
-                         [](auto const& subscription) {
-                           return !subscription.is_alive();
-                         }),
-          std::end(subscriptions_));
+      handlers_.erase(std::remove_if(std::begin(handlers_), std::end(handlers_),
+                                     [](auto const& handler) {
+                                       return !handler.is_alive();
+                                     }),
+                      std::end(handlers_));
 
       // just to be used
       self_ptr.reset();
     }
 
-    void Add(EventHandlerSubscription&& handler) {
-      subscriptions_.emplace_back(std::move(handler));
+    void Add(EventHandlerSubscription<CallbackSignature>&& handler) {
+      handlers_.emplace_back(std::move(handler));
     }
 
    private:
-    std::vector<EventHandlerSubscription> subscriptions_;
+    std::vector<EventHandlerSubscription<CallbackSignature>> handlers_;
   };
 
  public:
-  using CallbackSignature = void(TArgs...);
+  using CallbackSignature = typename EventEmitter::CallbackSignature;
   using Subscriber = EventSubscriber<CallbackSignature>;
 
   template <typename TCallback>
@@ -112,7 +113,7 @@ class Event<void(TArgs...)> {
    * \brief Add new subscription to this event
    * Users should use EventSubscriber.
    */
-  void Add(EventHandlerSubscription&& handler) {
+  void Add(EventHandlerSubscription<CallbackSignature>&& handler) {
     emitter_->Add(std::move(handler));
   }
 
@@ -141,11 +142,27 @@ class EventSubscriber {
     static_assert(Event<TSignature>::template kIsInvocable<TCallback>,
                   "TCallable must have same signature");
 
-    std::shared_ptr<IEventHandler> event_handler =
-        std::make_unique<EventHandler<TSignature>>(std::forward<TCallback>(cb));
+    auto subscription =
+        std::make_shared<SubscriptionManage>(SubscriptionManage{true, false});
 
-    event_->Add(EventHandlerSubscription{event_handler});
-    return Subscription(std::move(event_handler));
+    event_->Add(EventHandlerSubscription<TSignature>{
+        subscription, EventHandler<TSignature>{std::function<TSignature>{
+                          std::forward<TCallback>(cb)}}});
+    return Subscription(std::move(subscription));
+  }
+  template <typename TInstance, auto Method>
+  [[nodiscard]] auto Subscribe(TInstance& instance,
+                               MethodPtr<Method> const& method) {
+    static_assert(
+        std::is_same_v<TSignature,
+                       typename FunctionSignature<decltype(Method)>::Signature>,
+        "Method must have the same signature");
+    auto subscription =
+        std::make_shared<SubscriptionManage>(SubscriptionManage{true, false});
+
+    event_->Add(EventHandlerSubscription<TSignature>{
+        subscription, EventHandler<TSignature>{Delegate{instance, method}}});
+    return Subscription(std::move(subscription));
   }
 
  private:

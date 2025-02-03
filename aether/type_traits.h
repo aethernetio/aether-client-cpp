@@ -130,4 +130,41 @@ struct IsFunctor<T, TRes(TArgs...),
                  std::enable_if_t<std::is_invocable_r_v<TRes, T, TArgs...>>>
     : std::true_type {};
 
+template <typename TFuncPtr, typename T, typename _ = void>
+struct IsFunctionPtr : std::false_type {};
+
+template <typename TFuncPtr, typename T>
+struct IsFunctionPtr<
+    TFuncPtr, T,
+    std::void_t<decltype(static_cast<TFuncPtr>(std::declval<T>()))>>
+    : std::true_type {};
+
+template <typename TSignature>
+struct FunctionSignatureImpl;
+
+template <typename TRet, typename... TArgs>
+struct FunctionSignatureImpl<TRet(TArgs...)> {
+  using Signature = TRet(TArgs...);
+  using FuncPtr = TRet (*)(TArgs...);
+};
+
+template <typename TRes, typename... TArgs>
+auto GetSignatureImpl(TRes (*)(TArgs...))
+    -> FunctionSignatureImpl<TRes(TArgs...)>;
+
+template <typename TClass, typename TRes, typename... TArgs>
+auto GetSignatureImpl(TRes (TClass::*)(TArgs...) const)
+    -> FunctionSignatureImpl<TRes(TArgs...)>;
+
+template <typename TClass, typename TRes, typename... TArgs>
+auto GetSignatureImpl(TRes (TClass::*)(TArgs...))
+    -> FunctionSignatureImpl<TRes(TArgs...)>;
+
+template <typename TFunc, typename FuncSignatureImp =
+                              decltype(GetSignatureImpl(std::declval<TFunc>()))>
+struct FunctionSignature {
+  using Signature = typename FuncSignatureImp::Signature;
+  using FuncPtr = typename FuncSignatureImp::FuncPtr;
+};
+
 #endif  // AETHER_TYPE_TRAITS_H_ */

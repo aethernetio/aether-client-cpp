@@ -14,15 +14,11 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#include "tests/test-events/worker_class.h"
 
-void setUp() {}
-void tearDown() {}
-
-extern int test_action_registry();
-
-int main() {
-  auto res = 0;
-  res += test_action_registry();
-  return res;
+namespace ae::test_events {
+int WorkerClass::GetInt(int x) {
+  x_ = x_ * (x % 100);
+  return x_;
 }
+}  // namespace ae::test_events

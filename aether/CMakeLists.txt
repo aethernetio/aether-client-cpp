@@ -16,6 +16,8 @@ cmake_minimum_required(VERSION 3.16.0)
 
 set(AE_PROJECT_VERSION "1.0.0")
 
+option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
+
 option(AE_DISTILLATION "Build aether in distillation mode" OFF)
 option(USER_CONFIG "Path to user provided configuration header file" "")
 
@@ -34,8 +36,8 @@ if ( GIT_COMMAND )
   endif()
 endif()
 
-# list a common dependancies
-list(APPEND common_dependancies
+# list a common dependencies
+list(APPEND common_dependencies
     "../third_party/libbcrypt"
     "../third_party/libhydrogen"
     "../third_party/libsodium"
@@ -222,7 +224,7 @@ if(REGULAR_CMAKE_PROJECT)
   set(CARES_SHARED OFF CACHE BOOL "" FORCE)
   add_subdirectory("../third_party/c-ares" "c-ares")
 
-  foreach(dep ${common_dependancies})
+  foreach(dep ${common_dependencies})
     get_filename_component(DEP_NAME ${dep} NAME)
     add_subdirectory(${dep} ${DEP_NAME})
   endforeach()
@@ -284,7 +286,7 @@ else()
 
     set(TARGET_NAME "${COMPONENT_LIB}")
 
-    foreach(dep ${common_dependancies})
+    foreach(dep ${common_dependencies})
       get_filename_component(DEP_NAME ${dep} NAME)
       add_subdirectory(${dep} ${DEP_NAME})
     endforeach()
@@ -372,8 +374,9 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Cla
     if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
       target_compile_options(${TARGET_NAME} PUBLIC -fdata-sections -ffunction-sections)
       target_link_options(${TARGET_NAME} PUBLIC -fdata-sections -ffunction-sections)
-      target_link_options(${TARGET_NAME} PUBLIC -Wl,--gc-sections,--strip-all)
-
+      if(NOT AE_NO_STRIP_ALL )
+        target_link_options(${TARGET_NAME} PUBLIC -Wl,--gc-sections,--strip-all)
+      endif()
       if (NOT MINGW)
         target_compile_options(${TARGET_NAME} PUBLIC -flto=auto -ffat-lto-objects)
         target_link_options(${TARGET_NAME} PUBLIC -flto=auto)

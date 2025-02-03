@@ -60,7 +60,7 @@ void test_ApiLevel0_Message_1() {
   // server side
   {
     bool message_received = false;
-    auto _ = p_context.OnMessage<ApiLevel0::Message1>(
+    auto _ = p_context.MessageEvent<ApiLevel0::Message1>().Subscribe(
         [&message_received](auto const&) { message_received = true; });
 
     ApiParser parser{p_context, pack_data};
@@ -104,9 +104,9 @@ void test_ApiLevel1() {
   {
     bool message1_received = false;
     bool message2_received = false;
-    auto _0 = p_context.OnMessage<ApiLevel1::Message1>(
+    auto _0 = p_context.MessageEvent<ApiLevel1::Message1>().Subscribe(
         [&message1_received](auto const& msg) { message1_received = true; });
-    auto _1 = p_context.OnMessage<ApiLevel1::Message2>(
+    auto _1 = p_context.MessageEvent<ApiLevel1::Message2>().Subscribe(
         [&message2_received](auto const& msg) { message2_received = true; });
 
     ApiParser parser{p_context, pack_data};
@@ -154,7 +154,7 @@ void test_ApiWithResult() {
   {
     bool request_echo_received = false;
 
-    auto _ = p_context.OnMessage<ApiWithResult::RequestEcho>(
+    auto _ = p_context.MessageEvent<ApiWithResult::RequestEcho>().Subscribe(
         [&request_echo_received, &p_context,
          &pack_data_response](auto const& action) {
           request_echo_received = true;
@@ -198,7 +198,7 @@ void test_ApiWithResult() {
   {
     bool response_echo_received = false;
 
-    auto _ = p_context.OnMessage<ApiWithResult::ResponseEcho>(
+    auto _ = p_context.MessageEvent<ApiWithResult::ResponseEcho>().Subscribe(
         [&response_echo_received, &req_id](auto const& action) {
           response_echo_received = true;
           TEST_ASSERT(action.message().id_ == req_id);

@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#ifndef TESTS_TEST_EVENTS_WORKER_CLASS_H_
+#define TESTS_TEST_EVENTS_WORKER_CLASS_H_
 
-void setUp() {}
-void tearDown() {}
+namespace ae::test_events {
+class WorkerClass {
+ public:
+  int GetInt(int x);
 
-extern int test_action_registry();
+ private:
+  int x_{};
+};
+}  // namespace ae::test_events
 
-int main() {
-  auto res = 0;
-  res += test_action_registry();
-  return res;
-}
+#endif  // TESTS_TEST_EVENTS_WORKER_CLASS_H_

@@ -362,23 +362,27 @@ struct Registrar {
             [[maybe_unused]] const char* class_name) {
     Registry::RegisterClass(cls_id, base_id,
                             {// create
-                             []() { return ObjPtr<T>(new T()); },
+                             Delegate(MethodPtr<&Create>{}),
                              // load
-                             [](Domain* domain, ObjPtr<Obj> obj) {
-                               auto self_ptr = ObjPtr<T>{std::move(obj)};
-                               domain->Load(*self_ptr.get());
-                               return self_ptr;
-                             },
+                             Delegate(MethodPtr<&Load>{}),
                              // save
-                             [](Domain* domain, ObjPtr<Obj> const& obj) {
-                               auto self_ptr = static_cast<T*>(obj.get());
-                               domain->Save(*self_ptr);
-                             }
+                             Delegate(MethodPtr<&Save>{})
 #ifdef DEBUG
-                             ,
+                                 ,
                              class_name
 #endif  // DEBUG
                             });
+  }
+
+  static ObjPtr<Obj> Create() { return ObjPtr<T>(new T()); }
+  static ObjPtr<Obj> Load(Domain* domain, ObjPtr<Obj> obj) {
+    auto self_ptr = ObjPtr<T>{std::move(obj)};
+    domain->Load(*self_ptr.get());
+    return self_ptr;
+  }
+  static void Save(Domain* domain, ObjPtr<Obj> const& obj) {
+    auto self_ptr = static_cast<T*>(obj.get());
+    domain->Save(*self_ptr);
   }
 };
 

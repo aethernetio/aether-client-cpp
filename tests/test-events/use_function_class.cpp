@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#include "tests/test-events/use_function_class.h"
 
-void setUp() {}
-void tearDown() {}
+#include <utility>
 
-extern int test_action_registry();
-
-int main() {
-  auto res = 0;
-  res += test_action_registry();
-  return res;
+namespace ae::test_events {
+void UseFunctionClass::SetFunction(
+    std::function<int(WorkerClass*, int)>&& func) {
+  get_int_ = std::move(func);
 }
+int UseFunctionClass::Invoke(WorkerClass* instance, int x) {
+  return get_int_(instance, x);
+}
+}  // namespace ae::test_events

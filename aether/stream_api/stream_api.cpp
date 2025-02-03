@@ -68,26 +68,18 @@ static constexpr std::size_t kStreamMessageOverhead =
 StreamApiGate::StreamApiGate(ProtocolContext& protocol_context,
                              StreamId stream_id)
     : protocol_context_{std::ref(protocol_context)}, stream_id_{stream_id} {
-  read_subscription_ = protocol_context_.get().OnMessage<StreamApi::Stream>(
-      [this](auto const& msg) {
-        auto const& message = msg.message();
-        if (stream_id_ == message.stream_id) {
-          out_data_event_.Emit(message.child_data.PackData());
-        }
-      });
+  read_subscription_ =
+      protocol_context_.get().MessageEvent<StreamApi::Stream>().Subscribe(
+          *this, MethodPtr<&StreamApiGate::OnStream>{});
 }
 
 StreamApiGate::StreamApiGate(StreamApiGate&& other) noexcept
     : ByteGate(std::move(other)),
       protocol_context_{other.protocol_context_},
       stream_id_{other.stream_id_} {
-  read_subscription_ = protocol_context_.get().OnMessage<StreamApi::Stream>(
-      [this](auto const& msg) {
-        auto const& message = msg.message();
-        if (stream_id_ == message.stream_id) {
-          PutData(message.child_data.PackData());
-        }
-      });
+  read_subscription_ =
+      protocol_context_.get().MessageEvent<StreamApi::Stream>().Subscribe(
+          *this, MethodPtr<&StreamApiGate::OnStream>{});
 }
 
 StreamApiGate& StreamApiGate::operator=(StreamApiGate&& other) noexcept {
@@ -95,13 +87,9 @@ StreamApiGate& StreamApiGate::operator=(StreamApiGate&& other) noexcept {
     ByteGate::operator=(std::move(other));
     protocol_context_ = other.protocol_context_;
     stream_id_ = other.stream_id_;
-    read_subscription_ = protocol_context_.get().OnMessage<StreamApi::Stream>(
-        [this](auto const& msg) {
-          auto const& message = msg.message();
-          if (stream_id_ == message.stream_id) {
-            PutData(message.child_data.PackData());
-          }
-        });
+    read_subscription_ =
+        protocol_context_.get().MessageEvent<StreamApi::Stream>().Subscribe(
+            *this, MethodPtr<&StreamApiGate::OnStream>{});
   }
   return *this;
 }
@@ -125,7 +113,7 @@ void StreamApiGate::LinkOut(OutGate& out) {
   // do not subscribe to out data event
   // data would be read in read_subscription_
   gate_update_subscription_ = out_->gate_update_event().Subscribe(
-      [this]() { gate_update_event_.Emit(); });
+      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
   gate_update_event_.Emit();
 }
 
@@ -141,6 +129,13 @@ StreamInfo StreamApiGate::stream_info() const {
 
 void StreamApiGate::PutData(DataBuffer const& data) {
   out_data_event_.Emit(data);
+}
+
+void StreamApiGate::OnStream(MessageEventData<StreamApi::Stream> const& msg) {
+  auto const& message = msg.message();
+  if (stream_id_ == message.stream_id) {
+    PutData(message.child_data.PackData());
+  }
 }
 
 }  // namespace ae

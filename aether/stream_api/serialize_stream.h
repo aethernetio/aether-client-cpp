@@ -34,9 +34,9 @@ class SerializeGate final : public Gate<TIn, TOut, DataBuffer, DataBuffer> {
   ActionView<StreamWriteAction> Write(TIn&& in_data,
                                       TimePoint current_time) override {
     DataBuffer buffer;
-    auto wb = VectorWriter<PackedSize>{buffer};
-    auto os = omstream{wb};
-    os << std::move(in_data);
+    auto writer_buffer = VectorWriter<PackedSize>{buffer};
+    auto output_stream = omstream{writer_buffer};
+    output_stream << std::move(in_data);
 
     assert(Base::out_);
     return Base::out_->Write(std::move(buffer), current_time);
@@ -45,19 +45,22 @@ class SerializeGate final : public Gate<TIn, TOut, DataBuffer, DataBuffer> {
   void LinkOut(typename Base::OutGate& out) override {
     Base::out_ = &out;
 
-    Base::out_data_subscription_ =
-        Base::out_->out_data_event().Subscribe([this](DataBuffer const& data) {
-          auto rb = VectorReader<PackedSize>{data};
-          auto is = imstream{rb};
-
-          TOut out_data{};
-          is >> out_data;
-          Base::out_data_event_.Emit(std::move(out_data));
-        });
+    Base::out_data_subscription_ = Base::out_->out_data_event().Subscribe(
+        *this, MethodPtr<&SerializeGate::OnDataOutEvent>{});
 
     Base::gate_update_subscription_ = Base::out_->gate_update_event().Subscribe(
-        [this] { Base::gate_update_event_.Emit(); });
+        Base::gate_update_event_, MethodPtr<&Base::GateUpdateEvent::Emit>{});
     Base::gate_update_event_.Emit();
+  }
+
+ private:
+  void OnDataOutEvent(DataBuffer const& data) {
+    auto reader_buffer = VectorReader<PackedSize>{data};
+    auto input_stream = imstream{reader_buffer};
+
+    TOut out_data{};
+    input_stream >> out_data;
+    Base::out_data_event_.Emit(std::move(out_data));
   }
 };
 }  // namespace ae

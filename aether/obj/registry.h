@@ -20,20 +20,20 @@
 #include <cstdint>
 #include <vector>
 #include <string>
-#include <functional>
 #include <unordered_map>
 
 #include "aether/config.h"
 #include "aether/obj/obj_ptr.h"
+#include "aether/events/delegate.h"
 
 namespace ae {
 class Obj;
 class Domain;
 
 struct Factory {
-  std::function<ObjPtr<Obj>()> create;
-  std::function<ObjPtr<Obj>(Domain* domain, ObjPtr<Obj> prefab)> load;
-  std::function<void(Domain* domain, ObjPtr<Obj> const& obj)> save;
+  Delegate<ObjPtr<Obj>()> create;
+  Delegate<ObjPtr<Obj>(Domain* domain, ObjPtr<Obj> prefab)> load;
+  Delegate<void(Domain* domain, ObjPtr<Obj> const& obj)> save;
 #ifdef DEBUG
   std::string class_name{};
   std::uint32_t cls_id{};

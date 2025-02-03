@@ -25,8 +25,8 @@ MessageStreamDispatcher::MessageStreamDispatcher(ByteStream& connection_stream)
     : protocol_read_gate_{protocol_context_, ClientSafeApi{}} {
   Tie(protocol_read_gate_, connection_stream);
   on_client_stream_subscription_ =
-      protocol_context_.OnMessage<ClientSafeApi::StreamToClient>(
-          [this](auto const& msg) { OnStreamToClient(msg.message()); });
+      protocol_context_.MessageEvent<ClientSafeApi::StreamToClient>().Subscribe(
+          *this, MethodPtr<&MessageStreamDispatcher::OnStreamToClient>{});
 }
 
 MessageStreamDispatcher::NewStreamEvent::Subscriber
@@ -63,20 +63,22 @@ Ptr<MessageStream> MessageStreamDispatcher::CreateMessageStream(
 }
 
 void MessageStreamDispatcher::OnStreamToClient(
-    ClientSafeApi::StreamToClient const& msg) {
-  auto stream_it = streams_.find(msg.uid);
+    MessageEventData<ClientSafeApi::StreamToClient> const& msg) {
+  auto const& message = msg.message();
+  auto stream_it = streams_.find(message.uid);
   if (stream_it != streams_.end()) {
-    if (stream_it->second->stream_id() != msg.stream_id) {
-      stream_it->second->set_stream_id(msg.stream_id);
+    if (stream_it->second->stream_id() != message.stream_id) {
+      stream_it->second->set_stream_id(message.stream_id);
     }
     return;
   }
 
   stream_it = streams_.emplace_hint(
-      stream_it, msg.uid, CreateMessageStream(msg.uid, msg.stream_id));
+      stream_it, message.uid,
+      CreateMessageStream(message.uid, message.stream_id));
 
   // notify about new stream created
-  new_stream_event_.Emit(msg.uid, stream_it->second);
+  new_stream_event_.Emit(message.uid, stream_it->second);
 }
 
 }  // namespace ae

@@ -63,8 +63,9 @@ class TimedReceiver : public ITimedReceiver {
       : ITimedReceiver{action_context},
         protocol_context_{protocol_context},
         wait_count_{wait_count},
-        message_subscription_{protocol_context_.OnMessage<TMessage>(
-            [this](auto const& msg) { OnMessage(msg.message()); })},
+        message_subscription_{
+            protocol_context_.MessageEvent<TMessage>().Subscribe(
+                [this](auto const& msg) { OnMessage(msg.message()); })},
         state_{State::kWaiting},
         state_subscription_{state_.changed_event().Subscribe(
             [this](auto) { this->Trigger(); })} {
