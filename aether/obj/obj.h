@@ -37,6 +37,7 @@
 #include "aether/obj/obj_ptr.h"
 #include "aether/obj/registry.h"
 #include "aether/obj/domain.h"
+#include "aether/obj/type_index.h"
 
 namespace ae {
 /**
@@ -98,7 +99,7 @@ class Obj {
   using CurrentVersion = Version<kVersion>;                      \
   static constexpr CurrentVersion kCurrentVersion{};             \
   inline static auto registrar_ =                                \
-      ae::Registrar<DERIVED>(kClassId, kBaseClassId, #DERIVED);  \
+      ae::Registrar<DERIVED>(kClassId, kBaseClassId);            \
                                                                  \
   using Base = BASE;                                             \
   using ptr = ae::ObjPtr<DERIVED>;                               \

@@ -358,18 +358,20 @@ void Domain::SaveVersion(Version<V> version, T const& obj) {
 
 template <class T>
 struct Registrar {
-  Registrar(uint32_t cls_id, std::uint32_t base_id,
-            [[maybe_unused]] const char* class_name) {
+  Registrar(std::uint32_t cls_id, std::uint32_t base_id) {
     Registry::RegisterClass(cls_id, base_id,
-                            {// create
-                             Delegate(MethodPtr<&Create>{}),
-                             // load
-                             Delegate(MethodPtr<&Load>{}),
-                             // save
-                             Delegate(MethodPtr<&Save>{})
+                            {
+                                // create
+                                Delegate(MethodPtr<&Create>{}),
+                                // load
+                                Delegate(MethodPtr<&Load>{}),
+                                // save
+                                Delegate(MethodPtr<&Save>{})
 #ifdef DEBUG
-                                 ,
-                             class_name
+                                    ,
+                                std::string{GetTypeName<T>()},
+                                cls_id,
+                                base_id,
 #endif  // DEBUG
                             });
   }
