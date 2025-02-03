@@ -43,7 +43,7 @@ else()
   if (CM_PLATFORM STREQUAL "ESP32")
     idf_component_register(SRCS ${src_list}
       INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
-      PRIV_REQUIRES aether libbcrypt libsodium driver)
+      PRIV_REQUIRES aether)
   else()
     #Other platforms
     msessage(FATAL_ERROR "Platform ${CM_PLATFORM} is not supported")

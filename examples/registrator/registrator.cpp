@@ -40,11 +40,6 @@
 constexpr std::uint8_t clients_max = 4;
 constexpr std::uint8_t servers_max = 4;
 
-std::string uid;
-std::uint8_t clients_num, clients_total{0};
-std::tuple<std::string, std::uint8_t> parent;
-std::vector<std::tuple<std::string, std::uint8_t>> parents;
-
 namespace ae {
 enum class ServerAddressType : std::uint8_t { kIpAddress, kUrlAddress };
 
@@ -69,6 +64,112 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
 };
 
 /**
+ * \brief This is class for parse configuration file.
+ */
+class RegistratorConfig {
+ public:
+  RegistratorConfig(const std::string& ini_file) : ini_file_{ini_file} {};
+
+  int ParseConfig() {
+    std::string uid;
+    std::uint8_t clients_num, clients_total{0};
+    std::tuple<std::string, std::uint8_t> parent;
+
+    // Reading settings from the ini file.
+    ini::File file = ini::open(ini_file_);
+
+    std::string wifi_ssid = file["Aether"]["wifiSsid"];
+    std::string wifi_pass = file["Aether"]["wifiPass"];
+
+    AE_TELED_DEBUG("WiFi ssid={}", wifi_ssid);
+    AE_TELED_DEBUG("WiFi pass={}", wifi_pass);
+
+    std::string sodium_key = file["Aether"]["sodiumKey"];
+    std::string hydrogen_key = file["Aether"]["hydrogenKey"];
+
+    AE_TELED_DEBUG("Sodium key={}", sodium_key);
+    AE_TELED_DEBUG("Hydrogen key={}", hydrogen_key);
+
+    // Clients configuration
+    std::int8_t parents_num = file["Aether"].get<int>("parentsNum");
+
+    for (std::uint8_t i{0}; i < parents_num; i++) {
+      uid = file["ParentID" + std::to_string(i + 1)]["uid"];
+      clients_num =
+          file["ParentID" + std::to_string(i + 1)].get<int>("clientsNum");
+      parent = make_tuple(uid, clients_num);
+      parents_.push_back(parent);
+      clients_total += clients_num;
+    }
+
+    // Clients max assertion
+    if (clients_total > clients_max) {
+      AE_TELED_ERROR("Total clients must be < {} clients", clients_max);
+      return -1;
+    }
+
+    // Servers configuration
+    std::int8_t servers_num = file["Aether"].get<int>("serversNum");
+
+    std::uint8_t servers_total{0};
+    ae::ServerConfig server_config{};
+
+    for (std::uint8_t i{0}; i < servers_num; i++) {
+      std::string str_ip_address_type =
+          file["ServerID" + std::to_string(i + 1)]["ipAddressType"];
+      std::string str_ip_address_version =
+          file["ServerID" + std::to_string(i + 1)]["ipAddressVersion"];
+      std::string str_ip_address =
+          file["ServerID" + std::to_string(i + 1)]["ipAddress"];
+      std::uint16_t int_ip_port =
+          file["ServerID" + std::to_string(i + 1)].get<int>("ipPort");
+      std::string str_ip_protocol =
+          file["ServerID" + std::to_string(i + 1)]["ipProtocol"];
+
+      if (str_ip_address_type == "kIpAddress") {
+        server_config.server_address_type = ae::ServerAddressType::kIpAddress;
+        if (str_ip_address_version == "kIpV4") {
+          server_config.server_ip_address_version =
+              ae::IpAddress::Version::kIpV4;
+        }
+        server_config.server_address = str_ip_address;
+        server_config.server_port = int_ip_port;
+        if (str_ip_protocol == "kTcp") {
+          server_config.server_protocol = ae::Protocol::kTcp;
+        }
+      } else if (str_ip_address_type == "kUrlAddress") {
+        server_config.server_address_type = ae::ServerAddressType::kUrlAddress;
+        if (str_ip_address_version == "kIpV4") {
+          server_config.server_ip_address_version =
+              ae::IpAddress::Version::kIpV4;
+        }
+        server_config.server_address = str_ip_address;
+        server_config.server_port = int_ip_port;
+        if (str_ip_protocol == "kTcp") {
+          server_config.server_protocol = ae::Protocol::kTcp;
+        }
+      }
+
+      servers_.push_back(server_config);
+      servers_total++;
+    }
+
+    // Servers max assertion
+    if (servers_total > servers_max) {
+      AE_TELED_ERROR("Total servers must be < {} servers", servers_max);
+      return -2;
+    }
+
+    return 0;
+  }
+  std::vector<std::tuple<std::string, std::uint8_t>> parents_;
+  std::vector<ae::ServerConfig> servers_;
+
+ private:
+  const std::string ini_file_;
+};
+
+/**
  * \brief This is the main action to perform all busyness logic here.
  */
 class RegistratorAction : public Action<RegistratorAction> {
@@ -83,14 +184,16 @@ class RegistratorAction : public Action<RegistratorAction> {
   };
 
  public:
-  explicit RegistratorAction(Ptr<AetherApp> const& aether_app)
+  explicit RegistratorAction(Ptr<AetherApp> const& aether_app,
+                             RegistratorConfig const& registrator_config)
       : Action{*aether_app},
         aether_{aether_app->aether()},
-        state_{State::kRegistration},
+        registrator_config_{registrator_config},
         messages_{},
+        state_{State::kRegistration},
         state_changed_{state_.changed_event().Subscribe(
             [this](auto) { Action::Trigger(); })} {
-    AE_TELED_INFO("Cloud test");
+    AE_TELED_INFO("Registration test");
   }
 
   TimePoint Update(TimePoint current_time) override {
@@ -138,69 +241,69 @@ class RegistratorAction : public Action<RegistratorAction> {
    * We need a two clients for this test.
    */
   void RegisterClients() {
-  /* #if AE_SUPPORT_REGISTRATION
+    /* #if AE_SUPPORT_REGISTRATION
+      {
+        AE_TELED_INFO("Client registration");
+        // register receiver and sender
+        clients_registered_ = aether_->clients().size();
+
+        for (auto i = clients_registered_; i < 2; i++) {
+          auto reg_action = aether_->RegisterClient(
+              Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
+          registration_subscriptions_.Push(
+              reg_action->SubscribeOnResult([&](auto const&) {
+                ++clients_registered_;
+                if (clients_registered_ == 2) {
+                  state_ = State::kConfigureReceiver;
+                }
+              }),
+              reg_action->SubscribeOnError([&](auto const&) {
+                AE_TELED_ERROR("Registration error");
+                state_ = State::kError;
+              }));
+        }
+        // all required clients already registered
+        if (clients_registered_ == 2) {
+          state_ = State::kConfigureReceiver;
+          return;
+        }
+      }*/
     {
       AE_TELED_INFO("Client registration");
-      // register receiver and sender
-      clients_registered_ = aether_->clients().size();
+      uint16_t clients_cnt{0};
 
-      for (auto i = clients_registered_; i < 2; i++) {
-        auto reg_action = aether_->RegisterClient(
-            Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
-        registration_subscriptions_.Push(
-            reg_action->SubscribeOnResult([&](auto const&) {
-              ++clients_registered_;
-              if (clients_registered_ == 2) {
-                state_ = State::kConfigureReceiver;
-              }
-            }),
-            reg_action->SubscribeOnError([&](auto const&) {
-              AE_TELED_ERROR("Registration error");
-              state_ = State::kError;
-            }));
+      for (auto p : registrator_config_.parents_) {
+        std::uint8_t clients_num = std::get<1>(p);
+        clients_cnt += clients_num;
       }
-      // all required clients already registered
-      if (clients_registered_ == 2) {
-        state_ = State::kConfigureReceiver;
-        return;
-      }
-    }*/
-    {
-    AE_TELED_INFO("Client registration");
-    uint16_t clients_cnt{0};
 
-    for (auto p : parents) {
-      std::uint8_t clients_num = std::get<1>(p);
-      clients_cnt += clients_num;
-    }
-
-    for (auto p : parents) {
-      std::string uid_str = std::get<0>(p);
-      std::uint8_t clients_num = std::get<1>(p);
-      for (std::uint8_t i{0}; i < clients_num; i++) {
+      for (auto p : registrator_config_.parents_) {
+        std::string uid_str = std::get<0>(p);
+        std::uint8_t clients_num = std::get<1>(p);
+        for (std::uint8_t i{0}; i < clients_num; i++) {
 #if AE_SUPPORT_REGISTRATION
-        auto uid_arr = ae::MakeArray(uid_str);
-        if (uid_arr.size() != ae::Uid::kSize) {
-          AE_TELED_ERROR("Registration error");
-          state_ = State::kError;
-        }
-        auto uid = ae::Uid{};
-        std::copy(std::begin(uid_arr), std::end(uid_arr),
-        std::begin(uid.value)); 
-        
-        auto reg_action = aether_->RegisterClient(uid);
+          auto uid_arr = ae::MakeArray(uid_str);
+          if (uid_arr.size() != ae::Uid::kSize) {
+            AE_TELED_ERROR("Registration error");
+            state_ = State::kError;
+          }
+          auto uid = ae::Uid{};
+          std::copy(std::begin(uid_arr), std::end(uid_arr),
+                    std::begin(uid.value));
 
-        registration_subscriptions_.Push(
-            reg_action->SubscribeOnResult([&](auto const&) {
-              ++clients_registered_;
-              if (clients_registered_ == clients_cnt) {
-                state_ = State::kConfigureReceiver;
-              }
-            }),
-            reg_action->SubscribeOnError([&](auto const&) {
-              AE_TELED_ERROR("Registration error");
-              state_ = State::kError;
-            }));        
+          auto reg_action = aether_->RegisterClient(uid);
+
+          registration_subscriptions_.Push(
+              reg_action->SubscribeOnResult([&](auto const&) {
+                ++clients_registered_;
+                if (clients_registered_ == clients_cnt) {
+                  state_ = State::kConfigureReceiver;
+                }
+              }),
+              reg_action->SubscribeOnError([&](auto const&) {
+                AE_TELED_ERROR("Registration error");
+                state_ = State::kError;
+              }));
         }
       }
 
@@ -211,8 +314,8 @@ class RegistratorAction : public Action<RegistratorAction> {
       }
     }
 #else
-    // skip registration
-    state_ = State::kConfigureReceiver;
+          // skip registration
+          state_ = State::kConfigureReceiver;
 #endif
   }
 
@@ -301,6 +404,7 @@ class RegistratorAction : public Action<RegistratorAction> {
   }
 
   Aether::ptr aether_;
+  RegistratorConfig registrator_config_;  
   std::vector<std::string> messages_;
 
   Client::ptr receiver_;
@@ -328,95 +432,8 @@ int AetherRegistrator(const std::string& ini_file);
 
 int AetherRegistrator(const std::string& ini_file) {
   ae::TeleInit::Init();
-  /* {
-    AE_TELE_ENV();
-    AE_TELE_INFO("Started");
-    ae::Registry::Log();
-  }*/
 
-  // Reading settings from the ini file.
-  ini::File file = ini::open(ini_file);
-
-  std::string wifi_ssid = file["Aether"]["wifiSsid"];
-  std::string wifi_pass = file["Aether"]["wifiPass"];
-
-  // AE_TELED_DEBUG("WiFi ssid={}", wifi_ssid);
-  // AE_TELED_DEBUG("WiFi pass={}", wifi_pass);
-
-  std::string sodium_key = file["Aether"]["sodiumKey"];
-  std::string hydrogen_key = file["Aether"]["hydrogenKey"];
-
-  // AE_TELED_DEBUG("Sodium key={}", sodium_key);
-  // AE_TELED_DEBUG("Hydrogen key={}", hydrogen_key);
-
-  // Clients configuration
-  std::int8_t parents_num = file["Aether"].get<int>("parentsNum");
-
-  for (std::uint8_t i{0}; i < parents_num; i++) {
-    uid = file["ParentID" + std::to_string(i + 1)]["uid"];
-    clients_num =
-        file["ParentID" + std::to_string(i + 1)].get<int>("clientsNum");
-    parent = make_tuple(uid, clients_num);
-    parents.push_back(parent);
-    clients_total += clients_num;
-  }
-
-  // Clients max assertion
-  if (clients_total > clients_max) {
-    std::cerr << "Total clients must be < " << clients_max << " clients\n";
-    return -1;
-  }
-
-  // Servers configuration
-  std::int8_t servers_num = file["Aether"].get<int>("serversNum");
-
-  std::uint8_t servers_total{0};
-  std::vector<ae::ServerConfig> servers;
-  ae::ServerConfig server_config{};
-
-  for (std::uint8_t i{0}; i < servers_num; i++) {
-    std::string str_ip_address_type =
-        file["ServerID" + std::to_string(i + 1)]["ipAddressType"];
-    std::string str_ip_address_version =
-        file["ServerID" + std::to_string(i + 1)]["ipAddressVersion"];
-    std::string str_ip_address =
-        file["ServerID" + std::to_string(i + 1)]["ipAddress"];
-    std::uint16_t int_ip_port =
-        file["ServerID" + std::to_string(i + 1)].get<int>("ipPort");
-    std::string str_ip_protocol =
-        file["ServerID" + std::to_string(i + 1)]["ipProtocol"];
-
-    if (str_ip_address_type == "kIpAddress") {
-      server_config.server_address_type = ae::ServerAddressType::kIpAddress;
-      if (str_ip_address_version == "kIpV4") {
-        server_config.server_ip_address_version = ae::IpAddress::Version::kIpV4;
-      }
-      server_config.server_address = str_ip_address;
-      server_config.server_port = int_ip_port;
-      if (str_ip_protocol == "kTcp") {
-        server_config.server_protocol = ae::Protocol::kTcp;
-      }
-    } else if (str_ip_address_type == "kUrlAddress") {
-      server_config.server_address_type = ae::ServerAddressType::kUrlAddress;
-      if (str_ip_address_version == "kIpV4") {
-        server_config.server_ip_address_version = ae::IpAddress::Version::kIpV4;
-      }
-      server_config.server_address = str_ip_address;
-      server_config.server_port = int_ip_port;
-      if (str_ip_protocol == "kTcp") {
-        server_config.server_protocol = ae::Protocol::kTcp;
-      }
-    }
-
-    servers.push_back(server_config);
-    servers_total++;
-  }
-
-  // Servers max assertion
-  if (servers_total > servers_max) {
-    std::cerr << "Total servers must be < " << servers_max << " servers\n";
-    return -2;
-  }
+  ae::registrator::RegistratorConfig registrator_config{ini_file};
 
   /**
    * Construct a main aether application class.
@@ -442,18 +459,17 @@ int AetherRegistrator(const std::string& ini_file) {
             return adapter;
           })
 #  if AE_SUPPORT_REGISTRATION
-          .RegCloud([servers](ae::Ptr<ae::Domain> const& domain,
-                              ae::Aether::ptr const& /* aether */) {
+          .RegCloud([registrator_config](ae::Ptr<ae::Domain> const& domain,
+                                         ae::Aether::ptr const& /* aether */) {
             auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
                 ae::kRegistrationCloud);
-            for (auto s : servers) {
-              /* AE_TELED_DEBUG("Server address type={}",
-                                  s.server_address_type);
+            for (auto s : registrator_config.servers_) {
+              AE_TELED_DEBUG("Server address type={}", s.server_address_type);
               AE_TELED_DEBUG("Server ip address version={}",
                              s.server_ip_address_version);
               AE_TELED_DEBUG("Server address={}", s.server_address);
               AE_TELED_DEBUG("Server port={}", s.server_port);
-              AE_TELED_DEBUG("Server protocol={}", s.server_protocol);*/
+              AE_TELED_DEBUG("Server protocol={}", s.server_protocol);
 
               if (s.server_address_type == ae::ServerAddressType::kIpAddress) {
                 ae::IpAddress ip_adress{};
@@ -493,7 +509,8 @@ int AetherRegistrator(const std::string& ini_file) {
 #endif
   );
 
-  auto registrator_action = ae::registrator::RegistratorAction{aether_app};
+  auto registrator_action =
+      ae::registrator::RegistratorAction{aether_app, registrator_config};
 
   auto success = registrator_action.SubscribeOnResult(
       [&](auto const&) { aether_app->Exit(0); });
