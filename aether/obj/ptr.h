@@ -256,9 +256,6 @@ class Ptr {
   }
 
   void DecrementGraph() {
-    auto* ptr_manager = shared_pointer_.pointer_manager();
-    auto* ptr = shared_pointer_.pointer();
-
     using Dnv = DomainNodeVisitor<PtrVisitorPolicy,
                                   RefCounterVisitor<PtrVisitorPolicy>&>;
 
@@ -266,6 +263,9 @@ class Ptr {
     // iterate through all objects with domain node visitor in save like
     // mode
     if constexpr (PtrVisitorPolicy::HasVisitMethod<T, Dnv>::value) {
+      auto* ptr_manager = shared_pointer_.pointer_manager();
+      auto* ptr = shared_pointer_.pointer();
+
       CycleDetector cycle_detector;
       RefCounterVisitor<PtrVisitorPolicy>::ObjMap obj_map;
       auto [inserted, _] = obj_map.emplace(
