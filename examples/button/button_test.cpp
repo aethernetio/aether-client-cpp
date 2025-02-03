@@ -71,6 +71,8 @@ static Aether::ptr CreateAetherInstrument(Domain& domain) {
   aether->adapter_factories.emplace_back(std::move(adapter));
 
 #  if AE_SUPPORT_REGISTRATION
+  aether->registration_cloud =
+      domain.CreateObj<RegistrationCloud>(kRegistrationCloud);
   // localhost
   aether->registration_cloud->AddServerSettings(IpAddressPortProtocol{
       {IpAddress{IpAddress::Version::kIpV4, {{127, 0, 0, 1}}}, 9010},
