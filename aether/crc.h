@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <string_view>
 
 namespace crc32 {
 struct result_t {
@@ -35,6 +36,7 @@ static const auto default_v = result_t();
 
 template <unsigned LEN>
 constexpr auto from_literal(const char (&_str)[LEN]) -> result_t;
+constexpr auto from_string_view(std::string_view _str) -> result_t;
 template <unsigned LEN>
 constexpr auto checksum_from_literal(const char (&_str)[LEN]) -> std::uint32_t;
 
@@ -107,16 +109,16 @@ constexpr std::uint32_t table[256] = {
 
 template <>
 struct aux<1, 0> {
-  static constexpr auto exec(const char (&)[1], result_t,
-                             result_t) -> result_t {
+  static constexpr auto exec(const char (&)[1], result_t, result_t)
+      -> result_t {
     return result_t(XOR_VALUE);
   }
 };  // Empty string case
 
 template <unsigned LEN, unsigned INDEX>
 struct aux {
-  static constexpr auto exec(const char (&_str)[LEN], result_t _curr,
-                             result_t) -> result_t {
+  static constexpr auto exec(const char (&_str)[LEN], result_t _curr, result_t)
+      -> result_t {
     return aux<LEN, INDEX + 1>::exec(
         // 1. String itself
         _str,
@@ -134,8 +136,8 @@ struct aux {
 
 template <unsigned LEN>
 struct aux<LEN, LEN> {
-  static constexpr auto exec(const char (&)[LEN], result_t,
-                             result_t _prev) -> result_t {
+  static constexpr auto exec(const char (&)[LEN], result_t, result_t _prev)
+      -> result_t {
     return _prev;  // we don't want to include '\0' at the end of literal
                    // strings
   }
@@ -148,6 +150,16 @@ struct aux<LEN, LEN> {
 template <unsigned LEN>
 constexpr auto from_literal(const char (&_str)[LEN]) -> result_t {
   return details::aux<LEN, 0>::exec(_str, result_t(), result_t());
+}
+
+constexpr auto from_string_view(std::string_view _str) -> result_t {
+  auto _curr = result_t{};
+  for (auto const& _char : _str) {
+    _curr.value = (_curr.value >> 8) ^
+                  details::table[static_cast<std::uint8_t>(_curr.value) ^
+                                 static_cast<std::uint8_t>(_char)];
+  }
+  return _curr;
 }
 
 template <unsigned LEN>
@@ -167,8 +179,8 @@ inline auto from_string(char const* _str, result_t _curr) -> result_t {
   return _curr;
 }
 
-inline auto from_buffer(const std::uint8_t* _buff, size_t _cnt,
-                        result_t _curr) -> result_t {
+inline auto from_buffer(const std::uint8_t* _buff, size_t _cnt, result_t _curr)
+    -> result_t {
   if (_buff) {
     for (auto i = 0u; i < _cnt; ++i) {
       _curr.value =
