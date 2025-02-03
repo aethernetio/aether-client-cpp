@@ -40,6 +40,11 @@
 constexpr std::uint8_t clients_max = 4;
 constexpr std::uint8_t servers_max = 4;
 
+std::string uid;
+std::uint8_t clients_num, clients_total{0};
+std::tuple<std::string, std::uint8_t> parent;
+std::vector<std::tuple<std::string, std::uint8_t>> parents;
+
 namespace ae {
 enum class ServerAddressType : std::uint8_t { kIpAddress, kUrlAddress };
 
@@ -133,7 +138,7 @@ class RegistratorAction : public Action<RegistratorAction> {
    * We need a two clients for this test.
    */
   void RegisterClients() {
-#if AE_SUPPORT_REGISTRATION
+  /* #if AE_SUPPORT_REGISTRATION
     {
       AE_TELED_INFO("Client registration");
       // register receiver and sender
@@ -156,6 +161,51 @@ class RegistratorAction : public Action<RegistratorAction> {
       }
       // all required clients already registered
       if (clients_registered_ == 2) {
+        state_ = State::kConfigureReceiver;
+        return;
+      }
+    }*/
+    {
+    AE_TELED_INFO("Client registration");
+    uint16_t clients_cnt{0};
+
+    for (auto p : parents) {
+      std::uint8_t clients_num = std::get<1>(p);
+      clients_cnt += clients_num;
+    }
+
+    for (auto p : parents) {
+      std::string uid_str = std::get<0>(p);
+      std::uint8_t clients_num = std::get<1>(p);
+      for (std::uint8_t i{0}; i < clients_num; i++) {
+#if AE_SUPPORT_REGISTRATION
+        auto uid_arr = ae::MakeArray(uid_str);
+        if (uid_arr.size() != ae::Uid::kSize) {
+          AE_TELED_ERROR("Registration error");
+          state_ = State::kError;
+        }
+        auto uid = ae::Uid{};
+        std::copy(std::begin(uid_arr), std::end(uid_arr),
+        std::begin(uid.value)); 
+        
+        auto reg_action = aether_->RegisterClient(uid);
+
+        registration_subscriptions_.Push(
+            reg_action->SubscribeOnResult([&](auto const&) {
+              ++clients_registered_;
+              if (clients_registered_ == clients_cnt) {
+                state_ = State::kConfigureReceiver;
+              }
+            }),
+            reg_action->SubscribeOnError([&](auto const&) {
+              AE_TELED_ERROR("Registration error");
+              state_ = State::kError;
+            }));        
+        }
+      }
+
+      // all required clients already registered
+      if (clients_registered_ == clients_cnt) {
         state_ = State::kConfigureReceiver;
         return;
       }
@@ -290,22 +340,17 @@ int AetherRegistrator(const std::string& ini_file) {
   std::string wifi_ssid = file["Aether"]["wifiSsid"];
   std::string wifi_pass = file["Aether"]["wifiPass"];
 
-  //AE_TELED_DEBUG("WiFi ssid={}", wifi_ssid);
-  //AE_TELED_DEBUG("WiFi pass={}", wifi_pass);
+  // AE_TELED_DEBUG("WiFi ssid={}", wifi_ssid);
+  // AE_TELED_DEBUG("WiFi pass={}", wifi_pass);
 
   std::string sodium_key = file["Aether"]["sodiumKey"];
   std::string hydrogen_key = file["Aether"]["hydrogenKey"];
 
-  //AE_TELED_DEBUG("Sodium key={}", sodium_key);
-  //AE_TELED_DEBUG("Hydrogen key={}", hydrogen_key);
+  // AE_TELED_DEBUG("Sodium key={}", sodium_key);
+  // AE_TELED_DEBUG("Hydrogen key={}", hydrogen_key);
 
   // Clients configuration
   std::int8_t parents_num = file["Aether"].get<int>("parentsNum");
-
-  std::string uid;
-  std::uint8_t clients_num, clients_total{0};
-  std::tuple<std::string, std::uint8_t> parent;
-  std::vector<std::tuple<std::string, std::int8_t>> parents;
 
   for (std::uint8_t i{0}; i < parents_num; i++) {
     uid = file["ParentID" + std::to_string(i + 1)]["uid"];
@@ -389,7 +434,7 @@ int AetherRegistrator(const std::string& ini_file) {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = domain.CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-                std::string(WIFI_SSID), std::string(WIFI_PASS));
+                std::string(wifi_ssid), std::string(wifi_pass));
 #  else
             auto adapter = domain->CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, aether, aether->poller);
@@ -414,27 +459,27 @@ int AetherRegistrator(const std::string& ini_file) {
                 ae::IpAddress ip_adress{};
                 ae::IpAddressParser ip_adress_parser{};
                 ae::IpAddressPortProtocol settings{
-                          {ae::IpAddress{s.server_ip_address_version,{}},
-                           s.server_port},
-                           s.server_protocol};
+                    {ae::IpAddress{s.server_ip_address_version, {}},
+                     s.server_port},
+                    s.server_protocol};
 
                 ip_adress.version = s.server_ip_address_version;
                 ip_adress_parser.stringToIP(s.server_address, ip_adress);
 
                 if (s.server_ip_address_version ==
-                        ae::IpAddress::Version::kIpV4) {
+                    ae::IpAddress::Version::kIpV4) {
                   for (std::size_t i{0}; i < 4; i++) {
                     settings.ip.value.ipv4_value[i] =
                         ip_adress.value.ipv4_value[i];
-                  }                                
+                  }
                 } else if (s.server_ip_address_version ==
-                               ae::IpAddress::Version::kIpV6) {
+                           ae::IpAddress::Version::kIpV6) {
                   for (std::size_t i{0}; i < 16; i++) {
                     settings.ip.value.ipv6_value[i] =
                         ip_adress.value.ipv6_value[i];
                   }
                 }
-                registration_cloud->AddServerSettings(settings);    
+                registration_cloud->AddServerSettings(settings);
               } else if (s.server_address_type ==
                          ae::ServerAddressType::kUrlAddress) {
                 registration_cloud->AddServerSettings(ae::NameAddress{

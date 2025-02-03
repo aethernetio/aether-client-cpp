@@ -23,11 +23,11 @@ bool IpAddressParser::stringToIP(const std::string& ipString,
 
   if (ipAddr.version == IpAddress::Version::kIpV4) {
 #if AE_SUPPORT_IPV4 == 1
-    result=stringToIPv4(ipString, ipAddr.value.ipv4_value);
+    result = stringToIPv4(ipString, ipAddr.value.ipv4_value);
 #endif  // AE_SUPPORT_IPV4 == 1
   } else if (ipAddr.version == IpAddress::Version::kIpV6) {
 #if AE_SUPPORT_IPV6 == 1
-    result=stringToIPv6(ipString, ipAddr.value.ipv6_value);
+    result = stringToIPv6(ipString, ipAddr.value.ipv6_value);
 #endif  // AE_SUPPORT_IPV6 == 1
   }
 
@@ -36,7 +36,7 @@ bool IpAddressParser::stringToIP(const std::string& ipString,
 
 #if AE_SUPPORT_IPV4 == 1
 bool IpAddressParser::stringToIPv4(const std::string& ipString,
-                                 uint8_t ipAddress[4]) {
+                                   uint8_t ipAddress[4]) {
   std::vector<std::string> octets;
   std::stringstream ss(ipString);
   std::string octet;
@@ -138,11 +138,11 @@ bool IpAddressParser::stringToIPv6(const std::string& ipString,
     // Converting a hexadecimal string to a 2 numbers
     uint16_t value = 0;
     for (char ch : groups[i]) {
-      value =
-          value * 16 + (isdigit(ch) ? (ch - '0') : (tolower(ch) - 'a' + 10));
+      value = static_cast<uint16_t>(
+          value * 16 + (isdigit(ch) ? (ch - '0') : (tolower(ch) - 'a' + 10)));
     }
-    ipAddress[i*2+0] = (value >> 8) & 0xFF;
-    ipAddress[i*2+1] = (value >> 0) & 0xFF;
+    ipAddress[i * 2 + 0] = static_cast<uint8_t>((value >> 8) & 0xFF);
+    ipAddress[i * 2 + 1] = static_cast<uint8_t>((value >> 0) & 0xFF);
   }
 
   return true;
