@@ -17,6 +17,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <cstdint>
 
 #include "aether/aether.h"
 #include "aether/common.h"
@@ -350,7 +351,7 @@ class RegistratorAction : public Action<RegistratorAction> {
    */
   void ConfigureSender() {
     std::uint8_t clients_cnt{0};
-    
+
     AE_TELED_INFO("Sender configuration");
     confirm_count_ = 0;
     assert(aether_->clients().empty());
