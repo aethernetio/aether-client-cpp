@@ -241,36 +241,11 @@ class RegistratorAction : public Action<RegistratorAction> {
    * We need a two clients for this test.
    */
   void RegisterClients() {
-    /* #if AE_SUPPORT_REGISTRATION
-      {
-        AE_TELED_INFO("Client registration");
-        // register receiver and sender
-        clients_registered_ = aether_->clients().size();
-
-        for (auto i = clients_registered_; i < 2; i++) {
-          auto reg_action = aether_->RegisterClient(
-              Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
-          registration_subscriptions_.Push(
-              reg_action->SubscribeOnResult([&](auto const&) {
-                ++clients_registered_;
-                if (clients_registered_ == 2) {
-                  state_ = State::kConfigureReceiver;
-                }
-              }),
-              reg_action->SubscribeOnError([&](auto const&) {
-                AE_TELED_ERROR("Registration error");
-                state_ = State::kError;
-              }));
-        }
-        // all required clients already registered
-        if (clients_registered_ == 2) {
-          state_ = State::kConfigureReceiver;
-          return;
-        }
-      }*/
     {
+      std::uint16_t messages_cnt{0};
+      std::uint8_t clients_cnt{0};
+
       AE_TELED_INFO("Client registration");
-      uint16_t clients_cnt{0};
 
       for (auto p : registrator_config_.parents_) {
         std::uint8_t clients_num = std::get<1>(p);
@@ -296,7 +271,7 @@ class RegistratorAction : public Action<RegistratorAction> {
           registration_subscriptions_.Push(
               reg_action->SubscribeOnResult([&](auto const&) {
                 ++clients_registered_;
-                if (clients_registered_ == clients_cnt) {
+                if (clients_registered_ == clients_num) {
                   state_ = State::kConfigureReceiver;
                 }
               }),
@@ -304,6 +279,8 @@ class RegistratorAction : public Action<RegistratorAction> {
                 AE_TELED_ERROR("Registration error");
                 state_ = State::kError;
               }));
+          auto msg = std::string("Message to client number " + std::to_string(messages_cnt++));
+          messages_.push_back(msg);
         }
       }
 
@@ -329,7 +306,9 @@ class RegistratorAction : public Action<RegistratorAction> {
     AE_TELED_INFO("Receiver configuration");
     receive_count_ = 0;
     assert(!aether_->clients().empty());
-    receiver_ = aether_->clients()[0];
+    
+    for(auto client : aether_->clients()){
+    receiver_ = client;
     auto receiver_connection = receiver_->client_connection();
     receiver_new_stream_subscription_ =
         receiver_connection->new_stream_event().Subscribe(
@@ -358,6 +337,8 @@ class RegistratorAction : public Action<RegistratorAction> {
                             }));
                       });
             });
+    }
+
     state_ = State::kConfigureSender;
   }
 
@@ -368,14 +349,18 @@ class RegistratorAction : public Action<RegistratorAction> {
    * ConfigureReceiver.
    */
   void ConfigureSender() {
+    std::uint8_t clients_cnt{0};
+    
     AE_TELED_INFO("Sender configuration");
     confirm_count_ = 0;
-    assert(aether_->clients().size() > 1);
-    sender_ = aether_->clients()[1];
+    assert(aether_->clients().empty());
+    
+    for(auto client : aether_->clients()){
+    sender_ = client;
     sender_stream_ = MakePtr<P2pSafeStream>(
         *aether_->action_processor, kSafeStreamConfig,
         MakePtr<P2pStream>(*aether_->action_processor, sender_,
-                           receiver_->uid(), StreamId{0}));
+                           receiver_->uid(), StreamId{clients_cnt++}));
     sender_message_subscription_ =
         sender_stream_->in().out_data_event().Subscribe([&](auto const& data) {
           auto str_response = std::string(
@@ -384,6 +369,8 @@ class RegistratorAction : public Action<RegistratorAction> {
                          str_response, confirm_count_);
           confirm_count_++;
         });
+    }
+
     state_ = State::kSendMessages;
   }
 
@@ -404,16 +391,16 @@ class RegistratorAction : public Action<RegistratorAction> {
   }
 
   Aether::ptr aether_;
-  RegistratorConfig registrator_config_;  
-  std::vector<std::string> messages_;
+  RegistratorConfig registrator_config_;
 
+  std::vector<std::string> messages_;
   Client::ptr receiver_;
   Ptr<ByteStream> receiver_stream_;
   Client::ptr sender_;
   Ptr<ByteStream> sender_stream_;
   std::size_t clients_registered_;
-  std::size_t receive_count_;
-  std::size_t confirm_count_;
+  std::size_t receive_count_{0};
+  std::size_t confirm_count_{0};
 
   MultiSubscription registration_subscriptions_;
   Subscription receiver_new_stream_subscription_;
@@ -427,13 +414,17 @@ class RegistratorAction : public Action<RegistratorAction> {
 
 }  // namespace ae::registrator
 
-//**********************************************************************************************************************************
 int AetherRegistrator(const std::string& ini_file);
 
 int AetherRegistrator(const std::string& ini_file) {
   ae::TeleInit::Init();
 
   ae::registrator::RegistratorConfig registrator_config{ini_file};
+  auto res = registrator_config.ParseConfig();
+  if (res < 0) {
+    AE_TELED_ERROR("Configuration failed");
+    return -1;
+  }
 
   /**
    * Construct a main aether application class.
@@ -525,144 +516,4 @@ int AetherRegistrator(const std::string& ini_file) {
   }
 
   return aether_app->ExitCode();
-
-  /*  ae::TeleInit::Init();
-
-    {
-      AE_TELE_ENV();
-      AE_TELE_INFO("Started");
-      ae::Registry::Log();
-    }
-
-    // Reading settings from the ini file.
-    ini::File file = ini::open(ini_file);
-
-    std::string wifi_ssid = file["Aether"]["wifiSsid"];
-    std::string wifi_pass = file["Aether"]["wifiPass"];
-
-    AE_TELED_DEBUG("WiFi ssid={}", wifi_ssid);
-    AE_TELED_DEBUG("WiFi pass={}", wifi_pass);
-
-    std::string sodium_key = file["Aether"]["sodiumKey"];
-    std::string hydrogen_key = file["Aether"]["hydrogenKey"];
-
-    AE_TELED_DEBUG("Sodium key={}", sodium_key);
-    AE_TELED_DEBUG("Hydrogen key={}", hydrogen_key);
-
-    std::int8_t parents_num = file["Aether"].get<int>("parentsNum");
-
-    std::string uid;
-    std::uint8_t clients_num, clients_total{0};
-    std::tuple<std::string, std::uint8_t> parent;
-    std::vector<std::tuple<std::string, std::int8_t>> parents;
-
-    for (std::uint8_t i{0}; i < parents_num; i++) {
-      uid = file["ParentID" + std::to_string(i + 1)]["uid"];
-      clients_num =
-          file["ParentID" + std::to_string(i + 1)].get<int>("clientsNum");
-      parent = make_tuple(uid, clients_num);
-      parents.push_back(parent);
-      clients_total += clients_num;
-    }
-
-    // Clients max assertion
-    if (clients_total > clients_max) {
-      std::cerr << "Total clients must be < " << clients_max << " clients\n";
-      return -1;
-    }
-
-    auto fs = ae::FileSystemHeaderFacility{};
-
-  #ifdef AE_DISTILLATION
-    // create objects in instrument mode
-    {
-      ae::Domain domain{ae::ClockType::now(), fs};
-      fs.remove_all();
-      ae::Aether::ptr aether =
-          ae::CreateAetherInstrument(domain, wifi_ssid, wifi_pass);
-  #  if AE_SIGNATURE == AE_ED25519
-      auto sspk_str = sodium_key;
-      auto sspk_arr = ae::MakeArray(sspk_str);
-      auto sspk = ae::SodiumSignPublicKey{};
-      if (sspk_arr.size() != sspk.key.size()) {
-        std::cerr << "SodiumSignPublicKey size must be " << sspk.key.size()
-                  << " bytes\n";
-        return -2;
-      }
-
-      std::copy(std::begin(sspk_arr), std::end(sspk_arr), std::begin(sspk.key));
-      aether->crypto->signs_pk_[ae::SignatureMethod::kEd25519] = sspk;
-  #  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-      auto hspk_str = hydrogen_key;
-      auto hspk_arr = ae::MakeArray(hspk_str);
-      auto hspk = ae::HydrogenSignPublicKey{};
-      if (hspk_arr.size() != hspk.key.size()) {
-        std::cerr << "HydrogenSignPublicKey size must be " << hspk.key.size()
-                  << " bytes\n";
-        return -2;
-      }
-
-      std::copy(std::begin(hspk_arr), std::end(hspk_arr), std::begin(hspk.key));
-      aether->crypto->signs_pk_[ae::SignatureMethod::kHydroSignature] = hspk;
-  #  endif  // AE_SIGNATURE == AE_ED25519
-      domain.SaveRoot(aether);
-    }
-  #endif  // AE_DISTILLATION
-
-    ae::Domain domain{ae::ClockType::now(), fs};
-    ae::Aether::ptr aether = ae::LoadAether(domain);
-    ae::TeleInit::Init(aether);
-
-    ae::Adapter::ptr
-  adapter{domain.LoadCopy(aether->adapter_factories.front())};
-
-    ae::Client::ptr client;
-
-    // Creating the actual adapter.
-    auto& cloud = aether->registration_cloud;
-    domain.LoadRoot(cloud);
-    cloud->set_adapter(adapter);
-
-    for (auto p : parents) {
-      std::string uid_str = std::get<0>(p);
-      std::uint8_t clients_num = std::get<1>(p);
-      for (std::uint8_t i{0}; i < clients_num; i++) {
-  #if AE_SUPPORT_REGISTRATION
-        auto uid_arr = ae::MakeArray(uid_str);
-        if (uid_arr.size() != ae::Uid::kSize) {
-          std::cerr << "Uid size must be " << ae::Uid::kSize << " bytes\n";
-          return -3;
-        }
-        auto uid = ae::Uid{};
-        std::copy(std::begin(uid_arr), std::end(uid_arr),
-  std::begin(uid.value)); auto registration = aether->RegisterClient(uid);
-
-        bool register_done = false;
-        bool register_failed = false;
-
-        auto reg = registration->SubscribeOnResult([&](auto const& reg) {
-          register_done = true;
-          client = reg.client();
-        });
-        auto reg_failed = registration->SubscribeOnError(
-            [&](auto const&) { register_failed = true; });
-
-        while (!register_done && !register_failed) {
-          auto time = ae::TimePoint::clock::now();
-          auto next_time = domain.Update(time);
-          aether->action_processor->get_trigger().WaitUntil(next_time);
-
-          if (register_failed) {
-            std::cerr << "Registration failed\n";
-            return -4;
-          }
-        }
-  #endif
-      }
-    }
-
-    // save objects state
-    domain.SaveRoot(aether);
-
-    return 0; */
 }
