@@ -72,11 +72,11 @@ class Obj {
   }
 
   Domain* domain_{};
-  TimePoint update_time_{};
+  TimePoint update_time_;
 
  protected:
-  ObjId id_{};
-  ObjFlags flags_{};
+  ObjId id_;
+  ObjFlags flags_;
 };
 
 }  // namespace ae
@@ -87,8 +87,6 @@ class Obj {
 #define AE_OBJECT(DERIVED, BASE, VERSION)                        \
  protected:                                                      \
   friend class ae::Registrar<DERIVED>;                           \
-                                                                 \
-  DERIVED() = default;                                           \
                                                                  \
  public:                                                         \
   static constexpr std::uint32_t kClassId =                      \
