@@ -25,6 +25,9 @@ namespace ae {
 // First version of Friday object
 class Friday0 : public Obj {
   AE_OBJECT(Friday0, Obj, 0)
+
+  Friday0() = default;
+
  public:
   explicit Friday0(Domain* domain) : Obj{domain} {}
 
@@ -37,6 +40,8 @@ class Friday0 : public Obj {
 // add two new field
 class Friday1 : public Obj {
   AE_OBJECT(Friday1, Obj, 1)
+
+  Friday1() = default;
 
  public:
   explicit Friday1(Domain* domain) : Obj{domain} {}
@@ -70,6 +75,8 @@ class Friday1 : public Obj {
 // change one field type and remove another
 class Friday2 : public Obj {
   AE_OBJECT(Friday2, Obj, 2)
+
+  Friday2() = default;
 
  public:
   explicit Friday2(Domain* domain) : Obj{domain} {}
@@ -123,6 +130,10 @@ class Friday2 : public Obj {
 
 class Hoopa : public Obj {
   AE_OBJECT(Hoopa, Obj, 0)
+
+ protected:
+  Hoopa() = default;
+
  public:
   explicit Hoopa(Domain* domain) : Obj{domain} {}
 
@@ -138,6 +149,8 @@ class Hoopa : public Obj {
 // change one field type and remove another
 class Friday3 : public Hoopa {
   AE_OBJECT(Friday3, Hoopa, 3)
+
+  Friday3() = default;
 
  public:
   explicit Friday3(Domain* domain) : Hoopa(domain) {}

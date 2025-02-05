@@ -36,10 +36,14 @@ class GethostByNameDnsResolver;
 class Esp32DnsResolver : public DnsResolver {
   AE_OBJECT(Esp32DnsResolver, DnsResolver, 0)
 
+  Esp32DnsResolver();
+
  public:
 #    ifdef AE_DISTILLATION
   Esp32DnsResolver(ObjPtr<Aether> aether, Domain* domain);
 #    endif
+
+  ~Esp32DnsResolver() override;
 
   template <typename Dnv>
   void Visit(Dnv& dnv) {
@@ -51,7 +55,7 @@ class Esp32DnsResolver : public DnsResolver {
 
  private:
   Obj::ptr aether_;
-  std::shared_ptr<GethostByNameDnsResolver> gethostbyname_dns_resolver_;
+  std::unique_ptr<GethostByNameDnsResolver> gethostbyname_dns_resolver_;
 };
 }  // namespace ae
 

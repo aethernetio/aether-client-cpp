@@ -39,6 +39,8 @@ class Client;
 class ClientConnectionManager : public Obj {
   AE_OBJECT(ClientConnectionManager, Obj, 0)
 
+  ClientConnectionManager() = default;
+
   friend class CachedServerConnectionFactory;
 
  public:

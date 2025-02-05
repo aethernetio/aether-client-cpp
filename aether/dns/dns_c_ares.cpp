@@ -204,6 +204,8 @@ class AresImpl {
   AE_MAY_UNUSED_MEMBER SocketInitializer socket_initializer_;
 };
 
+DnsResolverCares::DnsResolverCares() = default;
+
 #  if defined AE_DISTILLATION
 DnsResolverCares::DnsResolverCares(ObjPtr<Aether> aether, Domain* domain)
     : DnsResolver(domain), aether_{std::move(aether)} {}

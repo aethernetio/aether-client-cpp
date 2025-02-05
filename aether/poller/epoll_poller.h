@@ -28,11 +28,14 @@ namespace ae {
 
 class EpollPoller : public IPoller {
   AE_OBJECT(EpollPoller, IPoller, 0)
+
   class PollWorker;
+
+  EpollPoller();
 
  public:
 #  if defined AE_DISTILLATION
-  EpollPoller(Domain* domain);
+  explicit EpollPoller(Domain* domain);
 #  endif
 
   ~EpollPoller() override;
@@ -48,7 +51,7 @@ class EpollPoller : public IPoller {
  private:
   void InitPollWorker();
 
-  std::shared_ptr<PollWorker> poll_worker_;
+  std::unique_ptr<PollWorker> poll_worker_;
 };
 
 }  // namespace ae

@@ -24,6 +24,8 @@ namespace ae::tele {
 class TeleStatistics : public Obj {
   AE_OBJECT(TeleStatistics, Obj, 0)
 
+  TeleStatistics() = default;
+
  public:
 #ifdef AE_DISTILLATION
   explicit TeleStatistics(Domain* domain);

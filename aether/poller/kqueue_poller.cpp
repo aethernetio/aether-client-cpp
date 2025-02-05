@@ -187,6 +187,8 @@ class KqueuePoller::PollerWorker {
   }
 };
 
+KqueuePoller::KqueuePoller() = default;
+
 #  if defined AE_DISTILLATION
 KqueuePoller::KqueuePoller(Domain* domain) : IPoller(domain) {}
 #  endif

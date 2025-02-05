@@ -123,7 +123,7 @@ class EpollPoller::PollWorker {
       callbacks_.erase(it);
     }
 
-    struct epoll_event epoll_event {};
+    struct epoll_event epoll_event{};
 
     auto r =
         epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, event.descriptor, &epoll_event);
@@ -197,6 +197,8 @@ class EpollPoller::PollWorker {
     }
   }
 };
+
+EpollPoller::EpollPoller() = default;
 
 #  if defined AE_DISTILLATION
 EpollPoller::EpollPoller(Domain* domain) : IPoller(domain) {}

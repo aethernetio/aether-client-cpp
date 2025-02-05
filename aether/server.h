@@ -26,6 +26,8 @@ namespace ae {
 class Server : public Obj {
   AE_OBJECT(Server, Obj, 0)
 
+  Server() = default;
+
  public:
   explicit Server(Domain* domain);
 

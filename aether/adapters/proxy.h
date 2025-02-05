@@ -25,9 +25,11 @@ namespace ae {
 class Proxy : public Obj {
   AE_OBJECT(Proxy, Obj, 0)
 
+  Proxy() = default;
+
  public:
 #ifdef AE_DISTILLATION
-  Proxy(Domain* domain) : Obj{domain} {}
+  explicit Proxy(Domain* domain) : Obj{domain} {}
 #endif  // AE_DISTILLATION
 
 #if AE_SUPPORT_PROXY == 1
@@ -39,9 +41,9 @@ class Proxy : public Obj {
   }
 
   IpAddressPortProtocol end_point_;
-  enum class Mode : std::uint8_t{
-      kExclusive,  // Adapter works only through proxies.
-      kOptional,   // Adapter uses no proxies if possible.
+  enum class Mode : std::uint8_t {
+    kExclusive,  // Adapter works only through proxies.
+    kOptional,   // Adapter uses no proxies if possible.
   };
   // [[maybe_unused]] Mode mode_;
 #else

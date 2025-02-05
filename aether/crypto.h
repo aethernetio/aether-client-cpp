@@ -28,6 +28,8 @@ namespace ae {
 class Crypto : public Obj {
   AE_OBJECT(Crypto, Obj, 0)
 
+  Crypto() = default;
+
  public:
 #ifdef AE_DISTILLATION
   Crypto(Domain* domain) : Obj{domain} {}

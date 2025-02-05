@@ -25,6 +25,8 @@ namespace ae {
 class Foo : public Obj {
   AE_OBJECT(Foo, Obj, 0)
 
+  Foo() = default;
+
  public:
   explicit Foo(Domain* domain) : Obj{domain} { bar = domain->CreateObj<Bar>(); }
 

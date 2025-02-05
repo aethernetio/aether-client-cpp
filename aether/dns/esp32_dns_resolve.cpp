@@ -114,14 +114,18 @@ class GethostByNameDnsResolver {
   MultiSubscription multi_subscription_;
 };
 
+Esp32DnsResolver::Esp32DnsResolver() = default;
+
 #  ifdef AE_DISTILLATION
 Esp32DnsResolver::Esp32DnsResolver(ObjPtr<Aether> aether, Domain* domain)
     : DnsResolver{domain}, aether_{std::move(aether)} {}
 #  endif
 
+Esp32DnsResolver::~Esp32DnsResolver() = default;
+
 ResolveAction& Esp32DnsResolver::Resolve(NameAddress const& name_address) {
   if (!gethostbyname_dns_resolver_) {
-    gethostbyname_dns_resolver_ = std::make_shared<GethostByNameDnsResolver>(
+    gethostbyname_dns_resolver_ = std::make_unique<GethostByNameDnsResolver>(
         static_cast<Aether*>(aether_.get()));
   }
   return gethostbyname_dns_resolver_->Query(name_address);

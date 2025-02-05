@@ -27,6 +27,8 @@ namespace ae {
 class RegistrationCloud : public Cloud {
   AE_OBJECT(RegistrationCloud, Cloud, 0)
 
+  RegistrationCloud() = default;
+
  public:
 #  ifdef AE_DISTILLATION
   explicit RegistrationCloud(Domain* domain);

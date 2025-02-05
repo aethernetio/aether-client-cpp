@@ -28,6 +28,8 @@ namespace ae {
 class Collector : public ae::Obj {
   AE_OBJECT(Collector, Obj, 0)
 
+  Collector() = default;
+
  public:
   explicit Collector(Domain* domain) : Obj(domain) {
     for (auto i = 0; i < SIZE; i++) {

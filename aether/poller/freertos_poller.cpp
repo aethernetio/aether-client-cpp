@@ -162,6 +162,8 @@ void vTaskFunction(void *pvParameters) {
   poller->Loop();
 }
 
+FreertosPoller::FreertosPoller() = default;
+
 #  if defined AE_DISTILLATION
 FreertosPoller::FreertosPoller(Domain *domain) : IPoller(domain) {}
 #  endif
