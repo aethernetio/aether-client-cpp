@@ -108,7 +108,9 @@ class RegistratorConfig {
       AE_TELED_ERROR("Total clients must be < {} clients", clients_max);
       return -1;
     }
-
+    
+    clients_total_=clients_total;
+    
     // Servers configuration
     std::int8_t servers_num = file["Aether"].get<int>("serversNum");
 
@@ -165,6 +167,7 @@ class RegistratorConfig {
   }
   std::vector<std::tuple<std::string, std::uint8_t>> parents_;
   std::vector<ae::ServerConfig> servers_;
+  std::uint8_t clients_total_{0};
 
  private:
   const std::string ini_file_;
@@ -243,16 +246,10 @@ class RegistratorAction : public Action<RegistratorAction> {
    */
   void RegisterClients() {
     {
-      std::uint16_t messages_cnt{0};
-      std::uint8_t clients_cnt{0};
+      std::uint16_t messages_cnt{0};      
 
       AE_TELED_INFO("Client registration");
-
-      for (auto p : registrator_config_.parents_) {
-        std::uint8_t clients_num = std::get<1>(p);
-        clients_cnt += clients_num;
-      }
-
+      
       for (auto p : registrator_config_.parents_) {
         std::string uid_str = std::get<0>(p);
         std::uint8_t clients_num = std::get<1>(p);
@@ -272,7 +269,7 @@ class RegistratorAction : public Action<RegistratorAction> {
           registration_subscriptions_.Push(
               reg_action->SubscribeOnResult([&](auto const&) {
                 ++clients_registered_;
-                if (clients_registered_ == clients_num) {
+                if (clients_registered_ == registrator_config_.clients_total_) {
                   state_ = State::kConfigureReceiver;
                 }
               }),
@@ -280,15 +277,10 @@ class RegistratorAction : public Action<RegistratorAction> {
                 AE_TELED_ERROR("Registration error");
                 state_ = State::kError;
               }));
+
           auto msg = std::string("Message to client number " + std::to_string(messages_cnt++));
           messages_.push_back(msg);
         }
-      }
-
-      // all required clients already registered
-      if (clients_registered_ == clients_cnt) {
-        state_ = State::kConfigureReceiver;
-        return;
       }
     }
 #else
@@ -354,22 +346,25 @@ class RegistratorAction : public Action<RegistratorAction> {
 
     AE_TELED_INFO("Sender configuration");
     confirm_count_ = 0;
-    assert(aether_->clients().empty());
+    assert(aether_->clients().size() == registrator_config_.clients_total_);
     
-    for(auto client : aether_->clients()){
+    for (auto client : aether_->clients()) {
     sender_ = client;
     sender_stream_ = MakePtr<P2pSafeStream>(
         *aether_->action_processor, kSafeStreamConfig,
         MakePtr<P2pStream>(*aether_->action_processor, sender_,
-                           receiver_->uid(), StreamId{clients_cnt++}));
+                           sender_->uid(), StreamId{clients_cnt}));
+    sender_streams_.push_back(sender_stream_);
     sender_message_subscription_ =
-        sender_stream_->in().out_data_event().Subscribe([&](auto const& data) {
+        sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+            [&](auto const& data) {
           auto str_response = std::string(
               reinterpret_cast<const char*>(data.data()), data.size());
           AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
                          str_response, confirm_count_);
           confirm_count_++;
         });
+    clients_cnt++;
     }
 
     state_ = State::kSendMessages;
@@ -379,15 +374,21 @@ class RegistratorAction : public Action<RegistratorAction> {
    * \brief Send all messages at once.
    */
   void SendMessages(TimePoint current_time) {
+    std::uint8_t messages_cnt{0};
+
     AE_TELED_INFO("Send messages");
-    for (auto const& msg : messages_) {
-      auto send_action = sender_stream_->in().Write(
+
+    for (auto sender_stream : sender_streams_) {
+      auto msg = messages_[messages_cnt++];
+      AE_TELED_DEBUG("Sending message {}", msg);
+      auto send_action = sender_stream->in().Write(
           DataBuffer{std::begin(msg), std::end(msg)}, current_time);
       send_subscriptions_.Push(send_action->SubscribeOnError([&](auto const&) {
         AE_TELED_ERROR("Send message failed");
         state_ = State::kError;
       }));
     }
+
     state_ = State::kWaitDone;
   }
 
@@ -395,11 +396,13 @@ class RegistratorAction : public Action<RegistratorAction> {
   RegistratorConfig registrator_config_;
 
   std::vector<std::string> messages_;
+  std::vector<ae::Ptr<ae::P2pSafeStream>> sender_streams_{};
+
   Client::ptr receiver_;
   Ptr<ByteStream> receiver_stream_;
   Client::ptr sender_;
   Ptr<ByteStream> sender_stream_;
-  std::size_t clients_registered_;
+  std::size_t clients_registered_{0};
   std::size_t receive_count_{0};
   std::size_t confirm_count_{0};
 
