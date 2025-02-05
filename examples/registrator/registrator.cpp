@@ -108,9 +108,9 @@ class RegistratorConfig {
       AE_TELED_ERROR("Total clients must be < {} clients", clients_max);
       return -1;
     }
-    
-    clients_total_=clients_total;
-    
+
+    clients_total_ = clients_total;
+
     // Servers configuration
     std::int8_t servers_num = file["Aether"].get<int>("serversNum");
 
@@ -246,10 +246,10 @@ class RegistratorAction : public Action<RegistratorAction> {
    */
   void RegisterClients() {
     {
-      std::uint16_t messages_cnt{0};      
+      std::uint16_t messages_cnt{0};
 
       AE_TELED_INFO("Client registration");
-      
+
       for (auto p : registrator_config_.parents_) {
         std::string uid_str = std::get<0>(p);
         std::uint8_t clients_num = std::get<1>(p);
@@ -278,7 +278,8 @@ class RegistratorAction : public Action<RegistratorAction> {
                 state_ = State::kError;
               }));
 
-          auto msg = std::string("Message to client number " + std::to_string(messages_cnt++));
+          auto msg = std::string("Message to client number " +
+                                 std::to_string(messages_cnt++));
           messages_.push_back(msg);
         }
       }
@@ -299,37 +300,39 @@ class RegistratorAction : public Action<RegistratorAction> {
     AE_TELED_INFO("Receiver configuration");
     receive_count_ = 0;
     assert(!aether_->clients().empty());
-    
-    for(auto client : aether_->clients()){
-    receiver_ = client;
-    auto receiver_connection = receiver_->client_connection();
-    receiver_new_stream_subscription_ =
-        receiver_connection->new_stream_event().Subscribe(
-            [&](auto uid, auto stream_id, auto raw_stream) {
-              receiver_stream_ = MakePtr<P2pSafeStream>(
-                  *aether_->action_processor, kSafeStreamConfig,
-                  MakePtr<P2pStream>(*aether_->action_processor, receiver_, uid,
-                                     stream_id, std::move(raw_stream)));
-              receiver_message_subscription_ =
-                  receiver_stream_->in().out_data_event().Subscribe(
-                      [&](auto const& data) {
-                        auto str_msg = std::string(
-                            reinterpret_cast<const char*>(data.data()),
-                            data.size());
-                        AE_TELED_DEBUG("Received a message [{}]", str_msg);
-                        receive_count_++;
-                        auto confirm_msg = std::string{"confirmed "} + str_msg;
-                        auto response_action = receiver_stream_->in().Write(
-                            {confirm_msg.data(),
-                             confirm_msg.data() + confirm_msg.size()},
-                            ae::Now());
-                        response_subscriptions_.Push(
-                            response_action->SubscribeOnError([&](auto const&) {
-                              AE_TELED_ERROR("Send response failed");
-                              state_ = State::kError;
-                            }));
-                      });
-            });
+
+    for (auto client : aether_->clients()) {
+      receiver_ = client;
+      auto receiver_connection = receiver_->client_connection();
+      receiver_new_stream_subscription_ =
+          receiver_connection->new_stream_event().Subscribe(
+              [&](auto uid, auto stream_id, auto raw_stream) {
+                receiver_stream_ = MakePtr<P2pSafeStream>(
+                    *aether_->action_processor, kSafeStreamConfig,
+                    MakePtr<P2pStream>(*aether_->action_processor, receiver_,
+                                       uid, stream_id, std::move(raw_stream)));
+                receiver_message_subscription_ =
+                    receiver_stream_->in().out_data_event().Subscribe(
+                        [&](auto const& data) {
+                          auto str_msg = std::string(
+                              reinterpret_cast<const char*>(data.data()),
+                              data.size());
+                          AE_TELED_DEBUG("Received a message [{}]", str_msg);
+                          receive_count_++;
+                          auto confirm_msg =
+                              std::string{"confirmed "} + str_msg;
+                          auto response_action = receiver_stream_->in().Write(
+                              {confirm_msg.data(),
+                               confirm_msg.data() + confirm_msg.size()},
+                              ae::Now());
+                          response_subscriptions_.Push(
+                              response_action->SubscribeOnError(
+                                  [&](auto const&) {
+                                    AE_TELED_ERROR("Send response failed");
+                                    state_ = State::kError;
+                                  }));
+                        });
+              });
     }
 
     state_ = State::kConfigureSender;
@@ -347,24 +350,24 @@ class RegistratorAction : public Action<RegistratorAction> {
     AE_TELED_INFO("Sender configuration");
     confirm_count_ = 0;
     assert(aether_->clients().size() == registrator_config_.clients_total_);
-    
+
     for (auto client : aether_->clients()) {
-    sender_ = client;
-    sender_stream_ = MakePtr<P2pSafeStream>(
-        *aether_->action_processor, kSafeStreamConfig,
-        MakePtr<P2pStream>(*aether_->action_processor, sender_,
-                           sender_->uid(), StreamId{clients_cnt}));
-    sender_streams_.push_back(sender_stream_);
-    sender_message_subscription_ =
-        sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
-            [&](auto const& data) {
-          auto str_response = std::string(
-              reinterpret_cast<const char*>(data.data()), data.size());
-          AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
-                         str_response, confirm_count_);
-          confirm_count_++;
-        });
-    clients_cnt++;
+      sender_ = client;
+      sender_stream_ = MakePtr<P2pSafeStream>(
+          *aether_->action_processor, kSafeStreamConfig,
+          MakePtr<P2pStream>(*aether_->action_processor, sender_,
+                             sender_->uid(), StreamId{clients_cnt}));
+      sender_streams_.push_back(sender_stream_);
+      sender_message_subscriptions_.Push(
+          sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+              [&](auto const& data) {
+                auto str_response = std::string(
+                    reinterpret_cast<const char*>(data.data()), data.size());
+                AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
+                               str_response, confirm_count_);
+                confirm_count_++;
+              }));
+      clients_cnt++;
     }
 
     state_ = State::kSendMessages;
@@ -410,7 +413,7 @@ class RegistratorAction : public Action<RegistratorAction> {
   Subscription receiver_new_stream_subscription_;
   Subscription receiver_message_subscription_;
   MultiSubscription response_subscriptions_;
-  Subscription sender_message_subscription_;
+  MultiSubscription sender_message_subscriptions_;
   MultiSubscription send_subscriptions_;
   StateMachine<State> state_;
   Subscription state_changed_;
