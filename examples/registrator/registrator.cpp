@@ -304,14 +304,14 @@ class RegistratorAction : public Action<RegistratorAction> {
     for (auto client : aether_->clients()) {
       receiver_ = client;
       auto receiver_connection = receiver_->client_connection();
-      receiver_new_stream_subscription_ =
+      receiver_new_stream_subscriptions_.Push(
           receiver_connection->new_stream_event().Subscribe(
               [&](auto uid, auto stream_id, auto raw_stream) {
                 receiver_stream_ = MakePtr<P2pSafeStream>(
                     *aether_->action_processor, kSafeStreamConfig,
                     MakePtr<P2pStream>(*aether_->action_processor, receiver_,
                                        uid, stream_id, std::move(raw_stream)));
-                receiver_message_subscription_ =
+                receiver_message_subscriptions_.Push(
                     receiver_stream_->in().out_data_event().Subscribe(
                         [&](auto const& data) {
                           auto str_msg = std::string(
@@ -331,8 +331,8 @@ class RegistratorAction : public Action<RegistratorAction> {
                                     AE_TELED_ERROR("Send response failed");
                                     state_ = State::kError;
                                   }));
-                        });
-              });
+                        }));
+              }));
     }
 
     state_ = State::kConfigureSender;
@@ -410,8 +410,8 @@ class RegistratorAction : public Action<RegistratorAction> {
   std::size_t confirm_count_{0};
 
   MultiSubscription registration_subscriptions_;
-  Subscription receiver_new_stream_subscription_;
-  Subscription receiver_message_subscription_;
+  MultiSubscription receiver_new_stream_subscriptions_;
+  MultiSubscription receiver_message_subscriptions_;
   MultiSubscription response_subscriptions_;
   MultiSubscription sender_message_subscriptions_;
   MultiSubscription send_subscriptions_;
