@@ -28,6 +28,8 @@ namespace ae {
 
 class EpollPoller : public IPoller {
   AE_OBJECT(EpollPoller, IPoller, 0)
+
+  EpollPoller() = default;
   class PollWorker;
 
  public:

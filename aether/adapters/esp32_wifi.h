@@ -44,6 +44,8 @@ namespace ae {
 class Esp32WifiAdapter : public ParentWifiAdapter {
   AE_OBJECT(Esp32WifiAdapter, ParentWifiAdapter, 0)
 
+  Esp32WifiAdapter() = default;
+
   class CreateTransportAction : public ae::CreateTransportAction {
    public:
     // immediately create the transport

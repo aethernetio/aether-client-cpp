@@ -37,6 +37,8 @@ class AresImpl;
 class DnsResolverCares : public DnsResolver {
   AE_OBJECT(DnsResolverCares, DnsResolver, 0)
 
+  DnsResolverCares() = default;
+
  public:
 #    if defined AE_DISTILLATION
   DnsResolverCares(ObjPtr<Aether> aether, Domain* domain);

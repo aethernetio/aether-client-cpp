@@ -58,6 +58,8 @@ class Statistics : public Obj {
   ae::Duration ConnectionDuration(float percentile) const;
 
   AE_OBJECT(Statistics, Obj, 0)
+
+  Statistics() = default;
 #ifdef AE_DISTILLATION
   Statistics(Domain* domain);
 #endif  // AE_DISTILLATION

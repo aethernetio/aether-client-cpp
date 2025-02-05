@@ -36,6 +36,8 @@ class GethostByNameDnsResolver;
 class Esp32DnsResolver : public DnsResolver {
   AE_OBJECT(Esp32DnsResolver, DnsResolver, 0)
 
+  Esp32DnsResolver() = default;
+
  public:
 #    ifdef AE_DISTILLATION
   Esp32DnsResolver(ObjPtr<Aether> aether, Domain* domain);

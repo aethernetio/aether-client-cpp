@@ -42,6 +42,8 @@ struct WinPollerOverlapped {
 class WinPoller : public IPoller {
   AE_OBJECT(WinPoller, IPoller, 0)
 
+  WinPoller() = default;
+
  private:
   class IoCPPoller;
 

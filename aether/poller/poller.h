@@ -24,6 +24,9 @@ namespace ae {
 class IPoller : public Obj {
   AE_OBJECT(IPoller, Obj, 0)
 
+ protected:
+  IPoller() = default;
+
  public:
   using Callback = std::function<void(PollerEvent event)>;
 #if defined AE_DISTILLATION

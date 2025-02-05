@@ -28,6 +28,8 @@ namespace ae {
 class KqueuePoller : public IPoller {
   AE_OBJECT(KqueuePoller, IPoller, 0)
 
+  KqueuePoller() = default;
+
   class PollerWorker;
 
  public:
