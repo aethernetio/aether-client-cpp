@@ -42,15 +42,15 @@ struct WinPollerOverlapped {
 class WinPoller : public IPoller {
   AE_OBJECT(WinPoller, IPoller, 0)
 
-  WinPoller() = default;
-
- private:
   class IoCPPoller;
+
+  WinPoller();
 
  public:
 #  if defined AE_DISTILLATION
-  WinPoller(Domain* domain);
+  explicit WinPoller(Domain* domain);
 #  endif
+  ~WinPoller() override;
 
   template <typename Dnv>
   void Visit(Dnv& dnv) {
@@ -61,7 +61,7 @@ class WinPoller : public IPoller {
   void Remove(PollerEvent event) override;
 
  private:
-  std::shared_ptr<IoCPPoller> iocp_poller_;
+  std::unique_ptr<IoCPPoller> iocp_poller_;
 };
 }  // namespace ae
 #endif

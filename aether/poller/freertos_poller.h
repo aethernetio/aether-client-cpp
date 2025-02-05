@@ -29,15 +29,15 @@ namespace ae {
 class FreertosPoller : public IPoller {
   AE_OBJECT(FreertosPoller, IPoller, 0)
 
-  FreertosPoller() = default;
-
   static constexpr int POLLING_TIMEOUT = -1;
   static constexpr int TASK_DELAY = 1;
+
+  FreertosPoller();
 
  public:
   class PollWorker;
 #  if defined AE_DISTILLATION
-  FreertosPoller(Domain* domain);
+  explicit FreertosPoller(Domain* domain);
 #  endif
 
   ~FreertosPoller() override;
@@ -53,7 +53,7 @@ class FreertosPoller : public IPoller {
  private:
   void InitPollWorker();
 
-  std::shared_ptr<PollWorker> poll_worker_;
+  std::unique_ptr<PollWorker> poll_worker_;
 };
 
 }  // namespace ae

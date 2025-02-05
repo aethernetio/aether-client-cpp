@@ -28,9 +28,9 @@ namespace ae {
 class KqueuePoller : public IPoller {
   AE_OBJECT(KqueuePoller, IPoller, 0)
 
-  KqueuePoller() = default;
-
   class PollerWorker;
+
+  KqueuePoller();
 
  public:
 #  if defined AE_DISTILLATION
@@ -49,7 +49,7 @@ class KqueuePoller : public IPoller {
  private:
   void InitPollWorker();
 
-  std::shared_ptr<PollerWorker> poller_worker_;
+  std::unique_ptr<PollerWorker> poller_worker_;
 };
 }  // namespace ae
 
