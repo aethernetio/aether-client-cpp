@@ -35,9 +35,9 @@
 #include "aether/crc.h"
 #include "aether/obj/obj_id.h"
 #include "aether/obj/obj_ptr.h"
-#include "aether/obj/registry.h"
 #include "aether/obj/domain.h"
-#include "aether/obj/type_index.h"
+#include "aether/obj/registry.h"
+#include "aether/obj/registrar.h"
 
 namespace ae {
 /**
@@ -50,13 +50,19 @@ class Obj {
   using CurrentVersion = Version<0>;
   using ptr = ObjPtr<Obj>;
 
- public:
+  static constexpr std::uint32_t kClassId = crc32::from_literal("Obj").value;
+  static constexpr std::uint32_t kBaseClassId =
+      crc32::from_literal("Obj").value;
+
+  static constexpr std::uint32_t kVersion = 0;
+  static constexpr CurrentVersion kCurrentVersion{};
+
+  Obj();
   explicit Obj(Domain* domain);
-  Obj() = default;
   virtual ~Obj();
 
   virtual std::uint32_t GetClassId() const;
-  virtual void Update(TimePoint p);
+  virtual void Update(TimePoint current_time);
 
   ObjId GetId() const;
 
@@ -64,13 +70,6 @@ class Obj {
   void Visit(Dnv& dnv) {
     dnv(update_time_);
   }
-
-  static constexpr std::uint32_t kClassId = crc32::from_literal("Obj").value;
-  static constexpr std::uint32_t kBaseClassId =
-      crc32::from_literal("Obj").value;
-
-  static constexpr std::uint32_t kVersion = 0;
-  static constexpr CurrentVersion kCurrentVersion{};
 
   Domain* domain_{};
   TimePoint update_time_{};
@@ -87,7 +86,8 @@ class Obj {
  */
 #define AE_OBJECT(DERIVED, BASE, VERSION)                        \
  protected:                                                      \
-  friend struct ae::Registrar<DERIVED>;                          \
+  friend class ae::Registrar<DERIVED>;                           \
+                                                                 \
   DERIVED() = default;                                           \
                                                                  \
  public:                                                         \
@@ -109,6 +109,6 @@ class Obj {
   std::uint32_t GetClassId() const override { return kClassId; } \
                                                                  \
  private:                                                        \
-  /*add rest class's staff after*/
+  /* add rest class's staff after */
 
 #endif  // AETHER_OBJ_OBJ_H_

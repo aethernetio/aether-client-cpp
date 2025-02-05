@@ -356,38 +356,6 @@ void Domain::SaveVersion(Version<V> version, T const& obj) {
   facility_.Store(obj.GetId(), T::kClassId, Version<V>::value, output_data);
 }
 
-template <class T>
-struct Registrar {
-  Registrar(std::uint32_t cls_id, std::uint32_t base_id) {
-    Registry::RegisterClass(cls_id, base_id,
-                            {
-                                // create
-                                Delegate(MethodPtr<&Create>{}),
-                                // load
-                                Delegate(MethodPtr<&Load>{}),
-                                // save
-                                Delegate(MethodPtr<&Save>{})
-#ifdef DEBUG
-                                    ,
-                                std::string{GetTypeName<T>()},
-                                cls_id,
-                                base_id,
-#endif  // DEBUG
-                            });
-  }
-
-  static ObjPtr<Obj> Create() { return ObjPtr<T>(new T()); }
-  static ObjPtr<Obj> Load(Domain* domain, ObjPtr<Obj> obj) {
-    auto self_ptr = ObjPtr<T>{std::move(obj)};
-    domain->Load(*self_ptr.get());
-    return self_ptr;
-  }
-  static void Save(Domain* domain, ObjPtr<Obj> const& obj) {
-    auto self_ptr = static_cast<T*>(obj.get());
-    domain->Save(*self_ptr);
-  }
-};
-
 template <typename T, typename Ib>
 imstream<DomainBufferReader<Ib>>& operator>>(
     imstream<DomainBufferReader<Ib>>& is, ObjPtr<T>& ptr) {
