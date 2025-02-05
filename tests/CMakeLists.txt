@@ -48,5 +48,6 @@ add_subdirectory(test-actions)
 add_subdirectory(test-events)
 add_subdirectory(test-transport)
 add_subdirectory(test-stream)
+add_subdirectory(test-ptr)
 
 add_subdirectory(third_party_tests)

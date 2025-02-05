@@ -21,7 +21,7 @@
 namespace ae {
 Subscription::Subscription() = default;
 
-Subscription::Subscription(std::shared_ptr<SubscriptionManage> subscription)
+Subscription::Subscription(RcPtr<SubscriptionManage> subscription)
     : subscription_{std::move(subscription)} {}
 
 Subscription::Subscription(Subscription&& other) noexcept
@@ -39,7 +39,7 @@ Subscription::operator bool() const {
   return subscription_ && subscription_->alive;
 }
 
-void Subscription::Reset() { subscription_.reset(); }
+void Subscription::Reset() { subscription_.Reset(); }
 
 Subscription Subscription::Once() && {
   assert(subscription_);

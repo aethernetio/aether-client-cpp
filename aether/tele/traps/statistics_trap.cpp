@@ -35,13 +35,13 @@ template class ProxyStatistics<LogStore>;
 template class ProxyStatistics<MetricsStore>;
 
 template <typename T>
-ProxyStatistics<T>::ProxyStatistics(std::shared_ptr<Statistics> statistics,
+ProxyStatistics<T>::ProxyStatistics(RcPtr<Statistics> statistics,
                                     T& data) noexcept
     : statistics_{std::move(statistics)}, data_{&data}, size_{data.Size()} {}
 
 template <typename T>
 ProxyStatistics<T>::ProxyStatistics(ProxyStatistics&& other) noexcept
-    : statistics_(other.statistics_), data_{other.data_}, size_(other.size_) {
+    : statistics_{other.statistics_}, data_{other.data_}, size_(other.size_) {
   // null means moved
   other.data_ = nullptr;
 }
@@ -72,7 +72,7 @@ MetricsStore& Statistics::metrics() { return metrics_; }
 void Statistics::UpdateSize(LogStore const& logs, std::size_t delta_size) {
   auto sum = std::size_t{};
   // get last delta_size elements and calculate size
-  auto& data = logs.logs;
+  auto const& data = logs.logs;
   auto it = data.rbegin();
   for (std::size_t i = 0; i < delta_size; ++i) {
     // this should never fail
@@ -106,11 +106,10 @@ void Statistics::Append(Statistics const& other) {
   }
 }
 
-StatisticsStore::StatisticsStore()
-    : current_{std::make_unique<Statistics>()} {};
+StatisticsStore::StatisticsStore() : current_{MakeRcPtr<Statistics>()} {};
 StatisticsStore::~StatisticsStore() = default;
 
-std::shared_ptr<Statistics> StatisticsStore::Get() {
+RcPtr<Statistics> StatisticsStore::Get() {
   if (IsCurrentFull()) {
     Rotate();
   }
@@ -142,9 +141,9 @@ bool StatisticsStore::IsCurrentFull() const {
 }
 
 void StatisticsStore::Rotate() {
-  prev_.reset();
+  prev_.Reset();
   prev_ = std::move(current_);
-  current_ = std::make_unique<Statistics>();
+  current_ = MakeRcPtr<Statistics>();
 }
 
 StatisticsTrap::LogStream::LogStream(ProxyStatistics<LogStore>&& ls,
