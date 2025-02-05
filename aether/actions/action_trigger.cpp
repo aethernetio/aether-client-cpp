@@ -19,44 +19,46 @@
 #include <mutex>
 
 namespace ae {
-ActionTrigger::ActionTrigger() : sync_object_{std::make_shared<SyncObject>()} {}
+ActionTrigger::ActionTrigger() : sync_object_{MakeRcPtr<SyncObject>()} {}
 
 void ActionTrigger::Wait() {
   bool res = true;
-  sync_object_->triggered_.compare_exchange_strong(res, false);
+  sync_object_->triggered.compare_exchange_strong(res, false);
   if (res) {
     return;
   }
-  std::unique_lock<std::mutex> lock(sync_object_->mutex_);
-  sync_object_->condition_.wait(lock, [&]() {
-    sync_object_->triggered_.compare_exchange_strong(res, false);
+  std::unique_lock<std::mutex> lock(sync_object_->mutex);
+  sync_object_->condition.wait(lock, [&]() {
+    sync_object_->triggered.compare_exchange_strong(res, false);
     return res;
   });
-  sync_object_->triggered_ = false;
+  sync_object_->triggered = false;
 }
 
 bool ActionTrigger::WaitUntil(TimePoint timeout) {
   bool res = true;
-  sync_object_->triggered_.compare_exchange_strong(res, false);
+  sync_object_->triggered.compare_exchange_strong(res, false);
   if (res) {
     return true;
   }
-  std::unique_lock<std::mutex> lock(sync_object_->mutex_);
-  auto result = sync_object_->condition_.wait_until(lock, timeout, [&]() {
-    sync_object_->triggered_.compare_exchange_strong(res, false);
+  std::unique_lock<std::mutex> lock(sync_object_->mutex);
+  auto result = sync_object_->condition.wait_until(lock, timeout, [&]() {
+    sync_object_->triggered.compare_exchange_strong(res, false);
     return res;
   });
-  sync_object_->triggered_ = false;
+  sync_object_->triggered = false;
   return result;
 }
 
 void ActionTrigger::Trigger() {
-  std::lock_guard lock(sync_object_->mutex_);
-  sync_object_->triggered_ = true;
-  sync_object_->condition_.notify_all();
+  std::lock_guard lock(sync_object_->mutex);
+  sync_object_->triggered = true;
+  sync_object_->condition.notify_all();
 }
 
 void Merge(ActionTrigger& left, ActionTrigger& right) {
+  left.sync_object_.Reset();
+  // make it the same object
   left.sync_object_ = right.sync_object_;
 }
 }  // namespace ae

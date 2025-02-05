@@ -18,12 +18,12 @@
 #define AETHER_EVENTS_EVENTS_H_
 
 #include <vector>
-#include <memory>
 #include <utility>
 #include <cassert>
 #include <algorithm>
 #include <type_traits>
 
+#include "aether/ptr/rc_ptr.h"
 #include "aether/events/event_handler.h"
 #include "aether/events/event_subscription.h"
 
@@ -50,7 +50,7 @@ class Event<void(TArgs...)> {
     }
 
     // store self to prevent removing while emit
-    void Emit(std::shared_ptr<EventEmitter> self_ptr, TArgs... args) {
+    void Emit(RcPtr<EventEmitter> self_ptr, TArgs... args) {
       // TODO: find a better way to invoke all handlers
       /*
        * invoke_list is using to prevent iterator invalidation while new
@@ -72,7 +72,7 @@ class Event<void(TArgs...)> {
                       std::end(handlers_));
 
       // just to be used
-      self_ptr.reset();
+      self_ptr.Reset();
     }
 
     void Add(EventHandlerSubscription<CallbackSignature>&& handler) {
@@ -91,7 +91,7 @@ class Event<void(TArgs...)> {
   static constexpr bool kIsInvocable =
       std::is_invocable_r_v<void, std::decay_t<TCallback>, TArgs...>;
 
-  Event() : emitter_{std::make_shared<EventEmitter>()} {}
+  Event() : emitter_{MakeRcPtr<EventEmitter>()} {}
   ~Event() = default;
 
   Event(Event const& other) = delete;
@@ -118,7 +118,7 @@ class Event<void(TArgs...)> {
   }
 
  private:
-  std::shared_ptr<EventEmitter> emitter_;
+  RcPtr<EventEmitter> emitter_;
 };
 
 /**
@@ -143,7 +143,7 @@ class EventSubscriber {
                   "TCallable must have same signature");
 
     auto subscription =
-        std::make_shared<SubscriptionManage>(SubscriptionManage{true, false});
+        MakeRcPtr<SubscriptionManage>(SubscriptionManage{true, false});
 
     event_->Add(EventHandlerSubscription<TSignature>{
         subscription, EventHandler<TSignature>{std::function<TSignature>{
@@ -158,7 +158,7 @@ class EventSubscriber {
                        typename FunctionSignature<decltype(Method)>::Signature>,
         "Method must have the same signature");
     auto subscription =
-        std::make_shared<SubscriptionManage>(SubscriptionManage{true, false});
+        MakeRcPtr<SubscriptionManage>(SubscriptionManage{true, false});
 
     event_->Add(EventHandlerSubscription<TSignature>{
         subscription, EventHandler<TSignature>{Delegate{instance, method}}});

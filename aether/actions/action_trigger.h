@@ -18,24 +18,21 @@
 #define AETHER_ACTIONS_ACTION_TRIGGER_H_
 
 #include <mutex>
-#include <memory>
 #include <atomic>
 #include <condition_variable>
 
 #include "aether/common.h"
+#include "aether/ptr/rc_ptr.h"
 
 namespace ae {
 struct SyncObject {
-  // TODO: is this cross-platform?
-  std::mutex mutex_;
-  std::condition_variable condition_;
-  std::atomic<bool> triggered_{false};
+  std::mutex mutex;
+  std::condition_variable condition;
+  std::atomic<bool> triggered{false};
 };
 
 class ActionTrigger {
   friend void Merge(ActionTrigger& left, ActionTrigger& right);
-
-  std::shared_ptr<SyncObject> sync_object_;
 
  public:
   ActionTrigger();
@@ -48,6 +45,9 @@ class ActionTrigger {
 
   // call this by action if update required
   void Trigger();
+
+ private:
+  RcPtr<SyncObject> sync_object_;
 };
 
 // merge to action triggers in one

@@ -30,6 +30,7 @@
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
 #include "aether/packed_int.h"
+#include "aether/ptr/rc_ptr.h"
 
 #include "aether/config.h"
 
@@ -160,7 +161,7 @@ class Statistics {
 template <typename T>
 class ProxyStatistics {
  public:
-  ProxyStatistics(std::shared_ptr<Statistics> statistics, T& data) noexcept;
+  ProxyStatistics(RcPtr<Statistics> statistics, T& data) noexcept;
   ProxyStatistics(ProxyStatistics const& other) = delete;
   ProxyStatistics(ProxyStatistics&& other) noexcept;
   ~ProxyStatistics() noexcept;
@@ -168,7 +169,7 @@ class ProxyStatistics {
   T* operator->() noexcept;
 
  private:
-  std::shared_ptr<Statistics> statistics_;
+  RcPtr<Statistics> statistics_;
   T* data_{};
   typename T::size_type size_{};
 };
@@ -193,7 +194,7 @@ class StatisticsStore {
    * If current statistics is full, move it into previous and return new
    * current.
    */
-  std::shared_ptr<Statistics> Get();
+  RcPtr<Statistics> Get();
 
   EnvStore& GetEnvStore();
 
@@ -216,8 +217,8 @@ class StatisticsStore {
 
   std::size_t statistics_size_limit_{kMaxSize};
   EnvStore env_store_;
-  std::shared_ptr<Statistics> prev_;
-  std::shared_ptr<Statistics> current_;
+  RcPtr<Statistics> prev_;
+  RcPtr<Statistics> current_;
 };
 
 /**

@@ -17,10 +17,10 @@
 #ifndef AETHER_EVENTS_EVENT_SUBSCRIPTION_H_
 #define AETHER_EVENTS_EVENT_SUBSCRIPTION_H_
 
-#include <memory>
 #include <utility>
 
 #include "aether/common.h"
+#include "aether/ptr/rc_ptr.h"
 
 #include "aether/events/event_handler.h"
 
@@ -38,7 +38,7 @@ template <typename Signature>
 class EventHandlerSubscription {
  public:
   explicit EventHandlerSubscription(
-      std::shared_ptr<SubscriptionManage> const& subscription,
+      RcPtr<SubscriptionManage> const& subscription,
       EventHandler<Signature>&& handler)
       : handler_{std::move(handler)}, subscription_{subscription} {}
 
@@ -71,9 +71,8 @@ class EventHandlerSubscription {
   }
 
  private:
-  // IEventHandler used to reduce shared_ptr template instantiations
   EventHandler<Signature> handler_;
-  std::weak_ptr<SubscriptionManage> subscription_;
+  RcPtrView<SubscriptionManage> subscription_;
 };
 
 /**
@@ -86,7 +85,7 @@ class Subscription {
  public:
   Subscription();
 
-  explicit Subscription(std::shared_ptr<SubscriptionManage> subscription);
+  explicit Subscription(RcPtr<SubscriptionManage> subscription);
 
   Subscription(Subscription const&) = delete;
   Subscription(Subscription&& other) noexcept;
@@ -104,7 +103,7 @@ class Subscription {
   void Reset();
 
  private:
-  std::shared_ptr<SubscriptionManage> subscription_;
+  RcPtr<SubscriptionManage> subscription_;
 };
 
 }  // namespace ae
