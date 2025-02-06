@@ -24,6 +24,7 @@
 #include "aether/literal_array.h"
 #include "aether/address_parser.h"
 
+#include "aether/obj/ptr.h"
 #include "aether/global_ids.h"
 #include "aether/aether_app.h"
 #include "aether/ae_actions/registration/registration.h"
@@ -421,7 +422,11 @@ int AetherRegistrator(const std::string& ini_file) {
    * To configure its creation \see AetherAppConstructor.
    */
   auto aether_app = ae::AetherApp::Construct(
-      ae::AetherAppConstructor{}
+      ae::AetherAppConstructor{[]() {
+        auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>();
+        fs->remove_all();
+        return fs;
+      }}
 #if defined AE_DISTILLATION
           .Adapter([](ae::Ptr<ae::Domain> const& domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
