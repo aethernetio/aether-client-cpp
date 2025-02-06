@@ -27,12 +27,14 @@
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 
+#include "aether/obj/ptr.h"
 #include "aether/global_ids.h"
 #include "aether/aether_app.h"
 #include "aether/ae_actions/registration/registration.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
+#include "aether/port/file_systems/file_system_header.h"
 #include "aether/port/tele_init.h"
 
 #include "aether/adapters/ethernet.h"
@@ -60,7 +62,7 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
  */
 class RegisteredAction : public Action<RegisteredAction> {
   enum class State : std::uint8_t {
-    kRegistration,
+    kLoad,
     kConfigureReceiver,
     kConfigureSender,
     kSendMessages,
@@ -73,7 +75,7 @@ class RegisteredAction : public Action<RegisteredAction> {
   explicit RegisteredAction(Ptr<AetherApp> const& aether_app)
       : Action{*aether_app},
         aether_{aether_app->aether()},
-        state_{State::kRegistration},
+        state_{State::kLoad},
         messages_{},
         state_changed_{state_.changed_event().Subscribe(
             [this](auto) { Action::Trigger(); })} {
@@ -83,8 +85,8 @@ class RegisteredAction : public Action<RegisteredAction> {
   TimePoint Update(TimePoint current_time) override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
-        case State::kRegistration:
-          RegisterClients();
+        case State::kLoad:
+          LoadClients();
           break;
         case State::kConfigureReceiver:
           ConfigureReceiver();
@@ -124,7 +126,14 @@ class RegisteredAction : public Action<RegisteredAction> {
    * \brief Perform a client registration.
    * We need a two clients for this test.
    */
-  void RegisterClients() { AE_TELED_INFO("Test of registered clients"); }
+  void LoadClients() { 
+      AE_TELED_INFO("Testing loaded clients"); 
+      for (std::size_t i{0}; i < aether_->clients().size(); i++) {
+          auto msg_str = std::string("Test message for client ") + std::to_string(i); 
+          messages_.insert(messages_.begin() + i, msg_str);
+          }
+      state_ = State::kConfigureReceiver;
+  }
 
   /**
    * \brief Make required preparation for receiving messages.
@@ -132,7 +141,12 @@ class RegisteredAction : public Action<RegisteredAction> {
    * Subscribe to receiving message event.
    * Send confirmation to received message.
    */
-  void ConfigureReceiver() { AE_TELED_INFO("Receiver configuration"); }
+  void ConfigureReceiver() { 
+      // We don't need to set up the receiver.
+      AE_TELED_INFO("Receiver configuration");
+
+      state_ = State::kConfigureSender;    
+  }
 
   /**
    * \brief Make required preparation to send messages.
@@ -140,16 +154,80 @@ class RegisteredAction : public Action<RegisteredAction> {
    * Subscribe to receiving message event for confirmations \see
    * ConfigureReceiver.
    */
-  void ConfigureSender() { AE_TELED_INFO("Sender configuration"); }
+  void ConfigureSender() {
+    std::uint8_t clients_cnt{0};
+
+    AE_TELED_INFO("Sender configuration");
+    confirm_count_ = 0;
+    assert(aether_->clients().size() > 0);
+
+    for (auto client : aether_->clients()) {
+      sender_ = client;
+      sender_stream_ = MakePtr<P2pSafeStream>(
+          *aether_->action_processor, kSafeStreamConfig,
+          MakePtr<P2pStream>(*aether_->action_processor, sender_,
+                             sender_->uid(), StreamId{clients_cnt}));
+      sender_streams_.push_back(sender_stream_);
+      sender_message_subscriptions_.Push(
+          sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+              [&](auto const& data) {
+                auto str_response = std::string(
+                    reinterpret_cast<const char*>(data.data()), data.size());
+                AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
+                               str_response, confirm_count_);
+                confirm_count_++;
+              }));
+      receiver_message_subscriptions_.Push(
+          sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+              [&](auto const& data) {
+                auto str_msg = std::string(
+                    reinterpret_cast<const char*>(data.data()), data.size());
+                AE_TELED_DEBUG("Received a message [{}]", str_msg);
+                auto confirm_msg = std::string{"confirmed "} + str_msg;
+                auto response_action =
+                    sender_streams_[receive_count_++]->in().Write(
+                        {confirm_msg.data(),
+                         confirm_msg.data() + confirm_msg.size()},
+                        ae::Now());
+                response_subscriptions_.Push(
+                    response_action->SubscribeOnError([&](auto const&) {
+                      AE_TELED_ERROR("Send response failed");
+                      state_ = State::kError;
+                    }));
+              }));
+      clients_cnt++;
+    }
+
+    state_ = State::kSendMessages;
+  }
 
   /**
    * \brief Send all messages at once.
    */
-  void SendMessages(TimePoint current_time) { AE_TELED_INFO("Send messages"); }
+  void SendMessages(TimePoint current_time) {
+    std::uint8_t messages_cnt{0};
+
+    AE_TELED_INFO("Send messages");
+
+    for (auto sender_stream : sender_streams_) {
+      auto msg = messages_[messages_cnt++];
+      AE_TELED_DEBUG("Sending message {}", msg);
+      auto send_action = sender_stream->in().Write(
+          DataBuffer{std::begin(msg), std::end(msg)}, current_time);
+      send_subscriptions_.Push(send_action->SubscribeOnError([&](auto const&) {
+        AE_TELED_ERROR("Send message failed");
+        state_ = State::kError;
+      }));
+    }
+
+    state_ = State::kWaitDone;
+  }
 
   Aether::ptr aether_;
 
   std::vector<std::string> messages_;
+  std::vector<ae::Ptr<ae::P2pSafeStream>> sender_streams_{};
+
   Client::ptr receiver_;
   Ptr<ByteStream> receiver_stream_;
   Client::ptr sender_;
@@ -159,23 +237,13 @@ class RegisteredAction : public Action<RegisteredAction> {
   std::size_t confirm_count_{0};
 
   MultiSubscription registration_subscriptions_;
-  Subscription receiver_new_stream_subscription_;
-  Subscription receiver_message_subscription_;
+  MultiSubscription receiver_message_subscriptions_;
   MultiSubscription response_subscriptions_;
-  Subscription sender_message_subscription_;
+  MultiSubscription sender_message_subscriptions_;
   MultiSubscription send_subscriptions_;
   StateMachine<State> state_;
   Subscription state_changed_;
 };
-
-//************************************************************************************************************************************
-/*static Aether::ptr LoadAether(Domain& domain) {
-  Aether::ptr aether;
-  aether.SetId(GlobalId::kAether);
-  domain.LoadRoot(aether);
-  assert(aether);
-  return aether;
-}*/
 
 }  // namespace ae::registered
 
@@ -191,7 +259,10 @@ int AetherRegistered() {
    * To configure its creation \see AetherAppConstructor.
    */
   auto aether_app = ae::AetherApp::Construct(
-      ae::AetherAppConstructor{}
+      ae::AetherAppConstructor {[](){
+        auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>();
+        return fs;
+      }}
 #if defined AE_DISTILLATION
           .Adapter([](ae::Ptr<ae::Domain> const& domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
@@ -223,90 +294,4 @@ int AetherRegistered() {
   }
 
   return aether_app->ExitCode();
-
-//************************************************************************************************************************************
-/*  ae::TeleInit::Init();
-  {
-    AE_TELE_ENV();
-    AE_TELE_INFO("Started");
-    ae::Registry::Log();
-  }
-
-  auto fs = ae::FileSystemHeaderFacility{};
-
-  ae::Domain domain{ae::ClockType::now(), fs};
-  ae::Aether::ptr aether = ae::LoadAether(domain);
-  ae::TeleInit::Init(aether);
-
-  ae::Adapter::ptr adapter{domain.LoadCopy(aether->adapter_factories.front())};
-
-  int receive_count = 0;
-
-  std::vector<ae::Client::ptr> clients{};
-  std::vector<std::string> messages{};
-
-  std::vector<ae::Ptr<ae::P2pSafeStream>> client_stream_to_self{};
-  ae::MultiSubscription sender_subscriptions{};
-
-  ae::SafeStreamConfig config;
-  config.buffer_capacity = std::numeric_limits<std::uint16_t>::max();
-  config.max_repeat_count = 4;
-  config.window_size = (config.buffer_capacity / 2) - 1;
-  config.wait_confirm_timeout = std::chrono::milliseconds{200};
-  config.send_confirm_timeout = {};
-  config.send_repeat_timeout = std::chrono::milliseconds{200};
-  config.max_data_size = config.window_size - 1;
-
-  // Load clients
-  for (std::size_t i{0}; i < aether->clients().size(); i++) {
-    clients.insert(clients.begin() + i, aether->clients()[i]);
-    auto msg_str = std::string("Test message for client ") + std::to_string(i);
-    messages.insert(messages.begin() + i, msg_str);
-    aether->domain_->LoadRoot(clients[i]);
-    assert(clients[i]);
-    // Set adapter for all clouds in the client to work though.
-    clients[i]->cloud()->set_adapter(adapter);
-
-    client_stream_to_self.insert(
-        client_stream_to_self.begin() + i,
-        ae::MakePtr<ae::P2pSafeStream>(
-            *aether->action_processor, config,
-            ae::MakePtr<ae::P2pStream>(
-                *aether->action_processor, clients[i], clients[i]->uid(),
-                ae::StreamId{static_cast<std::uint8_t>(i)})));
-
-    AE_TELED_DEBUG("Send messages from sender {} to receiver {} message {}", i,
-                   i, messages[i]);
-    client_stream_to_self[i]->in().Write(
-        {std::begin(messages[i]), std::end(messages[i])}, ae::Now());
-
-    sender_subscriptions.Push(
-        client_stream_to_self[i]->in().out_data_event().Subscribe(
-            [&](auto const& data) {
-              auto str_response = std::string(
-                  reinterpret_cast<const char*>(data.data()), data.size());
-              AE_TELED_DEBUG("Received a response [{}], receive_count {}",
-                             str_response, receive_count);
-              receive_count++;
-            }));
-  }
-
-  while (receive_count < messages.size()) {
-    AE_TELED_DEBUG("receive_count {}", receive_count);
-    auto current_time = ae::Now();
-    auto next_time = aether->domain_->Update(current_time);
-    aether->action_processor->get_trigger().WaitUntil(
-        std::min(next_time, current_time + std::chrono::seconds{5}));
-#if ((defined(ESP_PLATFORM)))
-    auto heap_free = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-    AE_TELED_INFO("Heap size {}", heap_free);
-#endif
-  }
-
-  aether->domain_->Update(ae::ClockType::now());
-
-  // save objects state
-  domain.SaveRoot(aether);
-
-  return 0;*/
 }

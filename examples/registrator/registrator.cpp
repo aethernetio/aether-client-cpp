@@ -250,12 +250,11 @@ class RegistratorAction : public Action<RegistratorAction> {
       std::uint16_t messages_cnt{0};
 
       AE_TELED_INFO("Client registration");
-
+#if AE_SUPPORT_REGISTRATION
       for (auto p : registrator_config_.parents_) {
         std::string uid_str = std::get<0>(p);
         std::uint8_t clients_num = std::get<1>(p);
         for (std::uint8_t i{0}; i < clients_num; i++) {
-#if AE_SUPPORT_REGISTRATION
           auto uid_arr = ae::MakeArray(uid_str);
           if (uid_arr.size() != ae::Uid::kSize) {
             AE_TELED_ERROR("Registration error");
@@ -286,6 +285,7 @@ class RegistratorAction : public Action<RegistratorAction> {
       }
     }
 #else
+    }
           // skip registration
           state_ = State::kConfigureReceiver;
 #endif
