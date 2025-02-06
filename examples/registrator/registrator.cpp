@@ -297,43 +297,7 @@ class RegistratorAction : public Action<RegistratorAction> {
    * Send confirmation to received message.
    */
   void ConfigureReceiver() {
-    AE_TELED_INFO("Receiver configuration");
-    receive_count_ = 0;
-    assert(!aether_->clients().empty());
-
-    for (auto client : aether_->clients()) {
-      receiver_ = client;
-      auto receiver_connection = receiver_->client_connection();
-      receiver_new_stream_subscriptions_.Push(
-          receiver_connection->new_stream_event().Subscribe(
-              [&](auto uid, auto stream_id, auto raw_stream) {
-                receiver_stream_ = MakePtr<P2pSafeStream>(
-                    *aether_->action_processor, kSafeStreamConfig,
-                    MakePtr<P2pStream>(*aether_->action_processor, receiver_,
-                                       uid, stream_id, std::move(raw_stream)));
-                receiver_message_subscriptions_.Push(
-                    receiver_stream_->in().out_data_event().Subscribe(
-                        [&](auto const& data) {
-                          auto str_msg = std::string(
-                              reinterpret_cast<const char*>(data.data()),
-                              data.size());
-                          AE_TELED_DEBUG("Received a message [{}]", str_msg);
-                          receive_count_++;
-                          auto confirm_msg =
-                              std::string{"confirmed "} + str_msg;
-                          auto response_action = receiver_stream_->in().Write(
-                              {confirm_msg.data(),
-                               confirm_msg.data() + confirm_msg.size()},
-                              ae::Now());
-                          response_subscriptions_.Push(
-                              response_action->SubscribeOnError(
-                                  [&](auto const&) {
-                                    AE_TELED_ERROR("Send response failed");
-                                    state_ = State::kError;
-                                  }));
-                        }));
-              }));
-    }
+    // We don't need to set up the receiver.
 
     state_ = State::kConfigureSender;
   }
@@ -366,6 +330,24 @@ class RegistratorAction : public Action<RegistratorAction> {
                 AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
                                str_response, confirm_count_);
                 confirm_count_++;
+              }));
+      receiver_message_subscriptions_.Push(
+          sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+              [&](auto const& data) {
+                auto str_msg = std::string(
+                    reinterpret_cast<const char*>(data.data()), data.size());
+                AE_TELED_DEBUG("Received a message [{}]", str_msg);
+                auto confirm_msg = std::string{"confirmed "} + str_msg;
+                auto response_action =
+                    sender_streams_[receive_count_++]->in().Write(
+                    {confirm_msg.data(),
+                     confirm_msg.data() + confirm_msg.size()},
+                    ae::Now());
+                response_subscriptions_.Push(
+                    response_action->SubscribeOnError([&](auto const&) {
+                      AE_TELED_ERROR("Send response failed");
+                      state_ = State::kError;
+                    }));
               }));
       clients_cnt++;
     }
@@ -401,8 +383,6 @@ class RegistratorAction : public Action<RegistratorAction> {
   std::vector<std::string> messages_;
   std::vector<ae::Ptr<ae::P2pSafeStream>> sender_streams_{};
 
-  Client::ptr receiver_;
-  Ptr<ByteStream> receiver_stream_;
   Client::ptr sender_;
   Ptr<ByteStream> sender_stream_;
   std::size_t clients_registered_{0};
@@ -410,7 +390,6 @@ class RegistratorAction : public Action<RegistratorAction> {
   std::size_t confirm_count_{0};
 
   MultiSubscription registration_subscriptions_;
-  MultiSubscription receiver_new_stream_subscriptions_;
   MultiSubscription receiver_message_subscriptions_;
   MultiSubscription response_subscriptions_;
   MultiSubscription sender_message_subscriptions_;
