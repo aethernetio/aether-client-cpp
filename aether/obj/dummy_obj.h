@@ -26,6 +26,9 @@ namespace ae {
  */
 class DummyObj : public Obj {
   AE_OBJECT(DummyObj, Obj, 0)
+
+  DummyObj() = default;
+
  public:
   template <typename Dnv>
   void Visit(Dnv& dnv) {

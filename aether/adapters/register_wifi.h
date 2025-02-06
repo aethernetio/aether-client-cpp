@@ -24,6 +24,8 @@ namespace ae {
 class RegisterWifiAdapter : public ParentWifiAdapter {
   AE_OBJECT(RegisterWifiAdapter, ParentWifiAdapter, 0)
 
+  RegisterWifiAdapter() = default;
+
  public:
 #ifdef AE_DISTILLATION
   RegisterWifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,

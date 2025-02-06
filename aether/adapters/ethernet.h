@@ -28,6 +28,8 @@ class Aether;
 class EthernetAdapter : public Adapter {
   AE_OBJECT(EthernetAdapter, Adapter, 0)
 
+  EthernetAdapter() = default;
+
   class EthernetCreateTransportAction : public CreateTransportAction {
    public:
     explicit EthernetCreateTransportAction(ActionContext action_context,

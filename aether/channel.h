@@ -30,6 +30,8 @@ class Aether;
 class Channel : public Obj {
   AE_OBJECT(Channel, Obj, 0)
 
+  Channel() = default;
+
  public:
   using TokenType = std::uint32_t;
 

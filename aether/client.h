@@ -35,6 +35,8 @@ class Aether;
 class Client : public Obj {
   AE_OBJECT(Client, Obj, 0)
 
+  Client() = default;
+
  public:
   // Internal
 #ifdef AE_DISTILLATION

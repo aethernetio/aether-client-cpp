@@ -25,6 +25,8 @@ class Aether;
 class WorkCloud : public Cloud {
   AE_OBJECT(WorkCloud, Cloud, 0)
 
+  WorkCloud() = default;
+
  public:
 #ifdef AE_DISTILLATION
   explicit WorkCloud(Domain* domain);

@@ -23,6 +23,8 @@ namespace ae {
 class Bar : public Obj {
   AE_OBJECT(Bar, Obj, 0)
 
+  Bar() = default;
+
  public:
   explicit Bar(Domain* domain) : Obj{domain} {}
 

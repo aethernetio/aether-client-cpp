@@ -42,6 +42,9 @@ class CreateTransportAction : public Action<CreateTransportAction> {
 class Adapter : public Obj {
   AE_OBJECT(Adapter, Obj, 0)
 
+ protected:
+  Adapter() = default;
+
  public:
 #ifdef AE_DISTILLATION
   explicit Adapter(Domain* domain);
