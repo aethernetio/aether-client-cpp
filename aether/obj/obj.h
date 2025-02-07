@@ -87,6 +87,7 @@ class Obj {
 #define AE_OBJECT(DERIVED, BASE, VERSION)                        \
  protected:                                                      \
   friend class ae::Registrar<DERIVED>;                           \
+  friend ae::Ptr<DERIVED> ae::MakePtr<DERIVED>();                        \
                                                                  \
  public:                                                         \
   static constexpr std::uint32_t kClassId =                      \
