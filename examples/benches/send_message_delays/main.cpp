@@ -110,7 +110,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
     assert(aether_->clients().size() >= 2);
     client_sender_ = aether_->clients()[0];
     client_receiver_ = aether_->clients()[1];
-    state_ = State::kMakeTest
+    state_ = State::kMakeTest;
 #endif
   }
 
