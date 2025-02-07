@@ -16,7 +16,7 @@
 
 #include <unity.h>
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "unity_internals.h"
 
 namespace ae::test_ptr_inheritance {

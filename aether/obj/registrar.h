@@ -57,7 +57,7 @@ class Registrar {
   static ObjPtr<Obj> Create() {
     static_assert(IsDefaultConstructible<T>::value,
                   "AE_OBJECT class should be default constructible");
-    return ObjPtr<T>(new T());
+    return ObjPtr(MakePtr<T>());
   }
   static ObjPtr<Obj> Load(Domain* domain, ObjPtr<Obj> obj) {
     auto self_ptr = ObjPtr<T>{std::move(obj)};

@@ -19,7 +19,7 @@
 
 #include <cstddef>
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/address.h"
 #include "aether/actions/action.h"
 

@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/state_machine.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"

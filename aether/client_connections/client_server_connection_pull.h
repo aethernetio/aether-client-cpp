@@ -21,7 +21,7 @@
 
 #include "aether/common.h"
 #include "aether/obj/obj_id.h"
-#include "aether/obj/ptr_view.h"
+#include "aether/ptr/ptr_view.h"
 #include "aether/client_connections/client_server_connection.h"
 
 namespace ae {

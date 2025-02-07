@@ -45,7 +45,7 @@ namespace ae {
 #ifdef AE_DISTILLATION
 
 Aether::Aether(Domain* domain) : Obj{domain} {
-  auto self_ptr = SelfObjPtr(this);
+  auto self_ptr = MakePtrFromThis(this);
 
   client_prefab = domain->CreateObj<Client>(GlobalId::kClientFactory, self_ptr);
   client_prefab.SetFlags(ae::ObjFlags::kUnloadedByDefault);
@@ -91,7 +91,7 @@ ActionView<Registration> Aether::RegisterClient(Uid parent_uid) {
   auto new_client = domain_->LoadCopy(client_prefab);
   new_client.SetFlags(ObjFlags::kUnloadedByDefault);
 
-  auto self_ptr = SelfObjPtr(this);
+  auto self_ptr = MakePtrFromThis(this);
 
   if (!registration_actions_) {
     registration_actions_ =

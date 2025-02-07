@@ -23,7 +23,7 @@
 
 #include "aether/config.h"
 #include "aether/common.h"
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/obj/domain.h"
 #include "aether/global_ids.h"
 #include "aether/type_traits.h"

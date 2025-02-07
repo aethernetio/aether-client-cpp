@@ -20,7 +20,7 @@ list(APPEND other_aether_srcs
 )
 
 list(APPEND obj_srcs
-    ${ROOT_DIR}/aether/obj/ptr_management.cpp
+    ${ROOT_DIR}/aether/ptr/ptr_management.cpp
     ${ROOT_DIR}/aether/obj/obj_ptr.cpp
     ${ROOT_DIR}/aether/obj/obj.cpp
     ${ROOT_DIR}/aether/obj/domain.cpp
@@ -30,10 +30,6 @@ list(APPEND obj_srcs
 
 list(APPEND test_srcs
     main.cpp
-    test-ptr.cpp
-    test-ptr-cycles.cpp
-    test-ptr-view.cpp
-    test-ptr-inheritance.cpp
     test-domain-tree.cpp
     test-obj-create.cpp
     test-update-objects.cpp
@@ -45,8 +41,8 @@ if(NOT CM_PLATFORM)
    project(test-object-system LANGUAGES CXX)
 
    add_executable(${PROJECT_NAME})
-   target_sources(${PROJECT_NAME} 
-                  PRIVATE 
+   target_sources(${PROJECT_NAME}
+                  PRIVATE
                   ${other_aether_srcs}
                   ${obj_srcs}
                   ${test_srcs}

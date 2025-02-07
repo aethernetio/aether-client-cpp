@@ -125,7 +125,7 @@ ClientConnectionManager::GetClientConnection(Uid client_uid) {
         MakePtr<ActionList<GetClientCloudConnection>>(action_context);
   }
 
-  auto self_ptr = SelfObjPtr(this);
+  auto self_ptr = MakePtrFromThis(this);
   assert(self_ptr);
 
   auto client_server_connection_selector =
@@ -192,7 +192,7 @@ ClientConnectionManager::GetCloudServerConnectionSelector(Uid uid) {
 
   auto aether = Ptr<Aether>{aether_};
   auto client_ptr = Ptr<Client>{client_};
-  auto self_ptr = SelfObjPtr(this);
+  auto self_ptr = MakePtrFromThis(this);
   assert(self_ptr);
 
   if (!cache->cloud) {

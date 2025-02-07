@@ -21,7 +21,7 @@
 
 #if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
 
-#  include "aether/obj/ptr.h"
+#  include "aether/ptr/ptr.h"
 
 #  include "aether/crypto/icrypto_provider.h"
 #  include "aether/crypto/ikey_provider.h"

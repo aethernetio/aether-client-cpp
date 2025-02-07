@@ -18,7 +18,7 @@
 #define AETHER_STREAM_API_TRANSPORT_WRITE_GATE_H_
 
 #include "aether/common.h"
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/actions/action_list.h"
 #include "aether/actions/action_context.h"
 #include "aether/transport/itransport.h"

@@ -14,48 +14,15 @@
  * limitations under the License.
  */
 
-#include "aether/obj/ptr_management.h"
+#include "aether/ptr/ptr_management.h"
 
 #include <utility>
 
 namespace ae {
-PointerRefManager::PointerRefManager() noexcept
-    : ref_counter_{0}, manage_counter_{0} {}
-
-void PointerRefManager::Increment(std::uint16_t count) noexcept {
-  ref_counter_ += count;
-}
-void PointerRefManager::IncrementManage(std::uint16_t count) noexcept {
-  manage_counter_ += count;
-}
-void PointerRefManager::Decrement(std::uint16_t count) noexcept {
-  ref_counter_ -= count;
-}
-void PointerRefManager::DecrementManage(std::uint16_t count) noexcept {
-  manage_counter_ -= count;
-}
-
-std::uint16_t PointerRefManager::ref_counter() const noexcept {
-  return ref_counter_;
-}
-std::uint16_t PointerRefManager::manage_counter() const noexcept {
-  return manage_counter_;
-}
-
-PointerManager::PointerManager(Deleter deleter) noexcept : deleter_{deleter} {
-  assert(deleter_);
-}
-
-void PointerManager::ReplaceDeleter(Deleter deleter) noexcept {
-  assert(deleter);
-  deleter_ = deleter;
-}
-
-void PointerManager::Delete(void* ptr) noexcept { deleter_(ptr); }
 
 RefTree::RefTree() = default;
 
-RefTree::RefTree(void const* pointer, std::uint32_t ref_count)
+RefTree::RefTree(void const* pointer, std::uint8_t ref_count)
     : pointer(pointer),
       ref_count{ref_count},
       reachable_ref_count{},

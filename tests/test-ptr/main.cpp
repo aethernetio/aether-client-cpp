@@ -22,11 +22,19 @@ void tearDown() {}
 extern int test_rc_ptr();
 extern int test_rc_ptr_bench();
 extern int test_shared_ptr_bench();
+extern int run_test_ptr();
+extern int test_ptr_cycles();
+extern int test_ptr_view();
+extern int test_ptr_inheritance();
 
 int main() {
   int res = 0;
 
   res += test_rc_ptr();
+  res += run_test_ptr();
+  res += test_ptr_cycles();
+  res += test_ptr_view();
+  res += test_ptr_inheritance();
 
 #if defined AE_RC_PTR_BENCH
   res += test_rc_ptr_bench();

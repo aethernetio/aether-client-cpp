@@ -83,15 +83,4 @@ ObjectPtrBase& ObjectPtrBase::operator=(ObjectPtrBase&& ptr) noexcept {
   return *this;
 }
 
-Ptr<Obj> ObjectPtrBase::FindObjPtr(Obj* ptr) {
-  if (!ptr) {
-    return {};
-  }
-  auto* domain = ptr->domain_;
-  if (!domain) {
-    return {};
-  }
-  return domain->Find(ptr);
-}
-
 }  // namespace ae

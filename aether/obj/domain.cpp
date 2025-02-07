@@ -72,23 +72,11 @@ ObjPtr<Obj> Domain::Find(ObjId obj_id) const {
   return {};
 }
 
-ObjPtr<Obj> Domain::Find(Obj* ptr) const {
-  auto it = ptr_objects_.find(static_cast<void const*>(ptr));
-  if (it != std::end(ptr_objects_)) {
-    return it->second.Lock();
-  }
-  return {};
-}
-
 void Domain::AddObject(ObjId id, ObjPtr<Obj> const& obj) {
   id_objects_.emplace(id.id(), obj);
-  ptr_objects_.emplace(obj.get(), obj);
 }
 
-void Domain::RemoveObject(Obj* obj) {
-  id_objects_.erase(obj->GetId().id());
-  ptr_objects_.erase(obj);
-}
+void Domain::RemoveObject(Obj* obj) { id_objects_.erase(obj->GetId().id()); }
 
 Factory* Domain::GetMostRelatedFactory(ObjId id) {
   auto classes = facility_.Enumerate(id);

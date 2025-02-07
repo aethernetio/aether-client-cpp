@@ -21,9 +21,9 @@
 #include <vector>
 
 #include "aether/obj/obj.h"
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/actions/action.h"
-#include "aether/obj/ptr_view.h"
+#include "aether/ptr/ptr_view.h"
 #include "aether/adapters/proxy.h"
 
 #include "aether/transport/itransport.h"

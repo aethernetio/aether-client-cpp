@@ -19,7 +19,7 @@
 
 #include "aether/common.h"
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 
 #include "aether/server.h"
 #include "aether/channel.h"
