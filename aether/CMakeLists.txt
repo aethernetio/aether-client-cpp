@@ -252,7 +252,11 @@ if(REGULAR_CMAKE_PROJECT)
                             ${tele_srcs}
                             )
 
-  target_include_directories(${PROJECT_NAME} PUBLIC ../)
+  # https://stackoverflow.com/questions/25676277/cmake-target-include-directories-prints-an-error-when-i-try-to-add-the-source
+  target_include_directories(${PROJECT_NAME} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/..>
+    $<INSTALL_INTERFACE:aether>
+  )
   target_link_libraries(${PROJECT_NAME} PUBLIC
                                         bcrypt
                                         sodium
