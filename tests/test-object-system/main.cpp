@@ -19,10 +19,6 @@
 void setUp() {}
 void tearDown() {}
 
-extern int run_test_ptr();
-extern int test_ptr_cycles();
-extern int test_ptr_view();
-extern int test_ptr_inheritance();
 extern int run_test_domain_tree();
 extern int run_test_object_create();
 extern int run_test_update_objects();
@@ -30,10 +26,6 @@ extern int run_test_version_iterator();
 
 int main() {
   int res{};
-  res += run_test_ptr();
-  res += test_ptr_cycles();
-  res += test_ptr_view();
-  res += test_ptr_inheritance();
   res += run_test_domain_tree();
   res += run_test_object_create();
   res += run_test_version_iterator();

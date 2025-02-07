@@ -16,18 +16,26 @@ cmake_minimum_required( VERSION 3.16 )
 
 option(AE_RC_PTR_BENCH "Make a benchmark for rc ptr compared to std::shared_ptr" Off)
 
+list(APPEND aether_srcs
+    ${ROOT_DIR}/aether/ptr/ptr_management.cpp
+)
+
 list(APPEND test_srcs
     main.cpp
     test-rc-ptr.cpp
     test-rc-ptr-bench.cpp
     test-shared-ptr-bench.cpp
+    test-ptr.cpp
+    test-ptr-inheritance.cpp
+    test-ptr-view.cpp
+    test-ptr-cycles.cpp
 )
 
 if(NOT CM_PLATFORM)
   project(test-ptr LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME})
-  target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
+  target_sources(${PROJECT_NAME} PRIVATE ${aether_srcs} ${test_srcs})
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE unity)
