@@ -1,0 +1,32 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+	  {
+		"name": "ESP32 DEBUG",
+		"type": "cppdbg",
+		"request": "launch",
+		"MIMode": "gdb",
+		"miDebuggerPath": "${command:espIdf.getXtensaGdb}",
+		"program": "${workspaceFolder}/build/${command:espIdf.getProjectName}.elf",
+		"cwd": "${workspaceFolder}",
+		"environment": [{ "name": "PATH", "value": "${config:idf.customExtraPaths}" }],
+		"setupCommands": [			
+			{"text": "set logging on"},
+            {"text": "target extended-remote localhost:3333"},
+            { "text": "flushregs" },
+            {"text": "monitor reset halt"},
+            {"text": "thb app_main"},
+            {"text": "x $a1=0"}
+		],
+		"externalConsole": false,
+		"logging": {
+			"trace": true,
+			"traceResponse": true,
+			"engineLogging": true,
+			"programOutput": true,
+			"exceptions": true,
+			"moduleLoad": true
+		}
+	  }
+	]
+}
