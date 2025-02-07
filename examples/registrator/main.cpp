@@ -15,6 +15,7 @@
  */
 
 #include <string>
+#include <iostream>
 
 #include "aether/config.h"
 
@@ -27,9 +28,12 @@ int test(const std::string &ini_file) { return AetherRegistrator(ini_file); }
 #if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
      defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
 int main(int argc, char *argv[]) {
-  const std::string ini_file{
-      "G:/projects/prj_aether/GitHub/aether-client-cpp/config/config.ini"};
+  if (argc > 1) {
+    std::string ini_file = std::string(argv[1]);
+    return test(ini_file);
+  };
 
-  return test(ini_file);
+  std::cerr << "Config file not found!\n";
+  return -1;
 }
 #endif
