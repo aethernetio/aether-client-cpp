@@ -78,8 +78,11 @@ list(APPEND obj_srcs
             "obj/domain.cpp"
             "obj/obj_id.cpp"
             "obj/registry.cpp"
-            "obj/ptr_management.cpp"
             "obj/obj_ptr.cpp"
+        )
+
+list(APPEND ptr_srcs
+            "ptr/ptr_management.cpp"
         )
 
 list(APPEND events_srcs
@@ -233,6 +236,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${poller_srcs}
                             ${dns_srcs}
                             ${obj_srcs}
+                            ${ptr_srcs}
                             ${events_srcs}
                             ${actions_srcs}
                             ${transport_srcs}
@@ -268,6 +272,7 @@ else()
                             ${poller_srcs}
                             ${dns_srcs}
                             ${obj_srcs}
+                            ${ptr_srcs}
                             ${events_srcs}
                             ${actions_srcs}
                             ${adapters_srcs}
