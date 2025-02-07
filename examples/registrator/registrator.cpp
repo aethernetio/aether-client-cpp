@@ -41,6 +41,7 @@
 
 constexpr std::uint8_t clients_max = 4;
 constexpr std::uint8_t servers_max = 4;
+constexpr bool use_self_test = false;
 
 namespace ae {
 enum class ServerAddressType : std::uint8_t { kIpAddress, kUrlAddress };
@@ -228,11 +229,18 @@ class RegistratorAction : public Action<RegistratorAction> {
     }
     // wait till all sent messages received and confirmed
     if (state_.get() == State::kWaitDone) {
-      AE_TELED_DEBUG("Wait done receive_count {}, confirm_count {}",
-                     receive_count_, confirm_count_);
-      if ((receive_count_ == messages_.size()) &&
-          (confirm_count_ == messages_.size())) {
-        state_ = State::kResult;
+      if (use_self_test) {
+        AE_TELED_DEBUG("Wait done receive_count {}, confirm_count {}",
+                       receive_count_, confirm_count_);
+        if ((receive_count_ == messages_.size()) &&
+            (confirm_count_ == messages_.size())) {
+          state_ = State::kResult;
+        }
+      } else {
+        AE_TELED_DEBUG("Wait done clients_registered_ {}", clients_registered_);
+        if (clients_registered_ == registrator_config_.clients_total_) {
+          state_ = State::kResult;
+        }
       }
       // if no any events happens wake up after 1 second
       return current_time + std::chrono::seconds{1};
@@ -286,8 +294,8 @@ class RegistratorAction : public Action<RegistratorAction> {
     }
 #else
     }
-          // skip registration
-          state_ = State::kConfigureReceiver;
+    // skip registration
+    state_ = State::kConfigureReceiver;
 #endif
   }
 
@@ -312,45 +320,50 @@ class RegistratorAction : public Action<RegistratorAction> {
   void ConfigureSender() {
     std::uint8_t clients_cnt{0};
 
-    AE_TELED_INFO("Sender configuration");
-    confirm_count_ = 0;
-    assert(aether_->clients().size() == registrator_config_.clients_total_);
+    if (use_self_test) {
+      AE_TELED_INFO("Sender configuration");
+      confirm_count_ = 0;
+      assert(aether_->clients().size() == registrator_config_.clients_total_);
 
-    for (auto client : aether_->clients()) {
-      sender_ = client;
-      sender_stream_ = MakePtr<P2pSafeStream>(
-          *aether_->action_processor, kSafeStreamConfig,
-          MakePtr<P2pStream>(*aether_->action_processor, sender_,
-                             sender_->uid(), StreamId{clients_cnt}));
-      sender_streams_.push_back(sender_stream_);
-      sender_message_subscriptions_.Push(
-          sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
-              [&](auto const& data) {
-                auto str_response = std::string(
-                    reinterpret_cast<const char*>(data.data()), data.size());
-                AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
-                               str_response, confirm_count_);
-                confirm_count_++;
-              }));
-      receiver_message_subscriptions_.Push(
-          sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
-              [&](auto const& data) {
-                auto str_msg = std::string(
-                    reinterpret_cast<const char*>(data.data()), data.size());
-                AE_TELED_DEBUG("Received a message [{}]", str_msg);
-                auto confirm_msg = std::string{"confirmed "} + str_msg;
-                auto response_action =
-                    sender_streams_[receive_count_++]->in().Write(
-                    {confirm_msg.data(),
-                     confirm_msg.data() + confirm_msg.size()},
-                    ae::Now());
-                response_subscriptions_.Push(
-                    response_action->SubscribeOnError([&](auto const&) {
-                      AE_TELED_ERROR("Send response failed");
-                      state_ = State::kError;
-                    }));
-              }));
-      clients_cnt++;
+      for (auto client : aether_->clients()) {
+        sender_ = client;
+        sender_stream_ = MakePtr<P2pSafeStream>(
+            *aether_->action_processor, kSafeStreamConfig,
+            MakePtr<P2pStream>(*aether_->action_processor, sender_,
+                               sender_->uid(), StreamId{clients_cnt}));
+        sender_streams_.push_back(sender_stream_);
+
+        sender_message_subscriptions_.Push(
+            sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+                [&](auto const& data) {
+                  auto str_response = std::string(
+                      reinterpret_cast<const char*>(data.data()), data.size());
+                  AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
+                                 str_response, confirm_count_);
+                  confirm_count_++;
+                }));
+
+        receiver_message_subscriptions_.Push(
+            sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+                [&](auto const& data) {
+                  auto str_msg = std::string(
+                      reinterpret_cast<const char*>(data.data()), data.size());
+                  AE_TELED_DEBUG("Received a message [{}]", str_msg);
+                  auto confirm_msg = std::string{"confirmed "} + str_msg;
+                  auto response_action =
+                      sender_streams_[receive_count_++]->in().Write(
+                          {confirm_msg.data(),
+                           confirm_msg.data() + confirm_msg.size()},
+                          ae::Now());
+                  response_subscriptions_.Push(
+                      response_action->SubscribeOnError([&](auto const&) {
+                        AE_TELED_ERROR("Send response failed");
+                        state_ = State::kError;
+                      }));
+                }));
+
+        clients_cnt++;
+      }
     }
 
     state_ = State::kSendMessages;
@@ -362,17 +375,20 @@ class RegistratorAction : public Action<RegistratorAction> {
   void SendMessages(TimePoint current_time) {
     std::uint8_t messages_cnt{0};
 
-    AE_TELED_INFO("Send messages");
+    if (use_self_test) {
+      AE_TELED_INFO("Send messages");
 
-    for (auto sender_stream : sender_streams_) {
-      auto msg = messages_[messages_cnt++];
-      AE_TELED_DEBUG("Sending message {}", msg);
-      auto send_action = sender_stream->in().Write(
-          DataBuffer{std::begin(msg), std::end(msg)}, current_time);
-      send_subscriptions_.Push(send_action->SubscribeOnError([&](auto const&) {
-        AE_TELED_ERROR("Send message failed");
-        state_ = State::kError;
-      }));
+      for (auto sender_stream : sender_streams_) {
+        auto msg = messages_[messages_cnt++];
+        AE_TELED_DEBUG("Sending message {}", msg);
+        auto send_action = sender_stream->in().Write(
+            DataBuffer{std::begin(msg), std::end(msg)}, current_time);
+        send_subscriptions_.Push(
+            send_action->SubscribeOnError([&](auto const&) {
+              AE_TELED_ERROR("Send message failed");
+              state_ = State::kError;
+            }));
+      }
     }
 
     state_ = State::kWaitDone;
