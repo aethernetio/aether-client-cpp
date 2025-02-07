@@ -19,6 +19,6 @@
 
 namespace ae {
 
-const Uid Uid::kAether = {{1}};
+const Uid Uid::kAether = Uid{{1}};
 
 }  // namespace ae

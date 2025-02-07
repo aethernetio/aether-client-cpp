@@ -27,7 +27,7 @@ struct Uid {
   static constexpr std::size_t kSize = 16;
   static const Uid kAether;
 
-  Uid(std::array<std::uint8_t, kSize> uid) : value(uid) {}
+  explicit constexpr Uid(std::array<std::uint8_t, kSize> uid) : value(uid) {}
   Uid() = default;
 
   template <typename T>
