@@ -34,18 +34,13 @@ struct RefCounters {
 };
 
 template <typename T>
-class RcStorage {
+struct RcStorage {
  public:
-  [[nodiscard]] RefCounters& ref_counters() noexcept { return ref_counters_; }
-  [[nodiscard]] RefCounters const& ref_counters() const noexcept {
-    return ref_counters_;
-  }
-  [[nodiscard]] auto* ptr() noexcept { return storage_.ptr(); }
-  [[nodiscard]] auto* ptr() const noexcept { return storage_.ptr(); }
+  [[nodiscard]] auto* ptr() noexcept { return storage.ptr(); }
+  [[nodiscard]] auto* ptr() const noexcept { return storage.ptr(); }
 
- private:
-  RefCounters ref_counters_;
-  Storage<T> storage_;
+  RefCounters ref_counters;
+  Storage<T> storage;
 };
 
 template <typename T>
@@ -115,11 +110,13 @@ class RcPtr {
     }
 
     Decrement();
-    if (rc_storage_->ref_counters().main_refs == 0) {
+    if (rc_storage_->ref_counters.main_refs == 0) {
+      // prevent cycled rcptrviews delete rc_storage
+      rc_storage_->ref_counters.weak_refs += 1;
       // Call destructor on T
       rc_storage_->ptr()->~T();
-
-      if (rc_storage_->ref_counters().weak_refs == 0) {
+      rc_storage_->ref_counters.weak_refs -= 1;
+      if (rc_storage_->ref_counters.weak_refs == 0) {
         auto alloc = std::allocator<RcStorage<T>>{};
         alloc.deallocate(rc_storage_, std::size_t{1});
       }
@@ -128,8 +125,8 @@ class RcPtr {
   }
 
  private:
-  void Decrement() noexcept { rc_storage_->ref_counters().main_refs -= 1; }
-  void Increment() noexcept { rc_storage_->ref_counters().main_refs += 1; }
+  void Decrement() noexcept { rc_storage_->ref_counters.main_refs -= 1; }
+  void Increment() noexcept { rc_storage_->ref_counters.main_refs += 1; }
 
   RcStorage<T>* rc_storage_;
 };
@@ -147,7 +144,7 @@ auto MakeRcPtr(TArgs&&... args) noexcept {
     alloc.deallocate(rc_storage, std::size_t{1});
     return RcPtr<T>{};
   }
-  rc_storage->ref_counters() = {};
+  rc_storage->ref_counters = {};
   return RcPtr<T>{rc_storage};
 }
 
@@ -201,7 +198,7 @@ class RcPtrView {
   // Access
   OurRcPtr lock() noexcept {
     if (rc_storage_ != nullptr) {
-      if (rc_storage_->ref_counters().main_refs != 0) {
+      if (rc_storage_->ref_counters.main_refs != 0) {
         return OurRcPtr{rc_storage_};
       }
     }
@@ -210,7 +207,7 @@ class RcPtrView {
 
   OurRcPtr lock() const noexcept {
     if (rc_storage_ != nullptr) {
-      if (rc_storage_->ref_counters().main_refs != 0) {
+      if (rc_storage_->ref_counters.main_refs != 0) {
         return OurRcPtr{rc_storage_};
       }
     }
@@ -219,7 +216,7 @@ class RcPtrView {
 
   explicit operator bool() const noexcept {
     return (rc_storage_ != nullptr) &&
-           (rc_storage_->ref_counters().main_refs != 0);
+           (rc_storage_->ref_counters.main_refs != 0);
   }
 
   // Modifying
@@ -229,8 +226,8 @@ class RcPtrView {
     }
 
     Decrement();
-    if ((rc_storage_->ref_counters().main_refs == 0) &&
-        (rc_storage_->ref_counters().weak_refs == 0)) {
+    if ((rc_storage_->ref_counters.main_refs == 0) &&
+        (rc_storage_->ref_counters.weak_refs == 0)) {
       auto alloc = std::allocator<RcStorage<T>>{};
       alloc.deallocate(rc_storage_, std::size_t{1});
     }
@@ -246,8 +243,8 @@ class RcPtrView {
     Increment();
   }
 
-  void Decrement() noexcept { rc_storage_->ref_counters().weak_refs -= 1; }
-  void Increment() noexcept { rc_storage_->ref_counters().weak_refs += 1; }
+  void Decrement() noexcept { rc_storage_->ref_counters.weak_refs -= 1; }
+  void Increment() noexcept { rc_storage_->ref_counters.weak_refs += 1; }
 
   RcStorage<T>* rc_storage_;
 };
