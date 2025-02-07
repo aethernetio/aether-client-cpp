@@ -23,7 +23,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 idf_build_set_property(CM_PLATFORM "ESP32")
 
-set(COMPILE_EXAMPLE "button")
+set(COMPILE_EXAMPLE "key_led")
 
 add_compile_definitions(CM_ESP32)
 
@@ -42,7 +42,7 @@ set(AE_DISTILLATION OFF CACHE BOOL "" FORCE)
 
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/cloud"
-                                 "../../../../examples/button"
+                                 "../../../../examples/key_led"
                                  "../../../../examples/registered"
                                  "../../../../examples/benches/send_message_delays"
 )

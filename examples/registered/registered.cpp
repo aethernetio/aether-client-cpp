@@ -225,7 +225,6 @@ class RegisteredAction : public Action<RegisteredAction> {
 
   Aether::ptr aether_;
 
-  std::vector<std::string> messages_;
   std::vector<ae::Ptr<ae::P2pSafeStream>> sender_streams_{};
 
   Client::ptr receiver_;
@@ -242,6 +241,7 @@ class RegisteredAction : public Action<RegisteredAction> {
   MultiSubscription sender_message_subscriptions_;
   MultiSubscription send_subscriptions_;
   StateMachine<State> state_;
+  std::vector<std::string> messages_;
   Subscription state_changed_;
 };
 

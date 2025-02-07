@@ -41,6 +41,13 @@ class LedButtonEsp : public Action<LedButtonEsp> {
   bool GetKey(void);
   void SetLed(bool led_state);
 
+  LedButtonEsp() = default;
+  LedButtonEsp& operator=(const LedButtonEsp& lbe) {
+    if (&lbe != this) {
+    }
+    return *this;
+  }
+
  private:
   void InitIOPriv(void);
   bool GetKeyPriv(uint16_t key_pin, uint16_t key_mask);
