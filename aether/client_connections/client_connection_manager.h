@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "aether/obj/obj.h"
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/actions/action_view.h"
 #include "aether/actions/action_list.h"
 

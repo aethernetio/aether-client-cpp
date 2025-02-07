@@ -17,7 +17,7 @@
 #ifndef AETHER_STREAM_API_CRYPTO_STREAM_H_
 #define AETHER_STREAM_API_CRYPTO_STREAM_H_
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 
 #include "aether/stream_api/istream.h"
 

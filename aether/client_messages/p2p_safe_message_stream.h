@@ -18,7 +18,7 @@
 #define AETHER_CLIENT_MESSAGES_P2P_SAFE_MESSAGE_STREAM_H_
 
 #include "aether/common.h"
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/stream_api/istream.h"

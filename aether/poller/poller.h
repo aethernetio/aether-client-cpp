@@ -17,6 +17,8 @@
 #ifndef AETHER_POLLER_POLLER_H_
 #define AETHER_POLLER_POLLER_H_
 
+#include <functional>
+
 #include "aether/obj/obj.h"
 #include "aether/poller/poller_types.h"
 

@@ -17,7 +17,7 @@
 #ifndef AETHER_ADAPTERS_ETHERNET_H_
 #define AETHER_ADAPTERS_ETHERNET_H_
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/poller/poller.h"
 #include "aether/adapters/adapter.h"
 #include "aether/actions/action_list.h"

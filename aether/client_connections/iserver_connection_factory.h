@@ -17,7 +17,7 @@
 #ifndef AETHER_CLIENT_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
 #define AETHER_CLIENT_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 
 #include "aether/server.h"
 #include "aether/channel.h"

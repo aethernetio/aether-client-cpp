@@ -18,6 +18,7 @@
 #define AETHER_TELE_TRAPS_TELE_STATISTICS_H_
 
 #include "aether/obj/obj.h"
+#include "aether/ptr/ptr.h"
 #include "aether/tele/traps/statistics_trap.h"
 
 namespace ae::tele {

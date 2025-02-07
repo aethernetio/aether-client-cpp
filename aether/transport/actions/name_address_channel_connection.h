@@ -25,7 +25,7 @@
 #  include <optional>
 
 #  include "aether/address.h"
-#  include "aether/obj/ptr.h"
+#  include "aether/ptr/ptr.h"
 #  include "aether/actions/action_context.h"
 #  include "aether/events/multi_subscription.h"
 

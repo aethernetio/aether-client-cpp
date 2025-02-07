@@ -17,7 +17,7 @@
 #ifndef AETHER_PORT_TELE_INIT_H_
 #define AETHER_PORT_TELE_INIT_H_
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 
 namespace ae {
 class Aether;

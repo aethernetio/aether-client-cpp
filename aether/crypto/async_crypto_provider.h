@@ -17,7 +17,7 @@
 #ifndef AETHER_CRYPTO_ASYNC_CRYPTO_PROVIDER_H_
 #define AETHER_CRYPTO_ASYNC_CRYPTO_PROVIDER_H_
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 
 #include "aether/crypto/icrypto_provider.h"
 #include "aether/crypto/ikey_provider.h"
