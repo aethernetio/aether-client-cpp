@@ -18,7 +18,7 @@
 #include <fstream>
 #include <filesystem>
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/obj/domain.h"
 #include "aether/literal_array.h"
 #include "aether/actions/action.h"

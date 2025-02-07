@@ -20,7 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/state_machine.h"
 #include "aether/actions/action.h"
 #include "aether/stream_api/istream.h"

@@ -178,11 +178,11 @@ void AetherButtonExample() {
     auto receiver_reg_failed = registration2->SubscribeOnError(
         [&](auto const&) { reg_failed = true; });
 
-    while ((!client_sender && !client_receiver) && !reg_failed) {
+    while ((!client_sender || !client_receiver) && !reg_failed) {
       auto now = ae::Now();
       auto next_time = aether->domain_->Update(now);
       aether->action_processor->get_trigger().WaitUntil(
-          std::min(next_time, now + std::chrono::milliseconds{wait_time}));
+          std::min(next_time, now + std::chrono::seconds{5}));
     }
     if (reg_failed) {
       AE_TELED_ERROR("Registration rejected");
