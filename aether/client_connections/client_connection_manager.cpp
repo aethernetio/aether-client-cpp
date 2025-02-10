@@ -68,13 +68,15 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
       return {};
     }
 
+    auto action_context = ActionContext{*aether->action_processor};
+
     auto server_channel_stream =
         MakePtr<ServerChannelStream>(aether, adapter, server, channel);
-
-    auto connection =
-        MakePtr<ClientServerConnection>(MakePtr<ClientToServerStream>(
-            ActionContext{*aether->action_processor}, client, server->server_id,
-            std::move(server_channel_stream)));
+    auto client_server_stream =
+        MakePtr<ClientToServerStream>(action_context, client, server->server_id,
+                                      std::move(server_channel_stream));
+    auto connection = MakePtr<ClientServerConnection>(
+        action_context, server, channel, std::move(client_server_stream));
 
     ccm->client_server_connection_pull_.Add(server->server_id, channel.GetId(),
                                             connection);

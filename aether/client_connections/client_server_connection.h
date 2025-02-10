@@ -19,7 +19,11 @@
 
 #include "aether/events/events.h"
 #include "aether/stream_api/istream.h"
+#include "aether/actions/action_context.h"
 
+#include "aether/server.h"
+#include "aether/channel.h"
+#include "aether/ae_actions/ping.h"
 #include "aether/client_messages/message_stream_dispatcher.h"
 #include "aether/client_connections/client_to_server_stream.h"
 
@@ -32,6 +36,7 @@ class ClientServerConnection {
   using NewStreamEvent = Event<void(Uid uid, Ptr<MessageStream> stream)>;
 
   explicit ClientServerConnection(
+      ActionContext action_context, Server::ptr server, Channel::ptr channel,
       Ptr<ClientToServerStream> client_to_server_stream);
 
   Ptr<ClientToServerStream> const& server_stream() const;
@@ -43,7 +48,7 @@ class ClientServerConnection {
  private:
   Ptr<ClientToServerStream> server_stream_;
   Ptr<MessageStreamDispatcher> message_stream_dispatcher_;
-
+  Ptr<Ping> ping_;
   NewStreamEvent new_stream_event_;
   Subscription new_stream_event_subscription_;
 };

@@ -116,8 +116,6 @@ ClientToServerStream::ClientToServerStream(ActionContext action_context,
                         LoginApi::LoginByUid{{}, stream_id, client_->uid()}},
       ProtocolReadGate{protocol_context_, ClientSafeApi{}},
       std::move(server_stream));
-
-  InitStreams();
 }
 
 ClientToServerStream::~ClientToServerStream() = default;
@@ -137,15 +135,6 @@ void ClientToServerStream::OnConnected() {
 void ClientToServerStream::OnDisconnected() {
   AE_TELED_INFO("Server connection lost");
   connection_error_event_.Emit();
-}
-
-void ClientToServerStream::InitStreams() {
-  // write something to init the stream
-  AE_TELED_DEBUG("Send authorization ping");
-  client_auth_stream_->in().Write(
-      PacketBuilder{protocol_context_,
-                    PackMessage{AuthorizedApi{}, AuthorizedApi::Ping{}}},
-      TimePoint::clock::now());
 }
 
 }  // namespace ae

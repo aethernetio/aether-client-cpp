@@ -95,6 +95,7 @@ list(APPEND actions_srcs
             "ae_actions/registration/registration_key_provider.cpp"
             "ae_actions/get_client_cloud.cpp"
             "ae_actions/get_client_cloud_connection.cpp"
+            "ae_actions/ping.cpp"
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
             "actions/action_context.cpp"
