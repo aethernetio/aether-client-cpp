@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_PULL_H_
-#define AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_PULL_H_
+#ifndef AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_POOL_H_
+#define AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_POOL_H_
 
 #include <map>
 
@@ -25,7 +25,7 @@
 #include "aether/client_connections/client_server_connection.h"
 
 namespace ae {
-class ClientServerConnectionPull {
+class ClientServerConnectionPool {
   struct Key {
     friend bool operator<(Key const& left, Key const& right) {
       if (left.server_id == right.server_id) {
@@ -39,8 +39,8 @@ class ClientServerConnectionPull {
   };
 
  public:
-  ClientServerConnectionPull() = default;
-  AE_CLASS_NO_COPY_MOVE(ClientServerConnectionPull);
+  ClientServerConnectionPool() = default;
+  AE_CLASS_NO_COPY_MOVE(ClientServerConnectionPool);
 
   Ptr<ClientServerConnection> Find(ServerId server_id, ObjId channel_obj_id);
   void Add(ServerId server_id, ObjId channel_obj_id,
@@ -51,4 +51,4 @@ class ClientServerConnectionPull {
 };
 }  // namespace ae
 
-#endif  // AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_PULL_H_
+#endif  // AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_POOL_H_

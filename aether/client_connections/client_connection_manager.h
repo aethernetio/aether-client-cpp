@@ -30,7 +30,7 @@
 #include "aether/client_connections/client_connection.h"
 #include "aether/client_connections/server_connection_selector.h"
 #include "aether/client_connections/cloud_cache.h"
-#include "aether/client_connections/client_server_connection_pull.h"
+#include "aether/client_connections/client_server_connection_pool.h"
 
 namespace ae {
 class Aether;
@@ -70,7 +70,7 @@ class ClientConnectionManager : public Obj {
   Obj::ptr client_;
 
   CloudCache cloud_cache_;
-  ClientServerConnectionPull client_server_connection_pull_;
+  ClientServerConnectionPool client_server_connection_pool_;
 
   Ptr<ActionList<GetClientCloudConnection>> get_client_cloud_connections_;
 };

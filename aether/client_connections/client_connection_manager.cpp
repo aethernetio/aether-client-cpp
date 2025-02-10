@@ -46,7 +46,7 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
       Server::ptr const& server, Channel::ptr const& channel) override {
     auto ccm = client_connection_manager_.Lock();
     assert(ccm);
-    auto cached_connection = ccm->client_server_connection_pull_.Find(
+    auto cached_connection = ccm->client_server_connection_pool_.Find(
         server->server_id, channel.GetId());
     if (cached_connection) {
       AE_TELED_DEBUG("Return cached connection");
@@ -78,7 +78,7 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
     auto connection = MakePtr<ClientServerConnection>(
         action_context, server, channel, std::move(client_server_stream));
 
-    ccm->client_server_connection_pull_.Add(server->server_id, channel.GetId(),
+    ccm->client_server_connection_pool_.Add(server->server_id, channel.GetId(),
                                             connection);
     return connection;
   }
