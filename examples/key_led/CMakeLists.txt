@@ -17,11 +17,11 @@ cmake_minimum_required(VERSION 3.16.0)
 list( APPEND src_list 
   main.cpp
   key_led_test.cpp
-  led_button_esp.cpp
-  led_button_mac.cpp
-  led_button_nix.cpp
-  led_button_win.cpp
-  led_button_mac.cpp
+  key_led_esp.cpp
+  key_led_mac.cpp
+  key_led_nix.cpp
+  key_led_win.cpp
+  key_led_mac.cpp
 )
 
 message(STATUS "CM_PLATFORM ${CM_PLATFORM}")

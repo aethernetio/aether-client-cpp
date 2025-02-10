@@ -14,23 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef EXAMPLES_BUTTON_LED_BUTTON_MAC_H_
-#define EXAMPLES_BUTTON_LED_BUTTON_MAC_H_
+#ifndef EXAMPLES_KEY_LED_KEY_LED_ESP_H_
+#define EXAMPLES_KEY_LED_KEY_LED_ESP_H_
 
-#if defined __APPLE__
-
-#  define BUTTON_MAC
+#if (defined(ESP_PLATFORM))
+#  define KEY_LED_ESP
 
 #  include <cstdint>
-
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_context.h"
 
+#  include "freertos/FreeRTOS.h"
+#  include "freertos/task.h"
+#  include "driver/gpio.h"
+
+#  define LED_PIN GPIO_NUM_5
+#  define BUT_PIN GPIO_NUM_4
+#  define BUT_MASK 0xFFFF
+
 namespace ae {
-class LedButtonMac : public Action<LedButtonMac> {
+class KeyLedEsp : public Action<KeyLedEsp> {
  public:
-  LedButtonMac(ActionContext action_context);
-  ~LedButtonMac() override;
+  KeyLedEsp(ActionContext action_context);
+  ~KeyLedEsp() override;
   TimePoint Update(TimePoint current_time) override;
   bool GetKey(void);
   void SetLed(bool led_state);
@@ -41,11 +47,10 @@ class LedButtonMac : public Action<LedButtonMac> {
   void SetLedPriv(uint16_t led_pin, bool led_state);
 
   TimePoint prev_time_;
-  TimePoint::duration button_timeout_;
-  bool button_state_{false};
+  TimePoint::duration key_timeout_;
+  bool key_state_{false};
 };
-
 }  // namespace ae
 
-#endif  // __APPLE__
-#endif  // EXAMPLES_BUTTON_LED_BUTTON_MAC_H_
+#endif
+#endif  // EXAMPLES_KEY_LED_KEY_LED_ESP_H_

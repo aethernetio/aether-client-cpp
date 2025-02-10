@@ -14,39 +14,32 @@
  * limitations under the License.
  */
 
-#ifndef BUTTON_LED_BUTTON_ESP_H_
-#define BUTTON_LED_BUTTON_ESP_H_
+#ifndef EXAMPLES_KEY_LED_KEY_LED_WIN_H_
+#define EXAMPLES_KEY_LED_KEY_LED_WIN_H_
 
-#if (defined(ESP_PLATFORM))
-#  define BUTTON_ESP
+#if (defined(_WIN64) || defined(_WIN32))
+#  define KEY_LED_WIN
 
 #  include <cstdint>
+#  include <iostream>
+
+#  include <Windows.h>
+
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_context.h"
 
-#  include "freertos/FreeRTOS.h"
-#  include "freertos/task.h"
-#  include "driver/gpio.h"
-
-#  define LED_PIN GPIO_NUM_5
-#  define BUT_PIN GPIO_NUM_4
-#  define BUT_MASK 0xFFFF
+#  define LED_PIN VK_SCROLL
+#  define BUT_PIN VK_SHIFT
+#  define BUT_MASK 0x8000
 
 namespace ae {
-class LedButtonEsp : public Action<LedButtonEsp> {
+class KeyLedWin : public Action<KeyLedWin> {
  public:
-  LedButtonEsp(ActionContext action_context);
-  ~LedButtonEsp() override;
+  explicit KeyLedWin(ActionContext action_context);
+  ~KeyLedWin() override;
   TimePoint Update(TimePoint current_time) override;
   bool GetKey(void);
   void SetLed(bool led_state);
-
-  LedButtonEsp() = default;
-  LedButtonEsp& operator=(const LedButtonEsp& lbe) {
-    if (&lbe != this) {
-    }
-    return *this;
-  }
 
  private:
   void InitIOPriv(void);
@@ -54,10 +47,10 @@ class LedButtonEsp : public Action<LedButtonEsp> {
   void SetLedPriv(uint16_t led_pin, bool led_state);
 
   TimePoint prev_time_;
-  TimePoint::duration button_timeout_;
-  bool button_state_{false};
+  TimePoint::duration key_timeout_;
+  bool key_state_{false};
 };
 }  // namespace ae
 
 #endif
-#endif  // BUTTON_LED_BUTTON_ESP_H_
+#endif  // EXAMPLES_KEY_LED_KEY_LED_WIN_H_

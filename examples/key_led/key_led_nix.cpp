@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "led_button_nix.h"
+#include "key_led_nix.h"
 
-#if (defined(BUTTON_NIX))
+#if defined(KEY_LED_NIX)
 
 #  include <X11/Xlib.h>
 #  include <X11/XKBlib.h>
@@ -26,39 +26,39 @@
 
 namespace ae {
 
-LedButtonNix::LedButtonNix(ActionContext action_context)
-    : Action{action_context}, button_timeout_{std::chrono::milliseconds{100}} {
+KeyLedNix::KeyLedNix(ActionContext action_context)
+    : Action{action_context}, key_timeout_{std::chrono::milliseconds{100}} {
   this->InitIOPriv();
 }
 
-LedButtonNix::~LedButtonNix() {}
+KeyLedNix::~KeyLedNix() {}
 
-TimePoint LedButtonNix::Update(TimePoint current_time) {
+TimePoint KeyLedNix::Update(TimePoint current_time) {
   bool res{false};
 
-  if (current_time > prev_time_ + button_timeout_) {
+  if (current_time > prev_time_ + key_timeout_) {
     prev_time_ = current_time;
     res = GetKeyPriv(BUT_PIN, BUT_MASK);
-    if (res != button_state_) {
-      AE_TELED_INFO("Button state changed");
-      button_state_ = res;
+    if (res != key_state_) {
+      AE_TELED_INFO("Key state changed");
+      key_state_ = res;
       this->ResultRepeat(*this);
     }
   }
   return current_time;
 }
 
-bool LedButtonNix::GetKey(void) {
-  bool res = button_state_;
+bool KeyLedNix::GetKey(void) {
+  bool res = key_state_;
 
   return res;
 }
 
-void LedButtonNix::SetLed(bool led_state) { SetLedPriv(LED_PIN, led_state); }
+void KeyLedNix::SetLed(bool led_state) { SetLedPriv(LED_PIN, led_state); }
 
-void LedButtonNix::InitIOPriv(void) {}
+void KeyLedNix::InitIOPriv(void) {}
 
-bool LedButtonNix::GetKeyPriv(uint16_t key_pin, uint16_t key_mask) {
+bool KeyLedNix::GetKeyPriv(uint16_t key_pin, uint16_t key_mask) {
   bool res{false};
 
   auto display = XOpenDisplay(nullptr);
@@ -75,7 +75,7 @@ bool LedButtonNix::GetKeyPriv(uint16_t key_pin, uint16_t key_mask) {
   return res;
 }
 
-void LedButtonNix::SetLedPriv(uint16_t led_pin, bool led_state) {
+void KeyLedNix::SetLedPriv(uint16_t led_pin, bool led_state) {
   auto display = XOpenDisplay(nullptr);
 
   if (led_state) {

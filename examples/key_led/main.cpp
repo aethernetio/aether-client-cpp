@@ -42,12 +42,12 @@
 #endif
 
 extern "C" void app_main();
-extern void AetherButtonExample();
+extern int AetherButtonExample();
 
 // Test function.
-void test(void) { AetherButtonExample(); }
+int test(void) { return AetherButtonExample(); }
 
-#if defined(ESP_PLATFORM)
+#if (defined(ESP_PLATFORM))
 void app_main(void) {
   esp_task_wdt_config_t config_wdt = {
       .timeout_ms = 60000,
@@ -71,5 +71,5 @@ void app_main(void) {
 
 #if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
      defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
-int main(int argc, char *argv[]) { test(); }
+int main(int argc, char *argv[]) { return test(); }
 #endif

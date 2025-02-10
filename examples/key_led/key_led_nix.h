@@ -14,29 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef BUTTON_LED_BUTTON_WIN_H_
-#define BUTTON_LED_BUTTON_WIN_H_
+#ifndef EXAMPLES_KEY_LED_KEY_LED_NIX_H_
+#define EXAMPLES_KEY_LED_KEY_LED_NIX_H_
 
-#if (defined(_WIN64) || defined(_WIN32))
-#  define BUTTON_WIN
+#if (defined(__linux__) || defined(__unix__) || defined(__FreeBSD__))
+#  define KEY_LED_NIX
 
 #  include <cstdint>
-#  include <iostream>
-
-#  include <Windows.h>
 
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_context.h"
 
-#  define LED_PIN VK_SCROLL
-#  define BUT_PIN VK_SHIFT
-#  define BUT_MASK 0x8000
+const int SCROLL_LOCK = 1, CAPSLOCK = 2, NUMLOCK = 16;
+
+#  define LED_PIN SCROLL_LOCK
+#  define BUT_PIN XK_Shift_L
+#  define BUT_MASK 0xFFFF
 
 namespace ae {
-class LedButtonWin : public Action<LedButtonWin> {
+class KeyLedNix : public Action<KeyLedNix> {
  public:
-  explicit LedButtonWin(ActionContext action_context);
-  ~LedButtonWin() override;
+  explicit KeyLedNix(ActionContext action_context);
+  ~KeyLedNix() override;
   TimePoint Update(TimePoint current_time) override;
   bool GetKey(void);
   void SetLed(bool led_state);
@@ -47,10 +46,10 @@ class LedButtonWin : public Action<LedButtonWin> {
   void SetLedPriv(uint16_t led_pin, bool led_state);
 
   TimePoint prev_time_;
-  TimePoint::duration button_timeout_;
-  bool button_state_{false};
+  TimePoint::duration key_timeout_;
+  bool key_state_{false};
 };
 }  // namespace ae
 
 #endif
-#endif  // BUTTON_LED_BUTTON_WIN_H_
+#endif  // EXAMPLES_KEY_LED_KEY_LED_NIX_H_

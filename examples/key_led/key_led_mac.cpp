@@ -14,25 +14,26 @@
  * limitations under the License.
  */
 
-#include "led_button_mac.h"
+#include "key_led_mac.h"
 
-#if defined BUTTON_MAC
+#if defined(KEY_LED_MAC)
+#  include "aether/tele/tele.h"
 
 namespace ae {
-LedButtonMac::LedButtonMac(ActionContext /* action_context */) {
+KeyLedMac::KeyLedMac(ActionContext /* action_context */) {
   assert(false);
 }
 
-LedButtonMac::~LedButtonMac() = default;
-TimePoint LedButtonMac::Update(TimePoint current_time) { return current_time; }
+KeyLedMac::~KeyLedMac() = default;
+TimePoint KeyLedMac::Update(TimePoint current_time) { return current_time; }
 
-bool LedButtonMac::GetKey(void) { return false; }
-void LedButtonMac::SetLed(bool /* led_state */) {}
-void LedButtonMac::InitIOPriv(void) {}
-bool LedButtonMac::GetKeyPriv(uint16_t /* key_pin */, uint16_t /* key_mask */) {
+bool KeyLedMac::GetKey(void) { return false; }
+void KeyLedMac::SetLed(bool /* led_state */) {}
+void KeyLedMac::InitIOPriv(void) {}
+bool KeyLedMac::GetKeyPriv(uint16_t /* key_pin */, uint16_t /* key_mask */) {
   return false;
 }
-void LedButtonMac::SetLedPriv(uint16_t /* led_pin */, bool /* led_state */) {}
+void KeyLedMac::SetLedPriv(uint16_t /* led_pin */, bool /* led_state */) {}
 
 }  // namespace ae
 
