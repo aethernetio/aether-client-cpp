@@ -27,7 +27,7 @@
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/global_ids.h"
 #include "aether/aether_app.h"
 #include "aether/ae_actions/registration/registration.h"
