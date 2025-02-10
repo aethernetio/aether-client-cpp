@@ -24,7 +24,7 @@
 #include "aether/literal_array.h"
 #include "aether/address_parser.h"
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/global_ids.h"
 #include "aether/aether_app.h"
 #include "aether/ae_actions/registration/registration.h"
