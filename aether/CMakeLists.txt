@@ -95,6 +95,7 @@ list(APPEND actions_srcs
             "ae_actions/registration/registration_key_provider.cpp"
             "ae_actions/get_client_cloud.cpp"
             "ae_actions/get_client_cloud_connection.cpp"
+            "ae_actions/ping.cpp"
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
             "actions/action_context.cpp"
@@ -178,7 +179,7 @@ list(APPEND methods_srcs
 
 list(APPEND client_connections_srcs
             "client_connections/cloud_cache.cpp"
-            "client_connections/client_server_connection_pull.cpp"
+            "client_connections/client_server_connection_pool.cpp"
             "client_connections/client_cloud_connection.cpp"
             "client_connections/client_connection_manager.cpp"
             "client_connections/client_server_connection.cpp"
