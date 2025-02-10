@@ -23,6 +23,7 @@
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
 
+#include "aether/stream_api/safe_stream/safe_stream_api.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
 #include "aether/stream_api/safe_stream/safe_stream_sending.h"
@@ -57,7 +58,7 @@ class SafeStream final : public ByteStream {
     ActionView<StreamWriteAction> Write(DataBuffer &&buffer,
                                         TimePoint current_time) override;
 
-    void WriteOut(DataBuffer const &buffer);
+    void WriteOut(DataBuffer &&buffer);
 
     void LinkOut(OutGate &gate) override;
 
@@ -95,6 +96,12 @@ class SafeStream final : public ByteStream {
                    TimePoint current_time);
 
   void OnDataReaderSend(DataBuffer &&data, TimePoint current_time);
+
+  void Confirm(MessageEventData<SafeStreamApi::Confirm> const &msg);
+  void RequestRepeatSend(
+      MessageEventData<SafeStreamApi::RequestRepeat> const &msg);
+  void ReceiveSend(MessageEventData<SafeStreamApi::Send> const &msg);
+  void ReceiveRepeat(MessageEventData<SafeStreamApi::Repeat> const &msg);
 
   ActionContext action_context_;
 

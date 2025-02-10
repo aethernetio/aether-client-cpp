@@ -58,7 +58,7 @@ void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
   }
 
   client_connection_manager_ = domain_->CreateObj<ClientConnectionManager>(
-      ObjPtr<Aether>{aether_}, SelfObjPtr(this));
+      ObjPtr<Aether>{aether_}, MakePtrFromThis(this));
 }
 
 Ptr<ClientConnection> Client::client_connection() {

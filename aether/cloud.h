@@ -27,6 +27,9 @@ namespace ae {
 class Cloud : public Obj {
   AE_OBJECT(Cloud, Obj, 0)
 
+ protected:
+  Cloud() = default;
+
  public:
 #ifdef AE_DISTILLATION
   explicit Cloud(Domain* domain);

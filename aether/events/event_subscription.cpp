@@ -19,49 +19,31 @@
 #include <cassert>
 
 namespace ae {
-
-EventHandlerSubscription::EventHandlerSubscription(
-    std::shared_ptr<IEventHandler> handler)
-    : handler_(std::move(handler)) {}
-
-EventHandlerSubscription::~EventHandlerSubscription() = default;
-
-bool EventHandlerSubscription::is_alive() const {
-  if (auto handler = handler_.lock(); handler) {
-    return handler->is_alive();
-  }
-  return false;
-}
-
-void EventHandlerSubscription::Reset() {
-  if (auto handler = handler_.lock(); handler) {
-    handler->set_dead();
-  }
-}
-
 Subscription::Subscription() = default;
 
-Subscription::Subscription(std::shared_ptr<IEventHandler> handler)
-    : handler_{std::move(handler)} {}
+Subscription::Subscription(RcPtr<SubscriptionManage> subscription)
+    : subscription_{std::move(subscription)} {}
 
 Subscription::Subscription(Subscription&& other) noexcept
-    : handler_(std::move(other.handler_)) {}
+    : subscription_(std::move(other.subscription_)) {}
 
 Subscription& Subscription::operator=(Subscription&& other) noexcept {
   Reset();
-  handler_ = std::move(other.handler_);
+  subscription_ = std::move(other.subscription_);
   return *this;
 }
 
 Subscription::~Subscription() { Reset(); }
 
-Subscription::operator bool() const { return handler_ && handler_->is_alive(); }
+Subscription::operator bool() const {
+  return subscription_ && subscription_->alive;
+}
 
-void Subscription::Reset() { handler_.reset(); }
+void Subscription::Reset() { subscription_.Reset(); }
 
 Subscription Subscription::Once() && {
-  assert(handler_);
-  handler_->set_once();
+  assert(subscription_);
+  subscription_->once = true;
   return std::move(*this);
 }
 }  // namespace ae

@@ -56,10 +56,10 @@ StreamInfo SizedPacketGate::stream_info() const {
 void SizedPacketGate::LinkOut(OutGate& out) {
   out_ = &out;
   out_data_subscription_ = out.out_data_event().Subscribe(
-      [this](DataBuffer const& buffer) { DataReceived(buffer); });
+      *this, MethodPtr<&SizedPacketGate::DataReceived>{});
 
   gate_update_subscription_ = out.gate_update_event().Subscribe(
-      [this]() { gate_update_event_.Emit(); });
+      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
 
   gate_update_event_.Emit();
 }

@@ -17,45 +17,62 @@
 #ifndef AETHER_EVENTS_EVENT_SUBSCRIPTION_H_
 #define AETHER_EVENTS_EVENT_SUBSCRIPTION_H_
 
-#include <memory>
 #include <utility>
 
 #include "aether/common.h"
+#include "aether/ptr/rc_ptr.h"
 
 #include "aether/events/event_handler.h"
 
 namespace ae {
+struct SubscriptionManage {
+  bool alive;
+  bool once;
+};
+
 /**
  * \brief Event Handler subscription stored int Event<Signature> class.
  * handler_ is owned by Subscription \see Subscription.
  */
+template <typename Signature>
 class EventHandlerSubscription {
  public:
-  explicit EventHandlerSubscription(std::shared_ptr<IEventHandler> handler);
-
-  ~EventHandlerSubscription();
+  explicit EventHandlerSubscription(
+      RcPtr<SubscriptionManage> const& subscription,
+      EventHandler<Signature>&& handler)
+      : handler_{std::move(handler)}, subscription_{subscription} {}
 
   AE_CLASS_COPY_MOVE(EventHandlerSubscription)
 
   template <typename... TArgs>
-  void invoke(TArgs&&... args) {
-    using HandlerType = EventHandler<void(TArgs...)>;
-    if (auto handler = handler_.lock(); handler) {
-      if (handler->is_alive()) {
-        static_cast<HandlerType&>(*handler).invoke(
-            std::forward<TArgs>(args)...);
+  void Invoke(TArgs&&... args) {
+    if (auto sub = subscription_.lock(); sub) {
+      if (sub->alive) {
+        handler_.Invoke(std::forward<TArgs>(args)...);
+      }
+      if (sub->once) {
+        sub->alive = false;
       }
     }
   }
 
-  bool is_alive() const;
+  bool is_alive() const {
+    if (auto sub = subscription_.lock(); sub) {
+      return sub->alive;
+    }
+    return false;
+  }
 
   // call before remove handler
-  void Reset();
+  void Reset() {
+    if (auto sub = subscription_.lock(); sub) {
+      sub->alive = false;
+    }
+  }
 
  private:
-  // IEventHandler used to reduce shared_ptr template instantiations
-  std::weak_ptr<IEventHandler> handler_;
+  EventHandler<Signature> handler_;
+  RcPtrView<SubscriptionManage> subscription_;
 };
 
 /**
@@ -68,7 +85,7 @@ class Subscription {
  public:
   Subscription();
 
-  explicit Subscription(std::shared_ptr<IEventHandler> handler);
+  explicit Subscription(RcPtr<SubscriptionManage> subscription);
 
   Subscription(Subscription const&) = delete;
   Subscription(Subscription&& other) noexcept;
@@ -86,7 +103,7 @@ class Subscription {
   void Reset();
 
  private:
-  std::shared_ptr<IEventHandler> handler_;
+  RcPtr<SubscriptionManage> subscription_;
 };
 
 }  // namespace ae

@@ -71,11 +71,7 @@ class IMessageEvent {
 template <typename TMessage>
 class MessageEvent : public IMessageEvent {
  public:
-  template <typename TCallback>
-  [[nodiscard]] auto OnMessage(TCallback&& cb) {
-    return EventSubscriber{event_}.Subscribe(std::forward<TCallback>(cb));
-  }
-
+  auto Subscriber() { return EventSubscriber{event_}; }
   void Emit(MessageEventData<TMessage> const& message) { event_.Emit(message); }
 
  private:
@@ -87,18 +83,18 @@ class ProtocolContext {
   ProtocolContext();
   ~ProtocolContext();
 
-  template <typename TMessage, typename TCallback,
+  template <typename TMessage,
             auto MessageTypeId = std::decay_t<TMessage>::kMessageId>
-  [[nodiscard]] auto OnMessage(TCallback&& cb) {
+  [[nodiscard]] auto MessageEvent() {
     auto it = messages_events_.find(MessageTypeId);
     if (it == messages_events_.end()) {
       auto [added_it, _] = messages_events_.emplace(
-          MessageTypeId, std::make_unique<MessageEvent<TMessage>>());
+          MessageTypeId, std::make_unique<ae::MessageEvent<TMessage>>());
       it = added_it;
     }
     auto& message_event =
-        *static_cast<MessageEvent<TMessage>*>(it->second.get());
-    return message_event.OnMessage(std::forward<TCallback>(cb));
+        *static_cast<ae::MessageEvent<TMessage>*>(it->second.get());
+    return message_event.Subscriber();
   }
 
   template <typename TMessage,
@@ -112,7 +108,7 @@ class ProtocolContext {
       return;
     }
     auto& message_event =
-        *static_cast<MessageEvent<MessageType>*>(event_it->second.get());
+        *static_cast<ae::MessageEvent<MessageType>*>(event_it->second.get());
 
     message_event.Emit(MessageEventType{std::forward<TMessage>(message),
                                         &api_class_map_, TopUserData()});

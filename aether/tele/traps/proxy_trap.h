@@ -20,7 +20,7 @@
 #include <utility>
 
 #include "aether/common.h"
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/tele/declaration.h"
 
 namespace ae::tele {

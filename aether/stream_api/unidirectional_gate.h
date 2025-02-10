@@ -45,9 +45,9 @@ class ParallelGate final : public ByteIGate {
       : write_gate_{std::move(write_gate)},
         read_gate_{std::move(read_gate)},
         write_gate_update_{write_gate_.gate_update_event().Subscribe(
-            [this]() { gate_update_event_.Emit(); })},
+            gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{})},
         read_gate_update_{read_gate_.gate_update_event().Subscribe(
-            [this]() { gate_update_event_.Emit(); })} {}
+            gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{})} {}
 
   ActionView<StreamWriteAction> Write(DataBuffer&& data,
                                       TimePoint current_time) override {

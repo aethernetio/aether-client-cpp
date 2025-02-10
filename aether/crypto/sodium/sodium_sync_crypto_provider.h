@@ -21,7 +21,7 @@
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 
-#  include "aether/obj/ptr.h"
+#  include "aether/ptr/ptr.h"
 
 #  include "aether/crypto/icrypto_provider.h"
 #  include "aether/crypto/ikey_provider.h"

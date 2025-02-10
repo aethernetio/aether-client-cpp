@@ -22,6 +22,10 @@
 namespace ae {
 class Father : public Obj {
   AE_OBJECT(Father, Obj, 0)
+
+ protected:
+  Father() = default;
+
  public:
   explicit Father(Domain* domain) : Obj{domain} {}
 
@@ -33,6 +37,9 @@ class Father : public Obj {
 
 class Child : public Father {
   AE_OBJECT(Child, Father, 0)
+
+  Child() = default;
+
  public:
   explicit Child(Domain* domain) : Father(domain) {}
 

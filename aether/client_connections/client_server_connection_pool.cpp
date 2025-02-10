@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "aether/client_connections/client_server_connection_pull.h"
+#include "aether/client_connections/client_server_connection_pool.h"
 
 namespace ae {
 
-Ptr<ClientServerConnection> ClientServerConnectionPull::Find(
+Ptr<ClientServerConnection> ClientServerConnectionPool::Find(
     ServerId server_id, ObjId channel_obj_id) {
   auto key = Key{server_id, channel_obj_id};
   auto it = connections_.find(key);
@@ -33,7 +33,7 @@ Ptr<ClientServerConnection> ClientServerConnectionPull::Find(
   return connection;
 }
 
-void ClientServerConnectionPull::Add(
+void ClientServerConnectionPool::Add(
     ServerId server_id, ObjId channel_obj_id,
     Ptr<ClientServerConnection> const& connection) {
   auto key = Key{server_id, channel_obj_id};

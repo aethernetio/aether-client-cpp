@@ -18,21 +18,18 @@
 
 namespace ae {
 SplitterGate::SplitterGate() {
-  stream_message_event_ = protocol_context_.OnMessage<StreamApi::Stream>(
-      [this](auto const& message) { OnStream(message.message()); });
+  stream_message_event_ =
+      protocol_context_.MessageEvent<StreamApi::Stream>().Subscribe(
+          *this, MethodPtr<&SplitterGate::OnStream>{});
 }
 
 void SplitterGate::LinkOut(OutGate& out) {
   out_ = &out;
   gate_update_subscription_ = out_->gate_update_event().Subscribe(
-      [this]() { gate_update_event_.Emit(); });
+      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
 
-  out_data_subscription_ =
-      out_->out_data_event().Subscribe([this](auto const& data) {
-        auto api_parser = ApiParser(protocol_context_, data);
-        auto api = StreamApi{};
-        api_parser.Parse(api);
-      });
+  out_data_subscription_ = out_->out_data_event().Subscribe(
+      *this, MethodPtr<&SplitterGate::OnDataEvent>{});
 
   gate_update_event_.Emit();
 }
@@ -56,15 +53,22 @@ void SplitterGate::CloseStream(StreamId stream_id) {
 
 std::size_t SplitterGate::stream_count() const { return streams_.size(); }
 
-void SplitterGate::OnStream(StreamApi::Stream const& message) {
-  auto it = streams_.find(message.stream_id);
+void SplitterGate::OnDataEvent(DataBuffer const& data) {
+  auto api_parser = ApiParser(protocol_context_, data);
+  auto api = StreamApi{};
+  api_parser.Parse(api);
+}
+
+void SplitterGate::OnStream(
+    MessageEventData<StreamApi::Stream> const& message) {
+  auto it = streams_.find(message.message().stream_id);
   if (it != streams_.end()) {
     return;
   }
 
-  auto& new_stream = RegisterStream(message.stream_id);
-  new_stream_event_.Emit(message.stream_id, new_stream);
+  auto& new_stream = RegisterStream(message.message().stream_id);
+  new_stream_event_.Emit(message.message().stream_id, new_stream);
 
-  new_stream.PutData(message.child_data.PackData());
+  new_stream.PutData(message.message().child_data.PackData());
 }
 }  // namespace ae

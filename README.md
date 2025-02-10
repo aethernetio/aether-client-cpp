@@ -1,28 +1,8 @@
-# aether-client-cpp
+# Aethernet C++ client
+Run git_init script suitable for particular platform. It clones submodules and applies patches.
+**Projects** folder contains cmake files to build axamples for target platforms.
+VSCode + Platformio + ESP-IDF is a toolset that is currently supported.
 
-cd G:/projects/prj_aether/Test/TestBuild
+Please reffer to [aethernet.io](https://aethernet.io) for documentation.
 
-git clone https://github.com/aethernet-io/aether-client-cpp.git
-
-cd aether-client-cpp
-
-git submodule update --init --recursive
-
-cd third_party/libbcrypt
-
-git apply "../libbcrypt.patch"
-
-cd ../libhydrogen
-
-git apply "../libhydrogen.patch"
-
-cd ../libsodium
-
-git apply "../libsodium.patch"
-
-cd ../Unity
-
-git apply "../Unity.patch"
-
-Or just run git_init.ps1 for Windows or git_init.sh for Linux.
-Select a platform in the aether/platform.h file.
+[Examples](https://github.com/aethernetio/testbed) of integrations into C++ and Java projects.

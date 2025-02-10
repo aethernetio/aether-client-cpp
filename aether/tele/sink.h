@@ -20,7 +20,7 @@
 #include <cassert>
 #include <utility>
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/tele/modules.h"
 #include "aether/tele/levels.h"
 

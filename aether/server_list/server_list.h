@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 
 #include "aether/server_list/list_policy.h"
 

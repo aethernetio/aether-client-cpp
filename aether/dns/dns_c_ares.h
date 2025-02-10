@@ -37,6 +37,8 @@ class AresImpl;
 class DnsResolverCares : public DnsResolver {
   AE_OBJECT(DnsResolverCares, DnsResolver, 0)
 
+  DnsResolverCares();
+
  public:
 #    if defined AE_DISTILLATION
   DnsResolverCares(ObjPtr<Aether> aether, Domain* domain);
@@ -53,7 +55,7 @@ class DnsResolverCares : public DnsResolver {
 
  private:
   Obj::ptr aether_;
-  std::shared_ptr<AresImpl> ares_impl_;
+  std::unique_ptr<AresImpl> ares_impl_;
 };
 }  // namespace ae
 #  endif

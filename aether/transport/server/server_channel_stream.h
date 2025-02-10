@@ -22,7 +22,7 @@
 
 #include "aether/common.h"
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/obj/obj_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"

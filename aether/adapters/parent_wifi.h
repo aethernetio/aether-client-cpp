@@ -28,6 +28,9 @@ class Aether;
 class ParentWifiAdapter : public Adapter {
   AE_OBJECT(ParentWifiAdapter, Adapter, 0)
 
+ protected:
+  ParentWifiAdapter() = default;
+
  public:
 #ifdef AE_DISTILLATION
   ParentWifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,

@@ -16,6 +16,8 @@ cmake_minimum_required(VERSION 3.16.0)
 
 set(AE_PROJECT_VERSION "1.0.0")
 
+option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
+
 option(AE_DISTILLATION "Build aether in distillation mode" OFF)
 option(USER_CONFIG "Path to user provided configuration header file" "")
 
@@ -34,8 +36,8 @@ if ( GIT_COMMAND )
   endif()
 endif()
 
-# list a common dependancies
-list(APPEND common_dependancies
+# list a common dependencies
+list(APPEND common_dependencies
     "../third_party/libbcrypt"
     "../third_party/libhydrogen"
     "../third_party/libsodium"
@@ -77,8 +79,11 @@ list(APPEND obj_srcs
             "obj/domain.cpp"
             "obj/obj_id.cpp"
             "obj/registry.cpp"
-            "obj/ptr_management.cpp"
             "obj/obj_ptr.cpp"
+        )
+
+list(APPEND ptr_srcs
+            "ptr/ptr_management.cpp"
         )
 
 list(APPEND events_srcs
@@ -91,6 +96,7 @@ list(APPEND actions_srcs
             "ae_actions/registration/registration_key_provider.cpp"
             "ae_actions/get_client_cloud.cpp"
             "ae_actions/get_client_cloud_connection.cpp"
+            "ae_actions/ping.cpp"
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
             "actions/action_context.cpp"
@@ -174,7 +180,7 @@ list(APPEND methods_srcs
 
 list(APPEND client_connections_srcs
             "client_connections/cloud_cache.cpp"
-            "client_connections/client_server_connection_pull.cpp"
+            "client_connections/client_server_connection_pool.cpp"
             "client_connections/client_cloud_connection.cpp"
             "client_connections/client_connection_manager.cpp"
             "client_connections/client_server_connection.cpp"
@@ -223,7 +229,7 @@ if(REGULAR_CMAKE_PROJECT)
   set(CARES_SHARED OFF CACHE BOOL "" FORCE)
   add_subdirectory("../third_party/c-ares" "c-ares")
 
-  foreach(dep ${common_dependancies})
+  foreach(dep ${common_dependencies})
     get_filename_component(DEP_NAME ${dep} NAME)
     add_subdirectory(${dep} ${DEP_NAME})
   endforeach()
@@ -232,6 +238,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${poller_srcs}
                             ${dns_srcs}
                             ${obj_srcs}
+                            ${ptr_srcs}
                             ${events_srcs}
                             ${actions_srcs}
                             ${transport_srcs}
@@ -247,7 +254,11 @@ if(REGULAR_CMAKE_PROJECT)
                             ${tele_srcs}
                             )
 
-  target_include_directories(${PROJECT_NAME} PUBLIC ../)
+  # https://stackoverflow.com/questions/25676277/cmake-target-include-directories-prints-an-error-when-i-try-to-add-the-source
+  target_include_directories(${PROJECT_NAME} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/..>
+    $<INSTALL_INTERFACE:aether>
+  )
   target_link_libraries(${PROJECT_NAME} PUBLIC
                                         bcrypt
                                         sodium
@@ -267,6 +278,7 @@ else()
                             ${poller_srcs}
                             ${dns_srcs}
                             ${obj_srcs}
+                            ${ptr_srcs}
                             ${events_srcs}
                             ${actions_srcs}
                             ${adapters_srcs}
@@ -285,7 +297,7 @@ else()
 
     set(TARGET_NAME "${COMPONENT_LIB}")
 
-    foreach(dep ${common_dependancies})
+    foreach(dep ${common_dependencies})
       get_filename_component(DEP_NAME ${dep} NAME)
       add_subdirectory(${dep} ${DEP_NAME})
     endforeach()
@@ -373,8 +385,9 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Cla
     if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
       target_compile_options(${TARGET_NAME} PUBLIC -fdata-sections -ffunction-sections)
       target_link_options(${TARGET_NAME} PUBLIC -fdata-sections -ffunction-sections)
-      target_link_options(${TARGET_NAME} PUBLIC -Wl,--gc-sections,--strip-all)
-
+      if(NOT AE_NO_STRIP_ALL )
+        target_link_options(${TARGET_NAME} PUBLIC -Wl,--gc-sections,--strip-all)
+      endif()
       if (NOT MINGW)
         target_compile_options(${TARGET_NAME} PUBLIC -flto=auto -ffat-lto-objects)
         target_link_options(${TARGET_NAME} PUBLIC -flto=auto)

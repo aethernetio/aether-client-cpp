@@ -25,6 +25,8 @@ namespace ae {
 class Bob : public Obj {
   AE_OBJECT(Bob, Obj, 0)
 
+  Bob() = default;
+
  public:
   explicit Bob(Domain* domain) : Obj{domain} {
     foo_prefab = domain->CreateObj<Foo>();
@@ -45,6 +47,8 @@ class Bob : public Obj {
 class BobsMother : public Obj {
   AE_OBJECT(BobsMother, Obj, 0)
 
+  BobsMother() = default;
+
  public:
   explicit BobsMother(Domain* domain) : Obj{domain} {
     bob_prefab = domain->CreateObj<Bob>();
@@ -64,6 +68,9 @@ class BobsMother : public Obj {
 
 class BobsFather : public Obj {
   AE_OBJECT(BobsFather, Obj, 0)
+
+  BobsFather() = default;
+
  public:
   explicit BobsFather(Domain* domain) : Obj{domain} {}
 

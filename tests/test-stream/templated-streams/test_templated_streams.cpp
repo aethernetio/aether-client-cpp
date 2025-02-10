@@ -16,7 +16,7 @@
 
 #include "unity.h"
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/actions/action_processor.h"
 #include "aether/actions/action_context.h"
 

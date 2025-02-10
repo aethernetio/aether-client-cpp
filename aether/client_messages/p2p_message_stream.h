@@ -21,8 +21,8 @@
 
 #include "aether/uid.h"
 #include "aether/client.h"
-#include "aether/obj/ptr.h"
-#include "aether/obj/ptr_view.h"
+#include "aether/ptr/ptr.h"
+#include "aether/ptr/ptr_view.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/stream_api/istream.h"

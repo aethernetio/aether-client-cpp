@@ -150,15 +150,17 @@ void test_SafeStreamReceiveRequestRepeat() {
     api_parser.Parse(api);
   });
 
-  auto _1 = pc.OnMessage<SafeStreamApi::Confirm>([&](auto const& msg) {
-    auto& confirm = msg.message();
-    confirmed_offset = confirm.offset;
-  });
+  auto _1 =
+      pc.MessageEvent<SafeStreamApi::Confirm>().Subscribe([&](auto const& msg) {
+        auto& confirm = msg.message();
+        confirmed_offset = confirm.offset;
+      });
 
-  auto _2 = pc.OnMessage<SafeStreamApi::RequestRepeat>([&](auto const& msg) {
-    auto& request_repeat = msg.message();
-    repeat_requested.push_back(request_repeat.offset);
-  });
+  auto _2 = pc.MessageEvent<SafeStreamApi::RequestRepeat>().Subscribe(
+      [&](auto const& msg) {
+        auto& request_repeat = msg.message();
+        repeat_requested.push_back(request_repeat.offset);
+      });
 
   auto _3 = receiving.receive_event().Subscribe(
       [&](DataBuffer&& data) { received_packet = std::move(data); });

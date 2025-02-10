@@ -16,8 +16,8 @@
 
 #include <unity.h>
 
-#include "aether/obj/ptr.h"
-#include "aether/obj/ptr_view.h"
+#include "aether/ptr/ptr.h"
+#include "aether/ptr/ptr_view.h"
 
 namespace ae::test_ptr_view {
 struct A {
@@ -43,7 +43,7 @@ void test_CreatePtrView() {
 
   A::a_destroy_count = 0;
   {
-    auto a = Ptr<A>(new A());
+    auto a = MakePtr<A>();
     auto a_view = PtrView<A>{a};
     auto a_view_copy = a_view;
     TEST_ASSERT(a_view);
@@ -52,7 +52,7 @@ void test_CreatePtrView() {
   TEST_ASSERT_EQUAL(1, A::a_destroy_count);
   A::a_destroy_count = 0;
   {
-    auto a = Ptr<A>(new A());
+    auto a = MakePtr<A>();
     auto a_view = PtrView<A>{a};
     auto a_view_move_copy = std::move(a_view);
     TEST_ASSERT(!a_view);
@@ -64,7 +64,7 @@ void test_CreatePtrView() {
     auto a_view = PtrView<A>{};
     TEST_ASSERT(!a_view);
     {
-      auto a = Ptr<A>(new A());
+      auto a = MakePtr<A>();
       a_view = a;
       TEST_ASSERT(a_view);
     }

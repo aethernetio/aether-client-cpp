@@ -37,7 +37,7 @@
 #include "aether/obj/registry.h"
 #include "aether/obj/obj_id.h"
 #include "aether/obj/obj_ptr.h"
-#include "aether/obj/ptr_view.h"
+#include "aether/ptr/ptr_view.h"
 
 namespace ae {
 class Domain;
@@ -136,8 +136,6 @@ class Domain {
 
   // Search for the object by obj_id.
   ObjPtr<Obj> Find(ObjId obj_id) const;
-  // Search for the object by it's pointer
-  ObjPtr<Obj> Find(Obj* ptr) const;
 
   void AddObject(ObjId id, ObjPtr<Obj> const& obj);
   void RemoveObject(Obj* obj);
@@ -157,7 +155,6 @@ class Domain {
   Registry registry_{};
 
   std::map<std::uint32_t, PtrView<Obj>> id_objects_{};
-  std::map<void const*, PtrView<Obj>> ptr_objects_{};
 
   DomainCycleDetector cycle_detector_{};
 };
@@ -168,11 +165,8 @@ ObjPtr<TClass> Domain::CreateObj(ObjId obj_id, TArgs&&... args) {
                 "Class must be constructible passed arguments and Domain*");
 
   // allocate object first and add it to the list
-  auto object = AllocateObject<TClass>();
+  auto object = ObjPtr{MakePtr<TClass>(std::forward<TArgs>(args)..., this)};
   AddObject(obj_id, object);
-  // initialize object, it's possible to get ObjPtr<TClass> inside TClass
-  // constructor
-  object = InitObject(std::move(object), std::forward<TArgs>(args)..., this);
   object.SetId(obj_id);
   return object;
 }
@@ -355,32 +349,6 @@ void Domain::SaveVersion(Version<V> version, T const& obj) {
 
   facility_.Store(obj.GetId(), T::kClassId, Version<V>::value, output_data);
 }
-
-template <class T>
-struct Registrar {
-  Registrar(uint32_t cls_id, std::uint32_t base_id,
-            [[maybe_unused]] const char* class_name) {
-    Registry::RegisterClass(cls_id, base_id,
-                            {// create
-                             []() { return ObjPtr<T>(new T()); },
-                             // load
-                             [](Domain* domain, ObjPtr<Obj> obj) {
-                               auto self_ptr = ObjPtr<T>{std::move(obj)};
-                               domain->Load(*self_ptr.get());
-                               return self_ptr;
-                             },
-                             // save
-                             [](Domain* domain, ObjPtr<Obj> const& obj) {
-                               auto self_ptr = static_cast<T*>(obj.get());
-                               domain->Save(*self_ptr);
-                             }
-#ifdef DEBUG
-                             ,
-                             class_name
-#endif  // DEBUG
-                            });
-  }
-};
 
 template <typename T, typename Ib>
 imstream<DomainBufferReader<Ib>>& operator>>(

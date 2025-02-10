@@ -91,6 +91,8 @@ void test_clientToServerStream() {
   });
 
   auto client_to_server_stream = fixture.ClientToServerStream();
+  client_to_server_stream->in().Write(
+      {std::begin(test_data), std::end(test_data)}, Now());
 
   TEST_ASSERT(data_received);
 }
@@ -112,6 +114,8 @@ void test_clientToServerStreamConnectionFailed() {
       });
 
   auto client_to_server_stream = fixture.ClientToServerStream();
+  client_to_server_stream->in().Write(
+      {std::begin(test_data), std::end(test_data)}, Now());
 
   TEST_ASSERT(!data_received);
 }
@@ -133,6 +137,8 @@ void test_clientToServerStreamConnectionDeferred() {
       });
 
   auto client_to_server_stream = fixture.ClientToServerStream();
+  client_to_server_stream->in().Write(
+      {std::begin(test_data), std::end(test_data)}, Now());
 
   mock_transport->Connected();
 

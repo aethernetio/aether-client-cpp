@@ -48,12 +48,8 @@ void setUp() {
   statistics_trap = ae::MakePtr<ae::tele::statistics::StatisticsTrap>();
   InitTeleSink(statistics_trap);
   // start with clean state
-  try {
-    auto fs = ae::FileSystemStdFacility{};
-    fs.remove_all();
-  } catch (...) {
-    void();
-  }
+  auto fs = ae::FileSystemStdFacility{};
+  fs.remove_all();
 }
 void tearDown() {}
 

@@ -151,10 +151,10 @@ class Gate<TIn, TOut, TIn, TOut> : public IGate<TIn, TOut> {
     out_ = &out;
 
     out_data_subscription_ = out_->out_data_event().Subscribe(
-        [this](auto const& out_data) { out_data_event_.Emit(out_data); });
+        out_data_event_, MethodPtr<&Base::OutDataEvent::Emit>{});
 
     gate_update_subscription_ = out_->gate_update_event().Subscribe(
-        [this]() { gate_update_event_.Emit(); });
+        gate_update_event_, MethodPtr<&Base::GateUpdateEvent::Emit>{});
     gate_update_event_.Emit();
   }
 

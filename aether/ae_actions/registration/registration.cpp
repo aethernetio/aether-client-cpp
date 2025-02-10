@@ -92,20 +92,15 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
       state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
 
   subscriptions_.Push(
-      protocol_context_.OnMessage<ClientApiRegSafe::GetKeysResponse>(
-          [this](auto const& action) { OnGetKeysResponse(action.message()); }),
-      protocol_context_.OnMessage<ClientApiRegSafe::ResponseWorkProofData>(
-          [this](auto const& action) {
-            OnResponsePowParams(action.message());
-          }),
-      protocol_context_.OnMessage<ClientGlobalRegApi::ConfirmRegistration>(
-          [this](auto const& action) {
-            OnConfirmRegistration(action.message());
-          }),
-      protocol_context_.OnMessage<ClientApiRegSafe::ResolveServersResponse>(
-          [this](auto const& action) {
-            OnResolveCloudResponse(action.message());
-          }));
+      protocol_context_.MessageEvent<ClientApiRegSafe::GetKeysResponse>()
+          .Subscribe(*this, MethodPtr<&Registration::OnGetKeysResponse>{}),
+      protocol_context_.MessageEvent<ClientApiRegSafe::ResponseWorkProofData>()
+          .Subscribe(*this, MethodPtr<&Registration::OnResponsePowParams>{}),
+      protocol_context_.MessageEvent<ClientGlobalRegApi::ConfirmRegistration>()
+          .Subscribe(*this, MethodPtr<&Registration::OnConfirmRegistration>{}),
+      protocol_context_.MessageEvent<ClientApiRegSafe::ResolveServersResponse>()
+          .Subscribe(*this,
+                     MethodPtr<&Registration::OnResolveCloudResponse>{}));
 }
 
 Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
@@ -234,8 +229,9 @@ TimePoint Registration::WaitKeys(TimePoint current_time) {
 }
 
 void Registration::OnGetKeysResponse(
-    ClientApiRegSafe::GetKeysResponse const& message) {
+    MessageEventData<ClientApiRegSafe::GetKeysResponse> const& msg) {
   AE_TELED_DEBUG("Registration::OnGetKeysResponse");
+  auto const& message = msg.message();
 
   auto r = CryptoSignVerify(message.signed_key.sign, message.signed_key.key,
                             sign_pk_);
@@ -293,9 +289,9 @@ void Registration::RequestPowParams(TimePoint current_time) {
 }
 
 void Registration::OnResponsePowParams(
-    ClientApiRegSafe::ResponseWorkProofData const& message) {
+    MessageEventData<ClientApiRegSafe::ResponseWorkProofData> const& msg) {
   AE_TELED_DEBUG("Registration::OnResponsePowParams");
-
+  auto const& message = msg.message();
   [[maybe_unused]] auto res =
       CryptoSignVerify(message.pow_params.global_key.sign,
                        message.pow_params.global_key.key, sign_pk_);
@@ -376,7 +372,8 @@ void Registration::MakeRegistration(TimePoint current_time) {
 }
 
 void Registration::OnConfirmRegistration(
-    ClientGlobalRegApi::ConfirmRegistration const& message) {
+    MessageEventData<ClientGlobalRegApi::ConfirmRegistration> const& msg) {
+  auto const& message = msg.message();
   AE_TELED_DEBUG("Registration::OnConfirmRegistration\n\tservers count {}",
                  message.registration_response.cloud.size());
 
@@ -414,7 +411,8 @@ void Registration::ResolveCloud(TimePoint current_time) {
 }
 
 void Registration::OnResolveCloudResponse(
-    ClientApiRegSafe::ResolveServersResponse const& message) {
+    MessageEventData<ClientApiRegSafe::ResolveServersResponse> const& msg) {
+  auto const& message = msg.message();
   AE_TELED_DEBUG("Registration::OnResolveCloudResponse\n\tservers count {}",
                  message.servers.size());
 

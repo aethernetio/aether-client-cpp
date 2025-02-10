@@ -56,26 +56,27 @@ class ProtocolReadGate final : public ByteGate {
   void LinkOut(OutGate& out) override {
     out_ = &out;
 
-    out_data_subscription_ =
-        out.out_data_event().Subscribe([this](auto const& buffer) {
-          auto api_parser = ApiParser{protocol_context_, buffer};
-          api_parser.Parse(api_class_);
-        });
+    out_data_subscription_ = out.out_data_event().Subscribe(
+        *this, MethodPtr<&ProtocolReadGate::OnOutDataEvent>{});
 
     gate_update_subscription_ = out.gate_update_event().Subscribe(
-        [this]() { gate_update_event_.Emit(); });
+        gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
 
     gate_update_event_.Emit();
   }
 
  private:
+  void OnOutDataEvent(DataBuffer const& buffer) {
+    auto api_parser = ApiParser{protocol_context_, buffer};
+    api_parser.Parse(api_class_);
+  }
   ProtocolContext& protocol_context_;
   TApiClass api_class_;
 };
 
 template <typename TApi>
-ProtocolReadGate(ProtocolContext& protocol_context,
-                 TApi&& api_class) -> ProtocolReadGate<TApi>;
+ProtocolReadGate(ProtocolContext& protocol_context, TApi&& api_class)
+    -> ProtocolReadGate<TApi>;
 
 }  // namespace ae
 

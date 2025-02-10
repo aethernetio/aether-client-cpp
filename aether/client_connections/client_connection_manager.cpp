@@ -46,7 +46,7 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
       Server::ptr const& server, Channel::ptr const& channel) override {
     auto ccm = client_connection_manager_.Lock();
     assert(ccm);
-    auto cached_connection = ccm->client_server_connection_pull_.Find(
+    auto cached_connection = ccm->client_server_connection_pool_.Find(
         server->server_id, channel.GetId());
     if (cached_connection) {
       AE_TELED_DEBUG("Return cached connection");
@@ -68,15 +68,17 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
       return {};
     }
 
+    auto action_context = ActionContext{*aether->action_processor};
+
     auto server_channel_stream =
         MakePtr<ServerChannelStream>(aether, adapter, server, channel);
+    auto client_server_stream =
+        MakePtr<ClientToServerStream>(action_context, client, server->server_id,
+                                      std::move(server_channel_stream));
+    auto connection = MakePtr<ClientServerConnection>(
+        action_context, server, channel, std::move(client_server_stream));
 
-    auto connection =
-        MakePtr<ClientServerConnection>(MakePtr<ClientToServerStream>(
-            ActionContext{*aether->action_processor}, client, server->server_id,
-            std::move(server_channel_stream)));
-
-    ccm->client_server_connection_pull_.Add(server->server_id, channel.GetId(),
+    ccm->client_server_connection_pool_.Add(server->server_id, channel.GetId(),
                                             connection);
     return connection;
   }
@@ -125,7 +127,7 @@ ClientConnectionManager::GetClientConnection(Uid client_uid) {
         MakePtr<ActionList<GetClientCloudConnection>>(action_context);
   }
 
-  auto self_ptr = SelfObjPtr(this);
+  auto self_ptr = MakePtrFromThis(this);
   assert(self_ptr);
 
   auto client_server_connection_selector =
@@ -192,7 +194,7 @@ ClientConnectionManager::GetCloudServerConnectionSelector(Uid uid) {
 
   auto aether = Ptr<Aether>{aether_};
   auto client_ptr = Ptr<Client>{client_};
-  auto self_ptr = SelfObjPtr(this);
+  auto self_ptr = MakePtrFromThis(this);
   assert(self_ptr);
 
   if (!cache->cloud) {

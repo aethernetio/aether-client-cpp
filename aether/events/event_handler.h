@@ -18,52 +18,38 @@
 #define AETHER_EVENTS_EVENT_HANDLER_H_
 
 #include <utility>
+#include <variant>
 #include <functional>
 
+#include "aether/common.h"
+#include "aether/events/delegate.h"
+
 namespace ae {
-class IEventHandler {
- public:
-  virtual ~IEventHandler() = default;
-
-  virtual bool is_alive() const = 0;
-  virtual void set_dead() = 0;
-  virtual void set_once() = 0;
-};
-
 template <typename TSignature>
 class EventHandler;
 
 /**
- * \brief RAII object to store event handler callback
+ * \brief Object to store event handler callback
  */
 template <typename... TArgs>
-class EventHandler<void(TArgs...)> : public IEventHandler {
+class EventHandler<void(TArgs...)> {
  public:
-  template <typename TCallable>
-  explicit EventHandler(TCallable cb) : cb_(std::move(cb)) {}
+  constexpr explicit EventHandler(std::function<void(TArgs...)>&& func)
+      : callback_{std::move(func)} {}
 
-  EventHandler(EventHandler const&) = delete;
-  EventHandler(EventHandler&&) noexcept = delete;
+  constexpr explicit EventHandler(Delegate<void(TArgs...)>&& delegate)
+      : callback_{std::move(delegate)} {}
 
-  ~EventHandler() override = default;
+  AE_CLASS_COPY_MOVE(EventHandler);
 
-  void invoke(TArgs... args) {
-    if (alive_) {
-      cb_(std::forward<TArgs>(args)...);
-    }
-    if (once_) {
-      alive_ = false;
-    }
+  constexpr void Invoke(TArgs... args) {
+    std::visit([&](auto& callback) { callback(std::forward<TArgs>(args)...); },
+               callback_);
   }
 
-  bool is_alive() const override { return alive_; }
-  void set_dead() override { alive_ = false; }
-  void set_once() override { once_ = true; }
-
  private:
-  bool alive_{true};  //< handler is alive
-  bool once_{false};  //< event handler should be called only once
-  std::function<void(TArgs...)> cb_;
+  std::variant<Delegate<void(TArgs...)>, std::function<void(TArgs...)>>
+      callback_;
 };
 }  // namespace ae
 

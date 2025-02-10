@@ -39,7 +39,8 @@ class SplitterGate final : public ByteGate {
   std::size_t stream_count() const;
 
  private:
-  void OnStream(StreamApi::Stream const& message);
+  void OnDataEvent(DataBuffer const& data_buffer);
+  void OnStream(MessageEventData<StreamApi::Stream> const& message);
 
   ProtocolContext protocol_context_;
   Subscription stream_message_event_;

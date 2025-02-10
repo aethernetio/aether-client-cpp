@@ -32,6 +32,8 @@ class DebugGate final : public ByteGate {
   void LinkOut(OutGate& out) override;
 
  private:
+  void OnDataEvent(DataBuffer const& data);
+
   std::string in_format_;
   std::string out_format_;
 };

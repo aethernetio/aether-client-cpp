@@ -77,16 +77,17 @@ class Registration : public Action<Registration> {
 
   void GetKeys(TimePoint current_time);
   TimePoint WaitKeys(TimePoint current_time);
-  void OnGetKeysResponse(ClientApiRegSafe::GetKeysResponse const& message);
+  void OnGetKeysResponse(
+      MessageEventData<ClientApiRegSafe::GetKeysResponse> const& msg);
   void RequestPowParams(TimePoint current_time);
   void OnResponsePowParams(
-      ClientApiRegSafe::ResponseWorkProofData const& message);
+      MessageEventData<ClientApiRegSafe::ResponseWorkProofData> const& msg);
   void MakeRegistration(TimePoint current_time);
   void OnConfirmRegistration(
-      ClientGlobalRegApi::ConfirmRegistration const& message);
+      MessageEventData<ClientGlobalRegApi::ConfirmRegistration> const& msg);
   void ResolveCloud(TimePoint current_time);
   void OnResolveCloudResponse(
-      ClientApiRegSafe::ResolveServersResponse const& message);
+      MessageEventData<ClientApiRegSafe::ResolveServersResponse> const& msg);
 
   Ptr<ByteStream> CreateRegServerStream(
       StreamId stream_id, Ptr<IAsyncKeyProvider> async_key_provider,

@@ -45,9 +45,7 @@ void Registry::RegisterClass(uint32_t cls_id, std::uint32_t base_id,
 #  if !defined(_MSC_VER) || _MSC_VER >= 1920
   assert(factories.find(cls_id) == factories.end());
 #  endif  // !defined(_MSC_VER) || _MSC_VER >= 1920
-  factory.cls_id = cls_id;
-  factory.base_id = base_id;
-#endif  // DEBUG
+#endif    // DEBUG
   factories.emplace(cls_id, std::move(factory));
   // TODO: maybe remove this check
   if (base_id != crc32::from_literal("Obj").value) {

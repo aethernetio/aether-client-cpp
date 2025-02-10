@@ -16,70 +16,54 @@
 
 #include <unity.h>
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 
-namespace ae {
-namespace test_ptr {
-struct A {
-  using ptr = Ptr<A>;
+#include "tests/test-ptr/pipe_there_they_are_sitting.h"
 
-  A() = default;
-  virtual ~A() { ++a_destroyed; }
-
-  static inline int a_destroyed = 0;
-};
-
-struct B : public A {
-  using ptr = Ptr<B>;
-
-  B() : A() {}
-  virtual ~B() { ++b_destroyed; }
-
-  static inline int b_destroyed = 0;
-};
+namespace ae::test_ptr {
+using test_ptr::A;
+using test_ptr::B;
 
 void test_createPtr() {
   {
-    A::ptr a;
-    A::ptr a1{nullptr};
-    A* a_null = nullptr;
-    A::ptr a2{a_null};
+    Ptr<A> a;
+    Ptr<A> a1{nullptr};
   }
   {
-    A::ptr a{new A()};
+    Ptr<A> a{MakePtr<A>()};
     TEST_ASSERT(a);
   }
   {
-    A::ptr a{new A()};
-    A::ptr a1{a};
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<A> a1{a};
     TEST_ASSERT(a);
     TEST_ASSERT(a1);
   }
   {
-    A::ptr a{new A()};
-    A::ptr a1{std::move(a)};
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<A> a1{std::move(a)};
     TEST_ASSERT(!a);
     TEST_ASSERT(a1);
   }
   {
-    A::ptr a{new A()};
-    A::ptr a1{std::move(a)};
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<A> a1{std::move(a)};
     TEST_ASSERT(!a);
     TEST_ASSERT(a1);
   }
   {
-    A::ptr a{new B()};
+    Ptr<A> a{MakePtr<B>()};
     TEST_ASSERT(a);
   }
   {
-    B::ptr b{new B()};
-    A::ptr a{b};
+    Ptr<B> b{MakePtr<B>()};
+    Ptr<A> a{b};
     TEST_ASSERT(b);
     TEST_ASSERT(a);
   }
   {
-    B::ptr b{new B()};
-    A::ptr a{std::move(b)};
+    Ptr<B> b{MakePtr<B>()};
+    Ptr<A> a{std::move(b)};
     TEST_ASSERT(!b);
     TEST_ASSERT(a);
   }
@@ -88,8 +72,8 @@ void test_createPtr() {
 void test_ptrLifeTime() {
   A::a_destroyed = 0;
   {
-    A::ptr a{new A()};
-    A::ptr a1{new A()};
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<A> a1{MakePtr<A>()};
   }
   TEST_ASSERT_EQUAL(2, A::a_destroyed);
 
@@ -97,7 +81,7 @@ void test_ptrLifeTime() {
   B::b_destroyed = 0;
   {
     // check if parent destructor is called too
-    B::ptr b{new B()};
+    Ptr<B> b{MakePtr<B>()};
   }
   TEST_ASSERT_EQUAL(1, A::a_destroyed);
   TEST_ASSERT_EQUAL(1, B::b_destroyed);
@@ -106,7 +90,7 @@ void test_ptrLifeTime() {
   B::b_destroyed = 0;
   {
     // check if parent destructor is called too
-    A::ptr b{new B()};
+    Ptr<A> b{MakePtr<B>()};
   }
   TEST_ASSERT_EQUAL(1, A::a_destroyed);
   TEST_ASSERT_EQUAL(1, B::b_destroyed);
@@ -115,8 +99,8 @@ void test_ptrLifeTime() {
 void test_ptrAssignment() {
   A::a_destroyed = 0;
   {
-    A::ptr a{new A()};
-    A::ptr a1{};
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<A> a1{};
     a1 = a;
     TEST_ASSERT(a);
     TEST_ASSERT(a1);
@@ -125,8 +109,8 @@ void test_ptrAssignment() {
 
   A::a_destroyed = 0;
   {
-    A::ptr a{new A()};
-    A::ptr a1;
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<A> a1;
     a1 = std::move(a);
     TEST_ASSERT(!a);
     TEST_ASSERT(a1);
@@ -136,8 +120,8 @@ void test_ptrAssignment() {
   A::a_destroyed = 0;
   B::b_destroyed = 0;
   {
-    A::ptr a{new A()};
-    B::ptr b = a;
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<B> b = a;
     TEST_ASSERT(a);
     TEST_ASSERT(b);
   }
@@ -147,8 +131,8 @@ void test_ptrAssignment() {
   A::a_destroyed = 0;
   B::b_destroyed = 0;
   {
-    A::ptr a{new A()};
-    B::ptr b{};
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<B> b{};
     b = a;
     TEST_ASSERT(a);
     TEST_ASSERT(b);
@@ -159,8 +143,8 @@ void test_ptrAssignment() {
   A::a_destroyed = 0;
   B::b_destroyed = 0;
   {
-    A::ptr a{new A()};
-    B::ptr b{};
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<B> b{};
     b = std::move(a);
     TEST_ASSERT(!a);
     TEST_ASSERT(b);
@@ -171,8 +155,8 @@ void test_ptrAssignment() {
   A::a_destroyed = 0;
   B::b_destroyed = 0;
   {
-    A::ptr a{new A()};
-    B::ptr b{new B()};
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<B> b{MakePtr<B>()};
     b = std::move(a);
     TEST_ASSERT(!a);
     TEST_ASSERT(b);
@@ -183,44 +167,71 @@ void test_ptrAssignment() {
 
 void test_ptrCompare() {
   {
-    A::ptr a{new A()};
+    Ptr<A> a{MakePtr<A>()};
     TEST_ASSERT(a);
-    A::ptr a1{new A()};
+    Ptr<A> a1{MakePtr<A>()};
     TEST_ASSERT(a1);
     TEST_ASSERT(a != a1);
   }
 
   {
-    A::ptr a{new A()};
+    Ptr<A> a{MakePtr<A>()};
     TEST_ASSERT(a);
-    A::ptr a1 = a;
+    Ptr<A> a1 = a;
     TEST_ASSERT(a1);
     TEST_ASSERT(a == a1);
   }
 
   {
-    A::ptr a;
+    Ptr<A> a;
     TEST_ASSERT(!a);
-    A::ptr a1 = a;
+    Ptr<A> a1 = a;
     TEST_ASSERT(!a1);
   }
 
   {
-    A::ptr a{new A()};
+    Ptr<A> a{MakePtr<A>()};
     TEST_ASSERT(a);
-    B::ptr b = a;
+    Ptr<B> b = a;
     TEST_ASSERT(a == b);
   }
 
   {
-    A::ptr a{new A()};
+    Ptr<A> a{MakePtr<A>()};
     TEST_ASSERT(a);
-    B::ptr b{new B()};
+    Ptr<B> b{MakePtr<B>()};
     TEST_ASSERT(a != b);
   }
 }
-}  // namespace test_ptr
-}  // namespace ae
+
+struct MakeYourSelf {
+  MakeYourSelf() {
+    auto self_ptr = MakePtrFromThis(this);
+    TEST_ASSERT_EQUAL(this, self_ptr.get());
+    a = MakePtr<A>();
+    x = 12;
+  }
+
+  Ptr<A> a;
+  int x;
+};
+
+void test_ptrMakeFromThis() {
+  {
+    auto a = MakePtr<A>();
+    auto* a_this = a.get();
+    auto a_copy = MakePtrFromThis(a_this);
+    TEST_ASSERT_EQUAL(a.get(), a_copy.get());
+  }
+  {
+    auto mys = MakePtr<MakeYourSelf>();
+    TEST_ASSERT(!!mys);
+    TEST_ASSERT(!!mys->a);
+    TEST_ASSERT_EQUAL(12, mys->x);
+  }
+}
+
+}  // namespace ae::test_ptr
 
 int run_test_ptr() {
   UNITY_BEGIN();
@@ -228,5 +239,6 @@ int run_test_ptr() {
   RUN_TEST(ae::test_ptr::test_ptrLifeTime);
   RUN_TEST(ae::test_ptr::test_ptrAssignment);
   RUN_TEST(ae::test_ptr::test_ptrCompare);
+  RUN_TEST(ae::test_ptr::test_ptrMakeFromThis);
   return UNITY_END();
 }

@@ -35,7 +35,7 @@ struct CycleDetector {
              (static_cast<std::ptrdiff_t>(rhs.type_index) + rhs_ptr);
     }
 
-    int type_index;
+    std::uint32_t type_index;
     void const* ptr;
   };
 
@@ -43,12 +43,12 @@ struct CycleDetector {
 
   template <typename T>
   void Add(T const* ptr) {
-    visited_objects_.insert(ObjEntry{TypeIndex<T>::get(), ptr});
+    visited_objects_.insert(ObjEntry{GetTypeIndex<T>(), ptr});
   }
 
   template <typename T>
   bool IsVisited(T const* ptr) const {
-    auto e = ObjEntry{TypeIndex<T>::get(), ptr};
+    auto e = ObjEntry{GetTypeIndex<T>(), ptr};
     return visited_objects_.find(e) != visited_objects_.end();
   }
 };

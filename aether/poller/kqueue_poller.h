@@ -30,6 +30,8 @@ class KqueuePoller : public IPoller {
 
   class PollerWorker;
 
+  KqueuePoller();
+
  public:
 #  if defined AE_DISTILLATION
   KqueuePoller(Domain* domain);
@@ -47,7 +49,7 @@ class KqueuePoller : public IPoller {
  private:
   void InitPollWorker();
 
-  std::shared_ptr<PollerWorker> poller_worker_;
+  std::unique_ptr<PollerWorker> poller_worker_;
 };
 }  // namespace ae
 

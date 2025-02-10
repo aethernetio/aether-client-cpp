@@ -28,11 +28,13 @@ class Loopa;
 class Poopa : public Obj {
   AE_OBJECT(Poopa, Obj, 0)
 
+  Poopa() = default;
+
  public:
   explicit Poopa(Domain* domain) : Obj{domain} {}
   ~Poopa() override { DeleteCount++; }
 
-  void SetLoopa(Obj::ptr loopa) { this->loopa = loopa; }
+  void SetLoopa(Obj::ptr loopa) { this->loopa = std::move(loopa); }
 
   template <typename Dnv>
   void Visit(Dnv& dnv) {
@@ -47,11 +49,13 @@ class Poopa : public Obj {
 class Loopa : public Obj {
   AE_OBJECT(Loopa, Obj, 0)
 
+  Loopa() = default;
+
  public:
   explicit Loopa(Domain* domain) : Obj{domain} {}
   ~Loopa() override { DeleteCount++; }
 
-  void AddPoopa(Obj::ptr poopa) { poopas.push_back(poopa); }
+  void AddPoopa(Obj::ptr poopa) { poopas.emplace_back(std::move(poopa)); }
 
   template <typename Dnv>
   void Visit(Dnv& dnv) {

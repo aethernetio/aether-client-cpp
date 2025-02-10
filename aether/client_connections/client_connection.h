@@ -18,7 +18,7 @@
 #define AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTION_H_
 
 #include "aether/uid.h"
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/stream_api.h"
 

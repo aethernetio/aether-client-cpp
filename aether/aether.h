@@ -42,6 +42,8 @@ class Registration;
 class Aether : public Obj {
   AE_OBJECT(Aether, Obj, 0)
 
+  Aether() = default;
+
  public:
   // Internal.
 #ifdef AE_DISTILLATION

@@ -20,7 +20,7 @@
 #include "aether/config.h"
 #if defined AE_DISTILLATION
 
-#  include "aether/obj/ptr.h"
+#  include "aether/ptr/ptr.h"
 #  include "aether/obj/domain.h"
 #  include "aether/aether.h"
 #  include "aether/adapters/adapter.h"

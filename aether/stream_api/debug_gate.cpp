@@ -34,16 +34,18 @@ ActionView<StreamWriteAction> DebugGate::Write(ByteGate::TypeIn&& in_data,
 void DebugGate::LinkOut(OutGate& out) {
   out_ = &out;
 
-  out_data_subscription_ =
-      out.out_data_event().Subscribe([this](auto const& out_data) {
-        AE_TELED_DEBUG(out_format_.c_str(), out_data);
-        out_data_event_.Emit(out_data);
-      });
+  out_data_subscription_ = out.out_data_event().Subscribe(
+      *this, MethodPtr<&DebugGate::OnDataEvent>{});
 
   gate_update_subscription_ = out.gate_update_event().Subscribe(
-      [this]() { gate_update_event_.Emit(); });
+      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
 
   gate_update_event_.Emit();
+}
+
+void DebugGate::OnDataEvent(DataBuffer const& out_data) {
+  AE_TELED_DEBUG(out_format_.c_str(), out_data);
+  out_data_event_.Emit(out_data);
 }
 
 }  // namespace ae

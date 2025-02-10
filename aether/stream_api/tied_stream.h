@@ -21,7 +21,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "aether/obj/ptr_management.h"
+#include "aether/ptr/ptr_management.h"
 #include "aether/stream_api/istream.h"
 
 namespace ae {

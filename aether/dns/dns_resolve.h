@@ -51,6 +51,10 @@ class ResolveAction : public Action<ResolveAction> {
  */
 class DnsResolver : public Obj {
   AE_OBJECT(DnsResolver, Obj, 0)
+
+ protected:
+  DnsResolver() = default;
+
  public:
 #  if defined AE_DISTILLATION
   explicit DnsResolver(Domain* domain) : Obj{domain} {}

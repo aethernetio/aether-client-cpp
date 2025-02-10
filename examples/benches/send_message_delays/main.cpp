@@ -18,7 +18,7 @@
 #include <fstream>
 #include <filesystem>
 
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/obj/domain.h"
 #include "aether/literal_array.h"
 #include "aether/actions/action.h"
@@ -110,7 +110,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
     assert(aether_->clients().size() >= 2);
     client_sender_ = aether_->clients()[0];
     client_receiver_ = aether_->clients()[1];
-    state_ = State::kMakeTest
+    state_ = State::kMakeTest;
 #endif
   }
 

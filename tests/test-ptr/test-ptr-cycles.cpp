@@ -16,8 +16,8 @@
 
 #include <unity.h>
 
-#include "aether/obj/ptr.h"
-#include "aether/obj/ptr_view.h"
+#include "aether/ptr/ptr.h"
+#include "aether/ptr/ptr_view.h"
 
 #include "tests/sanitizer_checks.h"
 

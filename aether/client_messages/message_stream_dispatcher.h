@@ -20,7 +20,7 @@
 #include <map>
 
 #include "aether/uid.h"
-#include "aether/obj/ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/events/events.h"
 #include "aether/events/event_subscription.h"
 
@@ -45,7 +45,8 @@ class MessageStreamDispatcher {
 
  private:
   Ptr<MessageStream> CreateMessageStream(Uid uid, StreamId stream_id);
-  void OnStreamToClient(ClientSafeApi::StreamToClient const& msg);
+  void OnStreamToClient(
+      MessageEventData<ClientSafeApi::StreamToClient> const& msg);
 
   ProtocolContext protocol_context_;
 

@@ -156,13 +156,17 @@ class WinPoller::IoCPPoller {
   std::atomic_bool stop_requested_{false};
 };
 
+WinPoller::WinPoller() = default;
+
 #  if defined AE_DISTILLATION
 WinPoller::WinPoller(Domain* domain) : IPoller(domain) {}
 #  endif
 
+WinPoller::~WinPoller() = default;
+
 void WinPoller::Add(PollerEvent event, Callback callback) {
   if (!iocp_poller_) {
-    iocp_poller_ = std::make_shared<IoCPPoller>();
+    iocp_poller_ = std::make_unique<IoCPPoller>();
   }
   iocp_poller_->Add(event, callback);
 }

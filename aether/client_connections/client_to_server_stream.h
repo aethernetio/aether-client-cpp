@@ -51,7 +51,6 @@ class ClientToServerStream : public ByteStream {
  private:
   void OnConnected();
   void OnDisconnected();
-  void InitStreams();
 
   ActionContext action_context_;
   Ptr<Client> client_;
