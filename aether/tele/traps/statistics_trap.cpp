@@ -85,7 +85,8 @@ void Statistics::UpdateSize(LogStore const& logs, std::size_t delta_size) {
 void Statistics::UpdateSize(MetricsStore const& /* metrics */,
                             std::size_t delta_size) {
   // calculate size by delta count
-  size_ += static_cast<std::uint32_t>(delta_size * sizeof(MetricsStore::Metric));
+  size_ +=
+      static_cast<std::uint32_t>(delta_size * sizeof(MetricsStore::Metric));
 }
 
 void Statistics::Append(Statistics const& other) {

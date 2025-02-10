@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <algorithm>
+
 #include "aether/address_parser.h"
 
 namespace ae {
