@@ -54,11 +54,11 @@ bool IpAddressParser::stringToIPv4(const std::string& ipString,
   }
 
   // We convert each octet into a number and check its correctness.
-  for (int i = 0; i < 4; ++i) {
+  for (size_t i = 0; i < 4; ++i) {
     if (!isNumber(octets[i])) {
       return false;
     }
-    int value = std::stoi(octets[i]);
+    std::int32_t value = std::stoi(octets[i]);
     if (value < 0 || value > 255) {
       return false;
     }
@@ -91,7 +91,7 @@ bool IpAddressParser::stringToIPv6(const std::string& ipString,
   }
 
   // Processing an abbreviated record (::)
-  size_t doubleColonPos = ipString.find("::");
+  std::string::difference_type doubleColonPos = ipString.find("::");
   bool hasDoubleColon = (doubleColonPos != std::string::npos);
 
   // Checking the correctness of the number of groups
@@ -108,11 +108,11 @@ bool IpAddressParser::stringToIPv6(const std::string& ipString,
   // Filling groups with zeros if there is an abbreviated entry.
   if (hasDoubleColon) {
     std::vector<std::string> expandedGroups(8, "0000");
-    size_t leftCount = doubleColonPos == 0
+    std::string::difference_type leftCount = doubleColonPos == 0
                            ? 0
                            : std::count(ipString.begin(),
                                         ipString.begin() + doubleColonPos, ':');
-    size_t rightCount = groups.size() - leftCount - (hasDoubleColon ? 1 : 0);
+    std::string::difference_type rightCount = groups.size() - leftCount - (hasDoubleColon ? 1 : 0);
 
     for (size_t i = 0; i < leftCount; ++i) {
       expandedGroups[i] = groups[i];
