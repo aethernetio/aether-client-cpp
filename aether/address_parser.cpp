@@ -15,21 +15,23 @@
  */
 
 #include <algorithm>
+#include <regex>
 
 #include "aether/address_parser.h"
 
 namespace ae {
-bool IpAddressParser::stringToIP(const std::string& ipString,
-                                 IpAddress& ipAddr) {
+
+bool IpAddressParser::stringToIP(const std::string& ip_string,
+                                 IpAddress& ip_addr) {
   bool result{false};
 
-  if (ipAddr.version == IpAddress::Version::kIpV4) {
+  if (ip_addr.version == IpAddress::Version::kIpV4) {
 #if AE_SUPPORT_IPV4 == 1
-    result = stringToIPv4(ipString, ipAddr.value.ipv4_value);
+    result = stringToIPv4(ip_string, ip_addr.value.ipv4_value);
 #endif  // AE_SUPPORT_IPV4 == 1
-  } else if (ipAddr.version == IpAddress::Version::kIpV6) {
+  } else if (ip_addr.version == IpAddress::Version::kIpV6) {
 #if AE_SUPPORT_IPV6 == 1
-    result = stringToIPv6(ipString, ipAddr.value.ipv6_value);
+    result = stringToIPv6(ip_string, ip_addr.value.ipv6_value);
 #endif  // AE_SUPPORT_IPV6 == 1
   }
 
@@ -37,10 +39,10 @@ bool IpAddressParser::stringToIP(const std::string& ipString,
 }
 
 #if AE_SUPPORT_IPV4 == 1
-bool IpAddressParser::stringToIPv4(const std::string& ipString,
-                                   uint8_t ipAddress[4]) {
+bool IpAddressParser::stringToIPv4(const std::string& ip_string,
+                                   uint8_t ip_address[4]) {
   std::vector<std::string> octets;
-  std::stringstream ss(ipString);
+  std::stringstream ss(ip_string);
   std::string octet;
 
   // Dividing the line by points
@@ -62,7 +64,7 @@ bool IpAddressParser::stringToIPv4(const std::string& ipString,
     if (value < 0 || value > 255) {
       return false;
     }
-    ipAddress[i] = static_cast<uint8_t>(value);
+    ip_address[i] = static_cast<uint8_t>(value);
   }
 
   return true;
@@ -76,13 +78,20 @@ bool IpAddressParser::isNumber(const std::string& str) {
   }
   return true;
 }
+
+bool IsValidIpv4(const std::string& ip) {
+  // Regular expression for IPv4 verification
+  std::regex ipv4_pattern(
+      R"((^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$))");
+  return std::regex_match(ip, ipv4_pattern);
+}
 #endif  // AE_SUPPORT_IPV4 == 1
 
 #if AE_SUPPORT_IPV6 == 1
-bool IpAddressParser::stringToIPv6(const std::string& ipString,
-                                   uint8_t ipAddress[16]) {
+bool IpAddressParser::stringToIPv6(const std::string& ip_string,
+                                   uint8_t ip_address[16]) {
   std::vector<std::string> groups;
-  std::stringstream ss(ipString);
+  std::stringstream ss(ip_string);
   std::string group;
 
   // Dividing the string by colons
@@ -91,11 +100,11 @@ bool IpAddressParser::stringToIPv6(const std::string& ipString,
   }
 
   // Processing an abbreviated record (::)
-  size_t doubleColonPos = ipString.find("::");
-  bool hasDoubleColon = (doubleColonPos != std::string::npos);
+  size_t double_colon_pos = ip_string.find("::");
+  bool has_double_colon = (double_colon_pos != std::string::npos);
 
   // Checking the correctness of the number of groups
-  if (hasDoubleColon) {
+  if (has_double_colon) {
     if (groups.size() > 7 || groups.size() < 2) {
       return false;
     }
@@ -106,26 +115,27 @@ bool IpAddressParser::stringToIPv6(const std::string& ipString,
   }
 
   // Filling groups with zeros if there is an abbreviated entry.
-  if (hasDoubleColon) {
-    std::vector<std::string> expandedGroups(8, "0000");
-    size_t leftCount =
-        doubleColonPos == 0
+  if (has_double_colon) {
+    std::vector<std::string> expanded_groups(8, "0000");
+    size_t left_count =
+        double_colon_pos == 0
             ? 0
             : static_cast<size_t>(std::count(
-                  ipString.begin(),
-                  ipString.begin() +
-                      static_cast<std::string::difference_type>(doubleColonPos),
+                  ip_string.begin(),
+                  ip_string.begin() + static_cast<std::string::difference_type>(
+                                          double_colon_pos),
                   ':'));
-    size_t rightCount = groups.size() - leftCount - (hasDoubleColon ? 1 : 0);
+    size_t right_count =
+        groups.size() - left_count - (has_double_colon ? 1 : 0);
 
-    for (size_t i = 0; i < leftCount; ++i) {
-      expandedGroups[i] = groups[i];
+    for (size_t i = 0; i < left_count; ++i) {
+      expanded_groups[i] = groups[i];
     }
-    for (size_t i = 0; i < rightCount; ++i) {
-      expandedGroups[7 - rightCount + i + 1] =
-          groups[leftCount + i + (hasDoubleColon ? 1 : 0)];
+    for (size_t i = 0; i < right_count; ++i) {
+      expanded_groups[7 - right_count + i + 1] =
+          groups[left_count + i + (has_double_colon ? 1 : 0)];
     }
-    groups = expandedGroups;
+    groups = expanded_groups;
   }
 
   // Converting each group to a number
@@ -147,16 +157,23 @@ bool IpAddressParser::stringToIPv6(const std::string& ipString,
       value = static_cast<uint16_t>(
           value * 16 + (isdigit(ch) ? (ch - '0') : (tolower(ch) - 'a' + 10)));
     }
-    ipAddress[i * 2 + 0] = static_cast<uint8_t>((value >> 8) & 0xFF);
-    ipAddress[i * 2 + 1] = static_cast<uint8_t>((value >> 0) & 0xFF);
+    ip_address[i * 2 + 0] = static_cast<uint8_t>((value >> 8) & 0xFF);
+    ip_address[i * 2 + 1] = static_cast<uint8_t>((value >> 0) & 0xFF);
   }
 
   return true;
 }
 
-bool IpAddressParser::isHexDigit(char ch) {
+bool IpAddressParser::isHexDigit(const char ch) {
   return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') ||
          (ch >= 'A' && ch <= 'F');
+}
+
+bool is_valid_ipv6(const std::string& ip) {
+  // Regular expression for IPv6 verification
+  std::regex ipv6_pattern(
+      R"(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]+|::(ffff(:0{1,4})?:)?((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9]|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9])))");
+  return std::regex_match(ip, ipv6_pattern);
 }
 #endif  // AE_SUPPORT_IPV6 == 1
 
