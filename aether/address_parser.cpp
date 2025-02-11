@@ -108,11 +108,12 @@ bool IpAddressParser::stringToIPv6(const std::string& ipString,
   // Filling groups with zeros if there is an abbreviated entry.
   if (hasDoubleColon) {
     std::vector<std::string> expandedGroups(8, "0000");
-    std::string::difference_type leftCount = doubleColonPos == 0
-                           ? 0
-                           : std::count(ipString.begin(),
-                                        ipString.begin() + doubleColonPos, ':');
-    std::string::difference_type rightCount = groups.size() - leftCount - (hasDoubleColon ? 1 : 0);
+    size_t leftCount =
+        doubleColonPos == 0
+            ? 0
+            : static_cast<size_t>(std::count(
+                  ipString.begin(), ipString.begin() + doubleColonPos, ':'));
+    size_t rightCount = groups.size() - leftCount - (hasDoubleColon ? 1 : 0);
 
     for (size_t i = 0; i < leftCount; ++i) {
       expandedGroups[i] = groups[i];
