@@ -91,7 +91,7 @@ bool IpAddressParser::stringToIPv6(const std::string& ipString,
   }
 
   // Processing an abbreviated record (::)
-  std::string::difference_type doubleColonPos = ipString.find("::");
+  size_t doubleColonPos = ipString.find("::");
   bool hasDoubleColon = (doubleColonPos != std::string::npos);
 
   // Checking the correctness of the number of groups
