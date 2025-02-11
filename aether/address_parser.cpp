@@ -112,7 +112,10 @@ bool IpAddressParser::stringToIPv6(const std::string& ipString,
         doubleColonPos == 0
             ? 0
             : static_cast<size_t>(std::count(
-                  ipString.begin(), ipString.begin() + doubleColonPos, ':'));
+                  ipString.begin(),
+                  ipString.begin() +
+                      static_cast<std::string::difference_type>(doubleColonPos),
+                  ':'));
     size_t rightCount = groups.size() - leftCount - (hasDoubleColon ? 1 : 0);
 
     for (size_t i = 0; i < leftCount; ++i) {
