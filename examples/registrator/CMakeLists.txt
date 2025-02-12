@@ -19,18 +19,11 @@ list( APPEND src_list
   registrator.cpp
 )
 
-message(STATUS "CM_PLATFORM ${CM_PLATFORM}")
-
 if(NOT CM_PLATFORM)
   project("aether-client-cpp-registrator" VERSION "1.0.0" LANGUAGES C CXX)
 
   add_executable(${PROJECT_NAME} ${src_list})
   target_link_libraries(${PROJECT_NAME} PRIVATE aether)
-
-  if (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME MATCHES ".*BSD.*")
-    include(FindX11)
-    target_link_libraries(${PROJECT_NAME} PRIVATE X11::X11)
-  endif()
 
   include(GNUInstallDirs)
   install(TARGETS ${PROJECT_NAME}
@@ -39,8 +32,8 @@ if(NOT CM_PLATFORM)
 
 else()
   idf_build_get_property(CM_PLATFORM CM_PLATFORM)
-  #ESP32 CMake
   if (CM_PLATFORM STREQUAL "ESP32")
+    #ESP32 CMake
     idf_component_register(SRCS ${src_list}
       INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
       PRIV_REQUIRES aether)

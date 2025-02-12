@@ -24,8 +24,6 @@ list( APPEND src_list
   key_led_mac.cpp
 )
 
-message(STATUS "CM_PLATFORM ${CM_PLATFORM}")
-
 if(NOT CM_PLATFORM)
   project("aether-client-cpp-key-led" VERSION "1.0.0" LANGUAGES C CXX)
 
