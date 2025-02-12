@@ -23,7 +23,7 @@
 #include "aether/config.h"
 #include "aether/variant_type.h"
 
-#include "aether/tele/ios.h"
+#include "aether/format/format.h"
 
 namespace ae {
 
@@ -73,45 +73,6 @@ struct IpAddress {
   }
 };
 
-template <>
-struct PrintToStream<IpAddress> {
-  static void Print(std::ostream& s, IpAddress const& t) {
-    switch (t.version) {
-      case IpAddress::Version::kIpV4: {
-#if AE_SUPPORT_IPV4 == 1
-        s << std::setfill('0');
-        for (std::size_t i = 0; i < 4; i++) {
-          s << int{t.value.ipv4_value[i]};
-          if (i < 3) {
-            s << ".";
-          }
-        }
-        s << std::setfill(' ');
-#else
-        assert(false);
-#endif  // AE_SUPPORT_IPV4 == 1
-        break;
-      }
-      case IpAddress::Version::kIpV6: {
-#if AE_SUPPORT_IPV6 == 1
-        // TODO: print as conventional IpV6 format
-        s << std::setfill('0') << std::hex;
-        for (std::size_t i = 0; i < 16; i++) {
-          s << t.value.ipv6_value[i];
-          if (i < 15) {
-            s << ":";
-          }
-        }
-        s << std::setfill(' ') << std::dec;
-#else
-        assert(false);
-#endif  // AE_SUPPORT_IPV6 == 1
-        break;
-      }
-    }
-  }
-};
-
 struct IpAddressPort {
   template <typename T>
   void Serializator(T& s) {
@@ -120,14 +81,6 @@ struct IpAddressPort {
 
   IpAddress ip;
   std::uint16_t port;
-};
-
-template <>
-struct PrintToStream<IpAddressPort> {
-  static void Print(std::ostream& s, IpAddressPort const& t) {
-    PrintToStream<IpAddress>::Print(s, t.ip);
-    s << ":" << t.port;
-  }
 };
 
 enum class Protocol : std::uint8_t {
@@ -154,14 +107,6 @@ struct IpAddressPortProtocol : public IpAddressPort {
   Protocol protocol{};
 };
 
-template <>
-struct PrintToStream<IpAddressPortProtocol> {
-  static void Print(std::ostream& s, IpAddressPortProtocol const& t) {
-    PrintToStream<IpAddressPort>::Print(s, t);
-    s << " protocol: " << static_cast<int>(t.protocol);
-  }
-};
-
 #if AE_SUPPORT_CLOUD_DNS
 struct NameAddress {
   std::string name;
@@ -171,14 +116,6 @@ struct NameAddress {
   template <typename T>
   void Serializator(T& s) {
     s & name & port & protocol;
-  }
-};
-
-template <>
-struct PrintToStream<NameAddress> {
-  static void Print(std::ostream& s, NameAddress const& t) {
-    s << t.name << ":" << t.port
-      << " protocol: " << static_cast<int>(t.protocol);
   }
 };
 #endif
@@ -196,6 +133,71 @@ struct UnifiedAddress : public VariantType<AddressType, IpAddressPortProtocol
                                            > {
   using VariantType::VariantType;
 };
+
+template <>
+struct Formatter<IpAddress> {
+  template <typename TStream>
+  void Format(IpAddress const& value, FormatContext<TStream>& ctx) const {
+    switch (value.version) {
+      case IpAddress::Version::kIpV4: {
+#if AE_SUPPORT_IPV4 == 1
+        ctx.out().stream() << int{value.value.ipv4_value[0]} << '.'
+                           << int{value.value.ipv4_value[1]} << '.'
+                           << int{value.value.ipv4_value[2]} << '.'
+                           << int{value.value.ipv4_value[3]};
+#else
+        assert(false);
+#endif  // AE_SUPPORT_IPV4 == 1
+        break;
+      }
+      case IpAddress::Version::kIpV6: {
+#if AE_SUPPORT_IPV6 == 1
+        // TODO: print as conventional IpV6 format
+        ctx.out().stream() << std::hex;
+        for (std::size_t i = 0; i < 16; i++) {
+          ctx.out().stream() << int{value.value.ipv6_value[i]};
+          if (i < 15) {
+            ctx.out().stream() << ":";
+          }
+        }
+        ctx.out().stream() << std::dec;
+#else
+        assert(false);
+#endif  // AE_SUPPORT_IPV6 == 1
+        break;
+      }
+    }
+  }
+};
+
+template <>
+struct Formatter<IpAddressPort> {
+  template <typename TStream>
+  void Format(IpAddressPort const& value, FormatContext<TStream>& ctx) const {
+    ae::Format(ctx.out(), "{}:{}", value.ip, value.port);
+  }
+};
+
+template <>
+struct Formatter<IpAddressPortProtocol> {
+  template <typename TStream>
+  void Format(IpAddressPortProtocol const& value,
+              FormatContext<TStream>& ctx) const {
+    ae::Format(ctx.out(), "{}:{} protocol:{}", value.ip, value.port,
+               static_cast<int>(value.protocol));
+  }
+};
+
+#if AE_SUPPORT_CLOUD_DNS
+template <>
+struct Formatter<NameAddress> {
+  template <typename TStream>
+  void Format(NameAddress const& value, FormatContext<TStream>& ctx) const {
+    ae::Format(ctx.out(), "{}:{} protocol:{}", value.name, value.port,
+               static_cast<int>(value.protocol));
+  }
+};
+#endif
 
 }  // namespace ae
 

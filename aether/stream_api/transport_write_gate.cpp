@@ -22,7 +22,6 @@
 #include "aether/stream_api/istream.h"
 
 #include "aether/tele/tele.h"
-#include "aether/tele/ios_time.h"
 
 namespace ae {
 
@@ -125,8 +124,8 @@ void TransportWriteGate::GateUpdate() {
 
 void TransportWriteGate::ReceiveData(DataBuffer const& data,
                                      TimePoint current_time) {
-  AE_TELED_DEBUG("Received data from transport\n data:{}\ttime: {}", data,
-                 FormatTimePoint("%H:%M:%S", current_time));
+  AE_TELED_DEBUG("Received data from transport\n data:{}\ttime: {:%H:%M:%S}",
+                 data, current_time);
   out_data_event_.Emit(data);
 }
 

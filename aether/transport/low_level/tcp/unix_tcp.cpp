@@ -33,7 +33,6 @@
 
 #  include "aether/mstream_buffers.h"
 #  include "aether/mstream.h"
-#  include "aether/tele/ios_time.h"
 #  include "aether/tele/tele.h"
 
 // Workaround for BSD and MacOS
@@ -196,8 +195,8 @@ ITransport::DataReceiveEvent::Subscriber UnixTcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> UnixTcpTransport::Send(DataBuffer data,
                                                     TimePoint current_time) {
-  AE_TELE_DEBUG("TcpTransportSend", "Send data size {} at {}", data.size(),
-                FormatTimePoint("%H:%M:%S", current_time));
+  AE_TELE_DEBUG("TcpTransportSend", "Send data size {} at {:%H:%M:%S}",
+                data.size(), current_time);
   assert(socket_ != kInvalidSocket);
 
   auto packet_data = std::vector<std::uint8_t>{};

@@ -17,10 +17,9 @@
 #ifndef AETHER_POLLER_POLLER_TYPES_H_
 #define AETHER_POLLER_POLLER_TYPES_H_
 
-#include <iostream>
 #include <tuple>
 
-#include "aether/tele/ios.h"
+#include "aether/format/format.h"
 
 namespace ae {
 enum EventType {
@@ -76,10 +75,11 @@ struct PollerEvent {
 };
 
 template <>
-struct PrintToStream<PollerEvent> {
-  static void Print(std::ostream& s, PollerEvent const& t) {
-    s << "Descriptor: " << t.descriptor.descriptor << " "
-      << "PollerEvent type: " << t.event_type;
+struct Formatter<PollerEvent> {
+  template <typename TStream>
+  void Format(PollerEvent const& value, FormatContext<TStream>& ctx) {
+    ae::Format(ctx.out(), "Descriptor: {} PollerEvent type: {}",
+               value.descriptor.descriptor, value.event_type);
   }
 };
 
