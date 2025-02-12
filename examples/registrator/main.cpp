@@ -16,10 +16,10 @@
 
 #include <string>
 #include <iostream>
+#include <filesystem>
 
 #include "aether/config.h"
 
-extern "C" void app_main();
 extern int AetherRegistrator(const std::string &ini_file);
 
 // Test function.
@@ -30,10 +30,16 @@ int test(const std::string &ini_file) { return AetherRegistrator(ini_file); }
 int main(int argc, char *argv[]) {
   if (argc > 1) {
     std::string ini_file = std::string(argv[1]);
-    return test(ini_file);
+
+    if (std::filesystem::exists(ini_file)) {
+      return test(ini_file);
+    } else {
+      std::cerr << "The configuration file was not found!\n";
+      return -1;
+    }
   };
 
-  std::cerr << "Config file not found!\n";
-  return -1;
+  std::cerr << "The configuration file is not specified!\n";
+  return -2;
 }
 #endif

@@ -52,6 +52,7 @@ struct ServerConfig {
   std::string server_address;
   std::uint16_t server_port;
   ae::Protocol server_protocol;
+  ae::IpAddress server_ip_adress;
 };
 }  // namespace ae
 
@@ -122,8 +123,6 @@ class RegistratorConfig {
     for (std::uint8_t i{0}; i < servers_num; i++) {
       std::string str_ip_address_type =
           file["ServerID" + std::to_string(i + 1)]["ipAddressType"];
-      std::string str_ip_address_version =
-          file["ServerID" + std::to_string(i + 1)]["ipAddressVersion"];
       std::string str_ip_address =
           file["ServerID" + std::to_string(i + 1)]["ipAddress"];
       std::uint16_t int_ip_port =
@@ -132,14 +131,18 @@ class RegistratorConfig {
           file["ServerID" + std::to_string(i + 1)]["ipProtocol"];
 
       if (str_ip_address_type == "kIpAddress") {
-        server_config.server_address_type = ae::ServerAddressType::kIpAddress;
-        if (str_ip_address_version == "kIpV4") {
-          server_config.server_ip_address_version =
-              ae::IpAddress::Version::kIpV4;
-        } else if (str_ip_address_version == "kIpV6") {
-          server_config.server_ip_address_version =
-              ae::IpAddress::Version::kIpV6;
+        ae::IpAddress ip_adress{};
+        ae::IpAddressParser ip_adress_parser{};
+
+        auto res = ip_adress_parser.StringToIP(str_ip_address, ip_adress);
+        if (!res) {
+          AE_TELED_ERROR("Configuration failed, wrong IP address {}.", str_ip_address);
+          return -2;
         }
+
+        server_config.server_ip_adress = ip_adress;
+        server_config.server_address_type = ae::ServerAddressType::kIpAddress;
+        server_config.server_ip_address_version = ip_adress.version;
         server_config.server_address = str_ip_address;
         server_config.server_port = int_ip_port;
         if (str_ip_protocol == "kTcp") {
@@ -147,13 +150,6 @@ class RegistratorConfig {
         }
       } else if (str_ip_address_type == "kUrlAddress") {
         server_config.server_address_type = ae::ServerAddressType::kUrlAddress;
-        if (str_ip_address_version == "kIpV4") {
-          server_config.server_ip_address_version =
-              ae::IpAddress::Version::kIpV4;
-        } else if (str_ip_address_version == "kIpV6") {
-          server_config.server_ip_address_version =
-              ae::IpAddress::Version::kIpV6;
-        }
         server_config.server_address = str_ip_address;
         server_config.server_port = int_ip_port;
         if (str_ip_protocol == "kTcp") {
@@ -476,31 +472,18 @@ int AetherRegistrator(const std::string& ini_file) {
               AE_TELED_DEBUG("Server protocol={}", s.server_protocol);
 
               if (s.server_address_type == ae::ServerAddressType::kIpAddress) {
-                ae::IpAddress ip_adress{};
-                ae::IpAddressParser ip_adress_parser{};
-                ae::IpAddressPortProtocol settings{
-                    {ae::IpAddress{s.server_ip_address_version, {}},
-                     s.server_port},
-                    s.server_protocol};
-
-                ip_adress.version = s.server_ip_address_version;
-                auto res = ip_adress_parser.StringToIP(s.server_address, ip_adress);
-                if (!res) {
-                  AE_TELED_ERROR("Configuration failed, wrong IP address {}.", s.server_address);
-                  assert(res);
-                }
-
+                ae::IpAddressPortProtocol settings{{ae::IpAddress{s.server_ip_address_version, {}}, s.server_port}, s.server_protocol};
                 if (s.server_ip_address_version ==
                     ae::IpAddress::Version::kIpV4) {
                   for (std::size_t i{0}; i < 4; i++) {
                     settings.ip.value.ipv4_value[i] =
-                        ip_adress.value.ipv4_value[i];
+                        s.server_ip_adress.value.ipv4_value[i];
                   }
                 } else if (s.server_ip_address_version ==
                            ae::IpAddress::Version::kIpV6) {
                   for (std::size_t i{0}; i < 16; i++) {
                     settings.ip.value.ipv6_value[i] =
-                        ip_adress.value.ipv6_value[i];
+                        s.server_ip_adress.value.ipv6_value[i];
                   }
                 }
                 registration_cloud->AddServerSettings(settings);
