@@ -44,9 +44,9 @@
 
 using std::vector;
 
-static constexpr char WIFI_SSID[] = "Test123";
-static constexpr char WIFI_PASS[] = "Test123";
-static constexpr bool use_aether = true;
+static constexpr char kWifiSsid[] = "Test123";
+static constexpr char kWifiPass[] = "Test123";
+static constexpr bool kUseAether = true;
 
 namespace ae::key_led_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
@@ -268,7 +268,7 @@ class KeyLedTestAction : public Action<KeyLedTestAction> {
         [&, sender_stream_{std::move(sender_stream_)}](auto const&) {
           if (key_action_.GetKey()) {
             AE_TELED_INFO("Hi level press");
-            if (use_aether) {
+            if (kUseAether) {
               sender_stream_->in().Write(
                   {std::begin(messages_[0]), std::end(messages_[0])},
                   ae::TimePoint::clock::now());
@@ -277,7 +277,7 @@ class KeyLedTestAction : public Action<KeyLedTestAction> {
             }
           } else {
             AE_TELED_INFO("Low level press");
-            if (use_aether) {
+            if (kUseAether) {
               sender_stream_->in().Write(
                   {std::begin(messages_[1]), std::end(messages_[1])},
                   ae::TimePoint::clock::now());
@@ -344,7 +344,7 @@ int AetherButtonExample() {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = domain.CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-                std::string(WIFI_SSID), std::string(WIFI_PASS));
+                std::string(kWifiSsid), std::string(kWifiPass));
 #  else
             auto adapter = domain->CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, aether, aether->poller);
