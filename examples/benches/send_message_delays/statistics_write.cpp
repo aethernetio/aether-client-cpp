@@ -22,35 +22,3 @@ StatisticsWriteCsv::StatisticsWriteCsv(
     : statistics_{std::move(statistics)} {}
 
 }  // namespace ae::bench
-
-namespace ae {
-void PrintToStream<bench::StatisticsWriteCsv>::Print(
-    std::ostream& stream, const bench::StatisticsWriteCsv& value) {
-  // print quick statistics
-  stream << "test name,max us,99% us,50% us,min us\n";
-  for (auto const& [name, statistics] : value.statistics_) {
-    stream << name << ',' << statistics.max_value().count() << ','
-           << statistics.get_99th_percentile().count() << ','
-           << statistics.get_50th_percentile().count() << ','
-           << statistics.min_value().count() << '\n';
-  }
-
-  stream << "raw results\n";
-  // print legend
-  stream << "message num";
-  for (auto const& [name, _] : value.statistics_) {
-    stream << ',' << name;
-  }
-  stream << '\n';
-  // print data
-  for (std::size_t i = 0;
-       i < value.statistics_.begin()->second.raw_data().size(); ++i) {
-    stream << i;
-    for (auto const& [_, statistics] : value.statistics_) {
-      stream << ',' << statistics.raw_data()[i].second.count();
-    }
-    stream << '\n';
-  }
-  stream << '\n';
-}
-}  // namespace ae
