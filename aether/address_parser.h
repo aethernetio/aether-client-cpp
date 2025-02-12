@@ -28,17 +28,18 @@ class IpAddressParser {
  public:
   IpAddressParser() = default;
   ~IpAddressParser() = default;
-  bool stringToIP(const std::string& ip_string, IpAddress& ip_addr);
+  bool StringToIP(const std::string& ip_string, IpAddress& ip_addr);
 
  private:
 #if AE_SUPPORT_IPV4 == 1
-  bool stringToIPv4(const std::string& ip_string, uint8_t ip_address[4]);
-  bool isNumber(const std::string& str);
+  bool StringToIPv4(const std::string& ip_string, uint8_t ip_address[4]);
+  bool IsNumber(const std::string& str);
   bool IsValidIpv4(const std::string& ip);
 #endif  // AE_SUPPORT_IPV4 == 1
 #if AE_SUPPORT_IPV6 == 1
-  bool stringToIPv6(const std::string& ip_string, uint8_t ip_address[16]);
-  bool isHexDigit(const char ch);
+  bool StringToIPv6(const std::string& ip_string, uint8_t ip_address[16]);
+  bool IsHexDigit(const char ch);
+  bool IsValidIpv6(const std::string& ip);
 #endif  // AE_SUPPORT_IPV6 == 1
 };
 

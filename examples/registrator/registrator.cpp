@@ -136,6 +136,9 @@ class RegistratorConfig {
         if (str_ip_address_version == "kIpV4") {
           server_config.server_ip_address_version =
               ae::IpAddress::Version::kIpV4;
+        } else if (str_ip_address_version == "kIpV6") {
+          server_config.server_ip_address_version =
+              ae::IpAddress::Version::kIpV6;
         }
         server_config.server_address = str_ip_address;
         server_config.server_port = int_ip_port;
@@ -147,6 +150,9 @@ class RegistratorConfig {
         if (str_ip_address_version == "kIpV4") {
           server_config.server_ip_address_version =
               ae::IpAddress::Version::kIpV4;
+        } else if (str_ip_address_version == "kIpV6") {
+          server_config.server_ip_address_version =
+              ae::IpAddress::Version::kIpV6;
         }
         server_config.server_address = str_ip_address;
         server_config.server_port = int_ip_port;
@@ -425,7 +431,7 @@ int AetherRegistrator(const std::string& ini_file) {
   ae::registrator::RegistratorConfig registrator_config{ini_file};
   auto res = registrator_config.ParseConfig();
   if (res < 0) {
-    AE_TELED_ERROR("Configuration failed");
+    AE_TELED_ERROR("Configuration failed.");
     return -1;
   }
 
@@ -478,7 +484,11 @@ int AetherRegistrator(const std::string& ini_file) {
                     s.server_protocol};
 
                 ip_adress.version = s.server_ip_address_version;
-                ip_adress_parser.stringToIP(s.server_address, ip_adress);
+                auto res = ip_adress_parser.StringToIP(s.server_address, ip_adress);
+                if (!res) {
+                  AE_TELED_ERROR("Configuration failed, wrong IP address {}.", s.server_address);
+                  assert(res);
+                }
 
                 if (s.server_ip_address_version ==
                     ae::IpAddress::Version::kIpV4) {

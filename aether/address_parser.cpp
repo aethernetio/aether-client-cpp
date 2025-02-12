@@ -21,17 +21,23 @@
 
 namespace ae {
 
-bool IpAddressParser::stringToIP(const std::string& ip_string,
+bool IpAddressParser::StringToIP(const std::string& ip_string,
                                  IpAddress& ip_addr) {
   bool result{false};
 
   if (ip_addr.version == IpAddress::Version::kIpV4) {
 #if AE_SUPPORT_IPV4 == 1
-    result = stringToIPv4(ip_string, ip_addr.value.ipv4_value);
+    result = IsValidIpv4(ip_string);
+    if(result){
+      result = StringToIPv4(ip_string, ip_addr.value.ipv4_value);
+    }
 #endif  // AE_SUPPORT_IPV4 == 1
   } else if (ip_addr.version == IpAddress::Version::kIpV6) {
 #if AE_SUPPORT_IPV6 == 1
-    result = stringToIPv6(ip_string, ip_addr.value.ipv6_value);
+    result = IsValidIpv6(ip_string);
+    if(result){
+      result = StringToIPv6(ip_string, ip_addr.value.ipv6_value);
+    }
 #endif  // AE_SUPPORT_IPV6 == 1
   }
 
@@ -39,7 +45,7 @@ bool IpAddressParser::stringToIP(const std::string& ip_string,
 }
 
 #if AE_SUPPORT_IPV4 == 1
-bool IpAddressParser::stringToIPv4(const std::string& ip_string,
+bool IpAddressParser::StringToIPv4(const std::string& ip_string,
                                    uint8_t ip_address[4]) {
   std::vector<std::string> octets;
   std::stringstream ss(ip_string);
@@ -57,7 +63,7 @@ bool IpAddressParser::stringToIPv4(const std::string& ip_string,
 
   // We convert each octet into a number and check its correctness.
   for (size_t i = 0; i < 4; ++i) {
-    if (!isNumber(octets[i])) {
+    if (!IsNumber(octets[i])) {
       return false;
     }
     std::int32_t value = std::stoi(octets[i]);
@@ -70,7 +76,7 @@ bool IpAddressParser::stringToIPv4(const std::string& ip_string,
   return true;
 }
 
-bool IpAddressParser::isNumber(const std::string& str) {
+bool IpAddressParser::IsNumber(const std::string& str) {
   for (char ch : str) {
     if (!isdigit(ch)) {
       return false;
@@ -79,7 +85,7 @@ bool IpAddressParser::isNumber(const std::string& str) {
   return true;
 }
 
-bool IsValidIpv4(const std::string& ip) {
+bool IpAddressParser::IsValidIpv4(const std::string& ip) {
   // Regular expression for IPv4 verification
   std::regex ipv4_pattern(
       R"((^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$))");
@@ -88,7 +94,7 @@ bool IsValidIpv4(const std::string& ip) {
 #endif  // AE_SUPPORT_IPV4 == 1
 
 #if AE_SUPPORT_IPV6 == 1
-bool IpAddressParser::stringToIPv6(const std::string& ip_string,
+bool IpAddressParser::StringToIPv6(const std::string& ip_string,
                                    uint8_t ip_address[16]) {
   std::vector<std::string> groups;
   std::stringstream ss(ip_string);
@@ -147,7 +153,7 @@ bool IpAddressParser::stringToIPv6(const std::string& ip_string,
       return false;
     }
     for (char ch : groups[i]) {
-      if (!isHexDigit(ch)) {
+      if (!IsHexDigit(ch)) {
         return false;
       }
     }
@@ -164,12 +170,12 @@ bool IpAddressParser::stringToIPv6(const std::string& ip_string,
   return true;
 }
 
-bool IpAddressParser::isHexDigit(const char ch) {
+bool IpAddressParser::IsHexDigit(const char ch) {
   return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') ||
          (ch >= 'A' && ch <= 'F');
 }
 
-bool is_valid_ipv6(const std::string& ip) {
+bool IpAddressParser::IsValidIpv6(const std::string& ip) {
   // Regular expression for IPv6 verification
   std::regex ipv6_pattern(
       R"(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]+|::(ffff(:0{1,4})?:)?((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9]|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9])))");
