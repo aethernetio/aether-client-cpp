@@ -31,14 +31,6 @@ if(NOT CM_PLATFORM)
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 else()
-  idf_build_get_property(CM_PLATFORM CM_PLATFORM)
-  if (CM_PLATFORM STREQUAL "ESP32")
-    #ESP32 CMake
-    idf_component_register(SRCS ${src_list}
-      INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
-      PRIV_REQUIRES aether)
-  else()
-    #Other platforms
-    msessage(FATAL_ERROR "Platform ${CM_PLATFORM} is not supported")
-  endif()
+  #Other platforms
+  msessage(FATAL_ERROR "Platform ${CM_PLATFORM} is not supported")
 endif()
