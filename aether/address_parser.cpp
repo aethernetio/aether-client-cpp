@@ -27,15 +27,14 @@ bool IpAddressParser::StringToIP(const std::string& ip_string,
 
 #if AE_SUPPORT_IPV4 == 1
   result = IsValidIpv4(ip_string);
+#endif  // AE_SUPPORT_IPV4 == 1
   if (result) {
     result = StringToIPv4(ip_string, ip_addr.value.ipv4_value);
     if (result) {
       ip_addr.version = IpAddress::Version::kIpV4;
     }
-  }
-#endif  // AE_SUPPORT_IPV4 == 1
+  } else {
 #if AE_SUPPORT_IPV6 == 1
-  else {
     result = IsValidIpv6(ip_string);
     if (result) {
       result = StringToIPv6(ip_string, ip_addr.value.ipv6_value);
@@ -43,8 +42,8 @@ bool IpAddressParser::StringToIP(const std::string& ip_string,
         ip_addr.version = IpAddress::Version::kIpV6;
       }
     }
-  }
 #endif  // AE_SUPPORT_IPV6 == 1
+  }
 
   return result;
 }
