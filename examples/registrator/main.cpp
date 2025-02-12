@@ -35,11 +35,11 @@ int main(int argc, char *argv[]) {
       return test(ini_file);
     } else {
       std::cerr << "The configuration file was not found!\n";
-      return -1;
+      return -4;
     }
   };
 
   std::cerr << "The configuration file is not specified!\n";
-  return -2;
+  return -5;
 }
 #endif

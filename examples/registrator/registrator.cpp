@@ -164,7 +164,7 @@ class RegistratorConfig {
     // Servers max assertion
     if (servers_total > servers_max) {
       AE_TELED_ERROR("Total servers must be < {} servers", servers_max);
-      return -2;
+      return -3;
     }
 
     return 0;
