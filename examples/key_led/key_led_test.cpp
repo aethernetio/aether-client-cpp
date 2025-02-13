@@ -36,7 +36,6 @@
 #include "aether/adapters/esp32_wifi.h"
 
 #include "aether/tele/tele.h"
-#include "aether/tele/ios_time.h"
 
 #include "key_led_nix.h"
 #include "key_led_win.h"
