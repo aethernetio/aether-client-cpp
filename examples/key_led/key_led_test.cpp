@@ -29,6 +29,7 @@
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
+#include "aether/port/file_systems/file_system_header.h"
 #include "aether/port/tele_init.h"
 
 #include "aether/adapters/ethernet.h"
@@ -337,7 +338,14 @@ int AetherButtonExample() {
    * To configure its creation \see AetherAppConstructor.
    */
   auto aether_app = ae::AetherApp::Construct(
-      ae::AetherAppConstructor{}
+      ae::AetherAppConstructor{
+#if !defined AE_SUPPORT_REGISTRATION
+          []() {
+            auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>();
+            return fs;
+          }
+#endif  // AE_SUPPORT_REGISTRATION
+      }
 #if defined AE_DISTILLATION
           .Adapter([](ae::Ptr<ae::Domain> const& domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
@@ -348,10 +356,10 @@ int AetherButtonExample() {
 #  else
             auto adapter = domain->CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, aether, aether->poller);
-#  endif
+#  endif  // ESP32_WIFI_ADAPTER_ENABLED
             return adapter;
           })
-#  if AE_SUPPORT_REGISTRATION
+#  if defined AE_SUPPORT_REGISTRATION
           .RegCloud([](ae::Ptr<ae::Domain> const& domain,
                        ae::Aether::ptr const& /* aether */) {
             auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
@@ -373,7 +381,7 @@ int AetherButtonExample() {
             return registration_cloud;
           })
 #  endif  // AE_SUPPORT_REGISTRATION
-#endif
+#endif    // AE_DISTILLATION
   );
 
   auto key_led_test_action = ae::key_led_test::KeyLedTestAction{aether_app};

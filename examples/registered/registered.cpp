@@ -145,7 +145,7 @@ class RegisteredAction : public Action<RegisteredAction> {
       // We don't need to set up the receiver.
       AE_TELED_INFO("Receiver configuration");
 
-      state_ = State::kConfigureSender;    
+      state_ = State::kConfigureSender;
   }
 
   /**
@@ -273,10 +273,10 @@ int AetherRegistered() {
 #  else
             auto adapter = domain->CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, aether, aether->poller);
-#  endif
+#  endif  // ESP32_WIFI_ADAPTER_ENABLED
             return adapter;
           })
-#endif
+#endif  // AE_DISTILLATION
   );
 
   auto registered_action = ae::registered::RegisteredAction{aether_app};

@@ -299,7 +299,7 @@ int AetherCloudExample() {
 #  endif
             return adapter;
           })
-#  if AE_SUPPORT_REGISTRATION
+#  if defined AE_SUPPORT_REGISTRATION
           .RegCloud([](ae::Ptr<ae::Domain> const& domain,
                        ae::Aether::ptr const& /* aether */) {
             auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
