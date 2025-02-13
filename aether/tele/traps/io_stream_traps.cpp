@@ -74,7 +74,7 @@ IoStreamTrap::LogStream::~LogStream() {
 
 void IoStreamTrap::LogStream::index(std::size_t index) {
   delimeter();
-  stream_ << std::setw(3) << std::left << std::dec << index << std::right
+  stream_ << std::setw(3) << std::right << std::dec << index << std::right
           << std::setw(0);
 }
 void IoStreamTrap::LogStream::start_time(TimePoint const& start) {
