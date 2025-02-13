@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
-#include "send_message_delays/statistics_write.h"
+#include <unity.h>
 
-namespace ae::bench {
-StatisticsWriteCsv::StatisticsWriteCsv(
-    std::vector<std::pair<std::string, DurationStatistics>> statistics)
-    : statistics_{std::move(statistics)} {}
+void setUp() {}
+void tearDown() {}
 
-}  // namespace ae::bench
+extern int test_format_types();
+extern int test_format_time();
+
+int main() {
+  int res = 0;
+  res += test_format_types();
+  res += test_format_time();
+  return res;
+}

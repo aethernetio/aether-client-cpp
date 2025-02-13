@@ -29,7 +29,6 @@
 #  include <algorithm>
 
 #  include "aether/env.h"
-#  include "aether/tele/ios_time.h"
 #  include "aether/tele/tele.h"
 
 namespace ae {
@@ -179,9 +178,8 @@ WinTcpTransport::WinTcpPacketSendAction::WinTcpPacketSendAction(
 
 WinTcpTransport::WinTcpPacketSendAction::WinTcpPacketSendAction(
     WinTcpPacketSendAction&& other) noexcept
-    : SocketPacketSendAction{
-        std::move(static_cast<SocketPacketSendAction&>(other))
-      },
+    : SocketPacketSendAction{std::move(
+          static_cast<SocketPacketSendAction&>(other))},
       sync_socket_{other.sync_socket_},
       send_event_subscriber_{std::move(other.send_event_subscriber_)},
       write_overlapped_{other.write_overlapped_},
@@ -329,8 +327,9 @@ ITransport::DataReceiveEvent::Subscriber WinTcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> WinTcpTransport::Send(DataBuffer data,
                                                    TimePoint current_time) {
-  AE_TELE_DEBUG("TcpTransportSend", "Send data size {} at {}", data.size(),
-                FormatTimePoint("UTC :%Y-%m-%d %H:%M:%S", current_time));
+  AE_TELE_DEBUG("TcpTransportSend",
+                "Send data size {} at UTC :{:%Y-%m-%d %H:%M:%S}", data.size(),
+                current_time);
 
   auto packet_data = std::vector<std::uint8_t>{};
   VectorWriter<PacketSize> vw{packet_data};

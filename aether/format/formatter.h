@@ -14,11 +14,32 @@
  * limitations under the License.
  */
 
-#include "send_message_delays/statistics_write.h"
+#ifndef AETHER_FORMAT_FORMATTER_H_
+#define AETHER_FORMAT_FORMATTER_H_
 
-namespace ae::bench {
-StatisticsWriteCsv::StatisticsWriteCsv(
-    std::vector<std::pair<std::string, DurationStatistics>> statistics)
-    : statistics_{std::move(statistics)} {}
+#include <string_view>
 
-}  // namespace ae::bench
+namespace ae {
+// Format context for each variable
+template <typename TStream>
+class FormatContext {
+ public:
+  constexpr FormatContext(TStream& out, std::string_view opt_string)
+      : options{opt_string}, out_{&out} {}
+
+  constexpr auto& out() { return *out_; }
+
+  std::string_view options;
+
+ private:
+  TStream* out_;
+};
+
+template <typename T, typename Enable = void>
+struct Formatter {
+  // provide Format method for your type
+};
+
+}  // namespace ae
+
+#endif  // AETHER_FORMAT_FORMATTER_H_

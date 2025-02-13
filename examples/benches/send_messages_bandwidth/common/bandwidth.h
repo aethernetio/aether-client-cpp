@@ -21,7 +21,7 @@
 #include <chrono>
 
 #include "aether/common.h"
-#include "aether/tele/ios.h"
+#include "aether/format/format.h"
 
 namespace ae::bench {
 using HighResTimePoint =
@@ -40,11 +40,12 @@ class Bandwidth {
 
 namespace ae {
 template <>
-struct PrintToStream<bench::Bandwidth> {
-  static void Print(std::ostream& s, bench::Bandwidth const& b) {
-    s << "Bandwidth: " << b.bandwidth << " bytes/s"
-      << " Message count: " << b.message_count
-      << " Duration: " << b.duration.count() << " us";
+struct Formatter<bench::Bandwidth> {
+  template <typename TStream>
+  void Format(bench::Bandwidth const& b, FormatContext<TStream>& ctx) const {
+    ae::Format(ctx.out(),
+               "Bandwidth: {} bytes/s Message count: {} Duration: {} us",
+               b.bandwidth, b.message_count, b.duration.count());
   }
 };
 }  // namespace ae
