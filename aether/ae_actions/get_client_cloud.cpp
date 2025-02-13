@@ -27,7 +27,6 @@
 #include "aether/methods/client_api/client_safe_api.h"
 
 #include "aether/tele/tele.h"
-#include "aether/tele/ios_time.h"
 
 namespace ae {
 GetClientCloudAction::GetClientCloudAction(
@@ -113,8 +112,8 @@ GetClientCloudAction::server_descriptors() {
 }
 
 void GetClientCloudAction::RequestCloud(TimePoint current_time) {
-  AE_TELED_DEBUG("RequestCloud for uid {} at {}", client_uid_,
-                 FormatTimePoint("%H:%M:%S", current_time));
+  AE_TELED_DEBUG("RequestCloud for uid {} at {:%H:%M:%S}", client_uid_,
+                 current_time);
 
   cloud_request_action_ =
       cloud_request_stream_->in().Write(Uid{client_uid_}, current_time);
@@ -129,8 +128,8 @@ void GetClientCloudAction::RequestCloud(TimePoint current_time) {
 void GetClientCloudAction::RequestServerResolve(TimePoint current_time) {
   // TODO: use server cache
 
-  AE_TELED_DEBUG("RequestServerResolve for ids {} at {}", uid_and_cloud_.cloud,
-                 FormatTimePoint("%H:%M:%S", current_time));
+  AE_TELED_DEBUG("RequestServerResolve for ids {} at {:%H:%M:%S}",
+                 uid_and_cloud_.cloud, current_time);
 
   server_resolve_actions_.reserve(uid_and_cloud_.cloud.size());
   for (auto server_id : uid_and_cloud_.cloud) {

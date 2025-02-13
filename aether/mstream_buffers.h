@@ -30,14 +30,14 @@ template <typename SizeType = std::uint32_t>
 struct VectorWriter {
   using size_type = SizeType;
 
-  std::vector<uint8_t>& data_;
+  std::vector<std::uint8_t>& data_;
 
-  VectorWriter(std::vector<uint8_t>& data) : data_(data) {}
+  VectorWriter(std::vector<std::uint8_t>& data) : data_(data) {}
   virtual ~VectorWriter() = default;
 
-  size_t write(void const* data, size_t size) {
-    data_.insert(data_.end(), reinterpret_cast<uint8_t const*>(data),
-                 reinterpret_cast<uint8_t const*>(data) + size);
+  std::size_t write(void const* data, std::size_t size) {
+    data_.insert(data_.end(), reinterpret_cast<std::uint8_t const*>(data),
+                 reinterpret_cast<std::uint8_t const*>(data) + size);
     return size;
   }
 };
@@ -98,6 +98,19 @@ struct MemStreamReader {
 
   ReadResult result() const { return read_result_; }
   void result(ReadResult result) { read_result_ = result; }
+};
+
+template <typename SizeType = std::uint32_t>
+struct MemStreamWriter {
+  using size_type = SizeType;
+
+  std::size_t write(void const* data, std::size_t size) {
+    buffer.xsputn(reinterpret_cast<char const*>(data),
+                  static_cast<std::streamsize>(size));
+    return size;
+  }
+
+  MemStreamBuf<> buffer;
 };
 
 }  // namespace ae

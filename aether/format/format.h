@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-#include "send_message_delays/statistics_write.h"
+#ifndef AETHER_FORMAT_FORMAT_H_
+#define AETHER_FORMAT_FORMAT_H_
 
-namespace ae::bench {
-StatisticsWriteCsv::StatisticsWriteCsv(
-    std::vector<std::pair<std::string, DurationStatistics>> statistics)
-    : statistics_{std::move(statistics)} {}
+#include "aether/format/formatter.h"
+#include "aether/format/format_impl.h"
+#include "aether/format/format_time.h"
+#include "aether/format/default_formatters.h"
 
-}  // namespace ae::bench
+#endif  // AETHER_FORMAT_FORMAT_H_

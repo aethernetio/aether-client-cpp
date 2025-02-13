@@ -21,7 +21,7 @@
 #include <limits>
 #include <type_traits>
 
-#include "aether/tele/ios.h"
+#include "aether/format/format.h"
 
 namespace ae {
 
@@ -156,9 +156,10 @@ struct RingIndex {
 };
 
 template <typename T, T M>
-struct PrintToStream<RingIndex<T, M>> {
-  static void Print(std::ostream& os, const RingIndex<T, M>& index) {
-    os << static_cast<T>(index);
+struct Formatter<RingIndex<T, M>> : Formatter<T> {
+  template <typename TStream>
+  void Format(RingIndex<T, M> const& index, FormatContext<TStream>& ctx) const {
+    Formatter<T>::Format(static_cast<T>(index), ctx);
   }
 };
 

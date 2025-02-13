@@ -25,8 +25,7 @@
 #  include "aether/mstream_buffers.h"
 #  include "aether/mstream.h"
 #  include "aether/tele/tele.h"
-#  include "aether/tele/ios_time.h"
-#  include "aether/tele/ios.h"
+#  include "aether/format/format.h"
 
 #  include "freertos/FreeRTOS.h"
 #  include "freertos/task.h"
@@ -243,8 +242,8 @@ ITransport::DataReceiveEvent::Subscriber LwipTcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> LwipTcpTransport::Send(DataBuffer data,
                                                     TimePoint current_time) {
-  AE_TELE_DEBUG("TcpTransportSend", "Send data size {} at {}", data.size(),
-                FormatTimePoint("%Y-%m-%d %H:%M:%S", current_time));
+  AE_TELE_DEBUG("TcpTransportSend", "Send data size {} at {:%Y-%m-%d %H:%M:%S}",
+                data.size(), current_time);
   assert(socket_ != kInvalidSocket);
 
   auto packet_data = std::vector<std::uint8_t>{};

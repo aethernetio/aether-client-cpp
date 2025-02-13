@@ -21,8 +21,7 @@
 #include <iomanip>
 #include <algorithm>
 
-#include "aether/tele/ios.h"
-#include "aether/tele/ios_time.h"
+#include "aether/format/format.h"
 
 namespace ae::tele {
 
@@ -50,14 +49,13 @@ IoStreamTrap::IoStreamTrap(std::ostream& stream) : stream_{stream} {}
 IoStreamTrap::~IoStreamTrap() {
   stream_ << "Metrics:\n";
   for (auto const& [index, ms] : metrics_) {
-    stream_ << Format(
-        "\tidx:{}\n\t\tinv "
-        "count:{}\n\t\tmax_duration:{}\n\t\tsum_duration:{}\n\t\tmin_duration:{"
-        "}\n",
-        index, ms.invocations_count_, ms.max_duration_, ms.sum_duration_,
-        ms.min_duration_);
+    Format(stream_,
+           "\tidx:{}\n\t\tinv_count:{}\n\t\tmax_duration:{}\n\t\tsum_duration:{"
+           "}\n\t\tmin_duration:{}\n",
+           index, ms.invocations_count_, ms.max_duration_, ms.sum_duration_,
+           ms.min_duration_);
   }
-  stream_ << "\n";
+  stream_ << '\n';
 }
 
 IoStreamTrap::LogStream::LogStream(std::ostream& stream) : stream_{stream} {}
@@ -76,12 +74,12 @@ IoStreamTrap::LogStream::~LogStream() {
 
 void IoStreamTrap::LogStream::index(std::size_t index) {
   delimeter();
-  stream_ << std::setw(3) << std::left << std::dec << index << std::right
+  stream_ << std::setw(3) << std::right << std::dec << index << std::right
           << std::setw(0);
 }
 void IoStreamTrap::LogStream::start_time(TimePoint const& start) {
   delimeter();
-  stream_ << FormatTimePoint("[%H:%M:%S]", start);
+  Format(stream_, "[{%H:%M:%S}]", start);
 }
 void IoStreamTrap::LogStream::level(Level::underlined_t level) {
   delimeter();

@@ -38,7 +38,6 @@
 #include "aether/dns/esp32_dns_resolve.h"
 
 #include "aether/tele/tele.h"
-#include "aether/tele/ios_time.h"
 
 namespace ae {
 

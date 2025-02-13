@@ -38,7 +38,6 @@
 #include "aether/adapters/esp32_wifi.h"
 
 #include "aether/tele/tele.h"
-#include "aether/tele/ios_time.h"
 
 static constexpr char WIFI_SSID[] = "Test123";
 static constexpr char WIFI_PASS[] = "Test123";

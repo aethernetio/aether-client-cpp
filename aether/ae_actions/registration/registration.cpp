@@ -47,7 +47,6 @@
 #  include "aether/proof_of_work.h"
 
 #  include "aether/tele/tele.h"
-#  include "aether/tele/ios_time.h"
 
 namespace ae {
 
@@ -106,8 +105,8 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
 Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
 
 TimePoint Registration::Update(TimePoint current_time) {
-  AE_TELED_DEBUG("Registration::Update {}",
-                 FormatTimePoint("UTC :%Y-%m-%d %H:%M:%S", current_time));
+  AE_TELED_DEBUG("Registration::Update UTC :{:%Y-%m-%d %H:%M:%S}",
+                 current_time);
 
   // TODO: add check for actual packet sending or method timeouts
 
@@ -182,8 +181,8 @@ void Registration::IterateConnection() {
 }
 
 void Registration::Connected(TimePoint current_time) {
-  AE_TELED_DEBUG("Registration::Connected at {}",
-                 FormatTimePoint("UTC :%Y-%m-%d %H:%M:%S", current_time));
+  AE_TELED_DEBUG("Registration::Connected at UTC :{:%Y-%m-%d %H:%M:%S}",
+                 current_time);
   auto aether = aether_.Lock();
   if (!aether) {
     return;
