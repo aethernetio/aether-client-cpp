@@ -21,9 +21,9 @@
 
 namespace ae {
 
-bool IpAddressParser::StringToIP(const std::string& ip_string,
-                                 IpAddress& ip_addr) {
+std::optional<IpAddress> IpAddressParser::StringToIP(const std::string& ip_string) {
   bool result{false};
+  IpAddress ip_addr{};
 
 #if AE_SUPPORT_IPV4 == 1
   result = IsValidIpv4(ip_string);
@@ -45,7 +45,11 @@ bool IpAddressParser::StringToIP(const std::string& ip_string,
 #endif  // AE_SUPPORT_IPV6 == 1
   }
 
-  return result;
+  if(result) {
+    return ip_addr;
+  } else {
+    return std::nullopt;
+  }
 }
 
 #if AE_SUPPORT_IPV4 == 1

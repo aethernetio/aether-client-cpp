@@ -94,11 +94,13 @@ int RegistratorConfig::ParseConfig() {
       ae::IpAddress ip_adress{};
       ae::IpAddressParser ip_adress_parser{};
 
-      auto res = ip_adress_parser.StringToIP(str_ip_address, ip_adress);
-      if (!res) {
+      auto res = ip_adress_parser.StringToIP(str_ip_address);
+      if (res == std::nullopt) {
         AE_TELED_ERROR("Configuration failed, wrong IP address {}.",
                        str_ip_address);
         return -2;
+      } else {
+        ip_adress = *res;
       }
 
       server_config.server_ip_adress = ip_adress;

@@ -18,6 +18,7 @@
 #define AETHER_ADDRESS_PARSER_H_
 
 #include <string>
+#include <optional>
 
 #include "aether/config.h"
 #include "aether/variant_type.h"
@@ -28,7 +29,7 @@ class IpAddressParser {
  public:
   IpAddressParser() = default;
   ~IpAddressParser() = default;
-  bool StringToIP(const std::string& ip_string, IpAddress& ip_addr);
+  std::optional<IpAddress> StringToIP(const std::string& ip_string);
 
  private:
 #if AE_SUPPORT_IPV4 == 1
