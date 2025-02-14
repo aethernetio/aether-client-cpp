@@ -62,7 +62,6 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
 class RegisteredAction : public Action<RegisteredAction> {
   enum class State : std::uint8_t {
     kLoad,
-    kConfigureReceiver,
     kConfigureSender,
     kSendMessages,
     kWaitDone,
@@ -86,9 +85,6 @@ class RegisteredAction : public Action<RegisteredAction> {
       switch (state_.Acquire()) {
         case State::kLoad:
           LoadClients();
-          break;
-        case State::kConfigureReceiver:
-          ConfigureReceiver();
           break;
         case State::kConfigureSender:
           ConfigureSender();
@@ -131,19 +127,6 @@ class RegisteredAction : public Action<RegisteredAction> {
           auto msg_str = std::string("Test message for client ") + std::to_string(i); 
           messages_.insert(messages_.begin() + i, msg_str);
           }
-      state_ = State::kConfigureReceiver;
-  }
-
-  /**
-   * \brief Make required preparation for receiving messages.
-   * Subscribe to opening new stream event.
-   * Subscribe to receiving message event.
-   * Send confirmation to received message.
-   */
-  void ConfigureReceiver() { 
-      // We don't need to set up the receiver.
-      AE_TELED_INFO("Receiver configuration");
-
       state_ = State::kConfigureSender;
   }
 
