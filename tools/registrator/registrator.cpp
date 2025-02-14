@@ -37,7 +37,7 @@
 
 #include "tools/registrator/registrator_config.h"
 
-constexpr bool use_self_test = false;
+constexpr bool kUseSelfTest = false;
 
 
 namespace ae::registrator {
@@ -105,7 +105,7 @@ class RegistratorAction : public Action<RegistratorAction> {
     }
     // wait till all sent messages received and confirmed
     if (state_.get() == State::kWaitDone) {
-      if (use_self_test) {
+      if (kUseSelfTest) {
         AE_TELED_DEBUG("Wait done receive_count {}, confirm_count {}",
                        receive_count_, confirm_count_);
         if ((receive_count_ == messages_.size()) &&
@@ -198,7 +198,7 @@ class RegistratorAction : public Action<RegistratorAction> {
   void ConfigureSender() {
     std::uint8_t clients_cnt{0};
 
-    if (use_self_test) {
+    if (kUseSelfTest) {
       AE_TELED_INFO("Sender configuration");
       confirm_count_ = 0;
       assert(aether_->clients().size() ==
@@ -254,7 +254,7 @@ class RegistratorAction : public Action<RegistratorAction> {
   void SendMessages(TimePoint current_time) {
     std::uint8_t messages_cnt{0};
 
-    if (use_self_test) {
+    if (kUseSelfTest) {
       AE_TELED_INFO("Send messages");
 
       for (auto sender_stream : sender_streams_) {
