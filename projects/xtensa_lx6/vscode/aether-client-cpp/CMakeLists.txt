@@ -23,9 +23,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 idf_build_set_property(CM_PLATFORM "ESP32")
 
-set(COMPILE_EXAMPLE "key_led")
-
 add_compile_definitions(CM_ESP32)
+
+if(NOT COMPILE_EXAMPLE )
+  set(COMPILE_EXAMPLE "key_led")
+endif()
 
 if (NOT USER_CONFIG)
   set(USER_CONFIG "../config/user_config_optimized.h")
