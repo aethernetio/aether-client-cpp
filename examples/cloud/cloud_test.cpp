@@ -250,7 +250,6 @@ class CloudTestAction : public Action<CloudTestAction> {
   }
 
   Aether::ptr aether_;
-  std::vector<std::string> messages_;
 
   Client::ptr receiver_;
   Ptr<ByteStream> receiver_stream_;
@@ -267,6 +266,7 @@ class CloudTestAction : public Action<CloudTestAction> {
   Subscription sender_message_subscription_;
   MultiSubscription send_subscriptions_;
   StateMachine<State> state_;
+  std::vector<std::string> messages_;
   Subscription state_changed_;
 };
 
