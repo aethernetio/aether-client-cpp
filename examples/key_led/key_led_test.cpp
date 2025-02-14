@@ -338,7 +338,7 @@ int AetherButtonExample() {
    */
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{
-#if !defined AE_SUPPORT_REGISTRATION
+#if !AE_SUPPORT_REGISTRATION
           []() {
             auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>();
             return fs;
@@ -358,7 +358,7 @@ int AetherButtonExample() {
 #  endif  // ESP32_WIFI_ADAPTER_ENABLED
             return adapter;
           })
-#  if defined AE_SUPPORT_REGISTRATION
+#  if AE_SUPPORT_REGISTRATION
           .RegCloud([](ae::Ptr<ae::Domain> const& domain,
                        ae::Aether::ptr const& /* aether */) {
             auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
