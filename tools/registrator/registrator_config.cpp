@@ -61,7 +61,7 @@ int RegistratorConfig::ParseConfig() {
     uid = file["ParentID" + std::to_string(i + 1)]["uid"];
     clients_num =
         file["ParentID" + std::to_string(i + 1)].get<int>("clientsNum");
-    parent = make_tuple(uid, clients_num);
+    ae::ClientParents parent{uid, clients_num};
     parents_.push_back(parent);
     clients_total += clients_num;
   }
@@ -134,8 +134,7 @@ int RegistratorConfig::ParseConfig() {
 /**
  * \brief Getter for the parents_.
  */
-std::vector<std::tuple<std::string, std::uint8_t>>
-RegistratorConfig::GetParents() {
+std::vector<ae::ClientParents> RegistratorConfig::GetParents() {
   return parents_;
 }
 

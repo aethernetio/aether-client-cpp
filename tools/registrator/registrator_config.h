@@ -18,7 +18,6 @@
 #define TOOLS_REGISTRATOR_REGISTRATOR_CONFIG_H_
 
 #include <string>
-#include <tuple>
 #include <vector>
 
 #include "aether/address.h"
@@ -35,18 +34,23 @@ struct ServerConfig {
   ae::IpAddress server_ip_adress;
 };
 
+struct ClientParents {
+  std::string uid_str;
+  std::uint8_t clients_num;
+};
+
 class RegistratorConfig {
  public:
   RegistratorConfig(const std::string& ini_file);
 
   int ParseConfig();
-  std::vector<std::tuple<std::string, std::uint8_t>> GetParents();
+  std::vector<ae::ClientParents> GetParents();
   std::vector<ae::ServerConfig> GetServers();
   std::uint8_t GetClientsTotal();
 
  private:
   const std::string ini_file_;
-  std::vector<std::tuple<std::string, std::uint8_t>> parents_;
+  std::vector<ae::ClientParents> parents_;
   std::vector<ae::ServerConfig> servers_;
   std::uint8_t clients_total_{0};
 };

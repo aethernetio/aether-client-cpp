@@ -136,8 +136,9 @@ class RegistratorAction : public Action<RegistratorAction> {
       AE_TELED_INFO("Client registration");
 #if AE_SUPPORT_REGISTRATION
       for (auto p : registrator_config_.GetParents()) {
-        std::string uid_str = std::get<0>(p);
-        std::uint8_t clients_num = std::get<1>(p);
+        auto uid_str = p.uid_str;
+        auto clients_num = p.clients_num;
+
         for (std::uint8_t i{0}; i < clients_num; i++) {
           auto uid_arr = ae::MakeArray(uid_str);
           if (uid_arr.size() != ae::Uid::kSize) {
