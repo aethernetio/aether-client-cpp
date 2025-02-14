@@ -14,23 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef EXAMPLES_BUTTON_LED_BUTTON_MAC_H_
-#define EXAMPLES_BUTTON_LED_BUTTON_MAC_H_
+#ifndef EXAMPLES_KEY_LED_KEY_LED_NIX_H_
+#define EXAMPLES_KEY_LED_KEY_LED_NIX_H_
 
-#if defined __APPLE__
-
-#  define BUTTON_MAC
+#if (defined(__linux__) || defined(__unix__) || defined(__FreeBSD__))
+#  define KEY_LED_NIX
 
 #  include <cstdint>
 
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_context.h"
 
+const int SCROLL_LOCK = 1, CAPSLOCK = 2, NUMLOCK = 16;
+
+#  define LED_PIN SCROLL_LOCK
+#  define BUT_PIN XK_Shift_L
+#  define BUT_MASK 0xFFFF
+
 namespace ae {
-class LedButtonMac : public Action<LedButtonMac> {
+class KeyLedNix : public Action<KeyLedNix> {
  public:
-  LedButtonMac(ActionContext action_context);
-  ~LedButtonMac() override;
+  explicit KeyLedNix(ActionContext action_context);
+  ~KeyLedNix() override;
   TimePoint Update(TimePoint current_time) override;
   bool GetKey(void);
   void SetLed(bool led_state);
@@ -41,11 +46,10 @@ class LedButtonMac : public Action<LedButtonMac> {
   void SetLedPriv(uint16_t led_pin, bool led_state);
 
   TimePoint prev_time_;
-  TimePoint::duration button_timeout_;
-  bool button_state_{false};
+  TimePoint::duration key_timeout_;
+  bool key_state_{false};
 };
-
 }  // namespace ae
 
-#endif  // __APPLE__
-#endif  // EXAMPLES_BUTTON_LED_BUTTON_MAC_H_
+#endif
+#endif  // EXAMPLES_KEY_LED_KEY_LED_NIX_H_

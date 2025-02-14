@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#include <chrono>
-#include <cstdint>
-
 #include "aether/common.h"
 #include "aether/state_machine.h"
 #include "aether/literal_array.h"
@@ -32,6 +29,7 @@
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
+#include "aether/port/file_systems/file_system_header.h"
 #include "aether/port/tele_init.h"
 
 #include "aether/adapters/ethernet.h"
@@ -39,10 +37,18 @@
 
 #include "aether/tele/tele.h"
 
-static constexpr char WIFI_SSID[] = "Test123";
-static constexpr char WIFI_PASS[] = "Test123";
+#include "key_led_nix.h"
+#include "key_led_win.h"
+#include "key_led_mac.h"
+#include "key_led_esp.h"
 
-namespace ae::cloud_test {
+using std::vector;
+
+static constexpr char kWifiSsid[] = "Test123";
+static constexpr char kWifiPass[] = "Test123";
+static constexpr bool kUseAether = true;
+
+namespace ae::key_led_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
@@ -56,7 +62,7 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
 /**
  * \brief This is the main action to perform all busyness logic here.
  */
-class CloudTestAction : public Action<CloudTestAction> {
+class KeyLedTestAction : public Action<KeyLedTestAction> {
   enum class State : std::uint8_t {
     kRegistration,
     kConfigureReceiver,
@@ -68,23 +74,37 @@ class CloudTestAction : public Action<CloudTestAction> {
   };
 
  public:
-  explicit CloudTestAction(Ptr<AetherApp> const& aether_app)
+  explicit KeyLedTestAction(Ptr<AetherApp> const& aether_app)
       : Action{*aether_app},
         aether_{aether_app->aether()},
         state_{State::kRegistration},
-        messages_{
-            "Hello, it's me",
-            "I was wondering if, after all these years, you'd like to meet",
-            "To go over everything",
-            "They say that time's supposed to heal ya",
-            "But I ain't done much healin'",
-            "Hello, can you hear me?",
-            "I'm in California dreaming about who we used to be",
-            "When we were younger and free",
-            "I've forgotten how it felt before the world fell at our feet"},
+        messages_{"LED on", "LED off"},
+        key_action_{
+#if defined KEY_LED_NIX
+            ae::KeyLedNix {
+              ae::ActionContext {
+                *aether_->action_processor
+              }
+            }
+#elif defined KEY_LED_WIN
+            ae::KeyLedWin {
+              ae::ActionContext {
+                *aether_->action_processor
+              }
+            }
+#elif defined KEY_LED_MAC
+            ae::KeyLedMac {
+              ae::ActionContext {
+                *aether_->action_processor
+              }
+            }
+#elif defined KEY_LED_ESP
+            ae::KeyLedEsp{ae::ActionContext{*aether_->action_processor}}
+#endif
+        },
         state_changed_{state_.changed_event().Subscribe(
             [this](auto) { Action::Trigger(); })} {
-    AE_TELED_INFO("Cloud test");
+    AE_TELED_INFO("Key to Led test");
   }
 
   TimePoint Update(TimePoint current_time) override {
@@ -114,14 +134,12 @@ class CloudTestAction : public Action<CloudTestAction> {
     }
     // wait till all sent messages received and confirmed
     if (state_.get() == State::kWaitDone) {
-      AE_TELED_DEBUG("Wait done receive_count {}, confirm_count {}",
-                     receive_count_, confirm_count_);
-      if ((receive_count_ == messages_.size()) &&
-          (confirm_count_ == messages_.size())) {
-        state_ = State::kResult;
-      }
+#if defined(ESP_PLATFORM)
+      auto heap_free = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+      AE_TELED_INFO("Heap size {}", heap_free);
+#endif
       // if no any events happens wake up after 1 second
-      return current_time + std::chrono::seconds{1};
+      return current_time + std::chrono::milliseconds{100};
     }
     return current_time;
   }
@@ -193,6 +211,13 @@ class CloudTestAction : public Action<CloudTestAction> {
                         AE_TELED_DEBUG("Received a message [{}]", str_msg);
                         receive_count_++;
                         auto confirm_msg = std::string{"confirmed "} + str_msg;
+                        if ((str_msg.compare(messages_[0])) == 0) {
+                          key_action_.SetLed(1);
+                          AE_TELED_INFO("LED is on");
+                        } else if ((str_msg.compare(messages_[1])) == 0) {
+                          key_action_.SetLed(0);
+                          AE_TELED_INFO("LED is off");
+                        }
                         auto response_action = receiver_stream_->in().Write(
                             {confirm_msg.data(),
                              confirm_msg.data() + confirm_msg.size()},
@@ -238,14 +263,30 @@ class CloudTestAction : public Action<CloudTestAction> {
    */
   void SendMessages(TimePoint current_time) {
     AE_TELED_INFO("Send messages");
-    for (auto const& msg : messages_) {
-      auto send_action = sender_stream_->in().Write(
-          DataBuffer{std::begin(msg), std::end(msg)}, current_time);
-      send_subscriptions_.Push(send_action->SubscribeOnError([&](auto const&) {
-        AE_TELED_ERROR("Send message failed");
-        state_ = State::kError;
-      }));
-    }
+
+    key_action_subscription_ = key_action_.SubscribeOnResult(
+        [&, sender_stream_{std::move(sender_stream_)}](auto const&) {
+          if (key_action_.GetKey()) {
+            AE_TELED_INFO("Hi level press");
+            if (kUseAether) {
+              sender_stream_->in().Write(
+                  {std::begin(messages_[0]), std::end(messages_[0])},
+                  ae::TimePoint::clock::now());
+            } else {
+              key_action_.SetLed(1);
+            }
+          } else {
+            AE_TELED_INFO("Low level press");
+            if (kUseAether) {
+              sender_stream_->in().Write(
+                  {std::begin(messages_[1]), std::end(messages_[1])},
+                  ae::TimePoint::clock::now());
+            } else {
+              key_action_.SetLed(0);
+            }
+          }
+        });
+
     state_ = State::kWaitDone;
   }
 
@@ -265,16 +306,28 @@ class CloudTestAction : public Action<CloudTestAction> {
   MultiSubscription response_subscriptions_;
   Subscription sender_message_subscription_;
   MultiSubscription send_subscriptions_;
+  Subscription key_action_subscription_;
   StateMachine<State> state_;
   std::vector<std::string> messages_;
+
+#if defined KEY_LED_NIX
+  ae::KeyLedNix key_action_;
+#elif defined KEY_LED_WIN
+  ae::KeyLedWin key_action_;
+#elif defined KEY_LED_MAC
+  ae::KeyLedMac key_action_;
+#elif defined KEY_LED_ESP
+  ae::KeyLedEsp key_action_;
+#endif
   Subscription state_changed_;
 };
 
-}  // namespace ae::cloud_test
+}  // namespace ae::key_led_test
 
-int AetherCloudExample();
+int AetherButtonExample();
+//*******************************************************************************************************************************
 
-int AetherCloudExample() {
+int AetherButtonExample() {
   /**
    * Construct a main aether application class.
    * It's include a Domain and Aether instances accessible by getter methods.
@@ -284,18 +337,25 @@ int AetherCloudExample() {
    * To configure its creation \see AetherAppConstructor.
    */
   auto aether_app = ae::AetherApp::Construct(
-      ae::AetherAppConstructor{}
+      ae::AetherAppConstructor{
+#if !AE_SUPPORT_REGISTRATION
+          []() {
+            auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>();
+            return fs;
+          }
+#endif  // AE_SUPPORT_REGISTRATION
+      }
 #if defined AE_DISTILLATION
           .Adapter([](ae::Ptr<ae::Domain> const& domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = domain.CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-                std::string(WIFI_SSID), std::string(WIFI_PASS));
+                std::string(kWifiSsid), std::string(kWifiPass));
 #  else
             auto adapter = domain->CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, aether, aether->poller);
-#  endif
+#  endif  // ESP32_WIFI_ADAPTER_ENABLED
             return adapter;
           })
 #  if AE_SUPPORT_REGISTRATION
@@ -320,14 +380,14 @@ int AetherCloudExample() {
             return registration_cloud;
           })
 #  endif  // AE_SUPPORT_REGISTRATION
-#endif
+#endif    // AE_DISTILLATION
   );
 
-  auto cloud_test_action = ae::cloud_test::CloudTestAction{aether_app};
+  auto key_led_test_action = ae::key_led_test::KeyLedTestAction{aether_app};
 
-  auto success = cloud_test_action.SubscribeOnResult(
+  auto success = key_led_test_action.SubscribeOnResult(
       [&](auto const&) { aether_app->Exit(0); });
-  auto failed = cloud_test_action.SubscribeOnError(
+  auto failed = key_led_test_action.SubscribeOnError(
       [&](auto const&) { aether_app->Exit(1); });
 
   while (!aether_app->IsExited()) {

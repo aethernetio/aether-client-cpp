@@ -14,47 +14,47 @@
  * limitations under the License.
  */
 
-#include "led_button_win.h"
+#include "key_led_win.h"
 
-#if (defined(BUTTON_WIN))
+#if (defined(KEY_LED_WIN))
 
 #  include "aether/tele/tele.h"
 
 namespace ae {
 
-LedButtonWin::LedButtonWin(ActionContext action_context)
-    : Action{action_context}, button_timeout_{std::chrono::milliseconds{100}} {
+KeyLedWin::KeyLedWin(ActionContext action_context)
+    : Action{action_context}, key_timeout_{std::chrono::milliseconds{100}} {
   this->InitIOPriv();
 }
 
-LedButtonWin::~LedButtonWin() {}
+KeyLedWin::~KeyLedWin() {}
 
-TimePoint LedButtonWin::Update(TimePoint current_time) {
+TimePoint KeyLedWin::Update(TimePoint current_time) {
   bool res{false};
 
-  if (current_time > prev_time_ + button_timeout_) {
+  if (current_time > prev_time_ + key_timeout_) {
     prev_time_ = current_time;
     res = GetKeyPriv(BUT_PIN, BUT_MASK);
-    if (res != button_state_) {
-      AE_TELED_INFO("Button state changed");
-      button_state_ = res;
+    if (res != key_state_) {
+      AE_TELED_INFO("Key state changed");
+      key_state_ = res;
       Action::ResultRepeat(*this);
     }
   }
   return current_time;
 }
 
-bool LedButtonWin::GetKey(void) {
-  bool res = button_state_;
+bool KeyLedWin::GetKey(void) {
+  bool res = key_state_;
 
   return res;
 }
 
-void LedButtonWin::SetLed(bool led_state) { SetLedPriv(LED_PIN, led_state); }
+void KeyLedWin::SetLed(bool led_state) { SetLedPriv(LED_PIN, led_state); }
 
-void LedButtonWin::InitIOPriv(void) {}
+void KeyLedWin::InitIOPriv(void) {}
 
-bool LedButtonWin::GetKeyPriv(uint16_t key_pin, uint16_t key_mask) {
+bool KeyLedWin::GetKeyPriv(uint16_t key_pin, uint16_t key_mask) {
   bool res;
 
   if (GetKeyState(key_pin) & key_mask) {
@@ -68,7 +68,7 @@ bool LedButtonWin::GetKeyPriv(uint16_t key_pin, uint16_t key_mask) {
   return res;
 }
 
-void LedButtonWin::SetLedPriv(uint16_t led_pin, bool led_state) {
+void KeyLedWin::SetLedPriv(uint16_t led_pin, bool led_state) {
   if (led_state) {
     // Simulate a key press
     keybd_event(led_pin, 0x45, KEYEVENTF_EXTENDEDKEY | 0, 0);

@@ -131,7 +131,11 @@ void FileSystemHeaderFacility::remove_all() {
 
 void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
 #if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
+  #if defined FS_INIT
   auto data_vector = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
+  #else
+  auto data_vector = std::vector<std::uint8_t>{};
+  #endif
 
   VectorReader<PacketSize> vr{data_vector};
 
@@ -154,7 +158,11 @@ void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
 
 void FileSystemHeaderFacility::SaveObjData(ObjClassData& obj_data) {
 #if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
+  #if defined FS_INIT
   auto data_vector = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
+  #else
+  auto data_vector = std::vector<std::uint8_t>{};
+  #endif
 
   VectorWriter<PacketSize> vw{data_vector};
 

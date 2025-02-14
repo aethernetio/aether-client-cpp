@@ -16,18 +16,16 @@ cmake_minimum_required(VERSION 3.16.0)
 
 list( APPEND src_list 
   main.cpp
-  button_test.cpp
-  led_button_esp.cpp
-  led_button_mac.cpp
-  led_button_nix.cpp
-  led_button_win.cpp
-  led_button_mac.cpp
+  key_led_test.cpp
+  key_led_esp.cpp
+  key_led_mac.cpp
+  key_led_nix.cpp
+  key_led_win.cpp
+  key_led_mac.cpp
 )
 
-message(STATUS "CM_PLATFORM ${CM_PLATFORM}")
-
 if(NOT CM_PLATFORM)
-  project("aether-client-cpp-button" VERSION "1.0.0" LANGUAGES C CXX)
+  project("aether-client-cpp-key-led" VERSION "1.0.0" LANGUAGES C CXX)
 
   add_executable(${PROJECT_NAME} ${src_list})
   target_link_libraries(${PROJECT_NAME} PRIVATE aether)

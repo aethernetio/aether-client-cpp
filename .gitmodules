@@ -45,3 +45,9 @@
 	url = https://github.com/HowardHinnant/date.git
 	branch = master
   ignore = dirty
+
+[submodule "third_party/ini.h"]
+	path = third_party/ini.h
+	url = https://github.com/giosali/ini.h
+	branch = main
+  ignore = dirty

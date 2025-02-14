@@ -40,9 +40,12 @@ endif()
 enable_testing()
 
 add_subdirectory("../../examples/cloud" "cloud")
-add_subdirectory("../../examples/button" "button")
+add_subdirectory("../../examples/key_led" "key_led")
+add_subdirectory("../../examples/registered" "registered")
 
 add_subdirectory("../../examples/benches/send_message_delays" "send_message_delays")
 add_subdirectory("../../examples/benches/send_messages_bandwidth" "send_messages_bandwidth")
+
+add_subdirectory("../../tools/registrator" "registrator")
 
 add_subdirectory("../../tests" "tests")

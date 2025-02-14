@@ -1,0 +1,11 @@
+{
+  "idf.svdFilePath": "${workspaceFolder}/system/svd/esp32.svd",
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "idf.adapterTargetName": "esp32",
+  "idf.portWin": "COM3",
+  "editor.formatOnSave": true,
+  "[cpp]": {
+    "editor.defaultFormatter": "seaube.clangformat"
+  },
+  "clangFormat.executable.windows": "H:/Program Files/LLVM/bin/clang-format.exe",
+}

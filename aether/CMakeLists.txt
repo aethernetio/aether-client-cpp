@@ -48,6 +48,7 @@ list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
             "address.cpp"
+            "address_parser.cpp"
             "channel.cpp"
             "client.cpp"
             "cloud.cpp"

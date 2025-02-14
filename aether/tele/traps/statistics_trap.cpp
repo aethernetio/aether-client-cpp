@@ -79,13 +79,14 @@ void Statistics::UpdateSize(LogStore const& logs, std::size_t delta_size) {
     assert(it != data.rend());
     sum += it->size();
   }
-  size_ += sum;
+  size_ += static_cast<std::uint32_t>(sum);
 }
 
 void Statistics::UpdateSize(MetricsStore const& /* metrics */,
                             std::size_t delta_size) {
   // calculate size by delta count
-  size_ += delta_size * sizeof(MetricsStore::Metric);
+  size_ +=
+      static_cast<std::uint32_t>(delta_size * sizeof(MetricsStore::Metric));
 }
 
 void Statistics::Append(Statistics const& other) {
@@ -133,7 +134,7 @@ void StatisticsStore::Merge(StatisticsStore const& newer) {
 }
 
 void StatisticsStore::SetSizeLimit(std::size_t limit) {
-  statistics_size_limit_ = limit;
+  statistics_size_limit_ = static_cast<std::uint32_t>(limit);
 }
 
 bool StatisticsStore::IsCurrentFull() const {

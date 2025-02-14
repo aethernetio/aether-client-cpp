@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef BUTTON_LED_BUTTON_ESP_H_
-#define BUTTON_LED_BUTTON_ESP_H_
+#ifndef EXAMPLES_KEY_LED_KEY_LED_ESP_H_
+#define EXAMPLES_KEY_LED_KEY_LED_ESP_H_
 
 #if (defined(ESP_PLATFORM))
-#  define BUTTON_ESP
+#  define KEY_LED_ESP
 
 #  include <cstdint>
 #  include "aether/actions/action.h"
@@ -33,10 +33,10 @@
 #  define BUT_MASK 0xFFFF
 
 namespace ae {
-class LedButtonEsp : public Action<LedButtonEsp> {
+class KeyLedEsp : public Action<KeyLedEsp> {
  public:
-  LedButtonEsp(ActionContext action_context);
-  ~LedButtonEsp() override;
+  KeyLedEsp(ActionContext action_context);
+  ~KeyLedEsp() override;
   TimePoint Update(TimePoint current_time) override;
   bool GetKey(void);
   void SetLed(bool led_state);
@@ -47,10 +47,10 @@ class LedButtonEsp : public Action<LedButtonEsp> {
   void SetLedPriv(uint16_t led_pin, bool led_state);
 
   TimePoint prev_time_;
-  TimePoint::duration button_timeout_;
-  bool button_state_{false};
+  TimePoint::duration key_timeout_;
+  bool key_state_{false};
 };
 }  // namespace ae
 
 #endif
-#endif  // BUTTON_LED_BUTTON_ESP_H_
+#endif  // EXAMPLES_KEY_LED_KEY_LED_ESP_H_

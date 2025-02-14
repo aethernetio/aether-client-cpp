@@ -150,7 +150,7 @@ class Statistics {
 
   LogStore logs_;
   MetricsStore metrics_;
-  std::size_t size_{};  //< memory size in bytes
+  std::uint32_t size_{};  //< memory size in bytes
 };
 
 /**
@@ -215,7 +215,7 @@ class StatisticsStore {
   bool IsCurrentFull() const;
   void Rotate();
 
-  std::size_t statistics_size_limit_{kMaxSize};
+  std::uint32_t statistics_size_limit_{kMaxSize};
   EnvStore env_store_;
   RcPtr<Statistics> prev_;
   RcPtr<Statistics> current_;

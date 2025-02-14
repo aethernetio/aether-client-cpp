@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef BUTTON_LED_BUTTON_WIN_H_
-#define BUTTON_LED_BUTTON_WIN_H_
+#ifndef EXAMPLES_KEY_LED_KEY_LED_WIN_H_
+#define EXAMPLES_KEY_LED_KEY_LED_WIN_H_
 
 #if (defined(_WIN64) || defined(_WIN32))
-#  define BUTTON_WIN
+#  define KEY_LED_WIN
 
 #  include <cstdint>
 #  include <iostream>
@@ -33,10 +33,10 @@
 #  define BUT_MASK 0x8000
 
 namespace ae {
-class LedButtonWin : public Action<LedButtonWin> {
+class KeyLedWin : public Action<KeyLedWin> {
  public:
-  explicit LedButtonWin(ActionContext action_context);
-  ~LedButtonWin() override;
+  explicit KeyLedWin(ActionContext action_context);
+  ~KeyLedWin() override;
   TimePoint Update(TimePoint current_time) override;
   bool GetKey(void);
   void SetLed(bool led_state);
@@ -47,10 +47,10 @@ class LedButtonWin : public Action<LedButtonWin> {
   void SetLedPriv(uint16_t led_pin, bool led_state);
 
   TimePoint prev_time_;
-  TimePoint::duration button_timeout_;
-  bool button_state_{false};
+  TimePoint::duration key_timeout_;
+  bool key_state_{false};
 };
 }  // namespace ae
 
 #endif
-#endif  // BUTTON_LED_BUTTON_WIN_H_
+#endif  // EXAMPLES_KEY_LED_KEY_LED_WIN_H_
