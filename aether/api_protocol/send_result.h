@@ -104,10 +104,11 @@ struct SendError : public Message<SendError> {
 
   template <typename T>
   void Serializator(T& s) {
-    s & request_id & error_code;
+    s & request_id & error_type & error_code;
   }
 
   RequestId request_id;
+  std::uint8_t error_type;
   std::uint32_t error_code;
 };
 }  // namespace ae
