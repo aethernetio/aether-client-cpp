@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#define AETHER_TELE_TELE_H_
 
 #include "aether/tele/traps/statistics_trap.h"
 
@@ -173,9 +174,13 @@ void StatisticsTrap::LogStream::level(Level::underlined_t level) {
 void StatisticsTrap::LogStream::module(Module::underlined_t module) {
   log_writer << module;
 }
-void StatisticsTrap::LogStream::file(char const* file) { log_writer << file; }
+void StatisticsTrap::LogStream::file(std::string_view file) {
+  log_writer << file;
+}
 void StatisticsTrap::LogStream::line(PackedLine line) { log_writer << line; }
-void StatisticsTrap::LogStream::name(char const* name) { log_writer << name; }
+void StatisticsTrap::LogStream::name(std::string_view name) {
+  log_writer << name;
+}
 
 StatisticsTrap::MetricStream::MetricStream(ProxyStatistics<MetricsStore>&& ms,
                                            MetricsStore::Metric& m)

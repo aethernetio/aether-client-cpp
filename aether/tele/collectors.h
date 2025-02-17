@@ -17,11 +17,15 @@
 #ifndef AETHER_TELE_COLLECTORS_H_
 #define AETHER_TELE_COLLECTORS_H_
 
+#ifndef AETHER_TELE_TELE_H_
+#  error "Include tele.h instead"
+#endif
+
 #include <chrono>
 #include <cstdint>
 #include <cstring>
-#include <type_traits>
 #include <utility>
+#include <type_traits>
 
 #include "aether/common.h"
 #include "aether/tele/declaration.h"
@@ -32,8 +36,8 @@ namespace ae::tele {
 struct Timer {
   std::uint32_t elapsed() const {
     auto d = std::chrono::duration<double>{TimePoint::clock::now() - start};
-    return static_cast<uint32_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(d).count());
+    return static_cast<std::uint32_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(d).count());
   }
 
   TimePoint const start{TimePoint::clock::now()};
@@ -45,12 +49,13 @@ class OptionalStorage {
   using Data = T;
 
   template <typename... UArgs>
-  explicit OptionalStorage(UArgs&&... args)
+  constexpr explicit OptionalStorage(UArgs&&... args)
       : data{std::forward<UArgs>(args)...} {}
 
   template <typename TConstructor,
             typename = std::enable_if_t<std::is_invocable_v<TConstructor>>>
-  explicit OptionalStorage(TConstructor&& constructor) : data{constructor()} {}
+  constexpr explicit OptionalStorage(TConstructor&& constructor)
+      : data{constructor()} {}
 
   Data& operator*() noexcept { return data; }
   Data* operator->() noexcept { return &data; }
@@ -65,7 +70,7 @@ class OptionalStorage<T, false> {
   using Data = T;
   struct Null {};
   template <typename... UArgs>
-  explicit OptionalStorage(UArgs&&...) {}
+  constexpr explicit OptionalStorage(UArgs&&...) {}
 
   Null operator*() noexcept { return {}; }
   Null operator->() noexcept { return {}; }
@@ -93,7 +98,7 @@ template <typename TSink, Level::underlined_t level,
 struct Tele {
   // Dummy tele
   template <typename... TArgs>
-  explicit Tele(TArgs&&... /* args */) {}
+  constexpr explicit Tele(TArgs&&... /* args */) {}
 };
 
 template <typename TSink, Level::underlined_t level,
@@ -112,8 +117,8 @@ struct Tele<TSink, level, module,
   static constexpr auto SinkConfig = Sink::template TeleConfig<Level, Module>;
 
   template <typename... TArgs>
-  Tele(Sink& sink, int index, TArgs&&... args)
-      : Tele(sink, Declaration{static_cast<std::size_t>(index), module, level},
+  constexpr Tele(Sink& sink, std::uint32_t index, TArgs&&... args)
+      : Tele(sink, Declaration{index, module, level},
              std::forward<TArgs>(args)...) {}
 
   ~Tele() {
@@ -123,7 +128,7 @@ struct Tele<TSink, level, module,
   }
 
  private:
-  Tele(Sink& sink, Declaration decl)
+  constexpr Tele(Sink& sink, Declaration decl)
       : timer{}, metric_stream{[&sink, &decl] {
           return sink.trap()->metric_stream(decl);
         }} {
@@ -132,8 +137,8 @@ struct Tele<TSink, level, module,
     }
   }
 
-  Tele(Sink& sink, Declaration decl, const char* file, int line,
-       const char* name)
+  constexpr Tele(Sink& sink, Declaration decl, std::string_view file, int line,
+                 std::string_view name)
       : Tele(sink, decl) {
     if constexpr (IsAnyLogs(SinkConfig)) {
       auto log_stream = sink.trap()->log_stream(decl);
@@ -158,8 +163,9 @@ struct Tele<TSink, level, module,
   }
 
   template <typename... TArgs>
-  Tele(Sink& sink, Declaration decl, const char* file, int line,
-       const char* name, const char* format, TArgs&&... args)
+  constexpr Tele(Sink& sink, Declaration decl, std::string_view file, int line,
+                 std::string_view name, std::string_view format,
+                 TArgs&&... args)
       : Tele(sink, decl) {
     if constexpr (IsAnyLogs(SinkConfig)) {
       auto log_stream = sink.trap()->log_stream(decl);

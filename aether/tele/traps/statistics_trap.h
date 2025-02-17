@@ -20,19 +20,17 @@
 #include <map>
 #include <list>
 #include <string>
-#include <memory>
 #include <vector>
 #include <utility>
 
-#include "aether/tele/declaration.h"
-#include "aether/common.h"
-#include "aether/format/format.h"
-#include "aether/mstream.h"
-#include "aether/mstream_buffers.h"
-#include "aether/packed_int.h"
-#include "aether/ptr/rc_ptr.h"
-
 #include "aether/config.h"
+#include "aether/common.h"
+#include "aether/mstream.h"
+#include "aether/ptr/rc_ptr.h"
+#include "aether/packed_int.h"
+#include "aether/format/format.h"
+#include "aether/mstream_buffers.h"
+#include "aether/tele/declaration.h"
 
 namespace ae::tele {
 namespace statistics {
@@ -240,12 +238,12 @@ class StatisticsTrap {
     void start_time(TimePoint const& start);
     void level(Level::underlined_t level);
     void module(Module::underlined_t module);
-    void file(char const* file);
+    void file(std::string_view file);
     void line(PackedLine line);
-    void name(char const* name);
+    void name(std::string_view name);
 
     template <typename... TArgs>
-    void blob(char const* format, TArgs&&... args) {
+    void blob(std::string_view format, TArgs&&... args) {
       log_writer << Format(format, std::forward<TArgs>(args)...);
     }
 

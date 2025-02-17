@@ -17,6 +17,10 @@
 #ifndef AETHER_TELE_SINK_H_
 #define AETHER_TELE_SINK_H_
 
+#ifndef AETHER_TELE_TELE_H_
+#  error "Include tele.h instead"
+#endif
+
 #include <cassert>
 #include <utility>
 

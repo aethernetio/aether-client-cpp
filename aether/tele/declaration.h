@@ -24,19 +24,14 @@
 #include "aether/tele/modules.h"
 
 namespace ae::tele {
-struct Tag {
-  std::uint32_t crc_;
-  Module::underlined_t module_;
-};
-
 struct Declaration {
-  std::size_t index_;
+  std::uint32_t index_;
   Module::underlined_t module_;
   Level::underlined_t level_;
 };
 
 struct CompileOption {
-  std::size_t index_;
+  std::uint32_t index_;
   std::string_view name_;
   std::uint32_t value_;
 };
