@@ -22,7 +22,6 @@
 #include <thread>
 #include <vector>
 #include <iostream>
-#include <memory>
 
 #include "aether/config.h"
 
@@ -42,9 +41,12 @@
 #  define AE_TELE_METRICS_DURATION AE_TELE_MODULES_ALL
 #endif
 
+#define AETHER_TELE_TELE_H_
+
 #include "aether/tele/sink.h"
+#include "aether/tele/tags.h"
 #include "aether/tele/modules.h"
-#include "aether/tele/register.h"
+#include "aether/tele/defines.h"
 #include "aether/tele/collectors.h"
 #include "aether/tele/env_collectors.h"
 
@@ -57,10 +59,7 @@
 using SinkType =
     ae::tele::TeleSink<ae::tele::IoStreamTrap, ae::tele::ConfigProvider>;
 
-#define TAG_LIST_NAME test_tele_tag_list
 #define TELE_SINK SinkType
-
-#include "aether/tele/tele.h"
 
 static ae::Ptr<ae::tele::IoStreamTrap> trap;
 
@@ -71,59 +70,43 @@ void setUp() {
 
 void tearDown() { trap.Reset(); }
 
-namespace ae::tele::test {
+AE_TAG(One, ae::tele::Module::kObj)
+AE_TAG(Two, ae::tele::Module::kObj)
+AE_TAG(Three, ae::tele::Module::kObj)
+// AE_TAG_INDEXED(Three2, ae::tele::Module::kObj, 3)  // must not compile
+// duplicated!
+AE_TAG_INDEXED(Twelve, ae::tele::Module::kObj, 12)
+// AE_TAG_INDEXED(Twelve2, ae::tele::Module::kObj, 12) // must not compile
+// duplicated!
 
-inline constexpr auto test_tele_tag_list =
-    ae::tele::Registration(AE_TAG("Test1", ae::tele::Module::kObj),
-                           AE_TAG("Test2", ae::tele::Module::kApp));
+AE_TAG(Test1, ae::tele::Module::kObj)
+AE_TAG(Test2, ae::tele::Module::kObj)
+AE_TAG(Test3, ae::tele::Module::kObj)
+
+namespace ae::tele::test_tele {
 
 void test_Register() {
-  constexpr auto not_contains = ae::tele::ContainDuplicates<1, 2, 3>();
-  constexpr auto contains = ae::tele::ContainDuplicates<1, 1, 2>();
-  TEST_ASSERT(!not_contains);
-  TEST_ASSERT(contains);
-
-  constexpr auto TestTags =
-      ae::tele::Registration(AE_TAG("One", ae::tele::Module::kObj),
-                             AE_TAG("Two", ae::tele::Module::kApp),
-                             AE_TAG("Three", ae::tele::Module::kObj));
-  // must not compile
-  // ae::tele::Registration(AE_TAG("One", ae::tele::Module::kObj),
-  //                        AE_TAG("Two", ae::tele::Module::kApp),
-  //                        AE_TAG("Two", ae::tele::Module::kObj));
-
-  constexpr auto index_1 = AE_TAG_INDEX(TestTags, "One");
-  constexpr auto index_2 = AE_TAG_INDEX(TestTags, "Two");
-  constexpr auto index_3 = AE_TAG_INDEX(TestTags, "Not exists");
-
-  TEST_ASSERT_EQUAL(0, index_1);
-  TEST_ASSERT_EQUAL(1, index_2);
-  TEST_ASSERT_EQUAL(-1, index_3);
-
-  constexpr auto mod_1 = AE_TAG_MODULE(TestTags, "One");
-  constexpr auto mod_2 = AE_TAG_MODULE(TestTags, "Two");
-  constexpr auto mod_3 = AE_TAG_MODULE(TestTags, "Not exist");
-
-  TEST_ASSERT_EQUAL(ae::tele::Module::kObj, mod_1);
-  TEST_ASSERT_EQUAL(ae::tele::Module::kApp, mod_2);
-  TEST_ASSERT_EQUAL(ae::tele::Module::kNone, mod_3);
+  TEST_ASSERT_EQUAL(1, One.index);
+  TEST_ASSERT_EQUAL(2, Two.index);
+  TEST_ASSERT_EQUAL(3, Three.index);
+  TEST_ASSERT_EQUAL(12, Twelve.index);
 }
 
 void test_SimpleTeleWithDuration() {
   {
-    AE_TELE_DEBUG("Test1");
-    AE_TELE_DEBUG("Test1", "format {}", 12);
-    AE_TELE_INFO("Test2", "format {}", 24);
-    AE_TELE_INFO("Test2", "format {}", 48);
+    AE_TELE_DEBUG(Test1);
+    AE_TELE_DEBUG(Test1, "format {}", 12);
+    AE_TELE_INFO(Test2, "format {}", 24);
+    AE_TELE_INFO(Test3, "format {}", 48);
     // must not compile
-    // AE_TELE_INFO("Not registered", "format {}", 96);
+    // AE_TELE_INFO(Not_registered, "format {}", 96);
   }
-  auto& metrics = trap->metrics_[AE_TAG_INDEX(test_tele_tag_list, "Test1")];
+  auto& metrics = trap->metrics_[Test1.index];
 
   TEST_ASSERT_EQUAL(2, metrics.invocations_count_);
 }
 
-namespace TeleConfiguration {
+namespace tele_configuration {
 struct TeleTrap {
   struct MetricData {
     std::uint32_t count_{};
@@ -136,7 +119,7 @@ struct TeleTrap {
   struct LogStream {
     std::vector<std::string>& line_;
 
-    void index(std::size_t index) {
+    void index(std::uint32_t index) {
       auto str = std::to_string(index);
       put(str.c_str(), str.size());
     }
@@ -152,26 +135,22 @@ struct TeleTrap {
       auto m_str = ae::Format("{}", ae::tele::Module{module});
       put(m_str.c_str(), m_str.size());
     }
-    void file(char const* file) {
-      const char* filename = strrchr(file, '/');
-      if (filename == nullptr) {
-        filename = strrchr(file, '\\');
+    void file(std::string_view file) {
+      auto pos = file.find_last_of("/\\");
+      if (pos == std::string_view::npos) {
+        file = "UNKOWN FILE";
       }
-      if (filename == nullptr) {
-        filename = "UNKOWN FILE";
-      } else {
-        filename += 1;
-      }
-      put(filename, strlen(filename));
+      file = file.substr(pos + 1, file.size() - pos);
+      put(file.data(), file.size());
     }
     void line(std::uint32_t line) {
       auto str = std::to_string(line);
       put(str.c_str(), str.size());
     }
-    void name(char const* name) { put(name, strlen(name)); }
+    void name(std::string_view name) { put(name.data(), name.size()); }
 
     template <typename... TArgs>
-    void blob(char const* format, TArgs&&... args) {
+    void blob(std::string_view format, TArgs&&... args) {
       auto str = ae::Format(format, std::forward<TArgs>(args)...);
       put(str.c_str(), str.size());
     }
@@ -227,14 +206,14 @@ struct ConfigProvider {
   static constexpr EnvConfig StaticEnvConfig =
       EnvConfig{true, true, true, true, true};
 };
-}  // namespace TeleConfiguration
+}  // namespace tele_configuration
 
 void test_TeleConfigurations() {
   {
     // all enabled
-    using Sink = TeleSink<TeleConfiguration::TeleTrap,
-                          TeleConfiguration::ConfigProvider<>>;
-    auto tele_trap = ae::MakePtr<TeleConfiguration::TeleTrap>();
+    using Sink = TeleSink<tele_configuration::TeleTrap,
+                          tele_configuration::ConfigProvider<>>;
+    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
 
     Sink::InitSink(tele_trap);
     int remember_line = __LINE__ + 3;
@@ -265,10 +244,10 @@ void test_TeleConfigurations() {
   {
     // only metrics
     using Sink =
-        TeleSink<TeleConfiguration::TeleTrap,
-                 TeleConfiguration::ConfigProvider<true, true, false, false,
-                                                   false, false, false, false>>;
-    auto tele_trap = ae::MakePtr<TeleConfiguration::TeleTrap>();
+        TeleSink<tele_configuration::TeleTrap,
+                 tele_configuration::ConfigProvider<
+                     true, true, false, false, false, false, false, false>>;
+    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
 
     Sink::InitSink(tele_trap);
     {
@@ -286,10 +265,10 @@ void test_TeleConfigurations() {
   {
     // only count
     using Sink =
-        TeleSink<TeleConfiguration::TeleTrap,
-                 TeleConfiguration::ConfigProvider<true, false, false, false,
-                                                   false, false, false, false>>;
-    auto tele_trap = ae::MakePtr<TeleConfiguration::TeleTrap>();
+        TeleSink<tele_configuration::TeleTrap,
+                 tele_configuration::ConfigProvider<
+                     true, false, false, false, false, false, false, false>>;
+    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
     Sink::InitSink(tele_trap);
     {
       auto t = Tele<Sink, Level::kDebug, Module::kLog>{
@@ -306,10 +285,10 @@ void test_TeleConfigurations() {
   {
     // nothing
     using Sink =
-        TeleSink<TeleConfiguration::TeleTrap,
-                 TeleConfiguration::ConfigProvider<false, false, false, false,
-                                                   false, false, false, false>>;
-    auto tele_trap = ae::MakePtr<TeleConfiguration::TeleTrap>();
+        TeleSink<tele_configuration::TeleTrap,
+                 tele_configuration::ConfigProvider<
+                     false, false, false, false, false, false, false, false>>;
+    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
 
     Sink::InitSink(tele_trap);
     {
@@ -324,10 +303,10 @@ void test_TeleConfigurations() {
   {
     // print only index log level, module and text
     using Sink =
-        TeleSink<TeleConfiguration::TeleTrap,
-                 TeleConfiguration::ConfigProvider<false, false, true, false,
-                                                   true, false, true, false>>;
-    auto tele_trap = ae::MakePtr<TeleConfiguration::TeleTrap>();
+        TeleSink<tele_configuration::TeleTrap,
+                 tele_configuration::ConfigProvider<false, false, true, false,
+                                                    true, false, true, false>>;
+    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
 
     Sink::InitSink(tele_trap);
     {
@@ -351,10 +330,10 @@ void test_TeleConfigurations() {
 
 void test_TeleProxyTrap() {
   using ProxyTeleTrap =
-      ProxyTrap<TeleConfiguration::TeleTrap, ae::tele::IoStreamTrap>;
+      ProxyTrap<tele_configuration::TeleTrap, ae::tele::IoStreamTrap>;
 
   using Sink = TeleSink<ProxyTeleTrap, ConfigProvider>;
-  auto tele_trap = ae::MakePtr<TeleConfiguration::TeleTrap>();
+  auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
   auto proxy_tele_trap = ae::MakePtr<ProxyTeleTrap>(tele_trap, ::trap);
 
   Sink::InitSink(proxy_tele_trap);
@@ -362,17 +341,17 @@ void test_TeleProxyTrap() {
 #undef TELE_SINK
 #define TELE_SINK Sink
   {
-    AE_TELE_DEBUG("Test1");
-    AE_TELE_DEBUG("Test1", "format {}", 12);
-    AE_TELE_INFO("Test2", "format {}", 24);
-    AE_TELE_INFO("Test2", "format {}", 48);
+    AE_TELE_DEBUG(Test1);
+    AE_TELE_DEBUG(Test1, "format {}", 12);
+    AE_TELE_INFO(Test2, "format {}", 24);
+    AE_TELE_INFO(Test2, "format {}", 48);
   }
 
-  auto& metrics = ::trap->metrics_[AE_TAG_INDEX(test_tele_tag_list, "Test1")];
+  auto& metrics = ::trap->metrics_[Test1.index];
 
   TEST_ASSERT_EQUAL(2, metrics.invocations_count_);
 
-  auto d = tele_trap->metric_data_[AE_TAG_INDEX(test_tele_tag_list, "Test1")];
+  auto d = tele_trap->metric_data_[Test1.index];
   TEST_ASSERT_EQUAL(metrics.invocations_count_, d.count_);
 #undef TELE_SINK
 #define TELE_SINK SinkType
@@ -381,19 +360,19 @@ void test_TeleProxyTrap() {
 void test_MergeStatisticsTrap() {
   using Sink =
       TeleSink<statistics::StatisticsTrap,
-               TeleConfiguration::ConfigProvider<true, true, true, false, false,
-                                                 false, false, false>>;
+               tele_configuration::ConfigProvider<true, true, true, false,
+                                                  false, false, false, false>>;
 #undef TELE_SINK
 #define TELE_SINK Sink
   auto statistics_trap1 = ae::MakePtr<statistics::StatisticsTrap>();
 
   Sink::InitSink(statistics_trap1);
   {
-    AE_TELE_DEBUG("Test1");
-    AE_TELE_INFO("Test1");
-    AE_TELE_WARNING("Test1");
-    AE_TELE_ERROR("Test1");
-    AE_TELE_DEBUG("Test2");
+    AE_TELE_DEBUG(Test1);
+    AE_TELE_INFO(Test1);
+    AE_TELE_WARNING(Test1);
+    AE_TELE_ERROR(Test1);
+    AE_TELE_DEBUG(Test2);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
@@ -427,8 +406,8 @@ void test_MergeStatisticsTrap() {
   // switch to trap 2
   Sink::InitSink(statistics_trap2);
   {
-    AE_TELE_DEBUG("Test1");
-    AE_TELE_DEBUG("Test2");
+    AE_TELE_DEBUG(Test1);
+    AE_TELE_DEBUG(Test2);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   // new logs added
@@ -449,17 +428,17 @@ void test_MergeStatisticsTrap() {
 #define TELE_SINK SinkType
 }
 void test_EnvTele() { AE_TELE_ENV(); }
-}  // namespace ae::tele::test
+}  // namespace ae::tele::test_tele
 
 int main() {
   UNITY_BEGIN();
 
-  RUN_TEST(ae::tele::test::test_Register);
-  RUN_TEST(ae::tele::test::test_SimpleTeleWithDuration);
-  RUN_TEST(ae::tele::test::test_TeleConfigurations);
-  RUN_TEST(ae::tele::test::test_TeleProxyTrap);
-  RUN_TEST(ae::tele::test::test_MergeStatisticsTrap);
-  RUN_TEST(ae::tele::test::test_EnvTele);
+  RUN_TEST(ae::tele::test_tele::test_Register);
+  RUN_TEST(ae::tele::test_tele::test_SimpleTeleWithDuration);
+  RUN_TEST(ae::tele::test_tele::test_TeleConfigurations);
+  RUN_TEST(ae::tele::test_tele::test_TeleProxyTrap);
+  RUN_TEST(ae::tele::test_tele::test_MergeStatisticsTrap);
+  RUN_TEST(ae::tele::test_tele::test_EnvTele);
 
   return UNITY_END();
 }

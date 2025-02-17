@@ -14,17 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TELE_TELE_H_
-#define AETHER_TELE_TELE_H_
+#ifndef AETHER_TRANSPORT_TRANSPORT_TELE_H_
+#define AETHER_TRANSPORT_TRANSPORT_TELE_H_
 
-#include "aether/tele/tags.h"
-#include "aether/tele/defines.h"
-#include "aether/tele/modules.h"
-#include "aether/tele/configs/config_selector.h"
+#include "aether/tele/tele.h"
 
-// redefine this macro to use your own sink
-#ifndef TELE_SINK
-#  define TELE_SINK SELECTED_SINK
-#endif
+AE_TAG_INDEXED(TcpTransportConnect, ae::tele::Module::kTransport, 20)
+AE_TAG(TcpTransport, ae::tele::Module::kTransport)
+AE_TAG(TcpTransportDisconnect, ae::tele::Module::kTransport)
+AE_TAG(TcpTransportSend, ae::tele::Module::kTransport)
+AE_TAG(TcpTransportOnData, ae::tele::Module::kTransport)
+AE_TAG(TcpTransportReceive, ae::tele::Module::kTransport)
 
-#endif  // AETHER_TELE_TELE_H_
+#endif  // AETHER_TRANSPORT_TRANSPORT_TELE_H_

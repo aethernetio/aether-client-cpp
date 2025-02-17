@@ -14,17 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TELE_TELE_H_
-#define AETHER_TELE_TELE_H_
+#ifndef AETHER_AE_ACTIONS_AE_ACTIONS_TELE_H_
+#define AETHER_AE_ACTIONS_AE_ACTIONS_TELE_H_
 
-#include "aether/tele/tags.h"
-#include "aether/tele/defines.h"
-#include "aether/tele/modules.h"
-#include "aether/tele/configs/config_selector.h"
+#include "aether/tele/tele.h"
 
-// redefine this macro to use your own sink
-#ifndef TELE_SINK
-#  define TELE_SINK SELECTED_SINK
-#endif
+AE_TAG_INDEXED(RegistrationStarted, ae::tele::Module::kRegister, 20)
+AE_TAG(ClientRegistered, ae::tele::Module::kRegister)
 
-#endif  // AETHER_TELE_TELE_H_
+#endif  // AETHER_AE_ACTIONS_AE_ACTIONS_TELE_H_

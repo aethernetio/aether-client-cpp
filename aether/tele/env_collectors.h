@@ -17,18 +17,21 @@
 #ifndef AETHER_TELE_ENV_COLLECTORS_H_
 #define AETHER_TELE_ENV_COLLECTORS_H_
 
-#include <type_traits>
+#ifndef AETHER_TELE_TELE_H_
+#  error "Include tele.h instead"
+#endif
+
+#include <array>
 #include <cstdint>
 #include <utility>
-#include <array>
 
-#include "aether/tele/env/compiler.h"
-#include "aether/tele/env/compilation_options.h"
-#include "aether/tele/env/library_version.h"
-#include "aether/tele/env/platform_type.h"
-#include "aether/tele/env/cpu_architecture.h"
-#include "aether/tele/declaration.h"
 #include "aether/env.h"
+#include "aether/tele/declaration.h"
+#include "aether/tele/env/compiler.h"
+#include "aether/tele/env/platform_type.h"
+#include "aether/tele/env/library_version.h"
+#include "aether/tele/env/cpu_architecture.h"
+#include "aether/tele/env/compilation_options.h"
 
 namespace ae::tele {
 /**
@@ -94,8 +97,8 @@ struct EnvTele {
   static constexpr auto SinkConfig = Sink::EnvConfig;
 
   template <typename... TValues>
-  EnvTele(Sink& sink,
-          [[maybe_unused]] std::pair<std::size_t, TValues>&&... args) {
+  constexpr explicit EnvTele(
+      Sink& sink, [[maybe_unused]] std::pair<std::size_t, TValues>&&... args) {
     auto stream = sink.trap()->env_stream();
     if constexpr (SinkConfig.platform_type_) {
       stream.platform_type(PlatformType());
@@ -129,7 +132,7 @@ struct EnvTele {
 template <typename TSink>
 struct EnvTele<TSink, false> {
   template <typename... TArgs>
-  EnvTele(TArgs&&... /* args */) {}
+  constexpr explicit EnvTele(TArgs&&... /* args */) {}
 };
 }  // namespace ae::tele
 

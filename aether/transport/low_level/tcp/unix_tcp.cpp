@@ -31,9 +31,9 @@
 #  include <vector>
 #  include <utility>
 
-#  include "aether/mstream_buffers.h"
 #  include "aether/mstream.h"
-#  include "aether/tele/tele.h"
+#  include "aether/mstream_buffers.h"
+#  include "aether/transport/transport_tele.h"
 
 // Workaround for BSD and MacOS
 #  if not defined SOL_TCP and defined IPPROTO_TCP
@@ -75,7 +75,7 @@ UnixTcpTransport::ConnectionAction::get_state() const {
 }
 
 void UnixTcpTransport::ConnectionAction::Connect() {
-  AE_TELE_DEBUG("TcpTransportConnect", "Connect to {}", endpoint_);
+  AE_TELE_DEBUG(TcpTransportConnect, "Connect to {}", endpoint_);
   socket_ = socket(AF_INET, SOCK_STREAM, 0);
   if (socket_ == kInvalidSocket) {
     AE_TELED_ERROR("Socket create error {} {}", errno, strerror(errno));
@@ -155,7 +155,7 @@ UnixTcpTransport::UnixTcpTransport(ActionContext action_context,
       poller_{std::move(poller)},
       endpoint_{endpoint},
       connection_info_{} {
-  AE_TELE_DEBUG("TcpTransport", "Created unix tcp transport to endpoint {}",
+  AE_TELE_DEBUG(TcpTransport, "Created unix tcp transport to endpoint {}",
                 endpoint_);
   connection_info_.connection_state = ConnectionState::kUndefined;
 }
@@ -195,7 +195,7 @@ ITransport::DataReceiveEvent::Subscriber UnixTcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> UnixTcpTransport::Send(DataBuffer data,
                                                     TimePoint current_time) {
-  AE_TELE_DEBUG("TcpTransportSend", "Send data size {} at {:%H:%M:%S}",
+  AE_TELE_DEBUG(TcpTransportSend, "Send data size {} at {:%H:%M:%S}",
                 data.size(), current_time);
   assert(socket_ != kInvalidSocket);
 
@@ -248,7 +248,7 @@ void UnixTcpTransport::ReadSocket(TimePoint current_time) {
     DataBuffer data(static_cast<size_t>(count));
     auto r = recv(socket_, data.data(), static_cast<std::size_t>(count), 0);
     if (r > 0) {
-      AE_TELE_DEBUG("TcpTransportOnData", "Get data size {}\ndata: {}",
+      AE_TELE_DEBUG(TcpTransportOnData, "Get data size {}\ndata: {}",
                     data.size(), data);
       data_packet_collector_.AddData(std::move(data));
     } else if (r < 1) {
@@ -271,13 +271,13 @@ void UnixTcpTransport::WriteSocket() {
 void UnixTcpTransport::OnDataReceived(TimePoint current_time) {
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG("TcpTransportReceive", "Receive data size {}", data.size());
+    AE_TELE_DEBUG(TcpTransportReceive, "Receive data size {}", data.size());
     data_receive_event_.Emit(data, current_time);
   }
 }
 
 void UnixTcpTransport::Disconnect() {
-  AE_TELE_DEBUG("TcpTransportDisconnect", "Disconnect from {}", endpoint_);
+  AE_TELE_DEBUG(TcpTransportDisconnect, "Disconnect from {}", endpoint_);
   connection_info_.connection_state = ConnectionState::kConnected;
   if (socket_ == kInvalidSocket) {
     return;

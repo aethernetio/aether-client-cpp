@@ -123,7 +123,7 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
 
 void FileSystemStdFacility::remove_all() {
   std::filesystem::remove_all("state");
-  AE_TELE_DEBUG("Started", "Removed all!", 0);
+  AE_TELED_DEBUG("Removed all!", 0);
 }
 }  // namespace ae
 

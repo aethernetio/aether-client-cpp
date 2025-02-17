@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define AETHER_TELE_TELE_H_
+
 #include "aether/tele/traps/io_stream_traps.h"
 
 #include <ios>
@@ -25,11 +27,11 @@
 
 namespace ae::tele {
 
-void IoStreamTrap::MetricsStream::add_count(uint32_t count) {
+void IoStreamTrap::MetricsStream::add_count(std::uint32_t count) {
   metric_.invocations_count_ += count;
 }
 
-void IoStreamTrap::MetricsStream::add_duration(uint32_t duration) {
+void IoStreamTrap::MetricsStream::add_duration(std::uint32_t duration) {
   metric_.max_duration_ = std::max(metric_.max_duration_, duration);
 
   metric_.sum_duration_ += duration;
@@ -40,7 +42,8 @@ void IoStreamTrap::MetricsStream::add_duration(uint32_t duration) {
 IoStreamTrap::MetricsStream IoStreamTrap::metric_stream(
     Declaration const& decl) {
   auto [it, _] = metrics_.emplace(
-      decl.index_, Metric{{}, {}, {}, std::numeric_limits<uint32_t>::max()});
+      decl.index_,
+      Metric{{}, {}, {}, std::numeric_limits<std::uint32_t>::max()});
   return MetricsStream{it->second};
 }
 
@@ -72,7 +75,7 @@ IoStreamTrap::LogStream::~LogStream() {
   stream_ << std::endl;
 }
 
-void IoStreamTrap::LogStream::index(std::size_t index) {
+void IoStreamTrap::LogStream::index(std::uint32_t index) {
   delimeter();
   stream_ << std::setw(3) << std::right << std::dec << index << std::right
           << std::setw(0);
@@ -89,26 +92,22 @@ void IoStreamTrap::LogStream::module(Module::underlined_t module) {
   delimeter();
   Format(stream_, "{}", Module{module});
 }
-void IoStreamTrap::LogStream::file(char const* file) {
+void IoStreamTrap::LogStream::file(std::string_view file) {
   delimeter();
-  const char* filename = strrchr(file, '/');
-  if (filename == nullptr) {
-    filename = strrchr(file, '\\');
+  auto pos = file.find_last_of("/\\");
+  if (pos == std::string_view::npos) {
+    file = "UNKOWN FILE";
   }
-  if (filename == nullptr) {
-    filename = "UNKOWN FILE";
-  } else {
-    filename += 1;
-  }
-  stream_ << filename;
+  file = file.substr(pos + 1, file.size() - pos);
+  stream_.write(file.data(), static_cast<std::streamsize>(file.size()));
 }
 void IoStreamTrap::LogStream::line(std::uint32_t line) {
   delimeter();
   stream_ << line;
 }
-void IoStreamTrap::LogStream::name(char const* name) {
+void IoStreamTrap::LogStream::name(std::string_view name) {
   delimeter();
-  stream_ << name;
+  stream_.write(name.data(), static_cast<std::streamsize>(name.size()));
 }
 
 void IoStreamTrap::LogStream::delimeter() {

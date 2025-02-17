@@ -371,7 +371,7 @@ int AetherButtonExample() {
             // cloud address
             registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
                 {ae::IpAddress{ae::IpAddress::Version::kIpV4,
-                               {35, 224, 1, 127}},
+                               {{34, 60, 244, 148}}},
                  9010},
                 ae::Protocol::kTcp});
             // cloud name address

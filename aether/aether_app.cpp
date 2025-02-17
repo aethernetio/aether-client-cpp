@@ -23,13 +23,13 @@
 #include "aether/adapters/adapter_factory.h"
 
 #include "aether/port/tele_init.h"
-#include "aether/tele/tele.h"
+#include "aether/aether_tele.h"
 
 namespace ae {
 AetherAppConstructor::InitTele::InitTele() {
   ae::TeleInit::Init();
   AE_TELE_ENV();
-  AE_TELE_INFO("Started");
+  AE_TELE_INFO(Started);
   ae::Registry::Log();
 }
 
@@ -56,13 +56,16 @@ Ptr<AetherApp> AetherApp::Construct(AetherAppConstructor&& constructor) {
           : [&]() {
               auto reg_c = app->domain_->CreateObj<RegistrationCloud>(
                   kRegistrationCloud);
+#    if !AE_SUPPORT_CLOUD_DNS
               reg_c->AddServerSettings(IpAddressPortProtocol{
-                  {IpAddress{IpAddress::Version::kIpV4, {35, 224, 1, 127}},
+                  {IpAddress{IpAddress::Version::kIpV4, {{34, 60, 244, 148}}},
                    9010},
                   Protocol::kTcp});
+#    else
               // in case of ip address change
               reg_c->AddServerSettings(
                   NameAddress{"registration.aethernet.io", 9010});
+#    endif
               return reg_c;
             }();
   app->aether_->registration_cloud = std::move(reg_cloud);

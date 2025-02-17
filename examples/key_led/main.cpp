@@ -57,10 +57,10 @@ void app_main(void) {
   ae::TeleInit::Init();
 
   AE_TELE_ENV();
-  AE_TELE_INFO("Started");
+  AE_TELED_INFO("Started");
 
   esp_err_t err = esp_task_wdt_reconfigure(&config_wdt);
-  if (err != 0) AE_TELE_WARNING("Simulation", "Reconfigure WDT is failed!");
+  if (err != 0) AE_TELED_WARNING("Reconfigure WDT is failed!");
 
   // esp_task_wdt_delete(xTaskGetIdleTaskHandleForCPU(0));
   // esp_task_wdt_delete(xTaskGetIdleTaskHandleForCPU(1));

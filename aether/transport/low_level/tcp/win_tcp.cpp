@@ -29,7 +29,7 @@
 #  include <algorithm>
 
 #  include "aether/env.h"
-#  include "aether/tele/tele.h"
+#  include "aether/transport/transport_tele.h"
 
 namespace ae {
 
@@ -107,7 +107,7 @@ DescriptorType::Socket WinTcpTransport::ConnectionAction::get_socket() const {
 }
 
 void WinTcpTransport::ConnectionAction::Connect() {
-  AE_TELE_DEBUG("TcpTransportConnect", "Connect to {}", endpoint_);
+  AE_TELE_DEBUG(TcpTransportConnect, "Connect to {}", endpoint_);
 
   auto addr = _internal::MakeAddrInfo(endpoint_);
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
@@ -282,7 +282,7 @@ WinTcpTransport::WinTcpTransport(ActionContext action_context,
       endpoint_{endpoint},
       read_overlapped_{{}, EventType::READ},
       write_overlapped_{{}, EventType::WRITE} {
-  AE_TELE_DEBUG("TcpTransport", "Created win tcp transport to endpoint {}",
+  AE_TELE_DEBUG(TcpTransport, "Created win tcp transport to endpoint {}",
                 endpoint_);
   connection_info_.connection_state = ConnectionState::kUndefined;
 }
@@ -327,7 +327,7 @@ ITransport::DataReceiveEvent::Subscriber WinTcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> WinTcpTransport::Send(DataBuffer data,
                                                    TimePoint current_time) {
-  AE_TELE_DEBUG("TcpTransportSend",
+  AE_TELE_DEBUG(TcpTransportSend,
                 "Send data size {} at UTC :{:%Y-%m-%d %H:%M:%S}", data.size(),
                 current_time);
 
@@ -469,7 +469,7 @@ void WinTcpTransport::Disconnect() {
   socket_send_event_subscriptions_.Reset();
   socket_error_subscriptions_.Reset();
 
-  AE_TELE_DEBUG("TcpTransportDisconnect", "Disconnect from {}", endpoint_);
+  AE_TELE_DEBUG(TcpTransportDisconnect, "Disconnect from {}", endpoint_);
   OnConnectionError();
 }
 }  // namespace ae

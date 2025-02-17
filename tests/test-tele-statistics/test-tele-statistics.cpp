@@ -24,12 +24,12 @@
 #  include <iostream>
 
 #  include "aether/common.h"
-#  include "aether/tele/configs/sink_to_statistics_trap.h"
+#  include "aether/tele/tele.h"
 #  include "aether/tele/sink.h"
 #  include "aether/tele/traps/statistics_trap.h"
 #  include "aether/tele/traps/io_stream_traps.h"
+#  include "aether/tele/configs/sink_to_statistics_trap.h"
 
-#  include "aether/tele/tele.h"
 #  include "aether/tele/traps/tele_statistics.h"
 #  include "aether/port/file_systems/file_system_std.h"
 
@@ -41,7 +41,7 @@ void InitTeleSink(ae::Ptr<ae::tele::statistics::StatisticsTrap> const& st) {
 
   TELE_SINK::InitSink(std::move(trap));
 
-  AE_TELE_DEBUG("LOG", "Tele sink initialized");
+  AE_TELED_DEBUG("Tele sink initialized");
 }
 
 void setUp() {
@@ -65,7 +65,7 @@ void test_StatisticsRotation() {
   tele_statistics->trap()->statistics_store_.SetSizeLimit(100);
 
   InitTeleSink(tele_statistics->trap());
-  AE_TELE_DEBUG("LOG", "12");
+  AE_TELED_DEBUG("12");
   auto statistics_size =
       tele_statistics->trap()->statistics_store_.Get()->Size();
   TEST_ASSERT_LESS_THAN(100, statistics_size);
@@ -83,7 +83,7 @@ void test_SaveLoadTeleStatistics() {
   TeleStatistics::ptr tele_statistics = domain.CreateObj<TeleStatistics>(1);
   tele_statistics->trap()->MergeStatistics(*statistics_trap);
   InitTeleSink(tele_statistics->trap());
-  AE_TELE_DEBUG("LOG", "12");
+  AE_TELED_DEBUG("12");
   auto statistics_size =
       tele_statistics->trap()->statistics_store_.Get()->Size();
   domain.SaveRoot(tele_statistics);
@@ -112,7 +112,7 @@ void test_SaveLoadTeleStatistics() {
 
   if constexpr ((AE_TELE_METRICS_MODULES & ae::tele::Module::kLog) &
                 (AE_TELE_METRICS_DURATION & ae::tele::Module::kLog)) {
-    auto log_index = AE_TAG_INDEX(TAG_LIST_NAME, "LOG");
+    auto log_index = kLog.index;
     TEST_ASSERT_NOT_EQUAL(metrics1[log_index].invocations_count,
                           metrics2[log_index].invocations_count);
     TEST_ASSERT_NOT_EQUAL(metrics1[log_index].sum_duration,

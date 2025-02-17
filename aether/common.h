@@ -28,6 +28,10 @@ namespace ae {
 #define _QUOTE(x) #x
 #define STR(x) _QUOTE(x)
 
+#define AE_CAT_(A, B) A##B
+#define AE_CAT(A, B) AE_CAT_(A, B)
+#define AE_UNIQUE_NAME(P) AE_CAT(P, AE_CAT(__LINE__, __COUNTER__))
+
 #define _AE_CONCAT_0(A, B, ...) A##B
 #define _AE_CONCAT_1(A, ...) _AE_CONCAT_0(A##__VA_ARGS__)
 #define _AE_CONCAT_2(A, ...) _AE_CONCAT_1(A##__VA_ARGS__)
