@@ -472,6 +472,7 @@ Ptr<ByteStream> Registration::CreateRegServerStream(
 
   auto tied_stream = MakePtr<TiedStream>(
       ProtocolReadGate{protocol_context_, ClientApiRegSafe{}},
+      DebugGate{"RegServer write {}", "RegServer read {}"},
       CryptoGate{MakePtr<AsyncEncryptProvider>(std::move(async_key_provider)),
                  MakePtr<SyncDecryptProvider>(std::move(sync_key_provider))},
       StreamApiGate{protocol_context_, stream_id},
