@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "aether/events/events.h"
+#include "aether/api_protocol/request_id.h"
 
 namespace ae {
 class ApiParser;
@@ -121,10 +122,10 @@ class ProtocolContext {
   void PopUserData();
   void* TopUserData();
 
-  void AddSendResultCallback(std::uint32_t request_id,
+  void AddSendResultCallback(RequestId request_id,
                              std::function<void(ApiParser& parser)> callback);
 
-  void SetSendResultResponse(std::uint32_t request_id, ApiParser& parser);
+  void SetSendResultResponse(RequestId request_id, ApiParser& parser);
 
  private:
   // map global message id to events
@@ -133,8 +134,8 @@ class ProtocolContext {
   std::stack<void*> user_data_stack_;
   std::map<std::uint32_t, void const*> api_class_map_;
 
-  std::map<std::uint32_t, std::function<void(ApiParser& parser)>>
-      send_result_callbacks_;
+  std::map<RequestId, std::function<void(ApiParser& parser)>>
+      send_result_events_;
 };
 }  // namespace ae
 

@@ -49,16 +49,16 @@ void* ProtocolContext::TopUserData() {
 }
 
 void ProtocolContext::AddSendResultCallback(
-    std::uint32_t request_id, std::function<void(ApiParser& parser)> callback) {
-  send_result_callbacks_.emplace(request_id, std::move(callback));
+    RequestId request_id, std::function<void(ApiParser& parser)> callback) {
+  send_result_events_.emplace(request_id, std::move(callback));
 }
 
-void ProtocolContext::SetSendResultResponse(std::uint32_t request_id,
+void ProtocolContext::SetSendResultResponse(RequestId request_id,
                                             ApiParser& parser) {
-  auto it = send_result_callbacks_.find(request_id);
-  if (it != send_result_callbacks_.end()) {
+  auto it = send_result_events_.find(request_id);
+  if (it != send_result_events_.end()) {
     it->second(parser);
-    send_result_callbacks_.erase(it);
+    send_result_events_.erase(it);
   } else {
     AE_TELED_DEBUG("No callback for request id {} cancel parse", request_id);
     parser.Cancel();
