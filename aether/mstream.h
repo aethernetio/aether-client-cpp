@@ -187,6 +187,13 @@ imstream<Ib>& operator>>(imstream<Ib>& s, std::string& t) {
   return s;
 }
 
+template <typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& s, const std::string_view& t) {
+  s << static_cast<typename Ob::size_type>(t.size());
+  s.write(t.data(), t.size());
+  return s;
+}
+
 template <typename T, typename Ob>
 omstream_enable_if_t<std::is_scalar_v<T>, Ob> operator<<(
     omstream<Ob>& s, const std::vector<T>& t) {

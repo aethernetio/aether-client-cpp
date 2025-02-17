@@ -21,7 +21,7 @@
 #include <algorithm>
 
 #include "aether/crc.h"
-#include "aether/tele/tele.h"
+#include "aether/obj/obj_tele.h"
 
 namespace ae {
 Registry::Registry()
@@ -120,8 +120,8 @@ void Registry::Log() {
 #ifdef DEBUG
   const auto& factories = GetFactories();
   for (const auto& c : factories) {
-    AE_TELE_DEBUG("Object", "name {}, id {}, base_id {}", c.second.class_name,
-                  c.second.cls_id, c.second.base_id);
+    AE_TELE_DEBUG(ObjectRegistryLog, "name {}, id {}, base_id {}",
+                  c.second.class_name, c.second.cls_id, c.second.base_id);
   }
 #endif  // DEBUG
 }

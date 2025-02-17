@@ -23,13 +23,13 @@
 #include "aether/adapters/adapter_factory.h"
 
 #include "aether/port/tele_init.h"
-#include "aether/tele/tele.h"
+#include "aether/aether_tele.h"
 
 namespace ae {
 AetherAppConstructor::InitTele::InitTele() {
   ae::TeleInit::Init();
   AE_TELE_ENV();
-  AE_TELE_INFO("Started");
+  AE_TELE_INFO(Started);
   ae::Registry::Log();
 }
 

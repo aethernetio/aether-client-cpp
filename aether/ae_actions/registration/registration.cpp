@@ -46,7 +46,7 @@
 
 #  include "aether/proof_of_work.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
 
@@ -60,7 +60,7 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
       sign_pk_{aether_.Lock()->crypto->signs_pk_[kDefaultSignatureMethod]} {
-  AE_TELE_INFO("Registration Started");
+  AE_TELE_INFO(RegistrationStarted);
 
   auto aether_ptr = aether_.Lock();
   assert(aether_ptr);
@@ -325,7 +325,7 @@ void Registration::MakeRegistration(TimePoint current_time) {
   [[maybe_unused]] auto r = CryptoSyncKeygen(master_key_);
   assert(r);
 
-  AE_TELE_DEBUG("Client registered", "Global Pk: {}:{}, Masterkey: {}:{}",
+  AE_TELE_DEBUG(ClientRegistered, "Global Pk: {}:{}, Masterkey: {}:{}",
                 aether_global_key_.Index(), aether_global_key_,
                 master_key_.Index(), master_key_);
 

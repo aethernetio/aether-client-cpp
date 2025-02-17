@@ -19,7 +19,7 @@
 #include <algorithm>
 
 #include "aether/obj/obj.h"
-#include "aether/tele/tele.h"
+#include "aether/obj/obj_tele.h"
 
 namespace ae {
 
@@ -41,7 +41,8 @@ TimePoint Domain::Update(TimePoint current_time) {
       next_time = std::min(next_time, ptr->update_time_);
     } else if (ptr->update_time_ < current_time) {
 #ifdef DEBUG
-      AE_TELE_ERROR("Object", "Update returned next time point in the past");
+      AE_TELE_ERROR(ObjectDomainUpdatePastTime,
+                    "Update returned next time point in the past");
 #endif  // DEBUG_
     }
   }
