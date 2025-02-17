@@ -21,34 +21,13 @@
 #include <utility>
 #include <cstdint>
 
-#include "aether/api_protocol/protocol_context.h"
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
+#include "aether/api_protocol/request_id.h"
 #include "aether/api_protocol/api_message.h"
+#include "aether/api_protocol/protocol_context.h"
 
 namespace ae {
-struct RequestId {
-  static auto GenRequestId() {
-    static RequestId request_id{1};
-    return request_id.id++;
-  }
-
-  RequestId() = default;
-  RequestId(std::uint16_t id) : id(id) {}
-
-  operator std::uint16_t() const { return id; }
-
-  bool operator==(RequestId const& rhs) const { return id == rhs.id; }
-  bool operator!=(RequestId const& rhs) const { return id != rhs.id; }
-
-  template <typename T>
-  void Serializator(T& s) {
-    s & id;
-  }
-
-  std::uint16_t id;
-};
-
 struct SendResult : public Message<SendResult> {
   static constexpr std::uint32_t kMessageId = 0;
 
@@ -104,10 +83,11 @@ struct SendError : public Message<SendError> {
 
   template <typename T>
   void Serializator(T& s) {
-    s & request_id & error_code;
+    s & request_id & error_type & error_code;
   }
 
   RequestId request_id;
+  std::uint8_t error_type;
   std::uint32_t error_code;
 };
 }  // namespace ae

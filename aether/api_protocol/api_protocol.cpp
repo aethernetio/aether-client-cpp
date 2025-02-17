@@ -75,8 +75,9 @@ void ReturnResultApi::Execute(SendResult&& result, ApiParser& parser) {
 }
 
 void ReturnResultApi::Execute(SendError&& error, ApiParser& parser) {
-  std::cerr << "SendError: id " << error.request_id.id << " error code "
-            << error.error_code << std::endl;
+  std::cerr << "SendError: id " << error.request_id.id
+            << " type: " << static_cast<int>(error.error_type)
+            << " error code: " << error.error_code << std::endl;
   parser.Context().MessageNotify(std::move(error));
 }
 
