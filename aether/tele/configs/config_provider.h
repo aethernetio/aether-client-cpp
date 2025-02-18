@@ -22,20 +22,50 @@
 #include "aether/config.h"
 
 #include "aether/tele/levels.h"
-#include "aether/tele/modules.h"
 
 namespace ae::tele {
+template <typename T>
+constexpr bool ContainsFlag(std::uint32_t value, T flag) {
+  return (value & static_cast<std::uint32_t>(flag)) ==
+         static_cast<std::uint32_t>(flag);
+}
+
+template <auto flag>
+constexpr bool IsFlagEnabled(std::uint32_t const value) {
+  return AE_TELE_ENABLED && ContainsFlag(value, flag);
+}
+
+template <auto flag>
+constexpr bool IsEnabled(std::initializer_list<decltype(flag)> list) {
+  for (auto v : list) {
+    if (flag == v) {
+      return AE_TELE_ENABLED;
+    }
+  }
+  return false;
+}
+
+template <auto flag>
+constexpr bool IsEnabled(decltype(flag) value) {
+  return AE_TELE_ENABLED && (flag == value);
+}
+
+template <typename T>
+constexpr bool IsAll(T const value) {
+  return AE_TELE_ENABLED && value == static_cast<T>(AE_ALL);
+}
+template <typename T, std::size_t Size>
+constexpr bool IsAll(T const (& /* value */)[Size]) {
+  return false;
+}
+
+// OPTION equals to AE_ALL or MODULE in OPTION list and not in OPTION_EXCLUDE
+// list
+#define _AE_MODULE_CONFIG(MODULE, OPTION)                      \
+  (((IsAll(OPTION) && !IsEnabled<MODULE>(OPTION##_EXCLUDE)) || \
+    IsEnabled<MODULE>(OPTION)))
+
 struct ConfigProvider {
-  template <typename T>
-  static constexpr bool ContainsFlag(uint32_t value, T flag) {
-    return (value & static_cast<uint32_t>(flag)) == static_cast<uint32_t>(flag);
-  }
-
-  template <Module::underlined_t module>
-  static constexpr bool IsEnabled(uint32_t value) {
-    return AE_TELE_ENABLED && ContainsFlag(value, module);
-  }
-
   struct TeleConfig {
     bool count_metrics_{};
     bool time_metrics_{};
@@ -57,31 +87,41 @@ struct ConfigProvider {
     bool custom_data_{};
   };
 
-  template <Level::underlined_t level, Module::underlined_t module>
-  static constexpr TeleConfig StaticTeleConfig{
-      IsEnabled<module>(AE_TELE_METRICS_MODULES),  // count must be always
-                                                   // enabled if metrics enabled
-      IsEnabled<module>(AE_TELE_METRICS_MODULES) &&
-          IsEnabled<module>(AE_TELE_METRICS_DURATION),  // time metrics
-      IsEnabled<level>(AE_TELE_LOG_LEVELS) &&
-          IsEnabled<module>(AE_TELE_LOG_MODULES),  // index must be always
-                                                   // enabled if log enabled
-      IsEnabled<level>(AE_TELE_LOG_LEVELS) &&
-          IsEnabled<module>(AE_TELE_LOG_MODULES) &&
-          IsEnabled<module>(AE_TELE_LOG_TIME_POINT),  // start time
-      IsEnabled<level>(AE_TELE_LOG_LEVELS) &&
-          IsEnabled<module>(AE_TELE_LOG_MODULES) &&
-          IsEnabled<module>(AE_TELE_LOG_LEVEL_MODULE),  // level and module
-      IsEnabled<level>(AE_TELE_LOG_LEVELS) &&
-          IsEnabled<module>(AE_TELE_LOG_MODULES) &&
-          IsEnabled<module>(AE_TELE_LOG_LOCATION),  // location
-      IsEnabled<level>(AE_TELE_LOG_LEVELS) &&
-          IsEnabled<module>(AE_TELE_LOG_MODULES) &&
-          IsEnabled<module>(AE_TELE_LOG_NAME),  // name
-      IsEnabled<level>(AE_TELE_LOG_LEVELS) &&
-          IsEnabled<module>(AE_TELE_LOG_MODULES) &&
-          IsEnabled<module>(AE_TELE_LOG_BLOB)  // blob
-  };
+  template <Level::underlined_t level, std::uint32_t module>
+  static constexpr auto GetStaticConfig() {
+    return TeleConfig{// count must be always enabled if metrics enabled
+                      _AE_MODULE_CONFIG(module, AE_TELE_METRICS_MODULES),
+                      // time metrics
+                      _AE_MODULE_CONFIG(module, AE_TELE_METRICS_MODULES) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_METRICS_DURATION),
+                      // index must be always enabled if log enabled
+                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES),
+                      // start time
+                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_TIME_POINT),
+                      // level and module
+                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_LEVEL_MODULE),
+                      // location
+                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_LOCATION),
+                      // name
+                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_NAME),
+                      // blob
+                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
+                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_BLOB)};
+  }
+
+  template <Level::underlined_t level, std::uint32_t module>
+  static constexpr TeleConfig StaticTeleConfig =
+      GetStaticConfig<level, module>();
 
   static constexpr EnvConfig StaticEnvConfig =
       EnvConfig{AE_TELE_COMPILATION_INFO != 0, AE_TELE_COMPILATION_INFO != 0,

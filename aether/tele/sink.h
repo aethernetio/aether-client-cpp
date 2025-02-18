@@ -85,7 +85,7 @@ class TeleSink {
   using TrapType = TTrap;
   using ConfigProviderType = ConfigProvider;
 
-  template <Level::underlined_t l, Module::underlined_t m>
+  template <Level::underlined_t l, std::uint32_t m>
   static constexpr auto TeleConfig =
       ConfigProviderType::template StaticTeleConfig<l, m>;
 

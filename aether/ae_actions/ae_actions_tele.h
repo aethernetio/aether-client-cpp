@@ -19,7 +19,8 @@
 
 #include "aether/tele/tele.h"
 
-AE_TAG_INDEXED(RegistrationStarted, ae::tele::Module::kRegister, 20)
-AE_TAG(ClientRegistered, ae::tele::Module::kRegister)
+AE_TELE_MODULE(kRegister, 3);
+AE_TAG_INDEXED(RegistrationStarted, kRegister, 20)
+AE_TAG(ClientRegistered, kRegister)
 
 #endif  // AETHER_AE_ACTIONS_AE_ACTIONS_TELE_H_

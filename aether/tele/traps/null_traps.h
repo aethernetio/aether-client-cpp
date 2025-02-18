@@ -19,8 +19,9 @@
 
 #include <cstdint>
 
-#include "aether/tele/declaration.h"
 #include "aether/common.h"
+#include "aether/tele/modules.h"
+#include "aether/tele/declaration.h"
 
 namespace ae::tele {
 struct NullTrap {
@@ -28,10 +29,10 @@ struct NullTrap {
     void index(std::size_t /* index */) {}
     void start_time(TimePoint const& /* start */) {}
     void level(Level::underlined_t /* level */) {}
-    void module(Module::underlined_t /* module */) {}
-    void file(char const* /* file */) {}
+    void module(Module /* module */) {}
+    void file(std::string_view /* file */) {}
     void line(std::uint32_t /* line */) {}
-    void name(char const* /* name */) {}
+    void name(std::string_view /* name */) {}
     template <typename... TArgs>
     void blob(char const* /* format */, TArgs&&... /* args */) {}
   };

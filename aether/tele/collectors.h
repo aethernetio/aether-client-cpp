@@ -28,9 +28,10 @@
 #include <type_traits>
 
 #include "aether/common.h"
-#include "aether/tele/declaration.h"
+#include "aether/tele/tags.h"
 #include "aether/tele/levels.h"
 #include "aether/tele/modules.h"
+#include "aether/tele/declaration.h"
 
 namespace ae::tele {
 struct Timer {
@@ -93,16 +94,15 @@ constexpr bool IsAnyTele(TConfig config) {
   return IsAnyLogs(config) || IsAnyMetrics(config);
 }
 
-template <typename TSink, Level::underlined_t level,
-          Module::underlined_t module, typename _ = void>
+template <typename TSink, Level::underlined_t level, std::uint32_t module,
+          typename _ = void>
 struct Tele {
   // Dummy tele
   template <typename... TArgs>
   constexpr explicit Tele(TArgs&&... /* args */) {}
 };
 
-template <typename TSink, Level::underlined_t level,
-          Module::underlined_t module>
+template <typename TSink, Level::underlined_t level, std::uint32_t module>
 struct Tele<TSink, level, module,
             std::enable_if_t<
                 IsAnyTele(TSink::template TeleConfig<level, module>), void>> {
@@ -112,13 +112,11 @@ struct Tele<TSink, level, module,
   using MetricStream =
       decltype(std::declval<Sink>().trap()->metric_stream(Declaration{}));
 
-  static constexpr auto Level = level;
-  static constexpr auto Module = module;
-  static constexpr auto SinkConfig = Sink::template TeleConfig<Level, Module>;
+  static constexpr auto SinkConfig = Sink::template TeleConfig<level, module>;
 
   template <typename... TArgs>
-  constexpr Tele(Sink& sink, std::uint32_t index, TArgs&&... args)
-      : Tele(sink, Declaration{index, module, level},
+  constexpr Tele(Sink& sink, Tag const& tag, TArgs&&... args)
+      : Tele(sink, Declaration{tag.index, tag.module.value, level}, tag,
              std::forward<TArgs>(args)...) {}
 
   ~Tele() {
@@ -137,8 +135,8 @@ struct Tele<TSink, level, module,
     }
   }
 
-  constexpr Tele(Sink& sink, Declaration decl, std::string_view file, int line,
-                 std::string_view name)
+  constexpr Tele(Sink& sink, Declaration decl, Tag const& tag,
+                 std::string_view file, int line)
       : Tele(sink, decl) {
     if constexpr (IsAnyLogs(SinkConfig)) {
       auto log_stream = sink.trap()->log_stream(decl);
@@ -149,22 +147,22 @@ struct Tele<TSink, level, module,
         log_stream.start_time(timer->start);
       }
       if constexpr (SinkConfig.level_module_logs_) {
-        log_stream.level(Level);
-        log_stream.module(Module);
+        log_stream.level(level);
+        log_stream.module(tag.module);
       }
       if constexpr (SinkConfig.location_logs_) {
         log_stream.file(file);
         log_stream.line(static_cast<std::uint32_t>(line));
       }
       if constexpr (SinkConfig.name_logs_) {
-        log_stream.name(name);
+        log_stream.name(tag.name);
       }
     }
   }
 
   template <typename... TArgs>
-  constexpr Tele(Sink& sink, Declaration decl, std::string_view file, int line,
-                 std::string_view name, std::string_view format,
+  constexpr Tele(Sink& sink, Declaration decl, Tag const& tag,
+                 std::string_view file, int line, std::string_view format,
                  TArgs&&... args)
       : Tele(sink, decl) {
     if constexpr (IsAnyLogs(SinkConfig)) {
@@ -176,15 +174,15 @@ struct Tele<TSink, level, module,
         log_stream.start_time(timer->start);
       }
       if constexpr (SinkConfig.level_module_logs_) {
-        log_stream.level(Level);
-        log_stream.module(Module);
+        log_stream.level(level);
+        log_stream.module(tag.module);
       }
       if constexpr (SinkConfig.location_logs_) {
         log_stream.file(file);
         log_stream.line(static_cast<std::uint32_t>(line));
       }
       if constexpr (SinkConfig.name_logs_) {
-        log_stream.name(name);
+        log_stream.name(tag.name);
       }
       if constexpr (SinkConfig.blob_logs_) {
         log_stream.blob(format, std::forward<TArgs>(args)...);

@@ -19,7 +19,8 @@
 
 #include "aether/tele/tele.h"
 
-AE_TAG_INDEXED(ObjectDomainUpdatePastTime, ae::tele::Module::kObj, 1);
-AE_TAG(ObjectRegistryLog, ae::tele::Module::kObj);
+AE_TELE_MODULE(kObj, 1);
+AE_TAG_INDEXED(ObjectDomainUpdatePastTime, kObj, 1);
+AE_TAG(ObjectRegistryLog, kObj);
 
 #endif  // AETHER_OBJ_OBJ_TELE_H_

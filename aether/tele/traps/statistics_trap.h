@@ -28,6 +28,7 @@
 #include "aether/mstream.h"
 #include "aether/ptr/rc_ptr.h"
 #include "aether/packed_int.h"
+#include "aether/tele/modules.h"
 #include "aether/format/format.h"
 #include "aether/mstream_buffers.h"
 #include "aether/tele/declaration.h"
@@ -75,7 +76,7 @@ struct EnvStore {
   std::string api_version;
   std::string cpu_type;
   std::uint8_t endianness;
-  std::vector<std::pair<PackedIndex, std::uint32_t>> compile_options;
+  std::vector<std::pair<PackedIndex, std::string>> compile_options;
 };
 }  // namespace statistics
 }  // namespace ae::tele
@@ -237,7 +238,7 @@ class StatisticsTrap {
     void index(PackedIndex index);
     void start_time(TimePoint const& start);
     void level(Level::underlined_t level);
-    void module(Module::underlined_t module);
+    void module(Module const& module);
     void file(std::string_view file);
     void line(PackedLine line);
     void name(std::string_view name);

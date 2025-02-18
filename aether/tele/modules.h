@@ -21,61 +21,22 @@
 #  error "Include tele.h instead"
 #endif
 
-#include <array>
 #include <cstdint>
-#include <sstream>
 #include <string>
 #include <string_view>
-#include <utility>
 
 namespace ae::tele {
 struct Module {
-  using underlined_t = std::uint32_t;
-
-  enum _ : underlined_t {
-    kNone = 0,
-    kApp = 1u << 0,
-    kObj = 1u << 1,
-    kRegister = 1u << 2,
-    kPull = 1u << 3,
-    kTransport = 1u << 4,
-    kSim = 1u << 30,
-    kLog = 1u << 31,
-    kAll = 0xFFFFFFFF,
-  };
-
-  static std::string text(underlined_t v) {
-    using std::string_literals::operator""s;
-    using std::string_view_literals::operator""sv;
-
-    if (v == 0) return "kNone"s;
-    if ((v & kAll) == kAll) return "kAll"s;
-
-    // extend this list with new modules
-    constexpr auto enum_str_pairs = std::array{
-        std::pair{kApp, "kApp"sv},           std::pair{kObj, "kObj"sv},
-        std::pair{kRegister, "kRegister"sv}, std::pair{kPull, "kPull"sv},
-        std::pair{kSim, "kSim"sv},           std::pair{kLog, "kLog"sv},
-    };
-
-    std::stringstream ss;
-    bool first = true;
-    for (auto const& [k, s] : enum_str_pairs) {
-      if ((v & k) == k) {
-        if (!first) {
-          ss << ' ';
-        }
-        first = false;
-        ss << s;
-      }
-    }
-    return ss.str();
+  static std::string text(Module const& value) {
+    return std::string{value.name};
   }
 
-  operator underlined_t() const noexcept { return value_; }
-
-  underlined_t value_;
+  std::uint32_t value;
+  std::string_view name;
 };
 }  // namespace ae::tele
+
+#define AE_TELE_MODULE(NAME, VALUE) \
+  static inline constexpr auto NAME = ae::tele::Module { VALUE, #NAME, }
 
 #endif  // AETHER_TELE_MODULES_H_

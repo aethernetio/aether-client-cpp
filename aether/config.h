@@ -17,6 +17,9 @@
 #ifndef AETHER_CONFIG_H_
 #define AETHER_CONFIG_H_
 
+#include <limits>
+#include <cstdint>
+
 #include "aether/config_consts.h"
 #if defined USER_CONFIG
 #  include USER_CONFIG
@@ -182,28 +185,39 @@
 
 // Logs, telemetry, trace
 #ifndef AE_TELE_METRICS_MODULES
-#  define AE_TELE_METRICS_MODULES AE_TELE_MODULES_ALL
+#  define AE_TELE_METRICS_MODULES AE_ALL
 #endif  // AE_TELE_METRICS_MODULES
+
+#ifndef AE_TELE_METRICS_MODULES_EXCLUDE
+#  define AE_TELE_METRICS_MODULES_EXCLUDE AE_EMPTY_LIST
+#endif
 
 #ifndef AE_TELE_METRICS_DURATION
 #  define AE_TELE_METRICS_DURATION AE_TELE_METRICS_MODULES
 #endif  // AE_TELE_METRICS_DURATION
 
+#ifndef AE_TELE_METRICS_DURATION_EXCLUDE
+#  define AE_TELE_METRICS_DURATION_EXCLUDE AE_EMPTY_LIST
+#endif
+
 /**
  * \brief Mask for enabling generate telemetry for modules.
- * \see aether/tele/modules.h for a full list module list
- * \example #define AE_TELE_LOG_MODULES 0x00000005 //< enables only
- * kApp and kRegister module
+ * This must be either AE_ALL or uint32_t array of enabled modules
  */
 #ifndef AE_TELE_LOG_MODULES
-#  define AE_TELE_LOG_MODULES AE_TELE_MODULES_ALL
+#  define AE_TELE_LOG_MODULES AE_ALL
 #endif  // AE_TELE_LOG_MODULES
 
 /**
- * \brief Mask for enabling generate telemetry for levels.
- * \see aether/tele/levels.h for a full list level list
- * \example #define AE_TELE_LOG_LEVELS 0x00000007 //< enables only
- * info, warning and error levels
+ * \brief List of excluded modules
+ */
+#ifndef AE_TELE_LOG_MODULES_EXCLUDE
+#  define AE_TELE_LOG_MODULES_EXCLUDE AE_EMPTY_LIST
+#endif  // AE_TELE_LOG_MODULES_EXCLUDE
+
+/**
+ * \brief Enabled telemetry levels {Debug, Info, Warning, Error} \see
+ * tele/levels.h .
  */
 #ifndef AE_TELE_LOG_LEVELS
 #  define AE_TELE_LOG_LEVELS AE_TELE_LEVELS_ALL
@@ -214,25 +228,45 @@
 #  define AE_TELE_LOG_TIME_POINT AE_TELE_LOG_MODULES
 #endif  // AE_TELE_LOG_TIME_POINT
 
+#ifndef AE_TELE_LOG_TIME_POINT_EXCLUDE
+#  define AE_TELE_LOG_TIME_POINT_EXCLUDE AE_EMPTY_LIST
+#endif  // AE_TELE_LOG_TIME_POINT_EXCLUDE
+
 // enable to log telemetry file location
 #ifndef AE_TELE_LOG_LOCATION
 #  define AE_TELE_LOG_LOCATION AE_TELE_LOG_MODULES
 #endif  // AE_TELE_LOG_LOCATION
+
+#ifndef AE_TELE_LOG_LOCATION_EXCLUDE
+#  define AE_TELE_LOG_LOCATION_EXCLUDE AE_EMPTY_LIST
+#endif  // AE_TELE_LOG_LOCATION_EXCLUDE
 
 // enable to log telemetry tag name
 #ifndef AE_TELE_LOG_NAME
 #  define AE_TELE_LOG_NAME AE_TELE_LOG_MODULES
 #endif  // AE_TELE_LOG_NAME
 
+#ifndef AE_TELE_LOG_NAME_EXCLUDE
+#  define AE_TELE_LOG_NAME_EXCLUDE AE_EMPTY_LIST
+#endif  // AE_TELE_LOG_NAME_EXCLUDE
+
 // enable to log telemetry module and level
 #ifndef AE_TELE_LOG_LEVEL_MODULE
 #  define AE_TELE_LOG_LEVEL_MODULE AE_TELE_LOG_MODULES
 #endif  // AE_TELE_LOG_LEVEL_MODULE
 
+#ifndef AE_TELE_LOG_LEVEL_MODULE_EXCLUDE
+#  define AE_TELE_LOG_LEVEL_MODULE_EXCLUDE AE_EMPTY_LIST
+#endif  // AE_TELE_LOG_LEVEL_MODULE_EXCLUDE
+
 // enable to log telemetry message or additional data
 #ifndef AE_TELE_LOG_BLOB
 #  define AE_TELE_LOG_BLOB AE_TELE_LOG_MODULES
 #endif  // AE_TELE_LOG_BLOB
+
+#ifndef AE_TELE_LOG_BLOB_EXCLUDE
+#  define AE_TELE_LOG_BLOB_EXCLUDE AE_EMPTY_LIST
+#endif  // AE_TELE_LOG_BLOB_EXCLUDE
 
 // enable to log telemetry to console
 #ifndef AE_TELE_LOG_CONSOLE
