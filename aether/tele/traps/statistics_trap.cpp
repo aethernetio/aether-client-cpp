@@ -171,8 +171,8 @@ void StatisticsTrap::LogStream::start_time(TimePoint const& start) {
 void StatisticsTrap::LogStream::level(Level::underlined_t level) {
   log_writer << level;
 }
-void StatisticsTrap::LogStream::module(Module::underlined_t module) {
-  log_writer << module;
+void StatisticsTrap::LogStream::module(Module const& module) {
+  log_writer << module.value;
 }
 void StatisticsTrap::LogStream::file(std::string_view file) {
   log_writer << file;

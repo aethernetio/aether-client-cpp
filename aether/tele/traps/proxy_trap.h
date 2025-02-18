@@ -22,6 +22,7 @@
 
 #include "aether/common.h"
 #include "aether/ptr/ptr.h"
+#include "aether/tele/modules.h"
 #include "aether/tele/declaration.h"
 
 namespace ae::tele {
@@ -52,7 +53,7 @@ class ProxyTrap {
       stream1_.level(level);
       stream2_.level(level);
     }
-    void module(Module::underlined_t module) {
+    void module(Module const& module) {
       stream1_.module(module);
       stream2_.module(module);
     }

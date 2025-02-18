@@ -27,6 +27,7 @@
 #include "aether/common.h"
 #include "aether/format/format.h"
 
+#include "aether/tele/modules.h"
 #include "aether/tele/declaration.h"
 
 namespace ae::tele {
@@ -61,7 +62,7 @@ struct IoStreamTrap {
     void index(std::uint32_t index);
     void start_time(TimePoint const& start);
     void level(Level::underlined_t level);
-    void module(Module::underlined_t module);
+    void module(Module const& module);
     void file(std::string_view file);
     void line(std::uint32_t line);
     void name(std::string_view name);

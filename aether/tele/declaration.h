@@ -17,16 +17,19 @@
 #ifndef AETHER_TELE_DECLARATION_H_
 #define AETHER_TELE_DECLARATION_H_
 
+#ifndef AETHER_TELE_TELE_H_
+#  error "Include tele.h instead"
+#endif
+
 #include <cstdint>
 #include <string_view>
 
 #include "aether/tele/levels.h"
-#include "aether/tele/modules.h"
 
 namespace ae::tele {
 struct Declaration {
   std::uint32_t index_;
-  Module::underlined_t module_;
+  std::uint32_t module_;
   Level::underlined_t level_;
 };
 

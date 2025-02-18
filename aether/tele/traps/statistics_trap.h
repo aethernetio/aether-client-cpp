@@ -28,6 +28,7 @@
 #include "aether/mstream.h"
 #include "aether/ptr/rc_ptr.h"
 #include "aether/packed_int.h"
+#include "aether/tele/modules.h"
 #include "aether/format/format.h"
 #include "aether/mstream_buffers.h"
 #include "aether/tele/declaration.h"
@@ -237,7 +238,7 @@ class StatisticsTrap {
     void index(PackedIndex index);
     void start_time(TimePoint const& start);
     void level(Level::underlined_t level);
-    void module(Module::underlined_t module);
+    void module(Module const& module);
     void file(std::string_view file);
     void line(PackedLine line);
     void name(std::string_view name);

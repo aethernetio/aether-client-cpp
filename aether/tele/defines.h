@@ -20,6 +20,7 @@
 #include "aether/common.h"
 
 #include "aether/tele/tags.h"
+#include "aether/tele/modules.h"
 #include "aether/tele/collectors.h"
 #include "aether/tele/env_collectors.h"
 
@@ -33,14 +34,14 @@ using ae::tele::Tele;
 }  // namespace ae::tele
 
 /// A special tag for telemetry debug debug
-AE_TAG_INDEXED(kLog, ae::tele::Module::kLog,
-               std::numeric_limits<std::uint32_t>::max() - 1)
 
-#define AE_TELE_(TAG_NAME, LEVEL, ...)                                        \
-  [[maybe_unused]] ae::tele::Tele<TELE_SINK, LEVEL, TAG_NAME.module>          \
-  AE_UNIQUE_NAME(TELE_) {                                                     \
-    TELE_SINK::Instance(), TAG_NAME.index, __FILE__, __LINE__, TAG_NAME.name, \
-        __VA_ARGS__                                                           \
+AE_TELE_MODULE(MLog, std::numeric_limits<std::uint32_t>::max() - 1);
+AE_TAG_INDEXED(kLog, MLog, std::numeric_limits<std::uint32_t>::max() - 1)
+
+#define AE_TELE_(TAG_NAME, LEVEL, ...)                                     \
+  [[maybe_unused]] ae::tele::Tele<TELE_SINK, LEVEL, TAG_NAME.module.value> \
+  AE_UNIQUE_NAME(TELE_) {                                                  \
+    TELE_SINK::Instance(), TAG_NAME, __FILE__, __LINE__, __VA_ARGS__       \
   }
 
 #define AE_TELE_DEBUG(TAG_NAME, ...) \

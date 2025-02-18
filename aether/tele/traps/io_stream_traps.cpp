@@ -88,9 +88,9 @@ void IoStreamTrap::LogStream::level(Level::underlined_t level) {
   delimeter();
   Format(stream_, "{}", Level{level});
 }
-void IoStreamTrap::LogStream::module(Module::underlined_t module) {
+void IoStreamTrap::LogStream::module(Module const& module) {
   delimeter();
-  Format(stream_, "{}", Module{module});
+  Format(stream_, "{}", module);
 }
 void IoStreamTrap::LogStream::file(std::string_view file) {
   delimeter();
