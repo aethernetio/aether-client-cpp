@@ -110,8 +110,8 @@ void test_SaveLoadTeleStatistics() {
   // metrics count should be same, but values may be different
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
 
-  if constexpr ((AE_TELE_METRICS_MODULES & ae::tele::Module::kLog) &
-                (AE_TELE_METRICS_DURATION & ae::tele::Module::kLog)) {
+  if constexpr (_AE_MODULE_CONFIG(MLog.value, AE_TELE_METRICS_MODULES) &&
+                _AE_MODULE_CONFIG(MLog.value, AE_TELE_METRICS_DURATION)) {
     auto log_index = kLog.index;
     TEST_ASSERT_NOT_EQUAL(metrics1[log_index].invocations_count,
                           metrics2[log_index].invocations_count);
