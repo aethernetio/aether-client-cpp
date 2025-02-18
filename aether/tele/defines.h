@@ -35,8 +35,8 @@ using ae::tele::Tele;
 
 /// A special tag for telemetry debug debug
 
-AE_TELE_MODULE(MLog, std::numeric_limits<std::uint32_t>::max() - 1);
-AE_TAG_INDEXED(kLog, MLog, std::numeric_limits<std::uint32_t>::max() - 1)
+AE_TELE_MODULE(MLog, AE_LOG_MODULE);
+AE_TAG_INDEXED(kLog, MLog, AE_LOG_MODULE)
 
 #define AE_TELE_(TAG_NAME, LEVEL, ...)                                     \
   [[maybe_unused]] ae::tele::Tele<TELE_SINK, LEVEL, TAG_NAME.module.value> \

@@ -24,17 +24,15 @@
 #include <string_view>
 
 #include "aether/config.h"
+#include "aether/common.h"
 
-#define __STR_VALUE(x) #x
-
-#define _OPTION_VALUE(option, value) \
-  std::pair { std::string_view{#option}, static_cast<std::uint32_t>(value) }
-
-#define _OPTION(option)                                              \
-  std::pair {                                                        \
-    std::string_view{#option},                                       \
-        static_cast<std::uint32_t>(str_to_ui64(__STR_VALUE(option))) \
+#define _OPTION_VALUE(option, value)                           \
+  std::pair {                                                  \
+    std::string_view{#option}, std::string_view { STR(value) } \
   }
+
+#define _OPTION(option) \
+  std::pair { std::string_view{#option}, std::string_view{VA_STR(option)}, }
 
 namespace ae {
 template <std::size_t N>
@@ -112,15 +110,20 @@ constexpr inline auto _compile_options_list = std::array{
     _OPTION(AE_TELE_COMPILATION_INFO),
     _OPTION(AE_TELE_RUNTIME_INFO),
     _OPTION(AE_TELE_METRICS_MODULES),
+    _OPTION(AE_TELE_METRICS_MODULES_EXCLUDE),
     _OPTION(AE_TELE_METRICS_DURATION),
+    _OPTION(AE_TELE_METRICS_DURATION_EXCLUDE),
     _OPTION(AE_TELE_LOG_MODULES),
+    _OPTION(AE_TELE_LOG_MODULES_EXCLUDE),
     _OPTION(AE_TELE_LOG_LEVELS),
-    _OPTION(AE_TELE_LOG_TIME_POINT),
     _OPTION(AE_TELE_LOG_LOCATION),
+    _OPTION(AE_TELE_LOG_LOCATION_EXCLUDE),
     _OPTION(AE_TELE_LOG_NAME),
+    _OPTION(AE_TELE_LOG_NAME_EXCLUDE),
     _OPTION(AE_TELE_LOG_LEVEL_MODULE),
+    _OPTION(AE_TELE_LOG_LEVEL_MODULE_EXCLUDE),
     _OPTION(AE_TELE_LOG_BLOB),
-    _OPTION(AE_TELE_LOG_BLOB),
+    _OPTION(AE_TELE_LOG_BLOB_EXCLUDE),
     _OPTION(AE_TELE_LOG_CONSOLE),
 #if defined AE_DISTILLATION
     _OPTION_VALUE(AE_DISTILLATION, 1),

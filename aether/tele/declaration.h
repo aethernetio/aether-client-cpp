@@ -36,7 +36,7 @@ struct Declaration {
 struct CompileOption {
   std::uint32_t index_;
   std::string_view name_;
-  std::uint32_t value_;
+  std::string_view value_;
 };
 }  // namespace ae::tele
 #endif  // AETHER_TELE_DECLARATION_H_ */

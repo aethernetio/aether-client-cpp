@@ -76,7 +76,7 @@ struct EnvStore {
   std::string api_version;
   std::string cpu_type;
   std::uint8_t endianness;
-  std::vector<std::pair<PackedIndex, std::uint32_t>> compile_options;
+  std::vector<std::pair<PackedIndex, std::string>> compile_options;
 };
 }  // namespace statistics
 }  // namespace ae::tele
