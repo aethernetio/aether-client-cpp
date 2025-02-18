@@ -19,6 +19,7 @@
 
 #include "aether/tele/tele.h"
 
-AE_TAG_INDEXED(Started, ae::tele::Module::kApp, 256)
+AE_TELE_MODULE(kApp, 2);
+AE_TAG_INDEXED(Started, kApp, 256)
 
 #endif  // AETHER_AETHER_TELE_H_
