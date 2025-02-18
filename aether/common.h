@@ -27,6 +27,7 @@ namespace ae {
 
 #define _QUOTE(x) #x
 #define STR(x) _QUOTE(x)
+#define VA_STR(...) #__VA_ARGS__
 
 #define AE_CAT_(A, B) A##B
 #define AE_CAT(A, B) AE_CAT_(A, B)
