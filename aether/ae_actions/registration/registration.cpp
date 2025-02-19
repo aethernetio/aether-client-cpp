@@ -221,7 +221,7 @@ void Registration::GetKeys(TimePoint current_time) {
 TimePoint Registration::WaitKeys(TimePoint current_time) {
   if (last_request_time_ + response_timeout_ < current_time) {
     AE_TELED_DEBUG("Registration::WaitKeys: timeout");
-    state_ = State::kGetKeys;
+    state_ = State::kSelectConnection;
     return current_time;
   }
   return last_request_time_ + response_timeout_;
