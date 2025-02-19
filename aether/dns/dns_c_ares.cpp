@@ -75,12 +75,15 @@ class AresImpl {
       assert(false);
     }
   }
+
   ~AresImpl() {
     ares_destroy(channel_);
     ares_library_cleanup();
+#  if !defined WIN32
     for (auto sock : opened_sockets_) {
-      poller_->Remove(PollerEvent{sock, {}});
+      poller_->Remove(sock);
     }
+#  endif
   }
 
   ResolveAction& Query(NameAddress const& name_address) {
@@ -109,8 +112,7 @@ class AresImpl {
         channel_, name_address.name.c_str(), nullptr, &hints,
         [](void* arg, auto status, auto timeouts, auto result) {
           auto& query_context = *static_cast<QueryContext*>(arg);
-          query_context.self->QueryResult(query_context, status, timeouts,
-                                          result);
+          QueryResult(query_context, status, timeouts, result);
         },
         &q_context);
 
@@ -120,37 +122,47 @@ class AresImpl {
  private:
 #  if !defined WIN32
   void SocketState(ares_socket_t socket_fd, int readable, int writable) {
-    opened_sockets_.insert(socket_fd);
-
-    auto event_type_selector = (readable ? 1 : 0) | ((writable ? 1 : 0) << 1);
-    EventType event_type;
-    switch (event_type_selector) {
-      case 0b11:
-        event_type = EventType::ANY;
-        break;
-      case 0b01:
-        event_type = EventType::READ;
-        break;
-      case 0b10:
-        event_type = EventType::WRITE;
-        break;
-      default:
-        return;
+    auto [it, inserted] = opened_sockets_.insert(socket_fd);
+    if (!inserted) {
+      if ((readable == 0) && (writable == 0)) {
+        // remove socket
+        poller_->Remove(socket_fd);
+        opened_sockets_.erase(it);
+      }
+      return;
     }
 
-    poller_->Add(
-        PollerEvent{
-            socket_fd,
-            event_type,
-        },
-        [this](PollerEvent event) {
-          SocketEvent(event.descriptor, event.event_type);
-        });
+    poll_sockets_subscriptions_.Push(poller_->Add(socket_fd).Subscribe(
+        *this, MethodPtr<&AresImpl::SocketEvent>{}));
   }
+
+  void SocketEvent(PollerEvent event) {
+    auto it = opened_sockets_.find(event.descriptor);
+    if (it == std::end(opened_sockets_)) {
+      return;
+    }
+
+    AE_TELED_DEBUG("Socket event {} event {}", event.descriptor,
+                   event.event_type);
+    switch (event.event_type) {
+      case EventType::kRead:
+        ares_process_fd(channel_, event.descriptor, ARES_SOCKET_BAD);
+        break;
+      case EventType::kWrite:
+        ares_process_fd(channel_, ARES_SOCKET_BAD, event.descriptor);
+        break;
+      case EventType::kError:
+        ares_process_fd(channel_, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
+        poller_->Remove(event.descriptor);
+        opened_sockets_.erase(it);
+        break;
+    }
+  }
+
 #  endif
 
-  void QueryResult(QueryContext& context, int status, int /* timeouts */,
-                   struct ares_addrinfo* result) {
+  static void QueryResult(QueryContext& context, int status, int /* timeouts */,
+                          struct ares_addrinfo* result) {
     if (status != ARES_SUCCESS) {
       AE_TELED_ERROR("Ares query error {} {}", status, ares_strerror(status));
       context.resolve_action.Failed();
@@ -182,25 +194,14 @@ class AresImpl {
     context.resolve_action.SetAddress(std::move(addresses));
   }
 
-  void SocketEvent(ares_socket_t socket_fd, EventType event_type) {
-    switch (event_type) {
-      case EventType::READ:
-        ares_process_fd(channel_, socket_fd, ARES_SOCKET_BAD);
-        break;
-      case EventType::WRITE:
-        ares_process_fd(channel_, ARES_SOCKET_BAD, socket_fd);
-        break;
-      case EventType::ANY:
-        ares_process_fd(channel_, socket_fd, socket_fd);
-        break;
-    }
-  }
   ActionContext action_context_;
   IPoller::ptr poller_;
   ares_channel_t* channel_;
-  std::set<ares_socket_t> opened_sockets_;
+  AE_MAY_UNUSED_MEMBER std::set<ares_socket_t> opened_sockets_;
   std::map<std::uint32_t, QueryContext> active_queries_;
+
   MultiSubscription multi_subscription_;
+  AE_MAY_UNUSED_MEMBER MultiSubscription poll_sockets_subscriptions_;
   AE_MAY_UNUSED_MEMBER SocketInitializer socket_initializer_;
 };
 
