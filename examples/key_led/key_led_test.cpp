@@ -44,8 +44,8 @@
 
 using std::vector;
 
-static constexpr char kWifiSsid[] = "Test123";
-static constexpr char kWifiPass[] = "Test123";
+static constexpr std::string_view kWifiSsid = "Test123";
+static constexpr std::string_view kWifiPass = "Test123";
 static constexpr bool kUseAether = true;
 
 namespace ae::key_led_test {
@@ -349,7 +349,7 @@ int AetherButtonExample() {
           .Adapter([](ae::Ptr<ae::Domain> const& domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
-            auto adapter = domain.CreateObj<ae::Esp32WifiAdapter>(
+            auto adapter = domain->CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
                 std::string(kWifiSsid), std::string(kWifiPass));
 #  else
