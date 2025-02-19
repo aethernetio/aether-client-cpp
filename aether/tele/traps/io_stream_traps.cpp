@@ -82,7 +82,7 @@ void IoStreamTrap::LogStream::index(std::uint32_t index) {
 }
 void IoStreamTrap::LogStream::start_time(TimePoint const& start) {
   delimeter();
-  Format(stream_, "[{%H:%M:%S}]", start);
+  Format(stream_, "[{:%H:%M:%S}]", start);
 }
 void IoStreamTrap::LogStream::level(Level::underlined_t level) {
   delimeter();

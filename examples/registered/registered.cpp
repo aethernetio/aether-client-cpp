@@ -121,13 +121,14 @@ class RegisteredAction : public Action<RegisteredAction> {
    * \brief Perform a client registration.
    * We need a two clients for this test.
    */
-  void LoadClients() { 
-      AE_TELED_INFO("Testing loaded clients"); 
-      for (std::size_t i{0}; i < aether_->clients().size(); i++) {
-          auto msg_str = std::string("Test message for client ") + std::to_string(i); 
-          messages_.insert(messages_.begin() + i, msg_str);
-          }
-      state_ = State::kConfigureSender;
+  void LoadClients() {
+    AE_TELED_INFO("Testing loaded clients");
+    for (std::size_t i{0}; i < aether_->clients().size(); i++) {
+      auto msg_str =
+          std::string("Test message for client ") + std::to_string(i);
+      messages_.insert(messages_.begin() + i, msg_str);
+    }
+    state_ = State::kConfigureSender;
   }
 
   /**
@@ -240,26 +241,10 @@ int AetherRegistered() {
    * Also it has action context protocol implementation \see Action.
    * To configure its creation \see AetherAppConstructor.
    */
-  auto aether_app = ae::AetherApp::Construct(
-      ae::AetherAppConstructor {[](){
-        auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>();
-        return fs;
-      }}
-#if defined AE_DISTILLATION
-          .Adapter([](ae::Ptr<ae::Domain> const& domain,
-                      ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
-#  if defined ESP32_WIFI_ADAPTER_ENABLED
-            auto adapter = domain.CreateObj<ae::Esp32WifiAdapter>(
-                ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-                std::string(WIFI_SSID), std::string(WIFI_PASS));
-#  else
-            auto adapter = domain->CreateObj<ae::EthernetAdapter>(
-                ae::GlobalId::kEthernetAdapter, aether, aether->poller);
-#  endif  // ESP32_WIFI_ADAPTER_ENABLED
-            return adapter;
-          })
-#endif  // AE_DISTILLATION
-  );
+  auto aether_app = ae::AetherApp::Construct(ae::AetherAppConstructor{[]() {
+    auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>();
+    return fs;
+  }});
 
   auto registered_action = ae::registered::RegisteredAction{aether_app};
 
