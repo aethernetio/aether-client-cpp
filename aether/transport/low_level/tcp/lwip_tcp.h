@@ -134,6 +134,7 @@ class LwipTcpTransport : public ITransport {
   SocketEventAction socket_event_action_;
 
   MultiSubscription connection_action_subscriptions_;
+  Subscription socket_poll_subscription_;
   Subscription socket_event_subscription_;
 };
 

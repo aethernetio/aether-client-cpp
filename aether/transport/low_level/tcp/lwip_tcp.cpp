@@ -264,10 +264,14 @@ void LwipTcpTransport::OnConnected(int socket) {
   socket_event_subscription_ = socket_event_action_.SubscribeOnResult(
       [this](auto const &) { OnSocketUpdate(ae::Now()); });
 
-  poller_->Add(PollerEvent{socket_, EventType::ANY}, [this](auto /* event */) {
-    // notify about new event on socket
-    socket_event_action_.Notify();
-  });
+  socket_poll_subscription_ =
+      poller_->Add(socket_).Subscribe([this](auto event) {
+        if (event.descriptor != socket_) {
+          return;
+        }
+        // notify about new event on socket
+        socket_event_action_.Notify();
+      });
 
   connection_info_.max_packet_size =
       LWIP_NETIF_MTU - 2;  // 2 bytes for packet size
@@ -328,7 +332,7 @@ void LwipTcpTransport::Disconnect() {
 
   socket_event_subscription_.Reset();
 
-  poller_->Remove(PollerEvent{socket_, {}});
+  poller_->Remove(socket_);
 
   if (close(socket_) != 0) {
     return;

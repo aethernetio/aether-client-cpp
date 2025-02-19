@@ -222,9 +222,12 @@ void UnixTcpTransport::OnConnected(int socket) {
         OnSocketEvent(TimePoint::clock::now());
       });
 
-  poller_->Add(
-      PollerEvent{socket_, EventType::ANY},
-      [this](auto const& /* event */) { socket_event_action_.Notify(); });
+  socket_poll_subscription_ =
+      poller_->Add(socket_).Subscribe([this](auto const& event) {
+        if (event.descriptor == socket_) {
+          socket_event_action_.Notify();
+        }
+      });
 
   connection_success_event_.Emit();
 }
@@ -284,7 +287,7 @@ void UnixTcpTransport::Disconnect() {
   }
 
   socket_event_subscription_.Reset();
-  poller_->Remove(PollerEvent{socket_, {}});
+  poller_->Remove(socket_);
 
   if (close(socket_) != 0) {
     return;

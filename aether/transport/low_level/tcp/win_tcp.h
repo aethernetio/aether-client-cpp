@@ -181,6 +181,7 @@ class WinTcpTransport : public ITransport {
   SocketEventAction socket_error_action_;
 
   MultiSubscription connection_subscriptions_;
+  Subscription socket_poll_subscription_;
   Subscription socket_recv_event_subscriptions_;
   Subscription socket_send_event_subscriptions_;
   Subscription socket_error_subscriptions_;
