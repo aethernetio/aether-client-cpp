@@ -289,7 +289,7 @@ int AetherCloudExample() {
           .Adapter([](ae::Ptr<ae::Domain> const& domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
-            auto adapter = domain.CreateObj<ae::Esp32WifiAdapter>(
+            auto adapter = domain->CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
                 std::string(WIFI_SSID), std::string(WIFI_PASS));
 #  else
