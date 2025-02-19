@@ -18,33 +18,25 @@
 
 #if defined WIN_POLLER_ENABLED
 
-#  include <cassert>
-#  include <utility>
-#  include <map>
+#  include <set>
+#  include <mutex>
+#  include <atomic>
 #  include <vector>
 #  include <thread>
-#  include <mutex>
+#  include <cassert>
+#  include <utility>
 #  include <algorithm>
-#  include <atomic>
 
 #  include "aether/tele/tele.h"
 
 namespace ae {
 class WinPoller::IoCPPoller {
-  struct EventData {
-    PollerEvent event;
-    IPoller::Callback callback;
-  };
-
-  using EventDataList = std::vector<EventData>;
-
  public:
   IoCPPoller() {
     iocp_ = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 1);
     if (iocp_ == nullptr) {
       iocp_ = INVALID_HANDLE_VALUE;
-      auto err_code = GetLastError();
-      AE_TELED_ERROR("Create iocp error {}", err_code);
+      AE_TELED_ERROR("Create iocp error {}", GetLastError());
       assert(false);
       return;
     }
@@ -65,53 +57,29 @@ class WinPoller::IoCPPoller {
     }
   }
 
-  void Add(PollerEvent event, IPoller::Callback callback) {
+  WinPoller::OnPollEvent::Subscriber Add(DescriptorType descriptor) {
     assert(iocp_ != INVALID_HANDLE_VALUE);
 
     auto lock = std::lock_guard{events_lock_};
 
-    auto comp_key = static_cast<HANDLE>(event.descriptor);
-    auto it = events_.find(comp_key);
-    if (it == events_.end()) {
+    auto comp_key = static_cast<HANDLE>(descriptor);
+    auto [it, inserted] = events_.insert(comp_key);
+    if (inserted) {
       auto res = CreateIoCompletionPort(
-          event.descriptor, iocp_, reinterpret_cast<ULONG_PTR>(comp_key), 0);
+          descriptor, iocp_, reinterpret_cast<ULONG_PTR>(comp_key), 0);
       if (res == nullptr) {
         AE_TELED_ERROR("Add descriptor to completion port error {}",
                        GetLastError());
         assert(false);
-        return;
       }
-      auto [new_it, _] = events_.emplace(comp_key, EventDataList{});
-      it = new_it;
     }
-
-    // update event list
-    it->second.emplace_back(EventData{std::move(event), std::move(callback)});
+    return WinPoller::OnPollEvent::Subscriber{poll_event_};
   }
 
-  void Remove(PollerEvent event) {
+  void Remove(DescriptorType descriptor) {
     auto lock = std::lock_guard{events_lock_};
-
-    auto comp_key = static_cast<HANDLE>(event.descriptor);
-    auto it = events_.find(comp_key);
-    if (it == events_.end()) {
-      return;
-    }
-    // remove current event
-    auto event_it = std::find_if(
-        std::begin(it->second), std::end(it->second),
-        [ev{event}](auto const& v) {
-          return (v.event.descriptor.descriptor == ev.descriptor.descriptor) &&
-                 (v.event.event_type == ev.event_type);
-        });
-    if (event_it != std::end(it->second)) {
-      it->second.erase(event_it);
-    }
-
-    // remove whole events entry
-    if (it->second.empty()) {
-      events_.erase(it);
-    }
+    auto comp_key = static_cast<HANDLE>(descriptor);
+    events_.erase(comp_key);
   }
 
  private:
@@ -123,11 +91,18 @@ class WinPoller::IoCPPoller {
       LPOVERLAPPED overlapped;
       if (!GetQueuedCompletionStatus(iocp_, &bytes_transfered, &completion_key,
                                      &overlapped, INFINITE)) {
-        AE_TELED_DEBUG("GetQueuedCompletionStatus error {}", GetLastError());
+        auto error = GetLastError();
+        if (error == ERROR_CONNECTION_ABORTED) {
+          // socket closed
+          events_.erase(reinterpret_cast<HANDLE>(completion_key));
+          continue;
+        }
+        AE_TELED_DEBUG("GetQueuedCompletionStatus error {}", error);
       }
 
       auto lock = std::lock_guard{events_lock_};
-      auto it = events_.find(reinterpret_cast<HANDLE>(completion_key));
+      auto descriptor = reinterpret_cast<HANDLE>(completion_key);
+      auto it = events_.find(descriptor);
       if (it == std::end(events_)) {
         continue;
       }
@@ -135,25 +110,16 @@ class WinPoller::IoCPPoller {
 
       auto event_overlapped =
           reinterpret_cast<WinPollerOverlapped*>(overlapped);
-      auto event_type = event_overlapped->event_type;
-
-      auto event_it = std::find_if(
-          std::begin(it->second), std::end(it->second),
-          [=](auto const& v) { return v.event.event_type == event_type; });
-      if (event_it == std::end(it->second)) {
-        AE_TELED_ERROR("Got not the event we are waiting for");
-        assert(false);
-      }
-
-      event_it->callback(event_it->event);
+      poll_event_.Emit(PollerEvent{descriptor, event_overlapped->event_type});
     }
   }
 
   HANDLE iocp_ = INVALID_HANDLE_VALUE;
-  std::map<HANDLE, EventDataList> events_;
+  std::set<HANDLE> events_;
   std::mutex events_lock_;
   std::thread loop_thread_;
   std::atomic_bool stop_requested_{false};
+  WinPoller::OnPollEvent poll_event_;
 };
 
 WinPoller::WinPoller() = default;
@@ -164,16 +130,16 @@ WinPoller::WinPoller(Domain* domain) : IPoller(domain) {}
 
 WinPoller::~WinPoller() = default;
 
-void WinPoller::Add(PollerEvent event, Callback callback) {
+WinPoller::OnPollEvent::Subscriber WinPoller::Add(DescriptorType descriptor) {
   if (!iocp_poller_) {
     iocp_poller_ = std::make_unique<IoCPPoller>();
   }
-  iocp_poller_->Add(event, callback);
+  return iocp_poller_->Add(descriptor);
 }
 
-void WinPoller::Remove(PollerEvent event) {
+void WinPoller::Remove(DescriptorType descriptor) {
   assert(iocp_poller_);
-  iocp_poller_->Remove(event);
+  iocp_poller_->Remove(descriptor);
 }
 
 }  // namespace ae

@@ -17,9 +17,8 @@
 #ifndef AETHER_POLLER_POLLER_H_
 #define AETHER_POLLER_POLLER_H_
 
-#include <functional>
-
 #include "aether/obj/obj.h"
+#include "aether/events/events.h"
 #include "aether/poller/poller_types.h"
 
 namespace ae {
@@ -30,7 +29,12 @@ class IPoller : public Obj {
   IPoller() = default;
 
  public:
-  using Callback = std::function<void(PollerEvent event)>;
+  /**
+   * \brief Event type for event.
+   * User should check event.descriptor to match with its own.
+   */
+  using OnPollEvent = Event<void(PollerEvent event)>;
+
 #if defined AE_DISTILLATION
   explicit IPoller(Domain* domain);
 #endif
@@ -41,8 +45,15 @@ class IPoller : public Obj {
     dnv(*base_ptr_);
   }
 
-  virtual void Add(PollerEvent /* event */, Callback /* callback */);
-  virtual void Remove(PollerEvent /* event */);
+  /**
+   * \brief Add event for descriptor
+   * User must subscribe to returned event subscriber, \see OnPollEvent
+   */
+  [[nodiscard]] virtual OnPollEvent::Subscriber Add(DescriptorType descriptor);
+  /**
+   * \brief Remove event for descriptor
+   */
+  virtual void Remove(DescriptorType descriptor);
 };
 }  // namespace ae
 

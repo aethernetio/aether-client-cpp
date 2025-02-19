@@ -18,14 +18,15 @@
 #define AETHER_POLLER_POLLER_TYPES_H_
 
 #include <tuple>
+#include <cstdint>
 
 #include "aether/format/format.h"
 
 namespace ae {
-enum EventType {
-  READ = 1 << 0,
-  WRITE = 1 << 1,
-  ANY = READ | WRITE,
+enum class EventType : std::uint8_t {
+  kRead,
+  kWrite,
+  kError,
 };
 
 struct DescriptorType {
@@ -58,19 +59,38 @@ struct PollerEvent {
   DescriptorType descriptor;
   EventType event_type;
 
-  inline bool operator>(const PollerEvent& evt) const {
-    return std::tie(this->descriptor.descriptor) >
-           std::tie(evt.descriptor.descriptor);
+  bool operator>(const PollerEvent& evt) const {
+    return this->descriptor.descriptor > evt.descriptor.descriptor;
   }
 
-  inline bool operator<(const PollerEvent& evt) const {
-    return std::tie(this->descriptor.descriptor) <
-           std::tie(evt.descriptor.descriptor);
+  bool operator<(const PollerEvent& evt) const {
+    return this->descriptor.descriptor < evt.descriptor.descriptor;
   }
 
-  inline bool operator==(const PollerEvent& evt) const {
+  bool operator==(const PollerEvent& evt) const {
     return std::tie(this->descriptor.descriptor, this->event_type) ==
            std::tie(evt.descriptor.descriptor, evt.event_type);
+  }
+};
+
+template <>
+struct Formatter<EventType> {
+  template <typename TStream>
+  void Format(EventType const& value, FormatContext<TStream>& ctx) {
+    auto str_value = [](auto value) {
+      switch (value) {
+        case EventType::kRead:
+          return std::string_view{"kRead"};
+        case EventType::kWrite:
+          return std::string_view{"kWrite"};
+        case EventType::kError:
+          return std::string_view{"kError"};
+        default:
+          break;
+      }
+      return std::string_view{"UNKNOWN"};
+    }(value);
+    ctx.out().write(str_value);
   }
 };
 

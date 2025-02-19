@@ -45,8 +45,8 @@ class EpollPoller : public IPoller {
     dnv(*base_ptr_);
   }
 
-  void Add(PollerEvent event, Callback callback) override;
-  void Remove(PollerEvent event) override;
+  [[nodiscard]] OnPollEvent::Subscriber Add(DescriptorType descriptor) override;
+  void Remove(DescriptorType descriptor) override;
 
  private:
   void InitPollWorker();
