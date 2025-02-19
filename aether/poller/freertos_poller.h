@@ -29,8 +29,8 @@ namespace ae {
 class FreertosPoller : public IPoller {
   AE_OBJECT(FreertosPoller, IPoller, 0)
 
-  static constexpr int POLLING_TIMEOUT = -1;
-  static constexpr int TASK_DELAY = 1;
+  static constexpr int kPollingTimeout = -1;
+  static constexpr int kTaskDelay = 1;
 
   FreertosPoller();
 
@@ -47,8 +47,8 @@ class FreertosPoller : public IPoller {
     dnv(*base_ptr_);
   }
 
-  void Add(PollerEvent event, Callback callback) override;
-  void Remove(PollerEvent event) override;
+  [[nodiscard]] OnPollEvent::Subscriber Add(DescriptorType descriptor) override;
+  void Remove(DescriptorType descriptor) override;
 
  private:
   void InitPollWorker();

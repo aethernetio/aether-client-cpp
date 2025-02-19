@@ -18,7 +18,7 @@
 
 #if defined FREERTOS_POLLER_ENABLED
 
-#  include <map>
+#  include <set>
 #  include <mutex>
 #  include <atomic>
 #  include <vector>
@@ -34,10 +34,6 @@ namespace ae {
 void vTaskFunction(void *pvParameters);
 
 class FreertosPoller::PollWorker {
-  std::map<PollerEvent, Callback> callbacks_;
-  std::vector<pollfd> fds_vector;
-  std::mutex ctl_mutex_;
-
  public:
   PollWorker() {
     xTaskCreate(static_cast<void (*)(void *)>(&vTaskFunction), "Poller loop",
@@ -54,39 +50,37 @@ class FreertosPoller::PollWorker {
     AE_TELED_DEBUG("Poll worker has been destroed");
   }
 
-  void Add(PollerEvent event, Callback callback) {
+  [[nodiscard]] OnPollEvent::Subscriber Add(DescriptorType descriptor) {
     auto lock = std::lock_guard(ctl_mutex_);
-    callbacks_.emplace(event, std::move(callback));
-    AE_TELED_DEBUG("Added event {}", event);
+    AE_TELED_DEBUG("Added descriptor {}", descriptor);
+    descriptors_.insert(descriptor);
     vTaskResume(myTaskHandle);
+    return OnPollEvent::Subscriber{poll_event_};
   }
 
-  void Remove(PollerEvent event) {
+  void Remove(DescriptorType descriptor) {
     auto lock = std::lock_guard(ctl_mutex_);
-    auto it = callbacks_.find(event);
-    if (it != callbacks_.end()) {
-      callbacks_.erase(it);
-      AE_TELED_DEBUG("Removed event {}", event);
-    }
+    descriptors_.erase(descriptor);
+    AE_TELED_DEBUG("Removed descriptor {}", descriptor);
     vTaskResume(myTaskHandle);
   }
 
   void Loop(void) {
-    int r;
+    int res;
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = TASK_DELAY;
-    const int timeout = POLLING_TIMEOUT;
+    const TickType_t xFrequency = kTaskDelay;
+    const int timeout = kPollingTimeout;
 
     xLastWakeTime = xTaskGetTickCount();
 
     while (1) {
       {
         auto lock = std::lock_guard{ctl_mutex_};
-        fds_vector = FillFdsVector(callbacks_);
+        fds_vector = FillFdsVector(descriptors_);
       }
       if (!fds_vector.empty()) {
-        r = lwip_poll(fds_vector.data(), fds_vector.size(), timeout);
-        if (r == -1) {
+        res = lwip_poll(fds_vector.data(), fds_vector.size(), timeout);
+        if (res == -1) {
           AE_TELED_ERROR("Socket polling has an error {} {}", errno,
                          strerror(errno));
           continue;
@@ -95,17 +89,9 @@ class FreertosPoller::PollWorker {
         {
           auto lock = std::lock_guard{ctl_mutex_};
           for (auto &v : fds_vector) {
-            PollerEvent event{v.fd, FromEpollEvent(v.revents)};
-
-            auto it = callbacks_.find(event);
-            if (it == callbacks_.end()) {
-              AE_TELED_ERROR("Failed to find callback for PollerEvent {}",
-                             event);
-              continue;
+            for (auto event : FromEpollEvent(v.revents)) {
+              poll_event_.Emit(PollerEvent{v.fd, event});
             }
-
-            auto &cb = it->second;
-            cb(event);
           }
         }
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -118,24 +104,14 @@ class FreertosPoller::PollWorker {
  private:
   TaskHandle_t myTaskHandle = nullptr;
 
-  std::vector<pollfd> FillFdsVector(
-      std::map<PollerEvent, Callback> call_backs) {
+  std::vector<pollfd> FillFdsVector(std::set<int> const &descriptors) {
     std::vector<pollfd> fds_vector_l;
+    fds_vector_l.reserve(descriptors_.size());
     pollfd fds;
 
-    for (const auto &entry : call_backs) {
-      fds.fd = entry.first.descriptor;
-      switch (entry.first.event_type) {
-        case EventType::READ:
-          fds.events = POLLIN;
-          break;
-        case EventType::WRITE:
-          fds.events = POLLOUT;
-          break;
-        case EventType::ANY:
-          fds.events = POLLIN | POLLOUT;
-          break;
-      }
+    for (const auto &desc : descriptors) {
+      fds.fd = desc;
+      fds.events = POLLIN | POLLOUT;
       fds.revents = 0;
       fds_vector_l.push_back(fds);
     }
@@ -143,15 +119,22 @@ class FreertosPoller::PollWorker {
     return fds_vector_l;
   }
 
-  EventType FromEpollEvent(uint32_t events) {
-    if (events == POLLIN) {
-      return EventType::READ;
+  std::vector<EventType> FromEpollEvent(std::uint32_t events) {
+    std::vector<EventType> res;
+    res.resize(3);
+    if ((events & POLLIN) != 0) {
+      res.push_back(EventType::kRead);
     }
-    if (events == POLLOUT) {
-      return EventType::WRITE;
+    if ((events & POLLOUT) != 0) {
+      res.push_back(EventType::kWrite);
     }
-    return EventType::ANY;
+    return res;
   }
+
+  OnPollEvent poll_event_;
+  std::set<int> descriptors_;
+  std::vector<pollfd> fds_vector;
+  std::recursive_mutex ctl_mutex_;
 };
 
 void vTaskFunction(void *pvParameters) {
@@ -170,22 +153,22 @@ FreertosPoller::FreertosPoller(Domain *domain) : IPoller(domain) {}
 
 FreertosPoller::~FreertosPoller() = default;
 
-void FreertosPoller::Add(PollerEvent event, Callback callback) {
+FreertosPoller::OnPollEvent::Subscriber FreertosPoller::Add(
+    DescriptorType descriptor) {
   if (!poll_worker_) {
     InitPollWorker();
   }
-  poll_worker_->Add(event, std::move(callback));
+  return poll_worker_->Add(descriptor);
 }
 
-void FreertosPoller::Remove(PollerEvent event) {
+void FreertosPoller::Remove(DescriptorType descriptor) {
   assert(poll_worker_);
-  poll_worker_->Remove(event);
+  poll_worker_->Remove(descriptor);
 }
 
 void FreertosPoller::InitPollWorker() {
   poll_worker_ = std::make_unique<PollWorker>();
 }
-
 }  // namespace ae
 
 #endif

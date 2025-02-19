@@ -18,36 +18,27 @@
 
 #if defined EPOLL_POLLER_ENABLED
 
-#  include <sys/epoll.h>
-#  include <unistd.h>
 #  include <fcntl.h>
+#  include <unistd.h>
+#  include <sys/epoll.h>
 
-#  include <map>
 #  include <array>
 #  include <mutex>
 #  include <atomic>
 #  include <thread>
-#  include <utility>
 #  include <cerrno>
 #  include <cstring>
 
 #  include "aether/tele/tele.h"
+#  include "aether/events/events.h"
 
 namespace ae {
 
-constexpr auto MAX_EVENTS = 10;
+inline constexpr auto kMaxEvents = 10;
 
 class EpollPoller::PollWorker {
-  static constexpr auto READ_END = 0;
-  static constexpr auto WRITE_END = 1;
-  std::atomic_bool stop_requested_{false};
-  std::array<int, 2> wake_up_pipe_;
-  int epoll_fd_;
-
-  std::thread thread_;
-  std::mutex ctl_mutex_;
-
-  std::map<int, Callback> callbacks_;
+  static constexpr auto kPipeReadEnd = 0;
+  static constexpr auto kPipeWriteEnd = 1;
 
  public:
   PollWorker()
@@ -55,24 +46,20 @@ class EpollPoller::PollWorker {
         epoll_fd_{InitEpoll()},
         thread_(&PollWorker::Loop, this) {
     // add wake up pipe to epoll
-    Add(PollerEvent{wake_up_pipe_[READ_END], EventType::READ}, [](auto event) {
-      AE_TELED_DEBUG("Wake up pipe read {} type {}",
-                     static_cast<int>(event.descriptor), event.event_type);
-      // empty pipe
-      char buf[1];
-      [[maybe_unused]] auto r = read(event.descriptor, buf, 1);
-    });
+    wake_up_subscription_ =
+        Add(DescriptorType{wake_up_pipe_[kPipeReadEnd]})
+            .Subscribe(*this, MethodPtr<&PollWorker::EmptyWakeUpPipe>{});
   }
 
   ~PollWorker() {
     AE_TELED_DEBUG("Destroy PollWorker WRITE PIPE {}, thread is joinable {}",
-                   wake_up_pipe_[WRITE_END], thread_.joinable());
+                   wake_up_pipe_[kPipeWriteEnd], thread_.joinable());
 
     stop_requested_ = true;
-    if (wake_up_pipe_[WRITE_END] != -1) {
+    if (wake_up_pipe_[kPipeWriteEnd] != -1) {
       // write something
-      [[maybe_unused]] auto r = write(wake_up_pipe_[WRITE_END], "", 1);
-      close(wake_up_pipe_[WRITE_END]);
+      [[maybe_unused]] auto res = write(wake_up_pipe_[kPipeWriteEnd], "", 1);
+      close(wake_up_pipe_[kPipeWriteEnd]);
     }
 
     if (thread_.joinable()) {
@@ -82,52 +69,43 @@ class EpollPoller::PollWorker {
     if (epoll_fd_ != -1) {
       close(epoll_fd_);
     }
-    if (wake_up_pipe_[READ_END] != -1) {
-      close(wake_up_pipe_[READ_END]);
+    if (wake_up_pipe_[kPipeReadEnd] != -1) {
+      close(wake_up_pipe_[kPipeReadEnd]);
     }
     AE_TELED_DEBUG("Poll worker destroyed");
   }
 
-  void Add(PollerEvent event, Callback callback) {
+  [[nodiscard]] EpollPoller::OnPollEvent::Subscriber Add(
+      DescriptorType descriptor) {
     auto lock = std::lock_guard(ctl_mutex_);
-    struct epoll_event epoll_event;
-    switch (event.event_type) {
-      case EventType::READ:
-        epoll_event.events = EPOLLIN;
-        break;
-      case EventType::WRITE:
-        epoll_event.events = EPOLLOUT;
-        break;
-      case EventType::ANY:
-        epoll_event.events = EPOLLIN | EPOLLOUT;
-        break;
-    }
 
+    AE_TELED_DEBUG("Add poller descriptor {}", descriptor);
+    struct epoll_event epoll_event;
+    // watch in and out
+    epoll_event.events = EPOLLIN | EPOLLOUT;
     // watch only edge triggered events
     epoll_event.events |= EPOLLET;
-    epoll_event.data.fd = event.descriptor;
+    // watch if socket closed
+    epoll_event.events |= EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP;
+    epoll_event.data.fd = descriptor;
 
-    auto r =
-        epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, event.descriptor, &epoll_event);
-    if (r < 0) {
+    auto res = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, descriptor, &epoll_event);
+    if (res < 0) {
       AE_TELED_ERROR("Failed to add to epoll {} {}", errno, strerror(errno));
       assert(false);
     }
-    callbacks_.emplace(event.descriptor, std::move(callback));
+
+    return EpollPoller::OnPollEvent::Subscriber{poll_event_};
   }
 
-  void Remove(PollerEvent event) {
+  void Remove(DescriptorType descriptor) {
     auto lock = std::lock_guard(ctl_mutex_);
-    auto it = callbacks_.find(event.descriptor);
-    if (it != callbacks_.end()) {
-      callbacks_.erase(it);
-    }
 
+    AE_TELED_DEBUG("Remove poller event {}", descriptor);
     struct epoll_event epoll_event{};
 
-    auto r =
-        epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, event.descriptor, &epoll_event);
-    if (r < 0) {
+    auto res = epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, descriptor, &epoll_event);
+    if (res < 0) {
       AE_TELED_ERROR("Failed to remove from epoll {} {}", errno,
                      strerror(errno));
       assert(false);
@@ -135,30 +113,46 @@ class EpollPoller::PollWorker {
   }
 
  private:
-  EventType FromEpollEvent(uint32_t events) {
-    if (events == EPOLLIN) {
-      return EventType::READ;
+  static std::vector<EventType> FromEpollEvent(std::uint32_t events) {
+    auto res = std::vector<EventType>{};
+    res.reserve(3);
+    if ((events & (EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP)) != 0) {
+      res.push_back(EventType::kError);
     }
-    if (events == EPOLLOUT) {
-      return EventType::WRITE;
+    if ((events & EPOLLIN) != 0) {
+      res.push_back(EventType::kRead);
     }
-    return EventType::ANY;
+    if ((events & EPOLLOUT) != 0) {
+      res.push_back(EventType::kWrite);
+    }
+    return res;
   }
 
-  std::array<int, 2> WakeUpPipe() {
-    int pipes[2];
-    auto r = pipe2(pipes, O_CLOEXEC);
-    // create pipe used to wake up the thread
-    if (r < 0) {
+  static std::array<int, 2> WakeUpPipe() {
+    std::array<int, 2> pipes;
+    auto res = pipe2(pipes.data(), O_CLOEXEC);
+    // create pipe to wake up the thread
+    if (res < 0) {
       AE_TELED_ERROR("Failed to create wake up pipe {} {}", errno,
                      strerror(errno));
       assert(false);
       return {-1, -1};
     }
-    return {pipes[0], pipes[1]};
+    return pipes;
   }
 
-  int InitEpoll() {
+  void EmptyWakeUpPipe(PollerEvent event) {
+    if (event.descriptor != wake_up_pipe_[kPipeReadEnd]) {
+      return;
+    }
+    AE_TELED_DEBUG("Wake up pipe read {} type {}",
+                   static_cast<int>(event.descriptor), event.event_type);
+    // drain the pipe
+    std::array<char, 1> buf;
+    [[maybe_unused]] auto res = read(event.descriptor, buf.data(), buf.size());
+  }
+
+  static int InitEpoll() {
     auto fd = epoll_create1(EPOLL_CLOEXEC);
     if (fd < 0) {
       AE_TELED_ERROR("Failed to create epoll fd {} {}", errno, strerror(errno));
@@ -168,10 +162,11 @@ class EpollPoller::PollWorker {
   }
 
   void Loop() {
+    std::array<struct epoll_event, kMaxEvents> events;
+
     while (!stop_requested_) {
-      std::array<struct epoll_event, MAX_EVENTS> events;
-      auto r = epoll_wait(epoll_fd_, events.data(), events.size(), -1);
-      if (r < 0) {
+      auto res = epoll_wait(epoll_fd_, events.data(), events.size(), -1);
+      if (res < 0) {
         if (errno == EINTR) {
           continue;
         }
@@ -182,20 +177,26 @@ class EpollPoller::PollWorker {
 
       auto lock = std::lock_guard(ctl_mutex_);
 
-      for (std::size_t i = 0; i < static_cast<std::size_t>(r); ++i) {
+      for (std::size_t i = 0;
+           (i < static_cast<std::size_t>(res)) && (i < kMaxEvents); ++i) {
         auto& event = events[i];
         auto fd = event.data.fd;
-        auto cb_it = callbacks_.find(fd);
-        if (cb_it == callbacks_.end()) {
-          AE_TELED_ERROR("Failed to find callback for fd {}", fd);
-          assert(false);
-          continue;
+        for (auto ev_type : FromEpollEvent(event.events)) {
+          poll_event_.Emit(PollerEvent{fd, ev_type});
         }
-        auto& cb = cb_it->second;
-        cb(PollerEvent{event.data.fd, FromEpollEvent(event.events)});
       }
     }
   }
+
+  std::atomic_bool stop_requested_{false};
+  std::array<int, 2> wake_up_pipe_;
+  int epoll_fd_;
+
+  std::thread thread_;
+  std::recursive_mutex ctl_mutex_;
+
+  EpollPoller::OnPollEvent poll_event_;
+  Subscription wake_up_subscription_;
 };
 
 EpollPoller::EpollPoller() = default;
@@ -206,22 +207,21 @@ EpollPoller::EpollPoller(Domain* domain) : IPoller(domain) {}
 
 EpollPoller::~EpollPoller() = default;
 
-void EpollPoller::Add(PollerEvent event, Callback callback) {
+EpollPoller::OnPollEvent::Subscriber EpollPoller::Add(
+    DescriptorType descriptor) {
   if (!poll_worker_) {
     InitPollWorker();
   }
-  poll_worker_->Add(event, std::move(callback));
+  return poll_worker_->Add(descriptor);
 }
 
-void EpollPoller::Remove(PollerEvent event) {
+void EpollPoller::Remove(DescriptorType descriptor) {
   assert(poll_worker_);
-  poll_worker_->Remove(event);
+  poll_worker_->Remove(descriptor);
 }
 
 void EpollPoller::InitPollWorker() {
   poll_worker_ = std::make_unique<PollWorker>();
 }
-
 }  // namespace ae
-
 #endif

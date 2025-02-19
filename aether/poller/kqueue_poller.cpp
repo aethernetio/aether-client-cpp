@@ -36,21 +36,9 @@
 
 namespace ae {
 
-constexpr auto MAX_EVENTS = 10;
+constexpr auto kMaxEvents = 10;
 
 class KqueuePoller::PollerWorker {
-  static constexpr auto READ_END = 0;
-  static constexpr auto WRITE_END = 1;
-
-  std::atomic_bool stop_requested_{false};
-  int kqueue_fd_;
-  const int exit_kqueue_event_ = 1;
-
-  std::thread thread_;
-  std::mutex ctl_mutex_;
-
-  std::map<int, Callback> callbacks_;
-
  public:
   PollerWorker()
       : kqueue_fd_{InitKqueue()}, thread_{&PollerWorker::Loop, this} {
@@ -61,8 +49,8 @@ class KqueuePoller::PollerWorker {
     struct kevent ev;
     EV_SET(&ev, exit_kqueue_event_, EVFILT_USER, EV_ADD | EV_ONESHOT, 0, 0,
            nullptr);
-    auto r = kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
-    if (r == -1) {
+    auto res = kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
+    if (res == -1) {
       AE_TELED_ERROR("KQueue user event set error {} {}", errno,
                      strerror(errno));
       assert(false);
@@ -77,8 +65,8 @@ class KqueuePoller::PollerWorker {
     // emit user event to wake up thread
     struct kevent ev;
     EV_SET(&ev, exit_kqueue_event_, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
-    auto r = kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
-    if (r == -1) {
+    auto res = kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
+    if (res == -1) {
       AE_TELED_ERROR("Emit user event error {} {}", errno, strerror(errno));
       assert(false);
     }
@@ -90,62 +78,60 @@ class KqueuePoller::PollerWorker {
     close(kqueue_fd_);
   }
 
-  void Add(PollerEvent event, Callback callback) {
-    struct kevent ev;
-    switch (event.event_type) {
-      case EventType::READ:
-        EV_SET(&ev, event.descriptor, EVFILT_READ, EV_ADD | EV_CLEAR, 0, 0,
-               nullptr);
-        break;
-      case EventType::WRITE:
-        EV_SET(&ev, event.descriptor, EVFILT_WRITE, EV_ADD | EV_CLEAR, 0, 0,
-               nullptr);
-        break;
-      case EventType::ANY:
-        Add(PollerEvent{event.descriptor, EventType::READ}, callback);
-        Add(PollerEvent{event.descriptor, EventType::WRITE}, callback);
-        return;
+  [[nodiscard]] KqueuePoller::OnPollEvent::Subscriber Add(
+      DescriptorType descriptor) {
+    auto lock = std::lock_guard{ctl_mutex_};
+    AE_TELED_DEBUG("Add event descriptor {}", descriptor);
+    std::array<struct kevent, 2> events;
+    std::size_t index = 0;
+    for (auto filter : {EVFILT_READ, EVFILT_WRITE}) {
+      EV_SET(&events[index], descriptor, filter, EV_ADD | EV_CLEAR, 0, 0,
+             nullptr);
+      ++index;
     }
-
-    auto r = kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
-    if (r == -1) {
-      AE_TELED_ERROR("Add event error {} {}", errno, strerror(errno));
+    auto res =
+        kevent(kqueue_fd_, events.data(), events.size(), nullptr, 0, nullptr);
+    if (res == -1) {
+      AE_TELED_ERROR("Add event with error {} {}", errno, strerror(errno));
       assert(false);
     }
-
-    auto lock = std::lock_guard{ctl_mutex_};
-    callbacks_.emplace(event.descriptor, std::move(callback));
+    return KqueuePoller::OnPollEvent::Subscriber{poll_event_};
   }
 
-  void Remove(PollerEvent event) {
-    struct kevent ev;
-    EV_SET(&ev, event.descriptor, 0, EV_DELETE, 0, 0, nullptr);
-    auto r = kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
-    if (r == -1) {
+  void Remove(DescriptorType descriptor) {
+    auto lock = std::lock_guard{ctl_mutex_};
+    AE_TELED_DEBUG("Remove event descriptor {}", descriptor);
+    std::array<struct kevent, 2> events;
+    std::size_t index = 0;
+    for (auto filter : {EVFILT_READ, EVFILT_WRITE}) {
+      EV_SET(&events[index], descriptor, filter, EV_DELETE, 0, 0, nullptr);
+      ++index;
+    }
+    auto res =
+        kevent(kqueue_fd_, events.data(), events.size(), nullptr, 0, nullptr);
+    if (res == -1) {
       AE_TELED_WARNING("Remove event error {} {}", errno, strerror(errno));
     }
-
-    auto lock = std::lock_guard{ctl_mutex_};
-    callbacks_.erase(event.descriptor);
   }
 
  private:
-  int InitKqueue() {
+  static int InitKqueue() {
     auto fd = kqueue();
     if (fd == -1) {
       AE_TELED_ERROR("Failed to kqueue {} {}", errno, strerror(errno));
       assert(false);
-      return -1;
     }
     return fd;
   }
 
-  EventType FilterTypeToEventType(int filter) {
+  static EventType FilterTypeToEventType(int filter) {
     switch (filter) {
       case EVFILT_READ:
-        return EventType::READ;
+        return EventType::kRead;
       case EVFILT_WRITE:
-        return EventType::WRITE;
+        return EventType::kWrite;
+      case EVFILT_EXCEPT:
+        return EventType::kError;
       default:
         AE_TELED_ERROR("Unknown filter value {}", filter);
         assert(false);
@@ -155,7 +141,7 @@ class KqueuePoller::PollerWorker {
 
   void Loop() {
     while (!stop_requested_) {
-      std::array<struct kevent, MAX_EVENTS> events;
+      std::array<struct kevent, kMaxEvents> events;
       auto num_events =
           kevent(kqueue_fd_, nullptr, 0, events.data(), events.size(), nullptr);
       if (num_events == -1) {
@@ -163,28 +149,28 @@ class KqueuePoller::PollerWorker {
         assert(false);
         return;
       }
-      for (std::size_t i = 0; i < num_events; ++i) {
-        auto lock = std::lock_guard{ctl_mutex_};
-
+      auto lock = std::lock_guard{ctl_mutex_};
+      for (std::size_t i = 0; (i < num_events) && (i < kMaxEvents); ++i) {
         auto& ev = events[i];
         if (ev.filter == EVFILT_USER) {
           AE_TELED_DEBUG("Got user event");
           // user event
           continue;
         }
-        auto cb_it = callbacks_.find(static_cast<int>(ev.ident));
-        if (cb_it == callbacks_.end()) {
-          AE_TELED_ERROR("Callback for {} and filter {} not found", ev.ident,
-                         ev.filter);
-          assert(false);
-          return;
-        }
-        auto& cb = cb_it->second;
-        cb(PollerEvent{static_cast<int>(ev.ident),
-                       FilterTypeToEventType(ev.filter)});
+        poll_event_.Emit(PollerEvent{static_cast<int>(ev.ident),
+                                     FilterTypeToEventType(ev.filter)});
       }
     }
   }
+
+  std::atomic_bool stop_requested_{false};
+  int kqueue_fd_;
+  const int exit_kqueue_event_ = 1;
+
+  std::thread thread_;
+  std::recursive_mutex ctl_mutex_;
+
+  KqueuePoller::OnPollEvent poll_event_;
 };
 
 KqueuePoller::KqueuePoller() = default;
@@ -195,16 +181,17 @@ KqueuePoller::KqueuePoller(Domain* domain) : IPoller(domain) {}
 
 KqueuePoller::~KqueuePoller() = default;
 
-void KqueuePoller::Add(PollerEvent event, Callback callback) {
+[[nodiscard]] KqueuePoller::OnPollEvent::Subscriber KqueuePoller::Add(
+    DescriptorType descriptor) {
   if (!poller_worker_) {
     InitPollWorker();
   }
-  poller_worker_->Add(std::move(event), std::move(callback));
+  return poller_worker_->Add(descriptor);
 }
 
-void KqueuePoller::Remove(PollerEvent event) {
+void KqueuePoller::Remove(DescriptorType descriptor) {
   assert(poller_worker_);
-  poller_worker_->Remove(std::move(event));
+  poller_worker_->Remove(descriptor);
 }
 
 void KqueuePoller::InitPollWorker() {

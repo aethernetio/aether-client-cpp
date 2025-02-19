@@ -57,8 +57,8 @@ class WinPoller : public IPoller {
     dnv(*base_ptr_);
   }
 
-  void Add(PollerEvent event, Callback callback) override;
-  void Remove(PollerEvent event) override;
+  OnPollEvent::Subscriber Add(DescriptorType descriptor) override;
+  void Remove(DescriptorType descriptor) override;
 
  private:
   std::unique_ptr<IoCPPoller> iocp_poller_;
