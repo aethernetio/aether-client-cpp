@@ -18,6 +18,7 @@ list(APPEND test_srcs
     main.cpp
     test-format-types.cpp
     test-format-time.cpp
+    test-format-str.cpp
 )
 
 if(NOT CM_PLATFORM)

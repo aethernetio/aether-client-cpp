@@ -98,11 +98,11 @@ ClientToServerStream::ClientToServerStream(ActionContext action_context,
 
   client_auth_stream_.emplace(
       DebugGate{
+          Format("ClientToServerStreamGate server id {} client_uid {} \nwrite "
+                 "{{}}",
+                 server_id_, client_->uid()),
           Format(
-              "ClientToServerStreamGate server id {} client_uid {} \nwrite {}",
-              server_id_, client_->uid()),
-          Format(
-              "ClientToServerStreamGate server id {} client_uid {} \nread {}",
+              "ClientToServerStreamGate server id {} client_uid {} \nread {{}}",
               server_id_, client_->uid())},
       CryptoGate{MakePtr<SyncEncryptProvider>(
                      MakePtr<_internal::ClientEncryptKeyProvider>(client_,

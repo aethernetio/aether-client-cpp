@@ -28,9 +28,9 @@ MessageStream::MessageStream(ProtocolContext& protocol_context, Uid destination,
       stream_id_{stream_id},
       in_byte_gate_{},
       out_byte_gate_{},
-      debug_gate_{Format("MessageStream uid {} stream_id {} \nwrite {}",
+      debug_gate_{Format("MessageStream uid {} stream_id {} \nwrite {{}}",
                          destination_, static_cast<int>(stream_id_)),
-                  Format("MessageStream uid {} stream_id {} \nread {}",
+                  Format("MessageStream uid {} stream_id {} \nread {{}}",
                          destination_, static_cast<int>(stream_id_))},
       stream_api_gate_{protocol_context_, stream_id_},
       open_stream_gate_{
@@ -48,9 +48,9 @@ MessageStream::MessageStream(MessageStream&& other) noexcept
       stream_id_{other.stream_id_},
       in_byte_gate_{},
       out_byte_gate_{},
-      debug_gate_{Format("MessageStream uid {} stream_id {} \nwrite {}",
+      debug_gate_{Format("MessageStream uid {} stream_id {} \nwrite {{}}",
                          destination_, static_cast<int>(stream_id_)),
-                  Format("MessageStream uid {} stream_id {} \nread {}",
+                  Format("MessageStream uid {} stream_id {} \nread {{}}",
                          destination_, static_cast<int>(stream_id_))},
       stream_api_gate_{std::move(other.stream_api_gate_)},
       open_stream_gate_{std::move(other.open_stream_gate_)} {
@@ -78,10 +78,11 @@ void MessageStream::set_stream_id(StreamId stream_id) {
       protocol_context_, AuthorizedApi{},
       AuthorizedApi::OpenStreamToClient{{}, destination_, stream_id_}};
 
-  debug_gate_ = DebugGate{Format("MessageStream uid {} stream_id {} \nwrite {}",
-                                 destination_, static_cast<int>(stream_id_)),
-                          Format("MessageStream uid {} stream_id {} \nread {}",
-                                 destination_, static_cast<int>(stream_id_))};
+  debug_gate_ =
+      DebugGate{Format("MessageStream uid {} stream_id {} \nwrite {{}}",
+                       destination_, static_cast<int>(stream_id_)),
+                Format("MessageStream uid {} stream_id {} \nread {{}}",
+                       destination_, static_cast<int>(stream_id_))};
 
   Tie(in_byte_gate_, debug_gate_, stream_api_gate_, open_stream_gate_,
       out_byte_gate_);
