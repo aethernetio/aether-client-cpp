@@ -26,7 +26,7 @@
 #include "aether/methods/work_server_api/authorized_api.h"
 #include "aether/methods/client_api/client_safe_api.h"
 
-#include "aether/tele/tele.h"
+#include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
 GetClientCloudAction::GetClientCloudAction(
@@ -38,7 +38,7 @@ GetClientCloudAction::GetClientCloudAction(
       state_{State::kRequestCloud},
       state_changed_subscription_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {
-  AE_TELED_INFO("GetClientCloudAction created");
+  AE_TELE_INFO(kGetClientCloud, "GetClientCloudAction created");
 
   auto server_stream_id = StreamIdGenerator::GetNextClientStreamId();
   auto cloud_stream_id = StreamIdGenerator::GetNextClientStreamId();
@@ -113,8 +113,9 @@ GetClientCloudAction::server_descriptors() {
 }
 
 void GetClientCloudAction::RequestCloud(TimePoint current_time) {
-  AE_TELED_DEBUG("RequestCloud for uid {} at {:%H:%M:%S}", client_uid_,
-                 current_time);
+  AE_TELE_INFO(kGetClientCloudRequestCloud,
+               "RequestCloud for uid {} at {:%H:%M:%S}", client_uid_,
+               current_time);
 
   cloud_request_action_ =
       cloud_request_stream_->in().Write(Uid{client_uid_}, current_time);
@@ -129,8 +130,9 @@ void GetClientCloudAction::RequestCloud(TimePoint current_time) {
 void GetClientCloudAction::RequestServerResolve(TimePoint current_time) {
   // TODO: use server cache
 
-  AE_TELED_DEBUG("RequestServerResolve for ids {} at {:%H:%M:%S}",
-                 uid_and_cloud_.cloud, current_time);
+  AE_TELE_DEBUG(kGetClientCloudRequestServerResolve,
+                "RequestServerResolve for ids {} at {:%H:%M:%S}",
+                uid_and_cloud_.cloud, current_time);
 
   server_resolve_actions_.reserve(uid_and_cloud_.cloud.size());
   for (auto server_id : uid_and_cloud_.cloud) {
@@ -138,11 +140,13 @@ void GetClientCloudAction::RequestServerResolve(TimePoint current_time) {
         server_resolver_stream_->in().Write(std::move(server_id), current_time);
     server_resolve_subscriptions_.Push(
         swa->SubscribeOnStop([this, server_id](auto const&) {
-          AE_TELED_ERROR("Resolve server id {} stopped", server_id);
+          AE_TELE_ERROR(kGetClientCloudServerResolveStopped,
+                        "Resolve server id {} stopped", server_id);
           state_.Set(State::kFailed);
         }),
         swa->SubscribeOnError([this, server_id](auto const&) {
-          AE_TELED_ERROR("Resolve server id {} failed", server_id);
+          AE_TELE_ERROR(kGetClientCloudServerResolveFailed,
+                        "Resolve server id {} failed", server_id);
           state_.Set(State::kFailed);
         }));
     server_resolve_actions_.emplace_back(std::move(swa));
@@ -156,8 +160,9 @@ void GetClientCloudAction::OnCloudResponse(UidAndCloud const& uid_and_cloud) {
 
 void GetClientCloudAction::OnServerResponse(
     ServerDescriptor const& server_descriptor) {
-  AE_TELED_DEBUG("Server resolved {} ips count {}", server_descriptor.server_id,
-                 server_descriptor.ips.size());
+  AE_TELE_DEBUG(kGetClientCloudServerResolved,
+                "Server resolved {} ips count {}", server_descriptor.server_id,
+                server_descriptor.ips.size());
   server_descriptors_.push_back(server_descriptor);
   if (server_descriptors_.size() == uid_and_cloud_.cloud.size()) {
     server_resolve_actions_.clear();
