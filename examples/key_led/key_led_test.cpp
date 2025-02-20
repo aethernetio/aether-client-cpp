@@ -340,7 +340,7 @@ int AetherButtonExample() {
       ae::AetherAppConstructor{
 #if !AE_SUPPORT_REGISTRATION
           []() {
-            auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>();
+            auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>(std::string(""));
             return fs;
           }
 #endif  // AE_SUPPORT_REGISTRATION
