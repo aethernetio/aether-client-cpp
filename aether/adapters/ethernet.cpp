@@ -19,8 +19,7 @@
 #include <utility>
 
 #include "aether/aether.h"
-
-#include "aether/tele/tele.h"
+#include "aether/adapters/adapter_tele.h"
 
 #include "aether/transport/low_level/tcp/unix_tcp.h"
 #include "aether/transport/low_level/tcp/win_tcp.h"
@@ -51,11 +50,16 @@ EthernetAdapter::EthernetCreateTransportAction::transport() {
 #ifdef AE_DISTILLATION
 EthernetAdapter::EthernetAdapter(Aether::ptr aether, IPoller::ptr poller,
                                  Domain* domain)
-    : Adapter(domain), aether_{std::move(aether)}, poller_{std::move(poller)} {}
+    : Adapter(domain), aether_{std::move(aether)}, poller_{std::move(poller)} {
+  AE_TELED_INFO("EthernetAdapter created");
+}
 #endif  // AE_DISTILLATION
 
 ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
     IpAddressPortProtocol const& address_port_protocol) {
+  AE_TELE_INFO(kAdapterCreate, "Create transport for {}",
+               address_port_protocol);
+
   if (!create_transport_actions_) {
     create_transport_actions_.emplace(
         ActionContext{*aether_.as<Aether>()->action_processor});
@@ -64,6 +68,7 @@ ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
   CleanDeadTransports();
   auto transport = FindInCache(address_port_protocol);
   if (!transport) {
+    AE_TELE_DEBUG(kAdapterCreateCacheMiss);
 #if defined UNIX_TCP_TRANSPORT_ENABLED
     assert(address_port_protocol.protocol == Protocol::kTcp);
     transport =
@@ -84,7 +89,7 @@ ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
 #endif
     AddToCache(address_port_protocol, *transport);
   } else {
-    AE_TELED_DEBUG("Got transport from cache");
+    AE_TELE_DEBUG(kAdapterCreateCacheHit);
   }
 
   return create_transport_actions_->Emplace(std::move(transport));

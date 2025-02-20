@@ -47,7 +47,7 @@ void Adapter::CleanDeadTransports() {
 
 std::unique_ptr<ITransport> Adapter::FindInCache(
     IpAddressPortProtocol /* address_port_protocol */) {
-#if 0
+#if 0  // transport cache for different clients is not working
   auto cache_it = transports_cache_.find(address_port_protocol);
   if (cache_it != transports_cache_.end()) {
     auto transport = cache_it->second.Lock();
