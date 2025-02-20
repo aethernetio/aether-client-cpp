@@ -57,7 +57,7 @@ class WinPoller : public IPoller {
     dnv(*base_ptr_);
   }
 
-  OnPollEvent::Subscriber Add(DescriptorType descriptor) override;
+  OnPollEventSubscriber Add(DescriptorType descriptor) override;
   void Remove(DescriptorType descriptor) override;
 
  private:

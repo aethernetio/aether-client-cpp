@@ -23,11 +23,11 @@ namespace ae {
 
 TimePoint ResolveAction::Update(TimePoint current_time) {
   if (is_resolved) {
-    Result(*this);
     is_resolved = false;
+    Action::Result(*this);
   } else if (is_failed) {
-    Error(*this);
     is_failed = false;
+    Action::Error(*this);
   }
   return current_time;
 }

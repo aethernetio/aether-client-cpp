@@ -57,10 +57,10 @@ class WinPoller::IoCPPoller {
     }
   }
 
-  WinPoller::OnPollEvent::Subscriber Add(DescriptorType descriptor) {
+  WinPoller::OnPollEventSubscriber Add(DescriptorType descriptor) {
     assert(iocp_ != INVALID_HANDLE_VALUE);
 
-    auto lock = std::lock_guard{events_lock_};
+    auto lock = std::unique_lock{events_lock_};
 
     auto comp_key = static_cast<HANDLE>(descriptor);
     auto [it, inserted] = events_.insert(comp_key);
@@ -73,7 +73,7 @@ class WinPoller::IoCPPoller {
         assert(false);
       }
     }
-    return WinPoller::OnPollEvent::Subscriber{poll_event_};
+    return WinPoller::OnPollEventSubscriber{poll_event_, std::move(lock)};
   }
 
   void Remove(DescriptorType descriptor) {
@@ -116,7 +116,7 @@ class WinPoller::IoCPPoller {
 
   HANDLE iocp_ = INVALID_HANDLE_VALUE;
   std::set<HANDLE> events_;
-  std::mutex events_lock_;
+  std::recursive_mutex events_lock_;
   std::thread loop_thread_;
   std::atomic_bool stop_requested_{false};
   WinPoller::OnPollEvent poll_event_;
@@ -130,7 +130,7 @@ WinPoller::WinPoller(Domain* domain) : IPoller(domain) {}
 
 WinPoller::~WinPoller() = default;
 
-WinPoller::OnPollEvent::Subscriber WinPoller::Add(DescriptorType descriptor) {
+WinPoller::OnPollEventSubscriber WinPoller::Add(DescriptorType descriptor) {
   if (!iocp_poller_) {
     iocp_poller_ = std::make_unique<IoCPPoller>();
   }
