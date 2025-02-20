@@ -35,9 +35,9 @@
 #include "tools/registrator/registrator_action.h"
 #include "tools/registrator/registrator_config.h"
 
-int AetherRegistrator(const std::string& ini_file);
+int AetherRegistrator(const std::string& ini_file, const std::string &header_file);
 
-int AetherRegistrator(const std::string& ini_file) {
+int AetherRegistrator(const std::string& ini_file, const std::string &header_file) {
   ae::TeleInit::Init();
 
   ae::RegistratorConfig registrator_config{ini_file};
@@ -46,7 +46,7 @@ int AetherRegistrator(const std::string& ini_file) {
     AE_TELED_ERROR("Configuration failed.");
     return -1;
   }
-#define ESP32_WIFI_ADAPTER_ENABLED
+
   /**
    * Construct a main aether application class.
    * It's include a Domain and Aether instances accessible by getter methods.
@@ -56,8 +56,8 @@ int AetherRegistrator(const std::string& ini_file) {
    * To configure its creation \see AetherAppConstructor.
    */
   auto aether_app = ae::AetherApp::Construct(
-      ae::AetherAppConstructor{[]() {
-        auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>();
+      ae::AetherAppConstructor{[header_file]() {
+        auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>(header_file);
         fs->remove_all();
         return fs;
       }}

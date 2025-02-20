@@ -23,8 +23,8 @@
 
 namespace ae {
 
-FileSystemHeaderFacility::FileSystemHeaderFacility() {
-  driver_fs = std::make_unique<DriverHeader>();
+FileSystemHeaderFacility::FileSystemHeaderFacility(const std::string &header_file) : path_{header_file}{
+  driver_fs_ = std::make_unique<DriverHeader>();
   AE_TELED_DEBUG("New FileSystemHeader instance created!");
 }
 
@@ -124,9 +124,7 @@ void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
 }
 
 void FileSystemHeaderFacility::remove_all() {
-  std::string path{"config/file_system_init.h"};
-
-  driver_fs->DriverHeaderDelete(path);
+  driver_fs_->DriverHeaderDelete(path_);
 }
 
 void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
@@ -143,13 +141,11 @@ void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
   // add oj data
   is >> obj_data;
 #else
-  std::string path{"config/file_system_init.h"};
-
   std::vector<std::uint8_t> data_vector{};
 
   VectorReader<PacketSize> vr{data_vector};
 
-  driver_fs->DriverHeaderRead(path, data_vector);
+  driver_fs_->DriverHeaderRead(path_, data_vector);
   auto is = imstream{vr};
   // add obj data
   is >> obj_data;
@@ -171,8 +167,6 @@ void FileSystemHeaderFacility::SaveObjData(ObjClassData& obj_data) {
   os << obj_data;
 
 #else
-  std::string path{"config/file_system_init.h"};
-
   std::vector<std::uint8_t> data_vector{};
 
   VectorWriter<PacketSize> vw{data_vector};
@@ -180,7 +174,7 @@ void FileSystemHeaderFacility::SaveObjData(ObjClassData& obj_data) {
   // add file data
   os << obj_data;
 
-  driver_fs->DriverHeaderWrite(path, data_vector);
+  driver_fs_->DriverHeaderWrite(path_, data_vector);
 #endif
 }
 
