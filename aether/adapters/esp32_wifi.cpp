@@ -23,7 +23,7 @@
 #  include <memory>
 
 #  include "aether/aether.h"
-#  include "aether/tele/tele.h"
+#  include "aether/adapters/adapter_tele.h"
 
 #  include "aether/transport/low_level/tcp/lwip_tcp.h"
 
@@ -52,7 +52,8 @@ Esp32WifiAdapter::CreateTransportAction::CreateTransportAction(
       address_port_protocol_{std::move(address_port_protocol)},
       once_{true},
       failed_{false} {
-  AE_TELED_DEBUG("CreateTransport immediately!");
+  AE_TELE_DEBUG(kAdapterWifiTransportImmediately,
+                "Wifi connected, create transport immediately");
   CreateTransport();
 }
 
@@ -77,7 +78,7 @@ Esp32WifiAdapter::CreateTransportAction::CreateTransportAction(
             }
             Action::Trigger();
           })} {
-  AE_TELED_DEBUG("CreateTransport wait for wifi connection!");
+  AE_TELE_DEBUG(kAdapterWifiTransportWait, "Wait wifi connection");
 }
 
 TimePoint Esp32WifiAdapter::CreateTransportAction::Update(
@@ -100,6 +101,7 @@ void Esp32WifiAdapter::CreateTransportAction::CreateTransport() {
   adapter_->CleanDeadTransports();
   transport_ = adapter_->FindInCache(address_port_protocol_);
   if (!transport_) {
+    AE_TELE_DEBUG(kAdapterCreateCacheMiss);
 #  if defined(LWIP_TCP_TRANSPORT_ENABLED)
     assert(address_port_protocol_.protocol == Protocol::kTcp);
     transport_ =
@@ -109,7 +111,7 @@ void Esp32WifiAdapter::CreateTransportAction::CreateTransport() {
     return {};
 #  endif
   } else {
-    AE_TELED_DEBUG("Got transport from cache");
+    AE_TELE_DEBUG(kAdapterCreateCacheHit);
   }
 
   adapter_->AddToCache(address_port_protocol_, transport_);
@@ -127,7 +129,7 @@ Esp32WifiAdapter::Esp32WifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
 Esp32WifiAdapter::~Esp32WifiAdapter() {
   if (connected_ == true) {
     DisConnect();
-    AE_TELED_DEBUG("Esp32Wifi instance deleted!");
+    AE_TELE_DEBUG(kAdapterDestructor, "Esp32Wifi instance deleted!");
     connected_ = false;
   }
 }
@@ -135,6 +137,8 @@ Esp32WifiAdapter::~Esp32WifiAdapter() {
 
 ActionView<ae::CreateTransportAction> Esp32WifiAdapter::CreateTransport(
     IpAddressPortProtocol const& address_port_protocol) {
+  AE_TELE_INFO(kAdapterCreate, "Create transport for {}",
+               address_port_protocol);
   if (!create_transport_actions_) {
     create_transport_actions_ = MakePtr<ActionList<CreateTransportAction>>(
         ActionContext{*aether_.as<Aether>()->action_processor});
@@ -163,7 +167,7 @@ void Esp32WifiAdapter::Connect(void) {
     WifiInitNvs();
     WifiInitSta();
   }
-  AE_TELED_DEBUG("WiFi connected to the AP");
+  AE_TELE_DEBUG(kAdapterWifiConfigured, "WiFi connected to the AP");
 }
 
 void Esp32WifiAdapter::DisConnect(void) {
@@ -173,7 +177,7 @@ void Esp32WifiAdapter::DisConnect(void) {
     esp_wifi_deinit();
     esp_netif_destroy_default_wifi(esp_netif_);
   }
-  AE_TELED_DEBUG("WiFi disconnected from the AP");
+  AE_TELE_DEBUG(kAdapterWifiDisconnected, "WiFi disconnected from the AP");
 }
 
 void Esp32WifiAdapter::EventHandler(void* arg, esp_event_base_t event_base,
@@ -230,7 +234,9 @@ void Esp32WifiAdapter::WifiInitSta(void) {
 
   wifi_config.sta.threshold = wifi_threshold;
 
+  // for debug purpose only, it's private data
   AE_TELED_DEBUG("Connecting to ap SSID:{} PSWD:{}", ssid_, pass_);
+
   std::fill_n(wifi_config.sta.ssid, sizeof(wifi_config.sta.ssid), 0);
   string_size = sizeof(wifi_config.sta.ssid);
   if (ssid_.size() < string_size) {
@@ -249,7 +255,7 @@ void Esp32WifiAdapter::WifiInitSta(void) {
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
   ESP_ERROR_CHECK(esp_wifi_start());
 
-  AE_TELED_DEBUG("WifiInitSta finished.");
+  AE_TELE_DEBUG(kAdapterWifiInitiated, "WifiInitSta finished.");
 
   /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or
    * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT). The
@@ -261,15 +267,14 @@ void Esp32WifiAdapter::WifiInitSta(void) {
   /* xEventGroupWaitBits() returns the bits before the call returned, hence we
    * can test which event actually happened. */
   if (bits & WIFI_CONNECTED_BIT) {
-    AE_TELED_DEBUG("Connected to ap SSID:{} PSWD:{}", wifi_config.sta.ssid,
-                   wifi_config.sta.password);
+    AE_TELE_DEBUG(kAdapterWifiEventConnected, "Connected to AP");
     wifi_connected_event_.Emit(true);
   } else if (bits & WIFI_FAIL_BIT) {
-    AE_TELED_DEBUG("Failed to connect to SSID:{}, PSWD:{}",
-                   wifi_config.sta.ssid, wifi_config.sta.password);
+    AE_TELE_DEBUG(kAdapterWifiEventDisconnected, "Failed to connect to AP");
     wifi_connected_event_.Emit(false);
   } else {
-    AE_TELED_DEBUG("UNEXPECTED EVENT");
+    AE_TELE_DEBUG(kAdapterWifiEventUnexpected, "UNEXPECTED EVENT {}",
+                  static_cast<int>(bits));
   }
 
   /* The event will not be processed after unregister */
