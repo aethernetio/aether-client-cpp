@@ -22,11 +22,11 @@ IPoller::IPoller(Domain* domain) : Obj{domain} {}
 #endif
 IPoller::~IPoller() = default;
 
-[[noreturn]] IPoller::OnPollEvent::Subscriber no_return_subscriber() {
+[[noreturn]] IPoller::OnPollEventSubscriber no_return_subscriber() {
   std::abort();
 }
 
-IPoller::OnPollEvent::Subscriber IPoller::Add(DescriptorType /* descriptor */) {
+IPoller::OnPollEventSubscriber IPoller::Add(DescriptorType /* descriptor */) {
   assert(false);
   // this must never invoked
   return no_return_subscriber();

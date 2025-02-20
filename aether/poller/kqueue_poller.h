@@ -43,7 +43,7 @@ class KqueuePoller : public IPoller {
     dnv(*base_ptr_);
   }
 
-  [[nodiscard]] OnPollEvent::Subscriber Add(DescriptorType descriptor) override;
+  [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) override;
   void Remove(DescriptorType descriptor) override;
 
  private:

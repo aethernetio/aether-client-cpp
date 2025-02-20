@@ -78,9 +78,9 @@ class KqueuePoller::PollerWorker {
     close(kqueue_fd_);
   }
 
-  [[nodiscard]] KqueuePoller::OnPollEvent::Subscriber Add(
+  [[nodiscard]] KqueuePoller::OnPollEventSubscriber Add(
       DescriptorType descriptor) {
-    auto lock = std::lock_guard{ctl_mutex_};
+    auto lock = std::unique_lock{ctl_mutex_};
     AE_TELED_DEBUG("Add event descriptor {}", descriptor);
     std::array<struct kevent, 2> events;
     std::size_t index = 0;
@@ -95,7 +95,7 @@ class KqueuePoller::PollerWorker {
       AE_TELED_ERROR("Add event with error {} {}", errno, strerror(errno));
       assert(false);
     }
-    return KqueuePoller::OnPollEvent::Subscriber{poll_event_};
+    return KqueuePoller::OnPollEventSubscriber{poll_event_, std::move(lock)};
   }
 
   void Remove(DescriptorType descriptor) {
@@ -153,7 +153,6 @@ class KqueuePoller::PollerWorker {
       for (std::size_t i = 0; (i < num_events) && (i < kMaxEvents); ++i) {
         auto& ev = events[i];
         if (ev.filter == EVFILT_USER) {
-          AE_TELED_DEBUG("Got user event");
           // user event
           continue;
         }
@@ -181,7 +180,7 @@ KqueuePoller::KqueuePoller(Domain* domain) : IPoller(domain) {}
 
 KqueuePoller::~KqueuePoller() = default;
 
-[[nodiscard]] KqueuePoller::OnPollEvent::Subscriber KqueuePoller::Add(
+[[nodiscard]] KqueuePoller::OnPollEventSubscriber KqueuePoller::Add(
     DescriptorType descriptor) {
   if (!poller_worker_) {
     InitPollWorker();
@@ -197,6 +196,5 @@ void KqueuePoller::Remove(DescriptorType descriptor) {
 void KqueuePoller::InitPollWorker() {
   poller_worker_ = std::make_unique<PollerWorker>();
 }
-
 }  // namespace ae
 #endif

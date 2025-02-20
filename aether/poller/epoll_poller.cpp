@@ -75,9 +75,9 @@ class EpollPoller::PollWorker {
     AE_TELED_DEBUG("Poll worker destroyed");
   }
 
-  [[nodiscard]] EpollPoller::OnPollEvent::Subscriber Add(
+  [[nodiscard]] EpollPoller::OnPollEventSubscriber Add(
       DescriptorType descriptor) {
-    auto lock = std::lock_guard(ctl_mutex_);
+    auto lock = std::unique_lock(ctl_mutex_);
 
     AE_TELED_DEBUG("Add poller descriptor {}", descriptor);
     struct epoll_event epoll_event;
@@ -95,7 +95,7 @@ class EpollPoller::PollWorker {
       assert(false);
     }
 
-    return EpollPoller::OnPollEvent::Subscriber{poll_event_};
+    return EpollPoller::OnPollEventSubscriber{poll_event_, std::move(lock)};
   }
 
   void Remove(DescriptorType descriptor) {
@@ -207,8 +207,7 @@ EpollPoller::EpollPoller(Domain* domain) : IPoller(domain) {}
 
 EpollPoller::~EpollPoller() = default;
 
-EpollPoller::OnPollEvent::Subscriber EpollPoller::Add(
-    DescriptorType descriptor) {
+EpollPoller::OnPollEventSubscriber EpollPoller::Add(DescriptorType descriptor) {
   if (!poll_worker_) {
     InitPollWorker();
   }

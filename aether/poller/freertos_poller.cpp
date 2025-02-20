@@ -50,12 +50,12 @@ class FreertosPoller::PollWorker {
     AE_TELED_DEBUG("Poll worker has been destroed");
   }
 
-  [[nodiscard]] OnPollEvent::Subscriber Add(DescriptorType descriptor) {
-    auto lock = std::lock_guard(ctl_mutex_);
+  [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) {
+    auto lock = std::unique_lock(ctl_mutex_);
     AE_TELED_DEBUG("Added descriptor {}", descriptor);
     descriptors_.insert(descriptor);
     vTaskResume(myTaskHandle);
-    return OnPollEvent::Subscriber{poll_event_};
+    return OnPollEventSubscriber{poll_event_, std::move(lock)};
   }
 
   void Remove(DescriptorType descriptor) {
@@ -153,7 +153,7 @@ FreertosPoller::FreertosPoller(Domain *domain) : IPoller(domain) {}
 
 FreertosPoller::~FreertosPoller() = default;
 
-FreertosPoller::OnPollEvent::Subscriber FreertosPoller::Add(
+FreertosPoller::OnPollEventSubscriber FreertosPoller::Add(
     DescriptorType descriptor) {
   if (!poll_worker_) {
     InitPollWorker();

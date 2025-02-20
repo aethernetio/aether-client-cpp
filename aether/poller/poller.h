@@ -19,6 +19,7 @@
 
 #include "aether/obj/obj.h"
 #include "aether/events/events.h"
+#include "aether/events/events_mt.h"
 #include "aether/poller/poller_types.h"
 
 namespace ae {
@@ -34,6 +35,8 @@ class IPoller : public Obj {
    * User should check event.descriptor to match with its own.
    */
   using OnPollEvent = Event<void(PollerEvent event)>;
+  using OnPollEventSubscriber =
+      MtEventSubscriber<void(PollerEvent event), std::recursive_mutex>;
 
 #if defined AE_DISTILLATION
   explicit IPoller(Domain* domain);
@@ -49,7 +52,7 @@ class IPoller : public Obj {
    * \brief Add event for descriptor
    * User must subscribe to returned event subscriber, \see OnPollEvent
    */
-  [[nodiscard]] virtual OnPollEvent::Subscriber Add(DescriptorType descriptor);
+  [[nodiscard]] virtual OnPollEventSubscriber Add(DescriptorType descriptor);
   /**
    * \brief Remove event for descriptor
    */
