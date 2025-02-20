@@ -21,10 +21,12 @@ void tearDown() {}
 
 extern int test_format_types();
 extern int test_format_time();
+extern int test_format_str();
 
 int main() {
   int res = 0;
   res += test_format_types();
   res += test_format_time();
+  res += test_format_str();
   return res;
 }
