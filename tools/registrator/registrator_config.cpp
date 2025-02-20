@@ -48,6 +48,9 @@ int RegistratorConfig::ParseConfig() {
   AE_TELED_DEBUG("WiFi ssid={}", wifi_ssid);
   AE_TELED_DEBUG("WiFi pass={}", wifi_pass);
 
+  wifi_ssid_ = wifi_ssid;
+  wifi_pass_ = wifi_pass;
+
   std::string sodium_key = file["Aether"]["sodiumKey"];
   std::string hydrogen_key = file["Aether"]["hydrogenKey"];
 
@@ -151,4 +154,25 @@ std::vector<ae::ServerConfig> RegistratorConfig::GetServers() {
  * \brief Getter for the clients_total_.
  */
 std::uint8_t RegistratorConfig::GetClientsTotal() { return clients_total_; }
+
+/**
+ * \brief Getter for the wifi_ssid_.
+ */
+std::string RegistratorConfig::GetWiFiSsid() { return wifi_ssid_; }
+
+/**
+ * \brief Getter for the wifi_pass_.
+ */
+std::string RegistratorConfig::GetWiFiPass() { return wifi_pass_; }
+
+/**
+ * \brief Getter for the WiFi parameters is set.
+ */
+bool RegistratorConfig::GetWiFiIsSet() { 
+    bool res{false};
+
+    if (!wifi_ssid_.empty() && !wifi_pass_.empty()) res = true;
+
+    return res; 
+}
 }  // namespace ae

@@ -307,7 +307,7 @@ int AetherRegistrator(const std::string& ini_file) {
     AE_TELED_ERROR("Configuration failed.");
     return -1;
   }
-
+#define ESP32_WIFI_ADAPTER_ENABLED
   /**
    * Construct a main aether application class.
    * It's include a Domain and Aether instances accessible by getter methods.
@@ -323,17 +323,21 @@ int AetherRegistrator(const std::string& ini_file) {
         return fs;
       }}
 #if defined AE_DISTILLATION
-          .Adapter([](ae::Ptr<ae::Domain> const& domain,
+          .Adapter([&registrator_config](ae::Ptr<ae::Domain> const& domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
-#  if defined ESP32_WIFI_ADAPTER_ENABLED
-            auto adapter = domain.CreateObj<ae::Esp32WifiAdapter>(
-                ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-                std::string(wifi_ssid), std::string(wifi_pass));
-#  else
-            auto adapter = domain->CreateObj<ae::EthernetAdapter>(
-                ae::GlobalId::kEthernetAdapter, aether, aether->poller);
-#  endif
-            return adapter;
+            if (registrator_config.GetWiFiIsSet()) {
+              AE_TELED_DEBUG("ae::RegisterWifiAdapter");
+              auto adapter = domain->CreateObj<ae::RegisterWifiAdapter>(
+                  ae::GlobalId::kRegisterWifiAdapter, aether, aether->poller,
+                  registrator_config.GetWiFiSsid(),
+                  registrator_config.GetWiFiPass());
+              return adapter;
+            } else {
+              AE_TELED_DEBUG("ae::EthernetAdapter");
+              auto adapter = domain->CreateObj<ae::EthernetAdapter>(
+                  ae::GlobalId::kEthernetAdapter, aether, aether->poller);
+              return adapter;
+            }           
           })
 #  if AE_SUPPORT_REGISTRATION
           .RegCloud([&registrator_config](ae::Ptr<ae::Domain> const& domain,
