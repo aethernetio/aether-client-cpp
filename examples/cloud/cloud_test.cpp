@@ -39,8 +39,8 @@
 
 #include "aether/tele/tele.h"
 
-static constexpr std::string_view kWifiSsid = "Test123";
-static constexpr std::string_view kWifiPass = "Test123";
+static constexpr std::string_view kWifiSsid = "ufanet_16";
+static constexpr std::string_view kWifiPass = "Tryam6578";
 
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
