@@ -132,7 +132,7 @@ struct FormatScheme {
     std::uint8_t index = 0;
 
     while (!format.empty()) {
-      auto format_begin = format.find_first_of('{');
+      auto format_begin = FormatBegin(format);
       if (format_begin == std::string_view::npos) {
         break;
       }
@@ -172,6 +172,17 @@ struct FormatScheme {
                 std::begin(format_entries));
   }
 
+  static constexpr std::size_t FormatBegin(std::string_view const format) {
+    std::size_t format_begin{};
+    format_begin = format.find_first_of('{', format_begin);
+    if ((format_begin != std::string_view::npos) &&
+        (format_begin + 1) != format.size() &&
+        (format[format_begin + 1] == '{')) {  // escaped '{'
+      format_begin += 1;
+    }
+    return format_begin;
+  }
+
   std::array<FormatEntry, kCount> format_entries{};
 };
 
@@ -181,7 +192,7 @@ struct Index {
 };
 
 template <typename Func, std::size_t... Is>
-void DispatchImpl(std::size_t index, Func func,
+void DispatchImpl(std::size_t index, [[maybe_unused]] Func func,
                   std::index_sequence<Is...> const& /* seq */) {
   bool res = ((index == Is ? (func(Index<Is>{}), true) : false) || ...);
   (void)(res);
@@ -215,13 +226,9 @@ void FormatToStream(TStream& out, FormatScheme const& format_scheme,
 template <typename TStream, typename... Args>
 void Format(format_internal::FormatWriter<TStream>& out_writer,
             format_internal::FormatScheme const& format, Args&&... args) {
-  if constexpr (sizeof...(Args) == 0) {
-    out_writer.write(format.format_entries[0].before_format());
-  } else {
-    format_internal::FormatToStream(
-        out_writer, format,
-        format_internal::FormatArgs<std::decay_t<Args>...>{args...});
-  }
+  format_internal::FormatToStream(
+      out_writer, format,
+      format_internal::FormatArgs<std::decay_t<Args>...>{args...});
 }
 
 template <typename TStream, typename... Args>
@@ -235,13 +242,9 @@ std::enable_if_t<format_internal::IsStream<TStream>::value> Format(
 template <typename... Args>
 std::string Format(format_internal::FormatScheme const& format,
                    Args&&... args) {
-  if constexpr (sizeof...(Args) == 0) {
-    return std::string{format.format_entries[0].before_format()};
-  } else {
-    auto stream = std::stringstream{};
-    Format(stream, format, std::forward<Args>(args)...);
-    return stream.str();
-  }
+  auto stream = std::stringstream{};
+  Format(stream, format, std::forward<Args>(args)...);
+  return stream.str();
 }
 }  // namespace ae
 
