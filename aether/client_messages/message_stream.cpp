@@ -18,7 +18,7 @@
 
 #include "aether/methods/work_server_api/authorized_api.h"
 
-#include "aether/tele/tele.h"
+#include "aether/client_messages/client_messages_tele.h"
 
 namespace ae {
 MessageStream::MessageStream(ProtocolContext& protocol_context, Uid destination,
@@ -36,8 +36,9 @@ MessageStream::MessageStream(ProtocolContext& protocol_context, Uid destination,
       open_stream_gate_{
           protocol_context_, AuthorizedApi{},
           AuthorizedApi::OpenStreamToClient{{}, destination_, stream_id_}} {
-  AE_TELED_INFO("MessageStream create for stream: {} and destination: {}",
-                static_cast<int>(stream_id_), destination_);
+  AE_TELE_INFO(kMessageStream,
+               "MessageStream create for stream: {} and destination: {}",
+               static_cast<int>(stream_id_), destination_);
   Tie(in_byte_gate_, debug_gate_, stream_api_gate_, open_stream_gate_,
       out_byte_gate_);
 }
@@ -67,10 +68,11 @@ Uid MessageStream::destination() const { return destination_; }
 StreamId MessageStream::stream_id() const { return stream_id_; }
 
 void MessageStream::set_stream_id(StreamId stream_id) {
-  AE_TELED_INFO(
-      "MessageStream change stream {} to stream: {} for destination: "
-      "{}",
-      static_cast<int>(stream_id_), static_cast<int>(stream_id), destination_);
+  AE_TELE_DEBUG(kMessageStreamChangeId,
+                "MessageStream change stream {} to stream: {} for destination: "
+                "{}",
+                static_cast<int>(stream_id_), static_cast<int>(stream_id),
+                destination_);
 
   stream_id_ = stream_id;
   stream_api_gate_ = StreamApiGate{protocol_context_, stream_id_};
