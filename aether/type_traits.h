@@ -167,4 +167,15 @@ struct FunctionSignature {
   using FuncPtr = typename FuncSignatureImp::FuncPtr;
 };
 
+template <std::size_t I, auto... args>
+constexpr auto ArgAt() {
+  return std::get<I>(std::forward_as_tuple(args...));
+}
+
+template <std::size_t I, typename... Ts>
+constexpr auto TypeAt() -> std::tuple_element_t<I, std::tuple<Ts...>>;
+
+template <std::size_t I, typename... Ts>
+using TypeAt_t = decltype(TypeAt<I, Ts...>());
+
 #endif  // AETHER_TYPE_TRAITS_H_ */
