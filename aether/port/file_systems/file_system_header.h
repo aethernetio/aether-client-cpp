@@ -21,6 +21,7 @@
 
 #include <map>
 #include <cstdint>
+#include <string>
 
 #include "aether/obj/obj_id.h"
 #include "aether/port/file_systems/file_system_base.h"
@@ -34,7 +35,7 @@ class FileSystemHeaderFacility : public FileSystemBase {
   using ObjClassData = std::map<ae::ObjId, ClassData>;
 
  public:
-  FileSystemHeaderFacility();
+  FileSystemHeaderFacility(const std::string &header_file);
   ~FileSystemHeaderFacility() override;
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,
@@ -48,7 +49,8 @@ class FileSystemHeaderFacility : public FileSystemBase {
   void LoadObjData(ObjClassData& obj_data);
   void SaveObjData(ObjClassData& obj_data);
 
-  std::unique_ptr<DriverHeader> driver_fs;
+  std::unique_ptr<DriverHeader> driver_fs_;
+  std::string path_{};
 };
 }  // namespace ae
 

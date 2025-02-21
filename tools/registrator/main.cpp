@@ -20,26 +20,38 @@
 
 #include "aether/config.h"
 
-extern int AetherRegistrator(const std::string &ini_file);
+extern int AetherRegistrator(const std::string &ini_file, const std::string &header_file);
 
 // Test function.
-int test(const std::string &ini_file) { return AetherRegistrator(ini_file); }
+int test(const std::string &ini_file, const std::string &header_file) {
+  return AetherRegistrator(ini_file, header_file);
+}
 
 #if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
      defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
 int main(int argc, char *argv[]) {
+  std::string ini_file{};
+  std::string header_file{};
+
+  if (argc <= 1) {
+    std::cerr << "The configuration file is not specified!\n";
+    return -5;
+  }
+
   if (argc > 1) {
-    std::string ini_file = std::string(argv[1]);
+    ini_file = std::string(argv[1]);
+  }
+  if (!std::filesystem::exists(ini_file)) {
+    std::cerr << "The configuration file was not found!\n";
+    return -4;
+  }
 
-    if (std::filesystem::exists(ini_file)) {
-      return test(ini_file);
-    } else {
-      std::cerr << "The configuration file was not found!\n";
-      return -4;
-    }
-  };
+  header_file = std::string("config/file_system_init.h");
+  if (argc > 2) {
+    header_file = std::string(argv[2]);
+  }
 
-  std::cerr << "The configuration file is not specified!\n";
-  return -5;
+  return test(ini_file, header_file);
+ 
 }
 #endif

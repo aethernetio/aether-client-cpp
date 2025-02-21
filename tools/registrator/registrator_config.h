@@ -47,12 +47,17 @@ class RegistratorConfig {
   std::vector<ae::ClientParents> GetParents();
   std::vector<ae::ServerConfig> GetServers();
   std::uint8_t GetClientsTotal();
+  std::string GetWiFiSsid();
+  std::string GetWiFiPass();
+  bool GetWiFiIsSet();
 
  private:
   const std::string ini_file_;
   std::vector<ae::ClientParents> parents_;
   std::vector<ae::ServerConfig> servers_;
   std::uint8_t clients_total_{0};
+  std::string wifi_ssid_{};
+  std::string wifi_pass_{};
 };
 }  // namespace ae
 
