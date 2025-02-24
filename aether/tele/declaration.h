@@ -25,12 +25,12 @@
 #include <string_view>
 
 #include "aether/tele/levels.h"
+#include "aether/tele/modules.h"
 
 namespace ae::tele {
 struct Declaration {
-  std::uint32_t index_;
-  std::uint32_t module_;
-  Level::underlined_t level_;
+  std::uint32_t index;
+  Module module;
 };
 
 struct CompileOption {

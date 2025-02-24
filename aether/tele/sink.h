@@ -86,10 +86,10 @@ class TeleSink {
   using ConfigProviderType = ConfigProvider;
 
   template <Level::underlined_t l, std::uint32_t m>
-  static constexpr auto TeleConfig =
-      ConfigProviderType::template StaticTeleConfig<l, m>;
+  using TeleConfig =
+      typename ConfigProviderType::template StaticTeleConfig<l, m>;
 
-  static constexpr auto EnvConfig = ConfigProviderType::StaticEnvConfig;
+  using EnvConfig = typename ConfigProviderType::StaticEnvConfig;
 
   static TeleSink& Instance() {
     static TeleSink sink;

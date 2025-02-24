@@ -42,7 +42,7 @@ void IoStreamTrap::MetricsStream::add_duration(std::uint32_t duration) {
 IoStreamTrap::MetricsStream IoStreamTrap::metric_stream(
     Declaration const& decl) {
   auto [it, _] = metrics_.emplace(
-      decl.index_,
+      decl.index,
       Metric{{}, {}, {}, std::numeric_limits<std::uint32_t>::max()});
   return MetricsStream{it->second};
 }

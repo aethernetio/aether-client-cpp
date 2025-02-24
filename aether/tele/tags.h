@@ -31,13 +31,13 @@
 namespace ae::tele {
 namespace tags_internal {
 template <auto Tag, auto N>
-static inline constexpr std::int32_t kCounter = kCounter<Tag, N - 1>;
+inline constexpr std::int32_t kCounter = kCounter<Tag, N - 1>;
 
 template <auto Tag>
 inline constexpr std::int32_t kCounter<Tag, 0> = 0;
 
 template <auto Tag, std::int32_t N>
-static inline constexpr std::uint32_t kAeTagIndexCounter =
+inline constexpr std::uint32_t kAeTagIndexCounter =
     std::numeric_limits<std::uint32_t>::max();
 template <auto Tag>
 inline constexpr std::uint32_t kAeTagIndexCounter<Tag, 0> = 0;
@@ -93,8 +93,8 @@ struct Tag {
 /**
  * \brief Register Tag with index specified
  */
-#define AE_TAG_INDEXED(NAME, MODULE, INDEX)                                  \
-  static inline constexpr auto NAME = ::ae::tele::Tag{INDEX, MODULE, #NAME}; \
+#define AE_TAG_INDEXED(NAME, MODULE, INDEX)                           \
+  inline constexpr auto NAME = ::ae::tele::Tag{INDEX, MODULE, #NAME}; \
   _AE_TAG_INDEX_WRITE(NAME.index)
 
 /**

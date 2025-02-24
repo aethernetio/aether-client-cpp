@@ -37,6 +37,6 @@ struct Module {
 }  // namespace ae::tele
 
 #define AE_TELE_MODULE(NAME, VALUE) \
-  static inline constexpr auto NAME = ae::tele::Module { VALUE, #NAME, }
+  inline constexpr auto NAME = ae::tele::Module { VALUE, #NAME, }
 
 #endif  // AETHER_TELE_MODULES_H_
