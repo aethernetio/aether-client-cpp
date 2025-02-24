@@ -118,7 +118,7 @@ struct Tele<TSink, TSinkConfig,
   using SinkConfig = TSinkConfig;
 
   constexpr Tele(Sink& sink, Tag const& tag, Level::underlined_t level,
-                 std::string_view file, int line)
+                 char const* file, int line)
       : Tele(sink, Declaration{tag.index, tag.module}) {
     if constexpr (IsAnyLogs<SinkConfig>()) {
       auto log_stream =
@@ -145,7 +145,7 @@ struct Tele<TSink, TSinkConfig,
 
   template <typename... TArgs>
   constexpr Tele(Sink& sink, Tag const& tag, Level::underlined_t level,
-                 std::string_view file, int line, std::string_view format,
+                 char const* file, int line, std::string_view format,
                  TArgs const&... args)
       : Tele(sink, Declaration{tag.index, tag.module}) {
     if constexpr (IsAnyLogs<SinkConfig>()) {
