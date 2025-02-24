@@ -18,6 +18,7 @@
 #define AETHER_TYPE_TRAITS_H_
 
 #include <array>
+#include <tuple>
 #include <string>
 #include <optional>
 #include <type_traits>
