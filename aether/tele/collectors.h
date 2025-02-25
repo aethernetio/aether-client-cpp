@@ -59,7 +59,9 @@ class OptionalStorage {
       : data{constructor()} {}
 
   Data& operator*() noexcept { return data; }
+  Data const& operator*() const noexcept { return data; }
   Data* operator->() noexcept { return &data; }
+  Data const* operator->() const noexcept { return &data; }
 
  private:
   Data data;
@@ -74,119 +76,117 @@ class OptionalStorage<T, false> {
   constexpr explicit OptionalStorage(UArgs&&...) {}
 
   Null operator*() noexcept { return {}; }
+  Null operator*() const noexcept { return {}; }
   Null operator->() noexcept { return {}; }
+  Null operator->() const noexcept { return {}; }
 };
 
 template <typename TConfig>
-constexpr bool IsAnyLogs(TConfig const& config) {
-  return config.index_logs_ || config.start_time_logs_ ||
-         config.level_module_logs_ || config.location_logs_ ||
-         config.name_logs_ || config.blob_logs_;
+constexpr bool IsAnyLogs() {
+  return TConfig::kIndexLogs || TConfig::kStartTimeLogs ||
+         TConfig::kLevelModuleLogs || TConfig::kLocationLogs ||
+         TConfig::kNameLogs || TConfig::kBlobLogs;
 }
 
 template <typename TConfig>
-constexpr bool IsAnyMetrics(TConfig const& config) {
-  return config.count_metrics_ || config.time_metrics_;
+constexpr bool IsAnyMetrics() {
+  return TConfig::kCountMetrics || TConfig::kTimeMetrics;
 }
 
 template <typename TConfig>
-constexpr bool IsAnyTele(TConfig config) {
-  return IsAnyLogs(config) || IsAnyMetrics(config);
+constexpr bool IsAnyTele() {
+  return IsAnyLogs<TConfig>() || IsAnyMetrics<TConfig>();
 }
 
-template <typename TSink, Level::underlined_t level, std::uint32_t module,
-          typename _ = void>
+template <typename TSink, typename TSinkConfig, typename _ = void>
 struct Tele {
   // Dummy tele
   template <typename... TArgs>
   constexpr explicit Tele(TArgs&&... /* args */) {}
 };
 
-template <typename TSink, Level::underlined_t level, std::uint32_t module>
-struct Tele<TSink, level, module,
-            std::enable_if_t<
-                IsAnyTele(TSink::template TeleConfig<level, module>), void>> {
+template <typename TSink, typename TSinkConfig>
+
+struct Tele<TSink, TSinkConfig,
+            std::enable_if_t<IsAnyTele<TSinkConfig>(), void>> {
   using Sink = TSink;
   using LogStream =
       decltype(std::declval<Sink>().trap()->log_stream(Declaration{}));
   using MetricStream =
       decltype(std::declval<Sink>().trap()->metric_stream(Declaration{}));
 
-  static constexpr auto SinkConfig = Sink::template TeleConfig<level, module>;
+  using SinkConfig = TSinkConfig;
+
+  constexpr Tele(Sink& sink, Tag const& tag, Level::underlined_t level,
+                 char const* file, int line)
+      : Tele(sink, Declaration{tag.index, tag.module}) {
+    if constexpr (IsAnyLogs<SinkConfig>()) {
+      auto log_stream =
+          sink.trap()->log_stream(Declaration{tag.index, tag.module});
+      if constexpr (SinkConfig::kIndexLogs) {
+        log_stream.index(tag.index);
+      }
+      if constexpr (SinkConfig::kStartTimeLogs) {
+        log_stream.start_time(timer_->start);
+      }
+      if constexpr (SinkConfig::kLevelModuleLogs) {
+        log_stream.level(level);
+        log_stream.module(tag.module);
+      }
+      if constexpr (SinkConfig::kLocationLogs) {
+        log_stream.file(file);
+        log_stream.line(static_cast<std::uint32_t>(line));
+      }
+      if constexpr (SinkConfig::kNameLogs) {
+        log_stream.name(tag.name);
+      }
+    }
+  }
 
   template <typename... TArgs>
-  constexpr Tele(Sink& sink, Tag const& tag, TArgs&&... args)
-      : Tele(sink, Declaration{tag.index, tag.module.value, level}, tag,
-             std::forward<TArgs>(args)...) {}
+  constexpr Tele(Sink& sink, Tag const& tag, Level::underlined_t level,
+                 char const* file, int line, std::string_view format,
+                 TArgs const&... args)
+      : Tele(sink, Declaration{tag.index, tag.module}) {
+    if constexpr (IsAnyLogs<SinkConfig>()) {
+      auto log_stream =
+          sink.trap()->log_stream(Declaration{tag.index, tag.module});
+      if constexpr (SinkConfig::kIndexLogs) {
+        log_stream.index(tag.index);
+      }
+      if constexpr (SinkConfig::kStartTimeLogs) {
+        log_stream.start_time(timer_->start);
+      }
+      if constexpr (SinkConfig::kLevelModuleLogs) {
+        log_stream.level(level);
+        log_stream.module(tag.module);
+      }
+      if constexpr (SinkConfig::kLocationLogs) {
+        log_stream.file(file);
+        log_stream.line(static_cast<std::uint32_t>(line));
+      }
+      if constexpr (SinkConfig::kNameLogs) {
+        log_stream.name(tag.name);
+      }
+      if constexpr (SinkConfig::kBlobLogs) {
+        log_stream.blob(format, args...);
+      }
+    }
+  }
 
   ~Tele() {
-    if constexpr (SinkConfig.time_metrics_) {
-      metric_stream->add_duration(timer->elapsed());
+    if constexpr (SinkConfig::kTimeMetrics) {
+      metric_stream_->add_duration(timer_->elapsed());
     }
   }
 
  private:
-  constexpr Tele(Sink& sink, Declaration decl)
-      : timer{}, metric_stream{[&sink, &decl] {
+  constexpr Tele(Sink& sink, Declaration const& decl)
+      : timer_{}, metric_stream_{[&sink, &decl] {
           return sink.trap()->metric_stream(decl);
         }} {
-    if constexpr (SinkConfig.count_metrics_) {
-      metric_stream->add_count(1);
-    }
-  }
-
-  constexpr Tele(Sink& sink, Declaration decl, Tag const& tag,
-                 std::string_view file, int line)
-      : Tele(sink, decl) {
-    if constexpr (IsAnyLogs(SinkConfig)) {
-      auto log_stream = sink.trap()->log_stream(decl);
-      if constexpr (SinkConfig.index_logs_) {
-        log_stream.index(decl.index_);
-      }
-      if constexpr (SinkConfig.start_time_logs_) {
-        log_stream.start_time(timer->start);
-      }
-      if constexpr (SinkConfig.level_module_logs_) {
-        log_stream.level(level);
-        log_stream.module(tag.module);
-      }
-      if constexpr (SinkConfig.location_logs_) {
-        log_stream.file(file);
-        log_stream.line(static_cast<std::uint32_t>(line));
-      }
-      if constexpr (SinkConfig.name_logs_) {
-        log_stream.name(tag.name);
-      }
-    }
-  }
-
-  template <typename... TArgs>
-  constexpr Tele(Sink& sink, Declaration decl, Tag const& tag,
-                 std::string_view file, int line, std::string_view format,
-                 TArgs&&... args)
-      : Tele(sink, decl) {
-    if constexpr (IsAnyLogs(SinkConfig)) {
-      auto log_stream = sink.trap()->log_stream(decl);
-      if constexpr (SinkConfig.index_logs_) {
-        log_stream.index(decl.index_);
-      }
-      if constexpr (SinkConfig.start_time_logs_) {
-        log_stream.start_time(timer->start);
-      }
-      if constexpr (SinkConfig.level_module_logs_) {
-        log_stream.level(level);
-        log_stream.module(tag.module);
-      }
-      if constexpr (SinkConfig.location_logs_) {
-        log_stream.file(file);
-        log_stream.line(static_cast<std::uint32_t>(line));
-      }
-      if constexpr (SinkConfig.name_logs_) {
-        log_stream.name(tag.name);
-      }
-      if constexpr (SinkConfig.blob_logs_) {
-        log_stream.blob(format, std::forward<TArgs>(args)...);
-      }
+    if constexpr (SinkConfig::kCountMetrics) {
+      metric_stream_->add_count(1);
     }
   }
 
@@ -194,10 +194,9 @@ struct Tele<TSink, level, module,
    * think how to optimize memory for this two fields considering the
    * alignment
    */
-  OptionalStorage<Timer,
-                  SinkConfig.time_metrics_ || SinkConfig.start_time_logs_>
-      timer;
-  OptionalStorage<MetricStream, IsAnyMetrics(SinkConfig)> metric_stream;
+  OptionalStorage<Timer, SinkConfig::kTimeMetrics || SinkConfig::kStartTimeLogs>
+      timer_;
+  OptionalStorage<MetricStream, IsAnyMetrics<SinkConfig>()> metric_stream_;
 };
 }  // namespace ae::tele
 

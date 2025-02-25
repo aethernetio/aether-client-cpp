@@ -39,8 +39,8 @@
 
 #include "aether/tele/tele.h"
 
-static constexpr std::string_view kWifiSsid = "ufanet_16";
-static constexpr std::string_view kWifiPass = "Tryam6578";
+static constexpr std::string_view kWifiSsid = "Test";
+static constexpr std::string_view kWifiPass = "Test";
 
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
@@ -291,7 +291,7 @@ int AetherCloudExample() {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = domain->CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-                std::string(WIFI_SSID), std::string(WIFI_PASS));
+                std::string(kWifiSsid), std::string(kWifiPass));
 #  else
             auto adapter = domain->CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, aether, aether->poller);

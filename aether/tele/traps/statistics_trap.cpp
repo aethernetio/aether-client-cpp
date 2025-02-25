@@ -246,7 +246,7 @@ StatisticsTrap::MetricStream StatisticsTrap::metric_stream(
   auto statistics = statistics_store_.Get();
   auto metrics = ProxyStatistics{statistics, statistics->metrics()};
   auto& m =
-      metrics->metrics[static_cast<MetricsStore::PackedIndex>(decl.index_)];
+      metrics->metrics[static_cast<MetricsStore::PackedIndex>(decl.index)];
   return {std::move(metrics), m};
 }
 

@@ -16,8 +16,6 @@
 
 #include "aether/actions/action_trigger.h"
 
-#include <mutex>
-
 namespace ae {
 ActionTrigger::ActionTrigger() : sync_object_{MakeRcPtr<SyncObject>()} {}
 

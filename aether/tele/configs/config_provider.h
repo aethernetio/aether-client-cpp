@@ -66,68 +66,77 @@ constexpr bool IsAll(T const (& /* value */)[Size]) {
     IsEnabled<MODULE>(OPTION)))
 
 struct ConfigProvider {
+  template <bool count_metrics = true, bool time_metrics = true,
+            bool index_logs = true, bool start_time_logs = true,
+            bool level_module_logs = true, bool location_logs = true,
+            bool name_logs = true, bool blob_logs = true>
   struct TeleConfig {
-    bool count_metrics_{};
-    bool time_metrics_{};
-    bool index_logs_{};
-    bool start_time_logs_{};
-    bool level_module_logs_{};
-    bool location_logs_{};
-    bool name_logs_{};
-    bool blob_logs_{};
+    static constexpr bool kCountMetrics = count_metrics;
+    static constexpr bool kTimeMetrics = time_metrics;
+    static constexpr bool kIndexLogs = index_logs;
+    static constexpr bool kStartTimeLogs = start_time_logs;
+    static constexpr bool kLevelModuleLogs = level_module_logs;
+    static constexpr bool kLocationLogs = location_logs;
+    static constexpr bool kNameLogs = name_logs;
+    static constexpr bool kBlobLogs = blob_logs;
   };
 
+  template <bool compiler = true, bool platform_type = true,
+            bool compilation_options = true, bool library_version = true,
+            bool api_version = true, bool cpu_type = true,
+            bool custom_data = true>
   struct EnvConfig {
-    bool compiler_{};
-    bool platform_type_{};
-    bool compilation_options_{};
-    bool library_version_{};
-    bool api_version_{};
-    bool cpu_type_{};
-    bool custom_data_{};
+    static constexpr bool kCompiler{compiler};
+    static constexpr bool kPlatformType{platform_type};
+    static constexpr bool kCompilationOptions{compilation_options};
+    static constexpr bool kLibraryVersion{library_version};
+    static constexpr bool kApiVersion{api_version};
+    static constexpr bool kCpuType{cpu_type};
+    static constexpr bool kCustomData{custom_data};
   };
 
   template <Level::underlined_t level, std::uint32_t module>
   static constexpr auto GetStaticConfig() {
-    return TeleConfig{// count must be always enabled if metrics enabled
-                      _AE_MODULE_CONFIG(module, AE_TELE_METRICS_MODULES),
-                      // time metrics
-                      _AE_MODULE_CONFIG(module, AE_TELE_METRICS_MODULES) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_METRICS_DURATION),
-                      // index must be always enabled if log enabled
-                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES),
-                      // start time
-                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_TIME_POINT),
-                      // level and module
-                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_LEVEL_MODULE),
-                      // location
-                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_LOCATION),
-                      // name
-                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_NAME),
-                      // blob
-                      IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
-                          _AE_MODULE_CONFIG(module, AE_TELE_LOG_BLOB)};
+    return TeleConfig<
+        //
+        // count must be always enabled if metrics enabled
+        _AE_MODULE_CONFIG(module, AE_TELE_METRICS_MODULES),
+        // time metrics
+        _AE_MODULE_CONFIG(module, AE_TELE_METRICS_MODULES) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_METRICS_DURATION),
+        // index must be always enabled if log enabled
+        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES),
+        // start time
+        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_TIME_POINT),
+        // level and module
+        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_LEVEL_MODULE),
+        // location
+        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_LOCATION),
+        // name
+        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_NAME),
+        // blob
+        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_LOG_BLOB)>{};
   }
 
   template <Level::underlined_t level, std::uint32_t module>
-  static constexpr TeleConfig StaticTeleConfig =
-      GetStaticConfig<level, module>();
+  using StaticTeleConfig = decltype(GetStaticConfig<level, module>());
 
-  static constexpr EnvConfig StaticEnvConfig =
-      EnvConfig{AE_TELE_COMPILATION_INFO != 0, AE_TELE_COMPILATION_INFO != 0,
+  using StaticEnvConfig =
+      EnvConfig<AE_TELE_COMPILATION_INFO != 0, AE_TELE_COMPILATION_INFO != 0,
                 AE_TELE_COMPILATION_INFO != 0, AE_TELE_COMPILATION_INFO != 0,
                 AE_TELE_COMPILATION_INFO != 0, AE_TELE_COMPILATION_INFO != 0,
-                AE_TELE_RUNTIME_INFO};
+                AE_TELE_RUNTIME_INFO>;
 };
 }  // namespace ae::tele
 

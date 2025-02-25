@@ -43,6 +43,8 @@
 
 #define AETHER_TELE_TELE_H_
 
+#include "aether/type_traits.h"
+
 #include "aether/tele/sink.h"
 #include "aether/tele/tags.h"
 #include "aether/tele/modules.h"
@@ -171,7 +173,7 @@ struct TeleTrap {
     return {log_lines_.emplace_back()};
   }
   MetricStream metric_stream(ae::tele::Declaration decl_) {
-    return {metric_data_[decl_.index_]};
+    return {metric_data_[decl_.index]};
   }
 };
 
@@ -179,41 +181,38 @@ template <bool Count = true, bool Time = true, bool Index = true,
           bool StartTime = true, bool LevelModule = true, bool Location = true,
           bool Text = true, bool Blob = true>
 struct ConfigProvider {
+  template <bool... args>
   struct TeleConfig {
-    bool count_metrics_;
-    bool time_metrics_;
-    bool index_logs_;
-    bool start_time_logs_;
-    bool level_module_logs_;
-    bool location_logs_;
-    bool name_logs_;
-    bool blob_logs_;
+    static constexpr bool kCountMetrics = ArgAt<0, args...>();
+    static constexpr bool kTimeMetrics = ArgAt<1, args...>();
+    static constexpr bool kIndexLogs = ArgAt<2, args...>();
+    static constexpr bool kStartTimeLogs = ArgAt<3, args...>();
+    static constexpr bool kLevelModuleLogs = ArgAt<4, args...>();
+    static constexpr bool kLocationLogs = ArgAt<5, args...>();
+    static constexpr bool kNameLogs = ArgAt<6, args...>();
+    static constexpr bool kBlobLogs = ArgAt<7, args...>();
   };
 
+  template <bool... args>
   struct EnvConfig {
-    bool compiler_;
-    bool platform_type_;
-    bool compilation_options_;
-    bool library_version_;
-    bool api_version_;
-    bool cpu_type_;
+    static constexpr bool kCompiler = ArgAt<0, args...>();
+    static constexpr bool kPlatformType = ArgAt<1, args...>();
+    static constexpr bool kCompilationOptions = ArgAt<2, args...>();
+    static constexpr bool kLibraryVersion = ArgAt<3, args...>();
+    static constexpr bool kApiVersion = ArgAt<4, args...>();
+    static constexpr bool kCpuType = ArgAt<5, args...>();
   };
 
   template <ae::tele::Level::underlined_t level, std::uint32_t module>
-  static constexpr TeleConfig StaticTeleConfig = TeleConfig{
-      Count, Time, Index, StartTime, LevelModule, Location, Text, Blob};
+  using StaticTeleConfig = TeleConfig<Count, Time, Index, StartTime,
+                                      LevelModule, Location, Text, Blob>;
 
-  static constexpr EnvConfig StaticEnvConfig =
-      EnvConfig{true, true, true, true, true};
+  using StaticEnvConfig = EnvConfig<true, true, true, true, true>;
 };
 }  // namespace tele_configuration
 
 void test_TeleConfigurations() {
-  constexpr auto TestTag = Tag{
-      12,
-      MLog,
-      "Test",
-  };
+  constexpr auto TestTag = Tag{12, MLog, "Test"};
   {
     // all enabled
     using Sink = TeleSink<tele_configuration::TeleTrap,
@@ -221,10 +220,12 @@ void test_TeleConfigurations() {
     auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
 
     Sink::InitSink(tele_trap);
-    int remember_line = __LINE__ + 3;
+    int remember_line = __LINE__ + 4;
     {
-      auto t = Tele<Sink, Level::kDebug, TestTag.module.value>{
-          Sink::Instance(), TestTag, __FILE__, __LINE__, "message {}", 12};
+      auto t =
+          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
+              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
+              "message {}",     12};
 
       TEST_ASSERT_EQUAL(16, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -256,8 +257,11 @@ void test_TeleConfigurations() {
 
     Sink::InitSink(tele_trap);
     {
-      auto t = Tele<Sink, Level::kDebug, TestTag.module.value>{
-          Sink::Instance(), TestTag, __FILE__, __LINE__, "message {}", 12};
+      auto t =
+          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
+              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
+              "message {}",     12};
+
       TEST_ASSERT_EQUAL(16, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -276,8 +280,11 @@ void test_TeleConfigurations() {
     auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
     Sink::InitSink(tele_trap);
     {
-      auto t = Tele<Sink, Level::kDebug, TestTag.module.value>{
-          Sink::Instance(), TestTag, __FILE__, __LINE__, "message {}", 12};
+      auto t =
+          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
+              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
+              "message {}",     12};
+
       TEST_ASSERT_EQUAL(16, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -307,8 +314,11 @@ void test_TeleConfigurations() {
 
     Sink::InitSink(tele_trap);
     {
-      auto t = Tele<Sink, Level::kDebug, TestTag.module.value>{
-          Sink::Instance(), TestTag, __FILE__, __LINE__, "message {}", 12};
+      auto t =
+          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
+              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
+              "message {}",     12};
+
       TEST_ASSERT_EQUAL(1, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -325,8 +335,11 @@ void test_TeleConfigurations() {
 
     Sink::InitSink(tele_trap);
     {
-      auto t = Tele<Sink, Level::kDebug, TestTag.module.value>{
-          Sink::Instance(), TestTag, __FILE__, __LINE__, "message {}", 12};
+      auto t =
+          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
+              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
+              "message {}",     12};
+
       TEST_ASSERT_EQUAL(2, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
