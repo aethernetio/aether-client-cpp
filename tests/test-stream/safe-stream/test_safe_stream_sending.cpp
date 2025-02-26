@@ -234,14 +234,22 @@ void test_SafeStreamSendingRepeat() {
 
   TEST_ASSERT_EQUAL(100, received_data.size());
 
-  ap.Update(epoch += std::chrono::milliseconds{52});
+  ap.Update(
+      epoch += std::chrono::milliseconds{
+          static_cast<std::uint64_t>(50 * AE_SAFE_STREAM_RTO_GROW_FACTOR) + 2});
   TEST_ASSERT_EQUAL(200, received_data.size());
 
-  ap.Update(epoch += std::chrono::milliseconds{52});
+  ap.Update(
+      epoch += std::chrono::milliseconds{
+          static_cast<std::uint64_t>(50 * AE_SAFE_STREAM_RTO_GROW_FACTOR * 2) +
+          2});
   TEST_ASSERT_EQUAL(300, received_data.size());
 
   // repeat count exceeded
-  ap.Update(epoch += std::chrono::milliseconds{52});
+  ap.Update(
+      epoch += std::chrono::milliseconds{
+          static_cast<std::uint64_t>(50 * AE_SAFE_STREAM_RTO_GROW_FACTOR * 3) +
+          2});
   TEST_ASSERT_EQUAL(300, received_data.size());
   TEST_ASSERT(sending_error);
 }
