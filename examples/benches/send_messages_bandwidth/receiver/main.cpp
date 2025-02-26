@@ -31,33 +31,7 @@
 namespace ae::bench {
 
 int test_receiver_bandwidth() {
-  auto aether_app = ae::AetherApp::Construct(
-      AetherAppConstructor{}
-#if defined AE_DISTILLATION
-#  if AE_SUPPORT_REGISTRATION
-          .RegCloud([](ae::Ptr<ae::Domain> const& domain,
-                       ae::Aether::ptr const& /* aether */) {
-            auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
-                ae::kRegistrationCloud);
-            // localhost
-            registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
-                {ae::IpAddress{ae::IpAddress::Version::kIpV4, {{127, 0, 0, 1}}},
-                 9010},
-                ae::Protocol::kTcp});
-            // cloud address
-            registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
-                {ae::IpAddress{ae::IpAddress::Version::kIpV4,
-                               {{34, 60, 244, 148}}},
-                 9010},
-                ae::Protocol::kTcp});
-            // cloud name address
-            registration_cloud->AddServerSettings(ae::NameAddress{
-                "registration.aethernet.io", 9010, ae::Protocol::kTcp});
-            return registration_cloud;
-          })
-#  endif  // AE_SUPPORT_REGISTRATION
-#endif
-  );
+  auto aether_app = ae::AetherApp::Construct(AetherAppConstructor{});
 
   ae::Client::ptr client;
 

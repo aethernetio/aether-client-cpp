@@ -340,7 +340,8 @@ int AetherButtonExample() {
       ae::AetherAppConstructor{
 #if !AE_SUPPORT_REGISTRATION
           []() {
-            auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>(std::string(""));
+            auto fs =
+                ae::MakePtr<ae::FileSystemHeaderFacility>(std::string(""));
             return fs;
           }
 #endif  // AE_SUPPORT_REGISTRATION
@@ -358,29 +359,7 @@ int AetherButtonExample() {
 #  endif  // ESP32_WIFI_ADAPTER_ENABLED
             return adapter;
           })
-#  if AE_SUPPORT_REGISTRATION
-          .RegCloud([](ae::Ptr<ae::Domain> const& domain,
-                       ae::Aether::ptr const& /* aether */) {
-            auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
-                ae::kRegistrationCloud);
-            // localhost
-            registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
-                {ae::IpAddress{ae::IpAddress::Version::kIpV4, {127, 0, 0, 1}},
-                 9010},
-                ae::Protocol::kTcp});
-            // cloud address
-            registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
-                {ae::IpAddress{ae::IpAddress::Version::kIpV4,
-                               {{34, 60, 244, 148}}},
-                 9010},
-                ae::Protocol::kTcp});
-            // cloud name address
-            registration_cloud->AddServerSettings(ae::NameAddress{
-                "registration.aethernet.io", 9010, ae::Protocol::kTcp});
-            return registration_cloud;
-          })
-#  endif  // AE_SUPPORT_REGISTRATION
-#endif    // AE_DISTILLATION
+#endif  // AE_DISTILLATION
   );
 
   auto key_led_test_action = ae::key_led_test::KeyLedTestAction{aether_app};

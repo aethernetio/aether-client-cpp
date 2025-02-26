@@ -190,32 +190,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
 };
 
 int test_send_message_delays(std::ostream& result_stream) {
-  auto aether_app = AetherApp::Construct(
-      AetherAppConstructor{}
-#if AE_DISTILLATION
-#  if AE_SUPPORT_REGISTRATION
-          .RegCloud([](Ptr<Domain> const& domain, auto const&) {
-            auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
-                ae::kRegistrationCloud);
-            // localhost
-            registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
-                {ae::IpAddress{ae::IpAddress::Version::kIpV4, {{127, 0, 0, 1}}},
-                 9010},
-                ae::Protocol::kTcp});
-            // cloud address
-            registration_cloud->AddServerSettings(ae::IpAddressPortProtocol{
-                {ae::IpAddress{ae::IpAddress::Version::kIpV4,
-                               {{34, 60, 244, 148}}},
-                 9010},
-                ae::Protocol::kTcp});
-            // cloud name address
-            registration_cloud->AddServerSettings(ae::NameAddress{
-                "registration.aethernet.io", 9010, ae::Protocol::kTcp});
-            return registration_cloud;
-          })
-#  endif
-#endif
-  );
+  auto aether_app = AetherApp::Construct(AetherAppConstructor{});
 
   auto test_action = TestSendMessageDelaysAction{aether_app, result_stream};
   auto success =
