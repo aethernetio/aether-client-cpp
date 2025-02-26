@@ -29,7 +29,9 @@ add_compile_definitions("UNITY_INCLUDE_DOUBLE")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
-set(AE_DISTILLATION ON CACHE BOOL "" FORCE)
+if (NOT DEFINED AE_DISTILLATION)
+  set(AE_DISTILLATION On)
+endif()
 
 if (AE_ADDRESS_SANITIZE)
   add_compile_options(-fsanitize=address)
