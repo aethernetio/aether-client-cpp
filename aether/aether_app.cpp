@@ -17,6 +17,7 @@
 #include "aether/aether_app.h"
 
 #include "aether/literal_array.h"
+#include "aether/address_parser.h"
 
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"
@@ -56,6 +57,13 @@ Ptr<AetherApp> AetherApp::Construct(AetherAppConstructor&& constructor) {
           : [&]() {
               auto reg_c = app->domain_->CreateObj<RegistrationCloud>(
                   kRegistrationCloud);
+#    if defined _AE_REG_CLOUD_IP
+              auto reg_cloud_ip =
+                  IpAddressParser{}.StringToIP(_AE_REG_CLOUD_IP);
+              assert(reg_cloud_ip.has_value());
+              reg_c->AddServerSettings(
+                  IpAddressPortProtocol{{*reg_cloud_ip, 9010}, Protocol::kTcp});
+#    endif
 #    if !AE_SUPPORT_CLOUD_DNS
               reg_c->AddServerSettings(IpAddressPortProtocol{
                   {IpAddress{IpAddress::Version::kIpV4, {{34, 60, 244, 148}}},

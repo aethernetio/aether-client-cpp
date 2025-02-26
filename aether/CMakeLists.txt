@@ -341,6 +341,10 @@ if (AE_DISTILLATION)
   target_compile_definitions(${TARGET_NAME} PUBLIC "AE_DISTILLATION=1")
 endif()
 
+if(_AE_REG_CLOUD_IP)
+  target_compile_definitions(${TARGET_NAME} PUBLIC "_AE_REG_CLOUD_IP=\"${_AE_REG_CLOUD_IP}\"")
+endif()
+
 # match GCC abd either Clang or AppleClang
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang.*")
   target_compile_options(${TARGET_NAME} PRIVATE
