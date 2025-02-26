@@ -35,12 +35,36 @@
 #  include "aether/mstream_buffers.h"
 #  include "aether/transport/transport_tele.h"
 
+namespace ae {
+namespace unix_tcp_internal {
+inline bool SetTcpNoDelay(int sock) {
 // Workaround for BSD and MacOS
 #  if not defined SOL_TCP and defined IPPROTO_TCP
 #    define SOL_TCP IPPROTO_TCP
 #  endif
+  constexpr int one = 1;
+  auto res = setsockopt(sock, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
+  if (res == -1) {
+    AE_TELED_ERROR("Socket set option TCP_NODELAY error {} {}", errno,
+                   strerror(errno));
+    return false;
+  }
+  return true;
+}
 
-namespace ae {
+inline bool SetNoSigpipe([[maybe_unused]] int sock) {
+#  if defined SO_NOSIGPIPE
+  constexpr int one = 1;
+  auto res = setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+  if (res == -1) {
+    AE_TELED_ERROR("Socket set option SO_NOSIGPIPE error {} {}", errno,
+                   strerror(errno));
+    return false;
+  }
+#  endif
+  return true;
+}
+}  // namespace unix_tcp_internal
 
 UnixTcpTransport::ConnectionAction::ConnectionAction(
     ActionContext action_context, UnixTcpTransport& transport)
@@ -82,10 +106,15 @@ void UnixTcpTransport::ConnectionAction::Connect() {
     state_.Set(State::kNotConnected);
     return;
   }
-  int one = 1;
-  auto ssopt_res = setsockopt(socket_, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
-  if (ssopt_res == -1) {
-    AE_TELED_ERROR("Socket set option error {} {}", errno, strerror(errno));
+
+  if (!unix_tcp_internal::SetTcpNoDelay(socket_)) {
+    close(socket_);
+    socket_ = kInvalidSocket;
+    state_.Set(State::kNotConnected);
+    return;
+  }
+
+  if (!unix_tcp_internal::SetNoSigpipe(socket_)) {
     close(socket_);
     socket_ = kInvalidSocket;
     state_.Set(State::kNotConnected);
@@ -102,8 +131,8 @@ void UnixTcpTransport::ConnectionAction::Connect() {
   std::memcpy(&addr.sin_addr.s_addr, endpoint_.ip.value.ipv4_value, 4);
   addr.sin_port = ae::SwapToInet(endpoint_.port);
 
-  auto r = connect(socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-  if (r == -1) {
+  auto res = connect(socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+  if (res == -1) {
     AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
     close(socket_);
     socket_ = kInvalidSocket;
@@ -131,14 +160,18 @@ void UnixTcpTransport::UnixPacketSendAction::Send() {
   }
 
   auto size_to_send = data_.size() - sent_offset_;
-  auto r = send(socket_, data_.data() + sent_offset_, size_to_send, 0);
-
-  if ((r >= 0) && (r < size_to_send)) {
+  int flags = {0
+#  if defined __linux__
+               | MSG_NOSIGNAL
+#  endif
+  };
+  auto res = send(socket_, data_.data() + sent_offset_, size_to_send, flags);
+  if ((res >= 0) && (res < size_to_send)) {
     // save remaining data to later write
-    sent_offset_ += static_cast<std::size_t>(r);
+    sent_offset_ += static_cast<std::size_t>(res);
     return;
   }
-  if (r == -1) {
+  if (res == -1) {
     if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
       AE_TELED_ERROR("Send to socket error {} {}", errno, strerror(errno));
       state_.Set(State::kFailed);
@@ -205,8 +238,15 @@ ActionView<PacketSendAction> UnixTcpTransport::Send(DataBuffer data,
   // copy data with size
   os << data;
 
-  return socket_packet_queue_manager_.AddPacket(UnixPacketSendAction{
-      action_context_, socket_, std::move(packet_data), current_time});
+  auto send_action =
+      socket_packet_queue_manager_.AddPacket(UnixPacketSendAction{
+          action_context_, socket_, std::move(packet_data), current_time});
+  send_action_subscriptions_.Push(
+      send_action->SubscribeOnError([this](auto const&) {
+        AE_TELED_ERROR("Send error, disconnect!");
+        Disconnect();
+      }));
+  return send_action;
 }
 
 void UnixTcpTransport::OnConnected(int socket) {
@@ -249,15 +289,15 @@ void UnixTcpTransport::ReadSocket(TimePoint current_time) {
   int count;
   while (ioctl(socket_, FIONREAD, &count) == 0 && count > 0) {
     DataBuffer data(static_cast<size_t>(count));
-    auto r = recv(socket_, data.data(), static_cast<std::size_t>(count), 0);
-    if (r > 0) {
+    auto res = recv(socket_, data.data(), static_cast<std::size_t>(count), 0);
+    if (res > 0) {
       AE_TELE_DEBUG(TcpTransportOnData, "Get data size {}\ndata: {}",
                     data.size(), data);
       data_packet_collector_.AddData(std::move(data));
-    } else if (r < 1) {
+    } else if (res < 1) {
       AE_TELED_ERROR("Recv error {} {}", errno, strerror(errno));
       Disconnect();
-    } else if (r == 0) {
+    } else if (res == 0) {
       AE_TELED_ERROR("Recv 0 while expected {}", count);
       Disconnect();
     }

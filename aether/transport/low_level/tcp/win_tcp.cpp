@@ -337,9 +337,17 @@ ActionView<PacketSendAction> WinTcpTransport::Send(DataBuffer data,
   // copy data with size
   os << data;
 
-  return socket_packet_queue_manager_.AddPacket(WinTcpPacketSendAction{
-      action_context_, sync_socket_, send_event_, write_overlapped_,
-      std::move(packet_data), current_time});
+  auto send_action =
+      socket_packet_queue_manager_.AddPacket(WinTcpPacketSendAction{
+          action_context_, sync_socket_, send_event_, write_overlapped_,
+          std::move(packet_data), current_time});
+  send_action_subscriptions_.Push(
+      send_action->SubscribeOnError([this](auto const&) {
+        AE_TELED_ERROR("Send error disconnect");
+        Disconnect();
+      }));
+
+  return send_action;
 }
 
 void WinTcpTransport::OnConnect(DescriptorType::Socket socket) {
@@ -427,7 +435,7 @@ void WinTcpTransport::RecvUpdate() {
     auto err_code = WSAGetLastError();
     if (err_code != WSA_IO_PENDING) {
       AE_TELED_ERROR("Recv get error {}", err_code);
-      Disconnect();
+      socket_error_action_.Notify();
       return;
     }
   }
