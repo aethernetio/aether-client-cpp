@@ -329,6 +329,8 @@ void UnixTcpTransport::Disconnect() {
   socket_event_subscription_.Reset();
   poller_->Remove(socket_);
 
+  shutdown(socket_, SHUT_RDWR);
+
   if (close(socket_) != 0) {
     return;
   }

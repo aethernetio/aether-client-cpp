@@ -157,6 +157,11 @@
 #  define AE_SUPPORT_SPIFS_V2_FS 0
 #endif  // AE_SUPPORT_SPIFS_V2_FS
 
+// safe stream sender repeat timeout grow factor
+#ifndef AE_SAFE_STREAM_RTO_GROW_FACTOR
+#  define AE_SAFE_STREAM_RTO_GROW_FACTOR 1.5
+#endif  // AE_SAFE_STREAM_RTO_GROW_FACTOR
+
 // Telemetry configuration
 // Compilation info
 // Environment info
