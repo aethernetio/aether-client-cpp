@@ -17,6 +17,7 @@
 #include "aether/stream_api/safe_stream/safe_stream_sending.h"
 
 #include <utility>
+#include <algorithm>
 
 #include "aether/api_protocol/packet_builder.h"
 
@@ -125,7 +126,13 @@ TimePoint SafeStreamSendingAction::HandleTimeouts(TimePoint current_time) {
   }
 
   auto const& selected_sch = sending_chunks_.front();
-  if ((selected_sch.send_time + wait_confirm_timeout_) < current_time) {
+  // wait timeout is depends on repeat_count
+  auto wait_timeout = Duration{static_cast<Duration::rep>(
+      static_cast<double>(wait_confirm_timeout_.count()) *
+      std::max(1.0,
+               (AE_SAFE_STREAM_RTO_GROW_FACTOR * selected_sch.repeat_count)))};
+
+  if ((selected_sch.send_time + wait_timeout) < current_time) {
     // timeout
     AE_TELED_DEBUG("Wait confirm timeout, repeat");
     // move offset to repeat send
