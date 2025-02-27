@@ -173,6 +173,12 @@ constexpr auto ArgAt() {
   return std::get<I>(std::forward_as_tuple(args...));
 }
 
+template <std::size_t I, typename... TArgs>
+constexpr auto&& ArgAt(TArgs&&... args) {
+  return std::forward<std::tuple_element_t<I, std::tuple<TArgs...>>>(
+      std::get<I>(std::forward_as_tuple(args...)));
+}
+
 template <std::size_t I, typename... Ts>
 constexpr auto TypeAt() -> std::tuple_element_t<I, std::tuple<Ts...>>;
 
