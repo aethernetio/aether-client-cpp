@@ -160,6 +160,8 @@ class Gate<TIn, TOut, TIn, TOut> : public IGate<TIn, TOut> {
 
   virtual void Unlink() {
     out_ = nullptr;
+    out_data_subscription_.Reset();
+    gate_update_subscription_.Reset();
     gate_update_event_.Emit();
   }
 
