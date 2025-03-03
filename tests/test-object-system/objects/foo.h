@@ -30,11 +30,7 @@ class Foo : public Obj {
  public:
   explicit Foo(Domain* domain) : Obj{domain} { bar = domain->CreateObj<Bar>(); }
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(a, b, bar);
-  }
+  AE_OBJECT_REFLECT(a, b, bar)
 
   int a{1};
   int b{2};

@@ -31,10 +31,7 @@ class Friday0 : public Obj {
  public:
   explicit Friday0(Domain* domain) : Obj{domain} {}
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+  AE_OBJECT_REFLECT()
 };
 
 // add two new field
@@ -46,9 +43,11 @@ class Friday1 : public Obj {
  public:
   explicit Friday1(Domain* domain) : Obj{domain} {}
 
+  AE_OBJECT_REFLECT(a, b)
+
   template <typename Dnv>
   void Load(Version<0>, Dnv& dnv) {
-    dnv(*base_ptr_);
+    dnv(base_);
     a = 22;
     b = 23;
   }
@@ -60,7 +59,7 @@ class Friday1 : public Obj {
 
   template <typename Dnv>
   void Save(Version<0>, Dnv& dnv) const {
-    dnv(*base_ptr_);
+    dnv(base_);
   }
 
   template <typename Dnv>
@@ -81,9 +80,11 @@ class Friday2 : public Obj {
  public:
   explicit Friday2(Domain* domain) : Obj{domain} {}
 
+  AE_OBJECT_REFLECT(a)
+
   template <typename Dnv>
   void Load(Version<0>, Dnv& dnv) {
-    dnv(*base_ptr_);
+    dnv(base_);
   }
 
   template <typename Dnv>
@@ -109,7 +110,7 @@ class Friday2 : public Obj {
 
   template <typename Dnv>
   void Save(Version<0>, Dnv& dnv) const {
-    dnv(*base_ptr_);
+    dnv(base_);
   }
 
   template <typename Dnv>
@@ -137,11 +138,7 @@ class Hoopa : public Obj {
  public:
   explicit Hoopa(Domain* domain) : Obj{domain} {}
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(x);
-  }
+  AE_OBJECT_REFLECT(x)
 
   std::string x;
 };
@@ -155,10 +152,12 @@ class Friday3 : public Hoopa {
  public:
   explicit Friday3(Domain* domain) : Hoopa(domain) {}
 
+  AE_OBJECT_REFLECT(a)
+
   template <typename Dnv>
   void Load(Version<0>, Dnv& dnv) {
     // load Hoopa class
-    dnv(*base_ptr_);
+    dnv(base_);
   }
 
   template <typename Dnv>
@@ -189,7 +188,7 @@ class Friday3 : public Hoopa {
 
   template <typename Dnv>
   void Save(Version<0>, Dnv& dnv) const {
-    dnv(*base_ptr_);
+    dnv(base_);
   }
 
   template <typename Dnv>
