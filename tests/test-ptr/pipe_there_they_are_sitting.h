@@ -17,6 +17,8 @@
 #ifndef TESTS_TEST_PTR_PIPE_THERE_THEY_ARE_SITTING_H_
 #define TESTS_TEST_PTR_PIPE_THERE_THEY_ARE_SITTING_H_
 
+#include "aether/reflect/reflect.h"
+
 namespace ae::test_ptr {
 struct A {
   A() = default;
@@ -24,14 +26,16 @@ struct A {
 
   static inline int a_destroyed = 0;
   int x;
+  AE_CLASS_REFLECT(x)
 };
 
 struct B : public A {
   B() : A() {}
-  virtual ~B() { ++b_destroyed; }
+  ~B() override { ++b_destroyed; }
 
   static inline int b_destroyed = 0;
   int y;
+  AE_CLASS_REFLECT(y)
 };
 }  // namespace ae::test_ptr
 #endif  // TESTS_TEST_PTR_PIPE_THERE_THEY_ARE_SITTING_H_
