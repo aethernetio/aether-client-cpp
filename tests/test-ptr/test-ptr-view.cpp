@@ -23,10 +23,12 @@ namespace ae::test_ptr_view {
 struct A {
   virtual ~A() { a_destroy_count++; }
   static inline int a_destroy_count = 0;
+  AE_CLASS_REFLECT()
 };
 struct B : public A {
   ~B() override { b_destroy_count++; }
   static inline int b_destroy_count = 0;
+  AE_CLASS_REFLECT()
 };
 
 void test_CreatePtrView() {
