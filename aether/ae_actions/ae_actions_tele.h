@@ -19,8 +19,26 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kRegister, 3);
-AE_TAG_INDEXED(RegistrationStarted, kRegister, 20)
+AE_TELE_MODULE(kRegister, 1000);
+AE_TAG_INDEXED(RegistrationStarted, kRegister, 1000)
 AE_TAG(ClientRegistered, kRegister)
+
+AE_TELE_MODULE(kAeActions, 3);
+AE_TAG_INDEXED(kGetClientCloud, kAeActions, 40)
+AE_TAG(kGetClientCloudRequestCloud, kAeActions)
+AE_TAG(kGetClientCloudRequestServerResolve, kAeActions)
+AE_TAG(kGetClientCloudServerResolveStopped, kAeActions)
+AE_TAG(kGetClientCloudServerResolveFailed, kAeActions)
+AE_TAG(kGetClientCloudServerResolved, kAeActions)
+
+AE_TAG(kGetClientCloudConnection, kAeActions)
+AE_TAG(kGetClientCloudConnectionDestroyed, kAeActions)
+AE_TAG(kGetClientCloudConnectionCcmNull, kAeActions)
+AE_TAG(kGetClientCloudConnectionCacheHit, kAeActions)
+AE_TAG(kGetClientCloudConnectionServerListIsOver, kAeActions)
+
+AE_TAG(kPing, kAeActions)
+AE_TAG(kPingSend, kAeActions)
+AE_TAG(kPingWriteError, kAeActions)
 
 #endif  // AETHER_AE_ACTIONS_AE_ACTIONS_TELE_H_

@@ -16,7 +16,7 @@
 
 #include "aether/client_messages/p2p_message_stream.h"
 
-#include "aether/tele/tele.h"
+#include "aether/client_messages/client_messages_tele.h"
 
 namespace ae {
 P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
@@ -29,8 +29,8 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       // TODO: add buffer config
       buffer_gate_{action_context, 20 * 1024},
       send_receive_gate_{WriteOnlyGate{}, ReadOnlyGate{action_context_}} {
-  AE_TELED_DEBUG("P2pStream {} created for {}", static_cast<int>(stream_id_),
-                 destination_);
+  AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream {} created for {}",
+                static_cast<int>(stream_id_), destination_);
   // connect buffered gate and send_receive gate
   Tie(buffer_gate_, send_receive_gate_);
 
@@ -50,8 +50,8 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       buffer_gate_{action_context, 100},
       send_receive_gate_{WriteOnlyGate{}, ReadOnlyGate{action_context_}},
       receive_stream_{std::move(receive_stream)} {
-  AE_TELED_DEBUG("P2pStream received {} for {}", static_cast<int>(stream_id_),
-                 destination_);
+  AE_TELE_DEBUG(kP2pMessageStreamRec, "P2pStream received {} for {}",
+                static_cast<int>(stream_id_), destination_);
   // connect buffered gate and send_receive gate
   Tie(buffer_gate_, send_receive_gate_);
   // connect receive stream immediately
