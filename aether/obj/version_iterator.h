@@ -23,7 +23,6 @@
 #include <array>
 
 #include "aether/type_traits.h"
-#include "aether/obj/visitor_policies.h"
 
 namespace ae {
 // use max version for compilation time optimization
@@ -174,47 +173,18 @@ constexpr void IterateVersions(T& t, TFunc&& func) {
       make_range_sequence<std::uint8_t, version_min, version_max>());
 }
 
-/**
- * \brief Visitor Policy for DomainTree for call Load for each version
- */
-class VersionedLoadVisitorPolicy : public VisitPolicyCommon {
- public:
-  template <typename T, typename>
-  using HasVisitMethod = HasAnyVersionedLoad<T>;
+template <typename Visitor>
+struct VersionNodeVisitor {
+  constexpr explicit VersionNodeVisitor(Visitor vis)
+      : visitor{std::forward<Visitor>(vis)} {}
 
-  template <typename T, typename Visitor>
-  using VisitorApplicable = VisitorApplicable<T, Visitor>;
-
-  template <typename T, typename Dnv>
-  static void Visit(Dnv& dnv, T& t) {
-    constexpr auto version_bounds = VersionedLoadMinMax<T>::value;
-
-    IterateVersions<HasVersionedLoad, version_bounds.first,
-                    version_bounds.second>(
-        t, [&dnv](auto version, auto& t) { t.Load(version, dnv); });
+  template <typename... U>
+  void operator()(U&&... vals) {
+    (std::forward<Visitor>(visitor)(std::forward<U>(vals)), ...);
   }
-};
 
-/**
- * \brief Visitor Policy for DomainTree for call Save for each version
- */
-class VersionedSaveVisitorPolicy : public VisitPolicyCommon {
- public:
-  template <typename T, typename>
-  using HasVisitMethod = HasAnyVersionedSave<T>;
-
-  template <typename T, typename Visitor>
-  using VisitorApplicable = VisitorApplicable<T, Visitor>;
-
-  template <typename T, typename Dnv>
-  static void Visit(Dnv& dnv, T& t) {
-    constexpr auto version_bounds = VersionedSaveMinMax<T>::value;
-    IterateVersions<HasVersionedSave, version_bounds.second,
-                    version_bounds.first>(
-        t, [&dnv](auto version, auto& t) { t.Save(version, dnv); });
-  }
+  Visitor visitor;
 };
 
 }  // namespace ae
-
 #endif  // AETHER_OBJ_VERSION_ITERATOR_H_
