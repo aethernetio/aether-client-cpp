@@ -28,11 +28,7 @@ class Bar : public Obj {
  public:
   explicit Bar(Domain* domain) : Obj{domain} {}
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(x, y);
-  }
+  AE_OBJECT_REFLECT(x, y)
 
   int x{12};
   float y{3.2};

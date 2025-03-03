@@ -29,10 +29,7 @@ class Father : public Obj {
  public:
   explicit Father(Domain* domain) : Obj{domain} {}
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+  AE_OBJECT_REFLECT()
 };
 
 class Child : public Father {
@@ -43,10 +40,7 @@ class Child : public Father {
  public:
   explicit Child(Domain* domain) : Father(domain) {}
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+  AE_OBJECT_REFLECT()
 };
 }  // namespace ae
 
