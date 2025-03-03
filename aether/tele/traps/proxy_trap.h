@@ -22,6 +22,8 @@
 
 #include "aether/common.h"
 #include "aether/ptr/ptr.h"
+#include "aether/reflect/reflect.h"
+
 #include "aether/tele/modules.h"
 #include "aether/tele/declaration.h"
 
@@ -158,6 +160,8 @@ class ProxyTrap {
   EnvStream env_stream() {
     return EnvStream{first->env_stream(), second->env_stream()};
   }
+
+  AE_CLASS_REFLECT(first, second)
 
   Ptr<TrapFirst> first;
   Ptr<TrapSecond> second;
