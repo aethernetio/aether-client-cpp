@@ -22,22 +22,19 @@ namespace ae {
 
 RefTree::RefTree() = default;
 
-RefTree::RefTree(void const* pointer, std::uint8_t ref_count)
-    : pointer(pointer),
-      ref_count{ref_count},
-      reachable_ref_count{},
-      children{std::make_unique<std::set<RefTree*>>()} {}
+RefTree::RefTree(void const* ptr, std::uint8_t ref_count)
+    : pointer(ptr), ref_count{ref_count}, reachable_ref_count{} {}
 
-bool RefTree::IsReachable(void const* p, std::set<RefTree*>&& visited) {
+bool RefTree::IsReachable(void const* ptr, std::set<RefTree*>&& visited) {
   visited.insert(this);
 
-  for (auto* rt : *children) {
-    if (rt->pointer == p) {
+  for (auto* ref_tree : children) {
+    if (ref_tree->pointer == ptr) {
       return true;
     }
     // prevent cycles
-    if (auto it = visited.find(rt); it == std::end(visited)) {
-      if (rt->IsReachable(p, std::move(visited))) {
+    if (auto it = visited.find(ref_tree); it == std::end(visited)) {
+      if (ref_tree->IsReachable(ptr, std::move(visited))) {
         return true;
       }
     }
