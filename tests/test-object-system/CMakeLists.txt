@@ -30,7 +30,6 @@ list(APPEND obj_srcs
 
 list(APPEND test_srcs
     main.cpp
-    test-domain-tree.cpp
     test-obj-create.cpp
     test-update-objects.cpp
     test-version-iterator.cpp
@@ -38,24 +37,23 @@ list(APPEND test_srcs
 
 if(NOT CM_PLATFORM)
 
-   project(test-object-system LANGUAGES CXX)
+  project(test-object-system LANGUAGES CXX)
 
-   add_executable(${PROJECT_NAME})
-   target_sources(${PROJECT_NAME}
+  add_executable(${PROJECT_NAME})
+  target_sources(${PROJECT_NAME}
                   PRIVATE
                   ${other_aether_srcs}
                   ${obj_srcs}
                   ${test_srcs}
    )
-   # for aether
-   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-   target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-   target_link_libraries(${PROJECT_NAME} PRIVATE unity )
-   target_compile_definitions(${PROJECT_NAME} PRIVATE "AE_DISTILLATION=1")
-   target_compile_definitions(${PROJECT_NAME} PRIVATE "AE_PROJECT_VERSION=\"0.0.0\"")
+  # for aether
+  target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
+  target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+  target_link_libraries(${PROJECT_NAME} PRIVATE unity )
+  target_compile_definitions(${PROJECT_NAME} PRIVATE "AE_DISTILLATION=1")
+  target_compile_definitions(${PROJECT_NAME} PRIVATE "AE_PROJECT_VERSION=\"0.0.0\"")
 
-   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
-
+  add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()
-    message(WARNING "Not implemented for ${CM_PLATFORM}")
+  message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()

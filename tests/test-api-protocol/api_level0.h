@@ -42,28 +42,19 @@ class ApiLevel0 : public ApiClass {
     float f_data_;
     std::string s_data_;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & i_data_ & f_data_ & s_data_;
-    }
+    AE_CLASS_REFLECT(i_data_, f_data_, s_data_)
   };
 
   struct Message2 : public Message<Message2> {
     std::vector<std::uint8_t> child_messages_;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & child_messages_;
-    }
+    AE_CLASS_REFLECT(child_messages_)
   };
 
   struct Message3 : public Message<Message3> {
     std::vector<std::uint8_t> child_messages_;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & child_messages_;
-    }
+    AE_CLASS_REFLECT(child_messages_)
   };
 
   // for server

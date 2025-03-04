@@ -49,10 +49,15 @@ class EthernetAdapter : public Adapter {
   EthernetAdapter(ObjPtr<Aether> aether, IPoller::ptr poller, Domain* domain);
 #endif  // AE_DISTILLATION
 
+  AE_OBJECT_REFLECT(aether_, poller_, create_transport_actions_)
+
   template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(aether_, poller_);
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_, aether_, poller_);
+  }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_, aether_, poller_);
   }
 
   ActionView<CreateTransportAction> CreateTransport(

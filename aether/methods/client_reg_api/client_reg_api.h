@@ -33,11 +33,7 @@
 
 namespace ae {
 struct PowParams {
-  template <typename T>
-  void Serializator(T& s) {
-    s & salt & password_suffix & pool_size & max_hash_value & global_key;
-  }
-
+  AE_CLASS_REFLECT(salt, password_suffix, pool_size, max_hash_value, global_key)
   std::string salt;
   std::string password_suffix;
   std::uint8_t pool_size;

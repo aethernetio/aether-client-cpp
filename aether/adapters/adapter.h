@@ -50,10 +50,7 @@ class Adapter : public Obj {
   explicit Adapter(Domain* domain);
 #endif  // AE_DISTILLATION
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(proxies_, proxy_prefab_);
-  }
+  AE_OBJECT_REFLECT(proxies_, proxy_prefab_)
 
   virtual ActionView<CreateTransportAction> CreateTransport(
       IpAddressPortProtocol const& /* address_port_protocol */) {

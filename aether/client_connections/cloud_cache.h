@@ -32,10 +32,7 @@ namespace ae {
 class CloudCache {
  public:
   struct Entry {
-    template <typename Dnv>
-    void Visit(Dnv& dnv) {
-      dnv(cloud);
-    }
+    AE_CLASS_REFLECT(cloud)
 
     Cloud::ptr cloud;
     Ptr<ServerConnectionSelector> client_stream_selector;
@@ -47,10 +44,7 @@ class CloudCache {
   Entry* GetCache(Uid uid);
   void AddCloud(Uid uid, Cloud::ptr cloud);
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(clouds_);
-  }
+  AE_CLASS_REFLECT(clouds_)
 
  private:
   std::map<Uid, Entry> clouds_;

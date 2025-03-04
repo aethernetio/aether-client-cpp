@@ -32,6 +32,7 @@
 #include "aether/format/format.h"
 #include "aether/mstream_buffers.h"
 #include "aether/tele/declaration.h"
+#include "aether/reflect/reflect.h"
 
 namespace ae::tele {
 namespace statistics {
@@ -138,10 +139,7 @@ class Statistics {
 
   void Append(Statistics const& other);
 
-  template <typename T>
-  void Serializator(T& s) {
-    s & size_ & logs_.logs & metrics_.metrics;
-  }
+  AE_CLASS_REFLECT(size_, logs_.logs, metrics_.metrics)
 
  private:
   void UpdateSize(LogStore const& logs, std::size_t delta_size);
@@ -205,10 +203,7 @@ class StatisticsStore {
 
   void SetSizeLimit(std::size_t limit);
 
-  template <typename T>
-  void Serializator(T& s) {
-    s & statistics_size_limit_ & env_store_ & prev_ & current_;
-  }
+  AE_CLASS_REFLECT(statistics_size_limit_, env_store_, prev_, current_)
 
  private:
   bool IsCurrentFull() const;
@@ -290,10 +285,7 @@ class StatisticsTrap {
    */
   void MergeStatistics(StatisticsTrap const& newer);
 
-  template <typename T>
-  void Serializator(T& s) {
-    s & statistics_store_;
-  }
+  AE_CLASS_REFLECT(statistics_store_)
 
   StatisticsStore statistics_store_;
 };

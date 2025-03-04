@@ -17,13 +17,10 @@
 #include <unity.h>
 
 #include <type_traits>
-#include <vector>
 
 #include "aether/obj/version_iterator.h"
-#include "aether/obj/domain_tree.h"
 
 namespace ae {
-
 template <auto I, typename _ = void>
 struct VersionAllowed : std::false_type {};
 template <auto I>
@@ -182,72 +179,6 @@ void test_VersionIterator() {
   VersionIteratorSaveTestFunc(factory1);
   VersionIteratorSaveTestFunc(factory2);
 }
-
-template <typename TFactory>
-void LoadIteratorTestFunc(TFactory factory) {
-  auto [obj, expected] = factory();
-
-  std::vector<std::uint8_t> versions;
-
-  DomainTree<VersionedLoadVisitorPolicy>::Visit(
-      obj, [&versions](auto const& v) {
-        using v_type = std::decay_t<decltype(v)>;
-        if constexpr (!std::is_same_v<std::decay_t<decltype(obj)>, v_type>) {
-          versions.push_back(v_type::value);
-        }
-      });
-
-  TEST_ASSERT_EQUAL_UINT8_ARRAY(expected.data(), versions.data(),
-                                versions.size());
-}
-
-void test_LoadIterator() {
-  auto factory1 = []() {
-    return std::make_pair(TestObject{}, std::array<std::uint8_t, 3>{0, 1, 2});
-  };
-  auto factory2 = []() {
-    return std::make_pair(
-        TestObject2{}, std::array<std::uint8_t, 3>{
-                           MAX_VERSION - 3, MAX_VERSION - 2, MAX_VERSION - 1});
-  };
-
-  LoadIteratorTestFunc(factory1);
-  LoadIteratorTestFunc(factory2);
-}
-
-template <typename TFactory>
-void SaveIteratorTestFunc(TFactory factory) {
-  auto [obj, expected] = factory();
-
-  std::vector<std::uint8_t> versions;
-
-  DomainTree<VersionedSaveVisitorPolicy>::Visit(
-      obj, [&versions](auto const& v) {
-        using v_type = std::decay_t<decltype(v)>;
-        if constexpr (!std::is_same_v<std::decay_t<decltype(obj)>, v_type>) {
-          versions.push_back(v_type::value);
-        }
-      });
-
-  TEST_ASSERT_EQUAL_UINT8_ARRAY(expected.data(), versions.data(),
-                                versions.size());
-}
-
-void test_SaveIterator() {
-  auto factory1 = []() {
-    return std::make_pair(TestObject{}, std::array<std::uint8_t, 3>{2, 1, 0});
-  };
-
-  auto factory2 = []() {
-    return std::make_pair(
-        TestObject2{}, std::array<std::uint8_t, 3>{MAX_VERSION, MAX_VERSION - 1,
-                                                   MAX_VERSION - 2});
-  };
-
-  SaveIteratorTestFunc(factory1);
-  SaveIteratorTestFunc(factory2);
-}
-
 }  // namespace ae
 
 int run_test_version_iterator() {
@@ -256,7 +187,5 @@ int run_test_version_iterator() {
   RUN_TEST(ae::test_HasVersionedTraits);
   RUN_TEST(ae::test_ObjectVersionBounds);
   RUN_TEST(ae::test_VersionIterator);
-  RUN_TEST(ae::test_LoadIterator);
-  RUN_TEST(ae::test_SaveIterator);
   return UNITY_END();
 }

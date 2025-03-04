@@ -86,9 +86,16 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
   ~Esp32WifiAdapter();
 #  endif  // AE_DISTILLATION
 
+  AE_OBJECT_REFLECT(esp_netif_, connected_, wifi_connected_event_,
+                    create_transport_actions_)
+
   template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+  }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
   }
 
   ActionView<ae::CreateTransportAction> CreateTransport(

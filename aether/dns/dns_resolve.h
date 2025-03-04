@@ -59,12 +59,9 @@ class DnsResolver : public Obj {
 #  if defined AE_DISTILLATION
   explicit DnsResolver(Domain* domain) : Obj{domain} {}
 #  endif
-  virtual ~DnsResolver() = default;
+  ~DnsResolver() override = default;
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+  AE_OBJECT_REFLECT()
 
   // Make a host name resolve
   virtual ResolveAction& Resolve(NameAddress const& name_address);

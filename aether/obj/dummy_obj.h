@@ -30,10 +30,7 @@ class DummyObj : public Obj {
   DummyObj() = default;
 
  public:
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+  AE_OBJECT_REFLECT()
 };
 }  // namespace ae
 

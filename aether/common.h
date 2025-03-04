@@ -21,7 +21,6 @@
 #include <cstdint>
 
 #include "aether/config.h"
-#include "aether/mstream.h"
 
 namespace ae {
 
@@ -53,19 +52,6 @@ using Duration = std::chrono::duration<uint32_t, std::micro>;
 using ClockType = std::chrono::system_clock;
 using TimePoint = std::chrono::time_point<ClockType>;
 inline auto Now() { return TimePoint::clock::now(); }
-
-template <typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& s, const Duration&) {
-  // TODO: implement
-  s << std::uint32_t{0};
-  return s;
-}
-template <typename Ib>
-imstream<Ib>& operator>>(imstream<Ib>& s, Duration&) {
-  std::uint32_t t;
-  s >> t;
-  return s;
-}
 
 enum class CompressionMethod : std::uint8_t {
   kNone = AE_NONE,
