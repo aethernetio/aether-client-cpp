@@ -17,6 +17,7 @@ cmake_minimum_required( VERSION 3.16 )
 list(APPEND tele_srcs
   ${ROOT_DIR}/aether/tele/traps/io_stream_traps.cpp
   ${ROOT_DIR}/aether/tele/traps/statistics_trap.cpp
+  ${ROOT_DIR}/aether/ptr/ptr_management.cpp
 )
 list(APPEND test_srcs
   test-tele.cpp

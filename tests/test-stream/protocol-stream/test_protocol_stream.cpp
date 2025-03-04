@@ -33,10 +33,7 @@ class TestApiClass : public ApiClass {
   struct Message1 : public Message<Message1> {
     static constexpr auto kMessageId = 42;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & value_2byte & value_4byte;
-    }
+    AE_CLASS_REFLECT(value_2byte, value_4byte)
 
     std::uint16_t value_2byte;
     std::uint32_t value_4byte;
@@ -45,20 +42,14 @@ class TestApiClass : public ApiClass {
   struct Message2 : public Message<Message2> {
     static constexpr auto kMessageId = 24;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & dynamic_size_value;
-    }
+    AE_CLASS_REFLECT(dynamic_size_value)
     std::string dynamic_size_value;
   };
 
   struct DataMessage : public Message<DataMessage> {
     static constexpr auto kMessageId = 25;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & data;
-    }
+    AE_CLASS_REFLECT(data)
 
     DataBuffer data;
   };
@@ -101,11 +92,14 @@ class TestApiClass : public ApiClass {
 };
 
 static constexpr char test_data[] =
-    "Did you know? A programmer tried to store his age using a byte, but on "
-    "his 256th birthday the variable overflowed and he became 0 years old.";
+    "Did you know? A programmer tried to store his age using a byte, but "
+    "on "
+    "his 256th birthday the variable overflowed and he became 0 years "
+    "old.";
 
 static constexpr char test_data2[] =
-    "Did you know? A group of programmers is called a 'merge conflict' in "
+    "Did you know? A group of programmers is called a 'merge conflict' "
+    "in "
     "their natural habitat.";
 
 void test_ProtocolWriteStream() {
