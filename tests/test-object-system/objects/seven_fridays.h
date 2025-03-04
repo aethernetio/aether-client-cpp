@@ -43,7 +43,7 @@ class Friday1 : public Obj {
  public:
   explicit Friday1(Domain* domain) : Obj{domain} {}
 
-  AE_OBJECT_REFLECT(a, b)
+  AE_OBJECT_REFLECT(AE_MMBR(a), AE_MMBR(b))
 
   template <typename Dnv>
   void Load(Version<0>, Dnv& dnv) {
@@ -80,7 +80,7 @@ class Friday2 : public Obj {
  public:
   explicit Friday2(Domain* domain) : Obj{domain} {}
 
-  AE_OBJECT_REFLECT(a)
+  AE_OBJECT_REFLECT(AE_MMBR(a))
 
   template <typename Dnv>
   void Load(Version<0>, Dnv& dnv) {
@@ -138,7 +138,7 @@ class Hoopa : public Obj {
  public:
   explicit Hoopa(Domain* domain) : Obj{domain} {}
 
-  AE_OBJECT_REFLECT(x)
+  AE_OBJECT_REFLECT(AE_MMBR(x))
 
   std::string x;
 };
@@ -152,7 +152,7 @@ class Friday3 : public Hoopa {
  public:
   explicit Friday3(Domain* domain) : Hoopa(domain) {}
 
-  AE_OBJECT_REFLECT(a)
+  AE_OBJECT_REFLECT(AE_MMBR(a))
 
   template <typename Dnv>
   void Load(Version<0>, Dnv& dnv) {

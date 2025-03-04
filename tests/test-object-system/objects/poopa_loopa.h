@@ -36,7 +36,7 @@ class Poopa : public Obj {
 
   void SetLoopa(Obj::ptr loopa) { this->loopa = std::move(loopa); }
 
-  AE_OBJECT_REFLECT(loopa)
+  AE_OBJECT_REFLECT(AE_MMBR(loopa))
 
   static inline int DeleteCount = 0;
   Obj::ptr loopa;
@@ -53,7 +53,7 @@ class Loopa : public Obj {
 
   void AddPoopa(Obj::ptr poopa) { poopas.emplace_back(std::move(poopa)); }
 
-  AE_OBJECT_REFLECT(poopas)
+  AE_OBJECT_REFLECT(AE_MMBR(poopas))
 
   static inline int DeleteCount = 0;
   std::vector<Obj::ptr> poopas;

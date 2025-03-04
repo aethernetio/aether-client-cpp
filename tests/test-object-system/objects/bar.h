@@ -28,7 +28,7 @@ class Bar : public Obj {
  public:
   explicit Bar(Domain* domain) : Obj{domain} {}
 
-  AE_OBJECT_REFLECT(x, y)
+  AE_OBJECT_REFLECT(AE_MMBR(x), AE_MMBR(y))
 
   int x{12};
   float y{3.2};
