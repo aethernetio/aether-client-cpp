@@ -54,6 +54,8 @@ class IDomainFacility {
 
   // TODO: where should we use it?
   virtual void Remove(const ObjId& obj_id) = 0;
+
+  AE_CLASS_REFLECT()
 };
 
 struct DomainCycleDetector {
@@ -262,7 +264,8 @@ void Domain::Load(T& obj) {
     constexpr auto version_bounds = VersionedLoadMinMax<T>::value;
     IterateVersions<HasVersionedLoad, version_bounds.first,
                     version_bounds.second>(
-        obj, [this](auto version, auto& obj) { LoadVersion(version, obj); });
+        obj,
+        [this](auto version, auto& obj) { this->LoadVersion(version, obj); });
   } else {
     LoadVersion(T::kCurrentVersion, obj);
   }
@@ -312,8 +315,9 @@ void Domain::Save(T const& obj) {
   if constexpr (HasAnyVersionedSave<T>::value) {
     constexpr auto version_bounds = VersionedSaveMinMax<T>::value;
     IterateVersions<HasVersionedSave, version_bounds.second,
-                    version_bounds.first>(
-        obj, [this](auto version, auto& obj) { SaveVersion(version, obj); });
+                    version_bounds.first>(obj, [this](auto version, auto& obj) {
+      this->SaveVersion(version, obj);
+    });
   } else {
     SaveVersion(T::kCurrentVersion, obj);
   }

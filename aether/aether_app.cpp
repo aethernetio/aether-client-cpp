@@ -106,6 +106,8 @@ AetherApp::~AetherApp() {
   if (domain_ && aether_) {
     domain_->SaveRoot(aether_);
   }
+  AE_TELED_DEBUG("Reset Aether");
+  aether_.Reset();
 }
 
 }  // namespace ae

@@ -54,9 +54,19 @@ class Client : public Obj {
 
   void SetConfig(Uid uid, Uid ephemeral_uid, Key master_key, Cloud::ptr c);
 
+  AE_OBJECT_REFLECT(aether_, uid_, ephemeral_uid_, master_key_, cloud_,
+                    server_keys_, client_connection_manager_,
+                    client_connection_)
+
   template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+    dnv(aether_, uid_, ephemeral_uid_, master_key_, cloud_, server_keys_,
+        client_connection_manager_);
+  }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
     dnv(aether_, uid_, ephemeral_uid_, master_key_, cloud_, server_keys_,
         client_connection_manager_);
   }
@@ -72,11 +82,11 @@ class Client : public Obj {
   Key master_key_;
   Cloud::ptr cloud_;
 
-  ClientConnectionManager::ptr client_connection_manager_;
-  Ptr<ClientConnection> client_connection_;
-
   // states
   std::map<ServerId, ServerKeys> server_keys_;
+
+  ClientConnectionManager::ptr client_connection_manager_;
+  Ptr<ClientConnection> client_connection_;
 };
 }  // namespace ae
 

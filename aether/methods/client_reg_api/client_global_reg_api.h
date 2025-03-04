@@ -31,11 +31,7 @@
 namespace ae {
 
 struct RegistrationResponse {
-  template <typename T>
-  void Serializator(T& s) {
-    s & ephemeral_uid & uid & cloud;
-  }
-
+  AE_CLASS_REFLECT(ephemeral_uid, uid, cloud)
   Uid ephemeral_uid;
   Uid uid;
   std::vector<ServerId> cloud;

@@ -45,11 +45,7 @@ class DnsResolverCares : public DnsResolver {
 #    endif
   ~DnsResolverCares() override;
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(aether_);
-  }
+  AE_OBJECT_REFLECT(aether_)
 
   ResolveAction& Resolve(NameAddress const& name_address) override;
 

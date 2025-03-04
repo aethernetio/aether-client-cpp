@@ -57,9 +57,18 @@ class ClientConnectionManager : public Obj {
 
   Ptr<ServerConnectionSelector> GetCloudServerConnectionSelector(Uid uid);
 
+  AE_OBJECT_REFLECT(aether_, client_, cloud_cache_,
+                    client_server_connection_pool_,
+                    get_client_cloud_connections_)
+
   template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+    dnv(aether_, client_, cloud_cache_);
+  }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
     dnv(aether_, client_, cloud_cache_);
   }
 

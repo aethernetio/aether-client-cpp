@@ -43,10 +43,7 @@ class IPoller : public Obj {
 #endif
   ~IPoller() override;
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+  AE_OBJECT_REFLECT()
 
   /**
    * \brief Add event for descriptor

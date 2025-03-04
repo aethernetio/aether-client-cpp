@@ -31,10 +31,8 @@ class WorkCloud : public Cloud {
 #ifdef AE_DISTILLATION
   explicit WorkCloud(Domain* domain);
 #endif  // AE_DISTILLATION
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+
+  AE_OBJECT_REFLECT()
 };
 }  // namespace ae
 #endif  // AETHER_WORK_CLOUD_H_

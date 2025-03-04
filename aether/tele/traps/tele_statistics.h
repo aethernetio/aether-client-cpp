@@ -36,6 +36,15 @@ class TeleStatistics : public Obj {
 
 #if AE_TELE_ENABLED
   AE_OBJECT_REFLECT(trap_)
+
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(*trap_);
+  }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(*trap_);
+  }
 #else
   AE_OBJECT_REFLECT()
 #endif
