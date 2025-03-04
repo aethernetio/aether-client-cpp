@@ -24,8 +24,10 @@
 #  include <vector>
 #  include <optional>
 
+#  include "aether/memory.h"
 #  include "aether/address.h"
 #  include "aether/ptr/ptr.h"
+#  include "aether/ptr/ptr_view.h"
 #  include "aether/actions/action_context.h"
 #  include "aether/events/multi_subscription.h"
 
@@ -57,7 +59,7 @@ class NameAddressChannelConnectionAction : public ChannelConnectionAction {
   ~NameAddressChannelConnectionAction() override;
 
   TimePoint Update(TimePoint current_time) override;
-  Ptr<ITransport> transport() const override;
+  std::unique_ptr<ITransport> transport() override;
   ConnectionInfo connection_info() const override;
 
  private:
@@ -65,11 +67,11 @@ class NameAddressChannelConnectionAction : public ChannelConnectionAction {
   void TryConnection(TimePoint current_time);
 
   NameAddress name_address_;
-  Ptr<DnsResolver> dns_resolver_;
+  PtrView<DnsResolver> dns_resolver_;
   ActionContext action_context_;
   PtrView<Adapter> adapter_;
 
-  Ptr<ITransport> transport_;
+  std::unique_ptr<ITransport> transport_;
   ConnectionInfo connection_info_;
 
   StateMachine<State> state_;

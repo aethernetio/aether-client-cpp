@@ -34,11 +34,8 @@ class Cloud : public Obj {
 #ifdef AE_DISTILLATION
   explicit Cloud(Domain* domain);
 #endif  // AE_DISTILLATION
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(servers_, adapter_);
-  }
+
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, servers_, adapter_))
 
   void AddServer(Server::ptr const& server);
   void LoadServer(Server::ptr& server);

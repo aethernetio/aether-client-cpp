@@ -93,8 +93,7 @@ ActionView<Registration> Aether::RegisterClient(Uid parent_uid) {
   auto self_ptr = MakePtrFromThis(this);
 
   if (!registration_actions_) {
-    registration_actions_ =
-        MakePtr<ActionList<Registration>>(ActionContext{*action_processor});
+    registration_actions_.emplace(ActionContext{*action_processor});
   }
 
   // registration new client is long termed process

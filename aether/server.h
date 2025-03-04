@@ -31,11 +31,7 @@ class Server : public Obj {
  public:
   explicit Server(Domain* domain);
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(server_id, channels);
-  }
+  AE_OBJECT_REFLECT(AE_MMBRS(server_id, channels))
 
   void AddChannel(Channel::ptr channel);
   void LoadChannel(Channel::ptr& channel);

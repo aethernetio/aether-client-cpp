@@ -20,6 +20,8 @@
 #include <array>
 #include <cstdint>
 
+#include "aether/reflect/reflect.h"
+
 namespace ae {
 
 struct Uid;
@@ -30,10 +32,7 @@ struct Uid {
   explicit constexpr Uid(std::array<std::uint8_t, kSize> uid) : value(uid) {}
   Uid() = default;
 
-  template <typename T>
-  void Serializator(T& s) {
-    s & value;
-  }
+  AE_REFLECT_MEMBERS(value)
 
   bool operator<(const Uid& rhs) const { return value < rhs.value; }
   bool operator==(const Uid& rhs) const { return value == rhs.value; }

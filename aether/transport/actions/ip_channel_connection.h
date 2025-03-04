@@ -17,6 +17,7 @@
 #ifndef AETHER_TRANSPORT_ACTIONS_IP_CHANNEL_CONNECTION_H_
 #define AETHER_TRANSPORT_ACTIONS_IP_CHANNEL_CONNECTION_H_
 
+#include "aether/memory.h"
 #include "aether/address.h"
 #include "aether/state_machine.h"
 #include "aether/actions/action_context.h"
@@ -45,17 +46,17 @@ class IpAddressChannelConnectionAction : public ChannelConnectionAction {
 
   TimePoint Update(TimePoint current_time) override;
 
-  Ptr<ITransport> transport() const override;
+  std::unique_ptr<ITransport> transport() override;
   ConnectionInfo connection_info() const override;
 
  private:
   void TryConnect(TimePoint current_time);
-  void TransportCreated(Ptr<ITransport> transport);
+  void TransportCreated(std::unique_ptr<ITransport> transport);
 
   IpAddressPortProtocol ip_address_port_protocol_;
   Adapter& adapter_;
 
-  Ptr<ITransport> transport_;
+  std::unique_ptr<ITransport> transport_;
   ConnectionInfo connection_info_;
   StateMachine<State> state_;
 

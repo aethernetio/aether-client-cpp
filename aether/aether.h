@@ -17,10 +17,12 @@
 #ifndef AETHER_AETHER_H_
 #define AETHER_AETHER_H_
 
-#include <vector>
 #include <map>
+#include <vector>
+#include <optional>
 
 #include "aether/common.h"
+#include "aether/memory.h"
 #include "aether/obj/obj.h"
 #include "aether/obj/dummy_obj.h"
 #include "aether/client.h"
@@ -52,9 +54,28 @@ class Aether : public Obj {
 
   ~Aether() override;
 
+#if AE_SUPPORT_REGISTRATION
+  AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, cloud_prefab, registration_cloud,
+                             crypto, clients_, servers_, tele_statistics_,
+                             poller, dns_resolver, adapter_factories,
+                             registration_actions_,
+                             registration_subscriptions_))
+#else
+  AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, cloud_prefab, registration_cloud,
+                             crypto, clients_, servers_, tele_statistics_,
+                             poller, dns_resolver, adapter_factories))
+#endif
+
   template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+    dnv(client_prefab, cloud_prefab, registration_cloud, crypto, clients_,
+        servers_, tele_statistics_, poller, dns_resolver, adapter_factories);
+  }
+
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
     dnv(client_prefab, cloud_prefab, registration_cloud, crypto, clients_,
         servers_, tele_statistics_, poller, dns_resolver, adapter_factories);
   }
@@ -71,7 +92,8 @@ class Aether : public Obj {
   std::vector<Client::ptr>& clients();
   tele::TeleStatistics::ptr const& tele_statistics() const;
 
-  Ptr<ActionProcessor> action_processor = MakePtr<ActionProcessor>();
+  std::unique_ptr<ActionProcessor> action_processor =
+      make_unique<ActionProcessor>();
 
   Cloud::ptr cloud_prefab;
 #if AE_SUPPORT_REGISTRATION
@@ -99,7 +121,7 @@ class Aether : public Obj {
   tele::TeleStatistics::ptr tele_statistics_;
 
 #if AE_SUPPORT_REGISTRATION
-  Ptr<ActionList<Registration>> registration_actions_;
+  std::optional<ActionList<Registration>> registration_actions_;
   MultiSubscription registration_subscriptions_;
 #endif
 };

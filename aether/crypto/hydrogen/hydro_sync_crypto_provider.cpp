@@ -58,7 +58,7 @@ inline std::vector<std::uint8_t> DecryptWithSymmetric(
 }  // namespace _internal
 
 HydroSyncEncryptProvider::HydroSyncEncryptProvider(
-    Ptr<ISyncKeyProvider> key_provider)
+    std::unique_ptr<ISyncKeyProvider> key_provider)
     : key_provider_{std::move(key_provider)} {}
 
 DataBuffer HydroSyncEncryptProvider::Encrypt(DataBuffer const& data) {
@@ -73,7 +73,7 @@ std::size_t HydroSyncEncryptProvider::EncryptOverhead() const {
 }
 
 HydroSyncDecryptProvider::HydroSyncDecryptProvider(
-    Ptr<ISyncKeyProvider> key_provider)
+    std::unique_ptr<ISyncKeyProvider> key_provider)
     : key_provider_{std::move(key_provider)} {}
 
 DataBuffer HydroSyncDecryptProvider::Decrypt(DataBuffer const& data) {

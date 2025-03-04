@@ -47,6 +47,7 @@ crypto_aead_chacha20poly1305.h"  //"
 #  endif
 
 #  include "aether/variant_type.h"
+#  include "aether/reflect/reflect.h"
 
 namespace ae {
 
@@ -65,104 +66,71 @@ enum class CryptoKeyType : std::uint8_t {
 
 #  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
 struct SodiumCurvePublicKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
 
   std::array<std::uint8_t, crypto_box_PUBLICKEYBYTES> key;
 };
 
 struct SodiumCurveSecretKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_box_SECRETKEYBYTES> key;
 };
 #  endif
 
 #  if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 struct SodiumChachaKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_aead_chacha20poly1305_KEYBYTES> key;
 };
 #  endif
 
 #  if AE_SIGNATURE == AE_ED25519
 struct SodiumSignPublicKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_sign_PUBLICKEYBYTES> key;
 };
 
 struct SodiumSignSecretKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_sign_SECRETKEYBYTES> key;
 };
 #  endif
 
 #  if AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
 struct HydrogenCurvePublicKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_kx_PUBLICKEYBYTES> key;
 };
 
 struct HydrogenCurveSecretKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_kx_SECRETKEYBYTES> key;
 };
 #  endif
 
 #  if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
 struct HydrogenSecretBoxKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_secretbox_KEYBYTES> key;
 };
 #  endif
 
 #  if AE_SIGNATURE == AE_HYDRO_SIGNATURE
 struct HydrogenSignPublicKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_sign_PUBLICKEYBYTES> key;
 };
 
 struct HydrogenSignSecretKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_sign_SECRETKEYBYTES> key;
 };
 #  endif
 
 struct BlankKey {
   std::array<std::uint8_t, 0> key;
-  template <typename T>
 
-  void Serializator(T& s) {
-    s & key;
-  }
+  AE_REFLECT_MEMBERS(key)
 };
 
 class Key : public VariantType<CryptoKeyType,

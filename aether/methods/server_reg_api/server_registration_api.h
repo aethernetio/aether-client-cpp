@@ -42,11 +42,8 @@ class ServerRegistrationApi : public ApiClass {
   struct Registration : public Message<Registration> {
     static constexpr MessageId kMessageCode = 30;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & stream_id & salt & password_suffix & passwords & parent_uid_ &
-          return_key;
-    }
+    AE_REFLECT_MEMBERS(stream_id, salt, password_suffix, passwords, parent_uid_,
+                       return_key)
 
     StreamId stream_id;
     std::string salt;
@@ -59,10 +56,7 @@ class ServerRegistrationApi : public ApiClass {
   struct RequestProofOfWorkData : public Message<RequestProofOfWorkData> {
     static constexpr MessageId kMessageCode = 40;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & request_id & parent_id & pow_method & return_key;
-    }
+    AE_REFLECT_MEMBERS(request_id, parent_id, pow_method, return_key)
 
     RequestId request_id;
     Uid parent_id;
@@ -72,10 +66,7 @@ class ServerRegistrationApi : public ApiClass {
 
   struct ResolveServers : public Message<ResolveServers> {
     static constexpr MessageId kMessageCode = 70;
-    template <typename T>
-    void Serializator(T& s) {
-      s & request_id & servers;
-    }
+    AE_REFLECT_MEMBERS(request_id, servers)
 
     RequestId request_id;
     std::vector<ServerId> servers;

@@ -35,16 +35,26 @@ class TeleStatistics : public Obj {
 #endif  // AE_DISTILLATION
 
 #if AE_TELE_ENABLED
-  AE_OBJECT_REFLECT(trap_)
+  AE_OBJECT_REFLECT(AE_MMBR(trap_))
+
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_, *trap_);
+  }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_, *trap_);
+  }
 #else
   AE_OBJECT_REFLECT()
 #endif
 
 #if AE_TELE_ENABLED
-  Ptr<statistics::StatisticsTrap> const& trap();
+  RcPtr<statistics::StatisticsTrap> const& trap();
 
  private:
-  Ptr<statistics::StatisticsTrap> trap_ = MakePtr<statistics::StatisticsTrap>();
+  RcPtr<statistics::StatisticsTrap> trap_ =
+      MakeRcPtr<statistics::StatisticsTrap>();
 #endif
 };
 }  // namespace ae::tele

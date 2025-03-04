@@ -22,13 +22,12 @@
 #include "aether/crypto/key.h"
 #include "aether/crypto/sign.h"
 
+#include "aether/reflect/reflect.h"
+
 namespace ae {
 #if AE_SIGNATURE != AE_NONE
 struct SignedKey {
-  template <typename T>
-  void Serializator(T& s) {
-    s & key & sign;
-  }
+  AE_REFLECT_MEMBERS(key, sign)
 
   Key key;
   Sign sign;

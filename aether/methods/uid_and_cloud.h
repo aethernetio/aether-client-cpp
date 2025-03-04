@@ -24,11 +24,7 @@
 
 namespace ae {
 struct UidAndCloud {
-  template <typename T>
-  void Serializator(T& s) {
-    s & uid & cloud;
-  }
-
+  AE_REFLECT_MEMBERS(uid, cloud)
   Uid uid;
   std::vector<ServerId> cloud;
 };

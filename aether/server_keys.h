@@ -37,11 +37,8 @@ class ServerKeys {
 
   void Next();
 
-  template <typename T>
-  void Serializator(T& s) {
-    s & server_id_ & master_key_ & key_number_ & nonce_ &
-        client_to_server_key_ & server_to_client_key_;
-  }
+  AE_REFLECT_MEMBERS(server_id_, master_key_, key_number_, nonce_,
+                     client_to_server_key_, server_to_client_key_)
 
  private:
   void Derive(ServerId server_id, const Key& master_key,

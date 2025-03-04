@@ -33,19 +33,13 @@ class GlobalRegServerApi : public ApiClass {
       crc32::checksum_from_literal("GlobalRegServerApi");
 
   struct SetMasterKey : public Message<SetMasterKey> {
-    template <typename T>
-    void Serializator(T& s) {
-      s & key;
-    }
+    AE_REFLECT_MEMBERS(key)
 
     Key key;
   };
 
   struct Finish : public Message<Finish> {
-    template <typename T>
-    void Serializator(T& s) {
-      s & request_id;
-    }
+    AE_REFLECT_MEMBERS(request_id)
 
     RequestId request_id;
   };

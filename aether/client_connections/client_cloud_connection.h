@@ -18,8 +18,10 @@
 #define AETHER_CLIENT_CONNECTIONS_CLIENT_CLOUD_CONNECTION_H_
 
 #include <map>
+#include <optional>
 
 #include "aether/uid.h"
+#include "aether/memory.h"
 #include "aether/async_for_loop.h"
 #include "aether/actions/action.h"
 #include "aether/events/event_subscription.h"
@@ -41,26 +43,28 @@ class ClientCloudConnection final : public ClientConnection {
  public:
   explicit ClientCloudConnection(
       ActionContext action_context,
-      Ptr<ServerConnectionSelector> client_server_connection_selector);
+      RcPtr<ServerConnectionSelector> client_server_connection_selector);
 
   void Connect() override;
-  Ptr<ByteStream> CreateStream(Uid destination_uid,
-                               StreamId stream_id) override;
+  std::unique_ptr<ByteStream> CreateStream(Uid destination_uid,
+                                           StreamId stream_id) override;
   NewStreamEvent::Subscriber new_stream_event() override;
   void CloseStream(Uid uid, StreamId stream_id) override;
 
+  AE_REFLECT()
  private:
   void SelectConnection();
 
   void OnConnectionError();
-  void NewStream(Uid uid, Ptr<ByteStream> stream);
+  void NewStream(Uid uid, ByteStream& stream);
 
   ActionContext action_context_;
-  Ptr<ServerConnectionSelector> server_connection_selector_;
-  Ptr<AsyncForLoop<Ptr<ClientServerConnection>>> connection_selector_loop_;
+  RcPtr<ServerConnectionSelector> server_connection_selector_;
+  std::optional<AsyncForLoop<RcPtr<ClientServerConnection>>>
+      connection_selector_loop_;
 
   // currently selected connection
-  Ptr<ClientServerConnection> server_connection_;
+  RcPtr<ClientServerConnection> server_connection_;
 
   NewStreamEvent new_stream_event_;
   Subscription new_stream_event_subscription_;
@@ -69,7 +73,7 @@ class ClientCloudConnection final : public ClientConnection {
   Subscription connection_status_subscription_;
 
   // known streams to clients
-  std::map<Uid, Ptr<SplitterGate>> gates_;
+  std::map<Uid, std::unique_ptr<SplitterGate>> gates_;
 
   ReconnectNotify reconnect_notify_;
   Subscription reconnect_notify_subscription_;

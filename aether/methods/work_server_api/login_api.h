@@ -31,10 +31,7 @@ class LoginApi : public ApiClass {
   struct LoginByUid : public Message<LoginByUid> {
     static constexpr auto kMessageCode = 3;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & stream_id & uid;
-    }
+    AE_REFLECT_MEMBERS(stream_id, uid)
 
     StreamId stream_id;
     Uid uid;
@@ -44,10 +41,7 @@ class LoginApi : public ApiClass {
   struct LoginByAlias : public Message<LoginByAlias> {
     static constexpr auto kMessageCode = 4;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & ephemeral_uid & stream_id;
-    }
+    AE_REFLECT_MEMBERS(ephemeral_uid, stream_id)
 
     Uid ephemeral_uid;
     StreamId stream_id;

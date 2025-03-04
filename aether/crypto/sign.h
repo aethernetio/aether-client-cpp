@@ -34,6 +34,7 @@
 #  endif
 
 #  include "aether/variant_type.h"
+#  include "aether/reflect/reflect.h"
 
 namespace ae {
 
@@ -51,19 +52,14 @@ inline constexpr auto kDefaultSignatureMethod =
 
 #  if AE_SIGNATURE == AE_ED25519
 struct SignSodium {
-  template <typename T>
-  void Serializator(T& s) {
-    s & signature;
-  }
+  AE_REFLECT_MEMBERS(signature)
+
   std::array<uint8_t, crypto_sign_BYTES> signature;
 };
 
 #  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
 struct SignHydrogen {
-  template <typename T>
-  void Serializator(T& s) {
-    s & signature;
-  }
+  AE_REFLECT_MEMBERS(signature)
 
   std::array<uint8_t, hydro_sign_BYTES> signature;
 };

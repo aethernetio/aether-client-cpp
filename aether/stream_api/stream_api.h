@@ -19,6 +19,7 @@
 
 #include "aether/crc.h"
 
+#include "aether/reflect/reflect.h"
 #include "aether/api_protocol/child_data.h"
 #include "aether/api_protocol/api_protocol.h"
 
@@ -36,10 +37,7 @@ class StreamApi : public ApiClass {
         crc32::checksum_from_literal("StreamApi::Stream");
     static constexpr MessageId kMessageCode = 2;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & stream_id & child_data;
-    }
+    AE_REFLECT_MEMBERS(stream_id, child_data)
 
     StreamId stream_id;
     ChildData child_data;

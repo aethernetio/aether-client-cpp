@@ -61,7 +61,7 @@ struct NullTrap {
 
   EnvStream env_stream() { return {}; }
 
-  AE_CLASS_REFLECT()
+  AE_REFLECT()
 };
 }  // namespace ae::tele
 

@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "aether/crc.h"
+#include "aether/reflect/reflect.h"
 #include "aether/transport/data_buffer.h"
 #include "aether/api_protocol/api_message.h"
 #include "aether/api_protocol/api_protocol.h"
@@ -36,26 +37,21 @@ class SafeStreamApi : public ApiClass {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::Close");
 
-    template <typename T>
-    void Serializator(T&) {}
+    AE_REFLECT()
   };
   struct RequestReport : public Message<RequestReport> {
     static constexpr auto kMessageCode = 3;
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::RequestReport");
 
-    template <typename T>
-    void Serializator(T&) {}
+    AE_REFLECT()
   };
   struct PutReport : public Message<PutReport> {
     static constexpr auto kMessageCode = 4;
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::PutReport");
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & offset;
-    }
+    AE_REFLECT_MEMBERS(offset)
 
     std::uint16_t offset;
   };
@@ -64,10 +60,7 @@ class SafeStreamApi : public ApiClass {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::Confirm");
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & offset;
-    }
+    AE_REFLECT_MEMBERS(offset)
 
     std::uint16_t offset;
   };
@@ -76,10 +69,8 @@ class SafeStreamApi : public ApiClass {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::RequestRepeat");
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & offset;
-    }
+    AE_REFLECT_MEMBERS(offset)
+
     std::uint16_t offset;
   };
   struct Send : public Message<Send> {
@@ -87,10 +78,7 @@ class SafeStreamApi : public ApiClass {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::Send");
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & offset & data;
-    }
+    AE_REFLECT_MEMBERS(offset, data)
 
     std::uint16_t offset;
     DataBuffer data;
@@ -100,10 +88,8 @@ class SafeStreamApi : public ApiClass {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::Repeat");
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & repeat_count & offset & data;
-    }
+    AE_REFLECT_MEMBERS(repeat_count, offset, data)
+
     std::uint16_t repeat_count;
     std::uint16_t offset;
     DataBuffer data;

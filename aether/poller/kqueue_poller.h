@@ -38,10 +38,7 @@ class KqueuePoller : public IPoller {
 #  endif
   ~KqueuePoller() override;
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+  AE_OBJECT_REFLECT()
 
   [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) override;
   void Remove(DescriptorType descriptor) override;

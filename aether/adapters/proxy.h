@@ -34,11 +34,7 @@ class Proxy : public Obj {
 
 #if AE_SUPPORT_PROXY == 1
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    // dnv(end_point_, mode_);
-  }
+  AE_OBJECT_REFLECT(/* end_point_, mode_ */)
 
   IpAddressPortProtocol end_point_;
   enum class Mode : std::uint8_t {
@@ -47,8 +43,7 @@ class Proxy : public Obj {
   };
   // [[maybe_unused]] Mode mode_;
 #else
-  template <typename Dnv>
-  void Visit(Dnv&) {}
+  AE_OBJECT_REFLECT()
 #endif  // AE_SUPPORT_PROXY == 1
 };
 

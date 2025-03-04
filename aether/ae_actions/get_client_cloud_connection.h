@@ -21,6 +21,7 @@
 #include <optional>
 
 #include "aether/uid.h"
+#include "aether/memory.h"
 #include "aether/async_for_loop.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/actions/action.h"
@@ -52,7 +53,7 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
       ActionContext action_context,
       Ptr<ClientConnectionManager> const& client_connection_manager,
       ObjPtr<Client> const& client, Uid client_uid,
-      Ptr<ServerConnectionSelector> client_server_connection_selector);
+      RcPtr<ServerConnectionSelector> client_server_connection_selector);
 
   ~GetClientCloudConnection() override;
 
@@ -60,7 +61,7 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
 
   void Stop();
 
-  Ptr<ClientConnection> client_cloud_connection() const;
+  std::unique_ptr<ClientConnection> client_cloud_connection();
 
  private:
   void TryCache(TimePoint current_time);
@@ -68,25 +69,26 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   void GetCloud(TimePoint current_time);
   void CreateConnection(TimePoint current_time);
 
-  Ptr<ClientConnection> CreateConnection(
-      Ptr<ServerConnectionSelector> client_to_server_stream_selector);
+  std::unique_ptr<ClientConnection> CreateConnection(
+      RcPtr<ServerConnectionSelector> client_to_server_stream_selector);
 
   ActionContext action_context_;
   PtrView<Client> client_;
   Uid client_uid_;
   PtrView<ClientConnectionManager> client_connection_manager_;
-  Ptr<ServerConnectionSelector> server_connection_selector_;
-  Ptr<AsyncForLoop<Ptr<ClientServerConnection>>> connection_selection_loop_;
+  RcPtr<ServerConnectionSelector> server_connection_selector_;
+  std::optional<AsyncForLoop<RcPtr<ClientServerConnection>>>
+      connection_selection_loop_;
 
   StateMachine<State> state_;
 
-  Ptr<ClientServerConnection> server_connection_;
+  RcPtr<ClientServerConnection> server_connection_;
   Subscription connection_subscription_;
 
   std::optional<GetClientCloudAction> get_client_cloud_action_;
   MultiSubscription get_client_cloud_subscriptions_;
 
-  Ptr<ClientConnection> client_cloud_connection_;
+  std::unique_ptr<ClientConnection> client_cloud_connection_;
   Subscription state_changed_subscription_;
 };
 }  // namespace ae

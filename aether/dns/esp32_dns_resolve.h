@@ -45,11 +45,7 @@ class Esp32DnsResolver : public DnsResolver {
 
   ~Esp32DnsResolver() override;
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(aether_);
-  }
+  AE_OBJECT_REFLECT(AE_MMBR(aether_))
 
   ResolveAction& Resolve(NameAddress const& name_address) override;
 

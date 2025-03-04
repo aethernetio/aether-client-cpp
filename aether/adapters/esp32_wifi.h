@@ -50,31 +50,31 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
    public:
     // immediately create the transport
     CreateTransportAction(ActionContext action_context,
-                          Esp32WifiAdapter* adapter, Obj::ptr aether,
-                          IPoller::ptr poller,
+                          Esp32WifiAdapter* adapter, Obj::ptr const& aether,
+                          IPoller::ptr const& poller,
                           IpAddressPortProtocol address_port_protocol_);
     // create the transport when wifi is connected
     CreateTransportAction(ActionContext action_context,
                           EventSubscriber<void(bool)> wifi_connected_event,
-                          Esp32WifiAdapter* adapter, Obj::ptr aether,
-                          IPoller::ptr poller,
+                          Esp32WifiAdapter* adapter, Obj::ptr const& aether,
+                          IPoller::ptr const& poller,
                           IpAddressPortProtocol address_port_protocol_);
 
     TimePoint Update(TimePoint current_time) override;
-    Ptr<ITransport> transport() const;
+    std::unique_ptr<ITransport> transport() override;
 
    private:
     void CreateTransport();
 
     Esp32WifiAdapter* adapter_;
-    Obj::ptr aether_;
-    IPoller::ptr poller_;
+    PtrView<Aether> aether_;
+    PtrView<IPoller> poller_;
     IpAddressPortProtocol address_port_protocol_;
 
     bool once_;
     bool failed_;
     Subscription wifi_connected_subscription_;
-    Ptr<ITransport> transport_;
+    std::unique_ptr<ITransport> transport_;
   };
 
   static constexpr int kMaxRetry = 10;
@@ -86,9 +86,16 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
   ~Esp32WifiAdapter();
 #  endif  // AE_DISTILLATION
 
+  AE_OBJECT_REFLECT(AE_MMBRS(esp_netif_, connected_, wifi_connected_event_,
+                             create_transport_actions_))
+
   template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+  }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
   }
 
   ActionView<ae::CreateTransportAction> CreateTransport(
@@ -108,7 +115,7 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
   esp_netif_t* esp_netif_{};
   bool connected_{false};
   Event<void(bool result)> wifi_connected_event_;
-  Ptr<ActionList<CreateTransportAction>> create_transport_actions_;
+  std::optional<ActionList<CreateTransportAction>> create_transport_actions_;
 };
 }  // namespace ae
 

@@ -38,10 +38,7 @@ class ClientSafeApi : public ApiClass,
         crc32::checksum_from_literal("ClientSafeApi::StreamToClient");
     static constexpr auto kMessageCode = 3;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & uid & stream_id;
-    }
+    AE_REFLECT_MEMBERS(uid, stream_id)
 
     Uid uid;
     StreamId stream_id;
@@ -52,10 +49,7 @@ class ClientSafeApi : public ApiClass,
         crc32::checksum_from_literal("ClientSafeApi::SendMessage");
     static constexpr auto kMessageCode = 4;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & uid & data;
-    }
+    AE_REFLECT_MEMBERS(uid, data)
 
     Uid uid;
     DataBuffer data;

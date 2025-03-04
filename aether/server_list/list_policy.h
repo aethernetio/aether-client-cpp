@@ -20,6 +20,7 @@
 #include "aether/common.h"
 
 #include "aether/ptr/ptr.h"
+#include "aether/ptr/ptr_view.h"
 
 #include "aether/server.h"
 #include "aether/channel.h"
@@ -27,17 +28,17 @@
 namespace ae {
 class ServerListItem {
  public:
-  ServerListItem(Ptr<Server> server, Ptr<Channel> channel)
-      : server_{std::move(server)}, channel_{std::move(channel)} {}
+  ServerListItem(Ptr<Server> const& server, Ptr<Channel> const& channel)
+      : server_{server}, channel_{channel} {}
 
   AE_CLASS_COPY_MOVE(ServerListItem)
 
-  Ptr<Server> const& server() const { return server_; }
-  Ptr<Channel> const& channel() const { return channel_; }
+  Ptr<Server> server() const { return server_.Lock(); }
+  Ptr<Channel> channel() const { return channel_.Lock(); }
 
  private:
-  Ptr<Server> server_;
-  Ptr<Channel> channel_;
+  PtrView<Server> server_;
+  PtrView<Channel> channel_;
 };
 
 // Policy interface to make server list
