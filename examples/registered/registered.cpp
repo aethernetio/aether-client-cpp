@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include "aether/common.h"
+#include "aether/memory.h"
 #include "aether/state_machine.h"
 #include "aether/literal_array.h"
 #include "aether/actions/action.h"
@@ -144,13 +145,12 @@ class RegisteredAction : public Action<RegisteredAction> {
     confirm_count_ = 0;
     assert(aether_->clients().size() > 0);
 
-    for (auto client : aether_->clients()) {
-      sender_ = client;
-      sender_stream_ = MakePtr<P2pSafeStream>(
+    for (auto const& client : aether_->clients()) {
+      auto sender_stream = make_unique<P2pSafeStream>(
           *aether_->action_processor, kSafeStreamConfig,
-          MakePtr<P2pStream>(*aether_->action_processor, sender_,
-                             sender_->uid(), StreamId{clients_cnt}));
-      sender_streams_.push_back(sender_stream_);
+          make_unique<P2pStream>(*aether_->action_processor, client,
+                                 client->uid(), StreamId{clients_cnt}));
+      sender_streams_.emplace_back(std::move(sender_stream));
       sender_message_subscriptions_.Push(
           sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
               [&](auto const& data) {
@@ -192,7 +192,7 @@ class RegisteredAction : public Action<RegisteredAction> {
 
     AE_TELED_INFO("Send messages");
 
-    for (auto sender_stream : sender_streams_) {
+    for (auto const& sender_stream : sender_streams_) {
       auto msg = messages_[messages_cnt++];
       AE_TELED_DEBUG("Sending message {}", msg);
       auto send_action = sender_stream->in().Write(
@@ -208,12 +208,9 @@ class RegisteredAction : public Action<RegisteredAction> {
 
   Aether::ptr aether_;
 
-  std::vector<ae::Ptr<ae::P2pSafeStream>> sender_streams_{};
+  std::vector<std::unique_ptr<ae::P2pSafeStream>> sender_streams_{};
 
-  Client::ptr receiver_;
-  Ptr<ByteStream> receiver_stream_;
-  Client::ptr sender_;
-  Ptr<ByteStream> sender_stream_;
+  std::unique_ptr<ByteStream> sender_stream_;
   std::size_t clients_registered_;
   std::size_t receive_count_{0};
   std::size_t confirm_count_{0};

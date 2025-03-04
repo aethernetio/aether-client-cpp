@@ -46,12 +46,11 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
 
  public:
   MessageSender(ActionContext action_context, ProtocolContext& protocol_context,
-                TApi&& api_class, Ptr<ByteStream> stream,
-                std::size_t send_count)
+                TApi&& api_class, ByteStream& stream, std::size_t send_count)
       : SelfAction{action_context},
         protocol_context_{protocol_context},
         api_class_{std::move(api_class)},
-        stream_{std::move(stream)},
+        stream_{&stream},
         send_count_{send_count},
         state_{State::kSending},
         state_changed_{state_.changed_event().Subscribe(
@@ -141,7 +140,7 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
 
   ProtocolContext& protocol_context_;
   TApi api_class_;
-  Ptr<ByteStream> stream_;
+  ByteStream* stream_;
   std::size_t send_count_;
   Duration send_duration_;
 

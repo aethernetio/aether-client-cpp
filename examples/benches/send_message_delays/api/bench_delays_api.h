@@ -20,6 +20,7 @@
 #include <array>
 
 #include "aether/crc.h"
+#include "aether/reflect/reflect.h"
 #include "aether/api_protocol/api_protocol.h"
 
 namespace ae::bench {
@@ -36,10 +37,7 @@ class BenchDelaysApi : public ApiClass {
     WarmUp() = default;
     explicit WarmUp(std::uint16_t i) : id{i} {}
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & id & payload;
-    }
+    AE_REFLECT_MEMBERS(id, payload)
 
     std::uint16_t id;
     std::array<std::uint8_t, 98> payload;
@@ -53,10 +51,7 @@ class BenchDelaysApi : public ApiClass {
     TwoByte() = default;
     explicit TwoByte(std::uint16_t i) : id{i} {}
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & id;
-    }
+    AE_REFLECT_MEMBERS(id)
 
     std::uint16_t id;
   };
@@ -69,10 +64,7 @@ class BenchDelaysApi : public ApiClass {
     TenBytes() = default;
     explicit TenBytes(std::uint16_t i) : id{i} {}
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & id & payload;
-    }
+    AE_REFLECT_MEMBERS(id, payload)
 
     std::uint16_t id;
     std::array<std::uint8_t, 8> payload;
@@ -86,10 +78,7 @@ class BenchDelaysApi : public ApiClass {
     HundredBytes() = default;
     explicit HundredBytes(std::uint16_t i) : id{i} {}
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & id & payload;
-    }
+    AE_REFLECT_MEMBERS(id, payload)
 
     std::uint16_t id;
     std::array<std::uint8_t, 98> payload;
@@ -103,10 +92,7 @@ class BenchDelaysApi : public ApiClass {
     ThousandBytes() = default;
     explicit ThousandBytes(std::uint16_t i) : id{i} {}
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & id & payload;
-    }
+    AE_REFLECT_MEMBERS(id, payload)
 
     std::uint16_t id;
     std::array<std::uint8_t, 998> payload;
@@ -120,10 +106,7 @@ class BenchDelaysApi : public ApiClass {
     ThousandAndHalfBytes() = default;
     explicit ThousandAndHalfBytes(std::uint16_t i) : id{i} {}
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & id & payload;
-    }
+    AE_REFLECT_MEMBERS(id, payload)
 
     std::uint16_t id;
     std::array<std::uint8_t, 1398> payload;

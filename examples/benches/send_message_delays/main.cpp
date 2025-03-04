@@ -126,13 +126,14 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         std::chrono::milliseconds{200},
     };
 
-    auto sender = MakePtr<Sender>(ActionContext{*aether_->action_processor},
-                                  client_sender_, client_receiver_->uid(),
-                                  safe_stream_config);
-    auto receiver = MakePtr<Receiver>(ActionContext{*aether_->action_processor},
-                                      client_receiver_, safe_stream_config);
+    auto sender = make_unique<Sender>(ActionContext{*aether_->action_processor},
+                                      client_sender_, client_receiver_->uid(),
+                                      safe_stream_config);
+    auto receiver =
+        make_unique<Receiver>(ActionContext{*aether_->action_processor},
+                              client_receiver_, safe_stream_config);
 
-    send_message_delays_manager_ = MakePtr<SendMessageDelaysManager>(
+    send_message_delays_manager_ = make_unique<SendMessageDelaysManager>(
         ActionContext{*aether_->action_processor}, std::move(sender),
         std::move(receiver));
 
@@ -180,7 +181,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
   std::ostream& write_results_stream_;
   Client::ptr client_sender_;
   Client::ptr client_receiver_;
-  Ptr<SendMessageDelaysManager> send_message_delays_manager_;
+  std::unique_ptr<SendMessageDelaysManager> send_message_delays_manager_;
 
   BarrierEvent<void, 2> clients_registered_event_;
   MultiSubscription registration_subscriptions_;
