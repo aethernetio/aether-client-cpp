@@ -185,4 +185,17 @@ constexpr auto TypeAt() -> std::tuple_element_t<I, std::tuple<Ts...>>;
 template <std::size_t I, typename... Ts>
 using TypeAt_t = decltype(TypeAt<I, Ts...>());
 
+/**
+ * \brief static cast with save constness
+ */
+template <typename T, typename U>
+constexpr T StaticConst(U& u) {
+  return static_cast<T>(u);
+}
+
+template <typename T, typename U>
+constexpr auto& StaticConst(U const& u) {
+  return static_cast<std::add_const_t<std::remove_reference_t<T>>&>(u);
+}
+
 #endif  // AETHER_TYPE_TRAITS_H_ */
