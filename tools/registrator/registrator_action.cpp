@@ -161,13 +161,12 @@ void RegistratorAction::ConfigureSender() {
     confirm_count_ = 0;
     assert(aether_->clients().size() == registrator_config_.GetClientsTotal());
 
-    for (auto client : aether_->clients()) {
-      sender_ = client;
-      sender_stream_ = MakePtr<P2pSafeStream>(
+    for (auto const& client : aether_->clients()) {
+      auto sender_stream = make_unique<P2pSafeStream>(
           *aether_->action_processor, kSafeStreamConfig,
-          MakePtr<P2pStream>(*aether_->action_processor, sender_,
-                             sender_->uid(), StreamId{clients_cnt}));
-      sender_streams_.push_back(sender_stream_);
+          make_unique<P2pStream>(*aether_->action_processor, client,
+                                 client->uid(), StreamId{clients_cnt}));
+      sender_streams_.emplace_back(std::move(sender_stream));
 
       sender_message_subscriptions_.Push(
           sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
@@ -214,7 +213,7 @@ void RegistratorAction::SendMessages(TimePoint current_time) {
   if (kUseSelfTest) {
     AE_TELED_INFO("Send messages");
 
-    for (auto sender_stream : sender_streams_) {
+    for (auto const& sender_stream : sender_streams_) {
       auto msg = messages_[messages_cnt++];
       AE_TELED_DEBUG("Sending message {}", msg);
       auto send_action = sender_stream->in().Write(

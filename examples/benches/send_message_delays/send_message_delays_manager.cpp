@@ -22,11 +22,11 @@
 
 namespace ae::bench {
 SendMessageDelaysManager::TestAction::TestAction(
-    ActionContext action_context, Ptr<Sender> sender, Ptr<Receiver> receiver,
+    ActionContext action_context, Sender& sender, Receiver& receiver,
     SendMessageDelaysManagerConfig config)
     : Action{action_context},
-      sender_{std::move(sender)},
-      receiver_{std::move(receiver)},
+      sender_{&sender},
+      receiver_{&receiver},
       config_{config},
       state_{State::kWarmUp} {
   state_changed_subscription_ =
@@ -89,7 +89,7 @@ SendMessageDelaysManager::TestAction::result_table() const {
 
 void SendMessageDelaysManager::TestAction::WarmUp() {
   AE_TELED_INFO("WarmUp p2p stream");
-  res_event_ = MakePtr<BarrierEvent<TimeTable, 2>>();
+  res_event_ = make_unique<BarrierEvent<TimeTable, 2>>();
 
   sender_->ConnectP2pStream();
   receiver_->Connect();
@@ -131,7 +131,7 @@ void SendMessageDelaysManager::TestAction::SwitchToSafeStream() {
 
 void SendMessageDelaysManager::TestAction::SafeStreamWarmUp() {
   AE_TELED_INFO("WarmUp p2p safe stream");
-  res_event_ = MakePtr<BarrierEvent<TimeTable, 2>>();
+  res_event_ = make_unique<BarrierEvent<TimeTable, 2>>();
 
   sender_->ConnectP2pSafeStream();
   receiver_->Connect();
@@ -227,7 +227,7 @@ void SendMessageDelaysManager::TestAction::SubscribeToTest(
     ActionView<ITimedSender> sender_action,
     ActionView<ITimedReceiver> receiver_action, State next_state) {
   test_subscriptions_.Reset();
-  res_event_ = MakePtr<BarrierEvent<TimeTable, 2>>();
+  res_event_ = make_unique<BarrierEvent<TimeTable, 2>>();
   test_subscriptions_.Push(
       receiver_action->OnReceived().Subscribe([sender_action]() mutable {
         if (sender_action) {
@@ -270,9 +270,9 @@ void SendMessageDelaysManager::TestAction::TestResult(
   result_table_.emplace_back(std::move(results));
 }
 
-SendMessageDelaysManager::SendMessageDelaysManager(ActionContext action_context,
-                                                   Ptr<Sender> sender,
-                                                   Ptr<Receiver> receiver)
+SendMessageDelaysManager::SendMessageDelaysManager(
+    ActionContext action_context, std::unique_ptr<Sender> sender,
+    std::unique_ptr<Receiver> receiver)
     : action_context_{std::move(action_context)},
       sender_{std::move(sender)},
       receiver_{std::move(receiver)} {}
@@ -285,10 +285,10 @@ ActionView<SendMessageDelaysManager::TestAction> SendMessageDelaysManager::Test(
   }
 
   test_action_ =
-      MakePtr<TestAction>(action_context_, sender_, receiver_, config);
+      make_unique<TestAction>(action_context_, *sender_, *receiver_, config);
 
   test_action_subscription_.Push(test_action_->FinishedEvent().Subscribe(
-      [this]() { test_action_.Reset(); }));
+      [this]() { test_action_.reset(); }));
 
   return *test_action_;
 }
