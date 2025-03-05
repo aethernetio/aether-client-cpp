@@ -17,6 +17,9 @@
 #ifndef AETHER_ADAPTERS_ETHERNET_H_
 #define AETHER_ADAPTERS_ETHERNET_H_
 
+#include <optional>
+
+#include "aether/memory.h"
 #include "aether/ptr/ptr.h"
 #include "aether/poller/poller.h"
 #include "aether/adapters/adapter.h"
@@ -32,15 +35,15 @@ class EthernetAdapter : public Adapter {
 
   class EthernetCreateTransportAction : public CreateTransportAction {
    public:
-    explicit EthernetCreateTransportAction(ActionContext action_context,
-                                           Ptr<ITransport> transport);
+    explicit EthernetCreateTransportAction(
+        ActionContext action_context, std::unique_ptr<ITransport> transport);
 
     TimePoint Update(TimePoint current_time) override;
 
-    Ptr<ITransport> transport() const override;
+    std::unique_ptr<ITransport> transport() override;
 
    private:
-    Ptr<ITransport> transport_;
+    std::unique_ptr<ITransport> transport_;
     bool once_;
   };
 
@@ -66,7 +69,8 @@ class EthernetAdapter : public Adapter {
  private:
   Obj::ptr aether_;
   IPoller::ptr poller_;
-  Ptr<ActionList<EthernetCreateTransportAction>> create_transport_actions_;
+  std::optional<ActionList<EthernetCreateTransportAction>>
+      create_transport_actions_;
 };
 }  // namespace ae
 

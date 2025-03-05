@@ -62,8 +62,8 @@ TimePoint IpAddressChannelConnectionAction::Update(TimePoint current_time) {
   return current_time;
 }
 
-Ptr<ITransport> IpAddressChannelConnectionAction::transport() const {
-  return transport_;
+std::unique_ptr<ITransport> IpAddressChannelConnectionAction::transport() {
+  return std::move(transport_);
 }
 
 ConnectionInfo IpAddressChannelConnectionAction::connection_info() const {
@@ -78,7 +78,7 @@ void IpAddressChannelConnectionAction::TryConnect(
 
   subscriptions_.Push(
       transport_create_action->SubscribeOnResult(
-          [this](auto const& action) { TransportCreated(action.transport()); }),
+          [this](auto& action) { TransportCreated(action.transport()); }),
       transport_create_action->SubscribeOnError([this](auto const&) {
         AE_TELED_ERROR("Transport create failed");
         state_.Set(State::Failed);
@@ -86,7 +86,7 @@ void IpAddressChannelConnectionAction::TryConnect(
 }
 
 void IpAddressChannelConnectionAction::TransportCreated(
-    Ptr<ITransport> transport) {
+    std::unique_ptr<ITransport> transport) {
   transport_ = std::move(transport);
 
   auto connection_info = transport_->GetConnectionInfo();

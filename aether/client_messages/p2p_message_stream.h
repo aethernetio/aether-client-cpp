@@ -20,8 +20,8 @@
 #include "aether/common.h"
 
 #include "aether/uid.h"
+#include "aether/memory.h"
 #include "aether/client.h"
-#include "aether/ptr/ptr.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/actions/action_context.h"
 
@@ -38,7 +38,7 @@ class P2pStream final : public ByteStream {
             Uid destination, StreamId stream_id);
   P2pStream(ActionContext action_context, Ptr<Client> const& client,
             Uid destination, StreamId stream_id,
-            Ptr<ByteStream> receive_stream);
+            std::unique_ptr<ByteStream> receive_stream);
 
   ~P2pStream() override;
 
@@ -61,13 +61,13 @@ class P2pStream final : public ByteStream {
   Uid destination_;
   StreamId stream_id_;
 
-  Ptr<ClientConnection> receive_client_connection_;
-  Ptr<ClientConnection> send_client_connection_;
+  ClientConnection* receive_client_connection_;
+  ClientConnection* send_client_connection_;
 
   BufferGate buffer_gate_;
   ParallelGate<WriteOnlyGate, ReadOnlyGate> send_receive_gate_;
-  Ptr<ByteStream> receive_stream_;
-  Ptr<ByteStream> send_stream_;
+  std::unique_ptr<ByteStream> receive_stream_;
+  std::unique_ptr<ByteStream> send_stream_;
 
   Subscription get_client_connection_subscription_;
 };

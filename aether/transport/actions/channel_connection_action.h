@@ -19,7 +19,7 @@
 
 #include <cstddef>
 
-#include "aether/ptr/ptr.h"
+#include "aether/memory.h"
 #include "aether/address.h"
 #include "aether/actions/action.h"
 
@@ -43,7 +43,7 @@ class ChannelConnectionAction : public Action<ChannelConnectionAction> {
  public:
   using Action::Action;
 
-  virtual Ptr<ITransport> transport() const = 0;
+  virtual std::unique_ptr<ITransport> transport() = 0;
   virtual ConnectionInfo connection_info() const = 0;
 };
 }  // namespace ae

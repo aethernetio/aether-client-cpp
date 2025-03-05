@@ -20,8 +20,8 @@
 
 namespace ae {
 
-CryptoGate::CryptoGate(Ptr<IEncryptProvider> crypto_encrypt,
-                       Ptr<IDecryptProvider> crypto_decrypt)
+CryptoGate::CryptoGate(std::unique_ptr<IEncryptProvider> crypto_encrypt,
+                       std::unique_ptr<IDecryptProvider> crypto_decrypt)
     : crypto_encrypt_{std::move(crypto_encrypt)},
       crypto_decrypt_{std::move(crypto_decrypt)} {}
 

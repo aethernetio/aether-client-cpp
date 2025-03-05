@@ -21,7 +21,7 @@
 
 #if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
 
-#  include "aether/ptr/ptr.h"
+#  include "aether/memory.h"
 
 #  include "aether/crypto/icrypto_provider.h"
 #  include "aether/crypto/ikey_provider.h"
@@ -29,23 +29,25 @@
 namespace ae {
 class SodiumAsyncEncryptProvider : public IEncryptProvider {
  public:
-  explicit SodiumAsyncEncryptProvider(Ptr<IAsyncKeyProvider> key_provider);
+  explicit SodiumAsyncEncryptProvider(
+      std::unique_ptr<IAsyncKeyProvider> key_provider);
 
   DataBuffer Encrypt(DataBuffer const& data) override;
   std::size_t EncryptOverhead() const override;
 
  private:
-  Ptr<IAsyncKeyProvider> key_provider_;
+  std::unique_ptr<IAsyncKeyProvider> key_provider_;
 };
 
 class SodiumAsyncDecryptProvider : public IDecryptProvider {
  public:
-  explicit SodiumAsyncDecryptProvider(Ptr<IAsyncKeyProvider> key_provider);
+  explicit SodiumAsyncDecryptProvider(
+      std::unique_ptr<IAsyncKeyProvider> key_provider);
 
   DataBuffer Decrypt(DataBuffer const& data) override;
 
  private:
-  Ptr<IAsyncKeyProvider> key_provider_;
+  std::unique_ptr<IAsyncKeyProvider> key_provider_;
 };
 }  // namespace ae
 #endif

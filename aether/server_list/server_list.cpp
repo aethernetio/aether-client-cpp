@@ -69,10 +69,11 @@ ServerList::value_type const& ServerList::ServerListIterator::operator->()
   return *item_;
 }
 
-ServerList::ServerList(Ptr<ServerListPolicy> policy, Ptr<Cloud> cloud)
-    : policy_{std::move(policy)}, cloud_{std::move(cloud)} {
-  assert(cloud_);
-  assert(!cloud_->servers().empty());
+ServerList::ServerList(std::unique_ptr<ServerListPolicy> policy,
+                       ObjPtr<Cloud> const& cloud)
+    : policy_{std::move(policy)}, cloud_{cloud} {
+  assert(cloud_.Lock());
+  assert(!cloud_.Lock()->servers().empty());
 
   BuildList();
 }
@@ -83,11 +84,13 @@ void ServerList::Next() { ++iter_; }
 ServerList::value_type ServerList::Get() const { return *iter_; }
 
 void ServerList::BuildList() {
-  auto& servers = cloud_->servers();
+  auto cloud_ptr = cloud_.Lock();
+
+  auto& servers = cloud_ptr->servers();
 
   for (auto& s : servers) {
     if (!s) {
-      cloud_->LoadServer(s);
+      cloud_ptr->LoadServer(s);
     }
     for (auto& chan : s->channels) {
       if (!chan) {

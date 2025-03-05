@@ -41,8 +41,9 @@ class Ping : public Action<Ping> {
   };
 
  public:
-  Ping(ActionContext action_context, Server::ptr server, Channel::ptr channel,
-       Ptr<ByteStream> server_stream, Duration ping_interval);
+  Ping(ActionContext action_context, Server::ptr const& server,
+       Channel::ptr const& channel, ByteStream& server_stream,
+       Duration ping_interval);
   ~Ping() override;
 
   AE_CLASS_NO_COPY_MOVE(Ping);
@@ -53,9 +54,9 @@ class Ping : public Action<Ping> {
   void SendPing(TimePoint current_time);
   void PingResponse();
 
-  Server::ptr server_;
-  Channel::ptr channel_;
-  Ptr<ByteStream> server_stream_;
+  PtrView<Server> server_;
+  PtrView<Channel> channel_;
+  ByteStream* server_stream_;
   Duration ping_interval_;
 
   ProtocolContext protocol_context_;

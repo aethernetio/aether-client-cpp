@@ -21,6 +21,7 @@
 #include "aether/stream_api/istream.h"
 #include "aether/actions/action_context.h"
 
+#include "aether/memory.h"
 #include "aether/server.h"
 #include "aether/channel.h"
 #include "aether/ae_actions/ping.h"
@@ -33,22 +34,23 @@ namespace ae {
  */
 class ClientServerConnection {
  public:
-  using NewStreamEvent = Event<void(Uid uid, Ptr<MessageStream> stream)>;
+  using NewStreamEvent = Event<void(Uid uid, MessageStream& stream)>;
 
   explicit ClientServerConnection(
-      ActionContext action_context, Server::ptr server, Channel::ptr channel,
-      Ptr<ClientToServerStream> client_to_server_stream);
+      ActionContext action_context, Server::ptr const& server,
+      Channel::ptr const& channel,
+      std::unique_ptr<ClientToServerStream> client_to_server_stream);
 
-  Ptr<ClientToServerStream> const& server_stream() const;
+  ClientToServerStream& server_stream();
 
   ByteStream& GetStream(Uid destination);
   NewStreamEvent::Subscriber new_stream_event();
   void CloseStream(Uid uid);
 
  private:
-  Ptr<ClientToServerStream> server_stream_;
-  Ptr<MessageStreamDispatcher> message_stream_dispatcher_;
-  Ptr<Ping> ping_;
+  std::unique_ptr<ClientToServerStream> server_stream_;
+  std::unique_ptr<MessageStreamDispatcher> message_stream_dispatcher_;
+  std::unique_ptr<Ping> ping_;
   NewStreamEvent new_stream_event_;
   Subscription new_stream_event_subscription_;
 };

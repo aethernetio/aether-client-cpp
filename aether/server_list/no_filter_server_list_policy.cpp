@@ -16,19 +16,30 @@
 
 #include "aether/server_list/no_filter_server_list_policy.h"
 
+#include <cassert>
+
 #include "aether/server.h"
 
 namespace ae {
 bool NoFilterServerListPolicy::Preferred(ServerListItem const& left,
                                          ServerListItem const& right) const {
   // simple ordering comparison
-  if (left.server() == right.server()) {
-    for (auto const& i : left.server()->channels) {
-      if (i.get() == left.channel().get()) {
+  auto left_server = left.server();
+  auto left_channel = left.channel();
+  auto right_server = right.server();
+  auto right_channel = right.channel();
+  assert(left_server);
+  assert(left_channel);
+  assert(right_server);
+  assert(right_channel);
+
+  if (left_server == right_server) {
+    for (auto const& i : left_server->channels) {
+      if (i.get() == left_channel.get()) {
         // left first
         return true;
       }
-      if (i.get() == right.channel().get()) {
+      if (i.get() == right_channel.get()) {
         // right first
         break;
       }
@@ -36,7 +47,7 @@ bool NoFilterServerListPolicy::Preferred(ServerListItem const& left,
     return false;
   }
 
-  return left.server()->server_id < right.server()->server_id;
+  return left_server->server_id < right_server->server_id;
 }
 
 bool NoFilterServerListPolicy::Filter(ServerListItem const& /* info */) const {

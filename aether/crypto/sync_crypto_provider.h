@@ -17,7 +17,7 @@
 #ifndef AETHER_CRYPTO_SYNC_CRYPTO_PROVIDER_H_
 #define AETHER_CRYPTO_SYNC_CRYPTO_PROVIDER_H_
 
-#include "aether/ptr/ptr.h"
+#include "aether/memory.h"
 
 #include "aether/crypto/icrypto_provider.h"
 #include "aether/crypto/ikey_provider.h"
@@ -25,22 +25,22 @@
 namespace ae {
 class SyncEncryptProvider : public IEncryptProvider {
  public:
-  explicit SyncEncryptProvider(Ptr<ISyncKeyProvider> key_provider);
+  explicit SyncEncryptProvider(std::unique_ptr<ISyncKeyProvider> key_provider);
 
   DataBuffer Encrypt(DataBuffer const& data) override;
   std::size_t EncryptOverhead() const override;
 
  private:
-  Ptr<IEncryptProvider> impl_;
+  std::unique_ptr<IEncryptProvider> impl_;
 };
 
 class SyncDecryptProvider : public IDecryptProvider {
  public:
-  explicit SyncDecryptProvider(Ptr<ISyncKeyProvider> key_provider);
+  explicit SyncDecryptProvider(std::unique_ptr<ISyncKeyProvider> key_provider);
   DataBuffer Decrypt(DataBuffer const& data) override;
 
  private:
-  Ptr<IDecryptProvider> impl_;
+  std::unique_ptr<IDecryptProvider> impl_;
 };
 }  // namespace ae
 

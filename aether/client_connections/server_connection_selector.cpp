@@ -22,17 +22,17 @@
 
 namespace ae {
 ServerConnectionSelector::ServerConnectionSelector(
-    Ptr<Cloud> cloud,
-    Ptr<IServerConnectionFactory> client_server_connection_factory)
-    : server_list_{MakePtr<ServerList>(MakePtr<NoFilterServerListPolicy>(),
-                                       std::move(cloud))},
+    Cloud::ptr const& cloud,
+    std::unique_ptr<IServerConnectionFactory> client_server_connection_factory)
+    : server_list_{make_unique<ServerList>(
+          make_unique<NoFilterServerListPolicy>(), cloud)},
       server_connection_factory_{std::move(client_server_connection_factory)} {}
 
 void ServerConnectionSelector::Init() { server_list_->Init(); }
 
 void ServerConnectionSelector::Next() { server_list_->Next(); }
 
-Ptr<ClientServerConnection> ServerConnectionSelector::GetConnection() {
+RcPtr<ClientServerConnection> ServerConnectionSelector::GetConnection() {
   auto item = server_list_->Get();
   return server_connection_factory_->CreateConnection(item.server(),
                                                       item.channel());
