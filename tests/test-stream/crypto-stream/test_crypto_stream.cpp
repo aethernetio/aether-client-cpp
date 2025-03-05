@@ -18,20 +18,18 @@
 
 #include <vector>
 
-#include "aether/stream_api/istream.h"
+#include "aether/memory.h"
 #include "aether/transport/data_buffer.h"
-
 #include "aether/actions/action_context.h"
 
+#include "aether/stream_api/istream.h"
 #include "aether/stream_api/crypto_stream.h"
-
 #include "aether/crypto/sync_crypto_provider.h"
 #include "aether/crypto/async_crypto_provider.h"
 
 #include "tests/test-stream/crypto-stream/mock_key_provider.h"
 #include "tests/test-stream/mock_read_gate.h"
 #include "tests/test-stream/mock_write_gate.h"
-#include "unity_internals.h"
 
 namespace ae::test_crypto_stream {
 
@@ -40,26 +38,26 @@ static constexpr char test_data[] =
     "honey in ancient Egyptian tombs that are over 3,000 years old and still "
     "perfectly edible!";
 
-Ptr<ISyncKeyProvider> SyncKeyProviderFactory() {
+MockSyncKeyProvider SyncKeyProviderFactory() {
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
   SodiumChachaKey key;
   crypto_aead_chacha20poly1305_keygen(key.key.data());
   CryptoNonce nonce;
   nonce.Init();
-  return MakePtr<MockSyncKeyProvider>(std::move(key), std::move(nonce));
+  return MockSyncKeyProvider{std::move(key), std::move(nonce)};
 #elif AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
   HydrogenSecretBoxKey key;
   hydro_secretbox_keygen(key.key.data());
-  return MakePtr<MockSyncKeyProvider>(std::move(key));
+  return MockSyncKeyProvider{std::move(key)};
 #endif
 }
 
-Ptr<IAsyncKeyProvider> AsyncKeyProviderFactory() {
+MockAsyncKeyProvider AsyncKeyProviderFactory() {
 #if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
   SodiumCurvePublicKey pub_key;
   SodiumCurveSecretKey sec_key;
   crypto_box_keypair(pub_key.key.data(), sec_key.key.data());
-  return MakePtr<MockAsyncKeyProvider>(std::move(pub_key), std::move(sec_key));
+  return MockAsyncKeyProvider{std::move(pub_key), std::move(sec_key)};
 #elif AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
   hydro_kx_keypair key_pair;
   hydro_kx_keygen(&key_pair);
@@ -70,7 +68,7 @@ Ptr<IAsyncKeyProvider> AsyncKeyProviderFactory() {
   std::copy(key_pair.sk, key_pair.sk + sizeof(key_pair.sk),
             std::begin(sec_key.key));
 
-  return MakePtr<MockAsyncKeyProvider>(std::move(pub_key), std::move(sec_key));
+  return MockAsyncKeyProvider{std::move(pub_key), std::move(sec_key)};
 #endif
 }
 
@@ -84,10 +82,14 @@ void test_SyncCryptoStream() {
   auto write_stream = MockWriteGate{ap, std::size_t{10 * 1024}};
 
   auto key_provider = SyncKeyProviderFactory();
-  auto crypto_encrypt = MakePtr<SyncEncryptProvider>(key_provider);
-  auto crypto_decrypt = MakePtr<SyncDecryptProvider>(key_provider);
 
-  auto crypto_gate = CryptoGate{crypto_encrypt, crypto_decrypt};
+  auto crypto_encrypt = make_unique<SyncEncryptProvider>(
+      make_unique<MockSyncKeyProvider>(key_provider));
+  auto crypto_decrypt = make_unique<SyncDecryptProvider>(
+      make_unique<MockSyncKeyProvider>(key_provider));
+
+  auto crypto_gate =
+      CryptoGate{std::move(crypto_encrypt), std::move(crypto_decrypt)};
 
   Tie(read_stream, crypto_gate, write_stream);
 
@@ -117,10 +119,14 @@ void test_AsyncCryptoStream() {
   auto write_stream = MockWriteGate{ap, std::size_t{10 * 1024}};
 
   auto key_provider = AsyncKeyProviderFactory();
-  auto crypto_encrypt = MakePtr<AsyncEncryptProvider>(key_provider);
-  auto crypto_decrypt = MakePtr<AsyncDecryptProvider>(key_provider);
 
-  auto crypto_gate = CryptoGate{crypto_encrypt, crypto_decrypt};
+  auto crypto_encrypt = make_unique<AsyncEncryptProvider>(
+      make_unique<MockAsyncKeyProvider>(key_provider));
+  auto crypto_decrypt = make_unique<AsyncDecryptProvider>(
+      make_unique<MockAsyncKeyProvider>(key_provider));
+
+  auto crypto_gate =
+      CryptoGate{std::move(crypto_encrypt), std::move(crypto_decrypt)};
 
   Tie(read_stream, crypto_gate, write_stream);
 

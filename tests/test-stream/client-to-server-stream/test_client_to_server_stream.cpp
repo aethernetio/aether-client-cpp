@@ -46,25 +46,26 @@ class TestClientToServerStreamFixture {
     client->SetConfig(Uid{{1}}, Uid{{1}}, Key{}, cloud);
   }
 
-  auto MockTransport() {
+  auto& MockTransport() {
     if (!mock_transport) {
-      mock_transport = MakePtr<ae::MockTransport>(*aether->action_processor,
-                                                  ConnectionInfo{{}, 1500});
+      mock_transport = make_unique<ae::MockTransport>(*aether->action_processor,
+                                                      ConnectionInfo{{}, 1500});
     }
-    return mock_transport;
+    return *mock_transport;
   }
 
-  auto ClientToServerStream() {
+  auto& ClientToServerStream() {
     if (!client_to_server_stream) {
-      MockTransport()->Connect();
-      client_to_server_stream = MakePtr<ae::ClientToServerStream>(
+      MockTransport().Connect();
+      client_to_server_stream = make_unique<ae::ClientToServerStream>(
           *aether->action_processor, client, server->server_id,
-          MakePtr<TiedStream>(
-              MakePtr<BufferGate>(*aether->action_processor, std::size_t{5}),
-              MakePtr<TransportWriteGate>(*aether->action_processor,
-                                          MockTransport())));
+          make_unique<TiedStream>(
+              make_unique<BufferGate>(*aether->action_processor,
+                                      std::size_t{5}),
+              make_unique<TransportWriteGate>(*aether->action_processor,
+                                              MockTransport())));
     }
-    return client_to_server_stream;
+    return *client_to_server_stream;
   }
 
   MapFacility facility{};
@@ -74,9 +75,9 @@ class TestClientToServerStreamFixture {
   Server::ptr server{domain.CreateObj<Server>(3)};
   WorkCloud::ptr cloud{domain.CreateObj<WorkCloud>(4)};
 
-  Ptr<ae::MockTransport> mock_transport;
+  std::unique_ptr<ae::MockTransport> mock_transport;
 
-  Ptr<ae::ClientToServerStream> client_to_server_stream;
+  std::unique_ptr<ae::ClientToServerStream> client_to_server_stream;
 };
 
 void test_clientToServerStream() {
@@ -84,14 +85,14 @@ void test_clientToServerStream() {
 
   TestClientToServerStreamFixture fixture;
 
-  auto mock_transport = fixture.MockTransport();
-  auto _ = mock_transport->sent_data_event().Subscribe([&](auto& action) {
+  auto& mock_transport = fixture.MockTransport();
+  auto _ = mock_transport.sent_data_event().Subscribe([&](auto& action) {
     data_received = true;
     action.SetState(PacketSendAction::State::kSuccess);
   });
 
-  auto client_to_server_stream = fixture.ClientToServerStream();
-  client_to_server_stream->in().Write(
+  auto& client_to_server_stream = fixture.ClientToServerStream();
+  client_to_server_stream.in().Write(
       {std::begin(test_data), std::end(test_data)}, Now());
 
   TEST_ASSERT(data_received);
@@ -102,19 +103,19 @@ void test_clientToServerStreamConnectionFailed() {
 
   TestClientToServerStreamFixture fixture;
 
-  auto mock_transport = fixture.MockTransport();
-  auto _0 = mock_transport->sent_data_event().Subscribe([&](auto& action) {
+  auto& mock_transport = fixture.MockTransport();
+  auto _0 = mock_transport.sent_data_event().Subscribe([&](auto& action) {
     data_received = true;
     action.SetState(PacketSendAction::State::kSuccess);
   });
 
-  auto _1 = mock_transport->connect_call_event().Subscribe(
+  auto _1 = mock_transport.connect_call_event().Subscribe(
       [&](MockTransport::ConnectAnswer& answer) {
         answer = MockTransport::ConnectAnswer::kDenied;
       });
 
-  auto client_to_server_stream = fixture.ClientToServerStream();
-  client_to_server_stream->in().Write(
+  auto& client_to_server_stream = fixture.ClientToServerStream();
+  client_to_server_stream.in().Write(
       {std::begin(test_data), std::end(test_data)}, Now());
 
   TEST_ASSERT(!data_received);
@@ -125,22 +126,22 @@ void test_clientToServerStreamConnectionDeferred() {
 
   TestClientToServerStreamFixture fixture;
 
-  auto mock_transport = fixture.MockTransport();
-  auto _0 = mock_transport->sent_data_event().Subscribe([&](auto& action) {
+  auto& mock_transport = fixture.MockTransport();
+  auto _0 = mock_transport.sent_data_event().Subscribe([&](auto& action) {
     data_received = true;
     action.SetState(PacketSendAction::State::kSuccess);
   });
 
-  auto _1 = mock_transport->connect_call_event().Subscribe(
+  auto _1 = mock_transport.connect_call_event().Subscribe(
       [&](MockTransport::ConnectAnswer& answer) {
         answer = MockTransport::ConnectAnswer::kNoAnswer;
       });
 
-  auto client_to_server_stream = fixture.ClientToServerStream();
-  client_to_server_stream->in().Write(
+  auto& client_to_server_stream = fixture.ClientToServerStream();
+  client_to_server_stream.in().Write(
       {std::begin(test_data), std::end(test_data)}, Now());
 
-  mock_transport->Connected();
+  mock_transport.Connected();
 
   TEST_ASSERT(data_received);
 }
