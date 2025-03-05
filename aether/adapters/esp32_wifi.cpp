@@ -43,12 +43,13 @@ static int s_retry_num{0};
 namespace ae {
 
 Esp32WifiAdapter::CreateTransportAction::CreateTransportAction(
-    ActionContext action_context, Esp32WifiAdapter* adapter, Obj::ptr aether,
-    IPoller::ptr poller, IpAddressPortProtocol address_port_protocol)
+    ActionContext action_context, Esp32WifiAdapter* adapter,
+    Obj::ptr const& aether, IPoller::ptr const& poller,
+    IpAddressPortProtocol address_port_protocol)
     : ae::CreateTransportAction{action_context},
       adapter_{adapter},
-      aether_{std::move(aether)},
-      poller_{std::move(poller)},
+      aether_{Ptr<Aether>(aether)},
+      poller_{poller},
       address_port_protocol_{std::move(address_port_protocol)},
       once_{true},
       failed_{false} {
@@ -59,12 +60,12 @@ Esp32WifiAdapter::CreateTransportAction::CreateTransportAction(
 Esp32WifiAdapter::CreateTransportAction::CreateTransportAction(
     ActionContext action_context,
     EventSubscriber<void(bool)> wifi_connected_event, Esp32WifiAdapter* adapter,
-    Obj::ptr aether, IPoller::ptr poller,
+    Obj::ptr const& aether, IPoller::ptr const& poller,
     IpAddressPortProtocol address_port_protocol)
     : ae::CreateTransportAction{action_context},
       adapter_{adapter},
-      aether_{std::move(aether)},
-      poller_{std::move(poller)},
+      aether_{Ptr<Aether>(aether)},
+      poller_{poller},
       address_port_protocol_{std::move(address_port_protocol)},
       once_{true},
       failed_{false},
@@ -92,8 +93,8 @@ TimePoint Esp32WifiAdapter::CreateTransportAction::Update(
   return current_time;
 }
 
-Ptr<ITransport> Esp32WifiAdapter::CreateTransportAction::transport() const {
-  return transport_;
+Ptr<ITransport> Esp32WifiAdapter::CreateTransportAction::transport() {
+  return std::move(transport_);
 }
 
 void Esp32WifiAdapter::CreateTransportAction::CreateTransport() {
@@ -103,8 +104,8 @@ void Esp32WifiAdapter::CreateTransportAction::CreateTransport() {
 #  if defined(LWIP_TCP_TRANSPORT_ENABLED)
     assert(address_port_protocol_.protocol == Protocol::kTcp);
     transport_ =
-        MakePtr<LwipTcpTransport>(*aether_.as<Aether>()->action_processor,
-                                  poller_, address_port_protocol_);
+        MakePtr<LwipTcpTransport>(*aether_.Lock()->action_processor,
+                                  poller_.Lock(), address_port_protocol_);
 #  else
     return {};
 #  endif

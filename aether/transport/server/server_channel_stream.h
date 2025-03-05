@@ -51,7 +51,7 @@ class ServerChannelStream final : public ByteStream {
   void LinkOut(OutGate& /* out */) override { assert(false); }
 
  private:
-  void OnConnected(ChannelConnectionAction const& connection);
+  void OnConnected(ChannelConnectionAction& connection);
   void OnConnectedFailed();
 
   ActionContext action_context_;
@@ -59,6 +59,7 @@ class ServerChannelStream final : public ByteStream {
   Channel::ptr channel_;
 
   BufferGate buffer_gate_;
+  std::unique_ptr<ITransport> transport_;
   std::optional<TransportWriteGate> transport_write_gate_;
 
   Ptr<class ChannelConnectionAction> connection_action_;

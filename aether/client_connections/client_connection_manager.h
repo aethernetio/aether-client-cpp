@@ -21,6 +21,7 @@
 
 #include "aether/obj/obj.h"
 #include "aether/ptr/ptr.h"
+#include "aether/ptr/rc_ptr.h"
 #include "aether/actions/action_view.h"
 #include "aether/actions/action_list.h"
 
@@ -49,13 +50,13 @@ class ClientConnectionManager : public Obj {
 
   AE_CLASS_NO_COPY_MOVE(ClientConnectionManager)
 
-  Ptr<ClientConnection> GetClientConnection();
+  std::unique_ptr<ClientConnection> GetClientConnection();
   ActionView<GetClientCloudConnection> GetClientConnection(Uid client_uid);
 
   void RegisterCloud(Uid uid,
                      std::vector<ServerDescriptor> const& server_descriptors);
 
-  Ptr<ServerConnectionSelector> GetCloudServerConnectionSelector(Uid uid);
+  RcPtr<ServerConnectionSelector> GetCloudServerConnectionSelector(Uid uid);
 
   AE_OBJECT_REFLECT(aether_, client_, cloud_cache_,
                     client_server_connection_pool_,
@@ -81,7 +82,8 @@ class ClientConnectionManager : public Obj {
   CloudCache cloud_cache_;
   ClientServerConnectionPool client_server_connection_pool_;
 
-  Ptr<ActionList<GetClientCloudConnection>> get_client_cloud_connections_;
+  std::optional<ActionList<GetClientCloudConnection>>
+      get_client_cloud_connections_;
 };
 }  // namespace ae
 

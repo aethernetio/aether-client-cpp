@@ -65,8 +65,8 @@ void TransportWriteGate::TransportStreamWriteAction::Stop() {
 }
 
 TransportWriteGate::TransportWriteGate(ActionContext action_context,
-                                       Ptr<ITransport> transport)
-    : transport_{std::move(transport)},
+                                       ITransport& transport)
+    : transport_{&transport},
       stream_info_{},
       transport_connection_subscription_{
           transport_->ConnectionSuccess().Subscribe(

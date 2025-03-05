@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "aether/memory.h"
 #include "aether/actions/action.h"
 #include "aether/events/multi_subscription.h"
 
@@ -38,9 +39,9 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
   };
 
  public:
-  explicit GetClientCloudAction(
-      ActionContext action_context,
-      Ptr<ClientToServerStream> client_to_server_stream, Uid client_uid);
+  explicit GetClientCloudAction(ActionContext action_context,
+                                ClientToServerStream& client_to_server_stream,
+                                Uid client_uid);
 
   TimePoint Update(TimePoint current_time) override;
 
@@ -55,13 +56,14 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
   void OnCloudResponse(UidAndCloud const& uid_and_cloud);
   void OnServerResponse(ServerDescriptor const& server_descriptor);
 
-  Ptr<ClientToServerStream> client_to_server_stream_;
+  ClientToServerStream* client_to_server_stream_;
   Uid client_uid_;
   ProtocolContext protocol_context_;
 
-  Ptr<ByteStream> pre_client_to_server_stream_;
-  Ptr<Stream<Uid, UidAndCloud, DataBuffer, DataBuffer>> cloud_request_stream_;
-  Ptr<Stream<ServerId, ServerDescriptor, DataBuffer, DataBuffer>>
+  std::unique_ptr<ByteStream> pre_client_to_server_stream_;
+  std::unique_ptr<Stream<Uid, UidAndCloud, DataBuffer, DataBuffer>>
+      cloud_request_stream_;
+  std::unique_ptr<Stream<ServerId, ServerDescriptor, DataBuffer, DataBuffer>>
       server_resolver_stream_;
 
   StateMachine<State> state_;

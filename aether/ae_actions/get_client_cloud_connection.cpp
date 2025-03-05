@@ -30,7 +30,7 @@ GetClientCloudConnection::GetClientCloudConnection(
     ActionContext action_context,
     Ptr<ClientConnectionManager> const& client_connection_manager,
     ObjPtr<Client> const& client, Uid client_uid,
-    Ptr<ServerConnectionSelector> server_connection_selector)
+    RcPtr<ServerConnectionSelector> server_connection_selector)
     : Action{action_context},
       action_context_{action_context},
       client_{client},
@@ -89,9 +89,9 @@ void GetClientCloudConnection::Stop() {
   state_ = State::kStopped;
 }
 
-Ptr<ClientConnection> GetClientCloudConnection::client_cloud_connection()
-    const {
-  return client_cloud_connection_;
+std::unique_ptr<ClientConnection>
+GetClientCloudConnection::client_cloud_connection() {
+  return std::move(client_cloud_connection_);
 }
 
 void GetClientCloudConnection::TryCache(TimePoint /* current_time */) {
@@ -100,6 +100,7 @@ void GetClientCloudConnection::TryCache(TimePoint /* current_time */) {
     AE_TELED_ERROR("Client connection manager is null");
     state_ = State::kFailed;
   }
+  // FIXME:
   auto cloud_server_selector =
       ccm->GetCloudServerConnectionSelector(client_uid_);
   if (cloud_server_selector) {
@@ -109,10 +110,10 @@ void GetClientCloudConnection::TryCache(TimePoint /* current_time */) {
     state_ = State::kSuccess;
     return;
   }
-  connection_selection_loop_ = MakePtr<AsyncForLoop>(
-      AsyncForLoop<Ptr<ClientServerConnection>>::Construct(
+  connection_selection_loop_ =
+      AsyncForLoop<RcPtr<ClientServerConnection>>::Construct(
           *server_connection_selector_,
-          [this]() { return server_connection_selector_->GetConnection(); }));
+          [this]() { return server_connection_selector_->GetConnection(); });
   state_ = State::kSelectConnection;
 }
 
@@ -124,17 +125,17 @@ void GetClientCloudConnection::SelectConnection(TimePoint /* current_time */) {
     return;
   }
 
-  if (server_connection_->server_stream()->in().stream_info().is_linked) {
+  if (server_connection_->server_stream().in().stream_info().is_linked) {
     state_ = State::kGetCloud;
     return;
   }
 
   connection_subscription_ = server_connection_->server_stream()
-                                 ->in()
+                                 .in()
                                  .gate_update_event()
                                  .Subscribe([this]() {
                                    if (server_connection_->server_stream()
-                                           ->in()
+                                           .in()
                                            .stream_info()
                                            .is_linked) {
                                      state_ = State::kGetCloud;
@@ -179,9 +180,9 @@ void GetClientCloudConnection::CreateConnection(TimePoint /* current_time */) {
   state_ = State::kSuccess;
 }
 
-Ptr<ClientConnection> GetClientCloudConnection::CreateConnection(
-    Ptr<ServerConnectionSelector> client_to_server_stream_selector) {
-  return MakePtr<ClientCloudConnection>(
+std::unique_ptr<ClientConnection> GetClientCloudConnection::CreateConnection(
+    RcPtr<ServerConnectionSelector> client_to_server_stream_selector) {
+  return make_unique<ClientCloudConnection>(
       action_context_, std::move(client_to_server_stream_selector));
 }
 

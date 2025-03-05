@@ -18,7 +18,7 @@
 #define AETHER_STREAM_API_TRANSPORT_WRITE_GATE_H_
 
 #include "aether/common.h"
-#include "aether/ptr/ptr.h"
+#include "aether/memory.h"
 #include "aether/actions/action_list.h"
 #include "aether/actions/action_context.h"
 #include "aether/transport/itransport.h"
@@ -43,7 +43,7 @@ class TransportWriteGate final : public ByteIGate {
   };
 
  public:
-  TransportWriteGate(ActionContext action_context, Ptr<ITransport> transport);
+  TransportWriteGate(ActionContext action_context, ITransport& transport);
   ~TransportWriteGate() override;
 
   AE_CLASS_NO_COPY_MOVE(TransportWriteGate)
@@ -59,7 +59,7 @@ class TransportWriteGate final : public ByteIGate {
   void GateUpdate();
   void ReceiveData(DataBuffer const& data, TimePoint current_time);
 
-  Ptr<ITransport> transport_;
+  ITransport* transport_;
 
   StreamInfo stream_info_;
 

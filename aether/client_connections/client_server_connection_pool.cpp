@@ -18,14 +18,14 @@
 
 namespace ae {
 
-Ptr<ClientServerConnection> ClientServerConnectionPool::Find(
+RcPtr<ClientServerConnection> ClientServerConnectionPool::Find(
     ServerId server_id, ObjId channel_obj_id) {
   auto key = Key{server_id, channel_obj_id};
   auto it = connections_.find(key);
   if (it == std::end(connections_)) {
     return {};
   }
-  auto connection = it->second.Lock();
+  auto connection = it->second.lock();
   if (!connection) {
     connections_.erase(it);
     return {};
@@ -35,7 +35,7 @@ Ptr<ClientServerConnection> ClientServerConnectionPool::Find(
 
 void ClientServerConnectionPool::Add(
     ServerId server_id, ObjId channel_obj_id,
-    Ptr<ClientServerConnection> const& connection) {
+    RcPtr<ClientServerConnection> const& connection) {
   auto key = Key{server_id, channel_obj_id};
   connections_[key] = connection;
 }

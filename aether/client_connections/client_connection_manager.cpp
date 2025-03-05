@@ -42,7 +42,7 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
         adapter_{adapter},
         client_{client} {}
 
-  Ptr<ClientServerConnection> CreateConnection(
+  RcPtr<ClientServerConnection> CreateConnection(
       Server::ptr const& server, Channel::ptr const& channel) override {
     auto ccm = client_connection_manager_.Lock();
     assert(ccm);
@@ -71,11 +71,11 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
     auto action_context = ActionContext{*aether->action_processor};
 
     auto server_channel_stream =
-        MakePtr<ServerChannelStream>(aether, adapter, server, channel);
-    auto client_server_stream =
-        MakePtr<ClientToServerStream>(action_context, client, server->server_id,
-                                      std::move(server_channel_stream));
-    auto connection = MakePtr<ClientServerConnection>(
+        make_unique<ServerChannelStream>(aether, adapter, server, channel);
+    auto client_server_stream = make_unique<ClientToServerStream>(
+        action_context, client, server->server_id,
+        std::move(server_channel_stream));
+    auto connection = MakeRcPtr<ClientServerConnection>(
         action_context, server, channel, std::move(client_server_stream));
 
     ccm->client_server_connection_pool_.Add(server->server_id, channel.GetId(),
@@ -99,7 +99,8 @@ ClientConnectionManager::ClientConnectionManager(ObjPtr<Aether> aether,
   RegisterCloud(client_ptr->uid(), client_ptr->cloud());
 }
 
-Ptr<ClientConnection> ClientConnectionManager::GetClientConnection() {
+std::unique_ptr<ClientConnection>
+ClientConnectionManager::GetClientConnection() {
   auto aether = Ptr<Aether>{aether_};
   auto client_ptr = Ptr<Client>{client_};
   auto action_context = ActionContext{*aether->action_processor};
@@ -110,7 +111,7 @@ Ptr<ClientConnection> ClientConnectionManager::GetClientConnection() {
       GetCloudServerConnectionSelector(client_ptr->uid());
   assert(cloud_server_connection_selector);
 
-  return MakePtr<ClientCloudConnection>(
+  return make_unique<ClientCloudConnection>(
       action_context, std::move(cloud_server_connection_selector));
 }
 
@@ -123,8 +124,7 @@ ClientConnectionManager::GetClientConnection(Uid client_uid) {
   auto client_ptr = Ptr<Client>{client_};
 
   if (!get_client_cloud_connections_) {
-    get_client_cloud_connections_ =
-        MakePtr<ActionList<GetClientCloudConnection>>(action_context);
+    get_client_cloud_connections_.emplace(action_context);
   }
 
   auto self_ptr = MakePtrFromThis(this);
@@ -181,7 +181,7 @@ void ClientConnectionManager::RegisterCloud(Uid uid, Cloud::ptr cloud) {
   cloud_cache_.AddCloud(uid, std::move(cloud));
 }
 
-Ptr<ServerConnectionSelector>
+RcPtr<ServerConnectionSelector>
 ClientConnectionManager::GetCloudServerConnectionSelector(Uid uid) {
   auto* cache = cloud_cache_.GetCache(uid);
   if (cache == nullptr) {
@@ -205,10 +205,11 @@ ClientConnectionManager::GetCloudServerConnectionSelector(Uid uid) {
     domain_->LoadRoot(adapter);
   }
 
-  auto client_to_server_stream_factory = MakePtr<CachedServerConnectionFactory>(
-      self_ptr, aether, adapter, client_ptr);
+  auto client_to_server_stream_factory =
+      make_unique<CachedServerConnectionFactory>(self_ptr, aether, adapter,
+                                                 client_ptr);
 
-  cache->client_stream_selector = MakePtr<ServerConnectionSelector>(
+  cache->client_stream_selector = MakeRcPtr<ServerConnectionSelector>(
       cache->cloud, std::move(client_to_server_stream_factory));
 
   return cache->client_stream_selector;

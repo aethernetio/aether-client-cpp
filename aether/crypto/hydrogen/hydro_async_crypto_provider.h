@@ -21,7 +21,7 @@
 
 #if AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
 
-#  include "aether/ptr/ptr.h"
+#  include "aether/memory.h"
 
 #  include "aether/crypto/icrypto_provider.h"
 #  include "aether/crypto/ikey_provider.h"
@@ -29,23 +29,25 @@
 namespace ae {
 class HydroAsyncEncryptProvider : public IEncryptProvider {
  public:
-  explicit HydroAsyncEncryptProvider(Ptr<IAsyncKeyProvider> key_provider);
+  explicit HydroAsyncEncryptProvider(
+      std::unique_ptr<IAsyncKeyProvider> key_provider);
 
   DataBuffer Encrypt(DataBuffer const& data) override;
   std::size_t EncryptOverhead() const override;
 
  private:
-  Ptr<IAsyncKeyProvider> key_provider_;
+  std::unique_ptr<IAsyncKeyProvider> key_provider_;
 };
 
 class HydroAsyncDecryptProvider : public IDecryptProvider {
  public:
-  explicit HydroAsyncDecryptProvider(Ptr<IAsyncKeyProvider> key_provider);
+  explicit HydroAsyncDecryptProvider(
+      std::unique_ptr<IAsyncKeyProvider> key_provider);
 
   DataBuffer Decrypt(DataBuffer const& data) override;
 
  private:
-  Ptr<IAsyncKeyProvider> key_provider_;
+  std::unique_ptr<IAsyncKeyProvider> key_provider_;
 };
 
 }  // namespace ae

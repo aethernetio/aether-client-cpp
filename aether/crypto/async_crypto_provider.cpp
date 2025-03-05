@@ -28,50 +28,54 @@
 namespace ae {
 namespace _async_internal {
 template <typename KeyType>
-Ptr<IEncryptProvider> CreateEncryptImpl(
-    KeyType const&, Ptr<IAsyncKeyProvider> /* key_provider */) {
+std::unique_ptr<IEncryptProvider> CreateEncryptImpl(
+    KeyType const&, std::unique_ptr<IAsyncKeyProvider> /* key_provider */) {
   assert(false);
   return {};
 }
 
 template <typename KeyType>
-Ptr<IDecryptProvider> CreateDecryptImpl(
-    KeyType const&, Ptr<IAsyncKeyProvider> /* key_provider */) {
+std::unique_ptr<IDecryptProvider> CreateDecryptImpl(
+    KeyType const&, std::unique_ptr<IAsyncKeyProvider> /* key_provider */) {
   assert(false);
   return {};
 }
 
 #if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
 template <>
-Ptr<IEncryptProvider> CreateEncryptImpl(SodiumCurvePublicKey const&,
-                                        Ptr<IAsyncKeyProvider> key_provider) {
-  return MakePtr<SodiumAsyncEncryptProvider>(std::move(key_provider));
+std::unique_ptr<IEncryptProvider> CreateEncryptImpl(
+    SodiumCurvePublicKey const&,
+    std::unique_ptr<IAsyncKeyProvider> key_provider) {
+  return make_unique<SodiumAsyncEncryptProvider>(std::move(key_provider));
 }
 
 template <>
-Ptr<IDecryptProvider> CreateDecryptImpl(SodiumCurvePublicKey const&,
-                                        Ptr<IAsyncKeyProvider> key_provider) {
-  return MakePtr<SodiumAsyncDecryptProvider>(std::move(key_provider));
+std::unique_ptr<IDecryptProvider> CreateDecryptImpl(
+    SodiumCurvePublicKey const&,
+    std::unique_ptr<IAsyncKeyProvider> key_provider) {
+  return make_unique<SodiumAsyncDecryptProvider>(std::move(key_provider));
 }
 #endif
 
 #if AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
 template <>
-Ptr<IEncryptProvider> CreateEncryptImpl(HydrogenCurvePublicKey const&,
-                                        Ptr<IAsyncKeyProvider> key_provider) {
-  return MakePtr<HydroAsyncEncryptProvider>(std::move(key_provider));
+std::unique_ptr<IEncryptProvider> CreateEncryptImpl(
+    HydrogenCurvePublicKey const&,
+    std::unique_ptr<IAsyncKeyProvider> key_provider) {
+  return make_unique<HydroAsyncEncryptProvider>(std::move(key_provider));
 }
 
 template <>
-Ptr<IDecryptProvider> CreateDecryptImpl(HydrogenCurvePublicKey const&,
-                                        Ptr<IAsyncKeyProvider> key_provider) {
-  return MakePtr<HydroAsyncDecryptProvider>(std::move(key_provider));
+std::unique_ptr<IDecryptProvider> CreateDecryptImpl(
+    HydrogenCurvePublicKey const&,
+    std::unique_ptr<IAsyncKeyProvider> key_provider) {
+  return make_unique<HydroAsyncDecryptProvider>(std::move(key_provider));
 }
 #endif
 }  // namespace _async_internal
 
 AsyncEncryptProvider::AsyncEncryptProvider(
-    Ptr<IAsyncKeyProvider> key_provider) {
+    std::unique_ptr<IAsyncKeyProvider> key_provider) {
   auto pub_key = key_provider->PublicKey();
   impl_ = std::visit(
       [&](auto key_type) {
@@ -91,7 +95,7 @@ std::size_t AsyncEncryptProvider::EncryptOverhead() const {
 }
 
 AsyncDecryptProvider::AsyncDecryptProvider(
-    Ptr<IAsyncKeyProvider> key_provider) {
+    std::unique_ptr<IAsyncKeyProvider> key_provider) {
   auto pub_key = key_provider->PublicKey();
   impl_ = std::visit(
       [&](auto key_type) {
