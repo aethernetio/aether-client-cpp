@@ -36,21 +36,21 @@ Sender::Sender(ActionContext action_context, Client::ptr client,
 void Sender::ConnectP2pStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pStream()");
 
-  send_message_stream_ = MakePtr<P2pStream>(action_context_, client_,
-                                            destination_uid_, StreamId{0});
+  send_message_stream_ = make_unique<P2pStream>(action_context_, client_,
+                                                destination_uid_, StreamId{0});
 }
 
 void Sender::ConnectP2pSafeStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pSafeStream()");
-  send_message_stream_ =
-      MakePtr<P2pSafeStream>(action_context_, safe_stream_config_,
-                             MakePtr<P2pStream>(action_context_, client_,
-                                                destination_uid_, StreamId{1}));
+  send_message_stream_ = make_unique<P2pSafeStream>(
+      action_context_, safe_stream_config_,
+      make_unique<P2pStream>(action_context_, client_, destination_uid_,
+                             StreamId{1}));
 }
 
 void Sender::Disconnect() {
   AE_TELED_DEBUG("Sender::Disconnect()");
-  send_message_stream_.Reset();
+  send_message_stream_.reset();
 }
 
 ActionView<ITimedSender> Sender::WarmUp(std::size_t message_count,
@@ -95,12 +95,12 @@ ActionView<ITimedSender> Sender::Send1500Bytes(std::size_t message_count,
 template <typename TMessage>
 void Sender::CreateBenchAction(std::size_t message_count,
                                Duration min_send_interval) {
-  sender_action_ = MakePtr<TimedSender<BenchDelaysApi, TMessage>>(
-      action_context_, protocol_context_, send_message_stream_, message_count,
+  sender_action_ = make_unique<TimedSender<BenchDelaysApi, TMessage>>(
+      action_context_, protocol_context_, *send_message_stream_, message_count,
       min_send_interval);
 
   action_subscriptions_.Push(sender_action_->FinishedEvent().Subscribe(
-      [this]() { sender_action_.Reset(); }));
+      [this]() { sender_action_.reset(); }));
 }
 
 }  // namespace ae::bench

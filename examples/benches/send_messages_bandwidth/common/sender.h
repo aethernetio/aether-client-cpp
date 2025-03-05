@@ -20,6 +20,7 @@
 #include <optional>
 
 #include "aether/client.h"
+#include "aether/memory.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/events.h"
 #include "aether/events/multi_subscription.h"
@@ -55,7 +56,7 @@ class Sender {
 
  private:
   template <typename T>
-  Ptr<MessageSender<BandwidthApi, T>> CreateTestAction(
+  std::unique_ptr<MessageSender<BandwidthApi, T>> CreateTestAction(
       std::size_t message_count);
 
   ActionContext action_context_;
@@ -68,17 +69,21 @@ class Sender {
   Event<void()> sync_made_;
   Event<void()> error_event_;
 
-  Ptr<ByteStream> message_stream_;
+  std::unique_ptr<ByteStream> message_stream_;
   ProtocolReadGate<BandwidthApi> response_read_;
 
   std::optional<SenderSyncAction> sync_action_;
 
-  Ptr<MessageSender<BandwidthApi, BandwidthApi::WarmUp>> warm_up_;
-  Ptr<MessageSender<BandwidthApi, BandwidthApi::OneByte>> one_byte_;
-  Ptr<MessageSender<BandwidthApi, BandwidthApi::TenBytes>> ten_bytes_;
-  Ptr<MessageSender<BandwidthApi, BandwidthApi::HundredBytes>> hundred_bytes_;
-  Ptr<MessageSender<BandwidthApi, BandwidthApi::ThousandBytes>> thousand_bytes_;
-  Ptr<MessageSender<BandwidthApi, BandwidthApi::VarMessageSize>> variable_size_;
+  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::WarmUp>> warm_up_;
+  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::OneByte>> one_byte_;
+  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::TenBytes>>
+      ten_bytes_;
+  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::HundredBytes>>
+      hundred_bytes_;
+  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::ThousandBytes>>
+      thousand_bytes_;
+  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::VarMessageSize>>
+      variable_size_;
 
   MultiSubscription test_subscriptions_;
 };
