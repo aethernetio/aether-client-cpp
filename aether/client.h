@@ -50,7 +50,7 @@ class Client : public Obj {
   Cloud::ptr const& cloud() const;
   ClientConnectionManager::ptr const& client_connection_manager() const;
 
-  ClientConnection& client_connection();
+  Ptr<ClientConnection> const& client_connection();
 
   void SetConfig(Uid uid, Uid ephemeral_uid, Key master_key, Cloud::ptr c);
 
@@ -87,7 +87,7 @@ class Client : public Obj {
   std::map<ServerId, ServerKeys> server_keys_;
 
   ClientConnectionManager::ptr client_connection_manager_;
-  std::unique_ptr<ClientConnection> client_connection_;
+  Ptr<ClientConnection> client_connection_;
 };
 }  // namespace ae
 

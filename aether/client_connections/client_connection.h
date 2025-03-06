@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "aether/uid.h"
+#include "aether/reflect/reflect.h"
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/stream_api.h"
 

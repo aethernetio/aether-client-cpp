@@ -25,6 +25,9 @@
 #include "aether/client_connections/client_server_connection.h"
 
 namespace ae {
+/**
+ * \brief Cache storage for client's connection to servers.
+ */
 class ClientServerConnectionPool {
   struct Key {
     friend bool operator<(Key const& left, Key const& right) {

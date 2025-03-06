@@ -26,6 +26,7 @@
 #include "aether/actions/action.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
+
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/stream_api.h"
 #include "aether/stream_api/splitter_gate.h"
@@ -35,15 +36,19 @@
 #include "aether/client_connections/server_connection_selector.h"
 
 namespace ae {
+class Cloud;
+/**
+ * \brief The simplest cloud connection, which connects to one server a time.
+ */
 class ClientCloudConnection final : public ClientConnection {
   class ReconnectNotify : public NotifyAction<ReconnectNotify> {
     using NotifyAction<ReconnectNotify>::NotifyAction;
   };
 
  public:
-  explicit ClientCloudConnection(
-      ActionContext action_context,
-      RcPtr<ServerConnectionSelector> client_server_connection_selector);
+  ClientCloudConnection(
+      ActionContext action_context, ObjPtr<Cloud> const& cloud,
+      std::unique_ptr<IServerConnectionFactory>&& server_connection_factory);
 
   void Connect() override;
   std::unique_ptr<ByteStream> CreateStream(Uid destination_uid,
@@ -52,6 +57,7 @@ class ClientCloudConnection final : public ClientConnection {
   void CloseStream(Uid uid, StreamId stream_id) override;
 
   AE_REFLECT()
+
  private:
   void SelectConnection();
 
@@ -59,7 +65,7 @@ class ClientCloudConnection final : public ClientConnection {
   void NewStream(Uid uid, ByteStream& stream);
 
   ActionContext action_context_;
-  RcPtr<ServerConnectionSelector> server_connection_selector_;
+  ServerConnectionSelector server_connection_selector_;
   std::optional<AsyncForLoop<RcPtr<ClientServerConnection>>>
       connection_selector_loop_;
 

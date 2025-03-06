@@ -34,6 +34,7 @@
 
 namespace ae {
 class Client;
+class Cloud;
 class ClientConnectionManager;
 
 class GetClientCloudConnection : public Action<GetClientCloudConnection> {
@@ -52,8 +53,8 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   GetClientCloudConnection(
       ActionContext action_context,
       Ptr<ClientConnectionManager> const& client_connection_manager,
-      ObjPtr<Client> const& client, Uid client_uid,
-      RcPtr<ServerConnectionSelector> client_server_connection_selector);
+      ObjPtr<Client> const& client, Uid client_uid, ObjPtr<Cloud> const& cloud,
+      std::unique_ptr<IServerConnectionFactory>&& server_connection_factory);
 
   ~GetClientCloudConnection() override;
 
@@ -61,7 +62,7 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
 
   void Stop();
 
-  std::unique_ptr<ClientConnection> client_cloud_connection();
+  Ptr<ClientConnection> client_cloud_connection();
 
  private:
   void TryCache(TimePoint current_time);
@@ -69,14 +70,11 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   void GetCloud(TimePoint current_time);
   void CreateConnection(TimePoint current_time);
 
-  std::unique_ptr<ClientConnection> CreateConnection(
-      RcPtr<ServerConnectionSelector> client_to_server_stream_selector);
-
   ActionContext action_context_;
   PtrView<Client> client_;
   Uid client_uid_;
   PtrView<ClientConnectionManager> client_connection_manager_;
-  RcPtr<ServerConnectionSelector> server_connection_selector_;
+  ServerConnectionSelector server_connection_selector_;
   std::optional<AsyncForLoop<RcPtr<ClientServerConnection>>>
       connection_selection_loop_;
 
@@ -88,7 +86,7 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   std::optional<GetClientCloudAction> get_client_cloud_action_;
   MultiSubscription get_client_cloud_subscriptions_;
 
-  std::unique_ptr<ClientConnection> client_cloud_connection_;
+  Ptr<ClientConnection> client_cloud_connection_;
   Subscription state_changed_subscription_;
 };
 }  // namespace ae

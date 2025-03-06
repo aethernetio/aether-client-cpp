@@ -37,12 +37,16 @@ namespace ae {
 class Aether;
 class Client;
 
+namespace ccm_internal {
+class CachedServerConnectionFactory;
+}
+
 class ClientConnectionManager : public Obj {
+  friend class ccm_internal::CachedServerConnectionFactory;
+
   AE_OBJECT(ClientConnectionManager, Obj, 0)
 
   ClientConnectionManager() = default;
-
-  friend class CachedServerConnectionFactory;
 
  public:
   explicit ClientConnectionManager(ObjPtr<Aether> aether, ObjPtr<Client> client,
@@ -50,13 +54,13 @@ class ClientConnectionManager : public Obj {
 
   AE_CLASS_NO_COPY_MOVE(ClientConnectionManager)
 
-  std::unique_ptr<ClientConnection> GetClientConnection();
+  Ptr<ClientConnection> GetClientConnection();
   ActionView<GetClientCloudConnection> GetClientConnection(Uid client_uid);
 
-  void RegisterCloud(Uid uid,
-                     std::vector<ServerDescriptor> const& server_descriptors);
+  Ptr<ClientConnection> CreateClientConnection(Cloud::ptr const& cloud);
 
-  RcPtr<ServerConnectionSelector> GetCloudServerConnectionSelector(Uid uid);
+  Cloud::ptr RegisterCloud(
+      Uid uid, std::vector<ServerDescriptor> const& server_descriptors);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_,
                              client_server_connection_pool_,
