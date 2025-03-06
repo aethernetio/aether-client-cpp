@@ -93,7 +93,8 @@ TimePoint Esp32WifiAdapter::CreateTransportAction::Update(
   return current_time;
 }
 
-Ptr<ITransport> Esp32WifiAdapter::CreateTransportAction::transport() {
+std::unique_ptr<ITransport>
+Esp32WifiAdapter::CreateTransportAction::transport() {
   return std::move(transport_);
 }
 
@@ -104,8 +105,8 @@ void Esp32WifiAdapter::CreateTransportAction::CreateTransport() {
 #  if defined(LWIP_TCP_TRANSPORT_ENABLED)
     assert(address_port_protocol_.protocol == Protocol::kTcp);
     transport_ =
-        MakePtr<LwipTcpTransport>(*aether_.Lock()->action_processor,
-                                  poller_.Lock(), address_port_protocol_);
+        make_unique<LwipTcpTransport>(*aether_.Lock()->action_processor,
+                                      poller_.Lock(), address_port_protocol_);
 #  else
     return {};
 #  endif
@@ -113,7 +114,7 @@ void Esp32WifiAdapter::CreateTransportAction::CreateTransport() {
     AE_TELED_DEBUG("Got transport from cache");
   }
 
-  adapter_->AddToCache(address_port_protocol_, transport_);
+  adapter_->AddToCache(address_port_protocol_, *transport_);
 }
 
 #  if defined AE_DISTILLATION
