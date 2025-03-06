@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "aether/uid.h"
+#include "aether/reflect/reflect.h"
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/stream_api.h"
 
@@ -54,6 +55,8 @@ class ClientConnection {
    * \brief Close a stream by uid and id.
    */
   virtual void CloseStream(Uid uid, StreamId stream_id) = 0;
+
+  AE_CLASS_REFLECT()
 };
 }  // namespace ae
 

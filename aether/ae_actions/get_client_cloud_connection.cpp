@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "aether/client.h"
+#include "aether/server_list/no_filter_server_list_policy.h"
 #include "aether/client_connections/client_to_server_stream.h"
 #include "aether/client_connections/client_cloud_connection.h"
 #include "aether/client_connections/client_connection_manager.h"
@@ -29,19 +30,20 @@ namespace ae {
 GetClientCloudConnection::GetClientCloudConnection(
     ActionContext action_context,
     Ptr<ClientConnectionManager> const& client_connection_manager,
-    ObjPtr<Client> const& client, Uid client_uid,
-    RcPtr<ServerConnectionSelector> server_connection_selector)
+    ObjPtr<Client> const& client, Uid client_uid, ObjPtr<Cloud> const& cloud,
+    std::unique_ptr<IServerConnectionFactory>&& server_connection_factory)
     : Action{action_context},
       action_context_{action_context},
       client_{client},
       client_uid_{client_uid},
       client_connection_manager_{client_connection_manager},
-      server_connection_selector_{std::move(server_connection_selector)},
+      server_connection_selector_{cloud,
+                                  make_unique<NoFilterServerListPolicy>(),
+                                  std::move(server_connection_factory)},
       state_{State::kTryCache},
       state_changed_subscription_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {
   AE_TELED_DEBUG("GetClientCloudConnection()");
-  server_connection_selector_->Init();
 }
 
 GetClientCloudConnection::~GetClientCloudConnection() {
@@ -89,31 +91,18 @@ void GetClientCloudConnection::Stop() {
   state_ = State::kStopped;
 }
 
-std::unique_ptr<ClientConnection>
-GetClientCloudConnection::client_cloud_connection() {
+Ptr<ClientConnection> GetClientCloudConnection::client_cloud_connection() {
   return std::move(client_cloud_connection_);
 }
 
 void GetClientCloudConnection::TryCache(TimePoint /* current_time */) {
-  auto ccm = client_connection_manager_.Lock();
-  if (!ccm) {
-    AE_TELED_ERROR("Client connection manager is null");
-    state_ = State::kFailed;
-  }
-  // FIXME:
-  auto cloud_server_selector =
-      ccm->GetCloudServerConnectionSelector(client_uid_);
-  if (cloud_server_selector) {
-    AE_TELED_INFO("Found cached connection");
-    client_cloud_connection_ =
-        CreateConnection(std::move(cloud_server_selector));
-    state_ = State::kSuccess;
-    return;
-  }
+  // TODO: add get cloud connection from cache
+
   connection_selection_loop_ =
       AsyncForLoop<RcPtr<ClientServerConnection>>::Construct(
-          *server_connection_selector_,
-          [this]() { return server_connection_selector_->GetConnection(); });
+          server_connection_selector_,
+          [this]() { return server_connection_selector_.GetConnection(); });
+
   state_ = State::kSelectConnection;
 }
 
@@ -170,20 +159,11 @@ void GetClientCloudConnection::CreateConnection(TimePoint /* current_time */) {
   auto servers = get_client_cloud_action_->server_descriptors();
 
   auto ccm = client_connection_manager_.Lock();
-  ccm->RegisterCloud(client_uid_, servers);
+  auto cloud = ccm->RegisterCloud(client_uid_, servers);
+  assert(cloud);
 
-  auto cloud_server_selector =
-      ccm->GetCloudServerConnectionSelector(client_uid_);
-  assert(cloud_server_selector);
-
-  client_cloud_connection_ = CreateConnection(std::move(cloud_server_selector));
+  client_cloud_connection_ = ccm->CreateClientConnection(cloud);
   state_ = State::kSuccess;
-}
-
-std::unique_ptr<ClientConnection> GetClientCloudConnection::CreateConnection(
-    RcPtr<ServerConnectionSelector> client_to_server_stream_selector) {
-  return make_unique<ClientCloudConnection>(
-      action_context_, std::move(client_to_server_stream_selector));
 }
 
 }  // namespace ae

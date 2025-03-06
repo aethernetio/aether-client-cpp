@@ -30,7 +30,7 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-
+namespace ccm_internal {
 class CachedServerConnectionFactory : public IServerConnectionFactory {
  public:
   CachedServerConnectionFactory(
@@ -89,6 +89,7 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
   PtrView<Adapter> adapter_;
   PtrView<Client> client_;
 };
+}  // namespace ccm_internal
 
 ClientConnectionManager::ClientConnectionManager(ObjPtr<Aether> aether,
                                                  Client::ptr client,
@@ -99,20 +100,20 @@ ClientConnectionManager::ClientConnectionManager(ObjPtr<Aether> aether,
   RegisterCloud(client_ptr->uid(), client_ptr->cloud());
 }
 
-std::unique_ptr<ClientConnection>
-ClientConnectionManager::GetClientConnection() {
-  auto aether = Ptr<Aether>{aether_};
-  auto client_ptr = Ptr<Client>{client_};
-  auto action_context = ActionContext{*aether->action_processor};
+Ptr<ClientConnection> ClientConnectionManager::GetClientConnection() {
+  AE_TELED_DEBUG("GetClientConnection to self client {}",
+                 client_.as<Client>()->uid());
 
-  AE_TELED_DEBUG("GetClientConnection to self client {}", client_ptr->uid());
-
-  auto cloud_server_connection_selector =
-      GetCloudServerConnectionSelector(client_ptr->uid());
-  assert(cloud_server_connection_selector);
-
-  return make_unique<ClientCloudConnection>(
-      action_context, std::move(cloud_server_connection_selector));
+  auto cache = cloud_cache_.GetCache(client_.as<Client>()->uid());
+  if (!cache) {
+    return {};
+  }
+  auto& cloud = cache->get();
+  if (!cloud) {
+    domain_->LoadRoot(cloud);
+    assert(cloud);
+  }
+  return CreateClientConnection(cloud);
 }
 
 ActionView<GetClientCloudConnection>
@@ -130,33 +131,64 @@ ClientConnectionManager::GetClientConnection(Uid client_uid) {
   auto self_ptr = MakePtrFromThis(this);
   assert(self_ptr);
 
-  auto client_server_connection_selector =
-      GetCloudServerConnectionSelector(client_ptr->uid());
+  auto cache = cloud_cache_.GetCache(client_.as<Client>()->uid());
+  if (!cache) {
+    return {};
+  }
+  auto& cloud = cache->get();
+  if (!cloud) {
+    domain_->LoadRoot(cloud);
+    assert(cloud);
+  }
+  auto& adapter = cloud->adapter();
+  if (!adapter) {
+    domain_->LoadRoot(adapter);
+    assert(adapter);
+  }
 
   auto action = get_client_cloud_connections_->Emplace(
-      self_ptr, client_ptr, client_uid,
-      std::move(client_server_connection_selector));
+      self_ptr, client_ptr, client_uid, cloud,
+      make_unique<ccm_internal::CachedServerConnectionFactory>(
+          self_ptr, aether, adapter, client_ptr));
 
   return action;
 }
 
-void ClientConnectionManager::RegisterCloud(
-    Uid uid, std::vector<ServerDescriptor> const& server_descriptors) {
+Ptr<ClientConnection> ClientConnectionManager::CreateClientConnection(
+    Cloud::ptr const& cloud) {
   auto aether = Ptr<Aether>{aether_};
   auto client_ptr = Ptr<Client>{client_};
+  auto self_ptr = MakePtrFromThis(this);
+  assert(self_ptr);
 
-  auto new_cloud = aether->domain_->LoadCopy(aether->cloud_prefab);
+  auto& adapter = cloud->adapter();
+  if (!adapter) {
+    domain_->LoadRoot(adapter);
+    assert(adapter);
+  }
+
+  auto action_context = ActionContext{*aether_.as<Aether>()->action_processor};
+
+  return MakePtr<ClientCloudConnection>(
+      action_context, cloud,
+      make_unique<ccm_internal::CachedServerConnectionFactory>(
+          self_ptr, aether_, adapter, client_ptr));
+}
+
+Cloud::ptr ClientConnectionManager::RegisterCloud(
+    Uid uid, std::vector<ServerDescriptor> const& server_descriptors) {
+  auto new_cloud = domain_->LoadCopy(aether_.as<Aether>()->cloud_prefab);
   assert(new_cloud);
 
   for (auto const& descriptor : server_descriptors) {
     auto server_id = descriptor.server_id;
-    auto cached_server = aether->GetServer(server_id);
+    auto cached_server = aether_.as<Aether>()->GetServer(server_id);
     if (cached_server) {
       new_cloud->AddServer(cached_server);
       continue;
     }
 
-    auto server = aether->domain_->CreateObj<Server>();
+    auto server = domain_->CreateObj<Server>();
     server->server_id = server_id;
     for (auto const& endpoint : descriptor.ips) {
       for (auto const& protocol_port : endpoint.protocol_and_ports) {
@@ -167,51 +199,24 @@ void ClientConnectionManager::RegisterCloud(
       }
     }
     new_cloud->AddServer(server);
-    aether->AddServer(std::move(server));
+    aether_.as<Aether>()->AddServer(std::move(server));
   }
 
-  auto* client_cloud = cloud_cache_.GetCache(client_ptr->uid());
-  assert(client_cloud != nullptr);
-  new_cloud->set_adapter(client_cloud->cloud->adapter());
+  auto cache = cloud_cache_.GetCache(client_.as<Client>()->uid());
+  assert(cache);
+  auto& client_cloud = cache->get();
+  if (!client_cloud) {
+    domain_->LoadRoot(client_cloud);
+    assert(client_cloud);
+  }
 
-  cloud_cache_.AddCloud(uid, std::move(new_cloud));
+  new_cloud->set_adapter(client_cloud->adapter());
+  cloud_cache_.AddCloud(uid, new_cloud);
+  return new_cloud;
 }
 
 void ClientConnectionManager::RegisterCloud(Uid uid, Cloud::ptr cloud) {
   cloud_cache_.AddCloud(uid, std::move(cloud));
 }
 
-RcPtr<ServerConnectionSelector>
-ClientConnectionManager::GetCloudServerConnectionSelector(Uid uid) {
-  auto* cache = cloud_cache_.GetCache(uid);
-  if (cache == nullptr) {
-    return {};
-  }
-
-  if (cache->client_stream_selector) {
-    return cache->client_stream_selector;
-  }
-
-  auto aether = Ptr<Aether>{aether_};
-  auto client_ptr = Ptr<Client>{client_};
-  auto self_ptr = MakePtrFromThis(this);
-  assert(self_ptr);
-
-  if (!cache->cloud) {
-    domain_->LoadRoot(cache->cloud);
-  }
-  auto& adapter = cache->cloud->adapter();
-  if (!adapter) {
-    domain_->LoadRoot(adapter);
-  }
-
-  auto client_to_server_stream_factory =
-      make_unique<CachedServerConnectionFactory>(self_ptr, aether, adapter,
-                                                 client_ptr);
-
-  cache->client_stream_selector = MakeRcPtr<ServerConnectionSelector>(
-      cache->cloud, std::move(client_to_server_stream_factory));
-
-  return cache->client_stream_selector;
-}
 }  // namespace ae
