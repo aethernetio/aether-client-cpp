@@ -18,26 +18,25 @@
 
 #include <utility>
 
-#include "aether/server_list/no_filter_server_list_policy.h"
-
 namespace ae {
 ServerConnectionSelector::ServerConnectionSelector(
-    Cloud::ptr const& cloud,
-    std::unique_ptr<IServerConnectionFactory> client_server_connection_factory)
-    : server_list_{make_unique<ServerList>(
-          make_unique<NoFilterServerListPolicy>(), cloud)},
+    ObjPtr<Cloud> const& cloud,
+    std::unique_ptr<ServerListPolicy>&& server_list_policy,
+    std::unique_ptr<IServerConnectionFactory>&&
+        client_server_connection_factory)
+    : server_list_{std::move(server_list_policy), cloud},
       server_connection_factory_{std::move(client_server_connection_factory)} {}
 
-void ServerConnectionSelector::Init() { server_list_->Init(); }
+void ServerConnectionSelector::Init() { server_list_.Init(); }
 
-void ServerConnectionSelector::Next() { server_list_->Next(); }
+void ServerConnectionSelector::Next() { server_list_.Next(); }
 
 RcPtr<ClientServerConnection> ServerConnectionSelector::GetConnection() {
-  auto item = server_list_->Get();
+  auto item = server_list_.Get();
   return server_connection_factory_->CreateConnection(item.server(),
                                                       item.channel());
 }
 
-bool ServerConnectionSelector::End() { return server_list_->End(); }
+bool ServerConnectionSelector::End() { return server_list_.End(); }
 
 }  // namespace ae

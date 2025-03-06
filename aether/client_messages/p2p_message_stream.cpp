@@ -25,7 +25,7 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       client_{client},
       destination_{destination},
       stream_id_{stream_id},
-      receive_client_connection_{&client->client_connection()},
+      receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
       buffer_gate_{action_context, 20 * 1024},
       send_receive_gate_{WriteOnlyGate{}, ReadOnlyGate{action_context_}} {
@@ -45,7 +45,7 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       client_{client},
       destination_{destination},
       stream_id_{stream_id},
-      receive_client_connection_{&client->client_connection()},
+      receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
       buffer_gate_{action_context, 100},
       send_receive_gate_{WriteOnlyGate{}, ReadOnlyGate{action_context_}},
@@ -61,10 +61,10 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
 }
 
 P2pStream::~P2pStream() {
-  if (receive_client_connection_ != nullptr) {
+  if (receive_client_connection_) {
     receive_client_connection_->CloseStream(destination_, stream_id_);
   }
-  if (send_client_connection_ != nullptr) {
+  if (send_client_connection_) {
     send_client_connection_->CloseStream(destination_, stream_id_);
   }
 }
@@ -80,7 +80,7 @@ void P2pStream::ConnectReceive() {
 }
 
 void P2pStream::ConnectSend() {
-  if (send_client_connection_ == nullptr) {
+  if (!send_client_connection_) {
     auto client_ptr = client_.Lock();
 
     // get destination client's cloud connection  to creat stream
@@ -90,7 +90,7 @@ void P2pStream::ConnectSend() {
     get_client_connection_subscription_ =
         get_client_connection_action->SubscribeOnResult([this](auto& action) {
           // FIXME: dangling pointer
-          send_client_connection_ = action.client_cloud_connection().get();
+          send_client_connection_ = action.client_cloud_connection();
           TieSendStream(*send_client_connection_);
         });
     return;

@@ -17,24 +17,26 @@
 #include "aether/client_connections/client_cloud_connection.h"
 
 #include "aether/stream_api/one_gate_stream.h"
+#include "aether/server_list/no_filter_server_list_policy.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae {
 ClientCloudConnection::ClientCloudConnection(
-    ActionContext action_context,
-    RcPtr<ServerConnectionSelector> client_server_connection_selector)
+    ActionContext action_context, ObjPtr<Cloud> const& cloud,
+    std::unique_ptr<IServerConnectionFactory>&& server_connection_factory)
     : action_context_{action_context},
-      server_connection_selector_{
-          std::move(client_server_connection_selector)} {
+      server_connection_selector_{cloud,
+                                  make_unique<NoFilterServerListPolicy>(),
+                                  std::move(server_connection_factory)} {
   Connect();
 }
 
 void ClientCloudConnection::Connect() {
   connection_selector_loop_ =
       AsyncForLoop<RcPtr<ClientServerConnection>>::Construct(
-          *server_connection_selector_,
-          [this]() { return server_connection_selector_->GetConnection(); });
+          server_connection_selector_,
+          [this]() { return server_connection_selector_.GetConnection(); });
 
   SelectConnection();
 }
@@ -91,6 +93,8 @@ void ClientCloudConnection::SelectConnection() {
     return;
   }
 
+  // TODO: add subscription to disconnection
+
   connection_status_subscription_ =
       server_connection_->server_stream()
           .in()
@@ -114,7 +118,7 @@ void ClientCloudConnection::SelectConnection() {
 
   new_stream_event_subscription_ =
       server_connection_->new_stream_event().Subscribe(
-          [this](auto uid, auto& stream) { NewStream(uid, stream); });
+          *this, MethodPtr<&ClientCloudConnection::NewStream>{});
 }
 
 void ClientCloudConnection::OnConnectionError() {

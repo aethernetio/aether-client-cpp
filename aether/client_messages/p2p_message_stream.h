@@ -61,8 +61,8 @@ class P2pStream final : public ByteStream {
   Uid destination_;
   StreamId stream_id_;
 
-  ClientConnection* receive_client_connection_;
-  ClientConnection* send_client_connection_;
+  Ptr<ClientConnection> receive_client_connection_;
+  Ptr<ClientConnection> send_client_connection_;
 
   BufferGate buffer_gate_;
   ParallelGate<WriteOnlyGate, ReadOnlyGate> send_receive_gate_;
