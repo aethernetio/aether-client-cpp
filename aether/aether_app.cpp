@@ -107,6 +107,7 @@ AetherApp::~AetherApp() {
     domain_->SaveRoot(aether_);
   }
   AE_TELED_DEBUG("Reset Aether");
+  ae::TeleInit::Init();
   aether_.Reset();
 }
 
