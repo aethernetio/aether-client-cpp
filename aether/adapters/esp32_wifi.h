@@ -46,7 +46,7 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
 
   Esp32WifiAdapter() = default;
 
-  class CreateTransportAction : public CreateTransportAction {
+  class CreateTransportAction : public ae::CreateTransportAction {
    public:
     // immediately create the transport
     CreateTransportAction(ActionContext action_context,
@@ -61,7 +61,7 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
                           IpAddressPortProtocol address_port_protocol_);
 
     TimePoint Update(TimePoint current_time) override;
-    Ptr<ITransport> transport();
+    std::unique_ptr<ITransport> transport() override;
 
    private:
     void CreateTransport();
@@ -74,7 +74,7 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
     bool once_;
     bool failed_;
     Subscription wifi_connected_subscription_;
-    Ptr<ITransport> transport_;
+    std::unique_ptr<ITransport> transport_;
   };
 
   static constexpr int kMaxRetry = 10;
