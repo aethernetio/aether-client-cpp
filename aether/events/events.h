@@ -154,8 +154,8 @@ class EventSubscriber {
   [[nodiscard]] auto Subscribe(TInstance& instance,
                                MethodPtr<Method> const& method) {
     static_assert(
-        std::is_same_v<TSignature,
-                       typename FunctionSignature<decltype(Method)>::Signature>,
+        Event<TSignature>::template kIsInvocable<
+            Delegate<typename FunctionSignature<decltype(Method)>::Signature>>,
         "Method must have the same signature");
     auto subscription =
         MakeRcPtr<SubscriptionManage>(SubscriptionManage{true, false});
