@@ -87,11 +87,15 @@ struct RefCounterVisitor {
       return false;
     }
     auto const& refs = obj.ptr_storage_->ref_counters;
+    if (refs.main_refs == 0) {
+      return false;
+    }
 
     auto [it, _] = obj_map.emplace(
         obj_ptr, std::make_unique<RefTree>(obj_ptr, refs.main_refs));
     auto& ref_counter = *it->second;
     ref_counter.reachable_ref_count++;
+    assert(ref_counter.reachable_ref_count <= ref_counter.ref_count);
     children.insert(&ref_counter);
 
     auto next_visitor =
