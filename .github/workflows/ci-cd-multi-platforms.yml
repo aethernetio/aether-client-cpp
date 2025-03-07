@@ -176,6 +176,12 @@ jobs:
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
         run: cmake --build build --config ${{ matrix.config.build_type }} --parallel
 
+      - name: Build Mingw
+        if: ${{ (runner.os == 'Windows') && (matrix.config.cc == 'gcc' ) }}
+        shell: msys2 {0}
+        # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
+        run: cmake --build build --config ${{ matrix.config.build_type }} --parallel
+
       - name: Test
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
