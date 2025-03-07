@@ -26,7 +26,7 @@ struct A {
 
   static inline int a_destroyed = 0;
   int x;
-  AE_CLASS_REFLECT(x)
+  AE_REFLECT_MEMBERS(x)
 };
 
 struct B : public A {
@@ -35,7 +35,7 @@ struct B : public A {
 
   static inline int b_destroyed = 0;
   int y;
-  AE_CLASS_REFLECT(y)
+  AE_REFLECT_MEMBERS(y)
 };
 }  // namespace ae::test_ptr
 #endif  // TESTS_TEST_PTR_PIPE_THERE_THEY_ARE_SITTING_H_
