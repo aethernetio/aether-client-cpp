@@ -36,7 +36,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::Handshake");
     static constexpr auto kMessageCode = 3;
 
-    AE_CLASS_REFLECT(request_id)
+    AE_REFLECT_MEMBERS(request_id)
 
     RequestId request_id;
   };
@@ -47,7 +47,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::Sync");
     static constexpr auto kMessageCode = 4;
 
-    AE_CLASS_REFLECT(request_id)
+    AE_REFLECT_MEMBERS(request_id)
 
     RequestId request_id;
   };
@@ -58,7 +58,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::WarmUp");
     static constexpr auto kMessageCode = 5;
 
-    AE_CLASS_REFLECT(payload)
+    AE_REFLECT_MEMBERS(payload)
 
     std::array<std::uint8_t, 100> payload;
   };
@@ -68,7 +68,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::OneByte");
     static constexpr auto kMessageCode = 6;
 
-    AE_CLASS_REFLECT(payload)
+    AE_REFLECT_MEMBERS(payload)
 
     std::uint8_t payload;
   };
@@ -78,7 +78,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::TenBytes");
     static constexpr auto kMessageCode = 7;
 
-    AE_CLASS_REFLECT(payload)
+    AE_REFLECT_MEMBERS(payload)
 
     std::array<std::uint8_t, 10> payload;
   };
@@ -88,7 +88,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::HundredBytes");
     static constexpr auto kMessageCode = 8;
 
-    AE_CLASS_REFLECT(payload)
+    AE_REFLECT_MEMBERS(payload)
 
     std::array<std::uint8_t, 100> payload;
   };
@@ -98,7 +98,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::ThousandBytes");
     static constexpr auto kMessageCode = 9;
 
-    AE_CLASS_REFLECT(payload)
+    AE_REFLECT_MEMBERS(payload)
 
     std::array<std::uint8_t, 1000> payload;
   };
@@ -111,7 +111,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
     VarMessageSize() = default;
     explicit VarMessageSize(std::size_t size) : payload(size) {}
 
-    AE_CLASS_REFLECT(payload)
+    AE_REFLECT_MEMBERS(payload)
 
     std::vector<std::uint8_t> payload;
   };
