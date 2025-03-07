@@ -37,7 +37,7 @@ class Channel : public Obj {
 
   explicit Channel(Domain* domain);
 
-  AE_OBJECT_REFLECT(address, statistics_)
+  AE_OBJECT_REFLECT(AE_MMBRS(address, statistics_))
 
   Duration FirstRequestDuration(TokenType adapter_token,
                                 TokenType location_token,

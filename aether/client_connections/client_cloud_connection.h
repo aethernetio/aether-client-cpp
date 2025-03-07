@@ -56,7 +56,7 @@ class ClientCloudConnection final : public ClientConnection {
   NewStreamEvent::Subscriber new_stream_event() override;
   void CloseStream(Uid uid, StreamId stream_id) override;
 
-  AE_CLASS_REFLECT()
+  AE_REFLECT()
 
  private:
   void SelectConnection();

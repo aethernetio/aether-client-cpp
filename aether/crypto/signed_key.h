@@ -27,7 +27,7 @@
 namespace ae {
 #if AE_SIGNATURE != AE_NONE
 struct SignedKey {
-  AE_CLASS_REFLECT(key, sign)
+  AE_REFLECT_MEMBERS(key, sign)
 
   Key key;
   Sign sign;

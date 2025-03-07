@@ -39,7 +39,7 @@ class CloudCache {
   std::optional<std::reference_wrapper<Cloud::ptr>> GetCache(Uid uid);
   void AddCloud(Uid uid, Cloud::ptr cloud);
 
-  AE_CLASS_REFLECT(clouds_)
+  AE_REFLECT_MEMBERS(clouds_)
 
  private:
   std::map<Uid, Cloud::ptr> clouds_;

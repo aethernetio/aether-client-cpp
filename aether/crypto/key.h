@@ -66,63 +66,63 @@ enum class CryptoKeyType : std::uint8_t {
 
 #  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
 struct SodiumCurvePublicKey {
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
 
   std::array<std::uint8_t, crypto_box_PUBLICKEYBYTES> key;
 };
 
 struct SodiumCurveSecretKey {
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_box_SECRETKEYBYTES> key;
 };
 #  endif
 
 #  if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 struct SodiumChachaKey {
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_aead_chacha20poly1305_KEYBYTES> key;
 };
 #  endif
 
 #  if AE_SIGNATURE == AE_ED25519
 struct SodiumSignPublicKey {
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_sign_PUBLICKEYBYTES> key;
 };
 
 struct SodiumSignSecretKey {
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_sign_SECRETKEYBYTES> key;
 };
 #  endif
 
 #  if AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
 struct HydrogenCurvePublicKey {
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_kx_PUBLICKEYBYTES> key;
 };
 
 struct HydrogenCurveSecretKey {
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_kx_SECRETKEYBYTES> key;
 };
 #  endif
 
 #  if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
 struct HydrogenSecretBoxKey {
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_secretbox_KEYBYTES> key;
 };
 #  endif
 
 #  if AE_SIGNATURE == AE_HYDRO_SIGNATURE
 struct HydrogenSignPublicKey {
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_sign_PUBLICKEYBYTES> key;
 };
 
 struct HydrogenSignSecretKey {
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_sign_SECRETKEYBYTES> key;
 };
 #  endif
@@ -130,7 +130,7 @@ struct HydrogenSignSecretKey {
 struct BlankKey {
   std::array<std::uint8_t, 0> key;
 
-  AE_CLASS_REFLECT(key)
+  AE_REFLECT_MEMBERS(key)
 };
 
 class Key : public VariantType<CryptoKeyType,

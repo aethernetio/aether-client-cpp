@@ -43,6 +43,8 @@ struct LogStore {
   using size_type = list_type::size_type;
   size_type Size() const;
 
+  AE_REFLECT_MEMBERS(logs)
+
   list_type logs;
 };
 
@@ -58,6 +60,8 @@ struct MetricsStore {
 
   using size_type = std::map<PackedIndex, Metric>::size_type;
   size_type Size() const;
+
+  AE_REFLECT_MEMBERS(metrics)
 
   std::map<PackedIndex, Metric> metrics;
 };
@@ -139,7 +143,7 @@ class Statistics {
 
   void Append(Statistics const& other);
 
-  AE_CLASS_REFLECT(size_, logs_.logs, metrics_.metrics)
+  AE_REFLECT_MEMBERS(size_, logs_, metrics_)
 
  private:
   void UpdateSize(LogStore const& logs, std::size_t delta_size);
@@ -203,7 +207,7 @@ class StatisticsStore {
 
   void SetSizeLimit(std::size_t limit);
 
-  AE_CLASS_REFLECT(statistics_size_limit_, env_store_, prev_, current_)
+  AE_REFLECT_MEMBERS(statistics_size_limit_, env_store_, prev_, current_)
 
  private:
   bool IsCurrentFull() const;
@@ -285,7 +289,7 @@ class StatisticsTrap {
    */
   void MergeStatistics(StatisticsTrap const& newer);
 
-  AE_CLASS_REFLECT(statistics_store_)
+  AE_REFLECT_MEMBERS(statistics_store_)
 
   StatisticsStore statistics_store_;
 };

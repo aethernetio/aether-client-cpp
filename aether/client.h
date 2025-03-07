@@ -54,9 +54,9 @@ class Client : public Obj {
 
   void SetConfig(Uid uid, Uid ephemeral_uid, Key master_key, Cloud::ptr c);
 
-  AE_OBJECT_REFLECT(aether_, uid_, ephemeral_uid_, master_key_, cloud_,
-                    server_keys_, client_connection_manager_,
-                    client_connection_)
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, uid_, ephemeral_uid_, master_key_, cloud_,
+                             server_keys_, client_connection_manager_,
+                             client_connection_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
