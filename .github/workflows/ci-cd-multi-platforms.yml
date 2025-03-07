@@ -119,7 +119,7 @@ jobs:
             base-devel
           pacboy: >-
             cmake:p
-            make:p
+            ninja:p
             gcc:p
           update: true
 
@@ -150,15 +150,14 @@ jobs:
         if: ${{ (runner.os == 'Windows') && (matrix.config.cc == 'gcc' ) }}
         shell: powershell
         run: >
-          cmake -B "${{ steps.strings.outputs.build-output-dir }}"
-          -G "MinGW Makefiles"
+          cmake -B $(cygpath "${{ steps.strings.outputs.build-output-dir }}")
           -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }}
           -DCMAKE_C_COMPILER=${{ matrix.config.cc }}
           -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}
           -DAE_DISTILLATION=${{ matrix.config.distillation }}
           -DUSER_CONFIG="${{ matrix.platforms.user_config }}"
           -DFS_INIT="${{ matrix.platforms.fs_init }}"
-          -S "${{ github.workspace }}/projects/cmake"
+          -S $(cygpath "${{ github.workspace }}/projects/cmake")
 
       - name: Configure CMake (standard)
         if: ${{ !(runner.os == 'Windows') }}
