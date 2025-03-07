@@ -148,7 +148,7 @@ jobs:
 
       - name: Configure CMake (MingW)
         if: ${{ (runner.os == 'Windows') && (matrix.config.cc == 'gcc' ) }}
-        shell: powershell
+        shell: msys2 {0}
         run: >
           cmake -B $(cygpath "${{ steps.strings.outputs.build-output-dir }}")
           -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }}
