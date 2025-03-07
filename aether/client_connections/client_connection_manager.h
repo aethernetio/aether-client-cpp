@@ -62,9 +62,9 @@ class ClientConnectionManager : public Obj {
   Cloud::ptr RegisterCloud(
       Uid uid, std::vector<ServerDescriptor> const& server_descriptors);
 
-  AE_OBJECT_REFLECT(aether_, client_, cloud_cache_,
-                    client_server_connection_pool_,
-                    get_client_cloud_connections_)
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_,
+                             client_server_connection_pool_,
+                             get_client_cloud_connections_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {

@@ -24,7 +24,7 @@
 
 namespace ae {
 struct UidAndCloud {
-  AE_CLASS_REFLECT(uid, cloud)
+  AE_REFLECT_MEMBERS(uid, cloud)
   Uid uid;
   std::vector<ServerId> cloud;
 };

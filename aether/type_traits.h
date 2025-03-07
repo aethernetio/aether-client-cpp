@@ -220,6 +220,17 @@ template <std::size_t I, typename... Ts>
 using TypeAt_t = decltype(TypeAt<I, Ts...>());
 
 /**
+ * \brief Pass tuple type list as template parameters to template T
+ */
+template <template <typename...> typename T, typename Tuple>
+struct TupleToTemplate;
+
+template <template <typename...> typename T, typename... Ts>
+struct TupleToTemplate<T, std::tuple<Ts...>> {
+  using type = T<Ts...>;
+};
+
+/**
  * \brief static cast with save constness
  */
 template <typename T, typename U>

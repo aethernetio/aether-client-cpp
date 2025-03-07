@@ -36,7 +36,7 @@ class Crypto : public Obj {
 #endif  // AE_DISTILLATION
 
 #if AE_SIGNATURE != AE_NONE
-  AE_OBJECT_REFLECT(signs_pk_)
+  AE_OBJECT_REFLECT(AE_MMBR(signs_pk_))
 #else
   AE_OBJECT_REFLECT()
 #endif

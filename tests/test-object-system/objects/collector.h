@@ -40,7 +40,7 @@ class Collector : public ae::Obj {
     }
   }
 
-  AE_OBJECT_REFLECT(vec_bars, list_bars, map_bars)
+  AE_OBJECT_REFLECT(AE_MMBR(vec_bars), AE_MMBR(list_bars), AE_MMBR(map_bars))
 
   static constexpr auto SIZE = 10;
   std::vector<Bar::ptr> vec_bars;

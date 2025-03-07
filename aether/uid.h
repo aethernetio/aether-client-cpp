@@ -32,7 +32,7 @@ struct Uid {
   explicit constexpr Uid(std::array<std::uint8_t, kSize> uid) : value(uid) {}
   Uid() = default;
 
-  AE_CLASS_REFLECT(value)
+  AE_REFLECT_MEMBERS(value)
 
   bool operator<(const Uid& rhs) const { return value < rhs.value; }
   bool operator==(const Uid& rhs) const { return value == rhs.value; }

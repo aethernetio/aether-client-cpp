@@ -31,7 +31,7 @@ struct ObjA {
   Ptr<ObjB> obj_b;
   Ptr<ObjC> obj_c;
 
-  AE_CLASS_REFLECT(obj_b, obj_c)
+  AE_REFLECT_MEMBERS(obj_b, obj_c)
 };
 
 struct ObjB {
@@ -39,14 +39,14 @@ struct ObjB {
   static inline int obj_b_destroyed = 0;
   Ptr<ObjA> obj_a;
 
-  AE_CLASS_REFLECT(obj_a)
+  AE_REFLECT_MEMBERS(obj_a)
 };
 
 struct ObjC {
   ~ObjC() { ++obj_c_destroyed; }
   static inline int obj_c_destroyed = 0;
 
-  AE_CLASS_REFLECT()
+  AE_REFLECT()
 };
 
 void test_ObjAnObjBCycleRef() {
@@ -122,7 +122,7 @@ struct ObjD {
   static inline int obj_d_destroyed = 0;
   Ptr<ObjE> ptr_e;
 
-  AE_CLASS_REFLECT(ptr_e)
+  AE_REFLECT_MEMBERS(ptr_e)
 };
 
 struct ObjE {
@@ -130,7 +130,7 @@ struct ObjE {
   static inline int obj_e_destroyed = 0;
   PtrView<ObjD> ptr_d;
 
-  AE_CLASS_REFLECT(ptr_d)
+  AE_REFLECT_MEMBERS(ptr_d)
 };
 
 void test_ObjDnObjECycleWithPtrView() {
@@ -152,7 +152,7 @@ struct ObjF {
   static inline int obj_f_destroyed = 0;
   std::vector<Ptr<ObjG>> g_list;
 
-  AE_CLASS_REFLECT(g_list)
+  AE_REFLECT_MEMBERS(g_list)
 };
 
 struct ObjG {
@@ -161,7 +161,7 @@ struct ObjG {
 
   Ptr<ObjF> obj_f;
 
-  AE_CLASS_REFLECT(obj_f)
+  AE_REFLECT_MEMBERS(obj_f)
 };
 
 void test_CycleListPtr() {

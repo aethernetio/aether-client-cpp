@@ -24,19 +24,19 @@
 namespace ae {
 
 struct CoderAndPort {
-  AE_CLASS_REFLECT(protocol, port)
+  AE_REFLECT_MEMBERS(protocol, port)
   Protocol protocol;
   std::uint16_t port;
 };
 
 struct IpAddressAndPort {
-  AE_CLASS_REFLECT(ip, protocol_and_ports)
+  AE_REFLECT_MEMBERS(ip, protocol_and_ports)
   IpAddress ip;
   std::vector<CoderAndPort> protocol_and_ports;
 };
 
 struct ServerDescriptor {
-  AE_CLASS_REFLECT(server_id, ips)
+  AE_REFLECT_MEMBERS(server_id, ips)
   ServerId server_id;
   std::vector<IpAddressAndPort> ips;
 };

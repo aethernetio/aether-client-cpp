@@ -27,11 +27,11 @@ struct Foo {
   float float_val;
   std::string hello;
 
-  AE_CLASS_REFLECT(int_val, float_val, hello);
+  AE_REFLECT(AE_MMBR(int_val), AE_MMBR(float_val), AE_MMBR(hello));
 };
 
 struct Empty {
-  AE_CLASS_REFLECT();
+  AE_REFLECT();
 };
 
 struct NonReflectable {
@@ -42,7 +42,7 @@ struct TwoLevelReflectable {
   int int_val;
   Foo foo;
 
-  AE_CLASS_REFLECT(int_val, foo);
+  AE_REFLECT_MEMBERS(int_val, foo);
 };
 
 void test_IsReflectable() {

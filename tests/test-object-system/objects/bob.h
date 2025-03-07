@@ -35,7 +35,7 @@ class Bob : public Obj {
 
   Foo::ptr CreateFoo() { return domain_->LoadCopy(foo_prefab); }
 
-  AE_OBJECT_REFLECT(foo_prefab)
+  AE_OBJECT_REFLECT(AE_MMBR(foo_prefab))
 
   Foo::ptr foo_prefab;
 };
@@ -53,7 +53,7 @@ class BobsMother : public Obj {
 
   Bob::ptr CreateBob() { return domain_->LoadCopy(bob_prefab); }
 
-  AE_OBJECT_REFLECT(bob_prefab)
+  AE_OBJECT_REFLECT(AE_MMBR(bob_prefab))
 
   Bob::ptr bob_prefab;
 };
@@ -69,7 +69,7 @@ class BobsFather : public Obj {
   Bob::ptr const& GetBob() const { return bob_; }
   void SetBob(Bob::ptr bob) { bob_ = bob; }
 
-  AE_OBJECT_REFLECT(bob_)
+  AE_OBJECT_REFLECT(AE_MMBR(bob_))
 
  private:
   Bob::ptr bob_;

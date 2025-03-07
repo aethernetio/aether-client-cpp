@@ -45,7 +45,7 @@ class DnsResolverCares : public DnsResolver {
 #    endif
   ~DnsResolverCares() override;
 
-  AE_OBJECT_REFLECT(aether_)
+  AE_OBJECT_REFLECT(AE_MMBR(aether_))
 
   ResolveAction& Resolve(NameAddress const& name_address) override;
 

@@ -24,14 +24,14 @@ struct BaseA {
   virtual ~BaseA() = default;
 
   virtual int calculateA() = 0;
-  AE_CLASS_REFLECT()
+  AE_REFLECT()
 };
 
 struct BaseB {
   virtual ~BaseB() = default;
 
   virtual int calculateB() = 0;
-  AE_CLASS_REFLECT()
+  AE_REFLECT()
 };
 
 struct DerivedAB : public BaseA, public BaseB {
@@ -40,7 +40,7 @@ struct DerivedAB : public BaseA, public BaseB {
   ~DerivedAB() override { ++dab_destroyed; }
   int calculateA() override { return 1; }
   int calculateB() override { return 2; }
-  AE_CLASS_REFLECT()
+  AE_REFLECT()
 };
 
 void test_ptrInheritance() {

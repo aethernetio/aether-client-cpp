@@ -101,7 +101,7 @@ omstream<Ob>& operator<<(omstream<Ob>& s, IpAddress const& ip_address) {
 }
 
 struct IpAddressPort {
-  AE_CLASS_REFLECT(ip, port)
+  AE_REFLECT_MEMBERS(ip, port)
 
   IpAddress ip;
   std::uint16_t port;
@@ -119,7 +119,7 @@ enum class Protocol : std::uint8_t {
 };
 
 struct IpAddressPortProtocol : public IpAddressPort {
-  AE_CLASS_REFLECT(StaticConst<IpAddressPort&>(*this), protocol)
+  AE_REFLECT(AE_REF_BASE(IpAddressPort), AE_MMBR(protocol))
 
   friend bool operator<(const IpAddressPortProtocol& left,
                         const IpAddressPortProtocol& right);
@@ -129,7 +129,7 @@ struct IpAddressPortProtocol : public IpAddressPort {
 
 #if AE_SUPPORT_CLOUD_DNS
 struct NameAddress {
-  AE_CLASS_REFLECT(name, port, protocol)
+  AE_REFLECT_MEMBERS(name, port, protocol)
 
   std::string name;
   std::uint16_t port;

@@ -29,7 +29,7 @@ struct Foo {
   float float_val;
   char const* hello;
 
-  AE_CLASS_REFLECT(int_val, float_val, hello);
+  AE_REFLECT_MEMBERS(int_val, float_val, hello);
 };
 
 struct NoReflect {
@@ -41,20 +41,20 @@ struct FooContainers {
   std::list<Foo> list_foos;
   std::map<int, Foo> map_foos;
 
-  AE_CLASS_REFLECT(vec_foos, list_foos, map_foos);
+  AE_REFLECT_MEMBERS(vec_foos, list_foos, map_foos);
 };
 
 struct BCycle;
 struct ACycle {
   int int_val;
   BCycle* b_ptr;
-  AE_CLASS_REFLECT(int_val, b_ptr)
+  AE_REFLECT_MEMBERS(int_val, b_ptr)
 };
 
 struct BCycle {
   float float_val;
   ACycle* a_ptr;
-  AE_CLASS_REFLECT(float_val, a_ptr)
+  AE_REFLECT_MEMBERS(float_val, a_ptr)
 };
 
 void test_VisitFoo() {

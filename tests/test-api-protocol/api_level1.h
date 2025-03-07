@@ -37,7 +37,7 @@ class ApiLevel1 : public ApiClass {
     int i_data_;
     std::array<std::uint8_t, 32> arr_data_;
 
-    AE_CLASS_REFLECT(i_data_, arr_data_)
+    AE_REFLECT_MEMBERS(i_data_, arr_data_)
   };
 
   struct Message2 : public Message<Message2> {
@@ -45,7 +45,7 @@ class ApiLevel1 : public ApiClass {
         crc32::checksum_from_literal("ApiLevel1::Message2");
     std::uint32_t u_data_;
 
-    AE_CLASS_REFLECT(u_data_)
+    AE_REFLECT_MEMBERS(u_data_)
   };
 
   // for server

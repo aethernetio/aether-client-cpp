@@ -160,7 +160,7 @@ class AetherApp {
     return aether_->action_processor->get_trigger();
   }
 
-  AE_CLASS_REFLECT(domain_facility_, domain_, aether_, exit_code_)
+  AE_REFLECT_MEMBERS(domain_facility_, domain_, aether_, exit_code_)
 
  private:
   Ptr<IDomainFacility> domain_facility_;

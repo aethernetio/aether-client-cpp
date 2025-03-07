@@ -30,7 +30,7 @@ class Foo : public Obj {
  public:
   explicit Foo(Domain* domain) : Obj{domain} { bar = domain->CreateObj<Bar>(); }
 
-  AE_OBJECT_REFLECT(a, b, bar)
+  AE_OBJECT_REFLECT(AE_MMBR(a), AE_MMBR(b), AE_MMBR(bar))
 
   int a{1};
   int b{2};

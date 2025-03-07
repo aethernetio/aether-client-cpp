@@ -67,7 +67,7 @@ class Obj {
 
   ObjId GetId() const;
 
-  AE_CLASS_REFLECT(update_time_);
+  AE_REFLECT_MEMBERS(update_time_);
 
   Domain* domain_{};
   TimePoint update_time_;
@@ -111,6 +111,7 @@ class Obj {
 /**
  * \brief Obj class reflection
  */
-#define AE_OBJECT_REFLECT(...) AE_CLASS_REFLECT(base_, __VA_ARGS__)
+#define AE_OBJECT_REFLECT(...) \
+  AE_REFLECT(AE_REF_BASE(std::decay_t<decltype(base_)>), __VA_ARGS__)
 
 #endif  // AETHER_OBJ_OBJ_H_

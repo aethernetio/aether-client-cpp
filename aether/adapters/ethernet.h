@@ -52,7 +52,7 @@ class EthernetAdapter : public Adapter {
   EthernetAdapter(ObjPtr<Aether> aether, IPoller::ptr poller, Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(aether_, poller_, create_transport_actions_)
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, create_transport_actions_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {

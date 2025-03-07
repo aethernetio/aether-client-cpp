@@ -56,7 +56,7 @@ class ClientConnection {
    */
   virtual void CloseStream(Uid uid, StreamId stream_id) = 0;
 
-  AE_CLASS_REFLECT()
+  AE_REFLECT()
 };
 }  // namespace ae
 

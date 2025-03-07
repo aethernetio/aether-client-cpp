@@ -37,21 +37,21 @@ class SafeStreamApi : public ApiClass {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::Close");
 
-    AE_CLASS_REFLECT()
+    AE_REFLECT()
   };
   struct RequestReport : public Message<RequestReport> {
     static constexpr auto kMessageCode = 3;
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::RequestReport");
 
-    AE_CLASS_REFLECT()
+    AE_REFLECT()
   };
   struct PutReport : public Message<PutReport> {
     static constexpr auto kMessageCode = 4;
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::PutReport");
 
-    AE_CLASS_REFLECT(offset)
+    AE_REFLECT_MEMBERS(offset)
 
     std::uint16_t offset;
   };
@@ -60,7 +60,7 @@ class SafeStreamApi : public ApiClass {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::Confirm");
 
-    AE_CLASS_REFLECT(offset)
+    AE_REFLECT_MEMBERS(offset)
 
     std::uint16_t offset;
   };
@@ -69,7 +69,7 @@ class SafeStreamApi : public ApiClass {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::RequestRepeat");
 
-    AE_CLASS_REFLECT(offset)
+    AE_REFLECT_MEMBERS(offset)
 
     std::uint16_t offset;
   };
@@ -78,7 +78,7 @@ class SafeStreamApi : public ApiClass {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::Send");
 
-    AE_CLASS_REFLECT(offset, data)
+    AE_REFLECT_MEMBERS(offset, data)
 
     std::uint16_t offset;
     DataBuffer data;
@@ -88,7 +88,7 @@ class SafeStreamApi : public ApiClass {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("SafeStreamApi::Repeat");
 
-    AE_CLASS_REFLECT(repeat_count, offset, data)
+    AE_REFLECT_MEMBERS(repeat_count, offset, data)
 
     std::uint16_t repeat_count;
     std::uint16_t offset;

@@ -86,8 +86,8 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
   ~Esp32WifiAdapter();
 #  endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(esp_netif_, connected_, wifi_connected_event_,
-                    create_transport_actions_)
+  AE_OBJECT_REFLECT(AE_MMBRS(esp_netif_, connected_, wifi_connected_event_,
+                             create_transport_actions_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {

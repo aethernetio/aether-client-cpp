@@ -32,7 +32,7 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
                       std::string ssid, std::string pass, Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(ethernet_adapter_)
+  AE_OBJECT_REFLECT(AE_MMBR(ethernet_adapter_))
 
   ActionView<CreateTransportAction> CreateTransport(
       IpAddressPortProtocol const& address_port_protocol) override;

@@ -53,14 +53,15 @@ class Aether : public Obj {
   ~Aether() override;
 
 #if AE_SUPPORT_REGISTRATION
-  AE_OBJECT_REFLECT(client_prefab, cloud_prefab, registration_cloud, crypto,
-                    clients_, servers_, tele_statistics_, poller, dns_resolver,
-                    adapter_factories, registration_actions_,
-                    registration_subscriptions_)
+  AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, cloud_prefab, registration_cloud,
+                             crypto, clients_, servers_, tele_statistics_,
+                             poller, dns_resolver, adapter_factories,
+                             registration_actions_,
+                             registration_subscriptions_))
 #else
-  AE_OBJECT_REFLECT(client_prefab, cloud_prefab, registration_cloud, crypto,
-                    clients_, servers_, tele_statistics_, poller, dns_resolver,
-                    adapter_factories)
+  AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, cloud_prefab, registration_cloud,
+                             crypto, clients_, servers_, tele_statistics_,
+                             poller, dns_resolver, adapter_factories))
 #endif
 
   template <typename Dnv>

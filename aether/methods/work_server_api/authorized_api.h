@@ -33,13 +33,13 @@ class AuthorizedApi : public ApiClass {
   // Just ping the server to finalize authorization and stream
   struct Ping : public Message<Ping> {
     static constexpr auto kMessageCode = 6;
-    AE_CLASS_REFLECT()
+    AE_REFLECT()
   };
 
   struct OpenStreamToClient : public Message<OpenStreamToClient> {
     static constexpr auto kMessageCode = 9;
 
-    AE_CLASS_REFLECT(uid, stream_id)
+    AE_REFLECT_MEMBERS(uid, stream_id)
 
     Uid uid;
     StreamId stream_id;
@@ -48,7 +48,7 @@ class AuthorizedApi : public ApiClass {
   struct SendMessage : public Message<SendMessage> {
     static constexpr auto kMessageCode = 10;
 
-    AE_CLASS_REFLECT(request_id, uid, data)
+    AE_REFLECT_MEMBERS(request_id, uid, data)
 
     RequestId request_id;
     Uid uid;
@@ -58,7 +58,7 @@ class AuthorizedApi : public ApiClass {
   struct Resolvers : public Message<Resolvers> {
     static constexpr auto kMessageCode = 12;
 
-    AE_CLASS_REFLECT(servers_stream_id, cloud_stream_id)
+    AE_REFLECT_MEMBERS(servers_stream_id, cloud_stream_id)
 
     StreamId servers_stream_id;
     StreamId cloud_stream_id;
