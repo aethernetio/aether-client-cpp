@@ -215,7 +215,7 @@ struct MakeYourSelf {
   Ptr<A> a;
   int x;
 
-  AE_CLASS_REFLECT(a, x)
+  AE_REFLECT_MEMBERS(a, x)
 };
 
 void test_ptrMakeFromThis() {
