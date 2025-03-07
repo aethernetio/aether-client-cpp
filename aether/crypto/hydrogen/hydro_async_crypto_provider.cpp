@@ -18,10 +18,10 @@
 
 #if AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
 
+#  include <vector>
 #  include <utility>
 #  include <cassert>
 #  include <algorithm>
-#  include <vector>
 
 #  include "aether/crypto/crypto_definitions.h"
 
@@ -82,7 +82,7 @@ inline std::vector<std::uint8_t> DecryptWithAsymmetric(
 }  // namespace _internal
 
 HydroAsyncEncryptProvider::HydroAsyncEncryptProvider(
-    Ptr<IAsyncKeyProvider> key_provider)
+    std::unique_ptr<IAsyncKeyProvider> key_provider)
     : key_provider_{std::move(key_provider)} {}
 
 DataBuffer HydroAsyncEncryptProvider::Encrypt(DataBuffer const& data) {
@@ -98,7 +98,7 @@ std::size_t HydroAsyncEncryptProvider::EncryptOverhead() const {
 }
 
 HydroAsyncDecryptProvider::HydroAsyncDecryptProvider(
-    Ptr<IAsyncKeyProvider> key_provider)
+    std::unique_ptr<IAsyncKeyProvider> key_provider)
     : key_provider_{std::move(key_provider)} {}
 
 DataBuffer HydroAsyncDecryptProvider::Decrypt(DataBuffer const& data) {

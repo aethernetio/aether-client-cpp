@@ -27,10 +27,10 @@
 namespace ae::bench {
 ReceiverSyncAction::ReceiverSyncAction(ActionContext action_context,
                                        ProtocolContext& protocol_context,
-                                       Ptr<ByteStream> stream)
+                                       ByteStream& stream)
     : Action{action_context},
       protocol_context_{protocol_context},
-      stream_{std::move(stream)},
+      stream_{&stream},
       state_{State::kWait},
       state_changed_subscription_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })},

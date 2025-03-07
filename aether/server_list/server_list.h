@@ -19,12 +19,13 @@
 
 #include <vector>
 
-#include "aether/ptr/ptr.h"
+#include "aether/memory.h"
+#include "aether/ptr/ptr_view.h"
+#include "aether/obj/obj_ptr.h"
 
 #include "aether/server_list/list_policy.h"
 
 namespace ae {
-class Aether;
 class Cloud;
 
 class ServerList {
@@ -55,7 +56,8 @@ class ServerList {
     container_type::iterator item_;
   };
 
-  ServerList(Ptr<ServerListPolicy> policy, Ptr<Cloud> cloud);
+  ServerList(std::unique_ptr<ServerListPolicy> policy,
+             ObjPtr<Cloud> const& cloud);
 
   void Init();
   bool End() const;
@@ -65,8 +67,8 @@ class ServerList {
  private:
   void BuildList();
 
-  Ptr<ServerListPolicy> policy_;
-  Ptr<Cloud> cloud_;
+  std::unique_ptr<ServerListPolicy> policy_;
+  PtrView<Cloud> cloud_;
 
   container_type server_list_;
   container_type::iterator iter_;

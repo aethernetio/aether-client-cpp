@@ -17,15 +17,15 @@
 #ifndef AETHER_PTR_PTR_MANAGEMENT_H_
 #define AETHER_PTR_PTR_MANAGEMENT_H_
 
-#include <type_traits>
-#include <cstdint>
-#include <cassert>
 #include <set>
 #include <map>
 #include <memory>
+#include <cstdint>
+#include <cassert>
+#include <type_traits>
 
 #include "aether/ptr/rc_ptr.h"
-#include "aether/obj/domain_tree.h"
+#include "aether/reflect/domain_visitor.h"
 
 namespace ae {
 
@@ -61,29 +61,25 @@ struct RefTree {
   using RefTreeChildren = std::set<RefTree*>;
 
   RefTree();
-  RefTree(void const* pointer, std::uint8_t ref_count);
-  RefTree(RefTree const& other) = delete;
-  RefTree(RefTree&& other) noexcept = default;
+  RefTree(void const* ptr, std::uint8_t ref_count);
 
-  bool IsReachable(void const* p, std::set<RefTree*>&& visited = {});
+  AE_CLASS_NO_COPY_MOVE(RefTree);
+
+  bool IsReachable(void const* ptr, std::set<RefTree*>&& visited = {});
 
   void const* pointer;
   std::uint8_t ref_count;
   std::uint8_t reachable_ref_count;
-  std::unique_ptr<RefTreeChildren> children;
+  RefTreeChildren children;
 };
 
-template <typename TVisitorPolicy>
-class RefCounterVisitor {
- public:
-  using ObjMap = std::map<void const*, RefTree>;
+using ObjMap = std::map<void const*, std::unique_ptr<RefTree>>;
+struct RefCounterVisitor;
 
-  explicit RefCounterVisitor(CycleDetector& cycle_detector, ObjMap& obj_map,
-                             RefTree::RefTreeChildren& obj_references)
-      : cycle_detector_{cycle_detector},
-        obj_map_{obj_map},
-        obj_references_{obj_references} {}
+using PtrDnv =
+    reflect::DomainNodeVisitor<RefCounterVisitor, reflect::VisitPolicy::kDeep>;
 
+struct RefCounterVisitor {
   template <typename U>
   std::enable_if_t<IsPtr<U>::value, bool> operator()(U const& obj) {
     auto const* obj_ptr = static_cast<void const*>(obj.get());
@@ -91,23 +87,51 @@ class RefCounterVisitor {
       return false;
     }
     auto const& refs = obj.ptr_storage_->ref_counters;
+    if (refs.main_refs == 0) {
+      return false;
+    }
 
-    auto [it, _] = obj_map_.try_emplace(obj_ptr, obj_ptr, refs.main_refs);
-    auto& ref_counter = it->second;
+    auto [it, _] = obj_map.emplace(
+        obj_ptr, std::make_unique<RefTree>(obj_ptr, refs.main_refs));
+    auto& ref_counter = *it->second;
     ref_counter.reachable_ref_count++;
+    assert(ref_counter.reachable_ref_count <= ref_counter.ref_count);
+    children.insert(&ref_counter);
 
-    obj_references_.insert(&ref_counter);
-
-    RefCounterVisitor visitor{cycle_detector_, obj_map_, *ref_counter.children};
-    DomainTree<TVisitorPolicy>::Visit(cycle_detector_, const_cast<U&>(obj),
-                                      visitor);
+    auto next_visitor =
+        RefCounterVisitor{cycle_detector, obj_map, ref_counter.children};
+    obj.VisitDeeper(next_visitor);
     return false;
   }
 
- private:
-  CycleDetector& cycle_detector_;
-  ObjMap& obj_map_;
-  RefTree::RefTreeChildren& obj_references_;
+  template <typename U>
+  std::enable_if_t<!IsPtr<U>::value> operator()(U const& /* obj */) {}
+
+  template <typename U>
+  void Visit(U* obj) {
+    reflect::DomainVisit(cycle_detector, *obj, PtrDnv{*this});
+  }
+
+  reflect::CycleDetector& cycle_detector;
+  ObjMap& obj_map;
+  RefTree::RefTreeChildren& children;
+};
+
+class PtrGraphBuilder {
+ public:
+  template <typename T>
+  static ObjMap BuildGraph(T& obj, RefCounters const& ref_counters) {
+    auto obj_map = ObjMap{};
+    auto [inserted, _] = obj_map.emplace(
+        &obj, std::make_unique<RefTree>(&obj, ref_counters.main_refs));
+    inserted->second->reachable_ref_count++;
+
+    auto cycle_detector = reflect::CycleDetector{};
+    auto visitor =
+        RefCounterVisitor{cycle_detector, obj_map, inserted->second->children};
+    reflect::DomainVisit(cycle_detector, obj, PtrDnv{visitor});
+    return obj_map;
+  }
 };
 
 }  // namespace ae

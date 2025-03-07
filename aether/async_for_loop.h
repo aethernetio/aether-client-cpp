@@ -83,7 +83,7 @@ class AsyncForLoop {
       auto res = body_();
       Increment();
       if constexpr (IsOptional<BodyReturnType>::value) {
-        return std::optional{res};
+        return std::optional{std::move(res)};
       } else {
         return res;
       }

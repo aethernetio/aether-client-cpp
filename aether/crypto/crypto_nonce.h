@@ -29,6 +29,8 @@ crypto_aead_chacha20poly1305.h"  // " this helps ide to parse following quotes
 
 #endif
 
+#include "aether/mstream.h"
+
 namespace ae {
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 static constexpr auto kNonceSize = crypto_aead_chacha20poly1305_NPUBBYTES;
@@ -36,20 +38,12 @@ struct CryptoNonceChacha20Poly1305
     : public std::array<std::uint8_t, kNonceSize> {
   void Next();
   void Init();
-
-  template <typename T>
-  void Serializator(T& s) {
-    s& static_cast<std::array<std::uint8_t, kNonceSize>&>(*this);
-  }
 };
 #endif
 
 struct CryptoNonceEmpty {
   void Next();
   void Init();
-
-  template <typename T>
-  void Serializator(T& /* s */) {}
 };
 
 struct CryptoNonce : public
@@ -60,6 +54,28 @@ struct CryptoNonce : public
 #endif
 {
 };
+#if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
+template <typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& s,
+                         CryptoNonceChacha20Poly1305 const& val) {
+  s << static_cast<std::array<std::uint8_t, kNonceSize> const&>(val);
+  return s;
+}
+template <typename Ob>
+imstream<Ob>& operator>>(imstream<Ob>& s, CryptoNonceChacha20Poly1305& val) {
+  s >> static_cast<std::array<std::uint8_t, kNonceSize>&>(val);
+  return s;
+}
+#else
+template <typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& s, CryptoNonceEmpty const& /*val*/) {
+  return s;
+}
+template <typename Ob>
+imstream<Ob>& operator>>(imstream<Ob>& s, CryptoNonceEmpty& /*val*/) {
+  return s;
+}
+#endif
 
 }  // namespace ae
 

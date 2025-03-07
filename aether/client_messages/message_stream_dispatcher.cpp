@@ -54,10 +54,10 @@ void MessageStreamDispatcher::CloseStream(Uid uid) {
   }
 }
 
-Ptr<MessageStream> MessageStreamDispatcher::CreateMessageStream(
+std::unique_ptr<MessageStream> MessageStreamDispatcher::CreateMessageStream(
     Uid uid, StreamId stream_id) {
   auto message_stream =
-      MakePtr<MessageStream>(protocol_context_, uid, stream_id);
+      make_unique<MessageStream>(protocol_context_, uid, stream_id);
   Tie(*message_stream, protocol_read_gate_);
   return message_stream;
 }
@@ -78,7 +78,7 @@ void MessageStreamDispatcher::OnStreamToClient(
       CreateMessageStream(message.uid, message.stream_id));
 
   // notify about new stream created
-  new_stream_event_.Emit(message.uid, stream_it->second);
+  new_stream_event_.Emit(message.uid, *stream_it->second);
 }
 
 }  // namespace ae

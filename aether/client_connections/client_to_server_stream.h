@@ -19,6 +19,8 @@
 
 #include <optional>
 
+#include "aether/memory.h"
+#include "aether/ptr/ptr_view.h"
 #include "aether/events/events.h"
 #include "aether/actions/action_context.h"
 
@@ -38,8 +40,9 @@ class Client;
 
 class ClientToServerStream : public ByteStream {
  public:
-  ClientToServerStream(ActionContext action_context, Ptr<Client> client,
-                       ServerId server_id, Ptr<ByteStream> server_stream);
+  ClientToServerStream(ActionContext action_context, Ptr<Client> const& client,
+                       ServerId server_id,
+                       std::unique_ptr<ByteStream> server_stream);
 
   ~ClientToServerStream() override;
 
@@ -53,7 +56,7 @@ class ClientToServerStream : public ByteStream {
   void OnDisconnected();
 
   ActionContext action_context_;
-  Ptr<Client> client_;
+  PtrView<Client> client_;
   ServerId server_id_;
 
   ProtocolContext protocol_context_;
@@ -64,7 +67,7 @@ class ClientToServerStream : public ByteStream {
   // stream to the server with login api and encryption
   std::optional<
       TiedStream<DebugGate, CryptoGate, StreamApiGate, ProtocolWriteGate,
-                 ProtocolReadGate<ClientSafeApi>, Ptr<ByteStream>>>
+                 ProtocolReadGate<ClientSafeApi>, std::unique_ptr<ByteStream>>>
       client_auth_stream_;
 
   Subscription connection_success_subscription_;

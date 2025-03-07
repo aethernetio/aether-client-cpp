@@ -18,6 +18,7 @@
 #define EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_SENDER_H_
 
 #include "aether/uid.h"
+#include "aether/memory.h"
 #include "aether/client.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/actions/action_view.h"
@@ -57,10 +58,10 @@ class Sender {
   Client::ptr client_;
   Uid destination_uid_;
   SafeStreamConfig safe_stream_config_;
-  Ptr<ByteStream> send_message_stream_;
+  std::unique_ptr<ByteStream> send_message_stream_;
   ProtocolContext protocol_context_;
 
-  Ptr<ITimedSender> sender_action_;
+  std::unique_ptr<ITimedSender> sender_action_;
 
   MultiSubscription action_subscriptions_;
 };

@@ -214,6 +214,8 @@ struct MakeYourSelf {
 
   Ptr<A> a;
   int x;
+
+  AE_CLASS_REFLECT(a, x)
 };
 
 void test_ptrMakeFromThis() {

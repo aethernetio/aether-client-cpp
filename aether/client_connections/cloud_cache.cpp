@@ -17,16 +17,17 @@
 #include "aether/client_connections/cloud_cache.h"
 
 namespace ae {
-CloudCache::Entry* CloudCache::GetCache(Uid uid) {
+std::optional<std::reference_wrapper<Cloud::ptr>> CloudCache::GetCache(
+    Uid uid) {
   auto it = clouds_.find(uid);
   if (it == std::end(clouds_)) {
-    return nullptr;
+    return {};
   }
-  return &it->second;
+  return std::ref(it->second);
 }
 
 void CloudCache::AddCloud(Uid uid, Cloud::ptr cloud) {
-  clouds_[uid] = Entry{std::move(cloud), {}};
+  clouds_[uid] = std::move(cloud);
 }
 
 }  // namespace ae

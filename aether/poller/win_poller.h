@@ -52,10 +52,7 @@ class WinPoller : public IPoller {
 #  endif
   ~WinPoller() override;
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+  AE_OBJECT_REFLECT()
 
   OnPollEventSubscriber Add(DescriptorType descriptor) override;
   void Remove(DescriptorType descriptor) override;

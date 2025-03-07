@@ -35,11 +35,7 @@ struct RequestId {
   bool operator!=(RequestId const& rhs) const { return id != rhs.id; }
   bool operator<(RequestId const& rhs) const { return id < rhs.id; }
 
-  template <typename T>
-  void Serializator(T& s) {
-    s & id;
-  }
-
+  AE_CLASS_REFLECT(id)
   std::uint16_t id;
 };
 }  // namespace ae

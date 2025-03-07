@@ -17,6 +17,7 @@
 #ifndef TOOLS_REGISTRATOR_REGISTRATOR_ACTION_H_
 #define TOOLS_REGISTRATOR_REGISTRATOR_ACTION_H_
 
+#include "aether/memory.h"
 #include "aether/aether_app.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
@@ -59,10 +60,8 @@ class RegistratorAction : public Action<RegistratorAction> {
   RegistratorConfig registrator_config_;
 
   std::vector<std::string> messages_;
-  std::vector<ae::Ptr<ae::P2pSafeStream>> sender_streams_{};
+  std::vector<std::unique_ptr<P2pSafeStream>> sender_streams_;
 
-  Client::ptr sender_;
-  Ptr<ByteStream> sender_stream_;
   std::size_t clients_registered_{0};
   std::size_t receive_count_{0};
   std::size_t confirm_count_{0};

@@ -68,7 +68,7 @@ int test_sender_bandwidth(Uid receiver_uid) {
   }
 
   auto action_context = ActionContext{*aether_app->aether()->action_processor};
-  auto sender = MakePtr<Sender>(action_context, client, receiver_uid);
+  auto sender = Sender{action_context, client, receiver_uid};
 
   auto test_action =
       TestAction<Sender>{action_context, sender, std::size_t{10000}};

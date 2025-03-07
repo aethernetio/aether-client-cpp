@@ -22,6 +22,7 @@
 #include "aether/obj/domain.h"
 #include "aether/obj/registry.h"
 #include "aether/obj/obj_ptr.h"
+#include "aether/reflect/type_index.h"
 
 namespace ae {
 template <class T>
@@ -38,7 +39,7 @@ class Registrar {
                                 Delegate(MethodPtr<&Save>{})
 #ifdef DEBUG
                                     ,
-                                std::string{GetTypeName<T>()},
+                                std::string{reflect::GetTypeName<T>()},
                                 cls_id,
                                 base_id,
 #endif  // DEBUG

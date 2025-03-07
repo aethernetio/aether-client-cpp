@@ -52,9 +52,27 @@ class Aether : public Obj {
 
   ~Aether() override;
 
+#if AE_SUPPORT_REGISTRATION
+  AE_OBJECT_REFLECT(client_prefab, cloud_prefab, registration_cloud, crypto,
+                    clients_, servers_, tele_statistics_, poller, dns_resolver,
+                    adapter_factories, registration_actions_,
+                    registration_subscriptions_)
+#else
+  AE_OBJECT_REFLECT(client_prefab, cloud_prefab, registration_cloud, crypto,
+                    clients_, servers_, tele_statistics_, poller, dns_resolver,
+                    adapter_factories)
+#endif
+
   template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+    dnv(client_prefab, cloud_prefab, registration_cloud, crypto, clients_,
+        servers_, tele_statistics_, poller, dns_resolver, adapter_factories);
+  }
+
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
     dnv(client_prefab, cloud_prefab, registration_cloud, crypto, clients_,
         servers_, tele_statistics_, poller, dns_resolver, adapter_factories);
   }

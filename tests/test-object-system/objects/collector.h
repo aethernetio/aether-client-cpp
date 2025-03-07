@@ -40,11 +40,7 @@ class Collector : public ae::Obj {
     }
   }
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(vec_bars, list_bars, map_bars);
-  }
+  AE_OBJECT_REFLECT(vec_bars, list_bars, map_bars)
 
   static constexpr auto SIZE = 10;
   std::vector<Bar::ptr> vec_bars;

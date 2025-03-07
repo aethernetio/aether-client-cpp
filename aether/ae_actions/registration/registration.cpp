@@ -20,12 +20,12 @@
 
 #  include <utility>
 
-#  include "aether/crypto/crypto_definitions.h"
-#  include "aether/crypto/key_gen.h"
-#  include "aether/crypto/sign.h"
 #  include "aether/aether.h"
 #  include "aether/common.h"
 #  include "aether/obj/domain.h"
+#  include "aether/crypto/sign.h"
+#  include "aether/crypto/key_gen.h"
+#  include "aether/crypto/crypto_definitions.h"
 
 #  include "aether/stream_api/stream_api.h"
 #  include "aether/stream_api/crypto_stream.h"
@@ -40,11 +40,9 @@
 #  include "aether/methods/client_reg_api/client_global_reg_api.h"
 #  include "aether/methods/server_reg_api/server_registration_api.h"
 
-#  include "aether/server_list/no_filter_server_list_policy.h"
-
-#  include "aether/ae_actions/registration/registration_key_provider.h"
-
 #  include "aether/proof_of_work.h"
+#  include "aether/server_list/no_filter_server_list_policy.h"
+#  include "aether/ae_actions/registration/registration_key_provider.h"
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 
@@ -77,14 +75,14 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
   }
 
   server_list_ =
-      MakePtr<ServerList>(MakePtr<NoFilterServerListPolicy>(), cloud);
+      make_unique<ServerList>(make_unique<NoFilterServerListPolicy>(), cloud);
   connection_selection_ =
-      MakePtr<AsyncForLoop>(AsyncForLoop<Ptr<ServerChannelStream>>::Construct(
+      AsyncForLoop<std::unique_ptr<ServerChannelStream>>::Construct(
           *server_list_, [this, aether_ptr, adapter{adapter}]() {
             auto item = server_list_->Get();
-            return MakePtr<ServerChannelStream>(aether_ptr, adapter,
-                                                item.server(), item.channel());
-          }));
+            return make_unique<ServerChannelStream>(
+                aether_ptr, adapter, item.server(), item.channel());
+          });
 
   // trigger action on state change
   state_change_subscription_ =
@@ -190,8 +188,8 @@ void Registration::Connected(TimePoint current_time) {
 
   // create simplest stream to server
   // On RequestPowParams will be created a more complicated one
-  reg_server_stream_ = MakePtr<TiedStream>(
-      ProtocolReadGate{protocol_context_, root_api_}, server_channel_stream_);
+  reg_server_stream_ = make_unique<TiedStream>(
+      ProtocolReadGate{protocol_context_, root_api_}, *server_channel_stream_);
 
   state_ = State::kGetKeys;
 }
@@ -252,15 +250,18 @@ void Registration::RequestPowParams(TimePoint current_time) {
   [[maybe_unused]] auto r = CryptoSyncKeygen(secret_key);
   assert(r);
 
-  server_async_key_provider_ = MakePtr<RegistrationAsyncKeyProvider>();
-  server_async_key_provider_->set_public_key(server_pub_key_);
+  auto server_async_key_provider = make_unique<RegistrationAsyncKeyProvider>();
+  server_async_key_provider->set_public_key(server_pub_key_);
+  server_async_key_provider_ = server_async_key_provider.get();
 
-  server_sync_key_provider_ = MakePtr<RegistrationSyncKeyProvider>();
-  server_sync_key_provider_->set_key(secret_key);
+  auto server_sync_key_provider = make_unique<RegistrationSyncKeyProvider>();
+  server_sync_key_provider->set_key(secret_key);
+  server_sync_key_provider_ = server_sync_key_provider.get();
 
-  reg_server_stream_ = CreateRegServerStream(
-      StreamIdGenerator::GetNextClientStreamId(), server_async_key_provider_,
-      server_sync_key_provider_);
+  reg_server_stream_ =
+      CreateRegServerStream(StreamIdGenerator::GetNextClientStreamId(),
+                            std::move(server_async_key_provider),
+                            std::move(server_sync_key_provider));
 
   packet_write_action_ = reg_server_stream_->in().Write(
       PacketBuilder{
@@ -329,10 +330,10 @@ void Registration::MakeRegistration(TimePoint current_time) {
                 aether_global_key_.Index(), aether_global_key_,
                 master_key_.Index(), master_key_);
 
-  auto global_async_key_provider = MakePtr<RegistrationAsyncKeyProvider>();
+  auto global_async_key_provider = make_unique<RegistrationAsyncKeyProvider>();
   global_async_key_provider->set_public_key(aether_global_key_);
 
-  auto global_sync_key_provider = MakePtr<RegistrationSyncKeyProvider>();
+  auto global_sync_key_provider = make_unique<RegistrationSyncKeyProvider>();
   global_sync_key_provider->set_key(master_key_);
 
   auto stream_id = StreamIdGenerator::GetNextClientStreamId();
@@ -462,19 +463,20 @@ void Registration::OnResolveCloudResponse(
   state_ = State::kRegistered;
 }
 
-Ptr<ByteStream> Registration::CreateRegServerStream(
-    StreamId stream_id, Ptr<IAsyncKeyProvider> async_key_provider,
-    Ptr<ISyncKeyProvider> sync_key_provider) {
+std::unique_ptr<ByteStream> Registration::CreateRegServerStream(
+    StreamId stream_id, std::unique_ptr<IAsyncKeyProvider> async_key_provider,
+    std::unique_ptr<ISyncKeyProvider> sync_key_provider) {
   auto aether = aether_.Lock();
   if (!aether) {
     return {};
   }
 
-  auto tied_stream = MakePtr<TiedStream>(
+  auto tied_stream = make_unique<TiedStream>(
       ProtocolReadGate{protocol_context_, ClientApiRegSafe{}},
       DebugGate{"RegServer write {}", "RegServer read {}"},
-      CryptoGate{MakePtr<AsyncEncryptProvider>(std::move(async_key_provider)),
-                 MakePtr<SyncDecryptProvider>(std::move(sync_key_provider))},
+      CryptoGate{
+          make_unique<AsyncEncryptProvider>(std::move(async_key_provider)),
+          make_unique<SyncDecryptProvider>(std::move(sync_key_provider))},
       StreamApiGate{protocol_context_, stream_id},
       ProtocolWriteGate{protocol_context_, RootApi{},
                         RootApi::Enter{
@@ -487,15 +489,16 @@ Ptr<ByteStream> Registration::CreateRegServerStream(
   return tied_stream;
 }
 
-Ptr<ByteStream> Registration::CreateGlobalRegServerStream(
+std::unique_ptr<ByteStream> Registration::CreateGlobalRegServerStream(
     StreamId stream_id, ServerRegistrationApi::Registration message,
-    Ptr<IAsyncKeyProvider> global_async_key_provider,
-    Ptr<ISyncKeyProvider> global_sync_key_provider) {
-  auto tied_stream = MakePtr<TiedStream>(
+    std::unique_ptr<IAsyncKeyProvider> global_async_key_provider,
+    std::unique_ptr<ISyncKeyProvider> global_sync_key_provider) {
+  auto tied_stream = make_unique<TiedStream>(
       ProtocolReadGate{protocol_context_, ClientGlobalRegApi{}},
-      CryptoGate{
-          MakePtr<AsyncEncryptProvider>(std::move(global_async_key_provider)),
-          MakePtr<SyncDecryptProvider>(std::move(global_sync_key_provider))},
+      CryptoGate{make_unique<AsyncEncryptProvider>(
+                     std::move(global_async_key_provider)),
+                 make_unique<SyncDecryptProvider>(
+                     std::move(global_sync_key_provider))},
       StreamApiGate{protocol_context_, stream_id},
       ProtocolWriteGate{protocol_context_, ServerRegistrationApi{},
                         std::move(message)});

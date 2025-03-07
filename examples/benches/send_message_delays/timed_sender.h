@@ -59,11 +59,11 @@ class TimedSender : public ITimedSender {
 
  public:
   TimedSender(ActionContext action_context, ProtocolContext& protocol_context,
-              Ptr<ByteStream> stream, std::size_t message_count,
+              ByteStream& stream, std::size_t message_count,
               Duration min_send_interval)
       : ITimedSender{action_context},
         protocol_context_{protocol_context},
-        stream_{std::move(stream)},
+        stream_{&stream},
         message_count_{message_count},
         min_send_interval_{min_send_interval},
         state_{State::kSend},
@@ -153,7 +153,7 @@ class TimedSender : public ITimedSender {
   }
 
   ProtocolContext& protocol_context_;
-  Ptr<ByteStream> stream_;
+  ByteStream* stream_;
   std::size_t message_count_;
 
   Duration min_send_interval_;

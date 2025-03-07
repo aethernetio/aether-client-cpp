@@ -21,7 +21,7 @@
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 
-#  include "aether/ptr/ptr.h"
+#  include "aether/memory.h"
 
 #  include "aether/crypto/icrypto_provider.h"
 #  include "aether/crypto/ikey_provider.h"
@@ -29,23 +29,25 @@
 namespace ae {
 class SodiumSyncEncryptProvider : public IEncryptProvider {
  public:
-  explicit SodiumSyncEncryptProvider(Ptr<ISyncKeyProvider> key_provider);
+  explicit SodiumSyncEncryptProvider(
+      std::unique_ptr<ISyncKeyProvider> key_provider);
 
   DataBuffer Encrypt(DataBuffer const& data) override;
   std::size_t EncryptOverhead() const override;
 
  private:
-  Ptr<ISyncKeyProvider> key_provider_;
+  std::unique_ptr<ISyncKeyProvider> key_provider_;
 };
 
 class SodiumSyncDecryptProvider : public IDecryptProvider {
  public:
-  explicit SodiumSyncDecryptProvider(Ptr<ISyncKeyProvider> key_provider);
+  explicit SodiumSyncDecryptProvider(
+      std::unique_ptr<ISyncKeyProvider> key_provider);
 
   DataBuffer Decrypt(DataBuffer const& data) override;
 
  private:
-  Ptr<ISyncKeyProvider> key_provider_;
+  std::unique_ptr<ISyncKeyProvider> key_provider_;
 };
 }  // namespace ae
 

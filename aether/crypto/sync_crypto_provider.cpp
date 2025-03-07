@@ -27,15 +27,15 @@ namespace ae {
 
 namespace _sync_internal {
 template <typename KeyType>
-Ptr<IEncryptProvider> CreateEncryptImpl(
-    KeyType const&, Ptr<ISyncKeyProvider> /* key_provider */) {
+std::unique_ptr<IEncryptProvider> CreateEncryptImpl(
+    KeyType const&, std::unique_ptr<ISyncKeyProvider> /* key_provider */) {
   assert(false);
   return {};
 }
 
 template <typename KeyType>
-Ptr<IDecryptProvider> CreateDecryptImpl(
-    KeyType const&, Ptr<ISyncKeyProvider> /* key_provider */) {
+std::unique_ptr<IDecryptProvider> CreateDecryptImpl(
+    KeyType const&, std::unique_ptr<ISyncKeyProvider> /* key_provider */) {
   assert(false);
   return {};
 }
@@ -43,39 +43,43 @@ Ptr<IDecryptProvider> CreateDecryptImpl(
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 
 template <>
-Ptr<IEncryptProvider> CreateEncryptImpl(SodiumChachaKey const&,
-                                        Ptr<ISyncKeyProvider> key_provider) {
-  return MakePtr<SodiumSyncEncryptProvider>(std::move(key_provider));
+std::unique_ptr<IEncryptProvider> CreateEncryptImpl(
+    SodiumChachaKey const&, std::unique_ptr<ISyncKeyProvider> key_provider) {
+  return make_unique<SodiumSyncEncryptProvider>(std::move(key_provider));
 }
 
 template <>
-Ptr<IDecryptProvider> CreateDecryptImpl(SodiumChachaKey const&,
-                                        Ptr<ISyncKeyProvider> key_provider) {
-  return MakePtr<SodiumSyncDecryptProvider>(std::move(key_provider));
+std::unique_ptr<IDecryptProvider> CreateDecryptImpl(
+    SodiumChachaKey const&, std::unique_ptr<ISyncKeyProvider> key_provider) {
+  return make_unique<SodiumSyncDecryptProvider>(std::move(key_provider));
 }
 #endif
 
 #if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
 template <>
-Ptr<IEncryptProvider> CreateEncryptImpl(HydrogenSecretBoxKey const&,
-                                        Ptr<ISyncKeyProvider> key_provider) {
-  return MakePtr<HydroSyncEncryptProvider>(std::move(key_provider));
+std::unique_ptr<IEncryptProvider> CreateEncryptImpl(
+    HydrogenSecretBoxKey const&,
+    std::unique_ptr<ISyncKeyProvider> key_provider) {
+  return make_unique<HydroSyncEncryptProvider>(std::move(key_provider));
 }
 
 template <>
-Ptr<IDecryptProvider> CreateDecryptImpl(HydrogenSecretBoxKey const&,
-                                        Ptr<ISyncKeyProvider> key_provider) {
-  return MakePtr<HydroSyncDecryptProvider>(std::move(key_provider));
+std::unique_ptr<IDecryptProvider> CreateDecryptImpl(
+    HydrogenSecretBoxKey const&,
+    std::unique_ptr<ISyncKeyProvider> key_provider) {
+  return make_unique<HydroSyncDecryptProvider>(std::move(key_provider));
 }
 #endif
 
 }  // namespace _sync_internal
 
-SyncEncryptProvider::SyncEncryptProvider(Ptr<ISyncKeyProvider> key_provider) {
+SyncEncryptProvider::SyncEncryptProvider(
+    std::unique_ptr<ISyncKeyProvider> key_provider) {
   auto key = key_provider->GetKey();
   impl_ = std::visit(
       [&](auto key_type) {
-        return _sync_internal::CreateEncryptImpl(key_type, key_provider);
+        return _sync_internal::CreateEncryptImpl(key_type,
+                                                 std::move(key_provider));
       },
       key);
   assert(impl_);
@@ -89,11 +93,13 @@ std::size_t SyncEncryptProvider::EncryptOverhead() const {
   return impl_->EncryptOverhead();
 }
 
-SyncDecryptProvider::SyncDecryptProvider(Ptr<ISyncKeyProvider> key_provider) {
+SyncDecryptProvider::SyncDecryptProvider(
+    std::unique_ptr<ISyncKeyProvider> key_provider) {
   auto key = key_provider->GetKey();
   impl_ = std::visit(
       [&](auto key_type) {
-        return _sync_internal::CreateDecryptImpl(key_type, key_provider);
+        return _sync_internal::CreateDecryptImpl(key_type,
+                                                 std::move(key_provider));
       },
       key);
   assert(impl_);

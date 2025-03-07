@@ -60,8 +60,8 @@ class SendMessageDelaysManager {
     };
 
    public:
-    TestAction(ActionContext action_context, Ptr<Sender> sender,
-               Ptr<Receiver> receiver, SendMessageDelaysManagerConfig config);
+    TestAction(ActionContext action_context, Sender& sender, Receiver& receiver,
+               SendMessageDelaysManagerConfig config);
 
     TimePoint Update(TimePoint current_time) override;
 
@@ -86,11 +86,11 @@ class SendMessageDelaysManager {
     void TestResult(TimeTable const& sended_table,
                     TimeTable const& received_table);
 
-    Ptr<Sender> sender_;
-    Ptr<Receiver> receiver_;
+    Sender* sender_;
+    Receiver* receiver_;
     SendMessageDelaysManagerConfig config_;
 
-    Ptr<BarrierEvent<TimeTable, 2>> res_event_;
+    std::unique_ptr<BarrierEvent<TimeTable, 2>> res_event_;
     StateMachine<State> state_;
     Subscription state_changed_subscription_;
     MultiSubscription error_subscriptions_;
@@ -101,17 +101,18 @@ class SendMessageDelaysManager {
   };
 
  public:
-  SendMessageDelaysManager(ActionContext action_context, Ptr<Sender> sender,
-                           Ptr<Receiver> receiver);
+  SendMessageDelaysManager(ActionContext action_context,
+                           std::unique_ptr<Sender> sender,
+                           std::unique_ptr<Receiver> receiver);
 
   ActionView<TestAction> Test(SendMessageDelaysManagerConfig config);
 
  private:
   ActionContext action_context_;
-  Ptr<Sender> sender_;
-  Ptr<Receiver> receiver_;
+  std::unique_ptr<Sender> sender_;
+  std::unique_ptr<Receiver> receiver_;
 
-  Ptr<TestAction> test_action_;
+  std::unique_ptr<TestAction> test_action_;
   MultiSubscription test_action_subscription_;
 };
 }  // namespace ae::bench

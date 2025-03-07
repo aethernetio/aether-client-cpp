@@ -17,30 +17,32 @@
 #ifndef AETHER_CLIENT_CONNECTIONS_SERVER_CONNECTION_SELECTOR_H_
 #define AETHER_CLIENT_CONNECTIONS_SERVER_CONNECTION_SELECTOR_H_
 
-#include <type_traits>
-
-#include "aether/cloud.h"
+#include "aether/memory.h"
+#include "aether/ptr/rc_ptr.h"
 #include "aether/server_list/server_list.h"
 #include "aether/client_connections/client_server_connection.h"
 #include "aether/client_connections/iserver_connection_factory.h"
 
 namespace ae {
-// TODO: add an iterator interface maybe ?
+class Cloud;
+
 class ServerConnectionSelector {
  public:
   ServerConnectionSelector(
-      Ptr<Cloud> cloud,
-      Ptr<IServerConnectionFactory> client_server_connection_factory);
+      ObjPtr<Cloud> const& cloud,
+      std::unique_ptr<ServerListPolicy>&& server_list_policy,
+      std::unique_ptr<IServerConnectionFactory>&&
+          client_server_connection_factory);
 
   void Init();
   void Next();
-  // Return stream to current server
-  Ptr<ClientServerConnection> GetConnection();
+  // Return connection to current server
+  RcPtr<ClientServerConnection> GetConnection();
   bool End();
 
  private:
-  Ptr<ServerList> server_list_;
-  Ptr<IServerConnectionFactory> server_connection_factory_;
+  ServerList server_list_;
+  std::unique_ptr<IServerConnectionFactory> server_connection_factory_;
 };
 }  // namespace ae
 

@@ -18,10 +18,10 @@
 #define AETHER_STREAM_API_TIED_STREAM_H_
 
 #include <tuple>
-#include <type_traits>
 #include <utility>
+#include <type_traits>
 
-#include "aether/ptr/ptr_management.h"
+#include "aether/type_traits.h"
 #include "aether/stream_api/istream.h"
 
 namespace ae {
@@ -37,9 +37,8 @@ struct StreamTrait {
   };
 
   template <std::size_t I>
-  struct NType<
-      I, std::enable_if_t<
-             IsPtr<std::tuple_element_t<I, std::tuple<TStreams...>>>::value>> {
+  struct NType<I, std::enable_if_t<IsPointerLike<std::tuple_element_t<
+                      I, std::tuple<TStreams...>>>::value>> {
     using type = std::decay_t<decltype(*std::declval<std::tuple_element_t<
                                            I, std::tuple<TStreams...>>>())>;
   };
@@ -66,11 +65,12 @@ struct StreamTrait {
 };
 
 template <typename... TStreams>
-class TiedStream : public StreamTrait<TStreams...>::StreamType {
+class TiedStream : public StreamTrait<std::decay_t<TStreams>...>::StreamType {
  public:
-  using Trait = StreamTrait<TStreams...>;
+  using Trait = StreamTrait<std::decay_t<TStreams>...>;
 
-  explicit TiedStream(TStreams... streams) : streams_{std::move(streams)...} {
+  explicit TiedStream(TStreams... streams)
+      : streams_{std::forward<TStreams>(streams)...} {
     TieStreams(std::make_index_sequence<sizeof...(TStreams)>());
   }
 
@@ -101,7 +101,7 @@ class TiedStream : public StreamTrait<TStreams...>::StreamType {
   template <std::size_t I>
   auto& GetValue() {
     using type = std::tuple_element_t<I, decltype(streams_)>;
-    if constexpr (IsPtr<type>::value) {
+    if constexpr (IsPointerLike<type>::value) {
       return *std::get<I>(streams_);
     } else {
       return std::get<I>(streams_);
@@ -116,6 +116,8 @@ class TiedStream : public StreamTrait<TStreams...>::StreamType {
   std::tuple<TStreams...> streams_;
 };
 
+template <typename... U>
+TiedStream(U&&...) -> TiedStream<U...>;
 }  // namespace ae
 
 namespace std {

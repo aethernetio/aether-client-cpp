@@ -34,10 +34,7 @@ class RegistrationCloud : public Cloud {
   explicit RegistrationCloud(Domain* domain);
 #  endif
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+  AE_OBJECT_REFLECT()
 
   void AddServerSettings(UnifiedAddress address);
 };

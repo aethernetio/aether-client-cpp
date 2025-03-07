@@ -23,7 +23,7 @@
 
 #include "aether/ptr/ptr.h"
 #include "aether/obj/obj_id.h"
-#include "aether/obj/domain_tree.h"
+#include "aether/reflect/domain_visitor.h"
 
 namespace ae {
 class Obj;
@@ -111,5 +111,26 @@ class ObjPtr : public Ptr<T>, public ObjectPtrBase {
   }
 };
 }  // namespace ae
+
+namespace ae::reflect {
+template <typename T>
+struct NodeVisitor<ae::ObjPtr<T>> : NodeVisitor<ae::Ptr<T>> {
+  using Policy = AnyPolicyMatch;
+
+  template <typename Visitor>
+  void Visit(ae::ObjPtr<T>& obj_ptr, CycleDetector& cycle_detector,
+             Visitor&& visitor) const {
+    NodeVisitor<ae::Ptr<T>>::Visit(obj_ptr, cycle_detector,
+                                   std::forward<Visitor>(visitor));
+  }
+
+  template <typename Visitor>
+  void Visit(ae::ObjPtr<T> const& obj_ptr, CycleDetector& cycle_detector,
+             Visitor&& visitor) const {
+    NodeVisitor<ae::Ptr<T>>::Visit(obj_ptr, cycle_detector,
+                                   std::forward<Visitor>(visitor));
+  }
+};
+}  // namespace ae::reflect
 
 #endif  // AETHER_OBJ_OBJ_PTR_H_

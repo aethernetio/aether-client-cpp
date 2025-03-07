@@ -16,7 +16,7 @@
 
 #include "unity.h"
 
-#include "aether/ptr/ptr.h"
+#include "aether/memory.h"
 #include "aether/actions/action_processor.h"
 #include "aether/actions/action_context.h"
 
@@ -103,7 +103,8 @@ void test_StringIntGate() {
   DataBuffer written_data;
   int read_data;
 
-  auto write_gate = MakePtr<MockWriteGate>(ac, static_cast<std::size_t>(1000));
+  auto write_gate =
+      make_unique<MockWriteGate>(ac, static_cast<std::size_t>(1000));
   auto _0 = write_gate->on_write_event().Subscribe(
       [&](auto data, auto /* time */) { written_data = std::move(data); });
 

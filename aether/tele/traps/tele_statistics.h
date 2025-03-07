@@ -20,6 +20,7 @@
 #include "aether/obj/obj.h"
 #include "aether/ptr/ptr.h"
 #include "aether/tele/tele.h"
+#include "aether/reflect/reflect.h"
 #include "aether/tele/traps/statistics_trap.h"
 
 namespace ae::tele {
@@ -33,12 +34,20 @@ class TeleStatistics : public Obj {
   explicit TeleStatistics(Domain* domain);
 #endif  // AE_DISTILLATION
 
-  template <typename Dnv>
-  void Visit([[maybe_unused]] Dnv& dnv) {
 #if AE_TELE_ENABLED
-    dnv(trap_);
-#endif
+  AE_OBJECT_REFLECT(trap_)
+
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(*trap_);
   }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(*trap_);
+  }
+#else
+  AE_OBJECT_REFLECT()
+#endif
 
 #if AE_TELE_ENABLED
   Ptr<statistics::StatisticsTrap> const& trap();

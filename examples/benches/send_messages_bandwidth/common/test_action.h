@@ -55,10 +55,10 @@ class TestAction : public Action<TestAction<TAgent>> {
   };
 
  public:
-  explicit TestAction(ActionContext action_context, Ptr<TAgent> agent,
+  explicit TestAction(ActionContext action_context, TAgent& agent,
                       std::size_t test_message_count)
       : SelfAction{action_context},
-        agent_{std::move(agent)},
+        agent_{&agent},
         test_message_count_{test_message_count},
         state_{State::kConnect},
         state_changed_{state_.changed_event().Subscribe(
@@ -202,7 +202,7 @@ class TestAction : public Action<TestAction<TAgent>> {
         }); */
   }
 
-  Ptr<TAgent> agent_;
+  TAgent* agent_;
   std::size_t test_message_count_;
   StateMachine<State> state_;
 

@@ -18,10 +18,10 @@
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 
+#  include <vector>
 #  include <cassert>
 #  include <utility>
 #  include <algorithm>
-#  include <vector>
 
 #  include "aether/crypto/crypto_nonce.h"
 
@@ -42,8 +42,7 @@ inline DataBuffer EncryptWithSymmetric(SodiumChachaKey const& secret_key,
 
   assert(r == 0);
 
-  ciphertext.resize(static_cast<std::size_t>
-                   (ciphertext_len + nonce.size()));
+  ciphertext.resize(static_cast<std::size_t>(ciphertext_len + nonce.size()));
 
   // add nonce to the end of ciphertext
   std::copy(
@@ -80,7 +79,7 @@ inline DataBuffer DecryptWithSymmetric(SodiumChachaKey const& secret_key,
 }  // namespace _internal
 
 SodiumSyncEncryptProvider::SodiumSyncEncryptProvider(
-    Ptr<ISyncKeyProvider> key_provider)
+    std::unique_ptr<ISyncKeyProvider> key_provider)
     : key_provider_{std::move(key_provider)} {}
 
 DataBuffer SodiumSyncEncryptProvider::Encrypt(DataBuffer const& data) {
@@ -96,7 +95,7 @@ std::size_t SodiumSyncEncryptProvider::EncryptOverhead() const {
 }
 
 SodiumSyncDecryptProvider::SodiumSyncDecryptProvider(
-    Ptr<ISyncKeyProvider> key_provider)
+    std::unique_ptr<ISyncKeyProvider> key_provider)
     : key_provider_{std::move(key_provider)} {}
 
 DataBuffer SodiumSyncDecryptProvider::Decrypt(DataBuffer const& data) {

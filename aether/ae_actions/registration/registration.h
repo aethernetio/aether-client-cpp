@@ -25,6 +25,9 @@
 
 #  include "aether/uid.h"
 #  include "aether/common.h"
+#  include "aether/memory.h"
+#  include "aether/ptr/ptr.h"
+#  include "aether/ptr/ptr_view.h"
 #  include "aether/state_machine.h"
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_view.h"
@@ -89,21 +92,22 @@ class Registration : public Action<Registration> {
   void OnResolveCloudResponse(
       MessageEventData<ClientApiRegSafe::ResolveServersResponse> const& msg);
 
-  Ptr<ByteStream> CreateRegServerStream(
-      StreamId stream_id, Ptr<IAsyncKeyProvider> async_key_provider,
-      Ptr<ISyncKeyProvider> sync_key_provider);
-  Ptr<ByteStream> CreateGlobalRegServerStream(
+  std::unique_ptr<ByteStream> CreateRegServerStream(
+      StreamId stream_id, std::unique_ptr<IAsyncKeyProvider> async_key_provider,
+      std::unique_ptr<ISyncKeyProvider> sync_key_provider);
+  std::unique_ptr<ByteStream> CreateGlobalRegServerStream(
       StreamId stream_id, ServerRegistrationApi::Registration message,
-      Ptr<IAsyncKeyProvider> global_async_key_provider,
-      Ptr<ISyncKeyProvider> global_sync_key_provider);
+      std::unique_ptr<IAsyncKeyProvider> global_async_key_provider,
+      std::unique_ptr<ISyncKeyProvider> global_sync_key_provider);
 
   PtrView<Aether> aether_;
   Ptr<Client> client_;
   Uid parent_uid_;
 
-  Ptr<ServerList> server_list_;
-  Ptr<AsyncForLoop<Ptr<ServerChannelStream>>> connection_selection_;
-  Ptr<ServerChannelStream> server_channel_stream_;
+  std::unique_ptr<ServerList> server_list_;
+  std::optional<AsyncForLoop<std::unique_ptr<ServerChannelStream>>>
+      connection_selection_;
+  std::unique_ptr<ServerChannelStream> server_channel_stream_;
   ProtocolContext protocol_context_;
   ClientApiRegSafe root_api_;
 
@@ -121,11 +125,11 @@ class Registration : public Action<Registration> {
   Key aether_global_key_;
   std::vector<ServerId> cloud_;
 
-  Ptr<class RegistrationAsyncKeyProvider> server_async_key_provider_;
-  Ptr<class RegistrationSyncKeyProvider> server_sync_key_provider_;
+  class RegistrationAsyncKeyProvider* server_async_key_provider_;
+  class RegistrationSyncKeyProvider* server_sync_key_provider_;
 
-  Ptr<ByteStream> reg_server_stream_;
-  Ptr<ByteStream> global_reg_server_stream_;
+  std::unique_ptr<ByteStream> reg_server_stream_;
+  std::unique_ptr<ByteStream> global_reg_server_stream_;
 
   ActionView<StreamWriteAction> packet_write_action_;
   Subscription connection_subscription_;

@@ -61,7 +61,7 @@ void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
       ObjPtr<Aether>{aether_}, MakePtrFromThis(this));
 }
 
-Ptr<ClientConnection> Client::client_connection() {
+Ptr<ClientConnection> const& Client::client_connection() {
   if (!client_connection_) {
     client_connection_ = client_connection_manager_->GetClientConnection();
   }

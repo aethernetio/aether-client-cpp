@@ -71,8 +71,8 @@ TimePoint NameAddressChannelConnectionAction::Update(TimePoint current_time) {
   return current_time;
 }
 
-Ptr<ITransport> NameAddressChannelConnectionAction::transport() const {
-  return transport_;
+std::unique_ptr<ITransport> NameAddressChannelConnectionAction::transport() {
+  return std::move(transport_);
 }
 
 ConnectionInfo NameAddressChannelConnectionAction::connection_info() const {
@@ -81,7 +81,8 @@ ConnectionInfo NameAddressChannelConnectionAction::connection_info() const {
 
 void NameAddressChannelConnectionAction::NameResolve(
     TimePoint /* current_time */) {
-  auto& resolver_action = dns_resolver_->Resolve(name_address_);
+  auto resolver_ptr = dns_resolver_.Lock();
+  auto& resolver_action = resolver_ptr->Resolve(name_address_);
   dns_resolve_subscriptions_.Push(
       resolver_action
           .SubscribeOnResult([this](auto const& action) {

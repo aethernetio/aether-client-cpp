@@ -29,7 +29,7 @@
 namespace ae {
 
 EthernetAdapter::EthernetCreateTransportAction::EthernetCreateTransportAction(
-    ActionContext action_context, Ptr<ITransport> transport)
+    ActionContext action_context, std::unique_ptr<ITransport> transport)
     : CreateTransportAction{action_context},
       transport_{std::move(transport)},
       once_{true} {}
@@ -43,9 +43,9 @@ TimePoint EthernetAdapter::EthernetCreateTransportAction::Update(
   return current_time;
 }
 
-Ptr<ITransport> EthernetAdapter::EthernetCreateTransportAction::transport()
-    const {
-  return transport_;
+std::unique_ptr<ITransport>
+EthernetAdapter::EthernetCreateTransportAction::transport() {
+  return std::move(transport_);
 }
 
 #ifdef AE_DISTILLATION
@@ -57,9 +57,8 @@ EthernetAdapter::EthernetAdapter(Aether::ptr aether, IPoller::ptr poller,
 ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
     IpAddressPortProtocol const& address_port_protocol) {
   if (!create_transport_actions_) {
-    create_transport_actions_ =
-        MakePtr<ActionList<EthernetCreateTransportAction>>(
-            ActionContext{*aether_.as<Aether>()->action_processor});
+    create_transport_actions_.emplace(
+        ActionContext{*aether_.as<Aether>()->action_processor});
   }
 
   CleanDeadTransports();
@@ -68,22 +67,22 @@ ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
 #if defined UNIX_TCP_TRANSPORT_ENABLED
     assert(address_port_protocol.protocol == Protocol::kTcp);
     transport =
-        MakePtr<UnixTcpTransport>(*aether_.as<Aether>()->action_processor,
-                                  poller_, address_port_protocol);
+        make_unique<UnixTcpTransport>(*aether_.as<Aether>()->action_processor,
+                                      poller_, address_port_protocol);
 #elif defined LWIP_TCP_TRANSPORT_ENABLED
     assert(address_port_protocol.protocol == Protocol::kTcp);
     transport =
-        MakePtr<LwipTcpTransport>(*aether_.as<Aether>()->action_processor,
-                                  poller_, address_port_protocol);
+        make_unique<LwipTcpTransport>(*aether_.as<Aether>()->action_processor,
+                                      poller_, address_port_protocol);
 #elif defined WIN_TCP_TRANSPORT_ENABLED
     assert(address_port_protocol.protocol == Protocol::kTcp);
     transport =
-        MakePtr<WinTcpTransport>(*aether_.as<Aether>()->action_processor,
-                                 poller_, address_port_protocol);
+        make_unique<WinTcpTransport>(*aether_.as<Aether>()->action_processor,
+                                     poller_, address_port_protocol);
 #else
     return {};
 #endif
-    AddToCache(address_port_protocol, transport);
+    AddToCache(address_port_protocol, *transport);
   } else {
     AE_TELED_DEBUG("Got transport from cache");
   }

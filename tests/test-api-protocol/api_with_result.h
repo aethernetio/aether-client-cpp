@@ -31,10 +31,7 @@ class ApiWithResult : public ApiClass, public ReturnResultApi {
   struct RequestEcho : public Message<RequestEcho> {
     static constexpr std::uint32_t kMessageId = 12;
 
-    template <typename T>
-    void Serializator(T &s) {
-      s & id_ & message_;
-    }
+    AE_CLASS_REFLECT(id_, message_)
 
     RequestId id_;
     std::string message_;

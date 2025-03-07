@@ -45,7 +45,7 @@ void Adapter::CleanDeadTransports() {
 #endif
 }
 
-Ptr<ITransport> Adapter::FindInCache(
+std::unique_ptr<ITransport> Adapter::FindInCache(
     IpAddressPortProtocol /* address_port_protocol */) {
 #if 0
   auto cache_it = transports_cache_.find(address_port_protocol);
@@ -62,9 +62,9 @@ Ptr<ITransport> Adapter::FindInCache(
 }
 
 void Adapter::AddToCache(IpAddressPortProtocol /* address_port_protocol */,
-                         Ptr<ITransport> /* transport */) {
+                         ITransport& /* transport */) {
 #if 0
-  transports_cache_.emplace(address_port_protocol, transport);
+  transports_cache_.emplace(address_port_protocol, std::move(transport));
 #endif
 }
 

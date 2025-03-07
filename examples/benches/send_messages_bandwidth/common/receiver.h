@@ -20,6 +20,7 @@
 #include <optional>
 
 #include "aether/client.h"
+#include "aether/memory.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/events.h"
 #include "aether/events/event_subscription.h"
@@ -56,24 +57,25 @@ class Receiver {
 
  private:
   template <typename T>
-  Ptr<MessageReceiver<T>> CreateTestAction(std::size_t message_count);
+  std::unique_ptr<MessageReceiver<T>> CreateTestAction(
+      std::size_t message_count);
 
   ActionContext action_context_;
   Client::ptr client_;
   ProtocolContext protocol_context_;
 
   Ptr<ClientConnection> client_connection_;
-  Ptr<ByteStream> message_stream_;
-  Ptr<ProtocolReadGate<BandwidthApi>> protocol_read_gate_;
+  std::unique_ptr<ByteStream> message_stream_;
+  std::unique_ptr<ProtocolReadGate<BandwidthApi>> protocol_read_gate_;
 
   std::optional<ReceiverSyncAction> sync_action_;
 
-  Ptr<MessageReceiver<BandwidthApi::WarmUp>> warm_up_;
-  Ptr<MessageReceiver<BandwidthApi::OneByte>> one_byte_;
-  Ptr<MessageReceiver<BandwidthApi::TenBytes>> ten_bytes_;
-  Ptr<MessageReceiver<BandwidthApi::HundredBytes>> hundred_bytes_;
-  Ptr<MessageReceiver<BandwidthApi::ThousandBytes>> thousand_bytes_;
-  Ptr<MessageReceiver<BandwidthApi::VarMessageSize>> variable_size_;
+  std::unique_ptr<MessageReceiver<BandwidthApi::WarmUp>> warm_up_;
+  std::unique_ptr<MessageReceiver<BandwidthApi::OneByte>> one_byte_;
+  std::unique_ptr<MessageReceiver<BandwidthApi::TenBytes>> ten_bytes_;
+  std::unique_ptr<MessageReceiver<BandwidthApi::HundredBytes>> hundred_bytes_;
+  std::unique_ptr<MessageReceiver<BandwidthApi::ThousandBytes>> thousand_bytes_;
+  std::unique_ptr<MessageReceiver<BandwidthApi::VarMessageSize>> variable_size_;
 
   Event<void(Bandwidth const&)> test_finished_event_;
   Event<void()> handshake_made_;

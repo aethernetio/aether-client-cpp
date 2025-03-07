@@ -17,6 +17,7 @@
 #ifndef EXAMPLES_BENCHES_RECEIVER_H_
 #define EXAMPLES_BENCHES_RECEIVER_H_
 
+#include "aether/memory.h"
 #include "aether/client.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/event_subscription.h"
@@ -53,11 +54,11 @@ class Receiver {
   SafeStreamConfig safe_stream_config_;
 
   ProtocolContext protocol_context_;
-  Ptr<ClientConnection> connection_stream_;
-  Ptr<ProtocolReadGate<BenchDelaysApi>> protocol_read_gate_;
-  Ptr<ByteStream> receive_message_stream_;
+  Ptr<ClientConnection> client_connection_;
+  std::unique_ptr<ProtocolReadGate<BenchDelaysApi>> protocol_read_gate_;
+  std::unique_ptr<ByteStream> receive_message_stream_;
 
-  Ptr<ITimedReceiver> receiver_action_;
+  std::unique_ptr<ITimedReceiver> receiver_action_;
 
   Subscription message_stream_subscription_;
   MultiSubscription action_subscriptions_;

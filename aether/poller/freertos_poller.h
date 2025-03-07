@@ -42,10 +42,7 @@ class FreertosPoller : public IPoller {
 
   ~FreertosPoller() override;
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-  }
+  AE_OBJECT_REFLECT()
 
   [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) override;
   void Remove(DescriptorType descriptor) override;

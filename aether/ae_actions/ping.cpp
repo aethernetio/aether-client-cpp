@@ -24,13 +24,13 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-Ping::Ping(ActionContext action_context, Server::ptr server,
-           Channel::ptr channel, Ptr<ByteStream> server_stream,
+Ping::Ping(ActionContext action_context, Server::ptr const& server,
+           Channel::ptr const& channel, ByteStream& server_stream,
            Duration ping_interval)
     : Action{action_context},
-      server_{std::move(server)},
-      channel_{std::move(channel)},
-      server_stream_{std::move(server_stream)},
+      server_{server},
+      channel_{channel},
+      server_stream_{&server_stream},
       ping_interval_{ping_interval},
       read_client_safe_api_gate_{protocol_context_, client_safe_api_},
       state_{State::kSendPing},

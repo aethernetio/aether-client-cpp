@@ -27,10 +27,10 @@
 namespace ae::bench {
 SenderSyncAction::SenderSyncAction(ActionContext action_context,
                                    ProtocolContext& protocol_context,
-                                   Ptr<ByteStream> stream)
+                                   ByteStream& stream)
     : Action{action_context},
       protocol_context_{protocol_context},
-      stream_{std::move(stream)},
+      stream_{&stream},
       state_{State::kSendSync},
       current_repeat_{},
       state_changed_subscription_{state_.changed_event().Subscribe(

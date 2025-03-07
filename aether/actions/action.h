@@ -132,30 +132,30 @@ class Action : public IAction {
   }
 
   // Call result to mark action as done and call all result callbacks
-  void Result(T const& object) {
+  void Result(T& object) {
     result_cbs_.Emit(object);
     Finish();
   }
 
   // Call result repeat to call all result callbacks without marking action as
   // finished
-  void ResultRepeat(T const& object) { result_cbs_.Emit(object); }
+  void ResultRepeat(T& object) { result_cbs_.Emit(object); }
 
   //  Call error to mark action as failed and call all error callbacks
-  void Error(T const& object) {
+  void Error(T& object) {
     error_cbs_.Emit(object);
     Finish();
   }
 
   // Call stop to mark action as rejected and call all stop callbacks
-  void Stop(T const& object) {
+  void Stop(T& object) {
     stop_cbs_.Emit(object);
     Finish();
   }
 
-  Event<void(T const&)> result_cbs_;
-  Event<void(T const&)> error_cbs_;
-  Event<void(T const&)> stop_cbs_;
+  Event<void(T&)> result_cbs_;
+  Event<void(T&)> error_cbs_;
+  Event<void(T&)> stop_cbs_;
   Event<void()> finished_event_;
 
   ActionTrigger* action_trigger_{};

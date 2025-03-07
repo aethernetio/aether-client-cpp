@@ -40,7 +40,7 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
 
 P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
                      Uid destination, StreamId stream_id,
-                     Ptr<ByteStream> receive_stream)
+                     std::unique_ptr<ByteStream> receive_stream)
     : action_context_{action_context},
       client_{client},
       destination_{destination},
@@ -88,11 +88,11 @@ void P2pStream::ConnectSend() {
         client_ptr->client_connection_manager()->GetClientConnection(
             destination_);
     get_client_connection_subscription_ =
-        get_client_connection_action->SubscribeOnResult(
-            [this](auto const& action) {
-              send_client_connection_ = action.client_cloud_connection();
-              TieSendStream(*send_client_connection_);
-            });
+        get_client_connection_action->SubscribeOnResult([this](auto& action) {
+          // FIXME: dangling pointer
+          send_client_connection_ = action.client_cloud_connection();
+          TieSendStream(*send_client_connection_);
+        });
     return;
   }
   TieSendStream(*send_client_connection_);

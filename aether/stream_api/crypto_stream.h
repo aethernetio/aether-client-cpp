@@ -17,7 +17,7 @@
 #ifndef AETHER_STREAM_API_CRYPTO_STREAM_H_
 #define AETHER_STREAM_API_CRYPTO_STREAM_H_
 
-#include "aether/ptr/ptr.h"
+#include "aether/memory.h"
 
 #include "aether/stream_api/istream.h"
 
@@ -28,8 +28,8 @@ class CryptoGate final : public ByteGate {
   friend class CryptoStream;
 
  public:
-  CryptoGate(Ptr<IEncryptProvider> crypto_encrypt,
-             Ptr<IDecryptProvider> crypto_decrypt);
+  CryptoGate(std::unique_ptr<IEncryptProvider> crypto_encrypt,
+             std::unique_ptr<IDecryptProvider> crypto_decrypt);
 
   ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
                                       TimePoint current_time) override;
@@ -41,8 +41,8 @@ class CryptoGate final : public ByteGate {
  private:
   void OnOutData(DataBuffer const& buffer);
 
-  Ptr<IEncryptProvider> crypto_encrypt_;
-  Ptr<IDecryptProvider> crypto_decrypt_;
+  std::unique_ptr<IEncryptProvider> crypto_encrypt_;
+  std::unique_ptr<IDecryptProvider> crypto_decrypt_;
 };
 }  // namespace ae
 

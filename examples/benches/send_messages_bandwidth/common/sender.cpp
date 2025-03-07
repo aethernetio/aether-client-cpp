@@ -32,12 +32,12 @@ Sender::Sender(ActionContext action_context, Client::ptr client,
 EventSubscriber<void()> Sender::error_event() { return error_event_; }
 
 void Sender::Connect() {
-  message_stream_ =
-      MakePtr<P2pStream>(action_context_, client_, destination_, StreamId{0});
+  message_stream_ = make_unique<P2pStream>(action_context_, client_,
+                                           destination_, StreamId{0});
   Tie(response_read_, *message_stream_);
 }
 
-void Sender::Disconnect() { message_stream_.Reset(); }
+void Sender::Disconnect() { message_stream_.reset(); }
 
 EventSubscriber<void()> Sender::Handshake() {
   auto handshake_request = RequestId::GenRequestId();
@@ -64,7 +64,7 @@ EventSubscriber<void()> Sender::Handshake() {
 EventSubscriber<void()> Sender::Sync() {
   test_subscriptions_.Reset();
 
-  sync_action_.emplace(action_context_, protocol_context_, message_stream_);
+  sync_action_.emplace(action_context_, protocol_context_, *message_stream_);
 
   test_subscriptions_.Push(  //
       sync_action_->SubscribeOnResult(
@@ -83,7 +83,7 @@ EventSubscriber<void(Bandwidth const&)> Sender::WarmUp(
 
   warm_up_ = CreateTestAction<BandwidthApi::WarmUp>(message_count);
   test_subscriptions_.Push(
-      warm_up_->FinishedEvent().Subscribe([this]() { warm_up_.Reset(); }));
+      warm_up_->FinishedEvent().Subscribe([this]() { warm_up_.reset(); }));
   return test_finished_event_;
 }
 
@@ -93,7 +93,7 @@ EventSubscriber<void(Bandwidth const&)> Sender::OneByte(
 
   one_byte_ = CreateTestAction<BandwidthApi::OneByte>(message_count);
   test_subscriptions_.Push(
-      one_byte_->FinishedEvent().Subscribe([this]() { one_byte_.Reset(); }));
+      one_byte_->FinishedEvent().Subscribe([this]() { one_byte_.reset(); }));
   return test_finished_event_;
 }
 
@@ -103,7 +103,7 @@ EventSubscriber<void(Bandwidth const&)> Sender::TenBytes(
 
   ten_bytes_ = CreateTestAction<BandwidthApi::TenBytes>(message_count);
   test_subscriptions_.Push(
-      ten_bytes_->FinishedEvent().Subscribe([this]() { ten_bytes_.Reset(); }));
+      ten_bytes_->FinishedEvent().Subscribe([this]() { ten_bytes_.reset(); }));
   return test_finished_event_;
 }
 
@@ -112,7 +112,7 @@ EventSubscriber<void(Bandwidth const&)> Sender::HundredBytes(
   test_subscriptions_.Reset();
   hundred_bytes_ = CreateTestAction<BandwidthApi::HundredBytes>(message_count);
   test_subscriptions_.Push(hundred_bytes_->FinishedEvent().Subscribe(
-      [this]() { hundred_bytes_.Reset(); }));
+      [this]() { hundred_bytes_.reset(); }));
   return test_finished_event_;
 }
 
@@ -123,7 +123,7 @@ EventSubscriber<void(Bandwidth const&)> Sender::ThousandBytes(
   thousand_bytes_ =
       CreateTestAction<BandwidthApi::ThousandBytes>(message_count);
   test_subscriptions_.Push(thousand_bytes_->FinishedEvent().Subscribe(
-      [this]() { thousand_bytes_.Reset(); }));
+      [this]() { thousand_bytes_.reset(); }));
   return test_finished_event_;
 }
 
@@ -134,15 +134,15 @@ EventSubscriber<void(Bandwidth const&)> Sender::VariableSizeBytes(
   variable_size_ =
       CreateTestAction<BandwidthApi::VarMessageSize>(message_count);
   test_subscriptions_.Push(variable_size_->FinishedEvent().Subscribe(
-      [this]() { variable_size_.Reset(); }));
+      [this]() { variable_size_.reset(); }));
   return test_finished_event_;
 }
 
 template <typename T>
-Ptr<MessageSender<BandwidthApi, T>> Sender::CreateTestAction(
+std::unique_ptr<MessageSender<BandwidthApi, T>> Sender::CreateTestAction(
     std::size_t message_count) {
-  auto action = MakePtr<MessageSender<BandwidthApi, T>>(
-      action_context_, protocol_context_, BandwidthApi{}, message_stream_,
+  auto action = make_unique<MessageSender<BandwidthApi, T>>(
+      action_context_, protocol_context_, BandwidthApi{}, *message_stream_,
       message_count);
 
   test_subscriptions_.Push(

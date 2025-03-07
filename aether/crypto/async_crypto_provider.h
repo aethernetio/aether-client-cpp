@@ -17,7 +17,7 @@
 #ifndef AETHER_CRYPTO_ASYNC_CRYPTO_PROVIDER_H_
 #define AETHER_CRYPTO_ASYNC_CRYPTO_PROVIDER_H_
 
-#include "aether/ptr/ptr.h"
+#include "aether/memory.h"
 
 #include "aether/crypto/icrypto_provider.h"
 #include "aether/crypto/ikey_provider.h"
@@ -25,22 +25,24 @@
 namespace ae {
 class AsyncEncryptProvider : public IEncryptProvider {
  public:
-  explicit AsyncEncryptProvider(Ptr<IAsyncKeyProvider> key_provider);
+  explicit AsyncEncryptProvider(
+      std::unique_ptr<IAsyncKeyProvider> key_provider);
 
   DataBuffer Encrypt(DataBuffer const& data) override;
   std::size_t EncryptOverhead() const override;
 
  private:
-  Ptr<IEncryptProvider> impl_;
+  std::unique_ptr<IEncryptProvider> impl_;
 };
 
 class AsyncDecryptProvider : public IDecryptProvider {
  public:
-  explicit AsyncDecryptProvider(Ptr<IAsyncKeyProvider> key_provider);
+  explicit AsyncDecryptProvider(
+      std::unique_ptr<IAsyncKeyProvider> key_provider);
   DataBuffer Decrypt(DataBuffer const& data) override;
 
  private:
-  Ptr<IDecryptProvider> impl_;
+  std::unique_ptr<IDecryptProvider> impl_;
 };
 }  // namespace ae
 
