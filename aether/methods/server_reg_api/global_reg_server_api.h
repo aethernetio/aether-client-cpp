@@ -33,13 +33,13 @@ class GlobalRegServerApi : public ApiClass {
       crc32::checksum_from_literal("GlobalRegServerApi");
 
   struct SetMasterKey : public Message<SetMasterKey> {
-    AE_CLASS_REFLECT(key)
+    AE_REFLECT_MEMBERS(key)
 
     Key key;
   };
 
   struct Finish : public Message<Finish> {
-    AE_CLASS_REFLECT(request_id)
+    AE_REFLECT_MEMBERS(request_id)
 
     RequestId request_id;
   };

@@ -161,7 +161,7 @@ class ProxyTrap {
     return EnvStream{first->env_stream(), second->env_stream()};
   }
 
-  AE_CLASS_REFLECT(first, second)
+  AE_REFLECT_MEMBERS(first, second)
 
   Ptr<TrapFirst> first;
   Ptr<TrapSecond> second;

@@ -95,7 +95,7 @@ struct IoStreamTrap {
   MetricsStream metric_stream(Declaration const& decl);
   EnvStream env_stream();
 
-  AE_CLASS_REFLECT()
+  AE_REFLECT()
 
   std::ostream& stream_;
   std::unordered_map<std::size_t, Metric> metrics_;

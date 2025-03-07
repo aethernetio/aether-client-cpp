@@ -35,7 +35,7 @@ struct RequestId {
   bool operator!=(RequestId const& rhs) const { return id != rhs.id; }
   bool operator<(RequestId const& rhs) const { return id < rhs.id; }
 
-  AE_CLASS_REFLECT(id)
+  AE_REFLECT_MEMBERS(id)
   std::uint16_t id;
 };
 }  // namespace ae

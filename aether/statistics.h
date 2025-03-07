@@ -64,10 +64,10 @@ class Statistics : public Obj {
   Statistics(Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(first_requests_, requests_)
+  AE_OBJECT_REFLECT(AE_MMBRS(first_requests_, requests_))
 
   struct Value1 {
-    AE_CLASS_REFLECT(time_point, duration)
+    AE_REFLECT_MEMBERS(time_point, duration)
     TimePoint time_point;
     Duration duration;
   };

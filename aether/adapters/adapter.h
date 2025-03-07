@@ -50,7 +50,7 @@ class Adapter : public Obj {
   explicit Adapter(Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(proxies_, proxy_prefab_)
+  AE_OBJECT_REFLECT(AE_MMBRS(proxies_, proxy_prefab_))
 
   virtual ActionView<CreateTransportAction> CreateTransport(
       IpAddressPortProtocol const& /* address_port_protocol */) {

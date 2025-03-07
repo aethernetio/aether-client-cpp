@@ -31,7 +31,7 @@ class Server : public Obj {
  public:
   explicit Server(Domain* domain);
 
-  AE_OBJECT_REFLECT(server_id, channels)
+  AE_OBJECT_REFLECT(AE_MMBRS(server_id, channels))
 
   void AddChannel(Channel::ptr channel);
   void LoadChannel(Channel::ptr& channel);

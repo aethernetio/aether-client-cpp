@@ -35,7 +35,7 @@ class TeleStatistics : public Obj {
 #endif  // AE_DISTILLATION
 
 #if AE_TELE_ENABLED
-  AE_OBJECT_REFLECT(trap_)
+  AE_OBJECT_REFLECT(AE_MMBR(trap_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
