@@ -148,9 +148,9 @@ jobs:
 
       - name: Configure CMake (MingW)
         if: ${{ (runner.os == 'Windows') && (matrix.config.cc == 'gcc' ) }}
-        shell: msys2 {0}
+        shell: powershell
         run: >
-          cmake -B $(cygpath '${{ steps.strings.outputs.build-output-dir }}')
+          cmake -B "${{ steps.strings.outputs.build-output-dir }}"
           -G "MinGW Makefiles"
           -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }}
           -DCMAKE_C_COMPILER=${{ matrix.config.cc }}
@@ -158,7 +158,7 @@ jobs:
           -DAE_DISTILLATION=${{ matrix.config.distillation }}
           -DUSER_CONFIG="${{ matrix.platforms.user_config }}"
           -DFS_INIT="${{ matrix.platforms.fs_init }}"
-          -S $(cygpath '${{ github.workspace }}/projects/cmake')
+          -S "${{ github.workspace }}/projects/cmake"
 
       - name: Configure CMake (standard)
         if: ${{ !(runner.os == 'Windows') }}
