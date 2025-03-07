@@ -18,94 +18,117 @@
 #define AETHER_REFLECT_REFLECT_H_
 
 #include <tuple>
+#include <cstddef>
 #include <utility>
 #include <type_traits>
 
+#include "aether/common.h"
+#include "aether/type_traits.h"
+
 namespace ae::reflect {
 namespace reflect_internal {
-template <typename U1>
-static constexpr bool CheckDuplicateImpl(U1 /*check1 */) {
-  return false;
-}
+template <typename T, auto val>
+struct Field;
 
-static constexpr bool CheckDuplicateImpl() { return false; }
+/**
+ * \brief Pointer to class member field.
+ */
+template <typename T, typename M, M T::* val>
+struct Field<T, val> {
+  using class_type = T;
+  using type = M;
+  static constexpr auto kValue = val;
 
-template <typename U1, typename U2, typename... U>
-static constexpr bool CheckDuplicateImpl(U1 check1, U2 check2, U... checks) {
-  if constexpr (std::is_same_v<U1, U2>) {
-    if (check1 == check2) {
-      return true;
-    }
-  } else {
-    return CheckDuplicateImpl(check2, checks...);
+  template <typename U, AE_REQUIRERS((std::is_same<T, std::decay_t<U>>))>
+  static constexpr decltype(auto) get(U&& obj) {
+    return std::forward<U>(obj).*kValue;
   }
-  return false;
-}
+};
 
-template <typename... U>
-static constexpr bool CheckDuplicate(U... checks) {
-  return CheckDuplicateImpl(checks...);
-}
-}  // namespace reflect_internal
+/**
+ * \brief Field getter from function pointer
+ */
+template <typename T, typename M, M* (*val)(T*)>
+struct Field<T, val> {
+  using class_type = T;
+  using type = M;
+  static constexpr auto kValue = val;
+
+  template <typename U, AE_REQUIRERS((std::is_same<T, std::decay_t<U>>))>
+  static constexpr decltype(auto) get(U&& obj) {
+    if constexpr (std::is_const_v<std::remove_reference_t<U>>) {
+      return const_cast<type const&>(
+          *(*kValue)(const_cast<T*>(&std::forward<U>(obj))));
+    } else {
+      return *(*kValue)(&std::forward<U>(obj));
+    }
+  }
+};
 
 /**
  * \brief class T's member fields list
  */
 template <typename... TFields>
 struct FieldList {
-  using FieldsList = std::tuple<TFields...>;
+  using FieldsTuple = std::tuple<TFields...>;
   static constexpr std::size_t kSize = sizeof...(TFields);
-
-  explicit constexpr FieldList(TFields... fields) : fields_list_{fields...} {}
 
   /**
    * \brief Apply func to obj fields
    */
-  template <typename Func>
-  constexpr void Apply(Func&& func) {
+  template <typename U, typename Func>
+  static constexpr void Apply(U&& obj, Func&& func) {
     // apply to each field
-    std::apply(std::forward<Func>(func), fields_list_);
+    std::forward<Func>(func)(TFields::get(std::forward<U>(obj))...);
   }
 
   /**
    * \brief Get field
    */
-  template <std::size_t I>
-  constexpr auto& get() {
-    return std::get<I>(fields_list_);
+  template <std::size_t I, typename U>
+  static constexpr decltype(auto) get(U&& obj) {
+    return std::tuple_element_t<I, FieldsTuple>::get(std::forward<U>(obj));
   }
-
- private:
-  FieldsList fields_list_;
 };
 
-template <typename... U>
-FieldList(U&&...) -> FieldList<U...>;
-
-template <typename T, typename Enable = void>
-class Reflection;
-
-template <typename T>
-class Reflection<T, std::void_t<decltype(std::declval<T&>().FieldList())>> {
-  using FieldList = decltype(std::declval<T&>().FieldList());
-
+template <typename T, typename FieldList>
+class ReflectionImpl {
  public:
-  constexpr explicit Reflection(T obj) : field_list_{obj.FieldList()} {}
+  constexpr explicit ReflectionImpl(T obj) : obj_{std::forward<T>(obj)} {}
 
   template <typename Func>
   constexpr void Apply(Func&& func) {
-    field_list_.Apply(std::forward<Func>(func));
+    FieldList::Apply(obj_, std::forward<Func>(func));
   }
 
   template <std::size_t I>
   constexpr auto& get() {
-    return field_list_.template get<I>();
+    return FieldList::template get<I>(obj_);
   }
 
   constexpr std::size_t size() const { return FieldList::kSize; }
 
  private:
-  FieldList field_list_;
+  T obj_;
+};
+}  // namespace reflect_internal
+
+template <typename T, typename Enable = void>
+class Reflection;
+
+template <typename T>
+class Reflection<T, std::void_t<decltype(std::declval<T>().FieldList())>>
+    : reflect_internal::ReflectionImpl<
+          T, decltype(std::declval<T>().FieldList())> {
+ public:
+  using Impl =
+      reflect_internal::ReflectionImpl<T,
+                                       decltype(std::declval<T>().FieldList())>;
+  constexpr explicit Reflection(T obj) : Impl{std::forward<T>(obj)} {}
+
+  using Impl::Apply;
+  using Impl::get;
+  using Impl::size;
 };
 
 template <typename T>
@@ -121,10 +144,122 @@ struct IsReflectable<T,
 
 }  // namespace ae::reflect
 
-#define AE_CLASS_REFLECT(...)                                                  \
-  constexpr auto FieldList() { return ::ae::reflect::FieldList{__VA_ARGS__}; } \
+#define _AE_APPLY_MACRO_0(MACRO, ...)
+#define _AE_APPLY_MACRO_1(MACRO, ARG, ...) \
+  MACRO(ARG) _AE_APPLY_MACRO_0(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_2(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_1(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_3(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_2(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_4(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_3(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_5(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_4(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_6(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_5(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_7(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_6(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_8(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_7(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_9(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_8(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_10(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_9(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_11(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_10(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_12(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_11(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_13(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_12(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_14(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_13(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_15(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_14(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_16(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_15(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_17(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_16(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_18(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_17(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_19(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_18(MACRO, __VA_ARGS__)
+#define _AE_APPLY_MACRO_20(MACRO, ARG, ...) \
+  MACRO(ARG), _AE_APPLY_MACRO_19(MACRO, __VA_ARGS__)
+
+#define _AE_APPLY_MACRO_N(MACRO, _20, _19, _18, _17, _16, _15, _14, _13, _12, \
+                          _11, _10, _9, _8, _7, _6, _5, _4, _3, _2, _1, X,    \
+                          ...)                                                \
+  _AE_APPLY_MACRO##X(MACRO, _20, _19, _18, _17, _16, _15, _14, _13, _12, _11, \
+                     _10, _9, _8, _7, _6, _5, _4, _3, _2, _1, _0)
+
+#define _AE_APPLY_MACRO(MACRO, ...)                                         \
+  _AE_APPLY_MACRO_N(MACRO, __VA_ARGS__, _20, _19, _18, _17, _16, _15, _14,  \
+                    _13, _12, _11, _10, _9, _8, _7, _6, _5, _4, _3, _2, _1, \
+                    _0)
+
+/**
+ * \brief Provide access to regular class member through pointer to member.
+ */
+#define AE_MMBR(MEMBER) \
+  ::ae::reflect::reflect_internal::Field<Type_, &Type_::MEMBER> {}
+
+/**
+ * \brief Provide access to regular class member through pointer to member.
+ */
+#define AE_MMBRS(...) _AE_APPLY_MACRO(AE_MMBR, __VA_ARGS__)
+
+/**
+ * \brief Provide access to reference type member.
+ * c++ forbids create pointers to members if it's reference type.
+ */
+#define AE_REF(MEMBER)                                                \
+  []() constexpr {                                                    \
+    using RefType = std::decay_t<decltype(Type_::MEMBER)>;            \
+    using FuncPtr = RefType* (*)(Type_*);                             \
+    constexpr auto lamb = [](Type_* obj) { return &obj->MEMBER; };    \
+    constexpr auto lamb_ptr = static_cast<FuncPtr>(lamb);             \
+    return ::ae::reflect::reflect_internal::Field<Type_, lamb_ptr>{}; \
+  }()
+
+/**
+ * \brief Provide a member as reference to Base class.
+ */
+#define AE_REF_BASE(Base)                                               \
+  []() constexpr {                                                      \
+    using BaseType = Base;                                              \
+    auto lamb = [](Type_* obj) { return static_cast<BaseType*>(obj); }; \
+    return ::ae::reflect::reflect_internal::Field<                      \
+        Type_, static_cast<BaseType* (*)(Type_*)>(lamb)>{};             \
+  }()
+
+/**
+ * \brief Make type reflectable with manual members marking.
+ * Use AE_MMBR, AE_REF, AE_REF_BASE to mark members.
+ */
+#define AE_REFLECT(...)                               \
+  constexpr auto FieldList() const {                  \
+    using Type_ = std::decay_t<decltype(*this)>;      \
+    static_assert(sizeof(Type_));                     \
+    constexpr auto fields = std::tuple{__VA_ARGS__};  \
+    using FL = typename ae::TupleToTemplate<          \
+        ::ae ::reflect ::reflect_internal::FieldList, \
+        std::decay_t<decltype(fields)>>::type;        \
+    return FL{};                                      \
+  }
+
+/**
+ * \brief Make type reflectable with each listed member marked automatically as
+ * class member.
+ */
+#define AE_REFLECT_MEMBERS(...)                                                \
   constexpr auto FieldList() const {                                           \
-    return ::ae::reflect::FieldList{__VA_ARGS__};                              \
+    using Type_ = std::decay_t<decltype(*this)>;                               \
+    static_assert(sizeof(Type_));                                              \
+    constexpr auto fields = std::tuple{_AE_APPLY_MACRO(AE_MMBR, __VA_ARGS__)}; \
+    using FL = typename ae::TupleToTemplate<                                   \
+        ::ae ::reflect ::reflect_internal::FieldList,                          \
+        std::decay_t<decltype(fields)>>::type;                                 \
+    return FL{};                                                               \
   }
 
 #endif  // AETHER_REFLECT_REFLECT_H_
