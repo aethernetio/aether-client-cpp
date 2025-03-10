@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include "tools/registrator/registrator_config.h"
+#include "registrator/registrator_config.h"
+
 #include "third_party/ini.h/ini.h"
 
 #include "aether/address_parser.h"
@@ -168,11 +169,11 @@ std::string RegistratorConfig::GetWiFiPass() { return wifi_pass_; }
 /**
  * \brief Getter for the WiFi parameters is set.
  */
-bool RegistratorConfig::GetWiFiIsSet() { 
-    bool res{false};
+bool RegistratorConfig::GetWiFiIsSet() {
+  bool res{false};
 
-    if (!wifi_ssid_.empty() && !wifi_pass_.empty()) res = true;
+  if (!wifi_ssid_.empty() && !wifi_pass_.empty()) res = true;
 
-    return res; 
+  return res;
 }
 }  // namespace ae

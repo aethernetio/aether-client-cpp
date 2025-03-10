@@ -187,14 +187,11 @@ void Esp32WifiAdapter::EventHandler(void* arg, esp_event_base_t event_base,
     if (s_retry_num < kMaxRetry) {
       esp_wifi_connect();
       s_retry_num++;
-      AE_TELED_DEBUG("retry to connect to the AP");
     } else {
       xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
     }
-    AE_TELED_DEBUG("connect to the AP fail");
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
     ip_event_got_ip_t* event = static_cast<ip_event_got_ip_t*>(event_data);
-    AE_TELED_DEBUG("got ip: {}.{}.{}.{}", IP2STR(&event->ip_info.ip));
     s_retry_num = 0;
     xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
   }

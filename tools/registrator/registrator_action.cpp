@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/registrator/registrator_action.h"
+#include "registrator/registrator_action.h"
 
 #include "aether/aether.h"
 #include "aether/common.h"

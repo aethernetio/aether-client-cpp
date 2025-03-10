@@ -23,15 +23,15 @@
 #include "aether/port/file_systems/file_system_header.h"
 
 namespace ae {
-Ptr<IDomainFacility> DomainFacilityFactory::Create() {
+std::unique_ptr<IDomainFacility> DomainFacilityFactory::Create() {
 #if defined AE_FILE_SYSTEM_STD_ENABLED
-  return MakePtr<FileSystemStdFacility>();
+  return make_unique<FileSystemStdFacility>();
 #elif defined AE_FILE_SYSTEM_SPIFS_V2_ENABLED
-  return MakePtr<FileSystemSpiFsV2Facility>();
+  return make_unique<FileSystemSpiFsV2Facility>();
 #elif defined AE_FILE_SYSTEM_SPIFS_V1_ENABLED
-  return MakePtr<FileSystemSpiFsV1Facility>();
+  return make_unique<FileSystemSpiFsV1Facility>();
 #elif defined AE_FILE_SYSTEM_RAM_ENABLED
-  return MakePtr<FileSystemRamFacility>();
+  return make_unique<FileSystemRamFacility>();
 #endif
 }
 }  // namespace ae

@@ -108,7 +108,6 @@ list(APPEND adapters_srcs
             "adapters/esp32_wifi.cpp"
             "adapters/ethernet.cpp"
             "adapters/parent_wifi.cpp"
-            "adapters/register_wifi.cpp"
             )
 
 list(APPEND transport_srcs

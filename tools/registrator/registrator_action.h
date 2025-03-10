@@ -21,7 +21,7 @@
 #include "aether/aether_app.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
-#include "tools/registrator/registrator_config.h"
+#include "registrator/registrator_config.h"
 
 namespace ae::registrator {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{

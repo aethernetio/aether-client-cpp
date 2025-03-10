@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "aether/adapters/register_wifi.h"
+#include "registrator/register_wifi.h"
 
 #include "aether/aether.h"
 
-namespace ae {
+namespace ae::registrator {
 
 #ifdef AE_DISTILLATION
 RegisterWifiAdapter::RegisterWifiAdapter(ObjPtr<Aether> aether,
@@ -34,4 +34,4 @@ ActionView<CreateTransportAction> RegisterWifiAdapter::CreateTransport(
   return ethernet_adapter_->CreateTransport(address_port_protocol);
 }
 
-}  // namespace ae
+}  // namespace ae::registrator

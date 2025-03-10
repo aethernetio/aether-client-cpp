@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_REGISTER_WIFI_H_
-#define AETHER_ADAPTERS_REGISTER_WIFI_H_
+#ifndef REGISTRATOR_REGISTER_WIFI_H_
+#define REGISTRATOR_REGISTER_WIFI_H_
 
 #include "aether/adapters/parent_wifi.h"
 #include "aether/adapters/ethernet.h"
 
-namespace ae {
+namespace ae::registrator {
 class RegisterWifiAdapter : public ParentWifiAdapter {
   AE_OBJECT(RegisterWifiAdapter, ParentWifiAdapter, 0)
 
@@ -41,6 +41,6 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
   // whose doing all job
   EthernetAdapter::ptr ethernet_adapter_;
 };
-}  // namespace ae
+}  // namespace ae::registrator
 
-#endif  // AETHER_ADAPTERS_REGISTER_WIFI_H_
+#endif  // REGISTRATOR_REGISTER_WIFI_H_

@@ -287,7 +287,7 @@ int AetherCloudExample() {
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{}
 #if defined AE_DISTILLATION
-          .Adapter([](ae::Ptr<ae::Domain> const& domain,
+          .Adapter([](ae::Domain* domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = domain->CreateObj<ae::Esp32WifiAdapter>(

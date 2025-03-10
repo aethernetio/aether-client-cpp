@@ -14,11 +14,12 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
-list( APPEND src_list 
+list( APPEND src_list
   main.cpp
   registrator.cpp
   registrator_action.cpp
   registrator_config.cpp
+  register_wifi.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -26,6 +27,7 @@ if(NOT CM_PLATFORM)
 
   add_executable(${PROJECT_NAME} ${src_list})
   target_link_libraries(${PROJECT_NAME} PRIVATE aether)
+  target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/..)
 
   include(GNUInstallDirs)
   install(TARGETS ${PROJECT_NAME}

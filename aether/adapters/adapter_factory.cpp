@@ -21,8 +21,7 @@
 #  include "aether/adapters/ethernet.h"
 
 namespace ae {
-Adapter::ptr AdapterFactory::Create(Ptr<Domain> const& domain,
-                                    Aether::ptr const& aether) {
+Adapter::ptr AdapterFactory::Create(Domain* domain, Aether::ptr const& aether) {
   return domain->CreateObj<EthernetAdapter>(kEthernetAdapter, aether,
                                             aether->poller);
 }
