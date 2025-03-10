@@ -27,12 +27,12 @@
 
 #include "aether/common.h"
 
-#include "aether/mstream_buffers.h"
 #include "aether/mstream.h"
+#include "aether/mstream_buffers.h"
 
-#include "aether/obj/domain_tree.h"
+#include "aether/reflect/reflect.h"
 #include "aether/obj/version_iterator.h"
-#include "aether/obj/visitor_mstream.h"
+#include "aether/reflect/domain_visitor.h"
 
 #include "aether/obj/registry.h"
 #include "aether/obj/obj_id.h"
@@ -55,6 +55,8 @@ class IDomainFacility {
 
   // TODO: where should we use it?
   virtual void Remove(const ObjId& obj_id) = 0;
+
+  AE_REFLECT()
 };
 
 struct DomainCycleDetector {
@@ -139,6 +141,8 @@ class Domain {
 
   void AddObject(ObjId id, ObjPtr<Obj> const& obj);
   void RemoveObject(Obj* obj);
+
+  AE_REFLECT()
 
  private:
   ObjPtr<Obj> ConstructObj(Factory const& factory, ObjId id);
@@ -263,7 +267,8 @@ void Domain::Load(T& obj) {
     constexpr auto version_bounds = VersionedLoadMinMax<T>::value;
     IterateVersions<HasVersionedLoad, version_bounds.first,
                     version_bounds.second>(
-        obj, [this](auto version, auto& obj) { LoadVersion(version, obj); });
+        obj,
+        [this](auto version, auto& obj) { this->LoadVersion(version, obj); });
   } else {
     LoadVersion(T::kCurrentVersion, obj);
   }
@@ -278,21 +283,18 @@ void Domain::LoadVersion(Version<V> version, T& obj) {
   reader.domain = this;
   imstream<DomainBufferReader<VectorReader<>>> is(reader);
 
-  auto visitor_func = [&is](auto& v) {
-    is >> v;
-    // do not propagate for objects
+  auto visitor_func = [&is](auto& value) {
+    is >> value;
     return false;
   };
 
   // if T has any versioned, it also must have Load for this version
   if constexpr (HasAnyVersionedLoad<T>::value) {
-    CycleDetector cd;
-    auto dnv = DomainNodeVisitor<ExplicitVisitPolicy, decltype(visitor_func)>{
-        std::move(visitor_func), cd};
-    obj.Load(version, dnv);
+    VersionNodeVisitor visitor{visitor_func};
+    obj.Load(version, visitor);
   } else {
     // load or deserialize object
-    DomainTree<ExplicitVisitPolicy>::Visit(obj, std::move(visitor_func));
+    reflect::DomainVisit(obj, visitor_func);
   }
 }
 
@@ -316,8 +318,9 @@ void Domain::Save(T const& obj) {
   if constexpr (HasAnyVersionedSave<T>::value) {
     constexpr auto version_bounds = VersionedSaveMinMax<T>::value;
     IterateVersions<HasVersionedSave, version_bounds.second,
-                    version_bounds.first>(
-        obj, [this](auto version, auto& obj) { SaveVersion(version, obj); });
+                    version_bounds.first>(obj, [this](auto version, auto& obj) {
+      this->SaveVersion(version, obj);
+    });
   } else {
     SaveVersion(T::kCurrentVersion, obj);
   }
@@ -330,21 +333,17 @@ void Domain::SaveVersion(Version<V> version, T const& obj) {
   writer.domain = this;
   omstream<DomainBufferWriter<VectorWriter<>>> os(writer);
 
-  auto visitor_func = [&os](auto& v) {
-    os << v;
-    // do not propagate for objects
+  auto visitor_func = [&os](auto const& value) {
+    os << value;
     return false;
   };
 
   if constexpr (HasAnyVersionedSave<T>::value) {
-    CycleDetector cd;
-    auto dnv = DomainNodeVisitor<ExplicitVisitPolicy, decltype(visitor_func)>{
-        std::move(visitor_func), cd};
-    obj.Save(version, dnv);
+    VersionNodeVisitor visitor{visitor_func};
+    obj.Save(version, visitor);
   } else {
     // load or deserialize object
-    DomainTree<ExplicitVisitPolicy>::Visit(const_cast<T&>(obj),
-                                           std::move(visitor_func));
+    reflect::DomainVisit(obj, std::move(visitor_func));
   }
 
   facility_.Store(obj.GetId(), T::kClassId, Version<V>::value, output_data);

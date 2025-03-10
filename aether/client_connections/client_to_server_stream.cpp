@@ -85,35 +85,34 @@ class ClientDecryptKeyProvider : public ClientKeyProvider {
 };
 }  // namespace _internal
 
-ClientToServerStream::ClientToServerStream(ActionContext action_context,
-                                           Ptr<Client> client,
-                                           ServerId server_id,
-                                           Ptr<ByteStream> server_stream)
-    : action_context_{action_context},
-      client_{std::move(client)},
-      server_id_{server_id} {
+ClientToServerStream::ClientToServerStream(
+    ActionContext action_context, Ptr<Client> const& client, ServerId server_id,
+    std::unique_ptr<ByteStream> server_stream)
+    : action_context_{action_context}, client_{client}, server_id_{server_id} {
   AE_TELED_DEBUG("Create ClientToServerStreamGate");
 
   auto stream_id = StreamIdGenerator::GetNextClientStreamId();
+
+  auto client_ptr = client_.Lock();
 
   client_auth_stream_.emplace(
       DebugGate{
           Format("ClientToServerStreamGate server id {} client_uid {} \nwrite "
                  "{{}}",
-                 server_id_, client_->uid()),
+                 server_id_, client_ptr->uid()),
           Format(
               "ClientToServerStreamGate server id {} client_uid {} \nread {{}}",
-              server_id_, client_->uid())},
-      CryptoGate{MakePtr<SyncEncryptProvider>(
-                     MakePtr<_internal::ClientEncryptKeyProvider>(client_,
-                                                                  server_id_)),
-                 MakePtr<SyncDecryptProvider>(
-                     MakePtr<_internal::ClientDecryptKeyProvider>(client_,
-                                                                  server_id_))},
+              server_id_, client_ptr->uid())},
+      CryptoGate{make_unique<SyncEncryptProvider>(
+                     make_unique<_internal::ClientEncryptKeyProvider>(
+                         client_ptr, server_id_)),
+                 make_unique<SyncDecryptProvider>(
+                     make_unique<_internal::ClientDecryptKeyProvider>(
+                         client_ptr, server_id_))},
       StreamApiGate{protocol_context_, stream_id},
       // start streams with login by uid
       ProtocolWriteGate{protocol_context_, LoginApi{},
-                        LoginApi::LoginByUid{{}, stream_id, client_->uid()}},
+                        LoginApi::LoginByUid{{}, stream_id, client_ptr->uid()}},
       ProtocolReadGate{protocol_context_, ClientSafeApi{}},
       std::move(server_stream));
 }

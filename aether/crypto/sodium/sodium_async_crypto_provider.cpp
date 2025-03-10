@@ -19,9 +19,9 @@
 
 #if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
 
+#  include <vector>
 #  include <cassert>
 #  include <utility>
-#  include <vector>
 
 namespace ae {
 namespace _internal {
@@ -54,7 +54,7 @@ std::vector<std::uint8_t> DecryptWithAsymmetric(
 }  // namespace _internal
 
 SodiumAsyncEncryptProvider::SodiumAsyncEncryptProvider(
-    Ptr<IAsyncKeyProvider> key_provider)
+    std::unique_ptr<IAsyncKeyProvider> key_provider)
     : key_provider_{std::move(key_provider)} {}
 
 DataBuffer SodiumAsyncEncryptProvider::Encrypt(DataBuffer const& data) {
@@ -70,7 +70,7 @@ std::size_t SodiumAsyncEncryptProvider::EncryptOverhead() const {
 }
 
 SodiumAsyncDecryptProvider::SodiumAsyncDecryptProvider(
-    Ptr<IAsyncKeyProvider> key_provider)
+    std::unique_ptr<IAsyncKeyProvider> key_provider)
     : key_provider_{std::move(key_provider)} {}
 
 DataBuffer SodiumAsyncDecryptProvider::Decrypt(DataBuffer const& data) {

@@ -35,11 +35,7 @@ class Bob : public Obj {
 
   Foo::ptr CreateFoo() { return domain_->LoadCopy(foo_prefab); }
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(foo_prefab);
-  }
+  AE_OBJECT_REFLECT(AE_MMBR(foo_prefab))
 
   Foo::ptr foo_prefab;
 };
@@ -57,11 +53,7 @@ class BobsMother : public Obj {
 
   Bob::ptr CreateBob() { return domain_->LoadCopy(bob_prefab); }
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(bob_prefab);
-  }
+  AE_OBJECT_REFLECT(AE_MMBR(bob_prefab))
 
   Bob::ptr bob_prefab;
 };
@@ -77,11 +69,7 @@ class BobsFather : public Obj {
   Bob::ptr const& GetBob() const { return bob_; }
   void SetBob(Bob::ptr bob) { bob_ = bob; }
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(bob_);
-  }
+  AE_OBJECT_REFLECT(AE_MMBR(bob_))
 
  private:
   Bob::ptr bob_;

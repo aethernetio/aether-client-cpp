@@ -30,10 +30,10 @@
 
 namespace ae {
 GetClientCloudAction::GetClientCloudAction(
-    ActionContext action_context,
-    Ptr<ClientToServerStream> client_to_server_stream, Uid client_uid)
+    ActionContext action_context, ClientToServerStream& client_to_server_stream,
+    Uid client_uid)
     : Action(action_context),
-      client_to_server_stream_{std::move(client_to_server_stream)},
+      client_to_server_stream_{&client_to_server_stream},
       client_uid_{client_uid},
       state_{State::kRequestCloud},
       state_changed_subscription_{state_.changed_event().Subscribe(
@@ -43,7 +43,7 @@ GetClientCloudAction::GetClientCloudAction(
   auto server_stream_id = StreamIdGenerator::GetNextClientStreamId();
   auto cloud_stream_id = StreamIdGenerator::GetNextClientStreamId();
 
-  pre_client_to_server_stream_ = MakePtr<TiedStream>(
+  pre_client_to_server_stream_ = make_unique<TiedStream>(
       ProtocolReadGate{protocol_context_, ClientSafeApi{}},
       ProtocolWriteGate{
           protocol_context_, AuthorizedApi{},
@@ -51,13 +51,13 @@ GetClientCloudAction::GetClientCloudAction(
 
   Tie(*pre_client_to_server_stream_, *client_to_server_stream_);
 
-  server_resolver_stream_ =
-      MakePtr<TiedStream>(SerializeGate<ServerId, ServerDescriptor>{},
-                          StreamApiGate{protocol_context_, server_stream_id});
+  server_resolver_stream_ = make_unique<TiedStream>(
+      SerializeGate<ServerId, ServerDescriptor>{},
+      StreamApiGate{protocol_context_, server_stream_id});
 
-  cloud_request_stream_ =
-      MakePtr<TiedStream>(SerializeGate<Uid, UidAndCloud>{},
-                          StreamApiGate{protocol_context_, cloud_stream_id});
+  cloud_request_stream_ = make_unique<TiedStream>(
+      SerializeGate<Uid, UidAndCloud>{},
+      StreamApiGate{protocol_context_, cloud_stream_id});
 
   Tie(*cloud_request_stream_, *pre_client_to_server_stream_);
   Tie(*server_resolver_stream_, *pre_client_to_server_stream_);

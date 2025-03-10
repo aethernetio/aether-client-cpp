@@ -17,8 +17,10 @@
 #ifndef AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTION_H_
 #define AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTION_H_
 
+#include <memory>
+
 #include "aether/uid.h"
-#include "aether/ptr/ptr.h"
+#include "aether/reflect/reflect.h"
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/stream_api.h"
 
@@ -28,8 +30,8 @@ namespace ae {
  */
 class ClientConnection {
  public:
-  using NewStreamEvent =
-      Event<void(Uid uid, StreamId stream_id, Ptr<ByteStream> stream)>;
+  using NewStreamEvent = Event<void(Uid uid, StreamId stream_id,
+                                    std::unique_ptr<ByteStream> stream)>;
 
   virtual ~ClientConnection() = default;
 
@@ -41,8 +43,8 @@ class ClientConnection {
   /**
    * \brief Create a stream to another client to send messages.
    */
-  virtual Ptr<ByteStream> CreateStream(Uid destination_uid,
-                                       StreamId stream_id) = 0;
+  virtual std::unique_ptr<ByteStream> CreateStream(Uid destination_uid,
+                                                   StreamId stream_id) = 0;
 
   /**
    * \brief Event when a new stream is opened by another client.
@@ -53,6 +55,8 @@ class ClientConnection {
    * \brief Close a stream by uid and id.
    */
   virtual void CloseStream(Uid uid, StreamId stream_id) = 0;
+
+  AE_REFLECT()
 };
 }  // namespace ae
 

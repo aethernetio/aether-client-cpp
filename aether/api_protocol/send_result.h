@@ -81,11 +81,7 @@ struct SendResult : public Message<SendResult> {
 struct SendError : public Message<SendError> {
   static constexpr std::uint32_t kMessageId = 1;
 
-  template <typename T>
-  void Serializator(T& s) {
-    s & request_id & error_type & error_code;
-  }
-
+  AE_REFLECT_MEMBERS(request_id, error_type, error_code)
   RequestId request_id;
   std::uint8_t error_type;
   std::uint32_t error_code;

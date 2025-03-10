@@ -21,10 +21,13 @@
 
 #include "aether/common.h"
 #include "aether/obj/obj_id.h"
-#include "aether/ptr/ptr_view.h"
+#include "aether/ptr/rc_ptr.h"
 #include "aether/client_connections/client_server_connection.h"
 
 namespace ae {
+/**
+ * \brief Cache storage for client's connection to servers.
+ */
 class ClientServerConnectionPool {
   struct Key {
     friend bool operator<(Key const& left, Key const& right) {
@@ -42,12 +45,12 @@ class ClientServerConnectionPool {
   ClientServerConnectionPool() = default;
   AE_CLASS_NO_COPY_MOVE(ClientServerConnectionPool);
 
-  Ptr<ClientServerConnection> Find(ServerId server_id, ObjId channel_obj_id);
+  RcPtr<ClientServerConnection> Find(ServerId server_id, ObjId channel_obj_id);
   void Add(ServerId server_id, ObjId channel_obj_id,
-           Ptr<ClientServerConnection> const& connection);
+           RcPtr<ClientServerConnection> const& connection);
 
  private:
-  std::map<Key, PtrView<ClientServerConnection>> connections_;
+  std::map<Key, RcPtrView<ClientServerConnection>> connections_;
 };
 }  // namespace ae
 

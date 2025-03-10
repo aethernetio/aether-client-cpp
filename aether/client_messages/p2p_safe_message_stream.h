@@ -18,7 +18,7 @@
 #define AETHER_CLIENT_MESSAGES_P2P_SAFE_MESSAGE_STREAM_H_
 
 #include "aether/common.h"
-#include "aether/ptr/ptr.h"
+#include "aether/memory.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/stream_api/istream.h"
@@ -33,7 +33,7 @@ namespace ae {
 class P2pSafeStream final : public ByteStream {
  public:
   P2pSafeStream(ActionContext action_context, SafeStreamConfig const& config,
-                Ptr<P2pStream> base_stream);
+                std::unique_ptr<P2pStream> base_stream);
 
   AE_CLASS_NO_COPY_MOVE(P2pSafeStream)
 
@@ -43,7 +43,7 @@ class P2pSafeStream final : public ByteStream {
  private:
   SizedPacketGate sized_packet_gate_;
   SafeStream safe_stream_;
-  Ptr<P2pStream> base_stream_;
+  std::unique_ptr<P2pStream> base_stream_;
 };
 
 }  // namespace ae

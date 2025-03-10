@@ -30,18 +30,18 @@ void Receiver::Connect() {
   message_stream_received_ = client_connection_->new_stream_event().Subscribe(
       [this](auto uid, auto stream_id, auto stream) {
         AE_TELED_DEBUG("Received message stream from {}", uid);
-        message_stream_ = MakePtr<P2pStream>(action_context_, client_, uid,
-                                             stream_id, std::move(stream));
+        message_stream_ = make_unique<P2pStream>(action_context_, client_, uid,
+                                                 stream_id, std::move(stream));
         protocol_read_gate_ =
-            MakePtr<ProtocolReadGate>(protocol_context_, BandwidthApi{});
+            make_unique<ProtocolReadGate>(protocol_context_, BandwidthApi{});
         Tie(*protocol_read_gate_, *message_stream_);
       });
 }
 
 void Receiver::Disconnect() {
   client_connection_.Reset();
-  protocol_read_gate_.Reset();
-  message_stream_.Reset();
+  protocol_read_gate_.reset();
+  message_stream_.reset();
 }
 
 EventSubscriber<void()> Receiver::Handshake() {
@@ -65,7 +65,7 @@ EventSubscriber<void()> Receiver::Handshake() {
 
 EventSubscriber<void()> Receiver::Sync() {
   test_subscriptions_.Reset();
-  sync_action_.emplace(action_context_, protocol_context_, message_stream_);
+  sync_action_.emplace(action_context_, protocol_context_, *message_stream_);
 
   test_subscriptions_.Push(  //
       sync_action_->SubscribeOnResult(
@@ -84,7 +84,7 @@ EventSubscriber<void(Bandwidth const&)> Receiver::WarmUp(
 
   warm_up_ = CreateTestAction<BandwidthApi::WarmUp>(message_count);
   test_subscriptions_.Push(
-      warm_up_->FinishedEvent().Subscribe([this]() { warm_up_.Reset(); }));
+      warm_up_->FinishedEvent().Subscribe([this]() { warm_up_.reset(); }));
 
   return test_finished_event_;
 }
@@ -95,7 +95,7 @@ EventSubscriber<void(Bandwidth const&)> Receiver::OneByte(
 
   one_byte_ = CreateTestAction<BandwidthApi::OneByte>(message_count);
   test_subscriptions_.Push(
-      one_byte_->FinishedEvent().Subscribe([this]() { one_byte_.Reset(); }));
+      one_byte_->FinishedEvent().Subscribe([this]() { one_byte_.reset(); }));
 
   return test_finished_event_;
 }
@@ -106,7 +106,7 @@ EventSubscriber<void(Bandwidth const&)> Receiver::TenBytes(
 
   ten_bytes_ = CreateTestAction<BandwidthApi::TenBytes>(message_count);
   test_subscriptions_.Push(
-      ten_bytes_->FinishedEvent().Subscribe([this]() { ten_bytes_.Reset(); }));
+      ten_bytes_->FinishedEvent().Subscribe([this]() { ten_bytes_.reset(); }));
 
   return test_finished_event_;
 }
@@ -117,7 +117,7 @@ EventSubscriber<void(Bandwidth const&)> Receiver::HundredBytes(
 
   hundred_bytes_ = CreateTestAction<BandwidthApi::HundredBytes>(message_count);
   test_subscriptions_.Push(hundred_bytes_->FinishedEvent().Subscribe(
-      [this]() { hundred_bytes_.Reset(); }));
+      [this]() { hundred_bytes_.reset(); }));
 
   return test_finished_event_;
 }
@@ -129,7 +129,7 @@ EventSubscriber<void(Bandwidth const&)> Receiver::ThousandBytes(
   thousand_bytes_ =
       CreateTestAction<BandwidthApi::ThousandBytes>(message_count);
   test_subscriptions_.Push(thousand_bytes_->FinishedEvent().Subscribe(
-      [this]() { thousand_bytes_.Reset(); }));
+      [this]() { thousand_bytes_.reset(); }));
 
   return test_finished_event_;
 }
@@ -141,15 +141,16 @@ EventSubscriber<void(Bandwidth const&)> Receiver::VariableSizeBytes(
   variable_size_ =
       CreateTestAction<BandwidthApi::VarMessageSize>(message_count);
   test_subscriptions_.Push(variable_size_->FinishedEvent().Subscribe(
-      [this]() { variable_size_.Reset(); }));
+      [this]() { variable_size_.reset(); }));
 
   return test_finished_event_;
 }
 
 template <typename T>
-Ptr<MessageReceiver<T>> Receiver::CreateTestAction(std::size_t message_count) {
-  auto action = MakePtr<MessageReceiver<T>>(action_context_, protocol_context_,
-                                            message_count);
+std::unique_ptr<MessageReceiver<T>> Receiver::CreateTestAction(
+    std::size_t message_count) {
+  auto action = make_unique<MessageReceiver<T>>(
+      action_context_, protocol_context_, message_count);
 
   test_subscriptions_.Push(
       action->SubscribeOnResult([this](auto const& action) {

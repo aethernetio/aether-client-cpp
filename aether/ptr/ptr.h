@@ -21,27 +21,18 @@
 #include <utility>
 #include <type_traits>
 
+#include "aether/common.h"
 #include "aether/type_traits.h"
-#include "aether/obj/domain_tree.h"
-#include "aether/obj/version_iterator.h"
-#include "aether/obj/visitor_policies.h"
 
 #include "aether/ptr/rc_ptr.h"
 #include "aether/ptr/ptr_management.h"
+#include "aether/reflect/domain_visitor.h"
 
 namespace ae {
-using PtrVisitorPolicy =
-    MultiplexVisitorPolicy<DeepVisitPolicy<ExplicitVisitPolicy>,
-                           DeepVisitPolicy<VersionedSaveVisitorPolicy>>;
-
-using PtrDnv =
-    DomainNodeVisitor<PtrVisitorPolicy, RefCounterVisitor<PtrVisitorPolicy>&>;
-
 template <typename U>
-void PtrDefaultVisitor(PtrDnv& dnv, void* ptr) {
-  if (ptr) {
-    dnv(*static_cast<U*>(ptr));
-  }
+void PtrDefaultVisitor(RefCounterVisitor& visitor, void* ptr) {
+  auto* obj = static_cast<U*>(ptr);
+  visitor.Visit(obj);
 }
 
 /**
@@ -57,17 +48,18 @@ class Ptr {
   template <typename U>
   friend class ObjPtr;
 
+  friend struct RefCounterVisitor;
+
   // Different type comparison.
   template <typename T1, typename T2>
   friend bool operator==(const Ptr<T1>& p1, const Ptr<T2>& p2);
   template <typename T1, typename T2>
   friend bool operator!=(const Ptr<T1>& p1, const Ptr<T2>& p2);
 
-  using VisitorFuncPtr = void (*)(PtrDnv& dnv, void* ptr);
+  using VisitorFuncPtr = void (*)(RefCounterVisitor& visitor, void* ptr);
 
  public:
   struct MoveTag {};
-  friend class RefCounterVisitor<PtrVisitorPolicy>;
 
   Ptr() noexcept : ptr_storage_{nullptr}, ptr_{nullptr} {}
   explicit Ptr(std::nullptr_t) noexcept : Ptr() {}
@@ -172,17 +164,12 @@ class Ptr {
 
   explicit operator bool() const noexcept { return ptr_storage_ != nullptr; }
 
-  // Reflect
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
+  // reflect for graph builder
+  void VisitDeeper(RefCounterVisitor& visitor) const {
     auto* ptr = get();
     if (ptr != nullptr) {
-      if constexpr (std::is_same_v<Dnv, PtrDnv>) {
-        if (visitor_func_ != nullptr) {
-          visitor_func_(dnv, ptr);
-        }
-      } else {
-        dnv(*ptr);
+      if (visitor_func_ != nullptr) {
+        visitor_func_(visitor, ptr);
       }
     }
   }
@@ -238,8 +225,9 @@ class Ptr {
     if (ptr_storage_ == nullptr) {
       return;
     }
-    if constexpr (PtrVisitorPolicy::HasVisitMethod<T, PtrDnv>::value) {
-      DecrementGraph();
+    if (ptr_storage_->ref_counters.main_refs > 1) {
+      auto count = DecrementGraphCount();
+      DecrementRef(count);
     } else {
       DecrementRef();
     }
@@ -250,48 +238,36 @@ class Ptr {
     ptr_storage_->ref_counters.weak_refs -= count;
   }
 
-  void DecrementGraph() {
+  std::uint8_t DecrementGraphCount() {
     // count all reference reachable from current ptr
     // iterate through all objects with domain node visitor in save like mode
 
-    CycleDetector cycle_detector;
-    RefCounterVisitor<PtrVisitorPolicy>::ObjMap obj_map;
-    auto [inserted, _] =
-        obj_map.emplace(static_cast<void const*>(ptr_),
-                        RefTree{static_cast<void const*>(ptr_),
-                                ptr_storage_->ref_counters.main_refs});
-    inserted->second.reachable_ref_count++;
-
-    RefCounterVisitor<PtrVisitorPolicy> ref_counter_visitor{
-        cycle_detector, obj_map, *(inserted->second.children)};
-
-    DomainTree<PtrVisitorPolicy>::Visit(cycle_detector, *ptr_,
-                                        ref_counter_visitor);
+    auto obj_map =
+        PtrGraphBuilder::BuildGraph(*ptr_, ptr_storage_->ref_counters);
 
     // if any object has external references, obj_reference >
     // reachable_reference
     // we are able to remove current object
-    bool safe_to_delete = true;
+    auto& self_refs = *obj_map[ptr_];
+    if (self_refs.ref_count != self_refs.reachable_ref_count) {
+      // is not safe to delete completely
+      return 1;
+    }
+
     for (auto& [o, ref] : obj_map) {
       if (o == ptr_) {
-        if (ref.ref_count != ref.reachable_ref_count) {
-          safe_to_delete = false;
-          break;
-        }
-      } else if (ref.ref_count > ref.reachable_ref_count) {
-        // check if ptr reachable form ref obj;
-        if (ref.IsReachable(ptr_)) {
-          safe_to_delete = false;
-          break;
+        continue;
+      }
+      if (ref->ref_count > ref->reachable_ref_count) {
+        // check if ptr reachable from ref obj
+        if (ref->IsReachable(ptr_)) {
+          // is not safe to delete completely
+          return 1;
         }
       }
     }
 
-    if (safe_to_delete) {
-      DecrementRef(ptr_storage_->ref_counters.main_refs);
-    } else {
-      DecrementRef();
-    }
+    return ptr_storage_->ref_counters.main_refs;
   }
 
   PtrStorageBase* ptr_storage_;
@@ -331,6 +307,8 @@ template <typename T, typename... TArgs>
 Ptr<T> MakePtr(TArgs&&... args) {
   constexpr auto size = sizeof(PtrStorage<T>);
   static_assert(size < std::numeric_limits<std::uint32_t>::max());
+  static_assert(reflect::HasNodeVisitor<T>::value,
+                "Type must be reflectable to be used in Ptr");
 
   auto alloc = std::allocator<std::uint8_t>{};
   auto* storage = reinterpret_cast<PtrStorage<T>*>(alloc.allocate(size));
@@ -354,5 +332,38 @@ auto MakePtr(TArgs&&... args) {
 }
 
 }  // namespace ae
+
+namespace ae::reflect {
+template <typename T>
+struct NodeVisitor<ae::Ptr<T>> {
+  using Policy = AnyPolicyMatch;
+
+  void Visit(ae::Ptr<T>& /* obj */, CycleDetector& /* cycle_detector */,
+             PtrDnv&& /* visitor */) const {}
+
+  template <typename Visitor>
+  void Visit(ae::Ptr<T> const& obj, CycleDetector& cycle_detector,
+             Visitor&& visitor) const {
+    if (obj) {
+      ApplyVisit(*obj, cycle_detector, std::forward<Visitor>(visitor));
+    }
+  }
+
+  template <typename Visitor>
+  void Visit(ae::Ptr<T>& obj, CycleDetector& cycle_detector,
+             Visitor&& visitor) const {
+    if (obj) {
+      ApplyVisit(*obj, cycle_detector, std::forward<Visitor>(visitor));
+    }
+  }
+
+  template <typename U, typename Visitor>
+  void ApplyVisit(U&& obj, CycleDetector& cycle_detector,
+                  Visitor&& visitor) const {
+    reflect::ApplyVisitor(std::forward<U>(obj), cycle_detector,
+                          std::forward<Visitor>(visitor));
+  }
+};
+}  // namespace ae::reflect
 
 #endif  // AETHER_PTR_PTR_H_

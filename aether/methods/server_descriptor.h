@@ -24,31 +24,19 @@
 namespace ae {
 
 struct CoderAndPort {
-  template <typename T>
-  void Serializator(T& s) {
-    s & protocol & port;
-  }
-
+  AE_REFLECT_MEMBERS(protocol, port)
   Protocol protocol;
   std::uint16_t port;
 };
 
 struct IpAddressAndPort {
-  template <typename T>
-  void Serializator(T& s) {
-    s & ip & protocol_and_ports;
-  }
-
+  AE_REFLECT_MEMBERS(ip, protocol_and_ports)
   IpAddress ip;
   std::vector<CoderAndPort> protocol_and_ports;
 };
 
 struct ServerDescriptor {
-  template <typename T>
-  void Serializator(T& s) {
-    s & server_id & ips;
-  }
-
+  AE_REFLECT_MEMBERS(server_id, ips)
   ServerId server_id;
   std::vector<IpAddressAndPort> ips;
 };

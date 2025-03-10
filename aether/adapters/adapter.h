@@ -34,7 +34,7 @@ class CreateTransportAction : public Action<CreateTransportAction> {
   using Action::Action;
   using Action::operator=;
 
-  virtual Ptr<ITransport> transport() const = 0;
+  virtual std::unique_ptr<ITransport> transport() = 0;
 };
 
 // TODO: make it pure virtual
@@ -50,10 +50,7 @@ class Adapter : public Obj {
   explicit Adapter(Domain* domain);
 #endif  // AE_DISTILLATION
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(proxies_, proxy_prefab_);
-  }
+  AE_OBJECT_REFLECT(AE_MMBRS(proxies_, proxy_prefab_))
 
   virtual ActionView<CreateTransportAction> CreateTransport(
       IpAddressPortProtocol const& /* address_port_protocol */) {
@@ -64,14 +61,17 @@ class Adapter : public Obj {
 
  protected:
   void CleanDeadTransports();
-  Ptr<ITransport> FindInCache(IpAddressPortProtocol address_port_protocol);
+  // FIXME: unique_ptr in cache ?
+  std::unique_ptr<ITransport> FindInCache(
+      IpAddressPortProtocol address_port_protocol);
   void AddToCache(IpAddressPortProtocol address_port_protocol,
-                  Ptr<ITransport> transport);
+                  ITransport& transport);
 
   Proxy::ptr proxy_prefab_;
   std::vector<Proxy::ptr> proxies_;
 
-  std::map<IpAddressPortProtocol, PtrView<ITransport>> transports_cache_;
+  std::map<IpAddressPortProtocol, std::unique_ptr<ITransport>>
+      transports_cache_;
 };
 
 }  // namespace ae

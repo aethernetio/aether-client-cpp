@@ -21,6 +21,7 @@
 #include <array>
 
 #include "aether/crc.h"
+#include "aether/reflect/reflect.h"
 #include "aether/api_protocol/api_protocol.h"
 
 namespace ae::bench {
@@ -35,10 +36,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::Handshake");
     static constexpr auto kMessageCode = 3;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & request_id;
-    }
+    AE_REFLECT_MEMBERS(request_id)
 
     RequestId request_id;
   };
@@ -49,10 +47,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::Sync");
     static constexpr auto kMessageCode = 4;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & request_id;
-    }
+    AE_REFLECT_MEMBERS(request_id)
 
     RequestId request_id;
   };
@@ -63,10 +58,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::WarmUp");
     static constexpr auto kMessageCode = 5;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & payload;
-    }
+    AE_REFLECT_MEMBERS(payload)
 
     std::array<std::uint8_t, 100> payload;
   };
@@ -76,10 +68,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::OneByte");
     static constexpr auto kMessageCode = 6;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & payload;
-    }
+    AE_REFLECT_MEMBERS(payload)
 
     std::uint8_t payload;
   };
@@ -89,10 +78,8 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::TenBytes");
     static constexpr auto kMessageCode = 7;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & payload;
-    }
+    AE_REFLECT_MEMBERS(payload)
+
     std::array<std::uint8_t, 10> payload;
   };
 
@@ -101,10 +88,8 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::HundredBytes");
     static constexpr auto kMessageCode = 8;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & payload;
-    }
+    AE_REFLECT_MEMBERS(payload)
+
     std::array<std::uint8_t, 100> payload;
   };
 
@@ -113,10 +98,8 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
         crc32::checksum_from_literal("ae::bench::BandwidthApi::ThousandBytes");
     static constexpr auto kMessageCode = 9;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & payload;
-    }
+    AE_REFLECT_MEMBERS(payload)
+
     std::array<std::uint8_t, 1000> payload;
   };
 
@@ -128,10 +111,7 @@ class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
     VarMessageSize() = default;
     explicit VarMessageSize(std::size_t size) : payload(size) {}
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & payload;
-    }
+    AE_REFLECT_MEMBERS(payload)
 
     std::vector<std::uint8_t> payload;
   };

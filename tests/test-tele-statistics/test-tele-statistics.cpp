@@ -20,12 +20,12 @@
 
 #if defined AE_DISTILLATION && (AE_TELE_ENABLED == 1) && \
     (AE_TELE_LOG_CONSOLE == 1)
-#  include <memory>
 #  include <iostream>
 
 #  include "aether/common.h"
 #  include "aether/tele/tele.h"
 #  include "aether/tele/sink.h"
+#  include "aether/ptr/rc_ptr.h"
 #  include "aether/tele/traps/statistics_trap.h"
 #  include "aether/tele/traps/io_stream_traps.h"
 #  include "aether/tele/configs/sink_to_statistics_trap.h"
@@ -33,11 +33,11 @@
 #  include "aether/tele/traps/tele_statistics.h"
 #  include "aether/port/file_systems/file_system_std.h"
 
-ae::Ptr<ae::tele::statistics::StatisticsTrap> statistics_trap;
+static ae::RcPtr<ae::tele::statistics::StatisticsTrap> statistics_trap;
 
-void InitTeleSink(ae::Ptr<ae::tele::statistics::StatisticsTrap> const& st) {
-  auto trap = ae::MakePtr<ae::tele::StatisticsObjectAndStreamTrap>(
-      st, ae::MakePtr<ae::tele::IoStreamTrap>(std::cout));
+void InitTeleSink(ae::RcPtr<ae::tele::statistics::StatisticsTrap> const& st) {
+  auto trap = ae::MakeRcPtr<ae::tele::StatisticsObjectAndStreamTrap>(
+      st, ae::MakeRcPtr<ae::tele::IoStreamTrap>(std::cout));
 
   TELE_SINK::InitSink(std::move(trap));
 
@@ -45,7 +45,7 @@ void InitTeleSink(ae::Ptr<ae::tele::statistics::StatisticsTrap> const& st) {
 }
 
 void setUp() {
-  statistics_trap = ae::MakePtr<ae::tele::statistics::StatisticsTrap>();
+  statistics_trap = ae::MakeRcPtr<ae::tele::statistics::StatisticsTrap>();
   InitTeleSink(statistics_trap);
   // start with clean state
   auto fs = ae::FileSystemStdFacility{};
@@ -57,6 +57,7 @@ namespace ae::tele::test {
 
 void test_StatisticsRotation() {
   auto fs = ae::FileSystemStdFacility{};
+  fs.remove_all();
   auto domain = ae::Domain{ae::ClockType::now(), fs};
 
   TeleStatistics::ptr tele_statistics = domain.CreateObj<TeleStatistics>(1);
@@ -76,6 +77,7 @@ void test_StatisticsRotation() {
 
 void test_SaveLoadTeleStatistics() {
   auto fs = ae::FileSystemStdFacility{};
+  fs.remove_all();
   auto domain = ae::Domain{ae::ClockType::now(), fs};
 
   AE_TELE_ENV();
@@ -86,6 +88,11 @@ void test_SaveLoadTeleStatistics() {
   AE_TELED_DEBUG("12");
   auto statistics_size =
       tele_statistics->trap()->statistics_store_.Get()->Size();
+
+  // use new trap to prevent statistics change while save
+  auto temp_trap = MakeRcPtr<ae::tele::statistics::StatisticsTrap>();
+  InitTeleSink(temp_trap);
+
   domain.SaveRoot(tele_statistics);
 
   // load stored object in new instance
@@ -105,9 +112,7 @@ void test_SaveLoadTeleStatistics() {
       tele_statistics->trap()->statistics_store_.Get()->metrics().metrics;
   auto& metrics2 =
       tele_statistics2->trap()->statistics_store_.Get()->metrics().metrics;
-  // because new logs added while saving
-  TEST_ASSERT_NOT_EQUAL(logs1.size(), logs2.size());
-  // metrics count should be same, but values may be different
+  TEST_ASSERT_EQUAL(logs1.size(), logs2.size());
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
 
   if constexpr (_AE_MODULE_CONFIG(MLog.value, AE_TELE_METRICS_MODULES) &&

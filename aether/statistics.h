@@ -52,30 +52,24 @@ class Adapter;
 // }
 
 class Statistics : public Obj {
+  AE_OBJECT(Statistics, Obj, 0)
+  Statistics() = default;
+
  public:
   ae::Duration FirstRequestDuration(float percentile) const;
   ae::Duration RequestDuration(float percentile) const;
   ae::Duration ConnectionDuration(float percentile) const;
 
-  AE_OBJECT(Statistics, Obj, 0)
-
-  Statistics() = default;
 #ifdef AE_DISTILLATION
   Statistics(Domain* domain);
 #endif  // AE_DISTILLATION
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(first_requests_, requests_);
-  }
+
+  AE_OBJECT_REFLECT(AE_MMBRS(first_requests_, requests_))
 
   struct Value1 {
+    AE_REFLECT_MEMBERS(time_point, duration)
     TimePoint time_point;
     Duration duration;
-    template <typename T>
-    void Serializator(T& s) {
-      s & time_point & duration;
-    }
   };
   std::vector<Value1> first_requests_;
   std::vector<Value1> requests_;

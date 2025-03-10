@@ -24,7 +24,7 @@
 #include <cassert>
 #include <utility>
 
-#include "aether/ptr/ptr.h"
+#include "aether/ptr/rc_ptr.h"
 #include "aether/tele/modules.h"
 #include "aether/tele/levels.h"
 
@@ -96,7 +96,7 @@ class TeleSink {
     return sink;
   }
 
-  static void InitSink(Ptr<TrapType> trap) {
+  static void InitSink(RcPtr<TrapType> trap) {
     Instance().trap_ = std::move(trap);
   }
 
@@ -106,7 +106,7 @@ class TeleSink {
   }
 
  private:
-  Ptr<TrapType> trap_{};
+  RcPtr<TrapType> trap_{};
 };
 }  // namespace ae::tele
 

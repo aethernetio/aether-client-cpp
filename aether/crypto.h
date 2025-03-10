@@ -34,13 +34,13 @@ class Crypto : public Obj {
 #ifdef AE_DISTILLATION
   Crypto(Domain* domain) : Obj{domain} {}
 #endif  // AE_DISTILLATION
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
+
 #if AE_SIGNATURE != AE_NONE
-    dnv(signs_pk_);
+  AE_OBJECT_REFLECT(AE_MMBR(signs_pk_))
+#else
+  AE_OBJECT_REFLECT()
 #endif
-  }
+
 #if AE_SIGNATURE != AE_NONE
   std::map<SignatureMethod, Key> signs_pk_;
 #endif

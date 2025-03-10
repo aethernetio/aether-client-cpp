@@ -20,6 +20,8 @@
 #include <cstdint>
 
 #include "aether/common.h"
+#include "aether/reflect/reflect.h"
+
 #include "aether/tele/modules.h"
 #include "aether/tele/declaration.h"
 
@@ -58,6 +60,8 @@ struct NullTrap {
   };
 
   EnvStream env_stream() { return {}; }
+
+  AE_REFLECT()
 };
 }  // namespace ae::tele
 

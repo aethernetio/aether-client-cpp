@@ -37,12 +37,7 @@ class ParentWifiAdapter : public Adapter {
                     std::string ssid, std::string pass, Domain* domain);
 #endif  // AE_DISTILLATION
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(aether_, poller_);
-    dnv(ssid_, pass_);
-  }
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, ssid_, pass_))
 
   Obj::ptr aether_;
   IPoller::ptr poller_;

@@ -36,11 +36,7 @@ class Poopa : public Obj {
 
   void SetLoopa(Obj::ptr loopa) { this->loopa = std::move(loopa); }
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(loopa);
-  }
+  AE_OBJECT_REFLECT(AE_MMBR(loopa))
 
   static inline int DeleteCount = 0;
   Obj::ptr loopa;
@@ -57,11 +53,7 @@ class Loopa : public Obj {
 
   void AddPoopa(Obj::ptr poopa) { poopas.emplace_back(std::move(poopa)); }
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(poopas);
-  }
+  AE_OBJECT_REFLECT(AE_MMBR(poopas))
 
   static inline int DeleteCount = 0;
   std::vector<Obj::ptr> poopas;

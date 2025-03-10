@@ -42,6 +42,9 @@
 #include <type_traits>
 #include <unordered_map>
 
+#include "aether/reflect/reflect.h"
+#include "aether/reflect/domain_visitor.h"
+
 namespace ae {
 
 // Base classes to simplify std::conditional checks in serialization functions.
@@ -121,6 +124,24 @@ struct imstream_enable_if : std::enable_if<condition, imstream<T>&> {};
 
 template <bool condition, typename T>
 using imstream_enable_if_t = typename imstream_enable_if<condition, T>::type;
+
+template <typename T, typename Ob, typename Enable = void>
+struct has_omstream : std::false_type {};
+
+template <typename T, typename Ob>
+struct has_omstream<T, Ob,
+                    std::void_t<decltype(std::declval<omstream<Ob>&>()
+                                         << std::declval<T const&>())>>
+    : std::true_type {};
+
+template <typename T, typename Ib, typename Enable = void>
+struct has_imstream : std::false_type {};
+
+template <typename T, typename Ib>
+struct has_imstream<
+    T, Ib,
+    std::void_t<decltype(std::declval<imstream<Ib>&>() >> std::declval<T&>())>>
+    : std::true_type {};
 
 /*********************** operator << implementation **************** */
 
@@ -393,8 +414,10 @@ omstream<Ob>& operator<<(omstream<Ob>& s, const std::list<T>& t) {
   }
   return s;
 }
+
 template <typename T, typename Ib>
-imstream<Ib>& operator>>(imstream<Ib>& s, std::list<T>& t) {
+imstream_enable_if_t<std::is_default_constructible_v<T>, Ib>& operator>>(
+    imstream<Ib>& s, std::list<T>& t) {
   typename Ib::size_type size;
   s >> size;
   if (!data_was_read(s)) {
@@ -412,21 +435,41 @@ imstream<Ib>& operator>>(imstream<Ib>& s, std::list<T>& t) {
   return s;
 }
 
-template <typename T, typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& s, const std::chrono::time_point<T> t) {
+template <typename... T, typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& s,
+                         std::chrono::duration<T...> const& val) {
+  s << static_cast<std::uint32_t>(
+      std::chrono::duration_cast<std::chrono::microseconds>(val).count());
+  return s;
+}
+
+template <typename... T, typename Ib>
+imstream<Ib>& operator>>(imstream<Ib>& s, std::chrono::duration<T...>& val) {
+  std::uint32_t temp;
+  s >> temp;
+  val = std::chrono::duration_cast<std::chrono::duration<T...>>(
+      std::chrono::microseconds{
+          static_cast<std::chrono::microseconds::rep>(temp)});
+  return s;
+}
+
+template <typename... T, typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& s,
+                         std::chrono::time_point<T...> const& t) {
   auto d = std::chrono::duration_cast<std::chrono::microseconds>(
       t.time_since_epoch());
   s << static_cast<uint64_t>(d.count());
   return s;
 }
-template <typename T, typename Ib>
-imstream<Ib>& operator>>(imstream<Ib>& s, std::chrono::time_point<T>& t) {
+
+template <typename... T, typename Ib>
+imstream<Ib>& operator>>(imstream<Ib>& s, std::chrono::time_point<T...>& t) {
   std::uint64_t tp;
   s >> tp;
   if (!data_was_read(s)) {
     return s;
   }
-  t = std::chrono::time_point<T>(std::chrono::microseconds(tp));
+  t = std::chrono::time_point<T...>(std::chrono::microseconds(tp));
   return s;
 }
 
@@ -486,42 +529,39 @@ imstream<Ib>& operator>>(imstream<Ib>& s, std::shared_ptr<T>& v) {
   return s;
 }
 
-// & bi-directional operators
 template <typename T, typename Ob>
-omstream<Ob>& operator&(omstream<Ob>& s, const T& v) {
-  s << v;
+omstream_enable_if_t<has_omstream<T, Ob>::value, Ob> operator<<(
+    omstream<Ob>& s, T const* const& v) {
+  if (v != nullptr) {
+    s << *v;
+  }
   return s;
 }
+
 template <typename T, typename Ib>
-imstream<Ib>& operator&(imstream<Ib>& s, T& v) {
-  s >> v;
+imstream_enable_if_t<has_imstream<T, Ib>::value, Ib> operator>>(imstream<Ib>& s,
+                                                                T* const& v) {
+  if (v != nullptr) {
+    s >> *v;
+  }
   return s;
 }
 
-template <typename T, typename TStream, typename = void>
-struct HasSerializator : std::false_type {};
-
-template <typename T, typename TStream>
-struct HasSerializator<
-    T, TStream,
-    std::void_t<decltype(std::declval<std::decay_t<T>>().Serializator(
-        std::declval<TStream&>()))>> : std::true_type {};
-
 template <typename T, typename Ib>
-std::enable_if_t<HasSerializator<T, imstream<Ib>>::value, imstream<Ib>&>
-operator>>(imstream<Ib>& s, T& t) {
-  t.Serializator(s);
+std::enable_if_t<reflect::IsReflectable<T>::value, imstream<Ib>&> operator>>(
+    imstream<Ib>& s, T& t) {
+  auto reflection = reflect::Reflection{t};
+  reflection.Apply([&s](auto&... val) { ((s >> val), ...); });
   return s;
 }
 
 template <typename T, typename Ob>
-std::enable_if_t<HasSerializator<T, omstream<Ob>>::value, omstream<Ob>&>
-operator<<(omstream<Ob>& s, T const& t) {
-  // FIXME: how to use one Serializator without const cast
-  const_cast<T&>(t).Serializator(s);
+std::enable_if_t<reflect::IsReflectable<T>::value, omstream<Ob>&> operator<<(
+    omstream<Ob>& s, T const& t) {
+  auto reflection = reflect::Reflection{t};
+  reflection.Apply([&s](auto const&... val) { ((s << val), ...); });
   return s;
 }
-
 }  // namespace ae
 
 #endif  // AETHER_MSTREAM_H_

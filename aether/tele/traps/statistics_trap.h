@@ -32,6 +32,7 @@
 #include "aether/format/format.h"
 #include "aether/mstream_buffers.h"
 #include "aether/tele/declaration.h"
+#include "aether/reflect/reflect.h"
 
 namespace ae::tele {
 namespace statistics {
@@ -41,6 +42,8 @@ struct LogStore {
 
   using size_type = list_type::size_type;
   size_type Size() const;
+
+  AE_REFLECT_MEMBERS(logs)
 
   list_type logs;
 };
@@ -57,6 +60,8 @@ struct MetricsStore {
 
   using size_type = std::map<PackedIndex, Metric>::size_type;
   size_type Size() const;
+
+  AE_REFLECT_MEMBERS(metrics)
 
   std::map<PackedIndex, Metric> metrics;
 };
@@ -138,10 +143,7 @@ class Statistics {
 
   void Append(Statistics const& other);
 
-  template <typename T>
-  void Serializator(T& s) {
-    s & size_ & logs_.logs & metrics_.metrics;
-  }
+  AE_REFLECT_MEMBERS(size_, logs_, metrics_)
 
  private:
   void UpdateSize(LogStore const& logs, std::size_t delta_size);
@@ -205,10 +207,7 @@ class StatisticsStore {
 
   void SetSizeLimit(std::size_t limit);
 
-  template <typename T>
-  void Serializator(T& s) {
-    s & statistics_size_limit_ & env_store_ & prev_ & current_;
-  }
+  AE_REFLECT_MEMBERS(statistics_size_limit_, env_store_, prev_, current_)
 
  private:
   bool IsCurrentFull() const;
@@ -290,10 +289,7 @@ class StatisticsTrap {
    */
   void MergeStatistics(StatisticsTrap const& newer);
 
-  template <typename T>
-  void Serializator(T& s) {
-    s & statistics_store_;
-  }
+  AE_REFLECT_MEMBERS(statistics_store_)
 
   StatisticsStore statistics_store_;
 };

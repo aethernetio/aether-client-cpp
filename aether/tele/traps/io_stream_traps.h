@@ -26,6 +26,7 @@
 
 #include "aether/common.h"
 #include "aether/format/format.h"
+#include "aether/reflect/reflect.h"
 
 #include "aether/tele/modules.h"
 #include "aether/tele/declaration.h"
@@ -40,21 +41,14 @@ struct Metric {
 };
 
 struct IoStreamTrap {
-  std::ostream& stream_;
-  std::unordered_map<std::size_t, Metric> metrics_;
-
   struct MetricsStream {
-    Metric& metric_;
-
     void add_count(std::uint32_t count = 1);
     void add_duration(std::uint32_t duration);
+
+    Metric& metric_;
   };
 
   struct LogStream {
-    std::ostream& stream_;
-    bool start_{true};
-    bool moved_{false};
-
     explicit LogStream(std::ostream& stream);
     LogStream(LogStream&& other) noexcept;
     ~LogStream();
@@ -73,6 +67,10 @@ struct IoStreamTrap {
       Format(stream_, format, std::forward<TArgs>(args)...);
     }
     void delimeter();
+
+    std::ostream& stream_;
+    bool start_{true};
+    bool moved_{false};
   };
 
   struct EnvStream {
@@ -96,6 +94,9 @@ struct IoStreamTrap {
   LogStream log_stream(Declaration const& decl);
   MetricsStream metric_stream(Declaration const& decl);
   EnvStream env_stream();
+
+  std::ostream& stream_;
+  std::unordered_map<std::size_t, Metric> metrics_;
 };
 
 }  // namespace ae::tele

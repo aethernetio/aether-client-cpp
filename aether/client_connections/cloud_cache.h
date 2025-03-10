@@ -18,6 +18,8 @@
 #define AETHER_CLIENT_CONNECTIONS_CLOUD_CACHE_H_
 
 #include <map>
+#include <optional>
+#include <functional>
 
 #include "aether/common.h"
 #include "aether/uid.h"
@@ -31,29 +33,16 @@ namespace ae {
  */
 class CloudCache {
  public:
-  struct Entry {
-    template <typename Dnv>
-    void Visit(Dnv& dnv) {
-      dnv(cloud);
-    }
-
-    Cloud::ptr cloud;
-    Ptr<ServerConnectionSelector> client_stream_selector;
-  };
-
   CloudCache() = default;
   AE_CLASS_NO_COPY_MOVE(CloudCache)
 
-  Entry* GetCache(Uid uid);
+  std::optional<std::reference_wrapper<Cloud::ptr>> GetCache(Uid uid);
   void AddCloud(Uid uid, Cloud::ptr cloud);
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(clouds_);
-  }
+  AE_REFLECT_MEMBERS(clouds_)
 
  private:
-  std::map<Uid, Entry> clouds_;
+  std::map<Uid, Cloud::ptr> clouds_;
 };
 }  // namespace ae
 

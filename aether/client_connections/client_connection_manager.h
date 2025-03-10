@@ -21,6 +21,7 @@
 
 #include "aether/obj/obj.h"
 #include "aether/ptr/ptr.h"
+#include "aether/ptr/rc_ptr.h"
 #include "aether/actions/action_view.h"
 #include "aether/actions/action_list.h"
 
@@ -36,12 +37,16 @@ namespace ae {
 class Aether;
 class Client;
 
+namespace ccm_internal {
+class CachedServerConnectionFactory;
+}
+
 class ClientConnectionManager : public Obj {
+  friend class ccm_internal::CachedServerConnectionFactory;
+
   AE_OBJECT(ClientConnectionManager, Obj, 0)
 
   ClientConnectionManager() = default;
-
-  friend class CachedServerConnectionFactory;
 
  public:
   explicit ClientConnectionManager(ObjPtr<Aether> aether, ObjPtr<Client> client,
@@ -52,14 +57,23 @@ class ClientConnectionManager : public Obj {
   Ptr<ClientConnection> GetClientConnection();
   ActionView<GetClientCloudConnection> GetClientConnection(Uid client_uid);
 
-  void RegisterCloud(Uid uid,
-                     std::vector<ServerDescriptor> const& server_descriptors);
+  Ptr<ClientConnection> CreateClientConnection(Cloud::ptr const& cloud);
 
-  Ptr<ServerConnectionSelector> GetCloudServerConnectionSelector(Uid uid);
+  Cloud::ptr RegisterCloud(
+      Uid uid, std::vector<ServerDescriptor> const& server_descriptors);
+
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_,
+                             client_server_connection_pool_,
+                             get_client_cloud_connections_))
 
   template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+    dnv(aether_, client_, cloud_cache_);
+  }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
     dnv(aether_, client_, cloud_cache_);
   }
 
@@ -72,7 +86,8 @@ class ClientConnectionManager : public Obj {
   CloudCache cloud_cache_;
   ClientServerConnectionPool client_server_connection_pool_;
 
-  Ptr<ActionList<GetClientCloudConnection>> get_client_cloud_connections_;
+  std::optional<ActionList<GetClientCloudConnection>>
+      get_client_cloud_connections_;
 };
 }  // namespace ae
 

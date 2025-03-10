@@ -27,19 +27,19 @@
 namespace ae {
 namespace _internal {
 #if AE_SUPPORT_CLOUD_DNS
-inline Ptr<ChannelConnectionAction> MakeConnectionAction(
+inline std::unique_ptr<ChannelConnectionAction> MakeConnectionAction(
     ActionContext action_context, Ptr<Aether> const& aether,
     Ptr<Adapter> const& adapter, NameAddress const& name_address) {
-  return MakePtr<NameAddressChannelConnectionAction>(
+  return make_unique<NameAddressChannelConnectionAction>(
       action_context, name_address, aether, adapter);
 }
 #endif
 
-inline Ptr<ChannelConnectionAction> MakeConnectionAction(
+inline std::unique_ptr<ChannelConnectionAction> MakeConnectionAction(
     ActionContext action_context, Ptr<Aether> const& /* aether */,
     Ptr<Adapter> const& adapter, IpAddressPortProtocol const& ip_addr) {
-  return MakePtr<IpAddressChannelConnectionAction>(action_context, ip_addr,
-                                                   *adapter);
+  return make_unique<IpAddressChannelConnectionAction>(action_context, ip_addr,
+                                                       *adapter);
 }
 }  // namespace _internal
 
@@ -63,16 +63,16 @@ ServerChannelStream::ServerChannelStream(ObjPtr<Aether> const& aether,
           channel_->address)} {
   connection_subscriptions_.Push(
       connection_action_->SubscribeOnResult(
-          [this](auto const& action) { OnConnected(action); }),
+          [this](auto& action) { OnConnected(action); }),
       connection_action_->SubscribeOnError(
           [this](auto const&) { OnConnectedFailed(); }),
       connection_action_->FinishedEvent().Subscribe(
-          [this]() { connection_action_.Reset(); }));
+          [this]() { connection_action_.reset(); }));
 }
 
-void ServerChannelStream::OnConnected(
-    ChannelConnectionAction const& connection) {
-  transport_write_gate_.emplace(action_context_, connection.transport());
+void ServerChannelStream::OnConnected(ChannelConnectionAction& connection) {
+  transport_ = connection.transport();
+  transport_write_gate_.emplace(action_context_, *transport_);
   Tie(buffer_gate_, *transport_write_gate_);
 }
 

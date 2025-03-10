@@ -20,21 +20,21 @@
 
 namespace ae {
 ClientServerConnection::ClientServerConnection(
-    ActionContext action_context, Server::ptr server, Channel::ptr channel,
-    Ptr<ClientToServerStream> client_to_server_stream)
+    ActionContext action_context, Server::ptr const& server,
+    Channel::ptr const& channel,
+    std::unique_ptr<ClientToServerStream> client_to_server_stream)
     : server_stream_{std::move(client_to_server_stream)},
       message_stream_dispatcher_{
-          MakePtr<MessageStreamDispatcher>(*server_stream_)},
-      ping_{MakePtr<Ping>(action_context, std::move(server), std::move(channel),
-                          server_stream_,
-                          std::chrono::milliseconds{AE_PING_INTERVAL_MS})},
+          make_unique<MessageStreamDispatcher>(*server_stream_)},
+      ping_{make_unique<Ping>(action_context, server, channel, *server_stream_,
+                              std::chrono::milliseconds{AE_PING_INTERVAL_MS})},
       // TODO: handle Ping error
       new_stream_event_subscription_{
           message_stream_dispatcher_->new_stream_event().Subscribe(
               new_stream_event_, MethodPtr<&NewStreamEvent::Emit>{})} {}
 
-Ptr<ClientToServerStream> const& ClientServerConnection::server_stream() const {
-  return server_stream_;
+ClientToServerStream& ClientServerConnection::server_stream() {
+  return *server_stream_;
 }
 
 ByteStream& ClientServerConnection::GetStream(Uid destination_uid) {

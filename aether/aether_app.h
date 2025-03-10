@@ -27,6 +27,7 @@
 #include "aether/obj/domain.h"
 #include "aether/global_ids.h"
 #include "aether/type_traits.h"
+#include "aether/reflect/reflect.h"
 
 #include "aether/actions/action_trigger.h"
 #include "aether/actions/action_registry.h"
@@ -158,6 +159,8 @@ class AetherApp {
   ActionTrigger& get_trigger() {
     return aether_->action_processor->get_trigger();
   }
+
+  AE_REFLECT_MEMBERS(domain_facility_, domain_, aether_, exit_code_)
 
  private:
   Ptr<IDomainFacility> domain_facility_;

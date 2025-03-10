@@ -37,11 +37,7 @@ class Channel : public Obj {
 
   explicit Channel(Domain* domain);
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(*base_ptr_);
-    dnv(address, statistics_);
-  }
+  AE_OBJECT_REFLECT(AE_MMBRS(address, statistics_))
 
   Duration FirstRequestDuration(TokenType adapter_token,
                                 TokenType location_token,

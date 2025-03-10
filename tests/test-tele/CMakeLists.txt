@@ -17,6 +17,7 @@ cmake_minimum_required( VERSION 3.16 )
 list(APPEND tele_srcs
   ${ROOT_DIR}/aether/tele/traps/io_stream_traps.cpp
   ${ROOT_DIR}/aether/tele/traps/statistics_trap.cpp
+  ${ROOT_DIR}/aether/ptr/ptr_management.cpp
 )
 list(APPEND test_srcs
   test-tele.cpp
@@ -33,6 +34,10 @@ if(NOT CM_PLATFORM)
   target_compile_definitions(${PROJECT_NAME} PRIVATE AE_PROJECT_VERSION="0.0.0")
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(${PROJECT_NAME} PUBLIC /Zc:preprocessor)
+  endif()
 else()
   message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()

@@ -114,6 +114,9 @@ struct IsOptional : std::false_type {};
 template <typename T>
 struct IsOptional<std::optional<T>> : std::true_type {};
 
+/**
+ * \brief Type has std::optional like interface, looks like optional.
+ */
 template <typename T, typename _ = void>
 struct IsOptionalLike : std::false_type {};
 
@@ -121,8 +124,24 @@ template <typename T>
 struct IsOptionalLike<
     T, std::void_t<decltype(!!std::declval<T>()), decltype(*std::declval<T>())>>
     : std::true_type {};
-}  // namespace ae
 
+/**
+ * \brief Type has a smart pointer like interface, looks like pointer.
+ */
+template <typename T, typename Enable = void>
+struct IsPointerLike : std::false_type {};
+
+template <typename T>
+struct IsPointerLike<T,
+                     std::void_t<decltype(static_cast<bool>(std::declval<T>())),
+                                 decltype(*std::declval<T>()),
+                                 decltype(std::declval<T>().operator->()),
+                                 decltype(std::declval<T>().get())>>
+    : std::true_type {};
+
+/**
+ * \brief Type is functor object with given signature
+ */
 template <typename T, typename TSignature, typename _ = void>
 struct IsFunctor : std::false_type {};
 
@@ -131,6 +150,9 @@ struct IsFunctor<T, TRes(TArgs...),
                  std::enable_if_t<std::is_invocable_r_v<TRes, T, TArgs...>>>
     : std::true_type {};
 
+/**
+ * \brief Type is function pointer
+ */
 template <typename TFuncPtr, typename T, typename _ = void>
 struct IsFunctionPtr : std::false_type {};
 
@@ -161,6 +183,9 @@ template <typename TClass, typename TRes, typename... TArgs>
 auto GetSignatureImpl(TRes (TClass::*)(TArgs...))
     -> FunctionSignatureImpl<TRes(TArgs...)>;
 
+/**
+ * \brief Get a signature of functor object, or function pointer.
+ */
 template <typename TFunc, typename FuncSignatureImp =
                               decltype(GetSignatureImpl(std::declval<TFunc>()))>
 struct FunctionSignature {
@@ -168,15 +193,55 @@ struct FunctionSignature {
   using FuncPtr = typename FuncSignatureImp::FuncPtr;
 };
 
+/**
+ * \brief Get I'th argument in template args list.
+ */
 template <std::size_t I, auto... args>
 constexpr auto ArgAt() {
   return std::get<I>(std::forward_as_tuple(args...));
 }
 
+/**
+ * \brief Get I'th argument in args list.
+ */
+template <std::size_t I, typename... TArgs>
+constexpr auto&& ArgAt(TArgs&&... args) {
+  return std::forward<std::tuple_element_t<I, std::tuple<TArgs...>>>(
+      std::get<I>(std::forward_as_tuple(args...)));
+}
+
+/**
+ * \brief Get I'th type in template type list.
+ */
 template <std::size_t I, typename... Ts>
 constexpr auto TypeAt() -> std::tuple_element_t<I, std::tuple<Ts...>>;
 
 template <std::size_t I, typename... Ts>
 using TypeAt_t = decltype(TypeAt<I, Ts...>());
 
+/**
+ * \brief Pass tuple type list as template parameters to template T
+ */
+template <template <typename...> typename T, typename Tuple>
+struct TupleToTemplate;
+
+template <template <typename...> typename T, typename... Ts>
+struct TupleToTemplate<T, std::tuple<Ts...>> {
+  using type = T<Ts...>;
+};
+
+/**
+ * \brief static cast with save constness
+ */
+template <typename T, typename U>
+constexpr T StaticConst(U& u) {
+  return static_cast<T>(u);
+}
+
+template <typename T, typename U>
+constexpr auto& StaticConst(U const& u) {
+  return static_cast<std::add_const_t<std::remove_reference_t<T>>&>(u);
+}
+
+}  // namespace ae
 #endif  // AETHER_TYPE_TRAITS_H_ */

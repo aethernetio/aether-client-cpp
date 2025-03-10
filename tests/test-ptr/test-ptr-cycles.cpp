@@ -23,65 +23,31 @@
 
 namespace ae {
 namespace test_ptr_cycles {
-struct B;
-struct A {
-  ~A() { ++a_destroyed; }
-  static inline int a_destroyed = 0;
-  Ptr<B> b;
-};
-
-struct B {
-  ~B() { ++b_destroyed; }
-  Ptr<A> a;
-  static inline int b_destroyed = 0;
-};
-
 struct ObjB;
 struct ObjC;
 struct ObjA {
   ~ObjA() { ++obj_a_destroyed; }
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(obj_b);
-  }
   static inline int obj_a_destroyed = 0;
   Ptr<ObjB> obj_b;
   Ptr<ObjC> obj_c;
+
+  AE_REFLECT_MEMBERS(obj_b, obj_c)
 };
 
 struct ObjB {
   ~ObjB() { ++obj_b_destroyed; }
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(obj_a);
-  }
   static inline int obj_b_destroyed = 0;
   Ptr<ObjA> obj_a;
+
+  AE_REFLECT_MEMBERS(obj_a)
 };
 
 struct ObjC {
   ~ObjC() { ++obj_c_destroyed; }
-  template <typename Dnv>
-  void Visit(Dnv& /* dnv */) {}
   static inline int obj_c_destroyed = 0;
-};
 
-// this generates leaks
-#if not TEST_ASAN_ENABLED
-void test_AnBCycleRef() {
-  A::a_destroyed = 0;
-  B::b_destroyed = 0;
-  {
-    auto a = MakePtr<A>();
-    auto b = MakePtr<B>();
-    a->b = b;
-    b->a = a;
-  }
-  // a and b are not destroyed
-  TEST_ASSERT_EQUAL(0, A::a_destroyed);
-  TEST_ASSERT_EQUAL(0, B::b_destroyed);
-}
-#endif
+  AE_REFLECT()
+};
 
 void test_ObjAnObjBCycleRef() {
   ObjA::obj_a_destroyed = 0;
@@ -153,22 +119,18 @@ void test_ObjAnObjBWithPtrVew() {
 struct ObjE;
 struct ObjD {
   ~ObjD() { ++obj_d_destroyed; }
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(ptr_e);
-  }
   static inline int obj_d_destroyed = 0;
   Ptr<ObjE> ptr_e;
+
+  AE_REFLECT_MEMBERS(ptr_e)
 };
 
 struct ObjE {
   ~ObjE() { ++obj_e_destroyed; }
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(ptr_d);
-  }
   static inline int obj_e_destroyed = 0;
   PtrView<ObjD> ptr_d;
+
+  AE_REFLECT_MEMBERS(ptr_d)
 };
 
 void test_ObjDnObjECycleWithPtrView() {
@@ -183,18 +145,52 @@ void test_ObjDnObjECycleWithPtrView() {
   TEST_ASSERT_EQUAL(1, ObjD::obj_d_destroyed);
   TEST_ASSERT_EQUAL(1, ObjE::obj_e_destroyed);
 }
+
+struct ObjG;
+struct ObjF {
+  ~ObjF() { ++obj_f_destroyed; }
+  static inline int obj_f_destroyed = 0;
+  std::vector<Ptr<ObjG>> g_list;
+
+  AE_REFLECT_MEMBERS(g_list)
+};
+
+struct ObjG {
+  static inline int obj_g_destroyed = 0;
+  ~ObjG() { ++obj_g_destroyed; }
+
+  Ptr<ObjF> obj_f;
+
+  AE_REFLECT_MEMBERS(obj_f)
+};
+
+void test_CycleListPtr() {
+  ObjF::obj_f_destroyed = 0;
+  ObjG::obj_g_destroyed = 0;
+  {
+    auto f = MakePtr<ObjF>();
+    {
+      auto g = MakePtr<ObjG>();
+      g->obj_f = f;
+      f->g_list.push_back(g);
+      f->g_list.push_back(g);
+      f->g_list.push_back(g);
+    }
+    TEST_ASSERT_EQUAL(0, ObjG::obj_g_destroyed);
+  }
+  TEST_ASSERT_EQUAL(1, ObjF::obj_f_destroyed);
+  TEST_ASSERT_EQUAL(1, ObjG::obj_g_destroyed);
+}
 }  // namespace test_ptr_cycles
 }  // namespace ae
 
 int test_ptr_cycles() {
   UNITY_BEGIN();
-#if not TEST_ASAN_ENABLED
-  RUN_TEST(ae::test_ptr_cycles::test_AnBCycleRef);
-#endif
   RUN_TEST(ae::test_ptr_cycles::test_ObjAnObjBCycleRef);
   RUN_TEST(ae::test_ptr_cycles::test_ObjAnDoubleObjBCycleRef);
   RUN_TEST(ae::test_ptr_cycles::test_ObjAnObjBnObjCCycleRef);
   RUN_TEST(ae::test_ptr_cycles::test_ObjAnObjBWithPtrVew);
   RUN_TEST(ae::test_ptr_cycles::test_ObjDnObjECycleWithPtrView);
+  RUN_TEST(ae::test_ptr_cycles::test_CycleListPtr);
   return UNITY_END();
 }

@@ -21,7 +21,9 @@
 #include <string>
 
 #include "aether/config.h"
+#include "aether/type_traits.h"
 #include "aether/variant_type.h"
+#include "aether/reflect/reflect.h"
 
 #include "aether/format/format.h"
 
@@ -48,36 +50,58 @@ struct IpAddress {
   friend bool operator<(const IpAddress& lef, const IpAddress& right);
 
   void set_value(const std::uint8_t* val);
-
-  template <typename T>
-  void Serializator(T& s) {
-    s & version;
-    switch (version) {
-      case Version::kIpV4:
-#if AE_SUPPORT_IPV4 == 1
-        s & value.ipv4_value;
-#else
-        assert(false);
-#endif  // AE_SUPPORT_IPV4 == 1
-        break;
-      case Version::kIpV6:
-#if AE_SUPPORT_IPV6 == 1
-        s & value.ipv6_value;
-#else
-        assert(false);
-#endif  // AE_SUPPORT_IPV6 == 1
-        break;
-      default:
-        break;
-    }
-  }
 };
 
-struct IpAddressPort {
-  template <typename T>
-  void Serializator(T& s) {
-    s & ip & port;
+template <typename Ib>
+imstream<Ib>& operator>>(imstream<Ib>& s, IpAddress& ip_address) {
+  s >> ip_address.version;
+  switch (ip_address.version) {
+    case IpAddress::Version::kIpV4:
+#if AE_SUPPORT_IPV4 == 1
+      s >> ip_address.value.ipv4_value;
+#else
+      assert(false);
+#endif  // AE_SUPPORT_IPV4 == 1
+      break;
+    case IpAddress::Version::kIpV6:
+#if AE_SUPPORT_IPV6 == 1
+      s >> ip_address.value.ipv6_value;
+#else
+      assert(false);
+#endif  // AE_SUPPORT_IPV6 == 1
+      break;
+    default:
+      break;
   }
+  return s;
+}
+
+template <typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& s, IpAddress const& ip_address) {
+  s << ip_address.version;
+  switch (ip_address.version) {
+    case IpAddress::Version::kIpV4:
+#if AE_SUPPORT_IPV4 == 1
+      s << ip_address.value.ipv4_value;
+#else
+      assert(false);
+#endif  // AE_SUPPORT_IPV4 == 1
+      break;
+    case IpAddress::Version::kIpV6:
+#if AE_SUPPORT_IPV6 == 1
+      s << ip_address.value.ipv6_value;
+#else
+      assert(false);
+#endif  // AE_SUPPORT_IPV6 == 1
+      break;
+    default:
+      break;
+  }
+  return s;
+}
+
+struct IpAddressPort {
+  AE_REFLECT_MEMBERS(ip, port)
 
   IpAddress ip;
   std::uint16_t port;
@@ -95,11 +119,7 @@ enum class Protocol : std::uint8_t {
 };
 
 struct IpAddressPortProtocol : public IpAddressPort {
-  template <typename T>
-  void Serializator(T& s) {
-    IpAddressPort::Serializator(s);
-    s & protocol;
-  }
+  AE_REFLECT(AE_REF_BASE(IpAddressPort), AE_MMBR(protocol))
 
   friend bool operator<(const IpAddressPortProtocol& left,
                         const IpAddressPortProtocol& right);
@@ -109,14 +129,11 @@ struct IpAddressPortProtocol : public IpAddressPort {
 
 #if AE_SUPPORT_CLOUD_DNS
 struct NameAddress {
+  AE_REFLECT_MEMBERS(name, port, protocol)
+
   std::string name;
   std::uint16_t port;
   Protocol protocol{};
-
-  template <typename T>
-  void Serializator(T& s) {
-    s & name & port & protocol;
-  }
 };
 #endif
 

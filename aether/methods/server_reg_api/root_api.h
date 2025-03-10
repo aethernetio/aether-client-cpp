@@ -33,10 +33,7 @@ class RootApi : public ApiClass {
   struct GetAsymmetricPublicKey : public Message<GetAsymmetricPublicKey> {
     static constexpr MessageId kMessageCode = 3;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & request_id & crypto_lib_profile;
-    }
+    AE_REFLECT_MEMBERS(request_id, crypto_lib_profile)
 
     RequestId request_id;
     CryptoLibProfile crypto_lib_profile;
@@ -47,10 +44,7 @@ class RootApi : public ApiClass {
   struct Enter : public Message<Enter> {
     static constexpr MessageId kMessageCode = 4;
 
-    template <typename T>
-    void Serializator(T& s) {
-      s & stream_id & crypto_lib_profile;
-    }
+    AE_REFLECT_MEMBERS(stream_id, crypto_lib_profile)
     StreamId stream_id;
     CryptoLibProfile crypto_lib_profile;
   };

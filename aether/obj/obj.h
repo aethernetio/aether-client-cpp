@@ -38,6 +38,7 @@
 #include "aether/obj/domain.h"
 #include "aether/obj/registry.h"
 #include "aether/obj/registrar.h"
+#include "aether/reflect/reflect.h"
 
 namespace ae {
 /**
@@ -66,10 +67,7 @@ class Obj {
 
   ObjId GetId() const;
 
-  template <typename Dnv>
-  void Visit(Dnv& dnv) {
-    dnv(update_time_);
-  }
+  AE_REFLECT_MEMBERS(update_time_);
 
   Domain* domain_{};
   TimePoint update_time_;
@@ -87,7 +85,7 @@ class Obj {
 #define AE_OBJECT(DERIVED, BASE, VERSION)                        \
  protected:                                                      \
   friend class ae::Registrar<DERIVED>;                           \
-  friend ae::Ptr<DERIVED> ae::MakePtr<DERIVED>();                        \
+  friend ae::Ptr<DERIVED> ae::MakePtr<DERIVED>();                \
                                                                  \
  public:                                                         \
   static constexpr std::uint32_t kClassId =                      \
@@ -103,11 +101,17 @@ class Obj {
   using Base = BASE;                                             \
   using ptr = ae::ObjPtr<DERIVED>;                               \
                                                                  \
-  Base* base_ptr_{this};                                         \
+  Base& base_{*this};                                            \
                                                                  \
   std::uint32_t GetClassId() const override { return kClassId; } \
                                                                  \
  private:                                                        \
   /* add rest class's staff after */
+
+/**
+ * \brief Obj class reflection
+ */
+#define AE_OBJECT_REFLECT(...) \
+  AE_REFLECT(AE_REF_BASE(std::decay_t<decltype(base_)>), __VA_ARGS__)
 
 #endif  // AETHER_OBJ_OBJ_H_
