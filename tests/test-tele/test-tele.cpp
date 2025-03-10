@@ -63,10 +63,10 @@ using SinkType =
 
 #define TELE_SINK SinkType
 
-static ae::Ptr<ae::tele::IoStreamTrap> trap;
+static ae::RcPtr<ae::tele::IoStreamTrap> trap;
 
 void setUp() {
-  trap = ae::MakePtr<ae::tele::IoStreamTrap>(std::cout);
+  trap = ae::MakeRcPtr<ae::tele::IoStreamTrap>(std::cout);
   SinkType::InitSink(trap);
 }
 
@@ -217,7 +217,7 @@ void test_TeleConfigurations() {
     // all enabled
     using Sink = TeleSink<tele_configuration::TeleTrap,
                           tele_configuration::ConfigProvider<>>;
-    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
+    auto tele_trap = MakeRcPtr<tele_configuration::TeleTrap>();
 
     Sink::InitSink(tele_trap);
     int remember_line = __LINE__ + 4;
@@ -253,7 +253,7 @@ void test_TeleConfigurations() {
         TeleSink<tele_configuration::TeleTrap,
                  tele_configuration::ConfigProvider<
                      true, true, false, false, false, false, false, false>>;
-    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
+    auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
 
     Sink::InitSink(tele_trap);
     {
@@ -277,7 +277,7 @@ void test_TeleConfigurations() {
         TeleSink<tele_configuration::TeleTrap,
                  tele_configuration::ConfigProvider<
                      true, false, false, false, false, false, false, false>>;
-    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
+    auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
     Sink::InitSink(tele_trap);
     {
       auto t =
@@ -300,7 +300,7 @@ void test_TeleConfigurations() {
         TeleSink<tele_configuration::TeleTrap,
                  tele_configuration::ConfigProvider<
                      false, false, false, false, false, false, false, false>>;
-    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
+    auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
 
     TEST_ASSERT(tele_trap->log_lines_.empty());
   }
@@ -310,7 +310,7 @@ void test_TeleConfigurations() {
         TeleSink<tele_configuration::TeleTrap,
                  tele_configuration::ConfigProvider<
                      false, false, false, false, false, false, false, false>>;
-    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
+    auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
 
     Sink::InitSink(tele_trap);
     {
@@ -331,7 +331,7 @@ void test_TeleConfigurations() {
         TeleSink<tele_configuration::TeleTrap,
                  tele_configuration::ConfigProvider<false, false, true, false,
                                                     true, false, true, false>>;
-    auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
+    auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
 
     Sink::InitSink(tele_trap);
     {
@@ -361,8 +361,8 @@ void test_TeleProxyTrap() {
       ProxyTrap<tele_configuration::TeleTrap, ae::tele::IoStreamTrap>;
 
   using Sink = TeleSink<ProxyTeleTrap, ConfigProvider>;
-  auto tele_trap = ae::MakePtr<tele_configuration::TeleTrap>();
-  auto proxy_tele_trap = ae::MakePtr<ProxyTeleTrap>(tele_trap, ::trap);
+  auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
+  auto proxy_tele_trap = ae::MakeRcPtr<ProxyTeleTrap>(tele_trap, ::trap);
 
   Sink::InitSink(proxy_tele_trap);
 
@@ -392,7 +392,7 @@ void test_MergeStatisticsTrap() {
                                                   false, false, false, false>>;
 #undef TELE_SINK
 #define TELE_SINK Sink
-  auto statistics_trap1 = ae::MakePtr<statistics::StatisticsTrap>();
+  auto statistics_trap1 = ae::MakeRcPtr<statistics::StatisticsTrap>();
 
   Sink::InitSink(statistics_trap1);
   {
@@ -404,7 +404,7 @@ void test_MergeStatisticsTrap() {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  auto statistics_trap2 = ae::MakePtr<statistics::StatisticsTrap>();
+  auto statistics_trap2 = ae::MakeRcPtr<statistics::StatisticsTrap>();
   statistics_trap2->MergeStatistics(*statistics_trap1);
 
   auto& logs1 = statistics_trap1->statistics_store_.Get()->logs().logs;
