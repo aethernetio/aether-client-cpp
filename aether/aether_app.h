@@ -56,11 +56,11 @@ class AetherAppConstructor {
       : AetherAppConstructor(DomainFacilityFactory::Create) {}
 
   template <typename Func,
-            AE_REQUIRERS((IsFunctor<Func, Ptr<IDomainFacility>()>))>
+            AE_REQUIRERS((IsFunctor<Func, std::unique_ptr<IDomainFacility>()>))>
   explicit AetherAppConstructor(Func const& facility_factory)
       : init_tele_{},
         domain_facility_{facility_factory()},
-        domain_{MakePtr<Domain>(Now(), *domain_facility_)} {
+        domain_{make_unique<Domain>(Now(), *domain_facility_)} {
 #if defined AE_DISTILLATION
     aether_ = domain_->CreateObj<Aether>(kAether);
     assert(aether_);
@@ -74,20 +74,20 @@ class AetherAppConstructor {
 #if defined AE_DISTILLATION
   template <
       typename Func,
-      AE_REQUIRERS((IsFunctor<Func, Adapter::ptr(Ptr<Domain> const& domain,
+      AE_REQUIRERS((IsFunctor<Func, Adapter::ptr(Domain* domain,
                                                  Aether::ptr const& aether)>))>
   AetherAppConstructor&& Adapter(Func const& adapter_factory) {
-    adapter_ = adapter_factory(domain_, aether_);
+    adapter_ = adapter_factory(domain_.get(), aether_);
     return std::move(*this);
   }
 
 #  if AE_SUPPORT_REGISTRATION
   template <typename Func,
             AE_REQUIRERS((IsFunctor<Func, RegistrationCloud::ptr(
-                                              Ptr<Domain> const& domain,
+                                              Domain* domain,
                                               Aether::ptr const& aether)>))>
   AetherAppConstructor&& RegCloud(Func const& registration_cloud_factory) {
-    registration_cloud_ = registration_cloud_factory(domain_, aether_);
+    registration_cloud_ = registration_cloud_factory(domain_.get(), aether_);
     return std::move(*this);
   }
 #  endif
@@ -104,8 +104,8 @@ class AetherAppConstructor {
 
  private:
   InitTele init_tele_;
-  Ptr<IDomainFacility> domain_facility_;
-  Ptr<Domain> domain_;
+  std::unique_ptr<IDomainFacility> domain_facility_;
+  std::unique_ptr<Domain> domain_;
   Aether::ptr aether_;
 #if defined AE_DISTILLATION
 #  if AE_SUPPORT_REGISTRATION
@@ -149,7 +149,7 @@ class AetherApp {
     }
   }
 
-  Ptr<Domain> const& domain() const { return domain_; }
+  Domain& domain() const { return *domain_; }
   Aether::ptr const& aether() const { return aether_; }
 
   // Action context protocol
@@ -163,8 +163,8 @@ class AetherApp {
   AE_REFLECT_MEMBERS(domain_facility_, domain_, aether_, exit_code_)
 
  private:
-  Ptr<IDomainFacility> domain_facility_;
-  Ptr<Domain> domain_;
+  std::unique_ptr<IDomainFacility> domain_facility_;
+  std::unique_ptr<Domain> domain_;
   Aether::ptr aether_;
 
   std::optional<int> exit_code_;

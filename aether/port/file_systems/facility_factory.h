@@ -17,13 +17,13 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_FACILITY_FACTORY_H_
 #define AETHER_PORT_FILE_SYSTEMS_FACILITY_FACTORY_H_
 
-#include "aether/ptr/ptr.h"
+#include "aether/memory.h"
 #include "aether/obj/domain.h"
 
 namespace ae {
 class DomainFacilityFactory {
  public:
-  static Ptr<IDomainFacility> Create();
+  static std::unique_ptr<IDomainFacility> Create();
 };
 }  // namespace ae
 
