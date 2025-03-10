@@ -17,10 +17,12 @@
 #ifndef AETHER_AETHER_H_
 #define AETHER_AETHER_H_
 
-#include <vector>
 #include <map>
+#include <vector>
+#include <optional>
 
 #include "aether/common.h"
+#include "aether/memory.h"
 #include "aether/obj/obj.h"
 #include "aether/obj/dummy_obj.h"
 #include "aether/client.h"
@@ -90,7 +92,8 @@ class Aether : public Obj {
   std::vector<Client::ptr>& clients();
   tele::TeleStatistics::ptr const& tele_statistics() const;
 
-  Ptr<ActionProcessor> action_processor = MakePtr<ActionProcessor>();
+  std::unique_ptr<ActionProcessor> action_processor =
+      make_unique<ActionProcessor>();
 
   Cloud::ptr cloud_prefab;
 #if AE_SUPPORT_REGISTRATION
@@ -118,7 +121,7 @@ class Aether : public Obj {
   tele::TeleStatistics::ptr tele_statistics_;
 
 #if AE_SUPPORT_REGISTRATION
-  Ptr<ActionList<Registration>> registration_actions_;
+  std::optional<ActionList<Registration>> registration_actions_;
   MultiSubscription registration_subscriptions_;
 #endif
 };

@@ -115,7 +115,7 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
   esp_netif_t* esp_netif_{};
   bool connected_{false};
   Event<void(bool result)> wifi_connected_event_;
-  Ptr<ActionList<CreateTransportAction>> create_transport_actions_;
+  std::optional<ActionList<CreateTransportAction>> create_transport_actions_;
 };
 }  // namespace ae
 

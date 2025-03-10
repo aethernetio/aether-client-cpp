@@ -30,6 +30,7 @@
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
 
+#include "aether/reflect/reflect.h"
 #include "aether/obj/version_iterator.h"
 #include "aether/reflect/domain_visitor.h"
 
@@ -140,6 +141,8 @@ class Domain {
 
   void AddObject(ObjId id, ObjPtr<Obj> const& obj);
   void RemoveObject(Obj* obj);
+
+  AE_REFLECT()
 
  private:
   ObjPtr<Obj> ConstructObj(Factory const& factory, ObjId id);

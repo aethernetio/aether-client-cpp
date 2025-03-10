@@ -138,7 +138,7 @@ Esp32WifiAdapter::~Esp32WifiAdapter() {
 ActionView<ae::CreateTransportAction> Esp32WifiAdapter::CreateTransport(
     IpAddressPortProtocol const& address_port_protocol) {
   if (!create_transport_actions_) {
-    create_transport_actions_ = MakePtr<ActionList<CreateTransportAction>>(
+    create_transport_actions_.emplace(
         ActionContext{*aether_.as<Aether>()->action_processor});
   }
   if (connected_) {

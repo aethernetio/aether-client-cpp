@@ -22,6 +22,8 @@ TeleStatistics::TeleStatistics(Domain* domain) : Obj{domain} {}
 #endif
 
 #if AE_TELE_ENABLED
-Ptr<statistics::StatisticsTrap> const& TeleStatistics::trap() { return trap_; }
+RcPtr<statistics::StatisticsTrap> const& TeleStatistics::trap() {
+  return trap_;
+}
 #endif
 }  // namespace ae::tele

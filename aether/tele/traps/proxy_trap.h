@@ -21,7 +21,7 @@
 #include <string_view>
 
 #include "aether/common.h"
-#include "aether/ptr/ptr.h"
+#include "aether/ptr/rc_ptr.h"
 #include "aether/reflect/reflect.h"
 
 #include "aether/tele/modules.h"
@@ -145,7 +145,7 @@ class ProxyTrap {
     }
   };
 
-  ProxyTrap(Ptr<TrapFirst> trap1, Ptr<TrapSecond> trap2)
+  ProxyTrap(RcPtr<TrapFirst> trap1, RcPtr<TrapSecond> trap2)
       : first{std::move(trap1)}, second{std::move(trap2)} {}
 
   LogStream log_stream(Declaration decl) {
@@ -161,10 +161,8 @@ class ProxyTrap {
     return EnvStream{first->env_stream(), second->env_stream()};
   }
 
-  AE_REFLECT_MEMBERS(first, second)
-
-  Ptr<TrapFirst> first;
-  Ptr<TrapSecond> second;
+  RcPtr<TrapFirst> first;
+  RcPtr<TrapSecond> second;
 };
 }  // namespace ae::tele
 
