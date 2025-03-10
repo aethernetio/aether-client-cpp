@@ -21,6 +21,7 @@
 #include <optional>
 
 #include "aether/common.h"
+#include "aether/memory.h"
 
 #include "aether/ptr/ptr.h"
 #include "aether/obj/obj_ptr.h"
@@ -62,7 +63,7 @@ class ServerChannelStream final : public ByteStream {
   std::unique_ptr<ITransport> transport_;
   std::optional<TransportWriteGate> transport_write_gate_;
 
-  Ptr<class ChannelConnectionAction> connection_action_;
+  std::unique_ptr<class ChannelConnectionAction> connection_action_;
   MultiSubscription connection_subscriptions_;
 };
 }  // namespace ae

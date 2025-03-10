@@ -141,6 +141,8 @@ class Domain {
   void AddObject(ObjId id, ObjPtr<Obj> const& obj);
   void RemoveObject(Obj* obj);
 
+  AE_CLASS_REFLECT()
+
  private:
   ObjPtr<Obj> ConstructObj(Factory const& factory, ObjId id);
 

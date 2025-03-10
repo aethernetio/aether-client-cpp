@@ -20,6 +20,7 @@
 
 #include "aether/aether.h"
 #include "aether/config.h"
+#include "aether/ptr/rc_ptr.h"
 
 #include "aether/tele/tele.h"
 #include "aether/tele/traps/io_stream_traps.h"
@@ -40,16 +41,16 @@ static void TeleSinkInit() {
                                SinkToStatisticsObjectAndProxyToStream>) {
     // statistics trap + print logs to iostream
     auto statistics_object_and_stream_trap =
-        MakePtr<StatisticsObjectAndStreamTrap>(
-            MakePtr<StatisticsTrap>(), MakePtr<IoStreamTrap>(std::cout));
+        MakeRcPtr<StatisticsObjectAndStreamTrap>(
+            MakeRcPtr<StatisticsTrap>(), MakeRcPtr<IoStreamTrap>(std::cout));
 
     SelectedSink::InitSink(std::move(statistics_object_and_stream_trap));
   } else if constexpr (std::is_same_v<SelectedSink, SinkToStatisticsObject>) {
     // just statistics trap
-    SelectedSink::InitSink(MakePtr<StatisticsTrap>());
+    SelectedSink::InitSink(MakeRcPtr<StatisticsTrap>());
   }
 #else
-  SelectedSink::InitSink(MakePtr<tele::NullTrap>());
+  SelectedSink::InitSink(MakeRcPtr<tele::NullTrap>());
 #endif
 }
 
@@ -68,9 +69,9 @@ static void TeleSinkReInit([[maybe_unused]] Ptr<Aether>& aether) {
     new_tele_trap->MergeStatistics(*SelectedSink::Instance().trap()->first);
 
     auto statistics_object_and_stream_trap =
-        MakePtr<ae::tele::StatisticsObjectAndStreamTrap>(
+        MakeRcPtr<ae::tele::StatisticsObjectAndStreamTrap>(
             std::move(new_tele_trap),
-            MakePtr<ae::tele::IoStreamTrap>(std::cout));
+            MakeRcPtr<ae::tele::IoStreamTrap>(std::cout));
 
     SelectedSink::InitSink(std::move(statistics_object_and_stream_trap));
   } else if constexpr (std::is_same_v<SelectedSink, SinkToStatisticsObject>) {

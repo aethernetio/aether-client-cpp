@@ -39,21 +39,22 @@ class TeleStatistics : public Obj {
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
-    dnv(*trap_);
+    dnv(base_, *trap_);
   }
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(*trap_);
+    dnv(base_, *trap_);
   }
 #else
   AE_OBJECT_REFLECT()
 #endif
 
 #if AE_TELE_ENABLED
-  Ptr<statistics::StatisticsTrap> const& trap();
+  RcPtr<statistics::StatisticsTrap> const& trap();
 
  private:
-  Ptr<statistics::StatisticsTrap> trap_ = MakePtr<statistics::StatisticsTrap>();
+  RcPtr<statistics::StatisticsTrap> trap_ =
+      MakeRcPtr<statistics::StatisticsTrap>();
 #endif
 };
 }  // namespace ae::tele
