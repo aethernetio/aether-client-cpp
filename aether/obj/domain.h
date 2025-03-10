@@ -55,8 +55,6 @@ class IDomainFacility {
 
   // TODO: where should we use it?
   virtual void Remove(const ObjId& obj_id) = 0;
-
-  AE_REFLECT()
 };
 
 struct DomainCycleDetector {
