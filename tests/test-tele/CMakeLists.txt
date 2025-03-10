@@ -34,6 +34,10 @@ if(NOT CM_PLATFORM)
   target_compile_definitions(${PROJECT_NAME} PRIVATE AE_PROJECT_VERSION="0.0.0")
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(${PROJECT_NAME} PUBLIC /Zc:preprocessor)
+  endif()
 else()
   message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()
