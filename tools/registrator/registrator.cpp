@@ -35,9 +35,11 @@
 #include "tools/registrator/registrator_action.h"
 #include "tools/registrator/registrator_config.h"
 
-int AetherRegistrator(const std::string& ini_file, const std::string &header_file);
+int AetherRegistrator(const std::string& ini_file,
+                      const std::string& header_file);
 
-int AetherRegistrator(const std::string& ini_file, const std::string &header_file) {
+int AetherRegistrator(const std::string& ini_file,
+                      const std::string& header_file) {
   ae::TeleInit::Init();
 
   ae::RegistratorConfig registrator_config{ini_file};
@@ -57,13 +59,13 @@ int AetherRegistrator(const std::string& ini_file, const std::string &header_fil
    */
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{[header_file]() {
-        auto fs = ae::MakePtr<ae::FileSystemHeaderFacility>(header_file);
+        auto fs = ae::make_unique<ae::FileSystemHeaderFacility>(header_file);
         fs->remove_all();
         return fs;
       }}
 #if defined AE_DISTILLATION
           .Adapter([&registrator_config](
-                       ae::Ptr<ae::Domain> const& domain,
+                       ae::Domain* domain,
                        ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
             if (registrator_config.GetWiFiIsSet()) {
               AE_TELED_DEBUG("ae::RegisterWifiAdapter");
@@ -80,7 +82,7 @@ int AetherRegistrator(const std::string& ini_file, const std::string &header_fil
             }
           })
 #  if AE_SUPPORT_REGISTRATION
-          .RegCloud([&registrator_config](ae::Ptr<ae::Domain> const& domain,
+          .RegCloud([&registrator_config](ae::Domain* domain,
                                           ae::Aether::ptr const& /* aether */) {
             auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
                 ae::kRegistrationCloud);
