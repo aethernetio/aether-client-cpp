@@ -225,13 +225,9 @@ class Ptr {
     if (ptr_storage_ == nullptr) {
       return;
     }
-    if constexpr (reflect::HasNodeVisitor<T>::value) {
-      if (ptr_storage_->ref_counters.main_refs != 1) {
-        auto count = DecrementGraphCount();
-        DecrementRef(count);
-      } else {
-        DecrementRef();
-      }
+    if (ptr_storage_->ref_counters.main_refs > 1) {
+      auto count = DecrementGraphCount();
+      DecrementRef(count);
     } else {
       DecrementRef();
     }
@@ -311,6 +307,8 @@ template <typename T, typename... TArgs>
 Ptr<T> MakePtr(TArgs&&... args) {
   constexpr auto size = sizeof(PtrStorage<T>);
   static_assert(size < std::numeric_limits<std::uint32_t>::max());
+  static_assert(reflect::HasNodeVisitor<T>::value,
+                "Type must be reflectable to be used in Ptr");
 
   auto alloc = std::allocator<std::uint8_t>{};
   auto* storage = reinterpret_cast<PtrStorage<T>*>(alloc.allocate(size));
