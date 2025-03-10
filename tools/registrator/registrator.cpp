@@ -27,13 +27,13 @@
 #include "aether/client_messages/p2p_message_stream.h"
 
 #include "aether/port/file_systems/file_system_header.h"
-#include "aether/adapters/register_wifi.h"
 
 #include "aether/port/tele_init.h"
 #include "aether/tele/tele.h"
 
-#include "tools/registrator/registrator_action.h"
-#include "tools/registrator/registrator_config.h"
+#include "registrator/register_wifi.h"
+#include "registrator/registrator_action.h"
+#include "registrator/registrator_config.h"
 
 int AetherRegistrator(const std::string& ini_file,
                       const std::string& header_file);
@@ -68,11 +68,12 @@ int AetherRegistrator(const std::string& ini_file,
                        ae::Domain* domain,
                        ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
             if (registrator_config.GetWiFiIsSet()) {
-              AE_TELED_DEBUG("ae::RegisterWifiAdapter");
-              auto adapter = domain->CreateObj<ae::RegisterWifiAdapter>(
-                  ae::GlobalId::kRegisterWifiAdapter, aether, aether->poller,
-                  registrator_config.GetWiFiSsid(),
-                  registrator_config.GetWiFiPass());
+              AE_TELED_DEBUG("ae::registrator::RegisterWifiAdapter");
+              auto adapter =
+                  domain->CreateObj<ae::registrator::RegisterWifiAdapter>(
+                      ae::GlobalId::kRegisterWifiAdapter, aether,
+                      aether->poller, registrator_config.GetWiFiSsid(),
+                      registrator_config.GetWiFiPass());
               return adapter;
             } else {
               AE_TELED_DEBUG("ae::EthernetAdapter");
