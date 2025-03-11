@@ -69,6 +69,7 @@ GetClientCloudAction::GetClientCloudAction(
   server_resolve_subscription_ =
       server_resolver_stream_->in().out_data_event().Subscribe(
           [this](auto const& data) { OnServerResponse(data); });
+  start_resolve_ = Now();
 }
 
 TimePoint GetClientCloudAction::Update(TimePoint current_time) {
@@ -161,6 +162,9 @@ void GetClientCloudAction::OnServerResponse(
   if (server_descriptors_.size() == uid_and_cloud_.cloud.size()) {
     server_resolve_actions_.clear();
     state_.Set(State::kAllServersResolved);
+    auto duration =
+        std::chrono::duration_cast<Duration>(Now() - start_resolve_);
+    AE_TELED_DEBUG("Cloud and servers resolved by {:%S}", duration);
   }
 }
 }  // namespace ae

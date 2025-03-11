@@ -80,6 +80,7 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
 
   UidAndCloud uid_and_cloud_;
   std::vector<ServerDescriptor> server_descriptors_;
+  TimePoint start_resolve_;
 };
 }  // namespace ae
 
