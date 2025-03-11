@@ -342,13 +342,13 @@ int AetherButtonExample() {
 #if !AE_SUPPORT_REGISTRATION
           []() {
             auto fs =
-                ae::MakePtr<ae::FileSystemHeaderFacility>(std::string(""));
+                ae::make_unique<ae::FileSystemHeaderFacility>(std::string(""));
             return fs;
           }
 #endif  // AE_SUPPORT_REGISTRATION
       }
 #if defined AE_DISTILLATION
-          .Adapter([](ae::Ptr<ae::Domain> const& domain,
+          .Adapter([](ae::Domain* domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = domain->CreateObj<ae::Esp32WifiAdapter>(

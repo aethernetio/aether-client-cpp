@@ -28,8 +28,7 @@
 namespace ae {
 class AdapterFactory {
  public:
-  static Adapter::ptr Create(Ptr<Domain> const& domain,
-                             Aether::ptr const& aether);
+  static Adapter::ptr Create(Domain* domain, Aether::ptr const& aether);
 };
 }  // namespace ae
 #endif

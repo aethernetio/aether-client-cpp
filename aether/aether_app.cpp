@@ -45,7 +45,7 @@ Ptr<AetherApp> AetherApp::Construct(AetherAppConstructor&& constructor) {
 #if defined AE_DISTILLATION
   auto adapter = constructor.adapter_
                      ? std::move(constructor.adapter_)
-                     : AdapterFactory::Create(app->domain_, app->aether_);
+                     : AdapterFactory::Create(app->domain_.get(), app->aether_);
   adapter.SetFlags(ae::ObjFlags::kUnloadedByDefault);
   app->aether_->adapter_factories.emplace_back(adapter);
   app->aether_->cloud_prefab->set_adapter(adapter);
