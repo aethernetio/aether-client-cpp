@@ -18,6 +18,7 @@
 #define AETHER_TRANSPORT_LOW_LEVEL_TCP_SOCKET_PACKET_QUEUE_MANAGER_H_
 
 #include <queue>
+#include <mutex>
 #include <type_traits>
 
 #include "aether/actions/action_view.h"
@@ -37,9 +38,11 @@ class SocketPacketQueueManager {
 
   ActionView<SocketPacketSendAction> AddPacket(
       TSocketPacketSendAction&& packet_send_action) {
+    auto lock = std::unique_lock{queue_lock_};
     auto view = actions_.Add(std::move(packet_send_action));
     queue_.emplace(view);
     if (current_ == nullptr) {
+      lock.unlock();
       Send();
     }
     return view;
@@ -47,6 +50,7 @@ class SocketPacketQueueManager {
 
   // Triggers send on queued action
   void Send() {
+    auto lock = std::lock_guard{queue_lock_};
     while (!queue_.empty()) {
       current_ = &queue_.front();
       if (*current_) {
@@ -66,6 +70,7 @@ class SocketPacketQueueManager {
   bool empty() const { return queue_.empty(); }
 
  private:
+  std::mutex queue_lock_;
   ActionStore<TSocketPacketSendAction> actions_;
   std::queue<ActionView<TSocketPacketSendAction>> queue_;
   ActionView<TSocketPacketSendAction>* current_ = nullptr;

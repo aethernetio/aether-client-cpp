@@ -162,9 +162,10 @@ void LwipTcpTransport::ConnectionAction::Connect() {
 }
 
 LwipTcpTransport::LwipTcpPacketSendAction::LwipTcpPacketSendAction(
-    ActionContext action_context, int socket, DataBuffer data,
-    TimePoint current_time)
+    ActionContext action_context, std::mutex &socket_lock, int socket,
+    DataBuffer data, TimePoint current_time)
     : SocketPacketSendAction{action_context},
+      socket_lock_{&socket_lock},
       socket_{socket},
       data_{data},
       current_time_{current_time},
@@ -174,6 +175,8 @@ LwipTcpTransport::LwipTcpPacketSendAction::LwipTcpPacketSendAction(
 }
 
 void LwipTcpTransport::LwipTcpPacketSendAction::Send() {
+  auto lock = std::lock_guard{*socket_lock_};
+
   if (state_.get() == State::kQueued) {
     state_.Set(State::kProgress);
   }
@@ -202,7 +205,8 @@ LwipTcpTransport::LwipTcpTransport(ActionContext action_context,
     : action_context_{action_context},
       poller_{std::move(poller)},
       endpoint_{endpoint},
-      connection_info_{} {
+      connection_info_{},
+      read_data_buffer_(LWIP_NETIF_MTU) {
   AE_TELE_DEBUG(TcpTransport);
 }
 
@@ -252,22 +256,38 @@ ActionView<PacketSendAction> LwipTcpTransport::Send(DataBuffer data,
   // copy data with size
   os << data;
 
-  return socket_packet_queue_manager_.AddPacket(LwipTcpPacketSendAction{
-      action_context_, socket_, std::move(packet_data), current_time});
+  return socket_packet_queue_manager_.AddPacket(
+      LwipTcpPacketSendAction{action_context_, socket_lock_, socket_,
+                              std::move(packet_data), current_time});
 }
 
 void LwipTcpTransport::OnConnected(int socket) {
   socket_ = socket;
 
   socket_event_action_ = SocketEventAction{action_context_};
+  socket_error_action_ = SocketEventAction{action_context_};
 
   socket_event_subscription_ = socket_event_action_.SubscribeOnResult(
       [this](auto const &) { OnSocketUpdate(ae::Now()); });
+  socket_error_subscription_ = socket_error_action_.SubscribeOnResult(
+      [this](auto const &) { Disconnect(); });
 
   socket_poll_subscription_ =
       poller_->Add(socket_).Subscribe([this](auto event) {
         if (event.descriptor != socket_) {
           return;
+        }
+        switch (event.event_type) {
+          case EventType::kRead:
+            ReadSocket(Now());
+            break;
+          case EventType::kWrite:
+            socket_packet_queue_manager_.Send();
+            break;
+          default:  // EventType::kError:
+            poller_->Remove(socket_);
+            socket_error_action_.Notify();
+            break;
         }
         // notify about new event on socket
         socket_event_action_.Notify();
@@ -285,37 +305,31 @@ void LwipTcpTransport::OnConnectionFailed() {
 }
 
 void LwipTcpTransport::OnSocketUpdate(TimePoint current_time) {
-  if (socket_ == kInvalidSocket) {
-    return;
-  }
-
-  ReadSocket(current_time);
-
-  socket_packet_queue_manager_.Send();
+  OnDataReceived(current_time);
 }
 
 void LwipTcpTransport::ReadSocket(TimePoint current_time) {
-  DataBuffer data(LWIP_NETIF_MTU);
+  auto lock = std::lock_guard(socket_lock_);
 
-  auto r = recv(socket_, data.data(), data.size(), 0);
-
+  auto r = recv(socket_, read_data_buffer_.data(), read_data_buffer_.size(), 0);
   if (r < 0) {
     if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
       AE_TELED_ERROR("Recv error: {} {}", errno, strerror(errno));
-      Disconnect();
+      poller_->Remove(socket_);
+      socket_error_action_.Notify();
     }
   } else if (r == 0) {  // Connection closed
     AE_TELED_ERROR("Connection closed");
-    Disconnect();
+    poller_->Remove(socket_);
+    socket_error_action_.Notify();
   } else {  // Data received
-    AE_TELE_DEBUG(TcpTransportOnData, "Get data size {}", data.size());
-    data.resize(static_cast<std::size_t>(r));
-    data_packet_collector_.AddData(std::move(data));
-    OnDataReceived(current_time);
+    data_packet_collector_.AddData(read_data_buffer_.data(),
+                                   static_cast<std::size_t>(r));
   }
 }
 
 void LwipTcpTransport::OnDataReceived(TimePoint current_time) {
+  auto lock = std::lock_guard(socket_lock_);
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
     AE_TELE_DEBUG(TcpTransportReceive, "Receive data size {}", data.size());
@@ -324,6 +338,7 @@ void LwipTcpTransport::OnDataReceived(TimePoint current_time) {
 }
 
 void LwipTcpTransport::Disconnect() {
+  auto lock = std::lock_guard(socket_lock_);
   AE_TELE_DEBUG(TcpTransportDisconnect, "Disconnect from {}", endpoint_);
   connection_info_.connection_state = ConnectionState::kDisconnected;
   if (socket_ == kInvalidSocket) {

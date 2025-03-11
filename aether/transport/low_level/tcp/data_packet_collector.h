@@ -44,6 +44,7 @@ struct Packet {
 class StreamDataPacketCollector {
  public:
   // fill packets in queue with provided stream data_buffer
+  void AddData(std::uint8_t const* data, std::size_t size);
   void AddData(DataBuffer data_buffer);
   // pops a packet data if any, else return empty
   std::vector<std::uint8_t> PopPacket();
@@ -51,10 +52,10 @@ class StreamDataPacketCollector {
  private:
   static bool IsPacketComplete(Packet const& packet);
   // return new packet size and data offset to start reading
-  std::pair<std::size_t, std::size_t> GetPacketSize(std::uint8_t* data,
+  std::pair<std::size_t, std::size_t> GetPacketSize(std::uint8_t const* data,
                                                     std::size_t size);
   // return data offset
-  std::size_t WriteToPacket(Packet& packet, std::uint8_t* data,
+  std::size_t WriteToPacket(Packet& packet, std::uint8_t const* data,
                             std::size_t size);
 
   std::queue<Packet> packets_;
