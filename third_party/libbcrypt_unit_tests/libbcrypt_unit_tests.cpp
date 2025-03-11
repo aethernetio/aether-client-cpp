@@ -17,10 +17,11 @@
 #include "libbcrypt_unit_tests.h"
 
 #include <time.h>
+#include <string.h>
 
 #include "third_party/libbcrypt/bcrypt.h"
+
 #include "unity.h"
-#include "string.h"
 
 #define DEBUG_OUT 1
 #define LOG(TAG, ...) {\
@@ -34,7 +35,7 @@
 
 static const char *TAG = "BCRYPT UNITY";
 
-#if DEBUG_OUT==1    
+#if DEBUG_OUT==1
     #define DebugPrint(format, ...) LOG(TAG, format, ##__VA_ARGS__)
 #elif DEBUG_OUT==2
     #define DebugPrint(format, ...) AE_TELED_DEBUG(TAG, format, ##__VA_ARGS__)
