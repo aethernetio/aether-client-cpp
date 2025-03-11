@@ -29,9 +29,6 @@ namespace ae {
 class FreertosPoller : public IPoller {
   AE_OBJECT(FreertosPoller, IPoller, 0)
 
-  static constexpr int kPollingTimeout = -1;
-  static constexpr int kTaskDelay = 1;
-
   FreertosPoller();
 
  public:

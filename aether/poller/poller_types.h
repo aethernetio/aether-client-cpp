@@ -24,7 +24,7 @@
 
 namespace ae {
 enum class EventType : std::uint8_t {
-  kRead,
+  kRead = 1,
   kWrite,
   kError,
 };
