@@ -33,25 +33,28 @@ Packet::Packet(Packet&& other) noexcept
     : mem_buffer{std::move(other.mem_buffer)},
       expected_packet_size{other.expected_packet_size} {}
 
-void StreamDataPacketCollector::AddData(DataBuffer data_buffer) {
+void StreamDataPacketCollector::AddData(std::uint8_t const* data,
+                                        std::size_t size) {
   std::size_t offset{};
 
   // write data to all packets
-  while ((data_buffer.size() - offset) > 0) {
+  while ((size - offset) > 0) {
     if (packets_.empty() || IsPacketComplete(packets_.back())) {
-      auto [size, ofst] = GetPacketSize(data_buffer.data() + offset,
-                                        data_buffer.size() - offset);
+      auto [packet_size, ofst] = GetPacketSize(data + offset, size - offset);
       // no packet yet
-      if (size == 0) {
+      if (packet_size == 0) {
         return;
       }
       offset += ofst;
-      packets_.emplace(size);
+      packets_.emplace(packet_size);
     }
 
-    offset += WriteToPacket(packets_.back(), data_buffer.data() + offset,
-                            data_buffer.size() - offset);
+    offset += WriteToPacket(packets_.back(), data + offset, size - offset);
   }
+}
+
+void StreamDataPacketCollector::AddData(DataBuffer data_buffer) {
+  AddData(data_buffer.data(), data_buffer.size());
 }
 
 std::vector<std::uint8_t> StreamDataPacketCollector::PopPacket() {
@@ -75,7 +78,7 @@ bool StreamDataPacketCollector::IsPacketComplete(Packet const& packet) {
 }
 
 std::pair<std::size_t, std::size_t> StreamDataPacketCollector::GetPacketSize(
-    std::uint8_t* data, std::size_t size) {
+    std::uint8_t const* data, std::size_t size) {
   auto temp_buffer_size = temp_data_buffer_.size();
 
   // use no more than packet size may contain
@@ -102,7 +105,7 @@ std::pair<std::size_t, std::size_t> StreamDataPacketCollector::GetPacketSize(
 }
 
 std::size_t StreamDataPacketCollector::WriteToPacket(Packet& packet,
-                                                     std::uint8_t* data,
+                                                     std::uint8_t const* data,
                                                      std::size_t size) {
   auto avail_cap = packet.mem_buffer.AvailableCapacity();
   auto write_size = avail_cap > static_cast<std::streamsize>(size)

@@ -21,6 +21,7 @@
 
 #  define LWIP_TCP_TRANSPORT_ENABLED 1
 
+#  include <mutex>
 #  include <optional>
 
 #  include "aether/common.h"
@@ -74,12 +75,14 @@ class LwipTcpTransport : public ITransport {
 
   class LwipTcpPacketSendAction : public SocketPacketSendAction {
    public:
-    LwipTcpPacketSendAction(ActionContext action_context, int socket,
+    LwipTcpPacketSendAction(ActionContext action_context,
+                            std::mutex& socket_lock, int socket,
                             DataBuffer data, TimePoint current_time);
 
     void Send() override;
 
    private:
+    std::mutex* socket_lock_;
     int socket_;
     DataBuffer data_;
     TimePoint current_time_;
@@ -124,18 +127,22 @@ class LwipTcpTransport : public ITransport {
   ConnectionSuccessEvent connection_success_event_;
   ConnectionErrorEvent connection_error_event_;
 
+  std::mutex socket_lock_;
   int socket_ = kInvalidSocket;
 
   SocketPacketQueueManager<LwipTcpPacketSendAction>
       socket_packet_queue_manager_;
   StreamDataPacketCollector data_packet_collector_;
+  DataBuffer read_data_buffer_;
 
   std::optional<ConnectionAction> connection_action_;
   SocketEventAction socket_event_action_;
+  SocketEventAction socket_error_action_;
 
   MultiSubscription connection_action_subscriptions_;
   Subscription socket_poll_subscription_;
   Subscription socket_event_subscription_;
+  Subscription socket_error_subscription_;
 };
 
 }  // namespace ae

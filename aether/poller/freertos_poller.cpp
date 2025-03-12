@@ -31,83 +31,159 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
+namespace freertos_poller_internal {
+inline struct sockaddr_in MakeLoopbackAddr() {
+  constexpr char kLoopbackIp[] = "127.0.0.1";
+  struct sockaddr_in loopback_addr;
+  memset(&loopback_addr, 0, sizeof(loopback_addr));
+  loopback_addr.sin_family = AF_INET;
+  loopback_addr.sin_addr.s_addr = inet_addr(kLoopbackIp);
+  loopback_addr.sin_port = htons(66);
+  return loopback_addr;
+}
+
+inline int MakeListenPart() {
+  int l_socket = socket(AF_INET, SOCK_DGRAM, 0);
+  if (l_socket == -1) {
+    AE_TELED_ERROR("Create listen socket failed with {}", errno);
+    assert(false);
+    return -1;
+  }
+  fcntl(l_socket, F_SETFL, O_NONBLOCK);
+  auto const addr = MakeLoopbackAddr();
+  if (bind(l_socket, reinterpret_cast<sockaddr const *>(&addr), sizeof(addr)) !=
+      0) {
+    AE_TELED_ERROR("Bind listen socket failed with {}", errno);
+    close(l_socket);
+    assert(false);
+    return -1;
+  }
+  if (connect(l_socket, reinterpret_cast<sockaddr const *>(&addr),
+              sizeof(addr)) != 0) {
+    AE_TELED_ERROR("Create  socket failed with {}", errno);
+    close(l_socket);
+    assert(false);
+    return -1;
+  }
+  return l_socket;
+}
+
+inline std::array<int, 2> MakePipe() {
+  auto sock = MakeListenPart();
+  return {sock, sock};
+}
+
+inline void WritePipe(std::array<int, 2> const &pipe) {
+  if (pipe[1] != -1) {
+    send(pipe[1], "1", 1, 0);
+  }
+}
+
+inline void ReadPipe(std::array<int, 2> const &pipe) {
+  if (pipe[0] != -1) {
+    std::uint8_t buff[16];
+    auto n = recv(pipe[0], &buff, sizeof(buff), 0);
+    (void)(n);
+  }
+}
+
+inline void ClosePipe(std::array<int, 2> &pipe) {
+  if (pipe[1] != -1) {
+    close(pipe[1]);
+    pipe[1] = -1;
+  }
+  if (pipe[0] != -1) {
+    close(pipe[0]);
+    pipe[0] = -1;
+  }
+}
+}  // namespace freertos_poller_internal
+
 void vTaskFunction(void *pvParameters);
 
 class FreertosPoller::PollWorker {
  public:
-  PollWorker() {
+  PollWorker()
+      : wake_up_pipe_{freertos_poller_internal::MakePipe()},
+        stop_requested_{false} {
+    assert(wake_up_pipe_[0] != -1);
+    assert(wake_up_pipe_[1] != -1);
+
     xTaskCreate(static_cast<void (*)(void *)>(&vTaskFunction), "Poller loop",
                 8192, static_cast<void *>(this), tskIDLE_PRIORITY,
-                &myTaskHandle);
+                &myTaskHandle_);
     AE_TELED_DEBUG("Poll worker was created");
   }
 
   ~PollWorker() {
-    vTaskResume(myTaskHandle);
-    if (myTaskHandle != NULL) {
-      vTaskDelete(myTaskHandle);
+    stop_requested_ = true;
+    freertos_poller_internal::WritePipe(wake_up_pipe_);
+    if (myTaskHandle_ != nullptr) {
+      vTaskDelete(myTaskHandle_);
     }
-    AE_TELED_DEBUG("Poll worker has been destroed");
+    freertos_poller_internal::ClosePipe(wake_up_pipe_);
+    AE_TELED_DEBUG("Poll worker has been destroyed");
   }
 
   [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) {
     auto lock = std::unique_lock(ctl_mutex_);
     AE_TELED_DEBUG("Added descriptor {}", descriptor);
+    freertos_poller_internal::WritePipe(wake_up_pipe_);
     descriptors_.insert(descriptor);
-    vTaskResume(myTaskHandle);
     return OnPollEventSubscriber{poll_event_, std::move(lock)};
   }
 
   void Remove(DescriptorType descriptor) {
     auto lock = std::lock_guard(ctl_mutex_);
+    freertos_poller_internal::WritePipe(wake_up_pipe_);
     descriptors_.erase(descriptor);
     AE_TELED_DEBUG("Removed descriptor {}", descriptor);
-    vTaskResume(myTaskHandle);
   }
 
   void Loop(void) {
+    static constexpr int kPollingTimeout = 16000;
     int res;
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = kTaskDelay;
-    const int timeout = kPollingTimeout;
 
-    xLastWakeTime = xTaskGetTickCount();
-
-    while (1) {
+    while (!stop_requested_) {
       {
         auto lock = std::lock_guard{ctl_mutex_};
-        fds_vector = FillFdsVector(descriptors_);
+        fds_vector_ = FillFdsVector(descriptors_);
       }
-      if (!fds_vector.empty()) {
-        res = lwip_poll(fds_vector.data(), fds_vector.size(), timeout);
-        if (res == -1) {
-          AE_TELED_ERROR("Socket polling has an error {} {}", errno,
-                         strerror(errno));
-          continue;
-        }
+      res = lwip_poll(fds_vector_.data(), fds_vector_.size(), kPollingTimeout);
+      if (res == -1) {
+        AE_TELED_ERROR("Socket polling has an error {} {}", errno,
+                       strerror(errno));
+        continue;
+      } else if (res == 0) {
+        // timeout
+        continue;
+      }
 
-        {
-          auto lock = std::lock_guard{ctl_mutex_};
-          for (auto &v : fds_vector) {
-            for (auto event : FromEpollEvent(v.revents)) {
-              poll_event_.Emit(PollerEvent{v.fd, event});
-            }
+      auto lock = std::lock_guard{ctl_mutex_};
+      for (auto const &v : fds_vector_) {
+        if ((v.fd == wake_up_pipe_[0])) {
+          if ((v.revents & POLLIN) != 0) {
+            freertos_poller_internal::ReadPipe(wake_up_pipe_);
+          }
+        } else {
+          for (auto event : FromEpollEvent(v.revents)) {
+            poll_event_.Emit(PollerEvent{v.fd, event});
           }
         }
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-      } else {
-        vTaskSuspend(myTaskHandle);
       }
     }
   }
 
  private:
-  TaskHandle_t myTaskHandle = nullptr;
-
   std::vector<pollfd> FillFdsVector(std::set<int> const &descriptors) {
     std::vector<pollfd> fds_vector_l;
-    fds_vector_l.reserve(descriptors_.size());
+    fds_vector_l.reserve(descriptors_.size() + 1);
     pollfd fds;
+
+    fds.fd = wake_up_pipe_[0];
+    fds.events = POLLIN;
+    fds.revents = 0;
+    fds_vector_l.push_back(fds);
 
     for (const auto &desc : descriptors) {
       fds.fd = desc;
@@ -121,19 +197,26 @@ class FreertosPoller::PollWorker {
 
   std::vector<EventType> FromEpollEvent(std::uint32_t events) {
     std::vector<EventType> res;
-    res.resize(3);
+    res.reserve(3);
+
     if ((events & POLLIN) != 0) {
       res.push_back(EventType::kRead);
     }
     if ((events & POLLOUT) != 0) {
       res.push_back(EventType::kWrite);
     }
+    if ((events & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+      res.push_back(EventType::kError);
+    }
     return res;
   }
 
+  TaskHandle_t myTaskHandle_ = nullptr;
+  std::array<int, 2> wake_up_pipe_;
+  std::atomic_bool stop_requested_;
+  std::vector<pollfd> fds_vector_;
   OnPollEvent poll_event_;
   std::set<int> descriptors_;
-  std::vector<pollfd> fds_vector;
   std::recursive_mutex ctl_mutex_;
 };
 
