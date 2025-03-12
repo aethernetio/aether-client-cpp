@@ -24,17 +24,6 @@
 #include "aether/tele/levels.h"
 
 namespace ae::tele {
-template <typename T>
-constexpr bool ContainsFlag(std::uint32_t value, T flag) {
-  return (value & static_cast<std::uint32_t>(flag)) ==
-         static_cast<std::uint32_t>(flag);
-}
-
-template <auto flag>
-constexpr bool IsFlagEnabled(std::uint32_t const value) {
-  return AE_TELE_ENABLED && ContainsFlag(value, flag);
-}
-
 template <auto flag>
 constexpr bool IsEnabled(std::initializer_list<decltype(flag)> list) {
   for (auto v : list) {
@@ -64,6 +53,16 @@ constexpr bool IsAll(T const (& /* value */)[Size]) {
 #define _AE_MODULE_CONFIG(MODULE, OPTION)                      \
   (((IsAll(OPTION) && !IsEnabled<MODULE>(OPTION##_EXCLUDE)) || \
     IsEnabled<MODULE>(OPTION)))
+
+#define _AE_LEVEL_MODULE_CONFIG(MODULE, LEVEL)                          \
+  (LEVEL == ae::tele::Level::kDebug                                     \
+       ? _AE_MODULE_CONFIG(MODULE, AE_TELE_DEBUG_MODULES)               \
+       : (LEVEL == ae::tele::Level::kInfo                               \
+              ? _AE_MODULE_CONFIG(MODULE, AE_TELE_INFO_MODULES)         \
+              : (LEVEL == ae::tele::Level::kWarning                     \
+                     ? _AE_MODULE_CONFIG(MODULE, AE_TELE_WARN_MODULES)  \
+                     : /* ae::tele::Level::kError */ _AE_MODULE_CONFIG( \
+                           MODULE, AE_TELE_ERROR_MODULES))))
 
 struct ConfigProvider {
   template <bool count_metrics = true, bool time_metrics = true,
@@ -100,31 +99,33 @@ struct ConfigProvider {
     return TeleConfig<
         //
         // count must be always enabled if metrics enabled
-        _AE_MODULE_CONFIG(module, AE_TELE_METRICS_MODULES),
+        _AE_LEVEL_MODULE_CONFIG(module, level) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_METRICS_MODULES),
         // time metrics
-        _AE_MODULE_CONFIG(module, AE_TELE_METRICS_MODULES) &&
+        _AE_LEVEL_MODULE_CONFIG(module, level) &&
+            _AE_MODULE_CONFIG(module, AE_TELE_METRICS_MODULES) &&
             _AE_MODULE_CONFIG(module, AE_TELE_METRICS_DURATION),
         // index must be always enabled if log enabled
-        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+        _AE_LEVEL_MODULE_CONFIG(module, level) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES),
         // start time
-        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+        _AE_LEVEL_MODULE_CONFIG(module, level) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_TIME_POINT),
         // level and module
-        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+        _AE_LEVEL_MODULE_CONFIG(module, level) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_LEVEL_MODULE),
         // location
-        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+        _AE_LEVEL_MODULE_CONFIG(module, level) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_LOCATION),
         // name
-        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+        _AE_LEVEL_MODULE_CONFIG(module, level) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_NAME),
         // blob
-        IsFlagEnabled<level>(AE_TELE_LOG_LEVELS) &&
+        _AE_LEVEL_MODULE_CONFIG(module, level) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_MODULES) &&
             _AE_MODULE_CONFIG(module, AE_TELE_LOG_BLOB)>{};
   }

@@ -221,12 +221,40 @@
 #endif  // AE_TELE_LOG_MODULES_EXCLUDE
 
 /**
- * \brief Enabled telemetry levels {Debug, Info, Warning, Error} \see
- * tele/levels.h .
+ * \brief Enabled telemetry levels {Debug, Info, Warning, Error} for each module
+ * \see tele/levels.h .
  */
-#ifndef AE_TELE_LOG_LEVELS
-#  define AE_TELE_LOG_LEVELS AE_TELE_LEVELS_ALL
-#endif  // AE_TELE_LOG_LEVELS
+#ifndef AE_TELE_DEBUG_MODULES
+#  define AE_TELE_DEBUG_MODULES AE_ALL
+#endif  // AE_TELE_DEBUG_MODULES
+
+#ifndef AE_TELE_DEBUG_MODULES_EXCLUDE
+#  define AE_TELE_DEBUG_MODULES_EXCLUDE AE_EMPTY_LIST
+#endif  // AE_TELE_DEBUG_MODULES_EXCLUDE
+
+#ifndef AE_TELE_INFO_MODULES
+#  define AE_TELE_INFO_MODULES AE_ALL
+#endif  // AE_TELE_INFO_MODULES
+
+#ifndef AE_TELE_INFO_MODULES_EXCLUDE
+#  define AE_TELE_INFO_MODULES_EXCLUDE AE_EMPTY_LIST
+#endif  // AE_TELE_INFO_MODULES_EXCLUDE
+
+#ifndef AE_TELE_WARN_MODULES
+#  define AE_TELE_WARN_MODULES AE_ALL
+#endif  // AE_TELE_WARN_MODULES
+
+#ifndef AE_TELE_WARN_MODULES_EXCLUDE
+#  define AE_TELE_WARN_MODULES_EXCLUDE AE_EMPTY_LIST
+#endif  // AE_TELE_WARN_MODULES_EXCLUDE
+
+#ifndef AE_TELE_ERROR_MODULES
+#  define AE_TELE_ERROR_MODULES AE_ALL
+#endif  // AE_TELE_ERROR_MODULES
+
+#ifndef AE_TELE_ERROR_MODULES_EXCLUDE
+#  define AE_TELE_ERROR_MODULES_EXCLUDE AE_EMPTY_LIST
+#endif  // AE_TELE_ERROR_MODULES_EXCLUDE
 
 // enable to log telemetry time point
 #ifndef AE_TELE_LOG_TIME_POINT
