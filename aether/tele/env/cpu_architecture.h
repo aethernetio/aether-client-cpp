@@ -61,8 +61,38 @@
 #  endif
 #endif
 
-#if defined ARM || defined __arm__ || __arm64__ || defined _ARM
+#if defined(ARM) || defined(__arm__) || defined(_ARM)
 #  define AE_CPU_TYPE "ARM"
+#elif defined(__ARM_ARCH_2__)
+#  define AE_CPU_TYPE "ARM2";
+#elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_3M__)
+#  define AE_CPU_TYPE "ARM3";
+#elif defined(__ARM_ARCH_4T__) || defined(__TARGET_ARM_4T)
+#  define AE_CPU_TYPE "ARM4T";
+#elif defined(__ARM_ARCH_5_) || defined(__ARM_ARCH_5E_)
+#  define AE_CPU_TYPE "ARM5"
+#elif defined(__ARM_ARCH_6T2_) || defined(__ARM_ARCH_6T2_)
+#  define AE_CPU_TYPE "ARM6T2";
+#elif defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || \
+    defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) ||  \
+    defined(__ARM_ARCH_6ZK__)
+#  define AE_CPU_TYPE "ARM6";
+#elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || \
+    defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) ||  \
+    defined(__ARM_ARCH_7S__)
+#  define AE_CPU_TYPE "ARM7";
+#elif defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || \
+    defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
+#  define AE_CPU_TYPE "ARM7A";
+#elif defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || \
+    defined(__ARM_ARCH_7S__)
+#  define AE_CPU_TYPE "ARM7R";
+#elif defined(__ARM_ARCH_7M__)
+#  define AE_CPU_TYPE "ARM7M";
+#elif defined(__ARM_ARCH_7S__)
+#  define AE_CPU_TYPE "ARM7S";
+#elif defined(__arm64__) || defined(__aarch64__) || defined(_M_ARM64)
+#  define AE_CPU_TYPE "ARM64";
 #endif
 
 #if defined mips || defined __mips__ || defined __MIPS__ || defined _MIPS
