@@ -33,7 +33,7 @@
 #  include "aether/socket_initializer.h"
 #  include "aether/actions/action_context.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/dns/dns_tele.h"
 
 namespace ae {
 class AresImpl {
@@ -70,8 +70,9 @@ class AresImpl {
      * queries */
     if (auto res = ares_init_options(&channel_, &options, optmask);
         res != ARES_SUCCESS) {
-      AE_TELED_ERROR("Failed to initialize ares options: {}",
-                     ares_strerror(res));
+      AE_TELE_ERROR(DnsCAresFailedInitialize,
+                    "Failed to initialize ares options: {}",
+                    ares_strerror(res));
       assert(false);
     }
   }
@@ -89,7 +90,7 @@ class AresImpl {
   ResolveAction& Query(NameAddress const& name_address) {
     static std::uint32_t query_id = 0;
 
-    AE_TELED_DEBUG("Querying host: {}", name_address);
+    AE_TELE_DEBUG(DnsQueryHost, "Querying host: {}", name_address);
 
     auto [qit, _] = active_queries_.emplace(
         query_id++,
@@ -141,9 +142,6 @@ class AresImpl {
     if (it == std::end(opened_sockets_)) {
       return;
     }
-
-    AE_TELED_DEBUG("Socket event {} event {}", event.descriptor,
-                   event.event_type);
     switch (event.event_type) {
       case EventType::kRead:
         ares_process_fd(channel_, event.descriptor, ARES_SOCKET_BAD);
@@ -164,7 +162,8 @@ class AresImpl {
   static void QueryResult(QueryContext& context, int status, int /* timeouts */,
                           struct ares_addrinfo* result) {
     if (status != ARES_SUCCESS) {
-      AE_TELED_ERROR("Ares query error {} {}", status, ares_strerror(status));
+      AE_TELE_ERROR(DnsQueryError, "Ares query error {} {}", status,
+                    ares_strerror(status));
       context.resolve_action.Failed();
       return;
     }
@@ -190,7 +189,7 @@ class AresImpl {
       addr.protocol = context.name_address.protocol;
     }
 
-    AE_TELED_DEBUG("Got addresses {}", addresses);
+    AE_TELE_DEBUG(DnsQuerySuccess, "Got addresses {}", addresses);
     context.resolve_action.SetAddress(std::move(addresses));
   }
 
