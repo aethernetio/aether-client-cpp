@@ -20,7 +20,7 @@
 
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/port/file_systems/file_systems_tele.h"
 
 namespace ae {
 /*
@@ -30,7 +30,6 @@ namespace ae {
  */
 FileSystemRamFacility::FileSystemRamFacility() {
   driver_fs = new DriverHeader();
-  AE_TELED_DEBUG("New FileSystemRam instance created!");
 }
 
 /*
@@ -38,9 +37,7 @@ FileSystemRamFacility::FileSystemRamFacility() {
  * \param[in] void.
  * \return void.
  */
-FileSystemRamFacility::~FileSystemRamFacility() {
-  AE_TELED_DEBUG("FileSystemRam instance deleted!");
-}
+FileSystemRamFacility::~FileSystemRamFacility() {}
 
 std::vector<uint32_t> FileSystemRamFacility::Enumerate(
     const ae::ObjId& obj_id) {
@@ -49,11 +46,10 @@ std::vector<uint32_t> FileSystemRamFacility::Enumerate(
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
     auto& obj_classes = it->second;
-    AE_TELED_DEBUG("Object id={} found!", obj_id.ToString());
     for (const auto& [class_id, _] : obj_classes) {
-      AE_TELED_DEBUG("Add to the classes {}", class_id);
       classes.push_back(class_id);
     }
+    AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
   }
 
   return classes;
@@ -64,11 +60,9 @@ void FileSystemRamFacility::Store(const ae::ObjId& obj_id,
                                   const std::vector<uint8_t>& os) {
   state_[obj_id][class_id][version] = os;
 
-  AE_TELED_DEBUG("Saved state/{}/{}/{} size: {}", std::to_string(version),
-                 obj_id.ToString(), class_id, os.size());
-
-  AE_TELED_DEBUG("Object id={} & class id = {} saved!", obj_id.ToString(),
-                 class_id);
+  AE_TELE_DEBUG(
+      FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), os.size());
 }
 
 void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
@@ -88,22 +82,21 @@ void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
   if (version_it == class_it->second.end()) {
     return;
   }
-
-  AE_TELED_DEBUG("Object id={} & class id = {} version {} loaded!",
-                 obj_id.ToString(), class_id, std::to_string(version));
   is = version_it->second;
 
-  AE_TELED_DEBUG("Loaded state/{}/{}/{} size: {}", std::to_string(version),
-                 obj_id.ToString(), class_id, is.size());
+  AE_TELE_DEBUG(
+      FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), is.size());
 }
 
 void FileSystemRamFacility::Remove(const ae::ObjId& obj_id) {
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
-    AE_TELED_DEBUG("Object id={} removed!", obj_id.ToString());
+    AE_TELE_DEBUG(FsObjRemoved, "Removed object {}", obj_id.ToString());
     state_.erase(it);
   } else {
-    AE_TELED_WARNING("Object id={} not found!", obj_id.ToString());
+    AE_TELE_ERROR(FsRemoveObjIdNoFound, "Object id={} not found!",
+                  obj_id.ToString());
   }
 }
 
