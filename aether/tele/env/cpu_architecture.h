@@ -73,13 +73,19 @@
 #  define AE_CPU_TYPE "ARM5"
 #elif defined(__ARM_ARCH_6T2_) || defined(__ARM_ARCH_6T2_)
 #  define AE_CPU_TYPE "ARM6T2";
-#elif defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) || defined(__ARM_ARCH_6ZK__)
+#elif defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || \
+    defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) ||  \
+    defined(__ARM_ARCH_6ZK__)
 #  define AE_CPU_TYPE "ARM6";
-#elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
+#elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || \
+    defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) ||  \
+    defined(__ARM_ARCH_7S__)
 #  define AE_CPU_TYPE "ARM7";
-#elif defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
+#elif defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || \
+    defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
 #  define AE_CPU_TYPE "ARM7A";
-#elif defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
+#elif defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || \
+    defined(__ARM_ARCH_7S__)
 #  define AE_CPU_TYPE "ARM7R";
 #elif defined(__ARM_ARCH_7M__)
 #  define AE_CPU_TYPE "ARM7M";
