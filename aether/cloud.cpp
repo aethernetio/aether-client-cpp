@@ -33,7 +33,6 @@ void Cloud::AddServer(Server::ptr const& server) {
 
 void Cloud::LoadServer(Server::ptr& server) {
   if (!server) {
-    AE_TELED_DEBUG("Load server with obj id {}", server.GetId().ToString());
     domain_->LoadRoot(server);
     assert(server);
   }

@@ -19,7 +19,9 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kApp, 2);
-AE_TAG_INDEXED(Started, kApp, 256)
+AE_TELE_MODULE(kAether, 2);
+AE_TAG_INDEXED(AetherStarted, kAether, 256)
+AE_TAG(AetherCreated, kAether)
+AE_TAG(AetherDestroyed, kAether)
 
 #endif  // AETHER_AETHER_TELE_H_
