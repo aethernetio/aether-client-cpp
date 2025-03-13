@@ -74,7 +74,7 @@ void tearDown() { trap.Reset(); }
 
 AE_TELE_MODULE(TestObj, 12);
 
-AE_TAG(One, TestObj)
+AE_TAG_INDEXED(One, TestObj, 1)
 AE_TAG(Two, TestObj)
 AE_TAG(Three, TestObj)
 // AE_TAG_INDEXED(Three2, TestObj, 3)  // must not compile
