@@ -62,6 +62,9 @@ class AetherAppConstructor {
         domain_facility_{facility_factory()},
         domain_{make_unique<Domain>(Now(), *domain_facility_)} {
 #if defined AE_DISTILLATION
+    // clean old state
+    domain_facility_->CleanUp();
+
     aether_ = domain_->CreateObj<Aether>(kAether);
     assert(aether_);
 #else
