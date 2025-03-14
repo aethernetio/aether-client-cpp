@@ -125,9 +125,11 @@ void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
   SaveObjData(state_);
 }
 
-void FileSystemHeaderFacility::remove_all() {
+#  if defined AE_DISTILLATION
+void FileSystemHeaderFacility::CleanUp() {
   driver_fs_->DriverHeaderDelete(path_);
 }
+#  endif
 
 void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
 #  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))

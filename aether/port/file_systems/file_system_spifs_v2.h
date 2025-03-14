@@ -26,13 +26,13 @@
 #  include <cstdint>
 
 #  include "aether/obj/obj_id.h"
-#  include "aether/port/file_systems/file_system_base.h"
-#  include "aether/transport/low_level/tcp/data_packet_collector.h"
+#  include "aether/obj/domain.h"
 #  include "aether/transport/data_buffer.h"
+#  include "aether/transport/low_level/tcp/data_packet_collector.h"
 #  include "aether/port/file_systems/drivers/driver_spifs.h"
 
 namespace ae {
-class FileSystemSpiFsV2Facility : public FileSystemBase {
+class FileSystemSpiFsV2Facility : public IDomainFacility {
   using Data = std::vector<std::uint8_t>;
   using VersionData = std::map<std::uint8_t, Data>;
   using ClassData = std::map<std::uint32_t, VersionData>;
@@ -47,7 +47,10 @@ class FileSystemSpiFsV2Facility : public FileSystemBase {
   void Load(const ae::ObjId& obj_id, std::uint32_t class_id,
             std::uint8_t version, std::vector<uint8_t>& is) override;
   void Remove(const ae::ObjId& obj_id) override;
-  void remove_all() override;
+
+#  if defined AE_DISTILLATION
+  void CleanUp() override;
+#  endif
 
  private:
   DriverSpifs* driver_fs;

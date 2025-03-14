@@ -24,10 +24,10 @@
 
 #  define AE_FILE_SYSTEM_STD_ENABLED 1
 
-#  include "aether/port/file_systems/file_system_base.h"
+#  include "aether/obj/domain.h"
 
 namespace ae {
-class FileSystemStdFacility : public FileSystemBase {
+class FileSystemStdFacility : public IDomainFacility {
  public:
   FileSystemStdFacility();
   ~FileSystemStdFacility() override;
@@ -38,7 +38,9 @@ class FileSystemStdFacility : public FileSystemBase {
   void Load(const ae::ObjId& obj_id, std::uint32_t class_id,
             std::uint8_t version, std::vector<uint8_t>& is) override;
   void Remove(const ae::ObjId& obj_id) override;
-  void remove_all() override;
+#  if defined AE_DISTILLATION
+  void CleanUp() override;
+#  endif
 };
 }  // namespace ae
 
