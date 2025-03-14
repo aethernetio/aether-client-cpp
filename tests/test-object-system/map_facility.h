@@ -56,7 +56,9 @@ class MapFacility : public IDomainFacility {
 
   void Remove(const ObjId& obj_id) override { map_.erase(obj_id.id()); }
 
-  void Clear() { map_.clear(); }
+#if defined AE_DISTILLATION
+  void CleanUp() override { map_.clear(); }
+#endif
 };
 }  // namespace ae
 
