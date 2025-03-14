@@ -33,7 +33,7 @@
 #include "aether/methods/client_api/client_safe_api.h"
 #include "aether/methods/work_server_api/authorized_api.h"
 
-#include "aether/tele/tele.h"
+#include "aether/client_connections/client_connections_tele.h"
 
 namespace ae {
 namespace _internal {
@@ -89,7 +89,7 @@ ClientToServerStream::ClientToServerStream(
     ActionContext action_context, Ptr<Client> const& client, ServerId server_id,
     std::unique_ptr<ByteStream> server_stream)
     : action_context_{action_context}, client_{client}, server_id_{server_id} {
-  AE_TELED_DEBUG("Create ClientToServerStreamGate");
+  AE_TELE_INFO(ClientServerStreamCreate, "Create ClientToServerStreamGate");
 
   auto stream_id = StreamIdGenerator::GetNextClientStreamId();
 
@@ -125,15 +125,4 @@ ClientToServerStream::InGate& ClientToServerStream::in() {
 }
 
 void ClientToServerStream::LinkOut(OutGate& /* out */) { assert(false); }
-
-void ClientToServerStream::OnConnected() {
-  AE_TELED_INFO("Connected to server");
-  connected_event_.Emit();
-}
-
-void ClientToServerStream::OnDisconnected() {
-  AE_TELED_INFO("Server connection lost");
-  connection_error_event_.Emit();
-}
-
 }  // namespace ae

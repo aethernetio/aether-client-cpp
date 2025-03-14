@@ -24,7 +24,7 @@
 #include "aether/client_connections/client_cloud_connection.h"
 #include "aether/client_connections/client_connection_manager.h"
 
-#include "aether/tele/tele.h"
+#include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
 GetClientCloudConnection::GetClientCloudConnection(
@@ -43,11 +43,11 @@ GetClientCloudConnection::GetClientCloudConnection(
       state_{State::kTryCache},
       state_changed_subscription_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {
-  AE_TELED_DEBUG("GetClientCloudConnection()");
+  AE_TELE_DEBUG(kGetClientCloudConnection, "GetClientCloudConnection created");
 }
 
 GetClientCloudConnection::~GetClientCloudConnection() {
-  AE_TELED_DEBUG("~GetClientCloudConnection");
+  AE_TELE_DEBUG(kGetClientCloudConnectionDestroyed);
 }
 
 TimePoint GetClientCloudConnection::Update(TimePoint current_time) {
@@ -102,14 +102,14 @@ void GetClientCloudConnection::TryCache(TimePoint /* current_time */) {
       AsyncForLoop<RcPtr<ClientServerConnection>>::Construct(
           server_connection_selector_,
           [this]() { return server_connection_selector_.GetConnection(); });
-
   state_ = State::kSelectConnection;
 }
 
 void GetClientCloudConnection::SelectConnection(TimePoint /* current_time */) {
   if (server_connection_ = connection_selection_loop_->Update();
       !server_connection_) {
-    AE_TELED_ERROR("Server connection list is over");
+    AE_TELE_ERROR(kGetClientCloudConnectionServerListIsOver,
+                  "Server connection list is over");
     state_ = State::kFailed;
     return;
   }
@@ -143,10 +143,8 @@ void GetClientCloudConnection::GetCloud(TimePoint /* current_time */) {
       action_context_, server_connection_->server_stream(), client_uid_);
 
   get_client_cloud_subscriptions_.Push(
-      get_client_cloud_action_->SubscribeOnError([this](auto const&) {
-        AE_TELED_DEBUG("GetClientCloudAction failed");
-        state_ = State::kSelectConnection;
-      }),
+      get_client_cloud_action_->SubscribeOnError(
+          [this](auto const&) { state_ = State::kSelectConnection; }),
       get_client_cloud_action_->SubscribeOnResult(
           [this](auto const&) { state_ = State::kCreateConnection; }),
       get_client_cloud_action_->SubscribeOnStop(

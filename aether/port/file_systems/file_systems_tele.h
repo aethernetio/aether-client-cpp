@@ -14,14 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_AETHER_TELE_H_
-#define AETHER_AETHER_TELE_H_
+#ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEMS_TELE_H_
+#define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEMS_TELE_H_
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kAether, 2);
-AE_TAG_INDEXED(AetherStarted, kAether, 256)
-AE_TAG(AetherCreated, kAether)
-AE_TAG(AetherDestroyed, kAether)
+AE_TELE_MODULE(kFileSystems, 10);
 
-#endif  // AETHER_AETHER_TELE_H_
+AE_TAG_INDEXED(FsEnumerated, kFileSystems, 300)
+AE_TAG(FsObjSaved, kFileSystems)
+AE_TAG(FsObjLoaded, kFileSystems)
+AE_TAG(FsLoadObjVersionNotFound, kFileSystems)
+AE_TAG(FsLoadObjIdNoFound, kFileSystems)
+AE_TAG(FsLoadObjClassIdNotFound, kFileSystems)
+AE_TAG(FsEnumObjIdNotFound, kFileSystems)
+AE_TAG(FsRemoveObjIdNoFound, kFileSystems)
+AE_TAG(FsObjRemoved, kFileSystems)
+
+#endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEMS_TELE_H_

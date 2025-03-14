@@ -21,7 +21,7 @@
 #include "aether/api_protocol/packet_builder.h"
 #include "aether/methods/work_server_api/authorized_api.h"
 
-#include "aether/tele/tele.h"
+#include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
 Ping::Ping(ActionContext action_context, Server::ptr const& server,
@@ -36,7 +36,7 @@ Ping::Ping(ActionContext action_context, Server::ptr const& server,
       state_{State::kSendPing},
       state_changed_subscription_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {
-  AE_TELED_INFO("Ping action");
+  AE_TELE_INFO(kPing, "Ping action created, interval {:%S}", ping_interval);
   Tie(read_client_safe_api_gate_, *server_stream_);
 }
 
@@ -70,14 +70,14 @@ TimePoint Ping::Update(TimePoint current_time) {
 }
 
 void Ping::SendPing(TimePoint current_time) {
-  AE_TELED_DEBUG("Send ping");
+  AE_TELE_DEBUG(kPingSend, "Send ping");
   last_ping_time_ = current_time;
   auto packet = PacketBuilder{
       protocol_context_, PackMessage{AuthorizedApi{}, AuthorizedApi::Ping{}}};
   auto write_action =
       server_stream_->in().Write(std::move(packet), current_time);
   write_subscription_ = write_action->SubscribeOnError([this](auto const&) {
-    AE_TELED_ERROR("Ping write error");
+    AE_TELE_ERROR(kPingWriteError, "Ping write error");
     state_ = State::kError;
   });
   // TODO: add wait response

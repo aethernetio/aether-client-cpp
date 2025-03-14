@@ -37,7 +37,7 @@
 #  include "aether/actions/action_context.h"
 #  include "aether/events/multi_subscription.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/dns/dns_tele.h"
 
 namespace ae {
 
@@ -54,6 +54,8 @@ class GethostByNameDnsResolver {
 
   ResolveAction& Query(NameAddress const& name_address) {
     static std::uint32_t query_id = 0;
+
+    AE_TELE_DEBUG(DnsQueryHost, "Querying host: {}", name_address);
 
     auto [qit, _] = active_queries_.emplace(
         query_id++,
@@ -81,7 +83,8 @@ class GethostByNameDnsResolver {
     if (res == ERR_OK) {
       QueryResult(query_context, &cached_addr);
     } else if (res == ERR_ARG) {
-      AE_TELED_ERROR("Dns client not initialized or invalid hostname");
+      AE_TELE_ERROR(DnsQueryError,
+                    "Dns client not initialized or invalid hostname");
       query_context.resolve_action.Failed();
     }
     return query_context.resolve_action;
@@ -106,6 +109,7 @@ class GethostByNameDnsResolver {
     addr.port = query_context.name_address.port;
     addr.protocol = query_context.name_address.protocol;
 
+    AE_TELE_DEBUG(DnsQuerySuccess, "Got addresses {}", addr);
     query_context.resolve_action.SetAddress({std::move(addr)});
   }
 

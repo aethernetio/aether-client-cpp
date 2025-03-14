@@ -21,7 +21,6 @@
 #  error "Include tele.h instead"
 #endif
 
-#include <limits>
 #include <cstdint>
 #include <string_view>
 
@@ -30,19 +29,12 @@
 
 namespace ae::tele {
 namespace tags_internal {
-template <auto Tag, auto N>
-inline constexpr std::int32_t kCounter = kCounter<Tag, N - 1>;
-
-template <auto Tag>
-inline constexpr std::int32_t kCounter<Tag, 0> = 0;
-
 template <auto Tag, std::int32_t N>
 inline constexpr std::uint32_t kAeTagIndexCounter =
-    std::numeric_limits<std::uint32_t>::max();
+    kAeTagIndexCounter<Tag, N - 1>;
 template <auto Tag>
-inline constexpr std::uint32_t kAeTagIndexCounter<Tag, 0> = 0;
-template <auto Tag>
-inline constexpr std::uint32_t kAeTagIndexCounter<Tag, -1> = 0;
+inline constexpr std::uint32_t kAeTagIndexCounter<Tag, 0> =
+    static_cast<std::uint32_t>(0 - 1);
 
 template <auto Tag, std::int32_t... Is>
 constexpr bool IsDuplicatedImpl(std::uint32_t value,
@@ -61,34 +53,26 @@ constexpr bool IsDuplicated(std::uint32_t value) {
 // Telemetry tag
 struct Tag {
   std::uint32_t index;
-  Module module;
+  Module const& module;
   std::string_view name;
 };
 }  // namespace ae::tele
 
 #define _AE_CRC(LITERAL) ::crc32::checksum_from_literal(LITERAL)
+#define _AE_FILE_TAG _AE_CRC(__FILE__)
+#define _AE_INDEX __LINE__
+#define _AE_NEXT_INDEX (__LINE__ + 1)
 
-#define _AE_COUNTER_GET() \
-  ::ae::tele::tags_internal::kCounter<_AE_CRC(__FILE__), __LINE__>
+#define _AE_TAG_INDEX_GET() \
+  ::ae::tele::tags_internal::kAeTagIndexCounter<_AE_FILE_TAG, _AE_INDEX>
 
-#define _AE_COUNTER_INCREMENT()                                                \
-  template <>                                                                  \
-  inline constexpr auto ::ae::tele::tags_internal::kCounter<_AE_CRC(__FILE__), \
-                                                            __LINE__ + 1> =    \
-      _AE_COUNTER_GET() + 1;
-
-#define _AE_TAG_INDEX_GET()                                        \
-  ::ae::tele::tags_internal::kAeTagIndexCounter<_AE_CRC(__FILE__), \
-                                                _AE_COUNTER_GET()>
-
-#define _AE_TAG_INDEX_WRITE(VALUE)                                             \
-  static_assert(                                                               \
-      !::ae::tele::tags_internal::IsDuplicated<_AE_CRC(__FILE__),              \
-                                               _AE_COUNTER_GET() + 1>(VALUE)); \
-  template <>                                                                  \
-  inline constexpr auto ::ae::tele::tags_internal::kAeTagIndexCounter<         \
-      _AE_CRC(__FILE__), _AE_COUNTER_GET() + 1> = std::uint32_t{VALUE};        \
-  _AE_COUNTER_INCREMENT()
+#define _AE_TAG_INDEX_WRITE(VALUE)                                            \
+  static_assert(                                                              \
+      !::ae::tele::tags_internal::IsDuplicated<_AE_FILE_TAG, _AE_NEXT_INDEX>( \
+          VALUE));                                                            \
+  template <>                                                                 \
+  inline constexpr auto ::ae::tele::tags_internal::kAeTagIndexCounter<        \
+      _AE_FILE_TAG, _AE_NEXT_INDEX> = std::uint32_t{VALUE};
 
 /**
  * \brief Register Tag with index specified

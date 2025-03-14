@@ -127,15 +127,15 @@ class Domain {
   ObjPtr<T> LoadCopy(ObjPtr<T> const& ref,
                      ObjId copy_id = ObjId::GenerateUnique());
 
-  template <typename T>
-  void LoadRootImpl(ObjPtr<T>& ptr);
+  ObjPtr<Obj> LoadRootImpl(ObjId obj_id, ObjFlags obj_flags);
+  ObjPtr<Obj> LoadCopyImpl(ObjPtr<Obj> const& ref, ObjId copy_id);
+  void SaveRootImpl(ObjPtr<Obj> const& ptr);
+
   template <typename T>
   void Load(T& obj);
   template <typename T, auto V>
   void LoadVersion(Version<V> version, T& obj);
 
-  template <typename T>
-  void SaveRootImpl(ObjPtr<T> const& ptr);
   template <typename T>
   void Save(T const& obj);
   template <typename T, auto V>
@@ -200,7 +200,7 @@ ObjPtr<TClass> Domain::CreateObj() {
 template <typename T>
 void Domain::LoadRoot(ObjPtr<T>& ptr) {
   cycle_detector_ = {};
-  LoadRootImpl(ptr);
+  ptr = LoadRootImpl(ptr.GetId(), ptr.GetFlags());
 }
 
 template <typename T>
@@ -211,54 +211,7 @@ void Domain::SaveRoot(ObjPtr<T> const& ptr) {
 
 template <typename T>
 ObjPtr<T> Domain::LoadCopy(ObjPtr<T> const& ref, ObjId copy_id) {
-  cycle_detector_ = {};
-
-  auto obj_id = ref.GetId();
-  auto obj_flags = ref.GetFlags();
-  if (!obj_id.IsValid() || !copy_id.IsValid()) {
-    return {};
-  }
-  // if already loaded
-  if (auto o = Find(copy_id); o) {
-    return o;
-  }
-
-  auto* factory = GetMostRelatedFactory(obj_id);
-  if (!factory) {
-    assert(false);
-    return {};
-  }
-
-  ObjPtr<T> ptr = ConstructObj(*factory, copy_id);
-  ptr.SetFlags(obj_flags & ~ObjFlags::kUnloaded &
-               ~ObjFlags::kUnloadedByDefault);
-  // temporary set obj_id
-  ptr.SetId(obj_id);
-  ptr = factory->load(this, ptr);
-  // return new id
-  ptr.SetId(copy_id);
-  return ptr;
-}
-
-template <typename T>
-void Domain::LoadRootImpl(ObjPtr<T>& ptr) {
-  auto obj_id = ptr.GetId();
-  auto obj_flags = ptr.GetFlags();
-
-  if (!obj_id.IsValid()) {
-    return;
-  }
-  // if already loaded
-  if (auto o = Find(obj_id); o) {
-    ptr = std::move(o);
-    return;
-  }
-
-  if (auto* factory = GetMostRelatedFactory(obj_id); factory) {
-    ptr = ConstructObj(*factory, ptr.GetId());
-    ptr.SetFlags(obj_flags & ~ObjFlags::kUnloaded);
-    ptr = factory->load(this, ptr);
-  }
+  return ObjPtr<T>{LoadCopyImpl(ref, copy_id)};
 }
 
 template <typename T>
@@ -300,16 +253,6 @@ void Domain::LoadVersion(Version<V> version, T& obj) {
   } else {
     // load or deserialize object
     reflect::DomainVisit(obj, visitor_func);
-  }
-}
-
-template <typename T>
-void Domain::SaveRootImpl(ObjPtr<T> const& ptr) {
-  if (!ptr) {
-    return;
-  }
-  if (auto* factory = FindClassFactory(*ptr); factory) {
-    factory->save(this, ptr);
   }
 }
 
@@ -360,13 +303,13 @@ imstream<DomainBufferReader<Ib>>& operator>>(
   ObjId id;
   ObjFlags flags;
   is >> id >> flags;
-  ptr.SetId(id);
-  ptr.SetFlags(flags);
   if ((flags & ObjFlags::kUnloadedByDefault) || (flags & ObjFlags::kUnloaded)) {
+    ptr.SetId(id);
+    ptr.SetFlags(flags);
     return is;
   }
 
-  is.ib_.domain->LoadRootImpl(ptr);
+  ptr = is.ib_.domain->LoadRootImpl(id, flags);
   return is;
 }
 

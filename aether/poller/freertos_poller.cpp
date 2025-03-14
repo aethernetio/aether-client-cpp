@@ -28,7 +28,7 @@
 #  include "freertos/task.h"
 #  include "lwip/sockets.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/poller/poller_tele.h"
 
 namespace ae {
 namespace freertos_poller_internal {
@@ -112,7 +112,7 @@ class FreertosPoller::PollWorker {
     xTaskCreate(static_cast<void (*)(void *)>(&vTaskFunction), "Poller loop",
                 8192, static_cast<void *>(this), tskIDLE_PRIORITY,
                 &myTaskHandle_);
-    AE_TELED_DEBUG("Poll worker was created");
+    AE_TELE_DEBUG(PollerWorkerCreate, "Poll worker was created");
   }
 
   ~PollWorker() {
@@ -122,12 +122,12 @@ class FreertosPoller::PollWorker {
       vTaskDelete(myTaskHandle_);
     }
     freertos_poller_internal::ClosePipe(wake_up_pipe_);
-    AE_TELED_DEBUG("Poll worker has been destroyed");
+    AE_TELE_DEBUG(PollerWorkerDestroyed, "Poll worker has been destroyed");
   }
 
   [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) {
     auto lock = std::unique_lock(ctl_mutex_);
-    AE_TELED_DEBUG("Added descriptor {}", descriptor);
+    AE_TELE_DEBUG(PollerAddDescriptor, "Added descriptor {}", descriptor);
     freertos_poller_internal::WritePipe(wake_up_pipe_);
     descriptors_.insert(descriptor);
     return OnPollEventSubscriber{poll_event_, std::move(lock)};
@@ -137,7 +137,7 @@ class FreertosPoller::PollWorker {
     auto lock = std::lock_guard(ctl_mutex_);
     freertos_poller_internal::WritePipe(wake_up_pipe_);
     descriptors_.erase(descriptor);
-    AE_TELED_DEBUG("Removed descriptor {}", descriptor);
+    AE_TELE_DEBUG(PollerRemoveDescriptor, "Removed descriptor {}", descriptor);
   }
 
   void Loop(void) {
@@ -151,8 +151,8 @@ class FreertosPoller::PollWorker {
       }
       res = lwip_poll(fds_vector_.data(), fds_vector_.size(), kPollingTimeout);
       if (res == -1) {
-        AE_TELED_ERROR("Socket polling has an error {} {}", errno,
-                       strerror(errno));
+        AE_TELE_ERROR(PollerWaitFailed, "Polling error {} {}", errno,
+                      strerror(errno));
         continue;
       } else if (res == 0) {
         // timeout

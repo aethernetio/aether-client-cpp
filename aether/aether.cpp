@@ -37,7 +37,7 @@
 #include "aether/dns/dns_c_ares.h"
 #include "aether/dns/esp32_dns_resolve.h"
 
-#include "aether/tele/tele.h"
+#include "aether/aether_tele.h"
 
 namespace ae {
 
@@ -76,10 +76,11 @@ Aether::Aether(Domain* domain) : Obj{domain} {
       domain->CreateObj<Esp32DnsResolver>(GlobalId::kDnsResolver, self_ptr);
   dns_resolver.SetFlags(ObjFlags::kUnloadedByDefault);
 #  endif
+  AE_TELE_DEBUG(AetherCreated);
 }
 #endif  // AE_DISTILLATION
 
-Aether::~Aether() { AE_TELED_DEBUG("Destroy Aether"); }
+Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
 #if AE_SUPPORT_REGISTRATION
 ActionView<Registration> Aether::RegisterClient(Uid parent_uid) {

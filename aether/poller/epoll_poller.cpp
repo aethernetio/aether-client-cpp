@@ -29,8 +29,9 @@
 #  include <cerrno>
 #  include <cstring>
 
-#  include "aether/tele/tele.h"
 #  include "aether/events/events.h"
+
+#  include "aether/poller/poller_tele.h"
 
 namespace ae {
 
@@ -45,6 +46,7 @@ class EpollPoller::PollWorker {
       : wake_up_pipe_{WakeUpPipe()},
         epoll_fd_{InitEpoll()},
         thread_(&PollWorker::Loop, this) {
+    AE_TELE_INFO(PollerWorkerCreate);
     // add wake up pipe to epoll
     wake_up_subscription_ =
         Add(DescriptorType{wake_up_pipe_[kPipeReadEnd]})
@@ -72,14 +74,14 @@ class EpollPoller::PollWorker {
     if (wake_up_pipe_[kPipeReadEnd] != -1) {
       close(wake_up_pipe_[kPipeReadEnd]);
     }
-    AE_TELED_DEBUG("Poll worker destroyed");
+    AE_TELE_INFO(PollerWorkerDestroyed);
   }
 
   [[nodiscard]] EpollPoller::OnPollEventSubscriber Add(
       DescriptorType descriptor) {
     auto lock = std::unique_lock(ctl_mutex_);
 
-    AE_TELED_DEBUG("Add poller descriptor {}", descriptor);
+    AE_TELE_DEBUG(PollerAddDescriptor, "Add poller descriptor {}", descriptor);
     struct epoll_event epoll_event;
     // watch in and out
     epoll_event.events = EPOLLIN | EPOLLOUT;
@@ -91,7 +93,8 @@ class EpollPoller::PollWorker {
 
     auto res = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, descriptor, &epoll_event);
     if (res < 0) {
-      AE_TELED_ERROR("Failed to add to epoll {} {}", errno, strerror(errno));
+      AE_TELE_ERROR(PollerAddFailed, "Failed to add to epoll {} {}", errno,
+                    strerror(errno));
       assert(false);
     }
 
@@ -101,13 +104,13 @@ class EpollPoller::PollWorker {
   void Remove(DescriptorType descriptor) {
     auto lock = std::lock_guard(ctl_mutex_);
 
-    AE_TELED_DEBUG("Remove poller event {}", descriptor);
+    AE_TELE_DEBUG(PollerRemoveDescriptor, "Remove poller event {}", descriptor);
     struct epoll_event epoll_event{};
 
     auto res = epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, descriptor, &epoll_event);
     if (res < 0) {
-      AE_TELED_ERROR("Failed to remove from epoll {} {}", errno,
-                     strerror(errno));
+      AE_TELE_ERROR(PollerRemoveFailed, "Failed to remove from epoll {} {}",
+                    errno, strerror(errno));
       assert(false);
     }
   }
@@ -133,8 +136,9 @@ class EpollPoller::PollWorker {
     auto res = pipe2(pipes.data(), O_CLOEXEC);
     // create pipe to wake up the thread
     if (res < 0) {
-      AE_TELED_ERROR("Failed to create wake up pipe {} {}", errno,
-                     strerror(errno));
+      AE_TELE_ERROR(PollerCreateWakeUpFailed,
+                    "Failed to create wake up pipe {} {}", errno,
+                    strerror(errno));
       assert(false);
       return {-1, -1};
     }
@@ -145,8 +149,6 @@ class EpollPoller::PollWorker {
     if (event.descriptor != wake_up_pipe_[kPipeReadEnd]) {
       return;
     }
-    AE_TELED_DEBUG("Wake up pipe read {} type {}",
-                   static_cast<int>(event.descriptor), event.event_type);
     // drain the pipe
     std::array<char, 1> buf;
     [[maybe_unused]] auto res = read(event.descriptor, buf.data(), buf.size());
@@ -155,7 +157,8 @@ class EpollPoller::PollWorker {
   static int InitEpoll() {
     auto fd = epoll_create1(EPOLL_CLOEXEC);
     if (fd < 0) {
-      AE_TELED_ERROR("Failed to create epoll fd {} {}", errno, strerror(errno));
+      AE_TELE_ERROR(PollerInitFailed, "Failed to create epoll fd {} {}", errno,
+                    strerror(errno));
       assert(false);
     }
     return fd;
@@ -170,7 +173,8 @@ class EpollPoller::PollWorker {
         if (errno == EINTR) {
           continue;
         }
-        AE_TELED_ERROR("Failed to epoll_wait {} {}", errno, strerror(errno));
+        AE_TELE_ERROR(PollerWaitFailed, "Failed to epoll_wait {} {}", errno,
+                      strerror(errno));
         assert(false);
         continue;
       }

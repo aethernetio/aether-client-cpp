@@ -30,7 +30,7 @@ namespace ae {
 AetherAppConstructor::InitTele::InitTele() {
   ae::TeleInit::Init();
   AE_TELE_ENV();
-  AE_TELE_INFO(Started);
+  AE_TELE_INFO(AetherStarted);
   ae::Registry::Log();
 }
 

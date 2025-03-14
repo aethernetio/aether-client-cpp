@@ -82,6 +82,7 @@ void test_createBob() {
   domain.LoadRoot(bob);
   TEST_ASSERT(bob);
   TEST_ASSERT(!bob->foo_prefab);
+  TEST_ASSERT(bob->foo_prefab.GetId().IsValid());
   auto foo = bob->CreateFoo();
   TEST_ASSERT(foo);
   TEST_ASSERT(foo->bar);
