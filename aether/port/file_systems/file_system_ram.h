@@ -23,11 +23,11 @@
 #include <vector>
 #include <cstdint>
 
-#include "aether/port/file_systems/file_system_base.h"
+#include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_header.h"
 
 namespace ae {
-class FileSystemRamFacility : public FileSystemBase {
+class FileSystemRamFacility : public IDomainFacility {
   using Data = std::vector<std::uint8_t>;
   using VersionData = std::map<std::uint8_t, Data>;
   using ClassData = std::map<std::uint32_t, VersionData>;
@@ -43,12 +43,16 @@ class FileSystemRamFacility : public FileSystemBase {
   void Load(const ae::ObjId& obj_id, std::uint32_t class_id,
             std::uint8_t version, std::vector<uint8_t>& is) override;
   void Remove(const ae::ObjId& obj_id) override;
-  void remove_all() override;
+
+#if defined AE_DISTILLATION
+  void CleanUp() override;
+#endif
+
   void out_header();
 
  private:
   ObjClassData state_;
-  DriverHeader *driver_fs;
+  DriverHeader* driver_fs;
 };
 }  // namespace ae
 #endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_ */

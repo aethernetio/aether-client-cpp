@@ -121,10 +121,12 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
   }
 }
 
-void FileSystemStdFacility::remove_all() {
+#  if defined AE_DISTILLATION
+void FileSystemStdFacility::CleanUp() {
   std::filesystem::remove_all("state");
   AE_TELED_DEBUG("Removed all!", 0);
 }
+#  endif
 }  // namespace ae
 
 #endif  // AE_FILE_SYSTEM_STD_ENABLED

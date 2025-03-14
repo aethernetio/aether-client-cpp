@@ -49,7 +49,7 @@ void setUp() {
   InitTeleSink(statistics_trap);
   // start with clean state
   auto fs = ae::FileSystemStdFacility{};
-  fs.remove_all();
+  fs.CleanUp();
 }
 void tearDown() {}
 
@@ -57,7 +57,7 @@ namespace ae::tele::test {
 
 void test_StatisticsRotation() {
   auto fs = ae::FileSystemStdFacility{};
-  fs.remove_all();
+  fs.CleanUp();
   auto domain = ae::Domain{ae::ClockType::now(), fs};
 
   TeleStatistics::ptr tele_statistics = domain.CreateObj<TeleStatistics>(1);
@@ -77,7 +77,7 @@ void test_StatisticsRotation() {
 
 void test_SaveLoadTeleStatistics() {
   auto fs = ae::FileSystemStdFacility{};
-  fs.remove_all();
+  fs.CleanUp();
   auto domain = ae::Domain{ae::ClockType::now(), fs};
 
   AE_TELE_ENV();

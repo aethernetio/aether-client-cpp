@@ -104,12 +104,13 @@ void FileSystemSpiFsV2Facility::Remove(const ae::ObjId& obj_id) {
   }
 }
 
-void FileSystemSpiFsV2Facility::remove_all() {
+#  if defined AE_DISTILLATION
+void FileSystemSpiFsV2Facility::CleanUp() {
   std::string path{"state"};
 
   driver_fs->DriverSpifsDelete(path);
 }
-
+#  endif
 }  // namespace ae
 
 #endif  // AE_FILE_SYSTEM_SPIFS_V2_ENABLED

@@ -126,12 +126,13 @@ void FileSystemSpiFsV1Facility::Remove(const ae::ObjId& obj_id) {
   _SaveObjData(state_);
 }
 
-void FileSystemSpiFsV1Facility::remove_all() {
+#  if defined AE_DISTILLATION
+void FileSystemSpiFsV1Facility::CleanUp() {
   std::string path{"dump"};
 
   driver_fs->DriverSpifsDelete(path);
 }
-
+#  endif
 void FileSystemSpiFsV1Facility::_LoadObjData(ObjClassData& obj_data) {
   auto data_vector = std::vector<std::uint8_t>{};
   std::string path{"dump"};

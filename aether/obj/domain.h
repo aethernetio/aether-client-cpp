@@ -55,6 +55,13 @@ class IDomainFacility {
 
   // TODO: where should we use it?
   virtual void Remove(const ObjId& obj_id) = 0;
+
+#if defined AE_DISTILLATION
+  /**
+   * \brief Clean up the whole saved state
+   */
+  virtual void CleanUp() = 0;
+#endif
 };
 
 struct DomainCycleDetector {

@@ -107,10 +107,12 @@ void FileSystemRamFacility::Remove(const ae::ObjId& obj_id) {
   }
 }
 
-void FileSystemRamFacility::remove_all() {
+#  if defined AE_DISTILLATION
+void FileSystemRamFacility::CleanUp() {
   state_.clear();
   AE_TELED_DEBUG("All objects have been removed!");
 }
+#  endif
 
 void FileSystemRamFacility::out_header() {
   std::string path{"config/file_system_init.h"};
