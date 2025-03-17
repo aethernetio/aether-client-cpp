@@ -15,10 +15,9 @@
  */
 
 #include "aether/adapters/adapter_factory.h"
-#if defined AE_DISTILLATION
 
+#if defined AE_DISTILLATION
 #  include "aether/global_ids.h"
-#  include "aether/adapters/ethernet.h"
 
 namespace ae {
 Adapter::ptr AdapterFactory::Create(Domain* domain, Aether::ptr const& aether) {

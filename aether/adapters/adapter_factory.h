@@ -18,12 +18,15 @@
 #define AETHER_ADAPTERS_ADAPTER_FACTORY_H_
 
 #include "aether/config.h"
-#if defined AE_DISTILLATION
+#include "aether/aether.h"
+#include "aether/obj/domain.h"
+#include "aether/adapters/adapter.h"
 
-#  include "aether/ptr/ptr.h"
-#  include "aether/obj/domain.h"
-#  include "aether/aether.h"
-#  include "aether/adapters/adapter.h"
+// include objects here to prevent its removing by linker
+#include "aether/adapters/ethernet.h"
+#include "aether/adapters/esp32_wifi.h"
+
+#if defined AE_DISTILLATION
 
 namespace ae {
 class AdapterFactory {
