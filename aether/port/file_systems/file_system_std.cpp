@@ -25,7 +25,7 @@
 #  include <filesystem>
 #  include <system_error>
 
-#  include "aether/tele/tele.h"
+#  include "aether/port/file_systems/file_systems_tele.h"
 
 namespace ae {
 
@@ -44,23 +44,25 @@ std::vector<uint32_t> FileSystemStdFacility::Enumerate(
 
   auto state_dir = std::filesystem::path{"state"};
   auto ec = std::error_code{};
-  for (auto version_dir : std::filesystem::directory_iterator(state_dir, ec)) {
+  for (auto const& version_dir :
+       std::filesystem::directory_iterator(state_dir, ec)) {
     auto obj_dir = version_dir.path() / obj_id.ToString();
 
     auto ec2 = std::error_code{};
-    for (auto& f : std::filesystem::directory_iterator(obj_dir, ec2)) {
+    for (auto const& f : std::filesystem::directory_iterator(obj_dir, ec2)) {
       auto enum_class =
           static_cast<uint32_t>(std::stoul(f.path().filename().string()));
-      AE_TELED_DEBUG("Add to the classes {}", enum_class);
       classes.insert(enum_class);
     }
+    AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
     if (ec2) {
       AE_TELED_ERROR("Unable to open directory with error {}", ec2.message());
     }
   }
 
   if (ec) {
-    AE_TELED_ERROR("Unable to open directory with error {}", ec.message());
+    AE_TELE_ERROR(FsEnumObjIdNotFound, "Unable to open directory with error {}",
+                  ec.message());
   }
 
   return std::vector<std::uint32_t>(classes.begin(), classes.end());
@@ -77,9 +79,10 @@ void FileSystemStdFacility::Store(const ae::ObjId& obj_id,
                   std::ios::out | std::ios::binary | std::ios::trunc);
   f.write(reinterpret_cast<const char*>(os.data()),
           static_cast<std::streamsize>(os.size()));
-  AE_TELED_DEBUG("Saved {} size: {}", p.string(), os.size());
-  AE_TELED_DEBUG("Object id={} & class id = {} saved!", obj_id.ToString(),
-                 class_id);
+
+  AE_TELE_DEBUG(
+      FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), os.size());
 }
 
 void FileSystemStdFacility::Load(const ae::ObjId& obj_id,
@@ -90,7 +93,8 @@ void FileSystemStdFacility::Load(const ae::ObjId& obj_id,
   auto p = obj_dir / std::to_string(class_id);
   std::ifstream f(p.c_str(), std::ios::in | std::ios::binary);
   if (!f.good()) {
-    AE_TELED_ERROR("Unable to open file {}", p.string());
+    AE_TELE_ERROR(FsLoadObjClassIdNotFound, "Unable to open file {}",
+                  p.string());
     return;
   }
 
@@ -104,20 +108,26 @@ void FileSystemStdFacility::Load(const ae::ObjId& obj_id,
   is.resize(static_cast<std::size_t>(file_size));
   f.read(reinterpret_cast<char*>(is.data()),
          static_cast<std::streamsize>(is.size()));
-  AE_TELED_DEBUG("Loaded {}!", p.string());
+
+  AE_TELE_DEBUG(
+      FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), is.size());
 }
 
 void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
   std::filesystem::path state_dir = std::filesystem::path{"state"};
 
   auto ec = std::error_code{};
-  for (auto version_dir : std::filesystem::directory_iterator(state_dir, ec)) {
+  for (auto const& version_dir :
+       std::filesystem::directory_iterator(state_dir, ec)) {
     auto obj_dir = version_dir.path() / obj_id.ToString();
     std::filesystem::remove_all(obj_dir);
-    AE_TELED_DEBUG("Removed {}!", obj_dir.string());
+    AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version {}",
+                  obj_id.ToString(), version_dir.path().filename());
   }
   if (ec) {
-    AE_TELED_ERROR("Unable to open directory with error {}", ec.message());
+    AE_TELE_ERROR(FsRemoveObjIdNoFound,
+                  "Unable to open directory with error {}", ec.message());
   }
 }
 

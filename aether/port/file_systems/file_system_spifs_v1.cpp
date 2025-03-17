@@ -24,14 +24,10 @@ namespace ae {
 
 FileSystemSpiFsV1Facility::FileSystemSpiFsV1Facility() {
   driver_fs = new DriverSpifs();
-  AE_TELED_DEBUG("New FileSystemSpiFsV1 instance created!");
   // driver_fs->DriverSpifsFormat();
 }
 
-FileSystemSpiFsV1Facility::~FileSystemSpiFsV1Facility() {
-  delete driver_fs;
-  AE_TELED_DEBUG("FileSystemSpiFsV1 instance deleted!");
-}
+FileSystemSpiFsV1Facility::~FileSystemSpiFsV1Facility() { delete driver_fs; }
 
 std::vector<uint32_t> FileSystemSpiFsV1Facility::Enumerate(
     const ae::ObjId& obj_id) {
@@ -45,12 +41,11 @@ std::vector<uint32_t> FileSystemSpiFsV1Facility::Enumerate(
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
     auto& obj_classes = it->second;
-    AE_TELED_DEBUG("Object id={} found!", obj_id.ToString());
     for (const auto& [class_id, _] : obj_classes) {
-      AE_TELED_DEBUG("Add to the classes {}", class_id);
       classes.push_back(class_id);
     }
   }
+  AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
 
   return classes;
 }
@@ -66,11 +61,9 @@ void FileSystemSpiFsV1Facility::Store(const ae::ObjId& obj_id,
 
   state_[obj_id][class_id][version] = os;
 
-  AE_TELED_DEBUG("Saved state/{}/{}/{} size: {}", std::to_string(version),
-                 obj_id.ToString(), class_id, os.size());
-
-  AE_TELED_DEBUG("Object id={} & class id = {} saved!", obj_id.ToString(),
-                 class_id);
+  AE_TELE_DEBUG(
+      FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), os.size());
 
   // Writing ObjClassData
   _SaveObjData(state_);
@@ -100,12 +93,11 @@ void FileSystemSpiFsV1Facility::Load(const ae::ObjId& obj_id,
     return;
   }
 
-  AE_TELED_DEBUG("Object id={} & class id = {} version {} loaded!",
-                 obj_id.ToString(), class_id, version);
   is = version_it->second;
 
-  AE_TELED_DEBUG("Loaded state/{}/{}/{} size: {}", std::to_string(version),
-                 obj_id.ToString(), class_id, is.size());
+  AE_TELE_DEBUG(
+      FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), is.size());
 }
 
 void FileSystemSpiFsV1Facility::Remove(const ae::ObjId& obj_id) {
@@ -116,10 +108,11 @@ void FileSystemSpiFsV1Facility::Remove(const ae::ObjId& obj_id) {
 
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
-    AE_TELED_DEBUG("Object id={} removed!", obj_id.ToString());
+    AE_TELE_DEBUG(FsObjRemoved, "Object id={} removed!", obj_id.ToString());
     state_.erase(it);
   } else {
-    AE_TELED_WARNING("Object id={} not found!", obj_id.ToString());
+    AE_TELE_WARNING(FsRemoveObjIdNoFound, "Object id={} not found!",
+                    obj_id.ToString());
   }
 
   // Writing ObjClassData

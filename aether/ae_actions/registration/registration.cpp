@@ -58,7 +58,7 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
       sign_pk_{aether_.Lock()->crypto->signs_pk_[kDefaultSignatureMethod]} {
-  AE_TELE_INFO(RegistrationStarted);
+  AE_TELE_INFO(RegisterStarted);
 
   auto aether_ptr = aether_.Lock();
   assert(aether_ptr);
@@ -152,7 +152,8 @@ Client::ptr Registration::client() const { return client_; }
 void Registration::IterateConnection() {
   if (server_channel_stream_ = connection_selection_->Update();
       !server_channel_stream_) {
-    AE_TELED_ERROR("Server connection list is over");
+    AE_TELE_ERROR(RegisterServerConnectionListOver,
+                  "Server connection list is over");
     state_ = State::kRegistrationFailed;
     return;
   }
@@ -169,7 +170,8 @@ void Registration::IterateConnection() {
             if (server_channel_stream_->in().stream_info().is_linked) {
               state_ = State::kConnected;
             } else {
-              AE_TELED_ERROR("Connection error, try next");
+              AE_TELE_WARNING(RegisterConnectionErrorTryNext,
+                              "Connection error, try next");
               state_ = State::kSelectConnection;
             }
           })
@@ -195,7 +197,7 @@ void Registration::Connected(TimePoint current_time) {
 }
 
 void Registration::GetKeys(TimePoint current_time) {
-  AE_TELED_DEBUG("Registration::GetKeys");
+  AE_TELE_INFO(RegisterGetKeys, "GetKeys {:%Y-%m-%d %H:%M:%S}", current_time);
   state_ = State::kWaitKeys;
   auto packet = PacketBuilder{
       protocol_context_,
@@ -218,7 +220,8 @@ void Registration::GetKeys(TimePoint current_time) {
 
 TimePoint Registration::WaitKeys(TimePoint current_time) {
   if (last_request_time_ + response_timeout_ < current_time) {
-    AE_TELED_DEBUG("Registration::WaitKeys: timeout");
+    AE_TELE_WARNING(RegisterWaitKeysTimeout,
+                    "WaitKeys timeout {:%Y-%m-%d %H:%M:%S}", current_time);
     state_ = State::kSelectConnection;
     return current_time;
   }
@@ -227,13 +230,14 @@ TimePoint Registration::WaitKeys(TimePoint current_time) {
 
 void Registration::OnGetKeysResponse(
     MessageEventData<ClientApiRegSafe::GetKeysResponse> const& msg) {
-  AE_TELED_DEBUG("Registration::OnGetKeysResponse");
+  AE_TELE_INFO(RegisterGetKeysResponse);
   auto const& message = msg.message();
 
   auto r = CryptoSignVerify(message.signed_key.sign, message.signed_key.key,
                             sign_pk_);
   if (!r) {
-    AE_TELED_ERROR("Registration::OnGetKeysResponse: Sign verification failed");
+    AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
+                  "Sign verification failed");
     state_ = State::kRegistrationFailed;
     return;
   }
@@ -244,7 +248,7 @@ void Registration::OnGetKeysResponse(
 }
 
 void Registration::RequestPowParams(TimePoint current_time) {
-  AE_TELED_DEBUG("Registration::RequestPowParams");
+  AE_TELE_INFO(RegisterRequestPowParams, "Request proof of work params");
 
   Key secret_key;
   [[maybe_unused]] auto r = CryptoSyncKeygen(secret_key);
@@ -290,14 +294,14 @@ void Registration::RequestPowParams(TimePoint current_time) {
 
 void Registration::OnResponsePowParams(
     MessageEventData<ClientApiRegSafe::ResponseWorkProofData> const& msg) {
-  AE_TELED_DEBUG("Registration::OnResponsePowParams");
+  AE_TELE_INFO(RegisterPowParamsResponse, "Proof of work params response");
   auto const& message = msg.message();
   [[maybe_unused]] auto res =
       CryptoSignVerify(message.pow_params.global_key.sign,
                        message.pow_params.global_key.key, sign_pk_);
   if (!res) {
-    AE_TELED_ERROR(
-        "Registration::OnResponsePowParams: Sign verification failed");
+    AE_TELE_ERROR(RegisterPowParamsVerificationFailed,
+                  "Proof of work params sign verification failed");
     state_ = State::kRegistrationFailed;
     return;
   }
@@ -313,7 +317,7 @@ void Registration::OnResponsePowParams(
 }
 
 void Registration::MakeRegistration(TimePoint current_time) {
-  AE_TELED_DEBUG("Registration::MakeRegistration");
+  AE_TELE_INFO(RegisterMakeRegistration, "Make registration");
 
   // Proof calculation
   // TODO: move into update method to perform in a limited duration.
@@ -326,7 +330,7 @@ void Registration::MakeRegistration(TimePoint current_time) {
   [[maybe_unused]] auto r = CryptoSyncKeygen(master_key_);
   assert(r);
 
-  AE_TELE_DEBUG(ClientRegistered, "Global Pk: {}:{}, Masterkey: {}:{}",
+  AE_TELE_DEBUG(RegisterKeysGenerated, "Global Pk: {}:{}, Masterkey: {}:{}",
                 aether_global_key_.Index(), aether_global_key_,
                 master_key_.Index(), master_key_);
 
@@ -374,8 +378,7 @@ void Registration::MakeRegistration(TimePoint current_time) {
 void Registration::OnConfirmRegistration(
     MessageEventData<ClientGlobalRegApi::ConfirmRegistration> const& msg) {
   auto const& message = msg.message();
-  AE_TELED_DEBUG("Registration::OnConfirmRegistration\n\tservers count {}",
-                 message.registration_response.cloud.size());
+  AE_TELE_INFO(RegisterRegistrationConfirmed, "Registration confirmed");
 
   ephemeral_uid_ = message.registration_response.ephemeral_uid;
   uid_ = message.registration_response.uid;
@@ -385,7 +388,8 @@ void Registration::OnConfirmRegistration(
 }
 
 void Registration::ResolveCloud(TimePoint current_time) {
-  AE_TELED_DEBUG("Registration::ResolveCloud");
+  AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud with {} servers",
+               cloud_.size());
 
   packet_write_action_ = reg_server_stream_->in().Write(
       PacketBuilder{
@@ -413,8 +417,7 @@ void Registration::ResolveCloud(TimePoint current_time) {
 void Registration::OnResolveCloudResponse(
     MessageEventData<ClientApiRegSafe::ResolveServersResponse> const& msg) {
   auto const& message = msg.message();
-  AE_TELED_DEBUG("Registration::OnResolveCloudResponse\n\tservers count {}",
-                 message.servers.size());
+  AE_TELE_INFO(RegisterResolveCloudResponse);
 
   auto aether = aether_.Lock();
   if (!aether) {
@@ -457,9 +460,9 @@ void Registration::OnResolveCloudResponse(
 
   client_->SetConfig(uid_, ephemeral_uid_, master_key_, std::move(new_cloud));
 
-  AE_TELED_DEBUG("Client registered with uid {} and ephemeral uid {}",
-                 client_->uid(), client_->ephemeral_uid());
-
+  AE_TELE_DEBUG(RegisterClientRegistered,
+                "Client registered with uid {} and ephemeral uid {}",
+                client_->uid(), client_->ephemeral_uid());
   state_ = State::kRegistered;
 }
 

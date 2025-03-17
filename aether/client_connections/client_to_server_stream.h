@@ -52,9 +52,6 @@ class ClientToServerStream : public ByteStream {
   void LinkOut(OutGate& out) override;
 
  private:
-  void OnConnected();
-  void OnDisconnected();
-
   ActionContext action_context_;
   PtrView<Client> client_;
   ServerId server_id_;

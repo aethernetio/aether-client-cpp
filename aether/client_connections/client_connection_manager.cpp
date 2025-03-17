@@ -27,7 +27,7 @@
 #include "aether/client_connections/client_to_server_stream.h"
 #include "aether/client_connections/iserver_connection_factory.h"
 
-#include "aether/tele/tele.h"
+#include "aether/client_connections/client_connections_tele.h"
 
 namespace ae {
 namespace ccm_internal {
@@ -60,10 +60,10 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
     auto adapter = adapter_.Lock();
     auto client = client_.Lock();
     if (!aether || !adapter || !client) {
-      AE_TELED_ERROR(
-          "Unable to create connection, aether or adapter or client is null {} "
-          "{} {} ",
-          !!aether, !!adapter, !!client);
+      AE_TELE_ERROR(ClientConnectionManagerUnableCreateClientServerConnection,
+                    "Unable to create connection, aether {} or adapter {} or "
+                    "client {} is null",
+                    !!aether, !!adapter, !!client);
       assert(false);
       return {};
     }
@@ -101,8 +101,9 @@ ClientConnectionManager::ClientConnectionManager(ObjPtr<Aether> aether,
 }
 
 Ptr<ClientConnection> ClientConnectionManager::GetClientConnection() {
-  AE_TELED_DEBUG("GetClientConnection to self client {}",
-                 client_.as<Client>()->uid());
+  AE_TELE_DEBUG(ClientConnectionManagerSelfCloudConnection,
+                "GetClientConnection to self client {}",
+                client_.as<Client>()->uid());
 
   auto cache = cloud_cache_.GetCache(client_.as<Client>()->uid());
   if (!cache) {
@@ -118,7 +119,8 @@ Ptr<ClientConnection> ClientConnectionManager::GetClientConnection() {
 
 ActionView<GetClientCloudConnection>
 ClientConnectionManager::GetClientConnection(Uid client_uid) {
-  AE_TELED_DEBUG("GetClientCloudConnection to another client {}", client_uid);
+  AE_TELE_DEBUG(ClientConnectionManagerUidCloudConnection,
+                "GetClientCloudConnection to another client {}", client_uid);
 
   auto aether = Ptr<Aether>{aether_};
   auto action_context = ActionContext{*aether->action_processor};

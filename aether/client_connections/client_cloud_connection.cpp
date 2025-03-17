@@ -19,7 +19,7 @@
 #include "aether/stream_api/one_gate_stream.h"
 #include "aether/server_list/no_filter_server_list_policy.h"
 
-#include "aether/tele/tele.h"
+#include "aether/client_connections/client_connections_tele.h"
 
 namespace ae {
 ClientCloudConnection::ClientCloudConnection(
@@ -43,8 +43,9 @@ void ClientCloudConnection::Connect() {
 
 std::unique_ptr<ByteStream> ClientCloudConnection::CreateStream(
     Uid destination_uid, StreamId stream_id) {
-  AE_TELED_DEBUG("CreateStream destination uid {}, stream id {}",
-                 destination_uid, static_cast<int>(stream_id));
+  AE_TELE_DEBUG(CloudClientConnStreamCreate,
+                "CreateStream destination uid {}, stream id {}",
+                destination_uid, static_cast<int>(stream_id));
   assert(server_connection_);
 
   auto gate_it = gates_.find(destination_uid);
@@ -72,8 +73,8 @@ ClientCloudConnection::new_stream_event() {
 }
 
 void ClientCloudConnection::CloseStream(Uid uid, StreamId stream_id) {
-  AE_TELED_DEBUG("Close stream uid {}, stream id {}", uid,
-                 static_cast<int>(stream_id));
+  AE_TELE_DEBUG(CloudClientConnStreamClose, "Close stream uid {}, stream id {}",
+                uid, static_cast<int>(stream_id));
   auto it = gates_.find(uid);
   if (it == std::end(gates_)) {
     return;
@@ -134,7 +135,7 @@ void ClientCloudConnection::OnConnectionError() {
 }
 
 void ClientCloudConnection::NewStream(Uid uid, ByteStream& stream) {
-  AE_TELED_DEBUG("New stream for uid {}", uid);
+  AE_TELE_DEBUG(CloudClientNewStream, "New stream for uid {}", uid);
 
   auto gate_it = gates_.find(uid);
   if (gate_it != std::end(gates_)) {

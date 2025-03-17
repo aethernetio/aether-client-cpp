@@ -124,4 +124,62 @@ Factory* Domain::FindClassFactory(Obj const& obj) {
   return registry_.FindFactory(obj.GetClassId());
 }
 
+ObjPtr<Obj> Domain::LoadRootImpl(ObjId obj_id, ObjFlags obj_flags) {
+  if (!obj_id.IsValid()) {
+    return {};
+  }
+  // if already loaded
+  if (auto obj = Find(obj_id); obj) {
+    return obj;
+  }
+
+  auto* factory = GetMostRelatedFactory(obj_id);
+  if (factory == nullptr) {
+    return {};
+  }
+
+  auto ptr = ConstructObj(*factory, obj_id);
+  ptr.SetFlags(obj_flags & ~ObjFlags::kUnloaded);
+  ptr = factory->load(this, ptr);
+  return ptr;
+}
+
+void Domain::SaveRootImpl(ObjPtr<Obj> const& ptr) {
+  if (!ptr) {
+    return;
+  }
+  if (auto* factory = FindClassFactory(*ptr); factory) {
+    factory->save(this, ptr);
+  }
+}
+
+ObjPtr<Obj> Domain::LoadCopyImpl(ObjPtr<Obj> const& ref, ObjId copy_id) {
+  cycle_detector_ = {};
+
+  auto obj_id = ref.GetId();
+  auto obj_flags = ref.GetFlags();
+  if (!obj_id.IsValid() || !copy_id.IsValid()) {
+    return {};
+  }
+  // if already loaded
+  if (auto obj = Find(copy_id); obj) {
+    return obj;
+  }
+
+  auto* factory = GetMostRelatedFactory(obj_id);
+  if (factory == nullptr) {
+    assert(false);
+    return {};
+  }
+
+  auto ptr = ConstructObj(*factory, copy_id);
+  ptr.SetFlags(obj_flags & ~ObjFlags::kUnloaded &
+               ~ObjFlags::kUnloadedByDefault);
+  // temporary set obj_id
+  ptr.SetId(obj_id);
+  ptr = factory->load(this, ptr);
+  // return new id
+  ptr.SetId(copy_id);
+  return ptr;
+}
 }  // namespace ae

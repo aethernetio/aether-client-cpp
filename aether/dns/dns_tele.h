@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_AETHER_TELE_H_
-#define AETHER_AETHER_TELE_H_
+#ifndef AETHER_DNS_DNS_TELE_H_
+#define AETHER_DNS_DNS_TELE_H_
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kAether, 2);
-AE_TAG_INDEXED(AetherStarted, kAether, 256)
-AE_TAG(AetherCreated, kAether)
-AE_TAG(AetherDestroyed, kAether)
+AE_TELE_MODULE(kDns, 20);
 
-#endif  // AETHER_AETHER_TELE_H_
+AE_TAG_INDEXED(DnsQueryHost, kDns, 80)
+AE_TAG(DnsQueryError, kDns)
+AE_TAG(DnsQuerySuccess, kDns)
+AE_TAG(DnsCAresFailedInitialize, kDns)
+
+#endif  // AETHER_DNS_DNS_TELE_H_
