@@ -1,3 +1,4 @@
+@echo off
 REM Copyright 2024 Aethernet Inc.
 REM
 REM Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,7 @@ REM distributed under the License is distributed on an "AS IS" BASIS,
 REM WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 REM See the License for the specific language governing permissions and
 REM limitations under the License.
+@echo on
 
 git submodule update --force --recursive --init --remote
 git submodule foreach --recursive git reset --hard
