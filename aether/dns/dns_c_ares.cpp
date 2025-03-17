@@ -114,6 +114,7 @@ class AresImpl {
         [](void* arg, auto status, auto timeouts, auto result) {
           auto& query_context = *static_cast<QueryContext*>(arg);
           QueryResult(query_context, status, timeouts, result);
+          ares_freeaddrinfo(result);
         },
         &q_context);
 
