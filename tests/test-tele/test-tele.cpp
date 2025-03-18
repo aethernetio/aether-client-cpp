@@ -55,6 +55,7 @@
 #include "aether/tele/configs/config_provider.h"
 
 #include "aether/tele/traps/proxy_trap.h"
+#include "aether/tele/traps/null_traps.h"
 #include "aether/tele/traps/io_stream_traps.h"
 #include "aether/tele/traps/statistics_trap.h"
 
@@ -175,6 +176,7 @@ struct TeleTrap {
   MetricStream metric_stream(ae::tele::Declaration decl_) {
     return {metric_data_[decl_.index]};
   }
+  NullTrap::NullLock sync() { return {}; }
 };
 
 template <bool Count = true, bool Time = true, bool Index = true,
@@ -227,7 +229,7 @@ void test_TeleConfigurations() {
               Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
               "message {}",     12};
 
-      TEST_ASSERT_EQUAL(16, sizeof(t));
+      TEST_ASSERT_EQUAL(24, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -262,7 +264,7 @@ void test_TeleConfigurations() {
               Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
               "message {}",     12};
 
-      TEST_ASSERT_EQUAL(16, sizeof(t));
+      TEST_ASSERT_EQUAL(24, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -340,7 +342,7 @@ void test_TeleConfigurations() {
               Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
               "message {}",     12};
 
-      TEST_ASSERT_EQUAL(2, sizeof(t));
+      TEST_ASSERT_EQUAL(3, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
