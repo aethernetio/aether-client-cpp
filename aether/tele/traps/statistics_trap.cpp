@@ -155,8 +155,8 @@ StatisticsTrap::LogStream::LogStream(ProxyStatistics<LogStore>&& ls,
       log_writer{vector_writer} {}
 
 StatisticsTrap::LogStream::LogStream(LogStream&& other) noexcept
-    : log_store{std::move(other.log_store)},
-      vector_writer{std::move(other.vector_writer)},
+    : log_store(std::move(other.log_store)),
+      vector_writer(std::move(other.vector_writer)),
       log_writer{vector_writer} {}
 
 StatisticsTrap::LogStream::~LogStream() = default;
@@ -183,8 +183,8 @@ void StatisticsTrap::LogStream::name(std::string_view name) {
 }
 
 StatisticsTrap::MetricStream::MetricStream(ProxyStatistics<MetricsStore>&& ms,
-                                           MetricsStore::Metric& m)
-    : metrics_store{std::move(ms)}, metric{m} {}
+                                           MetricsStore::PackedIndex index)
+    : metrics_store{std::move(ms)}, index{index} {}
 
 StatisticsTrap::MetricStream::MetricStream(MetricStream&& other) noexcept =
     default;
@@ -192,9 +192,12 @@ StatisticsTrap::MetricStream::MetricStream(MetricStream&& other) noexcept =
 StatisticsTrap::MetricStream::~MetricStream() = default;
 
 void StatisticsTrap::MetricStream::add_count(std::uint32_t count) {
-  metric.invocations_count += count;
+  metrics_store->metrics[index].invocations_count += count;
 }
+
 void StatisticsTrap::MetricStream::add_duration(std::uint32_t duration) {
+  auto& metric = metrics_store->metrics[index];
+
   // TODO: check overflow?
   metric.sum_duration += duration;
   metric.max_duration =
@@ -245,14 +248,14 @@ StatisticsTrap::MetricStream StatisticsTrap::metric_stream(
     Declaration const& decl) {
   auto statistics = statistics_store_.Get();
   auto metrics = ProxyStatistics{statistics, statistics->metrics()};
-  auto& m =
-      metrics->metrics[static_cast<MetricsStore::PackedIndex>(decl.index)];
-  return {std::move(metrics), m};
+  return {std::move(metrics), decl.index};
 }
 
 StatisticsTrap::EnvStream StatisticsTrap::env_stream() {
   return {statistics_store_.GetEnvStore()};
 }
+
+std::mutex& StatisticsTrap::sync() { return sync_lock_; }
 
 void StatisticsTrap::MergeStatistics(StatisticsTrap const& newer) {
   statistics_store_.Merge(newer.statistics_store_);

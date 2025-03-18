@@ -17,6 +17,7 @@
 #ifndef AETHER_TELE_TRAPS_IO_STREAM_TRAPS_H_
 #define AETHER_TELE_TRAPS_IO_STREAM_TRAPS_H_
 
+#include <mutex>
 #include <cstdint>
 #include <iostream>
 #include <ostream>
@@ -42,10 +43,16 @@ struct Metric {
 
 struct IoStreamTrap {
   struct MetricsStream {
+    MetricsStream(std::uint32_t index,
+                  std::unordered_map<std::uint32_t, Metric>& metrics_);
+    MetricsStream(MetricsStream&& other) noexcept;
+    ~MetricsStream();
+
     void add_count(std::uint32_t count = 1);
     void add_duration(std::uint32_t duration);
 
-    Metric& metric_;
+    std::uint32_t index_;
+    std::unordered_map<std::uint32_t, Metric>& metrics_;
   };
 
   struct LogStream {
@@ -94,9 +101,11 @@ struct IoStreamTrap {
   LogStream log_stream(Declaration const& decl);
   MetricsStream metric_stream(Declaration const& decl);
   EnvStream env_stream();
+  std::mutex& sync();
 
+  std::mutex sync_lock_;
   std::ostream& stream_;
-  std::unordered_map<std::size_t, Metric> metrics_;
+  std::unordered_map<std::uint32_t, Metric> metrics_;
 };
 
 }  // namespace ae::tele

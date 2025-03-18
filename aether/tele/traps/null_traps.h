@@ -61,6 +61,14 @@ struct NullTrap {
 
   EnvStream env_stream() { return {}; }
 
+  struct NullLock {
+    void lock() {}
+    void unlock() {}
+    bool try_lock() { return true; }
+  };
+
+  NullLock sync() { return {}; }
+
   AE_REFLECT()
 };
 }  // namespace ae::tele

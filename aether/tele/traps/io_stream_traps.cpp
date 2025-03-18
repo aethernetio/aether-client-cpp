@@ -26,25 +26,31 @@
 #include "aether/format/format.h"
 
 namespace ae::tele {
+IoStreamTrap::MetricsStream::MetricsStream(
+    std::uint32_t index, std::unordered_map<std::uint32_t, Metric>& metrics)
+    : index_{index}, metrics_{metrics} {}
+
+IoStreamTrap::MetricsStream::MetricsStream(MetricsStream&& other) noexcept =
+    default;
+IoStreamTrap::MetricsStream::~MetricsStream() = default;
 
 void IoStreamTrap::MetricsStream::add_count(std::uint32_t count) {
-  metric_.invocations_count_ += count;
+  metrics_[index_].invocations_count_ += count;
 }
 
 void IoStreamTrap::MetricsStream::add_duration(std::uint32_t duration) {
-  metric_.max_duration_ = std::max(metric_.max_duration_, duration);
-
-  metric_.sum_duration_ += duration;
-
-  metric_.min_duration_ = std::min(metric_.min_duration_, duration);
+  auto& metric = metrics_[index_];
+  metric.max_duration_ = std::max(metric.max_duration_, duration);
+  metric.sum_duration_ += duration;
+  metric.min_duration_ = std::min(metric.min_duration_, duration);
 }
 
 IoStreamTrap::MetricsStream IoStreamTrap::metric_stream(
     Declaration const& decl) {
-  auto [it, _] = metrics_.emplace(
+  metrics_.emplace(
       decl.index,
       Metric{{}, {}, {}, std::numeric_limits<std::uint32_t>::max()});
-  return MetricsStream{it->second};
+  return MetricsStream{decl.index, metrics_};
 }
 
 IoStreamTrap::IoStreamTrap(std::ostream& stream) : stream_{stream} {}
@@ -157,5 +163,7 @@ void IoStreamTrap::EnvStream::endianness(uint8_t endianness) {
 IoStreamTrap::EnvStream IoStreamTrap::env_stream() {
   return EnvStream{stream_};
 }
+
+std::mutex& IoStreamTrap::sync() { return sync_lock_; }
 
 }  // namespace ae::tele

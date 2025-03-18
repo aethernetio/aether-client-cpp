@@ -19,6 +19,7 @@
 
 #include <map>
 #include <list>
+#include <mutex>
 #include <string>
 #include <vector>
 #include <utility>
@@ -58,12 +59,14 @@ struct MetricsStore {
     PackedValue min_duration;
   };
 
-  using size_type = std::map<PackedIndex, Metric>::size_type;
+  using MetricsMap = std::map<PackedIndex, Metric>;
+  using size_type = MetricsMap::size_type;
+
   size_type Size() const;
 
   AE_REFLECT_MEMBERS(metrics)
 
-  std::map<PackedIndex, Metric> metrics;
+  MetricsMap metrics;
 };
 
 /**
@@ -253,15 +256,16 @@ class StatisticsTrap {
   };
 
   struct MetricStream {
-    MetricStream(ProxyStatistics<MetricsStore>&& ms, MetricsStore::Metric& s);
+    MetricStream(ProxyStatistics<MetricsStore>&& ms,
+                 MetricsStore::PackedIndex index);
     MetricStream(MetricStream&& other) noexcept;
     ~MetricStream();
 
-    void add_count(uint32_t count);
-    void add_duration(uint32_t duration);
+    void add_count(std::uint32_t count);
+    void add_duration(std::uint32_t duration);
 
     ProxyStatistics<MetricsStore> metrics_store;
-    MetricsStore::Metric& metric;
+    MetricsStore::PackedIndex index;
   };
 
   struct EnvStream {
@@ -283,6 +287,7 @@ class StatisticsTrap {
   LogStream log_stream(Declaration const& decl);
   MetricStream metric_stream(Declaration const& decl);
   EnvStream env_stream();
+  std::mutex& sync();
 
   /**
    * \brief Merge newer statistics storage into this
@@ -291,6 +296,7 @@ class StatisticsTrap {
 
   AE_REFLECT_MEMBERS(statistics_store_)
 
+  std::mutex sync_lock_;
   StatisticsStore statistics_store_;
 };
 }  // namespace statistics
