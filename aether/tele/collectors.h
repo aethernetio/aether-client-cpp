@@ -21,6 +21,7 @@
 #  error "Include tele.h instead"
 #endif
 
+#include <mutex>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -110,17 +111,22 @@ template <typename TSink, typename TSinkConfig>
 struct Tele<TSink, TSinkConfig,
             std::enable_if_t<IsAnyTele<TSinkConfig>(), void>> {
   using Sink = TSink;
-  using LogStream =
-      decltype(std::declval<Sink>().trap()->log_stream(Declaration{}));
+  using Sync = decltype(std::declval<Sink>().trap()->sync());
   using MetricStream =
       decltype(std::declval<Sink>().trap()->metric_stream(Declaration{}));
 
   using SinkConfig = TSinkConfig;
 
+  using TimerStore = OptionalStorage<Timer, SinkConfig::kTimeMetrics ||
+                                                SinkConfig::kStartTimeLogs>;
+  using MetricStreamStore =
+      OptionalStorage<MetricStream, IsAnyMetrics<SinkConfig>()>;
+
   constexpr Tele(Sink& sink, Tag const& tag, Level::underlined_t level,
                  char const* file, int line)
       : Tele(sink, Declaration{tag.index, tag.module}) {
     if constexpr (IsAnyLogs<SinkConfig>()) {
+      auto lock = std::unique_lock{stream_sync_};
       auto log_stream =
           sink.trap()->log_stream(Declaration{tag.index, tag.module});
       if constexpr (SinkConfig::kIndexLogs) {
@@ -149,6 +155,7 @@ struct Tele<TSink, TSinkConfig,
                  TArgs const&... args)
       : Tele(sink, Declaration{tag.index, tag.module}) {
     if constexpr (IsAnyLogs<SinkConfig>()) {
+      auto lock = std::lock_guard{stream_sync_};
       auto log_stream =
           sink.trap()->log_stream(Declaration{tag.index, tag.module});
       if constexpr (SinkConfig::kIndexLogs) {
@@ -176,27 +183,26 @@ struct Tele<TSink, TSinkConfig,
 
   ~Tele() {
     if constexpr (SinkConfig::kTimeMetrics) {
+      auto lock = std::lock_guard{stream_sync_};
       metric_stream_->add_duration(timer_->elapsed());
     }
   }
 
  private:
   constexpr Tele(Sink& sink, Declaration const& decl)
-      : timer_{}, metric_stream_{[&sink, &decl] {
+      : stream_sync_{sink.trap()->sync()}, timer_{}, metric_stream_{[&] {
+          auto lock = std::lock_guard{stream_sync_};
           return sink.trap()->metric_stream(decl);
         }} {
     if constexpr (SinkConfig::kCountMetrics) {
+      auto lock = std::lock_guard{stream_sync_};
       metric_stream_->add_count(1);
     }
   }
 
-  /** TODO:
-   * think how to optimize memory for this two fields considering the
-   * alignment
-   */
-  OptionalStorage<Timer, SinkConfig::kTimeMetrics || SinkConfig::kStartTimeLogs>
-      timer_;
-  OptionalStorage<MetricStream, IsAnyMetrics<SinkConfig>()> metric_stream_;
+  Sync stream_sync_;
+  TimerStore timer_;
+  MetricStreamStore metric_stream_;
 };
 }  // namespace ae::tele
 
