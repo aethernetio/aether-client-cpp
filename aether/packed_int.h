@@ -362,6 +362,13 @@ class numeric_limits<ae::Packed<T, Min, MinMaxVal>> {
   static constexpr T min() { return T{0}; }
   static constexpr T max() { return ae::Packed<T, Min, MinMaxVal>::kUpper; }
 };
+
+template <typename T, typename Min, Min MinMaxVal>
+struct hash<ae::Packed<T, Min, MinMaxVal>> {
+  std::size_t operator()(ae::Packed<T, Min, MinMaxVal> const& packed) const {
+    return static_cast<std::size_t>(static_cast<T>(packed));
+  }
+};
 }  // namespace std
 
 #endif  // AETHER_PACKED_INT_H_ */
