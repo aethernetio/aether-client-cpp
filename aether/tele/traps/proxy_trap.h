@@ -145,6 +145,32 @@ class ProxyTrap {
     }
   };
 
+  struct ProxySync {
+    using Trap1Sync = decltype(std::declval<TrapFirst>().sync());
+    using Trap2Sync = decltype(std::declval<TrapSecond>().sync());
+
+    void lock() {
+      sync1.lock();
+      sync2.lock();
+    }
+    void unlock() {
+      sync1.unlock();
+      sync2.unlock();
+    }
+    bool try_lock() {
+      if (sync1.try_lock()) {
+        if (sync2.try_lock()) {
+          return true;
+        }
+        sync1.unlock();
+      }
+      return false;
+    }
+
+    Trap1Sync sync1;
+    Trap2Sync sync2;
+  };
+
   ProxyTrap(RcPtr<TrapFirst> trap1, RcPtr<TrapSecond> trap2)
       : first{std::move(trap1)}, second{std::move(trap2)} {}
 
@@ -160,6 +186,8 @@ class ProxyTrap {
   EnvStream env_stream() {
     return EnvStream{first->env_stream(), second->env_stream()};
   }
+
+  ProxySync sync() { return ProxySync{first->sync(), second->sync()}; }
 
   RcPtr<TrapFirst> first;
   RcPtr<TrapSecond> second;
