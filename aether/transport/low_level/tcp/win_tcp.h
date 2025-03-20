@@ -72,32 +72,29 @@ class WinTcpTransport : public ITransport {
    public:
     enum class State {
       kConnecting,
-      kNotConnected,
+      kWaitConnection,
+      kConnectionUpdate,
+      kConnectionFailed,
       kConnected,
     };
 
-    ConnectionAction(ActionContext action_context,
-                     IpAddressPort ip_address_port);
-
+    ConnectionAction(ActionContext action_context, WinTcpTransport& transport);
     ~ConnectionAction() override;
 
     TimePoint Update(TimePoint current_time) override;
 
-    DescriptorType::Socket get_socket() const;
-
    private:
+    void ConnectionUpdate();
     void Connect();
 
-    IpAddressPort endpoint_;
+    WinTcpTransport* transport_;
     DescriptorType::Socket socket_ = InvalidSocketValue;
     StateMachine<State> state_;
     Subscription state_changed_subscription_;
+    std::shared_ptr<std::mutex> alive_checker_;
   };
 
-  class SocketEventAction : public NotifyAction<SocketEventAction> {
-   public:
-    using NotifyAction::NotifyAction;
-  };
+  using SocketEventAction = NotifyAction<>;
 
   class WinTcpPacketSendAction : public SocketPacketSendAction {
    public:

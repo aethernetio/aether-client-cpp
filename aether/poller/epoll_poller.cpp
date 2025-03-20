@@ -109,9 +109,11 @@ class EpollPoller::PollWorker {
 
     auto res = epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, descriptor, &epoll_event);
     if (res < 0) {
-      AE_TELE_ERROR(PollerRemoveFailed, "Failed to remove from epoll {} {}",
-                    errno, strerror(errno));
-      assert(false);
+      if (errno != ENOENT) {
+        AE_TELE_ERROR(PollerRemoveFailed, "Failed to remove from epoll {} {}",
+                      errno, strerror(errno));
+        assert(false);
+      }
     }
   }
 

@@ -48,7 +48,9 @@ class LwipTcpTransport : public ITransport {
    public:
     enum class State {
       kConnecting,
-      kNotConnected,
+      kWaitConnection,
+      kConnectionUpdate,
+      kConnectionFailed,
       kConnected,
     };
 
@@ -56,38 +58,53 @@ class LwipTcpTransport : public ITransport {
                               LwipTcpTransport& transport);
 
     TimePoint Update(TimePoint current_time) override;
-    int get_socket() const;
-    State get_state() const;
 
    private:
     void Connect();
+    void WaitConnection();
+    void ConnectUpdate();
 
-    IpAddressPort endpoint_;
+    LwipTcpTransport* transport_;
     int socket_ = kInvalidSocket;
     StateMachine<State> state_;
     Subscription state_changed_subscription_;
+    Subscription poller_subscription_;
   };
 
-  class SocketEventAction : public NotifyAction<SocketEventAction> {
-   public:
-    using NotifyAction::NotifyAction;
-  };
+  using SocketEventAction = NotifyAction<>;
 
   class LwipTcpPacketSendAction : public SocketPacketSendAction {
    public:
     LwipTcpPacketSendAction(ActionContext action_context,
-                            std::mutex& socket_lock, int socket,
-                            DataBuffer data, TimePoint current_time);
+                            LwipTcpTransport& transport, DataBuffer data,
+                            TimePoint current_time);
 
     void Send() override;
 
    private:
-    std::mutex* socket_lock_;
-    int socket_;
+    LwipTcpTransport* transport_;
     DataBuffer data_;
     TimePoint current_time_;
     std::size_t sent_offset_ = 0;
     Subscription state_changed_subscription_;
+  };
+
+  class LwipTcpReadAction : public Action<LwipTcpReadAction> {
+   public:
+    LwipTcpReadAction(ActionContext action_context,
+                      LwipTcpTransport& transport);
+
+    TimePoint Update(TimePoint current_time) override;
+    void Read();
+
+   private:
+    void DataReceived(TimePoint current_time);
+
+    LwipTcpTransport* transport_;
+    StreamDataPacketCollector data_packet_collector_;
+    DataBuffer read_buffer_;
+    std::atomic_bool read_event_{};
+    std::atomic_bool error_{};
   };
 
  public:
@@ -109,13 +126,6 @@ class LwipTcpTransport : public ITransport {
   void OnConnected(int socket);
   void OnConnectionFailed();
 
-  void OnSocketUpdate(TimePoint current_time);
-
-  void ReadSocket(TimePoint current_time);
-  void WriteSocket();
-
-  void OnDataReceived(TimePoint current_time);
-
   void Disconnect();
 
   ActionContext action_context_;
@@ -132,16 +142,15 @@ class LwipTcpTransport : public ITransport {
 
   SocketPacketQueueManager<LwipTcpPacketSendAction>
       socket_packet_queue_manager_;
-  StreamDataPacketCollector data_packet_collector_;
-  DataBuffer read_data_buffer_;
+  std::optional<LwipTcpReadAction> read_action_;
 
   std::optional<ConnectionAction> connection_action_;
-  SocketEventAction socket_event_action_;
   SocketEventAction socket_error_action_;
 
-  MultiSubscription connection_action_subscriptions_;
+  MultiSubscription connection_action_subs_;
+  MultiSubscription send_action_subs_;
+  MultiSubscription read_action_subs_;
   Subscription socket_poll_subscription_;
-  Subscription socket_event_subscription_;
   Subscription socket_error_subscription_;
 };
 

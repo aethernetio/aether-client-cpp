@@ -40,7 +40,6 @@ endif()
 # enable doubles in unity tests
 add_compile_definitions("CONFIG_UNITY_ENABLE_DOUBLE")
 
-set(AE_DISTILLATION OFF CACHE BOOL "" FORCE)
 
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/cloud"

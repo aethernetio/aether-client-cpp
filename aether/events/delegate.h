@@ -106,6 +106,13 @@ class Delegate<TRet(TArgs...)> {
       TClass& instance, MethodPtr<Method> const& /* method_ptr */) noexcept
       : instance_{&instance}, v_call_func_{CallClassMember<TClass, Method>} {}
 
+  template <typename TClass, TRet (TClass::*Method)(TArgs...) noexcept>
+  constexpr explicit Delegate(
+      TClass& instance, MethodPtr<Method> const& /* method_ptr */) noexcept
+      : Delegate{instance,
+                 MethodPtr<static_cast<TRet (TClass::*)(TArgs...)>(Method)>{}} {
+  }
+
   // For pointer to const member function
   template <typename TClass, TRet (TClass::*Method)(TArgs...) const>
   constexpr explicit Delegate(
