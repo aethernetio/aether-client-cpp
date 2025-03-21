@@ -30,6 +30,7 @@
 #  include "aether/events/multi_subscription.h"
 
 #  include "aether/poller/poller.h"
+#  include "aether/actions/notify_action.h"
 #  include "aether/actions/action_context.h"
 
 #  include "aether/poller/win_poller.h"  // for WinPollerOverlapped

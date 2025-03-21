@@ -28,6 +28,7 @@
 #  include "aether/common.h"
 #  include "aether/poller/poller.h"
 #  include "aether/actions/action.h"
+#  include "aether/actions/notify_action.h"
 #  include "aether/actions/action_context.h"
 #  include "aether/events/multi_subscription.h"
 
