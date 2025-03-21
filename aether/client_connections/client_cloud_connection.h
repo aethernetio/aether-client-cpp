@@ -24,6 +24,7 @@
 #include "aether/memory.h"
 #include "aether/async_for_loop.h"
 #include "aether/actions/action.h"
+#include "aether/actions/notify_action.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 

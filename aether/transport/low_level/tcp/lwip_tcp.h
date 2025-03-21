@@ -30,6 +30,7 @@
 #  include "aether/events/events.h"
 #  include "aether/events/multi_subscription.h"
 
+#  include "aether/actions/notify_action.h"
 #  include "aether/actions/action_context.h"
 
 #  include "aether/transport/itransport.h"
