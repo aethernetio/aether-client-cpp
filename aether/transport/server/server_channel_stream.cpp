@@ -61,17 +61,21 @@ ServerChannelStream::ServerChannelStream(ObjPtr<Aether> const& aether,
                 address);
           },
           channel_->address)} {
-  connection_subscriptions_.Push(
-      connection_action_->SubscribeOnResult(
-          [this](auto& action) { OnConnected(action); }),
-      connection_action_->SubscribeOnError(
-          [this](auto const&) { OnConnectedFailed(); }),
-      connection_action_->FinishedEvent().Subscribe(
-          [this]() { connection_action_.reset(); }));
+  connection_success_ = connection_action_->SubscribeOnResult(
+      [this](auto& action) { OnConnected(action); }),
+  connection_failed_ = connection_action_->SubscribeOnError(
+      [this](auto const&) { OnConnectedFailed(); }),
+  connection_finished_ = connection_action_->FinishedEvent().Subscribe(
+      [this]() { connection_action_.reset(); });
 }
 
 void ServerChannelStream::OnConnected(ChannelConnectionAction& connection) {
   transport_ = connection.transport();
+  connection_error_ =
+      transport_->ConnectionError()
+          .Subscribe(*this,
+                     MethodPtr<&ServerChannelStream::OnConnectedFailed>{})
+          .Once();
   transport_write_gate_.emplace(action_context_, *transport_);
   Tie(buffer_gate_, *transport_write_gate_);
 }
