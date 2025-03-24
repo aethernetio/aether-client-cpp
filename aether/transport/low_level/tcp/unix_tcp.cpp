@@ -36,12 +36,17 @@
 #  include "aether/transport/transport_tele.h"
 
 namespace ae {
-namespace unix_tcp_internal {
-inline bool SetTcpNoDelay(int sock) {
 // Workaround for BSD and MacOS
 #  if not defined SOL_TCP and defined IPPROTO_TCP
 #    define SOL_TCP IPPROTO_TCP
 #  endif
+
+#  if not defined MSG_NOSIGNAL
+#    define MSG_NOSIGNAL 0
+#  endif
+
+namespace unix_tcp_internal {
+inline bool SetTcpNoDelay(int sock) {
   constexpr int one = 1;
   auto res = setsockopt(sock, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
   if (res == -1) {
@@ -64,25 +69,104 @@ inline bool SetNoSigpipe([[maybe_unused]] int sock) {
 #  endif
   return true;
 }
+
+inline bool SetNonblocking(int sock) {
+  if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
+    AE_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
+    return false;
+  }
+  return true;
+}
+
+struct SockAddr {
+  union {
+#  if AE_SUPPORT_IPV4 == 1
+    struct sockaddr_in ipv4;
+#  endif
+#  if AE_SUPPORT_IPV6 == 1
+    struct sockaddr_in6 ipv6;
+#  endif
+  } data;
+  sockaddr* addr;
+  std::size_t size;
+};
+
+inline SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
+  switch (ip_address_port.ip.version) {
+    case IpAddress::Version::kIpV4:
+#  if AE_SUPPORT_IPV4 == 1
+    {
+      SockAddr sock_addr;
+      sock_addr.addr = reinterpret_cast<sockaddr*>(&sock_addr.data.ipv4);
+      sock_addr.size = sizeof(sock_addr.data.ipv4);
+      auto& addr = sock_addr.data.ipv4;
+
+#    ifndef __unix__
+      addr.sin_len = sizeof(sockaddr_in);
+#    endif  // __unix__
+      addr.sin_family = AF_INET;
+      std::memcpy(&addr.sin_addr.s_addr, ip_address_port.ip.value.ipv4_value,
+                  4);
+      addr.sin_port = ae::SwapToInet(ip_address_port.port);
+
+      return sock_addr;
+    }
+#  else
+    {
+      assert(false);
+      break;
+    }
+#  endif
+    case IpAddress::Version::kIpV6: {
+#  if AE_SUPPORT_IPV6 == 1
+      SockAddr sock_addr;
+      sock_addr.addr = reinterpret_cast<sockaddr*>(&sock_addr.data.ipv6);
+      sock_addr.size = sizeof(sock_addr.data.ipv6);
+      auto& addr = sock_addr.data.ipv6;
+#    ifndef __unix__
+      addr.sin6_len = sizeof(sockaddr_in6);
+#    endif  // __unix__
+      addr.sin6_family = AF_INET;
+      std::memcpy(&addr.sin6_addr, ip_address_port.ip.value.ipv6_value, 16);
+      addr.sin6_port = ae::SwapToInet(ip_address_port.port);
+
+      return sock_addr;
+    }
+#  else
+      {
+        assert(false);
+        break;
+      }
+#  endif
+  }
+  return {};
+}
 }  // namespace unix_tcp_internal
+
+constexpr std::size_t kMtuSelected = 1500;
 
 UnixTcpTransport::ConnectionAction::ConnectionAction(
     ActionContext action_context, UnixTcpTransport& transport)
     : Action{action_context},
-      endpoint_{transport.endpoint_},
-      state_{State::kConnecting} {
-  state_changed_subscription_ =
-      state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+      transport_{&transport},
+      state_{State::kConnecting},
+      state_changed_subscription_{state_.changed_event().Subscribe(
+          [this](auto) { Action::Trigger(); })} {
   Connect();
 }
 
 TimePoint UnixTcpTransport::ConnectionAction::Update(TimePoint current_time) {
   if (state_.changed()) {
     switch (state_.Acquire()) {
+      case State::kWaitConnection:
+        break;
+      case State::kGetConnectionUpdate:
+        ConnectionUpdate();
+        break;
       case State::kConnected:
         Action::Result(*this);
         break;
-      case State::kNotConnected:
+      case State::kConnectionFailed:
         Action::Error(*this);
         break;
       default:
@@ -92,62 +176,108 @@ TimePoint UnixTcpTransport::ConnectionAction::Update(TimePoint current_time) {
   return current_time;
 }
 
-int UnixTcpTransport::ConnectionAction::get_socket() const { return socket_; }
-UnixTcpTransport::ConnectionAction::State
-UnixTcpTransport::ConnectionAction::get_state() const {
-  return state_.get();
-}
-
 void UnixTcpTransport::ConnectionAction::Connect() {
-  AE_TELE_DEBUG(TcpTransportConnect, "Connect to {}", endpoint_);
+  AE_TELE_DEBUG(TcpTransportConnect, "Connect to {}", transport_->endpoint_);
   socket_ = socket(AF_INET, SOCK_STREAM, 0);
   if (socket_ == kInvalidSocket) {
     AE_TELED_ERROR("Socket create error {} {}", errno, strerror(errno));
-    state_.Set(State::kNotConnected);
+    state_.Set(State::kConnectionFailed);
+    return;
+  }
+
+  if (!unix_tcp_internal::SetNonblocking(socket_)) {
+    close(socket_);
+    socket_ = kInvalidSocket;
+    state_.Set(State::kConnectionFailed);
     return;
   }
 
   if (!unix_tcp_internal::SetTcpNoDelay(socket_)) {
     close(socket_);
     socket_ = kInvalidSocket;
-    state_.Set(State::kNotConnected);
+    state_.Set(State::kConnectionFailed);
     return;
   }
 
   if (!unix_tcp_internal::SetNoSigpipe(socket_)) {
     close(socket_);
     socket_ = kInvalidSocket;
-    state_.Set(State::kNotConnected);
+    state_.Set(State::kConnectionFailed);
     return;
   }
 
-  sockaddr_in addr;
-  memset(&addr, 0, sizeof(addr));
-#  ifndef __unix__
-  addr.sin_len = sizeof(addr);
-#  endif  // __unix__
-  addr.sin_family = AF_INET;
-  assert(endpoint_.ip.version == IpAddress::Version::kIpV4);
-  std::memcpy(&addr.sin_addr.s_addr, endpoint_.ip.value.ipv4_value, 4);
-  addr.sin_port = ae::SwapToInet(endpoint_.port);
-
-  auto res = connect(socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+  auto addr = unix_tcp_internal::GetSockAddr(transport_->endpoint_);
+  auto res = connect(socket_, addr.addr, static_cast<socklen_t>(addr.size));
   if (res == -1) {
-    AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
-    close(socket_);
-    socket_ = kInvalidSocket;
-    state_.Set(State::kNotConnected);
+    if ((errno == EAGAIN) || (errno == EINPROGRESS)) {
+      AE_TELED_DEBUG("Wait connection");
+      WaitConnection();
+    } else {
+      AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
+      close(socket_);
+      socket_ = kInvalidSocket;
+      state_ = State::kConnectionFailed;
+    }
     return;
   }
-  AE_TELED_DEBUG("Connected to {}", endpoint_);
-  state_.Set(State::kConnected);
+  AE_TELED_DEBUG("Connected to {}", transport_->endpoint_);
+  transport_->OnConnected(socket_);
+  state_ = State::kConnected;
+}
+
+void UnixTcpTransport::ConnectionAction::WaitConnection() {
+  state_ = State::kWaitConnection;
+
+  auto poller_ptr = transport_->poller_;
+  if (!poller_ptr) {
+    AE_TELED_ERROR("Poller is null");
+    state_ = State::kConnectionFailed;
+    return;
+  }
+
+  poller_subscription_ = poller_ptr->Add(socket_).Subscribe([&](auto event) {
+    if (event.descriptor != socket_) {
+      return;
+    }
+    // remove poller first
+    auto poller_ptr = transport_->poller_;
+    assert(poller_ptr);
+    poller_ptr->Remove(socket_);
+    state_ = State::kGetConnectionUpdate;
+    poller_subscription_.Reset();
+  });
+}
+
+void UnixTcpTransport::ConnectionAction::ConnectionUpdate() {
+  // check socket status
+  int err;
+  socklen_t len = sizeof(len);
+  if (getsockopt(socket_, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err),
+                 &len) != 0) {
+    AE_TELED_ERROR("Getsockopt error {}, {}", errno, strerror(errno));
+    socket_ = kInvalidSocket;
+    close(socket_);
+    state_ = State::kConnectionFailed;
+    return;
+  }
+  if (err != 0) {
+    AE_TELED_ERROR("Connect error {}, {}", err, strerror(err));
+    socket_ = kInvalidSocket;
+    close(socket_);
+    state_ = State::kConnectionFailed;
+    return;
+  }
+
+  AE_TELED_DEBUG("Waited for connection to {}", transport_->endpoint_);
+  transport_->OnConnected(socket_);
+  state_ = State::kConnected;
 }
 
 UnixTcpTransport::UnixPacketSendAction::UnixPacketSendAction(
-    ActionContext action_context, int socket, DataBuffer data,
+    ActionContext action_context, UnixTcpTransport& transport, DataBuffer data,
     TimePoint current_time)
     : SocketPacketSendAction{action_context},
-      socket_{socket},
+      transport_{&transport},
       data_{std::move(data)},
       current_time_{current_time} {
   state_changed_subscription_ =
@@ -155,17 +285,20 @@ UnixTcpTransport::UnixPacketSendAction::UnixPacketSendAction(
 }
 
 void UnixTcpTransport::UnixPacketSendAction::Send() {
+  if (!transport_->socket_lock_.try_lock()) {
+    return;
+  }
+  auto lock = std::lock_guard{transport_->socket_lock_, std::adopt_lock};
+
   if (state_.get() == State::kQueued) {
     state_.Set(State::kProgress);
   }
 
   auto size_to_send = data_.size() - sent_offset_;
-  int flags = {0
-#  if defined __linux__
-               | MSG_NOSIGNAL
-#  endif
-  };
-  auto res = send(socket_, data_.data() + sent_offset_, size_to_send, flags);
+  // add nosignal to prevent throw SIGPIPE and handle it manually
+  int flags = MSG_NOSIGNAL;
+  auto res = send(transport_->socket_, data_.data() + sent_offset_,
+                  size_to_send, flags);
   if ((res >= 0) && (res < size_to_send)) {
     // save remaining data to later write
     sent_offset_ += static_cast<std::size_t>(res);
@@ -178,7 +311,59 @@ void UnixTcpTransport::UnixPacketSendAction::Send() {
     }
     return;
   }
+  AE_TELED_DEBUG("Data was sent");
   state_.Set(State::kSuccess);
+}
+
+UnixTcpTransport::UnixPacketReadAction::UnixPacketReadAction(
+    ActionContext action_context, UnixTcpTransport& transport)
+    : Action{action_context},
+      transport_{&transport},
+      read_buffer_(kMtuSelected) {}
+
+TimePoint UnixTcpTransport::UnixPacketReadAction::Update(
+    TimePoint current_time) {
+  if (read_event_.exchange(false)) {
+    DataReceived(current_time);
+  }
+  if (error_.exchange(false)) {
+    Action::Error(*this);
+  }
+
+  return current_time;
+}
+
+void UnixTcpTransport::UnixPacketReadAction::Read() {
+  auto lock = std::lock_guard{transport_->socket_lock_};
+  while (true) {
+    auto res =
+        recv(transport_->socket_, read_buffer_.data(), read_buffer_.size(), 0);
+    if (res < 0) {
+      // No data
+      if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
+        break;
+      }
+      AE_TELED_ERROR("Recv error {} {}", errno, strerror(errno));
+      error_ = true;
+      break;
+    }
+    data_packet_collector_.AddData(read_buffer_.data(),
+                                   static_cast<std::size_t>(res));
+    read_event_ = true;
+  }
+  if (error_ || read_event_) {
+    Action::Trigger();
+  }
+}
+
+void UnixTcpTransport::UnixPacketReadAction::DataReceived(
+    TimePoint current_time) {
+  auto lock = std::lock_guard{transport_->socket_lock_};
+  for (auto data = data_packet_collector_.PopPacket(); !data.empty();
+       data = data_packet_collector_.PopPacket()) {
+    AE_TELE_DEBUG(TcpTransportReceive, "Receive data size {}", data.size());
+    transport_->data_receive_event_.Emit(data, current_time);
+  }
 }
 
 UnixTcpTransport::UnixTcpTransport(ActionContext action_context,
@@ -199,9 +384,7 @@ void UnixTcpTransport::Connect() {
   connection_info_.connection_state = ConnectionState::kConnecting;
 
   connection_action_.emplace(action_context_, *this);
-  connection_action_subscriptions_.Push(
-      connection_action_->SubscribeOnResult(
-          [this](auto const& action) { OnConnected(action.get_socket()); }),
+  connection_action_subs_.Push(
       connection_action_->SubscribeOnError(
           [this](auto const& /* action */) { OnConnectionFailed(); }),
       connection_action_->FinishedEvent().Subscribe(
@@ -240,32 +423,48 @@ ActionView<PacketSendAction> UnixTcpTransport::Send(DataBuffer data,
 
   auto send_action =
       socket_packet_queue_manager_.AddPacket(UnixPacketSendAction{
-          action_context_, socket_, std::move(packet_data), current_time});
-  send_action_subscriptions_.Push(
-      send_action->SubscribeOnError([this](auto const&) {
-        AE_TELED_ERROR("Send error, disconnect!");
-        Disconnect();
-      }));
+          action_context_, *this, std::move(packet_data), current_time});
+  send_action_subs_.Push(send_action->SubscribeOnError([this](auto const&) {
+    AE_TELED_ERROR("Send error, disconnect!");
+    Disconnect();
+  }));
   return send_action;
 }
 
 void UnixTcpTransport::OnConnected(int socket) {
   connection_info_.connection_state = ConnectionState::kConnected;
-  // TODO: get max packet size from socket
-  connection_info_.max_packet_size = 1500 - 2;  // 2 - for max packet size
+  // 2 - for max packet size
+  connection_info_.max_packet_size = kMtuSelected - 2;
   socket_ = socket;
 
-  socket_event_action_ = SocketEventAction{action_context_};
-  socket_event_subscription_ =
-      socket_event_action_.SubscribeOnResult([this](auto const& /* action */) {
-        // TODO: Get time from action
-        OnSocketEvent(TimePoint::clock::now());
-      });
+  read_action_.emplace(action_context_, *this);
+  read_action_subs_.Push(
+      read_action_->SubscribeOnError([this](auto const& /*action */) {
+        AE_TELED_ERROR("Read error, disconnect!");
+        Disconnect();
+      }),
+      read_action_->FinishedEvent().Subscribe(
+          [this]() { read_action_.reset(); }));
+
+  socket_error_action_ = SocketEventAction{action_context_};
+  socket_error_subscription_ = socket_error_action_.SubscribeOnResult(
+      [this](auto const& /* action */) { Disconnect(); });
 
   socket_poll_subscription_ =
       poller_->Add(socket_).Subscribe([this](auto const& event) {
-        if (event.descriptor == socket_) {
-          socket_event_action_.Notify();
+        if (event.descriptor != socket_) {
+          return;
+        }
+        switch (event.event_type) {
+          case EventType::kRead:
+            ReadSocket();
+            break;
+          case EventType::kWrite:
+            WriteSocket();
+            break;
+          case EventType::kError:
+            ErrorSocket();
+            break;
         }
       });
 
@@ -277,33 +476,7 @@ void UnixTcpTransport::OnConnectionFailed() {
   connection_error_event_.Emit();
 }
 
-void UnixTcpTransport::OnSocketEvent(TimePoint current_time) {
-  if (socket_ == kInvalidSocket) {
-    return;
-  }
-  ReadSocket(current_time);
-  WriteSocket();
-}
-
-void UnixTcpTransport::ReadSocket(TimePoint current_time) {
-  int count;
-  while (ioctl(socket_, FIONREAD, &count) == 0 && count > 0) {
-    DataBuffer data(static_cast<size_t>(count));
-    auto res = recv(socket_, data.data(), static_cast<std::size_t>(count), 0);
-    if (res > 0) {
-      AE_TELE_DEBUG(TcpTransportOnData, "Get data size {}\ndata: {}",
-                    data.size(), data);
-      data_packet_collector_.AddData(std::move(data));
-    } else if (res < 1) {
-      AE_TELED_ERROR("Recv error {} {}", errno, strerror(errno));
-      Disconnect();
-    } else if (res == 0) {
-      AE_TELED_ERROR("Recv 0 while expected {}", count);
-      Disconnect();
-    }
-  }
-  OnDataReceived(current_time);
-}
+void UnixTcpTransport::ReadSocket() { read_action_->Read(); }
 
 void UnixTcpTransport::WriteSocket() {
   if (!socket_packet_queue_manager_.empty()) {
@@ -311,22 +484,31 @@ void UnixTcpTransport::WriteSocket() {
   }
 }
 
-void UnixTcpTransport::OnDataReceived(TimePoint current_time) {
-  for (auto data = data_packet_collector_.PopPacket(); !data.empty();
-       data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG(TcpTransportReceive, "Receive data size {}", data.size());
-    data_receive_event_.Emit(data, current_time);
+void UnixTcpTransport::ErrorSocket() {
+  AE_TELED_ERROR("Socket error");
+  auto lock = std::lock_guard{socket_lock_};
+  socket_error_action_.Notify();
+
+  int err;
+  socklen_t len = sizeof(len);
+  if (getsockopt(socket_, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err),
+                 &len) != 0) {
+    AE_TELED_ERROR("Getsockopt error {}, {}", errno, strerror(errno));
+    return;
   }
+  AE_TELED_ERROR("Socket error {}, {}", err, strerror(err));
 }
 
 void UnixTcpTransport::Disconnect() {
   AE_TELE_DEBUG(TcpTransportDisconnect, "Disconnect from {}", endpoint_);
-  connection_info_.connection_state = ConnectionState::kConnected;
+  connection_info_.connection_state = ConnectionState::kDisconnected;
+  socket_error_subscription_.Reset();
+
+  auto lock = std::lock_guard{socket_lock_};
   if (socket_ == kInvalidSocket) {
     return;
   }
 
-  socket_event_subscription_.Reset();
   poller_->Remove(socket_);
 
   shutdown(socket_, SHUT_RDWR);

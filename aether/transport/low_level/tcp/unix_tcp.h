@@ -22,6 +22,7 @@
 
 #  define UNIX_TCP_TRANSPORT_ENABLED 1
 
+#  include <mutex>
 #  include <optional>
 
 #  include "aether/common.h"
@@ -43,43 +44,62 @@ class UnixTcpTransport : public ITransport {
    public:
     enum class State : std::uint8_t {
       kConnecting,
-      kNotConnected,
+      kWaitConnection,
+      kGetConnectionUpdate,
+      kConnectionFailed,
       kConnected,
     };
 
     ConnectionAction(ActionContext action_context, UnixTcpTransport& transport);
 
     TimePoint Update(TimePoint current_time) override;
-    int get_socket() const;
-    State get_state() const;
 
    private:
     void Connect();
+    void WaitConnection();
+    void ConnectionUpdate();
 
-    IpAddressPort endpoint_;
+    UnixTcpTransport* transport_;
     int socket_ = kInvalidSocket;
     StateMachine<State> state_;
     Subscription state_changed_subscription_;
+    Subscription poller_subscription_;
   };
 
-  class SocketEventAction : public NotifyAction<SocketEventAction> {
-   public:
-    using NotifyAction::NotifyAction;
-  };
+  using SocketEventAction = NotifyAction<>;
 
   class UnixPacketSendAction : public SocketPacketSendAction {
    public:
-    UnixPacketSendAction(ActionContext action_context, int socket,
-                         DataBuffer data, TimePoint current_time);
+    UnixPacketSendAction(ActionContext action_context,
+                         UnixTcpTransport& transport, DataBuffer data,
+                         TimePoint current_time);
 
     void Send() override;
 
    private:
-    int socket_;
+    UnixTcpTransport* transport_;
     DataBuffer data_;
     TimePoint current_time_;
     std::size_t sent_offset_ = 0;
     Subscription state_changed_subscription_;
+  };
+
+  class UnixPacketReadAction : public Action<UnixPacketReadAction> {
+   public:
+    UnixPacketReadAction(ActionContext action_context,
+                         UnixTcpTransport& transport);
+
+    TimePoint Update(TimePoint current_time) override;
+    void Read();
+
+   private:
+    void DataReceived(TimePoint current_time);
+
+    UnixTcpTransport* transport_;
+    StreamDataPacketCollector data_packet_collector_;
+    DataBuffer read_buffer_;
+    std::atomic_bool read_event_{};
+    std::atomic_bool error_{};
   };
 
  public:
@@ -101,12 +121,9 @@ class UnixTcpTransport : public ITransport {
   void OnConnected(int socket);
   void OnConnectionFailed();
 
-  void OnSocketEvent(TimePoint current_time);
-
-  void ReadSocket(TimePoint current_time);
+  void ReadSocket();
   void WriteSocket();
-
-  void OnDataReceived(TimePoint current_time);
+  void ErrorSocket();
 
   void Disconnect();
 
@@ -121,17 +138,18 @@ class UnixTcpTransport : public ITransport {
   ConnectionErrorEvent connection_error_event_;
 
   int socket_ = kInvalidSocket;
+  std::mutex socket_lock_;
 
   SocketPacketQueueManager<UnixPacketSendAction> socket_packet_queue_manager_;
-  StreamDataPacketCollector data_packet_collector_;
-
   std::optional<ConnectionAction> connection_action_;
-  SocketEventAction socket_event_action_;
+  std::optional<UnixPacketReadAction> read_action_;
+  SocketEventAction socket_error_action_;
 
-  MultiSubscription connection_action_subscriptions_;
-  MultiSubscription send_action_subscriptions_;
+  MultiSubscription connection_action_subs_;
+  MultiSubscription send_action_subs_;
+  MultiSubscription read_action_subs_;
   Subscription socket_poll_subscription_;
-  Subscription socket_event_subscription_;
+  Subscription socket_error_subscription_;
 };
 
 }  // namespace ae

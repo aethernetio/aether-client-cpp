@@ -498,6 +498,7 @@ std::unique_ptr<ByteStream> Registration::CreateGlobalRegServerStream(
     std::unique_ptr<ISyncKeyProvider> global_sync_key_provider) {
   auto tied_stream = make_unique<TiedStream>(
       ProtocolReadGate{protocol_context_, ClientGlobalRegApi{}},
+      DebugGate{"GlobalRegServer write {}", "GlobalRegServer read {}"},
       CryptoGate{make_unique<AsyncEncryptProvider>(
                      std::move(global_async_key_provider)),
                  make_unique<SyncDecryptProvider>(

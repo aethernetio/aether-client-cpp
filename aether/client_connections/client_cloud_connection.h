@@ -41,9 +41,7 @@ class Cloud;
  * \brief The simplest cloud connection, which connects to one server a time.
  */
 class ClientCloudConnection final : public ClientConnection {
-  class ReconnectNotify : public NotifyAction<ReconnectNotify> {
-    using NotifyAction<ReconnectNotify>::NotifyAction;
-  };
+  using ReconnectNotify = NotifyAction<>;
 
  public:
   ClientCloudConnection(

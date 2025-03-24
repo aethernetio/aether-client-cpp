@@ -32,6 +32,7 @@
 #  include "aether/transport/transport_tele.h"
 
 namespace ae {
+static constexpr auto kBufferMaxSize = 1500;  // bytes
 
 namespace _internal {
 using SockAddrPtr =
@@ -72,27 +73,33 @@ SockAddr MakeAddrInfo(IpAddressPort const& end_point) {
 }  // namespace _internal
 
 WinTcpTransport::ConnectionAction::ConnectionAction(
-    ActionContext action_context, IpAddressPort ip_address_port)
-    : Action{action_context}, endpoint_{std::move(ip_address_port)}, state_{} {
-  state_changed_subscription_ =
-      state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
-  state_.Set(State::kConnecting);
-
-  auto _ = std::async([this]() {
-    // run asynchronously
-    Connect();
-  });
+    ActionContext action_context, WinTcpTransport& transport)
+    : Action{action_context},
+      transport_{&transport},
+      state_{},
+      state_changed_subscription_{state_.changed_event().Subscribe(
+          [this](auto) { Action::Trigger(); })},
+      alive_checker_{std::make_shared<std::mutex>()} {
+  Connect();
 }
 
-WinTcpTransport::ConnectionAction::~ConnectionAction() = default;
+WinTcpTransport::ConnectionAction::~ConnectionAction() {
+  // lock prevent destruction while this updated in Connect
+  alive_checker_->lock();
+}
 
 TimePoint WinTcpTransport::ConnectionAction::Update(TimePoint current_time) {
   if (state_.changed()) {
     switch (state_.Acquire()) {
+      case State::kWaitConnection:
+        break;
+      case State::kConnectionUpdate:
+        ConnectionUpdate();
+        break;
       case State::kConnected:
         Action::Result(*this);
         break;
-      case State::kNotConnected:
+      case State::kConnectionFailed:
         Action::Error(*this);
         break;
       default:
@@ -102,48 +109,66 @@ TimePoint WinTcpTransport::ConnectionAction::Update(TimePoint current_time) {
   return current_time;
 }
 
-DescriptorType::Socket WinTcpTransport::ConnectionAction::get_socket() const {
-  return socket_;
+void WinTcpTransport::ConnectionAction::Connect() {
+  AE_TELE_DEBUG(TcpTransportConnect, "Connect to {}", transport_->endpoint_);
+  state_ = State::kWaitConnection;
+
+  // run asynchronously
+  auto _ = std::async([this, alive_observer{std::weak_ptr{alive_checker_}}] {
+    // Work with local context on this different thread
+    DescriptorType::Socket sock;
+    State state;
+    int on = 1;
+    auto addr = _internal::MakeAddrInfo(transport_->endpoint_);
+    // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
+    sock = ::socket(addr.ptr->sa_family, SOCK_STREAM, 0);
+    if (sock == INVALID_SOCKET) {
+      AE_TELED_ERROR("Got socket creation error {}", WSAGetLastError());
+      state = State::kConnectionFailed;
+      goto FINISH;
+    }
+
+    if (auto res = ::setsockopt(sock, IPPROTO_TCP, TCP_NODELAY,
+                                reinterpret_cast<char const*>(&on), sizeof(on));
+        res == SOCKET_ERROR) {
+      auto err_code = WSAGetLastError();
+      AE_TELED_ERROR("Socket connect error {}", err_code);
+      state = State::kConnectionFailed;
+      ::closesocket(sock);
+      sock = InvalidSocketValue;
+      goto FINISH;
+    }
+
+    // FIXME: how to make non blocking connect with iocp poller
+    // there is no defined overlapped operation for connect
+    if (auto res =
+            connect(sock, addr.ptr.get(), static_cast<int>(addr.addr_len));
+        res == SOCKET_ERROR) {
+      auto err_code = WSAGetLastError();
+      AE_TELED_ERROR("Socket connect error {}", err_code);
+      state = State::kConnectionFailed;
+      ::closesocket(sock);
+      sock = InvalidSocketValue;
+      goto FINISH;
+    }
+
+    state = State::kConnectionUpdate;
+
+  FINISH:
+    // update this safely and only if it's alive
+    // lock prevent destruction while this update
+    if (auto alive_lock = alive_observer.lock();
+        alive_lock && alive_lock->try_lock()) {
+      auto lock = std::lock_guard{*alive_lock, std::adopt_lock};
+      socket_ = sock;
+      state_ = state;
+    }
+  });
 }
 
-void WinTcpTransport::ConnectionAction::Connect() {
-  AE_TELE_DEBUG(TcpTransportConnect, "Connect to {}", endpoint_);
-
-  auto addr = _internal::MakeAddrInfo(endpoint_);
-  // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
-  socket_ = ::socket(addr.ptr->sa_family, SOCK_STREAM, 0);
-  if (socket_ == INVALID_SOCKET) {
-    AE_TELED_ERROR("Got socket creation error {}", WSAGetLastError());
-    state_.Set(State::kNotConnected);
-    return;
-  }
-
-  int on = 1;
-  if (auto res = ::setsockopt(socket_, IPPROTO_TCP, TCP_NODELAY,
-                              reinterpret_cast<char const*>(&on), sizeof(on));
-      res == SOCKET_ERROR) {
-    auto err_code = WSAGetLastError();
-    AE_TELED_ERROR("Socket connect error {}", err_code);
-    state_.Set(State::kNotConnected);
-    ::closesocket(socket_);
-    socket_ = InvalidSocketValue;
-    return;
-  }
-
-  // FIXME: how to make non blocking connect with iocp poller
-  // there is no defined overlapped operation for connect
-  if (auto res =
-          connect(socket_, addr.ptr.get(), static_cast<int>(addr.addr_len));
-      res == SOCKET_ERROR) {
-    auto err_code = WSAGetLastError();
-    AE_TELED_ERROR("Socket connect error {}", err_code);
-    state_.Set(State::kNotConnected);
-    ::closesocket(socket_);
-    socket_ = InvalidSocketValue;
-    return;
-  }
-
-  state_.Set(State::kConnected);
+void WinTcpTransport::ConnectionAction::ConnectionUpdate() {
+  transport_->OnConnect(socket_);
+  state_ = State::kConnected;
 }
 
 WinTcpTransport::WinTcpPacketSendAction::WinTcpPacketSendAction(
@@ -208,11 +233,11 @@ void WinTcpTransport::WinTcpPacketSendAction::Send() {
   if (state_.get() == State::kQueued) {
     send_event_subscription_ =
         send_event_subscriber_.Subscribe([this]() { OnSend(); });
-    state_.Set(State::kProgress);
+    state_ = State::kProgress;
   } else if ((state_.get() == State::kProgress) &&
              (send_offset_ == send_buffer_.size())) {
     // all data sent
-    state_.Set(State::kSuccess);
+    state_ = State::kSuccess;
     return;
   }
 
@@ -241,14 +266,14 @@ void WinTcpTransport::WinTcpPacketSendAction::MakeSend() {
       return;
     } else {
       AE_TELED_ERROR("Socket send error {}", error_code);
-      state_.Set(State::kFailed);
+      state_ = State::kFailed;
       return;
     }
   }
   send_offset_ += bytes_transferred;
   if (send_offset_ == send_buffer_.size()) {
     // all data sent
-    state_.Set(State::kSuccess);
+    state_ = State::kSuccess;
     return;
   }
 }
@@ -292,14 +317,9 @@ WinTcpTransport::~WinTcpTransport() { Disconnect(); }
 void WinTcpTransport::Connect() {
   connection_info_.connection_state = ConnectionState::kConnecting;
 
-  connection_action_.emplace(action_context_, endpoint_);
+  connection_action_.emplace(action_context_, *this);
 
   connection_subscriptions_.Push(
-      connection_action_
-          ->SubscribeOnResult([this](auto const&) {
-            OnConnect(connection_action_->get_socket());
-          })
-          .Once(),
       connection_action_
           ->SubscribeOnError([this](auto const&) { OnConnectionError(); })
           .Once(),
@@ -397,7 +417,8 @@ void WinTcpTransport::OnConnect(DescriptorType::Socket socket) {
   // try to read anything
   socket_recv_event_action_.Notify();
 
-  connection_info_.max_packet_size = 1500 - 2;  // -2 bytes for packet size
+  // -2 bytes for packet size
+  connection_info_.max_packet_size = kBufferMaxSize - 2;
   connection_info_.connection_state = ConnectionState::kConnected;
 
   connection_success_event_.Emit();
@@ -420,10 +441,8 @@ void WinTcpTransport::OnSocketSendEvent() {
 void WinTcpTransport::OnSocketError() { Disconnect(); }
 
 void WinTcpTransport::RecvUpdate() {
-  static constexpr auto BUFFER_MAX_SIZE = 1500;  // bytes
-
   auto socket = sync_socket_.get();
-  recv_tmp_buffer_.resize(BUFFER_MAX_SIZE);
+  recv_tmp_buffer_.resize(kBufferMaxSize);
   auto wsabuf = WSABUF{static_cast<ULONG>(recv_tmp_buffer_.size()),
                        reinterpret_cast<char*>(recv_tmp_buffer_.data())};
 
