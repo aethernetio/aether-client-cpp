@@ -37,18 +37,21 @@ namespace ae {
 
 class SafeStreamSendingAction : public Action<SafeStreamSendingAction> {
  public:
-  using WriteDataEvent = Event<void(SafeStreamRingIndex offset,
-                                    DataBuffer&& data, TimePoint current_time)>;
+  using SendEvent = Event<void(SafeStreamRingIndex offset, DataBuffer&& data,
+                               TimePoint current_time)>;
+  using RepeatEvent =
+      Event<void(SafeStreamRingIndex offset, std::uint16_t repeat_count,
+                 DataBuffer&& data, TimePoint current_time)>;
 
   SafeStreamSendingAction(ActionContext action_context,
-                          ProtocolContext& protocol_context,
                           SafeStreamConfig const& config);
 
   ~SafeStreamSendingAction() override;
 
   TimePoint Update(TimePoint current_time) override;
 
-  WriteDataEvent::Subscriber write_data_event();
+  SendEvent::Subscriber send_event();
+  RepeatEvent::Subscriber repeat_event();
 
   /**
    * \brief Put new data to send
@@ -73,12 +76,8 @@ class SafeStreamSendingAction : public Action<SafeStreamSendingAction> {
 
   void ConfirmDataChunks(SafeStreamRingIndex offset);
 
-  void WriteDataBuffer(SafeStreamRingIndex offset, DataBuffer&& packet,
-                       TimePoint current_time);
-
   void StopSending(SafeStreamRingIndex offset);
 
-  ProtocolContext& protocol_context_;
   SafeStreamRingIndex::type buffer_capacity_;
   SafeStreamRingIndex::type window_size_;
   std::uint16_t max_repeat_count_;
@@ -88,7 +87,8 @@ class SafeStreamSendingAction : public Action<SafeStreamSendingAction> {
 
   SendDataBuffer send_data_buffer_;
   SendingChunkList sending_chunks_;
-  WriteDataEvent write_data_event_;
+  SendEvent send_event_;
+  RepeatEvent repeat_event_;
 
   SafeStreamRingIndex last_confirmed_;
   SafeStreamRingIndex next_to_add_;

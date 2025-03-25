@@ -19,16 +19,12 @@
 #include <utility>
 #include <algorithm>
 
-#include "aether/api_protocol/packet_builder.h"
-
 #include "aether/tele/tele.h"
 
 namespace ae {
-SafeStreamSendingAction::SafeStreamSendingAction(
-    ActionContext action_context, ProtocolContext& protocol_context,
-    SafeStreamConfig const& config)
+SafeStreamSendingAction::SafeStreamSendingAction(ActionContext action_context,
+                                                 SafeStreamConfig const& config)
     : Action{action_context},
-      protocol_context_{protocol_context},
       buffer_capacity_{config.buffer_capacity},
       window_size_{config.window_size},
       max_repeat_count_{config.max_repeat_count},
@@ -48,12 +44,17 @@ TimePoint SafeStreamSendingAction::Update(TimePoint current_time) {
   if (max_data_size_ != 0) {
     SendData(current_time);
   }
-  return new_time;
+  return std::max(new_time, current_time + wait_confirm_timeout_);
 }
 
-SafeStreamSendingAction::WriteDataEvent::Subscriber
-SafeStreamSendingAction::write_data_event() {
-  return write_data_event_;
+SafeStreamSendingAction::SendEvent::Subscriber
+SafeStreamSendingAction::send_event() {
+  return send_event_;
+}
+
+SafeStreamSendingAction::RepeatEvent::Subscriber
+SafeStreamSendingAction::repeat_event() {
+  return repeat_event_;
 }
 
 ActionView<SendingDataAction> SafeStreamSendingAction::SendData(
@@ -134,13 +135,14 @@ TimePoint SafeStreamSendingAction::HandleTimeouts(TimePoint current_time) {
 
   if ((selected_sch.send_time + wait_timeout) < current_time) {
     // timeout
-    AE_TELED_DEBUG("Wait confirm timeout, repeat");
+    AE_TELED_DEBUG("Wait confirm timeout {:%S}, repeat offset {}", wait_timeout,
+                   selected_sch.begin_offset);
     // move offset to repeat send
     last_sent_offset_ = selected_sch.begin_offset;
     return current_time;
   }
 
-  return selected_sch.send_time + wait_confirm_timeout_;
+  return selected_sch.send_time + wait_timeout;
 }
 
 void SafeStreamSendingAction::SendData(TimePoint current_time) {
@@ -184,20 +186,7 @@ void SafeStreamSendingAction::SendData(TimePoint current_time) {
 void SafeStreamSendingAction::SendFirst(DataChunk&& chunk,
                                         TimePoint current_time) {
   AE_TELED_DEBUG("SendFirst chunk offset:{}", chunk.offset);
-
-  auto packet = PacketBuilder{
-      protocol_context_,
-      PackMessage{
-          safe_stream_api_,
-          SafeStreamApi::Send{
-              {},
-              static_cast<SafeStreamRingIndex::type>(chunk.offset),
-              std::move(chunk.data),
-          },
-      },
-  };
-
-  WriteDataBuffer(chunk.offset, std::move(packet), current_time);
+  send_event_.Emit(chunk.offset, std::move(chunk.data), current_time);
 }
 
 void SafeStreamSendingAction::SendRepeat(DataChunk&& chunk,
@@ -205,32 +194,13 @@ void SafeStreamSendingAction::SendRepeat(DataChunk&& chunk,
                                          TimePoint current_time) {
   AE_TELED_DEBUG("SendRepeat chunk offset:{} count:{}", chunk.offset,
                  repeat_count);
-
-  auto packet = PacketBuilder{
-      protocol_context_,
-      PackMessage{
-          safe_stream_api_,
-          SafeStreamApi::Repeat{
-              {},
-              repeat_count,
-              static_cast<SafeStreamRingIndex::type>(chunk.offset),
-              std::move(chunk.data),
-          },
-      },
-  };
-
-  WriteDataBuffer(chunk.offset, std::move(packet), current_time);
+  repeat_event_.Emit(chunk.offset, repeat_count, std::move(chunk.data),
+                     current_time);
 }
 
 void SafeStreamSendingAction::ConfirmDataChunks(SafeStreamRingIndex offset) {
   sending_chunks_.RemoveUpTo(offset);
   send_data_buffer_.Confirm(offset);
-}
-
-void SafeStreamSendingAction::WriteDataBuffer(SafeStreamRingIndex offset,
-                                              DataBuffer&& packet,
-                                              TimePoint current_time) {
-  write_data_event_.Emit(offset, std::move(packet), current_time);
 }
 
 void SafeStreamSendingAction::StopSending(SafeStreamRingIndex offset) {

@@ -58,7 +58,7 @@ class SafeStream final : public ByteStream {
     ActionView<StreamWriteAction> Write(DataBuffer &&buffer,
                                         TimePoint current_time) override;
 
-    void WriteOut(DataBuffer &&buffer);
+    void WriteOut(DataBuffer &&buffer, TimePoint current_time);
 
     void LinkOut(OutGate &gate) override;
 
@@ -92,10 +92,13 @@ class SafeStream final : public ByteStream {
   void LinkOut(OutGate &gate) override;
 
  private:
-  void OnDataWrite(SafeStreamRingIndex offset, DataBuffer &&data,
+  void OnSendEvent(SafeStreamRingIndex offset, DataBuffer &&data,
                    TimePoint current_time);
+  void OnRepeatEvent(SafeStreamRingIndex offset, std::uint16_t repeat_count,
+                     DataBuffer &&data, TimePoint current_time);
 
-  void OnDataReaderSend(DataBuffer &&data, TimePoint current_time);
+  void OnConfirmEvent(SafeStreamRingIndex offset, TimePoint current_time);
+  void OnRequestRepeatEvent(SafeStreamRingIndex offset, TimePoint current_time);
 
   void Confirm(MessageEventData<SafeStreamApi::Confirm> const &msg);
   void RequestRepeatSend(
