@@ -95,20 +95,25 @@ void ClientCloudConnection::SelectConnection() {
     return;
   }
 
-  connection_status_sub_ = server_connection_->server_stream()
-                               .in()
-                               .gate_update_event()
-                               .Subscribe([this]() {
-                                 if (server_connection_->server_stream()
-                                         .in()
-                                         .stream_info()
-                                         .is_linked) {
-                                   OnConnected();
-                                 } else {
-                                   OnConnectionError();
-                                 }
-                               })
-                               .Once();
+  if (server_connection_->server_stream().in().stream_info().is_linked) {
+    OnConnected();
+  } else {
+    connection_status_sub_ = server_connection_->server_stream()
+                                 .in()
+                                 .gate_update_event()
+                                 .Subscribe([this]() {
+                                   if (server_connection_->server_stream()
+                                           .in()
+                                           .stream_info()
+                                           .is_linked) {
+                                     OnConnected();
+                                   } else {
+                                     AE_TELED_ERROR("CE2");
+                                     OnConnectionError();
+                                   }
+                                 })
+                                 .Once();
+  }
 
   // restore all known streams to a new server
   for (auto& [uid, gate] : gates_) {
@@ -131,6 +136,7 @@ void ClientCloudConnection::OnConnected() {
                                           .in()
                                           .stream_info()
                                           .is_linked) {
+                                   AE_TELED_ERROR("CE1");
                                    OnConnectionError();
                                  }
                                })
@@ -152,8 +158,11 @@ void ClientCloudConnection::OnConnectionError() {
 void ClientCloudConnection::ServerListEnded() {
   next_server_loop_timer_ =
       NextServerLoopTimer{action_context_, std::chrono::milliseconds{5000}};
-  next_server_loop_subs_ = next_server_loop_timer_.SubscribeOnResult(
-      [&](auto const&) { Connect(); });
+  next_server_loop_subs_ =
+      next_server_loop_timer_.SubscribeOnResult([&](auto const&) {
+        AE_TELED_DEBUG("Connect again");
+        Connect();
+      });
 }
 
 void ClientCloudConnection::NewStream(Uid uid, ByteStream& stream) {
