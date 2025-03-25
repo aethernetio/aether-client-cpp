@@ -34,6 +34,7 @@
 namespace ae {
 class Ping : public Action<Ping> {
   enum class State : std::uint8_t {
+    kWaitLink,
     kSendPing,
     kWaitResponse,
     kWaitInterval,
@@ -65,9 +66,9 @@ class Ping : public Action<Ping> {
 
   TimePoint last_ping_time_;
   Subscription write_subscription_;
-  Subscription ping_response_subscription_;
   StateMachine<State> state_;
-  Subscription state_changed_subscription_;
+  Subscription state_changed_sub_;
+  Subscription stream_changed_sub_;
 };
 }  // namespace ae
 
