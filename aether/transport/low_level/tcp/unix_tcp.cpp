@@ -347,6 +347,12 @@ void UnixTcpTransport::UnixPacketReadAction::Read() {
       error_ = true;
       break;
     }
+    if (res == 0) {
+      // socket shutdown
+      AE_TELED_ERROR("Recv shutdown");
+      error_ = true;
+      break;
+    }
     data_packet_collector_.AddData(read_buffer_.data(),
                                    static_cast<std::size_t>(res));
     read_event_ = true;
@@ -455,6 +461,9 @@ void UnixTcpTransport::OnConnected(int socket) {
         if (event.descriptor != socket_) {
           return;
         }
+
+        AE_TELED_DEBUG("Socket event {}", event.event_type);
+
         switch (event.event_type) {
           case EventType::kRead:
             ReadSocket();
@@ -517,6 +526,8 @@ void UnixTcpTransport::Disconnect() {
     return;
   }
   socket_ = kInvalidSocket;
+
+  OnConnectionFailed();
 }
 }  // namespace ae
 #endif
