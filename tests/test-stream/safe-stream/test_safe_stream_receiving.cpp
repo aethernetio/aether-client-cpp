@@ -18,11 +18,11 @@
 
 #include "aether/port/tele_init.h"
 #include "aether/actions/action_context.h"
-#include "aether/api_protocol/protocol_context.h"
 
-#include "aether/stream_api/safe_stream/safe_stream_api.h"
-#include "aether/stream_api/safe_stream/safe_stream_receiving.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
+#include "aether/stream_api/safe_stream/safe_stream_receiving.h"
+
+#include "tests/test-stream/safe-stream/to_data_buffer.h"
 
 namespace ae::test_safe_stream_receiving {
 
@@ -50,36 +50,26 @@ void test_SafeStreamReceiveAFewPackets() {
 
   auto ap = ActionProcessor{};
   auto ac = ActionContext{ap};
-  auto pc = ProtocolContext{};
 
   auto received_packet = DataBuffer{};
   auto confirmed_offset = std::uint16_t{};
 
-  auto receiving = SafeStreamReceivingAction{ac, pc, config};
+  auto receiving = SafeStreamReceivingAction{ac, config};
 
-  auto _0 = receiving.send_data_event().Subscribe([&](auto const& data, auto) {
-    auto api_parser = ae::ApiParser(pc, data);
-    auto mid = api_parser.Extract<MessageId>();
-    switch (mid) {
-      case SafeStreamApi::Confirm::kMessageCode: {
-        auto confirm = api_parser.Extract<SafeStreamApi::Confirm>();
-        confirmed_offset = confirm.offset;
-        break;
-      }
-      default:
-        TEST_FAIL_MESSAGE("Unexpected message");
-        break;
-    }
-  });
+  auto confirm_sub =
+      receiving.confirm_event().Subscribe([&](auto offset, auto) {
+        confirmed_offset = static_cast<std::uint16_t>(offset);
+      });
+  auto request_repeat_sub = receiving.request_repeat_event().Subscribe(
+      [&](auto, auto) { TEST_FAIL_MESSAGE("Unexpected request repeat"); });
 
   auto _1 = receiving.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_packet = std::move(data); });
+      [&](DataBuffer&& data, auto) { received_packet = std::move(data); });
 
   ap.Update(epoch);
 
-  receiving.ReceiveSend(
-      SafeStreamRingIndex{0},
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  receiving.ReceiveSend(SafeStreamRingIndex{0}, ToDataBuffer(_100_bytes_data),
+                        Now());
 
   ap.Update(epoch += std::chrono::milliseconds{1});
 
@@ -88,9 +78,17 @@ void test_SafeStreamReceiveAFewPackets() {
   received_packet.clear();
 
   // duplicate send
-  receiving.ReceiveSend(
-      SafeStreamRingIndex{0},
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  receiving.ReceiveSend(SafeStreamRingIndex{0}, ToDataBuffer(_100_bytes_data),
+                        Now());
+
+  ap.Update(epoch += std::chrono::milliseconds{1});
+
+  TEST_ASSERT_EQUAL(0, received_packet.size());
+  TEST_ASSERT_EQUAL(99, confirmed_offset);
+
+  // duplicate send repeat
+  receiving.ReceiveRepeat(SafeStreamRingIndex{0}, 1,
+                          ToDataBuffer(_100_bytes_data), Now());
 
   ap.Update(epoch += std::chrono::milliseconds{1});
 
@@ -98,9 +96,8 @@ void test_SafeStreamReceiveAFewPackets() {
   TEST_ASSERT_EQUAL(99, confirmed_offset);
 
   // send in ordered
-  receiving.ReceiveSend(
-      SafeStreamRingIndex(confirmed_offset) + 1 + 100,
-      {_200_bytes_data + 100, _200_bytes_data + sizeof(_200_bytes_data)});
+  receiving.ReceiveSend(SafeStreamRingIndex(confirmed_offset) + 1 + 100,
+                        ToDataBuffer(_100_bytes_data), Now());
 
   ap.Update(epoch += std::chrono::milliseconds{1});
 
@@ -111,7 +108,7 @@ void test_SafeStreamReceiveAFewPackets() {
 
   // add missed part
   receiving.ReceiveSend(SafeStreamRingIndex(confirmed_offset) + 1,
-                        {_200_bytes_data, _200_bytes_data + 100});
+                        ToDataBuffer(_100_bytes_data), Now());
 
   ap.Update(epoch += std::chrono::milliseconds{1});
 
@@ -121,9 +118,8 @@ void test_SafeStreamReceiveAFewPackets() {
   received_packet.clear();
 
   // add late packet
-  receiving.ReceiveSend(
-      SafeStreamRingIndex(confirmed_offset) + 100,
-      {_200_bytes_data, _200_bytes_data + sizeof(_200_bytes_data)});
+  receiving.ReceiveSend(SafeStreamRingIndex(confirmed_offset) + 100,
+                        ToDataBuffer(_200_bytes_data), Now());
 
   ap.Update(epoch += std::chrono::milliseconds{1});
 
@@ -136,49 +132,37 @@ void test_SafeStreamReceiveRequestRepeat() {
 
   auto ap = ActionProcessor{};
   auto ac = ActionContext{ap};
-  auto pc = ProtocolContext{};
 
   auto received_packet = DataBuffer{};
   auto confirmed_offset = std::uint16_t{12};
   auto repeat_requested = std::vector<std::uint16_t>{};
 
-  auto receiving = SafeStreamReceivingAction{ac, pc, config};
+  auto receiving = SafeStreamReceivingAction{ac, config};
 
-  auto _0 = receiving.send_data_event().Subscribe([&](auto const& data, auto) {
-    auto api_parser = ae::ApiParser(pc, data);
-    auto api = SafeStreamApi{};
-    api_parser.Parse(api);
-  });
-
-  auto _1 =
-      pc.MessageEvent<SafeStreamApi::Confirm>().Subscribe([&](auto const& msg) {
-        auto& confirm = msg.message();
-        confirmed_offset = confirm.offset;
+  auto confirm_sub =
+      receiving.confirm_event().Subscribe([&](auto offset, auto) {
+        confirmed_offset = static_cast<std::uint16_t>(offset);
       });
-
-  auto _2 = pc.MessageEvent<SafeStreamApi::RequestRepeat>().Subscribe(
-      [&](auto const& msg) {
-        auto& request_repeat = msg.message();
-        repeat_requested.push_back(request_repeat.offset);
+  auto request_repeat_sub =
+      receiving.request_repeat_event().Subscribe([&](auto offset, auto) {
+        repeat_requested.push_back(static_cast<std::uint16_t>(offset));
       });
 
   auto _3 = receiving.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_packet = std::move(data); });
+      [&](DataBuffer&& data, auto) { received_packet = std::move(data); });
 
   ap.Update(epoch);
 
-  receiving.ReceiveSend(
-      SafeStreamRingIndex{200},
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  receiving.ReceiveSend(SafeStreamRingIndex{200}, ToDataBuffer(_100_bytes_data),
+                        Now());
 
   ap.Update(epoch += config.send_repeat_timeout);
   TEST_ASSERT(!repeat_requested.empty());
   TEST_ASSERT_EQUAL(0, repeat_requested[0]);
   repeat_requested.clear();
 
-  receiving.ReceiveSend(
-      SafeStreamRingIndex{400},
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)});
+  receiving.ReceiveSend(SafeStreamRingIndex{400}, ToDataBuffer(_100_bytes_data),
+                        Now());
 
   ap.Update(epoch += config.send_repeat_timeout);
   TEST_ASSERT_EQUAL(2, repeat_requested.size());
@@ -192,6 +176,57 @@ void test_SafeStreamReceiveRequestRepeat() {
   TEST_ASSERT_EQUAL(0, repeat_requested.size());
 }
 
+void test_SafeStreamReceiveDuplications() {
+  auto epoch = TimePoint::clock::now();
+
+  auto ap = ActionProcessor{};
+  auto ac = ActionContext{ap};
+
+  auto received_packet = DataBuffer{};
+  auto confirmed_offset = std::uint16_t{12};
+
+  auto receiving = SafeStreamReceivingAction{ac, config};
+
+  auto confirm_sub =
+      receiving.confirm_event().Subscribe([&](auto offset, auto) {
+        confirmed_offset = static_cast<std::uint16_t>(offset);
+      });
+  auto request_repeat_sub = receiving.request_repeat_event().Subscribe(
+      [&](auto, auto) { TEST_FAIL_MESSAGE("Unexpected repeat"); });
+
+  auto _3 = receiving.receive_event().Subscribe([&](DataBuffer&& data, auto) {
+    received_packet.insert(std::end(received_packet), std::begin(data),
+                           std::end(data));
+  });
+
+  ap.Update(epoch);
+
+  receiving.ReceiveSend(SafeStreamRingIndex{0}, ToDataBuffer(_100_bytes_data),
+                        Now());
+
+  ap.Update(epoch += std::chrono::milliseconds{1});
+
+  TEST_ASSERT_EQUAL(100, received_packet.size());
+  TEST_ASSERT_EQUAL(99, confirmed_offset);
+
+  // duplication
+  receiving.ReceiveSend(SafeStreamRingIndex{0}, ToDataBuffer(_100_bytes_data),
+                        Now());
+
+  ap.Update(epoch += std::chrono::milliseconds{1});
+  // nothing changed
+  TEST_ASSERT_EQUAL(100, received_packet.size());
+  TEST_ASSERT_EQUAL(99, confirmed_offset);
+
+  // duplication offset, but more data (overlap)
+  receiving.ReceiveSend(SafeStreamRingIndex{0}, ToDataBuffer(_200_bytes_data),
+                        Now());
+
+  ap.Update(epoch += config.send_repeat_timeout);
+  // added more data
+  TEST_ASSERT_EQUAL(200, received_packet.size());
+  TEST_ASSERT_EQUAL(199, confirmed_offset);
+}
 }  // namespace ae::test_safe_stream_receiving
 
 int test_safe_stream_receiving() {
@@ -199,5 +234,6 @@ int test_safe_stream_receiving() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_safe_stream_receiving::test_SafeStreamReceiveAFewPackets);
   RUN_TEST(ae::test_safe_stream_receiving::test_SafeStreamReceiveRequestRepeat);
+  RUN_TEST(ae::test_safe_stream_receiving::test_SafeStreamReceiveDuplications);
   return UNITY_END();
 }

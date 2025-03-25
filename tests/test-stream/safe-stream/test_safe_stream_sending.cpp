@@ -32,7 +32,8 @@
 
 #include "aether/stream_api/safe_stream/safe_stream_sending.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
-#include "aether/stream_api/safe_stream/safe_stream_api.h"
+
+#include "tests/test-stream/safe-stream/to_data_buffer.h"
 
 namespace ae::test_safe_stream_sending {
 
@@ -65,17 +66,6 @@ constexpr char _1183_bytes_data[] =
     "woven into the fabric of the universe, eternal and unbroken, calling to "
     "those who dare to dream beyond the horizon of the possible.";
 
-template <typename TRes, typename T, std::size_t size>
-static auto ToVector(T const (&arr)[size]) {
-  return std::vector<TRes>(reinterpret_cast<TRes const*>(arr),
-                           reinterpret_cast<TRes const*>(arr + size));
-}
-
-template <typename T, std::size_t size>
-static auto ToDataBuffer(T const (&arr)[size]) {
-  return ToVector<std::uint8_t>(arr);
-}
-
 constexpr auto config = SafeStreamConfig{
     20 * 1024,
     (10 * 1024) - 1,
@@ -91,24 +81,24 @@ void test_SafeStreamSendingFewChunks() {
 
   auto ap = ActionProcessor{};
   auto ac = ActionContext(ap);
-  auto pc = ProtocolContext{};
-  auto received_packet = DataBuffer{};
   auto received_data = DataBuffer{};
   auto received_offset = std::uint16_t{};
   bool received_100 = false;
   bool received_200 = false;
 
-  auto sending = SafeStreamSendingAction(ac, pc, config);
+  auto sending = SafeStreamSendingAction(ac, config);
   sending.set_max_data_size(100);
-  auto _0 = sending.write_data_event().Subscribe([&](auto, auto data, auto) {
-    received_packet = std::move(data);
-    auto api_parser = ae::ApiParser(pc, received_packet);
-    auto mid = api_parser.Extract<MessageId>();
-    auto send = api_parser.Extract<SafeStreamApi::Send>();
-    received_data.insert(std::end(received_data), std::begin(send.data),
-                         std::end(send.data));
-    received_offset = send.offset;
-  });
+  auto send_sub =
+      sending.send_event().Subscribe([&](auto offset, auto&& data, auto) {
+        received_data.insert(std::end(received_data), std::begin(data),
+                             std::end(data));
+        received_offset = static_cast<std::uint16_t>(offset);
+      });
+
+  auto repeat_sub =
+      sending.repeat_event().Subscribe([&](auto, auto, auto&&, auto) {
+        TEST_FAIL_MESSAGE("Unexpected repeat");
+      });
 
   auto send_100 = sending.SendData(ToDataBuffer(_100_bytes_data));
   ap.Update(epoch + std::chrono::milliseconds{1});
@@ -149,23 +139,23 @@ void test_SafeStreamSendingWaitConfirm() {
 
   auto ap = ActionProcessor{};
   auto ac = ActionContext(ap);
-  auto pc = ProtocolContext{};
-  auto received_packet = DataBuffer{};
   auto received_data = DataBuffer{};
   auto received_offset = std::uint16_t{};
 
-  auto sending = SafeStreamSendingAction{ac, pc, config};
+  auto sending = SafeStreamSendingAction{ac, config};
   sending.set_max_data_size(100);
 
-  auto _0 = sending.write_data_event().Subscribe([&](auto, auto data, auto) {
-    received_packet = std::move(data);
-    auto api_parser = ae::ApiParser(pc, received_packet);
-    auto mid = api_parser.Extract<MessageId>();
-    auto send = api_parser.Extract<SafeStreamApi::Send>();
-    received_data.insert(std::end(received_data), std::begin(send.data),
-                         std::end(send.data));
-    received_offset = send.offset;
-  });
+  auto send_sub =
+      sending.send_event().Subscribe([&](auto offset, auto&& data, auto) {
+        received_data.insert(std::end(received_data), std::begin(data),
+                             std::end(data));
+        received_offset = static_cast<std::uint16_t>(offset);
+      });
+
+  auto repeat_sub =
+      sending.repeat_event().Subscribe([&](auto, auto, auto&&, auto) {
+        TEST_FAIL_MESSAGE("Unexpected repeat");
+      });
 
   sending.SendData(ToDataBuffer(_100_bytes_data));
   sending.SendData(ToDataBuffer(_200_bytes_data));
@@ -190,40 +180,27 @@ void test_SafeStreamSendingRepeat() {
 
   auto ap = ActionProcessor{};
   auto ac = ActionContext(ap);
-  auto pc = ProtocolContext{};
 
-  auto received_packet = DataBuffer{};
   auto received_data = DataBuffer{};
   auto received_offset = std::uint16_t{};
   auto sending_error = bool{};
 
-  auto sending = SafeStreamSendingAction{ac, pc, config};
+  auto sending = SafeStreamSendingAction{ac, config};
   sending.set_max_data_size(100);
 
-  auto _0 = sending.write_data_event().Subscribe([&](auto, auto data, auto) {
-    received_packet = std::move(data);
-    auto api_parser = ae::ApiParser(pc, received_packet);
-    auto mid = api_parser.Extract<MessageId>();
-    switch (mid) {
-      case SafeStreamApi::Send::kMessageCode: {
-        auto send = api_parser.Extract<SafeStreamApi::Send>();
-        received_data.insert(std::end(received_data), std::begin(send.data),
-                             std::end(send.data));
-        received_offset = send.offset;
-        break;
-      }
-      case SafeStreamApi::Repeat::kMessageCode: {
-        auto repeat = api_parser.Extract<SafeStreamApi::Repeat>();
-        received_data.insert(std::end(received_data), std::begin(repeat.data),
-                             std::end(repeat.data));
-        received_offset = repeat.offset;
-        break;
-      }
-      default:
-        TEST_ASSERT(false);
-        break;
-    }
-  });
+  auto send_sub =
+      sending.send_event().Subscribe([&](auto offset, auto&& data, auto) {
+        received_data.insert(std::end(received_data), std::begin(data),
+                             std::end(data));
+        received_offset = static_cast<std::uint16_t>(offset);
+      });
+
+  auto repeat_sub = sending.repeat_event().Subscribe(
+      [&](auto offset, auto /* repeat_count*/, auto&& data, auto) {
+        received_data.insert(std::end(received_data), std::begin(data),
+                             std::end(data));
+        received_offset = static_cast<std::uint16_t>(offset);
+      });
 
   auto send_action = sending.SendData(ToDataBuffer(_100_bytes_data));
 
@@ -259,39 +236,26 @@ void test_SafeStreamSendingRepeatRequest() {
 
   auto ap = ActionProcessor{};
   auto ac = ActionContext(ap);
-  auto pc = ProtocolContext{};
-  auto received_packet = DataBuffer{};
   auto received_data = DataBuffer{};
   auto received_offset = std::uint16_t{};
   auto sending_error = bool{};
 
-  auto sending = SafeStreamSendingAction{ac, pc, config};
+  auto sending = SafeStreamSendingAction{ac, config};
   sending.set_max_data_size(100);
 
-  auto _ = sending.write_data_event().Subscribe([&](auto, auto data, auto) {
-    received_packet = std::move(data);
-    auto api_parser = ae::ApiParser(pc, received_packet);
-    auto mid = api_parser.Extract<MessageId>();
-    switch (mid) {
-      case SafeStreamApi::Send::kMessageCode: {
-        auto send = api_parser.Extract<SafeStreamApi::Send>();
-        received_data.insert(std::end(received_data), std::begin(send.data),
-                             std::end(send.data));
-        received_offset = send.offset;
-        break;
-      }
-      case SafeStreamApi::Repeat::kMessageCode: {
-        auto repeat = api_parser.Extract<SafeStreamApi::Repeat>();
-        received_data.insert(std::end(received_data), std::begin(repeat.data),
-                             std::end(repeat.data));
-        received_offset = repeat.offset;
-        break;
-      }
-      default:
-        TEST_ASSERT(false);
-        break;
-    }
-  });
+  auto send_sub =
+      sending.send_event().Subscribe([&](auto offset, auto&& data, auto) {
+        received_data.insert(std::end(received_data), std::begin(data),
+                             std::end(data));
+        received_offset = static_cast<std::uint16_t>(offset);
+      });
+
+  auto repeat_sub = sending.repeat_event().Subscribe(
+      [&](auto offset, auto /* repeat_count*/, auto&& data, auto) {
+        received_data.insert(std::end(received_data), std::begin(data),
+                             std::end(data));
+        received_offset = static_cast<std::uint16_t>(offset);
+      });
 
   auto send_action = sending.SendData(ToDataBuffer(_100_bytes_data));
   auto _1 =
@@ -322,25 +286,18 @@ void test_SafeStreamSendingOverBufferCapacity() {
 
   auto ap = ActionProcessor{};
   auto ac = ActionContext(ap);
-  auto pc = ProtocolContext{};
-  auto received_packet = DataBuffer{};
   auto received_data = DataBuffer{};
   auto received_offset = SafeStreamRingIndex{};
   auto sending_error = bool{};
 
-  auto sending = SafeStreamSendingAction{ac, pc, config};
+  auto sending = SafeStreamSendingAction{ac, config};
   sending.set_max_data_size(500);
 
-  auto _ =
-      sending.write_data_event().Subscribe([&](auto offset, auto data, auto) {
-        auto api_parser = ae::ApiParser(pc, data);
-        auto mid = api_parser.Extract<MessageId>();
-        TEST_ASSERT_EQUAL(SafeStreamApi::Send::kMessageCode, mid);
-
-        auto send = api_parser.Extract<SafeStreamApi::Send>();
-        received_data.insert(std::end(received_data), std::begin(send.data),
-                             std::end(send.data));
-        received_offset = SafeStreamRingIndex{send.offset};
+  auto send_sub =
+      sending.send_event().Subscribe([&](auto offset, auto&& data, auto) {
+        received_data.insert(std::end(received_data), std::begin(data),
+                             std::end(data));
+        received_offset = offset;
       });
 
   for (auto i = 0; i < 15; i++) {
