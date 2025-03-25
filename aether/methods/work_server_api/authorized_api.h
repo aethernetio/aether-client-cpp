@@ -33,7 +33,11 @@ class AuthorizedApi : public ApiClass {
   // Just ping the server to finalize authorization and stream
   struct Ping : public Message<Ping> {
     static constexpr auto kMessageCode = 6;
-    AE_REFLECT()
+
+    AE_REFLECT_MEMBERS(request_id, next_ping_duration)
+
+    RequestId request_id;
+    std::uint64_t next_ping_duration;
   };
 
   struct OpenStreamToClient : public Message<OpenStreamToClient> {
