@@ -16,19 +16,17 @@
 
 #include "aether/stream_api/safe_stream/safe_stream_receiving.h"
 
-#include <algorithm>
 #include <utility>
+#include <iterator>
+#include <algorithm>
 
-#include "aether/api_protocol/packet_builder.h"
 #include "aether/tele/tele.h"
 
 namespace ae {
 
 SafeStreamReceivingAction ::SafeStreamReceivingAction(
-    ActionContext action_context, ProtocolContext& protocol_context,
-    SafeStreamConfig const& config)
+    ActionContext action_context, SafeStreamConfig const& config)
     : Action(action_context),
-      protocol_context_{protocol_context},
       max_window_size_{config.window_size},
       max_repeat_count_{config.max_repeat_count},
       send_confirm_timeout_{config.send_confirm_timeout},
@@ -39,12 +37,9 @@ TimePoint SafeStreamReceivingAction::Update(TimePoint current_time) {
 
   if (repeat_count_exceeded_) {
     repeat_count_exceeded_ = false;
-    repeat_queue_.clear();
     Action::Error(*this);
-    return new_time;
+    return current_time;
   }
-
-  MakeResponse(current_time);
 
   return new_time;
 }
@@ -54,95 +49,115 @@ SafeStreamReceivingAction::receive_event() {
   return receive_event_;
 }
 
-SafeStreamReceivingAction::SenDataEvent::Subscriber
-SafeStreamReceivingAction::send_data_event() {
-  return send_data_event_;
+SafeStreamReceivingAction::ConfirmEvent::Subscriber
+SafeStreamReceivingAction::confirm_event() {
+  return send_confirm_event_;
+}
+
+SafeStreamReceivingAction::RequestRepeatEvent::Subscriber
+SafeStreamReceivingAction::request_repeat_event() {
+  return send_request_repeat_event_;
 }
 
 void SafeStreamReceivingAction::ReceiveSend(SafeStreamRingIndex offset,
-                                            DataBuffer data) {
-  AE_TELED_DEBUG("Data received offset {}", offset);
-  if (last_confirmed_offset_.Distance(offset) >= max_window_size_) {
+                                            DataBuffer data,
+                                            TimePoint /* current_time */) {
+  AE_TELED_DEBUG("Data received offset {}, size {}", offset, data.size());
+  if (!AddDataChunk(ReceivingChunk{offset, std::move(data), 0})) {
     // confirmed offset
-    AE_TELED_WARNING("Confirmed offset is duplicated");
     return;
   }
 
-  AddDataChunk(ReceivingChunk{offset, std::move(data)});
-
-  this->Trigger();
+  Action::Trigger();
 }
 
 void SafeStreamReceivingAction::ReceiveRepeat(SafeStreamRingIndex offset,
                                               std::uint16_t repeat,
-                                              DataBuffer data) {
-  AE_TELED_DEBUG("Repeat data received offset: {}, repeat {}", offset, repeat);
-  if (last_confirmed_offset_.Distance(offset) >= max_window_size_) {
+                                              DataBuffer data,
+                                              TimePoint current_time) {
+  auto data_size = data.size();
+  AE_TELED_DEBUG("Repeat data received offset: {}, repeat {}, size {}", offset,
+                 repeat, data.size());
+  if (!AddDataChunk(ReceivingChunk{offset, std::move(data), repeat})) {
     // confirmed offset
-    AE_TELED_WARNING("Confirmed offset is duplicated");
-    AddToConfirmationQueue(
-        offset + static_cast<SafeStreamRingIndex::type>(data.size() - 1));
+    MakeConfirm(offset + static_cast<SafeStreamRingIndex::type>(data_size - 1),
+                current_time);
     return;
   }
 
-  AddDataChunk(ReceivingChunk{offset, std::move(data)});
-
-  this->Trigger();
+  Action::Trigger();
 }
 
-void SafeStreamReceivingAction::AddDataChunk(ReceivingChunk chunk) {
+bool SafeStreamReceivingAction::AddDataChunk(ReceivingChunk&& chunk) {
+  if (last_emitted_offset_.Distance(
+          chunk.offset + static_cast<SafeStreamRingIndex::type>(
+                             chunk.data.size() - 1)) > max_window_size_) {
+    AE_TELED_WARNING("Chunk is duplicated with already emitted");
+    // the chunk is emitted, do not add
+    return false;
+  }
+
   auto it = std::find_if(std::begin(received_data_chunks_),
                          std::end(received_data_chunks_), [&](auto const& ch) {
                            return chunk.offset.Distance(ch.offset) <=
                                   max_window_size_;
                          });
-  if (it == std::end(received_data_chunks_)) {
-    // new chunk has the biggest offset
-    received_data_chunks_.emplace_back(std::move(chunk));
-    return;
-  }
-  // duplication found
-  if (chunk.offset == it->offset) {
-    AE_TELED_WARNING("Chunk duplication found");
-    return;
-  }
+  if (it != std::end(received_data_chunks_)) {
+    // duplication found
+    if ((chunk.offset == it->offset) &&
+        (chunk.data.size() == it->data.size())) {
+      AE_TELED_WARNING("Chunk is duplicated with received one");
+      return false;
+    }
 
-  auto overlap_size = it->offset.Distance(
-      chunk.offset + static_cast<SafeStreamRingIndex::type>(chunk.data.size()));
-  if ((overlap_size > 0) && (overlap_size <= max_window_size_)) {
-    // chunks overlap
-    AE_TELED_WARNING("Chunks overlap");
-    received_data_chunks_.insert(
-        it, ReceivingChunk{
-                chunk.offset,
-                {std::begin(chunk.data),
-                 std::begin(chunk.data) + chunk.offset.Distance(it->offset)}});
+    // overlap size with the next chunk
+    auto overlap_size = it->offset.Distance(
+        chunk.offset +
+        static_cast<SafeStreamRingIndex::type>(chunk.data.size()));
+    if ((overlap_size > 0) && (overlap_size <= max_window_size_)) {
+      AE_TELED_DEBUG("Chunks overlap");
+      // chunks overlap
+      received_data_chunks_.emplace(
+          it, ReceivingChunk{
+                  chunk.offset,
+                  {std::begin(chunk.data),
+                   std::begin(chunk.data) +
+                       static_cast<DataBuffer::difference_type>(
+                           chunk.data.size() - overlap_size)},
+                  std::max(it->repeat_count, chunk.repeat_count),
+              });
+    } else {
+      AE_TELED_DEBUG("Insert chunk");
+      received_data_chunks_.emplace(it, std::move(chunk));
+    }
   } else {
-    received_data_chunks_.insert(it, std::move(chunk));
+    auto overlap_size = chunk.offset.Distance(last_emitted_offset_);
+    if ((overlap_size > 0) && (overlap_size <= max_window_size_)) {
+      AE_TELED_DEBUG("Chunk overlapped with emitted");
+      // new chunk is overlapped with last emitted
+      received_data_chunks_.emplace_back(ReceivingChunk{
+          last_emitted_offset_,
+          {std::begin(chunk.data) + overlap_size, std::end(chunk.data)},
+          chunk.repeat_count,
+      });
+    } else {
+      AE_TELED_DEBUG("Emplace back chunk");
+      // new chunk has the biggest offset
+      received_data_chunks_.emplace_back(std::move(chunk));
+    }
   }
-
-  // update expected chunks
-  auto ex_it = std::find_if(
-      std::begin(expected_chunks_), std::end(expected_chunks_),
-      [&](auto const& ex_ch) { return ex_ch.offset == chunk.offset; });
-
-  if (ex_it != std::end(expected_chunks_)) {
-    expected_chunks_.erase(ex_it);
-  }
+  return true;
 }
 
 TimePoint SafeStreamReceivingAction::CheckChunkChains(TimePoint current_time) {
-  auto conf_time = CheckCompletedChains(current_time);
+  CheckCompletedChains(current_time);
+
+  auto conf_time = CheckChunkConfirmation(current_time);
   auto rep_time = CheckMissedOffset(current_time);
   return std::min(conf_time, rep_time);
 }
 
-TimePoint SafeStreamReceivingAction::CheckCompletedChains(
-    TimePoint current_time) {
-  if ((last_send_confirm_time_ + send_confirm_timeout_) > current_time) {
-    return (last_send_confirm_time_ + send_confirm_timeout_);
-  }
-
+void SafeStreamReceivingAction::CheckCompletedChains(TimePoint current_time) {
   auto next_chunk_offset = last_confirmed_offset_;
   auto it = std::begin(received_data_chunks_);
   for (; it != std::end(received_data_chunks_); it++) {
@@ -154,20 +169,30 @@ TimePoint SafeStreamReceivingAction::CheckCompletedChains(
       break;
     }
   }
+  if (std::distance(std::begin(received_data_chunks_), it) == 0) {
+    return;
+  }
 
   auto data = JoinChunks(std::begin(received_data_chunks_), it);
   if (!data.empty()) {
     AE_TELED_DEBUG("Data chunk chain received length: {} to offset: {}",
                    data.size(), next_chunk_offset);
-    receive_event_.Emit(std::move(data));
+    receive_event_.Emit(std::move(data), current_time);
+    received_data_chunks_.erase(std::begin(received_data_chunks_), it);
+    last_emitted_offset_ = next_chunk_offset;
+  }
+}
+
+TimePoint SafeStreamReceivingAction::CheckChunkConfirmation(
+    TimePoint current_time) {
+  if ((last_send_confirm_time_ + send_confirm_timeout_) > current_time) {
+    return (last_send_confirm_time_ + send_confirm_timeout_);
   }
 
-  received_data_chunks_.erase(std::begin(received_data_chunks_), it);
-
-  if (next_chunk_offset != last_confirmed_offset_) {
-    // confirm range [last_confirmed_offset_, next_chunk_offset)
-    AddToConfirmationQueue(next_chunk_offset - 1);
-    last_confirmed_offset_ = next_chunk_offset;
+  if (last_emitted_offset_ != last_confirmed_offset_) {
+    // confirm range [last_confirmed_offset_, last_emitted_offset_)
+    MakeConfirm(last_emitted_offset_ - 1, current_time);
+    last_confirmed_offset_ = last_emitted_offset_;
     last_send_confirm_time_ = current_time;
   }
   return current_time;
@@ -183,7 +208,13 @@ TimePoint SafeStreamReceivingAction::CheckMissedOffset(TimePoint current_time) {
     // if got not expected chunk
     if (chunk.offset != next_chunk_offset) {
       AE_TELED_DEBUG("Request to repeat offset: {}", next_chunk_offset);
-      AddExpectedChunk(next_chunk_offset);
+      ++chunk.repeat_count;
+      if (chunk.repeat_count > max_repeat_count_) {
+        // set failed state
+        repeat_count_exceeded_ = true;
+        break;
+      }
+      MakeRepeat(next_chunk_offset, current_time);
     }
     next_chunk_offset = chunk.offset + static_cast<SafeStreamRingIndex::type>(
                                            chunk.data.size());
@@ -193,53 +224,16 @@ TimePoint SafeStreamReceivingAction::CheckMissedOffset(TimePoint current_time) {
   return current_time;
 }
 
-void SafeStreamReceivingAction::MakeResponse(TimePoint current_time) {
-  if (confirmation_queue_.empty() && repeat_queue_.empty()) {
-    return;
-  }
-
-  auto packet = PacketBuilder{protocol_context_};
-  for (auto const& confirm : confirmation_queue_) {
-    AE_TELED_DEBUG("Send confirm to offset {}", confirm);
-    packet.Push(safe_stream_api_, SafeStreamApi::Confirm{
-                                      {}, static_cast<std::uint16_t>(confirm)});
-  }
-  confirmation_queue_.clear();
-  for (auto const& repeat : repeat_queue_) {
-    AE_TELED_DEBUG("Send repeat request to offset {}", repeat);
-    packet.Push(safe_stream_api_, SafeStreamApi::RequestRepeat{
-                                      {}, static_cast<std::uint16_t>(repeat)});
-  }
-  repeat_queue_.clear();
-
-  send_data_event_.Emit(std::move(packet), current_time);
+void SafeStreamReceivingAction::MakeConfirm(SafeStreamRingIndex offset,
+                                            TimePoint current_time) {
+  AE_TELED_DEBUG("Send confirm to offset {}", offset);
+  send_confirm_event_.Emit(offset, current_time);
 }
 
-void SafeStreamReceivingAction::AddExpectedChunk(SafeStreamRingIndex offset) {
-  auto ex_it =
-      std::find_if(std::begin(expected_chunks_), std::end(expected_chunks_),
-                   [&](auto const& ex_ch) { return ex_ch.offset == offset; });
-  if (ex_it != std::end(expected_chunks_)) {
-    ex_it->repeat_count++;
-    if (ex_it->repeat_count > max_repeat_count_) {
-      // set failed state
-      repeat_count_exceeded_ = true;
-      return;
-    }
-  } else {
-    expected_chunks_.emplace_back(ExpectedChunk{offset, 0});
-  }
-
-  AddToRepeatQueue(offset);
-}
-
-void SafeStreamReceivingAction::AddToConfirmationQueue(
-    SafeStreamRingIndex offset) {
-  confirmation_queue_.push_back(offset);
-}
-
-void SafeStreamReceivingAction::AddToRepeatQueue(SafeStreamRingIndex offset) {
-  repeat_queue_.push_back(offset);
+void SafeStreamReceivingAction::MakeRepeat(SafeStreamRingIndex offset,
+                                           TimePoint current_time) {
+  AE_TELED_DEBUG("Send repeat request to offset {}", offset);
+  send_request_repeat_event_.Emit(offset, current_time);
 }
 
 DataBuffer SafeStreamReceivingAction::JoinChunks(
@@ -254,7 +248,8 @@ DataBuffer SafeStreamReceivingAction::JoinChunks(
   data.reserve(size);
   // then copy data
   for (auto it = begin; it != end; it++) {
-    data.insert(std::end(data), std::begin(it->data), std::end(it->data));
+    std::copy(std::begin(it->data), std::end(it->data),
+              std::back_inserter(data));
   }
   return data;
 }
