@@ -120,8 +120,8 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         std::numeric_limits<std::uint16_t>::max(),
         (std::numeric_limits<std::uint16_t>::max() / 2) - 1,
         (std::numeric_limits<std::uint16_t>::max() / 2) - 1,
-        5,
-        std::chrono::milliseconds{300},
+        10,
+        std::chrono::milliseconds{400},
         std::chrono::milliseconds{0},
         std::chrono::milliseconds{200},
     };
