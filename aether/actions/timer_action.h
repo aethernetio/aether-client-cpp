@@ -18,6 +18,7 @@
 #define AETHER_ACTIONS_TIMER_ACTION_H_
 
 #include <cstdint>
+#include <utility>
 
 #include "aether/common.h"
 #include "aether/state_machine.h"
@@ -44,8 +45,11 @@ class TimerAction : public Action<TimerAction> {
         state_changed_sub_{state_.changed_event().Subscribe(
             [this](auto) { Action::Trigger(); })} {}
 
-  using Action::Action;
-  using Action::operator=;
+  TimerAction(TimerAction const& other) = delete;
+  TimerAction(TimerAction&& other) noexcept;
+
+  TimerAction& operator=(TimerAction const& other) = delete;
+  TimerAction& operator=(TimerAction&& other) noexcept;
 
   TimePoint Update(TimePoint current_time) override;
 
