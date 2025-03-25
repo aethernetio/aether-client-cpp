@@ -121,14 +121,14 @@ class EpollPoller::PollWorker {
   static std::vector<EventType> FromEpollEvent(std::uint32_t events) {
     auto res = std::vector<EventType>{};
     res.reserve(3);
-    if ((events & (EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP)) != 0) {
-      res.push_back(EventType::kError);
-    }
     if ((events & EPOLLIN) != 0) {
       res.push_back(EventType::kRead);
     }
     if ((events & EPOLLOUT) != 0) {
       res.push_back(EventType::kWrite);
+    }
+    if ((events & (EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP)) != 0) {
+      res.push_back(EventType::kError);
     }
     return res;
   }
