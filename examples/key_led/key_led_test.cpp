@@ -45,8 +45,8 @@
 
 using std::vector;
 
-static constexpr std::string_view kWifiSsid = "Test123";
-static constexpr std::string_view kWifiPass = "Test123";
+static constexpr std::string_view kWifiSsid = "Test1234";
+static constexpr std::string_view kWifiPass = "Test1234";
 static constexpr bool kUseAether = true;
 
 namespace ae::key_led_test {
