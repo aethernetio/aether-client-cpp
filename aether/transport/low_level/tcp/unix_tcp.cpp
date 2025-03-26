@@ -79,6 +79,8 @@ inline bool SetNonblocking(int sock) {
 }
 
 struct SockAddr {
+  sockaddr* addr() { return reinterpret_cast<sockaddr*>(&data); }
+
   union {
 #  if AE_SUPPORT_IPV4 == 1
     struct sockaddr_in ipv4;
@@ -87,7 +89,7 @@ struct SockAddr {
     struct sockaddr_in6 ipv6;
 #  endif
   } data;
-  sockaddr* addr;
+
   std::size_t size;
 };
 
@@ -96,18 +98,17 @@ inline SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
     case IpAddress::Version::kIpV4:
 #  if AE_SUPPORT_IPV4 == 1
     {
-      SockAddr sock_addr;
-      sock_addr.addr = reinterpret_cast<sockaddr*>(&sock_addr.data.ipv4);
+      SockAddr sock_addr{};
       sock_addr.size = sizeof(sock_addr.data.ipv4);
       auto& addr = sock_addr.data.ipv4;
 
 #    ifndef __unix__
       addr.sin_len = sizeof(sockaddr_in);
 #    endif  // __unix__
-      addr.sin_family = AF_INET;
       std::memcpy(&addr.sin_addr.s_addr, ip_address_port.ip.value.ipv4_value,
                   4);
       addr.sin_port = ae::SwapToInet(ip_address_port.port);
+      addr.sin_family = AF_INET;
 
       return sock_addr;
     }
@@ -120,15 +121,14 @@ inline SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
     case IpAddress::Version::kIpV6: {
 #  if AE_SUPPORT_IPV6 == 1
       SockAddr sock_addr;
-      sock_addr.addr = reinterpret_cast<sockaddr*>(&sock_addr.data.ipv6);
       sock_addr.size = sizeof(sock_addr.data.ipv6);
       auto& addr = sock_addr.data.ipv6;
 #    ifndef __unix__
       addr.sin6_len = sizeof(sockaddr_in6);
 #    endif  // __unix__
-      addr.sin6_family = AF_INET;
       std::memcpy(&addr.sin6_addr, ip_address_port.ip.value.ipv6_value, 16);
       addr.sin6_port = ae::SwapToInet(ip_address_port.port);
+      addr.sin6_family = AF_INET6;
 
       return sock_addr;
     }
@@ -207,7 +207,7 @@ void UnixTcpTransport::ConnectionAction::Connect() {
   }
 
   auto addr = unix_tcp_internal::GetSockAddr(transport_->endpoint_);
-  auto res = connect(socket_, addr.addr, static_cast<socklen_t>(addr.size));
+  auto res = connect(socket_, addr.addr(), static_cast<socklen_t>(addr.size));
   if (res == -1) {
     if ((errno == EAGAIN) || (errno == EINPROGRESS)) {
       AE_TELED_DEBUG("Wait connection");
