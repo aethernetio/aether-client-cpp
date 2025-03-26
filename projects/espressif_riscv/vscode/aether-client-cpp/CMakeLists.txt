@@ -26,7 +26,7 @@ idf_build_set_property(CM_PLATFORM "ESP32")
 add_compile_definitions(CM_ESP32)
 
 if(NOT COMPILE_EXAMPLE )
-  set(COMPILE_EXAMPLE "key_led")
+  set(COMPILE_EXAMPLE "registered")
 endif()
 
 if (NOT USER_CONFIG)
