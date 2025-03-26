@@ -21,10 +21,13 @@
 # and call this script with -out <path to aether-client-arduino-library>
 #
 
+import io
 import re
 import os
 import shutil
 import argparse
+
+from pathlib import PureWindowsPath
 
 # copy only files what matches
 FILTER_SOURCES = re.compile(r'^[\d\w\-_]+($|(\.((h)|(hpp)|(hh)|(c)|(cpp)|(cc)|(md))$))')
@@ -112,13 +115,14 @@ def fix_include_paths(dir: str):
       if not re_sources.match(f):
         continue
       file_path = os.path.join(root, f)
-      lines = open(file_path, 'r').readlines()
-      with open(file_path, 'w') as open_file:
+      lines = io.open(file_path, 'r', encoding='utf-8').readlines()
+      with io.open(file_path, 'w', encoding='utf-8') as open_file:
         for l in lines:
           match = re_include.match(l)
           if match:
             should_include = get_file_path_relative_to(match[1], root, base_dir)
             l = '#include \"{}\"\n'.format(should_include)
+            l = PureWindowsPath(l).as_posix()
           open_file.write(l)
 
 def copy_aether_dir(aether_path:str, out_dir: str):
