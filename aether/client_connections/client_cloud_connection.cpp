@@ -108,7 +108,6 @@ void ClientCloudConnection::SelectConnection() {
                                            .is_linked) {
                                      OnConnected();
                                    } else {
-                                     AE_TELED_ERROR("CE2");
                                      OnConnectionError();
                                    }
                                  })
@@ -136,7 +135,6 @@ void ClientCloudConnection::OnConnected() {
                                           .in()
                                           .stream_info()
                                           .is_linked) {
-                                   AE_TELED_ERROR("CE1");
                                    OnConnectionError();
                                  }
                                })
