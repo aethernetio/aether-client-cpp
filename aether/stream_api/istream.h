@@ -100,6 +100,8 @@ class Gate : public IGate<TIn, TOut> {
   virtual void LinkOut(OutGate& out) = 0;
   virtual void Unlink() {
     out_ = nullptr;
+    out_data_subscription_.Reset();
+    gate_update_subscription_.Reset();
     gate_update_event_.Emit();
   }
 

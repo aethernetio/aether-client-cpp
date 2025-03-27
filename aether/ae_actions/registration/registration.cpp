@@ -383,6 +383,7 @@ void Registration::OnConfirmRegistration(
   ephemeral_uid_ = message.registration_response.ephemeral_uid;
   uid_ = message.registration_response.uid;
   cloud_ = message.registration_response.cloud;
+  assert(cloud_.size() > 0);
 
   state_ = State::kRequestCloudResolving;
 }

@@ -36,11 +36,6 @@ class ClientConnection {
   virtual ~ClientConnection() = default;
 
   /**
-   * \brief Reconfigure connectivity to the cloud.
-   */
-  virtual void Connect() = 0;
-
-  /**
    * \brief Create a stream to another client to send messages.
    */
   virtual std::unique_ptr<ByteStream> CreateStream(Uid destination_uid,

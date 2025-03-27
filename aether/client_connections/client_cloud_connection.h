@@ -23,7 +23,8 @@
 #include "aether/uid.h"
 #include "aether/memory.h"
 #include "aether/async_for_loop.h"
-#include "aether/actions/action.h"
+#include "aether/actions/timer_action.h"
+#include "aether/actions/notify_action.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 
@@ -42,13 +43,13 @@ class Cloud;
  */
 class ClientCloudConnection final : public ClientConnection {
   using ReconnectNotify = NotifyAction<>;
+  using NextServerLoopTimer = TimerAction;
 
  public:
   ClientCloudConnection(
       ActionContext action_context, ObjPtr<Cloud> const& cloud,
       std::unique_ptr<IServerConnectionFactory>&& server_connection_factory);
 
-  void Connect() override;
   std::unique_ptr<ByteStream> CreateStream(Uid destination_uid,
                                            StreamId stream_id) override;
   NewStreamEvent::Subscriber new_stream_event() override;
@@ -57,8 +58,11 @@ class ClientCloudConnection final : public ClientConnection {
   AE_REFLECT()
 
  private:
+  void Connect();
   void SelectConnection();
+  void ServerListEnded();
 
+  void OnConnected();
   void OnConnectionError();
   void NewStream(Uid uid, ByteStream& stream);
 
@@ -74,13 +78,16 @@ class ClientCloudConnection final : public ClientConnection {
   Subscription new_stream_event_subscription_;
   MultiSubscription new_split_stream_subscription_;
 
-  Subscription connection_status_subscription_;
+  Subscription connection_status_sub_;
 
   // known streams to clients
   std::map<Uid, std::unique_ptr<SplitterGate>> gates_;
 
   ReconnectNotify reconnect_notify_;
-  Subscription reconnect_notify_subscription_;
+  NextServerLoopTimer next_server_loop_timer_;
+
+  Subscription reconnect_notify_sub_;
+  Subscription next_server_loop_subs_;
 };
 }  // namespace ae
 

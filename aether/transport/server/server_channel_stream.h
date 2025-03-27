@@ -64,7 +64,10 @@ class ServerChannelStream final : public ByteStream {
   std::optional<TransportWriteGate> transport_write_gate_;
 
   std::unique_ptr<class ChannelConnectionAction> connection_action_;
-  MultiSubscription connection_subscriptions_;
+  Subscription connection_success_;
+  Subscription connection_failed_;
+  Subscription connection_finished_;
+  Subscription connection_error_;
 };
 }  // namespace ae
 

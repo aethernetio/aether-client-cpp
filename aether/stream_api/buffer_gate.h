@@ -69,6 +69,7 @@ class BufferGate final : public ByteGate {
                                       TimePoint current_time) override;
 
   void LinkOut(OutGate& out) override;
+  void Unlink() override;
 
   StreamInfo stream_info() const override;
 

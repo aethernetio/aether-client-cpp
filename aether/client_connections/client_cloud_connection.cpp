@@ -32,15 +32,6 @@ ClientCloudConnection::ClientCloudConnection(
   Connect();
 }
 
-void ClientCloudConnection::Connect() {
-  connection_selector_loop_ =
-      AsyncForLoop<RcPtr<ClientServerConnection>>::Construct(
-          server_connection_selector_,
-          [this]() { return server_connection_selector_.GetConnection(); });
-
-  SelectConnection();
-}
-
 std::unique_ptr<ByteStream> ClientCloudConnection::CreateStream(
     Uid destination_uid, StreamId stream_id) {
   AE_TELE_DEBUG(CloudClientConnStreamCreate,
@@ -87,30 +78,41 @@ void ClientCloudConnection::CloseStream(Uid uid, StreamId stream_id) {
   }
 }
 
+void ClientCloudConnection::Connect() {
+  connection_selector_loop_ =
+      AsyncForLoop<RcPtr<ClientServerConnection>>::Construct(
+          server_connection_selector_,
+          [this]() { return server_connection_selector_.GetConnection(); });
+
+  SelectConnection();
+}
+
 void ClientCloudConnection::SelectConnection() {
   if (server_connection_ = connection_selector_loop_->Update();
       !server_connection_) {
     AE_TELED_ERROR("Server channel list is ended");
+    ServerListEnded();
     return;
   }
 
-  // TODO: add subscription to disconnection
-
-  connection_status_subscription_ =
-      server_connection_->server_stream()
-          .in()
-          .gate_update_event()
-          .Subscribe([this]() {
-            if (server_connection_->server_stream()
-                    .in()
-                    .stream_info()
-                    .is_linked) {
-              AE_TELED_INFO("Client cloud connection is connected");
-            } else {
-              OnConnectionError();
-            }
-          })
-          .Once();
+  if (server_connection_->server_stream().in().stream_info().is_linked) {
+    OnConnected();
+  } else {
+    connection_status_sub_ = server_connection_->server_stream()
+                                 .in()
+                                 .gate_update_event()
+                                 .Subscribe([this]() {
+                                   if (server_connection_->server_stream()
+                                           .in()
+                                           .stream_info()
+                                           .is_linked) {
+                                     OnConnected();
+                                   } else {
+                                     OnConnectionError();
+                                   }
+                                 })
+                                 .Once();
+  }
 
   // restore all known streams to a new server
   for (auto& [uid, gate] : gates_) {
@@ -122,16 +124,43 @@ void ClientCloudConnection::SelectConnection() {
           *this, MethodPtr<&ClientCloudConnection::NewStream>{});
 }
 
+void ClientCloudConnection::OnConnected() {
+  AE_TELED_INFO("Client cloud connection is connected");
+  // subscribe to disconnection
+  connection_status_sub_ = server_connection_->server_stream()
+                               .in()
+                               .gate_update_event()
+                               .Subscribe([this]() {
+                                 if (!server_connection_->server_stream()
+                                          .in()
+                                          .stream_info()
+                                          .is_linked) {
+                                   OnConnectionError();
+                                 }
+                               })
+                               .Once();
+}
+
 void ClientCloudConnection::OnConnectionError() {
   AE_TELED_ERROR("Connection error");
   reconnect_notify_ = ReconnectNotify{action_context_};
-  reconnect_notify_subscription_ = reconnect_notify_
-                                       .SubscribeOnResult([this](auto const&) {
-                                         AE_TELED_DEBUG("Reconnect");
-                                         SelectConnection();
-                                       })
-                                       .Once();
+  reconnect_notify_sub_ = reconnect_notify_
+                              .SubscribeOnResult([this](auto const&) {
+                                AE_TELED_DEBUG("Reconnect");
+                                SelectConnection();
+                              })
+                              .Once();
   reconnect_notify_.Notify();
+}
+
+void ClientCloudConnection::ServerListEnded() {
+  next_server_loop_timer_ =
+      NextServerLoopTimer{action_context_, std::chrono::milliseconds{5000}};
+  next_server_loop_subs_ =
+      next_server_loop_timer_.SubscribeOnResult([&](auto const&) {
+        AE_TELED_DEBUG("Connect again");
+        Connect();
+      });
 }
 
 void ClientCloudConnection::NewStream(Uid uid, ByteStream& stream) {
