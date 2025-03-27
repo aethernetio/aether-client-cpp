@@ -53,12 +53,11 @@ def remove_empty_folders(dir:str):
 
 # get file path to #include relative to base
 def deep_get_file_path_relative_to(file_name:str, dir: str):
-  n = os.path.split(file_name)[1]
-  name = n if len(n) else file_name
-  for (root, _, files) in os.walk(dir):
-    for f in files:
-      if f == name:
-        return os.path.join(root, f)
+  for (root, dirs, _) in os.walk(dir):
+    for d in dirs:
+      file_path = os.path.join(root, d, file_name)
+      if os.path.exists(file_path):
+        return file_path
   return ''
 
 # get file path to #include relative to base
@@ -75,6 +74,7 @@ def get_file_path_relative_to(file_name:str, dir: str, base: str):
     deep_find = deep_get_file_path_relative_to(file_name, dir)
     if len(deep_find):
       return os.path.relpath(deep_find, base)
+    # go to parent
     dir = os.path.split(dir)[0]
   raise Exception('file not found', 'File {} should be somewhere in {}'.format(file_name, base))
 
