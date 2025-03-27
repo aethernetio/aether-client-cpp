@@ -285,14 +285,13 @@ UnixTcpTransport::UnixPacketSendAction::UnixPacketSendAction(
 }
 
 void UnixTcpTransport::UnixPacketSendAction::Send() {
+  state_ = State::kProgress;
+
   if (!transport_->socket_lock_.try_lock()) {
+    Action::Trigger();
     return;
   }
   auto lock = std::lock_guard{transport_->socket_lock_, std::adopt_lock};
-
-  if (state_.get() == State::kQueued) {
-    state_.Set(State::kProgress);
-  }
 
   auto size_to_send = data_.size() - sent_offset_;
   // add nosignal to prevent throw SIGPIPE and handle it manually
@@ -307,12 +306,12 @@ void UnixTcpTransport::UnixPacketSendAction::Send() {
   if (res == -1) {
     if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
       AE_TELED_ERROR("Send to socket error {} {}", errno, strerror(errno));
-      state_.Set(State::kFailed);
+      state_ = State::kFailed;
     }
     return;
   }
   AE_TELED_DEBUG("Data was sent");
-  state_.Set(State::kSuccess);
+  state_ = State::kSuccess;
 }
 
 UnixTcpTransport::UnixPacketReadAction::UnixPacketReadAction(
@@ -378,7 +377,8 @@ UnixTcpTransport::UnixTcpTransport(ActionContext action_context,
     : action_context_{action_context},
       poller_{std::move(poller)},
       endpoint_{endpoint},
-      connection_info_{} {
+      connection_info_{},
+      socket_packet_queue_manager_{action_context_} {
   AE_TELE_DEBUG(TcpTransport, "Created unix tcp transport to endpoint {}",
                 endpoint_);
   connection_info_.connection_state = ConnectionState::kUndefined;
