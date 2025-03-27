@@ -32,6 +32,7 @@
 #  include "lwip/err.h"
 #  include "lwip/sys.h"
 #  include "lwip/dns.h"
+#  include "lwip/tcpip.h"
 
 #  include "aether/aether.h"
 #  include "aether/actions/action_context.h"
@@ -71,6 +72,7 @@ class GethostByNameDnsResolver {
 
     // make query
     ip_addr_t cached_addr;
+    LOCK_TCPIP_CORE();
     auto res = dns_gethostbyname(
         name_address.name.c_str(), &cached_addr,
         [](const char* /* name */, const ip_addr_t* ipaddr,
@@ -79,6 +81,7 @@ class GethostByNameDnsResolver {
           context->self->QueryResult(*context, ipaddr);
         },
         &query_context);
+    UNLOCK_TCPIP_CORE();
 
     if (res == ERR_OK) {
       QueryResult(query_context, &cached_addr);

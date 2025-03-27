@@ -26,7 +26,7 @@ idf_build_set_property(CM_PLATFORM "ESP32")
 add_compile_definitions(CM_ESP32)
 
 if(NOT COMPILE_EXAMPLE )
-  set(COMPILE_EXAMPLE "key_led")
+  set(COMPILE_EXAMPLE "registered")
 endif()
 
 if (NOT USER_CONFIG)
@@ -40,6 +40,7 @@ endif()
 # enable doubles in unity tests
 add_compile_definitions("CONFIG_UNITY_ENABLE_DOUBLE")
 
+set(AE_DISTILLATION OFF CACHE BOOL "" FORCE)
 
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/cloud"
