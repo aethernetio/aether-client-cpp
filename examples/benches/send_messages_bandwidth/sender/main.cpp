@@ -86,8 +86,7 @@ int test_sender_bandwidth(Uid receiver_uid) {
         for (auto i = 0; i < res_name_table.size(); ++i) {
           res_string += Format("{}:{}\n", res_name_table[i], results[i]);
         }
-        AE_TELED_DEBUG("Test results: \n {}", res_string);
-
+        std::cout << "Test results: \n" << res_string << std::endl;
         aether_app->Exit(0);
       });
 

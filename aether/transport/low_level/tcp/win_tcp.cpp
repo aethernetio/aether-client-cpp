@@ -305,6 +305,7 @@ WinTcpTransport::WinTcpTransport(ActionContext action_context,
     : action_context_{action_context},
       poller_{std::move(poller)},
       endpoint_{endpoint},
+      socket_packet_queue_manager_{action_context_},
       read_overlapped_{{}, EventType::kRead},
       write_overlapped_{{}, EventType::kWrite} {
   AE_TELE_DEBUG(TcpTransport, "Created win tcp transport to endpoint {}",
