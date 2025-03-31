@@ -237,6 +237,16 @@ LwipTcpTransport::LwipTcpPacketSendAction::LwipTcpPacketSendAction(
       state_changed_subscription_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {}
 
+LwipTcpTransport::LwipTcpPacketSendAction::LwipTcpPacketSendAction(
+    LwipTcpPacketSendAction &&other) noexcept
+    : SocketPacketSendAction{std::move(other)},
+      transport_{other.transport_},
+      data_{std::move(other.data_)},
+      current_time_{other.current_time_},
+      sent_offset_{other.sent_offset_},
+      state_changed_subscription_{state_.changed_event().Subscribe(
+          [this](auto) { Action::Trigger(); })} {}
+
 void LwipTcpTransport::LwipTcpPacketSendAction::Send() {
   state_.Set(State::kProgress);
 

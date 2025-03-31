@@ -80,6 +80,8 @@ class LwipTcpTransport : public ITransport {
                             LwipTcpTransport& transport, DataBuffer data,
                             TimePoint current_time);
 
+    LwipTcpPacketSendAction(LwipTcpPacketSendAction&& other) noexcept;
+
     void Send() override;
 
    private:
