@@ -83,7 +83,7 @@ int test_receiver_bandwidth() {
         for (auto i = 0; i < res_name_table.size(); ++i) {
           res_string += Format("{}:{}\n", res_name_table[i], results[i]);
         }
-        AE_TELED_DEBUG("Test results: \n {}", res_string);
+        std::cout << "Test results: \n" << res_string << std::endl;
 
         aether_app->Exit(0);
       });
@@ -93,7 +93,8 @@ int test_receiver_bandwidth() {
     aether_app->Exit(1);
   });
 
-  AE_TELED_INFO("Receiver prepared for test width uid {}", client->uid());
+  std::cout << "Receiver prepared for test with uid "
+            << Format("{}", client->uid()) << std::endl;
 
   while (!aether_app->IsExited()) {
     auto time = ae::TimePoint::clock::now();

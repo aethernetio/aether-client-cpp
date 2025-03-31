@@ -172,67 +172,59 @@ void WinTcpTransport::ConnectionAction::ConnectionUpdate() {
 }
 
 WinTcpTransport::WinTcpPacketSendAction::WinTcpPacketSendAction(
-    ActionContext action_context, SyncSocket& sync_socket,
-    EventSubscriber<void()> send_event_subscriber,
-    WinPollerOverlapped& write_overlapped, DataBuffer data,
+    ActionContext action_context, WinTcpTransport& transport, DataBuffer data,
     TimePoint current_time)
     : SocketPacketSendAction{action_context},
-      sync_socket_{sync_socket},
-      send_event_subscriber_{std::move(send_event_subscriber)},
-      write_overlapped_{write_overlapped},
+      transport_{&transport},
       send_buffer_{std::move(data)},
       current_time_{current_time},
       send_offset_{},
-      send_pending_{} {
-  state_changed_subscription_ =
-      state_.changed_event().Subscribe([this](auto state) {
-        // unsubscribe from update event
-        switch (state) {
-          case State::kSuccess:
-          case State::kFailed:
-          case State::kPanic:
-          case State::kTimeout:
-          case State::kStopped:
-            send_event_subscription_.Reset();
-            break;
-          default:
-            break;
-        }
-      });
-}
+      state_changed_subscription_{
+          state_.changed_event().Subscribe([this](auto state) {
+            // unsubscribe from update event
+            switch (state) {
+              case State::kSuccess:
+              case State::kFailed:
+              case State::kPanic:
+              case State::kTimeout:
+              case State::kStopped:
+                send_event_subscription_.Reset();
+                break;
+              default:
+                break;
+            }
+          })},
+      send_pending_{} {}
 
 WinTcpTransport::WinTcpPacketSendAction::WinTcpPacketSendAction(
     WinTcpPacketSendAction&& other) noexcept
-    : SocketPacketSendAction{std::move(
-          static_cast<SocketPacketSendAction&>(other))},
-      sync_socket_{other.sync_socket_},
-      send_event_subscriber_{std::move(other.send_event_subscriber_)},
-      write_overlapped_{other.write_overlapped_},
+    : SocketPacketSendAction{std::move(other)},
+      transport_{other.transport_},
       send_buffer_{std::move(other.send_buffer_)},
       current_time_{other.current_time_},
       send_offset_{other.send_offset_},
-      send_pending_{} {
-  state_changed_subscription_ =
-      state_.changed_event().Subscribe([this](auto state) {
-        // unsubscribe from update event
-        switch (state) {
-          case State::kSuccess:
-          case State::kFailed:
-          case State::kPanic:
-          case State::kTimeout:
-          case State::kStopped:
-            send_event_subscription_.Reset();
-            break;
-          default:
-            break;
-        }
-      });
-}
+      state_changed_subscription_{
+          state_.changed_event().Subscribe([this](auto state) {
+            // unsubscribe from update event
+            switch (state) {
+              case State::kSuccess:
+              case State::kFailed:
+              case State::kPanic:
+              case State::kTimeout:
+              case State::kStopped:
+                send_event_subscription_.Reset();
+                break;
+              default:
+                break;
+            }
+          })},
+      send_pending_{other.send_pending_.load()} {}
 
 void WinTcpTransport::WinTcpPacketSendAction::Send() {
   if (state_.get() == State::kQueued) {
     send_event_subscription_ =
-        send_event_subscriber_.Subscribe([this]() { OnSend(); });
+        EventSubscriber{transport_->send_event_}.Subscribe(
+            *this, MethodPtr<&WinTcpPacketSendAction::OnSend>{});
     state_ = State::kProgress;
   } else if ((state_.get() == State::kProgress) &&
              (send_offset_ == send_buffer_.size())) {
@@ -249,14 +241,20 @@ void WinTcpTransport::WinTcpPacketSendAction::MakeSend() {
     return;
   }
 
-  auto socket = sync_socket_.get();
+  if (!transport_->socket_lock_.try_lock()) {
+    Action::Trigger();
+    return;
+  }
+  auto lock = std::lock_guard{transport_->socket_lock_, std::adopt_lock};
+
+  // Make a send request, result would be known in OnSend
   auto wsa_buffer =
       WSABUF{static_cast<ULONG>(send_buffer_.size() - send_offset_),
              reinterpret_cast<char*>(send_buffer_.data() + send_offset_)};
   DWORD bytes_transferred;
-  auto res =
-      WSASend(*socket, &wsa_buffer, 1, &bytes_transferred, 0,
-              reinterpret_cast<OVERLAPPED*>(&write_overlapped_), nullptr);
+  auto res = WSASend(
+      transport_->socket_, &wsa_buffer, 1, &bytes_transferred, 0,
+      reinterpret_cast<OVERLAPPED*>(&transport_->write_overlapped_), nullptr);
   if (res == SOCKET_ERROR) {
     auto error_code = WSAGetLastError();
     if (error_code == WSA_IO_PENDING) {
@@ -279,11 +277,13 @@ void WinTcpTransport::WinTcpPacketSendAction::MakeSend() {
 }
 
 void WinTcpTransport::WinTcpPacketSendAction::OnSend() {
-  auto socket = sync_socket_.get();
+  // this invoked from Poller thread
+  auto lock = std::lock_guard{transport_->socket_lock_};
   DWORD bytes_transferred;
   DWORD flags;
   auto res = WSAGetOverlappedResult(
-      *socket, reinterpret_cast<OVERLAPPED*>(&write_overlapped_),
+      transport_->socket_,
+      reinterpret_cast<OVERLAPPED*>(&transport_->write_overlapped_),
       &bytes_transferred, false, &flags);
 
   if (!res) {
@@ -299,12 +299,97 @@ void WinTcpTransport::WinTcpPacketSendAction::OnSend() {
   send_offset_ += bytes_transferred;
 }
 
+WinTcpTransport::WinTcpReadAction::WinTcpReadAction(
+    ActionContext action_context, WinTcpTransport& transport)
+    : Action{std::move(action_context)},
+      transport_{&transport},
+      recv_tmp_buffer_(kBufferMaxSize),
+      read_event_{true},  // start with first RecvUpdate()
+      error_event_{false} {}
+
+TimePoint WinTcpTransport::WinTcpReadAction::Update(TimePoint current_time) {
+  if (read_event_.exchange(false)) {
+    RecvUpdate();
+    HandleReceivedData();
+  }
+  if (error_event_.exchange(false)) {
+    Action::Error(*this);
+  }
+  return current_time;
+}
+
+void WinTcpTransport::WinTcpReadAction::RecvUpdate() {
+  auto lock = std::lock_guard{transport_->socket_lock_};
+
+  auto wsabuf = WSABUF{static_cast<ULONG>(recv_tmp_buffer_.size()),
+                       reinterpret_cast<char*>(recv_tmp_buffer_.data())};
+
+  DWORD bytes_transferred;
+  DWORD flags = 0;
+  auto res = WSARecv(
+      transport_->socket_, &wsabuf, 1, &bytes_transferred, &flags,
+      reinterpret_cast<OVERLAPPED*>(&transport_->read_overlapped_), nullptr);
+  if (res == SOCKET_ERROR) {
+    auto err_code = WSAGetLastError();
+    if (err_code != WSA_IO_PENDING) {
+      AE_TELED_ERROR("Recv get error {}", err_code);
+      error_event_ = true;
+      Action::Trigger();
+      return;
+    }
+  }
+  // receive data made by OnRecv
+}
+
+void WinTcpTransport::WinTcpReadAction::HandleReceivedData() {
+  auto lock = std::lock_guard{transport_->socket_lock_};
+
+  for (auto packet = data_packet_collector_.PopPacket(); !packet.empty();
+       packet = data_packet_collector_.PopPacket()) {
+    // TODO: get time from action
+    AE_TELE_DEBUG(TcpTransportReceive, "Receive data size {}", packet.size());
+    transport_->data_receive_event_.Emit(std::move(packet),
+                                         TimePoint::clock::now());
+  }
+}
+
+void WinTcpTransport::WinTcpReadAction::OnRecv() {
+  auto lock = std::lock_guard{transport_->socket_lock_};
+
+  DWORD bytes_transferred;
+  DWORD flags;
+  auto res = WSAGetOverlappedResult(
+      transport_->socket_,
+      reinterpret_cast<OVERLAPPED*>(&transport_->read_overlapped_),
+      &bytes_transferred, false, &flags);
+  if (!res) {
+    AE_TELED_ERROR("WSAGetOverlappedResult socket {} get error {}", *socket,
+                   WSAGetLastError());
+    error_event_ = true;
+    Action::Trigger();
+    return;
+  }
+
+  if (bytes_transferred == 0) {
+    AE_TELED_ERROR("WSAGetOverlappedResult - got 0 bytes_transferred");
+    error_event_ = true;
+    Action::Trigger();
+    return;
+  }
+
+  data_packet_collector_.AddData(recv_tmp_buffer_.data(),
+                                 static_cast<std::size_t>(bytes_transferred));
+  read_event_ = true;
+  Action::Trigger();
+}
+
 WinTcpTransport::WinTcpTransport(ActionContext action_context,
                                  IPoller::ptr poller,
                                  IpAddressPort const& endpoint)
     : action_context_{action_context},
       poller_{std::move(poller)},
       endpoint_{endpoint},
+      socket_packet_queue_manager_{action_context_},
       read_overlapped_{{}, EventType::kRead},
       write_overlapped_{{}, EventType::kWrite} {
   AE_TELE_DEBUG(TcpTransport, "Created win tcp transport to endpoint {}",
@@ -319,7 +404,7 @@ void WinTcpTransport::Connect() {
 
   connection_action_.emplace(action_context_, *this);
 
-  connection_subscriptions_.Push(
+  connection_subs_.Push(
       connection_action_
           ->SubscribeOnError([this](auto const&) { OnConnectionError(); })
           .Once(),
@@ -359,63 +444,47 @@ ActionView<PacketSendAction> WinTcpTransport::Send(DataBuffer data,
 
   auto send_action =
       socket_packet_queue_manager_.AddPacket(WinTcpPacketSendAction{
-          action_context_, sync_socket_, send_event_, write_overlapped_,
-          std::move(packet_data), current_time});
-  send_action_subscriptions_.Push(
-      send_action->SubscribeOnError([this](auto const&) {
-        AE_TELED_ERROR("Send error disconnect");
-        Disconnect();
-      }));
+          action_context_, *this, std::move(packet_data), current_time});
+  send_action_subs_.Push(send_action->SubscribeOnError([this](auto const&) {
+    AE_TELED_ERROR("Send error disconnect");
+    Disconnect();
+  }));
 
   return send_action;
 }
 
 void WinTcpTransport::OnConnect(DescriptorType::Socket socket) {
-  socket_recv_event_action_ = SocketEventAction{action_context_};
-  socket_recv_event_subscriptions_ =
-      socket_recv_event_action_.SubscribeOnResult(
-          [this](auto const&) { OnSocketRecvEvent(); });
-
-  socket_send_event_action_ = SocketEventAction{action_context_};
-  socket_send_event_subscriptions_ =
-      socket_send_event_action_.SubscribeOnResult(
-          [this](auto const&) { OnSocketSendEvent(); });
-
   socket_error_action_ = SocketEventAction{action_context_};
-  socket_error_subscriptions_ = socket_error_action_.SubscribeOnError(
+  socket_error_sub_ = socket_error_action_.SubscribeOnError(
       [this](auto const&) { OnSocketError(); });
 
-  sync_socket_ = SyncSocket{socket};
-  {
-    auto s = sync_socket_.get();
-    assert(*s != INVALID_SOCKET);
+  socket_ = socket;
 
-    socket_poll_subscription_ =
-        poller_->Add(*s).Subscribe([this, sock{*s}](auto event) {
-          if (event.descriptor != sock) {
-            return;
-          }
-          switch (event.event_type) {
-            case EventType::kRead:
-              OnRecv();
-              // call OnSocketRecvEvent in main thread
-              socket_recv_event_action_.Notify();
-              break;
-            case EventType::kWrite:
-              send_event_.Emit();
-              socket_send_event_action_.Notify();
-              break;
-            default:
-              AE_TELED_ERROR("Socket unexpected event type {}",
-                             event.event_type);
-              socket_error_action_.Notify();
-              break;
-          }
-        });
-  }
+  read_action_.emplace(action_context_, *this);
+  read_error_sub_ = read_action_->SubscribeOnError([&](auto const&) {
+    AE_TELED_ERROR("Read error");
+    OnSocketError();
+  });
 
-  // try to read anything
-  socket_recv_event_action_.Notify();
+  socket_poll_sub_ =
+      poller_->Add(socket_).Subscribe([this, sock{socket_}](auto event) {
+        if (event.descriptor != sock) {
+          return;
+        }
+        switch (event.event_type) {
+          case EventType::kRead:
+            read_action_->OnRecv();
+            break;
+          case EventType::kWrite:
+            send_event_.Emit();
+            break;
+          case EventType::kError:
+          default:
+            AE_TELED_ERROR("Got socket error event type {}", event.event_type);
+            socket_error_action_.Notify();
+            break;
+        }
+      });
 
   // -2 bytes for packet size
   connection_info_.max_packet_size = kBufferMaxSize - 2;
@@ -429,84 +498,19 @@ void WinTcpTransport::OnConnectionError() {
   connection_error_event_.Emit();
 }
 
-void WinTcpTransport::OnSocketRecvEvent() {
-  RecvUpdate();
-  HandleReceivedData();
-}
-
-void WinTcpTransport::OnSocketSendEvent() {
-  socket_packet_queue_manager_.Send();
-}
-
 void WinTcpTransport::OnSocketError() { Disconnect(); }
 
-void WinTcpTransport::RecvUpdate() {
-  auto socket = sync_socket_.get();
-  recv_tmp_buffer_.resize(kBufferMaxSize);
-  auto wsabuf = WSABUF{static_cast<ULONG>(recv_tmp_buffer_.size()),
-                       reinterpret_cast<char*>(recv_tmp_buffer_.data())};
-
-  DWORD bytes_transferred;
-  DWORD flags = 0;
-  auto res = WSARecv(*socket, &wsabuf, 1, &bytes_transferred, &flags,
-                     reinterpret_cast<OVERLAPPED*>(&read_overlapped_), nullptr);
-  if (res == SOCKET_ERROR) {
-    auto err_code = WSAGetLastError();
-    if (err_code != WSA_IO_PENDING) {
-      AE_TELED_ERROR("Recv get error {}", err_code);
-      socket_error_action_.Notify();
-      return;
-    }
-  }
-  // receive data made by OnRecv
-}
-
-void WinTcpTransport::HandleReceivedData() {
-  // lock socket
-  auto socket = sync_socket_.get();
-  for (auto packet = data_packet_collector_.PopPacket(); !packet.empty();
-       packet = data_packet_collector_.PopPacket()) {
-    // TODO: get time from action
-    data_receive_event_.Emit(std::move(packet), TimePoint::clock::now());
-  }
-}
-
-void WinTcpTransport::OnRecv() {
-  auto socket = sync_socket_.get();
-  DWORD bytes_transferred;
-  DWORD flags;
-  auto res = WSAGetOverlappedResult(
-      *socket, reinterpret_cast<OVERLAPPED*>(&read_overlapped_),
-      &bytes_transferred, false, &flags);
-  if (!res) {
-    AE_TELED_ERROR("WSAGetOverlappedResult socket {} get error {}", *socket,
-                   WSAGetLastError());
-    socket_error_action_.Notify();
-    return;
-  }
-
-  if (bytes_transferred == 0) {
-    AE_TELED_ERROR("WSAGetOverlappedResult - got 0 bytes_transferred");
-    socket_error_action_.Notify();
-    return;
-  }
-
-  recv_tmp_buffer_.resize(static_cast<std::size_t>(bytes_transferred));
-  data_packet_collector_.AddData(std::move(recv_tmp_buffer_));
-}
-
 void WinTcpTransport::Disconnect() {
-  auto socket = sync_socket_.get();
-  if (*socket == INVALID_SOCKET) {
+  auto lock = std::lock_guard{socket_lock_};
+
+  if (socket_ == INVALID_SOCKET) {
     return;
   }
-  poller_->Remove(*socket);
-  closesocket(*socket);
-  sync_socket_ = SyncSocket{};
+  poller_->Remove(socket_);
+  closesocket(socket_);
+  socket_ = INVALID_SOCKET;
 
-  socket_recv_event_subscriptions_.Reset();
-  socket_send_event_subscriptions_.Reset();
-  socket_error_subscriptions_.Reset();
+  socket_error_sub_.Reset();
 
   AE_TELE_DEBUG(TcpTransportDisconnect, "Disconnect from {}", endpoint_);
   OnConnectionError();

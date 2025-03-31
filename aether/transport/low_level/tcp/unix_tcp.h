@@ -75,6 +75,8 @@ class UnixTcpTransport : public ITransport {
                          UnixTcpTransport& transport, DataBuffer data,
                          TimePoint current_time);
 
+    UnixPacketSendAction(UnixPacketSendAction&& other) noexcept;
+
     void Send() override;
 
    private:

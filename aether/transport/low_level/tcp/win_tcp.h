@@ -45,30 +45,6 @@ namespace ae {
 constexpr auto InvalidSocketValue = static_cast<DescriptorType::Socket>(~0);
 
 class WinTcpTransport : public ITransport {
-  class SyncSocket {
-   public:
-    struct SocketProxy {
-      std::lock_guard<std::mutex> lock_;
-      DescriptorType::Socket socket_;
-
-      auto operator*() { return socket_; }
-    };
-
-    SyncSocket(DescriptorType::Socket socket = InvalidSocketValue)
-        : socket_{socket}, socket_lock_{} {}
-
-    auto& operator=(SyncSocket const& other) noexcept {
-      socket_ = other.socket_;
-      return *this;
-    }
-
-    auto get() { return SocketProxy{std::lock_guard{socket_lock_}, socket_}; }
-
-   private:
-    DescriptorType::Socket socket_;
-    std::mutex socket_lock_;
-  };
-
   class ConnectionAction : public Action<ConnectionAction> {
    public:
     enum class State {
@@ -100,13 +76,9 @@ class WinTcpTransport : public ITransport {
   class WinTcpPacketSendAction : public SocketPacketSendAction {
    public:
     WinTcpPacketSendAction(ActionContext action_context,
-                           SyncSocket& sync_socket,
-                           EventSubscriber<void()> send_event,
-                           WinPollerOverlapped& write_overlapped,
-                           DataBuffer data, TimePoint current_time);
+                           WinTcpTransport& transport, DataBuffer data,
+                           TimePoint current_time);
 
-    WinTcpPacketSendAction(WinTcpPacketSendAction const& other) noexcept =
-        delete;
     WinTcpPacketSendAction(WinTcpPacketSendAction&& other) noexcept;
 
     void Send() override;
@@ -115,16 +87,32 @@ class WinTcpTransport : public ITransport {
     void MakeSend();
     void OnSend();
 
-    SyncSocket& sync_socket_;
-    EventSubscriber<void()> send_event_subscriber_;
-    WinPollerOverlapped& write_overlapped_;
+    WinTcpTransport* transport_;
     DataBuffer send_buffer_;
     TimePoint current_time_;
 
     std::size_t send_offset_;
     Subscription send_event_subscription_;
-    std::atomic_bool send_pending_;
     Subscription state_changed_subscription_;
+    std::atomic_bool send_pending_;
+  };
+
+  class WinTcpReadAction : public Action<WinTcpReadAction> {
+   public:
+    WinTcpReadAction(ActionContext action_context, WinTcpTransport& transport);
+
+    TimePoint Update(TimePoint current_time) override;
+
+    void RecvUpdate();
+    void HandleReceivedData();
+    void OnRecv();
+
+   private:
+    WinTcpTransport* transport_;
+    DataBuffer recv_tmp_buffer_;
+    StreamDataPacketCollector data_packet_collector_;
+    std::atomic_bool read_event_;
+    std::atomic_bool error_event_;
   };
 
  public:
@@ -145,13 +133,7 @@ class WinTcpTransport : public ITransport {
  private:
   void OnConnect(DescriptorType::Socket socket);
   void OnConnectionError();
-  void OnSocketRecvEvent();
-  void OnSocketSendEvent();
   void OnSocketError();
-
-  void RecvUpdate();
-  void HandleReceivedData();
-  void OnRecv();
 
   void Disconnect();
 
@@ -161,33 +143,28 @@ class WinTcpTransport : public ITransport {
 
   SocketInitializer socket_initializer_;
 
-  SyncSocket sync_socket_;
-
   ConnectionInfo connection_info_;
+
+  DescriptorType::Socket socket_;
+  std::mutex socket_lock_;
 
   ConnectionSuccessEvent connection_success_event_;
   ConnectionErrorEvent connection_error_event_;
-
   DataReceiveEvent data_receive_event_;
 
-  DataBuffer recv_tmp_buffer_;
-  StreamDataPacketCollector data_packet_collector_;
-
   std::optional<ConnectionAction> connection_action_;
-  SocketEventAction socket_recv_event_action_;
-  SocketEventAction socket_send_event_action_;
-  SocketEventAction socket_error_action_;
+  std::optional<WinTcpReadAction> read_action_;
+  SocketPacketQueueManager<WinTcpPacketSendAction> socket_packet_queue_manager_;
 
-  MultiSubscription connection_subscriptions_;
-  MultiSubscription send_action_subscriptions_;
-  Subscription socket_poll_subscription_;
-  Subscription socket_recv_event_subscriptions_;
-  Subscription socket_send_event_subscriptions_;
-  Subscription socket_error_subscriptions_;
+  SocketEventAction socket_error_action_;
 
   Event<void()> send_event_;
 
-  SocketPacketQueueManager<WinTcpPacketSendAction> socket_packet_queue_manager_;
+  MultiSubscription connection_subs_;
+  MultiSubscription send_action_subs_;
+  Subscription socket_poll_sub_;
+  Subscription socket_error_sub_;
+  Subscription read_error_sub_;
 
   // READ / WRITE operation states
   WinPollerOverlapped read_overlapped_;

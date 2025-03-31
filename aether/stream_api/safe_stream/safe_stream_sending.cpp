@@ -130,8 +130,8 @@ TimePoint SafeStreamSendingAction::HandleTimeouts(TimePoint current_time) {
   // wait timeout is depends on repeat_count
   auto wait_timeout = Duration{static_cast<Duration::rep>(
       static_cast<double>(wait_confirm_timeout_.count()) *
-      std::max(1.0,
-               (AE_SAFE_STREAM_RTO_GROW_FACTOR * selected_sch.repeat_count)))};
+      std::max(1.0, (AE_SAFE_STREAM_RTO_GROW_FACTOR *
+                     (selected_sch.repeat_count - 1))))};
 
   if ((selected_sch.send_time + wait_timeout) < current_time) {
     // timeout

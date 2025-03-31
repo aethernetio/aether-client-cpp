@@ -47,10 +47,10 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1 - 1,  // max_data_size
-    4,                               // max_repeat_count
-    std::chrono::milliseconds{200},  // wait_confirm_timeout
+    10,                               // max_repeat_count
+    std::chrono::milliseconds{600},  // wait_confirm_timeout
     {},                              // send_confirm_timeout
-    std::chrono::milliseconds{200},  // send_repeat_timeout
+    std::chrono::milliseconds{400},  // send_repeat_timeout
 };
 
 /**
