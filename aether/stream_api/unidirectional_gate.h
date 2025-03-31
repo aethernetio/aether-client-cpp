@@ -45,8 +45,6 @@ class ParallelGate final : public ByteIGate {
       : write_gate_{std::move(write_gate)},
         read_gate_{std::move(read_gate)},
         write_gate_update_{write_gate_.gate_update_event().Subscribe(
-            gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{})},
-        read_gate_update_{read_gate_.gate_update_event().Subscribe(
             gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{})} {}
 
   ActionView<StreamWriteAction> Write(DataBuffer&& data,
@@ -72,7 +70,6 @@ class ParallelGate final : public ByteIGate {
   TReadGate read_gate_;
   GateUpdateEvent gate_update_event_;
   Subscription write_gate_update_;
-  Subscription read_gate_update_;
 };
 }  // namespace ae
 
