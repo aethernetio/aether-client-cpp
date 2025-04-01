@@ -19,22 +19,9 @@ set(AE_PROJECT_VERSION "1.0.0")
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 
 option(AE_DISTILLATION "Build aether in distillation mode" OFF)
-option(USER_CONFIG "Path to user provided configuration header file" "")
 
-find_program(GIT_COMMAND git)
-if ( GIT_COMMAND )
-  # get current git version
-  execute_process(
-        COMMAND ${GIT_COMMAND} -C ${CMAKE_CURRENT_SOURCE_DIR} rev-parse --verify HEAD
-        OUTPUT_VARIABLE GIT_VERSION
-    )
-  if ( NOT GIT_VERSION )
-    message(WARNING "Not a git repo")
-  else()
-    string(STRIP ${GIT_VERSION} GIT_VERSION)
-    message(STATUS "get aether git version ${GIT_VERSION}")
-  endif()
-endif()
+set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
+set(FS_INIT "" CACHE PATH "Path to user provided saved state header file")
 
 # list a common dependencies
 list(APPEND common_dependencies
@@ -219,13 +206,11 @@ list(APPEND tele_srcs
 
 message(STATUS "Cmake system name is ${CMAKE_SYSTEM_NAME}")
 
-if(NOT CM_PLATFORM AND (
-  CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR
-  CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
-  CMAKE_SYSTEM_NAME STREQUAL "Windows" OR
-  CMAKE_SYSTEM_NAME MATCHES ".*BSD"))
-  message(STATUS "Build for regular cmake project")
+if(NOT CM_PLATFORM)
+  message(STATUS "Aether build for regular cmake project")
   set(REGULAR_CMAKE_PROJECT On)
+else()
+  message(STATUS "Aether build for CM_PLATFORM=${CM_PLATFORM}")
 endif()
 
 if(REGULAR_CMAKE_PROJECT)
@@ -335,16 +320,31 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
   target_link_libraries(${TARGET_NAME} PRIVATE ws2_32)
 endif()
 
+find_program(GIT_COMMAND git)
+if ( GIT_COMMAND )
+  # get current git version
+  execute_process(
+        COMMAND ${GIT_COMMAND} -C ${CMAKE_CURRENT_SOURCE_DIR} rev-parse --verify HEAD
+        OUTPUT_VARIABLE GIT_VERSION
+    )
+  if ( NOT GIT_VERSION )
+    message(WARNING "Not a git repo")
+  else()
+    string(STRIP ${GIT_VERSION} GIT_VERSION)
+    message(STATUS "get aether git version ${GIT_VERSION}")
+  endif()
+endif()
+
 if (GIT_VERSION)
   target_compile_definitions(${TARGET_NAME} PUBLIC "AE_GIT_VERSION=\"${GIT_VERSION}\"")
 endif()
 target_compile_definitions(${TARGET_NAME} PUBLIC "AE_PROJECT_VERSION=\"${AE_PROJECT_VERSION}\"")
 
-if (USER_CONFIG)
+if (NOT "${USER_CONFIG}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "USER_CONFIG=\"${USER_CONFIG}\"")
 endif()
 
-if (FS_INIT)
+if (NOT "${FS_INIT}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "FS_INIT=\"${FS_INIT}\"")
 endif()
 
@@ -352,7 +352,8 @@ if (AE_DISTILLATION)
   target_compile_definitions(${TARGET_NAME} PUBLIC "AE_DISTILLATION=1")
 endif()
 
-if(_AE_REG_CLOUD_IP)
+# for debug purposes only, set registration server ip address
+if(NOT "${_AE_REG_CLOUD_IP}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "_AE_REG_CLOUD_IP=\"${_AE_REG_CLOUD_IP}\"")
 endif()
 
