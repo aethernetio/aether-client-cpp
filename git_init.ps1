@@ -25,6 +25,9 @@ git apply "../libhydrogen.patch"
 cd ../libsodium
 git apply "../libsodium.patch"
 cd ../
+cd ../etl
+git apply "../etl.patch"
+cd ../
 Copy-Item -Path "CMakeLists.libbcrypt" -Destination "libbcrypt/CMakeLists.txt" -Force
 Copy-Item -Path "CMakeLists.libhydrogen" -Destination "libhydrogen/CMakeLists.txt" -Force
 Copy-Item -Path "CMakeLists.libsodium" -Destination "libsodium/CMakeLists.txt" -Force

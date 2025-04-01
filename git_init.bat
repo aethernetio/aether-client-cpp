@@ -24,6 +24,9 @@ git apply "../libhydrogen.patch"
 cd ../libsodium
 git apply "../libsodium.patch"
 cd ../
+cd ../etl
+git apply "../etl.patch"
+cd ../
 copy "CMakeLists.libbcrypt" "libbcrypt/CMakeLists.txt"
 copy "CMakeLists.libhydrogen" "libhydrogen/CMakeLists.txt"
 copy "CMakeLists.libsodium" "libsodium/CMakeLists.txt"
