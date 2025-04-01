@@ -14,27 +14,16 @@
  * limitations under the License.
  */
 
-#include "aether/statistics.h"
+#include "aether/statistics/channel_statistics.h"
 
 namespace ae {
+ChannelStatistics::ChannelStatistics(Domain* domain) : Base{domain} {}
 
-Duration Statistics::FirstRequestDuration(float /*percentile*/) const {
-  return std::chrono::milliseconds(100);
+void ChannelStatistics::AddConnectionTime(Duration duration) {
+  connection_time_statistics_.Add(std::move(duration));
 }
 
-Duration Statistics::RequestDuration(float /*percentile*/) const {
-  return std::chrono::milliseconds(100);
+void ChannelStatistics::AddPingTime(Duration duration) {
+  ping_time_statistics_.Add(std::move(duration));
 }
-
-Duration Statistics::ConnectionDuration(float /*percentile*/) const {
-  return std::chrono::milliseconds(100);
-}
-
-#ifdef AE_DISTILLATION
-Statistics::Statistics(Domain* domain) : Obj{domain} {
-  first_requests_.push_back({ClockType::now(), std::chrono::milliseconds(200)});
-  requests_.push_back({ClockType::now(), std::chrono::milliseconds(100)});
-}
-#endif  // AE_DISTILLATION
-
 }  // namespace ae

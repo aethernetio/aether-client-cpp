@@ -42,7 +42,11 @@ list(APPEND common_dependencies
     "../third_party/libhydrogen"
     "../third_party/libsodium"
     "../third_party/gcem"
+    "../third_party/etl"
 )
+
+# for etl
+set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
 
 list(APPEND aether_srcs
             "aether_app.cpp"
@@ -55,7 +59,6 @@ list(APPEND aether_srcs
             "registration_cloud.cpp"
             "work_cloud.cpp"
             "server.cpp"
-            "statistics.cpp"
             "uid.cpp"
             "proof_of_work.cpp"
             "server_keys.cpp"
@@ -206,6 +209,9 @@ list(APPEND port_srcs
             "port/file_systems/drivers/driver_header.cpp"
             "port/file_systems/drivers/driver_spifs.cpp")
 
+list(APPEND statistics_srcs
+      "statistics/channel_statistics.cpp")
+
 list(APPEND tele_srcs
             "tele/traps/io_stream_traps.cpp"
             "tele/traps/statistics_trap.cpp"
@@ -252,6 +258,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${port_srcs}
+                            ${statistics_srcs}
                             ${tele_srcs}
                             )
 
@@ -264,7 +271,8 @@ if(REGULAR_CMAKE_PROJECT)
                                         bcrypt
                                         sodium
                                         hydrogen
-                                        gcem)
+                                        gcem
+                                        etl)
   target_link_libraries(${PROJECT_NAME} PRIVATE c-ares )
 
   set(TARGET_NAME "${PROJECT_NAME}")
@@ -292,6 +300,7 @@ else()
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${port_srcs}
+                            ${statistics_srcs}
                             ${tele_srcs}
                             INCLUDE_DIRS ${include_dirs}
                             REQUIRES esp_wifi nvs_flash spiffs)
@@ -307,7 +316,8 @@ else()
                                          bcrypt
                                          sodium
                                          hydrogen
-                                         gcem)
+                                         gcem
+                                         etl)
   else()
     #ERROR
     message(SEND_ERROR "You must specify the CMAKE version!")
