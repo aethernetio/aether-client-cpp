@@ -18,24 +18,29 @@
 
 namespace ae {
 
-Channel::Channel(Domain* domain) : Obj{domain} {}
+Channel::Channel(Domain* domain)
+    : Obj{domain}, channel_statistics{domain->CreateObj<ChannelStatistics>()} {}
 
-// TODO: find a right place for this
-Duration Channel::FirstRequestDuration(TokenType /*adapter_token*/,
-                                       TokenType /*location_token*/,
-                                       float /*percentile*/) const {
-  return std::chrono::milliseconds(100);
+void Channel::AddConnectionTime(Duration connection_time) {
+  channel_statistics->AddConnectionTime(std::move(connection_time));
 }
 
-Duration Channel::RequestDuration(TokenType /*adapter_token*/,
-                                  TokenType /*location_token*/,
-                                  float /*percentile*/) const {
-  return std::chrono::milliseconds(100);
+void Channel::AddPingTime(Duration ping_time) {
+  channel_statistics->AddPingTime(std::move(ping_time));
 }
 
-Duration Channel::ConnectionDuration(TokenType /*adapter_token*/,
-                                     TokenType /*location_token*/,
-                                     float /*percentile*/) const {
-  return std::chrono::milliseconds(100);
+Duration Channel::expected_connection_time() const {
+  if (channel_statistics->connection_time_statistics().empty()) {
+    return default_connection_time;
+  }
+  return channel_statistics->connection_time_statistics().percentile<99>();
 }
+
+Duration Channel::expected_ping_time() const {
+  if (channel_statistics->ping_time_statistics().empty()) {
+    return default_ping_time;
+  }
+  return channel_statistics->ping_time_statistics().percentile<99>();
+}
+
 }  // namespace ae

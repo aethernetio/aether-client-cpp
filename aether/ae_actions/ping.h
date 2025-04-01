@@ -19,6 +19,8 @@
 
 #include <cstdint>
 
+#include "etl/circular_buffer.h"
+
 #include "aether/common.h"
 #include "aether/server.h"
 #include "aether/channel.h"
@@ -41,6 +43,9 @@ class Ping : public Action<Ping> {
     kError,
   };
 
+  static constexpr std::uint8_t kMaxRepeatPingCount = 5;
+  static constexpr std::uint8_t kMaxStorePingTimes = kMaxRepeatPingCount * 2;
+
  public:
   Ping(ActionContext action_context, Server::ptr const& server,
        Channel::ptr const& channel, ByteStream& server_stream,
@@ -53,7 +58,9 @@ class Ping : public Action<Ping> {
 
  private:
   void SendPing(TimePoint current_time);
-  void PingResponse();
+  TimePoint WaitInterval(TimePoint current_time);
+  TimePoint WaitResponse(TimePoint current_time);
+  void PingResponse(RequestId request_id);
 
   PtrView<Server> server_;
   PtrView<Channel> channel_;
@@ -64,7 +71,10 @@ class Ping : public Action<Ping> {
   ClientSafeApi client_safe_api_;
   ProtocolReadGate<ClientSafeApi> read_client_safe_api_gate_;
 
-  TimePoint last_ping_time_;
+  std::size_t repeat_count_;
+  etl::circular_buffer<std::pair<RequestId, TimePoint>, kMaxStorePingTimes>
+      ping_times_;
+
   Subscription write_subscription_;
   StateMachine<State> state_;
   Subscription state_changed_sub_;
