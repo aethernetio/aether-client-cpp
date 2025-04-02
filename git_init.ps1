@@ -24,7 +24,6 @@ cd ../libhydrogen
 git apply "../libhydrogen.patch"
 cd ../libsodium
 git apply "../libsodium.patch"
-cd ../
 cd ../etl
 git apply "../etl.patch"
 cd ../
