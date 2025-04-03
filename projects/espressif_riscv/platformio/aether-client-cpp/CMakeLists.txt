@@ -28,11 +28,11 @@ set(CMAKE_BUILD_TYPE "MinSizeRel")
 add_compile_definitions(CM_ESP32)
 
 if (NOT USER_CONFIG)
-  set(USER_CONFIG "../config/user_config_optimized.h")
+  set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../config/user_config_optimized.h")
 endif()
 
 if (NOT FS_INIT)
-  set(FS_INIT "../../../../config/file_system_init.h")
+  set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../config/file_system_init.h")
 endif()
 
 # enable doubles in unity tests

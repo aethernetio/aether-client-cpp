@@ -318,7 +318,6 @@ void UnixTcpTransport::UnixPacketSendAction::Send() {
     }
     return;
   }
-  AE_TELED_DEBUG("Data was sent");
   state_ = State::kSuccess;
 }
 
