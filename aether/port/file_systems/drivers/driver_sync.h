@@ -14,37 +14,32 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
-#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
-
-#include <string>
-#include <vector>
-#include <cstdint>
-#include <fstream>
-#include <ios>
-#include <system_error>
-
-#if defined FS_INIT
-#  include FS_INIT
-#endif
+#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SYNC_H_
+#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SYNC_H_
 
 namespace ae {
 
-class DriverHeader {
- public:
-  DriverHeader();
-  ~DriverHeader();
-  void DriverHeaderRead(const std::string &path,
-                        std::vector<std::uint8_t> &data_vector);
-  void DriverHeaderWrite(const std::string &path,
-                         const std::vector<std::uint8_t> &data_vector);
-  void DriverHeaderDelete(const std::string &path);
-
- private:
-  std::string ByteToHex(std::uint8_t ch);
-  uint8_t HexToByte(const std::string &hex);
+enum class DriverFsType : std::uint8_t {
+  kDriverHeader,
+  kDriverStd,
+  kDriverRam,
+  kDriverSpifs,
+  kDriverNone
 };
+
+class DriverSync {
+ public:
+  DriverSync(enum class DriverFsType fs_driver_type);
+  ~DriverSync();
+  void DriverSyncRead(const std::string &path,
+                        std::vector<std::uint8_t> &data_vector);
+  void DriverSyncWrite(const std::string &path,
+                         const std::vector<std::uint8_t> &data_vector);
+  void DriverSyncDelete(const std::string &path);
+ private:
+  enum class DriverFsType fs_driver_type_{kDriverNone};
+}
 
 }  // namespace ae
 
-#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
+#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SYNC_H_
