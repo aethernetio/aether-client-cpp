@@ -25,6 +25,7 @@
 
 #include "aether/ptr/ptr.h"
 #include "aether/obj/obj_ptr.h"
+#include "aether/actions/timer_action.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
 
@@ -43,7 +44,7 @@ class ChannelConnectionAction;
 class ServerChannelStream final : public ByteStream {
  public:
   ServerChannelStream(ObjPtr<Aether> const& aether, Adapter::ptr const& adapter,
-                      Server::ptr server, Channel::ptr channel);
+                      Server::ptr const& server, Channel::ptr const& channel);
 
   AE_CLASS_NO_COPY_MOVE(ServerChannelStream)
 
@@ -56,18 +57,23 @@ class ServerChannelStream final : public ByteStream {
   void OnConnectedFailed();
 
   ActionContext action_context_;
-  Server::ptr server_;
-  Channel::ptr channel_;
+  PtrView<Server> server_;
+  PtrView<Channel> channel_;
 
   BufferGate buffer_gate_;
   std::unique_ptr<ITransport> transport_;
   std::optional<TransportWriteGate> transport_write_gate_;
 
   std::unique_ptr<class ChannelConnectionAction> connection_action_;
+  TimePoint connection_start_time_;
+  std::optional<TimerAction> connection_timer_;
+
   Subscription connection_success_;
   Subscription connection_failed_;
   Subscription connection_finished_;
   Subscription connection_error_;
+  Subscription connection_timeout_;
+  Subscription connection_timer_finished_;
 };
 }  // namespace ae
 

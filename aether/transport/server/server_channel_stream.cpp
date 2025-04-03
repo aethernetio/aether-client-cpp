@@ -48,11 +48,11 @@ static constexpr auto kBufferGateCapacity = std::size_t{100};
 
 ServerChannelStream::ServerChannelStream(ObjPtr<Aether> const& aether,
                                          Adapter::ptr const& adapter,
-                                         Server::ptr server,
-                                         Channel::ptr channel)
+                                         Server::ptr const& server,
+                                         Channel::ptr const& channel)
     : action_context_{*aether->action_processor},
-      server_{std::move(server)},
-      channel_{std::move(channel)},
+      server_{server},
+      channel_{channel},
       buffer_gate_{action_context_, kBufferGateCapacity},
       connection_action_{std::visit(
           [&](auto const& address) {
@@ -60,16 +60,37 @@ ServerChannelStream::ServerChannelStream(ObjPtr<Aether> const& aether,
                 ActionContext{*aether->action_processor}, aether, adapter,
                 address);
           },
-          channel_->address)} {
+          channel->address)},
+      connection_start_time_{Now()},
+      connection_timer_{std::in_place, ActionContext{*aether->action_processor},
+                        channel->expected_connection_time()} {
   connection_success_ = connection_action_->SubscribeOnResult(
       [this](auto& action) { OnConnected(action); }),
   connection_failed_ = connection_action_->SubscribeOnError(
       [this](auto const&) { OnConnectedFailed(); }),
   connection_finished_ = connection_action_->FinishedEvent().Subscribe(
       [this]() { connection_action_.reset(); });
+
+  connection_timeout_ = connection_timer_->SubscribeOnResult(
+      [this](auto const&) { OnConnectedFailed(); });
+  connection_timer_finished_ = connection_timer_->FinishedEvent().Subscribe(
+      [this]() { connection_timer_.reset(); });
 }
 
 void ServerChannelStream::OnConnected(ChannelConnectionAction& connection) {
+  auto channel_ptr = channel_.Lock();
+  assert(channel_ptr);
+
+  auto connection_time =
+      std::chrono::duration_cast<Duration>(Now() - connection_start_time_);
+  channel_ptr->AddConnectionTime(std::move(connection_time));
+
+  if (!connection_timer_) {
+    // probably timeout
+    return;
+  }
+  connection_timer_->Stop();
+
   transport_ = connection.transport();
   connection_error_ =
       transport_->ConnectionError()
@@ -82,6 +103,8 @@ void ServerChannelStream::OnConnected(ChannelConnectionAction& connection) {
 
 void ServerChannelStream::OnConnectedFailed() {
   AE_TELED_ERROR("ServerChannelStream:OnConnectedFailed");
+  connection_timeout_.Reset();
+  connection_failed_.Reset();
   buffer_gate_.Unlink();
 }
 
