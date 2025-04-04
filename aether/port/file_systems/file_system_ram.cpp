@@ -28,9 +28,7 @@ namespace ae {
  *\param[in] void.
  *\return void.
  */
-FileSystemRamFacility::FileSystemRamFacility() {
-  driver_fs = new DriverHeader();
-}
+FileSystemRamFacility::FileSystemRamFacility() {}
 
 /*
  * \brief Class destructor.
@@ -115,7 +113,7 @@ void FileSystemRamFacility::out_header() {
   // add file data
   os << state_;
 
-  driver_fs->DriverHeaderWrite(path, data_vector);
+  driver_header_fs.DriverHeaderWrite(path, data_vector);
 }
 }  // namespace ae
 

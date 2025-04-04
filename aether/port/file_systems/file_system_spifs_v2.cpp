@@ -24,7 +24,6 @@ namespace ae {
 
 FileSystemSpiFsV2Facility::FileSystemSpiFsV2Facility() {
   driver_fs = new DriverSpifs();
-  // driver_fs->DriverSpifsFormat();
 }
 
 FileSystemSpiFsV2Facility::~FileSystemSpiFsV2Facility() { delete driver_fs; }
@@ -110,6 +109,7 @@ void FileSystemSpiFsV2Facility::CleanUp() {
   std::string path{"state"};
 
   driver_fs->DriverSpifsDelete(path);
+  // driver_fs->DriverSpifsFormat();
 }
 #  endif
 }  // namespace ae

@@ -16,29 +16,26 @@
 
 #include "aether/port/file_systems/drivers/driver_sync.h"
 
-DriverSync::DriverHeader(enum class DriverFsType fs_driver_type)
-{
-  fs_driver_type = fs_driver_type_;
+namespace ae {
+
+DriverSync::DriverSync(enum DriverFsType fs_driver_type) {
+  fs_driver_type_ = fs_driver_type;
 }
 
-DriverSync::~DriverSync()
-{
-  
-}
+DriverSync::~DriverSync() {}
 
 void DriverSync::DriverSyncRead(const std::string &path,
-                        std::vector<std::uint8_t> &data_vector)
-{
-  
-}
+                                std::vector<std::uint8_t> &data_vector) {}
 
 void DriverSync::DriverSyncWrite(const std::string &path,
-                         const std::vector<std::uint8_t> &data_vector)
-{
+                                 const std::vector<std::uint8_t> &data_vector) {}
+
+void DriverSync::DriverSyncDelete(const std::string &path) {}
+
+std::vector<std::string> DriverSyncDir(const std::string &path) {
+  std::vector<std::string> dirs_list{};
   
+  return dirs_list;
 }
 
-void DriverSync::DriverSyncDelete(const std::string &path)
-{
-  
-}
+}  // namespace ae

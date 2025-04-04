@@ -15,3 +15,25 @@
  */
 
 #include "aether/port/file_systems/drivers/driver_ram.h"
+
+namespace ae {
+  
+DriverRam::DriverRam() {}
+
+DriverRam::~DriverRam() {}
+
+void DriverRam::DriverRamRead(const std::string &path,
+                              std::vector<std::uint8_t> &data_vector) {}
+
+void DriverRam::DriverRamWrite(const std::string &path,
+                               const std::vector<std::uint8_t> &data_vector) {}
+
+void DriverRam::DriverRamDelete(const std::string &path) {}
+
+std::vector<std::string> DriverRam::DriverRamDir(const std::string &path) {
+  std::vector<std::string> dirs_list{};
+  
+  return dirs_list;
+}
+
+}  // namespace ae

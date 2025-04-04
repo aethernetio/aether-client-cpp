@@ -25,14 +25,10 @@
 
 #include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_header.h"
+#include "aether/port/file_systems/drivers/driver_ram.h"
 
 namespace ae {
 class FileSystemRamFacility : public IDomainFacility {
-  using Data = std::vector<std::uint8_t>;
-  using VersionData = std::map<std::uint8_t, Data>;
-  using ClassData = std::map<std::uint32_t, VersionData>;
-  using ObjClassData = std::map<ae::ObjId, ClassData>;
-
  public:
   FileSystemRamFacility();
   ~FileSystemRamFacility() override;
@@ -51,8 +47,8 @@ class FileSystemRamFacility : public IDomainFacility {
   void out_header();
 
  private:
-  ObjClassData state_;
-  DriverHeader* driver_fs;
+  DriverHeader driver_header_fs;
+  DriverHeader driver_ram_fs;
 };
 }  // namespace ae
 #endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_ */

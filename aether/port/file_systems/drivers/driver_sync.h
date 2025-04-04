@@ -17,6 +17,10 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SYNC_H_
 #define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SYNC_H_
 
+#include <cstdint>
+#include <string>
+#include <vector>
+
 namespace ae {
 
 enum class DriverFsType : std::uint8_t {
@@ -29,16 +33,18 @@ enum class DriverFsType : std::uint8_t {
 
 class DriverSync {
  public:
-  DriverSync(enum class DriverFsType fs_driver_type);
+  DriverSync(enum DriverFsType fs_driver_type);
   ~DriverSync();
   void DriverSyncRead(const std::string &path,
-                        std::vector<std::uint8_t> &data_vector);
+                      std::vector<std::uint8_t> &data_vector);
   void DriverSyncWrite(const std::string &path,
-                         const std::vector<std::uint8_t> &data_vector);
+                       const std::vector<std::uint8_t> &data_vector);
   void DriverSyncDelete(const std::string &path);
+  std::vector<std::string> DriverSyncDir(const std::string &path);
+
  private:
-  enum class DriverFsType fs_driver_type_{kDriverNone};
-}
+  enum DriverFsType fs_driver_type_ { DriverFsType::kDriverNone };
+};
 
 }  // namespace ae
 
