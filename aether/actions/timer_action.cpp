@@ -63,6 +63,6 @@ TimePoint TimerAction::Update(TimePoint current_time) {
   return current_time;
 }
 
-void Stop();
+void TimerAction::Stop() { state_ = State::kStopped; }
 
 }  // namespace ae
