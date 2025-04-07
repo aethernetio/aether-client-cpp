@@ -39,16 +39,25 @@ FileSystemRamFacility::~FileSystemRamFacility() {}
 
 std::vector<uint32_t> FileSystemRamFacility::Enumerate(
     const ae::ObjId& obj_id) {
-  std::vector<uint32_t> classes;
+  std::vector<std::uint32_t> classes;
+  std::vector<std::string> dirs_list{};
+  std::string path{"state"};
+  std::string file{};
 
-  auto it = state_.find(obj_id);
-  if (it != state_.end()) {
-    auto& obj_classes = it->second;
-    for (const auto& [class_id, _] : obj_classes) {
-      classes.push_back(class_id);
+  dirs_list = driver_ram_fs.DriverRamDir(path);
+
+  for (auto dir : dirs_list) {
+    auto pos1 = dir.find("/" + obj_id.ToString() + "/");
+    if (pos1 != std::string::npos) {
+      auto pos2 = dir.rfind("/");
+      if (pos2 != std::string::npos) {
+        file.assign(dir, pos2 + 1, dir.size() - pos2 - 1);
+        auto enum_class = static_cast<uint32_t>(std::stoul(file));
+        classes.push_back(enum_class);
+      }
     }
-    AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
   }
+  AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
 
   return classes;
 }
@@ -56,8 +65,14 @@ std::vector<uint32_t> FileSystemRamFacility::Enumerate(
 void FileSystemRamFacility::Store(const ae::ObjId& obj_id,
                                   std::uint32_t class_id, std::uint8_t version,
                                   const std::vector<uint8_t>& os) {
-  state_[obj_id][class_id][version] = os;
 
+  std::string path{};
+
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
+
+  driver_ram_fs.DriverRamWrite(path, os);
+  
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
       obj_id.ToString(), class_id, static_cast<int>(version), os.size());
@@ -66,21 +81,13 @@ void FileSystemRamFacility::Store(const ae::ObjId& obj_id,
 void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
                                  std::uint32_t class_id, std::uint8_t version,
                                  std::vector<uint8_t>& is) {
-  auto obj_it = state_.find(obj_id);
-  if (obj_it == state_.end()) {
-    return;
-  }
 
-  auto class_it = obj_it->second.find(class_id);
-  if (class_it == obj_it->second.end()) {
-    return;
-  }
+  std::string path{};
 
-  auto version_it = class_it->second.find(version);
-  if (version_it == class_it->second.end()) {
-    return;
-  }
-  is = version_it->second;
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
+
+  driver_ram_fs.DriverRamRead(path, is);
 
   AE_TELE_DEBUG(
       FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
@@ -88,13 +95,21 @@ void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
 }
 
 void FileSystemRamFacility::Remove(const ae::ObjId& obj_id) {
-  auto it = state_.find(obj_id);
-  if (it != state_.end()) {
-    AE_TELE_DEBUG(FsObjRemoved, "Removed object {}", obj_id.ToString());
-    state_.erase(it);
-  } else {
-    AE_TELE_ERROR(FsRemoveObjIdNoFound, "Object id={} not found!",
-                  obj_id.ToString());
+  std::string path{"state"};
+
+  auto version_dirs = driver_ram_fs.DriverRamDir(path);
+
+  for (auto const& ver_dir : version_dirs) {
+    auto obj_dirs = driver_ram_fs.DriverRamDir(ver_dir);
+    auto obj_it = std::find_if(
+        std::begin(obj_dirs), std::end(obj_dirs), [&](auto const& path) {
+          return path.find("/" + obj_id.ToString() + "/") != std::string::npos;
+        });
+    if (obj_it != std::end(obj_dirs)) {
+      driver_ram_fs.DriverRamDelete(*obj_it);
+      AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version dir {}",
+                    obj_id.ToString(), ver_dir);
+    }
   }
 }
 
@@ -105,7 +120,7 @@ void FileSystemRamFacility::CleanUp() {
 }
 #  endif
 
-void FileSystemRamFacility::out_header() {
+/*void FileSystemRamFacility::out_header() {
   std::string path{"config/file_system_init.h"};
   auto data_vector = std::vector<std::uint8_t>{};
   VectorWriter<PacketSize> vw{data_vector};
@@ -114,7 +129,8 @@ void FileSystemRamFacility::out_header() {
   os << state_;
 
   driver_header_fs.DriverHeaderWrite(path, data_vector);
-}
+}*/
+
 }  // namespace ae
 
 #endif  // AE_FILE_SYSTEM_RAM_ENABLED

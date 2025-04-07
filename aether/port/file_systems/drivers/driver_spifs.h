@@ -48,8 +48,8 @@ class DriverSpifs {
   esp_err_t _DriverSpifsInit();
   void _DriverSpifsDeinit();
 
-  static constexpr char PARTITION[] = "storage";
-  static constexpr char BASE_PATH[] = "/spiffs";
+  static constexpr char kPartition[] = "storage";
+  static constexpr char kBasePath[] = "/spiffs";
   bool _initialized{false};
 };
 

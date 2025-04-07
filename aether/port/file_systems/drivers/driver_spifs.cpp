@@ -36,7 +36,7 @@ void DriverSpifs::DriverSpifsRead(const std::string &path,
   std::string res_path{};
 
   if (!_initialized) return;
-  res_path = BASE_PATH + std::string("/") + path;
+  res_path = kBasePath + std::string("/") + path;
 
   AE_TELED_DEBUG("Opening file {} for read.", res_path);
   FILE *file = fopen(res_path.c_str(), "r");
@@ -63,7 +63,7 @@ void DriverSpifs::DriverSpifsWrite(
   std::string res_path{};
 
   if (!_initialized) return;
-  res_path = BASE_PATH + std::string("/") + path;
+  res_path = kBasePath + std::string("/") + path;
 
   AE_TELED_DEBUG("Opening file {} for write.", res_path);
   FILE *file = fopen(res_path.c_str(), "w");
@@ -82,7 +82,7 @@ void DriverSpifs::DriverSpifsDelete(const std::string &path) {
   std::string res_path{};
 
   if (!_initialized) return;
-  res_path = BASE_PATH + std::string("/") + path;
+  res_path = kBasePath + std::string("/") + path;
 
   AE_TELED_DEBUG("Opening file {} for delete.", res_path);
   // Check if destination file exists before renaming
@@ -100,7 +100,7 @@ std::vector<std::string> DriverSpifs::DriverSpifsDir(const std::string &path) {
   std::string res_path{};
 
   if (!_initialized) return dirs_list;
-  res_path = BASE_PATH + std::string("/") + path;
+  res_path = kBasePath + std::string("/") + path;
 
   DIR *dir = opendir(res_path.c_str());
   if (dir == nullptr) {
@@ -122,7 +122,7 @@ std::vector<std::string> DriverSpifs::DriverSpifsDir(const std::string &path) {
 }
 
 void DriverSpifs::DriverSpifsFormat() {
-  esp_err_t err = esp_spiffs_format(PARTITION);
+  esp_err_t err = esp_spiffs_format(kPartition);
 
   if (err != ESP_OK) {
     AE_TELED_ERROR("Failed to format SPIFFS ({})", esp_err_to_name(err));
@@ -130,8 +130,8 @@ void DriverSpifs::DriverSpifsFormat() {
 }
 
 esp_err_t DriverSpifs::_DriverSpifsInit() {
-  esp_vfs_spiffs_conf_t conf = {.base_path = BASE_PATH,
-                                .partition_label = PARTITION,
+  esp_vfs_spiffs_conf_t conf = {.base_path = kBasePath,
+                                .partition_label = kPartition,
                                 .max_files = 128,
                                 .format_if_mount_failed = true};
 
@@ -151,7 +151,7 @@ esp_err_t DriverSpifs::_DriverSpifsInit() {
   }
 
   size_t total = 0, used = 0;
-  ret = esp_spiffs_info(PARTITION, &total, &used);
+  ret = esp_spiffs_info(kPartition, &total, &used);
   if (ret != ESP_OK) {
     AE_TELED_ERROR("Failed to get SPIFFS partition information ({})",
                    esp_err_to_name(ret));
@@ -161,7 +161,7 @@ esp_err_t DriverSpifs::_DriverSpifsInit() {
   return ESP_OK;
 }
 
-void DriverSpifs::_DriverSpifsDeinit() { esp_vfs_spiffs_unregister(PARTITION); }
+void DriverSpifs::_DriverSpifsDeinit() { esp_vfs_spiffs_unregister(kPartition); }
 
 }  // namespace ae
 

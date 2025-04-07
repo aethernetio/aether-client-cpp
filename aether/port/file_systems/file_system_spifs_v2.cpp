@@ -78,7 +78,7 @@ void FileSystemSpiFsV2Facility::Load(const ae::ObjId& obj_id,
   path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
          std::to_string(class_id);
 
-  driver_fs->DriverSpifsRead(path, is);
+  driver_fs.DriverSpifsRead(path, is);
 
   AE_TELE_DEBUG(
       FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",

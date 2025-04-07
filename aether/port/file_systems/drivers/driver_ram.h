@@ -20,6 +20,9 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <map>
+
+#include "aether/obj/domain.h"
 
 namespace ae {
 
@@ -33,9 +36,9 @@ class DriverRam {
   DriverRam();
   ~DriverRam();
   void DriverRamRead(const std::string &path,
-                      std::vector<std::uint8_t> &data_vector);
+                     std::vector<std::uint8_t> &data_vector);
   void DriverRamWrite(const std::string &path,
-                       const std::vector<std::uint8_t> &data_vector);
+                      const std::vector<std::uint8_t> &data_vector);
   void DriverRamDelete(const std::string &path);
   std::vector<std::string> DriverRamDir(const std::string &path);
 
