@@ -45,8 +45,9 @@ std::vector<uint32_t> FileSystemRamFacility::Enumerate(
   std::string file{};
 
   dirs_list = driver_ram_fs.DriverRamDir(path);
-
+  
   for (auto dir : dirs_list) {
+    AE_TELE_DEBUG(FsEnumerated, "Dir {}", dir);
     auto pos1 = dir.find("/" + obj_id.ToString() + "/");
     if (pos1 != std::string::npos) {
       auto pos2 = dir.rfind("/");
@@ -115,21 +116,12 @@ void FileSystemRamFacility::Remove(const ae::ObjId& obj_id) {
 
 #  if defined AE_DISTILLATION
 void FileSystemRamFacility::CleanUp() {
-  state_.clear();
+  std::string path{"state"};
+
+  driver_ram_fs.DriverRamDelete(path);
   AE_TELED_DEBUG("All objects have been removed!");
 }
 #  endif
-
-/*void FileSystemRamFacility::out_header() {
-  std::string path{"config/file_system_init.h"};
-  auto data_vector = std::vector<std::uint8_t>{};
-  VectorWriter<PacketSize> vw{data_vector};
-  auto os = omstream{vw};
-  // add file data
-  os << state_;
-
-  driver_header_fs.DriverHeaderWrite(path, data_vector);
-}*/
 
 }  // namespace ae
 

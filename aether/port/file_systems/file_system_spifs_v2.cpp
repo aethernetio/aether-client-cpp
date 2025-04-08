@@ -110,6 +110,7 @@ void FileSystemSpiFsV2Facility::CleanUp() {
 
   driver_fs->DriverSpifsDelete(path);
   // driver_fs->DriverSpifsFormat();
+  AE_TELED_DEBUG("All objects have been removed!");
 }
 #  endif
 }  // namespace ae

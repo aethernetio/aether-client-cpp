@@ -207,7 +207,8 @@ list(APPEND port_srcs
             "port/file_systems/drivers/driver_spifs.cpp"
             "port/file_systems/drivers/driver_sync.cpp"
             "port/file_systems/drivers/driver_std.cpp"
-            "port/file_systems/drivers/driver_ram.cpp")
+            "port/file_systems/drivers/driver_ram.cpp"
+            "port/file_systems/drivers/driver_functions.cpp")
 
 list(APPEND tele_srcs
             "tele/traps/io_stream_traps.cpp"
