@@ -22,11 +22,12 @@
 #if AE_CRYPTO_SYNC != AE_NONE || AE_CRYPTO_ASYNC != AE_NONE || \
     AE_SIGNATURE != AE_NONE
 
-#  include <cstdint>
 #  include <array>
+#  include <string>
+#  include <cstdint>
 #  include <cassert>
 #  include <sstream>
-#  include <string>
+#  include <iomanip>
 
 #  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
 #    include "third_party/libsodium/src/libsodium/include/sodium/crypto_box.h"
@@ -282,7 +283,8 @@ class Key : public VariantType<CryptoKeyType,
     std::visit(
         [&ss](auto const& k) {
           for (auto s : k.key) {
-            ss << std::hex << static_cast<std::uint32_t>(s);
+            ss << std::hex << std::setw(2) << std::setfill('0')
+               << static_cast<std::uint32_t>(s);
           }
         },
         static_cast<VariantType::variant const&>(v));
