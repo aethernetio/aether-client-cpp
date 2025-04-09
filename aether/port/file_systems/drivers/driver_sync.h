@@ -44,6 +44,7 @@ class DriverSync {
 
  private:
   enum DriverFsType fs_driver_type_ { DriverFsType::kDriverNone };
+  void* Driver = nullptr;
 };
 
 }  // namespace ae

@@ -28,14 +28,18 @@ namespace ae {
  *\param[in] void.
  *\return void.
  */
-FileSystemRamFacility::FileSystemRamFacility() {}
+FileSystemRamFacility::FileSystemRamFacility() {
+  AE_TELED_DEBUG("New FileSystemRamFacility instance created!");
+}
 
 /*
  * \brief Class destructor.
  * \param[in] void.
  * \return void.
  */
-FileSystemRamFacility::~FileSystemRamFacility() {}
+FileSystemRamFacility::~FileSystemRamFacility() {
+  AE_TELED_DEBUG("FileSystemRamFacility instance deleted!");
+}
 
 std::vector<uint32_t> FileSystemRamFacility::Enumerate(
     const ae::ObjId& obj_id) {
@@ -45,7 +49,7 @@ std::vector<uint32_t> FileSystemRamFacility::Enumerate(
   std::string file{};
 
   dirs_list = driver_ram_fs.DriverRamDir(path);
-  
+
   for (auto dir : dirs_list) {
     AE_TELE_DEBUG(FsEnumerated, "Dir {}", dir);
     auto pos1 = dir.find("/" + obj_id.ToString() + "/");
@@ -66,14 +70,13 @@ std::vector<uint32_t> FileSystemRamFacility::Enumerate(
 void FileSystemRamFacility::Store(const ae::ObjId& obj_id,
                                   std::uint32_t class_id, std::uint8_t version,
                                   const std::vector<uint8_t>& os) {
-
   std::string path{};
 
   path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
          std::to_string(class_id);
 
   driver_ram_fs.DriverRamWrite(path, os);
-  
+
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
       obj_id.ToString(), class_id, static_cast<int>(version), os.size());
@@ -82,7 +85,6 @@ void FileSystemRamFacility::Store(const ae::ObjId& obj_id,
 void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
                                  std::uint32_t class_id, std::uint8_t version,
                                  std::vector<uint8_t>& is) {
-
   std::string path{};
 
   path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +

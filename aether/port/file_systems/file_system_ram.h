@@ -47,7 +47,6 @@ class FileSystemRamFacility : public IDomainFacility {
   void out_header();
 
  private:
-  DriverHeader driver_header_fs;
   DriverRam driver_ram_fs;
 };
 }  // namespace ae

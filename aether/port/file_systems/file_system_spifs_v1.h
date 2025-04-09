@@ -52,10 +52,10 @@ class FileSystemSpiFsV1Facility : public FileSystemBase {
   void CleanUp() override;
 #  endif
  private:
-  void _LoadObjData(ObjClassData& obj_data);
-  void _SaveObjData(ObjClassData& obj_data);
+  void LoadObjData_(ObjClassData& obj_data);
+  void SaveObjData_(ObjClassData& obj_data);
 
-  DriverSpifs* driver_fs;
+  DriverSpifs driver_spifs_fs;
 };
 }  // namespace ae
 

@@ -71,14 +71,13 @@ std::vector<uint32_t> FileSystemStdFacility::Enumerate(
 void FileSystemStdFacility::Store(const ae::ObjId& obj_id,
                                   std::uint32_t class_id, std::uint8_t version,
                                   const std::vector<uint8_t>& os) {
-  auto obj_dir = std::filesystem::path("state") / std::to_string(version) /
-                 obj_id.ToString();
-  std::filesystem::create_directories(obj_dir);
-  auto p = obj_dir / std::to_string(class_id);
-  std::ofstream f(p.c_str(),
-                  std::ios::out | std::ios::binary | std::ios::trunc);
-  f.write(reinterpret_cast<const char*>(os.data()),
-          static_cast<std::streamsize>(os.size()));
+
+  std::string path{};
+
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
+
+  driver_std_fs.DriverStdWrite(path, os);
 
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
@@ -88,26 +87,12 @@ void FileSystemStdFacility::Store(const ae::ObjId& obj_id,
 void FileSystemStdFacility::Load(const ae::ObjId& obj_id,
                                  std::uint32_t class_id, std::uint8_t version,
                                  std::vector<uint8_t>& is) {
-  auto obj_dir = std::filesystem::path("state") / std::to_string(version) /
-                 obj_id.ToString();
-  auto p = obj_dir / std::to_string(class_id);
-  std::ifstream f(p.c_str(), std::ios::in | std::ios::binary);
-  if (!f.good()) {
-    AE_TELE_ERROR(FsLoadObjClassIdNotFound, "Unable to open file {}",
-                  p.string());
-    return;
-  }
+  std::string path{};
 
-  auto ec = std::error_code{};
-  auto file_size = std::filesystem::file_size(p, ec);
-  if (ec) {
-    AE_TELED_ERROR("Unable to get file size {}", ec.message());
-    return;
-  }
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
 
-  is.resize(static_cast<std::size_t>(file_size));
-  f.read(reinterpret_cast<char*>(is.data()),
-         static_cast<std::streamsize>(is.size()));
+  driver_std_fs.DriverStdRead(path, is);
 
   AE_TELE_DEBUG(
       FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
@@ -121,7 +106,7 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
   for (auto const& version_dir :
        std::filesystem::directory_iterator(state_dir, ec)) {
     auto obj_dir = version_dir.path() / obj_id.ToString();
-    std::filesystem::remove_all(obj_dir);
+    driver_std_fs.DriverStdDelete(obj_dir.string());
     AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version {}",
                   obj_id.ToString(), version_dir.path().filename());
   }
@@ -133,10 +118,14 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
 
 #  if defined AE_DISTILLATION
 void FileSystemStdFacility::CleanUp() {
-  std::filesystem::remove_all("state");
-  AE_TELED_DEBUG("Removed all!", 0);
+  std::string path{"state"};
+
+  driver_std_fs.DriverStdDelete(path);
+
+  AE_TELED_DEBUG("All objects have been removed!");
 }
 #  endif
+
 }  // namespace ae
 
 #endif  // AE_FILE_SYSTEM_STD_ENABLED

@@ -25,8 +25,10 @@
 #  define AE_FILE_SYSTEM_STD_ENABLED 1
 
 #  include "aether/obj/domain.h"
+#  include "aether/port/file_systems/drivers/driver_std.h"
 
 namespace ae {
+  
 class FileSystemStdFacility : public IDomainFacility {
  public:
   FileSystemStdFacility();
@@ -41,7 +43,11 @@ class FileSystemStdFacility : public IDomainFacility {
 #  if defined AE_DISTILLATION
   void CleanUp() override;
 #  endif
+
+ private:
+  DriverStd driver_std_fs;
 };
+
 }  // namespace ae
 
 #endif

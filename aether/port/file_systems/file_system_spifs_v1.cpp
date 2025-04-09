@@ -23,11 +23,12 @@
 namespace ae {
 
 FileSystemSpiFsV1Facility::FileSystemSpiFsV1Facility() {
-  driver_fs = new DriverSpifs();
-  // driver_fs->DriverSpifsFormat();
+  AE_TELED_DEBUG("New FileSystemSpiFsV1Facility instance created!");
 }
 
-FileSystemSpiFsV1Facility::~FileSystemSpiFsV1Facility() { delete driver_fs; }
+FileSystemSpiFsV1Facility::~FileSystemSpiFsV1Facility() {
+  AE_TELED_DEBUG("FileSystemSpiFsV1Facility instance deleted!");
+}
 
 std::vector<uint32_t> FileSystemSpiFsV1Facility::Enumerate(
     const ae::ObjId& obj_id) {
@@ -35,7 +36,7 @@ std::vector<uint32_t> FileSystemSpiFsV1Facility::Enumerate(
   std::vector<uint32_t> classes;
 
   // Reading ObjClassData
-  _LoadObjData(state_);
+  LoadObjData_(state_);
 
   // Enumerate
   auto it = state_.find(obj_id);
@@ -57,7 +58,7 @@ void FileSystemSpiFsV1Facility::Store(const ae::ObjId& obj_id,
   ObjClassData state_;
 
   // Reading ObjClassData
-  _LoadObjData(state_);
+  LoadObjData_(state_);
 
   state_[obj_id][class_id][version] = os;
 
@@ -66,7 +67,7 @@ void FileSystemSpiFsV1Facility::Store(const ae::ObjId& obj_id,
       obj_id.ToString(), class_id, static_cast<int>(version), os.size());
 
   // Writing ObjClassData
-  _SaveObjData(state_);
+  SaveObjData_(state_);
 }
 
 void FileSystemSpiFsV1Facility::Load(const ae::ObjId& obj_id,
@@ -76,7 +77,7 @@ void FileSystemSpiFsV1Facility::Load(const ae::ObjId& obj_id,
   ObjClassData state_;
 
   // Reading ObjClassData
-  _LoadObjData(state_);
+  LoadObjData_(state_);
 
   auto obj_it = state_.find(obj_id);
   if (obj_it == state_.end()) {
@@ -104,7 +105,7 @@ void FileSystemSpiFsV1Facility::Remove(const ae::ObjId& obj_id) {
   ObjClassData state_;
 
   // Reading ObjClassData
-  _LoadObjData(state_);
+  LoadObjData_(state_);
 
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
@@ -116,29 +117,30 @@ void FileSystemSpiFsV1Facility::Remove(const ae::ObjId& obj_id) {
   }
 
   // Writing ObjClassData
-  _SaveObjData(state_);
+  SaveObjData_(state_);
 }
 
 #  if defined AE_DISTILLATION
 void FileSystemSpiFsV1Facility::CleanUp() {
   std::string path{"dump"};
 
-  driver_fs->DriverSpifsDelete(path);
+  driver_spifs_fs.DriverSpifsDelete(path);
+  // driver_spifs_fs.DriverSpifsFormat();
 }
 #  endif
-void FileSystemSpiFsV1Facility::_LoadObjData(ObjClassData& obj_data) {
+void FileSystemSpiFsV1Facility::LoadObjData_(ObjClassData& obj_data) {
   auto data_vector = std::vector<std::uint8_t>{};
   std::string path{"dump"};
 
   VectorReader<PacketSize> vr{data_vector};
 
-  driver_fs->DriverSpifsRead(path, data_vector);
+  driver_spifs_fs.DriverSpifsRead(path, data_vector);
   auto is = imstream{vr};
   // add oj data
   is >> obj_data;
 }
 
-void FileSystemSpiFsV1Facility::_SaveObjData(ObjClassData& obj_data) {
+void FileSystemSpiFsV1Facility::SaveObjData_(ObjClassData& obj_data) {
   auto data_vector = std::vector<std::uint8_t>{};
   std::string path{"dump"};
 
@@ -147,7 +149,7 @@ void FileSystemSpiFsV1Facility::_SaveObjData(ObjClassData& obj_data) {
   // add file data
   os << obj_data;
 
-  driver_fs->DriverSpifsWrite(path, data_vector);
+  driver_spifs_fs.DriverSpifsWrite(path, data_vector);
 }
 
 }  // namespace ae

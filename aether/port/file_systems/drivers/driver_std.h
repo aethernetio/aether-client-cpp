@@ -17,7 +17,30 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_STD_H_
 #define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_STD_H_
 
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "aether/obj/domain.h"
+
 namespace ae {
+
+class DriverStd {
+
+ public:
+  DriverStd();
+  ~DriverStd();
+  void DriverStdRead(const std::string &path,
+                     std::vector<std::uint8_t> &data_vector);
+  void DriverStdWrite(const std::string &path,
+                      const std::vector<std::uint8_t> &data_vector);
+  void DriverStdDelete(const std::string &path);
+  std::vector<std::string> DriverStdDir(const std::string &path);
+
+ private:
+
+};
+
 }  // namespace ae
 
 #endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_STD_H_

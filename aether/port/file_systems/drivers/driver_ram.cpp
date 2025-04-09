@@ -18,16 +18,14 @@
 #include "aether/port/file_systems/drivers/driver_functions.h"
 #include "aether/port/file_systems/file_systems_tele.h"
 
-
 namespace ae {
-  
+
 DriverRam::DriverRam() {}
 
 DriverRam::~DriverRam() {}
 
 void DriverRam::DriverRamRead(const std::string &path,
                               std::vector<std::uint8_t> &data_vector) {
-
   ae::PathStructure path_struct{};
 
   path_struct = GetPathStructure(path);
@@ -52,23 +50,23 @@ void DriverRam::DriverRamRead(const std::string &path,
 
 void DriverRam::DriverRamWrite(const std::string &path,
                                const std::vector<std::uint8_t> &data_vector) {
-
   ae::PathStructure path_struct{};
 
   path_struct = GetPathStructure(path);
 
-  state_[path_struct.obj_id][path_struct.class_id][path_struct.version] = data_vector;
+  state_[path_struct.obj_id][path_struct.class_id][path_struct.version] =
+      data_vector;
 }
 
 void DriverRam::DriverRamDelete(const std::string &path) {
-
   ae::PathStructure path_struct{};
 
   path_struct = GetPathStructure(path);
 
   auto it = state_.find(path_struct.obj_id);
   if (it != state_.end()) {
-    AE_TELE_DEBUG(FsObjRemoved, "Removed object {}", path_struct.obj_id.ToString());
+    AE_TELE_DEBUG(FsObjRemoved, "Removed object {}",
+                  path_struct.obj_id.ToString());
     state_.erase(it);
   } else {
     AE_TELE_ERROR(FsRemoveObjIdNoFound, "Object id={} not found!",
@@ -80,14 +78,13 @@ std::vector<std::string> DriverRam::DriverRamDir(const std::string &path) {
   std::vector<std::string> dirs_list{};
 
   AE_TELE_DEBUG(FsObjRemoved, "Path {}", path);
-  for(auto& ItemObjClassData : state_)
-  {
-    for(auto& ItemClassData : ItemObjClassData.second)
-    {
-      for(auto& ItemVersionData : ItemClassData.second)
-      {
-         // Path is "state/version/obj_id/class_id"
-         dirs_list.push_back("state/" + std::to_string(ItemVersionData.first) + "/" + ItemObjClassData.first.ToString() + "/" + std::to_string(ItemClassData.first));
+  for (auto &ItemObjClassData : state_) {
+    for (auto &ItemClassData : ItemObjClassData.second) {
+      for (auto &ItemVersionData : ItemClassData.second) {
+        // Path is "state/version/obj_id/class_id"
+        dirs_list.push_back("state/" + std::to_string(ItemVersionData.first) +
+                            "/" + ItemObjClassData.first.ToString() + "/" +
+                            std::to_string(ItemClassData.first));
       }
     }
   }
