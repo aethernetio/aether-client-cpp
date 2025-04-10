@@ -34,7 +34,7 @@ FILTER_SOURCES = re.compile(r'^[\d\w\-_]+($|(\.((h)|(hpp)|(hh)|(c)|(cpp)|(cc)|(m
 # list names should not copied to arduino library
 FILTER_NAMES = ['.git','.github','test', 'tests', 'testdata', 'c-ares', 'docs', 'extras', 'example', 'examples', 'Makefile', 'makefile', 'ini.h', 'unit_tests_runner.c', 'unit_tests_runner.cpp', 'unit_tests_runner.h', 'tz.cpp', 'Unity' ]
 # list includes should not be changed to paths relative to repository
-NOT_SEARCH_INCLUDES = ['unity.h','unity_config.h', 'randombytes_internal.h', 'stm32f4xx.h', 'stm32l4xx_hal_rng.h']
+NOT_SEARCH_INCLUDES = ['unity.h','unity_config.h', 'randombytes_internal.h', 'stm32f4xx.h', 'stm32l4xx_hal_rng.h', 'etl_profile.h', 'stdint.h', 'FreeRTOS.h']
 
 # filter files and dirs should to copied to arduino lib
 def filter_sources(dir, list):

@@ -19,7 +19,12 @@
 
 #include <cstdint>
 
-#include "etl/circular_buffer.h"
+#include "aether/warning_disable.h"
+
+DISABLE_WARNING_PUSH()
+IGNORE_IMPLICIT_CONVERSION()
+#include "third_party/etl/include/etl/circular_buffer.h"
+DISABLE_WARNING_POP()
 
 #include "aether/common.h"
 #include "aether/server.h"
