@@ -18,12 +18,7 @@
 
 #if defined AE_FILE_SYSTEM_STD_ENABLED
 
-#  include <ios>
-#  include <set>
-#  include <string>
-#  include <fstream>
 #  include <filesystem>
-#  include <system_error>
 
 #  include "aether/port/file_systems/file_systems_tele.h"
 
@@ -39,33 +34,28 @@ FileSystemStdFacility::~FileSystemStdFacility() {
 
 std::vector<uint32_t> FileSystemStdFacility::Enumerate(
     const ae::ObjId& obj_id) {
-  // collect unique classes
-  std::set<uint32_t> classes;
+  std::vector<std::uint32_t> classes;
+  std::vector<std::string> dirs_list{};
+  std::string path{"state"};
+  std::string file{};
 
-  auto state_dir = std::filesystem::path{"state"};
-  auto ec = std::error_code{};
-  for (auto const& version_dir :
-       std::filesystem::directory_iterator(state_dir, ec)) {
-    auto obj_dir = version_dir.path() / obj_id.ToString();
+  dirs_list = driver_std_fs.DriverStdDir(path);
 
-    auto ec2 = std::error_code{};
-    for (auto const& f : std::filesystem::directory_iterator(obj_dir, ec2)) {
-      auto enum_class =
-          static_cast<uint32_t>(std::stoul(f.path().filename().string()));
-      classes.insert(enum_class);
-    }
-    AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
-    if (ec2) {
-      AE_TELED_ERROR("Unable to open directory with error {}", ec2.message());
+  for (auto dir : dirs_list) {
+    AE_TELE_DEBUG(FsEnumerated, "Dir {}", dir);
+    auto pos1 = dir.find("/" + obj_id.ToString() + "/");
+    if (pos1 != std::string::npos) {
+      auto pos2 = dir.rfind("/");
+      if (pos2 != std::string::npos) {
+        file.assign(dir, pos2 + 1, dir.size() - pos2 - 1);
+        auto enum_class = static_cast<uint32_t>(std::stoul(file));
+        classes.push_back(enum_class);
+      }
     }
   }
+  AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
 
-  if (ec) {
-    AE_TELE_ERROR(FsEnumObjIdNotFound, "Unable to open directory with error {}",
-                  ec.message());
-  }
-
-  return std::vector<std::uint32_t>(classes.begin(), classes.end());
+  return classes;
 }
 
 void FileSystemStdFacility::Store(const ae::ObjId& obj_id,

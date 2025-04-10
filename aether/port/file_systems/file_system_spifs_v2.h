@@ -40,7 +40,7 @@ class FileSystemSpiFsV2Facility : public IDomainFacility {
 
  public:
   FileSystemSpiFsV2Facility();
-  ~FileSystemSpiFsV2Facility();
+  ~FileSystemSpiFsV2Facility() override;
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,
              std::uint8_t version, const std::vector<uint8_t>& os) override;

@@ -27,16 +27,18 @@
 
 namespace ae {
 
-DriverStd::DriverStd(){}
+DriverStd::DriverStd() {}
 
-DriverStd::~DriverStd(){}
+DriverStd::~DriverStd() {}
 
-void DriverStd::DriverStdRead(const std::string &path, std::vector<std::uint8_t> &data_vector){
+void DriverStd::DriverStdRead(const std::string &path,
+                              std::vector<std::uint8_t> &data_vector) {
   ae::PathStructure path_struct{};
 
   path_struct = GetPathStructure(path);
-  
-  auto obj_dir = std::filesystem::path("state") / std::to_string(path_struct.version) /
+
+  auto obj_dir = std::filesystem::path("state") /
+                 std::to_string(path_struct.version) /
                  path_struct.obj_id.ToString();
   auto p = obj_dir / std::to_string(path_struct.class_id);
   std::ifstream f(p.c_str(), std::ios::in | std::ios::binary);
@@ -54,31 +56,62 @@ void DriverStd::DriverStdRead(const std::string &path, std::vector<std::uint8_t>
   }
 
   data_vector.resize(static_cast<std::size_t>(file_size));
-  f.read(reinterpret_cast<char*>(data_vector.data()),
+  f.read(reinterpret_cast<char *>(data_vector.data()),
          static_cast<std::streamsize>(data_vector.size()));
 }
 
-void DriverStd::DriverStdWrite(const std::string &path, const std::vector<std::uint8_t> &data_vector){
+void DriverStd::DriverStdWrite(const std::string &path,
+                               const std::vector<std::uint8_t> &data_vector) {
   ae::PathStructure path_struct{};
 
   path_struct = GetPathStructure(path);
 
-  auto obj_dir = std::filesystem::path("state") / std::to_string(path_struct.version) /
+  auto obj_dir = std::filesystem::path("state") /
+                 std::to_string(path_struct.version) /
                  path_struct.obj_id.ToString();
   std::filesystem::create_directories(obj_dir);
   auto p = obj_dir / std::to_string(path_struct.class_id);
   std::ofstream f(p.c_str(),
                   std::ios::out | std::ios::binary | std::ios::trunc);
-  f.write(reinterpret_cast<const char*>(data_vector.data()),
+  f.write(reinterpret_cast<const char *>(data_vector.data()),
           static_cast<std::streamsize>(data_vector.size()));
 }
 
-void DriverStd::DriverStdDelete(const std::string &path){
+void DriverStd::DriverStdDelete(const std::string &path) {
   std::filesystem::remove_all(path);
 }
 
-std::vector<std::string> DriverStd::DriverStdDir(const std::string &path){
-  
+std::vector<std::string> DriverStd::DriverStdDir(const std::string &path) {
+  std::vector<std::string> dirs_list{};
+
+  auto state_dir = std::filesystem::path{path};
+  auto ec = std::error_code{};
+  for (auto const &version_dir :
+       std::filesystem::directory_iterator(state_dir, ec)) {
+    auto ec2 = std::error_code{};
+    for (auto const &obj_dir :
+         std::filesystem::directory_iterator(version_dir, ec2)) {
+      auto ec3 = std::error_code{};
+      for (auto const &f : std::filesystem::directory_iterator(obj_dir, ec3)) {
+        std::string name = f.path().string();
+        // Replacing backslashes with straight ones
+        std::replace(name.begin(), name.end(), '\\', '/');
+        dirs_list.push_back(name);
+      }
+      if (ec3) {
+        AE_TELED_ERROR("Unable to open directory with error {}", ec3.message());
+      }
+    }
+    if (ec2) {
+      AE_TELED_ERROR("Unable to open directory with error {}", ec2.message());
+    }
+  }
+
+  if (ec) {
+    AE_TELED_ERROR("Unable to open directory with error {}", ec.message());
+  }
+
+  return dirs_list;
 }
 
 }  // namespace ae

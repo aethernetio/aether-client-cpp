@@ -32,7 +32,7 @@
 #  include "aether/port/file_systems/drivers/driver_spifs.h"
 
 namespace ae {
-class FileSystemSpiFsV1Facility : public FileSystemBase {
+class FileSystemSpiFsV1Facility : public IDomainFacility {
   using Data = std::vector<std::uint8_t>;
   using VersionData = std::map<std::uint8_t, Data>;
   using ClassData = std::map<std::uint32_t, VersionData>;
