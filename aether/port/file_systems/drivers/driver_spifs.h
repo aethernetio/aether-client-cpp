@@ -30,6 +30,8 @@
 #  include "sys/stat.h"
 #  include "esp_err.h"
 
+#include "aether/port/file_systems/drivers/driver_base.h"
+
 namespace ae {
 
 class DriverSpifs: public DriverBase{

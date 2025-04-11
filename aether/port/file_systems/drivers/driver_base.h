@@ -37,8 +37,7 @@ enum class DriverFsType : std::uint8_t {
 class DriverBase {
 
  public:
-  DriverBase();
-  ~DriverBase();
+  virtual ~DriverBase()  = default;
   virtual void DriverRead(const std::string &path,
                      std::vector<std::uint8_t> &data_vector) = 0;
   virtual void DriverWrite(const std::string &path,

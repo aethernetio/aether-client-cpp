@@ -18,8 +18,4 @@
 
 namespace ae {
 
-DriverBase::DriverBase() {}
-
-DriverBase::~DriverBase() {}
-
 }  // namespace ae

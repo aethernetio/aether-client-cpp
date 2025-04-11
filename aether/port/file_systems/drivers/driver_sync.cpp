@@ -41,7 +41,7 @@ void DriverSync::DriverDelete(const std::string &path) {
 std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list{};
 
-  dirs_list = Driver->DriverSync::DriverDir(path);
+  dirs_list = Driver->DriverDir(path);
 
   return dirs_list;
 }

@@ -22,20 +22,21 @@
 #include <vector>
 
 #include "aether/obj/domain.h"
+#include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {
 
-class DriverStd {
+class DriverStd: public DriverBase {
 
  public:
   DriverStd();
   ~DriverStd();
-  void DriverStdRead(const std::string &path,
-                     std::vector<std::uint8_t> &data_vector);
-  void DriverStdWrite(const std::string &path,
-                      const std::vector<std::uint8_t> &data_vector);
-  void DriverStdDelete(const std::string &path);
-  std::vector<std::string> DriverStdDir(const std::string &path);
+  void DriverRead(const std::string &path,
+                     std::vector<std::uint8_t> &data_vector) override;
+  void DriverWrite(const std::string &path,
+                      const std::vector<std::uint8_t> &data_vector) override;
+  void DriverDelete(const std::string &path) override;
+  std::vector<std::string> DriverDir(const std::string &path) override;
 
  private:
 

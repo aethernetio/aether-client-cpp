@@ -42,5 +42,8 @@ std::unique_ptr<DriverBase> DriverFactory::Create(enum DriverFsType fs_driver_ty
       assert(0);
       break;
   }
+  
+  return std::make_unique<DriverStd>();
 }
+
 }  // namespace ae
