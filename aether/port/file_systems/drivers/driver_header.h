@@ -28,21 +28,24 @@
 #  include FS_INIT
 #endif
 
+#include "aether/port/file_systems/drivers/driver_base.h"
+
 namespace ae {
 
-class DriverHeader {
+class DriverHeader : public DriverBase{
  public:
   DriverHeader();
   ~DriverHeader();
-  void DriverHeaderRead(const std::string &path,
-                        std::vector<std::uint8_t> &data_vector);
-  void DriverHeaderWrite(const std::string &path,
-                         const std::vector<std::uint8_t> &data_vector);
-  void DriverHeaderDelete(const std::string &path);
+  void DriverRead(const std::string &path,
+                        std::vector<std::uint8_t> &data_vector) override;
+  void DriverWrite(const std::string &path,
+                         const std::vector<std::uint8_t> &data_vector) override;
+  void DriverDelete(const std::string &path) override;
+  std::vector<std::string> DriverDir(const std::string &path) override;
 
  private:
-  std::string ByteToHex(std::uint8_t ch);
-  uint8_t HexToByte(const std::string &hex);
+  std::string ByteToHex_(std::uint8_t ch);
+  uint8_t HexToByte_(const std::string &hex);
 };
 
 }  // namespace ae

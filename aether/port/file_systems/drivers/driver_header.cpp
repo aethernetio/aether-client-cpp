@@ -40,7 +40,7 @@ DriverHeader::DriverHeader() {}
 
 DriverHeader::~DriverHeader() {}
 
-void DriverHeader::DriverHeaderRead(const std::string &path,
+void DriverHeader::DriverRead(const std::string &path,
                                     std::vector<std::uint8_t> &data_vector) {
 #if (!defined(ESP_PLATFORM))
   std::string line{};
@@ -79,7 +79,7 @@ void DriverHeader::DriverHeaderRead(const std::string &path,
     if (line == string7) break;
     for (unsigned int i = 0; i < line.length(); i += 6) {
       std::string byteString = line.substr(i + 2, 2);
-      std::uint8_t byte = HexToByte(byteString);
+      std::uint8_t byte = HexToByte_(byteString);
       data_vector.push_back(byte);
     }
   }
@@ -88,7 +88,7 @@ void DriverHeader::DriverHeaderRead(const std::string &path,
 #endif
 }
 
-void DriverHeader::DriverHeaderWrite(
+void DriverHeader::DriverWrite(
     const std::string &path, const std::vector<std::uint8_t> &data_vector) {
 #if (!defined(ESP_PLATFORM))
   size_t last_index = path.find_last_of("/");
@@ -109,7 +109,7 @@ void DriverHeader::DriverHeaderWrite(
   file << string6a << data_vector.size() << string6b << std::endl;
 
   for (std::uint8_t byte : data_vector) {
-    auto str = ByteToHex(byte);
+    auto str = ByteToHex_(byte);
     file << str << ", ";
     if (++cnt == 12) {
       cnt = 0;
@@ -129,21 +129,27 @@ void DriverHeader::DriverHeaderWrite(
 #endif
 }
 
-void DriverHeader::DriverHeaderDelete(const std::string &path) {
+void DriverHeader::DriverDelete(const std::string &path) {
 #if (!defined(ESP_PLATFORM))
   std::filesystem::remove(path);
   AE_TELED_DEBUG("Removed header file {}", path);
 #endif
 }
 
-std::string DriverHeader::ByteToHex(std::uint8_t ch) {
+std::vector<std::string> DriverDir(const std::string &path){
+  std::vector<std::string> dirs_list{};
+
+  return dirs_list;
+}
+
+std::string DriverHeader::ByteToHex_(std::uint8_t ch) {
   std::stringstream ss;
   ss << "0x" << std::hex << std::setw(2) << std::setfill('0')
      << static_cast<int>(ch);
   return ss.str();
 }
 
-uint8_t DriverHeader::HexToByte(const std::string &hex) {
+uint8_t DriverHeader::HexToByte_(const std::string &hex) {
   return static_cast<uint8_t>(std::stoul(hex, nullptr, 16));
 }
 

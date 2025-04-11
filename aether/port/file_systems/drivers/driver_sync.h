@@ -21,30 +21,24 @@
 #include <string>
 #include <vector>
 
-namespace ae {
+#include "aether/port/file_systems/drivers/driver_base.h"
 
-enum class DriverFsType : std::uint8_t {
-  kDriverHeader,
-  kDriverStd,
-  kDriverRam,
-  kDriverSpifs,
-  kDriverNone
-};
+namespace ae {
 
 class DriverSync {
  public:
   DriverSync(enum DriverFsType fs_driver_type);
   ~DriverSync();
-  void DriverSyncRead(const std::string &path,
+  void DriverRead(const std::string &path,
                       std::vector<std::uint8_t> &data_vector);
-  void DriverSyncWrite(const std::string &path,
+  void DriverWrite(const std::string &path,
                        const std::vector<std::uint8_t> &data_vector);
-  void DriverSyncDelete(const std::string &path);
-  std::vector<std::string> DriverSyncDir(const std::string &path);
+  void DriverDelete(const std::string &path);
+  std::vector<std::string> DriverDir(const std::string &path);
 
  private:
   enum DriverFsType fs_driver_type_ { DriverFsType::kDriverNone };
-  void* Driver = nullptr;
+  std::unique_ptr<DriverBase> Driver{};
 };
 
 }  // namespace ae

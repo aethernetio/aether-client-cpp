@@ -53,7 +53,7 @@ class FileSystemSpiFsV2Facility : public IDomainFacility {
 #  endif
 
  private:
-  DriverSpifs driver_spifs_fs;
+  std::unique_ptr<DriverSpifs> driver_spifs_fs_;
 };
 }  // namespace ae
 

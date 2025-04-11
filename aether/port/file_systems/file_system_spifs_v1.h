@@ -55,7 +55,7 @@ class FileSystemSpiFsV1Facility : public IDomainFacility {
   void LoadObjData_(ObjClassData& obj_data);
   void SaveObjData_(ObjClassData& obj_data);
 
-  DriverSpifs driver_spifs_fs;
+  std::unique_ptr<DriverSpifs> driver_spifs_fs_;
 };
 }  // namespace ae
 

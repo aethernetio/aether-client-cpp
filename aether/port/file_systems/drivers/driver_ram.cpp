@@ -24,7 +24,7 @@ DriverRam::DriverRam() {}
 
 DriverRam::~DriverRam() {}
 
-void DriverRam::DriverRamRead(const std::string &path,
+void DriverRam::DriverRead(const std::string &path,
                               std::vector<std::uint8_t> &data_vector) {
   ae::PathStructure path_struct{};
 
@@ -48,7 +48,7 @@ void DriverRam::DriverRamRead(const std::string &path,
   data_vector = version_it->second;
 }
 
-void DriverRam::DriverRamWrite(const std::string &path,
+void DriverRam::DriverWrite(const std::string &path,
                                const std::vector<std::uint8_t> &data_vector) {
   ae::PathStructure path_struct{};
 
@@ -58,7 +58,7 @@ void DriverRam::DriverRamWrite(const std::string &path,
       data_vector;
 }
 
-void DriverRam::DriverRamDelete(const std::string &path) {
+void DriverRam::DriverDelete(const std::string &path) {
   ae::PathStructure path_struct{};
 
   path_struct = GetPathStructure(path);
@@ -74,7 +74,7 @@ void DriverRam::DriverRamDelete(const std::string &path) {
   }
 }
 
-std::vector<std::string> DriverRam::DriverRamDir(const std::string &path) {
+std::vector<std::string> DriverRam::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list{};
 
   AE_TELE_DEBUG(FsObjRemoved, "Path {}", path);

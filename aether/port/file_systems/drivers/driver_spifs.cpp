@@ -21,15 +21,15 @@
 
 namespace ae {
 DriverSpifs::DriverSpifs() {
-  if (_DriverSpifsInit() == ESP_OK) _initialized = true;
+  if (DriverInit_() == ESP_OK) _initialized = true;
 }
 
 DriverSpifs::~DriverSpifs() {
-  _DriverSpifsDeinit();
-  _initialized = false;
+  DriverDeinit_();
+  initialized_ = false;
 }
 
-void DriverSpifs::DriverSpifsRead(const std::string &path,
+void DriverSpifs::DriverRead(const std::string &path,
                                   std::vector<std::uint8_t> &data_vector) {
   size_t bytes_read;
   unsigned int file_size = 0;
@@ -57,7 +57,7 @@ void DriverSpifs::DriverSpifsRead(const std::string &path,
   }
 }
 
-void DriverSpifs::DriverSpifsWrite(
+void DriverSpifs::DriverWrite(
     const std::string &path, const std::vector<std::uint8_t> &data_vector) {
   size_t bytes_write;
   std::string res_path{};
@@ -77,7 +77,7 @@ void DriverSpifs::DriverSpifsWrite(
   }
 }
 
-void DriverSpifs::DriverSpifsDelete(const std::string &path) {
+void DriverSpifs::DriverDelete(const std::string &path) {
   struct stat status;
   std::string res_path{};
 
@@ -93,7 +93,7 @@ void DriverSpifs::DriverSpifsDelete(const std::string &path) {
   }
 }
 
-std::vector<std::string> DriverSpifs::DriverSpifsDir(const std::string &path) {
+std::vector<std::string> DriverSpifs::DriverDir(const std::string &path) {
   struct dirent *de;
   bool read_dir{true};
   std::vector<std::string> dirs_list{};
@@ -121,7 +121,7 @@ std::vector<std::string> DriverSpifs::DriverSpifsDir(const std::string &path) {
   return dirs_list;
 }
 
-void DriverSpifs::DriverSpifsFormat() {
+void DriverSpifs::DriverFormat() {
   esp_err_t err = esp_spiffs_format(kPartition);
 
   if (err != ESP_OK) {
@@ -129,7 +129,7 @@ void DriverSpifs::DriverSpifsFormat() {
   }
 }
 
-esp_err_t DriverSpifs::_DriverSpifsInit() {
+esp_err_t DriverSpifs::_DriverInit() {
   esp_vfs_spiffs_conf_t conf = {.base_path = kBasePath,
                                 .partition_label = kPartition,
                                 .max_files = 128,
@@ -161,7 +161,7 @@ esp_err_t DriverSpifs::_DriverSpifsInit() {
   return ESP_OK;
 }
 
-void DriverSpifs::_DriverSpifsDeinit() { esp_vfs_spiffs_unregister(kPartition); }
+void DriverSpifs::_DriverDeinit() { esp_vfs_spiffs_unregister(kPartition); }
 
 }  // namespace ae
 

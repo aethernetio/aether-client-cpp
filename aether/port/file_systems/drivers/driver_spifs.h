@@ -32,25 +32,25 @@
 
 namespace ae {
 
-class DriverSpifs {
+class DriverSpifs: public DriverBase{
  public:
   DriverSpifs();
   ~DriverSpifs();
-  void DriverSpifsRead(const std::string &path,
-                       std::vector<std::uint8_t> &data_vector);
-  void DriverSpifsWrite(const std::string &path,
-                        const std::vector<std::uint8_t> &data_vector);
-  void DriverSpifsDelete(const std::string &path);
-  std::vector<std::string> DriverSpifsDir(const std::string &path);
-  void DriverSpifsFormat();
+  void DriverRead(const std::string &path,
+                       std::vector<std::uint8_t> &data_vector) override;
+  void DriverWrite(const std::string &path,
+                        const std::vector<std::uint8_t> &data_vector)  override;
+  void DriverDelete(const std::string &path)  override;
+  std::vector<std::string> DriverDir(const std::string &path)  override;
+  void DriverFormat();
 
  private:
-  esp_err_t _DriverSpifsInit();
-  void _DriverSpifsDeinit();
-
+  esp_err_t DriverInit_();
+  void DriverDeinit_();
+  bool initialized_{false};
+  
   static constexpr char kPartition[] = "storage";
   static constexpr char kBasePath[] = "/spiffs";
-  bool _initialized{false};
 };
 
 }  // namespace ae

@@ -15,46 +15,33 @@
  */
 
 #include "aether/port/file_systems/drivers/driver_sync.h"
-#include "aether/port/file_systems/drivers/driver_header.h"
-#include "aether/port/file_systems/drivers/driver_ram.h"
-#include "aether/port/file_systems/drivers/driver_spifs.h"
-#include "aether/port/file_systems/drivers/driver_std.h"
+#include "aether/port/file_systems/drivers/driver_factory.h"
 
 namespace ae {
 
 DriverSync::DriverSync(enum DriverFsType fs_driver_type) {
   fs_driver_type_ = fs_driver_type;
-  switch (fs_driver_type_) {
-    case DriverFsType::kDriverStd:
-      Driver = new DriverStd();
-      break;
-    case DriverFsType::kDriverRam:
-      Driver = new DriverRam();
-      break;
-    case DriverFsType::kDriverSpifs:
-#if (defined(ESP_PLATFORM))
-      Driver = new DriverSpifs();
-#endif  // (defined(ESP_PLATFORM))
-      break;
-    default:
-      assert(0);
-      break;
-  }
+  Driver = DriverFactory::Create(fs_driver_type_);
 }
 
 DriverSync::~DriverSync() {}
 
-void DriverSync::DriverSyncRead(const std::string &path,
-                                std::vector<std::uint8_t> &data_vector) {}
-
-void DriverSync::DriverSyncWrite(const std::string &path,
-                                 const std::vector<std::uint8_t> &data_vector) {
+void DriverSync::DriverRead(const std::string &path, std::vector<std::uint8_t> &data_vector) {
+  Driver->DriverRead(path, data_vector);
 }
 
-void DriverSync::DriverSyncDelete(const std::string &path) {}
+void DriverSync::DriverWrite(const std::string &path, const std::vector<std::uint8_t> &data_vector) {
+  Driver->DriverWrite(path, data_vector);
+}
 
-std::vector<std::string> DriverSync::DriverSyncDir(const std::string &path) {
+void DriverSync::DriverDelete(const std::string &path) {
+  Driver ->DriverDelete(path);
+}
+
+std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list{};
+
+  dirs_list = Driver->DriverSync::DriverDir(path);
 
   return dirs_list;
 }

@@ -29,6 +29,7 @@ namespace ae {
  *\return void.
  */
 FileSystemRamFacility::FileSystemRamFacility() {
+  driver_ram_fs_ = std::make_unique<DriverRam>();
   AE_TELED_DEBUG("New FileSystemRamFacility instance created!");
 }
 
@@ -48,7 +49,7 @@ std::vector<uint32_t> FileSystemRamFacility::Enumerate(
   std::string path{"state"};
   std::string file{};
 
-  dirs_list = driver_ram_fs.DriverRamDir(path);
+  dirs_list = driver_ram_fs_->DriverDir(path);
 
   for (auto dir : dirs_list) {
     AE_TELE_DEBUG(FsEnumerated, "Dir {}", dir);
@@ -75,7 +76,7 @@ void FileSystemRamFacility::Store(const ae::ObjId& obj_id,
   path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
          std::to_string(class_id);
 
-  driver_ram_fs.DriverRamWrite(path, os);
+  driver_ram_fs_->DriverWrite(path, os);
 
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
@@ -90,7 +91,7 @@ void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
   path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
          std::to_string(class_id);
 
-  driver_ram_fs.DriverRamRead(path, is);
+  driver_ram_fs_->DriverRead(path, is);
 
   AE_TELE_DEBUG(
       FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
@@ -100,16 +101,16 @@ void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
 void FileSystemRamFacility::Remove(const ae::ObjId& obj_id) {
   std::string path{"state"};
 
-  auto version_dirs = driver_ram_fs.DriverRamDir(path);
+  auto version_dirs = driver_ram_fs_->DriverDir(path);
 
   for (auto const& ver_dir : version_dirs) {
-    auto obj_dirs = driver_ram_fs.DriverRamDir(ver_dir);
+    auto obj_dirs = driver_ram_fs_->DriverDir(ver_dir);
     auto obj_it = std::find_if(
         std::begin(obj_dirs), std::end(obj_dirs), [&](auto const& path) {
           return path.find("/" + obj_id.ToString() + "/") != std::string::npos;
         });
     if (obj_it != std::end(obj_dirs)) {
-      driver_ram_fs.DriverRamDelete(*obj_it);
+      driver_ram_fs_->DriverDelete(*obj_it);
       AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version dir {}",
                     obj_id.ToString(), ver_dir);
     }
@@ -120,7 +121,7 @@ void FileSystemRamFacility::Remove(const ae::ObjId& obj_id) {
 void FileSystemRamFacility::CleanUp() {
   std::string path{"state"};
 
-  driver_ram_fs.DriverRamDelete(path);
+  driver_ram_fs_->DriverDelete(path);
   AE_TELED_DEBUG("All objects have been removed!");
 }
 #  endif

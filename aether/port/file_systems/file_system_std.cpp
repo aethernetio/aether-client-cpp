@@ -25,6 +25,7 @@
 namespace ae {
 
 FileSystemStdFacility::FileSystemStdFacility() {
+  driver_std_fs_ = std::make_unique<DriverStd>();
   AE_TELED_DEBUG("New FileSystemStdFacility instance created!");
 }
 
@@ -39,7 +40,7 @@ std::vector<uint32_t> FileSystemStdFacility::Enumerate(
   std::string path{"state"};
   std::string file{};
 
-  dirs_list = driver_std_fs.DriverStdDir(path);
+  dirs_list = driver_std_fs_->DriverStdDir(path);
 
   for (auto dir : dirs_list) {
     AE_TELE_DEBUG(FsEnumerated, "Dir {}", dir);
@@ -67,7 +68,7 @@ void FileSystemStdFacility::Store(const ae::ObjId& obj_id,
   path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
          std::to_string(class_id);
 
-  driver_std_fs.DriverStdWrite(path, os);
+  driver_std_fs_->DriverStdWrite(path, os);
 
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
@@ -82,7 +83,7 @@ void FileSystemStdFacility::Load(const ae::ObjId& obj_id,
   path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
          std::to_string(class_id);
 
-  driver_std_fs.DriverStdRead(path, is);
+  driver_std_fs_->DriverStdRead(path, is);
 
   AE_TELE_DEBUG(
       FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
@@ -96,7 +97,7 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
   for (auto const& version_dir :
        std::filesystem::directory_iterator(state_dir, ec)) {
     auto obj_dir = version_dir.path() / obj_id.ToString();
-    driver_std_fs.DriverStdDelete(obj_dir.string());
+    driver_std_fs_->DriverStdDelete(obj_dir.string());
     AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version {}",
                   obj_id.ToString(), version_dir.path().filename());
   }
@@ -110,7 +111,7 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
 void FileSystemStdFacility::CleanUp() {
   std::string path{"state"};
 
-  driver_std_fs.DriverStdDelete(path);
+  driver_std_fs_->DriverStdDelete(path);
 
   AE_TELED_DEBUG("All objects have been removed!");
 }

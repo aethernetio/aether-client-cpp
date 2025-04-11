@@ -23,10 +23,11 @@
 #include <map>
 
 #include "aether/obj/domain.h"
+#include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {
 
-class DriverRam {
+class DriverRam: public DriverBase{
   using Data = std::vector<std::uint8_t>;
   using VersionData = std::map<std::uint8_t, Data>;
   using ClassData = std::map<std::uint32_t, VersionData>;
@@ -35,12 +36,12 @@ class DriverRam {
  public:
   DriverRam();
   ~DriverRam();
-  void DriverRamRead(const std::string &path,
-                     std::vector<std::uint8_t> &data_vector);
-  void DriverRamWrite(const std::string &path,
-                      const std::vector<std::uint8_t> &data_vector);
-  void DriverRamDelete(const std::string &path);
-  std::vector<std::string> DriverRamDir(const std::string &path);
+  void DriverRead(const std::string &path,
+                     std::vector<std::uint8_t> &data_vector) override;
+  void DriverWrite(const std::string &path,
+                      const std::vector<std::uint8_t> &data_vector) override;
+  void DriverDelete(const std::string &path) override;
+  std::vector<std::string> DriverDir(const std::string &path) override;
 
  private:
   ObjClassData state_;

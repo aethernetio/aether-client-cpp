@@ -45,7 +45,7 @@ class FileSystemStdFacility : public IDomainFacility {
 #  endif
 
  private:
-  DriverStd driver_std_fs;
+  std::unique_ptr<DriverStd> driver_std_fs_;
 };
 
 }  // namespace ae
