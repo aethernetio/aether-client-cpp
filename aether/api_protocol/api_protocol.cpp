@@ -71,14 +71,11 @@ bool ReturnResultApi::LoadResult(MessageId message_id, ApiParser& parser) {
 }
 
 void ReturnResultApi::Execute(SendResult&& result, ApiParser& parser) {
-  parser.Context().SetSendResultResponse(result.request_id, parser);
+  parser.Context().SetSendResultResponse(std::move(result).request_id, parser);
 }
 
 void ReturnResultApi::Execute(SendError&& error, ApiParser& parser) {
-  std::cerr << "SendError: id " << error.request_id.id
-            << " type: " << static_cast<int>(error.error_type)
-            << " error code: " << error.error_code << std::endl;
-  parser.Context().MessageNotify(std::move(error));
+  parser.Context().SetSendErrorResponse(std::move(error), parser);
 }
 
 void ReturnResultApi::Pack(SendResult&& result, ApiPacker& packer) const {

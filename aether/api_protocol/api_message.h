@@ -56,7 +56,6 @@ struct Message {
   void Load(message_istream& ms) { ms >> static_cast<T&>(*this); }
   void Save(message_ostream& ms) const { ms << static_cast<T const&>(*this); }
 };
-
 }  // namespace ae
 
 #endif  // AETHER_API_PROTOCOL_API_MESSAGE_H_

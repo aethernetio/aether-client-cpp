@@ -53,6 +53,12 @@ void ProtocolContext::AddSendResultCallback(
   send_result_events_.emplace(request_id, std::move(callback));
 }
 
+void ProtocolContext::AddSendErrorCallback(
+    RequestId request_id,
+    std::function<void(struct SendError const& parser)> callback) {
+  send_error_events_.emplace(request_id, std::move(callback));
+}
+
 void ProtocolContext::SetSendResultResponse(RequestId request_id,
                                             ApiParser& parser) {
   auto it = send_result_events_.find(request_id);
@@ -63,6 +69,25 @@ void ProtocolContext::SetSendResultResponse(RequestId request_id,
     AE_TELED_DEBUG("No callback for request id {} cancel parse", request_id);
     parser.Cancel();
   }
+
+  send_error_events_.erase(request_id);
+}
+
+void ProtocolContext ::SetSendErrorResponse(struct SendError const& error,
+                                            ApiParser& parser) {
+  auto it = send_error_events_.find(error.request_id);
+  if (it != std::end(send_error_events_)) {
+    it->second(error);
+    send_error_events_.erase(it);
+  } else {
+    AE_TELED_DEBUG("No callback for error with request id {}",
+                   error.request_id);
+    std::cerr << "SendError: id " << error.request_id.id
+              << " type: " << static_cast<int>(error.error_type)
+              << " error code: " << error.error_code << std::endl;
+    parser.Cancel();
+  }
+  send_result_events_.erase(error.request_id);
 }
 
 }  // namespace ae
