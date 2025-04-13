@@ -199,17 +199,15 @@ void Registration::Connected(TimePoint current_time) {
 void Registration::GetKeys(TimePoint current_time) {
   AE_TELE_INFO(RegisterGetKeys, "GetKeys {:%Y-%m-%d %H:%M:%S}", current_time);
   state_ = State::kWaitKeys;
-  auto packet = PacketBuilder{
-      protocol_context_,
-      PackMessage{
-          RootApi{},
-          RootApi::GetAsymmetricPublicKey{
-              {}, RequestId::GenRequestId(), kDefaultCryptoLibProfile},
-      },
-  };
 
-  packet_write_action_ =
-      reg_server_stream_->in().Write(std::move(packet), current_time);
+  packet_write_action_ = reg_server_stream_->in().Write(
+      PacketBuilder{
+          protocol_context_,
+          PackMessage{
+              RootApi{},
+              RootApi::GetAsymmetricPublicKey{
+                  {}, RequestId::GenRequestId(), kDefaultCryptoLibProfile}}},
+      current_time);
 
   // on error try repeat
   raw_transport_send_action_subscription_ =
@@ -263,8 +261,7 @@ void Registration::RequestPowParams(TimePoint current_time) {
   server_sync_key_provider_ = server_sync_key_provider.get();
 
   reg_server_stream_ =
-      CreateRegServerStream(StreamIdGenerator::GetNextClientStreamId(),
-                            std::move(server_async_key_provider),
+      CreateRegServerStream(std::move(server_async_key_provider),
                             std::move(server_sync_key_provider));
 
   packet_write_action_ = reg_server_stream_->in().Write(
@@ -340,16 +337,14 @@ void Registration::MakeRegistration(TimePoint current_time) {
   auto global_sync_key_provider = make_unique<RegistrationSyncKeyProvider>();
   global_sync_key_provider->set_key(master_key_);
 
-  auto stream_id = StreamIdGenerator::GetNextClientStreamId();
   global_reg_server_stream_ = CreateGlobalRegServerStream(
-      stream_id,
       ServerRegistrationApi::Registration{{},
-                                          stream_id,
                                           pow_params_.salt,
                                           pow_params_.password_suffix,
                                           std::move(proofs),
                                           parent_uid_,
-                                          server_sync_key_provider_->GetKey()},
+                                          server_sync_key_provider_->GetKey(),
+                                          {}},
       std::move(global_async_key_provider),
       std::move(global_sync_key_provider));
 
@@ -468,7 +463,7 @@ void Registration::OnResolveCloudResponse(
 }
 
 std::unique_ptr<ByteStream> Registration::CreateRegServerStream(
-    StreamId stream_id, std::unique_ptr<IAsyncKeyProvider> async_key_provider,
+    std::unique_ptr<IAsyncKeyProvider> async_key_provider,
     std::unique_ptr<ISyncKeyProvider> sync_key_provider) {
   auto aether = aether_.Lock();
   if (!aether) {
@@ -481,20 +476,28 @@ std::unique_ptr<ByteStream> Registration::CreateRegServerStream(
       CryptoGate{
           make_unique<AsyncEncryptProvider>(std::move(async_key_provider)),
           make_unique<SyncDecryptProvider>(std::move(sync_key_provider))},
-      StreamApiGate{protocol_context_, stream_id},
-      ProtocolWriteGate{protocol_context_, RootApi{},
-                        RootApi::Enter{
-                            {},
-                            stream_id,
-                            kDefaultCryptoLibProfile,
-                        }},
+      ProtocolWriteMessageGate<DataBuffer>{
+          protocol_context_,
+          [](ProtocolContext& context, DataBuffer&& data) -> DataBuffer {
+            return PacketBuilder{
+                context, PackMessage{RootApi{}, RootApi::Enter{
+                                                    {},
+                                                    kDefaultCryptoLibProfile,
+                                                    std::move(data),
+                                                }}};
+          }},
+      ProtocolReadMessageGate<ClientRegRootApi::Enter>{
+          protocol_context_,
+          [](auto const& message) -> std::optional<DataBuffer> {
+            return message.data;
+          }},
       ProtocolReadGate{protocol_context_, root_api_}, server_channel_stream_);
 
   return tied_stream;
 }
 
 std::unique_ptr<ByteStream> Registration::CreateGlobalRegServerStream(
-    StreamId stream_id, ServerRegistrationApi::Registration message,
+    ServerRegistrationApi::Registration message,
     std::unique_ptr<IAsyncKeyProvider> global_async_key_provider,
     std::unique_ptr<ISyncKeyProvider> global_sync_key_provider) {
   auto tied_stream = make_unique<TiedStream>(
@@ -504,9 +507,28 @@ std::unique_ptr<ByteStream> Registration::CreateGlobalRegServerStream(
                      std::move(global_async_key_provider)),
                  make_unique<SyncDecryptProvider>(
                      std::move(global_sync_key_provider))},
-      StreamApiGate{protocol_context_, stream_id},
-      ProtocolWriteGate{protocol_context_, ServerRegistrationApi{},
-                        std::move(message)});
+      ProtocolWriteMessageGate<DataBuffer>{
+          protocol_context_,
+          [message{std::move(message)}](ProtocolContext& context,
+                                        DataBuffer&& data) -> DataBuffer {
+            return PacketBuilder{
+                context,
+                PackMessage{
+                    ServerRegistrationApi{},
+                    ServerRegistrationApi::Registration{{},
+                                                        message.salt,
+                                                        message.password_suffix,
+                                                        message.passwords,
+                                                        message.parent_uid_,
+                                                        message.return_key,
+                                                        std::move(data)},
+                }};
+          }},
+      ProtocolReadMessageGate<ClientApiRegSafe::GlobalApi>{
+          protocol_context_,
+          [](auto const& message) -> std::optional<DataBuffer> {
+            return message.data;
+          }});
 
   return tied_stream;
 }

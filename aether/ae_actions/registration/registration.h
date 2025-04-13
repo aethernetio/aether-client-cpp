@@ -41,9 +41,10 @@
 #  include "aether/server_list/server_list.h"
 #  include "aether/transport/server/server_channel_stream.h"
 
-#  include "aether/methods/server_reg_api/server_registration_api.h"
 #  include "aether/methods/client_reg_api/client_reg_api.h"
+#  include "aether/methods/client_reg_api/client_reg_root_api.h"
 #  include "aether/methods/client_reg_api/client_global_reg_api.h"
+#  include "aether/methods/server_reg_api/server_registration_api.h"
 
 namespace ae {
 
@@ -93,10 +94,10 @@ class Registration : public Action<Registration> {
       MessageEventData<ClientApiRegSafe::ResolveServersResponse> const& msg);
 
   std::unique_ptr<ByteStream> CreateRegServerStream(
-      StreamId stream_id, std::unique_ptr<IAsyncKeyProvider> async_key_provider,
+      std::unique_ptr<IAsyncKeyProvider> async_key_provider,
       std::unique_ptr<ISyncKeyProvider> sync_key_provider);
   std::unique_ptr<ByteStream> CreateGlobalRegServerStream(
-      StreamId stream_id, ServerRegistrationApi::Registration message,
+      ServerRegistrationApi::Registration message,
       std::unique_ptr<IAsyncKeyProvider> global_async_key_provider,
       std::unique_ptr<ISyncKeyProvider> global_sync_key_provider);
 
@@ -109,7 +110,7 @@ class Registration : public Action<Registration> {
       connection_selection_;
   std::unique_ptr<ServerChannelStream> server_channel_stream_;
   ProtocolContext protocol_context_;
-  ClientApiRegSafe root_api_;
+  ClientRegRootApi root_api_;
 
   StateMachine<State> state_;
 
