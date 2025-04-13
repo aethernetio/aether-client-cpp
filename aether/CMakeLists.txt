@@ -87,6 +87,7 @@ list(APPEND actions_srcs
             "ae_actions/get_client_cloud.cpp"
             "ae_actions/get_client_cloud_connection.cpp"
             "ae_actions/ping.cpp"
+            "ae_actions/check_access_for_send_message.cpp"
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
             "actions/action_context.cpp"
