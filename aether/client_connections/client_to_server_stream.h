@@ -33,6 +33,7 @@
 #include "aether/stream_api/crypto_stream.h"
 #include "aether/stream_api/protocol_stream.h"
 
+#include "aether/methods/client_api/client_root_api.h"
 #include "aether/methods/client_api/client_safe_api.h"
 
 namespace ae {
@@ -51,6 +52,8 @@ class ClientToServerStream : public ByteStream {
   InGate& in() override;
   void LinkOut(OutGate& out) override;
 
+  ProtocolContext& protocol_context();
+
  private:
   ActionContext action_context_;
   PtrView<Client> client_;
@@ -63,8 +66,10 @@ class ClientToServerStream : public ByteStream {
 
   // stream to the server with login api and encryption
   std::optional<
-      TiedStream<DebugGate, CryptoGate, StreamApiGate, ProtocolWriteGate,
-                 ProtocolReadGate<ClientSafeApi>, std::unique_ptr<ByteStream>>>
+      TiedStream<ProtocolReadGate<ClientSafeApi>, DebugGate, CryptoGate,
+                 ProtocolWriteMessageGate<DataBuffer>,
+                 ProtocolReadMessageGate<ClientRootApi::SendSafeApiData>,
+                 ProtocolReadGate<ClientRootApi>, std::unique_ptr<ByteStream>>>
       client_auth_stream_;
 
   Subscription connection_success_subscription_;

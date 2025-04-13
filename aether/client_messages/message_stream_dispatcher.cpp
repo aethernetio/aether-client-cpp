@@ -20,14 +20,18 @@
 
 #include "aether/methods/client_api/client_safe_api.h"
 
+#include "aether/tele/tele.h"
+
 namespace ae {
-MessageStreamDispatcher::MessageStreamDispatcher(ByteStream& connection_stream)
-    : protocol_read_gate_{protocol_context_, ClientSafeApi{}} {
-  Tie(protocol_read_gate_, connection_stream);
-  on_client_stream_subscription_ =
-      protocol_context_.MessageEvent<ClientSafeApi::StreamToClient>().Subscribe(
-          *this, MethodPtr<&MessageStreamDispatcher::OnStreamToClient>{});
-}
+MessageStreamDispatcher::MessageStreamDispatcher(
+    ClientToServerStream& server_stream)
+    : server_stream_{&server_stream},
+      on_client_stream_subscription_{
+          server_stream_->protocol_context()
+              .MessageEvent<ClientSafeApi::SendMessage>()
+              .Subscribe(
+                  *this,
+                  MethodPtr<&MessageStreamDispatcher::OnSendMessage>{})} {}
 
 MessageStreamDispatcher::NewStreamEvent::Subscriber
 MessageStreamDispatcher::new_stream_event() {
@@ -40,9 +44,7 @@ MessageStream& MessageStreamDispatcher::GetMessageStream(Uid uid) {
     return *stream_it->second;
   }
 
-  auto [new_it, ok] = streams_.emplace(
-      uid,
-      CreateMessageStream(uid, StreamIdGenerator::GetNextClientStreamId()));
+  auto [new_it, ok] = streams_.emplace(uid, CreateMessageStream(uid));
   assert(ok);
   return *new_it->second;
 }
@@ -55,30 +57,28 @@ void MessageStreamDispatcher::CloseStream(Uid uid) {
 }
 
 std::unique_ptr<MessageStream> MessageStreamDispatcher::CreateMessageStream(
-    Uid uid, StreamId stream_id) {
+    Uid uid) {
   auto message_stream =
-      make_unique<MessageStream>(protocol_context_, uid, stream_id);
-  Tie(*message_stream, protocol_read_gate_);
+      make_unique<MessageStream>(server_stream_->protocol_context(), uid);
+  Tie(*message_stream, *server_stream_);
   return message_stream;
 }
 
-void MessageStreamDispatcher::OnStreamToClient(
-    MessageEventData<ClientSafeApi::StreamToClient> const& msg) {
+void MessageStreamDispatcher::OnSendMessage(
+    MessageEventData<ClientSafeApi::SendMessage> const& msg) {
   auto const& message = msg.message();
   auto stream_it = streams_.find(message.uid);
-  if (stream_it != streams_.end()) {
-    if (stream_it->second->stream_id() != message.stream_id) {
-      stream_it->second->set_stream_id(message.stream_id);
-    }
-    return;
+  AE_TELED_DEBUG("received message from uid {}\ndata {}", message.uid,
+                 message.data);
+  if (stream_it == std::end(streams_)) {
+    AE_TELED_DEBUG("Stream not found create it {}", message.uid);
+    stream_it = streams_.emplace_hint(stream_it, message.uid,
+                                      CreateMessageStream(message.uid));
+    new_stream_event_.Emit(message.uid, *stream_it->second);
   }
 
-  stream_it = streams_.emplace_hint(
-      stream_it, message.uid,
-      CreateMessageStream(message.uid, message.stream_id));
-
   // notify about new stream created
-  new_stream_event_.Emit(message.uid, *stream_it->second);
+  stream_it->second->OnData(msg.message().data);
 }
 
 }  // namespace ae

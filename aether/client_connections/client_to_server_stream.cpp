@@ -30,8 +30,6 @@
 #include "aether/stream_api/protocol_stream.h"
 
 #include "aether/methods/work_server_api/login_api.h"
-#include "aether/methods/client_api/client_safe_api.h"
-#include "aether/methods/work_server_api/authorized_api.h"
 
 #include "aether/client_connections/client_connections_tele.h"
 
@@ -91,11 +89,10 @@ ClientToServerStream::ClientToServerStream(
     : action_context_{action_context}, client_{client}, server_id_{server_id} {
   AE_TELE_INFO(ClientServerStreamCreate, "Create ClientToServerStreamGate");
 
-  auto stream_id = StreamIdGenerator::GetNextClientStreamId();
-
   auto client_ptr = client_.Lock();
 
   client_auth_stream_.emplace(
+      ProtocolReadGate{protocol_context_, ClientSafeApi{}},
       DebugGate{
           Format("ClientToServerStreamGate server id {} client_uid {} \nwrite "
                  "{{}}",
@@ -109,11 +106,27 @@ ClientToServerStream::ClientToServerStream(
                  make_unique<SyncDecryptProvider>(
                      make_unique<_internal::ClientDecryptKeyProvider>(
                          client_ptr, server_id_))},
-      StreamApiGate{protocol_context_, stream_id},
-      // start streams with login by uid
-      ProtocolWriteGate{protocol_context_, LoginApi{},
-                        LoginApi::LoginByUid{{}, stream_id, client_ptr->uid()}},
-      ProtocolReadGate{protocol_context_, ClientSafeApi{}},
+      // start streams with login by alias
+      ProtocolWriteMessageGate<DataBuffer>{
+          protocol_context_,
+          [uid{client_ptr->uid()}](ProtocolContext& protocol_context,
+                                   DataBuffer&& data) -> DataBuffer {
+            return PacketBuilder{
+                protocol_context,
+                PackMessage{LoginApi{},
+                            LoginApi::LoginByUid{{}, uid, std::move(data)}}};
+          }},
+      ProtocolReadMessageGate<ClientRootApi::SendSafeApiData>{
+          protocol_context_,
+          [uid{client_ptr->uid()}](
+              ClientRootApi::SendSafeApiData const& message)
+              -> std::optional<DataBuffer> {
+            if (message.uid != uid) {
+              return std::nullopt;
+            }
+            return message.data;
+          }},
+      ProtocolReadGate{protocol_context_, ClientRootApi{}},
       std::move(server_stream));
 }
 
@@ -125,4 +138,8 @@ ClientToServerStream::InGate& ClientToServerStream::in() {
 }
 
 void ClientToServerStream::LinkOut(OutGate& /* out */) { assert(false); }
+
+ProtocolContext& ClientToServerStream::protocol_context() {
+  return protocol_context_;
+}
 }  // namespace ae
