@@ -124,8 +124,12 @@ class ProtocolContext {
 
   void AddSendResultCallback(RequestId request_id,
                              std::function<void(ApiParser& parser)> callback);
+  void AddSendErrorCallback(
+      RequestId request_id,
+      std::function<void(struct SendError const& error)> callback);
 
   void SetSendResultResponse(RequestId request_id, ApiParser& parser);
+  void SetSendErrorResponse(struct SendError const& error, ApiParser& parser);
 
  private:
   // map global message id to events
@@ -136,6 +140,8 @@ class ProtocolContext {
 
   std::map<RequestId, std::function<void(ApiParser& parser)>>
       send_result_events_;
+  std::map<RequestId, std::function<void(struct SendError const& error)>>
+      send_error_events_;
 };
 }  // namespace ae
 

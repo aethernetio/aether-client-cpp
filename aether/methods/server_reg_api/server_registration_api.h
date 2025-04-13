@@ -42,15 +42,15 @@ class ServerRegistrationApi : public ApiClass {
   struct Registration : public Message<Registration> {
     static constexpr MessageId kMessageCode = 30;
 
-    AE_REFLECT_MEMBERS(stream_id, salt, password_suffix, passwords, parent_uid_,
-                       return_key)
+    AE_REFLECT_MEMBERS(salt, password_suffix, passwords, parent_uid_,
+                       return_key, data)
 
-    StreamId stream_id;
     std::string salt;
     std::string password_suffix;
     std::vector<uint32_t> passwords;
     Uid parent_uid_;
     Key return_key;
+    DataBuffer data;
   };
 
   struct RequestProofOfWorkData : public Message<RequestProofOfWorkData> {

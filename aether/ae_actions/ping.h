@@ -36,6 +36,8 @@ DISABLE_WARNING_POP()
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/protocol_stream.h"
 #include "aether/api_protocol/protocol_context.h"
+#include "aether/client_connections/client_to_server_stream.h"
+
 #include "aether/methods/client_api/client_safe_api.h"
 
 namespace ae {
@@ -53,8 +55,8 @@ class Ping : public Action<Ping> {
 
  public:
   Ping(ActionContext action_context, Server::ptr const& server,
-       Channel::ptr const& channel, ByteStream& server_stream,
-       Duration ping_interval);
+       Channel::ptr const& channel,
+       ClientToServerStream& client_to_server_stream, Duration ping_interval);
   ~Ping() override;
 
   AE_CLASS_NO_COPY_MOVE(Ping);
@@ -69,12 +71,8 @@ class Ping : public Action<Ping> {
 
   PtrView<Server> server_;
   PtrView<Channel> channel_;
-  ByteStream* server_stream_;
+  ClientToServerStream* client_to_server_stream_;
   Duration ping_interval_;
-
-  ProtocolContext protocol_context_;
-  ClientSafeApi client_safe_api_;
-  ProtocolReadGate<ClientSafeApi> read_client_safe_api_gate_;
 
   std::size_t repeat_count_;
   etl::circular_buffer<std::pair<RequestId, TimePoint>, kMaxStorePingTimes>

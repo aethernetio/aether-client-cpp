@@ -21,73 +21,51 @@
 #include "aether/client_messages/client_messages_tele.h"
 
 namespace ae {
-MessageStream::MessageStream(ProtocolContext& protocol_context, Uid destination,
-                             StreamId stream_id)
+MessageStream::MessageStream(ProtocolContext& protocol_context, Uid destination)
     : protocol_context_{protocol_context},
       destination_{destination},
-      stream_id_{stream_id},
-      in_byte_gate_{},
-      out_byte_gate_{},
-      debug_gate_{Format("MessageStream uid {} stream_id {} \nwrite {{}}",
-                         destination_, static_cast<int>(stream_id_)),
-                  Format("MessageStream uid {} stream_id {} \nread {{}}",
-                         destination_, static_cast<int>(stream_id_))},
-      stream_api_gate_{protocol_context_, stream_id_},
-      open_stream_gate_{
-          protocol_context_, AuthorizedApi{},
-          AuthorizedApi::OpenStreamToClient{{}, destination_, stream_id_}} {
-  AE_TELE_INFO(kMessageStream,
-               "MessageStream create for stream: {} and destination: {}",
-               static_cast<int>(stream_id_), destination_);
-  Tie(in_byte_gate_, debug_gate_, stream_api_gate_, open_stream_gate_,
-      out_byte_gate_);
+      debug_gate_{Format("MessageStream uid {}  \nwrite {{}}", destination_),
+                  Format("MessageStream uid {} \nread {{}}", destination_)},
+      inject_gate_{},
+      send_message_gate_{
+          protocol_context_,
+          [&](ProtocolContext& protocol_context, auto&& data) {
+            return PacketBuilder{
+                protocol_context,
+                PackMessage{AuthorizedApi{},
+                            AuthorizedApi::SendMessage{
+                                {}, destination_, std::move(data)}}};
+          }} {
+  AE_TELE_INFO(kMessageStream, "MessageStream create to destination: {}",
+               destination_);
+  Tie(debug_gate_, inject_gate_, send_message_gate_);
 }
 
 MessageStream::MessageStream(MessageStream&& other) noexcept
     : protocol_context_{other.protocol_context_},
       destination_{other.destination_},
-      stream_id_{other.stream_id_},
-      in_byte_gate_{},
-      out_byte_gate_{},
-      debug_gate_{Format("MessageStream uid {} stream_id {} \nwrite {{}}",
-                         destination_, static_cast<int>(stream_id_)),
-                  Format("MessageStream uid {} stream_id {} \nread {{}}",
-                         destination_, static_cast<int>(stream_id_))},
-      stream_api_gate_{std::move(other.stream_api_gate_)},
-      open_stream_gate_{std::move(other.open_stream_gate_)} {
-  Tie(in_byte_gate_, debug_gate_, stream_api_gate_, open_stream_gate_,
-      out_byte_gate_);
+      debug_gate_{Format("MessageStream uid {}  \nwrite {{}}", destination_),
+                  Format("MessageStream uid {} \nread {{}}", destination_)},
+      inject_gate_{},
+      send_message_gate_{
+          protocol_context_,
+          [&](ProtocolContext& protocol_context, auto&& data) {
+            return PacketBuilder{
+                protocol_context,
+                PackMessage{AuthorizedApi{},
+                            AuthorizedApi::SendMessage{
+                                {}, destination_, std::move(data)}}};
+          }} {
+  Tie(debug_gate_, inject_gate_, send_message_gate_);
 }
 
-ByteStream::InGate& MessageStream::in() { return in_byte_gate_; }
+ByteStream::InGate& MessageStream::in() { return debug_gate_; }
 
-void MessageStream::LinkOut(OutGate& out) { out_byte_gate_.LinkOut(out); }
+void MessageStream::LinkOut(OutGate& out) { send_message_gate_.LinkOut(out); }
+
+void MessageStream::OnData(DataBuffer const& data) {
+  inject_gate_.OutData(data);
+}
 
 Uid MessageStream::destination() const { return destination_; }
-
-StreamId MessageStream::stream_id() const { return stream_id_; }
-
-void MessageStream::set_stream_id(StreamId stream_id) {
-  AE_TELE_DEBUG(kMessageStreamChangeId,
-                "MessageStream change stream {} to stream: {} for destination: "
-                "{}",
-                static_cast<int>(stream_id_), static_cast<int>(stream_id),
-                destination_);
-
-  stream_id_ = stream_id;
-  stream_api_gate_ = StreamApiGate{protocol_context_, stream_id_};
-  open_stream_gate_ = ProtocolWriteGate{
-      protocol_context_, AuthorizedApi{},
-      AuthorizedApi::OpenStreamToClient{{}, destination_, stream_id_}};
-
-  debug_gate_ =
-      DebugGate{Format("MessageStream uid {} stream_id {} \nwrite {{}}",
-                       destination_, static_cast<int>(stream_id_)),
-                Format("MessageStream uid {} stream_id {} \nread {{}}",
-                       destination_, static_cast<int>(stream_id_))};
-
-  Tie(in_byte_gate_, debug_gate_, stream_api_gate_, open_stream_gate_,
-      out_byte_gate_);
-}
-
 }  // namespace ae

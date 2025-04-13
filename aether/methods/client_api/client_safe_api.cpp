@@ -25,9 +25,6 @@ namespace ae {
 
 void ClientSafeApi::LoadFactory(MessageId message_id, ApiParser& parser) {
   switch (message_id) {
-    case StreamToClient::kMessageCode:
-      parser.Load<StreamToClient>(*this);
-      break;
     case SendMessage::kMessageCode:
       parser.Load<SendMessage>(*this);
       break;
@@ -36,10 +33,6 @@ void ClientSafeApi::LoadFactory(MessageId message_id, ApiParser& parser) {
         assert(false);
       }
   }
-}
-
-void ClientSafeApi::Execute(StreamToClient&& message, ApiParser& api_parser) {
-  api_parser.Context().MessageNotify(std::move(message));
 }
 
 void ClientSafeApi::Execute(SendMessage&& message, ApiParser& api_parser) {

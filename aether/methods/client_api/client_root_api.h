@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_METHODS_WORK_SERVER_API_LOGIN_API_H_
-#define AETHER_METHODS_WORK_SERVER_API_LOGIN_API_H_
+#ifndef AETHER_METHODS_CLIENT_API_CLIENT_ROOT_API_H_
+#define AETHER_METHODS_CLIENT_API_CLIENT_ROOT_API_H_
 
 #include "aether/uid.h"
-#include "aether/crc.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/stream_api/stream_api.h"
 
 namespace ae {
-class LoginApi : public ApiClass {
+class ClientRootApi : public ApiClass,
+                      public ExtendsApi<ReturnResultApi, StreamApi> {
  public:
-  static constexpr auto kClassId = crc32::checksum_from_literal("LoginApi");
+  static constexpr auto kClassId =
+      crc32::checksum_from_literal("ClientRootApi");
 
-  // starts a new  stream from ClientApi to AuthorizedApi with CryptoStream
-  struct LoginByUid : public Message<LoginByUid> {
+  struct SendSafeApiData : public Message<SendSafeApiData> {
+    static constexpr auto kMessageId =
+        crc32::checksum_from_literal("ClientRootApi::SendSafeApiData");
     static constexpr auto kMessageCode = 6;
 
     AE_REFLECT_MEMBERS(uid, data)
@@ -37,19 +39,9 @@ class LoginApi : public ApiClass {
     DataBuffer data;
   };
 
-  // starts a new  stream from ClientApi to AuthorizedApi with CryptoStream
-  struct LoginByAlias : public Message<LoginByAlias> {
-    static constexpr auto kMessageCode = 7;
+  void LoadFactory(MessageId message_id, ApiParser& parser) override;
 
-    AE_REFLECT_MEMBERS(alias, data)
-
-    Uid alias;
-    DataBuffer data;
-  };
-
-  void Pack(LoginByUid&& message, ApiPacker& packer);
-  void Pack(LoginByAlias&& message, ApiPacker& packer);
+  void Execute(SendSafeApiData&& message, ApiParser& api_parser);
 };
 }  // namespace ae
-
-#endif  // AETHER_METHODS_WORK_SERVER_API_LOGIN_API_H_
+#endif  // AETHER_METHODS_CLIENT_API_CLIENT_ROOT_API_H_

@@ -35,7 +35,7 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
     kRequestServerResolve,
     kAllServersResolved,
     kFailed,
-    kStoped,
+    kStopped,
   };
 
  public:
@@ -58,7 +58,6 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
 
   ClientToServerStream* client_to_server_stream_;
   Uid client_uid_;
-  ProtocolContext protocol_context_;
 
   std::unique_ptr<ByteStream> pre_client_to_server_stream_;
   std::unique_ptr<Stream<Uid, UidAndCloud, DataBuffer, DataBuffer>>

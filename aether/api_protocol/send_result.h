@@ -81,6 +81,11 @@ struct SendResult : public Message<SendResult> {
 struct SendError : public Message<SendError> {
   static constexpr std::uint32_t kMessageId = 1;
 
+  template <typename CbFunc>
+  static void OnError(ProtocolContext& context, RequestId req_id, CbFunc&& cb) {
+    context.AddSendResultCallback(req_id, std::forward<CbFunc>(cb));
+  }
+
   AE_REFLECT_MEMBERS(request_id, error_type, error_code)
   RequestId request_id;
   std::uint8_t error_type;

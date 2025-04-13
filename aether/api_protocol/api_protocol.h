@@ -87,9 +87,9 @@ class ApiPacker {
   ~ApiPacker();
 
   template <typename Message>
-  void Pack(MessageId message_id, Message const& msg) {
+  void Pack(MessageId message_id, Message&& msg) {
     ostream_ << message_id;
-    msg.Save(ostream_);
+    std::forward<Message>(msg).Save(ostream_);
   }
 
   MessageBufferWriter& Buffer();

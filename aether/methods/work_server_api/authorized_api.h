@@ -40,21 +40,11 @@ class AuthorizedApi : public ApiClass {
     std::uint64_t next_ping_duration;
   };
 
-  struct OpenStreamToClient : public Message<OpenStreamToClient> {
-    static constexpr auto kMessageCode = 9;
-
-    AE_REFLECT_MEMBERS(uid, stream_id)
-
-    Uid uid;
-    StreamId stream_id;
-  };
-
   struct SendMessage : public Message<SendMessage> {
     static constexpr auto kMessageCode = 10;
 
-    AE_REFLECT_MEMBERS(request_id, uid, data)
+    AE_REFLECT_MEMBERS(uid, data)
 
-    RequestId request_id;
     Uid uid;
     DataBuffer data;
   };
@@ -68,10 +58,19 @@ class AuthorizedApi : public ApiClass {
     StreamId cloud_stream_id;
   };
 
+  struct CheckAccessForSendMessage : public Message<CheckAccessForSendMessage> {
+    static constexpr auto kMessageCode = 16;
+
+    AE_REFLECT_MEMBERS(request_id, uid)
+
+    RequestId request_id;
+    Uid uid;
+  };
+
   void Pack(Ping&& message, ApiPacker& api_packer);
-  void Pack(OpenStreamToClient&& message, ApiPacker& api_packer);
   void Pack(SendMessage&& message, ApiPacker& api_packer);
   void Pack(Resolvers&& message, ApiPacker& api_packer);
+  void Pack(CheckAccessForSendMessage&& message, ApiPacker& api_packer);
 };
 }  // namespace ae
 

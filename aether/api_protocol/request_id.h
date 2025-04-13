@@ -27,16 +27,16 @@ struct RequestId {
   }
 
   RequestId() = default;
-  RequestId(std::uint16_t id) : id(id) {}
+  RequestId(std::uint32_t id) : id(id) {}
 
-  operator std::uint16_t() const { return id; }
+  operator std::uint32_t() const { return id; }
 
   bool operator==(RequestId const& rhs) const { return id == rhs.id; }
   bool operator!=(RequestId const& rhs) const { return id != rhs.id; }
   bool operator<(RequestId const& rhs) const { return id < rhs.id; }
 
   AE_REFLECT_MEMBERS(id)
-  std::uint16_t id;
+  std::uint32_t id;
 };
 }  // namespace ae
 

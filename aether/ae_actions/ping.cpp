@@ -26,26 +26,26 @@
 
 namespace ae {
 Ping::Ping(ActionContext action_context, Server::ptr const& server,
-           Channel::ptr const& channel, ByteStream& server_stream,
+           Channel::ptr const& channel,
+           ClientToServerStream& client_to_server_stream,
            Duration ping_interval)
     : Action{action_context},
       server_{server},
       channel_{channel},
-      server_stream_{&server_stream},
+      client_to_server_stream_{&client_to_server_stream},
       ping_interval_{ping_interval},
-      read_client_safe_api_gate_{protocol_context_, client_safe_api_},
       repeat_count_{},
       state_{State::kWaitLink},
       state_changed_sub_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })},
       stream_changed_sub_{
-          server_stream_->in().gate_update_event().Subscribe([this]() {
-            if (read_client_safe_api_gate_.stream_info().is_linked) {
-              state_ = State::kSendPing;
-            }
-          })} {
+          client_to_server_stream_->in().gate_update_event().Subscribe(
+              [this]() {
+                if (client_to_server_stream_->in().stream_info().is_linked) {
+                  state_ = State::kSendPing;
+                }
+              })} {
   AE_TELE_INFO(kPing, "Ping action created, interval {:%S}", ping_interval);
-  Tie(read_client_safe_api_gate_, *server_stream_);
 }
 
 Ping::~Ping() = default;
@@ -82,7 +82,7 @@ void Ping::SendPing(TimePoint current_time) {
   auto request_id = RequestId::GenRequestId();
   ping_times_.push(std::make_pair(request_id, current_time));
   auto packet = PacketBuilder{
-      protocol_context_,
+      client_to_server_stream_->protocol_context(),
       PackMessage{AuthorizedApi{},
                   AuthorizedApi::Ping{
                       {},
@@ -92,7 +92,7 @@ void Ping::SendPing(TimePoint current_time) {
                               ping_interval_)
                               .count())}}};
   auto write_action =
-      server_stream_->in().Write(std::move(packet), current_time);
+      client_to_server_stream_->in().Write(std::move(packet), current_time);
 
   write_subscription_ = write_action->SubscribeOnError([this](auto const&) {
     AE_TELE_ERROR(kPingWriteError, "Ping write error");
@@ -101,7 +101,7 @@ void Ping::SendPing(TimePoint current_time) {
 
   // Wait for response
   SendResult::OnResponse(
-      protocol_context_, request_id,
+      client_to_server_stream_->protocol_context(), request_id,
       [&, req_id{request_id}](ApiParser&) { PingResponse(req_id); });
 
   state_ = State::kWaitResponse;

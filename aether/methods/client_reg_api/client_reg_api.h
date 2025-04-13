@@ -45,6 +45,9 @@ struct PowParams {
 class ClientApiRegSafe : public ApiClass,
                          ExtendsApi<ReturnResultApi, StreamApi> {
  public:
+  static constexpr auto kClassId =
+      crc32::checksum_from_literal("ClientApiRegSafe");
+
   struct GetKeysResponse {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("ClientApiRegSafe::GetKeysResponse");
@@ -69,7 +72,19 @@ class ClientApiRegSafe : public ApiClass,
     std::vector<ServerDescriptor> servers;
   };
 
+  struct GlobalApi : public Message<GlobalApi> {
+    static constexpr auto kMessageId =
+        crc32::checksum_from_literal("ClientApiRegSafe::GlobalApi");
+    static constexpr MessageId kMessageCode = 3;
+
+    AE_REFLECT_MEMBERS(data);
+
+    DataBuffer data;
+  };
+
   void LoadFactory(MessageId message_id, ApiParser& parser) override;
+
+  void Execute(GlobalApi&& message, ApiParser& parser);
 };
 }  // namespace ae
 

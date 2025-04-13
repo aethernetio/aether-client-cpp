@@ -87,6 +87,7 @@ list(APPEND actions_srcs
             "ae_actions/get_client_cloud.cpp"
             "ae_actions/get_client_cloud_connection.cpp"
             "ae_actions/ping.cpp"
+            "ae_actions/check_access_for_send_message.cpp"
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
             "actions/action_context.cpp"
@@ -161,7 +162,9 @@ list(APPEND crypto_srcs
 list(APPEND methods_srcs
             "methods/work_server_api/login_api.cpp"
             "methods/work_server_api/authorized_api.cpp"
+            "methods/client_api/client_root_api.cpp"
             "methods/client_api/client_safe_api.cpp"
+            "methods/client_reg_api/client_reg_root_api.cpp"
             "methods/client_reg_api/client_reg_api.cpp"
             "methods/client_reg_api/client_global_reg_api.cpp"
             "methods/server_reg_api/root_api.cpp"

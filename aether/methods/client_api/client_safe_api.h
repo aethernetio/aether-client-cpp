@@ -32,22 +32,10 @@ class ClientSafeApi : public ApiClass,
   static constexpr auto kClassId =
       crc32::checksum_from_literal("ClientSafeApi");
 
-  // start a new client level stream
-  struct StreamToClient : public Message<StreamToClient> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ClientSafeApi::StreamToClient");
-    static constexpr auto kMessageCode = 3;
-
-    AE_REFLECT_MEMBERS(uid, stream_id)
-
-    Uid uid;
-    StreamId stream_id;
-  };
-
   struct SendMessage : public Message<SendMessage> {
     static constexpr auto kMessageId =
         crc32::checksum_from_literal("ClientSafeApi::SendMessage");
-    static constexpr auto kMessageCode = 4;
+    static constexpr auto kMessageCode = 10;
 
     AE_REFLECT_MEMBERS(uid, data)
 
@@ -57,7 +45,6 @@ class ClientSafeApi : public ApiClass,
 
   void LoadFactory(MessageId message_id, ApiParser& parser) override;
 
-  void Execute(StreamToClient&& message, ApiParser& api_parser);
   void Execute(SendMessage&& message, ApiParser& api_parser);
 };
 }  // namespace ae
