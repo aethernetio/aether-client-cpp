@@ -161,7 +161,9 @@ list(APPEND crypto_srcs
 list(APPEND methods_srcs
             "methods/work_server_api/login_api.cpp"
             "methods/work_server_api/authorized_api.cpp"
+            "methods/client_api/client_root_api.cpp"
             "methods/client_api/client_safe_api.cpp"
+            "methods/client_reg_api/client_reg_root_api.cpp"
             "methods/client_reg_api/client_reg_api.cpp"
             "methods/client_reg_api/client_global_reg_api.cpp"
             "methods/server_reg_api/root_api.cpp"
