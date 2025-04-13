@@ -47,7 +47,7 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1 - 1,  // max_data_size
-    10,                               // max_repeat_count
+    10,                              // max_repeat_count
     std::chrono::milliseconds{600},  // wait_confirm_timeout
     {},                              // send_confirm_timeout
     std::chrono::milliseconds{400},  // send_repeat_timeout
@@ -119,9 +119,12 @@ class CloudTestAction : public Action<CloudTestAction> {
       if ((receive_count_ == messages_.size()) &&
           (confirm_count_ == messages_.size())) {
         state_ = State::kResult;
+      } else {
+        if ((start_wait_time_ + std::chrono::seconds{10}) > current_time) {
+          return start_wait_time_ + std::chrono::seconds{10};
+        }
+        state_ = State::kError;
       }
-      // if no any events happens wake up after 1 second
-      return current_time + std::chrono::seconds{1};
     }
     return current_time;
   }
@@ -229,6 +232,7 @@ class CloudTestAction : public Action<CloudTestAction> {
               reinterpret_cast<const char*>(data.data()), data.size());
           AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
                          str_response, confirm_count_);
+          aether_->action_processor->get_trigger().Trigger();
           confirm_count_++;
         });
     state_ = State::kSendMessages;
@@ -247,6 +251,7 @@ class CloudTestAction : public Action<CloudTestAction> {
         state_ = State::kError;
       }));
     }
+    start_wait_time_ = current_time;
     state_ = State::kWaitDone;
   }
 
@@ -259,6 +264,7 @@ class CloudTestAction : public Action<CloudTestAction> {
   std::size_t clients_registered_;
   std::size_t receive_count_;
   std::size_t confirm_count_;
+  TimePoint start_wait_time_;
 
   MultiSubscription registration_subscriptions_;
   Subscription receiver_new_stream_subscription_;
