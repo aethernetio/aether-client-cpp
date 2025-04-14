@@ -29,7 +29,7 @@
 #  include "aether/obj/domain.h"
 #  include "aether/transport/data_buffer.h"
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
-#  include "aether/port/file_systems/drivers/driver_spifs.h"
+#  include "aether/port/file_systems/drivers/driver_sync.h"
 
 namespace ae {
 class FileSystemSpiFsV1Facility : public IDomainFacility {
@@ -55,7 +55,7 @@ class FileSystemSpiFsV1Facility : public IDomainFacility {
   void LoadObjData_(ObjClassData& obj_data);
   void SaveObjData_(ObjClassData& obj_data);
 
-  std::unique_ptr<DriverSpifs> driver_spifs_fs_;
+  std::unique_ptr<DriverSync> driver_sync_fs_;
 };
 }  // namespace ae
 

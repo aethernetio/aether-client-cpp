@@ -25,7 +25,7 @@
 #  define AE_FILE_SYSTEM_STD_ENABLED 1
 
 #  include "aether/obj/domain.h"
-#  include "aether/port/file_systems/drivers/driver_std.h"
+#  include "aether/port/file_systems/drivers/driver_sync.h"
 
 namespace ae {
   
@@ -45,7 +45,7 @@ class FileSystemStdFacility : public IDomainFacility {
 #  endif
 
  private:
-  std::unique_ptr<DriverStd> driver_std_fs_;
+  std::unique_ptr<DriverSync> driver_sync_fs_;
 };
 
 }  // namespace ae

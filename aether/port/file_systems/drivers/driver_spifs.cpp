@@ -21,7 +21,7 @@
 
 namespace ae {
 DriverSpifs::DriverSpifs() {
-  if (DriverInit_() == ESP_OK) _initialized = true;
+  if (DriverInit_() == ESP_OK) initialized_ = true;
 }
 
 DriverSpifs::~DriverSpifs() {
@@ -35,7 +35,7 @@ void DriverSpifs::DriverRead(const std::string &path,
   unsigned int file_size = 0;
   std::string res_path{};
 
-  if (!_initialized) return;
+  if (!initialized_) return;
   res_path = kBasePath + std::string("/") + path;
 
   AE_TELED_DEBUG("Opening file {} for read.", res_path);
@@ -62,7 +62,7 @@ void DriverSpifs::DriverWrite(
   size_t bytes_write;
   std::string res_path{};
 
-  if (!_initialized) return;
+  if (!initialized_) return;
   res_path = kBasePath + std::string("/") + path;
 
   AE_TELED_DEBUG("Opening file {} for write.", res_path);
@@ -81,7 +81,7 @@ void DriverSpifs::DriverDelete(const std::string &path) {
   struct stat status;
   std::string res_path{};
 
-  if (!_initialized) return;
+  if (!initialized_) return;
   res_path = kBasePath + std::string("/") + path;
 
   AE_TELED_DEBUG("Opening file {} for delete.", res_path);
@@ -99,7 +99,7 @@ std::vector<std::string> DriverSpifs::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list{};
   std::string res_path{};
 
-  if (!_initialized) return dirs_list;
+  if (!initialized_) return dirs_list;
   res_path = kBasePath + std::string("/") + path;
 
   DIR *dir = opendir(res_path.c_str());
@@ -129,7 +129,7 @@ void DriverSpifs::DriverFormat() {
   }
 }
 
-esp_err_t DriverSpifs::_DriverInit() {
+esp_err_t DriverSpifs::DriverInit_() {
   esp_vfs_spiffs_conf_t conf = {.base_path = kBasePath,
                                 .partition_label = kPartition,
                                 .max_files = 128,
@@ -161,7 +161,7 @@ esp_err_t DriverSpifs::_DriverInit() {
   return ESP_OK;
 }
 
-void DriverSpifs::_DriverDeinit() { esp_vfs_spiffs_unregister(kPartition); }
+void DriverSpifs::DriverDeinit_() { esp_vfs_spiffs_unregister(kPartition); }
 
 }  // namespace ae
 

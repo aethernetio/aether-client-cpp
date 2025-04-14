@@ -136,7 +136,7 @@ void DriverHeader::DriverDelete(const std::string &path) {
 #endif
 }
 
-std::vector<std::string> DriverDir(const std::string &path){
+std::vector<std::string> DriverHeader::DriverDir(const std::string &path){
   std::vector<std::string> dirs_list{};
 
   AE_TELED_DEBUG("Dir header file {}", path);

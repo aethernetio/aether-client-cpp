@@ -23,7 +23,7 @@
 namespace ae {
 
 FileSystemSpiFsV1Facility::FileSystemSpiFsV1Facility() {
-  driver_spifs_fs_ = std::make_unique<DriverSpifs>();
+  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverSpifs);
   AE_TELED_DEBUG("New FileSystemSpiFsV1Facility instance created!");
 }
 
@@ -125,8 +125,7 @@ void FileSystemSpiFsV1Facility::Remove(const ae::ObjId& obj_id) {
 void FileSystemSpiFsV1Facility::CleanUp() {
   std::string path{"dump"};
 
-  driver_spifs_fs_->DriverDelete(path);
-  // driver_spifs_fs_->DriverFormat();
+  driver_sync_fs_->DriverDelete(path);
 }
 #  endif
 void FileSystemSpiFsV1Facility::LoadObjData_(ObjClassData& obj_data) {
@@ -135,7 +134,7 @@ void FileSystemSpiFsV1Facility::LoadObjData_(ObjClassData& obj_data) {
 
   VectorReader<PacketSize> vr{data_vector};
 
-  driver_spifs_fs_->DriverRead(path, data_vector);
+  driver_sync_fs_->DriverRead(path, data_vector);
   auto is = imstream{vr};
   // add oj data
   is >> obj_data;
@@ -150,7 +149,7 @@ void FileSystemSpiFsV1Facility::SaveObjData_(ObjClassData& obj_data) {
   // add file data
   os << obj_data;
 
-  driver_spifs_fs_->DriverWrite(path, data_vector);
+  driver_sync_fs_->DriverWrite(path, data_vector);
 }
 
 }  // namespace ae

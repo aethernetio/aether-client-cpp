@@ -25,6 +25,7 @@
 #include "aether/port/file_systems/drivers/driver_functions.h"
 #include "aether/port/file_systems/file_systems_tele.h"
 
+#if defined AE_FILE_SYSTEM_STD_ENABLED
 namespace ae {
 
 DriverStd::DriverStd() {}
@@ -115,3 +116,5 @@ std::vector<std::string> DriverStd::DriverDir(const std::string &path) {
 }
 
 }  // namespace ae
+
+#endif  // defined AE_FILE_SYSTEM_STD_ENABLED

@@ -24,8 +24,7 @@
 #include <cstdint>
 
 #include "aether/obj/domain.h"
-#include "aether/port/file_systems/drivers/driver_header.h"
-#include "aether/port/file_systems/drivers/driver_ram.h"
+#include "aether/port/file_systems/drivers/driver_sync.h"
 
 namespace ae {
 class FileSystemRamFacility : public IDomainFacility {
@@ -47,7 +46,7 @@ class FileSystemRamFacility : public IDomainFacility {
   void out_header();
 
  private:
-  std::unique_ptr<DriverRam> driver_ram_fs_;
+  std::unique_ptr<DriverSync> driver_sync_fs_;
 };
 }  // namespace ae
 #endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_ */

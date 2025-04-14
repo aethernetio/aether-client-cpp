@@ -23,6 +23,9 @@
 
 #include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_base.h"
+#include "aether/port/file_systems/file_system_std.h"
+
+#if defined AE_FILE_SYSTEM_STD_ENABLED
 
 namespace ae {
 
@@ -44,4 +47,5 @@ class DriverStd: public DriverBase {
 
 }  // namespace ae
 
+#endif  // defined AE_FILE_SYSTEM_STD_ENABLED
 #endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_STD_H_
