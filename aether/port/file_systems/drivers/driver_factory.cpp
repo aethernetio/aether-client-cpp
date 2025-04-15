@@ -26,18 +26,22 @@
 
 namespace ae {
 std::unique_ptr<DriverBase> DriverFactory::Create(enum DriverFsType fs_driver_type) {
+  std::unique_ptr<DriverBase> ret{std::make_unique<DriverRam>()};
   switch (fs_driver_type) {
     case DriverFsType::kDriverStd:
 #if defined(AE_FILE_SYSTEM_STD_ENABLED)
-      return std::make_unique<DriverStd>();
+      ret = std::make_unique<DriverStd>();
 #endif  // defined(AE_FILE_SYSTEM_STD_ENABLED)
       break;
     case DriverFsType::kDriverRam:
-      return std::make_unique<DriverRam>();
+      ret = std::make_unique<DriverRam>();
+      break;
+    case DriverFsType::kDriverHeader:
+      ret = std::make_unique<DriverHeader>();
       break;
     case DriverFsType::kDriverSpifs:
 #if defined(ESP_PLATFORM)
-      return std::make_unique<DriverSpifs>();
+      ret = std::make_unique<DriverSpifs>();
 #endif  // (defined(ESP_PLATFORM))
       break;
     default:
@@ -45,7 +49,7 @@ std::unique_ptr<DriverBase> DriverFactory::Create(enum DriverFsType fs_driver_ty
       break;
   }
   
-  return std::make_unique<DriverRam>();
+  return ret;
 }
 
 }  // namespace ae

@@ -26,7 +26,7 @@ namespace ae {
 FileSystemHeaderFacility::FileSystemHeaderFacility(
     const std::string& header_file)
     : path_{header_file} {
-  driver_header_fs_ = std::make_unique<DriverHeader>();
+  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverHeader);
   AE_TELED_DEBUG("New FileSystemHeader instance created!");
 }
 
@@ -127,7 +127,7 @@ void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
 
 #  if defined AE_DISTILLATION
 void FileSystemHeaderFacility::CleanUp() {
-  driver_header_fs_->DriverDelete(path_);
+  driver_sync_fs_->DriverDelete(path_);
 }
 #  endif
 
@@ -149,7 +149,7 @@ void FileSystemHeaderFacility::LoadObjData_(ObjClassData& obj_data) {
 
   VectorReader<PacketSize> vr{data_vector};
 
-  driver_header_fs_->DriverRead(path_, data_vector);
+  driver_sync_fs_->DriverRead(path_, data_vector);
   auto is = imstream{vr};
   // add obj data
   is >> obj_data;
@@ -178,7 +178,7 @@ void FileSystemHeaderFacility::SaveObjData_(ObjClassData& obj_data) {
   // add file data
   os << obj_data;
 
-  driver_header_fs_->DriverWrite(path_, data_vector);
+  driver_sync_fs_->DriverWrite(path_, data_vector);
 #  endif
 }
 

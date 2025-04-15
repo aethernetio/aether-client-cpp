@@ -38,7 +38,8 @@ class DriverSync {
 
  private:
   enum DriverFsType fs_driver_type_ { DriverFsType::kDriverNone };
-  std::unique_ptr<DriverBase> Driver{};
+  std::unique_ptr<DriverBase> DriverSource{};
+  std::unique_ptr<DriverBase> DriverDestination{};
 };
 
 }  // namespace ae

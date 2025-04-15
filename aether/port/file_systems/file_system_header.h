@@ -25,7 +25,7 @@
 
 #include "aether/obj/obj_id.h"
 #include "aether/obj/domain.h"
-#include "aether/port/file_systems/drivers/driver_header.h"
+#include "aether/port/file_systems/drivers/driver_sync.h"
 
 namespace ae {
 class FileSystemHeaderFacility : public IDomainFacility {
@@ -52,7 +52,7 @@ class FileSystemHeaderFacility : public IDomainFacility {
   void LoadObjData_(ObjClassData& obj_data);
   void SaveObjData_(ObjClassData& obj_data);
 
-  std::unique_ptr<DriverHeader> driver_header_fs_;
+  std::unique_ptr<DriverSync> driver_sync_fs_;
   std::string path_{};
 };
 }  // namespace ae

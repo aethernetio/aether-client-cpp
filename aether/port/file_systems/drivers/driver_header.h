@@ -24,10 +24,6 @@
 #include <ios>
 #include <system_error>
 
-#if defined FS_INIT
-#  include FS_INIT
-#endif
-
 #include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {

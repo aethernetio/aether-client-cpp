@@ -24,14 +24,18 @@
 
 #include "aether/obj/domain.h"
 
+#if defined FS_INIT
+#  include FS_INIT
+#endif
+
 namespace ae {
 
 enum class DriverFsType : std::uint8_t {
+  kDriverNone,
   kDriverHeader,
   kDriverStd,
   kDriverRam,
-  kDriverSpifs,
-  kDriverNone
+  kDriverSpifs
 };
 
 class DriverBase {

@@ -21,27 +21,48 @@ namespace ae {
 
 DriverSync::DriverSync(enum DriverFsType fs_driver_type) {
   fs_driver_type_ = fs_driver_type;
-  Driver = DriverFactory::Create(fs_driver_type_);
+  DriverSource = DriverFactory::Create(fs_driver_type_);
+#if defined(ESP_PLATFORM)
+  DriverDestination  = DriverFactory::Create(DriverFsType::kDriverSpifs);
+#else
+  DriverDestination  = DriverFactory::Create(DriverFsType::kDriverStd);
+#endif
 }
 
 DriverSync::~DriverSync() {}
 
 void DriverSync::DriverRead(const std::string &path, std::vector<std::uint8_t> &data_vector) {
-  Driver->DriverRead(path, data_vector);
+#if defined(AE_DISTILLATION))
+  DriverSource->DriverRead(path, data_vector);
+#else
+  
+#endif
 }
 
 void DriverSync::DriverWrite(const std::string &path, const std::vector<std::uint8_t> &data_vector) {
-  Driver->DriverWrite(path, data_vector);
+#if defined(AE_DISTILLATION))
+  DriverSource->DriverWrite(path, data_vector);
+#else
+  
+#endif
 }
 
 void DriverSync::DriverDelete(const std::string &path) {
-  Driver ->DriverDelete(path);
+#if defined(AE_DISTILLATION))
+  DriverSource->DriverDelete(path);
+#else
+  
+#endif
 }
 
 std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list{};
 
+#if defined(AE_DISTILLATION))
   dirs_list = Driver->DriverDir(path);
+#else
+  
+#endif
 
   return dirs_list;
 }
