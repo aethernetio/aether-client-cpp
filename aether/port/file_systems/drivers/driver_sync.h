@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 #include "aether/port/file_systems/drivers/driver_base.h"
 
@@ -30,13 +31,16 @@ class DriverSync {
   DriverSync(enum DriverFsType fs_driver_type);
   ~DriverSync();
   void DriverRead(const std::string &path,
-                      std::vector<std::uint8_t> &data_vector);
+                  std::vector<std::uint8_t> &data_vector);
   void DriverWrite(const std::string &path,
-                       const std::vector<std::uint8_t> &data_vector);
+                   const std::vector<std::uint8_t> &data_vector);
   void DriverDelete(const std::string &path);
   std::vector<std::string> DriverDir(const std::string &path);
 
  private:
+  void DriverSyncronize_(std::unique_ptr<DriverBase> DrvSource,
+                         std::unique_ptr<DriverBase> DrvDestination,
+                         const std::string &path);
   enum DriverFsType fs_driver_type_ { DriverFsType::kDriverNone };
   std::unique_ptr<DriverBase> DriverSource{};
   std::unique_ptr<DriverBase> DriverDestination{};
