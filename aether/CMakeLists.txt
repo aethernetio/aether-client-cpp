@@ -19,22 +19,9 @@ set(AE_PROJECT_VERSION "1.0.0")
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 
 option(AE_DISTILLATION "Build aether in distillation mode" OFF)
-option(USER_CONFIG "Path to user provided configuration header file" "")
 
-find_program(GIT_COMMAND git)
-if ( GIT_COMMAND )
-  # get current git version
-  execute_process(
-        COMMAND ${GIT_COMMAND} -C ${CMAKE_CURRENT_SOURCE_DIR} rev-parse --verify HEAD
-        OUTPUT_VARIABLE GIT_VERSION
-    )
-  if ( NOT GIT_VERSION )
-    message(WARNING "Not a git repo")
-  else()
-    string(STRIP ${GIT_VERSION} GIT_VERSION)
-    message(STATUS "get aether git version ${GIT_VERSION}")
-  endif()
-endif()
+set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
+set(FS_INIT "" CACHE PATH "Path to user provided saved state header file")
 
 # list a common dependencies
 list(APPEND common_dependencies
@@ -42,7 +29,11 @@ list(APPEND common_dependencies
     "../third_party/libhydrogen"
     "../third_party/libsodium"
     "../third_party/gcem"
+    "../third_party/etl"
 )
+
+# for etl
+set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
 
 list(APPEND aether_srcs
             "aether_app.cpp"
@@ -55,7 +46,6 @@ list(APPEND aether_srcs
             "registration_cloud.cpp"
             "work_cloud.cpp"
             "server.cpp"
-            "statistics.cpp"
             "uid.cpp"
             "proof_of_work.cpp"
             "server_keys.cpp"
@@ -97,6 +87,7 @@ list(APPEND actions_srcs
             "ae_actions/get_client_cloud.cpp"
             "ae_actions/get_client_cloud_connection.cpp"
             "ae_actions/ping.cpp"
+            "ae_actions/check_access_for_send_message.cpp"
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
             "actions/action_context.cpp"
@@ -171,7 +162,9 @@ list(APPEND crypto_srcs
 list(APPEND methods_srcs
             "methods/work_server_api/login_api.cpp"
             "methods/work_server_api/authorized_api.cpp"
+            "methods/client_api/client_root_api.cpp"
             "methods/client_api/client_safe_api.cpp"
+            "methods/client_reg_api/client_reg_root_api.cpp"
             "methods/client_reg_api/client_reg_api.cpp"
             "methods/client_reg_api/client_global_reg_api.cpp"
             "methods/server_reg_api/root_api.cpp"
@@ -212,6 +205,9 @@ list(APPEND port_srcs
             "port/file_systems/drivers/driver_factory.cpp"
             "port/file_systems/drivers/driver_functions.cpp")
 
+list(APPEND statistics_srcs
+      "statistics/channel_statistics.cpp")
+
 list(APPEND tele_srcs
             "tele/traps/io_stream_traps.cpp"
             "tele/traps/statistics_trap.cpp"
@@ -219,13 +215,11 @@ list(APPEND tele_srcs
 
 message(STATUS "Cmake system name is ${CMAKE_SYSTEM_NAME}")
 
-if(NOT CM_PLATFORM AND (
-  CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR
-  CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
-  CMAKE_SYSTEM_NAME STREQUAL "Windows" OR
-  CMAKE_SYSTEM_NAME MATCHES ".*BSD"))
-  message(STATUS "Build for regular cmake project")
+if(NOT CM_PLATFORM)
+  message(STATUS "Aether build for regular cmake project")
   set(REGULAR_CMAKE_PROJECT On)
+else()
+  message(STATUS "Aether build for CM_PLATFORM=${CM_PLATFORM}")
 endif()
 
 if(REGULAR_CMAKE_PROJECT)
@@ -258,6 +252,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${port_srcs}
+                            ${statistics_srcs}
                             ${tele_srcs}
                             )
 
@@ -270,7 +265,8 @@ if(REGULAR_CMAKE_PROJECT)
                                         bcrypt
                                         sodium
                                         hydrogen
-                                        gcem)
+                                        gcem
+                                        etl)
   target_link_libraries(${PROJECT_NAME} PRIVATE c-ares )
 
   set(TARGET_NAME "${PROJECT_NAME}")
@@ -298,6 +294,7 @@ else()
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${port_srcs}
+                            ${statistics_srcs}
                             ${tele_srcs}
                             INCLUDE_DIRS ${include_dirs}
                             REQUIRES esp_wifi nvs_flash spiffs)
@@ -313,7 +310,8 @@ else()
                                          bcrypt
                                          sodium
                                          hydrogen
-                                         gcem)
+                                         gcem
+                                         etl)
   else()
     #ERROR
     message(SEND_ERROR "You must specify the CMAKE version!")
@@ -331,16 +329,31 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
   target_link_libraries(${TARGET_NAME} PRIVATE ws2_32)
 endif()
 
+find_program(GIT_COMMAND git)
+if ( GIT_COMMAND )
+  # get current git version
+  execute_process(
+        COMMAND ${GIT_COMMAND} -C ${CMAKE_CURRENT_SOURCE_DIR} rev-parse --verify HEAD
+        OUTPUT_VARIABLE GIT_VERSION
+    )
+  if ( NOT GIT_VERSION )
+    message(WARNING "Not a git repo")
+  else()
+    string(STRIP ${GIT_VERSION} GIT_VERSION)
+    message(STATUS "get aether git version ${GIT_VERSION}")
+  endif()
+endif()
+
 if (GIT_VERSION)
   target_compile_definitions(${TARGET_NAME} PUBLIC "AE_GIT_VERSION=\"${GIT_VERSION}\"")
 endif()
 target_compile_definitions(${TARGET_NAME} PUBLIC "AE_PROJECT_VERSION=\"${AE_PROJECT_VERSION}\"")
 
-if (USER_CONFIG)
+if (NOT "${USER_CONFIG}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "USER_CONFIG=\"${USER_CONFIG}\"")
 endif()
 
-if (FS_INIT)
+if (NOT "${FS_INIT}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "FS_INIT=\"${FS_INIT}\"")
 endif()
 
@@ -348,7 +361,8 @@ if (AE_DISTILLATION)
   target_compile_definitions(${TARGET_NAME} PUBLIC "AE_DISTILLATION=1")
 endif()
 
-if(_AE_REG_CLOUD_IP)
+# for debug purposes only, set registration server ip address
+if(NOT "${_AE_REG_CLOUD_IP}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "_AE_REG_CLOUD_IP=\"${_AE_REG_CLOUD_IP}\"")
 endif()
 

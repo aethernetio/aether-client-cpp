@@ -82,13 +82,13 @@ jobs:
         platforms:
           - {
               name: "Hydrogen",
-              user_config: "../config/user_config_hydrogen.h",
-              fs_init: "../../../../config/file_system_init.h",
+              user_config: "./config/user_config_hydrogen.h",
+              fs_init: "./config/file_system_init.h",
             }
           - {
               name: "Sodium",
-              user_config: "../config/user_config_sodium.h",
-              fs_init: "../../../../config/file_system_init.h",
+              user_config: "./config/user_config_sodium.h",
+              fs_init: "./config/file_system_init.h",
             }
 
     steps:
@@ -138,6 +138,8 @@ jobs:
           git apply "../libhydrogen.patch"
           cd ../libsodium
           git apply "../libsodium.patch"
+          cd ../etl
+          git apply "../etl.patch"
           cd ../
           cp "CMakeLists.libbcrypt" "libbcrypt/CMakeLists.txt"
           cp "CMakeLists.libhydrogen" "libhydrogen/CMakeLists.txt"
@@ -192,8 +194,8 @@ jobs:
         platforms:
           - {
               name: "Optimized",
-              user_config: "../config/user_config_optimized.h",
-              fs_init: "../../../../config/file_system_init.h",
+              user_config: "./config/user_config_optimized.h",
+              fs_init: "./config/file_system_init.h",
             }
 
     steps:
@@ -212,6 +214,8 @@ jobs:
           git apply "../libhydrogen.patch"
           cd ../libsodium
           git apply "../libsodium.patch"
+          cd ../etl
+          git apply "../etl.patch"
           cd ../
           cp "CMakeLists.libbcrypt" "libbcrypt/CMakeLists.txt"
           cp "CMakeLists.libhydrogen" "libhydrogen/CMakeLists.txt"
@@ -227,8 +231,8 @@ jobs:
           path: "projects/xtensa_lx6/vscode/aether-client-cpp"
           command: idf.py build
             -DCOMPILE_EXAMPLE=${{ matrix.compile_example }}
-            -DUSER_CONFIG=${{ matrix.platforms.user_config }}
-            -DFS_INIT="${{ matrix.platforms.fs_init }}"
+            -DUSER_CONFIG=../../../../../${{ matrix.platforms.user_config }}
+            -DFS_INIT="../../../../../${{ matrix.platforms.fs_init }}"
             -DAE_DISTILLATION=Off
 
       - name: Rename artifact

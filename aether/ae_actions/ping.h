@@ -19,6 +19,13 @@
 
 #include <cstdint>
 
+#include "aether/warning_disable.h"
+
+DISABLE_WARNING_PUSH()
+IGNORE_IMPLICIT_CONVERSION()
+#include "third_party/etl/include/etl/circular_buffer.h"
+DISABLE_WARNING_POP()
+
 #include "aether/common.h"
 #include "aether/server.h"
 #include "aether/channel.h"
@@ -29,6 +36,8 @@
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/protocol_stream.h"
 #include "aether/api_protocol/protocol_context.h"
+#include "aether/client_connections/client_to_server_stream.h"
+
 #include "aether/methods/client_api/client_safe_api.h"
 
 namespace ae {
@@ -41,10 +50,13 @@ class Ping : public Action<Ping> {
     kError,
   };
 
+  static constexpr std::uint8_t kMaxRepeatPingCount = 5;
+  static constexpr std::uint8_t kMaxStorePingTimes = kMaxRepeatPingCount * 2;
+
  public:
   Ping(ActionContext action_context, Server::ptr const& server,
-       Channel::ptr const& channel, ByteStream& server_stream,
-       Duration ping_interval);
+       Channel::ptr const& channel,
+       ClientToServerStream& client_to_server_stream, Duration ping_interval);
   ~Ping() override;
 
   AE_CLASS_NO_COPY_MOVE(Ping);
@@ -53,18 +65,19 @@ class Ping : public Action<Ping> {
 
  private:
   void SendPing(TimePoint current_time);
-  void PingResponse();
+  TimePoint WaitInterval(TimePoint current_time);
+  TimePoint WaitResponse(TimePoint current_time);
+  void PingResponse(RequestId request_id);
 
   PtrView<Server> server_;
   PtrView<Channel> channel_;
-  ByteStream* server_stream_;
+  ClientToServerStream* client_to_server_stream_;
   Duration ping_interval_;
 
-  ProtocolContext protocol_context_;
-  ClientSafeApi client_safe_api_;
-  ProtocolReadGate<ClientSafeApi> read_client_safe_api_gate_;
+  std::size_t repeat_count_;
+  etl::circular_buffer<std::pair<RequestId, TimePoint>, kMaxStorePingTimes>
+      ping_times_;
 
-  TimePoint last_ping_time_;
   Subscription write_subscription_;
   StateMachine<State> state_;
   Subscription state_changed_sub_;

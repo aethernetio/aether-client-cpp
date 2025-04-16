@@ -162,6 +162,16 @@
 #  define AE_SAFE_STREAM_RTO_GROW_FACTOR 1.5
 #endif  // AE_SAFE_STREAM_RTO_GROW_FACTOR
 
+// window size for connection statistics
+#ifndef AE_STATISTICS_CONNECTION_WINDOW_SIZE
+#  define AE_STATISTICS_CONNECTION_WINDOW_SIZE 10
+#endif
+
+// window size for server answear to ping statistics
+#ifndef AE_STATISTICS_PING_WINDOW_SIZE
+#  define AE_STATISTICS_PING_WINDOW_SIZE 100
+#endif
+
 // Telemetry configuration
 // Compilation info
 // Environment info

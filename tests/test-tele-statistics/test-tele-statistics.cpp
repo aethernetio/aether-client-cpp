@@ -66,7 +66,9 @@ void test_StatisticsRotation() {
   tele_statistics->trap()->statistics_store_.SetSizeLimit(100);
 
   InitTeleSink(tele_statistics->trap());
-  AE_TELED_DEBUG("12");
+  {
+    AE_TELED_DEBUG("12");
+  }
   auto statistics_size =
       tele_statistics->trap()->statistics_store_.Get()->Size();
   TEST_ASSERT_LESS_THAN(100, statistics_size);
@@ -85,7 +87,9 @@ void test_SaveLoadTeleStatistics() {
   TeleStatistics::ptr tele_statistics = domain.CreateObj<TeleStatistics>(1);
   tele_statistics->trap()->MergeStatistics(*statistics_trap);
   InitTeleSink(tele_statistics->trap());
-  AE_TELED_DEBUG("12");
+  {
+    AE_TELED_DEBUG("12");
+  }
   auto statistics_size =
       tele_statistics->trap()->statistics_store_.Get()->Size();
 

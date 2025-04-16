@@ -50,7 +50,7 @@ class Event<void(TArgs...)> {
     }
 
     // store self to prevent removing while emit
-    void Emit(RcPtr<EventEmitter> self_ptr, TArgs... args) {
+    static void Emit(RcPtr<EventEmitter> self_ptr, TArgs... args) {
       // TODO: find a better way to invoke all handlers
       /*
        * invoke_list is using to prevent iterator invalidation while new
@@ -59,20 +59,17 @@ class Event<void(TArgs...)> {
        */
 
       // add new subscriptions
-      auto invoke_list = handlers_;
+      auto invoke_list = self_ptr->handlers_;
       for (auto& handler : invoke_list) {
         // invoke subscription handler
         handler.Invoke(std::forward<TArgs>(args)...);
       }
       // clean up dead subscriptions
-      handlers_.erase(std::remove_if(std::begin(handlers_), std::end(handlers_),
-                                     [](auto const& handler) {
-                                       return !handler.is_alive();
-                                     }),
-                      std::end(handlers_));
-
-      // just to be used
-      self_ptr.Reset();
+      self_ptr->handlers_.erase(
+          std::remove_if(
+              std::begin(self_ptr->handlers_), std::end(self_ptr->handlers_),
+              [](auto const& handler) { return !handler.is_alive(); }),
+          std::end(self_ptr->handlers_));
     }
 
     void Add(EventHandlerSubscription<CallbackSignature>&& handler) {
@@ -106,7 +103,7 @@ class Event<void(TArgs...)> {
    * subscriptions.
    */
   void Emit(TArgs... args) {
-    emitter_->Emit(emitter_, std::forward<TArgs>(args)...);
+    EventEmitter::Emit(emitter_, std::forward<TArgs>(args)...);
   }
 
   /**

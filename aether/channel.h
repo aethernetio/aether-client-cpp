@@ -17,12 +17,9 @@
 #ifndef AETHER_CHANNEL_H_
 #define AETHER_CHANNEL_H_
 
-#include <map>
-#include <cstdint>
-
 #include "aether/address.h"
 #include "aether/obj/obj.h"
-#include "aether/statistics.h"
+#include "aether/statistics/channel_statistics.h"
 
 namespace ae {
 class Aether;
@@ -33,23 +30,23 @@ class Channel : public Obj {
   Channel() = default;
 
  public:
-  using TokenType = std::uint32_t;
-
   explicit Channel(Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(address, statistics_))
+  AE_OBJECT_REFLECT(AE_MMBRS(address, default_connection_time,
+                             default_ping_time, channel_statistics))
 
-  Duration FirstRequestDuration(TokenType adapter_token,
-                                TokenType location_token,
-                                float percentile) const;
-  Duration RequestDuration(TokenType adapter_token, TokenType location_token,
-                           float percentile) const;
-  Duration ConnectionDuration(TokenType adapter_token, TokenType location_token,
-                              float percentile) const;
+  void AddConnectionTime(Duration connection_time);
+  void AddPingTime(Duration ping_time);
 
-  // Serializable
+  Duration expected_connection_time() const;
+  Duration expected_ping_time() const;
+
   UnifiedAddress address;
-  std::map<TokenType, Statistics::ptr> statistics_;
+  Duration default_connection_time = std::chrono::seconds{5};
+  Duration default_ping_time = std::chrono::seconds{1};
+
+ private:
+  ChannelStatistics::ptr channel_statistics;
 };
 
 }  // namespace ae

@@ -24,10 +24,6 @@ void AuthorizedApi::Pack(Ping&& message, ApiPacker& api_packer) {
   api_packer.Pack(Ping::kMessageCode, std::move(message));
 }
 
-void AuthorizedApi::Pack(OpenStreamToClient&& message, ApiPacker& api_packer) {
-  api_packer.Pack(OpenStreamToClient::kMessageCode, std::move(message));
-}
-
 void AuthorizedApi::Pack(SendMessage&& message, ApiPacker& api_packer) {
   api_packer.Pack(SendMessage::kMessageCode, std::move(message));
 }
@@ -36,4 +32,8 @@ void AuthorizedApi::Pack(Resolvers&& message, ApiPacker& api_packer) {
   api_packer.Pack(Resolvers::kMessageCode, std::move(message));
 }
 
+void AuthorizedApi::Pack(CheckAccessForSendMessage&& message,
+                         ApiPacker& api_packer) {
+  api_packer.Pack(Resolvers::kMessageCode, std::move(message));
+}
 }  // namespace ae

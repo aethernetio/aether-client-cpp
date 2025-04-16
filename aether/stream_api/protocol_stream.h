@@ -18,6 +18,7 @@
 #define AETHER_STREAM_API_PROTOCOL_STREAM_H_
 
 #include <utility>
+#include <functional>
 
 #include "aether/api_protocol/packet_builder.h"
 #include "aether/api_protocol/protocol_context.h"
@@ -42,6 +43,101 @@ class ProtocolWriteGate final : public AddHeaderGate {
         }) {}
 };
 
+template <typename TIndata, typename TOutData = TIndata,
+          typename TMessageFactory =
+              std::function<DataBuffer(ProtocolContext&, TIndata&& data)>>
+class ProtocolWriteMessageGate final
+    : public Gate<TIndata, TOutData, DataBuffer, DataBuffer> {
+  using BaseGate = Gate<TIndata, DataBuffer, DataBuffer, DataBuffer>;
+
+ public:
+  ProtocolWriteMessageGate(ProtocolContext& protocol_context,
+                           TMessageFactory&& message_factory)
+      : messasge_factory_{std::move(message_factory)},
+        protocol_context_{&protocol_context},
+        overhead_size_{
+            messasge_factory_(*protocol_context_, TIndata{}).size()} {}
+
+  AE_CLASS_MOVE_ONLY(ProtocolWriteMessageGate);
+
+  ActionView<StreamWriteAction> Write(TIndata&& in_data,
+                                      TimePoint current_time) override {
+    assert(BaseGate::out_);
+    auto data = messasge_factory_(*protocol_context_, std::move(in_data));
+    return BaseGate::out_->Write(std::move(data), current_time);
+  }
+
+  void LinkOut(typename BaseGate::OutGate& out) override {
+    BaseGate::out_ = &out;
+
+    BaseGate::out_data_subscription_ =
+        BaseGate::out_->out_data_event().Subscribe(
+            BaseGate::out_data_event_,
+            MethodPtr<&BaseGate::OutDataEvent::Emit>{});
+
+    BaseGate::gate_update_subscription_ = out.gate_update_event().Subscribe(
+        BaseGate::gate_update_event_,
+        MethodPtr<&BaseGate::GateUpdateEvent::Emit>{});
+
+    BaseGate::gate_update_event_.Emit();
+  }
+
+  StreamInfo stream_info() const override {
+    if (BaseGate::out_ == nullptr) {
+      return {};
+    }
+    auto info = BaseGate::out_->stream_info();
+    info.max_element_size -= overhead_size_;
+    return info;
+  }
+
+ private:
+  TMessageFactory messasge_factory_;
+  ProtocolContext* protocol_context_;
+  std::size_t overhead_size_;
+};
+
+template <typename TMessage,
+          typename TMessageHandler =
+              std::function<std::optional<DataBuffer>(TMessage const& message)>>
+class ProtocolReadMessageGate final : public ByteGate {
+ public:
+  ProtocolReadMessageGate(ProtocolContext& protocol_context,
+                          TMessageHandler&& message_handler)
+      : protocol_context_{&protocol_context},
+        message_handler_{std::move(message_handler)},
+        on_message_received_{
+            protocol_context_->MessageEvent<TMessage>().Subscribe(
+                *this, MethodPtr<&ProtocolReadMessageGate::OnMessage>{})} {}
+
+  ProtocolReadMessageGate(ProtocolReadMessageGate&& other) noexcept
+      : protocol_context_{other.protocol_context_},
+        message_handler_{std::move(other.message_handler_)},
+        on_message_received_{
+            protocol_context_->MessageEvent<TMessage>().Subscribe(
+                *this, MethodPtr<&ProtocolReadMessageGate::OnMessage>{})} {}
+
+  void LinkOut(OutGate& out) override {
+    out_ = &out;
+
+    gate_update_subscription_ = out.gate_update_event().Subscribe(
+        gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
+
+    gate_update_event_.Emit();
+  }
+
+ private:
+  void OnMessage(MessageEventData<TMessage> const& message_data) {
+    if (auto data = message_handler_(message_data.message()); data) {
+      out_data_event_.Emit(std::move(*data));
+    }
+  }
+
+  ProtocolContext* protocol_context_;
+  TMessageHandler message_handler_;
+  Subscription on_message_received_;
+};
+
 /**
  * \brief Parses read buffer as TApiClass
  */
@@ -56,10 +152,10 @@ class ProtocolReadGate final : public ByteGate {
   void LinkOut(OutGate& out) override {
     out_ = &out;
 
-    out_data_subscription_ = out.out_data_event().Subscribe(
+    out_data_subscription_ = out_->out_data_event().Subscribe(
         *this, MethodPtr<&ProtocolReadGate::OnOutDataEvent>{});
 
-    gate_update_subscription_ = out.gate_update_event().Subscribe(
+    gate_update_subscription_ = out_->gate_update_event().Subscribe(
         gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
 
     gate_update_event_.Emit();

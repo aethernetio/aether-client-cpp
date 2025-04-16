@@ -21,7 +21,6 @@
 
 #include "aether/uid.h"
 #include "aether/memory.h"
-#include "aether/ptr/ptr.h"
 #include "aether/events/events.h"
 #include "aether/events/event_subscription.h"
 
@@ -29,6 +28,7 @@
 #include "aether/api_protocol/protocol_context.h"
 
 #include "aether/client_messages/message_stream.h"
+#include "aether/client_connections/client_to_server_stream.h"
 
 #include "aether/methods/client_api/client_safe_api.h"
 
@@ -37,7 +37,7 @@ class MessageStreamDispatcher {
  public:
   using NewStreamEvent = Event<void(Uid uid, MessageStream& stream)>;
 
-  explicit MessageStreamDispatcher(ByteStream& connection_stream);
+  explicit MessageStreamDispatcher(ClientToServerStream& server_stream);
 
   NewStreamEvent::Subscriber new_stream_event();
 
@@ -45,14 +45,10 @@ class MessageStreamDispatcher {
   void CloseStream(Uid uid);
 
  private:
-  std::unique_ptr<MessageStream> CreateMessageStream(Uid uid,
-                                                     StreamId stream_id);
-  void OnStreamToClient(
-      MessageEventData<ClientSafeApi::StreamToClient> const& msg);
+  std::unique_ptr<MessageStream> CreateMessageStream(Uid uid);
+  void OnSendMessage(MessageEventData<ClientSafeApi::SendMessage> const& msg);
 
-  ProtocolContext protocol_context_;
-
-  ProtocolReadGate<ClientSafeApi> protocol_read_gate_;
+  ClientToServerStream* server_stream_;
   NewStreamEvent new_stream_event_;
   std::map<Uid, std::unique_ptr<MessageStream>> streams_;
 
