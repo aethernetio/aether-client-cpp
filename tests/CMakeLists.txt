@@ -51,5 +51,6 @@ add_subdirectory(test-stream)
 add_subdirectory(test-ptr)
 add_subdirectory(test-format)
 add_subdirectory(test-reflect)
+add_subdirectory(test-file-systems)
 
 add_subdirectory(third_party_tests)
