@@ -29,40 +29,59 @@ void test_EventCreate() {
     TEST_ASSERT_EQUAL(i, 1);
   };
   {
-    auto s = EventSubscriber{event}.Subscribe(lambda, FunctorPtr(lambda));
+    auto deleter = EventSubscriber{event}.Subscribe(lambda, FunctorPtr(lambda));
     // callback must be called until s is alive
     event.Emit(1);
     TEST_ASSERT(cb_called);
     cb_called = false;
+    deleter.Delete();
   }
   // callback must not be called because s is destroyed
   event.Emit(1);
   TEST_ASSERT(!cb_called);
 }
 
-void test_EventOnce() {
+void test_Subscriptions() {
   Event<void(int)> event;
   bool cb_called = false;
   auto lambda = [&cb_called](int i) {
     cb_called = true;
     TEST_ASSERT_EQUAL(i, 1);
   };
-  auto s = EventSubscriber{event}.Subscribe(lambda, FunctorPtr(lambda)).Once();
-
-  // callback must be called
+  Subscription sub;
+  TEST_ASSERT(!sub);
+  sub = EventSubscriber{event}.Subscribe(lambda);
+  TEST_ASSERT(!!sub);
   event.Emit(1);
   TEST_ASSERT(cb_called);
   cb_called = false;
-  // callback must not be called because s is set to once
+  sub.Reset();
   event.Emit(1);
   TEST_ASSERT(!cb_called);
+  {
+    Subscription scoped_sub = EventSubscriber{event}.Subscribe(lambda);
+    event.Emit(1);
+    TEST_ASSERT(cb_called);
+    cb_called = false;
+  }
+  event.Emit(1);
+  TEST_ASSERT(!cb_called);
+
+  sub = EventSubscriber{event}.Subscribe(lambda);
+  Subscription sub1 = std::move(sub);
+  event.Emit(1);
+  TEST_ASSERT(cb_called);
+  cb_called = false;
+  sub1 = EventSubscriber{event}.Subscribe(lambda);
+  event.Emit(1);
+  TEST_ASSERT(cb_called);
 }
 
 void test_FewSubscriptions() {
   Event<void(int)> event;
   std::vector<bool> cb_called(3, false);
   for (std::size_t i = 0; i < 3; i++) {
-    auto _ = EventSubscriber{event}.Subscribe([&cb_called, i](int x) {
+    Subscription s = EventSubscriber{event}.Subscribe([&cb_called, i](int x) {
       cb_called[i] = true;
       TEST_ASSERT_EQUAL(x, 1);
     });
@@ -173,7 +192,7 @@ void test_EventReSubscribeOnHandler() {
 int test_events() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_events::test_EventCreate);
-  RUN_TEST(ae::test_events::test_EventOnce);
+  RUN_TEST(ae::test_events::test_Subscriptions);
   RUN_TEST(ae::test_events::test_FewSubscriptions);
   RUN_TEST(ae::test_events::test_MultiSubscription);
   RUN_TEST(ae::test_events::test_EventRecursionCall);
