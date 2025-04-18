@@ -22,15 +22,19 @@
 int test_fs_synchronization()
 {
   int res{0};
-  std::unique_ptr<ae::IDomainFacility> fs{};
+  std::unique_ptr<ae::IDomainFacility> fs_header{};
+  std::unique_ptr<ae::IDomainFacility> fs_ram{};
   const std::string& header_file{"G:\\projects\\prj_aether\\GitHub\\aether-client-cpp\\tests\\test-file-systems\\config\\file_system_init.h"};
-  const ae::ObjId& obj_id{0};
+  const ae::ObjId& obj_id{1637257050};
 
   ae::TeleInit::Init();
   AE_TELE_ENV();
 
-  fs = std::make_unique<ae::FileSystemHeaderFacility>(header_file);
-  fs->Enumerate(obj_id);
+  fs_header = std::make_unique<ae::FileSystemHeaderFacility>(header_file);
+  fs_header->Enumerate(obj_id);
 
+  fs_ram = std::make_unique<ae::FileSystemRamFacility>();
+  fs_ram->Enumerate(obj_id);
+  
   return res;
 }
