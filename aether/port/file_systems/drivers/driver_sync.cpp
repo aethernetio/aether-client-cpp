@@ -16,6 +16,7 @@
 
 #include "aether/port/file_systems/drivers/driver_sync.h"
 #include "aether/port/file_systems/drivers/driver_factory.h"
+#include "aether/tele/tele.h"
 
 namespace ae {
 
@@ -52,6 +53,7 @@ DriverSync::~DriverSync() {}
 
 void DriverSync::DriverRead(const std::string &path,
                             std::vector<std::uint8_t> &data_vector) {
+  AE_TELED_DEBUG("DriverSync::DriverRead");
 #if defined(AE_DISTILLATION)
   DriverSource->DriverRead(path, data_vector);
 #else
@@ -63,6 +65,7 @@ void DriverSync::DriverRead(const std::string &path,
 
 void DriverSync::DriverWrite(const std::string &path,
                              const std::vector<std::uint8_t> &data_vector) {
+  AE_TELED_DEBUG("DriverSync::DriverWrite");
 #if defined(AE_DISTILLATION)
   DriverSource->DriverWrite(path, data_vector);
 #else
@@ -73,6 +76,7 @@ void DriverSync::DriverWrite(const std::string &path,
 }
 
 void DriverSync::DriverDelete(const std::string &path) {
+    AE_TELED_DEBUG("DriverSync::DriverDelete");
 #if defined(AE_DISTILLATION)
   DriverSource->DriverDelete(path);
 #else
@@ -87,6 +91,7 @@ std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list_destination{};
   std::vector<std::string> dirs_list_result{};
 
+  AE_TELED_DEBUG("DriverSync::DriverDir");
 #if defined(AE_DISTILLATION)
   dirs_list_source = DriverSource->DriverDir(path);
 #else
