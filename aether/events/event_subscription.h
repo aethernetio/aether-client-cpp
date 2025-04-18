@@ -17,93 +17,36 @@
 #ifndef AETHER_EVENTS_EVENT_SUBSCRIPTION_H_
 #define AETHER_EVENTS_EVENT_SUBSCRIPTION_H_
 
-#include <utility>
+#include <optional>
 
-#include "aether/common.h"
-#include "aether/ptr/rc_ptr.h"
-
-#include "aether/events/event_handler.h"
+#include "aether/events/event_deleter.h"
 
 namespace ae {
-struct SubscriptionManage {
-  bool alive;
-  bool once;
-};
-
-/**
- * \brief Event Handler subscription stored int Event<Signature> class.
- * handler_ is owned by Subscription \see Subscription.
- */
-template <typename Signature>
-class EventHandlerSubscription {
- public:
-  explicit EventHandlerSubscription(
-      RcPtr<SubscriptionManage> const& subscription,
-      EventHandler<Signature>&& handler)
-      : handler_{std::move(handler)}, subscription_{subscription} {}
-
-  AE_CLASS_COPY_MOVE(EventHandlerSubscription)
-
-  template <typename... TArgs>
-  void Invoke(TArgs&&... args) {
-    if (auto sub = subscription_.lock(); sub) {
-      if (sub->alive) {
-        handler_.Invoke(std::forward<TArgs>(args)...);
-      }
-      if (sub->once) {
-        sub->alive = false;
-      }
-    }
-  }
-
-  bool is_alive() const {
-    if (auto sub = subscription_.lock(); sub) {
-      return sub->alive;
-    }
-    return false;
-  }
-
-  // call before remove handler
-  void Reset() {
-    if (auto sub = subscription_.lock(); sub) {
-      sub->alive = false;
-    }
-  }
-
- private:
-  EventHandler<Signature> handler_;
-  RcPtrView<SubscriptionManage> subscription_;
-};
-
 /**
  * \brief RAII object to manage event subscription
- * It stores event handler and releases it on destruction
- * Call Once() to make event handler been called only once and then marked as
- * dead.
+ * It stores event handler deleter and call delete on destructor
  */
 class Subscription {
  public:
   Subscription();
 
-  explicit Subscription(RcPtr<SubscriptionManage> subscription);
+  Subscription(EventHandlerDeleter&& event_handler_deleter);
 
   Subscription(Subscription const&) = delete;
   Subscription(Subscription&& other) noexcept;
 
   ~Subscription();
 
-  explicit operator bool() const;
-
   Subscription& operator=(Subscription const&) = delete;
   Subscription& operator=(Subscription&& other) noexcept;
-
-  // Mark it as invoke only once
-  Subscription Once() &&;
+  Subscription& operator=(EventHandlerDeleter&& event_handler_deleter) noexcept;
 
   void Reset();
 
+  explicit operator bool() const;
+
  private:
-  RcPtr<SubscriptionManage> subscription_;
+  std::optional<EventHandlerDeleter> event_handler_deleter_;
 };
 
 }  // namespace ae

@@ -20,17 +20,25 @@
 
 namespace ae {
 
-void MultiSubscription::Reset() { subscriptions_.clear(); }
+MultiSubscription::~MultiSubscription() { Reset(); }
 
-void MultiSubscription::CleanUp() {
-  subscriptions_.erase(
-      std::remove_if(std::begin(subscriptions_), std::end(subscriptions_),
-                     [](auto const& s) { return !s; }),
-      std::end(subscriptions_));
+void MultiSubscription::Reset() {
+  for (auto& del : deleters_) {
+    if (del.alive()) {
+      del.Delete();
+    }
+  }
+  deleters_.clear();
 }
 
-void MultiSubscription::PushToVector(Subscription&& subscription) {
-  subscriptions_.push_back(std::move(subscription));
+void MultiSubscription::CleanUp() {
+  deleters_.erase(std::remove_if(std::begin(deleters_), std::end(deleters_),
+                                 [](auto const& del) { return !del.alive(); }),
+                  std::end(deleters_));
+}
+
+void MultiSubscription::PushToVector(EventHandlerDeleter&& deleter) {
+  deleters_.push_back(std::move(deleter));
 }
 
 }  // namespace ae
