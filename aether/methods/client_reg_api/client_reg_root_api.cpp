@@ -17,6 +17,7 @@
 #include "aether/methods/client_reg_api/client_reg_root_api.h"
 
 namespace ae {
+#if AE_SUPPORT_REGISTRATION
 void ClientRegRootApi::LoadFactory(MessageId message_id, ApiParser& parser) {
   switch (message_id) {
     case Enter::kMessageCode:
@@ -33,5 +34,5 @@ void ClientRegRootApi::LoadFactory(MessageId message_id, ApiParser& parser) {
 void ClientRegRootApi::Execute(Enter&& message, ApiParser& parser) {
   parser.Context().MessageNotify(std::move(message));
 }
-
+#endif  // AE_SUPPORT_REGISTRATION
 }  // namespace ae

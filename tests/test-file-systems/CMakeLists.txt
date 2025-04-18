@@ -36,6 +36,10 @@ list(APPEND test_srcs
     test-fs-synchronization.cpp
 )
 
+if (NOT USER_CONFIG)
+  set(USER_CONFIG "../config/user_config_hydrogen.h")
+endif()
+
 if (NOT FS_INIT)
   set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/config/file_system_init.h")
 endif()

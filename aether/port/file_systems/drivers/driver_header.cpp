@@ -53,31 +53,32 @@ void DriverHeader::DriverRead(const std::string &path,
   }
 
   std::getline(file, line);
-  if (line != string1) {
+  if (line.find(string1) == std::string::npos) {
     return;
   }
   std::getline(file, line);
-  if (line != string2) {
+  if (line.find(string2) == std::string::npos) {
     return;
   }
   std::getline(file, line);
-  if (line != string3) {
+  if (line.find(string3) == std::string::npos) {
     return;
   }
   std::getline(file, line);
-  if (line != string4) {
+  if (line.find(string4) == std::string::npos) {
     return;
   }
   std::getline(file, line);
-  if (line != string5) {
+  if (line.find(string5) == std::string::npos) {
     return;
   }
 
   std::getline(file, line);
 
   while (std::getline(file, line)) {
-    if (line == string7) break;
-    for (unsigned int i = 0; i < line.length(); i += 6) {
+    if (line.find(string7) != std::string::npos) break;
+    auto string_len = (line.length()/6)*6;
+    for (unsigned int i = 0; i < string_len; i += 6) {
       std::string byteString = line.substr(i + 2, 2);
       std::uint8_t byte = HexToByte_(byteString);
       data_vector.push_back(byte);
