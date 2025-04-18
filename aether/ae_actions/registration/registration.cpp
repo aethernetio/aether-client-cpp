@@ -164,18 +164,15 @@ void Registration::IterateConnection() {
   }
 
   connection_subscription_ =
-      server_channel_stream_->in()
-          .gate_update_event()
-          .Subscribe([this]() {
-            if (server_channel_stream_->in().stream_info().is_linked) {
-              state_ = State::kConnected;
-            } else {
-              AE_TELE_WARNING(RegisterConnectionErrorTryNext,
-                              "Connection error, try next");
-              state_ = State::kSelectConnection;
-            }
-          })
-          .Once();
+      server_channel_stream_->in().gate_update_event().Subscribe([this]() {
+        if (server_channel_stream_->in().stream_info().is_linked) {
+          state_ = State::kConnected;
+        } else {
+          AE_TELE_WARNING(RegisterConnectionErrorTryNext,
+                          "Connection error, try next");
+          state_ = State::kSelectConnection;
+        }
+      });
 
   state_ = State::kWaitingConnection;
 }
@@ -281,12 +278,10 @@ void Registration::RequestPowParams(TimePoint current_time) {
       current_time);
 
   reg_server_write_subscription_ =
-      packet_write_action_
-          ->SubscribeOnError([this](auto const&) {
-            AE_TELED_ERROR("RequestPowParams stream write failed");
-            state_ = State::kRegistrationFailed;
-          })
-          .Once();
+      packet_write_action_->SubscribeOnError([this](auto const&) {
+        AE_TELED_ERROR("RequestPowParams stream write failed");
+        state_ = State::kRegistrationFailed;
+      });
 }
 
 void Registration::OnResponsePowParams(
@@ -362,12 +357,10 @@ void Registration::MakeRegistration(TimePoint current_time) {
       current_time);
 
   reg_server_write_subscription_ =
-      packet_write_action_
-          ->SubscribeOnError([this](auto const&) {
-            AE_TELED_ERROR("MakeRegistration stream write failed");
-            state_ = State::kRegistrationFailed;
-          })
-          .Once();
+      packet_write_action_->SubscribeOnError([this](auto const&) {
+        AE_TELED_ERROR("MakeRegistration stream write failed");
+        state_ = State::kRegistrationFailed;
+      });
 }
 
 void Registration::OnConfirmRegistration(
@@ -402,12 +395,10 @@ void Registration::ResolveCloud(TimePoint current_time) {
       current_time);
 
   reg_server_write_subscription_ =
-      packet_write_action_
-          ->SubscribeOnError([this](auto const&) {
-            AE_TELED_ERROR("ResolveCloud stream write failed");
-            state_ = State::kRegistrationFailed;
-          })
-          .Once();
+      packet_write_action_->SubscribeOnError([this](auto const&) {
+        AE_TELED_ERROR("ResolveCloud stream write failed");
+        state_ = State::kRegistrationFailed;
+      });
 }
 
 void Registration::OnResolveCloudResponse(

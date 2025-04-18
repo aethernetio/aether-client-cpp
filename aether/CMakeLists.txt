@@ -77,6 +77,7 @@ list(APPEND ptr_srcs
         )
 
 list(APPEND events_srcs
+        "events/event_deleter.cpp"
         "events/event_subscription.cpp"
         "events/multi_subscription.cpp"
     )

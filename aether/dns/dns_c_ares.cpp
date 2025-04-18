@@ -99,10 +99,8 @@ class AresImpl {
     auto& q_context = qit->second;
 
     // remove itself
-    multi_subscription_.Push(
-        q_context.resolve_action.FinishedEvent()
-            .Subscribe([id{qit->first}, this]() { active_queries_.erase(id); })
-            .Once());
+    multi_subscription_.Push(q_context.resolve_action.FinishedEvent().Subscribe(
+        [id{qit->first}, this]() { active_queries_.erase(id); }));
 
     ares_addrinfo_hints hints{};
     // BOTH ipv4 and ipv6

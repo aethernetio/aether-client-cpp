@@ -92,11 +92,8 @@ void ServerChannelStream::OnConnected(ChannelConnectionAction& connection) {
   connection_timer_->Stop();
 
   transport_ = connection.transport();
-  connection_error_ =
-      transport_->ConnectionError()
-          .Subscribe(*this,
-                     MethodPtr<&ServerChannelStream::OnConnectedFailed>{})
-          .Once();
+  connection_error_ = transport_->ConnectionError().Subscribe(
+      *this, MethodPtr<&ServerChannelStream::OnConnectedFailed>{});
   transport_write_gate_.emplace(action_context_, *transport_);
   Tie(buffer_gate_, *transport_write_gate_);
 }

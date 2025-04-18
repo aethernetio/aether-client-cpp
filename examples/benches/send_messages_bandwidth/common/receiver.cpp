@@ -46,8 +46,8 @@ void Receiver::Disconnect() {
 
 EventSubscriber<void()> Receiver::Handshake() {
   handshake_received_ =
-      protocol_context_.MessageEvent<BandwidthApi::Handshake>()
-          .Subscribe([this](auto const& msg) {
+      protocol_context_.MessageEvent<BandwidthApi::Handshake>().Subscribe(
+          [this](auto const& msg) {
             auto req_id = msg.message().request_id;
             AE_TELED_DEBUG("Received handshake request {}", req_id);
             message_stream_->in().Write(
@@ -57,8 +57,7 @@ EventSubscriber<void()> Receiver::Handshake() {
                 Now());
 
             handshake_made_.Emit();
-          })
-          .Once();
+          });
 
   return handshake_made_;
 }
