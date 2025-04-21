@@ -86,35 +86,20 @@ class Action : public IAction {
   /**
    * Add callback to be called when action is done.
    */
-  template <typename Func>
-  [[nodiscard]] auto SubscribeOnResult(Func&& callback) {
-    return EventSubscriber{result_cbs_}.Subscribe(std::forward<Func>(callback));
-  }
+  [[nodiscard]] auto ResultEvent() { return EventSubscriber{result_cbs_}; }
 
   /**
    * Add callback to be called when action is rejected.
    */
-  template <typename Func>
-  [[nodiscard]] auto SubscribeOnError(Func&& callback) {
-    return EventSubscriber{error_cbs_}.Subscribe(std::forward<Func>(callback));
-  }
+  [[nodiscard]] auto ErrorEvent() { return EventSubscriber{error_cbs_}; }
 
   /**
    * Add callback to be called when action is stopped.
    */
-  template <typename Func>
-  [[nodiscard]] auto SubscribeOnStop(Func&& callback) {
-    return EventSubscriber{stop_cbs_}.Subscribe(std::forward<Func>(callback));
-  }
+  [[nodiscard]] auto StopEvent() { return EventSubscriber{stop_cbs_}; }
 
-  EventSubscriber<void()> FinishedEvent() {
+  [[nodiscard]] auto FinishedEvent() {
     return EventSubscriber{finished_event_};
-  }
-
-  // Call finish if action finished all it's job and may be removed.
-  void Finish() {
-    Trigger();
-    finished_event_.Emit();
   }
 
   // get index of action in registry
@@ -151,6 +136,12 @@ class Action : public IAction {
   void Stop(T& object) {
     stop_cbs_.Emit(object);
     Finish();
+  }
+
+  // Call finish if action finished all it's job and may be removed.
+  void Finish() {
+    Trigger();
+    finished_event_.Emit();
   }
 
   Event<void(T&)> result_cbs_;
