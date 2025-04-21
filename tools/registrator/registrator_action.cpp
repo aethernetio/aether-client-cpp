@@ -110,14 +110,14 @@ void RegistratorAction::RegisterClients() {
         auto reg_action = aether_->RegisterClient(uid);
 
         registration_subscriptions_.Push(
-            reg_action->SubscribeOnResult([&](auto const&) {
+            reg_action->ResultEvent().Subscribe([&](auto const&) {
               ++clients_registered_;
               if (clients_registered_ ==
                   registrator_config_.GetClientsTotal()) {
                 state_ = State::kConfigureReceiver;
               }
             }),
-            reg_action->SubscribeOnError([&](auto const&) {
+            reg_action->ErrorEvent().Subscribe([&](auto const&) {
               AE_TELED_ERROR("Registration error");
               state_ = State::kError;
             }));
@@ -191,7 +191,7 @@ void RegistratorAction::ConfigureSender() {
                          confirm_msg.data() + confirm_msg.size()},
                         ae::Now());
                 response_subscriptions_.Push(
-                    response_action->SubscribeOnError([&](auto const&) {
+                    response_action->ErrorEvent().Subscribe([&](auto const&) {
                       AE_TELED_ERROR("Send response failed");
                       state_ = State::kError;
                     }));
@@ -218,10 +218,11 @@ void RegistratorAction::SendMessages(TimePoint current_time) {
       AE_TELED_DEBUG("Sending message {}", msg);
       auto send_action = sender_stream->in().Write(
           DataBuffer{std::begin(msg), std::end(msg)}, current_time);
-      send_subscriptions_.Push(send_action->SubscribeOnError([&](auto const&) {
-        AE_TELED_ERROR("Send message failed");
-        state_ = State::kError;
-      }));
+      send_subscriptions_.Push(
+          send_action->ErrorEvent().Subscribe([&](auto const&) {
+            AE_TELED_ERROR("Send message failed");
+            state_ = State::kError;
+          }));
     }
   }
 
