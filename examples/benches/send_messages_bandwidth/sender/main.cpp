@@ -47,11 +47,11 @@ int test_sender_bandwidth(Uid receiver_uid) {
     bool register_done = false;
     bool register_failed = false;
 
-    auto reg = client_register->SubscribeOnResult([&](auto const& reg) {
+    auto reg = client_register->ResultEvent().Subscribe([&](auto const& reg) {
       register_done = true;
       client = reg.client();
     });
-    auto reg_failed = client_register->SubscribeOnError(
+    auto reg_failed = client_register->ErrorEvent().Subscribe(
         [&](auto const&) { register_failed = true; });
 
     while (!register_done && !register_failed) {
@@ -74,7 +74,7 @@ int test_sender_bandwidth(Uid receiver_uid) {
       TestAction<Sender>{action_context, sender, std::size_t{10000}};
 
   auto result_subscription =
-      test_action.SubscribeOnResult([&](auto const& action) {
+      test_action.ResultEvent().Subscribe([&](auto const& action) {
         auto res_name_table = std::array{
             std::string_view{"1 Byte"}, std::string_view{"10 Bytes"},
             std::string_view{"100 Bytes"}, std::string_view{"1000 Bytes"},
@@ -90,10 +90,11 @@ int test_sender_bandwidth(Uid receiver_uid) {
         aether_app->Exit(0);
       });
 
-  auto error_subscription = test_action.SubscribeOnError([&](auto const&) {
-    AE_TELED_ERROR("Test failed");
-    aether_app->Exit(1);
-  });
+  auto error_subscription =
+      test_action.ErrorEvent().Subscribe([&](auto const&) {
+        AE_TELED_ERROR("Test failed");
+        aether_app->Exit(1);
+      });
 
   while (!aether_app->IsExited()) {
     auto time = ae::TimePoint::clock::now();
