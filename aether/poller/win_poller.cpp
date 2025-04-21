@@ -32,7 +32,7 @@
 namespace ae {
 class WinPoller::IoCPPoller {
  public:
-  IoCPPoller() {
+  IoCPPoller() : poll_event_{SharedMutexSyncPolicy{events_lock_}} {
     AE_TELE_INFO(PollerWorkerCreate);
     iocp_ = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 1);
     if (iocp_ == nullptr) {
@@ -62,7 +62,7 @@ class WinPoller::IoCPPoller {
   WinPoller::OnPollEventSubscriber Add(DescriptorType descriptor) {
     assert(iocp_ != INVALID_HANDLE_VALUE);
 
-    auto lock = std::unique_lock{events_lock_};
+    auto lock = std::lock_guard{events_lock_};
     AE_TELE_DEBUG(PollerAddDescriptor, "Add poller descriptor");
 
     auto comp_key = static_cast<HANDLE>(descriptor);
@@ -77,7 +77,7 @@ class WinPoller::IoCPPoller {
         assert(false);
       }
     }
-    return WinPoller::OnPollEventSubscriber{poll_event_, std::move(lock)};
+    return WinPoller::OnPollEventSubscriber{poll_event_};
   }
 
   void Remove(DescriptorType descriptor) {
@@ -124,9 +124,9 @@ class WinPoller::IoCPPoller {
   HANDLE iocp_ = INVALID_HANDLE_VALUE;
   std::set<HANDLE> events_;
   std::recursive_mutex events_lock_;
-  std::thread loop_thread_;
-  std::atomic_bool stop_requested_{false};
   WinPoller::OnPollEvent poll_event_;
+  std::atomic_bool stop_requested_{false};
+  std::thread loop_thread_;
 };
 
 WinPoller::WinPoller() = default;
