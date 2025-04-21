@@ -405,10 +405,8 @@ void WinTcpTransport::Connect() {
 
   connection_action_.emplace(action_context_, *this);
 
-  connection_subs_.Push(connection_action_->ErrorEvent().Subscribe(
-                            [this](auto const&) { OnConnectionError(); }),
-                        connection_action_->FinishedEvent().Subscribe(
-                            [this]() { connection_action_.reset(); }));
+  connection_error_sub_ = connection_action_->ErrorEvent().Subscribe(
+      [this](auto const&) { OnConnectionError(); });
 }
 
 ConnectionInfo const& WinTcpTransport::GetConnectionInfo() const {

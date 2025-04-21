@@ -342,11 +342,8 @@ void LwipTcpTransport::Connect() {
 
   connection_action_.emplace(action_context_, *this);
 
-  connection_action_subs_.Push(
-      connection_action_->ErrorEvent().Subscribe(
-          [this](auto const & /* action */) { OnConnectionFailed(); }),
-      connection_action_->FinishedEvent().Subscribe(
-          [this]() { connection_action_.reset(); }));
+  connection_error_sub_ = connection_action_->ErrorEvent().Subscribe(
+      [this](auto const & /* action */) { OnConnectionFailed(); });
 }
 
 ConnectionInfo const &LwipTcpTransport::GetConnectionInfo() const {
@@ -394,13 +391,11 @@ void LwipTcpTransport::OnConnected(int socket) {
   socket_ = socket;
 
   read_action_.emplace(action_context_, *this);
-  read_action_subs_.Push(
+  read_action_error_sub_ =
       read_action_->ErrorEvent().Subscribe([this](auto const & /* action */) {
         AE_TELED_ERROR("Read error, disconnect!");
         Disconnect();
-      }),
-      read_action_->FinishedEvent().Subscribe(
-          [this]() { read_action_.reset(); }));
+      });
 
   socket_error_action_ = SocketEventAction{action_context_};
   socket_error_subscription_ = socket_error_action_.ResultEvent().Subscribe(

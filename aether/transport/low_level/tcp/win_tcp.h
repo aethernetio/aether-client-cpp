@@ -152,15 +152,15 @@ class WinTcpTransport : public ITransport {
   ConnectionErrorEvent connection_error_event_;
   DataReceiveEvent data_receive_event_;
 
-  std::optional<ConnectionAction> connection_action_;
-  std::optional<WinTcpReadAction> read_action_;
+  ActionOpt<ConnectionAction> connection_action_;
+  ActionOpt<WinTcpReadAction> read_action_;
   SocketPacketQueueManager<WinTcpPacketSendAction> socket_packet_queue_manager_;
 
   SocketEventAction socket_error_action_;
 
   Event<void()> send_event_;
 
-  MultiSubscription connection_subs_;
+  Subscription connection_error_sub_;
   MultiSubscription send_action_subs_;
   Subscription socket_poll_sub_;
   Subscription socket_error_sub_;
