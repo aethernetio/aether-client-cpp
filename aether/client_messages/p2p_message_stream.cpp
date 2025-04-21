@@ -90,7 +90,6 @@ void P2pStream::ConnectSend() {
     get_client_connection_subscription_ =
         get_client_connection_action->ResultEvent().Subscribe(
             [this](auto& action) {
-              // FIXME: dangling pointer
               send_client_connection_ = action.client_cloud_connection();
               TieSendStream(*send_client_connection_);
             });
