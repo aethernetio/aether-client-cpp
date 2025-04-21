@@ -61,15 +61,15 @@ void BufferGate::BufferedWriteAction::Send(ByteIGate& out_gate) {
           [this](auto state) { state_ = state; });
 
   write_action_subscription_.Push(
-      write_action_->SubscribeOnResult([this](auto const&) {
+      write_action_->ResultEvent().Subscribe([this](auto const&) {
         state_.Acquire();
         Action::Result(*this);
       }),
-      write_action_->SubscribeOnError([this](auto const&) {
+      write_action_->ErrorEvent().Subscribe([this](auto const&) {
         state_.Acquire();
         Action::Error(*this);
       }),
-      write_action_->SubscribeOnStop([this](auto const&) {
+      write_action_->StopEvent().Subscribe([this](auto const&) {
         state_.Acquire();
         Action::Stop(*this);
       }));

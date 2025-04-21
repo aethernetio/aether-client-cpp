@@ -398,7 +398,7 @@ void UnixTcpTransport::Connect() {
 
   connection_action_.emplace(action_context_, *this);
   connection_action_subs_.Push(
-      connection_action_->SubscribeOnError(
+      connection_action_->ErrorEvent().Subscribe(
           [this](auto const& /* action */) { OnConnectionFailed(); }),
       connection_action_->FinishedEvent().Subscribe(
           [this]() { connection_action_.reset(); }));
@@ -437,10 +437,11 @@ ActionView<PacketSendAction> UnixTcpTransport::Send(DataBuffer data,
   auto send_action =
       socket_packet_queue_manager_.AddPacket(UnixPacketSendAction{
           action_context_, *this, std::move(packet_data), current_time});
-  send_action_subs_.Push(send_action->SubscribeOnError([this](auto const&) {
-    AE_TELED_ERROR("Send error, disconnect!");
-    Disconnect();
-  }));
+  send_action_subs_.Push(
+      send_action->ErrorEvent().Subscribe([this](auto const&) {
+        AE_TELED_ERROR("Send error, disconnect!");
+        Disconnect();
+      }));
   return send_action;
 }
 
@@ -452,7 +453,7 @@ void UnixTcpTransport::OnConnected(int socket) {
 
   read_action_.emplace(action_context_, *this);
   read_action_subs_.Push(
-      read_action_->SubscribeOnError([this](auto const& /*action */) {
+      read_action_->ErrorEvent().Subscribe([this](auto const& /*action */) {
         AE_TELED_ERROR("Read error, disconnect!");
         Disconnect();
       }),
@@ -460,7 +461,7 @@ void UnixTcpTransport::OnConnected(int socket) {
           [this]() { read_action_.reset(); }));
 
   socket_error_action_ = SocketEventAction{action_context_};
-  socket_error_subscription_ = socket_error_action_.SubscribeOnResult(
+  socket_error_subscription_ = socket_error_action_.ResultEvent().Subscribe(
       [this](auto const& /* action */) { Disconnect(); });
 
   socket_poll_subscription_ =

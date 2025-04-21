@@ -77,9 +77,9 @@ void IpAddressChannelConnectionAction::TryConnect(
       adapter_.CreateTransport(ip_address_port_protocol_);
 
   subscriptions_.Push(
-      transport_create_action->SubscribeOnResult(
+      transport_create_action->ResultEvent().Subscribe(
           [this](auto& action) { TransportCreated(action.transport()); }),
-      transport_create_action->SubscribeOnError([this](auto const&) {
+      transport_create_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Transport create failed");
         state_.Set(State::Failed);
       }));

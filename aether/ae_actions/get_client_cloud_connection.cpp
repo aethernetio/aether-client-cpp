@@ -141,11 +141,11 @@ void GetClientCloudConnection::GetCloud(TimePoint /* current_time */) {
       action_context_, server_connection_->server_stream(), client_uid_);
 
   get_client_cloud_subscriptions_.Push(
-      get_client_cloud_action_->SubscribeOnError(
+      get_client_cloud_action_->ErrorEvent().Subscribe(
           [this](auto const&) { state_ = State::kSelectConnection; }),
-      get_client_cloud_action_->SubscribeOnResult(
+      get_client_cloud_action_->ResultEvent().Subscribe(
           [this](auto const&) { state_ = State::kCreateConnection; }),
-      get_client_cloud_action_->SubscribeOnStop(
+      get_client_cloud_action_->StopEvent().Subscribe(
           [this](auto const&) { state_ = State::kStopped; }));
 }
 

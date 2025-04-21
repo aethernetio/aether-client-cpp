@@ -73,7 +73,8 @@ void CheckAccessForSendMessage::SendRequest(TimePoint current_time) {
 
   auto send_event =
       client_to_server_stream_->in().Write(std::move(packet), current_time);
-  send_error_ = send_event->SubscribeOnError([&](auto const&) { SendError(); });
+  send_error_ =
+      send_event->ErrorEvent().Subscribe([&](auto const&) { SendError(); });
 
   state_ = State::kWaitResponse;
 }

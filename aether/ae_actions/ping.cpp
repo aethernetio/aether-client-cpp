@@ -94,10 +94,11 @@ void Ping::SendPing(TimePoint current_time) {
   auto write_action =
       client_to_server_stream_->in().Write(std::move(packet), current_time);
 
-  write_subscription_ = write_action->SubscribeOnError([this](auto const&) {
-    AE_TELE_ERROR(kPingWriteError, "Ping write error");
-    state_ = State::kError;
-  });
+  write_subscription_ =
+      write_action->ErrorEvent().Subscribe([this](auto const&) {
+        AE_TELE_ERROR(kPingWriteError, "Ping write error");
+        state_ = State::kError;
+      });
 
   // Wait for response
   SendResult::OnResponse(
