@@ -244,11 +244,11 @@ void UnixTcpTransport::ConnectionAction::WaitConnection() {
     assert(poller_ptr);
     poller_ptr->Remove(socket_);
     state_ = State::kGetConnectionUpdate;
-    poller_subscription_.Reset();
   });
 }
 
 void UnixTcpTransport::ConnectionAction::ConnectionUpdate() {
+  poller_subscription_.Reset();
   // check socket status
   int err;
   socklen_t len = sizeof(len);

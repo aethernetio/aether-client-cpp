@@ -197,11 +197,11 @@ void LwipTcpTransport::ConnectionAction::WaitConnection() {
         poller_ptr->Remove(socket_);
         // check connection state
         state_ = State::kConnectionUpdate;
-        poller_subscription_.Reset();
       });
 }
 
 void LwipTcpTransport::ConnectionAction::ConnectUpdate() {
+  poller_subscription_.Reset();
   // check socket status
   int err;
   socklen_t len = sizeof(len);
