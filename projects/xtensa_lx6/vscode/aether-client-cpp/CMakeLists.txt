@@ -25,15 +25,15 @@ idf_build_set_property(CM_PLATFORM "ESP32")
 
 add_compile_definitions(CM_ESP32)
 
-if(NOT COMPILE_EXAMPLE )
+if(NOT DEFINED ${COMPILE_EXAMPLE})
   set(COMPILE_EXAMPLE "registered")
 endif()
 
-if (NOT USER_CONFIG)
-  set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../config/user_config_optimized.h")
+if ((NOT DEFINED ${USER_CONFIG}) OR (${USER_CONFIG} MATCHES ""))
+  set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../../config/user_config_optimized.h")
 endif()
 
-if (NOT FS_INIT)
+if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES ""))
   set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../config/file_system_init.h")
 endif()
 

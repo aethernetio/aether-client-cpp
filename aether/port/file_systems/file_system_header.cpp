@@ -100,7 +100,7 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
   }
 
   AE_TELED_DEBUG("Object id={} & class id = {} version {} loaded!",
-                 obj_id.ToString(), class_id, version);
+                 obj_id.ToString(), class_id, std::to_string(version));
   is = version_it->second;
 
   AE_TELED_DEBUG("Loaded state/{}/{}/{} size: {}", std::to_string(version),
