@@ -312,9 +312,9 @@ int AetherCloudExample() {
 
   auto cloud_test_action = ae::cloud_test::CloudTestAction{aether_app};
 
-  auto success = cloud_test_action.ResultEvent().Subscribe(
+  cloud_test_action.ResultEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(0); });
-  auto failed = cloud_test_action.ErrorEvent().Subscribe(
+  cloud_test_action.ErrorEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(1); });
 
   while (!aether_app->IsExited()) {
