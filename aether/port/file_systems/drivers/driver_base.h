@@ -26,6 +26,8 @@
 
 #if defined FS_INIT
 #  include FS_INIT
+#else
+#  error "FS_INIT should be defined"
 #endif
 
 namespace ae {
