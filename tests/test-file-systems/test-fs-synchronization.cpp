@@ -16,6 +16,7 @@
 
 #include <memory>
 
+
 #include "tests/test-file-systems/test-fs-synchronization.h"
 
 
@@ -23,18 +24,29 @@ int test_fs_synchronization()
 {
   int res{0};
   std::unique_ptr<ae::IDomainFacility> fs_header{};
-  std::unique_ptr<ae::IDomainFacility> fs_ram{};
+  std::unique_ptr<ae::IDomainFacility> fs_std{};
   const std::string& header_file{"G:\\projects\\prj_aether\\GitHub\\aether-client-cpp\\tests\\test-file-systems\\config\\file_system_init.h"};
-  const ae::ObjId& obj_id{1637257050};
+  const ae::ObjId& obj_id{1};
+  auto data_vector = std::vector<std::uint8_t>{};
 
   ae::TeleInit::Init();
   AE_TELE_ENV();
 
   fs_header = std::make_unique<ae::FileSystemHeaderFacility>(header_file);
-  fs_header->Enumerate(obj_id);
 
-  fs_ram = std::make_unique<ae::FileSystemRamFacility>();
-  fs_ram->Enumerate(obj_id);
+  fs_std = std::make_unique<ae::FileSystemStdFacility>();
   
+  fs_header->Load(obj_id, 2178182515, 0, data_vector);
+  
+  for(auto& i : data_vector){
+    AE_TELED_DEBUG("Enumerated classes 1 {}", i);
+  }
+  
+  fs_std->Load(obj_id, 2178182515, 0, data_vector);
+  
+  for(auto& i : data_vector){
+    AE_TELED_DEBUG("Enumerated classes 2 {}", i);
+  }
+
   return res;
 }

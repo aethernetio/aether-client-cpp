@@ -36,17 +36,13 @@ list(APPEND test_srcs
     test-fs-synchronization.cpp
 )
 
-if (NOT USER_CONFIG)
-  set(USER_CONFIG "../config/user_config_hydrogen.h")
+if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES ""))
+  target_compile_definitions(aether PUBLIC FS_INIT="${CMAKE_CURRENT_LIST_DIR}/config/file_system_init.h")
 endif()
 
-if (NOT FS_INIT)
-  set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/config/file_system_init.h")
-endif()
-
-set(AE_DISTILLATION OFF CACHE BOOL "" FORCE)
-
-set(AE_FILE_SYSTEM_STD_ENABLED)
+target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_STD_ENABLED=1)
+target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_TEST=1)
+#target_compile_definitions(aether PUBLIC AE_DISTILLATION=0)
 
 if(NOT CM_PLATFORM)
   project(test-file-systems LANGUAGES CXX)
@@ -66,6 +62,3 @@ else()
   message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()
 
-if (AE_RC_PTR_BENCH)
-  target_compile_definitions(${PROJECT_NAME} PRIVATE "AE_RC_PTR_BENCH=1")
-endif()

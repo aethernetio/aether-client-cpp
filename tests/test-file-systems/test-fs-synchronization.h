@@ -21,6 +21,7 @@
 #include "aether/tele/tele.h"
 #include "aether/port/tele_init.h"
 
+#include "aether/port/file_systems/file_systems_tele.h"
 #include "aether/port/file_systems/file_system_std.h"
 #include "aether/port/file_systems/file_system_ram.h"
 #include "aether/port/file_systems/file_system_spifs_v2.h"
