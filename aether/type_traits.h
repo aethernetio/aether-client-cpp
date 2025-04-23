@@ -230,18 +230,5 @@ struct TupleToTemplate<T, std::tuple<Ts...>> {
   using type = T<Ts...>;
 };
 
-/**
- * \brief static cast with save constness
- */
-template <typename T, typename U>
-constexpr T StaticConst(U& u) {
-  return static_cast<T>(u);
-}
-
-template <typename T, typename U>
-constexpr auto& StaticConst(U const& u) {
-  return static_cast<std::add_const_t<std::remove_reference_t<T>>&>(u);
-}
-
 }  // namespace ae
 #endif  // AETHER_TYPE_TRAITS_H_ */
