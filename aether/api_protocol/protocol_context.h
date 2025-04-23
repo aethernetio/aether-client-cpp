@@ -19,12 +19,14 @@
 
 #include <functional>
 #include <map>
-#include <memory>
 #include <stack>
+#include <memory>
 #include <cstdint>
 #include <utility>
 
+#include "aether/memory.h"
 #include "aether/events/events.h"
+#include "aether/actions/action.h"
 #include "aether/api_protocol/request_id.h"
 
 namespace ae {
@@ -131,6 +133,10 @@ class ProtocolContext {
   void SetSendResultResponse(RequestId request_id, ApiParser& parser);
   void SetSendErrorResponse(struct SendError const& error, ApiParser& parser);
 
+  void PushPacketStack(class PacketStack& packet_stack);
+  void PopPacketStack();
+  class PacketStack* packet_stack();
+
  private:
   // map global message id to events
   std::map<std::uint32_t, std::unique_ptr<IMessageEvent>> messages_events_;
@@ -142,6 +148,8 @@ class ProtocolContext {
       send_result_events_;
   std::map<RequestId, std::function<void(struct SendError const& error)>>
       send_error_events_;
+
+  std::stack<class PacketStack*> packet_stacks_;
 };
 }  // namespace ae
 

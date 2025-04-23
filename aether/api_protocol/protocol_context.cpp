@@ -73,8 +73,8 @@ void ProtocolContext::SetSendResultResponse(RequestId request_id,
   send_error_events_.erase(request_id);
 }
 
-void ProtocolContext ::SetSendErrorResponse(struct SendError const& error,
-                                            ApiParser& parser) {
+void ProtocolContext::SetSendErrorResponse(struct SendError const& error,
+                                           ApiParser& parser) {
   auto it = send_error_events_.find(error.request_id);
   if (it != std::end(send_error_events_)) {
     it->second(error);
@@ -88,6 +88,19 @@ void ProtocolContext ::SetSendErrorResponse(struct SendError const& error,
     parser.Cancel();
   }
   send_result_events_.erase(error.request_id);
+}
+
+void ProtocolContext::PushPacketStack(class PacketStack& packet_stack) {
+  packet_stacks_.push(&packet_stack);
+}
+
+void ProtocolContext::PopPacketStack() { packet_stacks_.pop(); }
+
+class PacketStack* ProtocolContext::packet_stack() {
+  if (packet_stacks_.empty()) {
+    return nullptr;
+  }
+  return packet_stacks_.top();
 }
 
 }  // namespace ae
