@@ -35,11 +35,10 @@ ReceiverSyncAction::ReceiverSyncAction(ActionContext action_context,
       state_changed_subscription_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })},
       received_sync_subscription_{
-          protocol_context_.MessageEvent<BandwidthApi::Sync>()
-              .Subscribe([this](auto const& msg) {
+          protocol_context_.MessageEvent<BandwidthApi::Sync>().Subscribe(
+              [this](auto const& msg) {
                 OnReceivedSync(msg.message().request_id);
-              })
-              .Once()} {}
+              })} {}
 
 TimePoint ReceiverSyncAction::Update(TimePoint current_time) {
   if (state_.changed()) {

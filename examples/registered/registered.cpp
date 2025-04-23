@@ -173,7 +173,7 @@ class RegisteredAction : public Action<RegisteredAction> {
                          confirm_msg.data() + confirm_msg.size()},
                         ae::Now());
                 response_subscriptions_.Push(
-                    response_action->SubscribeOnError([&](auto const&) {
+                    response_action->ErrorEvent().Subscribe([&](auto const&) {
                       AE_TELED_ERROR("Send response failed");
                       state_ = State::kError;
                     }));
@@ -197,10 +197,11 @@ class RegisteredAction : public Action<RegisteredAction> {
       AE_TELED_DEBUG("Sending message {}", msg);
       auto send_action = sender_stream->in().Write(
           DataBuffer{std::begin(msg), std::end(msg)}, current_time);
-      send_subscriptions_.Push(send_action->SubscribeOnError([&](auto const&) {
-        AE_TELED_ERROR("Send message failed");
-        state_ = State::kError;
-      }));
+      send_subscriptions_.Push(
+          send_action->ErrorEvent().Subscribe([&](auto const&) {
+            AE_TELED_ERROR("Send message failed");
+            state_ = State::kError;
+          }));
     }
 
     state_ = State::kWaitDone;
@@ -245,9 +246,9 @@ int AetherRegistered() {
 
   auto registered_action = ae::registered::RegisteredAction{aether_app};
 
-  auto success = registered_action.SubscribeOnResult(
+  auto success = registered_action.ResultEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(0); });
-  auto failed = registered_action.SubscribeOnError(
+  auto failed = registered_action.ErrorEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(1); });
 
   while (!aether_app->IsExited()) {

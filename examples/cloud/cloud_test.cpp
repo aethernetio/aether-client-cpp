@@ -145,13 +145,13 @@ class CloudTestAction : public Action<CloudTestAction> {
         auto reg_action = aether_->RegisterClient(
             Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
         registration_subscriptions_.Push(
-            reg_action->SubscribeOnResult([&](auto const&) {
+            reg_action->ResultEvent().Subscribe([&](auto const&) {
               ++clients_registered_;
               if (clients_registered_ == 2) {
                 state_ = State::kConfigureReceiver;
               }
             }),
-            reg_action->SubscribeOnError([&](auto const&) {
+            reg_action->ErrorEvent().Subscribe([&](auto const&) {
               AE_TELED_ERROR("Registration error");
               state_ = State::kError;
             }));
@@ -202,10 +202,11 @@ class CloudTestAction : public Action<CloudTestAction> {
                          confirm_msg.data() + confirm_msg.size()},
                         ae::Now());
                     response_subscriptions_.Push(
-                        response_action->SubscribeOnError([&](auto const&) {
-                          AE_TELED_ERROR("Send response failed");
-                          state_ = State::kError;
-                        }));
+                        response_action->ErrorEvent().Subscribe(
+                            [&](auto const&) {
+                              AE_TELED_ERROR("Send response failed");
+                              state_ = State::kError;
+                            }));
                   });
         });
     state_ = State::kConfigureSender;
@@ -246,10 +247,11 @@ class CloudTestAction : public Action<CloudTestAction> {
     for (auto const& msg : messages_) {
       auto send_action = sender_stream_->in().Write(
           DataBuffer{std::begin(msg), std::end(msg)}, current_time);
-      send_subscriptions_.Push(send_action->SubscribeOnError([&](auto const&) {
-        AE_TELED_ERROR("Send message failed");
-        state_ = State::kError;
-      }));
+      send_subscriptions_.Push(
+          send_action->ErrorEvent().Subscribe([&](auto const&) {
+            AE_TELED_ERROR("Send message failed");
+            state_ = State::kError;
+          }));
     }
     start_wait_time_ = current_time;
     state_ = State::kWaitDone;
@@ -310,9 +312,9 @@ int AetherCloudExample() {
 
   auto cloud_test_action = ae::cloud_test::CloudTestAction{aether_app};
 
-  auto success = cloud_test_action.SubscribeOnResult(
+  cloud_test_action.ResultEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(0); });
-  auto failed = cloud_test_action.SubscribeOnError(
+  cloud_test_action.ErrorEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(1); });
 
   while (!aether_app->IsExited()) {

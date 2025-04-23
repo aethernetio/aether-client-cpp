@@ -84,18 +84,13 @@ void NameAddressChannelConnectionAction::NameResolve(
   auto resolver_ptr = dns_resolver_.Lock();
   auto& resolver_action = resolver_ptr->Resolve(name_address_);
   dns_resolve_subscriptions_.Push(
-      resolver_action
-          .SubscribeOnResult([this](auto const& action) {
-            ip_address_port_protocols_ = action.addresses;
-            ip_address_port_protocol_it_ =
-                std::begin(ip_address_port_protocols_);
-            state_.Set(State::TryConnection);
-          })
-          .Once(),
-      resolver_action
-          .SubscribeOnError(
-              [this](auto const&) { state_.Set(State::NotConnected); })
-          .Once());
+      resolver_action.ResultEvent().Subscribe([this](auto const& action) {
+        ip_address_port_protocols_ = action.addresses;
+        ip_address_port_protocol_it_ = std::begin(ip_address_port_protocols_);
+        state_.Set(State::TryConnection);
+      }),
+      resolver_action.ErrorEvent().Subscribe(
+          [this](auto const&) { state_.Set(State::NotConnected); }));
 }
 
 void NameAddressChannelConnectionAction::TryConnection(
@@ -116,20 +111,17 @@ void NameAddressChannelConnectionAction::TryConnection(
       action_context_, *ip_address_port_protocol_it_, *adapter);
 
   address_subscriptions_.Push(
-      ip_address_channel_connection_
-          ->SubscribeOnResult([this](auto const&) {
-            transport_ = ip_address_channel_connection_->transport();
-            connection_info_ =
-                ip_address_channel_connection_->connection_info();
-            state_.Set(State::Connected);
-          })
-          .Once(),
-      ip_address_channel_connection_
-          ->SubscribeOnError([this](auto const&) {
+      ip_address_channel_connection_->ResultEvent().Subscribe([this](
+                                                                  auto const&) {
+        transport_ = ip_address_channel_connection_->transport();
+        connection_info_ = ip_address_channel_connection_->connection_info();
+        state_.Set(State::Connected);
+      }),
+      ip_address_channel_connection_->ErrorEvent().Subscribe(
+          [this](auto const&) {
             ++ip_address_port_protocol_it_;
             state_.Set(State::TryConnection);
-          })
-          .Once());
+          }));
 }
 
 }  // namespace ae

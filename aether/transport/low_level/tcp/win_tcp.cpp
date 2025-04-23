@@ -405,12 +405,8 @@ void WinTcpTransport::Connect() {
 
   connection_action_.emplace(action_context_, *this);
 
-  connection_subs_.Push(
-      connection_action_
-          ->SubscribeOnError([this](auto const&) { OnConnectionError(); })
-          .Once(),
-      connection_action_->FinishedEvent().Subscribe(
-          [this]() { connection_action_.reset(); }));
+  connection_error_sub_ = connection_action_->ErrorEvent().Subscribe(
+      [this](auto const&) { OnConnectionError(); });
 }
 
 ConnectionInfo const& WinTcpTransport::GetConnectionInfo() const {
@@ -446,23 +442,24 @@ ActionView<PacketSendAction> WinTcpTransport::Send(DataBuffer data,
   auto send_action =
       socket_packet_queue_manager_.AddPacket(WinTcpPacketSendAction{
           action_context_, *this, std::move(packet_data), current_time});
-  send_action_subs_.Push(send_action->SubscribeOnError([this](auto const&) {
-    AE_TELED_ERROR("Send error disconnect");
-    Disconnect();
-  }));
+  send_action_subs_.Push(
+      send_action->ErrorEvent().Subscribe([this](auto const&) {
+        AE_TELED_ERROR("Send error disconnect");
+        Disconnect();
+      }));
 
   return send_action;
 }
 
 void WinTcpTransport::OnConnect(DescriptorType::Socket socket) {
   socket_error_action_ = SocketEventAction{action_context_};
-  socket_error_sub_ = socket_error_action_.SubscribeOnError(
+  socket_error_sub_ = socket_error_action_.ErrorEvent().Subscribe(
       [this](auto const&) { OnSocketError(); });
 
   socket_ = socket;
 
   read_action_.emplace(action_context_, *this);
-  read_error_sub_ = read_action_->SubscribeOnError([&](auto const&) {
+  read_error_sub_ = read_action_->ErrorEvent().Subscribe([&](auto const&) {
     AE_TELED_ERROR("Read error");
     OnSocketError();
   });

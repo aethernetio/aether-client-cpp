@@ -34,7 +34,7 @@ template <typename T, std::size_t Count>
 class BarrierEvent {
  public:
   template <typename TFunc>
-  [[nodiscard]] auto Subscribe(TFunc&& func) {
+  auto Subscribe(TFunc&& func) {
     return EventSubscriber{res_event_}.Subscribe(std::forward<TFunc>(func));
   }
 
@@ -87,7 +87,7 @@ template <std::size_t Count>
 class BarrierEvent<void, Count> {
  public:
   template <typename TFunc>
-  [[nodiscard]] auto Subscribe(TFunc&& func) {
+  auto Subscribe(TFunc&& func) {
     return EventSubscriber{res_event_}.Subscribe(std::forward<TFunc>(func));
   }
 

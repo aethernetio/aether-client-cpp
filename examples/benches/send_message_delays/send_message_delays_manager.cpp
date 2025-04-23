@@ -104,15 +104,15 @@ void SendMessageDelaysManager::TestAction::WarmUp() {
           sender_warm_up->Sync();
         }
       }),
-      sender_warm_up->SubscribeOnResult(
+      sender_warm_up->ResultEvent().Subscribe(
           [this](auto const&) { res_event_->Emit<0>({}); }),
-      receiver_warm_up->SubscribeOnResult(
+      receiver_warm_up->ResultEvent().Subscribe(
           [this](auto const&) { res_event_->Emit<1>({}); }),
-      sender_warm_up->SubscribeOnError([this](auto const&) {
+      sender_warm_up->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Warm up sender error");
         state_ = State::kError;
       }),
-      receiver_warm_up->SubscribeOnError([this](auto const&) {
+      receiver_warm_up->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Warm up receiver error");
         state_ = State::kError;
       }),
@@ -146,15 +146,15 @@ void SendMessageDelaysManager::TestAction::SafeStreamWarmUp() {
           sender_warm_up->Sync();
         }
       }),
-      sender_warm_up->SubscribeOnResult(
+      sender_warm_up->ResultEvent().Subscribe(
           [this](auto const&) { res_event_->Emit<0>({}); }),
-      receiver_warm_up->SubscribeOnResult(
+      receiver_warm_up->ResultEvent().Subscribe(
           [this](auto const&) { res_event_->Emit<1>({}); }),
-      sender_warm_up->SubscribeOnError([this](auto const&) {
+      sender_warm_up->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Warm up sender error");
         state_ = State::kError;
       }),
-      receiver_warm_up->SubscribeOnError([this](auto const&) {
+      receiver_warm_up->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Warm up receiver error");
         state_ = State::kError;
       }),
@@ -234,17 +234,17 @@ void SendMessageDelaysManager::TestAction::SubscribeToTest(
           sender_action->Sync();
         }
       }),
-      sender_action->SubscribeOnResult([this](auto const& action) {
+      sender_action->ResultEvent().Subscribe([this](auto const& action) {
         res_event_->Emit<0>(action.message_times());
       }),
-      sender_action->SubscribeOnError([this](auto const&) {
+      sender_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Sender error");
         state_ = State::kError;
       }),
-      receiver_action->SubscribeOnResult([this](auto const& action) {
+      receiver_action->ResultEvent().Subscribe([this](auto const& action) {
         res_event_->Emit<1>(action.message_times());
       }),
-      receiver_action->SubscribeOnError([this](auto const&) {
+      receiver_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Receiver error");
         state_ = State::kError;
       }),

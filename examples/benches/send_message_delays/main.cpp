@@ -88,19 +88,19 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
 
     registration_subscriptions_.Push(
-        reg_sender->SubscribeOnResult([this](auto const& action) {
+        reg_sender->ResultEvent().Subscribe([this](auto const& action) {
           AE_TELED_INFO("Sender registered");
           client_sender_ = action.client();
           clients_registered_event_.Emit<0>();
         }),
-        reg_sender->SubscribeOnError(
+        reg_sender->ErrorEvent().Subscribe(
             [this](auto const&) { state_ = State::kError; }),
-        reg_receiver->SubscribeOnResult([this](auto const& action) {
+        reg_receiver->ResultEvent().Subscribe([this](auto const& action) {
           AE_TELED_INFO("Receiver registered");
           client_receiver_ = action.client();
           clients_registered_event_.Emit<1>();
         }),
-        reg_receiver->SubscribeOnError(
+        reg_receiver->ErrorEvent().Subscribe(
             [this](auto const&) { state_ = State::kError; }),
         clients_registered_event_.Subscribe([this]() {
           AE_TELED_INFO("All clients registered");
@@ -144,7 +144,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
     });
 
     test_result_subscriptions_.Push(
-        test_action->SubscribeOnResult([&](auto const& action) {
+        test_action->ResultEvent().Subscribe([&](auto const& action) {
           auto res_name_table = std::array{
               std::string_view{"p2p 2 Bytes"},
               std::string_view{"p2p 10 Bytes"},
@@ -171,7 +171,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
 
           state_ = State::kResult;
         }),
-        test_action->SubscribeOnError([&](auto const&) {
+        test_action->ErrorEvent().Subscribe([&](auto const&) {
           AE_TELED_ERROR("Test failed");
           state_ = State::kError;
         }));
@@ -194,10 +194,10 @@ int test_send_message_delays(std::ostream& result_stream) {
   auto aether_app = AetherApp::Construct(AetherAppConstructor{});
 
   auto test_action = TestSendMessageDelaysAction{aether_app, result_stream};
-  auto success =
-      test_action.SubscribeOnResult([&](auto const&) { aether_app->Exit(0); });
-  auto failed =
-      test_action.SubscribeOnError([&](auto const&) { aether_app->Exit(1); });
+  auto success = test_action.ResultEvent().Subscribe(
+      [&](auto const&) { aether_app->Exit(0); });
+  auto failed = test_action.ErrorEvent().Subscribe(
+      [&](auto const&) { aether_app->Exit(1); });
 
   while (!aether_app->IsExited()) {
     auto time = Now();

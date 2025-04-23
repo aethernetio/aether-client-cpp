@@ -161,13 +161,13 @@ class KeyLedTestAction : public Action<KeyLedTestAction> {
         auto reg_action = aether_->RegisterClient(
             Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
         registration_subscriptions_.Push(
-            reg_action->SubscribeOnResult([&](auto const&) {
+            reg_action->ResultEvent().Subscribe([&](auto const&) {
               ++clients_registered_;
               if (clients_registered_ == 2) {
                 state_ = State::kConfigureReceiver;
               }
             }),
-            reg_action->SubscribeOnError([&](auto const&) {
+            reg_action->ErrorEvent().Subscribe([&](auto const&) {
               AE_TELED_ERROR("Registration error");
               state_ = State::kError;
             }));
@@ -225,10 +225,11 @@ class KeyLedTestAction : public Action<KeyLedTestAction> {
                          confirm_msg.data() + confirm_msg.size()},
                         ae::Now());
                     response_subscriptions_.Push(
-                        response_action->SubscribeOnError([&](auto const&) {
-                          AE_TELED_ERROR("Send response failed");
-                          state_ = State::kError;
-                        }));
+                        response_action->ErrorEvent().Subscribe(
+                            [&](auto const&) {
+                              AE_TELED_ERROR("Send response failed");
+                              state_ = State::kError;
+                            }));
                   });
         });
     state_ = State::kConfigureSender;
@@ -266,27 +267,28 @@ class KeyLedTestAction : public Action<KeyLedTestAction> {
   void SendMessages(TimePoint current_time) {
     AE_TELED_INFO("Send messages");
 
-    key_action_subscription_ = key_action_.SubscribeOnResult([&](auto const&) {
-      if (key_action_.GetKey()) {
-        AE_TELED_INFO("Hi level press");
-        if (kUseAether) {
-          sender_stream_->in().Write(
-              {std::begin(messages_[0]), std::end(messages_[0])},
-              ae::TimePoint::clock::now());
-        } else {
-          key_action_.SetLed(1);
-        }
-      } else {
-        AE_TELED_INFO("Low level press");
-        if (kUseAether) {
-          sender_stream_->in().Write(
-              {std::begin(messages_[1]), std::end(messages_[1])},
-              ae::TimePoint::clock::now());
-        } else {
-          key_action_.SetLed(0);
-        }
-      }
-    });
+    key_action_subscription_ =
+        key_action_.ResultEvent().Subscribe([&](auto const&) {
+          if (key_action_.GetKey()) {
+            AE_TELED_INFO("Hi level press");
+            if (kUseAether) {
+              sender_stream_->in().Write(
+                  {std::begin(messages_[0]), std::end(messages_[0])},
+                  ae::TimePoint::clock::now());
+            } else {
+              key_action_.SetLed(1);
+            }
+          } else {
+            AE_TELED_INFO("Low level press");
+            if (kUseAether) {
+              sender_stream_->in().Write(
+                  {std::begin(messages_[1]), std::end(messages_[1])},
+                  ae::TimePoint::clock::now());
+            } else {
+              key_action_.SetLed(0);
+            }
+          }
+        });
 
     state_ = State::kWaitDone;
   }
@@ -365,9 +367,9 @@ int AetherButtonExample() {
 
   auto key_led_test_action = ae::key_led_test::KeyLedTestAction{aether_app};
 
-  auto success = key_led_test_action.SubscribeOnResult(
+  auto success = key_led_test_action.ResultEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(0); });
-  auto failed = key_led_test_action.SubscribeOnError(
+  auto failed = key_led_test_action.ErrorEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(1); });
 
   while (!aether_app->IsExited()) {

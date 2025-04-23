@@ -103,8 +103,8 @@ void test_SafeStreamSendingFewChunks() {
   auto send_100 = sending.SendData(ToDataBuffer(_100_bytes_data));
   ap.Update(epoch + std::chrono::milliseconds{1});
 
-  auto _1 =
-      send_100->SubscribeOnResult([&](auto const&) { received_100 = true; });
+  auto _1 = send_100->ResultEvent().Subscribe(
+      [&](auto const&) { received_100 = true; });
 
   TEST_ASSERT_EQUAL(100, received_data.size());
   TEST_ASSERT_EQUAL_STRING(_100_bytes_data, received_data.data());
@@ -114,8 +114,8 @@ void test_SafeStreamSendingFewChunks() {
 
   auto send_200 = sending.SendData(ToDataBuffer(_200_bytes_data));
 
-  auto _2 =
-      send_200->SubscribeOnResult([&](auto const&) { received_200 = true; });
+  auto _2 = send_200->ResultEvent().Subscribe(
+      [&](auto const&) { received_200 = true; });
 
   ap.Update(epoch + std::chrono::milliseconds{3});
   ap.Update(epoch + std::chrono::milliseconds{4});
@@ -206,8 +206,8 @@ void test_SafeStreamSendingRepeat() {
 
   ap.Update(epoch + std::chrono::milliseconds{1});
 
-  auto _1 =
-      send_action->SubscribeOnError([&](auto const&) { sending_error = true; });
+  auto _1 = send_action->ErrorEvent().Subscribe(
+      [&](auto const&) { sending_error = true; });
 
   TEST_ASSERT_EQUAL(100, received_data.size());
 
@@ -258,8 +258,8 @@ void test_SafeStreamSendingRepeatRequest() {
       });
 
   auto send_action = sending.SendData(ToDataBuffer(_100_bytes_data));
-  auto _1 =
-      send_action->SubscribeOnError([&](auto const&) { sending_error = true; });
+  auto _1 = send_action->ErrorEvent().Subscribe(
+      [&](auto const&) { sending_error = true; });
 
   ap.Update(epoch += std::chrono::milliseconds{2});
   TEST_ASSERT_EQUAL(100, received_data.size());

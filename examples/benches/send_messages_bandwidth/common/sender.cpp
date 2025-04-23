@@ -67,9 +67,9 @@ EventSubscriber<void()> Sender::Sync() {
   sync_action_.emplace(action_context_, protocol_context_, *message_stream_);
 
   test_subscriptions_.Push(  //
-      sync_action_->SubscribeOnResult(
+      sync_action_->ResultEvent().Subscribe(
           [this](auto const&) { sync_made_.Emit(); }),
-      sync_action_->SubscribeOnError(
+      sync_action_->ErrorEvent().Subscribe(
           [this](auto const&) { error_event_.Emit(); }),
       sync_action_->FinishedEvent().Subscribe(
           [this]() { sync_action_.reset(); }));
@@ -146,12 +146,14 @@ std::unique_ptr<MessageSender<BandwidthApi, T>> Sender::CreateTestAction(
       message_count);
 
   test_subscriptions_.Push(
-      action->SubscribeOnResult([this](auto const& action) {
+      action->ResultEvent().Subscribe([this](auto const& action) {
         test_finished_event_.Emit(
             {action.send_duration(), action.message_send_count(), sizeof(T)});
       }),
-      action->SubscribeOnError([this](auto const&) { error_event_.Emit(); }),
-      action->SubscribeOnStop([this](auto const&) { error_event_.Emit(); }));
+      action->ErrorEvent().Subscribe(
+          [this](auto const&) { error_event_.Emit(); }),
+      action->StopEvent().Subscribe(
+          [this](auto const&) { error_event_.Emit(); }));
 
   return action;
 }

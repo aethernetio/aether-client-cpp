@@ -64,14 +64,14 @@ ServerChannelStream::ServerChannelStream(ObjPtr<Aether> const& aether,
       connection_start_time_{Now()},
       connection_timer_{std::in_place, ActionContext{*aether->action_processor},
                         channel->expected_connection_time()} {
-  connection_success_ = connection_action_->SubscribeOnResult(
+  connection_success_ = connection_action_->ResultEvent().Subscribe(
       [this](auto& action) { OnConnected(action); }),
-  connection_failed_ = connection_action_->SubscribeOnError(
+  connection_failed_ = connection_action_->ErrorEvent().Subscribe(
       [this](auto const&) { OnConnectedFailed(); }),
   connection_finished_ = connection_action_->FinishedEvent().Subscribe(
       [this]() { connection_action_.reset(); });
 
-  connection_timeout_ = connection_timer_->SubscribeOnResult(
+  connection_timeout_ = connection_timer_->ResultEvent().Subscribe(
       [this](auto const&) { OnConnectedFailed(); });
   connection_timer_finished_ = connection_timer_->FinishedEvent().Subscribe(
       [this]() { connection_timer_.reset(); });
@@ -92,11 +92,8 @@ void ServerChannelStream::OnConnected(ChannelConnectionAction& connection) {
   connection_timer_->Stop();
 
   transport_ = connection.transport();
-  connection_error_ =
-      transport_->ConnectionError()
-          .Subscribe(*this,
-                     MethodPtr<&ServerChannelStream::OnConnectedFailed>{})
-          .Once();
+  connection_error_ = transport_->ConnectionError().Subscribe(
+      *this, MethodPtr<&ServerChannelStream::OnConnectedFailed>{});
   transport_write_gate_.emplace(action_context_, *transport_);
   Tie(buffer_gate_, *transport_write_gate_);
 }

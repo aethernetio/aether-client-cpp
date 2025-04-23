@@ -34,9 +34,9 @@ class IPoller : public Obj {
    * \brief Event type for event.
    * User should check event.descriptor to match with its own.
    */
-  using OnPollEvent = Event<void(PollerEvent event)>;
-  using OnPollEventSubscriber =
-      MtEventSubscriber<void(PollerEvent event), std::recursive_mutex>;
+  using OnPollEvent = Event<void(PollerEvent event),
+                            SharedMutexSyncPolicy<std::recursive_mutex>>;
+  using OnPollEventSubscriber = typename OnPollEvent::Subscriber;
 
 #if defined AE_DISTILLATION
   explicit IPoller(Domain* domain);

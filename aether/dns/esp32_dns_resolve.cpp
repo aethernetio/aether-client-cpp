@@ -66,9 +66,8 @@ class GethostByNameDnsResolver {
 
     // remove self
     multi_subscription_.Push(
-        query_context.resolve_action.FinishedEvent()
-            .Subscribe([id{qit->first}, this]() { active_queries_.erase(id); })
-            .Once());
+        query_context.resolve_action.FinishedEvent().Subscribe(
+            [id{qit->first}, this]() { active_queries_.erase(id); }));
 
     // make query
     ip_addr_t cached_addr;

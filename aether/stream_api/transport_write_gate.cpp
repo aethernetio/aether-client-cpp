@@ -31,11 +31,12 @@ TransportWriteGate::TransportStreamWriteAction::TransportStreamWriteAction(
     : StreamWriteAction(action_context),
       packet_send_action_{std::move(packet_send_action)} {
   subscriptions_.Push(
-      packet_send_action_->SubscribeOnResult([this](auto const& /* action */) {
-        state_ = State::kDone;
-        Action::Result(*this);
-      }),
-      packet_send_action_->SubscribeOnError([this](auto const& action) {
+      packet_send_action_->ResultEvent().Subscribe(
+          [this](auto const& /* action */) {
+            state_ = State::kDone;
+            Action::Result(*this);
+          }),
+      packet_send_action_->ErrorEvent().Subscribe([this](auto const& action) {
         switch (action.state()) {
           case PacketSendAction::State::kTimeout:
             state_ = State::kTimeout;
@@ -49,7 +50,7 @@ TransportWriteGate::TransportStreamWriteAction::TransportStreamWriteAction(
         }
         Action::Error(*this);
       }),
-      packet_send_action_->SubscribeOnStop([this](auto const&) {
+      packet_send_action_->StopEvent().Subscribe([this](auto const&) {
         state_ = State::kStopped;
         Action::Stop(*this);
       }));
