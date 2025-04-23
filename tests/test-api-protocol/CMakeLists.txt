@@ -15,20 +15,22 @@
 cmake_minimum_required( VERSION 3.16 )
 
 list(APPEND test_srcs
+  main.cpp
   test-api-protocol.cpp
+  test-method-call.cpp
 )
 
 if(NOT CM_PLATFORM)
 
-   project(test-api-protocol LANGUAGES CXX)
+  project(test-api-protocol LANGUAGES CXX)
 
-   add_executable(${PROJECT_NAME})
-   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
-   # for aether
-   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-   target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
+  add_executable(${PROJECT_NAME})
+  target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
+  # for aether
+  target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
+  target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
 
-   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+  add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()
-    message(WARNING "Not implemented for ${CM_PLATFORM}")
+  message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()
