@@ -123,14 +123,14 @@ void FileSystemSpiFsV1Facility::Remove(const ae::ObjId& obj_id) {
 
 #  if defined AE_DISTILLATION
 void FileSystemSpiFsV1Facility::CleanUp() {
-  std::string path{"dump"};
+  std::string path{"state"};
 
   driver_sync_fs_->DriverDelete(path);
 }
 #  endif
 void FileSystemSpiFsV1Facility::LoadObjData_(ObjClassData& obj_data) {
   auto data_vector = std::vector<std::uint8_t>{};
-  std::string path{"dump"};
+  std::string path{"state"};
 
   VectorReader<PacketSize> vr{data_vector};
 
@@ -142,7 +142,7 @@ void FileSystemSpiFsV1Facility::LoadObjData_(ObjClassData& obj_data) {
 
 void FileSystemSpiFsV1Facility::SaveObjData_(ObjClassData& obj_data) {
   auto data_vector = std::vector<std::uint8_t>{};
-  std::string path{"dump"};
+  std::string path{"state"};
 
   VectorWriter<PacketSize> vw{data_vector};
   auto os = omstream{vw};

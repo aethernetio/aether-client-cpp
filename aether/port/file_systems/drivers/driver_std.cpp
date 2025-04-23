@@ -33,32 +33,34 @@ DriverStd::DriverStd() {}
 DriverStd::~DriverStd() {}
 
 void DriverStd::DriverRead(const std::string &path,
-                              std::vector<std::uint8_t> &data_vector) {
-  ae::PathStructure path_struct{};
+                              std::vector<std::uint8_t> &data_vector, bool sync) {
+  if (sync == false) {
+    ae::PathStructure path_struct{};
 
-  path_struct = GetPathStructure(path);
+    path_struct = GetPathStructure(path);
 
-  auto obj_dir = std::filesystem::path("state") /
-                 std::to_string(path_struct.version) /
-                 path_struct.obj_id.ToString();
-  auto p = obj_dir / std::to_string(path_struct.class_id);
-  std::ifstream f(p.c_str(), std::ios::in | std::ios::binary);
-  if (!f.good()) {
-    AE_TELE_ERROR(FsLoadObjClassIdNotFound, "Unable to open file {}",
-                  p.string());
-    return;
+    auto obj_dir = std::filesystem::path("state") /
+                   std::to_string(path_struct.version) /
+                   path_struct.obj_id.ToString();
+    auto p = obj_dir / std::to_string(path_struct.class_id);
+    std::ifstream f(p.c_str(), std::ios::in | std::ios::binary);
+    if (!f.good()) {
+      AE_TELE_ERROR(FsLoadObjClassIdNotFound, "Unable to open file {}",
+                    p.string());
+      return;
+    }
+
+    auto ec = std::error_code{};
+    auto file_size = std::filesystem::file_size(p, ec);
+    if (ec) {
+      AE_TELED_ERROR("Unable to get file size {}", ec.message());
+      return;
+    }
+
+    data_vector.resize(static_cast<std::size_t>(file_size));
+    f.read(reinterpret_cast<char *>(data_vector.data()),
+           static_cast<std::streamsize>(data_vector.size()));
   }
-
-  auto ec = std::error_code{};
-  auto file_size = std::filesystem::file_size(p, ec);
-  if (ec) {
-    AE_TELED_ERROR("Unable to get file size {}", ec.message());
-    return;
-  }
-
-  data_vector.resize(static_cast<std::size_t>(file_size));
-  f.read(reinterpret_cast<char *>(data_vector.data()),
-         static_cast<std::streamsize>(data_vector.size()));
 }
 
 void DriverStd::DriverWrite(const std::string &path,

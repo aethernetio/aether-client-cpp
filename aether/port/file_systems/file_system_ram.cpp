@@ -19,7 +19,6 @@
 #if defined AE_FILE_SYSTEM_RAM_ENABLED
 
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
-
 #  include "aether/port/file_systems/file_systems_tele.h"
 
 namespace ae {

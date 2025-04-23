@@ -25,27 +25,29 @@ DriverRam::DriverRam() {}
 DriverRam::~DriverRam() {}
 
 void DriverRam::DriverRead(const std::string &path,
-                              std::vector<std::uint8_t> &data_vector) {
-  ae::PathStructure path_struct{};
+                              std::vector<std::uint8_t> &data_vector, bool sync) {
+  if (sync == false) {
+    ae::PathStructure path_struct{};
 
-  path_struct = GetPathStructure(path);
+    path_struct = GetPathStructure(path);
 
-  auto obj_it = state_.find(path_struct.obj_id);
-  if (obj_it == state_.end()) {
-    return;
+    auto obj_it = state_.find(path_struct.obj_id);
+    if (obj_it == state_.end()) {
+      return;
+    }
+
+    auto class_it = obj_it->second.find(path_struct.class_id);
+    if (class_it == obj_it->second.end()) {
+      return;
+    }
+
+    auto version_it = class_it->second.find(path_struct.version);
+    if (version_it == class_it->second.end()) {
+      return;
+    }
+
+    data_vector = version_it->second;
   }
-
-  auto class_it = obj_it->second.find(path_struct.class_id);
-  if (class_it == obj_it->second.end()) {
-    return;
-  }
-
-  auto version_it = class_it->second.find(path_struct.version);
-  if (version_it == class_it->second.end()) {
-    return;
-  }
-
-  data_vector = version_it->second;
 }
 
 void DriverRam::DriverWrite(const std::string &path,

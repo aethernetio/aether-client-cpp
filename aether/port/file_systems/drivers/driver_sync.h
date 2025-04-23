@@ -38,12 +38,10 @@ class DriverSync {
   std::vector<std::string> DriverDir(const std::string &path);
 
  private:
-  void DriverSyncronize_(std::unique_ptr<DriverBase> DrvSource,
-                         std::unique_ptr<DriverBase> DrvDestination,
-                         const std::string &path);
+  void DriverSyncronize_(const std::string &path);
   enum DriverFsType fs_driver_type_ { DriverFsType::kDriverNone };
-  std::unique_ptr<DriverBase> DriverSource{};
-  std::unique_ptr<DriverBase> DriverDestination{};
+  std::unique_ptr<DriverBase> fs_driver_source_{};
+  std::unique_ptr<DriverBase> fs_driver_destination_{};
 };
 
 }  // namespace ae

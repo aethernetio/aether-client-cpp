@@ -37,7 +37,7 @@ class DriverRam: public DriverBase{
   DriverRam();
   ~DriverRam();
   void DriverRead(const std::string &path,
-                     std::vector<std::uint8_t> &data_vector) override;
+                     std::vector<std::uint8_t> &data_vector, bool sync) override;
   void DriverWrite(const std::string &path,
                       const std::vector<std::uint8_t> &data_vector) override;
   void DriverDelete(const std::string &path) override;

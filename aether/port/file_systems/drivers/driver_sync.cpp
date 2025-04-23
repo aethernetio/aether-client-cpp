@@ -22,8 +22,15 @@ namespace ae {
 
 template <typename T>
 bool IsEqual(std::vector<T> const &v1, std::vector<T> const &v2) {
-  auto pair = std::mismatch(v1.begin(), v1.end(), v2.begin());
-  return (pair.first == v1.end() && pair.second == v2.end());
+  bool res{false};
+  if (v1.size() == 0 || v2.size() == 0) {
+    return res;
+  }
+  if (std::equal(v1.begin(), v1.end(), v2.begin())) {
+    res = true;
+  }
+  
+  return res;
 }
 
 template <typename T>
@@ -41,11 +48,11 @@ std::vector<T> CombineIgnoreDuplicates(const std::vector<T> &a,
 
 DriverSync::DriverSync(enum DriverFsType fs_driver_type) {
   fs_driver_type_ = fs_driver_type;
-  DriverSource = DriverFactory::Create(fs_driver_type_);
+  fs_driver_source_ = DriverFactory::Create(fs_driver_type_);
 #if defined(ESP_PLATFORM)
-  DriverDestination = DriverFactory::Create(DriverFsType::kDriverSpifs);
+  fs_driver_destination_ = DriverFactory::Create(DriverFsType::kDriverSpifs);
 #else
-  DriverDestination = DriverFactory::Create(DriverFsType::kDriverStd);
+  fs_driver_destination_ = DriverFactory::Create(DriverFsType::kDriverStd);
 #endif
 }
 
@@ -54,32 +61,34 @@ DriverSync::~DriverSync() {}
 void DriverSync::DriverRead(const std::string &path,
                             std::vector<std::uint8_t> &data_vector) {
 #if defined(AE_DISTILLATION)
-  DriverSource->DriverRead(path, data_vector);
+  if(fs_driver_type_ == DriverFsType::kDriverHeader){
+    fs_driver_source_->DriverRead(path, data_vector, true);
+  }
+  else{
+    fs_driver_source_->DriverRead(path, data_vector, false);
+  }
 #else
-  DriverSyncronize_(std::move(DriverSource), std::move(DriverDestination),
-                    path);
-  DriverDestination->DriverRead(path, data_vector);
+  DriverSyncronize_(path);
+  fs_driver_destination_->DriverRead(path, data_vector, false);
 #endif
 }
 
 void DriverSync::DriverWrite(const std::string &path,
                              const std::vector<std::uint8_t> &data_vector) {
 #if defined(AE_DISTILLATION)
-  DriverSource->DriverWrite(path, data_vector);
+  fs_driver_source_->DriverWrite(path, data_vector);
 #else
-  DriverSyncronize_(std::move(DriverSource), std::move(DriverDestination),
-                    path);
-  DriverDestination->DriverWrite(path, data_vector);
+  DriverSyncronize_(path);
+  fs_driver_destination_->DriverWrite(path, data_vector);
 #endif
 }
 
 void DriverSync::DriverDelete(const std::string &path) {
 #if defined(AE_DISTILLATION)
-  DriverSource->DriverDelete(path);
+  fs_driver_source_->DriverDelete(path);
 #else
-  DriverSyncronize_(std::move(DriverSource), std::move(DriverDestination),
-                    path);
-  DriverDestination->DriverDelete(path);
+  DriverSyncronize_(path);
+  fs_driver_destination_->DriverDelete(path);
 #endif
 }
 
@@ -89,10 +98,10 @@ std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list_result{};
 
 #if defined(AE_DISTILLATION)
-  dirs_list_source = DriverSource->DriverDir(path);
+  dirs_list_source = fs_driver_source_->DriverDir(path);
 #else
-  dirs_list_source = DriverSource->DriverDir(path);
-  dirs_list_destination = DriverDestination->DriverDir(path);
+  dirs_list_source = fs_driver_source_->DriverDir(path);
+  dirs_list_destination = fs_driver_destination_->DriverDir(path);
 #endif
 
   dirs_list_result =
@@ -101,18 +110,21 @@ std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
   return dirs_list_result;
 }
 
-void DriverSync::DriverSyncronize_(
-    std::unique_ptr<DriverBase> DrvSource,
-    std::unique_ptr<DriverBase> DrvDestination, const std::string &path) {
+void DriverSync::DriverSyncronize_(const std::string &path) {
   std::vector<std::uint8_t> data_vector_source;
   std::vector<std::uint8_t> data_vector_destination;
 
-  DrvSource->DriverRead(path, data_vector_source);
-  DrvDestination->DriverRead(path, data_vector_destination);
+  if(fs_driver_type_ == DriverFsType::kDriverHeader){
+    fs_driver_source_->DriverRead(path, data_vector_source, true);
+  }
+  else{
+    fs_driver_source_->DriverRead(path, data_vector_source, false);
+  }
+  fs_driver_destination_->DriverRead(path, data_vector_destination, false);
 
   if (!IsEqual(data_vector_source, data_vector_destination)) {
-    DrvDestination->DriverDelete(path);
-    DrvDestination->DriverWrite(path, data_vector_source);
+    fs_driver_destination_->DriverDelete(path);
+    fs_driver_destination_->DriverWrite(path, data_vector_source);
   }
 }
 

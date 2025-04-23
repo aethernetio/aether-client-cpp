@@ -45,7 +45,7 @@ class DriverBase {
  public:
   virtual ~DriverBase()  = default;
   virtual void DriverRead(const std::string &path,
-                     std::vector<std::uint8_t> &data_vector) = 0;
+                     std::vector<std::uint8_t> &data_vector, bool sync) = 0;
   virtual void DriverWrite(const std::string &path,
                       const std::vector<std::uint8_t> &data_vector) = 0;
   virtual void DriverDelete(const std::string &path) = 0;

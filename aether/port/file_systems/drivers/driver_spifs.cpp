@@ -30,7 +30,7 @@ DriverSpifs::~DriverSpifs() {
 }
 
 void DriverSpifs::DriverRead(const std::string &path,
-                                  std::vector<std::uint8_t> &data_vector) {
+                                  std::vector<std::uint8_t> &data_vector, bool sync) {
   size_t bytes_read;
   unsigned int file_size = 0;
   std::string res_path{};

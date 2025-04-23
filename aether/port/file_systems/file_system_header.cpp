@@ -19,7 +19,7 @@
 #if defined AE_FILE_SYSTEM_HEADER_ENABLED
 
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
-#  include "aether/tele/tele.h"
+#  include "aether/port/file_systems/file_systems_tele.h"
 
 namespace ae {
 
@@ -72,8 +72,20 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
   AE_TELED_DEBUG("Object id={} & class id = {} saved!", obj_id.ToString(),
                  class_id);
 
+  std::string path{};
+
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
+         
+  // For FS syncronization
+  driver_sync_fs_->DriverWrite(path, os);
+  
   // Writing ObjClassData
   SaveObjData_(state_);
+  
+  AE_TELE_DEBUG(
+      FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), os.size());
 }
 
 void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
@@ -84,6 +96,14 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
   // Reading ObjClassData
   LoadObjData_(state_);
 
+  std::string path{};
+
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
+         
+  // For FS syncronization
+  driver_sync_fs_->DriverRead(path, is);
+  
   auto obj_it = state_.find(obj_id);
   if (obj_it == state_.end()) {
     return;
@@ -99,12 +119,11 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
     return;
   }
 
-  AE_TELED_DEBUG("Object id={} & class id = {} version {} loaded!",
-                 obj_id.ToString(), class_id, std::to_string(version));
   is = version_it->second;
 
-  AE_TELED_DEBUG("Loaded state/{}/{}/{} size: {}", std::to_string(version),
-                 obj_id.ToString(), class_id, is.size());
+  AE_TELE_DEBUG(
+      FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), is.size());
 }
 
 void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
@@ -115,12 +134,12 @@ void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
 
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
-    AE_TELED_DEBUG("Object id={} removed!", obj_id.ToString());
+    AE_TELE_DEBUG(FsObjRemoved,"Object id={} removed!", obj_id.ToString());
     state_.erase(it);
   } else {
     AE_TELED_WARNING("Object id={} not found!", obj_id.ToString());
   }
-
+  
   // Writing ObjClassData
   SaveObjData_(state_);
 }
@@ -165,7 +184,7 @@ void FileSystemHeaderFacility::SaveObjData_(ObjClassData& obj_data) {
 #    endif
 
   VectorWriter<PacketSize> vw{data_vector};
-
+  
   auto os = omstream{vw};
   // add file data
   os << obj_data;

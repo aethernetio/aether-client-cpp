@@ -15,6 +15,8 @@
  */
 
 #include "aether/port/file_systems/drivers/driver_header.h"
+#include "aether/port/file_systems/drivers/driver_functions.h"
+#include "aether/transport/low_level/tcp/data_packet_collector.h"
 
 #include <string>
 #if (!defined(ESP_PLATFORM))
@@ -41,7 +43,9 @@ DriverHeader::DriverHeader() {}
 DriverHeader::~DriverHeader() {}
 
 void DriverHeader::DriverRead(const std::string &path,
-                                    std::vector<std::uint8_t> &data_vector) {
+                                    std::vector<std::uint8_t> &data_vector, bool sync) {
+if(sync == false)
+{
 #if (!defined(ESP_PLATFORM))
   std::string line{};
 
@@ -87,6 +91,45 @@ void DriverHeader::DriverRead(const std::string &path,
 
   AE_TELED_DEBUG("Loaded header file {}", path);
 #endif
+}
+else
+{
+  auto data_vector_ = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
+  
+  VectorReader<PacketSize> vr{data_vector_};
+  ae::PathStructure path_struct{};
+  ObjClassData obj_data;
+  
+  auto is = imstream{vr};
+  // add obj data
+  is >> obj_data;
+  
+  path_struct = GetPathStructure(path);
+  
+  auto obj_it = obj_data.find(path_struct.obj_id);
+  if (obj_it == obj_data.end()) {
+    return;
+  }
+
+  auto class_it = obj_it->second.find(path_struct.class_id);
+  if (class_it == obj_it->second.end()) {
+    return;
+  }
+
+  auto version_it = class_it->second.find(path_struct.version);
+  if (version_it == class_it->second.end()) {
+    return;
+  }
+
+  AE_TELED_DEBUG("Object id={} & class id = {} version {} loaded!",
+                 path_struct.obj_id.ToString(), path_struct.class_id,
+                 std::to_string(path_struct.version));
+  data_vector = version_it->second;
+
+  AE_TELED_DEBUG("Loaded state/{}/{}/{} size: {}",
+                 std::to_string(path_struct.version),
+      path_struct.obj_id.ToString(), path_struct.class_id, data_vector.size());
+}
 }
 
 void DriverHeader::DriverWrite(
@@ -143,7 +186,7 @@ std::vector<std::string> DriverHeader::DriverDir(const std::string &path){
   AE_TELED_DEBUG("Dir header file {}", path);
   return dirs_list;
 }
-
+                        
 std::string DriverHeader::ByteToHex_(std::uint8_t ch) {
   std::stringstream ss;
   ss << "0x" << std::hex << std::setw(2) << std::setfill('0')
