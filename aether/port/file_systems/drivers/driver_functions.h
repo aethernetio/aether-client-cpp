@@ -28,6 +28,33 @@ struct PathStructure {
 };
 
 ae::PathStructure GetPathStructure(const std::string &path);
+bool ValidatePath(const std::string& path);
+template <typename T>
+bool IsEqual(std::vector<T> const &v1, std::vector<T> const &v2) {
+  bool res{false};
+  if (v1.size() == 0 || v2.size() == 0) {
+    return res;
+  }
+  if (std::equal(v1.begin(), v1.end(), v2.begin())) {
+    res = true;
+  }
+
+  return res;
+}
+
+template <typename T>
+std::vector<T> CombineIgnoreDuplicates(const std::vector<T> &a,
+                                       const std::vector<T> &b) {
+  std::unordered_set<T> unique_elements(a.begin(), a.end());
+  std::vector<T> result = a;
+  for (const auto &elem : b) {
+    if (unique_elements.find(elem) == unique_elements.end()) {
+      result.push_back(elem);
+    }
+  }
+  return result;
+}
+                                       
 }  // namespace ae
 
 #endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_FUNCTIONS_H_

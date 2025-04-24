@@ -16,35 +16,10 @@
 
 #include "aether/port/file_systems/drivers/driver_sync.h"
 #include "aether/port/file_systems/drivers/driver_factory.h"
+#include "aether/port/file_systems/drivers/driver_functions.h"
 #include "aether/tele/tele.h"
 
 namespace ae {
-
-template <typename T>
-bool IsEqual(std::vector<T> const &v1, std::vector<T> const &v2) {
-  bool res{false};
-  if (v1.size() == 0 || v2.size() == 0) {
-    return res;
-  }
-  if (std::equal(v1.begin(), v1.end(), v2.begin())) {
-    res = true;
-  }
-
-  return res;
-}
-
-template <typename T>
-std::vector<T> CombineIgnoreDuplicates(const std::vector<T> &a,
-                                       const std::vector<T> &b) {
-  std::unordered_set<T> unique_elements(a.begin(), a.end());
-  std::vector<T> result = a;
-  for (const auto &elem : b) {
-    if (unique_elements.find(elem) == unique_elements.end()) {
-      result.push_back(elem);
-    }
-  }
-  return result;
-}
 
 DriverSync::DriverSync(enum DriverFsType fs_driver_type) {
   fs_driver_type_ = fs_driver_type;
@@ -60,6 +35,10 @@ DriverSync::~DriverSync() {}
 
 void DriverSync::DriverRead(const std::string &path,
                             std::vector<std::uint8_t> &data_vector) {
+  if (!ValidatePath(path)) {
+    assert(0);
+  }
+
 #if defined(AE_DISTILLATION)
   if (fs_driver_type_ == DriverFsType::kDriverHeader) {
     fs_driver_source_->DriverRead(path, data_vector, true);
@@ -74,6 +53,10 @@ void DriverSync::DriverRead(const std::string &path,
 
 void DriverSync::DriverWrite(const std::string &path,
                              const std::vector<std::uint8_t> &data_vector) {
+  if (!ValidatePath(path)) {
+    assert(0);
+  }
+
 #if defined(AE_DISTILLATION)
   fs_driver_source_->DriverWrite(path, data_vector);
 #else
@@ -83,6 +66,10 @@ void DriverSync::DriverWrite(const std::string &path,
 }
 
 void DriverSync::DriverDelete(const std::string &path) {
+  if (!ValidatePath(path)) {
+    assert(0);
+  }
+
 #if defined(AE_DISTILLATION)
   fs_driver_source_->DriverDelete(path);
 #else
@@ -95,6 +82,10 @@ std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list_source{};
   std::vector<std::string> dirs_list_destination{};
   std::vector<std::string> dirs_list_result{};
+
+  if (!ValidatePath(path)) {
+    assert(0);
+  }
 
 #if defined(AE_DISTILLATION)
   dirs_list_source = fs_driver_source_->DriverDir(path);
@@ -112,6 +103,10 @@ std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
 void DriverSync::DriverSyncronize_(const std::string &path) {
   std::vector<std::uint8_t> data_vector_source;
   std::vector<std::uint8_t> data_vector_destination;
+
+  if (!ValidatePath(path)) {
+    assert(0);
+  }
 
   if (fs_driver_type_ == DriverFsType::kDriverHeader) {
     fs_driver_source_->DriverRead(path, data_vector_source, true);
