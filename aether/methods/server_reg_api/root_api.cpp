@@ -17,27 +17,10 @@
 #include "aether/methods/server_reg_api/root_api.h"
 
 #if AE_SUPPORT_REGISTRATION
-#  include <utility>
-
-#  include "aether/api_protocol/send_result.h"
-#  include "aether/methods/client_reg_api/client_reg_api.h"
-
 namespace ae {
-void RootApi::Pack(GetAsymmetricPublicKey message, ApiPacker& packer) {
-  SendResult::OnResponse(
-      packer.Context(), message.request_id,
-      [req_id{message.request_id},
-       context{&packer.Context()}](ApiParser& parser) {
-        context->MessageNotify(ClientApiRegSafe::GetKeysResponse{
-            req_id, parser.Extract<SignedKey>()});
-      });
-
-  packer.Pack(GetAsymmetricPublicKey::kMessageCode, message);
-}
-
-void RootApi::Pack(Enter message, ApiPacker& packer) {
-  packer.Pack(Enter::kMessageCode, std::move(message));
-}
-
+RootApi::RootApi(ProtocolContext& protocol_context,
+                 ActionContext action_context)
+    : get_asymmetric_public_key{protocol_context, action_context},
+      enter{protocol_context} {}
 }  // namespace ae
 #endif

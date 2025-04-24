@@ -24,57 +24,45 @@
 #  include <string>
 #  include <vector>
 
-#  include "aether/api_protocol/send_result.h"
+#  include "aether/uid.h"
 #  include "aether/common.h"
 #  include "aether/crypto/key.h"
-#  include "aether/uid.h"
 #  include "aether/crypto/crypto_definitions.h"
 
-#  include "aether/stream_api/stream_api.h"
-#  include "aether/api_protocol/child_data.h"
-#  include "aether/api_protocol/api_protocol.h"
+#  include "aether/reflect/reflect.h"
+#  include "aether/crypto/signed_key.h"
+#  include "aether/transport/data_buffer.h"
+#  include "aether/api_protocol/api_method.h"
+#  include "aether/methods/server_descriptor.h"
 
 namespace ae {
-class ServerRegistrationApi : public ApiClass {
+struct PowParams {
+  AE_REFLECT_MEMBERS(salt, password_suffix, pool_size, max_hash_value,
+                     global_key)
+  std::string salt;
+  std::string password_suffix;
+  std::uint8_t pool_size;
+  std::uint32_t max_hash_value;
+  SignedKey global_key;
+};
+
+class ServerRegistrationApi {
  public:
-  // start a new stream from GlobalRegClientApi to GlobalRegServerApi with
-  // CryptoStream
-  struct Registration : public Message<Registration> {
-    static constexpr MessageId kMessageCode = 30;
+  ServerRegistrationApi(ProtocolContext& protocol_context,
+                        ActionContext action_context);
 
-    AE_REFLECT_MEMBERS(salt, password_suffix, passwords, parent_uid_,
-                       return_key, data)
+  Method<30, void(std::string salt, std::string password_suffix,
+                  std::vector<uint32_t> passwords, Uid parent_uid_,
+                  Key return_key, DataBuffer data)>
+      registration;
 
-    std::string salt;
-    std::string password_suffix;
-    std::vector<uint32_t> passwords;
-    Uid parent_uid_;
-    Key return_key;
-    DataBuffer data;
-  };
+  Method<40, PromiseView<PowParams>(Uid parent_id, PowMethod pow_method,
+                                    Key return_key)>
+      request_proof_of_work_data;
 
-  struct RequestProofOfWorkData : public Message<RequestProofOfWorkData> {
-    static constexpr MessageId kMessageCode = 40;
-
-    AE_REFLECT_MEMBERS(request_id, parent_id, pow_method, return_key)
-
-    RequestId request_id;
-    Uid parent_id;
-    PowMethod pow_method;
-    Key return_key;
-  };
-
-  struct ResolveServers : public Message<ResolveServers> {
-    static constexpr MessageId kMessageCode = 70;
-    AE_REFLECT_MEMBERS(request_id, servers)
-
-    RequestId request_id;
-    std::vector<ServerId> servers;
-  };
-
-  void Pack(Registration&& message, ApiPacker& packer);
-  void Pack(RequestProofOfWorkData&& message, ApiPacker& packer);
-  void Pack(ResolveServers&& message, ApiPacker& packer);
+  Method<70, PromiseView<std::vector<ServerDescriptor>>(
+                 std::vector<ServerId> servers)>
+      resolve_servers;
 };
 }  // namespace ae
 

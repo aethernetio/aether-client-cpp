@@ -16,36 +16,12 @@
 
 #include "aether/methods/server_reg_api/server_registration_api.h"
 #if AE_SUPPORT_REGISTRATION
-#  include <utility>
-
-#  include "aether/methods/client_reg_api/client_reg_api.h"
 
 namespace ae {
-void ServerRegistrationApi::Pack(Registration&& message, ApiPacker& packer) {
-  packer.Pack(Registration::kMessageCode, std::move(message));
-}
-
-void ServerRegistrationApi::Pack(RequestProofOfWorkData&& message,
-                                 ApiPacker& packer) {
-  SendResult::OnResponse(
-      packer.Context(), message.request_id,
-      [req_id{message.request_id}](ApiParser& parser) {
-        parser.Context().MessageNotify(ClientApiRegSafe::ResponseWorkProofData{
-            req_id, parser.Extract<PowParams>()});
-      });
-
-  packer.Pack(RequestProofOfWorkData::kMessageCode, std::move(message));
-}
-void ServerRegistrationApi::Pack(ResolveServers&& message, ApiPacker& packer) {
-  SendResult::OnResponse(
-      packer.Context(), message.request_id,
-      [req_id{message.request_id}](ApiParser& parser) {
-        parser.Context().MessageNotify(ClientApiRegSafe::ResolveServersResponse{
-            req_id, parser.Extract<std::vector<ServerDescriptor>>()});
-      });
-
-  packer.Pack(ResolveServers::kMessageCode, std::move(message));
-}
-
+ServerRegistrationApi::ServerRegistrationApi(ProtocolContext& protocol_context,
+                                             ActionContext action_context)
+    : registration{protocol_context},
+      request_proof_of_work_data{protocol_context, action_context},
+      resolve_servers{protocol_context, action_context} {}
 }  // namespace ae
 #endif
