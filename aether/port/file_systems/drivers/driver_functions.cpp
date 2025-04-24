@@ -22,7 +22,7 @@ ae::PathStructure GetPathStructure(const std::string &path) {
   ae::PathStructure path_struct{};
 
   // Path is "state/version/obj_id/class_id"
-  AE_TELE_DEBUG(FsObjRemoved, "Path {}", path);
+  AE_TELED_DEBUG("GetPathStructure Path {}", path);
   auto pos1 = path.find("/");
   if (pos1 != std::string::npos) {
     auto pos2 = path.find("/", pos1 + 1);

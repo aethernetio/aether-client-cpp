@@ -29,13 +29,13 @@ bool IsEqual(std::vector<T> const &v1, std::vector<T> const &v2) {
   if (std::equal(v1.begin(), v1.end(), v2.begin())) {
     res = true;
   }
-  
+
   return res;
 }
 
 template <typename T>
 std::vector<T> CombineIgnoreDuplicates(const std::vector<T> &a,
-                                         const std::vector<T> &b) {
+                                       const std::vector<T> &b) {
   std::unordered_set<T> unique_elements(a.begin(), a.end());
   std::vector<T> result = a;
   for (const auto &elem : b) {
@@ -61,10 +61,9 @@ DriverSync::~DriverSync() {}
 void DriverSync::DriverRead(const std::string &path,
                             std::vector<std::uint8_t> &data_vector) {
 #if defined(AE_DISTILLATION)
-  if(fs_driver_type_ == DriverFsType::kDriverHeader){
+  if (fs_driver_type_ == DriverFsType::kDriverHeader) {
     fs_driver_source_->DriverRead(path, data_vector, true);
-  }
-  else{
+  } else {
     fs_driver_source_->DriverRead(path, data_vector, false);
   }
 #else
@@ -114,17 +113,18 @@ void DriverSync::DriverSyncronize_(const std::string &path) {
   std::vector<std::uint8_t> data_vector_source;
   std::vector<std::uint8_t> data_vector_destination;
 
-  if(fs_driver_type_ == DriverFsType::kDriverHeader){
+  if (fs_driver_type_ == DriverFsType::kDriverHeader) {
     fs_driver_source_->DriverRead(path, data_vector_source, true);
-  }
-  else{
+  } else {
     fs_driver_source_->DriverRead(path, data_vector_source, false);
   }
   fs_driver_destination_->DriverRead(path, data_vector_destination, false);
 
-  if (!IsEqual(data_vector_source, data_vector_destination)) {
-    fs_driver_destination_->DriverDelete(path);
-    fs_driver_destination_->DriverWrite(path, data_vector_source);
+  if (data_vector_destination.size() == 0) {
+    if (!IsEqual(data_vector_source, data_vector_destination)) {
+      fs_driver_destination_->DriverDelete(path);
+      fs_driver_destination_->DriverWrite(path, data_vector_source);
+    }
   }
 }
 

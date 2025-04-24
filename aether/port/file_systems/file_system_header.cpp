@@ -72,17 +72,17 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
   AE_TELED_DEBUG("Object id={} & class id = {} saved!", obj_id.ToString(),
                  class_id);
 
+  // Writing ObjClassData
+  SaveObjData_(state_);
+
   std::string path{};
 
   path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
          std::to_string(class_id);
-         
+
   // For FS syncronization
   driver_sync_fs_->DriverWrite(path, os);
-  
-  // Writing ObjClassData
-  SaveObjData_(state_);
-  
+
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
       obj_id.ToString(), class_id, static_cast<int>(version), os.size());
@@ -93,17 +93,17 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
                                     std::vector<uint8_t>& is) {
   ObjClassData state_;
 
-  // Reading ObjClassData
-  LoadObjData_(state_);
-
   std::string path{};
 
   path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
          std::to_string(class_id);
-         
+
   // For FS syncronization
   driver_sync_fs_->DriverRead(path, is);
-  
+
+  // Reading ObjClassData
+  LoadObjData_(state_);
+
   auto obj_it = state_.find(obj_id);
   if (obj_it == state_.end()) {
     return;
