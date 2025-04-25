@@ -239,7 +239,8 @@ int AetherRegistered() {
    * To configure its creation \see AetherAppConstructor.
    */
   auto aether_app = ae::AetherApp::Construct(ae::AetherAppConstructor{[]() {
-    auto fs = ae::make_unique<ae::FileSystemHeaderFacility>(std::string(""));
+    auto fs = ae::make_unique<ae::FileSystemHeaderFacility>(
+        std::string(""), ae::DriverFsType::kDriverSpifs);
     return fs;
   }});
 

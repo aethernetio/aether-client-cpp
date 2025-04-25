@@ -25,6 +25,7 @@
 
 #include "aether/obj/obj_id.h"
 #include "aether/obj/domain.h"
+#include "aether/port/file_systems/drivers/driver_base.h"
 #include "aether/port/file_systems/drivers/driver_sync.h"
 
 namespace ae {
