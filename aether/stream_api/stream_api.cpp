@@ -46,6 +46,16 @@ void StreamApi::Pack(Stream&& message, ApiPacker& packer) {
   packer.Pack(Stream::kMessageCode, std::move(message));
 }
 
+StreamApiImpl::StreamApiImpl(ProtocolContext& protocol_context)
+    : stream{protocol_context} {}
+
+void StreamApiImpl::Stream(ApiParser& parser, StreamId stream_id,
+                           DataBuffer data) {
+  // TODO: impl without MessageNotify
+  parser.Context().MessageNotify(
+      StreamApi::Stream{{}, stream_id, std::move(data)});
+}
+
 std::uint8_t StreamIdGenerator::GetNextClientStreamId() {
   static StreamId stream_id = 1;
   auto val = stream_id;
