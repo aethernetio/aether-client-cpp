@@ -46,6 +46,9 @@ bool ValidatePath(const std::string& path) {
   std::stringstream ss(path);
   std::string part;
 
+  // Checking the path is atate  
+  if (path == "state") return true;
+  
   // Dividing the path into components
   while (getline(ss, part, '/')) {
     if (part.empty()) return false;  // Forbidding empty components

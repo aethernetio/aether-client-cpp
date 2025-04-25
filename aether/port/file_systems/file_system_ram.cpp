@@ -119,7 +119,7 @@ void FileSystemRamFacility::Remove(const ae::ObjId& obj_id) {
 
 #  if defined AE_DISTILLATION
 void FileSystemRamFacility::CleanUp() {
-  std::string path{"state/"};
+  std::string path{"state"};
 
   driver_sync_fs_->DriverDelete(path);
   AE_TELED_DEBUG("All objects have been removed!");

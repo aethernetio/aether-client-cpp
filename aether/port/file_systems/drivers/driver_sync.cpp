@@ -33,23 +33,21 @@ DriverSync::~DriverSync() {}
 
 void DriverSync::DriverRead(const std::string &path,
                             std::vector<std::uint8_t> &data_vector) {
-  if (!ValidatePath(path)) {
-    AE_TELED_ERROR("Wrong path {}", path);
-    assert(0);
+  if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
+    if (!ValidatePath(path)) {
+      AE_TELED_ERROR("Wrong path {}", path);
+      assert(0);
+    }
   }
-
 #if defined(AE_DISTILLATION)
-  if (fs_driver_type_source_ == DriverFsType::kDriverHeader) {
-    fs_driver_source_->DriverRead(path, data_vector, true);
-  } else {
-    fs_driver_source_->DriverRead(path, data_vector, false);
-  }
+  fs_driver_destination_->DriverRead(path, data_vector, false);
 #else
   DriverSyncronize_(path);
   if (fs_driver_destination_ != nullptr) {
     fs_driver_destination_->DriverRead(path, data_vector, false);
   }
 #endif
+
 }
 
 void DriverSync::DriverWrite(const std::string &path,
@@ -60,7 +58,7 @@ void DriverSync::DriverWrite(const std::string &path,
   }
 
 #if defined(AE_DISTILLATION)
-  fs_driver_source_->DriverWrite(path, data_vector);
+  fs_driver_destination_->DriverWrite(path, data_vector);
 #else
   DriverSyncronize_(path);
   if (fs_driver_destination_ != nullptr) {
@@ -76,7 +74,7 @@ void DriverSync::DriverDelete(const std::string &path) {
   }
 
 #if defined(AE_DISTILLATION)
-  fs_driver_source_->DriverDelete(path);
+  fs_driver_destination_->DriverDelete(path);
 #else
   DriverSyncronize_(path);
   if (fs_driver_destination_ != nullptr) {
@@ -95,8 +93,8 @@ std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
     assert(0);
   }
 
-#if defined(AE_DISTILLATION)
-  dirs_list_source = fs_driver_source_->DriverDir(path);
+#if !defined(AE_DISTILLATION)
+  dirs_list_source = fs_driver_destination_->DriverDir(path);
 #else
   if (fs_driver_source_ != nullptr) {
     dirs_list_source = fs_driver_source_->DriverDir(path);
