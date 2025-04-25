@@ -25,7 +25,9 @@
 namespace ae {
 
 FileSystemStdFacility::FileSystemStdFacility() {
-  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverStd);
+  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverNone,
+                                                 DriverFsType::kDriverStd);
+  std::setlocale(LC_ALL, "");
   AE_TELED_DEBUG("New FileSystemStdFacility instance created!");
 }
 
@@ -62,7 +64,6 @@ std::vector<uint32_t> FileSystemStdFacility::Enumerate(
 void FileSystemStdFacility::Store(const ae::ObjId& obj_id,
                                   std::uint32_t class_id, std::uint8_t version,
                                   const std::vector<uint8_t>& os) {
-
   std::string path{};
 
   path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
@@ -97,7 +98,9 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
   for (auto const& version_dir :
        std::filesystem::directory_iterator(state_dir, ec)) {
     auto obj_dir = version_dir.path() / obj_id.ToString();
-    driver_sync_fs_->DriverDelete(obj_dir.string());
+    std::string obj_path = obj_dir.string();
+    std::replace(obj_path.begin(), obj_path.end(), '\\', '/');
+    driver_sync_fs_->DriverDelete(obj_path);
     AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version {}",
                   obj_id.ToString(), version_dir.path().filename());
   }

@@ -26,12 +26,14 @@
 #include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {
-
-class DriverRam: public DriverBase{
   using Data = std::vector<std::uint8_t>;
   using VersionData = std::map<std::uint8_t, Data>;
   using ClassData = std::map<std::uint32_t, VersionData>;
   using ObjClassData = std::map<ae::ObjId, ClassData>;
+  
+  static ObjClassData state_;
+  
+class DriverRam: public DriverBase{
   
  public:
   DriverRam();
@@ -43,8 +45,7 @@ class DriverRam: public DriverBase{
   void DriverDelete(const std::string &path) override;
   std::vector<std::string> DriverDir(const std::string &path) override;
 
- private:
-  ObjClassData state_;
+ private:  
  
 };
 

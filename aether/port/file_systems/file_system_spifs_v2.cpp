@@ -23,7 +23,8 @@
 namespace ae {
 
 FileSystemSpiFsV2Facility::FileSystemSpiFsV2Facility() {
-  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverSpifs);
+  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverNone,
+                                                 DriverFsType::kDriverSpifs);
   AE_TELED_DEBUG("New FileSystemSpiFsV2Facility instance created!");
 }
 

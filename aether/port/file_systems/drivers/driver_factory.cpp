@@ -44,6 +44,9 @@ std::unique_ptr<DriverBase> DriverFactory::Create(enum DriverFsType fs_driver_ty
       ret = std::make_unique<DriverSpifs>();
 #endif  // (defined(ESP_PLATFORM))
       break;
+    case DriverFsType::kDriverNone:
+      ret = nullptr;
+      break;
     default:
       assert(0);
       break;

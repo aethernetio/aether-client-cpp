@@ -24,9 +24,9 @@
 namespace ae {
 
 FileSystemHeaderFacility::FileSystemHeaderFacility(
-    const std::string& header_file)
+    const std::string& header_file,  enum DriverFsType fs_driver_type_destination)
     : path_{header_file} {
-  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverHeader);
+  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverHeader, fs_driver_type_destination);
   AE_TELED_DEBUG("New FileSystemHeader instance created!");
 }
 

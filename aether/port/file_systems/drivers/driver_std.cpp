@@ -45,8 +45,11 @@ void DriverStd::DriverRead(const std::string &path,
     auto p = obj_dir / std::to_string(path_struct.class_id);
     std::ifstream f(p.c_str(), std::ios::in | std::ios::binary);
     if (!f.good()) {
+      // Replacing backslashes with straight ones
+      std::string obj_path = p.string();
+      std::replace(obj_path.begin(), obj_path.end(), '\\', '/');
       AE_TELE_ERROR(FsLoadObjClassIdNotFound, "Unable to open file {}",
-                    p.string());
+                    obj_path);
       return;
     }
 
@@ -81,7 +84,9 @@ void DriverStd::DriverWrite(const std::string &path,
 }
 
 void DriverStd::DriverDelete(const std::string &path) {
-  std::filesystem::remove_all(path);
+  std::string obj_path = path;
+  std::replace(obj_path.begin(), obj_path.end(), '/', '\\');
+  std::filesystem::remove_all(obj_path);
 }
 
 std::vector<std::string> DriverStd::DriverDir(const std::string &path) {

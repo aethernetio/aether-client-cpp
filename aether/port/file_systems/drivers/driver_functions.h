@@ -17,10 +17,12 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_FUNCTIONS_H_
 #define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_FUNCTIONS_H_
 
+#include <unordered_set>
+
 #include "aether/obj/domain.h"
 
 namespace ae {
-  
+
 struct PathStructure {
   std::uint8_t version;
   ae::ObjId obj_id;
@@ -28,7 +30,7 @@ struct PathStructure {
 };
 
 ae::PathStructure GetPathStructure(const std::string &path);
-bool ValidatePath(const std::string& path);
+bool ValidatePath(const std::string &path);
 template <typename T>
 bool IsEqual(std::vector<T> const &v1, std::vector<T> const &v2) {
   bool res{false};
@@ -54,7 +56,7 @@ std::vector<T> CombineIgnoreDuplicates(const std::vector<T> &a,
   }
   return result;
 }
-                                       
+
 }  // namespace ae
 
 #endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_FUNCTIONS_H_

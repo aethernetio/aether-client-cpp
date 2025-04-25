@@ -18,7 +18,7 @@
 #include "aether/port/file_systems/file_systems_tele.h"
 namespace ae {
 
-ae::PathStructure GetPathStructure(const std::string &path) {
+ae::PathStructure GetPathStructure(const std::string& path) {
   ae::PathStructure path_struct{};
 
   // Path is "state/version/obj_id/class_id"
@@ -43,52 +43,57 @@ ae::PathStructure GetPathStructure(const std::string &path) {
 
 bool ValidatePath(const std::string& path) {
   std::vector<std::string> parts;
-    std::stringstream ss(path);
-    std::string part;
-    
-    // Dividing the path into components
-    while (getline(ss, part, '/')) {
-        if (part.empty()) return false; // Forbidding empty components
-        parts.push_back(part);
-    }
-    
-    // Checking the number of components
-    if (parts.size() != 4) return false;
+  std::stringstream ss(path);
+  std::string part;
 
-    // Checking the state (non-empty string)
+  // Dividing the path into components
+  while (getline(ss, part, '/')) {
+    if (part.empty()) return false;  // Forbidding empty components
+    parts.push_back(part);
+  }
+
+  // Checking the number of components
+  if (parts.size() == 0) return false;
+
+  // Checking the state (non-empty string)
+  if (parts.size() > 0) {
     if (parts[0].empty() || parts[0] != std::string("state")) return false;
+  }
 
-    // Checking version (uint8_t: 0-255)
-    try {
-        size_t pos;
-      unsigned long version = std::stoul(parts[1], &pos);
-        if (pos != parts[1].size() || version > 255) return false;
-    } catch (...) {
-        return false;
-    }
+  // Checking version (uint8_t: 0-255)
+  if (parts.size() > 1) {
+    // try {
+    size_t pos;
+    unsigned long version = std::stoul(parts[1], &pos);
+    if (pos != parts[1].size() || version > 255) return false;
+    //} catch (...) {
+    //  return false;
+    //}
+  }
 
-    // Checking obj_id (uint64_t: 0-18446744073709551615)
-    try {
-        size_t pos;
-      unsigned long long obj_id = std::stoull(
-          parts[2],
-                  &pos);
-        if (pos != parts[2].size() || obj_id > 0xFFFFFFFFFFFFFFFFULL)
-          return false;
-    } catch (...) {
-        return false;
-    }
+  // Checking obj_id (uint64_t: 0-18446744073709551615)
+  if (parts.size() > 2) {
+    // try {
+    size_t pos;
+    unsigned long long obj_id = std::stoull(parts[2], &pos);
+    if (pos != parts[2].size() || obj_id > 0xFFFFFFFFFFFFFFFFULL) return false;
+    //} catch (...) {
+    //  return false;
+    //}
+  }
 
-    // Checking class_id (uint32_t: 0-4294967295)
-    try {
-        size_t pos;
-      unsigned long long class_id = std::stoull(parts[3], &pos);
-        if (pos != parts[3].size() || class_id > 0xFFFFFFFFULL) return false;
-    } catch (...) {
-        return false;
-    }
+  // Checking class_id (uint32_t: 0-4294967295)
+  if (parts.size() > 3) {
+    // try {
+    size_t pos;
+    unsigned long long class_id = std::stoull(parts[3], &pos);
+    if (pos != parts[3].size() || class_id > 0xFFFFFFFFULL) return false;
+    //} catch (...) {
+    //  return false;
+    //}
+  }
 
-    return true;
+  return true;
 }
 
 }  // namespace ae
