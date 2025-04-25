@@ -46,7 +46,7 @@ class MessageStreamDispatcher {
 
  private:
   std::unique_ptr<MessageStream> CreateMessageStream(Uid uid);
-  void OnSendMessage(MessageEventData<ClientSafeApi::SendMessage> const& msg);
+  void OnSendMessage(Uid const& sender, DataBuffer const& data);
 
   ClientToServerStream* server_stream_;
   NewStreamEvent new_stream_event_;
