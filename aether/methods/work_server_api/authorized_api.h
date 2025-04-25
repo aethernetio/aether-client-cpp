@@ -17,60 +17,23 @@
 #ifndef AETHER_METHODS_WORK_SERVER_API_AUTHORIZED_API_H_
 #define AETHER_METHODS_WORK_SERVER_API_AUTHORIZED_API_H_
 
-#include "aether/crc.h"
 #include "aether/uid.h"
-#include "aether/api_protocol/api_protocol.h"
 #include "aether/transport/data_buffer.h"
 #include "aether/stream_api/stream_api.h"
+#include "aether/api_protocol/api_method.h"
 
 namespace ae {
 
-class AuthorizedApi : public ApiClass {
+class AuthorizedApi {
  public:
-  static constexpr auto kClassId =
-      crc32::checksum_from_literal("AuthorizedApi");
+  AuthorizedApi(ProtocolContext& protocol_context,
+                ActionContext action_context);
 
-  // Just ping the server to finalize authorization and stream
-  struct Ping : public Message<Ping> {
-    static constexpr auto kMessageCode = 6;
-
-    AE_REFLECT_MEMBERS(request_id, next_ping_duration)
-
-    RequestId request_id;
-    std::uint64_t next_ping_duration;
-  };
-
-  struct SendMessage : public Message<SendMessage> {
-    static constexpr auto kMessageCode = 10;
-
-    AE_REFLECT_MEMBERS(uid, data)
-
-    Uid uid;
-    DataBuffer data;
-  };
-
-  struct Resolvers : public Message<Resolvers> {
-    static constexpr auto kMessageCode = 12;
-
-    AE_REFLECT_MEMBERS(servers_stream_id, cloud_stream_id)
-
-    StreamId servers_stream_id;
-    StreamId cloud_stream_id;
-  };
-
-  struct CheckAccessForSendMessage : public Message<CheckAccessForSendMessage> {
-    static constexpr auto kMessageCode = 16;
-
-    AE_REFLECT_MEMBERS(request_id, uid)
-
-    RequestId request_id;
-    Uid uid;
-  };
-
-  void Pack(Ping&& message, ApiPacker& api_packer);
-  void Pack(SendMessage&& message, ApiPacker& api_packer);
-  void Pack(Resolvers&& message, ApiPacker& api_packer);
-  void Pack(CheckAccessForSendMessage&& message, ApiPacker& api_packer);
+  Method<06, PromiseView<void>(std::uint64_t next_ping_duration)> ping;
+  Method<10, void(Uid uid, DataBuffer data)> send_message;
+  Method<12, void(StreamId servers_stream_id, StreamId cloud_stream_id)>
+      resolvers;
+  Method<16, PromiseView<void>(Uid uid)> check_access_for_send_message;
 };
 }  // namespace ae
 
