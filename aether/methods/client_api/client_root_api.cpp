@@ -20,8 +20,8 @@ namespace ae {
 ClientRootApi::ClientRootApi(ProtocolContext& protocol_context)
     : ReturnResultApiImpl{protocol_context} {}
 
-void ClientRootApi::SendSafeApiData(ApiParser&, Uid uid, DataBuffer data) {
-  send_safe_api_data_event.Emit(uid, data);
+void ClientRootApi::SendSafeApiData(ApiParser&, DataBuffer data) {
+  send_safe_api_data_event.Emit(std::move(data));
 }
 
 }  // namespace ae

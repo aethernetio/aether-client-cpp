@@ -29,12 +29,11 @@ class ClientRootApi : public ReturnResultApiImpl,
  public:
   explicit ClientRootApi(ProtocolContext& protocol_context);
 
-  void SendSafeApiData(ApiParser& parser, Uid uid, DataBuffer data);
+  void SendSafeApiData(ApiParser& parser, DataBuffer data);
 
-  using ApiMethods = ImplList<RegMethod<06, &ClientRootApi::SendSafeApiData>>;
+  using ApiMethods = ImplList<RegMethod<07, &ClientRootApi::SendSafeApiData>>;
 
-  Event<void(Uid const& uid, DataBuffer const& data_buffer)>
-      send_safe_api_data_event;
+  Event<void(DataBuffer const& data_buffer)> send_safe_api_data_event;
 };
 }  // namespace ae
 #endif  // AETHER_METHODS_CLIENT_API_CLIENT_ROOT_API_H_

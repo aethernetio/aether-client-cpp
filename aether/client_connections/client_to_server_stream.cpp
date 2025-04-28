@@ -113,16 +113,8 @@ ClientToServerStream::ClientToServerStream(
             api_context->login_by_alias(alias, std::move(data));
             return DataBuffer{std::move(api_context)};
           }},
-      EventHandleGate<std::function<DataBuffer const&(Uid const& uid,
-                                                      DataBuffer const& data)>,
-                      DataBuffer>{
-          EventSubscriber{client_root_api_.send_safe_api_data_event},
-          [&, alias{client_ptr->ephemeral_uid()}](
-              auto const& recv_uid, auto const& data) -> DataBuffer const& {
-            AE_TELED_DEBUG("Recv uid {}, expected {}", recv_uid, alias);
-            assert(alias == recv_uid);
-            return data;
-          }},
+      EventSubscribeGate<DataBuffer>{
+          EventSubscriber{client_root_api_.send_safe_api_data_event}},
       ProtocolReadGate{protocol_context_, client_root_api_},
       std::move(server_stream));
 }
