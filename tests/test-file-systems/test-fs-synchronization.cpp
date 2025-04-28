@@ -32,8 +32,12 @@ int test_fs_synchronization()
   int res{0};
   std::unique_ptr<ae::IDomainFacility> fs_header_std{};
   std::unique_ptr<ae::IDomainFacility> fs_header_ram{};
+  std::unique_ptr<ae::IDomainFacility> fs_header_spifs1{};
+  std::unique_ptr<ae::IDomainFacility> fs_header_spifs2{};
   std::unique_ptr<ae::IDomainFacility> fs_std{};
   std::unique_ptr<ae::IDomainFacility> fs_ram{};
+  std::unique_ptr<ae::IDomainFacility> fs_spifs1{};
+  std::unique_ptr<ae::IDomainFacility> fs_spifs2{};
   const std::string& header_file{FS_INIT};  
   auto data_vector_source = std::vector<std::uint8_t>{};
   auto data_vector_destination = std::vector<std::uint8_t>{};
@@ -184,9 +188,98 @@ int test_fs_synchronization()
   #elif
 
   // FS SPIFSV1 tests
+  fs_header_spifs1 = std::make_unique<ae::FileSystemHeaderFacility>(
+      header_file, ae::DriverFsType::kDriverSpifs);
+  fs_spifs1 = std::make_unique<ae::FileSystemSpiFsV1Facility>();
+
+  // Data deletion test for the destination file system
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_destination.clear();
+    fs_spifs1->Remove(test_data_files[i].obj_id);
+    fs_spifs1->Load(test_data_files[i].obj_id, test_data_files[i].class_id,
+                 test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_destination.size() == 0);
+  }
+  res++;
+
+  data_vector_destination.clear();
+  fs_spifs1->Remove(test_data_file.obj_id);
+  fs_spifs1->Load(test_data_file.obj_id, test_data_file.class_id,
+               test_data_file.version, data_vector_destination);
+  TEST_ASSERT(data_vector_destination.size() == 0);
+  res++;
+
+  // Test copying data from the source file system to the destination file
+  // system
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_source.clear();
+    data_vector_destination.clear();
+    fs_header_spifs1->Load(test_data_files[i].obj_id,
+                           test_data_files[i].class_id,
+                        test_data_files[i].version, data_vector_source);
+    fs_spifs1->Load(test_data_files[i].obj_id, test_data_files[i].class_id,
+                 test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_source == data_vector_destination);
+  }
+  res++;
+
+  // Testing write new data
+  data_vector_source.clear();
+  fs_header_spifs1->Store(test_data_file.obj_id, test_data_file.class_id,
+                       test_data_file.version, data_vector_test);
+  fs_header_spifs1->Load(test_data_file.obj_id, test_data_file.class_id,
+                      test_data_file.version, data_vector_source);
+  TEST_ASSERT(data_vector_test == data_vector_source);
+  res++;
 
   // FS SPIFSV2 tests
+  fs_header_spifs2 = std::make_unique<ae::FileSystemHeaderFacility>(
+      header_file, ae::DriverFsType::kDriverSpifs);
+  fs_spifs2 = std::make_unique<ae::FileSystemSpiFsV2Facility>();
 
+  // Data deletion test for the destination file system
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_destination.clear();
+    fs_spifs2->Remove(test_data_files[i].obj_id);
+    fs_spifs2->Load(test_data_files[i].obj_id, test_data_files[i].class_id,
+                    test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_destination.size() == 0);
+  }
+  res++;
+
+  data_vector_destination.clear();
+  fs_spifs2->Remove(test_data_file.obj_id);
+  fs_spifs2->Load(test_data_file.obj_id, test_data_file.class_id,
+                  test_data_file.version, data_vector_destination);
+  TEST_ASSERT(data_vector_destination.size() == 0);
+  res++;
+
+  // Test copying data from the source file system to the destination file
+  // system
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_source.clear();
+    data_vector_destination.clear();
+    fs_header_spifs2->Load(test_data_files[i].obj_id,
+                           test_data_files[i].class_id,
+                           test_data_files[i].version, data_vector_source);
+    fs_spifs2->Load(test_data_files[i].obj_id, test_data_files[i].class_id,
+                    test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_source == data_vector_destination);
+  }
+  res++;
+
+  // Testing write new data
+  data_vector_source.clear();
+  fs_header_spifs2->Store(test_data_file.obj_id, test_data_file.class_id,
+                          test_data_file.version, data_vector_test);
+  fs_header_spifs2->Load(test_data_file.obj_id, test_data_file.class_id,
+                         test_data_file.version, data_vector_source);
+  TEST_ASSERT(data_vector_test == data_vector_source);
+  res++;
   #endif  // (!defined(ESP_PLATFORM))
 
   return res;

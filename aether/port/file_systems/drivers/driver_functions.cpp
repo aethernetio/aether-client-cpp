@@ -41,11 +41,23 @@ ae::PathStructure GetPathStructure(const std::string& path) {
   return path_struct;
 }
 
+inline bool IsInteger(const std::string& s) {
+  if (s.empty() || ((!isdigit(s[0])) && (s[0] != '-') && (s[0] != '+')))
+    return false;
+
+  char* p;
+  std::strtol(s.c_str(), &p, 10);
+
+  return (*p == 0);
+}
+
 bool ValidatePath(const std::string& path) {
   std::vector<std::string> parts;
   std::stringstream ss(path);
   std::string part;
 
+  // Path is "state/version/obj_id/class_id"
+  AE_TELED_DEBUG("ValidatePath Path {}", path);
   // Checking the path is atate  
   if (path == "state") return true;
   
@@ -59,41 +71,32 @@ bool ValidatePath(const std::string& path) {
   if (parts.size() == 0) return false;
 
   // Checking the state (non-empty string)
-  if (parts.size() > 0) {
+  if (parts.size() > 0) {    
     if (parts[0].empty() || parts[0] != std::string("state")) return false;
   }
 
   // Checking version (uint8_t: 0-255)
   if (parts.size() > 1) {
-    // try {
     size_t pos;
+    if (!IsInteger(parts[1])) return false;
     unsigned long version = std::stoul(parts[1], &pos);
     if (pos != parts[1].size() || version > 255) return false;
-    //} catch (...) {
-    //  return false;
-    //}
   }
 
   // Checking obj_id (uint64_t: 0-18446744073709551615)
   if (parts.size() > 2) {
-    // try {
     size_t pos;
+    if (!IsInteger(parts[2])) return false;
     unsigned long long obj_id = std::stoull(parts[2], &pos);
     if (pos != parts[2].size() || obj_id > 0xFFFFFFFFFFFFFFFFULL) return false;
-    //} catch (...) {
-    //  return false;
-    //}
   }
 
   // Checking class_id (uint32_t: 0-4294967295)
   if (parts.size() > 3) {
-    // try {
     size_t pos;
+    if (!IsInteger(parts[3])) return false;
     unsigned long long class_id = std::stoull(parts[3], &pos);
     if (pos != parts[3].size() || class_id > 0xFFFFFFFFULL) return false;
-    //} catch (...) {
-    //  return false;
-    //}
   }
 
   return true;

@@ -36,7 +36,7 @@ void DriverSync::DriverRead(const std::string &path,
   if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
     if (!ValidatePath(path)) {
       AE_TELED_ERROR("Wrong path {}", path);
-      assert(0);
+      assert(false);
     }
   }
 #if defined(AE_DISTILLATION)
@@ -47,14 +47,15 @@ void DriverSync::DriverRead(const std::string &path,
     fs_driver_destination_->DriverRead(path, data_vector, false);
   }
 #endif
-
 }
 
 void DriverSync::DriverWrite(const std::string &path,
                              const std::vector<std::uint8_t> &data_vector) {
-  if (!ValidatePath(path)) {
-    AE_TELED_ERROR("Wrong path {}", path);
-    assert(0);
+  if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
+    if (!ValidatePath(path)) {
+      AE_TELED_ERROR("Wrong path {}", path);
+      assert(false);
+    }
   }
 
 #if defined(AE_DISTILLATION)
@@ -68,9 +69,11 @@ void DriverSync::DriverWrite(const std::string &path,
 }
 
 void DriverSync::DriverDelete(const std::string &path) {
-  if (!ValidatePath(path)) {
-    AE_TELED_ERROR("Wrong path {}", path);
-    assert(0);
+  if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
+    if (!ValidatePath(path)) {
+      AE_TELED_ERROR("Wrong path {}", path);
+      assert(false);
+    }
   }
 
 #if defined(AE_DISTILLATION)
@@ -88,9 +91,11 @@ std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list_destination{};
   std::vector<std::string> dirs_list_result{};
 
-  if (!ValidatePath(path)) {
-    AE_TELED_ERROR("Wrong path {}", path);
-    assert(0);
+  if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
+    if (!ValidatePath(path)) {
+      AE_TELED_ERROR("Wrong path {}", path);
+      assert(false);
+    }
   }
 
 #if !defined(AE_DISTILLATION)
@@ -114,9 +119,11 @@ void DriverSync::DriverSyncronize_(const std::string &path) {
   std::vector<std::uint8_t> data_vector_source;
   std::vector<std::uint8_t> data_vector_destination;
 
-  if (!ValidatePath(path)) {
-    AE_TELED_ERROR("Wrong path {}", path);
-    assert(0);
+  if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
+    if (!ValidatePath(path)) {
+      AE_TELED_ERROR("Wrong path {}", path);
+      assert(false);
+    }
   }
 
   if (fs_driver_type_source_ == DriverFsType::kDriverNone) {
