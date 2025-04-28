@@ -91,19 +91,16 @@ void FileSystemSpiFsV2Facility::Load(const ae::ObjId& obj_id,
 
 void FileSystemSpiFsV2Facility::Remove(const ae::ObjId& obj_id) {
   std::string path{"state"};
-
+  ae::PathStructure path_struct{};
+  
+  // Path is "state/version/obj_id/class_id"
   auto version_dirs = driver_sync_fs_->DriverDir(path);
+  
+  for (auto const& ver_dir : version_dirs) {   
+    path_struct = GetPathStructure(path + "/" + ver_dir);
 
-  for (auto const& ver_dir : version_dirs) {
-    auto obj_dirs = driver_sync_fs_->DriverDir(ver_dir);
-    auto obj_it = std::find_if(
-        std::begin(obj_dirs), std::end(obj_dirs), [&](auto const& path) {
-          return path.find("/" + obj_id.ToString() + "/") != std::string::npos;
-        });
-    if (obj_it != std::end(obj_dirs)) {
-      driver_sync_fs_->DriverDelete(*obj_it);
-      AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version dir {}",
-                    obj_id.ToString(), ver_dir);
+    if (obj_id == path_struct.obj_id) {
+      driver_sync_fs_->DriverDelete(path + "/" + ver_dir);
     }
   }
 }

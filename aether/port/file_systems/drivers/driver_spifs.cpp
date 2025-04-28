@@ -21,7 +21,9 @@
 
 namespace ae {
 DriverSpifs::DriverSpifs() {
-  if (DriverInit_() == ESP_OK) initialized_ = true;
+  if(initialized_ == false){
+    if (DriverInit_() == ESP_OK) initialized_ = true;
+  }
 }
 
 DriverSpifs::~DriverSpifs() {
@@ -50,8 +52,13 @@ void DriverSpifs::DriverRead(const std::string &path,
 
     data_vector.resize(file_size);
 
-    bytes_read = fread(data_vector.data(), file_size, 1, file);
-    AE_TELED_DEBUG("{} bytes read from the file {}.", bytes_read, res_path);
+    bytes_read = fread(data_vector.data(), 1, file_size, file);
+    AE_TELED_DEBUG("Reading from the file {}. Bytes read {}", res_path, bytes_read);
+    /*for(std::uint8_t& i : data_vector)
+    {
+      auto res = static_cast<std::uint32_t>(i);
+      AE_TELED_DEBUG("Data read is {}", res);
+    }*/
 
     fclose(file);
   }
@@ -71,7 +78,12 @@ void DriverSpifs::DriverWrite(
     AE_TELED_ERROR("Failed to open file {} for writing.", res_path);
   } else {
     bytes_write = fwrite(data_vector.data(), 1, data_vector.size(), file);
-    AE_TELED_INFO("{} bytes write to the file {}", bytes_write, res_path);
+    AE_TELED_INFO("Writing to the file {}. Bytes write {}", res_path, bytes_write);
+    /*for(const std::uint8_t& i : data_vector)
+    {
+      auto res = static_cast<std::uint32_t>(i);
+      AE_TELED_DEBUG("Data write is {}", res);
+    }*/
 
     fclose(file);
   }
@@ -86,9 +98,9 @@ void DriverSpifs::DriverDelete(const std::string &path) {
 
   AE_TELED_DEBUG("Opening file {} for delete.", res_path);
   // Check if destination file exists before renaming
-  if (stat(path.c_str(), &status) == 0) {
+  if (stat(res_path.c_str(), &status) == 0) {
     // Delete it if it exists
-    unlink(path.c_str());
+    unlink(res_path.c_str());
     AE_TELED_DEBUG("File {} deleted", res_path);
   }
 }
@@ -139,15 +151,18 @@ esp_err_t DriverSpifs::DriverInit_() {
   // Note: esp_vfs_spiffs_register is an all-in-one convenience function.
   esp_err_t ret = esp_vfs_spiffs_register(&conf);
 
-  if (ret != ESP_OK) {
-    if (ret == ESP_FAIL) {
-      AE_TELED_ERROR("Failed to mount or format filesystem");
-    } else if (ret == ESP_ERR_NOT_FOUND) {
-      AE_TELED_ERROR("Failed to find SPIFFS partition");
-    } else {
-      AE_TELED_ERROR("Failed to initialize SPIFFS ({})", esp_err_to_name(ret));
+  if (ret !=ESP_ERR_INVALID_STATE) // FS alredy is initialized
+  {
+    if (ret != ESP_OK) {
+      if (ret == ESP_FAIL) {
+        AE_TELED_ERROR("Failed to mount or format filesystem");
+      } else if (ret == ESP_ERR_NOT_FOUND) {
+        AE_TELED_ERROR("Failed to find SPIFFS partition");
+      } else {
+        AE_TELED_ERROR("Failed to initialize SPIFFS ({})", esp_err_to_name(ret));
+      }
+      return ret;
     }
-    return ret;
   }
 
   size_t total = 0, used = 0;
