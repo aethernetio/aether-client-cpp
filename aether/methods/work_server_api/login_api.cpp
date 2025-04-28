@@ -16,14 +16,7 @@
 
 #include "aether/methods/work_server_api/login_api.h"
 
-#include <utility>
-
 namespace ae {
-void LoginApi::Pack(LoginByUid&& message, ApiPacker& packer) {
-  packer.Pack(LoginByUid::kMessageCode, std::move(message));
-}
-void LoginApi::Pack(LoginByAlias&& message, ApiPacker& packer) {
-  packer.Pack(LoginByAlias::kMessageCode, std::move(message));
-}
-
+LoginApi::LoginApi(ProtocolContext& protocol_context)
+    : login_by_uid{protocol_context}, login_by_alias{protocol_context} {}
 }  // namespace ae

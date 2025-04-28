@@ -64,6 +64,8 @@ class CheckAccessForSendMessage final
   std::uint8_t repeat_count_;
   TimePoint last_request_time_;
   StateMachine<State> state_;
+  Subscription wait_check_success_;
+  Subscription wait_check_error_;
   Subscription state_changed_;
   Subscription send_error_;
 };

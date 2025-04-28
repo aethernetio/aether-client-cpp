@@ -20,71 +20,25 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_REGISTRATION
-#  include <string>
-#  include <cstdint>
-#  include <vector>
 
-#  include "aether/crc.h"
-#  include "aether/crypto/signed_key.h"
-
-#  include "aether/api_protocol/api_protocol.h"
-#  include "aether/stream_api/stream_api.h"
-#  include "aether/methods/server_descriptor.h"
+#  include "aether/events/events.h"
+#  include "aether/transport/data_buffer.h"
+#  include "aether/api_protocol/api_class_impl.h"
+#  include "aether/api_protocol/return_result_api.h"
 
 namespace ae {
-struct PowParams {
-  AE_REFLECT_MEMBERS(salt, password_suffix, pool_size, max_hash_value,
-                     global_key)
-  std::string salt;
-  std::string password_suffix;
-  std::uint8_t pool_size;
-  std::uint32_t max_hash_value;
-  SignedKey global_key;
-};
 
-class ClientApiRegSafe : public ApiClass,
-                         ExtendsApi<ReturnResultApi, StreamApi> {
+class ClientApiRegSafe final
+    : public ReturnResultApiImpl,
+      public ApiClassImpl<ClientApiRegSafe, ReturnResultApiImpl> {
  public:
-  static constexpr auto kClassId =
-      crc32::checksum_from_literal("ClientApiRegSafe");
+  explicit ClientApiRegSafe(ProtocolContext& protocol_context);
 
-  struct GetKeysResponse {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ClientApiRegSafe::GetKeysResponse");
+  void GlobalApi(ApiParser&, DataBuffer data);
 
-    RequestId req_id;
-    SignedKey signed_key;
-  };
+  using ApiMethods = ImplList<RegMethod<03, &ClientApiRegSafe::GlobalApi>>;
 
-  struct ResponseWorkProofData {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ClientApiRegSafe::ResponseWorkProofData");
-
-    RequestId req_id;
-    PowParams pow_params;
-  };
-
-  struct ResolveServersResponse {
-    static constexpr auto kMessageId = crc32::checksum_from_literal(
-        "ClientApiRegSafe::ResolveServersResponse");
-
-    RequestId req_id;
-    std::vector<ServerDescriptor> servers;
-  };
-
-  struct GlobalApi : public Message<GlobalApi> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ClientApiRegSafe::GlobalApi");
-    static constexpr MessageId kMessageCode = 3;
-
-    AE_REFLECT_MEMBERS(data);
-
-    DataBuffer data;
-  };
-
-  void LoadFactory(MessageId message_id, ApiParser& parser) override;
-
-  void Execute(GlobalApi&& message, ApiParser& parser);
+  Event<void(DataBuffer const& data)> global_api_event;
 };
 }  // namespace ae
 

@@ -106,14 +106,14 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
 
     auto write_action = stream_->in().Write(std::move(packet), current_time);
     message_send_.Push(  //
-        write_action->SubscribeOnResult([this](auto const&) {
+        write_action->ResultEvent().Subscribe([this](auto const&) {
           message_send_confirm_count_++;
           last_send_time_ = HighResTimePoint::clock::now();
           if (state_.get() == State::kWaitbuffer) {
             SelfAction::Trigger();
           }
         }),
-        write_action->SubscribeOnError([this](auto const&) {
+        write_action->ErrorEvent().Subscribe([this](auto const&) {
           AE_TELED_ERROR("Error sending message");
           state_.Set(State::kError);
         }));

@@ -145,14 +145,13 @@ class LwipTcpTransport : public ITransport {
 
   SocketPacketQueueManager<LwipTcpPacketSendAction>
       socket_packet_queue_manager_;
-  std::optional<LwipTcpReadAction> read_action_;
-
-  std::optional<ConnectionAction> connection_action_;
+  ActionOpt<ConnectionAction> connection_action_;
+  ActionOpt<LwipTcpReadAction> read_action_;
   SocketEventAction socket_error_action_;
 
-  MultiSubscription connection_action_subs_;
+  Subscription connection_error_sub_;
   MultiSubscription send_action_subs_;
-  MultiSubscription read_action_subs_;
+  Subscription read_action_error_sub_;
   Subscription socket_poll_subscription_;
   Subscription socket_error_subscription_;
 };

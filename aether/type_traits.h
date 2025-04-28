@@ -21,6 +21,7 @@
 #include <tuple>
 #include <string>
 #include <optional>
+#include <functional>
 #include <type_traits>
 
 namespace ae {
@@ -167,6 +168,8 @@ struct FunctionSignatureImpl;
 
 template <typename TRet, typename... TArgs>
 struct FunctionSignatureImpl<TRet(TArgs...)> {
+  using Args = std::tuple<TArgs...>;
+  using Ret = TRet;
   using Signature = TRet(TArgs...);
   using FuncPtr = TRet (*)(TArgs...);
 };
@@ -183,12 +186,18 @@ template <typename TClass, typename TRes, typename... TArgs>
 auto GetSignatureImpl(TRes (TClass::*)(TArgs...))
     -> FunctionSignatureImpl<TRes(TArgs...)>;
 
+template <typename TCallable>
+auto GetSignatureImpl(TCallable)
+    -> decltype(GetSignatureImpl(&TCallable::operator()));
+
 /**
  * \brief Get a signature of functor object, or function pointer.
  */
 template <typename TFunc, typename FuncSignatureImp =
                               decltype(GetSignatureImpl(std::declval<TFunc>()))>
 struct FunctionSignature {
+  using Args = typename FuncSignatureImp::Args;
+  using Ret = typename FuncSignatureImp::Ret;
   using Signature = typename FuncSignatureImp::Signature;
   using FuncPtr = typename FuncSignatureImp::FuncPtr;
 };
@@ -229,19 +238,6 @@ template <template <typename...> typename T, typename... Ts>
 struct TupleToTemplate<T, std::tuple<Ts...>> {
   using type = T<Ts...>;
 };
-
-/**
- * \brief static cast with save constness
- */
-template <typename T, typename U>
-constexpr T StaticConst(U& u) {
-  return static_cast<T>(u);
-}
-
-template <typename T, typename U>
-constexpr auto& StaticConst(U const& u) {
-  return static_cast<std::add_const_t<std::remove_reference_t<T>>&>(u);
-}
 
 }  // namespace ae
 #endif  // AETHER_TYPE_TRAITS_H_ */

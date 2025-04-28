@@ -19,21 +19,10 @@
 #include <utility>
 
 namespace ae {
-
-void AuthorizedApi::Pack(Ping&& message, ApiPacker& api_packer) {
-  api_packer.Pack(Ping::kMessageCode, std::move(message));
-}
-
-void AuthorizedApi::Pack(SendMessage&& message, ApiPacker& api_packer) {
-  api_packer.Pack(SendMessage::kMessageCode, std::move(message));
-}
-
-void AuthorizedApi::Pack(Resolvers&& message, ApiPacker& api_packer) {
-  api_packer.Pack(Resolvers::kMessageCode, std::move(message));
-}
-
-void AuthorizedApi::Pack(CheckAccessForSendMessage&& message,
-                         ApiPacker& api_packer) {
-  api_packer.Pack(Resolvers::kMessageCode, std::move(message));
-}
+AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context,
+                             ActionContext action_context)
+    : ping{protocol_context, action_context},
+      send_message{protocol_context},
+      resolvers{protocol_context},
+      check_access_for_send_message{protocol_context, action_context} {}
 }  // namespace ae

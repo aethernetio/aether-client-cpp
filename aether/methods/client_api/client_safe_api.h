@@ -17,35 +17,28 @@
 #ifndef AETHER_METHODS_CLIENT_API_CLIENT_SAFE_API_H_
 #define AETHER_METHODS_CLIENT_API_CLIENT_SAFE_API_H_
 
-#include "aether/crc.h"
-#include "aether/transport/data_buffer.h"
 #include "aether/uid.h"
+#include "aether/transport/data_buffer.h"
 
-#include "aether/api_protocol/api_protocol.h"
+#include "aether/events/events.h"
 #include "aether/stream_api/stream_api.h"
+#include "aether/api_protocol/api_class_impl.h"
+#include "aether/api_protocol/return_result_api.h"
 
 namespace ae {
 
-class ClientSafeApi : public ApiClass,
-                      public ExtendsApi<ReturnResultApi, StreamApi> {
+class ClientSafeApi
+    : public ReturnResultApiImpl,
+      public StreamApiImpl,
+      public ApiClassImpl<ClientSafeApi, ReturnResultApiImpl, StreamApiImpl> {
  public:
-  static constexpr auto kClassId =
-      crc32::checksum_from_literal("ClientSafeApi");
+  explicit ClientSafeApi(ProtocolContext& protocol_context);
 
-  struct SendMessage : public Message<SendMessage> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ClientSafeApi::SendMessage");
-    static constexpr auto kMessageCode = 10;
+  void SendMessage(ApiParser& parser, Uid uid, DataBuffer data);
 
-    AE_REFLECT_MEMBERS(uid, data)
+  using ApiMethods = ImplList<RegMethod<10, &ClientSafeApi::SendMessage>>;
 
-    Uid uid;
-    DataBuffer data;
-  };
-
-  void LoadFactory(MessageId message_id, ApiParser& parser) override;
-
-  void Execute(SendMessage&& message, ApiParser& api_parser);
+  Event<void(Uid const& uid, DataBuffer const& data)> send_message_event;
 };
 }  // namespace ae
 

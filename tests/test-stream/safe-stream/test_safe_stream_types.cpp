@@ -160,33 +160,33 @@ void test_SendDataBuffer() {
       SendingData{SafeStreamRingIndex{0},
                   DataBuffer{std::begin(test_data), std::end(test_data)}});
 
-  auto a1_result =
-      a1->SubscribeOnResult([&](auto const&) { a1_res.confirmed = true; });
+  auto a1_result = a1->ResultEvent().Subscribe(
+      [&](auto const&) { a1_res.confirmed = true; });
   auto a1_error =
-      a1->SubscribeOnError([&](auto const&) { a1_res.rejected = true; });
+      a1->ErrorEvent().Subscribe([&](auto const&) { a1_res.rejected = true; });
   auto a1_stop =
-      a1->SubscribeOnStop([&](auto const&) { a1_res.stopped = true; });
+      a1->StopEvent().Subscribe([&](auto const&) { a1_res.stopped = true; });
 
   auto a2 = send_data_buffer.AddData(
       SendingData{SafeStreamRingIndex{test_data.size()},
                   DataBuffer{std::begin(test_data), std::end(test_data)}});
-  auto a2_result =
-      a2->SubscribeOnResult([&](auto const&) { a2_res.confirmed = true; });
+  auto a2_result = a2->ResultEvent().Subscribe(
+      [&](auto const&) { a2_res.confirmed = true; });
   auto a2_error =
-      a2->SubscribeOnError([&](auto const&) { a2_res.rejected = true; });
+      a2->ErrorEvent().Subscribe([&](auto const&) { a2_res.rejected = true; });
   auto a2_stop =
-      a2->SubscribeOnStop([&](auto const&) { a2_res.stopped = true; });
+      a2->StopEvent().Subscribe([&](auto const&) { a2_res.stopped = true; });
 
   auto a3 = send_data_buffer.AddData(
       SendingData{SafeStreamRingIndex{2 * test_data.size()},
                   DataBuffer{std::begin(test_data), std::end(test_data)}});
 
-  auto a3_result =
-      a3->SubscribeOnResult([&](auto const&) { a3_res.confirmed = true; });
+  auto a3_result = a3->ResultEvent().Subscribe(
+      [&](auto const&) { a3_res.confirmed = true; });
   auto a3_error =
-      a3->SubscribeOnError([&](auto const&) { a3_res.rejected = true; });
+      a3->ErrorEvent().Subscribe([&](auto const&) { a3_res.rejected = true; });
   auto a3_stop =
-      a3->SubscribeOnStop([&](auto const&) { a3_res.stopped = true; });
+      a3->StopEvent().Subscribe([&](auto const&) { a3_res.stopped = true; });
 
   TEST_ASSERT_EQUAL(test_data.size() * 3, send_data_buffer.size());
   // get a slice

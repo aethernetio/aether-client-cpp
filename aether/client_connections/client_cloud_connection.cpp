@@ -98,20 +98,18 @@ void ClientCloudConnection::SelectConnection() {
   if (server_connection_->server_stream().in().stream_info().is_linked) {
     OnConnected();
   } else {
-    connection_status_sub_ = server_connection_->server_stream()
-                                 .in()
-                                 .gate_update_event()
-                                 .Subscribe([this]() {
-                                   if (server_connection_->server_stream()
-                                           .in()
-                                           .stream_info()
-                                           .is_linked) {
-                                     OnConnected();
-                                   } else {
-                                     OnConnectionError();
-                                   }
-                                 })
-                                 .Once();
+    connection_status_sub_ =
+        server_connection_->server_stream().in().gate_update_event().Subscribe(
+            [this]() {
+              if (server_connection_->server_stream()
+                      .in()
+                      .stream_info()
+                      .is_linked) {
+                OnConnected();
+              } else {
+                OnConnectionError();
+              }
+            });
   }
 
   // restore all known streams to a new server
@@ -127,29 +125,26 @@ void ClientCloudConnection::SelectConnection() {
 void ClientCloudConnection::OnConnected() {
   AE_TELED_INFO("Client cloud connection is connected");
   // subscribe to disconnection
-  connection_status_sub_ = server_connection_->server_stream()
-                               .in()
-                               .gate_update_event()
-                               .Subscribe([this]() {
-                                 if (!server_connection_->server_stream()
-                                          .in()
-                                          .stream_info()
-                                          .is_linked) {
-                                   OnConnectionError();
-                                 }
-                               })
-                               .Once();
+  connection_status_sub_ =
+      server_connection_->server_stream().in().gate_update_event().Subscribe(
+          [this]() {
+            if (!server_connection_->server_stream()
+                     .in()
+                     .stream_info()
+                     .is_linked) {
+              OnConnectionError();
+            }
+          });
 }
 
 void ClientCloudConnection::OnConnectionError() {
   AE_TELED_ERROR("Connection error");
   reconnect_notify_ = ReconnectNotify{action_context_};
-  reconnect_notify_sub_ = reconnect_notify_
-                              .SubscribeOnResult([this](auto const&) {
-                                AE_TELED_DEBUG("Reconnect");
-                                SelectConnection();
-                              })
-                              .Once();
+  reconnect_notify_sub_ =
+      reconnect_notify_.ResultEvent().Subscribe([this](auto const&) {
+        AE_TELED_DEBUG("Reconnect");
+        SelectConnection();
+      });
   reconnect_notify_.Notify();
 }
 
@@ -157,7 +152,7 @@ void ClientCloudConnection::ServerListEnded() {
   next_server_loop_timer_ =
       NextServerLoopTimer{action_context_, std::chrono::milliseconds{5000}};
   next_server_loop_subs_ =
-      next_server_loop_timer_.SubscribeOnResult([&](auto const&) {
+      next_server_loop_timer_.ResultEvent().Subscribe([&](auto const&) {
         AE_TELED_DEBUG("Connect again");
         Connect();
       });

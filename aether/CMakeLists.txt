@@ -77,6 +77,7 @@ list(APPEND ptr_srcs
         )
 
 list(APPEND events_srcs
+        "events/event_deleter.cpp"
         "events/event_subscription.cpp"
         "events/multi_subscription.cpp"
     )
@@ -145,6 +146,7 @@ list(APPEND api_protocol_srcs
             "api_protocol/protocol_context.cpp"
             "api_protocol/api_protocol.cpp"
             "api_protocol/child_data.cpp"
+            "api_protocol/return_result_api.cpp"
             )
 
 list(APPEND crypto_srcs

@@ -21,14 +21,14 @@
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/debug_gate.h"
 #include "aether/stream_api/inject_gate.h"
-#include "aether/stream_api/protocol_stream.h"
-#include "aether/api_protocol/protocol_context.h"
+#include "aether/stream_api/event_subscribe_gate.h"
+#include "aether/client_connections/client_to_server_stream.h"
 
 namespace ae {
 
 class MessageStream : public ByteStream {
  public:
-  MessageStream(ProtocolContext& protocol_context, Uid destination);
+  MessageStream(ClientToServerStream& client_to_server_stream, Uid destination);
   MessageStream(MessageStream const&) = delete;
   MessageStream(MessageStream&& other) noexcept;
 
@@ -39,7 +39,7 @@ class MessageStream : public ByteStream {
   Uid destination() const;
 
  private:
-  ProtocolContext& protocol_context_;
+  ClientToServerStream* client_to_server_stream_;
   Uid destination_;
   DebugGate debug_gate_;
   InjectGate inject_gate_;

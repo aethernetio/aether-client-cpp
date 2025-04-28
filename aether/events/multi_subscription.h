@@ -22,7 +22,7 @@
 
 #include "aether/common.h"
 
-#include "aether/events/event_subscription.h"
+#include "aether/events/event_deleter.h"
 
 namespace ae {
 /**
@@ -31,7 +31,7 @@ namespace ae {
 class MultiSubscription {
  public:
   MultiSubscription() = default;
-  ~MultiSubscription() = default;
+  ~MultiSubscription();
 
   AE_CLASS_MOVE_ONLY(MultiSubscription)
 
@@ -39,19 +39,19 @@ class MultiSubscription {
    * \brief Push as many as you need subscriptions to the list.
    * All dead subscriptions will be cleaned up before add new.
    */
-  template <typename... TSubscriptions>
-  void Push(TSubscriptions&&... subscriptions) {
+  template <typename... TDeleters>
+  void Push(TDeleters&&... deleters) {
     CleanUp();
-    (PushToVector(std::forward<TSubscriptions>(subscriptions)), ...);
+    (PushToVector(std::forward<TDeleters>(deleters)), ...);
   }
 
   void Reset();
 
  private:
   void CleanUp();
-  void PushToVector(Subscription&& subscription);
+  void PushToVector(EventHandlerDeleter&& deleter);
 
-  std::vector<Subscription> subscriptions_;
+  std::vector<EventHandlerDeleter> deleters_;
 };
 }  // namespace ae
 

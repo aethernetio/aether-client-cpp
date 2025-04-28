@@ -20,37 +20,21 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_REGISTRATION
+#  include "aether/crypto/signed_key.h"
 #  include "aether/crypto/crypto_definitions.h"
 
-#  include "aether/stream_api/stream_api.h"
-#  include "aether/api_protocol/child_data.h"
-#  include "aether/api_protocol/api_protocol.h"
+#  include "aether/transport/data_buffer.h"
+#  include "aether/api_protocol/api_method.h"
 
 namespace ae {
 
-class RootApi : public ApiClass {
+class RootApi {
  public:
-  struct GetAsymmetricPublicKey : public Message<GetAsymmetricPublicKey> {
-    static constexpr MessageId kMessageCode = 3;
+  RootApi(ProtocolContext& protocol_context, ActionContext action_context);
 
-    AE_REFLECT_MEMBERS(request_id, crypto_lib_profile)
-
-    RequestId request_id;
-    CryptoLibProfile crypto_lib_profile;
-  };
-
-  // start a new stream from ClientSafeApi to ServerRegistrationApi with
-  // CryptoStream
-  struct Enter : public Message<Enter> {
-    static constexpr MessageId kMessageCode = 4;
-
-    AE_REFLECT_MEMBERS(crypto_lib_profile, data)
-    CryptoLibProfile crypto_lib_profile;
-    DataBuffer data;
-  };
-
-  void Pack(GetAsymmetricPublicKey message, ApiPacker& packer);
-  void Pack(Enter message, ApiPacker& packer);
+  Method<03, PromiseView<SignedKey>(CryptoLibProfile crypto_lib_profile)>
+      get_asymmetric_public_key;
+  Method<04, void(CryptoLibProfile crypto_lib_profile, DataBuffer data)> enter;
 };
 }  // namespace ae
 #endif

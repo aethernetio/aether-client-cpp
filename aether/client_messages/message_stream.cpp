@@ -21,20 +21,21 @@
 #include "aether/client_messages/client_messages_tele.h"
 
 namespace ae {
-MessageStream::MessageStream(ProtocolContext& protocol_context, Uid destination)
-    : protocol_context_{protocol_context},
+MessageStream::MessageStream(ClientToServerStream& client_to_server_stream,
+                             Uid destination)
+    : client_to_server_stream_{&client_to_server_stream},
       destination_{destination},
       debug_gate_{Format("MessageStream uid {}  \nwrite {{}}", destination_),
                   Format("MessageStream uid {} \nread {{}}", destination_)},
       inject_gate_{},
       send_message_gate_{
-          protocol_context_,
-          [&](ProtocolContext& protocol_context, auto&& data) {
-            return PacketBuilder{
-                protocol_context,
-                PackMessage{AuthorizedApi{},
-                            AuthorizedApi::SendMessage{
-                                {}, destination_, std::move(data)}}};
+          client_to_server_stream_->protocol_context(),
+          [&](ProtocolContext& context, auto&& data) {
+            auto api_context =
+                ApiContext{context, client_to_server_stream_->authorized_api()};
+            api_context->send_message(destination_,
+                                      std::forward<decltype(data)>(data));
+            return DataBuffer{std::move(api_context)};
           }} {
   AE_TELE_INFO(kMessageStream, "MessageStream create to destination: {}",
                destination_);
@@ -42,19 +43,19 @@ MessageStream::MessageStream(ProtocolContext& protocol_context, Uid destination)
 }
 
 MessageStream::MessageStream(MessageStream&& other) noexcept
-    : protocol_context_{other.protocol_context_},
+    : client_to_server_stream_{other.client_to_server_stream_},
       destination_{other.destination_},
       debug_gate_{Format("MessageStream uid {}  \nwrite {{}}", destination_),
                   Format("MessageStream uid {} \nread {{}}", destination_)},
       inject_gate_{},
       send_message_gate_{
-          protocol_context_,
-          [&](ProtocolContext& protocol_context, auto&& data) {
-            return PacketBuilder{
-                protocol_context,
-                PackMessage{AuthorizedApi{},
-                            AuthorizedApi::SendMessage{
-                                {}, destination_, std::move(data)}}};
+          client_to_server_stream_->protocol_context(),
+          [&](ProtocolContext& context, auto&& data) {
+            auto api_context =
+                ApiContext{context, client_to_server_stream_->authorized_api()};
+            api_context->send_message(destination_,
+                                      std::forward<decltype(data)>(data));
+            return DataBuffer{std::move(api_context)};
           }} {
   Tie(debug_gate_, inject_gate_, send_message_gate_);
 }

@@ -144,13 +144,13 @@ class UnixTcpTransport : public ITransport {
   std::mutex socket_lock_;
 
   SocketPacketQueueManager<UnixPacketSendAction> socket_packet_queue_manager_;
-  std::optional<ConnectionAction> connection_action_;
-  std::optional<UnixPacketReadAction> read_action_;
+  ActionOpt<ConnectionAction> connection_action_;
+  ActionOpt<UnixPacketReadAction> read_action_;
   SocketEventAction socket_error_action_;
 
-  MultiSubscription connection_action_subs_;
+  Subscription connection_error_sub_;
   MultiSubscription send_action_subs_;
-  MultiSubscription read_action_subs_;
+  Subscription read_action_error_sub_;
   Subscription socket_poll_subscription_;
   Subscription socket_error_subscription_;
 };

@@ -20,28 +20,29 @@
 #include <mutex>
 
 #include "aether/common.h"
-#include "aether/events/events.h"
 
 namespace ae {
-/**
- * \brief Helper class to make event subscriptions in multithread context.
- * \see EventSubscriber
- */
-template <typename TSignature, typename TMutex>
-class MtEventSubscriber final : EventSubscriber<TSignature> {
- public:
-  explicit MtEventSubscriber(Event<TSignature>& event,
-                             std::unique_lock<TMutex> lock)
-      : EventSubscriber<TSignature>{event}, lock_{std::move(lock)} {}
+template <typename TMutex>
+struct SharedMutexSyncPolicy {
+  explicit SharedMutexSyncPolicy(TMutex& mutex) : mutex_{&mutex} {}
 
-  AE_CLASS_MOVE_ONLY(MtEventSubscriber)
+  template <typename TFunc>
+  decltype(auto) InLock(TFunc&& func) {
+    auto lock = std::lock_guard{*mutex_};
+    return std::forward<TFunc>(func)();
+  }
 
-  using EventSubscriber<TSignature>::Subscribe;
-
- private:
-  std::unique_lock<TMutex> lock_;
+  TMutex* mutex_;
 };
 
+struct MutexSyncPolicy {
+  template <typename TFunc>
+  decltype(auto) InLock(TFunc&& func) {
+    auto lock = std::lock_guard{mutex_};
+    return std::forward<TFunc>(func)();
+  }
+  std::mutex mutex_;
+};
 }  // namespace ae
 
 #endif  // AETHER_EVENTS_EVENTS_MT_H_

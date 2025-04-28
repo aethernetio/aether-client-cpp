@@ -26,6 +26,7 @@ extern int run_test_ptr();
 extern int test_ptr_cycles();
 extern int test_ptr_view();
 extern int test_ptr_inheritance();
+extern int test_storage();
 
 int main() {
   int res = 0;
@@ -35,6 +36,7 @@ int main() {
   res += test_ptr_cycles();
   res += test_ptr_view();
   res += test_ptr_inheritance();
+  res += test_storage();
 
 #if defined AE_RC_PTR_BENCH
   res += test_rc_ptr_bench();

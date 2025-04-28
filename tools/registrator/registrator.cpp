@@ -129,9 +129,9 @@ int AetherRegistrator(const std::string& ini_file,
   auto registrator_action =
       ae::registrator::RegistratorAction{aether_app, registrator_config};
 
-  auto success = registrator_action.SubscribeOnResult(
+  auto success = registrator_action.ResultEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(0); });
-  auto failed = registrator_action.SubscribeOnError(
+  auto failed = registrator_action.ErrorEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(1); });
 
   while (!aether_app->IsExited()) {

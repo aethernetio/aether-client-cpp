@@ -88,11 +88,11 @@ void P2pStream::ConnectSend() {
         client_ptr->client_connection_manager()->GetClientConnection(
             destination_);
     get_client_connection_subscription_ =
-        get_client_connection_action->SubscribeOnResult([this](auto& action) {
-          // FIXME: dangling pointer
-          send_client_connection_ = action.client_cloud_connection();
-          TieSendStream(*send_client_connection_);
-        });
+        get_client_connection_action->ResultEvent().Subscribe(
+            [this](auto& action) {
+              send_client_connection_ = action.client_cloud_connection();
+              TieSendStream(*send_client_connection_);
+            });
     return;
   }
   TieSendStream(*send_client_connection_);
@@ -100,6 +100,7 @@ void P2pStream::ConnectSend() {
 
 void P2pStream::TieSendStream(ClientConnection& client_connection) {
   send_stream_ = client_connection.CreateStream(destination_, stream_id_);
+  AE_TELED_DEBUG("Send tied");
   Tie(send_receive_gate_.get_write_gate(), *send_stream_);
 }
 }  // namespace ae

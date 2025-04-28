@@ -77,9 +77,9 @@ void IpAddressChannelConnectionAction::TryConnect(
       adapter_.CreateTransport(ip_address_port_protocol_);
 
   subscriptions_.Push(
-      transport_create_action->SubscribeOnResult(
+      transport_create_action->ResultEvent().Subscribe(
           [this](auto& action) { TransportCreated(action.transport()); }),
-      transport_create_action->SubscribeOnError([this](auto const&) {
+      transport_create_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Transport create failed");
         state_.Set(State::Failed);
       }));
@@ -105,17 +105,14 @@ void IpAddressChannelConnectionAction::TransportCreated(
       break;
   }
 
-  subscriptions_.Push(transport_->ConnectionSuccess()
-                          .Subscribe([this]() mutable {
-                            connection_info_ = transport_->GetConnectionInfo();
-                            connection_info_.destination =
-                                ip_address_port_protocol_;
+  subscriptions_.Push(
+      transport_->ConnectionSuccess().Subscribe([this]() mutable {
+        connection_info_ = transport_->GetConnectionInfo();
+        connection_info_.destination = ip_address_port_protocol_;
 
-                            state_.Set(State::Connected);
-                          })
-                          .Once(),
-                      transport_->ConnectionError()
-                          .Subscribe([this]() { state_.Set(State::Failed); })
-                          .Once());
+        state_.Set(State::Connected);
+      }),
+      transport_->ConnectionError().Subscribe(
+          [this]() { state_.Set(State::Failed); }));
 }
 }  // namespace ae

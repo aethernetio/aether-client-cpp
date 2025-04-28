@@ -105,7 +105,8 @@ class FreertosPoller::PollWorker {
  public:
   PollWorker()
       : wake_up_pipe_{freertos_poller_internal::MakePipe()},
-        stop_requested_{false} {
+        stop_requested_{false},
+        poll_event_{SharedMutexSyncPolicy{ctl_mutex_}} {
     assert(wake_up_pipe_[0] != -1);
     assert(wake_up_pipe_[1] != -1);
 
@@ -126,11 +127,11 @@ class FreertosPoller::PollWorker {
   }
 
   [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) {
-    auto lock = std::unique_lock(ctl_mutex_);
+    auto lock = std::lock_guard(ctl_mutex_);
     AE_TELE_DEBUG(PollerAddDescriptor, "Added descriptor {}", descriptor);
     freertos_poller_internal::WritePipe(wake_up_pipe_);
     descriptors_.insert(descriptor);
-    return OnPollEventSubscriber{poll_event_, std::move(lock)};
+    return OnPollEventSubscriber{poll_event_};
   }
 
   void Remove(DescriptorType descriptor) {
@@ -215,9 +216,9 @@ class FreertosPoller::PollWorker {
   std::array<int, 2> wake_up_pipe_;
   std::atomic_bool stop_requested_;
   std::vector<pollfd> fds_vector_;
-  OnPollEvent poll_event_;
   std::set<int> descriptors_;
   std::recursive_mutex ctl_mutex_;
+  OnPollEvent poll_event_;
 };
 
 void vTaskFunction(void *pvParameters) {

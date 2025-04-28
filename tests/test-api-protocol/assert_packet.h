@@ -54,7 +54,7 @@ void AssertPacketEntry(imstream_t& is, Skip<T> const&) {
 
 template <typename... Args>
 void AssertPacket(std::vector<std::uint8_t> const& data, Args const&... args) {
-  auto* old_file = Unity.TestFile;
+  auto const* old_file = Unity.TestFile;
   UnitySetTestFile(__FILE__);
   ae::VectorReader<ae::PackedSize> ib{data};
   imstream_t is{ib};

@@ -70,6 +70,62 @@ class ActionStore {
   MultiSubscription subscriptions_;
 };
 
+/**
+ * \brief Optional action action storage, replace for std::optional<Action>
+ */
+template <typename TAction>
+class ActionOpt final : public std::optional<TAction> {
+ public:
+  ActionOpt() noexcept = default;
+  ActionOpt(TAction&& action) noexcept
+      : std::optional<TAction>{std::move(action)},
+        reset_sub_{(*this)->FinishedEvent().Subscribe(
+            *this, MethodPtr<&ActionOpt::Reset>{})} {}
+
+  ActionOpt(ActionOpt const& opt) noexcept = delete;
+  ActionOpt(ActionOpt&& opt) noexcept : std::optional<TAction>{std::move(opt)} {
+    if (std::optional<TAction>::has_value()) {
+      reset_sub_ = (*this)->FinishedEvent().Subscribe(
+          *this, MethodPtr<&ActionOpt::Reset>{});
+    }
+  }
+
+  ActionOpt& operator=(TAction&& action) noexcept {
+    Reset();
+    std::optional<TAction>::operator=(std::move(action));
+    reset_sub_ = (*this)->FinishedEvent().Subscribe(
+        *this, MethodPtr<&ActionOpt::Reset>{});
+    return *this;
+  }
+
+  ActionOpt& operator=(ActionOpt&& opt) noexcept {
+    if (this != &opt) {
+      Reset();
+      std::optional<TAction>::operator=(
+          std::move(static_cast<std::optional<TAction>&>(opt)));
+      if (std::optional<TAction>::has_value()) {
+        reset_sub_ = (*this)->FinishedEvent().Subscribe(
+            *this, MethodPtr<&ActionOpt::Reset>{});
+      }
+    }
+    return *this;
+  }
+
+  template <typename... TArgs>
+  auto& emplace(TArgs&&... args) {
+    Reset();
+    auto& ref = std::optional<TAction>::emplace(std::forward<TArgs>(args)...);
+    reset_sub_ =
+        ref.FinishedEvent().Subscribe(*this, MethodPtr<&ActionOpt::Reset>{});
+    return ref;
+  }
+
+  void Reset() { std::optional<TAction>::reset(); }
+
+ private:
+  Subscription reset_sub_;
+};
+
 }  // namespace ae
 
 #endif  // AETHER_ACTIONS_ACTION_LIST_H_

@@ -17,22 +17,11 @@
 #include "aether/methods/client_reg_api/client_reg_root_api.h"
 
 namespace ae {
-#if AE_SUPPORT_REGISTRATION
-void ClientRegRootApi::LoadFactory(MessageId message_id, ApiParser& parser) {
-  switch (message_id) {
-    case Enter::kMessageCode:
-      parser.Load<Enter>(*this);
-      break;
-    default:
-      if (!ExtendsApi::LoadExtend(message_id, parser)) {
-        assert(false);
-      }
-      break;
-  }
-}
+ClientRegRootApi::ClientRegRootApi(ProtocolContext& protocol_context)
+    : ReturnResultApiImpl{protocol_context} {}
 
-void ClientRegRootApi::Execute(Enter&& message, ApiParser& parser) {
-  parser.Context().MessageNotify(std::move(message));
+void ClientRegRootApi::Enter(ApiParser&, DataBuffer data) {
+  enter_event.Emit(data);
 }
 #endif  // AE_SUPPORT_REGISTRATION
 }  // namespace ae

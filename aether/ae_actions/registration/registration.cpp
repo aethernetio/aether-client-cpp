@@ -27,18 +27,15 @@
 #  include "aether/crypto/key_gen.h"
 #  include "aether/crypto/crypto_definitions.h"
 
-#  include "aether/stream_api/stream_api.h"
+#  include "aether/stream_api/tied_stream.h"
 #  include "aether/stream_api/crypto_stream.h"
 #  include "aether/stream_api/protocol_stream.h"
-#  include "aether/stream_api/tied_stream.h"
+#  include "aether/stream_api/event_subscribe_gate.h"
 
-#  include "aether/crypto/async_crypto_provider.h"
 #  include "aether/crypto/sync_crypto_provider.h"
+#  include "aether/crypto/async_crypto_provider.h"
 
-#  include "aether/methods/server_reg_api/root_api.h"
-#  include "aether/methods/server_reg_api/global_reg_server_api.h"
-#  include "aether/methods/client_reg_api/client_global_reg_api.h"
-#  include "aether/methods/server_reg_api/server_registration_api.h"
+#  include "aether/api_protocol/api_context.h"
 
 #  include "aether/proof_of_work.h"
 #  include "aether/server_list/no_filter_server_list_policy.h"
@@ -54,6 +51,12 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
       aether_{std::move(aether)},
       client_{std::move(client)},
       parent_uid_{std::move(parent_uid)},
+      client_root_api_{protocol_context_},
+      client_safe_api_{protocol_context_},
+      client_global_reg_api_{protocol_context_},
+      server_reg_root_api_{protocol_context_, action_context},
+      server_reg_api_{protocol_context_, action_context},
+      global_reg_server_api_{protocol_context_, action_context},
       state_{State::kSelectConnection},
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
@@ -87,17 +90,6 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
   // trigger action on state change
   state_change_subscription_ =
       state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
-
-  subscriptions_.Push(
-      protocol_context_.MessageEvent<ClientApiRegSafe::GetKeysResponse>()
-          .Subscribe(*this, MethodPtr<&Registration::OnGetKeysResponse>{}),
-      protocol_context_.MessageEvent<ClientApiRegSafe::ResponseWorkProofData>()
-          .Subscribe(*this, MethodPtr<&Registration::OnResponsePowParams>{}),
-      protocol_context_.MessageEvent<ClientGlobalRegApi::ConfirmRegistration>()
-          .Subscribe(*this, MethodPtr<&Registration::OnConfirmRegistration>{}),
-      protocol_context_.MessageEvent<ClientApiRegSafe::ResolveServersResponse>()
-          .Subscribe(*this,
-                     MethodPtr<&Registration::OnResolveCloudResponse>{}));
 }
 
 Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
@@ -164,18 +156,15 @@ void Registration::IterateConnection() {
   }
 
   connection_subscription_ =
-      server_channel_stream_->in()
-          .gate_update_event()
-          .Subscribe([this]() {
-            if (server_channel_stream_->in().stream_info().is_linked) {
-              state_ = State::kConnected;
-            } else {
-              AE_TELE_WARNING(RegisterConnectionErrorTryNext,
-                              "Connection error, try next");
-              state_ = State::kSelectConnection;
-            }
-          })
-          .Once();
+      server_channel_stream_->in().gate_update_event().Subscribe([this]() {
+        if (server_channel_stream_->in().stream_info().is_linked) {
+          state_ = State::kConnected;
+        } else {
+          AE_TELE_WARNING(RegisterConnectionErrorTryNext,
+                          "Connection error, try next");
+          state_ = State::kSelectConnection;
+        }
+      });
 
   state_ = State::kWaitingConnection;
 }
@@ -191,29 +180,46 @@ void Registration::Connected(TimePoint current_time) {
   // create simplest stream to server
   // On RequestPowParams will be created a more complicated one
   reg_server_stream_ = make_unique<TiedStream>(
-      ProtocolReadGate{protocol_context_, root_api_}, *server_channel_stream_);
+      ProtocolReadGate{protocol_context_, client_root_api_},
+      *server_channel_stream_);
 
   state_ = State::kGetKeys;
 }
 
 void Registration::GetKeys(TimePoint current_time) {
   AE_TELE_INFO(RegisterGetKeys, "GetKeys {:%Y-%m-%d %H:%M:%S}", current_time);
-  state_ = State::kWaitKeys;
 
-  packet_write_action_ = reg_server_stream_->in().Write(
-      PacketBuilder{
-          protocol_context_,
-          PackMessage{
-              RootApi{},
-              RootApi::GetAsymmetricPublicKey{
-                  {}, RequestId::GenRequestId(), kDefaultCryptoLibProfile}}},
-      current_time);
+  auto packet_context = ApiContext{protocol_context_, server_reg_root_api_};
+  auto get_key_promise =
+      packet_context->get_asymmetric_public_key(kDefaultCryptoLibProfile);
+
+  subscriptions_.Push(
+      get_key_promise->ResultEvent().Subscribe([&](auto& promise) {
+        auto& signed_key = promise.value();
+        auto r = CryptoSignVerify(signed_key.sign, signed_key.key, sign_pk_);
+        if (!r) {
+          AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
+                        "Sign verification failed");
+          state_ = State::kRegistrationFailed;
+          return;
+        }
+
+        server_pub_key_ = std::move(signed_key.key);
+        state_ = State::kGetPowParams;
+      }),
+      get_key_promise->ErrorEvent().Subscribe(
+          [&](auto const&) { state_ = State::kRegistrationFailed; }));
+
+  packet_write_action_ =
+      reg_server_stream_->in().Write(std::move(packet_context), current_time);
 
   // on error try repeat
   raw_transport_send_action_subscription_ =
-      packet_write_action_->SubscribeOnError(
+      packet_write_action_->ErrorEvent().Subscribe(
           [this](auto const&) { state_ = State::kSelectConnection; });
   last_request_time_ = current_time;
+
+  state_ = State::kWaitKeys;
 }
 
 TimePoint Registration::WaitKeys(TimePoint current_time) {
@@ -224,25 +230,6 @@ TimePoint Registration::WaitKeys(TimePoint current_time) {
     return current_time;
   }
   return last_request_time_ + response_timeout_;
-}
-
-void Registration::OnGetKeysResponse(
-    MessageEventData<ClientApiRegSafe::GetKeysResponse> const& msg) {
-  AE_TELE_INFO(RegisterGetKeysResponse);
-  auto const& message = msg.message();
-
-  auto r = CryptoSignVerify(message.signed_key.sign, message.signed_key.key,
-                            sign_pk_);
-  if (!r) {
-    AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
-                  "Sign verification failed");
-    state_ = State::kRegistrationFailed;
-    return;
-  }
-
-  server_pub_key_ = std::move(message.signed_key.key);
-
-  state_ = State::kGetPowParams;
 }
 
 void Registration::RequestPowParams(TimePoint current_time) {
@@ -264,53 +251,42 @@ void Registration::RequestPowParams(TimePoint current_time) {
       CreateRegServerStream(std::move(server_async_key_provider),
                             std::move(server_sync_key_provider));
 
-  packet_write_action_ = reg_server_stream_->in().Write(
-      PacketBuilder{
-          protocol_context_,
-          PackMessage{
-              ServerRegistrationApi{},
-              ServerRegistrationApi::RequestProofOfWorkData{
-                  {},
-                  RequestId::GenRequestId(),
-                  parent_uid_,
-                  PowMethod::kBCryptCrc32,
-                  std::move(secret_key),
-              },
-          },
-      },
-      current_time);
+  auto api_context = ApiContext{protocol_context_, server_reg_api_};
+  auto pow_params_promise = api_context->request_proof_of_work_data(
+      parent_uid_, PowMethod::kBCryptCrc32, std::move(secret_key));
+
+  subscriptions_.Push(
+      pow_params_promise->ResultEvent().Subscribe([&](auto& promise) {
+        auto& pow_params = promise.value();
+        [[maybe_unused]] auto res = CryptoSignVerify(
+            pow_params.global_key.sign, pow_params.global_key.key, sign_pk_);
+        if (!res) {
+          AE_TELE_ERROR(RegisterPowParamsVerificationFailed,
+                        "Proof of work params sign verification failed");
+          state_ = State::kRegistrationFailed;
+          return;
+        }
+
+        aether_global_key_ = pow_params.global_key.key;
+
+        pow_params_.salt = pow_params.salt;
+        pow_params_.max_hash_value = pow_params.max_hash_value;
+        pow_params_.password_suffix = pow_params.password_suffix;
+        pow_params_.pool_size = pow_params.pool_size;
+
+        state_ = State::kMakeRegistration;
+      }),
+      pow_params_promise->ErrorEvent().Subscribe(
+          [&](auto const&) { state_ = State::kRegistrationFailed; }));
+
+  packet_write_action_ =
+      reg_server_stream_->in().Write(std::move(api_context), current_time);
 
   reg_server_write_subscription_ =
-      packet_write_action_
-          ->SubscribeOnError([this](auto const&) {
-            AE_TELED_ERROR("RequestPowParams stream write failed");
-            state_ = State::kRegistrationFailed;
-          })
-          .Once();
-}
-
-void Registration::OnResponsePowParams(
-    MessageEventData<ClientApiRegSafe::ResponseWorkProofData> const& msg) {
-  AE_TELE_INFO(RegisterPowParamsResponse, "Proof of work params response");
-  auto const& message = msg.message();
-  [[maybe_unused]] auto res =
-      CryptoSignVerify(message.pow_params.global_key.sign,
-                       message.pow_params.global_key.key, sign_pk_);
-  if (!res) {
-    AE_TELE_ERROR(RegisterPowParamsVerificationFailed,
-                  "Proof of work params sign verification failed");
-    state_ = State::kRegistrationFailed;
-    return;
-  }
-
-  aether_global_key_ = message.pow_params.global_key.key;
-
-  pow_params_.salt = message.pow_params.salt;
-  pow_params_.max_hash_value = message.pow_params.max_hash_value;
-  pow_params_.password_suffix = message.pow_params.password_suffix;
-  pow_params_.pool_size = message.pow_params.pool_size;
-
-  state_ = State::kMakeRegistration;
+      packet_write_action_->ErrorEvent().Subscribe([this](auto const&) {
+        AE_TELED_ERROR("RequestPowParams stream write failed");
+        state_ = State::kRegistrationFailed;
+      });
 }
 
 void Registration::MakeRegistration(TimePoint current_time) {
@@ -338,81 +314,75 @@ void Registration::MakeRegistration(TimePoint current_time) {
   global_sync_key_provider->set_key(master_key_);
 
   global_reg_server_stream_ = CreateGlobalRegServerStream(
-      ServerRegistrationApi::Registration{{},
-                                          pow_params_.salt,
-                                          pow_params_.password_suffix,
-                                          std::move(proofs),
-                                          parent_uid_,
-                                          server_sync_key_provider_->GetKey(),
-                                          {}},
-      std::move(global_async_key_provider),
-      std::move(global_sync_key_provider));
+      std::move(global_async_key_provider), std::move(global_sync_key_provider),
+      ProtocolWriteMessageGate<DataBuffer>{
+          protocol_context_,
+          [&, pow_params{pow_params_}, proofs{std::move(proofs)}](
+              ProtocolContext& context, DataBuffer&& data) -> DataBuffer {
+            auto api_context = ApiContext{context, server_reg_api_};
+            api_context->registration(
+                pow_params.salt, pow_params.password_suffix, proofs,
+                parent_uid_, server_sync_key_provider_->GetKey(),
+                std::move(data));
+            return api_context;
+          }});
 
   Tie(*global_reg_server_stream_, *reg_server_stream_);
 
+  auto api_context = ApiContext{protocol_context_, global_reg_server_api_};
+  api_context->set_master_key(master_key_);
+  auto confirm_promise = api_context->finish();
+
+  subscriptions_.Push(
+      confirm_promise->ResultEvent().Subscribe([&](auto& promise) {
+        auto& reg_response = promise.value();
+        AE_TELE_INFO(RegisterRegistrationConfirmed, "Registration confirmed");
+
+        ephemeral_uid_ = reg_response.ephemeral_uid;
+        uid_ = reg_response.uid;
+        cloud_ = reg_response.cloud;
+        assert(cloud_.size() > 0);
+
+        state_ = State::kRequestCloudResolving;
+      }),
+      confirm_promise->ErrorEvent().Subscribe(
+          [&](auto const&) { state_ = State::kRegistrationFailed; }));
+
   packet_write_action_ = global_reg_server_stream_->in().Write(
-      PacketBuilder{
-          protocol_context_,
-          PackMessage{
-              GlobalRegServerApi{},
-              GlobalRegServerApi::SetMasterKey{{}, master_key_},
-              GlobalRegServerApi::Finish{{}, RequestId::GenRequestId()},
-          },
-      },
-      current_time);
+      std::move(api_context), current_time);
 
   reg_server_write_subscription_ =
-      packet_write_action_
-          ->SubscribeOnError([this](auto const&) {
-            AE_TELED_ERROR("MakeRegistration stream write failed");
-            state_ = State::kRegistrationFailed;
-          })
-          .Once();
-}
-
-void Registration::OnConfirmRegistration(
-    MessageEventData<ClientGlobalRegApi::ConfirmRegistration> const& msg) {
-  auto const& message = msg.message();
-  AE_TELE_INFO(RegisterRegistrationConfirmed, "Registration confirmed");
-
-  ephemeral_uid_ = message.registration_response.ephemeral_uid;
-  uid_ = message.registration_response.uid;
-  cloud_ = message.registration_response.cloud;
-  assert(cloud_.size() > 0);
-
-  state_ = State::kRequestCloudResolving;
+      packet_write_action_->ErrorEvent().Subscribe([this](auto const&) {
+        AE_TELED_ERROR("MakeRegistration stream write failed");
+        state_ = State::kRegistrationFailed;
+      });
 }
 
 void Registration::ResolveCloud(TimePoint current_time) {
   AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud with {} servers",
                cloud_.size());
 
-  packet_write_action_ = reg_server_stream_->in().Write(
-      PacketBuilder{
-          protocol_context_,
-          PackMessage{
-              ServerRegistrationApi{},
-              ServerRegistrationApi::ResolveServers{
-                  {},
-                  RequestId::GenRequestId(),
-                  cloud_,
-              },
-          },
-      },
-      current_time);
+  auto api_context = ApiContext{protocol_context_, server_reg_api_};
+  auto resolve_cloud_promise = api_context->resolve_servers(cloud_);
+
+  subscriptions_.Push(
+      resolve_cloud_promise->ResultEvent().Subscribe(
+          [&](auto& promise) { OnCloudResolved(promise.value()); }),
+      resolve_cloud_promise->ErrorEvent().Subscribe(
+          [&](auto const&) { state_ = State::kRegistrationFailed; }));
+
+  packet_write_action_ =
+      reg_server_stream_->in().Write(std::move(api_context), current_time);
 
   reg_server_write_subscription_ =
-      packet_write_action_
-          ->SubscribeOnError([this](auto const&) {
-            AE_TELED_ERROR("ResolveCloud stream write failed");
-            state_ = State::kRegistrationFailed;
-          })
-          .Once();
+      packet_write_action_->ErrorEvent().Subscribe([this](auto const&) {
+        AE_TELED_ERROR("ResolveCloud stream write failed");
+        state_ = State::kRegistrationFailed;
+      });
 }
 
-void Registration::OnResolveCloudResponse(
-    MessageEventData<ClientApiRegSafe::ResolveServersResponse> const& msg) {
-  auto const& message = msg.message();
+void Registration::OnCloudResolved(
+    std::vector<ServerDescriptor> const& servers) {
   AE_TELE_INFO(RegisterResolveCloudResponse);
 
   auto aether = aether_.Lock();
@@ -423,7 +393,7 @@ void Registration::OnResolveCloudResponse(
   Cloud::ptr new_cloud = aether->domain_->LoadCopy(aether->cloud_prefab);
   assert(new_cloud);
 
-  for (const auto& description : message.servers) {
+  for (const auto& description : servers) {
     auto server_id = description.server_id;
     auto cached_server = aether->GetServer(server_id);
     if (cached_server) {
@@ -471,64 +441,40 @@ std::unique_ptr<ByteStream> Registration::CreateRegServerStream(
   }
 
   auto tied_stream = make_unique<TiedStream>(
-      ProtocolReadGate{protocol_context_, ClientApiRegSafe{}},
+      ProtocolReadGate{protocol_context_, client_safe_api_},
       DebugGate{"RegServer write {}", "RegServer read {}"},
       CryptoGate{
           make_unique<AsyncEncryptProvider>(std::move(async_key_provider)),
           make_unique<SyncDecryptProvider>(std::move(sync_key_provider))},
       ProtocolWriteMessageGate<DataBuffer>{
           protocol_context_,
-          [](ProtocolContext& context, DataBuffer&& data) -> DataBuffer {
-            return PacketBuilder{
-                context, PackMessage{RootApi{}, RootApi::Enter{
-                                                    {},
-                                                    kDefaultCryptoLibProfile,
-                                                    std::move(data),
-                                                }}};
+          [&](ProtocolContext& context, DataBuffer&& data) -> DataBuffer {
+            auto api_context = ApiContext{context, server_reg_root_api_};
+            api_context->enter(kDefaultCryptoLibProfile, std::move(data));
+            return DataBuffer{std::move(api_context)};
           }},
-      ProtocolReadMessageGate<ClientRegRootApi::Enter>{
-          protocol_context_,
-          [](auto const& message) -> std::optional<DataBuffer> {
-            return message.data;
-          }},
-      ProtocolReadGate{protocol_context_, root_api_}, server_channel_stream_);
+      EventSubscribeGate<DataBuffer>{
+          EventSubscriber{client_root_api_.enter_event}},
+      ProtocolReadGate{protocol_context_, client_root_api_},
+      server_channel_stream_);
 
   return tied_stream;
 }
 
 std::unique_ptr<ByteStream> Registration::CreateGlobalRegServerStream(
-    ServerRegistrationApi::Registration message,
     std::unique_ptr<IAsyncKeyProvider> global_async_key_provider,
-    std::unique_ptr<ISyncKeyProvider> global_sync_key_provider) {
+    std::unique_ptr<ISyncKeyProvider> global_sync_key_provider,
+    ProtocolWriteMessageGate<DataBuffer> enter_global_api_gate) {
   auto tied_stream = make_unique<TiedStream>(
-      ProtocolReadGate{protocol_context_, ClientGlobalRegApi{}},
+      ProtocolReadGate{protocol_context_, client_global_reg_api_},
       DebugGate{"GlobalRegServer write {}", "GlobalRegServer read {}"},
       CryptoGate{make_unique<AsyncEncryptProvider>(
                      std::move(global_async_key_provider)),
                  make_unique<SyncDecryptProvider>(
                      std::move(global_sync_key_provider))},
-      ProtocolWriteMessageGate<DataBuffer>{
-          protocol_context_,
-          [message{std::move(message)}](ProtocolContext& context,
-                                        DataBuffer&& data) -> DataBuffer {
-            return PacketBuilder{
-                context,
-                PackMessage{
-                    ServerRegistrationApi{},
-                    ServerRegistrationApi::Registration{{},
-                                                        message.salt,
-                                                        message.password_suffix,
-                                                        message.passwords,
-                                                        message.parent_uid_,
-                                                        message.return_key,
-                                                        std::move(data)},
-                }};
-          }},
-      ProtocolReadMessageGate<ClientApiRegSafe::GlobalApi>{
-          protocol_context_,
-          [](auto const& message) -> std::optional<DataBuffer> {
-            return message.data;
-          }});
+      EventSubscribeGate<DataBuffer>{
+          EventSubscriber{client_safe_api_.global_api_event}},
+      std::move(enter_global_api_gate));
 
   return tied_stream;
 }

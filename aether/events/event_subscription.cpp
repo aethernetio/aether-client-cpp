@@ -16,34 +16,44 @@
 
 #include "aether/events/event_subscription.h"
 
+#include <utility>
 #include <cassert>
 
 namespace ae {
 Subscription::Subscription() = default;
 
-Subscription::Subscription(RcPtr<SubscriptionManage> subscription)
-    : subscription_{std::move(subscription)} {}
+Subscription::Subscription(EventHandlerDeleter&& event_handler_deleter)
+    : event_handler_deleter_{std::move(event_handler_deleter)} {}
+
+Subscription& Subscription::operator=(
+    EventHandlerDeleter&& event_handler_deleter) noexcept {
+  Reset();
+  event_handler_deleter_ = std::move(event_handler_deleter);
+  return *this;
+}
 
 Subscription::Subscription(Subscription&& other) noexcept
-    : subscription_(std::move(other.subscription_)) {}
+    : event_handler_deleter_{std::move(other.event_handler_deleter_)} {
+  other.event_handler_deleter_.reset();
+}
 
 Subscription& Subscription::operator=(Subscription&& other) noexcept {
   Reset();
-  subscription_ = std::move(other.subscription_);
+  event_handler_deleter_ = std::move(other.event_handler_deleter_);
+  other.event_handler_deleter_.reset();
   return *this;
 }
 
 Subscription::~Subscription() { Reset(); }
 
-Subscription::operator bool() const {
-  return subscription_ && subscription_->alive;
+void Subscription::Reset() {
+  if (event_handler_deleter_) {
+    event_handler_deleter_->Delete();
+    event_handler_deleter_.reset();
+  }
 }
 
-void Subscription::Reset() { subscription_.Reset(); }
-
-Subscription Subscription::Once() && {
-  assert(subscription_);
-  subscription_->once = true;
-  return std::move(*this);
+Subscription::operator bool() const {
+  return event_handler_deleter_ && event_handler_deleter_->alive();
 }
 }  // namespace ae

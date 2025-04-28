@@ -22,21 +22,11 @@
 #include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
+ClientSafeApi::ClientSafeApi(ProtocolContext& protocol_context)
+    : ReturnResultApiImpl{protocol_context}, StreamApiImpl{protocol_context} {}
 
-void ClientSafeApi::LoadFactory(MessageId message_id, ApiParser& parser) {
-  switch (message_id) {
-    case SendMessage::kMessageCode:
-      parser.Load<SendMessage>(*this);
-      break;
-    default:
-      if (!ExtendsApi::LoadExtend(message_id, parser)) {
-        assert(false);
-      }
-  }
-}
-
-void ClientSafeApi::Execute(SendMessage&& message, ApiParser& api_parser) {
-  api_parser.Context().MessageNotify(std::move(message));
+void ClientSafeApi::SendMessage(ApiParser&, Uid uid, DataBuffer data) {
+  send_message_event.Emit(uid, data);
 }
 
 }  // namespace ae

@@ -54,7 +54,7 @@ class SocketPacketQueueManager
     auto view = actions_.Add(std::move(packet_send_action));
     queue_.emplace(view);
     on_sent_subs_.Push(
-        view->SubscribeOnResult([this](auto const&) { Send(); }));
+        view->ResultEvent().Subscribe([this](auto const&) { Send(); }));
     BaseAction::Trigger();
     return view;
   }

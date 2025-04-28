@@ -31,15 +31,15 @@ SafeStreamWriteAction::SafeStreamWriteAction(
     : StreamWriteAction(action_context),
       sending_data_action_{std::move(sending_data_action)} {
   subscriptions_.Push(
-      sending_data_action_->SubscribeOnResult([this](auto const&) {
+      sending_data_action_->ResultEvent().Subscribe([this](auto const&) {
         state_.Set(State::kDone);
         Action::Result(*this);
       }),
-      sending_data_action_->SubscribeOnError([this](auto const&) {
+      sending_data_action_->ErrorEvent().Subscribe([this](auto const&) {
         state_.Set(State::kFailed);
         Action::Error(*this);
       }),
-      sending_data_action_->SubscribeOnStop([this](auto const&) {
+      sending_data_action_->StopEvent().Subscribe([this](auto const&) {
         state_.Set(State::kStopped);
         Action::Stop(*this);
       }));
@@ -170,16 +170,16 @@ void SafeStream::OnSendEvent(SafeStreamRingIndex offset, DataBuffer&& data,
 
   auto write_action = out_.Write(std::move(packet), current_time);
 
-  subscriptions_.Push(
-      write_action->SubscribeOnResult([this, offset](auto const& /* action */) {
+  subscriptions_.Push(write_action->ResultEvent().Subscribe(
+      [this, offset](auto const& /* action */) {
         safe_stream_sending_.ReportWriteSuccess(offset);
       }));
-  subscriptions_.Push(
-      write_action->SubscribeOnError([this, offset](auto const& /* action */) {
+  subscriptions_.Push(write_action->ErrorEvent().Subscribe(
+      [this, offset](auto const& /* action */) {
         safe_stream_sending_.ReportWriteError(offset);
       }));
-  subscriptions_.Push(
-      write_action->SubscribeOnStop([this, offset](auto const& /* action */) {
+  subscriptions_.Push(write_action->StopEvent().Subscribe(
+      [this, offset](auto const& /* action */) {
         safe_stream_sending_.ReportWriteStopped(offset);
       }));
 }
@@ -197,16 +197,16 @@ void SafeStream::OnRepeatEvent(SafeStreamRingIndex offset,
 
   auto write_action = out_.Write(std::move(packet), current_time);
 
-  subscriptions_.Push(
-      write_action->SubscribeOnResult([this, offset](auto const& /* action */) {
+  subscriptions_.Push(write_action->ResultEvent().Subscribe(
+      [this, offset](auto const& /* action */) {
         safe_stream_sending_.ReportWriteSuccess(offset);
       }));
-  subscriptions_.Push(
-      write_action->SubscribeOnError([this, offset](auto const& /* action */) {
+  subscriptions_.Push(write_action->ErrorEvent().Subscribe(
+      [this, offset](auto const& /* action */) {
         safe_stream_sending_.ReportWriteError(offset);
       }));
-  subscriptions_.Push(
-      write_action->SubscribeOnStop([this, offset](auto const& /* action */) {
+  subscriptions_.Push(write_action->StopEvent().Subscribe(
+      [this, offset](auto const& /* action */) {
         safe_stream_sending_.ReportWriteStopped(offset);
       }));
 }

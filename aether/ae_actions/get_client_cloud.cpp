@@ -42,9 +42,12 @@ GetClientCloudAction::GetClientCloudAction(
   auto server_stream_id = StreamIdGenerator::GetNextClientStreamId();
   auto cloud_stream_id = StreamIdGenerator::GetNextClientStreamId();
 
-  pre_client_to_server_stream_ = make_unique<OneGateStream>(ProtocolWriteGate{
-      client_to_server_stream_->protocol_context(), AuthorizedApi{},
-      AuthorizedApi::Resolvers{{}, server_stream_id, cloud_stream_id}});
+  auto api_context = ApiContext{client_to_server_stream_->protocol_context(),
+                                client_to_server_stream_->authorized_api()};
+  api_context->resolvers(server_stream_id, cloud_stream_id);
+
+  pre_client_to_server_stream_ =
+      make_unique<OneGateStream>(AddHeaderGate{std::move(api_context)});
 
   Tie(*pre_client_to_server_stream_, *client_to_server_stream_);
 
@@ -120,9 +123,9 @@ void GetClientCloudAction::RequestCloud(TimePoint current_time) {
       cloud_request_stream_->in().Write(Uid{client_uid_}, current_time);
 
   cloud_request_subscriptions_.Push(
-      cloud_request_action_->SubscribeOnStop(
+      cloud_request_action_->StopEvent().Subscribe(
           [this](auto const&) { state_.Set(State::kFailed); }),
-      cloud_request_action_->SubscribeOnError(
+      cloud_request_action_->ErrorEvent().Subscribe(
           [this](auto const&) { state_.Set(State::kFailed); }));
 }
 
@@ -138,12 +141,12 @@ void GetClientCloudAction::RequestServerResolve(TimePoint current_time) {
     auto swa =
         server_resolver_stream_->in().Write(std::move(server_id), current_time);
     server_resolve_subscriptions_.Push(
-        swa->SubscribeOnStop([this, server_id](auto const&) {
+        swa->StopEvent().Subscribe([this, server_id](auto const&) {
           AE_TELE_ERROR(kGetClientCloudServerResolveStopped,
                         "Resolve server id {} stopped", server_id);
           state_.Set(State::kFailed);
         }),
-        swa->SubscribeOnError([this, server_id](auto const&) {
+        swa->ErrorEvent().Subscribe([this, server_id](auto const&) {
           AE_TELE_ERROR(kGetClientCloudServerResolveFailed,
                         "Resolve server id {} failed", server_id);
           state_.Set(State::kFailed);

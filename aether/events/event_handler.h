@@ -35,19 +35,23 @@ template <typename... TArgs>
 class EventHandler<void(TArgs...)> {
  public:
   constexpr explicit EventHandler(std::function<void(TArgs...)>&& func)
-      : callback_{std::move(func)} {}
+      : is_alive_{true}, callback_{std::move(func)} {}
 
   constexpr explicit EventHandler(Delegate<void(TArgs...)>&& delegate)
-      : callback_{std::move(delegate)} {}
+      : is_alive_{true}, callback_{std::move(delegate)} {}
 
   AE_CLASS_COPY_MOVE(EventHandler);
 
-  constexpr void Invoke(TArgs... args) {
+  constexpr void Invoke(TArgs&&... args) const {
     std::visit([&](auto& callback) { callback(std::forward<TArgs>(args)...); },
                callback_);
   }
 
+  void set_alive(bool value) { is_alive_ = value; }
+  bool is_alive() const { return is_alive_; }
+
  private:
+  bool is_alive_;
   std::variant<Delegate<void(TArgs...)>, std::function<void(TArgs...)>>
       callback_;
 };

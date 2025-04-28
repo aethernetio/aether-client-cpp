@@ -104,13 +104,11 @@ ActionView<Registration> Aether::RegisterClient(Uid parent_uid) {
       std::move(self_ptr), parent_uid, std::move(new_client));
 
   registration_subscriptions_.Push(
-      registration_action
-          ->SubscribeOnResult([this](auto const& action) {
-            auto client = action.client();
-            assert(client);
-            clients_.push_back(std::move(client));
-          })
-          .Once());
+      registration_action->ResultEvent().Subscribe([this](auto const& action) {
+        auto client = action.client();
+        assert(client);
+        clients_.push_back(std::move(client));
+      }));
 
   return registration_action;
 }
