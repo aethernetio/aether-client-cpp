@@ -72,13 +72,10 @@ class ClientToServerStream : public ByteStream {
   Event<void()> connection_error_event_;
 
   // stream to the server with login api and encryption
-  std::optional<
-      TiedStream<ProtocolReadGate<ClientSafeApi&>, DebugGate, CryptoGate,
-                 ProtocolWriteMessageGate<DataBuffer>,
-                 EventHandleGate<std::function<DataBuffer const&(
-                                     Uid const& uid, DataBuffer const& data)>,
-                                 DataBuffer>,
-                 ProtocolReadGate<ClientRootApi&>, std::unique_ptr<ByteStream>>>
+  std::optional<TiedStream<
+      ProtocolReadGate<ClientSafeApi&>, DebugGate, CryptoGate,
+      ProtocolWriteMessageGate<DataBuffer>, EventSubscribeGate<DataBuffer>,
+      ProtocolReadGate<ClientRootApi&>, std::unique_ptr<ByteStream>>>
       client_auth_stream_;
 
   Subscription connection_success_subscription_;
