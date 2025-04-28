@@ -33,9 +33,8 @@ DISABLE_WARNING_POP()
 #include "aether/state_machine.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
-#include "aether/stream_api/istream.h"
-#include "aether/stream_api/protocol_stream.h"
-#include "aether/api_protocol/protocol_context.h"
+#include "aether/events/event_subscription.h"
+#include "aether/events/multi_subscription.h"
 #include "aether/client_connections/client_to_server_stream.h"
 
 #include "aether/methods/client_api/client_safe_api.h"
@@ -79,6 +78,7 @@ class Ping : public Action<Ping> {
       ping_times_;
 
   Subscription write_subscription_;
+  MultiSubscription wait_responses_;
   StateMachine<State> state_;
   Subscription state_changed_sub_;
   Subscription stream_changed_sub_;

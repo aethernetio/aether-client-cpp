@@ -20,30 +20,23 @@
 #include "aether/config.h"
 #if AE_SUPPORT_REGISTRATION
 
-#  include "aether/crc.h"
-#  include "aether/reflect/reflect.h"
+#  include "aether/events/events.h"
 #  include "aether/transport/data_buffer.h"
-#  include "aether/api_protocol/api_protocol.h"
+#  include "aether/api_protocol/api_class_impl.h"
+#  include "aether/api_protocol/return_result_api.h"
 
 namespace ae {
-class ClientRegRootApi final : public ApiClass, ExtendsApi<ReturnResultApi> {
+class ClientRegRootApi final
+    : public ReturnResultApiImpl,
+      public ApiClassImpl<ClientRegRootApi, ReturnResultApiImpl> {
  public:
-  static constexpr auto kClassId =
-      crc32::checksum_from_literal("ClientRegRootApi");
+  explicit ClientRegRootApi(ProtocolContext& protocol_context);
 
-  struct Enter : public Message<Enter> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ClientRegRootApi::Enter");
-    static constexpr MessageId kMessageCode = 3;
+  void Enter(ApiParser&, DataBuffer data);
 
-    AE_REFLECT_MEMBERS(data)
+  using ApiMethods = ImplList<RegMethod<03, &ClientRegRootApi::Enter>>;
 
-    DataBuffer data;
-  };
-
-  void LoadFactory(MessageId message_code, ApiParser& api_parser) override;
-
-  void Execute(Enter&& message, ApiParser& parser);
+  Event<void(DataBuffer const& data)> enter_event;
 };
 }  // namespace ae
 #endif

@@ -18,30 +18,23 @@
 #define AETHER_METHODS_CLIENT_API_CLIENT_ROOT_API_H_
 
 #include "aether/uid.h"
-#include "aether/api_protocol/api_protocol.h"
-#include "aether/stream_api/stream_api.h"
+#include "aether/events/events.h"
+#include "aether/transport/data_buffer.h"
+#include "aether/api_protocol/api_class_impl.h"
+#include "aether/api_protocol/return_result_api.h"
 
 namespace ae {
-class ClientRootApi : public ApiClass,
-                      public ExtendsApi<ReturnResultApi, StreamApi> {
+class ClientRootApi : public ReturnResultApiImpl,
+                      public ApiClassImpl<ClientRootApi, ReturnResultApiImpl> {
  public:
-  static constexpr auto kClassId =
-      crc32::checksum_from_literal("ClientRootApi");
+  explicit ClientRootApi(ProtocolContext& protocol_context);
 
-  struct SendSafeApiData : public Message<SendSafeApiData> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ClientRootApi::SendSafeApiData");
-    static constexpr auto kMessageCode = 6;
+  void SendSafeApiData(ApiParser& parser, Uid uid, DataBuffer data);
 
-    AE_REFLECT_MEMBERS(uid, data)
+  using ApiMethods = ImplList<RegMethod<06, &ClientRootApi::SendSafeApiData>>;
 
-    Uid uid;
-    DataBuffer data;
-  };
-
-  void LoadFactory(MessageId message_id, ApiParser& parser) override;
-
-  void Execute(SendSafeApiData&& message, ApiParser& api_parser);
+  Event<void(Uid const& uid, DataBuffer const& data_buffer)>
+      send_safe_api_data_event;
 };
 }  // namespace ae
 #endif  // AETHER_METHODS_CLIENT_API_CLIENT_ROOT_API_H_

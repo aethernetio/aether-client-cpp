@@ -42,9 +42,12 @@ GetClientCloudAction::GetClientCloudAction(
   auto server_stream_id = StreamIdGenerator::GetNextClientStreamId();
   auto cloud_stream_id = StreamIdGenerator::GetNextClientStreamId();
 
-  pre_client_to_server_stream_ = make_unique<OneGateStream>(ProtocolWriteGate{
-      client_to_server_stream_->protocol_context(), AuthorizedApi{},
-      AuthorizedApi::Resolvers{{}, server_stream_id, cloud_stream_id}});
+  auto api_context = ApiContext{client_to_server_stream_->protocol_context(),
+                                client_to_server_stream_->authorized_api()};
+  api_context->resolvers(server_stream_id, cloud_stream_id);
+
+  pre_client_to_server_stream_ =
+      make_unique<OneGateStream>(AddHeaderGate{std::move(api_context)});
 
   Tie(*pre_client_to_server_stream_, *client_to_server_stream_);
 

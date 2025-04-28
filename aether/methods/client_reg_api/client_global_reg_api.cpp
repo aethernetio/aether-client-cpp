@@ -17,11 +17,7 @@
 #include "aether/methods/client_reg_api/client_global_reg_api.h"
 #if AE_SUPPORT_REGISTRATION
 namespace ae {
-void ClientGlobalRegApi::LoadFactory(MessageId message_id, ApiParser& parser) {
-  [[maybe_unused]] auto res = ExtendsApi::LoadExtend(message_id, parser);
-
-  assert(res);
-}
-
+ClientGlobalRegApi::ClientGlobalRegApi(ProtocolContext& protocol_context)
+    : ReturnResultApiImpl{protocol_context} {}
 }  // namespace ae
 #endif

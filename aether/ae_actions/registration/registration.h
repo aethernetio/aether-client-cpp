@@ -39,11 +39,15 @@
 #  include "aether/crypto/ikey_provider.h"
 
 #  include "aether/server_list/server_list.h"
+#  include "aether/stream_api/protocol_stream.h"
 #  include "aether/transport/server/server_channel_stream.h"
 
 #  include "aether/methods/client_reg_api/client_reg_api.h"
 #  include "aether/methods/client_reg_api/client_reg_root_api.h"
 #  include "aether/methods/client_reg_api/client_global_reg_api.h"
+
+#  include "aether/methods/server_reg_api/root_api.h"
+#  include "aether/methods/server_reg_api/global_reg_server_api.h"
 #  include "aether/methods/server_reg_api/server_registration_api.h"
 
 namespace ae {
@@ -81,25 +85,18 @@ class Registration : public Action<Registration> {
 
   void GetKeys(TimePoint current_time);
   TimePoint WaitKeys(TimePoint current_time);
-  void OnGetKeysResponse(
-      MessageEventData<ClientApiRegSafe::GetKeysResponse> const& msg);
   void RequestPowParams(TimePoint current_time);
-  void OnResponsePowParams(
-      MessageEventData<ClientApiRegSafe::ResponseWorkProofData> const& msg);
   void MakeRegistration(TimePoint current_time);
-  void OnConfirmRegistration(
-      MessageEventData<ClientGlobalRegApi::ConfirmRegistration> const& msg);
   void ResolveCloud(TimePoint current_time);
-  void OnResolveCloudResponse(
-      MessageEventData<ClientApiRegSafe::ResolveServersResponse> const& msg);
+  void OnCloudResolved(std::vector<ServerDescriptor> const& servers);
 
   std::unique_ptr<ByteStream> CreateRegServerStream(
       std::unique_ptr<IAsyncKeyProvider> async_key_provider,
       std::unique_ptr<ISyncKeyProvider> sync_key_provider);
   std::unique_ptr<ByteStream> CreateGlobalRegServerStream(
-      ServerRegistrationApi::Registration message,
       std::unique_ptr<IAsyncKeyProvider> global_async_key_provider,
-      std::unique_ptr<ISyncKeyProvider> global_sync_key_provider);
+      std::unique_ptr<ISyncKeyProvider> global_sync_key_provider,
+      ProtocolWriteMessageGate<DataBuffer> enter_global_api_gate);
 
   PtrView<Aether> aether_;
   Ptr<Client> client_;
@@ -109,8 +106,14 @@ class Registration : public Action<Registration> {
   std::optional<AsyncForLoop<std::unique_ptr<ServerChannelStream>>>
       connection_selection_;
   std::unique_ptr<ServerChannelStream> server_channel_stream_;
+
   ProtocolContext protocol_context_;
-  ClientRegRootApi root_api_;
+  ClientRegRootApi client_root_api_;
+  ClientApiRegSafe client_safe_api_;
+  ClientGlobalRegApi client_global_reg_api_;
+  RootApi server_reg_root_api_;
+  ServerRegistrationApi server_reg_api_;
+  GlobalRegServerApi global_reg_server_api_;
 
   StateMachine<State> state_;
 

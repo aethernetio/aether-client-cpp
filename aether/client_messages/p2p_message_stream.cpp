@@ -100,6 +100,7 @@ void P2pStream::ConnectSend() {
 
 void P2pStream::TieSendStream(ClientConnection& client_connection) {
   send_stream_ = client_connection.CreateStream(destination_, stream_id_);
+  AE_TELED_DEBUG("Send tied");
   Tie(send_receive_gate_.get_write_gate(), *send_stream_);
 }
 }  // namespace ae

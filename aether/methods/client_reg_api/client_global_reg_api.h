@@ -20,35 +20,18 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_REGISTRATION
-#  include <vector>
-
-#  include "aether/crc.h"
-#  include "aether/uid.h"
-#  include "aether/common.h"
-#  include "aether/api_protocol/api_protocol.h"
-#  include "aether/stream_api/stream_api.h"
+#  include "aether/api_protocol/api_class_impl.h"
+#  include "aether/api_protocol/return_result_api.h"
 
 namespace ae {
 
-struct RegistrationResponse {
-  AE_REFLECT_MEMBERS(ephemeral_uid, uid, cloud)
-  Uid ephemeral_uid;
-  Uid uid;
-  std::vector<ServerId> cloud;
-};
-
-class ClientGlobalRegApi : public ApiClass,
-                           ExtendsApi<ReturnResultApi, StreamApi> {
+class ClientGlobalRegApi
+    : public ReturnResultApiImpl,
+      public ApiClassImpl<ClientGlobalRegApi, ReturnResultApiImpl> {
  public:
-  struct ConfirmRegistration {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ClientGlobalRegApi::ConfirmRegistration");
+  explicit ClientGlobalRegApi(ProtocolContext& protocol_context);
 
-    RequestId req_id;
-    RegistrationResponse registration_response;
-  };
-
-  void LoadFactory(MessageId message_id, ApiParser& parser) override;
+  using ApiMethods = ImplList<>;
 };
 }  // namespace ae
 #endif

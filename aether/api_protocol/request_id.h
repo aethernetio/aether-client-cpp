@@ -19,6 +19,8 @@
 
 #include <cstdint>
 
+#include "aether/reflect/reflect.h"
+
 namespace ae {
 struct RequestId {
   static auto GenRequestId() {

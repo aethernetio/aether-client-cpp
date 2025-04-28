@@ -27,8 +27,7 @@ MessageStreamDispatcher::MessageStreamDispatcher(
     ClientToServerStream& server_stream)
     : server_stream_{&server_stream},
       on_client_stream_subscription_{
-          server_stream_->protocol_context()
-              .MessageEvent<ClientSafeApi::SendMessage>()
+          EventSubscriber{server_stream_->client_safe_api().send_message_event}
               .Subscribe(
                   *this,
                   MethodPtr<&MessageStreamDispatcher::OnSendMessage>{})} {}
@@ -58,27 +57,24 @@ void MessageStreamDispatcher::CloseStream(Uid uid) {
 
 std::unique_ptr<MessageStream> MessageStreamDispatcher::CreateMessageStream(
     Uid uid) {
-  auto message_stream =
-      make_unique<MessageStream>(server_stream_->protocol_context(), uid);
+  auto message_stream = make_unique<MessageStream>(*server_stream_, uid);
   Tie(*message_stream, *server_stream_);
   return message_stream;
 }
 
-void MessageStreamDispatcher::OnSendMessage(
-    MessageEventData<ClientSafeApi::SendMessage> const& msg) {
-  auto const& message = msg.message();
-  auto stream_it = streams_.find(message.uid);
-  AE_TELED_DEBUG("received message from uid {}\ndata {}", message.uid,
-                 message.data);
+void MessageStreamDispatcher::OnSendMessage(Uid const& sender,
+                                            DataBuffer const& data) {
+  auto stream_it = streams_.find(sender);
+  AE_TELED_DEBUG("received message from uid {}\ndata {}", sender, data);
   if (stream_it == std::end(streams_)) {
-    AE_TELED_DEBUG("Stream not found create it {}", message.uid);
-    stream_it = streams_.emplace_hint(stream_it, message.uid,
-                                      CreateMessageStream(message.uid));
-    new_stream_event_.Emit(message.uid, *stream_it->second);
+    AE_TELED_DEBUG("Stream not found create it {}", sender);
+    stream_it =
+        streams_.emplace_hint(stream_it, sender, CreateMessageStream(sender));
+    new_stream_event_.Emit(sender, *stream_it->second);
   }
 
   // notify about new stream created
-  stream_it->second->OnData(msg.message().data);
+  stream_it->second->OnData(data);
 }
 
 }  // namespace ae

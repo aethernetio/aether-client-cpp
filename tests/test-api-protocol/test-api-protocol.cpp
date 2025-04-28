@@ -29,9 +29,6 @@
 #include "assert_packet.h"
 #include "tests/test-api-protocol/api_with_result.h"
 
-void setUp() {}
-void tearDown() {}
-
 namespace ae::test_api_protocol {
 void test_ApiLevel0_Message_1() {
   ProtocolContext p_context{};
@@ -215,7 +212,7 @@ void test_ApiWithResult() {
 }
 }  // namespace ae::test_api_protocol
 
-int main() {
+int test_api_protocol() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_api_protocol::test_ApiLevel0_Message_1);
   RUN_TEST(ae::test_api_protocol::test_ApiLevel1);

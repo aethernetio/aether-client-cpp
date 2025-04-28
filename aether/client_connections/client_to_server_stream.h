@@ -24,17 +24,17 @@
 #include "aether/events/events.h"
 #include "aether/actions/action_context.h"
 
-#include "aether/api_protocol/protocol_context.h"
-
 #include "aether/stream_api/istream.h"
-#include "aether/stream_api/stream_api.h"
 #include "aether/stream_api/debug_gate.h"
 #include "aether/stream_api/tied_stream.h"
 #include "aether/stream_api/crypto_stream.h"
 #include "aether/stream_api/protocol_stream.h"
+#include "aether/stream_api/event_subscribe_gate.h"
 
 #include "aether/methods/client_api/client_root_api.h"
 #include "aether/methods/client_api/client_safe_api.h"
+#include "aether/methods/work_server_api/login_api.h"
+#include "aether/methods/work_server_api/authorized_api.h"
 
 namespace ae {
 class Client;
@@ -53,6 +53,8 @@ class ClientToServerStream : public ByteStream {
   void LinkOut(OutGate& out) override;
 
   ProtocolContext& protocol_context();
+  ClientSafeApi& client_safe_api();
+  AuthorizedApi& authorized_api();
 
  private:
   ActionContext action_context_;
@@ -61,15 +63,22 @@ class ClientToServerStream : public ByteStream {
 
   ProtocolContext protocol_context_;
 
+  ClientRootApi client_root_api_;
+  ClientSafeApi client_safe_api_;
+  LoginApi login_api_;
+  AuthorizedApi authorized_api_;
+
   Event<void()> connected_event_;
   Event<void()> connection_error_event_;
 
   // stream to the server with login api and encryption
   std::optional<
-      TiedStream<ProtocolReadGate<ClientSafeApi>, DebugGate, CryptoGate,
+      TiedStream<ProtocolReadGate<ClientSafeApi&>, DebugGate, CryptoGate,
                  ProtocolWriteMessageGate<DataBuffer>,
-                 ProtocolReadMessageGate<ClientRootApi::SendSafeApiData>,
-                 ProtocolReadGate<ClientRootApi>, std::unique_ptr<ByteStream>>>
+                 EventHandleGate<std::function<DataBuffer const&(
+                                     Uid const& uid, DataBuffer const& data)>,
+                                 DataBuffer>,
+                 ProtocolReadGate<ClientRootApi&>, std::unique_ptr<ByteStream>>>
       client_auth_stream_;
 
   Subscription connection_success_subscription_;

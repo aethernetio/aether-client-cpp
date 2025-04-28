@@ -17,21 +17,11 @@
 #include "aether/methods/client_api/client_root_api.h"
 
 namespace ae {
-void ClientRootApi::LoadFactory(MessageId message_id, ApiParser& parser) {
-  switch (message_id) {
-    case SendSafeApiData::kMessageCode:
-      parser.Load<SendSafeApiData>(*this);
-      break;
-    default:
-      if (!ExtendsApi::LoadExtend(message_id, parser)) {
-        assert(false);
-      }
-      break;
-  }
-}
+ClientRootApi::ClientRootApi(ProtocolContext& protocol_context)
+    : ReturnResultApiImpl{protocol_context} {}
 
-void ClientRootApi::Execute(SendSafeApiData&& message, ApiParser& api_parser) {
-  api_parser.Context().MessageNotify(std::move(message));
+void ClientRootApi::SendSafeApiData(ApiParser&, Uid uid, DataBuffer data) {
+  send_safe_api_data_event.Emit(uid, data);
 }
 
 }  // namespace ae

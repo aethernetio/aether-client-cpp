@@ -20,32 +20,30 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_REGISTRATION
-#  include "aether/api_protocol/send_result.h"
-#  include "aether/crc.h"
+#  include <vector>
+
+#  include "aether/uid.h"
+#  include "aether/common.h"
 #  include "aether/crypto/key.h"
-#  include "aether/api_protocol/api_protocol.h"
+#  include "aether/reflect/reflect.h"
+#  include "aether/api_protocol/api_method.h"
 
 namespace ae {
 
-class GlobalRegServerApi : public ApiClass {
+struct RegistrationResponse {
+  AE_REFLECT_MEMBERS(ephemeral_uid, uid, cloud)
+  Uid ephemeral_uid;
+  Uid uid;
+  std::vector<ServerId> cloud;
+};
+
+class GlobalRegServerApi {
  public:
-  static constexpr auto kClassId =
-      crc32::checksum_from_literal("GlobalRegServerApi");
+  GlobalRegServerApi(ProtocolContext& protocol_context,
+                     ActionContext action_context);
 
-  struct SetMasterKey : public Message<SetMasterKey> {
-    AE_REFLECT_MEMBERS(key)
-
-    Key key;
-  };
-
-  struct Finish : public Message<Finish> {
-    AE_REFLECT_MEMBERS(request_id)
-
-    RequestId request_id;
-  };
-
-  void Pack(SetMasterKey&& message, ApiPacker& packer);
-  void Pack(Finish&& message, ApiPacker& packer);
+  Method<03, void(Key key)> set_master_key;
+  Method<04, PromiseView<RegistrationResponse>()> finish;
 };
 
 }  // namespace ae

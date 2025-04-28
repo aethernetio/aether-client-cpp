@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_METHODS_WORK_SERVER_API_LOGIN_API_H_
-#define AETHER_METHODS_WORK_SERVER_API_LOGIN_API_H_
+#include <unity.h>
 
-#include "aether/uid.h"
-#include "aether/transport/data_buffer.h"
-#include "aether/api_protocol/api_method.h"
+void setUp() {}
+void tearDown() {}
 
-namespace ae {
-class LoginApi : public ApiClass {
- public:
-  explicit LoginApi(ProtocolContext& protocol_context);
+extern int test_api_protocol();
+extern int test_method_call();
 
-  Method<06, void(Uid uid, DataBuffer data)> login_by_uid;
-  Method<07, void(Uid alias, DataBuffer data)> login_by_alias;
-};
-}  // namespace ae
+int main() {
+  int res = 0;
+  res += test_api_protocol();
+  res += test_method_call();
 
-#endif  // AETHER_METHODS_WORK_SERVER_API_LOGIN_API_H_
+  return res;
+}

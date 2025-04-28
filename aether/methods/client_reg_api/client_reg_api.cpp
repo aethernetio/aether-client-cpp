@@ -21,21 +21,11 @@
 #  include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
-void ClientApiRegSafe::LoadFactory(MessageId message_id, ApiParser& parser) {
-  switch (message_id) {
-    case GlobalApi::kMessageCode:
-      parser.Load<GlobalApi>(*this);
-      break;
-    default:
-      if (!ExtendsApi::LoadExtend(message_id, parser)) {
-        assert(false);
-      }
-      break;
-  }
-}
+ClientApiRegSafe::ClientApiRegSafe(ProtocolContext& protocol_context)
+    : ReturnResultApiImpl{protocol_context} {}
 
-void ClientApiRegSafe::Execute(GlobalApi&& message, ApiParser& parser) {
-  parser.Context().MessageNotify(std::move(message));
+void ClientApiRegSafe::GlobalApi(ApiParser&, DataBuffer data) {
+  global_api_event.Emit(data);
 }
 
 }  // namespace ae

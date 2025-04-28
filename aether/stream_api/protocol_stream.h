@@ -97,47 +97,6 @@ class ProtocolWriteMessageGate final
   std::size_t overhead_size_;
 };
 
-template <typename TMessage,
-          typename TMessageHandler =
-              std::function<std::optional<DataBuffer>(TMessage const& message)>>
-class ProtocolReadMessageGate final : public ByteGate {
- public:
-  ProtocolReadMessageGate(ProtocolContext& protocol_context,
-                          TMessageHandler&& message_handler)
-      : protocol_context_{&protocol_context},
-        message_handler_{std::move(message_handler)},
-        on_message_received_{
-            protocol_context_->MessageEvent<TMessage>().Subscribe(
-                *this, MethodPtr<&ProtocolReadMessageGate::OnMessage>{})} {}
-
-  ProtocolReadMessageGate(ProtocolReadMessageGate&& other) noexcept
-      : protocol_context_{other.protocol_context_},
-        message_handler_{std::move(other.message_handler_)},
-        on_message_received_{
-            protocol_context_->MessageEvent<TMessage>().Subscribe(
-                *this, MethodPtr<&ProtocolReadMessageGate::OnMessage>{})} {}
-
-  void LinkOut(OutGate& out) override {
-    out_ = &out;
-
-    gate_update_subscription_ = out.gate_update_event().Subscribe(
-        gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
-
-    gate_update_event_.Emit();
-  }
-
- private:
-  void OnMessage(MessageEventData<TMessage> const& message_data) {
-    if (auto data = message_handler_(message_data.message()); data) {
-      out_data_event_.Emit(std::move(*data));
-    }
-  }
-
-  ProtocolContext* protocol_context_;
-  TMessageHandler message_handler_;
-  Subscription on_message_received_;
-};
-
 /**
  * \brief Parses read buffer as TApiClass
  */

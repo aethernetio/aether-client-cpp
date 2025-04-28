@@ -17,26 +17,10 @@
 #include "aether/methods/server_reg_api/global_reg_server_api.h"
 
 #if AE_SUPPORT_REGISTRATION
-#  include <utility>
-
-#  include "aether/methods/client_reg_api/client_global_reg_api.h"
-
 namespace ae {
-
-void GlobalRegServerApi::Pack(SetMasterKey&& message, ApiPacker& packer) {
-  packer.Pack(3, std::move(message));
-}
-
-void GlobalRegServerApi::Pack(Finish&& message, ApiPacker& packer) {
-  SendResult::OnResponse(
-      packer.Context(), message.request_id,
-      [req_id{message.request_id}](ApiParser& parser) {
-        parser.Context().MessageNotify(ClientGlobalRegApi::ConfirmRegistration{
-            req_id, parser.Extract<RegistrationResponse>()});
-      });
-
-  packer.Pack(4, std::move(message));
-}
-
+GlobalRegServerApi::GlobalRegServerApi(ProtocolContext& protocol_context,
+                                       ActionContext action_context)
+    : set_master_key{protocol_context},
+      finish{protocol_context, action_context} {}
 }  // namespace ae
 #endif

@@ -79,31 +79,26 @@ TimePoint Ping::Update(TimePoint current_time) {
 
 void Ping::SendPing(TimePoint current_time) {
   AE_TELE_DEBUG(kPingSend, "Send ping");
-  auto request_id = RequestId::GenRequestId();
-  ping_times_.push(std::make_pair(request_id, current_time));
-  auto packet = PacketBuilder{
-      client_to_server_stream_->protocol_context(),
-      PackMessage{AuthorizedApi{},
-                  AuthorizedApi::Ping{
-                      {},
-                      request_id,
-                      static_cast<std::uint64_t>(
-                          std::chrono::duration_cast<std::chrono::milliseconds>(
-                              ping_interval_)
-                              .count())}}};
-  auto write_action =
-      client_to_server_stream_->in().Write(std::move(packet), current_time);
+
+  auto api_context = ApiContext{client_to_server_stream_->protocol_context(),
+                                client_to_server_stream_->authorized_api()};
+  auto pong_promise = api_context->ping(static_cast<std::uint64_t>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(ping_interval_)
+          .count()));
+
+  ping_times_.push(std::make_pair(pong_promise->request_id(), current_time));
+  // Wait for response
+  wait_responses_.Push(pong_promise->ResultEvent().Subscribe(
+      [&](auto const& promise) { PingResponse(promise.request_id()); }));
+
+  auto write_action = client_to_server_stream_->in().Write(
+      std::move(api_context), current_time);
 
   write_subscription_ =
       write_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELE_ERROR(kPingWriteError, "Ping write error");
         state_ = State::kError;
       });
-
-  // Wait for response
-  SendResult::OnResponse(
-      client_to_server_stream_->protocol_context(), request_id,
-      [&, req_id{request_id}](ApiParser&) { PingResponse(req_id); });
 
   state_ = State::kWaitResponse;
 }
