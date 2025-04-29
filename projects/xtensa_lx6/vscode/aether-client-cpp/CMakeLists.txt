@@ -49,7 +49,7 @@ list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/key_led"
                                  "../../../../examples/registered"
                                  "../../../../examples/benches/send_message_delays"
-                                 "../../../../tests/test-file-systems"
+#                                 "../../../../tests/test-file-systems"
 )
 
 if(COMPILE_EXAMPLE)

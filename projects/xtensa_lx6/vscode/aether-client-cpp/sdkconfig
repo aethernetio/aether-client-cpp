@@ -1585,18 +1585,6 @@ CONFIG_SPIFFS_USE_MTIME=y
 # end of SPIFFS Configuration
 
 #
-# Unity unit testing library
-#
-CONFIG_UNITY_ENABLE_FLOAT=y
-CONFIG_UNITY_ENABLE_DOUBLE=y
-# CONFIG_UNITY_ENABLE_64BIT is not set
-# CONFIG_UNITY_ENABLE_COLOR is not set
-CONFIG_UNITY_ENABLE_IDF_TEST_RUNNER=y
-# CONFIG_UNITY_ENABLE_FIXTURE is not set
-# CONFIG_UNITY_ENABLE_BACKTRACE_ON_FAIL is not set
-# end of Unity unit testing library
-
-#
 # Virtual file system
 #
 CONFIG_VFS_SUPPORT_IO=y
