@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,25 @@
  * limitations under the License.
  */
 
-#include "aether/port/file_systems/drivers/driver_spifs.h"
+#include "aether/port/file_systems/drivers/driver_spifs_v2.h"
+#include "aether/port/file_systems/file_systems_tele.h"
 #include "aether/tele/tele.h"
 
 #if (defined(ESP_PLATFORM))
 
 namespace ae {
-DriverSpifs::DriverSpifs() {
+DriverSpifsV2::DriverSpifsV2() {
   if(initialized_ == false){
     if (DriverInit_() == ESP_OK) initialized_ = true;
   }
 }
 
-DriverSpifs::~DriverSpifs() {
+DriverSpifsV2::~DriverSpifsV2() {
   DriverDeinit_();
   initialized_ = false;
 }
 
-void DriverSpifs::DriverRead(const std::string &path,
+void DriverSpifsV2::DriverRead(const std::string &path,
                                   std::vector<std::uint8_t> &data_vector, bool sync) {
   size_t bytes_read;
   unsigned int file_size = 0;
@@ -40,31 +41,31 @@ void DriverSpifs::DriverRead(const std::string &path,
   if (!initialized_) return;
   res_path = kBasePath + std::string("/") + path;
 
-  AE_TELED_DEBUG("Opening file {} for read.", res_path);
+  AE_TELE_DEBUG(FsObjLoaded, "Opening file {} for read.", res_path);
   FILE *file = fopen(res_path.c_str(), "r");
   if (file == nullptr) {
-    AE_TELED_ERROR("Failed to open file {} for reading.", res_path);
+    AE_TELE_ERROR(FsObjLoaded, "Failed to open file {} for reading.", res_path);
   } else {
     fseek(file, 0, SEEK_END);
     file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
-    AE_TELED_DEBUG("File length {}", file_size);
+    AE_TELE_DEBUG(FsObjLoaded, "File length {}", file_size);
 
     data_vector.resize(file_size);
 
     bytes_read = fread(data_vector.data(), 1, file_size, file);
-    AE_TELED_DEBUG("Reading from the file {}. Bytes read {}", res_path, bytes_read);
+    AE_TELE_DEBUG(FsObjLoaded, "Reading from the file {}. Bytes read {}", res_path, bytes_read);
     /*for(std::uint8_t& i : data_vector)
     {
       auto res = static_cast<std::uint32_t>(i);
-      AE_TELED_DEBUG("Data read is {}", res);
+      AE_TELE_DEBUG(FsObjLoaded, "Data read is {}", res);
     }*/
 
     fclose(file);
   }
 }
 
-void DriverSpifs::DriverWrite(
+void DriverSpifsV2::DriverWrite(
     const std::string &path, const std::vector<std::uint8_t> &data_vector) {
   size_t bytes_write;
   std::string res_path{};
@@ -72,24 +73,24 @@ void DriverSpifs::DriverWrite(
   if (!initialized_) return;
   res_path = kBasePath + std::string("/") + path;
 
-  AE_TELED_DEBUG("Opening file {} for write.", res_path);
+  AE_TELE_DEBUG(FsObjSaved, "Opening file {} for write.", res_path);
   FILE *file = fopen(res_path.c_str(), "w");
   if (file == nullptr) {
-    AE_TELED_ERROR("Failed to open file {} for writing.", res_path);
+    AE_TELE_ERROR(FsObjSaved, "Failed to open file {} for writing.", res_path);
   } else {
     bytes_write = fwrite(data_vector.data(), 1, data_vector.size(), file);
-    AE_TELED_INFO("Writing to the file {}. Bytes write {}", res_path, bytes_write);
+    AE_TELE_INFO(FsObjSaved, "Writing to the file {}. Bytes write {}", res_path, bytes_write);
     /*for(const std::uint8_t& i : data_vector)
     {
       auto res = static_cast<std::uint32_t>(i);
-      AE_TELED_DEBUG("Data write is {}", res);
+      AE_TELE_DEBUG(FsObjSaved, "Data write is {}", res);
     }*/
 
     fclose(file);
   }
 }
 
-void DriverSpifs::DriverDelete(const std::string &path) {
+void DriverSpifsV2::DriverDelete(const std::string &path) {
   struct stat status;
   std::string res_path{};
 
@@ -105,7 +106,7 @@ void DriverSpifs::DriverDelete(const std::string &path) {
   }
 }
 
-std::vector<std::string> DriverSpifs::DriverDir(const std::string &path) {
+std::vector<std::string> DriverSpifsV2::DriverDir(const std::string &path) {
   struct dirent *de;
   bool read_dir{true};
   std::vector<std::string> dirs_list{};
@@ -133,7 +134,7 @@ std::vector<std::string> DriverSpifs::DriverDir(const std::string &path) {
   return dirs_list;
 }
 
-void DriverSpifs::DriverFormat() {
+void DriverSpifsV2::DriverFormat() {
   esp_err_t err = esp_spiffs_format(kPartition);
 
   if (err != ESP_OK) {
@@ -141,7 +142,7 @@ void DriverSpifs::DriverFormat() {
   }
 }
 
-esp_err_t DriverSpifs::DriverInit_() {
+esp_err_t DriverSpifsV2::DriverInit_() {
   esp_vfs_spiffs_conf_t conf = {.base_path = kBasePath,
                                 .partition_label = kPartition,
                                 .max_files = 128,
@@ -176,7 +177,7 @@ esp_err_t DriverSpifs::DriverInit_() {
   return ESP_OK;
 }
 
-void DriverSpifs::DriverDeinit_() { esp_vfs_spiffs_unregister(kPartition); }
+void DriverSpifsV2::DriverDeinit_() { esp_vfs_spiffs_unregister(kPartition); }
 
 }  // namespace ae
 

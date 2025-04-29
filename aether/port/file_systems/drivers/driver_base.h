@@ -37,7 +37,8 @@ enum class DriverFsType : std::uint8_t {
   kDriverHeader,
   kDriverStd,
   kDriverRam,
-  kDriverSpifs
+  kDriverSpifsV1,
+  kDriverSpifsV2
 };
 
 class DriverBase {

@@ -241,7 +241,7 @@ int AetherRegistered() {
    */
   auto aether_app = ae::AetherApp::Construct(ae::AetherAppConstructor{[]() {
     auto fs = ae::make_unique<ae::FileSystemHeaderFacility>(
-        std::string(""), ae::DriverFsType::kDriverSpifs);
+        std::string(""), ae::DriverFsType::kDriverSpifsV1);
     return fs;
   }});
 

@@ -31,8 +31,8 @@ void DriverRam::DriverRead(const std::string &path,
 
     path_struct = GetPathStructure(path);
 
-    auto obj_it = state_.find(path_struct.obj_id);
-    if (obj_it == state_.end()) {
+    auto obj_it = state_ram_.find(path_struct.obj_id);
+    if (obj_it == state_ram_.end()) {
       return;
     }
 
@@ -56,7 +56,7 @@ void DriverRam::DriverWrite(const std::string &path,
 
   path_struct = GetPathStructure(path);
 
-  state_[path_struct.obj_id][path_struct.class_id][path_struct.version] =
+  state_ram_[path_struct.obj_id][path_struct.class_id][path_struct.version] =
       data_vector;
 }
 
@@ -65,11 +65,11 @@ void DriverRam::DriverDelete(const std::string &path) {
 
   path_struct = GetPathStructure(path);
 
-  auto it = state_.find(path_struct.obj_id);
-  if (it != state_.end()) {
+  auto it = state_ram_.find(path_struct.obj_id);
+  if (it != state_ram_.end()) {
     AE_TELE_DEBUG(FsObjRemoved, "Removed object {}",
                   path_struct.obj_id.ToString());
-    state_.erase(it);
+    state_ram_.erase(it);
   } else {
     AE_TELE_ERROR(FsRemoveObjIdNoFound, "Object id={} not found!",
                   path_struct.obj_id.ToString());
@@ -80,7 +80,7 @@ std::vector<std::string> DriverRam::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list{};
 
   AE_TELE_DEBUG(FsObjRemoved, "Path {}", path);
-  for (auto &ItemObjClassData : state_) {
+  for (auto &ItemObjClassData : state_ram_) {
     for (auto &ItemClassData : ItemObjClassData.second) {
       for (auto &ItemVersionData : ItemClassData.second) {
         // Path is "state/version/obj_id/class_id"

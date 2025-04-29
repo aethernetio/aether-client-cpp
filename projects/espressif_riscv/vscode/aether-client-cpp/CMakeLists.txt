@@ -35,6 +35,8 @@ endif()
 
 if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES ""))
   set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../config/file_system_init.h" CACHE PATH "")
+  # for tests
+  # set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../tests/test-file-systems/config/file_system_init.h" CACHE PATH "") 
 endif()
 
 # enable doubles in unity tests
@@ -47,6 +49,7 @@ list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/key_led"
                                  "../../../../examples/registered"
                                  "../../../../examples/benches/send_message_delays"
+                                 "../../../../tests/test-file-systems"
 )
 
 if(COMPILE_EXAMPLE)

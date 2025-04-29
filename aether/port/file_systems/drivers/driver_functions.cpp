@@ -21,8 +21,7 @@ namespace ae {
 ae::PathStructure GetPathStructure(const std::string& path) {
   ae::PathStructure path_struct{};
 
-  // Path is "state/version/obj_id/class_id"
-  AE_TELED_DEBUG("GetPathStructure Path {}", path);
+  // Path is "state/version/obj_id/class_id"  
   auto pos1 = path.find("/");
   if (pos1 != std::string::npos) {
     auto pos2 = path.find("/", pos1 + 1);
@@ -59,7 +58,7 @@ bool ValidatePath(const std::string& path) {
   // Path is "state/version/obj_id/class_id"
   AE_TELED_DEBUG("ValidatePath Path {}", path);
   // Checking the path is atate  
-  if (path == "state") return true;
+  if (path == "state" || path == "dump") return true;
   
   // Dividing the path into components
   while (getline(ss, part, '/')) {

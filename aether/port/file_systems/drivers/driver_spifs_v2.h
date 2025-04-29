@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SPIFS_H_
-#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SPIFS_H_
+#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SPIFS_V2_H_
+#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SPIFS_V2_H_
 
 #if (defined(ESP_PLATFORM))
 
@@ -30,14 +30,14 @@
 #  include "sys/stat.h"
 #  include "esp_err.h"
 
-#include "aether/port/file_systems/drivers/driver_base.h"
+#  include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {
 
-class DriverSpifs: public DriverBase{
+class DriverSpifsV2: public DriverBase{
  public:
-  DriverSpifs();
-  ~DriverSpifs();
+  DriverSpifsV2();
+  ~DriverSpifsV2();
   void DriverRead(const std::string &path,
                        std::vector<std::uint8_t> &data_vector, bool sync) override;
   void DriverWrite(const std::string &path,
@@ -59,4 +59,4 @@ class DriverSpifs: public DriverBase{
 
 #endif  // (defined(ESP_PLATFORM))
 
-#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SPIFS_H_
+#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SPIFS_V2_H_

@@ -26,7 +26,8 @@ list(APPEND aether_srcs
     ${ROOT_DIR}/aether/port/file_systems/drivers/driver_functions.cpp
     ${ROOT_DIR}/aether/port/file_systems/drivers/driver_header.cpp
     ${ROOT_DIR}/aether/port/file_systems/drivers/driver_ram.cpp
-    ${ROOT_DIR}/aether/port/file_systems/drivers/driver_spifs.cpp
+    ${ROOT_DIR}/aether/port/file_systems/drivers/driver_spifs_v1.cpp
+    ${ROOT_DIR}/aether/port/file_systems/drivers/driver_spifs_v2.cpp
     ${ROOT_DIR}/aether/port/file_systems/drivers/driver_std.cpp
     ${ROOT_DIR}/aether/port/file_systems/drivers/driver_sync.cpp
 )
@@ -36,15 +37,15 @@ list(APPEND test_srcs
     test-fs-synchronization.cpp
 )
 
-if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES ""))
-  target_compile_definitions(aether PUBLIC FS_INIT="${CMAKE_CURRENT_LIST_DIR}/config/file_system_init.h")
-endif()
-
-target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_STD_ENABLED=1)
-target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_TEST=1)
-#target_compile_definitions(aether PUBLIC AE_DISTILLATION=0)
-
 if(NOT CM_PLATFORM)
+  if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES ""))
+    target_compile_definitions(aether PUBLIC FS_INIT="${CMAKE_CURRENT_LIST_DIR}/config/file_system_init.h")
+  endif()
+
+  target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_STD_ENABLED=1)
+  target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_TEST=1)
+  #target_compile_definitions(aether PUBLIC AE_DISTILLATION=0)
+
   project(test-file-systems LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME})
@@ -59,6 +60,14 @@ if(NOT CM_PLATFORM)
     target_compile_options(${PROJECT_NAME} PUBLIC /Zc:preprocessor)
   endif()
 else()
+  idf_build_get_property(CM_PLATFORM CM_PLATFORM)
+  if(CM_PLATFORM STREQUAL "ESP32")
+    #ESP32 CMake
+    idf_component_register(SRCS ${test_srcs}
+      INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/..
+      PRIV_REQUIRES aether unity)
+  else()
   message(WARNING "Not implemented for ${CM_PLATFORM}")
+  endif()
 endif()
 

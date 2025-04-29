@@ -31,7 +31,7 @@ namespace ae {
   using ClassData = std::map<std::uint32_t, VersionData>;
   using ObjClassData = std::map<ae::ObjId, ClassData>;
   
-  static ObjClassData state_;
+  static ObjClassData state_ram_;
   
 class DriverRam: public DriverBase{
   

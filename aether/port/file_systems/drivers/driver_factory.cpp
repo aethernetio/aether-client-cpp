@@ -21,11 +21,13 @@
 #include "aether/port/file_systems/drivers/driver_sync.h"
 #include "aether/port/file_systems/drivers/driver_header.h"
 #include "aether/port/file_systems/drivers/driver_ram.h"
-#include "aether/port/file_systems/drivers/driver_spifs.h"
+#include "aether/port/file_systems/drivers/driver_spifs_v1.h"
+#include "aether/port/file_systems/drivers/driver_spifs_v2.h"
 #include "aether/port/file_systems/drivers/driver_std.h"
 
 namespace ae {
-std::unique_ptr<DriverBase> DriverFactory::Create(enum DriverFsType fs_driver_type) {
+std::unique_ptr<DriverBase> DriverFactory::Create(
+    enum DriverFsType fs_driver_type) {
   std::unique_ptr<DriverBase> ret{std::make_unique<DriverRam>()};
   switch (fs_driver_type) {
     case DriverFsType::kDriverStd:
@@ -39,9 +41,14 @@ std::unique_ptr<DriverBase> DriverFactory::Create(enum DriverFsType fs_driver_ty
     case DriverFsType::kDriverHeader:
       ret = std::make_unique<DriverHeader>();
       break;
-    case DriverFsType::kDriverSpifs:
+    case DriverFsType::kDriverSpifsV1:
 #if defined(ESP_PLATFORM)
-      ret = std::make_unique<DriverSpifs>();
+      ret = std::make_unique<DriverSpifsV1>();
+#endif  // (defined(ESP_PLATFORM))
+      break;
+    case DriverFsType::kDriverSpifsV2:
+#if defined(ESP_PLATFORM)
+      ret = std::make_unique<DriverSpifsV2>();
 #endif  // (defined(ESP_PLATFORM))
       break;
     case DriverFsType::kDriverNone:
@@ -51,7 +58,7 @@ std::unique_ptr<DriverBase> DriverFactory::Create(enum DriverFsType fs_driver_ty
       assert(0);
       break;
   }
-  
+
   return ret;
 }
 

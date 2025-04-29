@@ -187,7 +187,7 @@ int test_fs_synchronization() {
 
   // FS SPIFSV1 tests
   fs_header_spifs1 = std::make_unique<ae::FileSystemHeaderFacility>(
-      header_file, ae::DriverFsType::kDriverSpifs);
+      header_file, ae::DriverFsType::kDriverSpifsV1);
   fs_spifs1 = std::make_unique<ae::FileSystemSpiFsV1Facility>();
 
   // Data deletion test for the destination file system
@@ -234,7 +234,7 @@ int test_fs_synchronization() {
 
   // FS SPIFSV2 tests
   fs_header_spifs2 = std::make_unique<ae::FileSystemHeaderFacility>(
-      header_file, ae::DriverFsType::kDriverSpifs);
+      header_file, ae::DriverFsType::kDriverSpifsV2);
   fs_spifs2 = std::make_unique<ae::FileSystemSpiFsV2Facility>();
 
   // Data deletion test for the destination file system

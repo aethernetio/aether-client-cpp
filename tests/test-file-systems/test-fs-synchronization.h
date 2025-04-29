@@ -24,8 +24,8 @@
 #include "aether/port/file_systems/file_systems_tele.h"
 #include "aether/port/file_systems/file_system_std.h"
 #include "aether/port/file_systems/file_system_ram.h"
-#include "aether/port/file_systems/file_system_spifs_v2.h"
 #include "aether/port/file_systems/file_system_spifs_v1.h"
+#include "aether/port/file_systems/file_system_spifs_v2.h"
 #include "aether/port/file_systems/file_system_header.h"
 
 #endif  // TESTS_TEST_FILE_SYSTEMS_TEST_FS_SYNCHRONIZATION_H_
