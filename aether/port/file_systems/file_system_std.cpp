@@ -99,7 +99,10 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
        std::filesystem::directory_iterator(state_dir, ec)) {
     auto obj_dir = version_dir.path() / obj_id.ToString();
     std::string obj_path = obj_dir.string();
+#if (defined(_WIN64) || defined(_WIN32))
+    // Replacing backslashes with straight ones
     std::replace(obj_path.begin(), obj_path.end(), '\\', '/');
+#endif
     driver_sync_fs_->DriverDelete(obj_path);
     AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version {}",
                   obj_id.ToString(), version_dir.path().filename());

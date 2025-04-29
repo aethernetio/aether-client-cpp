@@ -47,7 +47,10 @@ void DriverStd::DriverRead(const std::string &path,
     if (!f.good()) {
       // Replacing backslashes with straight ones
       std::string obj_path = p.string();
+#if (defined(_WIN64) || defined(_WIN32))
+      // Replacing backslashes with straight ones
       std::replace(obj_path.begin(), obj_path.end(), '\\', '/');
+#endif
       AE_TELE_ERROR(FsLoadObjClassIdNotFound, "Unable to open file {}",
                     obj_path);
       return;
@@ -85,7 +88,10 @@ void DriverStd::DriverWrite(const std::string &path,
 
 void DriverStd::DriverDelete(const std::string &path) {
   std::string obj_path = path;
+#if (defined(_WIN64) || defined(_WIN32))
+  // Replacing straight ones with backslashes
   std::replace(obj_path.begin(), obj_path.end(), '/', '\\');
+#endif
   std::filesystem::remove_all(obj_path);
 }
 
@@ -102,8 +108,10 @@ std::vector<std::string> DriverStd::DriverDir(const std::string &path) {
       auto ec3 = std::error_code{};
       for (auto const &f : std::filesystem::directory_iterator(obj_dir, ec3)) {
         std::string name = f.path().string();
+#if (defined(_WIN64) || defined(_WIN32))
         // Replacing backslashes with straight ones
         std::replace(name.begin(), name.end(), '\\', '/');
+#endif
         dirs_list.push_back(name);
       }
       if (ec3) {
