@@ -16,14 +16,14 @@
 
 #include "tests/test-file-systems/test-fs-synchronization.h"
 
+namespace ae::test_fs {
 struct person {
   uint8_t version;
   ae::ObjId obj_id;
   uint32_t class_id;
 };
 
-int test_fs_synchronization() {
-  int res{0};
+void test_FS() {
   std::unique_ptr<ae::IDomainFacility> fs_header_std{};
   std::unique_ptr<ae::IDomainFacility> fs_header_ram{};
   std::unique_ptr<ae::IDomainFacility> fs_header_spifs1{};
@@ -103,14 +103,12 @@ int test_fs_synchronization() {
                  test_data_files[i].version, data_vector_destination);
     TEST_ASSERT(data_vector_destination.size() == 0);
   }
-  res++;
 
   data_vector_destination.clear();
   fs_std->Remove(test_data_file.obj_id);
   fs_std->Load(test_data_file.obj_id, test_data_file.class_id,
                test_data_file.version, data_vector_destination);
   TEST_ASSERT(data_vector_destination.size() == 0);
-  res++;
 
   // Test copying data from the source file system to the destination file
   // system
@@ -124,7 +122,6 @@ int test_fs_synchronization() {
                  test_data_files[i].version, data_vector_destination);
     TEST_ASSERT(data_vector_source == data_vector_destination);
   }
-  res++;
 
   // Testing write new data
   data_vector_source.clear();
@@ -133,7 +130,6 @@ int test_fs_synchronization() {
   fs_header_std->Load(test_data_file.obj_id, test_data_file.class_id,
                       test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
-  res++;
 
   // FS RAM tests
   fs_header_ram = std::make_unique<ae::FileSystemHeaderFacility>(
@@ -149,14 +145,12 @@ int test_fs_synchronization() {
                  test_data_files[i].version, data_vector_destination);
     TEST_ASSERT(data_vector_destination.size() == 0);
   }
-  res++;
 
   data_vector_destination.clear();
   fs_ram->Remove(test_data_file.obj_id);
   fs_ram->Load(test_data_file.obj_id, test_data_file.class_id,
                test_data_file.version, data_vector_destination);
   TEST_ASSERT(data_vector_destination.size() == 0);
-  res++;
 
   // Test copying data from the source file system to the destination file
   // system
@@ -170,7 +164,6 @@ int test_fs_synchronization() {
                  test_data_files[i].version, data_vector_destination);
     TEST_ASSERT(data_vector_source == data_vector_destination);
   }
-  res++;
 
   // Testing write new data
   data_vector_source.clear();
@@ -179,7 +172,6 @@ int test_fs_synchronization() {
   fs_header_ram->Load(test_data_file.obj_id, test_data_file.class_id,
                       test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
-  res++;
 #else
 
   // FS SPIFSV1 tests
@@ -196,14 +188,12 @@ int test_fs_synchronization() {
                     test_data_files[i].version, data_vector_destination);
     TEST_ASSERT(data_vector_destination.size() == 0);
   }
-  res++;
 
   data_vector_destination.clear();
   fs_spifs1->Remove(test_data_file.obj_id);
   fs_spifs1->Load(test_data_file.obj_id, test_data_file.class_id,
                   test_data_file.version, data_vector_destination);
   TEST_ASSERT(data_vector_destination.size() == 0);
-  res++;
 
   // Test copying data from the source file system to the destination file
   // system
@@ -218,7 +208,6 @@ int test_fs_synchronization() {
                     test_data_files[i].version, data_vector_destination);
     TEST_ASSERT(data_vector_source == data_vector_destination);
   }
-  res++;
 
   // Testing write new data
   data_vector_source.clear();
@@ -227,7 +216,6 @@ int test_fs_synchronization() {
   fs_header_spifs1->Load(test_data_file.obj_id, test_data_file.class_id,
                          test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
-  res++;
 
   // FS SPIFSV2 tests
   fs_header_spifs2 = std::make_unique<ae::FileSystemHeaderFacility>(
@@ -243,14 +231,12 @@ int test_fs_synchronization() {
                     test_data_files[i].version, data_vector_destination);
     TEST_ASSERT(data_vector_destination.size() == 0);
   }
-  res++;
 
   data_vector_destination.clear();
   fs_spifs2->Remove(test_data_file.obj_id);
   fs_spifs2->Load(test_data_file.obj_id, test_data_file.class_id,
                   test_data_file.version, data_vector_destination);
   TEST_ASSERT(data_vector_destination.size() == 0);
-  res++;
 
   // Test copying data from the source file system to the destination file
   // system
@@ -265,7 +251,6 @@ int test_fs_synchronization() {
                     test_data_files[i].version, data_vector_destination);
     TEST_ASSERT(data_vector_source == data_vector_destination);
   }
-  res++;
 
   // Testing write new data
   data_vector_source.clear();
@@ -274,8 +259,11 @@ int test_fs_synchronization() {
   fs_header_spifs2->Load(test_data_file.obj_id, test_data_file.class_id,
                          test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
-  res++;
 #endif  // (!defined(ESP_PLATFORM))
-
-  return res;
+}
+}  // namespace ae::test_fs
+int test_fs_synchronization() {
+  UNITY_BEGIN();
+  RUN_TEST(ae::test_events::test_FS);
+  return UNITY_END();
 }
