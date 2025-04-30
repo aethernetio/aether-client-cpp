@@ -84,13 +84,11 @@ jobs:
               name: "Hydrogen",
               user_config: "./config/user_config_hydrogen.h",
               fs_init: "./config/file_system_init.h",
-              fs_init_test: "./tests/test-file-systems/config/file_system_init.h",
             }
           - {
               name: "Sodium",
               user_config: "./config/user_config_sodium.h",
               fs_init: "./config/file_system_init.h",
-              fs_init_test: "./tests/test-file-systems/config/file_system_init.h",
             }
 
     steps:
@@ -161,7 +159,6 @@ jobs:
           -DAE_DISTILLATION=${{ matrix.config.distillation }}
           -DUSER_CONFIG="${{ matrix.platforms.user_config }}"
           -DFS_INIT="${{ matrix.platforms.fs_init }}"
-          -DFS_INIT_TEST="${{ matrix.platforms.fs_init_test }}"
           -S projects/cmake
 
       - name: Build
