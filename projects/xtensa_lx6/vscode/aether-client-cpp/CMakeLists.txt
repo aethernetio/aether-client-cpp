@@ -62,7 +62,7 @@ list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
 )
 
 if(COMPILE_EXAMPLE)
-  set(COMPONENTS ${COMPILE_EXAMPLE} test-file-systems)
+  set(COMPONENTS ${COMPILE_EXAMPLE})
 endif()
 
 project(Aether LANGUAGES CXX C ASM)
