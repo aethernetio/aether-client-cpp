@@ -264,6 +264,6 @@ void test_FS() {
 }  // namespace ae::test_fs
 int test_fs_synchronization() {
   UNITY_BEGIN();
-  RUN_TEST(ae::test_events::test_FS);
+  RUN_TEST(ae::test_fs::test_FS);
   return UNITY_END();
 }
