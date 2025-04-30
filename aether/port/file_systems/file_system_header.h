@@ -36,7 +36,8 @@ class FileSystemHeaderFacility : public IDomainFacility {
   using ObjClassData = std::map<ae::ObjId, ClassData>;
 
  public:
-  FileSystemHeaderFacility(const std::string& header_file, enum DriverFsType fs_driver_type_destination);
+  FileSystemHeaderFacility(const std::string& header_file,
+                           enum DriverFsType fs_driver_type_destination);
   ~FileSystemHeaderFacility() override;
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,

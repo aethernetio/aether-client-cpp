@@ -29,20 +29,18 @@
 
 namespace ae {
 
-class DriverStd: public DriverBase {
-
+class DriverStd : public DriverBase {
  public:
   DriverStd();
   ~DriverStd();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector, bool sync) override;
   void DriverWrite(const std::string &path,
-                      const std::vector<std::uint8_t> &data_vector) override;
+                   const std::vector<std::uint8_t> &data_vector) override;
   void DriverDelete(const std::string &path) override;
   std::vector<std::string> DriverDir(const std::string &path) override;
 
  private:
-
 };
 
 }  // namespace ae

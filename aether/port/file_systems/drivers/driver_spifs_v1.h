@@ -34,36 +34,36 @@
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
 
 namespace ae {
-  using Data = std::vector<std::uint8_t>;
-  using VersionData = std::map<std::uint8_t, Data>;
-  using ClassData = std::map<std::uint32_t, VersionData>;
-  using ObjClassData = std::map<ae::ObjId, ClassData>;
-  
-  static ObjClassData state_spifs_;
+using Data = std::vector<std::uint8_t>;
+using VersionData = std::map<std::uint8_t, Data>;
+using ClassData = std::map<std::uint32_t, VersionData>;
+using ObjClassData = std::map<ae::ObjId, ClassData>;
 
-class DriverSpifsV1: public DriverBase{
+static ObjClassData state_spifs_;
+
+class DriverSpifsV1 : public DriverBase {
  public:
   DriverSpifsV1();
   ~DriverSpifsV1();
   void DriverRead(const std::string &path,
-                       std::vector<std::uint8_t> &data_vector, bool sync) override;
+                  std::vector<std::uint8_t> &data_vector, bool sync) override;
   void DriverWrite(const std::string &path,
-                        const std::vector<std::uint8_t> &data_vector)  override;
-  void DriverDelete(const std::string &path)  override;
-  std::vector<std::string> DriverDir(const std::string &path)  override;
+                   const std::vector<std::uint8_t> &data_vector) override;
+  void DriverDelete(const std::string &path) override;
+  std::vector<std::string> DriverDir(const std::string &path) override;
   void DriverFormat();
 
  private:
   esp_err_t DriverInit_();
   void DriverDeinit_();
   bool initialized_{false};
-  void LoadObjData_(ObjClassData& obj_data);
-  void SaveObjData_(ObjClassData& obj_data);
+  void LoadObjData_(ObjClassData &obj_data);
+  void SaveObjData_(ObjClassData &obj_data);
   void DriverRead_(const std::string &path,
-                       std::vector<std::uint8_t> &data_vector);
+                   std::vector<std::uint8_t> &data_vector);
   void DriverWrite_(const std::string &path,
-                        const std::vector<std::uint8_t> &data_vector);
-  
+                    const std::vector<std::uint8_t> &data_vector);
+
   static constexpr char kPartition[] = "storage";
   static constexpr char kBasePath[] = "/spiffs";
 };

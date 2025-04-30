@@ -26,27 +26,25 @@
 #include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {
-  using Data = std::vector<std::uint8_t>;
-  using VersionData = std::map<std::uint8_t, Data>;
-  using ClassData = std::map<std::uint32_t, VersionData>;
-  using ObjClassData = std::map<ae::ObjId, ClassData>;
-  
-  static ObjClassData state_ram_;
-  
-class DriverRam: public DriverBase{
-  
+using Data = std::vector<std::uint8_t>;
+using VersionData = std::map<std::uint8_t, Data>;
+using ClassData = std::map<std::uint32_t, VersionData>;
+using ObjClassData = std::map<ae::ObjId, ClassData>;
+
+static ObjClassData state_ram_;
+
+class DriverRam : public DriverBase {
  public:
   DriverRam();
   ~DriverRam();
   void DriverRead(const std::string &path,
-                     std::vector<std::uint8_t> &data_vector, bool sync) override;
+                  std::vector<std::uint8_t> &data_vector, bool sync) override;
   void DriverWrite(const std::string &path,
-                      const std::vector<std::uint8_t> &data_vector) override;
+                   const std::vector<std::uint8_t> &data_vector) override;
   void DriverDelete(const std::string &path) override;
   std::vector<std::string> DriverDir(const std::string &path) override;
 
- private:  
- 
+ private:
 };
 
 }  // namespace ae

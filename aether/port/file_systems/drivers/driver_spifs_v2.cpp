@@ -22,7 +22,7 @@
 
 namespace ae {
 DriverSpifsV2::DriverSpifsV2() {
-  if(initialized_ == false){
+  if (initialized_ == false) {
     if (DriverInit_() == ESP_OK) initialized_ = true;
   }
 }
@@ -33,7 +33,8 @@ DriverSpifsV2::~DriverSpifsV2() {
 }
 
 void DriverSpifsV2::DriverRead(const std::string &path,
-                                  std::vector<std::uint8_t> &data_vector, bool sync) {
+                               std::vector<std::uint8_t> &data_vector,
+                               bool sync) {
   size_t bytes_read;
   unsigned int file_size = 0;
   std::string res_path{};
@@ -54,7 +55,8 @@ void DriverSpifsV2::DriverRead(const std::string &path,
     data_vector.resize(file_size);
 
     bytes_read = fread(data_vector.data(), 1, file_size, file);
-    AE_TELE_DEBUG(FsObjLoaded, "Reading from the file {}. Bytes read {}", res_path, bytes_read);
+    AE_TELE_DEBUG(FsObjLoaded, "Reading from the file {}. Bytes read {}",
+                  res_path, bytes_read);
     /*for(std::uint8_t& i : data_vector)
     {
       auto res = static_cast<std::uint32_t>(i);
@@ -65,8 +67,8 @@ void DriverSpifsV2::DriverRead(const std::string &path,
   }
 }
 
-void DriverSpifsV2::DriverWrite(
-    const std::string &path, const std::vector<std::uint8_t> &data_vector) {
+void DriverSpifsV2::DriverWrite(const std::string &path,
+                                const std::vector<std::uint8_t> &data_vector) {
   size_t bytes_write;
   std::string res_path{};
 
@@ -79,7 +81,8 @@ void DriverSpifsV2::DriverWrite(
     AE_TELE_ERROR(FsObjSaved, "Failed to open file {} for writing.", res_path);
   } else {
     bytes_write = fwrite(data_vector.data(), 1, data_vector.size(), file);
-    AE_TELE_INFO(FsObjSaved, "Writing to the file {}. Bytes write {}", res_path, bytes_write);
+    AE_TELE_INFO(FsObjSaved, "Writing to the file {}. Bytes write {}", res_path,
+                 bytes_write);
     /*for(const std::uint8_t& i : data_vector)
     {
       auto res = static_cast<std::uint32_t>(i);
@@ -152,7 +155,7 @@ esp_err_t DriverSpifsV2::DriverInit_() {
   // Note: esp_vfs_spiffs_register is an all-in-one convenience function.
   esp_err_t ret = esp_vfs_spiffs_register(&conf);
 
-  if (ret !=ESP_ERR_INVALID_STATE) // FS alredy is initialized
+  if (ret != ESP_ERR_INVALID_STATE)  // FS alredy is initialized
   {
     if (ret != ESP_OK) {
       if (ret == ESP_FAIL) {
@@ -160,7 +163,8 @@ esp_err_t DriverSpifsV2::DriverInit_() {
       } else if (ret == ESP_ERR_NOT_FOUND) {
         AE_TELED_ERROR("Failed to find SPIFFS partition");
       } else {
-        AE_TELED_ERROR("Failed to initialize SPIFFS ({})", esp_err_to_name(ret));
+        AE_TELED_ERROR("Failed to initialize SPIFFS ({})",
+                       esp_err_to_name(ret));
       }
       return ret;
     }

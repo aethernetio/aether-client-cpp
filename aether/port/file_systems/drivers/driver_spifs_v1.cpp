@@ -16,15 +16,15 @@
 
 #if (defined(ESP_PLATFORM))
 
-#include "aether/port/file_systems/drivers/driver_spifs_v1.h"
-#include "aether/port/file_systems/drivers/driver_functions.h"
-#include "aether/port/file_systems/file_systems_tele.h"
-#include "aether/tele/tele.h"
+#  include "aether/port/file_systems/drivers/driver_spifs_v1.h"
+#  include "aether/port/file_systems/drivers/driver_functions.h"
+#  include "aether/port/file_systems/file_systems_tele.h"
+#  include "aether/tele/tele.h"
 
 namespace ae {
-  
+
 DriverSpifsV1::DriverSpifsV1() {
-  if(initialized_ == false){
+  if (initialized_ == false) {
     if (DriverInit_() == ESP_OK) initialized_ = true;
   }
 }
@@ -35,13 +35,14 @@ DriverSpifsV1::~DriverSpifsV1() {
 }
 
 void DriverSpifsV1::DriverRead(const std::string &path,
-                              std::vector<std::uint8_t> &data_vector, bool sync) {
+                               std::vector<std::uint8_t> &data_vector,
+                               bool sync) {
   if (sync == false) {
     ae::PathStructure path_struct{};
 
     // Reading ObjClassData
     LoadObjData_(state_spifs_);
-  
+
     path_struct = GetPathStructure(path);
 
     auto obj_it = state_spifs_.find(path_struct.obj_id);
@@ -64,17 +65,17 @@ void DriverSpifsV1::DriverRead(const std::string &path,
 }
 
 void DriverSpifsV1::DriverWrite(const std::string &path,
-                               const std::vector<std::uint8_t> &data_vector) {
+                                const std::vector<std::uint8_t> &data_vector) {
   ae::PathStructure path_struct{};
 
   // Reading ObjClassData
   LoadObjData_(state_spifs_);
-  
+
   path_struct = GetPathStructure(path);
 
   state_spifs_[path_struct.obj_id][path_struct.class_id][path_struct.version] =
       data_vector;
-      
+
   // Writing ObjClassData
   SaveObjData_(state_spifs_);
 }
@@ -84,7 +85,7 @@ void DriverSpifsV1::DriverDelete(const std::string &path) {
 
   // Reading ObjClassData
   LoadObjData_(state_spifs_);
-  
+
   path_struct = GetPathStructure(path);
 
   auto it = state_spifs_.find(path_struct.obj_id);
@@ -96,7 +97,7 @@ void DriverSpifsV1::DriverDelete(const std::string &path) {
     AE_TELE_ERROR(FsRemoveObjIdNoFound, "Object id={} not found!",
                   path_struct.obj_id.ToString());
   }
-  
+
   // Writing ObjClassData
   SaveObjData_(state_spifs_);
 }
@@ -106,7 +107,7 @@ std::vector<std::string> DriverSpifsV1::DriverDir(const std::string &path) {
 
   // Reading ObjClassData
   LoadObjData_(state_spifs_);
-  
+
   AE_TELE_DEBUG(FsObjRemoved, "Path {}", path);
   for (auto &ItemObjClassData : state_spifs_) {
     for (auto &ItemClassData : ItemObjClassData.second) {
@@ -140,7 +141,7 @@ esp_err_t DriverSpifsV1::DriverInit_() {
   // Note: esp_vfs_spiffs_register is an all-in-one convenience function.
   esp_err_t ret = esp_vfs_spiffs_register(&conf);
 
-  if (ret !=ESP_ERR_INVALID_STATE) // FS alredy is initialized
+  if (ret != ESP_ERR_INVALID_STATE)  // FS alredy is initialized
   {
     if (ret != ESP_OK) {
       if (ret == ESP_FAIL) {
@@ -148,7 +149,8 @@ esp_err_t DriverSpifsV1::DriverInit_() {
       } else if (ret == ESP_ERR_NOT_FOUND) {
         AE_TELED_ERROR("Failed to find SPIFFS partition");
       } else {
-        AE_TELED_ERROR("Failed to initialize SPIFFS ({})", esp_err_to_name(ret));
+        AE_TELED_ERROR("Failed to initialize SPIFFS ({})",
+                       esp_err_to_name(ret));
       }
       return ret;
     }
@@ -167,7 +169,7 @@ esp_err_t DriverSpifsV1::DriverInit_() {
 
 void DriverSpifsV1::DriverDeinit_() { esp_vfs_spiffs_unregister(kPartition); }
 
-void DriverSpifsV1::LoadObjData_(ObjClassData& obj_data) {
+void DriverSpifsV1::LoadObjData_(ObjClassData &obj_data) {
   auto data_vector = std::vector<std::uint8_t>{};
   std::string path{"dump"};
 
@@ -179,7 +181,7 @@ void DriverSpifsV1::LoadObjData_(ObjClassData& obj_data) {
   is >> obj_data;
 }
 
-void DriverSpifsV1::SaveObjData_(ObjClassData& obj_data) {
+void DriverSpifsV1::SaveObjData_(ObjClassData &obj_data) {
   auto data_vector = std::vector<std::uint8_t>{};
   std::string path{"dump"};
 
@@ -190,9 +192,9 @@ void DriverSpifsV1::SaveObjData_(ObjClassData& obj_data) {
 
   DriverWrite_(path, data_vector);
 }
-  
+
 void DriverSpifsV1::DriverRead_(const std::string &path,
-                                  std::vector<std::uint8_t> &data_vector) {
+                                std::vector<std::uint8_t> &data_vector) {
   size_t bytes_read;
   unsigned int file_size = 0;
   std::string res_path{};
@@ -213,7 +215,8 @@ void DriverSpifsV1::DriverRead_(const std::string &path,
     data_vector.resize(file_size);
 
     bytes_read = fread(data_vector.data(), 1, file_size, file);
-    AE_TELE_DEBUG(FsObjLoaded, "Reading from the file {}. Bytes read {}", res_path, bytes_read);
+    AE_TELE_DEBUG(FsObjLoaded, "Reading from the file {}. Bytes read {}",
+                  res_path, bytes_read);
     /*for(std::uint8_t& i : data_vector)
     {
       auto res = static_cast<std::uint32_t>(i);
@@ -224,8 +227,8 @@ void DriverSpifsV1::DriverRead_(const std::string &path,
   }
 }
 
-void DriverSpifsV1::DriverWrite_(
-    const std::string &path, const std::vector<std::uint8_t> &data_vector) {
+void DriverSpifsV1::DriverWrite_(const std::string &path,
+                                 const std::vector<std::uint8_t> &data_vector) {
   size_t bytes_write;
   std::string res_path{};
 
@@ -238,7 +241,8 @@ void DriverSpifsV1::DriverWrite_(
     AE_TELE_ERROR(FsObjSaved, "Failed to open file {} for writing.", res_path);
   } else {
     bytes_write = fwrite(data_vector.data(), 1, data_vector.size(), file);
-    AE_TELE_INFO(FsObjSaved, "Writing to the file {}. Bytes write {}", res_path, bytes_write);
+    AE_TELE_INFO(FsObjSaved, "Writing to the file {}. Bytes write {}", res_path,
+                 bytes_write);
     /*for(const std::uint8_t& i : data_vector)
     {
       auto res = static_cast<std::uint32_t>(i);

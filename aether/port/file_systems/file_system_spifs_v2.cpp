@@ -92,11 +92,11 @@ void FileSystemSpiFsV2Facility::Load(const ae::ObjId& obj_id,
 void FileSystemSpiFsV2Facility::Remove(const ae::ObjId& obj_id) {
   std::string path{"state"};
   ae::PathStructure path_struct{};
-  
+
   // Path is "state/version/obj_id/class_id"
   auto version_dirs = driver_sync_fs_->DriverDir(path);
-  
-  for (auto const& ver_dir : version_dirs) {   
+
+  for (auto const& ver_dir : version_dirs) {
     path_struct = GetPathStructure(path + "/" + ver_dir);
 
     if (obj_id == path_struct.obj_id) {

@@ -28,7 +28,8 @@ namespace ae {
 
 class DriverSync {
  public:
-  DriverSync(enum DriverFsType fs_driver_type_source, enum DriverFsType fs_driver_type_destination);
+  DriverSync(enum DriverFsType fs_driver_type_source,
+             enum DriverFsType fs_driver_type_destination);
   ~DriverSync();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector);
@@ -40,7 +41,7 @@ class DriverSync {
  private:
   void DriverSyncronize_(const std::string &path);
   enum DriverFsType fs_driver_type_source_ { DriverFsType::kDriverNone };
-  enum DriverFsType fs_driver_type_destination_ { DriverFsType::kDriverNone };  
+  enum DriverFsType fs_driver_type_destination_ { DriverFsType::kDriverNone };
   std::unique_ptr<DriverBase> fs_driver_source_{};
   std::unique_ptr<DriverBase> fs_driver_destination_{};
 };
