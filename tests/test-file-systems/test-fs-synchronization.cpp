@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#include <memory>
-#include <unity.h>
-
 #include "tests/test-file-systems/test-fs-synchronization.h"
 
 struct person {

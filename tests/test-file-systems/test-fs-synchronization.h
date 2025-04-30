@@ -17,6 +17,9 @@
 #ifndef TESTS_TEST_FILE_SYSTEMS_TEST_FS_SYNCHRONIZATION_H_
 #define TESTS_TEST_FILE_SYSTEMS_TEST_FS_SYNCHRONIZATION_H_
 
+#include <memory>
+#include <unity.h>
+
 #include "aether/obj/domain.h"
 #include "aether/tele/tele.h"
 #include "aether/port/tele_init.h"
