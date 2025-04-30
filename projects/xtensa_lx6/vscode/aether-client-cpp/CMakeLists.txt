@@ -25,40 +25,28 @@ idf_build_set_property(CM_PLATFORM "ESP32")
 
 add_compile_definitions(CM_ESP32)
 
-if(NOT DEFINED ${COMPILE_EXAMPLE})
-  set(COMPILE_EXAMPLE "registered" CACHE PATH "")
+if(NOT COMPILE_EXAMPLE )
+  set(COMPILE_EXAMPLE "registered")
 endif()
 
-if ((NOT DEFINED ${USER_CONFIG}) OR (${USER_CONFIG} MATCHES ""))
+if (NOT USER_CONFIG)
   set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../../config/user_config_optimized.h" CACHE PATH "")
 endif()
 
-if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES "")) 
-  set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../config/file_system_init.h" CACHE PATH "")
+if (NOT FS_INIT)
+  set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../config/file_system_init.h"  CACHE PATH "")
 endif()
-
-# for tests
-#if ((NOT DEFINED ${FS_INIT_TEST}) OR (${FS_INIT_TEST} MATCHES "")) 
-#  set(FS_INIT_TEST "${CMAKE_CURRENT_LIST_DIR}/../../../../tests/test-file-systems/config/file_system_init.h" CACHE PATH "") 
-#endif()
 
 # enable doubles in unity tests
 add_compile_definitions("CONFIG_UNITY_ENABLE_DOUBLE")
 
 set(AE_DISTILLATION OFF CACHE BOOL "" FORCE)
 
-add_compile_definitions(AE_FILE_SYSTEM_HEADER_ENABLED=1)
-add_compile_definitions(AE_FILE_SYSTEM_STD_ENABLED=0)
-add_compile_definitions(AE_FILE_SYSTEM_RAM_ENABLED=0)
-add_compile_definitions(AE_FILE_SYSTEM_SPIFS_V1_ENABLED=0)
-add_compile_definitions(AE_FILE_SYSTEM_SPIFS_V2_ENABLED=1)
-
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/cloud"
                                  "../../../../examples/key_led"
                                  "../../../../examples/registered"
                                  "../../../../examples/benches/send_message_delays"
-#                                 "../../../../tests/test-file-systems"
 )
 
 if(COMPILE_EXAMPLE)

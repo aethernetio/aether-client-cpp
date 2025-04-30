@@ -56,6 +56,7 @@ list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
 #                                 "../../../../examples/key_led"
                                  "../../../../examples/registered"
 #                                 "../../../../examples/benches/send_message_delays"
+#                                 "../../../../tests/test-file-systems"
 )
 
 project(Aether LANGUAGES CXX C ASM)
