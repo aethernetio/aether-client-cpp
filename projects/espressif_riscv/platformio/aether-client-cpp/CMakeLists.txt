@@ -31,9 +31,14 @@ if ((NOT DEFINED ${USER_CONFIG}) OR (${USER_CONFIG} MATCHES ""))
   set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../../config/user_config_optimized.h" CACHE PATH "")
 endif()
 
-if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES ""))
+if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES "")) 
   set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../config/file_system_init.h" CACHE PATH "")
 endif()
+
+# for tests
+#if ((NOT DEFINED ${FS_INIT_TEST}) OR (${FS_INIT_TEST} MATCHES "")) 
+#  set(FS_INIT_TEST "${CMAKE_CURRENT_LIST_DIR}/../../../../tests/test-file-systems/config/file_system_init.h" CACHE PATH "") 
+#endif()
 
 # enable doubles in unity tests
 add_compile_definitions("CONFIG_UNITY_ENABLE_DOUBLE")

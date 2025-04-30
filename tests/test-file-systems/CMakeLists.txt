@@ -38,9 +38,9 @@ list(APPEND test_srcs
 )
 
 if(NOT CM_PLATFORM)
-  if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES ""))
-    target_compile_definitions(aether PUBLIC FS_INIT="${CMAKE_CURRENT_LIST_DIR}/../../config/file_system_init.h" CACHE PATH "")
-  endif()
+  #if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES ""))
+  #  target_compile_definitions(aether PUBLIC FS_INIT="${CMAKE_CURRENT_LIST_DIR}/../../config/file_system_init.h" CACHE PATH "")
+  #endif()
 
   if ((NOT DEFINED ${FS_INIT_TEST}) OR (${FS_INIT_TEST} MATCHES ""))
     # for tests
