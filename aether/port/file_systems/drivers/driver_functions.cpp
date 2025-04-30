@@ -20,8 +20,6 @@ namespace ae {
 
 ae::PathStructure GetPathStructure(const std::string& path) {
   ae::PathStructure path_struct{};
-  char* idx = 0;
-  int base = 10;
 
   // Path is "state/version/obj_id/class_id"
   auto pos1 = path.find("/");
@@ -32,8 +30,8 @@ ae::PathStructure GetPathStructure(const std::string& path) {
 
       path_struct.version = static_cast<std::uint8_t>(
           std::stoul(path.substr(pos1 + 1, pos2 - pos1 - 1)));
-      path_struct.obj_id = static_cast<ae::ObjId>(std::strtoul(
-          path.substr(pos2 + 1, pos3 - pos2 - 1).c_str(), &idx, base));
+      path_struct.obj_id = reinterpret_cast<ae::ObjId>(std::stoul(
+          path.substr(pos2 + 1, pos3 - pos2 - 1)));
       path_struct.class_id = static_cast<std::uint32_t>(
           std::stoul(path.substr(pos3 + 1, path.length() - pos3 - 1)));
     }
