@@ -26,7 +26,7 @@ idf_build_set_property(CM_PLATFORM "ESP32")
 add_compile_definitions(CM_ESP32)
 
 if(NOT DEFINED ${COMPILE_EXAMPLE})
-  set(COMPILE_EXAMPLE "registered" CACHE PATH "")
+  set(COMPILE_EXAMPLE "registered")
 endif()
 
 if ((NOT DEFINED ${USER_CONFIG}) OR (${USER_CONFIG} MATCHES ""))
