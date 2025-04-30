@@ -16,7 +16,7 @@
 
 #include "aether/port/file_systems/file_system_header.h"
 
-#if AE_FILE_SYSTEM_HEADER_ENABLED==1
+#if AE_FILE_SYSTEM_HEADER_ENABLED == 1
 
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
 #  include "aether/port/file_systems/file_systems_tele.h"
