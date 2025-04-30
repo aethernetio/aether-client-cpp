@@ -29,9 +29,6 @@ inline bool IsInteger(const std::string& s) {
   return (*p == 0);
 }
 
-#pragma GCC diagnostic push
-
-#pragma GCC diagnostic ignored "-Wconversion"
 ae::PathStructure GetPathStructure(const std::string& path) {
   ae::PathStructure path_struct{};
 
@@ -47,7 +44,7 @@ ae::PathStructure GetPathStructure(const std::string& path) {
             std::stoul(path.substr(pos1 + 1, pos2 - pos1 - 1)));
       }
       if (IsInteger(path.substr(pos2 + 1, pos3 - pos2 - 1))) {
-        path_struct.obj_id = static_cast<ae::ObjId>(
+        path_struct.obj_id = static_cast<std::uint32_t>(
             std::stoul(path.substr(pos2 + 1, pos3 - pos2 - 1)));
       }
       if (IsInteger(path.substr(pos3 + 1, path.length() - pos3 - 1))) {
@@ -59,7 +56,6 @@ ae::PathStructure GetPathStructure(const std::string& path) {
 
   return path_struct;
 }
-#pragma GCC diagnostic pop
 
 bool ValidatePath(const std::string& path) {
   std::vector<std::string> parts;
