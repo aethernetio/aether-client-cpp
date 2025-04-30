@@ -18,9 +18,9 @@
 #include "aether/port/file_systems/file_systems_tele.h"
 namespace ae {
 
-//#pragma GCC diagnostic push
+#pragma GCC diagnostic push
 
-//#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wconversion"
 ae::PathStructure GetPathStructure(const std::string& path) {
   ae::PathStructure path_struct{};
 
@@ -42,7 +42,7 @@ ae::PathStructure GetPathStructure(const std::string& path) {
 
   return path_struct;
 }
-//#pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 
 inline bool IsInteger(const std::string& s) {
   if (s.empty() || ((!isdigit(s[0])) && (s[0] != '-') && (s[0] != '+')))
