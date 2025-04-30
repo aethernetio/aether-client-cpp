@@ -25,7 +25,7 @@ DriverRam::DriverRam() {}
 DriverRam::~DriverRam() {}
 
 void DriverRam::DriverRead(const std::string &path,
-                              std::vector<std::uint8_t> &data_vector, bool sync) {
+                           std::vector<std::uint8_t> &data_vector, bool sync) {
   if (sync == false) {
     ae::PathStructure path_struct{};
 
@@ -51,7 +51,7 @@ void DriverRam::DriverRead(const std::string &path,
 }
 
 void DriverRam::DriverWrite(const std::string &path,
-                               const std::vector<std::uint8_t> &data_vector) {
+                            const std::vector<std::uint8_t> &data_vector) {
   ae::PathStructure path_struct{};
 
   path_struct = GetPathStructure(path);

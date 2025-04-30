@@ -57,4 +57,4 @@ class DriverBase {
 
 }  // namespace ae
 
-#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_RAM_H_
+#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_BASE_H_

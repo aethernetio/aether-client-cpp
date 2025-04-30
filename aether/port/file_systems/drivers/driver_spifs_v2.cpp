@@ -155,8 +155,7 @@ esp_err_t DriverSpifsV2::DriverInit_() {
   // Note: esp_vfs_spiffs_register is an all-in-one convenience function.
   esp_err_t ret = esp_vfs_spiffs_register(&conf);
 
-  if (ret != ESP_ERR_INVALID_STATE)  // FS alredy is initialized
-  {
+  if (ret != ESP_ERR_INVALID_STATE) {  // FS alredy is initialized
     if (ret != ESP_OK) {
       if (ret == ESP_FAIL) {
         AE_TELED_ERROR("Failed to mount or format filesystem");

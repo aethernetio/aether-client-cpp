@@ -28,7 +28,7 @@
 #  include "aether/port/file_systems/drivers/driver_sync.h"
 
 namespace ae {
-  
+
 class FileSystemStdFacility : public IDomainFacility {
  public:
   FileSystemStdFacility();

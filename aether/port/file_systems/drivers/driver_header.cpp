@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#include "aether/port/file_systems/drivers/driver_header.h"
-#include "aether/port/file_systems/drivers/driver_functions.h"
-#include "aether/transport/low_level/tcp/data_packet_collector.h"
-
 #include <string>
 #if (!defined(ESP_PLATFORM))
 #  include <filesystem>
 #endif
 
+#include "aether/port/file_systems/drivers/driver_header.h"
+#include "aether/port/file_systems/drivers/driver_functions.h"
+#include "aether/transport/low_level/tcp/data_packet_collector.h"
 #include "aether/tele/tele.h"
 
 constexpr char string1[] = "#ifndef CONFIG_FILE_SYSTEM_INIT_H_";

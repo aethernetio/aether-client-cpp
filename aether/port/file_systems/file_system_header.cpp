@@ -24,9 +24,11 @@
 namespace ae {
 
 FileSystemHeaderFacility::FileSystemHeaderFacility(
-    const std::string& header_file,  enum DriverFsType fs_driver_type_destination)
+    const std::string& header_file,
+    enum DriverFsType fs_driver_type_destination)
     : path_{header_file} {
-  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverHeader, fs_driver_type_destination);
+  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverHeader,
+                                                 fs_driver_type_destination);
   AE_TELED_DEBUG("New FileSystemHeader instance created!");
 }
 
@@ -134,12 +136,12 @@ void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
 
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
-    AE_TELE_DEBUG(FsObjRemoved,"Object id={} removed!", obj_id.ToString());
+    AE_TELE_DEBUG(FsObjRemoved, "Object id={} removed!", obj_id.ToString());
     state_.erase(it);
   } else {
     AE_TELED_WARNING("Object id={} not found!", obj_id.ToString());
   }
-  
+
   // Writing ObjClassData
   SaveObjData_(state_);
 }
@@ -184,7 +186,7 @@ void FileSystemHeaderFacility::SaveObjData_(ObjClassData& obj_data) {
 #    endif
 
   VectorWriter<PacketSize> vw{data_vector};
-  
+
   auto os = omstream{vw};
   // add file data
   os << obj_data;
