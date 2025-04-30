@@ -16,7 +16,7 @@
 
 #include "aether/port/file_systems/file_system_ram.h"
 
-#if defined AE_FILE_SYSTEM_RAM_ENABLED
+#if AE_FILE_SYSTEM_RAM_ENABLED==1
 
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
 #  include "aether/port/file_systems/file_systems_tele.h"

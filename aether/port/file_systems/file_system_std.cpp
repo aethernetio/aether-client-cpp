@@ -16,7 +16,7 @@
 
 #include "aether/port/file_systems/file_system_std.h"
 
-#if defined AE_FILE_SYSTEM_STD_ENABLED
+#if AE_FILE_SYSTEM_STD_ENABLED==1
 
 #  include <filesystem>
 

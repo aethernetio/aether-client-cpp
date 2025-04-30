@@ -44,6 +44,12 @@ add_compile_definitions("CONFIG_UNITY_ENABLE_DOUBLE")
 
 set(AE_DISTILLATION OFF CACHE BOOL "" FORCE)
 
+add_compile_definitions(AE_FILE_SYSTEM_HEADER_ENABLED=1)
+add_compile_definitions(AE_FILE_SYSTEM_STD_ENABLED=0)
+add_compile_definitions(AE_FILE_SYSTEM_RAM_ENABLED=0)
+add_compile_definitions(AE_FILE_SYSTEM_SPIFS_V1_ENABLED=0)
+add_compile_definitions(AE_FILE_SYSTEM_SPIFS_V2_ENABLED=1)
+
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/cloud"
                                  "../../../../examples/key_led"

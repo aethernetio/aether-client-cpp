@@ -19,8 +19,7 @@
 
 #include "aether/config.h"
 
-#if defined ESP_PLATFORM && AE_SUPPORT_SPIFS_V2_FS
-#  define AE_FILE_SYSTEM_SPIFS_V2_ENABLED 1
+#if defined ESP_PLATFORM && AE_SUPPORT_SPIFS_V2_FS || AE_FILE_SYSTEM_SPIFS_V2_ENABLED==1
 
 #  include <map>
 #  include <cstdint>

@@ -17,8 +17,6 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
 #define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
 
-#define AE_FILE_SYSTEM_HEADER_ENABLED 1
-
 #include <map>
 #include <cstdint>
 #include <string>

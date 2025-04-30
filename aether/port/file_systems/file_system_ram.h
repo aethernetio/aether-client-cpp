@@ -17,8 +17,6 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_
 #define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_
 
-#define AE_FILE_SYSTEM_RAM_ENABLED 1
-
 #include <map>
 #include <vector>
 #include <cstdint>
@@ -42,8 +40,6 @@ class FileSystemRamFacility : public IDomainFacility {
 #if defined AE_DISTILLATION
   void CleanUp() override;
 #endif
-
-  void out_header();
 
  private:
   std::unique_ptr<DriverSync> driver_sync_fs_;

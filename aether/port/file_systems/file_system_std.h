@@ -22,8 +22,6 @@
 #if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
      defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
 
-#  define AE_FILE_SYSTEM_STD_ENABLED 1
-
 #  include "aether/obj/domain.h"
 #  include "aether/port/file_systems/drivers/driver_sync.h"
 
