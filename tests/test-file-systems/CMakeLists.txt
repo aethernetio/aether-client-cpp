@@ -39,11 +39,14 @@ list(APPEND test_srcs
 
 if(NOT CM_PLATFORM)
   if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES ""))
-    target_compile_definitions(aether PUBLIC FS_INIT="${CMAKE_CURRENT_LIST_DIR}/config/file_system_init.h")
+    # for tests
+    # target_compile_definitions(aether PUBLIC FS_INIT="${CMAKE_CURRENT_LIST_DIR}/config/file_system_init.h")
   endif()
 
   target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_STD_ENABLED=1)
-  target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_TEST=1)
+  target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_RAM_ENABLED=1)
+  target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_SPIFS_V1_ENABLED=1)
+  target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_SPIFS_V2_ENABLED=1)
   #target_compile_definitions(aether PUBLIC AE_DISTILLATION=0)
 
   project(test-file-systems LANGUAGES CXX)

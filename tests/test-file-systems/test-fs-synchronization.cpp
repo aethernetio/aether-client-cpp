@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
+#include "tests/test-file-systems/test-fs-synchronization.h"
+
 #include <memory>
 #include <unity.h>
-
-#include "tests/test-file-systems/test-fs-synchronization.h"
 
 struct person {
   uint8_t version;
