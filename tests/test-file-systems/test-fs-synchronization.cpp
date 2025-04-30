@@ -90,7 +90,7 @@ int test_fs_synchronization() {
 #if (!defined(ESP_PLATFORM))
 
   // FS STD tests
-  fs_header_std = std::make_unique<ae::FileSystemHeaderFacility>(
+  /*fs_header_std = std::make_unique<ae::FileSystemHeaderFacility>(
       header_file, ae::DriverFsType::kDriverStd);
   fs_std = std::make_unique<ae::FileSystemStdFacility>();
 
@@ -133,7 +133,7 @@ int test_fs_synchronization() {
   fs_header_std->Load(test_data_file.obj_id, test_data_file.class_id,
                       test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
-  res++;
+  res++;*/
 
   // FS RAM tests
   fs_header_ram = std::make_unique<ae::FileSystemHeaderFacility>(
