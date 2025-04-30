@@ -16,7 +16,7 @@
 
 #include "aether/port/file_systems/file_system_spifs_v1.h"
 
-#if AE_FILE_SYSTEM_SPIFS_V1_ENABLED==1
+#if AE_FILE_SYSTEM_SPIFS_V1_ENABLED == 1
 
 #  include "aether/tele/tele.h"
 

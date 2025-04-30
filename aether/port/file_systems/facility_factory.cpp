@@ -24,13 +24,13 @@
 
 namespace ae {
 std::unique_ptr<IDomainFacility> DomainFacilityFactory::Create() {
-#if AE_FILE_SYSTEM_STD_ENABLED==1
+#if AE_FILE_SYSTEM_STD_ENABLED == 1
   return make_unique<FileSystemStdFacility>();
-#elif AE_FILE_SYSTEM_SPIFS_V2_ENABLED==1
+#elif AE_FILE_SYSTEM_SPIFS_V2_ENABLED == 1
   return make_unique<FileSystemSpiFsV2Facility>();
-#elif AE_FILE_SYSTEM_SPIFS_V1_ENABLED==1
+#elif AE_FILE_SYSTEM_SPIFS_V1_ENABLED == 1
   return make_unique<FileSystemSpiFsV1Facility>();
-#elif AE_FILE_SYSTEM_RAM_ENABLED==1
+#elif AE_FILE_SYSTEM_RAM_ENABLED == 1
   return make_unique<FileSystemRamFacility>();
 #endif
 }
