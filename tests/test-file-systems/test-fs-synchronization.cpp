@@ -32,7 +32,7 @@ int test_fs_synchronization() {
   std::unique_ptr<ae::IDomainFacility> fs_ram{};
   std::unique_ptr<ae::IDomainFacility> fs_spifs1{};
   std::unique_ptr<ae::IDomainFacility> fs_spifs2{};
-  const std::string& header_file{FS_INIT};
+  const std::string& header_file{FS_INIT_TEST};
   auto data_vector_source = std::vector<std::uint8_t>{};
   auto data_vector_destination = std::vector<std::uint8_t>{};
   auto data_vector_test = std::vector<std::uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9};
