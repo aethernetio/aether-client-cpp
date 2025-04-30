@@ -82,7 +82,7 @@ int test_fs_synchronization() {
       {0, 3949981516, 2178182515}, {0, 3949981516, 2721984319},
       {0, 4092760964, 1058537116}, {0, 4092760964, 2178182515}};
 
-  struct person test_data_file{10, 1004, 1402813048};
+  struct person test_data_file{1, 2, 3};
 
   ae::TeleInit::Init();
   AE_TELE_ENV();

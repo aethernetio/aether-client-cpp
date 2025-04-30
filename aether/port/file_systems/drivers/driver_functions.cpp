@@ -18,6 +18,17 @@
 #include "aether/port/file_systems/file_systems_tele.h"
 namespace ae {
 
+inline bool IsInteger(const std::string& s) {
+  AE_TELED_DEBUG("IsInteger string {}", s);
+  if (s.empty() || ((!isdigit(s[0])) && (s[0] != '-') && (s[0] != '+')))
+    return false;
+
+  char* p;
+  std::strtol(s.c_str(), &p, 10);
+
+  return (*p == 0);
+}
+
 #pragma GCC diagnostic push
 
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -31,28 +42,24 @@ ae::PathStructure GetPathStructure(const std::string& path) {
     if (pos2 != std::string::npos) {
       auto pos3 = path.find("/", pos2 + 1);
 
-      path_struct.version = static_cast<std::uint8_t>(
-          std::stoul(path.substr(pos1 + 1, pos2 - pos1 - 1)));
-      path_struct.obj_id = static_cast<ae::ObjId>(
-          std::stoul(path.substr(pos2 + 1, pos3 - pos2 - 1)));
-      path_struct.class_id = static_cast<std::uint32_t>(
-          std::stoul(path.substr(pos3 + 1, path.length() - pos3 - 1)));
+      if (IsInteger(path.substr(pos1 + 1, pos2 - pos1 - 1))) {
+        path_struct.version = static_cast<std::uint8_t>(
+            std::stoul(path.substr(pos1 + 1, pos2 - pos1 - 1)));
+      }
+      if (IsInteger(path.substr(pos2 + 1, pos3 - pos2 - 1))) {
+        path_struct.obj_id = static_cast<ae::ObjId>(
+            std::stoul(path.substr(pos2 + 1, pos3 - pos2 - 1)));
+      }
+      if (IsInteger(path.substr(pos3 + 1, path.length() - pos3 - 1))) {
+        path_struct.class_id = static_cast<std::uint32_t>(
+            std::stoul(path.substr(pos3 + 1, path.length() - pos3 - 1)));
+      }
     }
   }
 
   return path_struct;
 }
 #pragma GCC diagnostic pop
-
-inline bool IsInteger(const std::string& s) {
-  if (s.empty() || ((!isdigit(s[0])) && (s[0] != '-') && (s[0] != '+')))
-    return false;
-
-  char* p;
-  std::strtol(s.c_str(), &p, 10);
-
-  return (*p == 0);
-}
 
 bool ValidatePath(const std::string& path) {
   std::vector<std::string> parts;
