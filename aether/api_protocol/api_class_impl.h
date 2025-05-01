@@ -62,23 +62,38 @@ template <MessageId message_id, typename TApi, auto method_ptr,
 struct MethodInvoke;
 
 /**
- * \brief Specialization for method with plain args.
+ * \brief Specialization for empty args.
  */
-template <MessageId message_id, typename TApi, typename... Args,
-          void (TApi::*method_ptr)(ApiParser& parser, Args...)>
-struct MethodInvoke<
-    message_id, TApi, method_ptr,
-    // solve instantiation ambiguity
-    std::enable_if_t<!IsPromiseResult<TypeAt_t<0, Args...>>::value &&
-                     !IsSubApi<TypeAt_t<0, Args...>>::value>> {
+template <MessageId message_id, typename TApi,
+          void (TApi::*method_ptr)(ApiParser& parser)>
+struct MethodInvoke<message_id, TApi, method_ptr> {
  public:
   static constexpr auto kMessageCode = message_id;
-  using Message = GenericMessage<Args...>;
+  using Message = GenericMessage<>;
+
+  static void Invoke(TApi* obj, Message&& /* message */, ApiParser& parser) {
+    (obj->*method_ptr)(parser);
+  }
+};
+
+/**
+ * \brief Specialization for method with plain args.
+ */
+template <MessageId message_id, typename TApi, typename First, typename... Args,
+          void (TApi::*method_ptr)(ApiParser& parser, First, Args...)>
+struct MethodInvoke<message_id, TApi, method_ptr,
+                    // solve instantiation ambiguity
+                    std::enable_if_t<!IsPromiseResult<First>::value &&
+                                     !IsSubApi<First>::value>> {
+ public:
+  static constexpr auto kMessageCode = message_id;
+  using Message = GenericMessage<First, Args...>;
 
   static void Invoke(TApi* obj, Message&& message, ApiParser& parser) {
     std::apply(
-        [&](auto&&... args) {
-          (obj->*method_ptr)(parser, std::forward<Args>(args)...);
+        [&](auto&& first, auto&&... args) {
+          (obj->*method_ptr)(parser, std::forward<First>(first),
+                             std::forward<Args>(args)...);
         },
         std::move(message).fields);
   }
