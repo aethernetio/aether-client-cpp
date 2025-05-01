@@ -21,7 +21,6 @@
 #include <tuple>
 #include <string>
 #include <optional>
-#include <functional>
 #include <type_traits>
 
 namespace ae {
@@ -37,6 +36,17 @@ constexpr auto reverse_sequence_helper(std::integer_sequence<T, N...>,
 template <typename T, T min, T... N>
 constexpr auto make_range_sequence_helper(std::integer_sequence<T, N...>) {
   return std::integer_sequence<T, (N + min)...>();
+}
+
+template <typename Tuple, std::size_t... Indices>
+auto MakeTypeList(std::index_sequence<Indices...> const&)
+    -> std::tuple<std::tuple_element_t<Indices, Tuple>...>;
+
+template <typename TFunc, typename Tuple, std::size_t... Indices>
+decltype(auto) ApplyByIndices(TFunc&& func, Tuple&& tuple,
+                              std::index_sequence<Indices...> const&) {
+  return std::forward<TFunc>(func)(
+      std::get<Indices>(std::forward<Tuple>(tuple))...);
 }
 }  // namespace _internal
 
@@ -56,6 +66,20 @@ constexpr auto make_range_sequence() {
     return reverse_sequence(_internal::make_range_sequence_helper<T, to>(
         std::make_integer_sequence<T, from - to + 1>()));
   }
+}
+
+template <typename... T>
+struct ReversTypeList {
+  using type = decltype(_internal::MakeTypeList<std::tuple<T...>>(
+      reverse_sequence(std::make_index_sequence<sizeof...(T)>())));
+};
+
+template <typename TFunc, typename... T>
+decltype(auto) ApplyRerverse(TFunc&& func, T&&... args) {
+  return _internal::ApplyByIndices(
+      std::forward<TFunc>(func),
+      std::forward_as_tuple(std::forward<T>(args)...),
+      reverse_sequence(std::make_index_sequence<sizeof...(T)>()));
 }
 
 template <typename T>
@@ -237,6 +261,14 @@ struct TupleToTemplate;
 template <template <typename...> typename T, typename... Ts>
 struct TupleToTemplate<T, std::tuple<Ts...>> {
   using type = T<Ts...>;
+};
+
+template <typename Array>
+struct ArraySize;
+
+template <typename T, std::size_t S>
+struct ArraySize<std::array<T, S>> {
+  static constexpr std::size_t value = S;
 };
 
 }  // namespace ae
