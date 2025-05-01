@@ -26,46 +26,40 @@ MessageStream::MessageStream(ClientToServerStream& client_to_server_stream,
     : client_to_server_stream_{&client_to_server_stream},
       destination_{destination},
       debug_gate_{Format("MessageStream uid {}  \nwrite {{}}", destination_),
-                  Format("MessageStream uid {} \nread {{}}", destination_)},
-      inject_gate_{},
-      send_message_gate_{
-          client_to_server_stream_->protocol_context(),
-          [&](ProtocolContext& context, auto&& data) {
-            auto api_context =
-                ApiContext{context, client_to_server_stream_->authorized_api()};
-            api_context->send_message(destination_,
-                                      std::forward<decltype(data)>(data));
-            return DataBuffer{std::move(api_context)};
-          }} {
+                  Format("MessageStream uid {} \nread {{}}", destination_)} {
   AE_TELE_INFO(kMessageStream, "MessageStream create to destination: {}",
                destination_);
-  Tie(debug_gate_, inject_gate_, send_message_gate_);
 }
 
 MessageStream::MessageStream(MessageStream&& other) noexcept
     : client_to_server_stream_{other.client_to_server_stream_},
       destination_{other.destination_},
       debug_gate_{Format("MessageStream uid {}  \nwrite {{}}", destination_),
-                  Format("MessageStream uid {} \nread {{}}", destination_)},
-      inject_gate_{},
-      send_message_gate_{
-          client_to_server_stream_->protocol_context(),
-          [&](ProtocolContext& context, auto&& data) {
-            auto api_context =
-                ApiContext{context, client_to_server_stream_->authorized_api()};
-            api_context->send_message(destination_,
-                                      std::forward<decltype(data)>(data));
-            return DataBuffer{std::move(api_context)};
-          }} {
-  Tie(debug_gate_, inject_gate_, send_message_gate_);
+                  Format("MessageStream uid {} \nread {{}}", destination_)} {}
+
+ActionView<StreamWriteAction> MessageStream::Write(DataBuffer&& data) {
+  auto gate_data = debug_gate_.WriteOut(std::move(data));
+  auto auth_api = client_to_server_stream_->authorized_api_adapter();
+  auth_api->send_message(destination_, std::move(gate_data));
+  return auth_api.Flush();
 }
 
-ByteStream::InGate& MessageStream::in() { return debug_gate_; }
+MessageStream::StreamUpdateEvent::Subscriber
+MessageStream::stream_update_event() {
+  return client_to_server_stream_->stream_update_event();
+}
 
-void MessageStream::LinkOut(OutGate& out) { send_message_gate_.LinkOut(out); }
+StreamInfo MessageStream::stream_info() const {
+  return client_to_server_stream_->stream_info();
+}
+
+MessageStream::OutDataEvent::Subscriber MessageStream::out_data_event() {
+  return out_data_event_;
+}
 
 void MessageStream::OnData(DataBuffer const& data) {
-  inject_gate_.OutData(data);
+  auto gate_data = debug_gate_.WriteOut(data);
+  out_data_event_.Emit(gate_data);
 }
 
 Uid MessageStream::destination() const { return destination_; }

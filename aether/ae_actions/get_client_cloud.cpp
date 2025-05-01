@@ -18,10 +18,7 @@
 
 #include <utility>
 
-#include "aether/stream_api/stream_api.h"
-#include "aether/stream_api/one_gate_stream.h"
-#include "aether/stream_api/protocol_stream.h"
-#include "aether/stream_api/serialize_stream.h"
+#include "aether/api_protocol/api_context.h"
 
 #include "aether/methods/work_server_api/authorized_api.h"
 
@@ -42,34 +39,33 @@ GetClientCloudAction::GetClientCloudAction(
   auto server_stream_id = StreamIdGenerator::GetNextClientStreamId();
   auto cloud_stream_id = StreamIdGenerator::GetNextClientStreamId();
 
-  auto api_context = ApiContext{client_to_server_stream_->protocol_context(),
-                                client_to_server_stream_->authorized_api()};
-  api_context->resolvers(server_stream_id, cloud_stream_id);
+  auto auth_api = ApiContext{client_to_server_stream_->protocol_context(),
+                             client_to_server_stream_->authorized_api()};
+  auth_api->resolvers(server_stream_id, cloud_stream_id);
 
-  pre_client_to_server_stream_ =
-      make_unique<OneGateStream>(AddHeaderGate{std::move(api_context)});
+  add_resolvers_.emplace(DataBuffer{std::move(auth_api)});
 
-  Tie(*pre_client_to_server_stream_, *client_to_server_stream_);
-
-  server_resolver_stream_ = make_unique<TiedStream>(
+  server_resolver_stream_.emplace(
       SerializeGate<ServerId, ServerDescriptor>{},
       StreamApiGate{client_to_server_stream_->protocol_context(),
-                    server_stream_id});
+                    server_stream_id},
+      *add_resolvers_);
 
-  cloud_request_stream_ = make_unique<TiedStream>(
+  cloud_request_stream_.emplace(
       SerializeGate<Uid, UidAndCloud>{},
       StreamApiGate{client_to_server_stream_->protocol_context(),
-                    cloud_stream_id});
+                    cloud_stream_id},
+      *add_resolvers_);
 
-  Tie(*cloud_request_stream_, *pre_client_to_server_stream_);
-  Tie(*server_resolver_stream_, *pre_client_to_server_stream_);
+  Tie(*cloud_request_stream_, *client_to_server_stream_);
+  Tie(*server_resolver_stream_, *client_to_server_stream_);
 
   cloud_response_subscription_ =
-      cloud_request_stream_->in().out_data_event().Subscribe(
+      cloud_request_stream_->out_data_event().Subscribe(
           [this](auto const& data) { OnCloudResponse(data); });
 
   server_resolve_subscription_ =
-      server_resolver_stream_->in().out_data_event().Subscribe(
+      server_resolver_stream_->out_data_event().Subscribe(
           [this](auto const& data) { OnServerResponse(data); });
   start_resolve_ = Now();
 }
@@ -119,8 +115,7 @@ void GetClientCloudAction::RequestCloud(TimePoint current_time) {
                "RequestCloud for uid {} at {:%H:%M:%S}", client_uid_,
                current_time);
 
-  cloud_request_action_ =
-      cloud_request_stream_->in().Write(Uid{client_uid_}, current_time);
+  cloud_request_action_ = cloud_request_stream_->Write(Uid{client_uid_});
 
   cloud_request_subscriptions_.Push(
       cloud_request_action_->StopEvent().Subscribe(
@@ -138,8 +133,7 @@ void GetClientCloudAction::RequestServerResolve(TimePoint current_time) {
 
   server_resolve_actions_.reserve(uid_and_cloud_.cloud.size());
   for (auto server_id : uid_and_cloud_.cloud) {
-    auto swa =
-        server_resolver_stream_->in().Write(std::move(server_id), current_time);
+    auto swa = server_resolver_stream_->Write(std::move(server_id));
     server_resolve_subscriptions_.Push(
         swa->StopEvent().Subscribe([this, server_id](auto const&) {
           AE_TELE_ERROR(kGetClientCloudServerResolveStopped,

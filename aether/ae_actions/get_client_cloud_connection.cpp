@@ -114,16 +114,17 @@ void GetClientCloudConnection::SelectConnection(TimePoint /* current_time */) {
     return;
   }
 
-  if (server_connection_->server_stream().in().stream_info().is_linked) {
+  if (server_connection_->server_stream().stream_info().is_linked) {
     state_ = State::kGetCloud;
     return;
   }
 
   connection_subscription_ =
-      server_connection_->server_stream().in().gate_update_event().Subscribe(
+      server_connection_->server_stream().stream_update_event().Subscribe(
           [this]() {
-            if (server_connection_->server_stream()
-                    .in()
+            if (server_connection_
+                    ->server_stream()
+
                     .stream_info()
                     .is_linked) {
               state_ = State::kGetCloud;

@@ -61,16 +61,14 @@ TimePoint CheckAccessForSendMessage::Update(TimePoint current_time) {
 void CheckAccessForSendMessage::SendRequest(TimePoint current_time) {
   last_request_time_ = current_time;
 
-  auto api_context = ApiContext{client_to_server_stream_->protocol_context(),
-                                client_to_server_stream_->authorized_api()};
-  auto check_promise = api_context->check_access_for_send_message(destination_);
+  auto api_adapter = client_to_server_stream_->authorized_api_adapter();
+  auto check_promise = api_adapter->check_access_for_send_message(destination_);
   wait_check_success_ = check_promise->ResultEvent().Subscribe(
       [&](auto const&) { ResponseReceived(); });
   wait_check_error_ = check_promise->ErrorEvent().Subscribe(
       [&](auto const&) { ErrorReceived(); });
 
-  auto send_event = client_to_server_stream_->in().Write(std::move(api_context),
-                                                         current_time);
+  auto send_event = api_adapter.Flush();
   send_error_ =
       send_event->ErrorEvent().Subscribe([&](auto const&) { SendError(); });
 

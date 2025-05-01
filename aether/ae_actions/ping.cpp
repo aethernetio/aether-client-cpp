@@ -39,12 +39,11 @@ Ping::Ping(ActionContext action_context, Server::ptr const& server,
       state_changed_sub_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })},
       stream_changed_sub_{
-          client_to_server_stream_->in().gate_update_event().Subscribe(
-              [this]() {
-                if (client_to_server_stream_->in().stream_info().is_linked) {
-                  state_ = State::kSendPing;
-                }
-              })} {
+          client_to_server_stream_->stream_update_event().Subscribe([this]() {
+            if (client_to_server_stream_->stream_info().is_linked) {
+              state_ = State::kSendPing;
+            }
+          })} {
   AE_TELE_INFO(kPing, "Ping action created, interval {:%S}", ping_interval);
 }
 
@@ -80,9 +79,8 @@ TimePoint Ping::Update(TimePoint current_time) {
 void Ping::SendPing(TimePoint current_time) {
   AE_TELE_DEBUG(kPingSend, "Send ping");
 
-  auto api_context = ApiContext{client_to_server_stream_->protocol_context(),
-                                client_to_server_stream_->authorized_api()};
-  auto pong_promise = api_context->ping(static_cast<std::uint64_t>(
+  auto api_adapter = client_to_server_stream_->authorized_api_adapter();
+  auto pong_promise = api_adapter->ping(static_cast<std::uint64_t>(
       std::chrono::duration_cast<std::chrono::milliseconds>(ping_interval_)
           .count()));
 
@@ -91,9 +89,7 @@ void Ping::SendPing(TimePoint current_time) {
   wait_responses_.Push(pong_promise->ResultEvent().Subscribe(
       [&](auto const& promise) { PingResponse(promise.request_id()); }));
 
-  auto write_action = client_to_server_stream_->in().Write(
-      std::move(api_context), current_time);
-
+  auto write_action = api_adapter.Flush();
   write_subscription_ =
       write_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELE_ERROR(kPingWriteError, "Ping write error");

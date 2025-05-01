@@ -24,12 +24,36 @@ P2pSafeStream::P2pSafeStream(ActionContext action_context,
                              std::unique_ptr<P2pStream> base_stream)
     : sized_packet_gate_{},
       safe_stream_{action_context, config},
-      base_stream_{std::move(base_stream)} {
-  Tie(sized_packet_gate_, safe_stream_, *base_stream_);
+      base_stream_{std::move(base_stream)},
+      out_data_sub_{TiedEventOutData(
+          [this](auto const& data) { out_data_event_.Emit(data); },
+          sized_packet_gate_, safe_stream_)} {
+  Tie(safe_stream_, *base_stream_);
 }
 
-P2pSafeStream::InGate& P2pSafeStream::in() { return sized_packet_gate_; }
+ActionView<StreamWriteAction> P2pSafeStream::Write(DataBuffer&& data) {
+  auto sized_data = sized_packet_gate_.WriteIn(std::move(data));
+  return safe_stream_.Write(std::move(sized_data));
+}
 
-void P2pSafeStream::LinkOut(OutGate& /* out */) { assert(false); }
+StreamInfo P2pSafeStream::stream_info() const {
+  auto overhead = sized_packet_gate_.Overhead();
+  auto info = safe_stream_.stream_info();
+  if (info.max_element_size < overhead) {
+    info.max_element_size = 0;
+  } else {
+    info.max_element_size -= overhead;
+  }
+  return info;
+}
+
+P2pSafeStream::StreamUpdateEvent::Subscriber
+P2pSafeStream::stream_update_event() {
+  return safe_stream_.stream_update_event();
+}
+
+P2pSafeStream::OutDataEvent::Subscriber P2pSafeStream::out_data_event() {
+  return EventSubscriber{out_data_event_};
+}
 
 }  // namespace ae

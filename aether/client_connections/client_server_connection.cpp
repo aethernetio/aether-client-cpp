@@ -37,7 +37,7 @@ ClientToServerStream& ClientServerConnection::server_stream() {
   return *server_stream_;
 }
 
-ByteStream& ClientServerConnection::GetStream(Uid destination_uid) {
+ByteIStream& ClientServerConnection::GetStream(Uid destination_uid) {
   return message_stream_dispatcher_->GetMessageStream(destination_uid);
 }
 

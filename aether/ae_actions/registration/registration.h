@@ -39,7 +39,7 @@
 #  include "aether/crypto/ikey_provider.h"
 
 #  include "aether/server_list/server_list.h"
-#  include "aether/stream_api/protocol_stream.h"
+#  include "aether/stream_api/delegate_gate.h"
 #  include "aether/transport/server/server_channel_stream.h"
 
 #  include "aether/methods/client_reg_api/client_reg_api.h"
@@ -96,7 +96,7 @@ class Registration : public Action<Registration> {
   std::unique_ptr<ByteStream> CreateGlobalRegServerStream(
       std::unique_ptr<IAsyncKeyProvider> global_async_key_provider,
       std::unique_ptr<ISyncKeyProvider> global_sync_key_provider,
-      ProtocolWriteMessageGate<DataBuffer> enter_global_api_gate);
+      DelegateWriteInGate<DataBuffer> enter_global_api_gate);
 
   PtrView<Aether> aether_;
   Ptr<Client> client_;

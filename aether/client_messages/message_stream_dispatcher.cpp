@@ -58,7 +58,6 @@ void MessageStreamDispatcher::CloseStream(Uid uid) {
 std::unique_ptr<MessageStream> MessageStreamDispatcher::CreateMessageStream(
     Uid uid) {
   auto message_stream = make_unique<MessageStream>(*server_stream_, uid);
-  Tie(*message_stream, *server_stream_);
   return message_stream;
 }
 

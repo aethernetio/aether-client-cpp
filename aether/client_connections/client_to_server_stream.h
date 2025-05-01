@@ -19,16 +19,16 @@
 
 #include <optional>
 
-#include "aether/memory.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/events/events.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/debug_gate.h"
-#include "aether/stream_api/tied_stream.h"
-#include "aether/stream_api/crypto_stream.h"
-#include "aether/stream_api/protocol_stream.h"
+#include "aether/stream_api/gates_stream.h"
+#include "aether/stream_api/crypto_gate.h"
+#include "aether/stream_api/delegate_gate.h"
+#include "aether/stream_api/protocol_gates.h"
 #include "aether/stream_api/event_subscribe_gate.h"
 
 #include "aether/methods/client_api/client_root_api.h"
@@ -39,24 +39,29 @@
 namespace ae {
 class Client;
 
-class ClientToServerStream : public ByteStream {
+class ClientToServerStream final : public ByteIStream {
  public:
   ClientToServerStream(ActionContext action_context, Ptr<Client> const& client,
                        ServerId server_id,
-                       std::unique_ptr<ByteStream> server_stream);
+                       std::unique_ptr<ByteIStream> server_stream);
 
   ~ClientToServerStream() override;
 
   AE_CLASS_NO_COPY_MOVE(ClientToServerStream);
 
-  InGate& in() override;
-  void LinkOut(OutGate& out) override;
+  ActionView<StreamWriteAction> Write(DataBuffer&& in_data) override;
+  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamInfo stream_info() const override;
+  OutDataEvent::Subscriber out_data_event() override;
 
   ProtocolContext& protocol_context();
   ClientSafeApi& client_safe_api();
   AuthorizedApi& authorized_api();
+  ApiCallAdapter<AuthorizedApi> authorized_api_adapter();
 
  private:
+  DataBuffer Login(DataBuffer&& data);
+
   ActionContext action_context_;
   PtrView<Client> client_;
   ServerId server_id_;
@@ -72,11 +77,15 @@ class ClientToServerStream : public ByteStream {
   Event<void()> connection_error_event_;
 
   // stream to the server with login api and encryption
-  std::optional<TiedStream<
-      ProtocolReadGate<ClientSafeApi&>, DebugGate, CryptoGate,
-      ProtocolWriteMessageGate<DataBuffer>, EventSubscribeGate<DataBuffer>,
-      ProtocolReadGate<ClientRootApi&>, std::unique_ptr<ByteStream>>>
+  std::optional<GatesStream<ProtocolReadGate<ClientSafeApi&>, DebugGate,
+                            CryptoGate, DelegateWriteInGate<DataBuffer>,
+                            EventWriteOutGate<DataBuffer>,
+                            ProtocolReadGate<ClientRootApi&>>>
       client_auth_stream_;
+
+  std::unique_ptr<ByteIStream> server_stream_;
+
+  OutDataEvent out_data_event_;
 
   Subscription connection_success_subscription_;
   Subscription connection_failed_subscription_;

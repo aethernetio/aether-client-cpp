@@ -20,20 +20,21 @@
 #include "aether/uid.h"
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/debug_gate.h"
-#include "aether/stream_api/inject_gate.h"
-#include "aether/stream_api/event_subscribe_gate.h"
 #include "aether/client_connections/client_to_server_stream.h"
 
 namespace ae {
 
-class MessageStream : public ByteStream {
+class MessageStream final : public ByteIStream {
  public:
   MessageStream(ClientToServerStream& client_to_server_stream, Uid destination);
   MessageStream(MessageStream const&) = delete;
   MessageStream(MessageStream&& other) noexcept;
 
-  InGate& in() override;
-  void LinkOut(OutGate& out) override;
+  ActionView<StreamWriteAction> Write(DataBuffer&& data) override;
+
+  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamInfo stream_info() const override;
+  OutDataEvent::Subscriber out_data_event() override;
 
   void OnData(DataBuffer const& data);
   Uid destination() const;
@@ -42,8 +43,7 @@ class MessageStream : public ByteStream {
   ClientToServerStream* client_to_server_stream_;
   Uid destination_;
   DebugGate debug_gate_;
-  InjectGate inject_gate_;
-  ProtocolWriteMessageGate<DataBuffer> send_message_gate_;
+  OutDataEvent out_data_event_;
 };
 }  // namespace ae
 

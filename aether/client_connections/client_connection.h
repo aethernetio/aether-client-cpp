@@ -30,16 +30,16 @@ namespace ae {
  */
 class ClientConnection {
  public:
-  using NewStreamEvent = Event<void(Uid uid, StreamId stream_id,
-                                    std::unique_ptr<ByteStream> stream)>;
+  using NewStreamEvent =
+      Event<void(Uid uid, StreamId stream_id, ByteIStream& stream)>;
 
   virtual ~ClientConnection() = default;
 
   /**
    * \brief Create a stream to another client to send messages.
    */
-  virtual std::unique_ptr<ByteStream> CreateStream(Uid destination_uid,
-                                                   StreamId stream_id) = 0;
+  virtual ByteIStream& CreateStream(Uid destination_uid,
+                                    StreamId stream_id) = 0;
 
   /**
    * \brief Event when a new stream is opened by another client.

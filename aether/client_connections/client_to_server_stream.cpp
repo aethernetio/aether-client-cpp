@@ -18,10 +18,13 @@
 
 #include <utility>
 
+#include "aether/memory.h"
 #include "aether/client.h"
 
 #include "aether/crypto/ikey_provider.h"
 #include "aether/crypto/sync_crypto_provider.h"
+
+#include "aether/methods/work_server_api/login_api.h"
 
 #include "aether/client_connections/client_connections_tele.h"
 
@@ -77,14 +80,15 @@ class ClientDecryptKeyProvider : public ClientKeyProvider {
 
 ClientToServerStream::ClientToServerStream(
     ActionContext action_context, Ptr<Client> const& client, ServerId server_id,
-    std::unique_ptr<ByteStream> server_stream)
+    std::unique_ptr<ByteIStream> server_stream)
     : action_context_{action_context},
       client_{client},
       server_id_{server_id},
       client_root_api_{protocol_context_},
       client_safe_api_{protocol_context_},
       login_api_{protocol_context_},
-      authorized_api_{protocol_context_, action_context_} {
+      authorized_api_{protocol_context_, action_context_},
+      server_stream_{std::move(server_stream)} {
   AE_TELE_INFO(ClientServerStreamCreate, "Create ClientToServerStreamGate");
 
   auto client_ptr = client_.Lock();
@@ -95,9 +99,9 @@ ClientToServerStream::ClientToServerStream(
           Format("ClientToServerStreamGate server id {} client_uid {} \nwrite "
                  "{{}}",
                  server_id_, client_ptr->uid()),
-          Format(
-              "ClientToServerStreamGate server id {} client_uid {} \nread {{}}",
-              server_id_, client_ptr->uid())},
+          Format("ClientToServerStreamGate server id {} client_uid {} \nread "
+                 "{{}}",
+                 server_id_, client_ptr->uid())},
       CryptoGate{make_unique<SyncEncryptProvider>(
                      make_unique<_internal::ClientEncryptKeyProvider>(
                          client_ptr, server_id_)),
@@ -105,28 +109,35 @@ ClientToServerStream::ClientToServerStream(
                      make_unique<_internal::ClientDecryptKeyProvider>(
                          client_ptr, server_id_))},
       // start streams with login by alias
-      ProtocolWriteMessageGate<DataBuffer>{
-          protocol_context_,
-          [&, alias{client_ptr->ephemeral_uid()}](
-              ProtocolContext& context, DataBuffer&& data) -> DataBuffer {
-            auto api_context = ApiContext{context, login_api_};
-            api_context->login_by_alias(alias, std::move(data));
-            return DataBuffer{std::move(api_context)};
-          }},
-      EventSubscribeGate<DataBuffer>{
+      DelegateWriteInGate<DataBuffer>{
+          Delegate{*this, MethodPtr<&ClientToServerStream::Login>{}}},
+      EventWriteOutGate<DataBuffer>{
           EventSubscriber{client_root_api_.send_safe_api_data_event}},
-      ProtocolReadGate{protocol_context_, client_root_api_},
-      std::move(server_stream));
+      ProtocolReadGate{protocol_context_, client_root_api_});
+
+  Tie(*client_auth_stream_, *server_stream_);
 }
 
 ClientToServerStream::~ClientToServerStream() = default;
 
-ClientToServerStream::InGate& ClientToServerStream::in() {
-  assert(client_auth_stream_);
-  return client_auth_stream_->in();
+ActionView<StreamWriteAction> ClientToServerStream::Write(
+    DataBuffer&& in_data) {
+  return client_auth_stream_->Write(std::move(in_data));
 }
 
-void ClientToServerStream::LinkOut(OutGate& /* out */) { assert(false); }
+ClientToServerStream::StreamUpdateEvent::Subscriber
+ClientToServerStream::stream_update_event() {
+  return client_auth_stream_->stream_update_event();
+}
+
+StreamInfo ClientToServerStream::stream_info() const {
+  return client_auth_stream_->stream_info();
+}
+
+ClientToServerStream::OutDataEvent::Subscriber
+ClientToServerStream::out_data_event() {
+  return out_data_event_;
+}
 
 ProtocolContext& ClientToServerStream::protocol_context() {
   return protocol_context_;
@@ -138,6 +149,17 @@ ClientSafeApi& ClientToServerStream::client_safe_api() {
 
 AuthorizedApi& ClientToServerStream::authorized_api() {
   return authorized_api_;
+}
+
+ApiCallAdapter<AuthorizedApi> ClientToServerStream::authorized_api_adapter() {
+  return ApiCallAdapter{ApiContext{protocol_context_, authorized_api_}, *this};
+}
+
+DataBuffer ClientToServerStream::Login(DataBuffer&& data) {
+  auto client_ptr = client_.Lock();
+  auto api_context = ApiContext{protocol_context_, login_api_};
+  api_context->login_by_alias(client_ptr->ephemeral_uid(), std::move(data));
+  return DataBuffer{std::move(api_context)};
 }
 
 }  // namespace ae
