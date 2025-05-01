@@ -23,7 +23,6 @@
 #include "aether/events/events.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
-#include "aether/api_protocol/protocol_context.h"
 
 #include "aether/transport/data_buffer.h"
 #include "aether/stream_api/safe_stream/safe_stream_api.h"
@@ -40,11 +39,9 @@ struct ReceivingChunk {
 
 class SafeStreamReceivingAction : public Action<SafeStreamReceivingAction> {
  public:
-  using ReceiveEvent = Event<void(DataBuffer&& data, TimePoint current_time)>;
-  using RequestRepeatEvent =
-      Event<void(SafeStreamRingIndex offset, TimePoint current_time)>;
-  using ConfirmEvent =
-      Event<void(SafeStreamRingIndex offset, TimePoint current_time)>;
+  using ReceiveEvent = Event<void(DataBuffer&& data)>;
+  using RequestRepeatEvent = Event<void(SafeStreamRingIndex offset)>;
+  using ConfirmEvent = Event<void(SafeStreamRingIndex offset)>;
 
   SafeStreamReceivingAction(ActionContext action_context,
                             SafeStreamConfig const& config);
@@ -55,10 +52,9 @@ class SafeStreamReceivingAction : public Action<SafeStreamReceivingAction> {
   ConfirmEvent::Subscriber confirm_event();
   RequestRepeatEvent::Subscriber request_repeat_event();
 
-  void ReceiveSend(SafeStreamRingIndex offset, DataBuffer data,
-                   TimePoint current_time);
+  void ReceiveSend(SafeStreamRingIndex offset, DataBuffer data);
   void ReceiveRepeat(SafeStreamRingIndex offset, std::uint16_t repeat,
-                     DataBuffer data, TimePoint current_time);
+                     DataBuffer data);
 
  private:
   bool AddDataChunk(ReceivingChunk&& chunk);
@@ -68,13 +64,11 @@ class SafeStreamReceivingAction : public Action<SafeStreamReceivingAction> {
   TimePoint CheckChunkConfirmation(TimePoint current_time);
   TimePoint CheckMissedOffset(TimePoint current_time);
 
-  void MakeConfirm(SafeStreamRingIndex offset, TimePoint current_time);
-  void MakeRepeat(SafeStreamRingIndex offset, TimePoint current_time);
+  void MakeConfirm(SafeStreamRingIndex offset);
+  void MakeRepeat(SafeStreamRingIndex offset);
 
   static DataBuffer JoinChunks(std::vector<ReceivingChunk>::iterator begin,
                                std::vector<ReceivingChunk>::iterator end);
-
-  SafeStreamApi safe_stream_api_;
 
   std::uint16_t max_window_size_;
   std::uint16_t max_repeat_count_;

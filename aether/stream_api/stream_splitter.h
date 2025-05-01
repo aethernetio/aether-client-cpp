@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_SPLITTER_GATE_H_
-#define AETHER_STREAM_API_SPLITTER_GATE_H_
+#ifndef AETHER_STREAM_API_STREAM_SPLITTER_H_
+#define AETHER_STREAM_API_STREAM_SPLITTER_H_
 
 #include <map>
 #include <cstddef>
@@ -23,17 +23,21 @@
 #include "aether/events/events.h"
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/stream_api.h"
+#include "aether/stream_api/gates_stream.h"
 
 namespace ae {
-class SplitterGate final : public ByteGate {
+class StreamSplitter : public ByteStream {
  public:
-  using NewStreamEvent = Event<void(StreamId stream_id, StreamApiGate& stream)>;
+  using NewStreamEvent =
+      Event<void(StreamId stream_id, GatesStream<StreamApiGate>& stream)>;
 
-  SplitterGate();
+  StreamSplitter();
 
-  void LinkOut(OutGate& out) override;
+  AE_CLASS_NO_COPY_MOVE(StreamSplitter);
 
-  StreamApiGate& RegisterStream(StreamId stream_id);
+  void LinkOut(OutStream& out) override;
+
+  GatesStream<StreamApiGate>& RegisterStream(StreamId stream_id);
   NewStreamEvent::Subscriber new_stream_event();
   void CloseStream(StreamId stream_id);
   std::size_t stream_count() const;
@@ -46,8 +50,8 @@ class SplitterGate final : public ByteGate {
   Subscription stream_message_event_;
   NewStreamEvent new_stream_event_;
 
-  std::map<StreamId, StreamApiGate> streams_;
+  std::map<StreamId, std::unique_ptr<GatesStream<StreamApiGate>>> streams_;
 };
 }  // namespace ae
 
-#endif  // AETHER_STREAM_API_SPLITTER_GATE_H_
+#endif  // AETHER_STREAM_API_STREAM_SPLITTER_H_

@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-#include "aether/stream_api/buffer_gate.h"
+#include "aether/stream_api/buffer_stream.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae {
 
-BufferGate::BufferedWriteAction::BufferedWriteAction(
-    ActionContext action_context, DataBuffer data, TimePoint current_time)
+BufferStream::BufferedWriteAction::BufferedWriteAction(
+    ActionContext action_context, DataBuffer&& data)
     : StreamWriteAction(action_context),
       data_{std::move(data)},
-      data_size_{data_.size()},
-      current_time_{current_time} {
+      data_size_{data_.size()} {
   state_ = State::kQueued;
 }
 
-TimePoint BufferGate::BufferedWriteAction::Update(TimePoint current_time) {
+TimePoint BufferStream::BufferedWriteAction::Update(TimePoint current_time) {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kStopped:
@@ -43,7 +42,7 @@ TimePoint BufferGate::BufferedWriteAction::Update(TimePoint current_time) {
   return current_time;
 }
 
-void BufferGate::BufferedWriteAction::Stop() {
+void BufferStream::BufferedWriteAction::Stop() {
   if (write_action_) {
     write_action_->Stop();
   } else {
@@ -52,10 +51,10 @@ void BufferGate::BufferedWriteAction::Stop() {
   Action::Trigger();
 }
 
-void BufferGate::BufferedWriteAction::Send(ByteIGate& out_gate) {
+void BufferStream::BufferedWriteAction::Send(OutStream& out_gate) {
   is_sent_ = true;
-  // TODO: is it correct to use current_time_ here?
-  write_action_ = out_gate.Write(std::move(data_), current_time_);
+
+  write_action_ = out_gate.Write(std::move(data_));
   state_changed_subscription_ =
       write_action_->state().changed_event().Subscribe(
           [this](auto state) { state_ = state; });
@@ -75,11 +74,13 @@ void BufferGate::BufferedWriteAction::Send(ByteIGate& out_gate) {
       }));
 }
 
-bool BufferGate::BufferedWriteAction::is_sent() const { return is_sent_; }
+bool BufferStream::BufferedWriteAction::is_sent() const { return is_sent_; }
 
-std::size_t BufferGate::BufferedWriteAction::size() const { return data_size_; }
+std::size_t BufferStream::BufferedWriteAction::size() const {
+  return data_size_;
+}
 
-BufferGate::BufferGate(ActionContext action_context, std::size_t buffer_max)
+BufferStream::BufferStream(ActionContext action_context, std::size_t buffer_max)
     : action_context_{action_context},
       buffer_max_{buffer_max},
       stream_info_{},
@@ -88,10 +89,9 @@ BufferGate::BufferGate(ActionContext action_context, std::size_t buffer_max)
   stream_info_.is_soft_writable = true;
 }
 
-ActionView<StreamWriteAction> BufferGate::Write(DataBuffer&& data,
-                                                TimePoint current_time) {
+ActionView<StreamWriteAction> BufferStream::Write(DataBuffer&& data) {
   auto add_to_buffer =
-      !last_out_stream_info_.is_writeble || !last_out_stream_info_.is_linked;
+      !last_out_stream_info_.is_writable || !last_out_stream_info_.is_linked;
   // add to buffer either if is write buffered or buffer is not empty to observe
   // write order
   if (add_to_buffer || !write_in_buffer_.empty()) {
@@ -103,9 +103,8 @@ ActionView<StreamWriteAction> BufferGate::Write(DataBuffer&& data,
 
     AE_TELED_DEBUG("Make a buffered write");
 
-    auto action_it =
-        write_in_buffer_.emplace(std::end(write_in_buffer_), action_context_,
-                                 std::move(data), current_time);
+    auto action_it = write_in_buffer_.emplace(std::end(write_in_buffer_),
+                                              action_context_, std::move(data));
     auto remove_action = [this, action_it]() {
       write_in_buffer_.erase(action_it);
       SetSoftWriteable(true);
@@ -122,51 +121,52 @@ ActionView<StreamWriteAction> BufferGate::Write(DataBuffer&& data,
   }
 
   AE_TELED_DEBUG("Make a direct write");
-  return out_->Write(std::move(data), current_time);
+  assert(out_);
+  return out_->Write(std::move(data));
 }
 
-void BufferGate::LinkOut(OutGate& out) {
+StreamInfo BufferStream::stream_info() const { return stream_info_; }
+
+void BufferStream::LinkOut(OutStream& out) {
   out_ = &out;
 
-  out_data_subscription_ = out_->out_data_event().Subscribe(
-      [this](auto const& data) { out_data_event_.Emit(data); });
+  out_data_sub_ = out_->out_data_event().Subscribe(
+      out_data_event_, MethodPtr<&OutDataEvent::Emit>{});
+  update_sub_ = out_->stream_update_event().Subscribe(
+      *this, MethodPtr<&BufferStream::UpdateGate>{});
 
-  gate_update_subscription_ =
-      out_->gate_update_event().Subscribe([this]() { UpdateGate(); });
   UpdateGate();
 }
 
-void BufferGate::Unlink() {
+void BufferStream::Unlink() {
   out_ = nullptr;
-  out_data_subscription_.Reset();
-  gate_update_subscription_.Reset();
+  out_data_sub_.Reset();
+  update_sub_.Reset();
 
   stream_info_.is_linked = false;
-  stream_info_.is_writeble = false;
+  stream_info_.is_writable = false;
   stream_info_.max_element_size = 0;
   stream_info_.is_soft_writable = write_in_buffer_.size() < buffer_max_;
-  gate_update_event_.Emit();
+  stream_update_event_.Emit();
 }
 
-StreamInfo BufferGate::stream_info() const { return stream_info_; }
-
-void BufferGate::SetSoftWriteable(bool value) {
+void BufferStream::SetSoftWriteable(bool value) {
   if (stream_info_.is_soft_writable != value) {
     stream_info_.is_soft_writable = value;
-    gate_update_event_.Emit();
+    stream_update_event_.Emit();
   }
 }
 
-void BufferGate::UpdateGate() {
+void BufferStream::UpdateGate() {
   auto out_info = out_->stream_info();
   if (last_out_stream_info_ != out_info) {
     stream_info_.is_linked = out_info.is_linked;
     stream_info_.max_element_size = out_info.max_element_size;
-    stream_info_.is_writeble = out_info.is_writeble;
+    stream_info_.is_writable = out_info.is_writable;
 
     last_out_stream_info_ = out_info;
 
-    gate_update_event_.Emit();
+    stream_update_event_.Emit();
   }
 
   if (stream_info_.is_linked) {
@@ -174,9 +174,9 @@ void BufferGate::UpdateGate() {
   }
 }
 
-void BufferGate::DrainBuffer(OutGate& out) {
+void BufferStream::DrainBuffer(OutStream& out) {
   for (auto& action : write_in_buffer_) {
-    if (!last_out_stream_info_.is_writeble) {
+    if (!last_out_stream_info_.is_writable) {
       break;
     }
     if (action.is_sent()) {

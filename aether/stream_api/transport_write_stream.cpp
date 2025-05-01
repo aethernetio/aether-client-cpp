@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/stream_api/transport_write_gate.h"
+#include "aether/stream_api/transport_write_stream.h"
 
 #include <utility>
 
@@ -25,7 +25,7 @@
 
 namespace ae {
 
-TransportWriteGate::TransportStreamWriteAction::TransportStreamWriteAction(
+TransportWriteStream::TransportStreamWriteAction::TransportStreamWriteAction(
     ActionContext action_context,
     ActionView<PacketSendAction> packet_send_action)
     : StreamWriteAction(action_context),
@@ -56,41 +56,40 @@ TransportWriteGate::TransportStreamWriteAction::TransportStreamWriteAction(
       }));
 }
 
-TimePoint TransportWriteGate::TransportStreamWriteAction::Update(
+TimePoint TransportWriteStream::TransportStreamWriteAction::Update(
     TimePoint current_time) {
   return current_time;
 }
 
-void TransportWriteGate::TransportStreamWriteAction::Stop() {
+void TransportWriteStream::TransportStreamWriteAction::Stop() {
   packet_send_action_->Stop();
 }
 
-TransportWriteGate::TransportWriteGate(ActionContext action_context,
-                                       ITransport& transport)
+TransportWriteStream::TransportWriteStream(ActionContext action_context,
+                                           ITransport& transport)
     : transport_{&transport},
       stream_info_{},
       transport_connection_subscription_{
           transport_->ConnectionSuccess().Subscribe(
-              *this, MethodPtr<&TransportWriteGate::GateUpdate>{})},
+              *this, MethodPtr<&TransportWriteStream::GateUpdate>{})},
       transport_disconnection_subscription_{
           transport_->ConnectionError().Subscribe(
-              *this, MethodPtr<&TransportWriteGate::GateUpdate>{})},
+              *this, MethodPtr<&TransportWriteStream::GateUpdate>{})},
       transport_read_data_subscription_{transport_->ReceiveEvent().Subscribe(
-          *this, MethodPtr<&TransportWriteGate::ReceiveData>{})},
+          *this, MethodPtr<&TransportWriteStream::ReceiveData>{})},
       write_actions_{action_context},
       failed_write_actions_{action_context} {
   auto connection_info = transport_->GetConnectionInfo();
   stream_info_.max_element_size = connection_info.max_packet_size;
   stream_info_.is_linked =
       connection_info.connection_state == ConnectionState::kConnected;
-  stream_info_.is_writeble = stream_info_.is_linked;
+  stream_info_.is_writable = stream_info_.is_linked;
   stream_info_.is_soft_writable = stream_info_.is_linked;
 }
 
-TransportWriteGate::~TransportWriteGate() = default;
+TransportWriteStream::~TransportWriteStream() = default;
 
-ActionView<StreamWriteAction> TransportWriteGate::Write(
-    DataBuffer&& buffer, TimePoint current_time) {
+ActionView<StreamWriteAction> TransportWriteStream::Write(DataBuffer&& buffer) {
   AE_TELED_DEBUG("Write bytes: size: {}\n data: {}", buffer.size(), buffer);
 
   // TODO: add checks for writeable and soft writable
@@ -98,33 +97,32 @@ ActionView<StreamWriteAction> TransportWriteGate::Write(
     return failed_write_actions_.Emplace();
   }
 
-  return write_actions_.Emplace(
-      transport_->Send(std::move(buffer), current_time));
+  return write_actions_.Emplace(transport_->Send(std::move(buffer), Now()));
 }
 
-TransportWriteGate::OutDataEvent::Subscriber
-TransportWriteGate::out_data_event() {
+TransportWriteStream::OutDataEvent::Subscriber
+TransportWriteStream::out_data_event() {
   return out_data_event_;
 }
-TransportWriteGate::GateUpdateEvent::Subscriber
-TransportWriteGate::gate_update_event() {
-  return gate_update_event_;
+TransportWriteStream::StreamUpdateEvent::Subscriber
+TransportWriteStream::stream_update_event() {
+  return stream_update_event_;
 }
 
-StreamInfo TransportWriteGate::stream_info() const { return stream_info_; }
+StreamInfo TransportWriteStream::stream_info() const { return stream_info_; }
 
-void TransportWriteGate::GateUpdate() {
+void TransportWriteStream::GateUpdate() {
   auto connection_info = transport_->GetConnectionInfo();
   stream_info_.max_element_size = connection_info.max_packet_size;
   stream_info_.is_linked =
       connection_info.connection_state == ConnectionState::kConnected;
-  stream_info_.is_writeble = stream_info_.is_linked;
+  stream_info_.is_writable = stream_info_.is_linked;
   stream_info_.is_soft_writable = stream_info_.is_linked;
-  gate_update_event_.Emit();
+  stream_update_event_.Emit();
 }
 
-void TransportWriteGate::ReceiveData(DataBuffer const& data,
-                                     TimePoint current_time) {
+void TransportWriteStream::ReceiveData(DataBuffer const& data,
+                                       TimePoint current_time) {
   AE_TELED_DEBUG("Received data from transport\n data:{}\ttime: {:%H:%M:%S}",
                  data, current_time);
   out_data_event_.Emit(data);

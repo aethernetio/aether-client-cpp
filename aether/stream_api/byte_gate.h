@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_HEADER_GATE_H_
-#define AETHER_STREAM_API_HEADER_GATE_H_
-
-#include "aether/stream_api/istream.h"
+#ifndef AETHER_STREAM_API_BYTE_GATE_H_
+#define AETHER_STREAM_API_BYTE_GATE_H_
 
 #include "aether/transport/data_buffer.h"
 
 namespace ae {
-// Add a header to data
-class AddHeaderGate {
+class ByteGate {
  public:
-  explicit AddHeaderGate(DataBuffer header);
-
-  DataBuffer WriteIn(DataBuffer&& buffer);
-
-  std::size_t Overhead() const;
-
- private:
-  DataBuffer header_;
+  DataBuffer WriteIn(DataBuffer&& data) { return std::move(data); }
+  DataBuffer const& WriteOut(DataBuffer const& data) { return data; }
 };
 }  // namespace ae
 
-#endif  // AETHER_STREAM_API_HEADER_GATE_H_
+#endif  // AETHER_STREAM_API_BYTE_GATE_H_

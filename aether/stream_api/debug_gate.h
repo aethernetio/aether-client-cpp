@@ -22,18 +22,14 @@
 #include "aether/stream_api/istream.h"
 
 namespace ae {
-class DebugGate final : public ByteGate {
+class DebugGate {
  public:
   explicit DebugGate(std::string in_format, std::string out_format);
 
-  ActionView<StreamWriteAction> Write(ByteGate::TypeIn&& in_data,
-                                      TimePoint current_time) override;
-
-  void LinkOut(OutGate& out) override;
+  DataBuffer WriteIn(DataBuffer buffer);
+  DataBuffer WriteOut(DataBuffer buffer);
 
  private:
-  void OnDataEvent(DataBuffer const& data);
-
   std::string in_format_;
   std::string out_format_;
 };

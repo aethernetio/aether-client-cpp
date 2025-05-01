@@ -24,27 +24,15 @@
 namespace ae {
 AddHeaderGate::AddHeaderGate(DataBuffer header) : header_(std::move(header)) {}
 
-ActionView<StreamWriteAction> AddHeaderGate::Write(DataBuffer&& buffer,
-                                                   TimePoint current_time) {
-  assert(out_);
-
+DataBuffer AddHeaderGate::WriteIn(DataBuffer&& buffer) {
   auto data_packet = DataBuffer{};
   data_packet.reserve(header_.size() + buffer.size());
   VectorWriter vw{data_packet};
   auto os = omstream{vw};
   os.write(header_.data(), header_.size());
   os.write(buffer.data(), buffer.size());
-
-  return out_->Write(std::move(data_packet), current_time);
+  return data_packet;
 }
 
-StreamInfo AddHeaderGate::stream_info() const {
-  assert(out_);
-  auto s_info = out_->stream_info();
-  s_info.max_element_size = s_info.max_element_size > header_.size()
-                                ? s_info.max_element_size - header_.size()
-                                : 0;
-  return s_info;
-}
-
+std::size_t AddHeaderGate::Overhead() const { return header_.size(); }
 }  // namespace ae

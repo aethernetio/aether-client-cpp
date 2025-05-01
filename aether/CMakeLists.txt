@@ -122,15 +122,14 @@ list(APPEND server_list_srcs
 
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
-            "stream_api/crypto_stream.cpp"
+            "stream_api/crypto_gate.cpp"
             "stream_api/header_gate.cpp"
-            "stream_api/sized_packet_stream.cpp"
-            "stream_api/splitter_gate.cpp"
+            "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
-            "stream_api/transport_write_gate.cpp"
+            "stream_api/transport_write_stream.cpp"
             "stream_api/debug_gate.cpp"
-            "stream_api/buffer_gate.cpp"
-            "stream_api/unidirectional_gate.cpp"
+            "stream_api/buffer_stream.cpp"
+            "stream_api/stream_splitter.cpp"
 
             "stream_api/safe_stream.cpp"
             "stream_api/safe_stream/safe_stream_api.cpp"

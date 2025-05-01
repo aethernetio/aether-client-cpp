@@ -48,74 +48,43 @@ class SafeStreamWriteAction final : public StreamWriteAction {
 };
 
 class SafeStream final : public ByteStream {
-  class SafeStreamInGate final : public ByteGate {
-   public:
-    explicit SafeStreamInGate(
-        ActionContext action_context,
-        ActionView<SafeStreamSendingAction> safe_stream_sending,
-        std::size_t max_data_size);
-
-    ActionView<StreamWriteAction> Write(DataBuffer &&buffer,
-                                        TimePoint current_time) override;
-
-    void WriteOut(DataBuffer &&buffer, TimePoint current_time);
-
-    void LinkOut(OutGate &gate) override;
-
-    StreamInfo stream_info() const override;
-
-   private:
-    ActionList<SafeStreamWriteAction> packet_send_actions_;
-    ActionView<SafeStreamSendingAction> safe_stream_sending_;
-    StreamInfo stream_info_;
-  };
-
-  class SafeStreamOutGate final : public ByteGate {
-   public:
-    explicit SafeStreamOutGate(ProtocolContext &protocol_context);
-
-    ActionView<StreamWriteAction> Write(DataBuffer &&buffer,
-                                        TimePoint current_time) override;
-
-    void LinkOut(OutGate &gate) override;
-
-   private:
-    ProtocolContext &protocol_context_;
-  };
-
  public:
   SafeStream(ActionContext action_context, SafeStreamConfig config);
 
   AE_CLASS_NO_COPY_MOVE(SafeStream);
 
-  ByteGate::Base &in() override;
-  void LinkOut(OutGate &gate) override;
+  ActionView<StreamWriteAction> Write(DataBuffer &&data) override;
+  StreamInfo stream_info() const override;
+
+  void LinkOut(OutStream &out) override;
+
+  void Confirm(std::uint16_t offset);
+  void RequestRepeat(std::uint16_t offset);
+  void SendData(std::uint16_t offset, DataBuffer &&data);
+  void RepeatData(std::uint16_t repeat_count, std::uint16_t offset,
+                  DataBuffer &&data);
 
  private:
-  void OnSendEvent(SafeStreamRingIndex offset, DataBuffer &&data,
-                   TimePoint current_time);
+  void OnSendEvent(SafeStreamRingIndex offset, DataBuffer &&data);
   void OnRepeatEvent(SafeStreamRingIndex offset, std::uint16_t repeat_count,
-                     DataBuffer &&data, TimePoint current_time);
+                     DataBuffer &&data);
 
-  void OnConfirmEvent(SafeStreamRingIndex offset, TimePoint current_time);
-  void OnRequestRepeatEvent(SafeStreamRingIndex offset, TimePoint current_time);
+  void OnConfirmEvent(SafeStreamRingIndex offset);
+  void OnRequestRepeatEvent(SafeStreamRingIndex offset);
 
-  void Confirm(MessageEventData<SafeStreamApi::Confirm> const &msg);
-  void RequestRepeatSend(
-      MessageEventData<SafeStreamApi::RequestRepeat> const &msg);
-  void ReceiveSend(MessageEventData<SafeStreamApi::Send> const &msg);
-  void ReceiveRepeat(MessageEventData<SafeStreamApi::Repeat> const &msg);
+  void WriteOut(DataBuffer const &data);
+  void OnStreamUpdate();
+  void OnOutData(DataBuffer const &data);
 
   ActionContext action_context_;
-
   ProtocolContext protocol_context_;
+  SafeStreamApi safe_stream_api_;
   SafeStreamSendingAction safe_stream_sending_;
   SafeStreamReceivingAction safe_stream_receiving_;
-
-  SafeStreamInGate in_;
-  SafeStreamOutGate out_;
+  ActionList<SafeStreamWriteAction> packet_send_actions_;
 
   MultiSubscription subscriptions_;
+  StreamInfo stream_info_;
 };
 }  // namespace ae
 

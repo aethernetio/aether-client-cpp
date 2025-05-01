@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2024 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_INJECT_GATE_H_
-#define AETHER_STREAM_API_INJECT_GATE_H_
+#ifndef AETHER_STREAM_API_SIZED_PACKET_GATE_H_
+#define AETHER_STREAM_API_SIZED_PACKET_GATE_H_
 
 #include "aether/stream_api/istream.h"
+#include "aether/transport/low_level/tcp/data_packet_collector.h"
 
 namespace ae {
-class InjectGate final : public ByteGate {
+class SizedPacketGate {
  public:
-  void OutData(DataBuffer const& data) { out_data_event_.Emit(data); }
+  DataBuffer WriteIn(DataBuffer&& buffer);
+  void WriteOut(DataBuffer const& buffer);
+  std::size_t Overhead() const;
+  EventSubscriber<void(DataBuffer const& data)> out_data_event();
+
+ private:
+  void DataReceived(DataBuffer const& buffer);
+
+  StreamDataPacketCollector data_packet_collector_;
+  Event<void(DataBuffer const& data)> out_data_event_;
 };
 }  // namespace ae
-
-#endif  // AETHER_STREAM_API_INJECT_GATE_H_
+#endif  // AETHER_STREAM_API_SIZED_PACKET_GATE_H_
