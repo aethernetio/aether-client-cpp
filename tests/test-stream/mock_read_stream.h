@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef TESTS_TEST_STREAM_MOCK_READ_GATE_H_
-#define TESTS_TEST_STREAM_MOCK_READ_GATE_H_
+#ifndef TESTS_TEST_STREAM_MOCK_READ_STREAM_H_
+#define TESTS_TEST_STREAM_MOCK_READ_STREAM_H_
 
 #include "aether/stream_api/istream.h"
 
 namespace ae {
-class MockReadStream : public ByteGate {
+class MockReadStream final : public ByteStream {
  public:
-  MockReadStream() = default;
 };
 }  // namespace ae
 
-#endif  // TESTS_TEST_STREAM_MOCK_READ_GATE_H_
+#endif  // TESTS_TEST_STREAM_MOCK_READ_STREAM_H_

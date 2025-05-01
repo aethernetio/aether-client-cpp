@@ -20,16 +20,13 @@
 
 #include "aether/memory.h"
 #include "aether/transport/data_buffer.h"
-#include "aether/actions/action_context.h"
 
-#include "aether/stream_api/istream.h"
-#include "aether/stream_api/crypto_stream.h"
+#include "aether/stream_api/crypto_gate.h"
 #include "aether/crypto/sync_crypto_provider.h"
 #include "aether/crypto/async_crypto_provider.h"
 
+#include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-stream/crypto-stream/mock_key_provider.h"
-#include "tests/test-stream/mock_read_gate.h"
-#include "tests/test-stream/mock_write_gate.h"
 
 namespace ae::test_crypto_stream {
 
@@ -73,13 +70,8 @@ MockAsyncKeyProvider AsyncKeyProviderFactory() {
 }
 
 void test_SyncCryptoStream() {
-  auto ap = ActionProcessor{};
-
   auto written_data = DataBuffer{};
   auto received_data = DataBuffer{};
-
-  auto read_stream = MockReadStream{};
-  auto write_stream = MockWriteGate{ap, std::size_t{10 * 1024}};
 
   auto key_provider = SyncKeyProviderFactory();
 
@@ -91,18 +83,8 @@ void test_SyncCryptoStream() {
   auto crypto_gate =
       CryptoGate{std::move(crypto_encrypt), std::move(crypto_decrypt)};
 
-  Tie(read_stream, crypto_gate, write_stream);
-
-  auto _0 = write_stream.on_write_event().Subscribe([&](auto data, auto) {
-    written_data = data;
-    write_stream.WriteOut(std::move(data));
-  });
-
-  auto _1 = read_stream.out_data_event().Subscribe(
-      [&](auto data) { received_data = std::move(data); });
-
-  crypto_gate.Write({test_data, test_data + sizeof(test_data)},
-                    TimePoint::clock::now());
+  written_data = crypto_gate.WriteIn(ToDataBuffer(test_data));
+  received_data = crypto_gate.WriteOut(written_data);
 
   TEST_ASSERT_GREATER_THAN(sizeof(test_data), written_data.size());
   TEST_ASSERT_EQUAL(sizeof(test_data), received_data.size());
@@ -110,13 +92,8 @@ void test_SyncCryptoStream() {
 }
 
 void test_AsyncCryptoStream() {
-  auto ap = ActionProcessor{};
-
   auto written_data = DataBuffer{};
   auto received_data = DataBuffer{};
-
-  auto read_stream = MockReadStream{};
-  auto write_stream = MockWriteGate{ap, std::size_t{10 * 1024}};
 
   auto key_provider = AsyncKeyProviderFactory();
 
@@ -128,18 +105,8 @@ void test_AsyncCryptoStream() {
   auto crypto_gate =
       CryptoGate{std::move(crypto_encrypt), std::move(crypto_decrypt)};
 
-  Tie(read_stream, crypto_gate, write_stream);
-
-  auto _0 = write_stream.on_write_event().Subscribe([&](auto data, auto) {
-    written_data = data;
-    write_stream.WriteOut(std::move(data));
-  });
-
-  auto _1 = read_stream.out_data_event().Subscribe(
-      [&](auto data) { received_data = std::move(data); });
-
-  crypto_gate.Write({test_data, test_data + sizeof(test_data)},
-                    TimePoint::clock::now());
+  written_data = crypto_gate.WriteIn(ToDataBuffer(test_data));
+  received_data = crypto_gate.WriteOut(written_data);
 
   TEST_ASSERT_GREATER_THAN(sizeof(test_data), written_data.size());
   TEST_ASSERT_EQUAL(sizeof(test_data), received_data.size());

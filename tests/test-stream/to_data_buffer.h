@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef TESTS_TEST_STREAM_SAFE_STREAM_TO_DATA_BUFFER_H_
-#define TESTS_TEST_STREAM_SAFE_STREAM_TO_DATA_BUFFER_H_
+#ifndef TESTS_TEST_STREAM_TO_DATA_BUFFER_H_
+#define TESTS_TEST_STREAM_TO_DATA_BUFFER_H_
 
 #include <vector>
 #include <cstdint>
@@ -36,4 +36,4 @@ static auto ToDataBuffer(T const (&arr)[size]) {
 
 }  // namespace ae
 
-#endif  // TESTS_TEST_STREAM_SAFE_STREAM_TO_DATA_BUFFER_H_
+#endif  // TESTS_TEST_STREAM_TO_DATA_BUFFER_H_

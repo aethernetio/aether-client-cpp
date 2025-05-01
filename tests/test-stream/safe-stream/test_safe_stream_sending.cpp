@@ -33,7 +33,7 @@
 #include "aether/stream_api/safe_stream/safe_stream_sending.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 
-#include "tests/test-stream/safe-stream/to_data_buffer.h"
+#include "tests/test-stream/to_data_buffer.h"
 
 namespace ae::test_safe_stream_sending {
 
@@ -88,17 +88,14 @@ void test_SafeStreamSendingFewChunks() {
 
   auto sending = SafeStreamSendingAction(ac, config);
   sending.set_max_data_size(100);
-  auto send_sub =
-      sending.send_event().Subscribe([&](auto offset, auto&& data, auto) {
-        received_data.insert(std::end(received_data), std::begin(data),
-                             std::end(data));
-        received_offset = static_cast<std::uint16_t>(offset);
-      });
+  sending.send_event().Subscribe([&](auto offset, auto&& data) {
+    received_data.insert(std::end(received_data), std::begin(data),
+                         std::end(data));
+    received_offset = static_cast<std::uint16_t>(offset);
+  });
 
-  auto repeat_sub =
-      sending.repeat_event().Subscribe([&](auto, auto, auto&&, auto) {
-        TEST_FAIL_MESSAGE("Unexpected repeat");
-      });
+  sending.repeat_event().Subscribe(
+      [&](auto, auto, auto&&) { TEST_FAIL_MESSAGE("Unexpected repeat"); });
 
   auto send_100 = sending.SendData(ToDataBuffer(_100_bytes_data));
   ap.Update(epoch + std::chrono::milliseconds{1});
@@ -145,17 +142,14 @@ void test_SafeStreamSendingWaitConfirm() {
   auto sending = SafeStreamSendingAction{ac, config};
   sending.set_max_data_size(100);
 
-  auto send_sub =
-      sending.send_event().Subscribe([&](auto offset, auto&& data, auto) {
-        received_data.insert(std::end(received_data), std::begin(data),
-                             std::end(data));
-        received_offset = static_cast<std::uint16_t>(offset);
-      });
+  sending.send_event().Subscribe([&](auto offset, auto&& data) {
+    received_data.insert(std::end(received_data), std::begin(data),
+                         std::end(data));
+    received_offset = static_cast<std::uint16_t>(offset);
+  });
 
-  auto repeat_sub =
-      sending.repeat_event().Subscribe([&](auto, auto, auto&&, auto) {
-        TEST_FAIL_MESSAGE("Unexpected repeat");
-      });
+  sending.repeat_event().Subscribe(
+      [&](auto, auto, auto&&) { TEST_FAIL_MESSAGE("Unexpected repeat"); });
 
   sending.SendData(ToDataBuffer(_100_bytes_data));
   sending.SendData(ToDataBuffer(_200_bytes_data));
@@ -188,15 +182,14 @@ void test_SafeStreamSendingRepeat() {
   auto sending = SafeStreamSendingAction{ac, config};
   sending.set_max_data_size(100);
 
-  auto send_sub =
-      sending.send_event().Subscribe([&](auto offset, auto&& data, auto) {
-        received_data.insert(std::end(received_data), std::begin(data),
-                             std::end(data));
-        received_offset = static_cast<std::uint16_t>(offset);
-      });
+  sending.send_event().Subscribe([&](auto offset, auto&& data) {
+    received_data.insert(std::end(received_data), std::begin(data),
+                         std::end(data));
+    received_offset = static_cast<std::uint16_t>(offset);
+  });
 
-  auto repeat_sub = sending.repeat_event().Subscribe(
-      [&](auto offset, auto /* repeat_count*/, auto&& data, auto) {
+  sending.repeat_event().Subscribe(
+      [&](auto offset, auto /* repeat_count*/, auto&& data) {
         received_data.insert(std::end(received_data), std::begin(data),
                              std::end(data));
         received_offset = static_cast<std::uint16_t>(offset);
@@ -243,15 +236,14 @@ void test_SafeStreamSendingRepeatRequest() {
   auto sending = SafeStreamSendingAction{ac, config};
   sending.set_max_data_size(100);
 
-  auto send_sub =
-      sending.send_event().Subscribe([&](auto offset, auto&& data, auto) {
-        received_data.insert(std::end(received_data), std::begin(data),
-                             std::end(data));
-        received_offset = static_cast<std::uint16_t>(offset);
-      });
+  sending.send_event().Subscribe([&](auto offset, auto&& data) {
+    received_data.insert(std::end(received_data), std::begin(data),
+                         std::end(data));
+    received_offset = static_cast<std::uint16_t>(offset);
+  });
 
-  auto repeat_sub = sending.repeat_event().Subscribe(
-      [&](auto offset, auto /* repeat_count*/, auto&& data, auto) {
+  sending.repeat_event().Subscribe(
+      [&](auto offset, auto /* repeat_count*/, auto&& data) {
         received_data.insert(std::end(received_data), std::begin(data),
                              std::end(data));
         received_offset = static_cast<std::uint16_t>(offset);
@@ -293,12 +285,11 @@ void test_SafeStreamSendingOverBufferCapacity() {
   auto sending = SafeStreamSendingAction{ac, config};
   sending.set_max_data_size(500);
 
-  auto send_sub =
-      sending.send_event().Subscribe([&](auto offset, auto&& data, auto) {
-        received_data.insert(std::end(received_data), std::begin(data),
-                             std::end(data));
-        received_offset = offset;
-      });
+  sending.send_event().Subscribe([&](auto offset, auto&& data) {
+    received_data.insert(std::end(received_data), std::begin(data),
+                         std::end(data));
+    received_offset = offset;
+  });
 
   for (auto i = 0; i < 15; i++) {
     auto old_received_offset = received_offset;
