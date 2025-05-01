@@ -58,7 +58,7 @@ class Sender {
   Client::ptr client_;
   Uid destination_uid_;
   SafeStreamConfig safe_stream_config_;
-  std::unique_ptr<ByteStream> send_message_stream_;
+  std::unique_ptr<ByteIStream> send_message_stream_;
   ProtocolContext protocol_context_;
 
   std::unique_ptr<ITimedSender> sender_action_;

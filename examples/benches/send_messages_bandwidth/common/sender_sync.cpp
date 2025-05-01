@@ -27,7 +27,7 @@
 namespace ae::bench {
 SenderSyncAction::SenderSyncAction(ActionContext action_context,
                                    ProtocolContext& protocol_context,
-                                   ByteStream& stream)
+                                   ByteIStream& stream)
     : Action{action_context},
       protocol_context_{protocol_context},
       stream_{&stream},
@@ -79,7 +79,7 @@ void SenderSyncAction::SendSync(TimePoint current_time) {
   auto packet = PacketBuilder{
       protocol_context_,
       PackMessage{BandwidthApi{}, BandwidthApi::Sync{{}, request_id}}};
-  stream_->in().Write(std::move(packet), current_time);
+  stream_->Write(std::move(packet));
   send_time_ = current_time;
   current_repeat_++;
   state_.Set(State::kWaitResponse);

@@ -40,13 +40,13 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
     kSending,
     kSuccess,
     kWaitbuffer,
-    kStoped,
+    kStopped,
     kError,
   };
 
  public:
   MessageSender(ActionContext action_context, ProtocolContext& protocol_context,
-                TApi&& api_class, ByteStream& stream, std::size_t send_count)
+                TApi&& api_class, ByteIStream& stream, std::size_t send_count)
       : SelfAction{action_context},
         protocol_context_{protocol_context},
         api_class_{std::move(api_class)},
@@ -67,7 +67,7 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
         case State::kSuccess:
           SelfAction::Result(*this);
           return current_time;
-        case State::kStoped:
+        case State::kStopped:
           SelfAction::Stop(*this);
           return current_time;
         case State::kError:
@@ -87,7 +87,7 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
 
   void Stop() {
     AE_TELED_DEBUG("MessageSender Stop");
-    state_.Set(State::kStoped);
+    state_.Set(State::kStopped);
   }
 
   std::size_t message_send_count() const { return message_send_count_; }
@@ -104,7 +104,7 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
     auto packet =
         PacketBuilder{protocol_context_, PackMessage{api_class_, TMessage{}}};
 
-    auto write_action = stream_->in().Write(std::move(packet), current_time);
+    auto write_action = stream_->Write(std::move(packet));
     message_send_.Push(  //
         write_action->ResultEvent().Subscribe([this](auto const&) {
           message_send_confirm_count_++;
@@ -140,7 +140,7 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
 
   ProtocolContext& protocol_context_;
   TApi api_class_;
-  ByteStream* stream_;
+  ByteIStream* stream_;
   std::size_t send_count_;
   Duration send_duration_;
 

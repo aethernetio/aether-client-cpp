@@ -22,12 +22,10 @@
 #include "aether/actions/action_context.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/stream_api/protocol_stream.h"
 #include "aether/client_connections/client_connection.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
 
 #include "send_message_delays/timed_receiver.h"
-#include "send_message_delays/api/bench_delays_api.h"
 
 namespace ae::bench {
 class Receiver {
@@ -49,18 +47,20 @@ class Receiver {
   template <typename TMessage>
   void CreateBenchAction(std::size_t count);
 
+  void OnRecvData(DataBuffer const& data);
+
   ActionContext action_context_;
   Client::ptr client_;
   SafeStreamConfig safe_stream_config_;
 
   ProtocolContext protocol_context_;
   Ptr<ClientConnection> client_connection_;
-  std::unique_ptr<ProtocolReadGate<BenchDelaysApi>> protocol_read_gate_;
-  std::unique_ptr<ByteStream> receive_message_stream_;
+  std::unique_ptr<ByteIStream> receive_message_stream_;
 
   std::unique_ptr<ITimedReceiver> receiver_action_;
 
   Subscription message_stream_subscription_;
+  Subscription recv_data_sub_;
   MultiSubscription action_subscriptions_;
 };
 }  // namespace ae::bench

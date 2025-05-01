@@ -26,15 +26,15 @@ Sender::Sender(ActionContext action_context, Client::ptr client,
                Uid destination)
     : action_context_{action_context},
       client_{std::move(client)},
-      destination_{destination},
-      response_read_{protocol_context_, BandwidthApi{}} {}
+      destination_{destination} {}
 
 EventSubscriber<void()> Sender::error_event() { return error_event_; }
 
 void Sender::Connect() {
   message_stream_ = make_unique<P2pStream>(action_context_, client_,
                                            destination_, StreamId{0});
-  Tie(response_read_, *message_stream_);
+  on_recv_data_sub_ = message_stream_->out_data_event().Subscribe(
+      *this, MethodPtr<&Sender::OnRecvData>{});
 }
 
 void Sender::Disconnect() { message_stream_.reset(); }
@@ -52,11 +52,10 @@ EventSubscriber<void()> Sender::Handshake() {
         }
       });
 
-  message_stream_->in().Write(
-      PacketBuilder{protocol_context_, PackMessage{BandwidthApi{},
-                                                   BandwidthApi::Handshake{
-                                                       {}, handshake_request}}},
-      Now());
+  message_stream_->Write(PacketBuilder{
+      protocol_context_,
+      PackMessage{BandwidthApi{},
+                  BandwidthApi::Handshake{{}, handshake_request}}});
 
   return handshake_made_;
 }
@@ -156,6 +155,12 @@ std::unique_ptr<MessageSender<BandwidthApi, T>> Sender::CreateTestAction(
           [this](auto const&) { error_event_.Emit(); }));
 
   return action;
+}
+
+void Sender::OnRecvData(DataBuffer const& data) {
+  auto parser = ApiParser{protocol_context_, data};
+  auto api = BandwidthApi{};
+  parser.Parse(api);
 }
 
 }  // namespace ae::bench

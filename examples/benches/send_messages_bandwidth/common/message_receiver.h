@@ -38,7 +38,7 @@ class MessageReceiver : public Action<MessageReceiver<TMessage>> {
   enum class State : std::uint8_t {
     kReceiving,
     kSuccess,
-    kStoped,
+    kStopped,
     kError,
   };
 
@@ -65,7 +65,7 @@ class MessageReceiver : public Action<MessageReceiver<TMessage>> {
         case State::kSuccess:
           SelfAction::Result(*this);
           return current_time;
-        case State::kStoped:
+        case State::kStopped:
           SelfAction::Stop(*this);
           return current_time;
         case State::kError:

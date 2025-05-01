@@ -59,7 +59,7 @@ class TimedSender : public ITimedSender {
 
  public:
   TimedSender(ActionContext action_context, ProtocolContext& protocol_context,
-              ByteStream& stream, std::size_t message_count,
+              ByteIStream& stream, std::size_t message_count,
               Duration min_send_interval)
       : ITimedSender{action_context},
         protocol_context_{protocol_context},
@@ -120,10 +120,8 @@ class TimedSender : public ITimedSender {
 
     message_times_.emplace(current_id_, HighResTimePoint::clock::now());
 
-    stream_->in().Write(
-        PacketBuilder{protocol_context_,
-                      PackMessage{api_class_, TMessage{current_id_}}},
-        current_time);
+    stream_->Write(PacketBuilder{
+        protocol_context_, PackMessage{api_class_, TMessage{current_id_}}});
 
     last_send_time_ = current_time;
 
@@ -153,7 +151,7 @@ class TimedSender : public ITimedSender {
   }
 
   ProtocolContext& protocol_context_;
-  ByteStream* stream_;
+  ByteIStream* stream_;
   std::size_t message_count_;
 
   Duration min_send_interval_;

@@ -197,41 +197,39 @@ class KeyLedTestAction : public Action<KeyLedTestAction> {
     receiver_ = aether_->clients()[0];
     auto receiver_connection = receiver_->client_connection();
     receiver_new_stream_subscription_ =
-        receiver_connection->new_stream_event().Subscribe([&](auto uid,
-                                                              auto stream_id,
-                                                              auto raw_stream) {
-          receiver_stream_ = make_unique<P2pSafeStream>(
-              *aether_->action_processor, kSafeStreamConfig,
-              make_unique<P2pStream>(*aether_->action_processor, receiver_, uid,
-                                     stream_id, std::move(raw_stream)));
-          receiver_message_subscription_ =
-              receiver_stream_->in().out_data_event().Subscribe(
-                  [&](auto const& data) {
-                    auto str_msg =
-                        std::string(reinterpret_cast<const char*>(data.data()),
-                                    data.size());
-                    AE_TELED_DEBUG("Received a message [{}]", str_msg);
-                    receive_count_++;
-                    auto confirm_msg = std::string{"confirmed "} + str_msg;
-                    if ((str_msg.compare(messages_[0])) == 0) {
-                      key_action_.SetLed(1);
-                      AE_TELED_INFO("LED is on");
-                    } else if ((str_msg.compare(messages_[1])) == 0) {
-                      key_action_.SetLed(0);
-                      AE_TELED_INFO("LED is off");
-                    }
-                    auto response_action = receiver_stream_->in().Write(
-                        {confirm_msg.data(),
-                         confirm_msg.data() + confirm_msg.size()},
-                        ae::Now());
-                    response_subscriptions_.Push(
-                        response_action->ErrorEvent().Subscribe(
-                            [&](auto const&) {
-                              AE_TELED_ERROR("Send response failed");
-                              state_ = State::kError;
-                            }));
-                  });
-        });
+        receiver_connection->new_stream_event().Subscribe(
+            [&](auto uid, auto stream_id, auto& raw_stream) {
+              receiver_stream_ = make_unique<P2pSafeStream>(
+                  *aether_->action_processor, kSafeStreamConfig,
+                  make_unique<P2pStream>(*aether_->action_processor, receiver_,
+                                         uid, stream_id, raw_stream));
+              receiver_message_subscription_ =
+                  receiver_stream_->out_data_event().Subscribe(
+                      [&](auto const& data) {
+                        auto str_msg = std::string(
+                            reinterpret_cast<const char*>(data.data()),
+                            data.size());
+                        AE_TELED_DEBUG("Received a message [{}]", str_msg);
+                        receive_count_++;
+                        auto confirm_msg = std::string{"confirmed "} + str_msg;
+                        if ((str_msg.compare(messages_[0])) == 0) {
+                          key_action_.SetLed(1);
+                          AE_TELED_INFO("LED is on");
+                        } else if ((str_msg.compare(messages_[1])) == 0) {
+                          key_action_.SetLed(0);
+                          AE_TELED_INFO("LED is off");
+                        }
+                        auto response_action = receiver_stream_->Write(
+                            {confirm_msg.data(),
+                             confirm_msg.data() + confirm_msg.size()});
+                        response_subscriptions_.Push(
+                            response_action->ErrorEvent().Subscribe(
+                                [&](auto const&) {
+                                  AE_TELED_ERROR("Send response failed");
+                                  state_ = State::kError;
+                                }));
+                      });
+            });
     state_ = State::kConfigureSender;
   }
 
@@ -251,7 +249,7 @@ class KeyLedTestAction : public Action<KeyLedTestAction> {
         make_unique<P2pStream>(*aether_->action_processor, sender_,
                                receiver_->uid(), StreamId{0}));
     sender_message_subscription_ =
-        sender_stream_->in().out_data_event().Subscribe([&](auto const& data) {
+        sender_stream_->out_data_event().Subscribe([&](auto const& data) {
           auto str_response = std::string(
               reinterpret_cast<const char*>(data.data()), data.size());
           AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
@@ -272,18 +270,16 @@ class KeyLedTestAction : public Action<KeyLedTestAction> {
           if (key_action_.GetKey()) {
             AE_TELED_INFO("Hi level press");
             if (kUseAether) {
-              sender_stream_->in().Write(
-                  {std::begin(messages_[0]), std::end(messages_[0])},
-                  ae::TimePoint::clock::now());
+              sender_stream_->Write(
+                  {std::begin(messages_[0]), std::end(messages_[0])});
             } else {
               key_action_.SetLed(1);
             }
           } else {
             AE_TELED_INFO("Low level press");
             if (kUseAether) {
-              sender_stream_->in().Write(
-                  {std::begin(messages_[1]), std::end(messages_[1])},
-                  ae::TimePoint::clock::now());
+              sender_stream_->Write(
+                  {std::begin(messages_[1]), std::end(messages_[1])});
             } else {
               key_action_.SetLed(0);
             }
@@ -296,9 +292,9 @@ class KeyLedTestAction : public Action<KeyLedTestAction> {
   Aether::ptr aether_;
 
   Client::ptr receiver_;
-  std::unique_ptr<ByteStream> receiver_stream_;
+  std::unique_ptr<ByteIStream> receiver_stream_;
   Client::ptr sender_;
-  std::unique_ptr<ByteStream> sender_stream_;
+  std::unique_ptr<ByteIStream> sender_stream_;
   std::size_t clients_registered_;
   std::size_t receive_count_;
   std::size_t confirm_count_;
