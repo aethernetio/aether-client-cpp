@@ -99,7 +99,8 @@ struct EnvTele {
 
   template <typename... TValues>
   constexpr explicit EnvTele(
-      Sink& sink, [[maybe_unused]] std::pair<std::size_t, TValues>&&... args) {
+      Sink& sink, [[maybe_unused]] std::uint32_t utm_id,
+      [[maybe_unused]] std::pair<std::size_t, TValues>&&... args) {
     auto stream = sink.trap()->env_stream();
     if constexpr (SinkConfig::kPlatformType) {
       stream.platform_type(PlatformType());
@@ -122,6 +123,9 @@ struct EnvTele {
     if constexpr (SinkConfig::kCpuType) {
       stream.cpu_type(CpuType());
       stream.endianness(static_cast<uint8_t>(PlatformEndianness()));
+    }
+    if constexpr (SinkConfig::kUtmId) {
+      stream.utmid(utm_id);
     }
 
     if constexpr (SinkConfig::kCustomData) {

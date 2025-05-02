@@ -139,9 +139,13 @@ class ProxyTrap {
       stream1_.cpu_type(cpu_type);
       stream2_.cpu_type(cpu_type);
     }
-    void endianness(uint8_t endianness) {
+    void endianness(std::uint8_t endianness) {
       stream1_.endianness(endianness);
       stream2_.endianness(endianness);
+    }
+    void utmid(std::uint32_t utm_id) {
+      stream1_.utmid(utm_id);
+      stream2_.utmid(utm_id);
     }
   };
 

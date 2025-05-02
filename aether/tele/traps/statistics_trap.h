@@ -57,6 +57,9 @@ struct MetricsStore {
     PackedValue max_duration;
     PackedValue sum_duration;
     PackedValue min_duration;
+
+    AE_REFLECT_MEMBERS(invocations_count, max_duration, sum_duration,
+                       min_duration)
   };
 
   using MetricsMap = std::map<PackedIndex, Metric>;
@@ -84,49 +87,15 @@ struct EnvStore {
   std::string api_version;
   std::string cpu_type;
   std::uint8_t endianness;
+  std::uint32_t utm_id;
   std::vector<std::pair<PackedIndex, std::string>> compile_options;
+
+  AE_REFLECT_MEMBERS(platform_type, platform_version, compiler,
+                     compiler_version, library_version, api_version, cpu_type,
+                     endianness, utm_id, compile_options)
 };
 }  // namespace statistics
 }  // namespace ae::tele
-namespace ae {
-
-template <typename T>
-class omstream;
-template <typename T>
-class imstream;
-
-template <typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& s,
-                         const tele::statistics::MetricsStore::Metric& v) {
-  s << v.invocations_count << v.max_duration << v.sum_duration
-    << v.min_duration;
-  return s;
-}
-
-template <typename Ib>
-imstream<Ib>& operator>>(imstream<Ib>& s,
-                         tele::statistics::MetricsStore::Metric& v) {
-  s >> v.invocations_count >> v.max_duration >> v.sum_duration >>
-      v.min_duration;
-  return s;
-}
-
-template <typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& s, tele::statistics::EnvStore const& v) {
-  s << v.platform_type << v.platform_version << v.compiler << v.compiler_version
-    << v.library_version << v.api_version << v.cpu_type << v.endianness
-    << v.compile_options;
-  return s;
-}
-
-template <typename Ib>
-imstream<Ib>& operator>>(imstream<Ib>& s, tele::statistics::EnvStore& v) {
-  s >> v.platform_type >> v.platform_version >> v.compiler >>
-      v.compiler_version >> v.library_version >> v.api_version >> v.cpu_type >>
-      v.endianness >> v.compile_options;
-  return s;
-}
-}  // namespace ae
 
 namespace ae::tele {
 namespace statistics {
@@ -276,7 +245,8 @@ class StatisticsTrap {
     void library_version(char const* library_version);
     void api_version(char const* api_version);
     void cpu_type(char const* cpu_type);
-    void endianness(uint8_t endianness);
+    void endianness(std::uint8_t endianness);
+    void utmid(std::uint32_t utm_id);
 
     EnvStore& env_store;
   };

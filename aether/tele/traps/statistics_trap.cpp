@@ -224,12 +224,14 @@ void StatisticsTrap::EnvStream::library_version(char const* library_version) {
 void StatisticsTrap::EnvStream::api_version(char const* api_version) {
   env_store.api_version = api_version;
 }
-
 void StatisticsTrap::EnvStream::cpu_type(char const* cpu_type) {
   env_store.cpu_type = cpu_type;
 }
-void StatisticsTrap::EnvStream::endianness(uint8_t endianness) {
+void StatisticsTrap::EnvStream::endianness(std::uint8_t endianness) {
   env_store.endianness = endianness;
+}
+void StatisticsTrap::EnvStream::utmid(std::uint32_t utm_id) {
+  env_store.utm_id = utm_id;
 }
 
 StatisticsTrap::StatisticsTrap() = default;
