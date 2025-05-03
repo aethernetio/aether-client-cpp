@@ -82,7 +82,7 @@ struct ConfigProvider {
 
   template <bool compiler = true, bool platform_type = true,
             bool compilation_options = true, bool library_version = true,
-            bool api_version = true, bool cpu_type = true,
+            bool api_version = true, bool cpu_type = true, bool utm_id = true,
             bool custom_data = true>
   struct EnvConfig {
     static constexpr bool kCompiler{compiler};
@@ -91,6 +91,7 @@ struct ConfigProvider {
     static constexpr bool kLibraryVersion{library_version};
     static constexpr bool kApiVersion{api_version};
     static constexpr bool kCpuType{cpu_type};
+    static constexpr bool kUtmId{utm_id};
     static constexpr bool kCustomData{custom_data};
   };
 
@@ -137,7 +138,7 @@ struct ConfigProvider {
       EnvConfig<AE_TELE_COMPILATION_INFO != 0, AE_TELE_COMPILATION_INFO != 0,
                 AE_TELE_COMPILATION_INFO != 0, AE_TELE_COMPILATION_INFO != 0,
                 AE_TELE_COMPILATION_INFO != 0, AE_TELE_COMPILATION_INFO != 0,
-                AE_TELE_RUNTIME_INFO>;
+                AE_TELE_COMPILATION_INFO != 0, AE_TELE_RUNTIME_INFO>;
 };
 }  // namespace ae::tele
 

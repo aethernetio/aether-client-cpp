@@ -20,6 +20,7 @@ option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar 
 
 option(AE_DISTILLATION "Build aether in distillation mode" OFF)
 
+set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
 set(FS_INIT "" CACHE PATH "Path to user provided saved state header file")
 
@@ -344,6 +345,8 @@ if (GIT_VERSION)
   target_compile_definitions(${TARGET_NAME} PUBLIC "AE_GIT_VERSION=\"${GIT_VERSION}\"")
 endif()
 target_compile_definitions(${TARGET_NAME} PUBLIC "AE_PROJECT_VERSION=\"${AE_PROJECT_VERSION}\"")
+
+target_compile_definitions(${TARGET_NAME} PUBLIC "UTM_ID=${UTM_ID}")
 
 if (NOT "${USER_CONFIG}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "USER_CONFIG=\"${USER_CONFIG}\"")
