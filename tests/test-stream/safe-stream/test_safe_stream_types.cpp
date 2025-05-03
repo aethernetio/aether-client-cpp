@@ -34,10 +34,14 @@ void test_OffsetRange() {
     constexpr auto half_window_range = OffsetRange{
         SafeStreamRingIndex{25}, SafeStreamRingIndex{75}, window_size};
 
-    TEST_ASSERT_TRUE(half_window_range.Before(SafeStreamRingIndex{76}));
     TEST_ASSERT_TRUE(half_window_range.After(SafeStreamRingIndex{24}));
-    TEST_ASSERT_FALSE(half_window_range.Before(SafeStreamRingIndex{75}));
     TEST_ASSERT_FALSE(half_window_range.After(SafeStreamRingIndex{25}));
+    TEST_ASSERT_FALSE(half_window_range.After(SafeStreamRingIndex{26}));
+
+    TEST_ASSERT_TRUE(half_window_range.Before(SafeStreamRingIndex{76}));
+    TEST_ASSERT_FALSE(half_window_range.Before(SafeStreamRingIndex{75}));
+    TEST_ASSERT_FALSE(half_window_range.Before(SafeStreamRingIndex{74}));
+
     TEST_ASSERT_TRUE(half_window_range.InRange(SafeStreamRingIndex{25}));
     TEST_ASSERT_TRUE(half_window_range.InRange(SafeStreamRingIndex{75}));
     TEST_ASSERT_TRUE(half_window_range.InRange(SafeStreamRingIndex{50}));
@@ -160,33 +164,24 @@ void test_SendDataBuffer() {
       SendingData{SafeStreamRingIndex{0},
                   DataBuffer{std::begin(test_data), std::end(test_data)}});
 
-  auto a1_result = a1->ResultEvent().Subscribe(
-      [&](auto const&) { a1_res.confirmed = true; });
-  auto a1_error =
-      a1->ErrorEvent().Subscribe([&](auto const&) { a1_res.rejected = true; });
-  auto a1_stop =
-      a1->StopEvent().Subscribe([&](auto const&) { a1_res.stopped = true; });
+  a1->ResultEvent().Subscribe([&](auto const&) { a1_res.confirmed = true; });
+  a1->ErrorEvent().Subscribe([&](auto const&) { a1_res.rejected = true; });
+  a1->StopEvent().Subscribe([&](auto const&) { a1_res.stopped = true; });
 
   auto a2 = send_data_buffer.AddData(
       SendingData{SafeStreamRingIndex{test_data.size()},
                   DataBuffer{std::begin(test_data), std::end(test_data)}});
-  auto a2_result = a2->ResultEvent().Subscribe(
-      [&](auto const&) { a2_res.confirmed = true; });
-  auto a2_error =
-      a2->ErrorEvent().Subscribe([&](auto const&) { a2_res.rejected = true; });
-  auto a2_stop =
-      a2->StopEvent().Subscribe([&](auto const&) { a2_res.stopped = true; });
+  a2->ResultEvent().Subscribe([&](auto const&) { a2_res.confirmed = true; });
+  a2->ErrorEvent().Subscribe([&](auto const&) { a2_res.rejected = true; });
+  a2->StopEvent().Subscribe([&](auto const&) { a2_res.stopped = true; });
 
   auto a3 = send_data_buffer.AddData(
       SendingData{SafeStreamRingIndex{2 * test_data.size()},
                   DataBuffer{std::begin(test_data), std::end(test_data)}});
 
-  auto a3_result = a3->ResultEvent().Subscribe(
-      [&](auto const&) { a3_res.confirmed = true; });
-  auto a3_error =
-      a3->ErrorEvent().Subscribe([&](auto const&) { a3_res.rejected = true; });
-  auto a3_stop =
-      a3->StopEvent().Subscribe([&](auto const&) { a3_res.stopped = true; });
+  a3->ResultEvent().Subscribe([&](auto const&) { a3_res.confirmed = true; });
+  a3->ErrorEvent().Subscribe([&](auto const&) { a3_res.rejected = true; });
+  a3->StopEvent().Subscribe([&](auto const&) { a3_res.stopped = true; });
 
   TEST_ASSERT_EQUAL(test_data.size() * 3, send_data_buffer.size());
   // get a slice
@@ -223,7 +218,7 @@ void test_SendDataBuffer() {
   action_processor.Update(Now());
   TEST_ASSERT_FALSE(a1_res.confirmed);
 
-  send_data_buffer.Confirm(SafeStreamRingIndex{test_data.size()});
+  send_data_buffer.Confirm(SafeStreamRingIndex{test_data.size() - 1});
   action_processor.Update(Now());
   TEST_ASSERT_TRUE(a1_res.confirmed);
 
@@ -247,6 +242,72 @@ void test_SendDataBuffer() {
   TEST_ASSERT_TRUE(a3_res.stopped);
 }
 
+void test_SendDataBufferConfirmation() {
+  constexpr SafeStreamRingIndex::type window_size = 100;
+  ActionProcessor action_processor;
+  ActionContext action_context{action_processor};
+
+  SendDataBuffer send_data_buffer{action_context, window_size};
+
+  std::array arr_res = {ActionResult{}, ActionResult{}, ActionResult{}};
+
+  for (std::size_t i = 0; i < arr_res.size(); ++i) {
+    auto action = send_data_buffer.AddData(SendingData{
+        SafeStreamRingIndex{static_cast<std::uint16_t>(test_data.size() * i)},
+        DataBuffer{std::begin(test_data), std::end(test_data)}});
+    action->ResultEvent().Subscribe(
+        [&arr_res, i](auto const&) { arr_res[i].confirmed = true; });
+  }
+
+  // confirm some data at the beginning
+  send_data_buffer.Confirm(SafeStreamRingIndex{5});
+  action_processor.Update(Now());
+  // non data should be confirmed
+  TEST_ASSERT_FALSE(arr_res[0].confirmed);
+
+  // confirm almost first data
+  send_data_buffer.Confirm(SafeStreamRingIndex{test_data.size() - 2});
+  action_processor.Update(Now());
+  // non data should be confirmed
+  TEST_ASSERT_FALSE(arr_res[0].confirmed);
+  // confirm whole first data
+  send_data_buffer.Confirm(SafeStreamRingIndex{test_data.size() - 1});
+  action_processor.Update(Now());
+  // now the data is confirmed
+  TEST_ASSERT_TRUE(arr_res[0].confirmed);
+  // confirm up to the half of third data
+  send_data_buffer.Confirm(
+      SafeStreamRingIndex{(test_data.size() * 2) + (test_data.size() / 2)});
+  action_processor.Update(Now());
+  // second is confirmed but the third is not
+  TEST_ASSERT_TRUE(arr_res[1].confirmed);
+  TEST_ASSERT_FALSE(arr_res[2].confirmed);
+
+  // confirm all
+  send_data_buffer.Confirm(SafeStreamRingIndex{(test_data.size() * 3) - 1});
+  action_processor.Update(Now());
+  TEST_ASSERT_TRUE(arr_res[2].confirmed);
+
+  // add more data
+  for (std::size_t i = 0; i < arr_res.size(); ++i) {
+    arr_res[i] = {};
+    auto action = send_data_buffer.AddData(
+        SendingData{SafeStreamRingIndex{
+                        static_cast<std::uint16_t>(test_data.size() * (3 + i))},
+                    DataBuffer{std::begin(test_data), std::end(test_data)}});
+    action->ResultEvent().Subscribe(
+        [&arr_res, i](auto const&) { arr_res[i].confirmed = true; });
+  }
+
+  // confirm it all
+  send_data_buffer.Confirm(
+      SafeStreamRingIndex{(test_data.size() * (3 + 3)) - 1});
+  action_processor.Update(Now());
+  TEST_ASSERT_TRUE(arr_res[0].confirmed);
+  TEST_ASSERT_TRUE(arr_res[1].confirmed);
+  TEST_ASSERT_TRUE(arr_res[2].confirmed);
+}
+
 }  // namespace ae::test_safe_stream_types
 
 int test_safe_stream_types() {
@@ -257,5 +318,6 @@ int test_safe_stream_types() {
   RUN_TEST(ae::test_safe_stream_types::test_SendingChunkList);
   RUN_TEST(ae::test_safe_stream_types::test_SendingChunkListRepeatCount);
   RUN_TEST(ae::test_safe_stream_types::test_SendDataBuffer);
+  RUN_TEST(ae::test_safe_stream_types::test_SendDataBufferConfirmation);
   return UNITY_END();
 }
