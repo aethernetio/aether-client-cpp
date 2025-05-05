@@ -23,9 +23,9 @@
 #include "aether/work_cloud.h"
 #include "aether/port/tele_init.h"
 
-#include "aether/stream_api/tied_stream.h"
-#include "aether/stream_api/buffer_gate.h"
-#include "aether/stream_api/transport_write_gate.h"
+#include "aether/stream_api/gates_stream.h"
+#include "aether/stream_api/buffer_stream.h"
+#include "aether/stream_api/transport_write_stream.h"
 #include "aether/client_connections/client_to_server_stream.h"
 
 #include "test-object-system/map_facility.h"
@@ -36,6 +36,32 @@
 namespace ae::test_client_to_server_stream {
 inline constexpr char test_data[] =
     "Did you know that octopuses have three hearts?";
+
+class MockServerStream : public ByteIStream {
+ public:
+  explicit MockServerStream(ActionContext action_context, ITransport& transport)
+      : buffer_stream{action_context, std::size_t{5}},
+        transport_write_stream{action_context, transport} {
+    Tie(buffer_stream, transport_write_stream);
+  }
+
+  ActionView<StreamWriteAction> Write(DataBuffer&& in_data) override {
+    return buffer_stream.Write(std::move(in_data));
+  }
+  StreamUpdateEvent::Subscriber stream_update_event() override {
+    return buffer_stream.stream_update_event();
+  }
+  StreamInfo stream_info() const override {
+    return buffer_stream.stream_info();
+  }
+  OutDataEvent::Subscriber out_data_event() override {
+    return buffer_stream.out_data_event();
+  }
+
+ private:
+  BufferStream buffer_stream;
+  TransportWriteStream transport_write_stream;
+};
 
 class TestClientToServerStreamFixture {
  public:
@@ -59,11 +85,8 @@ class TestClientToServerStreamFixture {
       MockTransport().Connect();
       client_to_server_stream = make_unique<ae::ClientToServerStream>(
           *aether->action_processor, client, server->server_id,
-          make_unique<TiedStream>(
-              make_unique<BufferGate>(*aether->action_processor,
-                                      std::size_t{5}),
-              make_unique<TransportWriteGate>(*aether->action_processor,
-                                              MockTransport())));
+          make_unique<MockServerStream>(*aether->action_processor,
+                                        MockTransport()));
     }
     return *client_to_server_stream;
   }
@@ -92,8 +115,7 @@ void test_clientToServerStream() {
   });
 
   auto& client_to_server_stream = fixture.ClientToServerStream();
-  client_to_server_stream.in().Write(
-      {std::begin(test_data), std::end(test_data)}, Now());
+  client_to_server_stream.Write({std::begin(test_data), std::end(test_data)});
 
   TEST_ASSERT(data_received);
 }
@@ -115,8 +137,7 @@ void test_clientToServerStreamConnectionFailed() {
       });
 
   auto& client_to_server_stream = fixture.ClientToServerStream();
-  client_to_server_stream.in().Write(
-      {std::begin(test_data), std::end(test_data)}, Now());
+  client_to_server_stream.Write({std::begin(test_data), std::end(test_data)});
 
   TEST_ASSERT(!data_received);
 }
@@ -138,8 +159,7 @@ void test_clientToServerStreamConnectionDeferred() {
       });
 
   auto& client_to_server_stream = fixture.ClientToServerStream();
-  client_to_server_stream.in().Write(
-      {std::begin(test_data), std::end(test_data)}, Now());
+  client_to_server_stream.Write({std::begin(test_data), std::end(test_data)});
 
   mock_transport.Connected();
 

@@ -14,25 +14,26 @@
  * limitations under the License.
  */
 
-#include "aether/stream_api/unidirectional_gate.h"
-#include "aether/stream_api/stream_write_action.h"
+#include "aether/stream_api/crypto_gate.h"
+
+#include <utility>
 
 namespace ae {
-void WriteOnlyGate::LinkOut(OutGate& out) {
-  out_ = &out;
 
-  gate_update_subscription_ = out.gate_update_event().Subscribe(
-      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
-  gate_update_event_.Emit();
-  // Do not subscribe to out_data_event
+CryptoGate::CryptoGate(std::unique_ptr<IEncryptProvider> crypto_encrypt,
+                       std::unique_ptr<IDecryptProvider> crypto_decrypt)
+    : crypto_encrypt_{std::move(crypto_encrypt)},
+      crypto_decrypt_{std::move(crypto_decrypt)} {}
+
+DataBuffer CryptoGate::WriteIn(DataBuffer buffer) {
+  return crypto_encrypt_->Encrypt(std::move(buffer));
 }
 
-ReadOnlyGate::ReadOnlyGate(ActionContext action_context)
-    : failed_write_actions_{action_context} {}
-
-ActionView<StreamWriteAction> ReadOnlyGate::Write(
-    DataBuffer&& /* data */, TimePoint /* current_time */) {
-  return failed_write_actions_.Emplace();
+DataBuffer CryptoGate::WriteOut(DataBuffer buffer) {
+  return crypto_decrypt_->Decrypt(std::move(buffer));
 }
 
+std::size_t CryptoGate::Overhead() const {
+  return crypto_encrypt_->EncryptOverhead();
+}
 }  // namespace ae

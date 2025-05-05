@@ -70,7 +70,7 @@ class StreamIdGenerator {
   static StreamId GetNextServerStreamId();
 };
 
-class StreamApiGate final : public ByteGate {
+class StreamApiGate {
  public:
   StreamApiGate(ProtocolContext& protocol_context, StreamId stream_id);
   StreamApiGate(StreamApiGate&& other) noexcept;
@@ -78,22 +78,20 @@ class StreamApiGate final : public ByteGate {
   StreamApiGate& operator=(StreamApiGate const& other) = delete;
   StreamApiGate& operator=(StreamApiGate&& other) noexcept;
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
-                                      TimePoint current_time) override;
+  DataBuffer WriteIn(DataBuffer&& buffer);
+  void WriteOut(DataBuffer const& buffer);
+  std::size_t Overhead() const;
 
-  void LinkOut(OutGate& out) override;
-
-  StreamInfo stream_info() const override;
-
-  void PutData(DataBuffer const& data);
+  EventSubscriber<void(DataBuffer const& data)> out_data_event();
 
  private:
   void OnStream(MessageEventData<StreamApi::Stream> const& msg);
 
-  std::reference_wrapper<ProtocolContext> protocol_context_;
+  ProtocolContext* protocol_context_;
   StreamId stream_id_;
   StreamApi api_;
   Subscription read_subscription_;
+  Event<void(DataBuffer const& data)> out_data_event_;
 };
 
 }  // namespace ae

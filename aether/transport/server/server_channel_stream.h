@@ -34,23 +34,24 @@
 #include "aether/adapters/adapter.h"
 
 #include "aether/stream_api/istream.h"
-#include "aether/stream_api/buffer_gate.h"
-#include "aether/stream_api/transport_write_gate.h"
+#include "aether/stream_api/buffer_stream.h"
+#include "aether/stream_api/transport_write_stream.h"
 
 namespace ae {
 class Aether;
 class ChannelConnectionAction;
 
-class ServerChannelStream final : public ByteStream {
+class ServerChannelStream final : public ByteIStream {
  public:
   ServerChannelStream(ObjPtr<Aether> const& aether, Adapter::ptr const& adapter,
                       Server::ptr const& server, Channel::ptr const& channel);
 
   AE_CLASS_NO_COPY_MOVE(ServerChannelStream)
 
-  InGate& in() override { return buffer_gate_; }
-
-  void LinkOut(OutGate& /* out */) override { assert(false); }
+  ActionView<StreamWriteAction> Write(DataBuffer&& data) override;
+  OutDataEvent::Subscriber out_data_event() override;
+  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamInfo stream_info() const override;
 
  private:
   void OnConnected(ChannelConnectionAction& connection);
@@ -60,9 +61,9 @@ class ServerChannelStream final : public ByteStream {
   PtrView<Server> server_;
   PtrView<Channel> channel_;
 
-  BufferGate buffer_gate_;
+  BufferStream buffer_stream_;
   std::unique_ptr<ITransport> transport_;
-  std::optional<TransportWriteGate> transport_write_gate_;
+  std::optional<TransportWriteStream> transport_write_gate_;
 
   std::unique_ptr<class ChannelConnectionAction> connection_action_;
   TimePoint connection_start_time_;

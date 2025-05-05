@@ -14,52 +14,52 @@
  * limitations under the License.
  */
 
-#include "aether/stream_api/splitter_gate.h"
+#include "aether/stream_api/stream_splitter.h"
 
 namespace ae {
-SplitterGate::SplitterGate() {
+StreamSplitter::StreamSplitter() {
   stream_message_event_ =
       protocol_context_.MessageEvent<StreamApi::Stream>().Subscribe(
-          *this, MethodPtr<&SplitterGate::OnStream>{});
+          *this, MethodPtr<&StreamSplitter::OnStream>{});
 }
 
-void SplitterGate::LinkOut(OutGate& out) {
+void StreamSplitter::LinkOut(OutStream& out) {
   out_ = &out;
-  gate_update_subscription_ = out_->gate_update_event().Subscribe(
-      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
 
-  out_data_subscription_ = out_->out_data_event().Subscribe(
-      *this, MethodPtr<&SplitterGate::OnDataEvent>{});
+  update_sub_ = out_->stream_update_event().Subscribe(
+      stream_update_event_, MethodPtr<&StreamUpdateEvent::Emit>{});
 
-  gate_update_event_.Emit();
+  out_data_sub_ = out_->out_data_event().Subscribe(
+      *this, MethodPtr<&StreamSplitter::OnDataEvent>{});
 }
 
-StreamApiGate& SplitterGate::RegisterStream(StreamId stream_id) {
-  auto [new_stream, ok] =
-      streams_.try_emplace(stream_id, protocol_context_, stream_id);
+GatesStream<StreamApiGate>& StreamSplitter::RegisterStream(StreamId stream_id) {
+  auto [new_stream, ok] = streams_.emplace(
+      stream_id,
+      make_unique<GatesStream>(StreamApiGate{protocol_context_, stream_id}));
   if (ok) {
-    new_stream->second.LinkOut(*this);
+    new_stream->second->LinkOut(*this);
   }
-  return new_stream->second;
+  return *new_stream->second;
 }
 
-SplitterGate::NewStreamEvent::Subscriber SplitterGate::new_stream_event() {
+StreamSplitter::NewStreamEvent::Subscriber StreamSplitter::new_stream_event() {
   return new_stream_event_;
 }
 
-void SplitterGate::CloseStream(StreamId stream_id) {
+void StreamSplitter::CloseStream(StreamId stream_id) {
   streams_.erase(stream_id);
 }
 
-std::size_t SplitterGate::stream_count() const { return streams_.size(); }
+std::size_t StreamSplitter::stream_count() const { return streams_.size(); }
 
-void SplitterGate::OnDataEvent(DataBuffer const& data) {
+void StreamSplitter::OnDataEvent(DataBuffer const& data) {
   auto api_parser = ApiParser(protocol_context_, data);
   auto api = StreamApi{};
   api_parser.Parse(api);
 }
 
-void SplitterGate::OnStream(
+void StreamSplitter::OnStream(
     MessageEventData<StreamApi::Stream> const& message) {
   auto it = streams_.find(message.message().stream_id);
   if (it != streams_.end()) {
@@ -69,6 +69,6 @@ void SplitterGate::OnStream(
   auto& new_stream = RegisterStream(message.message().stream_id);
   new_stream_event_.Emit(message.message().stream_id, new_stream);
 
-  new_stream.PutData(message.message().child_data.PackData());
+  new_stream.WriteOut(message.message().child_data.PackData());
 }
 }  // namespace ae

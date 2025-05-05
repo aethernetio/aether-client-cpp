@@ -37,11 +37,10 @@ namespace ae {
 
 class SafeStreamSendingAction : public Action<SafeStreamSendingAction> {
  public:
-  using SendEvent = Event<void(SafeStreamRingIndex offset, DataBuffer&& data,
-                               TimePoint current_time)>;
+  using SendEvent = Event<void(SafeStreamRingIndex offset, DataBuffer&& data)>;
   using RepeatEvent =
       Event<void(SafeStreamRingIndex offset, std::uint16_t repeat_count,
-                 DataBuffer&& data, TimePoint current_time)>;
+                 DataBuffer&& data)>;
 
   SafeStreamSendingAction(ActionContext action_context,
                           SafeStreamConfig const& config);
@@ -70,9 +69,8 @@ class SafeStreamSendingAction : public Action<SafeStreamSendingAction> {
  private:
   TimePoint HandleTimeouts(TimePoint current_time);
   void SendData(TimePoint current_time);
-  void SendFirst(DataChunk&& chunk, TimePoint current_time);
-  void SendRepeat(DataChunk&& chunk, std::uint16_t repeat_count,
-                  TimePoint current_time);
+  void SendFirst(DataChunk&& chunk);
+  void SendRepeat(DataChunk&& chunk, std::uint16_t repeat_count);
 
   void ConfirmDataChunks(SafeStreamRingIndex offset);
 
@@ -82,7 +80,6 @@ class SafeStreamSendingAction : public Action<SafeStreamSendingAction> {
   SafeStreamRingIndex::type window_size_;
   std::uint16_t max_repeat_count_;
   Duration wait_confirm_timeout_;
-  SafeStreamApi safe_stream_api_;
   SafeStreamRingIndex::type max_data_size_;
 
   SendDataBuffer send_data_buffer_;

@@ -20,53 +20,30 @@
 #include "aether/actions/action_processor.h"
 #include "aether/actions/action_context.h"
 
-#include "aether/stream_api/istream.h"
-#include "aether/stream_api/tied_stream.h"
+#include "aether/stream_api/gates_stream.h"
 
-#include "tests/test-stream/mock_write_gate.h"
+#include "tests/test-stream/mock_write_stream.h"
+#include "tests/test-stream/to_data_buffer.h"
 
 namespace ae::tes_templated_streams {
 
-class IntToBytesGate : public Gate<int, int, DataBuffer, DataBuffer> {
+class IntToBytesGate {
  public:
-  ActionView<StreamWriteAction> Write(int&& in_data,
-                                      TimePoint current_time) override {
-    assert(out_);
-    return out_->Write(DataBuffer{reinterpret_cast<uint8_t const*>(&in_data),
-                                  reinterpret_cast<uint8_t const*>(&in_data) +
-                                      sizeof(in_data)},
-                       current_time);
+  DataBuffer WriteIn(int in_data) {
+    return DataBuffer{
+        reinterpret_cast<uint8_t const*>(&in_data),
+        reinterpret_cast<uint8_t const*>(&in_data) + sizeof(in_data)};
   }
 
-  void LinkOut(OutGate& out) override {
-    out_ = &out;
-    out_data_subscription_ =
-        out_->out_data_event().Subscribe([this](auto const& out_data) {
-          int data = *reinterpret_cast<int const*>(out_data.data());
-          out_data_event_.Emit(data);
-        });
-    gate_update_subscription_ = out_->gate_update_event().Subscribe(
-        [this]() { gate_update_event_.Emit(); });
-    gate_update_event_.Emit();
+  int WriteOut(DataBuffer const& data) {
+    int value = *reinterpret_cast<int const*>(data.data());
+    return value;
   }
 };
 
-class StringIntGate : public Gate<std::string, int, int, int> {
+class StringIntGate {
  public:
-  ActionView<StreamWriteAction> Write(std::string&& in_data,
-                                      TimePoint current_time) override {
-    assert(out_);
-    return out_->Write(std::stoi(in_data), current_time);
-  }
-
-  void LinkOut(OutGate& out) override {
-    out_ = &out;
-    out_data_subscription_ = out_->out_data_event().Subscribe(
-        [this](auto const& out_data) { out_data_event_.Emit(out_data); });
-    gate_update_subscription_ = out_->gate_update_event().Subscribe(
-        [this]() { gate_update_event_.Emit(); });
-    gate_update_event_.Emit();
-  }
+  int WriteIn(std::string const& in_data) { return std::stoi(in_data); }
 };
 
 void test_IntToBytesGate() {
@@ -76,17 +53,18 @@ void test_IntToBytesGate() {
   DataBuffer written_data;
   int read_data;
 
-  auto gate = IntToBytesGate{};
-  auto write_gate = MockWriteGate{ac, 1000};
+  auto stream = GatesStream{IntToBytesGate{}};
 
-  Tie(gate, write_gate);
+  auto write_gate = MockWriteStream{ac, 1000};
 
-  auto _0 = write_gate.on_write_event().Subscribe(
-      [&](auto data, auto /* time */) { written_data = std::move(data); });
+  Tie(stream, write_gate);
 
-  gate.Write(10, TimePoint::clock::now());
+  write_gate.on_write_event().Subscribe(
+      [&](auto data) { written_data = std::move(data); });
 
-  auto _1 = gate.out_data_event().Subscribe(
+  stream.Write(10);
+
+  stream.out_data_event().Subscribe(
       [&](auto const& data) { read_data = data; });
 
   TEST_ASSERT_EQUAL(sizeof(int), written_data.size());
@@ -103,21 +81,30 @@ void test_StringIntGate() {
   DataBuffer written_data;
   int read_data;
 
-  auto write_gate =
-      make_unique<MockWriteGate>(ac, static_cast<std::size_t>(1000));
-  auto _0 = write_gate->on_write_event().Subscribe(
-      [&](auto data, auto /* time */) { written_data = std::move(data); });
+  auto write_gate = MockWriteStream{ac, static_cast<std::size_t>(1000)};
+  auto _0 = write_gate.on_write_event().Subscribe(
+      [&](auto data) { written_data = std::move(data); });
 
-  auto stream = TiedStream{StringIntGate{}, IntToBytesGate{}, write_gate};
+  auto stream = GatesStream{StringIntGate{}, IntToBytesGate{}};
+  auto r = TiedWriteOut(ToDataBuffer("const T (&arr)[size]"), StringIntGate{},
+                        IntToBytesGate{});
+  // using gt = decltype(stream)::Base;
+  // using os = decltype(stream)::OutStream;
+  // using out = gt::TypeOut;
+  // using in = gt::TypeIn;
+  // using os_out = os::TypeOut;
+  // using os_in = os::TypeIn;
 
-  auto _1 = stream.in().out_data_event().Subscribe(
+  Tie(stream, write_gate);
+
+  stream.out_data_event().Subscribe(
       [&](auto const& data) { read_data = data; });
 
-  stream.in().Write("10", TimePoint::clock::now());
+  stream.Write("10");
 
   TEST_ASSERT_EQUAL(sizeof(int), written_data.size());
 
-  write_gate->WriteOut(written_data);
+  write_gate.WriteOut(written_data);
 
   TEST_ASSERT_EQUAL(10, read_data);
 }

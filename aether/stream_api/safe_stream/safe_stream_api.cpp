@@ -16,39 +16,55 @@
 
 #include "aether/stream_api/safe_stream/safe_stream_api.h"
 
+#include <cassert>
+
+#include "aether/stream_api/safe_stream.h"
+
 namespace ae {
-void SafeStreamApi::LoadFactory(MessageId message_id, ApiParser& parser) {
-  switch (message_id) {
-    case Close::kMessageCode:
-      parser.Load<Close>(*this);
-      break;
-    case RequestReport::kMessageCode:
-      parser.Load<RequestReport>(*this);
-      break;
-    case PutReport::kMessageCode:
-      parser.Load<PutReport>(*this);
-      break;
-    case Confirm::kMessageCode:
-      parser.Load<Confirm>(*this);
-      break;
-    case RequestRepeat::kMessageCode:
-      parser.Load<RequestRepeat>(*this);
-      break;
-    case Send::kMessageCode:
-      parser.Load<Send>(*this);
-      break;
-    case Repeat::kMessageCode:
-      parser.Load<Repeat>(*this);
-      break;
-    default:
-      assert(false);
-      break;
-  }
+SafeStreamApi::SafeStreamApi(ProtocolContext& protocol_context,
+                             SafeStream& safe_stream)
+    : ReturnResultApiImpl(protocol_context),
+      close{protocol_context},
+      request_report{protocol_context},
+      put_report{protocol_context},
+      confirm{protocol_context},
+      request_repeat{protocol_context},
+      send{protocol_context},
+      repeat{protocol_context},
+      protocol_context_{&protocol_context},
+      safe_stream_{&safe_stream} {}
+
+void SafeStreamApi::CloseImpl(ApiParser& /* parser */) {
+  assert(false);  // NOT IMPLEMENTED
 }
 
-template <typename TMessage>
-void SafeStreamApi::Execute(TMessage&& message, ApiParser& parser) {
-  parser.Context().MessageNotify(std::forward<TMessage>(message));
+void SafeStreamApi::RequestReportImpl(ApiParser& /* parser */) {
+  assert(false);  // NOT IMPLEMENTED
+}
+
+void SafeStreamApi::PutReportImpl(ApiParser& /* parser */,
+                                  std::uint16_t /* offset */) {
+  assert(false);  // NOT IMPLEMENTED
+}
+
+void SafeStreamApi::ConfirmImpl(ApiParser& /* parser */, std::uint16_t offset) {
+  safe_stream_->Confirm(offset);
+}
+
+void SafeStreamApi::RequestRepeatImpl(ApiParser& /* parser */,
+                                      std::uint16_t offset) {
+  safe_stream_->RequestRepeat(offset);
+}
+
+void SafeStreamApi::SendImpl(ApiParser& /* parser */, std::uint16_t offset,
+                             DataBuffer data) {
+  safe_stream_->SendData(offset, std::move(data));
+}
+
+void SafeStreamApi::RepeatImpl(ApiParser& /* parser */,
+                               std::uint16_t repeat_count, std::uint16_t offset,
+                               DataBuffer data) {
+  safe_stream_->RepeatData(repeat_count, offset, std::move(data));
 }
 
 }  // namespace ae

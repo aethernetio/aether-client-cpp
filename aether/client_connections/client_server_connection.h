@@ -43,7 +43,7 @@ class ClientServerConnection {
 
   ClientToServerStream& server_stream();
 
-  ByteStream& GetStream(Uid destination);
+  ByteIStream& GetStream(Uid destination);
   NewStreamEvent::Subscriber new_stream_event();
   void CloseStream(Uid uid);
 

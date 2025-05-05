@@ -27,12 +27,12 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       stream_id_{stream_id},
       receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
-      buffer_gate_{action_context, 20 * 1024},
-      send_receive_gate_{WriteOnlyGate{}, ReadOnlyGate{action_context_}} {
+      buffer_stream_{action_context, 20 * 1024},
+      send_receive_stream_{} {
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream {} created for {}",
                 static_cast<int>(stream_id_), destination_);
   // connect buffered gate and send_receive gate
-  Tie(buffer_gate_, send_receive_gate_);
+  Tie(buffer_stream_, send_receive_stream_);
 
   ConnectReceive();
   ConnectSend();
@@ -40,23 +40,22 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
 
 P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
                      Uid destination, StreamId stream_id,
-                     std::unique_ptr<ByteStream> receive_stream)
+                     ByteIStream& receive_stream)
     : action_context_{action_context},
       client_{client},
       destination_{destination},
       stream_id_{stream_id},
       receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
-      buffer_gate_{action_context, 100},
-      send_receive_gate_{WriteOnlyGate{}, ReadOnlyGate{action_context_}},
-      receive_stream_{std::move(receive_stream)} {
+      buffer_stream_{action_context, 100},
+      send_receive_stream_{},
+      receive_stream_{&receive_stream} {
   AE_TELE_DEBUG(kP2pMessageStreamRec, "P2pStream received {} for {}",
                 static_cast<int>(stream_id_), destination_);
   // connect buffered gate and send_receive gate
-  Tie(buffer_gate_, send_receive_gate_);
+  Tie(buffer_stream_, send_receive_stream_);
   // connect receive stream immediately
-  Tie(send_receive_gate_.get_read_gate(), *receive_stream_);
-
+  send_receive_stream_.LinkReadStream(*receive_stream_);
   ConnectSend();
 }
 
@@ -69,14 +68,26 @@ P2pStream::~P2pStream() {
   }
 }
 
-P2pStream::InGate& P2pStream::in() { return buffer_gate_; }
+ActionView<StreamWriteAction> P2pStream::Write(DataBuffer&& data) {
+  return buffer_stream_.Write(std::move(data));
+}
 
-void P2pStream::LinkOut(OutGate& /* out */) { assert(false); }
+P2pStream::StreamUpdateEvent::Subscriber P2pStream::stream_update_event() {
+  return buffer_stream_.stream_update_event();
+}
+
+StreamInfo P2pStream::stream_info() const {
+  return buffer_stream_.stream_info();
+}
+
+P2pStream::OutDataEvent::Subscriber P2pStream::out_data_event() {
+  return buffer_stream_.out_data_event();
+}
 
 void P2pStream::ConnectReceive() {
   receive_stream_ =
-      receive_client_connection_->CreateStream(destination_, stream_id_);
-  Tie(send_receive_gate_.get_read_gate(), *receive_stream_);
+      &receive_client_connection_->CreateStream(destination_, stream_id_);
+  send_receive_stream_.LinkReadStream(*receive_stream_);
 }
 
 void P2pStream::ConnectSend() {
@@ -99,8 +110,8 @@ void P2pStream::ConnectSend() {
 }
 
 void P2pStream::TieSendStream(ClientConnection& client_connection) {
-  send_stream_ = client_connection.CreateStream(destination_, stream_id_);
+  send_stream_ = &client_connection.CreateStream(destination_, stream_id_);
   AE_TELED_DEBUG("Send tied");
-  Tie(send_receive_gate_.get_write_gate(), *send_stream_);
+  send_receive_stream_.LinkWriteStream(*send_stream_);
 }
 }  // namespace ae

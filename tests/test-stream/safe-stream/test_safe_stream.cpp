@@ -22,12 +22,13 @@
 #include "aether/actions/action_context.h"
 #include "aether/api_protocol/protocol_context.h"
 
+#include "aether/stream_api/safe_stream.h"
 #include "aether/stream_api/safe_stream/safe_stream_api.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
-#include "aether/stream_api/safe_stream.h"
 
-#include "tests/test-stream/mock_read_gate.h"
-#include "tests/test-stream/mock_write_gate.h"
+#include "tests/test-stream/to_data_buffer.h"
+#include "tests/test-stream/mock_read_stream.h"
+#include "tests/test-stream/mock_write_stream.h"
 
 namespace ae::test_safe_stream {
 constexpr auto config = SafeStreamConfig{
@@ -57,22 +58,21 @@ void test_SafeStreamWriteFewData() {
   auto received_packet = DataBuffer{};
 
   auto read_stream = MockReadStream{};
-  auto write_stream = MockWriteGate{ap, std::size_t{100}};
+  auto write_stream = MockWriteStream{ap, std::size_t{100}};
 
   auto safe_stream = SafeStream{ap, config};
 
   Tie(read_stream, safe_stream, write_stream);
 
-  auto _0 = write_stream.on_write_event().Subscribe(
-      [&](auto data, auto) { write_stream.WriteOut(std::move(data)); });
+  write_stream.on_write_event().Subscribe(
+      [&](auto data) { write_stream.WriteOut(std::move(data)); });
 
-  auto _1 = read_stream.out_data_event().Subscribe([&](auto data) {
+  read_stream.out_data_event().Subscribe([&](auto data) {
     received_packet.insert(std::end(received_packet), std::begin(data),
                            std::end(data));
   });
 
-  safe_stream.in().Write(
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)}, epoch);
+  safe_stream.Write(ToDataBuffer(_100_bytes_data));
 
   for (auto i = 0; (i < 10) && received_packet.empty(); ++i) {
     ap.Update(epoch += std::chrono::milliseconds{1});
@@ -82,8 +82,7 @@ void test_SafeStreamWriteFewData() {
 
   received_packet.clear();
 
-  safe_stream.in().Write(
-      {_200_bytes_data, _200_bytes_data + sizeof(_200_bytes_data)}, epoch);
+  safe_stream.Write(ToDataBuffer(_200_bytes_data));
 
   for (auto i = 0;
        (i < 10) && (received_packet.size() < sizeof(_200_bytes_data)); ++i) {
@@ -101,29 +100,28 @@ void test_SafeStreamPacketLoss() {
   auto received_packet = DataBuffer{};
 
   auto read_stream = MockReadStream{};
-  auto write_stream = MockWriteGate{ap, std::size_t{100}};
+  auto write_stream = MockWriteStream{ap, std::size_t{100}};
 
   auto safe_stream = SafeStream{ap, config};
   Tie(read_stream, safe_stream, write_stream);
 
   // loop data to itself
-  auto _0 = write_stream.on_write_event().Subscribe([&](auto data, auto) {
+  write_stream.on_write_event().Subscribe([&](auto data) {
     auto api_parser = ApiParser{pc, data};
     auto mid = api_parser.Extract<MessageId>();
-    if (mid == SafeStreamApi::Send::kMessageCode) {
+    if (mid == 7) {
       // packet "send" is lost
       return;
     }
     write_stream.WriteOut(std::move(data));
   });
 
-  auto _1 = read_stream.out_data_event().Subscribe([&](auto data) {
+  read_stream.out_data_event().Subscribe([&](auto data) {
     received_packet.insert(std::end(received_packet), std::begin(data),
                            std::end(data));
   });
 
-  safe_stream.in().Write(
-      {_100_bytes_data, _100_bytes_data + sizeof(_100_bytes_data)}, epoch);
+  safe_stream.Write(ToDataBuffer(_100_bytes_data));
 
   for (auto i = 0; (i < 10) && received_packet.empty(); ++i) {
     ap.Update(epoch += std::chrono::milliseconds{10});
@@ -133,8 +131,7 @@ void test_SafeStreamPacketLoss() {
 
   received_packet.clear();
 
-  safe_stream.in().Write(
-      {_200_bytes_data, _200_bytes_data + sizeof(_200_bytes_data)}, epoch);
+  safe_stream.Write(ToDataBuffer(_200_bytes_data));
 
   for (auto i = 0;
        (i < 10) && (received_packet.size() < sizeof(_200_bytes_data)); ++i) {

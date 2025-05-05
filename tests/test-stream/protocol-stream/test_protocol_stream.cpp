@@ -17,78 +17,48 @@
 #include <unity.h>
 
 #include "aether/actions/action_context.h"
-#include "aether/api_protocol/api_protocol.h"
+#include "aether/api_protocol/api_method.h"
+#include "aether/api_protocol/api_class_impl.h"
 
+#include "aether/stream_api/protocol_gates.h"
 #include "aether/api_protocol/packet_builder.h"
-#include "aether/stream_api/protocol_stream.h"
 
 #include "aether/transport/data_buffer.h"
-#include "tests/test-stream/mock_write_gate.h"
+#include "tests/test-stream/to_data_buffer.h"
+#include "tests/test-stream/mock_write_stream.h"
 
 namespace ae::test_protocol_stream {
-class TestApiClass : public ApiClass {
+class TestApiClass : public ApiClassImpl<TestApiClass> {
  public:
-  static constexpr auto kClassId = 12;
+  explicit TestApiClass(ProtocolContext& protocol_context)
+      : method1{protocol_context},
+        method2{protocol_context},
+        data_method{protocol_context} {}
 
-  struct Message1 : public Message<Message1> {
-    static constexpr auto kMessageId = 42;
+  Method<42, void(std::uint16_t value_2byte, std::uint32_t value_4byte)>
+      method1;
+  Method<24, void(std::string dynamic_size_value)> method2;
+  Method<25, void(DataBuffer data)> data_method;
 
-    AE_REFLECT_MEMBERS(value_2byte, value_4byte)
-
-    std::uint16_t value_2byte;
-    std::uint32_t value_4byte;
-  };
-
-  struct Message2 : public Message<Message2> {
-    static constexpr auto kMessageId = 24;
-
-    AE_REFLECT_MEMBERS(dynamic_size_value)
-    std::string dynamic_size_value;
-  };
-
-  struct DataMessage : public Message<DataMessage> {
-    static constexpr auto kMessageId = 25;
-
-    AE_REFLECT_MEMBERS(data)
-
-    DataBuffer data;
-  };
-
-  void LoadFactory(MessageId message_id, ApiParser& parser) override {
-    switch (message_id) {
-      case 1:
-        parser.Load<Message1>(*this);
-        break;
-      case 2:
-        parser.Load<Message2>(*this);
-        break;
-      case 3:
-        parser.Load<DataMessage>(*this);
-      default:
-        break;
-    }
+  void Method1Impl(ApiParser& parser, std::uint16_t value_2byte,
+                   std::uint32_t value_4byte) {
+    method1_event.Emit(value_2byte, value_4byte);
+  }
+  void Method2Impl(ApiParser& parser, std::string dynamic_size_value) {
+    method2_event.Emit(dynamic_size_value);
+  }
+  void DataMethodImpl(ApiParser& parser, DataBuffer data) {
+    data_event.Emit(data);
   }
 
-  void Execute(Message1&& message, ApiParser& parser) {
-    parser.Context().MessageNotify(std::move(message));
-  }
-  void Execute(Message2&& message, ApiParser& parser) {
-    parser.Context().MessageNotify(std::move(message));
-  }
-  void Execute(DataMessage&& message, ApiParser& parser) {
-    parser.Context().MessageNotify(std::move(message));
-  }
+  using ApiMethods = ImplList<RegMethod<42, &TestApiClass::Method1Impl>,
+                              RegMethod<24, &TestApiClass::Method2Impl>,
+                              RegMethod<25, &TestApiClass::DataMethodImpl>>;
 
-  void Pack(Message1&& message, ApiPacker& packer) {
-    packer.Pack(1, std::move(message));
-  }
-
-  void Pack(Message2&& message, ApiPacker& packer) {
-    packer.Pack(2, std::move(message));
-  }
-  void Pack(DataMessage&& message, ApiPacker& packer) {
-    packer.Pack(3, std::move(message));
-  }
+  Event<void(std::uint16_t value_2byte, std::uint32_t value_4byte)>
+      method1_event;
+  Event<void(std::string const& dynamic_size_value)> method2_event;
+  Event<void(DataBuffer const& data)> data_event;
 };
 
 static constexpr char test_data[] =
@@ -102,115 +72,85 @@ static constexpr char test_data2[] =
     "in "
     "their natural habitat.";
 
-void test_ProtocolWriteStream() {
+void test_ProtocolReadStream() {
   auto ap = ActionProcessor{};
   auto pc = ProtocolContext{};
+  auto api = TestApiClass{pc};
+
+  auto msg1_received = false;
+  auto msg2_received = false;
+
+  EventSubscriber{api.method1_event}.Subscribe(
+      [&](auto, auto) { msg1_received = true; });
+
+  EventSubscriber{api.method2_event}.Subscribe(
+      [&](auto) { msg2_received = true; });
+
+  auto protocol_gate = ProtocolReadGate{pc, api};
+
+  auto api_context = ApiContext{pc, api};
+
+  api_context->method1(1, 2);
+  protocol_gate.WriteOut(std::move(api_context));
+
+  TEST_ASSERT(msg1_received);
+
+  api_context->method2("hello");
+  protocol_gate.WriteOut(std::move(api_context));
+
+  TEST_ASSERT(msg2_received);
+}
+
+void test_ApiClassAdapter() {
+  auto ap = ActionProcessor{};
+  auto pc = ProtocolContext{};
+  auto api = TestApiClass{pc};
 
   auto written_data = DataBuffer{};
   auto received_child_data = DataBuffer{};
 
-  auto write_stream = MockWriteGate{ap, std::size_t{1000}};
+  auto write_stream = MockWriteStream{ap, std::size_t{1000}};
 
-  auto _0 = write_stream.on_write_event().Subscribe([&](auto data, auto) {
+  write_stream.on_write_event().Subscribe([&](auto data) {
     written_data = std::move(data);
     auto api_parser = ApiParser{pc, written_data};
-    auto api = TestApiClass{};
     api_parser.Parse(api);
   });
 
-  auto _1 = pc.MessageEvent<TestApiClass::DataMessage>().Subscribe(
-      [&](auto const& message) {
-        received_child_data = message.message().data;
-      });
+  EventSubscriber{api.data_event}.Subscribe(
+      [&](auto const& data) { received_child_data = data; });
+  EventSubscriber{api.method2_event}.Subscribe([&](auto const& data) {
+    received_child_data = DataBuffer{
+        reinterpret_cast<const std::uint8_t*>(data.data()),
+        reinterpret_cast<const std::uint8_t*>(data.data()) + data.size()};
+  });
 
-  auto protocol_stream =
-      ProtocolWriteGate{pc, TestApiClass{}, TestApiClass::Message1{{}, 1, 2}};
+  auto api_adapter = ApiCallAdapter{ApiContext{pc, api}, write_stream};
 
-  Tie(protocol_stream, write_stream);
+  api_adapter->data_method(ToDataBuffer(test_data));
+  api_adapter.Flush();
 
-  auto data_size = protocol_stream.stream_info().max_element_size;
-  TEST_ASSERT_EQUAL(1 + 2 + 4, 1000 - data_size);
-
-  protocol_stream.Write(
-      PacketBuilder{
-          pc, PackMessage{TestApiClass{},
-                          TestApiClass::DataMessage{
-                              {}, {test_data, test_data + sizeof(test_data)}}}},
-      TimePoint::clock::now());
-
-  TEST_ASSERT_EQUAL(1 + 2 + 4 + 1 + 1 + sizeof(test_data), written_data.size());
+  TEST_ASSERT_EQUAL(1 + 1 + sizeof(test_data), written_data.size());
   TEST_ASSERT_EQUAL_STRING(test_data, received_child_data.data());
 
   written_data.clear();
   received_child_data.clear();
 
   auto str = std::string{"hello"};
-  auto protocol_stream2 =
-      ProtocolWriteGate{pc, TestApiClass{}, TestApiClass::Message2{{}, str}};
+  api_adapter->method2(str);
+  api_adapter.Flush();
 
-  Tie(protocol_stream2, write_stream);
-
-  auto data_size2 = protocol_stream2.stream_info().max_element_size;
-  TEST_ASSERT_EQUAL(1 + 1 + str.size(), 1000 - data_size2);
-
-  protocol_stream2.Write(
-      PacketBuilder{
-          pc,
-          PackMessage{TestApiClass{},
-                      TestApiClass::DataMessage{
-                          {}, {test_data2, test_data2 + sizeof(test_data2)}}}},
-      TimePoint::clock::now());
-
-  TEST_ASSERT_EQUAL(1 + 1 + str.size() + 1 + 1 + sizeof(test_data2),
-                    written_data.size());
-  TEST_ASSERT_EQUAL_STRING(test_data2, received_child_data.data());
-}
-
-void test_ProtocolReadStream() {
-  auto ap = ActionProcessor{};
-  auto pc = ProtocolContext{};
-
-  auto msg1_received = false;
-  auto msg2_received = false;
-
-  auto _0 = pc.MessageEvent<TestApiClass::Message1>().Subscribe(
-      [&](auto const& /* message */) { msg1_received = true; });
-
-  auto _1 = pc.MessageEvent<TestApiClass::Message2>().Subscribe(
-      [&](auto const& /* message */) { msg2_received = true; });
-
-  auto write_stream = MockWriteGate{ap, std::size_t{1000}};
-
-  auto protocol_stream = ProtocolReadGate{pc, TestApiClass{}};
-
-  Tie(protocol_stream, write_stream);
-
-  write_stream.WriteOut(PacketBuilder{
-      pc,
-      PackMessage{
-          TestApiClass{},
-          TestApiClass::Message1{{}, 1, 2},
-      },
-  });
-
-  TEST_ASSERT(msg1_received);
-
-  write_stream.WriteOut(PacketBuilder{
-      pc,
-      PackMessage{
-          TestApiClass{},
-          TestApiClass::Message2{{}, "hello"},
-      },
-  });
-
-  TEST_ASSERT(msg2_received);
+  TEST_ASSERT_EQUAL(1 + 1 + str.size(), written_data.size());
+  TEST_ASSERT_EQUAL(str.size(), received_child_data.size());
+  TEST_ASSERT_EQUAL_STRING_LEN(str.c_str(), received_child_data.data(),
+                               str.size());
 }
 
 }  // namespace ae::test_protocol_stream
 
 int test_protocol_stream() {
   UNITY_BEGIN();
-  RUN_TEST(ae::test_protocol_stream::test_ProtocolWriteStream);
   RUN_TEST(ae::test_protocol_stream::test_ProtocolReadStream);
+  RUN_TEST(ae::test_protocol_stream::test_ApiClassAdapter);
   return UNITY_END();
 }

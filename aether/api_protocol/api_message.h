@@ -82,6 +82,23 @@ struct GenericMessage : Message<GenericMessage<Ts...>> {
   std::tuple<Ts...> fields;
 };
 
+template <>
+struct GenericMessage<> : Message<GenericMessage<>> {
+  explicit GenericMessage() = default;
+
+  template <typename Ib>
+  friend imstream<Ib>& operator>>(imstream<Ib>& is,
+                                  GenericMessage& /* mesassge */) {
+    return is;
+  }
+
+  template <typename Ob>
+  friend omstream<Ob>& operator<<(omstream<Ob>& os,
+                                  GenericMessage const& /* mesassge */) {
+    return os;
+  }
+};
+
 }  // namespace ae
 
 #endif  // AETHER_API_PROTOCOL_API_MESSAGE_H_

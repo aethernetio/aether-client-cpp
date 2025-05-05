@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_SERIALIZE_STREAM_H_
-#define AETHER_STREAM_API_SERIALIZE_STREAM_H_
+#ifndef AETHER_STREAM_API_SERIALIZE_GATE_H_
+#define AETHER_STREAM_API_SERIALIZE_GATE_H_
 
 #include <utility>
 
@@ -27,42 +27,25 @@
 
 namespace ae {
 template <typename TIn, typename TOut>
-class SerializeGate final : public Gate<TIn, TOut, DataBuffer, DataBuffer> {
+class SerializeGate {
  public:
-  using Base = Gate<TIn, TOut, DataBuffer, DataBuffer>;
-
-  ActionView<StreamWriteAction> Write(TIn&& in_data,
-                                      TimePoint current_time) override {
+  DataBuffer WriteIn(TIn&& in_data) {
     DataBuffer buffer;
     auto writer_buffer = VectorWriter<PackedSize>{buffer};
     auto output_stream = omstream{writer_buffer};
     output_stream << std::move(in_data);
-
-    assert(Base::out_);
-    return Base::out_->Write(std::move(buffer), current_time);
+    return buffer;
   }
 
-  void LinkOut(typename Base::OutGate& out) override {
-    Base::out_ = &out;
-
-    Base::out_data_subscription_ = Base::out_->out_data_event().Subscribe(
-        *this, MethodPtr<&SerializeGate::OnDataOutEvent>{});
-
-    Base::gate_update_subscription_ = Base::out_->gate_update_event().Subscribe(
-        Base::gate_update_event_, MethodPtr<&Base::GateUpdateEvent::Emit>{});
-    Base::gate_update_event_.Emit();
-  }
-
- private:
-  void OnDataOutEvent(DataBuffer const& data) {
+  TOut WriteOut(DataBuffer const& data) {
     auto reader_buffer = VectorReader<PackedSize>{data};
     auto input_stream = imstream{reader_buffer};
 
     TOut out_data{};
     input_stream >> out_data;
-    Base::out_data_event_.Emit(std::move(out_data));
+    return out_data;
   }
 };
 }  // namespace ae
 
-#endif  // AETHER_STREAM_API_SERIALIZE_STREAM_H_
+#endif  // AETHER_STREAM_API_SERIALIZE_GATE_H_

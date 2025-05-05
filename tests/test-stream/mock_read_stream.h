@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2024 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_INJECT_GATE_H_
-#define AETHER_STREAM_API_INJECT_GATE_H_
+#ifndef TESTS_TEST_STREAM_MOCK_READ_STREAM_H_
+#define TESTS_TEST_STREAM_MOCK_READ_STREAM_H_
 
 #include "aether/stream_api/istream.h"
 
 namespace ae {
-class InjectGate final : public ByteGate {
+class MockReadStream final : public ByteStream {
  public:
-  void OutData(DataBuffer const& data) { out_data_event_.Emit(data); }
 };
 }  // namespace ae
 
-#endif  // AETHER_STREAM_API_INJECT_GATE_H_
+#endif  // TESTS_TEST_STREAM_MOCK_READ_STREAM_H_

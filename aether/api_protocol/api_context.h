@@ -33,7 +33,7 @@ class PacketStack {
  public:
   PacketStack() = default;
 
-  AE_CLASS_NO_COPY_MOVE(PacketStack)
+  AE_CLASS_MOVE_ONLY(PacketStack)
 
   template <typename TApi, typename TMessage>
   void Push(TApi&& api, TMessage&& message) & {

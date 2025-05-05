@@ -27,7 +27,7 @@
 namespace ae::bench {
 ReceiverSyncAction::ReceiverSyncAction(ActionContext action_context,
                                        ProtocolContext& protocol_context,
-                                       ByteStream& stream)
+                                       ByteIStream& stream)
     : Action{action_context},
       protocol_context_{protocol_context},
       stream_{&stream},
@@ -65,10 +65,9 @@ TimePoint ReceiverSyncAction::Update(TimePoint current_time) {
 void ReceiverSyncAction::OnReceivedSync(RequestId request_id) {
   AE_TELED_DEBUG("Received sync message");
 
-  stream_->in().Write(PacketBuilder{protocol_context_,
-                                    PackMessage{ReturnResultApi{},
-                                                SendResult{request_id, true}}},
-                      Now());
+  stream_->Write(PacketBuilder{
+      protocol_context_,
+      PackMessage{ReturnResultApi{}, SendResult{request_id, true}}});
 
   state_.Set(State::kReceived);
 }

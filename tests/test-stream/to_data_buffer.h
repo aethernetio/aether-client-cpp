@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_HEADER_GATE_H_
-#define AETHER_STREAM_API_HEADER_GATE_H_
+#ifndef TESTS_TEST_STREAM_TO_DATA_BUFFER_H_
+#define TESTS_TEST_STREAM_TO_DATA_BUFFER_H_
 
-#include "aether/stream_api/istream.h"
-
-#include "aether/transport/data_buffer.h"
+#include <vector>
+#include <cstdint>
+#include <cstddef>
 
 namespace ae {
-// Add a header to data
-class AddHeaderGate {
- public:
-  explicit AddHeaderGate(DataBuffer header);
 
-  DataBuffer WriteIn(DataBuffer&& buffer);
+template <typename TRes, typename T, std::size_t size>
+static auto ToVector(T const (&arr)[size]) {
+  return std::vector<TRes>(reinterpret_cast<TRes const*>(arr),
+                           reinterpret_cast<TRes const*>(arr + size));
+}
 
-  std::size_t Overhead() const;
+template <typename T, std::size_t size>
+static auto ToDataBuffer(T const (&arr)[size]) {
+  return ToVector<std::uint8_t>(arr);
+}
 
- private:
-  DataBuffer header_;
-};
 }  // namespace ae
 
-#endif  // AETHER_STREAM_API_HEADER_GATE_H_
+#endif  // TESTS_TEST_STREAM_TO_DATA_BUFFER_H_

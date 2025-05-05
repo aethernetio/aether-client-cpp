@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef TESTS_TEST_STREAM_MOCK_WRITE_GATE_H_
-#define TESTS_TEST_STREAM_MOCK_WRITE_GATE_H_
+#ifndef TESTS_TEST_STREAM_MOCK_WRITE_STREAM_H_
+#define TESTS_TEST_STREAM_MOCK_WRITE_STREAM_H_
 
 #include <cstddef>
 #include <utility>
 
 #include "aether/common.h"
 
-#include "aether/actions/action_list.h"
-#include "aether/stream_api/istream.h"
 #include "aether/events/events.h"
+#include "aether/stream_api/istream.h"
+#include "aether/actions/action_list.h"
 
 namespace ae {
-
 class MockStreamWriteAction : public StreamWriteAction {
  public:
   explicit MockStreamWriteAction(ActionContext action_context)
@@ -60,31 +59,36 @@ class MockStreamWriteAction : public StreamWriteAction {
   void Stop() override { state_.Set(State::kStopped); }
 };
 
-class MockWriteGate : public ByteGate {
+class MockWriteStream : public ByteStream {
  public:
-  explicit MockWriteGate(ActionContext action_context,
-                         std::size_t max_data_size)
+  explicit MockWriteStream(ActionContext action_context,
+                           std::size_t max_data_size)
       : action_list_{action_context}, stream_info_{max_data_size, {}, {}, {}} {}
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
-                                      TimePoint current_time) override {
-    on_write_.Emit(std::move(buffer), current_time);
+  ActionView<StreamWriteAction> Write(DataBuffer&& buffer) override {
+    on_write_.Emit(std::move(buffer));
     return action_list_.Emplace();
   }
 
   StreamInfo stream_info() const override { return stream_info_; }
-
-  EventSubscriber<void(DataBuffer, TimePoint)> on_write_event() {
-    return on_write_;
+  StreamUpdateEvent::Subscriber stream_update_event() override {
+    return EventSubscriber{stream_update_event_};
   }
+  OutDataEvent::Subscriber out_data_event() override {
+    return EventSubscriber{out_data_event_};
+  }
+
+  EventSubscriber<void(DataBuffer&&)> on_write_event() { return on_write_; }
 
   void WriteOut(DataBuffer const& buffer) { out_data_event_.Emit(buffer); }
 
  private:
   ActionList<MockStreamWriteAction> action_list_;
   StreamInfo stream_info_;
-  Event<void(DataBuffer, TimePoint)> on_write_;
+  Event<void(DataBuffer&&)> on_write_;
+  OutDataEvent out_data_event_;
+  StreamUpdateEvent stream_update_event_;
 };
 }  // namespace ae
 
-#endif  // TESTS_TEST_STREAM_MOCK_WRITE_GATE_H_
+#endif  // TESTS_TEST_STREAM_MOCK_WRITE_STREAM_H_

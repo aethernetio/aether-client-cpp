@@ -60,8 +60,7 @@ SafeStreamReceivingAction::request_repeat_event() {
 }
 
 void SafeStreamReceivingAction::ReceiveSend(SafeStreamRingIndex offset,
-                                            DataBuffer data,
-                                            TimePoint /* current_time */) {
+                                            DataBuffer data) {
   AE_TELED_DEBUG("Data received offset {}, size {}", offset, data.size());
   if (!AddDataChunk(ReceivingChunk{offset, std::move(data), 0})) {
     // confirmed offset
@@ -73,15 +72,13 @@ void SafeStreamReceivingAction::ReceiveSend(SafeStreamRingIndex offset,
 
 void SafeStreamReceivingAction::ReceiveRepeat(SafeStreamRingIndex offset,
                                               std::uint16_t repeat,
-                                              DataBuffer data,
-                                              TimePoint current_time) {
+                                              DataBuffer data) {
   auto data_size = data.size();
   AE_TELED_DEBUG("Repeat data received offset: {}, repeat {}, size {}", offset,
                  repeat, data.size());
   if (!AddDataChunk(ReceivingChunk{offset, std::move(data), repeat})) {
     // confirmed offset
-    MakeConfirm(offset + static_cast<SafeStreamRingIndex::type>(data_size - 1),
-                current_time);
+    MakeConfirm(offset + static_cast<SafeStreamRingIndex::type>(data_size - 1));
     return;
   }
 
@@ -157,7 +154,8 @@ TimePoint SafeStreamReceivingAction::CheckChunkChains(TimePoint current_time) {
   return std::min(conf_time, rep_time);
 }
 
-void SafeStreamReceivingAction::CheckCompletedChains(TimePoint current_time) {
+void SafeStreamReceivingAction::CheckCompletedChains(
+    TimePoint /*current_time*/) {
   auto next_chunk_offset = last_confirmed_offset_;
   auto it = std::begin(received_data_chunks_);
   for (; it != std::end(received_data_chunks_); it++) {
@@ -177,7 +175,7 @@ void SafeStreamReceivingAction::CheckCompletedChains(TimePoint current_time) {
   if (!data.empty()) {
     AE_TELED_DEBUG("Data chunk chain received length: {} to offset: {}",
                    data.size(), next_chunk_offset);
-    receive_event_.Emit(std::move(data), current_time);
+    receive_event_.Emit(std::move(data));
     received_data_chunks_.erase(std::begin(received_data_chunks_), it);
     last_emitted_offset_ = next_chunk_offset;
   }
@@ -191,7 +189,7 @@ TimePoint SafeStreamReceivingAction::CheckChunkConfirmation(
 
   if (last_emitted_offset_ != last_confirmed_offset_) {
     // confirm range [last_confirmed_offset_, last_emitted_offset_)
-    MakeConfirm(last_emitted_offset_ - 1, current_time);
+    MakeConfirm(last_emitted_offset_ - 1);
     last_confirmed_offset_ = last_emitted_offset_;
     last_send_confirm_time_ = current_time;
   }
@@ -214,7 +212,7 @@ TimePoint SafeStreamReceivingAction::CheckMissedOffset(TimePoint current_time) {
         repeat_count_exceeded_ = true;
         break;
       }
-      MakeRepeat(next_chunk_offset, current_time);
+      MakeRepeat(next_chunk_offset);
     }
     next_chunk_offset = chunk.offset + static_cast<SafeStreamRingIndex::type>(
                                            chunk.data.size());
@@ -224,16 +222,14 @@ TimePoint SafeStreamReceivingAction::CheckMissedOffset(TimePoint current_time) {
   return current_time;
 }
 
-void SafeStreamReceivingAction::MakeConfirm(SafeStreamRingIndex offset,
-                                            TimePoint current_time) {
+void SafeStreamReceivingAction::MakeConfirm(SafeStreamRingIndex offset) {
   AE_TELED_DEBUG("Send confirm to offset {}", offset);
-  send_confirm_event_.Emit(offset, current_time);
+  send_confirm_event_.Emit(offset);
 }
 
-void SafeStreamReceivingAction::MakeRepeat(SafeStreamRingIndex offset,
-                                           TimePoint current_time) {
+void SafeStreamReceivingAction::MakeRepeat(SafeStreamRingIndex offset) {
   AE_TELED_DEBUG("Send repeat request to offset {}", offset);
-  send_request_repeat_event_.Emit(offset, current_time);
+  send_request_repeat_event_.Emit(offset);
 }
 
 DataBuffer SafeStreamReceivingAction::JoinChunks(

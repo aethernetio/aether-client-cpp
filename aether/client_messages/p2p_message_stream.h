@@ -26,27 +26,30 @@
 #include "aether/actions/action_context.h"
 
 #include "aether/stream_api/istream.h"
-#include "aether/stream_api/buffer_gate.h"
-#include "aether/stream_api/unidirectional_gate.h"
+#include "aether/stream_api/buffer_stream.h"
+#include "aether/stream_api/unidirectional_stream.h"
 
 #include "aether/client_connections/client_connection.h"
 
 namespace ae {
-class P2pStream final : public ByteStream {
+class P2pStream final : public ByteIStream {
  public:
   P2pStream(ActionContext action_context, Ptr<Client> const& client,
             Uid destination, StreamId stream_id);
   P2pStream(ActionContext action_context, Ptr<Client> const& client,
-            Uid destination, StreamId stream_id,
-            std::unique_ptr<ByteStream> receive_stream);
+            Uid destination, StreamId stream_id, ByteIStream& receive_stream);
 
   ~P2pStream() override;
 
   AE_CLASS_NO_COPY_MOVE(P2pStream);
 
-  InGate& in() override;
+  ActionView<StreamWriteAction> Write(DataBuffer&& data) override;
 
-  void LinkOut(OutGate& /* out */) override;
+  StreamUpdateEvent::Subscriber stream_update_event() override;
+
+  StreamInfo stream_info() const override;
+
+  OutDataEvent::Subscriber out_data_event() override;
 
  private:
   void ConnectReceive();
@@ -64,10 +67,10 @@ class P2pStream final : public ByteStream {
   Ptr<ClientConnection> receive_client_connection_;
   Ptr<ClientConnection> send_client_connection_;
 
-  BufferGate buffer_gate_;
-  ParallelGate<WriteOnlyGate, ReadOnlyGate> send_receive_gate_;
-  std::unique_ptr<ByteStream> receive_stream_;
-  std::unique_ptr<ByteStream> send_stream_;
+  BufferStream buffer_stream_;
+  ParallelStream<DataBuffer> send_receive_stream_;
+  ByteIStream* receive_stream_;
+  ByteIStream* send_stream_;
 
   Subscription get_client_connection_subscription_;
 };

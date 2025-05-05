@@ -25,7 +25,6 @@
 #include "aether/events/events.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/stream_api/protocol_stream.h"
 #include "aether/client_connections/client_connection.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
@@ -60,13 +59,14 @@ class Receiver {
   std::unique_ptr<MessageReceiver<T>> CreateTestAction(
       std::size_t message_count);
 
+  void OnRecvData(DataBuffer const& data);
+
   ActionContext action_context_;
   Client::ptr client_;
   ProtocolContext protocol_context_;
 
   Ptr<ClientConnection> client_connection_;
-  std::unique_ptr<ByteStream> message_stream_;
-  std::unique_ptr<ProtocolReadGate<BandwidthApi>> protocol_read_gate_;
+  std::unique_ptr<ByteIStream> message_stream_;
 
   std::optional<ReceiverSyncAction> sync_action_;
 
@@ -84,6 +84,7 @@ class Receiver {
 
   Subscription message_stream_received_;
   Subscription handshake_received_;
+  Subscription recv_data_sub_;
   MultiSubscription test_subscriptions_;
 };
 }  // namespace ae::bench

@@ -27,9 +27,8 @@
 #  include "aether/crypto/key_gen.h"
 #  include "aether/crypto/crypto_definitions.h"
 
-#  include "aether/stream_api/tied_stream.h"
-#  include "aether/stream_api/crypto_stream.h"
-#  include "aether/stream_api/protocol_stream.h"
+#  include "aether/stream_api/byte_gate.h"
+#  include "aether/stream_api/crypto_gate.h"
 #  include "aether/stream_api/event_subscribe_gate.h"
 
 #  include "aether/crypto/sync_crypto_provider.h"
@@ -150,14 +149,14 @@ void Registration::IterateConnection() {
     return;
   }
 
-  if (server_channel_stream_->in().stream_info().is_linked) {
+  if (server_channel_stream_->stream_info().is_linked) {
     state_ = State::kConnected;
     return;
   }
 
   connection_subscription_ =
-      server_channel_stream_->in().gate_update_event().Subscribe([this]() {
-        if (server_channel_stream_->in().stream_info().is_linked) {
+      server_channel_stream_->stream_update_event().Subscribe([this]() {
+        if (server_channel_stream_->stream_info().is_linked) {
           state_ = State::kConnected;
         } else {
           AE_TELE_WARNING(RegisterConnectionErrorTryNext,
@@ -179,9 +178,10 @@ void Registration::Connected(TimePoint current_time) {
 
   // create simplest stream to server
   // On RequestPowParams will be created a more complicated one
-  reg_server_stream_ = make_unique<TiedStream>(
-      ProtocolReadGate{protocol_context_, client_root_api_},
-      *server_channel_stream_);
+  reg_server_stream_ = make_unique<GatesStream>(
+      ByteGate{}, ProtocolReadGate{protocol_context_, client_root_api_});
+
+  Tie(*reg_server_stream_, *server_channel_stream_);
 
   state_ = State::kGetKeys;
 }
@@ -210,8 +210,7 @@ void Registration::GetKeys(TimePoint current_time) {
       get_key_promise->ErrorEvent().Subscribe(
           [&](auto const&) { state_ = State::kRegistrationFailed; }));
 
-  packet_write_action_ =
-      reg_server_stream_->in().Write(std::move(packet_context), current_time);
+  packet_write_action_ = reg_server_stream_->Write(std::move(packet_context));
 
   // on error try repeat
   raw_transport_send_action_subscription_ =
@@ -232,7 +231,7 @@ TimePoint Registration::WaitKeys(TimePoint current_time) {
   return last_request_time_ + response_timeout_;
 }
 
-void Registration::RequestPowParams(TimePoint current_time) {
+void Registration::RequestPowParams(TimePoint /* current_time */) {
   AE_TELE_INFO(RegisterRequestPowParams, "Request proof of work params");
 
   Key secret_key;
@@ -250,6 +249,8 @@ void Registration::RequestPowParams(TimePoint current_time) {
   reg_server_stream_ =
       CreateRegServerStream(std::move(server_async_key_provider),
                             std::move(server_sync_key_provider));
+
+  Tie(*reg_server_stream_, *server_channel_stream_);
 
   auto api_context = ApiContext{protocol_context_, server_reg_api_};
   auto pow_params_promise = api_context->request_proof_of_work_data(
@@ -279,8 +280,7 @@ void Registration::RequestPowParams(TimePoint current_time) {
       pow_params_promise->ErrorEvent().Subscribe(
           [&](auto const&) { state_ = State::kRegistrationFailed; }));
 
-  packet_write_action_ =
-      reg_server_stream_->in().Write(std::move(api_context), current_time);
+  packet_write_action_ = reg_server_stream_->Write(std::move(api_context));
 
   reg_server_write_subscription_ =
       packet_write_action_->ErrorEvent().Subscribe([this](auto const&) {
@@ -289,7 +289,7 @@ void Registration::RequestPowParams(TimePoint current_time) {
       });
 }
 
-void Registration::MakeRegistration(TimePoint current_time) {
+void Registration::MakeRegistration(TimePoint /* current_time */) {
   AE_TELE_INFO(RegisterMakeRegistration, "Make registration");
 
   // Proof calculation
@@ -315,17 +315,15 @@ void Registration::MakeRegistration(TimePoint current_time) {
 
   global_reg_server_stream_ = CreateGlobalRegServerStream(
       std::move(global_async_key_provider), std::move(global_sync_key_provider),
-      ProtocolWriteMessageGate<DataBuffer>{
-          protocol_context_,
-          [&, pow_params{pow_params_}, proofs{std::move(proofs)}](
-              ProtocolContext& context, DataBuffer&& data) -> DataBuffer {
-            auto api_context = ApiContext{context, server_reg_api_};
-            api_context->registration(
-                pow_params.salt, pow_params.password_suffix, proofs,
-                parent_uid_, server_sync_key_provider_->GetKey(),
-                std::move(data));
-            return api_context;
-          }});
+      DelegateWriteInGate<DataBuffer>{[this, pow_params{pow_params_},
+                                       proofs{std::move(proofs)}](
+                                          DataBuffer&& data) -> DataBuffer {
+        auto api_context = ApiContext{protocol_context_, server_reg_api_};
+        api_context->registration(
+            pow_params.salt, pow_params.password_suffix, proofs, parent_uid_,
+            server_sync_key_provider_->GetKey(), std::move(data));
+        return api_context;
+      }});
 
   Tie(*global_reg_server_stream_, *reg_server_stream_);
 
@@ -348,8 +346,8 @@ void Registration::MakeRegistration(TimePoint current_time) {
       confirm_promise->ErrorEvent().Subscribe(
           [&](auto const&) { state_ = State::kRegistrationFailed; }));
 
-  packet_write_action_ = global_reg_server_stream_->in().Write(
-      std::move(api_context), current_time);
+  packet_write_action_ =
+      global_reg_server_stream_->Write(std::move(api_context));
 
   reg_server_write_subscription_ =
       packet_write_action_->ErrorEvent().Subscribe([this](auto const&) {
@@ -358,7 +356,7 @@ void Registration::MakeRegistration(TimePoint current_time) {
       });
 }
 
-void Registration::ResolveCloud(TimePoint current_time) {
+void Registration::ResolveCloud(TimePoint /*current_time*/) {
   AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud with {} servers",
                cloud_.size());
 
@@ -371,8 +369,7 @@ void Registration::ResolveCloud(TimePoint current_time) {
       resolve_cloud_promise->ErrorEvent().Subscribe(
           [&](auto const&) { state_ = State::kRegistrationFailed; }));
 
-  packet_write_action_ =
-      reg_server_stream_->in().Write(std::move(api_context), current_time);
+  packet_write_action_ = reg_server_stream_->Write(std::move(api_context));
 
   reg_server_write_subscription_ =
       packet_write_action_->ErrorEvent().Subscribe([this](auto const&) {
@@ -440,23 +437,20 @@ std::unique_ptr<ByteStream> Registration::CreateRegServerStream(
     return {};
   }
 
-  auto tied_stream = make_unique<TiedStream>(
+  auto tied_stream = make_unique<GatesStream>(
       ProtocolReadGate{protocol_context_, client_safe_api_},
       DebugGate{"RegServer write {}", "RegServer read {}"},
       CryptoGate{
           make_unique<AsyncEncryptProvider>(std::move(async_key_provider)),
           make_unique<SyncDecryptProvider>(std::move(sync_key_provider))},
-      ProtocolWriteMessageGate<DataBuffer>{
-          protocol_context_,
-          [&](ProtocolContext& context, DataBuffer&& data) -> DataBuffer {
-            auto api_context = ApiContext{context, server_reg_root_api_};
-            api_context->enter(kDefaultCryptoLibProfile, std::move(data));
-            return DataBuffer{std::move(api_context)};
-          }},
-      EventSubscribeGate<DataBuffer>{
+      DelegateWriteInGate<DataBuffer>{[this](DataBuffer&& data) -> DataBuffer {
+        auto api_context = ApiContext{protocol_context_, server_reg_root_api_};
+        api_context->enter(kDefaultCryptoLibProfile, std::move(data));
+        return DataBuffer{std::move(api_context)};
+      }},
+      EventWriteOutGate<DataBuffer>{
           EventSubscriber{client_root_api_.enter_event}},
-      ProtocolReadGate{protocol_context_, client_root_api_},
-      server_channel_stream_);
+      ProtocolReadGate{protocol_context_, client_root_api_});
 
   return tied_stream;
 }
@@ -464,15 +458,15 @@ std::unique_ptr<ByteStream> Registration::CreateRegServerStream(
 std::unique_ptr<ByteStream> Registration::CreateGlobalRegServerStream(
     std::unique_ptr<IAsyncKeyProvider> global_async_key_provider,
     std::unique_ptr<ISyncKeyProvider> global_sync_key_provider,
-    ProtocolWriteMessageGate<DataBuffer> enter_global_api_gate) {
-  auto tied_stream = make_unique<TiedStream>(
+    DelegateWriteInGate<DataBuffer> enter_global_api_gate) {
+  auto tied_stream = make_unique<GatesStream>(
       ProtocolReadGate{protocol_context_, client_global_reg_api_},
       DebugGate{"GlobalRegServer write {}", "GlobalRegServer read {}"},
       CryptoGate{make_unique<AsyncEncryptProvider>(
                      std::move(global_async_key_provider)),
                  make_unique<SyncDecryptProvider>(
                      std::move(global_sync_key_provider))},
-      EventSubscribeGate<DataBuffer>{
+      EventWriteOutGate<DataBuffer>{
           EventSubscriber{client_safe_api_.global_api_event}},
       std::move(enter_global_api_gate));
 
