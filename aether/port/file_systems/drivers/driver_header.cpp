@@ -91,11 +91,6 @@ void DriverHeader::DriverHeaderRead(const std::string &path,
 void DriverHeader::DriverHeaderWrite(
     const std::string &path, const std::vector<std::uint8_t> &data_vector) {
 #if (!defined(ESP_PLATFORM))
-  size_t last_index = path.find_last_of("/");
-  std::string raw_path = path.substr(0, last_index);
-
-  std::filesystem::create_directories(raw_path);
-
   uint8_t cnt{0};
 
   std::ofstream file(path.c_str(),
