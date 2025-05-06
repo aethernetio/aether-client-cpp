@@ -92,7 +92,9 @@ void SendDataBuffer::Confirm(SafeStreamRingIndex offset) {
   send_action_views_.remove_if([this, offset](auto& action) {
     auto& sending_data = action->sending_data();
     auto offset_range = sending_data.get_offset_range(window_size_);
-    if (offset_range.Before(offset)) {
+    // before is check if whole range is on the left to offset, but we should
+    // confirm all ranges up to offset
+    if (offset_range.Before(offset + 1)) {
       buffer_size_ -= sending_data.data.size();
       action->SentConfirmed();
       return true;
