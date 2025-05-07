@@ -21,7 +21,7 @@
 namespace ae {
 P2pSafeStream::P2pSafeStream(ActionContext action_context,
                              SafeStreamConfig const& config,
-                             std::unique_ptr<P2pStream> base_stream)
+                             std::unique_ptr<ByteIStream> base_stream)
     : sized_packet_gate_{},
       safe_stream_{action_context, config},
       base_stream_{std::move(base_stream)},

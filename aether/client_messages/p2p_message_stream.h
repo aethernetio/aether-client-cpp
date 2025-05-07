@@ -35,9 +35,9 @@ namespace ae {
 class P2pStream final : public ByteIStream {
  public:
   P2pStream(ActionContext action_context, Ptr<Client> const& client,
-            Uid destination, StreamId stream_id);
+            Uid destination);
   P2pStream(ActionContext action_context, Ptr<Client> const& client,
-            Uid destination, StreamId stream_id, ByteIStream& receive_stream);
+            Uid destination, std::unique_ptr<ByteIStream> receive_stream);
 
   ~P2pStream() override;
 
@@ -62,15 +62,14 @@ class P2pStream final : public ByteIStream {
   ActionContext action_context_;
   PtrView<Client> client_;
   Uid destination_;
-  StreamId stream_id_;
 
   Ptr<ClientConnection> receive_client_connection_;
   Ptr<ClientConnection> send_client_connection_;
 
   BufferStream buffer_stream_;
   ParallelStream<DataBuffer> send_receive_stream_;
-  ByteIStream* receive_stream_;
-  ByteIStream* send_stream_;
+  std::unique_ptr<ByteIStream> receive_stream_;
+  std::unique_ptr<ByteIStream> send_stream_;
 
   Subscription get_client_connection_subscription_;
 };

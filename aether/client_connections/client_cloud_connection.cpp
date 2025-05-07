@@ -31,28 +31,24 @@ ClientCloudConnection::ClientCloudConnection(
   Connect();
 }
 
-ByteIStream& ClientCloudConnection::CreateStream(Uid destination_uid,
-                                                 StreamId stream_id) {
-  AE_TELE_DEBUG(CloudClientConnStreamCreate,
-                "CreateStream destination uid {}, stream id {}",
-                destination_uid, static_cast<int>(stream_id));
+std::unique_ptr<ByteIStream> ClientCloudConnection::CreateStream(
+    Uid destination_uid) {
+  AE_TELE_DEBUG(CloudClientConnStreamCreate, "CreateStream destination uid {}",
+                destination_uid);
   assert(server_connection_);
 
-  auto srtream_it = streams_.find(destination_uid);
-  if (srtream_it != streams_.end()) {
-    return srtream_it->second->RegisterStream(stream_id);
+  auto stream_it = streams_.find(destination_uid);
+  if (stream_it == std::end(streams_)) {
+    auto& stream = server_connection_->GetStream(destination_uid);
+    bool ok;
+    std::tie(stream_it, ok) =
+        streams_.emplace(destination_uid, make_unique<ByteStream>());
+    Tie(*stream_it->second, stream);
   }
 
-  auto& stream = server_connection_->GetStream(destination_uid);
-  srtream_it = streams_.emplace_hint(srtream_it, destination_uid,
-                                     make_unique<StreamSplitter>());
-  Tie(*srtream_it->second, stream);
-  new_split_stream_subscription_.Push(
-      srtream_it->second->new_stream_event().Subscribe(
-          [this, destination_uid](auto id, auto& stream) {
-            new_stream_event_.Emit(destination_uid, id, stream);
-          }));
-  return srtream_it->second->RegisterStream(stream_id);
+  auto ret_stream = make_unique<ByteStream>();
+  Tie(*ret_stream, *stream_it->second);
+  return ret_stream;
 }
 
 ClientCloudConnection::NewStreamEvent::Subscriber
@@ -60,19 +56,14 @@ ClientCloudConnection::new_stream_event() {
   return new_stream_event_;
 }
 
-void ClientCloudConnection::CloseStream(Uid uid, StreamId stream_id) {
-  AE_TELE_DEBUG(CloudClientConnStreamClose, "Close stream uid {}, stream id {}",
-                uid, static_cast<int>(stream_id));
+void ClientCloudConnection::CloseStream(Uid uid) {
+  AE_TELE_DEBUG(CloudClientConnStreamClose, "Close stream uid {}", uid);
   auto it = streams_.find(uid);
   if (it == std::end(streams_)) {
     return;
   }
-
-  it->second->CloseStream(stream_id);
-  if (it->second->stream_count() == 0) {
-    streams_.erase(it);
-    server_connection_->CloseStream(uid);
-  }
+  streams_.erase(it);
+  server_connection_->CloseStream(uid);
 }
 
 void ClientCloudConnection::Connect() {
@@ -107,8 +98,8 @@ void ClientCloudConnection::SelectConnection() {
   }
 
   // restore all known streams to a new server
-  for (auto& [uid, gate] : streams_) {
-    Tie(*gate, server_connection_->GetStream(uid));
+  for (auto& [uid, stream] : streams_) {
+    Tie(*stream, server_connection_->GetStream(uid));
   }
 
   new_stream_event_subscription_ =
@@ -122,11 +113,7 @@ void ClientCloudConnection::OnConnected() {
   connection_status_sub_ =
       server_connection_->server_stream().stream_update_event().Subscribe(
           [this]() {
-            if (!server_connection_
-                     ->server_stream()
-
-                     .stream_info()
-                     .is_linked) {
+            if (!server_connection_->server_stream().stream_info().is_linked) {
               OnConnectionError();
             }
           });
@@ -156,21 +143,20 @@ void ClientCloudConnection::ServerListEnded() {
 void ClientCloudConnection::NewStream(Uid uid, ByteIStream& stream) {
   AE_TELE_DEBUG(CloudClientNewStream, "New stream for uid {}", uid);
 
-  auto gate_it = streams_.find(uid);
-  if (gate_it != std::end(streams_)) {
+  auto stream_it = streams_.find(uid);
+  if (stream_it != std::end(streams_)) {
     // retie existing stream
-    Tie(*gate_it->second, stream);
+    Tie(*stream_it->second, stream);
     return;
   }
 
   // new stream created
-  gate_it = streams_.emplace_hint(gate_it, uid, make_unique<StreamSplitter>());
-  Tie(*gate_it->second, stream);
-  new_split_stream_subscription_.Push(
-      gate_it->second->new_stream_event().Subscribe(
-          [this, uid](auto id, auto& stream) {
-            new_stream_event_.Emit(uid, id, stream);
-          }));
+  bool ok;
+  std::tie(stream_it, ok) = streams_.emplace(uid, make_unique<ByteStream>());
+  Tie(*stream_it->second, stream);
+  auto ret_stream = make_unique<ByteStream>();
+  Tie(*ret_stream, *stream_it->second);
+  new_stream_event_.Emit(uid, std::move(ret_stream));
 }
 
 }  // namespace ae

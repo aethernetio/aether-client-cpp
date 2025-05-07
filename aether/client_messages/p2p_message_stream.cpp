@@ -20,17 +20,15 @@
 
 namespace ae {
 P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
-                     Uid destination, StreamId stream_id)
+                     Uid destination)
     : action_context_{action_context},
       client_{client},
       destination_{destination},
-      stream_id_{stream_id},
       receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
       buffer_stream_{action_context, 20 * 1024},
       send_receive_stream_{} {
-  AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream {} created for {}",
-                static_cast<int>(stream_id_), destination_);
+  AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
   // connect buffered gate and send_receive gate
   Tie(buffer_stream_, send_receive_stream_);
 
@@ -39,19 +37,18 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
 }
 
 P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
-                     Uid destination, StreamId stream_id,
-                     ByteIStream& receive_stream)
+                     Uid destination,
+                     std::unique_ptr<ByteIStream> receive_stream)
     : action_context_{action_context},
       client_{client},
       destination_{destination},
-      stream_id_{stream_id},
       receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
       buffer_stream_{action_context, 100},
       send_receive_stream_{},
-      receive_stream_{&receive_stream} {
-  AE_TELE_DEBUG(kP2pMessageStreamRec, "P2pStream received {} for {}",
-                static_cast<int>(stream_id_), destination_);
+      receive_stream_{std::move(receive_stream)} {
+  AE_TELE_DEBUG(kP2pMessageStreamRec, "P2pStream received for {}",
+                destination_);
   // connect buffered gate and send_receive gate
   Tie(buffer_stream_, send_receive_stream_);
   // connect receive stream immediately
@@ -61,10 +58,10 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
 
 P2pStream::~P2pStream() {
   if (receive_client_connection_) {
-    receive_client_connection_->CloseStream(destination_, stream_id_);
+    receive_client_connection_->CloseStream(destination_);
   }
   if (send_client_connection_) {
-    send_client_connection_->CloseStream(destination_, stream_id_);
+    send_client_connection_->CloseStream(destination_);
   }
 }
 
@@ -85,8 +82,7 @@ P2pStream::OutDataEvent::Subscriber P2pStream::out_data_event() {
 }
 
 void P2pStream::ConnectReceive() {
-  receive_stream_ =
-      &receive_client_connection_->CreateStream(destination_, stream_id_);
+  receive_stream_ = receive_client_connection_->CreateStream(destination_);
   send_receive_stream_.LinkReadStream(*receive_stream_);
 }
 
@@ -110,7 +106,7 @@ void P2pStream::ConnectSend() {
 }
 
 void P2pStream::TieSendStream(ClientConnection& client_connection) {
-  send_stream_ = &client_connection.CreateStream(destination_, stream_id_);
+  send_stream_ = client_connection.CreateStream(destination_);
   AE_TELED_DEBUG("Send tied");
   send_receive_stream_.LinkWriteStream(*send_stream_);
 }

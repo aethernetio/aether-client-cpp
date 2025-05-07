@@ -33,7 +33,7 @@ namespace ae {
 class P2pSafeStream final : public ByteIStream {
  public:
   P2pSafeStream(ActionContext action_context, SafeStreamConfig const& config,
-                std::unique_ptr<P2pStream> base_stream);
+                std::unique_ptr<ByteIStream> base_stream);
 
   AE_CLASS_NO_COPY_MOVE(P2pSafeStream)
 
@@ -45,7 +45,7 @@ class P2pSafeStream final : public ByteIStream {
  private:
   SizedPacketGate sized_packet_gate_;
   SafeStream safe_stream_;
-  std::unique_ptr<P2pStream> base_stream_;
+  std::unique_ptr<ByteIStream> base_stream_;
   OutDataEvent out_data_event_;
   std::array<Subscription, 2> out_data_sub_;
 };
