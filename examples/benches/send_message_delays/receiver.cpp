@@ -31,22 +31,22 @@ Receiver::Receiver(ActionContext action_context, Client::ptr client,
                    SafeStreamConfig safe_stream_config)
     : action_context_{action_context},
       client_{std::move(client)},
-      safe_stream_config_{safe_stream_config} {}
+      safe_stream_config_{safe_stream_config},
+      split_stream_connection_{make_unique<SplitStreamCloudConnection>(
+          action_context_, client_, *client_->client_connection())} {}
 
 void Receiver::Connect() {
   AE_TELED_DEBUG("Receiver::Connect()");
 
-  client_connection_ = client_->client_connection();
-
   message_stream_subscription_ =
-      client_connection_->new_stream_event().Subscribe(
-          [this](auto uid, auto stream_id, auto& message_stream) {
+      split_stream_connection_->new_stream_event().Subscribe(
+          [this]([[maybe_unused]] auto uid, auto stream_id,
+                 auto message_stream) {
             switch (stream_id) {
               case 0:  // p2p stream
               {
                 AE_TELED_DEBUG("Receiver::Connect with p2p stream");
-                receive_message_stream_ = make_unique<P2pStream>(
-                    action_context_, client_, uid, stream_id, message_stream);
+                receive_message_stream_ = std::move(message_stream);
                 break;
               }
               case 1:  // p2p safe stream
@@ -54,8 +54,7 @@ void Receiver::Connect() {
                 AE_TELED_DEBUG("Receiver::Connect with p2p safe stream");
                 receive_message_stream_ = make_unique<P2pSafeStream>(
                     action_context_, safe_stream_config_,
-                    make_unique<P2pStream>(action_context_, client_, uid,
-                                           stream_id, message_stream));
+                    std::move(message_stream));
                 break;
               }
               default:  // unknown stream
@@ -70,7 +69,6 @@ void Receiver::Connect() {
 void Receiver::Disconnect() {
   AE_TELED_DEBUG("Receiver::Disconnect()");
 
-  client_connection_.Reset();
   receive_message_stream_.reset();
 }
 

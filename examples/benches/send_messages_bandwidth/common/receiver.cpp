@@ -28,10 +28,10 @@ void Receiver::Connect() {
   client_connection_ = client_->client_connection();
 
   message_stream_received_ = client_connection_->new_stream_event().Subscribe(
-      [this](auto uid, auto stream_id, auto& stream) {
+      [this](auto uid, auto stream) {
         AE_TELED_DEBUG("Received message stream from {}", uid);
         message_stream_ = make_unique<P2pStream>(action_context_, client_, uid,
-                                                 stream_id, stream);
+                                                 std::move(stream));
         recv_data_sub_ = message_stream_->out_data_event().Subscribe(
             *this, MethodPtr<&Receiver::OnRecvData>{});
       });
