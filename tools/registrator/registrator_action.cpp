@@ -94,20 +94,12 @@ void RegistratorAction::RegisterClients() {
     AE_TELED_INFO("Client registration");
 #if AE_SUPPORT_REGISTRATION
     for (auto p : registrator_config_.GetParents()) {
-      auto uid_str = p.uid_str;
+      auto parent_uid = ae::Uid::FromString(p.uid_str);
+
       auto clients_num = p.clients_num;
 
       for (std::uint8_t i{0}; i < clients_num; i++) {
-        auto uid_arr = ae::MakeArray(uid_str);
-        if (uid_arr.size() != ae::Uid::kSize) {
-          AE_TELED_ERROR("Registration error");
-          state_ = State::kError;
-        }
-        auto uid = ae::Uid{};
-        std::copy(std::begin(uid_arr), std::end(uid_arr),
-                  std::begin(uid.value));
-
-        auto reg_action = aether_->RegisterClient(uid);
+        auto reg_action = aether_->RegisterClient(parent_uid);
 
         registration_subscriptions_.Push(
             reg_action->ResultEvent().Subscribe([&](auto const&) {

@@ -20,19 +20,20 @@ list(APPEND test_srcs
     test-literal-array.cpp
     test-ring-buffer.cpp
     test-async-for-loop.cpp
+    test-concat-arrays.cpp
 )
 
 if(NOT CM_PLATFORM)
 
-   project(test-types LANGUAGES CXX)
+  project(test-types LANGUAGES CXX)
 
-   add_executable(${PROJECT_NAME})
-   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
-   # for aether
-   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-   target_link_libraries(${PROJECT_NAME} PRIVATE unity gcem)
+  add_executable(${PROJECT_NAME})
+  target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
+  # for aether
+  target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
+  target_link_libraries(${PROJECT_NAME} PRIVATE unity gcem)
 
-   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+  add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()
-    message(WARNING "Not implemented for ${CM_PLATFORM}")
+  message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()

@@ -143,7 +143,7 @@ class CloudTestAction : public Action<CloudTestAction> {
 
       for (auto i = clients_registered_; i < 2; i++) {
         auto reg_action = aether_->RegisterClient(
-            Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
+            Uid::FromLit("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
         registration_subscriptions_.Push(
             reg_action->ResultEvent().Subscribe([&](auto const&) {
               ++clients_registered_;
