@@ -32,20 +32,6 @@ IGNORE_IMPLICIT_CONVERSION()
 DISABLE_WARNING_POP()
 
 namespace ae {
-
-template <std::size_t N>
-struct LiteralArray {
-  std::array<std::uint8_t, N> value_{};
-
-  constexpr LiteralArray(std::array<std::uint8_t, N> value)
-      : value_{std::move(value)} {}
-
-  constexpr operator std::array<std::uint8_t, N>() const { return value_; }
-  operator std::vector<std::uint8_t>() const {
-    return {value_.begin(), value_.end()};
-  }
-};
-
 namespace _internal {
 static constexpr auto HexToDec(const char* str, std::size_t size) {
   constexpr auto base = 16;
@@ -56,37 +42,50 @@ static constexpr auto HexToDec(const char* str, std::size_t size) {
       break;
     }
     if ((str[i] >= '0') && (str[i] <= '9')) {
-      result = result * base + static_cast<uint64_t>(str[i] - '0');
+      result = result * base + static_cast<std::uint64_t>(str[i] - '0');
     }
     if ((str[i] >= 'a') && (str[i] <= 'f')) {
-      result = result * base + static_cast<uint64_t>(str[i] - 'a' + 10);
+      result = result * base + static_cast<std::uint64_t>(str[i] - 'a' + 10);
     }
     if ((str[i] >= 'A') && (str[i] <= 'F')) {
-      result = result * base + static_cast<uint64_t>(str[i] - 'A' + 10);
+      result = result * base + static_cast<std::uint64_t>(str[i] - 'A' + 10);
     }
   }
   return result;
 }
 
 template <std::size_t StrSize, std::size_t Index>
-static constexpr auto StringIterator(const char (&str)[StrSize]) {
+static constexpr auto StringIterator(char const* str) {
   constexpr auto str_index = Index * 2;
   return static_cast<std::uint8_t>(HexToDec(&str[str_index], 2));
 }
 
-template <std::size_t StrSize, std::size_t... Is>
-static constexpr auto FillArray(const char (&str)[StrSize],
-                                std::index_sequence<Is...> const&) {
-  return std::array{StringIterator<StrSize, Is>(str)...};
-}
 }  // namespace _internal
+
+template <std::size_t N>
+struct LiteralArray {
+  std::array<std::uint8_t, N> value_{};
+
+  constexpr explicit LiteralArray(std::array<std::uint8_t, N> value)
+      : value_{std::move(value)} {}
+
+  constexpr operator std::array<std::uint8_t, N>() const { return value_; }
+  operator std::vector<std::uint8_t>() const {
+    return {value_.begin(), value_.end()};
+  }
+};
+
+template <std::size_t StrSize, std::size_t... Is>
+static constexpr auto FillArray(char const* str,
+                                std::index_sequence<Is...> const&) {
+  return std::array{_internal::StringIterator<StrSize, Is>(str)...};
+}
 
 template <std::size_t Size>
 constexpr auto MakeLiteralArray(const char (&str)[Size]) {
   constexpr auto N =
       static_cast<std::size_t>(gcem::ceil(static_cast<float>(Size - 1) / 2));
-  return LiteralArray<N>{
-      _internal::FillArray<Size>(str, std::make_index_sequence<N>{})};
+  return LiteralArray<N>{FillArray<Size>(str, std::make_index_sequence<N>{})};
 }
 
 inline auto MakeArray(std::string_view str) {
