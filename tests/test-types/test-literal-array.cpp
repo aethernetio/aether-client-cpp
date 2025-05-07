@@ -40,6 +40,8 @@ void test_LiteralArray() {
   // test values
   {
     constexpr auto arr1 = MakeLiteralArray("aafc");
+    static_assert(0xAA == arr1.value_[0]);
+    static_assert(0xFC == arr1.value_[1]);
     TEST_ASSERT_EQUAL(0xAA, arr1.value_[0]);
     TEST_ASSERT_EQUAL(0xFC, arr1.value_[1]);
 
@@ -63,6 +65,8 @@ void test_LiteralArray() {
                                0x2E, 0xAC, 0x4F, 0x86, 0x8D, 0x7C, 0xA4, 0xD9,
                                0xC0, 0xC5, 0x76, 0xA1, 0xA6, 0xC8, 0x7B, 0x44};
 
+    static_assert(0xED == arr1[0]);
+    static_assert(0xA3 == arr1[1]);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, arr1.data(), arr1.size());
 
     auto lit_array_2 = MakeLiteralArray(
