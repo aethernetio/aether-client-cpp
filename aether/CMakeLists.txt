@@ -181,7 +181,9 @@ list(APPEND client_connections_srcs
             "client_connections/client_connection_manager.cpp"
             "client_connections/client_server_connection.cpp"
             "client_connections/server_connection_selector.cpp"
-            "client_connections/client_to_server_stream.cpp")
+            "client_connections/client_to_server_stream.cpp"
+            "client_connections/split_stream_client_connection.cpp"
+)
 
 list(APPEND client_messages_srcs
             "client_messages/message_stream.cpp"
