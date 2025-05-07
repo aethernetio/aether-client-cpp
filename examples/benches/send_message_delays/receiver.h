@@ -22,8 +22,8 @@
 #include "aether/actions/action_context.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/client_connections/client_connection.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
+#include "aether/client_connections/split_stream_client_connection.h"
 
 #include "send_message_delays/timed_receiver.h"
 
@@ -52,9 +52,10 @@ class Receiver {
   ActionContext action_context_;
   Client::ptr client_;
   SafeStreamConfig safe_stream_config_;
+  std::unique_ptr<SplitStreamCloudConnection> split_stream_connection_;
 
   ProtocolContext protocol_context_;
-  Ptr<ClientConnection> client_connection_;
+
   std::unique_ptr<ByteIStream> receive_message_stream_;
 
   std::unique_ptr<ITimedReceiver> receiver_action_;
