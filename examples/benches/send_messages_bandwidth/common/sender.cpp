@@ -31,8 +31,8 @@ Sender::Sender(ActionContext action_context, Client::ptr client,
 EventSubscriber<void()> Sender::error_event() { return error_event_; }
 
 void Sender::Connect() {
-  message_stream_ = make_unique<P2pStream>(action_context_, client_,
-                                           destination_, StreamId{0});
+  message_stream_ =
+      make_unique<P2pStream>(action_context_, client_, destination_);
   on_recv_data_sub_ = message_stream_->out_data_event().Subscribe(
       *this, MethodPtr<&Sender::OnRecvData>{});
 }

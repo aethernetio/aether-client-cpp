@@ -181,32 +181,32 @@ class CloudTestAction : public Action<CloudTestAction> {
     receiver_ = aether_->clients()[0];
     auto receiver_connection = receiver_->client_connection();
     receiver_new_stream_subscription_ =
-        receiver_connection->new_stream_event().Subscribe(
-            [&](auto uid, auto stream_id, auto& raw_stream) {
-              receiver_stream_ = make_unique<P2pSafeStream>(
-                  *aether_->action_processor, kSafeStreamConfig,
-                  make_unique<P2pStream>(*aether_->action_processor, receiver_,
-                                         uid, stream_id, raw_stream));
-              receiver_message_subscription_ =
-                  receiver_stream_->out_data_event().Subscribe(
-                      [&](auto const& data) {
-                        auto str_msg = std::string(
-                            reinterpret_cast<const char*>(data.data()),
-                            data.size());
-                        AE_TELED_DEBUG("Received a message [{}]", str_msg);
-                        receive_count_++;
-                        auto confirm_msg = std::string{"confirmed "} + str_msg;
-                        auto response_action = receiver_stream_->Write(
-                            {confirm_msg.data(),
-                             confirm_msg.data() + confirm_msg.size()});
-                        response_subscriptions_.Push(
-                            response_action->ErrorEvent().Subscribe(
-                                [&](auto const&) {
-                                  AE_TELED_ERROR("Send response failed");
-                                  state_ = State::kError;
-                                }));
-                      });
-            });
+        receiver_connection->new_stream_event().Subscribe([&](auto uid,
+                                                              auto raw_stream) {
+          receiver_stream_ = make_unique<P2pSafeStream>(
+              *aether_->action_processor, kSafeStreamConfig,
+              make_unique<P2pStream>(*aether_->action_processor, receiver_, uid,
+                                     std::move(raw_stream)));
+          receiver_message_subscription_ =
+              receiver_stream_->out_data_event().Subscribe(
+                  [&](auto const& data) {
+                    auto str_msg =
+                        std::string(reinterpret_cast<const char*>(data.data()),
+                                    data.size());
+                    AE_TELED_DEBUG("Received a message [{}]", str_msg);
+                    receive_count_++;
+                    auto confirm_msg = std::string{"confirmed "} + str_msg;
+                    auto response_action = receiver_stream_->Write(
+                        {confirm_msg.data(),
+                         confirm_msg.data() + confirm_msg.size()});
+                    response_subscriptions_.Push(
+                        response_action->ErrorEvent().Subscribe(
+                            [&](auto const&) {
+                              AE_TELED_ERROR("Send response failed");
+                              state_ = State::kError;
+                            }));
+                  });
+        });
     state_ = State::kConfigureSender;
   }
 
@@ -224,7 +224,7 @@ class CloudTestAction : public Action<CloudTestAction> {
     sender_stream_ = make_unique<P2pSafeStream>(
         *aether_->action_processor, kSafeStreamConfig,
         make_unique<P2pStream>(*aether_->action_processor, sender_,
-                               receiver_->uid(), StreamId{0}));
+                               receiver_->uid()));
     sender_message_subscription_ =
         sender_stream_->out_data_event().Subscribe([&](auto const& data) {
           auto str_response = std::string(
