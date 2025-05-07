@@ -20,6 +20,7 @@
 #include <array>
 #include <tuple>
 #include <string>
+#include <utility>
 #include <optional>
 #include <type_traits>
 
@@ -270,6 +271,27 @@ template <typename T, std::size_t S>
 struct ArraySize<std::array<T, S>> {
   static constexpr std::size_t value = S;
 };
+
+template <typename Arr1, typename Arr2, std::size_t... Is1, std::size_t... Is2>
+constexpr auto ConcatArraysImpl(Arr1&& arr1, Arr2 arr2,
+                                std::index_sequence<Is1...>,
+                                std::index_sequence<Is2...>) {
+  return std::array{arr1[Is1]..., arr2[Is2]...};
+}
+
+template <typename T, std::size_t Size1, std::size_t Size2>
+constexpr auto ConcatArrays(std::array<T, Size1>&& arr1,
+                            std::array<T, Size2>&& arr2) {
+  return ConcatArraysImpl(std::move(arr1), std::move(arr2),
+                          std::make_index_sequence<Size1>(),
+                          std::make_index_sequence<Size2>());
+}
+
+template <typename T, std::size_t Size1, std::size_t... Sizes>
+constexpr auto ConcatArrays(std::array<T, Size1>&& first,
+                            std::array<T, Sizes>&&... others) {
+  return ConcatArrays(std::move(first), ConcatArrays(std::move(others)...));
+}
 
 }  // namespace ae
 #endif  // AETHER_TYPE_TRAITS_H_ */
