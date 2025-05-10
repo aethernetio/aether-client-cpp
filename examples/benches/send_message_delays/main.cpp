@@ -83,9 +83,9 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
 #if AE_SUPPORT_REGISTRATION
     aether_->clients().clear();
     auto reg_sender = aether_->RegisterClient(
-        Uid::FromLit("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
+        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
     auto reg_receiver = aether_->RegisterClient(
-        Uid::FromLit("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
+        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
 
     registration_subscriptions_.Push(
         reg_sender->ResultEvent().Subscribe([this](auto const& action) {
