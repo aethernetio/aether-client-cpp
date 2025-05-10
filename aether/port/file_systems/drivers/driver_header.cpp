@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#include "aether/port/file_systems/drivers/driver_header.h"
-
 #include <string>
 #if (!defined(ESP_PLATFORM))
 #  include <filesystem>
 #endif
 
+#include "aether/port/file_systems/drivers/driver_header.h"
+#include "aether/port/file_systems/drivers/driver_functions.h"
+#include "aether/transport/low_level/tcp/data_packet_collector.h"
 #include "aether/tele/tele.h"
 
 constexpr char string1[] = "#ifndef CONFIG_FILE_SYSTEM_INIT_H_";
@@ -40,56 +41,98 @@ DriverHeader::DriverHeader() {}
 
 DriverHeader::~DriverHeader() {}
 
-void DriverHeader::DriverHeaderRead(const std::string &path,
-                                    std::vector<std::uint8_t> &data_vector) {
+void DriverHeader::DriverRead(const std::string &path,
+                              std::vector<std::uint8_t> &data_vector,
+                              bool sync) {
+  if (sync == false) {
 #if (!defined(ESP_PLATFORM))
-  std::string line{};
+    std::string line{};
 
-  std::ifstream file(path.c_str(), std::ios::in | std::ios::binary);
+    std::ifstream file(path.c_str(), std::ios::in | std::ios::binary);
 
-  if (!file.good()) {
-    AE_TELED_ERROR("Unable to open file {}", path);
-    return;
-  }
-
-  std::getline(file, line);
-  if (line != string1) {
-    return;
-  }
-  std::getline(file, line);
-  if (line != string2) {
-    return;
-  }
-  std::getline(file, line);
-  if (line != string3) {
-    return;
-  }
-  std::getline(file, line);
-  if (line != string4) {
-    return;
-  }
-  std::getline(file, line);
-  if (line != string5) {
-    return;
-  }
-
-  std::getline(file, line);
-
-  while (std::getline(file, line)) {
-    if (line == string7) break;
-    for (unsigned int i = 0; i < line.length(); i += 6) {
-      std::string byteString = line.substr(i + 2, 2);
-      std::uint8_t byte = HexToByte(byteString);
-      data_vector.push_back(byte);
+    if (!file.good()) {
+      AE_TELED_ERROR("Unable to open file {}", path);
+      return;
     }
-  }
 
-  AE_TELED_DEBUG("Loaded header file {}", path);
+    std::getline(file, line);
+    if (line.find(string1) == std::string::npos) {
+      return;
+    }
+    std::getline(file, line);
+    if (line.find(string2) == std::string::npos) {
+      return;
+    }
+    std::getline(file, line);
+    if (line.find(string3) == std::string::npos) {
+      return;
+    }
+    std::getline(file, line);
+    if (line.find(string4) == std::string::npos) {
+      return;
+    }
+    std::getline(file, line);
+    if (line.find(string5) == std::string::npos) {
+      return;
+    }
+
+    std::getline(file, line);
+
+    while (std::getline(file, line)) {
+      if (line.find(string7) != std::string::npos) break;
+      auto string_len = (line.length() / 6) * 6;
+      for (unsigned int i = 0; i < string_len; i += 6) {
+        std::string byteString = line.substr(i + 2, 2);
+        std::uint8_t byte = HexToByte_(byteString);
+        data_vector.push_back(byte);
+      }
+    }
+
+    AE_TELED_DEBUG("Loaded header file {}", path);
 #endif
+  } else {
+    auto data_vector_ =
+        std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
+
+    VectorReader<PacketSize> vr{data_vector_};
+    ae::PathStructure path_struct{};
+    ObjClassData obj_data;
+
+    auto is = imstream{vr};
+    // add obj data
+    is >> obj_data;
+
+    path_struct = GetPathStructure(path);
+
+    auto obj_it = obj_data.find(path_struct.obj_id);
+    if (obj_it == obj_data.end()) {
+      return;
+    }
+
+    auto class_it = obj_it->second.find(path_struct.class_id);
+    if (class_it == obj_it->second.end()) {
+      return;
+    }
+
+    auto version_it = class_it->second.find(path_struct.version);
+    if (version_it == class_it->second.end()) {
+      return;
+    }
+
+    AE_TELED_DEBUG("Object id={} & class id = {} version {} loaded!",
+                   path_struct.obj_id.ToString(), path_struct.class_id,
+                   std::to_string(path_struct.version));
+    data_vector = version_it->second;
+
+    AE_TELED_DEBUG("Loaded state/{}/{}/{} size: {}",
+                   std::to_string(path_struct.version),
+                   path_struct.obj_id.ToString(), path_struct.class_id,
+                   data_vector.size());
+  }
 }
 
-void DriverHeader::DriverHeaderWrite(
-    const std::string &path, const std::vector<std::uint8_t> &data_vector) {
+void DriverHeader::DriverWrite(const std::string &path,
+                               const std::vector<std::uint8_t> &data_vector) {
 #if (!defined(ESP_PLATFORM))
   uint8_t cnt{0};
 
@@ -104,7 +147,7 @@ void DriverHeader::DriverHeaderWrite(
   file << string6a << data_vector.size() << string6b << std::endl;
 
   for (std::uint8_t byte : data_vector) {
-    auto str = ByteToHex(byte);
+    auto str = ByteToHex_(byte);
     file << str << ", ";
     if (++cnt == 12) {
       cnt = 0;
@@ -124,21 +167,28 @@ void DriverHeader::DriverHeaderWrite(
 #endif
 }
 
-void DriverHeader::DriverHeaderDelete(const std::string &path) {
+void DriverHeader::DriverDelete(const std::string &path) {
 #if (!defined(ESP_PLATFORM))
   std::filesystem::remove(path);
   AE_TELED_DEBUG("Removed header file {}", path);
 #endif
 }
 
-std::string DriverHeader::ByteToHex(std::uint8_t ch) {
+std::vector<std::string> DriverHeader::DriverDir(const std::string &path) {
+  std::vector<std::string> dirs_list{};
+
+  AE_TELED_DEBUG("Dir header file {}", path);
+  return dirs_list;
+}
+
+std::string DriverHeader::ByteToHex_(std::uint8_t ch) {
   std::stringstream ss;
   ss << "0x" << std::hex << std::setw(2) << std::setfill('0')
      << static_cast<int>(ch);
   return ss.str();
 }
 
-uint8_t DriverHeader::HexToByte(const std::string &hex) {
+uint8_t DriverHeader::HexToByte_(const std::string &hex) {
   return static_cast<uint8_t>(std::stoul(hex, nullptr, 16));
 }
 

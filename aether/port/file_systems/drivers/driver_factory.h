@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-#include "aether/methods/client_reg_api/client_reg_root_api.h"
+#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_FACTORY_H_
+#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_FACTORY_H_
+
+#include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {
-#if AE_SUPPORT_REGISTRATION
-ClientRegRootApi::ClientRegRootApi(ProtocolContext& protocol_context)
-    : ReturnResultApiImpl{protocol_context} {}
-
-void ClientRegRootApi::Enter(ApiParser&, DataBuffer data) {
-  enter_event.Emit(data);
-}
-#endif  // AE_SUPPORT_REGISTRATION
+class DriverFactory {
+ public:
+  static std::unique_ptr<DriverBase> Create(enum DriverFsType fs_driver_type);
+};
 }  // namespace ae
+
+#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_FACTORY_H_

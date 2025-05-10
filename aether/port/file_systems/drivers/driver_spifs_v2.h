@@ -14,41 +14,49 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
-#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
+#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SPIFS_V2_H_
+#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SPIFS_V2_H_
 
-#include <string>
-#include <vector>
-#include <cstdint>
-#include <fstream>
-#include <ios>
-#include <system_error>
+#if (defined(ESP_PLATFORM))
 
-#include "aether/port/file_systems/drivers/driver_base.h"
+#  include <dirent.h>
+
+#  include <string>
+#  include <vector>
+#  include <cstdint>
+
+#  include "esp_spiffs.h"
+#  include "spiffs_config.h"
+#  include "sys/stat.h"
+#  include "esp_err.h"
+
+#  include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {
 
-class DriverHeader : public DriverBase {
-  using Data = std::vector<std::uint8_t>;
-  using VersionData = std::map<std::uint8_t, Data>;
-  using ClassData = std::map<std::uint32_t, VersionData>;
-  using ObjClassData = std::map<ae::ObjId, ClassData>;
-
+class DriverSpifsV2 : public DriverBase {
  public:
-  DriverHeader();
-  ~DriverHeader();
+  DriverSpifsV2();
+  ~DriverSpifsV2();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector, bool sync) override;
   void DriverWrite(const std::string &path,
                    const std::vector<std::uint8_t> &data_vector) override;
   void DriverDelete(const std::string &path) override;
   std::vector<std::string> DriverDir(const std::string &path) override;
+  void DriverFormat();
 
  private:
-  std::string ByteToHex_(std::uint8_t ch);
-  uint8_t HexToByte_(const std::string &hex);
+  esp_err_t DriverInit_();
+  void DriverDeinit_();
+  bool initialized_{false};
+
+  static constexpr char kPartition[] = "storage";
+  static constexpr char kBasePath[] = "/spiffs";
 };
 
 }  // namespace ae
 
-#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
+#endif  // (defined(ESP_PLATFORM))
+
+#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SPIFS_V2_H_

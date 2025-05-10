@@ -14,29 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
-#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
+#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_RAM_H_
+#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_RAM_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
-#include <cstdint>
-#include <fstream>
-#include <ios>
-#include <system_error>
+#include <map>
 
+#include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {
+using Data = std::vector<std::uint8_t>;
+using VersionData = std::map<std::uint8_t, Data>;
+using ClassData = std::map<std::uint32_t, VersionData>;
+using ObjClassData = std::map<ae::ObjId, ClassData>;
 
-class DriverHeader : public DriverBase {
-  using Data = std::vector<std::uint8_t>;
-  using VersionData = std::map<std::uint8_t, Data>;
-  using ClassData = std::map<std::uint32_t, VersionData>;
-  using ObjClassData = std::map<ae::ObjId, ClassData>;
+static ObjClassData state_ram_;
 
+class DriverRam : public DriverBase {
  public:
-  DriverHeader();
-  ~DriverHeader();
+  DriverRam();
+  ~DriverRam();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector, bool sync) override;
   void DriverWrite(const std::string &path,
@@ -45,10 +45,8 @@ class DriverHeader : public DriverBase {
   std::vector<std::string> DriverDir(const std::string &path) override;
 
  private:
-  std::string ByteToHex_(std::uint8_t ch);
-  uint8_t HexToByte_(const std::string &hex);
 };
 
 }  // namespace ae
 
-#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
+#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_RAM_H_

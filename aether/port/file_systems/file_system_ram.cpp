@@ -16,10 +16,9 @@
 
 #include "aether/port/file_systems/file_system_ram.h"
 
-#if defined AE_FILE_SYSTEM_RAM_ENABLED
+#if AE_FILE_SYSTEM_RAM_ENABLED == 1
 
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
-
 #  include "aether/port/file_systems/file_systems_tele.h"
 
 namespace ae {
@@ -29,7 +28,9 @@ namespace ae {
  *\return void.
  */
 FileSystemRamFacility::FileSystemRamFacility() {
-  driver_fs = new DriverHeader();
+  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverNone,
+                                                 DriverFsType::kDriverRam);
+  AE_TELED_DEBUG("New FileSystemRamFacility instance created!");
 }
 
 /*
@@ -37,20 +38,32 @@ FileSystemRamFacility::FileSystemRamFacility() {
  * \param[in] void.
  * \return void.
  */
-FileSystemRamFacility::~FileSystemRamFacility() {}
+FileSystemRamFacility::~FileSystemRamFacility() {
+  AE_TELED_DEBUG("FileSystemRamFacility instance deleted!");
+}
 
 std::vector<uint32_t> FileSystemRamFacility::Enumerate(
     const ae::ObjId& obj_id) {
-  std::vector<uint32_t> classes;
+  std::vector<std::uint32_t> classes;
+  std::vector<std::string> dirs_list{};
+  std::string path{"state"};
+  std::string file{};
 
-  auto it = state_.find(obj_id);
-  if (it != state_.end()) {
-    auto& obj_classes = it->second;
-    for (const auto& [class_id, _] : obj_classes) {
-      classes.push_back(class_id);
+  dirs_list = driver_sync_fs_->DriverDir(path);
+
+  for (auto dir : dirs_list) {
+    AE_TELE_DEBUG(FsEnumerated, "Dir {}", dir);
+    auto pos1 = dir.find("/" + obj_id.ToString() + "/");
+    if (pos1 != std::string::npos) {
+      auto pos2 = dir.rfind("/");
+      if (pos2 != std::string::npos) {
+        file.assign(dir, pos2 + 1, dir.size() - pos2 - 1);
+        auto enum_class = static_cast<uint32_t>(std::stoul(file));
+        classes.push_back(enum_class);
+      }
     }
-    AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
   }
+  AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
 
   return classes;
 }
@@ -58,7 +71,12 @@ std::vector<uint32_t> FileSystemRamFacility::Enumerate(
 void FileSystemRamFacility::Store(const ae::ObjId& obj_id,
                                   std::uint32_t class_id, std::uint8_t version,
                                   const std::vector<uint8_t>& os) {
-  state_[obj_id][class_id][version] = os;
+  std::string path{};
+
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
+
+  driver_sync_fs_->DriverWrite(path, os);
 
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
@@ -68,21 +86,12 @@ void FileSystemRamFacility::Store(const ae::ObjId& obj_id,
 void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
                                  std::uint32_t class_id, std::uint8_t version,
                                  std::vector<uint8_t>& is) {
-  auto obj_it = state_.find(obj_id);
-  if (obj_it == state_.end()) {
-    return;
-  }
+  std::string path{};
 
-  auto class_it = obj_it->second.find(class_id);
-  if (class_it == obj_it->second.end()) {
-    return;
-  }
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
 
-  auto version_it = class_it->second.find(version);
-  if (version_it == class_it->second.end()) {
-    return;
-  }
-  is = version_it->second;
+  driver_sync_fs_->DriverRead(path, is);
 
   AE_TELE_DEBUG(
       FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
@@ -90,33 +99,33 @@ void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
 }
 
 void FileSystemRamFacility::Remove(const ae::ObjId& obj_id) {
-  auto it = state_.find(obj_id);
-  if (it != state_.end()) {
-    AE_TELE_DEBUG(FsObjRemoved, "Removed object {}", obj_id.ToString());
-    state_.erase(it);
-  } else {
-    AE_TELE_ERROR(FsRemoveObjIdNoFound, "Object id={} not found!",
-                  obj_id.ToString());
+  std::string path{"state"};
+
+  auto version_dirs = driver_sync_fs_->DriverDir(path);
+
+  for (auto const& ver_dir : version_dirs) {
+    auto obj_dirs = driver_sync_fs_->DriverDir(ver_dir);
+    auto obj_it = std::find_if(
+        std::begin(obj_dirs), std::end(obj_dirs), [&](auto const& path) {
+          return path.find("/" + obj_id.ToString() + "/") != std::string::npos;
+        });
+    if (obj_it != std::end(obj_dirs)) {
+      driver_sync_fs_->DriverDelete(*obj_it);
+      AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version dir {}",
+                    obj_id.ToString(), ver_dir);
+    }
   }
 }
 
 #  if defined AE_DISTILLATION
 void FileSystemRamFacility::CleanUp() {
-  state_.clear();
+  std::string path{"state"};
+
+  driver_sync_fs_->DriverDelete(path);
   AE_TELED_DEBUG("All objects have been removed!");
 }
 #  endif
 
-void FileSystemRamFacility::out_header() {
-  std::string path{"config/file_system_init.h"};
-  auto data_vector = std::vector<std::uint8_t>{};
-  VectorWriter<PacketSize> vw{data_vector};
-  auto os = omstream{vw};
-  // add file data
-  os << state_;
-
-  driver_fs->DriverHeaderWrite(path, data_vector);
-}
 }  // namespace ae
 
 #endif  // AE_FILE_SYSTEM_RAM_ENABLED

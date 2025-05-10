@@ -14,29 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
-#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
+#ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_STD_H_
+#define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_STD_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
-#include <cstdint>
-#include <fstream>
-#include <ios>
-#include <system_error>
 
+#include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_base.h"
+#include "aether/port/file_systems/file_system_std.h"
+
+#if defined AE_FILE_SYSTEM_STD_ENABLED
 
 namespace ae {
 
-class DriverHeader : public DriverBase {
-  using Data = std::vector<std::uint8_t>;
-  using VersionData = std::map<std::uint8_t, Data>;
-  using ClassData = std::map<std::uint32_t, VersionData>;
-  using ObjClassData = std::map<ae::ObjId, ClassData>;
-
+class DriverStd : public DriverBase {
  public:
-  DriverHeader();
-  ~DriverHeader();
+  DriverStd();
+  ~DriverStd();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector, bool sync) override;
   void DriverWrite(const std::string &path,
@@ -45,10 +41,9 @@ class DriverHeader : public DriverBase {
   std::vector<std::string> DriverDir(const std::string &path) override;
 
  private:
-  std::string ByteToHex_(std::uint8_t ch);
-  uint8_t HexToByte_(const std::string &hex);
 };
 
 }  // namespace ae
 
-#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
+#endif  // defined AE_FILE_SYSTEM_STD_ENABLED
+#endif  // AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_STD_H_

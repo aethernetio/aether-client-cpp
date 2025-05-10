@@ -16,20 +16,18 @@
 
 #include "aether/port/file_systems/file_system_std.h"
 
-#if defined AE_FILE_SYSTEM_STD_ENABLED
+#if AE_FILE_SYSTEM_STD_ENABLED == 1
 
-#  include <ios>
-#  include <set>
-#  include <string>
-#  include <fstream>
 #  include <filesystem>
-#  include <system_error>
 
 #  include "aether/port/file_systems/file_systems_tele.h"
 
 namespace ae {
 
 FileSystemStdFacility::FileSystemStdFacility() {
+  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverNone,
+                                                 DriverFsType::kDriverStd);
+  std::setlocale(LC_ALL, "");
   AE_TELED_DEBUG("New FileSystemStdFacility instance created!");
 }
 
@@ -39,46 +37,39 @@ FileSystemStdFacility::~FileSystemStdFacility() {
 
 std::vector<uint32_t> FileSystemStdFacility::Enumerate(
     const ae::ObjId& obj_id) {
-  // collect unique classes
-  std::set<uint32_t> classes;
+  std::vector<std::uint32_t> classes;
+  std::vector<std::string> dirs_list{};
+  std::string path{"state"};
+  std::string file{};
 
-  auto state_dir = std::filesystem::path{"state"};
-  auto ec = std::error_code{};
-  for (auto const& version_dir :
-       std::filesystem::directory_iterator(state_dir, ec)) {
-    auto obj_dir = version_dir.path() / obj_id.ToString();
+  dirs_list = driver_sync_fs_->DriverDir(path);
 
-    auto ec2 = std::error_code{};
-    for (auto const& f : std::filesystem::directory_iterator(obj_dir, ec2)) {
-      auto enum_class =
-          static_cast<uint32_t>(std::stoul(f.path().filename().string()));
-      classes.insert(enum_class);
-    }
-    AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
-    if (ec2) {
-      AE_TELED_ERROR("Unable to open directory with error {}", ec2.message());
+  for (auto dir : dirs_list) {
+    AE_TELE_DEBUG(FsEnumerated, "Dir {}", dir);
+    auto pos1 = dir.find("/" + obj_id.ToString() + "/");
+    if (pos1 != std::string::npos) {
+      auto pos2 = dir.rfind("/");
+      if (pos2 != std::string::npos) {
+        file.assign(dir, pos2 + 1, dir.size() - pos2 - 1);
+        auto enum_class = static_cast<uint32_t>(std::stoul(file));
+        classes.push_back(enum_class);
+      }
     }
   }
+  AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
 
-  if (ec) {
-    AE_TELE_ERROR(FsEnumObjIdNotFound, "Unable to open directory with error {}",
-                  ec.message());
-  }
-
-  return std::vector<std::uint32_t>(classes.begin(), classes.end());
+  return classes;
 }
 
 void FileSystemStdFacility::Store(const ae::ObjId& obj_id,
                                   std::uint32_t class_id, std::uint8_t version,
                                   const std::vector<uint8_t>& os) {
-  auto obj_dir = std::filesystem::path("state") / std::to_string(version) /
-                 obj_id.ToString();
-  std::filesystem::create_directories(obj_dir);
-  auto p = obj_dir / std::to_string(class_id);
-  std::ofstream f(p.c_str(),
-                  std::ios::out | std::ios::binary | std::ios::trunc);
-  f.write(reinterpret_cast<const char*>(os.data()),
-          static_cast<std::streamsize>(os.size()));
+  std::string path{};
+
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
+
+  driver_sync_fs_->DriverWrite(path, os);
 
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
@@ -88,26 +79,12 @@ void FileSystemStdFacility::Store(const ae::ObjId& obj_id,
 void FileSystemStdFacility::Load(const ae::ObjId& obj_id,
                                  std::uint32_t class_id, std::uint8_t version,
                                  std::vector<uint8_t>& is) {
-  auto obj_dir = std::filesystem::path("state") / std::to_string(version) /
-                 obj_id.ToString();
-  auto p = obj_dir / std::to_string(class_id);
-  std::ifstream f(p.c_str(), std::ios::in | std::ios::binary);
-  if (!f.good()) {
-    AE_TELE_ERROR(FsLoadObjClassIdNotFound, "Unable to open file {}",
-                  p.string());
-    return;
-  }
+  std::string path{};
 
-  auto ec = std::error_code{};
-  auto file_size = std::filesystem::file_size(p, ec);
-  if (ec) {
-    AE_TELED_ERROR("Unable to get file size {}", ec.message());
-    return;
-  }
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
 
-  is.resize(static_cast<std::size_t>(file_size));
-  f.read(reinterpret_cast<char*>(is.data()),
-         static_cast<std::streamsize>(is.size()));
+  driver_sync_fs_->DriverRead(path, is);
 
   AE_TELE_DEBUG(
       FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
@@ -121,7 +98,12 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
   for (auto const& version_dir :
        std::filesystem::directory_iterator(state_dir, ec)) {
     auto obj_dir = version_dir.path() / obj_id.ToString();
-    std::filesystem::remove_all(obj_dir);
+    std::string obj_path = obj_dir.string();
+#  if (defined(_WIN64) || defined(_WIN32))
+    // Replacing backslashes with straight ones
+    std::replace(obj_path.begin(), obj_path.end(), '\\', '/');
+#  endif
+    driver_sync_fs_->DriverDelete(obj_path);
     AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version {}",
                   obj_id.ToString(), version_dir.path().filename());
   }
@@ -133,10 +115,14 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
 
 #  if defined AE_DISTILLATION
 void FileSystemStdFacility::CleanUp() {
-  std::filesystem::remove_all("state");
-  AE_TELED_DEBUG("Removed all!", 0);
+  std::string path{"state"};
+
+  driver_sync_fs_->DriverDelete(path);
+
+  AE_TELED_DEBUG("All objects have been removed!");
 }
 #  endif
+
 }  // namespace ae
 
 #endif  // AE_FILE_SYSTEM_STD_ENABLED

@@ -16,17 +16,19 @@
 
 #include "aether/port/file_systems/file_system_header.h"
 
-#if defined AE_FILE_SYSTEM_HEADER_ENABLED
+#if AE_FILE_SYSTEM_HEADER_ENABLED == 1
 
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
-#  include "aether/tele/tele.h"
+#  include "aether/port/file_systems/file_systems_tele.h"
 
 namespace ae {
 
 FileSystemHeaderFacility::FileSystemHeaderFacility(
-    const std::string& header_file)
+    const std::string& header_file,
+    enum DriverFsType fs_driver_type_destination)
     : path_{header_file} {
-  driver_fs_ = std::make_unique<DriverHeader>();
+  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverHeader,
+                                                 fs_driver_type_destination);
   AE_TELED_DEBUG("New FileSystemHeader instance created!");
 }
 
@@ -39,7 +41,7 @@ std::vector<uint32_t> FileSystemHeaderFacility::Enumerate(const ObjId& obj_id) {
   std::vector<uint32_t> classes;
 
   // Reading ObjClassData
-  LoadObjData(state_);
+  LoadObjData_(state_);
 
   // Enumerate
   auto it = state_.find(obj_id);
@@ -62,7 +64,7 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
   ObjClassData state_;
 
   // Reading ObjClassData
-  LoadObjData(state_);
+  LoadObjData_(state_);
 
   state_[obj_id][class_id][version] = os;
 
@@ -73,7 +75,19 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
                  class_id);
 
   // Writing ObjClassData
-  SaveObjData(state_);
+  SaveObjData_(state_);
+
+  std::string path{};
+
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
+
+  // For FS syncronization
+  driver_sync_fs_->DriverWrite(path, os);
+
+  AE_TELE_DEBUG(
+      FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), os.size());
 }
 
 void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
@@ -81,8 +95,16 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
                                     std::vector<uint8_t>& is) {
   ObjClassData state_;
 
+  std::string path{};
+
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
+
+  // For FS syncronization
+  driver_sync_fs_->DriverRead(path, is);
+
   // Reading ObjClassData
-  LoadObjData(state_);
+  LoadObjData_(state_);
 
   auto obj_it = state_.find(obj_id);
   if (obj_it == state_.end()) {
@@ -99,39 +121,38 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
     return;
   }
 
-  AE_TELED_DEBUG("Object id={} & class id = {} version {} loaded!",
-                 obj_id.ToString(), class_id, version);
   is = version_it->second;
 
-  AE_TELED_DEBUG("Loaded state/{}/{}/{} size: {}", std::to_string(version),
-                 obj_id.ToString(), class_id, is.size());
+  AE_TELE_DEBUG(
+      FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), is.size());
 }
 
 void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
   ObjClassData state_;
 
   // Reading ObjClassData
-  LoadObjData(state_);
+  LoadObjData_(state_);
 
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
-    AE_TELED_DEBUG("Object id={} removed!", obj_id.ToString());
+    AE_TELE_DEBUG(FsObjRemoved, "Object id={} removed!", obj_id.ToString());
     state_.erase(it);
   } else {
     AE_TELED_WARNING("Object id={} not found!", obj_id.ToString());
   }
 
   // Writing ObjClassData
-  SaveObjData(state_);
+  SaveObjData_(state_);
 }
 
 #  if defined AE_DISTILLATION
 void FileSystemHeaderFacility::CleanUp() {
-  driver_fs_->DriverHeaderDelete(path_);
+  driver_sync_fs_->DriverDelete(path_);
 }
 #  endif
 
-void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
+void FileSystemHeaderFacility::LoadObjData_(ObjClassData& obj_data) {
 #  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
 #    if defined FS_INIT
   auto data_vector = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
@@ -149,14 +170,14 @@ void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
 
   VectorReader<PacketSize> vr{data_vector};
 
-  driver_fs_->DriverHeaderRead(path_, data_vector);
+  driver_sync_fs_->DriverRead(path_, data_vector);
   auto is = imstream{vr};
   // add obj data
   is >> obj_data;
 #  endif
 }
 
-void FileSystemHeaderFacility::SaveObjData(ObjClassData& obj_data) {
+void FileSystemHeaderFacility::SaveObjData_(ObjClassData& obj_data) {
 #  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
 #    if defined FS_INIT
   auto data_vector = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
@@ -178,7 +199,7 @@ void FileSystemHeaderFacility::SaveObjData(ObjClassData& obj_data) {
   // add file data
   os << obj_data;
 
-  driver_fs_->DriverHeaderWrite(path_, data_vector);
+  driver_sync_fs_->DriverWrite(path_, data_vector);
 #  endif
 }
 
