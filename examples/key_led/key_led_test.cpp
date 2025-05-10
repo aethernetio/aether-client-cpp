@@ -159,7 +159,7 @@ class KeyLedTestAction : public Action<KeyLedTestAction> {
 
       for (auto i = clients_registered_; i < 2; i++) {
         auto reg_action = aether_->RegisterClient(
-            Uid::FromLit("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
+            Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
         registration_subscriptions_.Push(
             reg_action->ResultEvent().Subscribe([&](auto const&) {
               ++clients_registered_;

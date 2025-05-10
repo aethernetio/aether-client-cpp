@@ -39,7 +39,7 @@ int test_receiver_bandwidth() {
   if (aether_app->aether()->clients().empty()) {
 #if AE_SUPPORT_REGISTRATION
     auto client_register = aether_app->aether()->RegisterClient(
-        Uid::FromLit("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
+        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
 
     bool register_done = false;
     bool register_failed = false;

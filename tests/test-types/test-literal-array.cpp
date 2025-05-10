@@ -18,47 +18,42 @@
 
 #include "aether/literal_array.h"
 
-#include "aether/crc.h"
-
 namespace ae::test_literal_array {
-#define GET_CRC(token) crc32::checksum_from_literal(#token);
-
 void test_LiteralArray() {
-  constexpr auto crc1 = crc32::checksum_from_literal("asd");
-  constexpr auto crc2 = GET_CRC(asd);
-  static_assert(crc1 == crc2, "as");
-
   // test size
   {
-    constexpr auto arr1 = MakeLiteralArray("aafc");
-    static_assert(arr1.value_.size() == 2);
-    constexpr auto arr2 = MakeLiteralArray("aaf");
-    static_assert(arr2.value_.size() == 2);
-    constexpr auto arr3 = MakeLiteralArray("aafc1");
-    static_assert(arr3.value_.size() == 3);
+    constexpr auto arr1 = MakeArray("aafc");
+    static_assert(arr1.size() == 2);
+    constexpr auto arr2 = MakeArray("aaf");
+    static_assert(arr2.size() == 2);
+    constexpr auto arr3 = MakeArray("aafc1");
+    static_assert(arr3.size() == 3);
   }
   // test values
   {
-    constexpr auto arr1 = MakeLiteralArray("aafc");
-    static_assert(0xAA == arr1.value_[0]);
-    static_assert(0xFC == arr1.value_[1]);
-    TEST_ASSERT_EQUAL(0xAA, arr1.value_[0]);
-    TEST_ASSERT_EQUAL(0xFC, arr1.value_[1]);
+    constexpr auto arr1 = MakeArray("aafc");
+    static_assert(0xAA == arr1[0]);
+    static_assert(0xFC == arr1[1]);
+    TEST_ASSERT_EQUAL(0xAA, arr1[0]);
+    TEST_ASSERT_EQUAL(0xFC, arr1[1]);
 
-    constexpr auto arr2 = MakeLiteralArray("aaf");
-    TEST_ASSERT_EQUAL(0xAA, arr2.value_[0]);
-    TEST_ASSERT_EQUAL(0x0F, arr2.value_[1]);
+    constexpr auto arr2 = MakeArray("aaf");
+    TEST_ASSERT_EQUAL(0xAA, arr2[0]);
+    TEST_ASSERT_EQUAL(0x0F, arr2[1]);
 
-    constexpr auto arr3 = MakeLiteralArray("AAFC1");
-    TEST_ASSERT_EQUAL(0xAA, arr3.value_[0]);
-    TEST_ASSERT_EQUAL(0xFC, arr3.value_[1]);
-    TEST_ASSERT_EQUAL(0x01, arr3.value_[2]);
+    constexpr auto arr3 = MakeArray("AAFC1");
+    TEST_ASSERT_EQUAL(0xAA, arr3[0]);
+    TEST_ASSERT_EQUAL(0xFC, arr3[1]);
+    TEST_ASSERT_EQUAL(0x01, arr3[2]);
   }
-  // convert ot array
   {
-    constexpr auto arr1 = static_cast<
-        std::array<std::uint8_t, 32>>(MakeLiteralArray(
-        "EDA3B86DCFC1CBCCFE2F4408B69C3C622EAC4F868D7CA4D9C0C576A1A6C87B44"));
+    constexpr auto arr_hydro = MakeArray(
+        "883B4D7E0FB04A38CA12B3A451B00942048858263EE6E"
+        "6D61150F2EF15F40343");
+
+    constexpr auto arr1 = static_cast<std::array<std::uint8_t, 32>>(
+        MakeArray("EDA3B86DCFC1CBCCFE2F"
+                  "4408B69C3C622EAC4F868D7CA4D9C0C576A1A6C87B44"));
 
     std::uint8_t expected[] = {0xED, 0xA3, 0xB8, 0x6D, 0xCF, 0xC1, 0xCB, 0xCC,
                                0xFE, 0x2F, 0x44, 0x08, 0xB6, 0x9C, 0x3C, 0x62,
@@ -69,7 +64,7 @@ void test_LiteralArray() {
     static_assert(0xA3 == arr1[1]);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, arr1.data(), arr1.size());
 
-    auto lit_array_2 = MakeLiteralArray(
+    auto lit_array_2 = MakeArray(
         "346B06C1D264D9ED9F48021F43CA582A66A2560B693F99E01381E1DC9BE825D1EDA3B8"
         "6DCFC1CBCCFE2F4408B69C3C622EAC4F868D7CA4D9C0C576A1A6C87B44");
     auto arr2 = static_cast<std::array<std::uint8_t, 64>>(lit_array_2);
