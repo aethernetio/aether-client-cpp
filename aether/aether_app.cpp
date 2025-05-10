@@ -84,13 +84,13 @@ Ptr<AetherApp> AetherApp::Construct(AetherAppConstructor&& constructor) {
 #  if AE_SIGNATURE == AE_ED25519
     app->aether_->crypto->signs_pk_[ae::SignatureMethod::kEd25519] =
         ae::SodiumSignPublicKey{
-            ae::MakeLiteralArray("4F202A94AB729FE9B381613AE77A8A7D89EDAB9299C33"
-                                 "20D1A0B994BA710CCEB")};
+            MakeArray("4F202A94AB729FE9B381613AE77A8A7D89EDAB9299C33"
+                      "20D1A0B994BA710CCEB")};
 #  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
     app->aether_->crypto->signs_pk_[ae::SignatureMethod::kHydroSignature] =
         ae::HydrogenSignPublicKey{
-            ae::MakeLiteralArray("883B4D7E0FB04A38CA12B3A451B00942048858263EE6E"
-                                 "6D61150F2EF15F40343")};
+            MakeArray("883B4D7E0FB04A38CA12B3A451B00942048858263EE6E"
+                      "6D61150F2EF15F40343")};
 #  endif  // AE_SIGNATURE == AE_ED25519
   } else {
     app->aether_->crypto->signs_pk_ = std::move(constructor.signed_keys_);
