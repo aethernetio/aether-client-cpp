@@ -128,7 +128,8 @@ void DriverSpifsV1::DriverFormat() {
   esp_err_t err = esp_spiffs_format(kPartition);
 
   if (err != ESP_OK) {
-    AE_TELE_ERROR(FsFormat, "Failed to format SPIFFS ({})", esp_err_to_name(err));
+    AE_TELE_ERROR(FsFormat, "Failed to format SPIFFS ({})",
+                  esp_err_to_name(err));
   }
 }
 
@@ -150,7 +151,7 @@ esp_err_t DriverSpifsV1::DriverInit_() {
         AE_TELE_ERROR(FsDriverInit, "Failed to find SPIFFS partition");
       } else {
         AE_TELE_ERROR(FsDriverInit, "Failed to initialize SPIFFS ({})",
-                       esp_err_to_name(ret));
+                      esp_err_to_name(ret));
       }
       return ret;
     }
@@ -159,10 +160,12 @@ esp_err_t DriverSpifsV1::DriverInit_() {
   size_t total = 0, used = 0;
   ret = esp_spiffs_info(kPartition, &total, &used);
   if (ret != ESP_OK) {
-    AE_TELE_ERROR(FsDriverInit, "Failed to get SPIFFS partition information ({})",
-                   esp_err_to_name(ret));
+    AE_TELE_ERROR(FsDriverInit,
+                  "Failed to get SPIFFS partition information ({})",
+                  esp_err_to_name(ret));
   } else {
-    AE_TELE_INFO(FsDriverInit, "Partition size: total: {}, used: {}", total, used);
+    AE_TELE_INFO(FsDriverInit, "Partition size: total: {}, used: {}", total,
+                 used);
   }
   return ESP_OK;
 }

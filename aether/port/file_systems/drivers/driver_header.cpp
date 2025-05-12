@@ -22,7 +22,7 @@
 #include "aether/port/file_systems/drivers/driver_header.h"
 #include "aether/port/file_systems/drivers/driver_functions.h"
 #include "aether/transport/low_level/tcp/data_packet_collector.h"
-#  include "aether/port/file_systems/file_systems_tele.h"
+#include "aether/port/file_systems/file_systems_tele.h"
 #include "aether/tele/tele.h"
 
 constexpr char string1[] = "#ifndef CONFIG_FILE_SYSTEM_INIT_H_";
@@ -120,15 +120,15 @@ void DriverHeader::DriverRead(const std::string &path,
       return;
     }
 
-    AE_TELE_DEBUG(FsObjLoaded, "Object id={} & class id = {} version {} loaded!",
-                   path_struct.obj_id.ToString(), path_struct.class_id,
-                   std::to_string(path_struct.version));
+    AE_TELE_DEBUG(FsObjLoaded, "Object id={} & class id={} version {} loaded!",
+                  path_struct.obj_id.ToString(), path_struct.class_id,
+                  std::to_string(path_struct.version));
     data_vector = version_it->second;
 
     AE_TELE_DEBUG(FsObjLoaded, "Loaded state/{}/{}/{} size: {}",
-                   std::to_string(path_struct.version),
-                   path_struct.obj_id.ToString(), path_struct.class_id,
-                   data_vector.size());
+                  std::to_string(path_struct.version),
+                  path_struct.obj_id.ToString(), path_struct.class_id,
+                  data_vector.size());
   }
 }
 
