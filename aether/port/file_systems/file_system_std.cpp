@@ -27,7 +27,6 @@ namespace ae {
 FileSystemStdFacility::FileSystemStdFacility() {
   driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverNone,
                                                  DriverFsType::kDriverStd);
-  std::setlocale(LC_ALL, "");
   AE_TELED_DEBUG("New FileSystemStdFacility instance created!");
 }
 

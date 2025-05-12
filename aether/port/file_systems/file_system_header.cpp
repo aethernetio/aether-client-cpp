@@ -71,7 +71,7 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
   AE_TELED_DEBUG("Saved state/{}/{}/{} size: {}", std::to_string(version),
                  obj_id.ToString(), class_id, os.size());
 
-  AE_TELED_DEBUG("Object id={} & class id = {} saved!", obj_id.ToString(),
+  AE_TELED_DEBUG("Object id={} & class id={} saved!", obj_id.ToString(),
                  class_id);
 
   // Writing ObjClassData
