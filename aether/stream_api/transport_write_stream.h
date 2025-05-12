@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_TRANSPORT_WRITE_GATE_H_
-#define AETHER_STREAM_API_TRANSPORT_WRITE_GATE_H_
+#ifndef AETHER_STREAM_API_TRANSPORT_WRITE_STREAM_H_
+#define AETHER_STREAM_API_TRANSPORT_WRITE_STREAM_H_
 
 #include "aether/common.h"
 #include "aether/memory.h"
@@ -27,7 +27,7 @@
 #include "aether/stream_api/istream.h"
 
 namespace ae {
-class TransportWriteGate final : public ByteIGate {
+class TransportWriteStream final : public ByteIStream {
   class TransportStreamWriteAction final : public StreamWriteAction {
    public:
     explicit TransportStreamWriteAction(
@@ -43,16 +43,14 @@ class TransportWriteGate final : public ByteIGate {
   };
 
  public:
-  TransportWriteGate(ActionContext action_context, ITransport& transport);
-  ~TransportWriteGate() override;
+  TransportWriteStream(ActionContext action_context, ITransport& transport);
+  ~TransportWriteStream() override;
 
-  AE_CLASS_NO_COPY_MOVE(TransportWriteGate)
+  AE_CLASS_NO_COPY_MOVE(TransportWriteStream)
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
-                                      TimePoint current_time) override;
+  ActionView<StreamWriteAction> Write(DataBuffer&& buffer) override;
   OutDataEvent::Subscriber out_data_event() override;
-  GateUpdateEvent::Subscriber gate_update_event() override;
-
+  StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;
 
  private:
@@ -62,9 +60,8 @@ class TransportWriteGate final : public ByteIGate {
   ITransport* transport_;
 
   StreamInfo stream_info_;
-
   OutDataEvent out_data_event_;
-  GateUpdateEvent gate_update_event_;
+  StreamUpdateEvent stream_update_event_;
 
   Subscription transport_connection_subscription_;
   Subscription transport_disconnection_subscription_;
@@ -75,4 +72,4 @@ class TransportWriteGate final : public ByteIGate {
 };
 }  // namespace ae
 
-#endif  // AETHER_STREAM_API_TRANSPORT_WRITE_GATE_H_
+#endif  // AETHER_STREAM_API_TRANSPORT_WRITE_STREAM_H_

@@ -26,20 +26,21 @@ list(APPEND test_srcs
   protocol-stream/test_protocol_stream.cpp
   templated-streams/test_templated_streams.cpp
   client-to-server-stream/test_client_to_server_stream.cpp
+  test-tied-gates.cpp
 )
 
 if(NOT CM_PLATFORM)
 
-   project(test-stream LANGUAGES CXX)
+  project(test-stream LANGUAGES CXX)
 
-   add_executable(${PROJECT_NAME})
-   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
-   # for aether
-   target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
-   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-   target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
+  add_executable(${PROJECT_NAME})
+  target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
+  # for aether
+  target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+  target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
+  target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
 
-   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
+  add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()
-    message(WARNING "Not implemented for ${CM_PLATFORM}")
+  message(WARNING "Not implemented for ${CM_PLATFORM}")
 endif()

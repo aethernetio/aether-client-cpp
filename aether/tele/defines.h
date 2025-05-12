@@ -28,12 +28,16 @@
 #  error "Include tele.h instead"
 #endif
 
+#ifndef UTM_ID
+#  define UTM_ID 0
+#endif
+
 namespace ae::tele {
 using ae::tele::EnvTele;
 using ae::tele::Tele;
 }  // namespace ae::tele
 
-/// A special tag for telemetry debug debug
+// A special tag for telemetry debug debug
 
 AE_TELE_MODULE(MLog, AE_LOG_MODULE);
 AE_TAG_INDEXED(kLog, MLog, AE_LOG_MODULE)
@@ -65,7 +69,7 @@ AE_TAG_INDEXED(kLog, MLog, AE_LOG_MODULE)
 // Log environment data
 #define AE_TELE_ENV(...)                                                      \
   [[maybe_unused]] ::ae::tele::EnvTele<TELE_SINK> AE_UNIQUE_NAME(TELE_ENV_) { \
-    TELE_SINK::Instance() __VA_ARGS__                                         \
+    TELE_SINK::Instance(), UTM_ID __VA_ARGS__                                 \
   }
 
 #endif  // AETHER_TELE_DEFINES_H_ */

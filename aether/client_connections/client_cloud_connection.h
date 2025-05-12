@@ -29,8 +29,6 @@
 #include "aether/events/multi_subscription.h"
 
 #include "aether/stream_api/istream.h"
-#include "aether/stream_api/stream_api.h"
-#include "aether/stream_api/splitter_gate.h"
 
 #include "aether/client_connections/client_connection.h"
 #include "aether/client_connections/client_server_connection.h"
@@ -50,10 +48,9 @@ class ClientCloudConnection final : public ClientConnection {
       ActionContext action_context, ObjPtr<Cloud> const& cloud,
       std::unique_ptr<IServerConnectionFactory>&& server_connection_factory);
 
-  std::unique_ptr<ByteStream> CreateStream(Uid destination_uid,
-                                           StreamId stream_id) override;
+  std::unique_ptr<ByteIStream> CreateStream(Uid destination_uid) override;
   NewStreamEvent::Subscriber new_stream_event() override;
-  void CloseStream(Uid uid, StreamId stream_id) override;
+  void CloseStream(Uid uid) override;
 
   AE_REFLECT()
 
@@ -64,7 +61,7 @@ class ClientCloudConnection final : public ClientConnection {
 
   void OnConnected();
   void OnConnectionError();
-  void NewStream(Uid uid, ByteStream& stream);
+  void NewStream(Uid uid, ByteIStream& stream);
 
   ActionContext action_context_;
   ServerConnectionSelector server_connection_selector_;
@@ -76,12 +73,11 @@ class ClientCloudConnection final : public ClientConnection {
 
   NewStreamEvent new_stream_event_;
   Subscription new_stream_event_subscription_;
-  MultiSubscription new_split_stream_subscription_;
 
   Subscription connection_status_sub_;
 
   // known streams to clients
-  std::map<Uid, std::unique_ptr<SplitterGate>> gates_;
+  std::map<Uid, std::unique_ptr<ByteStream>> streams_;
 
   ReconnectNotify reconnect_notify_;
   NextServerLoopTimer next_server_loop_timer_;

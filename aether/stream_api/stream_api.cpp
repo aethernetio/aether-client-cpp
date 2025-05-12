@@ -77,74 +77,52 @@ static constexpr std::size_t kStreamMessageOverhead =
 
 StreamApiGate::StreamApiGate(ProtocolContext& protocol_context,
                              StreamId stream_id)
-    : protocol_context_{std::ref(protocol_context)}, stream_id_{stream_id} {
+    : protocol_context_{&protocol_context}, stream_id_{stream_id} {
   read_subscription_ =
-      protocol_context_.get().MessageEvent<StreamApi::Stream>().Subscribe(
+      protocol_context_->MessageEvent<StreamApi::Stream>().Subscribe(
           *this, MethodPtr<&StreamApiGate::OnStream>{});
 }
 
 StreamApiGate::StreamApiGate(StreamApiGate&& other) noexcept
-    : ByteGate(std::move(other)),
-      protocol_context_{other.protocol_context_},
-      stream_id_{other.stream_id_} {
+    : protocol_context_{other.protocol_context_}, stream_id_{other.stream_id_} {
   read_subscription_ =
-      protocol_context_.get().MessageEvent<StreamApi::Stream>().Subscribe(
+      protocol_context_->MessageEvent<StreamApi::Stream>().Subscribe(
           *this, MethodPtr<&StreamApiGate::OnStream>{});
 }
 
 StreamApiGate& StreamApiGate::operator=(StreamApiGate&& other) noexcept {
   if (this != &other) {
-    ByteGate::operator=(std::move(other));
     protocol_context_ = other.protocol_context_;
     stream_id_ = other.stream_id_;
     read_subscription_ =
-        protocol_context_.get().MessageEvent<StreamApi::Stream>().Subscribe(
+        protocol_context_->MessageEvent<StreamApi::Stream>().Subscribe(
             *this, MethodPtr<&StreamApiGate::OnStream>{});
   }
   return *this;
 }
 
-ActionView<StreamWriteAction> StreamApiGate::Write(DataBuffer&& buffer,
-                                                   TimePoint current_time) {
-  assert(out_);
-  return out_->Write(
-      PacketBuilder{
-          protocol_context_.get(),
-          PackMessage{
-              StreamApi{},
-              StreamApi::Stream{{}, stream_id_, std::move(buffer)},
-          },
-      },
-      current_time);
+DataBuffer StreamApiGate::WriteIn(DataBuffer&& buffer) {
+  return PacketBuilder{*protocol_context_,
+                       PackMessage{
+                           StreamApi{},
+                           StreamApi::Stream{{}, stream_id_, std::move(buffer)},
+                       }};
 }
 
-void StreamApiGate::LinkOut(OutGate& out) {
-  out_ = &out;
-  // do not subscribe to out data event
-  // data would be read in read_subscription_
-  gate_update_subscription_ = out_->gate_update_event().Subscribe(
-      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
-  gate_update_event_.Emit();
+void StreamApiGate::WriteOut(DataBuffer const& buffer) {
+  out_data_event_.Emit(buffer);
 }
 
-StreamInfo StreamApiGate::stream_info() const {
-  assert(out_);
-  auto s_info = out_->stream_info();
-  s_info.max_element_size =
-      s_info.max_element_size > kStreamMessageOverhead
-          ? s_info.max_element_size - kStreamMessageOverhead
-          : 0;
-  return s_info;
+EventSubscriber<void(DataBuffer const& data)> StreamApiGate::out_data_event() {
+  return EventSubscriber{out_data_event_};
 }
 
-void StreamApiGate::PutData(DataBuffer const& data) {
-  out_data_event_.Emit(data);
-}
+std::size_t StreamApiGate::Overhead() const { return kStreamMessageOverhead; }
 
 void StreamApiGate::OnStream(MessageEventData<StreamApi::Stream> const& msg) {
   auto const& message = msg.message();
   if (stream_id_ == message.stream_id) {
-    PutData(message.child_data.PackData());
+    out_data_event_.Emit(message.child_data.PackData());
   }
 }
 

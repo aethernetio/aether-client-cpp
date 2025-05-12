@@ -28,19 +28,17 @@ void Receiver::Connect() {
   client_connection_ = client_->client_connection();
 
   message_stream_received_ = client_connection_->new_stream_event().Subscribe(
-      [this](auto uid, auto stream_id, auto stream) {
+      [this](auto uid, auto stream) {
         AE_TELED_DEBUG("Received message stream from {}", uid);
         message_stream_ = make_unique<P2pStream>(action_context_, client_, uid,
-                                                 stream_id, std::move(stream));
-        protocol_read_gate_ =
-            make_unique<ProtocolReadGate>(protocol_context_, BandwidthApi{});
-        Tie(*protocol_read_gate_, *message_stream_);
+                                                 std::move(stream));
+        recv_data_sub_ = message_stream_->out_data_event().Subscribe(
+            *this, MethodPtr<&Receiver::OnRecvData>{});
       });
 }
 
 void Receiver::Disconnect() {
   client_connection_.Reset();
-  protocol_read_gate_.reset();
   message_stream_.reset();
 }
 
@@ -50,11 +48,9 @@ EventSubscriber<void()> Receiver::Handshake() {
           [this](auto const& msg) {
             auto req_id = msg.message().request_id;
             AE_TELED_DEBUG("Received handshake request {}", req_id);
-            message_stream_->in().Write(
-                PacketBuilder{
-                    protocol_context_,
-                    PackMessage{ReturnResultApi{}, SendResult{req_id, true}}},
-                Now());
+            message_stream_->Write(PacketBuilder{
+                protocol_context_,
+                PackMessage{ReturnResultApi{}, SendResult{req_id, true}}});
 
             handshake_made_.Emit();
           });
@@ -162,6 +158,12 @@ std::unique_ptr<MessageReceiver<T>> Receiver::CreateTestAction(
           [this](auto const&) { error_event_.Emit(); }));
 
   return action;
+}
+
+void Receiver::OnRecvData(DataBuffer const& data) {
+  auto parser = ApiParser{protocol_context_, data};
+  auto api = BandwidthApi{};
+  parser.Parse(api);
 }
 
 }  // namespace ae::bench

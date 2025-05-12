@@ -24,7 +24,6 @@
 #include "aether/events/events.h"
 #include "aether/events/event_subscription.h"
 
-#include "aether/stream_api/protocol_stream.h"
 #include "aether/api_protocol/protocol_context.h"
 
 #include "aether/client_messages/message_stream.h"

@@ -42,7 +42,7 @@ class SenderSyncAction : public Action<SenderSyncAction> {
  public:
   explicit SenderSyncAction(ActionContext action_context,
                             ProtocolContext& protocol_context,
-                            ByteStream& stream);
+                            ByteIStream& stream);
 
   TimePoint Update(TimePoint current_time) override;
 
@@ -51,7 +51,7 @@ class SenderSyncAction : public Action<SenderSyncAction> {
   TimePoint CheckInterval(TimePoint current_time);
 
   ProtocolContext& protocol_context_;
-  ByteStream* stream_;
+  ByteIStream* stream_;
 
   StateMachine<State> state_;
   std::size_t current_repeat_;

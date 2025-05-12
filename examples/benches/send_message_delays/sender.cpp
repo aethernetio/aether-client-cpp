@@ -31,21 +31,22 @@ Sender::Sender(ActionContext action_context, Client::ptr client,
     : action_context_{action_context},
       client_{std::move(client)},
       destination_uid_{destination_uid},
-      safe_stream_config_{safe_stream_config} {}
+      safe_stream_config_{safe_stream_config},
+      split_stream_connection_{make_unique<SplitStreamCloudConnection>(
+          action_context_, client_, *client_->client_connection())} {}
 
 void Sender::ConnectP2pStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pStream()");
 
-  send_message_stream_ = make_unique<P2pStream>(action_context_, client_,
-                                                destination_uid_, StreamId{0});
+  send_message_stream_ =
+      split_stream_connection_->CreateStream(destination_uid_, StreamId{0});
 }
 
 void Sender::ConnectP2pSafeStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pSafeStream()");
   send_message_stream_ = make_unique<P2pSafeStream>(
       action_context_, safe_stream_config_,
-      make_unique<P2pStream>(action_context_, client_, destination_uid_,
-                             StreamId{1}));
+      split_stream_connection_->CreateStream(destination_uid_, StreamId{1}));
 }
 
 void Sender::Disconnect() {

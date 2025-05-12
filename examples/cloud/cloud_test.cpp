@@ -143,7 +143,7 @@ class CloudTestAction : public Action<CloudTestAction> {
 
       for (auto i = clients_registered_; i < 2; i++) {
         auto reg_action = aether_->RegisterClient(
-            Uid{MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
+            Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
         registration_subscriptions_.Push(
             reg_action->ResultEvent().Subscribe([&](auto const&) {
               ++clients_registered_;
@@ -182,14 +182,13 @@ class CloudTestAction : public Action<CloudTestAction> {
     auto receiver_connection = receiver_->client_connection();
     receiver_new_stream_subscription_ =
         receiver_connection->new_stream_event().Subscribe([&](auto uid,
-                                                              auto stream_id,
                                                               auto raw_stream) {
           receiver_stream_ = make_unique<P2pSafeStream>(
               *aether_->action_processor, kSafeStreamConfig,
               make_unique<P2pStream>(*aether_->action_processor, receiver_, uid,
-                                     stream_id, std::move(raw_stream)));
+                                     std::move(raw_stream)));
           receiver_message_subscription_ =
-              receiver_stream_->in().out_data_event().Subscribe(
+              receiver_stream_->out_data_event().Subscribe(
                   [&](auto const& data) {
                     auto str_msg =
                         std::string(reinterpret_cast<const char*>(data.data()),
@@ -197,10 +196,9 @@ class CloudTestAction : public Action<CloudTestAction> {
                     AE_TELED_DEBUG("Received a message [{}]", str_msg);
                     receive_count_++;
                     auto confirm_msg = std::string{"confirmed "} + str_msg;
-                    auto response_action = receiver_stream_->in().Write(
+                    auto response_action = receiver_stream_->Write(
                         {confirm_msg.data(),
-                         confirm_msg.data() + confirm_msg.size()},
-                        ae::Now());
+                         confirm_msg.data() + confirm_msg.size()});
                     response_subscriptions_.Push(
                         response_action->ErrorEvent().Subscribe(
                             [&](auto const&) {
@@ -226,9 +224,9 @@ class CloudTestAction : public Action<CloudTestAction> {
     sender_stream_ = make_unique<P2pSafeStream>(
         *aether_->action_processor, kSafeStreamConfig,
         make_unique<P2pStream>(*aether_->action_processor, sender_,
-                               receiver_->uid(), StreamId{0}));
+                               receiver_->uid()));
     sender_message_subscription_ =
-        sender_stream_->in().out_data_event().Subscribe([&](auto const& data) {
+        sender_stream_->out_data_event().Subscribe([&](auto const& data) {
           auto str_response = std::string(
               reinterpret_cast<const char*>(data.data()), data.size());
           AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
@@ -245,8 +243,8 @@ class CloudTestAction : public Action<CloudTestAction> {
   void SendMessages(TimePoint current_time) {
     AE_TELED_INFO("Send messages");
     for (auto const& msg : messages_) {
-      auto send_action = sender_stream_->in().Write(
-          DataBuffer{std::begin(msg), std::end(msg)}, current_time);
+      auto send_action =
+          sender_stream_->Write(DataBuffer{std::begin(msg), std::end(msg)});
       send_subscriptions_.Push(
           send_action->ErrorEvent().Subscribe([&](auto const&) {
             AE_TELED_ERROR("Send message failed");
@@ -260,9 +258,9 @@ class CloudTestAction : public Action<CloudTestAction> {
   Aether::ptr aether_;
 
   Client::ptr receiver_;
-  std::unique_ptr<ByteStream> receiver_stream_;
+  std::unique_ptr<ByteIStream> receiver_stream_;
   Client::ptr sender_;
-  std::unique_ptr<ByteStream> sender_stream_;
+  std::unique_ptr<ByteIStream> sender_stream_;
   std::size_t clients_registered_;
   std::size_t receive_count_;
   std::size_t confirm_count_;

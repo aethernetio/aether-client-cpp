@@ -152,12 +152,15 @@ void IoStreamTrap::EnvStream::api_version(char const* api_version) {
 void IoStreamTrap::EnvStream::cpu_type(char const* cpu_type) {
   stream_ << "CPU type:" << cpu_type << '\n';
 }
-void IoStreamTrap::EnvStream::endianness(uint8_t endianness) {
+void IoStreamTrap::EnvStream::endianness(std::uint8_t endianness) {
   stream_ << "Endianness:"
-          << (endianness == static_cast<uint8_t>(AE_LITTLE_ENDIAN)
+          << (endianness == static_cast<std::uint8_t>(AE_LITTLE_ENDIAN)
                   ? "LittleEndian"
                   : "BigEndian")
           << '\n';
+}
+void IoStreamTrap::EnvStream::utmid(std::uint32_t utm_id) {
+  stream_ << "UTM ID:" << utm_id << '\n';
 }
 
 IoStreamTrap::EnvStream IoStreamTrap::env_stream() {

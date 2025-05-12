@@ -14,16 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef TESTS_TEST_STREAM_MOCK_READ_GATE_H_
-#define TESTS_TEST_STREAM_MOCK_READ_GATE_H_
+#ifndef AETHER_STREAM_API_SIZED_PACKET_GATE_H_
+#define AETHER_STREAM_API_SIZED_PACKET_GATE_H_
 
 #include "aether/stream_api/istream.h"
+#include "aether/transport/low_level/tcp/data_packet_collector.h"
 
 namespace ae {
-class MockReadStream : public ByteGate {
+class SizedPacketGate {
  public:
-  MockReadStream() = default;
+  DataBuffer WriteIn(DataBuffer&& buffer);
+  void WriteOut(DataBuffer const& buffer);
+  std::size_t Overhead() const;
+  EventSubscriber<void(DataBuffer const& data)> out_data_event();
+
+ private:
+  void DataReceived(DataBuffer const& buffer);
+
+  StreamDataPacketCollector data_packet_collector_;
+  Event<void(DataBuffer const& data)> out_data_event_;
 };
 }  // namespace ae
-
-#endif  // TESTS_TEST_STREAM_MOCK_READ_GATE_H_
+#endif  // AETHER_STREAM_API_SIZED_PACKET_GATE_H_

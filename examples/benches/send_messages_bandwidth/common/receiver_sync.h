@@ -40,7 +40,7 @@ class ReceiverSyncAction : public Action<ReceiverSyncAction> {
 
  public:
   ReceiverSyncAction(ActionContext action_context,
-                     ProtocolContext& protocol_context, ByteStream& stream);
+                     ProtocolContext& protocol_context, ByteIStream& stream);
 
   TimePoint Update(TimePoint current_time) override;
 
@@ -49,7 +49,7 @@ class ReceiverSyncAction : public Action<ReceiverSyncAction> {
   TimePoint CheckTimeout(TimePoint current_time);
 
   ProtocolContext& protocol_context_;
-  ByteStream* stream_;
+  ByteIStream* stream_;
 
   StateMachine<State> state_;
   TimePoint start_time_;

@@ -56,7 +56,8 @@ struct NullTrap {
     void library_version(char const* /* library_version */) {}
     void api_version(char const* /* api_version */) {}
     void cpu_type(char const* /* cpu_type */) {}
-    void endianness(uint8_t /* endianness */) {}
+    void endianness(std::uint8_t /* endianness */) {}
+    void utmid(std::uint32_t /* utm_id */) {}
   };
 
   EnvStream env_stream() { return {}; }

@@ -149,10 +149,10 @@ class RegisteredAction : public Action<RegisteredAction> {
       auto sender_stream = make_unique<P2pSafeStream>(
           *aether_->action_processor, kSafeStreamConfig,
           make_unique<P2pStream>(*aether_->action_processor, client,
-                                 client->uid(), StreamId{clients_cnt}));
+                                 client->uid()));
       sender_streams_.emplace_back(std::move(sender_stream));
       sender_message_subscriptions_.Push(
-          sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+          sender_streams_[clients_cnt]->out_data_event().Subscribe(
               [&](auto const& data) {
                 auto str_response = std::string(
                     reinterpret_cast<const char*>(data.data()), data.size());
@@ -161,17 +161,15 @@ class RegisteredAction : public Action<RegisteredAction> {
                 confirm_count_++;
               }));
       receiver_message_subscriptions_.Push(
-          sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+          sender_streams_[clients_cnt]->out_data_event().Subscribe(
               [&](auto const& data) {
                 auto str_msg = std::string(
                     reinterpret_cast<const char*>(data.data()), data.size());
                 AE_TELED_DEBUG("Received a message [{}]", str_msg);
                 auto confirm_msg = std::string{"confirmed "} + str_msg;
-                auto response_action =
-                    sender_streams_[receive_count_++]->in().Write(
-                        {confirm_msg.data(),
-                         confirm_msg.data() + confirm_msg.size()},
-                        ae::Now());
+                auto response_action = sender_streams_[receive_count_++]->Write(
+                    {confirm_msg.data(),
+                     confirm_msg.data() + confirm_msg.size()});
                 response_subscriptions_.Push(
                     response_action->ErrorEvent().Subscribe([&](auto const&) {
                       AE_TELED_ERROR("Send response failed");
@@ -195,8 +193,8 @@ class RegisteredAction : public Action<RegisteredAction> {
     for (auto const& sender_stream : sender_streams_) {
       auto msg = messages_[messages_cnt++];
       AE_TELED_DEBUG("Sending message {}", msg);
-      auto send_action = sender_stream->in().Write(
-          DataBuffer{std::begin(msg), std::end(msg)}, current_time);
+      auto send_action =
+          sender_stream->Write(DataBuffer{std::begin(msg), std::end(msg)});
       send_subscriptions_.Push(
           send_action->ErrorEvent().Subscribe([&](auto const&) {
             AE_TELED_ERROR("Send message failed");

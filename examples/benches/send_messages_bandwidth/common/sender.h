@@ -25,7 +25,7 @@
 #include "aether/events/events.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/stream_api/istream.h"
-#include "aether/stream_api/protocol_stream.h"
+#include "aether/stream_api/protocol_gates.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
 #include "send_messages_bandwidth/common/sender_sync.h"
@@ -59,6 +59,8 @@ class Sender {
   std::unique_ptr<MessageSender<BandwidthApi, T>> CreateTestAction(
       std::size_t message_count);
 
+  void OnRecvData(DataBuffer const& data);
+
   ActionContext action_context_;
   Client::ptr client_;
   Uid destination_;
@@ -69,8 +71,7 @@ class Sender {
   Event<void()> sync_made_;
   Event<void()> error_event_;
 
-  std::unique_ptr<ByteStream> message_stream_;
-  ProtocolReadGate<BandwidthApi> response_read_;
+  std::unique_ptr<ByteIStream> message_stream_;
 
   std::optional<SenderSyncAction> sync_action_;
 
@@ -85,6 +86,7 @@ class Sender {
   std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::VarMessageSize>>
       variable_size_;
 
+  Subscription on_recv_data_sub_;
   MultiSubscription test_subscriptions_;
 };
 }  // namespace ae::bench

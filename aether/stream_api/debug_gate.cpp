@@ -24,28 +24,13 @@ namespace ae {
 DebugGate::DebugGate(std::string in_format, std::string out_format)
     : in_format_{std::move(in_format)}, out_format_{std::move(out_format)} {}
 
-ActionView<StreamWriteAction> DebugGate::Write(ByteGate::TypeIn&& in_data,
-                                               TimePoint current_time) {
-  assert(out_);
-  AE_TELED_DEBUG(in_format_.c_str(), in_data);
-  return out_->Write(std::move(in_data), current_time);
+DataBuffer DebugGate::WriteIn(DataBuffer buffer) {
+  AE_TELED_DEBUG(in_format_.c_str(), buffer);
+  return buffer;
 }
 
-void DebugGate::LinkOut(OutGate& out) {
-  out_ = &out;
-
-  out_data_subscription_ = out.out_data_event().Subscribe(
-      *this, MethodPtr<&DebugGate::OnDataEvent>{});
-
-  gate_update_subscription_ = out.gate_update_event().Subscribe(
-      gate_update_event_, MethodPtr<&GateUpdateEvent::Emit>{});
-
-  gate_update_event_.Emit();
+DataBuffer DebugGate::WriteOut(DataBuffer buffer) {
+  AE_TELED_DEBUG(out_format_.c_str(), buffer);
+  return buffer;
 }
-
-void DebugGate::OnDataEvent(DataBuffer const& out_data) {
-  AE_TELED_DEBUG(out_format_.c_str(), out_data);
-  out_data_event_.Emit(out_data);
-}
-
 }  // namespace ae

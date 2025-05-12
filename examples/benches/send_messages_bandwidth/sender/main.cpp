@@ -42,7 +42,7 @@ int test_sender_bandwidth(Uid receiver_uid) {
   if (aether_app->aether()->clients().empty()) {
 #if AE_SUPPORT_REGISTRATION
     auto client_register = aether_app->aether()->RegisterClient(
-        ae::Uid{ae::MakeLiteralArray("3ac931653d37497087a6fa4ee27744e4")});
+        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
 
     bool register_done = false;
     bool register_failed = false;
@@ -112,14 +112,6 @@ int main(int argc, char** argv) {
     return 1;
   }
   auto uid_str = std::string(argv[1]);
-  auto uid_arr = ae::MakeArray(uid_str);
-  if (uid_arr.size() != ae::Uid::kSize) {
-    std::cerr << "Uid size must be " << ae::Uid::kSize << " bytes\n";
-    return 2;
-  }
-
-  auto uid = ae::Uid{};
-  std::copy(std::begin(uid_arr), std::end(uid_arr), std::begin(uid.value));
-
+  auto uid = ae::Uid::FromString(uid_str);
   return ae::bench::test_sender_bandwidth(uid);
 }

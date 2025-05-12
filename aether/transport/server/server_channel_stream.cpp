@@ -53,7 +53,7 @@ ServerChannelStream::ServerChannelStream(ObjPtr<Aether> const& aether,
     : action_context_{*aether->action_processor},
       server_{server},
       channel_{channel},
-      buffer_gate_{action_context_, kBufferGateCapacity},
+      buffer_stream_{action_context_, kBufferGateCapacity},
       connection_action_{std::visit(
           [&](auto const& address) {
             return _internal::MakeConnectionAction(
@@ -77,6 +77,22 @@ ServerChannelStream::ServerChannelStream(ObjPtr<Aether> const& aether,
       [this]() { connection_timer_.reset(); });
 }
 
+ActionView<StreamWriteAction> ServerChannelStream::Write(DataBuffer&& data) {
+  return buffer_stream_.Write(std::move(data));
+}
+
+ServerChannelStream::OutDataEvent::Subscriber
+ServerChannelStream::out_data_event() {
+  return buffer_stream_.out_data_event();
+}
+ServerChannelStream::StreamUpdateEvent::Subscriber
+ServerChannelStream::stream_update_event() {
+  return buffer_stream_.stream_update_event();
+}
+StreamInfo ServerChannelStream::stream_info() const {
+  return buffer_stream_.stream_info();
+}
+
 void ServerChannelStream::OnConnected(ChannelConnectionAction& connection) {
   auto channel_ptr = channel_.Lock();
   assert(channel_ptr);
@@ -95,14 +111,14 @@ void ServerChannelStream::OnConnected(ChannelConnectionAction& connection) {
   connection_error_ = transport_->ConnectionError().Subscribe(
       *this, MethodPtr<&ServerChannelStream::OnConnectedFailed>{});
   transport_write_gate_.emplace(action_context_, *transport_);
-  Tie(buffer_gate_, *transport_write_gate_);
+  Tie(buffer_stream_, *transport_write_gate_);
 }
 
 void ServerChannelStream::OnConnectedFailed() {
   AE_TELED_ERROR("ServerChannelStream:OnConnectedFailed");
   connection_timeout_.Reset();
   connection_failed_.Reset();
-  buffer_gate_.Unlink();
+  buffer_stream_.Unlink();
 }
 
 }  // namespace ae

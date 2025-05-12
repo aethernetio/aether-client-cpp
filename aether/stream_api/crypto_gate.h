@@ -14,27 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_SIZED_PACKET_STREAM_H_
-#define AETHER_STREAM_API_SIZED_PACKET_STREAM_H_
+#ifndef AETHER_STREAM_API_CRYPTO_GATE_H_
+#define AETHER_STREAM_API_CRYPTO_GATE_H_
 
-#include "aether/transport/low_level/tcp/data_packet_collector.h"
-
-#include "aether/stream_api/istream.h"
+#include "aether/memory.h"
+#include "aether/crypto/icrypto_provider.h"
 
 namespace ae {
-class SizedPacketGate final : public ByteGate {
+class CryptoGate {
  public:
-  ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
-                                      TimePoint current_time) override;
+  CryptoGate(std::unique_ptr<IEncryptProvider> crypto_encrypt,
+             std::unique_ptr<IDecryptProvider> crypto_decrypt);
 
-  void LinkOut(OutGate& out) override;
-
-  StreamInfo stream_info() const override;
+  DataBuffer WriteIn(DataBuffer buffer);
+  DataBuffer WriteOut(DataBuffer buffer);
+  std::size_t Overhead() const;
 
  private:
-  void DataReceived(DataBuffer const& buffer);
-
-  StreamDataPacketCollector data_packet_collector_;
+  std::unique_ptr<IEncryptProvider> crypto_encrypt_;
+  std::unique_ptr<IDecryptProvider> crypto_decrypt_;
 };
 }  // namespace ae
-#endif  // AETHER_STREAM_API_SIZED_PACKET_STREAM_H_
+
+#endif  // AETHER_STREAM_API_CRYPTO_GATE_H_

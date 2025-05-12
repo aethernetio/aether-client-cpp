@@ -20,8 +20,8 @@
 #include <array>
 #include <tuple>
 #include <string>
+#include <utility>
 #include <optional>
-#include <functional>
 #include <type_traits>
 
 namespace ae {
@@ -37,6 +37,17 @@ constexpr auto reverse_sequence_helper(std::integer_sequence<T, N...>,
 template <typename T, T min, T... N>
 constexpr auto make_range_sequence_helper(std::integer_sequence<T, N...>) {
   return std::integer_sequence<T, (N + min)...>();
+}
+
+template <typename Tuple, std::size_t... Indices>
+auto MakeTypeList(std::index_sequence<Indices...> const&)
+    -> std::tuple<std::tuple_element_t<Indices, Tuple>...>;
+
+template <typename TFunc, typename Tuple, std::size_t... Indices>
+decltype(auto) ApplyByIndices(TFunc&& func, Tuple&& tuple,
+                              std::index_sequence<Indices...> const&) {
+  return std::forward<TFunc>(func)(
+      std::get<Indices>(std::forward<Tuple>(tuple))...);
 }
 }  // namespace _internal
 
@@ -56,6 +67,20 @@ constexpr auto make_range_sequence() {
     return reverse_sequence(_internal::make_range_sequence_helper<T, to>(
         std::make_integer_sequence<T, from - to + 1>()));
   }
+}
+
+template <typename... T>
+struct ReversTypeList {
+  using type = decltype(_internal::MakeTypeList<std::tuple<T...>>(
+      reverse_sequence(std::make_index_sequence<sizeof...(T)>())));
+};
+
+template <typename TFunc, typename... T>
+decltype(auto) ApplyRerverse(TFunc&& func, T&&... args) {
+  return _internal::ApplyByIndices(
+      std::forward<TFunc>(func),
+      std::forward_as_tuple(std::forward<T>(args)...),
+      reverse_sequence(std::make_index_sequence<sizeof...(T)>()));
 }
 
 template <typename T>
@@ -238,6 +263,35 @@ template <template <typename...> typename T, typename... Ts>
 struct TupleToTemplate<T, std::tuple<Ts...>> {
   using type = T<Ts...>;
 };
+
+template <typename Array>
+struct ArraySize;
+
+template <typename T, std::size_t S>
+struct ArraySize<std::array<T, S>> {
+  static constexpr std::size_t value = S;
+};
+
+template <typename Arr1, typename Arr2, std::size_t... Is1, std::size_t... Is2>
+constexpr auto ConcatArraysImpl(Arr1&& arr1, Arr2 arr2,
+                                std::index_sequence<Is1...>,
+                                std::index_sequence<Is2...>) {
+  return std::array{arr1[Is1]..., arr2[Is2]...};
+}
+
+template <typename T, std::size_t Size1, std::size_t Size2>
+constexpr auto ConcatArrays(std::array<T, Size1>&& arr1,
+                            std::array<T, Size2>&& arr2) {
+  return ConcatArraysImpl(std::move(arr1), std::move(arr2),
+                          std::make_index_sequence<Size1>(),
+                          std::make_index_sequence<Size2>());
+}
+
+template <typename T, std::size_t Size1, std::size_t... Sizes>
+constexpr auto ConcatArrays(std::array<T, Size1>&& first,
+                            std::array<T, Sizes>&&... others) {
+  return ConcatArrays(std::move(first), ConcatArrays(std::move(others)...));
+}
 
 }  // namespace ae
 #endif  // AETHER_TYPE_TRAITS_H_ */

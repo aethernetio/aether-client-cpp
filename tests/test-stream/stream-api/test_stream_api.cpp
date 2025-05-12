@@ -22,13 +22,12 @@
 #include "aether/memory.h"
 #include "aether/transport/data_buffer.h"
 
-#include "aether/actions/action_context.h"
+#include "aether/stream_api/stream_api.h"
+#include "aether/actions/action_processor.h"
+
 #include "aether/port/tele_init.h"
 
-#include "aether/stream_api/stream_api.h"
-
-#include "tests/test-stream/mock_read_gate.h"
-#include "tests/test-stream/mock_write_gate.h"
+#include "tests/test-stream/to_data_buffer.h"
 
 namespace ae::test_stream_api {
 
@@ -39,32 +38,25 @@ void test_SteamApiMakePacket() {
   ActionProcessor ap;
   ProtocolContext pc;
 
-  auto written_stream = DataBuffer{};
+  auto written_data = DataBuffer{};
   auto read_data = DataBuffer{};
 
-  auto read_stream = MockReadStream{};
-  auto write_stream = MockWriteGate{ap, std::size_t{100}};
   std::uint8_t const stream_id = 1;
 
   auto stream_api_gate = StreamApiGate{pc, stream_id};
 
-  auto _0 = write_stream.on_write_event().Subscribe([&](auto data, auto) {
-    written_stream = std::move(data);
-    auto parser = ApiParser{pc, written_stream};
-    auto api = StreamApi{};
-    parser.Parse(api);
-  });
-
-  auto _1 = read_stream.out_data_event().Subscribe(
+  stream_api_gate.out_data_event().Subscribe(
       [&](auto data) { read_data = std::move(data); });
 
-  Tie(read_stream, stream_api_gate, write_stream);
+  written_data = stream_api_gate.WriteIn(ToDataBuffer(test_data));
 
-  stream_api_gate.Write({test_data, test_data + sizeof(test_data)}, epoch);
+  auto parser = ApiParser{pc, written_data};
+  auto api = StreamApi{};
+  parser.Parse(api);
 
   ap.Update(epoch += std::chrono::milliseconds{1});
 
-  TEST_ASSERT_EQUAL(sizeof(test_data) + 3, written_stream.size());
+  TEST_ASSERT_EQUAL(sizeof(test_data) + 3, written_data.size());
   TEST_ASSERT(!read_data.empty());
   TEST_ASSERT_EQUAL_STRING(test_data, read_data.data());
 }

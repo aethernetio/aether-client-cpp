@@ -94,20 +94,12 @@ void RegistratorAction::RegisterClients() {
     AE_TELED_INFO("Client registration");
 #if AE_SUPPORT_REGISTRATION
     for (auto p : registrator_config_.GetParents()) {
-      auto uid_str = p.uid_str;
+      auto parent_uid = ae::Uid::FromString(p.uid_str);
+
       auto clients_num = p.clients_num;
 
       for (std::uint8_t i{0}; i < clients_num; i++) {
-        auto uid_arr = ae::MakeArray(uid_str);
-        if (uid_arr.size() != ae::Uid::kSize) {
-          AE_TELED_ERROR("Registration error");
-          state_ = State::kError;
-        }
-        auto uid = ae::Uid{};
-        std::copy(std::begin(uid_arr), std::end(uid_arr),
-                  std::begin(uid.value));
-
-        auto reg_action = aether_->RegisterClient(uid);
+        auto reg_action = aether_->RegisterClient(parent_uid);
 
         registration_subscriptions_.Push(
             reg_action->ResultEvent().Subscribe([&](auto const&) {
@@ -165,11 +157,11 @@ void RegistratorAction::ConfigureSender() {
       auto sender_stream = make_unique<P2pSafeStream>(
           *aether_->action_processor, kSafeStreamConfig,
           make_unique<P2pStream>(*aether_->action_processor, client,
-                                 client->uid(), StreamId{clients_cnt}));
+                                 client->uid()));
       sender_streams_.emplace_back(std::move(sender_stream));
 
       sender_message_subscriptions_.Push(
-          sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+          sender_streams_[clients_cnt]->out_data_event().Subscribe(
               [&](auto const& data) {
                 auto str_response = std::string(
                     reinterpret_cast<const char*>(data.data()), data.size());
@@ -179,17 +171,15 @@ void RegistratorAction::ConfigureSender() {
               }));
 
       receiver_message_subscriptions_.Push(
-          sender_streams_[clients_cnt]->in().out_data_event().Subscribe(
+          sender_streams_[clients_cnt]->out_data_event().Subscribe(
               [&](auto const& data) {
                 auto str_msg = std::string(
                     reinterpret_cast<const char*>(data.data()), data.size());
                 AE_TELED_DEBUG("Received a message [{}]", str_msg);
                 auto confirm_msg = std::string{"confirmed "} + str_msg;
-                auto response_action =
-                    sender_streams_[receive_count_++]->in().Write(
-                        {confirm_msg.data(),
-                         confirm_msg.data() + confirm_msg.size()},
-                        ae::Now());
+                auto response_action = sender_streams_[receive_count_++]->Write(
+                    {confirm_msg.data(),
+                     confirm_msg.data() + confirm_msg.size()});
                 response_subscriptions_.Push(
                     response_action->ErrorEvent().Subscribe([&](auto const&) {
                       AE_TELED_ERROR("Send response failed");
@@ -216,8 +206,8 @@ void RegistratorAction::SendMessages(TimePoint current_time) {
     for (auto const& sender_stream : sender_streams_) {
       auto msg = messages_[messages_cnt++];
       AE_TELED_DEBUG("Sending message {}", msg);
-      auto send_action = sender_stream->in().Write(
-          DataBuffer{std::begin(msg), std::end(msg)}, current_time);
+      auto send_action =
+          sender_stream->Write(DataBuffer{std::begin(msg), std::end(msg)});
       send_subscriptions_.Push(
           send_action->ErrorEvent().Subscribe([&](auto const&) {
             AE_TELED_ERROR("Send message failed");

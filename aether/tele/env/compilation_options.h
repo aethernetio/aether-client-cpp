@@ -140,7 +140,11 @@ constexpr inline auto _compile_options_list = std::array{
 #else
     _OPTION_VALUE(AE_DISTILLATION, 0),
 #endif
-    _OPTION(DEBUG),
+#if defined DEBUG
+    _OPTION_VALUE(DEBUG, 1),
+#else
+    _OPTION_VALUE(DEBUG, 0),
+#endif
 };
 }  // namespace ae
 #endif  // AETHER_TELE_ENV_COMPILATION_OPTIONS_H_ */

@@ -14,26 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef TESTS_TEST_STREAM_SAFE_STREAM_TO_DATA_BUFFER_H_
-#define TESTS_TEST_STREAM_SAFE_STREAM_TO_DATA_BUFFER_H_
+#ifndef AETHER_STREAM_API_BYTE_GATE_H_
+#define AETHER_STREAM_API_BYTE_GATE_H_
 
-#include <vector>
-#include <cstdint>
-#include <cstddef>
+#include "aether/transport/data_buffer.h"
 
 namespace ae {
-
-template <typename TRes, typename T, std::size_t size>
-static auto ToVector(T const (&arr)[size]) {
-  return std::vector<TRes>(reinterpret_cast<TRes const*>(arr),
-                           reinterpret_cast<TRes const*>(arr + size));
-}
-
-template <typename T, std::size_t size>
-static auto ToDataBuffer(T const (&arr)[size]) {
-  return ToVector<std::uint8_t>(arr);
-}
-
+class ByteGate {
+ public:
+  DataBuffer WriteIn(DataBuffer&& data) { return std::move(data); }
+  DataBuffer const& WriteOut(DataBuffer const& data) { return data; }
+};
 }  // namespace ae
 
-#endif  // TESTS_TEST_STREAM_SAFE_STREAM_TO_DATA_BUFFER_H_
+#endif  // AETHER_STREAM_API_BYTE_GATE_H_

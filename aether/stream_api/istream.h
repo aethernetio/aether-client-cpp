@@ -28,198 +28,180 @@
 #include "aether/stream_api/stream_write_action.h"
 
 namespace ae {
+namespace istream_internal {
+template <typename U, typename Enable = void>
+struct SelectOutDataEvent {
+  using type = Event<void()>;
+};
+
+template <typename U>
+struct SelectOutDataEvent<U, std::enable_if_t<!std::is_void_v<U>>> {
+  using type = Event<void(U const& out_data)>;
+};
+}  // namespace istream_internal
+
 struct StreamInfo {
   std::size_t max_element_size;  //< Max size of element available to write,
                                  // mostly the max packet size
   bool is_linked;                //< is stream linked somewhere
-  bool is_writeble;              //< is stream writeable */
+  bool is_writable;              //< is stream writeable */
   bool is_soft_writable;         //< is stream soft writeable (!is_soft_writable
-                                 //&& !is_writeble means write returns error)
+                                 //&& !is_writable means write returns error)
 };
 
 inline bool operator==(StreamInfo const& left, StreamInfo const& right) {
   return (left.max_element_size == right.max_element_size) &&
          (left.is_linked == right.is_linked) &&
          (left.is_soft_writable == right.is_soft_writable) &&
-         (left.is_writeble == right.is_writeble);
+         (left.is_writable == right.is_writable);
 }
 
 inline bool operator!=(StreamInfo const& left, StreamInfo const& right) {
   return !operator==(left, right);
 }
 
-/**
- * \brief Pass TIn data to write through and returns TOut data.
- * To write int and get std::string back specify IGate<int, std::string>
- */
 template <typename TIn, typename TOut>
-class IGate {
+class IStream {
  public:
   using TypeIn = TIn;
   using TypeOut = TOut;
 
-  using OutDataEvent = Event<void(TOut const& out_data)>;
-  using GateUpdateEvent = Event<void()>;
+  using StreamUpdateEvent = Event<void()>;
+  using OutDataEvent =
+      typename istream_internal::SelectOutDataEvent<TOut>::type;
 
-  virtual ~IGate() = default;
+  virtual ~IStream() = default;
 
   /**
-   * \brief Make a write request action through this gate.
+   * \brief Make a write request action through this stream.
    * \param in_data Data to write
-   * \param current_time Current time to control write timeouts
    * \return Action to control write process or subscribe to result.
    */
-  virtual ActionView<StreamWriteAction> Write(TIn&& in_data,
-                                              TimePoint current_time) = 0;
+  virtual ActionView<StreamWriteAction> Write(TIn&& in_data) = 0;
+  /**
+   * \brief Stream update event.
+   */
+  virtual typename StreamUpdateEvent::Subscriber stream_update_event() = 0;
+  /**
+   * \brief Stream info
+   */
+  virtual StreamInfo stream_info() const = 0;
   /**
    * \brief New data received event.
    */
   virtual typename OutDataEvent::Subscriber out_data_event() = 0;
-
-  /**
-   * \brief Gate update event.
-   */
-  virtual GateUpdateEvent::Subscriber gate_update_event() = 0;
-
-  /**
-   * \brief Gate stream info
-   */
-  virtual StreamInfo stream_info() const = 0;
 };
 
-template <typename TIn, typename TOut, typename TWrite, typename TReadOut>
-class Gate : public IGate<TIn, TOut> {
+template <typename TIn, typename TOut, typename TInOut, typename TOutIn>
+class Stream : public IStream<TIn, TOut> {
  public:
-  using Base = IGate<TIn, TOut>;
-  using OutGate = IGate<TWrite, TReadOut>;
+  using Base = IStream<TIn, TOut>;
+  using OutDataEvent = typename Base::OutDataEvent;
+  using StreamUpdateEvent = typename Base::StreamUpdateEvent;
 
-  Gate() = default;
-  AE_CLASS_MOVE_ONLY(Gate)
+  using OutStream = IStream<TInOut, TOutIn>;
 
-  // Link this Gate to some other Gate
-  virtual void LinkOut(OutGate& out) = 0;
-  virtual void Unlink() {
-    out_ = nullptr;
-    out_data_subscription_.Reset();
-    gate_update_subscription_.Reset();
-    gate_update_event_.Emit();
-  }
+  Stream() = default;
+  ~Stream() override = default;
 
-  typename Base::OutDataEvent::Subscriber out_data_event() override {
-    return out_data_event_;
-  }
-
-  typename Base::GateUpdateEvent::Subscriber gate_update_event() override {
-    return typename Base::GateUpdateEvent::Subscriber{gate_update_event_};
-  }
+  AE_CLASS_MOVE_ONLY(Stream)
 
   StreamInfo stream_info() const override {
     if (out_ == nullptr) {
-      return {};
+      return StreamInfo{};
     }
     return out_->stream_info();
   }
 
- protected:
-  OutGate* out_{};
+  typename StreamUpdateEvent::Subscriber stream_update_event() override {
+    return EventSubscriber{stream_update_event_};
+  }
 
-  typename Base::OutDataEvent out_data_event_;
-  typename Base::GateUpdateEvent gate_update_event_;
-  Subscription out_data_subscription_;
-  Subscription gate_update_subscription_;
+  typename OutDataEvent::Subscriber out_data_event() override {
+    return EventSubscriber{out_data_event_};
+  }
+
+  /**
+   * \brief Link with out stream.
+   */
+  virtual void LinkOut(OutStream& out) = 0;
+  /**
+   * \brief Unlink from stream.
+   */
+  virtual void Unlink() = 0;
+
+ protected:
+  OutStream* out_;
+  StreamUpdateEvent stream_update_event_;
+  OutDataEvent out_data_event_;
+  Subscription update_sub_;
+  Subscription out_data_sub_;
 };
 
-// specialization for same in and out types
 template <typename TIn, typename TOut>
-class Gate<TIn, TOut, TIn, TOut> : public IGate<TIn, TOut> {
+class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
  public:
-  using Base = IGate<TIn, TOut>;
-  using OutGate = IGate<TIn, TOut>;
+  using Base = IStream<TIn, TOut>;
+  using OutDataEvent = typename Base::OutDataEvent;
+  using StreamUpdateEvent = typename Base::StreamUpdateEvent;
 
-  Gate() = default;
-  AE_CLASS_MOVE_ONLY(Gate)
+  using OutStream = IStream<TIn, TOut>;
 
-  ActionView<StreamWriteAction> Write(TIn&& in_data,
-                                      TimePoint current_time) override {
+  Stream() = default;
+  ~Stream() override = default;
+  AE_CLASS_MOVE_ONLY(Stream)
+
+  ActionView<StreamWriteAction> Write(TIn&& data) override {
     assert(out_);
-    return out_->Write(std::move(in_data), current_time);
-  }
-
-  typename Base::OutDataEvent::Subscriber out_data_event() override {
-    return out_data_event_;
-  }
-
-  virtual void LinkOut(OutGate& out) {
-    out_ = &out;
-
-    out_data_subscription_ = out_->out_data_event().Subscribe(
-        out_data_event_, MethodPtr<&Base::OutDataEvent::Emit>{});
-
-    gate_update_subscription_ = out_->gate_update_event().Subscribe(
-        gate_update_event_, MethodPtr<&Base::GateUpdateEvent::Emit>{});
-    gate_update_event_.Emit();
-  }
-
-  virtual void Unlink() {
-    out_ = nullptr;
-    out_data_subscription_.Reset();
-    gate_update_subscription_.Reset();
-    gate_update_event_.Emit();
-  }
-
-  typename Base::GateUpdateEvent::Subscriber gate_update_event() override {
-    return typename Base::GateUpdateEvent::Subscriber{gate_update_event_};
+    return out_->Write(std::move(data));
   }
 
   StreamInfo stream_info() const override {
     if (out_ == nullptr) {
-      return {};
+      return StreamInfo{};
     }
     return out_->stream_info();
   }
 
+  typename StreamUpdateEvent::Subscriber stream_update_event() override {
+    return EventSubscriber{stream_update_event_};
+  }
+
+  typename OutDataEvent::Subscriber out_data_event() override {
+    return EventSubscriber{out_data_event_};
+  }
+
+  /**
+   * \brief Link with out stream.
+   */
+  virtual void LinkOut(OutStream& out) {
+    out_ = &out;
+    update_sub_ = out_->stream_update_event().Subscribe(
+        stream_update_event_, MethodPtr<&StreamUpdateEvent::Emit>{});
+    out_data_sub_ = out_->out_data_event().Subscribe(
+        out_data_event_, MethodPtr<&OutDataEvent::Emit>{});
+    stream_update_event_.Emit();
+  }
+  /**
+   * \brief Unlink from stream.
+   */
+  virtual void Unlink() {
+    out_ = nullptr;
+    update_sub_.Reset();
+    out_data_sub_.Reset();
+    stream_update_event_.Emit();
+  }
+
  protected:
-  OutGate* out_{};
-
-  typename Base::OutDataEvent out_data_event_;
-  typename Base::GateUpdateEvent gate_update_event_;
-  Subscription out_data_subscription_;
-  Subscription gate_update_subscription_;
+  OutStream* out_;
+  StreamUpdateEvent stream_update_event_;
+  OutDataEvent out_data_event_;
+  Subscription update_sub_;
+  Subscription out_data_sub_;
 };
 
-template <typename GatInTIn, typename GateInTOut, typename GateOutTIn,
-          typename GateOutTOut>
-class Stream {
- public:
-  using InGate = IGate<GatInTIn, GateInTOut>;
-  using OutGate = IGate<GateOutTIn, GateOutTOut>;
-
-  virtual ~Stream() = default;
-
-  virtual InGate& in() = 0;
-  virtual void LinkOut(OutGate& out_gate) = 0;
-};
-
-using ByteIGate = IGate<DataBuffer, DataBuffer>;
-using ByteGate = Gate<DataBuffer, DataBuffer, DataBuffer, DataBuffer>;
+using ByteIStream = IStream<DataBuffer, DataBuffer>;
 using ByteStream = Stream<DataBuffer, DataBuffer, DataBuffer, DataBuffer>;
-
-namespace _traits {
-template <typename T, typename _ = void>
-struct IsStreamType : std::false_type {};
-
-template <typename T>
-struct IsStreamType<T, std::void_t<decltype(std::declval<T&>().in())>>
-    : std::true_type {};
-
-template <typename T, typename _ = void>
-struct IsLinkable : std::false_type {};
-
-template <typename T>
-struct IsLinkable<T, std::void_t<decltype(std::declval<T&>().LinkOut(
-                         std::declval<typename T::OutGate&>()))>>
-    : public std::true_type {};
-}  // namespace _traits
 
 // Helpers to build stream chains
 /**
@@ -237,16 +219,7 @@ void Tie(TLeftMost& left_most, TNextRight& next_right, TStreams&... streams) {
 }
 
 template <typename TLeft, typename TRight>
-std::enable_if_t<_traits::IsLinkable<TLeft>::value &&
-                 _traits::IsStreamType<TRight>::value>
-TiePair(TLeft& left, TRight& right) {
-  left.LinkOut(right.in());
-}
-
-template <typename TLeft, typename TRight>
-std::enable_if_t<_traits::IsLinkable<TLeft>::value &&
-                 !_traits::IsStreamType<TRight>::value>
-TiePair(TLeft& left, TRight& right) {
+void TiePair(TLeft& left, TRight& right) {
   left.LinkOut(right);
 }
 

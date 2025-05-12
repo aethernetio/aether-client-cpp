@@ -15,10 +15,10 @@
  */
 
 #include "aether/uid.h"
-#include <ios>
+
+#include <cassert>
 
 namespace ae {
 
 const Uid Uid::kAether = Uid{{1}};
-
 }  // namespace ae

@@ -20,6 +20,7 @@ option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar 
 
 option(AE_DISTILLATION "Build aether in distillation mode" OFF)
 
+set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
 set(FS_INIT "" CACHE PATH "Path to user provided saved state header file")
 
@@ -122,15 +123,14 @@ list(APPEND server_list_srcs
 
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
-            "stream_api/crypto_stream.cpp"
+            "stream_api/crypto_gate.cpp"
             "stream_api/header_gate.cpp"
-            "stream_api/sized_packet_stream.cpp"
-            "stream_api/splitter_gate.cpp"
+            "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
-            "stream_api/transport_write_gate.cpp"
+            "stream_api/transport_write_stream.cpp"
             "stream_api/debug_gate.cpp"
-            "stream_api/buffer_gate.cpp"
-            "stream_api/unidirectional_gate.cpp"
+            "stream_api/buffer_stream.cpp"
+            "stream_api/stream_splitter.cpp"
 
             "stream_api/safe_stream.cpp"
             "stream_api/safe_stream/safe_stream_api.cpp"
@@ -181,7 +181,9 @@ list(APPEND client_connections_srcs
             "client_connections/client_connection_manager.cpp"
             "client_connections/client_server_connection.cpp"
             "client_connections/server_connection_selector.cpp"
-            "client_connections/client_to_server_stream.cpp")
+            "client_connections/client_to_server_stream.cpp"
+            "client_connections/split_stream_client_connection.cpp"
+)
 
 list(APPEND client_messages_srcs
             "client_messages/message_stream.cpp"
@@ -351,6 +353,8 @@ if (GIT_VERSION)
   target_compile_definitions(${TARGET_NAME} PUBLIC "AE_GIT_VERSION=\"${GIT_VERSION}\"")
 endif()
 target_compile_definitions(${TARGET_NAME} PUBLIC "AE_PROJECT_VERSION=\"${AE_PROJECT_VERSION}\"")
+
+target_compile_definitions(${TARGET_NAME} PUBLIC "UTM_ID=${UTM_ID}")
 
 if (NOT "${USER_CONFIG}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "USER_CONFIG=\"${USER_CONFIG}\"")

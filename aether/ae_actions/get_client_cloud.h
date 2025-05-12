@@ -23,6 +23,11 @@
 #include "aether/actions/action.h"
 #include "aether/events/multi_subscription.h"
 
+#include "aether/stream_api/stream_api.h"
+#include "aether/stream_api/header_gate.h"
+#include "aether/stream_api/gates_stream.h"
+#include "aether/stream_api/serialize_gate.h"
+
 #include "aether/methods/uid_and_cloud.h"
 #include "aether/methods/server_descriptor.h"
 
@@ -59,10 +64,12 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
   ClientToServerStream* client_to_server_stream_;
   Uid client_uid_;
 
-  std::unique_ptr<ByteStream> pre_client_to_server_stream_;
-  std::unique_ptr<Stream<Uid, UidAndCloud, DataBuffer, DataBuffer>>
+  std::optional<AddHeaderGate> add_resolvers_;
+  std::optional<GatesStream<SerializeGate<Uid, UidAndCloud>, StreamApiGate,
+                            AddHeaderGate&>>
       cloud_request_stream_;
-  std::unique_ptr<Stream<ServerId, ServerDescriptor, DataBuffer, DataBuffer>>
+  std::optional<GatesStream<SerializeGate<ServerId, ServerDescriptor>,
+                            StreamApiGate, AddHeaderGate&>>
       server_resolver_stream_;
 
   StateMachine<State> state_;

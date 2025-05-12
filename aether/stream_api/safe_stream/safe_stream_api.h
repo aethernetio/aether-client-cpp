@@ -20,90 +20,49 @@
 #include <cstdint>
 #include <utility>
 
-#include "aether/crc.h"
-#include "aether/reflect/reflect.h"
+#include "aether/events/events.h"
 #include "aether/transport/data_buffer.h"
-#include "aether/api_protocol/api_message.h"
-#include "aether/api_protocol/api_protocol.h"
+#include "aether/api_protocol/api_method.h"
+#include "aether/api_protocol/api_class_impl.h"
+#include "aether/api_protocol/return_result_api.h"
 
 namespace ae {
-class SafeStreamApi : public ApiClass {
+class SafeStreamApi : public ReturnResultApiImpl,
+                      public ApiClassImpl<SafeStreamApi, ReturnResultApiImpl> {
  public:
-  static constexpr auto kClassId =
-      crc32::checksum_from_literal("SafeStreamApi");
+  explicit SafeStreamApi(ProtocolContext& protocol_context,
+                         class SafeStream& safe_stream);
 
-  struct Close : public Message<Close> {
-    static constexpr auto kMessageCode = 2;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("SafeStreamApi::Close");
+  Method<3, void()> close;
+  Method<4, void()> request_report;
+  Method<5, void(std::uint16_t offset)> put_report;
+  Method<6, void(std::uint16_t offset)> confirm;
+  Method<7, void(std::uint16_t offset)> request_repeat;
+  Method<8, void(std::uint16_t offset, DataBuffer data)> send;
+  Method<9, void(std::uint16_t repeat_count, std::uint16_t offset,
+                 DataBuffer data)>
+      repeat;
 
-    AE_REFLECT()
-  };
-  struct RequestReport : public Message<RequestReport> {
-    static constexpr auto kMessageCode = 3;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("SafeStreamApi::RequestReport");
+  void CloseImpl(ApiParser& parser);
+  void RequestReportImpl(ApiParser& parser);
+  void PutReportImpl(ApiParser& parser, std::uint16_t offset);
+  void ConfirmImpl(ApiParser& parser, std::uint16_t offset);
+  void RequestRepeatImpl(ApiParser& parser, std::uint16_t offset);
+  void SendImpl(ApiParser& parser, std::uint16_t offset, DataBuffer data);
+  void RepeatImpl(ApiParser& parser, std::uint16_t repeat_count,
+                  std::uint16_t offset, DataBuffer data);
 
-    AE_REFLECT()
-  };
-  struct PutReport : public Message<PutReport> {
-    static constexpr auto kMessageCode = 4;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("SafeStreamApi::PutReport");
+  using ApiMethods = ImplList<RegMethod<3, &SafeStreamApi::CloseImpl>,
+                              RegMethod<4, &SafeStreamApi::RequestReportImpl>,
+                              RegMethod<5, &SafeStreamApi::PutReportImpl>,
+                              RegMethod<6, &SafeStreamApi::ConfirmImpl>,
+                              RegMethod<7, &SafeStreamApi::RequestRepeatImpl>,
+                              RegMethod<8, &SafeStreamApi::SendImpl>,
+                              RegMethod<9, &SafeStreamApi::RepeatImpl>>;
 
-    AE_REFLECT_MEMBERS(offset)
-
-    std::uint16_t offset;
-  };
-  struct Confirm : public Message<Confirm> {
-    static constexpr auto kMessageCode = 5;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("SafeStreamApi::Confirm");
-
-    AE_REFLECT_MEMBERS(offset)
-
-    std::uint16_t offset;
-  };
-  struct RequestRepeat : public Message<RequestRepeat> {
-    static constexpr auto kMessageCode = 6;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("SafeStreamApi::RequestRepeat");
-
-    AE_REFLECT_MEMBERS(offset)
-
-    std::uint16_t offset;
-  };
-  struct Send : public Message<Send> {
-    static constexpr auto kMessageCode = 7;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("SafeStreamApi::Send");
-
-    AE_REFLECT_MEMBERS(offset, data)
-
-    std::uint16_t offset;
-    DataBuffer data;
-  };
-  struct Repeat : public Message<Repeat> {
-    static constexpr auto kMessageCode = 8;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("SafeStreamApi::Repeat");
-
-    AE_REFLECT_MEMBERS(repeat_count, offset, data)
-
-    std::uint16_t repeat_count;
-    std::uint16_t offset;
-    DataBuffer data;
-  };
-
-  void LoadFactory(MessageId message_id, ApiParser& parser) override;
-
-  template <typename TMessage>
-  void Execute(TMessage&& message, ApiParser& parser);
-
-  template <typename TMessage>
-  void Pack(TMessage&& message, ApiPacker& packer) {
-    packer.Pack(TMessage::kMessageCode, std::forward<TMessage>(message));
-  }
+ private:
+  ProtocolContext* protocol_context_;
+  class SafeStream* safe_stream_;
 };
 }  // namespace ae
 

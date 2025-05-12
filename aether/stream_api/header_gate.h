@@ -23,14 +23,13 @@
 
 namespace ae {
 // Add a header to data
-class AddHeaderGate : public ByteGate {
+class AddHeaderGate {
  public:
   explicit AddHeaderGate(DataBuffer header);
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& buffer,
-                                      TimePoint current_time) override;
+  DataBuffer WriteIn(DataBuffer&& buffer);
 
-  StreamInfo stream_info() const override;
+  std::size_t Overhead() const;
 
  private:
   DataBuffer header_;
