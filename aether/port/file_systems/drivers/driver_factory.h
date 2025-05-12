@@ -20,6 +20,16 @@
 #include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {
+
+enum class DriverFsType : std::uint8_t {
+  kDriverNone,
+  kDriverHeader,
+  kDriverStd,
+  kDriverRam,
+  kDriverSpifsV1,
+  kDriverSpifsV2
+};
+
 class DriverFactory {
  public:
   static std::unique_ptr<DriverBase> Create(enum DriverFsType fs_driver_type);

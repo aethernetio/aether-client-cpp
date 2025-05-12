@@ -32,15 +32,6 @@
 
 namespace ae {
 
-enum class DriverFsType : std::uint8_t {
-  kDriverNone,
-  kDriverHeader,
-  kDriverStd,
-  kDriverRam,
-  kDriverSpifsV1,
-  kDriverSpifsV2
-};
-
 class DriverBase {
  public:
   virtual ~DriverBase() = default;

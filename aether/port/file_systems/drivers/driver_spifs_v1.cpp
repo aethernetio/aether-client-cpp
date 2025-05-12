@@ -18,6 +18,7 @@
 
 #  include "aether/port/file_systems/drivers/driver_spifs_v1.h"
 #  include "aether/port/file_systems/drivers/driver_functions.h"
+#  include "aether/transport/low_level/tcp/data_packet_collector.h"
 #  include "aether/port/file_systems/file_systems_tele.h"
 #  include "aether/tele/tele.h"
 
@@ -108,7 +109,7 @@ std::vector<std::string> DriverSpifsV1::DriverDir(const std::string &path) {
   // Reading ObjClassData
   LoadObjData_(state_spifs_);
 
-  AE_TELE_DEBUG(FsObjRemoved, "Path {}", path);
+  AE_TELE_DEBUG(FsDir, "Path {}", path);
   for (auto &ItemObjClassData : state_spifs_) {
     for (auto &ItemClassData : ItemObjClassData.second) {
       for (auto &ItemVersionData : ItemClassData.second) {
@@ -127,7 +128,7 @@ void DriverSpifsV1::DriverFormat() {
   esp_err_t err = esp_spiffs_format(kPartition);
 
   if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to format SPIFFS ({})", esp_err_to_name(err));
+    AE_TELE_ERROR(FsFormat, "Failed to format SPIFFS ({})", esp_err_to_name(err));
   }
 }
 
@@ -144,11 +145,11 @@ esp_err_t DriverSpifsV1::DriverInit_() {
   if (ret != ESP_ERR_INVALID_STATE) {  // FS alredy is initialized
     if (ret != ESP_OK) {
       if (ret == ESP_FAIL) {
-        AE_TELED_ERROR("Failed to mount or format filesystem");
+        AE_TELE_ERROR(FsDriverInit, "Failed to mount or format filesystem");
       } else if (ret == ESP_ERR_NOT_FOUND) {
-        AE_TELED_ERROR("Failed to find SPIFFS partition");
+        AE_TELE_ERROR(FsDriverInit, "Failed to find SPIFFS partition");
       } else {
-        AE_TELED_ERROR("Failed to initialize SPIFFS ({})",
+        AE_TELE_ERROR(FsDriverInit, "Failed to initialize SPIFFS ({})",
                        esp_err_to_name(ret));
       }
       return ret;
@@ -158,10 +159,10 @@ esp_err_t DriverSpifsV1::DriverInit_() {
   size_t total = 0, used = 0;
   ret = esp_spiffs_info(kPartition, &total, &used);
   if (ret != ESP_OK) {
-    AE_TELED_ERROR("Failed to get SPIFFS partition information ({})",
+    AE_TELE_ERROR(FsDriverInit, "Failed to get SPIFFS partition information ({})",
                    esp_err_to_name(ret));
   } else {
-    AE_TELED_INFO("Partition size: total: {}, used: {}", total, used);
+    AE_TELE_INFO(FsDriverInit, "Partition size: total: {}, used: {}", total, used);
   }
   return ESP_OK;
 }
@@ -216,11 +217,6 @@ void DriverSpifsV1::DriverRead_(const std::string &path,
     bytes_read = fread(data_vector.data(), 1, file_size, file);
     AE_TELE_DEBUG(FsObjLoaded, "Reading from the file {}. Bytes read {}",
                   res_path, bytes_read);
-    /*for(std::uint8_t& i : data_vector)
-    {
-      auto res = static_cast<std::uint32_t>(i);
-      AE_TELE_DEBUG(FsObjLoaded, "Data read is {}", res);
-    }*/
 
     fclose(file);
   }
@@ -242,11 +238,6 @@ void DriverSpifsV1::DriverWrite_(const std::string &path,
     bytes_write = fwrite(data_vector.data(), 1, data_vector.size(), file);
     AE_TELE_INFO(FsObjSaved, "Writing to the file {}. Bytes write {}", res_path,
                  bytes_write);
-    /*for(const std::uint8_t& i : data_vector)
-    {
-      auto res = static_cast<std::uint32_t>(i);
-      AE_TELE_DEBUG(FsObjSaved, "Data write is {}", res);
-    }*/
 
     fclose(file);
   }

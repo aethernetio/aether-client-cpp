@@ -23,7 +23,7 @@
 
 #include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_base.h"
-#include "aether/port/file_systems/file_system_std.h"
+#include "aether/port/file_systems/drivers/driver_factory.h"
 
 #if defined AE_FILE_SYSTEM_STD_ENABLED
 

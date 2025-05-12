@@ -31,6 +31,7 @@
 #  include "esp_err.h"
 
 #  include "aether/port/file_systems/drivers/driver_base.h"
+#  include "aether/port/file_systems/drivers/driver_factory.h"
 
 namespace ae {
 

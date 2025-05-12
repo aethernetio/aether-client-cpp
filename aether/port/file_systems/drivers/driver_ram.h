@@ -24,6 +24,7 @@
 
 #include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_base.h"
+#include "aether/port/file_systems/drivers/driver_factory.h"
 
 namespace ae {
 using Data = std::vector<std::uint8_t>;

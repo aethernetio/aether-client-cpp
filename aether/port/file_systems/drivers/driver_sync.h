@@ -23,6 +23,7 @@
 #include <unordered_set>
 
 #include "aether/port/file_systems/drivers/driver_base.h"
+#include "aether/port/file_systems/drivers/driver_factory.h"
 
 namespace ae {
 

@@ -22,6 +22,7 @@
 #include "aether/port/file_systems/drivers/driver_header.h"
 #include "aether/port/file_systems/drivers/driver_functions.h"
 #include "aether/transport/low_level/tcp/data_packet_collector.h"
+#  include "aether/port/file_systems/file_systems_tele.h"
 #include "aether/tele/tele.h"
 
 constexpr char string1[] = "#ifndef CONFIG_FILE_SYSTEM_INIT_H_";
@@ -51,7 +52,7 @@ void DriverHeader::DriverRead(const std::string &path,
     std::ifstream file(path.c_str(), std::ios::in | std::ios::binary);
 
     if (!file.good()) {
-      AE_TELED_ERROR("Unable to open file {}", path);
+      AE_TELE_ERROR(FsObjLoaded, "Unable to open file {}", path);
       return;
     }
 
@@ -88,7 +89,7 @@ void DriverHeader::DriverRead(const std::string &path,
       }
     }
 
-    AE_TELED_DEBUG("Loaded header file {}", path);
+    AE_TELE_DEBUG(FsObjLoaded, "Loaded header file {}", path);
 #endif
   } else {
     auto data_vector_ =
@@ -119,12 +120,12 @@ void DriverHeader::DriverRead(const std::string &path,
       return;
     }
 
-    AE_TELED_DEBUG("Object id={} & class id = {} version {} loaded!",
+    AE_TELE_DEBUG(FsObjLoaded, "Object id={} & class id = {} version {} loaded!",
                    path_struct.obj_id.ToString(), path_struct.class_id,
                    std::to_string(path_struct.version));
     data_vector = version_it->second;
 
-    AE_TELED_DEBUG("Loaded state/{}/{}/{} size: {}",
+    AE_TELE_DEBUG(FsObjLoaded, "Loaded state/{}/{}/{} size: {}",
                    std::to_string(path_struct.version),
                    path_struct.obj_id.ToString(), path_struct.class_id,
                    data_vector.size());
@@ -163,21 +164,21 @@ void DriverHeader::DriverWrite(const std::string &path,
   file << string9 << std::endl;
   file << string10 << std::endl;
 
-  AE_TELED_DEBUG("Saved header file {}", path);
+  AE_TELE_DEBUG(FsObjSaved, "Saved header file {}", path);
 #endif
 }
 
 void DriverHeader::DriverDelete(const std::string &path) {
 #if (!defined(ESP_PLATFORM))
   std::filesystem::remove(path);
-  AE_TELED_DEBUG("Removed header file {}", path);
+  AE_TELE_DEBUG(FsObjRemoved, "Removed header file {}", path);
 #endif
 }
 
 std::vector<std::string> DriverHeader::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list{};
 
-  AE_TELED_DEBUG("Dir header file {}", path);
+  AE_TELE_DEBUG(FsDir, "Dir header file {}", path);
   return dirs_list;
 }
 
