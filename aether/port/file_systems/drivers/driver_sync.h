@@ -29,8 +29,8 @@ namespace ae {
 
 class DriverSync {
  public:
-  DriverSync(enum DriverFsType fs_driver_type_source,
-             enum DriverFsType fs_driver_type_destination);
+  DriverSync(DriverFsType fs_driver_type_source,
+             DriverFsType fs_driver_type_destination);
   ~DriverSync();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector);
