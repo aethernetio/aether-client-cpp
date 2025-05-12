@@ -31,17 +31,10 @@ struct PathStructure {
 
 ae::PathStructure GetPathStructure(const std::string &path);
 bool ValidatePath(const std::string &path);
-template <typename T>
-bool IsEqual(std::vector<T> const &v1, std::vector<T> const &v2) {
-  bool res{false};
-  if (v1.size() == 0 || v2.size() == 0) {
-    return res;
-  }
-  if (std::equal(v1.begin(), v1.end(), v2.begin())) {
-    res = true;
-  }
 
-  return res;
+template <typename T>
+bool IsEqual(std::vector<T> const &v1, std::vector<T> const &v2) {  
+  return std::equal(v1.begin(), v1.end(), v2.begin());
 }
 
 template <typename T>
