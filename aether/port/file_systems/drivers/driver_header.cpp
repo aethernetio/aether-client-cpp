@@ -45,7 +45,7 @@ DriverHeader::~DriverHeader() {}
 void DriverHeader::DriverRead(const std::string &path,
                               std::vector<std::uint8_t> &data_vector,
                               bool sync) {
-  if (sync == false) {
+  if (!sync) {
 #if (!defined(ESP_PLATFORM))
     std::string line{};
 

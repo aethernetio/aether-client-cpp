@@ -38,7 +38,7 @@ DriverSpifsV1::~DriverSpifsV1() {
 void DriverSpifsV1::DriverRead(const std::string &path,
                                std::vector<std::uint8_t> &data_vector,
                                bool sync) {
-  if (sync == false) {
+  if (!sync) {
     ae::PathStructure path_struct{};
 
     // Reading ObjClassData
