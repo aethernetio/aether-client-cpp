@@ -27,6 +27,12 @@
 #include "aether/port/file_systems/drivers/driver_base.h"
 #include "aether/port/file_systems/drivers/driver_factory.h"
 
+#if defined FS_INIT
+#  include FS_INIT
+#else
+#  error "FS_INIT should be defined"
+#endif
+
 namespace ae {
 
 class DriverHeader : public DriverBase {
