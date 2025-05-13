@@ -84,7 +84,7 @@ void DriverHeader::DriverRead(const std::string &path,
       auto string_len = (line.length() / 6) * 6;
       for (unsigned int i = 0; i < string_len; i += 6) {
         std::string byteString = line.substr(i + 2, 2);
-        std::uint8_t byte = HexToByte_(byteString);
+        std::uint8_t byte = HexToByte(byteString);
         data_vector.push_back(byte);
       }
     }
@@ -148,7 +148,7 @@ void DriverHeader::DriverWrite(const std::string &path,
   file << string6a << data_vector.size() << string6b << std::endl;
 
   for (std::uint8_t byte : data_vector) {
-    auto str = ByteToHex_(byte);
+    auto str = ByteToHex(byte);
     file << str << ", ";
     if (++cnt == 12) {
       cnt = 0;
@@ -182,14 +182,14 @@ std::vector<std::string> DriverHeader::DriverDir(const std::string &path) {
   return dirs_list;
 }
 
-std::string DriverHeader::ByteToHex_(std::uint8_t ch) {
+std::string DriverHeader::ByteToHex(std::uint8_t ch) {
   std::stringstream ss;
   ss << "0x" << std::hex << std::setw(2) << std::setfill('0')
      << static_cast<int>(ch);
   return ss.str();
 }
 
-uint8_t DriverHeader::HexToByte_(const std::string &hex) {
+uint8_t DriverHeader::HexToByte(const std::string &hex) {
   return static_cast<uint8_t>(std::stoul(hex, nullptr, 16));
 }
 
