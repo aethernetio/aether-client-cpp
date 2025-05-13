@@ -20,15 +20,58 @@
 
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
 #  include "aether/port/file_systems/file_systems_tele.h"
+#  include "aether/port/file_systems/drivers/driver_sync.h"
+#  include "aether/port/file_systems/drivers/driver_header.h"
+#  include "aether/port/file_systems/drivers/driver_std.h"
+#  include "aether/port/file_systems/drivers/driver_ram.h"
+#  include "aether/port/file_systems/drivers/driver_spifs_v1.h"
+#  include "aether/port/file_systems/drivers/driver_spifs_v2.h"
 
 namespace ae {
 
 FileSystemHeaderFacility::FileSystemHeaderFacility(
-    const std::string& header_file,
-    enum DriverFsType fs_driver_type_destination)
+    const std::string& header_file, DriverFsType fs_driver_type_destination)
     : path_{header_file} {
-  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverHeader,
-                                                 fs_driver_type_destination);
+  std::unique_ptr<DriverBase> driver_source{
+      std::make_unique<DriverHeader>(DriverFsType::kDriverHeader)};
+  std::unique_ptr<DriverBase> driver_destination{};
+  switch (fs_driver_type_destination) {
+    case DriverFsType::kDriverStd:
+#  if defined(AE_FILE_SYSTEM_STD_ENABLED)
+      driver_destination =
+          std::make_unique<DriverStd>(DriverFsType::kDriverStd);
+#  endif  // defined(AE_FILE_SYSTEM_STD_ENABLED)
+      break;
+    case DriverFsType::kDriverRam:
+      driver_destination =
+          std::make_unique<DriverRam>(DriverFsType::kDriverRam);
+      break;
+    case DriverFsType::kDriverHeader:
+      driver_destination =
+          std::make_unique<DriverHeader>(DriverFsType::kDriverHeader);
+      break;
+    case DriverFsType::kDriverSpifsV1:
+#  if defined(ESP_PLATFORM)
+      driver_destination =
+          std::make_unique<DriverSpifsV1>(DriverFsType::kDriverSpifsV1);
+#  endif  // (defined(ESP_PLATFORM))
+      break;
+    case DriverFsType::kDriverSpifsV2:
+#  if defined(ESP_PLATFORM)
+      driver_destination =
+          std::make_unique<DriverSpifsV2>(DriverFsType::kDriverSpifsV2);
+#  endif  // (defined(ESP_PLATFORM))
+      break;
+    case DriverFsType::kDriverNone:
+      driver_destination = nullptr;
+      break;
+    default:
+      assert(0);
+      break;
+  }
+
+  driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
+                                                 std::move(driver_destination));
   AE_TELED_DEBUG("New FileSystemHeader instance created!");
 }
 

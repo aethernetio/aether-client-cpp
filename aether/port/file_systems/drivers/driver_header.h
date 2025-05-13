@@ -25,7 +25,6 @@
 #include <system_error>
 
 #include "aether/port/file_systems/drivers/driver_base.h"
-#include "aether/port/file_systems/drivers/driver_factory.h"
 
 #if defined FS_INIT
 #  include FS_INIT
@@ -42,7 +41,7 @@ class DriverHeader : public DriverBase {
   using ObjClassData = std::map<ae::ObjId, ClassData>;
 
  public:
-  DriverHeader();
+  DriverHeader(DriverFsType fs_driver_type);
   ~DriverHeader();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector, bool sync) override;

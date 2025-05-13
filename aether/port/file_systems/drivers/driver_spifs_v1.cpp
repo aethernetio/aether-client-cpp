@@ -24,14 +24,15 @@
 
 namespace ae {
 
-DriverSpifsV1::DriverSpifsV1() {
+DriverSpifsV1::DriverSpifsV1(DriverFsType fs_driver_type)
+    : DriverBase(fs_driver_type) {
   if (initialized_ == false) {
-    if (DriverInit_() == ESP_OK) initialized_ = true;
+    if (DriverInit() == ESP_OK) initialized_ = true;
   }
 }
 
 DriverSpifsV1::~DriverSpifsV1() {
-  DriverDeinit_();
+  DriverDeinit();
   initialized_ = false;
 }
 
@@ -42,7 +43,7 @@ void DriverSpifsV1::DriverRead(const std::string &path,
     ae::PathStructure path_struct{};
 
     // Reading ObjClassData
-    LoadObjData_(state_spifs_);
+    LoadObjData(state_spifs_);
 
     path_struct = GetPathStructure(path);
 
@@ -70,7 +71,7 @@ void DriverSpifsV1::DriverWrite(const std::string &path,
   ae::PathStructure path_struct{};
 
   // Reading ObjClassData
-  LoadObjData_(state_spifs_);
+  LoadObjData(state_spifs_);
 
   path_struct = GetPathStructure(path);
 
@@ -78,14 +79,14 @@ void DriverSpifsV1::DriverWrite(const std::string &path,
       data_vector;
 
   // Writing ObjClassData
-  SaveObjData_(state_spifs_);
+  SaveObjData(state_spifs_);
 }
 
 void DriverSpifsV1::DriverDelete(const std::string &path) {
   ae::PathStructure path_struct{};
 
   // Reading ObjClassData
-  LoadObjData_(state_spifs_);
+  LoadObjData(state_spifs_);
 
   path_struct = GetPathStructure(path);
 
@@ -100,14 +101,14 @@ void DriverSpifsV1::DriverDelete(const std::string &path) {
   }
 
   // Writing ObjClassData
-  SaveObjData_(state_spifs_);
+  SaveObjData(state_spifs_);
 }
 
 std::vector<std::string> DriverSpifsV1::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list{};
 
   // Reading ObjClassData
-  LoadObjData_(state_spifs_);
+  LoadObjData(state_spifs_);
 
   AE_TELE_DEBUG(FsDir, "Path {}", path);
   for (auto &ItemObjClassData : state_spifs_) {
@@ -133,7 +134,7 @@ void DriverSpifsV1::DriverFormat() {
   }
 }
 
-esp_err_t DriverSpifsV1::DriverInit_() {
+esp_err_t DriverSpifsV1::DriverInit() {
   esp_vfs_spiffs_conf_t conf = {.base_path = kBasePath,
                                 .partition_label = kPartition,
                                 .max_files = 128,
@@ -170,21 +171,21 @@ esp_err_t DriverSpifsV1::DriverInit_() {
   return ESP_OK;
 }
 
-void DriverSpifsV1::DriverDeinit_() { esp_vfs_spiffs_unregister(kPartition); }
+void DriverSpifsV1::DriverDeinit() { esp_vfs_spiffs_unregister(kPartition); }
 
-void DriverSpifsV1::LoadObjData_(ObjClassData &obj_data) {
+void DriverSpifsV1::LoadObjData(ObjClassData &obj_data) {
   auto data_vector = std::vector<std::uint8_t>{};
   std::string path{"dump"};
 
   VectorReader<PacketSize> vr{data_vector};
 
-  DriverRead_(path, data_vector);
+  DriverReadHlp(path, data_vector);
   auto is = imstream{vr};
   // add oj data
   is >> obj_data;
 }
 
-void DriverSpifsV1::SaveObjData_(ObjClassData &obj_data) {
+void DriverSpifsV1::SaveObjData(ObjClassData &obj_data) {
   auto data_vector = std::vector<std::uint8_t>{};
   std::string path{"dump"};
 
@@ -193,11 +194,11 @@ void DriverSpifsV1::SaveObjData_(ObjClassData &obj_data) {
   // add file data
   os << obj_data;
 
-  DriverWrite_(path, data_vector);
+  DriverWriteHlp(path, data_vector);
 }
 
-void DriverSpifsV1::DriverRead_(const std::string &path,
-                                std::vector<std::uint8_t> &data_vector) {
+void DriverSpifsV1::DriverReadHlp(const std::string &path,
+                                  std::vector<std::uint8_t> &data_vector) {
   size_t bytes_read;
   unsigned int file_size = 0;
   std::string res_path{};
@@ -225,8 +226,8 @@ void DriverSpifsV1::DriverRead_(const std::string &path,
   }
 }
 
-void DriverSpifsV1::DriverWrite_(const std::string &path,
-                                 const std::vector<std::uint8_t> &data_vector) {
+void DriverSpifsV1::DriverWriteHlp(const std::string &path,
+                                   const std::vector<std::uint8_t> &data_vector) {
   size_t bytes_write;
   std::string res_path{};
 

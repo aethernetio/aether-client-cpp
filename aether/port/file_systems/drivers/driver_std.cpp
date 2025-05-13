@@ -28,7 +28,8 @@
 #if defined AE_FILE_SYSTEM_STD_ENABLED
 namespace ae {
 
-DriverStd::DriverStd() {}
+DriverStd::DriverStd(DriverFsType fs_driver_type)
+    : DriverBase(fs_driver_type) {}
 
 DriverStd::~DriverStd() {}
 

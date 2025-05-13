@@ -23,7 +23,6 @@
 
 #include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_base.h"
-#include "aether/port/file_systems/drivers/driver_factory.h"
 
 #if defined AE_FILE_SYSTEM_STD_ENABLED
 
@@ -31,7 +30,7 @@ namespace ae {
 
 class DriverStd : public DriverBase {
  public:
-  DriverStd();
+  DriverStd(DriverFsType fs_driver_type);
   ~DriverStd();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector, bool sync) override;

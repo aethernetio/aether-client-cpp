@@ -21,7 +21,6 @@ list(APPEND aether_srcs
     ${ROOT_DIR}/aether/port/file_systems/file_system_spifs_v1.cpp
     ${ROOT_DIR}/aether/port/file_systems/file_system_spifs_v2.cpp
     ${ROOT_DIR}/aether/port/file_systems/file_system_std.cpp
-    ${ROOT_DIR}/aether/port/file_systems/drivers/driver_factory.cpp
     ${ROOT_DIR}/aether/port/file_systems/drivers/driver_functions.cpp
     ${ROOT_DIR}/aether/port/file_systems/drivers/driver_header.cpp
     ${ROOT_DIR}/aether/port/file_systems/drivers/driver_ram.cpp

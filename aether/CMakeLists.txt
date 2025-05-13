@@ -206,7 +206,6 @@ list(APPEND port_srcs
             "port/file_systems/drivers/driver_sync.cpp"
             "port/file_systems/drivers/driver_std.cpp"
             "port/file_systems/drivers/driver_ram.cpp"
-            "port/file_systems/drivers/driver_factory.cpp"
             "port/file_systems/drivers/driver_functions.cpp")
 
 list(APPEND statistics_srcs

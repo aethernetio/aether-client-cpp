@@ -15,25 +15,22 @@
  */
 
 #include "aether/port/file_systems/drivers/driver_sync.h"
-#include "aether/port/file_systems/drivers/driver_factory.h"
 #include "aether/port/file_systems/drivers/driver_functions.h"
 #include "aether/tele/tele.h"
 
 namespace ae {
 
-DriverSync::DriverSync(enum DriverFsType fs_driver_type_source,
-                       enum DriverFsType fs_driver_type_destination) {
-  fs_driver_type_source_ = fs_driver_type_source;
-  fs_driver_type_destination_ = fs_driver_type_destination;
-  fs_driver_source_ = DriverFactory::Create(fs_driver_type_source_);
-  fs_driver_destination_ = DriverFactory::Create(fs_driver_type_destination_);
+DriverSync::DriverSync(std::unique_ptr<DriverBase> fs_driver_source,
+                       std::unique_ptr<DriverBase> fs_driver_destination) {
+  fs_driver_source_ = std::move(fs_driver_source);
+  fs_driver_destination_ = std::move(fs_driver_destination);
 }
 
 DriverSync::~DriverSync() {}
 
 void DriverSync::DriverRead(const std::string &path,
                             std::vector<std::uint8_t> &data_vector) {
-  if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
+  if (fs_driver_source_->GetDriverFsType() != DriverFsType::kDriverHeader) {
     if (!ValidatePath(path)) {
       AE_TELED_ERROR("Wrong path {}", path);
       assert(false);
@@ -51,7 +48,7 @@ void DriverSync::DriverRead(const std::string &path,
 
 void DriverSync::DriverWrite(const std::string &path,
                              const std::vector<std::uint8_t> &data_vector) {
-  if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
+  if (fs_driver_source_->GetDriverFsType() != DriverFsType::kDriverHeader) {
     if (!ValidatePath(path)) {
       AE_TELED_ERROR("Wrong path {}", path);
       assert(false);
@@ -69,7 +66,7 @@ void DriverSync::DriverWrite(const std::string &path,
 }
 
 void DriverSync::DriverDelete(const std::string &path) {
-  if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
+  if (fs_driver_source_->GetDriverFsType() != DriverFsType::kDriverHeader) {
     if (!ValidatePath(path)) {
       AE_TELED_ERROR("Wrong path {}", path);
       assert(false);
@@ -91,7 +88,7 @@ std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
   std::vector<std::string> dirs_list_destination{};
   std::vector<std::string> dirs_list_result{};
 
-  if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
+  if (fs_driver_source_->GetDriverFsType() != DriverFsType::kDriverHeader) {
     if (!ValidatePath(path)) {
       AE_TELED_ERROR("Wrong path {}", path);
       assert(false);
@@ -119,18 +116,18 @@ void DriverSync::DriverSyncronize_(const std::string &path) {
   std::vector<std::uint8_t> data_vector_source;
   std::vector<std::uint8_t> data_vector_destination;
 
-  if (fs_driver_type_source_ != DriverFsType::kDriverHeader) {
+  if (fs_driver_source_->GetDriverFsType() != DriverFsType::kDriverHeader) {
     if (!ValidatePath(path)) {
       AE_TELED_ERROR("Wrong path {}", path);
       assert(false);
     }
   }
 
-  if (fs_driver_type_source_ == DriverFsType::kDriverNone) {
+  if (fs_driver_source_->GetDriverFsType() == DriverFsType::kDriverNone) {
     return;
   }
 
-  if (fs_driver_type_source_ == DriverFsType::kDriverHeader) {
+  if (fs_driver_source_->GetDriverFsType() == DriverFsType::kDriverHeader) {
     fs_driver_source_->DriverRead(path, data_vector_source, true);
   } else {
     fs_driver_source_->DriverRead(path, data_vector_source, false);

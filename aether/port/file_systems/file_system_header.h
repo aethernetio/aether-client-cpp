@@ -25,7 +25,6 @@
 #include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_base.h"
 #include "aether/port/file_systems/drivers/driver_sync.h"
-#include "aether/port/file_systems/drivers/driver_header.h"
 
 namespace ae {
 class FileSystemHeaderFacility : public IDomainFacility {

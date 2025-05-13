@@ -30,7 +30,6 @@
 
 #  include "aether/obj/domain.h"
 #  include "aether/port/file_systems/drivers/driver_base.h"
-#  include "aether/port/file_systems/drivers/driver_factory.h"
 
 
 namespace ae {
@@ -43,7 +42,7 @@ static ObjClassData state_spifs_;
 
 class DriverSpifsV1 : public DriverBase {
  public:
-  DriverSpifsV1();
+  DriverSpifsV1(DriverFsType fs_driver_type);
   ~DriverSpifsV1();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector, bool sync) override;
@@ -54,15 +53,15 @@ class DriverSpifsV1 : public DriverBase {
   void DriverFormat();
 
  private:
-  esp_err_t DriverInit_();
-  void DriverDeinit_();
   bool initialized_{false};
-  void LoadObjData_(ObjClassData &obj_data);
-  void SaveObjData_(ObjClassData &obj_data);
-  void DriverRead_(const std::string &path,
-                   std::vector<std::uint8_t> &data_vector);
-  void DriverWrite_(const std::string &path,
-                    const std::vector<std::uint8_t> &data_vector);
+  esp_err_t DriverInit();
+  void DriverDeinit();  
+  void LoadObjData(ObjClassData &obj_data);
+  void SaveObjData(ObjClassData &obj_data);
+  void DriverReadHlp(const std::string &path,
+                     std::vector<std::uint8_t> &data_vector);
+  void DriverWriteHlp(const std::string &path,
+                      const std::vector<std::uint8_t> &data_vector);
 
   static constexpr char kPartition[] = "storage";
   static constexpr char kBasePath[] = "/spiffs";

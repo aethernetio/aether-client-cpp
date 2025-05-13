@@ -26,8 +26,18 @@
 
 namespace ae {
 
+enum class DriverFsType : std::uint8_t {
+  kDriverNone,
+  kDriverHeader,
+  kDriverStd,
+  kDriverRam,
+  kDriverSpifsV1,
+  kDriverSpifsV2
+};
+
 class DriverBase {
  public:
+  DriverBase(DriverFsType fs_driver_type) { fs_driver_type_ = fs_driver_type; }
   virtual ~DriverBase() = default;
   virtual void DriverRead(const std::string &path,
                           std::vector<std::uint8_t> &data_vector,
@@ -36,8 +46,10 @@ class DriverBase {
                            const std::vector<std::uint8_t> &data_vector) = 0;
   virtual void DriverDelete(const std::string &path) = 0;
   virtual std::vector<std::string> DriverDir(const std::string &path) = 0;
+  DriverFsType GetDriverFsType() { return fs_driver_type_; };
 
  private:
+  DriverFsType fs_driver_type_{DriverFsType::kDriverNone};
 };
 
 }  // namespace ae

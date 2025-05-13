@@ -23,14 +23,13 @@
 #include <unordered_set>
 
 #include "aether/port/file_systems/drivers/driver_base.h"
-#include "aether/port/file_systems/drivers/driver_factory.h"
 
 namespace ae {
 
 class DriverSync {
  public:
-  DriverSync(DriverFsType fs_driver_type_source,
-             DriverFsType fs_driver_type_destination);
+  DriverSync(std::unique_ptr<DriverBase> fs_driver_source,
+             std::unique_ptr<DriverBase> fs_driver_destination);
   ~DriverSync();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector);
@@ -41,8 +40,6 @@ class DriverSync {
 
  private:
   void DriverSyncronize_(const std::string &path);
-  enum DriverFsType fs_driver_type_source_ { DriverFsType::kDriverNone };
-  enum DriverFsType fs_driver_type_destination_ { DriverFsType::kDriverNone };
   std::unique_ptr<DriverBase> fs_driver_source_{};
   std::unique_ptr<DriverBase> fs_driver_destination_{};
 };

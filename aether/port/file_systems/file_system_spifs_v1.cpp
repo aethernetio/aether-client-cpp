@@ -18,13 +18,23 @@
 
 #if AE_FILE_SYSTEM_SPIFS_V1_ENABLED == 1
 
-#  include "aether/tele/tele.h"
+#  include "aether/port/file_systems/file_systems_tele.h"
+#  include "aether/port/file_systems/drivers/driver_sync.h"
+#  include "aether/port/file_systems/drivers/driver_header.h"
+#  include "aether/port/file_systems/drivers/driver_std.h"
+#  include "aether/port/file_systems/drivers/driver_ram.h"
+#  include "aether/port/file_systems/drivers/driver_spifs_v1.h"
+#  include "aether/port/file_systems/drivers/driver_spifs_v2.h"
 
 namespace ae {
 
 FileSystemSpiFsV1Facility::FileSystemSpiFsV1Facility() {
-  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverNone,
-                                                 DriverFsType::kDriverSpifsV1);
+  std::unique_ptr<DriverBase> driver_source{
+      std::make_unique<DriverSpifsV1>(DriverFsType::kDriverNone)};
+  std::unique_ptr<DriverBase> driver_destination{
+      std::make_unique<DriverSpifsV1>(DriverFsType::kDriverSpifsV1)};
+  driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
+                                                 std::move(driver_destination));
   AE_TELED_DEBUG("New FileSystemSpiFsV1Facility instance created!");
 }
 

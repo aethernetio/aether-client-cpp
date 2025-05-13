@@ -24,7 +24,6 @@
 
 #include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_base.h"
-#include "aether/port/file_systems/drivers/driver_factory.h"
 
 namespace ae {
 using Data = std::vector<std::uint8_t>;
@@ -36,7 +35,7 @@ static ObjClassData state_ram_;
 
 class DriverRam : public DriverBase {
  public:
-  DriverRam();
+  DriverRam(DriverFsType fs_driver_type);
   ~DriverRam();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector, bool sync) override;

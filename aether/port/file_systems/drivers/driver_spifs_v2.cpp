@@ -21,14 +21,15 @@
 #if (defined(ESP_PLATFORM))
 
 namespace ae {
-DriverSpifsV2::DriverSpifsV2() {
+DriverSpifsV2::DriverSpifsV2(DriverFsType fs_driver_type)
+    : DriverBase(fs_driver_type) {
   if (initialized_ == false) {
-    if (DriverInit_() == ESP_OK) initialized_ = true;
+    if (DriverInit() == ESP_OK) initialized_ = true;
   }
 }
 
 DriverSpifsV2::~DriverSpifsV2() {
-  DriverDeinit_();
+  DriverDeinit();
   initialized_ = false;
 }
 
@@ -145,7 +146,7 @@ void DriverSpifsV2::DriverFormat() {
   }
 }
 
-esp_err_t DriverSpifsV2::DriverInit_() {
+esp_err_t DriverSpifsV2::DriverInit() {
   esp_vfs_spiffs_conf_t conf = {.base_path = kBasePath,
                                 .partition_label = kPartition,
                                 .max_files = 128,
@@ -180,7 +181,7 @@ esp_err_t DriverSpifsV2::DriverInit_() {
   return ESP_OK;
 }
 
-void DriverSpifsV2::DriverDeinit_() { esp_vfs_spiffs_unregister(kPartition); }
+void DriverSpifsV2::DriverDeinit() { esp_vfs_spiffs_unregister(kPartition); }
 
 }  // namespace ae
 

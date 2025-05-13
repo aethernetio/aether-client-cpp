@@ -20,7 +20,8 @@
 
 namespace ae {
 
-DriverRam::DriverRam() {}
+DriverRam::DriverRam(DriverFsType fs_driver_type)
+    : DriverBase(fs_driver_type) {}
 
 DriverRam::~DriverRam() {}
 

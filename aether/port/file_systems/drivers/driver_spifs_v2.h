@@ -31,13 +31,12 @@
 #  include "esp_err.h"
 
 #  include "aether/port/file_systems/drivers/driver_base.h"
-#  include "aether/port/file_systems/drivers/driver_factory.h"
 
 namespace ae {
 
 class DriverSpifsV2 : public DriverBase {
  public:
-  DriverSpifsV2();
+  DriverSpifsV2(DriverFsType fs_driver_type);
   ~DriverSpifsV2();
   void DriverRead(const std::string &path,
                   std::vector<std::uint8_t> &data_vector, bool sync) override;
@@ -48,9 +47,9 @@ class DriverSpifsV2 : public DriverBase {
   void DriverFormat();
 
  private:
-  esp_err_t DriverInit_();
-  void DriverDeinit_();
   bool initialized_{false};
+  esp_err_t DriverInit();
+  void DriverDeinit();  
 
   static constexpr char kPartition[] = "storage";
   static constexpr char kBasePath[] = "/spiffs";

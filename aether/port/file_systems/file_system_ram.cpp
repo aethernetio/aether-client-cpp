@@ -18,8 +18,13 @@
 
 #if AE_FILE_SYSTEM_RAM_ENABLED == 1
 
-#  include "aether/transport/low_level/tcp/data_packet_collector.h"
 #  include "aether/port/file_systems/file_systems_tele.h"
+#  include "aether/port/file_systems/drivers/driver_sync.h"
+#  include "aether/port/file_systems/drivers/driver_header.h"
+#  include "aether/port/file_systems/drivers/driver_std.h"
+#  include "aether/port/file_systems/drivers/driver_ram.h"
+#  include "aether/port/file_systems/drivers/driver_spifs_v1.h"
+#  include "aether/port/file_systems/drivers/driver_spifs_v2.h"
 
 namespace ae {
 /*
@@ -28,8 +33,12 @@ namespace ae {
  *\return void.
  */
 FileSystemRamFacility::FileSystemRamFacility() {
-  driver_sync_fs_ = std::make_unique<DriverSync>(DriverFsType::kDriverNone,
-                                                 DriverFsType::kDriverRam);
+  std::unique_ptr<DriverBase> driver_source{
+      std::make_unique<DriverRam>(DriverFsType::kDriverNone)};
+  std::unique_ptr<DriverBase> driver_destination{
+      std::make_unique<DriverRam>(DriverFsType::kDriverRam)};
+  driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
+                                                 std::move(driver_destination));
   AE_TELED_DEBUG("New FileSystemRamFacility instance created!");
 }
 
