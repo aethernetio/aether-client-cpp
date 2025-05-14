@@ -19,7 +19,6 @@
 namespace ae {
 
 inline bool IsInteger(const std::string& s) {
-  AE_TELED_DEBUG("IsInteger string {}", s);
   if (s.empty() || ((!isdigit(s[0])) && (s[0] != '-') && (s[0] != '+')))
     return false;
 

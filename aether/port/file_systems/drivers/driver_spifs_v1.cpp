@@ -226,8 +226,8 @@ void DriverSpifsV1::DriverReadHlp(const std::string &path,
   }
 }
 
-void DriverSpifsV1::DriverWriteHlp(const std::string &path,
-                                   const std::vector<std::uint8_t> &data_vector) {
+void DriverSpifsV1::DriverWriteHlp(
+    const std::string &path, const std::vector<std::uint8_t> &data_vector) {
   size_t bytes_write;
   std::string res_path{};
 

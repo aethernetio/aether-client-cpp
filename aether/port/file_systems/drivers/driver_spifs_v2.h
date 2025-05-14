@@ -49,7 +49,7 @@ class DriverSpifsV2 : public DriverBase {
  private:
   bool initialized_{false};
   esp_err_t DriverInit();
-  void DriverDeinit();  
+  void DriverDeinit();
 
   static constexpr char kPartition[] = "storage";
   static constexpr char kBasePath[] = "/spiffs";

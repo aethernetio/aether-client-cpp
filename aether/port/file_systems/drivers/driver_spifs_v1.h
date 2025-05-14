@@ -31,7 +31,6 @@
 #  include "aether/obj/domain.h"
 #  include "aether/port/file_systems/drivers/driver_base.h"
 
-
 namespace ae {
 using Data = std::vector<std::uint8_t>;
 using VersionData = std::map<std::uint8_t, Data>;
@@ -55,7 +54,7 @@ class DriverSpifsV1 : public DriverBase {
  private:
   bool initialized_{false};
   esp_err_t DriverInit();
-  void DriverDeinit();  
+  void DriverDeinit();
   void LoadObjData(ObjClassData &obj_data);
   void SaveObjData(ObjClassData &obj_data);
   void DriverReadHlp(const std::string &path,

@@ -46,7 +46,7 @@ class DriverBase {
                            const std::vector<std::uint8_t> &data_vector) = 0;
   virtual void DriverDelete(const std::string &path) = 0;
   virtual std::vector<std::string> DriverDir(const std::string &path) = 0;
-  DriverFsType GetDriverFsType() { return fs_driver_type_; };
+  DriverFsType GetDriverFsType() { return fs_driver_type_; }
 
  private:
   DriverFsType fs_driver_type_{DriverFsType::kDriverNone};
