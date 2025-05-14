@@ -28,7 +28,7 @@ DriverSync::DriverSync(std::unique_ptr<DriverBase> fs_driver_source,
 
 DriverSync::~DriverSync() {}
 
-void DriverSync::DriverRead(const std::string &path,
+void DriverSync::DriverRead(const PathStructure &path,
                             std::vector<std::uint8_t> &data_vector) {
   if (fs_driver_source_->GetDriverFsType() != DriverFsType::kDriverHeader) {
     if (!ValidatePath(path)) {
@@ -46,7 +46,7 @@ void DriverSync::DriverRead(const std::string &path,
 #endif
 }
 
-void DriverSync::DriverWrite(const std::string &path,
+void DriverSync::DriverWrite(const PathStructure &path,
                              const std::vector<std::uint8_t> &data_vector) {
   if (fs_driver_source_->GetDriverFsType() != DriverFsType::kDriverHeader) {
     if (!ValidatePath(path)) {
@@ -65,7 +65,7 @@ void DriverSync::DriverWrite(const std::string &path,
 #endif
 }
 
-void DriverSync::DriverDelete(const std::string &path) {
+void DriverSync::DriverDelete(const PathStructure &path) {
   if (fs_driver_source_->GetDriverFsType() != DriverFsType::kDriverHeader) {
     if (!ValidatePath(path)) {
       AE_TELED_ERROR("Wrong path {}", path);
@@ -83,7 +83,7 @@ void DriverSync::DriverDelete(const std::string &path) {
 #endif
 }
 
-std::vector<std::string> DriverSync::DriverDir(const std::string &path) {
+std::vector<PathStructure> DriverSync::DriverDir(const PathStructure &path) {
   std::vector<std::string> dirs_list_source{};
   std::vector<std::string> dirs_list_destination{};
   std::vector<std::string> dirs_list_result{};

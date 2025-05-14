@@ -18,7 +18,6 @@
 #define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_SYNC_H_
 
 #include <cstdint>
-#include <string>
 #include <vector>
 #include <unordered_set>
 
@@ -31,12 +30,12 @@ class DriverSync {
   DriverSync(std::unique_ptr<DriverBase> fs_driver_source,
              std::unique_ptr<DriverBase> fs_driver_destination);
   ~DriverSync();
-  void DriverRead(const std::string &path,
+  void DriverRead(const PathStructure &path,
                   std::vector<std::uint8_t> &data_vector);
-  void DriverWrite(const std::string &path,
+  void DriverWrite(const PathStructure &path,
                    const std::vector<std::uint8_t> &data_vector);
-  void DriverDelete(const std::string &path);
-  std::vector<std::string> DriverDir(const std::string &path);
+  void DriverDelete(const PathStructure &path);
+  std::vector<PathStructure> DriverDir(const PathStructure &path);
 
  private:
   void DriverSyncronize_(const std::string &path);

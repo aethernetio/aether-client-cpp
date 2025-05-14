@@ -36,7 +36,7 @@ DriverSpifsV1::~DriverSpifsV1() {
   initialized_ = false;
 }
 
-void DriverSpifsV1::DriverRead(const std::string &path,
+void DriverSpifsV1::DriverRead(const PathStructure &path,
                                std::vector<std::uint8_t> &data_vector,
                                bool sync) {
   if (!sync) {
@@ -66,7 +66,7 @@ void DriverSpifsV1::DriverRead(const std::string &path,
   }
 }
 
-void DriverSpifsV1::DriverWrite(const std::string &path,
+void DriverSpifsV1::DriverWrite(const PathStructure &path,
                                 const std::vector<std::uint8_t> &data_vector) {
   ae::PathStructure path_struct{};
 
@@ -82,7 +82,7 @@ void DriverSpifsV1::DriverWrite(const std::string &path,
   SaveObjData(state_spifs_);
 }
 
-void DriverSpifsV1::DriverDelete(const std::string &path) {
+void DriverSpifsV1::DriverDelete(const PathStructure &path) {
   ae::PathStructure path_struct{};
 
   // Reading ObjClassData
@@ -104,7 +104,7 @@ void DriverSpifsV1::DriverDelete(const std::string &path) {
   SaveObjData(state_spifs_);
 }
 
-std::vector<std::string> DriverSpifsV1::DriverDir(const std::string &path) {
+std::vector<PathStructure> DriverSpifsV1::DriverDir(const PathStructure &path) {
   std::vector<std::string> dirs_list{};
 
   // Reading ObjClassData

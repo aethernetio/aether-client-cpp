@@ -56,6 +56,15 @@ ae::PathStructure GetPathStructure(const std::string& path) {
   return path_struct;
 }
 
+std::string GetPathString(const ae::PathStructure& path) {
+  std::string path_string{};
+
+  path_string = "state/" + std::to_string(path.version) + "/" +
+                path.obj_id.ToString() + "/" + std::to_string(path.class_id);
+
+  return path_string;
+}
+
 bool ValidatePath(const std::string& path) {
   std::vector<std::string> parts;
   std::stringstream ss(path);

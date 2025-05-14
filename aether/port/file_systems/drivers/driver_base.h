@@ -18,13 +18,18 @@
 #define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_BASE_H_
 
 #include <cstdint>
-#include <string>
 #include <vector>
 #include <map>
 
 #include "aether/obj/domain.h"
 
 namespace ae {
+
+struct PathStructure {
+  std::uint8_t version;
+  ae::ObjId obj_id;
+  std::uint32_t class_id;
+};
 
 enum class DriverFsType : std::uint8_t {
   kDriverNone,
@@ -39,13 +44,13 @@ class DriverBase {
  public:
   DriverBase(DriverFsType fs_driver_type) { fs_driver_type_ = fs_driver_type; }
   virtual ~DriverBase() = default;
-  virtual void DriverRead(const std::string &path,
+  virtual void DriverRead(const PathStructure &path,
                           std::vector<std::uint8_t> &data_vector,
                           bool sync) = 0;
-  virtual void DriverWrite(const std::string &path,
+  virtual void DriverWrite(const PathStructure &path,
                            const std::vector<std::uint8_t> &data_vector) = 0;
-  virtual void DriverDelete(const std::string &path) = 0;
-  virtual std::vector<std::string> DriverDir(const std::string &path) = 0;
+  virtual void DriverDelete(const PathStructure &path) = 0;
+  virtual std::vector<PathStructure> DriverDir(const PathStructure &path) = 0;
   DriverFsType GetDriverFsType() { return fs_driver_type_; }
 
  private:

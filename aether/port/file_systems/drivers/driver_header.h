@@ -17,10 +17,10 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
 #define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
 
-#include <string>
 #include <vector>
 #include <cstdint>
 #include <fstream>
+#include <string>
 #include <ios>
 #include <system_error>
 
@@ -34,7 +34,7 @@
 
 namespace ae {
 
-class DriverHeader : public DriverBase {
+class DriverHeader {
   using Data = std::vector<std::uint8_t>;
   using VersionData = std::map<std::uint8_t, Data>;
   using ClassData = std::map<std::uint32_t, VersionData>;
@@ -44,11 +44,11 @@ class DriverHeader : public DriverBase {
   DriverHeader(DriverFsType fs_driver_type);
   ~DriverHeader();
   void DriverRead(const std::string &path,
-                  std::vector<std::uint8_t> &data_vector, bool sync) override;
+                  std::vector<std::uint8_t> &data_vector, bool sync);
   void DriverWrite(const std::string &path,
-                   const std::vector<std::uint8_t> &data_vector) override;
+                   const std::vector<std::uint8_t> &data_vector);
   void DriverDelete(const std::string &path) override;
-  std::vector<std::string> DriverDir(const std::string &path) override;
+  std::vector<PathStructure> DriverDir(const std::string &path);
 
  private:
   std::string ByteToHex(std::uint8_t ch);

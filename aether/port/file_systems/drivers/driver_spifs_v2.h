@@ -21,7 +21,6 @@
 
 #  include <dirent.h>
 
-#  include <string>
 #  include <vector>
 #  include <cstdint>
 
@@ -38,12 +37,12 @@ class DriverSpifsV2 : public DriverBase {
  public:
   DriverSpifsV2(DriverFsType fs_driver_type);
   ~DriverSpifsV2();
-  void DriverRead(const std::string &path,
+  void DriverRead(const PathStructure &path,
                   std::vector<std::uint8_t> &data_vector, bool sync) override;
-  void DriverWrite(const std::string &path,
+  void DriverWrite(const PathStructure &path,
                    const std::vector<std::uint8_t> &data_vector) override;
-  void DriverDelete(const std::string &path) override;
-  std::vector<std::string> DriverDir(const std::string &path) override;
+  void DriverDelete(const PathStructure &path) override;
+  std::vector<PathStructure> DriverDir(const PathStructure &path) override;
   void DriverFormat();
 
  private:

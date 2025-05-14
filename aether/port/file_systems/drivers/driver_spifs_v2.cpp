@@ -15,6 +15,7 @@
  */
 
 #include "aether/port/file_systems/drivers/driver_spifs_v2.h"
+#include "aether/port/file_systems/drivers/driver_functions.h"
 #include "aether/port/file_systems/file_systems_tele.h"
 #include "aether/tele/tele.h"
 
@@ -33,7 +34,7 @@ DriverSpifsV2::~DriverSpifsV2() {
   initialized_ = false;
 }
 
-void DriverSpifsV2::DriverRead(const std::string &path,
+void DriverSpifsV2::DriverRead(const PathStructure &path,
                                std::vector<std::uint8_t> &data_vector,
                                bool sync) {
   size_t bytes_read;
@@ -41,7 +42,7 @@ void DriverSpifsV2::DriverRead(const std::string &path,
   std::string res_path{};
 
   if (!initialized_) return;
-  res_path = kBasePath + std::string("/") + path;
+  res_path = kBasePath + std::string("/") + GetPathString(path);
 
   AE_TELE_DEBUG(FsObjLoaded, "Opening file {} for read.", res_path);
   FILE *file = fopen(res_path.c_str(), "r");
@@ -68,13 +69,13 @@ void DriverSpifsV2::DriverRead(const std::string &path,
   }
 }
 
-void DriverSpifsV2::DriverWrite(const std::string &path,
+void DriverSpifsV2::DriverWrite(const PathStructure &path,
                                 const std::vector<std::uint8_t> &data_vector) {
   size_t bytes_write;
   std::string res_path{};
 
   if (!initialized_) return;
-  res_path = kBasePath + std::string("/") + path;
+  res_path = kBasePath + std::string("/") + GetPathString(path);
 
   AE_TELE_DEBUG(FsObjSaved, "Opening file {} for write.", res_path);
   FILE *file = fopen(res_path.c_str(), "w");
@@ -94,12 +95,12 @@ void DriverSpifsV2::DriverWrite(const std::string &path,
   }
 }
 
-void DriverSpifsV2::DriverDelete(const std::string &path) {
+void DriverSpifsV2::DriverDelete(const PathStructure &path) {
   struct stat status;
   std::string res_path{};
 
   if (!initialized_) return;
-  res_path = kBasePath + std::string("/") + path;
+  res_path = kBasePath + std::string("/") + GetPathString(path);
 
   AE_TELED_DEBUG("Opening file {} for delete.", res_path);
   // Check if destination file exists before renaming
@@ -110,14 +111,14 @@ void DriverSpifsV2::DriverDelete(const std::string &path) {
   }
 }
 
-std::vector<std::string> DriverSpifsV2::DriverDir(const std::string &path) {
+std::vector<PathStructure> DriverSpifsV2::DriverDir(const PathStructure &path) {
   struct dirent *de;
   bool read_dir{true};
-  std::vector<std::string> dirs_list{};
+  std::vector<PathStructure> dirs_list{};
   std::string res_path{};
 
   if (!initialized_) return dirs_list;
-  res_path = kBasePath + std::string("/") + path;
+  res_path = kBasePath + std::string("/") + GetPathString(path);
 
   DIR *dir = opendir(res_path.c_str());
   if (dir == nullptr) {

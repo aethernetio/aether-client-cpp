@@ -33,7 +33,7 @@ DriverStd::DriverStd(DriverFsType fs_driver_type)
 
 DriverStd::~DriverStd() {}
 
-void DriverStd::DriverRead(const std::string &path,
+void DriverStd::DriverRead(const PathStructure &path,
                            std::vector<std::uint8_t> &data_vector, bool sync) {
   if (!sync) {
     ae::PathStructure path_struct{};
@@ -70,7 +70,7 @@ void DriverStd::DriverRead(const std::string &path,
   }
 }
 
-void DriverStd::DriverWrite(const std::string &path,
+void DriverStd::DriverWrite(const PathStructure &path,
                             const std::vector<std::uint8_t> &data_vector) {
   ae::PathStructure path_struct{};
 
@@ -96,7 +96,7 @@ void DriverStd::DriverDelete(const std::string &path) {
   std::filesystem::remove_all(obj_path);
 }
 
-std::vector<std::string> DriverStd::DriverDir(const std::string &path) {
+std::vector<PathStructure> DriverStd::DriverDir(const PathStructure &path) {
   std::vector<std::string> dirs_list{};
 
   auto state_dir = std::filesystem::path{path};

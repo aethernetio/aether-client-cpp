@@ -38,8 +38,7 @@ constexpr char string9[] = "#endif /* CONFIG_FILE_SYSTEM_INIT_H_ */";
 constexpr char string10[] = "";
 
 namespace ae {
-DriverHeader::DriverHeader(DriverFsType fs_driver_type)
-    : DriverBase(fs_driver_type) {}
+DriverHeader::DriverHeader(DriverFsType fs_driver_type) {}
 
 DriverHeader::~DriverHeader() {}
 
@@ -176,8 +175,8 @@ void DriverHeader::DriverDelete(const std::string &path) {
 #endif
 }
 
-std::vector<std::string> DriverHeader::DriverDir(const std::string &path) {
-  std::vector<std::string> dirs_list{};
+std::vector<PathStructure> DriverHeader::DriverDir(const std::string &path) {
+  std::vector<PathStructure> dirs_list{};
 
   AE_TELE_DEBUG(FsDir, "Dir header file {}", path);
   return dirs_list;

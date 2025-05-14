@@ -20,16 +20,12 @@
 #include <unordered_set>
 
 #include "aether/obj/domain.h"
+#include "aether/port/file_systems/drivers/driver_base.h"
 
 namespace ae {
 
-struct PathStructure {
-  std::uint8_t version;
-  ae::ObjId obj_id;
-  std::uint32_t class_id;
-};
-
 ae::PathStructure GetPathStructure(const std::string &path);
+std::string GetPathString(const ae::PathStructure& path);
 bool ValidatePath(const std::string &path);
 
 template <typename T>

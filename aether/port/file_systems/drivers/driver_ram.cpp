@@ -25,7 +25,7 @@ DriverRam::DriverRam(DriverFsType fs_driver_type)
 
 DriverRam::~DriverRam() {}
 
-void DriverRam::DriverRead(const std::string &path,
+void DriverRam::DriverRead(const PathStructure,
                            std::vector<std::uint8_t> &data_vector, bool sync) {
   if (!sync) {
     ae::PathStructure path_struct{};
@@ -51,7 +51,7 @@ void DriverRam::DriverRead(const std::string &path,
   }
 }
 
-void DriverRam::DriverWrite(const std::string &path,
+void DriverRam::DriverWrite(const PathStructure &path,
                             const std::vector<std::uint8_t> &data_vector) {
   ae::PathStructure path_struct{};
 
@@ -61,7 +61,7 @@ void DriverRam::DriverWrite(const std::string &path,
       data_vector;
 }
 
-void DriverRam::DriverDelete(const std::string &path) {
+void DriverRam::DriverDelete(const PathStructure &path) {
   ae::PathStructure path_struct{};
 
   path_struct = GetPathStructure(path);
@@ -77,7 +77,7 @@ void DriverRam::DriverDelete(const std::string &path) {
   }
 }
 
-std::vector<std::string> DriverRam::DriverDir(const std::string &path) {
+std::vector<PathStructure> DriverRam::DriverDir(const PathStructure &path) {
   std::vector<std::string> dirs_list{};
 
   AE_TELE_DEBUG(FsObjRemoved, "Path {}", path);
