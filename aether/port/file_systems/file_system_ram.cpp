@@ -19,6 +19,7 @@
 #if AE_FILE_SYSTEM_RAM_ENABLED == 1
 
 #  include "aether/port/file_systems/file_systems_tele.h"
+#  include "aether/port/file_systems/drivers/driver_functions.h"
 #  include "aether/port/file_systems/drivers/driver_sync.h"
 #  include "aether/port/file_systems/drivers/driver_header.h"
 #  include "aether/port/file_systems/drivers/driver_std.h"
@@ -33,8 +34,8 @@ namespace ae {
  *\return void.
  */
 FileSystemRamFacility::FileSystemRamFacility() {
-  std::unique_ptr<DriverBase> driver_source{
-      std::make_unique<DriverRam>(DriverFsType::kDriverNone)};
+  std::unique_ptr<DriverHeader> driver_source{
+      std::make_unique<DriverHeader>(DriverFsType::kDriverNone)};
   std::unique_ptr<DriverBase> driver_destination{
       std::make_unique<DriverRam>(DriverFsType::kDriverRam)};
   driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
@@ -54,22 +55,18 @@ FileSystemRamFacility::~FileSystemRamFacility() {
 std::vector<uint32_t> FileSystemRamFacility::Enumerate(
     const ae::ObjId& obj_id) {
   std::vector<std::uint32_t> classes;
-  std::vector<std::string> dirs_list{};
-  std::string path{"state"};
-  std::string file{};
+  std::vector<PathStructure> dirs_list{};
+  PathStructure path{};
+
+  // std::uint8_t version;
+  path.obj_id = obj_id;
+  // std::uint32_t class_id;
 
   dirs_list = driver_sync_fs_->DriverDir(path);
 
   for (auto dir : dirs_list) {
-    AE_TELE_DEBUG(FsEnumerated, "Dir {}", dir);
-    auto pos1 = dir.find("/" + obj_id.ToString() + "/");
-    if (pos1 != std::string::npos) {
-      auto pos2 = dir.rfind("/");
-      if (pos2 != std::string::npos) {
-        file.assign(dir, pos2 + 1, dir.size() - pos2 - 1);
-        auto enum_class = static_cast<uint32_t>(std::stoul(file));
-        classes.push_back(enum_class);
-      }
+    if (obj_id == dir.obj_id) {
+      classes.push_back(dir.class_id);
     }
   }
   AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
@@ -80,10 +77,11 @@ std::vector<uint32_t> FileSystemRamFacility::Enumerate(
 void FileSystemRamFacility::Store(const ae::ObjId& obj_id,
                                   std::uint32_t class_id, std::uint8_t version,
                                   const std::vector<uint8_t>& os) {
-  std::string path{};
+  PathStructure path{};
 
-  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
-         std::to_string(class_id);
+  path.version = version;
+  path.obj_id = obj_id;
+  path.class_id = class_id;
 
   driver_sync_fs_->DriverWrite(path, os);
 
@@ -95,10 +93,11 @@ void FileSystemRamFacility::Store(const ae::ObjId& obj_id,
 void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
                                  std::uint32_t class_id, std::uint8_t version,
                                  std::vector<uint8_t>& is) {
-  std::string path{};
+  PathStructure path{};
 
-  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
-         std::to_string(class_id);
+  path.version = version;
+  path.obj_id = obj_id;
+  path.class_id = class_id;
 
   driver_sync_fs_->DriverRead(path, is);
 
@@ -108,29 +107,32 @@ void FileSystemRamFacility::Load(const ae::ObjId& obj_id,
 }
 
 void FileSystemRamFacility::Remove(const ae::ObjId& obj_id) {
-  std::string path{"state"};
+  PathStructure path{};
 
-  auto version_dirs = driver_sync_fs_->DriverDir(path);
+  // Path is "state/version/obj_id/class_id"
+  path.obj_id = obj_id;
 
-  for (auto const& ver_dir : version_dirs) {
-    auto obj_dirs = driver_sync_fs_->DriverDir(ver_dir);
-    auto obj_it = std::find_if(
-        std::begin(obj_dirs), std::end(obj_dirs), [&](auto const& path) {
-          return path.find("/" + obj_id.ToString() + "/") != std::string::npos;
-        });
-    if (obj_it != std::end(obj_dirs)) {
-      driver_sync_fs_->DriverDelete(*obj_it);
-      AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version dir {}",
-                    obj_id.ToString(), ver_dir);
+  auto dirs = driver_sync_fs_->DriverDir(path);
+
+  for (auto const& dir : dirs) {
+    if (obj_id == dir.obj_id) {
+      driver_sync_fs_->DriverDelete(dir);
+      AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of directory {}",
+                    obj_id.ToString(), GetPathString(dir));
     }
   }
 }
 
 #  if defined AE_DISTILLATION
 void FileSystemRamFacility::CleanUp() {
-  std::string path{"state"};
+  std::string path{};
 
-  driver_sync_fs_->DriverDelete(path);
+  auto dirs = driver_sync_fs_->DriverDir(path);
+
+  for (auto const& dir : dirs) {
+    driver_sync_fs_->DriverDelete(dir);
+  }
+
   AE_TELED_DEBUG("All objects have been removed!");
 }
 #  endif

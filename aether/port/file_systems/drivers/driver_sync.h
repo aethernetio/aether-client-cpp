@@ -22,12 +22,13 @@
 #include <unordered_set>
 
 #include "aether/port/file_systems/drivers/driver_base.h"
+#include "aether/port/file_systems/drivers/driver_header.h"
 
 namespace ae {
 
 class DriverSync {
  public:
-  DriverSync(std::unique_ptr<DriverBase> fs_driver_source,
+  DriverSync(std::unique_ptr<DriverHeader> fs_driver_source,
              std::unique_ptr<DriverBase> fs_driver_destination);
   ~DriverSync();
   void DriverRead(const PathStructure &path,
@@ -38,8 +39,8 @@ class DriverSync {
   std::vector<PathStructure> DriverDir(const PathStructure &path);
 
  private:
-  void DriverSyncronize_(const std::string &path);
-  std::unique_ptr<DriverBase> fs_driver_source_{};
+  void DriverSyncronize_(const PathStructure &path);
+  std::unique_ptr<DriverHeader> fs_driver_source_{};
   std::unique_ptr<DriverBase> fs_driver_destination_{};
 };
 

@@ -32,8 +32,9 @@ namespace ae {
 FileSystemHeaderFacility::FileSystemHeaderFacility(
     const std::string& header_file, DriverFsType fs_driver_type_destination)
     : path_{header_file} {
-  std::unique_ptr<DriverBase> driver_source{
+  std::unique_ptr<DriverHeader> driver_source{
       std::make_unique<DriverHeader>(DriverFsType::kDriverHeader)};
+
   std::unique_ptr<DriverBase> driver_destination{};
   switch (fs_driver_type_destination) {
     case DriverFsType::kDriverStd:
@@ -45,10 +46,6 @@ FileSystemHeaderFacility::FileSystemHeaderFacility(
     case DriverFsType::kDriverRam:
       driver_destination =
           std::make_unique<DriverRam>(DriverFsType::kDriverRam);
-      break;
-    case DriverFsType::kDriverHeader:
-      driver_destination =
-          std::make_unique<DriverHeader>(DriverFsType::kDriverHeader);
       break;
     case DriverFsType::kDriverSpifsV1:
 #  if defined(ESP_PLATFORM)
@@ -120,11 +117,12 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
   // Writing ObjClassData
   SaveObjData_(state_);
 
-  std::string path{};
+  PathStructure path{};
 
-  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
-         std::to_string(class_id);
-
+  path.version=version;
+  path.obj_id=obj_id;
+  path.class_id=class_id;
+  
   // For FS syncronization
   driver_sync_fs_->DriverWrite(path, os);
 
@@ -138,10 +136,11 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
                                     std::vector<uint8_t>& is) {
   ObjClassData state_;
 
-  std::string path{};
+  PathStructure path{};
 
-  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
-         std::to_string(class_id);
+  path.version=version;
+  path.obj_id=obj_id;
+  path.class_id=class_id;
 
   // For FS syncronization
   driver_sync_fs_->DriverRead(path, is);

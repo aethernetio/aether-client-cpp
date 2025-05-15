@@ -36,14 +36,10 @@ DriverStd::~DriverStd() {}
 void DriverStd::DriverRead(const PathStructure &path,
                            std::vector<std::uint8_t> &data_vector, bool sync) {
   if (!sync) {
-    ae::PathStructure path_struct{};
-
-    path_struct = GetPathStructure(path);
-
     auto obj_dir = std::filesystem::path("state") /
-                   std::to_string(path_struct.version) /
-                   path_struct.obj_id.ToString();
-    auto p = obj_dir / std::to_string(path_struct.class_id);
+                   std::to_string(path.version) /
+                   path.obj_id.ToString();
+    auto p = obj_dir / std::to_string(path.class_id);
     std::ifstream f(p.c_str(), std::ios::in | std::ios::binary);
     if (!f.good()) {
       // Replacing backslashes with straight ones
@@ -72,34 +68,26 @@ void DriverStd::DriverRead(const PathStructure &path,
 
 void DriverStd::DriverWrite(const PathStructure &path,
                             const std::vector<std::uint8_t> &data_vector) {
-  ae::PathStructure path_struct{};
-
-  path_struct = GetPathStructure(path);
-
   auto obj_dir = std::filesystem::path("state") /
-                 std::to_string(path_struct.version) /
-                 path_struct.obj_id.ToString();
+                 std::to_string(path.version) /
+                 path.obj_id.ToString();
   std::filesystem::create_directories(obj_dir);
-  auto p = obj_dir / std::to_string(path_struct.class_id);
+  auto p = obj_dir / std::to_string(path.class_id);
   std::ofstream f(p.c_str(),
                   std::ios::out | std::ios::binary | std::ios::trunc);
   f.write(reinterpret_cast<const char *>(data_vector.data()),
           static_cast<std::streamsize>(data_vector.size()));
 }
 
-void DriverStd::DriverDelete(const std::string &path) {
-  std::string obj_path = path;
-#  if (defined(_WIN64) || defined(_WIN32))
-  // Replacing straight ones with backslashes
-  std::replace(obj_path.begin(), obj_path.end(), '/', '\\');
-#  endif
+void DriverStd::DriverDelete(const PathStructure &path) {
+  std::string obj_path = GetPathString(path);
   std::filesystem::remove_all(obj_path);
 }
 
 std::vector<PathStructure> DriverStd::DriverDir(const PathStructure &path) {
-  std::vector<std::string> dirs_list{};
+  std::vector<PathStructure> dirs_list{};
 
-  auto state_dir = std::filesystem::path{path};
+  auto state_dir = std::filesystem::path{GetPathString(path)};
   auto ec = std::error_code{};
   for (auto const &version_dir :
        std::filesystem::directory_iterator(state_dir, ec)) {
@@ -109,11 +97,7 @@ std::vector<PathStructure> DriverStd::DriverDir(const PathStructure &path) {
       auto ec3 = std::error_code{};
       for (auto const &f : std::filesystem::directory_iterator(obj_dir, ec3)) {
         std::string name = f.path().string();
-#  if (defined(_WIN64) || defined(_WIN32))
-        // Replacing backslashes with straight ones
-        std::replace(name.begin(), name.end(), '\\', '/');
-#  endif
-        dirs_list.push_back(name);
+        dirs_list.push_back(GetPathStructure(name));
       }
       if (ec3) {
         AE_TELED_ERROR("Unable to open directory with error {}", ec3.message());

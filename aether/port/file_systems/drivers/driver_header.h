@@ -47,10 +47,12 @@ class DriverHeader {
                   std::vector<std::uint8_t> &data_vector, bool sync);
   void DriverWrite(const std::string &path,
                    const std::vector<std::uint8_t> &data_vector);
-  void DriverDelete(const std::string &path) override;
+  void DriverDelete(const std::string &path);
   std::vector<PathStructure> DriverDir(const std::string &path);
+  DriverFsType GetDriverFsType() { return fs_driver_type_; }
 
  private:
+  DriverFsType fs_driver_type_{DriverFsType::kDriverNone};
   std::string ByteToHex(std::uint8_t ch);
   uint8_t HexToByte(const std::string &hex);
 };

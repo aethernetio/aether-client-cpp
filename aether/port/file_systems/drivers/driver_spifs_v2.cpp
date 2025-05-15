@@ -116,9 +116,10 @@ std::vector<PathStructure> DriverSpifsV2::DriverDir(const PathStructure &path) {
   bool read_dir{true};
   std::vector<PathStructure> dirs_list{};
   std::string res_path{};
+  PathStructure res_struct{};
 
   if (!initialized_) return dirs_list;
-  res_path = kBasePath + std::string("/") + GetPathString(path);
+  res_path = kBasePath + std::string("/state/") + GetPathString(path);
 
   DIR *dir = opendir(res_path.c_str());
   if (dir == nullptr) {
@@ -129,8 +130,8 @@ std::vector<PathStructure> DriverSpifsV2::DriverDir(const PathStructure &path) {
       if (de == nullptr) {
         read_dir = false;
       } else {
-        res_path = std::string(de->d_name);
-        dirs_list.push_back(res_path);
+        res_struct = GetPathStructure(std::string(de->d_name));
+        dirs_list.push_back(res_struct);
       }
     }
     AE_TELED_DEBUG("Found {} directories", dirs_list.size());

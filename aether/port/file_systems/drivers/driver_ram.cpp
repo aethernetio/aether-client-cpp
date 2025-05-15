@@ -25,24 +25,20 @@ DriverRam::DriverRam(DriverFsType fs_driver_type)
 
 DriverRam::~DriverRam() {}
 
-void DriverRam::DriverRead(const PathStructure,
+void DriverRam::DriverRead(const PathStructure &path,
                            std::vector<std::uint8_t> &data_vector, bool sync) {
-  if (!sync) {
-    ae::PathStructure path_struct{};
-
-    path_struct = GetPathStructure(path);
-
-    auto obj_it = state_ram_.find(path_struct.obj_id);
+  if (!sync) { 
+    auto obj_it = state_ram_.find(path.obj_id);
     if (obj_it == state_ram_.end()) {
       return;
     }
 
-    auto class_it = obj_it->second.find(path_struct.class_id);
+    auto class_it = obj_it->second.find(path.class_id);
     if (class_it == obj_it->second.end()) {
       return;
     }
 
-    auto version_it = class_it->second.find(path_struct.version);
+    auto version_it = class_it->second.find(path.version);
     if (version_it == class_it->second.end()) {
       return;
     }
@@ -53,41 +49,36 @@ void DriverRam::DriverRead(const PathStructure,
 
 void DriverRam::DriverWrite(const PathStructure &path,
                             const std::vector<std::uint8_t> &data_vector) {
-  ae::PathStructure path_struct{};
-
-  path_struct = GetPathStructure(path);
-
-  state_ram_[path_struct.obj_id][path_struct.class_id][path_struct.version] =
+  state_ram_[path.obj_id][path.class_id][path.version] =
       data_vector;
 }
 
 void DriverRam::DriverDelete(const PathStructure &path) {
-  ae::PathStructure path_struct{};
-
-  path_struct = GetPathStructure(path);
-
-  auto it = state_ram_.find(path_struct.obj_id);
+  auto it = state_ram_.find(path.obj_id);
   if (it != state_ram_.end()) {
     AE_TELE_DEBUG(FsObjRemoved, "Removed object {}",
-                  path_struct.obj_id.ToString());
+                  path.obj_id.ToString());
     state_ram_.erase(it);
   } else {
     AE_TELE_ERROR(FsRemoveObjIdNoFound, "Object id={} not found!",
-                  path_struct.obj_id.ToString());
+                  path.obj_id.ToString());
   }
 }
 
 std::vector<PathStructure> DriverRam::DriverDir(const PathStructure &path) {
-  std::vector<std::string> dirs_list{};
+  PathStructure res_path{};
+  std::vector<PathStructure> dirs_list{};
 
-  AE_TELE_DEBUG(FsObjRemoved, "Path {}", path);
+  // Path is "state/version/obj_id/class_id"
+  AE_TELE_DEBUG(FsDir, "Path {}", GetPathString(path));
   for (auto &ItemObjClassData : state_ram_) {
     for (auto &ItemClassData : ItemObjClassData.second) {
       for (auto &ItemVersionData : ItemClassData.second) {
         // Path is "state/version/obj_id/class_id"
-        dirs_list.push_back("state/" + std::to_string(ItemVersionData.first) +
-                            "/" + ItemObjClassData.first.ToString() + "/" +
-                            std::to_string(ItemClassData.first));
+        res_path.version = ItemVersionData.first;
+        res_path.obj_id = ItemObjClassData.first;
+        res_path.class_id = ItemClassData.first;
+        dirs_list.push_back(res_path);
       }
     }
   }
