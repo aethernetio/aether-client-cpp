@@ -53,6 +53,7 @@ class FileSystemHeaderFacility : public IDomainFacility {
   void SaveObjData_(ObjClassData& obj_data);
 
   std::unique_ptr<DriverSync> driver_sync_fs_;
+  std::unique_ptr<DriverHeader> driver_header_fs_;
   std::string path_{};
 };
 }  // namespace ae

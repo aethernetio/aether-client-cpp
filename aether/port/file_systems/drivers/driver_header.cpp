@@ -21,7 +21,6 @@
 
 #include "aether/port/file_systems/drivers/driver_header.h"
 #include "aether/port/file_systems/drivers/driver_functions.h"
-#include "aether/transport/low_level/tcp/data_packet_collector.h"
 #include "aether/port/file_systems/file_systems_tele.h"
 #include "aether/tele/tele.h"
 
@@ -94,10 +93,15 @@ void DriverHeader::DriverRead(const std::string &path,
     AE_TELE_DEBUG(FsObjLoaded, "Loaded header file {}", path);
 #endif
   } else {
+#if defined FS_INIT_TEST
     auto data_vector_ =
+        std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
+#elif defined FS_INIT
+    auto data_vector_ = 
         std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
+#endif    
 
-    VectorReader<PacketSize> vr{data_vector_};
+    VectorReader<HeaderSize> vr{data_vector_};
     ae::PathStructure path_struct{};
     ObjClassData obj_data;
 

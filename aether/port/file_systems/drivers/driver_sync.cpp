@@ -28,7 +28,7 @@ DriverSync::DriverSync(std::unique_ptr<DriverHeader> fs_driver_source,
 
 DriverSync::~DriverSync() {}
 
-void DriverSync::DriverRead(const PathStructure &path,
+void DriverSync::DriverRead(const PathStructure &path, 
                             std::vector<std::uint8_t> &data_vector) {
 #if defined(AE_DISTILLATION)
   fs_driver_destination_->DriverRead(path, data_vector, false);
@@ -74,7 +74,7 @@ std::vector<PathStructure> DriverSync::DriverDir(const PathStructure &path) {
   dirs_list_destination = fs_driver_destination_->DriverDir(path);
 #else
   if (fs_driver_source_ != nullptr) {
-    dirs_list_source = fs_driver_source_->DriverDir(path);
+    dirs_list_source = fs_driver_source_->DriverDir(GetPathString(path));
   }
   if (fs_driver_destination_ != nullptr) {
     dirs_list_destination = fs_driver_destination_->DriverDir(path);
@@ -103,10 +103,12 @@ void DriverSync::DriverSyncronize_(const PathStructure &path) {
   }
 
   if (fs_driver_source_->GetDriverFsType() == DriverFsType::kDriverHeader) {
-    fs_driver_source_->DriverRead(GetPathString(path), data_vector_source,
-                                  true);
+    fs_driver_source_->DriverRead(GetPathString(path, false), 
+                                  data_vector_source,
+                                  false);
   } else {
-    fs_driver_source_->DriverRead(GetPathString(path), data_vector_source,
+    fs_driver_source_->DriverRead(GetPathString(path, false),
+                                  data_vector_source,
                                   false);
   }
   if (fs_driver_destination_ != nullptr) {

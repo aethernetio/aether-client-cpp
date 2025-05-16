@@ -25,6 +25,7 @@
 #include <system_error>
 
 #include "aether/port/file_systems/drivers/driver_base.h"
+#include "aether/packed_int.h"
 
 #if defined FS_INIT
 #  include FS_INIT
@@ -32,7 +33,15 @@
 #  error "FS_INIT should be defined"
 #endif
 
+#if defined FS_INIT_TEST
+#  include FS_INIT_TEST
+#else
+#  error "FS_INIT_TEST should be defined"
+#endif
+
 namespace ae {
+
+using HeaderSize = Packed<std::uint64_t, std::uint16_t, 8192>;
 
 class DriverHeader {
   using Data = std::vector<std::uint8_t>;

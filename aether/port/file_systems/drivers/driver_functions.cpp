@@ -56,15 +56,22 @@ ae::PathStructure GetPathStructure(const std::string& path) {
   return path_struct;
 }
 
-std::string GetPathString(const ae::PathStructure& path) {
+std::string GetPathString(const ae::PathStructure& path, bool convert) {
   std::string path_string{};
-#if (defined(_WIN64) || defined(_WIN32))
-  path_string = "state\\" + std::to_string(path.version) + "\\" +
-                path.obj_id.ToString() + "\\" + std::to_string(path.class_id);
-#else
-  path_string = "state/" + std::to_string(path.version) + "/" +
-                path.obj_id.ToString() + "/" + std::to_string(path.class_id);
-#endif
+
+  if(convert){
+  #if (defined(_WIN64) || defined(_WIN32))
+    path_string = "state\\" + std::to_string(path.version) + "\\" +
+                  path.obj_id.ToString() + "\\" + std::to_string(path.class_id);
+  #else
+    path_string = "state/" + std::to_string(path.version) + "/" +
+                  path.obj_id.ToString() + "/" + std::to_string(path.class_id);
+  #endif
+  } else {
+    path_string = std::to_string(path.version) + "/" +
+                  path.obj_id.ToString() + "/" + std::to_string(path.class_id);    
+  }
+
   return path_string;
 }
 

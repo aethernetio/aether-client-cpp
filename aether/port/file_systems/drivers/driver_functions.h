@@ -25,7 +25,7 @@
 namespace ae {
 
 ae::PathStructure GetPathStructure(const std::string &path);
-std::string GetPathString(const ae::PathStructure& path);
+std::string GetPathString(const ae::PathStructure& path, bool convert);
 
 template <typename T>
 bool IsEqual(std::vector<T> const &v1, std::vector<T> const &v2) {

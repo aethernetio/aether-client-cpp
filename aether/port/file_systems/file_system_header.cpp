@@ -69,6 +69,7 @@ FileSystemHeaderFacility::FileSystemHeaderFacility(
 
   driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
                                                  std::move(driver_destination));
+  driver_header_fs_ = std::make_unique<DriverHeader>(DriverFsType::kDriverHeader);
   AE_TELED_DEBUG("New FileSystemHeader instance created!");
 }
 
@@ -190,19 +191,21 @@ void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
 
 #  if defined AE_DISTILLATION
 void FileSystemHeaderFacility::CleanUp() {
-  driver_sync_fs_->DriverDelete(path_);
+  driver_header_fs_->DriverDelete(path_);
 }
 #  endif
 
 void FileSystemHeaderFacility::LoadObjData_(ObjClassData& obj_data) {
 #  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
-#    if defined FS_INIT
+#    if defined FS_INIT_TEST
+  auto data_vector = std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
+#  elif defined FS_INIT
   auto data_vector = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
 #    else
   auto data_vector = std::vector<std::uint8_t>{};
 #    endif
 
-  VectorReader<PacketSize> vr{data_vector};
+  VectorReader<HeaderSize> vr{data_vector};
 
   auto is = imstream{vr};
   // add oj data
@@ -210,9 +213,9 @@ void FileSystemHeaderFacility::LoadObjData_(ObjClassData& obj_data) {
 #  else
   std::vector<std::uint8_t> data_vector{};
 
-  VectorReader<PacketSize> vr{data_vector};
+  VectorReader<HeaderSize> vr{data_vector};
 
-  driver_sync_fs_->DriverRead(path_, data_vector);
+  driver_header_fs_->DriverRead(path_, data_vector);
   auto is = imstream{vr};
   // add obj data
   is >> obj_data;
@@ -221,13 +224,15 @@ void FileSystemHeaderFacility::LoadObjData_(ObjClassData& obj_data) {
 
 void FileSystemHeaderFacility::SaveObjData_(ObjClassData& obj_data) {
 #  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
-#    if defined FS_INIT
+#    if defined FS_INIT_TEST
+  auto data_vector = std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
+#    elif defined FS_INIT
   auto data_vector = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
 #    else
   auto data_vector = std::vector<std::uint8_t>{};
 #    endif
 
-  VectorWriter<PacketSize> vw{data_vector};
+  VectorWriter<HeaderSize> vw{data_vector};
 
   auto os = omstream{vw};
   // add file data
@@ -236,12 +241,12 @@ void FileSystemHeaderFacility::SaveObjData_(ObjClassData& obj_data) {
 #  else
   std::vector<std::uint8_t> data_vector{};
 
-  VectorWriter<PacketSize> vw{data_vector};
+  VectorWriter<HeaderSize> vw{data_vector};
   auto os = omstream{vw};
   // add file data
   os << obj_data;
 
-  driver_sync_fs_->DriverWrite(path_, data_vector);
+  driver_header_fs_->DriverWrite(path_, data_vector);
 #  endif
 }
 

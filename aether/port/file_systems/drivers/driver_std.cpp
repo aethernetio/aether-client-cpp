@@ -28,8 +28,7 @@
 #if defined AE_FILE_SYSTEM_STD_ENABLED
 namespace ae {
 
-DriverStd::DriverStd(DriverFsType fs_driver_type)
-    : DriverBase(fs_driver_type) {}
+DriverStd::DriverStd(DriverFsType fs_driver_type) : DriverBase(fs_driver_type) {}
 
 DriverStd::~DriverStd() {}
 
@@ -80,14 +79,14 @@ void DriverStd::DriverWrite(const PathStructure &path,
 }
 
 void DriverStd::DriverDelete(const PathStructure &path) {
-  std::string obj_path = GetPathString(path);
+  std::string obj_path = GetPathString(path, true);
   std::filesystem::remove_all(obj_path);
 }
 
 std::vector<PathStructure> DriverStd::DriverDir(const PathStructure &path) {
   std::vector<PathStructure> dirs_list{};
 
-  auto state_dir = std::filesystem::path{GetPathString(path)};
+  auto state_dir = std::filesystem::path{GetPathString(path, true)};
   auto ec = std::error_code{};
   for (auto const &version_dir :
        std::filesystem::directory_iterator(state_dir, ec)) {
