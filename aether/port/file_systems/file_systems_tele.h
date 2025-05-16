@@ -30,5 +30,8 @@ AE_TAG(FsLoadObjClassIdNotFound, kFileSystems)
 AE_TAG(FsEnumObjIdNotFound, kFileSystems)
 AE_TAG(FsRemoveObjIdNoFound, kFileSystems)
 AE_TAG(FsObjRemoved, kFileSystems)
+AE_TAG(FsDir, kFileSystems)
+AE_TAG(FsFormat, kFileSystems)
+AE_TAG(FsDriverInit, kFileSystems)
 
 #endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEMS_TELE_H_

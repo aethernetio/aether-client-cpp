@@ -17,22 +17,15 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_
 #define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_
 
-#define AE_FILE_SYSTEM_RAM_ENABLED 1
-
 #include <map>
 #include <vector>
 #include <cstdint>
 
 #include "aether/obj/domain.h"
-#include "aether/port/file_systems/drivers/driver_header.h"
+#include "aether/port/file_systems/drivers/driver_sync.h"
 
 namespace ae {
 class FileSystemRamFacility : public IDomainFacility {
-  using Data = std::vector<std::uint8_t>;
-  using VersionData = std::map<std::uint8_t, Data>;
-  using ClassData = std::map<std::uint32_t, VersionData>;
-  using ObjClassData = std::map<ae::ObjId, ClassData>;
-
  public:
   FileSystemRamFacility();
   ~FileSystemRamFacility() override;
@@ -48,11 +41,8 @@ class FileSystemRamFacility : public IDomainFacility {
   void CleanUp() override;
 #endif
 
-  void out_header();
-
  private:
-  ObjClassData state_;
-  DriverHeader* driver_fs;
+  std::unique_ptr<DriverSync> driver_sync_fs_;
 };
 }  // namespace ae
 #endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_ */
