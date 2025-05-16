@@ -55,7 +55,7 @@ std::vector<uint32_t> FileSystemSpiFsV2Facility::Enumerate(
 
   dirs_list = driver_sync_fs_->DriverDir(path);
 
-  for (auto dir : dirs_list) {
+  for (auto const& dir : dirs_list) {
     if (obj_id == dir.obj_id) {
       classes.push_back(dir.class_id);
     }

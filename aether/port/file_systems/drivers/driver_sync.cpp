@@ -74,11 +74,11 @@ std::vector<PathStructure> DriverSync::DriverDir(const PathStructure &path) {
   dirs_list_destination = fs_driver_destination_->DriverDir(path);
 #else
   if (fs_driver_source_ != nullptr) {
-    dirs_list_source = fs_driver_source_->DriverDir(GetPathString(path));
+    dirs_list_source = fs_driver_source_->DriverDir(path);
   }
   if (fs_driver_destination_ != nullptr) {
     dirs_list_destination = fs_driver_destination_->DriverDir(path);
-    for (dir : dirs_list_destination) {
+    for (auto &dir : dirs_list_destination) {
       dirs_list_destination_str.push_back(GetPathString(dir));
     }
   }
@@ -87,7 +87,7 @@ std::vector<PathStructure> DriverSync::DriverDir(const PathStructure &path) {
   dirs_list_result_str =
       CombineIgnoreDuplicates(dirs_list_source, dirs_list_destination_str);
 
-  for (auto dir : dirs_list_result_str) {
+  for (auto &dir : dirs_list_result_str) {
     dirs_list_result.push_back(GetPathStructure(dir));
   }
 
