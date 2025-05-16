@@ -36,7 +36,36 @@ struct RingIndex {
   using type = T;
   static constexpr T max = Max;
 
-  explicit constexpr RingIndex(T val = 0) : value_{Mod(val)} {}
+  struct Comparable {
+    constexpr bool operator>(RingIndex const right) const {
+      return begin.Distance(left) > begin.Distance(right);
+    }
+    constexpr bool operator<(RingIndex const right) const {
+      return begin.Distance(left) < begin.Distance(right);
+    }
+    constexpr bool operator==(RingIndex const right) const {
+      return left.value_ == right.value_;
+    }
+    constexpr bool operator!=(RingIndex const right) const {
+      return !operator==(right);
+    }
+    constexpr bool operator>=(RingIndex const right) const {
+      return operator==(right) || operator>(right);
+    }
+    constexpr bool operator<=(RingIndex const right) const {
+      return operator==(right) || operator<(right);
+    }
+
+    RingIndex const begin;
+    RingIndex const left;
+  };
+
+  constexpr RingIndex() : value_{Mod(0)} {}
+  explicit constexpr RingIndex(T val) : value_{Mod(val)} {}
+
+  constexpr Comparable operator()(RingIndex begin) const {
+    return Comparable{begin, *this};
+  }
 
   constexpr void Clockwise(T val) {
     val = Mod(val);
@@ -135,12 +164,6 @@ struct RingIndex {
     return tmp;
   }
 
-  constexpr bool operator==(RingIndex other) const {
-    return value_ == other.value_;
-  }
-  constexpr bool operator!=(RingIndex other) const {
-    return value_ != other.value_;
-  }
   explicit constexpr operator T() const { return value_; }
 
  private:
