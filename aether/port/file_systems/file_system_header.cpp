@@ -119,10 +119,10 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
 
   PathStructure path{};
 
-  path.version=version;
-  path.obj_id=obj_id;
-  path.class_id=class_id;
-  
+  path.version = version;
+  path.obj_id = obj_id;
+  path.class_id = class_id;
+
   // For FS syncronization
   driver_sync_fs_->DriverWrite(path, os);
 
@@ -138,9 +138,9 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
 
   PathStructure path{};
 
-  path.version=version;
-  path.obj_id=obj_id;
-  path.class_id=class_id;
+  path.version = version;
+  path.obj_id = obj_id;
+  path.class_id = class_id;
 
   // For FS syncronization
   driver_sync_fs_->DriverRead(path, is);

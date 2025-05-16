@@ -27,7 +27,7 @@ DriverRam::~DriverRam() {}
 
 void DriverRam::DriverRead(const PathStructure &path,
                            std::vector<std::uint8_t> &data_vector, bool sync) {
-  if (!sync) { 
+  if (!sync) {
     auto obj_it = state_ram_.find(path.obj_id);
     if (obj_it == state_ram_.end()) {
       return;
@@ -49,15 +49,13 @@ void DriverRam::DriverRead(const PathStructure &path,
 
 void DriverRam::DriverWrite(const PathStructure &path,
                             const std::vector<std::uint8_t> &data_vector) {
-  state_ram_[path.obj_id][path.class_id][path.version] =
-      data_vector;
+  state_ram_[path.obj_id][path.class_id][path.version] = data_vector;
 }
 
 void DriverRam::DriverDelete(const PathStructure &path) {
   auto it = state_ram_.find(path.obj_id);
   if (it != state_ram_.end()) {
-    AE_TELE_DEBUG(FsObjRemoved, "Removed object {}",
-                  path.obj_id.ToString());
+    AE_TELE_DEBUG(FsObjRemoved, "Removed object {}", path.obj_id.ToString());
     state_ram_.erase(it);
   } else {
     AE_TELE_ERROR(FsRemoveObjIdNoFound, "Object id={} not found!",

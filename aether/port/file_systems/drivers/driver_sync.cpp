@@ -103,9 +103,11 @@ void DriverSync::DriverSyncronize_(const PathStructure &path) {
   }
 
   if (fs_driver_source_->GetDriverFsType() == DriverFsType::kDriverHeader) {
-    fs_driver_source_->DriverRead(GetPathString(path), data_vector_source, true);
+    fs_driver_source_->DriverRead(GetPathString(path), data_vector_source,
+                                  true);
   } else {
-    fs_driver_source_->DriverRead(GetPathString(path), data_vector_source, false);
+    fs_driver_source_->DriverRead(GetPathString(path), data_vector_source,
+                                  false);
   }
   if (fs_driver_destination_ != nullptr) {
     fs_driver_destination_->DriverRead(path, data_vector_destination, false);

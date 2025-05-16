@@ -38,7 +38,9 @@ constexpr char string9[] = "#endif /* CONFIG_FILE_SYSTEM_INIT_H_ */";
 constexpr char string10[] = "";
 
 namespace ae {
-DriverHeader::DriverHeader(DriverFsType fs_driver_type) { fs_driver_type_ = fs_driver_type; }
+DriverHeader::DriverHeader(DriverFsType fs_driver_type) {
+  fs_driver_type_ = fs_driver_type;
+}
 
 DriverHeader::~DriverHeader() {}
 
