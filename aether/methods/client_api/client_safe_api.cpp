@@ -29,4 +29,6 @@ void ClientSafeApi::SendMessage(ApiParser&, Uid uid, DataBuffer data) {
   send_message_event.Emit(uid, data);
 }
 
+void ClientSafeApi::RequestTelemetric(ApiParser&) { request_telemetric.Emit(); }
+
 }  // namespace ae
