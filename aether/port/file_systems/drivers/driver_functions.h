@@ -18,6 +18,7 @@
 #define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_FUNCTIONS_H_
 
 #include <unordered_set>
+#include <cstdint>
 
 #include "aether/obj/domain.h"
 #include "aether/port/file_systems/drivers/driver_base.h"
@@ -25,7 +26,8 @@
 namespace ae {
 
 ae::PathStructure GetPathStructure(const std::string &path);
-std::string GetPathString(const ae::PathStructure& path, bool convert);
+std::string GetPathString(const ae::PathStructure &path, std::uint8_t level,
+                          bool convert);
 
 template <typename T>
 bool IsEqual(std::vector<T> const &v1, std::vector<T> const &v2) {

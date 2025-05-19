@@ -42,7 +42,7 @@ void DriverSpifsV2::DriverRead(const PathStructure &path,
   std::string res_path{};
 
   if (!initialized_) return;
-  res_path = kBasePath + std::string("/") + GetPathString(path);
+  res_path = kBasePath + std::string("/") + GetPathString(path, 3, true);
 
   AE_TELE_DEBUG(FsObjLoaded, "Opening file {} for read.", res_path);
   FILE *file = fopen(res_path.c_str(), "r");
@@ -75,7 +75,7 @@ void DriverSpifsV2::DriverWrite(const PathStructure &path,
   std::string res_path{};
 
   if (!initialized_) return;
-  res_path = kBasePath + std::string("/") + GetPathString(path);
+  res_path = kBasePath + std::string("/") + GetPathString(path, 3, true);
 
   AE_TELE_DEBUG(FsObjSaved, "Opening file {} for write.", res_path);
   FILE *file = fopen(res_path.c_str(), "w");
@@ -100,7 +100,7 @@ void DriverSpifsV2::DriverDelete(const PathStructure &path) {
   std::string res_path{};
 
   if (!initialized_) return;
-  res_path = kBasePath + std::string("/") + GetPathString(path);
+  res_path = kBasePath + std::string("/") + GetPathString(path, 3, true);
 
   AE_TELED_DEBUG("Opening file {} for delete.", res_path);
   // Check if destination file exists before renaming
@@ -119,7 +119,7 @@ std::vector<PathStructure> DriverSpifsV2::DriverDir(const PathStructure &path) {
   PathStructure res_struct{};
 
   if (!initialized_) return dirs_list;
-  res_path = kBasePath + std::string("/state/") + GetPathString(path);
+  res_path = kBasePath + std::string("/") + GetPathString(path, 0, true);
 
   DIR *dir = opendir(res_path.c_str());
   if (dir == nullptr) {

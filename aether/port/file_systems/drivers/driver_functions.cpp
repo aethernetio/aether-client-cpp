@@ -32,12 +32,23 @@ ae::PathStructure GetPathStructure(const std::string& path) {
   ae::PathStructure path_struct{};
 
   // Path is "state/version/obj_id/class_id"
+#if (defined(_WIN64) || defined(_WIN32))
+  auto pos1 = path.find("\\");
+#else
   auto pos1 = path.find("/");
+#endif
   if (pos1 != std::string::npos) {
+#if (defined(_WIN64) || defined(_WIN32))
+    auto pos2 = path.find("\\", pos1 + 1);
+#else
     auto pos2 = path.find("/", pos1 + 1);
+#endif
     if (pos2 != std::string::npos) {
+#if (defined(_WIN64) || defined(_WIN32))
+      auto pos3 = path.find("\\", pos2 + 1);
+#else
       auto pos3 = path.find("/", pos2 + 1);
-
+#endif
       if (IsInteger(path.substr(pos1 + 1, pos2 - pos1 - 1))) {
         path_struct.version = static_cast<std::uint8_t>(
             std::stoul(path.substr(pos1 + 1, pos2 - pos1 - 1)));
@@ -56,20 +67,46 @@ ae::PathStructure GetPathStructure(const std::string& path) {
   return path_struct;
 }
 
-std::string GetPathString(const ae::PathStructure& path, bool convert) {
+std::string GetPathString(const ae::PathStructure& path, std::uint8_t level,
+                          bool convert) {
   std::string path_string{};
 
-  if(convert){
-  #if (defined(_WIN64) || defined(_WIN32))
-    path_string = "state\\" + std::to_string(path.version) + "\\" +
-                  path.obj_id.ToString() + "\\" + std::to_string(path.class_id);
-  #else
-    path_string = "state/" + std::to_string(path.version) + "/" +
-                  path.obj_id.ToString() + "/" + std::to_string(path.class_id);
-  #endif
+  if (convert) {
+#if (defined(_WIN64) || defined(_WIN32))
+    path_string = "state\\";
+#else
+    path_string = "state/";
+#endif
   } else {
-    path_string = std::to_string(path.version) + "/" +
-                  path.obj_id.ToString() + "/" + std::to_string(path.class_id);    
+#if (defined(_WIN64) || defined(_WIN32))
+    path_string = "\\";
+#else
+    path_string = "/";
+#endif
+  }
+
+  if (level >= 1) {
+#if (defined(_WIN64) || defined(_WIN32))
+    path_string += std::to_string(path.version) + "\\";
+#else
+    path_string += std::to_string(path.version) + "/";
+#endif
+  }
+
+  if (level >= 2) {
+#if (defined(_WIN64) || defined(_WIN32))
+    path_string += path.obj_id.ToString() + "\\";
+#else
+    path_string += path.obj_id.ToString() + "/";
+#endif
+  }
+
+  if (level >= 3) {
+#if (defined(_WIN64) || defined(_WIN32))
+    path_string += std::to_string(path.class_id);
+#else
+    path_string += std::to_string(path.class_id);
+#endif
   }
 
   return path_string;

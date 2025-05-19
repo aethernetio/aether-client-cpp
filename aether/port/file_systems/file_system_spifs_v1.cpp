@@ -48,8 +48,9 @@ std::vector<uint32_t> FileSystemSpiFsV1Facility::Enumerate(
   std::vector<std::uint32_t> classes;
   std::vector<PathStructure> dirs_list{};
   PathStructure path{};
-  std::string file{};
 
+  path.obj_id = obj_id;
+  
   dirs_list = driver_sync_fs_->DriverDir(path);
 
   for (auto const& dir : dirs_list) {

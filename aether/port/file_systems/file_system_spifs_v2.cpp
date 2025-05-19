@@ -49,9 +49,7 @@ std::vector<uint32_t> FileSystemSpiFsV2Facility::Enumerate(
   std::vector<PathStructure> dirs_list{};
   PathStructure path{};
 
-  // std::uint8_t version;
   path.obj_id = obj_id;
-  // std::uint32_t class_id;
 
   dirs_list = driver_sync_fs_->DriverDir(path);
 
@@ -111,7 +109,7 @@ void FileSystemSpiFsV2Facility::Remove(const ae::ObjId& obj_id) {
     if (obj_id == dir.obj_id) {
       driver_sync_fs_->DriverDelete(dir);
       AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of directory {}",
-                    obj_id.ToString(), GetPathString(dir));
+                    obj_id.ToString(), GetPathString(dir, 3, true));
     }
   }
 }

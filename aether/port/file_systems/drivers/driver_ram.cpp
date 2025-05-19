@@ -68,7 +68,7 @@ std::vector<PathStructure> DriverRam::DriverDir(const PathStructure &path) {
   std::vector<PathStructure> dirs_list{};
 
   // Path is "state/version/obj_id/class_id"
-  AE_TELE_DEBUG(FsDir, "Path {}", GetPathString(path, true));
+  AE_TELE_DEBUG(FsDir, "Path {}", GetPathString(path, 3, true));
   for (auto &ItemObjClassData : state_ram_) {
     for (auto &ItemClassData : ItemObjClassData.second) {
       for (auto &ItemVersionData : ItemClassData.second) {

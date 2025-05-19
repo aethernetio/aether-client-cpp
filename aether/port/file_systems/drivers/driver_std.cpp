@@ -79,14 +79,14 @@ void DriverStd::DriverWrite(const PathStructure &path,
 }
 
 void DriverStd::DriverDelete(const PathStructure &path) {
-  std::string obj_path = GetPathString(path, true);
+  std::string obj_path = GetPathString(path, 3, true);
   std::filesystem::remove_all(obj_path);
 }
 
 std::vector<PathStructure> DriverStd::DriverDir(const PathStructure &path) {
   std::vector<PathStructure> dirs_list{};
 
-  auto state_dir = std::filesystem::path{GetPathString(path, true)};
+  auto state_dir = std::filesystem::path{GetPathString(path, 0, true)};
   auto ec = std::error_code{};
   for (auto const &version_dir :
        std::filesystem::directory_iterator(state_dir, ec)) {

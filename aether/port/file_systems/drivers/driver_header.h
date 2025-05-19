@@ -35,13 +35,11 @@
 
 #if defined FS_INIT_TEST
 #  include FS_INIT_TEST
-#else
-#  error "FS_INIT_TEST should be defined"
 #endif
 
 namespace ae {
 
-using HeaderSize = Packed<std::uint64_t, std::uint16_t, 8192>;
+using HeaderSize = Packed<std::uint64_t, std::uint8_t, 250>;
 
 class DriverHeader {
   using Data = std::vector<std::uint8_t>;

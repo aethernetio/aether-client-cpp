@@ -67,8 +67,7 @@ void DriverSpifsV1::DriverWrite(const PathStructure &path,
   // Reading ObjClassData
   LoadObjData(state_spifs_);
 
-  state_spifs_[path.obj_id][path.class_id][path.version] =
-      data_vector;
+  state_spifs_[path.obj_id][path.class_id][path.version] = data_vector;
 
   // Writing ObjClassData
   SaveObjData(state_spifs_);
@@ -80,8 +79,7 @@ void DriverSpifsV1::DriverDelete(const PathStructure &path) {
 
   auto it = state_spifs_.find(path.obj_id);
   if (it != state_spifs_.end()) {
-    AE_TELE_DEBUG(FsObjRemoved, "Removed object {}",
-                  path.obj_id.ToString());
+    AE_TELE_DEBUG(FsObjRemoved, "Removed object {}", path.obj_id.ToString());
     state_spifs_.erase(it);
   } else {
     AE_TELE_ERROR(FsRemoveObjIdNoFound, "Object id={} not found!",
@@ -100,7 +98,7 @@ std::vector<PathStructure> DriverSpifsV1::DriverDir(const PathStructure &path) {
   LoadObjData(state_spifs_);
 
   // Path is "state/version/obj_id/class_id"
-  AE_TELE_DEBUG(FsDir, "Path {}", GetPathString(GetPathString(path));
+  AE_TELE_DEBUG(FsDir, "Path {}", GetPathString(path, 3, true));
   for (auto &ItemObjClassData : state_spifs_) {
     for (auto &ItemClassData : ItemObjClassData.second) {
       for (auto &ItemVersionData : ItemClassData.second) {
