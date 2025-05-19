@@ -96,6 +96,7 @@ list(APPEND actions_srcs
             "actions/action_context.cpp"
             "actions/action_processor.cpp"
             "actions/timer_action.cpp"
+            "actions/task_queue.cpp"
             )
 
 list(APPEND adapters_srcs
