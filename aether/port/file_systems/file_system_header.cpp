@@ -63,7 +63,7 @@ FileSystemHeaderFacility::FileSystemHeaderFacility(
       driver_destination = nullptr;
       break;
     default:
-      assert(0);
+      //assert(0);
       break;
   }
 

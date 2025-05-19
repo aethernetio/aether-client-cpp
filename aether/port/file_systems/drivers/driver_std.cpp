@@ -28,7 +28,8 @@
 #if defined AE_FILE_SYSTEM_STD_ENABLED
 namespace ae {
 
-DriverStd::DriverStd(DriverFsType fs_driver_type) : DriverBase(fs_driver_type) {}
+DriverStd::DriverStd(DriverFsType fs_driver_type)
+    : DriverBase(fs_driver_type) {}
 
 DriverStd::~DriverStd() {}
 
@@ -36,8 +37,7 @@ void DriverStd::DriverRead(const PathStructure &path,
                            std::vector<std::uint8_t> &data_vector, bool sync) {
   if (!sync) {
     auto obj_dir = std::filesystem::path("state") /
-                   std::to_string(path.version) /
-                   path.obj_id.ToString();
+                   std::to_string(path.version) / path.obj_id.ToString();
     auto p = obj_dir / std::to_string(path.class_id);
     std::ifstream f(p.c_str(), std::ios::in | std::ios::binary);
     if (!f.good()) {
@@ -67,8 +67,7 @@ void DriverStd::DriverRead(const PathStructure &path,
 
 void DriverStd::DriverWrite(const PathStructure &path,
                             const std::vector<std::uint8_t> &data_vector) {
-  auto obj_dir = std::filesystem::path("state") /
-                 std::to_string(path.version) /
+  auto obj_dir = std::filesystem::path("state") / std::to_string(path.version) /
                  path.obj_id.ToString();
   std::filesystem::create_directories(obj_dir);
   auto p = obj_dir / std::to_string(path.class_id);

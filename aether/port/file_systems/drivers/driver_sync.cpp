@@ -64,7 +64,8 @@ void DriverSync::DriverDelete(const PathStructure &path) {
 }
 
 std::vector<PathStructure> DriverSync::DriverDir(const PathStructure &path) {
-  std::vector<std::string> dirs_list_source{};
+  std::vector<PathStructure> dirs_list_source{};
+  std::vector<std::string> dirs_list_source_str{};
   std::vector<PathStructure> dirs_list_destination{};
   std::vector<std::string> dirs_list_destination_str{};
   std::vector<PathStructure> dirs_list_result{};
@@ -77,7 +78,11 @@ std::vector<PathStructure> DriverSync::DriverDir(const PathStructure &path) {
   }
 #else
   if (fs_driver_source_ != nullptr) {
-    dirs_list_source = fs_driver_source_->DriverDir(GetPathString(path, 0, false));
+    dirs_list_source =
+        fs_driver_source_->DriverDir(GetPathString(path, 0, false));
+    for (auto &dir : dirs_list_source) {
+      dirs_list_source_str.push_back(GetPathString(dir, 3, true));
+    }
   }
   if (fs_driver_destination_ != nullptr) {
     dirs_list_destination = fs_driver_destination_->DriverDir(path);
@@ -88,7 +93,7 @@ std::vector<PathStructure> DriverSync::DriverDir(const PathStructure &path) {
 #endif
 
   dirs_list_result_str =
-      CombineIgnoreDuplicates(dirs_list_source, dirs_list_destination_str);
+      CombineIgnoreDuplicates(dirs_list_source_str, dirs_list_destination_str);
 
   for (auto &dir : dirs_list_result_str) {
     dirs_list_result.push_back(GetPathStructure(dir));
