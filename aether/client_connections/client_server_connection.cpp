@@ -20,18 +20,23 @@
 
 namespace ae {
 ClientServerConnection::ClientServerConnection(
-    ActionContext action_context, Server::ptr const& server,
-    Channel::ptr const& channel,
+    ActionContext action_context, [[maybe_unused]] ObjPtr<Aether> const& aether,
+    Server::ptr const& server, Channel::ptr const& channel,
     std::unique_ptr<ClientToServerStream> client_to_server_stream)
     : server_stream_{std::move(client_to_server_stream)},
       message_stream_dispatcher_{
           make_unique<MessageStreamDispatcher>(*server_stream_)},
       ping_{make_unique<Ping>(action_context, server, channel, *server_stream_,
                               std::chrono::milliseconds{AE_PING_INTERVAL_MS})},
+#if defined TELEMETRY_ENABLED
+      telemetry_{
+          make_unique<Telemetry>(action_context, aether, *server_stream_)},
+#endif
       // TODO: handle Ping error
       new_stream_event_subscription_{
           message_stream_dispatcher_->new_stream_event().Subscribe(
-              new_stream_event_, MethodPtr<&NewStreamEvent::Emit>{})} {}
+              new_stream_event_, MethodPtr<&NewStreamEvent::Emit>{})} {
+}
 
 ClientToServerStream& ClientServerConnection::server_stream() {
   return *server_stream_;
@@ -48,6 +53,12 @@ ClientServerConnection::new_stream_event() {
 
 void ClientServerConnection::CloseStream(Uid uid) {
   message_stream_dispatcher_->CloseStream(uid);
+}
+
+void ClientServerConnection::SendTelemetry() {
+#if defined TELEMETRY_ENABLED
+  telemetry_->SendTelemetry();
+#endif
 }
 
 }  // namespace ae

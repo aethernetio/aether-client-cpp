@@ -66,6 +66,14 @@ void ClientCloudConnection::CloseStream(Uid uid) {
   server_connection_->CloseStream(uid);
 }
 
+void ClientCloudConnection::SendTelemetry() {
+  if (!server_connection_) {
+    assert(false);
+    return;
+  }
+  server_connection_->SendTelemetry();
+}
+
 void ClientCloudConnection::Connect() {
   connection_selector_loop_ =
       AsyncForLoop<RcPtr<ClientServerConnection>>::Construct(

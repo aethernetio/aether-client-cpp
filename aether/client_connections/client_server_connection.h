@@ -25,10 +25,12 @@
 #include "aether/server.h"
 #include "aether/channel.h"
 #include "aether/ae_actions/ping.h"
+#include "aether/ae_actions/telemetry.h"
 #include "aether/client_messages/message_stream_dispatcher.h"
 #include "aether/client_connections/client_to_server_stream.h"
 
 namespace ae {
+class Aether;
 /**
  * \brief Client's connection to a server for messages send.
  */
@@ -37,8 +39,8 @@ class ClientServerConnection {
   using NewStreamEvent = Event<void(Uid uid, MessageStream& stream)>;
 
   explicit ClientServerConnection(
-      ActionContext action_context, Server::ptr const& server,
-      Channel::ptr const& channel,
+      ActionContext action_context, ObjPtr<Aether> const& aether,
+      Server::ptr const& server, Channel::ptr const& channel,
       std::unique_ptr<ClientToServerStream> client_to_server_stream);
 
   ClientToServerStream& server_stream();
@@ -47,10 +49,15 @@ class ClientServerConnection {
   NewStreamEvent::Subscriber new_stream_event();
   void CloseStream(Uid uid);
 
+  void SendTelemetry();
+
  private:
   std::unique_ptr<ClientToServerStream> server_stream_;
   std::unique_ptr<MessageStreamDispatcher> message_stream_dispatcher_;
   std::unique_ptr<Ping> ping_;
+#if defined TELEMETRY_ENABLED
+  std::unique_ptr<Telemetry> telemetry_;
+#endif
   NewStreamEvent new_stream_event_;
   Subscription new_stream_event_subscription_;
 };

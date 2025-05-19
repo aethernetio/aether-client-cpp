@@ -47,6 +47,11 @@ class ClientConnection {
    */
   virtual void CloseStream(Uid uid) = 0;
 
+  /**
+   * \brief Send telemetry if enabled
+   */
+  virtual void SendTelemetry() = 0;
+
   AE_REFLECT()
 };
 }  // namespace ae

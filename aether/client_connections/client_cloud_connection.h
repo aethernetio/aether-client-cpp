@@ -51,6 +51,7 @@ class ClientCloudConnection final : public ClientConnection {
   std::unique_ptr<ByteIStream> CreateStream(Uid destination_uid) override;
   NewStreamEvent::Subscriber new_stream_event() override;
   void CloseStream(Uid uid) override;
+  void SendTelemetry() override;
 
   AE_REFLECT()
 
