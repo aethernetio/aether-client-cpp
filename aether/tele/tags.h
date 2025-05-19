@@ -22,6 +22,7 @@
 #endif
 
 #include <cstdint>
+#include <utility>
 #include <string_view>
 
 #include "aether/crc.h"
