@@ -117,7 +117,7 @@ void FileSystemStdFacility::Remove(const ae::ObjId& obj_id) {
 
 #  if defined AE_DISTILLATION
 void FileSystemStdFacility::CleanUp() {
-  std::string path{};
+  PathStructure path{};
 
   auto dirs = driver_sync_fs_->DriverDir(path);
 

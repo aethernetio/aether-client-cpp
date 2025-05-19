@@ -217,7 +217,7 @@ void FileSystemHeaderFacility::LoadObjData_(ObjClassData& obj_data) {
 
   VectorReader<HeaderSize> vr{data_vector};
 
-  driver_header_fs_->DriverRead(path_, data_vector);
+  driver_header_fs_->DriverRead(path_, data_vector, false);
   auto is = imstream{vr};
   // add obj data
   is >> obj_data;

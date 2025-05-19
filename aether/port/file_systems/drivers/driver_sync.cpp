@@ -77,7 +77,7 @@ std::vector<PathStructure> DriverSync::DriverDir(const PathStructure &path) {
   }
 #else
   if (fs_driver_source_ != nullptr) {
-    dirs_list_source = fs_driver_source_->DriverDir(GetPathString(path));
+    dirs_list_source = fs_driver_source_->DriverDir(GetPathString(path, 0, false));
   }
   if (fs_driver_destination_ != nullptr) {
     dirs_list_destination = fs_driver_destination_->DriverDir(path);
