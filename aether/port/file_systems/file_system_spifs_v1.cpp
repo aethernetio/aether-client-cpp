@@ -50,7 +50,7 @@ std::vector<uint32_t> FileSystemSpiFsV1Facility::Enumerate(
   PathStructure path{};
 
   path.obj_id = obj_id;
-  
+
   dirs_list = driver_sync_fs_->DriverDir(path);
 
   for (auto const& dir : dirs_list) {

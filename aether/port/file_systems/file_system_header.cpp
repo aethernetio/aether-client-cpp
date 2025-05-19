@@ -69,7 +69,8 @@ FileSystemHeaderFacility::FileSystemHeaderFacility(
 
   driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
                                                  std::move(driver_destination));
-  driver_header_fs_ = std::make_unique<DriverHeader>(DriverFsType::kDriverHeader);
+  driver_header_fs_ =
+      std::make_unique<DriverHeader>(DriverFsType::kDriverHeader);
   AE_TELED_DEBUG("New FileSystemHeader instance created!");
 }
 
@@ -198,8 +199,9 @@ void FileSystemHeaderFacility::CleanUp() {
 void FileSystemHeaderFacility::LoadObjData_(ObjClassData& obj_data) {
 #  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
 #    if defined FS_INIT_TEST
-  auto data_vector = std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
-#  elif defined FS_INIT
+  auto data_vector =
+      std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
+#    elif defined FS_INIT
   auto data_vector = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
 #    else
   auto data_vector = std::vector<std::uint8_t>{};
@@ -225,7 +227,8 @@ void FileSystemHeaderFacility::LoadObjData_(ObjClassData& obj_data) {
 void FileSystemHeaderFacility::SaveObjData_(ObjClassData& obj_data) {
 #  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
 #    if defined FS_INIT_TEST
-  auto data_vector = std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
+  auto data_vector =
+      std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
 #    elif defined FS_INIT
   auto data_vector = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
 #    else

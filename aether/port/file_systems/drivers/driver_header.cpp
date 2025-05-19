@@ -97,9 +97,9 @@ void DriverHeader::DriverRead(const std::string &path,
     auto data_vector_ =
         std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
 #elif defined FS_INIT
-    auto data_vector_ = 
+    auto data_vector_ =
         std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
-#endif    
+#endif
 
     VectorReader<HeaderSize> vr{data_vector_};
     ae::PathStructure path_struct{};
