@@ -63,17 +63,17 @@ void test_StatisticsRotation() {
   TeleStatistics::ptr tele_statistics = domain.CreateObj<TeleStatistics>(1);
   tele_statistics->trap()->MergeStatistics(*statistics_trap);
   // set 100 byte
-  tele_statistics->trap()->statistics_store_.SetSizeLimit(100);
+  tele_statistics->trap()->statistics_store.SetSizeLimit(100);
 
   InitTeleSink(tele_statistics->trap());
   {
     AE_TELED_DEBUG("12");
   }
   auto statistics_size =
-      tele_statistics->trap()->statistics_store_.Get()->Size();
+      tele_statistics->trap()->statistics_store.Get()->Size();
   TEST_ASSERT_LESS_THAN(100, statistics_size);
-  tele_statistics->trap()->statistics_store_.SetSizeLimit(1);
-  auto zero_size = tele_statistics->trap()->statistics_store_.Get()->Size();
+  tele_statistics->trap()->statistics_store.SetSizeLimit(1);
+  auto zero_size = tele_statistics->trap()->statistics_store.Get()->Size();
   TEST_ASSERT_EQUAL(0, zero_size);
 }
 
@@ -91,7 +91,7 @@ void test_SaveLoadTeleStatistics() {
     AE_TELED_DEBUG("12");
   }
   auto statistics_size =
-      tele_statistics->trap()->statistics_store_.Get()->Size();
+      tele_statistics->trap()->statistics_store.Get()->Size();
 
   // use new trap to prevent statistics change while save
   auto temp_trap = MakeRcPtr<ae::tele::statistics::StatisticsTrap>();
@@ -107,15 +107,15 @@ void test_SaveLoadTeleStatistics() {
   TEST_ASSERT(static_cast<bool>(tele_statistics2));
 
   auto statistics_size2 =
-      tele_statistics2->trap()->statistics_store_.Get()->Size();
+      tele_statistics2->trap()->statistics_store.Get()->Size();
   TEST_ASSERT_EQUAL(statistics_size, statistics_size2);
 
-  auto& logs1 = tele_statistics->trap()->statistics_store_.Get()->logs().logs;
-  auto& logs2 = tele_statistics2->trap()->statistics_store_.Get()->logs().logs;
+  auto& logs1 = tele_statistics->trap()->statistics_store.Get()->logs().logs;
+  auto& logs2 = tele_statistics2->trap()->statistics_store.Get()->logs().logs;
   auto& metrics1 =
-      tele_statistics->trap()->statistics_store_.Get()->metrics().metrics;
+      tele_statistics->trap()->statistics_store.Get()->metrics().metrics;
   auto& metrics2 =
-      tele_statistics2->trap()->statistics_store_.Get()->metrics().metrics;
+      tele_statistics2->trap()->statistics_store.Get()->metrics().metrics;
   TEST_ASSERT_EQUAL(logs1.size(), logs2.size());
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
 
