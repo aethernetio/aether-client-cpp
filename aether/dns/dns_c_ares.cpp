@@ -137,8 +137,7 @@ class AresImpl {
   }
 
   void SocketEvent(PollerEvent event) {
-    auto it = opened_sockets_.find(event.descriptor);
-    if (it == std::end(opened_sockets_)) {
+    if (opened_sockets_.find(event.descriptor) == std::end(opened_sockets_)) {
       return;
     }
     switch (event.event_type) {
@@ -150,8 +149,6 @@ class AresImpl {
         break;
       case EventType::kError:
         ares_process_fd(channel_, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
-        poller_->Remove(event.descriptor);
-        opened_sockets_.erase(it);
         break;
     }
   }

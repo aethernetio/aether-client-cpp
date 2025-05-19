@@ -35,10 +35,13 @@ class ClientSafeApi
   explicit ClientSafeApi(ProtocolContext& protocol_context);
 
   void SendMessage(ApiParser& parser, Uid uid, DataBuffer data);
+  void RequestTelemetric(ApiParser& parser);
 
-  using ApiMethods = ImplList<RegMethod<10, &ClientSafeApi::SendMessage>>;
+  using ApiMethods = ImplList<RegMethod<10, &ClientSafeApi::SendMessage>,
+                              RegMethod<70, &ClientSafeApi::RequestTelemetric>>;
 
   Event<void(Uid const& uid, DataBuffer const& data)> send_message_event;
+  Event<void()> request_telemetric;
 };
 }  // namespace ae
 

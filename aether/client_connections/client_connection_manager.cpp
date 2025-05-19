@@ -76,7 +76,8 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
         action_context, client, server->server_id,
         std::move(server_channel_stream));
     auto connection = MakeRcPtr<ClientServerConnection>(
-        action_context, server, channel, std::move(client_server_stream));
+        action_context, aether, server, channel,
+        std::move(client_server_stream));
 
     ccm->client_server_connection_pool_.Add(server->server_id, channel.GetId(),
                                             connection);

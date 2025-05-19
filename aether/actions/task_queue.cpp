@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,31 @@
  * limitations under the License.
  */
 
-#include "aether/methods/work_server_api/authorized_api.h"
+#include "aether/actions/task_queue.h"
 
 #include <utility>
 
 namespace ae {
-AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context,
-                             ActionContext action_context)
-    : ping{protocol_context, action_context},
-      send_message{protocol_context},
-      resolvers{protocol_context},
-      check_access_for_send_message{protocol_context, action_context},
-      send_telemetric{protocol_context} {}
+
+TimePoint TaskQueue::Update(TimePoint current_time) {
+  if (tasks_.empty()) {
+    return current_time;
+  }
+  std::vector<Task> tasks_invoke;
+  {
+    // steal tasks under the mutex
+    auto lock = std::lock_guard{sync_queue_};
+    tasks_invoke = std::move(tasks_);
+  }
+  for (auto& t : tasks_invoke) {
+    t();
+  }
+  return current_time;
+}
+
+void TaskQueue::Enqueue(Task&& task) {
+  auto lock = std::lock_guard{sync_queue_};
+  tasks_.emplace_back(std::move(task));
+}
+
 }  // namespace ae

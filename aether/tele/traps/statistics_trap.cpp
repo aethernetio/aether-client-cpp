@@ -207,7 +207,7 @@ void StatisticsTrap::MetricStream::add_duration(std::uint32_t duration) {
 }
 
 void StatisticsTrap::EnvStream::platform_type(char const* platform_type) {
-  env_store.platform_type = platform_type;
+  env_store.platform = platform_type;
 }
 void StatisticsTrap::EnvStream::compiler(char const* compiler) {
   env_store.compiler = compiler;
@@ -240,7 +240,7 @@ StatisticsTrap::~StatisticsTrap() = default;
 StatisticsTrap::LogStream StatisticsTrap::log_stream(
     Declaration const& /* decl */) {
   // TODO: use decl
-  auto statistics = statistics_store_.Get();
+  auto statistics = statistics_store.Get();
   auto logs = ProxyStatistics{statistics, statistics->logs()};
   auto& entry = logs->logs.emplace_back();
   return {std::move(logs), {entry}};
@@ -248,19 +248,19 @@ StatisticsTrap::LogStream StatisticsTrap::log_stream(
 
 StatisticsTrap::MetricStream StatisticsTrap::metric_stream(
     Declaration const& decl) {
-  auto statistics = statistics_store_.Get();
+  auto statistics = statistics_store.Get();
   auto metrics = ProxyStatistics{statistics, statistics->metrics()};
   return {std::move(metrics), decl.index};
 }
 
 StatisticsTrap::EnvStream StatisticsTrap::env_stream() {
-  return {statistics_store_.GetEnvStore()};
+  return {statistics_store.GetEnvStore()};
 }
 
 std::mutex& StatisticsTrap::sync() { return sync_lock_; }
 
 void StatisticsTrap::MergeStatistics(StatisticsTrap const& newer) {
-  statistics_store_.Merge(newer.statistics_store_);
+  statistics_store.Merge(newer.statistics_store);
 }
 
 }  // namespace statistics

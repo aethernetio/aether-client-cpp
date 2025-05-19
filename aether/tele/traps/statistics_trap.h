@@ -79,20 +79,18 @@ struct MetricsStore {
 struct EnvStore {
   using PackedIndex = Packed<std::uint32_t, std::uint8_t, 250>;
 
-  std::string platform_type;
-  std::string platform_version;
+  std::string library_version;
+  std::string platform;
   std::string compiler;
   std::string compiler_version;
-  std::string library_version;
   std::string api_version;
   std::string cpu_type;
   std::uint8_t endianness;
   std::uint32_t utm_id;
   std::vector<std::pair<PackedIndex, std::string>> compile_options;
 
-  AE_REFLECT_MEMBERS(platform_type, platform_version, compiler,
-                     compiler_version, library_version, api_version, cpu_type,
-                     endianness, utm_id, compile_options)
+  AE_REFLECT_MEMBERS(library_version, platform, compiler, compiler_version,
+                     api_version, cpu_type, endianness, utm_id, compile_options)
 };
 }  // namespace statistics
 }  // namespace ae::tele
@@ -264,10 +262,12 @@ class StatisticsTrap {
    */
   void MergeStatistics(StatisticsTrap const& newer);
 
-  AE_REFLECT_MEMBERS(statistics_store_)
+  AE_REFLECT_MEMBERS(statistics_store)
 
+  StatisticsStore statistics_store;
+
+ private:
   std::mutex sync_lock_;
-  StatisticsStore statistics_store_;
 };
 }  // namespace statistics
 }  // namespace ae::tele

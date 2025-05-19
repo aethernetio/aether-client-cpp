@@ -409,8 +409,8 @@ void test_MergeStatisticsTrap() {
   auto statistics_trap2 = ae::MakeRcPtr<statistics::StatisticsTrap>();
   statistics_trap2->MergeStatistics(*statistics_trap1);
 
-  auto& logs1 = statistics_trap1->statistics_store_.Get()->logs().logs;
-  auto& logs2 = statistics_trap2->statistics_store_.Get()->logs().logs;
+  auto& logs1 = statistics_trap1->statistics_store.Get()->logs().logs;
+  auto& logs2 = statistics_trap2->statistics_store.Get()->logs().logs;
 
   TEST_ASSERT_EQUAL(logs1.size(), logs2.size());
   auto it1 = std::begin(logs1);
@@ -419,8 +419,8 @@ void test_MergeStatisticsTrap() {
     TEST_ASSERT_EQUAL_CHAR_ARRAY(it1->data(), it2->data(), it1->size());
   }
 
-  auto& metrics1 = statistics_trap1->statistics_store_.Get()->metrics().metrics;
-  auto& metrics2 = statistics_trap2->statistics_store_.Get()->metrics().metrics;
+  auto& metrics1 = statistics_trap1->statistics_store.Get()->metrics().metrics;
+  auto& metrics2 = statistics_trap2->statistics_store.Get()->metrics().metrics;
 
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
   auto mit1 = std::begin(metrics1);
