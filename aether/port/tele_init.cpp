@@ -63,7 +63,8 @@ static void TeleSinkReInit([[maybe_unused]] Ptr<Aether>& aether) {
   using ae::tele::StatisticsObjectAndStreamTrap;
   using ae::tele::statistics::StatisticsTrap;
 
-  if constexpr (std::is_same_v<SelectedSink, StatisticsObjectAndStreamTrap>) {
+  if constexpr (std::is_same_v<SelectedSink,
+                               SinkToStatisticsObjectAndProxyToStream>) {
     // statistics trap + print logs to iostream
     auto new_tele_trap = aether->tele_statistics()->trap();
     new_tele_trap->MergeStatistics(*SelectedSink::Instance().trap()->first);

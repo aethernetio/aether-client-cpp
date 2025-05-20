@@ -18,6 +18,7 @@
 #define AETHER_METHODS_WORK_SERVER_API_AUTHORIZED_API_H_
 
 #include "aether/uid.h"
+#include "aether/methods/telemetric.h"
 #include "aether/transport/data_buffer.h"
 #include "aether/stream_api/stream_api.h"
 #include "aether/api_protocol/api_method.h"
@@ -34,6 +35,8 @@ class AuthorizedApi {
   Method<12, void(StreamId servers_stream_id, StreamId cloud_stream_id)>
       resolvers;
   Method<16, PromiseView<void>(Uid uid)> check_access_for_send_message;
+
+  Method<70, void(Telemetric telemetric)> send_telemetric;
 };
 }  // namespace ae
 

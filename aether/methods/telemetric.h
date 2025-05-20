@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,32 @@
  * limitations under the License.
  */
 
-#include "aether/methods/work_server_api/authorized_api.h"
+#ifndef AETHER_METHODS_TELEMETRIC_H_
+#define AETHER_METHODS_TELEMETRIC_H_
 
-#include <utility>
+#include <vector>
+#include <string>
+#include <cstdint>
+
+#include "aether/reflect/reflect.h"
 
 namespace ae {
-AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context,
-                             ActionContext action_context)
-    : ping{protocol_context, action_context},
-      send_message{protocol_context},
-      resolvers{protocol_context},
-      check_access_for_send_message{protocol_context, action_context},
-      send_telemetric{protocol_context} {}
+struct Telemetric {
+  struct Cpp {
+    AE_REFLECT_MEMBERS(lib_version, os, compiler)
+
+    std::string lib_version;
+    std::string os;
+    std::string compiler;
+  };
+
+  AE_REFLECT_MEMBERS(type, utm_id, blob, cpp);
+
+  std::uint8_t const type = 0;  //< Cpp type
+  std::uint32_t utm_id;
+  std::vector<std::uint8_t> blob;
+  Cpp cpp;
+};
 }  // namespace ae
+
+#endif  // AETHER_METHODS_TELEMETRIC_H_

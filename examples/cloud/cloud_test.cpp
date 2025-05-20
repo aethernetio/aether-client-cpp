@@ -61,6 +61,7 @@ class CloudTestAction : public Action<CloudTestAction> {
     kRegistration,
     kConfigureReceiver,
     kConfigureSender,
+    kSendTelemetry,
     kSendMessages,
     kWaitDone,
     kResult,
@@ -98,6 +99,9 @@ class CloudTestAction : public Action<CloudTestAction> {
           break;
         case State::kConfigureSender:
           ConfigureSender();
+          break;
+        case State::kSendTelemetry:
+          SendTelemetry();
           break;
         case State::kSendMessages:
           SendMessages(current_time);
@@ -234,6 +238,12 @@ class CloudTestAction : public Action<CloudTestAction> {
           aether_->action_processor->get_trigger().Trigger();
           confirm_count_++;
         });
+    state_ = State::kSendTelemetry;
+  }
+
+  void SendTelemetry() {
+    // send only from receiver
+    receiver_->client_connection()->SendTelemetry();
     state_ = State::kSendMessages;
   }
 
