@@ -14,7 +14,7 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
-set(AE_PROJECT_VERSION "1.0.0")
+set(AE_PROJECT_VERSION "0.1.0")
 
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 
