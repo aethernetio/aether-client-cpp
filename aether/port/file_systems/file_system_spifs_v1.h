@@ -29,6 +29,7 @@
 #  include "aether/obj/domain.h"
 #  include "aether/port/file_systems/file_systems_tele.h"
 #  include "aether/port/file_systems/drivers/driver_sync.h"
+#  include "aether/port/file_systems/drivers/driver_functions.h"
 
 namespace ae {
 class FileSystemSpiFsV1Facility : public IDomainFacility {

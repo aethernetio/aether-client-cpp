@@ -63,7 +63,7 @@ FileSystemHeaderFacility::FileSystemHeaderFacility(
       driver_destination = nullptr;
       break;
     default:
-      //assert(0);
+      assert(0);
       break;
   }
 
@@ -110,15 +110,10 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
 
   state_[obj_id][class_id][version] = os;
 
-  AE_TELED_DEBUG("Saved state/{}/{}/{} size: {}", std::to_string(version),
-                 obj_id.ToString(), class_id, os.size());
-
-  AE_TELED_DEBUG("Object id={} & class id={} saved!", obj_id.ToString(),
-                 class_id);
-
   // Writing ObjClassData
   SaveObjData_(state_);
 
+#if !defined(AE_DISTILLATION)
   PathStructure path{};
 
   path.version = version;
@@ -127,6 +122,7 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
 
   // For FS syncronization
   driver_sync_fs_->DriverWrite(path, os);
+#endif
 
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
@@ -138,14 +134,17 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
                                     std::vector<uint8_t>& is) {
   ObjClassData state_;
 
+#if !defined(AE_DISTILLATION)
   PathStructure path{};
 
   path.version = version;
   path.obj_id = obj_id;
   path.class_id = class_id;
 
+
   // For FS syncronization
   driver_sync_fs_->DriverRead(path, is);
+#endif
 
   // Reading ObjClassData
   LoadObjData_(state_);

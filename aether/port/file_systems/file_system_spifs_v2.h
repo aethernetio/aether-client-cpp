@@ -27,8 +27,6 @@
 
 #  include "aether/obj/obj_id.h"
 #  include "aether/obj/domain.h"
-#  include "aether/transport/data_buffer.h"
-#  include "aether/transport/low_level/tcp/data_packet_collector.h"
 #  include "aether/port/file_systems/file_systems_tele.h"
 #  include "aether/port/file_systems/drivers/driver_sync.h"
 #  include "aether/port/file_systems/drivers/driver_functions.h"

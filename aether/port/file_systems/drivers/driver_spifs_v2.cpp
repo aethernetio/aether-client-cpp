@@ -102,12 +102,12 @@ void DriverSpifsV2::DriverDelete(const PathStructure &path) {
   if (!initialized_) return;
   res_path = kBasePath + std::string("/") + GetPathString(path, 3, true);
 
-  AE_TELED_DEBUG("Opening file {} for delete.", res_path);
+  AE_TELE_DEBUG(FsObjRemoved, "Opening file {} for delete.", res_path);
   // Check if destination file exists before renaming
   if (stat(res_path.c_str(), &status) == 0) {
     // Delete it if it exists
     unlink(res_path.c_str());
-    AE_TELED_DEBUG("File {} deleted", res_path);
+    AE_TELE_DEBUG(FsObjRemoved, "File {} deleted", res_path);
   }
 }
 
@@ -119,11 +119,10 @@ std::vector<PathStructure> DriverSpifsV2::DriverDir(const PathStructure &path) {
   PathStructure res_struct{};
 
   if (!initialized_) return dirs_list;
-  res_path = kBasePath + std::string("/") + GetPathString(path, 0, true);
-
+  res_path = kBasePath + std::string("/");
   DIR *dir = opendir(res_path.c_str());
   if (dir == nullptr) {
-    AE_TELED_DEBUG("Error, directory not found!");
+    AE_TELE_ERROR(FsDir, "Error, directory not found!");
   } else {
     while (read_dir) {
       de = readdir(dir);
@@ -131,10 +130,12 @@ std::vector<PathStructure> DriverSpifsV2::DriverDir(const PathStructure &path) {
         read_dir = false;
       } else {
         res_struct = GetPathStructure(std::string(de->d_name));
-        dirs_list.push_back(res_struct);
+        if(path.obj_id == res_struct.obj_id){
+          dirs_list.push_back(res_struct);
+        }
       }
     }
-    AE_TELED_DEBUG("Found {} directories", dirs_list.size());
+    AE_TELE_DEBUG(FsDir, "Found {} directories", dirs_list.size());
   }
 
   return dirs_list;

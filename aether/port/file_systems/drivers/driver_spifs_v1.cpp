@@ -198,7 +198,7 @@ void DriverSpifsV1::DriverReadHlp(const std::string &path,
   AE_TELE_DEBUG(FsObjLoaded, "Opening file {} for read.", res_path);
   FILE *file = fopen(res_path.c_str(), "r");
   if (file == nullptr) {
-    AE_TELED_ERROR("Failed to open file {} for reading.", res_path);
+    AE_TELE_ERROR(FsObjLoaded, "Failed to open file {} for reading.", res_path);
   } else {
     fseek(file, 0, SEEK_END);
     file_size = ftell(file);

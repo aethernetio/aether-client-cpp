@@ -109,7 +109,7 @@ void FileSystemSpiFsV1Facility::Remove(const ae::ObjId& obj_id) {
     if (obj_id == dir.obj_id) {
       driver_sync_fs_->DriverDelete(dir);
       AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of directory {}",
-                    obj_id.ToString(), GetPathString(dir));
+                    obj_id.ToString(), GetPathString(dir, 3, true));
     }
   }
 }
