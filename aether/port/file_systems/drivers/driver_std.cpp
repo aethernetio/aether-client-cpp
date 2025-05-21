@@ -41,12 +41,7 @@ void DriverStd::DriverRead(const PathStructure &path,
     auto p = obj_dir / std::to_string(path.class_id);
     std::ifstream f(p.c_str(), std::ios::in | std::ios::binary);
     if (!f.good()) {
-      // Replacing backslashes with straight ones
       std::string obj_path = p.string();
-#  if (defined(_WIN64) || defined(_WIN32))
-      // Replacing backslashes with straight ones
-      std::replace(obj_path.begin(), obj_path.end(), '\\', '/');
-#  endif
       AE_TELE_ERROR(FsLoadObjClassIdNotFound, "Unable to open file {}",
                     obj_path);
       return;
@@ -55,7 +50,7 @@ void DriverStd::DriverRead(const PathStructure &path,
     auto ec = std::error_code{};
     auto file_size = std::filesystem::file_size(p, ec);
     if (ec) {
-      AE_TELED_ERROR("Unable to get file size {}", ec.message());
+      AE_TELE_ERROR(FsLoadObjClassIdNotFound, "Unable to get file size {}", ec.message());
       return;
     }
 
@@ -98,16 +93,16 @@ std::vector<PathStructure> DriverStd::DriverDir(const PathStructure &path) {
         dirs_list.push_back(GetPathStructure(name));
       }
       if (ec3) {
-        AE_TELED_ERROR("Unable to open directory with error {}", ec3.message());
+        AE_TELE_ERROR(FsDir, "Unable to open directory with error {}", ec3.message());
       }
     }
     if (ec2) {
-      AE_TELED_ERROR("Unable to open directory with error {}", ec2.message());
+      AE_TELE_ERROR(FsDir, "Unable to open directory with error {}", ec2.message());
     }
   }
 
   if (ec) {
-    AE_TELED_ERROR("Unable to open directory with error {}", ec.message());
+    AE_TELE_ERROR(FsDir, "Unable to open directory with error {}", ec.message());
   }
 
   return dirs_list;

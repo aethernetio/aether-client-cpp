@@ -40,7 +40,7 @@ FileSystemRamFacility::FileSystemRamFacility() {
       std::make_unique<DriverRam>(DriverFsType::kDriverRam)};
   driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
                                                  std::move(driver_destination));
-  AE_TELED_DEBUG("New FileSystemRamFacility instance created!");
+  AE_TELE_DEBUG(FsInstanceCreate, "New FileSystemRamFacility instance created!");
 }
 
 /*
@@ -49,7 +49,7 @@ FileSystemRamFacility::FileSystemRamFacility() {
  * \return void.
  */
 FileSystemRamFacility::~FileSystemRamFacility() {
-  AE_TELED_DEBUG("FileSystemRamFacility instance deleted!");
+  AE_TELE_DEBUG(FsInstanceDelete, "FileSystemRamFacility instance deleted!");
 }
 
 std::vector<uint32_t> FileSystemRamFacility::Enumerate(
@@ -131,7 +131,7 @@ void FileSystemRamFacility::CleanUp() {
     driver_sync_fs_->DriverDelete(dir);
   }
 
-  AE_TELED_DEBUG("All objects have been removed!");
+  AE_TELE_DEBUG(FsObjRemoved, "All objects have been removed!");
 }
 #  endif
 

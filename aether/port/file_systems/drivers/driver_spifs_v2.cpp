@@ -145,7 +145,7 @@ void DriverSpifsV2::DriverFormat() {
   esp_err_t err = esp_spiffs_format(kPartition);
 
   if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to format SPIFFS ({})", esp_err_to_name(err));
+    AE_TELE_ERROR(FsObjRemoved, "Failed to format SPIFFS ({})", esp_err_to_name(err));
   }
 }
 
@@ -162,11 +162,11 @@ esp_err_t DriverSpifsV2::DriverInit() {
   if (ret != ESP_ERR_INVALID_STATE) {  // FS alredy is initialized
     if (ret != ESP_OK) {
       if (ret == ESP_FAIL) {
-        AE_TELED_ERROR("Failed to mount or format filesystem");
+        AE_TELE_ERROR(FsDriverInit, "Failed to mount or format filesystem");
       } else if (ret == ESP_ERR_NOT_FOUND) {
-        AE_TELED_ERROR("Failed to find SPIFFS partition");
+        AE_TELE_ERROR(FsDriverInit, "Failed to find SPIFFS partition");
       } else {
-        AE_TELED_ERROR("Failed to initialize SPIFFS ({})",
+        AE_TELE_ERROR(FsDriverInit, "Failed to initialize SPIFFS ({})",
                        esp_err_to_name(ret));
       }
       return ret;

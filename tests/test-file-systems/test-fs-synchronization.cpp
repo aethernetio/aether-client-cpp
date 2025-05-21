@@ -23,21 +23,7 @@ struct person {
   uint32_t class_id;
 };
 
-void test_FS() {
-  std::unique_ptr<ae::IDomainFacility> fs_header_std{};
-  std::unique_ptr<ae::IDomainFacility> fs_header_ram{};
-  std::unique_ptr<ae::IDomainFacility> fs_header_spifs1{};
-  std::unique_ptr<ae::IDomainFacility> fs_header_spifs2{};
-  std::unique_ptr<ae::IDomainFacility> fs_std{};
-  std::unique_ptr<ae::IDomainFacility> fs_ram{};
-  std::unique_ptr<ae::IDomainFacility> fs_spifs1{};
-  std::unique_ptr<ae::IDomainFacility> fs_spifs2{};
-  const std::string& header_file{FS_INIT_TEST};
-  auto data_vector_source = std::vector<std::uint8_t>{};
-  auto data_vector_destination = std::vector<std::uint8_t>{};
-  auto data_vector_test = std::vector<std::uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9};
-
-  struct person test_data_files[] = {
+static struct person test_data_files[] = {
       {0, 1, 2178182515},          {0, 1, 3757268233},
       {0, 2, 207799855},           {0, 2, 2178182515},
       {0, 2, 2967114514},          {0, 3, 1105219716},
@@ -86,10 +72,19 @@ void test_FS() {
       {0, 4197235001, 2721984319}, {0, 4198791665, 701908926},
       {0, 4198791665, 2178182515}};
 
-  struct person test_data_file{1, 2, 3};
+static struct person test_data_file{1, 2, 3};
 
-  ae::TeleInit::Init();
-  AE_TELE_ENV();
+static auto data_vector_test = std::vector<std::uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+const std::string& header_file{""};
+
+
+void test_FS_STD() {
+  std::unique_ptr<ae::IDomainFacility> fs_header_std{};
+  std::unique_ptr<ae::IDomainFacility> fs_std{};
+  
+  auto data_vector_source = std::vector<std::uint8_t>{};
+  auto data_vector_destination = std::vector<std::uint8_t>{};
 
 #if (!defined(ESP_PLATFORM))
 
@@ -134,7 +129,18 @@ void test_FS() {
   fs_header_std->Load(test_data_file.obj_id, test_data_file.class_id,
                       test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
+  
+#endif // (!defined(ESP_PLATFORM))
+}
 
+void test_FS_RAM() {
+  std::unique_ptr<ae::IDomainFacility> fs_header_ram{};
+  std::unique_ptr<ae::IDomainFacility> fs_ram{};
+  
+  auto data_vector_source = std::vector<std::uint8_t>{};
+  auto data_vector_destination = std::vector<std::uint8_t>{};
+  
+#if (!defined(ESP_PLATFORM))
   // FS RAM tests
   fs_header_ram = std::make_unique<ae::FileSystemHeaderFacility>(
       header_file, ae::DriverFsType::kDriverRam);
@@ -176,8 +182,18 @@ void test_FS() {
   fs_header_ram->Load(test_data_file.obj_id, test_data_file.class_id,
                       test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
-#else
+  
+#endif // (!defined(ESP_PLATFORM))
+}
 
+void test_FS_SPIFSV1() {
+  std::unique_ptr<ae::IDomainFacility> fs_header_spifs1{};
+  std::unique_ptr<ae::IDomainFacility> fs_spifs1{};
+  
+  auto data_vector_source = std::vector<std::uint8_t>{};
+  auto data_vector_destination = std::vector<std::uint8_t>{};
+  
+#if (defined(ESP_PLATFORM))
   // FS SPIFSV1 tests
   fs_header_spifs1 = std::make_unique<ae::FileSystemHeaderFacility>(
       header_file, ae::DriverFsType::kDriverSpifsV1);
@@ -220,7 +236,17 @@ void test_FS() {
   fs_header_spifs1->Load(test_data_file.obj_id, test_data_file.class_id,
                          test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
+#endif // (defined(ESP_PLATFORM))
+}
 
+void test_FS_SPIFSV2() {
+  std::unique_ptr<ae::IDomainFacility> fs_header_spifs2{};
+  std::unique_ptr<ae::IDomainFacility> fs_spifs2{};
+  
+  auto data_vector_source = std::vector<std::uint8_t>{};
+  auto data_vector_destination = std::vector<std::uint8_t>{};
+
+#if (defined(ESP_PLATFORM))  
   // FS SPIFSV2 tests
   fs_header_spifs2 = std::make_unique<ae::FileSystemHeaderFacility>(
       header_file, ae::DriverFsType::kDriverSpifsV2);
@@ -263,11 +289,20 @@ void test_FS() {
   fs_header_spifs2->Load(test_data_file.obj_id, test_data_file.class_id,
                          test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
-#endif  // (!defined(ESP_PLATFORM))
+#endif  // (defined(ESP_PLATFORM))
 }
+
 }  // namespace ae::test_fs
+
 int test_fs_synchronization() {
+  ae::TeleInit::Init();
+  AE_TELE_ENV();
+  
   UNITY_BEGIN();
-  RUN_TEST(ae::test_fs::test_FS);
+  RUN_TEST(ae::test_fs::test_FS_STD);
+  RUN_TEST(ae::test_fs::test_FS_RAM);
+  RUN_TEST(ae::test_fs::test_FS_SPIFSV1);
+  RUN_TEST(ae::test_fs::test_FS_SPIFSV2);
+  
   return UNITY_END();
 }

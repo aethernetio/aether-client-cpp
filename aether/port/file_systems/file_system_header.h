@@ -49,8 +49,8 @@ class FileSystemHeaderFacility : public IDomainFacility {
 #endif
 
  private:
-  void LoadObjData_(ObjClassData& obj_data);
-  void SaveObjData_(ObjClassData& obj_data);
+  void LoadObjData(ObjClassData& obj_data);
+  void SaveObjData(ObjClassData& obj_data);
 
   std::unique_ptr<DriverSync> driver_sync_fs_;
   std::unique_ptr<DriverHeader> driver_header_fs_;

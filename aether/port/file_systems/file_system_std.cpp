@@ -39,11 +39,11 @@ FileSystemStdFacility::FileSystemStdFacility() {
       std::make_unique<DriverStd>(DriverFsType::kDriverStd)};
   driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
                                                  std::move(driver_destination));
-  AE_TELED_DEBUG("New FileSystemStdFacility instance created!");
+  AE_TELE_DEBUG(FsInstanceCreate, "New FileSystemStdFacility instance created!");
 }
 
 FileSystemStdFacility::~FileSystemStdFacility() {
-  AE_TELED_DEBUG("FileSystemStdFacility instance deleted!");
+  AE_TELE_DEBUG(FsInstanceDelete, "FileSystemStdFacility instance deleted!");
 }
 
 std::vector<uint32_t> FileSystemStdFacility::Enumerate(
@@ -125,7 +125,7 @@ void FileSystemStdFacility::CleanUp() {
     driver_sync_fs_->DriverDelete(dir);
   }
 
-  AE_TELED_DEBUG("All objects have been removed!");
+  AE_TELE_DEBUG(FsObjRemoved, "All objects have been removed!");
 }
 #  endif
 

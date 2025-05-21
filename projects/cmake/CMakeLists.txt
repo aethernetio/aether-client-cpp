@@ -29,6 +29,15 @@ add_compile_definitions("UNITY_INCLUDE_DOUBLE")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
+if ((NOT DEFINED ${USER_CONFIG}) OR (${USER_CONFIG} MATCHES ""))
+  set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../config/user_config_hydrogen.h" CACHE PATH "")
+endif()
+
+if ((NOT DEFINED ${FS_INIT}) OR (${FS_INIT} MATCHES "")) 
+  set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../config/file_system_init.h" CACHE PATH "")
+endif()
+
+
 if (NOT DEFINED AE_DISTILLATION)
   set(AE_DISTILLATION On)
 endif()
