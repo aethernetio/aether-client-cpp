@@ -182,9 +182,37 @@ void DriverHeader::DriverDelete(const std::string &path) {
 }
 
 std::vector<PathStructure> DriverHeader::DriverDir(const std::string &path) {
+  PathStructure res_path{};
   std::vector<PathStructure> dirs_list{};
 
-  AE_TELE_DEBUG(FsDir, "Dir header file {}", path);
+#if defined FS_INIT_TEST
+  auto data_vector_ =
+      std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
+#elif defined FS_INIT
+  auto data_vector_ = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
+#endif
+
+  VectorReader<HeaderSize> vr{data_vector_};
+  ObjClassData obj_data;
+
+  auto is = imstream{vr};
+  // add obj data
+  is >> obj_data;
+
+  // Path is "state/version/obj_id/class_id"
+  AE_TELE_DEBUG(FsDir, "Path {}", path);
+  for (auto &ItemObjClassData : obj_data) {
+    for (auto &ItemClassData : ItemObjClassData.second) {
+      for (auto &ItemVersionData : ItemClassData.second) {
+        // Path is "state/version/obj_id/class_id"
+        res_path.version = ItemVersionData.first;
+        res_path.obj_id = ItemObjClassData.first;
+        res_path.class_id = ItemClassData.first;
+        dirs_list.push_back(res_path);
+      }
+    }
+  }
+  
   return dirs_list;
 }
 

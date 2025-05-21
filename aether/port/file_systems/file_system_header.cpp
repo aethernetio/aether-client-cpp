@@ -225,7 +225,7 @@ void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
 
 void FileSystemHeaderFacility::SaveObjData(ObjClassData& obj_data) {
 #  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
-
+  ObjClassData obj_data_{obj_data};
 #  else
   std::vector<std::uint8_t> data_vector{};
 
