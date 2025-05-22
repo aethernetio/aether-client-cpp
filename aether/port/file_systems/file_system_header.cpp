@@ -89,13 +89,12 @@ std::vector<uint32_t> FileSystemHeaderFacility::Enumerate(const ObjId& obj_id) {
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
     auto& obj_classes = it->second;
-    AE_TELED_DEBUG("Object id={} found!", obj_id.ToString());
     for (const auto& [class_id, _] : obj_classes) {
-      AE_TELED_DEBUG("Add to the classes {}", class_id);
       classes.push_back(class_id);
     }
   }
-
+  AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
+  
   return classes;
 }
 

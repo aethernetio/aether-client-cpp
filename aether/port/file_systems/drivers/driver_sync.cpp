@@ -71,7 +71,7 @@ std::vector<PathStructure> DriverSync::DriverDir(const PathStructure &path) {
   std::vector<PathStructure> dirs_list_result{};
   std::vector<std::string> dirs_list_result_str{};
 
-#if !defined(AE_DISTILLATION)
+#if defined(AE_DISTILLATION)
   dirs_list_destination = fs_driver_destination_->DriverDir(path);
   for (auto &dir : dirs_list_destination) {
     dirs_list_destination_str.push_back(GetPathString(dir, 3, true));
