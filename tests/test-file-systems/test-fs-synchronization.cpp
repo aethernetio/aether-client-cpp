@@ -130,6 +130,24 @@ void test_FS_STD() {
                       test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
   
+  // Testing enumerate
+  ae::ObjId obj_id{};
+  std::vector<uint32_t> class_ids_test{};
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    if (obj_id != test_data_files[i].obj_id) {
+      obj_id = test_data_files[i].obj_id;
+      class_ids_test.clear();
+      for (int u = i; u < sizeof(test_data_files) / sizeof(test_data_files[0]);
+           u++) {
+        if (obj_id == test_data_files[u].obj_id) {
+          class_ids_test.push_back(test_data_files[u].class_id);
+        }
+      }
+      auto class_ids = fs_header_std->Enumerate(obj_id);
+      TEST_ASSERT(class_ids_test == class_ids);
+    }
+  }
 #endif // (!defined(ESP_PLATFORM))
 }
 
@@ -183,6 +201,24 @@ void test_FS_RAM() {
                       test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
   
+  // Testing enumerate
+  ae::ObjId obj_id{};
+  std::vector<uint32_t> class_ids_test{};
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++){
+    if(obj_id != test_data_files[i].obj_id){
+      obj_id = test_data_files[i].obj_id;
+      class_ids_test.clear();
+      for (int u = i; u < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       u++){
+         if(obj_id == test_data_files[u].obj_id){
+           class_ids_test.push_back(test_data_files[u].class_id);
+         }
+       }
+      auto class_ids = fs_header_ram->Enumerate(obj_id);
+      TEST_ASSERT(class_ids_test == class_ids);
+    }
+  }
 #endif // (!defined(ESP_PLATFORM))
 }
 
@@ -236,6 +272,25 @@ void test_FS_SPIFSV1() {
   fs_header_spifs1->Load(test_data_file.obj_id, test_data_file.class_id,
                          test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
+
+  // Testing enumerate
+  ae::ObjId obj_id{};
+  std::vector<uint32_t> class_ids_test{};
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    if (obj_id != test_data_files[i].obj_id) {
+      obj_id = test_data_files[i].obj_id;
+      class_ids_test.clear();
+      for (int u = i; u < sizeof(test_data_files) / sizeof(test_data_files[0]);
+           u++) {
+        if (obj_id == test_data_files[u].obj_id) {
+          class_ids_test.push_back(test_data_files[u].class_id);
+        }
+      }
+      auto class_ids = fs_header_spifs1->Enumerate(obj_id);
+      TEST_ASSERT(class_ids_test == class_ids);
+    }
+  }
 #endif // (defined(ESP_PLATFORM))
 }
 
@@ -289,6 +344,25 @@ void test_FS_SPIFSV2() {
   fs_header_spifs2->Load(test_data_file.obj_id, test_data_file.class_id,
                          test_data_file.version, data_vector_source);
   TEST_ASSERT(data_vector_test == data_vector_source);
+
+  // Testing enumerate
+  ae::ObjId obj_id{};
+  std::vector<uint32_t> class_ids_test{};
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    if (obj_id != test_data_files[i].obj_id) {
+      obj_id = test_data_files[i].obj_id;
+      class_ids_test.clear();
+      for (int u = i; u < sizeof(test_data_files) / sizeof(test_data_files[0]);
+           u++) {
+        if (obj_id == test_data_files[u].obj_id) {
+          class_ids_test.push_back(test_data_files[u].class_id);
+        }
+      }
+      auto class_ids = fs_header_spifs2->Enumerate(obj_id);
+      TEST_ASSERT(class_ids_test == class_ids);
+    }
+  }
 #endif  // (defined(ESP_PLATFORM))
 }
 
