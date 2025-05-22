@@ -36,11 +36,13 @@ FileSystemSpiFsV2Facility::FileSystemSpiFsV2Facility() {
       std::make_unique<DriverSpifsV2>(DriverFsType::kDriverSpifsV2)};
   driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
                                                  std::move(driver_destination));
-  AE_TELE_DEBUG(FsInstanceCreate, "New FileSystemSpiFsV2Facility instance created!");
+  AE_TELE_DEBUG(FsInstanceCreate,
+                "New FileSystemSpiFsV2Facility instance created!");
 }
 
 FileSystemSpiFsV2Facility::~FileSystemSpiFsV2Facility() {
-  AE_TELE_DEBUG(FsInstanceDelete, "FileSystemSpiFsV2Facility instance deleted!");
+  AE_TELE_DEBUG(FsInstanceDelete,
+                "FileSystemSpiFsV2Facility instance deleted!");
 }
 
 std::vector<uint32_t> FileSystemSpiFsV2Facility::Enumerate(

@@ -212,7 +212,7 @@ std::vector<PathStructure> DriverHeader::DriverDir(const std::string &path) {
       }
     }
   }
-  
+
   return dirs_list;
 }
 

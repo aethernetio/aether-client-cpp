@@ -71,11 +71,11 @@ FileSystemHeaderFacility::FileSystemHeaderFacility(
                                                  std::move(driver_destination));
   driver_header_fs_ =
       std::make_unique<DriverHeader>(DriverFsType::kDriverHeader);
-  AE_TELE_DEBUG(FsInstanceCreate,  "New FileSystemHeader instance created!");
+  AE_TELE_DEBUG(FsInstanceCreate, "New FileSystemHeader instance created!");
 }
 
 FileSystemHeaderFacility::~FileSystemHeaderFacility() {
-  AE_TELE_DEBUG(FsInstanceDelete,  "FileSystemHeader instance deleted!");
+  AE_TELE_DEBUG(FsInstanceDelete, "FileSystemHeader instance deleted!");
 }
 
 std::vector<uint32_t> FileSystemHeaderFacility::Enumerate(const ObjId& obj_id) {
@@ -94,7 +94,7 @@ std::vector<uint32_t> FileSystemHeaderFacility::Enumerate(const ObjId& obj_id) {
     }
   }
   AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
-  
+
   return classes;
 }
 
@@ -112,7 +112,7 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
   // Writing ObjClassData
   SaveObjData(state_);
 
-#if !defined(AE_DISTILLATION)
+#  if !defined(AE_DISTILLATION)
   PathStructure path{};
 
   path.version = version;
@@ -121,7 +121,7 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
 
   // For FS syncronization
   driver_sync_fs_->DriverWrite(path, os);
-#endif
+#  endif
 
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
@@ -133,17 +133,16 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
                                     std::vector<uint8_t>& is) {
   ObjClassData state_;
 
-#if !defined(AE_DISTILLATION)
+#  if !defined(AE_DISTILLATION)
   PathStructure path{};
 
   path.version = version;
   path.obj_id = obj_id;
   path.class_id = class_id;
 
-
   // For FS syncronization
   driver_sync_fs_->DriverRead(path, is);
-#endif
+#  endif
 
   // Reading ObjClassData
   LoadObjData(state_);

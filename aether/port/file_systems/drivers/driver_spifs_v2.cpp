@@ -130,7 +130,7 @@ std::vector<PathStructure> DriverSpifsV2::DriverDir(const PathStructure &path) {
         read_dir = false;
       } else {
         res_struct = GetPathStructure(std::string(de->d_name));
-        if(path.obj_id == res_struct.obj_id){
+        if (path.obj_id == res_struct.obj_id) {
           dirs_list.push_back(res_struct);
         }
       }
@@ -145,7 +145,8 @@ void DriverSpifsV2::DriverFormat() {
   esp_err_t err = esp_spiffs_format(kPartition);
 
   if (err != ESP_OK) {
-    AE_TELE_ERROR(FsObjRemoved, "Failed to format SPIFFS ({})", esp_err_to_name(err));
+    AE_TELE_ERROR(FsObjRemoved, "Failed to format SPIFFS ({})",
+                  esp_err_to_name(err));
   }
 }
 
@@ -167,7 +168,7 @@ esp_err_t DriverSpifsV2::DriverInit() {
         AE_TELE_ERROR(FsDriverInit, "Failed to find SPIFFS partition");
       } else {
         AE_TELE_ERROR(FsDriverInit, "Failed to initialize SPIFFS ({})",
-                       esp_err_to_name(ret));
+                      esp_err_to_name(ret));
       }
       return ret;
     }
