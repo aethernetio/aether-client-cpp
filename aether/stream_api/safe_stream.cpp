@@ -57,28 +57,17 @@ void SafeStreamWriteAction::Stop() {
 }
 
 SafeStream::SafeStream(ActionContext action_context, SafeStreamConfig config)
-    : action_context_{action_context},
-      safe_stream_api_{protocol_context_, *this},
-      safe_stream_sending_{action_context_, config},
-      safe_stream_receiving_{action_context_, config},
-      packet_send_actions_{action_context_},
-      stream_info_{config.max_data_size, {}, {}, {}} {
-  safe_stream_sending_.send_event().Subscribe(
-      *this, MethodPtr<&SafeStream::OnSendEvent>{});
-  safe_stream_sending_.repeat_event().Subscribe(
-      *this, MethodPtr<&SafeStream::OnRepeatEvent>{});
-
-  safe_stream_receiving_.confirm_event().Subscribe(
-      *this, MethodPtr<&SafeStream::OnConfirmEvent>{});
-  safe_stream_receiving_.request_repeat_event().Subscribe(
-      *this, MethodPtr<&SafeStream::OnRequestRepeatEvent>{});
-  safe_stream_receiving_.receive_event().Subscribe(
+    : safe_stream_action_{action_context, *this, config},
+      safe_stream_api_{protocol_context_, safe_stream_action_},
+      packet_send_actions_{action_context},
+      stream_info_{config.max_data_size, false, false, false} {
+  safe_stream_action_.receive_event().Subscribe(
       *this, MethodPtr<&SafeStream::WriteOut>{});
 }
 
 ActionView<StreamWriteAction> SafeStream::Write(DataBuffer&& data) {
   return packet_send_actions_.Emplace(
-      safe_stream_sending_.SendData(std::move(data)));
+      safe_stream_action_.SendData(std::move(data)));
 }
 
 StreamInfo SafeStream::stream_info() const { return stream_info_; }
@@ -93,86 +82,8 @@ void SafeStream::LinkOut(OutStream& out) {
   OnStreamUpdate();
 }
 
-void SafeStream::Confirm(std::uint16_t offset) {
-  safe_stream_sending_.Confirm(SafeStreamRingIndex{offset});
-}
-
-void SafeStream::RequestRepeat(std::uint16_t offset) {
-  safe_stream_sending_.RequestRepeatSend(SafeStreamRingIndex{offset});
-}
-
-void SafeStream::SendData(std::uint16_t offset, DataBuffer&& data) {
-  safe_stream_receiving_.ReceiveSend(SafeStreamRingIndex{offset},
-                                     std::move(data));
-}
-void SafeStream::RepeatData(std::uint16_t repeat_count, std::uint16_t offset,
-                            DataBuffer&& data) {
-  safe_stream_receiving_.ReceiveRepeat(SafeStreamRingIndex{offset},
-                                       repeat_count, std::move(data));
-}
-
-void SafeStream::OnSendEvent(SafeStreamRingIndex offset, DataBuffer&& data) {
-  assert(out_);
-
-  auto api_context = ApiContext{protocol_context_, safe_stream_api_};
-  api_context->send(static_cast<std::uint16_t>(offset), std::move(data));
-
-  auto write_action = out_->Write(std::move(api_context));
-
-  subscriptions_.Push(write_action->ResultEvent().Subscribe(
-      [this, offset](auto const& /* action */) {
-        safe_stream_sending_.ReportWriteSuccess(offset);
-      }));
-  subscriptions_.Push(write_action->ErrorEvent().Subscribe(
-      [this, offset](auto const& /* action */) {
-        safe_stream_sending_.ReportWriteError(offset);
-      }));
-  subscriptions_.Push(write_action->StopEvent().Subscribe(
-      [this, offset](auto const& /* action */) {
-        safe_stream_sending_.ReportWriteStopped(offset);
-      }));
-}
-
-void SafeStream::OnRepeatEvent(SafeStreamRingIndex offset,
-                               std::uint16_t repeat_count, DataBuffer&& data) {
-  assert(out_);
-
-  auto api_context = ApiContext{protocol_context_, safe_stream_api_};
-  api_context->repeat(repeat_count, static_cast<std::uint16_t>(offset),
-                      std::move(data));
-
-  auto write_action = out_->Write(std::move(api_context));
-
-  subscriptions_.Push(write_action->ResultEvent().Subscribe(
-      [this, offset](auto const& /* action */) {
-        safe_stream_sending_.ReportWriteSuccess(offset);
-      }));
-  subscriptions_.Push(write_action->ErrorEvent().Subscribe(
-      [this, offset](auto const& /* action */) {
-        safe_stream_sending_.ReportWriteError(offset);
-      }));
-  subscriptions_.Push(write_action->StopEvent().Subscribe(
-      [this, offset](auto const& /* action */) {
-        safe_stream_sending_.ReportWriteStopped(offset);
-      }));
-}
-
-void SafeStream::OnConfirmEvent(SafeStreamRingIndex offset) {
-  assert(out_);
-
-  auto api_context = ApiContext{protocol_context_, safe_stream_api_};
-  api_context->confirm(static_cast<std::uint16_t>(offset));
-
-  out_->Write(std::move(api_context));
-}
-
-void SafeStream::OnRequestRepeatEvent(SafeStreamRingIndex offset) {
-  assert(out_);
-
-  auto api_context = ApiContext{protocol_context_, safe_stream_api_};
-  api_context->request_repeat(static_cast<std::uint16_t>(offset));
-
-  out_->Write(std::move(api_context));
+ApiCallAdapter<SafeStreamApi> SafeStream::safe_stream_api() {
+  return ApiCallAdapter{ApiContext{protocol_context_, safe_stream_api_}, *out_};
 }
 
 void SafeStream::WriteOut(DataBuffer const& data) {
@@ -185,7 +96,7 @@ void SafeStream::OnStreamUpdate() {
   stream_info_.is_writable = out_info.is_writable;
   stream_info_.is_soft_writable = out_info.is_soft_writable;
 
-  safe_stream_sending_.set_max_data_size(out_info.max_element_size);
+  safe_stream_action_.set_max_data_size(out_info.max_element_size);
   stream_update_event_.Emit();
 }
 

@@ -29,31 +29,30 @@
 namespace ae {
 struct DataChunk {
   DataBuffer data;
-  SafeStreamRingIndex offset;
+  SSRingIndex offset;
 };
 
 class SendDataBuffer {
  public:
-  explicit SendDataBuffer(ActionContext action_context,
-                          SafeStreamRingIndex::type window_size);
-
-  void set_window_size(SafeStreamRingIndex::type window_size);
+  explicit SendDataBuffer(ActionContext action_context);
 
   // add more data to the buffer
   ActionView<SendingDataAction> AddData(SendingData&& data);
   // get data slice from the buffer
-  DataChunk GetSlice(SafeStreamRingIndex offset, std::size_t max_size);
-  // confirm data has been sent
-  void Confirm(SafeStreamRingIndex offset);
-  // sending reject
-  void Reject(SafeStreamRingIndex offset);
-  // sending stop
+  DataChunk GetSlice(SSRingIndex offset, std::size_t max_size,
+                     SSRingIndex ring_begin);
 
-  void Stop(SafeStreamRingIndex offset);
+  void MoveOffset(SSRingIndex::type distance);
+
+  // confirm data has been sent
+  std::size_t Confirm(SSRingIndex offset, SSRingIndex ring_begin);
+  // sending reject
+  std::size_t Reject(SSRingIndex offset, SSRingIndex ring_begin);
+  // sending stop, remove size of removed
+  std::size_t Stop(SSRingIndex offset, SSRingIndex ring_begin);
   std::size_t size() const { return buffer_size_; }
 
  private:
-  SafeStreamRingIndex::type window_size_;
   ActionList<SendingDataAction> send_actions_;
   std::list<ActionView<SendingDataAction>> send_action_views_;
 

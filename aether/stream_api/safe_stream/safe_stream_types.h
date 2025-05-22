@@ -21,44 +21,85 @@
 
 #include "aether/common.h"
 #include "aether/ring_buffer.h"
+#include "aether/transport/data_buffer.h"
 
 namespace ae {
 
-using SafeStreamRingIndex = RingIndex<std::uint16_t>;
+using SSRingIndex = RingIndex<std::uint16_t>;
 
 struct OffsetRange {
-  SafeStreamRingIndex begin;
-  SafeStreamRingIndex end;
-  SafeStreamRingIndex::type window_size;
+  SSRingIndex left;
+  SSRingIndex right;
+  SSRingIndex ring_begin;
 
   // offset in [begin:end] range
-  constexpr bool InRange(SafeStreamRingIndex offset) const {
-    return (begin.Distance(offset) <= window_size) &&
-           (offset.Distance(end) <= window_size);
+  constexpr bool InRange(SSRingIndex offset) const {
+    return (left(ring_begin) <= offset) && (right(ring_begin) >= offset);
   }
 
   // offset range is before offset ( end < offset)
-  constexpr bool Before(SafeStreamRingIndex offset) const {
-    return offset.Distance(end) > window_size;
+  constexpr bool Before(SSRingIndex offset) const {
+    return right(ring_begin) < offset;
   }
 
   // offset range is after offset ( begin > offset)
-  constexpr bool After(SafeStreamRingIndex offset) const {
-    return begin.Distance(offset) > window_size;
+  constexpr bool After(SSRingIndex offset) const {
+    return left(ring_begin) > offset;
   }
+
+  constexpr auto distance() const { return left.Distance(right); }
 };
 
-struct OffsetTime {
-  TimePoint time;
-  SafeStreamRingIndex offset;
+struct SendingData {
+  auto get_offset_range(SSRingIndex ring_begin) const {
+    return OffsetRange{offset,
+                       offset + static_cast<SSRingIndex::type>(data.size() - 1),
+                       ring_begin};
+  }
+
+  SSRingIndex offset;
+  DataBuffer data;
+};
+
+struct ReceivingChunk {
+  ReceivingChunk(SSRingIndex off, DataBuffer&& d, std::uint16_t rc)
+      : offset(off),
+        data(std::move(d)),
+        repeat_count(rc),
+        begin{std::begin(data)},
+        end{std::end(data)} {}
+
+  auto get_offset_range(SSRingIndex ring_begin) const {
+    auto distance = end - begin;
+    return OffsetRange{offset,
+                       offset + static_cast<SSRingIndex::type>(distance - 1),
+                       ring_begin};
+  }
+
+  SSRingIndex offset;
+  DataBuffer data;
+  std::uint16_t repeat_count;
+  DataBuffer::iterator begin;
+  DataBuffer::iterator end;
 };
 
 struct SendingChunk {
-  SafeStreamRingIndex begin_offset;
-  SafeStreamRingIndex end_offset;
+  SSRingIndex begin_offset;
+  SSRingIndex end_offset;
   std::uint16_t repeat_count;
   TimePoint send_time;
 };
+
+struct MissedChunk {
+  SSRingIndex expected_offset;
+  ReceivingChunk* chunk;
+};
+
+struct ReplacedChunk {
+  SSRingIndex offset;
+  std::uint16_t repeat_count;
+};
+
 }  // namespace ae
 
 #endif  // AETHER_STREAM_API_SAFE_STREAM_SAFE_STREAM_TYPES_H_
