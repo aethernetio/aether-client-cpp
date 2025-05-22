@@ -29,7 +29,6 @@
 #  include "aether/port/file_systems/drivers/driver_spifs_v1.h"
 #  include "aether/port/file_systems/drivers/driver_spifs_v2.h"
 
-
 namespace ae {
 
 FileSystemStdFacility::FileSystemStdFacility() {
@@ -39,11 +38,13 @@ FileSystemStdFacility::FileSystemStdFacility() {
       std::make_unique<DriverStd>(DriverFsType::kDriverStd)};
   driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
                                                  std::move(driver_destination));
-  AE_TELE_DEBUG(FsInstanceCreate, "New FileSystemStdFacility instance created!");
+  AE_TELE_DEBUG(FsInstanceCreate,
+                "New FileSystemStdFacility instance created!");
 }
 
 FileSystemStdFacility::~FileSystemStdFacility() {
-  AE_TELE_DEBUG(FsInstanceDelete, "FileSystemStdFacility instance deleted!");
+  AE_TELE_DEBUG(FsInstanceDelete, 
+                "FileSystemStdFacility instance deleted!");
 }
 
 std::vector<uint32_t> FileSystemStdFacility::Enumerate(
