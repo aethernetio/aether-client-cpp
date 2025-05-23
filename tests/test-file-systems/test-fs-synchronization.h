@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,22 @@
  * limitations under the License.
  */
 
-#include "aether/port/file_systems/facility_factory.h"
+#ifndef TESTS_TEST_FILE_SYSTEMS_TEST_FS_SYNCHRONIZATION_H_
+#define TESTS_TEST_FILE_SYSTEMS_TEST_FS_SYNCHRONIZATION_H_
 
+#include <unity.h>
+
+#include <memory>
+
+#include "aether/obj/domain.h"
+#include "aether/tele/tele.h"
+#include "aether/port/tele_init.h"
+
+#include "aether/port/file_systems/file_systems_tele.h"
 #include "aether/port/file_systems/file_system_std.h"
 #include "aether/port/file_systems/file_system_ram.h"
-#include "aether/port/file_systems/file_system_spifs_v2.h"
 #include "aether/port/file_systems/file_system_spifs_v1.h"
+#include "aether/port/file_systems/file_system_spifs_v2.h"
 #include "aether/port/file_systems/file_system_header.h"
 
-namespace ae {
-std::unique_ptr<IDomainFacility> DomainFacilityFactory::Create() {
-#if AE_FILE_SYSTEM_STD_ENABLED == 1
-  return make_unique<FileSystemStdFacility>();
-#elif AE_FILE_SYSTEM_SPIFS_V2_ENABLED == 1
-  return make_unique<FileSystemSpiFsV2Facility>();
-#elif AE_FILE_SYSTEM_SPIFS_V1_ENABLED == 1
-  return make_unique<FileSystemSpiFsV1Facility>();
-#elif AE_FILE_SYSTEM_RAM_ENABLED == 1
-  return make_unique<FileSystemRamFacility>();
-#endif
-}
-}  // namespace ae
+#endif  // TESTS_TEST_FILE_SYSTEMS_TEST_FS_SYNCHRONIZATION_H_

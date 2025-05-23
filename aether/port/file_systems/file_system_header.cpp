@@ -16,22 +16,66 @@
 
 #include "aether/port/file_systems/file_system_header.h"
 
-#if defined AE_FILE_SYSTEM_HEADER_ENABLED
+#if AE_FILE_SYSTEM_HEADER_ENABLED == 1
 
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
-#  include "aether/tele/tele.h"
+#  include "aether/port/file_systems/file_systems_tele.h"
+#  include "aether/port/file_systems/drivers/driver_sync.h"
+#  include "aether/port/file_systems/drivers/driver_header.h"
+#  include "aether/port/file_systems/drivers/driver_std.h"
+#  include "aether/port/file_systems/drivers/driver_ram.h"
+#  include "aether/port/file_systems/drivers/driver_spifs_v1.h"
+#  include "aether/port/file_systems/drivers/driver_spifs_v2.h"
 
 namespace ae {
 
 FileSystemHeaderFacility::FileSystemHeaderFacility(
-    const std::string& header_file)
+    const std::string& header_file, DriverFsType fs_driver_type_destination)
     : path_{header_file} {
-  driver_fs_ = std::make_unique<DriverHeader>();
-  AE_TELED_DEBUG("New FileSystemHeader instance created!");
+  std::unique_ptr<DriverHeader> driver_source{
+      std::make_unique<DriverHeader>(DriverFsType::kDriverHeader)};
+
+  std::unique_ptr<DriverBase> driver_destination{};
+  switch (fs_driver_type_destination) {
+    case DriverFsType::kDriverStd:
+#  if AE_FILE_SYSTEM_STD_ENABLED == 1
+      driver_destination =
+          std::make_unique<DriverStd>(DriverFsType::kDriverStd);
+#  endif  // AE_FILE_SYSTEM_STD_ENABLED == 1
+      break;
+    case DriverFsType::kDriverRam:
+      driver_destination =
+          std::make_unique<DriverRam>(DriverFsType::kDriverRam);
+      break;
+    case DriverFsType::kDriverSpifsV1:
+#  if defined(ESP_PLATFORM) && AE_FILE_SYSTEM_SPIFS_V1_ENABLED == 1
+      driver_destination =
+          std::make_unique<DriverSpifsV1>(DriverFsType::kDriverSpifsV1);
+#  endif  // (defined(ESP_PLATFORM)) && AE_FILE_SYSTEM_SPIFS_V1_ENABLED == 1
+      break;
+    case DriverFsType::kDriverSpifsV2:
+#  if defined(ESP_PLATFORM) && AE_FILE_SYSTEM_SPIFS_V2_ENABLED == 1
+      driver_destination =
+          std::make_unique<DriverSpifsV2>(DriverFsType::kDriverSpifsV2);
+#  endif  // (defined(ESP_PLATFORM)) && AE_FILE_SYSTEM_SPIFS_V2_ENABLED == 1
+      break;
+    case DriverFsType::kDriverNone:
+      driver_destination = nullptr;
+      break;
+    default:
+      assert(0);
+      break;
+  }
+
+  driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
+                                                 std::move(driver_destination));
+  driver_header_fs_ =
+      std::make_unique<DriverHeader>(DriverFsType::kDriverHeader);
+  AE_TELE_DEBUG(FsInstanceCreate, "New FileSystemHeader instance created!");
 }
 
 FileSystemHeaderFacility::~FileSystemHeaderFacility() {
-  AE_TELED_DEBUG("FileSystemHeader instance deleted!");
+  AE_TELE_DEBUG(FsInstanceDelete, "FileSystemHeader instance deleted!");
 }
 
 std::vector<uint32_t> FileSystemHeaderFacility::Enumerate(const ObjId& obj_id) {
@@ -45,12 +89,11 @@ std::vector<uint32_t> FileSystemHeaderFacility::Enumerate(const ObjId& obj_id) {
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
     auto& obj_classes = it->second;
-    AE_TELED_DEBUG("Object id={} found!", obj_id.ToString());
     for (const auto& [class_id, _] : obj_classes) {
-      AE_TELED_DEBUG("Add to the classes {}", class_id);
       classes.push_back(class_id);
     }
   }
+  AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
 
   return classes;
 }
@@ -66,20 +109,40 @@ void FileSystemHeaderFacility::Store(const ObjId& obj_id,
 
   state_[obj_id][class_id][version] = os;
 
-  AE_TELED_DEBUG("Saved state/{}/{}/{} size: {}", std::to_string(version),
-                 obj_id.ToString(), class_id, os.size());
-
-  AE_TELED_DEBUG("Object id={} & class id = {} saved!", obj_id.ToString(),
-                 class_id);
-
   // Writing ObjClassData
   SaveObjData(state_);
+
+#  if !defined(AE_DISTILLATION) || defined(AE_FILE_SYSTEM_TEST)
+  PathStructure path{};
+
+  path.version = version;
+  path.obj_id = obj_id;
+  path.class_id = class_id;
+
+  // For FS syncronization
+  driver_sync_fs_->DriverWrite(path, os);
+#  endif
+
+  AE_TELE_DEBUG(
+      FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), os.size());
 }
 
 void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
                                     std::uint8_t version,
                                     std::vector<uint8_t>& is) {
   ObjClassData state_;
+
+#  if !defined(AE_DISTILLATION) || defined(AE_FILE_SYSTEM_TEST)
+  PathStructure path{};
+
+  path.version = version;
+  path.obj_id = obj_id;
+  path.class_id = class_id;
+
+  // For FS syncronization
+  driver_sync_fs_->DriverRead(path, is);
+#  endif
 
   // Reading ObjClassData
   LoadObjData(state_);
@@ -99,12 +162,11 @@ void FileSystemHeaderFacility::Load(const ObjId& obj_id, std::uint32_t class_id,
     return;
   }
 
-  AE_TELED_DEBUG("Object id={} & class id = {} version {} loaded!",
-                 obj_id.ToString(), class_id, version);
   is = version_it->second;
 
-  AE_TELED_DEBUG("Loaded state/{}/{}/{} size: {}", std::to_string(version),
-                 obj_id.ToString(), class_id, is.size());
+  AE_TELE_DEBUG(
+      FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
+      obj_id.ToString(), class_id, static_cast<int>(version), is.size());
 }
 
 void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
@@ -115,10 +177,10 @@ void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
 
   auto it = state_.find(obj_id);
   if (it != state_.end()) {
-    AE_TELED_DEBUG("Object id={} removed!", obj_id.ToString());
+    AE_TELE_DEBUG(FsObjRemoved, "Object id={} removed!", obj_id.ToString());
     state_.erase(it);
   } else {
-    AE_TELED_WARNING("Object id={} not found!", obj_id.ToString());
+    AE_TELE_WARNING(FsObjRemoved, "Object id={} not found!", obj_id.ToString());
   }
 
   // Writing ObjClassData
@@ -127,19 +189,23 @@ void FileSystemHeaderFacility::Remove(const ObjId& obj_id) {
 
 #  if defined AE_DISTILLATION
 void FileSystemHeaderFacility::CleanUp() {
-  driver_fs_->DriverHeaderDelete(path_);
+  driver_header_fs_->DriverDelete(path_);
 }
 #  endif
 
 void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
-#  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
-#    if defined FS_INIT
+#  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION)) || \
+      defined(AE_FILE_SYSTEM_TEST)
+#    if defined FS_INIT_TEST
+  auto data_vector =
+      std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
+#    elif defined FS_INIT
   auto data_vector = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
 #    else
   auto data_vector = std::vector<std::uint8_t>{};
 #    endif
 
-  VectorReader<PacketSize> vr{data_vector};
+  VectorReader<HeaderSize> vr{data_vector};
 
   auto is = imstream{vr};
   // add oj data
@@ -147,9 +213,9 @@ void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
 #  else
   std::vector<std::uint8_t> data_vector{};
 
-  VectorReader<PacketSize> vr{data_vector};
+  VectorReader<HeaderSize> vr{data_vector};
 
-  driver_fs_->DriverHeaderRead(path_, data_vector);
+  driver_header_fs_->DriverRead(path_, data_vector, false);
   auto is = imstream{vr};
   // add obj data
   is >> obj_data;
@@ -157,28 +223,18 @@ void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
 }
 
 void FileSystemHeaderFacility::SaveObjData(ObjClassData& obj_data) {
-#  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION))
-#    if defined FS_INIT
-  auto data_vector = std::vector<std::uint8_t>{init_fs.begin(), init_fs.end()};
-#    else
-  auto data_vector = std::vector<std::uint8_t>{};
-#    endif
-
-  VectorWriter<PacketSize> vw{data_vector};
-
-  auto os = omstream{vw};
-  // add file data
-  os << obj_data;
-
+#  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION)) || \
+      defined(AE_FILE_SYSTEM_TEST)
+  ObjClassData obj_data_{obj_data};
 #  else
   std::vector<std::uint8_t> data_vector{};
 
-  VectorWriter<PacketSize> vw{data_vector};
+  VectorWriter<HeaderSize> vw{data_vector};
   auto os = omstream{vw};
   // add file data
   os << obj_data;
 
-  driver_fs_->DriverHeaderWrite(path_, data_vector);
+  driver_header_fs_->DriverWrite(path_, data_vector);
 #  endif
 }
 

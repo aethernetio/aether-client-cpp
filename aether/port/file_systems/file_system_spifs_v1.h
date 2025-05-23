@@ -19,20 +19,20 @@
 
 #include "aether/config.h"
 
-#if defined ESP_PLATFORM && AE_SUPPORT_SPIFS_V1_FS
-#  define AE_FILE_SYSTEM_SPIFS_V1_ENABLED 1
+#if defined ESP_PLATFORM && AE_SUPPORT_SPIFS_V1_FS || \
+    AE_FILE_SYSTEM_SPIFS_V1_ENABLED == 1
 
 #  include <map>
 #  include <cstdint>
 
 #  include "aether/obj/obj_id.h"
 #  include "aether/obj/domain.h"
-#  include "aether/transport/data_buffer.h"
-#  include "aether/transport/low_level/tcp/data_packet_collector.h"
-#  include "aether/port/file_systems/drivers/driver_spifs.h"
+#  include "aether/port/file_systems/file_systems_tele.h"
+#  include "aether/port/file_systems/drivers/driver_sync.h"
+#  include "aether/port/file_systems/drivers/driver_functions.h"
 
 namespace ae {
-class FileSystemSpiFsV1Facility : public FileSystemBase {
+class FileSystemSpiFsV1Facility : public IDomainFacility {
   using Data = std::vector<std::uint8_t>;
   using VersionData = std::map<std::uint8_t, Data>;
   using ClassData = std::map<std::uint32_t, VersionData>;
@@ -52,10 +52,7 @@ class FileSystemSpiFsV1Facility : public FileSystemBase {
   void CleanUp() override;
 #  endif
  private:
-  void _LoadObjData(ObjClassData& obj_data);
-  void _SaveObjData(ObjClassData& obj_data);
-
-  DriverSpifs* driver_fs;
+  std::unique_ptr<DriverSync> driver_sync_fs_;
 };
 }  // namespace ae
 

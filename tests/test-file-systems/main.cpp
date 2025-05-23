@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2024 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-#include "aether/methods/client_reg_api/client_reg_root_api.h"
+#include <unity.h>
 
-namespace ae {
-#if AE_SUPPORT_REGISTRATION
-ClientRegRootApi::ClientRegRootApi(ProtocolContext& protocol_context)
-    : ReturnResultApiImpl{protocol_context} {}
+void setUp() {}
+void tearDown() {}
 
-void ClientRegRootApi::Enter(ApiParser&, DataBuffer data) {
-  enter_event.Emit(data);
+
+extern int test_fs_synchronization();
+
+int main() {
+  auto res = 0;
+  res += test_fs_synchronization();
+
+  return res;
 }
-#endif  // AE_SUPPORT_REGISTRATION
-}  // namespace ae

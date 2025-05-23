@@ -59,7 +59,7 @@ int AetherRegistrator(const std::string& ini_file,
    */
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{[header_file]() {
-        return ae::make_unique<ae::FileSystemHeaderFacility>(header_file);
+        return ae::make_unique<ae::FileSystemHeaderFacility>(header_file, ae::DriverFsType::kDriverNone);
       }}
 #if defined AE_DISTILLATION
           .Adapter([&registrator_config](

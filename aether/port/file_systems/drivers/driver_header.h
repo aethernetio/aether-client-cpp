@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,30 +17,49 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
 #define AETHER_PORT_FILE_SYSTEMS_DRIVERS_DRIVER_HEADER_H_
 
-#include <string>
 #include <vector>
 #include <cstdint>
 #include <fstream>
+#include <string>
 #include <ios>
 #include <system_error>
 
+#include "aether/port/file_systems/drivers/driver_base.h"
+#include "aether/packed_int.h"
+
 #if defined FS_INIT
 #  include FS_INIT
+#else
+#  error "FS_INIT should be defined"
+#endif
+
+#if defined FS_INIT_TEST
+#  include FS_INIT_TEST
 #endif
 
 namespace ae {
 
+using HeaderSize = Packed<std::uint64_t, std::uint8_t, 250>;
+
 class DriverHeader {
+  using Data = std::vector<std::uint8_t>;
+  using VersionData = std::map<std::uint8_t, Data>;
+  using ClassData = std::map<std::uint32_t, VersionData>;
+  using ObjClassData = std::map<ae::ObjId, ClassData>;
+
  public:
-  DriverHeader();
+  DriverHeader(DriverFsType fs_driver_type);
   ~DriverHeader();
-  void DriverHeaderRead(const std::string &path,
-                        std::vector<std::uint8_t> &data_vector);
-  void DriverHeaderWrite(const std::string &path,
-                         const std::vector<std::uint8_t> &data_vector);
-  void DriverHeaderDelete(const std::string &path);
+  void DriverRead(const std::string &path,
+                  std::vector<std::uint8_t> &data_vector, bool sync);
+  void DriverWrite(const std::string &path,
+                   const std::vector<std::uint8_t> &data_vector);
+  void DriverDelete(const std::string &path);
+  std::vector<PathStructure> DriverDir(const std::string &path);
+  DriverFsType GetDriverFsType() { return fs_driver_type_; }
 
  private:
+  DriverFsType fs_driver_type_{DriverFsType::kDriverNone};
   std::string ByteToHex(std::uint8_t ch);
   uint8_t HexToByte(const std::string &hex);
 };
