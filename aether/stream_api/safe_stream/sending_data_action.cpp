@@ -19,13 +19,6 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-OffsetRange SendingData::get_offset_range(
-    SafeStreamRingIndex::type window_size) const {
-  return OffsetRange{
-      offset, offset + static_cast<SafeStreamRingIndex::type>(data.size() - 1),
-      window_size};
-}
-
 SendingDataAction::SendingDataAction(ActionContext action_context,
                                      SendingData sending_data)
     : Action{action_context},
@@ -56,7 +49,9 @@ TimePoint SendingDataAction::Update(TimePoint current_time) {
 
 SendingData& SendingDataAction::sending_data() { return sending_data_; }
 
-EventSubscriber<void()> SendingDataAction::stop_event() { return stop_event_; }
+EventSubscriber<void(SendingData const&)> SendingDataAction::stop_event() {
+  return EventSubscriber{stop_event_};
+}
 
 void SendingDataAction::Sending() { state_ = State::kSending; }
 
@@ -65,7 +60,7 @@ void SendingDataAction::Stop() {
     AE_TELED_ERROR("Unable to stop sending data action while sending");
     return;
   }
-  stop_event_.Emit();
+  stop_event_.Emit(sending_data_);
 }
 
 void SendingDataAction::SentConfirmed() {

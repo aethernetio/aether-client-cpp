@@ -17,24 +17,14 @@
 #ifndef AETHER_STREAM_API_SAFE_STREAM_SENDING_DATA_ACTION_H_
 #define AETHER_STREAM_API_SAFE_STREAM_SENDING_DATA_ACTION_H_
 
-#include <utility>
-
 #include "aether/state_machine.h"
 #include "aether/events/events.h"
 #include "aether/actions/action.h"
-#include "aether/transport/data_buffer.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 
 namespace ae {
-struct SendingData {
-  OffsetRange get_offset_range(SafeStreamRingIndex::type window_size) const;
-
-  SafeStreamRingIndex offset;
-  DataBuffer data;
-};
-
 class SendingDataAction : public Action<SendingDataAction> {
   enum class State : std::uint8_t {
     kWaiting,
@@ -52,7 +42,7 @@ class SendingDataAction : public Action<SendingDataAction> {
   TimePoint Update(TimePoint current_time) override;
 
   SendingData& sending_data();
-  EventSubscriber<void()> stop_event();
+  EventSubscriber<void(SendingData const&)> stop_event();
 
   void Sending();
   void Stop();
@@ -64,7 +54,7 @@ class SendingDataAction : public Action<SendingDataAction> {
  private:
   SendingData sending_data_;
   StateMachine<State> state_;
-  Event<void()> stop_event_;
+  Event<void(SendingData const&)> stop_event_;
 };
 }  // namespace ae
 

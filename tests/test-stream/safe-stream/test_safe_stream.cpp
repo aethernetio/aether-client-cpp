@@ -23,8 +23,6 @@
 #include "aether/api_protocol/protocol_context.h"
 
 #include "aether/stream_api/safe_stream.h"
-#include "aether/stream_api/safe_stream/safe_stream_api.h"
-#include "aether/stream_api/safe_stream/safe_stream_types.h"
 
 #include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-stream/mock_read_stream.h"
@@ -34,8 +32,8 @@ namespace ae::test_safe_stream {
 constexpr auto config = SafeStreamConfig{
     20 * 1024,
     10 * 1024,
-    100,
-    2,
+    200,
+    3,
     std::chrono::milliseconds{50},
     std::chrono::milliseconds{0},
     std::chrono::milliseconds{10},
@@ -58,7 +56,7 @@ void test_SafeStreamWriteFewData() {
   auto received_packet = DataBuffer{};
 
   auto read_stream = MockReadStream{};
-  auto write_stream = MockWriteStream{ap, std::size_t{100}};
+  auto write_stream = MockWriteStream{ap, std::size_t{120}};
 
   auto safe_stream = SafeStream{ap, config};
 
@@ -100,7 +98,7 @@ void test_SafeStreamPacketLoss() {
   auto received_packet = DataBuffer{};
 
   auto read_stream = MockReadStream{};
-  auto write_stream = MockWriteStream{ap, std::size_t{100}};
+  auto write_stream = MockWriteStream{ap, std::size_t{120}};
 
   auto safe_stream = SafeStream{ap, config};
   Tie(read_stream, safe_stream, write_stream);

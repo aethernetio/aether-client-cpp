@@ -21,13 +21,10 @@
 
 namespace ae {
 
-SendingChunkList::SendingChunkList(SafeStreamRingIndex::type window_size)
-    : window_size_{window_size} {}
-
-SendingChunk& SendingChunkList::Register(SafeStreamRingIndex begin,
-                                         SafeStreamRingIndex end,
-                                         TimePoint send_time) {
-  auto offset_range = OffsetRange{begin, end, window_size_};
+SendingChunk& SendingChunkList::Register(SSRingIndex begin, SSRingIndex end,
+                                         TimePoint send_time,
+                                         SSRingIndex ring_begin) {
+  auto offset_range = OffsetRange{begin, end, ring_begin};
 
   auto it = std::find_if(
       std::begin(chunks_), std::end(chunks_),
@@ -40,8 +37,8 @@ SendingChunk& SendingChunkList::Register(SafeStreamRingIndex begin,
   }
 
   auto& sch = *it;
-  if ((offset_range.begin == sch.begin_offset) &&
-      (offset_range.end == sch.end_offset)) {
+  if ((offset_range.left(ring_begin) == sch.begin_offset) &&
+      (offset_range.right(ring_begin) == sch.end_offset)) {
     // move it to the end
     sch.send_time = send_time;
     chunks_.splice(std::end(chunks_), chunks_, it);
@@ -63,10 +60,10 @@ SendingChunk& SendingChunkList::Register(SafeStreamRingIndex begin,
         // remove this fully overlapped chunk
         return true;
       }
-      chunk.begin_offset = offset_range.end + 1;
+      chunk.begin_offset = offset_range.right + 1;
     } else if (offset_range.InRange(chunk.end_offset)) {
       new_sch.repeat_count = std::min(sch.repeat_count, chunk.repeat_count);
-      chunk.end_offset = offset_range.begin - 1;
+      chunk.end_offset = offset_range.left - 1;
     }
     return false;
   });
@@ -74,17 +71,24 @@ SendingChunk& SendingChunkList::Register(SafeStreamRingIndex begin,
   return new_sch;
 }
 
-void SendingChunkList::RemoveUpTo(SafeStreamRingIndex offset) {
+void SendingChunkList::MoveOffset(SSRingIndex::type distance) {
+  for (auto& chunk : chunks_) {
+    chunk.begin_offset += distance;
+    chunk.end_offset += distance;
+  }
+}
+
+void SendingChunkList::RemoveUpTo(SSRingIndex offset, SSRingIndex ring_begin) {
   chunks_.remove_if([&](auto& sch) {
     auto offset_range =
-        OffsetRange{sch.begin_offset, sch.end_offset, window_size_};
+        OffsetRange{sch.begin_offset, sch.end_offset, ring_begin};
     if (offset_range.Before(offset)) {
       return true;
     }
     if (offset_range.InRange(offset)) {
       sch.begin_offset = offset;
       // if chunk is collapsed
-      return sch.begin_offset == sch.end_offset;
+      return sch.begin_offset(ring_begin) == sch.end_offset;
     }
     return false;
   });

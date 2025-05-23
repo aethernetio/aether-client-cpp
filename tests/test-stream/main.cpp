@@ -20,8 +20,10 @@ void setUp() {}
 void tearDown() {}
 
 extern int test_safe_stream_types();
-extern int test_safe_stream_sending();
-extern int test_safe_stream_receiving();
+extern int test_sending_chunk_list();
+extern int test_send_data_buffer();
+extern int test_receiving_chunks();
+extern int test_safe_stream_action();
 extern int test_safe_stream();
 extern int test_stream_api();
 extern int test_crypto_stream();
@@ -33,8 +35,10 @@ extern int test_tied_gates();
 int main() {
   int res = 0;
   res += test_safe_stream_types();
-  res += test_safe_stream_sending();
-  res += test_safe_stream_receiving();
+  res += test_sending_chunk_list();
+  res += test_send_data_buffer();
+  res += test_receiving_chunks();
+  res += test_safe_stream_action();
   res += test_safe_stream();
   res += test_stream_api();
   res += test_crypto_stream();

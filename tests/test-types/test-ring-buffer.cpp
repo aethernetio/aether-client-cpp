@@ -78,11 +78,34 @@ void test_RingBufferDistance() {
   TEST_ASSERT_EQUAL(5, d4);
 }
 
+void test_RingBufferCompare() {
+  using U8RI = RingIndex<std::uint8_t, 50>;
+  constexpr auto begin = U8RI{0};
+  auto a = U8RI{10};
+  auto b = U8RI{15};
+
+  TEST_ASSERT_TRUE(a(begin) < b);
+  TEST_ASSERT_TRUE(b(begin) > a);
+  TEST_ASSERT_FALSE(a(begin) > b);
+  TEST_ASSERT_FALSE(b(begin) < a);
+  TEST_ASSERT_TRUE(a(begin) == a);
+  TEST_ASSERT_TRUE(a(begin) != b);
+  TEST_ASSERT_FALSE(a(begin) == b);
+  TEST_ASSERT_FALSE(a(begin) != a);
+  TEST_ASSERT_TRUE(a(begin) >= a);
+  TEST_ASSERT_TRUE(b(begin) >= a);
+  TEST_ASSERT_FALSE(a(begin) >= b);
+  TEST_ASSERT_TRUE(a(begin) <= b);
+  TEST_ASSERT_TRUE(a(begin) <= a);
+  TEST_ASSERT_FALSE(b(begin) <= a);
+}
+
 }  // namespace ae::test_ring_buffer
 
 int test_ring_buffer() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_ring_buffer::test_RingBufferShifting);
   RUN_TEST(ae::test_ring_buffer::test_RingBufferDistance);
+  RUN_TEST(ae::test_ring_buffer::test_RingBufferCompare);
   return UNITY_END();
 }

@@ -18,8 +18,10 @@ list(APPEND test_srcs
   main.cpp
   mock_transport.cpp
   safe-stream/test_safe_stream_types.cpp
-  safe-stream/test_safe_stream_sending.cpp
-  safe-stream/test_safe_stream_receiving.cpp
+  safe-stream/test_sending_chunk_list.cpp
+  safe-stream/test_send_data_buffer.cpp
+  safe-stream/test_receiving_chunks.cpp
+  safe-stream/test_safe_stream_action.cpp
   safe-stream/test_safe_stream.cpp
   stream-api/test_stream_api.cpp
   crypto-stream/test_crypto_stream.cpp

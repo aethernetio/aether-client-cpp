@@ -16,308 +16,41 @@
 
 #include <unity.h>
 
-#include <string_view>
-
-#include "aether/port/tele_init.h"
-
-#include "aether/actions/action_context.h"
-#include "aether/actions/action_processor.h"
-
-#include "aether/stream_api/safe_stream/send_data_buffer.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
-#include "aether/stream_api/safe_stream/sending_chunk_list.h"
 
 namespace ae::test_safe_stream_types {
 void test_OffsetRange() {
-  constexpr SafeStreamRingIndex::type window_size = 100;
-  {
-    constexpr auto half_window_range = OffsetRange{
-        SafeStreamRingIndex{25}, SafeStreamRingIndex{75}, window_size};
+  constexpr auto half_window_range =
+      OffsetRange{SSRingIndex{25}, SSRingIndex{75}, SSRingIndex{0}};
 
-    TEST_ASSERT_TRUE(half_window_range.After(SafeStreamRingIndex{24}));
-    TEST_ASSERT_FALSE(half_window_range.After(SafeStreamRingIndex{25}));
-    TEST_ASSERT_FALSE(half_window_range.After(SafeStreamRingIndex{26}));
+  TEST_ASSERT_TRUE(half_window_range.After(SSRingIndex{24}));
+  TEST_ASSERT_FALSE(half_window_range.After(SSRingIndex{25}));
+  TEST_ASSERT_FALSE(half_window_range.After(SSRingIndex{26}));
 
-    TEST_ASSERT_TRUE(half_window_range.Before(SafeStreamRingIndex{76}));
-    TEST_ASSERT_FALSE(half_window_range.Before(SafeStreamRingIndex{75}));
-    TEST_ASSERT_FALSE(half_window_range.Before(SafeStreamRingIndex{74}));
+  TEST_ASSERT_TRUE(half_window_range.Before(SSRingIndex{76}));
+  TEST_ASSERT_FALSE(half_window_range.Before(SSRingIndex{75}));
+  TEST_ASSERT_FALSE(half_window_range.Before(SSRingIndex{74}));
 
-    TEST_ASSERT_TRUE(half_window_range.InRange(SafeStreamRingIndex{25}));
-    TEST_ASSERT_TRUE(half_window_range.InRange(SafeStreamRingIndex{75}));
-    TEST_ASSERT_TRUE(half_window_range.InRange(SafeStreamRingIndex{50}));
-    TEST_ASSERT_FALSE(half_window_range.InRange(SafeStreamRingIndex{20}));
-    TEST_ASSERT_FALSE(half_window_range.InRange(SafeStreamRingIndex{80}));
-  }
+  TEST_ASSERT_TRUE(half_window_range.InRange(SSRingIndex{25}));
+  TEST_ASSERT_TRUE(half_window_range.InRange(SSRingIndex{75}));
+  TEST_ASSERT_TRUE(half_window_range.InRange(SSRingIndex{50}));
+  TEST_ASSERT_FALSE(half_window_range.InRange(SSRingIndex{20}));
+  TEST_ASSERT_FALSE(half_window_range.InRange(SSRingIndex{80}));
 
-  constexpr auto window_range = OffsetRange{
-      SafeStreamRingIndex{0}, SafeStreamRingIndex{100}, window_size};
-  TEST_ASSERT_TRUE(window_range.InRange(SafeStreamRingIndex{0}));
-  TEST_ASSERT_TRUE(window_range.InRange(SafeStreamRingIndex{100}));
-  TEST_ASSERT_TRUE(window_range.InRange(SafeStreamRingIndex{10}));
-  TEST_ASSERT_FALSE(window_range.InRange(SafeStreamRingIndex{110}));
-  TEST_ASSERT_TRUE(window_range.Before(SafeStreamRingIndex{110}));
-  TEST_ASSERT_TRUE(window_range.After(SafeStreamRingIndex{110}));
-}
-
-void test_SendingChunkList() {
-  constexpr SafeStreamRingIndex::type window_size = 100;
-
-  SendingChunkList chunk_list{window_size};
-
-  // add three chunks
-  chunk_list.Register(SafeStreamRingIndex{0}, SafeStreamRingIndex{5}, Now());
-  chunk_list.Register(SafeStreamRingIndex{6}, SafeStreamRingIndex{10}, Now());
-  chunk_list.Register(SafeStreamRingIndex{11}, SafeStreamRingIndex{20}, Now());
-
-  TEST_ASSERT_EQUAL(3, chunk_list.size());
-  // merge two chunks
-  chunk_list.Register(SafeStreamRingIndex{0}, SafeStreamRingIndex{10}, Now());
-  TEST_ASSERT_EQUAL(2, chunk_list.size());
-  // merge again
-  chunk_list.Register(SafeStreamRingIndex{0}, SafeStreamRingIndex{20}, Now());
-  TEST_ASSERT_EQUAL(1, chunk_list.size());
-  // register a smaller chunk
-  chunk_list.Register(SafeStreamRingIndex{0}, SafeStreamRingIndex{10}, Now());
-  TEST_ASSERT_EQUAL(2, chunk_list.size());
-  // register a smaller between two chunks
-  chunk_list.Register(SafeStreamRingIndex{8}, SafeStreamRingIndex{14}, Now());
-  TEST_ASSERT_EQUAL(3, chunk_list.size());
-  auto& chunk = chunk_list.front();
-  TEST_ASSERT(SafeStreamRingIndex(15) == chunk.begin_offset);
-  TEST_ASSERT(SafeStreamRingIndex(20) == chunk.end_offset);
-  chunk_list.RemoveUpTo(SafeStreamRingIndex{7});
-  TEST_ASSERT_EQUAL(2, chunk_list.size());
-  chunk_list.RemoveUpTo(SafeStreamRingIndex{20});
-  TEST_ASSERT(chunk_list.empty());
-}
-
-void test_SendingChunkListRepeatCount() {
-  constexpr SafeStreamRingIndex::type window_size = 100;
-
-  SendingChunkList chunk_list{window_size};
-  {
-    auto& chunk1 = chunk_list.Register(SafeStreamRingIndex{0},
-                                       SafeStreamRingIndex{50}, Now());
-    chunk1.repeat_count = 1;
-
-    auto& chunk2 = chunk_list.Register(SafeStreamRingIndex{51},
-                                       SafeStreamRingIndex{60}, Now());
-    chunk2.repeat_count = 2;
-    auto& chunk3 = chunk_list.Register(SafeStreamRingIndex{61},
-                                       SafeStreamRingIndex{90}, Now());
-    chunk3.repeat_count = 3;
-  }
-  // re register chunk
-  {
-    auto& chunk = chunk_list.front();
-    TEST_ASSERT_EQUAL(1, chunk.repeat_count);
-    auto& chunk1 = chunk_list.Register(SafeStreamRingIndex{0},
-                                       SafeStreamRingIndex{50}, Now());
-    TEST_ASSERT_EQUAL(1, chunk1.repeat_count);
-    auto& front_chunk = chunk_list.front();
-    TEST_ASSERT_EQUAL(2, front_chunk.repeat_count);
-  }
-  // merge chunks
-  {
-    auto& chunk1 = chunk_list.Register(SafeStreamRingIndex{0},
-                                       SafeStreamRingIndex{60}, Now());
-    TEST_ASSERT_EQUAL(1, chunk1.repeat_count);
-    auto& front_chunk = chunk_list.front();
-    TEST_ASSERT_EQUAL(3, front_chunk.repeat_count);
-  }
-  // split chunks
-  {
-    auto& chunk1 = chunk_list.Register(SafeStreamRingIndex{0},
-                                       SafeStreamRingIndex{30}, Now());
-    TEST_ASSERT_EQUAL(1, chunk1.repeat_count);
-    auto& front_chunk = chunk_list.front();
-    TEST_ASSERT_EQUAL(3, front_chunk.repeat_count);
-    auto& chunk2 = chunk_list.Register(SafeStreamRingIndex{31},
-                                       SafeStreamRingIndex{60}, Now());
-    TEST_ASSERT_NOT_EQUAL(&chunk1, &chunk2);
-    TEST_ASSERT_EQUAL(1, chunk2.repeat_count);
-    chunk2.repeat_count = 2;
-  }
-}
-
-constexpr std::string_view test_data = "Pure refreshment in every drop";
-
-struct ActionResult {
-  bool confirmed;
-  bool rejected;
-  bool stopped;
-};
-
-void test_SendDataBuffer() {
-  constexpr SafeStreamRingIndex::type window_size = 100;
-  ActionProcessor action_processor;
-  ActionContext action_context{action_processor};
-
-  SendDataBuffer send_data_buffer{action_context, window_size};
-
-  auto a1_res = ActionResult{};
-  auto a2_res = ActionResult{};
-  auto a3_res = ActionResult{};
-
-  // add some data
-  auto a1 = send_data_buffer.AddData(
-      SendingData{SafeStreamRingIndex{0},
-                  DataBuffer{std::begin(test_data), std::end(test_data)}});
-
-  a1->ResultEvent().Subscribe([&](auto const&) { a1_res.confirmed = true; });
-  a1->ErrorEvent().Subscribe([&](auto const&) { a1_res.rejected = true; });
-  a1->StopEvent().Subscribe([&](auto const&) { a1_res.stopped = true; });
-
-  auto a2 = send_data_buffer.AddData(
-      SendingData{SafeStreamRingIndex{test_data.size()},
-                  DataBuffer{std::begin(test_data), std::end(test_data)}});
-  a2->ResultEvent().Subscribe([&](auto const&) { a2_res.confirmed = true; });
-  a2->ErrorEvent().Subscribe([&](auto const&) { a2_res.rejected = true; });
-  a2->StopEvent().Subscribe([&](auto const&) { a2_res.stopped = true; });
-
-  auto a3 = send_data_buffer.AddData(
-      SendingData{SafeStreamRingIndex{2 * test_data.size()},
-                  DataBuffer{std::begin(test_data), std::end(test_data)}});
-
-  a3->ResultEvent().Subscribe([&](auto const&) { a3_res.confirmed = true; });
-  a3->ErrorEvent().Subscribe([&](auto const&) { a3_res.rejected = true; });
-  a3->StopEvent().Subscribe([&](auto const&) { a3_res.stopped = true; });
-
-  TEST_ASSERT_EQUAL(test_data.size() * 3, send_data_buffer.size());
-  // get a slice
-  {
-    auto data_slice =
-        send_data_buffer.GetSlice(SafeStreamRingIndex{0}, test_data.size());
-    TEST_ASSERT(SafeStreamRingIndex(0) == data_slice.offset);
-    TEST_ASSERT_EQUAL_CHAR_ARRAY(test_data.data(), data_slice.data.data(),
-                                 test_data.size());
-  }
-  // get a slice of data part
-  {
-    auto data_slice =
-        send_data_buffer.GetSlice(SafeStreamRingIndex{5}, test_data.size() - 5);
-    TEST_ASSERT(SafeStreamRingIndex(5) == data_slice.offset);
-    TEST_ASSERT_EQUAL_CHAR_ARRAY(test_data.data() + 5, data_slice.data.data(),
-                                 test_data.size() - 5);
-  }
-  // get a slice other two data parts
-  {
-    auto data_slice =
-        send_data_buffer.GetSlice(SafeStreamRingIndex{0}, test_data.size() * 2);
-    TEST_ASSERT(SafeStreamRingIndex(0) == data_slice.offset);
-    TEST_ASSERT_EQUAL_CHAR_ARRAY(test_data.data(), data_slice.data.data(),
-                                 test_data.size());
-    TEST_ASSERT_EQUAL_CHAR_ARRAY(test_data.data(),
-                                 data_slice.data.data() + test_data.size(),
-                                 test_data.size());
-  }
-  action_processor.Update(Now());
-
-  // confirm some
-  send_data_buffer.Confirm(SafeStreamRingIndex{5});
-  action_processor.Update(Now());
-  TEST_ASSERT_FALSE(a1_res.confirmed);
-
-  send_data_buffer.Confirm(SafeStreamRingIndex{test_data.size() - 1});
-  action_processor.Update(Now());
-  TEST_ASSERT_TRUE(a1_res.confirmed);
-
-  // reject some
-  send_data_buffer.Reject(SafeStreamRingIndex{test_data.size() - 1});
-  action_processor.Update(Now());
-  TEST_ASSERT_FALSE(a1_res.rejected);
-  TEST_ASSERT_FALSE(a2_res.rejected);
-
-  send_data_buffer.Reject(SafeStreamRingIndex{test_data.size() + 1});
-  action_processor.Update(Now());
-  TEST_ASSERT_TRUE(a2_res.rejected);
-
-  // stop some
-  send_data_buffer.Stop(SafeStreamRingIndex{(2 * test_data.size()) - 1});
-  action_processor.Update(Now());
-  TEST_ASSERT_FALSE(a3_res.stopped);
-
-  send_data_buffer.Stop(SafeStreamRingIndex{3 * test_data.size()});
-  action_processor.Update(Now());
-  TEST_ASSERT_TRUE(a3_res.stopped);
-}
-
-void test_SendDataBufferConfirmation() {
-  constexpr SafeStreamRingIndex::type window_size = 100;
-  ActionProcessor action_processor;
-  ActionContext action_context{action_processor};
-
-  SendDataBuffer send_data_buffer{action_context, window_size};
-
-  std::array arr_res = {ActionResult{}, ActionResult{}, ActionResult{}};
-
-  for (std::size_t i = 0; i < arr_res.size(); ++i) {
-    auto action = send_data_buffer.AddData(SendingData{
-        SafeStreamRingIndex{static_cast<std::uint16_t>(test_data.size() * i)},
-        DataBuffer{std::begin(test_data), std::end(test_data)}});
-    action->ResultEvent().Subscribe(
-        [&arr_res, i](auto const&) { arr_res[i].confirmed = true; });
-  }
-
-  // confirm some data at the beginning
-  send_data_buffer.Confirm(SafeStreamRingIndex{5});
-  action_processor.Update(Now());
-  // non data should be confirmed
-  TEST_ASSERT_FALSE(arr_res[0].confirmed);
-
-  // confirm almost first data
-  send_data_buffer.Confirm(SafeStreamRingIndex{test_data.size() - 2});
-  action_processor.Update(Now());
-  // non data should be confirmed
-  TEST_ASSERT_FALSE(arr_res[0].confirmed);
-  // confirm whole first data
-  send_data_buffer.Confirm(SafeStreamRingIndex{test_data.size() - 1});
-  action_processor.Update(Now());
-  // now the data is confirmed
-  TEST_ASSERT_TRUE(arr_res[0].confirmed);
-  // confirm up to the half of third data
-  send_data_buffer.Confirm(
-      SafeStreamRingIndex{(test_data.size() * 2) + (test_data.size() / 2)});
-  action_processor.Update(Now());
-  // second is confirmed but the third is not
-  TEST_ASSERT_TRUE(arr_res[1].confirmed);
-  TEST_ASSERT_FALSE(arr_res[2].confirmed);
-
-  // confirm all
-  send_data_buffer.Confirm(SafeStreamRingIndex{(test_data.size() * 3) - 1});
-  action_processor.Update(Now());
-  TEST_ASSERT_TRUE(arr_res[2].confirmed);
-
-  // add more data
-  for (std::size_t i = 0; i < arr_res.size(); ++i) {
-    arr_res[i] = {};
-    auto action = send_data_buffer.AddData(
-        SendingData{SafeStreamRingIndex{
-                        static_cast<std::uint16_t>(test_data.size() * (3 + i))},
-                    DataBuffer{std::begin(test_data), std::end(test_data)}});
-    action->ResultEvent().Subscribe(
-        [&arr_res, i](auto const&) { arr_res[i].confirmed = true; });
-  }
-
-  // confirm it all
-  send_data_buffer.Confirm(
-      SafeStreamRingIndex{(test_data.size() * (3 + 3)) - 1});
-  action_processor.Update(Now());
-  TEST_ASSERT_TRUE(arr_res[0].confirmed);
-  TEST_ASSERT_TRUE(arr_res[1].confirmed);
-  TEST_ASSERT_TRUE(arr_res[2].confirmed);
+  constexpr auto window_range =
+      OffsetRange{SSRingIndex{0}, SSRingIndex{100}, SSRingIndex{0}};
+  TEST_ASSERT_TRUE(window_range.InRange(SSRingIndex{0}));
+  TEST_ASSERT_TRUE(window_range.InRange(SSRingIndex{100}));
+  TEST_ASSERT_TRUE(window_range.InRange(SSRingIndex{10}));
+  TEST_ASSERT_FALSE(window_range.InRange(SSRingIndex{110}));
+  TEST_ASSERT_TRUE(window_range.Before(SSRingIndex{110}));
+  TEST_ASSERT_FALSE(window_range.After(SSRingIndex{110}));
 }
 
 }  // namespace ae::test_safe_stream_types
 
 int test_safe_stream_types() {
-  ae::TeleInit::Init();
-
   UNITY_BEGIN();
   RUN_TEST(ae::test_safe_stream_types::test_OffsetRange);
-  RUN_TEST(ae::test_safe_stream_types::test_SendingChunkList);
-  RUN_TEST(ae::test_safe_stream_types::test_SendingChunkListRepeatCount);
-  RUN_TEST(ae::test_safe_stream_types::test_SendDataBuffer);
-  RUN_TEST(ae::test_safe_stream_types::test_SendDataBufferConfirmation);
   return UNITY_END();
 }

@@ -26,8 +26,7 @@
 #include "aether/stream_api/safe_stream/safe_stream_api.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
-#include "aether/stream_api/safe_stream/safe_stream_sending.h"
-#include "aether/stream_api/safe_stream/safe_stream_receiving.h"
+#include "aether/stream_api/safe_stream/safe_stream_action.h"
 
 #include "aether/stream_api/istream.h"
 
@@ -47,7 +46,7 @@ class SafeStreamWriteAction final : public StreamWriteAction {
   MultiSubscription subscriptions_;
 };
 
-class SafeStream final : public ByteStream {
+class SafeStream final : public ByteStream, public SafeStreamApiProvider {
  public:
   SafeStream(ActionContext action_context, SafeStreamConfig config);
 
@@ -58,32 +57,19 @@ class SafeStream final : public ByteStream {
 
   void LinkOut(OutStream &out) override;
 
-  void Confirm(std::uint16_t offset);
-  void RequestRepeat(std::uint16_t offset);
-  void SendData(std::uint16_t offset, DataBuffer &&data);
-  void RepeatData(std::uint16_t repeat_count, std::uint16_t offset,
-                  DataBuffer &&data);
+  ApiCallAdapter<SafeStreamApi> safe_stream_api() override;
 
  private:
-  void OnSendEvent(SafeStreamRingIndex offset, DataBuffer &&data);
-  void OnRepeatEvent(SafeStreamRingIndex offset, std::uint16_t repeat_count,
-                     DataBuffer &&data);
-
-  void OnConfirmEvent(SafeStreamRingIndex offset);
-  void OnRequestRepeatEvent(SafeStreamRingIndex offset);
-
   void WriteOut(DataBuffer const &data);
   void OnStreamUpdate();
   void OnOutData(DataBuffer const &data);
 
-  ActionContext action_context_;
   ProtocolContext protocol_context_;
+  SafeStreamAction safe_stream_action_;
   SafeStreamApi safe_stream_api_;
-  SafeStreamSendingAction safe_stream_sending_;
-  SafeStreamReceivingAction safe_stream_receiving_;
+
   ActionList<SafeStreamWriteAction> packet_send_actions_;
 
-  MultiSubscription subscriptions_;
   StreamInfo stream_info_;
 };
 }  // namespace ae
