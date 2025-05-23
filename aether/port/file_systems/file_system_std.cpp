@@ -43,7 +43,7 @@ FileSystemStdFacility::FileSystemStdFacility() {
 }
 
 FileSystemStdFacility::~FileSystemStdFacility() {
-  AE_TELE_DEBUG(FsInstanceDelete, 
+  AE_TELE_DEBUG(FsInstanceDelete,
                 "FileSystemStdFacility instance deleted!");
 }
 

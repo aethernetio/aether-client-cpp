@@ -51,6 +51,8 @@ if(NOT CM_PLATFORM)
   target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_SPIFS_V1_ENABLED=0)
   target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_SPIFS_V2_ENABLED=0)
   
+  target_compile_definitions(aether PUBLIC AE_FILE_SYSTEM_TEST)
+
   project(test-file-systems LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME})

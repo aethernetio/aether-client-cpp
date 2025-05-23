@@ -28,9 +28,25 @@ DriverSync::DriverSync(std::unique_ptr<DriverHeader> fs_driver_source,
 
 DriverSync::~DriverSync() {}
 
+/*void DriverSync::DriverRead(const PathStructure &path,
+                            std::vector<std::uint8_t> &data_vector) {
+  fs_driver_destination_->DriverRead(path, data_vector, false);
+  if (data_vector.empty()){
+     fs_driver_source_->DriverRead(GetPathString(path, 3, false), data_vector, false);
+  }
+}
+
+void DriverSync::DriverWrite(const PathStructure &path,
+                             const std::vector<std::uint8_t> &data_vector) {
+  fs_driver_destination_->DriverWrite(path, data_vector);
+}
+
+void DriverSync::DriverDelete(const PathStructure &path) {
+  fs_driver_destination_->DriverDelete(path);
+}*/
 void DriverSync::DriverRead(const PathStructure &path,
                             std::vector<std::uint8_t> &data_vector) {
-#if defined(AE_DISTILLATION)
+#if defined(AE_DISTILLATION) && !defined(AE_FILE_SYSTEM_TEST)
   fs_driver_destination_->DriverRead(path, data_vector, false);
 #else
   DriverSyncronize_(path);
@@ -42,7 +58,7 @@ void DriverSync::DriverRead(const PathStructure &path,
 
 void DriverSync::DriverWrite(const PathStructure &path,
                              const std::vector<std::uint8_t> &data_vector) {
-#if defined(AE_DISTILLATION)
+#if defined(AE_DISTILLATION) && !defined(AE_FILE_SYSTEM_TEST)
   fs_driver_destination_->DriverWrite(path, data_vector);
 #else
   DriverSyncronize_(path);
@@ -53,7 +69,7 @@ void DriverSync::DriverWrite(const PathStructure &path,
 }
 
 void DriverSync::DriverDelete(const PathStructure &path) {
-#if defined(AE_DISTILLATION)
+#if defined(AE_DISTILLATION) && !defined(AE_FILE_SYSTEM_TEST)
   fs_driver_destination_->DriverDelete(path);
 #else
   DriverSyncronize_(path);
@@ -71,7 +87,7 @@ std::vector<PathStructure> DriverSync::DriverDir(const PathStructure &path) {
   std::vector<PathStructure> dirs_list_result{};
   std::vector<std::string> dirs_list_result_str{};
 
-#if defined(AE_DISTILLATION)
+#if defined(AE_DISTILLATION) && !defined(AE_FILE_SYSTEM_TEST)
   dirs_list_destination = fs_driver_destination_->DriverDir(path);
   for (auto &dir : dirs_list_destination) {
     dirs_list_destination_str.push_back(GetPathString(dir, 3, true));
