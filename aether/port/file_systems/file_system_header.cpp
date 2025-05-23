@@ -194,7 +194,8 @@ void FileSystemHeaderFacility::CleanUp() {
 #  endif
 
 void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
-#  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION)) || defined(AE_FILE_SYSTEM_TEST)
+#  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION)) || \
+      defined(AE_FILE_SYSTEM_TEST)
 #    if defined FS_INIT_TEST
   auto data_vector =
       std::vector<std::uint8_t>{test_init_fs.begin(), test_init_fs.end()};
@@ -222,7 +223,8 @@ void FileSystemHeaderFacility::LoadObjData(ObjClassData& obj_data) {
 }
 
 void FileSystemHeaderFacility::SaveObjData(ObjClassData& obj_data) {
-#  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION)) || defined(AE_FILE_SYSTEM_TEST)
+#  if (defined(ESP_PLATFORM) || !defined(AE_DISTILLATION)) || \
+      defined(AE_FILE_SYSTEM_TEST)
   ObjClassData obj_data_{obj_data};
 #  else
   std::vector<std::uint8_t> data_vector{};
