@@ -21,7 +21,7 @@
 #include <cassert>
 
 #include "aether/common.h"
-#include "aether/packed_int.h"
+#include "aether/tiered_int.h"
 #include "aether/crypto/key.h"
 #include "aether/crypto/crypto_nonce.h"
 
@@ -46,7 +46,7 @@ class ServerKeys {
 
   ServerId server_id_{};
   Key master_key_;
-  Packed<std::uint32_t, std::uint8_t, 250> key_number_{};
+  TieredInt<std::uint32_t, std::uint8_t, 250> key_number_{};
   CryptoNonce nonce_;
   Key client_to_server_key_;
   Key server_to_client_key_;

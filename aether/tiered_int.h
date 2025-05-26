@@ -14,25 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PACKED_INT_H_
-#define AETHER_PACKED_INT_H_
+#ifndef AETHER_TIERED_INT_H_
+#define AETHER_TIERED_INT_H_
 
 #include <tuple>
 #include <array>
 #include <limits>
 #include <cstdint>
+#include <functional>
 #include <type_traits>
-
-#include "aether/mstream.h"
 
 namespace ae {
 
-namespace _internal {
-using RangeTypeList =
+namespace tiered_int_internal {
+using TierTypeList =
     std::tuple<std::uint8_t, std::uint16_t, std::uint32_t, std::uint64_t>;
 
 template <typename T, typename TypeList, std::size_t... Is>
-constexpr auto RangeIndexImpl(std::index_sequence<Is...> const&) {
+constexpr auto TierIndexImpl(std::index_sequence<Is...> const&) {
   constexpr auto arr =
       std::array{std::is_same_v<T, std::tuple_element_t<Is, TypeList>>...};
 
@@ -45,49 +44,47 @@ constexpr auto RangeIndexImpl(std::index_sequence<Is...> const&) {
   return res;
 }
 
-template <typename T, typename TypeList = RangeTypeList>
-constexpr std::size_t RangeIndex() {
-  return RangeIndexImpl<T, TypeList>(
+template <typename T, typename TypeList = TierTypeList>
+constexpr std::size_t TierIndex() {
+  return TierIndexImpl<T, TypeList>(
       std::make_index_sequence<std::tuple_size_v<TypeList>>());
 }
-}  // namespace _internal
-
 /**
- * \brief Limit variable calculations for ranges.
+ * \brief Limit variable calculations for tiers.
  */
 template <typename MaxStored, typename MinStored, MinStored MinMaxStoredValue>
 struct Limit {
+  static constexpr auto kRangeIndex = TierIndex<MaxStored>();
+  using PrevTierLimit =
+      Limit<std::tuple_element_t<kRangeIndex - 1, TierTypeList>, MinStored,
+            MinMaxStoredValue>;
   using StoredType = MaxStored;
-  static constexpr auto kRangeIndex = _internal::RangeIndex<MaxStored>();
-
-  using PrevRangeLimit =
-      Limit<std::tuple_element_t<kRangeIndex - 1, _internal::RangeTypeList>,
-            MinStored, MinMaxStoredValue>;
 
   static constexpr auto kAbsoluteMaxValue =
       std::numeric_limits<StoredType>::max();
 
-  static constexpr auto kP = static_cast<MaxStored>(1)
+  static constexpr auto kP = static_cast<StoredType>(1)
                              << (std::numeric_limits<StoredType>::digits >> 1);
 
   static constexpr auto kMaxStored =
-      (static_cast<StoredType>(PrevRangeLimit::kMaxStored)) -
-      PrevRangeLimit::kBorrowCount +
-      PrevRangeLimit::kBorrowCount *
-          (static_cast<StoredType>(PrevRangeLimit::kAbsoluteMaxValue) + 1);
-  static constexpr auto kUpper =
-      kMaxStored - static_cast<StoredType>(PrevRangeLimit::kP);
+      (static_cast<StoredType>(PrevTierLimit::kMaxStored)) -
+      PrevTierLimit::kBorrowCount +
+      (PrevTierLimit::kBorrowCount *
+       (static_cast<StoredType>(PrevTierLimit::kAbsoluteMaxValue) + 1));
 
-  static constexpr auto kBorrowCount = PrevRangeLimit::kP;
+  static constexpr auto kBorrowCount = PrevTierLimit::kP;
+
+  static constexpr auto kUpper =
+      kMaxStored - static_cast<StoredType>(PrevTierLimit::kP);
 };
 
 /**
- * \brief Specialization for the first range
+ * \brief Specialization for the first tier
  */
 template <typename Stored, Stored MaxStoredValue>
 struct Limit<Stored, Stored, MaxStoredValue> {
   using StoredType = Stored;
-  static constexpr auto kRangeIndex = _internal::RangeIndex<StoredType>();
+  static constexpr auto kRangeIndex = TierIndex<StoredType>();
   static constexpr auto kAbsoluteMaxValue =
       std::numeric_limits<StoredType>::max();
   static constexpr auto kBorrowCount =
@@ -98,8 +95,9 @@ struct Limit<Stored, Stored, MaxStoredValue> {
   static constexpr auto kP = static_cast<Stored>(1)
                              << (std::numeric_limits<Stored>::digits >> 1);
 };
+}  // namespace tiered_int_internal
 
-enum class PackedDeserializeRes {
+enum class TierDeserializeRes : std::uint8_t {
   kNo,        // < not read
   kFinished,  // < read whole value
   kNext,      // < read only part of value
@@ -107,36 +105,36 @@ enum class PackedDeserializeRes {
 
 /**
  * \brief Variable length integer value.
- * All values divided on ranges and stored in a variable length format, e.g.
+ * All values divided on tiers and stored in a variable length format, e.g.
  * [0..250] as std::uint8_t, [251..1514] as std::uint16_t, [1515..1049834] as
  * std::uint32_t. The algorithm is optimized to store as more values as possible
- * in the first range and quite enough in the others. In contrast to other
+ * in the smallest tier and quite enough in the others. In contrast to other
  * algorithms it doesn't reserve special bits to indicate that there are more
- * ranges to read and this allows to more flexible settings how many values
- * stored in ranges.
- * Range calculation is not obvious and depends on max value
- * stored as min type (MinMaxStoredValue). For MinStoredType range always would
- * be a [0 - MinMaxStoredValue]. To calculate other ranges a few special
+ * tiers to read and this allows to more flexible settings how many values
+ * stored in tiers.
+ * Tier calculation is not obvious and depends on max value
+ * stored as min type (MinMaxStoredValue). For MinStoredType tier always would
+ * be a [0 - MinMaxStoredValue]. To calculate other tiers a few special
  * variables should be calculated:
- * - kP - is always 2^(half of digits in range's type) (? TODO: explain why ?)
- * - kBorrowCount - it is a count of values that next range could borrow from
- * current range. It is calculated as (type's max value) -  MinMaxStoredValue
- * for first range and as (kP from previous range) for others.
- * - kMaxStored - is a max count of values that can be stored in current range.
- * For first range it is always (type's max value + 1). For other ranges it is
- * calculated as (prev range kMaxStored) + (prev range kBorrowCount) * (prev
- * range's type max value + 1).
- * - kUpper - is a post max value in a current range. For the first range this
- * calculated as type's max value - kBorrowCount + 1. For other ranges it is
- * kMaxStored - (prev range kP).
- * So range would be [pre range's kUpper..kUpper).
+ * - kP - is always 2^(half of digits in tier's type) (? TODO: explain why ?)
+ * - kBorrowCount - it is a count of values that next tier could borrow from
+ * current tier. It is calculated as (type's max value) -  MinMaxStoredValue
+ * for first tier and as (kP from previous tier) for others.
+ * - kMaxStored - is a max count of values that can be stored in current tier.
+ * For first tier it is always (type's max value + 1). For other tiers it is
+ * calculated as (prev tier kMaxStored) + (prev tier kBorrowCount) * (prev
+ * tier's type max value + 1).
+ * - kUpper - is a post max value in a current tier. For the first tier this
+ * calculated as type's max value - kBorrowCount + 1. For other tiers it is
+ * kMaxStored - (prev tier kP).
+ * So tier would be [pre tier's kUpper..kUpper).
  * All variables calculations are made in compile time by Limit type \see Limit.
  *
  * Serialize algorithm:
  *  - V is a currently stored value, and it can be divided in to two words: low
  * and high.
- *  - PrevUpper is a kUpper value for previous range.
- * Algorithm starts from the highest range and goes down to the first - the
+ *  - PrevUpper is a kUpper value for previous tier.
+ * Algorithm starts from the highest tier and goes down to the first - the
  * minimum one.
  * void Serialize(V) { if (V >= PrevUpper) { V -= PrevUpper;
  *     high_part = V.high + PrevUpper;
@@ -144,14 +142,14 @@ enum class PackedDeserializeRes {
  *     write(V.low);
  *   }
  * }
- * and for first range:
+ * and for first tier:
  * void Serialize(V) {
  *   write(V);
  * }
  *
  * Deserialize algorithm:
  * V is a value to that we read
- * Algorithm starts from the first range and goes up to the highest one.
+ * Algorithm starts from the first tier and goes up to the highest one.
  * Res Deserialize(V) {
  *    res = Deserialize(V.high);
  *    if (res is finished) {
@@ -168,7 +166,7 @@ enum class PackedDeserializeRes {
  *     return finished;
  *   }
  * }
- * and for first range:
+ * and for first tier:
  * Res Deserialize(V) {
  *   read(V);
  *   if (V >= kUpper) {
@@ -183,13 +181,16 @@ enum class PackedDeserializeRes {
  * \tparam MinMaxStoredValue - max value that can be saved in a
  * sizeof(MinStoredType)
  */
+// TODO: signed types are not supported
+
 template <typename MaxStoredType, typename MinStoredType,
           MinStoredType MinMaxStoredValue>
-struct Packed {
-  using LimitType = Limit<MaxStoredType, MinStoredType, MinMaxStoredValue>;
+struct TieredInt {
+  using LimitType = tiered_int_internal::Limit<MaxStoredType, MinStoredType,
+                                               MinMaxStoredValue>;
   using ValueType = typename LimitType::StoredType;
-  using PrevType = typename LimitType::PrevRangeLimit::StoredType;
-  using PrevPacked = Packed<PrevType, MinStoredType, MinMaxStoredValue>;
+  using PrevType = typename LimitType::PrevTierLimit::StoredType;
+  using PrevPacked = TieredInt<PrevType, MinStoredType, MinMaxStoredValue>;
 
   static constexpr ValueType kUpper = LimitType::kUpper;
 
@@ -204,43 +205,43 @@ struct Packed {
 #pragma pack(pop)
 
   template <typename Tother>
-  Packed(Tother v) {
+  TieredInt(Tother v) {
     value.value = static_cast<ValueType>(v);
   }
-  Packed() = default;
+  TieredInt() = default;
 
   operator ValueType&() noexcept { return value.value; }
   operator ValueType const&() const noexcept { return value.value; }
 
   template <typename TStream>
-  PackedDeserializeRes Deserialize(TStream& is) {
+  TierDeserializeRes Deserialize(TStream& is) {
     constexpr auto prev_upper = PrevPacked::kUpper;
 
     auto high = PrevPacked{};
     auto res = high.Deserialize(is);
     switch (res) {
-      case PackedDeserializeRes::kNo:
+      case TierDeserializeRes::kNo:
         return res;
-      case PackedDeserializeRes::kFinished: {
+      case TierDeserializeRes::kFinished: {
         value.value = static_cast<ValueType>(
             static_cast<typename PrevPacked::ValueType>(high));
-        return PackedDeserializeRes::kFinished;
+        return TierDeserializeRes::kFinished;
       }
-      case PackedDeserializeRes::kNext: {
+      case TierDeserializeRes::kNext: {
         value.st.high = static_cast<typename PrevPacked::ValueType>(high);
         is >> value.st.low;
         if (!data_was_read(is)) {
-          return PackedDeserializeRes::kNo;
+          return TierDeserializeRes::kNo;
         }
         value.value += prev_upper;
         if (value.value >= kUpper) {
           value.value -= kUpper;
-          return PackedDeserializeRes::kNext;
+          return TierDeserializeRes::kNext;
         }
         break;
       }
     }
-    return PackedDeserializeRes::kFinished;
+    return TierDeserializeRes::kFinished;
   }
 
   template <typename TStream>
@@ -261,11 +262,12 @@ struct Packed {
 };
 
 /**
- * \brief Specialization for the first range.
+ * \brief Specialization for the first tier.
  */
 template <typename StoredType, StoredType MaxValue>
-struct Packed<StoredType, StoredType, MaxValue> {
-  using LimitType = Limit<StoredType, StoredType, MaxValue>;
+struct TieredInt<StoredType, StoredType, MaxValue> {
+  using LimitType =
+      tiered_int_internal::Limit<StoredType, StoredType, MaxValue>;
   using ValueType = typename LimitType::StoredType;
 
   static constexpr ValueType kUpper = LimitType::kUpper;
@@ -275,26 +277,26 @@ struct Packed<StoredType, StoredType, MaxValue> {
   };
 
   template <typename Tother>
-  Packed(Tother v) {
+  TieredInt(Tother v) {
     value.value = static_cast<ValueType>(v);
   }
-  Packed() = default;
+  TieredInt() = default;
 
   operator ValueType&() noexcept { return value.value; }
   operator ValueType const&() const noexcept { return value.value; }
 
   template <typename TStream>
-  PackedDeserializeRes Deserialize(TStream& is) {
+  TierDeserializeRes Deserialize(TStream& is) {
     is >> value.value;
     if (!data_was_read(is)) {
-      return PackedDeserializeRes::kNo;
+      return TierDeserializeRes::kNo;
     }
 
     if (value.value >= kUpper) {
       value.value -= kUpper;
-      return PackedDeserializeRes::kNext;
+      return TierDeserializeRes::kNext;
     } else {
-      return PackedDeserializeRes::kFinished;
+      return TierDeserializeRes::kFinished;
     }
   }
 
@@ -307,21 +309,21 @@ struct Packed<StoredType, StoredType, MaxValue> {
 };
 
 template <typename TStream, typename T, typename Min, Min MinMaxVal>
-TStream& operator<<(TStream& os, Packed<T, Min, MinMaxVal> const& v) {
+TStream& operator<<(TStream& os, TieredInt<T, Min, MinMaxVal> const& v) {
   v.Serialize(os);
   return os;
 }
 
 template <typename TStream, typename T, typename Min, Min MinMaxVal>
-TStream& operator>>(TStream& is, Packed<T, Min, MinMaxVal>& v) {
+TStream& operator>>(TStream& is, TieredInt<T, Min, MinMaxVal>& v) {
   v.Deserialize(is);
   return is;
 }
 
 template <typename T1, typename Min1, Min1 MinMaxVal1, typename T2,
           typename Min2, Min2 MinMaxVal2>
-int PackedCompare(Packed<T1, Min1, MinMaxVal1> const& left,
-                  Packed<T2, Min2, MinMaxVal2> const& right) {
+int TieredIntCompare(TieredInt<T1, Min1, MinMaxVal1> const& left,
+                     TieredInt<T2, Min2, MinMaxVal2> const& right) {
   if (left.value.value < right.value.value) {
     return -1;
   } else if (left.value.value > right.value.value) {
@@ -333,42 +335,42 @@ int PackedCompare(Packed<T1, Min1, MinMaxVal1> const& left,
 
 template <typename T1, typename Min1, Min1 MinMaxVal1, typename T2,
           typename Min2, Min2 MinMaxVal2>
-static bool operator==(Packed<T1, Min1, MinMaxVal1> const& left,
-                       Packed<T2, Min2, MinMaxVal2> const& right) {
-  return PackedCompare(left, right) == 0;
+static bool operator==(TieredInt<T1, Min1, MinMaxVal1> const& left,
+                       TieredInt<T2, Min2, MinMaxVal2> const& right) {
+  return TieredIntCompare(left, right) == 0;
 }
 
 template <typename T1, typename Min1, Min1 MinMaxVal1, typename T2,
           typename Min2, Min2 MinMaxVal2>
-static bool operator<(Packed<T1, Min1, MinMaxVal1> const& left,
-                      Packed<T2, Min2, MinMaxVal2> const& right) {
-  return PackedCompare(left, right) < 0;
+static bool operator<(TieredInt<T1, Min1, MinMaxVal1> const& left,
+                      TieredInt<T2, Min2, MinMaxVal2> const& right) {
+  return TieredIntCompare(left, right) < 0;
 }
 
 template <typename T1, typename Min1, Min1 MinMaxVal1, typename T2,
           typename Min2, Min2 MinMaxVal2>
-static bool operator>(Packed<T1, Min1, MinMaxVal1> const& left,
-                      Packed<T2, Min2, MinMaxVal2> const& right) {
-  return PackedCompare(left, right) > 0;
+static bool operator>(TieredInt<T1, Min1, MinMaxVal1> const& left,
+                      TieredInt<T2, Min2, MinMaxVal2> const& right) {
+  return TieredIntCompare(left, right) > 0;
 }
 
 }  // namespace ae
 
 namespace std {
 template <typename T, typename Min, Min MinMaxVal>
-class numeric_limits<ae::Packed<T, Min, MinMaxVal>> {
+class numeric_limits<ae::TieredInt<T, Min, MinMaxVal>> {
  public:
   static constexpr T lowest() { return T{0}; }
   static constexpr T min() { return T{0}; }
-  static constexpr T max() { return ae::Packed<T, Min, MinMaxVal>::kUpper; }
+  static constexpr T max() { return ae::TieredInt<T, Min, MinMaxVal>::kUpper; }
 };
 
 template <typename T, typename Min, Min MinMaxVal>
-struct hash<ae::Packed<T, Min, MinMaxVal>> {
-  std::size_t operator()(ae::Packed<T, Min, MinMaxVal> const& packed) const {
+struct hash<ae::TieredInt<T, Min, MinMaxVal>> {
+  std::size_t operator()(ae::TieredInt<T, Min, MinMaxVal> const& packed) const {
     return static_cast<std::size_t>(static_cast<T>(packed));
   }
 };
 }  // namespace std
 
-#endif  // AETHER_PACKED_INT_H_ */
+#endif  // AETHER_TIERED_INT_H_ */

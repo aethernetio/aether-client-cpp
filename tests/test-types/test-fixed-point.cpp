@@ -17,7 +17,7 @@
 #include <unity.h>
 
 #include "aether/fixed_point.h"
-#include "aether/packed_int.h"
+#include "aether/tiered_int.h"
 #include "aether/mstream.h"
 
 namespace ae::test_fixed_point {
@@ -127,7 +127,7 @@ void test_FixedPoint() {
 
 void test_Exponent() {
   {
-    using P = Packed<std::uint16_t, std::uint8_t, 250>;
+    using P = TieredInt<std::uint16_t, std::uint8_t, 250>;
     using E = AE_EXPONENT(P, 0.001, 60.0);
 
     E e(60.0);

@@ -23,13 +23,13 @@
 #include <iostream>
 
 #include "aether/mstream.h"
-#include "aether/packed_int.h"
+#include "aether/tiered_int.h"
 #include "aether/format/format.h"
 
 void setUp() {}
 void tearDown() {}
 
-namespace ae::test_packet_int {
+namespace ae::test_tiered_int {
 
 struct ObVector {
   using size_type = std::uint32_t;
@@ -122,16 +122,16 @@ void TestRange() {
     Imstream is{os.data()};
     auto des_p = PInt{};
     auto res = des_p.Deserialize(is.stream());
-    TEST_ASSERT_EQUAL(res, PackedDeserializeRes::kFinished);
+    TEST_ASSERT_EQUAL(res, TierDeserializeRes::kFinished);
     TEST_ASSERT_EQUAL(static_cast<typename PInt::ValueType>(p),
                       static_cast<typename PInt::ValueType>(des_p));
   }
 }
 
-template <typename PInt>
-void TestValueToSize(typename PInt::ValueType value,
+template <typename TInt>
+void TestValueToSize(typename TInt::ValueType value,
                      std::size_t expected_size) {
-  auto p = PInt{value};
+  auto p = TInt{value};
   Omstream os{};
   p.Serialize(os.stream());
 
@@ -142,22 +142,22 @@ void TestValueToSize(typename PInt::ValueType value,
 
   TEST_ASSERT_EQUAL(expected_size, os.data().size());
   Imstream is{os.data()};
-  auto des_p = PInt{};
+  auto des_p = TInt{};
   auto res = des_p.Deserialize(is.stream());
-  TEST_ASSERT_EQUAL(res, PackedDeserializeRes::kFinished);
-  TEST_ASSERT_EQUAL(static_cast<typename PInt::ValueType>(p),
-                    static_cast<typename PInt::ValueType>(des_p));
+  TEST_ASSERT_EQUAL(res, TierDeserializeRes::kFinished);
+  TEST_ASSERT_EQUAL(static_cast<typename TInt::ValueType>(p),
+                    static_cast<typename TInt::ValueType>(des_p));
 }
 
 void test_StorePackedInt250() {
-  using P8 = Packed<std::uint8_t, std::uint8_t, 250>;
+  using P8 = TieredInt<std::uint8_t, std::uint8_t, 250>;
 
   TEST_MESSAGE("one byte packed");
   TestValueToSize<P8>(0, 1);
   TestValueToSize<P8>(250, 1);
   TestRange<P8>();
 
-  using P16 = Packed<std::uint16_t, std::uint8_t, 250>;
+  using P16 = TieredInt<std::uint16_t, std::uint8_t, 250>;
   TEST_MESSAGE("two byte packed");
   TestValueToSize<P16>(0, 1);
   TestValueToSize<P16>(250, 1);
@@ -167,7 +167,7 @@ void test_StorePackedInt250() {
   TestValueToSize<P16>(1514, 2);
   TestRange<P16>();
 
-  using P32 = Packed<std::uint32_t, std::uint8_t, 250>;
+  using P32 = TieredInt<std::uint32_t, std::uint8_t, 250>;
   TEST_MESSAGE("four byte packed");
   TestValueToSize<P32>(251, 2);
   TestValueToSize<P32>(1500, 2);
@@ -176,7 +176,7 @@ void test_StorePackedInt250() {
   TestValueToSize<P32>(P32::kUpper - 1, 4);
   TestRange<P32>();
 
-  using P64 = Packed<std::uint64_t, std::uint8_t, 250>;
+  using P64 = TieredInt<std::uint64_t, std::uint8_t, 250>;
   TEST_MESSAGE("eight byte packed");
   TestValueToSize<P64>(154, 1);
   TestValueToSize<P64>(64511, 4);
@@ -187,7 +187,7 @@ void test_StorePackedInt250() {
 }
 
 void test_StoreOneByteMin() {
-  using P16_128 = Packed<std::uint16_t, std::uint8_t, 127>;
+  using P16_128 = TieredInt<std::uint16_t, std::uint8_t, 127>;
   constexpr auto upper_128 = P16_128::kUpper;
   TestValueToSize<P16_128>(0, 1);
   TestValueToSize<P16_128>(127, 1);
@@ -200,7 +200,7 @@ void test_StoreOneByteMin() {
   TestValueToSize<P16_128>(32879, 2);
   TestRange<P16_128>();
 
-  using P16_255 = Packed<std::uint16_t, std::uint8_t, 254>;
+  using P16_255 = TieredInt<std::uint16_t, std::uint8_t, 254>;
   constexpr auto upper_255 = P16_255::kUpper;
   TestValueToSize<P16_255>(0, 1);
   TestValueToSize<P16_255>(127, 1);
@@ -212,7 +212,7 @@ void test_StoreOneByteMin() {
   TestValueToSize<P16_255>(494, 2);
   TestRange<P16_255>();
 
-  using P16_2 = Packed<std::uint16_t, std::uint8_t, 1>;
+  using P16_2 = TieredInt<std::uint16_t, std::uint8_t, 1>;
   constexpr auto upper_2 = P16_2::kUpper;
   TestValueToSize<P16_2>(0, 1);
   TestValueToSize<P16_2>(1, 1);
@@ -226,7 +226,7 @@ void test_StoreOneByteMin() {
 }
 
 void test_StoreTwoBytesMin() {
-  using P32_32768 = Packed<std::uint32_t, std::uint16_t, 32767>;
+  using P32_32768 = TieredInt<std::uint32_t, std::uint16_t, 32767>;
   constexpr auto upper_32768 = P32_32768::kUpper;
   TestValueToSize<P32_32768>(0, 2);
   TestValueToSize<P32_32768>(1200, 2);
@@ -239,7 +239,7 @@ void test_StoreTwoBytesMin() {
   TestValueToSize<P32_32768>(2100000100, 4);
   TestRange<P32_32768>();
 
-  using P32_65531 = Packed<std::uint32_t, std::uint16_t, 65530>;
+  using P32_65531 = TieredInt<std::uint32_t, std::uint16_t, 65530>;
   constexpr auto upper_65531 = P32_65531::kUpper;
   TestValueToSize<P32_65531>(0, 2);
   TestValueToSize<P32_65531>(1598, 2);
@@ -254,7 +254,7 @@ void test_StoreTwoBytesMin() {
 }
 
 void test_StoreFourBytesMin() {
-  using P64_0xfffffffb = Packed<std::uint64_t, std::uint32_t, 0xfffffffa>;
+  using P64_0xfffffffb = TieredInt<std::uint64_t, std::uint32_t, 0xfffffffa>;
   constexpr auto upper_0xfffffffb = P64_0xfffffffb::kUpper;
   TestValueToSize<P64_0xfffffffb>(0, 4);
   TestValueToSize<P64_0xfffffffb>(0xffff, 4);
@@ -264,7 +264,7 @@ void test_StoreFourBytesMin() {
   TestValueToSize<P64_0xfffffffb>(0x4fffefffa, 8);
   TestRange<P64_0xfffffffb>();
 
-  using P64_0x10000000 = Packed<std::uint64_t, std::uint32_t, 0x0fffffff>;
+  using P64_0x10000000 = TieredInt<std::uint64_t, std::uint32_t, 0x0fffffff>;
   constexpr auto upper_0x10000000 = P64_0x10000000::kUpper;
   TestValueToSize<P64_0x10000000>(0, 4);
   TestValueToSize<P64_0x10000000>(0xffff, 4);
@@ -274,15 +274,15 @@ void test_StoreFourBytesMin() {
   TestValueToSize<P64_0x10000000>(0xffffffffff, 8);
   TestRange<P64_0x10000000>();
 }
-}  // namespace ae::test_packet_int
+}  // namespace ae::test_tiered_int
 
 int main() {
   UNITY_BEGIN();
 
-  RUN_TEST(ae::test_packet_int::test_StorePackedInt250);
-  RUN_TEST(ae::test_packet_int::test_StoreOneByteMin);
-  RUN_TEST(ae::test_packet_int::test_StoreTwoBytesMin);
-  RUN_TEST(ae::test_packet_int::test_StoreFourBytesMin);
+  RUN_TEST(ae::test_tiered_int::test_StorePackedInt250);
+  RUN_TEST(ae::test_tiered_int::test_StoreOneByteMin);
+  RUN_TEST(ae::test_tiered_int::test_StoreTwoBytesMin);
+  RUN_TEST(ae::test_tiered_int::test_StoreFourBytesMin);
 
   return UNITY_END();
 }
