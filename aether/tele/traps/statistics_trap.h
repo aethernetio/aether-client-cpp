@@ -24,11 +24,12 @@
 #include <vector>
 #include <utility>
 
+#include "third_party/aethernet-numeric/numeric/tiered_int.h"
+
 #include "aether/config.h"
 #include "aether/common.h"
 #include "aether/mstream.h"
 #include "aether/ptr/rc_ptr.h"
-#include "aether/tiered_int.h"
 #include "aether/tele/modules.h"
 #include "aether/format/format.h"
 #include "aether/mstream_buffers.h"

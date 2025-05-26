@@ -16,7 +16,6 @@ cmake_minimum_required( VERSION 3.16 )
 
 list(APPEND test_srcs
     main.cpp
-    test-fixed-point.cpp
     test-literal-array.cpp
     test-ring-buffer.cpp
     test-async-for-loop.cpp

@@ -20,7 +20,8 @@
 #include <cstdint>
 #include <vector>
 
-#include "aether/tiered_int.h"
+#include "third_party/aethernet-numeric/numeric/tiered_int.h"
+
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
 

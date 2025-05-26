@@ -23,9 +23,9 @@
 #include <queue>
 #include <utility>
 
-#include "aether/memory_buffer.h"
-#include "aether/tiered_int.h"
+#include "third_party/aethernet-numeric/numeric/tiered_int.h"
 
+#include "aether/memory_buffer.h"
 #include "aether/transport/data_buffer.h"
 
 namespace ae {

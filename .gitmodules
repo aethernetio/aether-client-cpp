@@ -28,12 +28,6 @@
 	branch = master
   ignore = dirty
 
-[submodule "third_party/gcem"]
-	path = third_party/gcem
-	url = https://github.com/kthohr/gcem.git
-	branch = master
-  ignore = dirty
-
 [submodule "third_party/c-ares"]
 	path = third_party/c-ares
 	url = https://github.com/c-ares/c-ares.git
@@ -57,3 +51,12 @@
 	url = https://github.com/ETLCPP/etl.git
 	branch = master
   ignore = dirty
+
+[submodule "third_party/aethernet-numeric"]
+	path = third_party/aethernet-numeric
+	url = https://github.com/aethernetio/aethernet-numeric.git
+	branch = main
+[submodule "third_party/gcem"]
+	path = third_party/gcem
+	url = https://github.com/aethernetio/gcem.git
+	branch = master

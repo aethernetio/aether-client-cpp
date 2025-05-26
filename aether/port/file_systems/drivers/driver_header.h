@@ -24,8 +24,9 @@
 #include <ios>
 #include <system_error>
 
+#include "third_party/aethernet-numeric/numeric/tiered_int.h"
+
 #include "aether/port/file_systems/drivers/driver_base.h"
-#include "aether/tiered_int.h"
 
 #if defined FS_INIT
 #  include FS_INIT

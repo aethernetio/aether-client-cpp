@@ -40,7 +40,6 @@ endif()
 #tests
 add_subdirectory(test-tele)
 add_subdirectory(test-tele-statistics)
-add_subdirectory(test-packed-int)
 add_subdirectory(test-types)
 add_subdirectory(test-object-system)
 add_subdirectory(test-api-protocol)
