@@ -57,3 +57,8 @@
 	url = https://github.com/ETLCPP/etl.git
 	branch = master
   ignore = dirty
+
+[submodule "third_party/aethernet-numeric"]
+	path = third_party/aethernet-numeric
+	url = https://github.com/aethernetio/aethernet-numeric.git
+	branch = main
