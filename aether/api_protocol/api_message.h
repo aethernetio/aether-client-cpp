@@ -20,7 +20,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "aether/packed_int.h"
+#include "aether/tiered_int.h"
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
 
@@ -28,7 +28,7 @@ namespace ae {
 
 using MessageId = std::uint8_t;
 
-using PackedSize = Packed<std::uint64_t, std::uint8_t, 250>;
+using PackedSize = TieredInt<std::uint64_t, std::uint8_t, 250>;
 
 class ApiParser;
 class ApiPacker;

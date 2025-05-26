@@ -28,7 +28,7 @@
 #include "aether/common.h"
 #include "aether/mstream.h"
 #include "aether/ptr/rc_ptr.h"
-#include "aether/packed_int.h"
+#include "aether/tiered_int.h"
 #include "aether/tele/modules.h"
 #include "aether/format/format.h"
 #include "aether/mstream_buffers.h"
@@ -50,8 +50,8 @@ struct LogStore {
 };
 
 struct MetricsStore {
-  using PackedIndex = Packed<std::uint32_t, std::uint8_t, 250>;
-  using PackedValue = Packed<std::uint32_t, std::uint8_t, 250>;
+  using PackedIndex = TieredInt<std::uint32_t, std::uint8_t, 250>;
+  using PackedValue = TieredInt<std::uint32_t, std::uint8_t, 250>;
   struct Metric {
     PackedValue invocations_count;
     PackedValue max_duration;
@@ -77,7 +77,7 @@ struct MetricsStore {
  * of the application.
  */
 struct EnvStore {
-  using PackedIndex = Packed<std::uint32_t, std::uint8_t, 250>;
+  using PackedIndex = TieredInt<std::uint32_t, std::uint8_t, 250>;
 
   std::string library_version;
   std::string platform;
@@ -196,9 +196,9 @@ class StatisticsStore {
 class StatisticsTrap {
  public:
   struct LogStream {
-    using PackedSize = Packed<std::uint64_t, std::uint8_t, 250>;
-    using PackedIndex = Packed<std::uint64_t, std::uint8_t, 250>;
-    using PackedLine = Packed<std::uint64_t, std::uint8_t, 250>;
+    using PackedSize = TieredInt<std::uint64_t, std::uint8_t, 250>;
+    using PackedIndex = TieredInt<std::uint64_t, std::uint8_t, 250>;
+    using PackedLine = TieredInt<std::uint64_t, std::uint8_t, 250>;
 
     LogStream(ProxyStatistics<LogStore>&& ls, VectorWriter<PackedSize>&& vw);
     LogStream(LogStream&&) noexcept;

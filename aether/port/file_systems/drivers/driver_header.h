@@ -25,7 +25,7 @@
 #include <system_error>
 
 #include "aether/port/file_systems/drivers/driver_base.h"
-#include "aether/packed_int.h"
+#include "aether/tiered_int.h"
 
 #if defined FS_INIT
 #  include FS_INIT
@@ -39,7 +39,7 @@
 
 namespace ae {
 
-using HeaderSize = Packed<std::uint64_t, std::uint8_t, 250>;
+using HeaderSize = TieredInt<std::uint64_t, std::uint8_t, 250>;
 
 class DriverHeader {
   using Data = std::vector<std::uint8_t>;

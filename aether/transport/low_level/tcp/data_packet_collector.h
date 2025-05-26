@@ -24,13 +24,13 @@
 #include <utility>
 
 #include "aether/memory_buffer.h"
-#include "aether/packed_int.h"
+#include "aether/tiered_int.h"
 
 #include "aether/transport/data_buffer.h"
 
 namespace ae {
 
-using PacketSize = Packed<std::uint64_t, std::uint8_t, 250>;
+using PacketSize = TieredInt<std::uint64_t, std::uint8_t, 250>;
 
 struct Packet {
   explicit Packet(std::size_t expected_size);
