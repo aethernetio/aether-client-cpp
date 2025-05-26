@@ -56,3 +56,7 @@
 	path = third_party/aethernet-numeric
 	url = https://github.com/aethernetio/aethernet-numeric.git
 	branch = main
+[submodule "third_party/gcem"]
+	path = third_party/gcem
+	url = https://github.com/aethernetio/gcem.git
+	branch = master

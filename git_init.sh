@@ -31,5 +31,4 @@ cd ../
 cp "CMakeLists.libbcrypt" "libbcrypt/CMakeLists.txt"
 cp "CMakeLists.libhydrogen" "libhydrogen/CMakeLists.txt"
 cp "CMakeLists.libsodium" "libsodium/CMakeLists.txt"
-cp "CMakeLists.gcem" "gcem/CMakeLists.txt"
 cd ../

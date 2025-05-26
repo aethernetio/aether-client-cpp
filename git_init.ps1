@@ -30,5 +30,4 @@ cd ../
 Copy-Item -Path "CMakeLists.libbcrypt" -Destination "libbcrypt/CMakeLists.txt" -Force
 Copy-Item -Path "CMakeLists.libhydrogen" -Destination "libhydrogen/CMakeLists.txt" -Force
 Copy-Item -Path "CMakeLists.libsodium" -Destination "libsodium/CMakeLists.txt" -Force
-Copy-Item -Path "CMakeLists.gcem" -Destination "gcem/CMakeLists.txt" -Force
 cd ../
