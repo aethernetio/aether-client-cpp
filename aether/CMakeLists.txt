@@ -31,6 +31,7 @@ list(APPEND common_dependencies
     "../third_party/libsodium"
     "../third_party/gcem"
     "../third_party/etl"
+    "../third_party/aethernet-numeric"
 )
 
 # for etl

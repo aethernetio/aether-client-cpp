@@ -33,7 +33,6 @@
 #include "aether/config.h"
 #include "aether/tele/tele.h"
 #include "aether/port/tele_init.h"
-#include "aether/fixed_point.h"
 
 #if (defined(CM_ESP32))
 #  include <freertos/FreeRTOS.h>
