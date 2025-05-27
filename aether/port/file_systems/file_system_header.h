@@ -17,14 +17,15 @@
 #ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
 #define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
 
+#define AE_FILE_SYSTEM_HEADER_ENABLED 1
+
 #include <map>
 #include <cstdint>
 #include <string>
 
 #include "aether/obj/obj_id.h"
 #include "aether/obj/domain.h"
-#include "aether/port/file_systems/drivers/driver_base.h"
-#include "aether/port/file_systems/drivers/driver_sync.h"
+#include "aether/port/file_systems/drivers/driver_header.h"
 
 namespace ae {
 class FileSystemHeaderFacility : public IDomainFacility {
@@ -34,8 +35,7 @@ class FileSystemHeaderFacility : public IDomainFacility {
   using ObjClassData = std::map<ae::ObjId, ClassData>;
 
  public:
-  FileSystemHeaderFacility(const std::string& header_file,
-                           enum DriverFsType fs_driver_type_destination);
+  FileSystemHeaderFacility(const std::string& header_file);
   ~FileSystemHeaderFacility() override;
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,
@@ -52,8 +52,7 @@ class FileSystemHeaderFacility : public IDomainFacility {
   void LoadObjData(ObjClassData& obj_data);
   void SaveObjData(ObjClassData& obj_data);
 
-  std::unique_ptr<DriverSync> driver_sync_fs_;
-  std::unique_ptr<DriverHeader> driver_header_fs_;
+  std::unique_ptr<DriverHeader> driver_fs_;
   std::string path_{};
 };
 }  // namespace ae

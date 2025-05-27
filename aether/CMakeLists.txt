@@ -204,12 +204,7 @@ list(APPEND port_srcs
             "port/file_systems/file_system_spifs_v2.cpp"
             "port/file_systems/file_system_std.cpp"
             "port/file_systems/drivers/driver_header.cpp"
-            "port/file_systems/drivers/driver_spifs_v1.cpp"
-            "port/file_systems/drivers/driver_spifs_v2.cpp"
-            "port/file_systems/drivers/driver_sync.cpp"
-            "port/file_systems/drivers/driver_std.cpp"
-            "port/file_systems/drivers/driver_ram.cpp"
-            "port/file_systems/drivers/driver_functions.cpp")
+            "port/file_systems/drivers/driver_spifs.cpp")
 
 list(APPEND statistics_srcs
       "statistics/channel_statistics.cpp")

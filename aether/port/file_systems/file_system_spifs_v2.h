@@ -19,17 +19,17 @@
 
 #include "aether/config.h"
 
-#if defined ESP_PLATFORM && AE_SUPPORT_SPIFS_V2_FS || \
-    AE_FILE_SYSTEM_SPIFS_V2_ENABLED == 1
+#if defined ESP_PLATFORM && AE_SUPPORT_SPIFS_V2_FS
+#  define AE_FILE_SYSTEM_SPIFS_V2_ENABLED 1
 
 #  include <map>
 #  include <cstdint>
 
 #  include "aether/obj/obj_id.h"
 #  include "aether/obj/domain.h"
-#  include "aether/port/file_systems/file_systems_tele.h"
-#  include "aether/port/file_systems/drivers/driver_sync.h"
-#  include "aether/port/file_systems/drivers/driver_functions.h"
+#  include "aether/transport/data_buffer.h"
+#  include "aether/transport/low_level/tcp/data_packet_collector.h"
+#  include "aether/port/file_systems/drivers/driver_spifs.h"
 
 namespace ae {
 class FileSystemSpiFsV2Facility : public IDomainFacility {
@@ -40,7 +40,7 @@ class FileSystemSpiFsV2Facility : public IDomainFacility {
 
  public:
   FileSystemSpiFsV2Facility();
-  ~FileSystemSpiFsV2Facility() override;
+  ~FileSystemSpiFsV2Facility();
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,
              std::uint8_t version, const std::vector<uint8_t>& os) override;
@@ -53,7 +53,7 @@ class FileSystemSpiFsV2Facility : public IDomainFacility {
 #  endif
 
  private:
-  std::unique_ptr<DriverSync> driver_sync_fs_;
+  DriverSpifs* driver_fs;
 };
 }  // namespace ae
 
