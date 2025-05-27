@@ -20,6 +20,8 @@ list(APPEND test_srcs
     test-ring-buffer.cpp
     test-async-for-loop.cpp
     test-concat-arrays.cpp
+    test-span.cpp
+    test-static-map.cpp
 )
 
 if(NOT CM_PLATFORM)
