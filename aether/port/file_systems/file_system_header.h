@@ -21,11 +21,10 @@
 
 #include <map>
 #include <cstdint>
-#include <string>
+#include <filesystem>
 
 #include "aether/obj/obj_id.h"
 #include "aether/obj/domain.h"
-#include "aether/port/file_systems/drivers/driver_header.h"
 
 namespace ae {
 class FileSystemHeaderFacility : public IDomainFacility {
@@ -35,8 +34,9 @@ class FileSystemHeaderFacility : public IDomainFacility {
   using ObjClassData = std::map<ae::ObjId, ClassData>;
 
  public:
-  FileSystemHeaderFacility(const std::string& header_file);
+  explicit FileSystemHeaderFacility(std::filesystem::path file_path);
   ~FileSystemHeaderFacility() override;
+
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,
              std::uint8_t version, const std::vector<uint8_t>& os) override;
@@ -49,11 +49,13 @@ class FileSystemHeaderFacility : public IDomainFacility {
 #endif
 
  private:
-  void LoadObjData(ObjClassData& obj_data);
-  void SaveObjData(ObjClassData& obj_data);
+  void SaveState();
+  void PrintData(std::ofstream& file, std::vector<std::uint8_t> const& data);
+  template <typename K, typename T>
+  void PrintMapKeysAsData(std::ofstream& file, std::map<K, T> const& map);
 
-  std::unique_ptr<DriverHeader> driver_fs_;
-  std::string path_{};
+  std::filesystem::path file_path_;
+  ObjClassData state_;
 };
 }  // namespace ae
 
