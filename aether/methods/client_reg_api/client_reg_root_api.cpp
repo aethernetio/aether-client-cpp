@@ -17,12 +17,11 @@
 #include "aether/methods/client_reg_api/client_reg_root_api.h"
 
 namespace ae {
-#if AE_SUPPORT_REGISTRATION
 ClientRegRootApi::ClientRegRootApi(ProtocolContext& protocol_context)
     : ReturnResultApiImpl{protocol_context} {}
 
 void ClientRegRootApi::Enter(ApiParser&, DataBuffer data) {
   enter_event.Emit(data);
 }
-#endif  // AE_SUPPORT_REGISTRATION
+
 }  // namespace ae

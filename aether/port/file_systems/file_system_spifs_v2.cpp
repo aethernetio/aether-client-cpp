@@ -16,48 +16,37 @@
 
 #include "aether/port/file_systems/file_system_spifs_v2.h"
 
-#if AE_FILE_SYSTEM_SPIFS_V2_ENABLED == 1
+#if defined AE_FILE_SYSTEM_SPIFS_V2_ENABLED
 
 #  include "aether/port/file_systems/file_systems_tele.h"
-#  include "aether/port/file_systems/drivers/driver_functions.h"
-#  include "aether/port/file_systems/drivers/driver_sync.h"
-#  include "aether/port/file_systems/drivers/driver_header.h"
-#  include "aether/port/file_systems/drivers/driver_std.h"
-#  include "aether/port/file_systems/drivers/driver_ram.h"
-#  include "aether/port/file_systems/drivers/driver_spifs_v1.h"
-#  include "aether/port/file_systems/drivers/driver_spifs_v2.h"
 
 namespace ae {
 
 FileSystemSpiFsV2Facility::FileSystemSpiFsV2Facility() {
-  std::unique_ptr<DriverHeader> driver_source{
-      std::make_unique<DriverHeader>(DriverFsType::kDriverNone)};
-  std::unique_ptr<DriverBase> driver_destination{
-      std::make_unique<DriverSpifsV2>(DriverFsType::kDriverSpifsV2)};
-  driver_sync_fs_ = std::make_unique<DriverSync>(std::move(driver_source),
-                                                 std::move(driver_destination));
-  AE_TELE_DEBUG(FsInstanceCreate,
-                "New FileSystemSpiFsV2Facility instance created!");
+  driver_fs = new DriverSpifs();
+  // driver_fs->DriverSpifsFormat();
 }
 
-FileSystemSpiFsV2Facility::~FileSystemSpiFsV2Facility() {
-  AE_TELE_DEBUG(FsInstanceDelete,
-                "FileSystemSpiFsV2Facility instance deleted!");
-}
+FileSystemSpiFsV2Facility::~FileSystemSpiFsV2Facility() { delete driver_fs; }
 
 std::vector<uint32_t> FileSystemSpiFsV2Facility::Enumerate(
     const ae::ObjId& obj_id) {
   std::vector<std::uint32_t> classes;
-  std::vector<PathStructure> dirs_list{};
-  PathStructure path{};
+  std::vector<std::string> dirs_list{};
+  std::string path{"state"};
+  std::string file{};
 
-  path.obj_id = obj_id;
+  dirs_list = driver_fs->DriverSpifsDir(path);
 
-  dirs_list = driver_sync_fs_->DriverDir(path);
-
-  for (auto const& dir : dirs_list) {
-    if (obj_id == dir.obj_id) {
-      classes.push_back(dir.class_id);
+  for (auto dir : dirs_list) {
+    auto pos1 = dir.find("/" + obj_id.ToString() + "/");
+    if (pos1 != std::string::npos) {
+      auto pos2 = dir.rfind("/");
+      if (pos2 != std::string::npos) {
+        file.assign(dir, pos2 + 1, dir.size() - pos2 - 1);
+        auto enum_class = static_cast<uint32_t>(std::stoul(file));
+        classes.push_back(enum_class);
+      }
     }
   }
   AE_TELE_DEBUG(FsEnumerated, "Enumerated classes {}", classes);
@@ -69,13 +58,12 @@ void FileSystemSpiFsV2Facility::Store(const ae::ObjId& obj_id,
                                       std::uint32_t class_id,
                                       std::uint8_t version,
                                       const std::vector<uint8_t>& os) {
-  PathStructure path{};
+  std::string path{};
 
-  path.version = version;
-  path.obj_id = obj_id;
-  path.class_id = class_id;
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
 
-  driver_sync_fs_->DriverWrite(path, os);
+  driver_fs->DriverSpifsWrite(path, os);
 
   AE_TELE_DEBUG(
       FsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
@@ -86,13 +74,12 @@ void FileSystemSpiFsV2Facility::Load(const ae::ObjId& obj_id,
                                      std::uint32_t class_id,
                                      std::uint8_t version,
                                      std::vector<uint8_t>& is) {
-  PathStructure path{};
+  std::string path{};
 
-  path.version = version;
-  path.obj_id = obj_id;
-  path.class_id = class_id;
+  path = "state/" + std::to_string(version) + "/" + obj_id.ToString() + "/" +
+         std::to_string(class_id);
 
-  driver_sync_fs_->DriverRead(path, is);
+  driver_fs->DriverSpifsRead(path, is);
 
   AE_TELE_DEBUG(
       FsObjLoaded, "Loaded object id={}, class id={}, version={}, size={}",
@@ -100,36 +87,31 @@ void FileSystemSpiFsV2Facility::Load(const ae::ObjId& obj_id,
 }
 
 void FileSystemSpiFsV2Facility::Remove(const ae::ObjId& obj_id) {
-  PathStructure path{};
+  std::string path{"state"};
 
-  // Path is "state/version/obj_id/class_id"
-  path.obj_id = obj_id;
+  auto version_dirs = driver_fs->DriverSpifsDir(path);
 
-  auto dirs = driver_sync_fs_->DriverDir(path);
-
-  for (auto const& dir : dirs) {
-    if (obj_id == dir.obj_id) {
-      driver_sync_fs_->DriverDelete(dir);
-      AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of directory {}",
-                    obj_id.ToString(), GetPathString(dir, 3, true));
+  for (auto const& ver_dir : version_dirs) {
+    auto obj_dirs = driver_fs->DriverSpifsDir(ver_dir);
+    auto obj_it = std::find_if(
+        std::begin(obj_dirs), std::end(obj_dirs), [&](auto const& path) {
+          return path.find("/" + obj_id.ToString() + "/") != std::string::npos;
+        });
+    if (obj_it != std::end(obj_dirs)) {
+      driver_fs->DriverSpifsDelete(*obj_it);
+      AE_TELE_DEBUG(FsObjRemoved, "Removed object {} of version dir {}",
+                    obj_id.ToString(), ver_dir);
     }
   }
 }
 
 #  if defined AE_DISTILLATION
 void FileSystemSpiFsV2Facility::CleanUp() {
-  PathStructure path{};
+  std::string path{"state"};
 
-  auto dirs = driver_sync_fs_->DriverDir(path);
-
-  for (auto const& dir : dirs) {
-    driver_sync_fs_->DriverDelete(dir);
-  }
-
-  AE_TELE_DEBUG(FsObjRemoved, "All objects have been removed!");
+  driver_fs->DriverSpifsDelete(path);
 }
 #  endif
-
 }  // namespace ae
 
 #endif  // AE_FILE_SYSTEM_SPIFS_V2_ENABLED
