@@ -26,7 +26,7 @@
 #include "aether/ae_actions/registration/registration.h"
 #include "aether/client_messages/p2p_message_stream.h"
 
-#include "aether/port/file_systems/file_system_header.h"
+#include "aether/port/file_systems/registrar_domain_facility.h"
 
 #include "aether/port/tele_init.h"
 #include "aether/tele/tele.h"
@@ -59,7 +59,7 @@ int AetherRegistrator(const std::string& ini_file,
    */
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{[header_file]() {
-        return ae::make_unique<ae::FileSystemHeaderFacility>(header_file);
+        return ae::make_unique<ae::RegistrarDomainFacility>(header_file);
       }}
 #if defined AE_DISTILLATION
           .Adapter([&registrator_config](
