@@ -35,6 +35,7 @@ class StaticMap {
   using mapped_type = T;
   using value_type = std::pair<key_type, mapped_type>;
   using size_type = std::size_t;
+  using storage_type = std::array<value_type, Size>;
 
   constexpr explicit StaticMap(value_type const (&init)[Size])
       : storage_{GetArray(init, std::make_index_sequence<Size>())} {}
@@ -42,31 +43,47 @@ class StaticMap {
   constexpr explicit StaticMap(std::array<value_type, Size> init)
       : storage_{std::move(init)} {}
 
-  [[nodiscard]] constexpr auto begin() const { return std::begin(storage_); }
-  [[nodiscard]] constexpr auto cbegin() const { return std::cbegin(storage_); }
-  [[nodiscard]] constexpr auto rbegin() const { return std::rbegin(storage_); }
-  [[nodiscard]] constexpr auto crbegin() const {
+  [[nodiscard]] constexpr decltype(auto) begin() const {
+    return std::begin(storage_);
+  }
+  [[nodiscard]] constexpr decltype(auto) cbegin() const {
+    return std::cbegin(storage_);
+  }
+  [[nodiscard]] constexpr decltype(auto) rbegin() const {
+    return std::rbegin(storage_);
+  }
+  [[nodiscard]] constexpr decltype(auto) crbegin() const {
     return std::crbegin(storage_);
   }
-  [[nodiscard]] constexpr auto end() const { return std::end(storage_); }
-  [[nodiscard]] constexpr auto cend() const { return std::cend(storage_); }
-  [[nodiscard]] constexpr auto rend() const { return std::rend(storage_); }
-  [[nodiscard]] constexpr auto crend() const { return std::crend(storage_); }
+  [[nodiscard]] constexpr decltype(auto) end() const {
+    return std::end(storage_);
+  }
+  [[nodiscard]] constexpr decltype(auto) cend() const {
+    return std::cend(storage_);
+  }
+  [[nodiscard]] constexpr decltype(auto) rend() const {
+    return std::rend(storage_);
+  }
+  [[nodiscard]] constexpr decltype(auto) crend() const {
+    return std::crend(storage_);
+  }
 
   constexpr bool empty() const { return Size == 0; }
   constexpr size_type size() const { return Size; }
 
-  [[nodiscard]] constexpr auto* find(key_type const& key) const {
+  [[nodiscard]] constexpr decltype(auto) find(key_type const& key) const {
     for (std::size_t i = 0; i < Size; ++i) {
       if (storage_[i].first == key) {
-        return std::next(std::begin(storage_), i);
+        return std::next(
+            std::begin(storage_),
+            static_cast<typename storage_type::difference_type>(i));
       }
     }
     return std::end(storage_);
   }
 
  private:
-  std::array<value_type, Size> storage_;
+  storage_type storage_;
 };
 
 template <typename K, typename T, std::size_t Size>
