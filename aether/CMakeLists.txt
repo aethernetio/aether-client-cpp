@@ -198,12 +198,12 @@ list(APPEND client_messages_srcs
 list(APPEND port_srcs
             "port/tele_init.cpp"
             "port/file_systems/facility_factory.cpp"
-            "port/file_systems/file_system_header.cpp"
+            "port/file_systems/registrar_domain_facility.cpp"
+            "port/file_systems/static_domain_facility.cpp"
             "port/file_systems/file_system_ram.cpp"
             "port/file_systems/file_system_spifs_v1.cpp"
             "port/file_systems/file_system_spifs_v2.cpp"
             "port/file_systems/file_system_std.cpp"
-            "port/file_systems/drivers/driver_header.cpp"
             "port/file_systems/drivers/driver_spifs.cpp")
 
 list(APPEND statistics_srcs

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
-#define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
+#ifndef AETHER_PORT_FILE_SYSTEMS_REGISTRAR_DOMAIN_FACILITY_H_
+#define AETHER_PORT_FILE_SYSTEMS_REGISTRAR_DOMAIN_FACILITY_H_
 
-#define AE_FILE_SYSTEM_HEADER_ENABLED 1
+#define REGISTRAR_DOMAIN_FACILITY_ENABLED 1
 
 #include <map>
 #include <cstdint>
@@ -27,15 +27,15 @@
 #include "aether/obj/domain.h"
 
 namespace ae {
-class FileSystemHeaderFacility : public IDomainFacility {
+class RegistrarDomainFacility : public IDomainFacility {
   using Data = std::vector<std::uint8_t>;
   using VersionData = std::map<std::uint8_t, Data>;
   using ClassData = std::map<std::uint32_t, VersionData>;
   using ObjClassData = std::map<ae::ObjId, ClassData>;
 
  public:
-  explicit FileSystemHeaderFacility(std::filesystem::path file_path);
-  ~FileSystemHeaderFacility() override;
+  explicit RegistrarDomainFacility(std::filesystem::path file_path);
+  ~RegistrarDomainFacility() override;
 
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,
@@ -59,4 +59,4 @@ class FileSystemHeaderFacility : public IDomainFacility {
 };
 }  // namespace ae
 
-#endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
+#endif  // AETHER_PORT_FILE_SYSTEMS_REGISTRAR_DOMAIN_FACILITY_H_

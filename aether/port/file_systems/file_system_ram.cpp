@@ -18,8 +18,6 @@
 
 #if defined AE_FILE_SYSTEM_RAM_ENABLED
 
-#  include "aether/transport/low_level/tcp/data_packet_collector.h"
-
 #  include "aether/port/file_systems/file_systems_tele.h"
 
 namespace ae {
@@ -28,16 +26,14 @@ namespace ae {
  *\param[in] void.
  *\return void.
  */
-FileSystemRamFacility::FileSystemRamFacility() {
-  driver_fs = new DriverHeader();
-}
+FileSystemRamFacility::FileSystemRamFacility() = default;
 
 /*
  * \brief Class destructor.
  * \param[in] void.
  * \return void.
  */
-FileSystemRamFacility::~FileSystemRamFacility() {}
+FileSystemRamFacility::~FileSystemRamFacility() = default;
 
 std::vector<uint32_t> FileSystemRamFacility::Enumerate(
     const ae::ObjId& obj_id) {
@@ -106,17 +102,6 @@ void FileSystemRamFacility::CleanUp() {
   AE_TELED_DEBUG("All objects have been removed!");
 }
 #  endif
-
-void FileSystemRamFacility::out_header() {
-  std::string path{"config/file_system_init.h"};
-  auto data_vector = std::vector<std::uint8_t>{};
-  VectorWriter<PacketSize> vw{data_vector};
-  auto os = omstream{vw};
-  // add file data
-  os << state_;
-
-  driver_fs->DriverHeaderWrite(path, data_vector);
-}
 }  // namespace ae
 
 #endif  // AE_FILE_SYSTEM_RAM_ENABLED
