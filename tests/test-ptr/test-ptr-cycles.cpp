@@ -101,7 +101,7 @@ void test_ObjAnObjBnObjCCycleRef() {
   TEST_ASSERT_EQUAL(1, ObjC::obj_c_destroyed);
 }
 
-void test_ObjAnObjBWithPtrVew() {
+void test_ObjAnObjBWithPtrView() {
   ObjA::obj_a_destroyed = 0;
   ObjB::obj_b_destroyed = 0;
   {
@@ -111,6 +111,29 @@ void test_ObjAnObjBWithPtrVew() {
     b->obj_a = a;
     PtrView b_view = b;
     PtrView a_view = a;
+  }
+  TEST_ASSERT_EQUAL(1, ObjA::obj_a_destroyed);
+  TEST_ASSERT_EQUAL(1, ObjB::obj_b_destroyed);
+}
+
+void test_ObjAnObjCycleRefFromOneRoot() {
+  ObjA::obj_a_destroyed = 0;
+  ObjB::obj_b_destroyed = 0;
+  {
+    auto a = MakePtr<ObjA>();
+    a->obj_b = MakePtr<ObjB>();
+  }
+  TEST_ASSERT_EQUAL(1, ObjA::obj_a_destroyed);
+  TEST_ASSERT_EQUAL(1, ObjB::obj_b_destroyed);
+}
+
+void test_ObjAnObjCycleRemoveFromA() {
+  ObjA::obj_a_destroyed = 0;
+  ObjB::obj_b_destroyed = 0;
+  {
+    auto a = MakePtr<ObjA>();
+    a->obj_b = MakePtr<ObjB>();
+    a->obj_b.Reset();
   }
   TEST_ASSERT_EQUAL(1, ObjA::obj_a_destroyed);
   TEST_ASSERT_EQUAL(1, ObjB::obj_b_destroyed);
@@ -181,6 +204,55 @@ void test_CycleListPtr() {
   TEST_ASSERT_EQUAL(1, ObjF::obj_f_destroyed);
   TEST_ASSERT_EQUAL(1, ObjG::obj_g_destroyed);
 }
+
+struct ObjH;
+struct ObjI;
+struct ObjJ;
+struct ObjH {
+  static inline int obj_h_destroyed = 0;
+  ~ObjH() { ++obj_h_destroyed; }
+
+  Ptr<ObjI> obj_i0;
+  Ptr<ObjI> obj_i1;
+
+  AE_REFLECT_MEMBERS(obj_i0, obj_i1)
+};
+struct ObjI {
+  static inline int obj_i_destroyed = 0;
+  ~ObjI() { ++obj_i_destroyed; }
+
+  Ptr<ObjJ> obj_j;
+
+  AE_REFLECT_MEMBERS(obj_j)
+};
+struct ObjJ {
+  static inline int obj_j_destroyed = 0;
+  ~ObjJ() { ++obj_j_destroyed; }
+
+  Ptr<ObjH> obj_h;
+
+  AE_REFLECT_MEMBERS(obj_h)
+};
+
+void test_CycleRemoveThroughThreeLevels() {
+  ObjH::obj_h_destroyed = 0;
+  ObjI::obj_i_destroyed = 0;
+  ObjJ::obj_j_destroyed = 0;
+  {
+    auto obj_h = MakePtr<ObjH>();
+    obj_h->obj_i0 = MakePtr<ObjI>();
+    obj_h->obj_i0->obj_j = MakePtr<ObjJ>();
+    obj_h->obj_i0->obj_j->obj_h = obj_h;
+
+    obj_h->obj_i1 = obj_h->obj_i0;
+
+    obj_h->obj_i0.Reset();
+  }
+  TEST_ASSERT_EQUAL(1, ObjH::obj_h_destroyed);
+  TEST_ASSERT_EQUAL(1, ObjI::obj_i_destroyed);
+  TEST_ASSERT_EQUAL(1, ObjJ::obj_j_destroyed);
+}
+
 }  // namespace test_ptr_cycles
 }  // namespace ae
 
@@ -188,9 +260,12 @@ int test_ptr_cycles() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_ptr_cycles::test_ObjAnObjBCycleRef);
   RUN_TEST(ae::test_ptr_cycles::test_ObjAnDoubleObjBCycleRef);
+  RUN_TEST(ae::test_ptr_cycles::test_ObjAnObjCycleRefFromOneRoot);
+  RUN_TEST(ae::test_ptr_cycles::test_ObjAnObjCycleRemoveFromA);
   RUN_TEST(ae::test_ptr_cycles::test_ObjAnObjBnObjCCycleRef);
-  RUN_TEST(ae::test_ptr_cycles::test_ObjAnObjBWithPtrVew);
+  RUN_TEST(ae::test_ptr_cycles::test_ObjAnObjBWithPtrView);
   RUN_TEST(ae::test_ptr_cycles::test_ObjDnObjECycleWithPtrView);
   RUN_TEST(ae::test_ptr_cycles::test_CycleListPtr);
+  RUN_TEST(ae::test_ptr_cycles::test_CycleRemoveThroughThreeLevels);
   return UNITY_END();
 }
