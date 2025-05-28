@@ -35,7 +35,7 @@ class Cloud : public Obj {
   explicit Cloud(Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, servers_, adapter_))
+  AE_OBJECT_REFLECT(AE_MMBRS(servers_, adapter_))
 
   void AddServer(Server::ptr const& server);
   void LoadServer(Server::ptr& server);
@@ -46,8 +46,6 @@ class Cloud : public Obj {
   std::vector<Server::ptr>& servers();
 
  private:
-  Obj::ptr aether_;
-
   std::vector<Server::ptr> servers_;
   Adapter::ptr adapter_;
 };
