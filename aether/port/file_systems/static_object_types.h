@@ -28,7 +28,7 @@
 
 namespace ae {
 struct ObjectPathKey {
-  bool operator==(ObjectPathKey const& right) {
+  bool operator==(ObjectPathKey const& right) const {
     return std::tie(obj_id, class_id, version) ==
            std::tie(right.obj_id, right.class_id, right.version);
   }

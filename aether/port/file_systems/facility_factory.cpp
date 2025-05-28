@@ -20,7 +20,6 @@
 #include "aether/port/file_systems/file_system_ram.h"
 #include "aether/port/file_systems/file_system_spifs_v2.h"
 #include "aether/port/file_systems/file_system_spifs_v1.h"
-#include "aether/port/file_systems/file_system_header.h"
 
 namespace ae {
 std::unique_ptr<IDomainFacility> DomainFacilityFactory::Create() {
