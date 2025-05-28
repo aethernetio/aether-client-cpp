@@ -29,6 +29,8 @@
 #ifndef AETHER_OBJ_OBJ_H_
 #define AETHER_OBJ_OBJ_H_
 
+#include <iostream>
+
 #include "aether/config.h"
 
 #include "aether/common.h"
@@ -76,6 +78,13 @@ class Obj {
   ObjId id_;
   ObjFlags flags_;
 };
+
+namespace reflect {
+template <typename T>
+struct ObjectIndex<T, std::enable_if_t<std::is_base_of_v<Obj, T>>> {
+  static std::size_t GetIndex(T const* obj) { return obj->GetId().id(); }
+};
+}  // namespace reflect
 
 }  // namespace ae
 
