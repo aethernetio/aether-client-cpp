@@ -21,21 +21,17 @@
 #include "aether/common.h"
 #include "aether/memory.h"
 #include "aether/state_machine.h"
-#include "aether/literal_array.h"
 #include "aether/actions/action.h"
-#include "aether/stream_api/istream.h"
 #include "aether/transport/data_buffer.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 
 #include "aether/ptr/ptr.h"
-#include "aether/global_ids.h"
 #include "aether/aether_app.h"
-#include "aether/ae_actions/registration/registration.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
-#include "aether/port/file_systems/file_system_header.h"
+#include "aether/port/file_systems/static_domain_facility.h"
 #include "aether/port/tele_init.h"
 
 #include "aether/adapters/ethernet.h"
@@ -75,7 +71,6 @@ class RegisteredAction : public Action<RegisteredAction> {
       : Action{*aether_app},
         aether_{aether_app->aether()},
         state_{State::kLoad},
-        messages_{},
         state_changed_{state_.changed_event().Subscribe(
             [this](auto) { Action::Trigger(); })} {
     AE_TELED_INFO("Registered test");
@@ -105,10 +100,8 @@ class RegisteredAction : public Action<RegisteredAction> {
     }
     // wait till all sent messages received and confirmed
     if (state_.get() == State::kWaitDone) {
-      AE_TELED_DEBUG("Wait done receive_count {}, confirm_count {}",
-                     receive_count_, confirm_count_);
-      if ((receive_count_ == messages_.size()) &&
-          (confirm_count_ == messages_.size())) {
+      AE_TELED_DEBUG("Wait done receive_count {}", receive_count_);
+      if (receive_count_ == messages_.size()) {
         state_ = State::kResult;
       }
       // if no any events happens wake up after 1 second
@@ -125,9 +118,8 @@ class RegisteredAction : public Action<RegisteredAction> {
   void LoadClients() {
     AE_TELED_INFO("Testing loaded clients");
     for (std::size_t i{0}; i < aether_->clients().size(); i++) {
-      auto msg_str =
-          std::string("Test message for client ") + std::to_string(i);
-      messages_.insert(messages_.begin() + i, msg_str);
+      auto msg_str = ae::Format("Test message for client {}", i);
+      messages_.push_back(msg_str);
     }
     state_ = State::kConfigureSender;
   }
@@ -139,44 +131,23 @@ class RegisteredAction : public Action<RegisteredAction> {
    * ConfigureReceiver.
    */
   void ConfigureSender() {
-    std::uint8_t clients_cnt{0};
-
     AE_TELED_INFO("Sender configuration");
-    confirm_count_ = 0;
+    receive_count_ = 0;
     assert(aether_->clients().size() > 0);
 
     for (auto const& client : aether_->clients()) {
-      auto sender_stream = make_unique<P2pSafeStream>(
+      auto& stream = sender_streams_.emplace_back(make_unique<P2pSafeStream>(
           *aether_->action_processor, kSafeStreamConfig,
           make_unique<P2pStream>(*aether_->action_processor, client,
-                                 client->uid()));
-      sender_streams_.emplace_back(std::move(sender_stream));
+                                 client->uid())));
       sender_message_subscriptions_.Push(
-          sender_streams_[clients_cnt]->out_data_event().Subscribe(
-              [&](auto const& data) {
-                auto str_response = std::string(
-                    reinterpret_cast<const char*>(data.data()), data.size());
-                AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
-                               str_response, confirm_count_);
-                confirm_count_++;
-              }));
-      receiver_message_subscriptions_.Push(
-          sender_streams_[clients_cnt]->out_data_event().Subscribe(
-              [&](auto const& data) {
-                auto str_msg = std::string(
-                    reinterpret_cast<const char*>(data.data()), data.size());
-                AE_TELED_DEBUG("Received a message [{}]", str_msg);
-                auto confirm_msg = std::string{"confirmed "} + str_msg;
-                auto response_action = sender_streams_[receive_count_++]->Write(
-                    {confirm_msg.data(),
-                     confirm_msg.data() + confirm_msg.size()});
-                response_subscriptions_.Push(
-                    response_action->ErrorEvent().Subscribe([&](auto const&) {
-                      AE_TELED_ERROR("Send response failed");
-                      state_ = State::kError;
-                    }));
-              }));
-      clients_cnt++;
+          stream->out_data_event().Subscribe([&](auto const& data) {
+            auto str_response = std::string(
+                reinterpret_cast<const char*>(data.data()), data.size());
+            AE_TELED_DEBUG("Received a response [{}], confirm_count {}",
+                           str_response, receive_count_);
+            receive_count_++;
+          }));
     }
 
     state_ = State::kSendMessages;
@@ -185,7 +156,7 @@ class RegisteredAction : public Action<RegisteredAction> {
   /**
    * \brief Send all messages at once.
    */
-  void SendMessages(TimePoint current_time) {
+  void SendMessages(TimePoint /* current_time */) {
     std::uint8_t messages_cnt{0};
 
     AE_TELED_INFO("Send messages");
@@ -207,12 +178,10 @@ class RegisteredAction : public Action<RegisteredAction> {
 
   Aether::ptr aether_;
 
-  std::vector<std::unique_ptr<ae::P2pSafeStream>> sender_streams_{};
+  std::vector<std::unique_ptr<ae::P2pSafeStream>> sender_streams_;
 
-  std::unique_ptr<ByteStream> sender_stream_;
   std::size_t clients_registered_;
   std::size_t receive_count_{0};
-  std::size_t confirm_count_{0};
 
   MultiSubscription registration_subscriptions_;
   MultiSubscription receiver_message_subscriptions_;
@@ -237,10 +206,11 @@ int AetherRegistered() {
    * Also it has action context protocol implementation \see Action.
    * To configure its creation \see AetherAppConstructor.
    */
-  auto aether_app = ae::AetherApp::Construct(ae::AetherAppConstructor{[]() {
-    auto fs = ae::make_unique<ae::FileSystemHeaderFacility>(std::string(""));
-    return fs;
-  }});
+  auto aether_app = ae::AetherApp::Construct(ae::AetherAppConstructor{
+#if defined STATIC_DOMAIN_FACILITY_ENABLED
+      []() { return ae::make_unique<ae::StaticDomainFacility>(); }
+#endif
+  });
 
   auto registered_action = ae::registered::RegisteredAction{aether_app};
 
