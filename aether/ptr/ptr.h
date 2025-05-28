@@ -19,7 +19,6 @@
 
 #include <cassert>
 #include <utility>
-#include <type_traits>
 
 #include "aether/common.h"
 #include "aether/type_traits.h"
@@ -243,7 +242,7 @@ class Ptr {
     // iterate through all objects with domain node visitor in save like mode
 
     auto obj_map =
-        PtrGraphBuilder::BuildGraph(*ptr_, ptr_storage_->ref_counters);
+        PtrGraphBuilder::BuildGraph(*ptr_, ptr_storage_->ref_counters, this);
 
     // if any object has external references, obj_reference >
     // reachable_reference

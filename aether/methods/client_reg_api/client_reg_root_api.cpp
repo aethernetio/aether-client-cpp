@@ -16,6 +16,7 @@
 
 #include "aether/methods/client_reg_api/client_reg_root_api.h"
 
+#if AE_SUPPORT_REGISTRATION
 namespace ae {
 ClientRegRootApi::ClientRegRootApi(ProtocolContext& protocol_context)
     : ReturnResultApiImpl{protocol_context} {}
@@ -23,5 +24,5 @@ ClientRegRootApi::ClientRegRootApi(ProtocolContext& protocol_context)
 void ClientRegRootApi::Enter(ApiParser&, DataBuffer data) {
   enter_event.Emit(data);
 }
-
 }  // namespace ae
+#endif

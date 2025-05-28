@@ -20,6 +20,8 @@
 #include <utility>
 #include <type_traits>
 
+#include <map>
+
 #include "aether/common.h"
 #include "aether/type_traits.h"
 #include "aether/reflect/node_visitor.h"
@@ -27,9 +29,30 @@
 #include "aether/reflect/domain_visitor_impl.h"
 
 namespace ae::reflect {
-// Container types
+namespace container_node_visitor_internal {
+template <typename T, typename Enabled = void>
+struct IsValueTypeIntegral : std::false_type {};
+
 template <typename T>
-struct NodeVisitor<T, std::enable_if_t<IsContainer<T>::value>> {
+struct IsValueTypeIntegral<
+    T, std::enable_if_t<IsAssociatedContainer<T>::value &&
+                        std::is_integral_v<typename T::mapped_type>>>
+    : std::true_type {};
+
+template <typename T>
+struct IsValueTypeIntegral<
+    T, std::enable_if_t<IsContainer<T>::value &&
+                        std::is_integral_v<typename T::value_type>>>
+    : std::true_type {};
+}  // namespace container_node_visitor_internal
+
+// Container types
+// For non integral values
+template <typename T>
+struct NodeVisitor<
+    T, std::enable_if_t<
+           IsContainer<T>::value &&
+           !container_node_visitor_internal::IsValueTypeIntegral<T>::value>> {
   using Policy = PolicyMatch<VisitPolicy::kDeep>;
 
   // for non const
@@ -54,6 +77,28 @@ struct NodeVisitor<T, std::enable_if_t<IsContainer<T>::value>> {
                   Visitor&& visitor) const {
     reflect::ApplyVisitor(std::forward<U>(obj), cycle_detector,
                           std::forward<Visitor>(visitor));
+  }
+};
+
+// For integral values
+template <typename T>
+struct NodeVisitor<
+    T, std::enable_if_t<
+           IsContainer<T>::value &&
+           container_node_visitor_internal::IsValueTypeIntegral<T>::value>> {
+  using Policy = PolicyMatch<VisitPolicy::kDeep>;
+
+  // for non const
+  template <typename Visitor>
+  void Visit(T& obj, CycleDetector& cycle_detector, Visitor&& visitor) const {
+    reflect::ApplyVisitor(obj, cycle_detector, std::forward<Visitor>(visitor));
+  }
+
+  // for const
+  template <typename Visitor>
+  void Visit(T const& obj, CycleDetector& cycle_detector,
+             Visitor&& visitor) const {
+    reflect::ApplyVisitor(obj, cycle_detector, std::forward<Visitor>(visitor));
   }
 };
 
