@@ -39,7 +39,7 @@
 #include "aether/adapters/adapter.h"
 #include "aether/registration_cloud.h"
 
-#include "aether/port/file_systems/facility_factory.h"
+#include "aether/domain_storage/domain_storage_factory.h"
 
 #include "aether/tele/tele.h"
 
@@ -53,10 +53,10 @@ class AetherAppConstructor {
 
  public:
   explicit AetherAppConstructor()
-      : AetherAppConstructor(DomainFacilityFactory::Create) {}
+      : AetherAppConstructor(DomainStorageFactory::Create) {}
 
   template <typename Func,
-            AE_REQUIRERS((IsFunctor<Func, std::unique_ptr<IDomainFacility>()>))>
+            AE_REQUIRERS((IsFunctor<Func, std::unique_ptr<IDomainStorage>()>))>
   explicit AetherAppConstructor(Func const& facility_factory)
       : init_tele_{},
         domain_facility_{facility_factory()},
@@ -107,7 +107,7 @@ class AetherAppConstructor {
 
  private:
   InitTele init_tele_;
-  std::unique_ptr<IDomainFacility> domain_facility_;
+  std::unique_ptr<IDomainStorage> domain_facility_;
   std::unique_ptr<Domain> domain_;
   Aether::ptr aether_;
 #if defined AE_DISTILLATION
@@ -166,7 +166,7 @@ class AetherApp {
   AE_REFLECT_MEMBERS(domain_facility_, domain_, aether_, exit_code_)
 
  private:
-  std::unique_ptr<IDomainFacility> domain_facility_;
+  std::unique_ptr<IDomainStorage> domain_facility_;
   std::unique_ptr<Domain> domain_;
   Aether::ptr aether_;
 

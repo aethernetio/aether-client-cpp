@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_STD_H_
-#define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_STD_H_
+#ifndef AETHER_DOMAIN_STORAGE_FILE_SYSTEM_STD_STORAGE_H_
+#define AETHER_DOMAIN_STORAGE_FILE_SYSTEM_STD_STORAGE_H_
 
 #include <vector>
 
@@ -24,25 +24,22 @@
 
 #  define AE_FILE_SYSTEM_STD_ENABLED 1
 
-#  include "aether/obj/domain.h"
+#  include "aether/obj/idomain_storage.h"
 
 namespace ae {
-class FileSystemStdFacility : public IDomainFacility {
+class FileSystemStdStorage : public IDomainStorage {
  public:
-  FileSystemStdFacility();
-  ~FileSystemStdFacility() override;
+  FileSystemStdStorage();
+  ~FileSystemStdStorage() override;
 
-  std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
-  void Store(const ae::ObjId& obj_id, std::uint32_t class_id,
-             std::uint8_t version, const std::vector<uint8_t>& os) override;
-  void Load(const ae::ObjId& obj_id, std::uint32_t class_id,
-            std::uint8_t version, std::vector<uint8_t>& is) override;
-  void Remove(const ae::ObjId& obj_id) override;
-#  if defined AE_DISTILLATION
+  std::unique_ptr<IDomainStorageWriter> Store(
+      DomainQuiery const& query) override;
+  ClassList Enumerate(ObjId const& obj_id) override;
+  DomainLoad Load(DomainQuiery const& query) override;
+  void Remove(ObjId const& obj_id) override;
   void CleanUp() override;
-#  endif
 };
 }  // namespace ae
 
 #endif
-#endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_STD_H_ */
+#endif  // AETHER_DOMAIN_STORAGE_FILE_SYSTEM_STD_STORAGE_H_ */
