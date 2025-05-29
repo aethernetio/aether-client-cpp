@@ -20,10 +20,12 @@
 #ifndef AETHER_REFLECT_DOMAIN_VISITOR_H_
 #define AETHER_REFLECT_DOMAIN_VISITOR_H_
 
+// IWYU pragma: begin_exports
 #include "aether/reflect/override_func.h"
 #include "aether/reflect/domain_visitor_impl.h"
 #include "aether/reflect/reflect_node_visitor.h"
 #include "aether/reflect/ptr_like_node_visitor.h"
 #include "aether/reflect/container_node_visitor.h"
+// IWYU pragma: end_exports
 
 #endif  // AETHER_REFLECT_DOMAIN_VISITOR_H_
