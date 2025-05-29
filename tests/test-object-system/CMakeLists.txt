@@ -33,6 +33,7 @@ list(APPEND test_srcs
     test-obj-create.cpp
     test-update-objects.cpp
     test-version-iterator.cpp
+    map_domain_storage.cpp
 )
 
 if(NOT CM_PLATFORM)
