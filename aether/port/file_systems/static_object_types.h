@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,28 +14,29 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#ifndef AETHER_PORT_FILE_SYSTEMS_STATIC_OBJECT_TYPES_H_
+#define AETHER_PORT_FILE_SYSTEMS_STATIC_OBJECT_TYPES_H_
+
+// IWYU pragma: begin_exports
+#include <tuple>
+#include <array>
+#include <cstdint>
 
 #include "aether/types/span.h"
 #include "aether/types/static_map.h"
+// IWYU pragma: end_exports
 
-void setUp() {}
-void tearDown() {}
+namespace ae {
+struct ObjectPathKey {
+  bool operator==(ObjectPathKey const& right) const {
+    return std::tie(obj_id, class_id, version) ==
+           std::tie(right.obj_id, right.class_id, right.version);
+  }
 
-extern int test_literal_array();
-extern int test_ring_buffer();
-extern int test_async_for_loop();
-extern int test_concat_arrays();
-extern int test_span();
-extern int test_static_map();
+  std::uint32_t obj_id;
+  std::uint32_t class_id;
+  std::uint8_t version;
+};
+}  // namespace ae
 
-int main() {
-  int res = 0;
-  res += test_literal_array();
-  res += test_ring_buffer();
-  res += test_async_for_loop();
-  res += test_concat_arrays();
-  res += test_span();
-  res += test_static_map();
-  return res;
-}
+#endif  // AETHER_PORT_FILE_SYSTEMS_STATIC_OBJECT_TYPES_H_

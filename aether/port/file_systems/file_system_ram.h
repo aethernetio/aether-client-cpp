@@ -24,7 +24,6 @@
 #include <cstdint>
 
 #include "aether/obj/domain.h"
-#include "aether/port/file_systems/drivers/driver_header.h"
 
 namespace ae {
 class FileSystemRamFacility : public IDomainFacility {
@@ -48,11 +47,8 @@ class FileSystemRamFacility : public IDomainFacility {
   void CleanUp() override;
 #endif
 
-  void out_header();
-
  private:
   ObjClassData state_;
-  DriverHeader* driver_fs;
 };
 }  // namespace ae
 #endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_RAM_H_ */

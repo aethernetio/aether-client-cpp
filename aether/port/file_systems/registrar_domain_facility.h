@@ -14,29 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
-#define AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
+#ifndef AETHER_PORT_FILE_SYSTEMS_REGISTRAR_DOMAIN_FACILITY_H_
+#define AETHER_PORT_FILE_SYSTEMS_REGISTRAR_DOMAIN_FACILITY_H_
 
-#define AE_FILE_SYSTEM_HEADER_ENABLED 1
+#define REGISTRAR_DOMAIN_FACILITY_ENABLED 1
 
 #include <map>
 #include <cstdint>
-#include <string>
+#include <filesystem>
 
 #include "aether/obj/obj_id.h"
 #include "aether/obj/domain.h"
-#include "aether/port/file_systems/drivers/driver_header.h"
 
 namespace ae {
-class FileSystemHeaderFacility : public IDomainFacility {
+class RegistrarDomainFacility : public IDomainFacility {
   using Data = std::vector<std::uint8_t>;
   using VersionData = std::map<std::uint8_t, Data>;
   using ClassData = std::map<std::uint32_t, VersionData>;
   using ObjClassData = std::map<ae::ObjId, ClassData>;
 
  public:
-  FileSystemHeaderFacility(const std::string& header_file);
-  ~FileSystemHeaderFacility() override;
+  explicit RegistrarDomainFacility(std::filesystem::path file_path);
+  ~RegistrarDomainFacility() override;
+
   std::vector<uint32_t> Enumerate(const ae::ObjId& obj_id) override;
   void Store(const ae::ObjId& obj_id, std::uint32_t class_id,
              std::uint8_t version, const std::vector<uint8_t>& os) override;
@@ -49,12 +49,14 @@ class FileSystemHeaderFacility : public IDomainFacility {
 #endif
 
  private:
-  void LoadObjData(ObjClassData& obj_data);
-  void SaveObjData(ObjClassData& obj_data);
+  void SaveState();
+  void PrintData(std::ofstream& file, std::vector<std::uint8_t> const& data);
+  template <typename K, typename T>
+  void PrintMapKeysAsData(std::ofstream& file, std::map<K, T> const& map);
 
-  std::unique_ptr<DriverHeader> driver_fs_;
-  std::string path_{};
+  std::filesystem::path file_path_;
+  ObjClassData state_;
 };
 }  // namespace ae
 
-#endif  // AETHER_PORT_FILE_SYSTEMS_FILE_SYSTEM_HEADER_H_
+#endif  // AETHER_PORT_FILE_SYSTEMS_REGISTRAR_DOMAIN_FACILITY_H_
