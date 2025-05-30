@@ -196,15 +196,15 @@ list(APPEND client_messages_srcs
             )
 
 list(APPEND port_srcs
-            "port/tele_init.cpp"
-            "port/file_systems/facility_factory.cpp"
-            "port/file_systems/registrar_domain_facility.cpp"
-            "port/file_systems/static_domain_facility.cpp"
-            "port/file_systems/file_system_ram.cpp"
-            "port/file_systems/file_system_spifs_v1.cpp"
-            "port/file_systems/file_system_spifs_v2.cpp"
-            "port/file_systems/file_system_std.cpp"
-            "port/file_systems/drivers/driver_spifs.cpp")
+            "port/tele_init.cpp")
+
+list(APPEND domain_storage_srcs
+            "domain_storage/domain_storage_factory.cpp"
+            "domain_storage/registrar_domain_storage.cpp"
+            "domain_storage/static_domain_storage.cpp"
+            "domain_storage/ram_domain_storage.cpp"
+            "domain_storage/spifs_domain_storage.cpp"
+            "domain_storage/file_system_std_storage.cpp")
 
 list(APPEND statistics_srcs
       "statistics/channel_statistics.cpp")
@@ -253,6 +253,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${port_srcs}
+                            ${domain_storage_srcs}
                             ${statistics_srcs}
                             ${tele_srcs}
                             )
@@ -295,6 +296,7 @@ else()
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${port_srcs}
+                            ${domain_storage_srcs}
                             ${statistics_srcs}
                             ${tele_srcs}
                             INCLUDE_DIRS ${include_dirs}

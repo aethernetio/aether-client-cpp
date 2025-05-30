@@ -28,7 +28,7 @@
 #include "aether/stream_api/transport_write_stream.h"
 #include "aether/client_connections/client_to_server_stream.h"
 
-#include "test-object-system/map_facility.h"
+#include "test-object-system/map_domain_storage.h"
 #include "test-stream/mock_transport.h"
 
 #if defined AE_DISTILLATION
@@ -91,7 +91,7 @@ class TestClientToServerStreamFixture {
     return *client_to_server_stream;
   }
 
-  MapFacility facility{};
+  MapDomainStorage facility{};
   Domain domain{TimePoint::clock::now(), facility};
   Aether::ptr aether{domain.CreateObj<Aether>(1)};
   Client::ptr client{domain.CreateObj<Client>(2, aether)};

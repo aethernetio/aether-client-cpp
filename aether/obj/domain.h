@@ -30,39 +30,19 @@
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
 
+#include "aether/ptr/ptr_view.h"
 #include "aether/reflect/reflect.h"
-#include "aether/obj/version_iterator.h"
 #include "aether/reflect/domain_visitor.h"
 
-#include "aether/obj/registry.h"
 #include "aether/obj/obj_id.h"
 #include "aether/obj/obj_ptr.h"
-#include "aether/ptr/ptr_view.h"
+#include "aether/obj/registry.h"
+#include "aether/obj/idomain_storage.h"
+#include "aether/obj/version_iterator.h"
 
 namespace ae {
-class Domain;
 class Obj;
-
-class IDomainFacility {
- public:
-  virtual ~IDomainFacility() = default;
-
-  virtual void Store(const ObjId& obj_id, std::uint32_t class_id,
-                     std::uint8_t version, const std::vector<uint8_t>& os) = 0;
-  virtual std::vector<std::uint32_t> Enumerate(const ObjId& obj_id) = 0;
-  virtual void Load(const ObjId& obj_id, std::uint32_t class_id,
-                    std::uint8_t version, std::vector<uint8_t>& is) = 0;
-
-  // TODO: where should we use it?
-  virtual void Remove(const ObjId& obj_id) = 0;
-
-#if defined AE_DISTILLATION
-  /**
-   * \brief Clean up the whole saved state
-   */
-  virtual void CleanUp() = 0;
-#endif
-};
+class Domain;
 
 struct DomainCycleDetector {
   struct Node {
@@ -90,23 +70,44 @@ struct DomainCycleDetector {
   std::set<Node> visited_nodes;
 };
 
-template <typename Ob>
-struct DomainBufferWriter : public Ob {
-  Domain* domain{};
-  using Ob::Ob;
+class DomainStorageReaderEmpty final : public IDomainStorageReader {
+ public:
+  void read(void*, std::size_t) override {}
+  ReadResult result() const override { return ReadResult::kNo; }
+  void result(ReadResult) override {}
 };
 
-template <typename Ib>
-struct DomainBufferReader : public Ib {
+struct DomainBufferWriter {
+  using size_type = IDomainStorageReader::size_type;
+
+  DomainBufferWriter(Domain* d, IDomainStorageWriter& w)
+      : domain{d}, writer{&w} {}
+
+  void write(void const* data, std::size_t size) { writer->write(data, size); }
+
   Domain* domain{};
-  using Ib::Ib;
+  IDomainStorageWriter* writer;
+};
+
+struct DomainBufferReader {
+  using size_type = IDomainStorageReader::size_type;
+
+  DomainBufferReader(Domain* d, IDomainStorageReader& r)
+      : domain{d}, reader{&r} {}
+
+  void read(void* data, std::size_t size) { reader->read(data, size); }
+  ReadResult result() const { return reader->result(); }
+  void result(ReadResult result) { reader->result(result); }
+
+  Domain* domain{};
+  IDomainStorageReader* reader;
 };
 
 class Domain {
  public:
-  Domain(TimePoint p, IDomainFacility& facility);
+  Domain(TimePoint p, IDomainStorage& storage);
 
-  TimePoint Update(TimePoint p);
+  TimePoint Update(TimePoint current_time);
 
   // Create new object and add it to the domain
   template <typename TClass, typename... TArgs>
@@ -158,10 +159,9 @@ class Domain {
   Factory* GetMostRelatedFactory(ObjId id);
   Factory* FindClassFactory(Obj const& obj);
 
-  TimePoint update_time_{};
-
-  IDomainFacility& facility_;
-  Registry registry_{};
+  TimePoint update_time_;
+  IDomainStorage* storage_;
+  Registry registry_;
 
   std::map<std::uint32_t, PtrView<Obj>> id_objects_{};
 
@@ -234,12 +234,15 @@ void Domain::Load(T& obj) {
 
 template <typename T, auto V>
 void Domain::LoadVersion(Version<V> version, T& obj) {
-  std::vector<uint8_t> input_data;
-  facility_.Load(obj.GetId(), T::kClassId, V, input_data);
+  auto load = storage_->Load({obj.GetId(), T::kClassId, V});
+  if ((load.result == DomainLoadResult::kEmpty) ||
+      (load.result == DomainLoadResult::kRemoved)) {
+    load.reader = std::make_unique<DomainStorageReaderEmpty>();
+  }
 
-  DomainBufferReader<VectorReader<>> reader(input_data);
-  reader.domain = this;
-  imstream<DomainBufferReader<VectorReader<>>> is(reader);
+  assert(load.reader);
+  DomainBufferReader reader{this, *load.reader};
+  imstream is(reader);
 
   auto visitor_func = [&is](auto& value) {
     is >> value;
@@ -276,10 +279,11 @@ void Domain::Save(T const& obj) {
 
 template <typename T, auto V>
 void Domain::SaveVersion(Version<V> version, T const& obj) {
-  std::vector<uint8_t> output_data;
-  DomainBufferWriter<VectorWriter<>> writer(output_data);
-  writer.domain = this;
-  omstream<DomainBufferWriter<VectorWriter<>>> os(writer);
+  auto storage_writer =
+      storage_->Store({obj.GetId(), T::kClassId, Version<V>::value});
+  assert(storage_writer);
+  DomainBufferWriter writer{this, *storage_writer};
+  omstream os(writer);
 
   auto visitor_func = [&os](auto const& value) {
     os << value;
@@ -293,13 +297,11 @@ void Domain::SaveVersion(Version<V> version, T const& obj) {
     // load or deserialize object
     reflect::DomainVisit(obj, std::move(visitor_func));
   }
-
-  facility_.Store(obj.GetId(), T::kClassId, Version<V>::value, output_data);
 }
 
-template <typename T, typename Ib>
-imstream<DomainBufferReader<Ib>>& operator>>(
-    imstream<DomainBufferReader<Ib>>& is, ObjPtr<T>& ptr) {
+template <typename T>
+imstream<DomainBufferReader>& operator>>(imstream<DomainBufferReader>& is,
+                                         ObjPtr<T>& ptr) {
   ObjId id;
   ObjFlags flags;
   is >> id >> flags;
@@ -313,9 +315,9 @@ imstream<DomainBufferReader<Ib>>& operator>>(
   return is;
 }
 
-template <typename T, typename Ob>
-omstream<DomainBufferWriter<Ob>>& operator<<(
-    omstream<DomainBufferWriter<Ob>>& os, ObjPtr<T> const& ptr) {
+template <typename T>
+omstream<DomainBufferWriter>& operator<<(omstream<DomainBufferWriter>& os,
+                                         ObjPtr<T> const& ptr) {
   auto id = ptr.GetId();
   auto flags = ptr.GetFlags();
   os << id << flags;
@@ -323,16 +325,16 @@ omstream<DomainBufferWriter<Ob>>& operator<<(
   return os;
 }
 
-template <typename T, typename Ib>
-std::enable_if_t<std::is_base_of_v<Obj, T>, imstream<DomainBufferReader<Ib>>&>
-operator>>(imstream<DomainBufferReader<Ib>>& is, T& obj) {
+template <typename T>
+std::enable_if_t<std::is_base_of_v<Obj, T>, imstream<DomainBufferReader>&>
+operator>>(imstream<DomainBufferReader>& is, T& obj) {
   is.ib_.domain->Load(obj);
   return is;
 }
 
-template <typename T, typename Ob>
-std::enable_if_t<std::is_base_of_v<Obj, T>, omstream<DomainBufferWriter<Ob>>&>
-operator<<(omstream<DomainBufferWriter<Ob>>& os, T const& obj) {
+template <typename T>
+std::enable_if_t<std::is_base_of_v<Obj, T>, omstream<DomainBufferWriter>&>
+operator<<(omstream<DomainBufferWriter>& os, T const& obj) {
   os.ob_.domain->Save(obj);
   return os;
 }

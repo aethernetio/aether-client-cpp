@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 
-/**
- * One header to include for DomainVisitor
- */
-#ifndef AETHER_REFLECT_DOMAIN_VISITOR_H_
-#define AETHER_REFLECT_DOMAIN_VISITOR_H_
+#ifndef AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_FACTORY_H_
+#define AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_FACTORY_H_
 
-// IWYU pragma: begin_exports
-#include "aether/reflect/override_func.h"
-#include "aether/reflect/domain_visitor_impl.h"
-#include "aether/reflect/reflect_node_visitor.h"
-#include "aether/reflect/ptr_like_node_visitor.h"
-#include "aether/reflect/container_node_visitor.h"
-// IWYU pragma: end_exports
+#include "aether/memory.h"
+#include "aether/obj/domain.h"
 
-#endif  // AETHER_REFLECT_DOMAIN_VISITOR_H_
+namespace ae {
+class DomainStorageFactory {
+ public:
+  static std::unique_ptr<IDomainStorage> Create();
+};
+}  // namespace ae
+
+#endif  // AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_FACTORY_H_

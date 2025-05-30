@@ -31,7 +31,7 @@
 #  include "aether/tele/configs/sink_to_statistics_trap.h"
 
 #  include "aether/tele/traps/tele_statistics.h"
-#  include "aether/port/file_systems/file_system_std.h"
+#  include "aether/domain_storage/file_system_std_storage.h"
 
 static ae::RcPtr<ae::tele::statistics::StatisticsTrap> statistics_trap;
 
@@ -48,7 +48,7 @@ void setUp() {
   statistics_trap = ae::MakeRcPtr<ae::tele::statistics::StatisticsTrap>();
   InitTeleSink(statistics_trap);
   // start with clean state
-  auto fs = ae::FileSystemStdFacility{};
+  auto fs = ae::FileSystemStdStorage{};
   fs.CleanUp();
 }
 void tearDown() {}
@@ -56,7 +56,7 @@ void tearDown() {}
 namespace ae::tele::test {
 
 void test_StatisticsRotation() {
-  auto fs = ae::FileSystemStdFacility{};
+  auto fs = ae::FileSystemStdStorage{};
   fs.CleanUp();
   auto domain = ae::Domain{ae::ClockType::now(), fs};
 
@@ -78,7 +78,7 @@ void test_StatisticsRotation() {
 }
 
 void test_SaveLoadTeleStatistics() {
-  auto fs = ae::FileSystemStdFacility{};
+  auto fs = ae::FileSystemStdStorage{};
   fs.CleanUp();
   auto domain = ae::Domain{ae::ClockType::now(), fs};
 

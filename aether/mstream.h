@@ -90,9 +90,7 @@ class imstream : public istream {
 
   imstream(IBuffer& input_buffer) : ib_{input_buffer} {}
 
-  void read(void* data, size_t size, size_t minimum_size = 1) {
-    ib_.read(data, size, minimum_size);
-  }
+  void read(void* data, size_t size) { ib_.read(data, size); }
 
   ReadResult result() const { return ib_.result(); }
   void result(ReadResult result) { ib_.result(result); }

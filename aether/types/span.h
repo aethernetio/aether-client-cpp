@@ -27,7 +27,9 @@ class Span {
   using value_type = T;
   using size_type = std::size_t;
   using pointer_type = T*;
+  using const_pointer_type = T const*;
   using iterator = pointer_type;
+  using const_iterator = const_pointer_type;
 
   constexpr Span() : pointer_{nullptr}, size_{0} {}
 

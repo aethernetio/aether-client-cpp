@@ -17,14 +17,14 @@
 #include <unity.h>
 
 #include "aether/obj/domain.h"
-#include "map_facility.h"
+#include "map_domain_storage.h"
 #include "objects/seven_fridays.h"
 
 namespace ae::test_update_objects {
 // replace class id in map facility to imitate one class save and load
-void replace_class_id(MapFacility& facility, std::uint32_t old_class,
+void replace_class_id(MapDomainStorage& facility, std::uint32_t old_class,
                       std::uint32_t new_class) {
-  for (auto& [_, classes] : facility.map_) {
+  for (auto& [_, classes] : facility.map) {
     auto it = classes.find(old_class);
     if (it != classes.end()) {
       classes[new_class] = std::move(it->second);
@@ -35,14 +35,14 @@ void replace_class_id(MapFacility& facility, std::uint32_t old_class,
 
 // remove class id from map facility to imitate one class was removed from
 // inheritance chain
-void remove_class_id(MapFacility& facility, std::uint32_t class_id) {
-  for (auto& [_, classes] : facility.map_) {
+void remove_class_id(MapDomainStorage& facility, std::uint32_t class_id) {
+  for (auto& [_, classes] : facility.map) {
     classes.erase(class_id);
   }
 }
 
 void test_increaseVersion() {
-  auto facility = MapFacility{};
+  auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
   // the oldest version
   {
@@ -89,7 +89,7 @@ void test_increaseVersion() {
 }
 
 void test_decreaseVersion() {
-  auto facility = MapFacility{};
+  auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
   // the newest version
   {

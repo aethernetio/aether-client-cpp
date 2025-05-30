@@ -26,13 +26,13 @@
 #include "objects/collector.h"
 #include "objects/family.h"
 
-#include "map_facility.h"
+#include "map_domain_storage.h"
 
 namespace ae::test_obj_create {
 
 void test_createFoo() {
   // create objects
-  auto facility = MapFacility{};
+  auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
   Domain domain2{ae::ClockType::now(), facility};
   {
@@ -42,9 +42,8 @@ void test_createFoo() {
     TEST_ASSERT(foo->bar);
 
     domain.SaveRoot(foo);
-    TEST_ASSERT(facility.map_.find(foo.GetId().id()) != facility.map_.end());
-    TEST_ASSERT(facility.map_.find(foo->bar.GetId().id()) !=
-                facility.map_.end());
+    TEST_ASSERT(facility.map.find(foo.GetId().id()) != facility.map.end());
+    TEST_ASSERT(facility.map.find(foo->bar.GetId().id()) != facility.map.end());
 
     // load object for already loaded list
     Foo::ptr foo2;
@@ -68,7 +67,7 @@ void test_createFoo() {
 }
 
 void test_createBob() {
-  auto facility = MapFacility{};
+  auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
 
   {
@@ -102,7 +101,7 @@ void test_createBob() {
 }
 
 void test_createBobsMother() {
-  auto facility = MapFacility{};
+  auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
 
   {
@@ -125,7 +124,7 @@ void test_createBobsMother() {
 }
 
 void test_createBobsFather() {
-  auto facility = MapFacility{};
+  auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
 
   {
@@ -151,7 +150,7 @@ void test_createBobsFather() {
 }
 
 void test_createCollector() {
-  auto facility = MapFacility{};
+  auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
   {
     Collector::ptr collector = domain.CreateObj<Collector>(1);
@@ -182,7 +181,7 @@ void test_createCollector() {
 }
 
 void test_cyclePoopaLoopa() {
-  auto facility = MapFacility{};
+  auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
 
   Poopa::DeleteCount = 0;
@@ -222,7 +221,7 @@ void test_cyclePoopaLoopa() {
 }
 
 void test_cyclePoopaLoopaReverse() {
-  auto facility = MapFacility{};
+  auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
 
   Poopa::DeleteCount = 0;
@@ -258,20 +257,20 @@ void test_cyclePoopaLoopaReverse() {
 }
 
 void test_Family() {
-  auto facility = MapFacility{};
+  auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
   // create child and test is father and obj saved too
   {
     Child::ptr child = domain.CreateObj<Child>(1);
     TEST_ASSERT(child);
     domain.SaveRoot(child);
-    TEST_ASSERT(facility.map_.find(child.GetId().id()) != facility.map_.end());
+    TEST_ASSERT(facility.map.find(child.GetId().id()) != facility.map.end());
 
-    auto& classes = facility.map_[child->GetId().id()];
+    auto& classes = facility.map[child->GetId().id()];
     TEST_ASSERT(classes.find(Child::kClassId) != classes.end());
-    TEST_ASSERT_EQUAL(0, classes[Child::kClassId][0].size());
+    TEST_ASSERT_EQUAL(0, classes[Child::kClassId][0]->size());
     TEST_ASSERT(classes.find(Father::kClassId) != classes.end());
-    TEST_ASSERT_EQUAL(0, classes[Father::kClassId][0].size());
+    TEST_ASSERT_EQUAL(0, classes[Father::kClassId][0]->size());
     TEST_ASSERT(classes.find(Obj::kClassId) != classes.end());
   }
   {

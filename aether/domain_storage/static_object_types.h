@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PORT_FILE_SYSTEMS_STATIC_OBJECT_TYPES_H_
-#define AETHER_PORT_FILE_SYSTEMS_STATIC_OBJECT_TYPES_H_
+#ifndef AETHER_DOMAIN_STORAGE_STATIC_OBJECT_TYPES_H_
+#define AETHER_DOMAIN_STORAGE_STATIC_OBJECT_TYPES_H_
 
 // IWYU pragma: begin_exports
 #include <tuple>
@@ -39,4 +39,4 @@ struct ObjectPathKey {
 };
 }  // namespace ae
 
-#endif  // AETHER_PORT_FILE_SYSTEMS_STATIC_OBJECT_TYPES_H_
+#endif  // AETHER_DOMAIN_STORAGE_STATIC_OBJECT_TYPES_H_

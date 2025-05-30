@@ -23,9 +23,8 @@
 
 namespace ae {
 
-Domain::Domain(TimePoint p, IDomainFacility& facility) : facility_(facility) {
-  update_time_ = p;
-}
+Domain::Domain(TimePoint p, IDomainStorage& storage)
+    : update_time_{p}, storage_(&storage) {}
 
 TimePoint Domain::Update(TimePoint current_time) {
   update_time_ = current_time;
@@ -80,7 +79,7 @@ void Domain::AddObject(ObjId id, ObjPtr<Obj> const& obj) {
 void Domain::RemoveObject(Obj* obj) { id_objects_.erase(obj->GetId().id()); }
 
 Factory* Domain::GetMostRelatedFactory(ObjId id) {
-  auto classes = facility_.Enumerate(id);
+  auto classes = storage_->Enumerate(id);
 
   // Remove all unsupported classes.
   classes.erase(
@@ -98,7 +97,8 @@ Factory* Domain::GetMostRelatedFactory(ObjId id) {
             [this](auto left, auto right) {
               if (registry_.GenerationDistance(right, left) > 0) {
                 return false;
-              } else if (registry_.GenerationDistance(left, right) >= 0) {
+              }
+              if (registry_.GenerationDistance(left, right) >= 0) {
                 return true;
               }
               // All classes must be in one inheritance chain.
