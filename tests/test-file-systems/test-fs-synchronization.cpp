@@ -72,7 +72,7 @@ static struct person test_data_files[] = {
     {0, 4197235001, 2721984319}, {0, 4198791665, 701908926},
     {0, 4198791665, 2178182515}};
 
-static struct person test_data_file{1, 2, 3};
+static struct person test_data_file{1, 1002, 3};
 
 static auto data_vector_test =
     std::vector<std::uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9};
@@ -148,6 +148,38 @@ void test_FS_STD() {
       TEST_ASSERT(class_ids_test == class_ids);
     }
   }
+
+  // Testing enumerate new data
+  obj_id = test_data_file.obj_id;
+  class_ids_test.clear();
+  class_ids_test.push_back(test_data_file.class_id);
+  auto class_ids = fs_std->Enumerate(obj_id);
+  TEST_ASSERT(class_ids_test == class_ids);
+
+  // Testing rewriting new data
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_source.clear();
+    data_vector_destination.clear();
+
+    fs_header_std->Store(test_data_files[i].obj_id, test_data_files[i].class_id,
+                         test_data_files[i].version, data_vector_test);
+
+    fs_std->Load(test_data_files[i].obj_id, test_data_files[i].class_id,
+                 test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_test == data_vector_destination);
+  }
+
+  // Testing reading new data
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_source.clear();
+    data_vector_destination.clear();
+
+    fs_header_std->Load(test_data_files[i].obj_id, test_data_files[i].class_id,
+                 test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_test == data_vector_destination);
+  }
 #endif  // (!defined(ESP_PLATFORM))
 }
 
@@ -218,6 +250,38 @@ void test_FS_RAM() {
       auto class_ids = fs_header_ram->Enumerate(obj_id);
       TEST_ASSERT(class_ids_test == class_ids);
     }
+  }
+
+  // Testing enumerate new data
+  obj_id = test_data_file.obj_id;
+  class_ids_test.clear();
+  class_ids_test.push_back(test_data_file.class_id);
+  auto class_ids = fs_ram->Enumerate(obj_id);
+  TEST_ASSERT(class_ids_test == class_ids);
+
+  // Testing rewriting new data
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_source.clear();
+    data_vector_destination.clear();
+
+    fs_header_ram->Store(test_data_files[i].obj_id, test_data_files[i].class_id,
+                         test_data_files[i].version, data_vector_test);
+
+    fs_ram->Load(test_data_files[i].obj_id, test_data_files[i].class_id,
+                 test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_test == data_vector_destination);
+  }
+
+  // Testing reading new data
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_source.clear();
+    data_vector_destination.clear();
+
+    fs_header_ram->Load(test_data_files[i].obj_id, test_data_files[i].class_id,
+                        test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_test == data_vector_destination);
   }
 #endif  // (!defined(ESP_PLATFORM))
 }
@@ -291,6 +355,40 @@ void test_FS_SPIFSV1() {
       TEST_ASSERT(class_ids_test == class_ids);
     }
   }
+
+  // Testing enumerate new data
+  obj_id = test_data_file.obj_id;
+  class_ids_test.clear();
+  class_ids_test.push_back(test_data_file.class_id);
+  auto class_ids = fs_spifs1->Enumerate(obj_id);
+  TEST_ASSERT(class_ids_test == class_ids);
+
+  // Testing rewriting new data
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_source.clear();
+    data_vector_destination.clear();
+
+    fs_header_spifs1->Store(test_data_files[i].obj_id,
+                            test_data_files[i].class_id,
+                         test_data_files[i].version, data_vector_test);
+
+    fs_spifs1->Load(test_data_files[i].obj_id, test_data_files[i].class_id,
+                 test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_test == data_vector_destination);
+  }
+
+  // Testing reading new data
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_source.clear();
+    data_vector_destination.clear();
+
+    fs_header_spifs1->Load(test_data_files[i].obj_id,
+                           test_data_files[i].class_id,
+                        test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_test == data_vector_destination);
+  }
 #endif  // (defined(ESP_PLATFORM))
 }
 
@@ -362,6 +460,40 @@ void test_FS_SPIFSV2() {
       auto class_ids = fs_header_spifs2->Enumerate(obj_id);
       TEST_ASSERT(class_ids_test == class_ids);
     }
+  }
+
+  // Testing enumerate new data
+  obj_id = test_data_file.obj_id;
+  class_ids_test.clear();
+  class_ids_test.push_back(test_data_file.class_id);
+  auto class_ids = fs_spifs2->Enumerate(obj_id);
+  TEST_ASSERT(class_ids_test == class_ids);
+
+  // Testing rewriting new data
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_source.clear();
+    data_vector_destination.clear();
+
+    fs_header_spifs2->Store(test_data_files[i].obj_id,
+                            test_data_files[i].class_id,
+                            test_data_files[i].version, data_vector_test);
+
+    fs_spifs2->Load(test_data_files[i].obj_id, test_data_files[i].class_id,
+                    test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_test == data_vector_destination);
+  }
+
+  // Testing reading new data
+  for (int i = 0; i < sizeof(test_data_files) / sizeof(test_data_files[0]);
+       i++) {
+    data_vector_source.clear();
+    data_vector_destination.clear();
+
+    fs_header_spifs2->Load(test_data_files[i].obj_id,
+                           test_data_files[i].class_id,
+                           test_data_files[i].version, data_vector_destination);
+    TEST_ASSERT(data_vector_test == data_vector_destination);
   }
 #endif  // (defined(ESP_PLATFORM))
 }
