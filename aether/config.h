@@ -149,13 +149,9 @@
 #  define AE_TARGET_ENDIANNESS AE_LITTLE_ENDIAN
 #endif  // AE_TARGET_ENDIANNESS
 
-#ifndef AE_SUPPORT_SPIFS_V1_FS
-#  define AE_SUPPORT_SPIFS_V1_FS 0
-#endif  // AE_SUPPORT_SPIFS_V1_FS
-
-#ifndef AE_SUPPORT_SPIFS_V2_FS
-#  define AE_SUPPORT_SPIFS_V2_FS 0
-#endif  // AE_SUPPORT_SPIFS_V2_FS
+#ifndef AE_SUPPORT_SPIFS_FS
+#  define AE_SUPPORT_SPIFS_FS 0
+#endif  // AE_SUPPORT_SPIFS_FS
 
 // safe stream sender repeat timeout grow factor
 #ifndef AE_SAFE_STREAM_RTO_GROW_FACTOR

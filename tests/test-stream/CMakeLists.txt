@@ -27,6 +27,7 @@ list(APPEND test_srcs
   templated-streams/test_templated_streams.cpp
   client-to-server-stream/test_client_to_server_stream.cpp
   test-tied-gates.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp
 )
 
 if(NOT CM_PLATFORM)

@@ -15,21 +15,15 @@
  */
 
 #include <string>
-#include <vector>
-#include <cstdint>
 
-#include "aether/aether.h"
 #include "aether/common.h"
-
 #include "aether/ptr/ptr.h"
-#include "aether/global_ids.h"
-#include "aether/ae_actions/registration/registration.h"
-#include "aether/client_messages/p2p_message_stream.h"
+#include "aether/aether_app.h"
 
-#include "aether/port/file_systems/registrar_domain_facility.h"
+#include "aether/domain_storage/registrar_domain_storage.h"
 
-#include "aether/port/tele_init.h"
 #include "aether/tele/tele.h"
+#include "aether/port/tele_init.h"
 
 #include "registrator/register_wifi.h"
 #include "registrator/registrator_action.h"
@@ -59,7 +53,7 @@ int AetherRegistrator(const std::string& ini_file,
    */
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{[header_file]() {
-        return ae::make_unique<ae::RegistrarDomainFacility>(header_file);
+        return ae::make_unique<ae::RegistrarDomainStorage>(header_file);
       }}
 #if defined AE_DISTILLATION
           .Adapter([&registrator_config](

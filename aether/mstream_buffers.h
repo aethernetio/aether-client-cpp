@@ -52,7 +52,7 @@ struct VectorReader {
   VectorReader(std::vector<uint8_t> const& data) : data_(data) {}
   virtual ~VectorReader() = default;
 
-  size_t read(void* data, size_t size, size_t /* min_size */) {
+  size_t read(void* data, size_t size) {
     if (offset_ + size > data_.size()) {
       result_ = ReadResult::kNo;
       return 0;
@@ -85,7 +85,7 @@ struct MemStreamReader {
   void reset_read() { buffer_.pubseekpos(0, std::ios_base::in); }
   void reset_write() { buffer_.pubseekpos(0, std::ios_base::out); }
 
-  size_t read(void* dst, size_t size, size_t /* minimum_size */) {
+  size_t read(void* dst, size_t size) {
     auto s = buffer_.sgetn(static_cast<char*>(dst),
                            static_cast<std::streamsize>(size));
     if (s != size) {

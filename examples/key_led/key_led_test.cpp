@@ -30,7 +30,7 @@
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
-#include "aether/port/file_systems/static_domain_facility.h"
+#include "aether/domain_storage/static_domain_storage.h"
 #include "aether/port/tele_init.h"
 
 #include "aether/adapters/ethernet.h"
@@ -337,9 +337,9 @@ int AetherButtonExample() {
    */
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{
-#if defined STATIC_DOMAIN_FACILITY_ENABLED
+#if defined STATIC_DOMAIN_STORAGE_ENABLED
           []() {
-            auto fs = ae::make_unique<ae::StaticDomainFacility>();
+            auto fs = ae::make_unique<ae::StaticDomainStorage>();
             return fs;
           }
 #endif
