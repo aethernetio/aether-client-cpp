@@ -17,7 +17,7 @@
 #ifndef AETHER_MEMORY_H_
 #define AETHER_MEMORY_H_
 
-#include <memory>
+#include <memory>  // IWYU pragma: export
 
 namespace ae {
 using std::make_unique;
