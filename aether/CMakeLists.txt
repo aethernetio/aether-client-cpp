@@ -204,7 +204,8 @@ list(APPEND domain_storage_srcs
             "domain_storage/static_domain_storage.cpp"
             "domain_storage/ram_domain_storage.cpp"
             "domain_storage/spifs_domain_storage.cpp"
-            "domain_storage/file_system_std_storage.cpp")
+            "domain_storage/file_system_std_storage.cpp"
+            "domain_storage/sync_domain_storage.cpp")
 
 list(APPEND statistics_srcs
       "statistics/channel_statistics.cpp")
