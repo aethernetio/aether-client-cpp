@@ -70,7 +70,7 @@ class Delegate;
  */
 template <typename TRet, typename... TArgs>
 class Delegate<TRet(TArgs...)> {
-  using VirtualCallFunc = TRet (*)(void* instance, TArgs...);
+  using VirtualCallFunc = TRet (*)(void* instance, TArgs&&...);
 
  public:
   Delegate() = default;
@@ -125,33 +125,29 @@ class Delegate<TRet(TArgs...)> {
   AE_CLASS_COPY_MOVE(Delegate)
 
   constexpr TRet operator()(TArgs... args) const noexcept {
-    return Invoke(std::forward<TArgs>(args)...);
-  }
-
- private:
-  constexpr TRet Invoke(TArgs... args) const noexcept {
     return v_call_func_(instance_, std::forward<TArgs>(args)...);
   }
 
+ private:
   template <TRet (*func_pointer)(TArgs...)>
-  static TRet CallFunctionPointer(void* /*instance*/, TArgs... args) {
+  static TRet CallFunctionPointer(void* /*instance*/, TArgs&&... args) {
     return func_pointer(std::forward<TArgs>(args)...);
   }
 
   template <typename TFunctor>
-  static TRet CallFunctor(void* instance, TArgs... args) {
+  static TRet CallFunctor(void* instance, TArgs&&... args) {
     auto* functor_instance = static_cast<TFunctor*>(instance);
     return functor_instance->operator()(std::forward<TArgs>(args)...);
   }
 
   template <typename TClass, TRet (TClass::*Method)(TArgs...)>
-  static TRet CallClassMember(void* instance, TArgs... args) {
+  static TRet CallClassMember(void* instance, TArgs&&... args) {
     auto* class_instance = static_cast<TClass*>(instance);
     return (class_instance->*Method)(std::forward<TArgs>(args)...);
   }
 
   template <typename TClass, TRet (TClass::*Method)(TArgs...) const>
-  static TRet CallClassMemberConst(void* instance, TArgs... args) {
+  static TRet CallClassMemberConst(void* instance, TArgs&&... args) {
     auto const* class_instance =
         const_cast<TClass const*>(static_cast<TClass*>(instance));
     return (class_instance->*Method)(std::forward<TArgs>(args)...);
