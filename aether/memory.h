@@ -28,6 +28,12 @@ auto make_unique(TArgs&&... args) {
   return make_unique<Deduced>(std::forward<TArgs>(args)...);
 }
 
+template <template <auto...> typename T, typename... TArgs>
+auto make_unique(TArgs&&... args) {
+  using Deduced = decltype(T(std::forward<TArgs>(args)...));
+  return make_unique<Deduced>(std::forward<TArgs>(args)...);
+}
+
 }  // namespace ae
 
 #endif  // AETHER_MEMORY_H_
