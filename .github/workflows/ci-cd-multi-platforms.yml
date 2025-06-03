@@ -1,6 +1,6 @@
 # This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
-name: CMake on multiple platforms
+name: CMake
 
 on:
   push:
@@ -14,7 +14,7 @@ on:
 jobs:
   #CMake builds
   build:
-    name: ${{ matrix.config.name }}
+    name: ${{ matrix.config.name }}/${{ matrix.platforms.name }}
     runs-on: ${{ matrix.config.os }}
     defaults:
       run:
@@ -117,13 +117,6 @@ jobs:
           packages: libx11-dev
           version: 1.0
 
-      - name: Set reusable strings
-        # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
-        id: strings
-        shell: bash
-        run: |
-          echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -179,7 +172,7 @@ jobs:
 
   #ESP32 Build
   build-esp-idf-component:
-    name: Build with ESP-IDF ${{ matrix.idf_ver }} for ${{ matrix.idf_target }}
+    name: ESP-IDF ${{ matrix.idf_ver }} for ${{ matrix.idf_target }} ${{ matrix.compile_example }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
