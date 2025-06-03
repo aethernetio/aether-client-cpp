@@ -74,11 +74,12 @@ FileSystemStdStorage::~FileSystemStdStorage() = default;
 
 std::unique_ptr<IDomainStorageWriter> FileSystemStdStorage::Store(
     DomainQuiery const& query) {
-  auto obj_dir = std::filesystem::path("state") /
-                 std::to_string(query.version) / query.id.ToString();
-  std::filesystem::create_directories(obj_dir);
-  auto class_path = obj_dir / std::to_string(query.class_id);
-  std::ofstream f(class_path,
+  auto class_dir = std::filesystem::path("state") / query.id.ToString() /
+                   std::to_string(query.class_id);
+
+  std::filesystem::create_directories(class_dir);
+  auto version_data_path = class_dir / std::to_string(query.version);
+  std::ofstream f(version_data_path,
                   std::ios::out | std::ios::binary | std::ios::trunc);
 
   return std::make_unique<FstreamStorageWriter>(query, std::move(f));
@@ -90,18 +91,11 @@ ClassList FileSystemStdStorage::Enumerate(const ae::ObjId& obj_id) {
 
   auto state_dir = std::filesystem::path{"state"};
   auto ec = std::error_code{};
-  for (auto const& version_dir :
-       std::filesystem::directory_iterator(state_dir, ec)) {
-    auto obj_dir = version_dir.path() / obj_id.ToString();
-
-    auto ec2 = std::error_code{};
-    for (auto const& f : std::filesystem::directory_iterator(obj_dir, ec2)) {
-      auto file_name = f.path().filename().string();
-      classes.insert(static_cast<std::uint32_t>(std::stoul(file_name)));
-    }
-    if (ec2) {
-      AE_TELED_ERROR("Unable to open directory with error {}", ec2.message());
-    }
+  auto obj_dir = state_dir / obj_id.ToString();
+  for (auto const& class_dir :
+       std::filesystem::directory_iterator(obj_dir, ec)) {
+    auto file_name = class_dir.path().filename().string();
+    classes.insert(static_cast<std::uint32_t>(std::stoul(file_name)));
   }
   AE_TELE_DEBUG(DsEnumerated, "Enumerated classes {}", classes);
 
@@ -114,23 +108,28 @@ ClassList FileSystemStdStorage::Enumerate(const ae::ObjId& obj_id) {
 }
 
 DomainLoad FileSystemStdStorage::Load(DomainQuiery const& query) {
-  auto obj_dir = std::filesystem::path("state") /
-                 std::to_string(query.version) / query.id.ToString();
-  auto class_path = obj_dir / std::to_string(query.class_id);
-  std::ifstream f(class_path, std::ios::in | std::ios::binary);
-  if (!f.good()) {
-    AE_TELE_ERROR(DsLoadObjClassIdNotFound, "Unable to open file {}",
-                  class_path.string());
-    return DomainLoad{DomainLoadResult::kEmpty, {}};
+  auto object_dir = std::filesystem::path("state") / query.id.ToString();
+  auto ec = std::error_code{};
+  if (!std::filesystem::exists(object_dir, ec)) {
+    return {DomainLoadResult::kEmpty, {}};
   }
 
-  char is_removed{};
-  f >> is_removed;
-  if (is_removed == '~') {
+  auto is_dir_empty = [&]() {
+    auto iter = std::filesystem::directory_iterator{object_dir};
+    return std::filesystem::begin(iter) == std::filesystem::end(iter);
+  };
+  if (is_dir_empty()) {
     return {DomainLoadResult::kRemoved, {}};
   }
-  // go back to the beginning
-  f.seekg(std::ios::beg);
+
+  auto class_dir = object_dir / std::to_string(query.class_id);
+  auto version_data_path = class_dir / std::to_string(query.version);
+  std::ifstream f(version_data_path, std::ios::in | std::ios::binary);
+  if (!f.good()) {
+    AE_TELE_ERROR(DsLoadObjClassIdNotFound, "Unable to open file {}",
+                  version_data_path.string());
+    return DomainLoad{DomainLoadResult::kEmpty, {}};
+  }
 
   AE_TELE_DEBUG(DsObjLoaded, "Loaded object id={}, class id={}, version={}",
                 query.id.ToString(), query.class_id,
@@ -140,22 +139,29 @@ DomainLoad FileSystemStdStorage::Load(DomainQuiery const& query) {
           std::make_unique<FstreamStorageReader>(std::move(f))};
 }
 
-void FileSystemStdStorage::Remove(const ae::ObjId& obj_id) {
-  std::filesystem::path state_dir = std::filesystem::path{"state"};
-
+void FileSystemStdStorage::Remove(ae::ObjId const& obj_id) {
+  auto object_dir = std::filesystem::path("state") / obj_id.ToString();
   auto ec = std::error_code{};
-  for (auto const& version_dir :
-       std::filesystem::directory_iterator(state_dir, ec)) {
-    auto obj_dir = version_dir.path() / obj_id.ToString();
+  if (!std::filesystem::exists(object_dir, ec)) {
+    std::filesystem::create_directory(object_dir);
+    return;
+  }
+  if (ec) {
+    AE_TELED_ERROR("Unable to check if dir exists {} error {}",
+                   object_dir.string(), ec.message());
+    return;
+  }
+
+  for (auto const& class_dir :
+       std::filesystem::directory_iterator(object_dir, ec)) {
     auto ec2 = std::error_code{};
-    for (auto const& f : std::filesystem::directory_iterator(obj_dir, ec2)) {
-      auto class_file = std::ofstream{
-          f.path(), std::ios::out | std::ios::binary | std::ios::trunc};
-      // replace file data with ~ - means data was removed
-      class_file.write("~", 1);
+    std::filesystem::remove_all(class_dir.path(), ec2);
+    if (ec2) {
+      AE_TELED_ERROR("Unable to remove dir {}, error {}",
+                     class_dir.path().string(), ec2.message());
+      continue;
     }
-    AE_TELE_DEBUG(DsObjRemoved, "Removed object {} of version {}",
-                  obj_id.ToString(), version_dir.path().filename());
+    AE_TELE_DEBUG(DsObjRemoved, "Object removed {}", obj_id.ToString());
   }
   if (ec) {
     AE_TELE_ERROR(DsRemoveObjError, "Unable to open directory with error {}",

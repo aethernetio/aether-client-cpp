@@ -28,10 +28,10 @@
 namespace ae {
 class RamDomainStorage : public IDomainStorage {
  public:
-  using Data = std::optional<ObjectData>;
+  using Data = ObjectData;
   using VersionData = std::map<std::uint8_t, Data>;
   using ClassData = std::map<std::uint32_t, VersionData>;
-  using ObjClassData = std::map<ObjId, ClassData>;
+  using ObjClassData = std::map<ObjId, std::optional<ClassData>>;
 
   RamDomainStorage();
   ~RamDomainStorage() override;

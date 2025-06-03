@@ -77,49 +77,57 @@ void RegistrarDomainStorage::SaveState() {
 
   // write list of class arrays
   for (auto const& [obj_id, obj_data] : ram_storage.state) {
+    if (!obj_data) {
+      continue;
+    }
     Format(file,
            "static constexpr auto class_array_{} = "
            "std::array<std::uint32_t, {}>{",
-           obj_id.ToString(), obj_data.size());
-    PrintMapKeysAsData(file, obj_data);
+           obj_id.ToString(), obj_data->size());
+    PrintMapKeysAsData(file, *obj_data);
     file << "};\n";
   }
   file << "\n";
 
   // write list of data arrays
   for (auto const& [obj_id, obj_data] : ram_storage.state) {
-    for (auto const& [class_id, class_data] : obj_data) {
+    if (!obj_data) {
+      continue;
+    }
+    for (auto const& [class_id, class_data] : *obj_data) {
       for (auto const& [version, data] : class_data) {
-        if (!data) {
-          continue;
-        }
         Format(file,
                "static constexpr auto data_array_{}_{}_{} = "
                "std::array<std::uint8_t, {}>{",
                obj_id.ToString(), class_id, static_cast<int>(version),
-               data->size());
-        PrintData(file, *data);
+               data.size());
+        PrintData(file, data);
         file << "};\n";
       }
     }
   }
 
   file << "\n";
+  file << "static constexpr auto static_domain_data = ae::StaticDomainData{\n";
+
   // write object map
-  file << "static constexpr auto object_map = ae::StaticMap{{\n";
+  file << "  ae::StaticMap{{\n";
   for (auto const& [obj_id, obj_data] : ram_storage.state) {
-    file << "  std::pair{ std::uint32_t{ " << obj_id.ToString()
+    file << "    std::pair{ std::uint32_t{ " << obj_id.ToString()
          << " } , ae::Span{ class_array_" << obj_id.ToString() << " }},\n";
   }
-  file << "}};\n";
+  file << "  }},\n";
 
-  file << "\n\n";
+  file << "\n";
   // write map
-  file << "static constexpr auto state_map = ae::StaticMap{{\n";
+  file << "  ae::StaticMap{{\n";
   for (auto const& [obj_id, obj_data] : ram_storage.state) {
-    for (auto const& [class_id, class_data] : obj_data) {
+    if (!obj_data) {
+      continue;
+    }
+    for (auto const& [class_id, class_data] : *obj_data) {
       for (auto const& [version, _] : class_data) {
-        file << "  std::pair{ ae::ObjectPathKey{ ";
+        file << "    std::pair{ ae::ObjectPathKey{ ";
         Format(file, "{}, {}, {}", obj_id.ToString(), class_id,
                static_cast<int>(version));
         file << " }, ae::Span{ ";
@@ -129,8 +137,8 @@ void RegistrarDomainStorage::SaveState() {
       }
     }
   }
-  file << "\n}};\n";
-  file << "\n";
+  file << "  \n}},\n";
+  file << "};\n\n";
   file << epilogue;
 }
 

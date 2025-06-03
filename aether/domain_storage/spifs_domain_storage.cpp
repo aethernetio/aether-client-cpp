@@ -18,6 +18,8 @@
 
 #if defined AE_SPIFS_DOMAIN_STORAGE_ENABLED
 
+#  include <algorithm>
+
 #  include "sys/stat.h"
 
 #  include "esp_err.h"
@@ -92,7 +94,7 @@ std::unique_ptr<IDomainStorageWriter> SpiFsDomainStorage::Store(
   }
 
   // register query in object map
-  object_map_[query.id][query.class_id][query.version] = true;
+  object_map_[query.id][query.class_id].emplace_back(query.version);
   SyncState();
 
   return std::make_unique<SpiFsSotorageWriter>(file, query);
@@ -123,6 +125,10 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuiery const& query) {
                   static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
+  if (obj_map_it->second.empty()) {
+    return {DomainLoadResult::kRemoved, {}};
+  }
+
   auto class_map_it = obj_map_it->second.find(query.class_id);
   if (class_map_it == std::end(obj_map_it->second)) {
     AE_TELE_ERROR(DsLoadObjClassIdNotFound,
@@ -131,17 +137,14 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuiery const& query) {
                   static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
-  auto version_it = class_map_it->second.find(query.version);
+  auto version_it = std::find(std::begin(class_map_it->second),
+                              std::end(class_map_it->second), query.version);
   if (version_it == std::end(class_map_it->second)) {
     AE_TELE_ERROR(DsLoadObjVersionNotFound,
                   "Unable to find object id={}, class id={}, version={}",
                   query.id.ToString(), query.class_id,
                   static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
-  }
-
-  if (!version_it->second) {
-    return {DomainLoadResult::kRemoved, {}};
   }
 
   // open file
@@ -164,22 +167,19 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuiery const& query) {
 void SpiFsDomainStorage::Remove(const ae::ObjId& obj_id) {
   auto obj_map_it = object_map_.find(obj_id.id());
   if (obj_map_it == std::end(object_map_)) {
-    AE_TELE_ERROR(DsRemoveObjIdNoFound, "Object {} not found",
-                  obj_id.ToString());
+    object_map_.emplace(obj_id.id(), ClassMap{});
     return;
   }
 
   for (auto& [class_id, class_data] : obj_map_it->second) {
-    for (auto& [version, data_is_present] : class_data) {
-      if (data_is_present) {
-        // remove the file
-        auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id.ToString(),
-                                class_id, static_cast<int>(version));
-        unlink(file_path.c_str());
-      }
-      data_is_present = false;
+    for (auto version : class_data) {
+      // remove the file
+      auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id.ToString(),
+                              class_id, static_cast<int>(version));
+      unlink(file_path.c_str());
     }
   }
+  obj_map_it->second.clear();
   AE_TELE_DEBUG(DsObjRemoved, "Removed object {}", obj_id.ToString());
   SyncState();
 }
@@ -187,13 +187,11 @@ void SpiFsDomainStorage::Remove(const ae::ObjId& obj_id) {
 void SpiFsDomainStorage::CleanUp() {
   for (auto const& [obj_id, obj_map_data] : object_map_) {
     for (auto const& [class_id, class_data] : obj_map_data) {
-      for (auto [version, data_is_present] : class_data) {
-        if (data_is_present) {
-          // remove the file
-          auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id.ToString(),
-                                  class_id, static_cast<int>(version));
-          unlink(file_path.c_str());
-        }
+      for (auto version : class_data) {
+        // remove the file
+        auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id.ToString(),
+                                class_id, static_cast<int>(version));
+        unlink(file_path.c_str());
       }
     }
   }

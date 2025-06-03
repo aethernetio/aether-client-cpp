@@ -22,12 +22,18 @@
 #include "aether/domain_storage/spifs_domain_storage.h"
 #include "aether/domain_storage/static_domain_storage.h"
 #include "aether/domain_storage/file_system_std_storage.h"
+
+#if defined FS_INIT
+#  define STATIC_DOMAIN_STORAGE_ENABLED 1
+#  include FS_INIT
+#endif
+
 // IWYU pragma: end_keeps
 
 namespace ae {
 std::unique_ptr<IDomainStorage> DomainStorageFactory::Create() {
 #if defined STATIC_DOMAIN_STORAGE_ENABLED
-  auto ro_storage = make_unique<StaticDomainStorage>();
+  auto ro_storage = make_unique<StaticDomainStorage>(static_domain_data);
   auto rw_storage = CreateRwStorage();
   return make_unique<SyncDomainStorage>(std::move(ro_storage),
                                         std::move(rw_storage));
