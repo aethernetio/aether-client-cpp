@@ -111,7 +111,7 @@ class FreertosPoller::PollWorker {
     assert(wake_up_pipe_[1] != -1);
 
     xTaskCreate(static_cast<void (*)(void *)>(&vTaskFunction), "Poller loop",
-                8192, static_cast<void *>(this), tskIDLE_PRIORITY,
+                4096, static_cast<void *>(this), tskIDLE_PRIORITY,
                 &myTaskHandle_);
     AE_TELE_DEBUG(PollerWorkerCreate, "Poll worker was created");
   }
