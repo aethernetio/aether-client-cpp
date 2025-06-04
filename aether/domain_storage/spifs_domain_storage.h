@@ -23,6 +23,7 @@
 #  define AE_SPIFS_DOMAIN_STORAGE_ENABLED 1
 
 #  include <map>
+#  include <vector>
 #  include <string_view>
 
 #  include "aether/obj/idomain_storage.h"
@@ -33,8 +34,8 @@ class SpiFsDomainStorage : public IDomainStorage {
   static constexpr std::string_view kBasePath = "/spiffs";
   static constexpr std::string_view kObjectMapPath = "/spiffs/object_map_dump";
 
-  using VersionMap = std::map<std::uint8_t, bool>;
-  using ClassMap = std::map<std::uint32_t, VersionMap>;
+  using VersionList = std::vector<std::uint8_t>;
+  using ClassMap = std::map<std::uint32_t, VersionList>;
   using ObjectMap = std::map<ObjId, ClassMap>;
 
  public:

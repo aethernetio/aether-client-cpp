@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,40 +14,30 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_DOMAIN_STORAGE_RAM_DOMAIN_STORAGE_H_
-#define AETHER_DOMAIN_STORAGE_RAM_DOMAIN_STORAGE_H_
+#ifndef AETHER_DOMAIN_STORAGE_SYNC_DOMAIN_STORAGE_H_
+#define AETHER_DOMAIN_STORAGE_SYNC_DOMAIN_STORAGE_H_
 
-#define AE_FILE_SYSTEM_RAM_ENABLED 1
-
-#include <map>
-#include <cstdint>
-#include <optional>
+#include <memory>
 
 #include "aether/obj/idomain_storage.h"
 
 namespace ae {
-class RamDomainStorage : public IDomainStorage {
+class SyncDomainStorage final : public IDomainStorage {
  public:
-  using Data = ObjectData;
-  using VersionData = std::map<std::uint8_t, Data>;
-  using ClassData = std::map<std::uint32_t, VersionData>;
-  using ObjClassData = std::map<ObjId, std::optional<ClassData>>;
-
-  RamDomainStorage();
-  ~RamDomainStorage() override;
+  SyncDomainStorage(std::unique_ptr<IDomainStorage> read_only,
+                    std::unique_ptr<IDomainStorage> read_write);
 
   std::unique_ptr<IDomainStorageWriter> Store(
       DomainQuiery const& query) override;
-
   ClassList Enumerate(ObjId const& obj_id) override;
   DomainLoad Load(DomainQuiery const& query) override;
   void Remove(ObjId const& obj_id) override;
   void CleanUp() override;
 
-  void SaveData(DomainQuiery const& query, ObjectData&& data);
-
-  ObjClassData state;
-  bool write_lock = false;
+ private:
+  std::unique_ptr<IDomainStorage> read_only_;
+  std::unique_ptr<IDomainStorage> read_write_;
 };
 }  // namespace ae
-#endif  // AETHER_DOMAIN_STORAGE_RAM_DOMAIN_STORAGE_H_ */
+
+#endif  // AETHER_DOMAIN_STORAGE_SYNC_DOMAIN_STORAGE_H_

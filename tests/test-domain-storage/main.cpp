@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_FACTORY_H_
-#define AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_FACTORY_H_
+#include <unity.h>
 
-#include "aether/memory.h"
-#include "aether/obj/idomain_storage.h"
+void setUp() {}
+void tearDown() {}
 
-namespace ae {
-class DomainStorageFactory {
- public:
-  static std::unique_ptr<IDomainStorage> Create();
-  static std::unique_ptr<IDomainStorage> CreateRwStorage();
-};
-}  // namespace ae
+extern int test_ds_synchronization();
 
-#endif  // AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_FACTORY_H_
+int main() {
+  int res = 0;
+  res += test_ds_synchronization();
+  return res;
+}

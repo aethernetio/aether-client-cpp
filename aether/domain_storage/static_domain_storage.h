@@ -17,25 +17,87 @@
 #ifndef AETHER_DOMAIN_STORAGE_STATIC_DOMAIN_STORAGE_H_
 #define AETHER_DOMAIN_STORAGE_STATIC_DOMAIN_STORAGE_H_
 
-#if defined FS_INIT
-#  define STATIC_DOMAIN_STORAGE_ENABLED 1
+#include "aether/obj/idomain_storage.h"
+#include "aether/domain_storage/static_object_types.h"
 
-#  include "aether/obj/idomain_storage.h"
+#include "aether/domain_storage/domain_storage_tele.h"
 
 namespace ae {
+class StaticDomainStorageReader final : public IDomainStorageReader {
+ public:
+  explicit StaticDomainStorageReader(Span<std::uint8_t const> const& d);
+
+  void read(void* out, std::size_t size) override;
+
+  ReadResult result() const override;
+  void result(ReadResult) override;
+
+ private:
+  Span<std::uint8_t const> const* data;
+  std::size_t offset;
+};
+
+template <std::size_t ObjectCount, std::size_t ClassDataCount>
 class StaticDomainStorage final : public IDomainStorage {
  public:
-  StaticDomainStorage();
-  ~StaticDomainStorage() override;
+  constexpr explicit StaticDomainStorage(
+      StaticDomainData<ObjectCount, ClassDataCount> const& sdd)
+      : static_domain_data_{&sdd} {}
 
   std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuiery const& query) override;
-  ClassList Enumerate(ObjId const& obj_id) override;
-  DomainLoad Load(DomainQuiery const& query) override;
-  void Remove(ObjId const& obj_id) override;
-  void CleanUp() override;
+      DomainQuiery const& /*query*/) override {
+    // does not supported
+    return {};
+  }
+
+  ClassList Enumerate(ObjId const& obj_id) override {
+    // object_map is defined in FS_INIT
+    auto const classes = static_domain_data_->object_map.find(obj_id.id());
+    if (classes == std::end(static_domain_data_->object_map)) {
+      AE_TELE_ERROR(DsEnumObjIdNotFound, "Obj not found {}", obj_id.ToString());
+      return {};
+    }
+    AE_TELE_DEBUG(DsEnumerated, "Enumerated for obj {} classes {}",
+                  obj_id.ToString(), classes->second);
+    return ClassList{std::begin(classes->second), std::end(classes->second)};
+  }
+
+  DomainLoad Load(DomainQuiery const& query) override {
+    // state_map is defined in FS_INIT
+    auto obj_path = ObjectPathKey{query.id.id(), query.class_id, query.version};
+    auto const data = static_domain_data_->state_map.find(obj_path);
+    if (data == std::end(static_domain_data_->state_map)) {
+      AE_TELE_ERROR(DsLoadObjIdNoFound,
+                    "Unable to find object id={}, class id={}, version={}",
+                    query.id.ToString(), query.class_id,
+                    static_cast<int>(query.version));
+      return {DomainLoadResult::kEmpty, {}};
+    }
+    AE_TELE_DEBUG(DsObjLoaded,
+                  "Loaded object id={}, class id={}, version={}, size={}",
+                  query.id.ToString(), query.class_id,
+                  static_cast<int>(query.version), data->second.size());
+
+    return DomainLoad{
+        DomainLoadResult::kLoaded,
+        std::make_unique<StaticDomainStorageReader>(data->second)};
+  }
+
+  void Remove(ObjId const& /*obj_id*/) override {
+    // does not supported
+  }
+  void CleanUp() override {
+    // does not supported
+  }
+
+ private:
+  StaticDomainData<ObjectCount, ClassDataCount> const* static_domain_data_;
 };
+
+template <std::size_t ObjectCount, std::size_t ClassDataCount>
+StaticDomainStorage(StaticDomainData<ObjectCount, ClassDataCount> const&)
+    -> StaticDomainStorage<ObjectCount, ClassDataCount>;
+
 }  // namespace ae
 
-#endif
 #endif  // AETHER_DOMAIN_STORAGE_STATIC_DOMAIN_STORAGE_H_

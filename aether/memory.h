@@ -17,12 +17,18 @@
 #ifndef AETHER_MEMORY_H_
 #define AETHER_MEMORY_H_
 
-#include <memory>
+#include <memory>  // IWYU pragma: export
 
 namespace ae {
 using std::make_unique;
 
 template <template <typename...> typename T, typename... TArgs>
+auto make_unique(TArgs&&... args) {
+  using Deduced = decltype(T(std::forward<TArgs>(args)...));
+  return make_unique<Deduced>(std::forward<TArgs>(args)...);
+}
+
+template <template <auto...> typename T, typename... TArgs>
 auto make_unique(TArgs&&... args) {
   using Deduced = decltype(T(std::forward<TArgs>(args)...));
   return make_unique<Deduced>(std::forward<TArgs>(args)...);

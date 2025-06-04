@@ -37,6 +37,18 @@ struct ObjectPathKey {
   std::uint32_t class_id;
   std::uint8_t version;
 };
+
+template <auto ObjectCount, auto ClassDataCount>
+struct StaticDomainData {
+  StaticMap<std::uint32_t, Span<std::uint32_t const>, ObjectCount> object_map;
+  StaticMap<ObjectPathKey, Span<std::uint8_t const>, ClassDataCount> state_map;
+};
+
+template <std::size_t ObjectCount, std::size_t ClassDataCount>
+StaticDomainData(
+    StaticMap<std::uint32_t, Span<std::uint32_t const>, ObjectCount>&& om,
+    StaticMap<ObjectPathKey, Span<std::uint8_t const>, ClassDataCount>&& sm)
+    -> StaticDomainData<ObjectCount, ClassDataCount>;
 }  // namespace ae
 
 #endif  // AETHER_DOMAIN_STORAGE_STATIC_OBJECT_TYPES_H_
