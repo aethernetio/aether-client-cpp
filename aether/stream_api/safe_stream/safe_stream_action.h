@@ -56,6 +56,7 @@ class SafeStreamAction final : public SafeStreamApiImpl,
     RequestId send_req_id;
     RequestId recv_req_id;
     TimePoint sent_init;
+    std::uint16_t repeat_count;
   };
 
   struct SendState {
@@ -99,10 +100,9 @@ class SafeStreamAction final : public SafeStreamApiImpl,
   ReceiveState const &receive_state() const;
 
   // Api impl methods
-  void Init(RequestId req_id, std::uint16_t offset, std::uint16_t window_size,
-            std::uint16_t max_data_size) override;
-  void InitAck(RequestId req_id, std::uint16_t offset,
-               std::uint16_t window_size, std::uint16_t max_data_size) override;
+  void Init(RequestId req_id, std::uint16_t repeat_count,
+            SafeStreamInit safe_stream_init) override;
+  void InitAck(RequestId req_id, SafeStreamInit safe_stream_init) override;
   void Confirm(std::uint16_t offset) override;
   void RequestRepeat(std::uint16_t offset) override;
   void Send(std::uint16_t offset, DataBuffer &&data) override;

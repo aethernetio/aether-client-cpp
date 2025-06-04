@@ -25,6 +25,14 @@
 
 namespace ae {
 
+struct SafeStreamInit {
+  std::uint16_t offset;
+  std::uint16_t window_size;
+  std::uint16_t max_packet_size;
+
+  AE_REFLECT_MEMBERS(offset, window_size, max_packet_size)
+};
+
 using SSRingIndex = RingIndex<std::uint16_t>;
 
 struct OffsetRange {

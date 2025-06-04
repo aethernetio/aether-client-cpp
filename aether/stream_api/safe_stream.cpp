@@ -60,7 +60,7 @@ SafeStream::SafeStream(ActionContext action_context, SafeStreamConfig config)
     : safe_stream_action_{action_context, *this, config},
       safe_stream_api_{protocol_context_, safe_stream_action_},
       packet_send_actions_{action_context},
-      stream_info_{config.max_data_size, false, false, false} {
+      stream_info_{config.max_packet_size, false, false, false} {
   safe_stream_action_.receive_event().Subscribe(
       *this, MethodPtr<&SafeStream::WriteOut>{});
 }

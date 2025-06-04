@@ -56,7 +56,7 @@ SafeStreamAction::SafeStreamAction(ActionContext action_context,
   auto begin_offset = safe_stream_internal::RandomOffset();
 
   // set to 0 until it's changed from set_max_data_size
-  config_.max_data_size = 0;
+  config_.max_packet_size = 0;
 
   send_state_.begin = begin_offset;
   send_state_.last_sent = send_state_.begin;
@@ -96,9 +96,9 @@ void SafeStreamAction::set_max_data_size(std::size_t max_data_size) {
                                            (3 * sizeof(std::uint16_t)) + 1 +
                                            sizeof(std::uint16_t) + 2;
   if (max_data_size < kOverhead) {
-    config_.max_data_size = 0;
+    config_.max_packet_size = 0;
   } else {
-    config_.max_data_size =
+    config_.max_packet_size =
         static_cast<std::uint16_t>(max_data_size - kOverhead);
   }
 }
@@ -131,51 +131,59 @@ TimePoint SafeStreamAction::Update(TimePoint current_time) {
   return new_time;
 }
 
-void SafeStreamAction::Init(RequestId req_id, std::uint16_t offset,
-                            std::uint16_t window_size,
-                            std::uint16_t max_data_size) {
+void SafeStreamAction::Init(RequestId req_id, std::uint16_t repeat_count,
+                            SafeStreamInit safe_stream_init) {
   AE_TELED_DEBUG(
       "Got Init request reqid {} offset {} window_size {} max_data_size {}",
-      req_id, offset, window_size, max_data_size);
+      req_id, safe_stream_init.offset, safe_stream_init.window_size,
+      safe_stream_init.max_packet_size);
   if (init_state_.recv_req_id.id == req_id) {
     AE_TELED_DEBUG("Duplicate Init request");
-    // received init
+    if (init_state_.repeat_count < repeat_count) {
+      init_state_.repeat_count = repeat_count;
+      if (state_ == State::kInitiated) {
+        // make sending init_ack to repeated init request
+        state_ = State::kInitAck;
+      }
+    }
     return;
   }
   // if to big values are suggested
-  if ((config_.window_size < window_size) ||
-      (config_.max_data_size < max_data_size)) {
+  if ((config_.window_size < safe_stream_init.window_size) ||
+      (config_.max_packet_size < safe_stream_init.max_packet_size)) {
     state_ = State::kInitAckReconfigure;
     AE_TELED_DEBUG("InitAck reconfigure state");
   } else {
     state_ = State::kInitAck;
+    config_.window_size = safe_stream_init.window_size;
+    config_.max_packet_size = safe_stream_init.max_packet_size;
     AE_TELED_DEBUG("InitAck state");
   }
-  config_.window_size = std::min(config_.window_size, window_size);
-  config_.max_data_size = std::min(config_.max_data_size, max_data_size);
+
   init_state_.recv_req_id = req_id;
-  MoveToOffset(SSRingIndex{offset});
+  init_state_.repeat_count = repeat_count;
+  MoveToOffset(SSRingIndex{safe_stream_init.offset});
 }
 
 void SafeStreamAction::InitAck([[maybe_unused]] RequestId req_id,
-                               std::uint16_t offset, std::uint16_t window_size,
-                               std::uint16_t max_data_size) {
+                               SafeStreamInit safe_stream_init) {
   AE_TELED_DEBUG(
       "Got InitAck response req_id {} offset {} window_size {} max_data_size "
       "{}",
-      req_id, offset, window_size, max_data_size);
+      req_id, safe_stream_init.offset, safe_stream_init.window_size,
+      safe_stream_init.max_packet_size);
   if (state_ != State::kWaitInitAck) {
     AE_TELED_DEBUG("Already initiated");
     return;
   }
   // req_id must be answer to one of sent init
-  assert(config_.window_size >= window_size);
-  assert(config_.max_data_size >= max_data_size);
+  assert(config_.window_size >= safe_stream_init.window_size);
+  assert(config_.max_packet_size >= safe_stream_init.max_packet_size);
 
-  config_.window_size = window_size;
-  config_.max_data_size = max_data_size;
+  config_.window_size = safe_stream_init.window_size;
+  config_.max_packet_size = safe_stream_init.max_packet_size;
 
-  MoveToOffset(SSRingIndex{offset});
+  MoveToOffset(SSRingIndex{safe_stream_init.offset});
   state_ = State::kInitiated;
 }
 
@@ -283,17 +291,18 @@ TimePoint SafeStreamAction::UpdateSend(TimePoint current_time) {
 }
 
 void SafeStreamAction::SendChunk(TimePoint current_time) {
-  if (config_.max_data_size == 0) {
+  if (config_.max_packet_size == 0) {
     return;
   }
   if (send_state_.begin.Distance(send_state_.last_sent +
-                                 config_.max_data_size) > config_.window_size) {
+                                 config_.max_packet_size) >
+      config_.window_size) {
     AE_TELED_DEBUG("Window size exceeded");
     return;
   }
 
   auto data_chunk = send_state_.send_data_buffer.GetSlice(
-      send_state_.last_sent, config_.max_data_size, send_state_.begin);
+      send_state_.last_sent, config_.max_packet_size, send_state_.begin);
   if (data_chunk.data.empty()) {
     // no data to send
     return;
@@ -329,13 +338,13 @@ void SafeStreamAction::Send(std::uint16_t repeat_count, DataChunk&& data_chunk,
         "Send cumulative Init reqid {} offset {} window size {} max data size "
         "{}",
         init_state_.send_req_id, send_state_.begin, config_.window_size,
-        config_.max_data_size);
+        config_.max_packet_size);
 
     ++init_state_.send_req_id.id;
     init_state_.sent_init = current_time;
-    api_adapter->init(init_state_.send_req_id,
-                      static_cast<std::uint16_t>(send_state_.begin),
-                      config_.window_size, config_.max_data_size);
+    api_adapter->init(init_state_.send_req_id, init_state_.repeat_count++,
+                      {static_cast<std::uint16_t>(send_state_.begin),
+                       config_.window_size, config_.max_packet_size});
     state_ = State::kWaitInitAck;
   }
   if (repeat_count == 0) {
@@ -505,7 +514,7 @@ TimePoint SafeStreamAction::UpdateInit(TimePoint current_time) {
 }
 
 void SafeStreamAction::InitAck() {
-  if (config_.max_data_size == 0) {
+  if (config_.max_packet_size == 0) {
     return;
   }
   SendInitAck(init_state_.recv_req_id);
@@ -518,9 +527,9 @@ void SafeStreamAction::SendInit(TimePoint current_time) {
   init_state_.sent_init = current_time;
   state_ = State::kWaitInitAck;
 
-  api_adapter->init(init_state_.send_req_id,
-                    static_cast<std::uint16_t>(send_state_.begin),
-                    config_.window_size, config_.max_data_size);
+  api_adapter->init(init_state_.send_req_id, init_state_.repeat_count++,
+                    {static_cast<std::uint16_t>(send_state_.begin),
+                     config_.window_size, config_.max_packet_size});
   api_adapter.Flush();
 }
 
@@ -528,11 +537,11 @@ void SafeStreamAction::SendInitAck(RequestId request_id) {
   AE_TELED_DEBUG(
       "Send InitAck request_id {} offset {} window_size {} max_data_size {}",
       request_id, send_state_.begin, config_.window_size,
-      config_.max_data_size);
+      config_.max_packet_size);
   auto api_adapter = safe_api_provider_->safe_stream_api();
   api_adapter->init_ack(request_id,
-                        static_cast<std::uint16_t>(send_state_.begin),
-                        config_.window_size, config_.max_data_size);
+                        {static_cast<std::uint16_t>(send_state_.begin),
+                         config_.window_size, config_.max_packet_size});
   api_adapter.Flush();
 }
 
