@@ -18,7 +18,6 @@
 #define AETHER_EVENTS_EVENT_HANDLER_H_
 
 #include <utility>
-#include <variant>
 #include <functional>
 
 #include "aether/common.h"
@@ -43,8 +42,7 @@ class EventHandler<void(TArgs...)> {
   AE_CLASS_COPY_MOVE(EventHandler);
 
   constexpr void Invoke(TArgs&&... args) const {
-    std::visit([&](auto& callback) { callback(std::forward<TArgs>(args)...); },
-               callback_);
+    callback_(std::forward<TArgs>(args)...);
   }
 
   void set_alive(bool value) { is_alive_ = value; }
@@ -52,8 +50,7 @@ class EventHandler<void(TArgs...)> {
 
  private:
   bool is_alive_;
-  std::variant<Delegate<void(TArgs...)>, std::function<void(TArgs...)>>
-      callback_;
+  std::function<void(TArgs...)> callback_;
 };
 }  // namespace ae
 
