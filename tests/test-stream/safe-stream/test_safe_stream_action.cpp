@@ -49,14 +49,12 @@ class TestSafeStreamApiImpl : public SafeStreamApiImpl {
               api_parser.Parse(safe_stream_api);
             })} {}
 
-  void Init(RequestId req_id, std::uint16_t offset, std::uint16_t window_size,
-            std::uint16_t max_packet_size) override {
-    MakeInit(req_id, offset, window_size, max_packet_size);
+  void Init(RequestId req_id, std::uint16_t repeat_count,
+            SafeStreamInit safe_stream_init) override {
+    MakeInit(req_id, repeat_count, safe_stream_init);
   }
-  void InitAck(RequestId req_id, std::uint16_t offset,
-               std::uint16_t window_size,
-               std::uint16_t max_packet_size) override {
-    MakeInitAck(req_id, offset, window_size, max_packet_size);
+  void InitAck(RequestId req_id, SafeStreamInit safe_stream_init) override {
+    MakeInitAck(req_id, safe_stream_init);
   }
   void Confirm(std::uint16_t offset) override { MakeConfirm(offset); }
   void RequestRepeat(std::uint16_t offset) override {
@@ -70,18 +68,15 @@ class TestSafeStreamApiImpl : public SafeStreamApiImpl {
     MakeRepeat(repeat_count, offset, std::move(data));
   }
 
-  virtual void MakeInit(RequestId req_id, std::uint16_t offset,
-                        std::uint16_t window_size,
-                        std::uint16_t max_packet_size) {
+  virtual void MakeInit(RequestId req_id, std::uint16_t repeat_count,
+                        SafeStreamInit safe_stream_init) {
     auto api = ApiContext{protocol_context, safe_stream_api};
-    api->init(req_id, offset, window_size, max_packet_size);
+    api->init(req_id, repeat_count, safe_stream_init);
     dst_stream->WriteOut(std::move(api));
   }
-  virtual void MakeInitAck(RequestId req_id, std::uint16_t offset,
-                           std::uint16_t window_size,
-                           std::uint16_t max_packet_size) {
+  virtual void MakeInitAck(RequestId req_id, SafeStreamInit safe_stream_init) {
     auto api = ApiContext{protocol_context, safe_stream_api};
-    api->init_ack(req_id, offset, window_size, max_packet_size);
+    api->init_ack(req_id, safe_stream_init);
     dst_stream->WriteOut(std::move(api));
   }
   virtual void MakeConfirm(std::uint16_t offset) {
@@ -156,42 +151,35 @@ class DelayInitImpl : public DelaySendImpl {
  public:
   using DelaySendImpl::DelaySendImpl;
 
-  void Init(RequestId req_id, std::uint16_t offset, std::uint16_t window_size,
-            std::uint16_t max_packet_size) override {
-    init_ = InitT{req_id, offset, window_size, max_packet_size};
+  void Init(RequestId req_id, std::uint16_t repeat_count,
+            SafeStreamInit safe_stream_init) override {
+    init_ = InitT{req_id, repeat_count, safe_stream_init};
   }
 
-  void InitAck(RequestId req_id, std::uint16_t offset,
-               std::uint16_t window_size,
-               std::uint16_t max_packet_size) override {
-    init_ack_ = InitAckT{req_id, offset, window_size, max_packet_size};
+  void InitAck(RequestId req_id, SafeStreamInit safe_stream_init) override {
+    init_ack_ = InitAckT{req_id, safe_stream_init};
   }
 
   void MakeInit() {
     TEST_ASSERT_TRUE(init_.has_value());
-    TestSafeStreamApiImpl::MakeInit(init_->req_id_, init_->offset_,
-                                    init_->window_size_,
-                                    init_->max_packet_size_);
+    TestSafeStreamApiImpl::MakeInit(init_->req_id, init_->repeat_count,
+                                    init_->safe_stream_init);
   }
   void MakeInitAck() {
     TEST_ASSERT_TRUE(init_ack_.has_value());
-    TestSafeStreamApiImpl::MakeInitAck(init_ack_->req_id_, init_ack_->offset_,
-                                       init_ack_->window_size_,
-                                       init_ack_->max_packet_size_);
+    TestSafeStreamApiImpl::MakeInitAck(init_ack_->req_id,
+                                       init_ack_->safe_stream_init);
   }
 
   struct InitT {
-    RequestId req_id_;
-    std::uint16_t offset_;
-    std::uint16_t window_size_;
-    std::uint16_t max_packet_size_;
+    RequestId req_id;
+    std::uint16_t repeat_count;
+    SafeStreamInit safe_stream_init;
   };
 
   struct InitAckT {
-    RequestId req_id_;
-    std::uint16_t offset_;
-    std::uint16_t window_size_;
-    std::uint16_t max_packet_size_;
+    RequestId req_id;
+    SafeStreamInit safe_stream_init;
   };
 
   std::optional<InitT> init_;
@@ -531,9 +519,7 @@ void test_SafeStreamReInitAck() {
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kWaitInitAck,
                     test_ssa_sender.safe_stream_action.state());
   sender_to_sender.TestSafeStreamApiImpl::MakeInitAck(
-      sender_to_sender.init_->req_id_, sender_to_sender.init_->offset_,
-      sender_to_sender.init_->window_size_,
-      sender_to_sender.init_->max_packet_size_);
+      sender_to_sender.init_->req_id, sender_to_sender.init_->safe_stream_init);
 
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kInitiated,
                     test_ssa_sender.safe_stream_action.state());
@@ -544,9 +530,9 @@ void test_SafeStreamReInitAck() {
 
   // repeat InitAck
   sender_to_sender.TestSafeStreamApiImpl::MakeInitAck(
-      sender_to_sender.init_->req_id_ + 1, 0,
-      sender_to_sender.init_->window_size_,
-      sender_to_sender.init_->max_packet_size_);
+      sender_to_sender.init_->req_id + 1,
+      {0, sender_to_sender.init_->safe_stream_init.window_size,
+       sender_to_sender.init_->safe_stream_init.max_packet_size});
 
   // still the same
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kInitiated,
@@ -896,7 +882,7 @@ void test_SafeStreamSendMoreDataThanPacketSize() {
       static_cast<SSRingIndex::type>(
           test_ssa_sender.safe_stream_action.send_state().last_added));
 
-  constexpr auto packet_size = config.max_data_size - 16;
+  constexpr auto packet_size = config.max_packet_size - 16;
 
   for (auto i = 0; i < large_test_data.size() / packet_size; ++i) {
     ap.Update(epoch += kTick);
