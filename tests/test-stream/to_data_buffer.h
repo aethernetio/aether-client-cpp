@@ -20,18 +20,27 @@
 #include <vector>
 #include <cstdint>
 #include <cstddef>
+#include <string_view>
 
 namespace ae {
 
-template <typename TRes, typename T, std::size_t size>
-static auto ToVector(T const (&arr)[size]) {
-  return std::vector<TRes>(reinterpret_cast<TRes const*>(arr),
-                           reinterpret_cast<TRes const*>(arr + size));
+template <typename TRes, typename Iterator>
+static auto ToVector(Iterator begin, Iterator end) {
+  return std::vector<TRes>(begin, end);
 }
 
 template <typename T, std::size_t size>
 static auto ToDataBuffer(T const (&arr)[size]) {
-  return ToVector<std::uint8_t>(arr);
+  return ToVector<std::uint8_t>(std::begin(arr), std::end(arr));
+}
+
+static auto ToDataBuffer(std::string_view str) {
+  return ToVector<std::uint8_t>(std::begin(str), std::end(str));
+}
+
+template <typename Iterator>
+static auto ToDataBuffer(Iterator begin, Iterator end) {
+  return ToVector<std::uint8_t>(begin, end);
 }
 
 }  // namespace ae
