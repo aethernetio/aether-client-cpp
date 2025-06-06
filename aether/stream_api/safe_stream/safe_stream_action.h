@@ -29,8 +29,8 @@
 #include "aether/stream_api/safe_stream/send_data_buffer.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
-#include "aether/stream_api/safe_stream/sending_chunk_list.h"
-#include "aether/stream_api/safe_stream/receiving_chunk_list.h"
+#include "aether/stream_api/safe_stream/safe_stream_send_action.h"
+#include "aether/stream_api/safe_stream/safe_stream_recv_action.h"
 
 namespace ae {
 class SafeStreamApiProvider {
@@ -41,6 +41,8 @@ class SafeStreamApiProvider {
 };
 
 class SafeStreamAction final : public SafeStreamApiImpl,
+                               public ISendDataPush,
+                               public ISendConfirmRepeat,
                                public Action<SafeStreamAction> {
  public:
   enum class State : std::uint8_t {
@@ -53,31 +55,13 @@ class SafeStreamAction final : public SafeStreamApiImpl,
   };
 
   struct InitState {
+    SSRingIndex begin;
     RequestId send_req_id;
     RequestId recv_req_id;
     TimePoint sent_init;
-    std::uint16_t repeat_count;
+    std::uint16_t sent_repeat_count;
+    std::uint16_t recv_repeat_count;
   };
-
-  struct SendState {
-    SSRingIndex begin;       //< begin data offset
-    SSRingIndex last_sent;   //< last offset for last sent data
-    SSRingIndex last_added;  //< last offset for last sent data
-
-    SendDataBuffer send_data_buffer;
-    SendingChunkList sending_chunks;
-  };
-
-  struct ReceiveState {
-    SSRingIndex begin;         //< last data offset confirmed
-    SSRingIndex last_emitted;  //< last data offset emitted
-    ReceiveChunkList chunks;
-
-    std::optional<TimePoint> sent_confirm;
-    std::optional<TimePoint> repeat_request;
-  };
-
-  using ReceiveEvent = Event<void(DataBuffer &&data)>;
 
   SafeStreamAction(ActionContext action_context,
                    SafeStreamApiProvider &safe_api_provider,
@@ -90,14 +74,12 @@ class SafeStreamAction final : public SafeStreamApiImpl,
   // send data through safe stream
   ActionView<SendingDataAction> SendData(DataBuffer &&data);
   // receive data from safe stream
-  ReceiveEvent::Subscriber receive_event();
+  SafeStreamRecvAction::ReceiveEvent::Subscriber receive_event();
 
   void set_max_data_size(std::size_t max_data_size);
 
   State state() const;
   InitState const &init_state() const;
-  SendState const &send_state() const;
-  ReceiveState const &receive_state() const;
 
   // Api impl methods
   void Init(RequestId req_id, std::uint16_t repeat_count,
@@ -109,39 +91,27 @@ class SafeStreamAction final : public SafeStreamApiImpl,
   void Repeat(std::uint16_t repeat_count, std::uint16_t offset,
               DataBuffer &&data) override;
 
+  // Implement ISendDataPush
+  ActionView<StreamWriteAction> PushData(DataChunk &&data_chunk,
+                                         std::uint16_t repeat_count) override;
+
+  // Implement ISendConfirmRepeat
+  void SendConfirm(SSRingIndex offset) override;
+  void SendRepeatRequest(SSRingIndex offset) override;
+
  private:
-  TimePoint UpdateSend(TimePoint current_time);
-
-  void SendChunk(TimePoint current_time);
-  void Send(std::uint16_t repeat_count, DataChunk &&data_chunk,
-            TimePoint current_time);
-  void RejectSend(SendingChunk &sending_chunk);
-  TimePoint SendTimeouts(TimePoint current_time);
-
-  TimePoint UpdateRecv(TimePoint current_time);
-  void ChecklCompletedChains();
-  TimePoint CheckConfirmations(TimePoint current_time);
-  TimePoint CheckMissing(TimePoint current_time);
-  void SendConfirmation(SSRingIndex offset);
-  void SendRequestRepeat(SSRingIndex offset);
-
-  TimePoint UpdateInit(TimePoint current_time);
   void SendInit(TimePoint current_time);
   void InitAck();
   void SendInitAck(RequestId request_id);
 
-  void MoveToOffset(SSRingIndex begin_offset);
-
   SafeStreamApiProvider *safe_api_provider_;
   SafeStreamConfig config_;
-  InitState init_state_;
-  SendState send_state_;
-  ReceiveState receive_state_;
-  State state_;
 
-  ReceiveEvent receive_event_;
-  MultiSubscription sending_data_subs_;
-  MultiSubscription send_subs_;
+  SafeStreamSendAction send_action_;
+  SafeStreamRecvAction recv_acion_;
+
+  InitState init_state_;
+  State state_;
 };
 }  // namespace ae
 

@@ -48,445 +48,56 @@ SafeStreamAction::SafeStreamAction(ActionContext action_context,
     : Action{action_context},
       safe_api_provider_{&safe_api_provider},
       config_{config},
+      send_action_{action_context, *this},
+      recv_acion_{action_context, *this},
       init_state_{},
-      send_state_{SSRingIndex{}, SSRingIndex{}, SSRingIndex{},
-                  SendDataBuffer{action_context}, SendingChunkList{}},
-      receive_state_{SSRingIndex{}, SSRingIndex{}, {}, {}, {}},
       state_{State::kInit} {
-  auto begin_offset = safe_stream_internal::RandomOffset();
-
   // set to 0 until it's changed from set_max_data_size
   config_.max_packet_size = 0;
-
-  send_state_.begin = begin_offset;
-  send_state_.last_sent = send_state_.begin;
-  send_state_.last_added = send_state_.begin;
-
-  receive_state_.begin = begin_offset;
-  receive_state_.last_emitted = receive_state_.begin;
-  receive_state_.begin = receive_state_.begin;
-
+  // get the init offset and request id
+  init_state_.begin = safe_stream_internal::RandomOffset();
   init_state_.send_req_id = safe_stream_internal::RandomReqId();
+
+  send_action_.SetConfig(config_.max_repeat_count, config_.max_packet_size,
+                         config_.window_size, config_.wait_confirm_timeout);
+  send_action_.SetOffset(init_state_.begin);
+  recv_acion_.SetConfig(config_.window_size, config_.send_confirm_timeout,
+                        config_.send_repeat_timeout);
+  recv_acion_.SetOffset(init_state_.begin);
 }
 
 ActionView<SendingDataAction> SafeStreamAction::SendData(DataBuffer&& data) {
-  auto data_size = data.size();
-  auto sending_data = SendingData{send_state_.last_added, std::move(data)};
-  send_state_.last_added += static_cast<SSRingIndex::type>(data_size);
-
-  auto send_action =
-      send_state_.send_data_buffer.AddData(std::move(sending_data));
-  sending_data_subs_.Push(
-      send_action->stop_event().Subscribe([this](auto const& sending_data) {
-        auto removed_size = send_state_.send_data_buffer.Stop(
-            sending_data.offset, send_state_.begin);
-        send_state_.last_added -= static_cast<SSRingIndex::type>(removed_size);
-      }));
-  return send_action;
+  return send_action_.SendData(std::move(data));
 }
 
-SafeStreamAction::ReceiveEvent::Subscriber SafeStreamAction::receive_event() {
-  return EventSubscriber{receive_event_};
+SafeStreamRecvAction::ReceiveEvent::Subscriber
+SafeStreamAction::receive_event() {
+  return recv_acion_.receive_event();
 }
 
 void SafeStreamAction::set_max_data_size(std::size_t max_data_size) {
   // max overhead for init message + repeat send
   // TODO: make it calculated by method signatures
-  static constexpr std::size_t kOverhead = 1 + sizeof(RequestId) +
-                                           (3 * sizeof(std::uint16_t)) + 1 +
-                                           sizeof(std::uint16_t) + 2;
+  static constexpr std::size_t kOverhead =
+      1 + sizeof(RequestId) + sizeof(std::uint16_t) +
+      (3 * sizeof(std::uint16_t)) + 1 + sizeof(std::uint16_t) + 2;
   if (max_data_size < kOverhead) {
     config_.max_packet_size = 0;
   } else {
     config_.max_packet_size =
         static_cast<std::uint16_t>(max_data_size - kOverhead);
   }
+
+  send_action_.SetConfig(config_.max_repeat_count, config_.max_packet_size,
+                         config_.window_size, config_.wait_confirm_timeout);
 }
 
 SafeStreamAction::State SafeStreamAction::state() const { return state_; }
 SafeStreamAction::InitState const& SafeStreamAction::init_state() const {
   return init_state_;
 }
-SafeStreamAction::SendState const& SafeStreamAction::send_state() const {
-  return send_state_;
-}
-SafeStreamAction::ReceiveState const& SafeStreamAction::receive_state() const {
-  return receive_state_;
-}
 
 TimePoint SafeStreamAction::Update(TimePoint current_time) {
-  auto init_time = UpdateInit(current_time);
-  auto send_time = UpdateSend(current_time);
-  auto recv_time = UpdateRecv(current_time);
-
-  auto new_time = current_time;
-  for (auto const& t : {init_time, send_time, recv_time}) {
-    if ((new_time == current_time) && (new_time != t)) {
-      new_time = t;
-    }
-    if (t != current_time) {
-      new_time = std::min(new_time, t);
-    }
-  }
-  return new_time;
-}
-
-void SafeStreamAction::Init(RequestId req_id, std::uint16_t repeat_count,
-                            SafeStreamInit safe_stream_init) {
-  AE_TELED_DEBUG(
-      "Got Init request reqid {} offset {} window_size {} max_data_size {}",
-      req_id, safe_stream_init.offset, safe_stream_init.window_size,
-      safe_stream_init.max_packet_size);
-  if (init_state_.recv_req_id.id == req_id) {
-    AE_TELED_DEBUG("Duplicate Init request");
-    if (init_state_.repeat_count < repeat_count) {
-      init_state_.repeat_count = repeat_count;
-      if (state_ == State::kInitiated) {
-        // make sending init_ack to repeated init request
-        state_ = State::kInitAck;
-      }
-    }
-    return;
-  }
-  // if to big values are suggested
-  if ((config_.window_size < safe_stream_init.window_size) ||
-      (config_.max_packet_size < safe_stream_init.max_packet_size)) {
-    state_ = State::kInitAckReconfigure;
-    AE_TELED_DEBUG("InitAck reconfigure state");
-  } else {
-    state_ = State::kInitAck;
-    config_.window_size = safe_stream_init.window_size;
-    config_.max_packet_size = safe_stream_init.max_packet_size;
-    AE_TELED_DEBUG("InitAck state");
-  }
-
-  init_state_.recv_req_id = req_id;
-  init_state_.repeat_count = repeat_count;
-  MoveToOffset(SSRingIndex{safe_stream_init.offset});
-}
-
-void SafeStreamAction::InitAck([[maybe_unused]] RequestId req_id,
-                               SafeStreamInit safe_stream_init) {
-  AE_TELED_DEBUG(
-      "Got InitAck response req_id {} offset {} window_size {} max_data_size "
-      "{}",
-      req_id, safe_stream_init.offset, safe_stream_init.window_size,
-      safe_stream_init.max_packet_size);
-  if (state_ != State::kWaitInitAck) {
-    AE_TELED_DEBUG("Already initiated");
-    return;
-  }
-  // req_id must be answer to one of sent init
-  assert(config_.window_size >= safe_stream_init.window_size);
-  assert(config_.max_packet_size >= safe_stream_init.max_packet_size);
-
-  config_.window_size = safe_stream_init.window_size;
-  config_.max_packet_size = safe_stream_init.max_packet_size;
-
-  MoveToOffset(SSRingIndex{safe_stream_init.offset});
-  state_ = State::kInitiated;
-}
-
-void SafeStreamAction::Confirm(std::uint16_t offset) {
-  AE_TELED_DEBUG("Receive confirmed offset {}", offset);
-
-  auto confirm_offset = SSRingIndex{offset};
-  if (send_state_.begin.Distance(confirm_offset) < config_.window_size) {
-    if (state_ == State::kWaitInitAck) {
-      AE_TELED_DEBUG("Got confirm in init state");
-      state_ = State::kInitiated;
-    }
-    send_state_.sending_chunks.RemoveUpTo(confirm_offset, send_state_.begin);
-    auto confirm_size =
-        send_state_.send_data_buffer.Confirm(confirm_offset, send_state_.begin);
-    send_state_.begin += static_cast<SSRingIndex::type>(confirm_size);
-  }
-  Action::Trigger();
-}
-
-void SafeStreamAction::RequestRepeat(std::uint16_t offset) {
-  auto request_offset = SSRingIndex{offset};
-  if (send_state_.last_sent(send_state_.begin) < request_offset) {
-    AE_TELED_DEBUG("Request repeat send for not sent offset {}",
-                   request_offset);
-  }
-  send_state_.last_sent = request_offset;
-  Action::Trigger();
-}
-
-void SafeStreamAction::Send(std::uint16_t offset, DataBuffer&& data) {
-  if (state_ == State::kInit) {
-    AE_TELED_WARNING("Received data in non initiated state");
-    state_ = State::kReInit;
-    Action::Trigger();
-    return;
-  }
-  if ((state_ == State::kInitAckReconfigure) ||
-      (state_ == State::kWaitInitAck)) {
-    AE_TELED_WARNING("State is init reconfigure or wait init");
-    return;
-  }
-  AE_TELED_DEBUG("Data received offset {}, size {}", offset, data.size());
-
-  auto received_offset = SSRingIndex{offset};
-  if (receive_state_.begin.Distance(received_offset) > config_.window_size) {
-    AE_TELED_DEBUG("Received old chunk");
-    return;
-  }
-
-  receive_state_.chunks.AddChunk(
-      ReceivingChunk{received_offset, std::move(data), 0},
-      receive_state_.last_emitted, receive_state_.begin);
-  if (!receive_state_.sent_confirm) {
-    receive_state_.sent_confirm = Now();
-  }
-  if (!receive_state_.repeat_request) {
-    receive_state_.repeat_request = Now();
-  }
-  Action::Trigger();
-}
-
-void SafeStreamAction::Repeat(std::uint16_t repeat_count, std::uint16_t offset,
-                              DataBuffer&& data) {
-  if (state_ == State::kInit) {
-    AE_TELED_WARNING("Received data in non initiated state");
-    state_ = State::kReInit;
-    Action::Trigger();
-    return;
-  }
-  if ((state_ == State::kInitAckReconfigure) ||
-      (state_ == State::kWaitInitAck)) {
-    AE_TELED_WARNING("State is init reconfigure or wait init");
-    return;
-  }
-  auto data_size = data.size();
-  auto received_offset = SSRingIndex{offset};
-  AE_TELED_DEBUG("Repeat data received offset: {}, repeat {}, size {}",
-                 received_offset, repeat_count, data_size);
-  if (receive_state_.begin.Distance(received_offset) > config_.window_size) {
-    AE_TELED_DEBUG("Received repeat for old chunk");
-    return;
-  }
-  auto const res = receive_state_.chunks.AddChunk(
-      ReceivingChunk{SSRingIndex{offset}, std::move(data), repeat_count},
-      receive_state_.last_emitted, receive_state_.begin);
-  if (!res || (res->repeat_count != repeat_count)) {
-    // confirmed offset
-    SendConfirmation(
-        SSRingIndex{static_cast<SSRingIndex::type>(offset + data_size - 1)});
-    return;
-  }
-  if (!receive_state_.sent_confirm) {
-    receive_state_.sent_confirm = Now();
-  }
-  if (!receive_state_.repeat_request) {
-    receive_state_.repeat_request = Now();
-  }
-  Action::Trigger();
-}
-
-TimePoint SafeStreamAction::UpdateSend(TimePoint current_time) {
-  SendChunk(current_time);
-  return SendTimeouts(current_time);
-}
-
-void SafeStreamAction::SendChunk(TimePoint current_time) {
-  if (config_.max_packet_size == 0) {
-    return;
-  }
-  if (send_state_.begin.Distance(send_state_.last_sent +
-                                 config_.max_packet_size) >
-      config_.window_size) {
-    AE_TELED_DEBUG("Window size exceeded");
-    return;
-  }
-
-  auto data_chunk = send_state_.send_data_buffer.GetSlice(
-      send_state_.last_sent, config_.max_packet_size, send_state_.begin);
-  if (data_chunk.data.empty()) {
-    // no data to send
-    return;
-  }
-
-  send_state_.last_sent = data_chunk.offset + static_cast<SSRingIndex::type>(
-                                                  data_chunk.data.size());
-
-  auto& send_chunk = send_state_.sending_chunks.Register(
-      data_chunk.offset,
-      data_chunk.offset +
-          static_cast<SSRingIndex::type>(data_chunk.data.size() - 1),
-      current_time, send_state_.begin);
-
-  auto repeat_count = send_chunk.repeat_count;
-  send_chunk.repeat_count++;
-  if (send_chunk.repeat_count > config_.max_repeat_count) {
-    AE_TELED_ERROR("Repeat count exceeded");
-    RejectSend(send_chunk);
-    return;
-  }
-
-  Send(repeat_count, std::move(data_chunk), current_time);
-}
-
-void SafeStreamAction::Send(std::uint16_t repeat_count, DataChunk&& data_chunk,
-                            TimePoint current_time) {
-  auto end_offset = data_chunk.offset +
-                    static_cast<SSRingIndex::type>(data_chunk.data.size());
-  auto api_adapter = safe_api_provider_->safe_stream_api();
-  if (state_ == State::kInit) {
-    AE_TELED_DEBUG(
-        "Send cumulative Init reqid {} offset {} window size {} max data size "
-        "{}",
-        init_state_.send_req_id, send_state_.begin, config_.window_size,
-        config_.max_packet_size);
-
-    ++init_state_.send_req_id.id;
-    init_state_.sent_init = current_time;
-    api_adapter->init(init_state_.send_req_id, init_state_.repeat_count++,
-                      {static_cast<std::uint16_t>(send_state_.begin),
-                       config_.window_size, config_.max_packet_size});
-    state_ = State::kWaitInitAck;
-  }
-  if (repeat_count == 0) {
-    AE_TELED_DEBUG("Send first chunk offset {} size {}", data_chunk.offset,
-                   data_chunk.data.size());
-    api_adapter->send(static_cast<std::uint16_t>(data_chunk.offset),
-                      std::move(std::move(data_chunk).data));
-  } else {
-    AE_TELED_DEBUG("Send repeat count {} offset {} size {}", repeat_count,
-                   data_chunk.offset, data_chunk.data);
-    api_adapter->repeat(repeat_count,
-                        static_cast<std::uint16_t>(data_chunk.offset),
-                        std::move(std::move(data_chunk).data));
-  }
-
-  auto write_action = api_adapter.Flush();
-
-  send_subs_.Push(
-      write_action->ErrorEvent().Subscribe([this, end_offset](auto const&) {
-        send_state_.sending_chunks.RemoveUpTo(end_offset, send_state_.begin);
-        send_state_.send_data_buffer.Reject(end_offset, send_state_.begin);
-      }),
-      write_action->StopEvent().Subscribe([this, end_offset](auto const&) {
-        send_state_.sending_chunks.RemoveUpTo(end_offset, send_state_.begin);
-        send_state_.send_data_buffer.Stop(end_offset, send_state_.begin);
-      }));
-}
-
-void SafeStreamAction::RejectSend(SendingChunk& sending_chunk) {
-  send_state_.send_data_buffer.Reject(sending_chunk.end_offset,
-                                      send_state_.begin);
-  send_state_.sending_chunks.RemoveUpTo(sending_chunk.end_offset,
-                                        send_state_.begin);
-}
-
-TimePoint SafeStreamAction::SendTimeouts(TimePoint current_time) {
-  if (send_state_.sending_chunks.empty()) {
-    return current_time;
-  }
-
-  auto const& selected_sch = send_state_.sending_chunks.front();
-  // wait timeout is depends on repeat_count
-  auto d_wait_confirm_timeout =
-      static_cast<double>(config_.wait_confirm_timeout.count());
-  auto increase_factor = std::max(
-      1.0, (AE_SAFE_STREAM_RTO_GROW_FACTOR * (selected_sch.repeat_count - 1)));
-  auto wait_timeout = Duration{
-      static_cast<Duration::rep>(d_wait_confirm_timeout * increase_factor)};
-
-  if ((selected_sch.send_time + wait_timeout) < current_time) {
-    // timeout
-    AE_TELED_DEBUG("Wait confirm timeout {:%S}, repeat offset {}", wait_timeout,
-                   selected_sch.begin_offset);
-    // move offset to repeat send
-    send_state_.last_sent = selected_sch.begin_offset;
-    Action::Trigger();
-    return current_time;
-  }
-
-  return selected_sch.send_time + wait_timeout;
-}
-
-TimePoint SafeStreamAction::UpdateRecv(TimePoint current_time) {
-  ChecklCompletedChains();
-  auto new_time = current_time;
-  for (auto const& t :
-       {CheckConfirmations(current_time), CheckMissing(current_time)}) {
-    if ((new_time == current_time) && (new_time != t)) {
-      new_time = t;
-    }
-    if (t != current_time) {
-      new_time = std::min(new_time, t);
-    }
-  }
-  return new_time;
-}
-
-void SafeStreamAction::ChecklCompletedChains() {
-  auto joined_chunk =
-      receive_state_.chunks.PopChunks(receive_state_.last_emitted);
-  if (joined_chunk) {
-    receive_state_.last_emitted +=
-        static_cast<SSRingIndex::type>(joined_chunk->data.size());
-
-    receive_event_.Emit(std::move(joined_chunk->data));
-  }
-}
-
-TimePoint SafeStreamAction::CheckConfirmations(TimePoint current_time) {
-  if (!receive_state_.sent_confirm) {
-    return current_time;
-  }
-  if ((*receive_state_.sent_confirm + config_.send_confirm_timeout) >
-      current_time) {
-    return (*receive_state_.sent_confirm + config_.send_confirm_timeout);
-  }
-
-  if (receive_state_.last_emitted(receive_state_.begin) !=
-      receive_state_.begin) {
-    // confirm range [last_confirmed_offset_, last_emitted_offset_)
-    SendConfirmation(receive_state_.last_emitted - 1);
-    receive_state_.begin = receive_state_.last_emitted;
-    receive_state_.sent_confirm = current_time;
-  }
-  return current_time;
-}
-
-TimePoint SafeStreamAction::CheckMissing(TimePoint current_time) {
-  if (!receive_state_.repeat_request) {
-    return current_time;
-  }
-  if ((*receive_state_.repeat_request + config_.send_repeat_timeout) >
-      current_time) {
-    return *receive_state_.repeat_request + config_.send_repeat_timeout;
-  }
-
-  auto missed =
-      receive_state_.chunks.FindMissedChunks(receive_state_.last_emitted);
-
-  for (auto& m : missed) {
-    ++m.chunk->repeat_count;
-    // TODO: add check repeat count
-    AE_TELED_DEBUG("Request to repeat offset: {}", m.expected_offset);
-    SendRequestRepeat(m.expected_offset);
-  }
-  receive_state_.repeat_request = current_time;
-  return current_time;
-}
-
-void SafeStreamAction::SendConfirmation(SSRingIndex offset) {
-  auto api_adapter = safe_api_provider_->safe_stream_api();
-  api_adapter->confirm(static_cast<std::uint16_t>(offset));
-  api_adapter.Flush();
-}
-
-void SafeStreamAction::SendRequestRepeat(SSRingIndex offset) {
-  auto api_adapter = safe_api_provider_->safe_stream_api();
-  api_adapter->request_repeat(static_cast<std::uint16_t>(offset));
-  api_adapter.Flush();
-}
-
-TimePoint SafeStreamAction::UpdateInit(TimePoint current_time) {
   switch (state_) {
     case State::kInit:
     case State::kInitiated:
@@ -513,6 +124,183 @@ TimePoint SafeStreamAction::UpdateInit(TimePoint current_time) {
   return current_time;
 }
 
+void SafeStreamAction::Init(RequestId req_id, std::uint16_t repeat_count,
+                            SafeStreamInit safe_stream_init) {
+  AE_TELED_DEBUG(
+      "Got Init request reqid {} offset {} window_size {} max_data_size {}",
+      req_id, safe_stream_init.offset, safe_stream_init.window_size,
+      safe_stream_init.max_packet_size);
+
+  if (init_state_.recv_req_id == req_id) {
+    AE_TELED_DEBUG("Duplicate Init request");
+    if (init_state_.recv_repeat_count < repeat_count) {
+      init_state_.recv_repeat_count = repeat_count;
+      if (state_ == State::kInitiated) {
+        // make sending init_ack to repeated init request
+        state_ = State::kInitAck;
+      }
+    }
+    return;
+  }
+
+  // if to big values are suggested
+  if ((config_.window_size < safe_stream_init.window_size) ||
+      (config_.max_packet_size < safe_stream_init.max_packet_size)) {
+    state_ = State::kInitAckReconfigure;
+    AE_TELED_DEBUG("InitAck reconfigure state");
+  } else {
+    state_ = State::kInitAck;
+    config_.window_size = safe_stream_init.window_size;
+    config_.max_packet_size = safe_stream_init.max_packet_size;
+    AE_TELED_DEBUG("InitAck state");
+  }
+
+  init_state_.recv_req_id = req_id;
+  init_state_.begin = SSRingIndex{safe_stream_init.offset};
+  init_state_.recv_repeat_count = repeat_count;
+
+  send_action_.SetConfig(config_.max_repeat_count, config_.max_packet_size,
+                         config_.window_size, config_.wait_confirm_timeout);
+  send_action_.SetOffset(init_state_.begin);
+
+  recv_acion_.SetConfig(config_.window_size, config_.send_confirm_timeout,
+                        config_.send_repeat_timeout);
+  recv_acion_.SetOffset(init_state_.begin);
+}
+
+void SafeStreamAction::InitAck([[maybe_unused]] RequestId req_id,
+                               SafeStreamInit safe_stream_init) {
+  AE_TELED_DEBUG(
+      "Got InitAck response req_id {} offset {} window_size {} max_data_size "
+      "{}",
+      req_id, safe_stream_init.offset, safe_stream_init.window_size,
+      safe_stream_init.max_packet_size);
+  if (state_ != State::kWaitInitAck) {
+    AE_TELED_DEBUG("Already initiated");
+    return;
+  }
+  // req_id must be answer to one of sent init
+
+  assert(config_.window_size >= safe_stream_init.window_size);
+  assert(config_.max_packet_size >= safe_stream_init.max_packet_size);
+
+  if ((config_.window_size != safe_stream_init.window_size) ||
+      config_.max_packet_size != safe_stream_init.max_packet_size) {
+    // reconfigure
+    config_.window_size = safe_stream_init.window_size;
+    config_.max_packet_size = safe_stream_init.max_packet_size;
+
+    send_action_.SetConfig(config_.max_repeat_count, config_.max_packet_size,
+                           config_.window_size, config_.wait_confirm_timeout);
+
+    recv_acion_.SetConfig(config_.window_size, config_.send_confirm_timeout,
+                          config_.send_repeat_timeout);
+  }
+
+  state_ = State::kInitiated;
+}
+
+void SafeStreamAction::Confirm(std::uint16_t offset) {
+  AE_TELED_DEBUG("Receive confirmed offset {}", offset);
+
+  auto confirm_offset = SSRingIndex{offset};
+  if (!send_action_.Confirm(confirm_offset)) {
+    return;
+  }
+
+  if (state_ == State::kWaitInitAck) {
+    AE_TELED_DEBUG("Got confirm in init state");
+    state_ = State::kInitiated;
+    Action::Trigger();
+  }
+}
+
+void SafeStreamAction::RequestRepeat(std::uint16_t offset) {
+  auto request_offset = SSRingIndex{offset};
+  send_action_.RequestRepeat(request_offset);
+}
+
+void SafeStreamAction::Send(std::uint16_t offset, DataBuffer&& data) {
+  if (state_ == State::kInit) {
+    AE_TELED_WARNING("Received data in non initiated state");
+    state_ = State::kReInit;
+    Action::Trigger();
+    return;
+  }
+  if ((state_ == State::kInitAckReconfigure) ||
+      (state_ == State::kWaitInitAck)) {
+    AE_TELED_WARNING("State is init reconfigure or wait init");
+    return;
+  }
+  AE_TELED_DEBUG("Data received offset {}, size {}", offset, data.size());
+
+  auto received_offset = SSRingIndex{offset};
+  recv_acion_.PushData(std::move(data), received_offset, 0);
+}
+
+void SafeStreamAction::Repeat(std::uint16_t repeat_count, std::uint16_t offset,
+                              DataBuffer&& data) {
+  if (state_ == State::kInit) {
+    AE_TELED_WARNING("Received data in non initiated state");
+    state_ = State::kReInit;
+    Action::Trigger();
+    return;
+  }
+  if ((state_ == State::kInitAckReconfigure) ||
+      (state_ == State::kWaitInitAck)) {
+    AE_TELED_WARNING("State is init reconfigure or wait init");
+    return;
+  }
+
+  auto received_offset = SSRingIndex{offset};
+  recv_acion_.PushData(std::move(data), received_offset, repeat_count);
+}
+
+ActionView<StreamWriteAction> SafeStreamAction::PushData(
+    DataChunk&& data_chunk, std::uint16_t repeat_count) {
+  auto api_adapter = safe_api_provider_->safe_stream_api();
+  if (state_ == State::kInit) {
+    AE_TELED_DEBUG(
+        "Send cumulative Init reqid {} offset {} window size {} max data size "
+        "{}",
+        init_state_.send_req_id, init_state_.begin, config_.window_size,
+        config_.max_packet_size);
+
+    ++init_state_.send_req_id.id;
+    init_state_.sent_init = Now();
+    api_adapter->init(init_state_.send_req_id, init_state_.sent_repeat_count++,
+                      {static_cast<std::uint16_t>(init_state_.begin),
+                       config_.window_size, config_.max_packet_size});
+    state_ = State::kWaitInitAck;
+  }
+  if (repeat_count == 0) {
+    AE_TELED_DEBUG("Send first chunk offset {} size {}", data_chunk.offset,
+                   data_chunk.data.size());
+    api_adapter->send(static_cast<std::uint16_t>(data_chunk.offset),
+                      std::move(std::move(data_chunk).data));
+  } else {
+    AE_TELED_DEBUG("Send repeat count {} offset {} size {}", repeat_count,
+                   data_chunk.offset, data_chunk.data);
+    api_adapter->repeat(repeat_count,
+                        static_cast<std::uint16_t>(data_chunk.offset),
+                        std::move(std::move(data_chunk).data));
+  }
+
+  return api_adapter.Flush();
+}
+
+void SafeStreamAction::SendConfirm(SSRingIndex offset) {
+  auto api_adapter = safe_api_provider_->safe_stream_api();
+  api_adapter->confirm(static_cast<std::uint16_t>(offset));
+  api_adapter.Flush();
+}
+
+void SafeStreamAction::SendRepeatRequest(SSRingIndex offset) {
+  auto api_adapter = safe_api_provider_->safe_stream_api();
+  api_adapter->request_repeat(static_cast<std::uint16_t>(offset));
+  api_adapter.Flush();
+}
+
 void SafeStreamAction::InitAck() {
   if (config_.max_packet_size == 0) {
     return;
@@ -527,8 +315,8 @@ void SafeStreamAction::SendInit(TimePoint current_time) {
   init_state_.sent_init = current_time;
   state_ = State::kWaitInitAck;
 
-  api_adapter->init(init_state_.send_req_id, init_state_.repeat_count++,
-                    {static_cast<std::uint16_t>(send_state_.begin),
+  api_adapter->init(init_state_.send_req_id, init_state_.sent_repeat_count++,
+                    {static_cast<std::uint16_t>(init_state_.begin),
                      config_.window_size, config_.max_packet_size});
   api_adapter.Flush();
 }
@@ -536,26 +324,12 @@ void SafeStreamAction::SendInit(TimePoint current_time) {
 void SafeStreamAction::SendInitAck(RequestId request_id) {
   AE_TELED_DEBUG(
       "Send InitAck request_id {} offset {} window_size {} max_data_size {}",
-      request_id, send_state_.begin, config_.window_size,
+      request_id, init_state_.begin, config_.window_size,
       config_.max_packet_size);
   auto api_adapter = safe_api_provider_->safe_stream_api();
   api_adapter->init_ack(request_id,
-                        {static_cast<std::uint16_t>(send_state_.begin),
+                        {static_cast<std::uint16_t>(init_state_.begin),
                          config_.window_size, config_.max_packet_size});
   api_adapter.Flush();
 }
-
-void SafeStreamAction::MoveToOffset(SSRingIndex begin_offset) {
-  auto send_distance = send_state_.begin.Distance(begin_offset);
-  send_state_.begin = begin_offset;
-  send_state_.last_added += send_distance;
-  send_state_.last_sent += send_distance;
-  send_state_.send_data_buffer.MoveOffset(send_distance);
-  send_state_.sending_chunks.MoveOffset(send_distance);
-
-  receive_state_.begin = begin_offset;
-  receive_state_.last_emitted = begin_offset;
-  receive_state_.chunks.Clear();
-}
-
 }  // namespace ae

@@ -142,8 +142,9 @@ list(APPEND stream_api_src
             "stream_api/safe_stream/sending_chunk_list.cpp"
             "stream_api/safe_stream/receiving_chunk_list.cpp"
             "stream_api/safe_stream/safe_stream_action.cpp"
+            "stream_api/safe_stream/safe_stream_send_action.cpp"
+            "stream_api/safe_stream/safe_stream_recv_action.cpp"
 )
-
 
 list(APPEND api_protocol_srcs
             "api_protocol/protocol_context.cpp"
