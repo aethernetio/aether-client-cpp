@@ -23,17 +23,15 @@
 #include "aether/api_protocol/api_method.h"
 #include "aether/api_protocol/api_class_impl.h"
 #include "aether/api_protocol/return_result_api.h"
+#include "aether/stream_api/safe_stream/safe_stream_types.h"
 
 namespace ae {
 class SafeStreamApiImpl {
  public:
   virtual ~SafeStreamApiImpl() = default;
-  virtual void Init(RequestId req_id, std::uint16_t offset,
-                    std::uint16_t window_size,
-                    std::uint16_t max_packet_size) = 0;
-  virtual void InitAck(RequestId req_id, std::uint16_t offset,
-                       std::uint16_t window_size,
-                       std::uint16_t max_packet_size) = 0;
+  virtual void Init(RequestId req_id, std::uint16_t repeat_count,
+                    SafeStreamInit safe_stream_init) = 0;
+  virtual void InitAck(RequestId req_id, SafeStreamInit safe_stream_init) = 0;
   virtual void Confirm(std::uint16_t offset) = 0;
   virtual void RequestRepeat(std::uint16_t offset) = 0;
   virtual void Send(std::uint16_t offset, DataBuffer&& data) = 0;
@@ -47,12 +45,10 @@ class SafeStreamApi : public ReturnResultApiImpl,
   explicit SafeStreamApi(ProtocolContext& protocol_context,
                          SafeStreamApiImpl& safe_stream_api_impl);
 
-  Method<3, void(RequestId req_id, std::uint16_t offset,
-                 std::uint16_t window_size, std::uint16_t max_packet_size)>
+  Method<3, void(RequestId req_id, std::uint16_t repeat_count,
+                 SafeStreamInit safe_stream_init)>
       init;
-  Method<4, void(RequestId req_id, std::uint16_t offset,
-                 std::uint16_t window_size, std::uint16_t max_packet_size)>
-      init_ack;
+  Method<4, void(RequestId req_id, SafeStreamInit safe_stream_init)> init_ack;
   Method<5, void(std::uint16_t offset)> confirm;
   Method<6, void(std::uint16_t offset)> request_repeat;
   Method<7, void(std::uint16_t offset, DataBuffer data)> send;
@@ -60,10 +56,10 @@ class SafeStreamApi : public ReturnResultApiImpl,
                  DataBuffer data)>
       repeat;
 
-  void InitImpl(ApiParser& parser, RequestId req_id, std::uint16_t offset,
-                std::uint16_t window_size, std::uint16_t max_packet_size);
-  void InitAckImpl(ApiParser& parser, RequestId req_id, std::uint16_t offset,
-                   std::uint16_t window_size, std::uint16_t max_packet_size);
+  void InitImpl(ApiParser& parser, RequestId req_id, std::uint16_t repeat_count,
+                SafeStreamInit safe_stream_init);
+  void InitAckImpl(ApiParser& parser, RequestId req_id,
+                   SafeStreamInit safe_stream_init);
   void ConfirmImpl(ApiParser& parser, std::uint16_t offset);
   void RequestRepeatImpl(ApiParser& parser, std::uint16_t offset);
   void SendImpl(ApiParser& parser, std::uint16_t offset, DataBuffer data);

@@ -49,14 +49,12 @@ class TestSafeStreamApiImpl : public SafeStreamApiImpl {
               api_parser.Parse(safe_stream_api);
             })} {}
 
-  void Init(RequestId req_id, std::uint16_t offset, std::uint16_t window_size,
-            std::uint16_t max_packet_size) override {
-    MakeInit(req_id, offset, window_size, max_packet_size);
+  void Init(RequestId req_id, std::uint16_t repeat_count,
+            SafeStreamInit safe_stream_init) override {
+    MakeInit(req_id, repeat_count, safe_stream_init);
   }
-  void InitAck(RequestId req_id, std::uint16_t offset,
-               std::uint16_t window_size,
-               std::uint16_t max_packet_size) override {
-    MakeInitAck(req_id, offset, window_size, max_packet_size);
+  void InitAck(RequestId req_id, SafeStreamInit safe_stream_init) override {
+    MakeInitAck(req_id, safe_stream_init);
   }
   void Confirm(std::uint16_t offset) override { MakeConfirm(offset); }
   void RequestRepeat(std::uint16_t offset) override {
@@ -70,18 +68,15 @@ class TestSafeStreamApiImpl : public SafeStreamApiImpl {
     MakeRepeat(repeat_count, offset, std::move(data));
   }
 
-  virtual void MakeInit(RequestId req_id, std::uint16_t offset,
-                        std::uint16_t window_size,
-                        std::uint16_t max_packet_size) {
+  virtual void MakeInit(RequestId req_id, std::uint16_t repeat_count,
+                        SafeStreamInit safe_stream_init) {
     auto api = ApiContext{protocol_context, safe_stream_api};
-    api->init(req_id, offset, window_size, max_packet_size);
+    api->init(req_id, repeat_count, safe_stream_init);
     dst_stream->WriteOut(std::move(api));
   }
-  virtual void MakeInitAck(RequestId req_id, std::uint16_t offset,
-                           std::uint16_t window_size,
-                           std::uint16_t max_packet_size) {
+  virtual void MakeInitAck(RequestId req_id, SafeStreamInit safe_stream_init) {
     auto api = ApiContext{protocol_context, safe_stream_api};
-    api->init_ack(req_id, offset, window_size, max_packet_size);
+    api->init_ack(req_id, safe_stream_init);
     dst_stream->WriteOut(std::move(api));
   }
   virtual void MakeConfirm(std::uint16_t offset) {
@@ -156,42 +151,35 @@ class DelayInitImpl : public DelaySendImpl {
  public:
   using DelaySendImpl::DelaySendImpl;
 
-  void Init(RequestId req_id, std::uint16_t offset, std::uint16_t window_size,
-            std::uint16_t max_packet_size) override {
-    init_ = InitT{req_id, offset, window_size, max_packet_size};
+  void Init(RequestId req_id, std::uint16_t repeat_count,
+            SafeStreamInit safe_stream_init) override {
+    init_ = InitT{req_id, repeat_count, safe_stream_init};
   }
 
-  void InitAck(RequestId req_id, std::uint16_t offset,
-               std::uint16_t window_size,
-               std::uint16_t max_packet_size) override {
-    init_ack_ = InitAckT{req_id, offset, window_size, max_packet_size};
+  void InitAck(RequestId req_id, SafeStreamInit safe_stream_init) override {
+    init_ack_ = InitAckT{req_id, safe_stream_init};
   }
 
   void MakeInit() {
     TEST_ASSERT_TRUE(init_.has_value());
-    TestSafeStreamApiImpl::MakeInit(init_->req_id_, init_->offset_,
-                                    init_->window_size_,
-                                    init_->max_packet_size_);
+    TestSafeStreamApiImpl::MakeInit(init_->req_id, init_->repeat_count,
+                                    init_->safe_stream_init);
   }
   void MakeInitAck() {
     TEST_ASSERT_TRUE(init_ack_.has_value());
-    TestSafeStreamApiImpl::MakeInitAck(init_ack_->req_id_, init_ack_->offset_,
-                                       init_ack_->window_size_,
-                                       init_ack_->max_packet_size_);
+    TestSafeStreamApiImpl::MakeInitAck(init_ack_->req_id,
+                                       init_ack_->safe_stream_init);
   }
 
   struct InitT {
-    RequestId req_id_;
-    std::uint16_t offset_;
-    std::uint16_t window_size_;
-    std::uint16_t max_packet_size_;
+    RequestId req_id;
+    std::uint16_t repeat_count;
+    SafeStreamInit safe_stream_init;
   };
 
   struct InitAckT {
-    RequestId req_id_;
-    std::uint16_t offset_;
-    std::uint16_t window_size_;
-    std::uint16_t max_packet_size_;
+    RequestId req_id;
+    SafeStreamInit safe_stream_init;
   };
 
   std::optional<InitT> init_;
@@ -269,8 +257,6 @@ void test_SafeStreamInitHandshake() {
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kInit,
                     test_ssa_receiver.safe_stream_action.state());
 
-  auto begin_offset = test_ssa_sender.safe_stream_action.send_state().begin;
-
   test_ssa_sender.safe_stream_action.SendData(ToDataBuffer(test_data));
 
   ap.Update(epoch);
@@ -282,30 +268,10 @@ void test_SafeStreamInitHandshake() {
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kInitiated,
                     test_ssa_receiver.safe_stream_action.state());
 
-  // test updated offset
-  TEST_ASSERT_EQUAL(static_cast<SSRingIndex::type>(begin_offset),
-                    static_cast<SSRingIndex::type>(
-                        test_ssa_sender.safe_stream_action.send_state().begin));
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_sender.safe_stream_action.send_state().last_sent));
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_sender.safe_stream_action.send_state().last_added));
-
+  // test received data
   TEST_ASSERT_EQUAL(test_data.size(), received.size());
   TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), received.data(),
                                test_data.size());
-
-  ap.Update(epoch += config.send_confirm_timeout + kTick);
-  ap.Update(epoch += kTick);
-
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_sender.safe_stream_action.send_state().begin));
 }
 
 void test_SafeStreamInitDelay() {
@@ -520,7 +486,6 @@ void test_SafeStreamReInitAck() {
   auto test_ssa_sender = TestSafeStreamAction{ac};
   auto sender_to_sender =
       DelayInitImpl{test_ssa_sender.stream, test_ssa_sender.stream};
-  auto begin_offset = test_ssa_sender.safe_stream_action.send_state().begin;
 
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kInit,
                     test_ssa_sender.safe_stream_action.state());
@@ -531,30 +496,20 @@ void test_SafeStreamReInitAck() {
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kWaitInitAck,
                     test_ssa_sender.safe_stream_action.state());
   sender_to_sender.TestSafeStreamApiImpl::MakeInitAck(
-      sender_to_sender.init_->req_id_, sender_to_sender.init_->offset_,
-      sender_to_sender.init_->window_size_,
-      sender_to_sender.init_->max_packet_size_);
+      sender_to_sender.init_->req_id, sender_to_sender.init_->safe_stream_init);
 
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kInitiated,
                     test_ssa_sender.safe_stream_action.state());
 
-  TEST_ASSERT_EQUAL(static_cast<SSRingIndex::type>(begin_offset),
-                    static_cast<SSRingIndex::type>(
-                        test_ssa_sender.safe_stream_action.send_state().begin));
-
   // repeat InitAck
   sender_to_sender.TestSafeStreamApiImpl::MakeInitAck(
-      sender_to_sender.init_->req_id_ + 1, 0,
-      sender_to_sender.init_->window_size_,
-      sender_to_sender.init_->max_packet_size_);
+      sender_to_sender.init_->req_id + 1,
+      {0, sender_to_sender.init_->safe_stream_init.window_size,
+       sender_to_sender.init_->safe_stream_init.max_packet_size});
 
   // still the same
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kInitiated,
                     test_ssa_sender.safe_stream_action.state());
-
-  TEST_ASSERT_EQUAL(static_cast<SSRingIndex::type>(begin_offset),
-                    static_cast<SSRingIndex::type>(
-                        test_ssa_sender.safe_stream_action.send_state().begin));
 }
 
 void test_SafeStreamInitAckByConfirm() {
@@ -565,7 +520,6 @@ void test_SafeStreamInitAckByConfirm() {
   auto test_ssa_sender = TestSafeStreamAction{ac};
   auto sender_to_sender =
       DelayInitImpl{test_ssa_sender.stream, test_ssa_sender.stream};
-  auto begin_offset = test_ssa_sender.safe_stream_action.send_state().begin;
 
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kInit,
                     test_ssa_sender.safe_stream_action.state());
@@ -589,333 +543,6 @@ void test_SafeStreamInitAckByConfirm() {
   // initiated
   TEST_ASSERT_EQUAL(SafeStreamAction::State::kInitiated,
                     test_ssa_sender.safe_stream_action.state());
-
-  TEST_ASSERT_EQUAL(static_cast<SSRingIndex::type>(begin_offset),
-                    static_cast<SSRingIndex::type>(
-                        test_ssa_sender.safe_stream_action.send_state().begin));
-}
-
-void test_SafeStreamRepeatSend() {
-  auto epoch = Now();
-  auto ap = ActionProcessor{};
-  auto ac = ActionContext{ap};
-
-  DataBuffer received{};
-
-  auto test_ssa_sender = TestSafeStreamAction{ac};
-  auto test_ssa_receiver = TestSafeStreamAction{ac};
-
-  auto sender_to_receiver =
-      DelaySendImpl{test_ssa_sender.stream, test_ssa_receiver.stream};
-  auto receiver_to_sender =
-      TestSafeStreamApiImpl{test_ssa_receiver.stream, test_ssa_sender.stream};
-
-  test_ssa_receiver.safe_stream_action.receive_event().Subscribe(
-      [&](auto const& data) { received = data; });
-
-  auto begin_offset = test_ssa_sender.safe_stream_action.send_state().begin;
-
-  test_ssa_sender.safe_stream_action.SendData(ToDataBuffer(test_data));
-  ap.Update(epoch);
-
-  // begin should stay the same untile confirmation
-  TEST_ASSERT_EQUAL(static_cast<SSRingIndex::type>(begin_offset),
-                    static_cast<SSRingIndex::type>(
-                        test_ssa_sender.safe_stream_action.send_state().begin));
-  // last sent should be moved to data.size()
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_sender.safe_stream_action.send_state().last_sent));
-
-  TEST_ASSERT_TRUE(sender_to_receiver.send.has_value());
-  // receiver has not received
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset),
-      static_cast<SSRingIndex::type>(
-          test_ssa_receiver.safe_stream_action.receive_state().last_emitted));
-
-  // one update to detect repeat
-  ap.Update(epoch += config.wait_confirm_timeout + kTick);
-  // second to send repeat
-  ap.Update(epoch += kTick);
-
-  TEST_ASSERT_TRUE(sender_to_receiver.repeat_send.has_value());
-  // receiver has not received
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset),
-      static_cast<SSRingIndex::type>(
-          test_ssa_receiver.safe_stream_action.receive_state().last_emitted));
-
-  sender_to_receiver.MakeSend();
-  // update to receive data
-  ap.Update(epoch += kTick);
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_receiver.safe_stream_action.receive_state().last_emitted));
-  TEST_ASSERT_EQUAL(test_data.size(), received.size());
-  TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), received.data(),
-                               test_data.size());
-  received.clear();
-
-  sender_to_receiver.MakeRepeat();
-  // update to receive data
-  ap.Update(epoch += kTick);
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_receiver.safe_stream_action.receive_state().last_emitted));
-  // repeat data hasn't received
-  TEST_ASSERT_EQUAL(0, received.size());
-}
-
-void test_SafeStreamSendErrorOnRepeatExceed() {
-  auto epoch = Now();
-  auto ap = ActionProcessor{};
-  auto ac = ActionContext{ap};
-
-  auto wait_confirm_timeout = [](int count) {
-    return std::chrono::milliseconds{
-        static_cast<std::chrono::milliseconds::rep>(
-            config.wait_confirm_timeout.count() *
-            ((count > 0) ? (AE_SAFE_STREAM_RTO_GROW_FACTOR * count) : 1))};
-  };
-
-  auto test_ssa_sender = TestSafeStreamAction{ac};
-  auto test_ssa_receiver = TestSafeStreamAction{ac};
-
-  auto sender_to_receiver =
-      DelaySendImpl{test_ssa_sender.stream, test_ssa_receiver.stream};
-  auto receiver_to_sender =
-      TestSafeStreamApiImpl{test_ssa_receiver.stream, test_ssa_sender.stream};
-
-  auto begin_offset = test_ssa_sender.safe_stream_action.send_state().begin;
-
-  bool sucsseeded = false;
-  bool failed = false;
-
-  auto send_action =
-      test_ssa_sender.safe_stream_action.SendData(ToDataBuffer(test_data));
-  send_action->ResultEvent().Subscribe([&](auto const&) { sucsseeded = true; });
-  send_action->ErrorEvent().Subscribe([&](auto const&) { failed = true; });
-
-  ap.Update(epoch);
-
-  TEST_ASSERT_TRUE(sender_to_receiver.send.has_value());
-  // receiver has not received
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset),
-      static_cast<SSRingIndex::type>(
-          test_ssa_receiver.safe_stream_action.receive_state().last_emitted));
-
-  // one update to detect repeat
-  ap.Update(epoch += wait_confirm_timeout(0) + kTick);
-  // second to send repeat
-  ap.Update(epoch += kTick);
-
-  TEST_ASSERT_TRUE(sender_to_receiver.repeat_send.has_value());
-  sender_to_receiver.repeat_send.reset();
-
-  // one update to detect repeat
-  ap.Update(epoch += wait_confirm_timeout(1) + kTick);
-  // second to send repeat
-  ap.Update(epoch += kTick);
-  TEST_ASSERT_TRUE(sender_to_receiver.repeat_send.has_value());
-  sender_to_receiver.repeat_send.reset();
-
-  // one update to detect repeat
-  ap.Update(epoch += wait_confirm_timeout(2) + kTick);
-  // second to send repeat
-  ap.Update(epoch += kTick);
-
-  TEST_ASSERT_FALSE(sender_to_receiver.repeat_send.has_value());
-  TEST_ASSERT_FALSE(sucsseeded);
-  TEST_ASSERT_TRUE(failed);
-}
-
-void test_SafeStreamSendStopped() {
-  auto epoch = Now();
-  auto ap = ActionProcessor{};
-  auto ac = ActionContext{ap};
-
-  auto test_ssa_sender = TestSafeStreamAction{ac};
-  auto test_ssa_receiver = TestSafeStreamAction{ac};
-
-  auto sender_to_receiver =
-      DelaySendImpl{test_ssa_sender.stream, test_ssa_receiver.stream};
-  auto receiver_to_sender =
-      TestSafeStreamApiImpl{test_ssa_receiver.stream, test_ssa_sender.stream};
-
-  auto begin_offset = test_ssa_sender.safe_stream_action.send_state().begin;
-
-  bool sucsseeded = false;
-  bool stopped1 = false;
-  bool stopped2 = false;
-
-  auto send_action1 =
-      test_ssa_sender.safe_stream_action.SendData(ToDataBuffer(test_data));
-  send_action1->ResultEvent().Subscribe(
-      [&](auto const&) { sucsseeded = true; });
-  send_action1->StopEvent().Subscribe([&](auto const&) { stopped1 = true; });
-
-  ap.Update(epoch);
-
-  auto send_action2 =
-      test_ssa_sender.safe_stream_action.SendData(ToDataBuffer(test_data));
-  send_action2->ResultEvent().Subscribe(
-      [&](auto const&) { sucsseeded = true; });
-  send_action2->StopEvent().Subscribe([&](auto const&) { stopped2 = true; });
-
-  TEST_ASSERT_TRUE(sender_to_receiver.send.has_value());
-  // receiver has not received
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset),
-      static_cast<SSRingIndex::type>(
-          test_ssa_receiver.safe_stream_action.receive_state().last_emitted));
-
-  send_action1->Stop();
-  send_action2->Stop();
-
-  ap.Update(epoch += kTick);
-
-  // unable to stop sending data
-  TEST_ASSERT_FALSE(sucsseeded);
-  TEST_ASSERT_FALSE(stopped1);
-
-  // not sending data is stopped
-  TEST_ASSERT_FALSE(sucsseeded);
-  TEST_ASSERT_TRUE(stopped2);
-}
-
-void test_SafeStreamKeepSendingAfterStop() {
-  auto epoch = Now();
-  auto ap = ActionProcessor{};
-  auto ac = ActionContext{ap};
-
-  auto test_ssa_sender = TestSafeStreamAction{ac};
-  auto test_ssa_receiver = TestSafeStreamAction{ac};
-
-  auto sender_to_receiver =
-      TestSafeStreamApiImpl{test_ssa_sender.stream, test_ssa_receiver.stream};
-  auto receiver_to_sender =
-      TestSafeStreamApiImpl{test_ssa_receiver.stream, test_ssa_sender.stream};
-
-  auto begin_offset = test_ssa_sender.safe_stream_action.send_state().begin;
-
-  bool sucsseeded1 = false;
-  bool sucsseeded2 = false;
-  bool stopped1 = false;
-  bool stopped2 = false;
-
-  auto send_action1 =
-      test_ssa_sender.safe_stream_action.SendData(ToDataBuffer(test_data));
-  send_action1->ResultEvent().Subscribe(
-      [&](auto const&) { sucsseeded1 = true; });
-  send_action1->StopEvent().Subscribe([&](auto const&) { stopped1 = true; });
-
-  send_action1->Stop();
-
-  ap.Update(epoch);
-
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset),
-      static_cast<SSRingIndex::type>(
-          test_ssa_sender.safe_stream_action.send_state().last_added));
-  // nothing is sent
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset),
-      static_cast<SSRingIndex::type>(
-          test_ssa_sender.safe_stream_action.send_state().last_sent));
-
-  auto send_action2 =
-      test_ssa_sender.safe_stream_action.SendData(ToDataBuffer(test_data));
-  send_action2->ResultEvent().Subscribe(
-      [&](auto const&) { sucsseeded2 = true; });
-  send_action2->StopEvent().Subscribe([&](auto const&) { stopped2 = true; });
-
-  ap.Update(epoch += kTick);
-  ap.Update(epoch += config.send_confirm_timeout + kTick);
-  ap.Update(epoch += kTick);
-
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_sender.safe_stream_action.send_state().last_added));
-
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_sender.safe_stream_action.send_state().last_sent));
-
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_receiver.safe_stream_action.receive_state().last_emitted));
-
-  TEST_ASSERT_FALSE(sucsseeded1);
-  TEST_ASSERT_TRUE(stopped1);
-
-  TEST_ASSERT_TRUE(sucsseeded2);
-  TEST_ASSERT_FALSE(stopped2);
-}
-
-static constexpr std::string_view large_test_data =
-    "In 2099, software engineers coded with thoughts. One dev accidentally "
-    "deployed a meme to Mars rovers. They laughed for 3 sols before rebooting. "
-    "AI PMs demanded 200% productivity. Engineers rebelled, forming the Bug "
-    "Alliance. Their motto: 'It’s not a bug, it’s a rebellion.' They now code "
-    "in hex for style. Meetings are banned.";
-
-void test_SafeStreamSendMoreDataThanPacketSize() {
-  auto epoch = Now();
-  auto ap = ActionProcessor{};
-  auto ac = ActionContext{ap};
-
-  DataBuffer received = {};
-
-  auto test_ssa_sender = TestSafeStreamAction{ac};
-  auto test_ssa_receiver = TestSafeStreamAction{ac};
-
-  auto sender_to_receiver =
-      TestSafeStreamApiImpl{test_ssa_sender.stream, test_ssa_receiver.stream};
-  auto receiver_to_sender =
-      TestSafeStreamApiImpl{test_ssa_receiver.stream, test_ssa_sender.stream};
-
-  test_ssa_receiver.safe_stream_action.receive_event().Subscribe(
-      [&](auto const& data) {
-        received.insert(std::end(received), std::begin(data), std::end(data));
-      });
-
-  auto begin_offset = test_ssa_sender.safe_stream_action.send_state().begin;
-
-  test_ssa_sender.safe_stream_action.SendData(ToDataBuffer(large_test_data));
-
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + large_test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_sender.safe_stream_action.send_state().last_added));
-
-  constexpr auto packet_size = config.max_data_size - 16;
-
-  for (auto i = 0; i < large_test_data.size() / packet_size; ++i) {
-    ap.Update(epoch += kTick);
-    TEST_ASSERT_EQUAL(
-        static_cast<SSRingIndex::type>(begin_offset + (packet_size * (i + 1))),
-        static_cast<SSRingIndex::type>(
-            test_ssa_sender.safe_stream_action.send_state().last_sent));
-  }
-  ap.Update(epoch += config.send_confirm_timeout + kTick);
-  ap.Update(epoch += kTick);
-
-  TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(begin_offset + large_test_data.size()),
-      static_cast<SSRingIndex::type>(
-          test_ssa_receiver.safe_stream_action.receive_state().last_emitted));
-
-  TEST_ASSERT_EQUAL(large_test_data.size(), received.size());
-  TEST_ASSERT_EQUAL_STRING_LEN(large_test_data.data(), received.data(),
-                               large_test_data.size());
 }
 
 }  // namespace ae::test_safe_stream_action
@@ -929,11 +556,5 @@ int test_safe_stream_action() {
   RUN_TEST(ae::test_safe_stream_action::test_SafeStreamReInitReceiver);
   RUN_TEST(ae::test_safe_stream_action::test_SafeStreamReInitAck);
   RUN_TEST(ae::test_safe_stream_action::test_SafeStreamInitAckByConfirm);
-  RUN_TEST(ae::test_safe_stream_action::test_SafeStreamRepeatSend);
-  RUN_TEST(ae::test_safe_stream_action::test_SafeStreamSendErrorOnRepeatExceed);
-  RUN_TEST(ae::test_safe_stream_action::test_SafeStreamSendStopped);
-  RUN_TEST(ae::test_safe_stream_action::test_SafeStreamKeepSendingAfterStop);
-  RUN_TEST(
-      ae::test_safe_stream_action::test_SafeStreamSendMoreDataThanPacketSize);
   return UNITY_END();
 }

@@ -17,7 +17,6 @@
 #include <unity.h>
 
 #include "aether/api_protocol/api_message.h"
-#include "aether/port/tele_init.h"
 
 #include "aether/actions/action_context.h"
 #include "aether/api_protocol/protocol_context.h"
@@ -141,8 +140,6 @@ void test_SafeStreamPacketLoss() {
 }  // namespace ae::test_safe_stream
 
 int test_safe_stream() {
-  ae::TeleInit::Init();
-
   UNITY_BEGIN();
   RUN_TEST(ae::test_safe_stream::test_SafeStreamWriteFewData);
   RUN_TEST(ae::test_safe_stream::test_SafeStreamPacketLoss);

@@ -18,7 +18,6 @@
 
 #include <string_view>
 
-#include "aether/port/tele_init.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
 #include "aether/stream_api/safe_stream/send_data_buffer.h"
@@ -228,8 +227,6 @@ void test_SendDataBufferConfirmation() {
 }  // namespace ae::test_send_data_buffer
 
 int test_send_data_buffer() {
-  ae::TeleInit::Init();
-
   UNITY_BEGIN();
   RUN_TEST(ae::test_send_data_buffer::test_SendDataBufferGetSlice);
   RUN_TEST(ae::test_send_data_buffer::test_SendDataBufferConfirmStopReject);

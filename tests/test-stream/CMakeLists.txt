@@ -21,6 +21,8 @@ list(APPEND test_srcs
   safe-stream/test_sending_chunk_list.cpp
   safe-stream/test_send_data_buffer.cpp
   safe-stream/test_receiving_chunks.cpp
+  safe-stream/test_safe_stream_send.cpp
+  safe-stream/test_safe_stream_recv.cpp
   safe-stream/test_safe_stream_action.cpp
   safe-stream/test_safe_stream.cpp
   stream-api/test_stream_api.cpp

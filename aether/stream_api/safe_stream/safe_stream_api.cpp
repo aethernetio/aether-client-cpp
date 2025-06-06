@@ -18,8 +18,6 @@
 
 #include <cassert>
 
-#include "aether/stream_api/safe_stream/safe_stream_action.h"
-
 namespace ae {
 SafeStreamApi::SafeStreamApi(ProtocolContext& protocol_context,
                              SafeStreamApiImpl& safe_stream_api_impl)
@@ -33,15 +31,14 @@ SafeStreamApi::SafeStreamApi(ProtocolContext& protocol_context,
       safe_stream_api_impl_{&safe_stream_api_impl} {}
 
 void SafeStreamApi::InitImpl(ApiParser& /* parser */, RequestId req_id,
-                             std::uint16_t offset, std::uint16_t window_size,
-                             std::uint16_t max_packet_size) {
-  safe_stream_api_impl_->Init(req_id, offset, window_size, max_packet_size);
+                             std::uint16_t repeat_count,
+                             SafeStreamInit safe_stream_init) {
+  safe_stream_api_impl_->Init(req_id, repeat_count, safe_stream_init);
 }
 
 void SafeStreamApi::InitAckImpl(ApiParser& /* parser */, RequestId req_id,
-                                std::uint16_t offset, std::uint16_t window_size,
-                                std::uint16_t max_packet_size) {
-  safe_stream_api_impl_->InitAck(req_id, offset, window_size, max_packet_size);
+                                SafeStreamInit safe_stream_init) {
+  safe_stream_api_impl_->InitAck(req_id, safe_stream_init);
 }
 
 void SafeStreamApi::ConfirmImpl(ApiParser& /* parser */, std::uint16_t offset) {
