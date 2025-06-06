@@ -16,13 +16,17 @@
 
 #include <unity.h>
 
-void setUp() {}
+#include "aether/port/tele_init.h"
+
+void setUp() { ae::TeleInit::Init(); }
 void tearDown() {}
 
 extern int test_safe_stream_types();
 extern int test_sending_chunk_list();
 extern int test_send_data_buffer();
 extern int test_receiving_chunks();
+extern int test_safe_stream_send();
+extern int test_safe_stream_recv();
 extern int test_safe_stream_action();
 extern int test_safe_stream();
 extern int test_stream_api();
@@ -38,6 +42,8 @@ int main() {
   res += test_sending_chunk_list();
   res += test_send_data_buffer();
   res += test_receiving_chunks();
+  res += test_safe_stream_send();
+  res += test_safe_stream_recv();
   res += test_safe_stream_action();
   res += test_safe_stream();
   res += test_stream_api();
