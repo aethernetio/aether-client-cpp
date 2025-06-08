@@ -14,34 +14,14 @@
  * limitations under the License.
  */
 
-#include "aether/common.h"
-#include "aether/memory.h"
-#include "aether/state_machine.h"
-#include "aether/literal_array.h"
-#include "aether/actions/action.h"
-#include "aether/stream_api/istream.h"
-#include "aether/transport/data_buffer.h"
-#include "aether/events/event_subscription.h"
-#include "aether/events/multi_subscription.h"
+#include "aether/all.h"
 
-#include "aether/global_ids.h"
-#include "aether/aether_app.h"
-#include "aether/ae_actions/registration/registration.h"
-#include "aether/client_messages/p2p_message_stream.h"
-#include "aether/client_messages/p2p_safe_message_stream.h"
-
-#include "aether/domain_storage/static_domain_storage.h"
-#include "aether/port/tele_init.h"
-
-#include "aether/adapters/ethernet.h"
-#include "aether/adapters/esp32_wifi.h"
-
-#include "aether/tele/tele.h"
-
+// IWYU pragma: begin_keeps
 #include "key_led_nix.h"
 #include "key_led_win.h"
 #include "key_led_mac.h"
 #include "key_led_esp.h"
+// IWYU pragma: end_keeps
 
 using std::vector;
 

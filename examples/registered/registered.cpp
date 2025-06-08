@@ -18,26 +18,7 @@
 #include <chrono>
 #include <cstdint>
 
-#include "aether/common.h"
-#include "aether/memory.h"
-#include "aether/state_machine.h"
-#include "aether/actions/action.h"
-#include "aether/transport/data_buffer.h"
-#include "aether/events/event_subscription.h"
-#include "aether/events/multi_subscription.h"
-
-#include "aether/ptr/ptr.h"
-#include "aether/aether_app.h"
-#include "aether/client_messages/p2p_message_stream.h"
-#include "aether/client_messages/p2p_safe_message_stream.h"
-
-#include "aether/domain_storage/static_domain_storage.h"
-#include "aether/port/tele_init.h"
-
-#include "aether/adapters/ethernet.h"
-#include "aether/adapters/esp32_wifi.h"
-
-#include "aether/tele/tele.h"
+#include "aether/all.h"
 
 static constexpr int wait_time = 100;
 
