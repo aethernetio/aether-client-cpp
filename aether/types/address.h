@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADDRESS_H_
-#define AETHER_ADDRESS_H_
+#ifndef AETHER_TYPES_ADDRESS_H_
+#define AETHER_TYPES_ADDRESS_H_
 
 #include <cstdint>
 #include <string>
 
 #include "aether/config.h"
 #include "aether/type_traits.h"
-#include "aether/variant_type.h"
+#include "aether/types/variant_type.h"
 #include "aether/reflect/reflect.h"
 
 #include "aether/format/format.h"
@@ -218,4 +218,4 @@ struct Formatter<NameAddress> {
 
 }  // namespace ae
 
-#endif  // AETHER_ADDRESS_H_
+#endif  // AETHER_TYPES_ADDRESS_H_

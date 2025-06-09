@@ -25,7 +25,7 @@
 
 #  include "aether/obj/obj_ptr.h"
 #  include "aether/ptr/ptr_view.h"
-#  include "aether/state_machine.h"
+#  include "aether/types/state_machine.h"
 #  include "aether/actions/action.h"
 #  include "aether/events/event_subscription.h"
 #  include "aether/client_connections/client_to_server_stream.h"

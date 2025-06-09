@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <regex>
 
-#include "aether/address_parser.h"
+#include "aether/types/address_parser.h"
 
 namespace ae {
 

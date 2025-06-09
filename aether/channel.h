@@ -17,7 +17,7 @@
 #ifndef AETHER_CHANNEL_H_
 #define AETHER_CHANNEL_H_
 
-#include "aether/address.h"
+#include "aether/types/address.h"
 #include "aether/obj/obj.h"
 #include "aether/statistics/channel_statistics.h"
 

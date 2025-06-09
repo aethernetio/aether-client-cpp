@@ -43,10 +43,13 @@
 #include "aether/domain_storage/domain_storage_factory.h"
 #include "aether/stream_api/istream.h"
 
+#include "aether/types/address.h"
+#include "aether/types/literal_array.h"
+#include "aether/types/address_parser.h"
+
 #include "aether/aether.h"
 #include "aether/client.h"
 #include "aether/uid.h"
-#include "aether/address.h"
 #include "aether/server.h"
 #include "aether/channel.h"
 #include "aether/crypto.h"

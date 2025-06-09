@@ -40,8 +40,6 @@ set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
 list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
-            "address.cpp"
-            "address_parser.cpp"
             "channel.cpp"
             "client.cpp"
             "cloud.cpp"
@@ -52,6 +50,10 @@ list(APPEND aether_srcs
             "proof_of_work.cpp"
             "server_keys.cpp"
             "socket_initializer.cpp")
+
+list(APPEND types_srcs
+            "types/address.cpp"
+            "types/address_parser.cpp")
 
 
 list(APPEND poller_srcs
@@ -238,6 +240,7 @@ if(REGULAR_CMAKE_PROJECT)
   endforeach()
 
   add_library(aether STATIC ${aether_srcs}
+                            ${types_srcs}
                             ${poller_srcs}
                             ${dns_srcs}
                             ${obj_srcs}
@@ -281,6 +284,7 @@ else()
 
     idf_component_register( SRCS
                             ${aether_srcs}
+                            ${types_srcs}
                             ${poller_srcs}
                             ${dns_srcs}
                             ${obj_srcs}
