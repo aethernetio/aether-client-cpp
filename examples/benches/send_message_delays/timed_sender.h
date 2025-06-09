@@ -20,7 +20,7 @@
 #include <cstddef>
 #include <utility>
 
-#include "aether/state_machine.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
 #include "aether/stream_api/istream.h"
@@ -39,6 +39,7 @@ class ITimedSender : public Action<ITimedSender> {
 
   virtual TimeTable const& message_times() const = 0;
   virtual void Sync() = 0;
+  virtual ActionResult Update() = 0;
 };
 
 /**
@@ -73,12 +74,12 @@ class TimedSender : public ITimedSender {
                    min_send_interval_.count());
   }
 
-  ActionResult Update() {
+  ActionResult Update() override {
     if (state_.get() == State::kWaitSync) {
       return ActionResult::Delay(CheckSyncTimeout(Now()));
     }
     if (state_.get() == State::kWaitInterval) {
-      return ActionResult::Delay(CheckIntervalTimeout());
+      return ActionResult::Delay(CheckIntervalTimeout(Now()));
     }
 
     if (state_.changed()) {

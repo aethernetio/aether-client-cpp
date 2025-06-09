@@ -22,7 +22,7 @@
 
 #include "aether/common.h"
 #include "aether/ptr/ptr.h"
-#include "aether/state_machine.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
 #include "aether/stream_api/istream.h"
 #include "aether/api_protocol/protocol_context.h"
