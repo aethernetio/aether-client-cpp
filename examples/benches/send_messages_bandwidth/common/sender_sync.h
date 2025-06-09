@@ -44,7 +44,7 @@ class SenderSyncAction : public Action<SenderSyncAction> {
                             ProtocolContext& protocol_context,
                             ByteIStream& stream);
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
  private:
   void SendSync(TimePoint current_time);

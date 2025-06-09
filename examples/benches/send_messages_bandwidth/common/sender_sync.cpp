@@ -36,26 +36,24 @@ SenderSyncAction::SenderSyncAction(ActionContext action_context,
       state_changed_subscription_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {}
 
-TimePoint SenderSyncAction::Update(TimePoint current_time) {
+ActionResult SenderSyncAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kSendSync:
-        SendSync(current_time);
+        SendSync(Now());
         break;
       case State::kWaitResponse:
         break;
       case State::kSuccess:
-        Action::Result(*this);
-        return current_time;
+        return ActionResult::Result();
       case State::kError:
-        Action::Error(*this);
-        return current_time;
+        return ActionResult::Error();
     }
   }
   if (state_.get() == State::kWaitResponse) {
-    return CheckInterval(current_time);
+    return ActionResult::Delay(CheckInterval(Now()));
   }
-  return current_time;
+  return {};
 }
 
 void SenderSyncAction::SendSync(TimePoint current_time) {

@@ -40,26 +40,24 @@ ReceiverSyncAction::ReceiverSyncAction(ActionContext action_context,
                 OnReceivedSync(msg.message().request_id);
               })} {}
 
-TimePoint ReceiverSyncAction::Update(TimePoint current_time) {
+ActionResult ReceiverSyncAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWait:
-        start_time_ = current_time;
+        start_time_ = Now();
         break;
       case State::kReceived:
-        Action::Result(*this);
-        return current_time;
+        return ActionResult::Result();
       case State::kError:
-        Action::Error(*this);
-        return current_time;
+        return ActionResult::Error();
     }
   }
 
   if (state_.get() == State::kWait) {
-    return CheckTimeout(current_time);
+    return ActionResult::Delay(CheckTimeout(Now()));
   }
 
-  return current_time;
+  return {};
 }
 
 void ReceiverSyncAction::OnReceivedSync(RequestId request_id) {

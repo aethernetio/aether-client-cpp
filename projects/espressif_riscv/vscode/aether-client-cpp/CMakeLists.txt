@@ -26,7 +26,7 @@ idf_build_set_property(CM_PLATFORM "ESP32")
 add_compile_definitions(CM_ESP32)
 
 if(NOT COMPILE_EXAMPLE )
-  set(COMPILE_EXAMPLE "registered")
+  set(COMPILE_EXAMPLE "cloud")
 endif()
 
 if (NOT USER_CONFIG)
@@ -44,8 +44,6 @@ set(AE_DISTILLATION OFF CACHE BOOL "" FORCE)
 
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/cloud"
-                                 "../../../../examples/key_led"
-                                 "../../../../examples/registered"
                                  "../../../../examples/benches/send_message_delays"
 )
 

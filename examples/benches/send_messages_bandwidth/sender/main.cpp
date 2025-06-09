@@ -67,7 +67,7 @@ int test_sender_bandwidth(Uid receiver_uid) {
     client = aether_app->aether()->clients()[0];
   }
 
-  auto action_context = ActionContext{*aether_app->aether()->action_processor};
+  auto action_context = ActionContext{*aether_app};
   auto sender = Sender{action_context, client, receiver_uid};
 
   auto test_action =

@@ -42,7 +42,7 @@ class ReceiverSyncAction : public Action<ReceiverSyncAction> {
   ReceiverSyncAction(ActionContext action_context,
                      ProtocolContext& protocol_context, ByteIStream& stream);
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
  private:
   void OnReceivedSync(RequestId request_id);

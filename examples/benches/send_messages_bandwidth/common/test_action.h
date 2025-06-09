@@ -68,86 +68,84 @@ class TestAction : public Action<TestAction<TAgent>> {
 
   ~TestAction() override { AE_TELED_DEBUG("TestAction::~TestAction"); }
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kConnect:
-          Connect(current_time);
+          Connect();
           break;
         case State::kHandshake:
-          Handshake(current_time);
+          Handshake();
           break;
         case State::kWarmup:
-          WarmUp(current_time);
+          WarmUp();
           break;
         case State::kSyncOneByte:
-          Sync(current_time, State::kOneByte);
+          Sync(State::kOneByte);
           break;
         case State::kOneByte:
-          OneByte(current_time);
+          OneByte();
           break;
         case State::kSyncTenBytes:
-          Sync(current_time, State::kTenBytes);
+          Sync(State::kTenBytes);
           break;
         case State::kTenBytes:
-          TenBytes(current_time);
+          TenBytes();
           break;
         case State::kSyncHundredBytes:
-          Sync(current_time, State::kHundredBytes);
+          Sync(State::kHundredBytes);
           break;
         case State::kHundredBytes:
-          HundredBytes(current_time);
+          HundredBytes();
           break;
         case State::kSyncThousandBytes:
-          Sync(current_time, State::kThousandBytes);
+          Sync(State::kThousandBytes);
           break;
         case State::kThousandBytes:
-          ThousandBytes(current_time);
+          ThousandBytes();
           break;
         case State::kSyncVariableSize:
-          Sync(current_time, State::kVariableSize);
+          Sync(State::kVariableSize);
           break;
         case State::kVariableSize:
-          VariableSize(current_time);
+          VariableSize();
           break;
         case State::kDone:
-          SelfAction::Result(*this);
-          break;
+          return ActionResult::Result();
         case State::kError:
-          SelfAction::Error(*this);
-          break;
+          return ActionResult::Error();
       }
     }
-    return current_time;
+    return {};
   }
 
   auto result_table() const { return result_table_; }
 
  private:
-  void Connect(TimePoint /* current_time */) {
+  void Connect() {
     agent_->Connect();
     state_ = State::kHandshake;
   }
 
-  void Handshake(TimePoint /* current_time */) {
+  void Handshake() {
     AE_TELED_DEBUG("Handshake");
     handshake_subscription_ =
         agent_->Handshake().Subscribe([this]() { state_ = State::kWarmup; });
   }
 
-  void Sync(TimePoint /* current_time */, State next_state) {
+  void Sync(State next_state) {
     AE_TELED_DEBUG("Sync before state {}", next_state);
     sync_subscription_ =
         agent_->Sync().Subscribe([this, next_state]() { state_ = next_state; });
   }
 
-  void WarmUp(TimePoint /* current_time */) {
+  void WarmUp() {
     AE_TELED_DEBUG("WarmUp");
     test_result_subscription_ = agent_->WarmUp(1000).Subscribe(
         [this](auto const&) { state_ = State::kSyncOneByte; });
   }
 
-  void OneByte(TimePoint /* current_time */) {
+  void OneByte() {
     AE_TELED_DEBUG("OneByte");
     test_result_subscription_ =
         agent_->OneByte(test_message_count_)
@@ -158,7 +156,7 @@ class TestAction : public Action<TestAction<TAgent>> {
             });
   }
 
-  void TenBytes(TimePoint /* current_time */) {
+  void TenBytes() {
     AE_TELED_DEBUG("TenBytes");
     test_result_subscription_ =
         agent_->TenBytes(test_message_count_)
@@ -169,7 +167,7 @@ class TestAction : public Action<TestAction<TAgent>> {
             });
   }
 
-  void HundredBytes(TimePoint /* current_time */) {
+  void HundredBytes() {
     AE_TELED_DEBUG("HundredBytes");
 
     test_result_subscription_ =
@@ -181,7 +179,7 @@ class TestAction : public Action<TestAction<TAgent>> {
             });
   }
 
-  void ThousandBytes(TimePoint /* current_time */) {
+  void ThousandBytes() {
     AE_TELED_DEBUG("ThousandBytes");
     test_result_subscription_ =
         agent_->ThousandBytes(test_message_count_)
@@ -193,7 +191,7 @@ class TestAction : public Action<TestAction<TAgent>> {
             });
   }
 
-  void VariableSize(TimePoint /* current_time */) {
+  void VariableSize() {
     /* test_result_subscription_ =
         agent_->VariableSize().Subscribe([this](auto const& bandwidth) {
           AE_TELED_DEBUG("VariableSize res: {}", bandwidth);

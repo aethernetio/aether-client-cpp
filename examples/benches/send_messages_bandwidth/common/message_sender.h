@@ -58,31 +58,28 @@ class MessageSender : public Action<MessageSender<TApi, TMessage>> {
     AE_TELED_INFO("MessageSender created");
   }
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kSending:
         case State::kWaitbuffer:
           break;
         case State::kSuccess:
-          SelfAction::Result(*this);
-          return current_time;
+          return ActionResult::Result();
         case State::kStopped:
-          SelfAction::Stop(*this);
-          return current_time;
+          return ActionResult::Stop();
         case State::kError:
-          SelfAction::Error(*this);
-          return current_time;
+          return ActionResult::Error();
       }
     }
     if (state_.get() == State::kSending) {
-      Send(current_time);
+      Send(Now());
     }
     if (state_.get() == State::kWaitbuffer) {
-      WaitBuffer(current_time);
+      WaitBuffer(Now());
     }
 
-    return current_time;
+    return {};
   }
 
   void Stop() {

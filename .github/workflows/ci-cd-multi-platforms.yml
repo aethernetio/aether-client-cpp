@@ -182,7 +182,7 @@ jobs:
         # for details.
         idf_ver: ["latest"]
         idf_target: ["esp32"]
-        compile_example: ["cloud", "key_led", "registered"]
+        compile_example: ["cloud"]
         platforms:
           - {
               name: "Optimized",

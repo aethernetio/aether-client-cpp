@@ -33,7 +33,7 @@ SendMessageDelaysManager::TestAction::TestAction(
       state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
 }
 
-TimePoint SendMessageDelaysManager::TestAction::Update(TimePoint current_time) {
+ActionResult SendMessageDelaysManager::TestAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWarmUp:
@@ -66,18 +66,18 @@ TimePoint SendMessageDelaysManager::TestAction::Update(TimePoint current_time) {
         SafeStreamWarmUp();
         break;
       case State::kDone:
-        Action::Result(*this);
+        return ActionResult::Result();
         break;
       case State::kError:
-        Action::Error(*this);
+        return ActionResult::Error();
         break;
       case State::kStop:
-        Action::Stop(*this);
+        return ActionResult::Stop();
         break;
     }
   }
 
-  return current_time;
+  return {};
 }
 
 void SendMessageDelaysManager::TestAction::Stop() { state_.Set(State::kStop); }

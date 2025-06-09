@@ -72,27 +72,25 @@ class TimedReceiver : public ITimedReceiver {
     AE_TELED_INFO("TimedReceiver waiting {} messages", wait_count);
   }
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kWaiting:
-          last_received_time_ = current_time;
+          last_received_time_ = Now();
           break;
         case State::kReceived:
-          this->Result(*this);
-          return current_time;
+          return ActionResult::Result();
         case State::kTimeOut:
         case State::kError:
-          this->Error(*this);
-          return current_time;
+          return ActionResult::Error();
       }
     }
 
     if (state_.get() == State::kWaiting) {
-      return CheckTimeout(current_time);
+      return ActionResult::Delay(CheckTimeout(Now()));
     }
 
-    return current_time;
+    return {};
   }
 
   TimeTable const& message_times() const override { return message_times_; }
