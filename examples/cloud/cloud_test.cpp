@@ -17,27 +17,7 @@
 #include <chrono>
 #include <cstdint>
 
-#include "aether/common.h"
-#include "aether/state_machine.h"
-#include "aether/literal_array.h"
-#include "aether/actions/action.h"
-#include "aether/stream_api/istream.h"
-#include "aether/transport/data_buffer.h"
-#include "aether/events/event_subscription.h"
-#include "aether/events/multi_subscription.h"
-
-#include "aether/global_ids.h"
-#include "aether/aether_app.h"
-#include "aether/ae_actions/registration/registration.h"
-#include "aether/client_messages/p2p_message_stream.h"
-#include "aether/client_messages/p2p_safe_message_stream.h"
-
-#include "aether/port/tele_init.h"
-
-#include "aether/adapters/ethernet.h"
-#include "aether/adapters/esp32_wifi.h"
-
-#include "aether/tele/tele.h"
+#include "aether/all.h"
 
 static constexpr std::string_view kWifiSsid = "Test1234";
 static constexpr std::string_view kWifiPass = "Test1234";
@@ -278,8 +258,6 @@ class CloudTestAction : public Action<CloudTestAction> {
 };
 
 }  // namespace ae::cloud_test
-
-int AetherCloudExample();
 
 int AetherCloudExample() {
   /**
