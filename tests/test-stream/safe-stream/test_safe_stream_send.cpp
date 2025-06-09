@@ -53,11 +53,6 @@ class MockSendDataPush final : public ISendDataPush {
       state_ = State::kDone;
     }
 
-    TimePoint Update(TimePoint current_time) override {
-      Action::Result(*this);
-      return current_time;
-    }
-
     void Stop() override {};
   };
 

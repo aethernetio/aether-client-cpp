@@ -20,6 +20,7 @@
 #include <iostream>
 
 #include "aether/events/events.h"
+#include "aether/actions/action_processor.h"
 #include "aether/api_protocol/api_method.h"
 #include "aether/api_protocol/api_class_impl.h"
 #include "aether/api_protocol/protocol_context.h"

@@ -17,6 +17,8 @@
 #include <unity.h>
 
 #include "aether/actions/action_context.h"
+#include "aether/actions/action_processor.h"
+
 #include "aether/api_protocol/api_method.h"
 #include "aether/api_protocol/api_class_impl.h"
 

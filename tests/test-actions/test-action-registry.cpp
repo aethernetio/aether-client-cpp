@@ -36,10 +36,7 @@ struct A : public Action<A> {
   using Action::Action;
   using Action::operator=;
 
-  TimePoint Update(TimePoint current_time) override {
-    Action::Result(*this);
-    return current_time;
-  }
+  ActionResult Update() { return ActionResult::Result(); }
 };
 
 void test_CreateSomeActions() {
@@ -70,7 +67,9 @@ void test_CreateSomeActions() {
     a2.reset();
   });
 
-  a2->Update(Now());
+  // constexpr bool ah = action_internal::HasUpdate<A>::value;
+
+  a2->ActionUpdate(Now());
   TEST_ASSERT(finished);
 
   std::size_t count = 0;

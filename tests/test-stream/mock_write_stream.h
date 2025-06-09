@@ -34,28 +34,6 @@ class MockStreamWriteAction : public StreamWriteAction {
     state_.Set(State::kDone);
   }
 
-  TimePoint Update(TimePoint current_time) override {
-    if (state_.changed()) {
-      switch (state_.Acquire()) {
-        case State::kQueued:
-        case State::kInProgress:
-          break;
-        case State::kDone:
-          Action::Result(*this);
-          break;
-        case State::kStopped:
-          Action::Stop(*this);
-          break;
-        case State::kTimeout:
-        case State::kFailed:
-        case State::kPanic:
-          Action::Error(*this);
-          break;
-      }
-    }
-    return current_time;
-  }
-
   void Stop() override { state_.Set(State::kStopped); }
 };
 

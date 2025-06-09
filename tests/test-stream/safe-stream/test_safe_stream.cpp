@@ -19,6 +19,7 @@
 #include "aether/api_protocol/api_message.h"
 
 #include "aether/actions/action_context.h"
+#include "aether/actions/action_processor.h"
 #include "aether/api_protocol/protocol_context.h"
 
 #include "aether/stream_api/safe_stream.h"

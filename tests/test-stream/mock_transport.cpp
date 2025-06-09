@@ -27,22 +27,20 @@ MocTransportPacketSendAction::MocTransportPacketSendAction(
     ActionContext action_context, DataBuffer d, TimePoint st)
     : PacketSendAction{action_context}, data{std::move(d)}, sent_time{st} {}
 
-TimePoint MocTransportPacketSendAction::Update(TimePoint current_time) {
+ActionResult MocTransportPacketSendAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case PacketSendAction::State::kSuccess:
-        Action::Result(*this);
-        break;
+        return ActionResult::Result();
       case PacketSendAction::State::kFailed:
-        Action::Error(*this);
-        break;
+        return ActionResult::Error();
       case PacketSendAction::State::kStopped:
-        Action::Stop(*this);
+        return ActionResult::Stop();
       default:
         break;
     }
   }
-  return current_time;
+  return {};
 }
 
 void MocTransportPacketSendAction::Stop() {
