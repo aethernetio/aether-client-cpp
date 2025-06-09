@@ -13,6 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef EXAMPLES_C_API_AETHER_CAPI_H_
+#define EXAMPLES_C_API_AETHER_CAPI_H_
+
+#include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,9 +25,20 @@ extern "C" {
 
 typedef struct AetherClassHandle AetherClassHandle;  // Opaque pointer
 
+typedef struct CUid {
+  uint8_t id[16];
+} CUid;
+
 AetherClassHandle* AetherClassCreate();
 void AetherClassDestroy(AetherClassHandle* handle);
+void AetherClassInit(AetherClassHandle* handle,
+                     void (*pt2Func)(CUid uid, uint8_t const* data, size_t size,
+                                     void* user_data),
+                     const char* kWifiSsid, const char* kWifiPass);
+void AetherClassSendMessages(char const* data, size_t size);
 
 #ifdef __cplusplus
 }
 #endif
+
+#endif  // EXAMPLES_C_API_AETHER_CAPI_H_

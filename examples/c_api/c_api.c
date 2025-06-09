@@ -14,10 +14,17 @@
  * limitations under the License.
  */
 
+#include <stdio.h>
+
 #include "aether_capi.h"
 
-static const char* kWifiSsid = "Test1234";
-static const char* kWifiPass = "Test1234";
+static const char* kWifiSsid = "Visuale";
+static const char* kWifiPass = "Ws63$yhJ";
+static const char* kMessage = "Message";
+
+void OnMsg(CUid uid, uint8_t const* data, size_t size, void* user_data){ // message handler func
+    printf("Message %s", data);
+}
 
 int AetherCApiExample();
 
@@ -31,7 +38,9 @@ int AetherCApiExample() {
    * To configure its creation \see AetherAppConstructor.
    */
   
-  AetherClassHandle* obj = AetherClassCreate();  
+  AetherClassHandle* obj = AetherClassCreate();
+  AetherClassInit(obj, &OnMsg, kWifiSsid, kWifiPass);
+  AetherClassSendMessages(kMessage, sizeof(kMessage));  
   AetherClassDestroy(obj);
     
   return 0;
