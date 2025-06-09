@@ -33,20 +33,16 @@ SafeStreamWriteAction::SafeStreamWriteAction(
   subscriptions_.Push(
       sending_data_action_->ResultEvent().Subscribe([this](auto const&) {
         state_.Set(State::kDone);
-        Action::Result(*this);
+        return ActionResult::Result();
       }),
       sending_data_action_->ErrorEvent().Subscribe([this](auto const&) {
         state_.Set(State::kFailed);
-        Action::Error(*this);
+        return ActionResult::Error();
       }),
       sending_data_action_->StopEvent().Subscribe([this](auto const&) {
         state_.Set(State::kStopped);
-        Action::Stop(*this);
+        return ActionResult::Stop();
       }));
-}
-
-TimePoint SafeStreamWriteAction::Update(TimePoint current_time) {
-  return current_time;
 }
 
 // TODO: add tests for stop

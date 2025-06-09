@@ -17,6 +17,24 @@
 #include "aether/stream_api/stream_write_action.h"
 
 namespace ae {
+
+ActionResult StreamWriteAction::Update() {
+  if (state_.changed()) {
+    switch (state_.Acquire()) {
+      case State::kDone:
+        return ActionResult::Result();
+      case State::kStopped:
+        return ActionResult::Stop();
+      case State::kFailed:
+        return ActionResult::Error();
+      default:
+        break;
+    }
+  }
+
+  return {};
+}
+
 FailedStreamWriteAction::FailedStreamWriteAction() {
   state_.Set(State::kFailed);
 }
@@ -26,17 +44,16 @@ FailedStreamWriteAction::FailedStreamWriteAction(ActionContext action_context)
   state_.Set(State::kFailed);
 }
 
-TimePoint FailedStreamWriteAction::Update(TimePoint current_time) {
+ActionResult FailedStreamWriteAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kFailed:
-        Action::Error(*this);
-        break;
+        return ActionResult::Error();
       default:
         break;
     }
   }
-  return current_time;
+  return {};
 }
 
 void FailedStreamWriteAction::Stop() {}

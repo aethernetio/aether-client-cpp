@@ -45,7 +45,7 @@ class AresImpl {
   };
 
   explicit AresImpl(Aether* aether)
-      : action_context_{*aether->action_processor}, poller_{aether->poller} {
+      : action_context_{*aether}, poller_{aether->poller} {
     assert(poller_);
 
     ares_library_init(ARES_LIB_INIT_ALL);

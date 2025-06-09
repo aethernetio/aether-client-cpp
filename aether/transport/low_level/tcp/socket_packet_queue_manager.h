@@ -34,7 +34,7 @@ template <typename TSocketPacketSendAction,
           AE_REQUIRERS((std::is_base_of<SocketPacketSendAction,
                                         TSocketPacketSendAction>))>
 class SocketPacketQueueManager
-    : Action<SocketPacketQueueManager<TSocketPacketSendAction>> {
+    : public Action<SocketPacketQueueManager<TSocketPacketSendAction>> {
  public:
   using BaseAction = Action<SocketPacketQueueManager<TSocketPacketSendAction>>;
 
@@ -43,9 +43,9 @@ class SocketPacketQueueManager
 
   AE_CLASS_NO_COPY_MOVE(SocketPacketQueueManager)
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     Send();
-    return current_time;
+    return {};
   }
 
   ActionView<SocketPacketSendAction> AddPacket(

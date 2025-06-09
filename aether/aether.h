@@ -32,6 +32,7 @@
 #include "aether/events/multi_subscription.h"
 #include "aether/tele/traps/tele_statistics.h"
 #include "aether/actions/action_list.h"
+#include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
@@ -91,6 +92,8 @@ class Aether : public Obj {
   Server::ptr GetServer(ServerId server_id);
   std::vector<Client::ptr>& clients();
   tele::TeleStatistics::ptr const& tele_statistics() const;
+
+  operator ActionContext() const { return ActionContext{*action_processor}; }
 
   std::unique_ptr<ActionProcessor> action_processor =
       make_unique<ActionProcessor>();

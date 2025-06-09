@@ -58,7 +58,7 @@ class LwipTcpTransport : public ITransport {
     explicit ConnectionAction(ActionContext action_context,
                               LwipTcpTransport& transport);
 
-    TimePoint Update(TimePoint current_time) override;
+    ActionResult Update();
 
    private:
     void Connect();
@@ -97,11 +97,11 @@ class LwipTcpTransport : public ITransport {
     LwipTcpReadAction(ActionContext action_context,
                       LwipTcpTransport& transport);
 
-    TimePoint Update(TimePoint current_time) override;
+    ActionResult Update();
     void Read();
 
    private:
-    void DataReceived(TimePoint current_time);
+    void DataReceived();
 
     LwipTcpTransport* transport_;
     StreamDataPacketCollector data_packet_collector_;

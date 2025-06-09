@@ -94,7 +94,6 @@ list(APPEND actions_srcs
             "ae_actions/telemetry.cpp"
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
-            "actions/action_context.cpp"
             "actions/action_processor.cpp"
             "actions/timer_action.cpp"
             "actions/task_queue.cpp"

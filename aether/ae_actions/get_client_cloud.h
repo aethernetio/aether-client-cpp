@@ -48,15 +48,15 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
                                 ClientToServerStream& client_to_server_stream,
                                 Uid client_uid);
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
   void Stop();
 
   std::vector<ServerDescriptor> const& server_descriptors();
 
  private:
-  void RequestCloud(TimePoint current_time);
-  void RequestServerResolve(TimePoint current_time);
+  void RequestCloud();
+  void RequestServerResolve();
 
   void OnCloudResponse(UidAndCloud const& uid_and_cloud);
   void OnServerResponse(ServerDescriptor const& server_descriptor);

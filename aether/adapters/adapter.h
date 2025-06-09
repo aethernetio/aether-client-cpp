@@ -34,6 +34,8 @@ class CreateTransportAction : public Action<CreateTransportAction> {
   using Action::Action;
   using Action::operator=;
 
+  virtual ActionResult Update() = 0;
+
   virtual std::unique_ptr<ITransport> transport() = 0;
 };
 

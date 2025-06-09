@@ -58,7 +58,7 @@ class WinTcpTransport : public ITransport {
     ConnectionAction(ActionContext action_context, WinTcpTransport& transport);
     ~ConnectionAction() override;
 
-    TimePoint Update(TimePoint current_time) override;
+    ActionResult Update();
 
    private:
     void ConnectionUpdate();
@@ -101,7 +101,7 @@ class WinTcpTransport : public ITransport {
    public:
     WinTcpReadAction(ActionContext action_context, WinTcpTransport& transport);
 
-    TimePoint Update(TimePoint current_time) override;
+    ActionResult Update();
 
     void RecvUpdate();
     void HandleReceivedData();

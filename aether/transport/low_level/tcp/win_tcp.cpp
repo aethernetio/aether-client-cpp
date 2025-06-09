@@ -88,7 +88,7 @@ WinTcpTransport::ConnectionAction::~ConnectionAction() {
   alive_checker_->lock();
 }
 
-TimePoint WinTcpTransport::ConnectionAction::Update(TimePoint current_time) {
+ActionResult WinTcpTransport::ConnectionAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitConnection:
@@ -97,16 +97,14 @@ TimePoint WinTcpTransport::ConnectionAction::Update(TimePoint current_time) {
         ConnectionUpdate();
         break;
       case State::kConnected:
-        Action::Result(*this);
-        break;
+        return ActionResult::Result();
       case State::kConnectionFailed:
-        Action::Error(*this);
-        break;
+        return ActionResult::Error();
       default:
         break;
     }
   }
-  return current_time;
+  return {};
 }
 
 void WinTcpTransport::ConnectionAction::Connect() {
@@ -307,15 +305,15 @@ WinTcpTransport::WinTcpReadAction::WinTcpReadAction(
       read_event_{true},  // start with first RecvUpdate()
       error_event_{false} {}
 
-TimePoint WinTcpTransport::WinTcpReadAction::Update(TimePoint current_time) {
+ActionResult WinTcpTransport::WinTcpReadAction::Update() {
   if (read_event_.exchange(false)) {
     RecvUpdate();
     HandleReceivedData();
   }
   if (error_event_.exchange(false)) {
-    Action::Error(*this);
+    return ActionResult::Error();
   }
-  return current_time;
+  return {};
 }
 
 void WinTcpTransport::WinTcpReadAction::RecvUpdate() {

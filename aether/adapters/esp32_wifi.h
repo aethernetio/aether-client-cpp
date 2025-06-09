@@ -60,7 +60,8 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
                           IPoller::ptr const& poller,
                           IpAddressPortProtocol address_port_protocol_);
 
-    TimePoint Update(TimePoint current_time) override;
+    ActionResult Update() override;
+
     std::unique_ptr<ITransport> transport() override;
 
    private:

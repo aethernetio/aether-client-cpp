@@ -82,16 +82,15 @@ Esp32WifiAdapter::CreateTransportAction::CreateTransportAction(
   AE_TELE_DEBUG(kAdapterWifiTransportWait, "Wait wifi connection");
 }
 
-TimePoint Esp32WifiAdapter::CreateTransportAction::Update(
-    TimePoint current_time) {
+ActionResult Esp32WifiAdapter::CreateTransportAction::Update() {
   if (transport_ && once_) {
-    Action::Result(*this);
+    return ActionResult::Result();
     once_ = false;
   } else if (failed_ && once_) {
-    Action::Error(*this);
+    return ActionResult::Error();
     once_ = false;
   }
-  return current_time;
+  return {};
 }
 
 std::unique_ptr<ITransport>

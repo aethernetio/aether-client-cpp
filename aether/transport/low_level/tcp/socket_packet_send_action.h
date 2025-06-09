@@ -24,7 +24,7 @@ class SocketPacketSendAction : public PacketSendAction {
  public:
   using PacketSendAction::PacketSendAction;
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update() override;
 
   void Stop() override;
 

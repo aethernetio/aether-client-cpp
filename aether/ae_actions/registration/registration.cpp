@@ -93,9 +93,8 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
 
 Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
 
-TimePoint Registration::Update(TimePoint current_time) {
-  AE_TELED_DEBUG("Registration::Update UTC :{:%Y-%m-%d %H:%M:%S}",
-                 current_time);
+ActionResult Registration::Update() {
+  AE_TELED_DEBUG("Registration::Update state {}", state_.get());
 
   // TODO: add check for actual packet sending or method timeouts
 
@@ -107,35 +106,33 @@ TimePoint Registration::Update(TimePoint current_time) {
       case State::kWaitingConnection:
         break;
       case State::kConnected:
-        Connected(current_time);
+        Connected();
         break;
       case State::kGetKeys:
-        GetKeys(current_time);
+        GetKeys();
         break;
       case State::kGetPowParams:
-        RequestPowParams(current_time);
+        RequestPowParams();
         break;
       case State::kMakeRegistration:
-        MakeRegistration(current_time);
+        MakeRegistration();
         break;
       case State::kRequestCloudResolving:
-        ResolveCloud(current_time);
+        ResolveCloud();
         break;
       case State::kRegistered:
-        Action::Result(*this);
-        return current_time;
+        return ActionResult::Result();
       case State::kRegistrationFailed:
-        Action::Error(*this);
-        return current_time;
+        return ActionResult::Error();
       default:
         break;
     }
   }
   if (state_.get() == State::kWaitKeys) {
-    return WaitKeys(current_time);
+    return ActionResult::Delay(WaitKeys());
   }
 
-  return current_time;
+  return {};
 }
 
 Client::ptr Registration::client() const { return client_; }
@@ -149,6 +146,7 @@ void Registration::IterateConnection() {
     return;
   }
 
+  AE_TELED_DEBUG("Selected server");
   if (server_channel_stream_->stream_info().is_linked) {
     state_ = State::kConnected;
     return;
@@ -168,9 +166,8 @@ void Registration::IterateConnection() {
   state_ = State::kWaitingConnection;
 }
 
-void Registration::Connected(TimePoint current_time) {
-  AE_TELED_DEBUG("Registration::Connected at UTC :{:%Y-%m-%d %H:%M:%S}",
-                 current_time);
+void Registration::Connected() {
+  AE_TELED_DEBUG("Registration::Connected");
   auto aether = aether_.Lock();
   if (!aether) {
     return;
@@ -186,8 +183,8 @@ void Registration::Connected(TimePoint current_time) {
   state_ = State::kGetKeys;
 }
 
-void Registration::GetKeys(TimePoint current_time) {
-  AE_TELE_INFO(RegisterGetKeys, "GetKeys {:%Y-%m-%d %H:%M:%S}", current_time);
+void Registration::GetKeys() {
+  AE_TELE_INFO(RegisterGetKeys, "GetKeys");
 
   auto packet_context = ApiContext{protocol_context_, server_reg_root_api_};
   auto get_key_promise =
@@ -216,12 +213,13 @@ void Registration::GetKeys(TimePoint current_time) {
   raw_transport_send_action_subscription_ =
       packet_write_action_->ErrorEvent().Subscribe(
           [this](auto const&) { state_ = State::kSelectConnection; });
-  last_request_time_ = current_time;
+  last_request_time_ = Now();
 
   state_ = State::kWaitKeys;
 }
 
-TimePoint Registration::WaitKeys(TimePoint current_time) {
+TimePoint Registration::WaitKeys() {
+  auto current_time = Now();
   if (last_request_time_ + response_timeout_ < current_time) {
     AE_TELE_WARNING(RegisterWaitKeysTimeout,
                     "WaitKeys timeout {:%Y-%m-%d %H:%M:%S}", current_time);
@@ -231,7 +229,7 @@ TimePoint Registration::WaitKeys(TimePoint current_time) {
   return last_request_time_ + response_timeout_;
 }
 
-void Registration::RequestPowParams(TimePoint /* current_time */) {
+void Registration::RequestPowParams() {
   AE_TELE_INFO(RegisterRequestPowParams, "Request proof of work params");
 
   Key secret_key;
@@ -289,7 +287,7 @@ void Registration::RequestPowParams(TimePoint /* current_time */) {
       });
 }
 
-void Registration::MakeRegistration(TimePoint /* current_time */) {
+void Registration::MakeRegistration() {
   AE_TELE_INFO(RegisterMakeRegistration, "Make registration");
 
   // Proof calculation
@@ -356,7 +354,7 @@ void Registration::MakeRegistration(TimePoint /* current_time */) {
       });
 }
 
-void Registration::ResolveCloud(TimePoint /*current_time*/) {
+void Registration::ResolveCloud() {
   AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud with {} servers",
                cloud_.size());
 

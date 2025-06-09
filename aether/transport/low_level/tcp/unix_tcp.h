@@ -53,7 +53,7 @@ class UnixTcpTransport : public ITransport {
 
     ConnectionAction(ActionContext action_context, UnixTcpTransport& transport);
 
-    TimePoint Update(TimePoint current_time) override;
+    ActionResult Update();
 
    private:
     void Connect();
@@ -92,11 +92,11 @@ class UnixTcpTransport : public ITransport {
     UnixPacketReadAction(ActionContext action_context,
                          UnixTcpTransport& transport);
 
-    TimePoint Update(TimePoint current_time) override;
+    ActionResult Update();
     void Read();
 
    private:
-    void DataReceived(TimePoint current_time);
+    void DataReceived();
 
     UnixTcpTransport* transport_;
     StreamDataPacketCollector data_packet_collector_;

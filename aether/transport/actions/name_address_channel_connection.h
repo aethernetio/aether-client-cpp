@@ -58,13 +58,13 @@ class NameAddressChannelConnectionAction : public ChannelConnectionAction {
 
   ~NameAddressChannelConnectionAction() override;
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update(TimePoint current_time) override;
   std::unique_ptr<ITransport> transport() override;
   ConnectionInfo connection_info() const override;
 
  private:
-  void NameResolve(TimePoint current_time);
-  void TryConnection(TimePoint current_time);
+  void NameResolve();
+  void TryConnection();
 
   NameAddress name_address_;
   PtrView<DnsResolver> dns_resolver_;

@@ -44,7 +44,7 @@ class SafeStreamRecvAction : public Action<SafeStreamRecvAction> {
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamRecvAction)
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update(TimePoint current_time);
 
   void PushData(DataBuffer&& data, SSRingIndex received_offset,
                 std::uint16_t repeat_count);

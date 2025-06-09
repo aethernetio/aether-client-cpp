@@ -34,32 +34,30 @@ CheckAccessForSendMessage::CheckAccessForSendMessage(
       state_changed_{state_.changed_event().Subscribe(
           [&](auto const&) { Action::Trigger(); })} {}
 
-TimePoint CheckAccessForSendMessage::Update(TimePoint current_time) {
+ActionResult CheckAccessForSendMessage::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kSendRequest:
-        SendRequest(current_time);
+        SendRequest();
         break;
       case State::kWaitResponse:
         break;
       case State::kReceivedSuccess:
-        Action::Result(*this);
-        return current_time;
+        return ActionResult::Result();
       case State::kReceivedError:
       case State::kSendError:
       case State::kTimeout:
-        Action::Error(*this);
-        return current_time;
+        return ActionResult::Error();
     }
   }
   if (state_.get() == State::kWaitResponse) {
-    return WaitResponse(current_time);
+    return ActionResult::Delay(WaitResponse());
   }
-  return current_time;
+  return {};
 }
 
-void CheckAccessForSendMessage::SendRequest(TimePoint current_time) {
-  last_request_time_ = current_time;
+void CheckAccessForSendMessage::SendRequest() {
+  last_request_time_ = Now();
 
   auto api_adapter = client_to_server_stream_->authorized_api_adapter();
   auto check_promise = api_adapter->check_access_for_send_message(destination_);
@@ -75,7 +73,8 @@ void CheckAccessForSendMessage::SendRequest(TimePoint current_time) {
   state_ = State::kWaitResponse;
 }
 
-TimePoint CheckAccessForSendMessage::WaitResponse(TimePoint current_time) {
+TimePoint CheckAccessForSendMessage::WaitResponse() {
+  auto current_time = Now();
   if ((last_request_time_ + kRequestTimeout) > current_time) {
     return last_request_time_ + kRequestTimeout;
   }

@@ -43,6 +43,7 @@ class ChannelConnectionAction : public Action<ChannelConnectionAction> {
  public:
   using Action::Action;
 
+  virtual ActionResult Update(TimePoint current_time) = 0;
   virtual std::unique_ptr<ITransport> transport() = 0;
   virtual ConnectionInfo connection_info() const = 0;
 };

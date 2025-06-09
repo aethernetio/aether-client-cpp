@@ -28,20 +28,6 @@ BufferStream::BufferedWriteAction::BufferedWriteAction(
   state_ = State::kQueued;
 }
 
-TimePoint BufferStream::BufferedWriteAction::Update(TimePoint current_time) {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kStopped:
-        Action::Stop(*this);
-        break;
-      default:
-        break;
-    }
-  }
-
-  return current_time;
-}
-
 void BufferStream::BufferedWriteAction::Stop() {
   if (write_action_) {
     write_action_->Stop();
@@ -62,15 +48,15 @@ void BufferStream::BufferedWriteAction::Send(OutStream& out_gate) {
   write_action_subscription_.Push(
       write_action_->ResultEvent().Subscribe([this](auto const&) {
         state_.Acquire();
-        Action::Result(*this);
+        return ActionResult::Result();
       }),
       write_action_->ErrorEvent().Subscribe([this](auto const&) {
         state_.Acquire();
-        Action::Error(*this);
+        return ActionResult::Error();
       }),
       write_action_->StopEvent().Subscribe([this](auto const&) {
         state_.Acquire();
-        Action::Stop(*this);
+        return ActionResult::Stop();
       }));
 }
 

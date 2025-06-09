@@ -41,7 +41,7 @@ Telemetry::Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
   AE_TELE_INFO(TelemetryCreated);
 }
 
-TimePoint Telemetry::Update(TimePoint current_time) {
+ActionResult Telemetry::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitRequest:
@@ -52,7 +52,7 @@ TimePoint Telemetry::Update(TimePoint current_time) {
     }
   }
 
-  return current_time;
+  return {};
 }
 
 void Telemetry::SendTelemetry() {

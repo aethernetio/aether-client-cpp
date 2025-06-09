@@ -35,7 +35,7 @@ class ResolveAction : public Action<ResolveAction> {
  public:
   using Action::Action;
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
   // Set ip addresses after resolve query finished
   void SetAddress(std::vector<IpAddressPortProtocol> addr);

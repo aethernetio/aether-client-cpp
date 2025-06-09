@@ -33,13 +33,12 @@ EthernetAdapter::EthernetCreateTransportAction::EthernetCreateTransportAction(
       transport_{std::move(transport)},
       once_{true} {}
 
-TimePoint EthernetAdapter::EthernetCreateTransportAction::Update(
-    TimePoint current_time) {
+ActionResult EthernetAdapter::EthernetCreateTransportAction::Update() {
   if (transport_ && once_) {
     once_ = false;
-    Action::Result(*this);
+    return ActionResult::Result();
   }
-  return current_time;
+  return {};
 }
 
 std::unique_ptr<ITransport>
@@ -61,8 +60,7 @@ ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
                address_port_protocol);
 
   if (!create_transport_actions_) {
-    create_transport_actions_.emplace(
-        ActionContext{*aether_.as<Aether>()->action_processor});
+    create_transport_actions_.emplace(ActionContext{*aether_.as<Aether>()});
   }
 
   CleanDeadTransports();

@@ -34,7 +34,6 @@ class TransportWriteStream final : public ByteIStream {
         ActionContext action_context,
         ActionView<PacketSendAction> packet_send_action);
 
-    TimePoint Update(TimePoint current_time) override;
     void Stop() override;
 
    private:

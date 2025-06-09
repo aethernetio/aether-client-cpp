@@ -44,13 +44,13 @@ class IpAddressChannelConnectionAction : public ChannelConnectionAction {
 
   ~IpAddressChannelConnectionAction() override;
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update(TimePoint current_time) override;
 
   std::unique_ptr<ITransport> transport() override;
   ConnectionInfo connection_info() const override;
 
  private:
-  void TryConnect(TimePoint current_time);
+  void TryConnect();
   void TransportCreated(std::unique_ptr<ITransport> transport);
 
   IpAddressPortProtocol ip_address_port_protocol_;

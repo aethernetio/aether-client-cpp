@@ -70,28 +70,25 @@ GetClientCloudAction::GetClientCloudAction(
   start_resolve_ = Now();
 }
 
-TimePoint GetClientCloudAction::Update(TimePoint current_time) {
+ActionResult GetClientCloudAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kRequestCloud:
-        RequestCloud(current_time);
+        RequestCloud();
         break;
       case State::kRequestServerResolve:
-        RequestServerResolve(current_time);
+        RequestServerResolve();
         break;
       case State::kAllServersResolved:
-        Action::Result(*this);
-        break;
+        return ActionResult::Result();
       case State::kFailed:
-        Action::Error(*this);
-        break;
+        return ActionResult::Error();
       case State::kStopped:
-        Action::Stop(*this);
-        break;
+        return ActionResult::Stop();
     }
   }
 
-  return current_time;
+  return {};
 }
 
 void GetClientCloudAction::Stop() {
@@ -110,10 +107,9 @@ GetClientCloudAction::server_descriptors() {
   return server_descriptors_;
 }
 
-void GetClientCloudAction::RequestCloud(TimePoint current_time) {
-  AE_TELE_INFO(kGetClientCloudRequestCloud,
-               "RequestCloud for uid {} at {:%H:%M:%S}", client_uid_,
-               current_time);
+void GetClientCloudAction::RequestCloud() {
+  AE_TELE_INFO(kGetClientCloudRequestCloud, "RequestCloud for uid {}",
+               client_uid_);
 
   cloud_request_action_ = cloud_request_stream_->Write(Uid{client_uid_});
 
@@ -124,12 +120,11 @@ void GetClientCloudAction::RequestCloud(TimePoint current_time) {
           [this](auto const&) { state_.Set(State::kFailed); }));
 }
 
-void GetClientCloudAction::RequestServerResolve(TimePoint current_time) {
+void GetClientCloudAction::RequestServerResolve() {
   // TODO: use server cache
 
   AE_TELE_DEBUG(kGetClientCloudRequestServerResolve,
-                "RequestServerResolve for ids {} at {:%H:%M:%S}",
-                uid_and_cloud_.cloud, current_time);
+                "RequestServerResolve for ids {}", uid_and_cloud_.cloud);
 
   server_resolve_actions_.reserve(uid_and_cloud_.cloud.size());
   for (auto server_id : uid_and_cloud_.cloud) {
