@@ -51,7 +51,7 @@ class TimerAction : public Action<TimerAction> {
   TimerAction& operator=(TimerAction const& other) = delete;
   TimerAction& operator=(TimerAction&& other) noexcept;
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
   void Stop();
 

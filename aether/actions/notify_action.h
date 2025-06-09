@@ -26,16 +26,16 @@ class NotifyAction : public Action<NotifyAction<T>> {
   using Action<NotifyAction<T>>::Action;
   using Action<NotifyAction<T>>::operator=;
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     if (notify_success_) {
       notify_success_ = false;
       this->ResultRepeat(static_cast<T&>(*this));
     }
     if (notify_failed_) {
       notify_failed_ = false;
-      this->Error(static_cast<T&>(*this));
+      return ActionResult::Error();
     }
-    return current_time;
+    return {};
   }
 
   void Notify() {
@@ -58,16 +58,16 @@ class NotifyAction<void> : public Action<NotifyAction<void>> {
   using Action<NotifyAction<void>>::Action;
   using Action<NotifyAction<void>>::operator=;
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     if (notify_success_) {
       notify_success_ = false;
       this->ResultRepeat(*this);
     }
     if (notify_failed_) {
       notify_failed_ = false;
-      this->Error(*this);
+      return ActionResult::Error();
     }
-    return current_time;
+    return {};
   }
 
   void Notify() {

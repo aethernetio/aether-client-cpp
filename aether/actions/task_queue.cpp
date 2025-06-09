@@ -20,9 +20,9 @@
 
 namespace ae {
 
-TimePoint TaskQueue::Update(TimePoint current_time) {
+ActionResult TaskQueue::Update() {
   if (tasks_.empty()) {
-    return current_time;
+    return {};
   }
   std::vector<Task> tasks_invoke;
   {
@@ -33,7 +33,7 @@ TimePoint TaskQueue::Update(TimePoint current_time) {
   for (auto& t : tasks_invoke) {
     t();
   }
-  return current_time;
+  return {};
 }
 
 void TaskQueue::Enqueue(Task&& task) {

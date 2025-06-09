@@ -19,18 +19,32 @@
 
 #include "aether/actions/action_registry.h"
 #include "aether/actions/action_trigger.h"
-#include "aether/actions/action_processor.h"
 
 namespace ae {
+namespace action_internal {
+template <typename T, typename Enab = void>
+struct ActionContextConcept : std::false_type {};
+
+template <typename T>
+struct ActionContextConcept<
+    T, std::void_t<decltype(std::declval<T>().get_trigger()),
+                   decltype(std::declval<T>().get_registry())>>
+    : std::true_type {};
+}  // namespace action_internal
+
 class ActionContext {
  public:
-  ActionContext(ActionProcessor& processor);
+  template <typename T, AE_REQUIRERS(action_internal::ActionContextConcept<T>),
+            AE_REQUIRERS_NOT((std::is_same<ActionContext, std::decay_t<T>>))>
+  ActionContext(T&& context)
+      : trigger_{&context.get_trigger()}, registry_{&context.get_registry()} {}
 
-  ActionTrigger& get_trigger();
-  ActionRegistry& get_registry();
+  ActionTrigger& get_trigger() { return *trigger_; }
+  ActionRegistry& get_registry() { return *registry_; }
 
  private:
-  ActionProcessor* processor_;
+  ActionTrigger* trigger_;
+  ActionRegistry* registry_;
 };
 }  // namespace ae
 

@@ -30,7 +30,7 @@ class TaskQueue : public Action<TaskQueue> {
 
   using Action::Action;
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
   void Enqueue(Task&& task);
 
  private:
