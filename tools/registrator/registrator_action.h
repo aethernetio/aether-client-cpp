@@ -17,30 +17,14 @@
 #ifndef TOOLS_REGISTRATOR_REGISTRATOR_ACTION_H_
 #define TOOLS_REGISTRATOR_REGISTRATOR_ACTION_H_
 
-#include "aether/memory.h"
 #include "aether/aether_app.h"
-#include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "registrator/registrator_config.h"
 
 namespace ae::registrator {
-constexpr ae::SafeStreamConfig kSafeStreamConfig{
-    std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
-    (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
-    (std::numeric_limits<std::uint16_t>::max() / 2) - 1 - 1,  // max_data_size
-    4,                               // max_repeat_count
-    std::chrono::milliseconds{200},  // wait_confirm_timeout
-    {},                              // send_confirm_timeout
-    std::chrono::milliseconds{200},  // send_repeat_timeout
-};
-
 class RegistratorAction : public Action<RegistratorAction> {
   enum class State : std::uint8_t {
     kRegistration,
-    kConfigureReceiver,
-    kConfigureSender,
-    kSendMessages,
-    kWaitDone,
     kResult,
     kError,
   };
@@ -48,29 +32,17 @@ class RegistratorAction : public Action<RegistratorAction> {
  public:
   explicit RegistratorAction(Ptr<AetherApp> const& aether_app,
                              RegistratorConfig const& registrator_config);
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
  private:
   void RegisterClients();
-  void ConfigureReceiver();
-  void ConfigureSender();
-  void SendMessages(TimePoint current_time);
 
-  Aether::ptr aether_;
+  PtrView<Aether> aether_;
   RegistratorConfig registrator_config_;
 
-  std::vector<std::string> messages_;
-  std::vector<std::unique_ptr<P2pSafeStream>> sender_streams_;
-
   std::size_t clients_registered_{0};
-  std::size_t receive_count_{0};
-  std::size_t confirm_count_{0};
 
   MultiSubscription registration_subscriptions_;
-  MultiSubscription receiver_message_subscriptions_;
-  MultiSubscription response_subscriptions_;
-  MultiSubscription sender_message_subscriptions_;
-  MultiSubscription send_subscriptions_;
   StateMachine<State> state_;
   Subscription state_changed_;
 };
