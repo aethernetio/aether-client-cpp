@@ -94,6 +94,7 @@ list(APPEND actions_srcs
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
+            "ae_actions/select_client.cpp"
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
             "actions/action_processor.cpp"
