@@ -21,15 +21,16 @@
 
 namespace ae {
 
-TimePoint ResolveAction::Update(TimePoint current_time) {
+ActionResult ResolveAction::Update() {
   if (is_resolved) {
     is_resolved = false;
-    Action::Result(*this);
-  } else if (is_failed) {
-    is_failed = false;
-    Action::Error(*this);
+    return ActionResult::Result();
   }
-  return current_time;
+  if (is_failed) {
+    is_failed = false;
+    return ActionResult::Error();
+  }
+  return {};
 }
 
 void ResolveAction::SetAddress(std::vector<IpAddressPortProtocol> addr) {
@@ -45,7 +46,7 @@ void ResolveAction::Failed() {
 }
 
 ResolveAction& DnsResolver::Resolve(NameAddress const& /* name_address */) {
-  // must be overriden
+  // must be overridden
   assert(false);
   std::abort();
 }

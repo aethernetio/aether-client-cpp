@@ -156,12 +156,7 @@ class AetherApp {
   Aether::ptr const& aether() const { return aether_; }
 
   // Action context protocol
-  ActionRegistry& get_registry() {
-    return aether_->action_processor->get_registry();
-  }
-  ActionTrigger& get_trigger() {
-    return aether_->action_processor->get_trigger();
-  }
+  operator ActionContext() const { return ActionContext{*aether_}; }
 
   AE_REFLECT_MEMBERS(domain_facility_, domain_, aether_, exit_code_)
 

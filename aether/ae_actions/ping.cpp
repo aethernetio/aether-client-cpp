@@ -49,34 +49,33 @@ Ping::Ping(ActionContext action_context, Server::ptr const& server,
 
 Ping::~Ping() = default;
 
-TimePoint Ping::Update(TimePoint current_time) {
+ActionResult Ping::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitLink:
         break;
       case State::kSendPing:
-        SendPing(current_time);
+        SendPing();
         break;
       case State::kWaitResponse:
       case State::kWaitInterval:
         break;
       case State::kError:
-        Action::Error(*this);
-        return current_time;
+        return ActionResult::Error();
     }
   }
 
   if (state_.get() == State::kWaitResponse) {
-    return WaitResponse(current_time);
+    return ActionResult::Delay(WaitResponse());
   }
   if (state_.get() == State::kWaitInterval) {
-    return WaitInterval(current_time);
+    return ActionResult::Delay(WaitInterval());
   }
 
-  return current_time;
+  return {};
 }
 
-void Ping::SendPing(TimePoint current_time) {
+void Ping::SendPing() {
   AE_TELE_DEBUG(kPingSend, "Send ping");
 
   auto api_adapter = client_to_server_stream_->authorized_api_adapter();
@@ -84,7 +83,7 @@ void Ping::SendPing(TimePoint current_time) {
       std::chrono::duration_cast<std::chrono::milliseconds>(ping_interval_)
           .count()));
 
-  ping_times_.push(std::make_pair(pong_promise->request_id(), current_time));
+  ping_times_.push(std::make_pair(pong_promise->request_id(), Now()));
   // Wait for response
   wait_responses_.Push(pong_promise->ResultEvent().Subscribe(
       [&](auto const& promise) { PingResponse(promise.request_id()); }));
@@ -99,7 +98,8 @@ void Ping::SendPing(TimePoint current_time) {
   state_ = State::kWaitResponse;
 }
 
-TimePoint Ping::WaitInterval(TimePoint current_time) {
+TimePoint Ping::WaitInterval() {
+  auto current_time = Now();
   auto const& ping_time = ping_times_.back().second;
   if ((ping_time + ping_interval_) > current_time) {
     return ping_time + ping_interval_;
@@ -108,9 +108,10 @@ TimePoint Ping::WaitInterval(TimePoint current_time) {
   return current_time;
 }
 
-TimePoint Ping::WaitResponse(TimePoint current_time) {
+TimePoint Ping::WaitResponse() {
   auto channel_ptr = channel_.Lock();
   assert(channel_ptr);
+  auto current_time = Now();
   auto timeout = channel_ptr->expected_ping_time();
 
   auto const& ping_time = ping_times_.back().second;

@@ -49,26 +49,26 @@ NameAddressChannelConnectionAction::NameAddressChannelConnectionAction(
 NameAddressChannelConnectionAction::~NameAddressChannelConnectionAction() =
     default;
 
-TimePoint NameAddressChannelConnectionAction::Update(TimePoint current_time) {
+ActionResult NameAddressChannelConnectionAction::Update(
+    TimePoint /* current_time */) {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::Start:
-        NameResolve(current_time);
+        NameResolve();
         break;
       case State::TryConnection:
-        TryConnection(current_time);
+        TryConnection();
         break;
       case State::Connected:
-        Action::Result(*this);
-        break;
+        return ActionResult::Result();
       case State::NotConnected:
-        Action::Error(*this);
+        return ActionResult::Error();
         break;
       default:
         break;
     }
   }
-  return current_time;
+  return {};
 }
 
 std::unique_ptr<ITransport> NameAddressChannelConnectionAction::transport() {
@@ -79,8 +79,8 @@ ConnectionInfo NameAddressChannelConnectionAction::connection_info() const {
   return connection_info_;
 }
 
-void NameAddressChannelConnectionAction::NameResolve(
-    TimePoint /* current_time */) {
+void NameAddressChannelConnectionAction::NameResolve() {
+  AE_TELED_DEBUG("Name resolve {}", name_address_);
   auto resolver_ptr = dns_resolver_.Lock();
   auto& resolver_action = resolver_ptr->Resolve(name_address_);
   dns_resolve_subscriptions_.Push(
@@ -93,8 +93,7 @@ void NameAddressChannelConnectionAction::NameResolve(
           [this](auto const&) { state_.Set(State::NotConnected); }));
 }
 
-void NameAddressChannelConnectionAction::TryConnection(
-    TimePoint /* current_time */) {
+void NameAddressChannelConnectionAction::TryConnection() {
   if (ip_address_port_protocol_it_ == std::end(ip_address_port_protocols_)) {
     state_.Set(State::NotConnected);
     return;

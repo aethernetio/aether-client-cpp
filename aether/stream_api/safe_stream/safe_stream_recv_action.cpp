@@ -23,7 +23,7 @@ SafeStreamRecvAction::SafeStreamRecvAction(
     ActionContext action_context, ISendConfirmRepeat& send_confirm_repeat)
     : Action{action_context}, send_confirm_repeat_{&send_confirm_repeat} {}
 
-TimePoint SafeStreamRecvAction::Update(TimePoint current_time) {
+ActionResult SafeStreamRecvAction::Update(TimePoint current_time) {
   ChecklCompletedChains();
   auto new_time = current_time;
   for (auto const& t :
@@ -35,7 +35,7 @@ TimePoint SafeStreamRecvAction::Update(TimePoint current_time) {
       new_time = std::min(new_time, t);
     }
   }
-  return new_time;
+  return ActionResult::Delay(new_time);
 }
 
 void SafeStreamRecvAction::PushData(DataBuffer&& data,

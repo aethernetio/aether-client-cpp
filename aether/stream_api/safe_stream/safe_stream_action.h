@@ -69,7 +69,7 @@ class SafeStreamAction final : public SafeStreamApiImpl,
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamAction)
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update(TimePoint current_time);
 
   // send data through safe stream
   ActionView<SendingDataAction> SendData(DataBuffer &&data);
@@ -100,7 +100,7 @@ class SafeStreamAction final : public SafeStreamApiImpl,
   void SendRepeatRequest(SSRingIndex offset) override;
 
  private:
-  void SendInit(TimePoint current_time);
+  void SendInit();
   void InitAck();
   void SendInitAck(RequestId request_id);
 

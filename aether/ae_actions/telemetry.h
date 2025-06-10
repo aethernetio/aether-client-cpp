@@ -46,7 +46,7 @@ class Telemetry : public Action<Telemetry> {
 
   AE_CLASS_NO_COPY_MOVE(Telemetry)
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
   void SendTelemetry();
 

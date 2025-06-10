@@ -21,17 +21,26 @@
 
 #include "aether/common.h"
 #include "aether/events/events.h"
+#include "aether/actions/action_result.h"
+#include "aether/actions/action_context.h"
 #include "aether/actions/action_trigger.h"
 #include "aether/actions/action_registry.h"
 
 namespace ae {
+namespace action_internal {
+template <typename T, typename Enabled = void>
+struct HasUpdate : std::false_type {};
+
+template <typename T>
+struct HasUpdate<T, std::void_t<decltype(&T::Update)>> : std::true_type {};
+}  // namespace action_internal
 
 // Base Action class
 class IAction {
  public:
   virtual ~IAction() = default;
 
-  virtual TimePoint Update(TimePoint current_time) = 0;
+  virtual TimePoint ActionUpdate(TimePoint current_time) = 0;
 };
 
 /**
@@ -47,11 +56,7 @@ class Action : public IAction {
 
   Action() = default;
 
-  template <typename TActionContext,
-            typename _ = std::void_t<
-                decltype(std::declval<TActionContext>().get_registry()),
-                decltype(std::declval<TActionContext>().get_trigger())>>
-  explicit Action(TActionContext&& action_context)
+  explicit Action(ActionContext action_context)
       : action_trigger_{&action_context.get_trigger()},
         index_{action_context.get_registry().Register(*this)} {
     Trigger();
@@ -81,6 +86,41 @@ class Action : public IAction {
       }
     }
     return *this;
+  }
+
+  TimePoint ActionUpdate(TimePoint current_time) override {
+    if constexpr (!action_internal::HasUpdate<T>::value) {
+      return current_time;
+    } else {
+      auto& self = *static_cast<T*>(this);
+      ActionResult res;
+      if constexpr (std::is_invocable_v<decltype(&T::Update), T*, TimePoint>) {
+        res = self.Update(current_time);
+      } else {
+        res = self.Update();
+      }
+      switch (res.type) {
+        case ResultType::kNothing: {
+          break;
+        }
+        case ResultType::kResult: {
+          Result(self);
+          break;
+        }
+        case ResultType::kError: {
+          Error(self);
+          break;
+        }
+        case ResultType::kStop: {
+          Stop(self);
+          break;
+        }
+        case ResultType::kDelay: {
+          return res.delay_to;
+        }
+      }
+      return current_time;
+    }
   }
 
   /**

@@ -58,17 +58,17 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
 
   ~GetClientCloudConnection() override;
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
   void Stop();
 
   Ptr<ClientConnection> client_cloud_connection();
 
  private:
-  void TryCache(TimePoint current_time);
-  void SelectConnection(TimePoint current_time);
-  void GetCloud(TimePoint current_time);
-  void CreateConnection(TimePoint current_time);
+  void TryCache();
+  void SelectConnection();
+  void GetCloud();
+  void CreateConnection();
 
   ActionContext action_context_;
   PtrView<Client> client_;

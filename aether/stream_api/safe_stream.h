@@ -37,7 +37,6 @@ class SafeStreamWriteAction final : public StreamWriteAction {
       ActionContext action_context,
       ActionView<SendingDataAction> sending_data_action);
 
-  TimePoint Update(TimePoint current_time) override;
   // TODO: add tests for stop
   void Stop() override;
 

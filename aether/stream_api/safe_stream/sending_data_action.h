@@ -39,7 +39,7 @@ class SendingDataAction : public Action<SendingDataAction> {
   using Action::operator=;
   SendingDataAction(ActionContext action_context, SendingData data);
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
   SendingData& sending_data();
   EventSubscriber<void(SendingData const&)> stop_event();

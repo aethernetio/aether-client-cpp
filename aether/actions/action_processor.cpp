@@ -29,7 +29,7 @@ TimePoint ActionProcessor::Update(TimePoint current_time) {
     if (action == nullptr) {
       continue;
     }
-    auto new_time = action->Update(current_time);
+    auto new_time = action->ActionUpdate(current_time);
     next_update = SelectNextUpdate(new_time, next_update, current_time);
   }
   return next_update;

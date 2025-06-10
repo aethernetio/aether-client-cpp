@@ -74,8 +74,8 @@ class TestClientToServerStreamFixture {
 
   auto& MockTransport() {
     if (!mock_transport) {
-      mock_transport = make_unique<ae::MockTransport>(*aether->action_processor,
-                                                      ConnectionInfo{{}, 1500});
+      mock_transport =
+          make_unique<ae::MockTransport>(*aether, ConnectionInfo{{}, 1500});
     }
     return *mock_transport;
   }
@@ -84,7 +84,7 @@ class TestClientToServerStreamFixture {
     if (!client_to_server_stream) {
       MockTransport().Connect();
       client_to_server_stream = make_unique<ae::ClientToServerStream>(
-          *aether->action_processor, client, server->server_id,
+          *aether, client, server->server_id,
           make_unique<MockServerStream>(*aether->action_processor,
                                         MockTransport()));
     }

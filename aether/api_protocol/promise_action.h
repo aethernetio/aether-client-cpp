@@ -50,20 +50,20 @@ class PromiseAction : public Action<PromiseAction<TValue>> {
   PromiseAction& operator=(PromiseAction const& other) = delete;
   PromiseAction& operator=(PromiseAction&& other) = delete;
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kEmpty:
           break;
         case State::kValue:
-          BaseAction::Result(*this);
+          return ActionResult::Result();
           break;
         case State::kError:
-          BaseAction::Error(*this);
+          return ActionResult::Error();
           break;
       }
     }
-    return current_time;
+    return {};
   }
 
   void SetValue(TValue value) {
@@ -117,20 +117,20 @@ class PromiseAction<void> : public Action<PromiseAction<void>> {
   PromiseAction& operator=(PromiseAction const& other) = delete;
   PromiseAction& operator=(PromiseAction&& other) = delete;
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kEmpty:
           break;
         case State::kValue:
-          BaseAction::Result(*this);
+          return ActionResult::Result();
           break;
         case State::kError:
-          BaseAction::Error(*this);
+          return ActionResult::Error();
           break;
       }
     }
-    return current_time;
+    return {};
   }
 
   void SetValue() {

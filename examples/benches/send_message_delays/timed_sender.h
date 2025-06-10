@@ -73,31 +73,29 @@ class TimedSender : public ITimedSender {
                    min_send_interval_.count());
   }
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     if (state_.get() == State::kWaitSync) {
-      return CheckSyncTimeout(current_time);
+      return ActionResult::Delay(CheckSyncTimeout(Now()));
     }
     if (state_.get() == State::kWaitInterval) {
-      return CheckIntervalTimeout(current_time);
+      return ActionResult::Delay(CheckIntervalTimeout());
     }
 
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kSend:
-          Send(current_time);
+          Send();
           break;
         case State::kFinished:
-          this->Result(*this);
-          return current_time;
+          return ActionResult::Result();
         case State::kError:
-          this->Error(*this);
-          return current_time;
+          return ActionResult::Error();
         default:
           break;
       }
     }
 
-    return current_time;
+    return {};
   }
 
   TimeTable const& message_times() const override { return message_times_; }
@@ -115,7 +113,7 @@ class TimedSender : public ITimedSender {
   }
 
  private:
-  void Send(TimePoint current_time) {
+  void Send() {
     AE_TELED_DEBUG("Send message {} ", static_cast<int>(current_id_));
 
     message_times_.emplace(current_id_, HighResTimePoint::clock::now());
@@ -123,7 +121,7 @@ class TimedSender : public ITimedSender {
     stream_->Write(PacketBuilder{
         protocol_context_, PackMessage{api_class_, TMessage{current_id_}}});
 
-    last_send_time_ = current_time;
+    last_send_time_ = Now();
 
     ++current_id_;
     if (current_id_ == message_count_) {

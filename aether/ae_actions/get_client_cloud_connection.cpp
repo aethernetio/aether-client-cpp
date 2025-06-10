@@ -50,38 +50,35 @@ GetClientCloudConnection::~GetClientCloudConnection() {
   AE_TELE_DEBUG(kGetClientCloudConnectionDestroyed);
 }
 
-TimePoint GetClientCloudConnection::Update(TimePoint current_time) {
+ActionResult GetClientCloudConnection::Update() {
   AE_TELED_DEBUG("Update() state_ {}", state_.get());
 
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kTryCache:
-        TryCache(current_time);
+        TryCache();
         break;
       case State::kSelectConnection:
-        SelectConnection(current_time);
+        SelectConnection();
         break;
       case State::kConnection:
         break;
       case State::kGetCloud:
-        GetCloud(current_time);
+        GetCloud();
         break;
       case State::kCreateConnection:
-        CreateConnection(current_time);
+        CreateConnection();
         break;
       case State::kSuccess:
-        Action::Result(*this);
-        break;
+        return ActionResult::Result();
       case State::kStopped:
-        Action::Stop(*this);
-        break;
+        return ActionResult::Stop();
       case State::kFailed:
-        Action::Error(*this);
-        break;
+        return ActionResult::Error();
     }
   }
 
-  return current_time;
+  return {};
 }
 
 void GetClientCloudConnection::Stop() {
@@ -95,7 +92,7 @@ Ptr<ClientConnection> GetClientCloudConnection::client_cloud_connection() {
   return std::move(client_cloud_connection_);
 }
 
-void GetClientCloudConnection::TryCache(TimePoint /* current_time */) {
+void GetClientCloudConnection::TryCache() {
   // TODO: add get cloud connection from cache
 
   connection_selection_loop_ =
@@ -105,7 +102,7 @@ void GetClientCloudConnection::TryCache(TimePoint /* current_time */) {
   state_ = State::kSelectConnection;
 }
 
-void GetClientCloudConnection::SelectConnection(TimePoint /* current_time */) {
+void GetClientCloudConnection::SelectConnection() {
   if (server_connection_ = connection_selection_loop_->Update();
       !server_connection_) {
     AE_TELE_ERROR(kGetClientCloudConnectionServerListIsOver,
@@ -137,7 +134,7 @@ void GetClientCloudConnection::SelectConnection(TimePoint /* current_time */) {
   state_ = State::kConnection;
 }
 
-void GetClientCloudConnection::GetCloud(TimePoint /* current_time */) {
+void GetClientCloudConnection::GetCloud() {
   get_client_cloud_action_.emplace(
       action_context_, server_connection_->server_stream(), client_uid_);
 
@@ -150,7 +147,7 @@ void GetClientCloudConnection::GetCloud(TimePoint /* current_time */) {
           [this](auto const&) { state_ = State::kStopped; }));
 }
 
-void GetClientCloudConnection::CreateConnection(TimePoint /* current_time */) {
+void GetClientCloudConnection::CreateConnection() {
   assert(get_client_cloud_action_.has_value());
 
   auto servers = get_client_cloud_action_->server_descriptors();

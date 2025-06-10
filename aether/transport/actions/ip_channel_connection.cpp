@@ -42,24 +42,23 @@ IpAddressChannelConnectionAction::~IpAddressChannelConnectionAction() {
   AE_TELED_DEBUG("Destroy IpAddressChannelConnectionAction");
 }
 
-TimePoint IpAddressChannelConnectionAction::Update(TimePoint current_time) {
+ActionResult IpAddressChannelConnectionAction::Update(
+    TimePoint /* current_time */) {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::Start:
-        TryConnect(current_time);
+        TryConnect();
         break;
       case State::Connected:
-        Action::Result(*this);
-        break;
+        return ActionResult::Result();
       case State::Failed:
-        Action::Error(*this);
-        break;
+        return ActionResult::Error();
         // TODO: add connection timeout
       default:
         break;
     }
   }
-  return current_time;
+  return {};
 }
 
 std::unique_ptr<ITransport> IpAddressChannelConnectionAction::transport() {
@@ -70,8 +69,7 @@ ConnectionInfo IpAddressChannelConnectionAction::connection_info() const {
   return connection_info_;
 }
 
-void IpAddressChannelConnectionAction::TryConnect(
-    TimePoint /* current_time */) {
+void IpAddressChannelConnectionAction::TryConnect() {
   AE_TELED_DEBUG("TryConnection to address {}", ip_address_port_protocol_);
   auto transport_create_action =
       adapter_.CreateTransport(ip_address_port_protocol_);

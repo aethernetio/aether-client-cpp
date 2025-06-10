@@ -40,7 +40,6 @@ class BufferStream final : public ByteStream {
 
     AE_CLASS_MOVE_ONLY(BufferedWriteAction)
 
-    TimePoint Update(TimePoint current_time) override;
     void Stop() override;
     void Send(OutStream& out_gate);
     bool is_sent() const;

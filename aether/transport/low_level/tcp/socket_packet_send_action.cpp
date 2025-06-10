@@ -17,25 +17,25 @@
 #include "aether/transport/low_level/tcp/socket_packet_send_action.h"
 
 namespace ae {
-TimePoint SocketPacketSendAction::Update(TimePoint current_time) {
+ActionResult SocketPacketSendAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kSuccess:
-        Action::Result(*this);
+        return ActionResult::Result();
         break;
       case State::kFailed:
       case State::kPanic:
       case State::kTimeout:
-        Action::Error(*this);
+        return ActionResult::Error();
         break;
       case State::kStopped:
-        Action::Stop(*this);
+        return ActionResult::Stop();
         break;
       default:
         break;
     }
   }
-  return current_time;
+  return {};
 }
 
 void SocketPacketSendAction::Stop() {

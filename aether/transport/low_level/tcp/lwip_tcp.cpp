@@ -60,7 +60,7 @@ LwipTcpTransport::ConnectionAction::ConnectionAction(
   Connect();
 }
 
-TimePoint LwipTcpTransport::ConnectionAction::Update(TimePoint current_time) {
+ActionResult LwipTcpTransport::ConnectionAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitConnection:
@@ -69,16 +69,14 @@ TimePoint LwipTcpTransport::ConnectionAction::Update(TimePoint current_time) {
         ConnectUpdate();
         break;
       case State::kConnected:
-        Action::Result(*this);
-        break;
+        return ActionResult::Result();
       case State::kConnectionFailed:
-        Action::Error(*this);
-        break;
+        return ActionResult::Error();
       default:
         break;
     }
   }
-  return current_time;
+  return {};
 }
 
 void LwipTcpTransport::ConnectionAction::Connect() {
@@ -281,15 +279,15 @@ LwipTcpTransport::LwipTcpReadAction::LwipTcpReadAction(
       transport_{&transport},
       read_buffer_(LWIP_NETIF_MTU) {}
 
-TimePoint LwipTcpTransport::LwipTcpReadAction::Update(TimePoint current_time) {
+ActionResult LwipTcpTransport::LwipTcpReadAction::Update() {
   if (read_event_.exchange(false)) {
-    DataReceived(current_time);
+    DataReceived();
   }
   if (error_.exchange(false)) {
-    Action::Error(*this);
+    return ActionResult::Error();
   }
 
-  return current_time;
+  return {};
 }
 
 void LwipTcpTransport::LwipTcpReadAction::Read() {
@@ -315,12 +313,12 @@ void LwipTcpTransport::LwipTcpReadAction::Read() {
   }
 }
 
-void LwipTcpTransport::LwipTcpReadAction::DataReceived(TimePoint current_time) {
+void LwipTcpTransport::LwipTcpReadAction::DataReceived() {
   auto lock = std::lock_guard{transport_->socket_lock_};
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
     AE_TELE_DEBUG(TcpTransportReceive, "Receive data size {}", data.size());
-    transport_->data_receive_event_.Emit(data, current_time);
+    transport_->data_receive_event_.Emit(data, Now());
   }
 }
 

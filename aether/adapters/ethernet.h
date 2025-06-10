@@ -38,7 +38,7 @@ class EthernetAdapter : public Adapter {
     explicit EthernetCreateTransportAction(
         ActionContext action_context, std::unique_ptr<ITransport> transport);
 
-    TimePoint Update(TimePoint current_time) override;
+    ActionResult Update() override;
 
     std::unique_ptr<ITransport> transport() override;
 

@@ -34,7 +34,7 @@ TransportWriteStream::TransportStreamWriteAction::TransportStreamWriteAction(
       packet_send_action_->ResultEvent().Subscribe(
           [this](auto const& /* action */) {
             state_ = State::kDone;
-            Action::Result(*this);
+            return ActionResult::Result();
           }),
       packet_send_action_->ErrorEvent().Subscribe([this](auto const& action) {
         switch (action.state()) {
@@ -48,17 +48,12 @@ TransportWriteStream::TransportStreamWriteAction::TransportStreamWriteAction(
             AE_TELED_ERROR("What kind of error is this?");
             assert(false);
         }
-        Action::Error(*this);
+        return ActionResult::Error();
       }),
       packet_send_action_->StopEvent().Subscribe([this](auto const&) {
         state_ = State::kStopped;
-        Action::Stop(*this);
+        return ActionResult::Stop();
       }));
-}
-
-TimePoint TransportWriteStream::TransportStreamWriteAction::Update(
-    TimePoint current_time) {
-  return current_time;
 }
 
 void TransportWriteStream::TransportStreamWriteAction::Stop() {

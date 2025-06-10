@@ -68,7 +68,7 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
       return {};
     }
 
-    auto action_context = ActionContext{*aether->action_processor};
+    auto action_context = ActionContext{*aether};
 
     auto server_channel_stream =
         make_unique<ServerChannelStream>(aether, adapter, server, channel);
@@ -124,7 +124,7 @@ ClientConnectionManager::GetClientConnection(Uid client_uid) {
                 "GetClientCloudConnection to another client {}", client_uid);
 
   auto aether = Ptr<Aether>{aether_};
-  auto action_context = ActionContext{*aether->action_processor};
+  auto action_context = ActionContext{*aether};
   auto client_ptr = Ptr<Client>{client_};
 
   if (!get_client_cloud_connections_) {
@@ -170,7 +170,7 @@ Ptr<ClientConnection> ClientConnectionManager::CreateClientConnection(
     assert(adapter);
   }
 
-  auto action_context = ActionContext{*aether_.as<Aether>()->action_processor};
+  auto action_context = ActionContext{*aether_.as<Aether>()};
 
   return MakePtr<ClientCloudConnection>(
       action_context, cloud,

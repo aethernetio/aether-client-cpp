@@ -36,6 +36,8 @@ class StreamWriteAction : public Action<StreamWriteAction> {
 
   using Action::Action;
 
+  virtual ActionResult Update();
+
   /**
    * \brief Stop the writing action
    */
@@ -53,7 +55,7 @@ class FailedStreamWriteAction final : public StreamWriteAction {
   FailedStreamWriteAction();
   explicit FailedStreamWriteAction(ActionContext action_context);
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update() override;
   void Stop() override;
 };
 }  // namespace ae

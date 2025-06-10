@@ -60,12 +60,12 @@ class Ping : public Action<Ping> {
 
   AE_CLASS_NO_COPY_MOVE(Ping);
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
  private:
-  void SendPing(TimePoint current_time);
-  TimePoint WaitInterval(TimePoint current_time);
-  TimePoint WaitResponse(TimePoint current_time);
+  void SendPing();
+  TimePoint WaitInterval();
+  TimePoint WaitResponse();
   void PingResponse(RequestId request_id);
 
   PtrView<Server> server_;

@@ -155,7 +155,7 @@ UnixTcpTransport::ConnectionAction::ConnectionAction(
   Connect();
 }
 
-TimePoint UnixTcpTransport::ConnectionAction::Update(TimePoint current_time) {
+ActionResult UnixTcpTransport::ConnectionAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitConnection:
@@ -164,16 +164,14 @@ TimePoint UnixTcpTransport::ConnectionAction::Update(TimePoint current_time) {
         ConnectionUpdate();
         break;
       case State::kConnected:
-        Action::Result(*this);
-        break;
+        return ActionResult::Result();
       case State::kConnectionFailed:
-        Action::Error(*this);
-        break;
+        return ActionResult::Error();
       default:
         break;
     }
   }
-  return current_time;
+  return {};
 }
 
 void UnixTcpTransport::ConnectionAction::Connect() {
@@ -327,16 +325,15 @@ UnixTcpTransport::UnixPacketReadAction::UnixPacketReadAction(
       transport_{&transport},
       read_buffer_(kMtuSelected) {}
 
-TimePoint UnixTcpTransport::UnixPacketReadAction::Update(
-    TimePoint current_time) {
+ActionResult UnixTcpTransport::UnixPacketReadAction::Update() {
   if (read_event_.exchange(false)) {
-    DataReceived(current_time);
+    DataReceived();
   }
   if (error_.exchange(false)) {
-    Action::Error(*this);
+    return ActionResult::Error();
   }
 
-  return current_time;
+  return {};
 }
 
 void UnixTcpTransport::UnixPacketReadAction::Read() {
@@ -368,13 +365,12 @@ void UnixTcpTransport::UnixPacketReadAction::Read() {
   }
 }
 
-void UnixTcpTransport::UnixPacketReadAction::DataReceived(
-    TimePoint current_time) {
+void UnixTcpTransport::UnixPacketReadAction::DataReceived() {
   auto lock = std::lock_guard{transport_->socket_lock_};
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
     AE_TELE_DEBUG(TcpTransportReceive, "Receive data size {}", data.size());
-    transport_->data_receive_event_.Emit(data, current_time);
+    transport_->data_receive_event_.Emit(data, Now());
   }
 }
 

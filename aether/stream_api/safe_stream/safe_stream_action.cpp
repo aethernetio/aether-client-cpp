@@ -97,7 +97,7 @@ SafeStreamAction::InitState const& SafeStreamAction::init_state() const {
   return init_state_;
 }
 
-TimePoint SafeStreamAction::Update(TimePoint current_time) {
+ActionResult SafeStreamAction::Update(TimePoint current_time) {
   switch (state_) {
     case State::kInit:
     case State::kInitiated:
@@ -109,7 +109,8 @@ TimePoint SafeStreamAction::Update(TimePoint current_time) {
     case State::kWaitInitAck: {
       if ((init_state_.sent_init + config_.wait_confirm_timeout) >
           current_time) {
-        return init_state_.sent_init + config_.wait_confirm_timeout;
+        return ActionResult::Delay(init_state_.sent_init +
+                                   config_.wait_confirm_timeout);
       }
       AE_TELED_DEBUG("Wait InitAck timeout {:%S}",
                      config_.wait_confirm_timeout);
@@ -119,9 +120,9 @@ TimePoint SafeStreamAction::Update(TimePoint current_time) {
     }
     case State::kReInit:
       // repeat send init
-      SendInit(current_time);
+      SendInit();
   }
-  return current_time;
+  return {};
 }
 
 void SafeStreamAction::Init(RequestId req_id, std::uint16_t repeat_count,
@@ -309,10 +310,10 @@ void SafeStreamAction::InitAck() {
   state_ = State::kInitiated;
 }
 
-void SafeStreamAction::SendInit(TimePoint current_time) {
+void SafeStreamAction::SendInit() {
   auto api_adapter = safe_api_provider_->safe_stream_api();
   ++init_state_.send_req_id.id;
-  init_state_.sent_init = current_time;
+  init_state_.sent_init = Now();
   state_ = State::kWaitInitAck;
 
   api_adapter->init(init_state_.send_req_id, init_state_.sent_repeat_count++,

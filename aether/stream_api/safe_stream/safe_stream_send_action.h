@@ -40,7 +40,7 @@ class SafeStreamSendAction : public Action<SafeStreamSendAction> {
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamSendAction)
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update(TimePoint current_time);
 
   bool Confirm(SSRingIndex confirm_offset);
   void RequestRepeat(SSRingIndex request_offset);
@@ -51,7 +51,7 @@ class SafeStreamSendAction : public Action<SafeStreamSendAction> {
   ActionView<SendingDataAction> SendData(DataBuffer &&data);
 
  private:
-  void SendChunk(TimePoint current_time);
+  void SendChunk();
   void Send(std::uint16_t repeat_count, DataChunk &&data_chunk,
             TimePoint current_time);
   void RejectSend(SendingChunk &sending_chunk);

@@ -25,26 +25,21 @@ SendingDataAction::SendingDataAction(ActionContext action_context,
       sending_data_{std::move(sending_data)},
       state_{State::kWaiting} {}
 
-TimePoint SendingDataAction::Update(TimePoint current_time) {
-  if (!state_.changed()) {
-    return current_time;
+ActionResult SendingDataAction::Update() {
+  if (state_.changed()) {
+    switch (state_.Acquire()) {
+      case State::kWaiting:
+      case State::kSending:
+        break;
+      case State::kDone:
+        return ActionResult::Result();
+      case State::kStopped:
+        return ActionResult::Stop();
+      case State::kFailed:
+        return ActionResult::Error();
+    }
   }
-  switch (state_.Acquire()) {
-    case State::kWaiting:
-    case State::kSending:
-      break;
-    case State::kDone:
-      Action::Result(*this);
-      break;
-    case State::kStopped:
-      Action::Stop(*this);
-      break;
-    case State::kFailed:
-      Action::Error(*this);
-      break;
-  }
-
-  return current_time;
+  return {};
 }
 
 SendingData& SendingDataAction::sending_data() { return sending_data_; }

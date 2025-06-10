@@ -47,13 +47,13 @@ class CheckAccessForSendMessage final
 
   AE_CLASS_NO_COPY_MOVE(CheckAccessForSendMessage)
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
   State state() const { return state_.get(); }
 
  private:
-  void SendRequest(TimePoint current_time);
-  TimePoint WaitResponse(TimePoint current_time);
+  void SendRequest();
+  TimePoint WaitResponse();
   void ResponseReceived();
   void ErrorReceived();
   void SendError();

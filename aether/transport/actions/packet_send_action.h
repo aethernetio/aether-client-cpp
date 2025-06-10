@@ -47,6 +47,7 @@ class PacketSendAction : public Action<PacketSendAction> {
     return *this;
   };
 
+  virtual ActionResult Update() = 0;
   virtual void Stop() = 0;
   StateMachine<State> const& state() const { return state_; }
 

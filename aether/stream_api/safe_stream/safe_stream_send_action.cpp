@@ -25,9 +25,9 @@ SafeStreamSendAction::SafeStreamSendAction(ActionContext action_context,
       send_data_push_{&send_data_push},
       send_data_buffer_{action_context} {}
 
-TimePoint SafeStreamSendAction::Update(TimePoint current_time) {
-  SendChunk(current_time);
-  return SendTimeouts(current_time);
+ActionResult SafeStreamSendAction::Update(TimePoint current_time) {
+  SendChunk();
+  return ActionResult::Delay(SendTimeouts(current_time));
 }
 
 bool SafeStreamSendAction::Confirm(SSRingIndex confirm_offset) {
@@ -85,7 +85,7 @@ ActionView<SendingDataAction> SafeStreamSendAction::SendData(
   return send_action;
 }
 
-void SafeStreamSendAction::SendChunk(TimePoint current_time) {
+void SafeStreamSendAction::SendChunk() {
   if (max_packet_size_ == 0) {
     return;
   }
@@ -108,7 +108,7 @@ void SafeStreamSendAction::SendChunk(TimePoint current_time) {
       data_chunk.offset,
       data_chunk.offset +
           static_cast<SSRingIndex::type>(data_chunk.data.size() - 1),
-      current_time, begin_);
+      Now(), begin_);
 
   auto repeat_count = send_chunk.repeat_count;
   send_chunk.repeat_count++;

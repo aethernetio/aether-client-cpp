@@ -56,27 +56,24 @@ class MessageReceiver : public Action<MessageReceiver<TMessage>> {
               MessageReceived(message.message());
             })} {}
 
-  TimePoint Update(TimePoint current_time) {
+  ActionResult Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kReceiving:
           last_message_received_time_point_ = Now();
           break;
         case State::kSuccess:
-          SelfAction::Result(*this);
-          return current_time;
+          return ActionResult::Result();
         case State::kStopped:
-          SelfAction::Stop(*this);
-          return current_time;
+          return ActionResult::Stop();
         case State::kError:
-          SelfAction::Error(*this);
-          return current_time;
+          return ActionResult::Error();
       }
     }
     if (state_.get() == State::kReceiving) {
-      return CheckReceiveTimeout(current_time);
+      return ActionResult::Delay(CheckReceiveTimeout(Now()));
     }
-    return current_time;
+    return {};
   }
 
   std::size_t message_received_count() const { return message_received_count_; }

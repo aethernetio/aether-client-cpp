@@ -58,24 +58,22 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         state_changed_{state_.changed_event().Subscribe(
             [this](auto) { Action::Trigger(); })} {}
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kRegisterClients:
           RegisterClients();
-          return current_time;
+          break;
         case State::kMakeTest:
           MakeTest();
           break;
         case State::kResult:
-          Action::Result(*this);
-          return current_time;
+          return ActionResult::Result();
         case State::kError:
-          Action::Error(*this);
-          return current_time;
+          return ActionResult::Error();
       }
     }
-    return current_time;
+    return {};
   }
 
  private:
@@ -126,16 +124,14 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         std::chrono::milliseconds{200},
     };
 
-    auto sender = make_unique<Sender>(ActionContext{*aether_->action_processor},
-                                      client_sender_, client_receiver_->uid(),
-                                      safe_stream_config);
-    auto receiver =
-        make_unique<Receiver>(ActionContext{*aether_->action_processor},
-                              client_receiver_, safe_stream_config);
+    auto sender =
+        make_unique<Sender>(ActionContext{*aether_}, client_sender_,
+                            client_receiver_->uid(), safe_stream_config);
+    auto receiver = make_unique<Receiver>(ActionContext{*aether_},
+                                          client_receiver_, safe_stream_config);
 
     send_message_delays_manager_ = make_unique<SendMessageDelaysManager>(
-        ActionContext{*aether_->action_processor}, std::move(sender),
-        std::move(receiver));
+        ActionContext{*aether_}, std::move(sender), std::move(receiver));
 
     auto test_action = send_message_delays_manager_->Test({
         /* WarUp message count */ 100,

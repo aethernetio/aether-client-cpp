@@ -54,7 +54,7 @@ namespace ae {
 
 class Aether;
 
-class Registration : public Action<Registration> {
+class Registration final : public Action<Registration> {
   enum class State : std::uint8_t {
     kSelectConnection,
     kWaitingConnection,
@@ -73,7 +73,7 @@ class Registration : public Action<Registration> {
                Uid parent_uid, Client::ptr client);
   ~Registration() override;
 
-  TimePoint Update(TimePoint current_time) override;
+  ActionResult Update();
 
   Client::ptr client() const;
 
@@ -81,13 +81,13 @@ class Registration : public Action<Registration> {
   void IterateConnection();
   void IterateChannel();
 
-  void Connected(TimePoint current_time);
+  void Connected();
 
-  void GetKeys(TimePoint current_time);
-  TimePoint WaitKeys(TimePoint current_time);
-  void RequestPowParams(TimePoint current_time);
-  void MakeRegistration(TimePoint current_time);
-  void ResolveCloud(TimePoint current_time);
+  void GetKeys();
+  TimePoint WaitKeys();
+  void RequestPowParams();
+  void MakeRegistration();
+  void ResolveCloud();
   void OnCloudResolved(std::vector<ServerDescriptor> const& servers);
 
   std::unique_ptr<ByteStream> CreateRegServerStream(

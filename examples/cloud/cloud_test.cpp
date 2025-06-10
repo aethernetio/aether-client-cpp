@@ -67,7 +67,7 @@ class CloudTestAction : public Action<CloudTestAction> {
     AE_TELED_INFO("Cloud test");
   }
 
-  TimePoint Update(TimePoint current_time) override {
+  ActionResult Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kRegistration:
@@ -80,33 +80,33 @@ class CloudTestAction : public Action<CloudTestAction> {
           ConfigureSender();
           break;
         case State::kSendMessages:
-          SendMessages(current_time);
+          SendMessages();
           break;
         case State::kWaitDone:
           break;
         case State::kResult:
-          Action::Result(*this);
-          return current_time;
+          return ActionResult::Result();
         case State::kError:
-          Action::Error(*this);
-          return current_time;
+          return ActionResult::Error();
       }
     }
     // wait till all sent messages received and confirmed
     if (state_.get() == State::kWaitDone) {
       AE_TELED_DEBUG("Wait done receive_count {}, confirm_count {}",
                      receive_count_, confirm_count_);
+      auto current_time = Now();
       if ((receive_count_ == messages_.size()) &&
           (confirm_count_ == messages_.size())) {
         state_ = State::kResult;
       } else {
         if ((start_wait_time_ + std::chrono::seconds{10}) > current_time) {
-          return start_wait_time_ + std::chrono::seconds{10};
+          return ActionResult::Delay(start_wait_time_ +
+                                     std::chrono::seconds{10});
         }
         state_ = State::kError;
       }
     }
-    return current_time;
+    return {};
   }
 
  private:
@@ -164,8 +164,8 @@ class CloudTestAction : public Action<CloudTestAction> {
         receiver_connection->new_stream_event().Subscribe([&](auto uid,
                                                               auto raw_stream) {
           receiver_stream_ = make_unique<P2pSafeStream>(
-              *aether_->action_processor, kSafeStreamConfig,
-              make_unique<P2pStream>(*aether_->action_processor, receiver_, uid,
+              *aether_, kSafeStreamConfig,
+              make_unique<P2pStream>(*aether_, receiver_, uid,
                                      std::move(raw_stream)));
           receiver_message_subscription_ =
               receiver_stream_->out_data_event().Subscribe(
@@ -202,9 +202,8 @@ class CloudTestAction : public Action<CloudTestAction> {
     assert(aether_->clients().size() > 1);
     sender_ = aether_->clients()[1];
     sender_stream_ = make_unique<P2pSafeStream>(
-        *aether_->action_processor, kSafeStreamConfig,
-        make_unique<P2pStream>(*aether_->action_processor, sender_,
-                               receiver_->uid()));
+        *aether_, kSafeStreamConfig,
+        make_unique<P2pStream>(*aether_, sender_, receiver_->uid()));
     sender_message_subscription_ =
         sender_stream_->out_data_event().Subscribe([&](auto const& data) {
           auto str_response = std::string(
@@ -220,7 +219,7 @@ class CloudTestAction : public Action<CloudTestAction> {
   /**
    * \brief Send all messages at once.
    */
-  void SendMessages(TimePoint current_time) {
+  void SendMessages() {
     AE_TELED_INFO("Send messages");
     for (auto const& msg : messages_) {
       auto send_action =
@@ -231,7 +230,7 @@ class CloudTestAction : public Action<CloudTestAction> {
             state_ = State::kError;
           }));
     }
-    start_wait_time_ = current_time;
+    start_wait_time_ = Now();
     state_ = State::kWaitDone;
   }
 
