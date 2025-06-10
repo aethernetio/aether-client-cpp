@@ -22,9 +22,14 @@ static const char* kWifiSsid = "Visuale";
 static const char* kWifiPass = "Ws63$yhJ";
 static const char* kMessage = "Message";
 
-void OnMsg(CUid uid, uint8_t const* data, size_t size, void* user_data){ // message handler func
-    printf("Message %s", data);
+void OnMsg(CUid uid, uint8_t const* data, size_t size,
+           void* user_data) {  // message handler func
+  for (size_t i = 0; i < size; i++) {
+    printf("%c", data[i]);
+  }
 }
+
+void (*FuncPtr)(CUid uid, uint8_t const* data, size_t size, void* user_data) = OnMsg;
 
 int AetherCApiExample();
 
@@ -37,11 +42,12 @@ int AetherCApiExample() {
    * Also it has action context protocol implementation \see Action.
    * To configure its creation \see AetherAppConstructor.
    */
-  
-  AetherClassHandle* obj = AetherClassCreate();
-  AetherClassInit(obj, &OnMsg, kWifiSsid, kWifiPass);
-  AetherClassSendMessages(kMessage, sizeof(kMessage));  
-  AetherClassDestroy(obj);
-    
-  return 0;
+  int ret = 0;
+
+  AetherClassHandle* obj = AetherClassCreate(kWifiSsid, kWifiPass, FuncPtr);
+  AetherClassInit(obj);
+  AetherClassSendMessages(obj, kMessage, 7);
+  ret = AetherClassDestroy(obj);
+
+  return ret;
 }

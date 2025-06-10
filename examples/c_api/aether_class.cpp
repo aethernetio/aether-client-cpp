@@ -14,26 +14,10 @@
  * limitations under the License.
  */
 
-#include "aether_functions.h"
+#include "aether_class.h"
 
-ae::Aether::ptr aether_;
 
-ae::Client::ptr receiver_;
-std::unique_ptr<ae::ByteIStream> receiver_stream_;
-ae::Client::ptr sender_;
-std::unique_ptr<ae::ByteIStream> sender_stream_;
-std::size_t clients_registered_;
-std::size_t receive_count_;
-std::size_t confirm_count_;
-ae::TimePoint start_wait_time_;
-
-ae::MultiSubscription registration_subscriptions_;
-ae::Subscription receiver_new_stream_subscription_;
-ae::Subscription receiver_message_subscription_;
-ae::MultiSubscription response_subscriptions_;
-ae::Subscription sender_message_subscription_;
-ae::MultiSubscription send_subscriptions_;
-
+namespace ae::c_api_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
@@ -44,17 +28,68 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::chrono::milliseconds{400},  // send_repeat_timeout
 };
 
-void SetAether(ae::Ptr<ae::AetherApp> const& aether_app){
-  aether_ = aether_app->aether();
-}
 
+CApiTestAction::CApiTestAction(Ptr<AetherApp> const& aether_app, void (*pt2Func)(CUid uid, uint8_t const* data,
+                                          size_t size, void* user_data))
+      : Action{*aether_app},        
+        aether_{aether_app->aether()},
+        Pt2Func_{pt2Func},
+        state_{State::kRegistration},        
+        state_changed_{state_.changed_event().Subscribe(
+            [this](auto) { Action::Trigger(); })} {
+    AE_TELED_INFO("CApi test");
+  }
+
+TimePoint CApiTestAction::Update(TimePoint current_time) {
+  if (state_.changed()) {
+      switch (state_.Acquire()) {
+        case State::kRegistration:
+          RegisterClients();
+          break;
+        case State::kConfigureReceiver:
+          ConfigureReceiver(Pt2Func_);
+          break;
+        case State::kConfigureSender:
+          ConfigureSender();
+          break;
+        case State::kSendMessages:
+          break;
+        case State::kWaitDone:
+          break;
+        case State::kResult:
+          //Action::Result(*this);
+          return current_time;
+        case State::kError:
+          //Action::Error(*this);
+          return current_time;
+      }
+    }
+    // wait till all sent messages received and confirmed
+    if (state_.get() == State::kWaitDone) {
+      AE_TELED_DEBUG("Wait done receive_count {}, confirm_count {}",
+                     receive_count_, confirm_count_);
+      if ((receive_count_ == 1) &&
+          (confirm_count_ == 1)) {
+        state_ = State::kResult;
+      } else {
+        if ((start_wait_time_ + std::chrono::seconds{10}) > current_time) {
+          return start_wait_time_ + std::chrono::seconds{10};
+        }
+        state_ = State::kError;
+      }
+    }
+    return current_time;
+  }
+
+State CApiTestAction::GetState(){
+  return state_;
+}
 /**
  * \brief Perform a client registration.
  * We need a two clients for this test.
  */
-State RegisterClients() {
-  State state_;
-
+void CApiTestAction::RegisterClients() {
+  
 #if AE_SUPPORT_REGISTRATION
   {
     AE_TELED_INFO("Client registration");
@@ -79,7 +114,7 @@ State RegisterClients() {
     // all required clients already registered
     if (clients_registered_ == 2) {
       state_ = State::kConfigureReceiver;
-      return state_;
+      return;
     }
   }
 #else
@@ -87,7 +122,6 @@ State RegisterClients() {
   state_ = State::kConfigureReceiver;
 #endif
 
-  return state_;
 }
 
 /**
@@ -96,9 +130,8 @@ State RegisterClients() {
  * Subscribe to receiving message event.
  * Send confirmation to received message.
  */
-State ConfigureReceiver(void (*pt2Func)(CUid uid, uint8_t const* data,
+void CApiTestAction::ConfigureReceiver(void (*pt2Func)(CUid uid, uint8_t const* data,
                                         size_t size, void* user_data)) {
-  State state_;
   CUid cuid;
   
   AE_TELED_INFO("Receiver configuration");
@@ -118,10 +151,10 @@ State ConfigureReceiver(void (*pt2Func)(CUid uid, uint8_t const* data,
               auto str_msg = std::string(
                   reinterpret_cast<const char*>(data.data()), data.size());
               AE_TELED_DEBUG("Received a message [{}]", str_msg);
-              for(uint8_t i=0; i<16; i++) {
+              /*for(uint8_t i=0; i<16; i++) {
                 cuid.id[i] = uid.value.data()[i];
               }
-              pt2Func(cuid, data.data(), data.size(), nullptr);
+              pt2Func(cuid, data.data(), data.size(), nullptr);*/
               receive_count_++;
               auto confirm_msg = std::string{"confirmed "} + str_msg;
               auto response_action = receiver_stream_->Write(
@@ -136,7 +169,6 @@ State ConfigureReceiver(void (*pt2Func)(CUid uid, uint8_t const* data,
       });
   state_ = State::kConfigureSender;
 
-  return state_;
 }
 
 /**
@@ -145,9 +177,8 @@ State ConfigureReceiver(void (*pt2Func)(CUid uid, uint8_t const* data,
  * Subscribe to receiving message event for confirmations \see
  * ConfigureReceiver.
  */
-State ConfigureSender() {
-  State state_;
-
+void CApiTestAction::ConfigureSender() {
+ 
   AE_TELED_INFO("Sender configuration");
   confirm_count_ = 0;
   assert(aether_->clients().size() > 1);
@@ -167,14 +198,12 @@ State ConfigureSender() {
       });
   state_ = State::kSendMessages;
 
-  return state_;
 }
 
 /**
  * \brief Send all messages at once.
  */
-State SendMessages(ae::TimePoint current_time, std::string msg) {
-  State state_;
+void CApiTestAction::SendMessages(ae::TimePoint current_time, std::string msg) {
 
   AE_TELED_INFO("Send messages");
 
@@ -188,6 +217,6 @@ State SendMessages(ae::TimePoint current_time, std::string msg) {
 
   start_wait_time_ = current_time;
   state_ = State::kWaitDone;
+}
 
-  return state_;
 }

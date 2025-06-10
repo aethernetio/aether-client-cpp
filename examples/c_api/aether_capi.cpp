@@ -15,7 +15,7 @@
  */
 
 #include "examples/c_api/aether_capi.h"
-#include "examples/c_api/aether_functions.h"
+#include "examples/c_api/aether_class.h"
 #include "aether/aether_app.h"  // Our C++ class
 #include "aether/ae_actions/registration/registration.h"
 #include "aether/client_messages/p2p_message_stream.h"
@@ -29,29 +29,17 @@
 
 extern "C" {
 
-ae::Ptr<ae::AetherApp> aether_app;
-
 struct AetherClassHandle {
-  ae::AetherApp* ptr;  // Real C++ object
+  ae::Ptr<ae::AetherApp> aether_app;  // Real C++ object
 };
 
-AetherClassHandle* AetherClassCreate() {
+std::shared_ptr<ae::c_api_test::CApiTestAction> capi_test_action;
+
+AetherClassHandle* AetherClassCreate(const char* kWifiSsid, const char* kWifiPass, void (*pt2Func)(struct CUid uid, uint8_t const* data,
+                                     size_t size, void* user_data)){
   AetherClassHandle* handle = new AetherClassHandle;
-  handle->ptr = new ae::AetherApp();  // Calling the C++ constructor
-  return handle;
-}
-
-void AetherClassDestroy(AetherClassHandle* handle) {
-  if (handle) {
-    delete handle->ptr;  // Destructor C++
-    delete handle;
-  }
-}
-
-void AetherClassInit(AetherClassHandle* handle, void (*pt2Func)(struct CUid uid, uint8_t const* data,
-                                       size_t size, void* user_data), const char* kWifiSsid,
-                     const char* kWifiPass) {
-  /**
+  
+    /**
    * Construct a main aether application class.
    * It's include a Domain and Aether instances accessible by getter methods.
    * It has Update, WaitUntil, Exit, IsExit, ExitCode methods to integrate it in
@@ -59,14 +47,12 @@ void AetherClassInit(AetherClassHandle* handle, void (*pt2Func)(struct CUid uid,
    * Also it has action context protocol implementation \see Action.
    * To configure its creation \see AetherAppConstructor.
    */
-  State state;
-  
-  aether_app = handle->ptr->Construct(
+  handle->aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{}
 #if defined AE_DISTILLATION
           .Adapter([kWifiSsid, kWifiPass](
                        ae::Domain* domain,
-                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
+                       ae::Aether::ptr const& aether)->ae::Adapter::ptr {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = domain->CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
@@ -79,38 +65,46 @@ void AetherClassInit(AetherClassHandle* handle, void (*pt2Func)(struct CUid uid,
           })
 #endif
   );
-
-  SetAether(aether_app);
   
-  state = RegisterClients();
-  if(state!=State::kConfigureReceiver) return;
+  capi_test_action = std::make_shared<ae::c_api_test::CApiTestAction>(handle->aether_app, pt2Func);
   
-  auto current_time = ae::Now();
-  auto next_time = aether_app->Update(current_time);
-  aether_app->WaitUntil(
-        std::min(next_time, current_time + std::chrono::seconds{5}));
-        
-  ConfigureReceiver(pt2Func);
-  if(state!=State::kConfigureSender) return;
-  
-  current_time = ae::Now();
-  next_time = aether_app->Update(current_time);
-  aether_app->WaitUntil(
-        std::min(next_time, current_time + std::chrono::seconds{5}));
-        
-  ConfigureSender();
-  if(state!=State::kSendMessages) return;
-  
-  current_time = ae::Now();
-  next_time = aether_app->Update(current_time);
-  aether_app->WaitUntil(
-        std::min(next_time, current_time + std::chrono::seconds{5}));
+  capi_test_action->ResultEvent().Subscribe(
+      [&](auto const&) { handle->aether_app->Exit(0); });
+  capi_test_action->ErrorEvent().Subscribe(
+      [&](auto const&) { handle->aether_app->Exit(1); });
+      
+  return handle;
 }
 
-void AetherClassSendMessages(char const* data, size_t size){
+int AetherClassDestroy(AetherClassHandle* handle) {
+  int res = handle->aether_app->ExitCode();
+  if (handle) {
+    delete handle;
+  }
+  return res;
+}
+
+void AetherClassInit(AetherClassHandle* handle) {
+
+  while (capi_test_action->GetState() != ae::c_api_test::State::kSendMessages) {
+    auto current_time = ae::Now();
+    auto next_time = handle->aether_app->Update(current_time);
+    handle->aether_app->WaitUntil(
+        std::min(next_time, current_time + std::chrono::seconds{5}));
+  }  
+}
+
+void AetherClassSendMessages(AetherClassHandle* handle, char const* data, size_t size) {
   auto current_time = ae::Now();
-  std::string msg{data, data+size};
-  SendMessages(current_time, msg);
+  std::string msg{data, data + size};
+  capi_test_action->SendMessages(current_time, msg);
+  
+  while (!handle->aether_app->IsExited()) {
+    auto current_time = ae::Now();
+    auto next_time = handle->aether_app->Update(current_time);
+    handle->aether_app->WaitUntil(
+        std::min(next_time, current_time + std::chrono::seconds{5}));
+  }  
 }
 
 }  // extern "C"
