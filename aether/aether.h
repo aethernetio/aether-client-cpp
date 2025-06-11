@@ -24,20 +24,22 @@
 #include "aether/common.h"
 #include "aether/memory.h"
 #include "aether/obj/obj.h"
-#include "aether/obj/dummy_obj.h"
-#include "aether/client.h"
-#include "aether/cloud.h"
-#include "aether/registration_cloud.h"
-#include "aether/crypto.h"
-#include "aether/events/multi_subscription.h"
-#include "aether/tele/traps/tele_statistics.h"
+#include "aether/obj/dummy_obj.h"  // IWYU pragma: keep
 #include "aether/actions/action_list.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
+#include "aether/ae_actions/select_client.h"
+#include "aether/events/multi_subscription.h"
+#include "aether/tele/traps/tele_statistics.h"
+#include "aether/ae_actions/registration/registration.h"  // IWYU pragma: keep
+
+#include "aether/cloud.h"
+#include "aether/client.h"
+#include "aether/crypto.h"
+#include "aether/server.h"
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
-
-#include "aether/ae_actions/registration/registration.h"
+#include "aether/registration_cloud.h"
 
 namespace ae {
 class Registration;
@@ -84,13 +86,12 @@ class Aether : public Obj {
   void Update(TimePoint current_time) override;
 
   // User-facing API.
-#if AE_SUPPORT_REGISTRATION
-  ActionView<Registration> RegisterClient(Uid parent_uid);
-#endif
+  ActionView<SelectClientAction> SelectClient(Uid parent_uid,
+                                              std::uint32_t client_id);
 
   void AddServer(Server::ptr&& s);
   Server::ptr GetServer(ServerId server_id);
-  std::vector<Client::ptr>& clients();
+
   tele::TeleStatistics::ptr const& tele_statistics() const;
 
   operator ActionContext() const { return ActionContext{*action_processor}; }
@@ -116,15 +117,22 @@ class Aether : public Obj {
   std::vector<Adapter::ptr> adapter_factories;
 
  private:
+  Client::ptr FindClient(std::uint32_t client_id);
+#if AE_SUPPORT_REGISTRATION
+  ActionView<Registration> RegisterClient(Uid parent_uid,
+                                          std::uint32_t client_id);
+#endif
+
   Client::ptr client_prefab;
 
-  std::vector<Client::ptr> clients_;
+  std::map<std::uint32_t, Client::ptr> clients_;
   std::map<ServerId, Server::ptr> servers_;
 
   tele::TeleStatistics::ptr tele_statistics_;
 
+  std::optional<ActionList<SelectClientAction>> select_client_actions_;
 #if AE_SUPPORT_REGISTRATION
-  std::optional<ActionList<Registration>> registration_actions_;
+  std::map<std::uint32_t, std::unique_ptr<Registration>> registration_actions_;
   MultiSubscription registration_subscriptions_;
 #endif
 };

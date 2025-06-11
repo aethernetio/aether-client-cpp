@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADDRESS_PARSER_H_
-#define AETHER_ADDRESS_PARSER_H_
+#ifndef AETHER_TYPES_ADDRESS_PARSER_H_
+#define AETHER_TYPES_ADDRESS_PARSER_H_
 
 #include <string>
 #include <optional>
 
 #include "aether/config.h"
-#include "aether/variant_type.h"
-#include "aether/address.h"
+#include "aether/types/variant_type.h"
+#include "aether/types/address.h"
 
 namespace ae {
 class IpAddressParser {
@@ -46,4 +46,4 @@ class IpAddressParser {
 
 }  // namespace ae
 
-#endif  // AETHER_ADDRESS_PARSER_H_
+#endif  // AETHER_TYPES_ADDRESS_PARSER_H_

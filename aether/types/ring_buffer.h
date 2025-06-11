@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_RING_BUFFER_H_
-#define AETHER_RING_BUFFER_H_
+#ifndef AETHER_TYPES_RING_BUFFER_H_
+#define AETHER_TYPES_RING_BUFFER_H_
 
 #include <cstdlib>
 #include <limits>
@@ -188,4 +188,4 @@ struct Formatter<RingIndex<T, M>> : Formatter<T> {
 
 }  // namespace ae
 
-#endif  // AETHER_RING_BUFFER_H_
+#endif  // AETHER_TYPES_RING_BUFFER_H_

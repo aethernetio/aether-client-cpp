@@ -16,7 +16,7 @@
 
 #include "aether/obj/domain.h"
 #include "aether/port/tele_init.h"
-#include "aether/literal_array.h"
+#include "aether/types/literal_array.h"
 
 #include "aether/aether.h"
 #include "aether/client.h"
@@ -35,33 +35,27 @@ int test_receiver_bandwidth() {
 
   ae::Client::ptr client;
 
-  // register one client
-  if (aether_app->aether()->clients().empty()) {
-#if AE_SUPPORT_REGISTRATION
-    auto client_register = aether_app->aether()->RegisterClient(
-        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
+  // get one client
+  auto get_client = aether_app->aether()->SelectClient(
+      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 1);
 
-    bool register_done = false;
-    bool register_failed = false;
+  bool client_selected = false;
+  bool client_select_failed = false;
 
-    auto reg = client_register->ResultEvent().Subscribe([&](auto const& reg) {
-      register_done = true;
-      client = reg.client();
-    });
-    auto reg_failed = client_register->ErrorEvent().Subscribe(
-        [&](auto const&) { register_failed = true; });
+  get_client->ResultEvent().Subscribe([&](auto const& reg) {
+    client_selected = true;
+    client = reg.client();
+  });
+  get_client->ErrorEvent().Subscribe(
+      [&](auto const&) { client_select_failed = true; });
 
-    while (!register_done && !register_failed) {
-      auto next_time = aether_app->Update(ae::Now());
-      aether_app->WaitUntil(next_time);
-    }
-    if (register_failed) {
-      AE_TELED_ERROR("Registration failed");
-      return -1;
-    }
-#endif
-  } else {
-    client = aether_app->aether()->clients()[0];
+  while (!client_selected && !client_select_failed) {
+    auto next_time = aether_app->Update(ae::Now());
+    aether_app->WaitUntil(next_time);
+  }
+  if (client_select_failed) {
+    AE_TELED_ERROR("Registration failed");
+    return -1;
   }
 
   auto action_context = ActionContext{*aether_app};

@@ -23,22 +23,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 idf_build_set_property(CM_PLATFORM "ESP32")
 
-set(CMAKE_BUILD_TYPE "MinSizeRel")
-
 add_compile_definitions(CM_ESP32)
 
 if (NOT USER_CONFIG)
-  set(USER_CONFIG "../config/user_config_optimized.h")
+  set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../../config/user_config_optimized.h" CACHE PATH "")
 endif()
 
 if (NOT FS_INIT)
-  set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../config/file_system_init.h")
+  set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../config/file_system_init.h"  CACHE PATH "")
 endif()
 
 # enable doubles in unity tests
 add_compile_definitions("CONFIG_UNITY_ENABLE_DOUBLE")
-
-set(AE_DISTILLATION OFF CACHE BOOL "" FORCE)
 
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                 "../../../../examples/cloud"

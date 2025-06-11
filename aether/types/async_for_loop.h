@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ASYNC_FOR_LOOP_H_
-#define AETHER_ASYNC_FOR_LOOP_H_
+#ifndef AETHER_TYPES_ASYNC_FOR_LOOP_H_
+#define AETHER_TYPES_ASYNC_FOR_LOOP_H_
 
 #include <utility>
 #include <optional>
@@ -112,4 +112,4 @@ class AsyncForLoop {
 };
 }  // namespace ae
 
-#endif  // AETHER_ASYNC_FOR_LOOP_H_
+#endif  // AETHER_TYPES_ASYNC_FOR_LOOP_H_

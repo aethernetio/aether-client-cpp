@@ -16,7 +16,7 @@
 
 #include "aether/transport/actions/ip_channel_connection.h"
 
-#include "aether/address.h"
+#include "aether/types/address.h"
 #include "aether/adapters/adapter.h"
 
 #include "aether/transport/itransport.h"

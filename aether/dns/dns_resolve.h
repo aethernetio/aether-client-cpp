@@ -27,7 +27,7 @@
 
 #  include "aether/obj/obj.h"
 #  include "aether/actions/action.h"
-#  include "aether/address.h"
+#  include "aether/types/address.h"
 
 namespace ae {
 // Action to get host name resolve

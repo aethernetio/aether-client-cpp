@@ -18,8 +18,8 @@
 #define AETHER_TRANSPORT_ACTIONS_IP_CHANNEL_CONNECTION_H_
 
 #include "aether/memory.h"
-#include "aether/address.h"
-#include "aether/state_machine.h"
+#include "aether/types/address.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
 

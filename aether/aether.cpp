@@ -18,24 +18,20 @@
 
 #include <utility>
 
-#include "aether/actions/action_context.h"
-
-#include "aether/obj/obj_ptr.h"
 #include "aether/global_ids.h"
-#include "aether/client.h"
-#include "aether/crypto.h"
-#include "aether/server.h"
+#include "aether/obj/obj_ptr.h"
 
-#include "aether/registration_cloud.h"
 #include "aether/work_cloud.h"
 
+// IWYU pragma: begin_keeps
+#include "aether/poller/win_poller.h"
 #include "aether/poller/epoll_poller.h"
 #include "aether/poller/kqueue_poller.h"
 #include "aether/poller/freertos_poller.h"
-#include "aether/poller/win_poller.h"
 
 #include "aether/dns/dns_c_ares.h"
 #include "aether/dns/esp32_dns_resolve.h"
+// IWYU pragma: end_keeps
 
 #include "aether/aether_tele.h"
 
@@ -82,39 +78,23 @@ Aether::Aether(Domain* domain) : Obj{domain} {
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
+ActionView<SelectClientAction> Aether::SelectClient(
+    [[maybe_unused]] Uid parent_uid, std::uint32_t client_id) {
+  if (!select_client_actions_) {
+    select_client_actions_.emplace(ActionContext{*action_processor});
+  }
+
+  auto client = FindClient(client_id);
+  if (client) {
+    return select_client_actions_->Emplace(client);
+  }
 #if AE_SUPPORT_REGISTRATION
-ActionView<Registration> Aether::RegisterClient(Uid parent_uid) {
-  if (!registration_cloud) {
-    domain_->LoadRoot(registration_cloud);
-  }
-
-  auto new_client = domain_->LoadCopy(client_prefab);
-  new_client.SetFlags(ObjFlags::kUnloadedByDefault);
-
-  auto self_ptr = MakePtrFromThis(this);
-
-  if (!registration_actions_) {
-    registration_actions_.emplace(ActionContext{*action_processor});
-  }
-
-  // registration new client is long termed process
-  // after registration done, add it to clients list
-  // user also can get new client after
-  auto registration_action = registration_actions_->Emplace(
-      std::move(self_ptr), parent_uid, std::move(new_client));
-
-  registration_subscriptions_.Push(
-      registration_action->ResultEvent().Subscribe([this](auto const& action) {
-        auto client = action.client();
-        assert(client);
-        clients_.push_back(std::move(client));
-      }));
-
-  return registration_action;
-}
+  auto registration = RegisterClient(parent_uid, client_id);
+  return select_client_actions_->Emplace(*registration);
+#else
+  return select_client_actions_->Emplace();
 #endif
-
-std::vector<Client::ptr>& Aether::clients() { return clients_; }
+}
 
 tele::TeleStatistics::ptr const& Aether::tele_statistics() const {
   return tele_statistics_;
@@ -139,4 +119,54 @@ void Aether::Update(TimePoint current_time) {
   update_time_ = action_processor->Update(current_time);
 }
 
+Client::ptr Aether::FindClient(std::uint32_t client_id) {
+  auto client_it = clients_.find(client_id);
+  if (client_it == std::end(clients_)) {
+    return {};
+  }
+  if (!client_it->second) {
+    domain_->LoadRoot(client_it->second);
+  }
+  return client_it->second;
+}
+
+#if AE_SUPPORT_REGISTRATION
+ActionView<Registration> Aether::RegisterClient(Uid parent_uid,
+                                                std::uint32_t client_id) {
+  // try to find existent registrations
+  auto reg_it = registration_actions_.find(client_id);
+  if (reg_it != std::end(registration_actions_)) {
+    return ActionView{*reg_it->second};
+  }
+
+  if (!registration_cloud) {
+    domain_->LoadRoot(registration_cloud);
+  }
+  auto self_ptr = MakePtrFromThis(this);
+
+  auto new_client = domain_->LoadCopy(client_prefab);
+  new_client.SetFlags(ObjFlags::kUnloadedByDefault);
+
+  // registration new client is long termed process
+  // after registration done, add it to clients list
+  // user also can get new client after
+  auto [new_reg_it, _] = registration_actions_.emplace(
+      client_id, make_unique<Registration>(*action_processor, self_ptr,
+                                           parent_uid, std::move(new_client)));
+
+  // on registration success save client to client_ and remove registration
+  // action at the end
+  registration_subscriptions_.Push(
+      new_reg_it->second->ResultEvent().Subscribe(
+          [this, client_id](auto const& action) {
+            auto client = action.client();
+            assert(client);
+            clients_.emplace(client_id, std::move(client));
+          }),
+      new_reg_it->second->FinishedEvent().Subscribe(
+          [this, client_id]() { registration_actions_.erase(client_id); }));
+
+  return ActionView{*new_reg_it->second};
+}
+#endif
 }  // namespace ae

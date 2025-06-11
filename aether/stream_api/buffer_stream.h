@@ -51,9 +51,7 @@ class BufferStream final : public ByteStream {
     bool is_sent_{false};
 
     ActionView<StreamWriteAction> write_action_;
-
     Subscription state_changed_subscription_;
-    MultiSubscription write_action_subscription_;
   };
 
  public:

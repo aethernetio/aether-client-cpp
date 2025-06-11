@@ -18,26 +18,12 @@
 #include <fstream>
 #include <filesystem>
 
-#include "aether/ptr/ptr.h"
-#include "aether/obj/domain.h"
-#include "aether/literal_array.h"
-#include "aether/actions/action.h"
-#include "aether/events/barrier_event.h"
-#include "aether/events/event_subscription.h"
-#include "aether/events/multi_subscription.h"
-
-#include "aether/aether.h"
-#include "aether/client.h"
-#include "aether/global_ids.h"
-#include "aether/aether_app.h"
-#include "aether/registration_cloud.h"
+#include "aether/all.h"
 
 #include "send_message_delays/receiver.h"
 #include "send_message_delays/sender.h"
 #include "send_message_delays/statistics_write.h"
 #include "send_message_delays/send_message_delays_manager.h"
-
-#include "aether/tele/tele.h"
 
 namespace ae::bench {
 class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
@@ -62,7 +48,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kRegisterClients:
-          RegisterClients();
+          GetClients();
           break;
         case State::kMakeTest:
           MakeTest();
@@ -77,39 +63,27 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
   }
 
  private:
-  void RegisterClients() {
-#if AE_SUPPORT_REGISTRATION
-    aether_->clients().clear();
-    auto reg_sender = aether_->RegisterClient(
-        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
-    auto reg_receiver = aether_->RegisterClient(
-        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"));
+  void GetClients() {
+    auto get_sender = aether_->SelectClient(
+        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 1);
+    auto get_receiver = aether_->SelectClient(
+        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 2);
+
+    client_selected_event_.Connect([](auto& action) { return action.client(); },
+                                   get_sender->ResultEvent(),
+                                   get_receiver->ResultEvent());
 
     registration_subscriptions_.Push(
-        reg_sender->ResultEvent().Subscribe([this](auto const& action) {
-          AE_TELED_INFO("Sender registered");
-          client_sender_ = action.client();
-          clients_registered_event_.Emit<0>();
-        }),
-        reg_sender->ErrorEvent().Subscribe(
+        get_sender->ErrorEvent().Subscribe(
             [this](auto const&) { state_ = State::kError; }),
-        reg_receiver->ResultEvent().Subscribe([this](auto const& action) {
-          AE_TELED_INFO("Receiver registered");
-          client_receiver_ = action.client();
-          clients_registered_event_.Emit<1>();
-        }),
-        reg_receiver->ErrorEvent().Subscribe(
+        get_receiver->ErrorEvent().Subscribe(
             [this](auto const&) { state_ = State::kError; }),
-        clients_registered_event_.Subscribe([this]() {
-          AE_TELED_INFO("All clients registered");
+        client_selected_event_.Subscribe([this](auto const& event) {
+          AE_TELED_INFO("All clients acquired");
+          client_sender_ = event[0];
+          client_receiver_ = event[1];
           state_ = State::kMakeTest;
         }));
-#else
-    assert(aether_->clients().size() >= 2);
-    client_sender_ = aether_->clients()[0];
-    client_receiver_ = aether_->clients()[1];
-    state_ = State::kMakeTest;
-#endif
   }
 
   void MakeTest() {
@@ -179,7 +153,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
   Client::ptr client_receiver_;
   std::unique_ptr<SendMessageDelaysManager> send_message_delays_manager_;
 
-  BarrierEvent<void, 2> clients_registered_event_;
+  CumulativeEvent<Client::ptr, 2> client_selected_event_;
   MultiSubscription registration_subscriptions_;
   MultiSubscription test_result_subscriptions_;
   StateMachine<State> state_;

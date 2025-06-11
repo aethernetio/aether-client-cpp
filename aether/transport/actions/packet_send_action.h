@@ -19,7 +19,7 @@
 
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
-#include "aether/state_machine.h"
+#include "aether/types/state_machine.h"
 
 namespace ae {
 class PacketSendAction : public Action<PacketSendAction> {

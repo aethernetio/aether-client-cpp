@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STATE_MACHINE_H_
-#define AETHER_STATE_MACHINE_H_
+#ifndef AETHER_TYPES_STATE_MACHINE_H_
+#define AETHER_TYPES_STATE_MACHINE_H_
 
 #include <type_traits>
 
@@ -81,4 +81,4 @@ class StateMachine {
 };
 }  // namespace ae
 
-#endif  // AETHER_STATE_MACHINE_H_
+#endif  // AETHER_TYPES_STATE_MACHINE_H_

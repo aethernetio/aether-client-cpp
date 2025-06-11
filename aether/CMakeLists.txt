@@ -18,7 +18,7 @@ set(AE_PROJECT_VERSION "0.1.0")
 
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 
-option(AE_DISTILLATION "Build aether in distillation mode" OFF)
+option(AE_DISTILLATION "Build aether in distillation mode" On)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
@@ -40,8 +40,6 @@ set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
 list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
-            "address.cpp"
-            "address_parser.cpp"
             "channel.cpp"
             "client.cpp"
             "cloud.cpp"
@@ -52,6 +50,10 @@ list(APPEND aether_srcs
             "proof_of_work.cpp"
             "server_keys.cpp"
             "socket_initializer.cpp")
+
+list(APPEND types_srcs
+            "types/address.cpp"
+            "types/address_parser.cpp")
 
 
 list(APPEND poller_srcs
@@ -92,6 +94,7 @@ list(APPEND actions_srcs
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
+            "ae_actions/select_client.cpp"
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
             "actions/action_processor.cpp"
@@ -238,6 +241,7 @@ if(REGULAR_CMAKE_PROJECT)
   endforeach()
 
   add_library(aether STATIC ${aether_srcs}
+                            ${types_srcs}
                             ${poller_srcs}
                             ${dns_srcs}
                             ${obj_srcs}
@@ -281,6 +285,7 @@ else()
 
     idf_component_register( SRCS
                             ${aether_srcs}
+                            ${types_srcs}
                             ${poller_srcs}
                             ${dns_srcs}
                             ${obj_srcs}

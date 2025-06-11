@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/address.h"
+#include "aether/types/address.h"
 
 #include <algorithm>
 #include <iterator>
