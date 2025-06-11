@@ -18,9 +18,9 @@
 
 #include "aether_capi.h"
 
-static const char* kWifiSsid = "Visuale";
-static const char* kWifiPass = "Ws63$yhJ";
-static const char* kMessage = "Message";
+static const char* kWifiSsid = "Test1234";
+static const char* kWifiPass = "Test1234";
+static const char* kMessage = "Message\r\n";
 
 void OnMsg(CUid uid, uint8_t const* data, size_t size,
            void* user_data) {  // message handler func
@@ -46,7 +46,7 @@ int AetherCApiExample() {
 
   AetherClassHandle* obj = AetherClassCreate(kWifiSsid, kWifiPass, FuncPtr);
   AetherClassInit(obj);
-  AetherClassSendMessages(obj, kMessage, 7);
+  AetherClassSendMessages(obj, kMessage, 9);
   ret = AetherClassDestroy(obj);
 
   return ret;

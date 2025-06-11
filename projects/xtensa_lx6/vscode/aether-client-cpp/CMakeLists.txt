@@ -26,11 +26,11 @@ idf_build_set_property(CM_PLATFORM "ESP32")
 add_compile_definitions(CM_ESP32)
 
 if(NOT COMPILE_EXAMPLE )
-  set(COMPILE_EXAMPLE "c_api")
+  set(COMPILE_EXAMPLE "registered")
 endif()
 
 if (NOT USER_CONFIG)
-  set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../../config/user_config_hydrogen.h" CACHE PATH "")
+  set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../../config/user_config_optimized.h" CACHE PATH "")
 endif()
 
 if (NOT FS_INIT)

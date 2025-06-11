@@ -61,6 +61,7 @@ class CApiTestAction : public Action<CApiTestAction> {
                                           size_t size, void* user_data));
   void ConfigureSender();
   void SendMessages(ae::TimePoint current_time, std::string msg);
+  void CallFunc(CUid uid, uint8_t const* data, size_t size, void* user_data);
 
  private:
   Aether::ptr aether_;

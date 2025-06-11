@@ -42,6 +42,7 @@ endif()
 enable_testing()
 
 add_subdirectory("../../examples/cloud" "cloud")
+add_subdirectory("../../examples/c_api" "c_api")
 add_subdirectory("../../examples/key_led" "key_led")
 add_subdirectory("../../examples/registered" "registered")
 

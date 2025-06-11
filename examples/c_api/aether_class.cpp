@@ -57,10 +57,10 @@ TimePoint CApiTestAction::Update(TimePoint current_time) {
         case State::kWaitDone:
           break;
         case State::kResult:
-          //Action::Result(*this);
+          Action::Result(*this);
           return current_time;
         case State::kError:
-          //Action::Error(*this);
+          Action::Error(*this);
           return current_time;
       }
     }
@@ -151,10 +151,10 @@ void CApiTestAction::ConfigureReceiver(void (*pt2Func)(CUid uid, uint8_t const* 
               auto str_msg = std::string(
                   reinterpret_cast<const char*>(data.data()), data.size());
               AE_TELED_DEBUG("Received a message [{}]", str_msg);
-              /*for(uint8_t i=0; i<16; i++) {
+              for(uint8_t i=0; i<16; i++) {
                 cuid.id[i] = uid.value.data()[i];
               }
-              pt2Func(cuid, data.data(), data.size(), nullptr);*/
+              CallFunc(cuid, data.data(), data.size(), nullptr);
               receive_count_++;
               auto confirm_msg = std::string{"confirmed "} + str_msg;
               auto response_action = receiver_stream_->Write(
@@ -217,6 +217,12 @@ void CApiTestAction::SendMessages(ae::TimePoint current_time, std::string msg) {
 
   start_wait_time_ = current_time;
   state_ = State::kWaitDone;
+}
+
+void CApiTestAction::CallFunc(CUid uid, uint8_t const* data, size_t size,
+    void* user_data) {
+  AE_TELED_INFO("CApi calling callback");
+  Pt2Func_(uid, data, size, user_data);
 }
 
 }

@@ -43,6 +43,7 @@ add_compile_definitions("CONFIG_UNITY_ENABLE_DOUBLE")
 set(AE_DISTILLATION OFF CACHE BOOL "" FORCE)
 
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
+                                 "../../../../examples/c_api"
                                  "../../../../examples/cloud"
                                  "../../../../examples/key_led"
                                  "../../../../examples/registered"
