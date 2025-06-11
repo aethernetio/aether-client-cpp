@@ -42,7 +42,12 @@
 #include "aether/reflect/reflect.h"
 
 #include "aether/port/tele_init.h"
+#include "aether/domain_storage/ram_domain_storage.h"
+#include "aether/domain_storage/spifs_domain_storage.h"
+#include "aether/domain_storage/static_domain_storage.h"
 #include "aether/domain_storage/domain_storage_factory.h"
+#include "aether/domain_storage/file_system_std_storage.h"
+#include "aether/domain_storage/registrar_domain_storage.h"
 #include "aether/stream_api/istream.h"
 
 #include "aether/types/address.h"
