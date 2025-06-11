@@ -142,12 +142,19 @@ struct has_imstream<
     : std::true_type {};
 
 /*********************** operator << implementation **************** */
-
 template <typename T, typename Ob>
 omstream_enable_if_t<!std::is_enum<T>::value && std::is_arithmetic<T>::value,
                      Ob>
 operator<<(omstream<Ob>& s, const T& v) {
   s.write(&v, sizeof(T));
+  return s;
+}
+
+template <typename T, typename Ib>
+imstream_enable_if_t<!std::is_enum<T>::value && std::is_arithmetic<T>::value,
+                     Ib>
+operator>>(imstream<Ib>& s, T& v) {
+  s.read(&v, sizeof(T));
   return s;
 }
 
@@ -161,14 +168,6 @@ omstream_enable_if_t<std::is_enum_v<T>, Ob> operator<<(omstream<Ob>& s,
 }
 
 template <typename T, typename Ib>
-imstream_enable_if_t<!std::is_enum<T>::value && std::is_arithmetic<T>::value,
-                     Ib>
-operator>>(imstream<Ib>& s, T& v) {
-  s.read(&v, sizeof(T));
-  return s;
-}
-
-template <typename T, typename Ib>
 imstream_enable_if_t<std::is_enum<T>::value, Ib> operator>>(imstream<Ib>& s,
                                                             T& v) {
   using Type = typename std::underlying_type<T>::type;
@@ -177,6 +176,27 @@ imstream_enable_if_t<std::is_enum<T>::value, Ib> operator>>(imstream<Ib>& s,
   if (s.result() == ReadResult::kYes) {
     v = static_cast<T>(t);
   }
+  return s;
+}
+
+template <typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& s, bool v) {
+  constexpr std::uint8_t true_val = 0x01;
+  constexpr std::uint8_t false_val = 0x00;
+  if (v) {
+    s.write(&true_val, 1);
+  } else {
+    s.write(&false_val, 1);
+  }
+  return s;
+}
+
+template <typename Ob>
+imstream<Ob>& operator>>(imstream<Ob>& s, bool& v) {
+  constexpr std::uint8_t true_val = 0x01;
+  std::uint8_t temp;
+  s.read(&temp, 1);
+  v = (temp == true_val);
   return s;
 }
 
