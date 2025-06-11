@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #ifndef EXAMPLES_C_API_AETHER_CAPI_H_
 #define EXAMPLES_C_API_AETHER_CAPI_H_
 
@@ -29,11 +30,20 @@ typedef struct CUid {
   uint8_t id[16];
 } CUid;
 
-AetherClassHandle* AetherClassCreate(const char* kWifiSsid, const char* kWifiPass, void (*pt2Func)(struct CUid uid, uint8_t const* data,
-                                     size_t size, void* user_data));
+struct aether_cfg {
+  void (*msg_handler)(CUid uid, uint8_t const* data, size_t size,
+                      void* user_data);
+  const char* msg_handler_user_data;
+  CUid parent_uid;
+  const char* wifi_ssid;
+  const char* wifi_pass;
+};
+
+AetherClassHandle* AetherClassCreate(struct aether_cfg cfg);
 int AetherClassDestroy(AetherClassHandle* handle);
 void AetherClassInit(AetherClassHandle* handle);
-void AetherClassSendMessages(AetherClassHandle* handle, char const* data, size_t size);
+void AetherClassSendMessages(AetherClassHandle* handle, char const* data,
+                             size_t size);
 
 #ifdef __cplusplus
 }

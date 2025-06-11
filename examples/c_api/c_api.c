@@ -16,20 +16,18 @@
 
 #include <stdio.h>
 
-#include "aether_capi.h"
+#include "c_api.h"
 
 static const char* kWifiSsid = "Test1234";
 static const char* kWifiPass = "Test1234";
 static const char* kMessage = "Message\r\n";
-
+ 
 void OnMsg(CUid uid, uint8_t const* data, size_t size,
            void* user_data) {  // message handler func
   for (size_t i = 0; i < size; i++) {
     printf("%c", data[i]);
   }
 }
-
-void (*FuncPtr)(CUid uid, uint8_t const* data, size_t size, void* user_data) = OnMsg;
 
 int AetherCApiExample();
 
@@ -44,7 +42,21 @@ int AetherCApiExample() {
    */
   int ret = 0;
 
-  AetherClassHandle* obj = AetherClassCreate(kWifiSsid, kWifiPass, FuncPtr);
+  // Config aether
+  struct aether_cfg cfg;
+  CUid id;
+
+  for(uint8_t i=0; i<16; i++){
+    id.id[i]=0;
+  }
+    
+  cfg.msg_handler=OnMsg;
+  cfg.msg_handler_user_data=kMessage;
+  cfg.parent_uid=id;
+  cfg.wifi_ssid=kWifiSsid;
+  cfg.wifi_pass=kWifiPass;
+
+  AetherClassHandle* obj = AetherClassCreate(cfg);
   AetherClassInit(obj);
   AetherClassSendMessages(obj, kMessage, 9);
   ret = AetherClassDestroy(obj);

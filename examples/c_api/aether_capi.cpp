@@ -35,8 +35,7 @@ struct AetherClassHandle {
 
 std::shared_ptr<ae::c_api_test::CApiTestAction> capi_test_action;
 
-AetherClassHandle* AetherClassCreate(const char* kWifiSsid, const char* kWifiPass, void (*pt2Func)(struct CUid uid, uint8_t const* data,
-                                     size_t size, void* user_data)){
+AetherClassHandle* AetherClassCreate(struct aether_cfg cfg){
   AetherClassHandle* handle = new AetherClassHandle;
   
     /**
@@ -50,13 +49,13 @@ AetherClassHandle* AetherClassCreate(const char* kWifiSsid, const char* kWifiPas
   handle->aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{}
 #if defined AE_DISTILLATION
-          .Adapter([kWifiSsid, kWifiPass](
+          .Adapter([cfg](
                        ae::Domain* domain,
                        ae::Aether::ptr const& aether)->ae::Adapter::ptr {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = domain->CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-                std::string(kWifiSsid), std::string(kWifiPass));
+                std::string(cfg.wifi_ssid), std::string(cfg.wifi_pass));
 #  else
             auto adapter = domain->CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, aether, aether->poller);
@@ -66,7 +65,7 @@ AetherClassHandle* AetherClassCreate(const char* kWifiSsid, const char* kWifiPas
 #endif
   );
   
-  capi_test_action = std::make_shared<ae::c_api_test::CApiTestAction>(handle->aether_app, pt2Func);
+  capi_test_action = std::make_shared<ae::c_api_test::CApiTestAction>(handle->aether_app, cfg.msg_handler);
   
   capi_test_action->ResultEvent().Subscribe(
       [&](auto const&) { handle->aether_app->Exit(0); });
