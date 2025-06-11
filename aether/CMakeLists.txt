@@ -18,7 +18,7 @@ set(AE_PROJECT_VERSION "0.1.0")
 
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 
-option(AE_DISTILLATION "Build aether in distillation mode" OFF)
+option(AE_DISTILLATION "Build aether in distillation mode" On)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
