@@ -17,21 +17,23 @@
 #ifndef AETHER_ADAPTERS_ADAPTER_FACTORY_H_
 #define AETHER_ADAPTERS_ADAPTER_FACTORY_H_
 
-#include "aether/config.h"
 #include "aether/aether.h"
 #include "aether/obj/domain.h"
 #include "aether/adapters/adapter.h"
 
+// IWYU pragma: begin_keeps
 // include objects here to prevent its removing by linker
 #include "aether/adapters/ethernet.h"
 #include "aether/adapters/esp32_wifi.h"
+// IWYU pragma: end_keeps
 
 #if defined AE_DISTILLATION
 
 namespace ae {
 class AdapterFactory {
  public:
-  static Adapter::ptr Create(Domain* domain, Aether::ptr const& aether);
+  static Adapter::ptr Create(Domain* domain, Aether::ptr const& aether,
+                             IPoller::ptr const& poller);
 };
 }  // namespace ae
 #endif
