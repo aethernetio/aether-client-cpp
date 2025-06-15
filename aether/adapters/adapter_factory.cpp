@@ -20,9 +20,9 @@
 #  include "aether/global_ids.h"
 
 namespace ae {
-Adapter::ptr AdapterFactory::Create(Domain* domain, Aether::ptr const& aether) {
-  return domain->CreateObj<EthernetAdapter>(kEthernetAdapter, aether,
-                                            aether->poller);
+Adapter::ptr AdapterFactory::Create(Domain* domain, Aether::ptr const& aether,
+                                    IPoller::ptr const& poller) {
+  return domain->CreateObj<EthernetAdapter>(kEthernetAdapter, aether, poller);
 }
 }  // namespace ae
 #endif

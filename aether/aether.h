@@ -42,8 +42,6 @@
 #include "aether/registration_cloud.h"
 
 namespace ae {
-class Registration;
-
 class Aether : public Obj {
   AE_OBJECT(Aether, Obj, 0)
 
@@ -86,6 +84,8 @@ class Aether : public Obj {
   void Update(TimePoint current_time) override;
 
   // User-facing API.
+  operator ActionContext() const { return ActionContext{*action_processor}; }
+
   ActionView<SelectClientAction> SelectClient(Uid parent_uid,
                                               std::uint32_t client_id);
 
@@ -94,14 +94,12 @@ class Aether : public Obj {
 
   tele::TeleStatistics::ptr const& tele_statistics() const;
 
-  operator ActionContext() const { return ActionContext{*action_processor}; }
-
   std::unique_ptr<ActionProcessor> action_processor =
       make_unique<ActionProcessor>();
 
   Cloud::ptr cloud_prefab;
 #if AE_SUPPORT_REGISTRATION
-  RegistrationCloud::ptr registration_cloud;
+  ObjPtr<RegistrationCloud> registration_cloud;
 #else
   DummyObj::ptr registration_cloud;
 #endif
