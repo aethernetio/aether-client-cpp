@@ -161,7 +161,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
 };
 
 int test_send_message_delays(std::ostream& result_stream) {
-  auto aether_app = AetherApp::Construct(AetherAppConstructor{});
+  auto aether_app = AetherApp::Construct(AetherAppContext{});
 
   auto test_action = TestSendMessageDelaysAction{aether_app, result_stream};
   auto success = test_action.ResultEvent().Subscribe(

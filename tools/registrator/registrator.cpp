@@ -52,33 +52,38 @@ int AetherRegistrator(const std::string& ini_file,
    * To configure its creation \see AetherAppConstructor.
    */
   auto aether_app = ae::AetherApp::Construct(
-      ae::AetherAppConstructor{[header_file]() {
+      ae::AetherAppContext{[header_file]() {
         return ae::make_unique<ae::RegistrarDomainStorage>(header_file);
       }}
 #if defined AE_DISTILLATION
-          .Adapter([&registrator_config](
-                       ae::Domain* domain,
-                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
-            if (registrator_config.GetWiFiIsSet()) {
-              AE_TELED_DEBUG("ae::registrator::RegisterWifiAdapter");
-              auto adapter =
-                  domain->CreateObj<ae::registrator::RegisterWifiAdapter>(
-                      ae::GlobalId::kRegisterWifiAdapter, aether,
-                      aether->poller, registrator_config.GetWiFiSsid(),
-                      registrator_config.GetWiFiPass());
-              return adapter;
-            } else {
-              AE_TELED_DEBUG("ae::EthernetAdapter");
-              auto adapter = domain->CreateObj<ae::EthernetAdapter>(
-                  ae::GlobalId::kEthernetAdapter, aether, aether->poller);
-              return adapter;
-            }
-          })
+          .AdapterFactory(
+              [&registrator_config](
+                  ae::AetherAppContext const& context) -> ae::Adapter::ptr {
+                if (registrator_config.GetWiFiIsSet()) {
+                  AE_TELED_DEBUG("ae::registrator::RegisterWifiAdapter");
+                  auto adapter =
+                      context.domain()
+                          .CreateObj<ae::registrator::RegisterWifiAdapter>(
+                              ae::GlobalId::kRegisterWifiAdapter,
+                              context.aether(), context.poller(),
+                              registrator_config.GetWiFiSsid(),
+                              registrator_config.GetWiFiPass());
+                  return adapter;
+                }
+                AE_TELED_DEBUG("ae::EthernetAdapter");
+                auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
+                    ae::GlobalId::kEthernetAdapter, context.aether(),
+                    context.poller());
+                return adapter;
+              })
 #  if AE_SUPPORT_REGISTRATION
-          .RegCloud([&registrator_config](ae::Domain* domain,
-                                          ae::Aether::ptr const& /* aether */) {
-            auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
-                ae::kRegistrationCloud);
+          .RegistrationCloudFactory([&registrator_config](
+                                        ae::AetherAppContext const& context) {
+            auto registration_cloud =
+                context.domain().CreateObj<ae::RegistrationCloud>(
+                    ae::kRegistrationCloud);
+            registration_cloud->set_adapter(context.adapter());
+
             auto servers_list = registrator_config.GetServers();
             for (auto s : servers_list) {
               AE_TELED_DEBUG("Server address type={}", s.server_address_type);

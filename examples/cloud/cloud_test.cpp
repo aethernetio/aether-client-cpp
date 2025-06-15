@@ -205,17 +205,18 @@ int AetherCloudExample() {
    * To configure its creation \see AetherAppConstructor.
    */
   auto aether_app = ae::AetherApp::Construct(
-      ae::AetherAppConstructor{}
+      ae::AetherAppContext{}
 #if defined AE_DISTILLATION
-          .Adapter([](ae::Domain* domain,
-                      ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
+          .AdapterFactory([](ae::AetherAppContext const& context) {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
-            auto adapter = domain->CreateObj<ae::Esp32WifiAdapter>(
-                ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
-                std::string(kWifiSsid), std::string(kWifiPass));
+            auto adapter = context.domain().CreateObj<ae::Esp32WifiAdapter>(
+                ae::GlobalId::kEsp32WiFiAdapter, context.aether(),
+                context.poller(), std::string(kWifiSsid),
+                std::string(kWifiPass));
 #  else
-            auto adapter = domain->CreateObj<ae::EthernetAdapter>(
-                ae::GlobalId::kEthernetAdapter, aether, aether->poller);
+            auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
+                ae::GlobalId::kEthernetAdapter, context.aether(),
+                context.poller());
 #  endif
             return adapter;
           })
