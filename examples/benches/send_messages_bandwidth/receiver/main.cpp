@@ -20,7 +20,6 @@
 
 #include "aether/aether.h"
 #include "aether/client.h"
-#include "aether/global_ids.h"
 #include "aether/aether_app.h"
 
 #include "send_messages_bandwidth/common/receiver.h"
@@ -31,7 +30,7 @@
 namespace ae::bench {
 
 int test_receiver_bandwidth() {
-  auto aether_app = ae::AetherApp::Construct(AetherAppConstructor{});
+  auto aether_app = ae::AetherApp::Construct(AetherAppContext{});
 
   ae::Client::ptr client;
 

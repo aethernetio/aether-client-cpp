@@ -34,7 +34,7 @@ static constexpr char WIFI_SSID[] = "Test123";
 static constexpr char WIFI_PASS[] = "Test123";
 
 int test_sender_bandwidth(Uid receiver_uid) {
-  auto aether_app = ae::AetherApp::Construct(AetherAppConstructor{});
+  auto aether_app = ae::AetherApp::Construct(AetherAppContext{});
 
   ae::Client::ptr client;
 
