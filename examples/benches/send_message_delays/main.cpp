@@ -35,7 +35,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
   };
 
  public:
-  TestSendMessageDelaysAction(Ptr<AetherApp> aether_app,
+  TestSendMessageDelaysAction(RcPtr<AetherApp> aether_app,
                               std::ostream& write_results_stream)
       : Action{*aether_app},
         aether_{aether_app->aether()},
