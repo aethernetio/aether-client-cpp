@@ -23,16 +23,6 @@
 
 #include "aether/work_cloud.h"
 
-// IWYU pragma: begin_keeps
-#include "aether/poller/win_poller.h"
-#include "aether/poller/epoll_poller.h"
-#include "aether/poller/kqueue_poller.h"
-#include "aether/poller/freertos_poller.h"
-
-#include "aether/dns/dns_c_ares.h"
-#include "aether/dns/esp32_dns_resolve.h"
-// IWYU pragma: end_keeps
-
 #include "aether/aether_tele.h"
 
 namespace ae {
