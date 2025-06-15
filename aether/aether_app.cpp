@@ -33,6 +33,7 @@
 // IWYU pragma: end_keeps
 
 #include "aether/port/tele_init.h"
+
 #include "aether/aether_tele.h"
 
 namespace ae {
@@ -117,8 +118,8 @@ void AetherAppContext::InitComponentContext() {
 #endif  //  defined AE_DISTILLATION
 }
 
-Ptr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
-  auto app = MakePtr<AetherApp>();
+RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
+  auto app = MakeRcPtr<AetherApp>();
   app->aether_ = context.aether();
 
   ae::TeleInit::Init(app->aether_);

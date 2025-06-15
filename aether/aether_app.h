@@ -17,31 +17,32 @@
 #ifndef AETHER_AETHER_APP_H_
 #define AETHER_AETHER_APP_H_
 
-#include <map>
-#include <optional>
 #include <cassert>
+#include <optional>
 
 #include "aether/config.h"
 #include "aether/common.h"
 #include "aether/ptr/ptr.h"
+#include "aether/ptr/rc_ptr.h"
 #include "aether/obj/domain.h"
 #include "aether/global_ids.h"
 #include "aether/type_traits.h"
 #include "aether/reflect/reflect.h"
 
+#include "aether/events/events.h"   // IWYU pragma: keep
+#include "aether/actions/action.h"  // IWYU pragma: keep
+#include "aether/actions/action_view.h"
 #include "aether/actions/action_trigger.h"
 #include "aether/actions/action_processor.h"
 
+#include "aether/cloud.h"
 #include "aether/aether.h"
 #include "aether/crypto.h"
 #include "aether/poller/poller.h"
 #include "aether/adapters/adapter.h"
-#include "aether/registration_cloud.h"
 #include "aether/obj/component_context.h"
 
 #include "aether/domain_storage/domain_storage_factory.h"
-
-#include "aether/tele/tele.h"
 
 namespace ae {
 class AetherAppContext : public ComponentContext<AetherAppContext> {
@@ -132,7 +133,7 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
  */
 class AetherApp {
  public:
-  static Ptr<AetherApp> Construct(AetherAppContext&& context);
+  static RcPtr<AetherApp> Construct(AetherAppContext&& context);
 
   AetherApp() = default;
   ~AetherApp();
@@ -151,12 +152,59 @@ class AetherApp {
     return *exit_code_;
   }
 
+  /**
+   * \brief Run one iteration of application update loop.
+   */
   TimePoint Update(TimePoint current_time) {
     return domain_->Update(current_time);
   }
+
+  /**
+   * \brief Wait untile timeout or application event triggered.
+   */
   void WaitUntil(TimePoint wakeup_time) {
     if (!IsExited()) {
       aether_->action_processor->get_trigger().WaitUntil(wakeup_time);
+    }
+  }
+
+  /**
+   * \brief Wait until action is excited.
+   * Either result, error or stop event must be emitted.
+   */
+  template <typename TAction>
+  void WaitAction(ActionView<TAction>& action) {
+    bool done = false;
+    auto res_sub =
+        action->ResultEvent().Subscribe([&done](auto&&) { done = true; });
+    auto err_sub =
+        action->ErrorEvent().Subscribe([&done](auto&&) { done = true; });
+    auto stop_sub =
+        action->StopEvent().Subscribe([&done](auto&&) { done = true; });
+
+    while (!IsExited()) {
+      auto new_time = Update(Now());
+      if (done) {
+        return;
+      }
+      WaitUntil(new_time);
+    }
+  }
+
+  /**
+   * \brief Wait until event is emitted.
+   */
+  template <typename TEvent>
+  void WaitEvent(TEvent&& event) {
+    bool done = false;
+    auto sub = std::forward<TEvent>(event).Subscribe(
+        [&done](auto&&...) { done = true; });
+    while (!done && !IsExited()) {
+      auto new_time = Update(Now());
+      if (done) {
+        return;
+      }
+      WaitUntil(new_time);
     }
   }
 
@@ -165,8 +213,6 @@ class AetherApp {
 
   // Action context protocol
   operator ActionContext() const { return ActionContext{*aether_}; }
-
-  AE_REFLECT_MEMBERS(domain_facility_, domain_, aether_, exit_code_)
 
  private:
   std::unique_ptr<IDomainStorage> domain_facility_;
