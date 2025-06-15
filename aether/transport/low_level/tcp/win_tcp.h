@@ -25,7 +25,7 @@
 #  include <atomic>
 #  include <optional>
 
-#  include "aether/state_machine.h"
+#  include "aether/types/state_machine.h"
 #  include "aether/events/events.h"
 #  include "aether/events/multi_subscription.h"
 

@@ -18,7 +18,7 @@
 
 #include "third_party/ini.h/ini.h"
 
-#include "aether/address_parser.h"
+#include "aether/types/address_parser.h"
 #include "aether/tele/tele.h"
 
 constexpr std::uint8_t clients_max = 4;

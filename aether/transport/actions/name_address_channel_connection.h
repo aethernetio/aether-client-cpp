@@ -25,7 +25,7 @@
 #  include <optional>
 
 #  include "aether/memory.h"
-#  include "aether/address.h"
+#  include "aether/types/address.h"
 #  include "aether/ptr/ptr.h"
 #  include "aether/ptr/ptr_view.h"
 #  include "aether/actions/action_context.h"

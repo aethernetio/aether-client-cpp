@@ -21,7 +21,7 @@
 #include <utility>
 
 #include "aether/common.h"
-#include "aether/state_machine.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
 #include "aether/events/event_subscription.h"
 

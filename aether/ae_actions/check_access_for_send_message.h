@@ -20,7 +20,7 @@
 #include <cstdint>
 
 #include "aether/common.h"
-#include "aether/state_machine.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
 
 #include "aether/client_connections/client_to_server_stream.h"

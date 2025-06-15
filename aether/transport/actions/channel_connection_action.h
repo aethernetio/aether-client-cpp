@@ -20,7 +20,7 @@
 #include <cstddef>
 
 #include "aether/memory.h"
-#include "aether/address.h"
+#include "aether/types/address.h"
 #include "aether/actions/action.h"
 
 namespace ae {

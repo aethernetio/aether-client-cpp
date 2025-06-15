@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_VARIANT_TYPE_H_
-#define AETHER_VARIANT_TYPE_H_
+#ifndef AETHER_TYPES_VARIANT_TYPE_H_
+#define AETHER_TYPES_VARIANT_TYPE_H_
 
 #include <cstddef>
 #include <utility>
@@ -106,4 +106,4 @@ class VariantType : public std::variant<Ts...> {
 
 }  // namespace ae
 
-#endif  // AETHER_VARIANT_TYPE_H_
+#endif  // AETHER_TYPES_VARIANT_TYPE_H_

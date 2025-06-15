@@ -16,7 +16,7 @@
 
 #include "unity.h"
 
-#include "aether/literal_array.h"
+#include "aether/types/literal_array.h"
 
 namespace ae::test_literal_array {
 void test_LiteralArray() {

@@ -19,12 +19,12 @@
 #include <vector>
 
 #include "aether/common.h"
-#include "aether/state_machine.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_view.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/events/barrier_event.h"
+#include "aether/events/cumulative_event.h"
 
 #include "send_message_delays/receiver.h"
 #include "send_message_delays/sender.h"
@@ -90,7 +90,7 @@ class SendMessageDelaysManager {
     Receiver* receiver_;
     SendMessageDelaysManagerConfig config_;
 
-    std::unique_ptr<BarrierEvent<TimeTable, 2>> res_event_;
+    std::unique_ptr<CumulativeEvent<TimeTable, 2>> res_event_;
     StateMachine<State> state_;
     Subscription state_changed_subscription_;
     MultiSubscription error_subscriptions_;

@@ -17,6 +17,7 @@
 #ifndef AETHER_CONFIG_H_
 #define AETHER_CONFIG_H_
 
+// IWYU pragma: begin_exports
 #include <limits>
 #include <cstdint>
 
@@ -24,6 +25,7 @@
 #if defined USER_CONFIG
 #  include USER_CONFIG
 #endif
+// IWYU pragma: end_exports
 
 #ifndef CM_PLATFORM
 

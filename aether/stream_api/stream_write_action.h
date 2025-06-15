@@ -17,7 +17,7 @@
 #ifndef AETHER_STREAM_API_STREAM_WRITE_ACTION_H_
 #define AETHER_STREAM_API_STREAM_WRITE_ACTION_H_
 
-#include "aether/state_machine.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
 

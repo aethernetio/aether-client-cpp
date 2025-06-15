@@ -18,7 +18,7 @@
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_MESSAGE_SENDER_H_
 
 #include "aether/common.h"
-#include "aether/state_machine.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
 #include "aether/stream_api/istream.h"
