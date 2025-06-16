@@ -24,6 +24,11 @@ set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 valu
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
 set(FS_INIT "" CACHE PATH "Path to user provided saved state header file")
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/../cmake)
+include(repo_init)
+
+ae_update_dependencies()
+
 # list a common dependencies
 list(APPEND common_dependencies
     "../third_party/libbcrypt"
