@@ -16,8 +16,8 @@
 
 #include "aether/aether_app.h"
 
-#include "aether/literal_array.h"
-#include "aether/address_parser.h"
+#include "aether/types/literal_array.h"
+#include "aether/types/address_parser.h"
 
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"

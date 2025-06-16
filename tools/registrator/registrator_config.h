@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-#include "aether/address.h"
+#include "aether/types/address.h"
 
 namespace ae {
 enum class ServerAddressType : std::uint8_t { kIpAddress, kUrlAddress };

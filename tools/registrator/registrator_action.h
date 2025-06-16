@@ -42,7 +42,7 @@ class RegistratorAction : public Action<RegistratorAction> {
 
   std::size_t clients_registered_{0};
 
-  MultiSubscription registration_subscriptions_;
+  MultiSubscription registration_sub_;
   StateMachine<State> state_;
   Subscription state_changed_;
 };

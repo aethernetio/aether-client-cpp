@@ -18,7 +18,7 @@
 
 #include "aether/common.h"
 #include "aether/aether.h"
-#include "aether/literal_array.h"
+#include "aether/types/literal_array.h"
 
 namespace ae::registrator {
 RegistratorAction::RegistratorAction(
@@ -66,16 +66,16 @@ void RegistratorAction::RegisterClients() {
     auto clients_num = p.clients_num;
 
     for (auto i = 0; i < clients_num; i++) {
-      auto reg_action = aether_ptr->RegisterClient(parent_uid);
+      auto select_action = aether_ptr->SelectClient(parent_uid, i);
 
-      registration_subscriptions_.Push(
-          reg_action->ResultEvent().Subscribe([this](auto const&) {
+      registration_sub_.Push(
+          select_action->ResultEvent().Subscribe([this](auto const&) {
             if (++clients_registered_ ==
                 registrator_config_.GetClientsTotal()) {
               state_ = State::kResult;
             }
           }),
-          reg_action->ErrorEvent().Subscribe([this](auto const&) {
+          select_action->ErrorEvent().Subscribe([this](auto const&) {
             AE_TELED_ERROR("Registration error");
             state_ = State::kError;
           }));

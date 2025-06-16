@@ -89,7 +89,7 @@ SendMessageDelaysManager::TestAction::result_table() const {
 
 void SendMessageDelaysManager::TestAction::WarmUp() {
   AE_TELED_INFO("WarmUp p2p stream");
-  res_event_ = make_unique<BarrierEvent<TimeTable, 2>>();
+  res_event_ = make_unique<CumulativeEvent<TimeTable, 2>>();
 
   sender_->ConnectP2pStream();
   receiver_->Connect();
@@ -98,16 +98,16 @@ void SendMessageDelaysManager::TestAction::WarmUp() {
       sender_->WarmUp(config_.warm_up_message_count, config_.min_send_interval);
   auto receiver_warm_up = receiver_->WarmUp(config_.warm_up_message_count);
 
+  res_event_->Connect([](auto const&) -> TimeTable { return {}; },
+                      sender_warm_up->ResultEvent(),
+                      receiver_warm_up->ResultEvent());
+
   test_subscriptions_.Push(  //
       receiver_warm_up->OnReceived().Subscribe([sender_warm_up]() mutable {
         if (sender_warm_up) {
           sender_warm_up->Sync();
         }
       }),
-      sender_warm_up->ResultEvent().Subscribe(
-          [this](auto const&) { res_event_->Emit<0>({}); }),
-      receiver_warm_up->ResultEvent().Subscribe(
-          [this](auto const&) { res_event_->Emit<1>({}); }),
       sender_warm_up->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Warm up sender error");
         state_ = State::kError;
@@ -131,7 +131,7 @@ void SendMessageDelaysManager::TestAction::SwitchToSafeStream() {
 
 void SendMessageDelaysManager::TestAction::SafeStreamWarmUp() {
   AE_TELED_INFO("WarmUp p2p safe stream");
-  res_event_ = make_unique<BarrierEvent<TimeTable, 2>>();
+  res_event_ = make_unique<CumulativeEvent<TimeTable, 2>>();
 
   sender_->ConnectP2pSafeStream();
   receiver_->Connect();
@@ -140,16 +140,16 @@ void SendMessageDelaysManager::TestAction::SafeStreamWarmUp() {
       sender_->WarmUp(config_.warm_up_message_count, config_.min_send_interval);
   auto receiver_warm_up = receiver_->WarmUp(config_.warm_up_message_count);
 
+  res_event_->Connect([](auto const&) -> TimeTable { return {}; },
+                      sender_warm_up->ResultEvent(),
+                      receiver_warm_up->ResultEvent());
+
   test_subscriptions_.Push(  //
       receiver_warm_up->OnReceived().Subscribe([sender_warm_up]() mutable {
         if (sender_warm_up) {
           sender_warm_up->Sync();
         }
       }),
-      sender_warm_up->ResultEvent().Subscribe(
-          [this](auto const&) { res_event_->Emit<0>({}); }),
-      receiver_warm_up->ResultEvent().Subscribe(
-          [this](auto const&) { res_event_->Emit<1>({}); }),
       sender_warm_up->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Warm up sender error");
         state_ = State::kError;
@@ -227,34 +227,31 @@ void SendMessageDelaysManager::TestAction::SubscribeToTest(
     ActionView<ITimedSender> sender_action,
     ActionView<ITimedReceiver> receiver_action, State next_state) {
   test_subscriptions_.Reset();
-  res_event_ = make_unique<BarrierEvent<TimeTable, 2>>();
+  res_event_ = make_unique<CumulativeEvent<TimeTable, 2>>();
+  res_event_->Connect([](auto const& action) { return action.message_times(); },
+                      sender_action->ResultEvent(),
+                      receiver_action->ResultEvent());
+
   test_subscriptions_.Push(
       receiver_action->OnReceived().Subscribe([sender_action]() mutable {
         if (sender_action) {
           sender_action->Sync();
         }
       }),
-      sender_action->ResultEvent().Subscribe([this](auto const& action) {
-        res_event_->Emit<0>(action.message_times());
-      }),
       sender_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Sender error");
         state_ = State::kError;
-      }),
-      receiver_action->ResultEvent().Subscribe([this](auto const& action) {
-        res_event_->Emit<1>(action.message_times());
       }),
       receiver_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Receiver error");
         state_ = State::kError;
       }),
-      res_event_->Subscribe(
-          [this, next_state](BarrierEvent<TimeTable, 2> const& res_event) {
-            AE_TELED_INFO("Test finished");
-            assert(res_event.Get<0>().size() == res_event.Get<1>().size());
-            TestResult(res_event.Get<0>(), res_event.Get<1>());
-            state_ = next_state;
-          }));
+      res_event_->Subscribe([this, next_state](auto const& res_event) {
+        AE_TELED_INFO("Test finished");
+        assert(res_event[0].size() == res_event[1].size());
+        TestResult(res_event[0], res_event[1]);
+        state_ = next_state;
+      }));
 }
 
 void SendMessageDelaysManager::TestAction::TestResult(

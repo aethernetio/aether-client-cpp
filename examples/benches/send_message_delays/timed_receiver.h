@@ -19,7 +19,7 @@
 
 #include <cstddef>
 
-#include "aether/state_machine.h"
+#include "aether/types/state_machine.h"
 #include "aether/events/events.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
@@ -38,6 +38,7 @@ class ITimedReceiver : public Action<ITimedReceiver> {
 
   virtual TimeTable const& message_times() const = 0;
   virtual EventSubscriber<void()> OnReceived() = 0;
+  virtual ActionResult Update() = 0;
 };
 
 /**
@@ -72,7 +73,7 @@ class TimedReceiver : public ITimedReceiver {
     AE_TELED_INFO("TimedReceiver waiting {} messages", wait_count);
   }
 
-  ActionResult Update() {
+  ActionResult Update() override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kWaiting:

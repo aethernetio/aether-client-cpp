@@ -47,7 +47,7 @@ crypto_aead_chacha20poly1305.h"  //"
 #    include "third_party/libhydrogen/hydrogen.h"
 #  endif
 
-#  include "aether/variant_type.h"
+#  include "aether/types/variant_type.h"
 #  include "aether/reflect/reflect.h"
 
 namespace ae {

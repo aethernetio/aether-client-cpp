@@ -135,8 +135,9 @@ void SafeStreamSendAction::SendChunk() {
 }
 
 void SafeStreamSendAction::RejectSend(SendingChunk& sending_chunk) {
-  sending_chunks_.RemoveUpTo(sending_chunk.end_offset, begin_);
-  send_data_buffer_.Reject(sending_chunk.end_offset, begin_);
+  auto end_offset = sending_chunk.end_offset;
+  sending_chunks_.RemoveUpTo(end_offset, begin_);
+  send_data_buffer_.Reject(end_offset, begin_);
 }
 
 TimePoint SafeStreamSendAction::SendTimeouts(TimePoint current_time) {

@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include "aether/address.h"
+#include "aether/types/address.h"
 
 namespace ae {
 

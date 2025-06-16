@@ -33,8 +33,8 @@ void BufferStream::BufferedWriteAction::Stop() {
     write_action_->Stop();
   } else {
     state_ = State::kStopped;
+    Action::Trigger();
   }
-  Action::Trigger();
 }
 
 void BufferStream::BufferedWriteAction::Send(OutStream& out_gate) {
@@ -42,22 +42,10 @@ void BufferStream::BufferedWriteAction::Send(OutStream& out_gate) {
 
   write_action_ = out_gate.Write(std::move(data_));
   state_changed_subscription_ =
-      write_action_->state().changed_event().Subscribe(
-          [this](auto state) { state_ = state; });
-
-  write_action_subscription_.Push(
-      write_action_->ResultEvent().Subscribe([this](auto const&) {
-        state_.Acquire();
-        return ActionResult::Result();
-      }),
-      write_action_->ErrorEvent().Subscribe([this](auto const&) {
-        state_.Acquire();
-        return ActionResult::Error();
-      }),
-      write_action_->StopEvent().Subscribe([this](auto const&) {
-        state_.Acquire();
-        return ActionResult::Stop();
-      }));
+      write_action_->state().changed_event().Subscribe([this](auto state) {
+        state_ = state;
+        Action::Trigger();
+      });
 }
 
 bool BufferStream::BufferedWriteAction::is_sent() const { return is_sent_; }

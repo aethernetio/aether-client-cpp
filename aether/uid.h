@@ -21,7 +21,7 @@
 #include <cstdint>
 #include <cstddef>
 
-#include "aether/literal_array.h"
+#include "aether/types/literal_array.h"
 #include "aether/reflect/reflect.h"
 
 namespace ae {

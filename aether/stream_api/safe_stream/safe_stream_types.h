@@ -20,7 +20,7 @@
 #include <cstdint>
 
 #include "aether/common.h"
-#include "aether/ring_buffer.h"
+#include "aether/types/ring_buffer.h"
 #include "aether/transport/data_buffer.h"
 
 namespace ae {

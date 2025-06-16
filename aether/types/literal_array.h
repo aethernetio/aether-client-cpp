@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LITERAL_ARRAY_H_
-#define AETHER_LITERAL_ARRAY_H_
+#ifndef AETHER_TYPES_LITERAL_ARRAY_H_
+#define AETHER_TYPES_LITERAL_ARRAY_H_
 
 #include <array>
 #include <cstdint>
@@ -64,4 +64,4 @@ static constexpr auto MakeArray(char const (&str)[Size]) {
 
 }  // namespace ae
 
-#endif  // AETHER_LITERAL_ARRAY_H_ */
+#endif  // AETHER_TYPES_LITERAL_ARRAY_H_ */

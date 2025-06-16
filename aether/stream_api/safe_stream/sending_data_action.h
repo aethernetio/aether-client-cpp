@@ -17,7 +17,7 @@
 #ifndef AETHER_STREAM_API_SAFE_STREAM_SENDING_DATA_ACTION_H_
 #define AETHER_STREAM_API_SAFE_STREAM_SENDING_DATA_ACTION_H_
 
-#include "aether/state_machine.h"
+#include "aether/types/state_machine.h"
 #include "aether/events/events.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"

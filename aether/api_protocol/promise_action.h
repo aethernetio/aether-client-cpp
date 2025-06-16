@@ -20,8 +20,8 @@
 #include <cstdint>
 #include <optional>
 
-#include "aether/state_machine.h"
 #include "aether/actions/action.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action_view.h"
 #include "aether/actions/action_context.h"
 
