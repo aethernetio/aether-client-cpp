@@ -41,12 +41,12 @@
 
 # Build directory
 build/
-**.cmake
-**.xcodeproj
-**/CMakeCache.txt
-**/CMakeFiles
-**/CMakeScripts
-**/Debug
+build*/**.cmake
+build*/**.xcodeproj
+build*/**/CMakeCache.txt
+build*/**/CMakeFiles
+build*/**/CMakeScripts
+build*/**/Debug
 projects/apple_x86/xcode_cmake/aether-client-cpp/aether-client-cpp
 /projects/apple_x86/xcode_cmake/aether-client-cpp/state
 /projects/apple_x86/xcode_cmake/aether-client-cpp/tests
@@ -58,3 +58,5 @@ projects/intel_x86/linux/gcc/aether-client-cpp
 *.sln
 *.DS_Store
 *.vs
+
+.updated
