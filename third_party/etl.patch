@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 9f81b8bb..f1b05245 100644
+index cbe4564d..45ba8cae 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -39,8 +39,6 @@ target_include_directories(${PROJECT_NAME} ${INCLUDE_SPECIFIER} INTERFACE
@@ -11,7 +11,7 @@ index 9f81b8bb..f1b05245 100644
      # Steps here based on excellent guide: https://dominikberner.ch/cmake-interface-lib/
      # Which also details all steps
      include(CMakePackageConfigHelpers)
-@@ -74,7 +72,6 @@ if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
+@@ -87,7 +85,6 @@ if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
          DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/cmake)
      install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/etl DESTINATION include)
  

@@ -198,6 +198,7 @@ if(NOT CM_PLATFORM )
     target_include_directories(${PROJECT_NAME} PRIVATE ${include_dirs})
     target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_include_directories(${PROJECT_NAME} PRIVATE src/libsodium/include/)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DEV_MODE=1 CONFIGURED=1)
 
 else()
     idf_build_get_property(CM_PLATFORM CM_PLATFORM)
@@ -236,15 +237,16 @@ else()
         target_include_directories(${PROJECT_NAME} PRIVATE ${include_dirs})
         target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
         target_include_directories(${PROJECT_NAME} PRIVATE src/libsodium/include/)
+        target_compile_definitions(${PROJECT_NAME} PRIVATE DEV_MODE=1 CONFIGURED=1)
     else()
         #ERROR
         message(SEND_ERROR "You must specify the CMAKE version!")
     endif()
-endif() 
+endif()
 
 if(NOT CM_PLATFORM )
     set_target_properties(${PROJECT_NAME}
-        PROPERTIES 
+        PROPERTIES
             C_STANDARD          17
             C_STANDARD_REQUIRED ON
             PUBLIC_HEADER       "${${PROJECT_NAME}_PUBLIC_HEADERS}"
@@ -264,14 +266,14 @@ if(NOT CM_PLATFORM )
                 -Wno-type-limits
                 -Wno-deprecated-declarations
             >
-            
+
             # GCC
             $<$<C_COMPILER_ID:GNU>:
-                -Wno-unknown-pragmas 
-                -Wno-nonnull 
-                -Wno-unused-variable 
-                -Wno-unused-function 
-                -Wno-type-limits 
+                -Wno-unknown-pragmas
+                -Wno-nonnull
+                -Wno-unused-variable
+                -Wno-unused-function
+                -Wno-type-limits
                 -Wno-deprecated-declarations
             >
 
