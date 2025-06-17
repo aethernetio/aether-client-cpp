@@ -32,5 +32,10 @@ AE_TAG(kAdapterWifiInitiated, kAdapter)
 AE_TAG(kAdapterWifiEventConnected, kAdapter)
 AE_TAG(kAdapterWifiEventDisconnected, kAdapter)
 AE_TAG(kAdapterWifiEventUnexpected, kAdapter)
+AE_TAG(kAdapterSerialNotOpen, kAdapter)
+AE_TAG(kAdapterSerialWriteFiled, kAdapter)
+AE_TAG(kAdapterSerialPartialData, kAdapter)
+AE_TAG(kAdapterSerialPortState, kAdapter)
+AE_TAG(kAdapterSerialConfigurePort, kAdapter)
 
 #endif  // AETHER_ADAPTERS_ADAPTER_TELE_H_

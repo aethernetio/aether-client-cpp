@@ -110,8 +110,7 @@ list(APPEND adapters_srcs
             "adapters/parent_wifi.cpp"
             "adapters/parent_modem.cpp"
             "adapters/modem_adapter.cpp"
-            "adapters/modems/i_serial_port.cpp"
-            "adapters/modems/i_modem_driver.cpp"        
+            "adapters/modems/win_serial_port.cpp"    
             "adapters/modems/bg95_at_mofdem.cpp"
             "adapters/modems/sim7070_at_modem.cpp"
             )

@@ -1,0 +1,44 @@
+/*
+ * Copyright 2025 Aethernet Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
+#define AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
+
+#include "aether/adapters/modems/i_modem_driver.h"
+
+namespace ae {
+  
+class Sim7070AtModem : public IModemDriver {
+public:
+  explicit Sim7070AtModem(ISerialPort& serial_port) 
+        : serial_(serial_port) {};
+  void Init() override;
+  void Setup() override;
+  void Stop() override;
+  EventSubscriber<>& initiated() override;
+  EventSubscriber<const std::string&>& errorOccurred() override;
+  
+private:
+    ISerialPort& serial_;
+    EventEmitter<> event_initiated_;
+    EventEmitter<const std::string&> event_error_;
+    void sendATCommand(const std::string& command);
+    bool waitForResponse(const std::string& expected, size_t timeout_ms);
+}
+
+} /* namespace ae */
+
+#endif  // AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
