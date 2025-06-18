@@ -1,20 +1,3 @@
-diff --git a/src/libsodium/include/sodium/private/common.h b/src/libsodium/include/sodium/private/common.h
-index 4b01c8a0..83fb3bac 100644
---- a/src/libsodium/include/sodium/private/common.h
-+++ b/src/libsodium/include/sodium/private/common.h
-@@ -1,6 +1,11 @@
- #ifndef common_H
- #define common_H 1
- 
-+#define DEV_MODE 1
-+#define CONFIGURED 1
-+//#define _MSC_VER 1
-+
-+
- #if !defined(_MSC_VER) && !defined(DEV_MODE) && 1
- # warning *** This is unstable, untested, development code.
- # warning It might not compile. It might not work as expected.
-
 diff --git a/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c b/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c
 index 325f9bab..ee5b2d9e 100644
 --- a/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c

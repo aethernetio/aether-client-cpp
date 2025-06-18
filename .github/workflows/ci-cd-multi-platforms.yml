@@ -121,24 +121,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Apply library paths
-        # Apply library paths.
-        shell: bash
-        run: |
-          cd third_party/libbcrypt
-          git apply "../libbcrypt.patch"
-          cd ../libhydrogen
-          git apply "../libhydrogen.patch"
-          cd ../libsodium
-          git apply "../libsodium.patch"
-          cd ../etl
-          git apply "../etl.patch"
-          cd ../
-          cp "CMakeLists.libbcrypt" "libbcrypt/CMakeLists.txt"
-          cp "CMakeLists.libhydrogen" "libhydrogen/CMakeLists.txt"
-          cp "CMakeLists.libsodium" "libsodium/CMakeLists.txt"
-          cd ../
-
         # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
         # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       - name: Configure CMake
@@ -195,24 +177,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: "recursive"
-
-      - name: Apply library paths
-        # Apply library paths.
-        shell: bash
-        run: |
-          cd third_party/libbcrypt
-          git apply "../libbcrypt.patch"
-          cd ../libhydrogen
-          git apply "../libhydrogen.patch"
-          cd ../libsodium
-          git apply "../libsodium.patch"
-          cd ../etl
-          git apply "../etl.patch"
-          cd ../
-          cp "CMakeLists.libbcrypt" "libbcrypt/CMakeLists.txt"
-          cp "CMakeLists.libhydrogen" "libhydrogen/CMakeLists.txt"
-          cp "CMakeLists.libsodium" "libsodium/CMakeLists.txt"
-          cd ../
 
       - name: Build Application
         uses: espressif/esp-idf-ci-action@v1
