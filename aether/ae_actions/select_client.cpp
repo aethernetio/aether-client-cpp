@@ -44,7 +44,7 @@ SelectClientAction::SelectClientAction(ActionContext action_context,
 
 #else  // or init like there is not client to select
 SelectClientAction::SelectClientAction(ActionContext action_context,
-                                       Registration& registration)
+                                       Registration&)
     : SelectClientAction{action_context} {}
 #endif
 

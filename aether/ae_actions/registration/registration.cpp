@@ -71,9 +71,10 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
     assert(cloud);
   }
 
-  auto adapter = cloud->adapter();
+  auto& adapter = cloud->adapter();
   if (!adapter) {
     aether_ptr->domain_->LoadRoot(adapter);
+    assert(adapter);
   }
 
   server_list_ =
