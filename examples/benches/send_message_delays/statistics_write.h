@@ -55,10 +55,11 @@ struct Formatter<bench::StatisticsWriteCsv> {
     }
 
     // print legend
-    ctx.out().write(std::string_view{"raw results\nmessage num,"});
+    ctx.out().write(std::string_view{"raw results\nmessage num"});
     for (auto [name, _] : value.statistics_) {
-      ae::Format(",{}", name);
+      ae::Format(ctx.out(), ",{}", name);
     }
+    ctx.out().write(std::string_view{"\n"});
     // print data
     for (std::size_t i = 0;
          i < value.statistics_.begin()->second.raw_data().size(); ++i) {
