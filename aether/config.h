@@ -164,10 +164,19 @@
 #ifndef AE_STATISTICS_CONNECTION_WINDOW_SIZE
 #  define AE_STATISTICS_CONNECTION_WINDOW_SIZE 10
 #endif
+// default value used for connection timeout, until statistics are available
+#ifndef AE_DEFAULT_CONNECTION_TIMEOUT_MS
+#  define AE_DEFAULT_CONNECTION_TIMEOUT_MS 5000
+#endif
 
 // window size for server answear to ping statistics
 #ifndef AE_STATISTICS_PING_WINDOW_SIZE
 #  define AE_STATISTICS_PING_WINDOW_SIZE 100
+#endif
+
+// default value used for ping timeout, until statistics are available
+#ifndef AE_DEFAULT_PING_TIMEOUT_MS
+#  define AE_DEFAULT_PING_TIMEOUT_MS 1000
 #endif
 
 // Telemetry configuration
