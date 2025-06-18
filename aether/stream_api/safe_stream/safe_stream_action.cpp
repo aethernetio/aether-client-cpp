@@ -281,7 +281,7 @@ ActionView<StreamWriteAction> SafeStreamAction::PushData(
                       std::move(std::move(data_chunk).data));
   } else {
     AE_TELED_DEBUG("Send repeat count {} offset {} size {}", repeat_count,
-                   data_chunk.offset, data_chunk.data);
+                   data_chunk.offset, data_chunk.data.size());
     api_adapter->repeat(repeat_count,
                         static_cast<std::uint16_t>(data_chunk.offset),
                         std::move(std::move(data_chunk).data));
