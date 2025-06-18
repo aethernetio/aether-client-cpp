@@ -17,27 +17,29 @@
 #ifndef AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
 #define AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
 
+#include <chrono>
+
 #include "aether/adapters/modems/i_modem_driver.h"
+#include "aether/adapters/modems/i_serial_port.h"
 
 namespace ae {
   
 class Sim7070AtModem : public IModemDriver {
-public:
-  explicit Sim7070AtModem(ISerialPort& serial_port) 
-        : serial_(serial_port) {};
+ public:
+  explicit Sim7070AtModem(ISerialPort& serial_port) : serial_(serial_port) {};
   void Init() override;
   void Setup() override;
   void Stop() override;
-  EventSubscriber<>& initiated() override;
-  EventSubscriber<const std::string&>& errorOccurred() override;
-  
-private:
-    ISerialPort& serial_;
-    EventEmitter<> event_initiated_;
-    EventEmitter<const std::string&> event_error_;
-    void sendATCommand(const std::string& command);
-    bool waitForResponse(const std::string& expected, size_t timeout_ms);
-}
+  EventSubscriberModem<>& initiated() override;
+  EventSubscriberModem<const std::string&>& errorOccurred() override;
+
+ private:
+  ISerialPort& serial_;
+  EventEmitterModem<> event_initiated_;
+  EventEmitterModem<const std::string&> event_error_;
+  void sendATCommand(const std::string& command);
+  bool waitForResponse(const std::string& expected, std::chrono::milliseconds timeout_ms);
+};
 
 } /* namespace ae */
 

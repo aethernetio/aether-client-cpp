@@ -32,8 +32,8 @@ class WINSerialPort : public ISerialPort{
 public:
     WINSerialPort(const std::string& portName, DWORD baudRate = CBR_9600);
     ~WINSerialPort();
-    void Write(const DataBuffer& data);
-    std::optional<DataBuffer> Read();
+    void Write(const DataBuffer& data) override;
+    std::optional<DataBuffer> Read() override;
 private:
     HANDLE hPort_;
     

@@ -17,6 +17,9 @@
 #ifndef AETHER_ADAPTERS_MODEMS_I_SERIAL_PORT_H_
 #define AETHER_ADAPTERS_MODEMS_I_SERIAL_PORT_H_
 
+#include <vector>
+#include <optional>
+
 namespace ae {
 
 using DataBuffer = std::vector<uint8_t>;
@@ -24,7 +27,8 @@ using DataBuffer = std::vector<uint8_t>;
 class ISerialPort {
   public:
    virtual ~ISerialPort() = default;
-   virtual void Write(DataBuffer data) = 0;
+   
+   virtual void Write(const DataBuffer& data) = 0;
    virtual std::optional<DataBuffer> Read() = 0;
 };
 

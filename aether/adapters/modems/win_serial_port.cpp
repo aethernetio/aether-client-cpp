@@ -28,21 +28,30 @@ WINSerialPort::~WINSerialPort() { Close(); }
 void WINSerialPort::Write(const DataBuffer& data) {
   if (hPort_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
+
+    return;
   }
 
   DWORD bytesWritten;
   if (!WriteFile(hPort_, data.data(), static_cast<DWORD>(data.size()),
                  &bytesWritten, NULL)) {
-    AE_TELE_ERROR(kAdapterSerialWriteFiled, "Write failed: {}", std::to_string(GetLastError()));
+    AE_TELE_ERROR(kAdapterSerialWriteFiled, "Write failed: {}",
+                  std::to_string(GetLastError()));
   }
 
   if (bytesWritten != data.size()) {
     AE_TELE_ERROR(kAdapterSerialPartialData, "Partial write occurred");
   }
+
+  // For debug
+  AE_TELED_DEBUG("Serial data write {} bytes: {}", bytesWritten,
+                 std::string(data.begin(), data.end()));
 }
 
 std::optional<DataBuffer> WINSerialPort::Read() {
   if (hPort_ == INVALID_HANDLE_VALUE) {
+    AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
+
     return std::nullopt;
   }
 
@@ -58,6 +67,9 @@ std::optional<DataBuffer> WINSerialPort::Read() {
 
   if (bytesRead > 0) {
     buffer.resize(bytesRead);
+    // For debug
+    AE_TELED_DEBUG("Serial data read {} bytes: {}", bytesRead,
+                   std::string(buffer.begin(), buffer.end()));
     return buffer;
   }
   return std::nullopt;
@@ -66,11 +78,11 @@ std::optional<DataBuffer> WINSerialPort::Read() {
 void WINSerialPort::Open(const std::string& portName, DWORD baudRate) {
   std::string fullName = "\\\\.\\" + portName;
   hPort_ = CreateFileA(fullName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL,
-                      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+                       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
   if (hPort_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Failed to open port: {}",
-                             std::to_string(GetLastError()));
+                  std::to_string(GetLastError()));
   }
 
   ConfigurePort(baudRate);
