@@ -21,7 +21,7 @@
 #include "aether/common.h"
 #include "aether/obj/obj.h"
 
-#include "aether/statistics/statistic_counter.h"
+#include "aether/types/statistic_counter.h"
 
 namespace ae {
 class ChannelStatistics final : public Obj {
