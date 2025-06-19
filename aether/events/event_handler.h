@@ -53,5 +53,4 @@ class EventHandler<void(TArgs...)> {
   std::function<void(TArgs...)> callback_;
 };
 }  // namespace ae
-
 #endif  // AETHER_EVENTS_EVENT_HANDLER_H_
