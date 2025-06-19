@@ -29,7 +29,6 @@ list(APPEND test_srcs
     test-ptr-inheritance.cpp
     test-ptr-view.cpp
     test-ptr-cycles.cpp
-    test-storage.cpp
 )
 
 if(NOT CM_PLATFORM)

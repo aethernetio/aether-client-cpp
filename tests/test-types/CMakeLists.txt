@@ -23,6 +23,7 @@ list(APPEND test_srcs
     test-span.cpp
     test-static-map.cpp
     test-statistics-counter.cpp
+    test-aligned-storage.cpp
 )
 
 if(NOT CM_PLATFORM)
