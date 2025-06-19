@@ -17,40 +17,66 @@
 #ifndef AETHER_ADAPTERS_MODEM_ADAPTER_H_
 #define AETHER_ADAPTERS_MODEM_ADAPTER_H_
 
+#include <cstdint>
+#include <string>
+
+#include "aether/adapters/parent_modem.h"
+#include "aether/adapters/modems/i_modem_driver.h"
+
+#include "aether/events/events.h"
+#include "aether/actions/action_list.h"
+#include "aether/events/event_subscription.h"
+
+
 namespace ae {
-enum class kModemMode : std::uint8_t {
-  kModeAuto = 2,
-  kModeGSMOnly = 13,
-  kModeLTEOnly = 38,
-  kModeGSMLTE = 51
-};
 
-enum class kAuthType : std::uint8_t {
-  kAuthTypeNone = 0,
-  kAuthTypePAP = 1,
-  kAuthTypeCHAP = 2,
-  kAuthTypePAPCHAP = 3
-};
+class ModemAdapter : public ParentModemAdapter {
+  AE_OBJECT(ModemAdapter, ParentModemAdapter, 0)
 
-struct ModemInit {
-  AE_REFLECT_MEMBERS(port_name, baud_rate, pin, use_pin, operator_name,
-                     apn_name, apn_user, apn_pass, modem_mode, auth_type,
-                     use_auth, auth_user, auth_pass, ssl_cert, use_ssl)
-  std::string port_name;
-  std::uint32_t baud_rate;
-  std::uint8_t pin[4];
-  bool use_pin;
-  std::string operator_name;
-  std::string apn_name;
-  std::string apn_user;
-  std::string apn_pass;
-  kModemMode modem_mode;
-  kAuthType auth_type;
-  bool use_auth;
-  std::string auth_user;
-  std::string auth_pass;
-  std::string ssl_cert;
-  bool use_ssl;
+  ModemAdapter() = default;
+
+  class CreateTransportAction : public ae::CreateTransportAction {
+   public:
+    ActionResult Update() override;
+
+    std::unique_ptr<ITransport> transport() override;
+
+   private:
+    void CreateTransport();
+  };
+
+ public:
+#ifdef AE_DISTILLATION
+  ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller, ModemInit modem_init,
+               Domain* domain);
+  ~ModemAdapter();
+#endif  // AE_DISTILLATION
+
+  AE_OBJECT_REFLECT(AE_MMBRS(create_transport_actions_))
+
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+  }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
+  }
+
+  ActionView<ae::CreateTransportAction> CreateTransport(
+      IpAddressPortProtocol const& address_port_protocol) override;
+
+  void Update(TimePoint p) override;
+
+ private:
+  void Connect(void);
+  void DisConnect(void);
+
+  bool connected_{false};
+  Event<void(bool result)> wifi_connected_event_;
+  ModemInit modem_init_;
+  std::unique_ptr<IModemDriver> modem_driver_;
+  std::optional<ActionList<CreateTransportAction>> create_transport_actions_;
 };
 
 }  // namespace ae

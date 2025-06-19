@@ -25,15 +25,17 @@
 #include <memory>
 
 #include "aether/adapters/modems/i_serial_port.h"
+#include "aether/adapters/modems/win_serial_port.h"
+#include "aether/adapters/parent_modem.h"
 
 namespace ae {
 
 class WINSerialPort : public ISerialPort{
 public:
-    WINSerialPort(const std::string& portName, DWORD baudRate = CBR_9600);
+    WINSerialPort(SerialInit serial_init);
     ~WINSerialPort();
-    void Write(const DataBuffer& data) override;
-    std::optional<DataBuffer> Read() override;
+    void WriteData(const DataBuffer& data) override;
+    std::optional<DataBuffer> ReadData() override;
 private:
     HANDLE hPort_;
     

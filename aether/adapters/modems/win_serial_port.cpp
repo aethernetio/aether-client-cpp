@@ -15,17 +15,18 @@
  */
 
 #include "aether/adapters/modems/win_serial_port.h"
+#include "aether/adapters/parent_modem.h"
 #include "aether/adapters/adapter_tele.h"
 
 namespace ae {
-WINSerialPort::WINSerialPort(const std::string& portName, DWORD baudRate)
+WINSerialPort::WINSerialPort(SerialInit serial_init)
     : hPort_(INVALID_HANDLE_VALUE) {
-  Open(portName, baudRate);
+  Open(serial_init.port_name, serial_init.baud_rate);
 }
 
 WINSerialPort::~WINSerialPort() { Close(); }
 
-void WINSerialPort::Write(const DataBuffer& data) {
+void WINSerialPort::WriteData(const DataBuffer& data) {
   if (hPort_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
 
@@ -48,7 +49,7 @@ void WINSerialPort::Write(const DataBuffer& data) {
                  std::string(data.begin(), data.end()));
 }
 
-std::optional<DataBuffer> WINSerialPort::Read() {
+std::optional<DataBuffer> WINSerialPort::ReadData() {
   if (hPort_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
 

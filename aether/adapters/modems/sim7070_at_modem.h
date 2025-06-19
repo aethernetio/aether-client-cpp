@@ -18,15 +18,18 @@
 #define AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
 
 #include <chrono>
+#include <memory>
 
+#include "aether/adapters/parent_modem.h"
 #include "aether/adapters/modems/i_modem_driver.h"
 #include "aether/adapters/modems/i_serial_port.h"
+
 
 namespace ae {
   
 class Sim7070AtModem : public IModemDriver {
  public:
-  explicit Sim7070AtModem(ISerialPort& serial_port) : serial_(serial_port) {};
+  explicit Sim7070AtModem(ModemInit modem_init);
   void Init() override;
   void Setup() override;
   void Stop() override;
@@ -34,7 +37,8 @@ class Sim7070AtModem : public IModemDriver {
   EventSubscriberModem<const std::string&>& errorOccurred() override;
 
  private:
-  ISerialPort& serial_;
+  ModemInit modem_init_;
+  std::unique_ptr<ISerialPort> serial_;
   EventEmitterModem<> event_initiated_;
   EventEmitterModem<const std::string&> event_error_;
   void sendATCommand(const std::string& command);

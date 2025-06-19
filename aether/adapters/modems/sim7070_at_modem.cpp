@@ -15,9 +15,15 @@
  */
 
 #include "aether/adapters/modems/sim7070_at_modem.h"
+#include "aether/adapters/modems/win_serial_port.h"
 #include "aether/adapters/adapter_tele.h"
 
 namespace ae {
+
+Sim7070AtModem::Sim7070AtModem(ModemInit modem_init) : 
+  modem_init_(modem_init) {
+  serial_ = std::make_unique<WINSerialPort>(modem_init.serial_init);
+  };
 
 void Sim7070AtModem::Init() {
   try {
@@ -66,7 +72,7 @@ EventSubscriberModem<const std::string&>& Sim7070AtModem::errorOccurred() {
 void Sim7070AtModem::sendATCommand(const std::string& command) {
   std::vector<uint8_t> data(command.begin(), command.end());
   data.push_back('\r');  // Adding a carriage return symbol
-  serial_.Write(data);
+  serial_->WriteData(data);
 }
 
 bool Sim7070AtModem::waitForResponse(const std::string& expected,
@@ -81,7 +87,7 @@ bool Sim7070AtModem::waitForResponse(const std::string& expected,
       return false;
     }
 
-    if (auto response = serial_.Read()) {
+    if (auto response = serial_->ReadData()) {
       std::string response_str(response->begin(), response->end());
       if (response_str.find(expected) != std::string::npos) {
         return true;

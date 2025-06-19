@@ -15,3 +15,25 @@
  */
 
 #include "aether/adapters/modem_adapter.h"
+#include "aether/adapters/adapter_tele.h"
+
+namespace ae {
+#  if defined AE_DISTILLATION
+ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
+                                   ModemInit modem_init,
+                                   Domain* domain)
+    : ParentModemAdapter{std::move(aether), std::move(poller), std::move(modem_init),
+                        domain} {
+  AE_TELED_DEBUG("Modem instance created!");
+}
+
+ModemAdapter::~ModemAdapter() {
+  if (connected_ == true) {
+    DisConnect();
+    AE_TELE_DEBUG(kAdapterDestructor, "Modem instance deleted!");
+    connected_ = false;
+  }
+}
+#  endif  // AE_DISTILLATION
+
+}  // namespace ae

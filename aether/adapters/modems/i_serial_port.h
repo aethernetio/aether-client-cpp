@@ -20,6 +20,7 @@
 #include <vector>
 #include <optional>
 
+
 namespace ae {
 
 using DataBuffer = std::vector<uint8_t>;
@@ -28,8 +29,8 @@ class ISerialPort {
   public:
    virtual ~ISerialPort() = default;
    
-   virtual void Write(const DataBuffer& data) = 0;
-   virtual std::optional<DataBuffer> Read() = 0;
+   virtual void WriteData(const DataBuffer& data) = 0;
+   virtual std::optional<DataBuffer> ReadData() = 0;
 };
 
 } /* namespace ae */
