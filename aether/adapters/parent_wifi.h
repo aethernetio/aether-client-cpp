@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include "aether/aether.h"
 #include "aether/adapters/adapter.h"
 #include "aether/poller/poller.h"
 

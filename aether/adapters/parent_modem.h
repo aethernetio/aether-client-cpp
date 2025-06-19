@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include "aether/aether.h"
 #include "aether/adapters/adapter.h"
 #include "aether/poller/poller.h"
 
@@ -80,7 +81,7 @@ class ParentModemAdapter : public Adapter {
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, modem_init_))
 
   Obj::ptr aether_;
-  IPoller::ptr poller_;
+  IPoller::ptr poller_;  
 
   ModemInit modem_init_;
 };

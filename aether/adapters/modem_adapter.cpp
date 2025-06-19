@@ -18,6 +18,7 @@
 #include "aether/adapters/adapter_tele.h"
 
 namespace ae {
+  
 #  if defined AE_DISTILLATION
 ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                                    ModemInit modem_init,
