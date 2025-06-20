@@ -29,6 +29,7 @@ extern int test_concat_arrays();
 extern int test_span();
 extern int test_static_map();
 extern int test_statistics_counter();
+extern int test_aligned_storage();
 
 int main() {
   int res = 0;
@@ -39,5 +40,6 @@ int main() {
   res += test_span();
   res += test_static_map();
   res += test_statistics_counter();
+  res += test_aligned_storage();
   return res;
 }

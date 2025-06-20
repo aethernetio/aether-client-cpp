@@ -20,7 +20,7 @@
 #include <utility>
 
 #include "aether/common.h"
-#include "aether/ptr/storage.h"
+#include "aether/types/aligned_storage.h"
 #include "aether/events/event_impl.h"
 
 namespace ae {
@@ -70,26 +70,30 @@ class EventHandlerDeleter {
   EventHandlerDeleter(
       RcPtr<EventImpl<Signature, TSyncPolicy>> const& event_impl,
       std::size_t index)
-      : storage_{events_internal::EventHandlerDeleterImpl(event_impl, index)},
-        deleter_{storage_.ptr<events_internal::EventHandlerDeleterImplBase>()} {
-  }
+      : storage_{
+            InPlace<events_internal::EventHandlerDeleterImpl<Signature,
+                                                             TSyncPolicy>>{},
+            event_impl, index} {}
 
-  EventHandlerDeleter(EventHandlerDeleter const& other);
-  EventHandlerDeleter(EventHandlerDeleter&& other) noexcept;
-  EventHandlerDeleter& operator=(EventHandlerDeleter const& other);
-  EventHandlerDeleter& operator=(EventHandlerDeleter&& other) noexcept;
+  AE_CLASS_COPY_MOVE(EventHandlerDeleter)
 
-  void Delete() { deleter_->Delete(); }
-  bool alive() const { return deleter_->alive(); }
+  void Delete() { deleter()->Delete(); }
+  bool alive() const { return deleter()->alive(); }
 
  private:
+  events_internal::EventHandlerDeleterImplBase* deleter() {
+    return storage_.ptr<events_internal::EventHandlerDeleterImplBase>();
+  }
+  events_internal::EventHandlerDeleterImplBase const* deleter() const {
+    return storage_.ptr<events_internal::EventHandlerDeleterImplBase>();
+  }
+
   // all EventHandlerDeleterImpl has the same size
-  CopyableStorage<sizeof(events_internal::EventHandlerDeleterImpl<
-                         void(int), NoLockSyncPolicy>),
-                  alignof(events_internal::EventHandlerDeleterImpl<
-                          void(int), NoLockSyncPolicy>)>
+  ManagedStorage<sizeof(events_internal::EventHandlerDeleterImpl<
+                        void(int), NoLockSyncPolicy>),
+                 alignof(events_internal::EventHandlerDeleterImpl<
+                         void(int), NoLockSyncPolicy>)>
       storage_;
-  events_internal::EventHandlerDeleterImplBase* deleter_;
 };
 
 }  // namespace ae
