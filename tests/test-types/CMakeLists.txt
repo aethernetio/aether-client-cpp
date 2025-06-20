@@ -23,6 +23,7 @@ list(APPEND test_srcs
     test-span.cpp
     test-static-map.cpp
     test-statistics-counter.cpp
+    test-type-list.cpp
 )
 
 if(NOT CM_PLATFORM)

@@ -17,9 +17,11 @@
 #ifndef AETHER_FORMAT_FORMAT_H_
 #define AETHER_FORMAT_FORMAT_H_
 
+// IWYU pragma: begin_exports
 #include "aether/format/formatter.h"
 #include "aether/format/format_impl.h"
 #include "aether/format/format_time.h"
 #include "aether/format/default_formatters.h"
+// IWYU pragma: end_exports
 
 #endif  // AETHER_FORMAT_FORMAT_H_

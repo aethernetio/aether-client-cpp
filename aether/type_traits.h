@@ -18,11 +18,12 @@
 #define AETHER_TYPE_TRAITS_H_
 
 #include <array>
-#include <tuple>
 #include <string>
 #include <utility>
 #include <optional>
 #include <type_traits>
+
+#include "aether/types/type_list.h"
 
 namespace ae {
 
@@ -39,15 +40,11 @@ constexpr auto make_range_sequence_helper(std::integer_sequence<T, N...>) {
   return std::integer_sequence<T, (N + min)...>();
 }
 
-template <typename Tuple, std::size_t... Indices>
-auto MakeTypeList(std::index_sequence<Indices...> const&)
-    -> std::tuple<std::tuple_element_t<Indices, Tuple>...>;
-
-template <typename TFunc, typename Tuple, std::size_t... Indices>
-decltype(auto) ApplyByIndices(TFunc&& func, Tuple&& tuple,
-                              std::index_sequence<Indices...> const&) {
+template <typename TFunc, std::size_t... Indices, typename... TArgs>
+decltype(auto) ApplyByIndices(TFunc&& func, std::index_sequence<Indices...>,
+                              TArgs&&... args) {
   return std::forward<TFunc>(func)(
-      std::get<Indices>(std::forward<Tuple>(tuple))...);
+      ArgAt<Indices>(std::forward<TArgs>(args)...)...);
 }
 }  // namespace _internal
 
@@ -69,18 +66,12 @@ constexpr auto make_range_sequence() {
   }
 }
 
-template <typename... T>
-struct ReversTypeList {
-  using type = decltype(_internal::MakeTypeList<std::tuple<T...>>(
-      reverse_sequence(std::make_index_sequence<sizeof...(T)>())));
-};
-
 template <typename TFunc, typename... T>
 decltype(auto) ApplyRerverse(TFunc&& func, T&&... args) {
   return _internal::ApplyByIndices(
       std::forward<TFunc>(func),
-      std::forward_as_tuple(std::forward<T>(args)...),
-      reverse_sequence(std::make_index_sequence<sizeof...(T)>()));
+      reverse_sequence(std::make_index_sequence<sizeof...(T)>()),
+      std::forward<T>(args)...);
 }
 
 template <typename T>
@@ -193,7 +184,7 @@ struct FunctionSignatureImpl;
 
 template <typename TRet, typename... TArgs>
 struct FunctionSignatureImpl<TRet(TArgs...)> {
-  using Args = std::tuple<TArgs...>;
+  using Args = TypeList<TArgs...>;
   using Ret = TRet;
   using Signature = TRet(TArgs...);
   using FuncPtr = TRet (*)(TArgs...);
@@ -225,43 +216,6 @@ struct FunctionSignature {
   using Ret = typename FuncSignatureImp::Ret;
   using Signature = typename FuncSignatureImp::Signature;
   using FuncPtr = typename FuncSignatureImp::FuncPtr;
-};
-
-/**
- * \brief Get I'th argument in template args list.
- */
-template <std::size_t I, auto... args>
-constexpr auto ArgAt() {
-  return std::get<I>(std::forward_as_tuple(args...));
-}
-
-/**
- * \brief Get I'th argument in args list.
- */
-template <std::size_t I, typename... TArgs>
-constexpr auto&& ArgAt(TArgs&&... args) {
-  return std::forward<std::tuple_element_t<I, std::tuple<TArgs...>>>(
-      std::get<I>(std::forward_as_tuple(args...)));
-}
-
-/**
- * \brief Get I'th type in template type list.
- */
-template <std::size_t I, typename... Ts>
-constexpr auto TypeAt() -> std::tuple_element_t<I, std::tuple<Ts...>>;
-
-template <std::size_t I, typename... Ts>
-using TypeAt_t = decltype(TypeAt<I, Ts...>());
-
-/**
- * \brief Pass tuple type list as template parameters to template T
- */
-template <template <typename...> typename T, typename Tuple>
-struct TupleToTemplate;
-
-template <template <typename...> typename T, typename... Ts>
-struct TupleToTemplate<T, std::tuple<Ts...>> {
-  using type = T<Ts...>;
 };
 
 template <typename Array>
