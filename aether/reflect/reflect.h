@@ -17,13 +17,12 @@
 #ifndef AETHER_REFLECT_REFLECT_H_
 #define AETHER_REFLECT_REFLECT_H_
 
-#include <tuple>
 #include <cstddef>
 #include <utility>
 #include <type_traits>
 
 #include "aether/common.h"
-#include "aether/type_traits.h"
+#include "aether/types/type_list.h"  // IWYU pragma: keep
 
 namespace ae::reflect {
 namespace reflect_internal {
@@ -73,7 +72,7 @@ struct FieldGetter {
 template <typename T, typename... TFields>
 struct FieldList {
   using Type = T;
-  using FieldsTuple = std::tuple<TFields...>;
+  using FieldsTypeList = TypeList<TFields...>;
   static constexpr std::size_t kSize = sizeof...(TFields);
 
   /**
@@ -90,7 +89,7 @@ struct FieldList {
    */
   template <std::size_t I, typename U>
   static constexpr decltype(auto) get(U&& obj) {
-    return std::tuple_element_t<I, FieldsTuple>::get(std::forward<U>(obj));
+    return TypeAtT<I, FieldsTypeList>::get(std::forward<U>(obj));
   }
 };
 
@@ -209,7 +208,7 @@ struct IsReflectable<T,
  * \brief Provide access to regular class member through pointer to member.
  */
 #define AE_MMBR(MEMBER) \
-  ::ae::reflect::reflect_internal::FieldPtr<Type_, &Type_::MEMBER> {}
+  ::ae::reflect::reflect_internal::FieldPtr<SelfType, &SelfType::MEMBER> {}
 
 /**
  * \brief Provide access to regular class member through pointer to member.
@@ -220,57 +219,58 @@ struct IsReflectable<T,
  * \brief Provide access to reference type member.
  * c++ forbids create pointers to members if it's reference type.
  */
-#define AE_REF(MEMBER)                                                    \
-  []() constexpr {                                                        \
-    struct Getter {                                                       \
-      static decltype(auto) get(Type_* obj) { return &obj->MEMBER; }      \
-    };                                                                    \
-    return ::ae::reflect::reflect_internal::FieldGetter<Type_, Getter>{}; \
+#define AE_REF(MEMBER)                                                       \
+  []() constexpr {                                                           \
+    struct Getter {                                                          \
+      static decltype(auto) get(SelfType* obj) { return &obj->MEMBER; }      \
+    };                                                                       \
+    return ::ae::reflect::reflect_internal::FieldGetter<SelfType, Getter>{}; \
   }()
 
 /**
  * \brief Provide a member as reference to Base class.
  */
-#define AE_REF_BASE(Base)                                                 \
-  []() constexpr {                                                        \
-    struct Getter {                                                       \
-      static decltype(auto) get(Type_* obj) {                             \
-        return static_cast<Base*>(obj);                                   \
-      }                                                                   \
-    };                                                                    \
-    return ::ae::reflect::reflect_internal::FieldGetter<Type_, Getter>{}; \
+#define AE_REF_BASE(Base)                                                    \
+  []() constexpr {                                                           \
+    struct Getter {                                                          \
+      static decltype(auto) get(SelfType* obj) {                             \
+        return static_cast<Base*>(obj);                                      \
+      }                                                                      \
+    };                                                                       \
+    return ::ae::reflect::reflect_internal::FieldGetter<SelfType, Getter>{}; \
   }()
 
 /**
  * \brief Make type reflectable with manual members marking.
  * Use AE_MMBR, AE_REF, AE_REF_BASE to mark members.
  */
-#define AE_REFLECT(...)                                                      \
-  constexpr auto FieldList() const {                                         \
-    using Type_ = std::decay_t<decltype(*this)>;                             \
-    static_assert(sizeof(Type_));                                            \
-    constexpr auto fields = std::tuple{__VA_ARGS__};                         \
-    using fields_list =                                                      \
-        decltype(std::tuple_cat(std::declval<std::tuple<Type_>>(), fields)); \
-    using FL = typename ae::TupleToTemplate<                                 \
-        ::ae ::reflect ::reflect_internal::FieldList, fields_list>::type;    \
-    return FL{};                                                             \
+#define AE_REFLECT(...)                                                       \
+  constexpr auto FieldList() const {                                          \
+    using SelfType = std::decay_t<decltype(*this)>;                           \
+    static_assert(sizeof(SelfType) != 0);                                     \
+    constexpr auto fields = ::ae::TypeList{__VA_ARGS__};                      \
+    using TypeFieldTypeList =                                                 \
+        ::ae::JoinLists<::ae::TypeList<SelfType>, decltype(fields)>;          \
+    using FL = typename ::ae::TypeListToTemplate<                             \
+        ::ae::reflect::reflect_internal::FieldList, TypeFieldTypeList>::type; \
+    return FL{};                                                              \
   }
 
 /**
  * \brief Make type reflectable with each listed member marked automatically as
  * class member.
  */
-#define AE_REFLECT_MEMBERS(...)                                                \
-  constexpr auto FieldList() const {                                           \
-    using Type_ = std::decay_t<decltype(*this)>;                               \
-    static_assert(sizeof(Type_));                                              \
-    constexpr auto fields = std::tuple{_AE_APPLY_MACRO(AE_MMBR, __VA_ARGS__)}; \
-    using fields_list =                                                        \
-        decltype(std::tuple_cat(std::declval<std::tuple<Type_>>(), fields));   \
-    using FL = typename ae::TupleToTemplate<                                   \
-        ::ae ::reflect ::reflect_internal::FieldList, fields_list>::type;      \
-    return FL{};                                                               \
+#define AE_REFLECT_MEMBERS(...)                                               \
+  constexpr auto FieldList() const {                                          \
+    using SelfType = std::decay_t<decltype(*this)>;                           \
+    static_assert(sizeof(SelfType) != 0);                                     \
+    constexpr auto fields =                                                   \
+        ::ae::TypeList{_AE_APPLY_MACRO(AE_MMBR, __VA_ARGS__)};                \
+    using TypeFieldTypeList =                                                 \
+        ::ae::JoinLists<::ae::TypeList<SelfType>, decltype(fields)>;          \
+    using FL = typename ::ae::TypeListToTemplate<                             \
+        ::ae::reflect::reflect_internal::FieldList, TypeFieldTypeList>::type; \
+    return FL{};                                                              \
   }
 
 #endif  // AETHER_REFLECT_REFLECT_H_
