@@ -17,8 +17,8 @@
 #ifndef AETHER_CHANNEL_H_
 #define AETHER_CHANNEL_H_
 
-#include "aether/types/address.h"
 #include "aether/obj/obj.h"
+#include "aether/types/address.h"
 #include "aether/statistics/channel_statistics.h"
 
 namespace ae {
@@ -32,8 +32,7 @@ class Channel : public Obj {
  public:
   explicit Channel(Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(address, default_connection_time,
-                             default_ping_time, channel_statistics))
+  AE_OBJECT_REFLECT(AE_MMBRS(address, channel_statistics))
 
   void AddConnectionTime(Duration connection_time);
   void AddPingTime(Duration ping_time);
@@ -42,8 +41,6 @@ class Channel : public Obj {
   Duration expected_ping_time() const;
 
   UnifiedAddress address;
-  Duration default_connection_time = std::chrono::seconds{5};
-  Duration default_ping_time = std::chrono::seconds{1};
 
  private:
   ChannelStatistics::ptr channel_statistics;

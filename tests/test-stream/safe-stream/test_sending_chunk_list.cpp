@@ -101,11 +101,32 @@ void test_SendingChunkListRepeatCount() {
   }
 }
 
+void test_SendingChunkConfirmPartial() {
+  constexpr auto begin = SSRingIndex{0};
+
+  SendingChunkList chunk_list{};
+  chunk_list.Register(SSRingIndex{0}, SSRingIndex{1000}, Now(), begin);
+  // confirm part
+  chunk_list.RemoveUpTo(SSRingIndex{100}, begin);
+  {
+    TEST_ASSERT_FALSE(chunk_list.empty());
+    auto& front_chunk = chunk_list.front();
+    TEST_ASSERT_EQUAL(101,
+                      static_cast<SSRingIndex::type>(front_chunk.begin_offset));
+  }
+  // confirm all
+  chunk_list.RemoveUpTo(SSRingIndex{1000}, SSRingIndex{101});
+  {
+    TEST_ASSERT_TRUE(chunk_list.empty());
+  }
+}
+
 }  // namespace ae::test_sending_chunk_list
 
 int test_sending_chunk_list() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_sending_chunk_list::test_SendingChunkList);
   RUN_TEST(ae::test_sending_chunk_list::test_SendingChunkListRepeatCount);
+  RUN_TEST(ae::test_sending_chunk_list::test_SendingChunkConfirmPartial);
   return UNITY_END();
 }

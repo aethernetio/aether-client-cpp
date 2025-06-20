@@ -22,6 +22,7 @@ list(APPEND test_srcs
     test-concat-arrays.cpp
     test-span.cpp
     test-static-map.cpp
+    test-statistics-counter.cpp
 )
 
 if(NOT CM_PLATFORM)

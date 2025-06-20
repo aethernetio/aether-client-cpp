@@ -28,6 +28,7 @@ extern int test_async_for_loop();
 extern int test_concat_arrays();
 extern int test_span();
 extern int test_static_map();
+extern int test_statistics_counter();
 
 int main() {
   int res = 0;
@@ -37,5 +38,6 @@ int main() {
   res += test_concat_arrays();
   res += test_span();
   res += test_static_map();
+  res += test_statistics_counter();
   return res;
 }

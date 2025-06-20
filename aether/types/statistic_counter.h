@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STATISTICS_STATISTIC_COUNTER_H_
-#define AETHER_STATISTICS_STATISTIC_COUNTER_H_
+#ifndef AETHER_TYPES_STATISTIC_COUNTER_H_
+#define AETHER_TYPES_STATISTIC_COUNTER_H_
 
 #include <cmath>
 #include <cstddef>
 #include <cassert>
 #include <algorithm>
+#include <type_traits>
 
 #include "aether/warning_disable.h"
 
@@ -45,31 +46,28 @@ class StatisticsCounter final {
   AE_CLASS_COPY_MOVE(StatisticsCounter)
 
   template <typename TIterator,
-            std::enable_if_t<std::is_same_v<
-                TValue, std::decay_t<decltype(*std::declval<TIterator>())>>>>
+            AE_REQUIRERS((std::is_same<
+                          TValue,
+                          std::decay_t<decltype(*std::declval<TIterator>())>>))>
   void Insert(TIterator const& begin, TIterator const& end) {
     value_buffer_.push(begin, end);
-    // keep buffer sorted for easier percentile calculation
-    std::sort(std::begin(value_buffer_), std::end(value_buffer_), Comparator{});
   }
 
-  void Add(TValue&& value) {
-    value_buffer_.push(std::move(value));
-    // TODO: maybe implement insert method for etl::icircular_buffer and use it
-    // with std::lower_bound
-
-    // keep buffer sorted for easier percentile calculation
-    std::sort(std::begin(value_buffer_), std::end(value_buffer_), Comparator{});
+  template <typename U, AE_REQUIRERS((std::is_same<TValue, std::decay_t<U>>))>
+  void Add(U&& value) {
+    value_buffer_.push(std::forward<U>(value));
   }
 
-  TValue const& max() const {
+  [[nodiscard]] TValue max() const {
     assert(!value_buffer_.empty());
-    return value_buffer_.back();
+    return *std::max_element(std::begin(value_buffer_), std::end(value_buffer_),
+                             Comparator{});
   }
 
-  TValue const& min() const {
+  [[nodiscard]] TValue min() const {
     assert(!value_buffer_.empty());
-    return value_buffer_.front();
+    return *std::min_element(std::begin(value_buffer_), std::end(value_buffer_),
+                             Comparator{});
   }
 
   /**
@@ -77,45 +75,35 @@ class StatisticsCounter final {
    * Percentile must be in range [0, 100].
    */
   template <std::size_t Percentile>
-  TValue const& percentile() const {
+  [[nodiscard]] TValue percentile() const {
     static_assert((Percentile >= 0) && (Percentile <= 100),
                   "Percentile must be in [0,100]% range");
 
     if constexpr (Percentile == 0) {
       return min();
     } else if constexpr (Percentile == 100) {
-      return max;
+      return max();
     } else {
       assert(!value_buffer_.empty());
-      auto index = static_cast<typename decltype(value_buffer_)::size_type>(  //
-          std::round(                                                         //
-              Percentile * static_cast<double>(value_buffer_.size() - 1) /
-              100.0));
-      return value_buffer_[index];
+      auto sorted_list = value_buffer_;
+      std::sort(std::begin(sorted_list), std::end(sorted_list), Comparator{});
+
+      auto index = static_cast<typename decltype(sorted_list)::size_type>(  //
+          std::floor(static_cast<double>(sorted_list.size() - 1) * Percentile /
+                     100.0));
+      return sorted_list[index];
     }
   }
 
   std::size_t size() const { return value_buffer_.size(); }
   bool empty() const { return value_buffer_.empty(); }
 
-  template <typename Ob>
-  friend omstream<Ob>& operator<<(
-      omstream<Ob>& os,
-      StatisticsCounter<TValue, Capacity, Comparator> const& value) {
-    os << static_cast<typename Ob::size_type>(value.value_buffer_.size());
-    for (auto const& v : value.value_buffer_) {
-      os << v;
-    }
-    return os;
-  }
-
   template <typename Ib>
-  friend imstream<Ib>& operator>>(
-      imstream<Ib>& is,
-      StatisticsCounter<TValue, Capacity, Comparator>& value) {
+  friend imstream<Ib>& operator>>(imstream<Ib>& is, StatisticsCounter& value) {
     typename Ib::size_type size;
     is >> size;
-    for (std::size_t i = 0; (i < size) && (i < value.value_buffer_.max_size());
+    for (std::size_t i = 0; (i < static_cast<std::size_t>(size)) &&
+                            (i < value.value_buffer_.max_size());
          ++i) {
       TValue temp;
       is >> temp;
@@ -124,10 +112,23 @@ class StatisticsCounter final {
     return is;
   }
 
+  template <typename Ob>
+  friend omstream<Ob>& operator<<(omstream<Ob>& os,
+                                  StatisticsCounter const& value) {
+    os << static_cast<typename Ob::size_type>(value.value_buffer_.size());
+    for (auto const& v : value.value_buffer_) {
+      os << v;
+    }
+    return os;
+  }
+
  private:
   etl::circular_buffer<TValue, Capacity> value_buffer_;
 };
 
+/**
+ * \brief Formatter implementation.
+ */
 template <typename T, std::size_t Capacity, typename Comparator>
 struct Formatter<StatisticsCounter<T, Capacity, Comparator>>
     : public Formatter<etl::circular_buffer<T, Capacity>> {
@@ -140,4 +141,4 @@ struct Formatter<StatisticsCounter<T, Capacity, Comparator>>
 };
 
 }  // namespace ae
-#endif  // AETHER_STATISTICS_STATISTIC_COUNTER_H_
+#endif  // AETHER_TYPES_STATISTIC_COUNTER_H_
