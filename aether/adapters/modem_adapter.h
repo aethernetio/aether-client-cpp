@@ -37,12 +37,34 @@ class ModemAdapter : public ParentModemAdapter {
 
   class CreateTransportAction : public ae::CreateTransportAction {
    public:
+    // immediately create the transport
+    CreateTransportAction(ActionContext action_context,
+                          ModemAdapter* adapter, Obj::ptr const& aether,
+                          IPoller::ptr const& poller,
+                          IpAddressPortProtocol address_port_protocol_);
+    // create the transport when wifi is connected
+    CreateTransportAction(ActionContext action_context,
+                          EventSubscriber<void(bool)> modem_connected_event,
+                          ModemAdapter* adapter, Obj::ptr const& aether,
+                          IPoller::ptr const& poller,
+                          IpAddressPortProtocol address_port_protocol_);
+                          
     ActionResult Update() override;
 
     std::unique_ptr<ITransport> transport() override;
 
    private:
     void CreateTransport();
+    
+    ModemAdapter* adapter_;
+    PtrView<Aether> aether_;
+    PtrView<IPoller> poller_;
+    IpAddressPortProtocol address_port_protocol_;
+
+    bool once_;
+    bool failed_;
+    Subscription modem_connected_subscription_;
+    std::unique_ptr<ITransport> transport_;
   };
 
  public:

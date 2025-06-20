@@ -111,7 +111,7 @@ list(APPEND adapters_srcs
             "adapters/parent_modem.cpp"
             "adapters/modem_adapter.cpp"
             "adapters/modems/win_serial_port.cpp"    
-            "adapters/modems/bg95_at_mofdem.cpp"
+            "adapters/modems/bg95_at_modem.cpp"
             "adapters/modems/sim7070_at_modem.cpp"
             )
 
@@ -120,6 +120,7 @@ list(APPEND transport_srcs
             "transport/actions/name_address_channel_connection.cpp"
             "transport/server/server_channel_stream.cpp"
             "transport/low_level/tcp/socket_packet_send_action.cpp"
+            "transport/low_level/tcp/lte_tcp.cpp"
             "transport/low_level/tcp/lwip_tcp.cpp"
             "transport/low_level/tcp/unix_tcp.cpp"
             "transport/low_level/tcp/win_tcp.cpp"

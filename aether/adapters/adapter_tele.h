@@ -37,5 +37,9 @@ AE_TAG(kAdapterSerialWriteFiled, kAdapter)
 AE_TAG(kAdapterSerialPartialData, kAdapter)
 AE_TAG(kAdapterSerialPortState, kAdapter)
 AE_TAG(kAdapterSerialConfigurePort, kAdapter)
+AE_TAG(kAdapterModemTransportWait, kAdapter)
+AE_TAG(kAdapterModemTransportImmediately, kAdapter)
+AE_TAG(kAdapterModemConnected, kAdapter)
+AE_TAG(kAdapterModemDisconnected, kAdapter)
 
 #endif  // AETHER_ADAPTERS_ADAPTER_TELE_H_
