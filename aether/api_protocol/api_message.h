@@ -17,8 +17,9 @@
 #ifndef AETHER_API_PROTOCOL_API_MESSAGE_H_
 #define AETHER_API_PROTOCOL_API_MESSAGE_H_
 
-#include <cstdint>
+#include <tuple>
 #include <vector>
+#include <cstdint>
 
 #include "third_party/aethernet-numeric/numeric/tiered_int.h"
 

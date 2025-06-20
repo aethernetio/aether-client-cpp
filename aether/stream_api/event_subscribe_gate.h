@@ -59,8 +59,8 @@ class EventWriteOutHandleGate {
  public:
   using HandlerSignature = FunctionSignature<THandler>;
   using EventSignature =
-      typename TupleToTemplate<esg_internal::MakeEventSignature,
-                               typename HandlerSignature::Args>::type;
+      typename TypeListToTemplate<esg_internal::MakeEventSignature,
+                                  typename HandlerSignature::Args>::type;
 
   using EventSubscriberType = EventSubscriber<EventSignature>;
 
@@ -97,7 +97,7 @@ class EventWriteOutHandleGate {
 template <typename THandler,
           typename TOutData = typename FunctionSignature<THandler>::Ret>
 EventWriteOutHandleGate(THandler handler,
-                        EventSubscriber<typename TupleToTemplate<
+                        EventSubscriber<typename TypeListToTemplate<
                             esg_internal::MakeEventSignature,
                             typename FunctionSignature<THandler>::Args>::type>
                             subscriber)
