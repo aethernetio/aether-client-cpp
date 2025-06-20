@@ -30,6 +30,7 @@ extern int test_span();
 extern int test_static_map();
 extern int test_statistics_counter();
 extern int test_aligned_storage();
+extern int test_type_list();
 
 int main() {
   int res = 0;
@@ -41,5 +42,6 @@ int main() {
   res += test_static_map();
   res += test_statistics_counter();
   res += test_aligned_storage();
+  res += test_type_list();
   return res;
 }
