@@ -202,7 +202,7 @@ class EpollPoller::PollWorker {
   std::recursive_mutex ctl_mutex_;
 
   EpollPoller::OnPollEvent poll_event_;
-  Subscription wake_up_subscription_;
+  OnPollEventSubscriber::Subscription wake_up_subscription_;
 
   std::thread thread_;
 };

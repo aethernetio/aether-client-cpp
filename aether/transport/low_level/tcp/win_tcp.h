@@ -162,7 +162,7 @@ class WinTcpTransport : public ITransport {
 
   Subscription connection_error_sub_;
   MultiSubscription send_action_subs_;
-  Subscription socket_poll_sub_;
+  IPoller::OnPollEventSubscriber::Subscription socket_poll_sub_;
   Subscription socket_error_sub_;
   Subscription read_error_sub_;
 

@@ -196,7 +196,9 @@ class AresImpl {
   std::map<std::uint32_t, QueryContext> active_queries_;
 
   MultiSubscription multi_subscription_;
-  AE_MAY_UNUSED_MEMBER MultiSubscription poll_sockets_subscriptions_;
+  AE_MAY_UNUSED_MEMBER
+  BaseMultiSubscription<SharedMutexSyncPolicy<std::recursive_mutex>>
+      poll_sockets_subscriptions_;
   AE_MAY_UNUSED_MEMBER SocketInitializer socket_initializer_;
 };
 
