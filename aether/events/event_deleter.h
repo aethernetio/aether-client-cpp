@@ -17,83 +17,41 @@
 #ifndef AETHER_EVENTS_EVENT_DELETER_H_
 #define AETHER_EVENTS_EVENT_DELETER_H_
 
-#include <utility>
-
 #include "aether/common.h"
-#include "aether/types/aligned_storage.h"
-#include "aether/events/event_impl.h"
+#include "aether/ptr/rc_ptr.h"
+#include "aether/events/event_list.h"
 
 namespace ae {
-namespace events_internal {
-class EventHandlerDeleterImplBase {
- public:
-  // Doesn't required
-  // virtual ~EventHandlerDeleterImplBase() = default;
-
-  virtual void Delete() = 0;
-  virtual bool alive() const = 0;
-};
-
-template <typename Signature, typename TSyncPolicy>
-class EventHandlerDeleterImpl final : public EventHandlerDeleterImplBase {
- public:
-  EventHandlerDeleterImpl(
-      RcPtr<EventImpl<Signature, TSyncPolicy>> const& event_impl,
-      std::size_t index)
-      : event_impl_{event_impl}, index_{index} {}
-
-  AE_CLASS_COPY_MOVE(EventHandlerDeleterImpl);
-
-  void Delete() override {
-    if (auto ptr = event_impl_.lock(); ptr) {
-      ptr->Remove(index_);
-      event_impl_.Reset();
-    }
-  }
-
-  bool alive() const override { return static_cast<bool>(event_impl_); }
-
- private:
-  RcPtrView<EventImpl<Signature, TSyncPolicy>> event_impl_;
-  std::size_t index_;
-};
-
-}  // namespace events_internal
-
 /**
  * \brief Class for remove event handlers that are not needed anymore.
  * \see Subscription for RAII wrapper.
  */
+template <typename TSyncPolicy>
 class EventHandlerDeleter {
  public:
-  template <typename Signature, typename TSyncPolicy>
   EventHandlerDeleter(
-      RcPtr<EventImpl<Signature, TSyncPolicy>> const& event_impl,
+      RcPtr<EventHandlersList<TSyncPolicy>> const& event_handlers,
       std::size_t index)
-      : storage_{
-            InPlace<events_internal::EventHandlerDeleterImpl<Signature,
-                                                             TSyncPolicy>>{},
-            event_impl, index} {}
+      : event_handlers_{event_handlers}, index_{index} {}
 
   AE_CLASS_COPY_MOVE(EventHandlerDeleter)
 
-  void Delete() { deleter()->Delete(); }
-  bool alive() const { return deleter()->alive(); }
+  void Delete() {
+    if (auto handlers = event_handlers_.lock(); handlers) {
+      handlers->Remove(index_);
+    }
+  }
+
+  bool alive() const {
+    if (auto handlers = event_handlers_.lock(); handlers) {
+      return handlers->Alive(index_);
+    }
+    return false;
+  }
 
  private:
-  events_internal::EventHandlerDeleterImplBase* deleter() {
-    return storage_.ptr<events_internal::EventHandlerDeleterImplBase>();
-  }
-  events_internal::EventHandlerDeleterImplBase const* deleter() const {
-    return storage_.ptr<events_internal::EventHandlerDeleterImplBase>();
-  }
-
-  // all EventHandlerDeleterImpl has the same size
-  ManagedStorage<sizeof(events_internal::EventHandlerDeleterImpl<
-                        void(int), NoLockSyncPolicy>),
-                 alignof(events_internal::EventHandlerDeleterImpl<
-                         void(int), NoLockSyncPolicy>)>
-      storage_;
+  RcPtrView<EventHandlersList<TSyncPolicy>> event_handlers_;
+  std::size_t index_;
 };
 
 }  // namespace ae

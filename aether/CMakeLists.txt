@@ -85,10 +85,7 @@ list(APPEND ptr_srcs
             "ptr/ptr_management.cpp"
         )
 
-list(APPEND events_srcs
-        "events/event_subscription.cpp"
-        "events/multi_subscription.cpp"
-    )
+list(APPEND events_srcs)
 
 list(APPEND actions_srcs
             "ae_actions/registration/registration.cpp"

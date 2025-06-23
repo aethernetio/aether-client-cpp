@@ -19,6 +19,7 @@
 
 #include <optional>
 
+#include "aether/events/events_mt.h"
 #include "aether/events/event_deleter.h"
 
 namespace ae {
@@ -26,28 +27,60 @@ namespace ae {
  * \brief RAII object to manage event subscription
  * It stores event handler deleter and call delete on destructor
  */
-class Subscription {
+template <typename TSyncPolicy>
+class BaseSubscription {
  public:
-  Subscription();
+  BaseSubscription() = default;
 
-  Subscription(EventHandlerDeleter&& event_handler_deleter);
+  BaseSubscription(EventHandlerDeleter<TSyncPolicy>&& event_handler_deleter)
+      : event_handler_deleter_{std::move(event_handler_deleter)} {}
 
-  Subscription(Subscription const&) = delete;
-  Subscription(Subscription&& other) noexcept;
+  BaseSubscription(BaseSubscription const&) = delete;
 
-  ~Subscription();
+  BaseSubscription(BaseSubscription&& other) noexcept
+      : event_handler_deleter_{std::move(other.event_handler_deleter_)} {
+    other.event_handler_deleter_.reset();
+  }
 
-  Subscription& operator=(Subscription const&) = delete;
-  Subscription& operator=(Subscription&& other) noexcept;
-  Subscription& operator=(EventHandlerDeleter&& event_handler_deleter) noexcept;
+  ~BaseSubscription() { Reset(); }
 
-  void Reset();
+  BaseSubscription& operator=(BaseSubscription const&) = delete;
 
-  explicit operator bool() const;
+  BaseSubscription& operator=(BaseSubscription&& other) noexcept {
+    if (this != &other) {
+      Reset();
+      event_handler_deleter_ = std::move(other.event_handler_deleter_);
+      other.event_handler_deleter_.reset();
+    }
+    return *this;
+  }
+
+  BaseSubscription& operator=(
+      EventHandlerDeleter<TSyncPolicy>&& event_handler_deleter) noexcept {
+    Reset();
+    event_handler_deleter_ = std::move(event_handler_deleter);
+    return *this;
+  }
+
+  void Reset() {
+    if (event_handler_deleter_) {
+      event_handler_deleter_->Delete();
+      event_handler_deleter_.reset();
+    }
+  }
+
+  explicit operator bool() const {
+    return event_handler_deleter_ && event_handler_deleter_->alive();
+  }
 
  private:
-  std::optional<EventHandlerDeleter> event_handler_deleter_;
+  std::optional<EventHandlerDeleter<TSyncPolicy>> event_handler_deleter_;
 };
+
+/**
+ * \brief Subscription for most cases.
+ */
+using Subscription = BaseSubscription<NoLockSyncPolicy>;
 
 }  // namespace ae
 
