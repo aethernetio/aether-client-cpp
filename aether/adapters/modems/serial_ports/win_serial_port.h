@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_WIN_SERIAL_PORT_H_
-#define AETHER_ADAPTERS_MODEMS_WIN_SERIAL_PORT_H_
+#ifndef AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
+#define AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
 
 #include <Windows.h>
 #include <vector>
@@ -24,12 +24,9 @@
 #include <string>
 #include <memory>
 
-#include "aether/adapters/modems/i_serial_port.h"
-#include "aether/adapters/modems/win_serial_port.h"
-#include "aether/adapters/parent_modem.h"
+#include "aether/adapters/modems/serial_ports/iserial_port.h"
 
 namespace ae {
-
 class WINSerialPort : public ISerialPort{
 public:
     WINSerialPort(SerialInit serial_init);
@@ -44,7 +41,6 @@ private:
     void SetupTimeouts();
     void Close();
 };
-
 } /* namespace ae */
 
-#endif  // AETHER_ADAPTERS_MODEMS_WIN_SERIAL_PORT_H_
+#endif  // AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_

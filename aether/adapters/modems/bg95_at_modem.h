@@ -15,15 +15,15 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
-#define AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
+#ifndef AETHER_ADAPTERS_MODEMS_BG95_AT_MODEM_H_
+#define AETHER_ADAPTERS_MODEMS_BG95_AT_MODEM_H_
 
 #include <chrono>
 #include <memory>
 
 #include "aether/adapters/parent_modem.h"
-#include "aether/adapters/modems/i_modem_driver.h"
-#include "aether/adapters/modems/i_serial_port.h"
+#include "aether/adapters/modems/imodem_driver.h"
+#include "aether/adapters/modems/serial_ports/iserial_port.h"
 
 
 namespace ae {
@@ -48,4 +48,4 @@ class Bg95AtModem : public IModemDriver {
 
 } /* namespace ae */
 
-#endif  // AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
+#endif  // AETHER_ADAPTERS_MODEMS_BG95_AT_MODEM_H_

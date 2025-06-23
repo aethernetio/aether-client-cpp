@@ -17,11 +17,13 @@
 #ifndef AETHER_ADAPTERS_MODEM_ADAPTER_H_
 #define AETHER_ADAPTERS_MODEM_ADAPTER_H_
 
+#  define MODEM_ADAPTER_ENABLED 1
+
 #include <cstdint>
 #include <string>
 
 #include "aether/adapters/parent_modem.h"
-#include "aether/adapters/modems/i_modem_driver.h"
+#include "aether/adapters/modems/imodem_driver.h"
 
 #include "aether/events/events.h"
 #include "aether/actions/action_list.h"
@@ -95,8 +97,7 @@ class ModemAdapter : public ParentModemAdapter {
   void DisConnect(void);
 
   bool connected_{false};
-  Event<void(bool result)> wifi_connected_event_;
-  ModemInit modem_init_;
+  Event<void(bool result)> modem_connected_event_;
   std::unique_ptr<IModemDriver> modem_driver_;
   std::optional<ActionList<CreateTransportAction>> create_transport_actions_;
 };

@@ -23,48 +23,10 @@
 #include "aether/adapters/adapter.h"
 #include "aether/poller/poller.h"
 
+#include "aether/adapters/modems/imodem_driver.h"
+
 namespace ae {
 class Aether;
-
-enum class kModemMode : std::uint8_t {
-  kModeAuto = 2,
-  kModeGSMOnly = 13,
-  kModeLTEOnly = 38,
-  kModeGSMLTE = 51
-};
-
-enum class kAuthType : std::uint8_t {
-  kAuthTypeNone = 0,
-  kAuthTypePAP = 1,
-  kAuthTypeCHAP = 2,
-  kAuthTypePAPCHAP = 3
-};
-
-struct SerialInit {
-  AE_REFLECT_MEMBERS(port_name, baud_rate)
-  std::string port_name;
-  std::uint32_t baud_rate;
-};
-
-struct ModemInit {
-  AE_REFLECT_MEMBERS(serial_init, pin, use_pin, operator_name, apn_name,
-                     apn_user, apn_pass, modem_mode, auth_type, use_auth,
-                     auth_user, auth_pass, ssl_cert, use_ssl)
-  SerialInit serial_init;
-  std::uint8_t pin[4];
-  bool use_pin;
-  kModemMode modem_mode;
-  std::string operator_name;
-  std::string apn_name;
-  std::string apn_user;
-  std::string apn_pass;  
-  kAuthType auth_type;
-  bool use_auth;
-  std::string auth_user;
-  std::string auth_pass;
-  std::string ssl_cert;
-  bool use_ssl;
-};
 
 class ParentModemAdapter : public Adapter {
   AE_OBJECT(ParentModemAdapter, Adapter, 0)

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "aether/adapters/modems/win_serial_port.h"
+#include "aether/adapters/modems/serial_ports/win_serial_port.h"
 #include "aether/adapters/parent_modem.h"
+
 #include "aether/adapters/adapter_tele.h"
 
 namespace ae {

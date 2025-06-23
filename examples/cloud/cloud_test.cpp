@@ -18,6 +18,8 @@
 #include <cstdint>
 
 #include "aether/all.h"
+#include "aether/adapters/modem_adapter.h"
+#include "aether/adapters/esp32_wifi.h"
 
 static constexpr std::string_view kWifiSsid = "Test1234";
 static constexpr std::string_view kWifiPass = "Test1234";
@@ -195,7 +197,17 @@ class CloudTestAction : public Action<CloudTestAction> {
 
 }  // namespace ae::cloud_test
 
+#include <Windows.h>
+
 int AetherCloudExample() {
+  ae::TeleInit::Init();
+  AE_TELE_ENV();
+  AE_TELED_INFO("Started");
+  
+  ae::SerialInit serial_init = {"COM20", CBR_115200};
+
+  ae::ModemInit modem_init{serial_init};
+
   /**
    * Construct a main aether application class.
    * It's include a Domain and Aether instances accessible by getter methods.
@@ -204,15 +216,20 @@ int AetherCloudExample() {
    * Also it has action context protocol implementation \see Action.
    * To configure its creation \see AetherAppConstructor.
    */
-  auto aether_app = ae::AetherApp::Construct(
+   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppConstructor{}
 #if defined AE_DISTILLATION
-          .Adapter([](ae::Domain* domain,
+          .Adapter([modem_init](
+                       ae::Domain* domain,
                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = domain->CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, aether, aether->poller,
                 std::string(kWifiSsid), std::string(kWifiPass));
+#  elif defined MODEM_ADAPTER_ENABLED
+            auto adapter = domain->CreateObj<ae::ModemAdapter>(
+                ae::GlobalId::kModemAdapter, aether, aether->poller,
+               modem_init);
 #  else
             auto adapter = domain->CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, aether, aether->poller);

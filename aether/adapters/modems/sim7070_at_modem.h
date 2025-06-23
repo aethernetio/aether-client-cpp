@@ -21,8 +21,8 @@
 #include <memory>
 
 #include "aether/adapters/parent_modem.h"
-#include "aether/adapters/modems/i_modem_driver.h"
-#include "aether/adapters/modems/i_serial_port.h"
+#include "aether/adapters/modems/imodem_driver.h"
+#include "aether/adapters/modems/serial_ports/iserial_port.h"
 
 
 namespace ae {
@@ -41,6 +41,7 @@ class Sim7070AtModem : public IModemDriver {
   std::unique_ptr<ISerialPort> serial_;
   EventEmitterModem<> event_initiated_;
   EventEmitterModem<const std::string&> event_error_;
+  
   void sendATCommand(const std::string& command);
   bool waitForResponse(const std::string& expected, std::chrono::milliseconds timeout_ms);
 };

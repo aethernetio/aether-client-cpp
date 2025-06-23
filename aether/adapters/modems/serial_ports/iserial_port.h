@@ -14,14 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_I_SERIAL_PORT_H_
-#define AETHER_ADAPTERS_MODEMS_I_SERIAL_PORT_H_
+#ifndef AETHER_ADAPTERS_MODEMS_ISERIAL_PORT_H_
+#define AETHER_ADAPTERS_MODEMS_ISERIAL_PORT_H_
 
 #include <vector>
 #include <optional>
 
+#include "aether/aether.h"
 
 namespace ae {
+
+struct SerialInit {
+  AE_REFLECT_MEMBERS(port_name, baud_rate)
+  std::string port_name;
+  std::uint32_t baud_rate;
+};
 
 using DataBuffer = std::vector<uint8_t>;
 
@@ -35,4 +42,4 @@ class ISerialPort {
 
 } /* namespace ae */
 
-#endif  // AETHER_ADAPTERS_MODEMS_I_SERIAL_PORT_H_
+#endif  // AETHER_ADAPTERS_MODEMS_ISERIAL_PORT_H_

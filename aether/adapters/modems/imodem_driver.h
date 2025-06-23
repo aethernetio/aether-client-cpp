@@ -14,13 +14,49 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_I_MODEM_DRIVER_H_
-#define AETHER_ADAPTERS_MODEMS_I_MODEM_DRIVER_H_
+#ifndef AETHER_ADAPTERS_MODEMS_IMODEM_DRIVER_H_
+#define AETHER_ADAPTERS_MODEMS_IMODEM_DRIVER_H_
 
 #include <functional>
 #include <string>
 
+#include "aether/adapters/modems/serial_ports/iserial_port.h"
+
 namespace ae {
+
+enum class kModemMode : std::uint8_t {
+  kModeAuto = 2,
+  kModeGSMOnly = 13,
+  kModeLTEOnly = 38,
+  kModeGSMLTE = 51
+};
+
+enum class kAuthType : std::uint8_t {
+  kAuthTypeNone = 0,
+  kAuthTypePAP = 1,
+  kAuthTypeCHAP = 2,
+  kAuthTypePAPCHAP = 3
+};
+
+struct ModemInit {
+  AE_REFLECT_MEMBERS(serial_init, pin, use_pin, operator_name, apn_name,
+                     apn_user, apn_pass, modem_mode, auth_type, use_auth,
+                     auth_user, auth_pass, ssl_cert, use_ssl)
+  SerialInit serial_init;
+  std::uint8_t pin[4];
+  bool use_pin;
+  kModemMode modem_mode;
+  std::string operator_name;
+  std::string apn_name;
+  std::string apn_user;
+  std::string apn_pass;  
+  kAuthType auth_type;
+  bool use_auth;
+  std::string auth_user;
+  std::string auth_pass;
+  std::string ssl_cert;
+  bool use_ssl;
+};
 
 // A class for managing event subscriptions
 template <typename... Args>
@@ -72,4 +108,4 @@ public:
 
 } /* namespace ae */
 
-#endif  // AETHER_ADAPTERS_MODEMS_I_MODEM_DRIVER_H_
+#endif  // AETHER_ADAPTERS_MODEMS_IMODEM_DRIVER_H_

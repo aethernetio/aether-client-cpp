@@ -15,9 +15,11 @@
  */
 
 #include "aether/adapters/modem_adapter.h"
-#include "aether/adapters/adapter_tele.h"
 
-#  include "aether/transport/low_level/tcp/lte_tcp.h"
+#include "aether/adapters/modems/modem_factory.h"
+#include "aether/transport/low_level/tcp/lte_tcp.h"
+
+#include "aether/adapters/adapter_tele.h"
 
 namespace ae {
 
@@ -82,7 +84,6 @@ void ModemAdapter::CreateTransportAction::CreateTransport() {
   transport_ = adapter_->FindInCache(address_port_protocol_);
   if (!transport_) {
     AE_TELE_DEBUG(kAdapterCreateCacheMiss);
-//TODO Create LteTCPTransport
 #  if defined(LTE_TCP_TRANSPORT_ENABLED)
     assert(address_port_protocol_.protocol == Protocol::kTcp);
     transport_ =
@@ -104,7 +105,9 @@ ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                                    Domain* domain)
     : ParentModemAdapter{std::move(aether), std::move(poller), std::move(modem_init),
                         domain} {
+  modem_driver_ = ModemDriverFactory::CreateModem(modem_init_);
   AE_TELED_DEBUG("Modem instance created!");
+  
 }
 
 ModemAdapter::~ModemAdapter() {
@@ -129,7 +132,7 @@ ActionView<ae::CreateTransportAction> ModemAdapter::CreateTransport(
                                               address_port_protocol);
   } else {
     return create_transport_actions_->Emplace(
-        EventSubscriber{wifi_connected_event_}, this, aether_, poller_,
+        EventSubscriber{modem_connected_event_}, this, aether_, poller_,
         address_port_protocol);
   }
 }
@@ -144,11 +147,13 @@ void ModemAdapter::Update(TimePoint t) {
 }
 
 void ModemAdapter::Connect(void) {  
-  AE_TELE_DEBUG(kAdapterModemConnected, "WiFi connected to the AP");
+  AE_TELE_DEBUG(kAdapterModemConnected, "Modem connecting to the AP");
+  modem_driver_->Init();
 }
 
 void ModemAdapter::DisConnect(void) {  
-  AE_TELE_DEBUG(kAdapterModemDisconnected, "WiFi disconnected from the AP");
+  AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem disconnecting from the AP");
+  modem_driver_->Stop();
 }
 
 }  // namespace ae
