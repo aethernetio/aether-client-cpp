@@ -21,8 +21,9 @@
 #include <cstdint>
 #include <cstddef>
 
-#include "aether/types/literal_array.h"
+#include "aether/type_traits.h"
 #include "aether/reflect/reflect.h"
+#include "aether/types/literal_array.h"
 
 namespace ae {
 struct Uid {
