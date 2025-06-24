@@ -25,6 +25,7 @@ list(APPEND test_srcs
     test-statistics-counter.cpp
     test-aligned-storage.cpp
     test-type-list.cpp
+    test-uid.cpp
 )
 
 if(NOT CM_PLATFORM)
