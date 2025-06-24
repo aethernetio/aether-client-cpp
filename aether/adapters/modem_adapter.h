@@ -76,7 +76,7 @@ class ModemAdapter : public ParentModemAdapter {
   ~ModemAdapter();
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(AE_MMBRS(create_transport_actions_))
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_connected_event_, modem_driver_, create_transport_actions_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {

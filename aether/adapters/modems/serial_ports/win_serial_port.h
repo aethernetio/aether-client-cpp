@@ -28,6 +28,7 @@
 
 namespace ae {
 class WINSerialPort : public ISerialPort{
+
 public:
     WINSerialPort(SerialInit serial_init);
     ~WINSerialPort();

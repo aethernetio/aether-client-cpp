@@ -113,6 +113,7 @@ list(APPEND adapters_srcs
             "adapters/modems/modem_factory.cpp"
             "adapters/modems/bg95_at_modem.cpp"            
             "adapters/modems/sim7070_at_modem.cpp"
+            "adapters/modems/serial_ports/serial_port_factory.cpp"
             "adapters/modems/serial_ports/win_serial_port.cpp"
             )
 

@@ -14,34 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_ISERIAL_PORT_H_
-#define AETHER_ADAPTERS_MODEMS_ISERIAL_PORT_H_
+#include "aether/adapters/modems/serial_ports/serial_port_factory.h"
+#include "aether/adapters/modems/serial_ports/win_serial_port.h"
 
-#include <vector>
-#include <optional>
-
-#include "aether/aether.h"
 
 namespace ae {
 
-struct SerialInit {
-  AE_REFLECT_MEMBERS(port_name, baud_rate)
-  std::string port_name;
-  std::uint32_t baud_rate;
-};
+std::unique_ptr<ISerialPort> SerialPortFactory::CreatePort(SerialInit serial_init){
+  return std::make_unique<WINSerialPort>(serial_init);
+}
 
-using DataBuffer = std::vector<uint8_t>;
-
-class ISerialPort{
-
-  public:
-   ISerialPort()  = default;
-   virtual ~ISerialPort() = default;
-   
-   virtual void WriteData(const DataBuffer& data) = 0;
-   virtual std::optional<DataBuffer> ReadData() = 0;
-};
-
-} /* namespace ae */
-
-#endif  // AETHER_ADAPTERS_MODEMS_ISERIAL_PORT_H_
+}  // namespace ae

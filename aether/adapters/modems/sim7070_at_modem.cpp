@@ -15,14 +15,14 @@
  */
 
 #include "aether/adapters/modems/sim7070_at_modem.h"
-#include "aether/adapters/modems/serial_ports/win_serial_port.h"
+#include "aether/adapters/modems/serial_ports/serial_port_factory.h"
 #include "aether/adapters/adapter_tele.h"
 
 namespace ae {
 
 Sim7070AtModem::Sim7070AtModem(ModemInit modem_init) : 
   modem_init_(modem_init) {
-  serial_ = std::make_unique<WINSerialPort>(modem_init_.serial_init);
+  serial_ = SerialPortFactory::CreatePort(modem_init_.serial_init);
   };
 
 void Sim7070AtModem::Init() {

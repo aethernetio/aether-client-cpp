@@ -27,7 +27,7 @@
 
 namespace ae {
   
-class Sim7070AtModem : public IModemDriver {
+class Sim7070AtModem : public IModemDriver {  
  public:
   explicit Sim7070AtModem(ModemInit modem_init);
   void Init() override;
