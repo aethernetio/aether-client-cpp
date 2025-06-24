@@ -17,7 +17,7 @@
 #ifndef AETHER_METHODS_WORK_SERVER_API_AUTHORIZED_API_H_
 #define AETHER_METHODS_WORK_SERVER_API_AUTHORIZED_API_H_
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/methods/telemetric.h"
 #include "aether/transport/data_buffer.h"
 #include "aether/stream_api/stream_api.h"

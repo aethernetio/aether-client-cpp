@@ -24,7 +24,7 @@
 #include <type_traits>
 #include <string_view>
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/type_traits.h"
 #include "aether/format/formatter.h"
 #include "aether/format/format_impl.h"

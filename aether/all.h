@@ -56,7 +56,7 @@
 
 #include "aether/aether.h"
 #include "aether/client.h"
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/server.h"
 #include "aether/channel.h"
 #include "aether/crypto.h"

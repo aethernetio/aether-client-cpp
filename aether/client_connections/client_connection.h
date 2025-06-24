@@ -17,7 +17,7 @@
 #ifndef AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTION_H_
 #define AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTION_H_
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/reflect/reflect.h"
 #include "aether/stream_api/istream.h"
 
