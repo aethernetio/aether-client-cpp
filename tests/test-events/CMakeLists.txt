@@ -24,6 +24,7 @@ list(APPEND test_events_srcs
   worker_class.cpp
   test-delegates.cpp
   test-std-function.cpp
+  test-events-mt.cpp
 )
 
 if(NOT CM_PLATFORM)
