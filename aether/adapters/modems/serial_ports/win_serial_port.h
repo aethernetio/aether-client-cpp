@@ -17,7 +17,6 @@
 #ifndef AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
 #define AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
 
-#include <Windows.h>
 #include <vector>
 #include <optional>
 #include <stdexcept>
@@ -28,17 +27,17 @@
 
 namespace ae {
 class WINSerialPort : public ISerialPort{
-
+    
 public:
     WINSerialPort(SerialInit serial_init);
     ~WINSerialPort();
     void WriteData(const DataBuffer& data) override;
     std::optional<DataBuffer> ReadData() override;
 private:
-    HANDLE hPort_;
+    void* hPort_;
     
-    void Open(const std::string& portName, DWORD baudRate);
-    void ConfigurePort(DWORD baudRate);
+    void Open(const std::string& portName, std::uint32_t baudRate);
+    void ConfigurePort(std::uint32_t baudRate);
     void SetupTimeouts();
     void Close();
 };

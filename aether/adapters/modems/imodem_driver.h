@@ -58,40 +58,6 @@ struct ModemInit {
   bool use_ssl;
 };
 
-// A class for managing event subscriptions
-template <typename... Args>
-class EventSubscriberModem {
- public:
-  void subscribe(std::function<void(Args...)> callback) {
-    callbacks_.push_back(std::move(callback));
-  }
-
-  std::vector<std::function<void(Args...)>> GetCallbacks() {
-    return callbacks_;
-  }
-
- private:
-  friend class EventEmitter;
-  std::vector<std::function<void(Args...)>> callbacks_;
-};
-
-// A class for generating events
-template <typename... Args>
-class EventEmitterModem {
- public:
-  EventSubscriberModem<Args...>& subscriber() { return subscriber_; }
-
-  void notify(Args... args) {
-    auto callbacks = subscriber_.GetCallbacks();
-    for (auto& callback : callbacks) {
-      callback(args...);
-    }
-  }
-
- private:
-  EventSubscriberModem<Args...> subscriber_;
-};
-
 class IModemDriver {
 
  public:
@@ -101,9 +67,11 @@ class IModemDriver {
   virtual void Init() = 0;
   virtual void Setup() = 0;
   virtual void Stop() = 0;
+  virtual void WritePacket(std::vector<uint8_t> const& data) = 0;
+  virtual void ReadPacket(std::vector<std::uint8_t>& data) = 0;
 
-  virtual EventSubscriberModem<>& initiated() = 0;
-  virtual EventSubscriberModem<const std::string&>& errorOccurred() = 0;
+  Event<void(bool result)> modem_connected_event_;
+  Event<void(int result)> modem_error_event_;
 };
 
 } /* namespace ae */

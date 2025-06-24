@@ -19,6 +19,8 @@
 
 #include "aether/adapters/adapter_tele.h"
 
+#include <Windows.h>
+
 namespace ae {
 WINSerialPort::WINSerialPort(SerialInit serial_init)
     : hPort_(INVALID_HANDLE_VALUE) {
@@ -77,7 +79,7 @@ std::optional<DataBuffer> WINSerialPort::ReadData() {
   return std::nullopt;
 }
 
-void WINSerialPort::Open(const std::string& portName, DWORD baudRate) {
+void WINSerialPort::Open(const std::string& portName, std::uint32_t baudRate) {
   std::string fullName = "\\\\.\\" + portName;
   hPort_ = CreateFileA(fullName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL,
                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -91,7 +93,7 @@ void WINSerialPort::Open(const std::string& portName, DWORD baudRate) {
   SetupTimeouts();
 }
 
-void WINSerialPort::ConfigurePort(DWORD baudRate) {
+void WINSerialPort::ConfigurePort(std::uint32_t baudRate) {
   DCB dcb = {sizeof(DCB)};
   if (!GetCommState(hPort_, &dcb)) {
     Close();

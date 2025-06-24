@@ -32,16 +32,18 @@ class Sim7070AtModem : public IModemDriver {
   explicit Sim7070AtModem(ModemInit modem_init);
   void Init() override;
   void Setup() override;
-  void Stop() override;
-  EventSubscriberModem<>& initiated() override;
-  EventSubscriberModem<const std::string&>& errorOccurred() override;
+  void Stop() override;  
+  void WritePacket(std::vector<uint8_t> const& data) override;
+  void ReadPacket(std::vector<std::uint8_t>& data) override;
+  void PowerOff();
 
- private:
+ private:  
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
-  EventEmitterModem<> event_initiated_;
-  EventEmitterModem<const std::string&> event_error_;
   
+  int SetBaudRate(std::uint32_t rate);
+  int SetupSim(std::uint8_t pin[4]);
+  int SetupNetwork(std::string operator_name, std::string apn_name, std::string apn_user, std::string apn_pass);
   void sendATCommand(const std::string& command);
   bool waitForResponse(const std::string& expected, std::chrono::milliseconds timeout_ms);
 };

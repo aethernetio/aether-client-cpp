@@ -34,14 +34,11 @@ class Bg95AtModem : public IModemDriver {
   void Init() override;
   void Setup() override;
   void Stop() override;
-  EventSubscriberModem<>& initiated() override;
-  EventSubscriberModem<const std::string&>& errorOccurred() override;
 
  private:
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
-  EventEmitterModem<> event_initiated_;
-  EventEmitterModem<const std::string&> event_error_;
+  
   void sendATCommand(const std::string& command);
   bool waitForResponse(const std::string& expected, std::chrono::milliseconds timeout_ms);
 };
