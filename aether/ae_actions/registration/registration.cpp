@@ -77,6 +77,9 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
     assert(adapter);
   }
 
+  // parent uid must not be empty
+  assert(!parent_uid_.empty());
+
   server_list_ =
       make_unique<ServerList>(make_unique<NoFilterServerListPolicy>(), cloud);
   connection_selection_ =
