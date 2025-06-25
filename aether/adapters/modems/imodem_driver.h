@@ -20,15 +20,19 @@
 #include <functional>
 #include <string>
 
+#include "aether/types/address.h"
 #include "aether/adapters/modems/serial_ports/iserial_port.h"
 
 namespace ae {
 
 enum class kModemMode : std::uint8_t {
-  kModeAuto = 2,
-  kModeGSMOnly = 13,
-  kModeLTEOnly = 38,
-  kModeGSMLTE = 51
+  kModeAuto = 0,
+  kModeGSMOnly = 1,
+  kModeLTEOnly = 2,
+  kModeGSMLTE = 3,
+  kModeCatM = 4,
+  kModeNbIot = 5,
+  kModeCatMNbIot = 6
 };
 
 enum class kAuthType : std::uint8_t {
@@ -67,11 +71,26 @@ class IModemDriver {
   virtual void Init() = 0;
   virtual void Setup() = 0;
   virtual void Stop() = 0;
+  virtual void OpenNetwork(ae::Protocol protocol, std::string host, std::uint16_t port) = 0;
   virtual void WritePacket(std::vector<uint8_t> const& data) = 0;
   virtual void ReadPacket(std::vector<std::uint8_t>& data) = 0;
 
   Event<void(bool result)> modem_connected_event_;
   Event<void(int result)> modem_error_event_;
+  
+  std::string pinToString(const std::uint8_t pin[4]) {
+  std::string result{};
+
+  for (int i = 0; i < 4; ++i) {
+    if (pin[i] > 9) {
+      result = "ERROR";
+      break;
+    }
+    result += static_cast<char>('0' + pin[i]);
+  }
+  
+  return result;
+}
 };
 
 } /* namespace ae */

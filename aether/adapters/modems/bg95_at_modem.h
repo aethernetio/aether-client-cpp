@@ -25,22 +25,42 @@
 #include "aether/adapters/modems/imodem_driver.h"
 #include "aether/adapters/modems/serial_ports/iserial_port.h"
 
-
 namespace ae {
-  
+
+enum class kModemBand : std::uint8_t {
+  kWCDMA_B1 = 0,
+  kWCDMA_B2 = 1,
+  kWCDMA_B4 = 2,
+  kWCDMA_B5 = 3,
+  kWCDMA_B8 = 4
+};
+
 class Bg95AtModem : public IModemDriver {
  public:
   explicit Bg95AtModem(ModemInit modem_init);
   void Init() override;
   void Setup() override;
   void Stop() override;
+  void OpenNetwork(ae::Protocol protocol, std::string host,
+                   std::uint16_t port) override;
+  void WritePacket(std::vector<uint8_t> const& data) override;
+  void ReadPacket(std::vector<std::uint8_t>& data) override;
+  void PowerOff();
 
  private:
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
-  
+
+  int SetBaudRate(std::uint32_t rate);
+  int CheckSIMStatus();
+  int SetupSim(const std::uint8_t pin[4]);
+  int SetNetMode(kModemMode modem_mode);
+  int SetupNetwork(std::string operator_name, std::string apn_name,
+                   std::string apn_user, std::string apn_pass);
+  int SetWCDMATxPower(kModemBand band, std::int16_t power);
   void sendATCommand(const std::string& command);
-  bool waitForResponse(const std::string& expected, std::chrono::milliseconds timeout_ms);
+  bool waitForResponse(const std::string& expected,
+                       std::chrono::milliseconds timeout_ms);
 };
 
 } /* namespace ae */

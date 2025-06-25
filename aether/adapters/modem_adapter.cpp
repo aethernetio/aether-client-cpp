@@ -149,6 +149,7 @@ void ModemAdapter::Update(TimePoint t) {
 void ModemAdapter::Connect(void) {  
   AE_TELE_DEBUG(kAdapterModemConnected, "Modem connecting to the AP");
   modem_driver_->Init();
+  modem_driver_->Setup();
 }
 
 void ModemAdapter::DisConnect(void) {  

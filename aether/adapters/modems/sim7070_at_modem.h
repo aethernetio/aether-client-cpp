@@ -24,28 +24,35 @@
 #include "aether/adapters/modems/imodem_driver.h"
 #include "aether/adapters/modems/serial_ports/iserial_port.h"
 
-
 namespace ae {
-  
-class Sim7070AtModem : public IModemDriver {  
+
+class Sim7070AtModem : public IModemDriver {
  public:
   explicit Sim7070AtModem(ModemInit modem_init);
   void Init() override;
   void Setup() override;
-  void Stop() override;  
+  void Stop() override;
+  void OpenNetwork(ae::Protocol protocol, std::string host,
+                   std::uint16_t port) override;
   void WritePacket(std::vector<uint8_t> const& data) override;
   void ReadPacket(std::vector<std::uint8_t>& data) override;
   void PowerOff();
 
- private:  
+ private:
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
-  
+
+  int CheckResponce(std::string responce, std::uint32_t wait_time,
+                    std::string error_message);
   int SetBaudRate(std::uint32_t rate);
-  int SetupSim(std::uint8_t pin[4]);
-  int SetupNetwork(std::string operator_name, std::string apn_name, std::string apn_user, std::string apn_pass);
+  int CheckSIMStatus();
+  int SetupSim(const std::uint8_t pin[4]);
+  int SetNetMode(kModemMode modem_mode);
+  int SetupNetwork(std::string operator_name, std::string apn_name,
+                   std::string apn_user, std::string apn_pass);
   void sendATCommand(const std::string& command);
-  bool waitForResponse(const std::string& expected, std::chrono::milliseconds timeout_ms);
+  bool waitForResponse(const std::string& expected,
+                       std::chrono::milliseconds timeout_ms);
 };
 
 } /* namespace ae */

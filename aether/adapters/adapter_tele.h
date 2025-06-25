@@ -41,5 +41,6 @@ AE_TAG(kAdapterModemTransportWait, kAdapter)
 AE_TAG(kAdapterModemTransportImmediately, kAdapter)
 AE_TAG(kAdapterModemConnected, kAdapter)
 AE_TAG(kAdapterModemDisconnected, kAdapter)
+AE_TAG(kAdapterModemAtError, kAdapter)
 
 #endif  // AETHER_ADAPTERS_ADAPTER_TELE_H_
