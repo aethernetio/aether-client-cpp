@@ -21,6 +21,7 @@
 #include "aether/stream_api/istream.h"
 #include "aether/actions/action_context.h"
 
+#include "aether/common.h"
 #include "aether/memory.h"
 #include "aether/server.h"
 #include "aether/channel.h"
@@ -37,29 +38,35 @@ class Aether;
 class ClientServerConnection {
  public:
   using NewStreamEvent = Event<void(Uid uid, MessageStream& stream)>;
+  using ServerErrorEvent = Event<void()>;
 
   explicit ClientServerConnection(
       ActionContext action_context, ObjPtr<Aether> const& aether,
       Server::ptr const& server, Channel::ptr const& channel,
       std::unique_ptr<ClientToServerStream> client_to_server_stream);
 
+  AE_CLASS_NO_COPY_MOVE(ClientServerConnection)
+
   ClientToServerStream& server_stream();
 
   ByteIStream& GetStream(Uid destination);
   NewStreamEvent::Subscriber new_stream_event();
+  ServerErrorEvent::Subscriber server_error_event();
   void CloseStream(Uid uid);
 
   void SendTelemetry();
 
  private:
   std::unique_ptr<ClientToServerStream> server_stream_;
-  std::unique_ptr<MessageStreamDispatcher> message_stream_dispatcher_;
-  std::unique_ptr<Ping> ping_;
+  MessageStreamDispatcher message_stream_dispatcher_;
+  Ping ping_;
 #if defined TELEMETRY_ENABLED
-  std::unique_ptr<Telemetry> telemetry_;
+  Telemetry telemetry_;
 #endif
   NewStreamEvent new_stream_event_;
-  Subscription new_stream_event_subscription_;
+  ServerErrorEvent server_error_event_;
+  Subscription new_stream_event_sub_;
+  Subscription ping_error_sub_;
 };
 }  // namespace ae
 
