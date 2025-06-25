@@ -24,7 +24,6 @@
 #include <mutex>
 #include <chrono>
 #include <cstdint>
-#include <cstring>
 #include <utility>
 #include <type_traits>
 
@@ -124,13 +123,15 @@ struct Tele<TSink, TSinkConfig,
 
   constexpr Tele(Sink& sink, Tag const& tag, Level::underlined_t level,
                  char const* file, int line)
-      : Tele(sink, Declaration{tag.index, tag.module}) {
+      : Tele(sink,
+             Declaration{tag.module.index_start + tag.index, tag.module}) {
     if constexpr (IsAnyLogs<SinkConfig>()) {
       auto lock = std::unique_lock{stream_sync_};
+      const auto tag_index = tag.module.index_start + tag.index;
       auto log_stream =
-          sink.trap()->log_stream(Declaration{tag.index, tag.module});
+          sink.trap()->log_stream(Declaration{tag_index, tag.module});
       if constexpr (SinkConfig::kIndexLogs) {
-        log_stream.index(tag.index);
+        log_stream.index(tag_index);
       }
       if constexpr (SinkConfig::kStartTimeLogs) {
         log_stream.start_time(timer_->start);
@@ -153,13 +154,15 @@ struct Tele<TSink, TSinkConfig,
   constexpr Tele(Sink& sink, Tag const& tag, Level::underlined_t level,
                  char const* file, int line, std::string_view format,
                  TArgs const&... args)
-      : Tele(sink, Declaration{tag.index, tag.module}) {
+      : Tele(sink,
+             Declaration{tag.module.index_start + tag.index, tag.module}) {
     if constexpr (IsAnyLogs<SinkConfig>()) {
       auto lock = std::lock_guard{stream_sync_};
+      const auto tag_index = tag.module.index_start + tag.index;
       auto log_stream =
-          sink.trap()->log_stream(Declaration{tag.index, tag.module});
+          sink.trap()->log_stream(Declaration{tag_index, tag.module});
       if constexpr (SinkConfig::kIndexLogs) {
-        log_stream.index(tag.index);
+        log_stream.index(tag_index);
       }
       if constexpr (SinkConfig::kStartTimeLogs) {
         log_stream.start_time(timer_->start);

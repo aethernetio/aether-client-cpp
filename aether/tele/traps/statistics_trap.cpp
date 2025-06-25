@@ -172,7 +172,7 @@ void StatisticsTrap::LogStream::level(Level::underlined_t level) {
   log_writer << level;
 }
 void StatisticsTrap::LogStream::module(Module const& module) {
-  log_writer << module.value;
+  log_writer << module.id;
 }
 void StatisticsTrap::LogStream::file(std::string_view file) {
   log_writer << file;
