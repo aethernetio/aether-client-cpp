@@ -19,9 +19,9 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kDomainStorage, 10);
+AE_TELE_MODULE(kDomainStorage, 10, 300, 320);
 
-AE_TAG_INDEXED(DsEnumerated, kDomainStorage, 300)
+AE_TAG(DsEnumerated, kDomainStorage)
 AE_TAG(DsObjSaved, kDomainStorage)
 AE_TAG(DsObjLoaded, kDomainStorage)
 AE_TAG(DsLoadObjVersionNotFound, kDomainStorage)

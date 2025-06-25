@@ -19,8 +19,8 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kAdapter, 5);
-AE_TAG_INDEXED(kAdapterCreate, kAdapter, 30)
+AE_TELE_MODULE(kAdapter, 5, 30, 45);
+AE_TAG(kAdapterCreate, kAdapter)
 AE_TAG(kAdapterDestructor, kAdapter)
 AE_TAG(kAdapterCreateCacheMiss, kAdapter)
 AE_TAG(kAdapterCreateCacheHit, kAdapter)

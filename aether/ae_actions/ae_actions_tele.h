@@ -20,8 +20,8 @@
 #include "aether/tele/tele.h"
 
 #if AE_SUPPORT_REGISTRATION
-AE_TELE_MODULE(kRegister, 1000);
-AE_TAG_INDEXED(RegisterStarted, kRegister, 1000)
+AE_TELE_MODULE(kRegister, 1000, 1000, 1050);
+AE_TAG(RegisterStarted, kRegister)
 AE_TAG(RegisterKeysGenerated, kRegister)
 AE_TAG(RegisterServerConnectionListOver, kRegister)
 AE_TAG(RegisterConnectionErrorTryNext, kRegister)
@@ -39,8 +39,8 @@ AE_TAG(RegisterResolveCloudResponse, kRegister)
 AE_TAG(RegisterClientRegistered, kRegister)
 #endif
 
-AE_TELE_MODULE(kAeActions, 3);
-AE_TAG_INDEXED(kGetClientCloud, kAeActions, 50)
+AE_TELE_MODULE(kAeActions, 3, 50, 70);
+AE_TAG(kGetClientCloud, kAeActions)
 AE_TAG(kGetClientCloudRequestCloud, kAeActions)
 AE_TAG(kGetClientCloudRequestServerResolve, kAeActions)
 AE_TAG(kGetClientCloudServerResolveStopped, kAeActions)

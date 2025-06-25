@@ -19,9 +19,9 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kPoller, 25);
+AE_TELE_MODULE(kPoller, 25, 91, 109);
 
-AE_TAG_INDEXED(PollerWorkerCreate, kPoller, 90)
+AE_TAG(PollerWorkerCreate, kPoller)
 AE_TAG(PollerWorkerDestroyed, kPoller)
 AE_TAG(PollerAddDescriptor, kPoller)
 AE_TAG(PollerRemoveDescriptor, kPoller)

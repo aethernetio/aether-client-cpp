@@ -19,8 +19,8 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kTransport, 4);
-AE_TAG_INDEXED(TcpTransportConnect, kTransport, 20)
+AE_TELE_MODULE(kTransport, 4, 20, 45);
+AE_TAG(TcpTransportConnect, kTransport)
 AE_TAG(TcpTransport, kTransport)
 AE_TAG(TcpTransportDisconnect, kTransport)
 AE_TAG(TcpTransportSend, kTransport)

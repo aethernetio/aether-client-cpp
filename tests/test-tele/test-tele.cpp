@@ -73,15 +73,14 @@ void setUp() {
 
 void tearDown() { trap.Reset(); }
 
-AE_TELE_MODULE(TestObj, 12);
+AE_TELE_MODULE(TestObj, 12, 1, 20);
 
-AE_TAG_INDEXED(One, TestObj, 1)
+AE_TAG(Zero, TestObj)
+AE_TAG(One, TestObj)
 AE_TAG(Two, TestObj)
 AE_TAG(Three, TestObj)
-// AE_TAG_INDEXED(Three2, TestObj, 3)  // must not compile
 // duplicated!
-AE_TAG_INDEXED(Twelve, TestObj, 12)
-// AE_TAG_INDEXED(Twelve2, TestObj, 12)  // must not compile
+AE_TAG(Four, TestObj)
 // duplicated!
 
 AE_TAG(Test1, TestObj)
@@ -93,7 +92,7 @@ void test_Register() {
   TEST_ASSERT_EQUAL(1, One.index);
   TEST_ASSERT_EQUAL(2, Two.index);
   TEST_ASSERT_EQUAL(3, Three.index);
-  TEST_ASSERT_EQUAL(12, Twelve.index);
+  TEST_ASSERT_EQUAL(4, Four.index);
 }
 
 void test_SimpleTeleWithDuration() {
@@ -105,7 +104,7 @@ void test_SimpleTeleWithDuration() {
     // must not compile
     // AE_TELE_INFO(Not_registered, "format {}", 96);
   }
-  auto& metrics = trap->metrics_[Test1.index];
+  auto& metrics = trap->metrics_[Test1.index + TestObj.index_start];
 
   TEST_ASSERT_EQUAL(2, metrics.invocations_count_);
 }
@@ -214,7 +213,7 @@ struct ConfigProvider {
 }  // namespace tele_configuration
 
 void test_TeleConfigurations() {
-  constexpr auto TestTag = Tag{12, MLog, "Test"};
+  constexpr auto TestTag = Tag{11, TestObj, "Test"};
   {
     // all enabled
     using Sink = TeleSink<tele_configuration::TeleTrap,
@@ -222,12 +221,11 @@ void test_TeleConfigurations() {
     auto tele_trap = MakeRcPtr<tele_configuration::TeleTrap>();
 
     Sink::InitSink(tele_trap);
-    int remember_line = __LINE__ + 4;
+    int remember_line = __LINE__ + 3;
     {
-      auto t =
-          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
-              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
-              "message {}",     12};
+      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
+          Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
+          "message {}",     12};
 
       TEST_ASSERT_EQUAL(24, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -241,7 +239,7 @@ void test_TeleConfigurations() {
     TEST_ASSERT_EQUAL(8, log_line.size());
     TEST_ASSERT_EQUAL_STRING("12", log_line[0].c_str());
     TEST_ASSERT_EQUAL_STRING("kDebug", log_line[2].c_str());
-    TEST_ASSERT_EQUAL_STRING("MLog", log_line[3].c_str());
+    TEST_ASSERT_EQUAL_STRING("TestObj", log_line[3].c_str());
     TEST_ASSERT_EQUAL_STRING("test-tele.cpp", log_line[4].c_str());
     TEST_ASSERT_EQUAL_STRING(std::to_string(remember_line).c_str(),
                              log_line[5].c_str());
@@ -259,10 +257,9 @@ void test_TeleConfigurations() {
 
     Sink::InitSink(tele_trap);
     {
-      auto t =
-          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
-              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
-              "message {}",     12};
+      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
+          Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
+          "message {}",     12};
 
       TEST_ASSERT_EQUAL(24, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -282,10 +279,9 @@ void test_TeleConfigurations() {
     auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
     Sink::InitSink(tele_trap);
     {
-      auto t =
-          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
-              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
-              "message {}",     12};
+      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
+          Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
+          "message {}",     12};
 
       TEST_ASSERT_EQUAL(16, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -316,10 +312,9 @@ void test_TeleConfigurations() {
 
     Sink::InitSink(tele_trap);
     {
-      auto t =
-          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
-              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
-              "message {}",     12};
+      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
+          Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
+          "message {}",     12};
 
       TEST_ASSERT_EQUAL(1, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -337,10 +332,9 @@ void test_TeleConfigurations() {
 
     Sink::InitSink(tele_trap);
     {
-      auto t =
-          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
-              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
-              "message {}",     12};
+      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
+          Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
+          "message {}",     12};
 
       TEST_ASSERT_EQUAL(3, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -353,7 +347,7 @@ void test_TeleConfigurations() {
     TEST_ASSERT_EQUAL(4, log_line.size());
     TEST_ASSERT_EQUAL_STRING("12", log_line[0].c_str());
     TEST_ASSERT_EQUAL_STRING("kDebug", log_line[1].c_str());
-    TEST_ASSERT_EQUAL_STRING("MLog", log_line[2].c_str());
+    TEST_ASSERT_EQUAL_STRING("TestObj", log_line[2].c_str());
     TEST_ASSERT_EQUAL_STRING("Test", log_line[3].c_str());
   }
 }
@@ -377,11 +371,11 @@ void test_TeleProxyTrap() {
     AE_TELE_INFO(Test2, "format {}", 48);
   }
 
-  auto& metrics = ::trap->metrics_[Test1.index];
+  auto& metrics = ::trap->metrics_[Test1.index + TestObj.index_start];
 
   TEST_ASSERT_EQUAL(2, metrics.invocations_count_);
 
-  auto d = tele_trap->metric_data_[Test1.index];
+  auto d = tele_trap->metric_data_[Test1.index + TestObj.index_start];
   TEST_ASSERT_EQUAL(metrics.invocations_count_, d.count_);
 #undef TELE_SINK
 #define TELE_SINK SinkType
