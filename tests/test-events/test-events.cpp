@@ -20,7 +20,6 @@
 #include "aether/events/multi_subscription.h"
 
 namespace ae::test_events {
-
 void test_EventCreate() {
   Event<void(int)> event;
   bool cb_called = false;
@@ -39,6 +38,30 @@ void test_EventCreate() {
   // callback must not be called because s is destroyed
   event.Emit(1);
   TEST_ASSERT(!cb_called);
+}
+
+void test_EventDelete() {
+  Event<void(int)> event;
+  std::array<bool, 5> cb_called{};
+  auto sub1 = EventSubscriber{event}.Subscribe(
+      [&cb_called](int i) { cb_called[0] = true; });
+  auto sub2 = EventSubscriber{event}.Subscribe(
+      [&cb_called](int i) { cb_called[1] = true; });
+  auto sub3 = EventSubscriber{event}.Subscribe(
+      [&cb_called](int i) { cb_called[2] = true; });
+  sub1.Delete();
+  sub2.Delete();
+  auto sub4 = EventSubscriber{event}.Subscribe(
+      [&cb_called](int i) { cb_called[3] = true; });
+  auto sub5 = EventSubscriber{event}.Subscribe(
+      [&cb_called](int i) { cb_called[4] = true; });
+
+  event.Emit(12);
+  TEST_ASSERT_FALSE(cb_called[0]);
+  TEST_ASSERT_FALSE(cb_called[1]);
+  TEST_ASSERT_TRUE(cb_called[2]);
+  TEST_ASSERT_TRUE(cb_called[3]);
+  TEST_ASSERT_TRUE(cb_called[4]);
 }
 
 void test_Subscriptions() {
@@ -187,11 +210,12 @@ void test_EventReSubscribeOnHandler() {
   event.Emit(2);
   TEST_ASSERT(cb_called_second);
 }
-
 }  // namespace ae::test_events
+
 int test_events() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_events::test_EventCreate);
+  RUN_TEST(ae::test_events::test_EventDelete);
   RUN_TEST(ae::test_events::test_Subscriptions);
   RUN_TEST(ae::test_events::test_FewSubscriptions);
   RUN_TEST(ae::test_events::test_MultiSubscription);

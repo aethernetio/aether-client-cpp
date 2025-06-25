@@ -147,7 +147,8 @@ class ManagedStorage {
   ManagedStorage() = default;
 
   // Create from instance of T
-  template <typename T, AE_REQUIRERS_NOT((std::is_same<ManagedStorage, T>))>
+  template <typename T,
+            AE_REQUIRERS_NOT((std::is_same<ManagedStorage, std::decay_t<T>>))>
   explicit ManagedStorage(T&& value)
       : vtable_{CreateVTable<std::decay_t<T>>()} {
     static_assert(sizeof(T) <= Size, "T should fit into storage");
@@ -162,6 +163,20 @@ class ManagedStorage {
     static_assert(sizeof(T) <= Size, "T should fit into storage");
     static_assert(Align % alignof(T) == 0, "T should be aligned like Align");
     new (storage_.data()) T{std::forward<TArgs>(args)...};
+  }
+
+  // assign instance of T
+  template <typename T,
+            AE_REQUIRERS_NOT((std::is_same<ManagedStorage, std::decay_t<T>>))>
+  ManagedStorage& operator=(T&& value) {
+    static_assert(sizeof(T) <= Size, "T should fit into storage");
+    static_assert(Align % alignof(T) == 0, "T should be aligned like Align");
+    if (vtable_ != nullptr) {
+      vtable_->destroy(storage_.data());
+    }
+    vtable_ = CreateVTable<std::decay_t<T>>();
+    new (storage_.data()) T{std::forward<T>(value)};
+    return *this;
   }
 
   ManagedStorage(ManagedStorage const& other) noexcept

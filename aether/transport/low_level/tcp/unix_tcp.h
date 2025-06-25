@@ -64,7 +64,7 @@ class UnixTcpTransport : public ITransport {
     int socket_ = kInvalidSocket;
     StateMachine<State> state_;
     Subscription state_changed_subscription_;
-    Subscription poller_subscription_;
+    IPoller::OnPollEventSubscriber::Subscription poller_subscription_;
   };
 
   using SocketEventAction = NotifyAction<>;
@@ -151,7 +151,7 @@ class UnixTcpTransport : public ITransport {
   Subscription connection_error_sub_;
   MultiSubscription send_action_subs_;
   Subscription read_action_error_sub_;
-  Subscription socket_poll_subscription_;
+  IPoller::OnPollEventSubscriber::Subscription socket_poll_subscription_;
   Subscription socket_error_subscription_;
 };
 

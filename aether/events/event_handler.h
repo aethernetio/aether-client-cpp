@@ -24,6 +24,20 @@
 #include "aether/events/delegate.h"
 
 namespace ae {
+
+/**
+ * Base for any event handler stored in list.
+ * Base class to eliminate template bloating
+ */
+class IEventHandler {
+ public:
+  void set_alive(bool value) { is_alive_ = value; }
+  bool is_alive() const { return is_alive_; }
+
+ protected:
+  bool is_alive_{true};  // true on construction
+};
+
 template <typename TSignature>
 class EventHandler;
 
@@ -31,13 +45,13 @@ class EventHandler;
  * \brief Object to store event handler callback
  */
 template <typename... TArgs>
-class EventHandler<void(TArgs...)> {
+class EventHandler<void(TArgs...)> final : public IEventHandler {
  public:
   constexpr explicit EventHandler(std::function<void(TArgs...)>&& func)
-      : is_alive_{true}, callback_{std::move(func)} {}
+      : callback_{std::move(func)} {}
 
   constexpr explicit EventHandler(Delegate<void(TArgs...)>&& delegate)
-      : is_alive_{true}, callback_{std::move(delegate)} {}
+      : callback_{std::move(delegate)} {}
 
   AE_CLASS_COPY_MOVE(EventHandler);
 
@@ -45,11 +59,7 @@ class EventHandler<void(TArgs...)> {
     callback_(std::forward<TArgs>(args)...);
   }
 
-  void set_alive(bool value) { is_alive_ = value; }
-  bool is_alive() const { return is_alive_; }
-
  private:
-  bool is_alive_;
   std::function<void(TArgs...)> callback_;
 };
 }  // namespace ae
