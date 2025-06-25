@@ -22,7 +22,7 @@
 #include <functional>
 
 #include "aether/common.h"
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/cloud.h"
 
 #include "aether/client_connections/server_connection_selector.h"

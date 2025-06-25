@@ -51,7 +51,6 @@ list(APPEND aether_srcs
             "registration_cloud.cpp"
             "work_cloud.cpp"
             "server.cpp"
-            "uid.cpp"
             "proof_of_work.cpp"
             "server_keys.cpp"
             "socket_initializer.cpp")

@@ -19,7 +19,7 @@
 
 #include "aether/common.h"
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/memory.h"
 #include "aether/client.h"
 #include "aether/ptr/ptr_view.h"

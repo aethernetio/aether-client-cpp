@@ -23,7 +23,7 @@
 
 #  include <vector>
 
-#  include "aether/uid.h"
+#  include "aether/types/uid.h"
 #  include "aether/common.h"
 #  include "aether/memory.h"
 #  include "aether/ptr/ptr.h"

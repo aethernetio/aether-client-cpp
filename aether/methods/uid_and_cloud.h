@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/common.h"
 
 namespace ae {

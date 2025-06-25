@@ -29,6 +29,8 @@ MessageStream::MessageStream(ClientToServerStream& client_to_server_stream,
                   Format("MessageStream uid {} \nread {{}}", destination_)} {
   AE_TELE_INFO(kMessageStream, "MessageStream create to destination: {}",
                destination_);
+  // destination uid must not be empty
+  assert(!destination_.empty());
 }
 
 MessageStream::MessageStream(MessageStream&& other) noexcept

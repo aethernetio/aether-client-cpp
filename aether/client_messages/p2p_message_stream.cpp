@@ -29,6 +29,9 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       buffer_stream_{action_context, 20 * 1024},
       send_receive_stream_{} {
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
+  // destination uid must not be empty
+  assert(!destination_.empty());
+
   // connect buffered gate and send_receive gate
   Tie(buffer_stream_, send_receive_stream_);
 
@@ -49,6 +52,9 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       receive_stream_{std::move(receive_stream)} {
   AE_TELE_DEBUG(kP2pMessageStreamRec, "P2pStream received for {}",
                 destination_);
+  // destination uid must not be empty
+  assert(!destination_.empty());
+
   // connect buffered gate and send_receive gate
   Tie(buffer_stream_, send_receive_stream_);
   // connect receive stream immediately

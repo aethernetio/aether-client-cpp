@@ -17,7 +17,7 @@
 #ifndef AETHER_CLIENT_MESSAGES_MESSAGE_STREAM_H_
 #define AETHER_CLIENT_MESSAGES_MESSAGE_STREAM_H_
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/debug_gate.h"
 #include "aether/client_connections/client_to_server_stream.h"

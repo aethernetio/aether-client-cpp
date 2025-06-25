@@ -20,7 +20,7 @@
 #include <cassert>
 #include <map>
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/cloud.h"
 #include "aether/common.h"
 #include "aether/obj/obj.h"
