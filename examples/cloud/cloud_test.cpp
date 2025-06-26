@@ -197,14 +197,8 @@ class CloudTestAction : public Action<CloudTestAction> {
 
 }  // namespace ae::cloud_test
 
-#include <Windows.h>
-
 int AetherCloudExample() {
-  ae::TeleInit::Init();
-  AE_TELE_ENV();
-  AE_TELED_INFO("Started");
-  
-  ae::SerialInit serial_init = {"COM20", CBR_115200};
+  ae::SerialInit serial_init = {"COM45", 115200};
 
   ae::ModemInit modem_init{serial_init};
 

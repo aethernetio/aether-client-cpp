@@ -32,7 +32,36 @@ enum class kModemBand : std::uint8_t {
   kWCDMA_B2 = 1,
   kWCDMA_B4 = 2,
   kWCDMA_B5 = 3,
-  kWCDMA_B8 = 4
+  kWCDMA_B8 = 4,
+  kLTE_B1 = 5,
+  kLTE_B2 = 6,
+  kLTE_B3 = 7,
+  kLTE_B4 = 8,
+  kLTE_B5 = 9,
+  kLTE_B7 = 10,
+  kLTE_B8 = 11,
+  kLTE_B12 = 12,
+  kLTE_B13 = 13,
+  kLTE_B17 = 14,
+  kLTE_B18 = 15,
+  kLTE_B19 = 16,
+  kLTE_B20 = 17,
+  kLTE_B25 = 18,
+  kLTE_B26 = 19,
+  kLTE_B28 = 20,
+  kLTE_B38 = 21,
+  kLTE_B39 = 22,
+  kLTE_B40 = 23,
+  kLTE_B41 = 24,
+  kTDS_B34 = 25,
+  kTDS_B39 = 26,
+  kGSM_850 = 27,
+  kGSM_900 = 28,
+  kGSM_1800 = 29,
+  kGSM_1900 = 30,
+  kTDSCDMA_B34 = 31,
+  kTDSCDMA_B39 = 32,
+  kINVALID_BAND = 33
 };
 
 class Bg95AtModem : public IModemDriver {
@@ -51,13 +80,18 @@ class Bg95AtModem : public IModemDriver {
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
 
+  int CheckResponce(std::string responce, std::uint32_t wait_time,
+                    std::string error_message);
   int SetBaudRate(std::uint32_t rate);
   int CheckSIMStatus();
   int SetupSim(const std::uint8_t pin[4]);
   int SetNetMode(kModemMode modem_mode);
   int SetupNetwork(std::string operator_name, std::string apn_name,
                    std::string apn_user, std::string apn_pass);
-  int SetWCDMATxPower(kModemBand band, std::int16_t power);
+  int SetTxPower(kModemBand band, const float& power);
+  int GetTxPower(kModemBand band, float& power);
+  int DbmaToHex(kModemBand band, const float& power, std::string& hex);
+  int HexToDbma(kModemBand band, float& power, const std::string& hex);
   void sendATCommand(const std::string& command);
   bool waitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);

@@ -24,9 +24,9 @@ namespace ae {
 
 std::unique_ptr<IModemDriver> ModemDriverFactory::CreateModem(
     ModemInit modem_init) {
-#if defined AE_MODEM_BG95_ENABLED
+#if AE_MODEM_BG95_ENABLED==1
   return std::make_unique<Bg95AtModem>(modem_init);
-#elif defined AE_MODEM_SIM7070_ENABLED
+#elif AE_MODEM_SIM7070_ENABLED==1
   return std::make_unique<Sim7070AtModem>(modem_init);
 #endif
 }
