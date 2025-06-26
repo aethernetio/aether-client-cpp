@@ -19,7 +19,7 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kClientMessages, 35, 120, 125);
+AE_TELE_MODULE(kClientMessages, 8, 166, 170);
 
 AE_TAG(kMessageStream, kClientMessages)
 AE_TAG(kMessageStreamChangeId, kClientMessages)

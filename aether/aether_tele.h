@@ -19,7 +19,7 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kAether, 2, 256, 258);
+AE_TELE_MODULE(kAether, 2, 3, 5);
 AE_TAG(AetherStarted, kAether)
 AE_TAG(AetherCreated, kAether)
 AE_TAG(AetherDestroyed, kAether)

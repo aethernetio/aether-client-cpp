@@ -20,7 +20,7 @@
 #include "aether/obj/idomain_storage.h"
 #include "aether/domain_storage/static_object_types.h"
 
-#include "aether/domain_storage/domain_storage_tele.h"
+#include "aether/tele/tele.h"
 
 namespace ae {
 class StaticDomainStorageReader final : public IDomainStorageReader {
@@ -54,11 +54,11 @@ class StaticDomainStorage final : public IDomainStorage {
     // object_map is defined in FS_INIT
     auto const classes = static_domain_data_->object_map.find(obj_id.id());
     if (classes == std::end(static_domain_data_->object_map)) {
-      AE_TELE_ERROR(DsEnumObjIdNotFound, "Obj not found {}", obj_id.ToString());
+      AE_TELED_ERROR("Obj not found {}", obj_id.ToString());
       return {};
     }
-    AE_TELE_DEBUG(DsEnumerated, "Enumerated for obj {} classes {}",
-                  obj_id.ToString(), classes->second);
+    AE_TELED_DEBUG("Enumerated for obj {} classes {}", obj_id.ToString(),
+                   classes->second);
     return ClassList{std::begin(classes->second), std::end(classes->second)};
   }
 
@@ -67,16 +67,14 @@ class StaticDomainStorage final : public IDomainStorage {
     auto obj_path = ObjectPathKey{query.id.id(), query.class_id, query.version};
     auto const data = static_domain_data_->state_map.find(obj_path);
     if (data == std::end(static_domain_data_->state_map)) {
-      AE_TELE_ERROR(DsLoadObjIdNoFound,
-                    "Unable to find object id={}, class id={}, version={}",
-                    query.id.ToString(), query.class_id,
-                    static_cast<int>(query.version));
+      AE_TELED_ERROR("Unable to find object id={}, class id={}, version={}",
+                     query.id.ToString(), query.class_id,
+                     static_cast<int>(query.version));
       return {DomainLoadResult::kEmpty, {}};
     }
-    AE_TELE_DEBUG(DsObjLoaded,
-                  "Loaded object id={}, class id={}, version={}, size={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version), data->second.size());
+    AE_TELED_DEBUG("Loaded object id={}, class id={}, version={}, size={}",
+                   query.id.ToString(), query.class_id,
+                   static_cast<int>(query.version), data->second.size());
 
     return DomainLoad{
         DomainLoadResult::kLoaded,

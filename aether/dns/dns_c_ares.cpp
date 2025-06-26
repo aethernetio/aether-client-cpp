@@ -70,7 +70,7 @@ class AresImpl {
      * queries */
     if (auto res = ares_init_options(&channel_, &options, optmask);
         res != ARES_SUCCESS) {
-      AE_TELE_ERROR(DnsCAresFailedInitialize,
+      AE_TELE_ERROR(kAresDnsFailedInitialize,
                     "Failed to initialize ares options: {}",
                     ares_strerror(res));
       assert(false);
@@ -90,7 +90,7 @@ class AresImpl {
   ResolveAction& Query(NameAddress const& name_address) {
     static std::uint32_t query_id = 0;
 
-    AE_TELE_DEBUG(DnsQueryHost, "Querying host: {}", name_address);
+    AE_TELE_DEBUG(kAresDnsQueryHost, "Querying host: {}", name_address);
 
     auto [qit, _] = active_queries_.emplace(
         query_id++,
@@ -158,7 +158,7 @@ class AresImpl {
   static void QueryResult(QueryContext& context, int status, int /* timeouts */,
                           struct ares_addrinfo* result) {
     if (status != ARES_SUCCESS) {
-      AE_TELE_ERROR(DnsQueryError, "Ares query error {} {}", status,
+      AE_TELE_ERROR(kAresDnsQueryError, "Ares query error {} {}", status,
                     ares_strerror(status));
       context.resolve_action.Failed();
       return;
@@ -185,7 +185,7 @@ class AresImpl {
       addr.protocol = context.name_address.protocol;
     }
 
-    AE_TELE_DEBUG(DnsQuerySuccess, "Got addresses {}", addresses);
+    AE_TELE_DEBUG(kAresDnsQuerySuccess, "Got addresses {}", addresses);
     context.resolve_action.SetAddress(std::move(addresses));
   }
 

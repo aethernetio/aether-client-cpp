@@ -86,7 +86,8 @@ void LwipTcpTransport::ConnectionAction::Connect() {
   int on = 1;
   int res = 0;
 
-  AE_TELE_DEBUG(TcpTransportConnect, "Connect to {}", transport_->endpoint_);
+  AE_TELE_INFO(kLwipTcpTransportConnect, "Connect to {}",
+               transport_->endpoint_);
 
   if ((socket_ = socket(AF_INET, SOCK_STREAM, IPPROTO_IP)) < 0) {
     AE_TELED_ERROR("Socket not created");
@@ -317,7 +318,8 @@ void LwipTcpTransport::LwipTcpReadAction::DataReceived() {
   auto lock = std::lock_guard{transport_->socket_lock_};
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG(TcpTransportReceive, "Receive data size {}", data.size());
+    AE_TELE_DEBUG(kLwipTcpTransportReceive, "Receive data size {}",
+                  data.size());
     transport_->data_receive_event_.Emit(data, Now());
   }
 }
@@ -330,7 +332,7 @@ LwipTcpTransport::LwipTcpTransport(ActionContext action_context,
       endpoint_{endpoint},
       connection_info_{},
       socket_packet_queue_manager_{action_context_} {
-  AE_TELE_DEBUG(TcpTransport);
+  AE_TELE_INFO(kLwipTcpTransport);
 }
 
 LwipTcpTransport::~LwipTcpTransport() { Disconnect(); }
@@ -364,8 +366,9 @@ ITransport::DataReceiveEvent::Subscriber LwipTcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> LwipTcpTransport::Send(DataBuffer data,
                                                     TimePoint current_time) {
-  AE_TELE_DEBUG(TcpTransportSend, "Send data size {} at {:%Y-%m-%d %H:%M:%S}",
-                data.size(), current_time);
+  AE_TELE_DEBUG(kLwipTcpTransportSend,
+                "Send data size {} at {:%Y-%m-%d %H:%M:%S}", data.size(),
+                current_time);
   assert(socket_ != kInvalidSocket);
 
   auto packet_data = std::vector<std::uint8_t>{};
@@ -431,7 +434,7 @@ void LwipTcpTransport::OnConnectionFailed() {
 
 void LwipTcpTransport::Disconnect() {
   auto lock = std::lock_guard(socket_lock_);
-  AE_TELE_DEBUG(TcpTransportDisconnect, "Disconnect from {}", endpoint_);
+  AE_TELE_INFO(kLwipTcpTransportDisconnect, "Disconnect from {}", endpoint_);
   connection_info_.connection_state = ConnectionState::kDisconnected;
   if (socket_ == kInvalidSocket) {
     return;

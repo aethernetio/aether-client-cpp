@@ -113,7 +113,7 @@ class FreertosPoller::PollWorker {
     xTaskCreate(static_cast<void (*)(void *)>(&vTaskFunction), "Poller loop",
                 4096, static_cast<void *>(this), tskIDLE_PRIORITY,
                 &myTaskHandle_);
-    AE_TELE_DEBUG(PollerWorkerCreate, "Poll worker was created");
+    AE_TELE_DEBUG(kFreertosWorkerCreate, "Poll worker was created");
   }
 
   ~PollWorker() {
@@ -123,12 +123,12 @@ class FreertosPoller::PollWorker {
       vTaskDelete(myTaskHandle_);
     }
     freertos_poller_internal::ClosePipe(wake_up_pipe_);
-    AE_TELE_DEBUG(PollerWorkerDestroyed, "Poll worker has been destroyed");
+    AE_TELE_DEBUG(kFreertosWorkerDestroyed, "Poll worker has been destroyed");
   }
 
   [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) {
     auto lock = std::lock_guard(ctl_mutex_);
-    AE_TELE_DEBUG(PollerAddDescriptor, "Added descriptor {}", descriptor);
+    AE_TELE_DEBUG(kFreertosAddDescriptor, "Added descriptor {}", descriptor);
     freertos_poller_internal::WritePipe(wake_up_pipe_);
     descriptors_.insert(descriptor);
     return OnPollEventSubscriber{poll_event_};
@@ -138,7 +138,8 @@ class FreertosPoller::PollWorker {
     auto lock = std::lock_guard(ctl_mutex_);
     freertos_poller_internal::WritePipe(wake_up_pipe_);
     descriptors_.erase(descriptor);
-    AE_TELE_DEBUG(PollerRemoveDescriptor, "Removed descriptor {}", descriptor);
+    AE_TELE_DEBUG(kFreertosRemoveDescriptor, "Removed descriptor {}",
+                  descriptor);
   }
 
   void Loop(void) {
@@ -152,7 +153,7 @@ class FreertosPoller::PollWorker {
       }
       res = lwip_poll(fds_vector_.data(), fds_vector_.size(), kPollingTimeout);
       if (res == -1) {
-        AE_TELE_ERROR(PollerWaitFailed, "Polling error {} {}", errno,
+        AE_TELE_ERROR(kFreertosWaitFailed, "Polling error {} {}", errno,
                       strerror(errno));
         continue;
       } else if (res == 0) {

@@ -175,7 +175,8 @@ ActionResult UnixTcpTransport::ConnectionAction::Update() {
 }
 
 void UnixTcpTransport::ConnectionAction::Connect() {
-  AE_TELE_DEBUG(TcpTransportConnect, "Connect to {}", transport_->endpoint_);
+  AE_TELE_INFO(kUnixTcpTransportConnect, "Connect to {}",
+               transport_->endpoint_);
   socket_ = socket(AF_INET, SOCK_STREAM, 0);
   if (socket_ == kInvalidSocket) {
     AE_TELED_ERROR("Socket create error {} {}", errno, strerror(errno));
@@ -369,7 +370,8 @@ void UnixTcpTransport::UnixPacketReadAction::DataReceived() {
   auto lock = std::lock_guard{transport_->socket_lock_};
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG(TcpTransportReceive, "Receive data size {}", data.size());
+    AE_TELE_DEBUG(kUnixTcpTransportReceive, "Receive data size {}",
+                  data.size());
     transport_->data_receive_event_.Emit(data, Now());
   }
 }
@@ -382,8 +384,8 @@ UnixTcpTransport::UnixTcpTransport(ActionContext action_context,
       endpoint_{endpoint},
       connection_info_{},
       socket_packet_queue_manager_{action_context_} {
-  AE_TELE_DEBUG(TcpTransport, "Created unix tcp transport to endpoint {}",
-                endpoint_);
+  AE_TELE_INFO(kUnixTcpTransport, "Created unix tcp transport to endpoint {}",
+               endpoint_);
   connection_info_.connection_state = ConnectionState::kUndefined;
 }
 
@@ -417,7 +419,7 @@ ITransport::DataReceiveEvent::Subscriber UnixTcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> UnixTcpTransport::Send(DataBuffer data,
                                                     TimePoint current_time) {
-  AE_TELE_DEBUG(TcpTransportSend, "Send data size {} at {:%H:%M:%S}",
+  AE_TELE_DEBUG(kUnixTcpTransportSend, "Send data size {} at {:%H:%M:%S}",
                 data.size(), current_time);
   assert(socket_ != kInvalidSocket);
 
@@ -506,7 +508,7 @@ void UnixTcpTransport::ErrorSocket() {
 }
 
 void UnixTcpTransport::Disconnect() {
-  AE_TELE_DEBUG(TcpTransportDisconnect, "Disconnect from {}", endpoint_);
+  AE_TELE_INFO(kUnixTcpTransportDisconnect, "Disconnect from {}", endpoint_);
   connection_info_.connection_state = ConnectionState::kDisconnected;
   socket_error_subscription_.Reset();
 

@@ -72,7 +72,6 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
     PtrView<IPoller> poller_;
     IpAddressPortProtocol address_port_protocol_;
 
-    bool once_;
     bool failed_;
     Subscription wifi_connected_subscription_;
     std::unique_ptr<ITransport> transport_;

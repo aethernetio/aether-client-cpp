@@ -36,9 +36,9 @@ class FstreamStorageWriter final : public IDomainStorageWriter {
 
   ~FstreamStorageWriter() override {
     file.close();
-    AE_TELE_DEBUG(DsObjSaved, "Saved object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_DEBUG(
+        kFileSystemDsObjSaved, "Saved object id={}, class id={}, version={}",
+        query.id.ToString(), query.class_id, static_cast<int>(query.version));
   }
 
   void write(void const* data, std::size_t size) override {
@@ -97,11 +97,11 @@ ClassList FileSystemStdStorage::Enumerate(const ae::ObjId& obj_id) {
     auto file_name = class_dir.path().filename().string();
     classes.insert(static_cast<std::uint32_t>(std::stoul(file_name)));
   }
-  AE_TELE_DEBUG(DsEnumerated, "Enumerated classes {}", classes);
+  AE_TELE_DEBUG(kFileSystemDsEnumerated, "Enumerated classes {}", classes);
 
   if (ec) {
-    AE_TELE_ERROR(DsEnumObjIdNotFound, "Unable to open directory with error {}",
-                  ec.message());
+    AE_TELE_ERROR(kFileSystemDsEnumObjIdNotFound,
+                  "Unable to open directory with error {}", ec.message());
   }
 
   return ClassList{classes.begin(), classes.end()};
@@ -126,14 +126,14 @@ DomainLoad FileSystemStdStorage::Load(DomainQuiery const& query) {
   auto version_data_path = class_dir / std::to_string(query.version);
   std::ifstream f(version_data_path, std::ios::in | std::ios::binary);
   if (!f.good()) {
-    AE_TELE_ERROR(DsLoadObjClassIdNotFound, "Unable to open file {}",
+    AE_TELE_ERROR(kFileSystemDsLoadObjClassIdNotFound, "Unable to open file {}",
                   version_data_path.string());
     return DomainLoad{DomainLoadResult::kEmpty, {}};
   }
 
-  AE_TELE_DEBUG(DsObjLoaded, "Loaded object id={}, class id={}, version={}",
-                query.id.ToString(), query.class_id,
-                static_cast<int>(query.version));
+  AE_TELE_DEBUG(
+      kFileSystemDsObjLoaded, "Loaded object id={}, class id={}, version={}",
+      query.id.ToString(), query.class_id, static_cast<int>(query.version));
 
   return {DomainLoadResult::kLoaded,
           std::make_unique<FstreamStorageReader>(std::move(f))};
@@ -161,11 +161,12 @@ void FileSystemStdStorage::Remove(ae::ObjId const& obj_id) {
                      class_dir.path().string(), ec2.message());
       continue;
     }
-    AE_TELE_DEBUG(DsObjRemoved, "Object removed {}", obj_id.ToString());
+    AE_TELE_DEBUG(kFileSystemDsObjRemoved, "Object removed {}",
+                  obj_id.ToString());
   }
   if (ec) {
-    AE_TELE_ERROR(DsRemoveObjError, "Unable to open directory with error {}",
-                  ec.message());
+    AE_TELE_ERROR(kFileSystemDsRemoveObjError,
+                  "Unable to open directory with error {}", ec.message());
   }
 }
 

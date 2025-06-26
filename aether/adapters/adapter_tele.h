@@ -19,18 +19,19 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kAdapter, 5, 30, 45);
-AE_TAG(kAdapterCreate, kAdapter)
-AE_TAG(kAdapterDestructor, kAdapter)
-AE_TAG(kAdapterCreateCacheMiss, kAdapter)
-AE_TAG(kAdapterCreateCacheHit, kAdapter)
-AE_TAG(kAdapterWifiTransportWait, kAdapter)
-AE_TAG(kAdapterWifiTransportImmediately, kAdapter)
-AE_TAG(kAdapterWifiConnected, kAdapter)
-AE_TAG(kAdapterWifiDisconnected, kAdapter)
-AE_TAG(kAdapterWifiInitiated, kAdapter)
-AE_TAG(kAdapterWifiEventConnected, kAdapter)
-AE_TAG(kAdapterWifiEventDisconnected, kAdapter)
-AE_TAG(kAdapterWifiEventUnexpected, kAdapter)
+AE_TELE_MODULE(kAdapter, 5, 101, 120);
+AE_TAG(kEthernetAdapterCreate, kAdapter)
+AE_TAG(kEthernetAdapterCreateCacheMiss, kAdapter)
+AE_TAG(kEthernetAdapterCreateCacheHit, kAdapter)
+AE_TAG(kEspWifiAdapterCreate, kAdapter)
+AE_TAG(kEspWifiAdapterCreateCacheMiss, kAdapter)
+AE_TAG(kEspWifiAdapterCreateCacheHit, kAdapter)
+AE_TAG(kEspWifiAdapterWifiTransportWait, kAdapter)
+AE_TAG(kEspWifiAdapterWifiTransportImmediately, kAdapter)
+AE_TAG(kEspWifiAdapterWifiDisconnected, kAdapter)
+AE_TAG(kEspWifiAdapterWifiInitiated, kAdapter)
+AE_TAG(kEspWifiAdapterWifiEventConnected, kAdapter)
+AE_TAG(kEspWifiAdapterWifiEventDisconnected, kAdapter)
+AE_TAG(kEspWifiAdapterWifiEventUnexpected, kAdapter)
 
 #endif  // AETHER_ADAPTERS_ADAPTER_TELE_H_

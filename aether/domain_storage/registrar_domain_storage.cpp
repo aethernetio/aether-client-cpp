@@ -24,7 +24,7 @@
 
 #  include "aether/format/format.h"
 
-#  include "aether/domain_storage/domain_storage_tele.h"
+#  include "aether/tele/tele.h"
 
 namespace ae {
 

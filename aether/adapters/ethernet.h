@@ -44,7 +44,6 @@ class EthernetAdapter : public Adapter {
 
    private:
     std::unique_ptr<ITransport> transport_;
-    bool once_;
   };
 
  public:

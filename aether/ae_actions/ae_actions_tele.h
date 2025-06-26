@@ -39,7 +39,7 @@ AE_TAG(RegisterResolveCloudResponse, kRegister)
 AE_TAG(RegisterClientRegistered, kRegister)
 #endif
 
-AE_TELE_MODULE(kAeActions, 3, 50, 70);
+AE_TELE_MODULE(kAeActions, 3, 6, 50);
 AE_TAG(kGetClientCloud, kAeActions)
 AE_TAG(kGetClientCloudRequestCloud, kAeActions)
 AE_TAG(kGetClientCloudRequestServerResolve, kAeActions)
