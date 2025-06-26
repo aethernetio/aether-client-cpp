@@ -19,11 +19,14 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kDns, 20);
+AE_TELE_MODULE(kDns, 7, 156, 165);
 
-AE_TAG_INDEXED(DnsQueryHost, kDns, 80)
-AE_TAG(DnsQueryError, kDns)
-AE_TAG(DnsQuerySuccess, kDns)
-AE_TAG(DnsCAresFailedInitialize, kDns)
+AE_TAG(kAresDnsQueryHost, kDns)
+AE_TAG(kAresDnsQueryError, kDns)
+AE_TAG(kAresDnsQuerySuccess, kDns)
+AE_TAG(kAresDnsFailedInitialize, kDns)
+AE_TAG(kEspDnsQueryHost, kDns)
+AE_TAG(kEspDnsQueryError, kDns)
+AE_TAG(kEspDnsQuerySuccess, kDns)
 
 #endif  // AETHER_DNS_DNS_TELE_H_

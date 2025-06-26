@@ -52,9 +52,9 @@ class SpiFsSotorageWriter final : public FileWriter {
       : FileWriter{f}, query{std::move(q)} {}
 
   ~SpiFsSotorageWriter() {
-    AE_TELE_DEBUG(DsObjSaved, "Saved object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_DEBUG(
+        kSpifsDsObjSaved, "Saved object id={}, class id={}, version={}",
+        query.id.ToString(), query.class_id, static_cast<int>(query.version));
   }
 
   DomainQuiery query;
@@ -103,7 +103,8 @@ std::unique_ptr<IDomainStorageWriter> SpiFsDomainStorage::Store(
 ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
   auto obj_it = object_map_.find(obj_id);
   if (obj_it == std::end(object_map_)) {
-    AE_TELE_ERROR(DsEnumObjIdNotFound, "Obj not found {}", obj_id.ToString());
+    AE_TELE_ERROR(kSpifsDsEnumObjIdNotFound, "Obj not found {}",
+                  obj_id.ToString());
     return {};
   }
 
@@ -111,7 +112,7 @@ ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
   for (auto const& [class_id, _] : obj_it->second) {
     classes.emplace_back(class_id);
   }
-  AE_TELE_DEBUG(DsEnumerated, "Enumerated for obj {} classes {}",
+  AE_TELE_DEBUG(kSpifsDsEnumerated, "Enumerated for obj {} classes {}",
                 obj_id.ToString(), classes);
   return classes;
 }
@@ -119,7 +120,7 @@ ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
 DomainLoad SpiFsDomainStorage::Load(DomainQuiery const& query) {
   auto obj_map_it = object_map_.find(query.id.id());
   if (obj_map_it == std::end(object_map_)) {
-    AE_TELE_ERROR(DsLoadObjIdNoFound,
+    AE_TELE_ERROR(kSpifsDsLoadObjIdNoFound,
                   "Unable to find object id={}, class id={}, version={}",
                   query.id.ToString(), query.class_id,
                   static_cast<int>(query.version));
@@ -131,7 +132,7 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuiery const& query) {
 
   auto class_map_it = obj_map_it->second.find(query.class_id);
   if (class_map_it == std::end(obj_map_it->second)) {
-    AE_TELE_ERROR(DsLoadObjClassIdNotFound,
+    AE_TELE_ERROR(kSpifsDsLoadObjClassIdNotFound,
                   "Unable to find object id={}, class id={}, version={}",
                   query.id.ToString(), query.class_id,
                   static_cast<int>(query.version));
@@ -140,7 +141,7 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuiery const& query) {
   auto version_it = std::find(std::begin(class_map_it->second),
                               std::end(class_map_it->second), query.version);
   if (version_it == std::end(class_map_it->second)) {
-    AE_TELE_ERROR(DsLoadObjVersionNotFound,
+    AE_TELE_ERROR(kSpifsDsLoadObjVersionNotFound,
                   "Unable to find object id={}, class id={}, version={}",
                   query.id.ToString(), query.class_id,
                   static_cast<int>(query.version));
@@ -156,9 +157,9 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuiery const& query) {
     return {};
   }
 
-  AE_TELE_DEBUG(DsObjLoaded, "Loaded object id={}, class id={}, version={}",
-                query.id.ToString(), query.class_id,
-                static_cast<int>(query.version));
+  AE_TELE_DEBUG(
+      kSpifsDsObjLoaded, "Loaded object id={}, class id={}, version={}",
+      query.id.ToString(), query.class_id, static_cast<int>(query.version));
 
   return {DomainLoadResult::kLoaded,
           std::make_unique<SpiFsSotorageReader>(file)};
@@ -180,7 +181,7 @@ void SpiFsDomainStorage::Remove(const ae::ObjId& obj_id) {
     }
   }
   obj_map_it->second.clear();
-  AE_TELE_DEBUG(DsObjRemoved, "Removed object {}", obj_id.ToString());
+  AE_TELE_DEBUG(kSpifsDsObjRemoved, "Removed object {}", obj_id.ToString());
   SyncState();
 }
 
@@ -208,7 +209,7 @@ void SpiFsDomainStorage::InitFs() {
 
   if (ret != ESP_ERR_INVALID_STATE) {  // FS already is initialized
     if (ret != ESP_OK) {
-      AE_TELE_ERROR(DsStorageMountError, "Init SPIFS v1 error {}",
+      AE_TELE_ERROR(kSpifsDsStorageMountError, "Init SPIFS v1 error {}",
                     [ret]() -> std::string {
                       if (ret == ESP_FAIL) {
                         return "Failed to mount or format filesystem";
@@ -227,12 +228,12 @@ void SpiFsDomainStorage::InitFs() {
   std::size_t used = 0;
   ret = esp_spiffs_info(kPartition.data(), &total, &used);
   if (ret != ESP_OK) {
-    AE_TELE_ERROR(DsStorageInitError,
+    AE_TELE_ERROR(kSpifsDsStorageInitError,
                   "Failed to get SPIFFS partition information ({})",
                   esp_err_to_name(ret));
   } else {
-    AE_TELE_INFO(DsStorageInit, "Partition size: total: {}, used: {}", total,
-                 used);
+    AE_TELE_INFO(kSpifsDsStorageInit, "Partition size: total: {}, used: {}",
+                 total, used);
   }
 }
 

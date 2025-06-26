@@ -21,21 +21,20 @@
 #include "aether/aether.h"
 #include "aether/adapters/adapter_tele.h"
 
+// IWYU pragma: begin_keeps
 #include "aether/transport/low_level/tcp/unix_tcp.h"
 #include "aether/transport/low_level/tcp/win_tcp.h"
 #include "aether/transport/low_level/tcp/lwip_tcp.h"
+// IWYU pragma: end_keeps
 
 namespace ae {
 
 EthernetAdapter::EthernetCreateTransportAction::EthernetCreateTransportAction(
     ActionContext action_context, std::unique_ptr<ITransport> transport)
-    : CreateTransportAction{action_context},
-      transport_{std::move(transport)},
-      once_{true} {}
+    : CreateTransportAction{action_context}, transport_{std::move(transport)} {}
 
 ActionResult EthernetAdapter::EthernetCreateTransportAction::Update() {
-  if (transport_ && once_) {
-    once_ = false;
+  if (transport_) {
     return ActionResult::Result();
   }
   return {};
@@ -56,7 +55,7 @@ EthernetAdapter::EthernetAdapter(Aether::ptr aether, IPoller::ptr poller,
 
 ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
     IpAddressPortProtocol const& address_port_protocol) {
-  AE_TELE_INFO(kAdapterCreate, "Create transport for {}",
+  AE_TELE_INFO(kEthernetAdapterCreate, "Create transport for {}",
                address_port_protocol);
 
   if (!create_transport_actions_) {
@@ -66,7 +65,7 @@ ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
   CleanDeadTransports();
   auto transport = FindInCache(address_port_protocol);
   if (!transport) {
-    AE_TELE_DEBUG(kAdapterCreateCacheMiss);
+    AE_TELE_DEBUG(kEthernetAdapterCreateCacheMiss);
 #if defined UNIX_TCP_TRANSPORT_ENABLED
     assert(address_port_protocol.protocol == Protocol::kTcp);
     transport =
@@ -87,7 +86,7 @@ ActionView<CreateTransportAction> EthernetAdapter::CreateTransport(
 #endif
     AddToCache(address_port_protocol, *transport);
   } else {
-    AE_TELE_DEBUG(kAdapterCreateCacheHit);
+    AE_TELE_DEBUG(kEthernetAdapterCreateCacheHit);
   }
 
   return create_transport_actions_->Emplace(std::move(transport));

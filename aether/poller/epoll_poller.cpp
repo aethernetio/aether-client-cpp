@@ -47,7 +47,7 @@ class EpollPoller::PollWorker {
         epoll_fd_{InitEpoll()},
         poll_event_{SharedMutexSyncPolicy{ctl_mutex_}},
         thread_(&PollWorker::Loop, this) {
-    AE_TELE_INFO(PollerWorkerCreate);
+    AE_TELE_INFO(kEpollWorkerCreate);
     // add wake up pipe to epoll
     wake_up_subscription_ =
         Add(DescriptorType{wake_up_pipe_[kPipeReadEnd]})
@@ -75,14 +75,14 @@ class EpollPoller::PollWorker {
     if (wake_up_pipe_[kPipeReadEnd] != -1) {
       close(wake_up_pipe_[kPipeReadEnd]);
     }
-    AE_TELE_INFO(PollerWorkerDestroyed);
+    AE_TELE_INFO(kEpollWorkerDestroyed);
   }
 
   [[nodiscard]] EpollPoller::OnPollEventSubscriber Add(
       DescriptorType descriptor) {
     auto lock = std::lock_guard(ctl_mutex_);
 
-    AE_TELE_DEBUG(PollerAddDescriptor, "Add poller descriptor {}", descriptor);
+    AE_TELE_DEBUG(kEpollAddDescriptor, "Add poller descriptor {}", descriptor);
     struct epoll_event epoll_event;
     // watch in and out
     epoll_event.events = EPOLLIN | EPOLLOUT;
@@ -94,7 +94,7 @@ class EpollPoller::PollWorker {
 
     auto res = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, descriptor, &epoll_event);
     if (res < 0) {
-      AE_TELE_ERROR(PollerAddFailed, "Failed to add to epoll {} {}", errno,
+      AE_TELE_ERROR(kEpollAddFailed, "Failed to add to epoll {} {}", errno,
                     strerror(errno));
       assert(false);
     }
@@ -105,13 +105,13 @@ class EpollPoller::PollWorker {
   void Remove(DescriptorType descriptor) {
     auto lock = std::lock_guard(ctl_mutex_);
 
-    AE_TELE_DEBUG(PollerRemoveDescriptor, "Remove poller event {}", descriptor);
+    AE_TELE_DEBUG(kEpollRemoveDescriptor, "Remove poller event {}", descriptor);
     struct epoll_event epoll_event{};
 
     auto res = epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, descriptor, &epoll_event);
     if (res < 0) {
       if (errno != ENOENT) {
-        AE_TELE_ERROR(PollerRemoveFailed, "Failed to remove from epoll {} {}",
+        AE_TELE_ERROR(kEpollRemoveFailed, "Failed to remove from epoll {} {}",
                       errno, strerror(errno));
         assert(false);
       }
@@ -139,7 +139,7 @@ class EpollPoller::PollWorker {
     auto res = pipe2(pipes.data(), O_CLOEXEC);
     // create pipe to wake up the thread
     if (res < 0) {
-      AE_TELE_ERROR(PollerCreateWakeUpFailed,
+      AE_TELE_ERROR(kEpollCreateWakeUpFailed,
                     "Failed to create wake up pipe {} {}", errno,
                     strerror(errno));
       assert(false);
@@ -160,7 +160,7 @@ class EpollPoller::PollWorker {
   static int InitEpoll() {
     auto fd = epoll_create1(EPOLL_CLOEXEC);
     if (fd < 0) {
-      AE_TELE_ERROR(PollerInitFailed, "Failed to create epoll fd {} {}", errno,
+      AE_TELE_ERROR(kEpollInitFailed, "Failed to create epoll fd {} {}", errno,
                     strerror(errno));
       assert(false);
     }
@@ -176,7 +176,7 @@ class EpollPoller::PollWorker {
         if (errno == EINTR) {
           continue;
         }
-        AE_TELE_ERROR(PollerWaitFailed, "Failed to epoll_wait {} {}", errno,
+        AE_TELE_ERROR(kEpollWaitFailed, "Failed to epoll_wait {} {}", errno,
                       strerror(errno));
         assert(false);
         continue;

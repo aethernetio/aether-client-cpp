@@ -31,12 +31,16 @@ struct Module {
     return std::string{value.name};
   }
 
-  std::uint32_t value;
+  std::uint32_t id;
+  std::uint32_t index_start;
+  std::uint32_t index_end;
   std::string_view name;
 };
 }  // namespace ae::tele
 
-#define AE_TELE_MODULE(NAME, VALUE) \
-  inline constexpr auto NAME = ae::tele::Module { VALUE, #NAME, }
+#define AE_TELE_MODULE(NAME, ID, INDEX_START, INDEX_END) \
+  inline constexpr auto NAME = ae::tele::Module {        \
+    ID, INDEX_START, INDEX_END, #NAME                    \
+  }
 
 #endif  // AETHER_TELE_MODULES_H_

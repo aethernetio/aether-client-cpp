@@ -19,16 +19,16 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kCloudClientConnection, 30);
+AE_TELE_MODULE(kCloudClientConnection, 30, 110, 112);
 
-AE_TAG_INDEXED(CloudClientConnStreamCreate, kCloudClientConnection, 110)
+AE_TAG(CloudClientConnStreamCreate, kCloudClientConnection)
 AE_TAG(CloudClientConnStreamClose, kCloudClientConnection)
 AE_TAG(CloudClientNewStream, kCloudClientConnection)
 
-AE_TELE_MODULE(kClientServerStream, 61);
+AE_TELE_MODULE(kClientServerStream, 61, 113, 113);
 AE_TAG(ClientServerStreamCreate, kClientServerStream)
 
-AE_TELE_MODULE(kClientConnectionManager, 62);
+AE_TELE_MODULE(kClientConnectionManager, 62, 114, 116);
 AE_TAG(ClientConnectionManagerSelfCloudConnection, kClientConnectionManager)
 AE_TAG(ClientConnectionManagerUidCloudConnection, kClientConnectionManager)
 AE_TAG(ClientConnectionManagerUnableCreateClientServerConnection,

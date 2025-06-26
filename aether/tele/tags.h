@@ -36,19 +36,6 @@ inline constexpr std::uint32_t kAeTagIndexCounter =
 template <auto Tag>
 inline constexpr std::uint32_t kAeTagIndexCounter<Tag, 0> =
     static_cast<std::uint32_t>(0 - 1);
-
-template <auto Tag, std::int32_t... Is>
-constexpr bool IsDuplicatedImpl(std::uint32_t value,
-                                std::integer_sequence<std::int32_t, Is...>) {
-  return ((kAeTagIndexCounter<Tag, Is> == value) || ...);
-}
-
-template <auto Tag, std::int32_t N>
-constexpr bool IsDuplicated(std::uint32_t value) {
-  return IsDuplicatedImpl<Tag>(value,
-                               std::make_integer_sequence<std::int32_t, N>{});
-}
-
 }  // namespace tags_internal
 
 // Telemetry tag
@@ -60,32 +47,32 @@ struct Tag {
 }  // namespace ae::tele
 
 #define _AE_CRC(LITERAL) ::crc32::checksum_from_literal(LITERAL)
-#define _AE_FILE_TAG _AE_CRC(__FILE__)
+
+#define _AE_FILE_TAG(MODULE) _AE_CRC(__FILE__ #MODULE)
 #define _AE_INDEX __LINE__
 #define _AE_NEXT_INDEX (__LINE__ + 1)
 
-#define _AE_TAG_INDEX_GET() \
-  ::ae::tele::tags_internal::kAeTagIndexCounter<_AE_FILE_TAG, _AE_INDEX>
+#define _AE_TAG_INDEX_GET(MODULE) \
+  ::ae::tele::tags_internal::kAeTagIndexCounter<_AE_FILE_TAG(MODULE), _AE_INDEX>
 
-#define _AE_TAG_INDEX_WRITE(VALUE)                                            \
-  static_assert(                                                              \
-      !::ae::tele::tags_internal::IsDuplicated<_AE_FILE_TAG, _AE_NEXT_INDEX>( \
-          VALUE));                                                            \
-  template <>                                                                 \
-  inline constexpr auto ::ae::tele::tags_internal::kAeTagIndexCounter<        \
-      _AE_FILE_TAG, _AE_NEXT_INDEX> = std::uint32_t{VALUE};
+#define _AE_TAG_INDEX_WRITE(MODULE, VALUE)                             \
+  template <>                                                          \
+  inline constexpr auto ::ae::tele::tags_internal::kAeTagIndexCounter< \
+      _AE_FILE_TAG(MODULE), _AE_NEXT_INDEX> = std::uint32_t{VALUE};
 
 /**
  * \brief Register Tag with index specified
  */
-#define AE_TAG_INDEXED(NAME, MODULE, INDEX)                           \
-  inline constexpr auto NAME = ::ae::tele::Tag{INDEX, MODULE, #NAME}; \
-  _AE_TAG_INDEX_WRITE(NAME.index)
+#define AE_TAG_INDEXED(NAME, MODULE, INDEX)                                  \
+  inline constexpr auto NAME = ::ae::tele::Tag{(INDEX), (MODULE), #NAME};    \
+  _AE_TAG_INDEX_WRITE(MODULE, (NAME).index)                                  \
+  static_assert(((MODULE).index_start + (NAME).index) <= (MODULE).index_end, \
+                "Tag index out of range");
 
 /**
  * \brief Register Tag with index automatically incremented from previous
  * AE_TAG* call
  */
 #define AE_TAG(NAME, MODULE) \
-  AE_TAG_INDEXED(NAME, MODULE, _AE_TAG_INDEX_GET() + 1)
+  AE_TAG_INDEXED(NAME, MODULE, _AE_TAG_INDEX_GET(MODULE) + 1)
 #endif  // AETHER_TELE_TAGS_H_

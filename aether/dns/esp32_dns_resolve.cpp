@@ -56,7 +56,7 @@ class GethostByNameDnsResolver {
   ResolveAction& Query(NameAddress const& name_address) {
     static std::uint32_t query_id = 0;
 
-    AE_TELE_DEBUG(DnsQueryHost, "Querying host: {}", name_address);
+    AE_TELE_DEBUG(kEspDnsQueryHost, "Querying host: {}", name_address);
 
     auto [qit, _] = active_queries_.emplace(
         query_id++,
@@ -85,7 +85,7 @@ class GethostByNameDnsResolver {
     if (res == ERR_OK) {
       QueryResult(query_context, &cached_addr);
     } else if (res == ERR_ARG) {
-      AE_TELE_ERROR(DnsQueryError,
+      AE_TELE_ERROR(kEspDnsQueryError,
                     "Dns client not initialized or invalid hostname");
       query_context.resolve_action.Failed();
     }
@@ -111,7 +111,7 @@ class GethostByNameDnsResolver {
     addr.port = query_context.name_address.port;
     addr.protocol = query_context.name_address.protocol;
 
-    AE_TELE_DEBUG(DnsQuerySuccess, "Got addresses {}", addr);
+    AE_TELE_DEBUG(kEspDnsQuerySuccess, "Got addresses {}", addr);
     query_context.resolve_action.SetAddress({std::move(addr)});
   }
 
