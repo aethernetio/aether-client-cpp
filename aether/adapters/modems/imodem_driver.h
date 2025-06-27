@@ -25,6 +25,22 @@
 
 namespace ae {
 
+enum class kModemError : std::int8_t {
+  kNoError = 0,
+  kAtCommandError = -1,
+  kBaudRateError = -2,
+  kDbmaToHexBand = -3,
+  kDbmaToHexRange = -4,
+  kHexToDbmaBand = -5,
+  kHexToDbmaRange = -6,
+  kSetTxPowerBand = -7,
+  kGetTxPowerBand = -8,
+  kCheckSimStatus = -9,
+  kPinWrong = -10,
+  kSetupSim = -11,
+  kSetNetMode = -12
+};
+
 enum class kModemMode : std::uint8_t {
   kModeAuto = 0,
   kModeGSMOnly = 1,

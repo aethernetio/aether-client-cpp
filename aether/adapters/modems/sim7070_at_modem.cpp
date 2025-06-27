@@ -25,61 +25,61 @@ Sim7070AtModem::Sim7070AtModem(ModemInit modem_init) : modem_init_(modem_init) {
 };
 
 void Sim7070AtModem::Init() {
-  int err{0};
+  kModemError err{kModemError::kNoError};
 
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     sendATCommand("AT");  // Checking the connection
     err = CheckResponce("OK", 1000, "AT command error!");
   }
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     sendATCommand("ATE0");  // Turning off the echo
     err = CheckResponce("OK", 1000, "ATE command error!");
   }
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     sendATCommand("AT+CMEE=2");  // Enabling extended errors
     err = CheckResponce("OK", 1000, "AT+CMEE command error!");
   }
 
-  if (err < 0) {
-    modem_error_event_.Emit(err);
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
   }
 }
 
 void Sim7070AtModem::Setup() {
-  int err{0};
+  kModemError err{kModemError::kNoError};
 
   // Configuring modem settings
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     err = SetBaudRate(modem_init_.serial_init.baud_rate);
   }
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     sendATCommand("AT+CFUN=1");  // Enabling full functionality
     err = CheckResponce("OK", 1000, "AT+CFUN command error!");
   }
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     err = SetNetMode(kModemMode::kModeLTEOnly);
   }
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     err = SetNetMode(kModemMode::kModeNbIot);
   }
 
-  if (err < 0) {
-    modem_error_event_.Emit(err);
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
   } else {
     modem_connected_event_.Emit(true);
   }
 }
 
 void Sim7070AtModem::Stop() {
-  int err{0};
+  kModemError err{kModemError::kNoError};
 
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     sendATCommand("ATZ");  // Turning off the modem correctly
     err = CheckResponce("OK", 1000, "ATZ command error!");
   }
 
-  if (err < 0) {
-    modem_error_event_.Emit(err);
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
   } else {
     modem_connected_event_.Emit(false);
   }
@@ -103,35 +103,35 @@ void Sim7070AtModem::ReadPacket(std::vector<std::uint8_t>& data) {
 };
 
 void Sim7070AtModem::PowerOff() {
-  int err{0};
+  kModemError err{kModemError::kNoError};
 
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     sendATCommand("AT+CPOWD=1");  // Set modem power OFF
     err = CheckResponce("OK", 1000, "Power off error!");
   }
 
-  if (err < 0) {
-    modem_error_event_.Emit(err);
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
   } else {
     modem_connected_event_.Emit(false);
   }
 };
 
 //=============================private members================================//
-int Sim7070AtModem::CheckResponce(std::string responce, std::uint32_t wait_time,
+kModemError Sim7070AtModem::CheckResponce(std::string responce, std::uint32_t wait_time,
                                   std::string error_message) {
-  int err{0};
+  kModemError err{kModemError::kNoError};
 
   if (!waitForResponse(responce, std::chrono::milliseconds(wait_time))) {
     AE_TELE_ERROR(kAdapterModemAtError, error_message);
-    err = -1;
+    err = kModemError::kAtCommandError;
   }
 
   return err;
 }
 
-int Sim7070AtModem::SetBaudRate(std::uint32_t rate) {
-  int err{0};
+kModemError Sim7070AtModem::SetBaudRate(std::uint32_t rate) {
+  kModemError err{kModemError::kNoError};
 
   switch (rate) {
     case 0:
@@ -192,47 +192,52 @@ int Sim7070AtModem::SetBaudRate(std::uint32_t rate) {
       sendATCommand("AT+IPR=4000000");  // Set modem usart speed 4000000
       break;
     default:
-      err = -2;
+      err = kModemError::kBaudRateError;
+      return err;
       break;
   }
 
-  if (err >= 0) {
-    err = CheckResponce("OK", 1000, "No response from modem!");
+  err = CheckResponce("OK", 1000, "No response from modem!");
+  if (err != kModemError::kNoError) {
+    err = kModemError::kBaudRateError;
   }
 
   return err;
 }
 
-int Sim7070AtModem::CheckSIMStatus() {
-  int err{0};
+kModemError Sim7070AtModem::CheckSimStatus() {
+  kModemError err{kModemError::kNoError};
 
-  if (err >= 0) {
-    sendATCommand("AT+CPIN?");  // Check SIM card status
-    err = CheckResponce("OK", 1000, "SIM card error!");
+  sendATCommand("AT+CPIN?");  // Check SIM card status
+  err = CheckResponce("OK", 1000, "SIM card error!");  
+  if (err != kModemError::kNoError) {
+    err = kModemError::kCheckSimStatus;
   }
 
   return err;
 }
 
-int Sim7070AtModem::SetupSim(const std::uint8_t pin[4]) {
-  int err{0};
+kModemError Sim7070AtModem::SetupSim(const std::uint8_t pin[4]) {
+  kModemError err{kModemError::kNoError};
 
   auto pin_string = pinToString(pin);
 
   if (pin_string == "ERROR") {
-    err = -2;
+    err = kModemError::kPinWrong;
+    return err;
   }
-
-  if (err >= 0) {
-    sendATCommand("AT+CPIN=" + pin_string);  // Check SIM card status
-    err = CheckResponce("OK", 1000, "SIM card PIN error!");
+  
+  sendATCommand("AT+CPIN=" + pin_string);  // Check SIM card status
+  err = CheckResponce("OK", 1000, "SIM card PIN error!");  
+  if (err != kModemError::kNoError) {
+    err = kModemError::kSetupSim;
   }
 
   return err;
 }
 
-int Sim7070AtModem::SetNetMode(kModemMode modem_mode) {
-  int err{0};
+kModemError Sim7070AtModem::SetNetMode(kModemMode modem_mode) {
+  kModemError err{kModemError::kNoError};
 
   switch (modem_mode) {
     case kModemMode::kModeAuto:
@@ -257,21 +262,23 @@ int Sim7070AtModem::SetNetMode(kModemMode modem_mode) {
       sendATCommand("AT+CMNB=3");  // Set modem mode CatMNbIot
       break;
     default:
-      err = -2;
+      err = kModemError::kSetNetMode;
+      return err;
       break;
   }
 
-  if (err >= 0) {
-    err = CheckResponce("OK", 1000, "Set modem mode error!");
+  err = CheckResponce("OK", 1000, "No response from modem!");
+  if (err != kModemError::kNoError) {
+    err = kModemError::kSetNetMode;
   }
-
+  
   return err;
 }
 
-int Sim7070AtModem::SetupNetwork(std::string operator_name,
+kModemError Sim7070AtModem::SetupNetwork(std::string operator_name,
                                  std::string apn_name, std::string apn_user,
                                  std::string apn_pass) {
-  int err{0};
+  kModemError err{kModemError::kNoError};
 
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Operator name {}", operator_name);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "APN name {}", apn_name);

@@ -25,47 +25,47 @@ Bg95AtModem::Bg95AtModem(ModemInit modem_init) : modem_init_(modem_init) {
 };
 
 void Bg95AtModem::Init() {
-  int err{0};
+  kModemError err{kModemError::kNoError};
 
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     sendATCommand("AT");  // Checking the connection
     err = CheckResponce("OK", 1000, "AT command error!");
   }
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     sendATCommand("ATE0");  // Turning off the echo
     err = CheckResponce("OK", 1000, "ATE command error!");
   }
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     sendATCommand("AT+CMEE=2");  // Enabling extended errors
     err = CheckResponce("OK", 1000, "AT+CMEE command error!");
   }
 
-  if (err < 0) {
-    modem_error_event_.Emit(err);
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
   }
 }
 
 void Bg95AtModem::Setup() {
-  int err{0};
+  kModemError err{kModemError::kNoError};
 
   // Configuring modem settings
-  if (err >= 0) {
+  if (err == kModemError::kNoError) {
     err = SetBaudRate(modem_init_.serial_init.baud_rate);
   }
 
-  float power = 23.5; // DBm
-  SetTxPower(kModemBand::kWCDMA_B1, power);
-  GetTxPower(kModemBand::kWCDMA_B1, power);
+  float power = 23.5;  // DBm
+  err = SetTxPower(kModemBand::kWCDMA_B1, power);
+  err = GetTxPower(kModemBand::kWCDMA_B1, power);
 
-  if (err < 0) {
-    modem_error_event_.Emit(err);
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
   } else {
     modem_connected_event_.Emit(true);
   }
 }
 
 void Bg95AtModem::Stop() {
-  // int err{0};
+  // int err{kModemError::kNoError};
 }
 
 void Bg95AtModem::OpenNetwork(ae::Protocol protocol, std::string host,
@@ -86,20 +86,21 @@ void Bg95AtModem::ReadPacket(std::vector<std::uint8_t>& data) {
 };
 
 //=============================private members=============================//
-int Bg95AtModem::CheckResponce(std::string responce, std::uint32_t wait_time,
-                               std::string error_message) {
-  int err{0};
+kModemError Bg95AtModem::CheckResponce(std::string responce,
+                                       std::uint32_t wait_time,
+                                       std::string error_message) {
+  kModemError err{kModemError::kNoError};
 
   if (!waitForResponse(responce, std::chrono::milliseconds(wait_time))) {
     AE_TELE_ERROR(kAdapterModemAtError, error_message);
-    err = -1;
+    err = kModemError::kAtCommandError;
   }
 
   return err;
 }
 
-int Bg95AtModem::SetBaudRate(std::uint32_t rate) {
-  int err{0};
+kModemError Bg95AtModem::SetBaudRate(std::uint32_t rate) {
+  kModemError err{kModemError::kNoError};
 
   switch (rate) {
     case 9600:
@@ -142,109 +143,388 @@ int Bg95AtModem::SetBaudRate(std::uint32_t rate) {
       sendATCommand("AT+IPR=4000000");  // Set modem usart speed 4000000
       break;
     default:
-      err = -2;
+      err = kModemError::kBaudRateError;
+      return err;
       break;
   }
 
-  if (err >= 0) {
-    err = CheckResponce("OK", 1000, "No response from modem!");
+  err = CheckResponce("OK", 1000, "No response from modem!");
+  if (err != kModemError::kNoError) {
+    err = kModemError::kBaudRateError;
   }
 
   return err;
 }
 
-int Bg95AtModem::SetTxPower(kModemBand band, const float& power) {
-  int err{0};
-  std::string power_command;
-  
+kModemError Bg95AtModem::SetTxPower(kModemBand band, const float& power) {
+  kModemError err{kModemError::kNoError};
+  std::string power_command, hex;
+
+  err = DbmaToHex(band, power, hex);
+
+  if (err == kModemError::kNoError) {
+    switch (band) {
+      // kWCDMA bands
+      case kModemBand::kWCDMA_B1:
+        power_command = "AT+QNVW=539,0,\"9B9EA0" + hex + "A3A5A6\"";
+        break;
+      case kModemBand::kWCDMA_B2:
+        power_command = "AT+QNVW=1183,0,\"9C9EA0" + hex + "A3A5A6\"";
+        break;
+      case kModemBand::kWCDMA_B4:
+        power_command = "AT+QNVW=4035,0,\"9C9EA0" + hex + "A3A5A6\"";
+        break;
+      case kModemBand::kWCDMA_B5:
+        power_command = "AT+QNVW=1863,0,\"9C9EA0" + hex + "A3A5A6\"";
+        break;
+      case kModemBand::kWCDMA_B8:
+        power_command = "AT+QNVW=3690,0,\"9C9EA0" + hex + "A3A5A6\"";
+        break;
+      // kLTE bands
+      case kModemBand::kLTE_B1:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00020992\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B2:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00020993\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B3:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00020994\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B4:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00020995\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B5:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00020996\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B7:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00020997\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B8:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00020998\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B12:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00022191\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B13:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00021000\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B17:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00021001\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B18:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00021002\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B19:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00023133\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B20:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00021003\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B25:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00022351\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B26:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00024674\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B28:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00025477\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B38:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00021004\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B39:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00023620\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B40:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00021005\",0100" + hex + "00";
+        break;
+      case kModemBand::kLTE_B41:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00021670\",0100" + hex + "00";
+        break;
+      case kModemBand::kTDS_B34:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00022622\",0100" + hex + "00";
+        break;
+      case kModemBand::kTDS_B39:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/00022663\",0100" + hex + "00";
+        break;
+      case kModemBand::kGSM_850:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/"
+            "00025076\","
+            "C2018A0252031A04E204AA0572063A070208CA0892095A0A220BEA0B" +
+            hex + hex;
+        break;
+      case kModemBand::kGSM_900:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/"
+            "00025077\","
+            "C2018A0252031A04E204AA0572063A070208CA0892095A0A220BEA0B" +
+            hex + hex;
+        break;
+      case kModemBand::kGSM_1800:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/"
+            "00025078\","
+            "000096005E012602EE02B6037E0446050E06D6069E0766082E09F609BE0A" +
+            hex;
+        break;
+      case kModemBand::kGSM_1900:
+        power_command =
+            "AT+QNVFW=\"/nv/item_files/rfnv/"
+            "00025079\","
+            "000096005E012602EE02B6037E0446050E06D6069E0766082E09F609BE0A" +
+            hex;
+        break;
+      case kModemBand::kTDSCDMA_B34:
+        power_command = "AT+QNVFW=\"/nv/item_files/rfnv/00022622\"," + hex;
+        break;
+      case kModemBand::kTDSCDMA_B39:
+        power_command = "AT+QNVFW=\"/nv/item_files/rfnv/00022663\"," + hex;
+        break;
+      default:
+        err = kModemError::kSetTxPowerBand;
+        return err;
+        break;
+    }
+  }
+
+  sendATCommand(power_command);
+  err = CheckResponce("OK", 1000, "No response from modem!");
+  if (err != kModemError::kNoError) {
+    err = kModemError::kSetTxPowerBand;
+  }
+
+  return err;
+}
+
+kModemError Bg95AtModem::GetTxPower(kModemBand band, float& power) {
+  kModemError err{kModemError::kNoError};
+  std::string hex;
+
   switch (band) {
-    // kWCDMA bands
+      // kWCDMA bands
     case kModemBand::kWCDMA_B1:
-      power_command = "AT+QNVW=539,0,\"9B9EA09999A3A5A6\"";
+      sendATCommand("AT+QNVR=539,0");
       break;
     case kModemBand::kWCDMA_B2:
-      power_command = "AT+QNVW=1183,0,\"9C9EA09999A3A5A6\"";
+      sendATCommand("AT+QNVR=1183,0");
       break;
     case kModemBand::kWCDMA_B4:
-      power_command = "AT+QNVW=4035,0,\"9C9EA09999A3A5A6\"";
+      sendATCommand("AT+QNVR=4035,0");
       break;
     case kModemBand::kWCDMA_B5:
-      power_command = "AT+QNVW=1863,0,\"9C9EA09999A3A5A6\"";
+      sendATCommand("AT+QNVR=1863,0");
       break;
     case kModemBand::kWCDMA_B8:
-      power_command = "AT+QNVW=3690,0,\"9C9EA09999A3A5A6\"";      
+      sendATCommand("AT+QNVR=3690,0");
+      break;
+    // kLTE bands
+    case kModemBand::kLTE_B1:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00020992\",0100");
+      break;
+    case kModemBand::kLTE_B2:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00020993\",0100");
+      break;
+    case kModemBand::kLTE_B3:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00020994\",0100");
+      break;
+    case kModemBand::kLTE_B4:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00020995\",0100");
+      break;
+    case kModemBand::kLTE_B5:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00020996\",0100");
+      break;
+    case kModemBand::kLTE_B7:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00020997\",0100");
+      break;
+    case kModemBand::kLTE_B8:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00020998\",0100");
+      break;
+    case kModemBand::kLTE_B12:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00022191\",0100");
+      break;
+    case kModemBand::kLTE_B13:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00021000\",0100");
+      break;
+    case kModemBand::kLTE_B17:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00021001\",0100");
+      break;
+    case kModemBand::kLTE_B18:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00021002\",0100");
+      break;
+    case kModemBand::kLTE_B19:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00023133\",0100");
+      break;
+    case kModemBand::kLTE_B20:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00021003\",0100");
+      break;
+    case kModemBand::kLTE_B25:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00022351\",0100");
+      break;
+    case kModemBand::kLTE_B26:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00024674\",0100");
+      break;
+    case kModemBand::kLTE_B28:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00025477\",0100");
+      break;
+    case kModemBand::kLTE_B38:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00021004\",0100");
+      break;
+    case kModemBand::kLTE_B39:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00023620\",0100");
+      break;
+    case kModemBand::kLTE_B40:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00021005\",0100");
+      break;
+    case kModemBand::kLTE_B41:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00021670\",0100");
+      break;
+    case kModemBand::kTDS_B34:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00022622\",0100");
+      break;
+    case kModemBand::kTDS_B39:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00022663\",0100");
+      break;
+    case kModemBand::kGSM_850:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00025076\"");
+      break;
+    case kModemBand::kGSM_900:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00025077\"");
+      break;
+    case kModemBand::kGSM_1800:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00025078\"");
+      break;
+    case kModemBand::kGSM_1900:
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00025079\"");
+      break;
+    case kModemBand::kTDSCDMA_B34:
+      sendATCommand("AT+QNVFW=\"/nv/item_files/rfnv/00022622\"");
+      break;
+    case kModemBand::kTDSCDMA_B39:
+      sendATCommand("AT+QNVFW=\"/nv/item_files/rfnv/00022663\"");
       break;
     default:
-      err = -2;
+      err = kModemError::kGetTxPowerBand;
+      return err;
       break;
   }
-  
-  sendATCommand(power_command);
-  if (err >= 0) {
-    err = CheckResponce("OK", 1000, "No response from modem!");
-  }
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Operator name {}", power);
-  
-  return err;
-}
 
-int Bg95AtModem::GetTxPower(kModemBand band, float& power){
-  int err{0};
-
-  switch (band) {
-    case kModemBand::kWCDMA_B1:
-      sendATCommand("AT+QNVR=539,0"); 
-      break;
-      
-    default:
-      err = -2;
-      break;
-  }
-  
   auto response = serial_->ReadData();
-  
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Power {}", power);
-  
+
+  std::string response_str(response->begin(), response->end());
+
+  hex = response_str;
+   
+  HexToDbma(band, power, hex);
+
   return err;
 }
 
-int DbmaToHex(kModemBand band, const float& power, std::string& hex){
-  int err{0};
-  std::uint8_t byte;
-  
-  if (kModemBand::kWCDMA_B1 <= band && band <= kModemBand::kWCDMA_B8) {  
+kModemError Bg95AtModem::DbmaToHex(kModemBand band, const float& power,
+                                   std::string& hex) {
+  kModemError err{kModemError::kNoError};
+  std::uint8_t byte1, byte2;
+  std::uint16_t word;
+  std::stringstream ss;
+
+  if (kModemBand::kWCDMA_B1 <= band && band <= kModemBand::kWCDMA_B8) {
     // kWCDMA bands
     // 22 dBm = (22-6.7)*10= 0x99
-    byte = (22-6.7)*10;
+    if (power >= 21 && power <= 24.5) {
+      byte1 = (power - 6.7f) * 10;
+      ss << std::hex << std::setw(2) << static_cast<int>(byte1)
+         << static_cast<int>(byte1);
+      hex = ss.str() + ss.str();
+    } else {
+      err = kModemError::kDbmaToHexRange;
+    }
   } else if (kModemBand::kLTE_B1 <= band && band <= kModemBand::kLTE_B41) {
-  
+    // kLTE bands
+    // 24 dBm = 24*10 = 240 ----> F0
+    if (power >= 21 && power <= 24.5) {
+      byte1 = power * 10;
+      ss << std::hex << std::setw(2) << static_cast<int>(byte1);
+      hex = ss.str();
+    } else {
+      err = kModemError::kDbmaToHexRange;
+    }
   } else if (kModemBand::kTDS_B34 <= band && band <= kModemBand::kTDS_B39) {
-
+    // kTDS bands
+    // 24 dBm = 24*10 = 240 ----> F0
+    if (power >= 21 && power <= 24.5) {
+      byte1 = power * 10;
+      ss << std::hex << std::setw(2) << static_cast<int>(byte1);
+      hex = ss.str();
+    } else {
+      err = kModemError::kDbmaToHexRange;
+    }
   } else if (kModemBand::kGSM_850 <= band && band <= kModemBand::kGSM_1900) {
-
+    // kGSM bands
+    // 32 dBm = 32*100= 3200 = 0x0C80(HEX) = 800C
+    if (power >= 26 && power <= 33) {
+      word = power * 100;
+      byte1 = (word >> 8) & 0xFF;
+      byte2 = (word >> 0) & 0xFF;
+      ss << std::hex << std::setw(2) << static_cast<int>(byte1)
+         << static_cast<int>(byte2);
+      hex = ss.str();
+    } else {
+      err = kModemError::kDbmaToHexRange;
+    }
   } else if (kModemBand::kTDSCDMA_B34 <= band &&
              band <= kModemBand::kTDSCDMA_B39) {
+    // kTDSCDMA bands
+    // 22 dBm = 22*10+700 = 920 = 0x0398(HEX) = 9803
+    if (power >= 21 && power <= 24.5) {
+      word = power * 10 + 700;
+      byte1 = (word >> 8) & 0xFF;
+      byte2 = (word >> 0) & 0xFF;
+      ss << std::hex << std::setw(2) << static_cast<int>(byte2)
+         << static_cast<int>(byte1);
+      hex = ss.str();
+    } else {
+      err = kModemError::kDbmaToHexRange;
+    }
   } else {
-    err = -2;
+    err = kModemError::kDbmaToHexBand;
   }
 
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Band {}", band);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Power {}", power);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Hex {}", hex);
-  
   return err;
 }
 
-int HexToDbma(kModemBand band, float& power, const std::string& hex){
-  int err{0};
-  
+kModemError Bg95AtModem::HexToDbma(kModemBand band, float& power,
+                                   const std::string& hex) {
+  kModemError err{kModemError::kNoError};
+
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Band {}", band);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Power {}", power);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Hex {}", hex);
-  
+
   return err;
 }
-  
+
 void Bg95AtModem::sendATCommand(const std::string& command) {
   std::vector<uint8_t> data(command.begin(), command.end());
   data.push_back('\r');  // Adding a carriage return symbols

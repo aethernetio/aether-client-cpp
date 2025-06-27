@@ -21,7 +21,6 @@
 #include <memory>
 
 #include "aether/adapters/parent_modem.h"
-#include "aether/adapters/modems/imodem_driver.h"
 #include "aether/adapters/modems/serial_ports/iserial_port.h"
 
 namespace ae {
@@ -42,13 +41,13 @@ class Sim7070AtModem : public IModemDriver {
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
 
-  int CheckResponce(std::string responce, std::uint32_t wait_time,
+  kModemError CheckResponce(std::string responce, std::uint32_t wait_time,
                     std::string error_message);
-  int SetBaudRate(std::uint32_t rate);
-  int CheckSIMStatus();
-  int SetupSim(const std::uint8_t pin[4]);
-  int SetNetMode(kModemMode modem_mode);
-  int SetupNetwork(std::string operator_name, std::string apn_name,
+  kModemError SetBaudRate(std::uint32_t rate);
+  kModemError CheckSimStatus();
+  kModemError SetupSim(const std::uint8_t pin[4]);
+  kModemError SetNetMode(kModemMode modem_mode);
+  kModemError SetupNetwork(std::string operator_name, std::string apn_name,
                    std::string apn_user, std::string apn_pass);
   void sendATCommand(const std::string& command);
   bool waitForResponse(const std::string& expected,
