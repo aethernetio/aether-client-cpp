@@ -14,6 +14,12 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
+if (NOT AE_DISTILLATION)
+  message(STATUS "AE_DISTILLATION is not defined registrator not build")
+  return()
+endif()
+
+
 list( APPEND src_list
   main.cpp
   registrator.cpp

@@ -31,7 +31,7 @@ struct ServerConfig {
   std::string server_address;
   std::uint16_t server_port;
   ae::Protocol server_protocol;
-  ae::IpAddress server_ip_adress;
+  ae::IpAddress server_ip_address;
 };
 
 struct ClientParents {
@@ -41,7 +41,7 @@ struct ClientParents {
 
 class RegistratorConfig {
  public:
-  RegistratorConfig(const std::string& ini_file);
+  explicit RegistratorConfig(const std::string& ini_file);
 
   int ParseConfig();
   std::vector<ae::ClientParents> GetParents();

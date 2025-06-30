@@ -16,14 +16,8 @@
 
 #include <string>
 
-#include "aether/common.h"
-#include "aether/ptr/ptr.h"
-#include "aether/aether_app.h"
-
+#include "aether/all.h"
 #include "aether/domain_storage/registrar_domain_storage.h"
-
-#include "aether/tele/tele.h"
-#include "aether/tele/tele_init.h"
 
 #include "registrator/register_wifi.h"
 #include "registrator/registrator_action.h"
@@ -34,8 +28,12 @@ int AetherRegistrator(const std::string& ini_file,
 
 int AetherRegistrator(const std::string& ini_file,
                       const std::string& header_file) {
-  ae::tele::TeleInit::Init();
+  // Init tlemetry
+  auto io_trap = std::make_shared<ae::tele::IoStreamTrap>(std::cout);
+  TELE_SINK::Instance().SetTrap(io_trap);
 
+#if AE_SUPPORT_REGISTRATION
+  // get registrator config
   ae::RegistratorConfig registrator_config{ini_file};
   auto res = registrator_config.ParseConfig();
   if (res < 0) {
@@ -45,17 +43,20 @@ int AetherRegistrator(const std::string& ini_file,
 
   /**
    * Construct a main aether application class.
-   * It's include a Domain and Aether instances accessible by getter methods.
-   * It has Update, WaitUntil, Exit, IsExit, ExitCode methods to integrate it in
-   * your update loop.
-   * Also it has action context protocol implementation \see Action.
-   * To configure its creation \see AetherAppConstructor.
+   * It's include a Domain and Aether instances accessible by getter
+   * methods. It has Update, WaitUntil, Exit, IsExit, ExitCode methods to
+   * integrate it in your update loop. Also it has action context protocol
+   * implementation \see Action. To configure its creation \see
+   * AetherAppConstructor.
    */
   auto aether_app = ae::AetherApp::Construct(
-      ae::AetherAppContext{[header_file]() {
-        return ae::make_unique<ae::RegistrarDomainStorage>(header_file);
-      }}
-#if defined AE_DISTILLATION
+      ae::AetherAppContext{
+          // make special domain storage to write all state into header file
+          [header_file]() {
+            return ae::make_unique<ae::RegistrarDomainStorage>(header_file);
+          },
+          // empty tele initializer
+          [](auto const&) {}}
           .AdapterFactory(
               [&registrator_config](
                   ae::AetherAppContext const& context) -> ae::Adapter::ptr {
@@ -76,7 +77,6 @@ int AetherRegistrator(const std::string& ini_file,
                     context.poller());
                 return adapter;
               })
-#  if AE_SUPPORT_REGISTRATION
           .RegistrationCloudFactory([&registrator_config](
                                         ae::AetherAppContext const& context) {
             auto registration_cloud =
@@ -102,13 +102,13 @@ int AetherRegistrator(const std::string& ini_file,
                     ae::IpAddress::Version::kIpV4) {
                   for (std::size_t i{0}; i < 4; i++) {
                     settings.ip.value.ipv4_value[i] =
-                        s.server_ip_adress.value.ipv4_value[i];
+                        s.server_ip_address.value.ipv4_value[i];
                   }
                 } else if (s.server_ip_address_version ==
                            ae::IpAddress::Version::kIpV6) {
                   for (std::size_t i{0}; i < 16; i++) {
                     settings.ip.value.ipv6_value[i] =
-                        s.server_ip_adress.value.ipv6_value[i];
+                        s.server_ip_address.value.ipv6_value[i];
                   }
                 }
                 registration_cloud->AddServerSettings(settings);
@@ -120,10 +120,7 @@ int AetherRegistrator(const std::string& ini_file,
             }
 
             return registration_cloud;
-          })
-#  endif  // AE_SUPPORT_REGISTRATION
-#endif
-  );
+          }));
 
   auto registrator_action =
       ae::registrator::RegistratorAction{aether_app, registrator_config};
@@ -141,4 +138,9 @@ int AetherRegistrator(const std::string& ini_file,
   }
 
   return aether_app->ExitCode();
+#else
+  AE_TELED_ERROR("AE_SUPPORT_REGISTRATION is not supported");
+  assert(false);
+  return -3;
+#endif
 }
