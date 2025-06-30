@@ -49,13 +49,36 @@ void Bg95AtModem::Setup() {
   kModemError err{kModemError::kNoError};
 
   // Configuring modem settings
+  // Serial port speed
   if (err == kModemError::kNoError) {
     err = SetBaudRate(modem_init_.serial_init.baud_rate);
   }
 
-  float power = 23.5;  // DBm
-  err = SetTxPower(kModemBand::kWCDMA_B1, power);
-  err = GetTxPower(kModemBand::kWCDMA_B1, power);
+  // Enabling full functionality
+  if (err == kModemError::kNoError) {
+    sendATCommand("AT+CFUN=1");  
+    err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+  }
+  
+  if (err == kModemError::kNoError) {
+    err = CheckSimStatus();
+  }
+  
+  if (err == kModemError::kNoError && modem_init_.use_pin == true) {
+    err = SetupSim(modem_init_.pin);
+  }
+  
+  if (err == kModemError::kNoError) {
+    err = SetupNetwork(modem_init_.operator_name,
+                       modem_init_.operator_code,
+                       modem_init_.apn_name,
+                       modem_init_.apn_user,
+                       modem_init_.apn_pass);
+  }
+  
+  //float power = 23.5;  // DBm
+  //err = SetTxPower(kModemBand::kWCDMA_B1, power);
+  //err = GetTxPower(kModemBand::kWCDMA_B1, power);
 
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
@@ -65,7 +88,7 @@ void Bg95AtModem::Setup() {
 }
 
 void Bg95AtModem::Stop() {
-  // int err{kModemError::kNoError};
+  
 }
 
 void Bg95AtModem::OpenNetwork(ae::Protocol protocol, std::string host,
@@ -155,6 +178,38 @@ kModemError Bg95AtModem::SetBaudRate(std::uint32_t rate) {
 
   return err;
 }
+
+kModemError Bg95AtModem::CheckSimStatus() {
+  kModemError err{kModemError::kNoError};
+
+  sendATCommand("AT+CPIN?");  // Check SIM card status
+  err = CheckResponce("OK", 1000, "SIM card error!");  
+  if (err != kModemError::kNoError) {
+    err = kModemError::kCheckSimStatus;
+  }
+
+  return err;
+}
+
+kModemError Bg95AtModem::SetupSim(const std::uint8_t pin[4]) {
+  kModemError err{kModemError::kNoError};
+
+  auto pin_string = pinToString(pin);
+
+  if (pin_string == "ERROR") {
+    err = kModemError::kPinWrong;
+    return err;
+  }
+  
+  sendATCommand("AT+CPIN=" + pin_string);  // Check SIM card status
+  err = CheckResponce("OK", 1000, "SIM card PIN error!");  
+  if (err != kModemError::kNoError) {
+    err = kModemError::kSetupSim;
+  }
+
+  return err;
+}
+
 
 kModemError Bg95AtModem::SetTxPower(kModemBand band, const float& power) {
   kModemError err{kModemError::kNoError};
@@ -420,10 +475,10 @@ kModemError Bg95AtModem::GetTxPower(kModemBand band, float& power) {
       sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00025079\"");
       break;
     case kModemBand::kTDSCDMA_B34:
-      sendATCommand("AT+QNVFW=\"/nv/item_files/rfnv/00022622\"");
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00022622\"");
       break;
     case kModemBand::kTDSCDMA_B39:
-      sendATCommand("AT+QNVFW=\"/nv/item_files/rfnv/00022663\"");
+      sendATCommand("AT+QNVFR=\"/nv/item_files/rfnv/00022663\"");
       break;
     default:
       err = kModemError::kGetTxPowerBand;
@@ -456,7 +511,7 @@ kModemError Bg95AtModem::DbmaToHex(kModemBand band, const float& power,
       byte1 = (power - 6.7f) * 10;
       ss << std::hex << std::setw(2) << static_cast<int>(byte1)
          << static_cast<int>(byte1);
-      hex = ss.str() + ss.str();
+      hex = ss.str();
     } else {
       err = kModemError::kDbmaToHexRange;
     }
@@ -521,6 +576,27 @@ kModemError Bg95AtModem::HexToDbma(kModemBand band, float& power,
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Band {}", band);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Power {}", power);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Hex {}", hex);
+
+  return err;
+}
+
+kModemError Bg95AtModem::SetupNetwork(std::string operator_name,
+                                         std::string operator_code,
+                                         std::string apn_name,
+                                         std::string apn_user,
+                                         std::string apn_pass) {
+  kModemError err{kModemError::kNoError};
+
+  
+  sendATCommand("AT+COPS=1,2,\""+operator_code+"\",0");
+  //err = CheckResponce("OK", 1000, "No response from modem!");
+  //if (err != kModemError::kNoError) {}
+  
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Operator name {}", operator_name);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Operator code {}", operator_code);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "APN name {}", apn_name);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "APN user {}", apn_user);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "APN pass {}", apn_pass);
 
   return err;
 }

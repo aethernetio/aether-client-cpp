@@ -66,6 +66,7 @@ struct ModemInit {
   std::uint8_t pin[4];
   bool use_pin;
   kModemMode modem_mode;
+  std::string operator_code;
   std::string operator_name;
   std::string apn_name;
   std::string apn_user;

@@ -42,13 +42,14 @@ class Sim7070AtModem : public IModemDriver {
   std::unique_ptr<ISerialPort> serial_;
 
   kModemError CheckResponce(std::string responce, std::uint32_t wait_time,
-                    std::string error_message);
+                            std::string error_message);
   kModemError SetBaudRate(std::uint32_t rate);
   kModemError CheckSimStatus();
   kModemError SetupSim(const std::uint8_t pin[4]);
   kModemError SetNetMode(kModemMode modem_mode);
-  kModemError SetupNetwork(std::string operator_name, std::string apn_name,
-                   std::string apn_user, std::string apn_pass);
+  kModemError SetupNetwork(std::string operator_name, std::string operator_code,
+                           std::string apn_name, std::string apn_user,
+                           std::string apn_pass);
   void sendATCommand(const std::string& command);
   bool waitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);
