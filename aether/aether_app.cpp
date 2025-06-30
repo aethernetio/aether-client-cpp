@@ -32,13 +32,13 @@
 #include "aether/dns/esp32_dns_resolve.h"
 // IWYU pragma: end_keeps
 
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 
 #include "aether/aether_tele.h"
 
 namespace ae {
 AetherAppContext::InitTele::InitTele() {
-  ae::TeleInit::Init();
+  ae::tele::TeleInit::Init();
   AE_TELE_ENV();
   AE_TELE_INFO(AetherStarted);
   ae::Registry::Log();
@@ -122,7 +122,7 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
   auto app = MakeRcPtr<AetherApp>();
   app->aether_ = context.aether();
 
-  ae::TeleInit::Init(app->aether_);
+  ae::tele::TeleInit::Init(app->aether_->tele_statistics());
 
 #if defined AE_DISTILLATION
   auto adapter = context.adapter();
@@ -155,7 +155,7 @@ AetherApp::~AetherApp() {
     domain_->SaveRoot(aether_);
   }
 
-  ae::TeleInit::Init();
+  ae::tele::TeleInit::Init();
   aether_.Reset();
 }
 

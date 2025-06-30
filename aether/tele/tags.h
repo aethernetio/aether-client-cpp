@@ -40,7 +40,9 @@ inline constexpr std::uint32_t kAeTagIndexCounter<Tag, 0> =
 
 // Telemetry tag
 struct Tag {
-  std::uint32_t index;
+  constexpr std::uint32_t index() const { return module.index_start + offset; }
+
+  std::uint32_t offset;
   Module const& module;
   std::string_view name;
 };
@@ -63,10 +65,10 @@ struct Tag {
 /**
  * \brief Register Tag with index specified
  */
-#define AE_TAG_INDEXED(NAME, MODULE, INDEX)                                  \
-  inline constexpr auto NAME = ::ae::tele::Tag{(INDEX), (MODULE), #NAME};    \
-  _AE_TAG_INDEX_WRITE(MODULE, (NAME).index)                                  \
-  static_assert(((MODULE).index_start + (NAME).index) <= (MODULE).index_end, \
+#define AE_TAG_INDEXED(NAME, MODULE, INDEX)                                   \
+  inline constexpr auto NAME = ::ae::tele::Tag{(INDEX), (MODULE), #NAME};     \
+  _AE_TAG_INDEX_WRITE(MODULE, (NAME).offset)                                  \
+  static_assert(((MODULE).index_start + (NAME).offset) <= (MODULE).index_end, \
                 "Tag index out of range");
 
 /**
