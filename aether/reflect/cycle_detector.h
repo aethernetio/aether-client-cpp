@@ -30,26 +30,22 @@ template <typename T, typename Enable = void>
 struct ObjectIndex {
   static std::size_t GetIndex(T const* obj) {
     std::array<std::uint8_t, sizeof(std::uintptr_t) + sizeof(std::uint32_t)>
-        index_data;
-    *reinterpret_cast<std::uintptr_t*>(index_data.data()) =
+        buffer;
+    *reinterpret_cast<std::uintptr_t*>(buffer.data()) =
         reinterpret_cast<std::uintptr_t>(obj);
-    *reinterpret_cast<std::uint32_t*>(
-        index_data.data() + sizeof(std::uintptr_t)) = GetTypeIndex<T>();
+    *reinterpret_cast<std::uint32_t*>(buffer.data() + sizeof(std::uintptr_t)) =
+        GetTypeIndex<T>();
 
-    return crc32::from_buffer(index_data.data(), index_data.size()).value;
+    return crc32::from_buffer(buffer.data(), buffer.size()).value;
   }
 };
 
 struct CycleDetector {
   template <typename T>
-  void Add(T const* ptr) {
-    visited_objects.insert(ObjectIndex<T>::GetIndex(ptr));
-  }
-
-  template <typename T>
-  bool IsVisited(T const* ptr) const {
+  bool Add(T const* ptr) {
     auto entry = ObjectIndex<T>::GetIndex(ptr);
-    return visited_objects.find(entry) != visited_objects.end();
+    auto [it, ok] = visited_objects.insert(entry);
+    return ok;
   }
 
   std::set<std::size_t> visited_objects;
