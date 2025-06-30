@@ -37,11 +37,17 @@
 #include "aether/aether_tele.h"
 
 namespace ae {
-AetherAppContext::InitTele::InitTele() {
+
+AetherAppContext::TelemetryInit::TelemetryInit() {
   ae::tele::TeleInit::Init();
   AE_TELE_ENV();
   AE_TELE_INFO(AetherStarted);
   ae::Registry::Log();
+}
+
+void AetherAppContext::TelemetryInit::operator()(
+    AetherAppContext const& context) const {
+  ae::tele::TeleInit::Init(context.aether()->tele_statistics());
 }
 
 void AetherAppContext::InitComponentContext() {
@@ -121,8 +127,7 @@ void AetherAppContext::InitComponentContext() {
 RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
   auto app = MakeRcPtr<AetherApp>();
   app->aether_ = context.aether();
-
-  ae::tele::TeleInit::Init(app->aether_->tele_statistics());
+  context.init_tele_(context);
 
 #if defined AE_DISTILLATION
   auto adapter = context.adapter();
@@ -155,7 +160,8 @@ AetherApp::~AetherApp() {
     domain_->SaveRoot(aether_);
   }
 
-  ae::tele::TeleInit::Init();
+  // reset telemetry before delete all objects
+  TELE_SINK::Instance().SetTrap(nullptr);
   aether_.Reset();
 }
 

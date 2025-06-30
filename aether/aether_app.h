@@ -45,21 +45,25 @@
 #include "aether/domain_storage/domain_storage_factory.h"
 
 namespace ae {
+
 class AetherAppContext : public ComponentContext<AetherAppContext> {
   friend class AetherApp;
-  class InitTele {
+  class TelemetryInit {
    public:
-    InitTele();
+    TelemetryInit();
+    void operator()(AetherAppContext const& context) const;
   };
 
  public:
   explicit AetherAppContext()
-      : AetherAppContext(DomainStorageFactory::Create) {}
+      : AetherAppContext(DomainStorageFactory::Create, TelemetryInit{}) {}
 
-  template <typename Func,
-            AE_REQUIRERS((IsFunctor<Func, std::unique_ptr<IDomainStorage>()>))>
-  explicit AetherAppContext(Func const& facility_factory)
-      : init_tele_{},
+  template <typename Func, typename TeleInit = TelemetryInit,
+            AE_REQUIRERS((IsFunctor<Func, std::unique_ptr<IDomainStorage>()>)),
+            AE_REQUIRERS((IsFunctor<TeleInit, void(AetherAppContext const&)>))>
+  explicit AetherAppContext(Func const& facility_factory,
+                            TeleInit const& tele_init = TelemetryInit{})
+      : init_tele_{tele_init},
         domain_storage_{facility_factory()},
         domain_{make_unique<Domain>(Now(), *domain_storage_)} {
     InitComponentContext();
@@ -122,7 +126,7 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
  private:
   void InitComponentContext();
 
-  InitTele init_tele_;
+  std::function<void(AetherAppContext const&)> init_tele_;
   std::unique_ptr<IDomainStorage> domain_storage_;
   std::unique_ptr<Domain> domain_;
   Aether::ptr aether_;
