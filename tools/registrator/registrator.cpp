@@ -23,7 +23,7 @@
 #include "aether/domain_storage/registrar_domain_storage.h"
 
 #include "aether/tele/tele.h"
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 
 #include "registrator/register_wifi.h"
 #include "registrator/registrator_action.h"
@@ -34,7 +34,7 @@ int AetherRegistrator(const std::string& ini_file,
 
 int AetherRegistrator(const std::string& ini_file,
                       const std::string& header_file) {
-  ae::TeleInit::Init();
+  ae::tele::TeleInit::Init();
 
   ae::RegistratorConfig registrator_config{ini_file};
   auto res = registrator_config.ParseConfig();
