@@ -20,7 +20,7 @@
 #include <cstdint>
 
 #include "aether/memory.h"
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 
 // IWYU pragma: begin_exports
 #include "aether/domain_storage/ram_domain_storage.h"
@@ -162,7 +162,7 @@ void test_SyncWithFSStorage() {
 }  // namespace ae::test_ds_synchronization
 
 int test_ds_synchronization() {
-  ae::TeleInit::Init();
+  ae::tele::TeleInit::Init();
   UNITY_BEGIN();
   RUN_TEST(ae::test_ds_synchronization::test_SyncWithRamStorage);
   RUN_TEST(ae::test_ds_synchronization::test_SyncWithFSStorage);

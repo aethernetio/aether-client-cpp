@@ -21,7 +21,7 @@
 #include "aether/client.h"
 #include "aether/server.h"
 #include "aether/work_cloud.h"
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 
 #include "aether/stream_api/gates_stream.h"
 #include "aether/stream_api/buffer_stream.h"
@@ -66,7 +66,7 @@ class MockServerStream : public ByteIStream {
 class TestClientToServerStreamFixture {
  public:
   TestClientToServerStreamFixture() {
-    TeleInit::Init();
+    ae::tele::TeleInit::Init();
     server->server_id = 1;
     cloud->AddServer(server);
     client->SetConfig(Uid{{1}}, Uid{{1}}, Key{}, cloud);
