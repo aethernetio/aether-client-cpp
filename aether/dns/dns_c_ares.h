@@ -47,7 +47,7 @@ class DnsResolverCares : public DnsResolver {
 
   AE_OBJECT_REFLECT(AE_MMBR(aether_))
 
-  ResolveAction& Resolve(NameAddress const& name_address) override;
+  ActionView<ResolveAction> Resolve(NameAddress const& name_address) override;
 
  private:
   Obj::ptr aether_;

@@ -21,13 +21,11 @@
 
 namespace ae {
 
-ActionResult ResolveAction::Update() {
+ActionResult ResolveAction::Update() const {
   if (is_resolved) {
-    is_resolved = false;
     return ActionResult::Result();
   }
   if (is_failed) {
-    is_failed = false;
     return ActionResult::Error();
   }
   return {};
@@ -45,10 +43,11 @@ void ResolveAction::Failed() {
   this->Trigger();
 }
 
-ResolveAction& DnsResolver::Resolve(NameAddress const& /* name_address */) {
+ActionView<ResolveAction> DnsResolver::Resolve(
+    NameAddress const& /* name_address */) {
   // must be overridden
   assert(false);
-  std::abort();
+  return {};
 }
 
 }  // namespace ae

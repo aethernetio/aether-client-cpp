@@ -82,14 +82,14 @@ ConnectionInfo NameAddressChannelConnectionAction::connection_info() const {
 void NameAddressChannelConnectionAction::NameResolve() {
   AE_TELED_DEBUG("Name resolve {}", name_address_);
   auto resolver_ptr = dns_resolver_.Lock();
-  auto& resolver_action = resolver_ptr->Resolve(name_address_);
+  auto resolver_action = resolver_ptr->Resolve(name_address_);
   dns_resolve_subscriptions_.Push(
-      resolver_action.ResultEvent().Subscribe([this](auto const& action) {
+      resolver_action->ResultEvent().Subscribe([this](auto const& action) {
         ip_address_port_protocols_ = action.addresses;
         ip_address_port_protocol_it_ = std::begin(ip_address_port_protocols_);
         state_.Set(State::TryConnection);
       }),
-      resolver_action.ErrorEvent().Subscribe(
+      resolver_action->ErrorEvent().Subscribe(
           [this](auto const&) { state_.Set(State::NotConnected); }));
 }
 
