@@ -109,18 +109,19 @@ void AetherAppContext::InitComponentContext() {
     return poller;
   });
 
+#  if AE_SUPPORT_CLOUD_DNS
   Factory<DnsResolver>([](AetherAppContext const& context) {
     auto dns_resolver =
-#  if defined DNS_RESOLVE_ARES_ENABLED
+#    if defined DNS_RESOLVE_ARES_ENABLED
         context.domain().CreateObj<DnsResolverCares>(GlobalId::kDnsResolver,
                                                      context.aether());
-#  elif defined ESP32_DNS_RESOLVER_ENABLED
+#    elif defined ESP32_DNS_RESOLVER_ENABLED
         context.domain().CreateObj<Esp32DnsResolver>(GlobalId::kDnsResolver,
                                                      context.aether());
-#  endif
+#    endif
     return dns_resolver;
   });
-
+#  endif
 #endif  //  defined AE_DISTILLATION
 }
 
@@ -143,8 +144,10 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
 
   app->aether_->poller = context.poller();
 
+#  if AE_SUPPORT_CLOUD_DNS
   app->aether_->dns_resolver = context.dns_resolver();
   app->aether_->dns_resolver.SetFlags(ObjFlags::kUnloadedByDefault);
+#  endif
 
   context.domain().SaveRoot(app->aether_);
 #endif  // defined AE_DISTILLATION

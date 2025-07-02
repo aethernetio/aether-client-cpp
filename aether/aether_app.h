@@ -85,10 +85,14 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
 
 #if defined AE_DISTILLATION
   Adapter::ptr adapter() const { return Resolve<Adapter>(); }
+#  if AE_SUPPORT_REGISTRATION
   Cloud::ptr registration_cloud() const { return Resolve<Cloud>(); }
+#  endif  // AE_SUPPORT_REGISTRATION
   Crypto::ptr crypto() const { return Resolve<Crypto>(); }
   IPoller::ptr poller() const { return Resolve<IPoller>(); }
+#  if AE_SUPPORT_CLOUD_DNS
   DnsResolver::ptr dns_resolver() const { return Resolve<DnsResolver>(); }
+#  endif
 
   template <typename TFunc>
   AetherAppContext&& AdapterFactory(TFunc&& func) && {
@@ -115,12 +119,13 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
     Factory<IPoller>(std::forward<TFunc>(func));
     return std::move(*this);
   }
-
+#  if AE_SUPPORT_CLOUD_DNS
   template <typename TFunc>
   AetherAppContext&& DnsResolverFactory(TFunc&& func) && {
     Factory<DnsResolver>(std::forward<TFunc>(func));
     return std::move(*this);
   }
+#  endif
 #endif  //  defined AE_DISTILLATION
 
  private:
