@@ -109,8 +109,8 @@ void AetherAppContext::InitComponentContext() {
         context.domain().CreateObj<DnsResolverCares>(GlobalId::kDnsResolver,
                                                      context.aether());
 #  elif defined ESP32_DNS_RESOLVER_ENABLED
-        auto dns_resolver = context.domain().CreateObj<Esp32DnsResolver>(
-            GlobalId::kDnsResolver, context.aether());
+        context.domain().CreateObj<Esp32DnsResolver>(GlobalId::kDnsResolver,
+                                                     context.aether());
 #  endif
     return dns_resolver;
   });

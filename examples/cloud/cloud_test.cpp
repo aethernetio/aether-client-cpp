@@ -89,8 +89,7 @@ int AetherCloudExample() {
   aether_app->WaitAction(select_client_b);
 
   // wait till clients selected
-  // aether_app->WaitEvent(ae::CumulativeEvent{select_client_a->ResultEvent(),
-  //                                           select_client_b->ResultEvent()});
+  assert(client_a && client_b);
 
   // Make clients messages exchange.
   int received_count = 0;
