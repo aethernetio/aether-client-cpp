@@ -49,6 +49,7 @@ Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
 ActionView<SelectClientAction> Aether::SelectClient(
     [[maybe_unused]] Uid parent_uid, std::uint32_t client_id) {
+  AE_TELED_DEBUG("Select parent {}'s client with id {}", parent_uid, client_id);
   if (!select_client_actions_) {
     select_client_actions_.emplace(ActionContext{*action_processor});
   }
