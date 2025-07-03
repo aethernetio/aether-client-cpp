@@ -49,7 +49,8 @@ class Sim7070AtModem : public IModemDriver {
   kModemError SetNetMode(kModemMode modem_mode);
   kModemError SetupNetwork(std::string operator_name, std::string operator_code,
                            std::string apn_name, std::string apn_user,
-                           std::string apn_pass);
+                           std::string apn_pass, kModemMode modem_mode,
+                           kAuthType auth_type);
   void sendATCommand(const std::string& command);
   bool waitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);

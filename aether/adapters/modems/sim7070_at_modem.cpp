@@ -71,6 +71,16 @@ void Sim7070AtModem::Setup() {
     err = SetNetMode(kModemMode::kModeNbIot);
   }
 
+  if (err == kModemError::kNoError) {
+    err = SetupNetwork(modem_init_.operator_name,
+                       modem_init_.operator_code,
+                       modem_init_.apn_name,
+                       modem_init_.apn_user,
+                       modem_init_.apn_pass,
+                       modem_init_.modem_mode,
+                       modem_init_.auth_type);
+  }
+  
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
   } else {
@@ -288,15 +298,62 @@ kModemError Sim7070AtModem::SetupNetwork(std::string operator_name,
                                          std::string operator_code,
                                          std::string apn_name,
                                          std::string apn_user,
-                                         std::string apn_pass) {
+                                         std::string apn_pass,
+                                         kModemMode modem_mode,
+                                         kAuthType auth_type) {
   kModemError err{kModemError::kNoError};
-
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Operator name {}", operator_name);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Operator code {}", operator_code);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "APN name {}", apn_name);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "APN user {}", apn_user);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "APN pass {}", apn_pass);
-
+  std::string mode{"0"}, type{"0"};
+  
+  if(modem_mode==kModemMode::kModeAuto ||
+     modem_mode==kModemMode::kModeGSMOnly ||
+     modem_mode==kModemMode::kModeLTEOnly ||
+     modem_mode==kModemMode::kModeGSMLTE ||
+     modem_mode==kModemMode::kModeCatMNbIot){
+    mode="0";
+  } else if(modem_mode==kModemMode::kModeCatM){
+    mode="7";
+  } else if(modem_mode==kModemMode::kModeNbIot){
+    mode="9";
+  } 
+  
+  if(auth_type==kAuthType::kAuthTypeNone){
+    type="0";
+  } else if(auth_type==kAuthType::kAuthTypePAP){
+    type="1";
+  } else if(auth_type==kAuthType::kAuthTypeCHAP){
+    type="2";
+  } else if(auth_type==kAuthType::kAuthTypePAPCHAP){
+    type="3";
+  }
+  
+  // Connect to the network
+  if(!operator_name.empty()){
+    // Operator long name
+    sendATCommand("AT+COPS=1,0,\""+operator_name+"\"," + mode);
+  } else if(!operator_code.empty()){
+    // Operator code
+    sendATCommand("AT+COPS=1,2,\""+operator_code+"\","+mode);
+  } else {
+    // Auto
+    sendATCommand("AT+COPS=0");
+  }
+  
+  err = CheckResponce("OK", 120000, "No response from modem!");
+  if (err != kModemError::kNoError) {
+    sendATCommand("AT+CGDCONT=1,\"IP\","+apn_name);
+  }
+  
+  err = CheckResponce("OK", 1000, "No response from modem!");
+  if (err != kModemError::kNoError) {
+    sendATCommand("AT+CNCFG=0,0,"+apn_name+","+apn_user+","+apn_pass+","+type);
+  }
+  
+  err = CheckResponce("OK", 1000, "No response from modem!");
+  
+  if (err != kModemError::kNoError) {
+    err = kModemError::kSetNetwork;
+  }
+  
   return err;
 }
 

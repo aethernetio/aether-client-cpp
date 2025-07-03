@@ -198,18 +198,19 @@ class CloudTestAction : public Action<CloudTestAction> {
 }  // namespace ae::cloud_test
 
 int AetherCloudExample() {
-  ae::SerialInit serial_init = {"COM42", 115200};
+  ae::SerialInit serial_init = {"COM17", 115200};
 
   ae::ModemInit modem_init{
-    serial_init,                // Serial port
-    {1,1,1,1},                  // Pin code
-    false,                      // Use pin
-    ae::kModemMode::kModeAuto,  // Modem mode
-    "25020",                    // Operator code
-    "TELE2 internet",           // Operator name
-    "internet.tele2.ru",        // APN
-    "",                         // APN user
-    ""                          // APN pass
+    serial_init,                  // Serial port
+    {1,1,1,1},                    // Pin code
+    false,                        // Use pin
+    ae::kModemMode::kModeAuto,    // Modem mode
+    "25020",                      // Operator code
+    "TELE2 internet",             // Operator name
+    "internet.tele2.ru",          // APN
+    "",                           // APN user
+    "",                           // APN pass
+    ae::kAuthType::kAuthTypeNone  // Auth type
     };
 
   /**
