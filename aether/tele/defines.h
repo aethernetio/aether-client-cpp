@@ -46,7 +46,8 @@ AE_TAG(kLog, MLog)
   [[maybe_unused]] auto AE_UNIQUE_NAME(TELE_) =                                \
       ::ae::tele::Tele<TELE_SINK,                                              \
                        typename TELE_SINK::TeleConfig<LEVEL, TAG.module.id>> { \
-    TELE_SINK::Instance(), TAG, LEVEL, __FILE__, __LINE__, __VA_ARGS__         \
+    TELE_SINK::Instance(), TAG, ::ae::tele::Level{LEVEL}, __FILE__, __LINE__,  \
+        __VA_ARGS__                                                            \
   }
 
 #define AE_TELE_DEBUG(TAG_NAME, ...) \

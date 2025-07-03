@@ -198,9 +198,6 @@ list(APPEND client_messages_srcs
             "client_messages/p2p_safe_message_stream.cpp"
             )
 
-list(APPEND port_srcs
-            "port/tele_init.cpp")
-
 list(APPEND domain_storage_srcs
             "domain_storage/domain_storage_factory.cpp"
             "domain_storage/registrar_domain_storage.cpp"
@@ -214,6 +211,7 @@ list(APPEND statistics_srcs
       "statistics/channel_statistics.cpp")
 
 list(APPEND tele_srcs
+            "tele/tele_init.cpp"
             "tele/traps/io_stream_traps.cpp"
             "tele/traps/statistics_trap.cpp"
             "tele/traps/tele_statistics.cpp")
@@ -257,7 +255,6 @@ if(REGULAR_CMAKE_PROJECT)
                             ${methods_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
-                            ${port_srcs}
                             ${domain_storage_srcs}
                             ${statistics_srcs}
                             ${tele_srcs}
@@ -301,7 +298,6 @@ else()
                             ${methods_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
-                            ${port_srcs}
                             ${domain_storage_srcs}
                             ${statistics_srcs}
                             ${tele_srcs}

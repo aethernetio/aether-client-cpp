@@ -32,7 +32,7 @@
 
 #include "aether/config.h"
 #include "aether/tele/tele.h"
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 
 #if (defined(CM_ESP32))
 #  include <freertos/FreeRTOS.h>
@@ -53,7 +53,7 @@ void app_main(void) {
       .idle_core_mask = 0,  // i.e. do not watch any idle task
       .trigger_panic = true};
 
-  ae::TeleInit::Init();
+  ae::tele::TeleInit::Init();
 
   AE_TELE_ENV();
   AE_TELED_INFO("Started");

@@ -28,7 +28,7 @@
 
 #include "aether/transport/data_buffer.h"
 
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 
 #include "assert_packet.h"
 
@@ -87,7 +87,7 @@ class ApiLevel0 : public ReturnResultApiImpl,
 };
 
 void test_ApiMethodInvoke() {
-  TeleInit::Init();
+  ae::tele::TeleInit::Init();
 
   ActionProcessor ap;
   ProtocolContext pc;

@@ -71,7 +71,7 @@ int AetherCloudExample() {
   ae::Client::ptr client_b;
 
   auto select_client_a = aether_app->aether()->SelectClient(
-      ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 1);
+      ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 0);
   select_client_a->ResultEvent().Subscribe(
       [&](auto const& action) { client_a = action.client(); });
   select_client_a->ErrorEvent().Subscribe(
@@ -80,7 +80,7 @@ int AetherCloudExample() {
   aether_app->WaitAction(select_client_a);
 
   auto select_client_b = aether_app->aether()->SelectClient(
-      ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 2);
+      ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 1);
   select_client_b->ResultEvent().Subscribe(
       [&](auto const& action) { client_b = action.client(); });
   select_client_b->ErrorEvent().Subscribe(

@@ -18,47 +18,39 @@
 
 #include "aether/config.h"
 
-#if defined AE_DISTILLATION && (AE_TELE_ENABLED == 1) && \
-    (AE_TELE_LOG_CONSOLE == 1)
-#  include <iostream>
+#if defined AE_DISTILLATION && (AE_TELE_ENABLED == 1)
 
 #  include "aether/common.h"
 #  include "aether/tele/tele.h"
 #  include "aether/tele/sink.h"
 #  include "aether/ptr/rc_ptr.h"
 #  include "aether/tele/traps/statistics_trap.h"
-#  include "aether/tele/traps/io_stream_traps.h"
-#  include "aether/tele/configs/sink_to_statistics_trap.h"
 
 #  include "aether/tele/traps/tele_statistics.h"
-#  include "aether/domain_storage/file_system_std_storage.h"
+#  include "aether/domain_storage/ram_domain_storage.h"
 
-static ae::RcPtr<ae::tele::statistics::StatisticsTrap> statistics_trap;
+static std::shared_ptr<ae::tele::statistics::StatisticsTrap> statistics_trap;
 
-void InitTeleSink(ae::RcPtr<ae::tele::statistics::StatisticsTrap> const& st) {
-  auto trap = ae::MakeRcPtr<ae::tele::StatisticsObjectAndStreamTrap>(
-      st, ae::MakeRcPtr<ae::tele::IoStreamTrap>(std::cout));
-
-  TELE_SINK::InitSink(std::move(trap));
+void InitTeleSink(
+    std::shared_ptr<ae::tele::statistics::StatisticsTrap> const& st) {
+  TELE_SINK::Instance().SetTrap(st);
 
   AE_TELED_DEBUG("Tele sink initialized");
 }
 
 void setUp() {
-  statistics_trap = ae::MakeRcPtr<ae::tele::statistics::StatisticsTrap>();
+  statistics_trap = std::make_shared<ae::tele::statistics::StatisticsTrap>();
   InitTeleSink(statistics_trap);
-  // start with clean state
-  auto fs = ae::FileSystemStdStorage{};
-  fs.CleanUp();
 }
+
 void tearDown() {}
 
 namespace ae::tele::test {
 
 void test_StatisticsRotation() {
-  auto fs = ae::FileSystemStdStorage{};
-  fs.CleanUp();
-  auto domain = ae::Domain{ae::ClockType::now(), fs};
+  auto ram_ds = RamDomainStorage{};
+  ram_ds.CleanUp();
+  auto domain = ae::Domain{ae::ClockType::now(), ram_ds};
 
   TeleStatistics::ptr tele_statistics = domain.CreateObj<TeleStatistics>(1);
   tele_statistics->trap()->MergeStatistics(*statistics_trap);
@@ -70,17 +62,22 @@ void test_StatisticsRotation() {
     AE_TELED_DEBUG("12");
   }
   auto statistics_size =
-      tele_statistics->trap()->statistics_store.Get()->Size();
+      std::get<statistics::RuntimeLog>(
+          *tele_statistics->trap()->statistics_store.log_store())
+          .size;
   TEST_ASSERT_LESS_THAN(100, statistics_size);
   tele_statistics->trap()->statistics_store.SetSizeLimit(1);
-  auto zero_size = tele_statistics->trap()->statistics_store.Get()->Size();
+  // rotation happened
+  auto zero_size = std::get<statistics::RuntimeLog>(
+                       *tele_statistics->trap()->statistics_store.log_store())
+                       .size;
   TEST_ASSERT_EQUAL(0, zero_size);
 }
 
 void test_SaveLoadTeleStatistics() {
-  auto fs = ae::FileSystemStdStorage{};
-  fs.CleanUp();
-  auto domain = ae::Domain{ae::ClockType::now(), fs};
+  auto ram_ds = RamDomainStorage{};
+  ram_ds.CleanUp();
+  auto domain = ae::Domain{ae::ClockType::now(), ram_ds};
 
   AE_TELE_ENV();
 
@@ -91,40 +88,41 @@ void test_SaveLoadTeleStatistics() {
     AE_TELED_DEBUG("12");
   }
   auto statistics_size =
-      tele_statistics->trap()->statistics_store.Get()->Size();
+      std::get<statistics::RuntimeLog>(
+          *tele_statistics->trap()->statistics_store.log_store())
+          .size;
 
   // use new trap to prevent statistics change while save
-  auto temp_trap = MakeRcPtr<ae::tele::statistics::StatisticsTrap>();
+  auto temp_trap = std::make_shared<ae::tele::statistics::StatisticsTrap>();
   InitTeleSink(temp_trap);
 
   domain.SaveRoot(tele_statistics);
 
   // load stored object in new instance
-  auto domain2 = ae::Domain{ae::ClockType::now(), fs};
+  auto domain2 = ae::Domain{ae::ClockType::now(), ram_ds};
   TeleStatistics::ptr tele_statistics2;
   tele_statistics2.SetId(1);
   domain2.LoadRoot(tele_statistics2);
   TEST_ASSERT(static_cast<bool>(tele_statistics2));
 
   auto statistics_size2 =
-      tele_statistics2->trap()->statistics_store.Get()->Size();
+      std::get<statistics::RuntimeLog>(
+          *tele_statistics2->trap()->statistics_store.log_store())
+          .size;
   TEST_ASSERT_EQUAL(statistics_size, statistics_size2);
 
-  auto& logs1 = tele_statistics->trap()->statistics_store.Get()->logs().logs;
-  auto& logs2 = tele_statistics2->trap()->statistics_store.Get()->logs().logs;
   auto& metrics1 =
-      tele_statistics->trap()->statistics_store.Get()->metrics().metrics;
+      tele_statistics->trap()->statistics_store.metrics_store().metrics;
   auto& metrics2 =
-      tele_statistics2->trap()->statistics_store.Get()->metrics().metrics;
-  TEST_ASSERT_EQUAL(logs1.size(), logs2.size());
+      tele_statistics2->trap()->statistics_store.metrics_store().metrics;
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
 
   if constexpr (_AE_MODULE_CONFIG(MLog.id, AE_TELE_METRICS_MODULES) &&
                 _AE_MODULE_CONFIG(MLog.id, AE_TELE_METRICS_DURATION)) {
-    auto log_index = kLog.index;
-    TEST_ASSERT_NOT_EQUAL(metrics1[log_index].invocations_count,
+    auto log_index = kLog.offset;
+    TEST_ASSERT_EQUAL(metrics1[log_index].invocations_count,
                           metrics2[log_index].invocations_count);
-    TEST_ASSERT_NOT_EQUAL(metrics1[log_index].sum_duration,
+    TEST_ASSERT_EQUAL(metrics1[log_index].sum_duration,
                           metrics2[log_index].sum_duration);
   }
 }

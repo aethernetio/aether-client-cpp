@@ -32,16 +32,22 @@
 #include "aether/dns/esp32_dns_resolve.h"
 // IWYU pragma: end_keeps
 
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 
 #include "aether/aether_tele.h"
 
 namespace ae {
-AetherAppContext::InitTele::InitTele() {
-  ae::TeleInit::Init();
+
+AetherAppContext::TelemetryInit::TelemetryInit() {
+  ae::tele::TeleInit::Init();
   AE_TELE_ENV();
   AE_TELE_INFO(AetherStarted);
   ae::Registry::Log();
+}
+
+void AetherAppContext::TelemetryInit::operator()(
+    AetherAppContext const& context) const {
+  ae::tele::TeleInit::Init(context.aether()->tele_statistics());
 }
 
 void AetherAppContext::InitComponentContext() {
@@ -103,26 +109,26 @@ void AetherAppContext::InitComponentContext() {
     return poller;
   });
 
+#  if AE_SUPPORT_CLOUD_DNS
   Factory<DnsResolver>([](AetherAppContext const& context) {
     auto dns_resolver =
-#  if defined DNS_RESOLVE_ARES_ENABLED
+#    if defined DNS_RESOLVE_ARES_ENABLED
         context.domain().CreateObj<DnsResolverCares>(GlobalId::kDnsResolver,
                                                      context.aether());
-#  elif defined ESP32_DNS_RESOLVER_ENABLED
+#    elif defined ESP32_DNS_RESOLVER_ENABLED
         context.domain().CreateObj<Esp32DnsResolver>(GlobalId::kDnsResolver,
                                                      context.aether());
-#  endif
+#    endif
     return dns_resolver;
   });
-
+#  endif
 #endif  //  defined AE_DISTILLATION
 }
 
 RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
   auto app = MakeRcPtr<AetherApp>();
   app->aether_ = context.aether();
-
-  ae::TeleInit::Init(app->aether_);
+  context.init_tele_(context);
 
 #if defined AE_DISTILLATION
   auto adapter = context.adapter();
@@ -138,8 +144,10 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
 
   app->aether_->poller = context.poller();
 
+#  if AE_SUPPORT_CLOUD_DNS
   app->aether_->dns_resolver = context.dns_resolver();
   app->aether_->dns_resolver.SetFlags(ObjFlags::kUnloadedByDefault);
+#  endif
 
   context.domain().SaveRoot(app->aether_);
 #endif  // defined AE_DISTILLATION
@@ -155,7 +163,8 @@ AetherApp::~AetherApp() {
     domain_->SaveRoot(aether_);
   }
 
-  ae::TeleInit::Init();
+  // reset telemetry before delete all objects
+  TELE_SINK::Instance().SetTrap(nullptr);
   aether_.Reset();
 }
 

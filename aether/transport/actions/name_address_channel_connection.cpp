@@ -95,6 +95,7 @@ void NameAddressChannelConnectionAction::NameResolve() {
 
 void NameAddressChannelConnectionAction::TryConnection() {
   if (ip_address_port_protocol_it_ == std::end(ip_address_port_protocols_)) {
+    AE_TELED_ERROR("End of addresses");
     state_.Set(State::NotConnected);
     return;
   }

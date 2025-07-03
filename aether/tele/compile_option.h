@@ -14,15 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TELE_CONFIGS_SINK_NULL_TRAP_H_
-#define AETHER_TELE_CONFIGS_SINK_NULL_TRAP_H_
+#ifndef AETHER_TELE_COMPILE_OPTION_H_
+#define AETHER_TELE_COMPILE_OPTION_H_
 
-#include "aether/tele/configs/config_provider.h"
-#include "aether/tele/sink.h"
-#include "aether/tele/traps/null_traps.h"
+#ifndef AETHER_TELE_TELE_H_
+#  error "Include tele.h instead"
+#endif
+
+#include <cstdint>
+#include <string_view>
 
 namespace ae::tele {
-using SinkNullTrap = TeleSink<NullTrap, ConfigProvider>;
-}
+struct CompileOption {
+  std::uint32_t index;
+  std::string_view name;
+  std::string_view value;
+};
 
-#endif  // AETHER_TELE_CONFIGS_SINK_NULL_TRAP_H_ */
+struct CustomOption {
+  std::string_view name;
+  std::string_view value;
+};
+}  // namespace ae::tele
+#endif  // AETHER_TELE_COMPILE_OPTION_H_ */

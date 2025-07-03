@@ -71,8 +71,11 @@ ServerChannelStream::ServerChannelStream(ObjPtr<Aether> const& aether,
   connection_finished_ = connection_action_->FinishedEvent().Subscribe(
       [this]() { connection_action_.reset(); });
 
-  connection_timeout_ = connection_timer_->ResultEvent().Subscribe(
-      [this](auto const&) { OnConnectedFailed(); });
+  connection_timeout_ =
+      connection_timer_->ResultEvent().Subscribe([this](auto const&) {
+        AE_TELED_ERROR("Connection timeout");
+        OnConnectedFailed();
+      });
   connection_timer_finished_ = connection_timer_->FinishedEvent().Subscribe(
       [this]() { connection_timer_.reset(); });
 }
@@ -99,7 +102,7 @@ void ServerChannelStream::OnConnected(ChannelConnectionAction& connection) {
 
   auto connection_time =
       std::chrono::duration_cast<Duration>(Now() - connection_start_time_);
-  channel_ptr->AddConnectionTime(std::move(connection_time));
+  channel_ptr->AddConnectionTime(connection_time);
 
   if (!connection_timer_) {
     // probably timeout

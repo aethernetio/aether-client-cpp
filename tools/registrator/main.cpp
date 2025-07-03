@@ -18,17 +18,9 @@
 #include <iostream>
 #include <filesystem>
 
-#include "aether/config.h"
+extern int AetherRegistrator(const std::string &ini_file,
+                             const std::string &header_file);
 
-extern int AetherRegistrator(const std::string &ini_file, const std::string &header_file);
-
-// Test function.
-int test(const std::string &ini_file, const std::string &header_file) {
-  return AetherRegistrator(ini_file, header_file);
-}
-
-#if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-     defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))
 int main(int argc, char *argv[]) {
   std::string ini_file{};
   std::string header_file{};
@@ -51,7 +43,5 @@ int main(int argc, char *argv[]) {
     header_file = std::string(argv[2]);
   }
 
-  return test(ini_file, header_file);
- 
+  return AetherRegistrator(ini_file, header_file);
 }
-#endif

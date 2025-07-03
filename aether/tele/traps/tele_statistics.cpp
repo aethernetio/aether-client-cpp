@@ -22,7 +22,7 @@ TeleStatistics::TeleStatistics(Domain* domain) : Obj{domain} {}
 #endif
 
 #if AE_TELE_ENABLED
-RcPtr<statistics::StatisticsTrap> const& TeleStatistics::trap() {
+std::shared_ptr<statistics::StatisticsTrap> const& TeleStatistics::trap() {
   return trap_;
 }
 #endif

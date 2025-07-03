@@ -41,7 +41,7 @@
 #include "aether/ptr/rc_ptr.h"
 #include "aether/reflect/reflect.h"
 
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 #include "aether/domain_storage/ram_domain_storage.h"
 #include "aether/domain_storage/spifs_domain_storage.h"
 #include "aether/domain_storage/static_domain_storage.h"

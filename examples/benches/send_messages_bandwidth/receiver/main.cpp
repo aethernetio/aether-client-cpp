@@ -15,7 +15,7 @@
  */
 
 #include "aether/obj/domain.h"
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 #include "aether/types/literal_array.h"
 
 #include "aether/aether.h"

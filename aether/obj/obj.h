@@ -29,7 +29,7 @@
 #ifndef AETHER_OBJ_OBJ_H_
 #define AETHER_OBJ_OBJ_H_
 
-#include <iostream>
+#include <array>
 
 #include "aether/config.h"
 
@@ -82,7 +82,15 @@ class Obj {
 namespace reflect {
 template <typename T>
 struct ObjectIndex<T, std::enable_if_t<std::is_base_of_v<Obj, T>>> {
-  static std::size_t GetIndex(T const* obj) { return obj->GetId().id(); }
+  static std::size_t GetIndex(T const* obj) {
+    std::array<std::uint8_t, sizeof(std::uint32_t) + sizeof(ObjId::Type)>
+        buffer;
+    *reinterpret_cast<std::uint32_t*>(buffer.data()) = T::kClassId;
+    *reinterpret_cast<ObjId::Type*>(buffer.data() + sizeof(std::uint32_t)) =
+        obj->GetId().id();
+
+    return crc32::from_buffer(buffer.data(), buffer.size()).value;
+  }
 };
 }  // namespace reflect
 

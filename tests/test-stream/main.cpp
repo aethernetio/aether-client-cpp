@@ -16,9 +16,9 @@
 
 #include <unity.h>
 
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 
-void setUp() { ae::TeleInit::Init(); }
+void setUp() { ae::tele::TeleInit::Init(); }
 void tearDown() {}
 
 extern int test_safe_stream_types();

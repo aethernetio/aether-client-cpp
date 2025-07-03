@@ -14,14 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TELE_CONFIGS_SINK_TO_STREAM_H_
-#define AETHER_TELE_CONFIGS_SINK_TO_STREAM_H_
+#ifndef AETHER_TELE_TELE_INIT_H_
+#define AETHER_TELE_TELE_INIT_H_
 
-#include "aether/tele/configs/config_provider.h"
-#include "aether/tele/sink.h"
-#include "aether/tele/traps/io_stream_traps.h"
+// IWYU pragma: begin_keeps
+#include "aether/tele/tele.h"
+#include "aether/tele/traps/tele_statistics.h"
+// IWYU pragma: end_keeps
 
 namespace ae::tele {
-using TeleSinkToStream = TeleSink<IoStreamTrap, ConfigProvider>;
-}
-#endif  // AETHER_TELE_CONFIGS_SINK_TO_STREAM_H_ */
+struct TeleInit {
+  static void Init();
+  static void Init(TeleStatistics::ptr const& tele_statistics);
+};
+}  // namespace ae::tele
+
+#endif  // AETHER_TELE_TELE_INIT_H_

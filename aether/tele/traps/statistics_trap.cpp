@@ -17,7 +17,7 @@
 
 #include "aether/tele/traps/statistics_trap.h"
 
-#include <cmath>
+#include <sstream>
 #include <cassert>
 #include <utility>
 #include <iterator>
@@ -26,242 +26,181 @@
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
 
-namespace ae::tele {
-namespace statistics {
+namespace ae::tele::statistics {
 
-LogStore::size_type LogStore::Size() const { return logs.size(); }
-MetricsStore::size_type MetricsStore::Size() const { return metrics.size(); }
-
-template class ProxyStatistics<LogStore>;
-template class ProxyStatistics<MetricsStore>;
-
-template <typename T>
-ProxyStatistics<T>::ProxyStatistics(RcPtr<Statistics> statistics,
-                                    T& data) noexcept
-    : statistics_{std::move(statistics)}, data_{&data}, size_{data.Size()} {}
-
-template <typename T>
-ProxyStatistics<T>::ProxyStatistics(ProxyStatistics&& other) noexcept
-    : statistics_{other.statistics_}, data_{other.data_}, size_(other.size_) {
-  // null means moved
-  other.data_ = nullptr;
+RuntimeLog::RuntimeLog(SavedLog&& saved) : size{saved.data.size()} {
+  logs.push_back(std::move(std::move(saved).data));
+  auto ss = std::ostringstream{};
 }
 
-template <typename T>
-ProxyStatistics<T>::~ProxyStatistics() noexcept {
-  if (!data_) {
-    return;
-  }
-  if (size_ >= data_->Size()) {
-    return;
-  }
-
-  assert(data_->Size() > size_);
-  statistics_->UpdateSize(*data_, data_->Size() - size_);
+void RuntimeLog::Append(RuntimeLog&& newer) {
+  size += newer.size;
+  logs.splice(std::end(logs), std::move(std::move(newer).logs));
 }
 
-template <typename T>
-T* ProxyStatistics<T>::operator->() noexcept {
-  return data_;
-}
-
-std::size_t Statistics::Size() const { return size_; }
-
-LogStore& Statistics::logs() { return logs_; }
-MetricsStore& Statistics::metrics() { return metrics_; }
-
-void Statistics::UpdateSize(LogStore const& logs, std::size_t delta_size) {
-  auto sum = std::size_t{};
-  // get last delta_size elements and calculate size
-  auto const& data = logs.logs;
-  auto it = data.rbegin();
-  for (std::size_t i = 0; i < delta_size; ++i) {
-    // this should never fail
-    assert(it != data.rend());
-    sum += it->size();
-  }
-  size_ += static_cast<std::uint32_t>(sum);
-}
-
-void Statistics::UpdateSize(MetricsStore const& /* metrics */,
-                            std::size_t delta_size) {
-  // calculate size by delta count
-  size_ +=
-      static_cast<std::uint32_t>(delta_size * sizeof(MetricsStore::Metric));
-}
-
-void Statistics::Append(Statistics const& other) {
-  logs_.logs.insert(std::end(logs_.logs), std::begin(other.logs_.logs),
-                    std::end(other.logs_.logs));
-
-  for (auto const& [i, m] : other.metrics_.metrics) {
-    auto [it, inserted] = metrics_.metrics.try_emplace(i, m);
-    if (!inserted) {
-      it->second.invocations_count +=
-          static_cast<std::uint32_t>(m.invocations_count);
-      it->second.max_duration =
-          std::max(it->second.max_duration, m.max_duration);
-      it->second.sum_duration += m.sum_duration;
-      it->second.min_duration =
-          std::min(it->second.min_duration, m.min_duration);
-    }
-  }
-}
-
-StatisticsStore::StatisticsStore() : current_{MakeRcPtr<Statistics>()} {};
+StatisticsStore::StatisticsStore()
+    : logs_{MakeRcPtr<LogStorage>(RuntimeLog{})} {};
 StatisticsStore::~StatisticsStore() = default;
 
-RcPtr<Statistics> StatisticsStore::Get() {
-  if (IsCurrentFull()) {
-    Rotate();
+EnvStore& StatisticsStore::env_store() { return env_store_; }
+
+MetricsStore& StatisticsStore::metrics_store() { return metrics_store_; }
+
+RcPtr<LogStorage> StatisticsStore::log_store() {
+  // current log must be a RuntimeLog
+  if (logs_->index() != 1) {
+    // in case current logs is not a RuntimeLog
+    logs_ = MakeRcPtr<LogStorage>(
+        RuntimeLog{std::move(std::get<SavedLog>(*logs_))});
   }
-  return current_;
+  // make rotation
+  auto r_logs = std::get<RuntimeLog>(*logs_);
+  if (r_logs.size >= statistics_size_limit_) {
+    prev_logs_ = std::move(logs_);
+    logs_ = MakeRcPtr<LogStorage>(RuntimeLog{});
+  }
+
+  return logs_;
 }
 
-EnvStore& StatisticsStore::GetEnvStore() { return env_store_; }
-
 void StatisticsStore::Merge(StatisticsStore const& newer) {
-  // should always be
-  assert(newer.current_);
-  // access through Get(), to make rotation if needed
-  auto current = Get();
-  current->Append(*newer.current_);
+  // just steal env_store_
+  env_store_ = newer.env_store_;
 
-  if (newer.prev_) {
-    prev_ = newer.prev_;
+  // merge logs
+  // logs_ always should be
+  assert(newer.logs_);
+  // access through log_store, to make rotation if needed
+  auto current = log_store();
+  std::get<RuntimeLog>(*current).Append(
+      std::move(std::get<RuntimeLog>(*newer.logs_)));
+
+  if (newer.prev_logs_) {
+    prev_logs_ = newer.prev_logs_;
   }
 
-  env_store_ = newer.env_store_;
+  // merge metrics
+  for (auto const& [index, metric] : newer.metrics_store_.metrics) {
+    auto it = metrics_store_.metrics.find(index);
+    if (it == std::end(metrics_store_.metrics)) {
+      metrics_store_.metrics[index] = metric;
+      continue;
+    }
+    it->second.invocations_count += metric.invocations_count;
+    it->second.max_duration =
+        std::max(it->second.max_duration, metric.max_duration);
+    it->second.min_duration =
+        std::min(it->second.min_duration, metric.min_duration);
+    it->second.sum_duration += metric.sum_duration;
+  }
 }
 
 void StatisticsStore::SetSizeLimit(std::size_t limit) {
   statistics_size_limit_ = static_cast<std::uint32_t>(limit);
 }
 
-bool StatisticsStore::IsCurrentFull() const {
-  return current_->Size() >= statistics_size_limit_;
-}
-
-void StatisticsStore::Rotate() {
-  prev_.Reset();
-  prev_ = std::move(current_);
-  current_ = MakeRcPtr<Statistics>();
-}
-
-StatisticsTrap::LogStream::LogStream(ProxyStatistics<LogStore>&& ls,
-                                     VectorWriter<PackedSize>&& vw)
-    : log_store(std::move(ls)),
-      vector_writer(std::move(vw)),
-      log_writer{vector_writer} {}
-
-StatisticsTrap::LogStream::LogStream(LogStream&& other) noexcept
-    : log_store(std::move(other.log_store)),
-      vector_writer(std::move(other.vector_writer)),
-      log_writer{vector_writer} {}
-
-StatisticsTrap::LogStream::~LogStream() = default;
-
-void StatisticsTrap::LogStream::index(PackedIndex index) {
-  log_writer << index;
-}
-void StatisticsTrap::LogStream::start_time(TimePoint const& start) {
-  // TODO: ambiguous overload for 'operator<<' for TimePoint
-  log_writer << start.time_since_epoch().count();
-}
-void StatisticsTrap::LogStream::level(Level::underlined_t level) {
-  log_writer << level;
-}
-void StatisticsTrap::LogStream::module(Module const& module) {
-  log_writer << module.id;
-}
-void StatisticsTrap::LogStream::file(std::string_view file) {
-  log_writer << file;
-}
-void StatisticsTrap::LogStream::line(PackedLine line) { log_writer << line; }
-void StatisticsTrap::LogStream::name(std::string_view name) {
-  log_writer << name;
-}
-
-StatisticsTrap::MetricStream::MetricStream(ProxyStatistics<MetricsStore>&& ms,
-                                           MetricsStore::PackedIndex index)
-    : metrics_store{std::move(ms)}, index{index} {}
-
-StatisticsTrap::MetricStream::MetricStream(MetricStream&& other) noexcept =
-    default;
-
-StatisticsTrap::MetricStream::~MetricStream() = default;
-
-void StatisticsTrap::MetricStream::add_count(std::uint32_t count) {
-  metrics_store->metrics[index].invocations_count += count;
-}
-
-void StatisticsTrap::MetricStream::add_duration(std::uint32_t duration) {
-  auto& metric = metrics_store->metrics[index];
-
-  // TODO: check overflow?
-  metric.sum_duration += duration;
-  metric.max_duration =
-      std::max(static_cast<std::uint32_t>(metric.max_duration), duration);
-  metric.min_duration =
-      std::min(static_cast<std::uint32_t>(metric.min_duration), duration);
-}
-
-void StatisticsTrap::EnvStream::platform_type(char const* platform_type) {
-  env_store.platform = platform_type;
-}
-void StatisticsTrap::EnvStream::compiler(char const* compiler) {
-  env_store.compiler = compiler;
-}
-void StatisticsTrap::EnvStream::compiler_version(char const* compiler_version) {
-  env_store.compiler_version = compiler_version;
-}
-void StatisticsTrap::EnvStream::compilation_option(CompileOption const& opt) {
-  env_store.compile_options.emplace_back(opt.index_, opt.value_);
-}
-void StatisticsTrap::EnvStream::library_version(char const* library_version) {
-  env_store.library_version = library_version;
-}
-void StatisticsTrap::EnvStream::api_version(char const* api_version) {
-  env_store.api_version = api_version;
-}
-void StatisticsTrap::EnvStream::cpu_type(char const* cpu_type) {
-  env_store.cpu_type = cpu_type;
-}
-void StatisticsTrap::EnvStream::endianness(std::uint8_t endianness) {
-  env_store.endianness = endianness;
-}
-void StatisticsTrap::EnvStream::utmid(std::uint32_t utm_id) {
-  env_store.utm_id = utm_id;
-}
-
 StatisticsTrap::StatisticsTrap() = default;
 StatisticsTrap::~StatisticsTrap() = default;
 
-StatisticsTrap::LogStream StatisticsTrap::log_stream(
-    Declaration const& /* decl */) {
-  // TODO: use decl
-  auto statistics = statistics_store.Get();
-  auto logs = ProxyStatistics{statistics, statistics->logs()};
-  auto& entry = logs->logs.emplace_back();
-  return {std::move(logs), {entry}};
+StatisticsTrap::LogLine::LogLine(std::unique_lock<std::mutex> l,
+                                 RcPtr<LogStorage> log,
+                                 std::vector<std::uint8_t>& d)
+    : lock{std::move(l)},
+      log_storage{std::move(log)},
+      vector_writer{d},
+      log_writer{vector_writer} {}
+
+StatisticsTrap::LogLine::~LogLine() {
+  // update log size
+  std::get<RuntimeLog>(*log_storage).size += vector_writer.data_.size();
 }
 
-StatisticsTrap::MetricStream StatisticsTrap::metric_stream(
-    Declaration const& decl) {
-  auto statistics = statistics_store.Get();
-  auto metrics = ProxyStatistics{statistics, statistics->metrics()};
-  return {std::move(metrics), decl.index};
+void StatisticsTrap::AddInvoke(Tag const& tag, std::uint32_t count) {
+  auto lock = std::lock_guard(sync_lock_);
+  statistics_store.metrics_store().metrics[tag.index()].invocations_count +=
+      count;
 }
 
-StatisticsTrap::EnvStream StatisticsTrap::env_stream() {
-  return {statistics_store.GetEnvStore()};
+void StatisticsTrap::AddInvokeDuration(Tag const& tag, Duration duration) {
+  auto lock = std::lock_guard(sync_lock_);
+  auto& metr = statistics_store.metrics_store().metrics[tag.index()];
+
+  metr.sum_duration += static_cast<std::uint32_t>(duration.count());
+  metr.max_duration = std::max(static_cast<std::uint32_t>(metr.max_duration),
+                               static_cast<std::uint32_t>(duration.count()));
+
+  if (metr.min_duration == 0) {
+    metr.min_duration = static_cast<std::uint32_t>(duration.count());
+  } else {
+    metr.min_duration = std::min(static_cast<std::uint32_t>(metr.min_duration),
+                                 static_cast<std::uint32_t>(duration.count()));
+  }
 }
 
-std::mutex& StatisticsTrap::sync() { return sync_lock_; }
+void StatisticsTrap::OpenLogLine(Tag const& tag) {
+  auto lock = std::unique_lock{sync_lock_};
+  auto log_store = statistics_store.log_store();
+  auto& runtime_log = std::get<RuntimeLog>(*log_store);
+  auto& data = runtime_log.logs.emplace_back();
+
+  log_line_.emplace(std::move(lock), log_store, data);
+  // always write an index
+  log_line_->log_writer << PackedIndex{tag.index()};
+}
+
+void StatisticsTrap::InvokeTime(TimePoint time) {
+  assert(log_line_);
+  log_line_->log_writer << time;
+}
+
+void StatisticsTrap::WriteLevel(Level level) {
+  assert(log_line_);
+  log_line_->log_writer << level.value_;
+}
+
+void StatisticsTrap::WriteModule(Module const& module) {
+  assert(log_line_);
+  log_line_->log_writer << module.id;
+}
+
+void StatisticsTrap::Location(std::string_view file, std::uint32_t line) {
+  assert(log_line_);
+  log_line_->log_writer << file << line;
+}
+
+void StatisticsTrap::TagName(std::string_view name) {
+  assert(log_line_);
+  log_line_->log_writer << name;
+}
+
+void StatisticsTrap::Blob(std::uint8_t const* data, std::size_t size) {
+  assert(log_line_);
+  log_line_->log_writer.write(static_cast<void const*>(data), size);
+}
+
+void StatisticsTrap::CloseLogLine(Tag const& /*tag*/) {
+  assert(log_line_);
+  log_line_.reset();
+}
+
+void StatisticsTrap::WriteEnvData(EnvData const& env_data) {
+  auto& env_store = statistics_store.env_store();
+  env_store.platform = env_data.platform_type;
+  env_store.compiler = env_data.compiler;
+  env_store.compiler_version = env_data.compiler_version;
+  env_store.library_version = env_data.library_version;
+  env_store.api_version = env_data.api_version;
+  env_store.cpu_arch = env_data.cpu_arch;
+  env_store.endianness = env_data.endianness;
+  env_store.utm_id = env_data.utm_id;
+  for (auto const& opt : env_data.compile_options) {
+    env_store.compile_options.emplace_back(PackedIndex{opt.index},
+                                           std::string{opt.value});
+  }
+}
 
 void StatisticsTrap::MergeStatistics(StatisticsTrap const& newer) {
   statistics_store.Merge(newer.statistics_store);
 }
 
-}  // namespace statistics
-}  // namespace ae::tele
+}  // namespace ae::tele::statistics

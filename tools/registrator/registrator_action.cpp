@@ -16,9 +16,7 @@
 
 #include "registrator/registrator_action.h"
 
-#include "aether/common.h"
 #include "aether/aether.h"
-#include "aether/types/literal_array.h"
 
 namespace ae::registrator {
 RegistratorAction::RegistratorAction(

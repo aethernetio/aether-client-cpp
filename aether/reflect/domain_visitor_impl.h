@@ -68,10 +68,9 @@ void DomainVisit(CycleDetector& cycle_detector, T&& obj,
   if constexpr (HasNodeVisitor<std::decay_t<T>>::value) {
     using Nv = NodeVisitor<std::decay_t<T>>;
     if constexpr (Nv::Policy::Match(policy)) {
-      if (cycle_detector.IsVisited(&obj)) {
+      if (!cycle_detector.Add(&obj)) {
         return;
       }
-      cycle_detector.Add(&obj);
       auto node_visitor = Nv{};
       std::as_const(node_visitor)
           .Visit(std::forward<T>(obj), cycle_detector, std::move(visitor));
