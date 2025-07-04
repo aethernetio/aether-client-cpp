@@ -103,7 +103,6 @@ list(APPEND actions_srcs
             )
 
 list(APPEND adapters_srcs
-            "adapters/adapter_factory.cpp"
             "adapters/adapter.cpp"
             "adapters/esp32_wifi.cpp"
             "adapters/ethernet.cpp"
@@ -111,8 +110,7 @@ list(APPEND adapters_srcs
             )
 
 list(APPEND transport_srcs
-            "transport/actions/ip_channel_connection.cpp"
-            "transport/actions/name_address_channel_connection.cpp"
+            "transport/actions/build_transport_action.cpp"
             "transport/server/server_channel_stream.cpp"
             "transport/low_level/tcp/socket_packet_send_action.cpp"
             "transport/low_level/tcp/lwip_tcp.cpp"

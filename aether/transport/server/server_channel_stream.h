@@ -23,11 +23,9 @@
 #include "aether/common.h"
 #include "aether/memory.h"
 
-#include "aether/ptr/ptr.h"
-#include "aether/obj/obj_ptr.h"
+#include "aether/ptr/ptr_view.h"
 #include "aether/actions/timer_action.h"
 #include "aether/actions/action_context.h"
-#include "aether/events/multi_subscription.h"
 
 #include "aether/server.h"
 #include "aether/channel.h"
@@ -37,13 +35,14 @@
 #include "aether/stream_api/buffer_stream.h"
 #include "aether/stream_api/transport_write_stream.h"
 
+#include "aether/transport/actions/build_transport_action.h"
+
 namespace ae {
 class Aether;
-class ChannelConnectionAction;
 
 class ServerChannelStream final : public ByteIStream {
  public:
-  ServerChannelStream(ObjPtr<Aether> const& aether, Adapter::ptr const& adapter,
+  ServerChannelStream(ActionContext action_context, Adapter::ptr const& adapter,
                       Server::ptr const& server, Channel::ptr const& channel);
 
   AE_CLASS_NO_COPY_MOVE(ServerChannelStream)
@@ -54,27 +53,26 @@ class ServerChannelStream final : public ByteIStream {
   StreamInfo stream_info() const override;
 
  private:
-  void OnConnected(ChannelConnectionAction& connection);
+  void OnConnected(BuildTransportAction& build_transport_action);
   void OnConnectedFailed();
+  void ConnectTransportToStream();
 
   ActionContext action_context_;
   PtrView<Server> server_;
   PtrView<Channel> channel_;
+  BuildTransportAction build_transport_action_;
 
   BufferStream buffer_stream_;
   std::unique_ptr<ITransport> transport_;
   std::optional<TransportWriteStream> transport_write_gate_;
 
-  std::unique_ptr<class ChannelConnectionAction> connection_action_;
   TimePoint connection_start_time_;
-  std::optional<TimerAction> connection_timer_;
+  TimerAction connection_timer_;
 
-  Subscription connection_success_;
-  Subscription connection_failed_;
-  Subscription connection_finished_;
-  Subscription connection_error_;
   Subscription connection_timeout_;
-  Subscription connection_timer_finished_;
+  Subscription build_transport_success_;
+  Subscription build_transport_failed_;
+  Subscription connection_error_;
 };
 }  // namespace ae
 
