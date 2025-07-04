@@ -87,7 +87,7 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
           *server_list_, [this, aether_ptr, adapter{adapter}]() {
             auto item = server_list_->Get();
             return make_unique<ServerChannelStream>(
-                aether_ptr, adapter, item.server(), item.channel());
+                *aether_ptr, adapter, item.server(), item.channel());
           });
 
   // trigger action on state change
