@@ -103,7 +103,6 @@ class VariantType : public std::variant<Ts...> {
     return os;
   }
 };
-
 }  // namespace ae
 
 #endif  // AETHER_TYPES_VARIANT_TYPE_H_

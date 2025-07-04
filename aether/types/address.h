@@ -158,10 +158,10 @@ struct Formatter<IpAddress> {
     switch (value.version) {
       case IpAddress::Version::kIpV4: {
 #if AE_SUPPORT_IPV4 == 1
-        ctx.out().stream() << int{value.value.ipv4_value[0]} << '.'
-                           << int{value.value.ipv4_value[1]} << '.'
-                           << int{value.value.ipv4_value[2]} << '.'
-                           << int{value.value.ipv4_value[3]};
+        ctx.out().stream() << static_cast<int>(value.value.ipv4_value[0]) << '.'
+                           << static_cast<int>(value.value.ipv4_value[1]) << '.'
+                           << static_cast<int>(value.value.ipv4_value[2]) << '.'
+                           << static_cast<int>(value.value.ipv4_value[3]);
 #else
         assert(false);
 #endif  // AE_SUPPORT_IPV4 == 1
@@ -172,9 +172,9 @@ struct Formatter<IpAddress> {
         // TODO: print as conventional IpV6 format
         ctx.out().stream() << std::hex;
         for (std::size_t i = 0; i < 16; i++) {
-          ctx.out().stream() << int{value.value.ipv6_value[i]};
+          ctx.out().stream() << static_cast<int>(value.value.ipv6_value[i]);
           if (i < 15) {
-            ctx.out().stream() << ":";
+            ctx.out().stream() << ':';
           }
         }
         ctx.out().stream() << std::dec;
@@ -215,6 +215,15 @@ struct Formatter<NameAddress> {
   }
 };
 #endif
+
+template <>
+struct Formatter<UnifiedAddress> {
+  template <typename TStream>
+  void Format(UnifiedAddress const& value, FormatContext<TStream>& ctx) const {
+    std::visit([&](auto const& addr) { ae::Format(ctx.out(), "{}", addr); },
+               value);
+  }
+};
 
 }  // namespace ae
 
