@@ -79,6 +79,16 @@ std::optional<DataBuffer> WINSerialPort::ReadData() {
   return std::nullopt;
 }
 
+bool WINSerialPort::GetConnected(){
+  bool res{true};
+  
+  if (hPort_ == INVALID_HANDLE_VALUE){
+    res = false;
+  } 
+  
+  return res;
+}
+
 void WINSerialPort::Open(const std::string& portName, std::uint32_t baudRate) {
   std::string fullName = "\\\\.\\" + portName;
   hPort_ = CreateFileA(fullName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL,

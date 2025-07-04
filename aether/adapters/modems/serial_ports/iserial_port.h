@@ -40,6 +40,7 @@ class ISerialPort{
    
    virtual void WriteData(const DataBuffer& data) = 0;
    virtual std::optional<DataBuffer> ReadData() = 0;
+   virtual bool GetConnected() = 0;
 };
 
 } /* namespace ae */

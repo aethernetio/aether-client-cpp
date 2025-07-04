@@ -91,11 +91,21 @@ void Bg95AtModem::Stop() {
   
 }
 
-void Bg95AtModem::OpenNetwork(ae::Protocol protocol, std::string host,
-                              std::uint16_t port) {
+void Bg95AtModem::OpenNetwork(std::uint8_t context_index,
+                                 std::uint8_t connect_index,
+                                 ae::Protocol protocol, std::string host,
+                                 std::uint16_t port) {
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Context index {}", context_index);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Protocol {}", protocol);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Host {}", host);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Port {}", port);
+}
+
+void Bg95AtModem::CloseNetwork(std::uint8_t context_index,
+                                  std::uint8_t connect_index) {
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Context index {}", context_index);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
 }
 
 void Bg95AtModem::WritePacket(std::vector<uint8_t> const& data) {

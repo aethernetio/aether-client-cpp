@@ -33,6 +33,7 @@ public:
     ~WINSerialPort();
     void WriteData(const DataBuffer& data) override;
     std::optional<DataBuffer> ReadData() override;
+    bool GetConnected() override;
 private:
     void* hPort_;
     

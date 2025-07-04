@@ -69,8 +69,11 @@ class Bg95AtModem : public IModemDriver {
   void Init() override;
   void Setup() override;
   void Stop() override;
-  void OpenNetwork(ae::Protocol protocol, std::string host,
+  void OpenNetwork(std::uint8_t context_index, std::uint8_t connect_index,
+                   ae::Protocol protocol, std::string host,
                    std::uint16_t port) override;
+  void CloseNetwork(std::uint8_t context_index,
+                    std::uint8_t connect_index) override;
   void WritePacket(std::vector<uint8_t> const& data) override;
   void ReadPacket(std::vector<std::uint8_t>& data) override;
   void PowerOff();

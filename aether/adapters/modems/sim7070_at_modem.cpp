@@ -27,17 +27,21 @@ Sim7070AtModem::Sim7070AtModem(ModemInit modem_init) : modem_init_(modem_init) {
 void Sim7070AtModem::Init() {
   kModemError err{kModemError::kNoError};
 
-  if (err == kModemError::kNoError) {
-    sendATCommand("AT");  // Checking the connection
-    err = CheckResponce("OK", 1000, "AT command error!");
-  }
-  if (err == kModemError::kNoError) {
-    sendATCommand("ATE0");  // Turning off the echo
-    err = CheckResponce("OK", 1000, "ATE command error!");
-  }
-  if (err == kModemError::kNoError) {
-    sendATCommand("AT+CMEE=2");  // Enabling extended errors
-    err = CheckResponce("OK", 1000, "AT+CMEE command error!");
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT");  // Checking the connection
+      err = CheckResponce("OK", 1000, "AT command error!");
+    }
+    if (err == kModemError::kNoError) {
+      sendATCommand("ATE0");  // Turning off the echo
+      err = CheckResponce("OK", 1000, "ATE command error!");
+    }
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT+CMEE=2");  // Enabling extended errors
+      err = CheckResponce("OK", 1000, "AT+CMEE command error!");
+    }
+  } else {
+    err = kModemError::kSerialPortError;
   }
 
   if (err != kModemError::kNoError) {
@@ -48,39 +52,40 @@ void Sim7070AtModem::Init() {
 void Sim7070AtModem::Setup() {
   kModemError err{kModemError::kNoError};
 
-  // Configuring modem settings
-  if (err == kModemError::kNoError) {
-    err = SetBaudRate(modem_init_.serial_init.baud_rate);
+  if (serial_->GetConnected()) {
+    // Configuring modem settings
+    if (err == kModemError::kNoError) {
+      err = SetBaudRate(modem_init_.serial_init.baud_rate);
+    }
+
+    // Enabling full functionality
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT+CFUN=1");
+      err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+    }
+
+    err = CheckSimStatus();
+    if (err == kModemError::kNoError && modem_init_.use_pin == true) {
+      err = SetupSim(modem_init_.pin);
+    }
+
+    if (err == kModemError::kNoError) {
+      err = SetNetMode(kModemMode::kModeLTEOnly);
+    }
+    if (err == kModemError::kNoError) {
+      err = SetNetMode(kModemMode::kModeNbIot);
+    }
+
+    if (err == kModemError::kNoError) {
+      err = SetupNetwork(modem_init_.operator_name, modem_init_.operator_code,
+                         modem_init_.apn_name, modem_init_.apn_user,
+                         modem_init_.apn_pass, modem_init_.modem_mode,
+                         modem_init_.auth_type);
+    }
+  } else {
+    err = kModemError::kSerialPortError;
   }
 
-  // Enabling full functionality
-  if (err == kModemError::kNoError) {
-    sendATCommand("AT+CFUN=1");
-    err = CheckResponce("OK", 1000, "AT+CFUN command error!");
-  }
-
-  err = CheckSimStatus();
-  if (err == kModemError::kNoError && modem_init_.use_pin == true) {
-    err = SetupSim(modem_init_.pin);
-  }
-
-  if (err == kModemError::kNoError) {
-    err = SetNetMode(kModemMode::kModeLTEOnly);
-  }
-  if (err == kModemError::kNoError) {
-    err = SetNetMode(kModemMode::kModeNbIot);
-  }
-
-  if (err == kModemError::kNoError) {
-    err = SetupNetwork(modem_init_.operator_name,
-                       modem_init_.operator_code,
-                       modem_init_.apn_name,
-                       modem_init_.apn_user,
-                       modem_init_.apn_pass,
-                       modem_init_.modem_mode,
-                       modem_init_.auth_type);
-  }
-  
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
   } else {
@@ -91,9 +96,13 @@ void Sim7070AtModem::Setup() {
 void Sim7070AtModem::Stop() {
   kModemError err{kModemError::kNoError};
 
-  if (err == kModemError::kNoError) {
-    sendATCommand("ATZ");  // Turning off the modem correctly
-    err = CheckResponce("OK", 1000, "ATZ command error!");
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      sendATCommand("ATZ");  // Turning off the modem correctly
+      err = CheckResponce("OK", 1000, "ATZ command error!");
+    }
+  } else {
+    err = kModemError::kSerialPortError;
   }
 
   if (err != kModemError::kNoError) {
@@ -103,11 +112,24 @@ void Sim7070AtModem::Stop() {
   }
 }
 
-void Sim7070AtModem::OpenNetwork(ae::Protocol protocol, std::string host,
+void Sim7070AtModem::OpenNetwork(std::uint8_t context_index,
+                                 std::uint8_t connect_index,
+                                 ae::Protocol protocol, std::string host,
                                  std::uint16_t port) {
+  //AT+CNACT=0,1 // Activate the PDP context
+  //AT+CAOPEN=0,0,"UDP","dbservice.aethernet.io",8889
+  
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Context index {}", context_index);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Protocol {}", protocol);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Host {}", host);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Port {}", port);
+}
+
+void Sim7070AtModem::CloseNetwork(std::uint8_t context_index,
+                                  std::uint8_t connect_index) {
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Context index {}", context_index);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
 }
 
 void Sim7070AtModem::WritePacket(std::vector<uint8_t> const& data) {
@@ -294,65 +316,77 @@ kModemError Sim7070AtModem::SetNetMode(kModemMode modem_mode) {
   return err;
 }
 
-kModemError Sim7070AtModem::SetupNetwork(std::string operator_name,
-                                         std::string operator_code,
-                                         std::string apn_name,
-                                         std::string apn_user,
-                                         std::string apn_pass,
-                                         kModemMode modem_mode,
-                                         kAuthType auth_type) {
+kModemError Sim7070AtModem::SetupNetwork(
+    std::string operator_name, std::string operator_code, std::string apn_name,
+    std::string apn_user, std::string apn_pass, kModemMode modem_mode,
+    kAuthType auth_type) {
   kModemError err{kModemError::kNoError};
   std::string mode{"0"}, type{"0"};
-  
-  if(modem_mode==kModemMode::kModeAuto ||
-     modem_mode==kModemMode::kModeGSMOnly ||
-     modem_mode==kModemMode::kModeLTEOnly ||
-     modem_mode==kModemMode::kModeGSMLTE ||
-     modem_mode==kModemMode::kModeCatMNbIot){
-    mode="0";
-  } else if(modem_mode==kModemMode::kModeCatM){
-    mode="7";
-  } else if(modem_mode==kModemMode::kModeNbIot){
-    mode="9";
-  } 
-  
-  if(auth_type==kAuthType::kAuthTypeNone){
-    type="0";
-  } else if(auth_type==kAuthType::kAuthTypePAP){
-    type="1";
-  } else if(auth_type==kAuthType::kAuthTypeCHAP){
-    type="2";
-  } else if(auth_type==kAuthType::kAuthTypePAPCHAP){
-    type="3";
+
+  if (modem_mode == kModemMode::kModeAuto ||
+      modem_mode == kModemMode::kModeGSMOnly ||
+      modem_mode == kModemMode::kModeLTEOnly ||
+      modem_mode == kModemMode::kModeGSMLTE ||
+      modem_mode == kModemMode::kModeCatMNbIot) {
+    mode = "0";
+  } else if (modem_mode == kModemMode::kModeCatM) {
+    mode = "7";
+  } else if (modem_mode == kModemMode::kModeNbIot) {
+    mode = "9";
   }
-  
+
+  if (auth_type == kAuthType::kAuthTypeNone) {
+    type = "0";
+  } else if (auth_type == kAuthType::kAuthTypePAP) {
+    type = "1";
+  } else if (auth_type == kAuthType::kAuthTypeCHAP) {
+    type = "2";
+  } else if (auth_type == kAuthType::kAuthTypePAPCHAP) {
+    type = "3";
+  }
+
   // Connect to the network
-  if(!operator_name.empty()){
+  if (!operator_name.empty()) {
     // Operator long name
-    sendATCommand("AT+COPS=1,0,\""+operator_name+"\"," + mode);
-  } else if(!operator_code.empty()){
+    sendATCommand("AT+COPS=1,0,\"" + operator_name + "\"," + mode);
+  } else if (!operator_code.empty()) {
     // Operator code
-    sendATCommand("AT+COPS=1,2,\""+operator_code+"\","+mode);
+    sendATCommand("AT+COPS=1,2,\"" + operator_code + "\"," + mode);
   } else {
     // Auto
     sendATCommand("AT+COPS=0");
   }
-  
+
   err = CheckResponce("OK", 120000, "No response from modem!");
-  if (err != kModemError::kNoError) {
-    sendATCommand("AT+CGDCONT=1,\"IP\","+apn_name);
+  if (err == kModemError::kNoError) {
+    sendATCommand("AT+CGDCONT=1,\"IP\",\"" + apn_name + "\"");
+    err = CheckResponce("OK", 1000, "No response from modem!");
   }
   
-  err = CheckResponce("OK", 1000, "No response from modem!");
-  if (err != kModemError::kNoError) {
-    sendATCommand("AT+CNCFG=0,0,"+apn_name+","+apn_user+","+apn_pass+","+type);
+  if (err == kModemError::kNoError) {
+    sendATCommand("AT+CNCFG=0,0,\"" + apn_name + "\",\"" + apn_user + "\",\"" +
+                  apn_pass + "\"," + type);
+    err = CheckResponce("OK", 1000, "No response from modem!");
+  }
+
+  
+  if (err == kModemError::kNoError) {
+    sendATCommand("AT+CREG=1;+CGREG=1;+CEREG=1");
+    err = CheckResponce("OK", 1000, "No response from modem!");
   }
   
-  err = CheckResponce("OK", 1000, "No response from modem!");
-  
-  if (err != kModemError::kNoError) {
+  if (err == kModemError::kNoError) {
     err = kModemError::kSetNetwork;
   }
+
+  return err;
+}
+
+kModemError Sim7070AtModem::SetupProtoPar(){
+  kModemError err{kModemError::kNoError};
+  
+  //AT+CACFG	Set transparent parameters	OK
+  //AT+CASSLCFG	Set SSL parameters	OK
   
   return err;
 }

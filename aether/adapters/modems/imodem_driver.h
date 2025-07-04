@@ -27,19 +27,20 @@ namespace ae {
 
 enum class kModemError : std::int8_t {
   kNoError = 0,
-  kAtCommandError = -1,
-  kBaudRateError = -2,
-  kDbmaToHexBand = -3,
-  kDbmaToHexRange = -4,
-  kHexToDbmaBand = -5,
-  kHexToDbmaRange = -6,
-  kSetTxPowerBand = -7,
-  kGetTxPowerBand = -8,
-  kCheckSimStatus = -9,
-  kPinWrong = -10,
-  kSetupSim = -11,
-  kSetNetMode = -12,
-  kSetNetwork = -13
+  kSerialPortError = -1,
+  kAtCommandError = -2,
+  kBaudRateError = -3,
+  kDbmaToHexBand = -4,
+  kDbmaToHexRange = -5,
+  kHexToDbmaBand = -6,
+  kHexToDbmaRange = -7,
+  kSetTxPowerBand = -8,
+  kGetTxPowerBand = -9,
+  kCheckSimStatus = -10,
+  kPinWrong = -11,
+  kSetupSim = -12,
+  kSetNetMode = -13,
+  kSetNetwork = -14
 };
 
 enum class kModemMode : std::uint8_t {
@@ -81,7 +82,6 @@ struct ModemInit {
 };
 
 class IModemDriver {
-
  public:
   IModemDriver() = default;
   virtual ~IModemDriver() = default;
@@ -89,26 +89,30 @@ class IModemDriver {
   virtual void Init() = 0;
   virtual void Setup() = 0;
   virtual void Stop() = 0;
-  virtual void OpenNetwork(ae::Protocol protocol, std::string host, std::uint16_t port) = 0;
+  virtual void OpenNetwork(std::uint8_t context_index,
+                           std::uint8_t connect_index, ae::Protocol protocol,
+                           std::string host, std::uint16_t port) = 0;
+  virtual void CloseNetwork(std::uint8_t context_index,
+                            std::uint8_t connect_index) = 0;
   virtual void WritePacket(std::vector<uint8_t> const& data) = 0;
   virtual void ReadPacket(std::vector<std::uint8_t>& data) = 0;
 
   Event<void(bool result)> modem_connected_event_;
   Event<void(int result)> modem_error_event_;
-  
-  std::string pinToString(const std::uint8_t pin[4]) {
-  std::string result{};
 
-  for (int i = 0; i < 4; ++i) {
-    if (pin[i] > 9) {
-      result = "ERROR";
-      break;
+  std::string pinToString(const std::uint8_t pin[4]) {
+    std::string result{};
+
+    for (int i = 0; i < 4; ++i) {
+      if (pin[i] > 9) {
+        result = "ERROR";
+        break;
+      }
+      result += static_cast<char>('0' + pin[i]);
     }
-    result += static_cast<char>('0' + pin[i]);
+
+    return result;
   }
-  
-  return result;
-}
 };
 
 } /* namespace ae */
