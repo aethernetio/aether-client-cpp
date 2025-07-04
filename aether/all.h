@@ -33,7 +33,8 @@
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 
-#include "aether/adapters/adapter_factory.h"
+#include "aether/adapters/ethernet.h"
+#include "aether/adapters/esp32_wifi.h"
 #include "aether/format/format.h"
 #include "aether/obj/obj.h"
 #include "aether/ptr/ptr.h"

@@ -71,7 +71,7 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
     auto action_context = ActionContext{*aether};
 
     auto server_channel_stream =
-        make_unique<ServerChannelStream>(aether, adapter, server, channel);
+        make_unique<ServerChannelStream>(*aether, adapter, server, channel);
     auto client_server_stream = make_unique<ClientToServerStream>(
         action_context, client, server->server_id,
         std::move(server_channel_stream));

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,20 @@
  * limitations under the License.
  */
 
-#include "aether/adapters/adapter_factory.h"
+#ifndef AETHER_TRANSPORT_ITRANSPORT_BUILDER_H_
+#define AETHER_TRANSPORT_ITRANSPORT_BUILDER_H_
 
-#if defined AE_DISTILLATION
-#  include "aether/global_ids.h"
+#include <memory>
+
+#include "aether/transport/itransport.h"
 
 namespace ae {
-Adapter::ptr AdapterFactory::Create(Domain* domain, Aether::ptr const& aether,
-                                    IPoller::ptr const& poller) {
-  return domain->CreateObj<EthernetAdapter>(kEthernetAdapter, aether, poller);
-}
+class ITransportBuilder {
+ public:
+  virtual ~ITransportBuilder() = default;
+
+  virtual std::unique_ptr<ITransport> BuildTransport() = 0;
+};
 }  // namespace ae
-#endif
+
+#endif  // AETHER_TRANSPORT_ITRANSPORT_BUILDER_H_

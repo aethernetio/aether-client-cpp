@@ -162,7 +162,7 @@
 
 // window size for connection statistics
 #ifndef AE_STATISTICS_CONNECTION_WINDOW_SIZE
-#  define AE_STATISTICS_CONNECTION_WINDOW_SIZE 10
+#  define AE_STATISTICS_CONNECTION_WINDOW_SIZE 100
 #endif
 // default value used for connection timeout, until statistics are available
 #ifndef AE_DEFAULT_CONNECTION_TIMEOUT_MS
@@ -322,6 +322,11 @@
 #ifndef AE_TELE_LOG_CONSOLE
 #  define AE_TELE_LOG_CONSOLE 1
 #endif  // AE_TELE_LOG_CONSOLE
+
+// the maximum size of the telemetry statistics buffer
+#ifndef AE_STATISTICS_MAX_SIZE
+#  define AE_STATISTICS_MAX_SIZE (10 * 1024)  // 10 KB
+#endif
 
 #ifndef NDEBUG
 #  define DEBUG 1

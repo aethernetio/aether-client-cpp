@@ -20,11 +20,24 @@
 #include "aether/events/events.h"
 #include "aether/actions/action_view.h"
 
+#include "aether/types/address.h"
 #include "aether/transport/data_buffer.h"
 #include "aether/transport/actions/packet_send_action.h"
-#include "aether/transport/actions/channel_connection_action.h"
 
 namespace ae {
+enum class ConnectionState : std::uint8_t {
+  kUndefined,
+  kDisconnected,
+  kConnecting,
+  kConnected,
+};
+
+struct ConnectionInfo {
+  IpAddressPortProtocol destination;
+  std::size_t max_packet_size;
+  ConnectionState connection_state;
+};
+
 class ITransport {
  public:
   using DataReceiveEvent =

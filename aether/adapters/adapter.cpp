@@ -16,56 +16,19 @@
 
 #include "aether/adapters/adapter.h"
 
-#include <algorithm>
-
-#include "aether/global_ids.h"
-
 namespace ae {
 
 #ifdef AE_DISTILLATION
-Adapter::Adapter(Domain* domain) : Obj{domain} {
-  proxy_prefab_ = domain->CreateObj<Proxy>(GlobalId::kProxyFactory);
-  proxy_prefab_.SetFlags(ae::ObjFlags::kUnloadedByDefault);
-}
+Adapter::Adapter(Domain* domain) : Obj{domain} {}
 #endif  // AE_DISTILLATION
 
-void Adapter::CleanDeadTransports() {
-#if 0
-  std::vector<decltype(transports_cache_)::iterator> to_erase;
-  for (auto it = std::begin(transports_cache_);
-       it != std::end(transports_cache_); ++it) {
-    if (!static_cast<bool>(it->second)) {
-      to_erase.push_back(it);
-    }
-  }
-
-  for (auto erase_it : to_erase) {
-    transports_cache_.erase(erase_it);
-  }
-#endif
-}
-
-std::unique_ptr<ITransport> Adapter::FindInCache(
-    IpAddressPortProtocol /* address_port_protocol */) {
-#if 0  // transport cache for different clients is not working
-  auto cache_it = transports_cache_.find(address_port_protocol);
-  if (cache_it != transports_cache_.end()) {
-    auto transport = cache_it->second.Lock();
-    if (!transport) {
-      transports_cache_.erase(cache_it);
-    } else {
-      return transport;
-    }
-  }
-#endif
+/**
+ * \brief Provide an action creating transport builders for address
+ */
+ActionView<TransportBuilderAction> Adapter::CreateTransport(
+    UnifiedAddress const& /* address */) {
+  assert(false);
   return {};
-}
-
-void Adapter::AddToCache(IpAddressPortProtocol /* address_port_protocol */,
-                         ITransport& /* transport */) {
-#if 0
-  transports_cache_.emplace(address_port_protocol, std::move(transport));
-#endif
 }
 
 }  // namespace ae

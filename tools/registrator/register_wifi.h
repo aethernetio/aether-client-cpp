@@ -29,13 +29,14 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
  public:
 #ifdef AE_DISTILLATION
   RegisterWifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                      std::string ssid, std::string pass, Domain* domain);
+                      DnsResolver::ptr dns_resolver, std::string ssid,
+                      std::string pass, Domain* domain);
 #endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBR(ethernet_adapter_))
 
-  ActionView<CreateTransportAction> CreateTransport(
-      IpAddressPortProtocol const& address_port_protocol) override;
+  ActionView<TransportBuilderAction> CreateTransport(
+      UnifiedAddress const& address) override;
 
  private:
   // whose doing all job

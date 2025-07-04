@@ -17,30 +17,37 @@
 #ifndef AETHER_ADAPTERS_ADAPTER_H_
 #define AETHER_ADAPTERS_ADAPTER_H_
 
-#include <map>
 #include <vector>
+#include <memory>
 
 #include "aether/obj/obj.h"
-#include "aether/ptr/ptr.h"
+#include "aether/types/address.h"
 #include "aether/actions/action.h"
-#include "aether/ptr/ptr_view.h"
-#include "aether/adapters/proxy.h"
 
-#include "aether/transport/itransport.h"
+#include "aether/transport/itransport_builder.h"
 
 namespace ae {
-class CreateTransportAction : public Action<CreateTransportAction> {
+/**
+ * \brief Action makes all the preparation required to build transport for
+ * specified address.
+ */
+class TransportBuilderAction : public Action<TransportBuilderAction> {
  public:
   using Action::Action;
   using Action::operator=;
 
   virtual ActionResult Update() = 0;
 
-  virtual std::unique_ptr<ITransport> transport() = 0;
+  virtual std::vector<std::unique_ptr<ITransportBuilder>> builders() = 0;
 };
 
-// TODO: make it pure virtual
-
+/**
+ * \brief The transport builder factory.
+ * It represents network adapter like gsm modem, wifi, ethernet or any other
+ * network interface.
+ * It must configure interface and provide transport builders for specified
+ * address.
+ */
 class Adapter : public Obj {
   AE_OBJECT(Adapter, Obj, 0)
 
@@ -52,28 +59,13 @@ class Adapter : public Obj {
   explicit Adapter(Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(AE_MMBRS(proxies_, proxy_prefab_))
+  AE_OBJECT_REFLECT()
 
-  virtual ActionView<CreateTransportAction> CreateTransport(
-      IpAddressPortProtocol const& /* address_port_protocol */) {
-    return {};
-  }
-
-  virtual IpAddress ip_address() const { return {}; }
-
- protected:
-  void CleanDeadTransports();
-  // FIXME: unique_ptr in cache ?
-  std::unique_ptr<ITransport> FindInCache(
-      IpAddressPortProtocol address_port_protocol);
-  void AddToCache(IpAddressPortProtocol address_port_protocol,
-                  ITransport& transport);
-
-  Proxy::ptr proxy_prefab_;
-  std::vector<Proxy::ptr> proxies_;
-
-  std::map<IpAddressPortProtocol, std::unique_ptr<ITransport>>
-      transports_cache_;
+  /**
+   * \brief Provide an action creating transport builders for address
+   */
+  virtual ActionView<TransportBuilderAction> CreateTransport(
+      UnifiedAddress const& address);
 };
 
 }  // namespace ae
