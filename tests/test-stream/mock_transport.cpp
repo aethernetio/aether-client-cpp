@@ -18,7 +18,6 @@
 
 #include <utility>
 
-#include "aether/transport/actions/channel_connection_action.h"
 #include "aether/transport/itransport.h"
 
 namespace ae {

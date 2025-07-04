@@ -67,6 +67,7 @@ int AetherRegistrator(const std::string& ini_file,
                           .CreateObj<ae::registrator::RegisterWifiAdapter>(
                               ae::GlobalId::kRegisterWifiAdapter,
                               context.aether(), context.poller(),
+                              context.dns_resolver(),
                               registrator_config.GetWiFiSsid(),
                               registrator_config.GetWiFiPass());
                   return adapter;
@@ -74,7 +75,7 @@ int AetherRegistrator(const std::string& ini_file,
                 AE_TELED_DEBUG("ae::EthernetAdapter");
                 auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
                     ae::GlobalId::kEthernetAdapter, context.aether(),
-                    context.poller());
+                    context.poller(), context.dns_resolver());
                 return adapter;
               })
           .RegistrationCloudFactory([&registrator_config](
@@ -114,8 +115,10 @@ int AetherRegistrator(const std::string& ini_file,
                 registration_cloud->AddServerSettings(settings);
               } else if (s.server_address_type ==
                          ae::ServerAddressType::kUrlAddress) {
+#  if AE_SUPPORT_CLOUD_DNS
                 registration_cloud->AddServerSettings(ae::NameAddress{
                     s.server_address, s.server_port, s.server_protocol});
+#  endif
               }
             }
 
