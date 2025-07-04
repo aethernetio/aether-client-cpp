@@ -27,7 +27,7 @@ namespace ae {
 class DummyObj : public Obj {
   AE_OBJECT(DummyObj, Obj, 0)
 
-  DummyObj() = default;
+  using Obj::Obj;
 
  public:
   AE_OBJECT_REFLECT()
