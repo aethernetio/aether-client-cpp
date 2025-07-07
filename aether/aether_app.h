@@ -90,9 +90,7 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
 #  endif  // AE_SUPPORT_REGISTRATION
   Crypto::ptr crypto() const { return Resolve<Crypto>(); }
   IPoller::ptr poller() const { return Resolve<IPoller>(); }
-#  if AE_SUPPORT_CLOUD_DNS
   DnsResolver::ptr dns_resolver() const { return Resolve<DnsResolver>(); }
-#  endif
 
   template <typename TFunc>
   AetherAppContext&& AdapterFactory(TFunc&& func) && {

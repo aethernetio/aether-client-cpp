@@ -21,11 +21,7 @@
 
 AE_TELE_MODULE(kAdapter, 5, 101, 120);
 AE_TAG(kEthernetAdapterCreate, kAdapter)
-AE_TAG(kEthernetAdapterCreateCacheMiss, kAdapter)
-AE_TAG(kEthernetAdapterCreateCacheHit, kAdapter)
 AE_TAG(kEspWifiAdapterCreate, kAdapter)
-AE_TAG(kEspWifiAdapterCreateCacheMiss, kAdapter)
-AE_TAG(kEspWifiAdapterCreateCacheHit, kAdapter)
 AE_TAG(kEspWifiAdapterWifiTransportWait, kAdapter)
 AE_TAG(kEspWifiAdapterWifiTransportImmediately, kAdapter)
 AE_TAG(kEspWifiAdapterWifiDisconnected, kAdapter)

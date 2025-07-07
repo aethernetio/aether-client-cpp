@@ -19,9 +19,8 @@
 
 #include "aether/events/events.h"
 #include "aether/actions/action_list.h"
-#include "aether/actions/action_context.h"
-#include "aether/transport/actions/channel_connection_action.h"
 #include "aether/transport/itransport.h"
+#include "aether/actions/action_context.h"
 
 namespace ae {
 class MocTransportPacketSendAction : public PacketSendAction {
@@ -60,7 +59,7 @@ class MockTransport : public ITransport {
                                     TimePoint current_time) override;
 
   /**
-   * \brief Receive data sended through Send
+   * \brief Receive data sent through Send
    */
   EventSubscriber<void(MocTransportPacketSendAction& action)> sent_data_event();
 

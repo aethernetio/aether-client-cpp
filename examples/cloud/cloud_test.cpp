@@ -50,12 +50,12 @@ int AetherCloudExample() {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, context.aether(),
-                context.poller(), std::string(kWifiSsid),
-                std::string(kWifiPass));
+                context.poller(), context.dns_resolver(),
+                std::string(kWifiSsid), std::string(kWifiPass));
 #  else
             auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, context.aether(),
-                context.poller());
+                context.poller(), context.dns_resolver());
 #  endif
             return adapter;
           })

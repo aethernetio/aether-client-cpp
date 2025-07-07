@@ -22,7 +22,8 @@
 
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"
-#include "aether/adapters/adapter_factory.h"
+#include "aether/adapters/ethernet.h"
+#include "aether/adapters/esp32_wifi.h"
 #include "aether/poller/win_poller.h"
 #include "aether/poller/epoll_poller.h"
 #include "aether/poller/kqueue_poller.h"
@@ -53,8 +54,9 @@ void AetherAppContext::TelemetryInit::operator()(
 void AetherAppContext::InitComponentContext() {
 #if defined AE_DISTILLATION
   Factory<Adapter>([](AetherAppContext const& context) {
-    return AdapterFactory::Create(&context.domain(), context.aether(),
-                                  context.poller());
+    return context.domain().CreateObj<EthernetAdapter>(
+        GlobalId::kEthernetAdapter, context.aether(), context.poller(),
+        context.dns_resolver());
   });
 
 #  if AE_SUPPORT_REGISTRATION
@@ -109,8 +111,8 @@ void AetherAppContext::InitComponentContext() {
     return poller;
   });
 
-#  if AE_SUPPORT_CLOUD_DNS
   Factory<DnsResolver>([](AetherAppContext const& context) {
+#  if AE_SUPPORT_CLOUD_DNS
     auto dns_resolver =
 #    if defined DNS_RESOLVE_ARES_ENABLED
         context.domain().CreateObj<DnsResolverCares>(GlobalId::kDnsResolver,
@@ -120,8 +122,10 @@ void AetherAppContext::InitComponentContext() {
                                                      context.aether());
 #    endif
     return dns_resolver;
-  });
+#  else
+    return context.domain().CreateObj<DnsResolver>(GlobalId::kDnsResolver);
 #  endif
+  });
 #endif  //  defined AE_DISTILLATION
 }
 

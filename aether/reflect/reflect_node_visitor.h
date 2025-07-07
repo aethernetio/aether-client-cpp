@@ -19,7 +19,7 @@
 
 #include <utility>
 
-#include "aether/reflect/reflect.h"
+#include "aether/reflect/reflect_impl.h"
 #include "aether/reflect/node_visitor.h"
 #include "aether/reflect/cycle_detector.h"
 #include "aether/reflect/domain_visitor_impl.h"

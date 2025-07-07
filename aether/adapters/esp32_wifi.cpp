@@ -20,8 +20,9 @@
 #  include <string.h>
 
 #  include <utility>
-#  include <memory>
+#  include <cassert>
 
+#  include "aether/memory.h"
 #  include "aether/aether.h"
 #  include "aether/adapters/adapter_tele.h"
 
@@ -41,87 +42,139 @@ static EventGroupHandle_t s_wifi_event_group;
 static int s_retry_num{0};
 
 namespace ae {
+namespace esp32_wifi_internal {
+class EspWifiTransportBuilder final : public ITransportBuilder {
+ public:
+  EspWifiTransportBuilder(Esp32WifiAdapter& adapter,
+                          IpAddressPortProtocol address_port_protocol)
+      : adapter_{&adapter},
+        address_port_protocol_{std::move(address_port_protocol)} {}
 
-Esp32WifiAdapter::CreateTransportAction::CreateTransportAction(
-    ActionContext action_context, Esp32WifiAdapter* adapter,
-    Obj::ptr const& aether, IPoller::ptr const& poller,
-    IpAddressPortProtocol address_port_protocol)
-    : ae::CreateTransportAction{action_context},
-      adapter_{adapter},
-      aether_{Ptr<Aether>(aether)},
-      poller_{poller},
+  std::unique_ptr<ITransport> BuildTransport() override {
+#  if defined(LWIP_TCP_TRANSPORT_ENABLED)
+    assert(address_port_protocol_.protocol == Protocol::kTcp);
+    return make_unique<LwipTcpTransport>(*adapter_->aether_.as<Aether>(),
+                                         adapter_->poller_,
+                                         address_port_protocol_);
+#  else
+    return {};
+#  endif
+  }
+
+ private:
+  Esp32WifiAdapter* adapter_;
+  IpAddressPortProtocol address_port_protocol_;
+};
+
+EspWifiTransportBuilderAction::EspWifiTransportBuilderAction(
+    ActionContext action_context, Esp32WifiAdapter& adapter,
+    UnifiedAddress address_port_protocol)
+    : TransportBuilderAction{action_context},
+      adapter_{&adapter},
       address_port_protocol_{std::move(address_port_protocol)},
-      failed_{false} {
+      state_{State::kAddressResolve},
+      state_changed_{state_.changed_event().Subscribe(
+          [this](auto) { Action::Trigger(); })} {
   AE_TELE_DEBUG(kEspWifiAdapterWifiTransportImmediately,
                 "Wifi connected, create transport immediately");
-  CreateTransport();
 }
 
-Esp32WifiAdapter::CreateTransportAction::CreateTransportAction(
+EspWifiTransportBuilderAction::EspWifiTransportBuilderAction(
     ActionContext action_context,
-    EventSubscriber<void(bool)> wifi_connected_event, Esp32WifiAdapter* adapter,
-    Obj::ptr const& aether, IPoller::ptr const& poller,
-    IpAddressPortProtocol address_port_protocol)
-    : ae::CreateTransportAction{action_context},
-      adapter_{adapter},
-      aether_{Ptr<Aether>(aether)},
-      poller_{poller},
+    EventSubscriber<void(bool)> wifi_connected_event, Esp32WifiAdapter& adapter,
+    UnifiedAddress address_port_protocol)
+    : TransportBuilderAction{action_context},
+      adapter_{&adapter},
       address_port_protocol_{std::move(address_port_protocol)},
-      failed_{false},
+      state_{State::kWaitConnection},
       wifi_connected_subscription_{
           wifi_connected_event.Subscribe([this](auto result) {
             if (result) {
-              CreateTransport();
+              state_ = State::kAddressResolve;
             } else {
-              failed_ = true;
+              state_ = State::kFailed;
             }
-            Action::Trigger();
           })} {
   AE_TELE_DEBUG(kEspWifiAdapterWifiTransportWait, "Wait wifi connection");
 }
 
-ActionResult Esp32WifiAdapter::CreateTransportAction::Update() {
-  if (transport_) {
-    return ActionResult::Result();
-  } else if (failed_) {
-    return ActionResult::Error();
+ActionResult EspWifiTransportBuilderAction::Update() {
+  if (state_.changed()) {
+    switch (state_.Acquire()) {
+      case State::kWaitConnection:
+        break;
+      case State::kAddressResolve:
+        ResolveAddress();
+        break;
+      case State::kBuildersCreate:
+        CreateBuilders();
+        break;
+      case State::kBuildersCreated:
+        return ActionResult::Result();
+      case State::kFailed:
+        return ActionResult::Error();
+    }
   }
   return {};
 }
 
-std::unique_ptr<ITransport>
-Esp32WifiAdapter::CreateTransportAction::transport() {
-  return std::move(transport_);
+std::vector<std::unique_ptr<ITransportBuilder>>
+EspWifiTransportBuilderAction::builders() {
+  return std::move(transport_builders_);
 }
 
-void Esp32WifiAdapter::CreateTransportAction::CreateTransport() {
-  adapter_->CleanDeadTransports();
-  transport_ = adapter_->FindInCache(address_port_protocol_);
-  if (!transport_) {
-    AE_TELE_DEBUG(kEspWifiAdapterCreateCacheMiss);
-#  if defined(LWIP_TCP_TRANSPORT_ENABLED)
-    assert(address_port_protocol_.protocol == Protocol::kTcp);
-    transport_ =
-        make_unique<LwipTcpTransport>(*aether_.Lock()->action_processor,
-                                      poller_.Lock(), address_port_protocol_);
+#  if AE_SUPPORT_CLOUD_DNS
+void EspWifiTransportBuilderAction::ResolveAddress() {
+  std::visit(
+      reflect::OverrideFunc{
+          [this](IpAddressPortProtocol const& ip_address) {
+            ip_address_port_protocols_.push_back(ip_address);
+            state_ = State::kBuildersCreate;
+          },
+          [this](NameAddress const& name_address) {
+            auto dns_resolver = adapter_->dns_resolver_;
+            assert(dns_resolver);
+            auto resolve_action = dns_resolver->Resolve(name_address);
+
+            address_resolved_ =
+                resolve_action->ResultEvent().Subscribe([this](auto& action) {
+                  ip_address_port_protocols_ = std::move(action.addresses);
+                  state_ = State::kBuildersCreate;
+                });
+            resolving_failed_ = resolve_action->ErrorEvent().Subscribe(
+                [this](auto&) { state_ = State::kFailed; });
+          }},
+      address_port_protocol_);
+}
 #  else
-    return {};
-#  endif
-  } else {
-    AE_TELE_DEBUG(kEspWifiAdapterCreateCacheHit);
-  }
-
-  adapter_->AddToCache(address_port_protocol_, *transport_);
+void EspWifiTransportBuilderAction::ResolveAddress() {
+  auto ip_address = std::get<IpAddressPortProtocol>(address_port_protocol_);
+  ip_address_port_protocols_.push_back(ip_address);
+  state_ = State::kBuildersCreate;
 }
+#  endif
+
+void EspWifiTransportBuilderAction::CreateBuilders() {
+  for (auto const& ip_address_port_protocol : ip_address_port_protocols_) {
+    auto builder = std::make_unique<EspWifiTransportBuilder>(
+        *adapter_, ip_address_port_protocol);
+    transport_builders_.push_back(std::move(builder));
+  }
+  state_ = State::kBuildersCreated;
+}
+}  // namespace esp32_wifi_internal
 
 #  if defined AE_DISTILLATION
 Esp32WifiAdapter::Esp32WifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
+                                   DnsResolver::ptr dns_resolver,
                                    std::string ssid, std::string pass,
                                    Domain* domain)
-    : ParentWifiAdapter{std::move(aether), std::move(poller), std::move(ssid),
-                        std::move(pass), domain} {
+    : ParentWifiAdapter{std::move(aether),       std::move(poller),
+                        std::move(dns_resolver), std::move(ssid),
+                        std::move(pass),         domain} {
   AE_TELED_DEBUG("Esp32Wifi instance created!");
 }
+#  endif  // AE_DISTILLATION
 
 Esp32WifiAdapter::~Esp32WifiAdapter() {
   if (connected_ == true) {
@@ -130,22 +183,19 @@ Esp32WifiAdapter::~Esp32WifiAdapter() {
     connected_ = false;
   }
 }
-#  endif  // AE_DISTILLATION
 
-ActionView<ae::CreateTransportAction> Esp32WifiAdapter::CreateTransport(
-    IpAddressPortProtocol const& address_port_protocol) {
+ActionView<TransportBuilderAction> Esp32WifiAdapter::CreateTransport(
+    UnifiedAddress const& address_port_protocol) {
   AE_TELE_INFO(kEspWifiAdapterCreate, "Create transport for {}",
                address_port_protocol);
-  if (!create_transport_actions_) {
-    create_transport_actions_.emplace(ActionContext{*aether_.as<Aether>()});
+  if (!transport_builders_actions_) {
+    transport_builders_actions_.emplace(ActionContext{*aether_.as<Aether>()});
   }
   if (connected_) {
-    return create_transport_actions_->Emplace(this, aether_, poller_,
-                                              address_port_protocol);
+    return transport_builders_actions_->Emplace(*this, address_port_protocol);
   } else {
-    return create_transport_actions_->Emplace(
-        EventSubscriber{wifi_connected_event_}, this, aether_, poller_,
-        address_port_protocol);
+    return transport_builders_actions_->Emplace(
+        EventSubscriber{wifi_connected_event_}, *this, address_port_protocol);
   }
 }
 

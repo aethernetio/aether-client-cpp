@@ -145,12 +145,7 @@ struct EnvStore {
  * \brief Storage for telemetry statistics with rotation
  */
 class StatisticsStore {
-  static constexpr std::size_t kMaxSize =
-#ifndef STATISTICS_MAX_SIZE
-      10 * 1024;  // 10 KB
-#else
-      STATISTICS_MAX_SIZE;
-#endif
+  static constexpr std::size_t kMaxSize = AE_STATISTICS_MAX_SIZE / 2;
 
  public:
   StatisticsStore();

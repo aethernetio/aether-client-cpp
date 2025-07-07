@@ -199,7 +199,7 @@ KqueuePoller::~KqueuePoller() = default;
 }
 
 void KqueuePoller::Remove(DescriptorType descriptor) {
-  assert(kKqueue_worker_);
+  assert(poller_worker_);
   poller_worker_->Remove(descriptor);
 }
 
