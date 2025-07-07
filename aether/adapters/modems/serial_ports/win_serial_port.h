@@ -17,6 +17,8 @@
 #ifndef AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
 #define AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
 
+#if defined _WIN32
+
 #include <vector>
 #include <optional>
 #include <stdexcept>
@@ -44,4 +46,5 @@ private:
 };
 } /* namespace ae */
 
+#endif  // _WIN32
 #endif  // AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_

@@ -23,87 +23,133 @@
 
 namespace ae {
 
-ModemAdapter::CreateTransportAction::CreateTransportAction(
-    ActionContext action_context, ModemAdapter* adapter,
-    Obj::ptr const& aether, IPoller::ptr const& poller,
-    IpAddressPortProtocol address_port_protocol)
-    : ae::CreateTransportAction{action_context},
-      adapter_{adapter},
-      aether_{Ptr<Aether>(aether)},
-      poller_{poller},
+namespace modem_adapter_internal {
+class ModemAdapterTransportBuilder final : public ITransportBuilder {
+ public:
+  ModemAdapterTransportBuilder(ModemAdapter& adapter,
+                               IpAddressPortProtocol address_port_protocol)
+      : adapter_{&adapter},
+        address_port_protocol_{std::move(address_port_protocol)} {}
+
+  std::unique_ptr<ITransport> BuildTransport() override {
+#  if defined(LWIP_TCP_TRANSPORT_ENABLED)
+    assert(address_port_protocol_.protocol == Protocol::kTcp);
+    return make_unique<LteTcpTransport>(*adapter_->aether_.as<Aether>(),
+                                         adapter_->poller_,
+                                         address_port_protocol_);
+#  else
+    return {};
+#  endif
+  }
+
+ private:
+  ModemAdapter* adapter_;
+  IpAddressPortProtocol address_port_protocol_;
+};
+
+ModemAdapterTransportBuilderAction::ModemAdapterTransportBuilderAction(
+    ActionContext action_context, ModemAdapter& adapter,
+    UnifiedAddress address_port_protocol)
+    : TransportBuilderAction{action_context},
+      adapter_{&adapter},
       address_port_protocol_{std::move(address_port_protocol)},
-      once_{true},
-      failed_{false} {
+      state_{State::kAddressResolve},
+      state_changed_{state_.changed_event().Subscribe(
+          [this](auto) { Action::Trigger(); })} {
   AE_TELE_DEBUG(kAdapterModemTransportImmediately,
-                "Modem connected, create transport immediately");
-  CreateTransport();
+                "LTE modem connected, create transport immediately");
 }
 
-ModemAdapter::CreateTransportAction::CreateTransportAction(
+ModemAdapterTransportBuilderAction::ModemAdapterTransportBuilderAction(
     ActionContext action_context,
-    EventSubscriber<void(bool)> modem_connected_event, ModemAdapter* adapter,
-    Obj::ptr const& aether, IPoller::ptr const& poller,
-    IpAddressPortProtocol address_port_protocol)
-    : ae::CreateTransportAction{action_context},
-      adapter_{adapter},
-      aether_{Ptr<Aether>(aether)},
-      poller_{poller},
+    EventSubscriber<void(bool)> lte_modem_connected_event, ModemAdapter& adapter,
+    UnifiedAddress address_port_protocol)
+    : TransportBuilderAction{action_context},
+      adapter_{&adapter},
       address_port_protocol_{std::move(address_port_protocol)},
-      once_{true},
-      failed_{false},
-      modem_connected_subscription_{
-          modem_connected_event.Subscribe([this](auto result) {
+      state_{State::kWaitConnection},
+      lte_modem_connected_subscription_{
+          lte_modem_connected_event.Subscribe([this](auto result) {
             if (result) {
-              CreateTransport();
+              state_ = State::kAddressResolve;
             } else {
-              failed_ = true;
+              state_ = State::kFailed;
             }
-            Action::Trigger();
           })} {
-  AE_TELE_DEBUG(kAdapterModemTransportWait, "Wait modem connection");
+  AE_TELE_DEBUG(kAdapterModemTransportWait, "Wait LTE modem connection");
 }
 
-ActionResult ModemAdapter::CreateTransportAction::Update() {
-  if (transport_ && once_) {    
-    once_ = false;
-    return ActionResult::Result();
-  } else if (failed_ && once_) {    
-    once_ = false;
-    return ActionResult::Error();
+ActionResult ModemAdapterTransportBuilderAction::Update() {
+  if (state_.changed()) {
+    switch (state_.Acquire()) {
+      case State::kWaitConnection:
+        break;
+      case State::kAddressResolve:
+        ResolveAddress();
+        break;
+      case State::kBuildersCreate:
+        CreateBuilders();
+        break;
+      case State::kBuildersCreated:
+        return ActionResult::Result();
+      case State::kFailed:
+        return ActionResult::Error();
+    }
   }
   return {};
 }
 
-std::unique_ptr<ITransport>
-ModemAdapter::CreateTransportAction::transport() {
-  return std::move(transport_);
+std::vector<std::unique_ptr<ITransportBuilder>>
+ModemAdapterTransportBuilderAction::builders() {
+  return std::move(transport_builders_);
 }
 
-void ModemAdapter::CreateTransportAction::CreateTransport() {
-  adapter_->CleanDeadTransports();
-  transport_ = adapter_->FindInCache(address_port_protocol_);
-  if (!transport_) {
-    AE_TELE_DEBUG(kAdapterCreateCacheMiss);
-#  if defined(LTE_TCP_TRANSPORT_ENABLED)
-    assert(address_port_protocol_.protocol == Protocol::kTcp);
-    transport_ =
-        make_unique<LteTcpTransport>(*aether_.Lock()->action_processor,
-                                      poller_.Lock(), address_port_protocol_);
+#  if AE_SUPPORT_CLOUD_DNS
+void ModemAdapterTransportBuilderAction::ResolveAddress() {
+  std::visit(
+      reflect::OverrideFunc{
+          [this](IpAddressPortProtocol const& ip_address) {
+            ip_address_port_protocols_.push_back(ip_address);
+            state_ = State::kBuildersCreate;
+          },
+          [this](NameAddress const& name_address) {
+            auto dns_resolver = adapter_->dns_resolver_;
+            assert(dns_resolver);
+            auto resolve_action = dns_resolver->Resolve(name_address);
+
+            address_resolved_ =
+                resolve_action->ResultEvent().Subscribe([this](auto& action) {
+                  ip_address_port_protocols_ = std::move(action.addresses);
+                  state_ = State::kBuildersCreate;
+                });
+            resolving_failed_ = resolve_action->ErrorEvent().Subscribe(
+                [this](auto&) { state_ = State::kFailed; });
+          }},
+      address_port_protocol_);
+}
 #  else
-    return {};
-#  endif
-  } else {
-    AE_TELE_DEBUG(kAdapterCreateCacheHit);
-  }
-
-  adapter_->AddToCache(address_port_protocol_, *transport_);
+void ModemAdapterTransportBuilderAction::ResolveAddress() {
+  auto ip_address = std::get<IpAddressPortProtocol>(address_port_protocol_);
+  ip_address_port_protocols_.push_back(ip_address);
+  state_ = State::kBuildersCreate;
 }
+#  endif
+
+void ModemAdapterTransportBuilderAction::CreateBuilders() {
+  for (auto const& ip_address_port_protocol : ip_address_port_protocols_) {
+    auto builder = std::make_unique<ModemAdapterTransportBuilder>(
+        *adapter_, ip_address_port_protocol);
+    transport_builders_.push_back(std::move(builder));
+  }
+  state_ = State::kBuildersCreated;
+}
+}  // namespace modem_adapter_internal
 
 #  if defined AE_DISTILLATION
-ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
+ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller, DnsResolver::ptr dns_resolver, 
                                    ModemInit modem_init,
                                    Domain* domain)
-    : ParentModemAdapter{std::move(aether), std::move(poller), std::move(modem_init),
+    : ParentModemAdapter{std::move(aether), std::move(poller), std::move(dns_resolver), std::move(modem_init),
                         domain} {
   modem_driver_ = ModemDriverFactory::CreateModem(modem_init_);
   AE_TELED_DEBUG("Modem instance created!");
@@ -113,15 +159,15 @@ ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
 ModemAdapter::~ModemAdapter() {
   if (connected_ == true) {
     DisConnect();
-    AE_TELE_DEBUG(kAdapterDestructor, "Modem instance deleted!");
+    AE_TELED_DEBUG("Modem instance deleted!");
     connected_ = false;
   }
 }
 #  endif  // AE_DISTILLATION
 
-ActionView<ae::CreateTransportAction> ModemAdapter::CreateTransport(
-    IpAddressPortProtocol const& address_port_protocol) {
-  AE_TELE_INFO(kAdapterCreate, "Create transport for {}",
+ActionView<ae::TransportBuilderAction> ModemAdapter::CreateTransport(
+    UnifiedAddress const& address_port_protocol) {
+  AE_TELE_INFO(kAdapterModemAdapterCreate, "Create transport for {}",
                address_port_protocol);  
   if (!create_transport_actions_) {
     create_transport_actions_.emplace(

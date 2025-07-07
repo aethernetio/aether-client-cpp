@@ -37,13 +37,15 @@ class ParentModemAdapter : public Adapter {
  public:
 #ifdef AE_DISTILLATION
   ParentModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                     ModemInit modem_init, Domain* domain);
+                     DnsResolver::ptr dns_resolver, ModemInit modem_init,
+                     Domain* domain);
 #endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, modem_init_))
 
   Obj::ptr aether_;
-  IPoller::ptr poller_;  
+  IPoller::ptr poller_;
+  DnsResolver::ptr dns_resolver_;
 
   ModemInit modem_init_;
 };

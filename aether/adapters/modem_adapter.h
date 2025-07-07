@@ -31,51 +31,62 @@
 
 
 namespace ae {
+class ModemAdapter;
+namespace modem_adapter_internal {
+class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
+  enum class State : std::uint8_t {
+    kWaitConnection,
+    kAddressResolve,
+    kBuildersCreate,
+    kBuildersCreated,
+    kFailed
+  };
+
+ public:
+  // immediately create the transport
+  ModemAdapterTransportBuilderAction(ActionContext action_context,
+                                ModemAdapter& adapter,
+                                UnifiedAddress address_port_protocol);
+  // create the transport when lte modem is connected
+  ModemAdapterTransportBuilderAction(
+      ActionContext action_context,
+      EventSubscriber<void(bool)> lte_modem_connected_event,
+      ModemAdapter& adapter, UnifiedAddress address_port_protocol);
+
+  ActionResult Update() override;
+
+  std::vector<std::unique_ptr<ITransportBuilder>> builders() override;
+
+ private:
+  void ResolveAddress();
+  void CreateBuilders();
+
+  ModemAdapter* adapter_;
+  UnifiedAddress address_port_protocol_;
+  std::vector<IpAddressPortProtocol> ip_address_port_protocols_;
+  std::vector<std::unique_ptr<ITransportBuilder>> transport_builders_;
+  StateMachine<State> state_;
+  Subscription state_changed_;
+  Subscription lte_modem_connected_subscription_;
+  Subscription address_resolved_;
+  Subscription resolving_failed_;
+};
+}  // namespace modem_adapter_internal
 
 class ModemAdapter : public ParentModemAdapter {
   AE_OBJECT(ModemAdapter, ParentModemAdapter, 0)
 
-  ModemAdapter() = default;
-
-  class CreateTransportAction : public ae::CreateTransportAction {
-   public:
-    // immediately create the transport
-    CreateTransportAction(ActionContext action_context,
-                          ModemAdapter* adapter, Obj::ptr const& aether,
-                          IPoller::ptr const& poller,
-                          IpAddressPortProtocol address_port_protocol_);
-    // create the transport when wifi is connected
-    CreateTransportAction(ActionContext action_context,
-                          EventSubscriber<void(bool)> modem_connected_event,
-                          ModemAdapter* adapter, Obj::ptr const& aether,
-                          IPoller::ptr const& poller,
-                          IpAddressPortProtocol address_port_protocol_);
-                          
-    ActionResult Update() override;
-
-    std::unique_ptr<ITransport> transport() override;
-
-   private:
-    void CreateTransport();
-    
-    ModemAdapter* adapter_;
-    PtrView<Aether> aether_;
-    PtrView<IPoller> poller_;
-    IpAddressPortProtocol address_port_protocol_;
-
-    bool once_;
-    bool failed_;
-    Subscription modem_connected_subscription_;
-    std::unique_ptr<ITransport> transport_;
-  };
+  ModemAdapter() = default;  
 
  public:
-#ifdef AE_DISTILLATION
-  ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller, ModemInit modem_init,
-               Domain* domain);
-  ~ModemAdapter();
-#endif  // AE_DISTILLATION
+#  ifdef AE_DISTILLATION
+  ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller, DnsResolver::ptr dns_resolver, 
+               ModemInit modem_init,
+               Domain* domain);  
+#  endif  // AE_DISTILLATION
 
+  ~ModemAdapter();
+  
   AE_OBJECT_REFLECT(AE_MMBRS(modem_connected_event_, modem_driver_, create_transport_actions_))
 
   template <typename Dnv>
@@ -87,8 +98,8 @@ class ModemAdapter : public ParentModemAdapter {
     dnv(base_);
   }
 
-  ActionView<ae::CreateTransportAction> CreateTransport(
-      IpAddressPortProtocol const& address_port_protocol) override;
+  ActionView<TransportBuilderAction> CreateTransport(
+      UnifiedAddress const& address_port_protocol) override;
 
   void Update(TimePoint p) override;
 
@@ -99,7 +110,7 @@ class ModemAdapter : public ParentModemAdapter {
   bool connected_{false};
   Event<void(bool result)> modem_connected_event_;
   std::unique_ptr<IModemDriver> modem_driver_;
-  std::optional<ActionList<CreateTransportAction>> create_transport_actions_;
+  std::optional<ActionList<modem_adapter_internal::ModemAdapterTransportBuilderAction>> create_transport_actions_;
 };
 
 }  // namespace ae

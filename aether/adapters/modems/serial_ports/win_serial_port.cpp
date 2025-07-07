@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#if defined _WIN32
+
 #include "aether/adapters/modems/serial_ports/win_serial_port.h"
 #include "aether/adapters/parent_modem.h"
 
@@ -144,3 +146,5 @@ void WINSerialPort::Close() {
 }
 
 } /* namespace ae */
+
+#endif  // _WIN32
