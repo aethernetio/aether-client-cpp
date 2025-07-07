@@ -16,13 +16,11 @@
 
 #include "registrator/registrator_action.h"
 
-#include "aether/common.h"
 #include "aether/aether.h"
-#include "aether/types/literal_array.h"
 
 namespace ae::registrator {
 RegistratorAction::RegistratorAction(
-    Ptr<AetherApp> const& aether_app,
+    RcPtr<AetherApp> const& aether_app,
     RegistratorConfig const& registrator_config)
     : Action{*aether_app},
       aether_{aether_app->aether()},

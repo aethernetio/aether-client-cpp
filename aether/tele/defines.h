@@ -39,13 +39,15 @@ using ae::tele::Tele;
 
 // A special tag for telemetry debug debug
 
-AE_TELE_MODULE(MLog, AE_LOG_MODULE);
-AE_TAG_INDEXED(kLog, MLog, AE_LOG_MODULE)
+AE_TELE_MODULE(MLog, AE_LOG_MODULE, AE_LOG_MODULE, AE_LOG_MODULE);
+AE_TAG(kLog, MLog)
 
-#define AE_TELE_(TAG, LEVEL, ...)                                           \
-  [[maybe_unused]] auto AE_UNIQUE_NAME(TELE_) = ::ae::tele::Tele<           \
-      TELE_SINK, typename TELE_SINK::TeleConfig<LEVEL, TAG.module.value>> { \
-    TELE_SINK::Instance(), TAG, LEVEL, __FILE__, __LINE__, __VA_ARGS__      \
+#define AE_TELE_(TAG, LEVEL, ...)                                              \
+  [[maybe_unused]] auto AE_UNIQUE_NAME(TELE_) =                                \
+      ::ae::tele::Tele<TELE_SINK,                                              \
+                       typename TELE_SINK::TeleConfig<LEVEL, TAG.module.id>> { \
+    TELE_SINK::Instance(), TAG, ::ae::tele::Level{LEVEL}, __FILE__, __LINE__,  \
+        __VA_ARGS__                                                            \
   }
 
 #define AE_TELE_DEBUG(TAG_NAME, ...) \

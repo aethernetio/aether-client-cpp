@@ -16,15 +16,11 @@
 
 #include "send_message_delays/delay_statistics.h"
 
+#include <cmath>
 #include <utility>
 #include <algorithm>
 
 #include "aether/warning_disable.h"
-
-DISABLE_WARNING_PUSH()
-IGNORE_WNAN_INFINITY_DISABLED()
-#include "third_party/gcem/include/gcem.hpp"
-DISABLE_WARNING_POP()
 
 namespace ae::bench {
 DurationStatistics::DurationStatistics(DurationTable data)
@@ -64,9 +60,9 @@ DurationTable const& DurationStatistics::sorted_data() const {
 
 std::size_t DurationStatistics::GetPercentileIndex(std::size_t size,
                                                    std::size_t percentile) {
-  return static_cast<std::size_t>(
-      gcem::round(1.0f + (static_cast<float>(size) - 1.0f) *
-                             static_cast<float>(percentile) / 100.0f));
+  return static_cast<std::size_t>(std::floor((static_cast<double>(size - 1)) *
+                                             static_cast<double>(percentile) /
+                                             100.0));
 }
 
 }  // namespace ae::bench

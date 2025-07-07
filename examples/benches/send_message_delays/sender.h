@@ -17,7 +17,7 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_SENDER_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_SENDER_H_
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/memory.h"
 #include "aether/client.h"
 #include "aether/events/multi_subscription.h"

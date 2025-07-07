@@ -23,16 +23,6 @@
 
 #include "aether/work_cloud.h"
 
-// IWYU pragma: begin_keeps
-#include "aether/poller/win_poller.h"
-#include "aether/poller/epoll_poller.h"
-#include "aether/poller/kqueue_poller.h"
-#include "aether/poller/freertos_poller.h"
-
-#include "aether/dns/dns_c_ares.h"
-#include "aether/dns/esp32_dns_resolve.h"
-// IWYU pragma: end_keeps
-
 #include "aether/aether_tele.h"
 
 namespace ae {
@@ -45,33 +35,12 @@ Aether::Aether(Domain* domain) : Obj{domain} {
   client_prefab = domain->CreateObj<Client>(GlobalId::kClientFactory, self_ptr);
   client_prefab.SetFlags(ae::ObjFlags::kUnloadedByDefault);
 
-  crypto = domain->CreateObj<Crypto>(GlobalId::kCrypto);
-
   cloud_prefab = domain->CreateObj<WorkCloud>(GlobalId::kCloudFactory);
   cloud_prefab.SetFlags(ae::ObjFlags::kUnloadedByDefault);
 
   tele_statistics_ =
       domain->CreateObj<tele::TeleStatistics>(GlobalId::kTeleStatistics);
 
-#  if defined EPOLL_POLLER_ENABLED
-  poller = domain->CreateObj<EpollPoller>(GlobalId::kPoller);
-#  elif defined KQUEUE_POLLER_ENABLED
-  poller = domain->CreateObj<KqueuePoller>(GlobalId::kPoller);
-#  elif defined FREERTOS_POLLER_ENABLED
-  poller = domain->CreateObj<FreertosPoller>(GlobalId::kPoller);
-#  elif defined WIN_POLLER_ENABLED
-  poller = domain->CreateObj<WinPoller>(GlobalId::kPoller);
-#  endif
-
-#  if defined DNS_RESOLVE_ARES_ENABLED
-  dns_resolver =
-      domain->CreateObj<DnsResolverCares>(GlobalId::kDnsResolver, self_ptr);
-  dns_resolver.SetFlags(ObjFlags::kUnloadedByDefault);
-#  elif defined ESP32_DNS_RESOLVER_ENABLED
-  dns_resolver =
-      domain->CreateObj<Esp32DnsResolver>(GlobalId::kDnsResolver, self_ptr);
-  dns_resolver.SetFlags(ObjFlags::kUnloadedByDefault);
-#  endif
   AE_TELE_DEBUG(AetherCreated);
 }
 #endif  // AE_DISTILLATION
@@ -80,6 +49,7 @@ Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
 ActionView<SelectClientAction> Aether::SelectClient(
     [[maybe_unused]] Uid parent_uid, std::uint32_t client_id) {
+  AE_TELED_DEBUG("Select parent {}'s client with id {}", parent_uid, client_id);
   if (!select_client_actions_) {
     select_client_actions_.emplace(ActionContext{*action_processor});
   }

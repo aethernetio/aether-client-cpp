@@ -17,17 +17,16 @@
 #ifndef AETHER_DNS_DNS_RESOLVE_H_
 #define AETHER_DNS_DNS_RESOLVE_H_
 
+#include <vector>
+#include <cassert>
+
 #include "aether/config.h"
-
+#include "aether/obj/obj.h"
+#include "aether/obj/dummy_obj.h"
 #if AE_SUPPORT_CLOUD_DNS
-
-#  include <cstdlib>
-#  include <cassert>
-#  include <vector>
-
-#  include "aether/obj/obj.h"
-#  include "aether/actions/action.h"
 #  include "aether/types/address.h"
+#  include "aether/actions/action.h"
+#  include "aether/actions/action_view.h"
 
 namespace ae {
 // Action to get host name resolve
@@ -35,7 +34,7 @@ class ResolveAction : public Action<ResolveAction> {
  public:
   using Action::Action;
 
-  ActionResult Update();
+  ActionResult Update() const;
 
   // Set ip addresses after resolve query finished
   void SetAddress(std::vector<IpAddressPortProtocol> addr);
@@ -64,9 +63,12 @@ class DnsResolver : public Obj {
   AE_OBJECT_REFLECT()
 
   // Make a host name resolve
-  virtual ResolveAction& Resolve(NameAddress const& name_address);
+  virtual ActionView<ResolveAction> Resolve(NameAddress const& name_address);
 };
 }  // namespace ae
-
+#else
+namespace ae {
+using DnsResolver = DummyObj;
+}
 #endif
 #endif  // AETHER_DNS_DNS_RESOLVE_H_

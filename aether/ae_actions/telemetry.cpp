@@ -83,7 +83,7 @@ std::optional<Telemetric> Telemetry::CollectTelemetry() {
   }
   auto& statistics_storage =
       aether_ptr->tele_statistics()->trap()->statistics_store;
-  auto& env_storage = statistics_storage.GetEnvStore();
+  auto& env_storage = statistics_storage.env_store();
   Telemetric res{};
   res.utm_id = env_storage.utm_id;
   res.cpp.lib_version = env_storage.library_version;

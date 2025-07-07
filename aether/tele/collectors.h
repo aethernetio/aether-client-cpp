@@ -21,65 +21,37 @@
 #  error "Include tele.h instead"
 #endif
 
-#include <mutex>
+#include <memory>
 #include <chrono>
 #include <cstdint>
-#include <cstring>
 #include <utility>
 #include <type_traits>
 
 #include "aether/common.h"
+#include "aether/misc/defer.h"
+#include "aether/format/format.h"
+
 #include "aether/tele/tags.h"
+#include "aether/tele/itrap.h"
 #include "aether/tele/levels.h"
 #include "aether/tele/modules.h"
-#include "aether/tele/declaration.h"
 
 namespace ae::tele {
 struct Timer {
-  std::uint32_t elapsed() const {
-    auto d = std::chrono::duration<double>{TimePoint::clock::now() - start};
-    return static_cast<std::uint32_t>(
-        std::chrono::duration_cast<std::chrono::microseconds>(d).count());
+  Duration elapsed() const {
+    auto d = std::chrono::duration<double>{Now() - start};
+    return std::chrono::duration_cast<Duration>(d);
   }
 
-  TimePoint const start{TimePoint::clock::now()};
+  TimePoint const start{Now()};
 };
 
-template <typename T, bool Enabled = true>
-class OptionalStorage {
- public:
-  using Data = T;
+struct EmptyNull {};
 
-  template <typename... UArgs>
-  constexpr explicit OptionalStorage(UArgs&&... args)
-      : data{std::forward<UArgs>(args)...} {}
-
-  template <typename TConstructor,
-            typename = std::enable_if_t<std::is_invocable_v<TConstructor>>>
-  constexpr explicit OptionalStorage(TConstructor&& constructor)
-      : data{constructor()} {}
-
-  Data& operator*() noexcept { return data; }
-  Data const& operator*() const noexcept { return data; }
-  Data* operator->() noexcept { return &data; }
-  Data const* operator->() const noexcept { return &data; }
-
- private:
-  Data data;
-};
-
-template <typename T>
-class OptionalStorage<T, false> {
- public:
-  using Data = T;
-  struct Null {};
-  template <typename... UArgs>
-  constexpr explicit OptionalStorage(UArgs&&...) {}
-
-  Null operator*() noexcept { return {}; }
-  Null operator*() const noexcept { return {}; }
-  Null operator->() noexcept { return {}; }
-  Null operator->() const noexcept { return {}; }
+struct TimedTele {
+  Timer timer;
+  Tag const& tag;
+  std::shared_ptr<ITrap> trap;
 };
 
 template <typename TConfig>
@@ -107,102 +79,103 @@ struct Tele {
 };
 
 template <typename TSink, typename TSinkConfig>
-
 struct Tele<TSink, TSinkConfig,
             std::enable_if_t<IsAnyTele<TSinkConfig>(), void>> {
   using Sink = TSink;
-  using Sync = decltype(std::declval<Sink>().trap()->sync());
-  using MetricStream =
-      decltype(std::declval<Sink>().trap()->metric_stream(Declaration{}));
-
   using SinkConfig = TSinkConfig;
+  using TimedTele = std::conditional_t<SinkConfig::kTimeMetrics,
+                                       ae::tele::TimedTele, EmptyNull>;
 
-  using TimerStore = OptionalStorage<Timer, SinkConfig::kTimeMetrics ||
-                                                SinkConfig::kStartTimeLogs>;
-  using MetricStreamStore =
-      OptionalStorage<MetricStream, IsAnyMetrics<SinkConfig>()>;
-
-  constexpr Tele(Sink& sink, Tag const& tag, Level::underlined_t level,
+  constexpr Tele(Sink& sink, Tag const& tag, Level level,
                  char const* file, int line)
-      : Tele(sink, Declaration{tag.index, tag.module}) {
+      : Tele(sink, tag) {
     if constexpr (IsAnyLogs<SinkConfig>()) {
-      auto lock = std::unique_lock{stream_sync_};
-      auto log_stream =
-          sink.trap()->log_stream(Declaration{tag.index, tag.module});
-      if constexpr (SinkConfig::kIndexLogs) {
-        log_stream.index(tag.index);
+      // Start the log line with current tag
+      auto const& trap = sink.trap();
+      if (!trap) {
+        return;
       }
+      trap->OpenLogLine(tag);
+      defer[&] { trap->CloseLogLine(tag); };
+
       if constexpr (SinkConfig::kStartTimeLogs) {
-        log_stream.start_time(timer_->start);
+        trap->InvokeTime(Now());
       }
       if constexpr (SinkConfig::kLevelModuleLogs) {
-        log_stream.level(level);
-        log_stream.module(tag.module);
+        trap->WriteLevel(level);
+        trap->WriteModule(tag.module);
       }
       if constexpr (SinkConfig::kLocationLogs) {
-        log_stream.file(file);
-        log_stream.line(static_cast<std::uint32_t>(line));
+        trap->Location(file, static_cast<std::uint32_t>(line));
       }
       if constexpr (SinkConfig::kNameLogs) {
-        log_stream.name(tag.name);
+        trap->TagName(tag.name);
       }
     }
   }
 
   template <typename... TArgs>
-  constexpr Tele(Sink& sink, Tag const& tag, Level::underlined_t level,
-                 char const* file, int line, std::string_view format,
-                 TArgs const&... args)
-      : Tele(sink, Declaration{tag.index, tag.module}) {
+  Tele(Sink& sink, Tag const& tag, Level level, char const* file,
+       int line, std::string_view format, TArgs&&... args)
+      : Tele(sink, tag) {
     if constexpr (IsAnyLogs<SinkConfig>()) {
-      auto lock = std::lock_guard{stream_sync_};
-      auto log_stream =
-          sink.trap()->log_stream(Declaration{tag.index, tag.module});
-      if constexpr (SinkConfig::kIndexLogs) {
-        log_stream.index(tag.index);
+      auto const& trap = sink.trap();
+      if (!trap) {
+        return;
       }
+      trap->OpenLogLine(tag);
+      defer[&] { trap->CloseLogLine(tag); };
+
       if constexpr (SinkConfig::kStartTimeLogs) {
-        log_stream.start_time(timer_->start);
+        trap->InvokeTime(Now());
       }
       if constexpr (SinkConfig::kLevelModuleLogs) {
-        log_stream.level(level);
-        log_stream.module(tag.module);
+        trap->WriteLevel(level);
+        trap->WriteModule(tag.module);
       }
       if constexpr (SinkConfig::kLocationLogs) {
-        log_stream.file(file);
-        log_stream.line(static_cast<std::uint32_t>(line));
+        trap->Location(file, static_cast<std::uint32_t>(line));
       }
       if constexpr (SinkConfig::kNameLogs) {
-        log_stream.name(tag.name);
+        trap->TagName(tag.name);
       }
       if constexpr (SinkConfig::kBlobLogs) {
-        log_stream.blob(format, args...);
+        auto blob_string = Format(format, std::forward<TArgs>(args)...);
+        trap->Blob(reinterpret_cast<std::uint8_t const*>(blob_string.data()),
+                   blob_string.size());
       }
     }
   }
 
   ~Tele() {
     if constexpr (SinkConfig::kTimeMetrics) {
-      auto lock = std::lock_guard{stream_sync_};
-      metric_stream_->add_duration(timer_->elapsed());
+      if (!timed_tele_.trap) {
+        return;
+      }
+      timed_tele_.trap->AddInvokeDuration(timed_tele_.tag,
+                                          timed_tele_.timer.elapsed());
     }
   }
 
  private:
-  constexpr Tele(Sink& sink, Declaration const& decl)
-      : stream_sync_{sink.trap()->sync()}, timer_{}, metric_stream_{[&] {
-          auto lock = std::lock_guard{stream_sync_};
-          return sink.trap()->metric_stream(decl);
-        }} {
+  constexpr Tele(Sink& sink, Tag const& tag)
+      : timed_tele_{[&]() -> TimedTele {
+          if constexpr (std::is_same_v<ae::tele::TimedTele, TimedTele>) {
+            return {{}, tag, sink.trap()};
+          } else {
+            return {};
+          }
+        }()} {
     if constexpr (SinkConfig::kCountMetrics) {
-      auto lock = std::lock_guard{stream_sync_};
-      metric_stream_->add_count(1);
+      auto const& trap = sink.trap();
+      if (!trap) {
+        return;
+      }
+      trap->AddInvoke(tag, 1);
     }
   }
 
-  Sync stream_sync_;
-  TimerStore timer_;
-  MetricStreamStore metric_stream_;
+  TimedTele timed_tele_;
 };
 }  // namespace ae::tele
 

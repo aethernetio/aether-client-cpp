@@ -22,11 +22,13 @@ namespace ae {
 
 #if defined AE_DISTILLATION
 ParentWifiAdapter::ParentWifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
+                                     DnsResolver::ptr dns_resolver,
                                      std::string ssid, std::string pass,
                                      Domain* domain)
     : Adapter{domain},
       aether_{std::move(aether)},
       poller_{std::move(poller)},
+      dns_resolver_{std::move(dns_resolver)},
       ssid_{std::move(ssid)},
       pass_{std::move(pass)} {}
 #endif  // AE_DISTILLATION

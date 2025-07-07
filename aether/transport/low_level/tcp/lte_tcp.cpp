@@ -33,7 +33,7 @@ LteTcpTransport::LteTcpTransport(ActionContext action_context,
       endpoint_{endpoint},
       connection_info_{},
       socket_packet_queue_manager_{action_context_} {
-  AE_TELE_DEBUG(TcpTransport);
+  AE_TELE_DEBUG(kLteTcpTransport);
 }
 
 LteTcpTransport::~LteTcpTransport() { Disconnect(); }
@@ -60,7 +60,8 @@ ITransport::DataReceiveEvent::Subscriber LteTcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> LteTcpTransport::Send(DataBuffer data,
                                                    TimePoint current_time) {
-  AE_TELE_DEBUG(TcpTransportSend, "Send data size {} at {:%Y-%m-%d %H:%M:%S}",
+  AE_TELE_DEBUG(kLteTcpTransportSend,
+                "Send data size {} at {:%Y-%m-%d %H:%M:%S}",
                 data.size(), current_time);
   
   ae::ActionView<PacketSendAction> send_action {};

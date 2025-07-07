@@ -23,7 +23,8 @@
 #include <type_traits>
 
 #include "aether/ptr/rc_ptr.h"
-#include "aether/events/event_impl.h"
+#include "aether/events/delegate.h"
+#include "aether/events/event_list.h"
 #include "aether/events/event_handler.h"
 #include "aether/events/event_deleter.h"
 #include "aether/events/event_subscription.h"
@@ -43,22 +44,18 @@ class Event<void(TArgs...), TSyncPolicy> {
  public:
   using CallbackSignature = void(TArgs...);
   using Subscriber = EventSubscriber<CallbackSignature, TSyncPolicy>;
-  using Impl = EventImpl<CallbackSignature, TSyncPolicy>;
+  using List = EventHandlersList<TSyncPolicy>;
 
   template <typename TCallback>
   static constexpr bool kIsInvocable =
       std::is_invocable_r_v<void, std::decay_t<TCallback>, TArgs...>;
 
   explicit Event(TSyncPolicy sync_policy = {})
-      : event_impl_{MakeRcPtr<Impl>(std::forward<TSyncPolicy>(sync_policy))} {}
+      : events_list_{MakeRcPtr<List>(std::forward<TSyncPolicy>(sync_policy))} {}
 
   ~Event() = default;
 
-  Event(Event const& other) = delete;
-  Event(Event&& other) noexcept = default;
-
-  Event& operator=(Event const& other) = delete;
-  Event& operator=(Event&& other) noexcept = default;
+  AE_CLASS_MOVE_ONLY(Event)
 
   /**
    * \brief Invoke all handlers to this event.
@@ -66,7 +63,7 @@ class Event<void(TArgs...), TSyncPolicy> {
    * subscriptions.
    */
   void Emit(TArgs... args) {
-    Impl::Emit(event_impl_, std::forward<TArgs>(args)...);
+    EmitImpl(events_list_, std::forward<TArgs>(args)...);
   }
 
   /**
@@ -75,12 +72,24 @@ class Event<void(TArgs...), TSyncPolicy> {
    * returns event deleter
    */
   auto Add(EventHandler<CallbackSignature>&& handler) {
-    auto index = event_impl_->Add(std::move(handler));
-    return EventHandlerDeleter{event_impl_, index};
+    auto index = events_list_->Insert(std::move(handler));
+    return EventHandlerDeleter{events_list_, index};
   }
 
  private:
-  RcPtr<Impl> event_impl_;
+  /**
+   * \brief Invoke handler to this event.
+   * Separate static emitter is used to handle self destruction while handler
+   * invoking.
+   */
+  static void EmitImpl(RcPtr<List> events_list, TArgs&&... args) {
+    auto iterate_list = events_list->template Iterator<CallbackSignature>();
+    for (auto const& handler : iterate_list) {
+      handler.Invoke(std::forward<TArgs>(args)...);
+    }
+  }
+
+  RcPtr<List> events_list_;
 };
 
 /**
@@ -91,6 +100,7 @@ class Event<void(TArgs...), TSyncPolicy> {
 template <typename TSignature, typename TSyncPolicy>
 class EventSubscriber {
  public:
+  using Subscription = BaseSubscription<TSyncPolicy>;
   using EventType = Event<TSignature, TSyncPolicy>;
 
   EventSubscriber(EventType& event) : event_{&event} {}

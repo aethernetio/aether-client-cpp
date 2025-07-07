@@ -16,88 +16,148 @@
 
 #include "aether/aether_app.h"
 
+// IWYU pragma: begin_keeps
 #include "aether/types/literal_array.h"
 #include "aether/types/address_parser.h"
 
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"
-#include "aether/adapters/adapter_factory.h"
+#include "aether/adapters/ethernet.h"
+#include "aether/adapters/esp32_wifi.h"
+#include "aether/poller/win_poller.h"
+#include "aether/poller/epoll_poller.h"
+#include "aether/poller/kqueue_poller.h"
+#include "aether/poller/freertos_poller.h"
 
-#include "aether/port/tele_init.h"
+#include "aether/dns/dns_c_ares.h"
+#include "aether/dns/esp32_dns_resolve.h"
+// IWYU pragma: end_keeps
+
+#include "aether/tele/tele_init.h"
+
 #include "aether/aether_tele.h"
 
 namespace ae {
-AetherAppConstructor::InitTele::InitTele() {
-  ae::TeleInit::Init();
+
+AetherAppContext::TelemetryInit::TelemetryInit() {
+  ae::tele::TeleInit::Init();
   AE_TELE_ENV();
   AE_TELE_INFO(AetherStarted);
   ae::Registry::Log();
 }
 
-Ptr<AetherApp> AetherApp::Construct(AetherAppConstructor&& constructor) {
-  auto app = MakePtr<AetherApp>();
-  app->domain_facility_ = std::move(constructor.domain_facility_);
-  app->domain_ = std::move(constructor.domain_);
-  app->aether_ = std::move(constructor.aether_);
+void AetherAppContext::TelemetryInit::operator()(
+    AetherAppContext const& context) const {
+  ae::tele::TeleInit::Init(context.aether()->tele_statistics());
+}
 
-  ae::TeleInit::Init(app->aether_);
-
+void AetherAppContext::InitComponentContext() {
 #if defined AE_DISTILLATION
-  auto adapter = constructor.adapter_
-                     ? std::move(constructor.adapter_)
-                     : AdapterFactory::Create(app->domain_.get(), app->aether_);
-  adapter.SetFlags(ae::ObjFlags::kUnloadedByDefault);
-  app->aether_->adapter_factories.emplace_back(adapter);
-  app->aether_->cloud_prefab->set_adapter(adapter);
+  Factory<Adapter>([](AetherAppContext const& context) {
+    return context.domain().CreateObj<EthernetAdapter>(
+        GlobalId::kEthernetAdapter, context.aether(), context.poller(),
+        context.dns_resolver());
+  });
 
 #  if AE_SUPPORT_REGISTRATION
-  auto reg_cloud =
-      constructor.registration_cloud_
-          ? std::move(constructor.registration_cloud_)
-          : [&]() {
-              auto reg_c = app->domain_->CreateObj<RegistrationCloud>(
-                  kRegistrationCloud);
+  Factory<Cloud>([](AetherAppContext const& context) {
+    auto reg_c =
+        context.domain().CreateObj<RegistrationCloud>(kRegistrationCloud);
 #    if defined _AE_REG_CLOUD_IP
-              auto reg_cloud_ip =
-                  IpAddressParser{}.StringToIP(_AE_REG_CLOUD_IP);
-              assert(reg_cloud_ip.has_value());
-              reg_c->AddServerSettings(
-                  IpAddressPortProtocol{{*reg_cloud_ip, 9010}, Protocol::kTcp});
+    auto reg_cloud_ip = IpAddressParser{}.StringToIP(_AE_REG_CLOUD_IP);
+    assert(reg_cloud_ip.has_value());
+    reg_c->AddServerSettings(
+        IpAddressPortProtocol{{*reg_cloud_ip, 9010}, Protocol::kTcp});
 #    endif
 #    if !AE_SUPPORT_CLOUD_DNS
-              reg_c->AddServerSettings(IpAddressPortProtocol{
-                  {IpAddress{IpAddress::Version::kIpV4, {{34, 60, 244, 148}}},
-                   9010},
-                  Protocol::kTcp});
+    reg_c->AddServerSettings(IpAddressPortProtocol{
+        {IpAddress{IpAddress::Version::kIpV4, {{34, 60, 244, 148}}}, 9010},
+        Protocol::kTcp});
 #    else
-              // in case of ip address change
-              reg_c->AddServerSettings(
-                  NameAddress{"registration.aethernet.io", 9010});
+    // in case of ip address change
+    reg_c->AddServerSettings(NameAddress{"registration.aethernet.io", 9010});
 #    endif
-              return reg_c;
-            }();
-  app->aether_->registration_cloud = std::move(reg_cloud);
-  app->aether_->registration_cloud->set_adapter(adapter);
+    reg_c->set_adapter(context.adapter());
+    return reg_c;
+  });
 #  endif  // AE_SUPPORT_REGISTRATION
 
-  if (constructor.signed_keys_.empty()) {
+  Factory<Crypto>([](AetherAppContext const& context) {
+    auto crypto = context.domain().CreateObj<Crypto>(GlobalId::kCrypto);
 #  if AE_SIGNATURE == AE_ED25519
-    app->aether_->crypto->signs_pk_[ae::SignatureMethod::kEd25519] =
-        ae::SodiumSignPublicKey{
-            MakeArray("4F202A94AB729FE9B381613AE77A8A7D89EDAB9299C33"
-                      "20D1A0B994BA710CCEB")};
+    crypto->signs_pk_[ae::SignatureMethod::kEd25519] = ae::SodiumSignPublicKey{
+        MakeArray("4F202A94AB729FE9B381613AE77A8A7D89EDAB9299C33"
+                  "20D1A0B994BA710CCEB")};
 #  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-    app->aether_->crypto->signs_pk_[ae::SignatureMethod::kHydroSignature] =
+    crypto->signs_pk_[ae::SignatureMethod::kHydroSignature] =
         ae::HydrogenSignPublicKey{
             MakeArray("883B4D7E0FB04A38CA12B3A451B00942048858263EE6E"
                       "6D61150F2EF15F40343")};
 #  endif  // AE_SIGNATURE == AE_ED25519
-  } else {
-    app->aether_->crypto->signs_pk_ = std::move(constructor.signed_keys_);
-  }
+    return crypto;
+  });
 
-  app->domain_->SaveRoot(app->aether_);
+  Factory<IPoller>([](AetherAppContext const& context) {
+    auto poller =
+#  if defined EPOLL_POLLER_ENABLED
+        context.domain().CreateObj<EpollPoller>(GlobalId::kPoller);
+#  elif defined KQUEUE_POLLER_ENABLED
+        context.domain().CreateObj<KqueuePoller>(GlobalId::kPoller);
+#  elif defined FREERTOS_POLLER_ENABLED
+        context.domain().CreateObj<FreertosPoller>(GlobalId::kPoller);
+#  elif defined WIN_POLLER_ENABLED
+        context.domain().CreateObj<WinPoller>(GlobalId::kPoller);
+#  endif
+    return poller;
+  });
+
+  Factory<DnsResolver>([](AetherAppContext const& context) {
+#  if AE_SUPPORT_CLOUD_DNS
+    auto dns_resolver =
+#    if defined DNS_RESOLVE_ARES_ENABLED
+        context.domain().CreateObj<DnsResolverCares>(GlobalId::kDnsResolver,
+                                                     context.aether());
+#    elif defined ESP32_DNS_RESOLVER_ENABLED
+        context.domain().CreateObj<Esp32DnsResolver>(GlobalId::kDnsResolver,
+                                                     context.aether());
+#    endif
+    return dns_resolver;
+#  else
+    return context.domain().CreateObj<DnsResolver>(GlobalId::kDnsResolver);
+#  endif
+  });
+#endif  //  defined AE_DISTILLATION
+}
+
+RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
+  auto app = MakeRcPtr<AetherApp>();
+  app->aether_ = context.aether();
+  context.init_tele_(context);
+
+#if defined AE_DISTILLATION
+  auto adapter = context.adapter();
+  adapter.SetFlags(ObjFlags::kUnloadedByDefault);
+  app->aether_->adapter_factories.emplace_back(adapter);
+  app->aether_->cloud_prefab->set_adapter(adapter);
+
+#  if AE_SUPPORT_REGISTRATION
+  app->aether_->registration_cloud = context.registration_cloud();
+  app->aether_->poller.SetFlags(ObjFlags::kUnloadedByDefault);
+#  endif  // AE_SUPPORT_REGISTRATION
+  app->aether_->crypto = context.crypto();
+
+  app->aether_->poller = context.poller();
+
+#  if AE_SUPPORT_CLOUD_DNS
+  app->aether_->dns_resolver = context.dns_resolver();
+  app->aether_->dns_resolver.SetFlags(ObjFlags::kUnloadedByDefault);
+#  endif
+
+  context.domain().SaveRoot(app->aether_);
 #endif  // defined AE_DISTILLATION
+
+  app->domain_facility_ = std::move(std::move(context).domain_storage_);
+  app->domain_ = std::move(std::move(context).domain_);
   return app;
 }
 
@@ -107,7 +167,8 @@ AetherApp::~AetherApp() {
     domain_->SaveRoot(aether_);
   }
 
-  ae::TeleInit::Init();
+  // reset telemetry before delete all objects
+  TELE_SINK::Instance().SetTrap(nullptr);
   aether_.Reset();
 }
 

@@ -16,65 +16,34 @@
 
 #include "aether/transport/server/server_channel_stream.h"
 
-#include "aether/aether.h"
 #include "aether/actions/action_context.h"
-
-#include "aether/transport/actions/ip_channel_connection.h"
-#include "aether/transport/actions/name_address_channel_connection.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae {
-namespace _internal {
-#if AE_SUPPORT_CLOUD_DNS
-inline std::unique_ptr<ChannelConnectionAction> MakeConnectionAction(
-    ActionContext action_context, Ptr<Aether> const& aether,
-    Ptr<Adapter> const& adapter, NameAddress const& name_address) {
-  return make_unique<NameAddressChannelConnectionAction>(
-      action_context, name_address, aether, adapter);
-}
-#endif
-
-inline std::unique_ptr<ChannelConnectionAction> MakeConnectionAction(
-    ActionContext action_context, Ptr<Aether> const& /* aether */,
-    Ptr<Adapter> const& adapter, IpAddressPortProtocol const& ip_addr) {
-  return make_unique<IpAddressChannelConnectionAction>(action_context, ip_addr,
-                                                       *adapter);
-}
-}  // namespace _internal
-
 // TODO: add config
-static constexpr auto kBufferGateCapacity = std::size_t{100};
+static constexpr auto kBufferGateCapacity = std::size_t{20 * 1024};
 
-ServerChannelStream::ServerChannelStream(ObjPtr<Aether> const& aether,
+ServerChannelStream::ServerChannelStream(ActionContext action_context,
                                          Adapter::ptr const& adapter,
                                          Server::ptr const& server,
                                          Channel::ptr const& channel)
-    : action_context_{*aether->action_processor},
+    : action_context_{action_context},
       server_{server},
       channel_{channel},
+      build_transport_action_{action_context, adapter, channel},
       buffer_stream_{action_context_, kBufferGateCapacity},
-      connection_action_{std::visit(
-          [&](auto const& address) {
-            return _internal::MakeConnectionAction(
-                ActionContext{*aether->action_processor}, aether, adapter,
-                address);
-          },
-          channel->address)},
       connection_start_time_{Now()},
-      connection_timer_{std::in_place, ActionContext{*aether->action_processor},
-                        channel->expected_connection_time()} {
-  connection_success_ = connection_action_->ResultEvent().Subscribe(
-      [this](auto& action) { OnConnected(action); }),
-  connection_failed_ = connection_action_->ErrorEvent().Subscribe(
-      [this](auto const&) { OnConnectedFailed(); }),
-  connection_finished_ = connection_action_->FinishedEvent().Subscribe(
-      [this]() { connection_action_.reset(); });
-
-  connection_timeout_ = connection_timer_->ResultEvent().Subscribe(
-      [this](auto const&) { OnConnectedFailed(); });
-  connection_timer_finished_ = connection_timer_->FinishedEvent().Subscribe(
-      [this]() { connection_timer_.reset(); });
+      connection_timer_{action_context_, channel->expected_connection_time()},
+      build_transport_success_{build_transport_action_.ResultEvent().Subscribe(
+          [this](auto& action) { OnConnected(action); })},
+      build_transport_failed_{build_transport_action_.ErrorEvent().Subscribe(
+          [this](auto&) { OnConnectedFailed(); })} {
+  connection_timeout_ =
+      connection_timer_.ResultEvent().Subscribe([this](auto const&) {
+        AE_TELED_ERROR("Connection timeout");
+        OnConnectedFailed();
+      });
 }
 
 ActionView<StreamWriteAction> ServerChannelStream::Write(DataBuffer&& data) {
@@ -93,32 +62,36 @@ StreamInfo ServerChannelStream::stream_info() const {
   return buffer_stream_.stream_info();
 }
 
-void ServerChannelStream::OnConnected(ChannelConnectionAction& connection) {
+void ServerChannelStream::OnConnected(
+    BuildTransportAction& build_transport_action) {
+  build_transport_success_.Reset();
+  build_transport_failed_.Reset();
+
   auto channel_ptr = channel_.Lock();
   assert(channel_ptr);
 
+  connection_timer_.Stop();
   auto connection_time =
       std::chrono::duration_cast<Duration>(Now() - connection_start_time_);
-  channel_ptr->AddConnectionTime(std::move(connection_time));
+  channel_ptr->AddConnectionTime(connection_time);
 
-  if (!connection_timer_) {
-    // probably timeout
-    return;
-  }
-  connection_timer_->Stop();
-
-  transport_ = connection.transport();
-  connection_error_ = transport_->ConnectionError().Subscribe(
-      *this, MethodPtr<&ServerChannelStream::OnConnectedFailed>{});
-  transport_write_gate_.emplace(action_context_, *transport_);
-  Tie(buffer_stream_, *transport_write_gate_);
+  transport_ = build_transport_action.transport();
+  ConnectTransportToStream();
 }
 
 void ServerChannelStream::OnConnectedFailed() {
   AE_TELED_ERROR("ServerChannelStream:OnConnectedFailed");
   connection_timeout_.Reset();
-  connection_failed_.Reset();
+  build_transport_success_.Reset();
+  build_transport_failed_.Reset();
   buffer_stream_.Unlink();
+}
+
+void ServerChannelStream::ConnectTransportToStream() {
+  connection_error_ = transport_->ConnectionError().Subscribe(
+      *this, MethodPtr<&ServerChannelStream::OnConnectedFailed>{});
+  transport_write_gate_.emplace(action_context_, *transport_);
+  Tie(buffer_stream_, *transport_write_gate_);
 }
 
 }  // namespace ae

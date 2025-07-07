@@ -21,7 +21,7 @@
 
 #include "aether/aether.h"
 #include "aether/adapters/adapter.h"
-#include "aether/poller/poller.h"
+
 
 namespace ae {
 class Aether;
@@ -35,13 +35,15 @@ class ParentWifiAdapter : public Adapter {
  public:
 #ifdef AE_DISTILLATION
   ParentWifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                    std::string ssid, std::string pass, Domain* domain);
+                    DnsResolver::ptr dns_resolver, std::string ssid,
+                    std::string pass, Domain* domain);
 #endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, ssid_, pass_))
 
   Obj::ptr aether_;
   IPoller::ptr poller_;
+  DnsResolver::ptr dns_resolver_;
 
   std::string ssid_;
   std::string pass_;

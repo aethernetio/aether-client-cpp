@@ -18,12 +18,14 @@
 
 #include <cassert>
 
+#include "aether/ae_actions/ae_actions_tele.h"
 #include "aether/ae_actions/registration/registration.h"
 
 namespace ae {
 SelectClientAction::SelectClientAction(ActionContext action_context,
                                        Client::ptr const& client)
     : Action{action_context}, client_{client}, state_{State::kClientReady} {
+  AE_TELED_DEBUG("Select loaded client");
   Action::Trigger();
 }
 
@@ -40,16 +42,19 @@ SelectClientAction::SelectClientAction(ActionContext action_context,
       reg_failed_sub_{registration.ErrorEvent().Subscribe(
           [this](auto&) { state_ = State::kClientRegistrationError; })},
       state_changed_sub_{state_.changed_event().Subscribe(
-          [this](auto) { Action::Trigger(); })} {}
+          [this](auto) { Action::Trigger(); })} {
+  AE_TELED_DEBUG("Waiting for client registration");
+}
 
 #else  // or init like there is not client to select
 SelectClientAction::SelectClientAction(ActionContext action_context,
-                                       Registration& registration)
+                                       Registration&)
     : SelectClientAction{action_context} {}
 #endif
 
 SelectClientAction::SelectClientAction(ActionContext action_context)
     : Action{action_context}, state_{State::kNoClientToSelect} {
+  AE_TELED_DEBUG("No clients to select");
   Action::Trigger();
 }
 

@@ -35,7 +35,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
   };
 
  public:
-  TestSendMessageDelaysAction(Ptr<AetherApp> aether_app,
+  TestSendMessageDelaysAction(RcPtr<AetherApp> aether_app,
                               std::ostream& write_results_stream)
       : Action{*aether_app},
         aether_{aether_app->aether()},
@@ -161,7 +161,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
 };
 
 int test_send_message_delays(std::ostream& result_stream) {
-  auto aether_app = AetherApp::Construct(AetherAppConstructor{});
+  auto aether_app = AetherApp::Construct(AetherAppContext{});
 
   auto test_action = TestSendMessageDelaysAction{aether_app, result_stream};
   auto success = test_action.ResultEvent().Subscribe(

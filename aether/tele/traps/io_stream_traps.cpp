@@ -19,154 +19,113 @@
 #include "aether/tele/traps/io_stream_traps.h"
 
 #include <ios>
-#include <limits>
 #include <iomanip>
 #include <algorithm>
 
 #include "aether/format/format.h"
 
 namespace ae::tele {
-IoStreamTrap::MetricsStream::MetricsStream(
-    std::uint32_t index, std::unordered_map<std::uint32_t, Metric>& metrics)
-    : index_{index}, metrics_{metrics} {}
-
-IoStreamTrap::MetricsStream::MetricsStream(MetricsStream&& other) noexcept =
-    default;
-IoStreamTrap::MetricsStream::~MetricsStream() = default;
-
-void IoStreamTrap::MetricsStream::add_count(std::uint32_t count) {
-  metrics_[index_].invocations_count_ += count;
-}
-
-void IoStreamTrap::MetricsStream::add_duration(std::uint32_t duration) {
-  auto& metric = metrics_[index_];
-  metric.max_duration_ = std::max(metric.max_duration_, duration);
-  metric.sum_duration_ += duration;
-  metric.min_duration_ = std::min(metric.min_duration_, duration);
-}
-
-IoStreamTrap::MetricsStream IoStreamTrap::metric_stream(
-    Declaration const& decl) {
-  metrics_.emplace(
-      decl.index,
-      Metric{{}, {}, {}, std::numeric_limits<std::uint32_t>::max()});
-  return MetricsStream{decl.index, metrics_};
-}
 
 IoStreamTrap::IoStreamTrap(std::ostream& stream) : stream_{stream} {}
 
 IoStreamTrap::~IoStreamTrap() {
+  auto lock_guard = std::lock_guard{sync_lock_};
   stream_ << "Metrics:\n";
+  Format(stream_, "Index,Invocations,Max Duration,Sum Duration,Min Duration\n");
   for (auto const& [index, ms] : metrics_) {
-    Format(stream_,
-           "\tidx:{}\n\t\tinv_count:{}\n\t\tmax_duration:{}\n\t\tsum_duration:{"
-           "}\n\t\tmin_duration:{}\n",
-           index, ms.invocations_count_, ms.max_duration_, ms.sum_duration_,
-           ms.min_duration_);
-  }
-  stream_ << '\n';
-}
-
-IoStreamTrap::LogStream::LogStream(std::ostream& stream) : stream_{stream} {}
-
-IoStreamTrap::LogStream::LogStream(LogStream&& other) noexcept
-    : stream_{other.stream_} {
-  other.moved_ = true;
-}
-
-IoStreamTrap::LogStream::~LogStream() {
-  if (moved_) {
-    return;
+    Format(stream_, "{},{},{},{},{}\n", index, ms.invocations_count,
+           ms.max_duration, ms.sum_duration, ms.min_duration);
   }
   stream_ << std::endl;
 }
 
-void IoStreamTrap::LogStream::index(std::uint32_t index) {
-  delimeter();
-  stream_ << std::setw(3) << std::right << std::dec << index << std::right
+void IoStreamTrap::AddInvoke(Tag const& tag, std::uint32_t count) {
+  auto lock_guard = std::lock_guard{sync_lock_};
+  metrics_[tag.index()].invocations_count += count;
+}
+
+void IoStreamTrap::AddInvokeDuration(Tag const& tag, Duration duration) {
+  auto lock_guard = std::lock_guard{sync_lock_};
+  auto& metric = metrics_[tag.index()];
+  metric.max_duration = std::max(metric.max_duration, duration.count());
+  metric.sum_duration += duration.count();
+  if (metric.min_duration == 0) {
+    metric.min_duration = duration.count();
+  } else {
+    metric.min_duration = std::min(metric.min_duration, duration.count());
+  }
+}
+
+void IoStreamTrap::OpenLogLine(Tag const& tag) {
+  sync_lock_.lock();
+  stream_ << std::setw(3) << std::right << std::dec << tag.index() << std::right
           << std::setw(0);
 }
-void IoStreamTrap::LogStream::start_time(TimePoint const& start) {
-  delimeter();
-  Format(stream_, "[{:%H:%M:%S}]", start);
+
+void IoStreamTrap::InvokeTime(TimePoint time) {
+  delimiter();
+  Format(stream_, "[{:%H:%M:%S}]", time);
 }
-void IoStreamTrap::LogStream::level(Level::underlined_t level) {
-  delimeter();
-  Format(stream_, "{}", Level{level});
+
+void IoStreamTrap::WriteLevel(Level level) {
+  delimiter();
+  Format(stream_, "{}", level);
 }
-void IoStreamTrap::LogStream::module(Module const& module) {
-  delimeter();
+
+void IoStreamTrap::WriteModule(Module const& module) {
+  delimiter();
   Format(stream_, "{}", module);
 }
-void IoStreamTrap::LogStream::file(std::string_view file) {
-  delimeter();
+
+void IoStreamTrap::Location(std::string_view file, std::uint32_t line) {
+  delimiter();
   auto pos = file.find_last_of("/\\");
   if (pos == std::string_view::npos) {
-    file = "UNKOWN FILE";
+    file = "UNKNOWN FILE";
   }
   file = file.substr(pos + 1, file.size() - pos);
   stream_.write(file.data(), static_cast<std::streamsize>(file.size()));
-}
-void IoStreamTrap::LogStream::line(std::uint32_t line) {
-  delimeter();
+  delimiter();
   stream_ << line;
 }
-void IoStreamTrap::LogStream::name(std::string_view name) {
-  delimeter();
+
+void IoStreamTrap::TagName(std::string_view name) {
+  delimiter();
   stream_.write(name.data(), static_cast<std::streamsize>(name.size()));
 }
 
-void IoStreamTrap::LogStream::delimeter() {
-  if (!start_) {
-    stream_ << std::setw(1) << ':' << std::setw(0);
+void IoStreamTrap::Blob(std::uint8_t const* data, std::size_t size) {
+  delimiter();
+  stream_.write(reinterpret_cast<char const*>(data),
+                static_cast<std::streamsize>(size));
+}
+
+void IoStreamTrap::CloseLogLine(Tag const&) {
+  sync_lock_.unlock();
+  stream_ << std::endl;
+}
+
+void IoStreamTrap::WriteEnvData(EnvData const& env_data) {
+  auto lock_guard = std::lock_guard{sync_lock_};
+  Format(stream_,
+         "Platform:{}\nCompiler:{}\nCompiler version:{}\nLibrary "
+         "version:{}\nApi version:{}\nCPU arch:{}\nEndianness:{}\nUTMid:{}\n",
+         env_data.platform_type, env_data.compiler, env_data.compiler_version,
+         env_data.library_version, env_data.api_version, env_data.cpu_arch,
+         (env_data.endianness == static_cast<std::uint8_t>(AE_LITTLE_ENDIAN)
+              ? "LittleEndian"
+              : "BigEndian"),
+         env_data.utm_id);
+  for (auto const& opt : env_data.compile_options) {
+    Format(stream_, "{}:{}\n", opt.name, opt.value);
   }
-  start_ = false;
+  for (auto const& opt : env_data.custom_options) {
+    Format(stream_, "{}:{}\n", opt.name, opt.value);
+  }
+  stream_ << std::endl;
 }
 
-IoStreamTrap::LogStream IoStreamTrap::log_stream(
-    Declaration const& /* decl */) {
-  return LogStream{stream_};
+void IoStreamTrap::delimiter() {
+  stream_ << std::setw(1) << ':' << std::setw(0);
 }
-
-void IoStreamTrap::EnvStream::platform_type(char const* platform_type) {
-  stream_ << "Platform:" << platform_type << '\n';
-}
-void IoStreamTrap::EnvStream::compiler(char const* compiler) {
-  stream_ << "Compiler:" << compiler << '\n';
-}
-void IoStreamTrap::EnvStream::compiler_version(char const* compiler_version) {
-  stream_ << "Compiler version:" << compiler_version << '\n';
-}
-void IoStreamTrap::EnvStream::compilation_option(CompileOption const& opt) {
-  stream_.write(opt.name_.data(),
-                static_cast<std::streamsize>(opt.name_.size()));
-  stream_ << ":" << opt.value_ << '\n';
-}
-void IoStreamTrap::EnvStream::library_version(char const* library_version) {
-  stream_ << "Library version: " << library_version << '\n';
-}
-void IoStreamTrap::EnvStream::api_version(char const* api_version) {
-  stream_ << "API version:" << api_version << '\n';
-}
-
-void IoStreamTrap::EnvStream::cpu_type(char const* cpu_type) {
-  stream_ << "CPU type:" << cpu_type << '\n';
-}
-void IoStreamTrap::EnvStream::endianness(std::uint8_t endianness) {
-  stream_ << "Endianness:"
-          << (endianness == static_cast<std::uint8_t>(AE_LITTLE_ENDIAN)
-                  ? "LittleEndian"
-                  : "BigEndian")
-          << '\n';
-}
-void IoStreamTrap::EnvStream::utmid(std::uint32_t utm_id) {
-  stream_ << "UTM ID:" << utm_id << '\n';
-}
-
-IoStreamTrap::EnvStream IoStreamTrap::env_stream() {
-  return EnvStream{stream_};
-}
-
-std::mutex& IoStreamTrap::sync() { return sync_lock_; }
-
 }  // namespace ae::tele

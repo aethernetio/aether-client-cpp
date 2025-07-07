@@ -35,6 +35,7 @@
 #  include "lwip/tcpip.h"
 
 #  include "aether/aether.h"
+#  include "aether/actions/action_list.h"
 #  include "aether/actions/action_context.h"
 #  include "aether/events/multi_subscription.h"
 
@@ -42,63 +43,28 @@
 
 namespace ae {
 
-class GethostByNameDnsResolver {
-  struct QueryContext {
-    GethostByNameDnsResolver* self;
-    ResolveAction resolve_action;
-    NameAddress name_address;
-  };
-
+class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
  public:
-  explicit GethostByNameDnsResolver(Aether* aether)
-      : action_context_{*aether->action_processor} {}
+  GetHostByNameQueryAction(ActionContext action_context,
+                           NameAddress name_address)
+      : Action{action_context}, name_address_{std::move(name_address)} {}
 
-  ResolveAction& Query(NameAddress const& name_address) {
-    static std::uint32_t query_id = 0;
-
-    AE_TELE_DEBUG(DnsQueryHost, "Querying host: {}", name_address);
-
-    auto [qit, _] = active_queries_.emplace(
-        query_id++,
-        QueryContext{this, ResolveAction{action_context_}, name_address});
-
-    auto& query_context = qit->second;
-
-    // remove self
-    multi_subscription_.Push(
-        query_context.resolve_action.FinishedEvent().Subscribe(
-            [id{qit->first}, this]() { active_queries_.erase(id); }));
-
-    // make query
-    ip_addr_t cached_addr;
-    LOCK_TCPIP_CORE();
-    auto res = dns_gethostbyname(
-        name_address.name.c_str(), &cached_addr,
-        [](const char* /* name */, const ip_addr_t* ipaddr,
-           void* callback_arg) {
-          auto* context = static_cast<QueryContext*>(callback_arg);
-          context->self->QueryResult(*context, ipaddr);
-        },
-        &query_context);
-    UNLOCK_TCPIP_CORE();
-
-    if (res == ERR_OK) {
-      QueryResult(query_context, &cached_addr);
-    } else if (res == ERR_ARG) {
-      AE_TELE_ERROR(DnsQueryError,
-                    "Dns client not initialized or invalid hostname");
-      query_context.resolve_action.Failed();
+  ActionResult Update() {
+    if (is_result_) {
+      return ActionResult::Result();
     }
-    return query_context.resolve_action;
+    if (is_failed_) {
+      return ActionResult::Error();
+    }
+    return {};
   }
 
- private:
-  void QueryResult(QueryContext& query_context, ip_addr_t const* ipaddr) {
+  void ProcessQueryResult(ip_addr_t const* ipaddr) {
     if (!ipaddr) {
-      query_context.resolve_action.Failed();
+      Failed();
       return;
     }
-    IpAddressPortProtocol addr;
+    auto& addr = resolved_addresses_.emplace_back();
     if (IP_IS_V4_VAL(*ipaddr)) {
       addr.ip.version = IpAddress::Version::kIpV4;
       auto ip4 = ip_2_ip4(ipaddr);
@@ -108,15 +74,80 @@ class GethostByNameDnsResolver {
       auto ip6 = ip_2_ip6(ipaddr);
       addr.ip.set_value(reinterpret_cast<std::uint8_t const*>(&ip6->addr));
     }
-    addr.port = query_context.name_address.port;
-    addr.protocol = query_context.name_address.protocol;
+    addr.port = name_address_.port;
+    addr.protocol = name_address_.protocol;
 
-    AE_TELE_DEBUG(DnsQuerySuccess, "Got addresses {}", addr);
-    query_context.resolve_action.SetAddress({std::move(addr)});
+    AE_TELE_DEBUG(kEspDnsQuerySuccess, "Got addresses {}", addr);
+    Result();
   }
 
-  ActionContext action_context_;
-  std::map<std::uint32_t, QueryContext> active_queries_;
+  std::vector<IpAddressPortProtocol> const& resolved_addresses() const {
+    return resolved_addresses_;
+  }
+
+  void Failed() {
+    is_failed_ = true;
+    Action::Trigger();
+  }
+
+ private:
+  void Result() {
+    is_result_ = true;
+    Action::Trigger();
+  }
+
+  NameAddress name_address_;
+  std::vector<IpAddressPortProtocol> resolved_addresses_;
+  std::atomic_bool is_result_{false};
+  std::atomic_bool is_failed_{false};
+};
+
+class GethostByNameDnsResolver {
+ public:
+  explicit GethostByNameDnsResolver(ActionContext action_context)
+      : resolve_actions_{action_context}, active_queries_{action_context} {}
+
+  ActionView<ResolveAction> Query(NameAddress const& name_address) {
+    AE_TELE_DEBUG(kEspDnsQueryHost, "Querying host: {}", name_address);
+    auto resolve_action = resolve_actions_.Emplace();
+    auto query_action = active_queries_.Emplace(name_address);
+
+    // connect actions
+    multi_subscription_.Push(
+        query_action->ResultEvent().Subscribe(
+            [ra{resolve_action}](auto const& action) mutable {
+              ra->SetAddress(action.resolved_addresses());
+            }),
+        query_action->ErrorEvent().Subscribe(
+            [ra{resolve_action}](auto const&) mutable { ra->Failed(); }));
+
+    // make query
+    ip_addr_t cached_addr;
+    LOCK_TCPIP_CORE();
+    auto res = dns_gethostbyname(
+        name_address.name.c_str(), &cached_addr,
+        [](const char* /* name */, const ip_addr_t* ipaddr,
+           void* callback_arg) {
+          auto* query_action =
+              static_cast<GetHostByNameQueryAction*>(callback_arg);
+          query_action->ProcessQueryResult(ipaddr);
+        },
+        &*query_action);
+    UNLOCK_TCPIP_CORE();
+
+    if (res == ERR_OK) {
+      query_action->ProcessQueryResult(&cached_addr);
+    } else if (res == ERR_ARG) {
+      AE_TELE_ERROR(kEspDnsQueryError,
+                    "Dns client not initialized or invalid hostname");
+      query_action->Failed();
+    }
+    return resolve_action;
+  }
+
+ private:
+  ActionList<ResolveAction> resolve_actions_;
+  ActionList<GetHostByNameQueryAction> active_queries_;
   MultiSubscription multi_subscription_;
 };
 
@@ -129,10 +160,11 @@ Esp32DnsResolver::Esp32DnsResolver(ObjPtr<Aether> aether, Domain* domain)
 
 Esp32DnsResolver::~Esp32DnsResolver() = default;
 
-ResolveAction& Esp32DnsResolver::Resolve(NameAddress const& name_address) {
+ActionView<ResolveAction> Esp32DnsResolver::Resolve(
+    NameAddress const& name_address) {
   if (!gethostbyname_dns_resolver_) {
-    gethostbyname_dns_resolver_ = std::make_unique<GethostByNameDnsResolver>(
-        static_cast<Aether*>(aether_.get()));
+    gethostbyname_dns_resolver_ =
+        std::make_unique<GethostByNameDnsResolver>(*aether_.as<Aether>());
   }
   return gethostbyname_dns_resolver_->Query(name_address);
 }

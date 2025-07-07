@@ -22,16 +22,20 @@ namespace ae::registrator {
 
 #ifdef AE_DISTILLATION
 RegisterWifiAdapter::RegisterWifiAdapter(ObjPtr<Aether> aether,
-                                         IPoller::ptr poller, std::string ssid,
-                                         std::string pass, Domain* domain)
-    : ParentWifiAdapter{std::move(aether), std::move(poller), std::move(ssid),
-                        std::move(pass), domain},
-      ethernet_adapter_{domain->CreateObj<EthernetAdapter>(aether_, poller_)} {}
+                                         IPoller::ptr poller,
+                                         DnsResolver::ptr dns_resolver,
+                                         std::string ssid, std::string pass,
+                                         Domain* domain)
+    : ParentWifiAdapter{std::move(aether),       std::move(poller),
+                        std::move(dns_resolver), std::move(ssid),
+                        std::move(pass),         domain},
+      ethernet_adapter_{domain->CreateObj<EthernetAdapter>(aether_, poller_,
+                                                           dns_resolver_)} {}
 #endif  // AE_DISTILLATION
 
-ActionView<CreateTransportAction> RegisterWifiAdapter::CreateTransport(
-    IpAddressPortProtocol const& address_port_protocol) {
-  return ethernet_adapter_->CreateTransport(address_port_protocol);
+ActionView<TransportBuilderAction> RegisterWifiAdapter::CreateTransport(
+    UnifiedAddress const& address) {
+  return ethernet_adapter_->CreateTransport(address);
 }
 
 }  // namespace ae::registrator

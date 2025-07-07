@@ -164,7 +164,7 @@ struct RegMethod<message_id, method_ptr> {
  */
 template <typename... TRegMethod>
 struct ImplList {
-  using Methods = std::tuple<typename TRegMethod::Method...>;
+  using Methods = TypeList<typename TRegMethod::Method...>;
 };
 
 /**
@@ -191,8 +191,7 @@ class ApiClassImpl : public ApiClass {
  private:
   template <typename Api>
   bool ApiLoadFactory(MessageId message_id, ApiParser& parser) {
-    constexpr auto list_size =
-        std::tuple_size<typename Api::ApiMethods::Methods>();
+    constexpr auto list_size = TypeListSize<typename Api::ApiMethods::Methods>;
     return ApiLoadFactoryImpl<Api>(message_id, parser,
                                    std::make_index_sequence<list_size>());
   }
@@ -200,10 +199,9 @@ class ApiClassImpl : public ApiClass {
   template <typename Api, std::size_t... Is>
   bool ApiLoadFactoryImpl([[maybe_unused]] MessageId message_id,
                           [[maybe_unused]] ApiParser& parser,
-                          std::index_sequence<Is...> const&) {
+                          std::index_sequence<Is...>) {
     return ([&]() {
-      using MethodImpl =
-          std::tuple_element_t<Is, typename Api::ApiMethods::Methods>;
+      using MethodImpl = TypeAtT<Is, typename Api::ApiMethods::Methods>;
       if (MethodImpl::kMessageCode != message_id) {
         return false;
       }

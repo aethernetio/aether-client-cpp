@@ -18,8 +18,6 @@
 
 #if defined DNS_RESOLVE_ARES_ENABLED
 
-#  include <set>
-#  include <map>
 #  include <memory>
 #  include <vector>
 #  include <utility>
@@ -29,146 +27,40 @@
 #  include "aether/warning_disable.h"
 
 #  include "aether/aether.h"
-#  include "aether/poller/poller.h"
 #  include "aether/socket_initializer.h"
+#  include "aether/actions/action_list.h"
 #  include "aether/actions/action_context.h"
 
 #  include "aether/dns/dns_tele.h"
 
 namespace ae {
-class AresImpl {
+class AresQueryAction : public Action<AresQueryAction> {
  public:
-  struct QueryContext {
-    AresImpl* self;
-    ResolveAction resolve_action;
-    NameAddress name_address;
-  };
+  AresQueryAction(ActionContext action_context, NameAddress name_address)
+      : Action{action_context}, name_address_{std::move(name_address)} {}
 
-  explicit AresImpl(Aether* aether)
-      : action_context_{*aether}, poller_{aether->poller} {
-    assert(poller_);
-
-    ares_library_init(ARES_LIB_INIT_ALL);
-
-#  if defined WIN32
-    // ares and win_poller are not compatible
-    int optmask = ARES_OPT_EVENT_THREAD;
-    ares_options options{};
-    options.evsys = ARES_EVSYS_DEFAULT;
-#  else
-    int optmask = ARES_OPT_SOCK_STATE_CB;
-    ares_options options{};
-    options.sock_state_cb = [](void* data, auto socket_fd, auto readable,
-                               auto writable) {
-      auto& ares_impl = *static_cast<AresImpl*>(data);
-      ares_impl.SocketState(socket_fd, readable, writable);
-    };
-    options.sock_state_cb_data = this;
-#  endif
-
-    /* Initialize channel to run queries, a single channel can accept unlimited
-     * queries */
-    if (auto res = ares_init_options(&channel_, &options, optmask);
-        res != ARES_SUCCESS) {
-      AE_TELE_ERROR(DnsCAresFailedInitialize,
-                    "Failed to initialize ares options: {}",
-                    ares_strerror(res));
-      assert(false);
+  ActionResult Update() {
+    if (is_result_) {
+      return ActionResult::Result();
     }
+    if (is_failed_) {
+      return ActionResult::Error();
+    }
+    return {};
   }
 
-  ~AresImpl() {
-    ares_destroy(channel_);
-    ares_library_cleanup();
-#  if !defined WIN32
-    for (auto sock : opened_sockets_) {
-      poller_->Remove(sock);
-    }
-#  endif
-  }
-
-  ResolveAction& Query(NameAddress const& name_address) {
-    static std::uint32_t query_id = 0;
-
-    AE_TELE_DEBUG(DnsQueryHost, "Querying host: {}", name_address);
-
-    auto [qit, _] = active_queries_.emplace(
-        query_id++,
-        QueryContext{this, ResolveAction{action_context_}, name_address});
-
-    auto& q_context = qit->second;
-
-    // remove itself
-    multi_subscription_.Push(q_context.resolve_action.FinishedEvent().Subscribe(
-        [id{qit->first}, this]() { active_queries_.erase(id); }));
-
-    ares_addrinfo_hints hints{};
-    // BOTH ipv4 and ipv6
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_flags = ARES_AI_CANONNAME;
-
-    ares_getaddrinfo(
-        channel_, name_address.name.c_str(), nullptr, &hints,
-        [](void* arg, auto status, auto timeouts, auto result) {
-          auto& query_context = *static_cast<QueryContext*>(arg);
-          QueryResult(query_context, status, timeouts, result);
-          ares_freeaddrinfo(result);
-        },
-        &q_context);
-
-    return q_context.resolve_action;
-  }
-
- private:
-#  if !defined WIN32
-  void SocketState(ares_socket_t socket_fd, int readable, int writable) {
-    auto [it, inserted] = opened_sockets_.insert(socket_fd);
-    if (!inserted) {
-      if ((readable == 0) && (writable == 0)) {
-        // remove socket
-        poller_->Remove(socket_fd);
-        opened_sockets_.erase(it);
-      }
-      return;
-    }
-
-    poll_sockets_subscriptions_.Push(poller_->Add(socket_fd).Subscribe(
-        *this, MethodPtr<&AresImpl::SocketEvent>{}));
-  }
-
-  void SocketEvent(PollerEvent event) {
-    if (opened_sockets_.find(event.descriptor) == std::end(opened_sockets_)) {
-      return;
-    }
-    switch (event.event_type) {
-      case EventType::kRead:
-        ares_process_fd(channel_, event.descriptor, ARES_SOCKET_BAD);
-        break;
-      case EventType::kWrite:
-        ares_process_fd(channel_, ARES_SOCKET_BAD, event.descriptor);
-        break;
-      case EventType::kError:
-        ares_process_fd(channel_, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
-        break;
-    }
-  }
-
-#  endif
-
-  static void QueryResult(QueryContext& context, int status, int /* timeouts */,
-                          struct ares_addrinfo* result) {
+  void ProcessResult(int status, int /* timeouts */,
+                     struct ares_addrinfo* result) {
     if (status != ARES_SUCCESS) {
-      AE_TELE_ERROR(DnsQueryError, "Ares query error {} {}", status,
+      AE_TELE_ERROR(kAresDnsQueryError, "Ares query error {} {}", status,
                     ares_strerror(status));
-      context.resolve_action.Failed();
+      Failed();
       return;
     }
     assert(result);
 
-    std::vector<IpAddressPortProtocol> addresses;
-
     for (auto* node = result->nodes; node != nullptr; node = node->ai_next) {
-      auto& addr = addresses.emplace_back();
+      auto& addr = resolved_addresses_.emplace_back();
 
       if (node->ai_family == AF_INET) {
         addr.ip.version = IpAddress::Version::kIpV4;
@@ -181,22 +73,106 @@ class AresImpl {
         addr.ip.set_value(
             reinterpret_cast<std::uint8_t*>(&ip6_addr->sin6_addr.s6_addr));
       }
-      addr.port = context.name_address.port;
-      addr.protocol = context.name_address.protocol;
+      addr.port = name_address_.port;
+      addr.protocol = name_address_.protocol;
     }
 
-    AE_TELE_DEBUG(DnsQuerySuccess, "Got addresses {}", addresses);
-    context.resolve_action.SetAddress(std::move(addresses));
+    AE_TELE_DEBUG(kAresDnsQuerySuccess, "Got addresses {}",
+                  resolved_addresses_);
+    Result();
   }
 
-  ActionContext action_context_;
-  IPoller::ptr poller_;
+  std::vector<IpAddressPortProtocol> const& resolved_addresses() const {
+    return resolved_addresses_;
+  }
+
+ private:
+  void Result() {
+    is_result_ = true;
+    Action::Trigger();
+  }
+  void Failed() {
+    is_failed_ = true;
+    Action::Trigger();
+  }
+
+  NameAddress name_address_;
+  std::vector<IpAddressPortProtocol> resolved_addresses_;
+  std::atomic_bool is_result_{false};
+  std::atomic_bool is_failed_{false};
+};
+
+class AresImpl {
+ public:
+  struct QueryContext {
+    AresImpl* self;
+    ResolveAction resolve_action;
+    NameAddress name_address;
+  };
+
+  explicit AresImpl(ActionContext action_context)
+      : resolve_actions_{action_context}, active_queries_{action_context} {
+    ares_library_init(ARES_LIB_INIT_ALL);
+
+    // ares and win_poller are not compatible
+    int optmask = ARES_OPT_EVENT_THREAD;
+    ares_options options{};
+    options.evsys = ARES_EVSYS_DEFAULT;
+
+    /* Initialize channel to run queries, a single channel can accept unlimited
+     * queries */
+    if (auto res = ares_init_options(&channel_, &options, optmask);
+        res != ARES_SUCCESS) {
+      AE_TELE_ERROR(kAresDnsFailedInitialize,
+                    "Failed to initialize ares options: {}",
+                    ares_strerror(res));
+      assert(false);
+    }
+  }
+
+  ~AresImpl() {
+    ares_destroy(channel_);
+    ares_library_cleanup();
+  }
+
+  ActionView<ResolveAction> Query(NameAddress const& name_address) {
+    AE_TELE_DEBUG(kAresDnsQueryHost, "Querying host: {}", name_address);
+
+    auto resolve_action = resolve_actions_.Emplace();
+    auto query_action = active_queries_.Emplace(name_address);
+
+    // connect actions
+    multi_subscription_.Push(
+        query_action->ResultEvent().Subscribe(
+            [ra{resolve_action}](auto const& action) mutable {
+              ra->SetAddress(action.resolved_addresses());
+            }),
+        query_action->ErrorEvent().Subscribe(
+            [ra{resolve_action}](auto const&) mutable { ra->Failed(); }));
+
+    ares_addrinfo_hints hints{};
+    // BOTH ipv4 and ipv6
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_flags = ARES_AI_CANONNAME;
+
+    ares_getaddrinfo(
+        channel_, name_address.name.c_str(), nullptr, &hints,
+        [](void* arg, auto status, auto timeouts, auto result) {
+          auto& ares_query_action = *static_cast<AresQueryAction*>(arg);
+          ares_query_action.ProcessResult(status, timeouts, result);
+          ares_freeaddrinfo(result);
+        },
+        &*query_action);
+
+    return resolve_action;
+  }
+
+ private:
   ares_channel_t* channel_;
-  AE_MAY_UNUSED_MEMBER std::set<ares_socket_t> opened_sockets_;
-  std::map<std::uint32_t, QueryContext> active_queries_;
+  ActionList<ResolveAction> resolve_actions_;
+  ActionList<AresQueryAction> active_queries_;
 
   MultiSubscription multi_subscription_;
-  AE_MAY_UNUSED_MEMBER MultiSubscription poll_sockets_subscriptions_;
   AE_MAY_UNUSED_MEMBER SocketInitializer socket_initializer_;
 };
 
@@ -209,9 +185,10 @@ DnsResolverCares::DnsResolverCares(ObjPtr<Aether> aether, Domain* domain)
 
 DnsResolverCares::~DnsResolverCares() = default;
 
-ResolveAction& DnsResolverCares::Resolve(NameAddress const& name_address) {
+ActionView<ResolveAction> DnsResolverCares::Resolve(
+    NameAddress const& name_address) {
   if (!ares_impl_) {
-    ares_impl_ = std::make_unique<AresImpl>(aether_.as<Aether>());
+    ares_impl_ = std::make_unique<AresImpl>(*aether_.as<Aether>());
   }
   return ares_impl_->Query(name_address);
 }

@@ -19,90 +19,46 @@
 
 #include <mutex>
 #include <cstdint>
-#include <iostream>
 #include <ostream>
-#include <utility>
 #include <string_view>
 #include <unordered_map>
 
 #include "aether/common.h"
-#include "aether/format/format.h"
-#include "aether/reflect/reflect.h"
 
-#include "aether/tele/modules.h"
-#include "aether/tele/declaration.h"
+#include "aether/tele/itrap.h"
 
 namespace ae::tele {
 
 struct Metric {
-  std::uint32_t invocations_count_;
-  std::uint32_t max_duration_;
-  std::uint32_t sum_duration_;
-  std::uint32_t min_duration_;
+  std::uint32_t invocations_count;
+  std::uint32_t max_duration;
+  std::uint32_t sum_duration;
+  std::uint32_t min_duration;
 };
 
-struct IoStreamTrap {
-  struct MetricsStream {
-    MetricsStream(std::uint32_t index,
-                  std::unordered_map<std::uint32_t, Metric>& metrics_);
-    MetricsStream(MetricsStream&& other) noexcept;
-    ~MetricsStream();
-
-    void add_count(std::uint32_t count = 1);
-    void add_duration(std::uint32_t duration);
-
-    std::uint32_t index_;
-    std::unordered_map<std::uint32_t, Metric>& metrics_;
-  };
-
-  struct LogStream {
-    explicit LogStream(std::ostream& stream);
-    LogStream(LogStream&& other) noexcept;
-    ~LogStream();
-
-    void index(std::uint32_t index);
-    void start_time(TimePoint const& start);
-    void level(Level::underlined_t level);
-    void module(Module const& module);
-    void file(std::string_view file);
-    void line(std::uint32_t line);
-    void name(std::string_view name);
-
-    template <typename... TArgs>
-    void blob(std::string_view format, TArgs&&... args) {
-      delimeter();
-      Format(stream_, format, std::forward<TArgs>(args)...);
-    }
-    void delimeter();
-
-    std::ostream& stream_;
-    bool start_{true};
-    bool moved_{false};
-  };
-
-  struct EnvStream {
-    std::ostream& stream_;
-
-    void platform_type(char const* platform_type);
-    void compiler(char const* compiler);
-    void compiler_version(char const* compiler_version);
-    void compilation_option(CompileOption const& opt);
-    void library_version(char const* library_version);
-    void api_version(char const* api_version);
-    void cpu_type(char const* cpu_type);
-    void endianness(std::uint8_t endianness);
-    void utmid(std::uint32_t utm_id);
-  };
-
-  // list of known declarations
-
+class IoStreamTrap final : public ITrap {
+ public:
   explicit IoStreamTrap(std::ostream& stream);
-  ~IoStreamTrap();
+  ~IoStreamTrap() override;
 
-  LogStream log_stream(Declaration const& decl);
-  MetricsStream metric_stream(Declaration const& decl);
-  EnvStream env_stream();
-  std::mutex& sync();
+  void AddInvoke(Tag const& tag, std::uint32_t count) override;
+  void AddInvokeDuration(Tag const& tag, Duration duration) override;
+  void OpenLogLine(Tag const& tag) override;
+  void InvokeTime(TimePoint time) override;
+  void WriteLevel(Level level) override;
+  void WriteModule(Module const& module) override;
+  void Location(std::string_view file, std::uint32_t line) override;
+  void TagName(std::string_view name) override;
+  void Blob(std::uint8_t const* data, std::size_t size) override;
+  void CloseLogLine(Tag const& tag) override;
+  void WriteEnvData(EnvData const& env_data) override;
+
+  std::unordered_map<std::uint32_t, Metric> const& metrics() const {
+    return metrics_;
+  }
+
+ private:
+  void delimiter();
 
   std::mutex sync_lock_;
   std::ostream& stream_;

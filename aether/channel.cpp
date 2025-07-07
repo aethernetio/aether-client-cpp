@@ -16,10 +16,19 @@
 
 #include "aether/channel.h"
 
+#include <chrono>
+
+#include "aether/config.h"
+
 namespace ae {
 
 Channel::Channel(Domain* domain)
-    : Obj{domain}, channel_statistics{domain->CreateObj<ChannelStatistics>()} {}
+    : Obj{domain}, channel_statistics{domain->CreateObj<ChannelStatistics>()} {
+  channel_statistics->AddPingTime(
+      std::chrono::milliseconds{AE_DEFAULT_PING_TIMEOUT_MS});
+  channel_statistics->AddConnectionTime(
+      std::chrono::milliseconds{AE_DEFAULT_CONNECTION_TIMEOUT_MS});
+}
 
 void Channel::AddConnectionTime(Duration connection_time) {
   channel_statistics->AddConnectionTime(std::move(connection_time));
@@ -30,16 +39,12 @@ void Channel::AddPingTime(Duration ping_time) {
 }
 
 Duration Channel::expected_connection_time() const {
-  if (channel_statistics->connection_time_statistics().empty()) {
-    return default_connection_time;
-  }
+  assert(!channel_statistics->connection_time_statistics().empty());
   return channel_statistics->connection_time_statistics().percentile<99>();
 }
 
 Duration Channel::expected_ping_time() const {
-  if (channel_statistics->ping_time_statistics().empty()) {
-    return default_ping_time;
-  }
+  assert(!channel_statistics->ping_time_statistics().empty());
   return channel_statistics->ping_time_statistics().percentile<99>();
 }
 

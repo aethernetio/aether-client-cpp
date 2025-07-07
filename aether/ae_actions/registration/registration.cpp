@@ -71,10 +71,14 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
     assert(cloud);
   }
 
-  auto adapter = cloud->adapter();
+  auto& adapter = cloud->adapter();
   if (!adapter) {
     aether_ptr->domain_->LoadRoot(adapter);
+    assert(adapter);
   }
+
+  // parent uid must not be empty
+  assert(!parent_uid_.empty());
 
   server_list_ =
       make_unique<ServerList>(make_unique<NoFilterServerListPolicy>(), cloud);
@@ -83,7 +87,7 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
           *server_list_, [this, aether_ptr, adapter{adapter}]() {
             auto item = server_list_->Get();
             return make_unique<ServerChannelStream>(
-                aether_ptr, adapter, item.server(), item.channel());
+                *aether_ptr, adapter, item.server(), item.channel());
           });
 
   // trigger action on state change

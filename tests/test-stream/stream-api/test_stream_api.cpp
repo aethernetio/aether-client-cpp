@@ -25,7 +25,7 @@
 #include "aether/stream_api/stream_api.h"
 #include "aether/actions/action_processor.h"
 
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 
 #include "tests/test-stream/to_data_buffer.h"
 
@@ -64,7 +64,7 @@ void test_SteamApiMakePacket() {
 }  // namespace ae::test_stream_api
 
 int test_stream_api() {
-  ae::TeleInit::Init();
+  ae::tele::TeleInit::Init();
 
   UNITY_BEGIN();
   RUN_TEST(ae::test_stream_api::test_SteamApiMakePacket);

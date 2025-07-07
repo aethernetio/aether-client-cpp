@@ -22,12 +22,19 @@
 #include "aether/common.h"
 
 namespace ae {
+struct NoLockSyncPolicy {
+  template <typename TFunc>
+  decltype(auto) InLock(TFunc&& func) const {
+    return std::forward<TFunc>(func)();
+  }
+};
+
 template <typename TMutex>
 struct SharedMutexSyncPolicy {
   explicit SharedMutexSyncPolicy(TMutex& mutex) : mutex_{&mutex} {}
 
   template <typename TFunc>
-  decltype(auto) InLock(TFunc&& func) {
+  decltype(auto) InLock(TFunc&& func) const {
     auto lock = std::lock_guard{*mutex_};
     return std::forward<TFunc>(func)();
   }
@@ -36,12 +43,16 @@ struct SharedMutexSyncPolicy {
 };
 
 struct MutexSyncPolicy {
+  MutexSyncPolicy() = default;
+  MutexSyncPolicy(MutexSyncPolicy const&) = delete;
+  MutexSyncPolicy(MutexSyncPolicy&&) noexcept {}
+
   template <typename TFunc>
-  decltype(auto) InLock(TFunc&& func) {
+  decltype(auto) InLock(TFunc&& func) const {
     auto lock = std::lock_guard{mutex_};
     return std::forward<TFunc>(func)();
   }
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
 };
 }  // namespace ae
 

@@ -16,9 +16,6 @@
 
 #include <unity.h>
 
-#include "aether/types/span.h"
-#include "aether/types/static_map.h"
-
 void setUp() {}
 void tearDown() {}
 
@@ -28,6 +25,10 @@ extern int test_async_for_loop();
 extern int test_concat_arrays();
 extern int test_span();
 extern int test_static_map();
+extern int test_statistics_counter();
+extern int test_aligned_storage();
+extern int test_type_list();
+extern int test_uid();
 
 int main() {
   int res = 0;
@@ -37,5 +38,9 @@ int main() {
   res += test_concat_arrays();
   res += test_span();
   res += test_static_map();
+  res += test_statistics_counter();
+  res += test_aligned_storage();
+  res += test_type_list();
+  res += test_uid();
   return res;
 }

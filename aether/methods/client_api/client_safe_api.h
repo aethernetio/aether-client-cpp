@@ -17,7 +17,7 @@
 #ifndef AETHER_METHODS_CLIENT_API_CLIENT_SAFE_API_H_
 #define AETHER_METHODS_CLIENT_API_CLIENT_SAFE_API_H_
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/transport/data_buffer.h"
 
 #include "aether/events/events.h"

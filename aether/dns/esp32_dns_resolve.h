@@ -26,8 +26,8 @@
 
 #    include <memory>
 
-#    include "aether/dns/dns_resolve.h"
 #    include "aether/obj/obj.h"
+#    include "aether/dns/dns_resolve.h"
 
 namespace ae {
 class Aether;
@@ -47,7 +47,7 @@ class Esp32DnsResolver : public DnsResolver {
 
   AE_OBJECT_REFLECT(AE_MMBR(aether_))
 
-  ResolveAction& Resolve(NameAddress const& name_address) override;
+  ActionView<ResolveAction> Resolve(NameAddress const& name_address) override;
 
  private:
   Obj::ptr aether_;

@@ -22,6 +22,10 @@ list(APPEND test_srcs
     test-concat-arrays.cpp
     test-span.cpp
     test-static-map.cpp
+    test-statistics-counter.cpp
+    test-aligned-storage.cpp
+    test-type-list.cpp
+    test-uid.cpp
 )
 
 if(NOT CM_PLATFORM)

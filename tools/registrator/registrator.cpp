@@ -16,14 +16,8 @@
 
 #include <string>
 
-#include "aether/common.h"
-#include "aether/ptr/ptr.h"
-#include "aether/aether_app.h"
-
+#include "aether/all.h"
 #include "aether/domain_storage/registrar_domain_storage.h"
-
-#include "aether/tele/tele.h"
-#include "aether/port/tele_init.h"
 
 #include "registrator/register_wifi.h"
 #include "registrator/registrator_action.h"
@@ -34,8 +28,12 @@ int AetherRegistrator(const std::string& ini_file,
 
 int AetherRegistrator(const std::string& ini_file,
                       const std::string& header_file) {
-  ae::TeleInit::Init();
+  // Init tlemetry
+  auto io_trap = std::make_shared<ae::tele::IoStreamTrap>(std::cout);
+  TELE_SINK::Instance().SetTrap(io_trap);
 
+#if AE_SUPPORT_REGISTRATION
+  // get registrator config
   ae::RegistratorConfig registrator_config{ini_file};
   auto res = registrator_config.ParseConfig();
   if (res < 0) {
@@ -45,40 +43,48 @@ int AetherRegistrator(const std::string& ini_file,
 
   /**
    * Construct a main aether application class.
-   * It's include a Domain and Aether instances accessible by getter methods.
-   * It has Update, WaitUntil, Exit, IsExit, ExitCode methods to integrate it in
-   * your update loop.
-   * Also it has action context protocol implementation \see Action.
-   * To configure its creation \see AetherAppConstructor.
+   * It's include a Domain and Aether instances accessible by getter
+   * methods. It has Update, WaitUntil, Exit, IsExit, ExitCode methods to
+   * integrate it in your update loop. Also it has action context protocol
+   * implementation \see Action. To configure its creation \see
+   * AetherAppConstructor.
    */
   auto aether_app = ae::AetherApp::Construct(
-      ae::AetherAppConstructor{[header_file]() {
-        return ae::make_unique<ae::RegistrarDomainStorage>(header_file);
-      }}
-#if defined AE_DISTILLATION
-          .Adapter([&registrator_config](
-                       ae::Domain* domain,
-                       ae::Aether::ptr const& aether) -> ae::Adapter::ptr {
-            if (registrator_config.GetWiFiIsSet()) {
-              AE_TELED_DEBUG("ae::registrator::RegisterWifiAdapter");
-              auto adapter =
-                  domain->CreateObj<ae::registrator::RegisterWifiAdapter>(
-                      ae::GlobalId::kRegisterWifiAdapter, aether,
-                      aether->poller, registrator_config.GetWiFiSsid(),
-                      registrator_config.GetWiFiPass());
-              return adapter;
-            } else {
-              AE_TELED_DEBUG("ae::EthernetAdapter");
-              auto adapter = domain->CreateObj<ae::EthernetAdapter>(
-                  ae::GlobalId::kEthernetAdapter, aether, aether->poller);
-              return adapter;
-            }
-          })
-#  if AE_SUPPORT_REGISTRATION
-          .RegCloud([&registrator_config](ae::Domain* domain,
-                                          ae::Aether::ptr const& /* aether */) {
-            auto registration_cloud = domain->CreateObj<ae::RegistrationCloud>(
-                ae::kRegistrationCloud);
+      ae::AetherAppContext{
+          // make special domain storage to write all state into header file
+          [header_file]() {
+            return ae::make_unique<ae::RegistrarDomainStorage>(header_file);
+          },
+          // empty tele initializer
+          [](auto const&) {}}
+          .AdapterFactory(
+              [&registrator_config](
+                  ae::AetherAppContext const& context) -> ae::Adapter::ptr {
+                if (registrator_config.GetWiFiIsSet()) {
+                  AE_TELED_DEBUG("ae::registrator::RegisterWifiAdapter");
+                  auto adapter =
+                      context.domain()
+                          .CreateObj<ae::registrator::RegisterWifiAdapter>(
+                              ae::GlobalId::kRegisterWifiAdapter,
+                              context.aether(), context.poller(),
+                              context.dns_resolver(),
+                              registrator_config.GetWiFiSsid(),
+                              registrator_config.GetWiFiPass());
+                  return adapter;
+                }
+                AE_TELED_DEBUG("ae::EthernetAdapter");
+                auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
+                    ae::GlobalId::kEthernetAdapter, context.aether(),
+                    context.poller(), context.dns_resolver());
+                return adapter;
+              })
+          .RegistrationCloudFactory([&registrator_config](
+                                        ae::AetherAppContext const& context) {
+            auto registration_cloud =
+                context.domain().CreateObj<ae::RegistrationCloud>(
+                    ae::kRegistrationCloud);
+            registration_cloud->set_adapter(context.adapter());
+
             auto servers_list = registrator_config.GetServers();
             for (auto s : servers_list) {
               AE_TELED_DEBUG("Server address type={}", s.server_address_type);
@@ -97,28 +103,27 @@ int AetherRegistrator(const std::string& ini_file,
                     ae::IpAddress::Version::kIpV4) {
                   for (std::size_t i{0}; i < 4; i++) {
                     settings.ip.value.ipv4_value[i] =
-                        s.server_ip_adress.value.ipv4_value[i];
+                        s.server_ip_address.value.ipv4_value[i];
                   }
                 } else if (s.server_ip_address_version ==
                            ae::IpAddress::Version::kIpV6) {
                   for (std::size_t i{0}; i < 16; i++) {
                     settings.ip.value.ipv6_value[i] =
-                        s.server_ip_adress.value.ipv6_value[i];
+                        s.server_ip_address.value.ipv6_value[i];
                   }
                 }
                 registration_cloud->AddServerSettings(settings);
               } else if (s.server_address_type ==
                          ae::ServerAddressType::kUrlAddress) {
+#  if AE_SUPPORT_CLOUD_DNS
                 registration_cloud->AddServerSettings(ae::NameAddress{
                     s.server_address, s.server_port, s.server_protocol});
+#  endif
               }
             }
 
             return registration_cloud;
-          })
-#  endif  // AE_SUPPORT_REGISTRATION
-#endif
-  );
+          }));
 
   auto registrator_action =
       ae::registrator::RegistratorAction{aether_app, registrator_config};
@@ -136,4 +141,9 @@ int AetherRegistrator(const std::string& ini_file,
   }
 
   return aether_app->ExitCode();
+#else
+  AE_TELED_ERROR("AE_SUPPORT_REGISTRATION is not supported");
+  assert(false);
+  return -3;
+#endif
 }

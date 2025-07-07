@@ -43,7 +43,7 @@
 
 #define AETHER_TELE_TELE_H_
 
-#include "aether/type_traits.h"
+#include "aether/types/type_list.h"
 
 #include "aether/tele/sink.h"
 #include "aether/tele/tags.h"
@@ -55,33 +55,30 @@
 #include "aether/tele/configs/config_provider.h"
 
 #include "aether/tele/traps/proxy_trap.h"
-#include "aether/tele/traps/null_traps.h"
 #include "aether/tele/traps/io_stream_traps.h"
 #include "aether/tele/traps/statistics_trap.h"
 
-using SinkType =
-    ae::tele::TeleSink<ae::tele::IoStreamTrap, ae::tele::ConfigProvider>;
+using SinkType = ae::tele::TeleSink<ae::tele::ConfigProvider>;
 
 #define TELE_SINK SinkType
-
-static ae::RcPtr<ae::tele::IoStreamTrap> trap;
+static std::shared_ptr<ae::tele::IoStreamTrap> trap;
 
 void setUp() {
-  trap = ae::MakeRcPtr<ae::tele::IoStreamTrap>(std::cout);
-  SinkType::InitSink(trap);
+  trap = std::make_shared<ae::tele::IoStreamTrap>(std::cout);
+
+  SinkType::Instance().SetTrap(trap);
 }
 
-void tearDown() { trap.Reset(); }
+void tearDown() {}
 
-AE_TELE_MODULE(TestObj, 12);
+AE_TELE_MODULE(TestObj, 12, 1, 20);
 
-AE_TAG_INDEXED(One, TestObj, 1)
+AE_TAG(Zero, TestObj)
+AE_TAG(One, TestObj)
 AE_TAG(Two, TestObj)
 AE_TAG(Three, TestObj)
-// AE_TAG_INDEXED(Three2, TestObj, 3)  // must not compile
 // duplicated!
-AE_TAG_INDEXED(Twelve, TestObj, 12)
-// AE_TAG_INDEXED(Twelve2, TestObj, 12)  // must not compile
+AE_TAG(Four, TestObj)
 // duplicated!
 
 AE_TAG(Test1, TestObj)
@@ -90,10 +87,10 @@ AE_TAG(Test3, TestObj)
 
 namespace ae::tele::test_tele {
 void test_Register() {
-  TEST_ASSERT_EQUAL(1, One.index);
-  TEST_ASSERT_EQUAL(2, Two.index);
-  TEST_ASSERT_EQUAL(3, Three.index);
-  TEST_ASSERT_EQUAL(12, Twelve.index);
+  TEST_ASSERT_EQUAL(1, One.offset);
+  TEST_ASSERT_EQUAL(2, Two.offset);
+  TEST_ASSERT_EQUAL(3, Three.offset);
+  TEST_ASSERT_EQUAL(4, Four.offset);
 }
 
 void test_SimpleTeleWithDuration() {
@@ -105,78 +102,58 @@ void test_SimpleTeleWithDuration() {
     // must not compile
     // AE_TELE_INFO(Not_registered, "format {}", 96);
   }
-  auto& metrics = trap->metrics_[Test1.index];
+  auto const& metrics = trap->metrics().at(Test1.offset + TestObj.index_start);
 
-  TEST_ASSERT_EQUAL(2, metrics.invocations_count_);
+  TEST_ASSERT_EQUAL(2, metrics.invocations_count);
 }
 
 namespace tele_configuration {
-struct TeleTrap {
+struct TeleTrap final : public ITrap {
   struct MetricData {
     std::uint32_t count_{};
     std::uint32_t duration_{};
   };
 
+  void AddInvoke(Tag const& tag, std::uint32_t count) override {
+    metric_data_[tag.index()].count_ += count;
+  }
+  void AddInvokeDuration(Tag const& tag, Duration duration) override {
+    metric_data_[tag.index()].duration_ +=
+        static_cast<std::uint32_t>(duration.count());
+  }
+  void OpenLogLine(Tag const& tag) override {
+    log_lines_.emplace_back();
+    log_lines_.front().emplace_back(std::to_string(tag.index()));
+  }
+  void InvokeTime(TimePoint time) override {
+    log_lines_.front().emplace_back(Format("{:%H:%M:%S}", time));
+  }
+  void WriteLevel(Level level) override {
+    log_lines_.front().emplace_back(Format("{}", level));
+  }
+  void WriteModule(Module const& module) override {
+    log_lines_.front().emplace_back(Format("{}", module));
+  }
+  void Location(std::string_view file, std::uint32_t line) override {
+    auto pos = file.find_last_of("/\\");
+    if (pos == std::string_view::npos) {
+      file = "UNKNOWN FILE";
+    }
+    file = file.substr(pos + 1, file.size() - pos);
+    log_lines_.front().emplace_back(Format("{file}:{line}", file, line));
+  }
+  void TagName(std::string_view name) override {
+    log_lines_.front().emplace_back(name);
+  }
+  void Blob(std::uint8_t const* data, std::size_t size) override {
+    log_lines_.front().emplace_back(
+        std::string(reinterpret_cast<char const*>(data), size));
+  }
+  void CloseLogLine(Tag const& /*tag*/) override {}
+  void WriteEnvData(EnvData const& /*env_data*/) override {}
+
   std::list<std::vector<std::string>> log_lines_;
   std::map<std::size_t, MetricData> metric_data_;
-
-  struct LogStream {
-    std::vector<std::string>& line_;
-
-    void index(std::uint32_t index) {
-      auto str = std::to_string(index);
-      put(str.c_str(), str.size());
-    }
-    void start_time(ae::TimePoint const& start) {
-      auto str = std::to_string(start.time_since_epoch().count());
-      put(str.c_str(), str.size());
-    }
-    void level(ae::tele::Level::underlined_t level) {
-      auto l_str = ae::Format("{}", ae::tele::Level{level});
-      put(l_str.c_str(), l_str.size());
-    }
-    void module(ae::tele::Module module) {
-      auto m_str = ae::Format("{}", ae::tele::Module{module});
-      put(m_str.c_str(), m_str.size());
-    }
-    void file(std::string_view file) {
-      auto pos = file.find_last_of("/\\");
-      if (pos == std::string_view::npos) {
-        file = "UNKOWN FILE";
-      }
-      file = file.substr(pos + 1, file.size() - pos);
-      put(file.data(), file.size());
-    }
-    void line(std::uint32_t line) {
-      auto str = std::to_string(line);
-      put(str.c_str(), str.size());
-    }
-    void name(std::string_view name) { put(name.data(), name.size()); }
-
-    template <typename... TArgs>
-    void blob(std::string_view format, TArgs&&... args) {
-      auto str = ae::Format(format, std::forward<TArgs>(args)...);
-      put(str.c_str(), str.size());
-    }
-
-    void put(const char* log_data, std::size_t size) {
-      line_.emplace_back(log_data, size);
-    }
-  };
-
-  struct MetricStream {
-    MetricData& data_;
-    void add_count(uint32_t count) { data_.count_ += count; }
-    void add_duration(uint32_t duration) { data_.duration_ += duration; }
-  };
-
-  LogStream log_stream(ae::tele::Declaration /* decl */) {
-    return {log_lines_.emplace_back()};
-  }
-  MetricStream metric_stream(ae::tele::Declaration decl_) {
-    return {metric_data_[decl_.index]};
-  }
-  NullTrap::NullLock sync() { return {}; }
 };
 
 template <bool Count = true, bool Time = true, bool Index = true,
@@ -185,24 +162,24 @@ template <bool Count = true, bool Time = true, bool Index = true,
 struct ConfigProvider {
   template <bool... args>
   struct TeleConfig {
-    static constexpr bool kCountMetrics = ArgAt<0, args...>();
-    static constexpr bool kTimeMetrics = ArgAt<1, args...>();
-    static constexpr bool kIndexLogs = ArgAt<2, args...>();
-    static constexpr bool kStartTimeLogs = ArgAt<3, args...>();
-    static constexpr bool kLevelModuleLogs = ArgAt<4, args...>();
-    static constexpr bool kLocationLogs = ArgAt<5, args...>();
-    static constexpr bool kNameLogs = ArgAt<6, args...>();
-    static constexpr bool kBlobLogs = ArgAt<7, args...>();
+    static constexpr bool kCountMetrics = ArgAt<0>(args...);
+    static constexpr bool kTimeMetrics = ArgAt<1>(args...);
+    static constexpr bool kIndexLogs = ArgAt<2>(args...);
+    static constexpr bool kStartTimeLogs = ArgAt<3>(args...);
+    static constexpr bool kLevelModuleLogs = ArgAt<4>(args...);
+    static constexpr bool kLocationLogs = ArgAt<5>(args...);
+    static constexpr bool kNameLogs = ArgAt<6>(args...);
+    static constexpr bool kBlobLogs = ArgAt<7>(args...);
   };
 
   template <bool... args>
   struct EnvConfig {
-    static constexpr bool kCompiler = ArgAt<0, args...>();
-    static constexpr bool kPlatformType = ArgAt<1, args...>();
-    static constexpr bool kCompilationOptions = ArgAt<2, args...>();
-    static constexpr bool kLibraryVersion = ArgAt<3, args...>();
-    static constexpr bool kApiVersion = ArgAt<4, args...>();
-    static constexpr bool kCpuType = ArgAt<5, args...>();
+    static constexpr bool kCompiler = ArgAt<0>(args...);
+    static constexpr bool kPlatformType = ArgAt<1>(args...);
+    static constexpr bool kCompilationOptions = ArgAt<2>(args...);
+    static constexpr bool kLibraryVersion = ArgAt<3>(args...);
+    static constexpr bool kApiVersion = ArgAt<4>(args...);
+    static constexpr bool kCpuType = ArgAt<5>(args...);
   };
 
   template <ae::tele::Level::underlined_t level, std::uint32_t module>
@@ -214,22 +191,19 @@ struct ConfigProvider {
 }  // namespace tele_configuration
 
 void test_TeleConfigurations() {
-  constexpr auto TestTag = Tag{12, MLog, "Test"};
+  constexpr auto TestTag = Tag{11, TestObj, "Test"};
   {
     // all enabled
-    using Sink = TeleSink<tele_configuration::TeleTrap,
-                          tele_configuration::ConfigProvider<>>;
-    auto tele_trap = MakeRcPtr<tele_configuration::TeleTrap>();
+    using Sink = TeleSink<tele_configuration::ConfigProvider<>>;
+    auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
 
-    Sink::InitSink(tele_trap);
-    int remember_line = __LINE__ + 4;
+    Sink::Instance().SetTrap(tele_trap);
+    int remember_line = __LINE__ + 3;
     {
-      auto t =
-          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
-              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
-              "message {}",     12};
+      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
+          Sink::Instance(), TestTag, Level{Level::kDebug}, __FILE__, __LINE__,
+          "message {}",     12};
 
-      TEST_ASSERT_EQUAL(24, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -238,33 +212,27 @@ void test_TeleConfigurations() {
 
     TEST_ASSERT_EQUAL(1, tele_trap->log_lines_.size());
     auto& log_line = tele_trap->log_lines_.front();
-    TEST_ASSERT_EQUAL(8, log_line.size());
+    TEST_ASSERT_EQUAL(7, log_line.size());
     TEST_ASSERT_EQUAL_STRING("12", log_line[0].c_str());
     TEST_ASSERT_EQUAL_STRING("kDebug", log_line[2].c_str());
-    TEST_ASSERT_EQUAL_STRING("MLog", log_line[3].c_str());
-    TEST_ASSERT_EQUAL_STRING("test-tele.cpp", log_line[4].c_str());
-    TEST_ASSERT_EQUAL_STRING(std::to_string(remember_line).c_str(),
-                             log_line[5].c_str());
-    TEST_ASSERT_EQUAL_STRING("Test", log_line[6].c_str());
-    TEST_ASSERT_EQUAL_STRING("message 12", log_line[7].c_str());
+    TEST_ASSERT_EQUAL_STRING("TestObj", log_line[3].c_str());
+    TEST_ASSERT_EQUAL_STRING(Format("test-tele.cpp:{}", remember_line).c_str(),
+                             log_line[4].c_str());
+    TEST_ASSERT_EQUAL_STRING("Test", log_line[5].c_str());
+    TEST_ASSERT_EQUAL_STRING("message 12", log_line[6].c_str());
   }
 
   {
     // only metrics
-    using Sink =
-        TeleSink<tele_configuration::TeleTrap,
-                 tele_configuration::ConfigProvider<
-                     true, true, false, false, false, false, false, false>>;
-    auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
+    using Sink = TeleSink<tele_configuration::ConfigProvider<
+        true, true, false, false, false, false, false, false>>;
+    auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
 
-    Sink::InitSink(tele_trap);
+    Sink::Instance().SetTrap(tele_trap);
     {
-      auto t =
-          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
-              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
-              "message {}",     12};
-
-      TEST_ASSERT_EQUAL(24, sizeof(t));
+      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
+          Sink::Instance(), TestTag, Level{Level::kDebug}, __FILE__, __LINE__,
+          "message {}",     12};
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -275,19 +243,16 @@ void test_TeleConfigurations() {
   }
   {
     // only count
-    using Sink =
-        TeleSink<tele_configuration::TeleTrap,
-                 tele_configuration::ConfigProvider<
-                     true, false, false, false, false, false, false, false>>;
-    auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
-    Sink::InitSink(tele_trap);
+    using Sink = TeleSink<tele_configuration::ConfigProvider<
+        true, false, false, false, false, false, false, false>>;
+    auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
+    Sink::Instance().SetTrap(tele_trap);
     {
-      auto t =
-          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
-              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
-              "message {}",     12};
+      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
+          Sink::Instance(), TestTag, Level{Level::kDebug}, __FILE__, __LINE__,
+          "message {}",     12};
 
-      TEST_ASSERT_EQUAL(16, sizeof(t));
+      TEST_ASSERT_EQUAL(1, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -298,28 +263,23 @@ void test_TeleConfigurations() {
   }
   {
     // nothing
-    using Sink =
-        TeleSink<tele_configuration::TeleTrap,
-                 tele_configuration::ConfigProvider<
-                     false, false, false, false, false, false, false, false>>;
-    auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
+    using Sink = TeleSink<tele_configuration::ConfigProvider<
+        false, false, false, false, false, false, false, false>>;
+    auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
 
     TEST_ASSERT(tele_trap->log_lines_.empty());
   }
   {
     // nothing
-    using Sink =
-        TeleSink<tele_configuration::TeleTrap,
-                 tele_configuration::ConfigProvider<
-                     false, false, false, false, false, false, false, false>>;
-    auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
+    using Sink = TeleSink<tele_configuration::ConfigProvider<
+        false, false, false, false, false, false, false, false>>;
+    auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
 
-    Sink::InitSink(tele_trap);
+    Sink::Instance().SetTrap(tele_trap);
     {
-      auto t =
-          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
-              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
-              "message {}",     12};
+      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
+          Sink::Instance(), TestTag, Level{Level::kDebug}, __FILE__, __LINE__,
+          "message {}",     12};
 
       TEST_ASSERT_EQUAL(1, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -330,19 +290,17 @@ void test_TeleConfigurations() {
   {
     // print only index log level, module and text
     using Sink =
-        TeleSink<tele_configuration::TeleTrap,
-                 tele_configuration::ConfigProvider<false, false, true, false,
+        TeleSink<tele_configuration::ConfigProvider<false, false, true, false,
                                                     true, false, true, false>>;
-    auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
+    auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
 
-    Sink::InitSink(tele_trap);
+    Sink::Instance().SetTrap(tele_trap);
     {
-      auto t =
-          Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.value>>{
-              Sink::Instance(), TestTag, Level::kDebug, __FILE__, __LINE__,
-              "message {}",     12};
+      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
+          Sink::Instance(), TestTag, Level{Level::kDebug}, __FILE__, __LINE__,
+          "message {}",     12};
 
-      TEST_ASSERT_EQUAL(3, sizeof(t));
+      TEST_ASSERT_EQUAL(1, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
@@ -353,23 +311,22 @@ void test_TeleConfigurations() {
     TEST_ASSERT_EQUAL(4, log_line.size());
     TEST_ASSERT_EQUAL_STRING("12", log_line[0].c_str());
     TEST_ASSERT_EQUAL_STRING("kDebug", log_line[1].c_str());
-    TEST_ASSERT_EQUAL_STRING("MLog", log_line[2].c_str());
+    TEST_ASSERT_EQUAL_STRING("TestObj", log_line[2].c_str());
     TEST_ASSERT_EQUAL_STRING("Test", log_line[3].c_str());
   }
 }
 
 void test_TeleProxyTrap() {
   using ProxyTeleTrap =
-      ProxyTrap<tele_configuration::TeleTrap, ae::tele::IoStreamTrap>;
+      ProxyTrap<tele_configuration::TeleTrap, tele_configuration::TeleTrap>;
 
-  using Sink = TeleSink<ProxyTeleTrap, ConfigProvider>;
-  auto tele_trap = ae::MakeRcPtr<tele_configuration::TeleTrap>();
-  auto proxy_tele_trap = ae::MakeRcPtr<ProxyTeleTrap>(tele_trap, ::trap);
+  auto first_trap = std::make_shared<tele_configuration::TeleTrap>();
+  auto second_trap = std::make_shared<tele_configuration::TeleTrap>();
+  auto proxy_tele_trap =
+      std::make_shared<ProxyTeleTrap>(first_trap, second_trap);
 
-  Sink::InitSink(proxy_tele_trap);
+  SinkType::Instance().SetTrap(proxy_tele_trap);
 
-#undef TELE_SINK
-#define TELE_SINK Sink
   {
     AE_TELE_DEBUG(Test1);
     AE_TELE_DEBUG(Test1, "format {}", 12);
@@ -377,26 +334,23 @@ void test_TeleProxyTrap() {
     AE_TELE_INFO(Test2, "format {}", 48);
   }
 
-  auto& metrics = ::trap->metrics_[Test1.index];
+  auto& metrics = first_trap->metric_data_[Test1.offset + TestObj.index_start];
 
-  TEST_ASSERT_EQUAL(2, metrics.invocations_count_);
+  TEST_ASSERT_EQUAL(2, metrics.count_);
 
-  auto d = tele_trap->metric_data_[Test1.index];
-  TEST_ASSERT_EQUAL(metrics.invocations_count_, d.count_);
-#undef TELE_SINK
-#define TELE_SINK SinkType
+  auto d = second_trap->metric_data_[Test1.offset + TestObj.index_start];
+  TEST_ASSERT_EQUAL(metrics.count_, d.count_);
 }
 
 void test_MergeStatisticsTrap() {
   using Sink =
-      TeleSink<statistics::StatisticsTrap,
-               tele_configuration::ConfigProvider<true, true, true, false,
+      TeleSink<tele_configuration::ConfigProvider<true, true, true, false,
                                                   false, false, false, false>>;
 #undef TELE_SINK
 #define TELE_SINK Sink
-  auto statistics_trap1 = ae::MakeRcPtr<statistics::StatisticsTrap>();
+  auto statistics_trap1 = std::make_shared<statistics::StatisticsTrap>();
 
-  Sink::InitSink(statistics_trap1);
+  Sink::Instance().SetTrap(statistics_trap1);
   {
     AE_TELE_DEBUG(Test1);
     AE_TELE_INFO(Test1);
@@ -406,11 +360,16 @@ void test_MergeStatisticsTrap() {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  auto statistics_trap2 = ae::MakeRcPtr<statistics::StatisticsTrap>();
+  auto logs1 = std::get<statistics::RuntimeLog>(
+                   *statistics_trap1->statistics_store.log_store())
+                   .logs;
+
+  auto statistics_trap2 = std::make_shared<statistics::StatisticsTrap>();
   statistics_trap2->MergeStatistics(*statistics_trap1);
 
-  auto& logs1 = statistics_trap1->statistics_store.Get()->logs().logs;
-  auto& logs2 = statistics_trap2->statistics_store.Get()->logs().logs;
+  auto& logs2 = std::get<statistics::RuntimeLog>(
+                    *statistics_trap2->statistics_store.log_store())
+                    .logs;
 
   TEST_ASSERT_EQUAL(logs1.size(), logs2.size());
   auto it1 = std::begin(logs1);
@@ -419,8 +378,8 @@ void test_MergeStatisticsTrap() {
     TEST_ASSERT_EQUAL_CHAR_ARRAY(it1->data(), it2->data(), it1->size());
   }
 
-  auto& metrics1 = statistics_trap1->statistics_store.Get()->metrics().metrics;
-  auto& metrics2 = statistics_trap2->statistics_store.Get()->metrics().metrics;
+  auto& metrics1 = statistics_trap1->statistics_store.metrics_store().metrics;
+  auto& metrics2 = statistics_trap2->statistics_store.metrics_store().metrics;
 
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
   auto mit1 = std::begin(metrics1);
@@ -434,7 +393,7 @@ void test_MergeStatisticsTrap() {
     TEST_ASSERT_EQUAL(mit1->second.sum_duration, mit2->second.sum_duration);
   }
   // switch to trap 2
-  Sink::InitSink(statistics_trap2);
+  Sink::Instance().SetTrap(statistics_trap2);
   {
     AE_TELE_DEBUG(Test1);
     AE_TELE_DEBUG(Test2);

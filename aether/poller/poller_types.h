@@ -17,7 +17,6 @@
 #ifndef AETHER_POLLER_POLLER_TYPES_H_
 #define AETHER_POLLER_POLLER_TYPES_H_
 
-#include <tuple>
 #include <cstdint>
 
 #include "aether/format/format.h"

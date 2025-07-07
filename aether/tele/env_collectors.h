@@ -26,8 +26,9 @@
 #include <utility>
 
 #include "aether/env.h"
-#include "aether/tele/declaration.h"
+#include "aether/tele/itrap.h"
 #include "aether/tele/env/compiler.h"
+#include "aether/tele/compile_option.h"
 #include "aether/tele/env/platform_type.h"
 #include "aether/tele/env/library_version.h"
 #include "aether/tele/env/cpu_architecture.h"
@@ -94,43 +95,46 @@ template <typename TSink,
           auto Enabled = IsAnyEnvCollection<typename TSink::EnvConfig>()>
 struct EnvTele {
   using Sink = TSink;
-  using EnvStream = decltype(std::declval<Sink>().trap()->env_stream());
   using SinkConfig = typename Sink::EnvConfig;
 
   template <typename... TValues>
-  constexpr explicit EnvTele(
+  explicit EnvTele(
       Sink& sink, [[maybe_unused]] std::uint32_t utm_id,
-      [[maybe_unused]] std::pair<std::size_t, TValues>&&... args) {
-    auto stream = sink.trap()->env_stream();
+      [[maybe_unused]] std::pair<std::string_view, TValues>&&... args) {
+    auto env_data = EnvData{};
     if constexpr (SinkConfig::kPlatformType) {
-      stream.platform_type(PlatformType());
+      env_data.platform_type = PlatformType();
     }
     if constexpr (SinkConfig::kCompiler) {
-      stream.compiler(CompilerName());
-      stream.compiler_version(CompilerVersion());
+      env_data.compiler = CompilerName();
+      env_data.compiler_version = CompilerVersion();
     }
     if constexpr (SinkConfig::kCompilationOptions) {
-      for (auto opt : CompilationOptions()) {
-        stream.compilation_option(opt);
-      }
+      auto opts = CompilationOptions();
+      env_data.compile_options.insert(std::end(env_data.compile_options),
+                                      std::begin(opts), std::end(opts));
     }
     if constexpr (SinkConfig::kLibraryVersion) {
-      stream.library_version(LibraryVersion());
+      env_data.library_version = LibraryVersion();
     }
     if constexpr (SinkConfig::kApiVersion) {
-      stream.api_version(ApiVersion());
+      env_data.api_version = ApiVersion();
     }
     if constexpr (SinkConfig::kCpuType) {
-      stream.cpu_type(CpuType());
-      stream.endianness(static_cast<uint8_t>(PlatformEndianness()));
+      env_data.cpu_arch = CpuType();
+      env_data.endianness = static_cast<std::uint8_t>(PlatformEndianness());
     }
     if constexpr (SinkConfig::kUtmId) {
-      stream.utmid(utm_id);
+      env_data.utm_id = utm_id;
     }
-
     if constexpr (SinkConfig::kCustomData) {
-      (stream.custom_data(args.first, args.second), ...);
+      env_data.custom_options = {CustomOption{args.first, args.second}...};
     }
+    auto& trap = sink.trap();
+    if (!trap) {
+      return;
+    }
+    trap->WriteEnvData(env_data);
   }
 };
 

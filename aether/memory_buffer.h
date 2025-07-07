@@ -166,9 +166,10 @@ class MemStreamBuf : public std::basic_streambuf<CharT, Traits> {
    */
   pos_type seekpos(pos_type sp, std::ios_base::openmode mode) override {
     if (mode == std::ios_base::in) {
-      streambuf::setg(membuf_, membuf_ + sp, membuf_ + Size());
+      streambuf::setg(membuf_, membuf_ + static_cast<std::size_t>(sp),
+                      membuf_ + static_cast<std::size_t>(Size()));
     } else if (mode == std::ios_base::out) {
-      streambuf::setp(membuf_, membuf_ + sp);
+      streambuf::setp(membuf_, membuf_ + static_cast<std::size_t>(sp));
     }
     return sp;
   }

@@ -24,6 +24,11 @@ set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 valu
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
 set(FS_INIT "" CACHE PATH "Path to user provided saved state header file")
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/../cmake)
+include(repo_init)
+
+ae_update_dependencies()
+
 # list a common dependencies
 list(APPEND common_dependencies
     "../third_party/libbcrypt"
@@ -46,7 +51,6 @@ list(APPEND aether_srcs
             "registration_cloud.cpp"
             "work_cloud.cpp"
             "server.cpp"
-            "uid.cpp"
             "proof_of_work.cpp"
             "server_keys.cpp"
             "socket_initializer.cpp")
@@ -80,11 +84,7 @@ list(APPEND ptr_srcs
             "ptr/ptr_management.cpp"
         )
 
-list(APPEND events_srcs
-        "events/event_deleter.cpp"
-        "events/event_subscription.cpp"
-        "events/multi_subscription.cpp"
-    )
+list(APPEND events_srcs)
 
 list(APPEND actions_srcs
             "ae_actions/registration/registration.cpp"
@@ -103,7 +103,6 @@ list(APPEND actions_srcs
             )
 
 list(APPEND adapters_srcs
-            "adapters/adapter_factory.cpp"
             "adapters/adapter.cpp"
             "adapters/esp32_wifi.cpp"
             "adapters/ethernet.cpp"
@@ -118,8 +117,7 @@ list(APPEND adapters_srcs
             )
 
 list(APPEND transport_srcs
-            "transport/actions/ip_channel_connection.cpp"
-            "transport/actions/name_address_channel_connection.cpp"
+            "transport/actions/build_transport_action.cpp"
             "transport/server/server_channel_stream.cpp"
             "transport/low_level/tcp/socket_packet_send_action.cpp"
             "transport/low_level/tcp/lte_tcp.cpp"
@@ -206,9 +204,6 @@ list(APPEND client_messages_srcs
             "client_messages/p2p_safe_message_stream.cpp"
             )
 
-list(APPEND port_srcs
-            "port/tele_init.cpp")
-
 list(APPEND domain_storage_srcs
             "domain_storage/domain_storage_factory.cpp"
             "domain_storage/registrar_domain_storage.cpp"
@@ -222,6 +217,7 @@ list(APPEND statistics_srcs
       "statistics/channel_statistics.cpp")
 
 list(APPEND tele_srcs
+            "tele/tele_init.cpp"
             "tele/traps/io_stream_traps.cpp"
             "tele/traps/statistics_trap.cpp"
             "tele/traps/tele_statistics.cpp")
@@ -265,7 +261,6 @@ if(REGULAR_CMAKE_PROJECT)
                             ${methods_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
-                            ${port_srcs}
                             ${domain_storage_srcs}
                             ${statistics_srcs}
                             ${tele_srcs}
@@ -309,7 +304,6 @@ else()
                             ${methods_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
-                            ${port_srcs}
                             ${domain_storage_srcs}
                             ${statistics_srcs}
                             ${tele_srcs}

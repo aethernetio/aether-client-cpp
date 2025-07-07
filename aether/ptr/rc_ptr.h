@@ -21,16 +21,17 @@
 #include <cstdint>
 #include <cassert>
 #include <utility>
+#include <atomic>
 
-#include "aether/ptr/storage.h"
 #include "aether/mstream.h"
+#include "aether/types/aligned_storage.h"
 
 namespace ae {
 // for most cases 2*uint8_t should be more than enough
 // saving more space is impossible due to alignment in RcStorage
 struct RefCounters {
-  std::uint8_t main_refs;
-  std::uint8_t weak_refs;
+  std::atomic<std::uint8_t> main_refs;
+  std::atomic<std::uint8_t> weak_refs;
 };
 
 template <typename T>
@@ -144,7 +145,8 @@ auto MakeRcPtr(TArgs&&... args) noexcept {
     alloc.deallocate(rc_storage, std::size_t{1});
     return RcPtr<T>{};
   }
-  rc_storage->ref_counters = {};
+  rc_storage->ref_counters.main_refs = 0;
+  rc_storage->ref_counters.weak_refs = 0;
   return RcPtr<T>{rc_storage};
 }
 

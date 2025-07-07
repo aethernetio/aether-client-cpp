@@ -24,18 +24,17 @@ ClientServerConnection::ClientServerConnection(
     Server::ptr const& server, Channel::ptr const& channel,
     std::unique_ptr<ClientToServerStream> client_to_server_stream)
     : server_stream_{std::move(client_to_server_stream)},
-      message_stream_dispatcher_{
-          make_unique<MessageStreamDispatcher>(*server_stream_)},
-      ping_{make_unique<Ping>(action_context, server, channel, *server_stream_,
-                              std::chrono::milliseconds{AE_PING_INTERVAL_MS})},
+      message_stream_dispatcher_{*server_stream_},
+      ping_{action_context, server, channel, *server_stream_,
+            std::chrono::milliseconds{AE_PING_INTERVAL_MS}},
 #if defined TELEMETRY_ENABLED
-      telemetry_{
-          make_unique<Telemetry>(action_context, aether, *server_stream_)},
+      telemetry_{action_context, aether, *server_stream_},
 #endif
-      // TODO: handle Ping error
-      new_stream_event_subscription_{
-          message_stream_dispatcher_->new_stream_event().Subscribe(
-              new_stream_event_, MethodPtr<&NewStreamEvent::Emit>{})} {
+      new_stream_event_sub_{
+          message_stream_dispatcher_.new_stream_event().Subscribe(
+              new_stream_event_, MethodPtr<&NewStreamEvent::Emit>{})},
+      ping_error_sub_{ping_.ErrorEvent().Subscribe(
+          [this](auto&&...) { server_error_event_.Emit(); })} {
 }
 
 ClientToServerStream& ClientServerConnection::server_stream() {
@@ -43,7 +42,7 @@ ClientToServerStream& ClientServerConnection::server_stream() {
 }
 
 ByteIStream& ClientServerConnection::GetStream(Uid destination_uid) {
-  return message_stream_dispatcher_->GetMessageStream(destination_uid);
+  return message_stream_dispatcher_.GetMessageStream(destination_uid);
 }
 
 ClientServerConnection::NewStreamEvent::Subscriber
@@ -51,13 +50,18 @@ ClientServerConnection::new_stream_event() {
   return new_stream_event_;
 }
 
+ClientServerConnection::ServerErrorEvent::Subscriber
+ClientServerConnection::server_error_event() {
+  return server_error_event_;
+}
+
 void ClientServerConnection::CloseStream(Uid uid) {
-  message_stream_dispatcher_->CloseStream(uid);
+  message_stream_dispatcher_.CloseStream(uid);
 }
 
 void ClientServerConnection::SendTelemetry() {
 #if defined TELEMETRY_ENABLED
-  telemetry_->SendTelemetry();
+  telemetry_.SendTelemetry();
 #endif
 }
 

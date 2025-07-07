@@ -19,18 +19,42 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kPoller, 25);
+AE_TELE_MODULE(kPoller, 6, 121, 155);
 
-AE_TAG_INDEXED(PollerWorkerCreate, kPoller, 90)
-AE_TAG(PollerWorkerDestroyed, kPoller)
-AE_TAG(PollerAddDescriptor, kPoller)
-AE_TAG(PollerRemoveDescriptor, kPoller)
-AE_TAG(PollerAddFailed, kPoller)
-AE_TAG(PollerRemoveFailed, kPoller)
-AE_TAG(PollerCreateWakeUpFailed, kPoller)
-AE_TAG(PollerWakeUpFailed, kPoller)
-AE_TAG(PollerInitFailed, kPoller)
-AE_TAG(PollerWaitFailed, kPoller)
-AE_TAG(PollerUnknownType, kPoller)
+AE_TAG(kEpollWorkerCreate, kPoller)
+AE_TAG(kEpollWorkerDestroyed, kPoller)
+AE_TAG(kEpollAddDescriptor, kPoller)
+AE_TAG(kEpollRemoveDescriptor, kPoller)
+AE_TAG(kEpollAddFailed, kPoller)
+AE_TAG(kEpollRemoveFailed, kPoller)
+AE_TAG(kEpollCreateWakeUpFailed, kPoller)
+AE_TAG(kEpollInitFailed, kPoller)
+AE_TAG(kEpollWaitFailed, kPoller)
+
+AE_TAG(kKqueueWorkerCreate, kPoller)
+AE_TAG(kKqueueWorkerDestroyed, kPoller)
+AE_TAG(kKqueueAddDescriptor, kPoller)
+AE_TAG(kKqueueRemoveDescriptor, kPoller)
+AE_TAG(kKqueueAddFailed, kPoller)
+AE_TAG(kKqueueRemoveFailed, kPoller)
+AE_TAG(kKqueueCreateWakeUpFailed, kPoller)
+AE_TAG(kKqueueWakeUpFailed, kPoller)
+AE_TAG(kKqueueInitFailed, kPoller)
+AE_TAG(kKqueueWaitFailed, kPoller)
+AE_TAG(kKqueueUnknownType, kPoller)
+
+AE_TAG(kFreertosWorkerCreate, kPoller)
+AE_TAG(kFreertosWorkerDestroyed, kPoller)
+AE_TAG(kFreertosAddDescriptor, kPoller)
+AE_TAG(kFreertosRemoveDescriptor, kPoller)
+AE_TAG(kFreertosWaitFailed, kPoller)
+
+AE_TAG(kWinpollWorkerCreate, kPoller)
+AE_TAG(kWinpollWorkerDestroyed, kPoller)
+AE_TAG(kWinpollAddDescriptor, kPoller)
+AE_TAG(kWinpollRemoveDescriptor, kPoller)
+AE_TAG(kWinpollAddFailed, kPoller)
+AE_TAG(kWinpollInitFailed, kPoller)
+AE_TAG(kWinpollWaitFailed, kPoller)
 
 #endif  // AETHER_POLLER_POLLER_TELE_H_

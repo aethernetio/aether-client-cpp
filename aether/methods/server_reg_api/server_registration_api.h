@@ -24,7 +24,7 @@
 #  include <string>
 #  include <vector>
 
-#  include "aether/uid.h"
+#  include "aether/types/uid.h"
 #  include "aether/common.h"
 #  include "aether/crypto/key.h"
 #  include "aether/crypto/crypto_definitions.h"

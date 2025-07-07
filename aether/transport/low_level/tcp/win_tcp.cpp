@@ -108,7 +108,7 @@ ActionResult WinTcpTransport::ConnectionAction::Update() {
 }
 
 void WinTcpTransport::ConnectionAction::Connect() {
-  AE_TELE_DEBUG(TcpTransportConnect, "Connect to {}", transport_->endpoint_);
+  AE_TELE_INFO(kWinTcpTransportConnect, "Connect to {}", transport_->endpoint_);
   state_ = State::kWaitConnection;
 
   // run asynchronously
@@ -345,7 +345,8 @@ void WinTcpTransport::WinTcpReadAction::HandleReceivedData() {
   for (auto packet = data_packet_collector_.PopPacket(); !packet.empty();
        packet = data_packet_collector_.PopPacket()) {
     // TODO: get time from action
-    AE_TELE_DEBUG(TcpTransportReceive, "Receive data size {}", packet.size());
+    AE_TELE_DEBUG(kWinTcpTransportReceive, "Receive data size {}",
+                  packet.size());
     transport_->data_receive_event_.Emit(std::move(packet),
                                          TimePoint::clock::now());
   }
@@ -391,8 +392,8 @@ WinTcpTransport::WinTcpTransport(ActionContext action_context,
       socket_packet_queue_manager_{action_context_},
       read_overlapped_{{}, EventType::kRead},
       write_overlapped_{{}, EventType::kWrite} {
-  AE_TELE_DEBUG(TcpTransport, "Created win tcp transport to endpoint {}",
-                endpoint_);
+  AE_TELE_INFO(kWinTcpTransport, "Created win tcp transport to endpoint {}",
+               endpoint_);
   connection_info_.connection_state = ConnectionState::kUndefined;
 }
 
@@ -427,7 +428,7 @@ ITransport::DataReceiveEvent::Subscriber WinTcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> WinTcpTransport::Send(DataBuffer data,
                                                    TimePoint current_time) {
-  AE_TELE_DEBUG(TcpTransportSend,
+  AE_TELE_DEBUG(kWinTcpTransportSend,
                 "Send data size {} at UTC :{:%Y-%m-%d %H:%M:%S}", data.size(),
                 current_time);
 
@@ -508,7 +509,7 @@ void WinTcpTransport::Disconnect() {
 
   socket_error_sub_.Reset();
 
-  AE_TELE_DEBUG(TcpTransportDisconnect, "Disconnect from {}", endpoint_);
+  AE_TELE_INFO(kWinTcpTransportDisconnect, "Disconnect from {}", endpoint_);
   OnConnectionError();
 }
 }  // namespace ae

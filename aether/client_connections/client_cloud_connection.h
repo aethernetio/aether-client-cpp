@@ -20,7 +20,7 @@
 #include <map>
 #include <optional>
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/memory.h"
 #include "aether/types/async_for_loop.h"
 #include "aether/actions/timer_action.h"
@@ -76,6 +76,7 @@ class ClientCloudConnection final : public ClientConnection {
   Subscription new_stream_event_subscription_;
 
   Subscription connection_status_sub_;
+  Subscription server_error_sub_;
 
   // known streams to clients
   std::map<Uid, std::unique_ptr<ByteStream>> streams_;

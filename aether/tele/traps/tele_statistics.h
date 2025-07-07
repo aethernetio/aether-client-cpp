@@ -18,9 +18,10 @@
 #define AETHER_TELE_TRAPS_TELE_STATISTICS_H_
 
 #include "aether/obj/obj.h"
-#include "aether/ptr/ptr.h"
-#include "aether/tele/tele.h"
+#include "aether/ptr/rc_ptr.h"
 #include "aether/reflect/reflect.h"
+
+#include "aether/tele/tele.h"
 #include "aether/tele/traps/statistics_trap.h"
 
 namespace ae::tele {
@@ -50,11 +51,11 @@ class TeleStatistics : public Obj {
 #endif
 
 #if AE_TELE_ENABLED
-  RcPtr<statistics::StatisticsTrap> const& trap();
+  std::shared_ptr<statistics::StatisticsTrap> const& trap();
 
  private:
-  RcPtr<statistics::StatisticsTrap> trap_ =
-      MakeRcPtr<statistics::StatisticsTrap>();
+  std::shared_ptr<statistics::StatisticsTrap> trap_ =
+      std::make_shared<statistics::StatisticsTrap>();
 #endif
 };
 }  // namespace ae::tele

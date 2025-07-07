@@ -15,7 +15,7 @@
  */
 
 #include "aether/obj/domain.h"
-#include "aether/port/tele_init.h"
+#include "aether/tele/tele_init.h"
 #include "aether/types/literal_array.h"
 
 #include "aether/aether.h"
@@ -34,7 +34,7 @@ static constexpr char WIFI_SSID[] = "Test123";
 static constexpr char WIFI_PASS[] = "Test123";
 
 int test_sender_bandwidth(Uid receiver_uid) {
-  auto aether_app = ae::AetherApp::Construct(AetherAppConstructor{});
+  auto aether_app = ae::AetherApp::Construct(AetherAppContext{});
 
   ae::Client::ptr client;
 

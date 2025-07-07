@@ -125,6 +125,9 @@ void ClientCloudConnection::OnConnected() {
               OnConnectionError();
             }
           });
+
+  server_error_sub_ = server_connection_->server_error_event().Subscribe(
+      [this]() { OnConnectionError(); });
 }
 
 void ClientCloudConnection::OnConnectionError() {

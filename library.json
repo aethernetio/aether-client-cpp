@@ -3,13 +3,11 @@
   "version": "1.0.0",
   "description": "A \"Aether\" library for smart communications",
   "keywords": "communication, wifi, ethernet, smart, fast",
-  "repository":
-  {
+  "repository": {
     "type": "git",
     "url": "https://github.com/aethernetio/aether-client-cpp.git"
   },
-  "authors":
-  [
+  "authors": [
     {
       "name": "Nikolay Chirkov",
       "email": "chirkov@aethernet.io",
@@ -29,21 +27,18 @@
   ],
   "license": "Apache 2.0",
   "homepage": "https://aethernet.io",
-  "dependencies": {
-  },
+  "dependencies": {},
   "frameworks": "espidf",
   "platforms": "espressif32",
   "export": {
     "include": [
       "examples",
+      "cmake",
       "aether",
       "library.json",
       "library.properties",
       "LICENSE",
       "README.md"
     ]
-  },
-  "scripts": {
-    "postinstall": ["scripts/post_scripts.py"]
   }
 }

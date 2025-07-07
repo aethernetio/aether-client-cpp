@@ -53,12 +53,12 @@ class KqueuePoller::PollerWorker {
            nullptr);
     auto res = kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
     if (res == -1) {
-      AE_TELE_ERROR(PollerCreateWakeUpFailed,
+      AE_TELE_ERROR(kKqueueCreateWakeUpFailed,
                     "KQueue user event set error {} {}", errno,
                     strerror(errno));
       assert(false);
     }
-    AE_TELE_DEBUG(PollerWorkerCreate);
+    AE_TELE_DEBUG(kKqueueWorkerCreate);
   }
 
   ~PollerWorker() {
@@ -71,7 +71,7 @@ class KqueuePoller::PollerWorker {
     EV_SET(&ev, exit_kqueue_event_, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
     auto res = kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
     if (res == -1) {
-      AE_TELE_ERROR(PollerWakeUpFailed, "Emit user event error {} {}", errno,
+      AE_TELE_ERROR(kKqueueWakeUpFailed, "Emit user event error {} {}", errno,
                     strerror(errno));
       assert(false);
     }
@@ -81,13 +81,13 @@ class KqueuePoller::PollerWorker {
     }
 
     close(kqueue_fd_);
-    AE_TELE_DEBUG(PollerWorkerDestroyed);
+    AE_TELE_DEBUG(kKqueueWorkerDestroyed);
   }
 
   [[nodiscard]] KqueuePoller::OnPollEventSubscriber Add(
       DescriptorType descriptor) {
     auto lock = std::lock_guard{ctl_mutex_};
-    AE_TELE_DEBUG(PollerAddDescriptor, "Add event descriptor {}", descriptor);
+    AE_TELE_DEBUG(kKqueueAddDescriptor, "Add event descriptor {}", descriptor);
     std::array<struct kevent, 2> events;
     std::size_t index = 0;
     for (auto filter : {EVFILT_READ, EVFILT_WRITE}) {
@@ -98,7 +98,7 @@ class KqueuePoller::PollerWorker {
     auto res =
         kevent(kqueue_fd_, events.data(), events.size(), nullptr, 0, nullptr);
     if (res == -1) {
-      AE_TELE_ERROR(PollerAddFailed, "Add event with error {} {}", errno,
+      AE_TELE_ERROR(kKqueueAddFailed, "Add event with error {} {}", errno,
                     strerror(errno));
       assert(false);
     }
@@ -107,7 +107,7 @@ class KqueuePoller::PollerWorker {
 
   void Remove(DescriptorType descriptor) {
     auto lock = std::lock_guard{ctl_mutex_};
-    AE_TELE_DEBUG(PollerRemoveDescriptor, "Remove event descriptor {}",
+    AE_TELE_DEBUG(kKqueueRemoveDescriptor, "Remove event descriptor {}",
                   descriptor);
     std::array<struct kevent, 2> events;
     std::size_t index = 0;
@@ -118,7 +118,7 @@ class KqueuePoller::PollerWorker {
     auto res =
         kevent(kqueue_fd_, events.data(), events.size(), nullptr, 0, nullptr);
     if (res == -1) {
-      AE_TELE_ERROR(PollerRemoveFailed, "Remove event error {} {}", errno,
+      AE_TELE_ERROR(kKqueueRemoveFailed, "Remove event error {} {}", errno,
                     strerror(errno));
     }
   }
@@ -127,7 +127,7 @@ class KqueuePoller::PollerWorker {
   static int InitKqueue() {
     auto fd = kqueue();
     if (fd == -1) {
-      AE_TELE_ERROR(PollerInitFailed, "Failed to kqueue {} {}", errno,
+      AE_TELE_ERROR(kKqueueInitFailed, "Failed to kqueue {} {}", errno,
                     strerror(errno));
       assert(false);
     }
@@ -143,7 +143,7 @@ class KqueuePoller::PollerWorker {
       case EVFILT_EXCEPT:
         return EventType::kError;
       default:
-        AE_TELE_ERROR(PollerUnknownType, "Unknown filter value {}", filter);
+        AE_TELE_ERROR(kKqueueUnknownType, "Unknown filter value {}", filter);
         assert(false);
         return {};
     }
@@ -155,7 +155,7 @@ class KqueuePoller::PollerWorker {
       auto num_events =
           kevent(kqueue_fd_, nullptr, 0, events.data(), events.size(), nullptr);
       if (num_events == -1) {
-        AE_TELE_ERROR(PollerWaitFailed, "Kqueue event wait error {} {}", errno,
+        AE_TELE_ERROR(kKqueueWaitFailed, "Kqueue event wait error {} {}", errno,
                       strerror(errno));
         assert(false);
         return;

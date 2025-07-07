@@ -86,9 +86,9 @@ void SendingChunkList::RemoveUpTo(SSRingIndex offset, SSRingIndex ring_begin) {
       return true;
     }
     if (offset_range.InRange(offset)) {
-      sch.begin_offset = offset;
+      sch.begin_offset = offset + 1;
       // if chunk is collapsed
-      return sch.begin_offset(ring_begin) == sch.end_offset;
+      return sch.begin_offset(ring_begin) >= sch.end_offset;
     }
     return false;
   });

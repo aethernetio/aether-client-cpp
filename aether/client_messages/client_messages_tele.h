@@ -19,9 +19,9 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kClientMessages, 35);
+AE_TELE_MODULE(kClientMessages, 8, 166, 170);
 
-AE_TAG_INDEXED(kMessageStream, kClientMessages, 100)
+AE_TAG(kMessageStream, kClientMessages)
 AE_TAG(kMessageStreamChangeId, kClientMessages)
 
 AE_TAG(kP2pMessageStreamNew, kClientMessages)

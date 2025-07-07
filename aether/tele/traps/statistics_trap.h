@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <variant>
 
 #include "third_party/aethernet-numeric/numeric/tiered_int.h"
 
@@ -30,28 +31,77 @@
 #include "aether/common.h"
 #include "aether/mstream.h"
 #include "aether/ptr/rc_ptr.h"
-#include "aether/tele/modules.h"
-#include "aether/format/format.h"
+#include "aether/tele/itrap.h"
 #include "aether/mstream_buffers.h"
-#include "aether/tele/declaration.h"
 #include "aether/reflect/reflect.h"
 
 namespace ae::tele {
 namespace statistics {
-struct LogStore {
+/**
+ * \brief Storage for old saved logs
+ */
+struct SavedLog {
+  AE_REFLECT_MEMBERS(data)
+
+  std::vector<std::uint8_t> data;
+};
+
+/**
+ * \brief Stores serialized lines of logs in bunch of buffers
+ */
+struct RuntimeLog {
   using log_entry = std::vector<std::uint8_t>;
   using list_type = std::list<log_entry>;
-
   using size_type = list_type::size_type;
-  size_type Size() const;
 
-  AE_REFLECT_MEMBERS(logs)
+  RuntimeLog() = default;
+  explicit RuntimeLog(SavedLog&& saved);
+  void Append(RuntimeLog&& newer);
 
+  std::size_t size{};
   list_type logs;
 };
 
+// Convert RuntimeLog to SavedLog and write
+template <typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& stream, RuntimeLog const& log) {
+  auto saved = SavedLog{};
+  saved.data.reserve(log.size);
+  for (auto const& e : log.logs) {
+    saved.data.insert(saved.data.end(), e.begin(), e.end());
+  }
+  stream << saved;
+  return stream;
+}
+
+/**
+ * \brief Storage for logs
+ */
+using LogStorage = std::variant<SavedLog, RuntimeLog>;
+
+/**
+ * \brief Save and load LogStorage.
+ * It always saved as SavedLog.
+ */
+template <typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& stream, LogStorage const& log) {
+  // all variants saved as SavedLog
+  std::visit([&](auto const& v) { stream << v; }, log);
+  return stream;
+}
+template <typename Ib>
+imstream<Ib>& operator>>(imstream<Ib>& stream, LogStorage& log) {
+  // all variants saved as SavedLog
+  log = SavedLog{};
+  stream >> std::get<SavedLog>(log);
+  return stream;
+}
+
+/**
+ * \brief Map of telemetry metrics.
+ */
 struct MetricsStore {
-  using PackedIndex = TieredInt<std::uint32_t, std::uint8_t, 250>;
+  using PackedIndex = TieredInt<std::uint64_t, std::uint8_t, 250>;
   using PackedValue = TieredInt<std::uint32_t, std::uint8_t, 250>;
   struct Metric {
     PackedValue invocations_count;
@@ -64,9 +114,6 @@ struct MetricsStore {
   };
 
   using MetricsMap = std::map<PackedIndex, Metric>;
-  using size_type = MetricsMap::size_type;
-
-  size_type Size() const;
 
   AE_REFLECT_MEMBERS(metrics)
 
@@ -85,90 +132,28 @@ struct EnvStore {
   std::string compiler;
   std::string compiler_version;
   std::string api_version;
-  std::string cpu_type;
+  std::string cpu_arch;
   std::uint8_t endianness;
   std::uint32_t utm_id;
   std::vector<std::pair<PackedIndex, std::string>> compile_options;
 
   AE_REFLECT_MEMBERS(library_version, platform, compiler, compiler_version,
-                     api_version, cpu_type, endianness, utm_id, compile_options)
-};
-}  // namespace statistics
-}  // namespace ae::tele
-
-namespace ae::tele {
-namespace statistics {
-/**
- * \brief Storage for telemetry data
- */
-class Statistics {
-  template <typename T>
-  friend class ProxyStatistics;
-
- public:
-  // Current statistics size in bytes
-  std::size_t Size() const;
-
-  LogStore& logs();
-  MetricsStore& metrics();
-
-  void Append(Statistics const& other);
-
-  AE_REFLECT_MEMBERS(size_, logs_, metrics_)
-
- private:
-  void UpdateSize(LogStore const& logs, std::size_t delta_size);
-  void UpdateSize(MetricsStore const& metrics, std::size_t delta_size);
-
-  LogStore logs_;
-  MetricsStore metrics_;
-  std::uint32_t size_{};  //< memory size in bytes
-};
-
-/**
- * \brief Access to statistics data through proxy object.
- * After proxy freed by user, additional calculations would be performed
- * @see ~Proxy()
- */
-template <typename T>
-class ProxyStatistics {
- public:
-  ProxyStatistics(RcPtr<Statistics> statistics, T& data) noexcept;
-  ProxyStatistics(ProxyStatistics const& other) = delete;
-  ProxyStatistics(ProxyStatistics&& other) noexcept;
-  ~ProxyStatistics() noexcept;
-
-  T* operator->() noexcept;
-
- private:
-  RcPtr<Statistics> statistics_;
-  T* data_{};
-  typename T::size_type size_{};
+                     api_version, cpu_arch, endianness, utm_id, compile_options)
 };
 
 /**
  * \brief Storage for telemetry statistics with rotation
  */
 class StatisticsStore {
-  static constexpr std::size_t kMaxSize =
-#ifndef STATISTICS_MAX_SIZE
-      10 * 1024;  // 10 KB
-#else
-      STATISTICS_MAX_SIZE;
-#endif
+  static constexpr std::size_t kMaxSize = AE_STATISTICS_MAX_SIZE / 2;
 
  public:
   StatisticsStore();
   ~StatisticsStore();
 
-  /**
-   * \brief Get current statistics.
-   * If current statistics is full, move it into previous and return new
-   * current.
-   */
-  RcPtr<Statistics> Get();
-
-  EnvStore& GetEnvStore();
+  EnvStore& env_store();
+  MetricsStore& metrics_store();
+  RcPtr<LogStorage> log_store();
 
   /**
    * \brief Merge storage into this
@@ -178,7 +163,8 @@ class StatisticsStore {
 
   void SetSizeLimit(std::size_t limit);
 
-  AE_REFLECT_MEMBERS(statistics_size_limit_, env_store_, prev_, current_)
+  AE_REFLECT_MEMBERS(statistics_size_limit_, env_store_, metrics_store_,
+                     prev_logs_, logs_)
 
  private:
   bool IsCurrentFull() const;
@@ -186,77 +172,45 @@ class StatisticsStore {
 
   std::uint32_t statistics_size_limit_{kMaxSize};
   EnvStore env_store_;
-  RcPtr<Statistics> prev_;
-  RcPtr<Statistics> current_;
+  MetricsStore metrics_store_;
+  RcPtr<LogStorage> prev_logs_;
+  RcPtr<LogStorage> logs_;
 };
 
 /**
  * \brief Access to statistics storage through telemetry trap
  */
-
-class StatisticsTrap {
+class StatisticsTrap final : public ITrap {
  public:
-  struct LogStream {
-    using PackedSize = TieredInt<std::uint64_t, std::uint8_t, 250>;
-    using PackedIndex = TieredInt<std::uint64_t, std::uint8_t, 250>;
-    using PackedLine = TieredInt<std::uint64_t, std::uint8_t, 250>;
+  using PackedSize = TieredInt<std::uint64_t, std::uint8_t, 250>;
+  using PackedIndex = TieredInt<std::uint64_t, std::uint8_t, 250>;
+  using PackedLine = TieredInt<std::uint64_t, std::uint8_t, 250>;
 
-    LogStream(ProxyStatistics<LogStore>&& ls, VectorWriter<PackedSize>&& vw);
-    LogStream(LogStream&&) noexcept;
-    ~LogStream();
+  struct LogLine {
+    LogLine(std::unique_lock<std::mutex> l, RcPtr<LogStorage> log,
+            std::vector<std::uint8_t>& d);
+    ~LogLine();
 
-    void index(PackedIndex index);
-    void start_time(TimePoint const& start);
-    void level(Level::underlined_t level);
-    void module(Module const& module);
-    void file(std::string_view file);
-    void line(PackedLine line);
-    void name(std::string_view name);
-
-    template <typename... TArgs>
-    void blob(std::string_view format, TArgs&&... args) {
-      log_writer << Format(format, std::forward<TArgs>(args)...);
-    }
-
-    ProxyStatistics<LogStore> log_store;
+    std::unique_lock<std::mutex> lock;
+    RcPtr<LogStorage> log_storage;
     VectorWriter<PackedSize> vector_writer;
     omstream<VectorWriter<PackedSize>> log_writer;
   };
 
-  struct MetricStream {
-    MetricStream(ProxyStatistics<MetricsStore>&& ms,
-                 MetricsStore::PackedIndex index);
-    MetricStream(MetricStream&& other) noexcept;
-    ~MetricStream();
-
-    void add_count(std::uint32_t count);
-    void add_duration(std::uint32_t duration);
-
-    ProxyStatistics<MetricsStore> metrics_store;
-    MetricsStore::PackedIndex index;
-  };
-
-  struct EnvStream {
-    void platform_type(char const* platform_type);
-    void compiler(char const* compiler);
-    void compiler_version(char const* compiler_version);
-    void compilation_option(CompileOption const& opt);
-    void library_version(char const* library_version);
-    void api_version(char const* api_version);
-    void cpu_type(char const* cpu_type);
-    void endianness(std::uint8_t endianness);
-    void utmid(std::uint32_t utm_id);
-
-    EnvStore& env_store;
-  };
-
   StatisticsTrap();
-  ~StatisticsTrap();
+  ~StatisticsTrap() override;
 
-  LogStream log_stream(Declaration const& decl);
-  MetricStream metric_stream(Declaration const& decl);
-  EnvStream env_stream();
-  std::mutex& sync();
+  void AddInvoke(Tag const& tag, std::uint32_t count) override;
+  void AddInvokeDuration(Tag const& tag, Duration duration) override;
+  void OpenLogLine(Tag const& tag) override;
+  void InvokeTime(TimePoint time) override;
+  void WriteLevel(Level level) override;
+  void WriteModule(Module const& module) override;
+  void Location(std::string_view file, std::uint32_t line) override;
+  void TagName(std::string_view name) override;
+  void Blob(std::uint8_t const* data, std::size_t size) override;
+  void CloseLogLine(Tag const& tag) override;
+  void WriteEnvData(EnvData const& env_data) override;
 
   /**
    * \brief Merge newer statistics storage into this
@@ -269,6 +223,7 @@ class StatisticsTrap {
 
  private:
   std::mutex sync_lock_;
+  std::optional<LogLine> log_line_;
 };
 }  // namespace statistics
 }  // namespace ae::tele

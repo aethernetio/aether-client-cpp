@@ -95,21 +95,21 @@ int RegistratorConfig::ParseConfig() {
         file["ServerID" + std::to_string(i + 1)]["ipProtocol"];
 
     if (str_ip_address_type == "kIpAddress") {
-      ae::IpAddress ip_adress{};
-      ae::IpAddressParser ip_adress_parser{};
+      ae::IpAddress ip_address{};
+      ae::IpAddressParser ip_address_parser{};
 
-      auto res = ip_adress_parser.StringToIP(str_ip_address);
+      auto res = ip_address_parser.StringToIP(str_ip_address);
       if (res == std::nullopt) {
         AE_TELED_ERROR("Configuration failed, wrong IP address {}.",
                        str_ip_address);
         return -2;
       } else {
-        ip_adress = *res;
+        ip_address = *res;
       }
 
-      server_config.server_ip_adress = ip_adress;
+      server_config.server_ip_address = ip_address;
       server_config.server_address_type = ae::ServerAddressType::kIpAddress;
-      server_config.server_ip_address_version = ip_adress.version;
+      server_config.server_ip_address_version = ip_address.version;
       server_config.server_address = str_ip_address;
       server_config.server_port = int_ip_port;
       if (str_ip_protocol == "kTcp") {

@@ -33,11 +33,11 @@ namespace ae {
 class WinPoller::IoCPPoller {
  public:
   IoCPPoller() : poll_event_{SharedMutexSyncPolicy{events_lock_}} {
-    AE_TELE_INFO(PollerWorkerCreate);
+    AE_TELE_INFO(kWinpollWorkerCreate);
     iocp_ = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 1);
     if (iocp_ == nullptr) {
       iocp_ = INVALID_HANDLE_VALUE;
-      AE_TELE_ERROR(PollerInitFailed, "Create iocp error {}", GetLastError());
+      AE_TELE_ERROR(kWinpollInitFailed, "Create iocp error {}", GetLastError());
       assert(false);
       return;
     }
@@ -56,14 +56,14 @@ class WinPoller::IoCPPoller {
       }
       CloseHandle(iocp_);
     }
-    AE_TELE_INFO(PollerWorkerDestroyed);
+    AE_TELE_INFO(kWinpollWorkerDestroyed);
   }
 
   WinPoller::OnPollEventSubscriber Add(DescriptorType descriptor) {
     assert(iocp_ != INVALID_HANDLE_VALUE);
 
     auto lock = std::lock_guard{events_lock_};
-    AE_TELE_DEBUG(PollerAddDescriptor, "Add poller descriptor");
+    AE_TELE_DEBUG(kWinpollAddDescriptor, "Add poller descriptor");
 
     auto comp_key = static_cast<HANDLE>(descriptor);
     auto [it, inserted] = events_.insert(comp_key);
@@ -71,7 +71,7 @@ class WinPoller::IoCPPoller {
       auto res = CreateIoCompletionPort(
           descriptor, iocp_, reinterpret_cast<ULONG_PTR>(comp_key), 0);
       if (res == nullptr) {
-        AE_TELE_ERROR(PollerAddFailed,
+        AE_TELE_ERROR(kWinpollAddFailed,
                       "Add descriptor to completion port error {}",
                       GetLastError());
         assert(false);
@@ -82,7 +82,7 @@ class WinPoller::IoCPPoller {
 
   void Remove(DescriptorType descriptor) {
     auto lock = std::lock_guard{events_lock_};
-    AE_TELE_DEBUG(PollerRemoveDescriptor, "Remove poller event");
+    AE_TELE_DEBUG(kWinpollRemoveDescriptor, "Remove poller event");
 
     auto comp_key = static_cast<HANDLE>(descriptor);
     events_.erase(comp_key);
@@ -103,7 +103,7 @@ class WinPoller::IoCPPoller {
           events_.erase(reinterpret_cast<HANDLE>(completion_key));
           continue;
         }
-        AE_TELE_ERROR(PollerWaitFailed, "GetQueuedCompletionStatus error {}",
+        AE_TELE_ERROR(kWinpollWaitFailed, "GetQueuedCompletionStatus error {}",
                       error);
       }
 

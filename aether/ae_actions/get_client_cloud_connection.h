@@ -20,7 +20,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "aether/uid.h"
+#include "aether/types/uid.h"
 #include "aether/memory.h"
 #include "aether/types/async_for_loop.h"
 #include "aether/ptr/ptr_view.h"

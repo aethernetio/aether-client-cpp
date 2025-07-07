@@ -19,12 +19,32 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kTransport, 4);
-AE_TAG_INDEXED(TcpTransportConnect, kTransport, 20)
-AE_TAG(TcpTransport, kTransport)
-AE_TAG(TcpTransportDisconnect, kTransport)
-AE_TAG(TcpTransportSend, kTransport)
-AE_TAG(TcpTransportOnData, kTransport)
-AE_TAG(TcpTransportReceive, kTransport)
+AE_TELE_MODULE(kTransport, 4, 51, 100);
+AE_TELE_MODULE(kTransportDebug, 104, 400, 445);
+
+AE_TAG(kUnixTcpTransportConnect, kTransport)
+AE_TAG(kUnixTcpTransportDisconnect, kTransport)
+AE_TAG(kUnixTcpTransport, kTransport)
+
+AE_TAG(kUnixTcpTransportSend, kTransportDebug)
+AE_TAG(kUnixTcpTransportReceive, kTransportDebug)
+
+AE_TAG(kLwipTcpTransportConnect, kTransport)
+AE_TAG(kLwipTcpTransportDisconnect, kTransport)
+AE_TAG(kLwipTcpTransport, kTransport)
+
+AE_TAG(kLwipTcpTransportSend, kTransportDebug)
+AE_TAG(kLwipTcpTransportReceive, kTransportDebug)
+
+AE_TAG(kWinTcpTransportConnect, kTransport)
+AE_TAG(kWinTcpTransportDisconnect, kTransport)
+AE_TAG(kWinTcpTransport, kTransport)
+
+AE_TAG(kWinTcpTransportSend, kTransportDebug)
+AE_TAG(kWinTcpTransportReceive, kTransportDebug)
+
+AE_TAG(kLteTcpTransportSend, kTransportDebug)
+AE_TAG(kLteTcpTransportReceive, kTransportDebug)
+AE_TAG(kLteTcpTransport, kTransport)
 
 #endif  // AETHER_TRANSPORT_TRANSPORT_TELE_H_
