@@ -80,6 +80,7 @@ int UnixTcpSocket::MakeSocket() {
   // TCP socket
   int sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock == kInvalidSocket) {
+    AE_TELED_DEBUG("Socket creation error {} {}", errno, strerror(errno));
     return kInvalidSocket;
   }
 
