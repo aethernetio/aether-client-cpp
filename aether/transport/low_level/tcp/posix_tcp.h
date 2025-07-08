@@ -25,6 +25,7 @@
 #  include <mutex>
 
 #  include "aether/common.h"
+#  include "aether/ptr/ptr_view.h"
 #  include "aether/poller/poller.h"
 #  include "aether/actions/action.h"
 #  include "aether/actions/notify_action.h"
@@ -107,7 +108,7 @@ class PosixTcpTransport : public ITransport {
   };
 
  public:
-  PosixTcpTransport(ActionContext action_context, IPoller::ptr poller,
+  PosixTcpTransport(ActionContext action_context, IPoller::ptr const& poller,
                     IpAddressPort const& endpoint);
   ~PosixTcpTransport() override;
 
@@ -132,7 +133,7 @@ class PosixTcpTransport : public ITransport {
   void Disconnect();
 
   ActionContext action_context_;
-  IPoller::ptr poller_;
+  PtrView<IPoller> poller_;
   IpAddressPort endpoint_;
 
   ConnectionInfo connection_info_;
