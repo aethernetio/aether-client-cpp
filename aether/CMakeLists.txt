@@ -114,12 +114,14 @@ list(APPEND transport_srcs
             "transport/server/server_channel_stream.cpp"
             "transport/low_level/sockets/unix_socket.cpp"
             "transport/low_level/sockets/unix_tcp_socket.cpp"
+            "transport/low_level/sockets/unix_udp_socket.cpp"
             "transport/low_level/sockets/lwip_socket.cpp"
             "transport/low_level/sockets/lwip_tcp_socket.cpp"
             "transport/low_level/socket_packet_send_action.cpp"
             "transport/low_level/tcp/posix_tcp.cpp"
             "transport/low_level/tcp/win_tcp.cpp"
             "transport/low_level/tcp/data_packet_collector.cpp"
+            "transport/low_level/udp/posix_udp.cpp"
 )
 
 list(APPEND server_list_srcs
