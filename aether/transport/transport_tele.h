@@ -29,14 +29,12 @@ AE_TAG(kTcpTransport, kTransport)
 AE_TAG(kTcpTransportSend, kTransportDebug)
 AE_TAG(kTcpTransportReceive, kTransportDebug)
 
+AE_TAG(kUdpTransport, kTransport)
+AE_TAG(kUdpTransportConnect, kTransport)
+AE_TAG(kUdpTransportConnectFailed, kTransport)
+AE_TAG(kUdpTransportDisconnect, kTransport)
 
-
-AE_TAG(kPosixUdpTransport, kTransport)
-AE_TAG(kPosixUdpTransportConnect, kTransport)
-AE_TAG(kPosixUdpTransportConnectFailed, kTransport)
-AE_TAG(kPosixUdpTransportDisconnect, kTransport)
-
-AE_TAG(kPosixUdpTransportSend, kTransportDebug)
-AE_TAG(kPosixUdpTransportReceive, kTransportDebug)
+AE_TAG(kUdpTransportSend, kTransportDebug)
+AE_TAG(kUdpTransportReceive, kTransportDebug)
 
 #endif  // AETHER_TRANSPORT_TRANSPORT_TELE_H_

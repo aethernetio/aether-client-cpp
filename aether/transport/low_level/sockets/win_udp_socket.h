@@ -14,35 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_TCP_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_TCP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_UDP_SOCKET_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_UDP_SOCKET_H_
 
 #include "aether/transport/low_level/sockets/win_socket.h"
 
 #if defined WIN_SOCKET_ENABLED
 
-#  include "winsock2.h"
-
 namespace ae {
-class WinTcpSocket final : public WinSocket {
-  using ConnectExPtr = bool (*)(DescriptorType::Socket, sockaddr const*, int,
-                                void*, DWORD, LPDWORD, LPOVERLAPPED);
-
+class WinUdpSocket final : public WinSocket {
  public:
-  WinTcpSocket();
-  ~WinTcpSocket() override;
+  WinUdpSocket();
+  ~WinUdpSocket() override;
 
   ConnectionState Connect(IpAddressPort const& destination) override;
   ConnectionState GetConnectionState() override;
+
   void Disconnect() override;
-
- private:
-  ConnectExPtr GetConnectEx();
-  bool InitConnection();
-
-  bool connection_initiated_{false};
-  WinPollerOverlapped conn_overlapped_;
 };
 }  // namespace ae
 #endif
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_TCP_SOCKET_H_
+
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_UDP_SOCKET_H_
