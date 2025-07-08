@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_TCP_SOCKET_PACKET_SEND_ACTION_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_TCP_SOCKET_PACKET_SEND_ACTION_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_
 
 #include "aether/transport/actions/packet_send_action.h"
 
@@ -33,4 +33,4 @@ class SocketPacketSendAction : public PacketSendAction {
 };
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_TCP_SOCKET_PACKET_SEND_ACTION_H_
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_
