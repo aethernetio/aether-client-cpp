@@ -59,7 +59,7 @@ ActionResult PosixTcpTransport::ConnectionAction::Update() {
 }
 
 void PosixTcpTransport::ConnectionAction::Connect() {
-  AE_TELE_INFO(kUnixTcpTransportConnect, "Connect to {}",
+  AE_TELE_INFO(kPosixTcpTransportConnect, "Connect to {}",
                transport_->endpoint_);
 
   auto res = transport_->socket_.Connect(transport_->endpoint_);
@@ -86,7 +86,7 @@ void PosixTcpTransport::ConnectionAction::Connect() {
 void PosixTcpTransport::ConnectionAction::WaitConnection() {
   state_ = State::kWaitConnection;
 
-  auto poller_ptr = transport_->poller_;
+  auto poller_ptr = transport_->poller_.Lock();
   if (!poller_ptr) {
     AE_TELED_ERROR("Poller is null");
     state_ = State::kConnectionFailed;
@@ -101,7 +101,7 @@ void PosixTcpTransport::ConnectionAction::WaitConnection() {
               return;
             }
             // remove poller first
-            auto poller_ptr = transport_->poller_;
+            auto poller_ptr = transport_->poller_.Lock();
             assert(poller_ptr);
             poller_ptr->Remove(
                 static_cast<DescriptorType>(transport_->socket_));
@@ -218,22 +218,22 @@ void PosixTcpTransport::UnixPacketReadAction::DataReceived() {
   auto lock = std::lock_guard{transport_->socket_lock_};
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG(kUnixTcpTransportReceive, "Receive data size {}",
+    AE_TELE_DEBUG(kPosixTcpTransportReceive, "Receive data size {}",
                   data.size());
     transport_->data_receive_event_.Emit(data, Now());
   }
 }
 
 PosixTcpTransport::PosixTcpTransport(ActionContext action_context,
-                                     IPoller::ptr poller,
+                                     IPoller::ptr const& poller,
                                      IpAddressPort const& endpoint)
     : action_context_{action_context},
-      poller_{std::move(poller)},
+      poller_{poller},
       endpoint_{endpoint},
       connection_info_{},
       socket_{},
       socket_packet_queue_manager_{action_context_} {
-  AE_TELE_INFO(kUnixTcpTransport, "Created unix tcp transport to endpoint {}",
+  AE_TELE_INFO(kPosixTcpTransport, "Created unix tcp transport to endpoint {}",
                endpoint_);
   connection_info_.connection_state = ConnectionState::kUndefined;
 }
@@ -268,7 +268,7 @@ ITransport::DataReceiveEvent::Subscriber PosixTcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> PosixTcpTransport::Send(DataBuffer data,
                                                      TimePoint current_time) {
-  AE_TELE_DEBUG(kUnixTcpTransportSend, "Send data size {} at {:%H:%M:%S}",
+  AE_TELE_DEBUG(kPosixTcpTransportSend, "Send data size {} at {:%H:%M:%S}",
                 data.size(), current_time);
 
   auto packet_data = std::vector<std::uint8_t>{};
@@ -283,6 +283,7 @@ ActionView<PacketSendAction> PosixTcpTransport::Send(DataBuffer data,
   send_action_subs_.Push(
       send_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Send error, disconnect!");
+        ConnectionError();
         Disconnect();
       }));
   return send_action;
@@ -297,6 +298,7 @@ void PosixTcpTransport::OnConnected() {
   read_action_error_sub_ =
       read_action_->ErrorEvent().Subscribe([this](auto const& /*action */) {
         AE_TELED_ERROR("Read error, disconnect!");
+        OnConnectionFailed();
         Disconnect();
       });
 
@@ -307,8 +309,11 @@ void PosixTcpTransport::OnConnected() {
         Disconnect();
       });
 
+  auto poller_ptr = poller_.Lock();
+  assert(poller_ptr);
+
   socket_poll_subscription_ =
-      poller_->Add(static_cast<DescriptorType>(socket_))
+      poller_ptr->Add(static_cast<DescriptorType>(socket_))
           .Subscribe([this](auto const& event) {
             if (event.descriptor != static_cast<DescriptorType>(socket_)) {
               return;
@@ -351,12 +356,14 @@ void PosixTcpTransport::ErrorSocket() {
 }
 
 void PosixTcpTransport::Disconnect() {
-  AE_TELE_INFO(kUnixTcpTransportDisconnect, "Disconnect from {}", endpoint_);
+  AE_TELE_INFO(kPosixTcpTransportDisconnect, "Disconnect from {}", endpoint_);
   connection_info_.connection_state = ConnectionState::kDisconnected;
   socket_error_subscription_.Reset();
 
   auto lock = std::lock_guard{socket_lock_};
-  poller_->Remove(static_cast<DescriptorType>(socket_));
+  if (auto poller_ptr = poller_.Lock(); poller_ptr) {
+    poller_ptr->Remove(static_cast<DescriptorType>(socket_));
+  }
   socket_.Disconnect();
 }
 }  // namespace ae
