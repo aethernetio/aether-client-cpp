@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_DATA_BUFFER_H_
-#define AETHER_TRANSPORT_DATA_BUFFER_H_
+#ifndef AETHER_TYPES_DATA_BUFFER_H_
+#define AETHER_TYPES_DATA_BUFFER_H_
 
 #include <cstdint>
 #include <vector>
@@ -26,4 +26,4 @@ using ConsDataPtr = std::uint8_t const*;
 using DataBuffer = std::vector<std::uint8_t>;
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_DATA_BUFFER_H_
+#endif  // AETHER_TYPES_DATA_BUFFER_H_

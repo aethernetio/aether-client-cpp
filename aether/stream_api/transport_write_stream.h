@@ -22,7 +22,7 @@
 #include "aether/actions/action_list.h"
 #include "aether/actions/action_context.h"
 #include "aether/transport/itransport.h"
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 
 #include "aether/stream_api/istream.h"
 

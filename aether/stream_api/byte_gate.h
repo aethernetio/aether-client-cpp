@@ -17,7 +17,7 @@
 #ifndef AETHER_STREAM_API_BYTE_GATE_H_
 #define AETHER_STREAM_API_BYTE_GATE_H_
 
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 
 namespace ae {
 class ByteGate {

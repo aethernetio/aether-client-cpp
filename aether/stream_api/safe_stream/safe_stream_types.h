@@ -21,7 +21,7 @@
 
 #include "aether/common.h"
 #include "aether/types/ring_buffer.h"
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 
 namespace ae {
 

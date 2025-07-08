@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "aether/memory.h"
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 
 #include "aether/stream_api/crypto_gate.h"
 #include "aether/crypto/sync_crypto_provider.h"
