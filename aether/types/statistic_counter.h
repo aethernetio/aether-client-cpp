@@ -89,8 +89,8 @@ class StatisticsCounter final {
       std::sort(std::begin(sorted_list), std::end(sorted_list), Comparator{});
 
       auto index = static_cast<typename decltype(sorted_list)::size_type>(  //
-          std::floor(static_cast<double>(sorted_list.size() - 1) * Percentile /
-                     100.0));
+          std::ceil(static_cast<double>(sorted_list.size() - 1) * Percentile /
+                    100.0));
       return sorted_list[index];
     }
   }
