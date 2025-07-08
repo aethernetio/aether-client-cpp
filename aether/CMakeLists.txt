@@ -118,7 +118,7 @@ list(APPEND transport_srcs
             "transport/low_level/sockets/lwip_tcp_socket.cpp"
             "transport/low_level/sockets/win_socket.cpp"
             "transport/low_level/sockets/win_tcp_socket.cpp"
-            "transport/low_level/tcp/socket_packet_send_action.cpp"
+            "transport/low_level/socket_packet_send_action.cpp"
             "transport/low_level/tcp/tcp.cpp"
             "transport/low_level/tcp/data_packet_collector.cpp"
 )
