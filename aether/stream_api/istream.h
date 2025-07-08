@@ -24,7 +24,7 @@
 #include "aether/actions/action_view.h"
 
 #include "aether/events/events.h"
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 #include "aether/stream_api/stream_write_action.h"
 
 namespace ae {

@@ -14,32 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
-#define AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_
 
-#include "aether/types/data_buffer.h"
+#include "aether/transport/actions/packet_send_action.h"
 
 namespace ae {
-class IEncryptProvider {
+class SocketPacketSendAction : public PacketSendAction {
  public:
-  virtual ~IEncryptProvider() = default;
+  using PacketSendAction::PacketSendAction;
 
-  /**
-   * \brief Encrypts the data.
-   */
-  virtual DataBuffer Encrypt(DataBuffer const& data) = 0;
-  virtual std::size_t EncryptOverhead() const = 0;
-};
+  ActionResult Update() override;
 
-class IDecryptProvider {
- public:
-  virtual ~IDecryptProvider() = default;
+  void Stop() override;
 
-  /**
-   * \brief Decrypts the data.
-   */
-  virtual DataBuffer Decrypt(DataBuffer const& data) = 0;
+  // Trigger event to send data
+  virtual void Send() = 0;
 };
 }  // namespace ae
 
-#endif  // AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_

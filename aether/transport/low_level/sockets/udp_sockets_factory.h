@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_BYTE_GATE_H_
-#define AETHER_STREAM_API_BYTE_GATE_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UDP_SOCKETS_FACTORY_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UDP_SOCKETS_FACTORY_H_
 
-#include "aether/types/data_buffer.h"
+#include "aether/transport/low_level/sockets/unix_udp_socket.h"
 
 namespace ae {
-class ByteGate {
- public:
-  DataBuffer WriteIn(DataBuffer&& data) { return std::move(data); }
-  DataBuffer const& WriteOut(DataBuffer const& data) { return data; }
-};
+#if UNIX_SOCKET_ENABLED
+using UdpSocket = UnixUdpSocket;
+#endif
 }  // namespace ae
 
-#endif  // AETHER_STREAM_API_BYTE_GATE_H_
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UDP_SOCKETS_FACTORY_H_

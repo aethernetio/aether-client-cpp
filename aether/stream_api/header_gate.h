@@ -19,7 +19,7 @@
 
 #include "aether/stream_api/istream.h"
 
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 
 namespace ae {
 // Add a header to data

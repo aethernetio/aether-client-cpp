@@ -20,7 +20,7 @@
 #include <string_view>
 
 #include "aether/events/events.h"
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 #include "aether/stream_api/gate_trait.h"
 #include "aether/stream_api/tied_gates.h"
 #include "aether/stream_api/gates_stream.h"

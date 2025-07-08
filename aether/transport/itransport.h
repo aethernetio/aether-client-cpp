@@ -21,7 +21,7 @@
 #include "aether/actions/action_view.h"
 
 #include "aether/types/address.h"
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 #include "aether/transport/actions/packet_send_action.h"
 
 namespace ae {

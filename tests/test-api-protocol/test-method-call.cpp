@@ -26,7 +26,7 @@
 #include "aether/api_protocol/protocol_context.h"
 #include "aether/api_protocol/return_result_api.h"
 
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 
 #include "aether/tele/tele_init.h"
 

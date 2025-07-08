@@ -18,7 +18,7 @@
 #define AETHER_METHODS_WORK_SERVER_API_LOGIN_API_H_
 
 #include "aether/types/uid.h"
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 #include "aether/api_protocol/api_method.h"
 
 namespace ae {

@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_BYTE_GATE_H_
-#define AETHER_STREAM_API_BYTE_GATE_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_TCP_SOCKETS_FACTORY_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_TCP_SOCKETS_FACTORY_H_
 
-#include "aether/types/data_buffer.h"
+// IWYU pragma: begin_exports
+#include "aether/transport/low_level/sockets/unix_tcp_socket.h"
+#include "aether/transport/low_level/sockets/lwip_tcp_socket.h"
+// IWYU pragma: end_exports
 
 namespace ae {
-class ByteGate {
- public:
-  DataBuffer WriteIn(DataBuffer&& data) { return std::move(data); }
-  DataBuffer const& WriteOut(DataBuffer const& data) { return data; }
-};
+#if UNIX_SOCKET_ENABLED
+using TcpSocket = UnixTcpSocket;
+#elif LWIP_SOCKET_ENABLED
+using TcpSocket = LwipTcpSocket;
+#endif
 }  // namespace ae
 
-#endif  // AETHER_STREAM_API_BYTE_GATE_H_
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_TCP_SOCKETS_FACTORY_H_

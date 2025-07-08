@@ -31,7 +31,7 @@
 
 #  include "aether/reflect/reflect.h"
 #  include "aether/crypto/signed_key.h"
-#  include "aether/transport/data_buffer.h"
+#  include "aether/types/data_buffer.h"
 #  include "aether/api_protocol/api_method.h"
 #  include "aether/methods/server_descriptor.h"
 

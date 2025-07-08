@@ -40,8 +40,8 @@ ServerChannelStream::ServerChannelStream(ActionContext action_context,
       build_transport_failed_{build_transport_action_.ErrorEvent().Subscribe(
           [this](auto&) { OnConnectedFailed(); })} {
   connection_timeout_ =
-      connection_timer_.ResultEvent().Subscribe([this](auto const&) {
-        AE_TELED_ERROR("Connection timeout");
+      connection_timer_.ResultEvent().Subscribe([this](auto const& timer) {
+        AE_TELED_ERROR("Connection timeout {:%S}", timer.duration());
         OnConnectedFailed();
       });
 }

@@ -21,7 +21,7 @@
 #if AE_SUPPORT_REGISTRATION
 
 #  include "aether/events/events.h"
-#  include "aether/transport/data_buffer.h"
+#  include "aether/types/data_buffer.h"
 #  include "aether/api_protocol/api_class_impl.h"
 #  include "aether/api_protocol/return_result_api.h"
 
