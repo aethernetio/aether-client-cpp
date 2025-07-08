@@ -189,11 +189,15 @@ void ModemAdapter::Update(TimePoint t) {
   update_time_ = t;
 }
 
-void ModemAdapter::Connect(void) {  
+void ModemAdapter::Connect(void) {
+  std::vector<std::uint8_t> data{'H','e','l','l','o',' ','w','o','r','l','d','!'};
+  
   AE_TELE_DEBUG(kAdapterModemConnected, "Modem connecting to the AP");
   modem_driver_->Init();
   modem_driver_->Setup();
   modem_driver_->OpenNetwork(0, 0, ae::Protocol::kTcp, "dbservice.aethernet.io", 8889);
+  modem_driver_->WritePacket(0, data);
+  modem_driver_->ReadPacket(0, data);
   modem_driver_->CloseNetwork(0, 0);
 }
 

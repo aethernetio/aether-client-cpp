@@ -40,7 +40,8 @@ enum class kModemError : std::int8_t {
   kPinWrong = -11,
   kSetupSim = -12,
   kSetNetMode = -13,
-  kSetNetwork = -14
+  kSetNetwork = -14,
+  kOpenConnection = 15
 };
 
 enum class kModemMode : std::uint8_t {
@@ -94,8 +95,10 @@ class IModemDriver {
                            std::string host, std::uint16_t port) = 0;
   virtual void CloseNetwork(std::uint8_t context_index,
                             std::uint8_t connect_index) = 0;
-  virtual void WritePacket(std::vector<uint8_t> const& data) = 0;
-  virtual void ReadPacket(std::vector<std::uint8_t>& data) = 0;
+  virtual void WritePacket(std::uint8_t connect_index,
+                           std::vector<uint8_t> const& data) = 0;
+  virtual void ReadPacket(std::uint8_t connect_index,
+                          std::vector<std::uint8_t>& data) = 0;
 
   Event<void(bool result)> modem_connected_event_;
   Event<void(int result)> modem_error_event_;

@@ -116,30 +116,121 @@ void Sim7070AtModem::OpenNetwork(std::uint8_t context_index,
                                  std::uint8_t connect_index,
                                  ae::Protocol protocol, std::string host,
                                  std::uint16_t port) {
-  //AT+CNACT=0,1 // Activate the PDP context
-  //AT+CAOPEN=0,0,"UDP","dbservice.aethernet.io",8889
-  
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Context index {}", context_index);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Protocol {}", protocol);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Host {}", host);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Port {}", port);
+  std::string context_i_str = std::to_string(context_index);
+  std::string connect_i_str = std::to_string(connect_index);
+  std::string port_str = std::to_string(port);
+  std::string protocol_str;
+  kModemError err{kModemError::kNoError};
+
+  switch (protocol) {
+    case ae::Protocol::kTcp:
+      protocol_str = "UDP";  //"TCP";
+      break;
+    /*case ae::Protocol::kUdp:
+      protocol_str = "UDP";
+      break;*/
+    default:
+      err = kModemError::kOpenConnection;
+      assert(0);
+      break;
+  }
+
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      // AT+CNACT=0,1 // Activate the PDP context
+      sendATCommand("AT+CNACT=" + context_i_str + ",1");
+      err = CheckResponce("OK", 1000, "AT+CNACT command error!");
+    }
+
+    if (err != kModemError::kNoError) {
+      // AT+CNACT=0,0 // Deactivate the PDP context
+      sendATCommand("AT+CNACT=" + context_i_str + ",0");
+
+      err = CheckResponce("+APP PDP: 0,DEACTIVE", 10000,
+                          "AT+CNACT command error!");
+
+      if (err == kModemError::kNoError) {
+        // AT+CNACT=0,1 // Activate the PDP context
+        sendATCommand("AT+CNACT=" + context_i_str + ",1");
+        err = CheckResponce("OK", 1000, "AT+CNACT command error!");
+      }
+    }
+
+    err = CheckResponce("+APP PDP: 0,ACTIVE", 5000, "AT+CNACT command error!");
+
+    if (err == kModemError::kNoError) {
+      // AT+CACLOSE=0 // Close TCP/UDP socket 0.
+      sendATCommand("AT+CACLOSE=" + connect_i_str);
+      err = CheckResponce("OK", 1000, "AT+CNACT command error!");
+    }
+
+    if (err == kModemError::kNoError) {
+      // AT+CAOPEN=0,0,"UDP","URL",PORT
+      sendATCommand("AT+CAOPEN=" + context_i_str + "," + connect_i_str + ",\"" +
+                    protocol_str + "\",\"" + host + "\"," + port_str);
+      err = CheckResponce("OK", 1000, "AT+CAOPEN command error!");
+    }
+  } else {
+    err = kModemError::kSerialPortError;
+  }
+
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
+  } else {
+    modem_connected_event_.Emit(false);
+  }
 }
 
 void Sim7070AtModem::CloseNetwork(std::uint8_t context_index,
                                   std::uint8_t connect_index) {
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Context index {}", context_index);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
+  std::string context_i_str = std::to_string(context_index);
+  std::string connect_i_str = std::to_string(connect_index);
+  kModemError err{kModemError::kNoError};
+
+  if (err == kModemError::kNoError) {
+    // AT+CACLOSE=0 // Close TCP/UDP socket 0.
+    sendATCommand("AT+CACLOSE=" + connect_i_str);
+    err = CheckResponce("OK", 1000, "AT+CNACT command error!");
+  }
+
+  if (err == kModemError::kNoError) {
+    // AT+CNACT=0,0 // Deactivate the PDP context
+    sendATCommand("AT+CNACT=" + context_i_str + ",0");
+    err = CheckResponce("OK", 1000, "AT+CNACT command error!");
+  }
+
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
+  } else {
+    modem_connected_event_.Emit(false);
+  }
 }
 
-void Sim7070AtModem::WritePacket(std::vector<uint8_t> const& data) {
-  serial_->WriteData(data);
+void Sim7070AtModem::WritePacket(std::uint8_t connect_index,
+                                 std::vector<uint8_t> const& data) {
+  std::string connect_i_str = std::to_string(connect_index);
+  kModemError err{kModemError::kNoError};
+
+  if (err == kModemError::kNoError) {
+    // AT+CASEND=0,<length> // Send TCP/UDP data 0.
+    sendATCommand("AT+CASEND=" + connect_i_str + "," +
+                  std::to_string(data.size()));
+    err = CheckResponce(">", 1000, "AT+CASEND command error!");
+  }
+
+  if (err == kModemError::kNoError) {
+    // std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    serial_->WriteData(data);
+  }
 };
 
-void Sim7070AtModem::ReadPacket(std::vector<std::uint8_t>& data) {
+void Sim7070AtModem::ReadPacket(std::uint8_t connect_index,
+                                std::vector<std::uint8_t>& data) {
   auto response = serial_->ReadData();
   std::vector<std::uint8_t> response_vector(response->begin(), response->end());
   data = response_vector;
+
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
 };
 
 void Sim7070AtModem::PowerOff() {
@@ -362,19 +453,18 @@ kModemError Sim7070AtModem::SetupNetwork(
     sendATCommand("AT+CGDCONT=1,\"IP\",\"" + apn_name + "\"");
     err = CheckResponce("OK", 1000, "No response from modem!");
   }
-  
+
   if (err == kModemError::kNoError) {
     sendATCommand("AT+CNCFG=0,0,\"" + apn_name + "\",\"" + apn_user + "\",\"" +
                   apn_pass + "\"," + type);
     err = CheckResponce("OK", 1000, "No response from modem!");
   }
 
-  
   if (err == kModemError::kNoError) {
     sendATCommand("AT+CREG=1;+CGREG=1;+CEREG=1");
     err = CheckResponce("OK", 1000, "No response from modem!");
   }
-  
+
   if (err == kModemError::kNoError) {
     err = kModemError::kSetNetwork;
   }
@@ -382,12 +472,12 @@ kModemError Sim7070AtModem::SetupNetwork(
   return err;
 }
 
-kModemError Sim7070AtModem::SetupProtoPar(){
+kModemError Sim7070AtModem::SetupProtoPar() {
   kModemError err{kModemError::kNoError};
-  
-  //AT+CACFG	Set transparent parameters	OK
-  //AT+CASSLCFG	Set SSL parameters	OK
-  
+
+  // AT+CACFG	Set transparent parameters	OK
+  // AT+CASSLCFG	Set SSL parameters	OK
+
   return err;
 }
 
