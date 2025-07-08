@@ -14,27 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
-#define AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
+#ifndef AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
+#define AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
 
-# if defined _WIN32
-
-# include <vector>
-# include <optional>
-# include <stdexcept>
-# include <string>
-# include <memory>
-
-# include "aether/adapters/modems/serial_ports/iserial_port.h"
-
-# define WIN_SERIAL_PORT_ENABLED 1
+#if defined(ESP_PLATFORM)
+  
+# define ESP32_SERIAL_PORT_ENABLED 1
 
 namespace ae {
-class WINSerialPort : public ISerialPort{
+class ESP32SerialPort : public ISerialPort{
     
 public:
-    WINSerialPort(SerialInit serial_init);
-    ~WINSerialPort();
+    ESP32SerialPort(SerialInit serial_init);
+    ~ESP32SerialPort();
     void WriteData(const DataBuffer& data) override;
     std::optional<DataBuffer> ReadData() override;
     bool GetConnected() override;
@@ -48,5 +40,5 @@ private:
 };
 } /* namespace ae */
 
-#endif  // _WIN32
-#endif  // AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
+#endif  // ESP_PLATFORM
+#endif  // AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_ESP32_SERIAL_PORT_H_

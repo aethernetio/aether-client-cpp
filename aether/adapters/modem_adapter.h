@@ -17,7 +17,7 @@
 #ifndef AETHER_ADAPTERS_MODEM_ADAPTER_H_
 #define AETHER_ADAPTERS_MODEM_ADAPTER_H_
 
-#  define MODEM_ADAPTER_ENABLED 1
+#define MODEM_ADAPTER_ENABLED 1
 
 #include <cstdint>
 #include <string>
@@ -28,7 +28,6 @@
 #include "aether/events/events.h"
 #include "aether/actions/action_list.h"
 #include "aether/events/event_subscription.h"
-
 
 namespace ae {
 class ModemAdapter;
@@ -45,8 +44,8 @@ class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
  public:
   // immediately create the transport
   ModemAdapterTransportBuilderAction(ActionContext action_context,
-                                ModemAdapter& adapter,
-                                UnifiedAddress address_port_protocol);
+                                     ModemAdapter& adapter,
+                                     UnifiedAddress address_port_protocol);
   // create the transport when lte modem is connected
   ModemAdapterTransportBuilderAction(
       ActionContext action_context,
@@ -76,18 +75,19 @@ class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
 class ModemAdapter : public ParentModemAdapter {
   AE_OBJECT(ModemAdapter, ParentModemAdapter, 0)
 
-  ModemAdapter() = default;  
+  ModemAdapter() = default;
 
  public:
-#  ifdef AE_DISTILLATION
-  ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller, DnsResolver::ptr dns_resolver, 
-               ModemInit modem_init,
-               Domain* domain);  
-#  endif  // AE_DISTILLATION
+#ifdef AE_DISTILLATION
+  ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
+               DnsResolver::ptr dns_resolver, ModemInit modem_init,
+               Domain* domain);
+#endif  // AE_DISTILLATION
 
   ~ModemAdapter();
-  
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_connected_event_, modem_driver_, create_transport_actions_))
+
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_connected_event_, modem_driver_,
+                             transport_builders_actions_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
@@ -110,7 +110,9 @@ class ModemAdapter : public ParentModemAdapter {
   bool connected_{false};
   Event<void(bool result)> modem_connected_event_;
   std::unique_ptr<IModemDriver> modem_driver_;
-  std::optional<ActionList<modem_adapter_internal::ModemAdapterTransportBuilderAction>> create_transport_actions_;
+  std::optional<
+      ActionList<modem_adapter_internal::ModemAdapterTransportBuilderAction>>
+      transport_builders_actions_;
 };
 
 }  // namespace ae

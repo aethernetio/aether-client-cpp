@@ -165,21 +165,18 @@ ModemAdapter::~ModemAdapter() {
 }
 #  endif  // AE_DISTILLATION
 
-ActionView<ae::TransportBuilderAction> ModemAdapter::CreateTransport(
+ActionView<TransportBuilderAction> ModemAdapter::CreateTransport(
     UnifiedAddress const& address_port_protocol) {
   AE_TELE_INFO(kAdapterModemAdapterCreate, "Create transport for {}",
-               address_port_protocol);  
-  if (!create_transport_actions_) {
-    create_transport_actions_.emplace(
-        ActionContext{*aether_.as<Aether>()->action_processor});
+               address_port_protocol);
+  if (!transport_builders_actions_) {
+    transport_builders_actions_.emplace(ActionContext{*aether_.as<Aether>()});
   }
   if (connected_) {
-    return create_transport_actions_->Emplace(this, aether_, poller_,
-                                              address_port_protocol);
+    return transport_builders_actions_->Emplace(*this, address_port_protocol);
   } else {
-    return create_transport_actions_->Emplace(
-        EventSubscriber{modem_connected_event_}, this, aether_, poller_,
-        address_port_protocol);
+    return transport_builders_actions_->Emplace(
+        EventSubscriber{modem_connected_event_}, *this, address_port_protocol);
   }
 }
 
