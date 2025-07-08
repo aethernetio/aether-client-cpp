@@ -30,7 +30,7 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-UnixUdpSocket::UnixUdpSocket() : UnixSocket(MakeSocket()) {}
+UnixUdpSocket::UnixUdpSocket() : UnixSocket{MakeSocket()} {}
 
 std::size_t UnixUdpSocket::GetMaxPacketSize() const { return 1200; }
 
@@ -44,7 +44,7 @@ int UnixUdpSocket::MakeSocket() {
 
   // close socket on error
   defer[&] {
-    if (created) {
+    if (!created) {
       close(sock);
     }
   };

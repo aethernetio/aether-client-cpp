@@ -17,9 +17,9 @@
 #define AETHER_TRANSPORT_LOW_LEVEL_UDP_UDP_H_
 
 #if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-    defined(__FreeBSD__) || defined(ESP_PLATFORM)
+    defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
 
-#  define POSIX_UDP_TRANSPORT_ENABLED 1
+#  define COMMON_UDP_TRANSPORT_ENABLED 1
 
 #  include <mutex>
 

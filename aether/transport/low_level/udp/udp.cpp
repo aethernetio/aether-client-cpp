@@ -16,7 +16,7 @@
 
 #include "aether/transport/low_level/udp/udp.h"
 
-#if POSIX_UDP_TRANSPORT_ENABLED
+#if COMMON_UDP_TRANSPORT_ENABLED
 
 #  include "aether/transport/transport_tele.h"
 
@@ -237,7 +237,7 @@ void UdpTransport::Disconnect() {
   if (!socket_.IsValid()) {
     return;
   }
-  auto poller_ptr = poller_.Lock();
+
   if (auto poller_ptr = poller_.Lock(); poller_ptr) {
     poller_ptr->Remove(static_cast<DescriptorType>(socket_));
   }
