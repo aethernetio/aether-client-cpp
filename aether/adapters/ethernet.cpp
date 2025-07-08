@@ -23,9 +23,8 @@
 #include "aether/adapters/adapter_tele.h"
 
 // IWYU pragma: begin_keeps
-#include "aether/transport/low_level/tcp/unix_tcp.h"
+#include "aether/transport/low_level/tcp/posix_tcp.h"
 #include "aether/transport/low_level/tcp/win_tcp.h"
-#include "aether/transport/low_level/tcp/lwip_tcp.h"
 // IWYU pragma: end_keeps
 
 namespace ae {
@@ -40,16 +39,11 @@ class EthernetTransportBuilder final : public ITransportBuilder {
   ~EthernetTransportBuilder() override = default;
 
   std::unique_ptr<ITransport> BuildTransport() override {
-#if defined UNIX_TCP_TRANSPORT_ENABLED
+#if defined POSIX_TCP_TRANSPORT_ENABLED
     assert(address_port_protocol_.protocol == Protocol::kTcp);
-    return make_unique<UnixTcpTransport>(*adapter_->aether_.as<Aether>(),
-                                         adapter_->poller_,
-                                         address_port_protocol_);
-#elif defined LWIP_TCP_TRANSPORT_ENABLED
-    assert(address_port_protocol_.protocol == Protocol::kTcp);
-    return make_unique<LwipTcpTransport>(*adapter_->aether_.as<Aether>(),
-                                         adapter_->poller_,
-                                         address_port_protocol_);
+    return make_unique<PosixTcpTransport>(*adapter_->aether_.as<Aether>(),
+                                          adapter_->poller_,
+                                          address_port_protocol_);
 #elif defined WIN_TCP_TRANSPORT_ENABLED
     assert(address_port_protocol_.protocol == Protocol::kTcp);
     return make_unique<WinTcpTransport>(*adapter_->aether_.as<Aether>(),

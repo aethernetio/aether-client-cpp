@@ -26,7 +26,7 @@
 #  include "aether/aether.h"
 #  include "aether/adapters/adapter_tele.h"
 
-#  include "aether/transport/low_level/tcp/lwip_tcp.h"
+#  include "aether/transport/low_level/tcp/posix_tcp.h"
 
 /* FreeRTOS event group to signal when we are connected */
 static EventGroupHandle_t s_wifi_event_group;
@@ -51,11 +51,11 @@ class EspWifiTransportBuilder final : public ITransportBuilder {
         address_port_protocol_{std::move(address_port_protocol)} {}
 
   std::unique_ptr<ITransport> BuildTransport() override {
-#  if defined(LWIP_TCP_TRANSPORT_ENABLED)
+#  if defined(POSIX_TCP_TRANSPORT_ENABLED)
     assert(address_port_protocol_.protocol == Protocol::kTcp);
-    return make_unique<LwipTcpTransport>(*adapter_->aether_.as<Aether>(),
-                                         adapter_->poller_,
-                                         address_port_protocol_);
+    return make_unique<PosixTcpTransport>(*adapter_->aether_.as<Aether>(),
+                                          adapter_->poller_,
+                                          address_port_protocol_);
 #  else
     return {};
 #  endif
