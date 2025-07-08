@@ -37,23 +37,18 @@ class TimerAction : public Action<TimerAction> {
  public:
   TimerAction() = default;
 
-  template <typename TActionContext>
-  TimerAction(TActionContext&& action_context, Duration duration)
-      : Action{std::forward<TActionContext>(action_context)},
-        timer_duration_{duration},
-        state_{State::kStart},
-        state_changed_sub_{state_.changed_event().Subscribe(
-            [this](auto) { Action::Trigger(); })} {}
-
+  TimerAction(ActionContext action_context, Duration duration);
   TimerAction(TimerAction const& other) = delete;
   TimerAction(TimerAction&& other) noexcept;
 
   TimerAction& operator=(TimerAction const& other) = delete;
   TimerAction& operator=(TimerAction&& other) noexcept;
 
-  ActionResult Update();
+  ActionResult Update(TimePoint current_time);
 
   void Stop();
+
+  Duration duration() const;
 
  private:
   Duration timer_duration_;
