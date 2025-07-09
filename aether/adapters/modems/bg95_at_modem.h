@@ -75,7 +75,8 @@ class Bg95AtModem : public IModemDriver {
   void CloseNetwork(std::uint8_t context_index,
                     std::uint8_t connect_index) override;
   void WritePacket(std::uint8_t connect_index, std::vector<uint8_t> const& data) override;
-  void ReadPacket(std::uint8_t connect_index, std::vector<std::uint8_t>& data) override;
+  void ReadPacket(std::uint8_t connect_index,
+                  std::vector<std::uint8_t>& data, std::size_t& size) override;
   void PowerOff();
 
  private:

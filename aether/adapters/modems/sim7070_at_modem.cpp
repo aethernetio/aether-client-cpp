@@ -159,17 +159,25 @@ void Sim7070AtModem::OpenNetwork(std::uint8_t context_index,
     err = CheckResponce("+APP PDP: 0,ACTIVE", 5000, "AT+CNACT command error!");
 
     if (err == kModemError::kNoError) {
-      // AT+CACLOSE=0 // Close TCP/UDP socket 0.
-      sendATCommand("AT+CACLOSE=" + connect_i_str);
-      err = CheckResponce("OK", 1000, "AT+CNACT command error!");
-    }
-
-    if (err == kModemError::kNoError) {
       // AT+CAOPEN=0,0,"UDP","URL",PORT
       sendATCommand("AT+CAOPEN=" + context_i_str + "," + connect_i_str + ",\"" +
                     protocol_str + "\",\"" + host + "\"," + port_str);
       err = CheckResponce("OK", 1000, "AT+CAOPEN command error!");
     }
+
+    if (err != kModemError::kNoError) {
+      // AT+CACLOSE=0 // Close TCP/UDP socket 0.
+      sendATCommand("AT+CACLOSE=" + connect_i_str);
+      err = CheckResponce("OK", 1000, "AT+CNACT command error!");
+
+      if (err == kModemError::kNoError) {
+        // AT+CAOPEN=0,0,"UDP","URL",PORT
+        sendATCommand("AT+CAOPEN=" + context_i_str + "," + connect_i_str +
+                      ",\"" + protocol_str + "\",\"" + host + "\"," + port_str);
+        err = CheckResponce("OK", 1000, "AT+CAOPEN command error!");
+      }
+    }
+
   } else {
     err = kModemError::kSerialPortError;
   }
@@ -191,6 +199,8 @@ void Sim7070AtModem::CloseNetwork(std::uint8_t context_index,
     // AT+CACLOSE=0 // Close TCP/UDP socket 0.
     sendATCommand("AT+CACLOSE=" + connect_i_str);
     err = CheckResponce("OK", 1000, "AT+CNACT command error!");
+    // If error then already closed
+    err = kModemError::kNoError;
   }
 
   if (err == kModemError::kNoError) {
@@ -221,16 +231,47 @@ void Sim7070AtModem::WritePacket(std::uint8_t connect_index,
   if (err == kModemError::kNoError) {
     // std::this_thread::sleep_for(std::chrono::milliseconds(250));
     serial_->WriteData(data);
+    err = CheckResponce("OK", 1000, "AT+CASEND command error!");
+  }
+  
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
+  } else {
+    modem_connected_event_.Emit(false);
   }
 };
 
 void Sim7070AtModem::ReadPacket(std::uint8_t connect_index,
-                                std::vector<std::uint8_t>& data) {
+                                std::vector<std::uint8_t>& data, 
+                                std::size_t& size) {
+  std::string connect_i_str = std::to_string(connect_index);
+  kModemError err{kModemError::kNoError};
+  
+  if (err == kModemError::kNoError) {
+    // AT+CAACK=0 // Query send data information of the TCP
+    // connection with an identifier 0.
+    sendATCommand("AT+CAACK=" + connect_i_str );
+    // +CAACK: 5,0 // Total size of sent data is 5 and unack data is 0
+    auto response = serial_->ReadData();
+    std::string response_string(response->begin(), response->end());
+    auto start = response_string.find("+CAACK: ") + 8;
+    auto stop = response_string.find(",");
+    if(stop > start) {      
+      size = std::stoi(response_string.substr(start, stop-start));
+      AE_TELED_ERROR("Size {}", size);
+    }
+  }
+  
   auto response = serial_->ReadData();
   std::vector<std::uint8_t> response_vector(response->begin(), response->end());
   data = response_vector;
 
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
+  
+  if (err == kModemError::kNoError) {
+    // std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    serial_->WriteData(data);
+  }
 };
 
 void Sim7070AtModem::PowerOff() {

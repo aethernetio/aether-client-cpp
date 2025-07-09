@@ -98,7 +98,8 @@ class IModemDriver {
   virtual void WritePacket(std::uint8_t connect_index,
                            std::vector<uint8_t> const& data) = 0;
   virtual void ReadPacket(std::uint8_t connect_index,
-                          std::vector<std::uint8_t>& data) = 0;
+                          std::vector<std::uint8_t>& data,
+                          std::size_t& size) = 0;
 
   Event<void(bool result)> modem_connected_event_;
   Event<void(int result)> modem_error_event_;
