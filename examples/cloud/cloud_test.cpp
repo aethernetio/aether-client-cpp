@@ -44,9 +44,9 @@ int AetherCloudExample() {
       {1, 1, 1, 1},                 // Pin code
       false,                        // Use pin
       ae::kModemMode::kModeAuto,    // Modem mode
-      "25020",                      // Operator code
-      "Tele2 RU",                   // Operator long name
-      "internet.tele2.ru",          // APN
+      "00000",                      // Operator code
+      "Name",                       // Operator long name
+      "your.apn",                   // APN
       "",                           // APN user
       "",                           // APN pass
       ae::kAuthType::kAuthTypeNone  // Auth type

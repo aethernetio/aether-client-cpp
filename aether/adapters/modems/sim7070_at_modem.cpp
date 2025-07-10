@@ -49,7 +49,7 @@ void Sim7070AtModem::Init() {
   }
 }
 
-void Sim7070AtModem::Setup() {
+void Sim7070AtModem::Start() {
   kModemError err{kModemError::kNoError};
 
   if (serial_->GetConnected()) {
@@ -124,7 +124,7 @@ void Sim7070AtModem::OpenNetwork(std::uint8_t context_index,
 
   switch (protocol) {
     case ae::Protocol::kTcp:
-      protocol_str = "UDP";  //"TCP";
+      protocol_str = "TCP";
       break;
     /*case ae::Protocol::kUdp:
       protocol_str = "UDP";
@@ -184,8 +184,6 @@ void Sim7070AtModem::OpenNetwork(std::uint8_t context_index,
 
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
-  } else {
-    modem_connected_event_.Emit(false);
   }
 }
 
@@ -211,13 +209,11 @@ void Sim7070AtModem::CloseNetwork(std::uint8_t context_index,
 
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
-  } else {
-    modem_connected_event_.Emit(false);
   }
 }
 
 void Sim7070AtModem::WritePacket(std::uint8_t connect_index,
-                                 std::vector<uint8_t> const& data) {
+                                 std::vector<std::uint8_t> const& data) {
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
 
@@ -229,48 +225,53 @@ void Sim7070AtModem::WritePacket(std::uint8_t connect_index,
   }
 
   if (err == kModemError::kNoError) {
-    // std::this_thread::sleep_for(std::chrono::milliseconds(250));
     serial_->WriteData(data);
     err = CheckResponce("OK", 1000, "AT+CASEND command error!");
   }
-  
+
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
-  } else {
-    modem_connected_event_.Emit(false);
   }
 };
 
 void Sim7070AtModem::ReadPacket(std::uint8_t connect_index,
-                                std::vector<std::uint8_t>& data, 
+                                std::vector<std::uint8_t>& data,
                                 std::size_t& size) {
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
-  
+
   if (err == kModemError::kNoError) {
-    // AT+CAACK=0 // Query send data information of the TCP
+    // AT+CAACK=0 // Query send data information of the TCP/UDP
     // connection with an identifier 0.
-    sendATCommand("AT+CAACK=" + connect_i_str );
+    sendATCommand("AT+CAACK=" + connect_i_str);
     // +CAACK: 5,0 // Total size of sent data is 5 and unack data is 0
     auto response = serial_->ReadData();
     std::string response_string(response->begin(), response->end());
     auto start = response_string.find("+CAACK: ") + 8;
     auto stop = response_string.find(",");
-    if(stop > start) {      
-      size = std::stoi(response_string.substr(start, stop-start));
-      AE_TELED_ERROR("Size {}", size);
+    if (stop > start && start != string::npos && stop != string::npos) {
+      size = std::stoi(response_string.substr(start, stop - start));
+      AE_TELED_DEBUG("Size {}", size);
+    } else {
+      size = 0;
     }
   }
-  
-  auto response = serial_->ReadData();
-  std::vector<std::uint8_t> response_vector(response->begin(), response->end());
-  data = response_vector;
 
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
-  
-  if (err == kModemError::kNoError) {
-    // std::this_thread::sleep_for(std::chrono::milliseconds(250));
-    serial_->WriteData(data);
+  if (size > 0) {
+    err = CheckResponce("+CADATAIND", 1000, "+CADATAIND command error!");
+    // AT+CARECV=0,<length> Receive data via an established connection
+    sendATCommand("AT+CARECV=" + connect_i_str + "," + std::to_string(size));
+    auto response = serial_->ReadData();
+    std::string response_string(response->begin(), response->end());
+    auto start = response_string.find(",") + 1;
+    std::vector<std::uint8_t> response_vector(response->begin() + start,
+                                              response->begin() + start + size);
+    data = response_vector;
+    AE_TELED_DEBUG("Data {}", data);
+  }
+
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
   }
 };
 
@@ -284,8 +285,6 @@ void Sim7070AtModem::PowerOff() {
 
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
-  } else {
-    modem_connected_event_.Emit(false);
   }
 };
 

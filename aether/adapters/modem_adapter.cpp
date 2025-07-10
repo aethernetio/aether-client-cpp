@@ -32,14 +32,14 @@ class ModemAdapterTransportBuilder final : public ITransportBuilder {
         address_port_protocol_{std::move(address_port_protocol)} {}
 
   std::unique_ptr<ITransport> BuildTransport() override {
-#  if defined(LWIP_TCP_TRANSPORT_ENABLED)
+#if defined(LWIP_TCP_TRANSPORT_ENABLED)
     assert(address_port_protocol_.protocol == Protocol::kTcp);
     return make_unique<LteTcpTransport>(*adapter_->aether_.as<Aether>(),
-                                         adapter_->poller_,
-                                         address_port_protocol_);
-#  else
+                                        adapter_->poller_,
+                                        address_port_protocol_);
+#else
     return {};
-#  endif
+#endif
   }
 
  private:
@@ -62,8 +62,8 @@ ModemAdapterTransportBuilderAction::ModemAdapterTransportBuilderAction(
 
 ModemAdapterTransportBuilderAction::ModemAdapterTransportBuilderAction(
     ActionContext action_context,
-    EventSubscriber<void(bool)> lte_modem_connected_event, ModemAdapter& adapter,
-    UnifiedAddress address_port_protocol)
+    EventSubscriber<void(bool)> lte_modem_connected_event,
+    ModemAdapter& adapter, UnifiedAddress address_port_protocol)
     : TransportBuilderAction{action_context},
       adapter_{&adapter},
       address_port_protocol_{std::move(address_port_protocol)},
@@ -104,7 +104,7 @@ ModemAdapterTransportBuilderAction::builders() {
   return std::move(transport_builders_);
 }
 
-#  if AE_SUPPORT_CLOUD_DNS
+#if AE_SUPPORT_CLOUD_DNS
 void ModemAdapterTransportBuilderAction::ResolveAddress() {
   std::visit(
       reflect::OverrideFunc{
@@ -127,13 +127,13 @@ void ModemAdapterTransportBuilderAction::ResolveAddress() {
           }},
       address_port_protocol_);
 }
-#  else
+#else
 void ModemAdapterTransportBuilderAction::ResolveAddress() {
   auto ip_address = std::get<IpAddressPortProtocol>(address_port_protocol_);
   ip_address_port_protocols_.push_back(ip_address);
   state_ = State::kBuildersCreate;
 }
-#  endif
+#endif
 
 void ModemAdapterTransportBuilderAction::CreateBuilders() {
   for (auto const& ip_address_port_protocol : ip_address_port_protocols_) {
@@ -145,15 +145,15 @@ void ModemAdapterTransportBuilderAction::CreateBuilders() {
 }
 }  // namespace modem_adapter_internal
 
-#  if defined AE_DISTILLATION
-ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller, DnsResolver::ptr dns_resolver, 
-                                   ModemInit modem_init,
-                                   Domain* domain)
-    : ParentModemAdapter{std::move(aether), std::move(poller), std::move(dns_resolver), std::move(modem_init),
-                        domain} {
+#if defined AE_DISTILLATION
+ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
+                           DnsResolver::ptr dns_resolver, ModemInit modem_init,
+                           Domain* domain)
+    : ParentModemAdapter{std::move(aether), std::move(poller),
+                         std::move(dns_resolver), std::move(modem_init),
+                         domain} {
   modem_driver_ = ModemDriverFactory::CreateModem(modem_init_);
   AE_TELED_DEBUG("Modem instance created!");
-  
 }
 
 ModemAdapter::~ModemAdapter() {
@@ -163,7 +163,7 @@ ModemAdapter::~ModemAdapter() {
     connected_ = false;
   }
 }
-#  endif  // AE_DISTILLATION
+#endif  // AE_DISTILLATION
 
 ActionView<TransportBuilderAction> ModemAdapter::CreateTransport(
     UnifiedAddress const& address_port_protocol) {
@@ -190,19 +190,22 @@ void ModemAdapter::Update(TimePoint t) {
 }
 
 void ModemAdapter::Connect(void) {
-  std::vector<std::uint8_t> data{'H','e','l','l','o',' ','w','o','r','l','d','!'};
+  std::vector<std::uint8_t> data{'H', 'e', 'l', 'l', 'o', ' ', 'w',
+                                 'o', 'r', 'l', 'd', '!', '!'};
   std::size_t size{};
-  
+
   AE_TELE_DEBUG(kAdapterModemConnected, "Modem connecting to the AP");
   modem_driver_->Init();
-  modem_driver_->Setup();
-  modem_driver_->OpenNetwork(0, 0, ae::Protocol::kTcp, "dbservice.aethernet.io", 8889);
+  modem_driver_->Start();
+  modem_driver_->OpenNetwork(0, 0, ae::Protocol::kTcp, "dbservice.aethernet.io",
+                             8889);
   modem_driver_->WritePacket(0, data);
   modem_driver_->ReadPacket(0, data, size);
   modem_driver_->CloseNetwork(0, 0);
+  modem_driver_->Stop();
 }
 
-void ModemAdapter::DisConnect(void) {  
+void ModemAdapter::DisConnect(void) {
   AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem disconnecting from the AP");
   modem_driver_->Stop();
 }

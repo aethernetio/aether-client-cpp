@@ -88,7 +88,7 @@ class IModemDriver {
   virtual ~IModemDriver() = default;
 
   virtual void Init() = 0;
-  virtual void Setup() = 0;
+  virtual void Start() = 0;
   virtual void Stop() = 0;
   virtual void OpenNetwork(std::uint8_t context_index,
                            std::uint8_t connect_index, ae::Protocol protocol,

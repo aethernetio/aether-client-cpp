@@ -45,7 +45,7 @@ void Bg95AtModem::Init() {
   }
 }
 
-void Bg95AtModem::Setup() {
+void Bg95AtModem::Start() {
   kModemError err{kModemError::kNoError};
 
   // Configuring modem settings
@@ -103,7 +103,8 @@ void Bg95AtModem::CloseNetwork(std::uint8_t context_index,
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
 }
 
-void Bg95AtModem::WritePacket(std::uint8_t connect_index, std::vector<uint8_t> const& data) {
+void Bg95AtModem::WritePacket(std::uint8_t connect_index,
+                              std::vector<uint8_t> const& data) {
   serial_->WriteData(data);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
 };

@@ -29,7 +29,7 @@ class Sim7070AtModem : public IModemDriver {
  public:
   explicit Sim7070AtModem(ModemInit modem_init);
   void Init() override;
-  void Setup() override;
+  void Start() override;
   void Stop() override;
   void OpenNetwork(std::uint8_t context_index, std::uint8_t connect_index,
                    ae::Protocol protocol, std::string host,
