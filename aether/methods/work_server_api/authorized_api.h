@@ -19,7 +19,7 @@
 
 #include "aether/types/uid.h"
 #include "aether/methods/telemetric.h"
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 #include "aether/stream_api/stream_api.h"
 #include "aether/api_protocol/api_method.h"
 

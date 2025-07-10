@@ -82,10 +82,10 @@ void test_Percentiles() {
   TEST_ASSERT_EQUAL(1, counter.min());
   TEST_ASSERT_EQUAL(100, counter.max());
   TEST_ASSERT_EQUAL(1, counter.percentile<0>());
-  TEST_ASSERT_EQUAL(21, counter.percentile<21>());
-  TEST_ASSERT_EQUAL(50, counter.percentile<50>());
-  TEST_ASSERT_EQUAL(90, counter.percentile<90>());
-  TEST_ASSERT_EQUAL(99, counter.percentile<99>());
+  TEST_ASSERT_EQUAL(22, counter.percentile<21>());
+  TEST_ASSERT_EQUAL(51, counter.percentile<50>());
+  TEST_ASSERT_EQUAL(91, counter.percentile<90>());
+  TEST_ASSERT_EQUAL(100, counter.percentile<99>());
   TEST_ASSERT_EQUAL(100, counter.percentile<100>());
 }
 

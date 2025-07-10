@@ -112,9 +112,12 @@ list(APPEND adapters_srcs
 list(APPEND transport_srcs
             "transport/actions/build_transport_action.cpp"
             "transport/server/server_channel_stream.cpp"
+            "transport/low_level/sockets/unix_socket.cpp"
+            "transport/low_level/sockets/unix_tcp_socket.cpp"
+            "transport/low_level/sockets/lwip_socket.cpp"
+            "transport/low_level/sockets/lwip_tcp_socket.cpp"
             "transport/low_level/tcp/socket_packet_send_action.cpp"
-            "transport/low_level/tcp/lwip_tcp.cpp"
-            "transport/low_level/tcp/unix_tcp.cpp"
+            "transport/low_level/tcp/posix_tcp.cpp"
             "transport/low_level/tcp/win_tcp.cpp"
             "transport/low_level/tcp/data_packet_collector.cpp"
 )

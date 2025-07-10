@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,32 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
-#define AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UNIX_TCP_SOCKET_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UNIX_TCP_SOCKET_H_
 
-#include "aether/types/data_buffer.h"
+#include "aether/transport/low_level/sockets/unix_socket.h"
 
+#if UNIX_SOCKET_ENABLED
 namespace ae {
-class IEncryptProvider {
+class UnixTcpSocket final : public UnixSocket {
  public:
-  virtual ~IEncryptProvider() = default;
+  UnixTcpSocket();
 
-  /**
-   * \brief Encrypts the data.
-   */
-  virtual DataBuffer Encrypt(DataBuffer const& data) = 0;
-  virtual std::size_t EncryptOverhead() const = 0;
-};
-
-class IDecryptProvider {
- public:
-  virtual ~IDecryptProvider() = default;
-
-  /**
-   * \brief Decrypts the data.
-   */
-  virtual DataBuffer Decrypt(DataBuffer const& data) = 0;
+ private:
+  static int MakeSocket();
 };
 }  // namespace ae
-
-#endif  // AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
+#endif
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UNIX_TCP_SOCKET_H_
