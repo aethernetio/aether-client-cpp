@@ -249,7 +249,7 @@ void Sim7070AtModem::ReadPacket(std::uint8_t connect_index,
     std::string response_string(response->begin(), response->end());
     auto start = response_string.find("+CAACK: ") + 8;
     auto stop = response_string.find(",");
-    if (stop > start && start != string::npos && stop != string::npos) {
+    if (stop > start && start != std::string::npos && stop != std::string::npos) {
       size = std::stoi(response_string.substr(start, stop - start));
       AE_TELED_DEBUG("Size {}", size);
     } else {
