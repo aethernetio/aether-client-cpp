@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_TCP_POSIX_TCP_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_TCP_POSIX_TCP_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
 
 #if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
     defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
 
-#  define POSIX_TCP_TRANSPORT_ENABLED 1
+#  define COMMON_TCP_TRANSPORT_ENABLED 1
 
 #  include <mutex>
 
@@ -40,7 +40,7 @@
 #  include "aether/transport/low_level/sockets/tcp_sockets_factory.h"
 
 namespace ae {
-class PosixTcpTransport : public ITransport {
+class TcpTransport : public ITransport {
   static constexpr int kInvalidSocket = -1;
 
   class ConnectionAction : public Action<ConnectionAction> {
@@ -53,8 +53,7 @@ class PosixTcpTransport : public ITransport {
       kConnected,
     };
 
-    ConnectionAction(ActionContext action_context,
-                     PosixTcpTransport& transport);
+    ConnectionAction(ActionContext action_context, TcpTransport& transport);
 
     ActionResult Update();
 
@@ -63,7 +62,7 @@ class PosixTcpTransport : public ITransport {
     void WaitConnection();
     void ConnectionUpdate();
 
-    PosixTcpTransport* transport_;
+    TcpTransport* transport_;
     StateMachine<State> state_;
     Subscription state_changed_subscription_;
     IPoller::OnPollEventSubscriber::Subscription poller_subscription_;
@@ -71,28 +70,26 @@ class PosixTcpTransport : public ITransport {
 
   using SocketEventAction = NotifyAction<>;
 
-  class UnixPacketSendAction : public SocketPacketSendAction {
+  class SendAction : public SocketPacketSendAction {
    public:
-    UnixPacketSendAction(ActionContext action_context,
-                         PosixTcpTransport& transport, DataBuffer data,
-                         TimePoint current_time);
+    SendAction(ActionContext action_context, TcpTransport& transport,
+               DataBuffer data, TimePoint current_time);
 
-    UnixPacketSendAction(UnixPacketSendAction&& other) noexcept;
+    SendAction(SendAction&& other) noexcept;
 
     void Send() override;
 
    private:
-    PosixTcpTransport* transport_;
+    TcpTransport* transport_;
     DataBuffer data_;
     TimePoint current_time_;
     std::size_t sent_offset_ = 0;
     Subscription state_changed_subscription_;
   };
 
-  class UnixPacketReadAction : public Action<UnixPacketReadAction> {
+  class ReadAction : public Action<ReadAction> {
    public:
-    UnixPacketReadAction(ActionContext action_context,
-                         PosixTcpTransport& transport);
+    ReadAction(ActionContext action_context, TcpTransport& transport);
 
     ActionResult Update();
     void Read();
@@ -100,7 +97,7 @@ class PosixTcpTransport : public ITransport {
    private:
     void DataReceived();
 
-    PosixTcpTransport* transport_;
+    TcpTransport* transport_;
     StreamDataPacketCollector data_packet_collector_;
     DataBuffer read_buffer_;
     std::atomic_bool read_event_{};
@@ -108,9 +105,9 @@ class PosixTcpTransport : public ITransport {
   };
 
  public:
-  PosixTcpTransport(ActionContext action_context, IPoller::ptr const& poller,
-                    IpAddressPort const& endpoint);
-  ~PosixTcpTransport() override;
+  TcpTransport(ActionContext action_context, IPoller::ptr const& poller,
+               IpAddressPort const& endpoint);
+  ~TcpTransport() override;
 
   void Connect() override;
   ConnectionInfo const& GetConnectionInfo() const override;
@@ -144,9 +141,9 @@ class PosixTcpTransport : public ITransport {
   TcpSocket socket_;
   std::mutex socket_lock_;
 
-  SocketPacketQueueManager<UnixPacketSendAction> socket_packet_queue_manager_;
+  SocketPacketQueueManager<SendAction> socket_packet_queue_manager_;
   ActionOpt<ConnectionAction> connection_action_;
-  ActionOpt<UnixPacketReadAction> read_action_;
+  ActionOpt<ReadAction> read_action_;
   SocketEventAction socket_error_action_;
 
   Subscription connection_error_sub_;
@@ -159,4 +156,4 @@ class PosixTcpTransport : public ITransport {
 }  // namespace ae
 
 #endif
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_TCP_POSIX_TCP_H_
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
