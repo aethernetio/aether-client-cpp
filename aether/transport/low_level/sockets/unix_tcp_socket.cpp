@@ -75,6 +75,8 @@ inline bool SetNonblocking(int sock) {
 
 UnixTcpSocket::UnixTcpSocket() : UnixSocket(MakeSocket()) {}
 
+std::size_t UnixTcpSocket::GetMaxPacketSize() const { return 1500; }
+
 int UnixTcpSocket::MakeSocket() {
   bool created = false;
   // TCP socket
@@ -102,6 +104,5 @@ int UnixTcpSocket::MakeSocket() {
   created = true;
   return sock;
 }
-
 }  // namespace ae
 #endif

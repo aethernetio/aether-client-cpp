@@ -30,6 +30,8 @@
 namespace ae {
 LwipTcpSocket::LwipTcpSocket() : LwipSocket{MakeSocket()} {}
 
+std::size_t LwipTcpSocket::GetMaxPacketSize() const { return 1500; }
+
 int LwipTcpSocket::MakeSocket() {
   bool created = false;
   constexpr int on = 1;

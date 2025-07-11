@@ -25,6 +25,8 @@ class UnixTcpSocket final : public UnixSocket {
  public:
   UnixTcpSocket();
 
+  std::size_t GetMaxPacketSize() const override;
+
  private:
   static int MakeSocket();
 };

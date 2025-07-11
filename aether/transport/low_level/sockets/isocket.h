@@ -57,7 +57,7 @@ class ISocket {
   /**
    * \brief Get current connection state.
    */
-  virtual ConnectionState GetConnectionState() const = 0;
+  virtual ConnectionState GetConnectionState() = 0;
   /**
    * \brief Broke the connection.
    */
@@ -75,6 +75,11 @@ class ISocket {
    * return 0.
    */
   virtual std::optional<std::size_t> Receive(Span<std::uint8_t> data) = 0;
+
+  /**
+   * \brief Get the maximum packet size (MTU)
+   */
+  virtual std::size_t GetMaxPacketSize() const = 0;
 };
 }  // namespace ae
 

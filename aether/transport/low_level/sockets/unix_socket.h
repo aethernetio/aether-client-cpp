@@ -37,7 +37,7 @@ class UnixSocket : public ISocket {
 
   explicit operator DescriptorType() const override;
   ConnectionState Connect(IpAddressPort const& destination) override;
-  ConnectionState GetConnectionState() const override;
+  ConnectionState GetConnectionState() override;
   void Disconnect() override;
   std::optional<std::size_t> Send(Span<std::uint8_t> data) override;
   std::optional<std::size_t> Receive(Span<std::uint8_t> data) override;
