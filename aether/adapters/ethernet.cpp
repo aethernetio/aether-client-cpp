@@ -24,7 +24,6 @@
 
 // IWYU pragma: begin_keeps
 #include "aether/transport/low_level/tcp/posix_tcp.h"
-#include "aether/transport/low_level/tcp/win_tcp.h"
 // IWYU pragma: end_keeps
 
 namespace ae {
@@ -44,11 +43,6 @@ class EthernetTransportBuilder final : public ITransportBuilder {
     return make_unique<PosixTcpTransport>(*adapter_->aether_.as<Aether>(),
                                           adapter_->poller_,
                                           address_port_protocol_);
-#elif defined WIN_TCP_TRANSPORT_ENABLED
-    assert(address_port_protocol_.protocol == Protocol::kTcp);
-    return make_unique<WinTcpTransport>(*adapter_->aether_.as<Aether>(),
-                                        adapter_->poller_,
-                                        address_port_protocol_);
 #else
     static_assert(false, "No transport enabled");
 #endif
