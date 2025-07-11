@@ -247,7 +247,9 @@ FreertosPoller::OnPollEventSubscriber FreertosPoller::Add(
 }
 
 void FreertosPoller::Remove(DescriptorType descriptor) {
-  assert(poll_worker_);
+  if (!poll_worker_) {
+    return;
+  }
   poll_worker_->Remove(descriptor);
 }
 

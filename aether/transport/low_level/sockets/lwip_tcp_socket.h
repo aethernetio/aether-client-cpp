@@ -28,6 +28,8 @@ class LwipTcpSocket final : public LwipSocket {
  public:
   LwipTcpSocket();
 
+  std::size_t GetMaxPacketSize() const override;
+
  private:
   static int MakeSocket();
 };

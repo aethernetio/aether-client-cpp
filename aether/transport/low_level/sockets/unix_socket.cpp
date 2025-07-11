@@ -126,7 +126,7 @@ UnixSocket::ConnectionState UnixSocket::Connect(
   return ConnectionState::kConnected;
 }
 
-UnixSocket::ConnectionState UnixSocket::GetConnectionState() const {
+UnixSocket::ConnectionState UnixSocket::GetConnectionState() {
   // check socket status
   int err;
   socklen_t len = sizeof(len);

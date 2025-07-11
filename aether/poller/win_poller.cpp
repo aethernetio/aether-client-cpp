@@ -30,6 +30,17 @@
 #  include "aether/poller/poller_tele.h"
 
 namespace ae {
+struct InsertedHandle {
+  InsertedHandle() = default;
+  InsertedHandle(HANDLE h) : handle{h} {};
+  bool operator<(InsertedHandle const& other) const {
+    return handle < other.handle;
+  }
+
+  HANDLE handle = nullptr;
+  mutable bool inserted = false;
+};
+
 class WinPoller::IoCPPoller {
  public:
   IoCPPoller() : poll_event_{SharedMutexSyncPolicy{events_lock_}} {
@@ -66,7 +77,7 @@ class WinPoller::IoCPPoller {
     AE_TELE_DEBUG(kWinpollAddDescriptor, "Add poller descriptor");
 
     auto comp_key = static_cast<HANDLE>(descriptor);
-    auto [it, inserted] = events_.insert(comp_key);
+    auto [it, inserted] = handles_.insert(InsertedHandle{comp_key});
     if (inserted) {
       auto res = CreateIoCompletionPort(
           descriptor, iocp_, reinterpret_cast<ULONG_PTR>(comp_key), 0);
@@ -77,30 +88,35 @@ class WinPoller::IoCPPoller {
         assert(false);
       }
     }
+    it->inserted = true;
     return WinPoller::OnPollEventSubscriber{poll_event_};
   }
 
   void Remove(DescriptorType descriptor) {
     auto lock = std::lock_guard{events_lock_};
     AE_TELE_DEBUG(kWinpollRemoveDescriptor, "Remove poller event");
-
     auto comp_key = static_cast<HANDLE>(descriptor);
-    events_.erase(comp_key);
+    auto it = handles_.find(comp_key);
+    if (it != std::end(handles_)) {
+      // mark handle not inserted and not remove handle completely to prevent
+      // duplicate Add
+      it->inserted = false;
+    }
   }
 
  private:
   void Loop() {
     assert(iocp_ != INVALID_HANDLE_VALUE);
     while (!stop_requested_) {
-      DWORD bytes_transfered;
+      DWORD bytes_transferred;
       ULONG_PTR completion_key;
       LPOVERLAPPED overlapped;
-      if (!GetQueuedCompletionStatus(iocp_, &bytes_transfered, &completion_key,
+      if (!GetQueuedCompletionStatus(iocp_, &bytes_transferred, &completion_key,
                                      &overlapped, INFINITE)) {
         auto error = GetLastError();
         if (error == ERROR_CONNECTION_ABORTED) {
           // socket closed
-          events_.erase(reinterpret_cast<HANDLE>(completion_key));
+          handles_.erase(reinterpret_cast<HANDLE>(completion_key));
           continue;
         }
         AE_TELE_ERROR(kWinpollWaitFailed, "GetQueuedCompletionStatus error {}",
@@ -109,12 +125,12 @@ class WinPoller::IoCPPoller {
 
       auto lock = std::lock_guard{events_lock_};
       auto descriptor = reinterpret_cast<HANDLE>(completion_key);
-      auto it = events_.find(descriptor);
-      if (it == std::end(events_)) {
+      auto it = handles_.find(descriptor);
+      if ((it == std::end(handles_)) || !it->inserted) {
         continue;
       }
-      assert(overlapped);
 
+      assert(overlapped);
       auto event_overlapped =
           reinterpret_cast<WinPollerOverlapped*>(overlapped);
       poll_event_.Emit(PollerEvent{descriptor, event_overlapped->event_type});
@@ -122,7 +138,7 @@ class WinPoller::IoCPPoller {
   }
 
   HANDLE iocp_ = INVALID_HANDLE_VALUE;
-  std::set<HANDLE> events_;
+  std::set<InsertedHandle> handles_;
   std::recursive_mutex events_lock_;
   WinPoller::OnPollEvent poll_event_;
   std::atomic_bool stop_requested_{false};
@@ -145,7 +161,9 @@ WinPoller::OnPollEventSubscriber WinPoller::Add(DescriptorType descriptor) {
 }
 
 void WinPoller::Remove(DescriptorType descriptor) {
-  assert(iocp_poller_);
+  if (!iocp_poller_) {
+    return;
+  }
   iocp_poller_->Remove(descriptor);
 }
 
