@@ -74,23 +74,20 @@ TransportWriteStream::TransportWriteStream(ActionContext action_context,
           *this, MethodPtr<&TransportWriteStream::ReceiveData>{})},
       write_actions_{action_context},
       failed_write_actions_{action_context} {
-  auto connection_info = transport_->GetConnectionInfo();
-  stream_info_.max_element_size = connection_info.max_packet_size;
-  stream_info_.is_linked =
-      connection_info.connection_state == ConnectionState::kConnected;
-  stream_info_.is_writable = stream_info_.is_linked;
-  stream_info_.is_soft_writable = stream_info_.is_linked;
-  // TODO:
-  stream_info_.is_soft_writable = stream_info_.is_linked;
+  SetStreamInfo(transport_->GetConnectionInfo());
 }
 
 TransportWriteStream::~TransportWriteStream() = default;
 
 ActionView<StreamWriteAction> TransportWriteStream::Write(DataBuffer&& buffer) {
-  AE_TELED_DEBUG("Write bytes: size: {}\n data: {}", buffer.size(), buffer);
+  AE_TELED_DEBUG("Write bytes: size: {}\ndata: {}", buffer.size(), buffer);
 
-  // TODO: add checks for writeable and soft writable
   if (!stream_info_.is_linked) {
+    return failed_write_actions_.Emplace();
+  }
+  if (!stream_info_.strict_size_rules &&
+      (buffer.size() > stream_info_.max_element_size)) {
+    AE_TELED_ERROR("Max element size exceeded");
     return failed_write_actions_.Emplace();
   }
 
@@ -109,21 +106,27 @@ TransportWriteStream::stream_update_event() {
 StreamInfo TransportWriteStream::stream_info() const { return stream_info_; }
 
 void TransportWriteStream::GateUpdate() {
-  auto connection_info = transport_->GetConnectionInfo();
-  stream_info_.max_element_size = connection_info.max_packet_size;
-  stream_info_.is_linked =
-      connection_info.connection_state == ConnectionState::kConnected;
-  stream_info_.is_writable = stream_info_.is_linked;
-  // TODO:
-  stream_info_.is_soft_writable = stream_info_.is_linked;
+  SetStreamInfo(transport_->GetConnectionInfo());
   stream_update_event_.Emit();
 }
 
 void TransportWriteStream::ReceiveData(DataBuffer const& data,
                                        TimePoint current_time) {
-  AE_TELED_DEBUG("Received data from transport\n data:{}\ttime: {:%H:%M:%S}",
+  AE_TELED_DEBUG("Received data from transport\ndata:{}\ntime: {:%H:%M:%S}",
                  data, current_time);
   out_data_event_.Emit(data);
+}
+
+void TransportWriteStream::SetStreamInfo(
+    ConnectionInfo const& connection_info) {
+  stream_info_.max_element_size = connection_info.max_packet_size;
+  stream_info_.is_linked =
+      connection_info.connection_state == ConnectionState::kConnected;
+  stream_info_.is_writable = stream_info_.is_linked;
+  stream_info_.is_soft_writable = stream_info_.is_linked;
+  // use strict size rules for unreliable connections
+  stream_info_.strict_size_rules =
+      (connection_info.reliability == Reliability::kUnreliable);
 }
 
 }  // namespace ae

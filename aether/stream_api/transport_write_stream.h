@@ -54,6 +54,7 @@ class TransportWriteStream final : public ByteIStream {
  private:
   void GateUpdate();
   void ReceiveData(DataBuffer const& data, TimePoint current_time);
+  void SetStreamInfo(ConnectionInfo const& connection_info);
 
   ITransport* transport_;
 

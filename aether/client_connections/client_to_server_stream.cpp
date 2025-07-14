@@ -88,7 +88,8 @@ ClientToServerStream::ClientToServerStream(
       client_safe_api_{protocol_context_},
       login_api_{protocol_context_},
       authorized_api_{protocol_context_, action_context_},
-      server_stream_{std::move(server_stream)} {
+      server_stream_{std::move(server_stream)},
+      failed_actions_{action_context_} {
   AE_TELE_INFO(ClientServerStreamCreate, "Create ClientToServerStreamGate");
 
   auto client_ptr = client_.Lock();
@@ -122,6 +123,10 @@ ClientToServerStream::~ClientToServerStream() = default;
 
 ActionView<StreamWriteAction> ClientToServerStream::Write(
     DataBuffer&& in_data) {
+  auto info = client_auth_stream_->stream_info();
+  if (info.strict_size_rules && (in_data.size() > info.max_element_size)) {
+    return failed_actions_.Emplace();
+  }
   return client_auth_stream_->Write(std::move(in_data));
 }
 
