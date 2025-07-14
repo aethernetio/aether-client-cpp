@@ -27,8 +27,6 @@
 #  include "aether/transport/transport_tele.h"
 
 namespace ae {
-constexpr std::size_t kMtuSelected = 1500;
-
 TcpTransport::ConnectionAction::ConnectionAction(ActionContext action_context,
                                                  TcpTransport& transport)
     : Action{action_context},
@@ -178,7 +176,7 @@ TcpTransport::ReadAction::ReadAction(ActionContext action_context,
                                      TcpTransport& transport)
     : Action{action_context},
       transport_{&transport},
-      read_buffer_(kMtuSelected) {}
+      read_buffer_(transport_->socket_.GetMaxPacketSize()) {}
 
 ActionResult TcpTransport::ReadAction::Update() {
   if (read_event_.exchange(false)) {
@@ -291,7 +289,7 @@ ActionView<PacketSendAction> TcpTransport::Send(DataBuffer data,
 void TcpTransport::OnConnected() {
   connection_info_.connection_state = ConnectionState::kConnected;
   // 2 - for max packet size
-  connection_info_.max_packet_size = kMtuSelected - 2;
+  connection_info_.max_packet_size = socket_.GetMaxPacketSize() - 2;
 
   read_action_.emplace(action_context_, *this);
   read_action_error_sub_ =
@@ -360,6 +358,9 @@ void TcpTransport::Disconnect() {
   socket_error_subscription_.Reset();
 
   auto lock = std::lock_guard{socket_lock_};
+  if (!socket_.IsValid()) {
+    return;
+  }
   if (auto poller_ptr = poller_.Lock(); poller_ptr) {
     poller_ptr->Remove(static_cast<DescriptorType>(socket_));
   }
