@@ -28,13 +28,14 @@ namespace ae {
 TransportWriteStream::TransportStreamWriteAction::TransportStreamWriteAction(
     ActionContext action_context,
     ActionView<PacketSendAction> packet_send_action)
-    : StreamWriteAction(action_context),
+    : StreamWriteAction{action_context},
       packet_send_action_{std::move(packet_send_action)} {
   subscriptions_.Push(
       packet_send_action_->ResultEvent().Subscribe(
           [this](auto const& /* action */) {
             state_ = State::kDone;
-            return ActionResult::Result();
+            state_.Acquire();
+            Action::Result(*this);
           }),
       packet_send_action_->ErrorEvent().Subscribe([this](auto const& action) {
         switch (action.state()) {
@@ -48,11 +49,13 @@ TransportWriteStream::TransportStreamWriteAction::TransportStreamWriteAction(
             AE_TELED_ERROR("What kind of error is this?");
             assert(false);
         }
-        return ActionResult::Error();
+        state_.Acquire();
+        Action::Error(*this);
       }),
       packet_send_action_->StopEvent().Subscribe([this](auto const&) {
         state_ = State::kStopped;
-        return ActionResult::Stop();
+        state_.Acquire();
+        Action::Stop(*this);
       }));
 }
 
