@@ -18,11 +18,10 @@
 #define AETHER_STREAM_API_TRANSPORT_WRITE_STREAM_H_
 
 #include "aether/common.h"
-#include "aether/memory.h"
-#include "aether/actions/action_list.h"
-#include "aether/actions/action_context.h"
-#include "aether/transport/itransport.h"
 #include "aether/types/data_buffer.h"
+#include "aether/actions/action_list.h"
+#include "aether/transport/itransport.h"
+#include "aether/actions/action_context.h"
 
 #include "aether/stream_api/istream.h"
 

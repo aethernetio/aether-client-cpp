@@ -18,9 +18,6 @@
 
 #include <utility>
 
-#include "aether/actions/action.h"
-#include "aether/stream_api/istream.h"
-
 #include "aether/tele/tele.h"
 
 namespace ae {
@@ -83,6 +80,8 @@ TransportWriteStream::TransportWriteStream(ActionContext action_context,
       connection_info.connection_state == ConnectionState::kConnected;
   stream_info_.is_writable = stream_info_.is_linked;
   stream_info_.is_soft_writable = stream_info_.is_linked;
+  // TODO:
+  stream_info_.is_soft_writable = stream_info_.is_linked;
 }
 
 TransportWriteStream::~TransportWriteStream() = default;
@@ -115,6 +114,7 @@ void TransportWriteStream::GateUpdate() {
   stream_info_.is_linked =
       connection_info.connection_state == ConnectionState::kConnected;
   stream_info_.is_writable = stream_info_.is_linked;
+  // TODO:
   stream_info_.is_soft_writable = stream_info_.is_linked;
   stream_update_event_.Emit();
 }
