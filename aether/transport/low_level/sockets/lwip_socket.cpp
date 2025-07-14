@@ -122,7 +122,7 @@ LwipSocket::ConnectionState LwipSocket::Connect(
   return ConnectionState::kConnected;
 }
 
-LwipSocket::ConnectionState LwipSocket::GetConnectionState() const {
+LwipSocket::ConnectionState LwipSocket::GetConnectionState() {
   // check socket status
   int err;
   socklen_t len = sizeof(len);

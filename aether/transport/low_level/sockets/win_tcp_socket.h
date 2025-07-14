@@ -14,34 +14,35 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_TCP_SOCKET_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_TCP_SOCKET_H_
 
-#if (defined(ESP_PLATFORM))
+#include "aether/transport/low_level/sockets/win_socket.h"
 
-#  define LWIP_SOCKET_ENABLED 1
+#if defined WIN_SOCKET_ENABLED
 
-#  include "aether/transport/low_level/sockets/isocket.h"
+#  include "winsock2.h"
 
 namespace ae {
-class LwipSocket : public ISocket {
+class WinTcpSocket final : public WinSocket {
+  using ConnectExPtr = bool (*)(DescriptorType::Socket, sockaddr const*, int,
+                                void*, DWORD, LPDWORD, LPOVERLAPPED);
+
  public:
-  static constexpr int kInvalidSocket = -1;
+  WinTcpSocket();
+  ~WinTcpSocket();
 
-  explicit LwipSocket(int socket);
-  ~LwipSocket() override;
-
-  explicit operator DescriptorType() const override;
   ConnectionState Connect(IpAddressPort const& destination) override;
   ConnectionState GetConnectionState() override;
   void Disconnect() override;
-  std::optional<std::size_t> Send(Span<std::uint8_t> data) override;
-  std::optional<std::size_t> Receive(Span<std::uint8_t> data) override;
 
  private:
-  int socket_;
+  ConnectExPtr GetConnectEx();
+  bool InitConnection();
+
+  bool connection_initiated_{false};
+  WinPollerOverlapped conn_overlapped_;
 };
 }  // namespace ae
-
 #endif
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_TCP_SOCKET_H_

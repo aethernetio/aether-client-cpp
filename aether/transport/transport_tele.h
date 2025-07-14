@@ -22,19 +22,12 @@
 AE_TELE_MODULE(kTransport, 4, 51, 100);
 AE_TELE_MODULE(kTransportDebug, 104, 400, 445);
 
-AE_TAG(kUnixTcpTransportConnect, kTransport)
-AE_TAG(kUnixTcpTransportDisconnect, kTransport)
-AE_TAG(kUnixTcpTransport, kTransport)
+AE_TAG(kPosixTcpTransportConnect, kTransport)
+AE_TAG(kPosixTcpTransportDisconnect, kTransport)
+AE_TAG(kPosixTcpTransport, kTransport)
 
-AE_TAG(kUnixTcpTransportSend, kTransportDebug)
-AE_TAG(kUnixTcpTransportReceive, kTransportDebug)
-
-AE_TAG(kLwipTcpTransportConnect, kTransport)
-AE_TAG(kLwipTcpTransportDisconnect, kTransport)
-AE_TAG(kLwipTcpTransport, kTransport)
-
-AE_TAG(kLwipTcpTransportSend, kTransportDebug)
-AE_TAG(kLwipTcpTransportReceive, kTransportDebug)
+AE_TAG(kPosixTcpTransportSend, kTransportDebug)
+AE_TAG(kPosixTcpTransportReceive, kTransportDebug)
 
 AE_TAG(kWinTcpTransportConnect, kTransport)
 AE_TAG(kWinTcpTransportDisconnect, kTransport)
@@ -42,5 +35,13 @@ AE_TAG(kWinTcpTransport, kTransport)
 
 AE_TAG(kWinTcpTransportSend, kTransportDebug)
 AE_TAG(kWinTcpTransportReceive, kTransportDebug)
+
+AE_TAG(kPosixUdpTransport, kTransport)
+AE_TAG(kPosixUdpTransportConnect, kTransport)
+AE_TAG(kPosixUdpTransportConnectFailed, kTransport)
+AE_TAG(kPosixUdpTransportDisconnect, kTransport)
+
+AE_TAG(kPosixUdpTransportSend, kTransportDebug)
+AE_TAG(kPosixUdpTransportReceive, kTransportDebug)
 
 #endif  // AETHER_TRANSPORT_TRANSPORT_TELE_H_

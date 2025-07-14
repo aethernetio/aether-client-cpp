@@ -75,11 +75,14 @@ inline bool SetNonblocking(int sock) {
 
 UnixTcpSocket::UnixTcpSocket() : UnixSocket(MakeSocket()) {}
 
+std::size_t UnixTcpSocket::GetMaxPacketSize() const { return 1500; }
+
 int UnixTcpSocket::MakeSocket() {
   bool created = false;
   // TCP socket
   int sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock == kInvalidSocket) {
+    AE_TELED_DEBUG("Socket creation error {} {}", errno, strerror(errno));
     return kInvalidSocket;
   }
 
@@ -102,6 +105,5 @@ int UnixTcpSocket::MakeSocket() {
   created = true;
   return sock;
 }
-
 }  // namespace ae
 #endif

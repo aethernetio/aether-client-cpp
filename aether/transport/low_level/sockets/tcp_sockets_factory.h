@@ -18,6 +18,7 @@
 #define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_TCP_SOCKETS_FACTORY_H_
 
 // IWYU pragma: begin_exports
+#include "aether/transport/low_level/sockets/win_tcp_socket.h"
 #include "aether/transport/low_level/sockets/unix_tcp_socket.h"
 #include "aether/transport/low_level/sockets/lwip_tcp_socket.h"
 // IWYU pragma: end_exports
@@ -27,6 +28,8 @@ namespace ae {
 using TcpSocket = UnixTcpSocket;
 #elif LWIP_SOCKET_ENABLED
 using TcpSocket = LwipTcpSocket;
+#elif WIN_SOCKET_ENABLED
+using TcpSocket = WinTcpSocket;
 #endif
 }  // namespace ae
 
