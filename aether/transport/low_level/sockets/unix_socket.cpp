@@ -187,5 +187,7 @@ std::optional<std::size_t> UnixSocket::Receive(Span<std::uint8_t> data) {
   return static_cast<std::size_t>(res);
 }
 
+bool UnixSocket::IsValid() const { return socket_ != kInvalidSocket; }
+
 }  // namespace ae
 #endif

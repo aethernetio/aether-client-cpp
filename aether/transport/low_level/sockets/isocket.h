@@ -80,6 +80,11 @@ class ISocket {
    * \brief Get the maximum packet size (MTU)
    */
   virtual std::size_t GetMaxPacketSize() const = 0;
+
+  /**
+   * \brief Know if socket is valid.
+   */
+  virtual bool IsValid() const = 0;
 };
 }  // namespace ae
 
