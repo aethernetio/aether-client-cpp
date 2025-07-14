@@ -52,7 +52,7 @@ class Telemetry : public Action<Telemetry> {
 
  private:
   void OnRequestTelemetry();
-  std::optional<Telemetric> CollectTelemetry();
+  std::optional<Telemetric> CollectTelemetry(StreamInfo const& stream_info);
 
   PtrView<Aether> aether_;
   ClientToServerStream* client_to_server_;
