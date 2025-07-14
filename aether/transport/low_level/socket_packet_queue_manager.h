@@ -53,8 +53,7 @@ class SocketPacketQueueManager
     auto lock = std::unique_lock{queue_lock_};
     auto view = actions_.Add(std::move(packet_send_action));
     queue_.emplace(view);
-    on_sent_subs_.Push(
-        view->ResultEvent().Subscribe([this](auto const&) { Send(); }));
+    on_sent_subs_.Push(view->FinishedEvent().Subscribe([this]() { Send(); }));
     BaseAction::Trigger();
     return view;
   }
