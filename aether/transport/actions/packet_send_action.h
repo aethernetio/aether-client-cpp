@@ -39,11 +39,13 @@ class PacketSendAction : public Action<PacketSendAction> {
       : Action(action_context) {}
   PacketSendAction(PacketSendAction const& other) = delete;
   PacketSendAction(PacketSendAction&& other) noexcept
-      : Action(std::move(static_cast<Action&>(other))) {}
+      : Action(std::move(static_cast<Action&>(other))),
+        state_{std::move(other.state_)} {}
 
   PacketSendAction& operator=(PacketSendAction const& other) = delete;
   PacketSendAction& operator=(PacketSendAction&& other) noexcept {
     Action::operator=(std::move(static_cast<Action&>(other)));
+    state_ = std::move(other.state_);
     return *this;
   };
 
