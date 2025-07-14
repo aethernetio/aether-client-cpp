@@ -57,8 +57,7 @@ ActionResult TcpTransport::ConnectionAction::Update() {
 }
 
 void TcpTransport::ConnectionAction::Connect() {
-  AE_TELE_INFO(kPosixTcpTransportConnect, "Connect to {}",
-               transport_->endpoint_);
+  AE_TELE_INFO(kTcpTransportConnect, "Connect to {}", transport_->endpoint_);
 
   auto res = transport_->socket_.Connect(transport_->endpoint_);
   switch (res) {
@@ -215,8 +214,7 @@ void TcpTransport::ReadAction::DataReceived() {
   auto lock = std::lock_guard{transport_->socket_lock_};
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG(kPosixTcpTransportReceive, "Receive data size {}",
-                  data.size());
+    AE_TELE_DEBUG(kTcpTransportReceive, "Receive data size {}", data.size());
     transport_->data_receive_event_.Emit(data, Now());
   }
 }
@@ -230,7 +228,7 @@ TcpTransport::TcpTransport(ActionContext action_context,
       connection_info_{},
       socket_{},
       socket_packet_queue_manager_{action_context_} {
-  AE_TELE_INFO(kPosixTcpTransport, "Created unix tcp transport to endpoint {}",
+  AE_TELE_INFO(kTcpTransport, "Created tcp transport to endpoint {}",
                endpoint_);
   connection_info_.connection_state = ConnectionState::kUndefined;
   connection_info_.connection_type = ConnectionType::kConnectionOriented;
@@ -266,7 +264,7 @@ ITransport::DataReceiveEvent::Subscriber TcpTransport::ReceiveEvent() {
 
 ActionView<PacketSendAction> TcpTransport::Send(DataBuffer data,
                                                 TimePoint current_time) {
-  AE_TELE_DEBUG(kPosixTcpTransportSend, "Send data size {} at {:%H:%M:%S}",
+  AE_TELE_DEBUG(kTcpTransportSend, "Send data size {} at {:%H:%M:%S}",
                 data.size(), current_time);
 
   auto packet_data = std::vector<std::uint8_t>{};
@@ -353,7 +351,7 @@ void TcpTransport::ErrorSocket() {
 }
 
 void TcpTransport::Disconnect() {
-  AE_TELE_INFO(kPosixTcpTransportDisconnect, "Disconnect from {}", endpoint_);
+  AE_TELE_INFO(kTcpTransportDisconnect, "Disconnect from {}", endpoint_);
   connection_info_.connection_state = ConnectionState::kDisconnected;
   socket_error_subscription_.Reset();
 
