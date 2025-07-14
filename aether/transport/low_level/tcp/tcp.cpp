@@ -235,6 +235,8 @@ TcpTransport::TcpTransport(ActionContext action_context,
   AE_TELE_INFO(kPosixTcpTransport, "Created unix tcp transport to endpoint {}",
                endpoint_);
   connection_info_.connection_state = ConnectionState::kUndefined;
+  connection_info_.connection_type = ConnectionType::kConnectionOriented;
+  connection_info_.reliability = Reliability::kReliable;
 }
 
 TcpTransport::~TcpTransport() { Disconnect(); }

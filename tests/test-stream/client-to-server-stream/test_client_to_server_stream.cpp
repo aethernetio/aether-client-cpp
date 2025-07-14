@@ -74,8 +74,11 @@ class TestClientToServerStreamFixture {
 
   auto& MockTransport() {
     if (!mock_transport) {
-      mock_transport =
-          make_unique<ae::MockTransport>(*aether, ConnectionInfo{{}, 1500});
+      mock_transport = make_unique<ae::MockTransport>(
+          *aether, ConnectionInfo{1500,
+                                  {},
+                                  ConnectionType::kConnectionOriented,
+                                  Reliability::kReliable});
     }
     return *mock_transport;
   }
