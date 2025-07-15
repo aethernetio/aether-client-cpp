@@ -64,11 +64,11 @@ class BuildTransportAction final : public Action<BuildTransportAction> {
   std::optional<AsyncForLoop<std::unique_ptr<ITransport>>> builder_loop_;
   std::unique_ptr<ITransport> transport_;
   StateMachine<State> state_;
-  Subscription state_changed_;
-  Subscription builders_created_;
-  Subscription builders_failed_;
-  Subscription connected_;
-  Subscription connection_failed_;
+  Subscription state_changed_sub_;
+  Subscription builders_created_sub_;
+  Subscription builders_failed_sub_;
+  Subscription connected_sub_;
+  Subscription connection_failed_sub_;
 };
 
 }  // namespace ae

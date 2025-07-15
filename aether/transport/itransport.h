@@ -20,7 +20,6 @@
 #include "aether/events/events.h"
 #include "aether/actions/action_view.h"
 
-#include "aether/types/address.h"
 #include "aether/types/data_buffer.h"
 #include "aether/transport/actions/packet_send_action.h"
 
@@ -32,10 +31,21 @@ enum class ConnectionState : std::uint8_t {
   kConnected,
 };
 
+enum class ConnectionType : std::uint8_t {
+  kConnectionLess,
+  kConnectionOriented,
+};
+
+enum class Reliability : std::uint8_t {
+  kReliable,
+  kUnreliable,
+};
+
 struct ConnectionInfo {
-  IpAddressPortProtocol destination;
   std::size_t max_packet_size;
   ConnectionState connection_state;
+  ConnectionType connection_type;
+  Reliability reliability;
 };
 
 class ITransport {

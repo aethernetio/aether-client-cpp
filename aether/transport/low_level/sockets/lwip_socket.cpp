@@ -182,5 +182,7 @@ std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> data) {
   return static_cast<std::size_t>(res);
 }
 
+bool LwipSocket::IsValid() const { return socket_ != kInvalidSocket; }
+
 }  // namespace ae
 #endif

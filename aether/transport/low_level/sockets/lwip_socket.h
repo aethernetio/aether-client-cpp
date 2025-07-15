@@ -37,6 +37,7 @@ class LwipSocket : public ISocket {
   void Disconnect() override;
   std::optional<std::size_t> Send(Span<std::uint8_t> data) override;
   std::optional<std::size_t> Receive(Span<std::uint8_t> data) override;
+  bool IsValid() const override;
 
  private:
   int socket_;

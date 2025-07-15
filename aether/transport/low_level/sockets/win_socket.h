@@ -43,6 +43,7 @@ class WinSocket : public ISocket {
   std::optional<std::size_t> Send(Span<std::uint8_t> data) override;
   std::optional<std::size_t> Receive(Span<std::uint8_t> data) override;
   std::size_t GetMaxPacketSize() const override;
+  bool IsValid() const override;
 
  protected:
   bool RequestRecv();

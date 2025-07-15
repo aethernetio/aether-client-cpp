@@ -40,7 +40,7 @@ void Channel::AddPingTime(Duration ping_time) {
 
 Duration Channel::expected_connection_time() const {
   assert(!channel_statistics->connection_time_statistics().empty());
-  return channel_statistics->connection_time_statistics().percentile<99>();
+  return 2 * channel_statistics->connection_time_statistics().percentile<99>();
 }
 
 Duration Channel::expected_ping_time() const {

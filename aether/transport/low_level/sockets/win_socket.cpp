@@ -79,6 +79,8 @@ std::optional<std::size_t> WinSocket::Receive(Span<std::uint8_t> data) {
 
 std::size_t WinSocket::GetMaxPacketSize() const { return read_buffer_.size(); }
 
+bool WinSocket::IsValid() const { return socket_ != INVALID_SOCKET; }
+
 bool WinSocket::RequestRecv() {
   DWORD flags = 0;
   // request for read

@@ -18,6 +18,21 @@
 
 namespace ae {
 
+StreamWriteAction::StreamWriteAction(ActionContext action_context)
+    : Action{action_context}, state_{State::kQueued} {}
+
+StreamWriteAction::StreamWriteAction(StreamWriteAction&& other) noexcept
+    : Action{std::move(other)}, state_{std::move(other.state_)} {}
+
+StreamWriteAction& StreamWriteAction::operator=(
+    StreamWriteAction&& other) noexcept {
+  if (this != &other) {
+    Action::operator=(std::move(other));
+    state_ = std::move(other.state_);
+  }
+  return *this;
+}
+
 ActionResult StreamWriteAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
@@ -35,12 +50,8 @@ ActionResult StreamWriteAction::Update() {
   return {};
 }
 
-FailedStreamWriteAction::FailedStreamWriteAction() {
-  state_.Set(State::kFailed);
-}
-
 FailedStreamWriteAction::FailedStreamWriteAction(ActionContext action_context)
-    : StreamWriteAction(action_context) {
+    : StreamWriteAction{action_context} {
   state_.Set(State::kFailed);
 }
 
