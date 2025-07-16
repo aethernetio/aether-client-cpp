@@ -33,6 +33,16 @@ bool NoFilterServerListPolicy::Preferred(ServerListItem const& left,
   assert(right_server);
   assert(right_channel);
 
+  auto left_protocol = std::visit(
+      [](auto const& addr) { return addr.protocol; }, left_channel->address);
+
+  auto right_protocol = std::visit(
+      [](auto const& addr) { return addr.protocol; }, right_channel->address);
+
+  if (left_protocol != right_protocol) {
+    return left_protocol > right_protocol;
+  }
+
   if (left_server == right_server) {
     for (auto const& i : left_server->channels) {
       if (i.get() == left_channel.get()) {
