@@ -20,8 +20,9 @@
 #include <cstdint>
 
 #include "aether/common.h"
-#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
+#include "aether/types/state_machine.h"
+#include "aether/actions/repeatable_task.h"
 
 #include "aether/client_connections/client_to_server_stream.h"
 
@@ -58,16 +59,17 @@ class CheckAccessForSendMessage final
   void ErrorReceived();
   void SendError();
 
+  ActionContext action_context_;
   ClientToServerStream* client_to_server_stream_;
   Uid destination_;
 
-  std::uint8_t repeat_count_;
-  TimePoint last_request_time_;
   StateMachine<State> state_;
-  Subscription wait_check_success_;
-  Subscription wait_check_error_;
-  Subscription state_changed_;
-  Subscription send_error_;
+  ActionOpt<RepeatableTask> repeatable_task_;
+  Subscription wait_check_success_sub_;
+  Subscription wait_check_error_sub_;
+  Subscription state_changed_sub_;
+  Subscription send_error_sub_;
+  Subscription repeat_task_error_sub_;
 };
 }  // namespace ae
 
