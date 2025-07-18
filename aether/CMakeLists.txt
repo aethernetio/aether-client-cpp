@@ -120,7 +120,9 @@ list(APPEND adapters_srcs
 list(APPEND transport_srcs
             "transport/actions/build_transport_action.cpp"
             "transport/server/server_channel_stream.cpp"
+            "transport/low_level/sockets/lte_socket.cpp"
             "transport/low_level/sockets/lte_tcp_socket.cpp"
+            "transport/low_level/sockets/lte_udp_socket.cpp"
             "transport/low_level/sockets/unix_socket.cpp"
             "transport/low_level/sockets/unix_tcp_socket.cpp"
             "transport/low_level/sockets/unix_udp_socket.cpp"
