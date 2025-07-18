@@ -120,6 +120,7 @@ void BufferStream::Unlink() {
   stream_info_.is_linked = false;
   stream_info_.is_writable = false;
   stream_info_.strict_size_rules = false;
+  stream_info_.is_reliable = false;
   stream_info_.max_element_size = 0;
   stream_info_.is_soft_writable = write_in_buffer_.size() < buffer_max_;
   stream_update_event_.Emit();
@@ -137,6 +138,7 @@ void BufferStream::UpdateGate() {
   if (last_out_stream_info_ != out_info) {
     stream_info_.is_linked = out_info.is_linked;
     stream_info_.strict_size_rules = out_info.strict_size_rules;
+    stream_info_.is_reliable = out_info.is_reliable;
     stream_info_.max_element_size = out_info.max_element_size;
     stream_info_.is_writable = out_info.is_writable;
 

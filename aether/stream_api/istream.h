@@ -46,15 +46,18 @@ struct StreamInfo {
   bool strict_size_rules;  //< is true the packet size should be less than
                            // max_element_size, otherwise it's just recommended
                            // to be less or equal.
-  bool is_linked;          //< is stream linked somewhere
-  bool is_writable;        //< is stream writeable
-  bool is_soft_writable;   //< is stream soft writeable (!is_soft_writable
-                           //&& !is_writable means write returns error)
+  bool is_reliable;  //< Is stream reliable, means if packets are garantead to
+                     // be received
+  bool is_linked;    //< is stream linked somewhere
+  bool is_writable;  //< is stream writeable
+  bool is_soft_writable;  //< is stream soft writeable (!is_soft_writable
+                          //&& !is_writable means write returns error)
 };
 
 inline bool operator==(StreamInfo const& left, StreamInfo const& right) {
   return (left.max_element_size == right.max_element_size) &&
          (left.strict_size_rules == right.strict_size_rules) &&
+         (left.is_reliable == right.is_reliable) &&
          (left.is_linked == right.is_linked) &&
          (left.is_soft_writable == right.is_soft_writable) &&
          (left.is_writable == right.is_writable);

@@ -127,6 +127,8 @@ void TransportWriteStream::SetStreamInfo(
   // use strict size rules for unreliable connections
   stream_info_.strict_size_rules =
       (connection_info.reliability == Reliability::kUnreliable);
+  stream_info_.is_reliable =
+      (connection_info.reliability == Reliability::kReliable);
 }
 
 }  // namespace ae

@@ -16,7 +16,6 @@
 
 #include "aether/ae_actions/check_access_for_send_message.h"
 
-#include "aether/api_protocol/packet_builder.h"
 #include "aether/methods/work_server_api/authorized_api.h"
 
 #include "aether/ae_actions/ae_actions_tele.h"
@@ -25,13 +24,12 @@ namespace ae {
 CheckAccessForSendMessage::CheckAccessForSendMessage(
     ActionContext action_context, ClientToServerStream& client_to_server_stream,
     Uid destination)
-    : Action{std::move(action_context)},
+    : Action{action_context},
+      action_context_{action_context},
       client_to_server_stream_{&client_to_server_stream},
       destination_{destination},
-      repeat_count_{0},
-      last_request_time_{},
       state_{State::kSendRequest},
-      state_changed_{state_.changed_event().Subscribe(
+      state_changed_sub_{state_.changed_event().Subscribe(
           [&](auto const&) { Action::Trigger(); })} {}
 
 ActionResult CheckAccessForSendMessage::Update() {
@@ -50,55 +48,57 @@ ActionResult CheckAccessForSendMessage::Update() {
         return ActionResult::Error();
     }
   }
-  if (state_.get() == State::kWaitResponse) {
-    return ActionResult::Delay(WaitResponse());
-  }
   return {};
 }
 
 void CheckAccessForSendMessage::SendRequest() {
-  last_request_time_ = Now();
+  int repeat_count = client_to_server_stream_->stream_info().is_reliable
+                         ? 1
+                         : kMaxRequestRepeatCount;
+  repeatable_task_.emplace(
+      action_context_,
+      [this]() {
+        auto api_adapter = client_to_server_stream_->authorized_api_adapter();
+        auto check_promise =
+            api_adapter->check_access_for_send_message(destination_);
+        wait_check_success_sub_ = check_promise->ResultEvent().Subscribe(
+            [&](auto const&) { ResponseReceived(); });
+        wait_check_error_sub_ = check_promise->ErrorEvent().Subscribe(
+            [&](auto const&) { ErrorReceived(); });
 
-  auto api_adapter = client_to_server_stream_->authorized_api_adapter();
-  auto check_promise = api_adapter->check_access_for_send_message(destination_);
-  wait_check_success_ = check_promise->ResultEvent().Subscribe(
-      [&](auto const&) { ResponseReceived(); });
-  wait_check_error_ = check_promise->ErrorEvent().Subscribe(
-      [&](auto const&) { ErrorReceived(); });
+        auto send_event = api_adapter.Flush();
+        send_error_sub_ = send_event->ErrorEvent().Subscribe(
+            [&](auto const&) { SendError(); });
+      },
+      kRequestTimeout, repeat_count);
 
-  auto send_event = api_adapter.Flush();
-  send_error_ =
-      send_event->ErrorEvent().Subscribe([&](auto const&) { SendError(); });
+  repeat_task_error_sub_ = repeatable_task_->ErrorEvent().Subscribe(
+      [this](auto const&) { state_ = State::kTimeout; });
 
   state_ = State::kWaitResponse;
 }
 
-TimePoint CheckAccessForSendMessage::WaitResponse() {
-  auto current_time = Now();
-  if ((last_request_time_ + kRequestTimeout) > current_time) {
-    return last_request_time_ + kRequestTimeout;
-  }
-  repeat_count_++;
-  if (repeat_count_ >= kMaxRequestRepeatCount) {
-    state_ = State::kTimeout;
-  } else {
-    state_ = State::kSendRequest;
-  }
-  return current_time;
-}
-
 void CheckAccessForSendMessage::ResponseReceived() {
   AE_TELED_DEBUG("CheckAccessForSendMessage received response - success");
+  if (repeatable_task_) {
+    repeatable_task_->Stop();
+  }
   state_ = State::kReceivedSuccess;
 }
 
 void CheckAccessForSendMessage::ErrorReceived() {
   AE_TELED_DEBUG("CheckAccessForSendMessage received error");
+  if (repeatable_task_) {
+    repeatable_task_->Stop();
+  }
   state_ = State::kReceivedError;
 }
 
 void CheckAccessForSendMessage::SendError() {
   AE_TELED_DEBUG("CheckAccessForSendMessage send error");
+  if (repeatable_task_) {
+    repeatable_task_->Stop();
+  }
   state_ = State::kSendError;
 }
 

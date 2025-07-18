@@ -17,10 +17,11 @@
 #ifndef AETHER_AE_ACTIONS_GET_CLIENT_CLOUD_H_
 #define AETHER_AE_ACTIONS_GET_CLIENT_CLOUD_H_
 
+#include <map>
 #include <vector>
 
-#include "aether/memory.h"
 #include "aether/actions/action.h"
+#include "aether/actions/repeatable_task.h"
 #include "aether/events/multi_subscription.h"
 
 #include "aether/stream_api/stream_api.h"
@@ -61,6 +62,7 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
   void OnCloudResponse(UidAndCloud const& uid_and_cloud);
   void OnServerResponse(ServerDescriptor const& server_descriptor);
 
+  ActionContext action_context_;
   ClientToServerStream* client_to_server_stream_;
   Uid client_uid_;
 
@@ -73,13 +75,15 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
       server_resolver_stream_;
 
   StateMachine<State> state_;
+  ActionOpt<RepeatableTask> request_cloud_task_;
+  std::map<ServerId, RepeatableTask> server_resolve_tasks_;
 
   Subscription state_changed_subscription_;
   Subscription cloud_response_subscription_;
   Subscription server_resolve_subscription_;
 
   ActionView<StreamWriteAction> cloud_request_action_;
-  std::vector<ActionView<StreamWriteAction>> server_resolve_actions_;
+  std::map<ServerId, ActionView<StreamWriteAction>> server_resolve_actions_;
 
   MultiSubscription cloud_request_subscriptions_;
   MultiSubscription server_resolve_subscriptions_;
