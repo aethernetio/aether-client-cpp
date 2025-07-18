@@ -67,6 +67,33 @@ struct VectorReader {
   void result(ReadResult result) { result_ = result; }
 };
 
+/**
+ * \brief VectorWriter with limit in size
+ */
+template <typename SizeType = std::uint32_t>
+struct LimitVectorWriter {
+  using size_type = SizeType;
+
+  LimitVectorWriter(std::vector<std::uint8_t>& buffer, std::size_t l)
+      : data_buffer{buffer}, limit{l} {}
+
+  std::size_t write(void const* data, std::size_t size) {
+    if (end || ((data_buffer.size() + size) >= limit)) {
+      // end of writing
+      end = true;
+      return 0;
+    }
+    data_buffer.insert(data_buffer.end(),
+                       reinterpret_cast<std::uint8_t const*>(data),
+                       reinterpret_cast<std::uint8_t const*>(data) + size);
+    return size;
+  }
+
+  std::vector<std::uint8_t>& data_buffer;
+  std::size_t limit;
+  bool end = false;
+};
+
 template <typename SizeType = std::uint32_t>
 struct MemStreamReader {
   using size_type = SizeType;
@@ -112,7 +139,6 @@ struct MemStreamWriter {
 
   MemStreamBuf<> buffer;
 };
-
 }  // namespace ae
 
 #endif  // AETHER_MSTREAM_BUFFERS_H_ */

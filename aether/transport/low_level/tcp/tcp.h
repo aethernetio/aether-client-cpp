@@ -14,59 +14,55 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_TCP_LWIP_TCP_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_TCP_LWIP_TCP_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
 
-#if (defined(ESP_PLATFORM))
+#if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
+    defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
 
-#  define LWIP_TCP_TRANSPORT_ENABLED 1
+#  define COMMON_TCP_TRANSPORT_ENABLED 1
 
 #  include <mutex>
-#  include <optional>
 
 #  include "aether/common.h"
+#  include "aether/ptr/ptr_view.h"
 #  include "aether/poller/poller.h"
-
-#  include "aether/events/events.h"
-#  include "aether/events/multi_subscription.h"
-
+#  include "aether/actions/action.h"
 #  include "aether/actions/notify_action.h"
 #  include "aether/actions/action_context.h"
+#  include "aether/events/multi_subscription.h"
 
 #  include "aether/transport/itransport.h"
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
-#  include "aether/transport/low_level/tcp/socket_packet_send_action.h"
-#  include "aether/transport/low_level/tcp/socket_packet_queue_manager.h"
+#  include "aether/transport/low_level/socket_packet_send_action.h"
+#  include "aether/transport/low_level/socket_packet_queue_manager.h"
+
+#  include "aether/transport/low_level/sockets/tcp_sockets_factory.h"
 
 namespace ae {
-class LwipTcpTransport : public ITransport {
+class TcpTransport : public ITransport {
   static constexpr int kInvalidSocket = -1;
-  static constexpr int RCV_TIMEOUT_SEC = 0;
-  static constexpr int RCV_TIMEOUT_USEC = 10000;
-  static constexpr int LWIP_NETIF_MTU = 1500;
 
   class ConnectionAction : public Action<ConnectionAction> {
    public:
-    enum class State {
+    enum class State : std::uint8_t {
       kConnecting,
       kWaitConnection,
-      kConnectionUpdate,
+      kGetConnectionUpdate,
       kConnectionFailed,
       kConnected,
     };
 
-    explicit ConnectionAction(ActionContext action_context,
-                              LwipTcpTransport& transport);
+    ConnectionAction(ActionContext action_context, TcpTransport& transport);
 
     ActionResult Update();
 
    private:
     void Connect();
     void WaitConnection();
-    void ConnectUpdate();
+    void ConnectionUpdate();
 
-    LwipTcpTransport* transport_;
-    int socket_ = kInvalidSocket;
+    TcpTransport* transport_;
     StateMachine<State> state_;
     Subscription state_changed_subscription_;
     IPoller::OnPollEventSubscriber::Subscription poller_subscription_;
@@ -74,28 +70,26 @@ class LwipTcpTransport : public ITransport {
 
   using SocketEventAction = NotifyAction<>;
 
-  class LwipTcpPacketSendAction : public SocketPacketSendAction {
+  class SendAction : public SocketPacketSendAction {
    public:
-    LwipTcpPacketSendAction(ActionContext action_context,
-                            LwipTcpTransport& transport, DataBuffer data,
-                            TimePoint current_time);
+    SendAction(ActionContext action_context, TcpTransport& transport,
+               DataBuffer data, TimePoint current_time);
 
-    LwipTcpPacketSendAction(LwipTcpPacketSendAction&& other) noexcept;
+    SendAction(SendAction&& other) noexcept;
 
     void Send() override;
 
    private:
-    LwipTcpTransport* transport_;
+    TcpTransport* transport_;
     DataBuffer data_;
     TimePoint current_time_;
     std::size_t sent_offset_ = 0;
     Subscription state_changed_subscription_;
   };
 
-  class LwipTcpReadAction : public Action<LwipTcpReadAction> {
+  class ReadAction : public Action<ReadAction> {
    public:
-    LwipTcpReadAction(ActionContext action_context,
-                      LwipTcpTransport& transport);
+    ReadAction(ActionContext action_context, TcpTransport& transport);
 
     ActionResult Update();
     void Read();
@@ -103,7 +97,7 @@ class LwipTcpTransport : public ITransport {
    private:
     void DataReceived();
 
-    LwipTcpTransport* transport_;
+    TcpTransport* transport_;
     StreamDataPacketCollector data_packet_collector_;
     DataBuffer read_buffer_;
     std::atomic_bool read_event_{};
@@ -111,9 +105,9 @@ class LwipTcpTransport : public ITransport {
   };
 
  public:
-  LwipTcpTransport(ActionContext action_context, IPoller::ptr poller,
-                   IpAddressPort const& endpoint);
-  ~LwipTcpTransport() override;
+  TcpTransport(ActionContext action_context, IPoller::ptr const& poller,
+               IpAddressPort const& endpoint);
+  ~TcpTransport() override;
 
   void Connect() override;
   ConnectionInfo const& GetConnectionInfo() const override;
@@ -126,13 +120,17 @@ class LwipTcpTransport : public ITransport {
                                     TimePoint current_time) override;
 
  private:
-  void OnConnected(int socket);
+  void OnConnected();
   void OnConnectionFailed();
+
+  void ReadSocket();
+  void WriteSocket();
+  void ErrorSocket();
 
   void Disconnect();
 
   ActionContext action_context_;
-  IPoller::ptr poller_;
+  PtrView<IPoller> poller_;
   IpAddressPort endpoint_;
 
   ConnectionInfo connection_info_;
@@ -140,13 +138,12 @@ class LwipTcpTransport : public ITransport {
   ConnectionSuccessEvent connection_success_event_;
   ConnectionErrorEvent connection_error_event_;
 
+  TcpSocket socket_;
   std::mutex socket_lock_;
-  int socket_ = kInvalidSocket;
 
-  SocketPacketQueueManager<LwipTcpPacketSendAction>
-      socket_packet_queue_manager_;
+  SocketPacketQueueManager<SendAction> socket_packet_queue_manager_;
   ActionOpt<ConnectionAction> connection_action_;
-  ActionOpt<LwipTcpReadAction> read_action_;
+  ActionOpt<ReadAction> read_action_;
   SocketEventAction socket_error_action_;
 
   Subscription connection_error_sub_;
@@ -157,6 +154,6 @@ class LwipTcpTransport : public ITransport {
 };
 
 }  // namespace ae
-#endif
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_TCP_LWIP_TCP_H_
+#endif
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_

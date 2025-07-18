@@ -25,7 +25,7 @@
 #include "aether/stream_api/protocol_gates.h"
 #include "aether/api_protocol/packet_builder.h"
 
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 #include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-stream/mock_write_stream.h"
 

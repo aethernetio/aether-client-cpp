@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_TCP_SOCKET_PACKET_QUEUE_MANAGER_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_TCP_SOCKET_PACKET_QUEUE_MANAGER_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_QUEUE_MANAGER_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_QUEUE_MANAGER_H_
 
 #include <queue>
 #include <mutex>
@@ -27,7 +27,7 @@
 #include "aether/events/multi_subscription.h"
 
 #include "aether/transport/actions/packet_send_action.h"
-#include "aether/transport/low_level/tcp/socket_packet_send_action.h"
+#include "aether/transport/low_level/socket_packet_send_action.h"
 
 namespace ae {
 template <typename TSocketPacketSendAction,
@@ -53,8 +53,7 @@ class SocketPacketQueueManager
     auto lock = std::unique_lock{queue_lock_};
     auto view = actions_.Add(std::move(packet_send_action));
     queue_.emplace(view);
-    on_sent_subs_.Push(
-        view->ResultEvent().Subscribe([this](auto const&) { Send(); }));
+    on_sent_subs_.Push(view->FinishedEvent().Subscribe([this]() { Send(); }));
     BaseAction::Trigger();
     return view;
   }
@@ -97,4 +96,4 @@ class SocketPacketQueueManager
 };
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_TCP_SOCKET_PACKET_QUEUE_MANAGER_H_
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_QUEUE_MANAGER_H_

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_DATA_BUFFER_H_
-#define AETHER_TRANSPORT_DATA_BUFFER_H_
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UNIX_TCP_SOCKET_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UNIX_TCP_SOCKET_H_
 
-#include <cstdint>
-#include <vector>
+#include "aether/transport/low_level/sockets/unix_socket.h"
 
+#if UNIX_SOCKET_ENABLED
 namespace ae {
-using DataPtr = std::uint8_t*;
-using ConsDataPtr = std::uint8_t const*;
-using DataBuffer = std::vector<std::uint8_t>;
-}  // namespace ae
+class UnixTcpSocket final : public UnixSocket {
+ public:
+  UnixTcpSocket();
 
-#endif  // AETHER_TRANSPORT_DATA_BUFFER_H_
+  std::size_t GetMaxPacketSize() const override;
+
+ private:
+  static int MakeSocket();
+};
+}  // namespace ae
+#endif
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UNIX_TCP_SOCKET_H_

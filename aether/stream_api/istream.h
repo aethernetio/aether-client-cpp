@@ -24,7 +24,7 @@
 #include "aether/actions/action_view.h"
 
 #include "aether/events/events.h"
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 #include "aether/stream_api/stream_write_action.h"
 
 namespace ae {
@@ -42,15 +42,19 @@ struct SelectOutDataEvent<U, std::enable_if_t<!std::is_void_v<U>>> {
 
 struct StreamInfo {
   std::size_t max_element_size;  //< Max size of element available to write,
-                                 // mostly the max packet size
-  bool is_linked;                //< is stream linked somewhere
-  bool is_writable;              //< is stream writeable */
-  bool is_soft_writable;         //< is stream soft writeable (!is_soft_writable
-                                 //&& !is_writable means write returns error)
+  // mostly the max packet size
+  bool strict_size_rules;  //< is true the packet size should be less than
+                           // max_element_size, otherwise it's just recommended
+                           // to be less or equal.
+  bool is_linked;          //< is stream linked somewhere
+  bool is_writable;        //< is stream writeable
+  bool is_soft_writable;   //< is stream soft writeable (!is_soft_writable
+                           //&& !is_writable means write returns error)
 };
 
 inline bool operator==(StreamInfo const& left, StreamInfo const& right) {
   return (left.max_element_size == right.max_element_size) &&
+         (left.strict_size_rules == right.strict_size_rules) &&
          (left.is_linked == right.is_linked) &&
          (left.is_soft_writable == right.is_soft_writable) &&
          (left.is_writable == right.is_writable);

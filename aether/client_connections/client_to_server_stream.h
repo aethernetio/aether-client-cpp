@@ -90,6 +90,8 @@ class ClientToServerStream final : public ByteIStream {
   Subscription connection_success_subscription_;
   Subscription connection_failed_subscription_;
   Subscription gate_update_subscription_;
+
+  ActionList<FailedStreamWriteAction> failed_actions_;
 };
 }  // namespace ae
 

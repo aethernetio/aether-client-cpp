@@ -126,6 +126,7 @@ list(APPEND transport_srcs
             "transport/low_level/tcp/unix_tcp.cpp"
             "transport/low_level/tcp/win_tcp.cpp"
             "transport/low_level/tcp/data_packet_collector.cpp"
+            "transport/low_level/udp/udp.cpp"
 )
 
 list(APPEND server_list_srcs

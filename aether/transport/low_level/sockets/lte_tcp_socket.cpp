@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/transport/low_level/tcp/lte_tcp.h"
+#include "aether/transport/low_level/sockets/lte_tcp_socket.h"
 
 #if defined LTE_TCP_TRANSPORT_ENABLED
 

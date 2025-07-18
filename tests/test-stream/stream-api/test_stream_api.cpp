@@ -20,7 +20,7 @@
 
 #include "aether/common.h"
 #include "aether/memory.h"
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 
 #include "aether/stream_api/stream_api.h"
 #include "aether/actions/action_processor.h"

@@ -59,7 +59,7 @@ void Telemetry::SendTelemetry() {
   AE_TELE_DEBUG(TelemetrySending);
 
   state_ = State::kWaitRequest;
-  auto telemetry = CollectTelemetry();
+  auto telemetry = CollectTelemetry(client_to_server_->stream_info());
   if (!telemetry) {
     AE_TELE_ERROR(TelemetryCollectFailed);
     return;
@@ -75,7 +75,8 @@ void Telemetry::OnRequestTelemetry() {
   Action::Trigger();
 }
 
-std::optional<Telemetric> Telemetry::CollectTelemetry() {
+std::optional<Telemetric> Telemetry::CollectTelemetry(
+    StreamInfo const& stream_info) {
   auto aether_ptr = aether_.Lock();
   if (!aether_ptr) {
     assert(false);
@@ -91,9 +92,22 @@ std::optional<Telemetric> Telemetry::CollectTelemetry() {
   res.cpp.compiler =
       Format("{}-{}", env_storage.compiler, env_storage.compiler_version);
 
-  auto vector_writer = VectorWriter<>{res.blob};
-  auto os = omstream{vector_writer};
-  os << statistics_storage;
+  if (stream_info.strict_size_rules) {
+    // max element size - telemetry struct size except blob
+    auto blob_max_size = stream_info.max_element_size -
+                         (11 + res.cpp.lib_version.size() + res.cpp.os.size() +
+                          res.cpp.compiler.size());
+    res.blob.reserve(blob_max_size);
+    auto vector_writer = LimitVectorWriter<>{res.blob, res.blob.capacity()};
+    auto os = omstream{vector_writer};
+    os << statistics_storage;
+  } else {
+    // store blob without limit
+    auto vector_writer = VectorWriter<>{res.blob};
+    auto os = omstream{vector_writer};
+    os << statistics_storage;
+  }
+
   // TODO: should we reset stored statistics?
 
   return res;

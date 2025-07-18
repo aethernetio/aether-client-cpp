@@ -34,7 +34,12 @@ class StreamWriteAction : public Action<StreamWriteAction> {
     kPanic,    // fatal unrecoverable error
   };
 
-  using Action::Action;
+  explicit StreamWriteAction(ActionContext action_context);
+  StreamWriteAction(StreamWriteAction const& other) = delete;
+  StreamWriteAction(StreamWriteAction&& other) noexcept;
+
+  StreamWriteAction& operator=(StreamWriteAction const& other) = delete;
+  StreamWriteAction& operator=(StreamWriteAction&& other) noexcept;
 
   virtual ActionResult Update();
 
@@ -52,7 +57,6 @@ class StreamWriteAction : public Action<StreamWriteAction> {
 class FailedStreamWriteAction final : public StreamWriteAction {
  public:
   using StreamWriteAction::StreamWriteAction;
-  FailedStreamWriteAction();
   explicit FailedStreamWriteAction(ActionContext action_context);
 
   ActionResult Update() override;

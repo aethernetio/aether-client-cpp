@@ -180,6 +180,7 @@ void StatisticsTrap::Blob(std::uint8_t const* data, std::size_t size) {
 
 void StatisticsTrap::CloseLogLine(Tag const& /*tag*/) {
   assert(log_line_);
+  auto lock = std::move(log_line_->lock);
   log_line_.reset();
 }
 

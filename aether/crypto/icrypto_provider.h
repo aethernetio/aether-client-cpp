@@ -17,7 +17,7 @@
 #ifndef AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
 #define AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
 
-#include "aether/transport/data_buffer.h"
+#include "aether/types/data_buffer.h"
 
 namespace ae {
 class IEncryptProvider {

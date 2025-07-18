@@ -26,7 +26,7 @@ BuildTransportAction::BuildTransportAction(ActionContext action_context,
       adapter_{adapter},
       channel_{channel},
       state_{State::kGetBuilders},
-      state_changed_{state_.changed_event().Subscribe(
+      state_changed_sub_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {}
 
 ActionResult BuildTransportAction::Update() {
@@ -63,7 +63,7 @@ void BuildTransportAction::MakeBuilders() {
   assert(channel_ptr);
 
   auto builder_action = adapter_ptr->CreateTransport(channel_ptr->address);
-  builders_created_ =
+  builders_created_sub_ =
       builder_action->ResultEvent().Subscribe([this](auto& action) {
         builders_ = action.builders();
         if (builders_.empty()) {
@@ -77,7 +77,7 @@ void BuildTransportAction::MakeBuilders() {
 
         state_ = State::kConnect;
       });
-  builders_failed_ = builder_action->ErrorEvent().Subscribe([this](auto&) {
+  builders_failed_sub_ = builder_action->ErrorEvent().Subscribe([this](auto&) {
     AE_TELED_ERROR("Create builders failed");
     state_ = State::kFailed;
   });
@@ -94,16 +94,20 @@ void BuildTransportAction::Connect() {
     return;
   }
 
+  state_ = State::kWaitForConnection;
+
   transport_ = std::move(transport);
-  transport_->Connect();
-  // wait connection
-  transport_->ConnectionSuccess().Subscribe(
-      [this]() { state_ = State::kConnected; });
-  transport_->ConnectionError().Subscribe([this]() {
+
+  // subscribe to connection result
+  connected_sub_ = transport_->ConnectionSuccess().Subscribe([this]() {
+    // connected successfully
+    state_ = State::kConnected;
+  });
+  connection_failed_sub_ = transport_->ConnectionError().Subscribe([this]() {
     // try connect again
     state_ = State::kConnect;
   });
 
-  state_ = State::kWaitForConnection;
+  transport_->Connect();
 }
 }  // namespace ae

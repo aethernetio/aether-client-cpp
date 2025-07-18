@@ -14,23 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_TCP_SOCKET_PACKET_SEND_ACTION_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_TCP_SOCKET_PACKET_SEND_ACTION_H_
+#ifndef AETHER_TYPES_DATA_BUFFER_H_
+#define AETHER_TYPES_DATA_BUFFER_H_
 
-#include "aether/transport/actions/packet_send_action.h"
+#include <cstdint>
+#include <vector>
 
 namespace ae {
-class SocketPacketSendAction : public PacketSendAction {
- public:
-  using PacketSendAction::PacketSendAction;
-
-  ActionResult Update() override;
-
-  void Stop() override;
-
-  // Trigger event to send data
-  virtual void Send() = 0;
-};
+using DataPtr = std::uint8_t*;
+using ConsDataPtr = std::uint8_t const*;
+using DataBuffer = std::vector<std::uint8_t>;
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_TCP_SOCKET_PACKET_SEND_ACTION_H_
+#endif  // AETHER_TYPES_DATA_BUFFER_H_

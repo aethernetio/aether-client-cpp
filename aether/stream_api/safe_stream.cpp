@@ -56,7 +56,7 @@ SafeStream::SafeStream(ActionContext action_context, SafeStreamConfig config)
     : safe_stream_action_{action_context, *this, config},
       safe_stream_api_{protocol_context_, safe_stream_action_},
       packet_send_actions_{action_context},
-      stream_info_{config.max_packet_size, false, false, false} {
+      stream_info_{config.max_packet_size, false, false, false, false} {
   safe_stream_action_.receive_event().Subscribe(
       *this, MethodPtr<&SafeStream::WriteOut>{});
 }
@@ -91,6 +91,7 @@ void SafeStream::OnStreamUpdate() {
   stream_info_.is_linked = out_info.is_linked;
   stream_info_.is_writable = out_info.is_writable;
   stream_info_.is_soft_writable = out_info.is_soft_writable;
+  stream_info_.strict_size_rules = false;  // packet's will be split in a chunks
 
   safe_stream_action_.set_max_data_size(out_info.max_element_size);
   stream_update_event_.Emit();
