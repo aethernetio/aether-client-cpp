@@ -14,81 +14,34 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_TCP_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_TCP_SOCKET_H_
 
-#define LTE_TCP_TRANSPORT_ENABLED 1
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_SOCKET_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_SOCKET_H_
 
-#include "aether/common.h"
-#include "aether/poller/poller.h"
 
-#include "aether/events/events.h"
-#include "aether/events/multi_subscription.h"
+#  define LTE_SOCKET_ENABLED 1
 
-#include "aether/actions/notify_action.h"
-#include "aether/actions/action_context.h"
-
-#include "aether/transport/itransport.h"
-#include "aether/transport/low_level/tcp/data_packet_collector.h"
-#include "aether/transport/low_level/tcp/socket_packet_send_action.h"
-#include "aether/transport/low_level/tcp/socket_packet_queue_manager.h"
+#  include "aether/transport/low_level/sockets/isocket.h"
 
 namespace ae {
- 
-class LteTcpTransport : public ITransport {
- 
-   class LteTcpPacketSendAction : public SocketPacketSendAction {
-   public:
-    LteTcpPacketSendAction(ActionContext action_context,
-                           LteTcpTransport& transport, DataBuffer data,
-                           TimePoint current_time);
+class LteSocket : public ISocket {
+ public:
+  static constexpr int kInvalidSocket = -1;
 
-    LteTcpPacketSendAction(LteTcpPacketSendAction&& other) noexcept;
+  explicit LteSocket(int socket);
+  ~LteSocket() override;
 
-    void Send() override;
-
-   private:
-    LteTcpTransport* transport_;
-    DataBuffer data_;
-    TimePoint current_time_;
-    std::size_t sent_offset_ = 0;
-    Subscription state_changed_subscription_;
-  };
-  
-public:
-  LteTcpTransport(ActionContext action_context, IPoller::ptr poller,
-                   IpAddressPort const& endpoint);
-  ~LteTcpTransport() override;
-
-  void Connect() override;
-  ConnectionInfo const& GetConnectionInfo() const override;
-  ConnectionSuccessEvent::Subscriber ConnectionSuccess() override;
-  ConnectionErrorEvent::Subscriber ConnectionError() override;
-
-  DataReceiveEvent::Subscriber ReceiveEvent() override;
-
-  ActionView<PacketSendAction> Send(DataBuffer data,
-                                    TimePoint current_time) override;
+  explicit operator DescriptorType() const override;
+  ConnectionState Connect(IpAddressPort const& destination) override;
+  ConnectionState GetConnectionState() override;
+  void Disconnect() override;
+  std::optional<std::size_t> Send(Span<std::uint8_t> data) override;
+  std::optional<std::size_t> Receive(Span<std::uint8_t> data) override;
+  bool IsValid() const override;
 
  private:
-  void OnConnected(int socket);
-  void OnConnectionFailed();
-
-  void Disconnect();
-  
-  ActionContext action_context_;
-  IPoller::ptr poller_;
-  IpAddressPort endpoint_;
-
-  ConnectionInfo connection_info_;
-  DataReceiveEvent data_receive_event_;
-  ConnectionSuccessEvent connection_success_event_;
-  ConnectionErrorEvent connection_error_event_;
-  
-  SocketPacketQueueManager<LteTcpPacketSendAction>
-      socket_packet_queue_manager_;
+  int socket_;
 };
-
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_TCP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_SOCKET_H_

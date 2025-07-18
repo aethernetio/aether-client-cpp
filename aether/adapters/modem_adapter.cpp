@@ -17,7 +17,7 @@
 #include "aether/adapters/modem_adapter.h"
 
 #include "aether/adapters/modems/modem_factory.h"
-#include "aether/transport/low_level/tcp/lte_tcp.h"
+#include "aether/transport/low_level/sockets/lte_tcp_socket.h"
 
 #include "aether/adapters/adapter_tele.h"
 

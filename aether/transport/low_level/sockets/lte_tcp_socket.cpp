@@ -16,60 +16,65 @@
 
 #include "aether/transport/low_level/sockets/lte_tcp_socket.h"
 
-#if defined LTE_TCP_TRANSPORT_ENABLED
+#if LTE_SOCKET_ENABLED
 
-#  include "aether/mstream_buffers.h"
-#  include "aether/mstream.h"
-#  include "aether/format/format.h"
-#  include "aether/transport/transport_tele.h"
+#  include "aether/tele/tele.h"
 
 namespace ae {
-  
-LteTcpTransport::LteTcpTransport(ActionContext action_context,
-                                   IPoller::ptr poller,
-                                   IpAddressPort const &endpoint)
-    : action_context_{action_context},
-      poller_{std::move(poller)},
-      endpoint_{endpoint},
-      connection_info_{},
-      socket_packet_queue_manager_{action_context_} {
-  AE_TELE_DEBUG(kLteTcpTransport);
+namespace lte_socket_internal {
+struct SockAddr {
+  std::size_t size;
+};
+
+inline SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
+  AE_TELED_DEBUG("Ip address port {}", ip_address_port);
+}
+}  // namespace lte_socket_internal
+
+LteSocket::LteSocket(int socket) : socket_{socket} {}
+
+LteSocket::~LteSocket() { Disconnect(); }
+
+LteSocket::operator DescriptorType() const {
+  return DescriptorType{static_cast<ae::DescriptorType::Socket> (socket_)};
 }
 
-LteTcpTransport::~LteTcpTransport() { Disconnect(); }
-
-void LteTcpTransport::Connect() {}
-
-ConnectionInfo const &LteTcpTransport::GetConnectionInfo() const {
-  return connection_info_;
+LteSocket::ConnectionState LteSocket::Connect(
+    IpAddressPort const& destination) {
+  assert(socket_ != kInvalidSocket);
+  AE_TELED_DEBUG("Destination {}", destination);
+  return ConnectionState::kConnected;
 }
 
-ITransport::ConnectionSuccessEvent::Subscriber
-LteTcpTransport::ConnectionSuccess() {
-  return connection_success_event_;
+LteSocket::ConnectionState LteSocket::GetConnectionState() {
+  // check socket status
+
+
+  return ConnectionState::kConnected;
 }
 
-ITransport::ConnectionErrorEvent::Subscriber
-LteTcpTransport::ConnectionError() {
-  return connection_error_event_;
+void LteSocket::Disconnect() {
+  if (socket_ == kInvalidSocket) {
+    return;
+  }
+
+  socket_ = kInvalidSocket;
 }
 
-ITransport::DataReceiveEvent::Subscriber LteTcpTransport::ReceiveEvent() {
-  return data_receive_event_;
+std::optional<std::size_t> LteSocket::Send(Span<std::uint8_t> data) {
+  auto size_to_send = data.size();
+  auto res = size_to_send;
+
+  return static_cast<std::size_t>(res);
 }
 
-ActionView<PacketSendAction> LteTcpTransport::Send(DataBuffer data,
-                                                   TimePoint current_time) {
-  AE_TELE_DEBUG(kLteTcpTransportSend,
-                "Send data size {} at {:%Y-%m-%d %H:%M:%S}",
-                data.size(), current_time);
-  
-  ae::ActionView<PacketSendAction> send_action {};
-      
-  return send_action;
+std::optional<std::size_t> LteSocket::Receive(Span<std::uint8_t> data) {
+  auto res = 0;
+  AE_TELED_DEBUG("Data {}", data);
+  return static_cast<std::size_t>(res);
 }
 
-void LteTcpTransport::Disconnect() {}
+bool LteSocket::IsValid() const { return socket_ != kInvalidSocket; }
 
 }  // namespace ae
-#endif  // defined LTE_TCP_TRANSPORT_ENABLED
+#endif
