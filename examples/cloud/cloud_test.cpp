@@ -37,16 +37,16 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
 }  // namespace ae::cloud_test
 
 int AetherCloudExample() {
-  ae::SerialInit serial_init = {"COM17", 115200};
+  ae::SerialInit serial_init = {"COM47", 115200};
 
   ae::ModemInit modem_init{
       serial_init,                  // Serial port
       {1, 1, 1, 1},                 // Pin code
       false,                        // Use pin
       ae::kModemMode::kModeAuto,    // Modem mode
-      "00000",                      // Operator code
-      "Name",                       // Operator long name
-      "your.apn",                   // APN
+      "25001",                      // Operator code
+      "MTS",                        // Operator long name
+      "iot",                        // APN
       "",                           // APN user
       "",                           // APN pass
       ae::kAuthType::kAuthTypeNone  // Auth type

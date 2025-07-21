@@ -25,9 +25,9 @@
 
 namespace ae {
 
-class Thigy91xAtModem : public IModemDriver {
+class Thingy91xAtModem : public IModemDriver {
  public:
-  explicit Thigy91xAtModem(ModemInit modem_init);
+  explicit Thingy91xAtModem(ModemInit modem_init);
   void Init() override;
   void Start() override;
   void Stop() override;
@@ -40,7 +40,6 @@ class Thigy91xAtModem : public IModemDriver {
                    std::vector<uint8_t> const& data) override;
   void ReadPacket(std::uint8_t connect_index, std::vector<std::uint8_t>& data,
                   std::size_t& size) override;
-  void PowerOff();
 
  private:
   ModemInit modem_init_;

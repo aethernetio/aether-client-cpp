@@ -126,9 +126,9 @@ void Sim7070AtModem::OpenNetwork(std::uint8_t context_index,
     case ae::Protocol::kTcp:
       protocol_str = "TCP";
       break;
-    /*case ae::Protocol::kUdp:
+    case ae::Protocol::kUdp:
       protocol_str = "UDP";
-      break;*/
+      break;
     default:
       err = kModemError::kOpenConnection;
       assert(0);
@@ -193,18 +193,22 @@ void Sim7070AtModem::CloseNetwork(std::uint8_t context_index,
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
 
-  if (err == kModemError::kNoError) {
-    // AT+CACLOSE=0 // Close TCP/UDP socket 0.
-    sendATCommand("AT+CACLOSE=" + connect_i_str);
-    err = CheckResponce("OK", 1000, "AT+CNACT command error!");
-    // If error then already closed
-    err = kModemError::kNoError;
-  }
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      // AT+CACLOSE=0 // Close TCP/UDP socket 0.
+      sendATCommand("AT+CACLOSE=" + connect_i_str);
+      err = CheckResponce("OK", 1000, "AT+CNACT command error!");
+      // If error then already closed
+      err = kModemError::kNoError;
+    }
 
-  if (err == kModemError::kNoError) {
-    // AT+CNACT=0,0 // Deactivate the PDP context
-    sendATCommand("AT+CNACT=" + context_i_str + ",0");
-    err = CheckResponce("OK", 1000, "AT+CNACT command error!");
+    if (err == kModemError::kNoError) {
+      // AT+CNACT=0,0 // Deactivate the PDP context
+      sendATCommand("AT+CNACT=" + context_i_str + ",0");
+      err = CheckResponce("OK", 1000, "AT+CNACT command error!");
+    }
+  } else {
+    err = kModemError::kSerialPortError;
   }
 
   if (err != kModemError::kNoError) {
@@ -217,16 +221,20 @@ void Sim7070AtModem::WritePacket(std::uint8_t connect_index,
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
 
-  if (err == kModemError::kNoError) {
-    // AT+CASEND=0,<length> // Send TCP/UDP data 0.
-    sendATCommand("AT+CASEND=" + connect_i_str + "," +
-                  std::to_string(data.size()));
-    err = CheckResponce(">", 1000, "AT+CASEND command error!");
-  }
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      // AT+CASEND=0,<length> // Send TCP/UDP data 0.
+      sendATCommand("AT+CASEND=" + connect_i_str + "," +
+                    std::to_string(data.size()));
+      err = CheckResponce(">", 1000, "AT+CASEND command error!");
+    }
 
-  if (err == kModemError::kNoError) {
-    serial_->WriteData(data);
-    err = CheckResponce("OK", 1000, "AT+CASEND command error!");
+    if (err == kModemError::kNoError) {
+      serial_->WriteData(data);
+      err = CheckResponce("OK", 1000, "AT+CASEND command error!");
+    }
+  } else {
+    err = kModemError::kSerialPortError;
   }
 
   if (err != kModemError::kNoError) {
@@ -240,34 +248,39 @@ void Sim7070AtModem::ReadPacket(std::uint8_t connect_index,
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
 
-  if (err == kModemError::kNoError) {
-    // AT+CAACK=0 // Query send data information of the TCP/UDP
-    // connection with an identifier 0.
-    sendATCommand("AT+CAACK=" + connect_i_str);
-    // +CAACK: 5,0 // Total size of sent data is 5 and unack data is 0
-    auto response = serial_->ReadData();
-    std::string response_string(response->begin(), response->end());
-    auto start = response_string.find("+CAACK: ") + 8;
-    auto stop = response_string.find(",");
-    if (stop > start && start != std::string::npos && stop != std::string::npos) {
-      size = std::stoi(response_string.substr(start, stop - start));
-      AE_TELED_DEBUG("Size {}", size);
-    } else {
-      size = 0;
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      // AT+CAACK=0 // Query send data information of the TCP/UDP
+      // connection with an identifier 0.
+      sendATCommand("AT+CAACK=" + connect_i_str);
+      // +CAACK: 5,0 // Total size of sent data is 5 and unack data is 0
+      auto response = serial_->ReadData();
+      std::string response_string(response->begin(), response->end());
+      auto start = response_string.find("+CAACK: ") + 8;
+      auto stop = response_string.find(",");
+      if (stop > start && start != std::string::npos &&
+          stop != std::string::npos) {
+        size = std::stoi(response_string.substr(start, stop - start));
+        AE_TELED_DEBUG("Size {}", size);
+      } else {
+        size = 0;
+      }
     }
-  }
 
-  if (size > 0) {
-    err = CheckResponce("+CADATAIND", 1000, "+CADATAIND command error!");
-    // AT+CARECV=0,<length> Receive data via an established connection
-    sendATCommand("AT+CARECV=" + connect_i_str + "," + std::to_string(size));
-    auto response = serial_->ReadData();
-    std::string response_string(response->begin(), response->end());
-    auto start = response_string.find(",") + 1;
-    std::vector<std::uint8_t> response_vector(response->begin() + start,
-                                              response->begin() + start + size);
-    data = response_vector;
-    AE_TELED_DEBUG("Data {}", data);
+    if (size > 0) {
+      err = CheckResponce("+CADATAIND", 1000, "+CADATAIND command error!");
+      // AT+CARECV=0,<length> Receive data via an established connection
+      sendATCommand("AT+CARECV=" + connect_i_str + "," + std::to_string(size));
+      auto response = serial_->ReadData();
+      std::string response_string(response->begin(), response->end());
+      auto start = response_string.find(",") + 1;
+      std::vector<std::uint8_t> response_vector(
+          response->begin() + start, response->begin() + start + size);
+      data = response_vector;
+      AE_TELED_DEBUG("Data {}", data);
+    }
+  } else {
+    err = kModemError::kSerialPortError;
   }
 
   if (err != kModemError::kNoError) {
@@ -278,9 +291,13 @@ void Sim7070AtModem::ReadPacket(std::uint8_t connect_index,
 void Sim7070AtModem::PowerOff() {
   kModemError err{kModemError::kNoError};
 
-  if (err == kModemError::kNoError) {
-    sendATCommand("AT+CPOWD=1");  // Set modem power OFF
-    err = CheckResponce("OK", 1000, "Power off error!");
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT+CPOWD=1");  // Set modem power OFF
+      err = CheckResponce("OK", 1000, "Power off error!");
+    }
+  } else {
+    err = kModemError::kSerialPortError;
   }
 
   if (err != kModemError::kNoError) {
@@ -490,7 +507,7 @@ kModemError Sim7070AtModem::SetupNetwork(
 
   err = CheckResponce("OK", 120000, "No response from modem!");
   if (err == kModemError::kNoError) {
-    sendATCommand("AT+CGDCONT=1,\"IP\",\"" + apn_name + "\"");
+    sendATCommand("AT+CGDCONT=0,\"IP\",\"" + apn_name + "\"");
     err = CheckResponce("OK", 1000, "No response from modem!");
   }
 
