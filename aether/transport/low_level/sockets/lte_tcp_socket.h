@@ -14,34 +14,26 @@
  * limitations under the License.
  */
 
+#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_TCP_SOCKET_H_
+#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_TCP_SOCKET_H_
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_SOCKET_H_
+#include "aether/transport/low_level/sockets/lte_socket.h"
 
-
-#  define LTE_SOCKET_ENABLED 1
-
-#  include "aether/transport/low_level/sockets/isocket.h"
-
+#if LTE_SOCKET_ENABLED
 namespace ae {
-class LteSocket : public ISocket {
+class LteTcpSocket final : public LteSocket {
+  static constexpr int kRcvTimeoutSec = 0;
+  static constexpr int kRcvTimeoutUsec = 10000;
+
  public:
-  static constexpr int kInvalidSocket = -1;
+  LteTcpSocket();
 
-  explicit LteSocket(int socket);
-  ~LteSocket() override;
-
-  explicit operator DescriptorType() const override;
-  ConnectionState Connect(IpAddressPort const& destination) override;
-  ConnectionState GetConnectionState() override;
-  void Disconnect() override;
-  std::optional<std::size_t> Send(Span<std::uint8_t> data) override;
-  std::optional<std::size_t> Receive(Span<std::uint8_t> data) override;
-  bool IsValid() const override;
+  std::size_t GetMaxPacketSize() const override;
 
  private:
-  int socket_;
+  static int MakeSocket();
 };
 }  // namespace ae
+#endif
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_SOCKET_H_
+#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LTE_TCP_SOCKET_H_
