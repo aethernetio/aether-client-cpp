@@ -34,11 +34,7 @@ void Thingy91xAtModem::Init() {
       err = CheckResponce("OK", 1000, "AT command error!");
     }
     if (err == kModemError::kNoError) {
-      sendATCommand("ATE0");  // Turning off the echo
-      err = CheckResponce("OK", 1000, "ATE command error!");
-    }
-    if (err == kModemError::kNoError) {
-      sendATCommand("AT+CMEE=2");  // Enabling extended errors
+      sendATCommand("AT+CMEE=1");  // Enabling extended errors
       err = CheckResponce("OK", 1000, "AT+CMEE command error!");
     }
   } else {
@@ -54,27 +50,14 @@ void Thingy91xAtModem::Start() {
   kModemError err{kModemError::kNoError};
 
   if (serial_->GetConnected()) {
-    // Configuring modem settings
-    /*if (err == kModemError::kNoError) {
-      err = SetBaudRate(modem_init_.serial_init.baud_rate);
-    }*/
-
-    // Enabling full functionality
+    // Disabling full functionality
     if (err == kModemError::kNoError) {
-      sendATCommand("AT+CFUN=1");
+      sendATCommand("AT+CFUN=0");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
 
-    err = CheckSimStatus();
-    if (err == kModemError::kNoError && modem_init_.use_pin == true) {
-      err = SetupSim(modem_init_.pin);
-    }
-
     if (err == kModemError::kNoError) {
-      err = SetNetMode(kModemMode::kModeLTEOnly);
-    }
-    if (err == kModemError::kNoError) {
-      err = SetNetMode(kModemMode::kModeNbIot);
+      err = SetNetMode(kModemMode::kModeCatMNbIot);
     }
 
     if (err == kModemError::kNoError) {
@@ -82,6 +65,20 @@ void Thingy91xAtModem::Start() {
                          modem_init_.apn_name, modem_init_.apn_user,
                          modem_init_.apn_pass, modem_init_.modem_mode,
                          modem_init_.auth_type);
+    }
+
+    // Enabling full functionality
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT+CFUN=1");
+      err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+      err = CheckResponce("+CEREG: 2", 10000, "AT+CFUN command error!");
+      err = CheckResponce("+CEREG: 1", 10000, "AT+CFUN command error!");
+    }
+
+    // Check Sim card
+    err = CheckSimStatus();
+    if (err == kModemError::kNoError && modem_init_.use_pin == true) {
+      err = SetupSim(modem_init_.pin);
     }
   } else {
     err = kModemError::kSerialPortError;
@@ -118,17 +115,19 @@ void Thingy91xAtModem::OpenNetwork(std::uint8_t context_index,
                                    ae::Protocol protocol, std::string host,
                                    std::uint16_t port) {
   std::string context_i_str = std::to_string(context_index);
-  std::string connect_i_str = std::to_string(connect_index);
-  std::string port_str = std::to_string(port);
+  std::string connect_i_str = std::to_string(connect_index + 1);
   std::string protocol_str;
   kModemError err{kModemError::kNoError};
 
+  host_ = host;
+  port_ = port;
+
   switch (protocol) {
     case ae::Protocol::kTcp:
-      protocol_str = "TCP";
+      protocol_str_ = "6";
       break;
     case ae::Protocol::kUdp:
-      protocol_str = "UDP";
+      protocol_str_ = "17";
       break;
     default:
       err = kModemError::kOpenConnection;
@@ -136,6 +135,16 @@ void Thingy91xAtModem::OpenNetwork(std::uint8_t context_index,
       break;
   }
 
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
+      sendATCommand("AT#XSOCKET=1,2,1");  // Create socket
+      err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
+    }
+  } else {
+    err = kModemError::kSerialPortError;
+  }
+  
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
   }
@@ -144,8 +153,17 @@ void Thingy91xAtModem::OpenNetwork(std::uint8_t context_index,
 void Thingy91xAtModem::CloseNetwork(std::uint8_t context_index,
                                     std::uint8_t connect_index) {
   std::string context_i_str = std::to_string(context_index);
-  std::string connect_i_str = std::to_string(connect_index);
+  std::string connect_i_str = std::to_string(connect_index + 1);
   kModemError err{kModemError::kNoError};
+
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT#XSOCKET=0," + connect_i_str);  // Close socket
+      err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
+    }
+  } else {
+    err = kModemError::kSerialPortError;
+  }
 
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
@@ -156,6 +174,22 @@ void Thingy91xAtModem::WritePacket(std::uint8_t connect_index,
                                    std::vector<std::uint8_t> const& data) {
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
+  std::string protocol_str;
+  std::string port_str = std::to_string(port_);
+
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      // AT#XSENDTO="172.27.131.100",15683,5,"Dummy"
+      // Send TCP/UDP data 0.
+      std::string data_string(data.begin(), data.end());
+      sendATCommand("AT#XSENDTO=\"" + host_ + "\"," + std::to_string(port_) +
+                    ",\"" + data_string + "\"");
+
+      err = CheckResponce("OK", 1000, "AT#XSENDTO command error!");
+    }
+  } else {
+    err = kModemError::kSerialPortError;
+  }
 
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
@@ -167,6 +201,12 @@ void Thingy91xAtModem::ReadPacket(std::uint8_t connect_index,
                                   std::size_t& size) {
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
+
+  auto response = serial_->ReadData();
+  std::vector<std::uint8_t> response_vector(response->begin(), response->end());
+  data = response_vector;
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Size {}", size);
 
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
@@ -247,15 +287,31 @@ kModemError Thingy91xAtModem::SetupNetwork(
     std::string operator_name, std::string operator_code, std::string apn_name,
     std::string apn_user, std::string apn_pass, kModemMode modem_mode,
     kAuthType auth_type) {
+  std::string mode_str;
   kModemError err{kModemError::kNoError};
+
+  switch (modem_mode) {
+    case kModemMode::kModeAuto:
+      mode_str = "0";  // Set modem mode Auto
+      break;
+    case kModemMode::kModeCatM:
+      mode_str = "8";  // Set modem mode CatM
+      break;
+    case kModemMode::kModeNbIot:
+      mode_str = "9";  // Set modem mode NbIot
+      break;
+    default:
+      mode_str = "0";
+      break;
+  }
 
   // Connect to the network
   if (!operator_name.empty()) {
     // Operator long name
-    sendATCommand("AT+COPS=1,0,\"" + operator_name);
+    sendATCommand("AT+COPS=1,0,\"" + operator_name + "\"," + mode_str);
   } else if (!operator_code.empty()) {
     // Operator code
-    sendATCommand("AT+COPS=1,2,\"" + operator_code);
+    sendATCommand("AT+COPS=1,2,\"" + operator_code + "\"," + mode_str);
   } else {
     // Auto
     sendATCommand("AT+COPS=0");
@@ -268,7 +324,7 @@ kModemError Thingy91xAtModem::SetupNetwork(
   }
 
   if (err == kModemError::kNoError) {
-    sendATCommand("AT+CEREG=");
+    sendATCommand("AT+CEREG=1");
     err = CheckResponce("OK", 1000, "No response from modem!");
   }
 

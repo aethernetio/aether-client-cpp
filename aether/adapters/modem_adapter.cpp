@@ -197,7 +197,7 @@ void ModemAdapter::Connect(void) {
   AE_TELE_DEBUG(kAdapterModemConnected, "Modem connecting to the AP");
   modem_driver_->Init();
   modem_driver_->Start();
-  modem_driver_->OpenNetwork(0, 0, ae::Protocol::kTcp, "dbservice.aethernet.io",
+  modem_driver_->OpenNetwork(0, 0, ae::Protocol::kUdp, "dbservice.aethernet.io",
                              8889);
   modem_driver_->WritePacket(0, data);
   modem_driver_->ReadPacket(0, data, size);

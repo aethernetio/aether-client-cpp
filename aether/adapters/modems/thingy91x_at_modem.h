@@ -44,6 +44,9 @@ class Thingy91xAtModem : public IModemDriver {
  private:
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
+  std::string protocol_str_;
+  std::string host_;
+  std::uint16_t port_;
 
   kModemError CheckResponce(std::string responce, std::uint32_t wait_time,
                             std::string error_message);

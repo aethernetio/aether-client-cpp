@@ -58,20 +58,16 @@ void Sim7070AtModem::Start() {
       err = SetBaudRate(modem_init_.serial_init.baud_rate);
     }
 
-    // Enabling full functionality
+    // Disabling full functionality
     if (err == kModemError::kNoError) {
-      sendATCommand("AT+CFUN=1");
+      sendATCommand("AT+CFUN=0");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
-
-    err = CheckSimStatus();
-    if (err == kModemError::kNoError && modem_init_.use_pin == true) {
-      err = SetupSim(modem_init_.pin);
-    }
-
+    
     if (err == kModemError::kNoError) {
       err = SetNetMode(kModemMode::kModeLTEOnly);
     }
+
     if (err == kModemError::kNoError) {
       err = SetNetMode(kModemMode::kModeNbIot);
     }
@@ -81,6 +77,18 @@ void Sim7070AtModem::Start() {
                          modem_init_.apn_name, modem_init_.apn_user,
                          modem_init_.apn_pass, modem_init_.modem_mode,
                          modem_init_.auth_type);
+    }
+    
+    // Enabling full functionality
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT+CFUN=1");
+      err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+    }
+
+    // Check Sim card
+    err = CheckSimStatus();
+    if (err == kModemError::kNoError && modem_init_.use_pin == true) {
+      err = SetupSim(modem_init_.pin);
     }
   } else {
     err = kModemError::kSerialPortError;
@@ -223,7 +231,8 @@ void Sim7070AtModem::WritePacket(std::uint8_t connect_index,
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      // AT+CASEND=0,<length> // Send TCP/UDP data 0.
+      // AT+CASEND=0,<length> 
+      // Send TCP/UDP data 0.
       sendATCommand("AT+CASEND=" + connect_i_str + "," +
                     std::to_string(data.size()));
       err = CheckResponce(">", 1000, "AT+CASEND command error!");
@@ -250,7 +259,8 @@ void Sim7070AtModem::ReadPacket(std::uint8_t connect_index,
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      // AT+CAACK=0 // Query send data information of the TCP/UDP
+      // AT+CAACK=0 
+      // Query send data information of the TCP/UDP
       // connection with an identifier 0.
       sendATCommand("AT+CAACK=" + connect_i_str);
       // +CAACK: 5,0 // Total size of sent data is 5 and unack data is 0
