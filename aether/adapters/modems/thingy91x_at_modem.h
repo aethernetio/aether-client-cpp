@@ -44,7 +44,7 @@ class Thingy91xAtModem : public IModemDriver {
  private:
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
-  std::string protocol_str_;
+  ae::Protocol protocol_;
   std::string host_;
   std::uint16_t port_;
 

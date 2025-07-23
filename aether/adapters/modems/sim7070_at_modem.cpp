@@ -63,7 +63,7 @@ void Sim7070AtModem::Start() {
       sendATCommand("AT+CFUN=0");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
-    
+
     if (err == kModemError::kNoError) {
       err = SetNetMode(kModemMode::kModeLTEOnly);
     }
@@ -71,7 +71,7 @@ void Sim7070AtModem::Start() {
     if (err == kModemError::kNoError) {
       err = SetNetMode(kModemMode::kModeNbIot);
     }
-    
+
     // Enabling full functionality
     if (err == kModemError::kNoError) {
       sendATCommand("AT+CFUN=1");
@@ -84,7 +84,7 @@ void Sim7070AtModem::Start() {
     if (err == kModemError::kNoError && modem_init_.use_pin == true) {
       err = SetupSim(modem_init_.pin);
     }
-    
+
     if (err == kModemError::kNoError) {
       err = SetupNetwork(modem_init_.operator_name, modem_init_.operator_code,
                          modem_init_.apn_name, modem_init_.apn_user,
@@ -107,8 +107,14 @@ void Sim7070AtModem::Stop() {
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      sendATCommand("ATZ");  // Turning off the modem correctly
+      sendATCommand("ATZ");  // Reset modem settings correctly
       err = CheckResponce("OK", 1000, "ATZ command error!");
+    }
+
+    // Disabling full functionality
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT+CFUN=0");
+      err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
   } else {
     err = kModemError::kSerialPortError;
@@ -232,7 +238,7 @@ void Sim7070AtModem::WritePacket(std::uint8_t connect_index,
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      // AT+CASEND=0,<length> 
+      // AT+CASEND=0,<length>
       // Send TCP/UDP data 0.
       sendATCommand("AT+CASEND=" + connect_i_str + "," +
                     std::to_string(data.size()));
@@ -260,7 +266,7 @@ void Sim7070AtModem::ReadPacket(std::uint8_t connect_index,
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      // AT+CAACK=0 
+      // AT+CAACK=0
       // Query send data information of the TCP/UDP
       // connection with an identifier 0.
       sendATCommand("AT+CAACK=" + connect_i_str);

@@ -95,9 +95,15 @@ void Thingy91xAtModem::Stop() {
   kModemError err{kModemError::kNoError};
 
   if (serial_->GetConnected()) {
+    // Disabling full functionality
     if (err == kModemError::kNoError) {
-      sendATCommand("ATZ");  // Turning off the modem correctly
-      err = CheckResponce("OK", 1000, "ATZ command error!");
+      sendATCommand("AT+CFUN=0");
+      err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+    }
+
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT%XFACTORYRESET=1");  // Reset modem settings correctly
+      err = CheckResponce("OK", 1000, "AT%XFACTORYRESET command error!");
     }
   } else {
     err = kModemError::kSerialPortError;
@@ -119,15 +125,16 @@ void Thingy91xAtModem::OpenNetwork(std::uint8_t context_index,
   std::string protocol_str;
   kModemError err{kModemError::kNoError};
 
+  protocol_ = protocol;
   host_ = host;
   port_ = port;
 
   switch (protocol) {
     case ae::Protocol::kTcp:
-      protocol_str_ = "6";
+      protocol_str = "6";
       break;
     case ae::Protocol::kUdp:
-      protocol_str_ = "17";
+      protocol_str = "17";
       break;
     default:
       err = kModemError::kOpenConnection;
@@ -179,13 +186,16 @@ void Thingy91xAtModem::WritePacket(std::uint8_t connect_index,
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      // AT#XSENDTO="172.27.131.100",15683,5,"Dummy"
-      // Send TCP/UDP data 0.
-      std::string data_string(data.begin(), data.end());
-      sendATCommand("AT#XSENDTO=\"" + host_ + "\"," + std::to_string(port_) +
-                    ",\"" + data_string + "\"");
+      if (protocol_ == ae::Protocol::kTcp) {
+      } else if (protocol_ == ae::Protocol::kUdp) {
+        // AT#XSENDTO="172.27.131.100",15683,5,"Dummy"
+        // Send TCP/UDP data 0.
+        std::string data_string(data.begin(), data.end());
+        sendATCommand("AT#XSENDTO=\"" + host_ + "\"," + std::to_string(port_) +
+                      ",\"" + data_string + "\"");
 
-      err = CheckResponce("OK", 1000, "AT#XSENDTO command error!");
+        err = CheckResponce("OK", 1000, "AT#XSENDTO command error!");
+      }
     }
   } else {
     err = kModemError::kSerialPortError;
@@ -204,35 +214,35 @@ void Thingy91xAtModem::ReadPacket(std::uint8_t connect_index,
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      // #XRECVFROM=<timeout>[,<flags>]
-      sendATCommand("AT#XRECVFROM=10");
-      auto response = serial_->ReadData();
-      std::string response_string(response->begin(), response->end());
-      auto start = response_string.find("#XRECVFROM: ") + 12;
-      auto stop = response_string.find(",");
-      if (stop > start && start != std::string::npos &&
-          stop != std::string::npos) {
-        size = std::stoi(response_string.substr(start, stop - start));
-        AE_TELED_DEBUG("Size {}", size);
-      } else {
-        size = 0;
-      }
-      
-      if (size > 0) {
-        auto start2 = response_string.find(std::to_string(port_)) +
-                      std::to_string(port_).size() + 2;
-        std::vector<std::uint8_t> response_vector(
-            response->begin() + start2, response->begin() + start2 + size);
-        data = response_vector;
-        AE_TELED_DEBUG("Data {}", data);
+      if (protocol_ == ae::Protocol::kTcp) {
+      } else if (protocol_ == ae::Protocol::kUdp) {
+        // #XRECVFROM=<timeout>[,<flags>]
+        sendATCommand("AT#XRECVFROM=10");
+        auto response = serial_->ReadData();
+        std::string response_string(response->begin(), response->end());
+        auto start = response_string.find("#XRECVFROM: ") + 12;
+        auto stop = response_string.find(",");
+        if (stop > start && start != std::string::npos &&
+            stop != std::string::npos) {
+          size = std::stoi(response_string.substr(start, stop - start));
+          AE_TELED_DEBUG("Size {}", size);
+        } else {
+          size = 0;
+        }
+
+        if (size > 0) {
+          auto start2 = response_string.find(std::to_string(port_)) +
+                        std::to_string(port_).size() + 2;
+          std::vector<std::uint8_t> response_vector(
+              response->begin() + start2, response->begin() + start2 + size);
+          data = response_vector;
+          AE_TELED_DEBUG("Data {}", data);
+        }
       }
     }
   } else {
     err = kModemError::kSerialPortError;
   }
-
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Size {}", size);
 
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
