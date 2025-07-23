@@ -18,6 +18,7 @@
 #define AETHER_ACTIONS_ACTION_RESULT_H_
 
 #include <cstdint>
+#include <algorithm>
 
 #include "aether/common.h"
 
@@ -40,6 +41,35 @@ struct ActionResult {
   static ActionResult Stop() { return ActionResult{ResultType::kStop}; }
   static ActionResult Delay(TimePoint delay_to) {
     return ActionResult{ResultType::kDelay, delay_to};
+  }
+
+  template <typename... U>
+  static ActionResult Merge(U&&... u) {
+    static_assert((std::is_same_v<ActionResult, std::decay_t<U>> && ...),
+                  "Merge only ActionResults");
+
+    if (((u.type == ResultType::kError) || ...)) {
+      return Error();
+    }
+    if (((u.type == ResultType::kStop) || ...)) {
+      return Stop();
+    }
+    if (((u.type == ResultType::kResult) || ...)) {
+      return Result();
+    }
+    // if some contains Delay, count the min delay and return Delay
+    if (((u.type == ResultType::kDelay) || ...)) {
+      TimePoint tp = TimePoint::clock::now() + std::chrono::hours(8086);
+      (
+          [&](auto const& res) {
+            if (res.type == ResultType::kDelay) {
+              tp = std::min(res.delay_to, tp);
+            }
+          }(std::forward<U>(u)),
+          ...);
+      return ActionResult{ResultType::kDelay, tp};
+    }
+    return {};
   }
 
   ActionResult() : type{ResultType::kNothing} {}
