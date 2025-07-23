@@ -31,12 +31,12 @@ struct ActionResult {
   template <typename Action>
   void Subscribe(Action& action) {
     subscriptions.Push(
-        action.ResultEvent().Subscribe([&](auto const&) { confirmed = true; }),
+        action.ResultEvent().Subscribe([&](auto const&) { ack = true; }),
         action.ErrorEvent().Subscribe([&](auto const&) { rejected = true; }),
         action.StopEvent().Subscribe([&](auto const&) { stopped = true; }));
   }
 
-  bool confirmed;
+  bool ack;
   bool rejected;
   bool stopped;
 
@@ -64,24 +64,24 @@ void test_SendDataBufferGetSlice() {
   // get a slice
   {
     auto data_slice =
-        send_data_buffer.GetSlice(SSRingIndex{0}, test_data.size(), begin);
-    TEST_ASSERT(SSRingIndex{0}(begin) == data_slice.offset);
+        send_data_buffer.GetSlice(SSRingIndex{0}, test_data.size());
+    TEST_ASSERT(SSRingIndex{0} == data_slice.offset);
     TEST_ASSERT_EQUAL_CHAR_ARRAY(test_data.data(), data_slice.data.data(),
                                  test_data.size());
   }
   // get a slice of data part
   {
     auto data_slice =
-        send_data_buffer.GetSlice(SSRingIndex{5}, test_data.size() - 5, begin);
-    TEST_ASSERT(SSRingIndex{5}(begin) == data_slice.offset);
+        send_data_buffer.GetSlice(SSRingIndex{5}, test_data.size() - 5);
+    TEST_ASSERT(SSRingIndex{5} == data_slice.offset);
     TEST_ASSERT_EQUAL_CHAR_ARRAY(test_data.data() + 5, data_slice.data.data(),
                                  test_data.size() - 5);
   }
   // get a slice other two data parts
   {
     auto data_slice =
-        send_data_buffer.GetSlice(SSRingIndex{0}, test_data.size() * 2, begin);
-    TEST_ASSERT(SSRingIndex{0}(begin) == data_slice.offset);
+        send_data_buffer.GetSlice(SSRingIndex{0}, test_data.size() * 2);
+    TEST_ASSERT(SSRingIndex{0} == data_slice.offset);
     TEST_ASSERT_EQUAL_CHAR_ARRAY(test_data.data(), data_slice.data.data(),
                                  test_data.size());
     TEST_ASSERT_EQUAL_CHAR_ARRAY(test_data.data(),
@@ -119,40 +119,36 @@ void test_SendDataBufferConfirmStopReject() {
   action_processor.Update(Now());
 
   // confirm some
-  auto confirmed_0 = send_data_buffer.Confirm(SSRingIndex{5}, begin);
+  auto ack_size_0 = send_data_buffer.Acknowledge(SSRingIndex{5});
   action_processor.Update(Now());
-  TEST_ASSERT_EQUAL(0, confirmed_0);
-  TEST_ASSERT_FALSE(a1_res.confirmed);
+  TEST_ASSERT_EQUAL(5, ack_size_0);
+  TEST_ASSERT_FALSE(a1_res.ack);
 
-  auto confirmed_1 =
-      send_data_buffer.Confirm(SSRingIndex{test_data.size() - 1}, begin);
+  auto ack_size_1 = send_data_buffer.Acknowledge(SSRingIndex{test_data.size()});
   action_processor.Update(Now());
-  TEST_ASSERT_EQUAL(test_data.size(), confirmed_1);
-  TEST_ASSERT_TRUE(a1_res.confirmed);
+  TEST_ASSERT_EQUAL(test_data.size() - 5, ack_size_1);
+  TEST_ASSERT_TRUE(a1_res.ack);
 
   // reject some
-  auto rejected_0 =
-      send_data_buffer.Reject(SSRingIndex{test_data.size() - 1}, begin);
+  auto rejected_0 = send_data_buffer.Reject(SSRingIndex{test_data.size()});
   action_processor.Update(Now());
   TEST_ASSERT_EQUAL(0, rejected_0);
   TEST_ASSERT_FALSE(a1_res.rejected);
   TEST_ASSERT_FALSE(a2_res.rejected);
 
-  auto rejected_1 =
-      send_data_buffer.Reject(SSRingIndex{test_data.size() + 1}, begin);
+  auto rejected_1 = send_data_buffer.Reject(SSRingIndex{test_data.size() + 1});
   action_processor.Update(Now());
   TEST_ASSERT_EQUAL(test_data.size(), rejected_1);
   TEST_ASSERT_TRUE(a2_res.rejected);
 
   // stop some
   auto stopped_0 =
-      send_data_buffer.Stop(SSRingIndex{(2 * test_data.size()) - 1}, begin);
+      send_data_buffer.Stop(SSRingIndex{(2 * test_data.size() - 1)});
   action_processor.Update(Now());
   TEST_ASSERT_EQUAL(0, stopped_0);
   TEST_ASSERT_FALSE(a3_res.stopped);
 
-  auto stopped_1 =
-      send_data_buffer.Stop(SSRingIndex{2 * test_data.size()}, begin);
+  auto stopped_1 = send_data_buffer.Stop(SSRingIndex{2 * test_data.size()});
   action_processor.Update(Now());
   TEST_ASSERT_EQUAL(test_data.size(), stopped_1);
   TEST_ASSERT_TRUE(a3_res.stopped);
@@ -173,37 +169,37 @@ void test_SendDataBufferConfirmation() {
         SSRingIndex{static_cast<std::uint16_t>(test_data.size() * i)},
         ToDataBuffer(test_data)});
     action->ResultEvent().Subscribe(
-        [&arr_res, i](auto const&) { arr_res[i].confirmed = true; });
+        [&arr_res, i](auto const&) { arr_res[i].ack = true; });
   }
 
   // confirm some data at the beginning
-  send_data_buffer.Confirm(SSRingIndex{5}, begin);
+  send_data_buffer.Acknowledge(SSRingIndex{5});
   action_processor.Update(Now());
   // non data should be confirmed
-  TEST_ASSERT_FALSE(arr_res[0].confirmed);
+  TEST_ASSERT_FALSE(arr_res[0].ack);
 
   // confirm almost first data
-  send_data_buffer.Confirm(SSRingIndex{test_data.size() - 2}, begin);
+  send_data_buffer.Acknowledge(SSRingIndex{test_data.size() - 2});
   action_processor.Update(Now());
   // non data should be confirmed
-  TEST_ASSERT_FALSE(arr_res[0].confirmed);
+  TEST_ASSERT_FALSE(arr_res[0].ack);
   // confirm whole first data
-  send_data_buffer.Confirm(SSRingIndex{test_data.size() - 1}, begin);
+  send_data_buffer.Acknowledge(SSRingIndex{test_data.size()});
   action_processor.Update(Now());
   // now the data is confirmed
-  TEST_ASSERT_TRUE(arr_res[0].confirmed);
+  TEST_ASSERT_TRUE(arr_res[0].ack);
   // confirm up to the half of third data
-  send_data_buffer.Confirm(
-      SSRingIndex{(test_data.size() * 2) + (test_data.size() / 2)}, begin);
+  send_data_buffer.Acknowledge(
+      SSRingIndex{(test_data.size() * 2) + (test_data.size() / 2)});
   action_processor.Update(Now());
   // second is confirmed but the third is not
-  TEST_ASSERT_TRUE(arr_res[1].confirmed);
-  TEST_ASSERT_FALSE(arr_res[2].confirmed);
+  TEST_ASSERT_TRUE(arr_res[1].ack);
+  TEST_ASSERT_FALSE(arr_res[2].ack);
 
   // confirm all
-  send_data_buffer.Confirm(SSRingIndex{(test_data.size() * 3) - 1}, begin);
+  send_data_buffer.Acknowledge(SSRingIndex{(test_data.size() * 3)});
   action_processor.Update(Now());
-  TEST_ASSERT_TRUE(arr_res[2].confirmed);
+  TEST_ASSERT_TRUE(arr_res[2].ack);
 
   // add more data
   for (std::size_t i = 0; i < arr_res.size(); ++i) {
@@ -212,16 +208,15 @@ void test_SendDataBufferConfirmation() {
         SSRingIndex{static_cast<std::uint16_t>(test_data.size() * (3 + i))},
         ToDataBuffer(test_data)});
     action->ResultEvent().Subscribe(
-        [&arr_res, i](auto const&) { arr_res[i].confirmed = true; });
+        [&arr_res, i](auto const&) { arr_res[i].ack = true; });
   }
 
   // confirm it all
-  send_data_buffer.Confirm(SSRingIndex{(test_data.size() * (3 + 3)) - 1},
-                           begin);
+  send_data_buffer.Acknowledge(SSRingIndex{(test_data.size() * (3 + 3))});
   action_processor.Update(Now());
-  TEST_ASSERT_TRUE(arr_res[0].confirmed);
-  TEST_ASSERT_TRUE(arr_res[1].confirmed);
-  TEST_ASSERT_TRUE(arr_res[2].confirmed);
+  TEST_ASSERT_TRUE(arr_res[0].ack);
+  TEST_ASSERT_TRUE(arr_res[1].ack);
+  TEST_ASSERT_TRUE(arr_res[2].ack);
 }
 
 }  // namespace ae::test_send_data_buffer

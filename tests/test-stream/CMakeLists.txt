@@ -23,7 +23,7 @@ list(APPEND test_srcs
   safe-stream/test_receiving_chunks.cpp
   safe-stream/test_safe_stream_send.cpp
   safe-stream/test_safe_stream_recv.cpp
-  safe-stream/test_safe_stream_action.cpp
+  safe-stream/test_safe_stream_send_recv.cpp
   safe-stream/test_safe_stream.cpp
   stream-api/test_stream_api.cpp
   crypto-stream/test_crypto_stream.cpp

@@ -27,7 +27,7 @@ extern int test_send_data_buffer();
 extern int test_receiving_chunks();
 extern int test_safe_stream_send();
 extern int test_safe_stream_recv();
-extern int test_safe_stream_action();
+extern int test_safe_stream_send_recv();
 extern int test_safe_stream();
 extern int test_stream_api();
 extern int test_crypto_stream();
@@ -44,7 +44,7 @@ int main() {
   res += test_receiving_chunks();
   res += test_safe_stream_send();
   res += test_safe_stream_recv();
-  res += test_safe_stream_action();
+  res += test_safe_stream_send_recv();
   res += test_safe_stream();
   res += test_stream_api();
   res += test_crypto_stream();
