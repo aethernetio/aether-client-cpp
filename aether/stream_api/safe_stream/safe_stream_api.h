@@ -19,7 +19,6 @@
 
 #include <cstdint>
 
-#include "aether/types/data_buffer.h"
 #include "aether/api_protocol/api_method.h"
 #include "aether/api_protocol/api_class_impl.h"
 #include "aether/api_protocol/return_result_api.h"
@@ -29,14 +28,10 @@ namespace ae {
 class SafeStreamApiImpl {
  public:
   virtual ~SafeStreamApiImpl() = default;
-  virtual void Init(RequestId req_id, std::uint16_t repeat_count,
-                    SafeStreamInit safe_stream_init) = 0;
-  virtual void InitAck(RequestId req_id, SafeStreamInit safe_stream_init) = 0;
-  virtual void Confirm(std::uint16_t offset) = 0;
-  virtual void RequestRepeat(std::uint16_t offset) = 0;
-  virtual void Send(std::uint16_t offset, DataBuffer&& data) = 0;
-  virtual void Repeat(std::uint16_t repeat_count, std::uint16_t offset,
-                      DataBuffer&& data) = 0;
+  virtual void Ack(SSRingIndex::type offset) = 0;
+  virtual void RequestRepeat(SSRingIndex::type offset) = 0;
+  virtual void Send(SSRingIndex::type begin_offset,
+                    DataMessage data_message) = 0;
 };
 
 class SafeStreamApi : public ReturnResultApiImpl,
@@ -45,33 +40,19 @@ class SafeStreamApi : public ReturnResultApiImpl,
   explicit SafeStreamApi(ProtocolContext& protocol_context,
                          SafeStreamApiImpl& safe_stream_api_impl);
 
-  Method<3, void(RequestId req_id, std::uint16_t repeat_count,
-                 SafeStreamInit safe_stream_init)>
-      init;
-  Method<4, void(RequestId req_id, SafeStreamInit safe_stream_init)> init_ack;
-  Method<5, void(std::uint16_t offset)> confirm;
-  Method<6, void(std::uint16_t offset)> request_repeat;
-  Method<7, void(std::uint16_t offset, DataBuffer data)> send;
-  Method<8, void(std::uint16_t repeat_count, std::uint16_t offset,
-                 DataBuffer data)>
-      repeat;
+  Method<3, void(SSRingIndex::type offset)> ack;
+  Method<4, void(SSRingIndex::type offset)> request_repeat;
+  Method<5, void(SSRingIndex::type begin_offset, DataMessage data_message)>
+      send;
 
-  void InitImpl(ApiParser& parser, RequestId req_id, std::uint16_t repeat_count,
-                SafeStreamInit safe_stream_init);
-  void InitAckImpl(ApiParser& parser, RequestId req_id,
-                   SafeStreamInit safe_stream_init);
-  void ConfirmImpl(ApiParser& parser, std::uint16_t offset);
-  void RequestRepeatImpl(ApiParser& parser, std::uint16_t offset);
-  void SendImpl(ApiParser& parser, std::uint16_t offset, DataBuffer data);
-  void RepeatImpl(ApiParser& parser, std::uint16_t repeat_count,
-                  std::uint16_t offset, DataBuffer data);
+  void AckImpl(ApiParser& parser, SSRingIndex::type offset);
+  void RequestRepeatImpl(ApiParser& parser, SSRingIndex::type offset);
+  void SendImpl(ApiParser& parser, SSRingIndex::type begin_offset,
+                DataMessage data_message);
 
-  using ApiMethods = ImplList<RegMethod<3, &SafeStreamApi::InitImpl>,
-                              RegMethod<4, &SafeStreamApi::InitAckImpl>,
-                              RegMethod<5, &SafeStreamApi::ConfirmImpl>,
-                              RegMethod<6, &SafeStreamApi::RequestRepeatImpl>,
-                              RegMethod<7, &SafeStreamApi::SendImpl>,
-                              RegMethod<8, &SafeStreamApi::RepeatImpl>>;
+  using ApiMethods = ImplList<RegMethod<3, &SafeStreamApi::AckImpl>,
+                              RegMethod<4, &SafeStreamApi::RequestRepeatImpl>,
+                              RegMethod<5, &SafeStreamApi::SendImpl>>;
 
  private:
   SafeStreamApiImpl* safe_stream_api_impl_;

@@ -25,24 +25,38 @@
 namespace ae {
 class ReceiveChunkList {
  public:
+  enum class AddResult : std::uint8_t {
+    kDuplicate,
+    kAdded,
+  };
+
   ReceiveChunkList() = default;
 
-  std::optional<ReplacedChunk> AddChunk(ReceivingChunk&& chunk,
-                                        SSRingIndex start_chunks,
-                                        SSRingIndex ring_begin);
+  AddResult AddChunk(ReceivingChunk chunk);
 
-  std::optional<ReceivingChunk> PopChunks(SSRingIndex start_chunks);
+  std::optional<ReceivingChunk> ReceiveChunk(SSRingIndex start_chunks);
+  void Acknowledge(SSRingIndex from, SSRingIndex to);
   std::vector<MissedChunk> FindMissedChunks(SSRingIndex start_chunks);
 
   void Clear();
 
+  std::size_t size() const { return chunks_.size(); }
+  bool empty() const { return chunks_.empty(); }
+
  private:
-  void NormalizeChunks(SSRingIndex start_chunks, SSRingIndex ring_begin);
-  std::pair<std::vector<ReceivingChunk>::iterator,
-            std::vector<ReceivingChunk>::iterator>
+  static DataBuffer JoinChunks(
+      std::vector<std::pair<DataBuffer::iterator, DataBuffer::iterator>> const&
+          chunk_chain);
+
+  static void FixChunkOverlapsBegin(ReceivingChunk& overlapped,
+                                    SSRingIndex expected_offset);
+  static void FixChunkOverlapsEnd(ReceivingChunk& overlapped,
+                                  SSRingIndex expected_end);
+  static void MergeChunkProperties(ReceivingChunk& chunk,
+                                   ReceivingChunk& overlapped);
+
+  std::vector<std::pair<DataBuffer::iterator, DataBuffer::iterator>>
   GetContinuousChunkChain(SSRingIndex start_chunks);
-  DataBuffer JoinChunks(std::vector<ReceivingChunk>::iterator begin,
-                        std::vector<ReceivingChunk>::iterator end);
 
   std::vector<ReceivingChunk> chunks_;
 };

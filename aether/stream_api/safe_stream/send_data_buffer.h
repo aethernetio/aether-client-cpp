@@ -17,7 +17,7 @@
 #ifndef AETHER_STREAM_API_SAFE_STREAM_SEND_DATA_BUFFER_H_
 #define AETHER_STREAM_API_SAFE_STREAM_SEND_DATA_BUFFER_H_
 
-#include <list>
+#include <vector>
 #include <cstddef>
 
 #include "aether/actions/action_list.h"
@@ -27,34 +27,52 @@
 #include "aether/stream_api/safe_stream/sending_data_action.h"
 
 namespace ae {
-struct DataChunk {
-  DataBuffer data;
-  SSRingIndex offset;
-};
-
 class SendDataBuffer {
  public:
   explicit SendDataBuffer(ActionContext action_context);
 
-  // add more data to the buffer
+  /**
+   * \brief Add new data to the sending buffer.
+   * \param data - Sending data to send.
+   * \return new view to SendingDataAction
+   */
   ActionView<SendingDataAction> AddData(SendingData&& data);
-  // get data slice from the buffer
-  DataChunk GetSlice(SSRingIndex offset, std::size_t max_size,
-                     SSRingIndex ring_begin);
+  /**
+   * \brief Get the slice of data to send.
+   * \param offset - the begin offset from which to start the slice.
+   * \param max_size - the maximum size of the slice.
+   * \return DataChunk containing the slice of data and its offset.
+   */
+  DataChunk GetSlice(SSRingIndex offset, std::size_t max_size);
 
-  void MoveOffset(SSRingIndex::type distance);
+  /**
+   * \brief Acknowledge data up to offset.
+   * All the SendingDataAction fully acknowledged will through the result event.
+   */
+  std::size_t Acknowledge(SSRingIndex offset);
+  /**
+   * \brief Reject data from sending.
+   * This removes all the sending data with less or overlapped offset range.
+   * This leads to SendingDataAction through the error event.
+   */
+  std::size_t Reject(SSRingIndex offset);
+  /**
+   * \brief Stop data from sending.
+   * This removes all the sending data with less or overlapped offset range.
+   * This leads to SendingDataAction through the stop event.
+   */
+  std::size_t Stop(SSRingIndex offset);
 
-  // confirm data has been sent
-  std::size_t Confirm(SSRingIndex offset, SSRingIndex ring_begin);
-  // sending reject
-  std::size_t Reject(SSRingIndex offset, SSRingIndex ring_begin);
-  // sending stop, remove size of removed
-  std::size_t Stop(SSRingIndex offset, SSRingIndex ring_begin);
+  /**
+   * \brief Get current buffer size in bytes.
+   */
   std::size_t size() const { return buffer_size_; }
 
  private:
+  // owning store for send_actions_
   ActionList<SendingDataAction> send_actions_;
-  std::list<ActionView<SendingDataAction>> send_action_views_;
+  // view store used for iteration over sending data
+  std::vector<ActionView<SendingDataAction>> send_action_views_;
 
   std::size_t buffer_size_;
 };
