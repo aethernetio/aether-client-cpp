@@ -28,14 +28,13 @@ void test_AddChunks() {
   constexpr auto begin = SSRingIndex{0};
   auto chunk_list = ReceiveChunkList{};
   auto added_1 = chunk_list.AddChunk(
-      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), {}}, begin,
-      begin);
+      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), {}}, begin);
   TEST_ASSERT_TRUE(added_1.has_value());
   TEST_ASSERT_EQUAL(0, static_cast<SSRingIndex::type>(added_1->offset));
 
   // add the same chunk
   auto added_2 = chunk_list.AddChunk(
-      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), 1}, begin, begin);
+      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), 1}, begin);
   TEST_ASSERT_TRUE(added_2.has_value());
   TEST_ASSERT_EQUAL(0, static_cast<SSRingIndex::type>(added_2->offset));
   // must be the old repeat count
@@ -43,8 +42,7 @@ void test_AddChunks() {
 
   // add overlapped chunk
   auto added_3 = chunk_list.AddChunk(
-      ReceivingChunk{SSRingIndex{20}, ToDataBuffer(test_data), {}}, begin,
-      begin);
+      ReceivingChunk{SSRingIndex{20}, ToDataBuffer(test_data), {}}, begin);
   TEST_ASSERT_TRUE(added_3.has_value());
   TEST_ASSERT_EQUAL(20, static_cast<SSRingIndex::type>(added_3->offset));
 
@@ -52,7 +50,7 @@ void test_AddChunks() {
   auto added_4 = chunk_list.AddChunk(
       ReceivingChunk{
           SSRingIndex{test_data.size() * 2}, ToDataBuffer(test_data), {}},
-      begin, begin);
+      begin);
   TEST_ASSERT_TRUE(added_4.has_value());
   TEST_ASSERT_EQUAL(test_data.size() * 2,
                     static_cast<SSRingIndex::type>(added_4->offset));
@@ -61,7 +59,7 @@ void test_AddChunks() {
   auto added_5 = chunk_list.AddChunk(
       ReceivingChunk{
           SSRingIndex{test_data.size()}, ToDataBuffer(test_data), {}},
-      begin, begin);
+      begin);
   TEST_ASSERT_TRUE(added_5.has_value());
   TEST_ASSERT_EQUAL(test_data.size(),
                     static_cast<SSRingIndex::type>(added_5->offset));
@@ -76,20 +74,19 @@ void test_PopChunks() {
 
   // add 3 chunks one after another
   chunk_list.AddChunk(
-      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), {}}, begin,
-      begin);
+      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), {}}, begin);
   chunk_list.AddChunk(
       ReceivingChunk{
           SSRingIndex{static_cast<SSRingIndex::type>(test_data.size())},
           ToDataBuffer(test_data),
           {}},
-      begin, begin);
+      begin);
   chunk_list.AddChunk(
       ReceivingChunk{
           SSRingIndex{static_cast<SSRingIndex::type>(test_data.size() * 2)},
           ToDataBuffer(test_data),
           {}},
-      begin, begin);
+      begin);
 
   auto chunk1 = chunk_list.PopChunks(begin);
   TEST_ASSERT_TRUE(chunk1.has_value());
@@ -104,6 +101,7 @@ void test_PopChunks() {
                                test_data.size());
 
   // no more chunks
+  TEST_ASSERT_TRUE(chunk_list.empty());
   auto chunk2 = chunk_list.PopChunks(begin);
   TEST_ASSERT_FALSE(chunk2.has_value());
 
@@ -113,13 +111,13 @@ void test_PopChunks() {
           SSRingIndex{static_cast<SSRingIndex::type>(test_data.size() * 3)},
           ToDataBuffer(test_data),
           {}},
-      begin, begin);
+      begin);
   chunk_list.AddChunk(
       ReceivingChunk{
           SSRingIndex{static_cast<SSRingIndex::type>(test_data.size() * 5)},
           ToDataBuffer(test_data),
           {}},
-      begin, begin);
+      begin);
 
   // only the first chunk was popped
   auto chunk3 = chunk_list.PopChunks(
@@ -130,6 +128,7 @@ void test_PopChunks() {
 
   auto chunk4 = chunk_list.PopChunks(begin);
   TEST_ASSERT_FALSE(chunk4.has_value());
+  TEST_ASSERT_FALSE(chunk_list.empty());
 }
 
 void test_PopChunksInOrder() {
@@ -142,11 +141,10 @@ void test_PopChunksInOrder() {
           SSRingIndex{static_cast<SSRingIndex::type>(test_data.size())},
           ToDataBuffer(test_data),
           {}},
-      begin, begin);
+      begin);
   // first
   chunk_list.AddChunk(
-      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), {}}, begin,
-      begin);
+      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), {}}, begin);
 
   auto chunk1 = chunk_list.PopChunks(begin);
   TEST_ASSERT_TRUE(chunk1.has_value());
@@ -157,6 +155,8 @@ void test_PopChunksInOrder() {
   TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(),
                                chunk1->data.data() + test_data.size(),
                                test_data.size());
+
+  TEST_ASSERT_TRUE(chunk_list.empty());
 }
 
 void test_PopChunksOverlap() {
@@ -165,12 +165,10 @@ void test_PopChunksOverlap() {
 
   // first
   chunk_list.AddChunk(
-      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), {}}, begin,
-      begin);
+      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), {}}, begin);
   // second
   chunk_list.AddChunk(
-      ReceivingChunk{SSRingIndex{20}, ToDataBuffer(test_data), {}}, begin,
-      begin);
+      ReceivingChunk{SSRingIndex{20}, ToDataBuffer(test_data), {}}, begin);
 
   auto chunk1 = chunk_list.PopChunks(begin);
   TEST_ASSERT_TRUE(chunk1.has_value());
@@ -181,6 +179,8 @@ void test_PopChunksOverlap() {
   TEST_ASSERT_EQUAL_STRING_LEN(test_data.data() + test_data.size() - 20,
                                chunk1->data.data() + test_data.size(), 20);
 
+  TEST_ASSERT_TRUE(chunk_list.empty());
+
   // full overlap
   auto confirmed =
       SSRingIndex{static_cast<SSRingIndex::type>(chunk1->data.size())};
@@ -189,11 +189,11 @@ void test_PopChunksOverlap() {
                                      ToDataBuffer(std::begin(test_data),
                                                   std::begin(test_data) + 20),
                                      {}},
-                      confirmed, begin);
+                      confirmed);
 
   // overlap from the beginning
   chunk_list.AddChunk(ReceivingChunk{confirmed, ToDataBuffer(test_data), {}},
-                      confirmed, begin);
+                      confirmed);
   auto chunk2 = chunk_list.PopChunks(confirmed);
   TEST_ASSERT_TRUE(chunk2.has_value());
   TEST_ASSERT_EQUAL(static_cast<SSRingIndex::type>(confirmed),
@@ -201,33 +201,56 @@ void test_PopChunksOverlap() {
   TEST_ASSERT_EQUAL(test_data.size(), chunk2->data.size());
   TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), chunk2->data.data(),
                                test_data.size());
+  TEST_ASSERT_TRUE(chunk_list.empty());
 
   // overlap with received
   confirmed =
       chunk2->offset + static_cast<SSRingIndex::type>(chunk2->data.size());
-  chunk_list.AddChunk(ReceivingChunk{confirmed, ToDataBuffer(test_data), {}},
-                      confirmed, begin);
-  // same data but with 20 bytes offset and 20 byte length
-  chunk_list.AddChunk(ReceivingChunk{confirmed + 20,
-                                     ToDataBuffer(std::begin(test_data),
-                                                  std::begin(test_data) + 20),
-                                     {}},
-                      confirmed, begin);
+  // add data with overlap 20 bytes to confirmed offset
+  chunk_list.AddChunk(
+      ReceivingChunk{confirmed - 20, ToDataBuffer(test_data), {}}, confirmed);
+  chunk_list.AddChunk(
+      ReceivingChunk{confirmed + 49, ToDataBuffer(test_data), {}}, confirmed);
   auto chunk3 = chunk_list.PopChunks(confirmed);
   TEST_ASSERT_TRUE(chunk3.has_value());
   TEST_ASSERT_EQUAL(static_cast<SSRingIndex::type>(confirmed),
                     static_cast<SSRingIndex::type>(chunk3->offset));
-  TEST_ASSERT_EQUAL(test_data.size(), chunk3->data.size());
-  TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), chunk3->data.data(),
+  TEST_ASSERT_EQUAL(test_data.size() - 20 + test_data.size(),
+                    chunk3->data.size());
+  TEST_ASSERT_EQUAL_STRING_LEN(test_data.data() + 20, chunk3->data.data(),
+                               test_data.size() - 20);
+  TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), chunk3->data.data() + 49,
                                test_data.size());
+  TEST_ASSERT_TRUE(chunk_list.empty());
+
   // overlap with confirmed
   confirmed =
       chunk3->offset + static_cast<SSRingIndex::type>(chunk3->data.size());
   chunk_list.AddChunk(
-      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), {}}, confirmed,
-      begin);
+      ReceivingChunk{SSRingIndex{0}, ToDataBuffer(test_data), {}}, confirmed);
   auto chunk4 = chunk_list.PopChunks(confirmed);
   TEST_ASSERT_FALSE(chunk4.has_value());
+  TEST_ASSERT_TRUE(chunk_list.empty());
+
+  // receive with gap and overoverlap with next chunk
+  // first 20 bytes with 20 offset
+  chunk_list.AddChunk(ReceivingChunk{confirmed + 20,
+                                     ToDataBuffer(std::begin(test_data),
+                                                  std::begin(test_data) + 20),
+                                     {}},
+                      confirmed);
+  // full overlap
+  chunk_list.AddChunk(ReceivingChunk{confirmed, ToDataBuffer(test_data), {}},
+                      confirmed);
+
+  auto chunk5 = chunk_list.PopChunks(confirmed);
+  TEST_ASSERT_TRUE(chunk5.has_value());
+  TEST_ASSERT_EQUAL(static_cast<SSRingIndex::type>(confirmed),
+                    static_cast<SSRingIndex::type>(chunk5->offset));
+  TEST_ASSERT_EQUAL(test_data.size(), chunk5->data.size());
+  TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), chunk5->data.data(),
+                               test_data.size());
+  TEST_ASSERT_TRUE(chunk_list.empty());
 }
 
 void test_FindMissedChunks() {
@@ -237,11 +260,11 @@ void test_FindMissedChunks() {
   auto missed0 = chunk_list.FindMissedChunks(begin);
   TEST_ASSERT_TRUE(missed0.empty());
 
-  chunk_list.AddChunk(ReceivingChunk{begin, ToDataBuffer(test_data), {}}, begin,
+  chunk_list.AddChunk(ReceivingChunk{begin, ToDataBuffer(test_data), {}},
                       begin);
   chunk_list.AddChunk(
       ReceivingChunk{begin + test_data.size(), ToDataBuffer(test_data), {}},
-      begin, begin);
+      begin);
 
   auto missed1 = chunk_list.FindMissedChunks(begin);
   TEST_ASSERT_TRUE(missed1.empty());
@@ -250,7 +273,7 @@ void test_FindMissedChunks() {
   auto new_begin = begin + test_data.size() * 2;
   chunk_list.AddChunk(
       ReceivingChunk{new_begin + test_data.size(), ToDataBuffer(test_data), {}},
-      begin, begin);
+      begin);
 
   auto missed2 = chunk_list.FindMissedChunks(begin);
   TEST_ASSERT_FALSE(missed2.empty());
