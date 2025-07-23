@@ -144,7 +144,7 @@ void Thingy91xAtModem::OpenNetwork(std::uint8_t context_index,
   } else {
     err = kModemError::kSerialPortError;
   }
-  
+
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
   }
@@ -202,9 +202,35 @@ void Thingy91xAtModem::ReadPacket(std::uint8_t connect_index,
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
 
-  auto response = serial_->ReadData();
-  std::vector<std::uint8_t> response_vector(response->begin(), response->end());
-  data = response_vector;
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      // #XRECVFROM=<timeout>[,<flags>]
+      sendATCommand("AT#XRECVFROM=10");
+      auto response = serial_->ReadData();
+      std::string response_string(response->begin(), response->end());
+      auto start = response_string.find("#XRECVFROM: ") + 12;
+      auto stop = response_string.find(",");
+      if (stop > start && start != std::string::npos &&
+          stop != std::string::npos) {
+        size = std::stoi(response_string.substr(start, stop - start));
+        AE_TELED_DEBUG("Size {}", size);
+      } else {
+        size = 0;
+      }
+      
+      if (size > 0) {
+        auto start2 = response_string.find(std::to_string(port_)) +
+                      std::to_string(port_).size() + 2;
+        std::vector<std::uint8_t> response_vector(
+            response->begin() + start2, response->begin() + start2 + size);
+        data = response_vector;
+        AE_TELED_DEBUG("Data {}", data);
+      }
+    }
+  } else {
+    err = kModemError::kSerialPortError;
+  }
+
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Size {}", size);
 

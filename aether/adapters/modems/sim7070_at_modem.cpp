@@ -71,24 +71,25 @@ void Sim7070AtModem::Start() {
     if (err == kModemError::kNoError) {
       err = SetNetMode(kModemMode::kModeNbIot);
     }
-
-    if (err == kModemError::kNoError) {
-      err = SetupNetwork(modem_init_.operator_name, modem_init_.operator_code,
-                         modem_init_.apn_name, modem_init_.apn_user,
-                         modem_init_.apn_pass, modem_init_.modem_mode,
-                         modem_init_.auth_type);
-    }
     
     // Enabling full functionality
     if (err == kModemError::kNoError) {
       sendATCommand("AT+CFUN=1");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+      err = CheckResponce("+CPIN: READY", 10000, "AT+CFUN command error!");
     }
 
     // Check Sim card
     err = CheckSimStatus();
     if (err == kModemError::kNoError && modem_init_.use_pin == true) {
       err = SetupSim(modem_init_.pin);
+    }
+    
+    if (err == kModemError::kNoError) {
+      err = SetupNetwork(modem_init_.operator_name, modem_init_.operator_code,
+                         modem_init_.apn_name, modem_init_.apn_user,
+                         modem_init_.apn_pass, modem_init_.modem_mode,
+                         modem_init_.auth_type);
     }
   } else {
     err = kModemError::kSerialPortError;
