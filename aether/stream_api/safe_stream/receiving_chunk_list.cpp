@@ -22,26 +22,26 @@
 
 namespace ae {
 std::optional<ReplacedChunk> ReceiveChunkList::AddChunk(
-    ReceivingChunk&& chunk, SSRingIndex start_chunks, SSRingIndex ring_begin) {
+    ReceivingChunk&& chunk, SSRingIndex start_chunks) {
   /* Possible cases ARE:
    * - received a full duplicate of existing chunk
    * - chunk that is in range of existing chunk
    * - chunk that is partially overlaps existing chunk either left or right
    * - chunk that is overlaps a few chunks
    * - chunk with the most biggest offset
-   * - chunk overlapped with already confirmed
+   * - chunk overlapped with already acknowledged
    */
 
-  auto chunk_range = chunk.get_offset_range(ring_begin);
-  if (chunk_range.Before(start_chunks)) {
-    AE_TELED_WARNING("Chunk is duplicated with already confirmed");
-    // the chunk is confirmed, do not add
+  auto chunk_range = chunk.offset_range();
+  if (chunk_range.IsBefore(start_chunks)) {
+    AE_TELED_WARNING("Chunk is duplicated with already acknowledged");
+    // the chunk is acknowledged, do not add
     return std::nullopt;
   }
 
   auto it =
       std::find_if(std::begin(chunks_), std::end(chunks_), [&](auto const& ch) {
-        return (chunk.offset(ring_begin) == ch.offset) &&
+        return (chunk.offset == ch.offset) &&
                (chunk.data.size() == ch.data.size());
       });
 
@@ -57,7 +57,7 @@ std::optional<ReplacedChunk> ReceiveChunkList::AddChunk(
   auto& inserted = chunks_.emplace_back(std::move(chunk));
   auto replace_chunk = ReplacedChunk{inserted.offset, inserted.repeat_count};
 
-  NormalizeChunks(start_chunks, ring_begin);
+  NormalizeChunks(start_chunks);
   return replace_chunk;
 }
 
@@ -80,43 +80,57 @@ std::vector<MissedChunk> ReceiveChunkList::FindMissedChunks(
   auto next_chunk_offset = start_chunks;
   for (auto& chunk : chunks_) {
     // if got not expected chunk
-    if (next_chunk_offset(start_chunks) != chunk.offset) {
+    if (next_chunk_offset != chunk.offset) {
       res.emplace_back(MissedChunk{next_chunk_offset, &chunk});
     }
-    next_chunk_offset =
-        chunk.offset + chunk.get_offset_range(start_chunks).distance() + 1;
+    next_chunk_offset = chunk.offset_range().right + 1;
   }
   return res;
 }
 
 void ReceiveChunkList::Clear() { chunks_.clear(); }
 
-void ReceiveChunkList::NormalizeChunks(SSRingIndex start_chunks,
-                                       SSRingIndex ring_begin) {
+bool ReceiveChunkList::empty() const { return chunks_.empty(); }
+
+std::vector<SSRingIndex> ReceiveChunkList::current_chunks() const {
+  std::vector<SSRingIndex> res;
+  res.reserve(chunks_.size());
+  for (auto const& chunk : chunks_) {
+    res.emplace_back(chunk.offset);
+  }
+  return res;
+}
+
+void ReceiveChunkList::NormalizeChunks(SSRingIndex start_chunks) {
   /*
    * Sort chunks and fix overlappings
    */
   std::sort(std::begin(chunks_), std::end(chunks_),
-            [ring_begin](auto const& left, auto const& right) {
-              return left.offset(ring_begin) < right.offset;
+            [](auto const& left, auto const& right) {
+              return left.offset.IsBefore(right.offset);
             });
-  SSRingIndex next_chunk_offset = start_chunks - 1;
-  chunks_.erase(std::remove_if(std::begin(chunks_), std::end(chunks_),
-                               [&](auto& ch) {
-                                 auto range = ch.get_offset_range(ring_begin);
-                                 if (range.InRange(next_chunk_offset)) {
-                                   // fix offset and begin if chunks overlap
-                                   auto distance = ch.offset.Distance(
-                                       next_chunk_offset + 1);
-                                   ch.offset += distance;
-                                   ch.begin = ((ch.end - ch.begin) > distance)
-                                                  ? ch.begin + distance
-                                                  : ch.end;
-                                 }
-                                 next_chunk_offset = range.right;
-                                 return ch.begin == ch.end;
-                               }),
-                std::end(chunks_));
+  SSRingIndex next_chunk_offset = start_chunks;
+  chunks_.erase(
+      std::remove_if(std::begin(chunks_), std::end(chunks_),
+                     [&](auto& ch) {
+                       auto range = ch.offset_range();
+                       // If chunks has unexpected offset and it's
+                       // overlaps or before the expected next offset
+                       if ((range.left != next_chunk_offset) &&
+                           (range.InRange(next_chunk_offset) ||
+                            range.IsBefore(next_chunk_offset))) {
+                         // fix offset and begin if chunks overlap
+                         auto distance = ch.offset.Distance(next_chunk_offset);
+                         ch.offset += distance;
+                         ch.begin = ((ch.end - ch.begin) > distance)
+                                        ? ch.begin + distance
+                                        : ch.end;
+                       }
+                       // update next_chunk_offset
+                       next_chunk_offset = ch.offset_range().right + 1;
+                       return ch.begin == ch.end;
+                     }),
+      std::end(chunks_));
 }
 
 std::pair<std::vector<ReceivingChunk>::iterator,
@@ -128,9 +142,8 @@ ReceiveChunkList::GetContinuousChunkChain(SSRingIndex start_chunks) {
 
   for (; it != std::end(chunks_); it++) {
     auto& chunk = *it;
-    if (next_chunk_offset(start_chunks) == chunk.offset) {
-      next_chunk_offset =
-          chunk.offset + chunk.get_offset_range(start_chunks).distance() + 1;
+    if (next_chunk_offset == chunk.offset) {
+      next_chunk_offset = chunk.offset_range().right + 1;
     } else {
       break;
     }

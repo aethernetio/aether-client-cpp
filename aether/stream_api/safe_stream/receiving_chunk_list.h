@@ -28,16 +28,19 @@ class ReceiveChunkList {
   ReceiveChunkList() = default;
 
   std::optional<ReplacedChunk> AddChunk(ReceivingChunk&& chunk,
-                                        SSRingIndex start_chunks,
-                                        SSRingIndex ring_begin);
+                                        SSRingIndex start_chunks);
 
   std::optional<ReceivingChunk> PopChunks(SSRingIndex start_chunks);
   std::vector<MissedChunk> FindMissedChunks(SSRingIndex start_chunks);
 
   void Clear();
 
+  bool empty() const;
+
+  std::vector<SSRingIndex> current_chunks() const;
+
  private:
-  void NormalizeChunks(SSRingIndex start_chunks, SSRingIndex ring_begin);
+  void NormalizeChunks(SSRingIndex start_chunks);
   std::pair<std::vector<ReceivingChunk>::iterator,
             std::vector<ReceivingChunk>::iterator>
   GetContinuousChunkChain(SSRingIndex start_chunks);
