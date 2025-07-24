@@ -54,26 +54,27 @@ void RepeatableTask::Stop() {
 
 void RepeatableTask::Run(TimePoint current_time) {
   if ((max_repeat_count_ != kRepeatCountInfinite) &&
-      (current_repeat_ > max_repeat_count_)) {
+      (current_repeat_ >= max_repeat_count_)) {
     state_ = State::kRepeatCountExceeded;
     Action::Trigger();
     return;
   }
   current_repeat_++;
-  last_execution_time_ = current_time;
+  next_execution_time_ = current_time + interval_;
   // execute task
   task_();
+  state_ = State::kWait;
+  Action::Trigger();
 }
 
 ActionResult RepeatableTask::CheckInterval(TimePoint current_time) {
-  auto next_time = last_execution_time_ + interval_;
-  if (next_time >= current_time) {
+  if (next_execution_time_ <= current_time) {
     // repeat run
     state_ = State::kRun;
     Action::Trigger();
     return {};
   }
-  return ActionResult::Delay(next_time);
+  return ActionResult::Delay(next_execution_time_);
 }
 
 }  // namespace ae
