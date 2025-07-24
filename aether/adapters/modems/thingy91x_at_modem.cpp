@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <bitset>
+
 #include "aether/adapters/modems/thingy91x_at_modem.h"
 #include "aether/adapters/modems/serial_ports/serial_port_factory.h"
 #include "aether/adapters/adapter_tele.h"
@@ -66,6 +68,21 @@ void Thingy91xAtModem::Start() {
                          modem_init_.apn_pass, modem_init_.modem_mode,
                          modem_init_.auth_type);
     }
+
+    // Configure PSM
+    SetPsm(1, 255u, 255u);  // Enable with TAU="11111111", Active="11111111"
+    SetPsm(0, -1, -1);   // Disable PSM
+
+    // Configure eDRX
+    SetEdrx(1, 0, 20.48f);  // Enable for NB-IoT
+    SetEdrx(0, 1, -1);      // Disable for LTE-M
+
+    // Configure RAI
+    SetRai(1);  // Enable RAI
+
+    // Configure Band Locking
+    SetBandLock(1, {3, 8, 20});  // Lock bands 3,8,20
+    SetBandLock(0, {});          // Unlock all bands
 
     // Enabling full functionality
     if (err == kModemError::kNoError) {
@@ -353,21 +370,125 @@ kModemError Thingy91xAtModem::SetupNetwork(
     sendATCommand("AT+COPS=0");
   }
 
-  err = CheckResponce("OK", 120000, "No response from modem!");
+  err = CheckResponce("OK", 120000, "AT+COPS command error!");
   if (err == kModemError::kNoError) {
     sendATCommand("AT+CGDCONT=0,\"IP\",\"" + apn_name + "\"");
-    err = CheckResponce("OK", 1000, "No response from modem!");
+    err = CheckResponce("OK", 1000, "AT+CGDCONT command error!");
   }
 
   if (err == kModemError::kNoError) {
     sendATCommand("AT+CEREG=1");
-    err = CheckResponce("OK", 1000, "No response from modem!");
+    err = CheckResponce("OK", 1000, "AT+CEREG command error!");
   }
 
   AE_TELED_DEBUG("apn_user", apn_user);
   AE_TELED_DEBUG("apn_pass", apn_pass);
-  AE_TELED_DEBUG("modem_mode", modem_mode);
   AE_TELED_DEBUG("auth_type", auth_type);
+
+  return err;
+}
+
+std::string Uint8ToBinary(std::uint8_t value) {
+    return std::bitset<8>(value).to_string();
+}
+
+/**
+ * Sets Power Saving Mode (PSM) parameters
+ *
+ * @param mode         Mode: 0 - disable, 1 - enable
+ * @param tau          Requested Periodic TAU in seconds. Use -1 to skip
+ * @param active       Requested Active Time in seconds. Use -1 to skip
+ * @return kModemError ErrorCode
+ */
+kModemError Thingy91xAtModem::SetPsm(std::int32_t mode, std::int8_t tau,
+                                     std::int8_t active) {
+  std::string cmd;
+  kModemError err{kModemError::kNoError};
+
+  if (tau == -1 || active == -1) {
+    cmd = "AT+CPSMS=" + std::to_string(mode);
+  } else {
+    cmd = "AT+CPSMS="+std::to_string(mode)+",,,\""+Uint8ToBinary(tau)+"\",\""+Uint8ToBinary(active)+"\"";
+  }
+
+  sendATCommand(cmd);
+  err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+
+  return err;
+}
+
+/**
+ * Configures eDRX (Extended Discontinuous Reception) settings
+ *
+ * @param mode         Mode: 0 - disable, 1 - enable
+ * @param act_type     Network type: 0 = NB-IoT, 1 = LTE-M
+ * @param edrx_val     eDRX value in seconds. Use -1 for network default
+ * @return kModemError ErrorCode
+ */
+kModemError Thingy91xAtModem::SetEdrx(std::int32_t mode, std::int32_t act_type,
+                                      float edrx_val) {
+  std::string cmd;
+  kModemError err{kModemError::kNoError};
+
+  if (edrx_val == -1) {
+    cmd = "AT+CEDRXS=" + std::to_string(mode) + "," + std::to_string(act_type);
+  } else {
+    char buffer[64];
+    std::uint8_t hex_val = static_cast<std::uint8_t>(edrx_val / 0.256f);
+    std::snprintf(buffer, sizeof(buffer), "AT+CEDRXS=%d,%d,\"%02X\"", mode,
+                  act_type, hex_val);
+    cmd = buffer;
+  }
+
+  sendATCommand(cmd);
+  err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+
+  return err;
+}
+
+/**
+ * Enables/disables Release Assistance Indication (RAI)
+ *
+ * @param mode         Mode: 0 - disable, 1 - enable
+ * @return kModemError ErrorCode
+ */
+kModemError Thingy91xAtModem::SetRai(std::int32_t mode) {
+  std::string cmd;
+  kModemError err{kModemError::kNoError};
+
+  cmd = "AT%RAI=" + std::to_string(mode);
+
+  sendATCommand(cmd);
+  err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+
+  return err;
+}
+
+/**
+ * Configures LTE band locking
+ *
+ * @param mode         Operation mode:
+ *                     0 - unlock all bands
+ *                     1 - lock specified bands
+ * @param bands        Vector of band numbers (empty for unlock)
+ * @return kModemError ErrorCode
+ */
+kModemError Thingy91xAtModem::SetBandLock(
+    std::int32_t mode, const std::vector<std::int32_t>& bands) {
+  std::string cmd;
+  kModemError err{kModemError::kNoError};
+
+  cmd = "AT%XBANDLOCK=" + std::to_string(mode);
+
+  if (mode == 1 && !bands.empty()) {
+    for (const auto& band : bands) {
+      cmd += "," + std::to_string(band);
+    }
+  }
+
+  sendATCommand(cmd);
+  err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+
   return err;
 }
 

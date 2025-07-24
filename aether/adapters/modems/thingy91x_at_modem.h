@@ -59,6 +59,10 @@ class Thingy91xAtModem : public IModemDriver {
                            std::string apn_pass, kModemMode modem_mode,
                            kAuthType auth_type);
   kModemError SetupProtoPar();
+  kModemError SetPsm(std::int32_t mode, std::int8_t tau, std::int8_t active);
+  kModemError SetEdrx(std::int32_t mode, std::int32_t act_type, float edrx_val);
+  kModemError SetRai(std::int32_t mode);
+  kModemError SetBandLock(std::int32_t mode, const std::vector<std::int32_t>& bands);  
   void sendATCommand(const std::string& command);
   bool waitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);
