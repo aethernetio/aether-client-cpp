@@ -29,6 +29,7 @@ extern int test_safe_stream_send();
 extern int test_safe_stream_recv();
 extern int test_safe_stream_send_recv();
 extern int test_safe_stream();
+extern int test_safe_stream_reliability();
 extern int test_stream_api();
 extern int test_crypto_stream();
 extern int test_protocol_stream();
@@ -46,6 +47,7 @@ int main() {
   res += test_safe_stream_recv();
   res += test_safe_stream_send_recv();
   res += test_safe_stream();
+  res += test_safe_stream_reliability();
   res += test_stream_api();
   res += test_crypto_stream();
   res += test_protocol_stream();
