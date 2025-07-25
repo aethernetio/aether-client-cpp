@@ -25,6 +25,35 @@
 
 namespace ae {
 
+// Bits
+// 8 7 6
+// 0 0 0 – Value is incremented in multiples of 2 s
+// 0 0 1 – Value is incremented in multiples of 1 min
+// 0 1 0 – Value is incremented in multiples of 6 min
+// 1 1 1 – Value indicates that the timer is deactivated
+
+struct kRequestedActiveTimeT3324 {
+  std::uint8_t Value : 5;
+  std::uint8_t Multiplier : 3;
+};
+
+// Bits 8 to 6 define the timer value unit for the General Packet Radio Services
+// (GPRS) timer as follows: 
+// Bits 
+// 8 7 6 
+// 0 0 0 – Value is incremented in multiples of 10 min 
+// 0 0 1 – Value is incremented in multiples of 1 h 
+// 0 1 0 – Value is incremented in multiples of 10 h 
+// 0 1 1 – Value is incremented in multiples of 2 s 
+// 1 0 0 – Value is incremented in multiples of 30 s 
+// 1 0 1 – Value is incremented in multiples of 1 min 
+// 1 1 0 – Value is incremented in multiples of 320 h
+
+struct kRequestedPeriodicTAUT3412 {
+  std::uint8_t Value : 5;
+  std::uint8_t Multiplier : 3;
+};
+
 class Thingy91xAtModem : public IModemDriver {
  public:
   explicit Thingy91xAtModem(ModemInit modem_init);
@@ -59,10 +88,12 @@ class Thingy91xAtModem : public IModemDriver {
                            std::string apn_pass, kModemMode modem_mode,
                            kAuthType auth_type);
   kModemError SetupProtoPar();
-  kModemError SetPsm(std::int32_t mode, std::int8_t tau, std::int8_t active);
+  kModemError SetPsm(std::int32_t mode, kRequestedPeriodicTAUT3412 tau,
+                     kRequestedActiveTimeT3324 active);
   kModemError SetEdrx(std::int32_t mode, std::int32_t act_type, float edrx_val);
   kModemError SetRai(std::int32_t mode);
-  kModemError SetBandLock(std::int32_t mode, const std::vector<std::int32_t>& bands);  
+  kModemError SetBandLock(std::int32_t mode,
+                          const std::vector<std::int32_t>& bands);
   void sendATCommand(const std::string& command);
   bool waitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);

@@ -70,8 +70,19 @@ void Thingy91xAtModem::Start() {
     }
 
     // Configure PSM
-    SetPsm(1, 255u, 255u);  // Enable with TAU="11111111", Active="11111111"
-    SetPsm(0, -1, -1);   // Disable PSM
+    kRequestedPeriodicTAUT3412 rpt;
+    rpt.Value = 1;
+    rpt.Multiplier = 1;  // 10 min
+    kRequestedActiveTimeT3324 rat;
+    rat.Value = 1;
+    rat.Multiplier = 1;     // 2 s
+    
+    SetPsm(1, rpt, rat);    // Enable with TAU="00000001", Active="00000001"
+
+    rpt.Multiplier = 7;     // Disable
+    rat.Multiplier = 7;     // Disable
+    
+    SetPsm(0, rpt, rat);    // Disable PSM
 
     // Configure eDRX
     SetEdrx(1, 0, 20.48f);  // Enable for NB-IoT
@@ -389,7 +400,7 @@ kModemError Thingy91xAtModem::SetupNetwork(
 }
 
 std::string Uint8ToBinary(std::uint8_t value) {
-    return std::bitset<8>(value).to_string();
+  return std::bitset<8>(value).to_string();
 }
 
 /**
@@ -400,15 +411,18 @@ std::string Uint8ToBinary(std::uint8_t value) {
  * @param active       Requested Active Time in seconds. Use -1 to skip
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetPsm(std::int32_t mode, std::int8_t tau,
-                                     std::int8_t active) {
+kModemError Thingy91xAtModem::SetPsm(std::int32_t mode,
+                                     kRequestedPeriodicTAUT3412 tau,
+                                     kRequestedActiveTimeT3324 active) {
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
-  if (tau == -1 || active == -1) {
+  if (tau.Multiplier == 7 || active.Multiplier == 7) {
     cmd = "AT+CPSMS=" + std::to_string(mode);
   } else {
-    cmd = "AT+CPSMS="+std::to_string(mode)+",,,\""+Uint8ToBinary(tau)+"\",\""+Uint8ToBinary(active)+"\"";
+    cmd = "AT+CPSMS=" + std::to_string(mode) + ",,,\"" +
+          Uint8ToBinary(((tau.Multiplier << 5) | tau.Value)) + "\",\"" +
+          Uint8ToBinary(((active.Multiplier << 5) | active.Value)) + "\"";
   }
 
   sendATCommand(cmd);
