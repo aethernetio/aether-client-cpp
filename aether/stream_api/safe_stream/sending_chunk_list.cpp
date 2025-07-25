@@ -22,9 +22,8 @@
 namespace ae {
 
 SendingChunk& SendingChunkList::Register(SSRingIndex begin, SSRingIndex end,
-                                         TimePoint send_time,
-                                         SSRingIndex ring_begin) {
-  auto offset_range = OffsetRange{begin, end, ring_begin};
+                                         TimePoint send_time) {
+  auto offset_range = OffsetRange{begin, end};
 
   auto it = std::find_if(
       std::begin(chunks_), std::end(chunks_),
@@ -37,8 +36,8 @@ SendingChunk& SendingChunkList::Register(SSRingIndex begin, SSRingIndex end,
   }
 
   auto& sch = *it;
-  if ((offset_range.left(ring_begin) == sch.begin_offset) &&
-      (offset_range.right(ring_begin) == sch.end_offset)) {
+  if ((offset_range.left == sch.begin_offset) &&
+      (offset_range.right == sch.end_offset)) {
     // move it to the end
     sch.send_time = send_time;
     chunks_.splice(std::end(chunks_), chunks_, it);
@@ -71,24 +70,17 @@ SendingChunk& SendingChunkList::Register(SSRingIndex begin, SSRingIndex end,
   return new_sch;
 }
 
-void SendingChunkList::MoveOffset(SSRingIndex::type distance) {
-  for (auto& chunk : chunks_) {
-    chunk.begin_offset += distance;
-    chunk.end_offset += distance;
-  }
-}
-
-void SendingChunkList::RemoveUpTo(SSRingIndex offset, SSRingIndex ring_begin) {
+void SendingChunkList::RemoveUpTo(SSRingIndex offset) {
   chunks_.remove_if([&](auto& sch) {
-    auto offset_range =
-        OffsetRange{sch.begin_offset, sch.end_offset, ring_begin};
-    if (offset_range.Before(offset)) {
+    auto offset_range = OffsetRange{sch.begin_offset, sch.end_offset};
+    if (offset_range.IsBefore(offset)) {
       return true;
     }
     if (offset_range.InRange(offset)) {
-      sch.begin_offset = offset + 1;
+      sch.begin_offset = offset;
       // if chunk is collapsed
-      return sch.begin_offset(ring_begin) >= sch.end_offset;
+      return sch.begin_offset.IsAfter(sch.end_offset) ||
+             (sch.begin_offset == sch.end_offset);
     }
     return false;
   });

@@ -39,18 +39,17 @@ class SendDataBuffer {
   // add more data to the buffer
   ActionView<SendingDataAction> AddData(SendingData&& data);
   // get data slice from the buffer
-  DataChunk GetSlice(SSRingIndex offset, std::size_t max_size,
-                     SSRingIndex ring_begin);
-
-  void MoveOffset(SSRingIndex::type distance);
+  DataChunk GetSlice(SSRingIndex offset, std::size_t max_size);
 
   // confirm data has been sent
-  std::size_t Confirm(SSRingIndex offset, SSRingIndex ring_begin);
+  std::size_t Acknowledge(SSRingIndex offset);
   // sending reject
-  std::size_t Reject(SSRingIndex offset, SSRingIndex ring_begin);
+  std::size_t Reject(SSRingIndex offset);
   // sending stop, remove size of removed
-  std::size_t Stop(SSRingIndex offset, SSRingIndex ring_begin);
+  std::size_t Stop(SSRingIndex offset);
   std::size_t size() const { return buffer_size_; }
+
+  std::vector<SSRingIndex> chunks() const;
 
  private:
   ActionList<SendingDataAction> send_actions_;

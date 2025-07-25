@@ -41,15 +41,17 @@ class SendingDataAction : public Action<SendingDataAction> {
 
   ActionResult Update();
 
-  SendingData& sending_data();
+  SendingData const& sending_data() const;
   EventSubscriber<void(SendingData const&)> stop_event();
 
   void Sending();
   void Stop();
 
-  void SentConfirmed();
+  bool Acknowledge(SSRingIndex offset);
   void Stopped();
   void Failed();
+
+  SSRingIndex UpdateOffset(SSRingIndex offset);
 
  private:
   SendingData sending_data_;

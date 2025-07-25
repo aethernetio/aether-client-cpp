@@ -46,7 +46,10 @@ class StreamWriteAction : public Action<StreamWriteAction> {
   /**
    * \brief Stop the writing action
    */
-  virtual void Stop() = 0;
+  virtual void Stop() {
+    state_ = State::kStopped;
+    Action::Trigger();
+  }
 
   StateMachine<State> const& state() const { return state_; }
 

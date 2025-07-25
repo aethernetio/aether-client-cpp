@@ -30,42 +30,16 @@ namespace ae {
  * index.
  * Value is always in range [0, Max] and value overflow leads to
  * start from zero
+ * The window size is set as Max/2 - 1.
  */
 template <typename T, T Max = std::numeric_limits<T>::max()>
 struct RingIndex {
   using type = T;
   static constexpr T max = Max;
-
-  struct Comparable {
-    constexpr bool operator>(RingIndex const right) const {
-      return begin.Distance(left) > begin.Distance(right);
-    }
-    constexpr bool operator<(RingIndex const right) const {
-      return begin.Distance(left) < begin.Distance(right);
-    }
-    constexpr bool operator==(RingIndex const right) const {
-      return left.value_ == right.value_;
-    }
-    constexpr bool operator!=(RingIndex const right) const {
-      return !operator==(right);
-    }
-    constexpr bool operator>=(RingIndex const right) const {
-      return operator==(right) || operator>(right);
-    }
-    constexpr bool operator<=(RingIndex const right) const {
-      return operator==(right) || operator<(right);
-    }
-
-    RingIndex const begin;
-    RingIndex const left;
-  };
+  static constexpr T window_size = (Max / 2) - 1;
 
   constexpr RingIndex() : value_{Mod(0)} {}
   explicit constexpr RingIndex(T val) : value_{Mod(val)} {}
-
-  constexpr Comparable operator()(RingIndex begin) const {
-    return Comparable{begin, *this};
-  }
 
   constexpr void Clockwise(T val) {
     val = Mod(val);
@@ -94,6 +68,22 @@ struct RingIndex {
     return static_cast<T>(a + other.value_);
   }
 
+  constexpr bool IsBefore(RingIndex other) const {
+    return (value_ != other.value_) && (Distance(other) < window_size);
+  }
+
+  constexpr bool IsAfter(RingIndex other) const {
+    return (value_ != other.value_) && (Distance(other) > window_size);
+  }
+
+  constexpr bool operator==(RingIndex other) const {
+    return value_ == other.value_;
+  }
+
+  constexpr bool operator!=(RingIndex other) const {
+    return value_ != other.value_;
+  }
+
   constexpr RingIndex& operator+=(T val) {
     if constexpr (std::is_signed_v<T>) {
       if (val < 0) {
@@ -106,6 +96,7 @@ struct RingIndex {
     }
     return *this;
   }
+
   constexpr RingIndex& operator-=(T val) {
     if constexpr (std::is_signed_v<T>) {
       if (val < 0) {

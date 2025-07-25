@@ -33,40 +33,50 @@ struct SafeStreamInit {
   AE_REFLECT_MEMBERS(offset, window_size, max_packet_size)
 };
 
-using SSRingIndex = RingIndex<std::uint16_t>;
+using SSRingIndex = RingIndex<std::uint32_t>;
 
 struct OffsetRange {
   SSRingIndex left;
   SSRingIndex right;
-  SSRingIndex ring_begin;
 
   // offset in [begin:end] range
   constexpr bool InRange(SSRingIndex offset) const {
-    return (left(ring_begin) <= offset) && (right(ring_begin) >= offset);
+    return ((left == offset) || left.IsBefore(offset)) &&
+           ((right == offset) || right.IsAfter(offset));
   }
 
   // offset range is before offset ( end < offset)
-  constexpr bool Before(SSRingIndex offset) const {
-    return right(ring_begin) < offset;
+  constexpr bool IsBefore(SSRingIndex offset) const {
+    return right.IsBefore(offset);
   }
 
   // offset range is after offset ( begin > offset)
-  constexpr bool After(SSRingIndex offset) const {
-    return left(ring_begin) > offset;
+  constexpr bool IsAfter(SSRingIndex offset) const {
+    return left.IsAfter(offset);
   }
 
   constexpr auto distance() const { return left.Distance(right); }
 };
 
 struct SendingData {
-  auto get_offset_range(SSRingIndex ring_begin) const {
+  SendingData(SSRingIndex off, DataBuffer&& d)
+      : offset(off),
+        data(std::move(d)),
+        begin{std::begin(data)},
+        end{std::end(data)} {}
+
+  auto offset_range() const {
+    auto distance = end - begin;
     return OffsetRange{offset,
-                       offset + static_cast<SSRingIndex::type>(data.size() - 1),
-                       ring_begin};
+                       offset + static_cast<SSRingIndex::type>(distance - 1)};
   }
+
+  std::size_t size() const { return static_cast<std::size_t>(end - begin); }
 
   SSRingIndex offset;
   DataBuffer data;
+  DataBuffer::iterator begin;
+  DataBuffer::iterator end;
 };
 
 struct ReceivingChunk {
@@ -77,11 +87,10 @@ struct ReceivingChunk {
         begin{std::begin(data)},
         end{std::end(data)} {}
 
-  auto get_offset_range(SSRingIndex ring_begin) const {
+  auto offset_range() const {
     auto distance = end - begin;
     return OffsetRange{offset,
-                       offset + static_cast<SSRingIndex::type>(distance - 1),
-                       ring_begin};
+                       offset + static_cast<SSRingIndex::type>(distance - 1)};
   }
 
   SSRingIndex offset;
@@ -94,7 +103,7 @@ struct ReceivingChunk {
 struct SendingChunk {
   SSRingIndex begin_offset;
   SSRingIndex end_offset;
-  std::uint16_t repeat_count;
+  std::uint8_t repeat_count;
   TimePoint send_time;
 };
 
@@ -106,6 +115,39 @@ struct MissedChunk {
 struct ReplacedChunk {
   SSRingIndex offset;
   std::uint16_t repeat_count;
+};
+
+struct DataMessage {
+  DataMessage() = default;
+  DataMessage(std::uint8_t repeat_count, bool reset, std::uint16_t delta,
+              DataBuffer&& d)
+      : control{static_cast<std::uint8_t>(repeat_count & 0x1F),
+                (reset ? std::uint8_t{0x01} : std::uint8_t{0x00}),
+                {}},
+        delta_offset{delta},
+        data{std::move(d)} {}
+
+  AE_CLASS_COPY_MOVE(DataMessage)
+
+  AE_REFLECT(ae::reflect::reflect_internal::FieldGetter<DataMessage, Control>{},
+             AE_MMBRS(delta_offset, data))
+
+  std::uint8_t repeat_count() const {
+    return static_cast<std::uint8_t>(control.repeat_count);
+  }
+  bool reset() const { return control.reset != 0; }
+
+  struct Control {
+    static std::uint8_t* get(DataMessage* obj) {
+      return reinterpret_cast<std::uint8_t*>(&obj->control);
+    }
+
+    std::uint8_t repeat_count : 5;
+    std::uint8_t reset : 1;
+    std::uint8_t reserved : 2;
+  } control;                   // control flags related to message
+  std::uint16_t delta_offset;  // data offset form sender's buffer begin
+  DataBuffer data;
 };
 
 }  // namespace ae
