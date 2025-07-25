@@ -82,7 +82,7 @@ void Thingy91xAtModem::Start() {
     rpt.Multiplier = 7;  // Disable
     rat.Multiplier = 7;  // Disable
 
-    SetPsm(0, rpt, rat);  // Disable PSM
+    SetPsm(0, rpt, rat);  // Disable PSM*/
 
     // Configure eDRX
     kEDrx edrx;
@@ -417,7 +417,7 @@ kModemError Thingy91xAtModem::SetPsm(std::int32_t mode,
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
-  if (tau.Multiplier == 7 || active.Multiplier == 7) {
+  if (tau.Multiplier == 7 && active.Multiplier == 7) {
     cmd = "AT+CPSMS=" + std::to_string(mode);
   } else {
     std::string tau_str =
@@ -487,15 +487,18 @@ kModemError Thingy91xAtModem::SetRai(std::int8_t mode) {
  */
 kModemError Thingy91xAtModem::SetBandLock(
     std::int32_t mode, const std::vector<std::int32_t>& bands) {
-  std::string cmd;
+  std::string cmd{};
+  std::uint32_t band_bit{0};
   kModemError err{kModemError::kNoError};
 
   cmd = "AT%XBANDLOCK=" + std::to_string(mode);
 
   if (mode == 1 && !bands.empty()) {
+    cmd += ",\"";
     for (const auto& band : bands) {
-      cmd += "," + std::to_string(band);
+      band_bit |= 1 << band;
     }
+    cmd += std::bitset<32>(band_bit).to_string() + "\"";
   }
 
   sendATCommand(cmd);
