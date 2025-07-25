@@ -75,18 +75,20 @@ void Thingy91xAtModem::Start() {
     rpt.Multiplier = 1;  // 10 min
     kRequestedActiveTimeT3324 rat;
     rat.Value = 1;
-    rat.Multiplier = 1;     // 2 s
-    
-    SetPsm(1, rpt, rat);    // Enable with TAU="00000001", Active="00000001"
+    rat.Multiplier = 1;  // 2 s
 
-    rpt.Multiplier = 7;     // Disable
-    rat.Multiplier = 7;     // Disable
-    
-    SetPsm(0, rpt, rat);    // Disable PSM
+    SetPsm(1, rpt, rat);  // Enable with TAU="00000001", Active="00000001"
+
+    rpt.Multiplier = 7;  // Disable
+    rat.Multiplier = 7;  // Disable
+
+    SetPsm(0, rpt, rat);  // Disable PSM
 
     // Configure eDRX
-    SetEdrx(1, 0, 20.48f);  // Enable for NB-IoT
-    SetEdrx(0, 1, -1);      // Disable for LTE-M
+    kEDrx edrx;
+    edrx.Value = 1;                                  // 10.24 s2
+    SetEdrx(EdrxMode::kEdrxEnable, EdrxActTType::kEdrxActEUtranNBS1,
+            edrx);  // Enable for NB-IoT
 
     // Configure RAI
     SetRai(1);  // Enable RAI
@@ -399,16 +401,14 @@ kModemError Thingy91xAtModem::SetupNetwork(
   return err;
 }
 
-std::string Uint8ToBinary(std::uint8_t value) {
-  return std::bitset<8>(value).to_string();
-}
-
 /**
  * Sets Power Saving Mode (PSM) parameters
  *
  * @param mode         Mode: 0 - disable, 1 - enable
- * @param tau          Requested Periodic TAU in seconds. Use -1 to skip
- * @param active       Requested Active Time in seconds. Use -1 to skip
+ * @param tau          Requested Periodic TAU in seconds. Use Multiplier 7 to
+ * skip
+ * @param active       Requested Active Time in seconds. Use Multiplier 7 to
+ * skip
  * @return kModemError ErrorCode
  */
 kModemError Thingy91xAtModem::SetPsm(std::int32_t mode,
@@ -420,9 +420,12 @@ kModemError Thingy91xAtModem::SetPsm(std::int32_t mode,
   if (tau.Multiplier == 7 || active.Multiplier == 7) {
     cmd = "AT+CPSMS=" + std::to_string(mode);
   } else {
-    cmd = "AT+CPSMS=" + std::to_string(mode) + ",,,\"" +
-          Uint8ToBinary(((tau.Multiplier << 5) | tau.Value)) + "\",\"" +
-          Uint8ToBinary(((active.Multiplier << 5) | active.Value)) + "\"";
+    std::string tau_str =
+        std::bitset<8>(((tau.Multiplier << 5) | tau.Value)).to_string();
+    std::string active_str =
+        std::bitset<8>(((active.Multiplier << 5) | active.Value)).to_string();
+    cmd = "AT+CPSMS=" + std::to_string(mode) + ",,,\"" + tau_str + "\",\"" +
+          active_str + "\"";
   }
 
   sendATCommand(cmd);
@@ -439,20 +442,15 @@ kModemError Thingy91xAtModem::SetPsm(std::int32_t mode,
  * @param edrx_val     eDRX value in seconds. Use -1 for network default
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetEdrx(std::int32_t mode, std::int32_t act_type,
-                                      float edrx_val) {
+kModemError Thingy91xAtModem::SetEdrx(EdrxMode mode, EdrxActTType act_type,
+                                      kEDrx edrx_val) {
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
-  if (edrx_val == -1) {
-    cmd = "AT+CEDRXS=" + std::to_string(mode) + "," + std::to_string(act_type);
-  } else {
-    char buffer[64];
-    std::uint8_t hex_val = static_cast<std::uint8_t>(edrx_val / 0.256f);
-    std::snprintf(buffer, sizeof(buffer), "AT+CEDRXS=%d,%d,\"%02X\"", mode,
-                  act_type, hex_val);
-    cmd = buffer;
-  }
+  std::string edrx_str = std::bitset<4>((edrx_val.Value << 1)).to_string();
+  cmd = "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(mode)) + "," +
+        std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" + edrx_str +
+        "\"";
 
   sendATCommand(cmd);
   err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
@@ -466,7 +464,7 @@ kModemError Thingy91xAtModem::SetEdrx(std::int32_t mode, std::int32_t act_type,
  * @param mode         Mode: 0 - disable, 1 - enable
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetRai(std::int32_t mode) {
+kModemError Thingy91xAtModem::SetRai(std::int8_t mode) {
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
