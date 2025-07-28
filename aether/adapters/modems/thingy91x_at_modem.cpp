@@ -71,22 +71,17 @@ void Thingy91xAtModem::Start() {
 
     // Configure PSM
     kRequestedPeriodicTAUT3412 rpt;
-    rpt.Value = 1;
-    rpt.Multiplier = 1;  // 10 min
+    rpt.Value = 1;       // 1*10 min
+    rpt.Multiplier = 0;  // 10 min
     kRequestedActiveTimeT3324 rat;
-    rat.Value = 1;
-    rat.Multiplier = 1;  // 2 s
-
-    SetPsm(1, rpt, rat);  // Enable with TAU="00000001", Active="00000001"
-
-    rpt.Multiplier = 7;  // Disable
-    rat.Multiplier = 7;  // Disable
-
-    SetPsm(0, rpt, rat);  // Disable PSM*/
+    rat.Value = 5;        // 5*1 min
+    rat.Multiplier = 1;   // 1 min
+    SetPsm(1, rpt, rat);  // Enable PSM
+    //SetPsm(0, rpt, rat);  // Disable PSM
 
     // Configure eDRX
     kEDrx edrx;
-    edrx.Value = 1;                                  // 10.24 s2
+    edrx.Value = 9;  // 163.84 s
     SetEdrx(EdrxMode::kEdrxEnable, EdrxActTType::kEdrxActEUtranNBS1,
             edrx);  // Enable for NB-IoT
 
@@ -94,15 +89,14 @@ void Thingy91xAtModem::Start() {
     SetRai(1);  // Enable RAI
 
     // Configure Band Locking
-    SetBandLock(1, {3, 8, 20});  // Lock bands 3,8,20
-    SetBandLock(0, {});          // Unlock all bands
+    SetBandLock(0, {});  // Unlock all bands
 
     // Enabling full functionality
     if (err == kModemError::kNoError) {
       sendATCommand("AT+CFUN=1");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
-      err = CheckResponce("+CEREG: 2", 10000, "AT+CFUN command error!");
-      err = CheckResponce("+CEREG: 1", 10000, "AT+CFUN command error!");
+      err = CheckResponce("+CEREG: 2", 600000, "AT+CFUN command error!");
+      err = CheckResponce("+CEREG: 1", 600000, "AT+CFUN command error!");
     }
 
     // Check Sim card
@@ -132,8 +126,7 @@ void Thingy91xAtModem::Stop() {
     }
 
     if (err == kModemError::kNoError) {
-      sendATCommand("AT%XFACTORYRESET=1");  // Reset modem settings correctly
-      err = CheckResponce("OK", 1000, "AT%XFACTORYRESET command error!");
+      err = ResetModemFactory(1);  // Reset modem settings correctly
     }
   } else {
     err = kModemError::kSerialPortError;
@@ -417,7 +410,7 @@ kModemError Thingy91xAtModem::SetPsm(std::int32_t mode,
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
-  if (tau.Multiplier == 7 && active.Multiplier == 7) {
+  if (mode == 0) {
     cmd = "AT+CPSMS=" + std::to_string(mode);
   } else {
     std::string tau_str =
@@ -447,7 +440,7 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode mode, EdrxActTType act_type,
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
-  std::string edrx_str = std::bitset<4>((edrx_val.Value << 1)).to_string();
+  std::string edrx_str = std::bitset<4>((edrx_val.Value)).to_string();
   cmd = "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(mode)) + "," +
         std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" + edrx_str +
         "\"";
@@ -461,17 +454,22 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode mode, EdrxActTType act_type,
 /**
  * Enables/disables Release Assistance Indication (RAI)
  *
- * @param mode         Mode: 0 - disable, 1 - enable
+ * @param mode         Mode: 0 - disable, 1 - enable, 2 - Activate with
+ * unsolicited notifications
  * @return kModemError ErrorCode
  */
 kModemError Thingy91xAtModem::SetRai(std::int8_t mode) {
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
-  cmd = "AT%RAI=" + std::to_string(mode);
+  if (mode >= 3) {
+    err = kModemError::kSetRai;
+  } else {
+    cmd = "AT%RAI=" + std::to_string(mode);
 
-  sendATCommand(cmd);
-  err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+    sendATCommand(cmd);
+    err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+  }
 
   return err;
 }
@@ -498,11 +496,53 @@ kModemError Thingy91xAtModem::SetBandLock(
     for (const auto& band : bands) {
       band_bit |= 1 << band;
     }
-    cmd += std::bitset<32>(band_bit).to_string() + "\"";
+    cmd += std::bitset<88>(band_bit).to_string() + "\"";
   }
 
   sendATCommand(cmd);
   err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+
+  return err;
+}
+
+/**
+ * @brief Performs a factory reset of the modem using the specified reset mode.
+ *
+ * This function sends an AT%XFACTORYRESET command with the specified mode
+ * parameter to perform a factory reset operation on the modem. The command
+ * execution is verified by checking for "OK" response within a 2-second
+ * timeout.
+ *
+ * @param[in] mode Reset operation mode. Valid values are:
+ *                 - 1: Soft reset (preserves some settings)
+ *                 - 0: Hard reset (full factory defaults)
+ *
+ * @return kModemError indicating operation status:
+ *         - kModemError::kNoError: Reset command executed successfully
+ *         - kModemError::kResetMode: Invalid mode parameter (?2)
+ *         - Other kModemError codes: Communication error or missing "OK"
+ * response
+ *
+ * @note
+ * - The function will return kResetMode error immediately for invalid modes
+ * (?2)
+ * - Actual modem behavior depends on modem firmware implementation
+ * - Hard reset (mode 1) will erase all user configurations
+ * - Device may reboot after successful execution
+ * - Uses 2000ms response timeout for command verification
+ */
+kModemError Thingy91xAtModem::ResetModemFactory(std::uint8_t mode) {
+  std::string cmd{};
+  kModemError err{kModemError::kNoError};
+
+  if (mode >= 2) {
+    err = kModemError::kResetMode;
+  } else {
+    cmd = "AT%XFACTORYRESET=" + std::to_string(mode);
+
+    sendATCommand(cmd);
+    err = CheckResponce("OK", 2000, "AT%XFACTORYRESET command error!");
+  }
 
   return err;
 }

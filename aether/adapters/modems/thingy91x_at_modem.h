@@ -131,6 +131,7 @@ class Thingy91xAtModem : public IModemDriver {
   kModemError SetRai(std::int8_t mode);
   kModemError SetBandLock(std::int32_t mode,
                           const std::vector<std::int32_t>& bands);
+  kModemError ResetModemFactory(std::uint8_t mode);
   void sendATCommand(const std::string& command);
   bool waitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);

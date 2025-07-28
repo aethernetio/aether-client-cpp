@@ -41,7 +41,9 @@ enum class kModemError : std::int8_t {
   kSetupSim = -12,
   kSetNetMode = -13,
   kSetNetwork = -14,
-  kOpenConnection = 15
+  kOpenConnection = -15,
+  kResetMode = -16,
+  kSetRai = -17
 };
 
 enum class kModemMode : std::uint8_t {
