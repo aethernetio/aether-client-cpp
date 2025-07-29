@@ -69,28 +69,6 @@ void Thingy91xAtModem::Start() {
                          modem_init_.auth_type);
     }
 
-    // Configure PSM
-    kRequestedPeriodicTAUT3412 rpt;
-    rpt.Value = 1;       // 1*10 min
-    rpt.Multiplier = 0;  // 10 min
-    kRequestedActiveTimeT3324 rat;
-    rat.Value = 5;        // 5*1 min
-    rat.Multiplier = 1;   // 1 min
-    SetPsm(1, rpt, rat);  // Enable PSM
-    //SetPsm(0, rpt, rat);  // Disable PSM
-
-    // Configure eDRX
-    kEDrx edrx;
-    edrx.Value = 9;  // 163.84 s
-    SetEdrx(EdrxMode::kEdrxEnable, EdrxActTType::kEdrxActEUtranNBS1,
-            edrx);  // Enable for NB-IoT
-
-    // Configure RAI
-    SetRai(1);  // Enable RAI
-
-    // Configure Band Locking
-    SetBandLock(0, {});  // Unlock all bands
-
     // Enabling full functionality
     if (err == kModemError::kNoError) {
       sendATCommand("AT+CFUN=1");
@@ -121,8 +99,8 @@ void Thingy91xAtModem::Stop() {
   if (serial_->GetConnected()) {
     // Disabling full functionality
     if (err == kModemError::kNoError) {
-      sendATCommand("AT+CFUN=0");
-      err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+      //sendATCommand("AT+CFUN=0");
+      //err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
 
     if (err == kModemError::kNoError) {
@@ -272,6 +250,60 @@ void Thingy91xAtModem::ReadPacket(std::uint8_t connect_index,
   }
 }
 
+void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
+  kModemError err{kModemError::kNoError};
+
+  if (serial_->GetConnected()) {
+    if (err == kModemError::kNoError) {
+      // Configure PSM
+      err = SetPsm(psp.psm_mode, psp.tau, psp.act);
+    }
+
+    if (err == kModemError::kNoError) {
+      // Configure eDRX
+      err = SetEdrx(psp.edrx_mode, psp.act_type, psp.edrx_val);
+    }
+
+    if (err == kModemError::kNoError) {
+      // Configure RAI
+      err = SetRai(psp.rai_mode);  // Enable RAI
+    }
+
+    if (err == kModemError::kNoError) {
+      // Configure Band Locking
+      err = SetBandLock(psp.bands_mode, psp.bands);  // Unlock all bands
+    }
+  } else {
+    err = kModemError::kSerialPortError;
+  }
+
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
+  } else {
+    modem_connected_event_.Emit(false);
+  }
+}
+
+void Thingy91xAtModem::PowerOff() {
+  kModemError err{kModemError::kNoError};
+
+  if (serial_->GetConnected()) {
+    // Disabling full functionality
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT+CFUN=0");
+      err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+    }
+  } else {
+    err = kModemError::kSerialPortError;
+  }
+
+  if (err != kModemError::kNoError) {
+    modem_error_event_.Emit(static_cast<int>(err));
+  } else {
+    modem_connected_event_.Emit(false);
+  }
+}
+
 //=============================private members================================//
 kModemError Thingy91xAtModem::CheckResponce(std::string responce,
                                             std::uint32_t wait_time,
@@ -404,7 +436,7 @@ kModemError Thingy91xAtModem::SetupNetwork(
  * skip
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetPsm(std::int32_t mode,
+kModemError Thingy91xAtModem::SetPsm(std::uint8_t mode,
                                      kRequestedPeriodicTAUT3412 tau,
                                      kRequestedActiveTimeT3324 active) {
   std::string cmd;
@@ -412,17 +444,21 @@ kModemError Thingy91xAtModem::SetPsm(std::int32_t mode,
 
   if (mode == 0) {
     cmd = "AT+CPSMS=" + std::to_string(mode);
-  } else {
+  } else if (mode == 1) {
     std::string tau_str =
         std::bitset<8>(((tau.Multiplier << 5) | tau.Value)).to_string();
     std::string active_str =
         std::bitset<8>(((active.Multiplier << 5) | active.Value)).to_string();
     cmd = "AT+CPSMS=" + std::to_string(mode) + ",,,\"" + tau_str + "\",\"" +
           active_str + "\"";
+  } else {
+    err = kModemError::kSetPsm;
   }
 
-  sendATCommand(cmd);
-  err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+  if (err == kModemError::kNoError) {
+    sendATCommand(cmd);
+    err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+  }
 
   return err;
 }
@@ -442,8 +478,8 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode mode, EdrxActTType act_type,
 
   std::string edrx_str = std::bitset<4>((edrx_val.Value)).to_string();
   cmd = "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(mode)) + "," +
-        std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" + edrx_str +
-        "\"";
+        std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
+        edrx_str + "\"";
 
   sendATCommand(cmd);
   err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
@@ -458,7 +494,7 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode mode, EdrxActTType act_type,
  * unsolicited notifications
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetRai(std::int8_t mode) {
+kModemError Thingy91xAtModem::SetRai(std::uint8_t mode) {
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
@@ -484,23 +520,32 @@ kModemError Thingy91xAtModem::SetRai(std::int8_t mode) {
  * @return kModemError ErrorCode
  */
 kModemError Thingy91xAtModem::SetBandLock(
-    std::int32_t mode, const std::vector<std::int32_t>& bands) {
+    std::uint8_t mode, const std::vector<std::int32_t>& bands) {
   std::string cmd{};
-  std::uint32_t band_bit{0};
+  std::uint64_t band_bit1{0}, band_bit2{0};
   kModemError err{kModemError::kNoError};
 
-  cmd = "AT%XBANDLOCK=" + std::to_string(mode);
+  if (mode >= 4) {
+    err = kModemError::kSetBandLock;
+  } else {
+    cmd = "AT%XBANDLOCK=" + std::to_string(mode);
 
-  if (mode == 1 && !bands.empty()) {
-    cmd += ",\"";
-    for (const auto& band : bands) {
-      band_bit |= 1 << band;
+    if (mode == 1 && !bands.empty()) {
+      cmd += ",\"";
+      for (const auto& band : bands) {
+        if (band < 32) {
+          band_bit1 |= 1ULL << band;
+        } else {
+          band_bit2 |= 1ULL << (band - 32);
+        }
+      }
+      cmd += std::bitset<24>(band_bit2).to_string() +
+             std::bitset<64>(band_bit1).to_string() + "\"";
     }
-    cmd += std::bitset<88>(band_bit).to_string() + "\"";
-  }
 
-  sendATCommand(cmd);
-  err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+    sendATCommand(cmd);
+    err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+  }
 
   return err;
 }

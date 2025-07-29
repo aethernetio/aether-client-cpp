@@ -43,7 +43,9 @@ enum class kModemError : std::int8_t {
   kSetNetwork = -14,
   kOpenConnection = -15,
   kResetMode = -16,
-  kSetRai = -17
+  kSetRai = -17,
+  kSetBandLock = -18,
+  kSetPsm = -19
 };
 
 enum class kModemMode : std::uint8_t {
@@ -63,6 +65,87 @@ enum class kAuthType : std::uint8_t {
   kAuthTypePAPCHAP = 3
 };
 
+//========================power save=====================================
+
+// Multiplier Bits
+// 8 7 6
+// 0 0 0 – Value is incremented in multiples of 2 s
+// 0 0 1 – Value is incremented in multiples of 1 min
+// 0 1 0 – Value is incremented in multiples of 6 min
+// 1 1 1 – Value indicates that the timer is deactivated
+
+struct kRequestedActiveTimeT3324 {
+  std::uint8_t Value : 5;
+  std::uint8_t Multiplier : 3;
+};
+
+// Bits 8 to 6 define the timer value unit for the General Packet Radio Services
+// (GPRS) timer as follows: 
+// Multiplier Bits 
+// 8 7 6 
+// 0 0 0 – Value is incremented in multiples of 10 min 
+// 0 0 1 – Value is incremented in multiples of 1 h 
+// 0 1 0 – Value is incremented in multiples of 10 h 
+// 0 1 1 – Value is incremented in multiples of 2 s 
+// 1 0 0 – Value is incremented in multiples of 30 s 
+// 1 0 1 – Value is incremented in multiples of 1 min 
+// 1 1 0 – Value is incremented in multiples of 320 h
+
+struct kRequestedPeriodicTAUT3412 {
+  std::uint8_t Value : 5;
+  std::uint8_t Multiplier : 3;
+};
+
+enum class EdrxMode : std::uint8_t {
+  kEdrxDisable = 0,
+  kEdrxEnable = 1,
+  kEdrxEnableCode = 2,
+  kEdrxDisableCode = 3
+};
+
+enum class EdrxActTType : std::uint8_t {
+  kEdrxActDisable = 0,
+  kEdrxActEUtranWBS1 = 4,
+  kEdrxActEUtranNBS1 = 5
+};
+
+// eDRX_value Bits 
+// 4 3 2 1 – E-UTRAN eDRX cycle length duration
+// 0 0 0 0 – 5.12 s2
+// 0 0 0 1 – 10.24 s2
+// 0 0 1 0 – 20.48 s
+// 0 0 1 1 – 40.96 s
+// 0 1 0 0 – 61.44 s3
+// 0 1 0 1 – 81.92 s
+// 0 1 1 0 – 102.4 s3
+// 0 1 1 1 – 122.88 s3
+// 1 0 0 0 – 143.36 s3
+// 1 0 0 1 – 163.84 s
+// 1 0 1 0 – 327.68 s
+// 1 0 1 1 – 655,36 s
+// 1 1 0 0 – 1310.72 s
+// 1 1 0 1 – 2621.44 s
+// 1 1 1 0 – 5242.88 s4
+// 1 1 1 1 – 10485.76 s4
+
+struct kEDrx {
+  std::uint8_t :1; // start a new byte from bit 1
+  std::uint8_t Value : 4;
+};
+
+struct kPowerSaveParam {
+  std::uint8_t psm_mode;
+  kRequestedPeriodicTAUT3412 tau;
+  kRequestedActiveTimeT3324 act;
+  EdrxMode edrx_mode;
+  EdrxActTType act_type;
+  kEDrx edrx_val;
+  std::uint8_t rai_mode;
+  std::uint8_t bands_mode;
+  std::vector<std::int32_t> bands;
+};
+
+//========================modem init==========================================
 struct ModemInit {
   AE_REFLECT_MEMBERS(serial_init, pin, use_pin, operator_name, apn_name,
                      apn_user, apn_pass, modem_mode, auth_type, use_auth,
@@ -102,7 +185,9 @@ class IModemDriver {
   virtual void ReadPacket(std::uint8_t connect_index,
                           std::vector<std::uint8_t>& data,
                           std::size_t& size) = 0;
-
+  virtual  void SetPowerSaveParam(kPowerSaveParam const& psp) = 0;
+  virtual  void PowerOff() = 0;
+  
   Event<void(bool result)> modem_connected_event_;
   Event<void(int result)> modem_error_event_;
 

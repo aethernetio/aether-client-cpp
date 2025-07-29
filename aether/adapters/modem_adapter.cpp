@@ -193,10 +193,25 @@ void ModemAdapter::Connect(void) {
   std::vector<std::uint8_t> data{'H', 'e', 'l', 'l', 'o', ' ', 'w',
                                  'o', 'r', 'l', 'd', '!', '!'};
   std::size_t size{};
+  kPowerSaveParam psp;
+  kEDrx edrx_val{0};
+  kRequestedActiveTimeT3324 act{0,0};
+  kRequestedPeriodicTAUT3412 tau{0,0};
+  
+  psp.psm_mode = 0;
+  psp.tau = tau;
+  psp.act = act;
+  psp.edrx_mode = EdrxMode::kEdrxDisable;
+  psp.act_type = EdrxActTType::kEdrxActEUtranNBS1;
+  psp.edrx_val = edrx_val;
+  psp.rai_mode = 0;
+  psp.bands_mode = 0;
+  psp.bands = {};
 
   AE_TELE_DEBUG(kAdapterModemConnected, "Modem connecting to the AP");
   modem_driver_->Init();
   modem_driver_->Start();
+  modem_driver_->SetPowerSaveParam(psp);
   modem_driver_->OpenNetwork(0, 0, ae::Protocol::kUdp, "dbservice.aethernet.io",
                              8889);
   modem_driver_->WritePacket(0, data);
