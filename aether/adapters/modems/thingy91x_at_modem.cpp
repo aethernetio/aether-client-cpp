@@ -99,8 +99,8 @@ void Thingy91xAtModem::Stop() {
   if (serial_->GetConnected()) {
     // Disabling full functionality
     if (err == kModemError::kNoError) {
-      //sendATCommand("AT+CFUN=0");
-      //err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+      sendATCommand("AT+CFUN=0");
+      err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
 
     if (err == kModemError::kNoError) {
@@ -255,6 +255,11 @@ void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
+      sendATCommand("AT+CFUN=0");
+      err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+    }
+    
+    if (err == kModemError::kNoError) {
       // Configure PSM
       err = SetPsm(psp.psm_mode, psp.tau, psp.act);
     }
@@ -272,6 +277,11 @@ void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
     if (err == kModemError::kNoError) {
       // Configure Band Locking
       err = SetBandLock(psp.bands_mode, psp.bands);  // Unlock all bands
+    }
+    
+    if (err == kModemError::kNoError) {
+      sendATCommand("AT+CFUN=1");
+      err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
   } else {
     err = kModemError::kSerialPortError;

@@ -198,7 +198,7 @@ void ModemAdapter::Connect(void) {
   kRequestedActiveTimeT3324 act{0,0};
   kRequestedPeriodicTAUT3412 tau{0,0};
   
-  psp.psm_mode = 0;
+  psp.psm_mode = 1;
   psp.tau = tau;
   psp.act = act;
   psp.edrx_mode = EdrxMode::kEdrxDisable;
@@ -210,11 +210,11 @@ void ModemAdapter::Connect(void) {
 
   AE_TELE_DEBUG(kAdapterModemConnected, "Modem connecting to the AP");
   modem_driver_->Init();
-  modem_driver_->Start();
   modem_driver_->SetPowerSaveParam(psp);
+  modem_driver_->Start();  
   modem_driver_->OpenNetwork(0, 0, ae::Protocol::kUdp, "dbservice.aethernet.io",
                              8889);
-  modem_driver_->WritePacket(0, data);
+  modem_driver_->WritePacket(0, data);  
   modem_driver_->ReadPacket(0, data, size);
   modem_driver_->CloseNetwork(0, 0);
   modem_driver_->Stop();
