@@ -129,8 +129,9 @@ enum class EdrxActTType : std::uint8_t {
 // 1 1 1 1 – 10485.76 s4
 
 struct kEDrx {
-  std::uint8_t :1; // start a new byte from bit 1
-  std::uint8_t Value : 4;
+  std::uint8_t ReqEDRXValue : 4;
+  std::uint8_t ProvEDRXValue : 4;
+  std::uint8_t PTWValue : 4;
 };
 
 struct kPowerSaveParam {

@@ -258,7 +258,7 @@ void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
       sendATCommand("AT+CFUN=0");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
-    
+
     if (err == kModemError::kNoError) {
       // Configure PSM
       err = SetPsm(psp.psm_mode, psp.tau, psp.act);
@@ -278,7 +278,7 @@ void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
       // Configure Band Locking
       err = SetBandLock(psp.bands_mode, psp.bands);  // Unlock all bands
     }
-    
+
     if (err == kModemError::kNoError) {
       sendATCommand("AT+CFUN=1");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
@@ -486,13 +486,25 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode mode, EdrxActTType act_type,
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
-  std::string edrx_str = std::bitset<4>((edrx_val.Value)).to_string();
+  std::string req_edrx_str =
+      std::bitset<4>((edrx_val.ReqEDRXValue)).to_string();
+  // std::string prov_edrx_str =
+  // std::bitset<4>((edrx_val.ProvEDRXValue)).to_string();
+  std::string ptw_str = std::bitset<4>((edrx_val.PTWValue)).to_string();
+
   cmd = "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(mode)) + "," +
         std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
-        edrx_str + "\"";
+        req_edrx_str + "\"";
 
   sendATCommand(cmd);
   err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
+
+  if (err == kModemError::kNoError) {
+    cmd = "AT%XPTW=" + std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
+          ptw_str + "\"";
+    sendATCommand(cmd);
+    err = CheckResponce("OK", 2000, "AT%XPTW command error!");
+  }
 
   return err;
 }
