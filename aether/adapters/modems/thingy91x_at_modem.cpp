@@ -279,12 +279,10 @@ void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
       err = SetBandLock(psp.bands_mode, psp.bands);  // Unlock all bands
     }
 
-    // The following command example reduces the maximum TX power 
-    // on all bands in the NB-IoT mode by 1 dB:
-    //kModemMode modem_mode{kModemMode::kModeNbIot};
-    //std::vector<BandPower> power{{kModemBand::kALL_BAND, 2}};
-
-    SetTxPower(modem_mode, power);
+    if (err == kModemError::kNoError) {
+      // Configure Band Locking
+      err = SetTxPower(psp.modem_mode, psp.power);;  // Set TX power limits
+    }
 
     if (err == kModemError::kNoError) {
       sendATCommand("AT+CFUN=1");
@@ -322,9 +320,9 @@ void Thingy91xAtModem::PowerOff() {
 }
 
 //=============================private members================================//
-kModemError Thingy91xAtModem::CheckResponce(std::string responce,
-                                            std::uint32_t wait_time,
-                                            std::string error_message) {
+kModemError Thingy91xAtModem::CheckResponce(std::string const responce,
+                                            std::uint32_t const wait_time,
+                                            std::string const error_message) {
   kModemError err{kModemError::kNoError};
 
   if (!waitForResponse(responce, std::chrono::milliseconds(wait_time))) {
@@ -347,7 +345,7 @@ kModemError Thingy91xAtModem::CheckSimStatus() {
   return err;
 }
 
-kModemError Thingy91xAtModem::SetupSim(const std::uint8_t pin[4]) {
+kModemError Thingy91xAtModem::SetupSim(std::uint8_t const pin[4]) {
   kModemError err{kModemError::kNoError};
 
   auto pin_string = pinToString(pin);
@@ -366,7 +364,7 @@ kModemError Thingy91xAtModem::SetupSim(const std::uint8_t pin[4]) {
   return err;
 }
 
-kModemError Thingy91xAtModem::SetNetMode(kModemMode modem_mode) {
+kModemError Thingy91xAtModem::SetNetMode(kModemMode const modem_mode) {
   kModemError err{kModemError::kNoError};
 
   switch (modem_mode) {
@@ -392,9 +390,10 @@ kModemError Thingy91xAtModem::SetNetMode(kModemMode modem_mode) {
 }
 
 kModemError Thingy91xAtModem::SetupNetwork(
-    std::string operator_name, std::string operator_code, std::string apn_name,
-    std::string apn_user, std::string apn_pass, kModemMode modem_mode,
-    kAuthType auth_type) {
+    std::string const operator_name, std::string const operator_code,
+    std::string const apn_name, std::string const apn_user,
+    std::string const apn_pass, kModemMode const modem_mode,
+    kAuthType const auth_type) {
   std::string mode_str;
   kModemError err{kModemError::kNoError};
 
@@ -443,7 +442,8 @@ kModemError Thingy91xAtModem::SetupNetwork(
   return err;
 }
 
-kModemError Thingy91xAtModem::SetTxPower(kModemMode modem_mode, std::vector<BandPower>& power) {
+kModemError Thingy91xAtModem::SetTxPower(kModemMode const modem_mode,
+                                         std::vector<BandPower> const& power) {
   kModemError err{kModemError::kNoError};
   std::string cmd{"AT%XEMPR="};
   std::string bands{};
@@ -462,8 +462,7 @@ kModemError Thingy91xAtModem::SetTxPower(kModemMode modem_mode, std::vector<Band
   
   //%XEMPR=<system_mode>,<k>,<band0>,<pr0>,<band1>,<pr1>,…,<bandk-1>,<prk-1>
   //or
-  //%XEMPR=<system_mode>,0,<pr_for_all_bands>
-  
+  //%XEMPR=<system_mode>,0,<pr_for_all_bands>  
   if(power.size() >0 && err == kModemError::kNoError){
    for (auto &pwr: power) {
     
@@ -494,7 +493,8 @@ kModemError Thingy91xAtModem::SetTxPower(kModemMode modem_mode, std::vector<Band
   return err;
 }
 
-kModemError Thingy91xAtModem::GetTxPower(kModemMode modem_mode, std::vector<BandPower>& power){
+kModemError Thingy91xAtModem::GetTxPower(kModemMode const modem_mode,
+                                         std::vector<BandPower>& power) {
   kModemError err{kModemError::kNoError};
 
   AE_TELED_DEBUG("modem_mode {}", modem_mode);
@@ -521,20 +521,20 @@ kModemError Thingy91xAtModem::SetupProtoPar(){
  * skip
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetPsm(std::uint8_t mode,
-                                     kRequestedPeriodicTAUT3412 tau,
-                                     kRequestedActiveTimeT3324 active) {
+kModemError Thingy91xAtModem::SetPsm(std::uint8_t const psm_mode,
+                                     kRequestedPeriodicTAUT3412 const psm_tau,
+                                     kRequestedActiveTimeT3324 const psm_active) {
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
-  if (mode == 0) {
-    cmd = "AT+CPSMS=" + std::to_string(mode);
-  } else if (mode == 1) {
+  if (psm_mode == 0) {
+    cmd = "AT+CPSMS=0";
+  } else if (psm_mode == 1) {
     std::string tau_str =
-        std::bitset<8>(((tau.Multiplier << 5) | tau.Value)).to_string();
+        std::bitset<8>(((psm_tau.Multiplier << 5) | psm_tau.Value)).to_string();
     std::string active_str =
-        std::bitset<8>(((active.Multiplier << 5) | active.Value)).to_string();
-    cmd = "AT+CPSMS=" + std::to_string(mode) + ",,,\"" + tau_str + "\",\"" +
+        std::bitset<8>(((psm_active.Multiplier << 5) | psm_active.Value)).to_string();
+    cmd = "AT+CPSMS=" + std::to_string(psm_mode) + ",,,\"" + tau_str + "\",\"" +
           active_str + "\"";
   } else {
     err = kModemError::kSetPsm;
@@ -556,8 +556,9 @@ kModemError Thingy91xAtModem::SetPsm(std::uint8_t mode,
  * @param edrx_val     eDRX value in seconds. Use -1 for network default
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetEdrx(EdrxMode mode, EdrxActTType act_type,
-                                      kEDrx edrx_val) {
+kModemError Thingy91xAtModem::SetEdrx(EdrxMode const edrx_mode,
+                                      EdrxActTType const act_type,
+                                      kEDrx const edrx_val) {
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
@@ -567,7 +568,7 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode mode, EdrxActTType act_type,
   // std::bitset<4>((edrx_val.ProvEDRXValue)).to_string();
   std::string ptw_str = std::bitset<4>((edrx_val.PTWValue)).to_string();
 
-  cmd = "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(mode)) + "," +
+  cmd = "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(edrx_mode)) + "," +
         std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
         req_edrx_str + "\"";
 
@@ -591,14 +592,14 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode mode, EdrxActTType act_type,
  * unsolicited notifications
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetRai(std::uint8_t mode) {
+kModemError Thingy91xAtModem::SetRai(std::uint8_t const rai_mode) {
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
-  if (mode >= 3) {
+  if (rai_mode >= 3) {
     err = kModemError::kSetRai;
   } else {
-    cmd = "AT%RAI=" + std::to_string(mode);
+    cmd = "AT%RAI=" + std::to_string(rai_mode);
 
     sendATCommand(cmd);
     err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
@@ -617,17 +618,17 @@ kModemError Thingy91xAtModem::SetRai(std::uint8_t mode) {
  * @return kModemError ErrorCode
  */
 kModemError Thingy91xAtModem::SetBandLock(
-    std::uint8_t mode, const std::vector<std::int32_t>& bands) {
+    std::uint8_t const bl_mode, const std::vector<std::int32_t>& bands) {
   std::string cmd{};
   std::uint64_t band_bit1{0}, band_bit2{0};
   kModemError err{kModemError::kNoError};
 
-  if (mode >= 4) {
+  if (bl_mode >= 4) {
     err = kModemError::kSetBandLock;
   } else {
-    cmd = "AT%XBANDLOCK=" + std::to_string(mode);
+    cmd = "AT%XBANDLOCK=" + std::to_string(bl_mode);
 
-    if (mode == 1 && !bands.empty()) {
+    if (bl_mode == 1 && !bands.empty()) {
       cmd += ",\"";
       for (const auto& band : bands) {
         if (band < 32) {
@@ -673,14 +674,14 @@ kModemError Thingy91xAtModem::SetBandLock(
  * - Device may reboot after successful execution
  * - Uses 2000ms response timeout for command verification
  */
-kModemError Thingy91xAtModem::ResetModemFactory(std::uint8_t mode) {
+kModemError Thingy91xAtModem::ResetModemFactory(std::uint8_t const res_mode) {
   std::string cmd{};
   kModemError err{kModemError::kNoError};
 
-  if (mode >= 2) {
+  if (res_mode >= 2) {
     err = kModemError::kResetMode;
   } else {
-    cmd = "AT%XFACTORYRESET=" + std::to_string(mode);
+    cmd = "AT%XFACTORYRESET=" + std::to_string(res_mode);
 
     sendATCommand(cmd);
     err = CheckResponce("OK", 2000, "AT%XFACTORYRESET command error!");

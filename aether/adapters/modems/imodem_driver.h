@@ -135,40 +135,6 @@ struct kEDrx {
   std::uint8_t PTWValue : 4;
 };
 
-struct kPowerSaveParam {
-  std::uint8_t psm_mode;
-  kRequestedPeriodicTAUT3412 tau;
-  kRequestedActiveTimeT3324 act;
-  EdrxMode edrx_mode;
-  EdrxActTType act_type;
-  kEDrx edrx_val;
-  std::uint8_t rai_mode;
-  std::uint8_t bands_mode;
-  std::vector<std::int32_t> bands;
-};
-
-//========================modem init==========================================
-struct ModemInit {
-  AE_REFLECT_MEMBERS(serial_init, pin, use_pin, operator_name, apn_name,
-                     apn_user, apn_pass, modem_mode, auth_type, use_auth,
-                     auth_user, auth_pass, ssl_cert, use_ssl)
-  SerialInit serial_init;
-  std::uint8_t pin[4];
-  bool use_pin;
-  kModemMode modem_mode;
-  std::string operator_code;
-  std::string operator_name;
-  std::string apn_name;
-  std::string apn_user;
-  std::string apn_pass;
-  kAuthType auth_type;
-  bool use_auth;
-  std::string auth_user;
-  std::string auth_pass;
-  std::string ssl_cert;
-  bool use_ssl;
-};
-
 enum class kModemBand : std::uint8_t {
   kWCDMA_B1 = 0,
   kWCDMA_B2 = 1,
@@ -206,6 +172,48 @@ enum class kModemBand : std::uint8_t {
   kALL_BAND = 33,
   kINVALID_BAND = 34
 };
+
+struct BandPower{
+  kModemBand band;
+  std::uint8_t power;
+};
+
+struct kPowerSaveParam {
+  std::uint8_t psm_mode;
+  kRequestedPeriodicTAUT3412 tau;
+  kRequestedActiveTimeT3324 act;
+  EdrxMode edrx_mode;
+  EdrxActTType act_type;
+  kEDrx edrx_val;
+  std::uint8_t rai_mode;
+  std::uint8_t bands_mode;
+  std::vector<std::int32_t> bands;
+  kModemMode modem_mode;
+  std::vector<BandPower> power;
+};
+
+//========================modem init==========================================
+struct ModemInit {
+  AE_REFLECT_MEMBERS(serial_init, pin, use_pin, operator_name, apn_name,
+                     apn_user, apn_pass, modem_mode, auth_type, use_auth,
+                     auth_user, auth_pass, ssl_cert, use_ssl)
+  SerialInit serial_init;
+  std::uint8_t pin[4];
+  bool use_pin;
+  kModemMode modem_mode;
+  std::string operator_code;
+  std::string operator_name;
+  std::string apn_name;
+  std::string apn_user;
+  std::string apn_pass;
+  kAuthType auth_type;
+  bool use_auth;
+  std::string auth_user;
+  std::string auth_pass;
+  std::string ssl_cert;
+  bool use_ssl;
+};
+
 
 class IModemDriver {
  public:

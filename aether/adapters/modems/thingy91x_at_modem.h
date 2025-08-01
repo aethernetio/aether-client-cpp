@@ -25,11 +25,6 @@
 
 namespace ae {
 
-struct BandPower{
-  kModemBand band;
-  std::uint8_t power;
-};
-
 class Thingy91xAtModem : public IModemDriver {
  public:
   explicit Thingy91xAtModem(ModemInit modem_init);
@@ -55,29 +50,29 @@ class Thingy91xAtModem : public IModemDriver {
   std::string host_;
   std::uint16_t port_;
 
-  kModemError CheckResponce(std::string responce, std::uint32_t wait_time,
-                            std::string error_message);
-  kModemError SetBaudRate(std::uint32_t rate);
+  kModemError CheckResponce(std::string const responce, std::uint32_t const wait_time,
+                            std::string const error_message);
+  kModemError SetBaudRate(std::uint32_t const rate);
   kModemError CheckSimStatus();
-  kModemError SetupSim(const std::uint8_t pin[4]);
-  kModemError SetNetMode(kModemMode modem_mode);
-  kModemError SetupNetwork(std::string operator_name, std::string operator_code,
-                           std::string apn_name, std::string apn_user,
-                           std::string apn_pass, kModemMode modem_mode,
-                           kAuthType auth_type);
-  kModemError SetTxPower(kModemMode modem_mode, std::vector<BandPower>& power);
-  kModemError GetTxPower(kModemMode modem_mode, std::vector<BandPower>& power);
+  kModemError SetupSim(std::uint8_t const pin[4]);
+  kModemError SetNetMode(kModemMode const modem_mode);
+  kModemError SetupNetwork(std::string const operator_name, std::string const operator_code,
+                           std::string const apn_name, std::string const apn_user,
+                           std::string const apn_pass, kModemMode const modem_mode,
+                           kAuthType const auth_type);
+  kModemError SetTxPower(kModemMode const modem_mode, std::vector<BandPower> const& power);
+  kModemError GetTxPower(kModemMode const modem_mode, std::vector<BandPower>& power);
   kModemError SetupProtoPar();
-  kModemError SetPsm(std::uint8_t mode, kRequestedPeriodicTAUT3412 tau,
-                     kRequestedActiveTimeT3324 active);
-  kModemError SetEdrx(EdrxMode mode, EdrxActTType act_type, kEDrx edrx_val);
-  kModemError SetRai(std::uint8_t mode);
-  kModemError SetBandLock(std::uint8_t mode,
-                          const std::vector<std::int32_t>& bands);
-  kModemError ResetModemFactory(std::uint8_t mode);
-  void sendATCommand(const std::string& command);
-  bool waitForResponse(const std::string& expected,
-                       std::chrono::milliseconds timeout_ms);
+  kModemError SetPsm(std::uint8_t const psm_mode, kRequestedPeriodicTAUT3412 const psm_tau,
+                     kRequestedActiveTimeT3324 const  psm_active);
+  kModemError SetEdrx(EdrxMode const  edrx_mode, EdrxActTType const act_type, kEDrx const edrx_val);
+  kModemError SetRai(std::uint8_t const rai_mode);
+  kModemError SetBandLock(std::uint8_t const  bl_mode,
+                          std::vector<std::int32_t> const& bands);
+  kModemError ResetModemFactory(std::uint8_t const res_mode);
+  void sendATCommand(std::string const& command);
+  bool waitForResponse(std::string const& expected,
+                       std::chrono::milliseconds const timeout_ms);
 };
 
 } /* namespace ae */
