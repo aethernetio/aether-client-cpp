@@ -279,6 +279,13 @@ void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
       err = SetBandLock(psp.bands_mode, psp.bands);  // Unlock all bands
     }
 
+    // The following command example reduces the maximum TX power 
+    // on all bands in the NB-IoT mode by 1 dB:
+    //kModemMode modem_mode{kModemMode::kModeNbIot};
+    //std::vector<BandPower> power{{kModemBand::kALL_BAND, 2}};
+
+    SetTxPower(modem_mode, power);
+
     if (err == kModemError::kNoError) {
       sendATCommand("AT+CFUN=1");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
@@ -429,9 +436,77 @@ kModemError Thingy91xAtModem::SetupNetwork(
     err = CheckResponce("OK", 1000, "AT+CEREG command error!");
   }
 
-  AE_TELED_DEBUG("apn_user", apn_user);
-  AE_TELED_DEBUG("apn_pass", apn_pass);
-  AE_TELED_DEBUG("auth_type", auth_type);
+  AE_TELED_DEBUG("apn_user {}", apn_user);
+  AE_TELED_DEBUG("apn_pass {}", apn_pass);
+  AE_TELED_DEBUG("auth_type {}", auth_type);
+
+  return err;
+}
+
+kModemError Thingy91xAtModem::SetTxPower(kModemMode modem_mode, std::vector<BandPower>& power) {
+  kModemError err{kModemError::kNoError};
+  std::string cmd{"AT%XEMPR="};
+  std::string bands{};
+  std::uint8_t k{0};
+  std::uint8_t system_mode{0};
+  bool all_bands{false};
+  std::int8_t all_bands_power{0};
+
+  if (modem_mode == kModemMode::kModeNbIot) {
+    system_mode = 0;
+  } else if (modem_mode == kModemMode::kModeCatM) {
+    system_mode = 1;
+  } else {
+    err = kModemError::kSetPwr;
+  }
+  
+  //%XEMPR=<system_mode>,<k>,<band0>,<pr0>,<band1>,<pr1>,…,<bandk-1>,<prk-1>
+  //or
+  //%XEMPR=<system_mode>,0,<pr_for_all_bands>
+  
+  if(power.size() >0 && err == kModemError::kNoError){
+   for (auto &pwr: power) {
+    
+    if (pwr.band == kModemBand::kALL_BAND) {
+      all_bands = true;
+      all_bands_power = static_cast<std::int8_t>(pwr.power);
+    } else {
+      k++;
+      bands += "," + std::to_string(static_cast<std::int8_t>(pwr.band)) + 
+               "," + std::to_string(static_cast<std::int8_t>(pwr.power));
+    }
+   }
+   
+   if(all_bands){
+     cmd += std::to_string(system_mode) + ",0," + std::to_string(all_bands_power);
+   } else {
+     cmd += std::to_string(system_mode) + "," + std::to_string(k) + "," + bands;
+   }
+  } else {
+    err = kModemError::kSetPwr;
+  }
+  
+  if (err == kModemError::kNoError) {
+    sendATCommand(cmd);
+    err = CheckResponce("OK", 1000, "AT%XEMPR command error!");
+  }
+
+  return err;
+}
+
+kModemError Thingy91xAtModem::GetTxPower(kModemMode modem_mode, std::vector<BandPower>& power){
+  kModemError err{kModemError::kNoError};
+
+  AE_TELED_DEBUG("modem_mode {}", modem_mode);
+  for (auto& pwr : power) {
+    AE_TELED_DEBUG("power band {} power power {}", pwr.band, pwr.power);
+  }
+
+  return err;
+}
+  
+kModemError Thingy91xAtModem::SetupProtoPar(){
+  kModemError err{kModemError::kNoError};
 
   return err;
 }

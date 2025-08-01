@@ -25,6 +25,11 @@
 
 namespace ae {
 
+struct BandPower{
+  kModemBand band;
+  std::uint8_t power;
+};
+
 class Thingy91xAtModem : public IModemDriver {
  public:
   explicit Thingy91xAtModem(ModemInit modem_init);
@@ -60,6 +65,8 @@ class Thingy91xAtModem : public IModemDriver {
                            std::string apn_name, std::string apn_user,
                            std::string apn_pass, kModemMode modem_mode,
                            kAuthType auth_type);
+  kModemError SetTxPower(kModemMode modem_mode, std::vector<BandPower>& power);
+  kModemError GetTxPower(kModemMode modem_mode, std::vector<BandPower>& power);
   kModemError SetupProtoPar();
   kModemError SetPsm(std::uint8_t mode, kRequestedPeriodicTAUT3412 tau,
                      kRequestedActiveTimeT3324 active);

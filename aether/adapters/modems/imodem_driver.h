@@ -45,7 +45,8 @@ enum class kModemError : std::int8_t {
   kResetMode = -16,
   kSetRai = -17,
   kSetBandLock = -18,
-  kSetPsm = -19
+  kSetPsm = -19,
+  kSetPwr = -20
 };
 
 enum class kModemMode : std::uint8_t {
@@ -166,6 +167,44 @@ struct ModemInit {
   std::string auth_pass;
   std::string ssl_cert;
   bool use_ssl;
+};
+
+enum class kModemBand : std::uint8_t {
+  kWCDMA_B1 = 0,
+  kWCDMA_B2 = 1,
+  kWCDMA_B4 = 2,
+  kWCDMA_B5 = 3,
+  kWCDMA_B8 = 4,
+  kLTE_B1 = 5,
+  kLTE_B2 = 6,
+  kLTE_B3 = 7,
+  kLTE_B4 = 8,
+  kLTE_B5 = 9,
+  kLTE_B7 = 10,
+  kLTE_B8 = 11,
+  kLTE_B12 = 12,
+  kLTE_B13 = 13,
+  kLTE_B17 = 14,
+  kLTE_B18 = 15,
+  kLTE_B19 = 16,
+  kLTE_B20 = 17,
+  kLTE_B25 = 18,
+  kLTE_B26 = 19,
+  kLTE_B28 = 20,
+  kLTE_B38 = 21,
+  kLTE_B39 = 22,
+  kLTE_B40 = 23,
+  kLTE_B41 = 24,
+  kTDS_B34 = 25,
+  kTDS_B39 = 26,
+  kGSM_850 = 27,
+  kGSM_900 = 28,
+  kGSM_1800 = 29,
+  kGSM_1900 = 30,
+  kTDSCDMA_B34 = 31,
+  kTDSCDMA_B39 = 32,
+  kALL_BAND = 33,
+  kINVALID_BAND = 34
 };
 
 class IModemDriver {
