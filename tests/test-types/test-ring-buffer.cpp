@@ -84,20 +84,14 @@ void test_RingBufferCompare() {
   auto a = U8RI{10};
   auto b = U8RI{15};
 
-  TEST_ASSERT_TRUE(a(begin) < b);
-  TEST_ASSERT_TRUE(b(begin) > a);
-  TEST_ASSERT_FALSE(a(begin) > b);
-  TEST_ASSERT_FALSE(b(begin) < a);
-  TEST_ASSERT_TRUE(a(begin) == a);
-  TEST_ASSERT_TRUE(a(begin) != b);
-  TEST_ASSERT_FALSE(a(begin) == b);
-  TEST_ASSERT_FALSE(a(begin) != a);
-  TEST_ASSERT_TRUE(a(begin) >= a);
-  TEST_ASSERT_TRUE(b(begin) >= a);
-  TEST_ASSERT_FALSE(a(begin) >= b);
-  TEST_ASSERT_TRUE(a(begin) <= b);
-  TEST_ASSERT_TRUE(a(begin) <= a);
-  TEST_ASSERT_FALSE(b(begin) <= a);
+  TEST_ASSERT_TRUE(a.IsBefore(b));
+  TEST_ASSERT_TRUE(b.IsAfter(a));
+  TEST_ASSERT_FALSE(a.IsAfter(b));
+  TEST_ASSERT_FALSE(b.IsBefore(a));
+  TEST_ASSERT_TRUE(a == a);
+  TEST_ASSERT_TRUE(a != b);
+  TEST_ASSERT_FALSE(a == b);
+  TEST_ASSERT_FALSE(a != a);
 }
 
 }  // namespace ae::test_ring_buffer

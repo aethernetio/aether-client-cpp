@@ -24,14 +24,15 @@
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
+#include "aether/stream_api/safe_stream/safe_stream_config.h"
 #include "aether/stream_api/safe_stream/receiving_chunk_list.h"
 
 namespace ae {
-class ISendConfirmRepeat {
+class ISendAckRepeat {
  public:
-  virtual ~ISendConfirmRepeat() = default;
+  virtual ~ISendAckRepeat() = default;
 
-  virtual void SendConfirm(SSRingIndex offset) = 0;
+  virtual void SendAck(SSRingIndex offset) = 0;
   virtual void SendRepeatRequest(SSRingIndex offset) = 0;
 };
 
@@ -40,40 +41,41 @@ class SafeStreamRecvAction : public Action<SafeStreamRecvAction> {
   using ReceiveEvent = Event<void(DataBuffer&& data)>;
 
   SafeStreamRecvAction(ActionContext action_context,
-                       ISendConfirmRepeat& send_confirm_repeat);
+                       ISendAckRepeat& send_confirm_repeat,
+                       SafeStreamConfig const& config);
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamRecvAction)
 
   ActionResult Update(TimePoint current_time);
 
-  void PushData(DataBuffer&& data, SSRingIndex received_offset,
-                std::uint16_t repeat_count);
-
-  void SetOffset(SSRingIndex offset);
-  void SetConfig(SSRingIndex::type window_size, Duration send_confirm_timeout,
-                 Duration send_repeat_timeout);
+  void PushData(SSRingIndex begin, DataMessage data_message);
 
   ReceiveEvent::Subscriber receive_event();
 
  private:
-  void ChecklCompletedChains();
-  TimePoint CheckConfirmations(TimePoint current_time);
-  TimePoint CheckMissing(TimePoint current_time);
-  void SendConfirmation(SSRingIndex offset);
+  void HandleData(SSRingIndex received_offset, std::uint8_t repeat_count,
+                  DataBuffer&& data);
+
+  void CheckCompletedChains();
+  ActionResult CheckAcknowledgement(TimePoint current_time);
+  ActionResult CheckMissing(TimePoint current_time);
+  void SendAcknowledgement(SSRingIndex offset);
   void SendRequestRepeat(SSRingIndex offset);
 
-  ISendConfirmRepeat* send_confirm_repeat_;
+  ISendAckRepeat* send_confirm_repeat_;
 
-  SSRingIndex begin_;         //< last data offset confirmed
-  SSRingIndex last_emitted_;  //< last data offset emitted
+  std::optional<SSRingIndex> session_start_;  //< current session start offset
+  std::optional<SSRingIndex> begin_;          //< last data offset confirmed
+  SSRingIndex last_emitted_;                  //< last data offset emitted
   ReceiveChunkList chunks_;
 
-  SSRingIndex::type window_size_;
-  Duration send_confirm_timeout_;
+  Duration send_ack_timeout_;
   Duration send_repeat_timeout_;
+  SSRingIndex::type window_size_;
 
-  std::optional<TimePoint> sent_confirm_;
-  std::optional<TimePoint> repeat_request_;
+  std::optional<TimePoint> sent_ack_time_;
+  std::optional<TimePoint> repeat_request_time_;
+  bool acknowledgement_req_;
 
   ReceiveEvent receive_event_;
 };

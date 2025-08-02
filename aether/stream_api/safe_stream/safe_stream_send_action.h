@@ -23,6 +23,7 @@
 #include "aether/stream_api/stream_write_action.h"
 #include "aether/stream_api/safe_stream/send_data_buffer.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
+#include "aether/stream_api/safe_stream/safe_stream_config.h"
 #include "aether/stream_api/safe_stream/sending_chunk_list.h"
 
 namespace ae {
@@ -30,44 +31,46 @@ class ISendDataPush {
  public:
   virtual ~ISendDataPush() = default;
   virtual ActionView<StreamWriteAction> PushData(
-      DataChunk &&data_chunk, std::uint16_t repeat_count) = 0;
+      SSRingIndex begin, DataMessage &&data_message) = 0;
 };
 
 class SafeStreamSendAction : public Action<SafeStreamSendAction> {
  public:
   SafeStreamSendAction(ActionContext action_context,
-                       ISendDataPush &send_data_push);
+                       ISendDataPush &send_data_push,
+                       SafeStreamConfig const &config);
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamSendAction)
 
   ActionResult Update(TimePoint current_time);
 
-  bool Confirm(SSRingIndex confirm_offset);
+  bool Acknowledge(SSRingIndex confirm_offset);
   void RequestRepeat(SSRingIndex request_offset);
 
-  void SetOffset(SSRingIndex begin_offset);
-  void SetConfig(std::uint16_t max_repeat_count_, std::size_t max_packet_size,
-                 SSRingIndex::type window_size, Duration wait_confirm_timeout);
+  void SetMaxPayload(std::size_t max_payload_size);
+
   ActionView<SendingDataAction> SendData(DataBuffer &&data);
 
  private:
-  void SendChunk();
+  void SendChunk(TimePoint current_time);
   void Send(std::uint16_t repeat_count, DataChunk &&data_chunk,
             TimePoint current_time);
   void RejectSend(SendingChunk &sending_chunk);
-  TimePoint SendTimeouts(TimePoint current_time);
+  ActionResult SendTimeouts(TimePoint current_time);
 
-  ActionView<StreamWriteAction> PushData(DataChunk &&data_chunk,
-                                         std::uint16_t repeat_count);
+  ActionView<StreamWriteAction> PushData(DataBuffer &&data_buffer,
+                                         SSRingIndex::type delta,
+                                         std::uint8_t repeat_count);
 
   ISendDataPush *send_data_push_;
 
   SSRingIndex begin_;       //< begin data offset
   SSRingIndex last_sent_;   //< last offset for last sent data
   SSRingIndex last_added_;  //< last offset for last sent data
+  bool init_state_;
 
-  std::uint16_t max_repeat_count_;
-  SSRingIndex::type max_packet_size_;
+  std::uint8_t max_repeat_count_;
+  SSRingIndex::type max_payload_size_;
   SSRingIndex::type window_size_;
   Duration wait_confirm_timeout_;
 

@@ -22,75 +22,80 @@
 namespace ae {
 
 SendingChunk& SendingChunkList::Register(SSRingIndex begin, SSRingIndex end,
-                                         TimePoint send_time,
-                                         SSRingIndex ring_begin) {
-  auto offset_range = OffsetRange{begin, end, ring_begin};
+                                         TimePoint send_time) {
+  auto offset_range = OffsetRange{begin, end};
 
-  auto it = std::find_if(
-      std::begin(chunks_), std::end(chunks_),
-      [&](auto const& sch) { return offset_range.InRange(sch.begin_offset); });
+  // find the chunk with the same or overlapped offset
+  // and if there is no one emplace it at the end of list
+  auto it = std::find_if(std::begin(chunks_), std::end(chunks_),
+                         [&](auto const& sch) {
+                           return offset_range.InRange(sch.offset_range.left);
+                         });
 
   if (it == std::end(chunks_)) {
-    auto& ref = chunks_.emplace_back(
-        SendingChunk{begin, end, std::uint16_t{}, send_time});
+    auto& ref = chunks_.emplace_back(SendingChunk{{begin, end}, {}, send_time});
     return ref;
   }
 
-  auto& sch = *it;
-  if ((offset_range.left(ring_begin) == sch.begin_offset) &&
-      (offset_range.right(ring_begin) == sch.end_offset)) {
+  // there is a chunk with the same or overlapped offset
+  // if it's the same chunk, move it to the end
+  if ((offset_range == it->offset_range)) {
     // move it to the end
+    auto sch = *it;
     sch.send_time = send_time;
-    chunks_.splice(std::end(chunks_), chunks_, it);
+    chunks_.erase(it);
+    chunks_.emplace_back(sch);
     return chunks_.back();
   }
 
-  auto& new_sch = chunks_.emplace_back(
-      SendingChunk{begin, end, sch.repeat_count, send_time});
+  // !the worst case
+  // chunk's offsets is overlapped
+  // create a new chunk at the end of list and merge to it all the chunks with
+  // overlapping offsets
+  auto new_sch = SendingChunk{{begin, end}, it->repeat_count, send_time};
 
   // modify any overlapping chunks
-  chunks_.remove_if([&](auto& chunk) {
-    if (&chunk == &new_sch) {
-      return false;
-    }
-    if (offset_range.InRange(chunk.begin_offset)) {
-      new_sch.repeat_count = std::min(sch.repeat_count, chunk.repeat_count);
+  chunks_.erase(
+      std::remove_if(
+          std::begin(chunks_), std::end(chunks_),
+          [&](auto& chunk) {
+            if (offset_range.InRange(chunk.offset_range.left)) {
+              new_sch.repeat_count =
+                  std::min(new_sch.repeat_count, chunk.repeat_count);
 
-      if (offset_range.InRange(chunk.end_offset)) {
-        // remove this fully overlapped chunk
-        return true;
-      }
-      chunk.begin_offset = offset_range.right + 1;
-    } else if (offset_range.InRange(chunk.end_offset)) {
-      new_sch.repeat_count = std::min(sch.repeat_count, chunk.repeat_count);
-      chunk.end_offset = offset_range.left - 1;
-    }
-    return false;
-  });
+              if (offset_range.InRange(chunk.offset_range.right)) {
+                // remove this fully overlapped chunk
+                return true;
+              }
+              chunk.offset_range.left = offset_range.right + 1;
+            } else if (offset_range.InRange(chunk.offset_range.right)) {
+              new_sch.repeat_count =
+                  std::min(new_sch.repeat_count, chunk.repeat_count);
+              chunk.offset_range.right = offset_range.left - 1;
+            }
+            return false;
+          }),
+      std::end(chunks_));
 
-  return new_sch;
+  return chunks_.emplace_back(new_sch);
 }
 
-void SendingChunkList::MoveOffset(SSRingIndex::type distance) {
-  for (auto& chunk : chunks_) {
-    chunk.begin_offset += distance;
-    chunk.end_offset += distance;
-  }
-}
-
-void SendingChunkList::RemoveUpTo(SSRingIndex offset, SSRingIndex ring_begin) {
-  chunks_.remove_if([&](auto& sch) {
-    auto offset_range =
-        OffsetRange{sch.begin_offset, sch.end_offset, ring_begin};
-    if (offset_range.Before(offset)) {
-      return true;
-    }
-    if (offset_range.InRange(offset)) {
-      sch.begin_offset = offset + 1;
-      // if chunk is collapsed
-      return sch.begin_offset(ring_begin) >= sch.end_offset;
-    }
-    return false;
-  });
+void SendingChunkList::RemoveUpTo(SSRingIndex offset) {
+  chunks_.erase(
+      std::remove_if(
+          std::begin(chunks_), std::end(chunks_),
+          [&](auto& sch) {
+            if (sch.offset_range.IsBefore(offset)) {
+              return true;
+            }
+            if (sch.offset_range.InRange(offset)) {
+              sch.offset_range.left = offset;
+              // if chunk is collapsed
+              return sch.offset_range.left.IsAfter(sch.offset_range.right) ||
+                     (sch.offset_range.left == sch.offset_range.right);
+            }
+            return false;
+          }),
+      std::end(chunks_));
 }
 }  // namespace ae

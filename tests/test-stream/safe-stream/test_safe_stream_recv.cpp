@@ -53,7 +53,7 @@ constexpr auto window_config = SafeStreamConfig{
     std::chrono::milliseconds{80},
 };
 
-class MockSendConfirmRepeat final : public ISendConfirmRepeat {
+class MockSendConfirmRepeat final : public ISendAckRepeat {
  public:
   struct ConfirmData {
     SSRingIndex offset;
@@ -63,7 +63,7 @@ class MockSendConfirmRepeat final : public ISendConfirmRepeat {
     SSRingIndex offset;
   };
 
-  void SendConfirm(SSRingIndex offset) override {
+  void SendAck(SSRingIndex offset) override {
     confirm_data = ConfirmData{offset};
   }
 
@@ -111,8 +111,8 @@ static constexpr std::string_view bug_report =
     "Severity: critical to sanity.";
 
 // Helper function to create DataChunk
-static auto CreateDataChunk(std::string_view data, SSRingIndex offset) {
-  return DataChunk{ToDataBuffer(data), offset};
+static auto CreateDataMessage(std::string_view data, std::uint16_t offset) {
+  return DataMessage{0, false, offset, ToDataBuffer(data)};
 }
 
 void test_RecvActionCreateAndReceive() {
@@ -122,10 +122,7 @@ void test_RecvActionCreateAndReceive() {
   auto begin_offset = SSRingIndex{1337};
   auto mock_sender = MockSendConfirmRepeat{};
 
-  auto recv_action = SafeStreamRecvAction{ac, mock_sender};
-  recv_action.SetConfig(config.window_size, config.send_confirm_timeout,
-                        config.send_repeat_timeout);
-  recv_action.SetOffset(begin_offset);
+  auto recv_action = SafeStreamRecvAction{ac, mock_sender, config};
 
   // Track received data
   std::vector<DataBuffer> received_data;
@@ -134,9 +131,8 @@ void test_RecvActionCreateAndReceive() {
 
   auto start_time = Now();
 
-  // Send a single chunk using DataChunk structure
-  auto chunk = CreateDataChunk(quantum_data, begin_offset);
-  recv_action.PushData(DataBuffer{chunk.data}, chunk.offset, 0);
+  auto message = CreateDataMessage(quantum_data, 0);
+  recv_action.PushData(begin_offset, message);
   ap.Update(start_time);
 
   // Should immediately emit the data since it's the expected next chunk
@@ -154,7 +150,7 @@ void test_RecvActionCreateAndReceive() {
   // Should send confirmation after timeout
   TEST_ASSERT(mock_sender.confirm_data.has_value());
   auto expected_confirm_offset =
-      begin_offset + static_cast<SSRingIndex::type>(quantum_data.size() - 1);
+      begin_offset + static_cast<SSRingIndex::type>(quantum_data.size());
   TEST_ASSERT_EQUAL(
       static_cast<SSRingIndex::type>(expected_confirm_offset),
       static_cast<SSRingIndex::type>(mock_sender.confirm_data->offset));
@@ -167,35 +163,28 @@ void test_RecvActionInOrderDataChain() {
   auto begin_offset = SSRingIndex{2048};
   auto mock_sender = MockSendConfirmRepeat{};
 
-  auto recv_action = SafeStreamRecvAction{ac, mock_sender};
-  recv_action.SetConfig(config.window_size, config.send_confirm_timeout,
-                        config.send_repeat_timeout);
-  recv_action.SetOffset(begin_offset);
+  auto recv_action = SafeStreamRecvAction{ac, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
   auto recv_sub = recv_action.receive_event().Subscribe(
       [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
 
   // Create data chunks using DataChunk structure
-  auto chunk1 = CreateDataChunk(network_poetry, begin_offset);
-  auto chunk2 = CreateDataChunk(
-      dev_wisdom,
-      begin_offset + static_cast<SSRingIndex::type>(chunk1.data.size()));
-  auto chunk3 = CreateDataChunk(
-      async_philosophy,
-      begin_offset + static_cast<SSRingIndex::type>(chunk1.data.size() +
-                                                    chunk2.data.size()));
+  auto message1 = CreateDataMessage(network_poetry, 0);
+  auto message2 = CreateDataMessage(dev_wisdom, message1.data.size());
+  auto message3 = CreateDataMessage(
+      async_philosophy, message1.data.size() + message2.data.size());
 
   // Send chunks in order
-  recv_action.PushData(DataBuffer{chunk1.data}, chunk1.offset, 0);
+  recv_action.PushData(begin_offset, message1);
   ap.Update(Now());
   TEST_ASSERT_EQUAL(1, received_data.size());
 
-  recv_action.PushData(DataBuffer{chunk2.data}, chunk2.offset, 0);
+  recv_action.PushData(begin_offset, message2);
   ap.Update(Now());
   TEST_ASSERT_EQUAL(2, received_data.size());
 
-  recv_action.PushData(DataBuffer{chunk3.data}, chunk3.offset, 0);
+  recv_action.PushData(begin_offset, message3);
   ap.Update(Now());
   TEST_ASSERT_EQUAL(3, received_data.size());
 
@@ -215,35 +204,28 @@ void test_RecvActionOutOfOrderDataChain() {
   auto begin_offset = SSRingIndex{4096};
   auto mock_sender = MockSendConfirmRepeat{};
 
-  auto recv_action = SafeStreamRecvAction{ac, mock_sender};
-  recv_action.SetConfig(config.window_size, config.send_confirm_timeout,
-                        config.send_repeat_timeout);
-  recv_action.SetOffset(begin_offset);
+  auto recv_action = SafeStreamRecvAction{ac, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
   auto recv_sub = recv_action.receive_event().Subscribe(
       [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
 
   // Create data chunks using DataChunk structure
-  auto chunk1 = CreateDataChunk(protocol_haiku, begin_offset);
-  auto chunk2 = CreateDataChunk(
-      bug_report,
-      begin_offset + static_cast<SSRingIndex::type>(chunk1.data.size()));
-  auto chunk3 = CreateDataChunk(
-      quantum_data,
-      begin_offset + static_cast<SSRingIndex::type>(chunk1.data.size() +
-                                                    chunk2.data.size()));
+  auto message1 = CreateDataMessage(protocol_haiku, 0);
+  auto message2 = CreateDataMessage(bug_report, message1.data.size());
+  auto message3 = CreateDataMessage(
+      quantum_data, message1.data.size() + message2.data.size());
 
   // Send chunks out of order: 1, 3, 2
-  recv_action.PushData(DataBuffer{chunk1.data}, chunk1.offset, 0);
+  recv_action.PushData(begin_offset, message1);
   ap.Update(Now());
   TEST_ASSERT_EQUAL(1, received_data.size());  // Chunk 1 emitted immediately
 
-  recv_action.PushData(DataBuffer{chunk3.data}, chunk3.offset, 0);
+  recv_action.PushData(begin_offset, message3);
   ap.Update(Now());
   TEST_ASSERT_EQUAL(1, received_data.size());  // Chunk 3 buffered (gap exists)
 
-  recv_action.PushData(DataBuffer{chunk2.data}, chunk2.offset, 0);
+  recv_action.PushData(begin_offset, message2);
   ap.Update(Now());
   TEST_ASSERT_EQUAL(
       2, received_data.size());  // Chunks 2+3 emitted as single combined data
@@ -274,10 +256,7 @@ void test_RecvActionSendConfirmOnTimeout() {
   auto begin_offset = SSRingIndex{5555};
   auto mock_sender = MockSendConfirmRepeat{};
 
-  auto recv_action = SafeStreamRecvAction{ac, mock_sender};
-  recv_action.SetConfig(config.window_size, config.send_confirm_timeout,
-                        config.send_repeat_timeout);
-  recv_action.SetOffset(begin_offset);
+  auto recv_action = SafeStreamRecvAction{ac, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
   auto recv_sub = recv_action.receive_event().Subscribe(
@@ -286,8 +265,8 @@ void test_RecvActionSendConfirmOnTimeout() {
   auto start_time = Now();
 
   // Send some data using DataChunk
-  auto chunk = CreateDataChunk(network_poetry, begin_offset);
-  recv_action.PushData(DataBuffer{chunk.data}, chunk.offset, 0);
+  auto message = CreateDataMessage(network_poetry, 0);
+  recv_action.PushData(begin_offset, message);
   ap.Update(start_time);
 
   // Data should be emitted
@@ -303,7 +282,7 @@ void test_RecvActionSendConfirmOnTimeout() {
   // Should send confirmation after timeout
   TEST_ASSERT(mock_sender.confirm_data.has_value());
   auto expected_confirm_offset =
-      begin_offset + static_cast<SSRingIndex::type>(network_poetry.size() - 1);
+      begin_offset + static_cast<SSRingIndex::type>(network_poetry.size());
   TEST_ASSERT_EQUAL(
       static_cast<SSRingIndex::type>(expected_confirm_offset),
       static_cast<SSRingIndex::type>(mock_sender.confirm_data->offset));
@@ -316,33 +295,27 @@ void test_RecvActionRequestRepeatOnMissing() {
   auto begin_offset = SSRingIndex{6789};
   auto mock_sender = MockSendConfirmRepeat{};
 
-  auto recv_action = SafeStreamRecvAction{ac, mock_sender};
-  recv_action.SetConfig(config.window_size, config.send_confirm_timeout,
-                        config.send_repeat_timeout);
-  recv_action.SetOffset(begin_offset);
+  auto recv_action = SafeStreamRecvAction{ac, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
   auto recv_sub = recv_action.receive_event().Subscribe(
       [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
 
   // Create chunks with a gap
-  auto chunk1 = CreateDataChunk(dev_wisdom, begin_offset);
-  auto missing_chunk2_offset =
-      begin_offset + static_cast<SSRingIndex::type>(chunk1.data.size());
-  auto chunk3 =
-      CreateDataChunk(async_philosophy,
-                      missing_chunk2_offset +
-                          static_cast<SSRingIndex::type>(100));  // Skip chunk 2
+  auto message1 = CreateDataMessage(dev_wisdom, 0);
+  auto message3 =
+      CreateDataMessage(async_philosophy,
+                        message1.data.size() + 100);  // Skip chunk 2
 
   auto start_time = Now();
 
   // Send chunk 1 (will be emitted immediately)
-  recv_action.PushData(DataBuffer{chunk1.data}, chunk1.offset, 0);
+  recv_action.PushData(begin_offset, message1);
   ap.Update(start_time);
   TEST_ASSERT_EQUAL(1, received_data.size());
 
   // Send chunk 3 (will be buffered due to gap)
-  recv_action.PushData(DataBuffer{chunk3.data}, chunk3.offset, 0);
+  recv_action.PushData(begin_offset, message3);
   ap.Update(start_time);
   TEST_ASSERT_EQUAL(1, received_data.size());  // Still only chunk 1 emitted
 
@@ -356,7 +329,7 @@ void test_RecvActionRequestRepeatOnMissing() {
   // Should request repeat for missing chunk 2
   TEST_ASSERT(mock_sender.repeat_request_data.has_value());
   TEST_ASSERT_EQUAL(
-      static_cast<SSRingIndex::type>(missing_chunk2_offset),
+      static_cast<SSRingIndex::type>(begin_offset + message1.data.size()),
       static_cast<SSRingIndex::type>(mock_sender.repeat_request_data->offset));
 }
 
@@ -367,28 +340,29 @@ void test_RecvActionDuplicateDataHandling() {
   auto begin_offset = SSRingIndex{8192};
   auto mock_sender = MockSendConfirmRepeat{};
 
-  auto recv_action = SafeStreamRecvAction{ac, mock_sender};
-  recv_action.SetConfig(config.window_size, config.send_confirm_timeout,
-                        config.send_repeat_timeout);
-  recv_action.SetOffset(begin_offset);
+  auto recv_action = SafeStreamRecvAction{ac, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
   auto recv_sub = recv_action.receive_event().Subscribe(
       [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
 
-  auto chunk = CreateDataChunk(protocol_haiku, begin_offset);
+  auto message = CreateDataMessage(protocol_haiku, 0);
+
+  auto start_time = Now();
 
   // Send original data
-  recv_action.PushData(DataBuffer{chunk.data}, chunk.offset, 0);
-  ap.Update(Now());
+  recv_action.PushData(begin_offset, message);
+  ap.Update(start_time);
   TEST_ASSERT_EQUAL(1, received_data.size());
 
   // Reset mock to check for immediate confirmation
   mock_sender.Reset();
 
   // Send duplicate with higher repeat count
-  recv_action.PushData(DataBuffer{chunk.data}, chunk.offset, 1);
-  ap.Update(Now());
+  message.control.repeat_count += 1;
+  recv_action.PushData(begin_offset, message);
+  auto timeout_time = start_time + config.send_confirm_timeout + kTick;
+  ap.Update(timeout_time);
 
   // Should still have only 1 emitted data (no duplicate emission)
   TEST_ASSERT_EQUAL(1, received_data.size());
@@ -396,7 +370,7 @@ void test_RecvActionDuplicateDataHandling() {
   // Should send immediate confirmation for duplicate
   TEST_ASSERT(mock_sender.confirm_data.has_value());
   auto expected_confirm_offset =
-      begin_offset + static_cast<SSRingIndex::type>(protocol_haiku.size() - 1);
+      begin_offset + static_cast<SSRingIndex::type>(protocol_haiku.size());
   TEST_ASSERT_EQUAL(
       static_cast<SSRingIndex::type>(expected_confirm_offset),
       static_cast<SSRingIndex::type>(mock_sender.confirm_data->offset));
@@ -409,29 +383,22 @@ void test_RecvActionInOrderCombinedDataChain() {
   auto begin_offset = SSRingIndex{3141};
   auto mock_sender = MockSendConfirmRepeat{};
 
-  auto recv_action = SafeStreamRecvAction{ac, mock_sender};
-  recv_action.SetConfig(config.window_size, config.send_confirm_timeout,
-                        config.send_repeat_timeout);
-  recv_action.SetOffset(begin_offset);
+  auto recv_action = SafeStreamRecvAction{ac, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
   auto recv_sub = recv_action.receive_event().Subscribe(
       [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
 
   // Create multiple small contiguous chunks that should be combined
-  auto chunk1 = CreateDataChunk("Part1:", begin_offset);
-  auto chunk2 = CreateDataChunk(
-      "Part2:",
-      begin_offset + static_cast<SSRingIndex::type>(chunk1.data.size()));
-  auto chunk3 = CreateDataChunk(
-      "Part3-Final",
-      begin_offset + static_cast<SSRingIndex::type>(chunk1.data.size() +
-                                                    chunk2.data.size()));
+  auto message1 = CreateDataMessage("Part1:", 0);
+  auto message2 = CreateDataMessage("Part2:", message1.data.size());
+  auto message3 = CreateDataMessage(
+      "Part3-Final", message1.data.size() + message2.data.size());
 
   // Send all chunks rapidly - they should be combined into single emission
-  recv_action.PushData(DataBuffer{chunk1.data}, chunk1.offset, 0);
-  recv_action.PushData(DataBuffer{chunk2.data}, chunk2.offset, 0);
-  recv_action.PushData(DataBuffer{chunk3.data}, chunk3.offset, 0);
+  recv_action.PushData(begin_offset, message1);
+  recv_action.PushData(begin_offset, message2);
+  recv_action.PushData(begin_offset, message3);
   ap.Update(Now());
 
   // Should emit all data as single combined chunk
@@ -439,7 +406,7 @@ void test_RecvActionInOrderCombinedDataChain() {
 
   // Verify combined data contains all parts
   auto expected_combined_size =
-      chunk1.data.size() + chunk2.data.size() + chunk3.data.size();
+      message1.data.size() + message2.data.size() + message3.data.size();
   TEST_ASSERT_EQUAL(expected_combined_size, received_data[0].size());
 
   // Verify content starts with first chunk
@@ -457,92 +424,36 @@ void test_RecvActionWindowSizeLimit() {
   auto begin_offset = SSRingIndex{7777};
   auto mock_sender = MockSendConfirmRepeat{};
 
-  auto recv_action = SafeStreamRecvAction{ac, mock_sender};
-  recv_action.SetConfig(window_config.window_size,
-                        window_config.send_confirm_timeout,
-                        window_config.send_repeat_timeout);
-  recv_action.SetOffset(begin_offset);
+  auto recv_action = SafeStreamRecvAction{ac, mock_sender, config};
 
   std::vector<DataBuffer> received_data;
   auto recv_sub = recv_action.receive_event().Subscribe(
       [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
 
   // Send first chunk
-  auto first_chunk = CreateDataChunk("First chunk: ", begin_offset);
-  recv_action.PushData(DataBuffer{first_chunk.data}, first_chunk.offset, 0);
+  auto message1 = CreateDataMessage("First chunk: ", 0);
+  recv_action.PushData(begin_offset, message1);
   ap.Update(Now());
   TEST_ASSERT_EQUAL(1, received_data.size());  // First chunk emitted
 
   // Create second chunk that fits within window (contiguous)
-  auto second_chunk = CreateDataChunk(
-      bug_report,
-      begin_offset + static_cast<SSRingIndex::type>(first_chunk.data.size()));
+  auto message2 = CreateDataMessage(bug_report, message1.data.size());
 
   // Create data that exceeds window size (window_size = 512)
-  auto invalid_chunk = CreateDataChunk(
-      quantum_data, begin_offset + static_cast<SSRingIndex::type>(600));
+  auto invalid_message3 = CreateDataMessage(quantum_data, 600);
 
   // Send valid second chunk (within window and contiguous)
-  recv_action.PushData(DataBuffer{second_chunk.data}, second_chunk.offset, 0);
+  recv_action.PushData(begin_offset, message2);
   ap.Update(Now());
   TEST_ASSERT_EQUAL(2, received_data.size());  // Second chunk emitted
 
   // Send invalid data (outside window) - should be rejected
-  recv_action.PushData(DataBuffer{invalid_chunk.data}, invalid_chunk.offset, 0);
+  recv_action.PushData(begin_offset, invalid_message3);
   ap.Update(Now());
 
   // Should still have only 2 emitted chunks (invalid data rejected)
   TEST_ASSERT_EQUAL(2, received_data.size());
 }
-
-void test_RecvActionSetOffsetAndConfig() {
-  auto ap = ActionProcessor{};
-  auto ac = ActionContext{ap};
-
-  auto initial_offset = SSRingIndex{9876};
-  auto mock_sender = MockSendConfirmRepeat{};
-
-  auto recv_action = SafeStreamRecvAction{ac, mock_sender};
-  recv_action.SetConfig(config.window_size, config.send_confirm_timeout,
-                        config.send_repeat_timeout);
-  recv_action.SetOffset(initial_offset);
-
-  std::vector<DataBuffer> received_data;
-  auto recv_sub = recv_action.receive_event().Subscribe(
-      [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
-
-  // Add some data to buffer using DataChunk
-  auto buffered_chunk = CreateDataChunk(
-      network_poetry, initial_offset + static_cast<SSRingIndex::type>(100));
-  recv_action.PushData(DataBuffer{buffered_chunk.data}, buffered_chunk.offset,
-                       0);
-  ap.Update(Now());
-  TEST_ASSERT_EQUAL(0, received_data.size());  // Buffered (out of order)
-
-  // Reset offset - should clear all buffered data
-  auto new_offset = SSRingIndex{12345};
-  recv_action.SetOffset(new_offset);
-
-  // Send new data at new offset using DataChunk
-  auto new_chunk = CreateDataChunk(dev_wisdom, new_offset);
-  recv_action.PushData(DataBuffer{new_chunk.data}, new_chunk.offset, 0);
-  ap.Update(Now());
-
-  // Should emit new data immediately (old buffered data cleared)
-  TEST_ASSERT_EQUAL(1, received_data.size());
-  TEST_ASSERT_EQUAL_STRING_LEN(dev_wisdom.data(), received_data[0].data(),
-                               dev_wisdom.size());
-
-  // Test config changes
-  auto new_confirm_timeout = std::chrono::milliseconds{100};
-  recv_action.SetConfig(config.window_size, new_confirm_timeout,
-                        config.send_repeat_timeout);
-
-  // The new config should take effect for future operations
-  // (This is primarily testing that SetConfig doesn't crash and accepts new
-  // values)
-}
-
 }  // namespace ae::test_safe_stream_recv
 
 int test_safe_stream_recv() {
@@ -555,6 +466,5 @@ int test_safe_stream_recv() {
   RUN_TEST(ae::test_safe_stream_recv::test_RecvActionRequestRepeatOnMissing);
   RUN_TEST(ae::test_safe_stream_recv::test_RecvActionDuplicateDataHandling);
   RUN_TEST(ae::test_safe_stream_recv::test_RecvActionWindowSizeLimit);
-  RUN_TEST(ae::test_safe_stream_recv::test_RecvActionSetOffsetAndConfig);
   return UNITY_END();
 }

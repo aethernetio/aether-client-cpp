@@ -17,7 +17,7 @@
 #ifndef AETHER_ACTIONS_ACTION_VIEW_H_
 #define AETHER_ACTIONS_ACTION_VIEW_H_
 
-#include "aether/actions/action.h"
+#include "aether/actions/action.h"  // IWYU pragma: keep
 #include "aether/actions/action_registry.h"
 
 namespace ae {
