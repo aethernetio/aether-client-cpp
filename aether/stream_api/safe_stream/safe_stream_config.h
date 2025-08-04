@@ -28,8 +28,8 @@ struct SafeStreamConfig {
   SSRingIndex::type window_size;      //< size of sending window
   SSRingIndex::type max_packet_size;  //< max size of sending data
   std::uint8_t max_repeat_count;      //< max repeat count for sending packet
-  Duration wait_confirm_timeout;      //< Timeout for waiting confirmation
-  Duration send_confirm_timeout;  //< max time to wait before send confirmation
+  Duration wait_ack_timeout;          //< Timeout for waiting ack
+  Duration send_ack_timeout;          //< max time to wait before send ack
   Duration send_repeat_timeout;  //< max time to wait before send repeat request
 };
 

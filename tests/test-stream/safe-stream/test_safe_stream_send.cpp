@@ -180,7 +180,7 @@ void test_SendActionRepeatOnTimeout() {
 
   // Wait for timeout and trigger repeat - need two updates: one to detect
   // timeout, one to send
-  auto timeout_time = start_time + config.wait_confirm_timeout + kTick;
+  auto timeout_time = start_time + config.wait_ack_timeout + kTick;
   ap.Update(timeout_time);
   ap.Update(timeout_time + kTick);
 
@@ -228,7 +228,7 @@ void test_SendActionErrorOnMaxRepeatExceeded() {
 
   // Helper lambda for timeout calculation with exponential backoff
   auto wait_confirm_timeout = [&](int repeat_count) {
-    auto base_timeout = config.wait_confirm_timeout.count();
+    auto base_timeout = config.wait_ack_timeout.count();
     auto factor = (repeat_count > 0)
                       ? (AE_SAFE_STREAM_RTO_GROW_FACTOR * repeat_count)
                       : 1.0;
