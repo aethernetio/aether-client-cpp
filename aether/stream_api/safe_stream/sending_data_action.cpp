@@ -42,13 +42,13 @@ ActionResult SendingDataAction::Update() {
   return {};
 }
 
-SendingData& SendingDataAction::sending_data() { return sending_data_; }
+SendingData const& SendingDataAction::sending_data() const {
+  return sending_data_;
+}
 
 EventSubscriber<void(SendingData const&)> SendingDataAction::stop_event() {
   return EventSubscriber{stop_event_};
 }
-
-void SendingDataAction::Sending() { state_ = State::kSending; }
 
 void SendingDataAction::Stop() {
   if (state_ == State::kSending) {
@@ -58,8 +58,27 @@ void SendingDataAction::Stop() {
   stop_event_.Emit(sending_data_);
 }
 
-void SendingDataAction::SentConfirmed() {
-  state_ = State::kDone;
+bool SendingDataAction::Acknowledge(SSRingIndex offset) {
+  assert(sending_data_.offset.IsBefore(offset));
+
+  auto distance = sending_data_.offset.Distance(offset);
+  auto size = sending_data_.end - sending_data_.begin;
+
+  sending_data_.begin =
+      size > distance ? sending_data_.begin + distance : sending_data_.end;
+
+  if (sending_data_.begin == sending_data_.end) {
+    state_ = State::kDone;
+    Action::Trigger();
+    return true;
+  }
+  sending_data_.offset = offset;
+
+  return false;
+}
+
+void SendingDataAction::Sending() {
+  state_ = State::kSending;
   Action::Trigger();
 }
 
@@ -71,5 +90,10 @@ void SendingDataAction::Stopped() {
 void SendingDataAction::Failed() {
   state_ = State::kFailed;
   Action::Trigger();
+}
+
+SSRingIndex SendingDataAction::UpdateOffset(SSRingIndex offset) {
+  std::swap(sending_data_.offset, offset);
+  return offset;
 }
 }  // namespace ae

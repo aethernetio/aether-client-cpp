@@ -20,31 +20,20 @@ namespace ae {
 ActionTrigger::ActionTrigger() : sync_object_{MakeRcPtr<SyncObject>()} {}
 
 void ActionTrigger::Wait() {
-  bool res = true;
-  sync_object_->triggered.compare_exchange_strong(res, false);
-  if (res) {
+  if (IsTriggered()) {
     return;
   }
   std::unique_lock<std::mutex> lock(sync_object_->mutex);
-  sync_object_->condition.wait(lock, [&]() {
-    sync_object_->triggered.compare_exchange_strong(res, false);
-    return res;
-  });
-  sync_object_->triggered = false;
+  sync_object_->condition.wait(lock, [&]() { return IsTriggered(); });
 }
 
 bool ActionTrigger::WaitUntil(TimePoint timeout) {
-  bool res = true;
-  sync_object_->triggered.compare_exchange_strong(res, false);
-  if (res) {
+  if (IsTriggered()) {
     return true;
   }
   std::unique_lock<std::mutex> lock(sync_object_->mutex);
-  auto result = sync_object_->condition.wait_until(lock, timeout, [&]() {
-    sync_object_->triggered.compare_exchange_strong(res, false);
-    return res;
-  });
-  sync_object_->triggered = false;
+  auto result = sync_object_->condition.wait_until(
+      lock, timeout, [&]() { return IsTriggered(); });
   return result;
 }
 
@@ -52,6 +41,12 @@ void ActionTrigger::Trigger() {
   std::lock_guard lock(sync_object_->mutex);
   sync_object_->triggered = true;
   sync_object_->condition.notify_all();
+}
+
+bool ActionTrigger::IsTriggered() const {
+  bool res = true;
+  sync_object_->triggered.compare_exchange_strong(res, false);
+  return res;
 }
 
 void Merge(ActionTrigger& left, ActionTrigger& right) {

@@ -60,7 +60,7 @@ class RepeatableTask : public Action<RepeatableTask> {
   int max_repeat_count_;
 
   StateMachine<State> state_;
-  TimePoint last_execution_time_;
+  TimePoint next_execution_time_;
   int current_repeat_;
 };
 }  // namespace ae
