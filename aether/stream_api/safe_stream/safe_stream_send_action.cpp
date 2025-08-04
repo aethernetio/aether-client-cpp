@@ -48,8 +48,10 @@ SafeStreamSendAction::SafeStreamSendAction(ActionContext action_context,
       max_repeat_count_{config.max_repeat_count},
       max_payload_size_{0},
       window_size_{config.window_size},
-      wait_confirm_timeout_{config.wait_confirm_timeout},
-      send_data_buffer_{action_context} {}
+      send_data_buffer_{action_context} {
+  // add wait ack timeout as base value for response statistics
+  response_statistics_.Add(config.wait_ack_timeout);
+}
 
 ActionResult SafeStreamSendAction::Update(TimePoint current_time) {
   SendChunk(current_time);
@@ -62,6 +64,14 @@ bool SafeStreamSendAction::Acknowledge(SSRingIndex confirm_offset) {
     return false;
   }
   init_state_ = false;
+
+  if (!sending_chunks_.empty()) {
+    auto response_duration = std::chrono::duration_cast<Duration>(
+        Now() - sending_chunks_.front().send_time);
+    AE_TELED_DEBUG("Response duration is {:%S}", response_duration);
+    response_statistics_.Add(response_duration);
+  }
+
   sending_chunks_.RemoveUpTo(confirm_offset);
   send_data_buffer_.Acknowledge(confirm_offset);
   begin_ = confirm_offset;
@@ -164,18 +174,18 @@ ActionResult SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
   }
 
   auto const& selected_sch = sending_chunks_.front();
-  // wait timeout is depends on repeat_count
-  auto d_wait_confirm_timeout =
-      static_cast<double>(wait_confirm_timeout_.count());
+  // wait timeout is depends on repeat_count and response statistics
+  auto wait_ack_timeout =
+      static_cast<double>(response_statistics_.percentile<99>().count());
   auto increase_factor = std::max(
       1.0, (AE_SAFE_STREAM_RTO_GROW_FACTOR * (selected_sch.repeat_count - 1)));
-  auto wait_timeout = Duration{
-      static_cast<Duration::rep>(d_wait_confirm_timeout * increase_factor)};
+  auto wait_timeout =
+      Duration{static_cast<Duration::rep>(wait_ack_timeout * increase_factor)};
 
   auto wait_time = selected_sch.send_time + wait_timeout;
   if (wait_time <= current_time) {
     // timeout
-    AE_TELED_DEBUG("Wait confirm timeout {:%S}, repeat offset {}", wait_timeout,
+    AE_TELED_DEBUG("Wait ack timeout {:%S}, repeat offset {}", wait_timeout,
                    selected_sch.offset_range.left);
     // move offset to repeat send
     last_sent_ = selected_sch.offset_range.left;

@@ -18,8 +18,10 @@
 #define AETHER_STREAM_API_SAFE_STREAM_SAFE_STREAM_SEND_ACTION_H_
 
 #include "aether/common.h"
+#include "aether/config.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
+#include "aether/types/statistic_counter.h"
 #include "aether/stream_api/stream_write_action.h"
 #include "aether/stream_api/safe_stream/send_data_buffer.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
@@ -36,6 +38,9 @@ class ISendDataPush {
 
 class SafeStreamSendAction : public Action<SafeStreamSendAction> {
  public:
+  using ResponseStatistics =
+      StatisticsCounter<Duration, AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE>;
+
   SafeStreamSendAction(ActionContext action_context,
                        ISendDataPush &send_data_push,
                        SafeStreamConfig const &config);
@@ -72,13 +77,13 @@ class SafeStreamSendAction : public Action<SafeStreamSendAction> {
   std::uint8_t max_repeat_count_;
   SSRingIndex::type max_payload_size_;
   SSRingIndex::type window_size_;
-  Duration wait_confirm_timeout_;
 
   SendDataBuffer send_data_buffer_;
   SendingChunkList sending_chunks_;
 
   MultiSubscription sending_data_subs_;
   MultiSubscription send_subs_;
+  ResponseStatistics response_statistics_;
 };
 }  // namespace ae
 
