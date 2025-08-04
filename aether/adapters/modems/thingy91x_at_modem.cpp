@@ -117,10 +117,11 @@ void Thingy91xAtModem::Stop() {
   }
 }
 
-void Thingy91xAtModem::OpenNetwork(std::uint8_t context_index,
-                                   std::uint8_t connect_index,
-                                   ae::Protocol protocol, std::string host,
-                                   std::uint16_t port) {
+void Thingy91xAtModem::OpenNetwork(std::uint8_t const context_index,
+                                   std::uint8_t const connect_index,
+                                   ae::Protocol const protocol,
+                                   std::string const host,
+                                   std::uint16_t const port) {
   std::string context_i_str = std::to_string(context_index);
   std::string connect_i_str = std::to_string(connect_index + 1);
   std::string protocol_str;
@@ -132,10 +133,10 @@ void Thingy91xAtModem::OpenNetwork(std::uint8_t context_index,
 
   switch (protocol) {
     case ae::Protocol::kTcp:
-      protocol_str = "6";
+      protocol_str = "1";
       break;
     case ae::Protocol::kUdp:
-      protocol_str = "17";
+      protocol_str = "2";
       break;
     default:
       err = kModemError::kOpenConnection;
@@ -145,9 +146,13 @@ void Thingy91xAtModem::OpenNetwork(std::uint8_t context_index,
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
-      sendATCommand("AT#XSOCKET=1,2,1");  // Create socket
-      err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
+      if (protocol_ == ae::Protocol::kTcp) {
+        //
+      } else if (protocol_ == ae::Protocol::kUdp) {
+        // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
+        sendATCommand("AT#XSOCKET=1," + protocol_str + ",0");  // Create socket
+        err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
+      }
     }
   } else {
     err = kModemError::kSerialPortError;
@@ -158,16 +163,20 @@ void Thingy91xAtModem::OpenNetwork(std::uint8_t context_index,
   }
 }
 
-void Thingy91xAtModem::CloseNetwork(std::uint8_t context_index,
-                                    std::uint8_t connect_index) {
+void Thingy91xAtModem::CloseNetwork(std::uint8_t const context_index,
+                                    std::uint8_t const connect_index) {
   std::string context_i_str = std::to_string(context_index);
   std::string connect_i_str = std::to_string(connect_index + 1);
   kModemError err{kModemError::kNoError};
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      sendATCommand("AT#XSOCKET=0," + connect_i_str);  // Close socket
-      err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
+      if (protocol_ == ae::Protocol::kTcp) {
+        //
+      } else if (protocol_ == ae::Protocol::kUdp) {
+        sendATCommand("AT#XSOCKET=0");  // Close socket
+        err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
+      }
     }
   } else {
     err = kModemError::kSerialPortError;
@@ -178,7 +187,7 @@ void Thingy91xAtModem::CloseNetwork(std::uint8_t context_index,
   }
 }
 
-void Thingy91xAtModem::WritePacket(std::uint8_t connect_index,
+void Thingy91xAtModem::WritePacket(std::uint8_t const connect_index,
                                    std::vector<std::uint8_t> const& data) {
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
@@ -188,9 +197,9 @@ void Thingy91xAtModem::WritePacket(std::uint8_t connect_index,
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
       if (protocol_ == ae::Protocol::kTcp) {
+        // #XSEND[=<data>]
       } else if (protocol_ == ae::Protocol::kUdp) {
-        // AT#XSENDTO="172.27.131.100",15683,5,"Dummy"
-        // Send TCP/UDP data 0.
+        // #XSENDTO=<url>,<port>[,<data>]
         std::string data_string(data.begin(), data.end());
         sendATCommand("AT#XSENDTO=\"" + host_ + "\"," + std::to_string(port_) +
                       ",\"" + data_string + "\"");
@@ -207,18 +216,21 @@ void Thingy91xAtModem::WritePacket(std::uint8_t connect_index,
   }
 }
 
-void Thingy91xAtModem::ReadPacket(std::uint8_t connect_index,
+void Thingy91xAtModem::ReadPacket(std::uint8_t const connect_index,
                                   std::vector<std::uint8_t>& data,
-                                  std::size_t& size) {
+                                  std::int32_t const timeout) {
   std::string connect_i_str = std::to_string(connect_index);
+  std::string timeout_str = std::to_string(timeout);
+  std::size_t size;
   kModemError err{kModemError::kNoError};
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
       if (protocol_ == ae::Protocol::kTcp) {
+        // #XRECV=<timeout>[,<flags>]
       } else if (protocol_ == ae::Protocol::kUdp) {
         // #XRECVFROM=<timeout>[,<flags>]
-        sendATCommand("AT#XRECVFROM=10");
+        sendATCommand("AT#XRECVFROM=" + timeout_str);
         auto response = serial_->ReadData();
         std::string response_string(response->begin(), response->end());
         auto start = response_string.find("#XRECVFROM: ") + 12;
@@ -249,6 +261,12 @@ void Thingy91xAtModem::ReadPacket(std::uint8_t connect_index,
     modem_error_event_.Emit(static_cast<int>(err));
   }
 }
+
+void Thingy91xAtModem::PollSocket(std::vector<std::uint32_t> const& handles,
+                  std::int32_t const timeout){
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Handles {}", handles);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Timeout {}", timeout);
+};
 
 void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
   kModemError err{kModemError::kNoError};
@@ -281,7 +299,8 @@ void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
 
     if (err == kModemError::kNoError) {
       // Configure Band Locking
-      err = SetTxPower(psp.modem_mode, psp.power);;  // Set TX power limits
+      err = SetTxPower(psp.modem_mode, psp.power);
+      // Set TX power limits
     }
 
     if (err == kModemError::kNoError) {
@@ -389,11 +408,13 @@ kModemError Thingy91xAtModem::SetNetMode(kModemMode const modem_mode) {
   return err;
 }
 
-kModemError Thingy91xAtModem::SetupNetwork(
-    std::string const operator_name, std::string const operator_code,
-    std::string const apn_name, std::string const apn_user,
-    std::string const apn_pass, kModemMode const modem_mode,
-    kAuthType const auth_type) {
+kModemError Thingy91xAtModem::SetupNetwork(std::string const operator_name,
+                                           std::string const operator_code,
+                                           std::string const apn_name,
+                                           std::string const apn_user,
+                                           std::string const apn_pass,
+                                           kModemMode const modem_mode,
+                                           kAuthType const auth_type) {
   std::string mode_str;
   kModemError err{kModemError::kNoError};
 
@@ -459,32 +480,33 @@ kModemError Thingy91xAtModem::SetTxPower(kModemMode const modem_mode,
   } else {
     err = kModemError::kSetPwr;
   }
-  
+
   //%XEMPR=<system_mode>,<k>,<band0>,<pr0>,<band1>,<pr1>,…,<bandk-1>,<prk-1>
-  //or
-  //%XEMPR=<system_mode>,0,<pr_for_all_bands>  
-  if(power.size() >0 && err == kModemError::kNoError){
-   for (auto &pwr: power) {
-    
-    if (pwr.band == kModemBand::kALL_BAND) {
-      all_bands = true;
-      all_bands_power = static_cast<std::int8_t>(pwr.power);
-    } else {
-      k++;
-      bands += "," + std::to_string(static_cast<std::int8_t>(pwr.band)) + 
-               "," + std::to_string(static_cast<std::int8_t>(pwr.power));
+  // or
+  //%XEMPR=<system_mode>,0,<pr_for_all_bands>
+  if (power.size() > 0 && err == kModemError::kNoError) {
+    for (auto& pwr : power) {
+      if (pwr.band == kModemBand::kALL_BAND) {
+        all_bands = true;
+        all_bands_power = static_cast<std::int8_t>(pwr.power);
+      } else {
+        k++;
+        bands += "," + std::to_string(static_cast<std::int8_t>(pwr.band)) +
+                 "," + std::to_string(static_cast<std::int8_t>(pwr.power));
+      }
     }
-   }
-   
-   if(all_bands){
-     cmd += std::to_string(system_mode) + ",0," + std::to_string(all_bands_power);
-   } else {
-     cmd += std::to_string(system_mode) + "," + std::to_string(k) + "," + bands;
-   }
+
+    if (all_bands) {
+      cmd +=
+          std::to_string(system_mode) + ",0," + std::to_string(all_bands_power);
+    } else {
+      cmd +=
+          std::to_string(system_mode) + "," + std::to_string(k) + "," + bands;
+    }
   } else {
     err = kModemError::kSetPwr;
   }
-  
+
   if (err == kModemError::kNoError) {
     sendATCommand(cmd);
     err = CheckResponce("OK", 1000, "AT%XEMPR command error!");
@@ -504,12 +526,6 @@ kModemError Thingy91xAtModem::GetTxPower(kModemMode const modem_mode,
 
   return err;
 }
-  
-kModemError Thingy91xAtModem::SetupProtoPar(){
-  kModemError err{kModemError::kNoError};
-
-  return err;
-}
 
 /**
  * Sets Power Saving Mode (PSM) parameters
@@ -521,9 +537,9 @@ kModemError Thingy91xAtModem::SetupProtoPar(){
  * skip
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetPsm(std::uint8_t const psm_mode,
-                                     kRequestedPeriodicTAUT3412 const psm_tau,
-                                     kRequestedActiveTimeT3324 const psm_active) {
+kModemError Thingy91xAtModem::SetPsm(
+    std::uint8_t const psm_mode, kRequestedPeriodicTAUT3412 const psm_tau,
+    kRequestedActiveTimeT3324 const psm_active) {
   std::string cmd;
   kModemError err{kModemError::kNoError};
 
@@ -533,7 +549,8 @@ kModemError Thingy91xAtModem::SetPsm(std::uint8_t const psm_mode,
     std::string tau_str =
         std::bitset<8>(((psm_tau.Multiplier << 5) | psm_tau.Value)).to_string();
     std::string active_str =
-        std::bitset<8>(((psm_active.Multiplier << 5) | psm_active.Value)).to_string();
+        std::bitset<8>(((psm_active.Multiplier << 5) | psm_active.Value))
+            .to_string();
     cmd = "AT+CPSMS=" + std::to_string(psm_mode) + ",,,\"" + tau_str + "\",\"" +
           active_str + "\"";
   } else {
@@ -568,16 +585,16 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode const edrx_mode,
   // std::bitset<4>((edrx_val.ProvEDRXValue)).to_string();
   std::string ptw_str = std::bitset<4>((edrx_val.PTWValue)).to_string();
 
-  cmd = "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(edrx_mode)) + "," +
-        std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
+  cmd = "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(edrx_mode)) +
+        "," + std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
         req_edrx_str + "\"";
 
   sendATCommand(cmd);
   err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
 
   if (err == kModemError::kNoError) {
-    cmd = "AT%XPTW=" + std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
-          ptw_str + "\"";
+    cmd = "AT%XPTW=" + std::to_string(static_cast<std::uint8_t>(act_type)) +
+          ",\"" + ptw_str + "\"";
     sendATCommand(cmd);
     err = CheckResponce("OK", 2000, "AT%XPTW command error!");
   }

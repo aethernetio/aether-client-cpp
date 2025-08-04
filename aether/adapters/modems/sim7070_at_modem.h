@@ -31,15 +31,19 @@ class Sim7070AtModem : public IModemDriver {
   void Init() override;
   void Start() override;
   void Stop() override;
-  void OpenNetwork(std::uint8_t context_index, std::uint8_t connect_index,
-                   ae::Protocol protocol, std::string host,
-                   std::uint16_t port) override;
-  void CloseNetwork(std::uint8_t context_index,
-                    std::uint8_t connect_index) override;
-  void WritePacket(std::uint8_t connect_index,
+  void OpenNetwork(std::uint8_t const context_index,
+                   std::uint8_t const connect_index,
+                   ae::Protocol const protocol, std::string const host,
+                   std::uint16_t const port) override;
+  void CloseNetwork(std::uint8_t const context_index,
+                    std::uint8_t const connect_index) override;
+  void WritePacket(std::uint8_t const connect_index,
                    std::vector<uint8_t> const& data) override;
-  void ReadPacket(std::uint8_t connect_index, std::vector<std::uint8_t>& data,
-                  std::size_t& size) override;
+  void ReadPacket(std::uint8_t const connect_index,
+                  std::vector<std::uint8_t>& data,
+                  std::int32_t const timeout) override;
+  void PollSocket(std::vector<std::uint32_t> const& handles,
+                  std::int32_t const timeout) override;
   void PowerOff();
 
  private:

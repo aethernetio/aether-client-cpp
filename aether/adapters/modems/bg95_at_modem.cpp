@@ -87,9 +87,11 @@ void Bg95AtModem::Start() {
 
 void Bg95AtModem::Stop() {}
 
-void Bg95AtModem::OpenNetwork(std::uint8_t context_index,
-                              std::uint8_t connect_index, ae::Protocol protocol,
-                              std::string host, std::uint16_t port) {
+void Bg95AtModem::OpenNetwork(std::uint8_t const context_index,
+                              std::uint8_t const connect_index,
+                              ae::Protocol const protocol,
+                              std::string const host,
+                              std::uint16_t const port) {
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Context index {}", context_index);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Protocol {}", protocol);
@@ -97,26 +99,28 @@ void Bg95AtModem::OpenNetwork(std::uint8_t context_index,
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Port {}", port);
 }
 
-void Bg95AtModem::CloseNetwork(std::uint8_t context_index,
-                               std::uint8_t connect_index) {
+void Bg95AtModem::CloseNetwork(std::uint8_t const context_index,
+                               std::uint8_t const connect_index) {
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Context index {}", context_index);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
 }
 
-void Bg95AtModem::WritePacket(std::uint8_t connect_index,
+void Bg95AtModem::WritePacket(std::uint8_t const connect_index,
                               std::vector<uint8_t> const& data) {
   serial_->WriteData(data);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
 };
 
-void Bg95AtModem::ReadPacket(std::uint8_t connect_index,
+void Bg95AtModem::ReadPacket(std::uint8_t const connect_index,
                              std::vector<std::uint8_t>& data,
-                             std::size_t& size) {
-  auto response = serial_->ReadData();
+                             std::int32_t timeout) {
+  //std::size_t size{};
+
+      auto response = serial_->ReadData();
   std::vector<std::uint8_t> response_vector(response->begin(), response->end());
   data = response_vector;
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Size {}", size);
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Timeout {}", timeout);
 };
 
 //=============================private members=============================//

@@ -81,15 +81,15 @@ struct kRequestedActiveTimeT3324 {
 };
 
 // Bits 8 to 6 define the timer value unit for the General Packet Radio Services
-// (GPRS) timer as follows: 
-// Multiplier Bits 
-// 8 7 6 
-// 0 0 0 – Value is incremented in multiples of 10 min 
-// 0 0 1 – Value is incremented in multiples of 1 h 
-// 0 1 0 – Value is incremented in multiples of 10 h 
-// 0 1 1 – Value is incremented in multiples of 2 s 
-// 1 0 0 – Value is incremented in multiples of 30 s 
-// 1 0 1 – Value is incremented in multiples of 1 min 
+// (GPRS) timer as follows:
+// Multiplier Bits
+// 8 7 6
+// 0 0 0 – Value is incremented in multiples of 10 min
+// 0 0 1 – Value is incremented in multiples of 1 h
+// 0 1 0 – Value is incremented in multiples of 10 h
+// 0 1 1 – Value is incremented in multiples of 2 s
+// 1 0 0 – Value is incremented in multiples of 30 s
+// 1 0 1 – Value is incremented in multiples of 1 min
 // 1 1 0 – Value is incremented in multiples of 320 h
 
 struct kRequestedPeriodicTAUT3412 {
@@ -110,7 +110,7 @@ enum class EdrxActTType : std::uint8_t {
   kEdrxActEUtranNBS1 = 5
 };
 
-// eDRX_value Bits 
+// eDRX_value Bits
 // 4 3 2 1 – E-UTRAN eDRX cycle length duration
 // 0 0 0 0 – 5.12 s2
 // 0 0 0 1 – 10.24 s2
@@ -173,7 +173,7 @@ enum class kModemBand : std::uint8_t {
   kINVALID_BAND = 34
 };
 
-struct BandPower{
+struct BandPower {
   kModemBand band;
   std::uint8_t power;
 };
@@ -214,7 +214,6 @@ struct ModemInit {
   bool use_ssl;
 };
 
-
 class IModemDriver {
  public:
   IModemDriver() = default;
@@ -223,19 +222,22 @@ class IModemDriver {
   virtual void Init() = 0;
   virtual void Start() = 0;
   virtual void Stop() = 0;
-  virtual void OpenNetwork(std::uint8_t context_index,
-                           std::uint8_t connect_index, ae::Protocol protocol,
-                           std::string host, std::uint16_t port) = 0;
-  virtual void CloseNetwork(std::uint8_t context_index,
-                            std::uint8_t connect_index) = 0;
-  virtual void WritePacket(std::uint8_t connect_index,
+  virtual void OpenNetwork(std::uint8_t const context_index,
+                           std::uint8_t const connect_index,
+                           ae::Protocol const protocol, const std::string host,
+                           const std::uint16_t port) = 0;
+  virtual void CloseNetwork(std::uint8_t const context_index,
+                            std::uint8_t const connect_index) = 0;
+  virtual void WritePacket(std::uint8_t const connect_index,
                            std::vector<uint8_t> const& data) = 0;
-  virtual void ReadPacket(std::uint8_t connect_index,
+  virtual void ReadPacket(std::uint8_t const connect_index,
                           std::vector<std::uint8_t>& data,
-                          std::size_t& size) = 0;
-  virtual  void SetPowerSaveParam(kPowerSaveParam const& psp) = 0;
-  virtual  void PowerOff() = 0;
-  
+                          std::int32_t const timeout) = 0;
+  virtual void PollSocket(std::vector<std::uint32_t> const& handles,
+                          std::int32_t const timeout) = 0;
+  virtual void SetPowerSaveParam(kPowerSaveParam const& psp) = 0;
+  virtual void PowerOff() = 0;
+
   Event<void(bool result)> modem_connected_event_;
   Event<void(int result)> modem_error_event_;
 

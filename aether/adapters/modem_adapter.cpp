@@ -153,6 +153,8 @@ ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                          std::move(dns_resolver), std::move(modem_init),
                          domain} {
   modem_driver_ = ModemDriverFactory::CreateModem(modem_init_);
+  modem_driver_->Init();
+  modem_driver_->Start();
   AE_TELED_DEBUG("Modem instance created!");
 }
 
@@ -190,38 +192,12 @@ void ModemAdapter::Update(TimePoint t) {
 }
 
 void ModemAdapter::Connect(void) {
-  std::vector<std::uint8_t> data{'H', 'e', 'l', 'l', 'o', ' ', 'w',
-                                 'o', 'r', 'l', 'd', '!', '!'};
-  std::size_t size{};
-  kPowerSaveParam psp;
-  kEDrx edrx_val{0};
-  kRequestedActiveTimeT3324 act{0,0};
-  kRequestedPeriodicTAUT3412 tau{0,0};
-  
-  psp.psm_mode = 1;
-  psp.tau = tau;
-  psp.act = act;
-  psp.edrx_mode = EdrxMode::kEdrxDisable;
-  psp.act_type = EdrxActTType::kEdrxActEUtranNBS1;
-  psp.edrx_val = edrx_val;
-  psp.rai_mode = 0;
-  psp.bands_mode = 0;
-  psp.bands = {};
-
-  AE_TELE_DEBUG(kAdapterModemConnected, "Modem connecting to the AP");
-  modem_driver_->Init();
-  modem_driver_->SetPowerSaveParam(psp);
-  modem_driver_->Start();  
-  modem_driver_->OpenNetwork(0, 0, ae::Protocol::kUdp, "dbservice.aethernet.io",
-                             8889);
-  modem_driver_->WritePacket(0, data);  
-  modem_driver_->ReadPacket(0, data, size);
-  modem_driver_->CloseNetwork(0, 0);
-  modem_driver_->Stop();
+  AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem connecting to the network");
+  modem_driver_->Start();
 }
 
 void ModemAdapter::DisConnect(void) {
-  AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem disconnecting from the AP");
+  AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem disconnecting from the network");
   modem_driver_->Stop();
 }
 

@@ -31,17 +31,21 @@ class Thingy91xAtModem : public IModemDriver {
   void Init() override;
   void Start() override;
   void Stop() override;
-  void OpenNetwork(std::uint8_t context_index, std::uint8_t connect_index,
-                   ae::Protocol protocol, std::string host,
-                   std::uint16_t port) override;
-  void CloseNetwork(std::uint8_t context_index,
-                    std::uint8_t connect_index) override;
-  void WritePacket(std::uint8_t connect_index,
+  void OpenNetwork(std::uint8_t const context_index,
+                   std::uint8_t const connect_index,
+                   ae::Protocol const protocol, std::string const host,
+                   std::uint16_t const port) override;
+  void CloseNetwork(std::uint8_t const context_index,
+                    std::uint8_t const connect_index) override;
+  void WritePacket(std::uint8_t const connect_index,
                    std::vector<uint8_t> const& data) override;
-  void ReadPacket(std::uint8_t connect_index, std::vector<std::uint8_t>& data,
-                  std::size_t& size) override;
-  void SetPowerSaveParam(kPowerSaveParam const& psp)  override;
-  void PowerOff()  override;
+  void ReadPacket(std::uint8_t const connect_index,
+                  std::vector<std::uint8_t>& data,
+                  std::int32_t const timeout) override;
+  void PollSocket(std::vector<std::uint32_t> const& handles,
+                  std::int32_t const timeout) override;
+  void SetPowerSaveParam(kPowerSaveParam const& psp) override;
+  void PowerOff() override;
 
  private:
   ModemInit modem_init_;
@@ -50,24 +54,31 @@ class Thingy91xAtModem : public IModemDriver {
   std::string host_;
   std::uint16_t port_;
 
-  kModemError CheckResponce(std::string const responce, std::uint32_t const wait_time,
+  kModemError CheckResponce(std::string const responce,
+                            std::uint32_t const wait_time,
                             std::string const error_message);
   kModemError SetBaudRate(std::uint32_t const rate);
   kModemError CheckSimStatus();
   kModemError SetupSim(std::uint8_t const pin[4]);
   kModemError SetNetMode(kModemMode const modem_mode);
-  kModemError SetupNetwork(std::string const operator_name, std::string const operator_code,
-                           std::string const apn_name, std::string const apn_user,
-                           std::string const apn_pass, kModemMode const modem_mode,
+  kModemError SetupNetwork(std::string const operator_name,
+                           std::string const operator_code,
+                           std::string const apn_name,
+                           std::string const apn_user,
+                           std::string const apn_pass,
+                           kModemMode const modem_mode,
                            kAuthType const auth_type);
-  kModemError SetTxPower(kModemMode const modem_mode, std::vector<BandPower> const& power);
-  kModemError GetTxPower(kModemMode const modem_mode, std::vector<BandPower>& power);
-  kModemError SetupProtoPar();
-  kModemError SetPsm(std::uint8_t const psm_mode, kRequestedPeriodicTAUT3412 const psm_tau,
-                     kRequestedActiveTimeT3324 const  psm_active);
-  kModemError SetEdrx(EdrxMode const  edrx_mode, EdrxActTType const act_type, kEDrx const edrx_val);
+  kModemError SetTxPower(kModemMode const modem_mode,
+                         std::vector<BandPower> const& power);
+  kModemError GetTxPower(kModemMode const modem_mode,
+                         std::vector<BandPower>& power);
+  kModemError SetPsm(std::uint8_t const psm_mode,
+                     kRequestedPeriodicTAUT3412 const psm_tau,
+                     kRequestedActiveTimeT3324 const psm_active);
+  kModemError SetEdrx(EdrxMode const edrx_mode, EdrxActTType const act_type,
+                      kEDrx const edrx_val);
   kModemError SetRai(std::uint8_t const rai_mode);
-  kModemError SetBandLock(std::uint8_t const  bl_mode,
+  kModemError SetBandLock(std::uint8_t const bl_mode,
                           std::vector<std::int32_t> const& bands);
   kModemError ResetModemFactory(std::uint8_t const res_mode);
   void sendATCommand(std::string const& command);

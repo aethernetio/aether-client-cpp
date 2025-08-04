@@ -127,10 +127,11 @@ void Sim7070AtModem::Stop() {
   }
 }
 
-void Sim7070AtModem::OpenNetwork(std::uint8_t context_index,
-                                 std::uint8_t connect_index,
-                                 ae::Protocol protocol, std::string host,
-                                 std::uint16_t port) {
+void Sim7070AtModem::OpenNetwork(std::uint8_t const context_index,
+                                 std::uint8_t const connect_index,
+                                 ae::Protocol const protocol,
+                                 std::string const host,
+                                 std::uint16_t const port) {
   std::string context_i_str = std::to_string(context_index);
   std::string connect_i_str = std::to_string(connect_index);
   std::string port_str = std::to_string(port);
@@ -202,8 +203,8 @@ void Sim7070AtModem::OpenNetwork(std::uint8_t context_index,
   }
 }
 
-void Sim7070AtModem::CloseNetwork(std::uint8_t context_index,
-                                  std::uint8_t connect_index) {
+void Sim7070AtModem::CloseNetwork(std::uint8_t const context_index,
+                                  std::uint8_t const connect_index) {
   std::string context_i_str = std::to_string(context_index);
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
@@ -231,7 +232,7 @@ void Sim7070AtModem::CloseNetwork(std::uint8_t context_index,
   }
 }
 
-void Sim7070AtModem::WritePacket(std::uint8_t connect_index,
+void Sim7070AtModem::WritePacket(std::uint8_t const connect_index,
                                  std::vector<std::uint8_t> const& data) {
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
@@ -258,10 +259,11 @@ void Sim7070AtModem::WritePacket(std::uint8_t connect_index,
   }
 };
 
-void Sim7070AtModem::ReadPacket(std::uint8_t connect_index,
+void Sim7070AtModem::ReadPacket(std::uint8_t const connect_index,
                                 std::vector<std::uint8_t>& data,
-                                std::size_t& size) {
-  std::string connect_i_str = std::to_string(connect_index);
+                                std::int32_t const timeout) {
+  std::string connect_i_str = std::to_string(connect_index);  
+  std::size_t size{};
   kModemError err{kModemError::kNoError};
 
   if (serial_->GetConnected()) {
@@ -303,6 +305,8 @@ void Sim7070AtModem::ReadPacket(std::uint8_t connect_index,
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
   }
+
+  AE_TELE_ERROR(kAdapterSerialNotOpen, "Timeout {}", timeout);
 };
 
 void Sim7070AtModem::PowerOff() {
