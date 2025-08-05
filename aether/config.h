@@ -179,6 +179,11 @@
 #  define AE_DEFAULT_PING_TIMEOUT_MS 1000
 #endif
 
+// window size for safe stream response time statistics
+#ifndef AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE
+#  define AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE 100
+#endif
+
 // Telemetry configuration
 // Compilation info
 // Environment info

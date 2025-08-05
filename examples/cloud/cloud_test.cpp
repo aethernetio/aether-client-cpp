@@ -27,10 +27,10 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1 - 1,  // max_data_size
-    10,                              // max_repeat_count
-    std::chrono::milliseconds{600},  // wait_confirm_timeout
-    {},                              // send_confirm_timeout
-    std::chrono::milliseconds{400},  // send_repeat_timeout
+    10,                               // max_repeat_count
+    std::chrono::milliseconds{1500},  // wait_confirm_timeout
+    {},                               // send_confirm_timeout
+    std::chrono::milliseconds{400},   // send_repeat_timeout
 };
 }  // namespace ae::cloud_test
 

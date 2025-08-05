@@ -144,7 +144,7 @@ void test_RecvActionCreateAndReceive() {
   TEST_ASSERT_FALSE(mock_sender.confirm_data.has_value());
 
   // Wait for confirmation timeout and verify confirmation is sent
-  auto timeout_time = start_time + config.send_confirm_timeout + kTick;
+  auto timeout_time = start_time + config.send_ack_timeout + kTick;
   ap.Update(timeout_time);
 
   // Should send confirmation after timeout
@@ -276,7 +276,7 @@ void test_RecvActionSendConfirmOnTimeout() {
   TEST_ASSERT_FALSE(mock_sender.confirm_data.has_value());
 
   // Wait for confirmation timeout
-  auto timeout_time = start_time + config.send_confirm_timeout + kTick;
+  auto timeout_time = start_time + config.send_ack_timeout + kTick;
   ap.Update(timeout_time);
 
   // Should send confirmation after timeout
@@ -361,7 +361,7 @@ void test_RecvActionDuplicateDataHandling() {
   // Send duplicate with higher repeat count
   message.control.repeat_count += 1;
   recv_action.PushData(begin_offset, message);
-  auto timeout_time = start_time + config.send_confirm_timeout + kTick;
+  auto timeout_time = start_time + config.send_ack_timeout + kTick;
   ap.Update(timeout_time);
 
   // Should still have only 1 emitted data (no duplicate emission)

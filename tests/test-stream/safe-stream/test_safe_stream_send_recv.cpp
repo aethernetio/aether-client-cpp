@@ -174,7 +174,7 @@ void test_SafeStreamInitHandshake() {
   send_data->ResultEvent().Subscribe([&](auto const&) { acked = true; });
 
   ap.Update(epoch);
-  ap.Update(epoch += config.send_confirm_timeout + kTick);
+  ap.Update(epoch += config.send_ack_timeout + kTick);
 
   // test received data
   TEST_ASSERT_EQUAL(test_data.size(), received.size());
@@ -216,7 +216,7 @@ void test_SafeStreamReInitSender() {
 
   ap.Update(epoch);
   ap.Update(epoch += kTick);
-  ap.Update(epoch += config.send_confirm_timeout + kTick);
+  ap.Update(epoch += config.send_ack_timeout + kTick);
 
   // test received data
   TEST_ASSERT_TRUE(acked);
@@ -240,7 +240,7 @@ void test_SafeStreamReInitSender() {
 
   ap.Update(epoch);
   ap.Update(epoch += kTick);
-  ap.Update(epoch += config.send_confirm_timeout + kTick);
+  ap.Update(epoch += config.send_ack_timeout + kTick);
 
   // test received data
   TEST_ASSERT_TRUE(acked);
@@ -280,7 +280,7 @@ void test_SafeStreamReInitReceiver() {
   send_action1->ResultEvent().Subscribe([&](auto const&) { acked = true; });
 
   ap.Update(epoch);
-  ap.Update(epoch += config.send_confirm_timeout + kTick);
+  ap.Update(epoch += config.send_ack_timeout + kTick);
 
   // test received data
   TEST_ASSERT_TRUE(acked);
@@ -304,7 +304,7 @@ void test_SafeStreamReInitReceiver() {
   send_action2->ResultEvent().Subscribe([&](auto const&) { acked = true; });
 
   ap.Update(epoch);
-  ap.Update(epoch += config.send_confirm_timeout + kTick);
+  ap.Update(epoch += config.send_ack_timeout + kTick);
 
   // test received data
   TEST_ASSERT_TRUE(acked);

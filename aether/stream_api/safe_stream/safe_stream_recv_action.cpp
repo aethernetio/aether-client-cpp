@@ -27,7 +27,7 @@ SafeStreamRecvAction::SafeStreamRecvAction(ActionContext action_context,
                                            SafeStreamConfig const& config)
     : Action{action_context},
       send_confirm_repeat_{&send_confirm_repeat},
-      send_ack_timeout_{config.send_confirm_timeout},
+      send_ack_timeout_{config.send_ack_timeout},
       send_repeat_timeout_{config.send_repeat_timeout},
       window_size_{config.window_size} {}
 
