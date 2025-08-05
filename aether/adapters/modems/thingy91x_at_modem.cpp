@@ -147,7 +147,15 @@ void Thingy91xAtModem::OpenNetwork(std::uint8_t const context_index,
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
       if (protocol_ == ae::Protocol::kTcp) {
-        //
+        // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
+        sendATCommand("AT#XSOCKET=1," + protocol_str + ",0");  // Create socket
+        err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
+        // AT#XSOCKETOPT=1,20,30
+        sendATCommand("AT#XSOCKETOPT=1,20,30");  // Set parameters
+        err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
+        // AT#XCONNECT="example.com",1234
+        sendATCommand("AT#XCONNECT=\"" + host + "\"," + std::to_string(port));  // Connect
+        err = CheckResponce("OK", 1000, "AT#XCONNECT command error!");
       } else if (protocol_ == ae::Protocol::kUdp) {
         // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
         sendATCommand("AT#XSOCKET=1," + protocol_str + ",0");  // Create socket
@@ -172,10 +180,11 @@ void Thingy91xAtModem::CloseNetwork(std::uint8_t const context_index,
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
       if (protocol_ == ae::Protocol::kTcp) {
-        //
+        sendATCommand("AT#XSOCKET=0");  // Close socket
+        err = CheckResponce("OK", 10000, "AT#XSOCKET command error!");
       } else if (protocol_ == ae::Protocol::kUdp) {
         sendATCommand("AT#XSOCKET=0");  // Close socket
-        err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
+        err = CheckResponce("OK", 10000, "AT#XSOCKET command error!");
       }
     }
   } else {
@@ -198,6 +207,10 @@ void Thingy91xAtModem::WritePacket(std::uint8_t const connect_index,
     if (err == kModemError::kNoError) {
       if (protocol_ == ae::Protocol::kTcp) {
         // #XSEND[=<data>]
+        std::string data_string(data.begin(), data.end());
+        sendATCommand("AT#XSEND=\"" + data_string + "\"");
+
+        err = CheckResponce("OK", 1000, "AT#XSEND command error!");
       } else if (protocol_ == ae::Protocol::kUdp) {
         // #XSENDTO=<url>,<port>[,<data>]
         std::string data_string(data.begin(), data.end());
@@ -228,6 +241,8 @@ void Thingy91xAtModem::ReadPacket(std::uint8_t const connect_index,
     if (err == kModemError::kNoError) {
       if (protocol_ == ae::Protocol::kTcp) {
         // #XRECV=<timeout>[,<flags>]
+        sendATCommand("AT#XRECV=" + timeout_str);
+        auto response = serial_->ReadData();
       } else if (protocol_ == ae::Protocol::kUdp) {
         // #XRECVFROM=<timeout>[,<flags>]
         sendATCommand("AT#XRECVFROM=" + timeout_str);
