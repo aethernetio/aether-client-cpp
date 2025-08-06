@@ -19,126 +19,50 @@
 
 #include <cstddef>
 
-#include "aether/types/state_machine.h"
 #include "aether/events/events.h"
 #include "aether/actions/action.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action_context.h"
-#include "aether/api_protocol/protocol_context.h"
-
-#include "aether/tele/tele.h"
 
 #include "send_message_delays/time_table.h"
 
 namespace ae::bench {
-
-class ITimedReceiver : public Action<ITimedReceiver> {
- public:
-  using Action::Action;
-  using Action::operator=;
-
-  virtual TimeTable const& message_times() const = 0;
-  virtual EventSubscriber<void()> OnReceived() = 0;
-  virtual ActionResult Update() = 0;
-};
-
 /**
  * \brief Message receiver with fixing a message time
  * Must receive a wait_count messages during wait_timeout or emit an error
  * On success receive message_times to compare it with sent times
  */
-template <typename TMessage>
-class TimedReceiver : public ITimedReceiver {
+class TimedReceiver : public Action<TimedReceiver> {
   enum class State : std::uint8_t {
     kWaiting,
     kReceived,
     kTimeOut,
-    kError,
   };
 
   static constexpr auto kWaitTimeout = std::chrono::seconds{30};
 
  public:
-  explicit TimedReceiver(ActionContext action_context,
-                         ProtocolContext& protocol_context,
-                         std::size_t wait_count = 3000)
-      : ITimedReceiver{action_context},
-        protocol_context_{protocol_context},
-        wait_count_{wait_count},
-        message_subscription_{
-            protocol_context_.MessageEvent<TMessage>().Subscribe(
-                [this](auto const& msg) { OnMessage(msg.message()); })},
-        state_{State::kWaiting},
-        state_subscription_{state_.changed_event().Subscribe(
-            [this](auto) { this->Trigger(); })} {
-    AE_TELED_INFO("TimedReceiver waiting {} messages", wait_count);
-  }
+  TimedReceiver(ActionContext action_context, std::size_t wait_count);
 
-  ActionResult Update() override {
-    if (state_.changed()) {
-      switch (state_.Acquire()) {
-        case State::kWaiting:
-          last_received_time_ = Now();
-          break;
-        case State::kReceived:
-          return ActionResult::Result();
-        case State::kTimeOut:
-        case State::kError:
-          return ActionResult::Error();
-      }
-    }
+  ActionResult Update();
 
-    if (state_.get() == State::kWaiting) {
-      return ActionResult::Delay(CheckTimeout(Now()));
-    }
+  TimeTable const& message_times() const { return message_times_; }
 
-    return {};
-  }
+  void Receive(std::uint16_t id);
 
-  TimeTable const& message_times() const override { return message_times_; }
-
-  EventSubscriber<void()> OnReceived() override {
+  EventSubscriber<void(bool last)> OnReceived() {
     return EventSubscriber{received_event_};
   }
 
  private:
-  void OnMessage(TMessage const& msg) {
-    AE_TELED_DEBUG("Message received id {}", static_cast<int>(msg.id));
+  ActionResult CheckTimeout(TimePoint current_time);
 
-    auto [_, ok] =
-        message_times_.emplace(msg.id, HighResTimePoint::clock::now());
-    if (!ok) {
-      AE_TELED_ERROR("Duplicate message");
-      state_.Set(State::kError);
-      return;
-    }
-
-    last_received_time_ = Now();
-    received_event_.Emit();
-
-    if (message_times_.size() == wait_count_) {
-      state_.Set(State::kReceived);
-      return;
-    }
-  }
-
-  TimePoint CheckTimeout(TimePoint current_time) {
-    if ((current_time - last_received_time_) > kWaitTimeout) {
-      AE_TELED_ERROR("Receive message timeout");
-      state_.Set(State::kTimeOut);
-      return current_time;
-    }
-
-    return last_received_time_ + kWaitTimeout;
-  }
-
-  ProtocolContext& protocol_context_;
   std::size_t wait_count_;
-  Subscription message_subscription_;
 
-  TimePoint last_received_time_;
+  TimePoint next_receive_time_;
   TimeTable message_times_;
 
-  Event<void()> received_event_;
+  Event<void(bool last)> received_event_;
   StateMachine<State> state_;
   Subscription state_subscription_;
 };

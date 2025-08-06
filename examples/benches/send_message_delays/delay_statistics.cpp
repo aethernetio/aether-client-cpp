@@ -26,12 +26,12 @@ namespace ae::bench {
 DurationStatistics::DurationStatistics(DurationTable data)
     : raw_data_{std::move(data)},
       sorted_data_{MakeSorted(raw_data_)},
-      v99th_percentile_{
-          sorted_data_[GetPercentileIndex(sorted_data_.size(), 99)].second},
-      v50th_percentile_{
-          sorted_data_[GetPercentileIndex(sorted_data_.size(), 50)].second},
-      max_value_{sorted_data_.back().second},
-      min_value_{sorted_data_.front().second} {}
+      v99th_percentile_{GetValueByIndex(
+          sorted_data_, GetPercentileIndex(sorted_data_.size(), 99))},
+      v50th_percentile_{GetValueByIndex(
+          sorted_data_, GetPercentileIndex(sorted_data_.size(), 50))},
+      max_value_{GetValueByIndex(sorted_data_, sorted_data_.size() - 1)},
+      min_value_{GetValueByIndex(sorted_data_, 0)} {}
 
 Duration DurationStatistics::max_value() const { return max_value_; }
 Duration DurationStatistics::min_value() const { return min_value_; }
@@ -46,9 +46,14 @@ Duration DurationStatistics::get_50th_percentile() const {
 
 DurationTable DurationStatistics::MakeSorted(DurationTable const& data) {
   DurationTable sorted_data = data;
+  // remove bad values
+  sorted_data.erase(
+      std::remove_if(std::begin(sorted_data), std::end(sorted_data),
+                     [](auto const& item) { return !item.second; }),
+      std::end(sorted_data));
   std::sort(sorted_data.begin(), sorted_data.end(),
             [](auto const& left, auto const& right) {
-              return left.second < right.second;
+              return *left.second < *right.second;
             });
   return sorted_data;
 }
@@ -63,6 +68,14 @@ std::size_t DurationStatistics::GetPercentileIndex(std::size_t size,
   return static_cast<std::size_t>(std::floor((static_cast<double>(size - 1)) *
                                              static_cast<double>(percentile) /
                                              100.0));
+}
+
+Duration DurationStatistics::GetValueByIndex(DurationTable const& data,
+                                             std::size_t index) {
+  if (index >= data.size()) {
+    return {};
+  }
+  return *data[index].second;
 }
 
 }  // namespace ae::bench

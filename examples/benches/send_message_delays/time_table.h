@@ -21,6 +21,7 @@
 #include <chrono>
 #include <vector>
 #include <cstdint>
+#include <optional>
 
 #include "aether/common.h"
 
@@ -28,8 +29,9 @@ namespace ae::bench {
 using HighResTimePoint =
     std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-using TimeTable = std::map<std::uint16_t, HighResTimePoint>;
-using DurationTable = std::vector<std::pair<std::uint16_t, Duration>>;
+using TimeTable = std::map<std::uint32_t, HighResTimePoint>;
+using DurationTable =
+    std::vector<std::pair<std::uint32_t, std::optional<Duration>>>;
 }  // namespace ae::bench
 
 #endif  // EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_TIME_TABLE_H_
