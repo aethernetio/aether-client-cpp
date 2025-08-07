@@ -154,7 +154,8 @@ void Thingy91xAtModem::OpenNetwork(std::uint8_t const context_index,
         sendATCommand("AT#XSOCKETOPT=1,20,30");  // Set parameters
         err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
         // AT#XCONNECT="example.com",1234
-        sendATCommand("AT#XCONNECT=\"" + host + "\"," + std::to_string(port));  // Connect
+        sendATCommand("AT#XCONNECT=\"" + host + "\"," +
+                      std::to_string(port));  // Connect
         err = CheckResponce("OK", 1000, "AT#XCONNECT command error!");
       } else if (protocol_ == ae::Protocol::kUdp) {
         // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
@@ -207,10 +208,18 @@ void Thingy91xAtModem::WritePacket(std::uint8_t const connect_index,
     if (err == kModemError::kNoError) {
       if (protocol_ == ae::Protocol::kTcp) {
         // #XSEND[=<data>]
-        std::string data_string(data.begin(), data.end());
-        sendATCommand("AT#XSEND=\"" + data_string + "\"");
+        // std::string data_string(data.begin(), data.end());
+        // sendATCommand("AT#XSEND=\"" + data_string + "\"");
+        sendATCommand("AT#XSEND");
 
         err = CheckResponce("OK", 1000, "AT#XSEND command error!");
+
+        serial_->WriteData(data);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        sendATCommand("+++");
+
+        err = CheckResponce("#XDATAMODE: 0", 10000, "+++ command error!");
+
       } else if (protocol_ == ae::Protocol::kUdp) {
         // #XSENDTO=<url>,<port>[,<data>]
         std::string data_string(data.begin(), data.end());
@@ -243,6 +252,24 @@ void Thingy91xAtModem::ReadPacket(std::uint8_t const connect_index,
         // #XRECV=<timeout>[,<flags>]
         sendATCommand("AT#XRECV=" + timeout_str);
         auto response = serial_->ReadData();
+        std::string response_string(response->begin(), response->end());
+        auto start = response_string.find("#XRECV: ") + 8;
+        auto stop = response_string.find("\r\n", 2);
+        if (stop > start && start != std::string::npos &&
+            stop != std::string::npos) {
+          size = std::stoi(response_string.substr(start, stop - start));
+          AE_TELED_DEBUG("Size {}", size);
+        } else {
+          size = 0;
+        }
+
+        if (size > 0) {
+          auto start2 = response_string.find("\r\n", 2) + 2;
+          std::vector<std::uint8_t> response_vector(
+              response->begin() + start2, response->begin() + start2 + size);
+          data = response_vector;
+          AE_TELED_DEBUG("Data {}", data);
+        }
       } else if (protocol_ == ae::Protocol::kUdp) {
         // #XRECVFROM=<timeout>[,<flags>]
         sendATCommand("AT#XRECVFROM=" + timeout_str);
@@ -278,7 +305,7 @@ void Thingy91xAtModem::ReadPacket(std::uint8_t const connect_index,
 }
 
 void Thingy91xAtModem::PollSocket(std::vector<std::uint32_t> const& handles,
-                  std::int32_t const timeout){
+                                  std::int32_t const timeout) {
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Handles {}", handles);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Timeout {}", timeout);
 };
