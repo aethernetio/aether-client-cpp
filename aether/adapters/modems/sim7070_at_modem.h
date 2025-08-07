@@ -42,8 +42,9 @@ class Sim7070AtModem : public IModemDriver {
   void ReadPacket(std::uint8_t const connect_index,
                   std::vector<std::uint8_t>& data,
                   std::int32_t const timeout) override;
-  void PollSocket(std::vector<std::uint32_t> const& handles,
-                  std::int32_t const timeout) override;
+  void PollSockets(std::vector<std::int32_t> const& handles,
+                   std::vector<std::string>& results,
+                   std::int32_t const timeout) override;
   void PowerOff();
 
  private:

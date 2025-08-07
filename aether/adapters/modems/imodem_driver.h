@@ -233,8 +233,10 @@ class IModemDriver {
   virtual void ReadPacket(std::uint8_t const connect_index,
                           std::vector<std::uint8_t>& data,
                           std::int32_t const timeout) = 0;
-  virtual void PollSocket(std::vector<std::uint32_t> const& handles,
-                          std::int32_t const timeout) = 0;
+  virtual void GetHandles(std::vector<std::int32_t>& handles) = 0;
+  virtual void PollSockets(std::vector<std::int32_t> const& handles,
+                           std::vector<std::string>& results,
+                           std::int32_t const timeout) = 0;
   virtual void SetPowerSaveParam(kPowerSaveParam const& psp) = 0;
   virtual void PowerOff() = 0;
 

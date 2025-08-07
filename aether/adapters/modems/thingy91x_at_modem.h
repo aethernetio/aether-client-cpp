@@ -42,8 +42,10 @@ class Thingy91xAtModem : public IModemDriver {
   void ReadPacket(std::uint8_t const connect_index,
                   std::vector<std::uint8_t>& data,
                   std::int32_t const timeout) override;
-  void PollSocket(std::vector<std::uint32_t> const& handles,
-                  std::int32_t const timeout) override;
+  void GetHandles(std::vector<std::int32_t>& handles) override;
+  void PollSockets(std::vector<std::int32_t> const& handles,
+                   std::vector<std::string>& results,
+                   std::int32_t const timeout) override;
   void SetPowerSaveParam(kPowerSaveParam const& psp) override;
   void PowerOff() override;
 
@@ -53,6 +55,7 @@ class Thingy91xAtModem : public IModemDriver {
   ae::Protocol protocol_;
   std::string host_;
   std::uint16_t port_;
+  std::vector<std::int32_t> handles_;
 
   kModemError CheckResponce(std::string const responce,
                             std::uint32_t const wait_time,
