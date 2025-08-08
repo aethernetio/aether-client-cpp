@@ -127,8 +127,8 @@ void Sim7070AtModem::Stop() {
   }
 }
 
-void Sim7070AtModem::OpenNetwork(std::uint8_t const context_index,
-                                 std::uint8_t const connect_index,
+void Sim7070AtModem::OpenNetwork(std::uint32_t const context_index,
+                                 std::uint32_t const connect_index,
                                  ae::Protocol const protocol,
                                  std::string const host,
                                  std::uint16_t const port) {
@@ -203,8 +203,8 @@ void Sim7070AtModem::OpenNetwork(std::uint8_t const context_index,
   }
 }
 
-void Sim7070AtModem::CloseNetwork(std::uint8_t const context_index,
-                                  std::uint8_t const connect_index) {
+void Sim7070AtModem::CloseNetwork(std::uint32_t const context_index,
+                                  std::uint32_t const connect_index) {
   std::string context_i_str = std::to_string(context_index);
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
@@ -232,7 +232,7 @@ void Sim7070AtModem::CloseNetwork(std::uint8_t const context_index,
   }
 }
 
-void Sim7070AtModem::WritePacket(std::uint8_t const connect_index,
+void Sim7070AtModem::WritePacket(std::uint32_t const connect_index,
                                  std::vector<std::uint8_t> const& data) {
   std::string connect_i_str = std::to_string(connect_index);
   kModemError err{kModemError::kNoError};
@@ -259,7 +259,7 @@ void Sim7070AtModem::WritePacket(std::uint8_t const connect_index,
   }
 };
 
-void Sim7070AtModem::ReadPacket(std::uint8_t const connect_index,
+void Sim7070AtModem::ReadPacket(std::uint32_t const connect_index,
                                 std::vector<std::uint8_t>& data,
                                 std::int32_t const timeout) {
   std::string connect_i_str = std::to_string(connect_index);  

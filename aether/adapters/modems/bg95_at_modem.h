@@ -31,19 +31,19 @@ class Bg95AtModem : public IModemDriver {
   void Init() override;
   void Start() override;
   void Stop() override;
-  void OpenNetwork(std::uint8_t const context_index,
-                   std::uint8_t const connect_index,
+  void OpenNetwork(std::uint32_t const context_index,
+                   std::uint32_t const connect_index,
                    ae::Protocol const protocol, std::string const host,
                    std::uint16_t const port) override;
-  void CloseNetwork(std::uint8_t const context_index,
-                    std::uint8_t const connect_index) override;
-  void WritePacket(std::uint8_t const connect_index,
+  void CloseNetwork(std::uint32_t const context_index,
+                    std::uint32_t const connect_index) override;
+  void WritePacket(std::uint32_t const connect_index,
                    std::vector<uint8_t> const& data) override;
-  void ReadPacket(std::uint8_t const connect_index,
+  void ReadPacket(std::uint32_t const connect_index,
                   std::vector<std::uint8_t>& data,
                   std::int32_t const timeout) override;
   void PollSockets(std::vector<std::int32_t> const& handles,
-                   std::vector<std::string>& results,
+                   std::vector<PollResults>& results,
                    std::int32_t const timeout) override;
   void PowerOff();
 
