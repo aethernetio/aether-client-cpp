@@ -18,7 +18,8 @@
 
 #include <utility>
 
-#include "aether/client_messages/p2p_message_stream.h"
+#include "aether/api_protocol/api_context.h"
+#include "aether/stream_api/protocol_gates.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "aether/tele/tele.h"
@@ -33,7 +34,8 @@ Sender::Sender(ActionContext action_context, Client::ptr client,
       destination_uid_{destination_uid},
       safe_stream_config_{safe_stream_config},
       split_stream_connection_{make_unique<SplitStreamCloudConnection>(
-          action_context_, client_, *client_->client_connection())} {}
+          action_context_, client_, *client_->client_connection())},
+      bench_delays_api_{protocol_context_} {}
 
 void Sender::ConnectP2pStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pStream()");
@@ -54,54 +56,49 @@ void Sender::Disconnect() {
   send_message_stream_.reset();
 }
 
-ActionView<ITimedSender> Sender::WarmUp(std::size_t message_count,
-                                        Duration min_send_interval) {
-  CreateBenchAction<BenchDelaysApi::WarmUp>(message_count, min_send_interval);
-  return *sender_action_;
+ActionView<TimedSender> Sender::WarmUp(Duration min_send_interval) {
+  return CreateBenchAction([](auto& api, auto id) { api->warm_up(id, {}); },
+                           min_send_interval);
 }
 
-ActionView<ITimedSender> Sender::Send2Bytes(std::size_t message_count,
-                                            Duration min_send_interval) {
-  CreateBenchAction<BenchDelaysApi::TwoByte>(message_count, min_send_interval);
-  return *sender_action_;
+ActionView<TimedSender> Sender::Send2Bytes(Duration min_send_interval) {
+  return CreateBenchAction([](auto& api, auto id) { api->two_bytes(id); },
+                           min_send_interval);
 }
 
-ActionView<ITimedSender> Sender::Send10Bytes(std::size_t message_count,
-                                             Duration min_send_interval) {
-  CreateBenchAction<BenchDelaysApi::TenBytes>(message_count, min_send_interval);
-  return *sender_action_;
+ActionView<TimedSender> Sender::Send10Bytes(Duration min_send_interval) {
+  return CreateBenchAction([](auto& api, auto id) { api->ten_bytes(id, {}); },
+                           min_send_interval);
 }
 
-ActionView<ITimedSender> Sender::Send100Bytes(std::size_t message_count,
-                                              Duration min_send_interval) {
-  CreateBenchAction<BenchDelaysApi::HundredBytes>(message_count,
-                                                  min_send_interval);
-  return *sender_action_;
+ActionView<TimedSender> Sender::Send100Bytes(Duration min_send_interval) {
+  return CreateBenchAction(
+      [](auto& api, auto id) { api->hundred_bytes(id, {}); },
+      min_send_interval);
 }
 
-ActionView<ITimedSender> Sender::Send1000Bytes(std::size_t message_count,
-                                               Duration min_send_interval) {
-  CreateBenchAction<BenchDelaysApi::ThousandBytes>(message_count,
-                                                   min_send_interval);
-  return *sender_action_;
+ActionView<TimedSender> Sender::Send1000Bytes(Duration min_send_interval) {
+  return CreateBenchAction(
+      [](auto& api, auto id) { api->thousand_bytes(id, {}); },
+      min_send_interval);
 }
 
-ActionView<ITimedSender> Sender::Send1500Bytes(std::size_t message_count,
-                                               Duration min_send_interval) {
-  CreateBenchAction<BenchDelaysApi::ThousandAndHalfBytes>(message_count,
-                                                          min_send_interval);
-  return *sender_action_;
-}
+template <typename Func>
+ActionView<TimedSender> Sender::CreateBenchAction(Func&& func,
 
-template <typename TMessage>
-void Sender::CreateBenchAction(std::size_t message_count,
-                               Duration min_send_interval) {
-  sender_action_ = make_unique<TimedSender<BenchDelaysApi, TMessage>>(
-      action_context_, protocol_context_, *send_message_stream_, message_count,
+                                                  Duration min_send_interval) {
+  sender_action_.emplace(
+      action_context_,
+      [&, f{std::forward<Func>(func)}](std::uint16_t id) {
+        auto api_context =
+            ApiCallAdapter{ApiContext{protocol_context_, bench_delays_api_},
+                           *send_message_stream_};
+        f(api_context, id);
+        api_context.Flush();
+      },
       min_send_interval);
 
-  action_subscriptions_.Push(sender_action_->FinishedEvent().Subscribe(
-      [this]() { sender_action_.reset(); }));
+  return ActionView{*sender_action_};
 }
 
 }  // namespace ae::bench

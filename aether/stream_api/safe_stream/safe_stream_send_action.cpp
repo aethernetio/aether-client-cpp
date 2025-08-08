@@ -31,8 +31,7 @@ auto GetRand() {
 }
 
 SSRingIndex RandomOffset() {
-  return SSRingIndex{static_cast<SSRingIndex::type>(
-      GetRand() % std::numeric_limits<std::uint16_t>::max())};
+  return SSRingIndex{static_cast<SSRingIndex::type>(GetRand())};
 }
 }  // namespace safe_stream_send_action_internal
 

@@ -55,10 +55,6 @@ ActionResult SendMessageDelaysManager::TestAction::Update() {
       case State::kSsTest1000Bytes:
         Test1000Bytes();
         break;
-      case State::kTest1500Bytes:
-      case State::kSsTest1500Bytes:
-        Test1500Bytes();
-        break;
       case State::kSwitchToSafeStream:
         SwitchToSafeStream();
         break;
@@ -94,8 +90,7 @@ void SendMessageDelaysManager::TestAction::WarmUp() {
   sender_->ConnectP2pStream();
   receiver_->Connect();
 
-  auto sender_warm_up =
-      sender_->WarmUp(config_.warm_up_message_count, config_.min_send_interval);
+  auto sender_warm_up = sender_->WarmUp(config_.min_send_interval);
   auto receiver_warm_up = receiver_->WarmUp(config_.warm_up_message_count);
 
   res_event_->Connect([](auto const&) -> TimeTable { return {}; },
@@ -103,11 +98,16 @@ void SendMessageDelaysManager::TestAction::WarmUp() {
                       receiver_warm_up->ResultEvent());
 
   test_subscriptions_.Push(  //
-      receiver_warm_up->OnReceived().Subscribe([sender_warm_up]() mutable {
-        if (sender_warm_up) {
-          sender_warm_up->Sync();
-        }
-      }),
+      receiver_warm_up->OnReceived().Subscribe(
+          [sender_warm_up](bool last) mutable {
+            if (sender_warm_up) {
+              if (last) {
+                sender_warm_up->Stop();
+              } else {
+                sender_warm_up->Sync();
+              }
+            }
+          }),
       sender_warm_up->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Warm up sender error");
         state_ = State::kError;
@@ -136,8 +136,7 @@ void SendMessageDelaysManager::TestAction::SafeStreamWarmUp() {
   sender_->ConnectP2pSafeStream();
   receiver_->Connect();
 
-  auto sender_warm_up =
-      sender_->WarmUp(config_.warm_up_message_count, config_.min_send_interval);
+  auto sender_warm_up = sender_->WarmUp(config_.min_send_interval);
   auto receiver_warm_up = receiver_->WarmUp(config_.warm_up_message_count);
 
   res_event_->Connect([](auto const&) -> TimeTable { return {}; },
@@ -145,11 +144,16 @@ void SendMessageDelaysManager::TestAction::SafeStreamWarmUp() {
                       receiver_warm_up->ResultEvent());
 
   test_subscriptions_.Push(  //
-      receiver_warm_up->OnReceived().Subscribe([sender_warm_up]() mutable {
-        if (sender_warm_up) {
-          sender_warm_up->Sync();
-        }
-      }),
+      receiver_warm_up->OnReceived().Subscribe(
+          [sender_warm_up](bool last) mutable {
+            if (sender_warm_up) {
+              if (last) {
+                sender_warm_up->Stop();
+              } else {
+                sender_warm_up->Sync();
+              }
+            }
+          }),
       sender_warm_up->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Warm up sender error");
         state_ = State::kError;
@@ -168,8 +172,7 @@ void SendMessageDelaysManager::TestAction::SafeStreamWarmUp() {
 void SendMessageDelaysManager::TestAction::Test2Bytes() {
   AE_TELED_INFO("Test2Bytes");
 
-  auto sender_event = sender_->Send2Bytes(config_.test_message_count,
-                                          config_.min_send_interval);
+  auto sender_event = sender_->Send2Bytes(config_.min_send_interval);
   auto receiver_event = receiver_->Receive2Bytes(config_.test_message_count);
   SubscribeToTest(sender_event, receiver_event,
                   state_.get() == State::kTest2Bytes ? State::kTest10Bytes
@@ -179,8 +182,7 @@ void SendMessageDelaysManager::TestAction::Test2Bytes() {
 void SendMessageDelaysManager::TestAction::Test10Bytes() {
   AE_TELED_INFO("Test10Bytes");
 
-  auto sender_event = sender_->Send10Bytes(config_.test_message_count,
-                                           config_.min_send_interval);
+  auto sender_event = sender_->Send10Bytes(config_.min_send_interval);
   auto receiver_event = receiver_->Receive10Bytes(config_.test_message_count);
   SubscribeToTest(sender_event, receiver_event,
                   state_.get() == State::kTest10Bytes ? State::kTest100Bytes
@@ -190,8 +192,7 @@ void SendMessageDelaysManager::TestAction::Test10Bytes() {
 void SendMessageDelaysManager::TestAction::Test100Bytes() {
   AE_TELED_INFO("Test100Bytes");
 
-  auto sender_event = sender_->Send100Bytes(config_.test_message_count,
-                                            config_.min_send_interval);
+  auto sender_event = sender_->Send100Bytes(config_.min_send_interval);
   auto receiver_event = receiver_->Receive100Bytes(config_.test_message_count);
   SubscribeToTest(sender_event, receiver_event,
                   state_.get() == State::kTest100Bytes
@@ -202,30 +203,17 @@ void SendMessageDelaysManager::TestAction::Test100Bytes() {
 void SendMessageDelaysManager::TestAction::Test1000Bytes() {
   AE_TELED_INFO("Test1000Bytes");
 
-  auto sender_event = sender_->Send1000Bytes(config_.test_message_count,
-                                             config_.min_send_interval);
+  auto sender_event = sender_->Send1000Bytes(config_.min_send_interval);
   auto receiver_event = receiver_->Receive1000Bytes(config_.test_message_count);
   SubscribeToTest(sender_event, receiver_event,
                   state_.get() == State::kTest1000Bytes
-                      ? State::kTest1500Bytes
-                      : State::kSsTest1500Bytes);
-}
-
-void SendMessageDelaysManager::TestAction::Test1500Bytes() {
-  AE_TELED_INFO("Test1500Bytes");
-
-  auto sender_event = sender_->Send1500Bytes(config_.test_message_count,
-                                             config_.min_send_interval);
-  auto receiver_event = receiver_->Receive1500Bytes(config_.test_message_count);
-  SubscribeToTest(sender_event, receiver_event,
-                  state_.get() == State::kTest1500Bytes
                       ? State::kSwitchToSafeStream
                       : State::kDone);
 }
 
 void SendMessageDelaysManager::TestAction::SubscribeToTest(
-    ActionView<ITimedSender> sender_action,
-    ActionView<ITimedReceiver> receiver_action, State next_state) {
+    ActionView<TimedSender> sender_action,
+    ActionView<TimedReceiver> receiver_action, State next_state) {
   test_subscriptions_.Reset();
   res_event_ = make_unique<CumulativeEvent<TimeTable, 2>>();
   res_event_->Connect([](auto const& action) { return action.message_times(); },
@@ -233,11 +221,16 @@ void SendMessageDelaysManager::TestAction::SubscribeToTest(
                       receiver_action->ResultEvent());
 
   test_subscriptions_.Push(
-      receiver_action->OnReceived().Subscribe([sender_action]() mutable {
-        if (sender_action) {
-          sender_action->Sync();
-        }
-      }),
+      receiver_action->OnReceived().Subscribe(
+          [sender_action](bool last) mutable {
+            if (sender_action) {
+              if (last) {
+                sender_action->Stop();
+              } else {
+                sender_action->Sync();
+              }
+            }
+          }),
       sender_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Sender error");
         state_ = State::kError;
@@ -248,19 +241,22 @@ void SendMessageDelaysManager::TestAction::SubscribeToTest(
       }),
       res_event_->Subscribe([this, next_state](auto const& res_event) {
         AE_TELED_INFO("Test finished");
-        assert(res_event[0].size() == res_event[1].size());
         TestResult(res_event[0], res_event[1]);
         state_ = next_state;
       }));
 }
 
 void SendMessageDelaysManager::TestAction::TestResult(
-    TimeTable const& sended_table, TimeTable const& received_table) {
+    TimeTable const& sent_table, TimeTable const& received_table) {
   DurationTable results;
   // 0 -is sender, 1 - is receiver
-  for (auto const& [id, sended] : sended_table) {
-    auto received = received_table.at(id);
-    auto diff = std::chrono::duration_cast<Duration>(received - sended);
+  for (auto const& [id, sent] : sent_table) {
+    auto received = received_table.find(id);
+    if (received == std::end(received_table)) {
+      results.emplace_back(id, std::nullopt);
+      continue;
+    }
+    auto diff = std::chrono::duration_cast<Duration>(received->second - sent);
     results.emplace_back(id, diff);
   }
 

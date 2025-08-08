@@ -36,6 +36,7 @@ class DurationStatistics {
   static DurationTable MakeSorted(DurationTable const& data);
   static std::size_t GetPercentileIndex(std::size_t size,
                                         std::size_t percentile);
+  static Duration GetValueByIndex(DurationTable const& data, std::size_t index);
 
   DurationTable raw_data_;
   DurationTable sorted_data_;

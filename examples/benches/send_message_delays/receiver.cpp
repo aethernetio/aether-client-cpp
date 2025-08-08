@@ -19,7 +19,7 @@
 #include <cstdlib>
 #include <utility>
 
-#include "aether/client_messages/p2p_message_stream.h"
+#include "aether/types/type_list.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "send_message_delays/api/bench_delays_api.h"
@@ -33,7 +33,8 @@ Receiver::Receiver(ActionContext action_context, Client::ptr client,
       client_{std::move(client)},
       safe_stream_config_{safe_stream_config},
       split_stream_connection_{make_unique<SplitStreamCloudConnection>(
-          action_context_, client_, *client_->client_connection())} {}
+          action_context_, client_, *client_->client_connection())},
+      bench_delays_api_{protocol_context_} {}
 
 void Receiver::Connect() {
   AE_TELED_DEBUG("Receiver::Connect()");
@@ -72,52 +73,44 @@ void Receiver::Disconnect() {
   receive_message_stream_.reset();
 }
 
-ActionView<ITimedReceiver> Receiver::WarmUp(std::size_t message_count) {
-  CreateBenchAction<BenchDelaysApi::WarmUp>(message_count);
-  return *receiver_action_;
+ActionView<TimedReceiver> Receiver::WarmUp(std::size_t message_count) {
+  return CreateBenchAction(bench_delays_api_.warm_up_event(), message_count);
 }
 
-ActionView<ITimedReceiver> Receiver::Receive2Bytes(std::size_t message_count) {
-  CreateBenchAction<BenchDelaysApi::TwoByte>(message_count);
-  return *receiver_action_;
+ActionView<TimedReceiver> Receiver::Receive2Bytes(std::size_t message_count) {
+  return CreateBenchAction(bench_delays_api_.two_bytes_event(), message_count);
 }
 
-ActionView<ITimedReceiver> Receiver::Receive10Bytes(std::size_t message_count) {
-  CreateBenchAction<BenchDelaysApi::TenBytes>(message_count);
-  return *receiver_action_;
+ActionView<TimedReceiver> Receiver::Receive10Bytes(std::size_t message_count) {
+  return CreateBenchAction(bench_delays_api_.ten_bytes_event(), message_count);
 }
 
-ActionView<ITimedReceiver> Receiver::Receive100Bytes(
+ActionView<TimedReceiver> Receiver::Receive100Bytes(std::size_t message_count) {
+  return CreateBenchAction(bench_delays_api_.hundred_bytes_event(),
+                           message_count);
+}
+
+ActionView<TimedReceiver> Receiver::Receive1000Bytes(
     std::size_t message_count) {
-  CreateBenchAction<BenchDelaysApi::HundredBytes>(message_count);
-  return *receiver_action_;
+  return CreateBenchAction(bench_delays_api_.thousand_bytes_event(),
+                           message_count);
 }
 
-ActionView<ITimedReceiver> Receiver::Receive1000Bytes(
-    std::size_t message_count) {
-  CreateBenchAction<BenchDelaysApi::ThousandBytes>(message_count);
-  return *receiver_action_;
-}
-
-ActionView<ITimedReceiver> Receiver::Receive1500Bytes(
-    std::size_t message_count) {
-  CreateBenchAction<BenchDelaysApi::ThousandAndHalfBytes>(message_count);
-  return *receiver_action_;
-}
-
-template <typename TMessage>
-void Receiver::CreateBenchAction(std::size_t count) {
-  receiver_action_ = make_unique<TimedReceiver<TMessage>>(
-      action_context_, protocol_context_, count);
-
-  action_subscriptions_.Push(receiver_action_->FinishedEvent().Subscribe(
-      [this]() { receiver_action_.reset(); }));
+template <typename TEvent>
+ActionView<TimedReceiver> Receiver::CreateBenchAction(TEvent event,
+                                                      std::size_t count) {
+  receiver_action_.emplace(action_context_, count);
+  event.Subscribe([ra{ActionView{*receiver_action_}}](auto&&... args) mutable {
+    if (ra) {
+      ra->Receive(ArgAt<0>(std::forward<decltype(args)>(args)...));
+    }
+  });
+  return ActionView{*receiver_action_};
 }
 
 void Receiver::OnRecvData(DataBuffer const& data) {
   auto parser = ApiParser{protocol_context_, data};
-  auto api = BenchDelaysApi{};
-  parser.Parse(api);
+  parser.Parse(bench_delays_api_);
 }
 
 }  // namespace ae::bench

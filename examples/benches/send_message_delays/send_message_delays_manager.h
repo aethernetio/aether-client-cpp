@@ -46,14 +46,12 @@ class SendMessageDelaysManager {
       kTest10Bytes,
       kTest100Bytes,
       kTest1000Bytes,
-      kTest1500Bytes,
       kSwitchToSafeStream,
       kSsWarmUp,
       kSsTest2Bytes,
       kSsTest10Bytes,
       kSsTest100Bytes,
       kSsTest1000Bytes,
-      kSsTest1500Bytes,
       kDone,
       kError,
       kStop,
@@ -77,13 +75,12 @@ class SendMessageDelaysManager {
     void Test10Bytes();
     void Test100Bytes();
     void Test1000Bytes();
-    void Test1500Bytes();
 
-    void SubscribeToTest(ActionView<ITimedSender> sender_action,
-                         ActionView<ITimedReceiver> receiver_action,
+    void SubscribeToTest(ActionView<TimedSender> sender_action,
+                         ActionView<TimedReceiver> receiver_action,
                          State next_state);
 
-    void TestResult(TimeTable const& sended_table,
+    void TestResult(TimeTable const& sent_table,
                     TimeTable const& received_table);
 
     Sender* sender_;

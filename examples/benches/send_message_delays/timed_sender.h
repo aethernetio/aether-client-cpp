@@ -18,146 +18,49 @@
 #define EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_TIMED_SENDER_H_
 
 #include <cstddef>
-#include <utility>
+#include <functional>
 
-#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action_context.h"
-#include "aether/stream_api/istream.h"
-#include "aether/api_protocol/packet_builder.h"
-#include "aether/api_protocol/protocol_context.h"
-
-#include "aether/tele/tele.h"
 
 #include "send_message_delays/time_table.h"
 
 namespace ae::bench {
-class ITimedSender : public Action<ITimedSender> {
- public:
-  using Action::Action;
-  using Action::operator=;
-
-  virtual TimeTable const& message_times() const = 0;
-  virtual void Sync() = 0;
-  virtual ActionResult Update() = 0;
-};
-
 /**
  * \brief Send message_count messages during send_duration
  * On success receive message_times to compare it with received times
  */
-template <typename TApiClass, typename TMessage>
-class TimedSender : public ITimedSender {
+class TimedSender : public Action<TimedSender> {
   enum class State : std::uint8_t {
     kSend,
     kWaitSync,
-    kWaitInterval,
     kFinished,
     kError,
   };
 
-  static constexpr auto kSyncTimeout = std::chrono::seconds{30};
-
  public:
-  TimedSender(ActionContext action_context, ProtocolContext& protocol_context,
-              ByteIStream& stream, std::size_t message_count,
-              Duration min_send_interval)
-      : ITimedSender{action_context},
-        protocol_context_{protocol_context},
-        stream_{&stream},
-        message_count_{message_count},
-        min_send_interval_{min_send_interval},
-        state_{State::kSend},
-        state_changed_subscription_{state_.changed_event().Subscribe(
-            [this](auto) { Action::Trigger(); })} {
-    AE_TELED_DEBUG("TimedSender with min send interval {} us",
-                   min_send_interval_.count());
-  }
+  TimedSender(ActionContext action_context,
+              std::function<void(std::uint16_t id)> send_proc,
+              Duration send_interval);
 
-  ActionResult Update() override {
-    if (state_.get() == State::kWaitSync) {
-      return ActionResult::Delay(CheckSyncTimeout(Now()));
-    }
-    if (state_.get() == State::kWaitInterval) {
-      return ActionResult::Delay(CheckIntervalTimeout(Now()));
-    }
+  ActionResult Update();
 
-    if (state_.changed()) {
-      switch (state_.Acquire()) {
-        case State::kSend:
-          Send();
-          break;
-        case State::kFinished:
-          return ActionResult::Result();
-        case State::kError:
-          return ActionResult::Error();
-        default:
-          break;
-      }
-    }
+  TimeTable const& message_times() const { return message_times_; }
 
-    return {};
-  }
-
-  TimeTable const& message_times() const override { return message_times_; }
-
-  void Sync() override {
-    AE_TELED_DEBUG("Sync");
-    auto current_time = Now();
-    if (current_time - last_send_time_ < min_send_interval_) {
-      AE_TELED_DEBUG("Wait interval");
-      state_.Set(State::kWaitInterval);
-      return;
-    }
-    state_.Set(State::kSend);
-    AE_TELED_DEBUG("Synced");
-  }
+  void Stop();
+  void Sync();
 
  private:
-  void Send() {
-    AE_TELED_DEBUG("Send message {} ", static_cast<int>(current_id_));
+  void Send();
+  ActionResult CheckSyncTimeout(TimePoint current_time);
 
-    message_times_.emplace(current_id_, HighResTimePoint::clock::now());
+  std::function<void(std::uint16_t id)> send_proc_;
 
-    stream_->Write(PacketBuilder{
-        protocol_context_, PackMessage{api_class_, TMessage{current_id_}}});
-
-    last_send_time_ = Now();
-
-    ++current_id_;
-    if (current_id_ == message_count_) {
-      state_.Set(State::kFinished);
-      return;
-    }
-    state_ = State::kWaitSync;
-  }
-
-  TimePoint CheckSyncTimeout(TimePoint current_time) {
-    if (current_time - last_send_time_ > kSyncTimeout) {
-      AE_TELED_ERROR("Sync timeout");
-      state_.Set(State::kError);
-      return current_time;
-    }
-    return last_send_time_ + kSyncTimeout;
-  }
-
-  TimePoint CheckIntervalTimeout(TimePoint current_time) {
-    if (current_time - last_send_time_ > min_send_interval_) {
-      state_.Set(State::kSend);
-      return current_time;
-    }
-    return last_send_time_ + min_send_interval_;
-  }
-
-  ProtocolContext& protocol_context_;
-  ByteIStream* stream_;
-  std::size_t message_count_;
-
-  Duration min_send_interval_;
-  TApiClass api_class_{};
+  Duration send_interval_;
   std::uint16_t current_id_{0};
 
-  TimePoint last_send_time_;
+  TimePoint next_send_time_;
 
   TimeTable message_times_;
   StateMachine<State> state_;

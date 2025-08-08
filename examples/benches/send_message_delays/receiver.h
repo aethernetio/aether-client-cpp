@@ -26,6 +26,7 @@
 #include "aether/client_connections/split_stream_client_connection.h"
 
 #include "send_message_delays/timed_receiver.h"
+#include "send_message_delays/api/bench_delays_api.h"
 
 namespace ae::bench {
 class Receiver {
@@ -36,16 +37,15 @@ class Receiver {
   void Connect();
   void Disconnect();
 
-  ActionView<ITimedReceiver> WarmUp(std::size_t message_count);
-  ActionView<ITimedReceiver> Receive2Bytes(std::size_t message_count);
-  ActionView<ITimedReceiver> Receive10Bytes(std::size_t message_count);
-  ActionView<ITimedReceiver> Receive100Bytes(std::size_t message_count);
-  ActionView<ITimedReceiver> Receive1000Bytes(std::size_t message_count);
-  ActionView<ITimedReceiver> Receive1500Bytes(std::size_t message_count);
+  ActionView<TimedReceiver> WarmUp(std::size_t message_count);
+  ActionView<TimedReceiver> Receive2Bytes(std::size_t message_count);
+  ActionView<TimedReceiver> Receive10Bytes(std::size_t message_count);
+  ActionView<TimedReceiver> Receive100Bytes(std::size_t message_count);
+  ActionView<TimedReceiver> Receive1000Bytes(std::size_t message_count);
 
  private:
-  template <typename TMessage>
-  void CreateBenchAction(std::size_t count);
+  template <typename TEvent>
+  ActionView<TimedReceiver> CreateBenchAction(TEvent event, std::size_t count);
 
   void OnRecvData(DataBuffer const& data);
 
@@ -55,10 +55,10 @@ class Receiver {
   std::unique_ptr<SplitStreamCloudConnection> split_stream_connection_;
 
   ProtocolContext protocol_context_;
+  BenchDelaysApi bench_delays_api_;
 
   std::unique_ptr<ByteIStream> receive_message_stream_;
-
-  std::unique_ptr<ITimedReceiver> receiver_action_;
+  std::optional<TimedReceiver> receiver_action_;
 
   Subscription message_stream_subscription_;
   Subscription recv_data_sub_;

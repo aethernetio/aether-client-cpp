@@ -19,111 +19,53 @@
 
 #include <array>
 
-#include "aether/crc.h"
-#include "aether/reflect/reflect.h"
-#include "aether/api_protocol/api_protocol.h"
+#include "aether/events/events.h"
+#include "aether/api_protocol/api_method.h"
+#include "aether/api_protocol/api_class_impl.h"
 
 namespace ae::bench {
-class BenchDelaysApi : public ApiClass {
+class BenchDelaysApi : public ApiClassImpl<BenchDelaysApi> {
  public:
-  static constexpr auto kClassId =
-      crc32::checksum_from_literal("ae::bench::BenchDelaysApi");
+  template <std::size_t N>
+  using Payload = std::array<std::uint8_t, N>;
 
-  struct WarmUp : public Message<WarmUp> {
-    static constexpr auto kMessageCode = 3;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BenchDelaysApi::WarmUp");
+  explicit BenchDelaysApi(ProtocolContext& protocol_context);
 
-    WarmUp() = default;
-    explicit WarmUp(std::uint16_t i) : id{i} {}
+  Method<0x03, void(std::uint16_t id, Payload<98> payload)> warm_up;
+  Method<0x04, void(std::uint16_t id)> two_bytes;
+  Method<0x05, void(std::uint16_t id, Payload<8>)> ten_bytes;
+  Method<0x06, void(std::uint16_t id, Payload<98>)> hundred_bytes;
+  Method<0x08, void(std::uint16_t id, Payload<998>)> thousand_bytes;
 
-    AE_REFLECT_MEMBERS(id, payload)
+  void WarmUpImpl(ApiParser& parser, std::uint16_t id, Payload<98> payload);
+  void TwoBytesImpl(ApiParser& parser, std::uint16_t id);
+  void TenBytesImpl(ApiParser& parser, std::uint16_t id, Payload<8> payload);
+  void HundredBytesImpl(ApiParser& parser, std::uint16_t id,
+                        Payload<98> payload);
+  void ThousandBytesImpl(ApiParser& parser, std::uint16_t id,
+                         Payload<998> payload);
 
-    std::uint16_t id;
-    std::array<std::uint8_t, 98> payload;
-  };
+  EventSubscriber<void(std::uint16_t, Payload<98>)> warm_up_event();
+  EventSubscriber<void(std::uint16_t)> two_bytes_event();
+  EventSubscriber<void(std::uint16_t, Payload<8>)> ten_bytes_event();
+  EventSubscriber<void(std::uint16_t, Payload<98>)> hundred_bytes_event();
+  EventSubscriber<void(std::uint16_t, Payload<998>)> thousand_bytes_event();
 
-  struct TwoByte : public Message<TwoByte> {
-    static constexpr auto kMessageCode = 4;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BenchDelaysApi::TwoByte");
+  using ApiMethods =
+      ImplList<RegMethod<0x03, &BenchDelaysApi::WarmUpImpl>,
+               RegMethod<0x04, &BenchDelaysApi::TwoBytesImpl>,
+               RegMethod<0x05, &BenchDelaysApi::TenBytesImpl>,
+               RegMethod<0x06, &BenchDelaysApi::HundredBytesImpl>,
+               RegMethod<0x08, &BenchDelaysApi::ThousandBytesImpl>>;
 
-    TwoByte() = default;
-    explicit TwoByte(std::uint16_t i) : id{i} {}
-
-    AE_REFLECT_MEMBERS(id)
-
-    std::uint16_t id;
-  };
-
-  struct TenBytes : public Message<TenBytes> {
-    static constexpr auto kMessageCode = 5;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BenchDelaysApi::TenBytes");
-
-    TenBytes() = default;
-    explicit TenBytes(std::uint16_t i) : id{i} {}
-
-    AE_REFLECT_MEMBERS(id, payload)
-
-    std::uint16_t id;
-    std::array<std::uint8_t, 8> payload;
-  };
-
-  struct HundredBytes : public Message<HundredBytes> {
-    static constexpr auto kMessageCode = 6;
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BenchDelaysApi::HundredBytes");
-
-    HundredBytes() = default;
-    explicit HundredBytes(std::uint16_t i) : id{i} {}
-
-    AE_REFLECT_MEMBERS(id, payload)
-
-    std::uint16_t id;
-    std::array<std::uint8_t, 98> payload;
-  };
-
-  struct ThousandBytes : public Message<ThousandBytes> {
-    static constexpr auto kMessageCode = 7;
-    static constexpr auto kMessageId = crc32::checksum_from_literal(
-        "ae::bench::BenchDelaysApi::ThousandBytes");
-
-    ThousandBytes() = default;
-    explicit ThousandBytes(std::uint16_t i) : id{i} {}
-
-    AE_REFLECT_MEMBERS(id, payload)
-
-    std::uint16_t id;
-    std::array<std::uint8_t, 998> payload;
-  };
-
-  struct ThousandAndHalfBytes : public Message<ThousandAndHalfBytes> {
-    static constexpr auto kMessageCode = 8;
-    static constexpr auto kMessageId = crc32::checksum_from_literal(
-        "ae::bench::BenchDelaysApi::ThousandAndHalfBytes");
-
-    ThousandAndHalfBytes() = default;
-    explicit ThousandAndHalfBytes(std::uint16_t i) : id{i} {}
-
-    AE_REFLECT_MEMBERS(id, payload)
-
-    std::uint16_t id;
-    std::array<std::uint8_t, 1398> payload;
-  };
-
-  void LoadFactory(MessageId message_code, ApiParser& parser) override;
-
-  template <typename T>
-  void Execute(T&& message, ApiParser& parser) {
-    parser.Context().MessageNotify(std::forward<T>(message));
-  }
-
-  template <typename T>
-  void Pack(T&& message, ApiPacker& packer) {
-    packer.Pack(T::kMessageCode, std::forward<T>(message));
-  }
+ private:
+  Event<void(std::uint16_t, Payload<98>)> warm_up_event_;
+  Event<void(std::uint16_t)> two_bytes_event_;
+  Event<void(std::uint16_t, Payload<8>)> ten_bytes_event_;
+  Event<void(std::uint16_t, Payload<98>)> hundred_bytes_event_;
+  Event<void(std::uint16_t, Payload<998>)> thousand_bytes_event_;
 };
+
 }  // namespace ae::bench
 
 #endif  // EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_API_BENCH_DELAYS_API_H_
