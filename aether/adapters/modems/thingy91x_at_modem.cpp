@@ -117,17 +117,16 @@ void Thingy91xAtModem::Stop() {
   }
 }
 
-void Thingy91xAtModem::OpenNetwork(std::uint32_t const context_index,
-                                   std::uint32_t const connect_index,
+void Thingy91xAtModem::OpenNetwork(std::int8_t& connect_index,
                                    ae::Protocol const protocol,
                                    std::string const host,
                                    std::uint16_t const port) {
-  std::string context_i_str = std::to_string(context_index);
-  std::string connect_i_str = std::to_string(connect_index + 1);
   std::string protocol_str;
   std::int32_t handle{-1};
+  Thingy91xConnection conn;
   kModemError err{kModemError::kNoError};
 
+  connect_index = -1;
   protocol_ = protocol;
   host_ = host;
   port_ = port;
@@ -162,7 +161,8 @@ void Thingy91xAtModem::OpenNetwork(std::uint32_t const context_index,
           handle = -1;
         }
         // #XSOCKETSELECT=<handle>
-        sendATCommand("AT#XSOCKETSELECT=" + std::to_string(handle));  // Set socket
+        sendATCommand("AT#XSOCKETSELECT=" +
+                      std::to_string(handle));  // Set socket
         err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
         // AT#XSOCKETOPT=1,20,30
         sendATCommand("AT#XSOCKETOPT=1,20,30");  // Set parameters
@@ -186,12 +186,15 @@ void Thingy91xAtModem::OpenNetwork(std::uint32_t const context_index,
           handle = -1;
         }
         // #XSOCKETSELECT=<handle>
-        sendATCommand("AT#XSOCKETSELECT=" + std::to_string(handle));  // Set socket
+        sendATCommand("AT#XSOCKETSELECT=" +
+                      std::to_string(handle));  // Set socket
         err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
       }
 
       if (handle >= 0) {
-        handles_.push_back(handle);
+        conn.handle = handle;
+        connect_vec_.push_back(conn);
+        connect_index = static_cast<std::uint8_t>(connect_vec_.size() - 1);
       }
     }
   } else {
@@ -203,24 +206,34 @@ void Thingy91xAtModem::OpenNetwork(std::uint32_t const context_index,
   }
 }
 
-void Thingy91xAtModem::CloseNetwork(std::uint32_t const context_index,
-                                    std::uint32_t const connect_index) {
-  std::string context_i_str = std::to_string(context_index);
-  std::string connect_i_str = std::to_string(connect_index + 1);
+void Thingy91xAtModem::CloseNetwork(std::int8_t const connect_index) {
+  std::int32_t handle{-1};
   kModemError err{kModemError::kNoError};
 
-  if (serial_->GetConnected()) {
-    if (err == kModemError::kNoError) {
+  if (connect_index >= connect_vec_.size()) {
+    err = kModemError::kConnectIndex;
+  } else if (!serial_->GetConnected()) {
+    err = kModemError::kSerialPortError;
+  } else {
+    if (err == kModemError::kNoError) {      
       if (protocol_ == ae::Protocol::kTcp) {
+        handle = connect_vec_.at(connect_index).handle;
+        // #XSOCKETSELECT=<handle>
+        sendATCommand("AT#XSOCKETSELECT=" +
+                      std::to_string(handle));  // Set socket
+        err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
         sendATCommand("AT#XSOCKET=0");  // Close socket
         err = CheckResponce("OK", 10000, "AT#XSOCKET command error!");
       } else if (protocol_ == ae::Protocol::kUdp) {
+        handle = connect_vec_.at(connect_index).handle;
+        // #XSOCKETSELECT=<handle>
+        sendATCommand("AT#XSOCKETSELECT=" +
+                      std::to_string(handle));  // Set socket
+        err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
         sendATCommand("AT#XSOCKET=0");  // Close socket
         err = CheckResponce("OK", 10000, "AT#XSOCKET command error!");
       }
     }
-  } else {
-    err = kModemError::kSerialPortError;
   }
 
   if (err != kModemError::kNoError) {
@@ -228,46 +241,50 @@ void Thingy91xAtModem::CloseNetwork(std::uint32_t const context_index,
   }
 }
 
-void Thingy91xAtModem::WritePacket(std::uint32_t const connect_index,
+void Thingy91xAtModem::WritePacket(std::int8_t const connect_index,
                                    std::vector<std::uint8_t> const& data) {
-  std::string connect_i_str = std::to_string(connect_index);
-  kModemError err{kModemError::kNoError};
+  std::int32_t handle{-1};
   std::string protocol_str;
   std::string port_str = std::to_string(port_);
+  kModemError err{kModemError::kNoError};
 
-  if (serial_->GetConnected()) {
-    if (err == kModemError::kNoError) {
-      if (protocol_ == ae::Protocol::kTcp) {
-        // #XSOCKETSELECT=<handle>
-        sendATCommand("AT#XSOCKETSELECT=" + connect_i_str);  // Set socket
-        err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
-        // #XSEND[=<data>]
-        // std::string data_string(data.begin(), data.end());
-        // sendATCommand("AT#XSEND=\"" + data_string + "\"");
-        sendATCommand("AT#XSEND");
-
-        err = CheckResponce("OK", 1000, "AT#XSEND command error!");
-
-        serial_->WriteData(data);
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        sendATCommand("+++");
-
-        err = CheckResponce("#XDATAMODE: 0", 10000, "+++ command error!");
-
-      } else if (protocol_ == ae::Protocol::kUdp) {
-        // #XSOCKETSELECT=<handle>
-        sendATCommand("AT#XSOCKETSELECT=" + connect_i_str);  // Set socket
-        err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
-        // #XSENDTO=<url>,<port>[,<data>]
-        std::string data_string(data.begin(), data.end());
-        sendATCommand("AT#XSENDTO=\"" + host_ + "\"," + std::to_string(port_) +
-                      ",\"" + data_string + "\"");
-
-        err = CheckResponce("OK", 1000, "AT#XSENDTO command error!");
-      }
-    }
-  } else {
+  if (connect_index >= connect_vec_.size()) {
+    err = kModemError::kConnectIndex;
+  } else if (!serial_->GetConnected()) {
     err = kModemError::kSerialPortError;
+  } else {
+    if (protocol_ == ae::Protocol::kTcp) {
+      handle = connect_vec_.at(connect_index).handle;
+      // #XSOCKETSELECT=<handle>
+      sendATCommand("AT#XSOCKETSELECT=" +
+                    std::to_string(handle));  // Set socket
+      err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
+      // #XSEND[=<data>]
+      // std::string data_string(data.begin(), data.end());
+      // sendATCommand("AT#XSEND=\"" + data_string + "\"");
+      sendATCommand("AT#XSEND");
+
+      err = CheckResponce("OK", 1000, "AT#XSEND command error!");
+
+      serial_->WriteData(data);
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      sendATCommand("+++");
+
+      err = CheckResponce("#XDATAMODE: 0", 10000, "+++ command error!");
+
+    } else if (protocol_ == ae::Protocol::kUdp) {
+      handle = connect_vec_.at(connect_index).handle;
+      // #XSOCKETSELECT=<handle>
+      sendATCommand("AT#XSOCKETSELECT=" +
+                    std::to_string(handle));  // Set socket
+      err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
+      // #XSENDTO=<url>,<port>[,<data>]
+      std::string data_string(data.begin(), data.end());
+      sendATCommand("AT#XSENDTO=\"" + host_ + "\"," + std::to_string(port_) +
+                    ",\"" + data_string + "\"");
+
+      err = CheckResponce("OK", 1000, "AT#XSENDTO command error!");
+    }
   }
 
   if (err != kModemError::kNoError) {
@@ -275,71 +292,75 @@ void Thingy91xAtModem::WritePacket(std::uint32_t const connect_index,
   }
 }
 
-void Thingy91xAtModem::ReadPacket(std::uint32_t const connect_index,
+void Thingy91xAtModem::ReadPacket(std::int8_t const connect_index,
                                   std::vector<std::uint8_t>& data,
                                   std::int32_t const timeout) {
-  std::string connect_i_str = std::to_string(connect_index);
+  std::int32_t handle{-1};
   std::string timeout_str = std::to_string(timeout);
   std::size_t size;
   kModemError err{kModemError::kNoError};
 
-  if (serial_->GetConnected()) {
-    if (err == kModemError::kNoError) {
-      if (protocol_ == ae::Protocol::kTcp) {
-        // #XSOCKETSELECT=<handle>
-        sendATCommand("AT#XSOCKETSELECT=" + connect_i_str);  // Set socket
-        err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
-        // #XRECV=<timeout>[,<flags>]
-        sendATCommand("AT#XRECV=" + timeout_str);
-        auto response = serial_->ReadData();
-        std::string response_string(response->begin(), response->end());
-        auto start = response_string.find("#XRECV: ") + 8;
-        auto stop = response_string.find("\r\n", 2);
-        if (stop > start && start != std::string::npos &&
-            stop != std::string::npos) {
-          size = std::stoi(response_string.substr(start, stop - start));
-          AE_TELED_DEBUG("Size {}", size);
-        } else {
-          size = 0;
-        }
+  if (connect_index >= connect_vec_.size()) {
+    err = kModemError::kConnectIndex;
+  } else if (!serial_->GetConnected()) {
+    err = kModemError::kSerialPortError;
+  } else {
+    if (protocol_ == ae::Protocol::kTcp) {
+      handle = connect_vec_.at(connect_index).handle;
+      // #XSOCKETSELECT=<handle>
+      sendATCommand("AT#XSOCKETSELECT=" +
+                    std::to_string(handle));  // Set socket
+      err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
+      // #XRECV=<timeout>[,<flags>]
+      sendATCommand("AT#XRECV=" + timeout_str);
+      auto response = serial_->ReadData();
+      std::string response_string(response->begin(), response->end());
+      auto start = response_string.find("#XRECV: ") + 8;
+      auto stop = response_string.find("\r\n", 2);
+      if (stop > start && start != std::string::npos &&
+          stop != std::string::npos) {
+        size = std::stoi(response_string.substr(start, stop - start));
+        AE_TELED_DEBUG("Size {}", size);
+      } else {
+        size = 0;
+      }
 
-        if (size > 0) {
-          auto start2 = response_string.find("\r\n", 2) + 2;
-          std::vector<std::uint8_t> response_vector(
-              response->begin() + start2, response->begin() + start2 + size);
-          data = response_vector;
-          AE_TELED_DEBUG("Data {}", data);
-        }
-      } else if (protocol_ == ae::Protocol::kUdp) {
-        // #XSOCKETSELECT=<handle>
-        sendATCommand("AT#XSOCKETSELECT=" + connect_i_str);  // Set socket
-        err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
-        // #XRECVFROM=<timeout>[,<flags>]
-        sendATCommand("AT#XRECVFROM=" + timeout_str);
-        auto response = serial_->ReadData();
-        std::string response_string(response->begin(), response->end());
-        auto start = response_string.find("#XRECVFROM: ") + 12;
-        auto stop = response_string.find(",");
-        if (stop > start && start != std::string::npos &&
-            stop != std::string::npos) {
-          size = std::stoi(response_string.substr(start, stop - start));
-          AE_TELED_DEBUG("Size {}", size);
-        } else {
-          size = 0;
-        }
+      if (size > 0) {
+        auto start2 = response_string.find("\r\n", 2) + 2;
+        std::vector<std::uint8_t> response_vector(
+            response->begin() + start2, response->begin() + start2 + size);
+        data = response_vector;
+        AE_TELED_DEBUG("Data {}", data);
+      }
+    } else if (protocol_ == ae::Protocol::kUdp) {
+      handle = connect_vec_.at(connect_index).handle;
+      // #XSOCKETSELECT=<handle>
+      sendATCommand("AT#XSOCKETSELECT=" +
+                    std::to_string(handle));  // Set socket
+      err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
+      // #XRECVFROM=<timeout>[,<flags>]
+      sendATCommand("AT#XRECVFROM=" + timeout_str);
+      auto response = serial_->ReadData();
+      std::string response_string(response->begin(), response->end());
+      auto start = response_string.find("#XRECVFROM: ") + 12;
+      auto stop = response_string.find(",");
+      if (stop > start && start != std::string::npos &&
+          stop != std::string::npos) {
+        size = std::stoi(response_string.substr(start, stop - start));
+        AE_TELED_DEBUG("Size {}", size);
+      } else {
+        size = 0;
+      }
 
-        if (size > 0) {
-          auto start2 = response_string.find(std::to_string(port_)) +
-                        std::to_string(port_).size() + 2;
-          std::vector<std::uint8_t> response_vector(
-              response->begin() + start2, response->begin() + start2 + size);
-          data = response_vector;
-          AE_TELED_DEBUG("Data {}", data);
-        }
+      if (size > 0) {
+        auto start2 = response_string.find(std::to_string(port_)) +
+                      std::to_string(port_).size() + 2;
+        std::vector<std::uint8_t> response_vector(
+            response->begin() + start2, response->begin() + start2 + size);
+        data = response_vector;
+        AE_TELED_DEBUG("Data {}", data);
       }
     }
-  } else {
-    err = kModemError::kSerialPortError;
   }
 
   if (err != kModemError::kNoError) {
@@ -347,63 +368,48 @@ void Thingy91xAtModem::ReadPacket(std::uint32_t const connect_index,
   }
 }
 
-void Thingy91xAtModem::GetHandles(std::vector<std::int32_t>& handles) {
-  handles = handles_;
-}
-
-void Thingy91xAtModem::PollSockets(std::vector<std::int32_t> const& handles,
-                                   std::vector<PollResults>& results,
+void Thingy91xAtModem::PollSockets(std::int8_t const connect_index,
+                                   PollResult& results,
                                    std::int32_t const timeout) {
-  std::string cmd{};
-  PollResults res;
+  std::int32_t handle{-1};
+  std::string cmd;
   std::int32_t hndl_tst;
   kModemError err{kModemError::kNoError};
 
-  if (serial_->GetConnected()) {
+  if (connect_index >= connect_vec_.size()) {
+    err = kModemError::kConnectIndex;
+  } else if (!serial_->GetConnected()) {
+    err = kModemError::kSerialPortError;
+  } else {
     if (err == kModemError::kNoError) {
+      handle = connect_vec_.at(connect_index).handle;
       // #XPOLL=<timeout>[,<handle1>[,<handle2> ...<handle8>]
-      if(handles.size() == 0){
-        cmd = "AT#XPOLL=" + std::to_string(timeout);
-        sendATCommand(cmd);
-        auto response = serial_->ReadData();
-        std::string response_string(response->begin(), response->end());
-        // TODO Add AT#XPOLL=2000 
-        // #XPOLL: 0,"0x0001" 
-        // #XPOLL: 1,"0x0001" 
-        // OK
-      } else {        
-        for(auto &hndl : handles){
-          cmd = "AT#XPOLL=" + std::to_string(timeout);          
-          cmd +=  "," + std::to_string(hndl);
-          sendATCommand(cmd);
-          auto response = serial_->ReadData();
-          std::string response_string(response->begin(), response->end());
-          auto start = response_string.find("#XPOLL: ") + 8;
-          auto stop = response_string.find(",");
-          if (stop > start && start != std::string::npos &&
-              stop != std::string::npos) {
-            hndl_tst = std::stoi(response_string.substr(start, stop - start));
-            AE_TELED_DEBUG("Handle {}", hndl_tst);
-            if(hndl_tst == hndl) {
-              // The  <revents>  value is a hexadecimal string. 
-              // It represents the returned events, which could be a combination 
-              // of POLLIN, POLLERR, POLLHUP and POLLNVAL.
-              res.handle = hndl;
-              res.revents = response_string.substr(stop, stop + 8);
-              results.push_back(res);
-            }
-          }
+      cmd = "AT#XPOLL=" + std::to_string(timeout);
+      cmd += "," + std::to_string(handle);
+      sendATCommand(cmd);
+      auto response = serial_->ReadData();
+      std::string response_string(response->begin(), response->end());
+      auto start = response_string.find("#XPOLL: ") + 8;
+      auto stop = response_string.find(",");
+      if (stop > start && start != std::string::npos &&
+          stop != std::string::npos) {
+        hndl_tst = std::stoi(response_string.substr(start, stop - start));
+        AE_TELED_DEBUG("Handle {}", hndl_tst);
+        if (hndl_tst == handle) {
+          // The  <revents>  value is a hexadecimal string.
+          // It represents the returned events, which could be a combination
+          // of POLLIN, POLLERR, POLLHUP and POLLNVAL.
+          results.connect_index = connect_index;
+          results.revents = response_string.substr(stop + 1, 8);
         }
       }
-    } else {
-      err = kModemError::kSerialPortError;
     }
   }
 
   if (err != kModemError::kNoError) {
     modem_error_event_.Emit(static_cast<int>(err));
   }
-};
+}
 
 void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
   kModemError err{kModemError::kNoError};

@@ -25,6 +25,9 @@
 
 namespace ae {
 
+struct Thingy91xConnection {
+  std::int32_t handle;
+};
 
 class Thingy91xAtModem : public IModemDriver {
  public:
@@ -32,20 +35,17 @@ class Thingy91xAtModem : public IModemDriver {
   void Init() override;
   void Start() override;
   void Stop() override;
-  void OpenNetwork(std::uint32_t const context_index,
-                   std::uint32_t const connect_index,
+  void OpenNetwork(std::int8_t& connect_index,
                    ae::Protocol const protocol, std::string const host,
                    std::uint16_t const port) override;
-  void CloseNetwork(std::uint32_t const context_index,
-                    std::uint32_t const connect_index) override;
-  void WritePacket(std::uint32_t const connect_index,
+  void CloseNetwork(std::int8_t const connect_index) override;
+  void WritePacket(std::int8_t const connect_index,
                    std::vector<uint8_t> const& data) override;
-  void ReadPacket(std::uint32_t const connect_index,
+  void ReadPacket(std::int8_t const connect_index,
                   std::vector<std::uint8_t>& data,
                   std::int32_t const timeout) override;
-  void GetHandles(std::vector<std::int32_t>& handles) override;
-  void PollSockets(std::vector<std::int32_t> const& handles,
-                   std::vector<PollResults>& results,
+  void PollSockets(std::int8_t const connect_index,
+                   PollResult& results,
                    std::int32_t const timeout) override;
   void SetPowerSaveParam(kPowerSaveParam const& psp) override;
   void PowerOff() override;
@@ -53,10 +53,10 @@ class Thingy91xAtModem : public IModemDriver {
  private:
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
+  std::vector<Thingy91xConnection> connect_vec_;
   ae::Protocol protocol_;
   std::string host_;
   std::uint16_t port_;
-  std::vector<std::int32_t> handles_;
 
   kModemError CheckResponce(std::string const responce,
                             std::uint32_t const wait_time,

@@ -25,32 +25,36 @@
 
 namespace ae {
 
+struct Sim7070Connection {
+std::uint32_t context_index;
+std::uint32_t connect_index;
+};
+
 class Sim7070AtModem : public IModemDriver {
  public:
   explicit Sim7070AtModem(ModemInit modem_init);
   void Init() override;
   void Start() override;
   void Stop() override;
-  void OpenNetwork(std::uint32_t const context_index,
-                   std::uint32_t const connect_index,
+  void OpenNetwork(std::int8_t& connect_index,
                    ae::Protocol const protocol, std::string const host,
                    std::uint16_t const port) override;
-  void CloseNetwork(std::uint32_t const context_index,
-                    std::uint32_t const connect_index) override;
-  void WritePacket(std::uint32_t const connect_index,
+  void CloseNetwork(std::int8_t const connect_index) override;
+  void WritePacket(std::int8_t const connect_index,
                    std::vector<uint8_t> const& data) override;
-  void ReadPacket(std::uint32_t const connect_index,
+  void ReadPacket(std::int8_t const connect_index,
                   std::vector<std::uint8_t>& data,
                   std::int32_t const timeout) override;
-  void PollSockets(std::vector<std::int32_t> const& handles,
-                   std::vector<PollResults>& results,
+  void PollSockets(std::int8_t const connect_index,
+                   PollResult& results,
                    std::int32_t const timeout) override;
   void PowerOff();
 
  private:
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
-
+  std::vector<Sim7070Connection> connect_vec_;
+  
   kModemError CheckResponce(std::string responce, std::uint32_t wait_time,
                             std::string error_message);
   kModemError SetBaudRate(std::uint32_t rate);

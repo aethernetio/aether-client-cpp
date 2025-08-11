@@ -46,7 +46,8 @@ enum class kModemError : std::int8_t {
   kSetRai = -17,
   kSetBandLock = -18,
   kSetPsm = -19,
-  kSetPwr = -20
+  kSetPwr = -20,
+  kConnectIndex = -21
 };
 
 enum class kModemMode : std::uint8_t {
@@ -214,8 +215,8 @@ struct ModemInit {
   bool use_ssl;
 };
 
-struct PollResults {
-  std::int32_t handle;
+struct PollResult {
+  std::uint8_t connect_index;
   std::string revents;
 };
 
@@ -227,20 +228,17 @@ class IModemDriver {
   virtual void Init() = 0;
   virtual void Start() = 0;
   virtual void Stop() = 0;
-  virtual void OpenNetwork(std::uint32_t const context_index,
-                           std::uint32_t const connect_index,
+  virtual void OpenNetwork(std::int8_t& connect_index,
                            ae::Protocol const protocol, const std::string host,
                            const std::uint16_t port) = 0;
-  virtual void CloseNetwork(std::uint32_t const context_index,
-                            std::uint32_t const connect_index) = 0;
-  virtual void WritePacket(std::uint32_t const connect_index,
+  virtual void CloseNetwork(std::int8_t const connect_index) = 0;
+  virtual void WritePacket(std::int8_t const connect_index,
                            std::vector<uint8_t> const& data) = 0;
-  virtual void ReadPacket(std::uint32_t const connect_index,
+  virtual void ReadPacket(std::int8_t const connect_index,
                           std::vector<std::uint8_t>& data,
                           std::int32_t const timeout) = 0;
-  virtual void GetHandles(std::vector<std::int32_t>& handles) = 0;
-  virtual void PollSockets(std::vector<std::int32_t> const& handles,
-                           std::vector<PollResults>& results,
+  virtual void PollSockets(std::int8_t const connect_index,
+                           PollResult& results,
                            std::int32_t const timeout) = 0;
   virtual void SetPowerSaveParam(kPowerSaveParam const& psp) = 0;
   virtual void PowerOff() = 0;
