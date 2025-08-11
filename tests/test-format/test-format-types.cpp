@@ -95,7 +95,7 @@ void test_FormatStrings() {
 void test_Containers() {
   std::vector<std::int8_t> vec_data = {0x7f, 0x01, 0x42};
   auto vec_data_str = Format("{}", vec_data);
-  TEST_ASSERT_EQUAL_STRING("[7f0142]", vec_data_str.data());
+  TEST_ASSERT_EQUAL_STRING("7f0142", vec_data_str.data());
 
   std::vector<std::string_view> vec_messages = {"hello", "beautiful", "world"};
   auto vec_messages_str = Format("[{}]", vec_messages);
@@ -104,7 +104,7 @@ void test_Containers() {
 
   std::list<std::uint8_t> list_data = {0xff, 0x01, 0x42};
   auto list_data_str = Format("{}", list_data);
-  TEST_ASSERT_EQUAL_STRING("[ff0142]", list_data_str.data());
+  TEST_ASSERT_EQUAL_STRING("ff0142", list_data_str.data());
 
   std::list<Int8EnumType> list_enum = {
       Int8EnumType::kOne, Int8EnumType::kFortyTwo, Int8EnumType::kOne};

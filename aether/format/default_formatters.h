@@ -24,7 +24,6 @@
 #include <type_traits>
 #include <string_view>
 
-#include "aether/types/uid.h"
 #include "aether/type_traits.h"
 #include "aether/format/formatter.h"
 #include "aether/format/format_impl.h"
@@ -96,8 +95,10 @@ struct Formatter<T, std::enable_if_t<!(IsString<std::decay_t<T>>::value ||
                                      IsContainer<std::decay_t<T>>::value>> {
   template <typename TStream>
   void Format(T const& value, FormatContext<TStream>& ctx) const {
-    if constexpr (std::is_same_v<std::uint8_t, typename T::value_type> ||
-                  std::is_same_v<std::int8_t, typename T::value_type>) {
+    if constexpr (std::is_same_v<std::uint8_t,
+                                 std::decay_t<typename T::value_type>> ||
+                  std::is_same_v<std::int8_t,
+                                 std::decay_t<typename T::value_type>>) {
       FormatBuffer(value, ctx);
     } else {
       FormatContainer(value, ctx);
@@ -127,7 +128,6 @@ struct Formatter<T, std::enable_if_t<!(IsString<std::decay_t<T>>::value ||
 
   template <typename TStream>
   void FormatBuffer(T const& value, FormatContext<TStream>& ctx) const {
-    ctx.out().write("[");
     ctx.out().stream() << std::setfill('0');
     for (auto it = std::begin(value); it != std::end(value); ++it) {
       ctx.out().stream() << std::setw(2) << std::hex;
@@ -138,18 +138,8 @@ struct Formatter<T, std::enable_if_t<!(IsString<std::decay_t<T>>::value ||
       }
     }
     ctx.out().stream() << std::setfill(' ') << std::setw(0) << std::dec;
-    ctx.out().write("]");
   }
 };
-
-template <>
-struct Formatter<Uid> {
-  template <typename TStream>
-  void Format(Uid const& uid, FormatContext<TStream>& ctx) const {
-    ae::Format(ctx.out(), "{}", uid.value);
-  }
-};
-
 }  // namespace ae
 
 #endif  // AETHER_FORMAT_DEFAULT_FORMATTERS_H_
