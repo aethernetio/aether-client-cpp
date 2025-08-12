@@ -196,28 +196,35 @@ void ModemAdapter::Connect(void) {
   // For test
   std::vector<std::uint8_t> data{};
   std::vector<std::uint8_t> data1{'H', 'e', 'l', 'l', 'o', ' ', 'w',
-                                 'o', 'r', 'l', 'd', '1', '!'};
+                                  'o', 'r', 'l', 'd', '1', '!'};
   std::vector<std::uint8_t> data2{'H', 'e', 'l', 'l', 'o', ' ', 'w',
-                                 'o', 'r', 'l', 'd', '2', '!'};
+                                  'o', 'r', 'l', 'd', '2', '!'};
   std::int8_t connect_index{0};
   PollResult results;
   std::vector<std::uint8_t> connect_index_vec{};
   std::int32_t const timeout{2000};
-  
-  modem_driver_->OpenNetwork(connect_index, ae::Protocol::kTcp, "95.52.244.165"/*"dbservice.aethernet.io"*/,
-                             8889);
-  if(connect_index >= 0) connect_index_vec.push_back(connect_index);
-  modem_driver_->OpenNetwork(connect_index, ae::Protocol::kTcp, "95.52.244.165"/*"dbservice.aethernet.io"*/,
-                             8889);
-  if(connect_index >= 0)connect_index_vec.push_back(connect_index);
 
-  for(auto& connect_i : connect_index_vec){
+  modem_driver_->OpenNetwork(connect_index, ae::Protocol::kTcp,
+                             "95.52.244.165" /*"dbservice.aethernet.io"*/,
+                             8889);
+  if (connect_index >= 0) connect_index_vec.push_back(connect_index);
+  modem_driver_->OpenNetwork(connect_index, ae::Protocol::kTcp,
+                             "95.52.244.165" /*"dbservice.aethernet.io"*/,
+                             8889);
+  if (connect_index >= 0) connect_index_vec.push_back(connect_index);
+
+  for (auto& connect_i : connect_index_vec) {
     modem_driver_->PollSockets(connect_i, results, timeout);
-    if(connect_i==0) {data = data1;}
-    if(connect_i==1) {data = data2;}
+    if (connect_i == 0) {
+      data = data1;
+    }
+    if (connect_i == 1) {
+      data = data2;
+    }
     modem_driver_->WritePacket(connect_i, data);
     modem_driver_->PollSockets(connect_i, results, timeout);
-    if(results.revents == "\"0x0001\""){
+    if (std::find(begin(results.revents), end(results.revents),
+                  PollEvents::kPOLLIN) != end(results.revents)) {
       modem_driver_->ReadPacket(connect_i, data, timeout);
       AE_TELED_DEBUG("Data={}", data);
     }
@@ -228,7 +235,8 @@ void ModemAdapter::Connect(void) {
 }
 
 void ModemAdapter::DisConnect(void) {
-  AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem disconnecting from the network");
+  AE_TELE_DEBUG(kAdapterModemDisconnected,
+                "Modem disconnecting from the network");
   modem_driver_->Stop();
 }
 

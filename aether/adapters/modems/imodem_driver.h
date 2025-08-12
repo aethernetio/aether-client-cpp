@@ -47,7 +47,10 @@ enum class kModemError : std::int8_t {
   kSetBandLock = -18,
   kSetPsm = -19,
   kSetPwr = -20,
-  kConnectIndex = -21
+  kConnectIndex = -21,
+  kPPEMiss0x = -22,
+  kPPEInvalidHex = -23,
+  kPPEFailedConvert = -24
 };
 
 enum class kModemMode : std::uint8_t {
@@ -215,9 +218,25 @@ struct ModemInit {
   bool use_ssl;
 };
 
+/**
+ * @enum PollEvents
+ * @brief Represents event flags for poll() system call monitoring
+ * 
+ * Each flag corresponds to a specific type of I/O event that can be monitored
+ * using the poll() system call. Flags can be combined using bitwise OR operations.
+ */
+enum class PollEvents : unsigned int {
+  kPOLLIN   = 0x0001,
+  kPOLLPRI  = 0x0002,
+  kPOLLOUT  = 0x0004,
+  kPOLLERR  = 0x0008,
+  kPOLLHUP  = 0x0010,
+  kPOLLNVAL = 0x0020
+};
+
 struct PollResult {
   std::uint8_t connect_index;
-  std::string revents;
+  std::vector<PollEvents> revents;
 };
 
 class IModemDriver {

@@ -35,17 +35,15 @@ class Thingy91xAtModem : public IModemDriver {
   void Init() override;
   void Start() override;
   void Stop() override;
-  void OpenNetwork(std::int8_t& connect_index,
-                   ae::Protocol const protocol, std::string const host,
-                   std::uint16_t const port) override;
+  void OpenNetwork(std::int8_t& connect_index, ae::Protocol const protocol,
+                   std::string const host, std::uint16_t const port) override;
   void CloseNetwork(std::int8_t const connect_index) override;
   void WritePacket(std::int8_t const connect_index,
                    std::vector<uint8_t> const& data) override;
   void ReadPacket(std::int8_t const connect_index,
                   std::vector<std::uint8_t>& data,
                   std::int32_t const timeout) override;
-  void PollSockets(std::int8_t const connect_index,
-                   PollResult& results,
+  void PollSockets(std::int8_t const connect_index, PollResult& results,
                    std::int32_t const timeout) override;
   void SetPowerSaveParam(kPowerSaveParam const& psp) override;
   void PowerOff() override;
@@ -85,6 +83,8 @@ class Thingy91xAtModem : public IModemDriver {
   kModemError SetBandLock(std::uint8_t const bl_mode,
                           std::vector<std::int32_t> const& bands);
   kModemError ResetModemFactory(std::uint8_t const res_mode);
+  kModemError ParsePollEvents(const std::string& str,
+                              std::vector<PollEvents>& events_out);
   void sendATCommand(std::string const& command);
   bool waitForResponse(std::string const& expected,
                        std::chrono::milliseconds const timeout_ms);

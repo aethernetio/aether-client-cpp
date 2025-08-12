@@ -97,6 +97,8 @@ void Thingy91xAtModem::Stop() {
   kModemError err{kModemError::kNoError};
 
   if (serial_->GetConnected()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
     // Disabling full functionality
     if (err == kModemError::kNoError) {
       sendATCommand("AT+CFUN=0");
@@ -215,7 +217,7 @@ void Thingy91xAtModem::CloseNetwork(std::int8_t const connect_index) {
   } else if (!serial_->GetConnected()) {
     err = kModemError::kSerialPortError;
   } else {
-    if (err == kModemError::kNoError) {      
+    if (err == kModemError::kNoError) {
       if (protocol_ == ae::Protocol::kTcp) {
         handle = connect_vec_.at(connect_index).handle;
         // #XSOCKETSELECT=<handle>
@@ -374,6 +376,7 @@ void Thingy91xAtModem::PollSockets(std::int8_t const connect_index,
   std::int32_t handle{-1};
   std::string cmd;
   std::int32_t hndl_tst;
+  std::vector<PollEvents> revnts;
   kModemError err{kModemError::kNoError};
 
   if (connect_index >= connect_vec_.size()) {
@@ -399,8 +402,17 @@ void Thingy91xAtModem::PollSockets(std::int8_t const connect_index,
           // The  <revents>  value is a hexadecimal string.
           // It represents the returned events, which could be a combination
           // of POLLIN, POLLERR, POLLHUP and POLLNVAL.
-          results.connect_index = connect_index;
-          results.revents = response_string.substr(stop + 1, 8);
+          // POLLIN — 0x0001;
+          // POLLPRI — 0x0002;
+          // POLLOUT — 0x0004;
+          // POLLERR — 0x0008;
+          // POLLHUP — 0x0010;
+          // POLLNVAL — 0x0020.
+          err = ParsePollEvents(response_string.substr(stop + 2, 6), revnts);
+          if (err == kModemError::kNoError) {
+            results.connect_index = connect_index;
+            results.revents = revnts;
+          }
         }
       }
     }
@@ -848,6 +860,78 @@ kModemError Thingy91xAtModem::ResetModemFactory(std::uint8_t const res_mode) {
   }
 
   return err;
+}
+
+/**
+ * @brief Parses hexadecimal string into PollEvents flags
+ *
+ * Processes input strings in "0xXXXX" format, populating a vector
+ * with detected event flags. Returns error messages instead of throwing.
+ *
+ * @param str Input hexadecimal string (e.g., "0x0015")
+ * @param[out] events_out Output vector to receive detected flags
+ * @return kModemError kNoError string on success, error enum otherwise
+ *
+ * @par Error Conditions:
+ * - Missing "0x" prefix: returns "Missing '0x' prefix"
+ * - Invalid hex digit: returns "Invalid hexadecimal digit"
+ * - Conversion error: returns "Failed to convert hexadecimal value"
+ *
+ * @par Example:
+ * @code
+ *   std::vector<PollEvents> events;
+ *   if (auto err = parse_poll_events("0x0005", events); !err.empty()) {
+ *       // Handle error
+ *   } else {
+ *       // Use events: {POLLIN, POLLOUT}
+ *   }
+ * @endcode
+ */
+kModemError Thingy91xAtModem::ParsePollEvents(
+    const std::string& str, std::vector<PollEvents>& events_out) {
+  kModemError err{kModemError::kNoError};
+
+  // Clear output vector before population
+  events_out.clear();
+
+  // Validate prefix format
+  if (str.size() < 3 || str[0] != '0' || str[1] != 'x') {
+    err = kModemError::kPPEMiss0x;
+    return err;  // "Missing '0x' prefix";
+  }
+
+  // Validate hexadecimal characters
+  for (size_t i = 2; i < str.size(); ++i) {
+    if (!std::isxdigit(static_cast<unsigned char>(str[i]))) {
+      err = kModemError::kPPEInvalidHex;
+      return err;  //"Invalid hexadecimal digit";
+    }
+  }
+
+  // Convert hexadecimal substring
+  char* end_ptr = nullptr;
+  const std::string hex_part = str.substr(2);
+  unsigned long value = std::strtoul(hex_part.c_str(), &end_ptr, 16);
+
+  // Verify complete conversion
+  if (end_ptr != hex_part.c_str() + hex_part.size()) {
+    err = kModemError::kPPEFailedConvert;
+    return err;  // "Failed to convert hexadecimal value";
+  }
+
+  // Define all valid flags in standard order
+  constexpr std::array VALID_FLAGS{PollEvents::kPOLLIN,  PollEvents::kPOLLPRI,
+                                   PollEvents::kPOLLOUT, PollEvents::kPOLLERR,
+                                   PollEvents::kPOLLHUP, PollEvents::kPOLLNVAL};
+
+  // Populate output vector with matching flags
+  for (const auto flag : VALID_FLAGS) {
+    if (value & static_cast<unsigned int>(flag)) {
+      events_out.push_back(flag);
+    }
+  }
+
+  return err;  // Indicate success
 }
 
 void Thingy91xAtModem::sendATCommand(const std::string& command) {
