@@ -17,19 +17,17 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_TEST_ACTION_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_TEST_ACTION_H_
 
-#include <cstdint>
-#include <utility>
 #include <vector>
+#include <cstdint>
 
-#include "aether/ptr/ptr.h"
-#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
+#include "aether/types/state_machine.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/event_subscription.h"
 
-#include "aether/tele/tele.h"
-
 #include "send_messages_bandwidth/common/bandwidth.h"
+
+#include "aether/tele/tele.h"
 
 namespace ae::bench {
 template <typename TAgent>
@@ -40,23 +38,17 @@ class TestAction : public Action<TestAction<TAgent>> {
     kConnect,
     kHandshake,
     kWarmup,
-    kSyncOneByte,
     kOneByte,
-    kSyncTenBytes,
     kTenBytes,
-    kSyncHundredBytes,
     kHundredBytes,
-    kSyncThousandBytes,
     kThousandBytes,
-    kSyncVariableSize,
-    kVariableSize,
     kDone,
     kError,
   };
 
  public:
-  explicit TestAction(ActionContext action_context, TAgent& agent,
-                      std::size_t test_message_count)
+  TestAction(ActionContext action_context, TAgent& agent,
+             std::size_t test_message_count)
       : SelfAction{action_context},
         agent_{&agent},
         test_message_count_{test_message_count},
@@ -65,8 +57,6 @@ class TestAction : public Action<TestAction<TAgent>> {
             [this](auto) { SelfAction::Trigger(); })},
         error_subscription_{agent_->error_event().Subscribe(
             [this]() { state_ = State::kError; })} {}
-
-  ~TestAction() override { AE_TELED_DEBUG("TestAction::~TestAction"); }
 
   ActionResult Update() {
     if (state_.changed()) {
@@ -80,35 +70,17 @@ class TestAction : public Action<TestAction<TAgent>> {
         case State::kWarmup:
           WarmUp();
           break;
-        case State::kSyncOneByte:
-          Sync(State::kOneByte);
-          break;
         case State::kOneByte:
           OneByte();
-          break;
-        case State::kSyncTenBytes:
-          Sync(State::kTenBytes);
           break;
         case State::kTenBytes:
           TenBytes();
           break;
-        case State::kSyncHundredBytes:
-          Sync(State::kHundredBytes);
-          break;
         case State::kHundredBytes:
           HundredBytes();
           break;
-        case State::kSyncThousandBytes:
-          Sync(State::kThousandBytes);
-          break;
         case State::kThousandBytes:
           ThousandBytes();
-          break;
-        case State::kSyncVariableSize:
-          Sync(State::kVariableSize);
-          break;
-        case State::kVariableSize:
-          VariableSize();
           break;
         case State::kDone:
           return ActionResult::Result();
@@ -119,51 +91,44 @@ class TestAction : public Action<TestAction<TAgent>> {
     return {};
   }
 
-  auto result_table() const { return result_table_; }
+  std::vector<Bandwidth> const& result_table() const { return result_table_; }
 
  private:
   void Connect() {
     agent_->Connect();
     state_ = State::kHandshake;
   }
-
   void Handshake() {
     AE_TELED_DEBUG("Handshake");
     handshake_subscription_ =
         agent_->Handshake().Subscribe([this]() { state_ = State::kWarmup; });
   }
 
-  void Sync(State next_state) {
-    AE_TELED_DEBUG("Sync before state {}", next_state);
-    sync_subscription_ =
-        agent_->Sync().Subscribe([this, next_state]() { state_ = next_state; });
-  }
-
   void WarmUp() {
     AE_TELED_DEBUG("WarmUp");
-    test_result_subscription_ = agent_->WarmUp(1000).Subscribe(
-        [this](auto const&) { state_ = State::kSyncOneByte; });
+    test_result_subscription_ = agent_->TestMessages(100, 1).Subscribe(
+        [this](auto const&) { state_ = State::kOneByte; });
   }
 
   void OneByte() {
     AE_TELED_DEBUG("OneByte");
     test_result_subscription_ =
-        agent_->OneByte(test_message_count_)
+        agent_->TestMessages(test_message_count_, 1)
             .Subscribe([this](auto const& bandwidth) {
               AE_TELED_DEBUG("OneByte res: {}", bandwidth);
               result_table_.push_back(bandwidth);
-              state_ = State::kSyncTenBytes;
+              state_ = State::kTenBytes;
             });
   }
 
   void TenBytes() {
     AE_TELED_DEBUG("TenBytes");
     test_result_subscription_ =
-        agent_->TenBytes(test_message_count_)
+        agent_->TestMessages(test_message_count_, 10)
             .Subscribe([this](auto const& bandwidth) {
               AE_TELED_DEBUG("TenBytes res: {}", bandwidth);
               result_table_.push_back(bandwidth);
-              state_ = State::kSyncHundredBytes;
+              state_ = State::kHundredBytes;
             });
   }
 
@@ -171,33 +136,23 @@ class TestAction : public Action<TestAction<TAgent>> {
     AE_TELED_DEBUG("HundredBytes");
 
     test_result_subscription_ =
-        agent_->HundredBytes(test_message_count_)
+        agent_->TestMessages(test_message_count_, 100)
             .Subscribe([this](auto const& bandwidth) {
               AE_TELED_DEBUG("HundredBytes res: {}", bandwidth);
               result_table_.push_back(bandwidth);
-              state_ = State::kSyncThousandBytes;
+              state_ = State::kThousandBytes;
             });
   }
 
   void ThousandBytes() {
     AE_TELED_DEBUG("ThousandBytes");
     test_result_subscription_ =
-        agent_->ThousandBytes(test_message_count_)
+        agent_->TestMessages(test_message_count_, 1000)
             .Subscribe([this](auto const& bandwidth) {
               AE_TELED_DEBUG("ThousandBytes res: {}", bandwidth);
               result_table_.push_back(bandwidth);
-              // state_ = State::kSyncVariableSize;
               state_ = State::kDone;
             });
-  }
-
-  void VariableSize() {
-    /* test_result_subscription_ =
-        agent_->VariableSize().Subscribe([this](auto const& bandwidth) {
-          AE_TELED_DEBUG("VariableSize res: {}", bandwidth);
-          result_table_.push_back(bandwidth);
-          state_ = State::kDone;
-        }); */
   }
 
   TAgent* agent_;

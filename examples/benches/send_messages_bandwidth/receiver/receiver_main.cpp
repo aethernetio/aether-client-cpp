@@ -14,65 +14,46 @@
  * limitations under the License.
  */
 
-#include "aether/obj/domain.h"
-#include "aether/tele/tele_init.h"
-#include "aether/types/literal_array.h"
+#include "aether/all.h"
 
-#include "aether/aether.h"
-#include "aether/client.h"
-#include "aether/global_ids.h"
-#include "aether/aether_app.h"
-
-#include "send_messages_bandwidth/common/sender.h"
+#include "send_messages_bandwidth/receiver/receiver.h"
 #include "send_messages_bandwidth/common/test_action.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
 
-static constexpr char WIFI_SSID[] = "Test123";
-static constexpr char WIFI_PASS[] = "Test123";
-
-int test_sender_bandwidth(Uid receiver_uid) {
+int test_receiver_bandwidth() {
   auto aether_app = ae::AetherApp::Construct(AetherAppContext{});
 
   ae::Client::ptr client;
 
-  // select one client
-  auto select_client = aether_app->aether()->SelectClient(
-      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 2);
+  // get one client
+  auto get_client = aether_app->aether()->SelectClient(
+      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 1);
 
-  bool client_selected = false;
-  bool client_select_failed = false;
+  get_client->ResultEvent().Subscribe(
+      [&](auto const& reg) { client = reg.client(); });
 
-  select_client->ResultEvent().Subscribe([&](auto const& reg) {
-    client_selected = true;
-    client = reg.client();
-  });
-  select_client->ErrorEvent().Subscribe(
-      [&](auto const&) { client_select_failed = true; });
+  aether_app->WaitAction(get_client);
 
-  while (!client_selected && !client_select_failed) {
-    auto next_time = aether_app->Update(ae::Now());
-    aether_app->WaitUntil(next_time);
-  }
-  if (client_select_failed) {
+  if (!client) {
     AE_TELED_ERROR("Registration failed");
     return -1;
   }
 
   auto action_context = ActionContext{*aether_app};
-  auto sender = Sender{action_context, client, receiver_uid};
+  auto receiver = Receiver{action_context, client};
 
-  auto test_action =
-      TestAction<Sender>{action_context, sender, std::size_t{10000}};
+  auto test_action = TestAction(action_context, receiver, std::size_t{10000});
 
   auto result_subscription =
       test_action.ResultEvent().Subscribe([&](auto const& action) {
         auto res_name_table = std::array{
-            std::string_view{"1 Byte"}, std::string_view{"10 Bytes"},
-            std::string_view{"100 Bytes"}, std::string_view{"1000 Bytes"},
-            /* std::string_view{"1500 Bytes"}, */
+            std::string_view{"1 Byte"},
+            std::string_view{"10 Bytes"},
+            std::string_view{"100 Bytes"},
+            std::string_view{"1000 Bytes"},
         };
         auto const& results = action.result_table();
 
@@ -81,6 +62,7 @@ int test_sender_bandwidth(Uid receiver_uid) {
           res_string += Format("{}:{}\n", res_name_table[i], results[i]);
         }
         std::cout << "Test results: \n" << res_string << std::endl;
+
         aether_app->Exit(0);
       });
 
@@ -89,6 +71,9 @@ int test_sender_bandwidth(Uid receiver_uid) {
         AE_TELED_ERROR("Test failed");
         aether_app->Exit(1);
       });
+
+  std::cout << "Receiver prepared for test with uid "
+            << Format("{}", client->uid()) << std::endl;
 
   while (!aether_app->IsExited()) {
     auto time = ae::TimePoint::clock::now();
@@ -100,12 +85,4 @@ int test_sender_bandwidth(Uid receiver_uid) {
 }
 }  // namespace ae::bench
 
-int main(int argc, char** argv) {
-  if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " <receiver_uid>\n";
-    return 1;
-  }
-  auto uid_str = std::string(argv[1]);
-  auto uid = ae::Uid::FromString(uid_str);
-  return ae::bench::test_sender_bandwidth(uid);
-}
+int main() { return ae::bench::test_receiver_bandwidth(); }
