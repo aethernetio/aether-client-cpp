@@ -86,7 +86,7 @@ EventSubscriber<void(Bandwidth const&)> Receiver::TestMessages(
         api.Flush();
       });
 
-  message_receiver_.emplace(action_context_);
+  message_receiver_ = OwnActionPtr<MessageReceiver>{action_context_};
 
   test_success_sub_ = message_receiver_->ResultEvent().Subscribe(
       [this, message_size](MessageReceiver const& action) {

@@ -33,6 +33,8 @@ ActionResult MessageReceiver::Update() {
         return ActionResult::Result();
       case State::kError:
         return ActionResult::Error();
+      case State::kStopped:
+        return ActionResult::Stop();
     }
   }
   if (state_.get() == State::kReceiving) {
@@ -60,6 +62,11 @@ void MessageReceiver::MessageReceived(std::uint16_t id) {
 
 void MessageReceiver::StopTest() {
   state_ = State::kSuccess;
+  Action::Trigger();
+}
+
+void MessageReceiver::Stop() {
+  state_ = State::kStopped;
   Action::Trigger();
 }
 

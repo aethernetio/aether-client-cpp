@@ -21,7 +21,7 @@
 #include "aether/common.h"
 #include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
-#include "aether/actions/action_view.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/events/cumulative_event.h"
@@ -76,8 +76,8 @@ class SendMessageDelaysManager {
     void Test100Bytes();
     void Test1000Bytes();
 
-    void SubscribeToTest(ActionView<TimedSender> sender_action,
-                         ActionView<TimedReceiver> receiver_action,
+    void SubscribeToTest(ActionPtr<TimedSender> sender_action,
+                         ActionPtr<TimedReceiver> receiver_action,
                          State next_state);
 
     void TestResult(TimeTable const& sent_table,
@@ -102,14 +102,14 @@ class SendMessageDelaysManager {
                            std::unique_ptr<Sender> sender,
                            std::unique_ptr<Receiver> receiver);
 
-  ActionView<TestAction> Test(SendMessageDelaysManagerConfig config);
+  ActionPtr<TestAction> Test(SendMessageDelaysManagerConfig config);
 
  private:
   ActionContext action_context_;
   std::unique_ptr<Sender> sender_;
   std::unique_ptr<Receiver> receiver_;
 
-  std::unique_ptr<TestAction> test_action_;
+  ActionPtr<TestAction> test_action_;
   MultiSubscription test_action_subscription_;
 };
 }  // namespace ae::bench

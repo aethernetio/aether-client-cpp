@@ -45,10 +45,11 @@ int test_receiver_bandwidth() {
   auto action_context = ActionContext{*aether_app};
   auto receiver = Receiver{action_context, client};
 
-  auto test_action = TestAction(action_context, receiver, std::size_t{10000});
+  auto test_action = ActionPtr<TestAction<Receiver>>(action_context, receiver,
+                                                     std::size_t{10000});
 
   auto result_subscription =
-      test_action.ResultEvent().Subscribe([&](auto const& action) {
+      test_action->ResultEvent().Subscribe([&](auto const& action) {
         auto res_name_table = std::array{
             std::string_view{"1 Byte"},
             std::string_view{"10 Bytes"},
@@ -67,13 +68,12 @@ int test_receiver_bandwidth() {
       });
 
   auto error_subscription =
-      test_action.ErrorEvent().Subscribe([&](auto const&) {
+      test_action->ErrorEvent().Subscribe([&](auto const&) {
         AE_TELED_ERROR("Test failed");
         aether_app->Exit(1);
       });
 
-  std::cout << "Receiver prepared for test with uid "
-            << Format("{}", client->uid()) << std::endl;
+  Format(std::cout, "Receiver prepared for test with uid {}\n", client->uid());
 
   while (!aether_app->IsExited()) {
     auto time = ae::TimePoint::clock::now();
