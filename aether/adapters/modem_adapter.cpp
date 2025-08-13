@@ -195,15 +195,18 @@ void ModemAdapter::Connect(void) {
   modem_driver_->Start();
   // For test
   std::vector<std::uint8_t> data{};
-  std::vector<std::uint8_t> data1{'H', 'e', 'l', 'l', 'o', ' ', 'w',
-                                  'o', 'r', 'l', 'd', '1', '!'};
-  std::vector<std::uint8_t> data2{'H', 'e', 'l', 'l', 'o', ' ', 'w',
-                                  'o', 'r', 'l', 'd', '2', '!'};
+  std::vector<std::uint8_t> data1{};
+  std::vector<std::uint8_t> data2{};
   std::int8_t connect_index{0};
   PollResult results;
   std::vector<std::uint8_t> connect_index_vec{};
   std::int32_t const timeout{2000};
+  bool exit{false};
 
+  for (uint16_t i = 0; i < 512; i++) {
+    data1.push_back(static_cast<char>(i));
+    data2.push_back(static_cast<char>(i));
+  }
   modem_driver_->OpenNetwork(connect_index, ae::Protocol::kTcp,
                              "95.52.244.165" /*"dbservice.aethernet.io"*/,
                              8889);
@@ -222,14 +225,19 @@ void ModemAdapter::Connect(void) {
       data = data2;
     }
     modem_driver_->WritePacket(connect_i, data);
-    modem_driver_->PollSockets(connect_i, results, timeout);
-    if (std::find(begin(results.revents), end(results.revents),
-                  PollEvents::kPOLLIN) != end(results.revents)) {
-      modem_driver_->ReadPacket(connect_i, data, timeout);
-      AE_TELED_DEBUG("Data={}", data);
-    }
-    modem_driver_->PollSockets(connect_i, results, timeout);
-    modem_driver_->CloseNetwork(connect_i);
+
+    do {
+      modem_driver_->PollSockets(connect_i, results, timeout);
+      if (std::find(begin(results.revents), end(results.revents),
+                    PollEvents::kPOLLIN) != end(results.revents)) {
+        modem_driver_->ReadPacket(connect_i, data, timeout);
+        AE_TELED_DEBUG("Data={}", data);
+      } else {
+        exit = true;
+      }
+    } while (!exit);
+
+        modem_driver_->CloseNetwork(connect_i);
   }
   modem_driver_->Stop();
 }

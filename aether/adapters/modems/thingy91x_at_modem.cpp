@@ -376,8 +376,11 @@ void Thingy91xAtModem::PollSockets(std::int8_t const connect_index,
   std::int32_t handle{-1};
   std::string cmd;
   std::int32_t hndl_tst;
-  std::vector<PollEvents> revnts;
+  std::vector<PollEvents> revnts{};
   kModemError err{kModemError::kNoError};
+
+  results.connect_index = -1;
+  results.revents = revnts;
 
   if (connect_index >= connect_vec_.size()) {
     err = kModemError::kConnectIndex;
@@ -401,13 +404,7 @@ void Thingy91xAtModem::PollSockets(std::int8_t const connect_index,
         if (hndl_tst == handle) {
           // The  <revents>  value is a hexadecimal string.
           // It represents the returned events, which could be a combination
-          // of POLLIN, POLLERR, POLLHUP and POLLNVAL.
-          // POLLIN — 0x0001;
-          // POLLPRI — 0x0002;
-          // POLLOUT — 0x0004;
-          // POLLERR — 0x0008;
-          // POLLHUP — 0x0010;
-          // POLLNVAL — 0x0020.
+          // of POLLIN, POLLERR, POLLHUP and POLLNVAL.          
           err = ParsePollEvents(response_string.substr(stop + 2, 6), revnts);
           if (err == kModemError::kNoError) {
             results.connect_index = connect_index;

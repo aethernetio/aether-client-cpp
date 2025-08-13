@@ -235,7 +235,7 @@ enum class PollEvents : unsigned int {
 };
 
 struct PollResult {
-  std::uint8_t connect_index;
+  std::int8_t connect_index;
   std::vector<PollEvents> revents;
 };
 
