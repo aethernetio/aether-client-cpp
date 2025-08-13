@@ -18,6 +18,7 @@
 
 #include <string_view>
 
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/repeatable_task.h"
 #include "aether/actions/action_processor.h"
@@ -60,7 +61,7 @@ void TestSendPackets(ActionProcessor& ap, SafeStream& sender,
   std::size_t received_size = 0;
 
   // send messages periodically
-  auto task = RepeatableTask{
+  auto task = ActionPtr<RepeatableTask>{
       ac,
       [&]() {
         auto sent_action = sender.Write(ToDataBuffer(test_data));

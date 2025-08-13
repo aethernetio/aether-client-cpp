@@ -75,7 +75,7 @@ class ApiLevel0 : public ReturnResultApiImpl,
 
   // call methods to make packet
   Method<03, void(int a, std::string b)> method_3;
-  Method<04, PromiseView<int>(int a)> method_4;
+  Method<04, PromisePtr<int>(int a)> method_4;
   Method<05, SubContext<ApiLevel1>(int a)> method_5;
 
   // to signal method impl is called
