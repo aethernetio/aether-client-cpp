@@ -203,7 +203,7 @@ void ModemAdapter::Connect(void) {
   std::int32_t const timeout{2000};
   bool exit{false};
 
-  for (uint16_t i = 0; i < 512; i++) {
+  for (uint16_t i = 0; i < 1512; i++) {
     data1.push_back(static_cast<char>(i));
     data2.push_back(static_cast<char>(i));
   }
@@ -231,13 +231,14 @@ void ModemAdapter::Connect(void) {
       if (std::find(begin(results.revents), end(results.revents),
                     PollEvents::kPOLLIN) != end(results.revents)) {
         modem_driver_->ReadPacket(connect_i, data, timeout);
+        exit = false;
         AE_TELED_DEBUG("Data={}", data);
       } else {
         exit = true;
       }
     } while (!exit);
 
-        modem_driver_->CloseNetwork(connect_i);
+    modem_driver_->CloseNetwork(connect_i);
   }
   modem_driver_->Stop();
 }
