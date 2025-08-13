@@ -18,20 +18,17 @@
 
 #include <algorithm>
 
-#include "aether/actions/action.h"
+#include "aether/actions/action.h"  // IWYU pragma: keep
 
 namespace ae {
 TimePoint ActionProcessor::Update(TimePoint current_time) {
   auto next_update = current_time;
 
-  for (auto& entry : ActionRegistryReplica()) {
-    auto* action = entry.get();
-    if (action == nullptr) {
-      continue;
-    }
+  for (auto const& action : ActionRegistryReplica()) {
     auto new_time = action->ActionUpdate(current_time);
     next_update = SelectNextUpdate(new_time, next_update, current_time);
   }
+  CleanUpActions();
   return next_update;
 }
 
@@ -52,15 +49,25 @@ TimePoint ActionProcessor::SelectNextUpdate(TimePoint new_time,
   return std::max(old_time, current_time);
 }
 
-std::vector<ActionRegistry::IndexShare>
+std::vector<ActionRegistry::value_type>
 ActionProcessor::ActionRegistryReplica() {
-  std::vector<ActionRegistry::IndexShare> result;
+  std::vector<ActionRegistry::value_type> result;
   result.reserve(action_registry_.size());
-  for (auto it = std::begin(action_registry_); it != std::end(action_registry_);
-       ++it) {
-    result.emplace_back(it, &action_registry_);
+  for (auto const& a : action_registry_) {
+    result.emplace_back(a);
   }
   return result;
+}
+
+void ActionProcessor::CleanUpActions() {
+  for (auto it = std::begin(action_registry_);
+       it != std::end(action_registry_);) {
+    if ((*it)->IsFinished()) {
+      it = action_registry_.Remove(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 }  // namespace ae
