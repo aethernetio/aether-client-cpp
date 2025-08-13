@@ -26,7 +26,7 @@ namespace ae {
 
 SafeStreamWriteAction::SafeStreamWriteAction(
     ActionContext action_context,
-    ActionView<SendingDataAction> sending_data_action)
+    ActionPtr<SendingDataAction> sending_data_action)
     : StreamWriteAction(action_context),
       sending_data_action_{std::move(sending_data_action)} {
   subscriptions_.Push(
@@ -52,18 +52,19 @@ void SafeStreamWriteAction::Stop() {
 }
 
 SafeStream::SafeStream(ActionContext action_context, SafeStreamConfig config)
-    : config_{config},
+    : action_context_{action_context},
+      config_{config},
       safe_stream_api_{protocol_context_, *this},
-      send_action_{action_context, *this, config_},
-      recv_acion_{action_context, *this, config_},
-      packet_send_actions_{action_context},
+      send_action_{action_context_, *this, config_},
+      recv_acion_{action_context_, *this, config_},
       stream_info_{config.max_packet_size, false, true, false, false, false} {
-  recv_acion_.receive_event().Subscribe(*this,
-                                        MethodPtr<&SafeStream::WriteOut>{});
+  recv_acion_->receive_event().Subscribe(*this,
+                                         MethodPtr<&SafeStream::WriteOut>{});
 }
 
-ActionView<StreamWriteAction> SafeStream::Write(DataBuffer&& data) {
-  return packet_send_actions_.Emplace(send_action_.SendData(std::move(data)));
+ActionPtr<StreamWriteAction> SafeStream::Write(DataBuffer&& data) {
+  return ActionPtr<SafeStreamWriteAction>{
+      action_context_, send_action_->SendData(std::move(data))};
 }
 
 StreamInfo SafeStream::stream_info() const { return stream_info_; }
@@ -93,9 +94,9 @@ void SafeStream::OnStreamUpdate() {
   stream_info_.strict_size_rules = false;  // packet's will be split in a chunks
   stream_info_.is_reliable = true;  // safe stream here to make stream reliable
 
-  send_action_.SetMaxPayload((out_info.max_element_size > 0)
-                                 ? (out_info.max_element_size - kSendOverhead)
-                                 : 0);
+  send_action_->SetMaxPayload((out_info.max_element_size > 0)
+                                  ? (out_info.max_element_size - kSendOverhead)
+                                  : 0);
 
   stream_update_event_.Emit();
 }
@@ -108,22 +109,22 @@ void SafeStream::OnOutData(DataBuffer const& data) {
 
 void SafeStream::Ack(SSRingIndex::type offset) {
   auto confirm_offset = SSRingIndex{offset};
-  send_action_.Acknowledge(confirm_offset);
+  send_action_->Acknowledge(confirm_offset);
 }
 
 void SafeStream::RequestRepeat(SSRingIndex::type offset) {
   auto request_offset = SSRingIndex{offset};
-  send_action_.RequestRepeat(request_offset);
+  send_action_->RequestRepeat(request_offset);
 }
 
 void SafeStream::Send(SSRingIndex::type begin_offset,
                       DataMessage data_message) {
   auto received_offset = SSRingIndex{begin_offset};
-  recv_acion_.PushData(received_offset, std::move(data_message));
+  recv_acion_->PushData(received_offset, std::move(data_message));
 }
 
-ActionView<StreamWriteAction> SafeStream::PushData(SSRingIndex begin,
-                                                   DataMessage&& data_message) {
+ActionPtr<StreamWriteAction> SafeStream::PushData(SSRingIndex begin,
+                                                  DataMessage&& data_message) {
   assert(out_);
   auto api_adapter =
       ApiCallAdapter{ApiContext{protocol_context_, safe_stream_api_}, *out_};

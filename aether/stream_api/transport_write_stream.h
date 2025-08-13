@@ -19,9 +19,11 @@
 
 #include "aether/common.h"
 #include "aether/types/data_buffer.h"
-#include "aether/actions/action_list.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/transport/itransport.h"
 #include "aether/actions/action_context.h"
+#include "aether/events/multi_subscription.h"
+#include "aether/events/event_subscription.h"
 
 #include "aether/stream_api/istream.h"
 
@@ -31,12 +33,12 @@ class TransportWriteStream final : public ByteIStream {
    public:
     explicit TransportStreamWriteAction(
         ActionContext action_context,
-        ActionView<PacketSendAction> packet_send_action);
+        ActionPtr<PacketSendAction> packet_send_action);
 
     void Stop() override;
 
    private:
-    ActionView<PacketSendAction> packet_send_action_;
+    ActionPtr<PacketSendAction> packet_send_action_;
     MultiSubscription subscriptions_;
   };
 
@@ -46,7 +48,7 @@ class TransportWriteStream final : public ByteIStream {
 
   AE_CLASS_NO_COPY_MOVE(TransportWriteStream)
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& buffer) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& buffer) override;
   OutDataEvent::Subscriber out_data_event() override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;
@@ -56,6 +58,7 @@ class TransportWriteStream final : public ByteIStream {
   void ReceiveData(DataBuffer const& data, TimePoint current_time);
   void SetStreamInfo(ConnectionInfo const& connection_info);
 
+  ActionContext action_context_;
   ITransport* transport_;
 
   StreamInfo stream_info_;
@@ -65,9 +68,6 @@ class TransportWriteStream final : public ByteIStream {
   Subscription transport_connection_subscription_;
   Subscription transport_disconnection_subscription_;
   Subscription transport_read_data_subscription_;
-
-  ActionList<TransportStreamWriteAction> write_actions_;
-  ActionList<FailedStreamWriteAction> failed_write_actions_;
 };
 }  // namespace ae
 

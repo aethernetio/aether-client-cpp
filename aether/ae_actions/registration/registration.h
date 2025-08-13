@@ -30,7 +30,7 @@
 #  include "aether/ptr/ptr_view.h"
 #  include "aether/types/state_machine.h"
 #  include "aether/actions/action.h"
-#  include "aether/actions/action_view.h"
+#  include "aether/actions/action_ptr.h"
 #  include "aether/events/multi_subscription.h"
 
 #  include "aether/client.h"
@@ -135,7 +135,7 @@ class Registration final : public Action<Registration> {
   std::unique_ptr<ByteStream> reg_server_stream_;
   std::unique_ptr<ByteStream> global_reg_server_stream_;
 
-  ActionView<StreamWriteAction> packet_write_action_;
+  ActionPtr<StreamWriteAction> packet_write_action_;
   Subscription connection_subscription_;
   Subscription raw_transport_send_action_subscription_;
   Subscription reg_server_write_subscription_;

@@ -18,6 +18,8 @@
 
 #include <utility>
 
+#include "aether/stream_api/tied_gates.h"
+
 namespace ae {
 P2pSafeStream::P2pSafeStream(ActionContext action_context,
                              SafeStreamConfig const& config,
@@ -31,7 +33,7 @@ P2pSafeStream::P2pSafeStream(ActionContext action_context,
   Tie(safe_stream_, *base_stream_);
 }
 
-ActionView<StreamWriteAction> P2pSafeStream::Write(DataBuffer&& data) {
+ActionPtr<StreamWriteAction> P2pSafeStream::Write(DataBuffer&& data) {
   auto sized_data = sized_packet_gate_.WriteIn(std::move(data));
   return safe_stream_.Write(std::move(sized_data));
 }

@@ -75,15 +75,15 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
       server_resolver_stream_;
 
   StateMachine<State> state_;
-  ActionOpt<RepeatableTask> request_cloud_task_;
-  std::map<ServerId, RepeatableTask> server_resolve_tasks_;
+  ActionPtr<RepeatableTask> request_cloud_task_;
+  std::map<ServerId, ActionPtr<RepeatableTask>> server_resolve_tasks_;
 
   Subscription state_changed_subscription_;
   Subscription cloud_response_subscription_;
   Subscription server_resolve_subscription_;
 
-  ActionView<StreamWriteAction> cloud_request_action_;
-  std::map<ServerId, ActionView<StreamWriteAction>> server_resolve_actions_;
+  ActionPtr<StreamWriteAction> cloud_request_action_;
+  std::map<ServerId, ActionPtr<StreamWriteAction>> server_resolve_actions_;
 
   MultiSubscription cloud_request_subscriptions_;
   MultiSubscription server_resolve_subscriptions_;

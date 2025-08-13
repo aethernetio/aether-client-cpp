@@ -118,7 +118,7 @@ Ptr<ClientConnection> ClientConnectionManager::GetClientConnection() {
   return CreateClientConnection(cloud);
 }
 
-ActionView<GetClientCloudConnection>
+ActionPtr<GetClientCloudConnection>
 ClientConnectionManager::GetClientConnection(Uid client_uid) {
   AE_TELE_DEBUG(ClientConnectionManagerUidCloudConnection,
                 "GetClientCloudConnection to another client {}", client_uid);
@@ -126,10 +126,6 @@ ClientConnectionManager::GetClientConnection(Uid client_uid) {
   auto aether = Ptr<Aether>{aether_};
   auto action_context = ActionContext{*aether};
   auto client_ptr = Ptr<Client>{client_};
-
-  if (!get_client_cloud_connections_) {
-    get_client_cloud_connections_.emplace(action_context);
-  }
 
   auto self_ptr = MakePtrFromThis(this);
   assert(self_ptr);
@@ -149,10 +145,14 @@ ClientConnectionManager::GetClientConnection(Uid client_uid) {
     assert(adapter);
   }
 
-  auto action = get_client_cloud_connections_->Emplace(
-      self_ptr, client_ptr, client_uid, cloud,
+  auto action = ActionPtr<GetClientCloudConnection>{
+      action_context,
+      self_ptr,
+      client_ptr,
+      client_uid,
+      cloud,
       make_unique<ccm_internal::CachedServerConnectionFactory>(
-          self_ptr, aether, adapter, client_ptr));
+          self_ptr, aether, adapter, client_ptr)};
 
   return action;
 }

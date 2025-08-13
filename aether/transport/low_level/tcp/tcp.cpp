@@ -49,12 +49,16 @@ ActionResult TcpTransport::ConnectionAction::Update() {
         return ActionResult::Result();
       case State::kConnectionFailed:
         return ActionResult::Error();
+      case State::kStopped:
+        return ActionResult::Stop();
       default:
         break;
     }
   }
   return {};
 }
+
+void TcpTransport::ConnectionAction::Stop() { state_ = State::kStopped; }
 
 void TcpTransport::ConnectionAction::Connect() {
   AE_TELE_INFO(kTcpTransportConnect, "Connect to {}", transport_->endpoint_);
@@ -121,7 +125,7 @@ void TcpTransport::ConnectionAction::ConnectionUpdate() {
       AE_TELED_ERROR("Failed to connect to {}", transport_->endpoint_);
       transport_->socket_.Disconnect();
       state_ = State::kConnectionFailed;
-      break;
+      return;
     }
   }
 
@@ -181,8 +185,11 @@ ActionResult TcpTransport::ReadAction::Update() {
   if (read_event_.exchange(false)) {
     DataReceived();
   }
-  if (error_.exchange(false)) {
+  if (error_event_) {
     return ActionResult::Error();
+  }
+  if (stop_event_) {
+    return ActionResult::Stop();
   }
 
   return {};
@@ -195,7 +202,7 @@ void TcpTransport::ReadAction::Read() {
         Span{read_buffer_.data(), read_buffer_.size()});
 
     if (!res) {
-      error_ = true;
+      error_event_ = true;
       break;
     }
     // No data yet
@@ -205,9 +212,14 @@ void TcpTransport::ReadAction::Read() {
     data_packet_collector_.AddData(read_buffer_.data(), *res);
     read_event_ = true;
   }
-  if (error_ || read_event_) {
+  if (error_event_ || read_event_) {
     Action::Trigger();
   }
+}
+
+void TcpTransport::ReadAction::Stop() {
+  stop_event_ = true;
+  Action::Trigger();
 }
 
 void TcpTransport::ReadAction::DataReceived() {
@@ -227,7 +239,7 @@ TcpTransport::TcpTransport(ActionContext action_context,
       endpoint_{endpoint},
       connection_info_{},
       socket_{},
-      socket_packet_queue_manager_{action_context_} {
+      send_queue_manager_{action_context_} {
   AE_TELE_INFO(kTcpTransport, "Created tcp transport to endpoint {}",
                endpoint_);
   connection_info_.connection_state = ConnectionState::kUndefined;
@@ -240,7 +252,7 @@ TcpTransport::~TcpTransport() { Disconnect(); }
 void TcpTransport::Connect() {
   connection_info_.connection_state = ConnectionState::kConnecting;
 
-  connection_action_.emplace(action_context_, *this);
+  connection_action_ = OwnActionPtr<ConnectionAction>{action_context_, *this};
   connection_error_sub_ = connection_action_->ErrorEvent().Subscribe(
       [this](auto const& /* action */) { OnConnectionFailed(); });
 }
@@ -262,8 +274,8 @@ ITransport::DataReceiveEvent::Subscriber TcpTransport::ReceiveEvent() {
   return data_receive_event_;
 }
 
-ActionView<PacketSendAction> TcpTransport::Send(DataBuffer data,
-                                                TimePoint current_time) {
+ActionPtr<PacketSendAction> TcpTransport::Send(DataBuffer data,
+                                               TimePoint current_time) {
   AE_TELE_DEBUG(kTcpTransportSend, "Send data size {} at {:%H:%M:%S}",
                 data.size(), current_time);
 
@@ -273,8 +285,8 @@ ActionView<PacketSendAction> TcpTransport::Send(DataBuffer data,
   // copy data with size
   os << data;
 
-  auto send_action = socket_packet_queue_manager_.AddPacket(
-      SendAction{action_context_, *this, std::move(packet_data), current_time});
+  auto send_action = send_queue_manager_->AddPacket(ActionPtr<SendAction>{
+      action_context_, *this, std::move(packet_data), current_time});
   send_action_subs_.Push(
       send_action->ErrorEvent().Subscribe([this](auto const&) {
         AE_TELED_ERROR("Send error, disconnect!");
@@ -289,7 +301,7 @@ void TcpTransport::OnConnected() {
   // 2 - for max packet size
   connection_info_.max_packet_size = socket_.GetMaxPacketSize() - 2;
 
-  read_action_.emplace(action_context_, *this);
+  read_action_ = OwnActionPtr<ReadAction>{action_context_, *this};
   read_action_error_sub_ =
       read_action_->ErrorEvent().Subscribe([this](auto const& /*action */) {
         AE_TELED_ERROR("Read error, disconnect!");
@@ -297,8 +309,8 @@ void TcpTransport::OnConnected() {
         Disconnect();
       });
 
-  socket_error_action_ = SocketEventAction{action_context_};
-  socket_error_subscription_ = socket_error_action_.ResultEvent().Subscribe(
+  socket_error_action_ = OwnActionPtr<SocketEventAction>{action_context_};
+  socket_error_subscription_ = socket_error_action_->ResultEvent().Subscribe(
       [this](auto const& /* action */) {
         OnConnectionFailed();
         Disconnect();
@@ -313,7 +325,6 @@ void TcpTransport::OnConnected() {
             if (event.descriptor != static_cast<DescriptorType>(socket_)) {
               return;
             }
-
             switch (event.event_type) {
               case EventType::kRead:
                 ReadSocket();
@@ -337,17 +348,12 @@ void TcpTransport::OnConnectionFailed() {
 
 void TcpTransport::ReadSocket() { read_action_->Read(); }
 
-void TcpTransport::WriteSocket() {
-  if (!socket_packet_queue_manager_.empty()) {
-    socket_packet_queue_manager_.Send();
-  }
-}
+void TcpTransport::WriteSocket() { send_queue_manager_->Send(); }
 
 void TcpTransport::ErrorSocket() {
   AE_TELED_ERROR("Socket error");
   auto lock = std::lock_guard{socket_lock_};
-  socket_error_action_.Notify();
-  AE_TELED_ERROR("Socket error");
+  socket_error_action_->Notify();
 }
 
 void TcpTransport::Disconnect() {

@@ -22,8 +22,7 @@
 #include <type_traits>
 
 #include "aether/common.h"
-#include "aether/actions/action_view.h"
-#include "aether/actions/action_list.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/events/multi_subscription.h"
 
 #include "aether/transport/actions/packet_send_action.h"
@@ -44,18 +43,20 @@ class SocketPacketQueueManager
   AE_CLASS_NO_COPY_MOVE(SocketPacketQueueManager)
 
   ActionResult Update() {
+    if (stopped_) {
+      return ActionResult::Stop();
+    }
+
     Send();
     return {};
   }
 
-  ActionView<SocketPacketSendAction> AddPacket(
-      TSocketPacketSendAction&& packet_send_action) {
+  ActionPtr<SocketPacketSendAction> AddPacket(
+      ActionPtr<TSocketPacketSendAction>&& packet_send_action) {
     auto lock = std::unique_lock{queue_lock_};
-    auto view = actions_.Add(std::move(packet_send_action));
-    queue_.emplace(view);
-    on_sent_subs_.Push(view->FinishedEvent().Subscribe([this]() { Send(); }));
+    queue_.emplace(packet_send_action);
     BaseAction::Trigger();
-    return view;
+    return std::move(packet_send_action);
   }
 
   /**
@@ -65,34 +66,40 @@ class SocketPacketQueueManager
    */
   void Send() {
     auto lock = std::lock_guard{queue_lock_};
-    while (!queue_.empty()) {
-      auto action = queue_.front();
-      if (!action) {
-        queue_.pop();
-        continue;
+
+    // select current active send action
+    if (!current_active_) {
+      if (queue_.empty()) {
+        return;
       }
-      if (auto state = action->state().get();
-          (state == PacketSendAction::State::kQueued) ||
-          (state == PacketSendAction::State::kProgress)) {
-        action->Send();
-      }
-      if (action->state() == PacketSendAction::State::kProgress) {
-        break;
-      }
+      current_active_ = queue_.front();
       queue_.pop();
+    }
+
+    // call send on current active action
+    if (auto state = current_active_->state().get();
+        (state == PacketSendAction::State::kQueued) ||
+        (state == PacketSendAction::State::kProgress)) {
+      current_active_->Send();
+    }
+    // if after send state is changed from progress to something else move to
+    // the next action
+    if (current_active_->state() != PacketSendAction::State::kProgress) {
+      current_active_.reset();
+      BaseAction::Trigger();
     }
   }
 
-  bool empty() const {
-    auto lock = std::lock_guard{queue_lock_};
-    return queue_.empty();
+  void Stop() {
+    stopped_ = true;
+    BaseAction::Trigger();
   }
 
  private:
   mutable std::mutex queue_lock_;
-  ActionStore<TSocketPacketSendAction> actions_;
-  std::queue<ActionView<TSocketPacketSendAction>> queue_;
-  MultiSubscription on_sent_subs_;
+  std::queue<ActionPtr<TSocketPacketSendAction>> queue_;
+  ActionPtr<TSocketPacketSendAction> current_active_;
+  std::atomic_bool stopped_{false};
 };
 }  // namespace ae
 

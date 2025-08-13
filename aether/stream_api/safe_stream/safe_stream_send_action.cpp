@@ -93,8 +93,7 @@ void SafeStreamSendAction::SetMaxPayload(std::size_t max_payload_size) {
   max_payload_size_ = static_cast<SSRingIndex::type>(max_payload_size);
 }
 
-ActionView<SendingDataAction> SafeStreamSendAction::SendData(
-    DataBuffer&& data) {
+ActionPtr<SendingDataAction> SafeStreamSendAction::SendData(DataBuffer&& data) {
   auto data_size = data.size();
   auto sending_data = SendingData{last_added_, std::move(data)};
   last_added_ += static_cast<SSRingIndex::type>(data_size);
@@ -195,7 +194,7 @@ ActionResult SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
   return ActionResult::Delay(wait_time);
 }
 
-ActionView<StreamWriteAction> SafeStreamSendAction::PushData(
+ActionPtr<StreamWriteAction> SafeStreamSendAction::PushData(
     DataBuffer&& data_buffer, SSRingIndex::type delta,
     std::uint8_t repeat_count) {
   AE_TELED_DEBUG(

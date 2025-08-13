@@ -17,14 +17,11 @@
 #ifndef AETHER_ADAPTERS_ETHERNET_H_
 #define AETHER_ADAPTERS_ETHERNET_H_
 
-#include <optional>
-
 #include "aether/memory.h"
 #include "aether/poller/poller.h"
 #include "aether/obj/dummy_obj.h"    // IWYU pragma: keep
 #include "aether/dns/dns_resolve.h"  // IWYU pragma: keep
 #include "aether/adapters/adapter.h"
-#include "aether/actions/action_list.h"
 #include "aether/types/state_machine.h"
 #include "aether/events/event_subscription.h"
 
@@ -88,17 +85,13 @@ class EthernetAdapter final : public Adapter {
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_))
 
-  ActionView<TransportBuilderAction> CreateTransport(
+  ActionPtr<TransportBuilderAction> CreateTransport(
       UnifiedAddress const& address_port_protocol) override;
 
  private:
   Obj::ptr aether_;
   IPoller::ptr poller_;
   DnsResolver::ptr dns_resolver_;
-
-  std::optional<
-      ActionList<ethernet_adapter_internal::EthernetTransportBuilderAction>>
-      create_transport_actions_;
 };
 }  // namespace ae
 

@@ -33,7 +33,7 @@ ClientServerConnection::ClientServerConnection(
       new_stream_event_sub_{
           message_stream_dispatcher_.new_stream_event().Subscribe(
               new_stream_event_, MethodPtr<&NewStreamEvent::Emit>{})},
-      ping_error_sub_{ping_.ErrorEvent().Subscribe(
+      ping_error_sub_{ping_->ErrorEvent().Subscribe(
           [this](auto&&...) { server_error_event_.Emit(); })} {
 }
 
@@ -61,7 +61,7 @@ void ClientServerConnection::CloseStream(Uid uid) {
 
 void ClientServerConnection::SendTelemetry() {
 #if defined TELEMETRY_ENABLED
-  telemetry_.SendTelemetry();
+  telemetry_->SendTelemetry();
 #endif
 }
 

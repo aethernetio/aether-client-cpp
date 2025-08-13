@@ -18,7 +18,7 @@
 
 #include "aether/methods/work_server_api/authorized_api.h"
 
-#include "aether/ae_actions/ae_actions_tele.h"
+#include "aether/ae_actions/ae_actions_tele.h"  // IWYU pragma: keep
 
 namespace ae {
 CheckAccessForSendMessage::CheckAccessForSendMessage(
@@ -55,7 +55,7 @@ void CheckAccessForSendMessage::SendRequest() {
   int repeat_count = client_to_server_stream_->stream_info().is_reliable
                          ? 1
                          : kMaxRequestRepeatCount;
-  repeatable_task_.emplace(
+  repeatable_task_ = ActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
         auto api_adapter = client_to_server_stream_->authorized_api_adapter();
@@ -70,7 +70,7 @@ void CheckAccessForSendMessage::SendRequest() {
         send_error_sub_ = send_event->ErrorEvent().Subscribe(
             [&](auto const&) { SendError(); });
       },
-      kRequestTimeout, repeat_count);
+      kRequestTimeout, repeat_count};
 
   repeat_task_error_sub_ = repeatable_task_->ErrorEvent().Subscribe(
       [this](auto const&) { state_ = State::kTimeout; });

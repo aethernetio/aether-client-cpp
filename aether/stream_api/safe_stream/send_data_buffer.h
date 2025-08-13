@@ -20,8 +20,7 @@
 #include <vector>
 #include <cstddef>
 
-#include "aether/actions/action_list.h"
-#include "aether/actions/action_view.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 #include "aether/stream_api/safe_stream/sending_data_action.h"
@@ -36,7 +35,7 @@ class SendDataBuffer {
    * \param data - Sending data to send.
    * \return new view to SendingDataAction
    */
-  ActionView<SendingDataAction> AddData(SendingData&& data);
+  ActionPtr<SendingDataAction> AddData(SendingData&& data);
   /**
    * \brief Get the slice of data to send.
    * \param offset - the begin offset from which to start the slice.
@@ -69,10 +68,10 @@ class SendDataBuffer {
   std::size_t size() const { return buffer_size_; }
 
  private:
-  // owning store for send_actions_
-  ActionList<SendingDataAction> send_actions_;
+  ActionContext action_context_;
+
   // view store used for iteration over sending data
-  std::vector<ActionView<SendingDataAction>> send_action_views_;
+  std::vector<ActionPtr<SendingDataAction>> send_actions_;
 
   std::size_t buffer_size_;
 };
