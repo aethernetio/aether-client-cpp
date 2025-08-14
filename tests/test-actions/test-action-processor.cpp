@@ -25,9 +25,9 @@ class A : public Action<A> {
  public:
   using Action::Action;
 
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (res) {
-      return ActionResult::Result();
+      return UpdateStatus::Result();
     }
     return {};
   }
@@ -40,12 +40,12 @@ class SpawnA : public Action<SpawnA> {
   explicit SpawnA(ActionContext action_context)
       : Action{action_context}, action_context_{action_context} {}
 
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (!a) {
       a = ActionPtr<A>{action_context_};
     }
     if (a->res) {
-      return ActionResult::Result();
+      return UpdateStatus::Result();
     }
     return {};
   }

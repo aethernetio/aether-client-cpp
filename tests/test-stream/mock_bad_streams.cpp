@@ -71,20 +71,20 @@ PacketDelayStream::PacketDelayAction::PacketDelayAction(
       data_buffer_{std::move(data_buffer)},
       timeout_{duration} {}
 
-ActionResult PacketDelayStream::PacketDelayAction::Update(
+UpdateStatus PacketDelayStream::PacketDelayAction::Update(
     TimePoint current_time) {
   if (!send_time_) {
     send_time_ = current_time + timeout_;
   }
   // wait time
   if (*send_time_ > current_time) {
-    return ActionResult::Delay(*send_time_);
+    return UpdateStatus::Delay(*send_time_);
   }
 
   // send data
   AE_TELED_DEBUG("Delayed packet send!");
   out_->Write(std::move(data_buffer_));
-  return ActionResult::Result();
+  return UpdateStatus::Result();
 }
 
 PacketDelayStream::PacketDelayStream(ActionContext action_context,

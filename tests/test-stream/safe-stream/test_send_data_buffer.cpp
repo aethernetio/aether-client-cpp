@@ -28,13 +28,14 @@
 namespace ae::test_send_data_buffer {
 constexpr std::string_view test_data = "Pure refreshment in every drop";
 
-struct ActionResult {
+struct UpdateStatus {
   template <typename Action>
   void Subscribe(Action& action) {
-    subscriptions.Push(
-        action.ResultEvent().Subscribe([&](auto const&) { ack = true; }),
-        action.ErrorEvent().Subscribe([&](auto const&) { rejected = true; }),
-        action.StopEvent().Subscribe([&](auto const&) { stopped = true; }));
+    subscriptions.Push(action.StatusEvent().Subscribe(ActionHandler{
+        OnResult{[&]() { ack = true; }},
+        OnError{[&]() { rejected = true; }},
+        OnStop{[&]() { stopped = true; }},
+    }));
   }
 
   bool ack;
@@ -99,9 +100,9 @@ void test_SendDataBufferConfirmStopReject() {
 
   SendDataBuffer send_data_buffer{action_context};
 
-  auto a1_res = ActionResult{};
-  auto a2_res = ActionResult{};
-  auto a3_res = ActionResult{};
+  auto a1_res = UpdateStatus{};
+  auto a2_res = UpdateStatus{};
+  auto a3_res = UpdateStatus{};
 
   // add some data
   auto a1 = send_data_buffer.AddData(
@@ -163,14 +164,14 @@ void test_SendDataBufferConfirmation() {
 
   SendDataBuffer send_data_buffer{action_context};
 
-  std::array arr_res = {ActionResult{}, ActionResult{}, ActionResult{}};
+  std::array arr_res = {UpdateStatus{}, UpdateStatus{}, UpdateStatus{}};
 
   for (std::size_t i = 0; i < arr_res.size(); ++i) {
     auto action = send_data_buffer.AddData(SendingData{
         SSRingIndex{static_cast<std::uint16_t>(test_data.size() * i)},
         ToDataBuffer(test_data)});
-    action->ResultEvent().Subscribe(
-        [&arr_res, i](auto const&) { arr_res[i].ack = true; });
+    action->StatusEvent().Subscribe(
+        OnResult{[&arr_res, i]() { arr_res[i].ack = true; }});
   }
 
   // confirm some data at the beginning
@@ -208,8 +209,8 @@ void test_SendDataBufferConfirmation() {
     auto action = send_data_buffer.AddData(SendingData{
         SSRingIndex{static_cast<std::uint16_t>(test_data.size() * (3 + i))},
         ToDataBuffer(test_data)});
-    action->ResultEvent().Subscribe(
-        [&arr_res, i](auto const&) { arr_res[i].ack = true; });
+    action->StatusEvent().Subscribe(
+        OnResult{[&arr_res, i]() { arr_res[i].ack = true; }});
   }
 
   // confirm it all

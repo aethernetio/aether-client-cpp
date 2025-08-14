@@ -133,12 +133,13 @@ void test_ReturnResult() {
   auto call_context = ApiContext{pc, api_level0};
 
   auto promise = call_context->method_4(42);
-  promise->ResultEvent().Subscribe([&](auto const& promise) {
-    auto value = promise.value();
-    TEST_ASSERT_EQUAL(78, value);
-    promise_get_value = true;
-  });
-  promise->ErrorEvent().Subscribe([](auto const&) { TEST_FAIL(); });
+  promise->StatusEvent().Subscribe(
+      ActionHandler{OnResult{[&](auto const& promise) {
+                      auto value = promise.value();
+                      TEST_ASSERT_EQUAL(78, value);
+                      promise_get_value = true;
+                    }},
+                    OnError{[]() { TEST_FAIL(); }}});
 
   DataBuffer packet = std::move(call_context);
 

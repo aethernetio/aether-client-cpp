@@ -34,7 +34,7 @@ struct A : public Action<A> {
   using Action::Action;
   using Action::operator=;
 
-  ActionResult Update() { return ActionResult::Result(); }
+  UpdateStatus Update() { return UpdateStatus::Result(); }
 };
 
 void test_ActionPtrCreate() {

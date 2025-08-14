@@ -65,9 +65,9 @@ void TestSendPackets(ActionProcessor& ap, SafeStream& sender,
       ac,
       [&]() {
         auto sent_action = sender.Write(ToDataBuffer(test_data));
-        sent_action->ResultEvent().Subscribe(
-            [&](auto const&) { wait_messages--; });
-        sent_action->ErrorEvent().Subscribe([&](auto const&) { TEST_FAIL(); });
+        sent_action->StatusEvent().Subscribe(
+            ActionHandler{OnResult{[&]() { wait_messages--; }},
+                          OnError{[&]() { TEST_FAIL(); }}});
         sent_messages++;
       },
       std::chrono::milliseconds{50}, wait_messages};

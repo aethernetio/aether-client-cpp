@@ -27,7 +27,7 @@ class MocTransportPacketSendAction : public PacketSendAction {
  public:
   MocTransportPacketSendAction(ActionContext action_context, DataBuffer d,
                                TimePoint st);
-  ActionResult Update() override;
+  UpdateStatus Update() override;
   void Stop() override;
 
   void SetState(PacketSendAction::State state);
