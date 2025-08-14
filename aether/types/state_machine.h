@@ -68,6 +68,11 @@ class StateMachine {
   }
 
   /**
+   * \brief Set new state value but not mark it changed
+   */
+  void Assign(TEnum val) { state_ = val; }
+
+  /**
    * \brief Event that is called when state is changed
    */
   EventSubscriber<void(TEnum)> changed_event() const {

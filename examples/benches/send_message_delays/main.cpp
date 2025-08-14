@@ -93,7 +93,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         (std::numeric_limits<std::uint16_t>::max() / 2) - 1,
         (std::numeric_limits<std::uint16_t>::max() / 2) - 1,
         10,
-        std::chrono::milliseconds{400},
+        std::chrono::milliseconds{1500},
         std::chrono::milliseconds{0},
         std::chrono::milliseconds{200},
     };
@@ -107,10 +107,11 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
     send_message_delays_manager_ = make_unique<SendMessageDelaysManager>(
         ActionContext{*aether_}, std::move(sender), std::move(receiver));
 
+    static constexpr auto test_message_count = 100;
     auto test_action = send_message_delays_manager_->Test({
-        /* WarUp message count */ 100,
-        /* test message count */ 300,
-        /* min send interval */ std::chrono::milliseconds{50},
+        /* WarUp message count */ 10,
+        /* test message count */ test_message_count,
+        /* min send interval */ std::chrono::milliseconds{1000},
     });
 
     test_result_subscriptions_.Push(
@@ -120,12 +121,10 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
               std::string_view{"p2p 10 Bytes"},
               std::string_view{"p2p 100 Bytes"},
               std::string_view{"p2p 1000 Bytes"},
-              std::string_view{"p2p 1500 Bytes"},
               std::string_view{"p2pss 2 Bytes"},
               std::string_view{"p2pss 10 Bytes"},
               std::string_view{"p2pss 100 Bytes"},
               std::string_view{"p2pss 1000 Bytes"},
-              std::string_view{"p2pss 1500 Bytes"},
           };
           auto const& results = action.result_table();
 
@@ -137,7 +136,8 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
                                                std::move(results[i]));
           }
           Format(write_results_stream_, "{}",
-                 StatisticsWriteCsv{std::move(statistics_write_list)});
+                 StatisticsWriteCsv{std::move(statistics_write_list),
+                                    test_message_count});
 
           state_ = State::kResult;
         }),

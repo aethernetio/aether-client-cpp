@@ -14,8 +14,10 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
-list( APPEND src_list 
-  main.cpp
+list( APPEND src_list
+  sender_main.cpp
+  sender.cpp
+  message_sender.cpp
 )
 
 if(NOT CM_PLATFORM)

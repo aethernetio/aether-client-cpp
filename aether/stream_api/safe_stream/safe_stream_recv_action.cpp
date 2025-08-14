@@ -16,68 +16,57 @@
 
 #include "aether/stream_api/safe_stream/safe_stream_recv_action.h"
 
+#include <cassert>
+#include <algorithm>
+
 #include "aether/tele/tele.h"
 
 namespace ae {
-SafeStreamRecvAction::SafeStreamRecvAction(
-    ActionContext action_context, ISendConfirmRepeat& send_confirm_repeat)
-    : Action{action_context}, send_confirm_repeat_{&send_confirm_repeat} {}
+SafeStreamRecvAction::SafeStreamRecvAction(ActionContext action_context,
+                                           ISendAckRepeat& send_confirm_repeat,
+                                           SafeStreamConfig const& config)
+    : Action{action_context},
+      send_confirm_repeat_{&send_confirm_repeat},
+      send_ack_timeout_{config.send_ack_timeout},
+      send_repeat_timeout_{config.send_repeat_timeout},
+      window_size_{config.window_size},
+      acknowledgement_req_{false} {}
 
 ActionResult SafeStreamRecvAction::Update(TimePoint current_time) {
-  ChecklCompletedChains();
-  auto new_time = current_time;
-  for (auto const& t :
-       {CheckConfirmations(current_time), CheckMissing(current_time)}) {
-    if ((new_time == current_time) && (new_time != t)) {
-      new_time = t;
-    }
-    if (t != current_time) {
-      new_time = std::min(new_time, t);
-    }
-  }
-  return ActionResult::Delay(new_time);
+  CheckCompletedChains();
+  return ActionResult::Merge(CheckAcknowledgement(current_time),
+                             CheckMissing(current_time));
 }
 
-void SafeStreamRecvAction::PushData(DataBuffer&& data,
-                                    SSRingIndex received_offset,
-                                    std::uint16_t repeat_count) {
-  auto data_size = data.size();
-  AE_TELED_DEBUG("Data received offset: {}, repeat {}, size {}",
-                 received_offset, repeat_count, data_size);
-  if (begin_.Distance(received_offset) > window_size_) {
-    AE_TELED_DEBUG("Received repeat for old chunk");
-    return;
-  }
-  auto const res = chunks_.AddChunk(
-      ReceivingChunk{received_offset, std::move(data), repeat_count},
-      last_emitted_, begin_);
-  if (!res || (res->repeat_count != repeat_count)) {
-    // confirmed offset
-    SendConfirmation(received_offset +
-                     static_cast<SSRingIndex::type>(data_size - 1));
-    return;
-  }
-  if (!sent_confirm_) {
-    sent_confirm_ = Now();
-  }
-  if (!repeat_request_) {
-    repeat_request_ = Now();
-  }
-  Action::Trigger();
-}
+void SafeStreamRecvAction::PushData(SSRingIndex begin,
+                                    DataMessage data_message) {
+  AE_TELED_DEBUG(
+      "Data received begin offset: {}, delta: {}, repeat {}, reset {}, size {}",
+      begin, data_message.delta_offset,
+      static_cast<int>(data_message.repeat_count()), data_message.reset(),
+      data_message.data.size());
 
-void SafeStreamRecvAction::SetOffset(SSRingIndex offset) {
-  begin_ = offset;
-  last_emitted_ = offset;
-  chunks_.Clear();
-}
+  // The first packet received, sync with the sender
+  if (!begin_) {
+    AE_TELED_DEBUG("Init receiver");
+    session_start_ = begin;
+    begin_ = begin;
+    last_emitted_ = *begin_;
+    // The sender sent first packet, sync with the sender
+  } else if (data_message.reset() && (session_start_ != begin)) {
+    AE_TELED_DEBUG("Reset receiver");
+    session_start_ = begin;
+    begin_ = begin;
+    last_emitted_ = *begin_;
+    chunks_.Clear();
+    sent_ack_time_.reset();
+    repeat_request_time_.reset();
+    acknowledgement_req_ = false;
+  }
 
-void SafeStreamRecvAction::SetConfig(SSRingIndex::type window_size,
-                                     Duration send_confirm_timeout,
-                                     Duration send_repeat_timeout) {
-  window_size_ = window_size;
-  send_confirm_timeout_ = send_confirm_timeout;
-  send_repeat_timeout_ = send_repeat_timeout;
+  auto received_offset = begin + data_message.delta_offset;
+  HandleData(received_offset, data_message.repeat_count(),
+             std::move(data_message.data));
 }
 
 SafeStreamRecvAction::ReceiveEvent::Subscriber
@@ -85,57 +74,108 @@ SafeStreamRecvAction::receive_event() {
   return EventSubscriber{receive_event_};
 }
 
-void SafeStreamRecvAction::ChecklCompletedChains() {
-  auto joined_chunk = chunks_.PopChunks(last_emitted_);
-  if (joined_chunk) {
-    last_emitted_ += static_cast<SSRingIndex::type>(joined_chunk->data.size());
+void SafeStreamRecvAction::HandleData(SSRingIndex received_offset,
+                                      std::uint8_t repeat_count,
+                                      DataBuffer&& data) {
+  assert(begin_);
+  Action::Trigger();
 
+  auto res = chunks_.AddChunk(
+      ReceivingChunk{received_offset, std::move(data), repeat_count});
+  switch (res) {
+    case ReceiveChunkList::AddResult::kDuplicate: {
+      AE_TELED_DEBUG("Received duplicate");
+      break;
+    }
+    default:
+      acknowledgement_req_ = true;
+      break;
+  }
+}
+
+void SafeStreamRecvAction::CheckCompletedChains() {
+  if (!session_start_) {
+    return;
+  }
+  auto joined_chunk = chunks_.ReceiveChunk(last_emitted_);
+  if (joined_chunk) {
+    last_emitted_ = joined_chunk->offset_range().right + 1;
+    chunks_.Acknowledge(last_emitted_ - window_size_, last_emitted_);
+    acknowledgement_req_ = true;
+
+    AE_TELED_DEBUG("Emit received data range: {}-{}, last_emitted_: {}",
+                   joined_chunk->offset_range().left,
+                   joined_chunk->offset_range().right, last_emitted_);
     receive_event_.Emit(std::move(joined_chunk->data));
   }
 }
 
-TimePoint SafeStreamRecvAction::CheckConfirmations(TimePoint current_time) {
-  if (!sent_confirm_) {
-    return current_time;
-  }
-  if ((*sent_confirm_ + send_confirm_timeout_) > current_time) {
-    return (*sent_confirm_ + send_confirm_timeout_);
+ActionResult SafeStreamRecvAction::CheckAcknowledgement(
+    TimePoint current_time) {
+  if (!acknowledgement_req_) {
+    sent_ack_time_.reset();
+    return {};
   }
 
-  if (last_emitted_(begin_) != begin_) {
-    // confirm range [last_confirmed_offset_, last_emitted_offset_)
-    SendConfirmation(last_emitted_ - 1);
-    begin_ = last_emitted_;
-    sent_confirm_ = current_time;
+  if (!sent_ack_time_) {
+    sent_ack_time_ = current_time + send_ack_timeout_;
   }
-  return current_time;
+
+  if (*sent_ack_time_ > current_time) {
+    return ActionResult::Delay(*sent_ack_time_);
+  }
+  sent_ack_time_.reset();
+  acknowledgement_req_ = false;
+
+  SendAcknowledgement(last_emitted_);
+  Action::Trigger();
+
+  return {};
 }
 
-TimePoint SafeStreamRecvAction::CheckMissing(TimePoint current_time) {
-  if (!repeat_request_) {
-    return current_time;
+ActionResult SafeStreamRecvAction::CheckMissing(TimePoint current_time) {
+  if (chunks_.empty()) {
+    repeat_request_time_.reset();
+    return {};
   }
-  if ((*repeat_request_ + send_repeat_timeout_) > current_time) {
-    return *repeat_request_ + send_repeat_timeout_;
+
+  if (!repeat_request_time_) {
+    repeat_request_time_ = current_time + send_repeat_timeout_;
   }
+
+  if (*repeat_request_time_ > current_time) {
+    return ActionResult::Delay(*repeat_request_time_);
+  }
+  repeat_request_time_.reset();
 
   auto missed = chunks_.FindMissedChunks(last_emitted_);
 
-  for (auto& m : missed) {
-    ++m.chunk->repeat_count;
-    // TODO: add check repeat count
-    AE_TELED_DEBUG("Request to repeat offset: {}", m.expected_offset);
-    SendRequestRepeat(m.expected_offset);
+  if (missed.empty()) {
+    return {};
   }
-  repeat_request_ = current_time;
-  return current_time;
+
+  auto min = std::min_element(
+      missed.begin(), missed.end(), [](const auto& left, const auto& right) {
+        return left.expected_offset.IsBefore(right.expected_offset);
+      });
+
+  AE_TELED_DEBUG(
+      "Request to repeat offset: {} for last_emitted: {} next_saved: {}",
+      min->expected_offset, last_emitted_, min->chunk->offset);
+
+  SendRequestRepeat(min->expected_offset);
+
+  Action::Trigger();
+  return {};
 }
 
-void SafeStreamRecvAction::SendConfirmation(SSRingIndex offset) {
-  send_confirm_repeat_->SendConfirm(offset);
+void SafeStreamRecvAction::SendAcknowledgement(SSRingIndex offset) {
+  AE_TELED_DEBUG("Send acknowledgement for offset {}", offset);
+  send_confirm_repeat_->SendAck(offset);
 }
 
 void SafeStreamRecvAction::SendRequestRepeat(SSRingIndex offset) {
+  AE_TELED_DEBUG("Send request repeat for offset {}", offset);
   send_confirm_repeat_->SendRepeatRequest(offset);
 }
 

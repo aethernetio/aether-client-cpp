@@ -17,7 +17,7 @@
 #ifndef AETHER_STREAM_API_SAFE_STREAM_SENDING_CHUNK_LIST_H_
 #define AETHER_STREAM_API_SAFE_STREAM_SENDING_CHUNK_LIST_H_
 
-#include <list>
+#include <vector>
 
 #include "aether/common.h"
 
@@ -35,21 +35,19 @@ class SendingChunkList {
    * merged with other chunks if offsets are overlaps.
    */
   SendingChunk& Register(SSRingIndex begin, SSRingIndex end,
-                         TimePoint send_time, SSRingIndex ring_begin);
-
-  void MoveOffset(SSRingIndex::type distance);
+                         TimePoint send_time);
 
   /**
    * \brief Remove all chunks up to the given offset.
    */
-  void RemoveUpTo(SSRingIndex offset, SSRingIndex ring_begin);
+  void RemoveUpTo(SSRingIndex offset);
 
   SendingChunk& front() { return chunks_.front(); }
   bool empty() const { return chunks_.empty(); }
   std::size_t size() const { return chunks_.size(); }
 
  private:
-  std::list<SendingChunk> chunks_;
+  std::vector<SendingChunk> chunks_;
 };
 }  // namespace ae
 

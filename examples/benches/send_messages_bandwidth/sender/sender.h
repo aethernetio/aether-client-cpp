@@ -21,16 +21,17 @@
 
 #include "aether/client.h"
 #include "aether/memory.h"
-#include "aether/actions/action_context.h"
 #include "aether/events/events.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/stream_api/istream.h"
-#include "aether/stream_api/protocol_gates.h"
+#include "aether/actions/action_context.h"
+#include "aether/actions/repeatable_task.h"
+#include "aether/events/event_subscription.h"
+#include "aether/events/multi_subscription.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
-#include "send_messages_bandwidth/common/sender_sync.h"
 #include "send_messages_bandwidth/common/bandwidth_api.h"
-#include "send_messages_bandwidth/common/message_sender.h"
+
+#include "send_messages_bandwidth/sender/message_sender.h"
 
 namespace ae::bench {
 class Sender {
@@ -42,22 +43,13 @@ class Sender {
   void Connect();
   void Disconnect();
   EventSubscriber<void()> Handshake();
-  EventSubscriber<void()> Sync();
 
-  EventSubscriber<void(Bandwidth const&)> WarmUp(std::size_t message_count);
-  EventSubscriber<void(Bandwidth const&)> OneByte(std::size_t message_count);
-  EventSubscriber<void(Bandwidth const&)> TenBytes(std::size_t message_count);
-  EventSubscriber<void(Bandwidth const&)> HundredBytes(
-      std::size_t message_count);
-  EventSubscriber<void(Bandwidth const&)> ThousandBytes(
-      std::size_t message_count);
-  EventSubscriber<void(Bandwidth const&)> VariableSizeBytes(
-      std::size_t size, std::size_t message_count);
+  EventSubscriber<void(Bandwidth const&)> TestMessages(
+      std::size_t message_count, std::size_t message_size);
 
  private:
-  template <typename T>
-  std::unique_ptr<MessageSender<BandwidthApi, T>> CreateTestAction(
-      std::size_t message_count);
+  EventSubscriber<void()> StartTest();
+  EventSubscriber<void()> StopTest();
 
   void OnRecvData(DataBuffer const& data);
 
@@ -65,29 +57,28 @@ class Sender {
   Client::ptr client_;
   Uid destination_;
   ProtocolContext protocol_context_;
+  BandwidthApi bandwidth_api_;
 
   Event<void(Bandwidth const&)> test_finished_event_;
   Event<void()> handshake_made_;
-  Event<void()> sync_made_;
+  Event<void()> test_started_event_;
+  Event<void()> test_stopped_event_;
   Event<void()> error_event_;
 
   std::unique_ptr<ByteIStream> message_stream_;
 
-  std::optional<SenderSyncAction> sync_action_;
-
-  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::WarmUp>> warm_up_;
-  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::OneByte>> one_byte_;
-  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::TenBytes>>
-      ten_bytes_;
-  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::HundredBytes>>
-      hundred_bytes_;
-  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::ThousandBytes>>
-      thousand_bytes_;
-  std::unique_ptr<MessageSender<BandwidthApi, BandwidthApi::VarMessageSize>>
-      variable_size_;
+  std::optional<RepeatableTask> start_test_action_;
+  std::optional<RepeatableTask> stop_test_action_;
+  std::optional<MessageSender> message_sender_;
 
   Subscription on_recv_data_sub_;
-  MultiSubscription test_subscriptions_;
+  Subscription handshake_sub_;
+  MultiSubscription sync_subs_;
+  Subscription sync_action_failed_sub_;
+  Subscription test_success_sub_;
+  Subscription test_error_sub_;
+  Subscription start_test_sub_;
+  Subscription stop_test_sub_;
 };
 }  // namespace ae::bench
 

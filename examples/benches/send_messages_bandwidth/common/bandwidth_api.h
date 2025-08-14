@@ -17,114 +17,49 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_BANDWIDTH_API_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_BANDWIDTH_API_H_
 
-#include <cstdint>
-#include <array>
-
-#include "aether/crc.h"
-#include "aether/reflect/reflect.h"
-#include "aether/api_protocol/api_protocol.h"
+#include "aether/events/events.h"
+#include "aether/types/data_buffer.h"
+#include "aether/api_protocol/api_method.h"
+#include "aether/api_protocol/api_class_impl.h"
+#include "aether/api_protocol/return_result_api.h"
 
 namespace ae::bench {
-class BandwidthApi : public ApiClass, ExtendsApi<ReturnResultApi> {
+class BandwidthApi : public ReturnResultApiImpl,
+                     public ApiClassImpl<BandwidthApi, ReturnResultApiImpl> {
  public:
-  static constexpr auto kClassId =
-      crc32::checksum_from_literal("ae::bench::BandwidthApi");
+  using PayloadData = DataBuffer;
+
+  BandwidthApi(ActionContext action_context, ProtocolContext& protocol_context);
 
   // sender sends handshake until receiver doesn't answers true
-  struct Handshake : public Message<Handshake> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BandwidthApi::Handshake");
-    static constexpr auto kMessageCode = 3;
+  Method<0x03, PromiseView<bool>()> handshake;
+  // sender sends start or stop test and wait for receiver's response true to
+  // continue/stop tests
+  Method<0x04, PromiseView<bool>()> start_test;
+  Method<0x05, PromiseView<bool>()> stop_test;
 
-    AE_REFLECT_MEMBERS(request_id)
+  Method<0x06, void(std::uint16_t id, PayloadData data)> message;
 
-    RequestId request_id;
-  };
+  void HandshakeImpl(ApiParser& parser, PromiseResult<bool> res);
+  void StartTestImpl(ApiParser& parser, PromiseResult<bool> res);
+  void StopTestImpl(ApiParser& parser, PromiseResult<bool> res);
+  void MessageImpl(ApiParser& parser, std::uint16_t id, PayloadData data);
 
-  // sender sends sync and wait for receiver's response true
-  struct Sync : public Message<Sync> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BandwidthApi::Sync");
-    static constexpr auto kMessageCode = 4;
+  using ApiMethods = ImplList<RegMethod<0x03, &BandwidthApi::HandshakeImpl>,
+                              RegMethod<0x04, &BandwidthApi::StartTestImpl>,
+                              RegMethod<0x05, &BandwidthApi::StopTestImpl>,
+                              RegMethod<0x06, &BandwidthApi::MessageImpl>>;
 
-    AE_REFLECT_MEMBERS(request_id)
+  EventSubscriber<void(RequestId req_id)> handshake_event();
+  EventSubscriber<void(RequestId req_id)> start_test_event();
+  EventSubscriber<void(RequestId req_id)> stop_test_event();
+  EventSubscriber<void(std::uint16_t id, PayloadData&& data)> message_event();
 
-    RequestId request_id;
-  };
-
-  // warm up server's cache
-  struct WarmUp : public Message<WarmUp> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BandwidthApi::WarmUp");
-    static constexpr auto kMessageCode = 5;
-
-    AE_REFLECT_MEMBERS(payload)
-
-    std::array<std::uint8_t, 100> payload;
-  };
-
-  struct OneByte : public Message<OneByte> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BandwidthApi::OneByte");
-    static constexpr auto kMessageCode = 6;
-
-    AE_REFLECT_MEMBERS(payload)
-
-    std::uint8_t payload;
-  };
-
-  struct TenBytes : public Message<TenBytes> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BandwidthApi::TenBytes");
-    static constexpr auto kMessageCode = 7;
-
-    AE_REFLECT_MEMBERS(payload)
-
-    std::array<std::uint8_t, 10> payload;
-  };
-
-  struct HundredBytes : public Message<HundredBytes> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BandwidthApi::HundredBytes");
-    static constexpr auto kMessageCode = 8;
-
-    AE_REFLECT_MEMBERS(payload)
-
-    std::array<std::uint8_t, 100> payload;
-  };
-
-  struct ThousandBytes : public Message<ThousandBytes> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("ae::bench::BandwidthApi::ThousandBytes");
-    static constexpr auto kMessageCode = 9;
-
-    AE_REFLECT_MEMBERS(payload)
-
-    std::array<std::uint8_t, 1000> payload;
-  };
-
-  struct VarMessageSize : public Message<VarMessageSize> {
-    static constexpr auto kMessageId = crc32::checksum_from_literal(
-        "ae::bench::BandwidthApi::ThousandAndHalfBytes");
-    static constexpr auto kMessageCode = 10;
-
-    VarMessageSize() = default;
-    explicit VarMessageSize(std::size_t size) : payload(size) {}
-
-    AE_REFLECT_MEMBERS(payload)
-
-    std::vector<std::uint8_t> payload;
-  };
-
-  void LoadFactory(MessageId message_code, ApiParser& api_parser) override;
-
-  template <typename T>
-  void Execute(T&& message, ApiParser& api_parser);
-
-  template <typename T>
-  void Pack(T&& message, ApiPacker& api_packer) {
-    api_packer.Pack(T::kMessageCode, std::forward<T>(message));
-  }
+ private:
+  Event<void(RequestId req_id)> handshake_event_;
+  Event<void(RequestId req_id)> start_test_event_;
+  Event<void(RequestId req_id)> stop_test_event_;
+  Event<void(std::uint16_t id, PayloadData&& data)> message_event_;
 };
 }  // namespace ae::bench
 

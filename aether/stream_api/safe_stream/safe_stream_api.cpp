@@ -22,43 +22,24 @@ namespace ae {
 SafeStreamApi::SafeStreamApi(ProtocolContext& protocol_context,
                              SafeStreamApiImpl& safe_stream_api_impl)
     : ReturnResultApiImpl(protocol_context),
-      init{protocol_context},
-      init_ack{protocol_context},
-      confirm{protocol_context},
+      ack{protocol_context},
       request_repeat{protocol_context},
       send{protocol_context},
-      repeat{protocol_context},
       safe_stream_api_impl_{&safe_stream_api_impl} {}
 
-void SafeStreamApi::InitImpl(ApiParser& /* parser */, RequestId req_id,
-                             std::uint16_t repeat_count,
-                             SafeStreamInit safe_stream_init) {
-  safe_stream_api_impl_->Init(req_id, repeat_count, safe_stream_init);
-}
-
-void SafeStreamApi::InitAckImpl(ApiParser& /* parser */, RequestId req_id,
-                                SafeStreamInit safe_stream_init) {
-  safe_stream_api_impl_->InitAck(req_id, safe_stream_init);
-}
-
-void SafeStreamApi::ConfirmImpl(ApiParser& /* parser */, std::uint16_t offset) {
-  safe_stream_api_impl_->Confirm(offset);
+void SafeStreamApi::AckImpl(ApiParser& /* parser */, SSRingIndex::type offset) {
+  safe_stream_api_impl_->Ack(offset);
 }
 
 void SafeStreamApi::RequestRepeatImpl(ApiParser& /* parser */,
-                                      std::uint16_t offset) {
+                                      SSRingIndex::type offset) {
   safe_stream_api_impl_->RequestRepeat(offset);
 }
 
-void SafeStreamApi::SendImpl(ApiParser& /* parser */, std::uint16_t offset,
-                             DataBuffer data) {
-  safe_stream_api_impl_->Send(offset, std::move(data));
-}
-
-void SafeStreamApi::RepeatImpl(ApiParser& /* parser */,
-                               std::uint16_t repeat_count, std::uint16_t offset,
-                               DataBuffer data) {
-  safe_stream_api_impl_->Repeat(repeat_count, offset, std::move(data));
+void SafeStreamApi::SendImpl(ApiParser& /* parser */,
+                             SSRingIndex::type begin_offset,
+                             DataMessage data_message) {
+  safe_stream_api_impl_->Send(begin_offset, std::move(data_message));
 }
 
 }  // namespace ae

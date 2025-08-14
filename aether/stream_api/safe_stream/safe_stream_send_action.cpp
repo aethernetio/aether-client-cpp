@@ -16,58 +16,81 @@
 
 #include "aether/stream_api/safe_stream/safe_stream_send_action.h"
 
+#include <random>
+
 #include "aether/tele/tele.h"
 
 namespace ae {
-SafeStreamSendAction::SafeStreamSendAction(ActionContext action_context,
-                                           ISendDataPush& send_data_push)
-    : Action{action_context},
-      send_data_push_{&send_data_push},
-      send_data_buffer_{action_context} {}
-
-ActionResult SafeStreamSendAction::Update(TimePoint current_time) {
-  SendChunk();
-  return ActionResult::Delay(SendTimeouts(current_time));
+namespace safe_stream_send_action_internal {
+auto GetRand() {
+  static std::random_device dev;
+  static std::mt19937 rng(dev());
+  static std::uniform_int_distribution<std::mt19937::result_type> dist6(
+      1, std::numeric_limits<std::uint32_t>::max());
+  return dist6(rng);
 }
 
-bool SafeStreamSendAction::Confirm(SSRingIndex confirm_offset) {
-  AE_TELED_DEBUG("Receive confirmed offset {}", confirm_offset);
-  if (begin_.Distance(confirm_offset) >= window_size_) {
+SSRingIndex RandomOffset() {
+  return SSRingIndex{static_cast<SSRingIndex::type>(GetRand())};
+}
+}  // namespace safe_stream_send_action_internal
+
+SafeStreamSendAction::SafeStreamSendAction(ActionContext action_context,
+                                           ISendDataPush& send_data_push,
+                                           SafeStreamConfig const& config)
+    : Action{action_context},
+      send_data_push_{&send_data_push},
+      begin_{safe_stream_send_action_internal::RandomOffset()},
+      last_sent_{begin_},
+      last_added_{begin_},
+      init_state_{true},
+      max_repeat_count_{config.max_repeat_count},
+      max_payload_size_{0},
+      window_size_{config.window_size},
+      send_data_buffer_{action_context} {
+  // add wait ack timeout as base value for response statistics
+  response_statistics_.Add(config.wait_ack_timeout);
+}
+
+ActionResult SafeStreamSendAction::Update(TimePoint current_time) {
+  SendChunk(current_time);
+  return SendTimeouts(current_time);
+}
+
+bool SafeStreamSendAction::Acknowledge(SSRingIndex confirm_offset) {
+  AE_TELED_DEBUG("Receive ack for offset {}", confirm_offset);
+  if (begin_.IsAfter(confirm_offset)) {
     return false;
   }
-  sending_chunks_.RemoveUpTo(confirm_offset, begin_);
-  auto confirm_size = send_data_buffer_.Confirm(confirm_offset, begin_);
-  begin_ += static_cast<SSRingIndex::type>(confirm_size);
+  init_state_ = false;
+
+  if (!sending_chunks_.empty()) {
+    auto response_duration = std::chrono::duration_cast<Duration>(
+        Now() - sending_chunks_.front().send_time);
+    AE_TELED_DEBUG("Response duration is {:%S}", response_duration);
+    response_statistics_.Add(response_duration);
+  }
+
+  sending_chunks_.RemoveUpTo(confirm_offset);
+  send_data_buffer_.Acknowledge(confirm_offset);
+  begin_ = confirm_offset;
   Action::Trigger();
   return true;
 }
 
 void SafeStreamSendAction::RequestRepeat(SSRingIndex request_offset) {
-  if (last_sent_(begin_) < request_offset) {
+  if (last_sent_.IsBefore(request_offset)) {
     AE_TELED_DEBUG("Request repeat send for not sent offset {}",
                    request_offset);
+    return;
   }
   last_sent_ = request_offset;
   Action::Trigger();
 }
 
-void SafeStreamSendAction::SetOffset(SSRingIndex begin_offset) {
-  auto send_distance = begin_.Distance(begin_offset);
-  begin_ = begin_offset;
-  last_added_ += send_distance;
-  last_sent_ += send_distance;
-  send_data_buffer_.MoveOffset(send_distance);
-  sending_chunks_.MoveOffset(send_distance);
-}
-
-void SafeStreamSendAction::SetConfig(std::uint16_t max_repeat_count,
-                                     std::size_t max_packet_size,
-                                     SSRingIndex::type window_size,
-                                     Duration wait_confirm_timeout) {
-  max_repeat_count_ = max_repeat_count;
-  max_packet_size_ = static_cast<SSRingIndex::type>(max_packet_size);
-  window_size_ = window_size;
-  wait_confirm_timeout_ = wait_confirm_timeout;
+void SafeStreamSendAction::SetMaxPayload(std::size_t max_payload_size) {
+  AE_TELED_DEBUG("Set max payload to {}", max_payload_size);
+  max_payload_size_ = static_cast<SSRingIndex::type>(max_payload_size);
 }
 
 ActionView<SendingDataAction> SafeStreamSendAction::SendData(
@@ -78,37 +101,41 @@ ActionView<SendingDataAction> SafeStreamSendAction::SendData(
 
   auto send_action = send_data_buffer_.AddData(std::move(sending_data));
   sending_data_subs_.Push(
+      // stop data chunks sending if main action is stopped
       send_action->stop_event().Subscribe([this](auto const& sending_data) {
-        auto removed_size = send_data_buffer_.Stop(sending_data.offset, begin_);
+        auto removed_size = send_data_buffer_.Stop(sending_data.offset);
         last_added_ -= static_cast<SSRingIndex::type>(removed_size);
       }));
   return send_action;
 }
 
-void SafeStreamSendAction::SendChunk() {
-  if (max_packet_size_ == 0) {
-    return;
-  }
-  if (begin_.Distance(last_sent_ + max_packet_size_) > window_size_) {
-    AE_TELED_DEBUG("Window size exceeded");
+void SafeStreamSendAction::SendChunk(TimePoint current_time) {
+  if (max_payload_size_ == 0) {
     return;
   }
 
-  auto data_chunk =
-      send_data_buffer_.GetSlice(last_sent_, max_packet_size_, begin_);
+  auto data_chunk = send_data_buffer_.GetSlice(last_sent_, max_payload_size_);
   if (data_chunk.data.empty()) {
     // no data to send
     return;
   }
-
-  last_sent_ = data_chunk.offset +
-               static_cast<SSRingIndex::type>(data_chunk.data.size());
+  auto delta = begin_.Distance(data_chunk.offset);
+  auto delta_end =
+      delta + static_cast<SSRingIndex::type>(data_chunk.data.size());
+  if (delta_end > window_size_) {
+    AE_TELED_DEBUG("Window size exceeded begin: {} last_sent: {} delta end: {}",
+                   begin_, last_sent_, delta_end);
+    return;
+  }
+  AE_TELED_DEBUG("Sending chunk begin: {}, last_sent_: {},offset: {} size: {}",
+                 begin_, last_sent_, data_chunk.offset, data_chunk.data.size());
+  last_sent_ = begin_ + delta_end;
 
   auto& send_chunk = sending_chunks_.Register(
       data_chunk.offset,
       data_chunk.offset +
           static_cast<SSRingIndex::type>(data_chunk.data.size() - 1),
-      Now(), begin_);
+      current_time);
 
   auto repeat_count = send_chunk.repeat_count;
   send_chunk.repeat_count++;
@@ -121,55 +148,71 @@ void SafeStreamSendAction::SendChunk() {
   auto end_offset = data_chunk.offset +
                     static_cast<SSRingIndex::type>(data_chunk.data.size());
 
-  auto write_action = PushData(std::move(data_chunk), repeat_count);
+  auto write_action = PushData(std::move(data_chunk.data), delta, repeat_count);
 
   send_subs_.Push(
       write_action->ErrorEvent().Subscribe([this, end_offset](auto const&) {
-        sending_chunks_.RemoveUpTo(end_offset, begin_);
-        send_data_buffer_.Reject(end_offset, begin_);
+        sending_chunks_.RemoveUpTo(end_offset);
+        send_data_buffer_.Reject(end_offset);
       }),
       write_action->StopEvent().Subscribe([this, end_offset](auto const&) {
-        sending_chunks_.RemoveUpTo(end_offset, begin_);
-        send_data_buffer_.Stop(end_offset, begin_);
+        sending_chunks_.RemoveUpTo(end_offset);
+        send_data_buffer_.Stop(end_offset);
       }));
 }
 
 void SafeStreamSendAction::RejectSend(SendingChunk& sending_chunk) {
-  auto end_offset = sending_chunk.end_offset;
-  sending_chunks_.RemoveUpTo(end_offset, begin_);
-  send_data_buffer_.Reject(end_offset, begin_);
+  auto end_offset = sending_chunk.offset_range.right;
+  sending_chunks_.RemoveUpTo(end_offset);
+  send_data_buffer_.Reject(end_offset);
 }
 
-TimePoint SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
+ActionResult SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
   if (sending_chunks_.empty()) {
-    return current_time;
+    return {};
   }
 
   auto const& selected_sch = sending_chunks_.front();
-  // wait timeout is depends on repeat_count
-  auto d_wait_confirm_timeout =
-      static_cast<double>(wait_confirm_timeout_.count());
+  // wait timeout is depends on repeat_count and response statistics
+  auto wait_ack_timeout =
+      static_cast<double>(response_statistics_.percentile<99>().count());
   auto increase_factor = std::max(
       1.0, (AE_SAFE_STREAM_RTO_GROW_FACTOR * (selected_sch.repeat_count - 1)));
-  auto wait_timeout = Duration{
-      static_cast<Duration::rep>(d_wait_confirm_timeout * increase_factor)};
+  auto wait_timeout =
+      Duration{static_cast<Duration::rep>(wait_ack_timeout * increase_factor)};
 
-  if ((selected_sch.send_time + wait_timeout) < current_time) {
+  auto wait_time = selected_sch.send_time + wait_timeout;
+  if (wait_time <= current_time) {
     // timeout
-    AE_TELED_DEBUG("Wait confirm timeout {:%S}, repeat offset {}", wait_timeout,
-                   selected_sch.begin_offset);
+    AE_TELED_DEBUG("Wait ack timeout {:%S}, repeat offset {}", wait_timeout,
+                   selected_sch.offset_range.left);
     // move offset to repeat send
-    last_sent_ = selected_sch.begin_offset;
+    last_sent_ = selected_sch.offset_range.left;
     Action::Trigger();
-    return current_time;
+    return {};
   }
 
-  return selected_sch.send_time + wait_timeout;
+  return ActionResult::Delay(wait_time);
 }
 
 ActionView<StreamWriteAction> SafeStreamSendAction::PushData(
-    DataChunk&& data_chunk, std::uint16_t repeat_count) {
-  return send_data_push_->PushData(std::move(data_chunk), repeat_count);
+    DataBuffer&& data_buffer, SSRingIndex::type delta,
+    std::uint8_t repeat_count) {
+  AE_TELED_DEBUG(
+      "Send data message begin offset {} delta {} repeat count {} reset {} "
+      "data size {}",
+      begin_, delta, static_cast<int>(repeat_count), init_state_,
+
+      data_buffer.size());
+  assert(delta < window_size_);
+
+  return send_data_push_->PushData(begin_,
+                                   DataMessage{
+                                       repeat_count,
+                                       init_state_,
+                                       static_cast<std::uint16_t>(delta),
+                                       std::move(std::move(data_buffer)),
+                                   });
 }
 
 }  // namespace ae

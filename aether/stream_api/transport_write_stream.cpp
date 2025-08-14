@@ -85,7 +85,7 @@ ActionView<StreamWriteAction> TransportWriteStream::Write(DataBuffer&& buffer) {
   if (!stream_info_.is_linked) {
     return failed_write_actions_.Emplace();
   }
-  if (!stream_info_.strict_size_rules &&
+  if (stream_info_.strict_size_rules &&
       (buffer.size() > stream_info_.max_element_size)) {
     AE_TELED_ERROR("Max element size exceeded");
     return failed_write_actions_.Emplace();
@@ -127,6 +127,8 @@ void TransportWriteStream::SetStreamInfo(
   // use strict size rules for unreliable connections
   stream_info_.strict_size_rules =
       (connection_info.reliability == Reliability::kUnreliable);
+  stream_info_.is_reliable =
+      (connection_info.reliability == Reliability::kReliable);
 }
 
 }  // namespace ae

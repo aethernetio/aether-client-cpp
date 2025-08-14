@@ -18,8 +18,7 @@
 
 #include <utility>
 
-#include "aether/stream_api/safe_stream/safe_stream_api.h"
-#include "aether/stream_api/safe_stream/sending_data_action.h"
+#include "aether/stream_api/protocol_gates.h"
 
 #include "aether/tele/tele.h"
 
@@ -53,17 +52,18 @@ void SafeStreamWriteAction::Stop() {
 }
 
 SafeStream::SafeStream(ActionContext action_context, SafeStreamConfig config)
-    : safe_stream_action_{action_context, *this, config},
-      safe_stream_api_{protocol_context_, safe_stream_action_},
+    : config_{config},
+      safe_stream_api_{protocol_context_, *this},
+      send_action_{action_context, *this, config_},
+      recv_acion_{action_context, *this, config_},
       packet_send_actions_{action_context},
-      stream_info_{config.max_packet_size, false, false, false, false} {
-  safe_stream_action_.receive_event().Subscribe(
-      *this, MethodPtr<&SafeStream::WriteOut>{});
+      stream_info_{config.max_packet_size, false, true, false, false, false} {
+  recv_acion_.receive_event().Subscribe(*this,
+                                        MethodPtr<&SafeStream::WriteOut>{});
 }
 
 ActionView<StreamWriteAction> SafeStream::Write(DataBuffer&& data) {
-  return packet_send_actions_.Emplace(
-      safe_stream_action_.SendData(std::move(data)));
+  return packet_send_actions_.Emplace(send_action_.SendData(std::move(data)));
 }
 
 StreamInfo SafeStream::stream_info() const { return stream_info_; }
@@ -78,22 +78,25 @@ void SafeStream::LinkOut(OutStream& out) {
   OnStreamUpdate();
 }
 
-ApiCallAdapter<SafeStreamApi> SafeStream::safe_stream_api() {
-  return ApiCallAdapter{ApiContext{protocol_context_, safe_stream_api_}, *out_};
-}
-
 void SafeStream::WriteOut(DataBuffer const& data) {
   out_data_event_.Emit(data);
 }
 
 void SafeStream::OnStreamUpdate() {
+  static constexpr std::size_t kSendOverhead =
+      1 + sizeof(SSRingIndex::type) + 1 + 1 + 2;
+
   auto out_info = out_->stream_info();
   stream_info_.is_linked = out_info.is_linked;
   stream_info_.is_writable = out_info.is_writable;
   stream_info_.is_soft_writable = out_info.is_soft_writable;
   stream_info_.strict_size_rules = false;  // packet's will be split in a chunks
+  stream_info_.is_reliable = true;  // safe stream here to make stream reliable
 
-  safe_stream_action_.set_max_data_size(out_info.max_element_size);
+  send_action_.SetMaxPayload((out_info.max_element_size > 0)
+                                 ? (out_info.max_element_size - kSendOverhead)
+                                 : 0);
+
   stream_update_event_.Emit();
 }
 
@@ -102,4 +105,50 @@ void SafeStream::OnOutData(DataBuffer const& data) {
   auto api_parser = ApiParser{protocol_context_, data};
   api_parser.Parse(safe_stream_api_);
 }
+
+void SafeStream::Ack(SSRingIndex::type offset) {
+  auto confirm_offset = SSRingIndex{offset};
+  send_action_.Acknowledge(confirm_offset);
+}
+
+void SafeStream::RequestRepeat(SSRingIndex::type offset) {
+  auto request_offset = SSRingIndex{offset};
+  send_action_.RequestRepeat(request_offset);
+}
+
+void SafeStream::Send(SSRingIndex::type begin_offset,
+                      DataMessage data_message) {
+  auto received_offset = SSRingIndex{begin_offset};
+  recv_acion_.PushData(received_offset, std::move(data_message));
+}
+
+ActionView<StreamWriteAction> SafeStream::PushData(SSRingIndex begin,
+                                                   DataMessage&& data_message) {
+  assert(out_);
+  auto api_adapter =
+      ApiCallAdapter{ApiContext{protocol_context_, safe_stream_api_}, *out_};
+  api_adapter->send(static_cast<SSRingIndex::type>(begin),
+                    std::move(data_message));
+
+  return api_adapter.Flush();
+}
+
+void SafeStream::SendAck(SSRingIndex offset) {
+  assert(out_);
+  auto api_adapter =
+      ApiCallAdapter{ApiContext{protocol_context_, safe_stream_api_}, *out_};
+
+  api_adapter->ack(static_cast<SSRingIndex::type>(offset));
+  api_adapter.Flush();
+}
+
+void SafeStream::SendRepeatRequest(SSRingIndex offset) {
+  assert(out_);
+  auto api_adapter =
+      ApiCallAdapter{ApiContext{protocol_context_, safe_stream_api_}, *out_};
+
+  api_adapter->request_repeat(static_cast<SSRingIndex::type>(offset));
+  api_adapter.Flush();
+}
+
 }  // namespace ae

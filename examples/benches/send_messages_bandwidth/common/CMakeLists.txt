@@ -17,10 +17,6 @@ cmake_minimum_required(VERSION 3.16)
 list( APPEND src_list
   bandwidth_api.cpp
   bandwidth.cpp
-  receiver.cpp
-  sender.cpp
-  sender_sync.cpp
-  receiver_sync.cpp
 )
 
 if (NOT CM_PLATFORM)

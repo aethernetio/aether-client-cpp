@@ -26,7 +26,8 @@
 #include "aether/stream_api/safe_stream/safe_stream_api.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
-#include "aether/stream_api/safe_stream/safe_stream_action.h"
+#include "aether/stream_api/safe_stream/safe_stream_recv_action.h"
+#include "aether/stream_api/safe_stream/safe_stream_send_action.h"
 
 #include "aether/stream_api/istream.h"
 
@@ -45,7 +46,10 @@ class SafeStreamWriteAction final : public StreamWriteAction {
   MultiSubscription subscriptions_;
 };
 
-class SafeStream final : public ByteStream, public SafeStreamApiProvider {
+class SafeStream final : public ByteStream,
+                         public SafeStreamApiImpl,
+                         public ISendDataPush,
+                         public ISendAckRepeat {
  public:
   SafeStream(ActionContext action_context, SafeStreamConfig config);
 
@@ -56,16 +60,29 @@ class SafeStream final : public ByteStream, public SafeStreamApiProvider {
 
   void LinkOut(OutStream &out) override;
 
-  ApiCallAdapter<SafeStreamApi> safe_stream_api() override;
+  // Api impl methods
+  void Ack(SSRingIndex::type offset) override;
+  void RequestRepeat(SSRingIndex::type offset) override;
+  void Send(SSRingIndex::type begin_offset, DataMessage data_message) override;
+
+  // Implement ISendDataPush
+  ActionView<StreamWriteAction> PushData(SSRingIndex begin,
+                                         DataMessage &&data_message) override;
+
+  // Implement ISendConfirmRepeat
+  void SendAck(SSRingIndex offset) override;
+  void SendRepeatRequest(SSRingIndex offset) override;
 
  private:
   void WriteOut(DataBuffer const &data);
   void OnStreamUpdate();
   void OnOutData(DataBuffer const &data);
 
+  SafeStreamConfig config_;
   ProtocolContext protocol_context_;
-  SafeStreamAction safe_stream_action_;
   SafeStreamApi safe_stream_api_;
+  SafeStreamSendAction send_action_;
+  SafeStreamRecvAction recv_acion_;
 
   ActionList<SafeStreamWriteAction> packet_send_actions_;
 

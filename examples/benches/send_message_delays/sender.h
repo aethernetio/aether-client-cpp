@@ -17,9 +17,11 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_SENDER_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_SENDER_H_
 
-#include "aether/types/uid.h"
+#include <optional>
+
 #include "aether/memory.h"
 #include "aether/client.h"
+#include "aether/types/uid.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/actions/action_view.h"
 #include "aether/actions/action_context.h"
@@ -27,6 +29,7 @@
 #include "aether/client_connections/split_stream_client_connection.h"
 
 #include "send_message_delays/timed_sender.h"
+#include "send_message_delays/api/bench_delays_api.h"
 
 namespace ae::bench {
 class Sender {
@@ -38,32 +41,28 @@ class Sender {
   void ConnectP2pSafeStream();
   void Disconnect();
 
-  ActionView<ITimedSender> WarmUp(std::size_t message_count,
-                                  Duration min_send_interval);
-  ActionView<ITimedSender> Send2Bytes(std::size_t message_count,
-                                      Duration min_send_interval);
-  ActionView<ITimedSender> Send10Bytes(std::size_t message_count,
-                                       Duration min_send_interval);
-  ActionView<ITimedSender> Send100Bytes(std::size_t message_count,
-                                        Duration min_send_interval);
-  ActionView<ITimedSender> Send1000Bytes(std::size_t message_count,
-                                         Duration min_send_interval);
-  ActionView<ITimedSender> Send1500Bytes(std::size_t message_count,
-                                         Duration min_send_interval);
+  ActionView<TimedSender> WarmUp(Duration min_send_interval);
+  ActionView<TimedSender> Send2Bytes(Duration min_send_interval);
+  ActionView<TimedSender> Send10Bytes(Duration min_send_interval);
+  ActionView<TimedSender> Send100Bytes(Duration min_send_interval);
+  ActionView<TimedSender> Send1000Bytes(Duration min_send_interval);
 
  private:
-  template <typename TMessage>
-  void CreateBenchAction(std::size_t message_count, Duration min_send_interval);
+  template <typename Func>
+  ActionView<TimedSender> CreateBenchAction(Func&& func,
 
+                                            Duration min_send_interval);
   ActionContext action_context_;
   Client::ptr client_;
   Uid destination_uid_;
   SafeStreamConfig safe_stream_config_;
   std::unique_ptr<SplitStreamCloudConnection> split_stream_connection_;
+
   std::unique_ptr<ByteIStream> send_message_stream_;
   ProtocolContext protocol_context_;
+  BenchDelaysApi bench_delays_api_;
 
-  std::unique_ptr<ITimedSender> sender_action_;
+  std::optional<TimedSender> sender_action_;
 
   MultiSubscription action_subscriptions_;
 };

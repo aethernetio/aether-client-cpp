@@ -18,7 +18,8 @@
 
 namespace ae::bench {
 StatisticsWriteCsv::StatisticsWriteCsv(
-    std::vector<std::pair<std::string, DurationStatistics>> statistics)
-    : statistics_{std::move(statistics)} {}
+    std::vector<std::pair<std::string, DurationStatistics>> statistics,
+    std::size_t test_msg_count)
+    : statistics_{std::move(statistics)}, test_msg_count_{test_msg_count} {}
 
 }  // namespace ae::bench

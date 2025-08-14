@@ -46,6 +46,8 @@ class ActionTrigger {
   // call this by action if update required
   void Trigger();
 
+  bool IsTriggered() const;
+
  private:
   RcPtr<SyncObject> sync_object_;
 };

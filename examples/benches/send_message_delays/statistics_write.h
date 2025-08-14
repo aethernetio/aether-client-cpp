@@ -30,10 +30,12 @@ class StatisticsWriteCsv {
 
  public:
   explicit StatisticsWriteCsv(
-      std::vector<std::pair<std::string, DurationStatistics>> statistics);
+      std::vector<std::pair<std::string, DurationStatistics>> statistics,
+      std::size_t test_msg_count);
 
  private:
   std::vector<std::pair<std::string, DurationStatistics>> statistics_;
+  std::size_t test_msg_count_;
 };
 }  // namespace ae::bench
 
@@ -61,11 +63,20 @@ struct Formatter<bench::StatisticsWriteCsv> {
     }
     ctx.out().write(std::string_view{"\n"});
     // print data
-    for (std::size_t i = 0;
-         i < value.statistics_.begin()->second.raw_data().size(); ++i) {
+
+    for (std::size_t i = 0; i < value.test_msg_count_; ++i) {
       ctx.out().stream() << i;
       for (auto const& [_, statistics] : value.statistics_) {
-        ctx.out().stream() << ',' << statistics.raw_data()[i].second.count();
+        auto const& i_data = std::find_if(
+            std::begin(statistics.raw_data()), std::end(statistics.raw_data()),
+            [i](auto const& data) { return data.first == i; });
+        if (i_data == std::end(statistics.raw_data())) {
+          ctx.out().stream() << ",NA";
+        } else if (!i_data->second) {
+          ctx.out().stream() << ",missed";
+        } else {
+          ctx.out().stream() << ',' << i_data->second->count();
+        }
       }
       ctx.out().stream() << '\n';
     }

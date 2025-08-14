@@ -16,32 +16,52 @@
 
 #include "send_message_delays/api/bench_delays_api.h"
 
-#include <cassert>
-
 namespace ae::bench {
-void BenchDelaysApi::LoadFactory(MessageId message_code, ApiParser& parser) {
-  switch (message_code) {
-    case WarmUp::kMessageCode:
-      parser.Load<WarmUp>(*this);
-      break;
-    case TwoByte::kMessageCode:
-      parser.Load<TwoByte>(*this);
-      break;
-    case TenBytes::kMessageCode:
-      parser.Load<TenBytes>(*this);
-      break;
-    case HundredBytes::kMessageCode:
-      parser.Load<HundredBytes>(*this);
-      break;
-    case ThousandBytes::kMessageCode:
-      parser.Load<ThousandBytes>(*this);
-      break;
-    case ThousandAndHalfBytes::kMessageCode:
-      parser.Load<ThousandAndHalfBytes>(*this);
-      break;
-    default:
-      assert(false);
-      break;
-  }
+BenchDelaysApi::BenchDelaysApi(ProtocolContext& protocol_context)
+    : warm_up{protocol_context},
+      two_bytes{protocol_context},
+      ten_bytes{protocol_context},
+      hundred_bytes{protocol_context},
+      thousand_bytes{protocol_context} {}
+
+void BenchDelaysApi::WarmUpImpl(ApiParser&, std::uint16_t id,
+                                Payload<98> payload) {
+  warm_up_event_.Emit(id, payload);
 }
+void BenchDelaysApi::TwoBytesImpl(ApiParser&, std::uint16_t id) {
+  two_bytes_event_.Emit(id);
+}
+void BenchDelaysApi::TenBytesImpl(ApiParser&, std::uint16_t id,
+                                  Payload<8> payload) {
+  ten_bytes_event_.Emit(id, payload);
+}
+void BenchDelaysApi::HundredBytesImpl(ApiParser&, std::uint16_t id,
+                                      Payload<98> payload) {
+  hundred_bytes_event_.Emit(id, payload);
+}
+void BenchDelaysApi::ThousandBytesImpl(ApiParser&, std::uint16_t id,
+                                       Payload<998> payload) {
+  thousand_bytes_event_.Emit(id, payload);
+}
+
+EventSubscriber<void(std::uint16_t, BenchDelaysApi::Payload<98>)>
+BenchDelaysApi::warm_up_event() {
+  return EventSubscriber{warm_up_event_};
+}
+EventSubscriber<void(std::uint16_t)> BenchDelaysApi::two_bytes_event() {
+  return EventSubscriber{two_bytes_event_};
+}
+EventSubscriber<void(std::uint16_t, BenchDelaysApi::Payload<8>)>
+BenchDelaysApi::ten_bytes_event() {
+  return EventSubscriber{ten_bytes_event_};
+}
+EventSubscriber<void(std::uint16_t, BenchDelaysApi::Payload<98>)>
+BenchDelaysApi::hundred_bytes_event() {
+  return EventSubscriber{hundred_bytes_event_};
+}
+EventSubscriber<void(std::uint16_t, BenchDelaysApi::Payload<998>)>
+BenchDelaysApi::thousand_bytes_event() {
+  return EventSubscriber{thousand_bytes_event_};
+}
+
 }  // namespace ae::bench

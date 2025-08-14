@@ -18,10 +18,12 @@ list( APPEND api_srcs
   api/bench_delays_api.cpp
 )
 
-list( APPEND src_list 
+list( APPEND src_list
   main.cpp
   sender.cpp
   receiver.cpp
+  timed_sender.cpp
+  timed_receiver.cpp
   delay_statistics.cpp
   statistics_write.cpp
   send_message_delays_manager.cpp
@@ -30,7 +32,7 @@ list( APPEND src_list
 if(NOT CM_PLATFORM)
   project("aec-send-message-delays" VERSION "1.0.0" LANGUAGES C CXX)
 
-  add_executable( ${PROJECT_NAME} 
+  add_executable( ${PROJECT_NAME}
                   ${src_list}
                   ${api_srcs})
 
