@@ -17,6 +17,7 @@
 #include "aether/adapters/modem_adapter.h"
 
 #include "aether/adapters/modems/modem_factory.h"
+#include "aether/transport/low_level/sockets/lte_udp_socket.h"
 #include "aether/transport/low_level/sockets/lte_tcp_socket.h"
 
 #include "aether/adapters/adapter_tele.h"
@@ -32,7 +33,7 @@ class ModemAdapterTransportBuilder final : public ITransportBuilder {
         address_port_protocol_{std::move(address_port_protocol)} {}
 
   std::unique_ptr<ITransport> BuildTransport() override {
-#if defined(LWIP_TCP_TRANSPORT_ENABLED)
+#if defined(MODEM_TCP_TRANSPORT_ENABLED)
     assert(address_port_protocol_.protocol == Protocol::kTcp);
     return make_unique<LteTcpTransport>(*adapter_->aether_.as<Aether>(),
                                         adapter_->poller_,
