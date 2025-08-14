@@ -20,8 +20,6 @@
 #include <utility>
 #include <algorithm>
 
-#include "aether/warning_disable.h"
-
 namespace ae::bench {
 DurationStatistics::DurationStatistics(DurationTable data)
     : raw_data_{std::move(data)},

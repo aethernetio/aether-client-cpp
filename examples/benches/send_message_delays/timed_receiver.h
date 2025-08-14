@@ -44,7 +44,7 @@ class TimedReceiver : public Action<TimedReceiver> {
  public:
   TimedReceiver(ActionContext action_context, std::size_t wait_count);
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   TimeTable const& message_times() const { return message_times_; }
 
@@ -55,7 +55,7 @@ class TimedReceiver : public Action<TimedReceiver> {
   }
 
  private:
-  ActionResult CheckTimeout(TimePoint current_time);
+  UpdateStatus CheckTimeout(TimePoint current_time);
 
   std::size_t wait_count_;
 

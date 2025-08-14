@@ -29,7 +29,7 @@ MessageSender::MessageSender(ActionContext action_context, SendProc send_proc,
   AE_TELED_INFO("MessageSender created");
 }
 
-ActionResult MessageSender::Update() {
+UpdateStatus MessageSender::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kSending:
@@ -38,11 +38,11 @@ ActionResult MessageSender::Update() {
       case State::kWaitbuffer:
         break;
       case State::kSuccess:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kStopped:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
       case State::kError:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
     }
   }
   if (state_.get() == State::kSending) {
@@ -75,18 +75,19 @@ void MessageSender::Send() {
 
   auto write_action = send_proc_(message_send_count_);
   message_send_.Push(  //
-      write_action->ResultEvent().Subscribe([this](auto const&) {
-        message_send_confirm_count_++;
-        last_send_time_ = HighResTimePoint::clock::now();
-        if (state_.get() == State::kWaitbuffer) {
-          Action::Trigger();
-        }
-      }),
-      write_action->ErrorEvent().Subscribe([this](auto const&) {
-        AE_TELED_ERROR("Error sending message");
-        state_ = State::kError;
-        Action::Trigger();
-      }));
+      write_action->StatusEvent().Subscribe(
+          ActionHandler{OnResult{[this](auto const&) {
+                          message_send_confirm_count_++;
+                          last_send_time_ = HighResTimePoint::clock::now();
+                          if (state_.get() == State::kWaitbuffer) {
+                            Action::Trigger();
+                          }
+                        }},
+                        OnError{[this](auto const&) {
+                          AE_TELED_ERROR("Error sending message");
+                          state_ = State::kError;
+                          Action::Trigger();
+                        }}}));
 
   ++message_send_count_;
   if (message_send_count_ == send_count_) {
