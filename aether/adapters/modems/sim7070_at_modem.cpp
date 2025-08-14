@@ -357,71 +357,15 @@ kModemError Sim7070AtModem::CheckResponce(std::string responce,
   return err;
 }
 
-kModemError Sim7070AtModem::SetBaudRate(std::uint32_t rate) {
+kModemError Sim7070AtModem::SetBaudRate(kModemBaudRate rate) {
   kModemError err{kModemError::kNoError};
-
-  switch (rate) {
-    case 0:
-      sendATCommand("AT+IPR=0");  // Set modem usart speed 0
-      break;
-    case 300:
-      sendATCommand("AT+IPR=300");  // Set modem usart speed 300
-      break;
-    case 600:
-      sendATCommand("AT+IPR=600");  // Set modem usart speed 600
-      break;
-    case 1200:
-      sendATCommand("AT+IPR=1200");  // Set modem usart speed 1200
-      break;
-    case 2400:
-      sendATCommand("AT+IPR=2400");  // Set modem usart speed 2400
-      break;
-    case 4800:
-      sendATCommand("AT+IPR=4800");  // Set modem usart speed 4800
-      break;
-    case 9600:
-      sendATCommand("AT+IPR=9600");  // Set modem usart speed 9600
-      break;
-    case 19200:
-      sendATCommand("AT+IPR=19200");  // Set modem usart speed 19200
-      break;
-    case 38400:
-      sendATCommand("AT+IPR=38400");  // Set modem usart speed 38400
-      break;
-    case 57600:
-      sendATCommand("AT+IPR=57600");  // Set modem usart speed 57600
-      break;
-    case 115200:
-      sendATCommand("AT+IPR=115200");  // Set modem usart speed 115200
-      break;
-    case 230400:
-      sendATCommand("AT+IPR=230400");  // Set modem usart speed 230400
-      break;
-    case 921600:
-      sendATCommand("AT+IPR=921600");  // Set modem usart speed 921600
-      break;
-    case 2000000:
-      sendATCommand("AT+IPR=2000000");  // Set modem usart speed 2000000
-      break;
-    case 2900000:
-      sendATCommand("AT+IPR=2900000");  // Set modem usart speed 2900000
-      break;
-    case 3000000:
-      sendATCommand("AT+IPR=3000000");  // Set modem usart speed 3000000
-      break;
-    case 3200000:
-      sendATCommand("AT+IPR=3200000");  // Set modem usart speed 3200000
-      break;
-    case 3684000:
-      sendATCommand("AT+IPR=3684000");  // Set modem usart speed 3684000
-      break;
-    case 4000000:
-      sendATCommand("AT+IPR=4000000");  // Set modem usart speed 4000000
-      break;
-    default:
-      err = kModemError::kBaudRateError;
-      return err;
-      break;
+  
+  auto it = baud_rate_commands.find(rate);
+  if (it == baud_rate_commands.end()) {
+    err = kModemError::kBaudRateError;
+    return err;
+  } else {
+    sendATCommand(it->second);
   }
 
   err = CheckResponce("OK", 1000, "No response from modem!");

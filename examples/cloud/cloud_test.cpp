@@ -37,8 +37,8 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
 }  // namespace ae::cloud_test
 
 int AetherCloudExample() {
-  ae::SerialInit serial_init = {"COM47", 115200}; // Thingy91x
-  //ae::SerialInit serial_init = {"COM17", 115200}; // Sim7070g
+  ae::SerialInit serial_init = {"COM47", ae::kModemBaudRate::kBaudRate115200}; // Thingy91x
+  //ae::SerialInit serial_init = {"COM17", ae::kModemBaudRate::kBaudRate115200}; // Sim7070g
 
   ae::ModemInit modem_init{
       serial_init,                  // Serial port

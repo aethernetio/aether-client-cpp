@@ -51,7 +51,7 @@ class Bg95AtModem : public IModemDriver {
 
   kModemError CheckResponce(std::string responce, std::uint32_t wait_time,
                             std::string error_message);
-  kModemError SetBaudRate(std::uint32_t rate);
+  kModemError SetBaudRate(kModemBaudRate rate);
   kModemError CheckSimStatus();
   kModemError SetupSim(const std::uint8_t pin[4]);
   kModemError SetNetMode(kModemMode modem_mode);

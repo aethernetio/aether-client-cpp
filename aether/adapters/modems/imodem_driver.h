@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <string>
+#include <map>
 
 #include "aether/types/address.h"
 #include "aether/adapters/modems/serial_ports/iserial_port.h"
@@ -70,6 +71,27 @@ enum class kAuthType : std::uint8_t {
   kAuthTypeCHAP = 2,
   kAuthTypePAPCHAP = 3
 };
+
+static const std::map<kModemBaudRate, std::string> baud_rate_commands = {
+    {kModemBaudRate::kBaudRate0, "AT+IPR=0"},
+    {kModemBaudRate::kBaudRate300, "AT+IPR=300"},
+    {kModemBaudRate::kBaudRate600, "AT+IPR=600"},
+    {kModemBaudRate::kBaudRate1200, "AT+IPR=1200"},
+    {kModemBaudRate::kBaudRate2400, "AT+IPR=2400"},
+    {kModemBaudRate::kBaudRate4800, "AT+IPR=4800"},
+    {kModemBaudRate::kBaudRate9600, "AT+IPR=9600"},
+    {kModemBaudRate::kBaudRate19200, "AT+IPR=19200"},
+    {kModemBaudRate::kBaudRate38400, "AT+IPR=38400"},
+    {kModemBaudRate::kBaudRate57600, "AT+IPR=57600"},
+    {kModemBaudRate::kBaudRate115200, "AT+IPR=115200"},
+    {kModemBaudRate::kBaudRate230400, "AT+IPR=230400"},
+    {kModemBaudRate::kBaudRate921600, "AT+IPR=921600"},
+    {kModemBaudRate::kBaudRate2000000, "AT+IPR=2000000"},
+    {kModemBaudRate::kBaudRate2900000, "AT+IPR=2900000"},
+    {kModemBaudRate::kBaudRate3000000, "AT+IPR=3000000"},
+    {kModemBaudRate::kBaudRate3200000, "AT+IPR=3200000"},
+    {kModemBaudRate::kBaudRate3684000, "AT+IPR=3684000"},
+    {kModemBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
 
 //========================power save=====================================
 
@@ -222,16 +244,17 @@ struct ModemInit {
 /**
  * @enum PollEvents
  * @brief Represents event flags for poll() system call monitoring
- * 
+ *
  * Each flag corresponds to a specific type of I/O event that can be monitored
- * using the poll() system call. Flags can be combined using bitwise OR operations.
+ * using the poll() system call. Flags can be combined using bitwise OR
+ * operations.
  */
 enum class PollEvents : unsigned int {
-  kPOLLIN   = 0x0001,
-  kPOLLPRI  = 0x0002,
-  kPOLLOUT  = 0x0004,
-  kPOLLERR  = 0x0008,
-  kPOLLHUP  = 0x0010,
+  kPOLLIN = 0x0001,
+  kPOLLPRI = 0x0002,
+  kPOLLOUT = 0x0004,
+  kPOLLERR = 0x0008,
+  kPOLLHUP = 0x0010,
   kPOLLNVAL = 0x0020
 };
 
@@ -257,8 +280,7 @@ class IModemDriver {
   virtual void ReadPacket(std::int8_t const connect_index,
                           std::vector<std::uint8_t>& data,
                           std::int32_t const timeout) = 0;
-  virtual void PollSockets(std::int8_t const connect_index,
-                           PollResult& results,
+  virtual void PollSockets(std::int8_t const connect_index, PollResult& results,
                            std::int32_t const timeout) = 0;
   virtual void SetPowerSaveParam(kPowerSaveParam const& psp) = 0;
   virtual void PowerOff() = 0;
