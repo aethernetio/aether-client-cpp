@@ -269,10 +269,10 @@ void Thingy91xAtModem::WritePacket(std::int8_t const connect_index,
       err = CheckResponce("OK", 1000, "AT#XSEND command error!");
 
       serial_->WriteData(data);
-      std::this_thread::sleep_for(std::chrono::milliseconds(50));
       sendATCommand("+++");
 
       err = CheckResponce("#XDATAMODE: 0", 10000, "+++ command error!");
+      if (err != kModemError::kNoError) err = kModemError::kXDataMode;
 
     } else if (protocol_ == ae::Protocol::kUdp) {
       handle = connect_vec_.at(connect_index).handle;

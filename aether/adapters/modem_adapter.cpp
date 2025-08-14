@@ -194,19 +194,22 @@ void ModemAdapter::Connect(void) {
   AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem connecting to the network");
   modem_driver_->Start();
   // For test
-  std::vector<std::uint8_t> data{};
+  std::vector<std::uint8_t> data_out{};
+  std::vector<std::uint8_t> data_in{};
   std::vector<std::uint8_t> data1{};
   std::vector<std::uint8_t> data2{};
   std::int8_t connect_index{0};
   PollResult results;
   std::vector<std::uint8_t> connect_index_vec{};
   std::int32_t const timeout{2000};
+  std::size_t size_out, size_in;
   bool exit{false};
 
-  for (uint16_t i = 0; i < 1512; i++) {
+  for (uint16_t i = 0; i < 1024; i++) {
     data1.push_back(static_cast<char>(i));
     data2.push_back(static_cast<char>(i));
   }
+
   modem_driver_->OpenNetwork(connect_index, ae::Protocol::kTcp,
                              "95.52.244.165" /*"dbservice.aethernet.io"*/,
                              8889);
@@ -217,26 +220,37 @@ void ModemAdapter::Connect(void) {
   if (connect_index >= 0) connect_index_vec.push_back(connect_index);
 
   for (auto& connect_i : connect_index_vec) {
-    modem_driver_->PollSockets(connect_i, results, timeout);
     if (connect_i == 0) {
-      data = data1;
+      data_out = data1;
     }
     if (connect_i == 1) {
-      data = data2;
+      data_out = data2;
     }
-    modem_driver_->WritePacket(connect_i, data);
+    for (uint8_t i = 0; i < 4; i++) {
+      AE_TELED_DEBUG("Sending packet={}", i);
+      size_in = 0;
+      size_out = data_out.size();      
+      modem_driver_->WritePacket(connect_i, data_out);
 
-    do {
-      modem_driver_->PollSockets(connect_i, results, timeout);
-      if (std::find(begin(results.revents), end(results.revents),
-                    PollEvents::kPOLLIN) != end(results.revents)) {
-        modem_driver_->ReadPacket(connect_i, data, timeout);
-        exit = false;
-        AE_TELED_DEBUG("Data={}", data);
-      } else {
-        exit = true;
-      }
-    } while (!exit);
+      do {
+        modem_driver_->PollSockets(connect_i, results, timeout);
+        if (std::find(begin(results.revents), end(results.revents),
+                      PollEvents::kPOLLIN) != end(results.revents)) {
+          modem_driver_->ReadPacket(connect_i, data_in, timeout);
+          size_in += data_in.size();
+          
+          if(size_in == size_out) {
+            exit = true;
+          } else {
+            exit = false;
+          }
+          
+          AE_TELED_DEBUG("Data in={}", data_in);
+        } else {
+          exit = true;
+        }
+      } while (!exit);
+    }
 
     modem_driver_->CloseNetwork(connect_i);
   }
