@@ -17,13 +17,15 @@
 #include "aether/adapters/modem_adapter.h"
 
 #include "aether/adapters/modems/modem_factory.h"
+#include "aether/transport/low_level/tcp/tcp.h"
+#include "aether/transport/low_level/udp/udp.h"
 #include "aether/transport/low_level/sockets/lte_udp_socket.h"
 #include "aether/transport/low_level/sockets/lte_tcp_socket.h"
 
 #include "aether/adapters/adapter_tele.h"
 
-namespace ae {
 
+namespace ae {
 namespace modem_adapter_internal {
 class ModemAdapterTransportBuilder final : public ITransportBuilder {
  public:
@@ -33,17 +35,38 @@ class ModemAdapterTransportBuilder final : public ITransportBuilder {
         address_port_protocol_{std::move(address_port_protocol)} {}
 
   std::unique_ptr<ITransport> BuildTransport() override {
-#if defined(MODEM_TCP_TRANSPORT_ENABLED)
-    assert(address_port_protocol_.protocol == Protocol::kTcp);
-    return make_unique<LteTcpTransport>(*adapter_->aether_.as<Aether>(),
-                                        adapter_->poller_,
-                                        address_port_protocol_);
-#else
-    return {};
-#endif
+    switch (address_port_protocol_.protocol) {
+      case Protocol::kTcp:
+        return BuildTcp();
+      case Protocol::kUdp:
+        return BuildUdp();
+      default:
+        assert(false);
+        return nullptr;
+    }
   }
 
  private:
+    std::unique_ptr<ITransport> BuildTcp() {
+#  if defined COMMON_TCP_TRANSPORT_ENABLED
+    assert(address_port_protocol_.protocol == Protocol::kTcp);
+    return make_unique<TcpTransport>(*adapter_->aether_.as<Aether>(),
+                                     adapter_->poller_, address_port_protocol_);
+#  else
+    static_assert(false, "No transport enabled");
+#  endif
+  }
+
+  std::unique_ptr<ITransport> BuildUdp() {
+#  if defined COMMON_UDP_TRANSPORT_ENABLED
+    assert(address_port_protocol_.protocol == Protocol::kUdp);
+    return make_unique<UdpTransport>(*adapter_->aether_.as<Aether>(),
+                                     adapter_->poller_, address_port_protocol_);
+#  else
+    static_assert(false, "No transport enabled");
+#  endif
+  }
+
   ModemAdapter* adapter_;
   IpAddressPortProtocol address_port_protocol_;
 };
@@ -193,69 +216,7 @@ void ModemAdapter::Update(TimePoint t) {
 
 void ModemAdapter::Connect(void) {
   AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem connecting to the network");
-  modem_driver_->Start();
-  // For test
-  std::vector<std::uint8_t> data_out{};
-  std::vector<std::uint8_t> data_in{};
-  std::vector<std::uint8_t> data1{};
-  std::vector<std::uint8_t> data2{};
-  std::int8_t connect_index{0};
-  PollResult results;
-  std::vector<std::uint8_t> connect_index_vec{};
-  std::int32_t const timeout{2000};
-  std::size_t size_out, size_in;
-  bool exit{false};
-
-  for (uint16_t i = 0; i < 1024; i++) {
-    data1.push_back(static_cast<char>(i));
-    data2.push_back(static_cast<char>(i));
-  }
-
-  modem_driver_->OpenNetwork(connect_index, ae::Protocol::kTcp,
-                             "95.52.244.165" /*"dbservice.aethernet.io"*/,
-                             8889);
-  if (connect_index >= 0) connect_index_vec.push_back(connect_index);
-  modem_driver_->OpenNetwork(connect_index, ae::Protocol::kTcp,
-                             "95.52.244.165" /*"dbservice.aethernet.io"*/,
-                             8889);
-  if (connect_index >= 0) connect_index_vec.push_back(connect_index);
-
-  for (auto& connect_i : connect_index_vec) {
-    if (connect_i == 0) {
-      data_out = data1;
-    }
-    if (connect_i == 1) {
-      data_out = data2;
-    }
-    for (uint8_t i = 0; i < 4; i++) {
-      AE_TELED_DEBUG("Sending packet={}", i);
-      size_in = 0;
-      size_out = data_out.size();      
-      modem_driver_->WritePacket(connect_i, data_out);
-
-      do {
-        modem_driver_->PollSockets(connect_i, results, timeout);
-        if (std::find(begin(results.revents), end(results.revents),
-                      PollEvents::kPOLLIN) != end(results.revents)) {
-          modem_driver_->ReadPacket(connect_i, data_in, timeout);
-          size_in += data_in.size();
-          
-          if(size_in == size_out) {
-            exit = true;
-          } else {
-            exit = false;
-          }
-          
-          AE_TELED_DEBUG("Data in={}", data_in);
-        } else {
-          exit = true;
-        }
-      } while (!exit);
-    }
-
-    modem_driver_->CloseNetwork(connect_i);
-  }
-  modem_driver_->Stop();
+  modem_driver_->Start();  
 }
 
 void ModemAdapter::DisConnect(void) {

@@ -29,23 +29,26 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1 - 1,  // max_data_size
-    10,                               // max_repeat_count
-    std::chrono::milliseconds{1500},  // wait_confirm_timeout
-    {},                               // send_confirm_timeout
-    std::chrono::milliseconds{400},   // send_repeat_timeout
+    10,                              // max_repeat_count
+    std::chrono::milliseconds{600},  // wait_confirm_timeout
+    {},                              // send_confirm_timeout
+    std::chrono::milliseconds{400},  // send_repeat_timeout
 };
 }  // namespace ae::cloud_test
 
 int AetherCloudExample() {
-  ae::SerialInit serial_init = {"COM47", 115200};
+  ae::SerialInit serial_init = {"COM47", 115200}; // Thingy91x
+  //ae::SerialInit serial_init = {"COM17", 115200}; // Sim7070g
 
   ae::ModemInit modem_init{
       serial_init,                  // Serial port
       {1, 1, 1, 1},                 // Pin code
       false,                        // Use pin
-      ae::kModemMode::kModeAuto,    // Modem mode
-      "25001",                      // Operator code
-      "MTS",                        // Operator long name
+      ae::kModemMode::kModeNbIot,   // Modem mode Thingy91x
+      //ae::kModemMode::kModeAuto,      // Modem mode Sim7070g
+      "25001",                      // Operator code Thingy91x
+      //"25020",                      // Operator code Sim7070g
+      "",                           // Operator long name
       "iot",                        // APN
       "",                           // APN user
       "",                           // APN pass

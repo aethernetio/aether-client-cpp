@@ -29,7 +29,7 @@
 #include "aether/actions/action_list.h"
 #include "aether/events/event_subscription.h"
 
-#defined MODEM_TCP_TRANSPORT_ENABLED
+#define MODEM_TCP_TRANSPORT_ENABLED
 
 namespace ae {
 class ModemAdapter;
