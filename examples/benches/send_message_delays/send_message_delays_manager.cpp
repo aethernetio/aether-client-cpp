@@ -212,8 +212,8 @@ void SendMessageDelaysManager::TestAction::Test1000Bytes() {
 }
 
 void SendMessageDelaysManager::TestAction::SubscribeToTest(
-    ActionView<TimedSender> sender_action,
-    ActionView<TimedReceiver> receiver_action, State next_state) {
+    ActionPtr<TimedSender> sender_action,
+    ActionPtr<TimedReceiver> receiver_action, State next_state) {
   test_subscriptions_.Reset();
   res_event_ = make_unique<CumulativeEvent<TimeTable, 2>>();
   res_event_->Connect([](auto const& action) { return action.message_times(); },
@@ -270,7 +270,7 @@ SendMessageDelaysManager::SendMessageDelaysManager(
       sender_{std::move(sender)},
       receiver_{std::move(receiver)} {}
 
-ActionView<SendMessageDelaysManager::TestAction> SendMessageDelaysManager::Test(
+ActionPtr<SendMessageDelaysManager::TestAction> SendMessageDelaysManager::Test(
     SendMessageDelaysManagerConfig config) {
   AE_TELED_INFO("Test started");
   if (test_action_) {
@@ -278,12 +278,9 @@ ActionView<SendMessageDelaysManager::TestAction> SendMessageDelaysManager::Test(
   }
 
   test_action_ =
-      make_unique<TestAction>(action_context_, *sender_, *receiver_, config);
+      ActionPtr<TestAction>{action_context_, *sender_, *receiver_, config};
 
-  test_action_subscription_.Push(test_action_->FinishedEvent().Subscribe(
-      [this]() { test_action_.reset(); }));
-
-  return *test_action_;
+  return test_action_;
 }
 
 }  // namespace ae::bench

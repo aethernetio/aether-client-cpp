@@ -38,6 +38,7 @@ class Telemetry : public Action<Telemetry> {
   enum class State : std::uint8_t {
     kWaitRequest,
     kSendTelemetry,
+    kStopped,
   };
 
  public:
@@ -47,6 +48,8 @@ class Telemetry : public Action<Telemetry> {
   AE_CLASS_NO_COPY_MOVE(Telemetry)
 
   ActionResult Update();
+
+  void Stop();
 
   void SendTelemetry();
 

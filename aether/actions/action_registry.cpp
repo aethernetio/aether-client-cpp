@@ -16,97 +16,29 @@
 
 #include "aether/actions/action_registry.h"
 
-#include <cassert>
+#include <algorithm>
 
 namespace ae {
+ActionRegistry::ActionRegistry() = default;
 
-ActionRegistry::IndexShare::IndexShare() : registry_{nullptr} {}
-
-ActionRegistry::IndexShare::IndexShare(ActionList::iterator iterator,
-                                       ActionRegistry* registry_)
-    : it_{iterator}, registry_{registry_} {
-  ++it_->counter;
+void ActionRegistry::PushBack(std::shared_ptr<IAction> action) {
+  action_list_.push_back(action);
 }
 
-ActionRegistry::IndexShare::IndexShare(IndexShare const& other)
-    : it_{other.it_}, registry_{other.registry_} {
-  if (registry_ != nullptr) {
-    ++it_->counter;
+ActionRegistry::ActionList::iterator ActionRegistry::Remove(
+    ActionList::iterator pos) {
+  if (action_list_.empty()) {
+    return action_list_.end();
   }
-}
-
-ActionRegistry::IndexShare::IndexShare(IndexShare&& other) noexcept
-    : it_{other.it_}, registry_{other.registry_} {
-  other.registry_ = nullptr;
-}
-
-ActionRegistry::IndexShare::~IndexShare() {
-  if (registry_ != nullptr) {
-    assert(it_->counter != 0);
-    --it_->counter;
-    if (it_->counter == 0) {
-      registry_->action_list_.erase(it_);
-    }
+  // make swap remove
+  auto pre_end = action_list_.end() - 1;
+  if (pos == pre_end) {
+    action_list_.pop_back();
+    return action_list_.end();
   }
+  std::iter_swap(pos, pre_end);
+  // pre_end and end will be invalidated
+  action_list_.pop_back();
+  return pos;
 }
-
-ActionRegistry::IndexShare& ActionRegistry::IndexShare::operator=(
-    IndexShare const& other) {
-  if (this != &other) {
-    registry_ = other.registry_;
-    it_ = other.it_;
-    if (registry_ != nullptr) {
-      ++it_->counter;
-    }
-  }
-  return *this;
-}
-
-ActionRegistry::IndexShare& ActionRegistry::IndexShare::operator=(
-    IndexShare&& other) noexcept {
-  if (this != &other) {
-    registry_ = other.registry_;
-    it_ = other.it_;
-    other.registry_ = nullptr;
-  }
-  return *this;
-}
-
-IAction* ActionRegistry::IndexShare::get() {
-  if (registry_ != nullptr) {
-    return it_->action;
-  }
-  return nullptr;
-}
-
-IAction const* ActionRegistry::IndexShare::get() const {
-  if (registry_ != nullptr) {
-    return it_->action;
-  }
-  return nullptr;
-}
-
-void ActionRegistry::IndexShare::Erase() {
-  if (registry_ != nullptr) {
-    it_->action = nullptr;
-  }
-}
-
-ActionRegistry::Iterator* ActionRegistry::IndexShare::iterator() {
-  if (registry_ != nullptr) {
-    return &it_;
-  }
-  return nullptr;
-}
-
-ActionRegistry::Iterator ActionRegistry::begin() {
-  return std::begin(action_list_);
-}
-
-ActionRegistry::Iterator ActionRegistry::end() {
-  return std::end(action_list_);
-}
-
-std::size_t ActionRegistry::size() const { return action_list_.size(); }
-
 }  // namespace ae

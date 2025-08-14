@@ -41,15 +41,16 @@ DoneStreamWriteAction::DoneStreamWriteAction(ActionContext action_context)
 
 LostPacketsStream::LostPacketsStream(ActionContext action_context,
                                      float loss_rate)
-    : loss_rate_{loss_rate}, lost_packet_actions_{action_context} {}
+    : action_context_{action_context}, loss_rate_{loss_rate} {}
 
-ActionView<StreamWriteAction> LostPacketsStream::Write(
+ActionPtr<StreamWriteAction> LostPacketsStream::Write(
     DataBuffer&& data_buffer) {
   if (bad_streams_internal::IsHitTheRate(loss_rate_)) {
     AE_TELED_DEBUG("Packet loss!");
     // drop the packet
     // return data sent is done
-    return lost_packet_actions_.Emplace();
+    return ActionPtr<bad_streams_internal::DoneStreamWriteAction>{
+        action_context_};
   }
   assert(out_);
   return out_->Write(std::move(data_buffer));
@@ -88,24 +89,24 @@ ActionResult PacketDelayStream::PacketDelayAction::Update(
 
 PacketDelayStream::PacketDelayStream(ActionContext action_context,
                                      float delay_rate, Duration max_delay)
-    : delay_rate_{delay_rate},
-      max_delay_{max_delay},
-      reordered_packet_actions_{action_context},
-      packet_delay_actions_{action_context} {}
+    : action_context_{action_context},
+      delay_rate_{delay_rate},
+      max_delay_{max_delay} {}
 
-ActionView<StreamWriteAction> PacketDelayStream::Write(
+ActionPtr<StreamWriteAction> PacketDelayStream::Write(
     DataBuffer&& data_buffer) {
   assert(out_);
 
   if (bad_streams_internal::IsHitTheRate(delay_rate_)) {
     AE_TELED_DEBUG("Packet delay!");
     // delay send data by packet delay action
-    packet_delay_actions_.Emplace(
-        *out_, std::move(data_buffer),
+    auto packet_delay_action = ActionPtr<PacketDelayAction>{
+        action_context_, *out_, std::move(data_buffer),
         std::chrono::duration_cast<Duration>(
-            bad_streams_internal::RandomPercent() * max_delay_));
+            bad_streams_internal::RandomPercent() * max_delay_)};
     // return data sent is done
-    return reordered_packet_actions_.Emplace();
+    return ActionPtr<bad_streams_internal::DoneStreamWriteAction>{
+        action_context_};
   }
 
   return out_->Write(std::move(data_buffer));

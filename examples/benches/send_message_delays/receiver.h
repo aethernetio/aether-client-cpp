@@ -37,15 +37,15 @@ class Receiver {
   void Connect();
   void Disconnect();
 
-  ActionView<TimedReceiver> WarmUp(std::size_t message_count);
-  ActionView<TimedReceiver> Receive2Bytes(std::size_t message_count);
-  ActionView<TimedReceiver> Receive10Bytes(std::size_t message_count);
-  ActionView<TimedReceiver> Receive100Bytes(std::size_t message_count);
-  ActionView<TimedReceiver> Receive1000Bytes(std::size_t message_count);
+  ActionPtr<TimedReceiver> WarmUp(std::size_t message_count);
+  ActionPtr<TimedReceiver> Receive2Bytes(std::size_t message_count);
+  ActionPtr<TimedReceiver> Receive10Bytes(std::size_t message_count);
+  ActionPtr<TimedReceiver> Receive100Bytes(std::size_t message_count);
+  ActionPtr<TimedReceiver> Receive1000Bytes(std::size_t message_count);
 
  private:
   template <typename TEvent>
-  ActionView<TimedReceiver> CreateBenchAction(TEvent event, std::size_t count);
+  ActionPtr<TimedReceiver> CreateBenchAction(TEvent event, std::size_t count);
 
   void OnRecvData(DataBuffer const& data);
 
@@ -58,7 +58,7 @@ class Receiver {
   BenchDelaysApi bench_delays_api_;
 
   std::unique_ptr<ByteIStream> receive_message_stream_;
-  std::optional<TimedReceiver> receiver_action_;
+  ActionPtr<TimedReceiver> receiver_action_;
 
   Subscription message_stream_subscription_;
   Subscription recv_data_sub_;

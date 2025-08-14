@@ -17,14 +17,11 @@
 #ifndef AETHER_ACTIONS_ACTION_H_
 #define AETHER_ACTIONS_ACTION_H_
 
-#include <utility>
-
 #include "aether/common.h"
 #include "aether/events/events.h"
 #include "aether/actions/action_result.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_trigger.h"
-#include "aether/actions/action_registry.h"
 
 namespace ae {
 namespace action_internal {
@@ -41,6 +38,7 @@ class IAction {
   virtual ~IAction() = default;
 
   virtual TimePoint ActionUpdate(TimePoint current_time) = 0;
+  virtual bool IsFinished() const = 0;
 };
 
 /**
@@ -52,41 +50,12 @@ class IAction {
 template <typename T>
 class Action : public IAction {
  public:
-  using Base = Action<T>;
-
-  Action() = default;
-
   explicit Action(ActionContext action_context)
-      : action_trigger_{&action_context.get_trigger()},
-        index_{action_context.get_registry().Register(*this)} {
+      : action_trigger_{&action_context.get_trigger()} {
     Trigger();
   }
 
-  Action(Action const& other) = delete;
-  Action(Action&& other) noexcept
-      : action_trigger_{other.action_trigger_},
-        index_{std::move(other.index_)} {
-    // replace the action
-    if (auto* it = index_.iterator(); it) {
-      (*it)->action = this;
-    }
-  }
-
-  ~Action() override { index_.Erase(); }
-
-  Action& operator=(Action const& other) = delete;
-
-  Action& operator=(Action&& other) noexcept {
-    if (this != &other) {
-      action_trigger_ = other.action_trigger_;
-      index_ = std::move(other.index_);
-      // replace the action
-      if (auto* it = index_.iterator(); it) {
-        (*it)->action = this;
-      }
-    }
-    return *this;
-  }
+  AE_CLASS_MOVE_ONLY(Action);
 
   TimePoint ActionUpdate(TimePoint current_time) override {
     if constexpr (!action_internal::HasUpdate<T>::value) {
@@ -142,11 +111,7 @@ class Action : public IAction {
     return EventSubscriber{finished_event_};
   }
 
-  // get index of action in registry
-  auto index() const {
-    assert(index_.get() != nullptr);
-    return index_;
-  }
+  bool IsFinished() const override { return finished_; }
 
  protected:
   // Call trigger if action has new state to update
@@ -181,6 +146,7 @@ class Action : public IAction {
   // Call finish if action finished all it's job and may be removed.
   void Finish() {
     Trigger();
+    finished_ = true;
     finished_event_.Emit();
   }
 
@@ -190,7 +156,7 @@ class Action : public IAction {
   Event<void()> finished_event_;
 
   ActionTrigger* action_trigger_{};
-  ActionRegistry::IndexShare index_;
+  bool finished_{false};
 };
 }  // namespace ae
 

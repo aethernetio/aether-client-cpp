@@ -45,10 +45,10 @@ int test_sender_bandwidth(Uid receiver_uid) {
   auto sender = Sender{action_context, client, receiver_uid};
 
   auto test_action =
-      TestAction<Sender>{action_context, sender, std::size_t{10000}};
+      ActionPtr<TestAction<Sender>>{action_context, sender, std::size_t{10000}};
 
   auto result_subscription =
-      test_action.ResultEvent().Subscribe([&](auto const& action) {
+      test_action->ResultEvent().Subscribe([&](auto const& action) {
         auto res_name_table = std::array{
             std::string_view{"1 Byte"},
             std::string_view{"10 Bytes"},
@@ -66,7 +66,7 @@ int test_sender_bandwidth(Uid receiver_uid) {
       });
 
   auto error_subscription =
-      test_action.ErrorEvent().Subscribe([&](auto const&) {
+      test_action->ErrorEvent().Subscribe([&](auto const&) {
         AE_TELED_ERROR("Test failed");
         aether_app->Exit(1);
       });

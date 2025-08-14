@@ -51,11 +51,13 @@ class TcpTransport : public ITransport {
       kGetConnectionUpdate,
       kConnectionFailed,
       kConnected,
+      kStopped,
     };
 
     ConnectionAction(ActionContext action_context, TcpTransport& transport);
 
     ActionResult Update();
+    void Stop();
 
    private:
     void Connect();
@@ -68,7 +70,7 @@ class TcpTransport : public ITransport {
     IPoller::OnPollEventSubscriber::Subscription poller_subscription_;
   };
 
-  using SocketEventAction = NotifyAction<>;
+  using SocketEventAction = NotifyAction;
 
   class SendAction : public SocketPacketSendAction {
    public:
@@ -93,6 +95,7 @@ class TcpTransport : public ITransport {
 
     ActionResult Update();
     void Read();
+    void Stop();
 
    private:
     void DataReceived();
@@ -101,7 +104,8 @@ class TcpTransport : public ITransport {
     StreamDataPacketCollector data_packet_collector_;
     DataBuffer read_buffer_;
     std::atomic_bool read_event_{};
-    std::atomic_bool error_{};
+    std::atomic_bool error_event_{};
+    std::atomic_bool stop_event_{};
   };
 
  public:
@@ -116,8 +120,8 @@ class TcpTransport : public ITransport {
 
   DataReceiveEvent::Subscriber ReceiveEvent() override;
 
-  ActionView<PacketSendAction> Send(DataBuffer data,
-                                    TimePoint current_time) override;
+  ActionPtr<PacketSendAction> Send(DataBuffer data,
+                                   TimePoint current_time) override;
 
  private:
   void OnConnected();
@@ -141,10 +145,10 @@ class TcpTransport : public ITransport {
   TcpSocket socket_;
   std::mutex socket_lock_;
 
-  SocketPacketQueueManager<SendAction> socket_packet_queue_manager_;
-  ActionOpt<ConnectionAction> connection_action_;
-  ActionOpt<ReadAction> read_action_;
-  SocketEventAction socket_error_action_;
+  OwnActionPtr<SocketPacketQueueManager<SendAction>> send_queue_manager_;
+  OwnActionPtr<ConnectionAction> connection_action_;
+  OwnActionPtr<ReadAction> read_action_;
+  OwnActionPtr<SocketEventAction> socket_error_action_;
 
   Subscription connection_error_sub_;
   MultiSubscription send_action_subs_;

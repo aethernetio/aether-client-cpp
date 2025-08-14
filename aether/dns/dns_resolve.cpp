@@ -43,7 +43,7 @@ void ResolveAction::Failed() {
   this->Trigger();
 }
 
-ActionView<ResolveAction> DnsResolver::Resolve(
+ActionPtr<ResolveAction> DnsResolver::Resolve(
     NameAddress const& /* name_address */) {
   // must be overridden
   assert(false);

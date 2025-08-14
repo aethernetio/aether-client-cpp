@@ -35,7 +35,7 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
 
   AE_OBJECT_REFLECT(AE_MMBR(ethernet_adapter_))
 
-  ActionView<TransportBuilderAction> CreateTransport(
+  ActionPtr<TransportBuilderAction> CreateTransport(
       UnifiedAddress const& address) override;
 
  private:

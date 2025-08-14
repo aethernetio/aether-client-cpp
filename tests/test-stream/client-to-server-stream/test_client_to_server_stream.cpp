@@ -45,7 +45,7 @@ class MockServerStream : public ByteIStream {
     Tie(buffer_stream, transport_write_stream);
   }
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& in_data) override {
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override {
     return buffer_stream.Write(std::move(in_data));
   }
   StreamUpdateEvent::Subscriber stream_update_event() override {

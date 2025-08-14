@@ -31,7 +31,7 @@
 
 #include "aether/events/events.h"   // IWYU pragma: keep
 #include "aether/actions/action.h"  // IWYU pragma: keep
-#include "aether/actions/action_view.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_trigger.h"
 #include "aether/actions/action_processor.h"
 
@@ -180,7 +180,7 @@ class AetherApp {
    * Either result, error or stop event must be emitted.
    */
   template <typename TAction>
-  void WaitAction(ActionView<TAction>& action) {
+  void WaitAction(ActionPtr<TAction>& action) {
     bool done = false;
     auto res_sub =
         action->ResultEvent().Subscribe([&done](auto&&) { done = true; });

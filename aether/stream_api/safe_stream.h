@@ -18,8 +18,7 @@
 #define AETHER_STREAM_API_SAFE_STREAM_H_
 
 #include "aether/common.h"
-#include "aether/actions/action_view.h"
-#include "aether/actions/action_list.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
 
@@ -36,13 +35,13 @@ class SafeStreamWriteAction final : public StreamWriteAction {
  public:
   explicit SafeStreamWriteAction(
       ActionContext action_context,
-      ActionView<SendingDataAction> sending_data_action);
+      ActionPtr<SendingDataAction> sending_data_action);
 
   // TODO: add tests for stop
   void Stop() override;
 
  private:
-  ActionView<SendingDataAction> sending_data_action_;
+  ActionPtr<SendingDataAction> sending_data_action_;
   MultiSubscription subscriptions_;
 };
 
@@ -55,7 +54,7 @@ class SafeStream final : public ByteStream,
 
   AE_CLASS_NO_COPY_MOVE(SafeStream);
 
-  ActionView<StreamWriteAction> Write(DataBuffer &&data) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer &&data) override;
   StreamInfo stream_info() const override;
 
   void LinkOut(OutStream &out) override;
@@ -66,8 +65,8 @@ class SafeStream final : public ByteStream,
   void Send(SSRingIndex::type begin_offset, DataMessage data_message) override;
 
   // Implement ISendDataPush
-  ActionView<StreamWriteAction> PushData(SSRingIndex begin,
-                                         DataMessage &&data_message) override;
+  ActionPtr<StreamWriteAction> PushData(SSRingIndex begin,
+                                        DataMessage &&data_message) override;
 
   // Implement ISendConfirmRepeat
   void SendAck(SSRingIndex offset) override;
@@ -78,13 +77,12 @@ class SafeStream final : public ByteStream,
   void OnStreamUpdate();
   void OnOutData(DataBuffer const &data);
 
+  ActionContext action_context_;
   SafeStreamConfig config_;
   ProtocolContext protocol_context_;
   SafeStreamApi safe_stream_api_;
-  SafeStreamSendAction send_action_;
-  SafeStreamRecvAction recv_acion_;
-
-  ActionList<SafeStreamWriteAction> packet_send_actions_;
+  ActionPtr<SafeStreamSendAction> send_action_;
+  ActionPtr<SafeStreamRecvAction> recv_acion_;
 
   StreamInfo stream_info_;
 };

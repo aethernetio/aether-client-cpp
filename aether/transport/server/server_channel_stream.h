@@ -47,7 +47,7 @@ class ServerChannelStream final : public ByteIStream {
 
   AE_CLASS_NO_COPY_MOVE(ServerChannelStream)
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& data) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
   OutDataEvent::Subscriber out_data_event() override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;
@@ -60,14 +60,14 @@ class ServerChannelStream final : public ByteIStream {
   ActionContext action_context_;
   PtrView<Server> server_;
   PtrView<Channel> channel_;
-  BuildTransportAction build_transport_action_;
+  ActionPtr<BuildTransportAction> build_transport_action_;
 
   BufferStream buffer_stream_;
   std::unique_ptr<ITransport> transport_;
   std::optional<TransportWriteStream> transport_write_gate_;
 
   TimePoint connection_start_time_;
-  TimerAction connection_timer_;
+  ActionPtr<TimerAction> connection_timer_;
 
   Subscription connection_timeout_;
   Subscription build_transport_success_;

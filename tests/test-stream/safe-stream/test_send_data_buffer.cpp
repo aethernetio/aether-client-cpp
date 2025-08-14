@@ -20,6 +20,7 @@
 
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
+#include "aether/events/multi_subscription.h"
 #include "aether/stream_api/safe_stream/send_data_buffer.h"
 
 #include "tests/test-stream/to_data_buffer.h"

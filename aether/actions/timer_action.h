@@ -35,8 +35,6 @@ class TimerAction : public Action<TimerAction> {
   };
 
  public:
-  TimerAction() = default;
-
   TimerAction(ActionContext action_context, Duration duration);
   TimerAction(TimerAction const& other) = delete;
   TimerAction(TimerAction&& other) noexcept;

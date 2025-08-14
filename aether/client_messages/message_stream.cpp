@@ -39,7 +39,7 @@ MessageStream::MessageStream(MessageStream&& other) noexcept
       debug_gate_{Format("MessageStream uid {}  \nwrite {{}}", destination_),
                   Format("MessageStream uid {} \nread {{}}", destination_)} {}
 
-ActionView<StreamWriteAction> MessageStream::Write(DataBuffer&& data) {
+ActionPtr<StreamWriteAction> MessageStream::Write(DataBuffer&& data) {
   auto gate_data = debug_gate_.WriteIn(std::move(data));
   auto auth_api = client_to_server_stream_->authorized_api_adapter();
   auth_api->send_message(destination_, std::move(gate_data));

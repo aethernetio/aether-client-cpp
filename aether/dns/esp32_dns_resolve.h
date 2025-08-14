@@ -47,7 +47,7 @@ class Esp32DnsResolver : public DnsResolver {
 
   AE_OBJECT_REFLECT(AE_MMBR(aether_))
 
-  ActionView<ResolveAction> Resolve(NameAddress const& name_address) override;
+  ActionPtr<ResolveAction> Resolve(NameAddress const& name_address) override;
 
  private:
   Obj::ptr aether_;

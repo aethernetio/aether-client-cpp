@@ -206,18 +206,17 @@ Esp32WifiAdapter::~Esp32WifiAdapter() {
   }
 }
 
-ActionView<TransportBuilderAction> Esp32WifiAdapter::CreateTransport(
+ActionPtr<TransportBuilderAction> Esp32WifiAdapter::CreateTransport(
     UnifiedAddress const& address_port_protocol) {
   AE_TELE_INFO(kEspWifiAdapterCreate, "Create transport for {}",
                address_port_protocol);
-  if (!transport_builders_actions_) {
-    transport_builders_actions_.emplace(ActionContext{*aether_.as<Aether>()});
-  }
   if (connected_) {
-    return transport_builders_actions_->Emplace(*this, address_port_protocol);
+    return ActionPtr<esp32_wifi_internal::EspWifiTransportBuilderAction>{
+        *aether_.as<Aether>(), *this, address_port_protocol};
   } else {
-    return transport_builders_actions_->Emplace(
-        EventSubscriber{wifi_connected_event_}, *this, address_port_protocol);
+    return ActionPtr<esp32_wifi_internal::EspWifiTransportBuilderAction>{
+        *aether_.as<Aether>(), EventSubscriber{wifi_connected_event_}, *this,
+        address_port_protocol};
   }
 }
 

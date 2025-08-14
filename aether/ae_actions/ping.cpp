@@ -19,7 +19,6 @@
 #include <utility>
 #include <optional>
 
-#include "aether/api_protocol/packet_builder.h"
 #include "aether/methods/work_server_api/authorized_api.h"
 
 #include "aether/ae_actions/ae_actions_tele.h"
@@ -60,6 +59,8 @@ ActionResult Ping::Update() {
       case State::kWaitResponse:
       case State::kWaitInterval:
         break;
+      case State::kStopped:
+        return ActionResult::Stop();
       case State::kError:
         return ActionResult::Error();
     }
@@ -74,6 +75,8 @@ ActionResult Ping::Update() {
 
   return {};
 }
+
+void Ping::Stop() { state_ = State::kStopped; }
 
 void Ping::SendPing() {
   AE_TELE_DEBUG(kPingSend, "Send ping");

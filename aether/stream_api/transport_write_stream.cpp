@@ -24,7 +24,7 @@ namespace ae {
 
 TransportWriteStream::TransportStreamWriteAction::TransportStreamWriteAction(
     ActionContext action_context,
-    ActionView<PacketSendAction> packet_send_action)
+    ActionPtr<PacketSendAction> packet_send_action)
     : StreamWriteAction{action_context},
       packet_send_action_{std::move(packet_send_action)} {
   subscriptions_.Push(
@@ -62,7 +62,8 @@ void TransportWriteStream::TransportStreamWriteAction::Stop() {
 
 TransportWriteStream::TransportWriteStream(ActionContext action_context,
                                            ITransport& transport)
-    : transport_{&transport},
+    : action_context_{action_context},
+      transport_{&transport},
       stream_info_{},
       transport_connection_subscription_{
           transport_->ConnectionSuccess().Subscribe(
@@ -71,27 +72,26 @@ TransportWriteStream::TransportWriteStream(ActionContext action_context,
           transport_->ConnectionError().Subscribe(
               *this, MethodPtr<&TransportWriteStream::GateUpdate>{})},
       transport_read_data_subscription_{transport_->ReceiveEvent().Subscribe(
-          *this, MethodPtr<&TransportWriteStream::ReceiveData>{})},
-      write_actions_{action_context},
-      failed_write_actions_{action_context} {
+          *this, MethodPtr<&TransportWriteStream::ReceiveData>{})} {
   SetStreamInfo(transport_->GetConnectionInfo());
 }
 
 TransportWriteStream::~TransportWriteStream() = default;
 
-ActionView<StreamWriteAction> TransportWriteStream::Write(DataBuffer&& buffer) {
+ActionPtr<StreamWriteAction> TransportWriteStream::Write(DataBuffer&& buffer) {
   AE_TELED_DEBUG("Write bytes: size: {}\ndata: {}", buffer.size(), buffer);
 
   if (!stream_info_.is_linked) {
-    return failed_write_actions_.Emplace();
+    return ActionPtr<FailedStreamWriteAction>{action_context_};
   }
   if (stream_info_.strict_size_rules &&
       (buffer.size() > stream_info_.max_element_size)) {
     AE_TELED_ERROR("Max element size exceeded");
-    return failed_write_actions_.Emplace();
+    return ActionPtr<FailedStreamWriteAction>{action_context_};
   }
 
-  return write_actions_.Emplace(transport_->Send(std::move(buffer), Now()));
+  return ActionPtr<TransportStreamWriteAction>{
+      action_context_, transport_->Send(std::move(buffer), Now())};
 }
 
 TransportWriteStream::OutDataEvent::Subscriber

@@ -33,6 +33,7 @@ class MessageReceiver : public Action<MessageReceiver> {
   enum class State : std::uint8_t {
     kReceiving,
     kSuccess,
+    kStopped,
     kError,
   };
 
@@ -45,6 +46,7 @@ class MessageReceiver : public Action<MessageReceiver> {
 
   void MessageReceived(std::uint16_t id);
   void StopTest();
+  void Stop();
 
  private:
   ActionResult CheckReceiveTimeout(TimePoint current_time);

@@ -24,6 +24,6 @@ Bandwidth::Bandwidth(Duration duration, std::size_t message_count,
   auto sec_duration = std::chrono::duration_cast<SecDuration>(this->duration);
   auto message_per_sec =
       static_cast<double>(this->message_count) / sec_duration.count();
-  this->bandwidth = message_per_sec * static_cast<double>(message_size);
+  this->bandwidth = message_per_sec * static_cast<double>(8 * message_size);
 }
 }  // namespace ae::bench

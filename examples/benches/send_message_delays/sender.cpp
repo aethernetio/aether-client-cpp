@@ -56,38 +56,37 @@ void Sender::Disconnect() {
   send_message_stream_.reset();
 }
 
-ActionView<TimedSender> Sender::WarmUp(Duration min_send_interval) {
+ActionPtr<TimedSender> Sender::WarmUp(Duration min_send_interval) {
   return CreateBenchAction([](auto& api, auto id) { api->warm_up(id, {}); },
                            min_send_interval);
 }
 
-ActionView<TimedSender> Sender::Send2Bytes(Duration min_send_interval) {
+ActionPtr<TimedSender> Sender::Send2Bytes(Duration min_send_interval) {
   return CreateBenchAction([](auto& api, auto id) { api->two_bytes(id); },
                            min_send_interval);
 }
 
-ActionView<TimedSender> Sender::Send10Bytes(Duration min_send_interval) {
+ActionPtr<TimedSender> Sender::Send10Bytes(Duration min_send_interval) {
   return CreateBenchAction([](auto& api, auto id) { api->ten_bytes(id, {}); },
                            min_send_interval);
 }
 
-ActionView<TimedSender> Sender::Send100Bytes(Duration min_send_interval) {
+ActionPtr<TimedSender> Sender::Send100Bytes(Duration min_send_interval) {
   return CreateBenchAction(
       [](auto& api, auto id) { api->hundred_bytes(id, {}); },
       min_send_interval);
 }
 
-ActionView<TimedSender> Sender::Send1000Bytes(Duration min_send_interval) {
+ActionPtr<TimedSender> Sender::Send1000Bytes(Duration min_send_interval) {
   return CreateBenchAction(
       [](auto& api, auto id) { api->thousand_bytes(id, {}); },
       min_send_interval);
 }
 
 template <typename Func>
-ActionView<TimedSender> Sender::CreateBenchAction(Func&& func,
-
-                                                  Duration min_send_interval) {
-  sender_action_.emplace(
+ActionPtr<TimedSender> Sender::CreateBenchAction(Func&& func,
+                                                 Duration min_send_interval) {
+  sender_action_ = ActionPtr<TimedSender>{
       action_context_,
       [&, f{std::forward<Func>(func)}](std::uint16_t id) {
         auto api_context =
@@ -96,9 +95,9 @@ ActionView<TimedSender> Sender::CreateBenchAction(Func&& func,
         f(api_context, id);
         api_context.Flush();
       },
-      min_send_interval);
+      min_send_interval};
 
-  return ActionView{*sender_action_};
+  return sender_action_;
 }
 
 }  // namespace ae::bench

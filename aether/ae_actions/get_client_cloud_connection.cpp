@@ -131,8 +131,8 @@ void GetClientCloudConnection::SelectConnection() {
 }
 
 void GetClientCloudConnection::GetCloud() {
-  get_client_cloud_action_.emplace(
-      action_context_, server_connection_->server_stream(), client_uid_);
+  get_client_cloud_action_ = ActionPtr<GetClientCloudAction>{
+      action_context_, server_connection_->server_stream(), client_uid_};
 
   get_client_cloud_subscriptions_.Push(
       get_client_cloud_action_->ErrorEvent().Subscribe(
@@ -144,7 +144,7 @@ void GetClientCloudConnection::GetCloud() {
 }
 
 void GetClientCloudConnection::CreateConnection() {
-  assert(get_client_cloud_action_.has_value());
+  assert(get_client_cloud_action_);
 
   auto servers = get_client_cloud_action_->server_descriptors();
 

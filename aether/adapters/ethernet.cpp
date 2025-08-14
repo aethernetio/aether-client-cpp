@@ -161,16 +161,13 @@ EthernetAdapter::EthernetAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
 }
 #endif  // AE_DISTILLATION
 
-ActionView<TransportBuilderAction> EthernetAdapter::CreateTransport(
+ActionPtr<TransportBuilderAction> EthernetAdapter::CreateTransport(
     UnifiedAddress const& address_port_protocol) {
   AE_TELE_INFO(kEthernetAdapterCreate, "Create transport for {}",
                address_port_protocol);
 
-  if (!create_transport_actions_) {
-    create_transport_actions_.emplace(ActionContext{*aether_.as<Aether>()});
-  }
-
-  return create_transport_actions_->Emplace(*this, address_port_protocol);
+  return ActionPtr<ethernet_adapter_internal::EthernetTransportBuilderAction>{
+      *aether_.as<Aether>(), *this, address_port_protocol};
 }
 
 }  // namespace ae

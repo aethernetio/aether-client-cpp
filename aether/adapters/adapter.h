@@ -64,7 +64,7 @@ class Adapter : public Obj {
   /**
    * \brief Provide an action creating transport builders for address
    */
-  virtual ActionView<TransportBuilderAction> CreateTransport(
+  virtual ActionPtr<TransportBuilderAction> CreateTransport(
       UnifiedAddress const& address);
 };
 

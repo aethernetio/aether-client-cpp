@@ -70,7 +70,7 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
       StartTest().Subscribe([this, message_size, message_count]() {
         // test started
         auto payload_size = message_size > 2 ? message_size - 2 : 0;
-        message_sender_.emplace(
+        message_sender_ = OwnActionPtr<MessageSender>{
             action_context_,
             [this, payload_size](std::uint16_t id) {
               auto api =
@@ -79,7 +79,7 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
               api->message(id, DataBuffer(payload_size));
               return api.Flush();
             },
-            message_count);
+            message_count};
 
         test_success_sub_ = message_sender_->ResultEvent().Subscribe(
             [this, message_size](auto const& result) {
@@ -98,7 +98,7 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
 }
 
 EventSubscriber<void()> Sender::StartTest() {
-  start_test_action_.emplace(
+  start_test_action_ = OwnActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
         AE_TELED_DEBUG("Sending start test request");
@@ -112,7 +112,7 @@ EventSubscriber<void()> Sender::StartTest() {
         }));
         api.Flush();
       },
-      std::chrono::seconds{1}, 5);
+      std::chrono::seconds{1}, 5};
 
   sync_action_failed_sub_ = start_test_action_->ErrorEvent().Subscribe(
       [this](auto const&) { error_event_.Emit(); });
@@ -121,7 +121,7 @@ EventSubscriber<void()> Sender::StartTest() {
 }
 
 EventSubscriber<void()> Sender::StopTest() {
-  stop_test_action_.emplace(
+  stop_test_action_ = OwnActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
         AE_TELED_DEBUG("Sending stop test request");
@@ -135,7 +135,7 @@ EventSubscriber<void()> Sender::StopTest() {
         }));
         api.Flush();
       },
-      std::chrono::seconds{1}, 5);
+      std::chrono::seconds{1}, 5};
 
   return test_stopped_event_;
 }

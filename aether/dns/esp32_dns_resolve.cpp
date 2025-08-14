@@ -35,7 +35,7 @@
 #  include "lwip/tcpip.h"
 
 #  include "aether/aether.h"
-#  include "aether/actions/action_list.h"
+#  include "aether/actions/action_ptr.h"
 #  include "aether/actions/action_context.h"
 #  include "aether/events/multi_subscription.h"
 
@@ -105,12 +105,13 @@ class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
 class GethostByNameDnsResolver {
  public:
   explicit GethostByNameDnsResolver(ActionContext action_context)
-      : resolve_actions_{action_context}, active_queries_{action_context} {}
+      : action_context_{action_context} {}
 
-  ActionView<ResolveAction> Query(NameAddress const& name_address) {
+  ActionPtr<ResolveAction> Query(NameAddress const& name_address) {
     AE_TELE_DEBUG(kEspDnsQueryHost, "Querying host: {}", name_address);
-    auto resolve_action = resolve_actions_.Emplace();
-    auto query_action = active_queries_.Emplace(name_address);
+    auto resolve_action = ActionPtr<ResolveAction>{action_context_};
+    auto query_action =
+        ActionPtr<GetHostByNameQueryAction>{action_context_, name_address};
 
     // connect actions
     multi_subscription_.Push(
@@ -146,8 +147,7 @@ class GethostByNameDnsResolver {
   }
 
  private:
-  ActionList<ResolveAction> resolve_actions_;
-  ActionList<GetHostByNameQueryAction> active_queries_;
+  ActionContext action_context_;
   MultiSubscription multi_subscription_;
 };
 
@@ -160,7 +160,7 @@ Esp32DnsResolver::Esp32DnsResolver(ObjPtr<Aether> aether, Domain* domain)
 
 Esp32DnsResolver::~Esp32DnsResolver() = default;
 
-ActionView<ResolveAction> Esp32DnsResolver::Resolve(
+ActionPtr<ResolveAction> Esp32DnsResolver::Resolve(
     NameAddress const& name_address) {
   if (!gethostbyname_dns_resolver_) {
     gethostbyname_dns_resolver_ =

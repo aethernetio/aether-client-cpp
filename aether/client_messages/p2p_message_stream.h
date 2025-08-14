@@ -43,7 +43,7 @@ class P2pStream final : public ByteIStream {
 
   AE_CLASS_NO_COPY_MOVE(P2pStream);
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& data) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
 
   StreamUpdateEvent::Subscriber stream_update_event() override;
 

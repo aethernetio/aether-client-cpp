@@ -49,10 +49,17 @@ ActionResult Telemetry::Update() {
       case State::kSendTelemetry:
         SendTelemetry();
         break;
+      case State::kStopped:
+        return ActionResult::Stop();
     }
   }
 
   return {};
+}
+
+void Telemetry::Stop() {
+  state_ = State::kStopped;
+  Action::Trigger();
 }
 
 void Telemetry::SendTelemetry() {

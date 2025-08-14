@@ -20,43 +20,10 @@
 #include "aether/actions/action.h"
 
 namespace ae {
-template <typename T = void>
-class NotifyAction : public Action<NotifyAction<T>> {
+class NotifyAction : public Action<NotifyAction> {
  public:
-  using Action<NotifyAction<T>>::Action;
-  using Action<NotifyAction<T>>::operator=;
-
-  ActionResult Update() {
-    if (notify_success_) {
-      notify_success_ = false;
-      this->ResultRepeat(static_cast<T&>(*this));
-    }
-    if (notify_failed_) {
-      notify_failed_ = false;
-      return ActionResult::Error();
-    }
-    return {};
-  }
-
-  void Notify() {
-    notify_success_ = true;
-    this->Trigger();
-  }
-  void Failed() {
-    notify_failed_ = true;
-    this->Trigger();
-  }
-
- private:
-  bool notify_success_{};
-  bool notify_failed_{};
-};
-
-template <>
-class NotifyAction<void> : public Action<NotifyAction<void>> {
- public:
-  using Action<NotifyAction<void>>::Action;
-  using Action<NotifyAction<void>>::operator=;
+  using Action<NotifyAction>::Action;
+  using Action<NotifyAction>::operator=;
 
   ActionResult Update() {
     if (notify_success_) {
@@ -67,13 +34,22 @@ class NotifyAction<void> : public Action<NotifyAction<void>> {
       notify_failed_ = false;
       return ActionResult::Error();
     }
+    if (notify_stopped_) {
+      return ActionResult::Stop();
+    }
     return {};
+  }
+
+  void Stop() {
+    notify_stopped_ = true;
+    this->Trigger();
   }
 
   void Notify() {
     notify_success_ = true;
     this->Trigger();
   }
+
   void Failed() {
     notify_failed_ = true;
     this->Trigger();
@@ -82,6 +58,7 @@ class NotifyAction<void> : public Action<NotifyAction<void>> {
  private:
   bool notify_success_{};
   bool notify_failed_{};
+  bool notify_stopped_{};
 };
 }  // namespace ae
 

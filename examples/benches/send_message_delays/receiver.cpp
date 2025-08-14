@@ -73,39 +73,38 @@ void Receiver::Disconnect() {
   receive_message_stream_.reset();
 }
 
-ActionView<TimedReceiver> Receiver::WarmUp(std::size_t message_count) {
+ActionPtr<TimedReceiver> Receiver::WarmUp(std::size_t message_count) {
   return CreateBenchAction(bench_delays_api_.warm_up_event(), message_count);
 }
 
-ActionView<TimedReceiver> Receiver::Receive2Bytes(std::size_t message_count) {
+ActionPtr<TimedReceiver> Receiver::Receive2Bytes(std::size_t message_count) {
   return CreateBenchAction(bench_delays_api_.two_bytes_event(), message_count);
 }
 
-ActionView<TimedReceiver> Receiver::Receive10Bytes(std::size_t message_count) {
+ActionPtr<TimedReceiver> Receiver::Receive10Bytes(std::size_t message_count) {
   return CreateBenchAction(bench_delays_api_.ten_bytes_event(), message_count);
 }
 
-ActionView<TimedReceiver> Receiver::Receive100Bytes(std::size_t message_count) {
+ActionPtr<TimedReceiver> Receiver::Receive100Bytes(std::size_t message_count) {
   return CreateBenchAction(bench_delays_api_.hundred_bytes_event(),
                            message_count);
 }
 
-ActionView<TimedReceiver> Receiver::Receive1000Bytes(
-    std::size_t message_count) {
+ActionPtr<TimedReceiver> Receiver::Receive1000Bytes(std::size_t message_count) {
   return CreateBenchAction(bench_delays_api_.thousand_bytes_event(),
                            message_count);
 }
 
 template <typename TEvent>
-ActionView<TimedReceiver> Receiver::CreateBenchAction(TEvent event,
-                                                      std::size_t count) {
-  receiver_action_.emplace(action_context_, count);
-  event.Subscribe([ra{ActionView{*receiver_action_}}](auto&&... args) mutable {
+ActionPtr<TimedReceiver> Receiver::CreateBenchAction(TEvent event,
+                                                     std::size_t count) {
+  receiver_action_ = ActionPtr<TimedReceiver>{action_context_, count};
+  event.Subscribe([ra{receiver_action_}](auto&&... args) mutable {
     if (ra) {
       ra->Receive(ArgAt<0>(std::forward<decltype(args)>(args)...));
     }
   });
-  return ActionView{*receiver_action_};
+  return receiver_action_;
 }
 
 void Receiver::OnRecvData(DataBuffer const& data) {

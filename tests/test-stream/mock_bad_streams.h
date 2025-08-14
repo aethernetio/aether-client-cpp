@@ -21,7 +21,7 @@
 
 #include "aether/common.h"
 #include "aether/stream_api/istream.h"
-#include "aether/actions/action_list.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 
 namespace ae {
@@ -37,13 +37,13 @@ class LostPacketsStream : public ByteStream {
  public:
   LostPacketsStream(ActionContext action_context, float loss_rate);
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& data_buffer) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& data_buffer) override;
 
   void LinkOut(ByteIStream& out) override;
 
  private:
+  ActionContext action_context_;
   float loss_rate_;
-  ActionList<bad_streams_internal::DoneStreamWriteAction> lost_packet_actions_;
 };
 
 class PacketDelayStream : public ByteStream {
@@ -67,16 +67,14 @@ class PacketDelayStream : public ByteStream {
   PacketDelayStream(ActionContext action_context, float delay_rate,
                     Duration max_delay);
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& data_buffer) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& data_buffer) override;
 
   void LinkOut(ByteIStream& out) override;
 
  private:
+  ActionContext action_context_;
   float delay_rate_;
   Duration max_delay_;
-  ActionList<bad_streams_internal::DoneStreamWriteAction>
-      reordered_packet_actions_;
-  ActionList<PacketDelayAction> packet_delay_actions_;
 };
 }  // namespace ae
 

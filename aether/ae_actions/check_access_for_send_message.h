@@ -64,7 +64,7 @@ class CheckAccessForSendMessage final
   Uid destination_;
 
   StateMachine<State> state_;
-  ActionOpt<RepeatableTask> repeatable_task_;
+  ActionPtr<RepeatableTask> repeatable_task_;
   Subscription wait_check_success_sub_;
   Subscription wait_check_error_sub_;
   Subscription state_changed_sub_;

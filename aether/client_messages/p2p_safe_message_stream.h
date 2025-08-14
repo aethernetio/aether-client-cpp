@@ -26,8 +26,6 @@
 #include "aether/stream_api/sized_packet_gate.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
 
-#include "aether/client_messages/p2p_message_stream.h"
-
 namespace ae {
 
 class P2pSafeStream final : public ByteIStream {
@@ -37,7 +35,7 @@ class P2pSafeStream final : public ByteIStream {
 
   AE_CLASS_NO_COPY_MOVE(P2pSafeStream)
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& data) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   OutDataEvent::Subscriber out_data_event() override;

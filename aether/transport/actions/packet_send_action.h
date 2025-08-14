@@ -34,20 +34,10 @@ class PacketSendAction : public Action<PacketSendAction> {
     kPanic,    // fatal unrecoverable error
   };
 
-  PacketSendAction() = default;
   explicit PacketSendAction(ActionContext action_context)
       : Action(action_context) {}
-  PacketSendAction(PacketSendAction const& other) = delete;
-  PacketSendAction(PacketSendAction&& other) noexcept
-      : Action(std::move(static_cast<Action&>(other))),
-        state_{std::move(other.state_)} {}
 
-  PacketSendAction& operator=(PacketSendAction const& other) = delete;
-  PacketSendAction& operator=(PacketSendAction&& other) noexcept {
-    Action::operator=(std::move(static_cast<Action&>(other)));
-    state_ = std::move(other.state_);
-    return *this;
-  };
+  AE_CLASS_MOVE_ONLY(PacketSendAction);
 
   virtual ActionResult Update() = 0;
   virtual void Stop() = 0;

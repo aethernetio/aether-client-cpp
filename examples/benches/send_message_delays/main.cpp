@@ -35,9 +35,10 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
   };
 
  public:
-  TestSendMessageDelaysAction(RcPtr<AetherApp> aether_app,
+  TestSendMessageDelaysAction(ActionContext action_context,
+                              RcPtr<AetherApp> aether_app,
                               std::ostream& write_results_stream)
-      : Action{*aether_app},
+      : Action{action_context},
         aether_{aether_app->aether()},
         write_results_stream_{write_results_stream},
         state_{State::kRegisterClients},
@@ -163,10 +164,11 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
 int test_send_message_delays(std::ostream& result_stream) {
   auto aether_app = AetherApp::Construct(AetherAppContext{});
 
-  auto test_action = TestSendMessageDelaysAction{aether_app, result_stream};
-  auto success = test_action.ResultEvent().Subscribe(
+  auto test_action = ActionPtr<TestSendMessageDelaysAction>{
+      *aether_app, aether_app, result_stream};
+  auto success = test_action->ResultEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(0); });
-  auto failed = test_action.ErrorEvent().Subscribe(
+  auto failed = test_action->ErrorEvent().Subscribe(
       [&](auto const&) { aether_app->Exit(1); });
 
   while (!aether_app->IsExited()) {
