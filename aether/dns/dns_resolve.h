@@ -34,7 +34,7 @@ class ResolveAction : public Action<ResolveAction> {
  public:
   using Action::Action;
 
-  ActionResult Update() const;
+  UpdateStatus Update() const;
 
   // Set ip addresses after resolve query finished
   void SetAddress(std::vector<IpAddressPortProtocol> addr);

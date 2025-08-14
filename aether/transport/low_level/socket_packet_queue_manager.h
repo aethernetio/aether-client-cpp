@@ -42,9 +42,9 @@ class SocketPacketQueueManager
 
   AE_CLASS_NO_COPY_MOVE(SocketPacketQueueManager)
 
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (stopped_) {
-      return ActionResult::Stop();
+      return UpdateStatus::Stop();
     }
 
     Send();

@@ -28,31 +28,28 @@ TransportWriteStream::TransportStreamWriteAction::TransportStreamWriteAction(
     : StreamWriteAction{action_context},
       packet_send_action_{std::move(packet_send_action)} {
   subscriptions_.Push(
-      packet_send_action_->ResultEvent().Subscribe(
-          [this](auto const& /* action */) {
-            state_ = State::kDone;
-            state_.Acquire();
-            Action::Result(*this);
-          }),
-      packet_send_action_->ErrorEvent().Subscribe([this](auto const& action) {
-        switch (action.state()) {
-          case PacketSendAction::State::kTimeout:
-            state_ = State::kTimeout;
-            break;
-          case PacketSendAction::State::kFailed:
-            state_ = State::kFailed;
-            break;
-          default:
-            AE_TELED_ERROR("What kind of error is this?");
-            assert(false);
-        }
+      packet_send_action_->StatusEvent().Subscribe([this](auto result) {
+        state_ = [&]() -> State {
+          switch (result.action().state()) {
+            case PacketSendAction::State::kQueued:
+              return State::kQueued;
+            case PacketSendAction::State::kProgress:
+              return State::kInProgress;
+            case PacketSendAction::State::kSuccess:
+              return State::kDone;
+            case PacketSendAction::State::kStopped:
+              return State::kStopped;
+            case PacketSendAction::State::kTimeout:
+              return State::kTimeout;
+            case PacketSendAction::State::kFailed:
+              return State::kFailed;
+            case PacketSendAction::State::kPanic:
+              return State::kPanic;
+          }
+          return {};
+        }();
         state_.Acquire();
-        Action::Error(*this);
-      }),
-      packet_send_action_->StopEvent().Subscribe([this](auto const&) {
-        state_ = State::kStopped;
-        state_.Acquire();
-        Action::Stop(*this);
+        Action::Status(*this, result.result());
       }));
 }
 

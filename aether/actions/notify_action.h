@@ -25,17 +25,15 @@ class NotifyAction : public Action<NotifyAction> {
   using Action<NotifyAction>::Action;
   using Action<NotifyAction>::operator=;
 
-  ActionResult Update() {
+  UpdateStatus Update() const {
     if (notify_success_) {
-      notify_success_ = false;
-      this->ResultRepeat(*this);
+      return UpdateStatus::Result();
     }
     if (notify_failed_) {
-      notify_failed_ = false;
-      return ActionResult::Error();
+      return UpdateStatus::Error();
     }
     if (notify_stopped_) {
-      return ActionResult::Stop();
+      return UpdateStatus::Stop();
     }
     return {};
   }

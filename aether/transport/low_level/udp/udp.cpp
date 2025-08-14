@@ -27,15 +27,15 @@ UdpTransport::ReadAction::ReadAction(ActionContext action_context,
       transport_{&transport},
       read_buffer_(transport_->socket_.GetMaxPacketSize()) {}
 
-ActionResult UdpTransport::ReadAction::Update() {
+UpdateStatus UdpTransport::ReadAction::Update() {
   if (read_event_.exchange(false)) {
     ReadEvent();
   }
   if (error_event_) {
-    return ActionResult::Error();
+    return UpdateStatus::Error();
   }
   if (stop_event_) {
-    return ActionResult::Stop();
+    return UpdateStatus::Stop();
   }
   return {};
 }
@@ -157,17 +157,17 @@ void UdpTransport::Connect() {
   }
 
   read_action_ = OwnActionPtr<ReadAction>{action_context_, *this};
-  read_error_sub_ = read_action_->ErrorEvent().Subscribe([this](auto const&) {
+  read_error_sub_ = read_action_->StatusEvent().Subscribe(OnError{[this]() {
     AE_TELED_ERROR("Read error, disconnect!");
     OnConnectionError();
     Disconnect();
-  });
+  }});
 
   socket_error_sub_ =
-      notify_error_action_->ResultEvent().Subscribe([this](auto const&) {
+      notify_error_action_->StatusEvent().Subscribe(OnResult{[this]() {
         OnConnectionError();
         Disconnect();
-      });
+      }});
 
   auto poller_ptr = poller_.Lock();
   assert(poller_ptr);
@@ -179,13 +179,13 @@ void UdpTransport::Connect() {
             }
             switch (event.event_type) {
               case EventType::kRead:
-                OnRead();
+                ReadSocket();
                 break;
               case EventType::kWrite:
-                OnWrite();
+                WriteSocket();
                 break;
               case EventType::kError:
-                OnError();
+                ErrorSocket();
                 break;
             }
           });
@@ -220,20 +220,20 @@ ActionPtr<PacketSendAction> UdpTransport::Send(DataBuffer data,
       ActionPtr<SendAction>{action_context_, *this, std::move(data)});
 
   send_action_error_subs_.Push(
-      send_packet_action->ErrorEvent().Subscribe([this](auto const&) {
+      send_packet_action->StatusEvent().Subscribe(OnError{[this]() {
         AE_TELED_ERROR("Send error, disconnect!");
         OnConnectionError();
         Disconnect();
-      }));
+      }}));
 
   return send_packet_action;
 }
 
-void UdpTransport::OnRead() { read_action_->Read(); }
+void UdpTransport::ReadSocket() { read_action_->Read(); }
 
-void UdpTransport::OnWrite() { send_queue_manager_->Send(); }
+void UdpTransport::WriteSocket() { send_queue_manager_->Send(); }
 
-void UdpTransport::OnError() { notify_error_action_->Notify(); }
+void UdpTransport::ErrorSocket() { notify_error_action_->Notify(); }
 
 void UdpTransport::OnConnectionError() { connection_error_event_.Emit(); }
 

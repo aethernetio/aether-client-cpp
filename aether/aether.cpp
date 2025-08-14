@@ -124,12 +124,12 @@ ActionPtr<Registration> Aether::RegisterClient(Uid parent_uid,
   // on registration success save client to client_ and remove registration
   // action at the end
   registration_subscriptions_.Push(
-      new_reg_it->second->ResultEvent().Subscribe(
-          [this, client_id](auto const& action) {
+      new_reg_it->second->StatusEvent().Subscribe(
+          OnResult{[this, client_id](auto const& action) {
             auto client = action.client();
             assert(client);
             clients_.emplace(client_id, std::move(client));
-          }),
+          }}),
       new_reg_it->second->FinishedEvent().Subscribe(
           [this, client_id]() { registration_actions_.erase(client_id); }));
 

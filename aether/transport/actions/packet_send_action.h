@@ -39,7 +39,7 @@ class PacketSendAction : public Action<PacketSendAction> {
 
   AE_CLASS_MOVE_ONLY(PacketSendAction);
 
-  virtual ActionResult Update() = 0;
+  virtual UpdateStatus Update() = 0;
   virtual void Stop() = 0;
   StateMachine<State> const& state() const { return state_; }
 

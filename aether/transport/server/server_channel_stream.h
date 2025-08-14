@@ -70,8 +70,7 @@ class ServerChannelStream final : public ByteIStream {
   ActionPtr<TimerAction> connection_timer_;
 
   Subscription connection_timeout_;
-  Subscription build_transport_success_;
-  Subscription build_transport_failed_;
+  Subscription build_transport_sub_;
   Subscription connection_error_;
 };
 }  // namespace ae

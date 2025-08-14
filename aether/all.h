@@ -24,6 +24,7 @@
 #include "aether/memory.h"
 
 #include "aether/actions/action.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
 #include "aether/actions/timer_action.h"

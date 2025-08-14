@@ -37,7 +37,7 @@ TcpTransport::ConnectionAction::ConnectionAction(ActionContext action_context,
   Connect();
 }
 
-ActionResult TcpTransport::ConnectionAction::Update() {
+UpdateStatus TcpTransport::ConnectionAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitConnection:
@@ -46,11 +46,11 @@ ActionResult TcpTransport::ConnectionAction::Update() {
         ConnectionUpdate();
         break;
       case State::kConnected:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kConnectionFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
       case State::kStopped:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
       default:
         break;
     }
@@ -181,15 +181,15 @@ TcpTransport::ReadAction::ReadAction(ActionContext action_context,
       transport_{&transport},
       read_buffer_(transport_->socket_.GetMaxPacketSize()) {}
 
-ActionResult TcpTransport::ReadAction::Update() {
+UpdateStatus TcpTransport::ReadAction::Update() {
   if (read_event_.exchange(false)) {
     DataReceived();
   }
   if (error_event_) {
-    return ActionResult::Error();
+    return UpdateStatus::Error();
   }
   if (stop_event_) {
-    return ActionResult::Stop();
+    return UpdateStatus::Stop();
   }
 
   return {};
@@ -253,8 +253,9 @@ void TcpTransport::Connect() {
   connection_info_.connection_state = ConnectionState::kConnecting;
 
   connection_action_ = OwnActionPtr<ConnectionAction>{action_context_, *this};
-  connection_error_sub_ = connection_action_->ErrorEvent().Subscribe(
-      [this](auto const& /* action */) { OnConnectionFailed(); });
+  // как второй, но если нужно что-то одно
+  connection_sub_ = connection_action_->StatusEvent().Subscribe(
+      OnError{[&]() { OnConnectionFailed(); }});
 }
 
 ConnectionInfo const& TcpTransport::GetConnectionInfo() const {
@@ -287,12 +288,11 @@ ActionPtr<PacketSendAction> TcpTransport::Send(DataBuffer data,
 
   auto send_action = send_queue_manager_->AddPacket(ActionPtr<SendAction>{
       action_context_, *this, std::move(packet_data), current_time});
-  send_action_subs_.Push(
-      send_action->ErrorEvent().Subscribe([this](auto const&) {
-        AE_TELED_ERROR("Send error, disconnect!");
-        ConnectionError();
-        Disconnect();
-      }));
+  send_action_subs_.Push(send_action->StatusEvent().Subscribe(OnError{[this]() {
+    AE_TELED_ERROR("Send error, disconnect!");
+    ConnectionError();
+    Disconnect();
+  }}));
   return send_action;
 }
 
@@ -303,18 +303,18 @@ void TcpTransport::OnConnected() {
 
   read_action_ = OwnActionPtr<ReadAction>{action_context_, *this};
   read_action_error_sub_ =
-      read_action_->ErrorEvent().Subscribe([this](auto const& /*action */) {
+      read_action_->StatusEvent().Subscribe(OnError{[this]() {
         AE_TELED_ERROR("Read error, disconnect!");
         OnConnectionFailed();
         Disconnect();
-      });
+      }});
 
   socket_error_action_ = OwnActionPtr<SocketEventAction>{action_context_};
-  socket_error_subscription_ = socket_error_action_->ResultEvent().Subscribe(
-      [this](auto const& /* action */) {
+  socket_error_subscription_ =
+      socket_error_action_->StatusEvent().Subscribe(OnResult{[this]() {
         OnConnectionFailed();
         Disconnect();
-      });
+      }});
 
   auto poller_ptr = poller_.Lock();
   assert(poller_ptr);

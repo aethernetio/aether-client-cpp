@@ -49,7 +49,7 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
                                 ClientToServerStream& client_to_server_stream,
                                 Uid client_uid);
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   void Stop();
 

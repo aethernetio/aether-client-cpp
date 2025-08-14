@@ -41,7 +41,7 @@ Telemetry::Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
   AE_TELE_INFO(TelemetryCreated);
 }
 
-ActionResult Telemetry::Update() {
+UpdateStatus Telemetry::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitRequest:
@@ -50,7 +50,7 @@ ActionResult Telemetry::Update() {
         SendTelemetry();
         break;
       case State::kStopped:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
     }
   }
 

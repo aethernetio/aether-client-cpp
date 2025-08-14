@@ -47,7 +47,7 @@ class Telemetry : public Action<Telemetry> {
 
   AE_CLASS_NO_COPY_MOVE(Telemetry)
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   void Stop();
 

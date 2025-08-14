@@ -30,17 +30,12 @@ SafeStreamWriteAction::SafeStreamWriteAction(
     : StreamWriteAction(action_context),
       sending_data_action_{std::move(sending_data_action)} {
   subscriptions_.Push(
-      sending_data_action_->ResultEvent().Subscribe([this](auto const&) {
-        state_.Set(State::kDone);
-        return ActionResult::Result();
-      }),
-      sending_data_action_->ErrorEvent().Subscribe([this](auto const&) {
-        state_.Set(State::kFailed);
-        return ActionResult::Error();
-      }),
-      sending_data_action_->StopEvent().Subscribe([this](auto const&) {
-        state_.Set(State::kStopped);
-        return ActionResult::Stop();
+      sending_data_action_->StatusEvent().Subscribe([this](auto status) {
+        status.OnResult([&]() { state_ = State::kDone; })
+            .OnError([&]() { state_ = State::kFailed; })
+            .OnStop([&]() { state_ = State::kStopped; });
+        state_.Acquire();
+        Action::Status(*this, status.result());
       }));
 }
 

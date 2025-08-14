@@ -56,7 +56,7 @@ class TcpTransport : public ITransport {
 
     ConnectionAction(ActionContext action_context, TcpTransport& transport);
 
-    ActionResult Update();
+    UpdateStatus Update();
     void Stop();
 
    private:
@@ -93,7 +93,7 @@ class TcpTransport : public ITransport {
    public:
     ReadAction(ActionContext action_context, TcpTransport& transport);
 
-    ActionResult Update();
+    UpdateStatus Update();
     void Read();
     void Stop();
 
@@ -150,7 +150,7 @@ class TcpTransport : public ITransport {
   OwnActionPtr<ReadAction> read_action_;
   OwnActionPtr<SocketEventAction> socket_error_action_;
 
-  Subscription connection_error_sub_;
+  Subscription connection_sub_;
   MultiSubscription send_action_subs_;
   Subscription read_action_error_sub_;
   IPoller::OnPollEventSubscriber::Subscription socket_poll_subscription_;

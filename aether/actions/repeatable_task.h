@@ -47,13 +47,13 @@ class RepeatableTask : public Action<RepeatableTask> {
 
   AE_CLASS_MOVE_ONLY(RepeatableTask)
 
-  ActionResult Update(TimePoint current_time);
+  UpdateStatus Update(TimePoint current_time);
 
   void Stop();
 
  private:
   void Run(TimePoint current_time);
-  ActionResult CheckInterval(TimePoint current_time);
+  UpdateStatus CheckInterval(TimePoint current_time);
 
   Task task_;
   Duration interval_;

@@ -48,7 +48,7 @@ class CheckAccessForSendMessage final
 
   AE_CLASS_NO_COPY_MOVE(CheckAccessForSendMessage)
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   State state() const { return state_.get(); }
 
@@ -65,8 +65,7 @@ class CheckAccessForSendMessage final
 
   StateMachine<State> state_;
   ActionPtr<RepeatableTask> repeatable_task_;
-  Subscription wait_check_success_sub_;
-  Subscription wait_check_error_sub_;
+  Subscription wait_check_sub_;
   Subscription state_changed_sub_;
   Subscription send_error_sub_;
   Subscription repeat_task_error_sub_;

@@ -48,7 +48,7 @@ class BuildTransportAction final : public Action<BuildTransportAction> {
                        Adapter::ptr const& adapter,
                        Channel::ptr const& channel);
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   // return connected transport
   std::unique_ptr<ITransport> transport();
@@ -65,8 +65,7 @@ class BuildTransportAction final : public Action<BuildTransportAction> {
   std::unique_ptr<ITransport> transport_;
   StateMachine<State> state_;
   Subscription state_changed_sub_;
-  Subscription builders_created_sub_;
-  Subscription builders_failed_sub_;
+  Subscription builders_sub_;
   Subscription connected_sub_;
   Subscription connection_failed_sub_;
 };

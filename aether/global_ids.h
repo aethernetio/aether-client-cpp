@@ -19,7 +19,7 @@
 
 namespace ae {
 
-constexpr int kGlobalIdAdatpersOffset = 1000;
+constexpr int kGlobalIdAdaptersOffset = 1000;
 constexpr int kGlobalIdFactoriesOffset = 2000;
 constexpr int kGlobalIdCryptoOffset = 3000;
 constexpr int kGlobalIdPollerOffset = 4000;
@@ -29,10 +29,10 @@ enum GlobalId {
   kAether = 1,
   kRegistrationCloud = 2,
   kTeleStatistics = 3,
-  kEthernetAdapter = kGlobalIdAdatpersOffset + 1,
-  kLanAdapter = kGlobalIdAdatpersOffset + 2,
-  kEsp32WiFiAdapter = kGlobalIdAdatpersOffset + 3,
-  kRegisterWifiAdapter = kGlobalIdAdatpersOffset + 4,
+  kEthernetAdapter = kGlobalIdAdaptersOffset + 1,
+  kLanAdapter = kGlobalIdAdaptersOffset + 2,
+  kEsp32WiFiAdapter = kGlobalIdAdaptersOffset + 3,
+  kRegisterWifiAdapter = kGlobalIdAdaptersOffset + 4,
 
   kServerFactory = kGlobalIdFactoriesOffset + 0,
   kClientFactory = kGlobalIdFactoriesOffset + 1,

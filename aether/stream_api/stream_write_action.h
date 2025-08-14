@@ -41,7 +41,7 @@ class StreamWriteAction : public Action<StreamWriteAction> {
   StreamWriteAction& operator=(StreamWriteAction const& other) = delete;
   StreamWriteAction& operator=(StreamWriteAction&& other) noexcept;
 
-  virtual ActionResult Update();
+  virtual UpdateStatus Update();
 
   /**
    * \brief Stop the writing action
@@ -62,7 +62,7 @@ class FailedStreamWriteAction final : public StreamWriteAction {
   using StreamWriteAction::StreamWriteAction;
   explicit FailedStreamWriteAction(ActionContext action_context);
 
-  ActionResult Update() override;
+  UpdateStatus Update() override;
   void Stop() override;
 };
 }  // namespace ae

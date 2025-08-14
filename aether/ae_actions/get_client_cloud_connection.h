@@ -58,7 +58,7 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
 
   ~GetClientCloudConnection() override;
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   void Stop();
 
