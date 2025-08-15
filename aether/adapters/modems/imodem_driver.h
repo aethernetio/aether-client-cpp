@@ -72,27 +72,6 @@ enum class kAuthType : std::uint8_t {
   kAuthTypePAPCHAP = 3
 };
 
-static const std::map<kModemBaudRate, std::string> baud_rate_commands = {
-    {kModemBaudRate::kBaudRate0, "AT+IPR=0"},
-    {kModemBaudRate::kBaudRate300, "AT+IPR=300"},
-    {kModemBaudRate::kBaudRate600, "AT+IPR=600"},
-    {kModemBaudRate::kBaudRate1200, "AT+IPR=1200"},
-    {kModemBaudRate::kBaudRate2400, "AT+IPR=2400"},
-    {kModemBaudRate::kBaudRate4800, "AT+IPR=4800"},
-    {kModemBaudRate::kBaudRate9600, "AT+IPR=9600"},
-    {kModemBaudRate::kBaudRate19200, "AT+IPR=19200"},
-    {kModemBaudRate::kBaudRate38400, "AT+IPR=38400"},
-    {kModemBaudRate::kBaudRate57600, "AT+IPR=57600"},
-    {kModemBaudRate::kBaudRate115200, "AT+IPR=115200"},
-    {kModemBaudRate::kBaudRate230400, "AT+IPR=230400"},
-    {kModemBaudRate::kBaudRate921600, "AT+IPR=921600"},
-    {kModemBaudRate::kBaudRate2000000, "AT+IPR=2000000"},
-    {kModemBaudRate::kBaudRate2900000, "AT+IPR=2900000"},
-    {kModemBaudRate::kBaudRate3000000, "AT+IPR=3000000"},
-    {kModemBaudRate::kBaudRate3200000, "AT+IPR=3200000"},
-    {kModemBaudRate::kBaudRate3684000, "AT+IPR=3684000"},
-    {kModemBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
-
 //========================power save=====================================
 
 // Multiplier Bits

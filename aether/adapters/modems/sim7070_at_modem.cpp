@@ -360,8 +360,8 @@ kModemError Sim7070AtModem::CheckResponce(std::string responce,
 kModemError Sim7070AtModem::SetBaudRate(kModemBaudRate rate) {
   kModemError err{kModemError::kNoError};
   
-  auto it = baud_rate_commands.find(rate);
-  if (it == baud_rate_commands.end()) {
+  auto it = baud_rate_commands_sim7070.find(rate);
+  if (it == baud_rate_commands_sim7070.end()) {
     err = kModemError::kBaudRateError;
     return err;
   } else {
