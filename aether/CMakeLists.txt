@@ -108,11 +108,23 @@ list(APPEND adapters_srcs
             "adapters/esp32_wifi.cpp"
             "adapters/ethernet.cpp"
             "adapters/parent_wifi.cpp"
+            "adapters/parent_modem.cpp"
+            "adapters/modem_adapter.cpp"
+            "adapters/modems/modem_factory.cpp"
+            "adapters/modems/bg95_at_modem.cpp"            
+            "adapters/modems/sim7070_at_modem.cpp"
+            "adapters/modems/thingy91x_at_modem.cpp"
+            "adapters/modems/serial_ports/serial_port_factory.cpp"
+            "adapters/modems/serial_ports/esp32_serial_port.cpp"
+            "adapters/modems/serial_ports/win_serial_port.cpp"
             )
 
 list(APPEND transport_srcs
             "transport/actions/build_transport_action.cpp"
             "transport/server/server_channel_stream.cpp"
+            "transport/low_level/sockets/lte_socket.cpp"
+            "transport/low_level/sockets/lte_tcp_socket.cpp"
+            "transport/low_level/sockets/lte_udp_socket.cpp"
             "transport/low_level/sockets/unix_socket.cpp"
             "transport/low_level/sockets/unix_tcp_socket.cpp"
             "transport/low_level/sockets/unix_udp_socket.cpp"
