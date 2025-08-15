@@ -44,16 +44,16 @@ class PromiseAction : public Action<PromiseAction<TValue>> {
 
   AE_CLASS_MOVE_ONLY(PromiseAction);
 
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kEmpty:
           break;
         case State::kValue:
-          return ActionResult::Result();
+          return UpdateStatus::Result();
           break;
         case State::kError:
-          return ActionResult::Error();
+          return UpdateStatus::Error();
           break;
       }
     }
@@ -105,16 +105,16 @@ class PromiseAction<void> : public Action<PromiseAction<void>> {
 
   AE_CLASS_MOVE_ONLY(PromiseAction);
 
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kEmpty:
           break;
         case State::kValue:
-          return ActionResult::Result();
+          return UpdateStatus::Result();
           break;
         case State::kError:
-          return ActionResult::Error();
+          return UpdateStatus::Error();
           break;
       }
     }

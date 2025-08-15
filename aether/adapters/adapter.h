@@ -36,7 +36,7 @@ class TransportBuilderAction : public Action<TransportBuilderAction> {
   using Action::Action;
   using Action::operator=;
 
-  virtual ActionResult Update() = 0;
+  virtual UpdateStatus Update() = 0;
 
   virtual std::vector<std::unique_ptr<ITransportBuilder>> builders() = 0;
 };

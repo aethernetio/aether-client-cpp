@@ -73,7 +73,7 @@ class Registration final : public Action<Registration> {
                Uid parent_uid, Client::ptr client);
   ~Registration() override;
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   Client::ptr client() const;
 

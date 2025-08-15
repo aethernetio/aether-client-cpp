@@ -21,12 +21,12 @@
 
 namespace ae {
 
-ActionResult ResolveAction::Update() const {
+UpdateStatus ResolveAction::Update() const {
   if (is_resolved) {
-    return ActionResult::Result();
+    return UpdateStatus::Result();
   }
   if (is_failed) {
-    return ActionResult::Error();
+    return UpdateStatus::Error();
   }
   return {};
 }

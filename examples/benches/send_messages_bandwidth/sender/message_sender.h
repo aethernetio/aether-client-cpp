@@ -46,7 +46,7 @@ class MessageSender : public Action<MessageSender> {
   MessageSender(ActionContext action_context, SendProc send_proc,
                 std::size_t send_count);
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   void Stop();
 

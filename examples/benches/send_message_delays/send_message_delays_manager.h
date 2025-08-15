@@ -61,7 +61,7 @@ class SendMessageDelaysManager {
     TestAction(ActionContext action_context, Sender& sender, Receiver& receiver,
                SendMessageDelaysManagerConfig config);
 
-    ActionResult Update();
+    UpdateStatus Update();
 
     void Stop();
 

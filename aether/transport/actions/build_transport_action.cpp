@@ -29,7 +29,7 @@ BuildTransportAction::BuildTransportAction(ActionContext action_context,
       state_changed_sub_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {}
 
-ActionResult BuildTransportAction::Update() {
+UpdateStatus BuildTransportAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kGetBuilders:
@@ -41,9 +41,9 @@ ActionResult BuildTransportAction::Update() {
       case State::kWaitForConnection:
         break;
       case State::kConnected:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
       default:
         break;
     }
@@ -63,8 +63,8 @@ void BuildTransportAction::MakeBuilders() {
   assert(channel_ptr);
 
   auto builder_action = adapter_ptr->CreateTransport(channel_ptr->address);
-  builders_created_sub_ =
-      builder_action->ResultEvent().Subscribe([this](auto& action) {
+  builders_sub_ = builder_action->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[this](auto& action) {
         builders_ = action.builders();
         if (builders_.empty()) {
           AE_TELED_ERROR("Got empty transport builders list");
@@ -76,11 +76,11 @@ void BuildTransportAction::MakeBuilders() {
             [this]() { it_++; }, [this]() { return (*it_)->BuildTransport(); }};
 
         state_ = State::kConnect;
-      });
-  builders_failed_sub_ = builder_action->ErrorEvent().Subscribe([this](auto&) {
-    AE_TELED_ERROR("Create builders failed");
-    state_ = State::kFailed;
-  });
+      }},
+      OnError{[this]() {
+        AE_TELED_ERROR("Create builders failed");
+        state_ = State::kFailed;
+      }}});
 }
 
 void BuildTransportAction::Connect() {

@@ -49,12 +49,12 @@ class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
                            NameAddress name_address)
       : Action{action_context}, name_address_{std::move(name_address)} {}
 
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (is_result_) {
-      return ActionResult::Result();
+      return UpdateStatus::Result();
     }
     if (is_failed_) {
-      return ActionResult::Error();
+      return UpdateStatus::Error();
     }
     return {};
   }
@@ -115,12 +115,13 @@ class GethostByNameDnsResolver {
 
     // connect actions
     multi_subscription_.Push(
-        query_action->ResultEvent().Subscribe(
-            [ra{resolve_action}](auto const& action) mutable {
+        query_action->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[ra{resolve_action}](auto const& action) mutable {
               ra->SetAddress(action.resolved_addresses());
-            }),
-        query_action->ErrorEvent().Subscribe(
-            [ra{resolve_action}](auto const&) mutable { ra->Failed(); }));
+            }},
+            OnError{
+                [ra{resolve_action}](auto const&) mutable { ra->Failed(); }},
+        }));
 
     // make query
     ip_addr_t cached_addr;

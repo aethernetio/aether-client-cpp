@@ -39,7 +39,7 @@ class MessageReceiver : public Action<MessageReceiver> {
 
  public:
   explicit MessageReceiver(ActionContext action_context);
-  ActionResult Update();
+  UpdateStatus Update();
 
   std::size_t message_received_count() const;
   Duration receive_duration() const;
@@ -49,7 +49,7 @@ class MessageReceiver : public Action<MessageReceiver> {
   void Stop();
 
  private:
-  ActionResult CheckReceiveTimeout(TimePoint current_time);
+  UpdateStatus CheckReceiveTimeout(TimePoint current_time);
 
   StateMachine<State> state_;
 

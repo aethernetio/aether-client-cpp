@@ -54,7 +54,7 @@ class PacketDelayStream : public ByteStream {
 
     using Action::Action;
 
-    ActionResult Update(TimePoint current_time);
+    UpdateStatus Update(TimePoint current_time);
 
    private:
     ByteIStream* out_;

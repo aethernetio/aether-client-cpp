@@ -43,7 +43,7 @@ class UdpTransport : public ITransport {
    public:
     ReadAction(ActionContext action_context, UdpTransport& transport);
 
-    ActionResult Update();
+    UpdateStatus Update();
 
     void Read();
     void Stop();
@@ -89,9 +89,9 @@ class UdpTransport : public ITransport {
                                    TimePoint current_time) override;
 
  private:
-  void OnRead();
-  void OnWrite();
-  void OnError();
+  void ReadSocket();
+  void WriteSocket();
+  void ErrorSocket();
 
   void OnConnectionError();
   void Disconnect();

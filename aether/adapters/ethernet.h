@@ -43,7 +43,7 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
   EthernetTransportBuilderAction(ActionContext action_context,
                                  EthernetAdapter& adapter,
                                  UnifiedAddress address_port_protocol);
-  ActionResult Update() override;
+  UpdateStatus Update() override;
 
   std::vector<std::unique_ptr<ITransportBuilder>> builders() override;
 
@@ -57,8 +57,7 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
   std::vector<std::unique_ptr<ITransportBuilder>> transport_builders_;
   StateMachine<State> state_;
   Subscription state_changed_;
-  Subscription address_resolved_;
-  Subscription resolving_failed_;
+  Subscription address_resolve_sub_;
 };
 }  // namespace ethernet_adapter_internal
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <filesystem>
 
 #include "aether/all.h"
@@ -45,7 +45,7 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         state_changed_{state_.changed_event().Subscribe(
             [this](auto) { Action::Trigger(); })} {}
 
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kRegisterClients:
@@ -55,9 +55,9 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
           MakeTest();
           break;
         case State::kResult:
-          return ActionResult::Result();
+          return UpdateStatus::Result();
         case State::kError:
-          return ActionResult::Error();
+          return UpdateStatus::Error();
       }
     }
     return {};
@@ -70,21 +70,25 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
     auto get_receiver = aether_->SelectClient(
         Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 2);
 
-    client_selected_event_.Connect([](auto& action) { return action.client(); },
-                                   get_sender->ResultEvent(),
-                                   get_receiver->ResultEvent());
+    client_selected_event_.Connect(
+        [&](auto client_setter, auto result) {
+          result
+              .OnResult(
+                  [&](auto const& action) { client_setter = action.client(); })
+              .OnError([&]() {
+                // leave client empty
+                state_ = State::kError;
+              });
+        },
+        get_sender->StatusEvent(), get_receiver->StatusEvent());
 
-    registration_subscriptions_.Push(
-        get_sender->ErrorEvent().Subscribe(
-            [this](auto const&) { state_ = State::kError; }),
-        get_receiver->ErrorEvent().Subscribe(
-            [this](auto const&) { state_ = State::kError; }),
+    clients_selected_sub_ =
         client_selected_event_.Subscribe([this](auto const& event) {
           AE_TELED_INFO("All clients acquired");
           client_sender_ = event[0];
           client_receiver_ = event[1];
           state_ = State::kMakeTest;
-        }));
+        });
   }
 
   void MakeTest() {
@@ -115,8 +119,8 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         /* min send interval */ std::chrono::milliseconds{1000},
     });
 
-    test_result_subscriptions_.Push(
-        test_action->ResultEvent().Subscribe([&](auto const& action) {
+    test_result_sub_ = test_action->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[&](auto const& action) {
           auto res_name_table = std::array{
               std::string_view{"p2p 2 Bytes"},
               std::string_view{"p2p 10 Bytes"},
@@ -141,11 +145,11 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
                                     test_message_count});
 
           state_ = State::kResult;
-        }),
-        test_action->ErrorEvent().Subscribe([&](auto const&) {
+        }},
+        OnError{[&]() {
           AE_TELED_ERROR("Test failed");
           state_ = State::kError;
-        }));
+        }}});
   }
 
   Aether::ptr aether_;
@@ -155,8 +159,8 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
   std::unique_ptr<SendMessageDelaysManager> send_message_delays_manager_;
 
   CumulativeEvent<Client::ptr, 2> client_selected_event_;
-  MultiSubscription registration_subscriptions_;
-  MultiSubscription test_result_subscriptions_;
+  Subscription clients_selected_sub_;
+  Subscription test_result_sub_;
   StateMachine<State> state_;
   Subscription state_changed_;
 };
@@ -166,10 +170,9 @@ int test_send_message_delays(std::ostream& result_stream) {
 
   auto test_action = ActionPtr<TestSendMessageDelaysAction>{
       *aether_app, aether_app, result_stream};
-  auto success = test_action->ResultEvent().Subscribe(
-      [&](auto const&) { aether_app->Exit(0); });
-  auto failed = test_action->ErrorEvent().Subscribe(
-      [&](auto const&) { aether_app->Exit(1); });
+  test_action->StatusEvent().Subscribe(
+      ActionHandler{OnResult{[&]() { aether_app->Exit(0); }},
+                    OnError{[&]() { aether_app->Exit(1); }}});
 
   while (!aether_app->IsExited()) {
     auto time = Now();

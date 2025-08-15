@@ -44,7 +44,7 @@ class TimedSender : public Action<TimedSender> {
               std::function<void(std::uint16_t id)> send_proc,
               Duration send_interval);
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   TimeTable const& message_times() const { return message_times_; }
 
@@ -53,7 +53,7 @@ class TimedSender : public Action<TimedSender> {
 
  private:
   void Send();
-  ActionResult CheckSyncTimeout(TimePoint current_time);
+  UpdateStatus CheckSyncTimeout(TimePoint current_time);
 
   std::function<void(std::uint16_t id)> send_proc_;
 

@@ -64,7 +64,7 @@ class EspWifiTransportBuilderAction final : public TransportBuilderAction {
       EventSubscriber<void(bool)> wifi_connected_event,
       Esp32WifiAdapter& adapter, UnifiedAddress address_port_protocol);
 
-  ActionResult Update() override;
+  UpdateStatus Update() override;
 
   std::vector<std::unique_ptr<ITransportBuilder>> builders() override;
 
@@ -79,8 +79,7 @@ class EspWifiTransportBuilderAction final : public TransportBuilderAction {
   StateMachine<State> state_;
   Subscription state_changed_;
   Subscription wifi_connected_subscription_;
-  Subscription address_resolved_;
-  Subscription resolving_failed_;
+  Subscription address_resolve_sub_;
 };
 }  // namespace esp32_wifi_internal
 

@@ -121,8 +121,9 @@ void test_SendActionCreateAndSend() {
 
   bool is_sent = false;
   bool is_error = false;
-  data_action->ResultEvent().Subscribe([&](auto const &) { is_sent = true; });
-  data_action->ErrorEvent().Subscribe([&](auto const &) { is_error = true; });
+  data_action->StatusEvent().Subscribe(
+      ActionHandler{OnResult{[&]() { is_sent = true; }},
+                    OnError{[&]() { is_error = true; }}});
 
   // Verify initial state before update
   TEST_ASSERT_FALSE(send_data_push.send_data.has_value());
@@ -169,8 +170,9 @@ void test_SendActionRepeatOnTimeout() {
 
   bool is_sent = false;
   bool is_error = false;
-  data_action->ResultEvent().Subscribe([&](auto const &) { is_sent = true; });
-  data_action->ErrorEvent().Subscribe([&](auto const &) { is_error = true; });
+  data_action->StatusEvent().Subscribe(
+      ActionHandler{OnResult{[&]() { is_sent = true; }},
+                    OnError{[&]() { is_error = true; }}});
 
   auto start_time = Now();
 
@@ -218,8 +220,9 @@ void test_SendActionErrorOnMaxRepeatExceeded() {
 
   bool is_sent = false;
   bool is_error = false;
-  data_action->ResultEvent().Subscribe([&](auto const &) { is_sent = true; });
-  data_action->ErrorEvent().Subscribe([&](auto const &) { is_error = true; });
+  data_action->StatusEvent().Subscribe(
+      ActionHandler{OnResult{[&]() { is_sent = true; }},
+                    OnError{[&]() { is_error = true; }}});
 
   auto current_time = Now();
 
@@ -447,10 +450,11 @@ void test_SendActionMultipleDataQueueing() {
   bool sent2 = false;
   bool error2 = false;
 
-  data_action1->ResultEvent().Subscribe([&](auto const &) { sent1 = true; });
-  data_action1->ErrorEvent().Subscribe([&](auto const &) { error1 = true; });
-  data_action2->ResultEvent().Subscribe([&](auto const &) { sent2 = true; });
-  data_action2->ErrorEvent().Subscribe([&](auto const &) { error2 = true; });
+  data_action1->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[&]() { sent1 = true; }}, OnError{[&]() { error1 = true; }}});
+
+  data_action2->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[&]() { sent2 = true; }}, OnError{[&]() { error2 = true; }}});
 
   // Process queued data
   ap.Update(Now());
@@ -497,8 +501,9 @@ void test_SendDataBiggerThanMaxPacketSize() {
   bool sent = false;
   bool error = false;
 
-  data_action->ResultEvent().Subscribe([&](auto const &) { sent = true; });
-  data_action->ErrorEvent().Subscribe([&](auto const &) { error = true; });
+  data_action->StatusEvent().Subscribe(
+      ActionHandler{OnResult{[&]() { sent = true; }},
+                    OnError{[&](auto const &) { error = true; }}});
 
   // Process packets
   for (std::uint16_t i = 0; i < packets_count - 1; ++i) {

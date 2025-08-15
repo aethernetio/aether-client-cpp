@@ -34,13 +34,13 @@ SelectClientAction::SelectClientAction(ActionContext action_context,
                                        Registration& registration)
     : Action{action_context},
       state_{State::kWaitRegistration},
-      registered_sub_{
-          registration.ResultEvent().Subscribe([this](auto& action) {
+      registration_sub_{registration.StatusEvent().Subscribe(ActionHandler{
+          OnResult{[this](auto& action) {
             client_ = action.client();
             state_ = State::kClientRegistered;
-          })},
-      reg_failed_sub_{registration.ErrorEvent().Subscribe(
-          [this](auto&) { state_ = State::kClientRegistrationError; })},
+          }},
+          OnError{[this]() { state_ = State::kClientRegistrationError; }},
+      })},
       state_changed_sub_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {
   AE_TELED_DEBUG("Waiting for client registration");
@@ -58,17 +58,17 @@ SelectClientAction::SelectClientAction(ActionContext action_context)
   Action::Trigger();
 }
 
-ActionResult SelectClientAction::Update() {
+UpdateStatus SelectClientAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitRegistration:
         break;
       case State::kClientRegistrationError:
       case State::kNoClientToSelect:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
       case State::kClientReady:
       case State::kClientRegistered:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
     }
   }
   return {};

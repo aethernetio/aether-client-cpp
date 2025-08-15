@@ -22,7 +22,7 @@ namespace ae::bench {
 MessageReceiver::MessageReceiver(ActionContext action_context)
     : Action{action_context}, state_{State::kReceiving} {}
 
-ActionResult MessageReceiver::Update() {
+UpdateStatus MessageReceiver::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kReceiving:
@@ -30,11 +30,11 @@ ActionResult MessageReceiver::Update() {
         first_message_received_time_ = HighResTimePoint::clock::now();
         break;
       case State::kSuccess:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kError:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
       case State::kStopped:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
     }
   }
   if (state_.get() == State::kReceiving) {
@@ -70,9 +70,9 @@ void MessageReceiver::Stop() {
   Action::Trigger();
 }
 
-ActionResult MessageReceiver::CheckReceiveTimeout(TimePoint current_time) {
+UpdateStatus MessageReceiver::CheckReceiveTimeout(TimePoint current_time) {
   if (receive_message_timeout_ > current_time) {
-    return ActionResult::Delay(receive_message_timeout_);
+    return UpdateStatus::Delay(receive_message_timeout_);
   }
   AE_TELED_ERROR("Message receive timeout");
   state_ = State::kError;

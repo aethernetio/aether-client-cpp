@@ -59,7 +59,7 @@ class Ping : public Action<Ping> {
 
   AE_CLASS_NO_COPY_MOVE(Ping);
 
-  ActionResult Update();
+  UpdateStatus Update();
   void Stop();
 
  private:

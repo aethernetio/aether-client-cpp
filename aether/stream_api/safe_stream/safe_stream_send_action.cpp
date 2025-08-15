@@ -52,7 +52,7 @@ SafeStreamSendAction::SafeStreamSendAction(ActionContext action_context,
   response_statistics_.Add(config.wait_ack_timeout);
 }
 
-ActionResult SafeStreamSendAction::Update(TimePoint current_time) {
+UpdateStatus SafeStreamSendAction::Update(TimePoint current_time) {
   SendChunk(current_time);
   return SendTimeouts(current_time);
 }
@@ -149,15 +149,15 @@ void SafeStreamSendAction::SendChunk(TimePoint current_time) {
 
   auto write_action = PushData(std::move(data_chunk.data), delta, repeat_count);
 
-  send_subs_.Push(
-      write_action->ErrorEvent().Subscribe([this, end_offset](auto const&) {
-        sending_chunks_.RemoveUpTo(end_offset);
-        send_data_buffer_.Reject(end_offset);
-      }),
-      write_action->StopEvent().Subscribe([this, end_offset](auto const&) {
-        sending_chunks_.RemoveUpTo(end_offset);
-        send_data_buffer_.Stop(end_offset);
-      }));
+  send_subs_.Push(write_action->StatusEvent().Subscribe(
+      ActionHandler{OnError{[this, end_offset]() {
+                      sending_chunks_.RemoveUpTo(end_offset);
+                      send_data_buffer_.Reject(end_offset);
+                    }},
+                    OnStop{[this, end_offset](auto const&) {
+                      sending_chunks_.RemoveUpTo(end_offset);
+                      send_data_buffer_.Stop(end_offset);
+                    }}}));
 }
 
 void SafeStreamSendAction::RejectSend(SendingChunk& sending_chunk) {
@@ -166,7 +166,7 @@ void SafeStreamSendAction::RejectSend(SendingChunk& sending_chunk) {
   send_data_buffer_.Reject(end_offset);
 }
 
-ActionResult SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
+UpdateStatus SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
   if (sending_chunks_.empty()) {
     return {};
   }
@@ -191,7 +191,7 @@ ActionResult SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
     return {};
   }
 
-  return ActionResult::Delay(wait_time);
+  return UpdateStatus::Delay(wait_time);
 }
 
 ActionPtr<StreamWriteAction> SafeStreamSendAction::PushData(

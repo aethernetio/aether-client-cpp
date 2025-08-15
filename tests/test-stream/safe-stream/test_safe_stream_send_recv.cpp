@@ -172,7 +172,8 @@ void test_SafeStreamInitHandshake() {
 
   auto send_data = sender->SendData(ToDataBuffer(test_data));
 
-  send_data->ResultEvent().Subscribe([&](auto const&) { acked = true; });
+  send_data->StatusEvent().Subscribe(
+      OnResult{[&](auto const&) { acked = true; }});
 
   ap.Update(epoch);
   ap.Update(epoch += config.send_ack_timeout + kTick);
@@ -212,7 +213,8 @@ void test_SafeStreamReInitSender() {
       [&](auto const& data) { received = data; });
 
   auto send_action1 = sender->SendData(ToDataBuffer(test_data));
-  send_action1->ResultEvent().Subscribe([&](auto const&) { acked = true; });
+  send_action1->StatusEvent().Subscribe(
+      OnResult{[&](auto const&) { acked = true; }});
 
   ap.Update(epoch);
   ap.Update(epoch += kTick);
@@ -236,7 +238,8 @@ void test_SafeStreamReInitSender() {
   recv_transport.Link(sender_to_receiver);
 
   auto send_action2 = sender->SendData(ToDataBuffer(test_data));
-  send_action2->ResultEvent().Subscribe([&](auto const&) { acked = true; });
+  send_action2->StatusEvent().Subscribe(
+      OnResult{[&](auto const&) { acked = true; }});
 
   ap.Update(epoch);
   ap.Update(epoch += kTick);
@@ -276,7 +279,8 @@ void test_SafeStreamReInitReceiver() {
       [&](auto const& data) { received = data; });
 
   auto send_action1 = sender->SendData(ToDataBuffer(test_data));
-  send_action1->ResultEvent().Subscribe([&](auto const&) { acked = true; });
+  send_action1->StatusEvent().Subscribe(
+      OnResult{[&](auto const&) { acked = true; }});
 
   ap.Update(epoch);
   ap.Update(epoch += config.send_ack_timeout + kTick);
@@ -300,7 +304,8 @@ void test_SafeStreamReInitReceiver() {
       [&](auto const& data) { received = data; });
 
   auto send_action2 = sender->SendData(ToDataBuffer(test_data));
-  send_action2->ResultEvent().Subscribe([&](auto const&) { acked = true; });
+  send_action2->StatusEvent().Subscribe(
+      OnResult{[&](auto const&) { acked = true; }});
 
   ap.Update(epoch);
   ap.Update(epoch += config.send_ack_timeout + kTick);
