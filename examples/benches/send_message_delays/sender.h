@@ -23,7 +23,7 @@
 #include "aether/client.h"
 #include "aether/types/uid.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/actions/action_view.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
 #include "aether/client_connections/split_stream_client_connection.h"
@@ -41,17 +41,17 @@ class Sender {
   void ConnectP2pSafeStream();
   void Disconnect();
 
-  ActionView<TimedSender> WarmUp(Duration min_send_interval);
-  ActionView<TimedSender> Send2Bytes(Duration min_send_interval);
-  ActionView<TimedSender> Send10Bytes(Duration min_send_interval);
-  ActionView<TimedSender> Send100Bytes(Duration min_send_interval);
-  ActionView<TimedSender> Send1000Bytes(Duration min_send_interval);
+  ActionPtr<TimedSender> WarmUp(Duration min_send_interval);
+  ActionPtr<TimedSender> Send2Bytes(Duration min_send_interval);
+  ActionPtr<TimedSender> Send10Bytes(Duration min_send_interval);
+  ActionPtr<TimedSender> Send100Bytes(Duration min_send_interval);
+  ActionPtr<TimedSender> Send1000Bytes(Duration min_send_interval);
 
  private:
   template <typename Func>
-  ActionView<TimedSender> CreateBenchAction(Func&& func,
+  ActionPtr<TimedSender> CreateBenchAction(Func&& func,
 
-                                            Duration min_send_interval);
+                                           Duration min_send_interval);
   ActionContext action_context_;
   Client::ptr client_;
   Uid destination_uid_;
@@ -62,7 +62,7 @@ class Sender {
   ProtocolContext protocol_context_;
   BenchDelaysApi bench_delays_api_;
 
-  std::optional<TimedSender> sender_action_;
+  ActionPtr<TimedSender> sender_action_;
 
   MultiSubscription action_subscriptions_;
 };

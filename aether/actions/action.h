@@ -17,14 +17,15 @@
 #ifndef AETHER_ACTIONS_ACTION_H_
 #define AETHER_ACTIONS_ACTION_H_
 
-#include <utility>
-
 #include "aether/common.h"
+
+// IWYU pragma: begin_exports
 #include "aether/events/events.h"
-#include "aether/actions/action_result.h"
+#include "aether/actions/update_status.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_trigger.h"
-#include "aether/actions/action_registry.h"
+#include "aether/actions/action_event_status.h"
+// IWYU pragma: end_exports
 
 namespace ae {
 namespace action_internal {
@@ -41,6 +42,7 @@ class IAction {
   virtual ~IAction() = default;
 
   virtual TimePoint ActionUpdate(TimePoint current_time) = 0;
+  virtual bool IsFinished() const = 0;
 };
 
 /**
@@ -52,70 +54,46 @@ class IAction {
 template <typename T>
 class Action : public IAction {
  public:
-  using Base = Action<T>;
-
-  Action() = default;
-
   explicit Action(ActionContext action_context)
-      : action_trigger_{&action_context.get_trigger()},
-        index_{action_context.get_registry().Register(*this)} {
+      : action_trigger_{&action_context.get_trigger()} {
     Trigger();
   }
 
-  Action(Action const& other) = delete;
-  Action(Action&& other) noexcept
-      : action_trigger_{other.action_trigger_},
-        index_{std::move(other.index_)} {
-    // replace the action
-    if (auto* it = index_.iterator(); it) {
-      (*it)->action = this;
-    }
-  }
+  AE_CLASS_MOVE_ONLY(Action);
 
-  ~Action() override { index_.Erase(); }
-
-  Action& operator=(Action const& other) = delete;
-
-  Action& operator=(Action&& other) noexcept {
-    if (this != &other) {
-      action_trigger_ = other.action_trigger_;
-      index_ = std::move(other.index_);
-      // replace the action
-      if (auto* it = index_.iterator(); it) {
-        (*it)->action = this;
-      }
-    }
-    return *this;
-  }
-
+  /**
+   * \brief Action Update logic.
+   * Each T should provide an UpdateStatus Update([time_point]) method.
+   * optional time point will be set to current_time.
+   * UpdateStatus represent current Update result and may be one of:
+   * kNothing, kResult, kError, kStop, kDelay
+   * kNothing - indicates action currently has status update
+   * kDelay - indicates action want to cal next Update at least before returned
+   * time point. kResult, kError, kStop - for result, error and stop event and
+   * leads to call Status method and StatusEvent.
+   */
   TimePoint ActionUpdate(TimePoint current_time) override {
     if constexpr (!action_internal::HasUpdate<T>::value) {
       return current_time;
     } else {
       auto& self = *static_cast<T*>(this);
-      ActionResult res;
+      UpdateStatus res;
       if constexpr (std::is_invocable_v<decltype(&T::Update), T*, TimePoint>) {
         res = self.Update(current_time);
       } else {
         res = self.Update();
       }
       switch (res.type) {
-        case ResultType::kNothing: {
+        case UpdateStatusType::kNothing: {
           break;
         }
-        case ResultType::kResult: {
-          Result(self);
+        case UpdateStatusType::kResult:
+        case UpdateStatusType::kError:
+        case UpdateStatusType::kStop: {
+          Status(self, res);
           break;
         }
-        case ResultType::kError: {
-          Error(self);
-          break;
-        }
-        case ResultType::kStop: {
-          Stop(self);
-          break;
-        }
-        case ResultType::kDelay: {
+        case UpdateStatusType::kDelay: {
           return res.delay_to;
         }
       }
@@ -123,74 +101,46 @@ class Action : public IAction {
     }
   }
 
-  /**
-   * Add callback to be called when action is done.
-   */
-  [[nodiscard]] auto ResultEvent() { return EventSubscriber{result_cbs_}; }
+  bool IsFinished() const override { return finished_; }
 
   /**
-   * Add callback to be called when action is rejected.
+   * Add callback to be called when action is done result is encoded as
+   * ActionEventResult.
    */
-  [[nodiscard]] auto ErrorEvent() { return EventSubscriber{error_cbs_}; }
-
-  /**
-   * Add callback to be called when action is stopped.
-   */
-  [[nodiscard]] auto StopEvent() { return EventSubscriber{stop_cbs_}; }
+  [[nodiscard]] auto StatusEvent() { return EventSubscriber{action_result_}; }
 
   [[nodiscard]] auto FinishedEvent() {
     return EventSubscriber{finished_event_};
   }
 
-  // get index of action in registry
-  auto index() const {
-    assert(index_.get() != nullptr);
-    return index_;
-  }
-
- protected:
-  // Call trigger if action has new state to update
+  // Trigger an event on action which leads to run action's Update as soon as
+  // possible.
   void Trigger() {
     if (action_trigger_ != nullptr) {
       action_trigger_->Trigger();
     }
   }
 
-  // Call result to mark action as done and call all result callbacks
-  void Result(T& object) {
-    result_cbs_.Emit(object);
+ protected:
+  // Set action status and emit status event, and make action finished.
+  void Status(T& object, UpdateStatus const& result) {
+    action_result_.Emit(ActionEventStatus{object, result});
     Finish();
   }
 
-  // Call result repeat to call all result callbacks without marking action as
-  // finished
-  void ResultRepeat(T& object) { result_cbs_.Emit(object); }
-
-  //  Call error to mark action as failed and call all error callbacks
-  void Error(T& object) {
-    error_cbs_.Emit(object);
-    Finish();
-  }
-
-  // Call stop to mark action as rejected and call all stop callbacks
-  void Stop(T& object) {
-    stop_cbs_.Emit(object);
-    Finish();
-  }
-
-  // Call finish if action finished all it's job and may be removed.
+ private:
+  // Action is finished all it's job and may be removed.
   void Finish() {
     Trigger();
+    finished_ = true;
     finished_event_.Emit();
   }
 
-  Event<void(T&)> result_cbs_;
-  Event<void(T&)> error_cbs_;
-  Event<void(T&)> stop_cbs_;
+  Event<void(ActionEventStatus<T>)> action_result_;
   Event<void()> finished_event_;
 
   ActionTrigger* action_trigger_{};
-  ActionRegistry::IndexShare index_;
+  bool finished_{false};
 };
 }  // namespace ae
 

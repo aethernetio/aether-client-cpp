@@ -97,23 +97,19 @@ int AetherCloudExample() {
 
   auto select_client_a = aether_app->aether()->SelectClient(
       ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 0);
-  select_client_a->ResultEvent().Subscribe(
-      [&](auto const& action) { client_a = action.client(); });
-  select_client_a->ErrorEvent().Subscribe(
-      [&](auto const&) { aether_app->Exit(1); });
-
-  aether_app->WaitAction(select_client_a);
+  select_client_a->StatusEvent().Subscribe(ae::ActionHandler{
+      ae::OnResult{[&](auto const& action) { client_a = action.client(); }},
+      ae::OnError{[&]() { aether_app->Exit(1); }}});
 
   auto select_client_b = aether_app->aether()->SelectClient(
       ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 1);
-  select_client_b->ResultEvent().Subscribe(
-      [&](auto const& action) { client_b = action.client(); });
-  select_client_b->ErrorEvent().Subscribe(
-      [&](auto const&) { aether_app->Exit(1); });
+  select_client_b->StatusEvent().Subscribe(ae::ActionHandler{
+      ae::OnResult{[&](auto const& action) { client_b = action.client(); }},
+      ae::OnError{[&]() { aether_app->Exit(1); }}});
 
-  aether_app->WaitAction(select_client_b);
+  aether_app->WaitActions(select_client_a, select_client_b);
 
-  // wait till clients selected
+  // clients must be selected
   assert(client_a && client_b);
 
   // Make clients messages exchange.
@@ -142,10 +138,10 @@ int AetherCloudExample() {
           auto confirm_msg = std::string{"confirmed "} + str_msg;
           auto response_action = receiver_stream->Write(
               {confirm_msg.data(), confirm_msg.data() + confirm_msg.size()});
-          response_action->ErrorEvent().Subscribe([&](auto const&) {
+          response_action->StatusEvent().Subscribe(ae::OnError{[&]() {
             AE_TELED_ERROR("Send response failed");
             aether_app->Exit(1);
-          });
+          }});
         });
       });
 
@@ -181,10 +177,10 @@ int AetherCloudExample() {
   for (auto const& msg : messages) {
     auto send_action =
         sender_stream->Write(ae::DataBuffer{std::begin(msg), std::end(msg)});
-    send_action->ErrorEvent().Subscribe([&](auto const&) {
+    send_action->StatusEvent().Subscribe(ae::OnError{[&](auto const&) {
       AE_TELED_ERROR("Send message failed");
       aether_app->Exit(1);
-    });
+    }});
   }
 
   /**

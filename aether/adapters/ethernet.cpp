@@ -86,7 +86,7 @@ EthernetTransportBuilderAction::EthernetTransportBuilderAction(
       state_changed_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {}
 
-ActionResult EthernetTransportBuilderAction::Update() {
+UpdateStatus EthernetTransportBuilderAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kAddressResolve:
@@ -96,9 +96,9 @@ ActionResult EthernetTransportBuilderAction::Update() {
         CreateBuilders();
         break;
       case State::kBuildersCreated:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
     }
   }
   return {};
@@ -111,26 +111,26 @@ EthernetTransportBuilderAction::builders() {
 
 #if AE_SUPPORT_CLOUD_DNS
 void EthernetTransportBuilderAction::ResolveAddress() {
-  std::visit(
-      reflect::OverrideFunc{
-          [this](IpAddressPortProtocol const& ip_address) {
-            ip_address_port_protocols_.push_back(ip_address);
-            state_ = State::kBuildersCreate;
-          },
-          [this](NameAddress const& name_address) {
-            auto dns_resolver = adapter_->dns_resolver_;
-            assert(dns_resolver);
-            auto resolve_action = dns_resolver->Resolve(name_address);
+  std::visit(reflect::OverrideFunc{
+                 [this](IpAddressPortProtocol const& ip_address) {
+                   ip_address_port_protocols_.push_back(ip_address);
+                   state_ = State::kBuildersCreate;
+                 },
+                 [this](NameAddress const& name_address) {
+                   auto dns_resolver = adapter_->dns_resolver_;
+                   assert(dns_resolver);
+                   auto resolve_action = dns_resolver->Resolve(name_address);
 
-            address_resolved_ =
-                resolve_action->ResultEvent().Subscribe([this](auto& action) {
-                  ip_address_port_protocols_ = std::move(action.addresses);
-                  state_ = State::kBuildersCreate;
-                });
-            resolving_failed_ = resolve_action->ErrorEvent().Subscribe(
-                [this](auto&) { state_ = State::kFailed; });
-          }},
-      address_port_protocol_);
+                   address_resolve_sub_ =
+                       resolve_action->StatusEvent().Subscribe(ActionHandler{
+                           OnResult{[this](auto& action) {
+                             ip_address_port_protocols_ =
+                                 std::move(action.addresses);
+                             state_ = State::kBuildersCreate;
+                           }},
+                           OnError{[this]() { state_ = State::kFailed; }}});
+                 }},
+             address_port_protocol_);
 }
 #else
 void EthernetTransportBuilderAction::ResolveAddress() {
@@ -161,16 +161,13 @@ EthernetAdapter::EthernetAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
 }
 #endif  // AE_DISTILLATION
 
-ActionView<TransportBuilderAction> EthernetAdapter::CreateTransport(
+ActionPtr<TransportBuilderAction> EthernetAdapter::CreateTransport(
     UnifiedAddress const& address_port_protocol) {
   AE_TELE_INFO(kEthernetAdapterCreate, "Create transport for {}",
                address_port_protocol);
 
-  if (!create_transport_actions_) {
-    create_transport_actions_.emplace(ActionContext{*aether_.as<Aether>()});
-  }
-
-  return create_transport_actions_->Emplace(*this, address_port_protocol);
+  return ActionPtr<ethernet_adapter_internal::EthernetTransportBuilderAction>{
+      *aether_.as<Aether>(), *this, address_port_protocol};
 }
 
 }  // namespace ae

@@ -17,8 +17,8 @@
 #ifndef AETHER_ACTIONS_TASK_QUEUE_H_
 #define AETHER_ACTIONS_TASK_QUEUE_H_
 
-#include <vector>
 #include <mutex>
+#include <vector>
 #include <functional>
 
 #include "aether/actions/action.h"
@@ -30,7 +30,7 @@ class TaskQueue : public Action<TaskQueue> {
 
   using Action::Action;
 
-  ActionResult Update();
+  UpdateStatus Update();
   void Enqueue(Task&& task);
 
  private:

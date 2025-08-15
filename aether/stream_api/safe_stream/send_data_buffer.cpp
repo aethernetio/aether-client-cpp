@@ -23,14 +23,14 @@
 
 namespace ae {
 SendDataBuffer::SendDataBuffer(ActionContext action_context)
-    : send_actions_{action_context}, buffer_size_{} {}
+    : action_context_{action_context}, buffer_size_{} {}
 
-ActionView<SendingDataAction> SendDataBuffer::AddData(SendingData&& data) {
+ActionPtr<SendingDataAction> SendDataBuffer::AddData(SendingData&& data) {
   AE_TELED_DEBUG("Add data size {} with offset {}", data.data.size(),
                  data.offset);
   buffer_size_ += data.data.size();
-  auto action = send_actions_.Emplace(std::move(data));
-  send_action_views_.emplace_back(action);
+
+  auto& action = send_actions_.emplace_back(action_context_, std::move(data));
   return action;
 }
 
@@ -38,14 +38,14 @@ DataChunk SendDataBuffer::GetSlice(SSRingIndex offset, std::size_t max_size) {
   using DataDiffType = DataBuffer::difference_type;
 
   // find the first sending data with required offset
-  auto it = std::find_if(std::begin(send_action_views_),
-                         std::end(send_action_views_), [offset](auto& action) {
+  auto it = std::find_if(std::begin(send_actions_), std::end(send_actions_),
+                         [offset](auto& action) {
                            auto& sending_data = action->sending_data();
                            return sending_data.offset_range().InRange(offset) ||
                                   sending_data.offset_range().IsAfter(offset);
                          });
 
-  if (it == std::end(send_action_views_)) {
+  if (it == std::end(send_actions_)) {
     return {};
   }
 
@@ -60,7 +60,7 @@ DataChunk SendDataBuffer::GetSlice(SSRingIndex offset, std::size_t max_size) {
   std::size_t remaining = max_size;
 
   // collect data from the continuous list of sending data
-  for (; (it != std::end(send_action_views_)) && (remaining > 0); ++it) {
+  for (; (it != std::end(send_actions_)) && (remaining > 0); ++it) {
     auto& sending_action = *it;
     // sending action now in Sending state
     sending_action->Sending();
@@ -86,9 +86,8 @@ DataChunk SendDataBuffer::GetSlice(SSRingIndex offset, std::size_t max_size) {
 std::size_t SendDataBuffer::Acknowledge(SSRingIndex offset) {
   std::size_t removed_size = 0;
   // iterate and remove acknowledged actions
-  send_action_views_.erase(
-      std::remove_if(std::begin(send_action_views_),
-                     std::end(send_action_views_),
+  send_actions_.erase(
+      std::remove_if(std::begin(send_actions_), std::end(send_actions_),
                      [&removed_size, offset](auto& action) {
                        auto const& sending_data = action->sending_data();
                        auto offset_range = sending_data.offset_range();
@@ -105,7 +104,7 @@ std::size_t SendDataBuffer::Acknowledge(SSRingIndex offset) {
                        }
                        return false;
                      }),
-      std::end(send_action_views_));
+      std::end(send_actions_));
 
   buffer_size_ -= removed_size;
   return removed_size;
@@ -114,9 +113,8 @@ std::size_t SendDataBuffer::Acknowledge(SSRingIndex offset) {
 std::size_t SendDataBuffer::Reject(SSRingIndex offset) {
   std::size_t removed_size = 0;
   // iterate and remove the sending actions fitting to the offset
-  send_action_views_.erase(
-      std::remove_if(std::begin(send_action_views_),
-                     std::end(send_action_views_),
+  send_actions_.erase(
+      std::remove_if(std::begin(send_actions_), std::end(send_actions_),
                      [&removed_size, offset](auto& action) {
                        auto const& sending_data = action->sending_data();
                        auto offset_range = sending_data.offset_range();
@@ -128,7 +126,7 @@ std::size_t SendDataBuffer::Reject(SSRingIndex offset) {
                        }
                        return false;
                      }),
-      std::end(send_action_views_));
+      std::end(send_actions_));
 
   buffer_size_ -= removed_size;
   return removed_size;
@@ -137,12 +135,12 @@ std::size_t SendDataBuffer::Reject(SSRingIndex offset) {
 std::size_t SendDataBuffer::Stop(SSRingIndex offset) {
   // Stop means the sending action should not be sent like it was never added.
   // find the action to stop
-  auto it = std::find_if(std::begin(send_action_views_),
-                         std::end(send_action_views_), [offset](auto& action) {
+  auto it = std::find_if(std::begin(send_actions_), std::end(send_actions_),
+                         [offset](auto& action) {
                            auto& sending_data = action->sending_data();
                            return sending_data.offset == offset;
                          });
-  if (it == std::end(send_action_views_)) {
+  if (it == std::end(send_actions_)) {
     return 0;
   }
 
@@ -151,14 +149,14 @@ std::size_t SendDataBuffer::Stop(SSRingIndex offset) {
   buffer_size_ -= sending_data.size();
   // move the other sending actions on the current place
   auto current_offset = sending_data.offset;
-  for (auto fix_it = std::next(it); fix_it != std::end(send_action_views_);
+  for (auto fix_it = std::next(it); fix_it != std::end(send_actions_);
        ++fix_it) {
     // set new offset to next chunk
     (*fix_it)->UpdateOffset(current_offset);
     auto const& sd = (*fix_it)->sending_data();
     current_offset = sd.offset_range().right + 1;
   }
-  send_action_views_.erase(it);
+  send_actions_.erase(it);
   return sending_data.data.size();
 }
 }  // namespace ae

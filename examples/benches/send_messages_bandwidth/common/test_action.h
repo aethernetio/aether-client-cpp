@@ -58,7 +58,7 @@ class TestAction : public Action<TestAction<TAgent>> {
         error_subscription_{agent_->error_event().Subscribe(
             [this]() { state_ = State::kError; })} {}
 
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kConnect:
@@ -83,9 +83,9 @@ class TestAction : public Action<TestAction<TAgent>> {
           ThousandBytes();
           break;
         case State::kDone:
-          return ActionResult::Result();
+          return UpdateStatus::Result();
         case State::kError:
-          return ActionResult::Error();
+          return UpdateStatus::Error();
       }
     }
     return {};

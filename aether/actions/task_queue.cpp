@@ -20,7 +20,7 @@
 
 namespace ae {
 
-ActionResult TaskQueue::Update() {
+UpdateStatus TaskQueue::Update() {
   if (tasks_.empty()) {
     return {};
   }

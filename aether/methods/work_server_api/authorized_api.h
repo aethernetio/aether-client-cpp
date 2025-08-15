@@ -30,11 +30,11 @@ class AuthorizedApi {
   AuthorizedApi(ProtocolContext& protocol_context,
                 ActionContext action_context);
 
-  Method<06, PromiseView<void>(std::uint64_t next_ping_duration)> ping;
+  Method<06, PromisePtr<void>(std::uint64_t next_ping_duration)> ping;
   Method<10, void(Uid uid, DataBuffer data)> send_message;
   Method<12, void(StreamId servers_stream_id, StreamId cloud_stream_id)>
       resolvers;
-  Method<16, PromiseView<void>(Uid uid)> check_access_for_send_message;
+  Method<16, PromisePtr<void>(Uid uid)> check_access_for_send_message;
 
   Method<70, void(Telemetric telemetric)> send_telemetric;
 };

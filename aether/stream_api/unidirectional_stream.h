@@ -31,7 +31,7 @@ class ParallelStream final : public IStream<TIn, TOut> {
 
   AE_CLASS_MOVE_ONLY(ParallelStream);
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& data) override {
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override {
     assert(write_stream_);
     return write_stream_->Write(std::move(data));
   }

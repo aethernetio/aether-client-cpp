@@ -103,7 +103,7 @@ ModemAdapterTransportBuilderAction::ModemAdapterTransportBuilderAction(
   AE_TELE_DEBUG(kAdapterModemTransportWait, "Wait LTE modem connection");
 }
 
-ActionResult ModemAdapterTransportBuilderAction::Update() {
+UpdateStatus ModemAdapterTransportBuilderAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitConnection:
@@ -115,9 +115,9 @@ ActionResult ModemAdapterTransportBuilderAction::Update() {
         CreateBuilders();
         break;
       case State::kBuildersCreated:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
     }
   }
   return {};
@@ -141,13 +141,13 @@ void ModemAdapterTransportBuilderAction::ResolveAddress() {
             assert(dns_resolver);
             auto resolve_action = dns_resolver->Resolve(name_address);
 
-            address_resolved_ =
-                resolve_action->ResultEvent().Subscribe([this](auto& action) {
-                  ip_address_port_protocols_ = std::move(action.addresses);
-                  state_ = State::kBuildersCreate;
-                });
-            resolving_failed_ = resolve_action->ErrorEvent().Subscribe(
-                [this](auto&) { state_ = State::kFailed; });
+            resolve_sub_ =
+                resolve_action->StatusEvent().Subscribe(ActionHandler{
+                    OnResult{[this](auto& action) {
+                      ip_address_port_protocols_ = std::move(action.addresses);
+                      state_ = State::kBuildersCreate;
+                    }},
+                    OnError{[this](auto&) { state_ = State::kFailed; }}});
           }},
       address_port_protocol_);
 }
@@ -182,7 +182,7 @@ ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
 }
 
 ModemAdapter::~ModemAdapter() {
-  if (connected_ == true) {
+  if (connected_) {
     DisConnect();
     AE_TELED_DEBUG("Modem instance deleted!");
     connected_ = false;
@@ -190,33 +190,31 @@ ModemAdapter::~ModemAdapter() {
 }
 #endif  // AE_DISTILLATION
 
-ActionView<TransportBuilderAction> ModemAdapter::CreateTransport(
+ActionPtr<TransportBuilderAction> ModemAdapter::CreateTransport(
     UnifiedAddress const& address_port_protocol) {
   AE_TELE_INFO(kAdapterModemAdapterCreate, "Create transport for {}",
                address_port_protocol);
-  if (!transport_builders_actions_) {
-    transport_builders_actions_.emplace(ActionContext{*aether_.as<Aether>()});
-  }
   if (connected_) {
-    return transport_builders_actions_->Emplace(*this, address_port_protocol);
-  } else {
-    return transport_builders_actions_->Emplace(
-        EventSubscriber{modem_connected_event_}, *this, address_port_protocol);
+    return ActionPtr<TransportBuilderAction>(*aether_.as<Aether>(), *this,
+                                             address_port_protocol);
   }
+  return ActionPtr<TransportBuilderAction>(
+      *aether_.as<Aether>(), EventSubscriber{modem_connected_event_}, *this,
+      address_port_protocol);
 }
 
-void ModemAdapter::Update(TimePoint t) {
-  if (connected_ == false) {
+void ModemAdapter::Update(TimePoint current_time) {
+  if (!connected_) {
     connected_ = true;
     Connect();
   }
 
-  update_time_ = t;
+  update_time_ = current_time;
 }
 
 void ModemAdapter::Connect(void) {
   AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem connecting to the network");
-  modem_driver_->Start();  
+  modem_driver_->Start();
 }
 
 void ModemAdapter::DisConnect(void) {

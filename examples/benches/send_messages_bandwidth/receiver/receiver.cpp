@@ -86,20 +86,19 @@ EventSubscriber<void(Bandwidth const&)> Receiver::TestMessages(
         api.Flush();
       });
 
-  message_receiver_.emplace(action_context_);
+  message_receiver_ = OwnActionPtr<MessageReceiver>{action_context_};
 
-  test_success_sub_ = message_receiver_->ResultEvent().Subscribe(
-      [this, message_size](MessageReceiver const& action) {
+  test_res_sub_ = message_receiver_->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[this, message_size](MessageReceiver const& action) {
         test_finished_event_.Emit({action.receive_duration(),
                                    action.message_received_count(),
                                    message_size});
-      });
-  test_error_sub_ = message_receiver_->ErrorEvent().Subscribe(
-      [this, message_count, message_size](auto const&) {
+      }},
+      OnError{[this, message_count, message_size]() {
         AE_TELED_ERROR("Test messages count {}, size {}, failed", message_count,
                        message_size);
         error_event_.Emit();
-      });
+      }}});
 
   message_received_sub_ =
       bandwidth_api_.message_event().Subscribe([this](auto id, auto&&) {

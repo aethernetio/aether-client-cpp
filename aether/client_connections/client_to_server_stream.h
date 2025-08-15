@@ -49,7 +49,7 @@ class ClientToServerStream final : public ByteIStream {
 
   AE_CLASS_NO_COPY_MOVE(ClientToServerStream);
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& in_data) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;
   OutDataEvent::Subscriber out_data_event() override;
@@ -90,8 +90,6 @@ class ClientToServerStream final : public ByteIStream {
   Subscription connection_success_subscription_;
   Subscription connection_failed_subscription_;
   Subscription gate_update_subscription_;
-
-  ActionList<FailedStreamWriteAction> failed_actions_;
 };
 }  // namespace ae
 

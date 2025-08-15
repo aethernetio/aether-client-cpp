@@ -26,15 +26,15 @@ MocTransportPacketSendAction::MocTransportPacketSendAction(
     ActionContext action_context, DataBuffer d, TimePoint st)
     : PacketSendAction{action_context}, data{std::move(d)}, sent_time{st} {}
 
-ActionResult MocTransportPacketSendAction::Update() {
+UpdateStatus MocTransportPacketSendAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case PacketSendAction::State::kSuccess:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case PacketSendAction::State::kFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
       case PacketSendAction::State::kStopped:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
       default:
         break;
     }
@@ -53,7 +53,7 @@ void MocTransportPacketSendAction::SetState(PacketSendAction::State state) {
 
 MockTransport::MockTransport(ActionContext action_context,
                              ConnectionInfo connection_info)
-    : action_list_{action_context},
+    : action_context_{action_context},
       connection_info_{std::move(connection_info)} {}
 
 void MockTransport::Connect() {
@@ -88,9 +88,10 @@ ITransport::DataReceiveEvent::Subscriber MockTransport::ReceiveEvent() {
   return receive_event_;
 }
 
-ActionView<PacketSendAction> MockTransport::Send(DataBuffer data,
-                                                 TimePoint current_time) {
-  auto action = action_list_.Emplace(std::move(data), current_time);
+ActionPtr<PacketSendAction> MockTransport::Send(DataBuffer data,
+                                                TimePoint current_time) {
+  auto action = ActionPtr<MocTransportPacketSendAction>{
+      action_context_, std::move(data), current_time};
   send_data_event_.Emit(*action);
 
   return action;

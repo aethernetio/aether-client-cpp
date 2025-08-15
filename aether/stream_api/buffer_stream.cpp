@@ -58,12 +58,11 @@ BufferStream::BufferStream(ActionContext action_context, std::size_t buffer_max)
     : action_context_{action_context},
       buffer_max_{buffer_max},
       stream_info_{},
-      last_out_stream_info_{},
-      failed_write_list_{action_context_} {
+      last_out_stream_info_{} {
   stream_info_.is_soft_writable = true;
 }
 
-ActionView<StreamWriteAction> BufferStream::Write(DataBuffer&& data) {
+ActionPtr<StreamWriteAction> BufferStream::Write(DataBuffer&& data) {
   auto add_to_buffer =
       !last_out_stream_info_.is_writable || !last_out_stream_info_.is_linked;
   // add to buffer either if is write buffered or buffer is not empty to observe
@@ -72,20 +71,20 @@ ActionView<StreamWriteAction> BufferStream::Write(DataBuffer&& data) {
     if (!stream_info_.is_soft_writable) {
       AE_TELED_ERROR("Buffer overflow");
       // decline write
-      return failed_write_list_.Emplace();
+      return ActionPtr<FailedStreamWriteAction>{action_context_};
     }
 
     AE_TELED_DEBUG("Make a buffered write");
 
     auto action_it = write_in_buffer_.emplace(std::end(write_in_buffer_),
                                               action_context_, std::move(data));
-    auto remove_action = [this, action_it]() {
-      write_in_buffer_.erase(action_it);
-      SetSoftWriteable(true);
-      DrainBuffer(*out_);
-    };
+    // auto remove action on finish
     write_in_subscription_.Push(
-        action_it->FinishedEvent().Subscribe(remove_action));
+        (*action_it)->FinishedEvent().Subscribe([this, action_it]() {
+          write_in_buffer_.erase(action_it);
+          SetSoftWriteable(true);
+          DrainBuffer(*out_);
+        }));
 
     if (write_in_buffer_.size() == buffer_max_) {
       SetSoftWriteable(false);
@@ -157,11 +156,11 @@ void BufferStream::DrainBuffer(OutStream& out) {
     if (!last_out_stream_info_.is_writable) {
       break;
     }
-    if (action.is_sent()) {
+    if (action->is_sent()) {
       continue;
     }
     AE_TELED_DEBUG("Buffer drain");
-    action.Send(out);
+    action->Send(out);
   }
 }
 

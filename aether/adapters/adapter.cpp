@@ -25,7 +25,7 @@ Adapter::Adapter(Domain* domain) : Obj{domain} {}
 /**
  * \brief Provide an action creating transport builders for address
  */
-ActionView<TransportBuilderAction> Adapter::CreateTransport(
+ActionPtr<TransportBuilderAction> Adapter::CreateTransport(
     UnifiedAddress const& /* address */) {
   assert(false);
   return {};

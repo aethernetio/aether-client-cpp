@@ -20,13 +20,13 @@
 #include <map>
 #include <optional>
 
-#include "aether/types/uid.h"
 #include "aether/memory.h"
+#include "aether/types/uid.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/types/async_for_loop.h"
 #include "aether/actions/timer_action.h"
 #include "aether/actions/notify_action.h"
 #include "aether/events/event_subscription.h"
-#include "aether/events/multi_subscription.h"
 
 #include "aether/stream_api/istream.h"
 
@@ -40,7 +40,7 @@ class Cloud;
  * \brief The simplest cloud connection, which connects to one server a time.
  */
 class ClientCloudConnection final : public ClientConnection {
-  using ReconnectNotify = NotifyAction<>;
+  using ReconnectNotify = NotifyAction;
   using NextServerLoopTimer = TimerAction;
 
  public:
@@ -81,8 +81,8 @@ class ClientCloudConnection final : public ClientConnection {
   // known streams to clients
   std::map<Uid, std::unique_ptr<ByteStream>> streams_;
 
-  ReconnectNotify reconnect_notify_;
-  NextServerLoopTimer next_server_loop_timer_;
+  ActionPtr<ReconnectNotify> reconnect_notify_;
+  ActionPtr<NextServerLoopTimer> next_server_loop_timer_;
 
   Subscription reconnect_notify_sub_;
   Subscription next_server_loop_subs_;

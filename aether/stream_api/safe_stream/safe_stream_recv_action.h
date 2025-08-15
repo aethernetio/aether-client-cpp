@@ -46,7 +46,7 @@ class SafeStreamRecvAction : public Action<SafeStreamRecvAction> {
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamRecvAction)
 
-  ActionResult Update(TimePoint current_time);
+  UpdateStatus Update(TimePoint current_time);
 
   void PushData(SSRingIndex begin, DataMessage data_message);
 
@@ -57,8 +57,8 @@ class SafeStreamRecvAction : public Action<SafeStreamRecvAction> {
                   DataBuffer&& data);
 
   void CheckCompletedChains();
-  ActionResult CheckAcknowledgement(TimePoint current_time);
-  ActionResult CheckMissing(TimePoint current_time);
+  UpdateStatus CheckAcknowledgement(TimePoint current_time);
+  UpdateStatus CheckMissing(TimePoint current_time);
   void SendAcknowledgement(SSRingIndex offset);
   void SendRequestRepeat(SSRingIndex offset);
 

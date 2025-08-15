@@ -58,7 +58,7 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
 
   ~GetClientCloudConnection() override;
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   void Stop();
 
@@ -83,7 +83,7 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   RcPtr<ClientServerConnection> server_connection_;
   Subscription connection_subscription_;
 
-  std::optional<GetClientCloudAction> get_client_cloud_action_;
+  ActionPtr<GetClientCloudAction> get_client_cloud_action_;
   MultiSubscription get_client_cloud_subscriptions_;
 
   Ptr<ClientConnection> client_cloud_connection_;

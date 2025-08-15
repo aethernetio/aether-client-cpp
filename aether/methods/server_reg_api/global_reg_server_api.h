@@ -43,7 +43,7 @@ class GlobalRegServerApi {
                      ActionContext action_context);
 
   Method<03, void(Key key)> set_master_key;
-  Method<04, PromiseView<RegistrationResponse>()> finish;
+  Method<04, PromisePtr<RegistrationResponse>()> finish;
 };
 
 }  // namespace ae

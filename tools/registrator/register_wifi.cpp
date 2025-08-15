@@ -33,7 +33,7 @@ RegisterWifiAdapter::RegisterWifiAdapter(ObjPtr<Aether> aether,
                                                            dns_resolver_)} {}
 #endif  // AE_DISTILLATION
 
-ActionView<TransportBuilderAction> RegisterWifiAdapter::CreateTransport(
+ActionPtr<TransportBuilderAction> RegisterWifiAdapter::CreateTransport(
     UnifiedAddress const& address) {
   return ethernet_adapter_->CreateTransport(address);
 }
