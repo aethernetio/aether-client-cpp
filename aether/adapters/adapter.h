@@ -36,7 +36,7 @@ class TransportBuilderAction : public Action<TransportBuilderAction> {
   using Action::Action;
   using Action::operator=;
 
-  virtual ActionResult Update() = 0;
+  virtual UpdateStatus Update() = 0;
 
   virtual std::vector<std::unique_ptr<ITransportBuilder>> builders() = 0;
 };
@@ -64,7 +64,7 @@ class Adapter : public Obj {
   /**
    * \brief Provide an action creating transport builders for address
    */
-  virtual ActionView<TransportBuilderAction> CreateTransport(
+  virtual ActionPtr<TransportBuilderAction> CreateTransport(
       UnifiedAddress const& address);
 };
 

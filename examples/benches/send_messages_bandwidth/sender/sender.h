@@ -67,16 +67,15 @@ class Sender {
 
   std::unique_ptr<ByteIStream> message_stream_;
 
-  std::optional<RepeatableTask> start_test_action_;
-  std::optional<RepeatableTask> stop_test_action_;
-  std::optional<MessageSender> message_sender_;
+  OwnActionPtr<RepeatableTask> start_test_action_;
+  OwnActionPtr<RepeatableTask> stop_test_action_;
+  OwnActionPtr<MessageSender> message_sender_;
 
   Subscription on_recv_data_sub_;
   Subscription handshake_sub_;
   MultiSubscription sync_subs_;
   Subscription sync_action_failed_sub_;
-  Subscription test_success_sub_;
-  Subscription test_error_sub_;
+  Subscription test_res_sub_;
   Subscription start_test_sub_;
   Subscription stop_test_sub_;
 };

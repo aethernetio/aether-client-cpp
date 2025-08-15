@@ -19,7 +19,6 @@
 #include <optional>
 
 #include "aether/config.h"
-#include "aether/actions/action_list.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
@@ -56,16 +55,16 @@ class MockSendDataPush final : public ISendDataPush {
     void Stop() override {};
   };
 
-  explicit MockSendDataPush(ActionContext ac) : write_list{ac} {}
+  explicit MockSendDataPush(ActionContext ac) : action_context_{ac} {}
 
-  ActionView<StreamWriteAction> PushData(SSRingIndex begin,
-                                         DataMessage &&data_message) override {
+  ActionPtr<StreamWriteAction> PushData(SSRingIndex begin,
+                                        DataMessage &&data_message) override {
     send_data = SendData{begin, std::move(data_message)};
-    return write_list.Emplace();
+    return ActionPtr<MockStreamWriteAction>{action_context_};
   }
 
+  ActionContext action_context_;
   std::optional<SendData> send_data;
-  ActionList<MockStreamWriteAction> write_list;
 };
 
 // Creative test data strings for improved tests (under 200 bytes)
@@ -114,15 +113,17 @@ void test_SendActionCreateAndSend() {
 
   auto send_data_push = MockSendDataPush{ac};
 
-  auto send_action = SafeStreamSendAction{ac, send_data_push, config};
-  send_action.SetMaxPayload(config.max_packet_size);
+  auto send_action =
+      ActionPtr<SafeStreamSendAction>{ac, send_data_push, config};
+  send_action->SetMaxPayload(config.max_packet_size);
 
-  auto data_action = send_action.SendData(ToDataBuffer(packet_poetry));
+  auto data_action = send_action->SendData(ToDataBuffer(packet_poetry));
 
   bool is_sent = false;
   bool is_error = false;
-  data_action->ResultEvent().Subscribe([&](auto const &) { is_sent = true; });
-  data_action->ErrorEvent().Subscribe([&](auto const &) { is_error = true; });
+  data_action->StatusEvent().Subscribe(
+      ActionHandler{OnResult{[&]() { is_sent = true; }},
+                    OnError{[&]() { is_error = true; }}});
 
   // Verify initial state before update
   TEST_ASSERT_FALSE(send_data_push.send_data.has_value());
@@ -144,9 +145,10 @@ void test_SendActionCreateAndSend() {
   TEST_ASSERT_FALSE(is_error);
   TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.repeat_count());
 
-  send_action.Acknowledge(send_data_push.send_data->begin +
-                          send_data_push.send_data->data_message.delta_offset +
-                          static_cast<SSRingIndex::type>(packet_poetry.size()));
+  send_action->Acknowledge(
+      send_data_push.send_data->begin +
+      send_data_push.send_data->data_message.delta_offset +
+      static_cast<SSRingIndex::type>(packet_poetry.size()));
   ap.Update(Now());
 
   // Verify final state after confirmation
@@ -160,15 +162,17 @@ void test_SendActionRepeatOnTimeout() {
 
   auto send_data_push = MockSendDataPush{ac};
 
-  auto send_action = SafeStreamSendAction{ac, send_data_push, config};
-  send_action.SetMaxPayload(config.max_packet_size);
+  auto send_action =
+      ActionPtr<SafeStreamSendAction>{ac, send_data_push, config};
+  send_action->SetMaxPayload(config.max_packet_size);
 
-  auto data_action = send_action.SendData(ToDataBuffer(retry_humor));
+  auto data_action = send_action->SendData(ToDataBuffer(retry_humor));
 
   bool is_sent = false;
   bool is_error = false;
-  data_action->ResultEvent().Subscribe([&](auto const &) { is_sent = true; });
-  data_action->ErrorEvent().Subscribe([&](auto const &) { is_error = true; });
+  data_action->StatusEvent().Subscribe(
+      ActionHandler{OnResult{[&]() { is_sent = true; }},
+                    OnError{[&]() { is_error = true; }}});
 
   auto start_time = Now();
 
@@ -193,9 +197,9 @@ void test_SendActionRepeatOnTimeout() {
       retry_humor.size());
 
   // Confirm after first repeat
-  send_action.Acknowledge(send_data_push.send_data->begin +
-                          send_data_push.send_data->data_message.delta_offset +
-                          +static_cast<SSRingIndex::type>(retry_humor.size()));
+  send_action->Acknowledge(send_data_push.send_data->begin +
+                           send_data_push.send_data->data_message.delta_offset +
+                           +static_cast<SSRingIndex::type>(retry_humor.size()));
   ap.Update(timeout_time + kTick + kTick);
 
   TEST_ASSERT(is_sent);
@@ -208,15 +212,17 @@ void test_SendActionErrorOnMaxRepeatExceeded() {
 
   auto send_data_push = MockSendDataPush{ac};
 
-  auto send_action = SafeStreamSendAction{ac, send_data_push, config};
-  send_action.SetMaxPayload(config.max_packet_size);
+  auto send_action =
+      ActionPtr<SafeStreamSendAction>{ac, send_data_push, config};
+  send_action->SetMaxPayload(config.max_packet_size);
 
-  auto data_action = send_action.SendData(ToDataBuffer(confirmation_comedy));
+  auto data_action = send_action->SendData(ToDataBuffer(confirmation_comedy));
 
   bool is_sent = false;
   bool is_error = false;
-  data_action->ResultEvent().Subscribe([&](auto const &) { is_sent = true; });
-  data_action->ErrorEvent().Subscribe([&](auto const &) { is_error = true; });
+  data_action->StatusEvent().Subscribe(
+      ActionHandler{OnResult{[&]() { is_sent = true; }},
+                    OnError{[&]() { is_error = true; }}});
 
   auto current_time = Now();
 
@@ -270,10 +276,11 @@ void test_SendActionRequestRepeat() {
 
   auto send_data_push = MockSendDataPush{ac};
 
-  auto send_action = SafeStreamSendAction{ac, send_data_push, config};
-  send_action.SetMaxPayload(config.max_packet_size);
+  auto send_action =
+      ActionPtr<SafeStreamSendAction>{ac, send_data_push, config};
+  send_action->SetMaxPayload(config.max_packet_size);
 
-  auto data_action1 = send_action.SendData(ToDataBuffer(network_philosophy));
+  auto data_action1 = send_action->SendData(ToDataBuffer(network_philosophy));
 
   SSRingIndex begin_offset;
 
@@ -284,7 +291,7 @@ void test_SendActionRequestRepeat() {
   send_data_push.send_data.reset();
 
   // Add second data and let it send
-  auto data_action2 = send_action.SendData(ToDataBuffer(buffer_ballad));
+  auto data_action2 = send_action->SendData(ToDataBuffer(buffer_ballad));
   ap.Update(Now());
   TEST_ASSERT(send_data_push.send_data.has_value());
   TEST_ASSERT_EQUAL(network_philosophy.size(),
@@ -293,7 +300,7 @@ void test_SendActionRequestRepeat() {
   send_data_push.send_data.reset();
 
   // Request repeat of first chunk
-  send_action.RequestRepeat(begin_offset);
+  send_action->RequestRepeat(begin_offset);
   ap.Update(Now());
 
   // Should resend from the requested offset
@@ -310,8 +317,9 @@ void test_SendActionWindowSizeLimit() {
 
   // Use larger packet size for cleaner window size testing
   constexpr std::size_t large_packet_size = 352;
-  auto send_action = SafeStreamSendAction{ac, send_data_push, config};
-  send_action.SetMaxPayload(large_packet_size);
+  auto send_action =
+      ActionPtr<SafeStreamSendAction>{ac, send_data_push, config};
+  send_action->SetMaxPayload(large_packet_size);
 
   // Window check is: begin_.Distance(last_sent_ + max_packet_size_) >
   // window_size_ window_size = 1056, max_packet_size = 352 We can send 3
@@ -321,7 +329,7 @@ void test_SendActionWindowSizeLimit() {
 
   // Send 3 packets to fill window exactly (3 * 352 = 1056 bytes)
   for (int i = 0; i < 3; ++i) {
-    send_action.SendData(DataBuffer{packet_data});
+    send_action->SendData(DataBuffer{packet_data});
     ap.Update(Now());
 
     // Should send successfully
@@ -337,7 +345,7 @@ void test_SendActionWindowSizeLimit() {
   // last_sent_ is now at begin_ + 1056, adding max_packet_size (352) = begin_
   // + 1408 begin_.Distance(begin_ + 1408) = 1408 > 1056 (window_size), so
   // should be blocked
-  send_action.SendData(DataBuffer{packet_data});
+  send_action->SendData(DataBuffer{packet_data});
   ap.Update(Now());
 
   // This should NOT send because it would exceed window size
@@ -347,7 +355,7 @@ void test_SendActionWindowSizeLimit() {
   // Confirm first packet (352 bytes)
   auto confirm_offset =
       begin_offset + static_cast<SSRingIndex::type>(large_packet_size);
-  send_action.Acknowledge(confirm_offset);
+  send_action->Acknowledge(confirm_offset);
   ap.Update(Now());
 
   // Now the blocked data should send
@@ -367,8 +375,9 @@ void test_SendActionWindowSizeWithMultipleWaitingPackets() {
 
   // Use larger packet size for cleaner testing
   constexpr std::size_t large_packet_size = 352;
-  auto send_action = SafeStreamSendAction{ac, send_data_push, config};
-  send_action.SetMaxPayload(large_packet_size);
+  auto send_action =
+      ActionPtr<SafeStreamSendAction>{ac, send_data_push, config};
+  send_action->SetMaxPayload(large_packet_size);
 
   // Fill the window to its limit
   // window_size = 1056, max_packet_size = 352
@@ -378,7 +387,7 @@ void test_SendActionWindowSizeWithMultipleWaitingPackets() {
 
   // Send 3 packets of 352 bytes = 1056 bytes (full window)
   for (int i = 0; i < 3; ++i) {
-    send_action.SendData(DataBuffer{packet_data});
+    send_action->SendData(DataBuffer{packet_data});
     ap.Update(Now());
 
     TEST_ASSERT(send_data_push.send_data.has_value());
@@ -393,7 +402,7 @@ void test_SendActionWindowSizeWithMultipleWaitingPackets() {
   // Each attempt to send would make last_sent_ + max_packet_size > begin_ +
   // window_size
   for (int i = 0; i < 2; ++i) {
-    send_action.SendData(DataBuffer{packet_data});
+    send_action->SendData(DataBuffer{packet_data});
     ap.Update(Now());
 
     // None of these should send
@@ -403,7 +412,7 @@ void test_SendActionWindowSizeWithMultipleWaitingPackets() {
   // Confirm some data to free up space (confirm first packet = 352 bytes)
   auto confirm_offset =
       begin_offset + static_cast<SSRingIndex::type>(large_packet_size);
-  send_action.Acknowledge(confirm_offset);
+  send_action->Acknowledge(confirm_offset);
   ap.Update(Now());
 
   // Now first waiting packet should send
@@ -427,12 +436,13 @@ void test_SendActionMultipleDataQueueing() {
 
   auto send_data_push = MockSendDataPush{ac};
 
-  auto send_action = SafeStreamSendAction{ac, send_data_push, config};
-  send_action.SetMaxPayload(config.max_packet_size);
+  auto send_action =
+      ActionPtr<SafeStreamSendAction>{ac, send_data_push, config};
+  send_action->SetMaxPayload(config.max_packet_size);
 
   // Send multiple data chunks rapidly
-  auto data_action1 = send_action.SendData(ToDataBuffer(packet_poetry));
-  auto data_action2 = send_action.SendData(ToDataBuffer(window_wisdom));
+  auto data_action1 = send_action->SendData(ToDataBuffer(packet_poetry));
+  auto data_action2 = send_action->SendData(ToDataBuffer(window_wisdom));
 
   SSRingIndex begin_offset;
   bool sent1 = false;
@@ -440,10 +450,11 @@ void test_SendActionMultipleDataQueueing() {
   bool sent2 = false;
   bool error2 = false;
 
-  data_action1->ResultEvent().Subscribe([&](auto const &) { sent1 = true; });
-  data_action1->ErrorEvent().Subscribe([&](auto const &) { error1 = true; });
-  data_action2->ResultEvent().Subscribe([&](auto const &) { sent2 = true; });
-  data_action2->ErrorEvent().Subscribe([&](auto const &) { error2 = true; });
+  data_action1->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[&]() { sent1 = true; }}, OnError{[&]() { error1 = true; }}});
+
+  data_action2->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[&]() { sent2 = true; }}, OnError{[&]() { error2 = true; }}});
 
   // Process queued data
   ap.Update(Now());
@@ -463,7 +474,7 @@ void test_SendActionMultipleDataQueueing() {
   // Confirm all data to complete actions
   auto final_offset = begin_offset + second_delta +
                       static_cast<SSRingIndex::type>(window_wisdom.size());
-  send_action.Acknowledge(final_offset);
+  send_action->Acknowledge(final_offset);
   ap.Update(Now());
 
   // Verify actions completed successfully
@@ -480,17 +491,19 @@ void test_SendDataBiggerThanMaxPacketSize() {
   constexpr std::uint16_t max_packet_size = 60;
   auto send_data_push = MockSendDataPush{ac};
 
-  auto send_action = SafeStreamSendAction{ac, send_data_push, config};
-  send_action.SetMaxPayload(max_packet_size);
+  auto send_action =
+      ActionPtr<SafeStreamSendAction>{ac, send_data_push, config};
+  send_action->SetMaxPayload(max_packet_size);
 
   // Send data bigger than max packet size
-  auto data_action = send_action.SendData(ToDataBuffer(packet_poetry));
+  auto data_action = send_action->SendData(ToDataBuffer(packet_poetry));
   constexpr auto packets_count = packet_poetry.size() / max_packet_size + 1;
   bool sent = false;
   bool error = false;
 
-  data_action->ResultEvent().Subscribe([&](auto const &) { sent = true; });
-  data_action->ErrorEvent().Subscribe([&](auto const &) { error = true; });
+  data_action->StatusEvent().Subscribe(
+      ActionHandler{OnResult{[&]() { sent = true; }},
+                    OnError{[&](auto const &) { error = true; }}});
 
   // Process packets
   for (std::uint16_t i = 0; i < packets_count - 1; ++i) {
@@ -537,7 +550,7 @@ void test_SendDataBiggerThanMaxPacketSize() {
   // Confirm all data to complete actions
   auto final_offset =
       send_data_push.send_data->begin + expected_offset + expected_size;
-  send_action.Acknowledge(final_offset);
+  send_action->Acknowledge(final_offset);
   ap.Update(Now());
 
   // Verify actions completed successfully

@@ -40,7 +40,8 @@ class ActionProcessor {
   static TimePoint SelectNextUpdate(TimePoint new_time, TimePoint old_time,
                                     TimePoint current_time);
 
-  std::vector<ActionRegistry::IndexShare> ActionRegistryReplica();
+  std::vector<ActionRegistry::value_type> ActionRegistryReplica();
+  void CleanUpActions();
 
   ActionTrigger action_trigger_;
   ActionRegistry action_registry_;

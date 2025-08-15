@@ -33,15 +33,15 @@ StreamWriteAction& StreamWriteAction::operator=(
   return *this;
 }
 
-ActionResult StreamWriteAction::Update() {
+UpdateStatus StreamWriteAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kDone:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kStopped:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
       case State::kFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
       default:
         break;
     }
@@ -55,11 +55,11 @@ FailedStreamWriteAction::FailedStreamWriteAction(ActionContext action_context)
   state_.Set(State::kFailed);
 }
 
-ActionResult FailedStreamWriteAction::Update() {
+UpdateStatus FailedStreamWriteAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
       default:
         break;
     }

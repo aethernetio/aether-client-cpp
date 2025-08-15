@@ -17,7 +17,6 @@
 #ifndef AETHER_API_PROTOCOL_API_METHOD_H_
 #define AETHER_API_PROTOCOL_API_METHOD_H_
 
-#include "aether/actions/action_list.h"
 #include "aether/actions/action_context.h"
 #include "aether/api_protocol/api_message.h"
 #include "aether/api_protocol/send_result.h"
@@ -66,47 +65,37 @@ struct Method<MessageCode, void(Args...)> {
  * return PromiseView<R> for waiting the result or error.
  */
 template <MessageId MessageCode, typename R, typename... Args>
-struct Method<MessageCode, PromiseView<R>(Args...)> {
+struct Method<MessageCode, PromisePtr<R>(Args...)> {
   explicit Method(ProtocolContext& protocol_context,
-                  ActionContext action_context_)
+                  ActionContext action_context)
       : protocol_context_{&protocol_context},
-        promises_{std::move(action_context_)} {}
+        action_context_{std::move(action_context)} {}
 
-  PromiseView<R> operator()(Args... args) {
+  PromisePtr<R> operator()(Args... args) {
     auto request_id = RequestId::GenRequestId();
     auto* packet_stack = protocol_context_->packet_stack();
     assert(packet_stack);
     packet_stack->Push(*this,
                        GenericMessage{request_id, std::forward<Args>(args)...});
 
-    auto promise_view = promises_.Emplace(request_id);
+    auto promise_ptr = PromisePtr<R>{action_context_, request_id};
 
     SendResult::OnResponse(*protocol_context_, request_id,
-                           [view{promise_view}](ApiParser& parser) mutable {
+                           [p_ptr{promise_ptr}](ApiParser& parser) mutable {
+                             assert(p_ptr);
                              if constexpr (!std::is_same_v<void, R>) {
                                auto value = parser.Extract<R>();
-                               if (!view) {
-                                 assert(false);
-                                 return;
-                               }
-                               view->SetValue(value);
+                               p_ptr->SetValue(value);
                              } else {
-                               if (!view) {
-                                 assert(false);
-                                 return;
-                               }
-                               view->SetValue();
+                               p_ptr->SetValue();
                              }
                            });
     SendError::OnError(*protocol_context_, request_id,
-                       [view{promise_view}](auto const&) mutable {
-                         if (!view) {
-                           assert(false);
-                           return;
-                         }
-                         view->Reject();
+                       [p_ptr{promise_ptr}](auto const&) mutable {
+                         assert(p_ptr);
+                         p_ptr->Reject();
                        });
-    return promise_view;
+    return promise_ptr;
   }
 
   template <typename... Ts>
@@ -116,7 +105,7 @@ struct Method<MessageCode, PromiseView<R>(Args...)> {
 
  private:
   ProtocolContext* protocol_context_;
-  ActionList<PromiseAction<R>> promises_;
+  ActionContext action_context_;
 };
 
 /**

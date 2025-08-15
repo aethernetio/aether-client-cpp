@@ -27,12 +27,15 @@ UdpTransport::ReadAction::ReadAction(ActionContext action_context,
       transport_{&transport},
       read_buffer_(transport_->socket_.GetMaxPacketSize()) {}
 
-ActionResult UdpTransport::ReadAction::Update() {
+UpdateStatus UdpTransport::ReadAction::Update() {
   if (read_event_.exchange(false)) {
     ReadEvent();
   }
-  if (error_event_.exchange(false)) {
-    return ActionResult::Error();
+  if (error_event_) {
+    return UpdateStatus::Error();
+  }
+  if (stop_event_) {
+    return UpdateStatus::Stop();
   }
   return {};
 }
@@ -57,11 +60,17 @@ void UdpTransport::ReadAction::Read() {
     std::copy(std::begin(read_buffer_),
               std::begin(read_buffer_) + static_cast<std::ptrdiff_t>(*res),
               std::back_inserter(new_packet));
+
     read_event_ = true;
   }
   if (read_event_ || error_event_) {
     Action::Trigger();
   }
+}
+
+void UdpTransport::ReadAction::Stop() {
+  stop_event_ = true;
+  Action::Trigger();
 }
 
 void UdpTransport::ReadAction::ReadEvent() {
@@ -106,6 +115,7 @@ void UdpTransport::SendAction::Send() {
     state_ = State::kFailed;
     return;
   }
+
   if (*res == 0) {
     // Not sent yet
     return;
@@ -123,8 +133,8 @@ UdpTransport::UdpTransport(ActionContext action_context,
     : action_context_{std::move(action_context)},
       poller_{poller},
       endpoint_{std::move(endpoint)},
-      notify_error_action_{action_context_},
-      send_queue_manager_{action_context_} {
+      send_queue_manager_{action_context_},
+      notify_error_action_{action_context_} {
   AE_TELE_INFO(kUdpTransport);
   connection_info_.connection_state = ConnectionState::kUndefined;
   connection_info_.connection_type = ConnectionType::kConnectionLess;
@@ -146,18 +156,18 @@ void UdpTransport::Connect() {
     return;
   }
 
-  read_action_.emplace(action_context_, *this);
-  read_error_sub_ = read_action_->ErrorEvent().Subscribe([this](auto const&) {
+  read_action_ = OwnActionPtr<ReadAction>{action_context_, *this};
+  read_error_sub_ = read_action_->StatusEvent().Subscribe(OnError{[this]() {
     AE_TELED_ERROR("Read error, disconnect!");
     OnConnectionError();
     Disconnect();
-  });
+  }});
 
   socket_error_sub_ =
-      notify_error_action_.ResultEvent().Subscribe([this](auto const&) {
+      notify_error_action_->StatusEvent().Subscribe(OnResult{[this]() {
         OnConnectionError();
         Disconnect();
-      });
+      }});
 
   auto poller_ptr = poller_.Lock();
   assert(poller_ptr);
@@ -169,13 +179,13 @@ void UdpTransport::Connect() {
             }
             switch (event.event_type) {
               case EventType::kRead:
-                OnRead();
+                ReadSocket();
                 break;
               case EventType::kWrite:
-                OnWrite();
+                WriteSocket();
                 break;
               case EventType::kError:
-                OnError();
+                ErrorSocket();
                 break;
             }
           });
@@ -202,28 +212,28 @@ UdpTransport::DataReceiveEvent::Subscriber UdpTransport::ReceiveEvent() {
   return EventSubscriber{data_receive_event_};
 }
 
-ActionView<PacketSendAction> UdpTransport::Send(DataBuffer data,
-                                                TimePoint current_time) {
+ActionPtr<PacketSendAction> UdpTransport::Send(DataBuffer data,
+                                               TimePoint current_time) {
   AE_TELE_DEBUG(kUdpTransportSend, "Send data at {:%H:%M:%S} size:{}",
                 current_time, data.size());
-  auto send_packet_action = send_queue_manager_.AddPacket(
-      SendAction{action_context_, *this, std::move(data)});
+  auto send_packet_action = send_queue_manager_->AddPacket(
+      ActionPtr<SendAction>{action_context_, *this, std::move(data)});
 
   send_action_error_subs_.Push(
-      send_packet_action->ErrorEvent().Subscribe([this](auto const&) {
+      send_packet_action->StatusEvent().Subscribe(OnError{[this]() {
         AE_TELED_ERROR("Send error, disconnect!");
         OnConnectionError();
         Disconnect();
-      }));
+      }}));
 
   return send_packet_action;
 }
 
-void UdpTransport::OnRead() { read_action_->Read(); }
+void UdpTransport::ReadSocket() { read_action_->Read(); }
 
-void UdpTransport::OnWrite() { send_queue_manager_.Send(); }
+void UdpTransport::WriteSocket() { send_queue_manager_->Send(); }
 
-void UdpTransport::OnError() { notify_error_action_.Notify(); }
+void UdpTransport::ErrorSocket() { notify_error_action_->Notify(); }
 
 void UdpTransport::OnConnectionError() { connection_error_event_.Emit(); }
 

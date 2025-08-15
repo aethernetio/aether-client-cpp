@@ -19,7 +19,6 @@
 #include <utility>
 #include <optional>
 
-#include "aether/api_protocol/packet_builder.h"
 #include "aether/methods/work_server_api/authorized_api.h"
 
 #include "aether/ae_actions/ae_actions_tele.h"
@@ -49,7 +48,7 @@ Ping::Ping(ActionContext action_context, Server::ptr const& server,
 
 Ping::~Ping() = default;
 
-ActionResult Ping::Update() {
+UpdateStatus Ping::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitLink:
@@ -60,20 +59,24 @@ ActionResult Ping::Update() {
       case State::kWaitResponse:
       case State::kWaitInterval:
         break;
+      case State::kStopped:
+        return UpdateStatus::Stop();
       case State::kError:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
     }
   }
 
   if (state_.get() == State::kWaitResponse) {
-    return ActionResult::Delay(WaitResponse());
+    return UpdateStatus::Delay(WaitResponse());
   }
   if (state_.get() == State::kWaitInterval) {
-    return ActionResult::Delay(WaitInterval());
+    return UpdateStatus::Delay(WaitInterval());
   }
 
   return {};
 }
+
+void Ping::Stop() { state_ = State::kStopped; }
 
 void Ping::SendPing() {
   AE_TELE_DEBUG(kPingSend, "Send ping");
@@ -85,15 +88,14 @@ void Ping::SendPing() {
 
   ping_times_.push(std::make_pair(pong_promise->request_id(), Now()));
   // Wait for response
-  wait_responses_.Push(pong_promise->ResultEvent().Subscribe(
-      [&](auto const& promise) { PingResponse(promise.request_id()); }));
+  wait_responses_.Push(pong_promise->StatusEvent().Subscribe(OnResult{
+      [&](auto const& promise) { PingResponse(promise.request_id()); }}));
 
   auto write_action = api_adapter.Flush();
-  write_subscription_ =
-      write_action->ErrorEvent().Subscribe([this](auto const&) {
-        AE_TELE_ERROR(kPingWriteError, "Ping write error");
-        state_ = State::kError;
-      });
+  write_subscription_ = write_action->StatusEvent().Subscribe(OnError{[this]() {
+    AE_TELE_ERROR(kPingWriteError, "Ping write error");
+    state_ = State::kError;
+  }});
 
   state_ = State::kWaitResponse;
 }

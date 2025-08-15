@@ -20,16 +20,15 @@
 #define MODEM_ADAPTER_ENABLED 1
 
 #include <cstdint>
-#include <string>
 
 #include "aether/adapters/parent_modem.h"
 #include "aether/adapters/modems/imodem_driver.h"
 
 #include "aether/events/events.h"
-#include "aether/actions/action_list.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/events/event_subscription.h"
 
-#defined MODEM_TCP_TRANSPORT_ENABLED
+#define MODEM_TCP_TRANSPORT_ENABLED 1
 
 namespace ae {
 class ModemAdapter;
@@ -54,7 +53,7 @@ class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
       EventSubscriber<void(bool)> lte_modem_connected_event,
       ModemAdapter& adapter, UnifiedAddress address_port_protocol);
 
-  ActionResult Update() override;
+  UpdateStatus Update() override;
 
   std::vector<std::unique_ptr<ITransportBuilder>> builders() override;
 
@@ -69,8 +68,7 @@ class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
   StateMachine<State> state_;
   Subscription state_changed_;
   Subscription lte_modem_connected_subscription_;
-  Subscription address_resolved_;
-  Subscription resolving_failed_;
+  Subscription resolve_sub_;
 };
 }  // namespace modem_adapter_internal
 
@@ -86,10 +84,9 @@ class ModemAdapter : public ParentModemAdapter {
                Domain* domain);
 #endif  // AE_DISTILLATION
 
-  ~ModemAdapter();
+  ~ModemAdapter() override;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_connected_event_, modem_driver_,
-                             transport_builders_actions_))
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_connected_event_, modem_driver_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
@@ -100,21 +97,18 @@ class ModemAdapter : public ParentModemAdapter {
     dnv(base_);
   }
 
-  ActionView<TransportBuilderAction> CreateTransport(
+  ActionPtr<TransportBuilderAction> CreateTransport(
       UnifiedAddress const& address_port_protocol) override;
 
-  void Update(TimePoint p) override;
+  void Update(TimePoint current_time) override;
 
  private:
-  void Connect(void);
-  void DisConnect(void);
+  void Connect();
+  void DisConnect();
 
   bool connected_{false};
   Event<void(bool result)> modem_connected_event_;
   std::unique_ptr<IModemDriver> modem_driver_;
-  std::optional<
-      ActionList<modem_adapter_internal::ModemAdapterTransportBuilderAction>>
-      transport_builders_actions_;
 };
 
 }  // namespace ae

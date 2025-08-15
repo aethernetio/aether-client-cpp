@@ -50,7 +50,7 @@ GetClientCloudConnection::~GetClientCloudConnection() {
   AE_TELE_DEBUG(kGetClientCloudConnectionDestroyed);
 }
 
-ActionResult GetClientCloudConnection::Update() {
+UpdateStatus GetClientCloudConnection::Update() {
   AE_TELED_DEBUG("Update() state_ {}", state_.get());
 
   if (state_.changed()) {
@@ -70,11 +70,11 @@ ActionResult GetClientCloudConnection::Update() {
         CreateConnection();
         break;
       case State::kSuccess:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kStopped:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
       case State::kFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
     }
   }
 
@@ -131,20 +131,18 @@ void GetClientCloudConnection::SelectConnection() {
 }
 
 void GetClientCloudConnection::GetCloud() {
-  get_client_cloud_action_.emplace(
-      action_context_, server_connection_->server_stream(), client_uid_);
+  get_client_cloud_action_ = ActionPtr<GetClientCloudAction>{
+      action_context_, server_connection_->server_stream(), client_uid_};
 
   get_client_cloud_subscriptions_.Push(
-      get_client_cloud_action_->ErrorEvent().Subscribe(
-          [this](auto const&) { state_ = State::kSelectConnection; }),
-      get_client_cloud_action_->ResultEvent().Subscribe(
-          [this](auto const&) { state_ = State::kCreateConnection; }),
-      get_client_cloud_action_->StopEvent().Subscribe(
-          [this](auto const&) { state_ = State::kStopped; }));
+      get_client_cloud_action_->StatusEvent().Subscribe(ActionHandler{
+          OnResult{[this]() { state_ = State::kCreateConnection; }},
+          OnError{[this]() { state_ = State::kSelectConnection; }},
+          OnStop{[this]() { state_ = State::kStopped; }}}));
 }
 
 void GetClientCloudConnection::CreateConnection() {
-  assert(get_client_cloud_action_.has_value());
+  assert(get_client_cloud_action_);
 
   auto servers = get_client_cloud_action_->server_descriptors();
 

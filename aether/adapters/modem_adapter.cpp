@@ -80,7 +80,7 @@ ModemAdapterTransportBuilderAction::ModemAdapterTransportBuilderAction(
   AE_TELE_DEBUG(kAdapterModemTransportWait, "Wait LTE modem connection");
 }
 
-ActionResult ModemAdapterTransportBuilderAction::Update() {
+UpdateStatus ModemAdapterTransportBuilderAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitConnection:
@@ -92,9 +92,9 @@ ActionResult ModemAdapterTransportBuilderAction::Update() {
         CreateBuilders();
         break;
       case State::kBuildersCreated:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
     }
   }
   return {};
@@ -118,13 +118,13 @@ void ModemAdapterTransportBuilderAction::ResolveAddress() {
             assert(dns_resolver);
             auto resolve_action = dns_resolver->Resolve(name_address);
 
-            address_resolved_ =
-                resolve_action->ResultEvent().Subscribe([this](auto& action) {
-                  ip_address_port_protocols_ = std::move(action.addresses);
-                  state_ = State::kBuildersCreate;
-                });
-            resolving_failed_ = resolve_action->ErrorEvent().Subscribe(
-                [this](auto&) { state_ = State::kFailed; });
+            resolve_sub_ =
+                resolve_action->StatusEvent().Subscribe(ActionHandler{
+                    OnResult{[this](auto& action) {
+                      ip_address_port_protocols_ = std::move(action.addresses);
+                      state_ = State::kBuildersCreate;
+                    }},
+                    OnError{[this](auto&) { state_ = State::kFailed; }}});
           }},
       address_port_protocol_);
 }
@@ -159,7 +159,7 @@ ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
 }
 
 ModemAdapter::~ModemAdapter() {
-  if (connected_ == true) {
+  if (connected_) {
     DisConnect();
     AE_TELED_DEBUG("Modem instance deleted!");
     connected_ = false;
@@ -167,95 +167,31 @@ ModemAdapter::~ModemAdapter() {
 }
 #endif  // AE_DISTILLATION
 
-ActionView<TransportBuilderAction> ModemAdapter::CreateTransport(
+ActionPtr<TransportBuilderAction> ModemAdapter::CreateTransport(
     UnifiedAddress const& address_port_protocol) {
   AE_TELE_INFO(kAdapterModemAdapterCreate, "Create transport for {}",
                address_port_protocol);
-  if (!transport_builders_actions_) {
-    transport_builders_actions_.emplace(ActionContext{*aether_.as<Aether>()});
-  }
   if (connected_) {
-    return transport_builders_actions_->Emplace(*this, address_port_protocol);
-  } else {
-    return transport_builders_actions_->Emplace(
-        EventSubscriber{modem_connected_event_}, *this, address_port_protocol);
+    return ActionPtr<TransportBuilderAction>(*aether_.as<Aether>(), *this,
+                                             address_port_protocol);
   }
+  return ActionPtr<TransportBuilderAction>(
+      *aether_.as<Aether>(), EventSubscriber{modem_connected_event_}, *this,
+      address_port_protocol);
 }
 
-void ModemAdapter::Update(TimePoint t) {
-  if (connected_ == false) {
+void ModemAdapter::Update(TimePoint current_time) {
+  if (!connected_) {
     connected_ = true;
     Connect();
   }
 
-  update_time_ = t;
+  update_time_ = current_time;
 }
 
 void ModemAdapter::Connect(void) {
   AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem connecting to the network");
   modem_driver_->Start();
-  // For test
-  std::vector<std::uint8_t> data_out{};
-  std::vector<std::uint8_t> data_in{};
-  std::vector<std::uint8_t> data1{};
-  std::vector<std::uint8_t> data2{};
-  std::int8_t connect_index{0};
-  PollResult results;
-  std::vector<std::uint8_t> connect_index_vec{};
-  std::int32_t const timeout{2000};
-  std::size_t size_out, size_in;
-  bool exit{false};
-
-  for (uint16_t i = 0; i < 1024; i++) {
-    data1.push_back(static_cast<char>(i));
-    data2.push_back(static_cast<char>(i));
-  }
-
-  modem_driver_->OpenNetwork(connect_index, ae::Protocol::kTcp,
-                             "95.52.244.165" /*"dbservice.aethernet.io"*/,
-                             8889);
-  if (connect_index >= 0) connect_index_vec.push_back(connect_index);
-  modem_driver_->OpenNetwork(connect_index, ae::Protocol::kTcp,
-                             "95.52.244.165" /*"dbservice.aethernet.io"*/,
-                             8889);
-  if (connect_index >= 0) connect_index_vec.push_back(connect_index);
-
-  for (auto& connect_i : connect_index_vec) {
-    if (connect_i == 0) {
-      data_out = data1;
-    }
-    if (connect_i == 1) {
-      data_out = data2;
-    }
-    for (uint8_t i = 0; i < 4; i++) {
-      AE_TELED_DEBUG("Sending packet={}", i);
-      size_in = 0;
-      size_out = data_out.size();      
-      modem_driver_->WritePacket(connect_i, data_out);
-
-      do {
-        modem_driver_->PollSockets(connect_i, results, timeout);
-        if (std::find(begin(results.revents), end(results.revents),
-                      PollEvents::kPOLLIN) != end(results.revents)) {
-          modem_driver_->ReadPacket(connect_i, data_in, timeout);
-          size_in += data_in.size();
-          
-          if(size_in == size_out) {
-            exit = true;
-          } else {
-            exit = false;
-          }
-          
-          AE_TELED_DEBUG("Data in={}", data_in);
-        } else {
-          exit = true;
-        }
-      } while (!exit);
-    }
-
-    modem_driver_->CloseNetwork(connect_i);
-  }
-  modem_driver_->Stop();
 }
 
 void ModemAdapter::DisConnect(void) {

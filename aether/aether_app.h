@@ -17,6 +17,7 @@
 #ifndef AETHER_AETHER_APP_H_
 #define AETHER_AETHER_APP_H_
 
+#include <array>
 #include <cassert>
 #include <optional>
 
@@ -31,7 +32,7 @@
 
 #include "aether/events/events.h"   // IWYU pragma: keep
 #include "aether/actions/action.h"  // IWYU pragma: keep
-#include "aether/actions/action_view.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_trigger.h"
 #include "aether/actions/action_processor.h"
 
@@ -176,39 +177,24 @@ class AetherApp {
   }
 
   /**
-   * \brief Wait until action is excited.
-   * Either result, error or stop event must be emitted.
+   * \brief Wait until all actions are excited.
    */
-  template <typename TAction>
-  void WaitAction(ActionView<TAction>& action) {
-    bool done = false;
-    auto res_sub =
-        action->ResultEvent().Subscribe([&done](auto&&) { done = true; });
-    auto err_sub =
-        action->ErrorEvent().Subscribe([&done](auto&&) { done = true; });
-    auto stop_sub =
-        action->StopEvent().Subscribe([&done](auto&&) { done = true; });
-
-    while (!IsExited()) {
-      auto new_time = Update(Now());
-      if (done) {
-        return;
-      }
-      WaitUntil(new_time);
-    }
+  template <typename... TAction>
+  void WaitActions(ActionPtr<TAction>&... actions) {
+    WaitEvents(actions->StatusEvent()...);
   }
 
   /**
    * \brief Wait until event is emitted.
    */
-  template <typename TEvent>
-  void WaitEvent(TEvent&& event) {
-    bool done = false;
-    auto sub = std::forward<TEvent>(event).Subscribe(
-        [&done](auto&&...) { done = true; });
-    while (!done && !IsExited()) {
+  template <typename... TEvents>
+  void WaitEvents(TEvents&&... event) {
+    std::size_t done_count = 0;
+    std::array subs{Subscription{std::forward<TEvents>(event).Subscribe(
+        [&done_count](auto&&...) { done_count++; })}...};
+    while (!IsExited()) {
       auto new_time = Update(Now());
-      if (done) {
+      if (done_count == sizeof...(TEvents)) {
         return;
       }
       WaitUntil(new_time);

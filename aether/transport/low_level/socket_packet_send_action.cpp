@@ -17,19 +17,19 @@
 #include "aether/transport/low_level/socket_packet_send_action.h"
 
 namespace ae {
-ActionResult SocketPacketSendAction::Update() {
+UpdateStatus SocketPacketSendAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kSuccess:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
         break;
       case State::kFailed:
       case State::kPanic:
       case State::kTimeout:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
         break;
       case State::kStopped:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
         break;
       default:
         break;

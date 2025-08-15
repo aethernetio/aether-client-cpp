@@ -39,7 +39,7 @@ class SendingDataAction : public Action<SendingDataAction> {
 
   SendingDataAction(ActionContext action_context, SendingData data);
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   SendingData const& sending_data() const;
   // The stop event is emitted by stop command.

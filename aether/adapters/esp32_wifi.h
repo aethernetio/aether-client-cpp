@@ -37,7 +37,6 @@
 #  include "lwip/sys.h"
 
 #  include "aether/events/events.h"
-#  include "aether/actions/action_list.h"
 #  include "aether/events/event_subscription.h"
 
 #  include "aether/adapters/parent_wifi.h"
@@ -65,7 +64,7 @@ class EspWifiTransportBuilderAction final : public TransportBuilderAction {
       EventSubscriber<void(bool)> wifi_connected_event,
       Esp32WifiAdapter& adapter, UnifiedAddress address_port_protocol);
 
-  ActionResult Update() override;
+  UpdateStatus Update() override;
 
   std::vector<std::unique_ptr<ITransportBuilder>> builders() override;
 
@@ -80,8 +79,7 @@ class EspWifiTransportBuilderAction final : public TransportBuilderAction {
   StateMachine<State> state_;
   Subscription state_changed_;
   Subscription wifi_connected_subscription_;
-  Subscription address_resolved_;
-  Subscription resolving_failed_;
+  Subscription address_resolve_sub_;
 };
 }  // namespace esp32_wifi_internal
 
@@ -101,8 +99,7 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
 
   ~Esp32WifiAdapter() override;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(esp_netif_, connected_, wifi_connected_event_,
-                             transport_builders_actions_))
+  AE_OBJECT_REFLECT(AE_MMBRS(esp_netif_, connected_, wifi_connected_event_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
@@ -113,7 +110,7 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
     dnv(base_);
   }
 
-  ActionView<TransportBuilderAction> CreateTransport(
+  ActionPtr<TransportBuilderAction> CreateTransport(
       UnifiedAddress const& address_port_protocol) override;
 
   void Update(TimePoint p) override;
@@ -130,8 +127,6 @@ class Esp32WifiAdapter : public ParentWifiAdapter {
   esp_netif_t* esp_netif_{};
   bool connected_{false};
   Event<void(bool result)> wifi_connected_event_;
-  std::optional<ActionList<esp32_wifi_internal::EspWifiTransportBuilderAction>>
-      transport_builders_actions_;
 };
 }  // namespace ae
 

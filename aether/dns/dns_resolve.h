@@ -26,7 +26,7 @@
 #if AE_SUPPORT_CLOUD_DNS
 #  include "aether/types/address.h"
 #  include "aether/actions/action.h"
-#  include "aether/actions/action_view.h"
+#  include "aether/actions/action_ptr.h"
 
 namespace ae {
 // Action to get host name resolve
@@ -34,7 +34,7 @@ class ResolveAction : public Action<ResolveAction> {
  public:
   using Action::Action;
 
-  ActionResult Update() const;
+  UpdateStatus Update() const;
 
   // Set ip addresses after resolve query finished
   void SetAddress(std::vector<IpAddressPortProtocol> addr);
@@ -63,7 +63,7 @@ class DnsResolver : public Obj {
   AE_OBJECT_REFLECT()
 
   // Make a host name resolve
-  virtual ActionView<ResolveAction> Resolve(NameAddress const& name_address);
+  virtual ActionPtr<ResolveAction> Resolve(NameAddress const& name_address);
 };
 }  // namespace ae
 #else

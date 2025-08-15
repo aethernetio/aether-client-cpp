@@ -16,6 +16,7 @@
 
 #include <unity.h>
 
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
@@ -106,20 +107,20 @@ class MockSendDataPush : public ISendDataPush {
 
  public:
   MockSendDataPush(ActionContext action_context)
-      : done_actions_{action_context} {}
+      : action_context_{action_context} {}
 
   void Link(TestSafeStreamActionsTransport& transport) {
     transport_ = &transport;
   }
 
-  ActionView<StreamWriteAction> PushData(SSRingIndex begin,
-                                         DataMessage&& data_message) {
-    transport_->PushData(begin, data_message);
-    return done_actions_.Emplace();
+  ActionPtr<StreamWriteAction> PushData(SSRingIndex begin,
+                                        DataMessage&& data_message) {
+    transport_->PushData(begin, std::move(data_message));
+    return ActionPtr<DoneStreamWriteAction>{action_context_};
   }
 
+  ActionContext action_context_;
   TestSafeStreamActionsTransport* transport_;
-  ActionList<DoneStreamWriteAction> done_actions_;
 };
 
 class MockSendAckRepeat : public ISendAckRepeat {
@@ -158,20 +159,21 @@ void test_SafeStreamInitHandshake() {
   auto send_transport = MockSendDataPush{ac};
   auto recv_transport = MockSendAckRepeat{};
 
-  auto sender = SafeStreamSendAction{ac, send_transport, config};
-  sender.SetMaxPayload(config.max_packet_size);
-  auto receiver = SafeStreamRecvAction{ac, recv_transport, config};
+  auto sender = ActionPtr<SafeStreamSendAction>{ac, send_transport, config};
+  sender->SetMaxPayload(config.max_packet_size);
+  auto receiver = ActionPtr<SafeStreamRecvAction>{ac, recv_transport, config};
 
-  auto sender_to_receiver = TestSafeStreamActionsTransport{sender, receiver};
+  auto sender_to_receiver = TestSafeStreamActionsTransport{*sender, *receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
-  receiver.receive_event().Subscribe(
+  receiver->receive_event().Subscribe(
       [&](auto const& data) { received = data; });
 
-  auto send_data = sender.SendData(ToDataBuffer(test_data));
+  auto send_data = sender->SendData(ToDataBuffer(test_data));
 
-  send_data->ResultEvent().Subscribe([&](auto const&) { acked = true; });
+  send_data->StatusEvent().Subscribe(
+      OnResult{[&](auto const&) { acked = true; }});
 
   ap.Update(epoch);
   ap.Update(epoch += config.send_ack_timeout + kTick);
@@ -199,20 +201,20 @@ void test_SafeStreamReInitSender() {
   auto recv_transport = MockSendAckRepeat{};
 
   // sender is optional and will be replaced
-  auto sender = std::optional<SafeStreamSendAction>{std::in_place, ac,
-                                                    send_transport, config};
+  auto sender = ActionPtr<SafeStreamSendAction>{ac, send_transport, config};
   sender->SetMaxPayload(config.max_packet_size);
-  auto receiver = SafeStreamRecvAction{ac, recv_transport, config};
+  auto receiver = ActionPtr<SafeStreamRecvAction>{ac, recv_transport, config};
 
-  auto sender_to_receiver = TestSafeStreamActionsTransport{*sender, receiver};
+  auto sender_to_receiver = TestSafeStreamActionsTransport{*sender, *receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
-  receiver.receive_event().Subscribe(
+  receiver->receive_event().Subscribe(
       [&](auto const& data) { received = data; });
 
   auto send_action1 = sender->SendData(ToDataBuffer(test_data));
-  send_action1->ResultEvent().Subscribe([&](auto const&) { acked = true; });
+  send_action1->StatusEvent().Subscribe(
+      OnResult{[&](auto const&) { acked = true; }});
 
   ap.Update(epoch);
   ap.Update(epoch += kTick);
@@ -228,15 +230,16 @@ void test_SafeStreamReInitSender() {
   received.clear();
 
   // create new sender
-  sender.emplace(ac, send_transport, config);
+  sender = ActionPtr<SafeStreamSendAction>{ac, send_transport, config};
   sender->SetMaxPayload(config.max_packet_size);
 
-  sender_to_receiver = TestSafeStreamActionsTransport{*sender, receiver};
+  sender_to_receiver = TestSafeStreamActionsTransport{*sender, *receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
   auto send_action2 = sender->SendData(ToDataBuffer(test_data));
-  send_action2->ResultEvent().Subscribe([&](auto const&) { acked = true; });
+  send_action2->StatusEvent().Subscribe(
+      OnResult{[&](auto const&) { acked = true; }});
 
   ap.Update(epoch);
   ap.Update(epoch += kTick);
@@ -264,20 +267,20 @@ void test_SafeStreamReInitReceiver() {
   auto recv_transport = MockSendAckRepeat{};
 
   // sender is optional and will be replaced
-  auto sender = SafeStreamSendAction{ac, send_transport, config};
-  sender.SetMaxPayload(config.max_packet_size);
-  auto receiver = std::optional<SafeStreamRecvAction>{std::in_place, ac,
-                                                      recv_transport, config};
+  auto sender = ActionPtr<SafeStreamSendAction>{ac, send_transport, config};
+  sender->SetMaxPayload(config.max_packet_size);
+  auto receiver = ActionPtr<SafeStreamRecvAction>{ac, recv_transport, config};
 
-  auto sender_to_receiver = TestSafeStreamActionsTransport{sender, *receiver};
+  auto sender_to_receiver = TestSafeStreamActionsTransport{*sender, *receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
   receiver->receive_event().Subscribe(
       [&](auto const& data) { received = data; });
 
-  auto send_action1 = sender.SendData(ToDataBuffer(test_data));
-  send_action1->ResultEvent().Subscribe([&](auto const&) { acked = true; });
+  auto send_action1 = sender->SendData(ToDataBuffer(test_data));
+  send_action1->StatusEvent().Subscribe(
+      OnResult{[&](auto const&) { acked = true; }});
 
   ap.Update(epoch);
   ap.Update(epoch += config.send_ack_timeout + kTick);
@@ -292,16 +295,17 @@ void test_SafeStreamReInitReceiver() {
   received.clear();
 
   // create new sender
-  receiver.emplace(ac, recv_transport, config);
+  receiver = ActionPtr<SafeStreamRecvAction>{ac, recv_transport, config};
 
-  sender_to_receiver = TestSafeStreamActionsTransport{sender, *receiver};
+  sender_to_receiver = TestSafeStreamActionsTransport{*sender, *receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
   receiver->receive_event().Subscribe(
       [&](auto const& data) { received = data; });
 
-  auto send_action2 = sender.SendData(ToDataBuffer(test_data));
-  send_action2->ResultEvent().Subscribe([&](auto const&) { acked = true; });
+  auto send_action2 = sender->SendData(ToDataBuffer(test_data));
+  send_action2->StatusEvent().Subscribe(
+      OnResult{[&](auto const&) { acked = true; }});
 
   ap.Update(epoch);
   ap.Update(epoch += config.send_ack_timeout + kTick);

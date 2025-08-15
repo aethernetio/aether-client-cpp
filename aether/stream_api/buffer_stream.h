@@ -22,7 +22,7 @@
 
 #include "aether/common.h"
 
-#include "aether/actions/action_list.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
 
@@ -50,7 +50,7 @@ class BufferStream final : public ByteStream {
     std::size_t data_size_;
     bool is_sent_{false};
 
-    ActionView<StreamWriteAction> write_action_;
+    ActionPtr<StreamWriteAction> write_action_;
     Subscription state_changed_subscription_;
   };
 
@@ -60,7 +60,7 @@ class BufferStream final : public ByteStream {
 
   AE_CLASS_NO_COPY_MOVE(BufferStream)
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& data) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
 
   void LinkOut(OutStream& out) override;
@@ -76,8 +76,7 @@ class BufferStream final : public ByteStream {
 
   StreamInfo stream_info_;
   StreamInfo last_out_stream_info_;
-  ActionList<FailedStreamWriteAction> failed_write_list_;
-  std::list<BufferedWriteAction> write_in_buffer_;
+  std::list<ActionPtr<BufferedWriteAction>> write_in_buffer_;
   MultiSubscription write_in_subscription_;
 };
 }  // namespace ae

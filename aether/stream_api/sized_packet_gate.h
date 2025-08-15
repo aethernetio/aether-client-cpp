@@ -17,7 +17,7 @@
 #ifndef AETHER_STREAM_API_SIZED_PACKET_GATE_H_
 #define AETHER_STREAM_API_SIZED_PACKET_GATE_H_
 
-#include "aether/stream_api/istream.h"
+#include "aether/events/events.h"
 #include "aether/transport/low_level/tcp/data_packet_collector.h"
 
 namespace ae {

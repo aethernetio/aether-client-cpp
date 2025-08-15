@@ -128,10 +128,9 @@ int AetherRegistrator(const std::string& ini_file,
   auto registrator_action =
       ae::registrator::RegistratorAction{aether_app, registrator_config};
 
-  auto success = registrator_action.ResultEvent().Subscribe(
-      [&](auto const&) { aether_app->Exit(0); });
-  auto failed = registrator_action.ErrorEvent().Subscribe(
-      [&](auto const&) { aether_app->Exit(1); });
+  registrator_action.StatusEvent().Subscribe(
+      ae::ActionHandler{ae::OnResult{[&]() { aether_app->Exit(0); }},
+                        ae::OnError{[&]() { aether_app->Exit(1); }}});
 
   while (!aether_app->IsExited()) {
     auto current_time = ae::Now();

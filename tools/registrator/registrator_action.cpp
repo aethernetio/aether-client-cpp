@@ -31,16 +31,16 @@ RegistratorAction::RegistratorAction(
   AE_TELED_INFO("Registration test");
 }
 
-ActionResult RegistratorAction::Update() {
+UpdateStatus RegistratorAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kRegistration:
         RegisterClients();
         break;
       case State::kResult:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kError:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
     }
   }
 
@@ -66,17 +66,17 @@ void RegistratorAction::RegisterClients() {
     for (auto i = 0; i < clients_num; i++) {
       auto select_action = aether_ptr->SelectClient(parent_uid, i);
 
-      registration_sub_.Push(
-          select_action->ResultEvent().Subscribe([this](auto const&) {
-            if (++clients_registered_ ==
-                registrator_config_.GetClientsTotal()) {
-              state_ = State::kResult;
-            }
-          }),
-          select_action->ErrorEvent().Subscribe([this](auto const&) {
-            AE_TELED_ERROR("Registration error");
-            state_ = State::kError;
-          }));
+      registration_sub_.Push(select_action->StatusEvent().Subscribe(
+          ActionHandler{OnResult{[this](auto const&) {
+                          if (++clients_registered_ ==
+                              registrator_config_.GetClientsTotal()) {
+                            state_ = State::kResult;
+                          }
+                        }},
+                        OnError{[this]() {
+                          AE_TELED_ERROR("Registration error");
+                          state_ = State::kError;
+                        }}}));
     }
   }
 #endif

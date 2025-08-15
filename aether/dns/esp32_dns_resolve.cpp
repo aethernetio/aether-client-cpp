@@ -35,7 +35,7 @@
 #  include "lwip/tcpip.h"
 
 #  include "aether/aether.h"
-#  include "aether/actions/action_list.h"
+#  include "aether/actions/action_ptr.h"
 #  include "aether/actions/action_context.h"
 #  include "aether/events/multi_subscription.h"
 
@@ -49,12 +49,12 @@ class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
                            NameAddress name_address)
       : Action{action_context}, name_address_{std::move(name_address)} {}
 
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (is_result_) {
-      return ActionResult::Result();
+      return UpdateStatus::Result();
     }
     if (is_failed_) {
-      return ActionResult::Error();
+      return UpdateStatus::Error();
     }
     return {};
   }
@@ -105,21 +105,23 @@ class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
 class GethostByNameDnsResolver {
  public:
   explicit GethostByNameDnsResolver(ActionContext action_context)
-      : resolve_actions_{action_context}, active_queries_{action_context} {}
+      : action_context_{action_context} {}
 
-  ActionView<ResolveAction> Query(NameAddress const& name_address) {
+  ActionPtr<ResolveAction> Query(NameAddress const& name_address) {
     AE_TELE_DEBUG(kEspDnsQueryHost, "Querying host: {}", name_address);
-    auto resolve_action = resolve_actions_.Emplace();
-    auto query_action = active_queries_.Emplace(name_address);
+    auto resolve_action = ActionPtr<ResolveAction>{action_context_};
+    auto query_action =
+        ActionPtr<GetHostByNameQueryAction>{action_context_, name_address};
 
     // connect actions
     multi_subscription_.Push(
-        query_action->ResultEvent().Subscribe(
-            [ra{resolve_action}](auto const& action) mutable {
+        query_action->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[ra{resolve_action}](auto const& action) mutable {
               ra->SetAddress(action.resolved_addresses());
-            }),
-        query_action->ErrorEvent().Subscribe(
-            [ra{resolve_action}](auto const&) mutable { ra->Failed(); }));
+            }},
+            OnError{
+                [ra{resolve_action}](auto const&) mutable { ra->Failed(); }},
+        }));
 
     // make query
     ip_addr_t cached_addr;
@@ -146,8 +148,7 @@ class GethostByNameDnsResolver {
   }
 
  private:
-  ActionList<ResolveAction> resolve_actions_;
-  ActionList<GetHostByNameQueryAction> active_queries_;
+  ActionContext action_context_;
   MultiSubscription multi_subscription_;
 };
 
@@ -160,7 +161,7 @@ Esp32DnsResolver::Esp32DnsResolver(ObjPtr<Aether> aether, Domain* domain)
 
 Esp32DnsResolver::~Esp32DnsResolver() = default;
 
-ActionView<ResolveAction> Esp32DnsResolver::Resolve(
+ActionPtr<ResolveAction> Esp32DnsResolver::Resolve(
     NameAddress const& name_address) {
   if (!gethostbyname_dns_resolver_) {
     gethostbyname_dns_resolver_ =

@@ -25,7 +25,7 @@
 
 #  include "aether/ptr/ptr_view.h"
 #  include "aether/actions/action.h"
-#  include "aether/actions/action_list.h"
+#  include "aether/actions/action_ptr.h"
 #  include "aether/actions/notify_action.h"
 #  include "aether/actions/action_context.h"
 #  include "aether/events/event_subscription.h"
@@ -43,9 +43,10 @@ class UdpTransport : public ITransport {
    public:
     ReadAction(ActionContext action_context, UdpTransport& transport);
 
-    ActionResult Update();
+    UpdateStatus Update();
 
     void Read();
+    void Stop();
 
    private:
     void ReadEvent();
@@ -55,6 +56,7 @@ class UdpTransport : public ITransport {
     std::vector<DataBuffer> read_buffers_;
     std::atomic_bool read_event_{false};
     std::atomic_bool error_event_{false};
+    std::atomic_bool stop_event_{false};
   };
 
   class SendAction final : public SocketPacketSendAction {
@@ -70,7 +72,7 @@ class UdpTransport : public ITransport {
     DataBuffer data_buffer_;
   };
 
-  using ErrorEventAction = NotifyAction<>;
+  using ErrorEventAction = NotifyAction;
 
  public:
   UdpTransport(ActionContext action_context, IPoller::ptr const& poller,
@@ -83,13 +85,13 @@ class UdpTransport : public ITransport {
   ConnectionErrorEvent::Subscriber ConnectionError() override;
   DataReceiveEvent::Subscriber ReceiveEvent() override;
 
-  ActionView<PacketSendAction> Send(DataBuffer data,
-                                    TimePoint current_time) override;
+  ActionPtr<PacketSendAction> Send(DataBuffer data,
+                                   TimePoint current_time) override;
 
  private:
-  void OnRead();
-  void OnWrite();
-  void OnError();
+  void ReadSocket();
+  void WriteSocket();
+  void ErrorSocket();
 
   void OnConnectionError();
   void Disconnect();
@@ -105,9 +107,9 @@ class UdpTransport : public ITransport {
   ConnectionSuccessEvent connection_success_event_;
   ConnectionErrorEvent connection_error_event_;
   DataReceiveEvent data_receive_event_;
-  ErrorEventAction notify_error_action_;
-  SocketPacketQueueManager<SendAction> send_queue_manager_;
-  ActionOpt<ReadAction> read_action_;
+  OwnActionPtr<SocketPacketQueueManager<SendAction>> send_queue_manager_;
+  OwnActionPtr<ErrorEventAction> notify_error_action_;
+  OwnActionPtr<ReadAction> read_action_;
 
   IPoller::OnPollEventSubscriber::Subscription socket_event_sub_;
   Subscription socket_error_sub_;

@@ -24,35 +24,32 @@ namespace ae {
 
 TransportWriteStream::TransportStreamWriteAction::TransportStreamWriteAction(
     ActionContext action_context,
-    ActionView<PacketSendAction> packet_send_action)
+    ActionPtr<PacketSendAction> packet_send_action)
     : StreamWriteAction{action_context},
       packet_send_action_{std::move(packet_send_action)} {
   subscriptions_.Push(
-      packet_send_action_->ResultEvent().Subscribe(
-          [this](auto const& /* action */) {
-            state_ = State::kDone;
-            state_.Acquire();
-            Action::Result(*this);
-          }),
-      packet_send_action_->ErrorEvent().Subscribe([this](auto const& action) {
-        switch (action.state()) {
-          case PacketSendAction::State::kTimeout:
-            state_ = State::kTimeout;
-            break;
-          case PacketSendAction::State::kFailed:
-            state_ = State::kFailed;
-            break;
-          default:
-            AE_TELED_ERROR("What kind of error is this?");
-            assert(false);
-        }
+      packet_send_action_->StatusEvent().Subscribe([this](auto result) {
+        state_ = [&]() -> State {
+          switch (result.action().state()) {
+            case PacketSendAction::State::kQueued:
+              return State::kQueued;
+            case PacketSendAction::State::kProgress:
+              return State::kInProgress;
+            case PacketSendAction::State::kSuccess:
+              return State::kDone;
+            case PacketSendAction::State::kStopped:
+              return State::kStopped;
+            case PacketSendAction::State::kTimeout:
+              return State::kTimeout;
+            case PacketSendAction::State::kFailed:
+              return State::kFailed;
+            case PacketSendAction::State::kPanic:
+              return State::kPanic;
+          }
+          return {};
+        }();
         state_.Acquire();
-        Action::Error(*this);
-      }),
-      packet_send_action_->StopEvent().Subscribe([this](auto const&) {
-        state_ = State::kStopped;
-        state_.Acquire();
-        Action::Stop(*this);
+        Action::Status(*this, result.result());
       }));
 }
 
@@ -62,7 +59,8 @@ void TransportWriteStream::TransportStreamWriteAction::Stop() {
 
 TransportWriteStream::TransportWriteStream(ActionContext action_context,
                                            ITransport& transport)
-    : transport_{&transport},
+    : action_context_{action_context},
+      transport_{&transport},
       stream_info_{},
       transport_connection_subscription_{
           transport_->ConnectionSuccess().Subscribe(
@@ -71,27 +69,26 @@ TransportWriteStream::TransportWriteStream(ActionContext action_context,
           transport_->ConnectionError().Subscribe(
               *this, MethodPtr<&TransportWriteStream::GateUpdate>{})},
       transport_read_data_subscription_{transport_->ReceiveEvent().Subscribe(
-          *this, MethodPtr<&TransportWriteStream::ReceiveData>{})},
-      write_actions_{action_context},
-      failed_write_actions_{action_context} {
+          *this, MethodPtr<&TransportWriteStream::ReceiveData>{})} {
   SetStreamInfo(transport_->GetConnectionInfo());
 }
 
 TransportWriteStream::~TransportWriteStream() = default;
 
-ActionView<StreamWriteAction> TransportWriteStream::Write(DataBuffer&& buffer) {
+ActionPtr<StreamWriteAction> TransportWriteStream::Write(DataBuffer&& buffer) {
   AE_TELED_DEBUG("Write bytes: size: {}\ndata: {}", buffer.size(), buffer);
 
   if (!stream_info_.is_linked) {
-    return failed_write_actions_.Emplace();
+    return ActionPtr<FailedStreamWriteAction>{action_context_};
   }
   if (stream_info_.strict_size_rules &&
       (buffer.size() > stream_info_.max_element_size)) {
     AE_TELED_ERROR("Max element size exceeded");
-    return failed_write_actions_.Emplace();
+    return ActionPtr<FailedStreamWriteAction>{action_context_};
   }
 
-  return write_actions_.Emplace(transport_->Send(std::move(buffer), Now()));
+  return ActionPtr<TransportStreamWriteAction>{
+      action_context_, transport_->Send(std::move(buffer), Now())};
 }
 
 TransportWriteStream::OutDataEvent::Subscriber
