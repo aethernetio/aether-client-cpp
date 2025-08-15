@@ -20,8 +20,8 @@
 #include <chrono>
 #include <memory>
 
-#include "aether/adapters/parent_modem.h"
-#include "aether/adapters/modems/serial_ports/iserial_port.h"
+#include "aether/modems/imodem_driver.h"
+#include "aether/serial_ports/iserial_port.h"
 
 namespace ae {
 

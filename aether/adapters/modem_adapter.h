@@ -22,7 +22,7 @@
 #include <cstdint>
 
 #include "aether/adapters/parent_modem.h"
-#include "aether/adapters/modems/imodem_driver.h"
+#include "aether/modems/imodem_driver.h"
 
 #include "aether/events/events.h"
 #include "aether/actions/action_ptr.h"

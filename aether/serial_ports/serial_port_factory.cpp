@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#include "aether/adapters/modems/serial_ports/serial_port_factory.h"
-#include "aether/adapters/modems/serial_ports/esp32_serial_port.h"
-#include "aether/adapters/modems/serial_ports/win_serial_port.h"
+#include "aether/types/modem_driver_types.h"
+#include "aether/serial_ports/serial_port_factory.h"
+#include "aether/serial_ports/esp32_serial_port.h"
+#include "aether/serial_ports/win_serial_port.h"
 
 
 namespace ae {

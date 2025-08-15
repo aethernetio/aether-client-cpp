@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_MODEM_FACTORY_H_
-#define AETHER_ADAPTERS_MODEMS_MODEM_FACTORY_H_
+#include "aether/modems/modem_factory.h"
 
-#include <memory>
-
-#include "aether/adapters/parent_modem.h"
-#include "aether/adapters/modems/imodem_driver.h"
-
-#define AE_MODEM_SIM7070_ENABLED 0
-#define AE_MODEM_BG95_ENABLED 0
-#define AE_MODEM_THINGY91X_ENABLED 1
+#include "aether/modems/bg95_at_modem.h"
+#include "aether/modems/sim7070_at_modem.h"
+#include "aether/modems/thingy91x_at_modem.h"
 
 namespace ae {
-class ModemDriverFactory {
- public:
-  static std::unique_ptr<IModemDriver> CreateModem(ModemInit modem_init);
-};
-}  // namespace ae
 
-#endif  // AETHER_ADAPTERS_MODEMS_MODEM_FACTORY_H_
+std::unique_ptr<IModemDriver> ModemDriverFactory::CreateModem(
+    ModemInit modem_init) {
+#if AE_MODEM_BG95_ENABLED==1
+  return std::make_unique<Bg95AtModem>(modem_init);
+#elif AE_MODEM_SIM7070_ENABLED==1
+  return std::make_unique<Sim7070AtModem>(modem_init);
+#elif AE_MODEM_THINGY91X_ENABLED==1
+  return std::make_unique<Thingy91xAtModem>(modem_init);
+#endif
+}
+
+}  // namespace ae

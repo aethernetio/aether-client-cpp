@@ -25,7 +25,8 @@
 # include <string>
 # include <memory>
 
-# include "aether/adapters/modems/serial_ports/iserial_port.h"
+# include "aether/serial_ports/iserial_port.h"
+# include "aether/types/modem_driver_types.h"
 
 # define WIN_SERIAL_PORT_ENABLED 1
 

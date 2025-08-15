@@ -14,20 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_SERIAL_PORT_FACTORY_H_
-#define AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_SERIAL_PORT_FACTORY_H_
+#ifndef AETHER_ADAPTERS_MODEMS_MODEM_FACTORY_H_
+#define AETHER_ADAPTERS_MODEMS_MODEM_FACTORY_H_
 
 #include <memory>
 
-#include "aether/adapters/modems/serial_ports/iserial_port.h"
+#include "aether/adapters/parent_modem.h"
+#include "aether/modems/imodem_driver.h"
 
-#define AE_MODEM_SIM7070_ENABLED 1
+#define AE_MODEM_SIM7070_ENABLED 0
+#define AE_MODEM_BG95_ENABLED 0
+#define AE_MODEM_THINGY91X_ENABLED 1
 
 namespace ae {
-class SerialPortFactory {
+class ModemDriverFactory {
  public:
-  static std::unique_ptr<ISerialPort> CreatePort(SerialInit serial_init);
+  static std::unique_ptr<IModemDriver> CreateModem(ModemInit modem_init);
 };
 }  // namespace ae
 
-#endif  // AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_SERIAL_PORT_FACTORY_H_
+#endif  // AETHER_ADAPTERS_MODEMS_MODEM_FACTORY_H_

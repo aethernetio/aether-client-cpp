@@ -14,17 +14,44 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_IMODEM_DRIVER_H_
-#define AETHER_ADAPTERS_MODEMS_IMODEM_DRIVER_H_
+#ifndef AETHER_TYPES_MODEM_DRIVER_TYPES_H_
+#define AETHER_TYPES_MODEM_DRIVER_TYPES_H_
 
-#include <functional>
 #include <string>
-#include <map>
+#include <vector>
 
-#include "aether/types/address.h"
-#include "aether/adapters/modems/serial_ports/iserial_port.h"
+
+#include "aether/aether.h"
 
 namespace ae {
+
+enum class kModemBaudRate : std::uint32_t {
+  kBaudRate0 = 0,
+  kBaudRate300 = 300,
+  kBaudRate600 = 600,
+  kBaudRate1200 = 1200,
+  kBaudRate2400 = 2400,
+  kBaudRate4800 = 4800,
+  kBaudRate9600 = 9600,
+  kBaudRate19200 = 19200,
+  kBaudRate38400 = 38400,
+  kBaudRate57600 = 57600,
+  kBaudRate115200 = 115200,
+  kBaudRate230400 = 230400,
+  kBaudRate921600 = 921600,
+  kBaudRate2000000 = 2000000,
+  kBaudRate2900000 = 2900000,
+  kBaudRate3000000 = 3000000,
+  kBaudRate3200000 = 3200000,
+  kBaudRate3684000 = 3684000,
+  kBaudRate4000000 = 4000000
+};
+
+struct SerialInit {
+  AE_REFLECT_MEMBERS(port_name, baud_rate)
+  std::string port_name;
+  kModemBaudRate baud_rate;
+};
 
 enum class kModemError : std::int8_t {
   kNoError = 0,
@@ -242,46 +269,6 @@ struct PollResult {
   std::vector<PollEvents> revents;
 };
 
-class IModemDriver {
- public:
-  IModemDriver() = default;
-  virtual ~IModemDriver() = default;
+}  // namespace ae
 
-  virtual void Init() = 0;
-  virtual void Start() = 0;
-  virtual void Stop() = 0;
-  virtual void OpenNetwork(std::int8_t& connect_index,
-                           ae::Protocol const protocol, const std::string host,
-                           const std::uint16_t port) = 0;
-  virtual void CloseNetwork(std::int8_t const connect_index) = 0;
-  virtual void WritePacket(std::int8_t const connect_index,
-                           std::vector<uint8_t> const& data) = 0;
-  virtual void ReadPacket(std::int8_t const connect_index,
-                          std::vector<std::uint8_t>& data,
-                          std::int32_t const timeout) = 0;
-  virtual void PollSockets(std::int8_t const connect_index, PollResult& results,
-                           std::int32_t const timeout) = 0;
-  virtual void SetPowerSaveParam(kPowerSaveParam const& psp) = 0;
-  virtual void PowerOff() = 0;
-
-  Event<void(bool result)> modem_connected_event_;
-  Event<void(int result)> modem_error_event_;
-
-  std::string pinToString(const std::uint8_t pin[4]) {
-    std::string result{};
-
-    for (int i = 0; i < 4; ++i) {
-      if (pin[i] > 9) {
-        result = "ERROR";
-        break;
-      }
-      result += static_cast<char>('0' + pin[i]);
-    }
-
-    return result;
-  }
-};
-
-} /* namespace ae */
-
-#endif  // AETHER_ADAPTERS_MODEMS_IMODEM_DRIVER_H_
+#endif  // AETHER_TYPES_MODEM_DRIVER_TYPES_H_
