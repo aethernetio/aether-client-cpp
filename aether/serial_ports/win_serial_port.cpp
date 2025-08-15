@@ -16,9 +16,8 @@
 
 #if defined _WIN32
 
-#include "aether/adapters/modems/serial_ports/win_serial_port.h"
+#include "aether/serial_ports/win_serial_port.h"
 #include "aether/adapters/parent_modem.h"
-
 #include "aether/adapters/adapter_tele.h"
 
 #include <Windows.h>

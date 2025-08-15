@@ -21,7 +21,7 @@
 #include <memory>
 
 #include "aether/adapters/parent_modem.h"
-#include "aether/adapters/modems/serial_ports/iserial_port.h"
+#include "aether/serial_ports/iserial_port.h"
 
 namespace ae {
 
