@@ -26,7 +26,7 @@
 namespace ae {
 WINSerialPort::WINSerialPort(SerialInit serial_init)
     : hPort_(INVALID_HANDLE_VALUE) {
-  Open(serial_init.port_name, serial_init.baud_rate);
+  Open(serial_init.port_name, static_cast<std::uint32_t>(serial_init.baud_rate));
 }
 
 WINSerialPort::~WINSerialPort() { Close(); }

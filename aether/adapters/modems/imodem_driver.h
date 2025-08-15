@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <string>
+#include <map>
 
 #include "aether/types/address.h"
 #include "aether/adapters/modems/serial_ports/iserial_port.h"
@@ -222,16 +223,17 @@ struct ModemInit {
 /**
  * @enum PollEvents
  * @brief Represents event flags for poll() system call monitoring
- * 
+ *
  * Each flag corresponds to a specific type of I/O event that can be monitored
- * using the poll() system call. Flags can be combined using bitwise OR operations.
+ * using the poll() system call. Flags can be combined using bitwise OR
+ * operations.
  */
 enum class PollEvents : unsigned int {
-  kPOLLIN   = 0x0001,
-  kPOLLPRI  = 0x0002,
-  kPOLLOUT  = 0x0004,
-  kPOLLERR  = 0x0008,
-  kPOLLHUP  = 0x0010,
+  kPOLLIN = 0x0001,
+  kPOLLPRI = 0x0002,
+  kPOLLOUT = 0x0004,
+  kPOLLERR = 0x0008,
+  kPOLLHUP = 0x0010,
   kPOLLNVAL = 0x0020
 };
 
@@ -257,8 +259,7 @@ class IModemDriver {
   virtual void ReadPacket(std::int8_t const connect_index,
                           std::vector<std::uint8_t>& data,
                           std::int32_t const timeout) = 0;
-  virtual void PollSockets(std::int8_t const connect_index,
-                           PollResult& results,
+  virtual void PollSockets(std::int8_t const connect_index, PollResult& results,
                            std::int32_t const timeout) = 0;
   virtual void SetPowerSaveParam(kPowerSaveParam const& psp) = 0;
   virtual void PowerOff() = 0;
