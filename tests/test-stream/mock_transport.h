@@ -18,16 +18,16 @@
 #define TESTS_TEST_STREAM_MOCK_TRANSPORT_H_
 
 #include "aether/events/events.h"
-#include "aether/actions/action_list.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/transport/itransport.h"
 #include "aether/actions/action_context.h"
 
 namespace ae {
 class MocTransportPacketSendAction : public PacketSendAction {
  public:
-  MocTransportPacketSendAction(ActionContext action_context, DataBuffer data,
-                               TimePoint sent_time);
-  ActionResult Update() override;
+  MocTransportPacketSendAction(ActionContext action_context, DataBuffer d,
+                               TimePoint st);
+  UpdateStatus Update() override;
   void Stop() override;
 
   void SetState(PacketSendAction::State state);
@@ -55,8 +55,8 @@ class MockTransport : public ITransport {
 
   DataReceiveEvent::Subscriber ReceiveEvent() override;
 
-  ActionView<PacketSendAction> Send(DataBuffer data,
-                                    TimePoint current_time) override;
+  ActionPtr<PacketSendAction> Send(DataBuffer data,
+                                   TimePoint current_time) override;
 
   /**
    * \brief Receive data sent through Send
@@ -78,7 +78,7 @@ class MockTransport : public ITransport {
   void Disconnected();
 
  private:
-  ActionList<MocTransportPacketSendAction> action_list_;
+  ActionContext action_context_;
   ConnectionInfo connection_info_;
 
   ConnectionSuccessEvent connection_success_event_;

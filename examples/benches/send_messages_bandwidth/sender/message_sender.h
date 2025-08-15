@@ -21,7 +21,7 @@
 
 #include "aether/common.h"
 #include "aether/actions/action.h"
-#include "aether/actions/action_view.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/types/state_machine.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
@@ -41,12 +41,12 @@ class MessageSender : public Action<MessageSender> {
 
  public:
   using SendProc =
-      std::function<ActionView<StreamWriteAction>(std::uint16_t id)>;
+      std::function<ActionPtr<StreamWriteAction>(std::uint16_t id)>;
 
   MessageSender(ActionContext action_context, SendProc send_proc,
                 std::size_t send_count);
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   void Stop();
 

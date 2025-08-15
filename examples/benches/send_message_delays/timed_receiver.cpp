@@ -29,16 +29,16 @@ TimedReceiver::TimedReceiver(ActionContext action_context,
   AE_TELED_INFO("TimedReceiver waiting {} messages", wait_count);
 }
 
-ActionResult TimedReceiver::Update() {
+UpdateStatus TimedReceiver::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaiting:
         next_receive_time_ = kWaitTimeout + Now();
         break;
       case State::kReceived:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kTimeOut:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
     }
   }
 
@@ -68,9 +68,9 @@ void TimedReceiver::Receive(std::uint16_t id) {
   }
 }
 
-ActionResult TimedReceiver::CheckTimeout(TimePoint current_time) {
+UpdateStatus TimedReceiver::CheckTimeout(TimePoint current_time) {
   if (next_receive_time_ > current_time) {
-    return ActionResult::Delay(next_receive_time_);
+    return UpdateStatus::Delay(next_receive_time_);
   }
 
   AE_TELED_ERROR("Receive message timeout");

@@ -52,7 +52,7 @@ SafeStreamSendAction::SafeStreamSendAction(ActionContext action_context,
   response_statistics_.Add(config.wait_ack_timeout);
 }
 
-ActionResult SafeStreamSendAction::Update(TimePoint current_time) {
+UpdateStatus SafeStreamSendAction::Update(TimePoint current_time) {
   SendChunk(current_time);
   return SendTimeouts(current_time);
 }
@@ -93,8 +93,7 @@ void SafeStreamSendAction::SetMaxPayload(std::size_t max_payload_size) {
   max_payload_size_ = static_cast<SSRingIndex::type>(max_payload_size);
 }
 
-ActionView<SendingDataAction> SafeStreamSendAction::SendData(
-    DataBuffer&& data) {
+ActionPtr<SendingDataAction> SafeStreamSendAction::SendData(DataBuffer&& data) {
   auto data_size = data.size();
   auto sending_data = SendingData{last_added_, std::move(data)};
   last_added_ += static_cast<SSRingIndex::type>(data_size);
@@ -150,15 +149,15 @@ void SafeStreamSendAction::SendChunk(TimePoint current_time) {
 
   auto write_action = PushData(std::move(data_chunk.data), delta, repeat_count);
 
-  send_subs_.Push(
-      write_action->ErrorEvent().Subscribe([this, end_offset](auto const&) {
-        sending_chunks_.RemoveUpTo(end_offset);
-        send_data_buffer_.Reject(end_offset);
-      }),
-      write_action->StopEvent().Subscribe([this, end_offset](auto const&) {
-        sending_chunks_.RemoveUpTo(end_offset);
-        send_data_buffer_.Stop(end_offset);
-      }));
+  send_subs_.Push(write_action->StatusEvent().Subscribe(
+      ActionHandler{OnError{[this, end_offset]() {
+                      sending_chunks_.RemoveUpTo(end_offset);
+                      send_data_buffer_.Reject(end_offset);
+                    }},
+                    OnStop{[this, end_offset](auto const&) {
+                      sending_chunks_.RemoveUpTo(end_offset);
+                      send_data_buffer_.Stop(end_offset);
+                    }}}));
 }
 
 void SafeStreamSendAction::RejectSend(SendingChunk& sending_chunk) {
@@ -167,7 +166,7 @@ void SafeStreamSendAction::RejectSend(SendingChunk& sending_chunk) {
   send_data_buffer_.Reject(end_offset);
 }
 
-ActionResult SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
+UpdateStatus SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
   if (sending_chunks_.empty()) {
     return {};
   }
@@ -192,10 +191,10 @@ ActionResult SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
     return {};
   }
 
-  return ActionResult::Delay(wait_time);
+  return UpdateStatus::Delay(wait_time);
 }
 
-ActionView<StreamWriteAction> SafeStreamSendAction::PushData(
+ActionPtr<StreamWriteAction> SafeStreamSendAction::PushData(
     DataBuffer&& data_buffer, SSRingIndex::type delta,
     std::uint8_t repeat_count) {
   AE_TELED_DEBUG(

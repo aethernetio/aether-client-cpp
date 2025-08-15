@@ -18,7 +18,6 @@
 #define AETHER_ACTIONS_TIMER_ACTION_H_
 
 #include <cstdint>
-#include <utility>
 
 #include "aether/common.h"
 #include "aether/types/state_machine.h"
@@ -35,8 +34,6 @@ class TimerAction : public Action<TimerAction> {
   };
 
  public:
-  TimerAction() = default;
-
   TimerAction(ActionContext action_context, Duration duration);
   TimerAction(TimerAction const& other) = delete;
   TimerAction(TimerAction&& other) noexcept;
@@ -44,7 +41,7 @@ class TimerAction : public Action<TimerAction> {
   TimerAction& operator=(TimerAction const& other) = delete;
   TimerAction& operator=(TimerAction&& other) noexcept;
 
-  ActionResult Update(TimePoint current_time);
+  UpdateStatus Update(TimePoint current_time);
 
   void Stop();
 

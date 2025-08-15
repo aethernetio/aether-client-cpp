@@ -17,57 +17,33 @@
 #ifndef AETHER_ACTIONS_ACTION_REGISTRY_H_
 #define AETHER_ACTIONS_ACTION_REGISTRY_H_
 
-#include <list>
-#include <cstddef>
+#include <vector>
+#include <memory>
 
 namespace ae {
-template <typename T>
-class Action;
-
 class IAction;
 
 class ActionRegistry {
  public:
-  struct Index {
-    std::size_t counter;   //< counter for all references
-    IAction* action;       //< pointer to action action object
-  };
+  using ActionList = std::vector<std::shared_ptr<IAction>>;
+  using value_type = ActionList::value_type;
 
-  using ActionList = std::list<Index>;
-  using Iterator = ActionList::iterator;
+  ActionRegistry();
 
-  // Manage removing action index from list
-  class IndexShare {
-   public:
-    IndexShare();
-    IndexShare(Iterator iterator, ActionRegistry* registry_);
-    IndexShare(IndexShare const& other);
-    IndexShare(IndexShare&& other) noexcept;
-    ~IndexShare();
+  /**
+   * \brief Adds new action at the list
+   */
+  void PushBack(std::shared_ptr<IAction> action);
 
-    IndexShare& operator=(IndexShare const& other);
-    IndexShare& operator=(IndexShare&& other) noexcept;
+  [[nodiscard]] decltype(auto) begin() noexcept { return action_list_.begin(); }
+  [[nodiscard]] decltype(auto) end() noexcept { return action_list_.end(); }
+  [[nodiscard]] auto size() const noexcept { return action_list_.size(); }
 
-    IAction* get();
-    IAction const* get() const;
-
-    void Erase();
-    Iterator* iterator();
-
-   private:
-    Iterator it_;
-    ActionRegistry* registry_;
-  };
-
-  template <typename T>
-  [[nodiscard]] auto Register(Action<T>& action) {
-    auto iter = action_list_.insert(std::end(action_list_), Index{{}, &action});
-    return IndexShare{iter, this};
-  }
-
-  [[nodiscard]] Iterator begin();
-  [[nodiscard]] Iterator end();
-  std::size_t size() const;
+  /**
+   * \brief Remove pos element.
+   * \return iterator to new element on that pos or end if registry is empty
+   */
+  ActionList::iterator Remove(ActionList::iterator pos);
 
  private:
   ActionList action_list_;

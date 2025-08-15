@@ -19,13 +19,12 @@
 
 #include <map>
 #include <vector>
-#include <optional>
 
 #include "aether/common.h"
 #include "aether/memory.h"
 #include "aether/obj/obj.h"
 #include "aether/obj/dummy_obj.h"  // IWYU pragma: keep
-#include "aether/actions/action_list.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
 #include "aether/ae_actions/select_client.h"
@@ -86,8 +85,8 @@ class Aether : public Obj {
   // User-facing API.
   operator ActionContext() const { return ActionContext{*action_processor}; }
 
-  ActionView<SelectClientAction> SelectClient(Uid parent_uid,
-                                              std::uint32_t client_id);
+  ActionPtr<SelectClientAction> SelectClient(Uid parent_uid,
+                                             std::uint32_t client_id);
 
   void AddServer(Server::ptr&& s);
   Server::ptr GetServer(ServerId server_id);
@@ -117,8 +116,8 @@ class Aether : public Obj {
  private:
   Client::ptr FindClient(std::uint32_t client_id);
 #if AE_SUPPORT_REGISTRATION
-  ActionView<Registration> RegisterClient(Uid parent_uid,
-                                          std::uint32_t client_id);
+  ActionPtr<Registration> RegisterClient(Uid parent_uid,
+                                         std::uint32_t client_id);
 #endif
 
   Client::ptr client_prefab;
@@ -128,9 +127,8 @@ class Aether : public Obj {
 
   tele::TeleStatistics::ptr tele_statistics_;
 
-  std::optional<ActionList<SelectClientAction>> select_client_actions_;
 #if AE_SUPPORT_REGISTRATION
-  std::map<std::uint32_t, std::unique_ptr<Registration>> registration_actions_;
+  std::map<std::uint32_t, ActionPtr<Registration>> registration_actions_;
   MultiSubscription registration_subscriptions_;
 #endif
 };

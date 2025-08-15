@@ -47,22 +47,19 @@ Aether::Aether(Domain* domain) : Obj{domain} {
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
-ActionView<SelectClientAction> Aether::SelectClient(
+ActionPtr<SelectClientAction> Aether::SelectClient(
     [[maybe_unused]] Uid parent_uid, std::uint32_t client_id) {
   AE_TELED_DEBUG("Select parent {}'s client with id {}", parent_uid, client_id);
-  if (!select_client_actions_) {
-    select_client_actions_.emplace(ActionContext{*action_processor});
-  }
 
   auto client = FindClient(client_id);
   if (client) {
-    return select_client_actions_->Emplace(client);
+    return ActionPtr<SelectClientAction>{*action_processor, client};
   }
 #if AE_SUPPORT_REGISTRATION
   auto registration = RegisterClient(parent_uid, client_id);
-  return select_client_actions_->Emplace(*registration);
+  return ActionPtr<SelectClientAction>{*action_processor, *registration};
 #else
-  return select_client_actions_->Emplace();
+  return ActionPtr<SelectClientAction>{*action_processor};
 #endif
 }
 
@@ -101,12 +98,12 @@ Client::ptr Aether::FindClient(std::uint32_t client_id) {
 }
 
 #if AE_SUPPORT_REGISTRATION
-ActionView<Registration> Aether::RegisterClient(Uid parent_uid,
-                                                std::uint32_t client_id) {
+ActionPtr<Registration> Aether::RegisterClient(Uid parent_uid,
+                                               std::uint32_t client_id) {
   // try to find existent registrations
   auto reg_it = registration_actions_.find(client_id);
   if (reg_it != std::end(registration_actions_)) {
-    return ActionView{*reg_it->second};
+    return ActionPtr{reg_it->second};
   }
 
   if (!registration_cloud) {
@@ -121,22 +118,22 @@ ActionView<Registration> Aether::RegisterClient(Uid parent_uid,
   // after registration done, add it to clients list
   // user also can get new client after
   auto [new_reg_it, _] = registration_actions_.emplace(
-      client_id, make_unique<Registration>(*action_processor, self_ptr,
-                                           parent_uid, std::move(new_client)));
+      client_id, ActionPtr<Registration>(*action_processor, self_ptr,
+                                         parent_uid, std::move(new_client)));
 
   // on registration success save client to client_ and remove registration
   // action at the end
   registration_subscriptions_.Push(
-      new_reg_it->second->ResultEvent().Subscribe(
-          [this, client_id](auto const& action) {
+      new_reg_it->second->StatusEvent().Subscribe(
+          OnResult{[this, client_id](auto const& action) {
             auto client = action.client();
             assert(client);
             clients_.emplace(client_id, std::move(client));
-          }),
+          }}),
       new_reg_it->second->FinishedEvent().Subscribe(
           [this, client_id]() { registration_actions_.erase(client_id); }));
 
-  return ActionView{*new_reg_it->second};
+  return ActionPtr{new_reg_it->second};
 }
 #endif
 }  // namespace ae

@@ -32,16 +32,16 @@ TimedSender::TimedSender(ActionContext action_context,
                  send_interval_.count());
 }
 
-ActionResult TimedSender::Update() {
+UpdateStatus TimedSender::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kSend:
         Send();
         break;
       case State::kFinished:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kError:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
       default:
         break;
     }
@@ -77,9 +77,9 @@ void TimedSender::Send() {
   state_ = State::kWaitSync;
 }
 
-ActionResult TimedSender::CheckSyncTimeout(TimePoint current_time) {
+UpdateStatus TimedSender::CheckSyncTimeout(TimePoint current_time) {
   if (next_send_time_ > current_time) {
-    return ActionResult::Delay(next_send_time_);
+    return UpdateStatus::Delay(next_send_time_);
   }
   state_.Set(State::kSend);
   return {};

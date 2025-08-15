@@ -26,7 +26,7 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       destination_{destination},
       receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
-      buffer_stream_{action_context, 20 * 1024},
+      buffer_stream_{action_context_, 20 * 1024},
       send_receive_stream_{} {
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
   // destination uid must not be empty
@@ -47,7 +47,7 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       destination_{destination},
       receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
-      buffer_stream_{action_context, 100},
+      buffer_stream_{action_context_, 100},
       send_receive_stream_{},
       receive_stream_{std::move(receive_stream)} {
   AE_TELE_DEBUG(kP2pMessageStreamRec, "P2pStream received for {}",
@@ -71,7 +71,7 @@ P2pStream::~P2pStream() {
   }
 }
 
-ActionView<StreamWriteAction> P2pStream::Write(DataBuffer&& data) {
+ActionPtr<StreamWriteAction> P2pStream::Write(DataBuffer&& data) {
   return buffer_stream_.Write(std::move(data));
 }
 
@@ -101,11 +101,11 @@ void P2pStream::ConnectSend() {
         client_ptr->client_connection_manager()->GetClientConnection(
             destination_);
     get_client_connection_subscription_ =
-        get_client_connection_action->ResultEvent().Subscribe(
-            [this](auto& action) {
+        get_client_connection_action->StatusEvent().Subscribe(
+            OnResult{[this](auto& action) {
               send_client_connection_ = action.client_cloud_connection();
               TieSendStream(*send_client_connection_);
-            });
+            }});
     return;
   }
   TieSendStream(*send_client_connection_);

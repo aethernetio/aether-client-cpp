@@ -132,23 +132,23 @@ void ClientCloudConnection::OnConnected() {
 
 void ClientCloudConnection::OnConnectionError() {
   AE_TELED_ERROR("Connection error");
-  reconnect_notify_ = ReconnectNotify{action_context_};
+  reconnect_notify_ = ActionPtr<ReconnectNotify>{action_context_};
   reconnect_notify_sub_ =
-      reconnect_notify_.ResultEvent().Subscribe([this](auto const&) {
+      reconnect_notify_->StatusEvent().Subscribe(OnResult{[this]() {
         AE_TELED_DEBUG("Reconnect");
         SelectConnection();
-      });
-  reconnect_notify_.Notify();
+      }});
+  reconnect_notify_->Notify();
 }
 
 void ClientCloudConnection::ServerListEnded() {
-  next_server_loop_timer_ =
-      NextServerLoopTimer{action_context_, std::chrono::milliseconds{5000}};
+  next_server_loop_timer_ = ActionPtr<NextServerLoopTimer>{
+      action_context_, std::chrono::milliseconds{5000}};
   next_server_loop_subs_ =
-      next_server_loop_timer_.ResultEvent().Subscribe([&](auto const&) {
+      next_server_loop_timer_->StatusEvent().Subscribe(OnResult{[&]() {
         AE_TELED_DEBUG("Connect again");
         Connect();
-      });
+      }});
 }
 
 void ClientCloudConnection::NewStream(Uid uid, ByteIStream& stream) {

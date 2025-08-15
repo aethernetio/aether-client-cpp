@@ -46,14 +46,15 @@ EventSubscriber<void()> Sender::Handshake() {
                             *message_stream_};
 
   auto res = api->handshake();
-  handshake_sub_ = res->ResultEvent().Subscribe([this](auto const& promise) {
-    AE_TELED_DEBUG("Handshake received");
-    if (promise.value()) {
-      handshake_made_.Emit();
-    } else {
-      error_event_.Emit();
-    }
-  });
+  handshake_sub_ =
+      res->StatusEvent().Subscribe(OnResult{[this](auto const& promise) {
+        AE_TELED_DEBUG("Handshake received");
+        if (promise.value()) {
+          handshake_made_.Emit();
+        } else {
+          error_event_.Emit();
+        }
+      }});
 
   AE_TELED_DEBUG("Sending handshake request {}", res->request_id());
   api.Flush();
@@ -70,7 +71,7 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
       StartTest().Subscribe([this, message_size, message_count]() {
         // test started
         auto payload_size = message_size > 2 ? message_size - 2 : 0;
-        message_sender_.emplace(
+        message_sender_ = OwnActionPtr<MessageSender>{
             action_context_,
             [this, payload_size](std::uint16_t id) {
               auto api =
@@ -79,26 +80,25 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
               api->message(id, DataBuffer(payload_size));
               return api.Flush();
             },
-            message_count);
+            message_count};
 
-        test_success_sub_ = message_sender_->ResultEvent().Subscribe(
-            [this, message_size](auto const& result) {
+        test_res_sub_ = message_sender_->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[this, message_size](auto const& result) {
               stop_test_sub_ = StopTest().Subscribe(
                   [this, bandwidth = Bandwidth{result.send_duration(),
                                                result.message_send_count(),
                                                message_size}]() {
                     test_finished_event_.Emit(bandwidth);
                   });
-            });
-        test_error_sub_ = message_sender_->ErrorEvent().Subscribe(
-            [this](auto const&) { error_event_.Emit(); });
+            }},
+            OnError{[this]() { error_event_.Emit(); }}});
       });
 
   return test_finished_event_;
 }
 
 EventSubscriber<void()> Sender::StartTest() {
-  start_test_action_.emplace(
+  start_test_action_ = OwnActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
         AE_TELED_DEBUG("Sending start test request");
@@ -106,22 +106,22 @@ EventSubscriber<void()> Sender::StartTest() {
                                   *message_stream_};
 
         auto res = api->start_test();
-        sync_subs_.Push(res->ResultEvent().Subscribe([this](auto const&) {
+        sync_subs_.Push(res->StatusEvent().Subscribe(OnResult{[this]() {
           start_test_action_->Stop();
           test_started_event_.Emit();
-        }));
+        }}));
         api.Flush();
       },
-      std::chrono::seconds{1}, 5);
+      std::chrono::seconds{1}, 5};
 
-  sync_action_failed_sub_ = start_test_action_->ErrorEvent().Subscribe(
-      [this](auto const&) { error_event_.Emit(); });
+  sync_action_failed_sub_ = start_test_action_->StatusEvent().Subscribe(
+      OnError{[this](auto const&) { error_event_.Emit(); }});
 
   return test_started_event_;
 }
 
 EventSubscriber<void()> Sender::StopTest() {
-  stop_test_action_.emplace(
+  stop_test_action_ = OwnActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
         AE_TELED_DEBUG("Sending stop test request");
@@ -129,13 +129,13 @@ EventSubscriber<void()> Sender::StopTest() {
                                   *message_stream_};
 
         auto res = api->stop_test();
-        sync_subs_.Push(res->ResultEvent().Subscribe([this](auto const&) {
+        sync_subs_.Push(res->StatusEvent().Subscribe(OnResult{[this]() {
           stop_test_action_->Stop();
           test_stopped_event_.Emit();
-        }));
+        }}));
         api.Flush();
       },
-      std::chrono::seconds{1}, 5);
+      std::chrono::seconds{1}, 5};
 
   return test_stopped_event_;
 }

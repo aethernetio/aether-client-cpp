@@ -24,7 +24,7 @@ class SocketPacketSendAction : public PacketSendAction {
  public:
   using PacketSendAction::PacketSendAction;
 
-  ActionResult Update() override;
+  UpdateStatus Update() override;
 
   void Stop() override;
 

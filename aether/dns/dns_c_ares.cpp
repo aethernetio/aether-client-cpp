@@ -28,7 +28,7 @@
 
 #  include "aether/aether.h"
 #  include "aether/socket_initializer.h"
-#  include "aether/actions/action_list.h"
+#  include "aether/actions/action_ptr.h"
 #  include "aether/actions/action_context.h"
 
 #  include "aether/dns/dns_tele.h"
@@ -39,12 +39,12 @@ class AresQueryAction : public Action<AresQueryAction> {
   AresQueryAction(ActionContext action_context, NameAddress name_address)
       : Action{action_context}, name_address_{std::move(name_address)} {}
 
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (is_result_) {
-      return ActionResult::Result();
+      return UpdateStatus::Result();
     }
     if (is_failed_) {
-      return ActionResult::Error();
+      return UpdateStatus::Error();
     }
     return {};
   }
@@ -111,7 +111,7 @@ class AresImpl {
   };
 
   explicit AresImpl(ActionContext action_context)
-      : resolve_actions_{action_context}, active_queries_{action_context} {
+      : action_context_{action_context} {
     ares_library_init(ARES_LIB_INIT_ALL);
 
     // ares and win_poller are not compatible
@@ -135,20 +135,21 @@ class AresImpl {
     ares_library_cleanup();
   }
 
-  ActionView<ResolveAction> Query(NameAddress const& name_address) {
+  ActionPtr<ResolveAction> Query(NameAddress const& name_address) {
     AE_TELE_DEBUG(kAresDnsQueryHost, "Querying host: {}", name_address);
 
-    auto resolve_action = resolve_actions_.Emplace();
-    auto query_action = active_queries_.Emplace(name_address);
+    auto resolve_action = ActionPtr<ResolveAction>{action_context_};
+    auto query_action =
+        ActionPtr<AresQueryAction>{action_context_, name_address};
 
     // connect actions
     multi_subscription_.Push(
-        query_action->ResultEvent().Subscribe(
-            [ra{resolve_action}](auto const& action) mutable {
+        query_action->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[ra{resolve_action}](auto const& action) mutable {
               ra->SetAddress(action.resolved_addresses());
-            }),
-        query_action->ErrorEvent().Subscribe(
-            [ra{resolve_action}](auto const&) mutable { ra->Failed(); }));
+            }},
+            OnError{[ra{resolve_action}]() mutable { ra->Failed(); }},
+        }));
 
     ares_addrinfo_hints hints{};
     // BOTH ipv4 and ipv6
@@ -168,9 +169,8 @@ class AresImpl {
   }
 
  private:
+  ActionContext action_context_;
   ares_channel_t* channel_;
-  ActionList<ResolveAction> resolve_actions_;
-  ActionList<AresQueryAction> active_queries_;
 
   MultiSubscription multi_subscription_;
   AE_MAY_UNUSED_MEMBER SocketInitializer socket_initializer_;
@@ -185,7 +185,7 @@ DnsResolverCares::DnsResolverCares(ObjPtr<Aether> aether, Domain* domain)
 
 DnsResolverCares::~DnsResolverCares() = default;
 
-ActionView<ResolveAction> DnsResolverCares::Resolve(
+ActionPtr<ResolveAction> DnsResolverCares::Resolve(
     NameAddress const& name_address) {
   if (!ares_impl_) {
     ares_impl_ = std::make_unique<AresImpl>(*aether_.as<Aether>());

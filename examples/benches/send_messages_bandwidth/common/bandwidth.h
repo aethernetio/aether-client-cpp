@@ -44,7 +44,7 @@ struct Formatter<bench::Bandwidth> {
   template <typename TStream>
   void Format(bench::Bandwidth const& b, FormatContext<TStream>& ctx) const {
     ae::Format(ctx.out(),
-               "Bandwidth: {} bytes/s Message count: {} Duration: {} us",
+               "Bandwidth: {} bits/s Message count: {} Duration: {} us",
                b.bandwidth, b.message_count, b.duration.count());
   }
 };

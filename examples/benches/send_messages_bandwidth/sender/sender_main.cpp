@@ -31,10 +31,10 @@ int test_sender_bandwidth(Uid receiver_uid) {
   auto select_client = aether_app->aether()->SelectClient(
       Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 2);
 
-  select_client->ResultEvent().Subscribe(
-      [&](auto const& reg) { client = reg.client(); });
+  select_client->StatusEvent().Subscribe(
+      OnResult{[&](auto const& reg) { client = reg.client(); }});
 
-  aether_app->WaitAction(select_client);
+  aether_app->WaitActions(select_client);
 
   if (!client) {
     AE_TELED_ERROR("Registration failed");
@@ -45,10 +45,10 @@ int test_sender_bandwidth(Uid receiver_uid) {
   auto sender = Sender{action_context, client, receiver_uid};
 
   auto test_action =
-      TestAction<Sender>{action_context, sender, std::size_t{10000}};
+      ActionPtr<TestAction<Sender>>{action_context, sender, std::size_t{10000}};
 
-  auto result_subscription =
-      test_action.ResultEvent().Subscribe([&](auto const& action) {
+  test_action->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[&](auto const& action) {
         auto res_name_table = std::array{
             std::string_view{"1 Byte"},
             std::string_view{"10 Bytes"},
@@ -63,13 +63,11 @@ int test_sender_bandwidth(Uid receiver_uid) {
         }
         std::cout << "Test results: \n" << res_string << std::endl;
         aether_app->Exit(0);
-      });
-
-  auto error_subscription =
-      test_action.ErrorEvent().Subscribe([&](auto const&) {
+      }},
+      OnError{[&]() {
         AE_TELED_ERROR("Test failed");
         aether_app->Exit(1);
-      });
+      }}});
 
   while (!aether_app->IsExited()) {
     auto time = ae::TimePoint::clock::now();

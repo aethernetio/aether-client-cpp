@@ -16,6 +16,8 @@
 
 #include "aether/actions/timer_action.h"
 
+#include <utility>
+
 namespace ae {
 TimerAction::TimerAction(ActionContext action_context, Duration duration)
     : Action{std::forward<ActionContext>(action_context)},
@@ -44,10 +46,10 @@ TimerAction& TimerAction::operator=(TimerAction&& other) noexcept {
   return *this;
 }
 
-ActionResult TimerAction::Update(TimePoint current_time) {
+UpdateStatus TimerAction::Update(TimePoint current_time) {
   if (state_.get() == State::kWait) {
     if ((start_time_ + timer_duration_) > current_time) {
-      return ActionResult::Delay(start_time_ + timer_duration_);
+      return UpdateStatus::Delay(start_time_ + timer_duration_);
     }
     state_ = State::kTriggered;
   }
@@ -60,9 +62,9 @@ ActionResult TimerAction::Update(TimePoint current_time) {
       case State::kWait:
         break;
       case State::kTriggered:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kStopped:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
     }
   }
   return {};

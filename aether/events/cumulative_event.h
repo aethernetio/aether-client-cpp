@@ -33,6 +33,20 @@ namespace ae {
  */
 template <typename T, std::size_t Count>
 class CumulativeEvent {
+  template <typename std::size_t I>
+  class ValueSetter {
+   public:
+    explicit ValueSetter(CumulativeEvent* event) : event_(event) {}
+
+    ValueSetter& operator=(T value) {
+      event_->values_[I] = value;
+      return *this;
+    }
+
+   private:
+    CumulativeEvent* event_;
+  };
+
  public:
   CumulativeEvent() = default;
 
@@ -76,7 +90,8 @@ class CumulativeEvent {
               .Subscribe(
                   [this, func{std::forward<TFunc>(func)}](auto&&... args) {
                     set_map_[Is] = true;
-                    values_[Is] = func(std::forward<decltype(args)>(args)...);
+                    ValueSetter<Is> vs{this};
+                    func(vs, std::forward<decltype(args)>(args)...);
                     if (IsFull()) {
                       res_event_.Emit(*this);
                     }

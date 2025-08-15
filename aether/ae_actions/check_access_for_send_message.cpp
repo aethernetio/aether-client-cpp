@@ -18,7 +18,7 @@
 
 #include "aether/methods/work_server_api/authorized_api.h"
 
-#include "aether/ae_actions/ae_actions_tele.h"
+#include "aether/ae_actions/ae_actions_tele.h"  // IWYU pragma: keep
 
 namespace ae {
 CheckAccessForSendMessage::CheckAccessForSendMessage(
@@ -32,7 +32,7 @@ CheckAccessForSendMessage::CheckAccessForSendMessage(
       state_changed_sub_{state_.changed_event().Subscribe(
           [&](auto const&) { Action::Trigger(); })} {}
 
-ActionResult CheckAccessForSendMessage::Update() {
+UpdateStatus CheckAccessForSendMessage::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kSendRequest:
@@ -41,11 +41,11 @@ ActionResult CheckAccessForSendMessage::Update() {
       case State::kWaitResponse:
         break;
       case State::kReceivedSuccess:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kReceivedError:
       case State::kSendError:
       case State::kTimeout:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
     }
   }
   return {};
@@ -55,25 +55,24 @@ void CheckAccessForSendMessage::SendRequest() {
   int repeat_count = client_to_server_stream_->stream_info().is_reliable
                          ? 1
                          : kMaxRequestRepeatCount;
-  repeatable_task_.emplace(
+  repeatable_task_ = ActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
         auto api_adapter = client_to_server_stream_->authorized_api_adapter();
         auto check_promise =
             api_adapter->check_access_for_send_message(destination_);
-        wait_check_success_sub_ = check_promise->ResultEvent().Subscribe(
-            [&](auto const&) { ResponseReceived(); });
-        wait_check_error_sub_ = check_promise->ErrorEvent().Subscribe(
-            [&](auto const&) { ErrorReceived(); });
+        wait_check_sub_ = check_promise->StatusEvent().Subscribe(
+            ActionHandler{OnResult{[&]() { ResponseReceived(); }},
+                          OnError{[&]() { ErrorReceived(); }}});
 
         auto send_event = api_adapter.Flush();
-        send_error_sub_ = send_event->ErrorEvent().Subscribe(
-            [&](auto const&) { SendError(); });
+        send_error_sub_ = send_event->StatusEvent().Subscribe(
+            OnError{[&]() { SendError(); }});
       },
-      kRequestTimeout, repeat_count);
+      kRequestTimeout, repeat_count};
 
-  repeat_task_error_sub_ = repeatable_task_->ErrorEvent().Subscribe(
-      [this](auto const&) { state_ = State::kTimeout; });
+  repeat_task_error_sub_ = repeatable_task_->StatusEvent().Subscribe(
+      OnError{[this]() { state_ = State::kTimeout; }});
 
   state_ = State::kWaitResponse;
 }

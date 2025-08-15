@@ -18,7 +18,7 @@
 #define AETHER_TRANSPORT_ITRANSPORT_H_
 
 #include "aether/events/events.h"
-#include "aether/actions/action_view.h"
+#include "aether/actions/action_ptr.h"
 
 #include "aether/types/data_buffer.h"
 #include "aether/transport/actions/packet_send_action.h"
@@ -64,8 +64,8 @@ class ITransport {
 
   virtual DataReceiveEvent::Subscriber ReceiveEvent() = 0;
 
-  virtual ActionView<PacketSendAction> Send(DataBuffer data,
-                                            TimePoint current_time) = 0;
+  virtual ActionPtr<PacketSendAction> Send(DataBuffer data,
+                                           TimePoint current_time) = 0;
 };
 }  // namespace ae
 

@@ -26,7 +26,7 @@ RepeatableTask::RepeatableTask(ActionContext action_context, Task&& task,
       state_{State::kRun},
       current_repeat_{} {}
 
-ActionResult RepeatableTask::Update(TimePoint current_time) {
+UpdateStatus RepeatableTask::Update(TimePoint current_time) {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kRun:
@@ -35,9 +35,9 @@ ActionResult RepeatableTask::Update(TimePoint current_time) {
       case State::kWait:
         break;
       case State::kStop:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
       case State::kRepeatCountExceeded:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
     }
   }
 
@@ -67,14 +67,14 @@ void RepeatableTask::Run(TimePoint current_time) {
   Action::Trigger();
 }
 
-ActionResult RepeatableTask::CheckInterval(TimePoint current_time) {
+UpdateStatus RepeatableTask::CheckInterval(TimePoint current_time) {
   if (next_execution_time_ <= current_time) {
     // repeat run
     state_ = State::kRun;
     Action::Trigger();
     return {};
   }
-  return ActionResult::Delay(next_execution_time_);
+  return UpdateStatus::Delay(next_execution_time_);
 }
 
 }  // namespace ae

@@ -35,18 +35,17 @@ ServerChannelStream::ServerChannelStream(ActionContext action_context,
       buffer_stream_{action_context_, kBufferGateCapacity},
       connection_start_time_{Now()},
       connection_timer_{action_context_, channel->expected_connection_time()},
-      build_transport_success_{build_transport_action_.ResultEvent().Subscribe(
-          [this](auto& action) { OnConnected(action); })},
-      build_transport_failed_{build_transport_action_.ErrorEvent().Subscribe(
-          [this](auto&) { OnConnectedFailed(); })} {
-  connection_timeout_ =
-      connection_timer_.ResultEvent().Subscribe([this](auto const& timer) {
+      build_transport_sub_{build_transport_action_->StatusEvent().Subscribe(
+          ActionHandler{OnResult{[this](auto& action) { OnConnected(action); }},
+                        OnError{[this]() { OnConnectedFailed(); }}})} {
+  connection_timeout_ = connection_timer_->StatusEvent().Subscribe(
+      OnResult{[this](auto const& timer) {
         AE_TELED_ERROR("Connection timeout {:%S}", timer.duration());
         OnConnectedFailed();
-      });
+      }});
 }
 
-ActionView<StreamWriteAction> ServerChannelStream::Write(DataBuffer&& data) {
+ActionPtr<StreamWriteAction> ServerChannelStream::Write(DataBuffer&& data) {
   return buffer_stream_.Write(std::move(data));
 }
 
@@ -64,13 +63,12 @@ StreamInfo ServerChannelStream::stream_info() const {
 
 void ServerChannelStream::OnConnected(
     BuildTransportAction& build_transport_action) {
-  build_transport_success_.Reset();
-  build_transport_failed_.Reset();
+  build_transport_sub_.Reset();
 
   auto channel_ptr = channel_.Lock();
   assert(channel_ptr);
 
-  connection_timer_.Stop();
+  connection_timer_->Stop();
   auto connection_time =
       std::chrono::duration_cast<Duration>(Now() - connection_start_time_);
   channel_ptr->AddConnectionTime(connection_time);
@@ -82,8 +80,7 @@ void ServerChannelStream::OnConnected(
 void ServerChannelStream::OnConnectedFailed() {
   AE_TELED_ERROR("ServerChannelStream:OnConnectedFailed");
   connection_timeout_.Reset();
-  build_transport_success_.Reset();
-  build_transport_failed_.Reset();
+  build_transport_sub_.Reset();
   buffer_stream_.Unlink();
 }
 

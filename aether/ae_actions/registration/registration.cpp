@@ -97,7 +97,7 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
 
 Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
 
-ActionResult Registration::Update() {
+UpdateStatus Registration::Update() {
   AE_TELED_DEBUG("Registration::Update state {}", state_.get());
 
   // TODO: add check for actual packet sending or method timeouts
@@ -125,15 +125,15 @@ ActionResult Registration::Update() {
         ResolveCloud();
         break;
       case State::kRegistered:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kRegistrationFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
       default:
         break;
     }
   }
   if (state_.get() == State::kWaitKeys) {
-    return ActionResult::Delay(WaitKeys());
+    return UpdateStatus::Delay(WaitKeys());
   }
 
   return {};
@@ -194,8 +194,8 @@ void Registration::GetKeys() {
   auto get_key_promise =
       packet_context->get_asymmetric_public_key(kDefaultCryptoLibProfile);
 
-  subscriptions_.Push(
-      get_key_promise->ResultEvent().Subscribe([&](auto& promise) {
+  subscriptions_.Push(get_key_promise->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[&](auto& promise) {
         auto& signed_key = promise.value();
         auto r = CryptoSignVerify(signed_key.sign, signed_key.key, sign_pk_);
         if (!r) {
@@ -207,16 +207,16 @@ void Registration::GetKeys() {
 
         server_pub_key_ = std::move(signed_key.key);
         state_ = State::kGetPowParams;
-      }),
-      get_key_promise->ErrorEvent().Subscribe(
-          [&](auto const&) { state_ = State::kRegistrationFailed; }));
+      }},
+      OnError{[&]() { state_ = State::kRegistrationFailed; }},
+  }));
 
   packet_write_action_ = reg_server_stream_->Write(std::move(packet_context));
 
   // on error try repeat
   raw_transport_send_action_subscription_ =
-      packet_write_action_->ErrorEvent().Subscribe(
-          [this](auto const&) { state_ = State::kSelectConnection; });
+      packet_write_action_->StatusEvent().Subscribe(
+          OnError{[&]() { state_ = State::kSelectConnection; }});
   last_request_time_ = Now();
 
   state_ = State::kWaitKeys;
@@ -258,8 +258,8 @@ void Registration::RequestPowParams() {
   auto pow_params_promise = api_context->request_proof_of_work_data(
       parent_uid_, PowMethod::kBCryptCrc32, std::move(secret_key));
 
-  subscriptions_.Push(
-      pow_params_promise->ResultEvent().Subscribe([&](auto& promise) {
+  subscriptions_.Push(pow_params_promise->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[&](auto& promise) {
         auto& pow_params = promise.value();
         [[maybe_unused]] auto res = CryptoSignVerify(
             pow_params.global_key.sign, pow_params.global_key.key, sign_pk_);
@@ -278,17 +278,16 @@ void Registration::RequestPowParams() {
         pow_params_.pool_size = pow_params.pool_size;
 
         state_ = State::kMakeRegistration;
-      }),
-      pow_params_promise->ErrorEvent().Subscribe(
-          [&](auto const&) { state_ = State::kRegistrationFailed; }));
+      }},
+      OnError{[&]() { state_ = State::kRegistrationFailed; }}}));
 
   packet_write_action_ = reg_server_stream_->Write(std::move(api_context));
 
   reg_server_write_subscription_ =
-      packet_write_action_->ErrorEvent().Subscribe([this](auto const&) {
+      packet_write_action_->StatusEvent().Subscribe(OnError{[this]() {
         AE_TELED_ERROR("RequestPowParams stream write failed");
         state_ = State::kRegistrationFailed;
-      });
+      }});
 }
 
 void Registration::MakeRegistration() {
@@ -333,8 +332,8 @@ void Registration::MakeRegistration() {
   api_context->set_master_key(master_key_);
   auto confirm_promise = api_context->finish();
 
-  subscriptions_.Push(
-      confirm_promise->ResultEvent().Subscribe([&](auto& promise) {
+  subscriptions_.Push(confirm_promise->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[&](auto& promise) {
         auto& reg_response = promise.value();
         AE_TELE_INFO(RegisterRegistrationConfirmed, "Registration confirmed");
 
@@ -344,18 +343,17 @@ void Registration::MakeRegistration() {
         assert(cloud_.size() > 0);
 
         state_ = State::kRequestCloudResolving;
-      }),
-      confirm_promise->ErrorEvent().Subscribe(
-          [&](auto const&) { state_ = State::kRegistrationFailed; }));
+      }},
+      OnError{[&]() { state_ = State::kRegistrationFailed; }}}));
 
   packet_write_action_ =
       global_reg_server_stream_->Write(std::move(api_context));
 
   reg_server_write_subscription_ =
-      packet_write_action_->ErrorEvent().Subscribe([this](auto const&) {
+      packet_write_action_->StatusEvent().Subscribe(OnError{[this]() {
         AE_TELED_ERROR("MakeRegistration stream write failed");
         state_ = State::kRegistrationFailed;
-      });
+      }});
 }
 
 void Registration::ResolveCloud() {
@@ -366,18 +364,17 @@ void Registration::ResolveCloud() {
   auto resolve_cloud_promise = api_context->resolve_servers(cloud_);
 
   subscriptions_.Push(
-      resolve_cloud_promise->ResultEvent().Subscribe(
-          [&](auto& promise) { OnCloudResolved(promise.value()); }),
-      resolve_cloud_promise->ErrorEvent().Subscribe(
-          [&](auto const&) { state_ = State::kRegistrationFailed; }));
+      resolve_cloud_promise->StatusEvent().Subscribe(ActionHandler{
+          OnResult{[&](auto& promise) { OnCloudResolved(promise.value()); }},
+          OnError{[&]() { state_ = State::kRegistrationFailed; }}}));
 
   packet_write_action_ = reg_server_stream_->Write(std::move(api_context));
 
   reg_server_write_subscription_ =
-      packet_write_action_->ErrorEvent().Subscribe([this](auto const&) {
+      packet_write_action_->StatusEvent().Subscribe(OnError{[this]() {
         AE_TELED_ERROR("ResolveCloud stream write failed");
         state_ = State::kRegistrationFailed;
-      });
+      }});
 }
 
 void Registration::OnCloudResolved(

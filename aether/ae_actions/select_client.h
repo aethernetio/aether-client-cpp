@@ -52,7 +52,7 @@ class SelectClientAction final : public Action<SelectClientAction> {
    */
   explicit SelectClientAction(ActionContext action_context);
 
-  ActionResult Update();
+  UpdateStatus Update();
 
   Client::ptr client() const;
   State state() const;
@@ -62,8 +62,7 @@ class SelectClientAction final : public Action<SelectClientAction> {
   StateMachine<State> state_;
 
 #if AE_SUPPORT_REGISTRATION
-  Subscription registered_sub_;
-  Subscription reg_failed_sub_;
+  Subscription registration_sub_;
   Subscription state_changed_sub_;
 #endif
 };

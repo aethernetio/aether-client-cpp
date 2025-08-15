@@ -26,6 +26,7 @@
 #include "aether/server.h"
 #include "aether/channel.h"
 #include "aether/ae_actions/ping.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/ae_actions/telemetry.h"
 #include "aether/client_messages/message_stream_dispatcher.h"
 #include "aether/client_connections/client_to_server_stream.h"
@@ -59,9 +60,9 @@ class ClientServerConnection {
  private:
   std::unique_ptr<ClientToServerStream> server_stream_;
   MessageStreamDispatcher message_stream_dispatcher_;
-  Ping ping_;
+  OwnActionPtr<Ping> ping_;
 #if defined TELEMETRY_ENABLED
-  Telemetry telemetry_;
+  OwnActionPtr<Telemetry> telemetry_;
 #endif
   NewStreamEvent new_stream_event_;
   ServerErrorEvent server_error_event_;

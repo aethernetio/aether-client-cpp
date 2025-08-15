@@ -32,7 +32,7 @@ class RootApi {
  public:
   RootApi(ProtocolContext& protocol_context, ActionContext action_context);
 
-  Method<03, PromiseView<SignedKey>(CryptoLibProfile crypto_lib_profile)>
+  Method<03, PromisePtr<SignedKey>(CryptoLibProfile crypto_lib_profile)>
       get_asymmetric_public_key;
   Method<04, void(CryptoLibProfile crypto_lib_profile, DataBuffer data)> enter;
 };

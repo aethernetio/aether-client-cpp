@@ -32,9 +32,9 @@ SafeStreamRecvAction::SafeStreamRecvAction(ActionContext action_context,
       window_size_{config.window_size},
       acknowledgement_req_{false} {}
 
-ActionResult SafeStreamRecvAction::Update(TimePoint current_time) {
+UpdateStatus SafeStreamRecvAction::Update(TimePoint current_time) {
   CheckCompletedChains();
-  return ActionResult::Merge(CheckAcknowledgement(current_time),
+  return UpdateStatus::Merge(CheckAcknowledgement(current_time),
                              CheckMissing(current_time));
 }
 
@@ -110,7 +110,7 @@ void SafeStreamRecvAction::CheckCompletedChains() {
   }
 }
 
-ActionResult SafeStreamRecvAction::CheckAcknowledgement(
+UpdateStatus SafeStreamRecvAction::CheckAcknowledgement(
     TimePoint current_time) {
   if (!acknowledgement_req_) {
     sent_ack_time_.reset();
@@ -122,7 +122,7 @@ ActionResult SafeStreamRecvAction::CheckAcknowledgement(
   }
 
   if (*sent_ack_time_ > current_time) {
-    return ActionResult::Delay(*sent_ack_time_);
+    return UpdateStatus::Delay(*sent_ack_time_);
   }
   sent_ack_time_.reset();
   acknowledgement_req_ = false;
@@ -133,7 +133,7 @@ ActionResult SafeStreamRecvAction::CheckAcknowledgement(
   return {};
 }
 
-ActionResult SafeStreamRecvAction::CheckMissing(TimePoint current_time) {
+UpdateStatus SafeStreamRecvAction::CheckMissing(TimePoint current_time) {
   if (chunks_.empty()) {
     repeat_request_time_.reset();
     return {};
@@ -144,7 +144,7 @@ ActionResult SafeStreamRecvAction::CheckMissing(TimePoint current_time) {
   }
 
   if (*repeat_request_time_ > current_time) {
-    return ActionResult::Delay(*repeat_request_time_);
+    return UpdateStatus::Delay(*repeat_request_time_);
   }
   repeat_request_time_.reset();
 

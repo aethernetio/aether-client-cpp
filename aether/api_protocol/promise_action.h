@@ -22,7 +22,7 @@
 
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
-#include "aether/actions/action_view.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/api_protocol/request_id.h"
@@ -42,24 +42,18 @@ class PromiseAction : public Action<PromiseAction<TValue>> {
   PromiseAction(ActionContext action_context, RequestId req_id)
       : BaseAction{action_context}, request_id_{req_id} {}
 
-  PromiseAction(PromiseAction const& other) = delete;
+  AE_CLASS_MOVE_ONLY(PromiseAction);
 
-  PromiseAction(PromiseAction&& other) noexcept
-      : BaseAction{std::move(other)}, request_id_{other.request_id_} {}
-
-  PromiseAction& operator=(PromiseAction const& other) = delete;
-  PromiseAction& operator=(PromiseAction&& other) = delete;
-
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kEmpty:
           break;
         case State::kValue:
-          return ActionResult::Result();
+          return UpdateStatus::Result();
           break;
         case State::kError:
-          return ActionResult::Error();
+          return UpdateStatus::Error();
           break;
       }
     }
@@ -109,24 +103,18 @@ class PromiseAction<void> : public Action<PromiseAction<void>> {
   PromiseAction(ActionContext action_context, RequestId req_id)
       : BaseAction{action_context}, request_id_{req_id} {}
 
-  PromiseAction(PromiseAction const& other) = delete;
+  AE_CLASS_MOVE_ONLY(PromiseAction);
 
-  PromiseAction(PromiseAction&& other) noexcept
-      : BaseAction{std::move(other)}, request_id_{other.request_id_} {}
-
-  PromiseAction& operator=(PromiseAction const& other) = delete;
-  PromiseAction& operator=(PromiseAction&& other) = delete;
-
-  ActionResult Update() {
+  UpdateStatus Update() {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kEmpty:
           break;
         case State::kValue:
-          return ActionResult::Result();
+          return UpdateStatus::Result();
           break;
         case State::kError:
-          return ActionResult::Error();
+          return UpdateStatus::Error();
           break;
       }
     }
@@ -151,6 +139,6 @@ class PromiseAction<void> : public Action<PromiseAction<void>> {
 };
 
 template <typename T>
-using PromiseView = ActionView<PromiseAction<T>>;
+using PromisePtr = ActionPtr<PromiseAction<T>>;
 }  // namespace ae
 #endif  // AETHER_API_PROTOCOL_PROMISE_ACTION_H_

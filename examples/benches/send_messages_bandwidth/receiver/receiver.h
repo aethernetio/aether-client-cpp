@@ -17,11 +17,10 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_RECEIVER_RECEIVER_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_RECEIVER_RECEIVER_H_
 
-#include <optional>
-
 #include "aether/client.h"
 #include "aether/memory.h"
 #include "aether/events/events.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/event_subscription.h"
 #include "aether/client_connections/client_connection.h"
@@ -57,7 +56,7 @@ class Receiver {
   Ptr<ClientConnection> client_connection_;
   std::unique_ptr<ByteIStream> message_stream_;
 
-  std::optional<MessageReceiver> message_receiver_;
+  OwnActionPtr<MessageReceiver> message_receiver_;
 
   Event<void(Bandwidth const&)> test_finished_event_;
   Event<void()> handshake_made_event_;
@@ -72,7 +71,7 @@ class Receiver {
   Subscription test_start_sub_;
   Subscription test_stop_sub_;
   Subscription recv_data_sub_;
-  Subscription test_success_sub_;
+  Subscription test_res_sub_;
   Subscription test_error_sub_;
 };
 }  // namespace ae::bench

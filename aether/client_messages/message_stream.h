@@ -30,7 +30,7 @@ class MessageStream final : public ByteIStream {
   MessageStream(MessageStream const&) = delete;
   MessageStream(MessageStream&& other) noexcept;
 
-  ActionView<StreamWriteAction> Write(DataBuffer&& data) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
 
   StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;

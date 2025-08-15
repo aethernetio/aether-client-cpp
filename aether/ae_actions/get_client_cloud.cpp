@@ -71,7 +71,7 @@ GetClientCloudAction::GetClientCloudAction(
   start_resolve_ = Now();
 }
 
-ActionResult GetClientCloudAction::Update() {
+UpdateStatus GetClientCloudAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kRequestCloud:
@@ -81,11 +81,11 @@ ActionResult GetClientCloudAction::Update() {
         RequestServerResolve();
         break;
       case State::kAllServersResolved:
-        return ActionResult::Result();
+        return UpdateStatus::Result();
       case State::kFailed:
-        return ActionResult::Error();
+        return UpdateStatus::Error();
       case State::kStopped:
-        return ActionResult::Stop();
+        return UpdateStatus::Stop();
     }
   }
 
@@ -117,26 +117,27 @@ void GetClientCloudAction::RequestCloud() {
   auto repeat_count = cloud_request_stream_->stream_info().is_reliable ? 1 : 5;
 
   // Repeat request's until get the answear
-  request_cloud_task_.emplace(
+  request_cloud_task_ = ActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
         cloud_request_action_ = cloud_request_stream_->Write(Uid{client_uid_});
         cloud_request_subscriptions_.Push(
-            cloud_request_action_->StopEvent().Subscribe([this](auto const&) {
-              request_cloud_task_->Stop();
-              state_.Set(State::kFailed);
-            }),
-            cloud_request_action_->ErrorEvent().Subscribe([this](auto const&) {
-              request_cloud_task_->Stop();
-              state_.Set(State::kFailed);
-            }));
+            cloud_request_action_->StatusEvent().Subscribe(
+                ActionHandler{OnStop{[this]() {
+                                request_cloud_task_->Stop();
+                                state_.Set(State::kFailed);
+                              }},
+                              OnError{[this]() {
+                                request_cloud_task_->Stop();
+                                state_.Set(State::kFailed);
+                              }}}));
       },
-      std::chrono::milliseconds{500}, repeat_count);
+      std::chrono::milliseconds{500}, repeat_count};
   cloud_request_subscriptions_.Push(
-      request_cloud_task_->ErrorEvent().Subscribe([this](auto const&) {
+      request_cloud_task_->StatusEvent().Subscribe(OnError{[this]() {
         AE_TELED_ERROR("Cloud request count exceeded");
         state_ = State::kFailed;
-      }));
+      }}));
 }
 
 void GetClientCloudAction::RequestServerResolve() {
@@ -151,34 +152,37 @@ void GetClientCloudAction::RequestServerResolve() {
   for (auto server_id : uid_and_cloud_.cloud) {
     auto [it, _] = server_resolve_tasks_.emplace(
         server_id,
-        RepeatableTask{
+        ActionPtr<RepeatableTask>{
             action_context_,
             [this, server_id]() {
               auto swa = server_resolver_stream_->Write(
                   std::move(ServerId{server_id}));
               server_resolve_subscriptions_.Push(
-                  swa->StopEvent().Subscribe([this, server_id](auto const&) {
-                    AE_TELE_ERROR(kGetClientCloudServerResolveStopped,
-                                  "Resolve server id {} stopped", server_id);
-                    state_.Set(State::kFailed);
-                    server_resolve_tasks_.at(server_id).Stop();
-                  }),
-                  swa->ErrorEvent().Subscribe([this, server_id](auto const&) {
-                    AE_TELE_ERROR(kGetClientCloudServerResolveFailed,
-                                  "Resolve server id {} failed", server_id);
-                    state_.Set(State::kFailed);
-                    server_resolve_tasks_.at(server_id).Stop();
-                  }));
+                  swa->StatusEvent().Subscribe(ActionHandler{
+                      OnStop{[this, server_id]() {
+                        AE_TELE_ERROR(kGetClientCloudServerResolveStopped,
+                                      "Resolve server id {} stopped",
+                                      server_id);
+                        state_.Set(State::kFailed);
+                        server_resolve_tasks_.at(server_id)->Stop();
+                      }},
+                      OnError{[this, server_id]() {
+                        AE_TELE_ERROR(kGetClientCloudServerResolveFailed,
+                                      "Resolve server id {} failed", server_id);
+                        state_.Set(State::kFailed);
+                        server_resolve_tasks_.at(server_id)->Stop();
+                      }}}));
+
               server_resolve_actions_[server_id] = std::move(swa);
             },
             std::chrono::milliseconds{500}, repeat_count});
 
     server_resolve_subscriptions_.Push(
-        it->second.ErrorEvent().Subscribe([this, server_id](auto const&) {
+        it->second->StatusEvent().Subscribe(OnError{[this, server_id]() {
           AE_TELED_ERROR("Resolve server id {} repeat count exceeded",
                          server_id);
           state_ = State::kFailed;
-        }));
+        }}));
   }
 }
 
@@ -197,7 +201,7 @@ void GetClientCloudAction::OnServerResponse(
                 server_descriptor.ips.size());
   if (auto it = server_resolve_tasks_.find(server_descriptor.server_id);
       it != std::end(server_resolve_tasks_)) {
-    it->second.Stop();
+    it->second->Stop();
     server_resolve_tasks_.erase(it);
   }
 
