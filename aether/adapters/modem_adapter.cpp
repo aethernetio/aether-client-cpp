@@ -24,7 +24,6 @@
 
 #include "aether/adapters/adapter_tele.h"
 
-
 namespace ae {
 namespace modem_adapter_internal {
 class ModemAdapterTransportBuilder final : public ITransportBuilder {
@@ -47,24 +46,24 @@ class ModemAdapterTransportBuilder final : public ITransportBuilder {
   }
 
  private:
-    std::unique_ptr<ITransport> BuildTcp() {
-#  if defined COMMON_TCP_TRANSPORT_ENABLED
+  std::unique_ptr<ITransport> BuildTcp() {
+#if defined COMMON_TCP_TRANSPORT_ENABLED
     assert(address_port_protocol_.protocol == Protocol::kTcp);
     return make_unique<TcpTransport>(*adapter_->aether_.as<Aether>(),
                                      adapter_->poller_, address_port_protocol_);
-#  else
+#else
     static_assert(false, "No transport enabled");
-#  endif
+#endif
   }
 
   std::unique_ptr<ITransport> BuildUdp() {
-#  if defined COMMON_UDP_TRANSPORT_ENABLED
+#if defined COMMON_UDP_TRANSPORT_ENABLED
     assert(address_port_protocol_.protocol == Protocol::kUdp);
     return make_unique<UdpTransport>(*adapter_->aether_.as<Aether>(),
                                      adapter_->poller_, address_port_protocol_);
-#  else
+#else
     static_assert(false, "No transport enabled");
-#  endif
+#endif
   }
 
   ModemAdapter* adapter_;
@@ -195,10 +194,11 @@ ActionPtr<TransportBuilderAction> ModemAdapter::CreateTransport(
   AE_TELE_INFO(kAdapterModemAdapterCreate, "Create transport for {}",
                address_port_protocol);
   if (connected_) {
-    return ActionPtr<TransportBuilderAction>(*aether_.as<Aether>(), *this,
-                                             address_port_protocol);
+    return ActionPtr<
+        modem_adapter_internal::ModemAdapterTransportBuilderAction>(
+        *aether_.as<Aether>(), *this, address_port_protocol);
   }
-  return ActionPtr<TransportBuilderAction>(
+  return ActionPtr<modem_adapter_internal::ModemAdapterTransportBuilderAction>(
       *aether_.as<Aether>(), EventSubscriber{modem_connected_event_}, *this,
       address_port_protocol);
 }
