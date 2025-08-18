@@ -109,16 +109,22 @@ list(APPEND adapters_srcs
             "adapters/ethernet.cpp"
             "adapters/parent_wifi.cpp"
             "adapters/parent_modem.cpp"
-            "adapters/modem_adapter.cpp"
-            "adapters/modems/modem_factory.cpp"
-            "adapters/modems/bg95_at_modem.cpp"            
-            "adapters/modems/sim7070_at_modem.cpp"
-            "adapters/modems/thingy91x_at_modem.cpp"
-            "adapters/modems/serial_ports/serial_port_factory.cpp"
-            "adapters/modems/serial_ports/esp32_serial_port.cpp"
-            "adapters/modems/serial_ports/win_serial_port.cpp"
+            "adapters/modem_adapter.cpp"            
             )
 
+list(APPEND modems_srcs
+            "modems/modem_factory.cpp"
+            #"modems/bg95_at_modem.cpp"            
+            "modems/sim7070_at_modem.cpp"
+            "modems/thingy91x_at_modem.cpp"
+            )
+
+list(APPEND serial_ports_srcs
+            "serial_ports/serial_port_factory.cpp"
+            "serial_ports/esp32_serial_port.cpp"
+            "serial_ports/win_serial_port.cpp"
+            )
+            
 list(APPEND transport_srcs
             "transport/actions/build_transport_action.cpp"
             "transport/server/server_channel_stream.cpp"
@@ -268,6 +274,8 @@ if(REGULAR_CMAKE_PROJECT)
                             ${server_list_srcs}
                             ${stream_api_src}
                             ${adapters_srcs}
+                            ${modems_srcs}
+                            ${serial_ports_srcs}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
                             ${methods_srcs}
@@ -308,6 +316,8 @@ else()
                             ${events_srcs}
                             ${actions_srcs}
                             ${adapters_srcs}
+                            ${modems_srcs}
+                            ${serial_ports_srcs}
                             ${transport_srcs}
                             ${server_list_srcs}
                             ${stream_api_src}

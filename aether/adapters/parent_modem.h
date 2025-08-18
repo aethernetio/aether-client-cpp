@@ -23,7 +23,7 @@
 #include "aether/adapters/adapter.h"
 #include "aether/poller/poller.h"
 
-#include "aether/adapters/modems/imodem_driver.h"
+#include "aether/modems/imodem_driver.h"
 
 namespace ae {
 class Aether;

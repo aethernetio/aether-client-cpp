@@ -15,9 +15,8 @@
  */
 
 #include <bitset>
-
-#include "aether/adapters/modems/thingy91x_at_modem.h"
-#include "aether/adapters/modems/serial_ports/serial_port_factory.h"
+#include "aether/modems/thingy91x_at_modem.h"
+#include "aether/serial_ports/serial_port_factory.h"
 #include "aether/adapters/adapter_tele.h"
 
 namespace ae {
