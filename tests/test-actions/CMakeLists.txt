@@ -18,6 +18,8 @@ list(APPEND test_srcs
   main.cpp
   test-action-registry.cpp
   test-action-processor.cpp
+  test-action-status-event.cpp
+  test-action.cpp
 )
 
 if(NOT CM_PLATFORM)
