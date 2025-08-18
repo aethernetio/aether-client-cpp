@@ -292,7 +292,7 @@ void Sim7070AtModem::ReadPacket(std::int8_t const connect_index,
       // connection with an identifier 0.
       sendATCommand("AT+CAACK=" + connect_i_str);
       // +CAACK: 5,0 // Total size of sent data is 5 and unack data is 0
-      auto response = serial_->ReadData();
+      auto response = serial_->Read();
       std::string response_string(response->begin(), response->end());
       auto start = response_string.find("+CAACK: ") + 8;
       auto stop = response_string.find(",");
@@ -309,7 +309,7 @@ void Sim7070AtModem::ReadPacket(std::int8_t const connect_index,
       err = CheckResponce("+CADATAIND", 1000, "+CADATAIND command error!");
       // AT+CARECV=0,<length> Receive data via an established connection
       sendATCommand("AT+CARECV=" + connect_i_str + "," + std::to_string(size));
-      auto response = serial_->ReadData();
+      auto response = serial_->Read();
       std::string response_string(response->begin(), response->end());
       auto start = response_string.find(",") + 1;
       std::vector<std::uint8_t> response_vector(
@@ -357,9 +357,9 @@ kModemError Sim7070AtModem::CheckResponce(std::string responce,
   return err;
 }
 
-kModemError Sim7070AtModem::SetBaudRate(kModemBaudRate rate) {
+kModemError Sim7070AtModem::SetBaudRate(kBaudRate rate) {
   kModemError err{kModemError::kNoError};
-  
+
   auto it = baud_rate_commands_sim7070.find(rate);
   if (it == baud_rate_commands_sim7070.end()) {
     err = kModemError::kBaudRateError;
@@ -538,7 +538,7 @@ bool Sim7070AtModem::waitForResponse(const std::string& expected,
       return false;
     }
 
-    if (auto response = serial_->ReadData()) {
+    if (auto response = serial_->Read()) {
       std::string response_str(response->begin(), response->end());
       if (response_str.find(expected) != std::string::npos) {
         return true;

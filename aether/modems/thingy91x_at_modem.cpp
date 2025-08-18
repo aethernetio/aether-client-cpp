@@ -97,7 +97,7 @@ void Thingy91xAtModem::Stop() {
 
   if (serial_->GetConnected()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
+
     // Disabling full functionality
     if (err == kModemError::kNoError) {
       sendATCommand("AT+CFUN=0");
@@ -150,7 +150,7 @@ void Thingy91xAtModem::OpenNetwork(std::int8_t& connect_index,
       if (protocol_ == ae::Protocol::kTcp) {
         // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
         sendATCommand("AT#XSOCKET=1," + protocol_str + ",0");  // Create socket
-        auto response = serial_->ReadData();  // Get socket handle
+        auto response = serial_->Read();  // Get socket handle
         std::string response_string(response->begin(), response->end());
         auto start = response_string.find("#XSOCKET: ") + 10;
         auto stop = response_string.find(",");
@@ -175,7 +175,7 @@ void Thingy91xAtModem::OpenNetwork(std::int8_t& connect_index,
       } else if (protocol_ == ae::Protocol::kUdp) {
         // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
         sendATCommand("AT#XSOCKET=1," + protocol_str + ",0");  // Create socket
-        auto response = serial_->ReadData();  // Get socket handle
+        auto response = serial_->Read();  // Get socket handle
         std::string response_string(response->begin(), response->end());
         auto start = response_string.find("#XSOCKET: ") + 10;
         auto stop = response_string.find(",");
@@ -314,7 +314,7 @@ void Thingy91xAtModem::ReadPacket(std::int8_t const connect_index,
       err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
       // #XRECV=<timeout>[,<flags>]
       sendATCommand("AT#XRECV=" + timeout_str);
-      auto response = serial_->ReadData();
+      auto response = serial_->Read();
       std::string response_string(response->begin(), response->end());
       auto start = response_string.find("#XRECV: ") + 8;
       auto stop = response_string.find("\r\n", 2);
@@ -341,7 +341,7 @@ void Thingy91xAtModem::ReadPacket(std::int8_t const connect_index,
       err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
       // #XRECVFROM=<timeout>[,<flags>]
       sendATCommand("AT#XRECVFROM=" + timeout_str);
-      auto response = serial_->ReadData();
+      auto response = serial_->Read();
       std::string response_string(response->begin(), response->end());
       auto start = response_string.find("#XRECVFROM: ") + 12;
       auto stop = response_string.find(",");
@@ -392,7 +392,7 @@ void Thingy91xAtModem::PollSockets(std::int8_t const connect_index,
       cmd = "AT#XPOLL=" + std::to_string(timeout);
       cmd += "," + std::to_string(handle);
       sendATCommand(cmd);
-      auto response = serial_->ReadData();
+      auto response = serial_->Read();
       std::string response_string(response->begin(), response->end());
       auto start = response_string.find("#XPOLL: ") + 8;
       auto stop = response_string.find(",");
@@ -403,7 +403,7 @@ void Thingy91xAtModem::PollSockets(std::int8_t const connect_index,
         if (hndl_tst == handle) {
           // The  <revents>  value is a hexadecimal string.
           // It represents the returned events, which could be a combination
-          // of POLLIN, POLLERR, POLLHUP and POLLNVAL.          
+          // of POLLIN, POLLERR, POLLHUP and POLLNVAL.
           err = ParsePollEvents(response_string.substr(stop + 2, 6), revnts);
           if (err == kModemError::kNoError) {
             results.connect_index = connect_index;
@@ -948,7 +948,7 @@ bool Thingy91xAtModem::waitForResponse(const std::string& expected,
       return false;
     }
 
-    if (auto response = serial_->ReadData()) {
+    if (auto response = serial_->Read()) {
       std::string response_str(response->begin(), response->end());
       if (response_str.find(expected) != std::string::npos) {
         return true;

@@ -14,45 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TYPES_MODEM_DRIVER_TYPES_H_
-#define AETHER_TYPES_MODEM_DRIVER_TYPES_H_
+#ifndef AETHER_MODEMS_MODEM_DRIVER_TYPES_H_
+#define AETHER_MODEMS_MODEM_DRIVER_TYPES_H_
 
 #include <string>
 #include <vector>
 
-
-#include "aether/aether.h"
+#include "aether/reflect/reflect.h"
+#include "aether/serial_ports/serial_port_types.h"
 
 namespace ae {
-
-enum class kModemBaudRate : std::uint32_t {
-  kBaudRate0 = 0,
-  kBaudRate300 = 300,
-  kBaudRate600 = 600,
-  kBaudRate1200 = 1200,
-  kBaudRate2400 = 2400,
-  kBaudRate4800 = 4800,
-  kBaudRate9600 = 9600,
-  kBaudRate19200 = 19200,
-  kBaudRate38400 = 38400,
-  kBaudRate57600 = 57600,
-  kBaudRate115200 = 115200,
-  kBaudRate230400 = 230400,
-  kBaudRate921600 = 921600,
-  kBaudRate2000000 = 2000000,
-  kBaudRate2900000 = 2900000,
-  kBaudRate3000000 = 3000000,
-  kBaudRate3200000 = 3200000,
-  kBaudRate3684000 = 3684000,
-  kBaudRate4000000 = 4000000
-};
-
-struct SerialInit {
-  AE_REFLECT_MEMBERS(port_name, baud_rate)
-  std::string port_name;
-  kModemBaudRate baud_rate;
-};
-
 enum class kModemError : std::int8_t {
   kNoError = 0,
   kSerialPortError = -1,
@@ -99,7 +70,7 @@ enum class kAuthType : std::uint8_t {
   kAuthTypePAPCHAP = 3
 };
 
-//========================power save=====================================
+// ========================power save=====================================
 
 // Multiplier Bits
 // 8 7 6
@@ -225,7 +196,7 @@ struct kPowerSaveParam {
   std::vector<BandPower> power;
 };
 
-//========================modem init==========================================
+// ========================modem init==========================================
 struct ModemInit {
   AE_REFLECT_MEMBERS(serial_init, pin, use_pin, operator_name, apn_name,
                      apn_user, apn_pass, modem_mode, auth_type, use_auth,
@@ -255,7 +226,7 @@ struct ModemInit {
  * using the poll() system call. Flags can be combined using bitwise OR
  * operations.
  */
-enum class PollEvents : unsigned int {
+enum class PollEvents : std::uint8_t {
   kPOLLIN = 0x0001,
   kPOLLPRI = 0x0002,
   kPOLLOUT = 0x0004,
@@ -271,4 +242,4 @@ struct PollResult {
 
 }  // namespace ae
 
-#endif  // AETHER_TYPES_MODEM_DRIVER_TYPES_H_
+#endif  // AETHER_MODEMS_MODEM_DRIVER_TYPES_H_

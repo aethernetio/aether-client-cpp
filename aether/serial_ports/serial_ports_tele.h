@@ -14,22 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_MODEMS_MODEM_FACTORY_H_
-#define AETHER_MODEMS_MODEM_FACTORY_H_
+#ifndef AETHER_SERIAL_PORTS_SERIAL_PORTS_TELE_H_
+#define AETHER_SERIAL_PORTS_SERIAL_PORTS_TELE_H_
 
-#include <memory>
-
-#include "aether/modems/imodem_driver.h"
-
-#define AE_MODEM_SIM7070_ENABLED 0
-#define AE_MODEM_BG95_ENABLED 0
-#define AE_MODEM_THINGY91X_ENABLED 1
+#include "aether/tele/tele.h"
 
 namespace ae {
-class ModemDriverFactory {
- public:
-  static std::unique_ptr<IModemDriver> CreateModem(ModemInit modem_init);
-};
+AE_TELE_MODULE(kSerialPorts, 200, 500, 550);
+
+AE_TAG(kAdapterSerialNotOpen, kSerialPorts)
+AE_TAG(kAdapterSerialWriteFiled, kSerialPorts)
+AE_TAG(kAdapterSerialPartialData, kSerialPorts)
+AE_TAG(kAdapterSerialPortState, kSerialPorts)
+AE_TAG(kAdapterSerialConfigurePort, kSerialPorts)
 }  // namespace ae
 
-#endif  // AETHER_MODEMS_MODEM_FACTORY_H_
+#endif  // AETHER_SERIAL_PORTS_SERIAL_PORTS_TELE_H_

@@ -21,12 +21,12 @@
 
 #include <cstdint>
 
-#include "aether/adapters/parent_modem.h"
-#include "aether/modems/imodem_driver.h"
-
 #include "aether/events/events.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/events/event_subscription.h"
+
+#include "aether/modems/imodem_driver.h"
+#include "aether/adapters/parent_modem.h"
 
 #define MODEM_TCP_TRANSPORT_ENABLED 1
 

@@ -30,26 +30,26 @@ struct Sim7070Connection {
   std::uint32_t connect_index;
 };
 
-static const std::map<kModemBaudRate, std::string> baud_rate_commands_sim7070 =
-    {{kModemBaudRate::kBaudRate0, "AT+IPR=0"},
-     {kModemBaudRate::kBaudRate300, "AT+IPR=300"},
-     {kModemBaudRate::kBaudRate600, "AT+IPR=600"},
-     {kModemBaudRate::kBaudRate1200, "AT+IPR=1200"},
-     {kModemBaudRate::kBaudRate2400, "AT+IPR=2400"},
-     {kModemBaudRate::kBaudRate4800, "AT+IPR=4800"},
-     {kModemBaudRate::kBaudRate9600, "AT+IPR=9600"},
-     {kModemBaudRate::kBaudRate19200, "AT+IPR=19200"},
-     {kModemBaudRate::kBaudRate38400, "AT+IPR=38400"},
-     {kModemBaudRate::kBaudRate57600, "AT+IPR=57600"},
-     {kModemBaudRate::kBaudRate115200, "AT+IPR=115200"},
-     {kModemBaudRate::kBaudRate230400, "AT+IPR=230400"},
-     {kModemBaudRate::kBaudRate921600, "AT+IPR=921600"},
-     {kModemBaudRate::kBaudRate2000000, "AT+IPR=2000000"},
-     {kModemBaudRate::kBaudRate2900000, "AT+IPR=2900000"},
-     {kModemBaudRate::kBaudRate3000000, "AT+IPR=3000000"},
-     {kModemBaudRate::kBaudRate3200000, "AT+IPR=3200000"},
-     {kModemBaudRate::kBaudRate3684000, "AT+IPR=3684000"},
-     {kModemBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
+static const std::map<kBaudRate, std::string> baud_rate_commands_sim7070 = {
+    {kBaudRate::kBaudRate0, "AT+IPR=0"},
+    {kBaudRate::kBaudRate300, "AT+IPR=300"},
+    {kBaudRate::kBaudRate600, "AT+IPR=600"},
+    {kBaudRate::kBaudRate1200, "AT+IPR=1200"},
+    {kBaudRate::kBaudRate2400, "AT+IPR=2400"},
+    {kBaudRate::kBaudRate4800, "AT+IPR=4800"},
+    {kBaudRate::kBaudRate9600, "AT+IPR=9600"},
+    {kBaudRate::kBaudRate19200, "AT+IPR=19200"},
+    {kBaudRate::kBaudRate38400, "AT+IPR=38400"},
+    {kBaudRate::kBaudRate57600, "AT+IPR=57600"},
+    {kBaudRate::kBaudRate115200, "AT+IPR=115200"},
+    {kBaudRate::kBaudRate230400, "AT+IPR=230400"},
+    {kBaudRate::kBaudRate921600, "AT+IPR=921600"},
+    {kBaudRate::kBaudRate2000000, "AT+IPR=2000000"},
+    {kBaudRate::kBaudRate2900000, "AT+IPR=2900000"},
+    {kBaudRate::kBaudRate3000000, "AT+IPR=3000000"},
+    {kBaudRate::kBaudRate3200000, "AT+IPR=3200000"},
+    {kBaudRate::kBaudRate3684000, "AT+IPR=3684000"},
+    {kBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
 
 class Sim7070AtModem : public IModemDriver {
  public:
@@ -76,7 +76,7 @@ class Sim7070AtModem : public IModemDriver {
 
   kModemError CheckResponce(std::string responce, std::uint32_t wait_time,
                             std::string error_message);
-  kModemError SetBaudRate(kModemBaudRate rate);
+  kModemError SetBaudRate(kBaudRate rate);
   kModemError CheckSimStatus();
   kModemError SetupSim(const std::uint8_t pin[4]);
   kModemError SetNetMode(kModemMode modem_mode);

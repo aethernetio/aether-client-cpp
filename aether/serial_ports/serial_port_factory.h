@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_SERIAL_PORT_FACTORY_H_
-#define AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_SERIAL_PORT_FACTORY_H_
+#ifndef AETHER_SERIAL_PORTS_SERIAL_PORT_FACTORY_H_
+#define AETHER_SERIAL_PORTS_SERIAL_PORT_FACTORY_H_
 
 #include <memory>
 
 #include "aether/serial_ports/iserial_port.h"
-
-#define AE_MODEM_SIM7070_ENABLED 1
+#include "aether/serial_ports/serial_port_types.h"
 
 namespace ae {
 class SerialPortFactory {
  public:
-  static std::unique_ptr<ISerialPort> CreatePort(SerialInit serial_init);
+  static std::unique_ptr<ISerialPort> CreatePort(SerialInit const& serial_init);
 };
 }  // namespace ae
 
-#endif  // AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_SERIAL_PORT_FACTORY_H_
+#endif  // AETHER_SERIAL_PORTS_SERIAL_PORT_FACTORY_H_

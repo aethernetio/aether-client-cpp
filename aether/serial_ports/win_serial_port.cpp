@@ -14,110 +14,105 @@
  * limitations under the License.
  */
 
-#if defined _WIN32
-
 #include "aether/serial_ports/win_serial_port.h"
-#include "aether/adapters/parent_modem.h"
-#include "aether/adapters/adapter_tele.h"
 
-#include <Windows.h>
+#if defined WIN_SERIAL_PORT_ENABLED
+
+#  include "aether/serial_ports/serial_ports_tele.h"
+
+#  include <Windows.h>
 
 namespace ae {
-WINSerialPort::WINSerialPort(SerialInit serial_init)
-    : hPort_(INVALID_HANDLE_VALUE) {
-  Open(serial_init.port_name, static_cast<std::uint32_t>(serial_init.baud_rate));
+WINSerialPort::WINSerialPort(SerialInit const& serial_init)
+    : h_port_{INVALID_HANDLE_VALUE} {
+  Open(serial_init.port_name,
+       static_cast<std::uint32_t>(serial_init.baud_rate));
 }
 
 WINSerialPort::~WINSerialPort() { Close(); }
 
-void WINSerialPort::WriteData(const DataBuffer& data) {
+void WINSerialPort::Write(DataBuffer const& data) {
   if (hPort_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
-
     return;
   }
 
-  DWORD bytesWritten;
-  if (!WriteFile(hPort_, data.data(), static_cast<DWORD>(data.size()),
-                 &bytesWritten, NULL)) {
-    AE_TELE_ERROR(kAdapterSerialWriteFiled, "Write failed: {}",
-                  std::to_string(GetLastError()));
+  DWORD bytes_written;
+  if (!WriteFile(h_port_, data.data(), static_cast<DWORD>(data.size()),
+                 &bytes_written, NULL)) {
+    AE_TELE_ERROR(kAdapterSerialWriteFiled, "Write failed: {}", GetLastError());
+    return;
   }
 
-  if (bytesWritten != data.size()) {
+  if (bytes_written != data.size()) {
     AE_TELE_ERROR(kAdapterSerialPartialData, "Partial write occurred");
+    return;
   }
 
   // For debug
-  AE_TELED_DEBUG("Serial data write {} bytes: {}", bytesWritten,
+  AE_TELED_DEBUG("Serial data write {} bytes: {}", bytes_written,
                  std::string(data.begin(), data.end()));
 }
 
-std::optional<DataBuffer> WINSerialPort::ReadData() {
-  if (hPort_ == INVALID_HANDLE_VALUE) {
+std::optional<DataBuffer> WINSerialPort::Read() {
+  if (h_port_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
 
     return std::nullopt;
   }
 
   DataBuffer buffer(1024);
-  DWORD bytesRead = 0;
+  DWORD bytes_read = 0;
 
-  if (!ReadFile(hPort_, buffer.data(), static_cast<DWORD>(buffer.size()),
-                &bytesRead, NULL)) {
+  if (!ReadFile(h_port_, buffer.data(), static_cast<DWORD>(buffer.size()),
+                &bytes_read, NULL)) {
     if (GetLastError() != ERROR_IO_PENDING) {
       return std::nullopt;
     }
   }
 
-  if (bytesRead > 0) {
-    buffer.resize(bytesRead);
+  if (bytes_read > 0) {
+    buffer.resize(bytes_read);
     // For debug
-    AE_TELED_DEBUG("Serial data read {} bytes: {}", bytesRead,
+    AE_TELED_DEBUG("Serial data read {} bytes: {}", bytes_read,
                    std::string(buffer.begin(), buffer.end()));
     return buffer;
   }
   return std::nullopt;
 }
 
-bool WINSerialPort::GetConnected(){
-  bool res{true};
-  
-  if (hPort_ == INVALID_HANDLE_VALUE){
-    res = false;
-  } 
-  
-  return res;
-}
+bool WINSerialPort::IsOpen() { return h_port_ != INVALID_HANDLE_VALUE; }
 
-void WINSerialPort::Open(const std::string& portName, std::uint32_t baudRate) {
-  std::string fullName = "\\\\.\\" + portName;
-  hPort_ = CreateFileA(fullName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL,
-                       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+void WINSerialPort::Open(std::string const& port_name,
+                         std::uint32_t baud_rate) {
+  std::string full_name = "\\\\.\\" + port_name;
+  h_port_ = CreateFileA(full_name.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
+                        NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
-  if (hPort_ == INVALID_HANDLE_VALUE) {
+  if (h_port_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Failed to open port: {}",
-                  std::to_string(GetLastError()));
+                  GetLastError());
+    return;
   }
 
-  ConfigurePort(baudRate);
+  ConfigurePort(baud_rate);
   SetupTimeouts();
 }
 
-void WINSerialPort::ConfigurePort(std::uint32_t baudRate) {
+void WINSerialPort::ConfigurePort(std::uint32_t baud_rate) {
   DCB dcb = {sizeof(DCB)};
-  if (!GetCommState(hPort_, &dcb)) {
+  if (!GetCommState(h_port_, &dcb)) {
     Close();
     AE_TELE_ERROR(kAdapterSerialPortState, "Failed to get port state");
   }
 
-  dcb.BaudRate = baudRate;
+  dcb.BaudRate = baud_rate;
   dcb.ByteSize = 8;
   dcb.StopBits = ONESTOPBIT;
   dcb.Parity = NOPARITY;
   dcb.fDtrControl = DTR_CONTROL_ENABLE;
 
-  if (!SetCommState(hPort_, &dcb)) {
+  if (!SetCommState(h_port_, &dcb)) {
     Close();
     AE_TELE_ERROR(kAdapterSerialConfigurePort, "Failed to configure port");
   }
@@ -131,16 +126,16 @@ void WINSerialPort::SetupTimeouts() {
   timeouts.WriteTotalTimeoutConstant = 50;
   timeouts.WriteTotalTimeoutMultiplier = 10;
 
-  if (!SetCommTimeouts(hPort_, &timeouts)) {
+  if (!SetCommTimeouts(h_port_, &timeouts)) {
     Close();
     AE_TELED_ERROR("Failed to set timeouts");
   }
 }
 
 void WINSerialPort::Close() {
-  if (hPort_ != INVALID_HANDLE_VALUE) {
-    CloseHandle(hPort_);
-    hPort_ = INVALID_HANDLE_VALUE;
+  if (h_port_ != INVALID_HANDLE_VALUE) {
+    CloseHandle(h_port_);
+    h_port_ = INVALID_HANDLE_VALUE;
   }
 }
 
