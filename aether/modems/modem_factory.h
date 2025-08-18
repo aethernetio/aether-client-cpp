@@ -29,7 +29,8 @@
 namespace ae {
 class ModemDriverFactory {
  public:
-  static std::unique_ptr<IModemDriver> CreateModem(ModemInit modem_init);
+  // static std::unique_ptr<IModemDriver> CreateModem(ModemInit modem_init);
+  IModemDriver::ptr CreateModem(ModemInit modem_init);
 };
 }  // namespace ae
 

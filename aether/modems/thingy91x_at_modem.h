@@ -29,7 +29,13 @@ struct Thingy91xConnection {
   std::int32_t handle;
 };
 
-class Thingy91xAtModem : public IModemDriver {
+class Thingy91xAtModem final : public IModemDriver {
+  
+  AE_OBJECT(Thingy91xAtModem, IModemDriver, 0)
+
+ protected:
+  Thingy91xAtModem() = default;
+  
  public:
   explicit Thingy91xAtModem(ModemInit modem_init);
   void Init() override;

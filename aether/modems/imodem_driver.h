@@ -27,9 +27,18 @@
 
 namespace ae {
 
-class IModemDriver {
- public:
+class IModemDriver : public Obj{
+  AE_OBJECT(IModemDriver, Obj, 0)
+
+ protected:
   IModemDriver() = default;
+  
+ public:
+#ifdef AE_DISTILLATION
+  explicit IModemDriver(Domain* domain);
+#endif  // AE_DISTILLATION
+  AE_OBJECT_REFLECT()
+
   virtual ~IModemDriver() = default;
 
   virtual void Init() = 0;

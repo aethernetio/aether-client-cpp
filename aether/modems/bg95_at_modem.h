@@ -134,7 +134,12 @@ static const std::map<kModemBand, std::string> get_band_power_bg95 = {
     {kModemBand::kTDSCDMA_B34, "AT+QNVFR=\"/nv/item_files/rfnv/00022622\""},
     {kModemBand::kTDSCDMA_B39, "AT+QNVFR=\"/nv/item_files/rfnv/00022663\""}};
 
-class Bg95AtModem : public IModemDriver {
+class Bg95AtModem final : public IModemDriver {
+  AE_OBJECT(Bg95AtModem, IModemDriver, 0)
+
+ protected:
+  Bg95AtModem() = default;
+
  public:
   explicit Bg95AtModem(ModemInit modem_init);
   void Init() override;

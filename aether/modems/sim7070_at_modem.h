@@ -51,7 +51,13 @@ static const std::map<kModemBaudRate, std::string> baud_rate_commands_sim7070 =
      {kModemBaudRate::kBaudRate3684000, "AT+IPR=3684000"},
      {kModemBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
 
-class Sim7070AtModem : public IModemDriver {
+class Sim7070AtModem final : public IModemDriver {
+  
+  AE_OBJECT(Sim7070AtModem, IModemDriver, 0)
+
+ protected:
+  Sim7070AtModem() = default;
+  
  public:
   explicit Sim7070AtModem(ModemInit modem_init);
   void Init() override;
@@ -65,8 +71,8 @@ class Sim7070AtModem : public IModemDriver {
   void ReadPacket(std::int8_t const connect_index,
                   std::vector<std::uint8_t>& data,
                   std::int32_t const timeout) override;
-  void PollSockets(std::int8_t const connect_index, PollResult& results,
-                   std::int32_t const timeout) override;
+  /*void PollSockets(std::int8_t const connect_index, PollResult& results,
+                   std::int32_t const timeout) override;*/
   void PowerOff();
 
  private:
