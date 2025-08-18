@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_IMODEM_DRIVER_H_
-#define AETHER_ADAPTERS_MODEMS_IMODEM_DRIVER_H_
+#ifndef AETHER_MODEMS_IMODEM_DRIVER_H_
+#define AETHER_MODEMS_IMODEM_DRIVER_H_
 
-#include <functional>
-#include <string>
 #include <map>
+#include <string>
+#include <functional>
 
 #include "aether/types/address.h"
-#include "aether/types/modem_driver_types.h"
+#include "aether/events/events.h"
+#include "aether/modems/modem_driver_types.h"
 #include "aether/serial_ports/iserial_port.h"
 
 namespace ae {
@@ -69,4 +70,4 @@ class IModemDriver {
 
 } /* namespace ae */
 
-#endif  // AETHER_ADAPTERS_MODEMS_IMODEM_DRIVER_H_
+#endif  // AETHER_MODEMS_IMODEM_DRIVER_H_

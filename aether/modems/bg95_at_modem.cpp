@@ -103,7 +103,7 @@ void Bg95AtModem::CloseNetwork(std::int8_t const connect_index) {
 
 void Bg95AtModem::WritePacket(std::int8_t const connect_index,
                               std::vector<uint8_t> const& data) {
-  serial_->WriteData(data);
+  serial_->Write(data);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
 };
 
@@ -112,7 +112,7 @@ void Bg95AtModem::ReadPacket(std::int8_t const connect_index,
                              std::int32_t timeout) {
   // std::size_t size{};
 
-  auto response = serial_->ReadData();
+  auto response = serial_->Read();
   std::vector<std::uint8_t> response_vector(response->begin(), response->end());
   data = response_vector;
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
@@ -133,7 +133,7 @@ kModemError Bg95AtModem::CheckResponce(std::string responce,
   return err;
 }
 
-kModemError Bg95AtModem::SetBaudRate(kModemBaudRate rate) {
+kModemError Bg95AtModem::SetBaudRate(kBaudRate rate) {
   kModemError err{kModemError::kNoError};
 
   auto it = baud_rate_commands_bg95.find(rate);
@@ -229,7 +229,7 @@ kModemError Bg95AtModem::GetTxPower(kModemBand band, float& power) {
     }
   }
 
-  auto response = serial_->ReadData();
+  auto response = serial_->Read();
 
   std::string response_str(response->begin(), response->end());
 
@@ -347,7 +347,7 @@ void Bg95AtModem::sendATCommand(const std::string& command) {
   std::vector<uint8_t> data(command.begin(), command.end());
   data.push_back('\r');  // Adding a carriage return symbols
   data.push_back('\n');
-  serial_->WriteData(data);
+  serial_->Write(data);
 }
 
 bool Bg95AtModem::waitForResponse(const std::string& expected,
@@ -361,7 +361,7 @@ bool Bg95AtModem::waitForResponse(const std::string& expected,
       return false;
     }
 
-    if (auto response = serial_->ReadData()) {
+    if (auto response = serial_->Read()) {
       std::string response_str(response->begin(), response->end());
       if (response_str.find(expected) != std::string::npos) {
         return true;

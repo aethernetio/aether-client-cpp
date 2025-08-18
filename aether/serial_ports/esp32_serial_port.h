@@ -14,31 +14,32 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
-#define AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
+#ifndef AETHER_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
+#define AETHER_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
 
 #if defined(ESP_PLATFORM)
-  
-# define ESP32_SERIAL_PORT_ENABLED 1
+
+#  define ESP32_SERIAL_PORT_ENABLED 1
 
 namespace ae {
-class ESP32SerialPort : public ISerialPort{
-    
-public:
-    ESP32SerialPort(SerialInit serial_init);
-    ~ESP32SerialPort();
-    void WriteData(const DataBuffer& data) override;
-    std::optional<DataBuffer> ReadData() override;
-    bool GetConnected() override;
-private:
-    void* hPort_;
-    
-    void Open(const std::string& portName, std::uint32_t baudRate);
-    void ConfigurePort(std::uint32_t baudRate);
-    void SetupTimeouts();
-    void Close();
+class ESP32SerialPort : public ISerialPort {
+ public:
+  ESP32SerialPort(SerialInit const& serial_init);
+  ~ESP32SerialPort() override;
+
+  void Write(DataBuffer const& data) override;
+  std::optional<DataBuffer> Read() override;
+  bool IsOpen() override;
+
+ private:
+  void* h_port_;
+
+  void Open(std::string const& port_name, std::uint32_t baud_rate);
+  void ConfigurePort(std::uint32_t baud_rate);
+  void SetupTimeouts();
+  void Close();
 };
 } /* namespace ae */
 
 #endif  // ESP_PLATFORM
-#endif  // AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
+#endif  // AETHER_SERIAL_PORTS_ESP32_SERIAL_PORT_H_

@@ -18,11 +18,12 @@
 #include <cstdint>
 
 #include "aether/all.h"
-#include "aether/adapters/modem_adapter.h"
-#include "aether/adapters/esp32_wifi.h"
 
 static constexpr std::string_view kWifiSsid = "Test1234";
 static constexpr std::string_view kWifiPass = "Test1234";
+
+static constexpr std::string_view kSerialPort = "COM47";  // Thingy91x
+// static constexpr std::string_view kSerialPort = "COM17";   // Sim7070g
 
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
@@ -37,16 +38,16 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
 }  // namespace ae::cloud_test
 
 int AetherCloudExample() {
-  ae::SerialInit serial_init = {"COM47", ae::kModemBaudRate::kBaudRate115200}; // Thingy91x
-  //ae::SerialInit serial_init = {"COM17", ae::kModemBaudRate::kBaudRate115200}; // Sim7070g
+  ae::SerialInit serial_init = {std::string(kSerialPort),
+                                ae::kBaudRate::kBaudRate115200};
 
   ae::ModemInit modem_init{
-      serial_init,                  // Serial port
-      {1, 1, 1, 1},                 // Pin code
-      false,                        // Use pin
-      ae::kModemMode::kModeNbIot,   // Modem mode Thingy91x
-      //ae::kModemMode::kModeAuto,      // Modem mode Sim7070g
-      "25001",                      // Operator code Thingy91x
+      serial_init,                 // Serial port
+      {1, 1, 1, 1},                // Pin code
+      false,                       // Use pin
+      ae::kModemMode::kModeNbIot,  // Modem mode Thingy91x
+      // ae::kModemMode::kModeAuto,      // Modem mode Sim7070g
+      "25001",  // Operator code Thingy91x
       //"25020",                      // Operator code Sim7070g
       "",                           // Operator long name
       "iot",                        // APN
@@ -66,24 +67,23 @@ int AetherCloudExample() {
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppContext{}
 #if defined AE_DISTILLATION
-          .AdapterFactory(
-              [modem_init](ae::AetherAppContext const& context) {
+          .AdapterFactory([modem_init](ae::AetherAppContext const& context) {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
-                auto adapter = context.domain().CreateObj<ae::Esp32WifiAdapter>(
-                    ae::GlobalId::kEsp32WiFiAdapter, context.aether(),
-                    context.poller(), context.dns_resolver(),
-                    std::string(kWifiSsid), std::string(kWifiPass));
+            auto adapter = context.domain().CreateObj<ae::Esp32WifiAdapter>(
+                ae::GlobalId::kEsp32WiFiAdapter, context.aether(),
+                context.poller(), context.dns_resolver(),
+                std::string(kWifiSsid), std::string(kWifiPass));
 #  elif defined MODEM_ADAPTER_ENABLED
-                auto adapter = context.domain().CreateObj<ae::ModemAdapter>(
-                    ae::GlobalId::kModemAdapter, context.aether(),
-                    context.poller(), context.dns_resolver(), modem_init);
+            auto adapter = context.domain().CreateObj<ae::ModemAdapter>(
+                ae::GlobalId::kModemAdapter, context.aether(), context.poller(),
+                context.dns_resolver(), modem_init);
 #  else
-                auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
-                    ae::GlobalId::kEthernetAdapter, context.aether(),
-                    context.poller(), context.dns_resolver());
+            auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
+                ae::GlobalId::kEthernetAdapter, context.aether(),
+                context.poller(), context.dns_resolver());
 #  endif
-                return adapter;
-              })
+            return adapter;
+          })
 #endif
   );
 
