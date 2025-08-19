@@ -235,8 +235,11 @@ enum class PollEvents : std::uint8_t {
   kPOLLNVAL = 0x0020
 };
 
+using ConnectionIndex = std::int8_t;
+static constexpr ConnectionIndex kInvalidConnectionIndex = -1;
+
 struct PollResult {
-  std::int8_t connect_index;
+  ConnectionIndex connect_index;
   std::vector<PollEvents> revents;
 };
 
