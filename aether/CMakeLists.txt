@@ -141,9 +141,9 @@ list(APPEND transport_srcs
             "transport/low_level/sockets/win_socket.cpp"
             "transport/low_level/sockets/win_tcp_socket.cpp"
             "transport/low_level/sockets/win_udp_socket.cpp"
-            "transport/low_level/socket_packet_send_action.cpp"
+            "transport/socket_packet_send_action.cpp"
+            "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
-            "transport/low_level/tcp/data_packet_collector.cpp"
             "transport/low_level/udp/udp.cpp"
 )
 

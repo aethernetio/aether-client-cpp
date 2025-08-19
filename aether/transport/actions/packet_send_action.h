@@ -35,7 +35,7 @@ class PacketSendAction : public Action<PacketSendAction> {
   };
 
   explicit PacketSendAction(ActionContext action_context)
-      : Action(action_context) {}
+      : Action{action_context}, state_{State::kQueued} {}
 
   AE_CLASS_MOVE_ONLY(PacketSendAction);
 
