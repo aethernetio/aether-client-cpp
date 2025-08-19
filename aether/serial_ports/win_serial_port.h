@@ -26,7 +26,7 @@
 #  include <stdexcept>
 
 #  include "aether/serial_ports/iserial_port.h"
-#  include "aether/serial_ports/iserial_port_types.h"
+#  include "aether/serial_ports/serial_port_types.h"
 
 #  define WIN_SERIAL_PORT_ENABLED 1
 
