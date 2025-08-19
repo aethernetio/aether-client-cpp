@@ -22,14 +22,14 @@
 
 namespace ae {
 
-IModemDriver::ptr ModemDriverFactory::CreateModem(
-    ModemInit modem_init) {
+std::unique_ptr<IModemDriver> ModemDriverFactory::CreateModem(
+    ModemInit modem_init, Domain* domain) {
 #if AE_MODEM_BG95_ENABLED==1
-  return IModemDriver::ptr<Bg95AtModem>(modem_init);
+  return std::make_unique<Bg95AtModem>(modem_init, domain);
 #elif AE_MODEM_SIM7070_ENABLED==1
-  return IModemDriver::ptr<Sim7070AtModem>(modem_init);
+  return std::make_unique<Sim7070AtModem>(modem_init, domain);
 #elif AE_MODEM_THINGY91X_ENABLED==1
-  return IModemDriver::ptr<Thingy91xAtModem>(modem_init);
+  return std::make_unique<Thingy91xAtModem>(modem_init, domain);
 #endif
 }
 

@@ -37,7 +37,9 @@ class Thingy91xAtModem final : public IModemDriver {
   Thingy91xAtModem() = default;
   
  public:
-  explicit Thingy91xAtModem(ModemInit modem_init);
+  explicit Thingy91xAtModem(ModemInit modem_init, Domain* domain);
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_, serial_))
+  
   void Init() override;
   void Start() override;
   void Stop() override;

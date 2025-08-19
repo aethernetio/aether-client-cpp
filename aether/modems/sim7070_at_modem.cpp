@@ -20,7 +20,7 @@
 
 namespace ae {
 
-Sim7070AtModem::Sim7070AtModem(ModemInit modem_init) : modem_init_(modem_init) {
+Sim7070AtModem::Sim7070AtModem(ModemInit modem_init, Domain* domain) : IModemDriver{modem_init, domain},modem_init_{modem_init} {
   serial_ = SerialPortFactory::CreatePort(modem_init_.serial_init);
 };
 

@@ -141,7 +141,9 @@ class Bg95AtModem final : public IModemDriver {
   Bg95AtModem() = default;
 
  public:
-  explicit Bg95AtModem(ModemInit modem_init);
+  explicit Bg95AtModem(ModemInit modem_init, Domain* domain);
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_, serial_))
+  
   void Init() override;
   void Start() override;
   void Stop() override;

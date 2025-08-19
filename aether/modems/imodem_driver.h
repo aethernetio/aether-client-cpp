@@ -35,7 +35,7 @@ class IModemDriver : public Obj{
   
  public:
 #ifdef AE_DISTILLATION
-  explicit IModemDriver(Domain* domain);
+  explicit IModemDriver(ModemInit modem_init, Domain* domain);
 #endif  // AE_DISTILLATION
   AE_OBJECT_REFLECT()
 
