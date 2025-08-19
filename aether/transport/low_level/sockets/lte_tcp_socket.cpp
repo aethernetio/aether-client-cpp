@@ -27,11 +27,9 @@ LteTcpSocket::LteTcpSocket() : LteSocket{MakeSocket()} {}
 std::size_t LteTcpSocket::GetMaxPacketSize() const { return 1500; }
 
 int LteTcpSocket::MakeSocket() {
-  bool created = false;
   int sock = 0;
 
   AE_TELED_DEBUG("Socket created");
-  created = true;
   return sock;
 }
 

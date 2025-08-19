@@ -27,11 +27,9 @@ LteUdpSocket::LteUdpSocket() : LteSocket{MakeSocket()} {}
 std::size_t LteUdpSocket::GetMaxPacketSize() const { return 1200; }
 
 int LteUdpSocket::MakeSocket() {
-  bool created = false;
   int sock = 0;
 
   AE_TELED_DEBUG("Socket created");
-  created = true;
   return sock;
 }
 }  // namespace ae
