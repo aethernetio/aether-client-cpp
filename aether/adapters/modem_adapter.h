@@ -38,7 +38,6 @@ class ModemAdapterTransportBuilder;
 class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
   enum class State : std::uint8_t {
     kWaitConnection,
-    kAddressResolve,
     kBuildersCreate,
     kBuildersCreated,
     kFailed
@@ -48,25 +47,23 @@ class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
   // immediately create the transport
   ModemAdapterTransportBuilderAction(ActionContext action_context,
                                      ModemAdapter& adapter,
-                                     UnifiedAddress address_port_protocol);
+                                     UnifiedAddress address_);
   // create the transport when lte modem is connected
   ModemAdapterTransportBuilderAction(
       ActionContext action_context,
       EventSubscriber<void(bool)> lte_modem_connected_event,
-      ModemAdapter& adapter, UnifiedAddress address_port_protocol);
+      ModemAdapter& adapter, UnifiedAddress address_);
 
   UpdateStatus Update() override;
 
   std::vector<std::unique_ptr<ITransportBuilder>> builders() override;
 
  private:
-  void ResolveAddress();
   void CreateBuilders();
 
   ModemAdapter* adapter_;
-  UnifiedAddress address_port_protocol_;
-  std::vector<IpAddressPortProtocol> ip_address_port_protocols_;
-  std::vector<std::unique_ptr<ITransportBuilder>> transport_builders_;
+  UnifiedAddress address_;
+  std::unique_ptr<ITransportBuilder> transport_builder_;
   StateMachine<State> state_;
   Subscription state_changed_;
   Subscription lte_modem_connected_subscription_;
@@ -83,9 +80,7 @@ class ModemAdapter : public ParentModemAdapter {
 
  public:
 #ifdef AE_DISTILLATION
-  ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-               DnsResolver::ptr dns_resolver, ModemInit modem_init,
-               Domain* domain);
+  ModemAdapter(ObjPtr<Aether> aether, ModemInit modem_init, Domain* domain);
 #endif  // AE_DISTILLATION
 
   ~ModemAdapter() override;

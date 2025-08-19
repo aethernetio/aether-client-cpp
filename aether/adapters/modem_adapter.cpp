@@ -25,13 +25,17 @@ namespace ae {
 namespace modem_adapter_internal {
 class ModemAdapterTransportBuilder final : public ITransportBuilder {
  public:
-  ModemAdapterTransportBuilder(ModemAdapter& adapter,
-                               IpAddressPortProtocol address_port_protocol)
-      : adapter_{&adapter},
-        address_port_protocol_{std::move(address_port_protocol)} {}
+  ModemAdapterTransportBuilder(ModemAdapter& adapter, UnifiedAddress address)
+      : adapter_{&adapter}, address_{std::move(address)} {}
 
   std::unique_ptr<ITransport> BuildTransport() override {
-    switch (address_port_protocol_.protocol) {
+    auto protocol = std::visit(
+        [&](auto const& address_port_protocol) {
+          return address_port_protocol.protocol;
+        },
+        address_);
+
+    switch (protocol) {
       case Protocol::kTcp:
         return BuildTcp();
       case Protocol::kUdp:
@@ -45,10 +49,8 @@ class ModemAdapterTransportBuilder final : public ITransportBuilder {
  private:
   std::unique_ptr<ITransport> BuildTcp() {
 #if defined MODEM_TCP_ENABLED
-    assert(address_port_protocol_.protocol == Protocol::kTcp);
     return make_unique<ModemTcpTransport>(*adapter_->aether_.as<Aether>(),
-                                          *adapter_->modem_driver_,
-                                          address_port_protocol_);
+                                          *adapter_->modem_driver_, address_);
 #else
     static_assert(false, "No transport enabled");
     return nullptr;
@@ -59,8 +61,7 @@ class ModemAdapterTransportBuilder final : public ITransportBuilder {
 #if defined MODEM_UDP_ENABLED
     assert(address_port_protocol_.protocol == Protocol::kUdp);
     return make_unique<ModemUdpTransport>(*adapter_->aether_.as<Aether>(),
-                                          *adapter_->modem_driver_,
-                                          address_port_protocol_);
+                                          *adapter_->modem_driver_, address_);
 #else
     // static_assert(false, "No transport enabled");
     return nullptr;
@@ -68,16 +69,16 @@ class ModemAdapterTransportBuilder final : public ITransportBuilder {
   }
 
   ModemAdapter* adapter_;
-  IpAddressPortProtocol address_port_protocol_;
+  UnifiedAddress address_;
 };
 
 ModemAdapterTransportBuilderAction::ModemAdapterTransportBuilderAction(
     ActionContext action_context, ModemAdapter& adapter,
-    UnifiedAddress address_port_protocol)
+    UnifiedAddress address_)
     : TransportBuilderAction{action_context},
       adapter_{&adapter},
-      address_port_protocol_{std::move(address_port_protocol)},
-      state_{State::kAddressResolve},
+      address_{std::move(address_)},
+      state_{State::kBuildersCreate},
       state_changed_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {
   AE_TELE_DEBUG(kAdapterModemTransportImmediately,
@@ -87,15 +88,15 @@ ModemAdapterTransportBuilderAction::ModemAdapterTransportBuilderAction(
 ModemAdapterTransportBuilderAction::ModemAdapterTransportBuilderAction(
     ActionContext action_context,
     EventSubscriber<void(bool)> lte_modem_connected_event,
-    ModemAdapter& adapter, UnifiedAddress address_port_protocol)
+    ModemAdapter& adapter, UnifiedAddress address_)
     : TransportBuilderAction{action_context},
       adapter_{&adapter},
-      address_port_protocol_{std::move(address_port_protocol)},
+      address_{std::move(address_)},
       state_{State::kWaitConnection},
       lte_modem_connected_subscription_{
           lte_modem_connected_event.Subscribe([this](auto result) {
             if (result) {
-              state_ = State::kAddressResolve;
+              state_ = State::kBuildersCreate;
             } else {
               state_ = State::kFailed;
             }
@@ -107,9 +108,6 @@ UpdateStatus ModemAdapterTransportBuilderAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaitConnection:
-        break;
-      case State::kAddressResolve:
-        ResolveAddress();
         break;
       case State::kBuildersCreate:
         CreateBuilders();
@@ -125,57 +123,22 @@ UpdateStatus ModemAdapterTransportBuilderAction::Update() {
 
 std::vector<std::unique_ptr<ITransportBuilder>>
 ModemAdapterTransportBuilderAction::builders() {
-  return std::move(transport_builders_);
+  std::vector<std::unique_ptr<ITransportBuilder>> res;
+  res.emplace_back(std::move(transport_builder_));
+  return res;
 }
-
-#if AE_SUPPORT_CLOUD_DNS
-void ModemAdapterTransportBuilderAction::ResolveAddress() {
-  std::visit(
-      reflect::OverrideFunc{
-          [this](IpAddressPortProtocol const& ip_address) {
-            ip_address_port_protocols_.push_back(ip_address);
-            state_ = State::kBuildersCreate;
-          },
-          [this](NameAddress const& name_address) {
-            auto dns_resolver = adapter_->dns_resolver_;
-            assert(dns_resolver);
-            auto resolve_action = dns_resolver->Resolve(name_address);
-
-            resolve_sub_ =
-                resolve_action->StatusEvent().Subscribe(ActionHandler{
-                    OnResult{[this](auto& action) {
-                      ip_address_port_protocols_ = std::move(action.addresses);
-                      state_ = State::kBuildersCreate;
-                    }},
-                    OnError{[this](auto&) { state_ = State::kFailed; }}});
-          }},
-      address_port_protocol_);
-}
-#else
-void ModemAdapterTransportBuilderAction::ResolveAddress() {
-  auto ip_address = std::get<IpAddressPortProtocol>(address_port_protocol_);
-  ip_address_port_protocols_.push_back(ip_address);
-  state_ = State::kBuildersCreate;
-}
-#endif
 
 void ModemAdapterTransportBuilderAction::CreateBuilders() {
-  for (auto const& ip_address_port_protocol : ip_address_port_protocols_) {
-    auto builder = std::make_unique<ModemAdapterTransportBuilder>(
-        *adapter_, ip_address_port_protocol);
-    transport_builders_.push_back(std::move(builder));
-  }
+  transport_builder_ =
+      std::make_unique<ModemAdapterTransportBuilder>(*adapter_, address_);
   state_ = State::kBuildersCreated;
 }
 }  // namespace modem_adapter_internal
 
 #if defined AE_DISTILLATION
-ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                           DnsResolver::ptr dns_resolver, ModemInit modem_init,
+ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, ModemInit modem_init,
                            Domain* domain)
-    : ParentModemAdapter{std::move(aether), std::move(poller),
-                         std::move(dns_resolver), std::move(modem_init),
-                         domain} {
+    : ParentModemAdapter{std::move(aether), std::move(modem_init), domain} {
   modem_driver_ = ModemDriverFactory::CreateModem(modem_init_);
   modem_driver_->Init();
   AE_TELED_DEBUG("Modem instance created!");
@@ -213,12 +176,12 @@ void ModemAdapter::Update(TimePoint current_time) {
   update_time_ = current_time;
 }
 
-void ModemAdapter::Connect(void) {
+void ModemAdapter::Connect() {
   AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem connecting to the network");
   modem_driver_->Start();
 }
 
-void ModemAdapter::DisConnect(void) {
+void ModemAdapter::DisConnect() {
   AE_TELE_DEBUG(kAdapterModemDisconnected,
                 "Modem disconnecting from the network");
   modem_driver_->Stop();
