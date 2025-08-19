@@ -150,13 +150,13 @@ class Bg95AtModem : public IModemDriver {
                   std::int32_t const timeout) override;
   void PollSockets(std::int8_t const connect_index, PollResult& results,
                    std::int32_t const timeout) override;
-  void PowerOff();
+  void PowerOff() override;
 
  private:
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
 
-  kModemError CheckResponce(std::string responce, std::uint32_t wait_time,
+  kModemError CheckResponse(std::string response, std::uint32_t wait_time,
                             std::string error_message);
   kModemError SetBaudRate(kBaudRate rate);
   kModemError CheckSimStatus();

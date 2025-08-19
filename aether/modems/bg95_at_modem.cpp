@@ -29,15 +29,15 @@ void Bg95AtModem::Init() {
 
   if (err == kModemError::kNoError) {
     sendATCommand("AT");  // Checking the connection
-    err = CheckResponce("OK", 1000, "AT command error!");
+    err = CheckResponse("OK", 1000, "AT command error!");
   }
   if (err == kModemError::kNoError) {
     sendATCommand("ATE0");  // Turning off the echo
-    err = CheckResponce("OK", 1000, "ATE command error!");
+    err = CheckResponse("OK", 1000, "ATE command error!");
   }
   if (err == kModemError::kNoError) {
     sendATCommand("AT+CMEE=2");  // Enabling extended errors
-    err = CheckResponce("OK", 1000, "AT+CMEE command error!");
+    err = CheckResponse("OK", 1000, "AT+CMEE command error!");
   }
 
   if (err != kModemError::kNoError) {
@@ -57,7 +57,7 @@ void Bg95AtModem::Start() {
   // Enabling full functionality
   if (err == kModemError::kNoError) {
     sendATCommand("AT+CFUN=1");
-    err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+    err = CheckResponse("OK", 1000, "AT+CFUN command error!");
   }
 
   if (err == kModemError::kNoError) {
@@ -120,7 +120,7 @@ void Bg95AtModem::ReadPacket(std::int8_t const connect_index,
 };
 
 //=============================private members=============================//
-kModemError Bg95AtModem::CheckResponce(std::string responce,
+kModemError Bg95AtModem::CheckResponse(std::string responce,
                                        std::uint32_t wait_time,
                                        std::string error_message) {
   kModemError err{kModemError::kNoError};
@@ -144,7 +144,7 @@ kModemError Bg95AtModem::SetBaudRate(kBaudRate rate) {
     sendATCommand(it->second);
   }
 
-  err = CheckResponce("OK", 1000, "No response from modem!");
+  err = CheckResponse("OK", 1000, "No response from modem!");
   if (err != kModemError::kNoError) {
     err = kModemError::kBaudRateError;
   }
@@ -156,7 +156,7 @@ kModemError Bg95AtModem::CheckSimStatus() {
   kModemError err{kModemError::kNoError};
 
   sendATCommand("AT+CPIN?");  // Check SIM card status
-  err = CheckResponce("OK", 1000, "SIM card error!");
+  err = CheckResponse("OK", 1000, "SIM card error!");
   if (err != kModemError::kNoError) {
     err = kModemError::kCheckSimStatus;
   }
@@ -175,7 +175,7 @@ kModemError Bg95AtModem::SetupSim(const std::uint8_t pin[4]) {
   }
 
   sendATCommand("AT+CPIN=" + pin_string);  // Check SIM card status
-  err = CheckResponce("OK", 1000, "SIM card PIN error!");
+  err = CheckResponse("OK", 1000, "SIM card PIN error!");
   if (err != kModemError::kNoError) {
     err = kModemError::kSetupSim;
   }
@@ -201,7 +201,7 @@ kModemError Bg95AtModem::SetTxPower(kModemBand band, const float& power) {
         power_command = Format(it->second, hex);
       }
       sendATCommand(power_command);
-      err = CheckResponce("OK", 1000, "No response from modem!");
+      err = CheckResponse("OK", 1000, "No response from modem!");
     }
   }
 
@@ -225,7 +225,7 @@ kModemError Bg95AtModem::GetTxPower(kModemBand band, float& power) {
       power_command = Format(it->second);
 
       sendATCommand(power_command);
-      err = CheckResponce("OK", 1000, "No response from modem!");
+      err = CheckResponse("OK", 1000, "No response from modem!");
     }
   }
 
@@ -331,7 +331,7 @@ kModemError Bg95AtModem::SetupNetwork(std::string operator_name,
   kModemError err{kModemError::kNoError};
 
   sendATCommand("AT+COPS=1,2,\"" + operator_code + "\",0");
-  // err = CheckResponce("OK", 1000, "No response from modem!");
+  // err = CheckResponse("OK", 1000, "No response from modem!");
   // if (err != kModemError::kNoError) {}
 
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Operator name {}", operator_name);
