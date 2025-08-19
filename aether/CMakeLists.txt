@@ -123,8 +123,9 @@ list(APPEND serial_ports_srcs
             "serial_ports/serial_port_factory.cpp"
             "serial_ports/esp32_serial_port.cpp"
             "serial_ports/win_serial_port.cpp"
+            "serial_ports/unix_serial_port.cpp"
             )
-            
+
 list(APPEND transport_srcs
             "transport/actions/build_transport_action.cpp"
             "transport/server/server_channel_stream.cpp"
