@@ -20,7 +20,6 @@
 #include <string>
 #include <vector>
 
-
 #include "aether/aether.h"
 
 namespace ae {
@@ -109,6 +108,7 @@ enum class kAuthType : std::uint8_t {
 // 1 1 1 – Value indicates that the timer is deactivated
 
 struct kRequestedActiveTimeT3324 {
+  AE_REFLECT_MEMBERS(Value, Multiplier)
   std::uint8_t Value : 5;
   std::uint8_t Multiplier : 3;
 };
@@ -126,6 +126,7 @@ struct kRequestedActiveTimeT3324 {
 // 1 1 0 – Value is incremented in multiples of 320 h
 
 struct kRequestedPeriodicTAUT3412 {
+  AE_REFLECT_MEMBERS(Value, Multiplier)
   std::uint8_t Value : 5;
   std::uint8_t Multiplier : 3;
 };
@@ -211,7 +212,10 @@ struct BandPower {
   std::uint8_t power;
 };
 
-struct kPowerSaveParam {
+//========================modem init==========================================
+struct PowerSaveParam {
+  AE_REFLECT_MEMBERS(psm_mode, tau, act, edrx_mode, act_type, edrx_val,
+                     rai_mode, bands_mode, bands, modem_mode, power)
   std::uint8_t psm_mode;
   kRequestedPeriodicTAUT3412 tau;
   kRequestedActiveTimeT3324 act;
@@ -225,12 +229,18 @@ struct kPowerSaveParam {
   std::vector<BandPower> power;
 };
 
-//========================modem init==========================================
+struct BaseStation {
+  AE_REFLECT_MEMBERS(cell_identifier)
+  std::uint32_t cell_identifier;
+};
+
 struct ModemInit {
-  AE_REFLECT_MEMBERS(serial_init, pin, use_pin, operator_name, apn_name,
+  AE_REFLECT_MEMBERS(serial_init, psp, pin, use_pin, operator_name, apn_name,
                      apn_user, apn_pass, modem_mode, auth_type, use_auth,
                      auth_user, auth_pass, ssl_cert, use_ssl)
   SerialInit serial_init;
+  PowerSaveParam psp;
+  BaseStation bs;
   std::uint8_t pin[4];
   bool use_pin;
   kModemMode modem_mode;

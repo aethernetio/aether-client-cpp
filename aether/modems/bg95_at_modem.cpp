@@ -20,7 +20,7 @@
 
 namespace ae {
 
-Bg95AtModem::Bg95AtModem(ModemInit modem_init, Domain* domain) : IModemDriver{modem_init, domain}, modem_init_{modem_init}  {
+Bg95AtModem::Bg95AtModem(ModemInit modem_init, Domain* domain) : IModemDriver(modem_init, domain), modem_init_{modem_init}  {
   serial_ = SerialPortFactory::CreatePort(modem_init_.serial_init);
 };
 
@@ -343,14 +343,14 @@ kModemError Bg95AtModem::SetupNetwork(std::string operator_name,
   return err;
 }
 
-void Bg95AtModem::sendATCommand(const std::string& command) {
+void Bg95AtModem::SendATCommand(const std::string& command) {
   std::vector<uint8_t> data(command.begin(), command.end());
   data.push_back('\r');  // Adding a carriage return symbols
   data.push_back('\n');
   serial_->WriteData(data);
 }
 
-bool Bg95AtModem::waitForResponse(const std::string& expected,
+bool Bg95AtModem::WaitForResponse(const std::string& expected,
                                   std::chrono::milliseconds timeout_ms) {
   // Simplified implementation of waiting for a response
   auto start = std::chrono::high_resolution_clock::now();
@@ -374,5 +374,19 @@ bool Bg95AtModem::waitForResponse(const std::string& expected,
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 }
+
+std::string Bg95AtModem::PinToString(const std::uint8_t pin[4]) {
+    std::string result{};
+
+    for (int i = 0; i < 4; ++i) {
+      if (pin[i] > 9) {
+        result = "ERROR";
+        break;
+      }
+      result += static_cast<char>('0' + pin[i]);
+    }
+
+    return result;
+  }
 
 } /* namespace ae */

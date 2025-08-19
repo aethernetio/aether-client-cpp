@@ -22,7 +22,7 @@
 namespace ae {
 
 Thingy91xAtModem::Thingy91xAtModem(ModemInit modem_init, Domain* domain)
-    : IModemDriver{modem_init, domain}, modem_init_{modem_init} {
+    : IModemDriver(modem_init, domain), modem_init_{modem_init} {
   serial_ = SerialPortFactory::CreatePort(modem_init_.serial_init);
 };
 
@@ -31,11 +31,11 @@ void Thingy91xAtModem::Init() {
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      sendATCommand("AT");  // Checking the connection
+      SendATCommand("AT");  // Checking the connection
       err = CheckResponce("OK", 1000, "AT command error!");
     }
     if (err == kModemError::kNoError) {
-      sendATCommand("AT+CMEE=1");  // Enabling extended errors
+      SendATCommand("AT+CMEE=1");  // Enabling extended errors
       err = CheckResponce("OK", 1000, "AT+CMEE command error!");
     }
   } else {
@@ -53,7 +53,7 @@ void Thingy91xAtModem::Start() {
   if (serial_->GetConnected()) {
     // Disabling full functionality
     if (err == kModemError::kNoError) {
-      sendATCommand("AT+CFUN=0");
+      SendATCommand("AT+CFUN=0");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
 
@@ -70,7 +70,7 @@ void Thingy91xAtModem::Start() {
 
     // Enabling full functionality
     if (err == kModemError::kNoError) {
-      sendATCommand("AT+CFUN=1");
+      SendATCommand("AT+CFUN=1");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
       err = CheckResponce("+CEREG: 2", 600000, "AT+CFUN command error!");
       err = CheckResponce("+CEREG: 1", 600000, "AT+CFUN command error!");
@@ -100,7 +100,7 @@ void Thingy91xAtModem::Stop() {
     
     // Disabling full functionality
     if (err == kModemError::kNoError) {
-      sendATCommand("AT+CFUN=0");
+      SendATCommand("AT+CFUN=0");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
 
@@ -149,7 +149,7 @@ void Thingy91xAtModem::OpenNetwork(std::int8_t& connect_index,
     if (err == kModemError::kNoError) {
       if (protocol_ == ae::Protocol::kTcp) {
         // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
-        sendATCommand("AT#XSOCKET=1," + protocol_str + ",0");  // Create socket
+        SendATCommand("AT#XSOCKET=1," + protocol_str + ",0");  // Create socket
         auto response = serial_->ReadData();  // Get socket handle
         std::string response_string(response->begin(), response->end());
         auto start = response_string.find("#XSOCKET: ") + 10;
@@ -162,19 +162,19 @@ void Thingy91xAtModem::OpenNetwork(std::int8_t& connect_index,
           handle = -1;
         }
         // #XSOCKETSELECT=<handle>
-        sendATCommand("AT#XSOCKETSELECT=" +
+        SendATCommand("AT#XSOCKETSELECT=" +
                       std::to_string(handle));  // Set socket
         err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
         // AT#XSOCKETOPT=1,20,30
-        sendATCommand("AT#XSOCKETOPT=1,20,30");  // Set parameters
+        SendATCommand("AT#XSOCKETOPT=1,20,30");  // Set parameters
         err = CheckResponce("OK", 1000, "AT#XSOCKET command error!");
         // AT#XCONNECT="example.com",1234
-        sendATCommand("AT#XCONNECT=\"" + host + "\"," +
+        SendATCommand("AT#XCONNECT=\"" + host + "\"," +
                       std::to_string(port));  // Connect
         err = CheckResponce("OK", 1000, "AT#XCONNECT command error!");
       } else if (protocol_ == ae::Protocol::kUdp) {
         // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
-        sendATCommand("AT#XSOCKET=1," + protocol_str + ",0");  // Create socket
+        SendATCommand("AT#XSOCKET=1," + protocol_str + ",0");  // Create socket
         auto response = serial_->ReadData();  // Get socket handle
         std::string response_string(response->begin(), response->end());
         auto start = response_string.find("#XSOCKET: ") + 10;
@@ -187,7 +187,7 @@ void Thingy91xAtModem::OpenNetwork(std::int8_t& connect_index,
           handle = -1;
         }
         // #XSOCKETSELECT=<handle>
-        sendATCommand("AT#XSOCKETSELECT=" +
+        SendATCommand("AT#XSOCKETSELECT=" +
                       std::to_string(handle));  // Set socket
         err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
       }
@@ -220,18 +220,18 @@ void Thingy91xAtModem::CloseNetwork(std::int8_t const connect_index) {
       if (protocol_ == ae::Protocol::kTcp) {
         handle = connect_vec_.at(connect_index).handle;
         // #XSOCKETSELECT=<handle>
-        sendATCommand("AT#XSOCKETSELECT=" +
+        SendATCommand("AT#XSOCKETSELECT=" +
                       std::to_string(handle));  // Set socket
         err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
-        sendATCommand("AT#XSOCKET=0");  // Close socket
+        SendATCommand("AT#XSOCKET=0");  // Close socket
         err = CheckResponce("OK", 10000, "AT#XSOCKET command error!");
       } else if (protocol_ == ae::Protocol::kUdp) {
         handle = connect_vec_.at(connect_index).handle;
         // #XSOCKETSELECT=<handle>
-        sendATCommand("AT#XSOCKETSELECT=" +
+        SendATCommand("AT#XSOCKETSELECT=" +
                       std::to_string(handle));  // Set socket
         err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
-        sendATCommand("AT#XSOCKET=0");  // Close socket
+        SendATCommand("AT#XSOCKET=0");  // Close socket
         err = CheckResponce("OK", 10000, "AT#XSOCKET command error!");
       }
     }
@@ -257,18 +257,18 @@ void Thingy91xAtModem::WritePacket(std::int8_t const connect_index,
     if (protocol_ == ae::Protocol::kTcp) {
       handle = connect_vec_.at(connect_index).handle;
       // #XSOCKETSELECT=<handle>
-      sendATCommand("AT#XSOCKETSELECT=" +
+      SendATCommand("AT#XSOCKETSELECT=" +
                     std::to_string(handle));  // Set socket
       err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
       // #XSEND[=<data>]
       // std::string data_string(data.begin(), data.end());
       // sendATCommand("AT#XSEND=\"" + data_string + "\"");
-      sendATCommand("AT#XSEND");
+      SendATCommand("AT#XSEND");
 
       err = CheckResponce("OK", 1000, "AT#XSEND command error!");
 
       serial_->WriteData(data);
-      sendATCommand("+++");
+      SendATCommand("+++");
 
       err = CheckResponce("#XDATAMODE: 0", 10000, "+++ command error!");
       if (err != kModemError::kNoError) err = kModemError::kXDataMode;
@@ -276,12 +276,12 @@ void Thingy91xAtModem::WritePacket(std::int8_t const connect_index,
     } else if (protocol_ == ae::Protocol::kUdp) {
       handle = connect_vec_.at(connect_index).handle;
       // #XSOCKETSELECT=<handle>
-      sendATCommand("AT#XSOCKETSELECT=" +
+      SendATCommand("AT#XSOCKETSELECT=" +
                     std::to_string(handle));  // Set socket
       err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
       // #XSENDTO=<url>,<port>[,<data>]
       std::string data_string(data.begin(), data.end());
-      sendATCommand("AT#XSENDTO=\"" + host_ + "\"," + std::to_string(port_) +
+      SendATCommand("AT#XSENDTO=\"" + host_ + "\"," + std::to_string(port_) +
                     ",\"" + data_string + "\"");
 
       err = CheckResponce("OK", 1000, "AT#XSENDTO command error!");
@@ -309,11 +309,11 @@ void Thingy91xAtModem::ReadPacket(std::int8_t const connect_index,
     if (protocol_ == ae::Protocol::kTcp) {
       handle = connect_vec_.at(connect_index).handle;
       // #XSOCKETSELECT=<handle>
-      sendATCommand("AT#XSOCKETSELECT=" +
+      SendATCommand("AT#XSOCKETSELECT=" +
                     std::to_string(handle));  // Set socket
       err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
       // #XRECV=<timeout>[,<flags>]
-      sendATCommand("AT#XRECV=" + timeout_str);
+      SendATCommand("AT#XRECV=" + timeout_str);
       auto response = serial_->ReadData();
       std::string response_string(response->begin(), response->end());
       auto start = response_string.find("#XRECV: ") + 8;
@@ -336,11 +336,11 @@ void Thingy91xAtModem::ReadPacket(std::int8_t const connect_index,
     } else if (protocol_ == ae::Protocol::kUdp) {
       handle = connect_vec_.at(connect_index).handle;
       // #XSOCKETSELECT=<handle>
-      sendATCommand("AT#XSOCKETSELECT=" +
+      SendATCommand("AT#XSOCKETSELECT=" +
                     std::to_string(handle));  // Set socket
       err = CheckResponce("OK", 1000, "AT#XSOCKETSELECT command error!");
       // #XRECVFROM=<timeout>[,<flags>]
-      sendATCommand("AT#XRECVFROM=" + timeout_str);
+      SendATCommand("AT#XRECVFROM=" + timeout_str);
       auto response = serial_->ReadData();
       std::string response_string(response->begin(), response->end());
       auto start = response_string.find("#XRECVFROM: ") + 12;
@@ -391,7 +391,7 @@ void Thingy91xAtModem::PollSockets(std::int8_t const connect_index,
       // #XPOLL=<timeout>[,<handle1>[,<handle2> ...<handle8>]
       cmd = "AT#XPOLL=" + std::to_string(timeout);
       cmd += "," + std::to_string(handle);
-      sendATCommand(cmd);
+      SendATCommand(cmd);
       auto response = serial_->ReadData();
       std::string response_string(response->begin(), response->end());
       auto start = response_string.find("#XPOLL: ") + 8;
@@ -419,12 +419,12 @@ void Thingy91xAtModem::PollSockets(std::int8_t const connect_index,
   }
 }
 
-void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
+void Thingy91xAtModem::SetPowerSaveParam(ae::PowerSaveParam const& psp) {
   kModemError err{kModemError::kNoError};
 
   if (serial_->GetConnected()) {
     if (err == kModemError::kNoError) {
-      sendATCommand("AT+CFUN=0");
+      SendATCommand("AT+CFUN=0");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
 
@@ -455,7 +455,7 @@ void Thingy91xAtModem::SetPowerSaveParam(kPowerSaveParam const& psp) {
     }
 
     if (err == kModemError::kNoError) {
-      sendATCommand("AT+CFUN=1");
+      SendATCommand("AT+CFUN=1");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
   } else {
@@ -475,7 +475,7 @@ void Thingy91xAtModem::PowerOff() {
   if (serial_->GetConnected()) {
     // Disabling full functionality
     if (err == kModemError::kNoError) {
-      sendATCommand("AT+CFUN=0");
+      SendATCommand("AT+CFUN=0");
       err = CheckResponce("OK", 1000, "AT+CFUN command error!");
     }
   } else {
@@ -495,7 +495,7 @@ kModemError Thingy91xAtModem::CheckResponce(std::string const responce,
                                             std::string const error_message) {
   kModemError err{kModemError::kNoError};
 
-  if (!waitForResponse(responce, std::chrono::milliseconds(wait_time))) {
+  if (!WaitForResponse(responce, std::chrono::milliseconds(wait_time))) {
     AE_TELE_ERROR(kAdapterModemAtError, error_message);
     err = kModemError::kAtCommandError;
   }
@@ -506,7 +506,7 @@ kModemError Thingy91xAtModem::CheckResponce(std::string const responce,
 kModemError Thingy91xAtModem::CheckSimStatus() {
   kModemError err{kModemError::kNoError};
 
-  sendATCommand("AT+CPIN?");  // Check SIM card status
+  SendATCommand("AT+CPIN?");  // Check SIM card status
   err = CheckResponce("OK", 1000, "SIM card error!");
   if (err != kModemError::kNoError) {
     err = kModemError::kCheckSimStatus;
@@ -518,14 +518,14 @@ kModemError Thingy91xAtModem::CheckSimStatus() {
 kModemError Thingy91xAtModem::SetupSim(std::uint8_t const pin[4]) {
   kModemError err{kModemError::kNoError};
 
-  auto pin_string = pinToString(pin);
+  auto pin_string = PinToString(pin);
 
   if (pin_string == "ERROR") {
     err = kModemError::kPinWrong;
     return err;
   }
 
-  sendATCommand("AT+CPIN=" + pin_string);  // Check SIM card status
+  SendATCommand("AT+CPIN=" + pin_string);  // Check SIM card status
   err = CheckResponce("OK", 1000, "SIM card PIN error!");
   if (err != kModemError::kNoError) {
     err = kModemError::kSetupSim;
@@ -539,16 +539,16 @@ kModemError Thingy91xAtModem::SetNetMode(kModemMode const modem_mode) {
 
   switch (modem_mode) {
     case kModemMode::kModeAuto:
-      sendATCommand("AT%XSYSTEMMODE=1,1,0,4");  // Set modem mode Auto
+      SendATCommand("AT%XSYSTEMMODE=1,1,0,4");  // Set modem mode Auto
       break;
     case kModemMode::kModeCatM:
-      sendATCommand("AT%XSYSTEMMODE=1,0,0,1");  // Set modem mode CatM
+      SendATCommand("AT%XSYSTEMMODE=1,0,0,1");  // Set modem mode CatM
       break;
     case kModemMode::kModeNbIot:
-      sendATCommand("AT%XSYSTEMMODE=0,1,0,2");  // Set modem mode NbIot
+      SendATCommand("AT%XSYSTEMMODE=0,1,0,2");  // Set modem mode NbIot
       break;
     case kModemMode::kModeCatMNbIot:
-      sendATCommand("AT%XSYSTEMMODE=1,1,0,0");  // Set modem mode CatMNbIot
+      SendATCommand("AT%XSYSTEMMODE=1,1,0,0");  // Set modem mode CatMNbIot
       break;
     default:
       err = kModemError::kSetNetMode;
@@ -587,23 +587,23 @@ kModemError Thingy91xAtModem::SetupNetwork(std::string const operator_name,
   // Connect to the network
   if (!operator_name.empty()) {
     // Operator long name
-    sendATCommand("AT+COPS=1,0,\"" + operator_name + "\"," + mode_str);
+    SendATCommand("AT+COPS=1,0,\"" + operator_name + "\"," + mode_str);
   } else if (!operator_code.empty()) {
     // Operator code
-    sendATCommand("AT+COPS=1,2,\"" + operator_code + "\"," + mode_str);
+    SendATCommand("AT+COPS=1,2,\"" + operator_code + "\"," + mode_str);
   } else {
     // Auto
-    sendATCommand("AT+COPS=0");
+    SendATCommand("AT+COPS=0");
   }
 
   err = CheckResponce("OK", 120000, "AT+COPS command error!");
   if (err == kModemError::kNoError) {
-    sendATCommand("AT+CGDCONT=0,\"IP\",\"" + apn_name + "\"");
+    SendATCommand("AT+CGDCONT=0,\"IP\",\"" + apn_name + "\"");
     err = CheckResponce("OK", 1000, "AT+CGDCONT command error!");
   }
 
   if (err == kModemError::kNoError) {
-    sendATCommand("AT+CEREG=1");
+    SendATCommand("AT+CEREG=1");
     err = CheckResponce("OK", 1000, "AT+CEREG command error!");
   }
 
@@ -659,7 +659,7 @@ kModemError Thingy91xAtModem::SetTxPower(kModemMode const modem_mode,
   }
 
   if (err == kModemError::kNoError) {
-    sendATCommand(cmd);
+    SendATCommand(cmd);
     err = CheckResponce("OK", 1000, "AT%XEMPR command error!");
   }
 
@@ -709,7 +709,7 @@ kModemError Thingy91xAtModem::SetPsm(
   }
 
   if (err == kModemError::kNoError) {
-    sendATCommand(cmd);
+    SendATCommand(cmd);
     err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
   }
 
@@ -740,13 +740,13 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode const edrx_mode,
         "," + std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
         req_edrx_str + "\"";
 
-  sendATCommand(cmd);
+  SendATCommand(cmd);
   err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
 
   if (err == kModemError::kNoError) {
     cmd = "AT%XPTW=" + std::to_string(static_cast<std::uint8_t>(act_type)) +
           ",\"" + ptw_str + "\"";
-    sendATCommand(cmd);
+    SendATCommand(cmd);
     err = CheckResponce("OK", 2000, "AT%XPTW command error!");
   }
 
@@ -769,7 +769,7 @@ kModemError Thingy91xAtModem::SetRai(std::uint8_t const rai_mode) {
   } else {
     cmd = "AT%RAI=" + std::to_string(rai_mode);
 
-    sendATCommand(cmd);
+    SendATCommand(cmd);
     err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
   }
 
@@ -809,7 +809,7 @@ kModemError Thingy91xAtModem::SetBandLock(
              std::bitset<64>(band_bit1).to_string() + "\"";
     }
 
-    sendATCommand(cmd);
+    SendATCommand(cmd);
     err = CheckResponce("OK", 2000, "AT+CPSMS command error!");
   }
 
@@ -851,7 +851,7 @@ kModemError Thingy91xAtModem::ResetModemFactory(std::uint8_t const res_mode) {
   } else {
     cmd = "AT%XFACTORYRESET=" + std::to_string(res_mode);
 
-    sendATCommand(cmd);
+    SendATCommand(cmd);
     err = CheckResponce("OK", 2000, "AT%XFACTORYRESET command error!");
   }
 
@@ -930,14 +930,14 @@ kModemError Thingy91xAtModem::ParsePollEvents(
   return err;  // Indicate success
 }
 
-void Thingy91xAtModem::sendATCommand(const std::string& command) {
+void Thingy91xAtModem::SendATCommand(const std::string& command) {
   std::vector<uint8_t> data(command.begin(), command.end());
   data.push_back('\r');  // Adding a carriage return symbols
   data.push_back('\n');
   serial_->WriteData(data);
 }
 
-bool Thingy91xAtModem::waitForResponse(const std::string& expected,
+bool Thingy91xAtModem::WaitForResponse(const std::string& expected,
                                        std::chrono::milliseconds timeout_ms) {
   // Simplified implementation of waiting for a response
   auto start = std::chrono::high_resolution_clock::now();
@@ -962,4 +962,17 @@ bool Thingy91xAtModem::waitForResponse(const std::string& expected,
   }
 }
 
+std::string Thingy91xAtModem::PinToString(const std::uint8_t pin[4]) {
+    std::string result{};
+
+    for (int i = 0; i < 4; ++i) {
+      if (pin[i] > 9) {
+        result = "ERROR";
+        break;
+      }
+      result += static_cast<char>('0' + pin[i]);
+    }
+
+    return result;
+  }
 } /* namespace ae */

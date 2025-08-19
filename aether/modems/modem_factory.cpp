@@ -16,20 +16,20 @@
 
 #include "aether/modems/modem_factory.h"
 
-#include "aether/modems/bg95_at_modem.h"
-#include "aether/modems/sim7070_at_modem.h"
+// #include "aether/modems/bg95_at_modem.h"
+// #include "aether/modems/sim7070_at_modem.h"
 #include "aether/modems/thingy91x_at_modem.h"
 
 namespace ae {
 
-std::unique_ptr<IModemDriver> ModemDriverFactory::CreateModem(
+IModemDriver::ptr ModemDriverFactory::CreateModem(
     ModemInit modem_init, Domain* domain) {
 #if AE_MODEM_BG95_ENABLED==1
-  return std::make_unique<Bg95AtModem>(modem_init, domain);
+  // return domain->CreateObj<Bg95AtModem>(modem_init);
 #elif AE_MODEM_SIM7070_ENABLED==1
-  return std::make_unique<Sim7070AtModem>(modem_init, domain);
+  // return domain->CreateObj<Sim7070AtModem>(modem_init);
 #elif AE_MODEM_THINGY91X_ENABLED==1
-  return std::make_unique<Thingy91xAtModem>(modem_init, domain);
+  return domain->CreateObj<Thingy91xAtModem>(modem_init);
 #endif
 }
 

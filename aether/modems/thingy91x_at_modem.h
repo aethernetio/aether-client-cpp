@@ -38,7 +38,7 @@ class Thingy91xAtModem final : public IModemDriver {
   
  public:
   explicit Thingy91xAtModem(ModemInit modem_init, Domain* domain);
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_, serial_))
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
   
   void Init() override;
   void Start() override;
@@ -53,7 +53,7 @@ class Thingy91xAtModem final : public IModemDriver {
                   std::int32_t const timeout) override;
   void PollSockets(std::int8_t const connect_index, PollResult& results,
                    std::int32_t const timeout) override;
-  void SetPowerSaveParam(kPowerSaveParam const& psp) override;
+  void SetPowerSaveParam(ae::PowerSaveParam const& psp) override;
   void PowerOff() override;
 
  private:
@@ -93,9 +93,10 @@ class Thingy91xAtModem final : public IModemDriver {
   kModemError ResetModemFactory(std::uint8_t const res_mode);
   kModemError ParsePollEvents(const std::string& str,
                               std::vector<PollEvents>& events_out);
-  void sendATCommand(std::string const& command);
-  bool waitForResponse(std::string const& expected,
+  void SendATCommand(std::string const& command);
+  bool WaitForResponse(std::string const& expected,
                        std::chrono::milliseconds const timeout_ms);
+  std::string PinToString(const std::uint8_t pin[4]);
 };
 
 } /* namespace ae */

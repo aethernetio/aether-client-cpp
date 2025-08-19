@@ -60,7 +60,7 @@ class Sim7070AtModem final : public IModemDriver {
   
  public:
   explicit Sim7070AtModem(ModemInit modem_init, Domain* domain);
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_, serial_))
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
   
   void Init() override;
   void Start() override;
@@ -93,9 +93,10 @@ class Sim7070AtModem final : public IModemDriver {
                            std::string apn_pass, kModemMode modem_mode,
                            kAuthType auth_type);
   kModemError SetupProtoPar();
-  void sendATCommand(const std::string& command);
-  bool waitForResponse(const std::string& expected,
+  void SendATCommand(const std::string& command);
+  bool WaitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);
+  std::string PinToString(const std::uint8_t pin[4]);
 };
 
 } /* namespace ae */

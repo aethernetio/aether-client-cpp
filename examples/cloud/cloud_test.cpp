@@ -40,8 +40,13 @@ int AetherCloudExample() {
   ae::SerialInit serial_init = {"COM47", ae::kModemBaudRate::kBaudRate115200}; // Thingy91x
   //ae::SerialInit serial_init = {"COM17", ae::kModemBaudRate::kBaudRate115200}; // Sim7070g
 
+  ae::PowerSaveParam const& psp{};
+  ae::BaseStation const& bs{};
+  
   ae::ModemInit modem_init{
       serial_init,                  // Serial port
+      psp,                          // Power save parameters
+      bs,                           // Base station
       {1, 1, 1, 1},                 // Pin code
       false,                        // Use pin
       ae::kModemMode::kModeNbIot,   // Modem mode Thingy91x

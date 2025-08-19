@@ -142,7 +142,7 @@ class Bg95AtModem final : public IModemDriver {
 
  public:
   explicit Bg95AtModem(ModemInit modem_init, Domain* domain);
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_, serial_))
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
   
   void Init() override;
   void Start() override;
@@ -177,9 +177,10 @@ class Bg95AtModem final : public IModemDriver {
   kModemError DbmaToHex(kModemBand band, const float& power, std::string& hex);
   kModemError HexToDbma(kModemBand band, float& power, const std::string& hex);
 
-  void sendATCommand(const std::string& command);
-  bool waitForResponse(const std::string& expected,
+  void SendATCommand(const std::string& command);
+  bool WaitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);
+  std::string PinToString(const std::uint8_t pin[4]);
 };
 
 } /* namespace ae */
