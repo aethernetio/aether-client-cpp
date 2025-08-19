@@ -33,6 +33,8 @@
 namespace ae {
 class ModemAdapter;
 namespace modem_adapter_internal {
+class ModemAdapterTransportBuilder;
+
 class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
   enum class State : std::uint8_t {
     kWaitConnection,
@@ -73,6 +75,8 @@ class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
 }  // namespace modem_adapter_internal
 
 class ModemAdapter : public ParentModemAdapter {
+  friend class modem_adapter_internal::ModemAdapterTransportBuilder;
+
   AE_OBJECT(ModemAdapter, ParentModemAdapter, 0)
 
   ModemAdapter() = default;

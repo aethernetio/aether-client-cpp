@@ -17,10 +17,7 @@
 #include "aether/adapters/modem_adapter.h"
 
 #include "aether/modems/modem_factory.h"
-#include "aether/transport/low_level/tcp/tcp.h"
-#include "aether/transport/low_level/udp/udp.h"
-#include "aether/transport/low_level/sockets/lte_udp_socket.h"
-#include "aether/transport/low_level/sockets/lte_tcp_socket.h"
+#include "aether/transport/modems/modem_tcp.h"
 
 #include "aether/adapters/adapter_tele.h"
 
@@ -47,22 +44,26 @@ class ModemAdapterTransportBuilder final : public ITransportBuilder {
 
  private:
   std::unique_ptr<ITransport> BuildTcp() {
-#if defined COMMON_TCP_TRANSPORT_ENABLED
+#if defined MODEM_TCP_ENABLED
     assert(address_port_protocol_.protocol == Protocol::kTcp);
-    return make_unique<TcpTransport>(*adapter_->aether_.as<Aether>(),
-                                     adapter_->poller_, address_port_protocol_);
+    return make_unique<ModemTcpTransport>(*adapter_->aether_.as<Aether>(),
+                                          *adapter_->modem_driver_,
+                                          address_port_protocol_);
 #else
     static_assert(false, "No transport enabled");
+    return nullptr;
 #endif
   }
 
   std::unique_ptr<ITransport> BuildUdp() {
-#if defined COMMON_UDP_TRANSPORT_ENABLED
+#if defined MODEM_UDP_ENABLED
     assert(address_port_protocol_.protocol == Protocol::kUdp);
-    return make_unique<UdpTransport>(*adapter_->aether_.as<Aether>(),
-                                     adapter_->poller_, address_port_protocol_);
+    return make_unique<ModemUdpTransport>(*adapter_->aether_.as<Aether>(),
+                                          *adapter_->modem_driver_,
+                                          address_port_protocol_);
 #else
-    static_assert(false, "No transport enabled");
+    // static_assert(false, "No transport enabled");
+    return nullptr;
 #endif
   }
 
