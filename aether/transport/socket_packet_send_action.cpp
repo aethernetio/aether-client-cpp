@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/transport/low_level/socket_packet_send_action.h"
+#include "aether/transport/socket_packet_send_action.h"
 
 namespace ae {
 UpdateStatus SocketPacketSendAction::Update() {

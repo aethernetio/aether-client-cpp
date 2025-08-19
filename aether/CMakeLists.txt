@@ -129,9 +129,6 @@ list(APPEND serial_ports_srcs
 list(APPEND transport_srcs
             "transport/actions/build_transport_action.cpp"
             "transport/server/server_channel_stream.cpp"
-            # "transport/low_level/sockets/lte_socket.cpp"
-            # "transport/low_level/sockets/lte_tcp_socket.cpp"
-            # "transport/low_level/sockets/lte_udp_socket.cpp"
             "transport/low_level/sockets/unix_socket.cpp"
             "transport/low_level/sockets/unix_tcp_socket.cpp"
             "transport/low_level/sockets/unix_udp_socket.cpp"
@@ -141,10 +138,11 @@ list(APPEND transport_srcs
             "transport/low_level/sockets/win_socket.cpp"
             "transport/low_level/sockets/win_tcp_socket.cpp"
             "transport/low_level/sockets/win_udp_socket.cpp"
-            "transport/low_level/socket_packet_send_action.cpp"
+            "transport/socket_packet_send_action.cpp"
+            "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
-            "transport/low_level/tcp/data_packet_collector.cpp"
             "transport/low_level/udp/udp.cpp"
+            "transport/modems/modem_tcp.cpp"
 )
 
 list(APPEND server_list_srcs

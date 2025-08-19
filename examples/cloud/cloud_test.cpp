@@ -75,8 +75,7 @@ int AetherCloudExample() {
                 std::string(kWifiSsid), std::string(kWifiPass));
 #  elif defined MODEM_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::ModemAdapter>(
-                ae::GlobalId::kModemAdapter, context.aether(), context.poller(),
-                context.dns_resolver(), modem_init);
+                ae::GlobalId::kModemAdapter, context.aether(), modem_init);
 #  else
             auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, context.aether(),
