@@ -14,17 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_MODEM_FACTORY_H_
-#define AETHER_ADAPTERS_MODEMS_MODEM_FACTORY_H_
+#ifndef AETHER_MODEMS_MODEM_FACTORY_H_
+#define AETHER_MODEMS_MODEM_FACTORY_H_
 
 #include <memory>
 
-#include "aether/adapters/parent_modem.h"
 #include "aether/modems/imodem_driver.h"
 
 #define AE_MODEM_SIM7070_ENABLED 0
 #define AE_MODEM_BG95_ENABLED 0
 #define AE_MODEM_THINGY91X_ENABLED 1
+
+// check if any mode is enabled
+//#if AE_MODEM_SIM7070_ENABLED == 1 or AE_MODEM_BG95_ENABLED == 1 or \
+//    AE_MODEM_THINGY91X_ENABLED == 1
+#  define AE_MODEM_ENABLED 1
 
 namespace ae {
 class ModemDriverFactory {
@@ -32,5 +36,6 @@ class ModemDriverFactory {
   static IModemDriver::ptr CreateModem(ModemInit modem_init, Domain* domain);
 };
 }  // namespace ae
+//#endif
 
-#endif  // AETHER_ADAPTERS_MODEMS_MODEM_FACTORY_H_
+#endif  // AETHER_MODEMS_MODEM_FACTORY_H_

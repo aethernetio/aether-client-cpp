@@ -14,40 +14,41 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
-#define AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
+#ifndef AETHER_SERIAL_PORTS_WIN_SERIAL_PORT_H_
+#define AETHER_SERIAL_PORTS_WIN_SERIAL_PORT_H_
 
-# if defined _WIN32
+#if defined _WIN32
 
-# include <vector>
-# include <optional>
-# include <stdexcept>
-# include <string>
-# include <memory>
+#  include <vector>
+#  include <string>
+#  include <memory>
+#  include <optional>
+#  include <stdexcept>
 
-# include "aether/serial_ports/iserial_port.h"
-# include "aether/types/modem_driver_types.h"
+#  include "aether/serial_ports/iserial_port.h"
+#  include "aether/serial_ports/serial_port_types.h"
 
-# define WIN_SERIAL_PORT_ENABLED 1
+#  define WIN_SERIAL_PORT_ENABLED 1
 
 namespace ae {
-class WINSerialPort : public ISerialPort{
-    
-public:
-    WINSerialPort(SerialInit serial_init);
-    ~WINSerialPort();
-    void WriteData(const DataBuffer& data) override;
-    std::optional<DataBuffer> ReadData() override;
-    bool GetConnected() override;
-private:
-    void* hPort_;
-    
-    void Open(const std::string& portName, std::uint32_t baudRate);
-    void ConfigurePort(std::uint32_t baudRate);
-    void SetupTimeouts();
-    void Close();
+class WINSerialPort final : public ISerialPort {
+ public:
+  WINSerialPort(SerialInit const& serial_init);
+  ~WINSerialPort() override;
+
+  void Write(DataBuffer const& data) override;
+  std::optional<DataBuffer> Read() override;
+  bool IsOpen() override;
+
+ private:
+  void* h_port_;
+
+  void Open(std::string const& port_name, std::uint32_t baud_rate);
+  void ConfigurePort(std::uint32_t baud_rate);
+  void SetupTimeouts();
+  void Close();
 };
 } /* namespace ae */
 
 #endif  // _WIN32
-#endif  // AETHER_ADAPTERS_MODEMS_SERIAL_PORTS_WIN_SERIAL_PORT_H_
+#endif  // AETHER_SERIAL_PORTS_WIN_SERIAL_PORT_H_

@@ -63,7 +63,7 @@ class Thingy91xAtModem final : public IModemDriver {
   std::string host_;
   std::uint16_t port_;
 
-  kModemError CheckResponce(std::string const responce,
+  kModemError CheckResponse(std::string const response,
                             std::uint32_t const wait_time,
                             std::string const error_message);
   kModemError SetBaudRate(std::uint32_t const rate);

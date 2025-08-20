@@ -14,19 +14,26 @@
  * limitations under the License.
  */
 
-#include "aether/types/modem_driver_types.h"
 #include "aether/serial_ports/serial_port_factory.h"
-#include "aether/serial_ports/esp32_serial_port.h"
-#include "aether/serial_ports/win_serial_port.h"
 
+// IWYU pragma: begin_keeps
+#include "aether/serial_ports/win_serial_port.h"
+#include "aether/serial_ports/esp32_serial_port.h"
+#include "aether/serial_ports/unix_serial_port.h"
+// IWYU pragma: end_keeps
 
 namespace ae {
 
-std::unique_ptr<ISerialPort> SerialPortFactory::CreatePort(SerialInit serial_init){
-#if WIN_SERIAL_PORT_ENABLED==1
+std::unique_ptr<ISerialPort> SerialPortFactory::CreatePort(
+    [[maybe_unused]] SerialInit const& serial_init) {
+#if WIN_SERIAL_PORT_ENABLED == 1
   return std::make_unique<WINSerialPort>(serial_init);
-#elif ESP32_SERIAL_PORT_ENABLED==1
+#elif ESP32_SERIAL_PORT_ENABLED == 1
   return std::make_unique<ESP32SerialPort>(serial_init);
+#elif UNIX_SERIAL_PORT_ENABLED == 1
+  return std::make_unique<UnixSerialPort>(serial_init);
+#else
+  return nullptr;
 #endif
 }
 

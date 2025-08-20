@@ -30,15 +30,15 @@ void Bg95AtModem::Init() {
 
   if (err == kModemError::kNoError) {
     sendATCommand("AT");  // Checking the connection
-    err = CheckResponce("OK", 1000, "AT command error!");
+    err = CheckResponse("OK", 1000, "AT command error!");
   }
   if (err == kModemError::kNoError) {
     sendATCommand("ATE0");  // Turning off the echo
-    err = CheckResponce("OK", 1000, "ATE command error!");
+    err = CheckResponse("OK", 1000, "ATE command error!");
   }
   if (err == kModemError::kNoError) {
     sendATCommand("AT+CMEE=2");  // Enabling extended errors
-    err = CheckResponce("OK", 1000, "AT+CMEE command error!");
+    err = CheckResponse("OK", 1000, "AT+CMEE command error!");
   }
 
   if (err != kModemError::kNoError) {
@@ -59,7 +59,7 @@ void Bg95AtModem::Start() {
   // Enabling full functionality
   if (err == kModemError::kNoError) {
     sendATCommand("AT+CFUN=1");
-    err = CheckResponce("OK", 1000, "AT+CFUN command error!");
+    err = CheckResponse("OK", 1000, "AT+CFUN command error!");
   }
 
   if (err == kModemError::kNoError) {
@@ -105,7 +105,7 @@ void Bg95AtModem::CloseNetwork(std::int8_t const connect_index) {
 
 void Bg95AtModem::WritePacket(std::int8_t const connect_index,
                               std::vector<uint8_t> const& data) {
-  serial_->WriteData(data);
+  serial_->Write(data);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
 };
 
@@ -114,7 +114,7 @@ void Bg95AtModem::ReadPacket(std::int8_t const connect_index,
                              std::int32_t timeout) {
   // std::size_t size{};
 
-  auto response = serial_->ReadData();
+  auto response = serial_->Read();
   std::vector<std::uint8_t> response_vector(response->begin(), response->end());
   data = response_vector;
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
@@ -122,7 +122,7 @@ void Bg95AtModem::ReadPacket(std::int8_t const connect_index,
 };
 
 //=============================private members=============================//
-kModemError Bg95AtModem::CheckResponce(std::string responce,
+kModemError Bg95AtModem::CheckResponse(std::string responce,
                                        std::uint32_t wait_time,
                                        std::string error_message) {
   kModemError err{kModemError::kNoError};
@@ -135,7 +135,7 @@ kModemError Bg95AtModem::CheckResponce(std::string responce,
   return err;
 }
 
-kModemError Bg95AtModem::SetBaudRate(kModemBaudRate rate) {
+kModemError Bg95AtModem::SetBaudRate(kBaudRate rate) {
   kModemError err{kModemError::kNoError};
 
   auto it = baud_rate_commands_bg95.find(rate);
@@ -146,7 +146,7 @@ kModemError Bg95AtModem::SetBaudRate(kModemBaudRate rate) {
     sendATCommand(it->second);
   }
 
-  err = CheckResponce("OK", 1000, "No response from modem!");
+  err = CheckResponse("OK", 1000, "No response from modem!");
   if (err != kModemError::kNoError) {
     err = kModemError::kBaudRateError;
   }
@@ -158,7 +158,7 @@ kModemError Bg95AtModem::CheckSimStatus() {
   kModemError err{kModemError::kNoError};
 
   sendATCommand("AT+CPIN?");  // Check SIM card status
-  err = CheckResponce("OK", 1000, "SIM card error!");
+  err = CheckResponse("OK", 1000, "SIM card error!");
   if (err != kModemError::kNoError) {
     err = kModemError::kCheckSimStatus;
   }
@@ -177,7 +177,7 @@ kModemError Bg95AtModem::SetupSim(const std::uint8_t pin[4]) {
   }
 
   sendATCommand("AT+CPIN=" + pin_string);  // Check SIM card status
-  err = CheckResponce("OK", 1000, "SIM card PIN error!");
+  err = CheckResponse("OK", 1000, "SIM card PIN error!");
   if (err != kModemError::kNoError) {
     err = kModemError::kSetupSim;
   }
@@ -203,7 +203,7 @@ kModemError Bg95AtModem::SetTxPower(kModemBand band, const float& power) {
         power_command = Format(it->second, hex);
       }
       sendATCommand(power_command);
-      err = CheckResponce("OK", 1000, "No response from modem!");
+      err = CheckResponse("OK", 1000, "No response from modem!");
     }
   }
 
@@ -227,11 +227,11 @@ kModemError Bg95AtModem::GetTxPower(kModemBand band, float& power) {
       power_command = Format(it->second);
 
       sendATCommand(power_command);
-      err = CheckResponce("OK", 1000, "No response from modem!");
+      err = CheckResponse("OK", 1000, "No response from modem!");
     }
   }
 
-  auto response = serial_->ReadData();
+  auto response = serial_->Read();
 
   std::string response_str(response->begin(), response->end());
 
@@ -333,7 +333,7 @@ kModemError Bg95AtModem::SetupNetwork(std::string operator_name,
   kModemError err{kModemError::kNoError};
 
   sendATCommand("AT+COPS=1,2,\"" + operator_code + "\",0");
-  // err = CheckResponce("OK", 1000, "No response from modem!");
+  // err = CheckResponse("OK", 1000, "No response from modem!");
   // if (err != kModemError::kNoError) {}
 
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Operator name {}", operator_name);
@@ -349,7 +349,7 @@ void Bg95AtModem::SendATCommand(const std::string& command) {
   std::vector<uint8_t> data(command.begin(), command.end());
   data.push_back('\r');  // Adding a carriage return symbols
   data.push_back('\n');
-  serial_->WriteData(data);
+  serial_->Write(data);
 }
 
 bool Bg95AtModem::WaitForResponse(const std::string& expected,
@@ -363,7 +363,7 @@ bool Bg95AtModem::WaitForResponse(const std::string& expected,
       return false;
     }
 
-    if (auto response = serial_->ReadData()) {
+    if (auto response = serial_->Read()) {
       std::string response_str(response->begin(), response->end());
       if (response_str.find(expected) != std::string::npos) {
         return true;

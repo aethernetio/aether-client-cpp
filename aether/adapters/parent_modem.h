@@ -17,13 +17,9 @@
 #ifndef AETHER_ADAPTERS_PARENT_MODEM_H_
 #define AETHER_ADAPTERS_PARENT_MODEM_H_
 
-#include <string>
-
 #include "aether/aether.h"
 #include "aether/adapters/adapter.h"
-#include "aether/poller/poller.h"
-
-#include "aether/modems/imodem_driver.h"
+#include "aether/modems/modem_driver_types.h"
 
 namespace ae {
 class Aether;
@@ -36,16 +32,13 @@ class ParentModemAdapter : public Adapter {
 
  public:
 #ifdef AE_DISTILLATION
-  ParentModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                     DnsResolver::ptr dns_resolver, ModemInit modem_init,
+  ParentModemAdapter(ObjPtr<Aether> aether, ModemInit modem_init,
                      Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, modem_init_))
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, modem_init_))
 
   Obj::ptr aether_;
-  IPoller::ptr poller_;
-  DnsResolver::ptr dns_resolver_;
 
   ModemInit modem_init_;
 };

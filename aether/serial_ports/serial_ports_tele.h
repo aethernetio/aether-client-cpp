@@ -14,26 +14,19 @@
  * limitations under the License.
  */
 
-#include "aether/transport/low_level/sockets/lte_udp_socket.h"
-#if LTE_SOCKET_ENABLED
+#ifndef AETHER_SERIAL_PORTS_SERIAL_PORTS_TELE_H_
+#define AETHER_SERIAL_PORTS_SERIAL_PORTS_TELE_H_
 
-#  include "aether/misc/defer.h"
+#include "aether/tele/tele.h"
 
-#  include "aether/tele/tele.h"
+//namespace ae {
+AE_TELE_MODULE(kSerialPorts, 200, 500, 550);
 
-namespace ae {
-LteUdpSocket::LteUdpSocket() : LteSocket{MakeSocket()} {}
+AE_TAG(kAdapterSerialNotOpen, kSerialPorts)
+AE_TAG(kAdapterSerialWriteFiled, kSerialPorts)
+AE_TAG(kAdapterSerialPartialData, kSerialPorts)
+AE_TAG(kAdapterSerialPortState, kSerialPorts)
+AE_TAG(kAdapterSerialConfigurePort, kSerialPorts)
+//}  // namespace ae
 
-std::size_t LteUdpSocket::GetMaxPacketSize() const { return 1200; }
-
-int LteUdpSocket::MakeSocket() {
-  bool created = false;
-  int sock = 0;
-
-  AE_TELED_DEBUG("Socket created");
-  created = true;
-  return sock;
-}
-}  // namespace ae
-
-#endif  // LWIP_SOCKET_ENABLED
+#endif  // AETHER_SERIAL_PORTS_SERIAL_PORTS_TELE_H_
