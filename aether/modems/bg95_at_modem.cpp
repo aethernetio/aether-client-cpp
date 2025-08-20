@@ -20,8 +20,8 @@
 
 namespace ae {
 
-Bg95AtModem::Bg95AtModem(ModemInit modem_init, Domain* domain) : IModemDriver(modem_init, domain), modem_init_{modem_init}  {
-  serial_ = SerialPortFactory::CreatePort(modem_init_.serial_init);
+Bg95AtModem::Bg95AtModem(ModemInit modem_init, Domain* domain) : IModemDriver(modem_init, domain) {
+  serial_ = SerialPortFactory::CreatePort(modem_init.serial_init);
 };
 
 void Bg95AtModem::Init() {
@@ -47,11 +47,12 @@ void Bg95AtModem::Init() {
 
 void Bg95AtModem::Start() {
   kModemError err{kModemError::kNoError};
-
+  ModemInit modem_init = GetModemInit();
+  
   // Configuring modem settings
   // Serial port speed
   if (err == kModemError::kNoError) {
-    err = SetBaudRate(modem_init_.serial_init.baud_rate);
+    err = SetBaudRate(modem_init.serial_init.baud_rate);
   }
 
   // Enabling full functionality
@@ -64,14 +65,14 @@ void Bg95AtModem::Start() {
     err = CheckSimStatus();
   }
 
-  if (err == kModemError::kNoError && modem_init_.use_pin == true) {
-    err = SetupSim(modem_init_.pin);
+  if (err == kModemError::kNoError && modem_init.use_pin == true) {
+    err = SetupSim(modem_init.pin);
   }
 
   if (err == kModemError::kNoError) {
-    err = SetupNetwork(modem_init_.operator_name, modem_init_.operator_code,
-                       modem_init_.apn_name, modem_init_.apn_user,
-                       modem_init_.apn_pass);
+    err = SetupNetwork(modem_init.operator_name, modem_init.operator_code,
+                       modem_init.apn_name, modem_init.apn_user,
+                       modem_init.apn_pass);
   }
 
   // float power = 23.5;  // DBm

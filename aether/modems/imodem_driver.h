@@ -27,40 +27,43 @@
 
 namespace ae {
 
-class IModemDriver : public Obj{
+class IModemDriver : public Obj {
   AE_OBJECT(IModemDriver, Obj, 0)
 
  protected:
   IModemDriver() = default;
-  
+
  public:
-#ifdef AE_DISTILLATION
-  explicit IModemDriver(ModemInit /*modem_init*/, Domain* /*domain*/){};
-#endif  // AE_DISTILLATION
+  explicit IModemDriver(ModemInit modem_init, Domain* /*domain*/);
   AE_OBJECT_REFLECT()
 
   virtual ~IModemDriver() = default;
 
-  virtual void Init(){};
-  virtual void Start(){};
-  virtual void Stop(){};
+  virtual void Init();
+  virtual void Start();
+  virtual void Stop();
   virtual void OpenNetwork(std::int8_t& /*connect_index*/,
-                           ae::Protocol const /*protocol*/, const std::string /*host*/,
-                           const std::uint16_t /*port*/){};
-  virtual void CloseNetwork(std::int8_t const /*connect_index*/){};
+                           ae::Protocol const /*protocol*/,
+                           const std::string /*host*/,
+                           const std::uint16_t /*port*/);
+  virtual void CloseNetwork(std::int8_t const /*connect_index*/);
   virtual void WritePacket(std::int8_t const /*connect_index*/,
-                           std::vector<uint8_t> const& /*data*/){};
+                           std::vector<uint8_t> const& /*data*/);
   virtual void ReadPacket(std::int8_t const /*connect_index*/,
                           std::vector<std::uint8_t>& /*data*/,
-                          std::int32_t const /*timeout*/){};
-  virtual void PollSockets(std::int8_t const /*connect_index*/, PollResult& /*results*/,
-                           std::int32_t const /*timeout*/){};
-  virtual void SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/){};
-  virtual void PowerOff(){};
+                          std::int32_t const /*timeout*/);
+  virtual void PollSockets(std::int8_t const /*connect_index*/,
+                           PollResult& /*results*/,
+                           std::int32_t const /*timeout*/);
+  virtual void SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/);
+  virtual void PowerOff();
+  ModemInit GetModemInit();
 
   Event<void(bool result)> modem_connected_event_;
   Event<void(int result)> modem_error_event_;
 
+ private:
+  ModemInit modem_init_;
 };
 
 } /* namespace ae */

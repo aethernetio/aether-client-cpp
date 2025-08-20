@@ -57,7 +57,6 @@ class Thingy91xAtModem final : public IModemDriver {
   void PowerOff() override;
 
  private:
-  ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::vector<Thingy91xConnection> connect_vec_;
   ae::Protocol protocol_;

@@ -113,6 +113,7 @@ list(APPEND adapters_srcs
             )
 
 list(APPEND modems_srcs
+            "modems/imodem_driver.cpp"
             "modems/modem_factory.cpp"
             #"modems/bg95_at_modem.cpp"            
             #"modems/sim7070_at_modem.cpp"

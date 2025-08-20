@@ -78,7 +78,6 @@ class Sim7070AtModem final : public IModemDriver {
   void PowerOff();
 
  private:
-  ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::vector<Sim7070Connection> connect_vec_;
 

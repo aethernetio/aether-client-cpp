@@ -160,7 +160,6 @@ class Bg95AtModem final : public IModemDriver {
   void PowerOff();
 
  private:
-  ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
 
   kModemError CheckResponce(std::string responce, std::uint32_t wait_time,

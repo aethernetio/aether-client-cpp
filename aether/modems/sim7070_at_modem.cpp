@@ -20,8 +20,8 @@
 
 namespace ae {
 
-Sim7070AtModem::Sim7070AtModem(ModemInit modem_init, Domain* domain) : IModemDriver(modem_init, domain),modem_init_{modem_init} {
-  serial_ = SerialPortFactory::CreatePort(modem_init_.serial_init);
+Sim7070AtModem::Sim7070AtModem(ModemInit modem_init, Domain* domain) : IModemDriver(modem_init, domain) {
+  serial_ = SerialPortFactory::CreatePort(modem_init.serial_init);
 };
 
 void Sim7070AtModem::Init() {
@@ -51,11 +51,12 @@ void Sim7070AtModem::Init() {
 
 void Sim7070AtModem::Start() {
   kModemError err{kModemError::kNoError};
+  ModemInit modem_init = GetModemInit();
 
   if (serial_->GetConnected()) {
     // Configuring modem settings
     if (err == kModemError::kNoError) {
-      err = SetBaudRate(modem_init_.serial_init.baud_rate);
+      err = SetBaudRate(modem_init.serial_init.baud_rate);
     }
 
     // Disabling full functionality
@@ -81,15 +82,15 @@ void Sim7070AtModem::Start() {
 
     // Check Sim card
     err = CheckSimStatus();
-    if (err == kModemError::kNoError && modem_init_.use_pin == true) {
-      err = SetupSim(modem_init_.pin);
+    if (err == kModemError::kNoError && modem_init.use_pin == true) {
+      err = SetupSim(modem_init.pin);
     }
 
     if (err == kModemError::kNoError) {
-      err = SetupNetwork(modem_init_.operator_name, modem_init_.operator_code,
-                         modem_init_.apn_name, modem_init_.apn_user,
-                         modem_init_.apn_pass, modem_init_.modem_mode,
-                         modem_init_.auth_type);
+      err = SetupNetwork(modem_init.operator_name, modem_init.operator_code,
+                         modem_init.apn_name, modem_init.apn_user,
+                         modem_init.apn_pass, modem_init.modem_mode,
+                         modem_init.auth_type);
     }
   } else {
     err = kModemError::kSerialPortError;
