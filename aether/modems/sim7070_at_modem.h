@@ -52,16 +52,15 @@ static const std::map<kModemBaudRate, std::string> baud_rate_commands_sim7070 =
      {kModemBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
 
 class Sim7070AtModem final : public IModemDriver {
-  
   AE_OBJECT(Sim7070AtModem, IModemDriver, 0)
 
  protected:
   Sim7070AtModem() = default;
-  
+
  public:
   explicit Sim7070AtModem(ModemInit modem_init, Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
-  
+
   void Init() override;
   void Start() override;
   void Stop() override;

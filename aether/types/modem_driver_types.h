@@ -108,9 +108,23 @@ enum class kAuthType : std::uint8_t {
 // 1 1 1 – Value indicates that the timer is deactivated
 
 struct kRequestedActiveTimeT3324 {
-  AE_REFLECT_MEMBERS(Value, Multiplier)
-  std::uint8_t Value : 5;
-  std::uint8_t Multiplier : 3;
+  AE_REFLECT_MEMBERS(byte)
+    union {
+        std::uint8_t byte;
+        struct {
+            std::uint8_t Value : 5;       // Lower 5 bits (0-4)
+            std::uint8_t Multiplier : 3;  // Upper 3 bits (5-7)
+        } bits;
+    };
+
+    // Constructor for convenient initialization
+    kRequestedActiveTimeT3324(std::uint8_t val = 0, std::uint8_t mult = 0) {
+        bits.Value = val;
+        bits.Multiplier = mult;
+    }
+
+    // Conversion operator to uint8_t for compatibility
+    operator std::uint8_t() const { return byte; }
 };
 
 // Bits 8 to 6 define the timer value unit for the General Packet Radio Services
@@ -125,10 +139,25 @@ struct kRequestedActiveTimeT3324 {
 // 1 0 1 – Value is incremented in multiples of 1 min
 // 1 1 0 – Value is incremented in multiples of 320 h
 
+
 struct kRequestedPeriodicTAUT3412 {
-  AE_REFLECT_MEMBERS(Value, Multiplier)
-  std::uint8_t Value : 5;
-  std::uint8_t Multiplier : 3;
+  AE_REFLECT_MEMBERS(byte)
+    union {
+        std::uint8_t byte;
+        struct {
+            std::uint8_t Value : 5;       // Lower 5 bits (0-4)
+            std::uint8_t Multiplier : 3;  // Upper 3 bits (5-7)
+        } bits;
+    };
+
+    // Constructor for convenient initialization
+    kRequestedPeriodicTAUT3412(std::uint8_t val = 0, std::uint8_t mult = 0) {
+        bits.Value = val;
+        bits.Multiplier = mult;
+    }
+
+    // Conversion operator to uint8_t for compatibility
+    operator std::uint8_t() const { return byte; }
 };
 
 enum class EdrxMode : std::uint8_t {
@@ -164,10 +193,33 @@ enum class EdrxActTType : std::uint8_t {
 // 1 1 1 1 – 10485.76 s4
 
 struct kEDrx {
-  std::uint8_t ReqEDRXValue : 4;
-  std::uint8_t ProvEDRXValue : 4;
-  std::uint8_t PTWValue : 4;
+  AE_REFLECT_MEMBERS(bytes)
+    union {
+        struct {
+        AE_REFLECT_MEMBERS(byte0, byte1)
+        std::uint8_t byte0; // First byte (ReqEDRXValue + ProvEDRXValue)
+        std::uint8_t byte1; // Second byte (PTWValue + padding)
+    } bytes;
+    
+        struct {
+        std::uint8_t ReqEDRXValue : 4;  // The lower 4 bits of the first byte
+        std::uint8_t ProvEDRXValue : 4; // The upper 4 bits of the first byte
+        std::uint8_t PTWValue : 4;      // The lower 4 bits of the second byte
+        std::uint8_t : 4;               // Placeholder (upper 4 bits of the second byte)
+        } bits;
+    };
+
+    // Constructor for convenient initialization
+    kEDrx(std::uint8_t r_edrx = 0, std::uint8_t p_edrx = 0, std::uint8_t ptw_val = 0) {
+        bits.ReqEDRXValue = r_edrx;
+        bits.ProvEDRXValue = p_edrx;
+        bits.PTWValue = ptw_val;
+    }
+
+    // Conversion operator to uint16_t for compatibility
+    operator std::uint16_t() const { return ((bytes.byte0 << 8) | (bytes.byte1 << 0)); }
 };
+
 
 enum class kModemBand : std::uint8_t {
   kWCDMA_B1 = 0,
@@ -208,6 +260,7 @@ enum class kModemBand : std::uint8_t {
 };
 
 struct BandPower {
+  AE_REFLECT_MEMBERS(band, power)
   kModemBand band;
   std::uint8_t power;
 };
@@ -235,7 +288,7 @@ struct BaseStation {
 };
 
 struct ModemInit {
-  AE_REFLECT_MEMBERS(serial_init, psp, pin, use_pin, operator_name, apn_name,
+  AE_REFLECT_MEMBERS(serial_init, psp, bs, pin, use_pin, operator_name, apn_name,
                      apn_user, apn_pass, modem_mode, auth_type, use_auth,
                      auth_user, auth_pass, ssl_cert, use_ssl)
   SerialInit serial_init;

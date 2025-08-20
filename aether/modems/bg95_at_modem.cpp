@@ -20,7 +20,8 @@
 
 namespace ae {
 
-Bg95AtModem::Bg95AtModem(ModemInit modem_init, Domain* domain) : IModemDriver(modem_init, domain) {
+Bg95AtModem::Bg95AtModem(ModemInit modem_init, Domain* domain)
+    : IModemDriver(modem_init, domain) {
   serial_ = SerialPortFactory::CreatePort(modem_init.serial_init);
 };
 
@@ -48,7 +49,7 @@ void Bg95AtModem::Init() {
 void Bg95AtModem::Start() {
   kModemError err{kModemError::kNoError};
   ModemInit modem_init = GetModemInit();
-  
+
   // Configuring modem settings
   // Serial port speed
   if (err == kModemError::kNoError) {
@@ -377,17 +378,17 @@ bool Bg95AtModem::WaitForResponse(const std::string& expected,
 }
 
 std::string Bg95AtModem::PinToString(const std::uint8_t pin[4]) {
-    std::string result{};
+  std::string result{};
 
-    for (int i = 0; i < 4; ++i) {
-      if (pin[i] > 9) {
-        result = "ERROR";
-        break;
-      }
-      result += static_cast<char>('0' + pin[i]);
+  for (int i = 0; i < 4; ++i) {
+    if (pin[i] > 9) {
+      result = "ERROR";
+      break;
     }
-
-    return result;
+    result += static_cast<char>('0' + pin[i]);
   }
+
+  return result;
+}
 
 } /* namespace ae */

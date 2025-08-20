@@ -20,7 +20,8 @@
 
 namespace ae {
 
-Sim7070AtModem::Sim7070AtModem(ModemInit modem_init, Domain* domain) : IModemDriver(modem_init, domain) {
+Sim7070AtModem::Sim7070AtModem(ModemInit modem_init, Domain* domain)
+    : IModemDriver(modem_init, domain) {
   serial_ = SerialPortFactory::CreatePort(modem_init.serial_init);
 };
 
@@ -360,7 +361,7 @@ kModemError Sim7070AtModem::CheckResponce(std::string responce,
 
 kModemError Sim7070AtModem::SetBaudRate(kModemBaudRate rate) {
   kModemError err{kModemError::kNoError};
-  
+
   auto it = baud_rate_commands_sim7070.find(rate);
   if (it == baud_rate_commands_sim7070.end()) {
     err = kModemError::kBaudRateError;
@@ -554,17 +555,17 @@ bool Sim7070AtModem::WaitForResponse(const std::string& expected,
 }
 
 std::string Sim7070AtModem::PinToString(const std::uint8_t pin[4]) {
-    std::string result{};
+  std::string result{};
 
-    for (int i = 0; i < 4; ++i) {
-      if (pin[i] > 9) {
-        result = "ERROR";
-        break;
-      }
-      result += static_cast<char>('0' + pin[i]);
+  for (int i = 0; i < 4; ++i) {
+    if (pin[i] > 9) {
+      result = "ERROR";
+      break;
     }
-
-    return result;
+    result += static_cast<char>('0' + pin[i]);
   }
-  
+
+  return result;
+}
+
 } /* namespace ae */

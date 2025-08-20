@@ -98,7 +98,7 @@ void Thingy91xAtModem::Stop() {
 
   if (serial_->GetConnected()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
+
     // Disabling full functionality
     if (err == kModemError::kNoError) {
       SendATCommand("AT+CFUN=0");
@@ -404,7 +404,7 @@ void Thingy91xAtModem::PollSockets(std::int8_t const connect_index,
         if (hndl_tst == handle) {
           // The  <revents>  value is a hexadecimal string.
           // It represents the returned events, which could be a combination
-          // of POLLIN, POLLERR, POLLHUP and POLLNVAL.          
+          // of POLLIN, POLLERR, POLLHUP and POLLNVAL.
           err = ParsePollEvents(response_string.substr(stop + 2, 6), revnts);
           if (err == kModemError::kNoError) {
             results.connect_index = connect_index;
@@ -500,6 +500,12 @@ kModemError Thingy91xAtModem::CheckResponce(std::string const responce,
     AE_TELE_ERROR(kAdapterModemAtError, error_message);
     err = kModemError::kAtCommandError;
   }
+
+  return err;
+}
+
+kModemError Thingy91xAtModem::SetBaudRate(std::uint32_t const /*rate*/) {
+  kModemError err{kModemError::kNoError};
 
   return err;
 }
@@ -699,10 +705,11 @@ kModemError Thingy91xAtModem::SetPsm(
     cmd = "AT+CPSMS=0";
   } else if (psm_mode == 1) {
     std::string tau_str =
-        std::bitset<8>(((psm_tau.Multiplier << 5) | psm_tau.Value)).to_string();
-    std::string active_str =
-        std::bitset<8>(((psm_active.Multiplier << 5) | psm_active.Value))
+        std::bitset<8>(((psm_tau.bits.Multiplier << 5) | psm_tau.bits.Value))
             .to_string();
+    std::string active_str = std::bitset<8>(((psm_active.bits.Multiplier << 5) |
+                                             psm_active.bits.Value))
+                                 .to_string();
     cmd = "AT+CPSMS=" + std::to_string(psm_mode) + ",,,\"" + tau_str + "\",\"" +
           active_str + "\"";
   } else {
@@ -732,10 +739,10 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode const edrx_mode,
   kModemError err{kModemError::kNoError};
 
   std::string req_edrx_str =
-      std::bitset<4>((edrx_val.ReqEDRXValue)).to_string();
+      std::bitset<4>((edrx_val.bits.ReqEDRXValue)).to_string();
   // std::string prov_edrx_str =
   // std::bitset<4>((edrx_val.ProvEDRXValue)).to_string();
-  std::string ptw_str = std::bitset<4>((edrx_val.PTWValue)).to_string();
+  std::string ptw_str = std::bitset<4>((edrx_val.bits.PTWValue)).to_string();
 
   cmd = "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(edrx_mode)) +
         "," + std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
@@ -964,16 +971,16 @@ bool Thingy91xAtModem::WaitForResponse(const std::string& expected,
 }
 
 std::string Thingy91xAtModem::PinToString(const std::uint8_t pin[4]) {
-    std::string result{};
+  std::string result{};
 
-    for (int i = 0; i < 4; ++i) {
-      if (pin[i] > 9) {
-        result = "ERROR";
-        break;
-      }
-      result += static_cast<char>('0' + pin[i]);
+  for (int i = 0; i < 4; ++i) {
+    if (pin[i] > 9) {
+      result = "ERROR";
+      break;
     }
-
-    return result;
+    result += static_cast<char>('0' + pin[i]);
   }
+
+  return result;
+}
 } /* namespace ae */

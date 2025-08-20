@@ -26,20 +26,20 @@
 namespace ae {
 
 struct Thingy91xConnection {
+  AE_REFLECT_MEMBERS(handle)
   std::int32_t handle;
 };
 
 class Thingy91xAtModem final : public IModemDriver {
-  
   AE_OBJECT(Thingy91xAtModem, IModemDriver, 0)
 
  protected:
   Thingy91xAtModem() = default;
-  
+
  public:
   explicit Thingy91xAtModem(ModemInit modem_init, Domain* domain);
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
-  
+  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_, protocol_, host_, port_))
+
   void Init() override;
   void Start() override;
   void Stop() override;
