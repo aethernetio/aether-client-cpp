@@ -63,6 +63,8 @@ class Thingy91xAtModem final : public IModemDriver {
   std::string host_;
   std::uint16_t port_;
 
+  std::uint16_t kModemMTU{1024};
+  
   kModemError CheckResponse(std::string const response,
                             std::uint32_t const wait_time,
                             std::string const error_message);

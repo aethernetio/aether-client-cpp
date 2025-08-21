@@ -256,6 +256,9 @@ void Thingy91xAtModem::WritePacket(std::int8_t const connect_index,
     err = kModemError::kConnectIndex;
   } else if (!serial_->IsOpen()) {
     err = kModemError::kSerialPortError;
+  } else if(data.size() > kModemMTU){
+    err = kModemError::kDataLength;
+    assert((data.size() <= kModemMTU));
   } else {
     if (protocol_ == ae::Protocol::kTcp) {
       handle = connect_vec_.at(static_cast<std::size_t>(connect_index)).handle;

@@ -50,7 +50,8 @@ enum class kModemError : std::int8_t {
   kPPEMiss0x = -22,
   kPPEInvalidHex = -23,
   kPPEFailedConvert = -24,
-  kXDataMode = -25
+  kXDataMode = -25,
+  kDataLength = -26
 };
 
 enum class kModemMode : std::uint8_t {
