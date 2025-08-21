@@ -26,8 +26,8 @@
 #define AE_MODEM_THINGY91X_ENABLED 1
 
 // check if any mode is enabled
-//#if AE_MODEM_SIM7070_ENABLED == 1 or AE_MODEM_BG95_ENABLED == 1 or \
-//    AE_MODEM_THINGY91X_ENABLED == 1
+#if (AE_MODEM_SIM7070_ENABLED == 1) || (AE_MODEM_BG95_ENABLED == 1) || \
+    (AE_MODEM_THINGY91X_ENABLED == 1)
 #  define AE_MODEM_ENABLED 1
 
 namespace ae {
@@ -36,6 +36,7 @@ class ModemDriverFactory {
   static IModemDriver::ptr CreateModem(ModemInit modem_init, Domain* domain);
 };
 }  // namespace ae
-//#endif
+
+#endif
 
 #endif  // AETHER_MODEMS_MODEM_FACTORY_H_

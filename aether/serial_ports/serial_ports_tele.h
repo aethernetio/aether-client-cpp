@@ -19,7 +19,6 @@
 
 #include "aether/tele/tele.h"
 
-//namespace ae {
 AE_TELE_MODULE(kSerialPorts, 200, 500, 550);
 
 AE_TAG(kAdapterSerialNotOpen, kSerialPorts)
@@ -27,6 +26,5 @@ AE_TAG(kAdapterSerialWriteFiled, kSerialPorts)
 AE_TAG(kAdapterSerialPartialData, kSerialPorts)
 AE_TAG(kAdapterSerialPortState, kSerialPorts)
 AE_TAG(kAdapterSerialConfigurePort, kSerialPorts)
-//}  // namespace ae
 
 #endif  // AETHER_SERIAL_PORTS_SERIAL_PORTS_TELE_H_

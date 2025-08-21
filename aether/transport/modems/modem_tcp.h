@@ -20,7 +20,7 @@
 #include "aether/config.h"
 #include "aether/modems/modem_factory.h"
 
-//#if defined AE_MODEM_ENABLED and defined AE_SUPPORT_TCP
+#if (AE_MODEM_ENABLED == 1) && (AE_SUPPORT_TCP == 1)
 #  define MODEM_TCP_ENABLED 1
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
@@ -106,5 +106,6 @@ class ModemTcpTransport final : public ITransport {
 };
 }  // namespace ae
 
-//#endif
+#endif
+
 #endif  // AETHER_TRANSPORT_MODEMS_MODEM_TCP_H_
