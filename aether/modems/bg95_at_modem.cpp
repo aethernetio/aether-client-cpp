@@ -20,8 +20,9 @@
 
 namespace ae {
 
-Bg95AtModem::Bg95AtModem(ModemInit modem_init) : modem_init_(modem_init) {
-  serial_ = SerialPortFactory::CreatePort(modem_init_.serial_init);
+Bg95AtModem::Bg95AtModem(ModemInit modem_init, Domain* domain)
+    : IModemDriver(modem_init, domain) {
+  serial_ = SerialPortFactory::CreatePort(modem_init.serial_init);
 };
 
 void Bg95AtModem::Init() {
@@ -47,11 +48,12 @@ void Bg95AtModem::Init() {
 
 void Bg95AtModem::Start() {
   kModemError err{kModemError::kNoError};
+  ModemInit modem_init = GetModemInit();
 
   // Configuring modem settings
   // Serial port speed
   if (err == kModemError::kNoError) {
-    err = SetBaudRate(modem_init_.serial_init.baud_rate);
+    err = SetBaudRate(modem_init.serial_init.baud_rate);
   }
 
   // Enabling full functionality
@@ -64,14 +66,14 @@ void Bg95AtModem::Start() {
     err = CheckSimStatus();
   }
 
-  if (err == kModemError::kNoError && modem_init_.use_pin == true) {
-    err = SetupSim(modem_init_.pin);
+  if (err == kModemError::kNoError && modem_init.use_pin == true) {
+    err = SetupSim(modem_init.pin);
   }
 
   if (err == kModemError::kNoError) {
-    err = SetupNetwork(modem_init_.operator_name, modem_init_.operator_code,
-                       modem_init_.apn_name, modem_init_.apn_user,
-                       modem_init_.apn_pass);
+    err = SetupNetwork(modem_init.operator_name, modem_init.operator_code,
+                       modem_init.apn_name, modem_init.apn_user,
+                       modem_init.apn_pass);
   }
 
   // float power = 23.5;  // DBm
@@ -343,14 +345,14 @@ kModemError Bg95AtModem::SetupNetwork(std::string operator_name,
   return err;
 }
 
-void Bg95AtModem::sendATCommand(const std::string& command) {
+void Bg95AtModem::SendATCommand(const std::string& command) {
   std::vector<uint8_t> data(command.begin(), command.end());
   data.push_back('\r');  // Adding a carriage return symbols
   data.push_back('\n');
   serial_->Write(data);
 }
 
-bool Bg95AtModem::waitForResponse(const std::string& expected,
+bool Bg95AtModem::WaitForResponse(const std::string& expected,
                                   std::chrono::milliseconds timeout_ms) {
   // Simplified implementation of waiting for a response
   auto start = std::chrono::high_resolution_clock::now();
@@ -373,6 +375,20 @@ bool Bg95AtModem::waitForResponse(const std::string& expected,
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
+}
+
+std::string Bg95AtModem::PinToString(const std::uint8_t pin[4]) {
+  std::string result{};
+
+  for (int i = 0; i < 4; ++i) {
+    if (pin[i] > 9) {
+      result = "ERROR";
+      break;
+    }
+    result += static_cast<char>('0' + pin[i]);
+  }
+
+  return result;
 }
 
 } /* namespace ae */

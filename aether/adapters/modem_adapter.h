@@ -107,7 +107,7 @@ class ModemAdapter : public ParentModemAdapter {
 
   bool connected_{false};
   Event<void(bool result)> modem_connected_event_;
-  std::unique_ptr<IModemDriver> modem_driver_;
+  IModemDriver::ptr modem_driver_;
 };
 
 }  // namespace ae

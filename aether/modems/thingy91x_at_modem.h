@@ -26,12 +26,20 @@
 namespace ae {
 
 struct Thingy91xConnection {
+  AE_REFLECT_MEMBERS(handle)
   std::int32_t handle;
 };
 
-class Thingy91xAtModem : public IModemDriver {
+class Thingy91xAtModem final : public IModemDriver {
+  AE_OBJECT(Thingy91xAtModem, IModemDriver, 0)
+
+ protected:
+  Thingy91xAtModem() = default;
+
  public:
-  explicit Thingy91xAtModem(ModemInit modem_init);
+  explicit Thingy91xAtModem(ModemInit modem_init, Domain* domain);
+  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_, protocol_, host_, port_))
+
   void Init() override;
   void Start() override;
   void Stop() override;
@@ -45,17 +53,18 @@ class Thingy91xAtModem : public IModemDriver {
                   std::int32_t const timeout) override;
   void PollSockets(std::int8_t const connect_index, PollResult& results,
                    std::int32_t const timeout) override;
-  void SetPowerSaveParam(kPowerSaveParam const& psp) override;
+  void SetPowerSaveParam(ae::PowerSaveParam const& psp) override;
   void PowerOff() override;
 
  private:
-  ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::vector<Thingy91xConnection> connect_vec_;
   ae::Protocol protocol_;
   std::string host_;
   std::uint16_t port_;
 
+  std::uint16_t kModemMTU{1024};
+  
   kModemError CheckResponse(std::string const response,
                             std::uint32_t const wait_time,
                             std::string const error_message);
@@ -85,9 +94,10 @@ class Thingy91xAtModem : public IModemDriver {
   kModemError ResetModemFactory(std::uint8_t const res_mode);
   kModemError ParsePollEvents(const std::string& str,
                               std::vector<PollEvents>& events_out);
-  void sendATCommand(std::string const& command);
-  bool waitForResponse(std::string const& expected,
+  void SendATCommand(std::string const& command);
+  bool WaitForResponse(std::string const& expected,
                        std::chrono::milliseconds const timeout_ms);
+  std::string PinToString(const std::uint8_t pin[4]);
 };
 
 } /* namespace ae */

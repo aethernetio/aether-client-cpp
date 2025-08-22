@@ -134,9 +134,16 @@ static const std::map<kModemBand, std::string> get_band_power_bg95 = {
     {kModemBand::kTDSCDMA_B34, "AT+QNVFR=\"/nv/item_files/rfnv/00022622\""},
     {kModemBand::kTDSCDMA_B39, "AT+QNVFR=\"/nv/item_files/rfnv/00022663\""}};
 
-class Bg95AtModem : public IModemDriver {
+class Bg95AtModem final : public IModemDriver {
+  AE_OBJECT(Bg95AtModem, IModemDriver, 0)
+
+ protected:
+  Bg95AtModem() = default;
+
  public:
-  explicit Bg95AtModem(ModemInit modem_init);
+  explicit Bg95AtModem(ModemInit modem_init, Domain* domain);
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
+
   void Init() override;
   void Start() override;
   void Stop() override;
@@ -153,7 +160,6 @@ class Bg95AtModem : public IModemDriver {
   void PowerOff() override;
 
  private:
-  ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
 
   kModemError CheckResponse(std::string response, std::uint32_t wait_time,
@@ -170,9 +176,10 @@ class Bg95AtModem : public IModemDriver {
   kModemError DbmaToHex(kModemBand band, const float& power, std::string& hex);
   kModemError HexToDbma(kModemBand band, float& power, const std::string& hex);
 
-  void sendATCommand(const std::string& command);
-  bool waitForResponse(const std::string& expected,
+  void SendATCommand(const std::string& command);
+  bool WaitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);
+  std::string PinToString(const std::uint8_t pin[4]);
 };
 
 } /* namespace ae */

@@ -32,7 +32,7 @@ WINSerialPort::WINSerialPort(SerialInit const& serial_init)
 WINSerialPort::~WINSerialPort() { Close(); }
 
 void WINSerialPort::Write(DataBuffer const& data) {
-  if (hPort_ == INVALID_HANDLE_VALUE) {
+  if (h_port_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
     return;
   }

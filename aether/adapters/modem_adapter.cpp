@@ -139,7 +139,7 @@ void ModemAdapterTransportBuilderAction::CreateBuilders() {
 ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, ModemInit modem_init,
                            Domain* domain)
     : ParentModemAdapter{std::move(aether), std::move(modem_init), domain} {
-  modem_driver_ = ModemDriverFactory::CreateModem(modem_init_);
+  modem_driver_ = ModemDriverFactory::CreateModem(modem_init_, domain);
   modem_driver_->Init();
   AE_TELED_DEBUG("Modem instance created!");
 }

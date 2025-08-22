@@ -41,13 +41,18 @@ int AetherCloudExample() {
   ae::SerialInit serial_init = {std::string(kSerialPort),
                                 ae::kBaudRate::kBaudRate115200};
 
+  ae::PowerSaveParam const& psp{};
+  ae::BaseStation const& bs{};
+  
   ae::ModemInit modem_init{
-      serial_init,                 // Serial port
-      {1, 1, 1, 1},                // Pin code
-      false,                       // Use pin
-      ae::kModemMode::kModeNbIot,  // Modem mode Thingy91x
-      // ae::kModemMode::kModeAuto,      // Modem mode Sim7070g
-      "25001",  // Operator code Thingy91x
+      serial_init,                  // Serial port
+      psp,                          // Power save parameters
+      bs,                           // Base station
+      {1, 1, 1, 1},                 // Pin code
+      false,                        // Use pin
+      ae::kModemMode::kModeNbIot,   // Modem mode Thingy91x
+      //ae::kModemMode::kModeAuto,      // Modem mode Sim7070g
+      "25001",                      // Operator code Thingy91x
       //"25020",                      // Operator code Sim7070g
       "",                           // Operator long name
       "iot",                        // APN

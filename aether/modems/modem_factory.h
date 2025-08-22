@@ -26,16 +26,17 @@
 #define AE_MODEM_THINGY91X_ENABLED 1
 
 // check if any mode is enabled
-#if AE_MODEM_SIM7070_ENABLED or AE_MODEM_BG95_ENABLED or \
-    AE_MODEM_THINGY91X_ENABLED
+#if (AE_MODEM_SIM7070_ENABLED == 1) || (AE_MODEM_BG95_ENABLED == 1) || \
+    (AE_MODEM_THINGY91X_ENABLED == 1)
 #  define AE_MODEM_ENABLED 1
 
 namespace ae {
 class ModemDriverFactory {
  public:
-  static std::unique_ptr<IModemDriver> CreateModem(ModemInit modem_init);
+  static IModemDriver::ptr CreateModem(ModemInit modem_init, Domain* domain);
 };
 }  // namespace ae
+
 #endif
 
 #endif  // AETHER_MODEMS_MODEM_FACTORY_H_

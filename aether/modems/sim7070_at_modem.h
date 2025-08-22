@@ -51,9 +51,16 @@ static const std::map<kBaudRate, std::string> baud_rate_commands_sim7070 = {
     {kBaudRate::kBaudRate3684000, "AT+IPR=3684000"},
     {kBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
 
-class Sim7070AtModem : public IModemDriver {
+class Sim7070AtModem final : public IModemDriver {
+  AE_OBJECT(Sim7070AtModem, IModemDriver, 0)
+
+ protected:
+  Sim7070AtModem() = default;
+
  public:
-  explicit Sim7070AtModem(ModemInit modem_init);
+  explicit Sim7070AtModem(ModemInit modem_init, Domain* domain);
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
+
   void Init() override;
   void Start() override;
   void Stop() override;
@@ -65,12 +72,11 @@ class Sim7070AtModem : public IModemDriver {
   void ReadPacket(std::int8_t const connect_index,
                   std::vector<std::uint8_t>& data,
                   std::int32_t const timeout) override;
-  void PollSockets(std::int8_t const connect_index, PollResult& results,
-                   std::int32_t const timeout) override;
-  void PowerOff() override;
+  /*void PollSockets(std::int8_t const connect_index, PollResult& results,
+                   std::int32_t const timeout) override;*/
+  void PowerOff();
 
  private:
-  ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::vector<Sim7070Connection> connect_vec_;
 
@@ -85,9 +91,10 @@ class Sim7070AtModem : public IModemDriver {
                            std::string apn_pass, kModemMode modem_mode,
                            kAuthType auth_type);
   kModemError SetupProtoPar();
-  void sendATCommand(const std::string& command);
-  bool waitForResponse(const std::string& expected,
+  void SendATCommand(const std::string& command);
+  bool WaitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);
+  std::string PinToString(const std::uint8_t pin[4]);
 };
 
 } /* namespace ae */
