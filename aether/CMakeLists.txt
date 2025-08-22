@@ -108,6 +108,23 @@ list(APPEND adapters_srcs
             "adapters/esp32_wifi.cpp"
             "adapters/ethernet.cpp"
             "adapters/parent_wifi.cpp"
+            "adapters/parent_modem.cpp"
+            "adapters/modem_adapter.cpp"
+            )
+
+list(APPEND modems_srcs
+            "modems/imodem_driver.cpp"
+            "modems/modem_factory.cpp"
+            #"modems/bg95_at_modem.cpp"            
+            #"modems/sim7070_at_modem.cpp"
+            "modems/thingy91x_at_modem.cpp"
+            )
+
+list(APPEND serial_ports_srcs
+            "serial_ports/serial_port_factory.cpp"
+            "serial_ports/esp32_serial_port.cpp"
+            "serial_ports/win_serial_port.cpp"
+            "serial_ports/unix_serial_port.cpp"
             )
 
 list(APPEND transport_srcs
@@ -122,10 +139,11 @@ list(APPEND transport_srcs
             "transport/low_level/sockets/win_socket.cpp"
             "transport/low_level/sockets/win_tcp_socket.cpp"
             "transport/low_level/sockets/win_udp_socket.cpp"
-            "transport/low_level/socket_packet_send_action.cpp"
+            "transport/socket_packet_send_action.cpp"
+            "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
-            "transport/low_level/tcp/data_packet_collector.cpp"
             "transport/low_level/udp/udp.cpp"
+            "transport/modems/modem_tcp.cpp"
 )
 
 list(APPEND server_list_srcs
@@ -256,6 +274,8 @@ if(REGULAR_CMAKE_PROJECT)
                             ${server_list_srcs}
                             ${stream_api_src}
                             ${adapters_srcs}
+                            ${modems_srcs}
+                            ${serial_ports_srcs}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
                             ${methods_srcs}
@@ -296,6 +316,8 @@ else()
                             ${events_srcs}
                             ${actions_srcs}
                             ${adapters_srcs}
+                            ${modems_srcs}
+                            ${serial_ports_srcs}
                             ${transport_srcs}
                             ${server_list_srcs}
                             ${stream_api_src}

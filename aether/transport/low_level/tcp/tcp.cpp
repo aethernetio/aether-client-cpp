@@ -290,7 +290,7 @@ ActionPtr<PacketSendAction> TcpTransport::Send(DataBuffer data,
       action_context_, *this, std::move(packet_data), current_time});
   send_action_subs_.Push(send_action->StatusEvent().Subscribe(OnError{[this]() {
     AE_TELED_ERROR("Send error, disconnect!");
-    ConnectionError();
+    OnConnectionFailed();
     Disconnect();
   }}));
   return send_action;

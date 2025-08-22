@@ -18,7 +18,7 @@
 #define AETHER_STREAM_API_SIZED_PACKET_GATE_H_
 
 #include "aether/events/events.h"
-#include "aether/transport/low_level/tcp/data_packet_collector.h"
+#include "aether/transport/data_packet_collector.h"
 
 namespace ae {
 class SizedPacketGate {

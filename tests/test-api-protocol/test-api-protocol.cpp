@@ -23,7 +23,7 @@
 #include "aether/api_protocol/packet_builder.h"
 
 #include "aether/api_protocol/send_result.h"
-#include "aether/transport/low_level/tcp/data_packet_collector.h"
+#include "aether/transport/data_packet_collector.h"
 #include "api_level0.h"
 #include "api_level1.h"
 #include "assert_packet.h"

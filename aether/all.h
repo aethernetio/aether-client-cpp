@@ -34,8 +34,6 @@
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 
-#include "aether/adapters/ethernet.h"
-#include "aether/adapters/esp32_wifi.h"
 #include "aether/format/format.h"
 #include "aether/obj/obj.h"
 #include "aether/ptr/ptr.h"
@@ -55,6 +53,14 @@
 #include "aether/types/address.h"
 #include "aether/types/literal_array.h"
 #include "aether/types/address_parser.h"
+
+#include "aether/serial_ports/iserial_port.h"
+#include "aether/serial_ports/serial_port_types.h"
+#include "aether/serial_ports/serial_port_factory.h"
+
+#include "aether/adapters/ethernet.h"
+#include "aether/adapters/esp32_wifi.h"
+#include "aether/adapters/modem_adapter.h"
 
 #include "aether/aether.h"
 #include "aether/client.h"
