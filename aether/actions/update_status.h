@@ -74,9 +74,9 @@ struct UpdateStatus {
     return {};
   }
 
-  UpdateStatus() : type{UpdateStatusType::kNothing} {}
-  explicit UpdateStatus(UpdateStatusType t) : type{t} {}
-  explicit UpdateStatus(UpdateStatusType t, TimePoint d)
+  constexpr UpdateStatus() : type{UpdateStatusType::kNothing} {}
+  constexpr explicit UpdateStatus(UpdateStatusType t) : type{t} {}
+  constexpr explicit UpdateStatus(UpdateStatusType t, TimePoint d)
       : type{t}, delay_to{d} {}
 
   UpdateStatusType type;
