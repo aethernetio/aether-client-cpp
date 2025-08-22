@@ -125,10 +125,10 @@ int AetherRegistrator(const std::string& ini_file,
             return registration_cloud;
           }));
 
-  auto registrator_action =
-      ae::registrator::RegistratorAction{aether_app, registrator_config};
+  auto registrator_action = ae::ActionPtr<ae::registrator::RegistratorAction>{
+      *aether_app, aether_app, registrator_config};
 
-  registrator_action.StatusEvent().Subscribe(
+  registrator_action->StatusEvent().Subscribe(
       ae::ActionHandler{ae::OnResult{[&]() { aether_app->Exit(0); }},
                         ae::OnError{[&]() { aether_app->Exit(1); }}});
 
