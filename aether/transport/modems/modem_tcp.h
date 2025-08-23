@@ -30,8 +30,8 @@
 #  include "aether/modems/imodem_driver.h"
 #  include "aether/transport/itransport.h"
 #  include "aether/transport/data_packet_collector.h"
+#  include "aether/transport/modems/send_queue_poller.h"
 #  include "aether/transport/socket_packet_send_action.h"
-#  include "aether/transport/socket_packet_queue_manager.h"
 
 namespace ae {
 class ModemTcpTransport final : public ITransport {
@@ -61,7 +61,6 @@ class ModemTcpTransport final : public ITransport {
 
     ModemTcpTransport* transport_;
     StreamDataPacketCollector data_packet_collector_;
-    DataBuffer data_buffer_;
     bool stopped_ = false;
   };
 
@@ -99,7 +98,7 @@ class ModemTcpTransport final : public ITransport {
   ConnectionErrorEvent connection_error_event_;
   DataReceiveEvent data_receive_event_;
 
-  OwnActionPtr<SocketPacketQueueManager<SendAction>> send_action_queue_manager_;
+  OwnActionPtr<SendQueuePoller<SendAction>> send_action_queue_manager_;
   OwnActionPtr<ReadAction> read_action_;
 
   MultiSubscription send_action_subs_;
