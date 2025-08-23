@@ -95,7 +95,7 @@ ModemTcpTransport::ModemTcpTransport(ActionContext action_context,
       address_{std::move(address)},
       connection_info_{kMaxPacketSize, ConnectionState::kUndefined,
                        ConnectionType::kConnectionOriented,
-                       Reliability::kReliable},
+                       Reliability::kUnreliable},
       // poll send queue each 50 ms
       send_action_queue_manager_{action_context_,
                                  std::chrono::milliseconds{50}} {
