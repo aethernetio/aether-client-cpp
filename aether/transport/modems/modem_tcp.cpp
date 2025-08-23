@@ -56,27 +56,14 @@ void ModemTcpTransport::SendAction::Send() {
 
 ModemTcpTransport::ReadAction::ReadAction(ActionContext action_context,
                                           ModemTcpTransport& transport)
-    : Action{action_context},
-      transport_{&transport},
-      data_buffer_(kMaxPacketSize) {}
+    : Action{action_context}, transport_{&transport} {}
 
 UpdateStatus ModemTcpTransport::ReadAction::Update(TimePoint current_time) {
   if (stopped_) {
     return UpdateStatus::Stop();
   }
 
-  PollResult res;
-  // FIXME: 50 what?
-  transport_->modem_driver_->PollSockets(transport_->connection_, res, 50);
-  for (auto r : res.revents) {
-    switch (r) {
-      case PollEvents::kPOLLIN:
-        Read();
-        break;
-      default:
-        break;
-    }
-  }
+  Read();
   return UpdateStatus::Delay(current_time + std::chrono::milliseconds{50});
 }
 
@@ -86,12 +73,10 @@ void ModemTcpTransport::ReadAction::Stop() {
 }
 
 void ModemTcpTransport::ReadAction::Read() {
-  data_buffer_.clear();
-  // FIXME: 50 what?
-  transport_->modem_driver_->ReadPacket(transport_->connection_, data_buffer_,
-                                        50);
-  if (data_buffer_.size() != 0) {
-    data_packet_collector_.AddData(data_buffer_.data(), data_buffer_.size());
+  auto data_buffer = transport_->modem_driver_->ReadPacket(
+      transport_->connection_, std::chrono::milliseconds{50});
+  if (data_buffer.size() != 0) {
+    data_packet_collector_.AddData(data_buffer.data(), data_buffer.size());
   }
 
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
@@ -111,7 +96,9 @@ ModemTcpTransport::ModemTcpTransport(ActionContext action_context,
       connection_info_{kMaxPacketSize, ConnectionState::kUndefined,
                        ConnectionType::kConnectionOriented,
                        Reliability::kReliable},
-      send_action_queue_manager_{action_context_} {
+      // poll send queue each 50 ms
+      send_action_queue_manager_{action_context_,
+                                 std::chrono::milliseconds{50}} {
   AE_TELE_INFO(kModemTcpTransport, "Modem tcp transport created for {}",
                address_);
 }
@@ -121,23 +108,21 @@ ModemTcpTransport::~ModemTcpTransport() { Disconnect(); }
 void ModemTcpTransport::Connect() {
   connection_info_.connection_state = ConnectionState::kConnecting;
   // open network depend on address type
-  std::visit(reflect::OverrideFunc{
-                 [&](IpAddressPortProtocol const& address) {
-                   modem_driver_->OpenNetwork(connection_, address.protocol,
-                                              Format("{}", address.ip),
-                                              address.port);
-                 }
+  connection_ = std::visit(
+      reflect::OverrideFunc{[&](IpAddressPortProtocol const& address) {
+                              return modem_driver_->OpenNetwork(
+                                  address.protocol, Format("{}", address.ip),
+                                  address.port);
+                            }
 #  if AE_SUPPORT_CLOUD_DNS
-                 ,
-                 [&](NameAddress const& address) {
-                   modem_driver_->OpenNetwork(connection_, address.protocol,
-                                              address.name, address.port);
-                 }
+                            ,
+                            [&](NameAddress const& address) {
+                              return modem_driver_->OpenNetwork(
+                                  address.protocol, address.name, address.port);
+                            }
 #  endif
-             },
-             address_);
-  // FIXME: It would be better to return a value from OpenNetwork to determine
-  // success
+      },
+      address_);
 
   // Connection failed
   if (connection_ == kInvalidConnectionIndex) {
