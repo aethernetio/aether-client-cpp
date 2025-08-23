@@ -21,24 +21,27 @@ namespace ae {
 IModemDriver::IModemDriver(ModemInit modem_init, Domain* domain)
     : Obj{domain}, modem_init_{std::move(modem_init)} {}
 
-void IModemDriver::Init() {}
-void IModemDriver::Start() {}
-void IModemDriver::Stop() {}
-void IModemDriver::OpenNetwork(std::int8_t& /*connect_index*/,
-                               ae::Protocol const /*protocol*/,
-                               const std::string /*host*/,
-                               const std::uint16_t /*port*/) {}
-void IModemDriver::CloseNetwork(std::int8_t const /*connect_index*/) {}
-void IModemDriver::WritePacket(std::int8_t const /*connect_index*/,
-                               std::vector<uint8_t> const& /*data*/) {}
-void IModemDriver::ReadPacket(std::int8_t const /*connect_index*/,
-                              std::vector<std::uint8_t>& /*data*/,
-                              std::int32_t const /*timeout*/) {}
-void IModemDriver::PollSockets(std::int8_t const /*connect_index*/,
-                               PollResult& /*results*/,
-                               std::int32_t const /*timeout*/) {}
-void IModemDriver::SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/) {}
-void IModemDriver::PowerOff() {}
-ModemInit IModemDriver::GetModemInit() { return modem_init_; }
+bool IModemDriver::Init() { return {}; }
+bool IModemDriver::Start() { return {}; }
+bool IModemDriver::Stop() { return {}; }
+ConnectionIndex IModemDriver::OpenNetwork(ae::Protocol /*protocol*/,
+                                          std::string const& /*host*/,
+                                          std::uint16_t /*port*/) {
+  return {};
+}
+void IModemDriver::CloseNetwork(ConnectionIndex /*connect_index*/) {}
+void IModemDriver::WritePacket(ConnectionIndex /*connect_index*/,
+                               DataBuffer const& /*data*/) {}
+DataBuffer IModemDriver::ReadPacket(ConnectionIndex /*connect_index*/,
+                                    Duration /*timeout*/) {
+  return {};
+}
+
+bool IModemDriver::SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/) {
+  return {};
+}
+bool IModemDriver::PowerOff() { return {}; }
+
+ModemInit IModemDriver::get_modem_init() { return modem_init_; }
 
 } /* namespace ae */
