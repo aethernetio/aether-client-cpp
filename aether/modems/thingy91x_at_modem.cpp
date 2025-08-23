@@ -30,7 +30,7 @@ namespace ae {
 
 Thingy91xAtModem::Thingy91xAtModem(ModemInit modem_init, Domain* domain)
     : IModemDriver{std::move(modem_init), domain} {
-  serial_ = SerialPortFactory::CreatePort(modem_init.serial_init);
+  serial_ = SerialPortFactory::CreatePort(get_modem_init().serial_init);
 };
 
 bool Thingy91xAtModem::Init() {
@@ -108,12 +108,11 @@ bool Thingy91xAtModem::Start() {
 
   // Check Sim card
   auto sim_err = CheckSimStatus();
-  if (sim_err != kModemError::kNoError && modem_init.use_pin == true) {
-    return false;
-  }
-  if (auto err = SetupSim(modem_init.pin); err != kModemError::kNoError) {
-    AE_TELED_ERROR("Setup sim error {}", err);
-    return false;
+  if ((sim_err == kModemError::kNoError) && modem_init.use_pin) {
+    if (auto err = SetupSim(modem_init.pin); err != kModemError::kNoError) {
+      AE_TELED_ERROR("Setup sim error {}", err);
+      return false;
+    }
   }
 
   return true;
@@ -811,9 +810,7 @@ void Thingy91xAtModem::SendUdp(Thingy91xConnection const& connection,
 }
 
 DataBuffer Thingy91xAtModem::ReadTcp(Thingy91xConnection const& connection,
-                                     Duration timeout) {
-  auto timeout_ms =
-      std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
+                                     Duration /*timeout*/) {
   // #XSOCKETSELECT=<handle>
   SendATCommand("AT#XSOCKETSELECT=" +
                 std::to_string(connection.handle));  // Set socket
@@ -823,7 +820,7 @@ DataBuffer Thingy91xAtModem::ReadTcp(Thingy91xConnection const& connection,
     return {};
   }
   // #XRECV=<timeout>[,<flags>]
-  SendATCommand("AT#XRECV=" + std::to_string(timeout_ms));
+  SendATCommand("AT#XRECV=0,64");
   auto response = serial_->Read();
   if (!response) {
     AE_TELED_ERROR("Read response empty");
@@ -857,9 +854,7 @@ DataBuffer Thingy91xAtModem::ReadTcp(Thingy91xConnection const& connection,
 }
 
 DataBuffer Thingy91xAtModem::ReadUdp(Thingy91xConnection const& connection,
-                                     Duration timeout) {
-  auto timeout_ms =
-      std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
+                                     Duration /*timeout*/) {
   // #XSOCKETSELECT=<handle>
   SendATCommand("AT#XSOCKETSELECT=" +
                 std::to_string(connection.handle));  // Set socket
@@ -869,7 +864,7 @@ DataBuffer Thingy91xAtModem::ReadUdp(Thingy91xConnection const& connection,
     return {};
   }
   // #XRECVFROM=<timeout>[,<flags>]
-  SendATCommand("AT#XRECVFROM=" + std::to_string(timeout_ms));
+  SendATCommand("AT#XRECVFROM=0,64");
   auto response = serial_->Read();
   if (!response) {
     AE_TELED_ERROR("Read error");
