@@ -20,6 +20,7 @@
 
 #include "aether/format/format.h"
 #include "aether/misc/from_chars.h"
+#include "aether/modems/exponent_time.h"
 #include "aether/modems/thingy91x_at_modem.h"
 #include "aether/serial_ports/serial_port_factory.h"
 
@@ -909,18 +910,16 @@ void Thingy91xAtModem::SendATCommand(const std::string& command) {
 }
 
 bool Thingy91xAtModem::WaitForResponse(const std::string& expected,
-                                       std::chrono::milliseconds timeout_ms) {
+                                       Duration timeout) {
   // Simplified implementation of waiting for a response
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start = Now();
+  auto exponent_time = ExponentTime(std::chrono::milliseconds{1},
+                                    std::chrono::milliseconds{100});
 
   while (true) {
-    auto elapsed = std::chrono::high_resolution_clock::now() - start;
-    if (elapsed > timeout_ms) {
-      return false;
-    }
-
-    if (auto response = serial_->Read()) {
-      std::string response_str(response->begin(), response->end());
+    if (auto response = serial_->Read(); response) {
+      std::string_view response_str(
+          reinterpret_cast<char const*>(response->data()), response->size());
       if (response_str.find(expected) != std::string::npos) {
         return true;
       }
@@ -929,7 +928,17 @@ bool Thingy91xAtModem::WaitForResponse(const std::string& expected,
       }
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    auto elapsed = Now() - start;
+    if (elapsed > timeout) {
+      return false;
+    }
+
+    // sleep for some time while waiting for response but no more than timeout
+    auto sleep_time = exponent_time.Next();
+    sleep_time = (elapsed + sleep_time > timeout)
+                     ? std::chrono::duration_cast<Duration>(timeout - elapsed)
+                     : sleep_time;
+    std::this_thread::sleep_for(sleep_time);
   }
 }
 

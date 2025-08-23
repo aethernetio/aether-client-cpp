@@ -98,8 +98,7 @@ class Thingy91xAtModem final : public IModemDriver {
   DataBuffer ReadUdp(Thingy91xConnection const& connection, Duration timeout);
 
   void SendATCommand(std::string const& command);
-  bool WaitForResponse(std::string const& expected,
-                       std::chrono::milliseconds const timeout_ms);
+  bool WaitForResponse(std::string const& expected, Duration timeout);
   static int GetProtocolCode(Protocol protocol);
 
   std::string PinToString(const std::uint8_t pin[4]);
