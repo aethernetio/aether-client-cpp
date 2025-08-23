@@ -51,7 +51,7 @@ void WINSerialPort::Write(DataBuffer const& data) {
 
   // For debug
   AE_TELED_DEBUG("Serial data write {} bytes: {}", bytes_written,
-                 std::string(data.begin(), data.end()));
+                 std::vector(data.begin(), data.end()));
 }
 
 std::optional<DataBuffer> WINSerialPort::Read() {

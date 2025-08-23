@@ -898,6 +898,7 @@ DataBuffer Thingy91xAtModem::ReadUdp(Thingy91xConnection const& connection,
 }
 
 void Thingy91xAtModem::SendATCommand(const std::string& command) {
+  AE_TELED_DEBUG("AT command: {}", command);
   std::vector<uint8_t> data(command.begin(), command.end());
   data.push_back('\r');  // Adding a carriage return symbols
   data.push_back('\n');
@@ -915,6 +916,7 @@ bool Thingy91xAtModem::WaitForResponse(const std::string& expected,
     if (auto response = serial_->Read(); response) {
       std::string_view response_str(
           reinterpret_cast<char const*>(response->data()), response->size());
+      AE_TELED_DEBUG("AT response: {}", response_str);
       if (response_str.find(expected) != std::string::npos) {
         return true;
       }
