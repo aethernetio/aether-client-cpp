@@ -75,7 +75,7 @@ std::optional<DataBuffer> WINSerialPort::Read() {
     buffer.resize(bytes_read);
     // For debug
     AE_TELED_DEBUG("Serial data read {} bytes: {}", bytes_read,
-                   std::string(buffer.begin(), buffer.end()));
+                   std::vector(buffer.begin(), buffer.end()));
     return buffer;
   }
   return std::nullopt;
