@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
-#define AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
+#ifndef AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
+#define AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 
 #include "aether/events/events.h"
 #include "aether/stream_api/istream.h"
@@ -29,7 +29,7 @@
 #include "aether/actions/action_ptr.h"
 #include "aether/ae_actions/telemetry.h"
 #include "aether/client_messages/message_stream_dispatcher.h"
-#include "aether/client_connections/client_to_server_stream.h"
+#include "aether/server_connections/client_to_server_stream.h"
 
 namespace ae {
 class Aether;
@@ -71,4 +71,4 @@ class ClientServerConnection {
 };
 }  // namespace ae
 
-#endif  // AETHER_CLIENT_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
+#endif  // AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_

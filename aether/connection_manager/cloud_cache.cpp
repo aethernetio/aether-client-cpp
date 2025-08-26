@@ -14,29 +14,20 @@
  * limitations under the License.
  */
 
-#include "aether/client_connections/client_server_connection_pool.h"
+#include "aether/connection_manager/cloud_cache.h"
 
 namespace ae {
-
-RcPtr<ClientServerConnection> ClientServerConnectionPool::Find(
-    ServerId server_id, ObjId channel_obj_id) {
-  auto key = Key{server_id, channel_obj_id};
-  auto it = connections_.find(key);
-  if (it == std::end(connections_)) {
+std::optional<std::reference_wrapper<Cloud::ptr>> CloudCache::GetCache(
+    Uid uid) {
+  auto it = clouds_.find(uid);
+  if (it == std::end(clouds_)) {
     return {};
   }
-  auto connection = it->second.lock();
-  if (!connection) {
-    connections_.erase(it);
-    return {};
-  }
-  return connection;
+  return std::ref(it->second);
 }
 
-void ClientServerConnectionPool::Add(
-    ServerId server_id, ObjId channel_obj_id,
-    RcPtr<ClientServerConnection> const& connection) {
-  auto key = Key{server_id, channel_obj_id};
-  connections_[key] = connection;
+void CloudCache::AddCloud(Uid uid, Cloud::ptr cloud) {
+  clouds_[uid] = std::move(cloud);
 }
+
 }  // namespace ae

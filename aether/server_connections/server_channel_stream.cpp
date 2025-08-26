@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/transport/server/server_channel_stream.h"
+#include "aether/server_connections/server_channel_stream.h"
 
 #include "aether/actions/action_context.h"
 

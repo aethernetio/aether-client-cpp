@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTION_MANAGER_H_
-#define AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTION_MANAGER_H_
+#ifndef AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
+#define AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
 
 #include <vector>
 
@@ -25,11 +25,12 @@
 
 #include "aether/cloud.h"
 
-#include "aether/client_connections/cloud_cache.h"
-#include "aether/client_connections/client_connection.h"
 #include "aether/ae_actions/get_client_cloud_connection.h"
-#include "aether/client_connections/server_connection_selector.h"
-#include "aether/client_connections/client_server_connection_pool.h"
+
+#include "aether/connection_manager/cloud_cache.h"
+#include "aether/client_connections/client_connection.h"
+#include "aether/connection_manager/server_connection_selector.h"
+#include "aether/connection_manager/client_server_connection_pool.h"
 
 namespace ae {
 class Aether;
@@ -85,4 +86,4 @@ class ClientConnectionManager : public Obj {
 };
 }  // namespace ae
 
-#endif  // AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTION_MANAGER_H_
+#endif  // AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_ACTIONS_BUILD_TRANSPORT_ACTION_H_
-#define AETHER_TRANSPORT_ACTIONS_BUILD_TRANSPORT_ACTION_H_
+#ifndef AETHER_SERVER_CONNECTIONS_BUILD_TRANSPORT_ACTION_H_
+#define AETHER_SERVER_CONNECTIONS_BUILD_TRANSPORT_ACTION_H_
 
 #include <vector>
 #include <memory>
@@ -71,4 +71,4 @@ class BuildTransportAction final : public Action<BuildTransportAction> {
 };
 
 }  // namespace ae
-#endif  // AETHER_TRANSPORT_ACTIONS_BUILD_TRANSPORT_ACTION_H_
+#endif  // AETHER_SERVER_CONNECTIONS_BUILD_TRANSPORT_ACTION_H_

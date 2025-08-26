@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/client_connections/client_connection_manager.h"
+#include "aether/connection_manager/client_connection_manager.h"
 
 #include <utility>
 #include <cassert>
@@ -22,10 +22,10 @@
 #include "aether/aether.h"
 #include "aether/client.h"
 
-#include "aether/transport/server/server_channel_stream.h"
+#include "aether/server_connections/server_channel_stream.h"
+#include "aether/server_connections/client_to_server_stream.h"
 #include "aether/client_connections/client_cloud_connection.h"
-#include "aether/client_connections/client_to_server_stream.h"
-#include "aether/client_connections/iserver_connection_factory.h"
+#include "aether/connection_manager/iserver_connection_factory.h"
 
 #include "aether/client_connections/client_connections_tele.h"
 

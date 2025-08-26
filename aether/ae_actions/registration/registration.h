@@ -40,7 +40,7 @@
 
 #  include "aether/server_list/server_list.h"
 #  include "aether/stream_api/delegate_gate.h"
-#  include "aether/transport/server/server_channel_stream.h"
+#  include "aether/server_connections/server_channel_stream.h"
 
 #  include "aether/methods/client_reg_api/client_reg_api.h"
 #  include "aether/methods/client_reg_api/client_reg_root_api.h"

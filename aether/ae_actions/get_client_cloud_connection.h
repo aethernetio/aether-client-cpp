@@ -28,7 +28,7 @@
 #include "aether/actions/action_context.h"
 
 #include "aether/client_connections/client_connection.h"
-#include "aether/client_connections/server_connection_selector.h"
+#include "aether/connection_manager/server_connection_selector.h"
 
 #include "aether/ae_actions/get_client_cloud.h"
 

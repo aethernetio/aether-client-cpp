@@ -24,25 +24,17 @@ namespace ae {
 MessageStream::MessageStream(ClientToServerStream& client_to_server_stream,
                              Uid destination)
     : client_to_server_stream_{&client_to_server_stream},
-      destination_{destination},
-      debug_gate_{Format("MessageStream uid {}  \nwrite {{}}", destination_),
-                  Format("MessageStream uid {} \nread {{}}", destination_)} {
+      destination_{destination} {
   AE_TELE_INFO(kMessageStream, "MessageStream create to destination: {}",
                destination_);
   // destination uid must not be empty
   assert(!destination_.empty());
 }
 
-MessageStream::MessageStream(MessageStream&& other) noexcept
-    : client_to_server_stream_{other.client_to_server_stream_},
-      destination_{other.destination_},
-      debug_gate_{Format("MessageStream uid {}  \nwrite {{}}", destination_),
-                  Format("MessageStream uid {} \nread {{}}", destination_)} {}
-
 ActionPtr<StreamWriteAction> MessageStream::Write(DataBuffer&& data) {
-  auto gate_data = debug_gate_.WriteIn(std::move(data));
+  AE_TELED_DEBUG("MessageStream uid {}\nwrite {}", destination_, data);
   auto auth_api = client_to_server_stream_->authorized_api_adapter();
-  auth_api->send_message(destination_, std::move(gate_data));
+  auth_api->send_message(destination_, std::move(data));
   return auth_api.Flush();
 }
 
@@ -60,8 +52,8 @@ MessageStream::OutDataEvent::Subscriber MessageStream::out_data_event() {
 }
 
 void MessageStream::OnData(DataBuffer const& data) {
-  auto gate_data = debug_gate_.WriteOut(data);
-  out_data_event_.Emit(gate_data);
+  AE_TELED_DEBUG("MessageStream uid {} \nread {}", destination_, data);
+  out_data_event_.Emit(data);
 }
 
 Uid MessageStream::destination() const { return destination_; }

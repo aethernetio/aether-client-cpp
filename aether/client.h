@@ -27,7 +27,7 @@
 #include "aether/server_keys.h"
 
 #include "aether/client_connections/client_connection.h"
-#include "aether/client_connections/client_connection_manager.h"
+#include "aether/connection_manager/client_connection_manager.h"
 
 namespace ae {
 class Aether;

@@ -19,17 +19,13 @@
 
 #include <map>
 
-#include "aether/types/uid.h"
 #include "aether/memory.h"
+#include "aether/types/uid.h"
 #include "aether/events/events.h"
 #include "aether/events/event_subscription.h"
 
-#include "aether/api_protocol/protocol_context.h"
-
 #include "aether/client_messages/message_stream.h"
-#include "aether/client_connections/client_to_server_stream.h"
-
-#include "aether/methods/client_api/client_safe_api.h"
+#include "aether/server_connections/client_to_server_stream.h"
 
 namespace ae {
 class MessageStreamDispatcher {

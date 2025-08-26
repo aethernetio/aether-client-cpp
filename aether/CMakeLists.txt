@@ -111,8 +111,6 @@ list(APPEND adapters_srcs
             )
 
 list(APPEND transport_srcs
-            "transport/actions/build_transport_action.cpp"
-            "transport/server/server_channel_stream.cpp"
             "transport/low_level/sockets/unix_socket.cpp"
             "transport/low_level/sockets/unix_tcp_socket.cpp"
             "transport/low_level/sockets/unix_udp_socket.cpp"
@@ -187,14 +185,22 @@ list(APPEND methods_srcs
 
 
 list(APPEND client_connections_srcs
-            "client_connections/cloud_cache.cpp"
-            "client_connections/client_server_connection_pool.cpp"
             "client_connections/client_cloud_connection.cpp"
-            "client_connections/client_connection_manager.cpp"
-            "client_connections/client_server_connection.cpp"
-            "client_connections/server_connection_selector.cpp"
-            "client_connections/client_to_server_stream.cpp"
             "client_connections/split_stream_client_connection.cpp"
+)
+
+list(APPEND server_connections_srcs
+            "server_connections/client_server_connection.cpp"
+            "server_connections/client_to_server_stream.cpp"
+            "server_connections/build_transport_action.cpp"
+            "server_connections/server_channel_stream.cpp"
+)
+
+list(APPEND connection_manager_srcs
+            "connection_manager/client_server_connection_pool.cpp"
+            "connection_manager/cloud_cache.cpp"
+            "connection_manager/client_connection_manager.cpp"
+            "connection_manager/server_connection_selector.cpp"
 )
 
 list(APPEND client_messages_srcs
@@ -261,6 +267,8 @@ if(REGULAR_CMAKE_PROJECT)
                             ${methods_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
+                            ${server_connections_srcs}
+                            ${connection_manager_srcs}
                             ${domain_storage_srcs}
                             ${statistics_srcs}
                             ${tele_srcs}
@@ -304,6 +312,8 @@ else()
                             ${methods_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
+                            ${server_connections_srcs}
+                            ${connection_manager_srcs}
                             ${domain_storage_srcs}
                             ${statistics_srcs}
                             ${tele_srcs}
