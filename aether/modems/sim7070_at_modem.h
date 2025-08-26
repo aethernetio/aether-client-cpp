@@ -19,15 +19,21 @@
 
 #include <chrono>
 #include <memory>
+#include <tuple>
 
 #include "aether/adapters/parent_modem.h"
 #include "aether/serial_ports/iserial_port.h"
 
 namespace ae {
 
+typedef std::tuple<std::uint32_t, std::uint32_t> Sim7070Handle;
+
 struct Sim7070Connection {
-  std::uint32_t context_index;
-  std::uint32_t connect_index;
+  AE_REFLECT_MEMBERS(handle, protocol, host, port)
+  ae::Sim7070Handle handle;
+  ae::Protocol protocol;
+  std::string host;
+  std::uint16_t port;
 };
 
 static const std::map<kBaudRate, std::string> baud_rate_commands_sim7070 = {
@@ -59,27 +65,27 @@ class Sim7070AtModem final : public IModemDriver {
 
  public:
   explicit Sim7070AtModem(ModemInit modem_init, Domain* domain);
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
+  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
-  void Init() override;
-  void Start() override;
-  void Stop() override;
-  void OpenNetwork(std::int8_t& connect_index, ae::Protocol const protocol,
-                   std::string const host, std::uint16_t const port) override;
-  void CloseNetwork(std::int8_t const connect_index) override;
-  void WritePacket(std::int8_t const connect_index,
-                   std::vector<uint8_t> const& data) override;
-  void ReadPacket(std::int8_t const connect_index,
-                  std::vector<std::uint8_t>& data,
-                  std::int32_t const timeout) override;
-  /*void PollSockets(std::int8_t const connect_index, PollResult& results,
-                   std::int32_t const timeout) override;*/
-  void PowerOff();
+  bool Init() override;
+  bool Start() override;
+  bool Stop() override;
+  ConnectionIndex OpenNetwork(ae::Protocol protocol, std::string const& host, 
+                              std::uint16_t port) override;
+  void CloseNetwork(ConnectionIndex connect_index) override;
+  void WritePacket(ConnectionIndex connect_index,
+                   DataBuffer const& data) override;
+  DataBuffer ReadPacket(ConnectionIndex connect_index,
+                  Duration timeout) override;
+  bool SetPowerSaveParam(ae::PowerSaveParam const& psp) override;
+  bool PowerOff() override;
 
  private:
   std::unique_ptr<ISerialPort> serial_;
   std::vector<Sim7070Connection> connect_vec_;
 
+  static constexpr std::uint16_t kModemMTU{1520};
+  
   kModemError CheckResponse(std::string response, std::uint32_t wait_time,
                             std::string error_message);
   kModemError SetBaudRate(kBaudRate rate);
@@ -91,6 +97,14 @@ class Sim7070AtModem final : public IModemDriver {
                            std::string apn_pass, kModemMode modem_mode,
                            kAuthType auth_type);
   kModemError SetupProtoPar();
+  
+  Sim7070Handle OpenTcpConnection(std::string const& host, std::uint16_t port);
+  Sim7070Handle OpenUdpConnection();
+  void SendTcp(Sim7070Connection const& connection, DataBuffer const& data);
+  void SendUdp(Sim7070Connection const& connection, DataBuffer const& data);
+  DataBuffer ReadTcp(Sim7070Connection const& connection, Duration timeout);
+  DataBuffer ReadUdp(Sim7070Connection const& connection, Duration timeout);
+  
   void SendATCommand(const std::string& command);
   bool WaitForResponse(const std::string& expected,
                        std::chrono::milliseconds timeout_ms);
