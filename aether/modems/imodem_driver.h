@@ -17,15 +17,13 @@
 #ifndef AETHER_MODEMS_IMODEM_DRIVER_H_
 #define AETHER_MODEMS_IMODEM_DRIVER_H_
 
-#include <map>
 #include <string>
-#include <functional>
+#include <cstdint>
 
 #include "aether/obj/obj.h"
 #include "aether/types/address.h"
-#include "aether/events/events.h"
+#include "aether/types/data_buffer.h"
 #include "aether/modems/modem_driver_types.h"
-#include "aether/serial_ports/iserial_port.h"
 
 namespace ae {
 
@@ -39,30 +37,24 @@ class IModemDriver : public Obj {
   explicit IModemDriver(ModemInit modem_init, Domain* /*domain*/);
   AE_OBJECT_REFLECT()
 
-  virtual ~IModemDriver() = default;
+  ~IModemDriver() override = default;
 
-  virtual void Init();
-  virtual void Start();
-  virtual void Stop();
-  virtual void OpenNetwork(std::int8_t& /*connect_index*/,
-                           ae::Protocol const /*protocol*/,
-                           const std::string /*host*/,
-                           const std::uint16_t /*port*/);
-  virtual void CloseNetwork(std::int8_t const /*connect_index*/);
-  virtual void WritePacket(std::int8_t const /*connect_index*/,
-                           std::vector<uint8_t> const& /*data*/);
-  virtual void ReadPacket(std::int8_t const /*connect_index*/,
-                          std::vector<std::uint8_t>& /*data*/,
-                          std::int32_t const /*timeout*/);
-  virtual void PollSockets(std::int8_t const /*connect_index*/,
-                           PollResult& /*results*/,
-                           std::int32_t const /*timeout*/);
-  virtual void SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/);
-  virtual void PowerOff();
-  ModemInit GetModemInit();
+  virtual bool Init();
+  virtual bool Start();
+  virtual bool Stop();
+  virtual ConnectionIndex OpenNetwork(Protocol /*protocol*/,
+                                      std::string const& /*host*/,
+                                      std::uint16_t /*port*/);
+  virtual void CloseNetwork(ConnectionIndex /*connect_index*/);
+  virtual void WritePacket(ConnectionIndex /*connect_index*/,
+                           DataBuffer const& /*data*/);
+  virtual DataBuffer ReadPacket(ConnectionIndex /*connect_index*/,
+                                Duration /*timeout*/);
 
-  Event<void(bool result)> modem_connected_event_;
-  Event<void(int result)> modem_error_event_;
+  virtual bool SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/);
+  virtual bool PowerOff();
+
+  ModemInit get_modem_init();
 
  private:
   ModemInit modem_init_;

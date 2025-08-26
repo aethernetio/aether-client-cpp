@@ -26,8 +26,11 @@
 namespace ae {
 
 struct Thingy91xConnection {
-  AE_REFLECT_MEMBERS(handle)
+  AE_REFLECT_MEMBERS(handle, protocol, host, port)
   std::int32_t handle;
+  ae::Protocol protocol;
+  std::string host;
+  std::uint16_t port;
 };
 
 class Thingy91xAtModem final : public IModemDriver {
@@ -38,33 +41,27 @@ class Thingy91xAtModem final : public IModemDriver {
 
  public:
   explicit Thingy91xAtModem(ModemInit modem_init, Domain* domain);
-  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_, protocol_, host_, port_))
+  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
-  void Init() override;
-  void Start() override;
-  void Stop() override;
-  void OpenNetwork(std::int8_t& connect_index, ae::Protocol const protocol,
-                   std::string const host, std::uint16_t const port) override;
-  void CloseNetwork(std::int8_t const connect_index) override;
-  void WritePacket(std::int8_t const connect_index,
-                   std::vector<uint8_t> const& data) override;
-  void ReadPacket(std::int8_t const connect_index,
-                  std::vector<std::uint8_t>& data,
-                  std::int32_t const timeout) override;
-  void PollSockets(std::int8_t const connect_index, PollResult& results,
-                   std::int32_t const timeout) override;
-  void SetPowerSaveParam(ae::PowerSaveParam const& psp) override;
-  void PowerOff() override;
+  bool Init() override;
+  bool Start() override;
+  bool Stop() override;
+  ConnectionIndex OpenNetwork(ae::Protocol protocol, std::string const& host,
+                              std::uint16_t port) override;
+  void CloseNetwork(ConnectionIndex connect_index) override;
+  void WritePacket(ConnectionIndex connect_index,
+                   DataBuffer const& data) override;
+  DataBuffer ReadPacket(ConnectionIndex connect_index,
+                        Duration timeout) override;
+  bool SetPowerSaveParam(ae::PowerSaveParam const& psp) override;
+  bool PowerOff() override;
 
  private:
   std::unique_ptr<ISerialPort> serial_;
   std::vector<Thingy91xConnection> connect_vec_;
-  ae::Protocol protocol_;
-  std::string host_;
-  std::uint16_t port_;
 
   std::uint16_t kModemMTU{1024};
-  
+
   kModemError CheckResponse(std::string const response,
                             std::uint32_t const wait_time,
                             std::string const error_message);
@@ -92,11 +89,18 @@ class Thingy91xAtModem final : public IModemDriver {
   kModemError SetBandLock(std::uint8_t const bl_mode,
                           std::vector<std::int32_t> const& bands);
   kModemError ResetModemFactory(std::uint8_t const res_mode);
-  kModemError ParsePollEvents(const std::string& str,
-                              std::vector<PollEvents>& events_out);
+
+  std::int32_t OpenTcpConnection(std::string const& host, std::uint16_t port);
+  std::int32_t OpenUdpConnection();
+  void SendTcp(Thingy91xConnection const& connection, DataBuffer const& data);
+  void SendUdp(Thingy91xConnection const& connection, DataBuffer const& data);
+  DataBuffer ReadTcp(Thingy91xConnection const& connection, Duration timeout);
+  DataBuffer ReadUdp(Thingy91xConnection const& connection, Duration timeout);
+
   void SendATCommand(std::string const& command);
-  bool WaitForResponse(std::string const& expected,
-                       std::chrono::milliseconds const timeout_ms);
+  bool WaitForResponse(std::string const& expected, Duration timeout);
+  static int GetProtocolCode(Protocol protocol);
+
   std::string PinToString(const std::uint8_t pin[4]);
 };
 

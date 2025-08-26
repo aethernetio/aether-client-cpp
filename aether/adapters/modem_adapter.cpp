@@ -178,13 +178,21 @@ void ModemAdapter::Update(TimePoint current_time) {
 
 void ModemAdapter::Connect() {
   AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem connecting to the network");
-  modem_driver_->Start();
+  if (!modem_driver_->Start()) {
+    AE_TELED_ERROR("Modem driver does not start");
+    return;
+  }
+  modem_connected_event_.Emit(true);
 }
 
 void ModemAdapter::DisConnect() {
   AE_TELE_DEBUG(kAdapterModemDisconnected,
                 "Modem disconnecting from the network");
-  modem_driver_->Stop();
+  if (!modem_driver_->Stop()) {
+    AE_TELED_ERROR("Modem driver does not stop");
+    return;
+  }
+  modem_connected_event_.Emit(false);
 }
 
 }  // namespace ae

@@ -82,22 +82,22 @@ enum class kAuthType : std::uint8_t {
 
 struct kRequestedActiveTimeT3324 {
   AE_REFLECT_MEMBERS(byte)
-    union {
-        std::uint8_t byte;
-        struct {
-            std::uint8_t Value : 5;       // Lower 5 bits (0-4)
-            std::uint8_t Multiplier : 3;  // Upper 3 bits (5-7)
-        } bits;
-    };
+  union {
+    std::uint8_t byte;
+    struct {
+      std::uint8_t Value : 5;       // Lower 5 bits (0-4)
+      std::uint8_t Multiplier : 3;  // Upper 3 bits (5-7)
+    } bits;
+  };
 
-    // Constructor for convenient initialization
-    kRequestedActiveTimeT3324(std::uint8_t val = 0, std::uint8_t mult = 0) {
-        bits.Value = val;
-        bits.Multiplier = mult;
-    }
+  // Constructor for convenient initialization
+  kRequestedActiveTimeT3324(std::uint8_t val = 0, std::uint8_t mult = 0) {
+    bits.Value = val;
+    bits.Multiplier = mult;
+  }
 
-    // Conversion operator to uint8_t for compatibility
-    operator std::uint8_t() const { return byte; }
+  // Conversion operator to uint8_t for compatibility
+  operator std::uint8_t() const { return byte; }
 };
 
 // Bits 8 to 6 define the timer value unit for the General Packet Radio Services
@@ -112,25 +112,24 @@ struct kRequestedActiveTimeT3324 {
 // 1 0 1 – Value is incremented in multiples of 1 min
 // 1 1 0 – Value is incremented in multiples of 320 h
 
-
 struct kRequestedPeriodicTAUT3412 {
   AE_REFLECT_MEMBERS(byte)
-    union {
-        std::uint8_t byte;
-        struct {
-            std::uint8_t Value : 5;       // Lower 5 bits (0-4)
-            std::uint8_t Multiplier : 3;  // Upper 3 bits (5-7)
-        } bits;
-    };
+  union {
+    std::uint8_t byte;
+    struct {
+      std::uint8_t Value : 5;       // Lower 5 bits (0-4)
+      std::uint8_t Multiplier : 3;  // Upper 3 bits (5-7)
+    } bits;
+  };
 
-    // Constructor for convenient initialization
-    kRequestedPeriodicTAUT3412(std::uint8_t val = 0, std::uint8_t mult = 0) {
-        bits.Value = val;
-        bits.Multiplier = mult;
-    }
+  // Constructor for convenient initialization
+  kRequestedPeriodicTAUT3412(std::uint8_t val = 0, std::uint8_t mult = 0) {
+    bits.Value = val;
+    bits.Multiplier = mult;
+  }
 
-    // Conversion operator to uint8_t for compatibility
-    operator std::uint8_t() const { return byte; }
+  // Conversion operator to uint8_t for compatibility
+  operator std::uint8_t() const { return byte; }
 };
 
 enum class EdrxMode : std::uint8_t {
@@ -167,32 +166,34 @@ enum class EdrxActTType : std::uint8_t {
 
 struct kEDrx {
   AE_REFLECT_MEMBERS(bytes)
-    union {
-        struct {
-        AE_REFLECT_MEMBERS(byte0, byte1)
-        std::uint8_t byte0; // First byte (ReqEDRXValue + ProvEDRXValue)
-        std::uint8_t byte1; // Second byte (PTWValue + padding)
+  union {
+    struct {
+      AE_REFLECT_MEMBERS(byte0, byte1)
+      std::uint8_t byte0;  // First byte (ReqEDRXValue + ProvEDRXValue)
+      std::uint8_t byte1;  // Second byte (PTWValue + padding)
     } bytes;
-    
-        struct {
-        std::uint8_t ReqEDRXValue : 4;  // The lower 4 bits of the first byte
-        std::uint8_t ProvEDRXValue : 4; // The upper 4 bits of the first byte
-        std::uint8_t PTWValue : 4;      // The lower 4 bits of the second byte
-        std::uint8_t : 4;               // Placeholder (upper 4 bits of the second byte)
-        } bits;
-    };
 
-    // Constructor for convenient initialization
-    kEDrx(std::uint8_t r_edrx = 0, std::uint8_t p_edrx = 0, std::uint8_t ptw_val = 0) {
-        bits.ReqEDRXValue = r_edrx;
-        bits.ProvEDRXValue = p_edrx;
-        bits.PTWValue = ptw_val;
-    }
+    struct {
+      std::uint8_t ReqEDRXValue : 4;   // The lower 4 bits of the first byte
+      std::uint8_t ProvEDRXValue : 4;  // The upper 4 bits of the first byte
+      std::uint8_t PTWValue : 4;       // The lower 4 bits of the second byte
+      std::uint8_t : 4;  // Placeholder (upper 4 bits of the second byte)
+    } bits;
+  };
 
-    // Conversion operator to uint16_t for compatibility
-    operator std::uint16_t() const { return ((bytes.byte0 << 8) | (bytes.byte1 << 0)); }
+  // Constructor for convenient initialization
+  kEDrx(std::uint8_t r_edrx = 0, std::uint8_t p_edrx = 0,
+        std::uint8_t ptw_val = 0) {
+    bits.ReqEDRXValue = r_edrx;
+    bits.ProvEDRXValue = p_edrx;
+    bits.PTWValue = ptw_val;
+  }
+
+  // Conversion operator to uint16_t for compatibility
+  operator std::uint16_t() const {
+    return static_cast<std::uint16_t>((bytes.byte0 << 8) | (bytes.byte1 << 0));
+  }
 };
-
 
 enum class kModemBand : std::uint8_t {
   kWCDMA_B1 = 0,
@@ -261,9 +262,9 @@ struct BaseStation {
 };
 
 struct ModemInit {
-  AE_REFLECT_MEMBERS(serial_init, psp, bs, pin, use_pin, operator_name, apn_name,
-                     apn_user, apn_pass, modem_mode, auth_type, use_auth,
-                     auth_user, auth_pass, ssl_cert, use_ssl)
+  AE_REFLECT_MEMBERS(serial_init, psp, bs, pin, use_pin, operator_name,
+                     apn_name, apn_user, apn_pass, modem_mode, auth_type,
+                     use_auth, auth_user, auth_pass, ssl_cert, use_ssl)
   SerialInit serial_init;
   PowerSaveParam psp;
   BaseStation bs;
@@ -283,31 +284,8 @@ struct ModemInit {
   bool use_ssl;
 };
 
-/**
- * @enum PollEvents
- * @brief Represents event flags for poll() system call monitoring
- *
- * Each flag corresponds to a specific type of I/O event that can be monitored
- * using the poll() system call. Flags can be combined using bitwise OR
- * operations.
- */
-enum class PollEvents : std::uint8_t {
-  kPOLLIN = 0x0001,
-  kPOLLPRI = 0x0002,
-  kPOLLOUT = 0x0004,
-  kPOLLERR = 0x0008,
-  kPOLLHUP = 0x0010,
-  kPOLLNVAL = 0x0020
-};
-
 using ConnectionIndex = std::int8_t;
 static constexpr ConnectionIndex kInvalidConnectionIndex = -1;
-
-struct PollResult {
-  ConnectionIndex connect_index;
-  std::vector<PollEvents> revents;
-};
-
 }  // namespace ae
 
 #endif  // AETHER_MODEMS_MODEM_DRIVER_TYPES_H_
