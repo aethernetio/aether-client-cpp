@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/transport/low_level/tcp/data_packet_collector.h"
+#include "aether/transport/data_packet_collector.h"
 
 #include <ios>
 #include <algorithm>

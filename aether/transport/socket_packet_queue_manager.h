@@ -23,10 +23,9 @@
 
 #include "aether/common.h"
 #include "aether/actions/action_ptr.h"
-#include "aether/events/multi_subscription.h"
 
 #include "aether/transport/actions/packet_send_action.h"
-#include "aether/transport/low_level/socket_packet_send_action.h"
+#include "aether/transport/socket_packet_send_action.h"
 
 namespace ae {
 template <typename TSocketPacketSendAction,

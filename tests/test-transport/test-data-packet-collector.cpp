@@ -20,9 +20,9 @@
 #include <string>
 #include <vector>
 
-#include "aether/transport/low_level/tcp/data_packet_collector.h"
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
+#include "aether/transport/data_packet_collector.h"
 
 namespace ae::test_data_pc {
 void test_DataPacketCollectorEmpty() {

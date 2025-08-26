@@ -33,9 +33,9 @@
 #  include "aether/events/multi_subscription.h"
 
 #  include "aether/transport/itransport.h"
-#  include "aether/transport/low_level/tcp/data_packet_collector.h"
-#  include "aether/transport/low_level/socket_packet_send_action.h"
-#  include "aether/transport/low_level/socket_packet_queue_manager.h"
+#  include "aether/transport/data_packet_collector.h"
+#  include "aether/transport/socket_packet_send_action.h"
+#  include "aether/transport/socket_packet_queue_manager.h"
 
 #  include "aether/transport/low_level/sockets/tcp_sockets_factory.h"
 

@@ -18,6 +18,7 @@
 #define AETHER_MISC_DEFER_H_
 
 #include <utility>
+#include <optional>
 #include <type_traits>
 
 #include "aether/common.h"
@@ -36,12 +37,14 @@ class ScopeExit {
       std::is_nothrow_move_constructible_v<T>)
       : callable_{std::move(cb)} {}
 
-  ~ScopeExit() noexcept(std::is_nothrow_invocable_v<T>) { callable_(); }
+  ~ScopeExit() noexcept(std::is_nothrow_invocable_v<T>) { (*callable_)(); }
 
   AE_CLASS_NO_COPY_MOVE(ScopeExit)
 
+  void Reset() noexcept { callable_.reset(); }
+
  private:
-  T callable_;
+  std::optional<T> callable_;
 };
 
 template <typename T>
@@ -55,6 +58,7 @@ constexpr auto operator<<(MakeScopeExit, TCallable&& cb) {
 }
 }  // namespace ae
 
-#define defer auto AE_UNIQUE_NAME(SCOPE_GUARD) = MakeScopeExit{} <<
+#define defer_at MakeScopeExit{} <<
+#define defer auto AE_UNIQUE_NAME(SCOPE_GUARD) = defer_at
 
 #endif  // AETHER_MISC_DEFER_H_

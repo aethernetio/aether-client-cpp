@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,40 +14,34 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_PARENT_WIFI_H_
-#define AETHER_ADAPTERS_PARENT_WIFI_H_
-
-#include <string>
+#ifndef AETHER_ADAPTERS_PARENT_MODEM_H_
+#define AETHER_ADAPTERS_PARENT_MODEM_H_
 
 #include "aether/aether.h"
 #include "aether/adapters/adapter.h"
-
+#include "aether/modems/modem_driver_types.h"
 
 namespace ae {
 class Aether;
 
-class ParentWifiAdapter : public Adapter {
-  AE_OBJECT(ParentWifiAdapter, Adapter, 0)
+class ParentModemAdapter : public Adapter {
+  AE_OBJECT(ParentModemAdapter, Adapter, 0)
 
  protected:
-  ParentWifiAdapter() = default;
+  ParentModemAdapter() = default;
 
  public:
 #ifdef AE_DISTILLATION
-  ParentWifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                    DnsResolver::ptr dns_resolver, std::string ssid,
-                    std::string pass, Domain* domain);
+  ParentModemAdapter(ObjPtr<Aether> aether, ModemInit modem_init,
+                     Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, ssid_, pass_))
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, modem_init_))
 
   Obj::ptr aether_;
-  IPoller::ptr poller_;
-  DnsResolver::ptr dns_resolver_;
 
-  std::string ssid_;
-  std::string pass_;
+  ModemInit modem_init_;
 };
 }  // namespace ae
 
-#endif  // AETHER_ADAPTERS_PARENT_WIFI_H_
+#endif  // AETHER_ADAPTERS_PARENT_MODEM_H_

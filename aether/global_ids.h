@@ -33,6 +33,8 @@ enum GlobalId {
   kLanAdapter = kGlobalIdAdaptersOffset + 2,
   kEsp32WiFiAdapter = kGlobalIdAdaptersOffset + 3,
   kRegisterWifiAdapter = kGlobalIdAdaptersOffset + 4,
+  kModemAdapter = kGlobalIdAdaptersOffset + 5,
+  kRegisterModemAdapter = kGlobalIdAdaptersOffset + 6,
 
   kServerFactory = kGlobalIdFactoriesOffset + 0,
   kClientFactory = kGlobalIdFactoriesOffset + 1,
