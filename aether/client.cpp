@@ -41,7 +41,7 @@ ServerKeys* Client::server_state(ServerId server_id) {
 
 Cloud::ptr const& Client::cloud() const { return cloud_; }
 
-ClientConnectionManager::ptr const& Client::client_connection_manager() const {
+ClientCloudManager::ptr const& Client::client_connection_manager() const {
   assert(client_connection_manager_);
   return client_connection_manager_;
 }
@@ -57,7 +57,7 @@ void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
     server_keys_.emplace(s->server_id, ServerKeys{s->server_id, master_key_});
   }
 
-  client_connection_manager_ = domain_->CreateObj<ClientConnectionManager>(
+  client_connection_manager_ = domain_->CreateObj<ClientCloudManager>(
       ObjPtr<Aether>{aether_}, MakePtrFromThis(this));
 }
 

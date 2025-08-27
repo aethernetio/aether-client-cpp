@@ -27,7 +27,7 @@
 #include "aether/server_keys.h"
 
 #include "aether/client_connections/client_connection.h"
-#include "aether/connection_manager/client_connection_manager.h"
+#include "aether/connection_manager/client_cloud_manager.h"
 
 namespace ae {
 class Aether;
@@ -48,7 +48,7 @@ class Client : public Obj {
   Uid const& ephemeral_uid() const;
   ServerKeys* server_state(ServerId server_id);
   Cloud::ptr const& cloud() const;
-  ClientConnectionManager::ptr const& client_connection_manager() const;
+  ClientCloudManager::ptr const& client_connection_manager() const;
 
   Ptr<ClientConnection> const& client_connection();
 
@@ -86,7 +86,7 @@ class Client : public Obj {
   // states
   std::map<ServerId, ServerKeys> server_keys_;
 
-  ClientConnectionManager::ptr client_connection_manager_;
+  ClientCloudManager::ptr client_connection_manager_;
   Ptr<ClientConnection> client_connection_;
 };
 }  // namespace ae

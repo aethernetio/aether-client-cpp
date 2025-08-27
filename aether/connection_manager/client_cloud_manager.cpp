@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/connection_manager/client_connection_manager.h"
+#include "aether/connection_manager/client_cloud_manager.h"
 
 #include <utility>
 #include <cassert>
@@ -34,7 +34,7 @@ namespace ccm_internal {
 class CachedServerConnectionFactory : public IServerConnectionFactory {
  public:
   CachedServerConnectionFactory(
-      Ptr<ClientConnectionManager> const& client_connection_manager,
+      Ptr<ClientCloudManager> const& client_connection_manager,
       Ptr<Aether> const& aether, Ptr<Adapter> const& adapter,
       Ptr<Client> const& client)
       : client_connection_manager_{client_connection_manager},
@@ -85,23 +85,22 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
   }
 
  private:
-  PtrView<ClientConnectionManager> client_connection_manager_;
+  PtrView<ClientCloudManager> client_connection_manager_;
   PtrView<Aether> aether_;
   PtrView<Adapter> adapter_;
   PtrView<Client> client_;
 };
 }  // namespace ccm_internal
 
-ClientConnectionManager::ClientConnectionManager(ObjPtr<Aether> aether,
-                                                 Client::ptr client,
-                                                 Domain* domain)
+ClientCloudManager::ClientCloudManager(ObjPtr<Aether> aether,
+                                       Client::ptr client, Domain* domain)
     : Obj(domain), aether_{std::move(aether)}, client_{std::move(client)} {
   client_.SetFlags(ObjFlags{});
   auto client_ptr = Ptr<Client>{client_};
   RegisterCloud(client_ptr->uid(), client_ptr->cloud());
 }
 
-Ptr<ClientConnection> ClientConnectionManager::GetClientConnection() {
+Ptr<ClientConnection> ClientCloudManager::GetClientConnection() {
   AE_TELE_DEBUG(ClientConnectionManagerSelfCloudConnection,
                 "GetClientConnection to self client {}",
                 client_.as<Client>()->uid());
@@ -118,8 +117,8 @@ Ptr<ClientConnection> ClientConnectionManager::GetClientConnection() {
   return CreateClientConnection(cloud);
 }
 
-ActionPtr<GetClientCloudConnection>
-ClientConnectionManager::GetClientConnection(Uid client_uid) {
+ActionPtr<GetClientCloudConnection> ClientCloudManager::GetClientConnection(
+    Uid client_uid) {
   AE_TELE_DEBUG(ClientConnectionManagerUidCloudConnection,
                 "GetClientCloudConnection to another client {}", client_uid);
 
@@ -157,7 +156,7 @@ ClientConnectionManager::GetClientConnection(Uid client_uid) {
   return action;
 }
 
-Ptr<ClientConnection> ClientConnectionManager::CreateClientConnection(
+Ptr<ClientConnection> ClientCloudManager::CreateClientConnection(
     Cloud::ptr const& cloud) {
   auto aether = Ptr<Aether>{aether_};
   auto client_ptr = Ptr<Client>{client_};
@@ -178,7 +177,7 @@ Ptr<ClientConnection> ClientConnectionManager::CreateClientConnection(
           self_ptr, aether_, adapter, client_ptr));
 }
 
-Cloud::ptr ClientConnectionManager::RegisterCloud(
+Cloud::ptr ClientCloudManager::RegisterCloud(
     Uid uid, std::vector<ServerDescriptor> const& server_descriptors) {
   auto new_cloud = domain_->LoadCopy(aether_.as<Aether>()->cloud_prefab);
   assert(new_cloud);
@@ -218,7 +217,7 @@ Cloud::ptr ClientConnectionManager::RegisterCloud(
   return new_cloud;
 }
 
-void ClientConnectionManager::RegisterCloud(Uid uid, Cloud::ptr cloud) {
+void ClientCloudManager::RegisterCloud(Uid uid, Cloud::ptr cloud) {
   cloud_cache_.AddCloud(uid, std::move(cloud));
 }
 

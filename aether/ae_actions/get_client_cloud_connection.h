@@ -35,7 +35,7 @@
 namespace ae {
 class Client;
 class Cloud;
-class ClientConnectionManager;
+class ClientCloudManager;
 
 class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   enum class State : std::uint8_t {
@@ -52,7 +52,7 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
  public:
   GetClientCloudConnection(
       ActionContext action_context,
-      Ptr<ClientConnectionManager> const& client_connection_manager,
+      Ptr<ClientCloudManager> const& client_connection_manager,
       ObjPtr<Client> const& client, Uid client_uid, ObjPtr<Cloud> const& cloud,
       std::unique_ptr<IServerConnectionFactory>&& server_connection_factory);
 
@@ -73,7 +73,7 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   ActionContext action_context_;
   PtrView<Client> client_;
   Uid client_uid_;
-  PtrView<ClientConnectionManager> client_connection_manager_;
+  PtrView<ClientCloudManager> client_connection_manager_;
   ServerConnectionSelector server_connection_selector_;
   std::optional<AsyncForLoop<RcPtr<ClientServerConnection>>>
       connection_selection_loop_;

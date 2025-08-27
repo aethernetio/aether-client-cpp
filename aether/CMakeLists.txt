@@ -198,7 +198,7 @@ list(APPEND server_connections_srcs
 list(APPEND connection_manager_srcs
             "connection_manager/client_server_connection_pool.cpp"
             "connection_manager/cloud_cache.cpp"
-            "connection_manager/client_connection_manager.cpp"
+            "connection_manager/client_cloud_manager.cpp"
             "connection_manager/server_connection_selector.cpp"
 )
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
-#define AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
+#ifndef AETHER_CONNECTION_MANAGER_CLIENT_CLOUD_MANAGER_H_
+#define AETHER_CONNECTION_MANAGER_CLIENT_CLOUD_MANAGER_H_
 
 #include <vector>
 
@@ -40,18 +40,18 @@ namespace ccm_internal {
 class CachedServerConnectionFactory;
 }
 
-class ClientConnectionManager : public Obj {
+class ClientCloudManager : public Obj {
   friend class ccm_internal::CachedServerConnectionFactory;
 
-  AE_OBJECT(ClientConnectionManager, Obj, 0)
+  AE_OBJECT(ClientCloudManager, Obj, 0)
 
-  ClientConnectionManager() = default;
+  ClientCloudManager() = default;
 
  public:
-  explicit ClientConnectionManager(ObjPtr<Aether> aether, ObjPtr<Client> client,
-                                   Domain* domain);
+  explicit ClientCloudManager(ObjPtr<Aether> aether, ObjPtr<Client> client,
+                              Domain* domain);
 
-  AE_CLASS_NO_COPY_MOVE(ClientConnectionManager)
+  AE_CLASS_NO_COPY_MOVE(ClientCloudManager)
 
   Ptr<ClientConnection> GetClientConnection();
   ActionPtr<GetClientCloudConnection> GetClientConnection(Uid client_uid);
@@ -86,4 +86,4 @@ class ClientConnectionManager : public Obj {
 };
 }  // namespace ae
 
-#endif  // AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
+#endif  // AETHER_CONNECTION_MANAGER_CLIENT_CLOUD_MANAGER_H_
