@@ -22,8 +22,8 @@
 static constexpr std::string_view kWifiSsid = "Test1234";
 static constexpr std::string_view kWifiPass = "Test1234";
 
-static constexpr std::string_view kSerialPort = "COM47";  // Thingy91x
-// static constexpr std::string_view kSerialPort = "COM17";   // Sim7070g
+// static constexpr std::string_view kSerialPort = "COM47";  // Thingy91x
+static constexpr std::string_view kSerialPort = "COM20";   // Sim7070g
 
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
@@ -50,10 +50,10 @@ int AetherCloudExample() {
       bs,                           // Base station
       {1, 1, 1, 1},                 // Pin code
       false,                        // Use pin
-      ae::kModemMode::kModeNbIot,   // Modem mode Thingy91x
-      //ae::kModemMode::kModeAuto,      // Modem mode Sim7070g
-      "25001",                      // Operator code Thingy91x
-      //"25020",                      // Operator code Sim7070g
+      //ae::kModemMode::kModeNbIot,   // Modem mode Thingy91x
+      ae::kModemMode::kModeAuto,      // Modem mode Sim7070g
+      //"25001",                      // Operator code Thingy91x
+      "25020",                      // Operator code Sim7070g
       "",                           // Operator long name
       "iot",                        // APN
       "",                           // APN user

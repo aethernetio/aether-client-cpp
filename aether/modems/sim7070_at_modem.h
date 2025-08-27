@@ -19,18 +19,21 @@
 
 #include <chrono>
 #include <memory>
-#include <tuple>
 
-#include "aether/adapters/parent_modem.h"
+#include "aether/modems/imodem_driver.h"
 #include "aether/serial_ports/iserial_port.h"
 
 namespace ae {
 
-typedef std::tuple<std::uint32_t, std::uint32_t> Sim7070Handle;
+struct ConnectionHandle {
+  AE_REFLECT_MEMBERS(context_index, connect_index)
+  std::int32_t context_index;
+  std::int32_t connect_index;
+};
 
 struct Sim7070Connection {
   AE_REFLECT_MEMBERS(handle, protocol, host, port)
-  ae::Sim7070Handle handle;
+  ae::ConnectionHandle handle;
   ae::Protocol protocol;
   std::string host;
   std::uint16_t port;
@@ -72,11 +75,11 @@ class Sim7070AtModem final : public IModemDriver {
   bool Stop() override;
   ConnectionIndex OpenNetwork(ae::Protocol protocol, std::string const& host, 
                               std::uint16_t port) override;
-  void CloseNetwork(ConnectionIndex connect_index) override;
-  void WritePacket(ConnectionIndex connect_index,
-                   DataBuffer const& data) override;
-  DataBuffer ReadPacket(ConnectionIndex connect_index,
-                  Duration timeout) override;
+  void CloseNetwork(ae::ConnectionIndex connect_index) override;
+  void WritePacket(ae::ConnectionIndex connect_index,
+                   ae::DataBuffer const& data) override;
+  DataBuffer ReadPacket(ae::ConnectionIndex connect_index,
+                        ae::Duration timeout) override;
   bool SetPowerSaveParam(ae::PowerSaveParam const& psp) override;
   bool PowerOff() override;
 
@@ -98,8 +101,8 @@ class Sim7070AtModem final : public IModemDriver {
                            kAuthType auth_type);
   kModemError SetupProtoPar();
   
-  Sim7070Handle OpenTcpConnection(std::string const& host, std::uint16_t port);
-  Sim7070Handle OpenUdpConnection();
+  ConnectionHandle OpenTcpConnection(std::string const& host, std::uint16_t port);
+  ConnectionHandle OpenUdpConnection();
   void SendTcp(Sim7070Connection const& connection, DataBuffer const& data);
   void SendUdp(Sim7070Connection const& connection, DataBuffer const& data);
   DataBuffer ReadTcp(Sim7070Connection const& connection, Duration timeout);
@@ -107,7 +110,7 @@ class Sim7070AtModem final : public IModemDriver {
   
   void SendATCommand(const std::string& command);
   bool WaitForResponse(const std::string& expected,
-                       std::chrono::milliseconds timeout_ms);
+                       Duration timeout_ms);
   std::string PinToString(const std::uint8_t pin[4]);
 };
 
