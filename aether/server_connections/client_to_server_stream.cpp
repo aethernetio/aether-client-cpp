@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/client_connections/client_to_server_stream.h"
+#include "aether/server_connections/client_to_server_stream.h"
 
 #include <utility>
 

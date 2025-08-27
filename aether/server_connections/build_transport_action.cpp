@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/transport/actions/build_transport_action.h"
+#include "aether/server_connections/build_transport_action.h"
 
 #include "aether/tele/tele.h"
 

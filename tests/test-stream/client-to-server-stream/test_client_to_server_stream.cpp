@@ -26,7 +26,7 @@
 #include "aether/stream_api/gates_stream.h"
 #include "aether/stream_api/buffer_stream.h"
 #include "aether/stream_api/transport_write_stream.h"
-#include "aether/client_connections/client_to_server_stream.h"
+#include "aether/server_connections/client_to_server_stream.h"
 
 #include "test-object-system/map_domain_storage.h"
 #include "test-stream/mock_transport.h"

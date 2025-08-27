@@ -19,8 +19,7 @@
 
 #include "aether/types/uid.h"
 #include "aether/stream_api/istream.h"
-#include "aether/stream_api/debug_gate.h"
-#include "aether/client_connections/client_to_server_stream.h"
+#include "aether/server_connections/client_to_server_stream.h"
 
 namespace ae {
 
@@ -28,7 +27,6 @@ class MessageStream final : public ByteIStream {
  public:
   MessageStream(ClientToServerStream& client_to_server_stream, Uid destination);
   MessageStream(MessageStream const&) = delete;
-  MessageStream(MessageStream&& other) noexcept;
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
 
@@ -42,7 +40,6 @@ class MessageStream final : public ByteIStream {
  private:
   ClientToServerStream* client_to_server_stream_;
   Uid destination_;
-  DebugGate debug_gate_;
   OutDataEvent out_data_event_;
 };
 }  // namespace ae

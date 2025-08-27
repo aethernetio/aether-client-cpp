@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_CLOUD_CACHE_H_
-#define AETHER_CLIENT_CONNECTIONS_CLOUD_CACHE_H_
+#ifndef AETHER_CONNECTION_MANAGER_CLOUD_CACHE_H_
+#define AETHER_CONNECTION_MANAGER_CLOUD_CACHE_H_
 
 #include <map>
 #include <optional>
@@ -25,7 +25,7 @@
 #include "aether/types/uid.h"
 #include "aether/cloud.h"
 
-#include "aether/client_connections/server_connection_selector.h"
+#include "aether/connection_manager/server_connection_selector.h"
 
 namespace ae {
 /**
@@ -46,4 +46,4 @@ class CloudCache {
 };
 }  // namespace ae
 
-#endif  // AETHER_CLIENT_CONNECTIONS_CLOUD_CACHE_H_
+#endif  // AETHER_CONNECTION_MANAGER_CLOUD_CACHE_H_

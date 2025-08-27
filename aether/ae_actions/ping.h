@@ -35,7 +35,7 @@ DISABLE_WARNING_POP()
 #include "aether/actions/action_context.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/client_connections/client_to_server_stream.h"
+#include "aether/server_connections/client_to_server_stream.h"
 
 namespace ae {
 class Ping : public Action<Ping> {

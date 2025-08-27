@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SERVER_SERVER_CHANNEL_STREAM_H_
-#define AETHER_TRANSPORT_SERVER_SERVER_CHANNEL_STREAM_H_
+#ifndef AETHER_SERVER_CONNECTIONS_SERVER_CHANNEL_STREAM_H_
+#define AETHER_SERVER_CONNECTIONS_SERVER_CHANNEL_STREAM_H_
 
 #include <cassert>
 #include <optional>
@@ -35,11 +35,9 @@
 #include "aether/stream_api/buffer_stream.h"
 #include "aether/stream_api/transport_write_stream.h"
 
-#include "aether/transport/actions/build_transport_action.h"
+#include "aether/server_connections/build_transport_action.h"
 
 namespace ae {
-class Aether;
-
 class ServerChannelStream final : public ByteIStream {
  public:
   ServerChannelStream(ActionContext action_context, Adapter::ptr const& adapter,
@@ -75,4 +73,4 @@ class ServerChannelStream final : public ByteIStream {
 };
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_SERVER_SERVER_CHANNEL_STREAM_H_
+#endif  // AETHER_SERVER_CONNECTIONS_SERVER_CHANNEL_STREAM_H_

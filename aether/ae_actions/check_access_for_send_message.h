@@ -24,7 +24,7 @@
 #include "aether/types/state_machine.h"
 #include "aether/actions/repeatable_task.h"
 
-#include "aether/client_connections/client_to_server_stream.h"
+#include "aether/server_connections/client_to_server_stream.h"
 
 namespace ae {
 class CheckAccessForSendMessage final
