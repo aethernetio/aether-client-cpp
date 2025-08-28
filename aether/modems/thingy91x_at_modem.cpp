@@ -372,6 +372,11 @@ kModemError Thingy91xAtModem::SetNetMode(kModemMode const modem_mode) {
       break;
   }
 
+  err = CheckResponse("OK", 1000, "No response from modem!");
+  if (err != kModemError::kNoError) {
+    err = kModemError::kSetNetMode;
+  }
+  
   return err;
 }
 
@@ -423,6 +428,10 @@ kModemError Thingy91xAtModem::SetupNetwork(std::string const operator_name,
     err = CheckResponse("OK", 1000, "AT+CEREG command error!");
   }
 
+  if (err != kModemError::kNoError) {
+    err = kModemError::kSetNetwork;
+  }
+  
   AE_TELED_DEBUG("apn_user {}", apn_user);
   AE_TELED_DEBUG("apn_pass {}", apn_pass);
   AE_TELED_DEBUG("auth_type {}", auth_type);

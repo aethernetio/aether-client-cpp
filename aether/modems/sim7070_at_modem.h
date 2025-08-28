@@ -89,8 +89,9 @@ class Sim7070AtModem final : public IModemDriver {
 
   static constexpr std::uint16_t kModemMTU{1520};
   
-  kModemError CheckResponse(std::string response, std::uint32_t wait_time,
-                            std::string error_message);
+  kModemError CheckResponse(std::string const response, 
+                            std::uint32_t const wait_time,
+                            std::string const error_message);
   kModemError SetBaudRate(kBaudRate rate);
   kModemError CheckSimStatus();
   kModemError SetupSim(const std::uint8_t pin[4]);
@@ -102,7 +103,7 @@ class Sim7070AtModem final : public IModemDriver {
   kModemError SetupProtoPar();
   
   ConnectionHandle OpenTcpConnection(std::string const& host, std::uint16_t port);
-  ConnectionHandle OpenUdpConnection();
+  ConnectionHandle OpenUdpConnection(std::string const& host, std::uint16_t port);
   void SendTcp(Sim7070Connection const& connection, DataBuffer const& data);
   void SendUdp(Sim7070Connection const& connection, DataBuffer const& data);
   DataBuffer ReadTcp(Sim7070Connection const& connection, Duration timeout);

@@ -22,8 +22,8 @@
 static constexpr std::string_view kWifiSsid = "Test1234";
 static constexpr std::string_view kWifiPass = "Test1234";
 
-// static constexpr std::string_view kSerialPort = "COM47";  // Thingy91x
-static constexpr std::string_view kSerialPort = "COM20";   // Sim7070g
+static constexpr std::string_view kSerialPort_thingy91x = "COM47";  // Thingy91x
+static constexpr std::string_view kSerialPort_sim7070g = "COM20";   // Sim7070g
 
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
@@ -38,22 +38,22 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
 }  // namespace ae::cloud_test
 
 int AetherCloudExample() {
-  ae::SerialInit serial_init = {std::string(kSerialPort),
-                                ae::kBaudRate::kBaudRate115200};
+  ae::SerialInit serial_init_thingy91x = {std::string(kSerialPort_thingy91x),
+                                          ae::kBaudRate::kBaudRate115200};
 
+  ae::SerialInit serial_init_sim7070g = {std::string(kSerialPort_sim7070g),
+                                         ae::kBaudRate::kBaudRate115200};
   ae::PowerSaveParam const& psp{};
   ae::BaseStation const& bs{};
   
-  ae::ModemInit modem_init{
-      serial_init,                  // Serial port
+  ae::ModemInit modem_init_thingy91x{
+      serial_init_thingy91x,        // Serial port
       psp,                          // Power save parameters
       bs,                           // Base station
       {1, 1, 1, 1},                 // Pin code
       false,                        // Use pin
-      //ae::kModemMode::kModeNbIot,   // Modem mode Thingy91x
-      ae::kModemMode::kModeAuto,      // Modem mode Sim7070g
-      //"25001",                      // Operator code Thingy91x
-      "25020",                      // Operator code Sim7070g
+      ae::kModemMode::kModeNbIot,   // Modem mode
+      "25001",                      // Operator code
       "",                           // Operator long name
       "iot",                        // APN
       "",                           // APN user
@@ -61,6 +61,20 @@ int AetherCloudExample() {
       ae::kAuthType::kAuthTypeNone  // Auth type
   };
 
+  ae::ModemInit modem_init_sim7070g{
+      serial_init_sim7070g,         // Serial port
+      psp,                          // Power save parameters
+      bs,                           // Base station
+      {1, 1, 1, 1},                 // Pin code
+      false,                        // Use pin
+      ae::kModemMode::kModeAuto,    // Modem mode
+      "25020",                      // Operator code
+      "",                           // Operator long name
+      "internet",                   // APN
+      "",                           // APN user
+      "",                           // APN pass
+      ae::kAuthType::kAuthTypeNone  // Auth type
+  };
   /**
    * Construct a main aether application class.
    * It's include a Domain and Aether instances accessible by getter methods.
@@ -72,7 +86,8 @@ int AetherCloudExample() {
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppContext{}
 #if defined AE_DISTILLATION
-          .AdapterFactory([modem_init](ae::AetherAppContext const& context) {
+          .AdapterFactory([modem_init_sim7070g](
+                              ae::AetherAppContext const& context) {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, context.aether(),
@@ -80,7 +95,7 @@ int AetherCloudExample() {
                 std::string(kWifiSsid), std::string(kWifiPass));
 #  elif defined MODEM_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::ModemAdapter>(
-                ae::GlobalId::kModemAdapter, context.aether(), modem_init);
+                ae::GlobalId::kModemAdapter, context.aether(), modem_init_sim7070g);
 #  else
             auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, context.aether(),
