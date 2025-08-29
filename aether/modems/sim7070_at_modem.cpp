@@ -70,6 +70,15 @@ bool Sim7070AtModem::Start() {
     return false;
   }
 
+  // Check Sim card
+  auto sim_err = CheckSimStatus();
+  if ((sim_err == kModemError::kNoError) && modem_init.use_pin) {
+    if (auto err = SetupSim(modem_init.pin); err != kModemError::kNoError) {
+      AE_TELED_ERROR("Setup sim error {}", err);
+      return false;
+    }
+  }
+
   // Enabling full functionality
   SendATCommand("AT+CFUN=1,0");
   if (auto err = CheckResponse("OK", 1000, "AT+CFUN command error!");
@@ -97,15 +106,6 @@ bool Sim7070AtModem::Start() {
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Setup network error {}", err);
     return false;
-  }
-
-  // Check Sim card
-  auto sim_err = CheckSimStatus();
-  if ((sim_err == kModemError::kNoError) && modem_init.use_pin) {
-    if (auto err = SetupSim(modem_init.pin); err != kModemError::kNoError) {
-      AE_TELED_ERROR("Setup sim error {}", err);
-      return false;
-    }
   }
 
   return true;
@@ -170,7 +170,7 @@ void Sim7070AtModem::CloseNetwork(ConnectionIndex connect_index) {
   auto const& connection =
       connect_vec_.at(static_cast<std::size_t>(connect_index));
 
-  // AT+CACLOSE=0 // Close TCP/UDP socket 0.
+  // AT+CACLOSE=<cid> // Close TCP/UDP socket 0.
   SendATCommand("AT+CACLOSE=" +
                 std::to_string(connection.handle.connect_index));
   if (auto err = CheckResponse("OK", 1000, "AT+CACLOSE command error!");
@@ -179,7 +179,7 @@ void Sim7070AtModem::CloseNetwork(ConnectionIndex connect_index) {
     return;
   }
 
-  // AT+CNACT=0,0 // Deactivate the PDP context
+  // AT+CNACT=<pdpidx>,<action> // Deactivate the PDP context
   SendATCommand("AT+CNACT=" + std::to_string(connection.handle.context_index) +
                 ",0");
   if (auto err = CheckResponse("OK", 10000, "AT+CNACT command error!");
@@ -406,7 +406,18 @@ kModemError Sim7070AtModem::SetupNetwork(
     err = CheckResponse("OK", 1000, "No response from modem!");
   }
 
+  /*for (std::uint8_t i = 0; i < 4; i++) {
+    if (err == kModemError::kNoError) {
+      //
+  AT+CNCFG=<pdpidx>,<ip_type>,[<APN>,[<usename>,<password>,[<authentication>]]]
+      SendATCommand("AT+CNCFG=" + std::to_string(i) + ",0,\"" + apn_name +
+                    "\",\"" + apn_user + "\",\"" + apn_pass + "\"," + type);
+      err = CheckResponse("OK", 1000, "No response from modem!");
+    }
+  }*/
+
   if (err == kModemError::kNoError) {
+    // AT+CNCFG=<pdpidx>,<ip_type>,[<APN>,[<usename>,<password>,[<authentication>]]]
     SendATCommand("AT+CNCFG=0,0,\"" + apn_name + "\",\"" + apn_user + "\",\"" +
                   apn_pass + "\"," + type);
     err = CheckResponse("OK", 1000, "No response from modem!");
@@ -416,6 +427,31 @@ kModemError Sim7070AtModem::SetupNetwork(
     SendATCommand("AT+CREG=1;+CGREG=1;+CEREG=1");
     err = CheckResponse("OK", 1000, "No response from modem!");
   }
+
+  std::string context_i_str = "0";
+
+  if (err == kModemError::kNoError) {
+    // AT+CNACT=<pdpidx>,<action> // Activate the PDP context
+    SendATCommand("AT+CNACT=" + context_i_str + ",1");
+    err = CheckResponse("OK", 1000, "AT+CNACT command error!");
+  }
+
+  if (err != kModemError::kNoError) {
+    // AT+CNACT=<pdpidx>,<action> // Deactivate the PDP context
+    SendATCommand("AT+CNACT=" + context_i_str + ",0");
+
+    err = CheckResponse("+APP PDP: " + context_i_str + ",DEACTIVE", 10000,
+                        "AT+CNACT command error!");
+
+    if (err == kModemError::kNoError) {
+      // AT+CNACT=<pdpidx>,<action> // Activate the PDP context
+      SendATCommand("AT+CNACT=" + context_i_str + ",1");
+      err = CheckResponse("OK", 1000, "AT+CNACT command error!");
+    }
+  }
+
+  err = CheckResponse("+APP PDP: " + context_i_str + ",ACTIVE", 5000,
+                      "AT+CNACT command error!");
 
   if (err != kModemError::kNoError) {
     err = kModemError::kSetNetwork;
@@ -443,7 +479,7 @@ ConnectionHandle Sim7070AtModem::OpenTcpConnection(std::string const& host,
 
   if (connect_vec_.size() == 0) {
     handle.context_index = 0;
-    handle.connect_index = 1;
+    handle.connect_index = 0;
   } else {
     auto connection = connect_vec_.back();
     handle.context_index = connection.handle.context_index + 0;
@@ -454,46 +490,63 @@ ConnectionHandle Sim7070AtModem::OpenTcpConnection(std::string const& host,
   std::string connect_i_str = std::to_string(handle.connect_index);
   std::string port_str = std::to_string(port);
 
-  if (err == kModemError::kNoError) {
-    // AT+CNACT=0,1 // Activate the PDP context
+  /*if (err == kModemError::kNoError) {
+    // AT+CNACT=<pdpidx>,<action> // Activate the PDP context
     SendATCommand("AT+CNACT=" + context_i_str + ",1");
     err = CheckResponse("OK", 1000, "AT+CNACT command error!");
   }
 
   if (err != kModemError::kNoError) {
-    // AT+CNACT=0,0 // Deactivate the PDP context
+    // AT+CNACT=<pdpidx>,<action> // Deactivate the PDP context
     SendATCommand("AT+CNACT=" + context_i_str + ",0");
 
     err =
-        CheckResponse("+APP PDP: 0,DEACTIVE", 10000, "AT+CNACT command error!");
+        CheckResponse("+APP PDP: " + context_i_str + ",DEACTIVE", 10000,
+  "AT+CNACT command error!");
 
     if (err == kModemError::kNoError) {
-      // AT+CNACT=0,1 // Activate the PDP context
+      // AT+CNACT=<pdpidx>,<action> // Activate the PDP context
       SendATCommand("AT+CNACT=" + context_i_str + ",1");
       err = CheckResponse("OK", 1000, "AT+CNACT command error!");
     }
   }
 
-  err = CheckResponse("+APP PDP: 0,ACTIVE", 5000, "AT+CNACT command error!");
+  err = CheckResponse("+APP PDP: " + context_i_str + ",ACTIVE", 5000, "AT+CNACT
+  command error!");*/
 
   if (err == kModemError::kNoError) {
-    // AT+CAOPEN=0,0,"UDP","URL",PORT
-    SendATCommand("AT+CAOPEN=" + context_i_str + "," + connect_i_str + ",\"" +
+    // AT+CACID=<cid> // Set TCP/UDP Identifier
+    SendATCommand("AT+CACID=" + connect_i_str);
+    err = CheckResponse("OK", 1000, "AT+CACID command error!");
+  }
+
+  if (err == kModemError::kNoError) {
+    // AT+CAOPEN=<cid>,<pdp_index>,<conn_type>,<server>,<port>[,<recv_mode>]
+    // AT+CAOPEN=0,0,"TCP","URL",PORT
+    SendATCommand("AT+CAOPEN=" + connect_i_str + "," + context_i_str + ",\"" +
                   protocol_str + "\",\"" + host + "\"," + port_str);
-    err = CheckResponse("OK", 1000, "AT+CAOPEN command error!");
+    err = CheckResponse("+CAOPEN: " + connect_i_str + ",0", 1000,
+                        "AT+CAOPEN command error!");
   }
 
   if (err != kModemError::kNoError) {
-    // AT+CACLOSE=0 // Close TCP/UDP socket 0.
+    // AT+CACLOSE=<cid> // Close TCP/UDP socket cid.
     SendATCommand("AT+CACLOSE=" + connect_i_str);
     err = CheckResponse("OK", 1000, "AT+CACLOSE command error!");
 
     if (err == kModemError::kNoError) {
-      // AT+CAOPEN=0,0,"UDP","URL",PORT
-      SendATCommand("AT+CAOPEN=" + context_i_str + "," + connect_i_str + ",\"" +
+      // AT+CAOPEN=<cid>,<pdp_index>,<conn_type>,<server>,<port>[,<recv_mode>]
+      // AT+CAOPEN=0,0,"TCP","URL",PORT
+      SendATCommand("AT+CAOPEN=" + connect_i_str + "," + context_i_str + ",\"" +
                     protocol_str + "\",\"" + host + "\"," + port_str);
-      err = CheckResponse("OK", 1000, "AT+CAOPEN command error!");
+      err = CheckResponse("+CAOPEN: " + connect_i_str + ",0", 1000,
+                          "AT+CAOPEN command error!");
     }
+  }
+
+  if (err != kModemError::kNoError) {
+    handle.context_index = -1;
+    handle.connect_index = -1;
   }
 
   return handle;
@@ -509,7 +562,7 @@ ConnectionHandle Sim7070AtModem::OpenUdpConnection(std::string const& host,
 
   if (connect_vec_.size() == 0) {
     handle.context_index = 0;
-    handle.connect_index = 1;
+    handle.connect_index = 0;
   } else {
     auto connection = connect_vec_.back();
     handle.context_index = connection.handle.context_index + 0;
@@ -520,8 +573,8 @@ ConnectionHandle Sim7070AtModem::OpenUdpConnection(std::string const& host,
   std::string connect_i_str = std::to_string(handle.connect_index);
   std::string port_str = std::to_string(port);
 
-  if (err == kModemError::kNoError) {
-    // AT+CNACT=0,1 // Activate the PDP context
+  /*if (err == kModemError::kNoError) {
+    // AT+CNACT=<pdpidx>,<action> // Activate the PDP context
     SendATCommand("AT+CNACT=" + context_i_str + ",1");
     err = CheckResponse("OK", 1000, "AT+CNACT command error!");
   }
@@ -531,7 +584,8 @@ ConnectionHandle Sim7070AtModem::OpenUdpConnection(std::string const& host,
     SendATCommand("AT+CNACT=" + context_i_str + ",0");
 
     err =
-        CheckResponse("+APP PDP: 0,DEACTIVE", 10000, "AT+CNACT command error!");
+        CheckResponse("+APP PDP: " + context_i_str + ",DEACTIVE", 10000,
+  "AT+CNACT command error!");
 
     if (err == kModemError::kNoError) {
       // AT+CNACT=<pdpidx>,<action> // Activate the PDP context
@@ -540,33 +594,42 @@ ConnectionHandle Sim7070AtModem::OpenUdpConnection(std::string const& host,
     }
   }
 
-  err = CheckResponse("+APP PDP: 0,ACTIVE", 5000, "AT+CNACT command error!");
+  err = CheckResponse("+APP PDP: " + context_i_str + ",ACTIVE", 5000, "AT+CNACT
+  command error!");*/
 
-  
   if (err == kModemError::kNoError) {
-      // AT+CACID=<cid> // Set TCP/UDP Identifier
-      SendATCommand("AT+CACID=" + connect_i_str);
-      err = CheckResponse("OK", 1000, "AT+CACID command error!");
-    }
-    
+    // AT+CACID=<cid> // Set TCP/UDP Identifier
+    SendATCommand("AT+CACID=" + connect_i_str);
+    err = CheckResponse("OK", 1000, "AT+CACID command error!");
+  }
+
   if (err == kModemError::kNoError) {
     // AT+CAOPEN=<cid>,<pdp_index>,<conn_type>,<server>,<port>[,<recv_mode>]
+    // AT+CAOPEN=0,0,"UDP","URL",PORT
     SendATCommand("AT+CAOPEN=" + connect_i_str + "," + context_i_str + ",\"" +
                   protocol_str + "\",\"" + host + "\"," + port_str);
-    err = CheckResponse("OK", 1000, "AT+CAOPEN command error!");
+    err = CheckResponse("+CAOPEN: " + connect_i_str + ",0", 1000,
+                        "AT+CAOPEN command error!");
   }
 
   if (err != kModemError::kNoError) {
-    // AT+CACLOSE=<cid> // Close TCP/UDP socket 0.
+    // AT+CACLOSE=<cid> // Close TCP/UDP socket cid.
     SendATCommand("AT+CACLOSE=" + connect_i_str);
     err = CheckResponse("OK", 1000, "AT+CACLOSE command error!");
 
     if (err == kModemError::kNoError) {
       // AT+CAOPEN=<cid>,<pdp_index>,<conn_type>,<server>,<port>[,<recv_mode>]
+      // AT+CAOPEN=0,0,"UDP","URL",PORT
       SendATCommand("AT+CAOPEN=" + connect_i_str + "," + context_i_str + ",\"" +
                     protocol_str + "\",\"" + host + "\"," + port_str);
-      err = CheckResponse("OK", 1000, "AT+CAOPEN command error!");
+      err = CheckResponse("+CAOPEN: " + connect_i_str + ",0", 1000,
+                          "AT+CAOPEN command error!");
     }
+  }
+
+  if (err != kModemError::kNoError) {
+    handle.context_index = -1;
+    handle.connect_index = -1;
   }
 
   return handle;
@@ -576,7 +639,7 @@ void Sim7070AtModem::SendTcp(Sim7070Connection const& connection,
                              DataBuffer const& data) {
   std::string connect_i_str = std::to_string(connection.handle.connect_index);
 
-  // AT+CASEND=0,<length>
+  // AT+CASEND=<cid>,<datalen>[,<inputtime>]
   // Send TCP/UDP data 0.
   SendATCommand("AT+CASEND=" + connect_i_str + "," +
                 std::to_string(data.size()));  // Send size
@@ -587,45 +650,18 @@ void Sim7070AtModem::SendTcp(Sim7070Connection const& connection,
   }
 
   serial_->Write(data);  // Send data
-  if (auto err = CheckResponse("OK", 1000, "Write data error!");
+  if (auto err = CheckResponse("OK", 250, "Write data error!");
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Write data error {}", err);
     return;
   }
-}
 
-void Sim7070AtModem::SendUdp(Sim7070Connection const& connection,
-                             DataBuffer const& data) {
-  std::string connect_i_str = std::to_string(connection.handle.connect_index);
-
-  // AT+CASEND=0,<length>
-  // Send TCP/UDP data 0.
-  SendATCommand("AT+CASEND=" + connect_i_str + "," +
-                std::to_string(data.size()));  // Send size
-  if (auto err = CheckResponse(">", 1000, "AT+CASEND command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT+CASEND command error {}", err);
-    return;
-  }
-
-  serial_->Write(data);  // Send data
-  if (auto err = CheckResponse("OK", 1000, "Write data error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Write data error {}", err);
-    return;
-  }
-}
-
-DataBuffer Sim7070AtModem::ReadTcp(Sim7070Connection const& connection,
-                                   Duration /* timeout */) {
-  std::string connect_i_str = std::to_string(connection.handle.connect_index);
-
-  // AT+CAACK=0
+  // AT+CAACK=<cid>
   // Query send data information of the TCP/UDP
   // connection with an identifier 0.
   SendATCommand("AT+CAACK=" + connect_i_str);
-  // +CAACK: 5,0 // Total size of sent data is 5 and unack data is 0
-  // get data size
+  // +CAACK: <totalsize>,<unacksize> // Total size of sent data is totalsize and
+  // unack data is unacksize get data size
   std::ptrdiff_t size = 0;
   auto response = serial_->Read();
   std::string response_string(response->begin(), response->end());
@@ -635,28 +671,96 @@ DataBuffer Sim7070AtModem::ReadTcp(Sim7070Connection const& connection,
     size =
         FromChars<std::ptrdiff_t>(response_string.substr(start, stop - start))
             .value_or(0);
+    AE_TELED_DEBUG("Send size {}", size);
+  }
+}
+
+void Sim7070AtModem::SendUdp(Sim7070Connection const& connection,
+                             DataBuffer const& data) {
+  std::string connect_i_str = std::to_string(connection.handle.connect_index);
+
+  // AT+CASEND=<cid>,<datalen>[,<inputtime>]
+  // Send TCP/UDP data 0.
+  SendATCommand("AT+CASEND=" + connect_i_str + "," +
+                std::to_string(data.size()));  // Send size
+  if (auto err = CheckResponse(">", 1000, "AT+CASEND command error!");
+      err != kModemError::kNoError) {
+    AE_TELED_ERROR("AT+CASEND command error {}", err);
+    return;
+  }
+
+  serial_->Write(data);  // Send data
+  if (auto err = CheckResponse("OK", 10000, "Write data error!");
+      err != kModemError::kNoError) {
+    AE_TELED_ERROR("Write data error {}", err);
+    return;
+  }
+
+  // AT+CAACK=<cid>
+  // Query send data information of the TCP/UDP
+  // connection with an identifier 0.
+  SendATCommand("AT+CAACK=" + connect_i_str);
+  // +CAACK: <totalsize>,<unacksize> // Total size of sent data is totalsize and
+  // unack data is unacksize get data size
+  std::ptrdiff_t size = 0;
+  auto response = serial_->Read();
+  std::string response_string(response->begin(), response->end());
+  auto start = response_string.find("+CAACK: ") + 8;
+  auto stop = response_string.find(",");
+  if (stop > start && start != std::string::npos && stop != std::string::npos) {
+    size =
+        FromChars<std::ptrdiff_t>(response_string.substr(start, stop - start))
+            .value_or(0);
+    AE_TELED_DEBUG("Send size {}", size);
+  }
+}
+
+DataBuffer Sim7070AtModem::ReadTcp(Sim7070Connection const& connection,
+                                   Duration /* timeout */) {
+  std::string connect_i_str = std::to_string(connection.handle.connect_index);
+
+  std::uint16_t size{kModemMTU};
+
+  // if (size > 0) {
+  // if (auto err =
+  // CheckResponse("+CADATAIND", 1000, "+CADATAIND command error!");
+  // err != kModemError::kNoError) {
+  // AT+CARECV=<cid>,<readlen> Receive data via an established connection
+  SendATCommand("AT+CARECV=" + connect_i_str + "," + std::to_string(size));
+  auto response = serial_->Read();
+  if (response == std::nullopt) {
+    return {};
+  }
+  std::string response_string(response->begin(), response->end());
+  auto error = response_string.find("+CME ERROR:");
+  if (error != std::string::npos) {
+    return {};
+  }
+
+  // +CARECV: 10,GET / HTTP
+  auto start = response_string.find("+CARECV: ") + 9;
+  auto stop = response_string.find(",") + 1;
+
+  if ((stop > start) && (start != std::string_view::npos) &&
+      (stop != std::string_view::npos)) {
+    size =
+        FromChars<std::ptrdiff_t>(response_string.substr(start, stop - start))
+            .value_or(0);
     AE_TELED_DEBUG("Size {}", size);
   } else {
     return {};
   }
 
   if (size > 0) {
-    if (auto err =
-            CheckResponse("+CADATAIND", 1000, "+CADATAIND command error!");
-        err != kModemError::kNoError) {
-      // AT+CARECV=0,<length> Receive data via an established connection
-      SendATCommand("AT+CARECV=" + connect_i_str + "," + std::to_string(size));
-      auto response2 = serial_->Read();
-      std::string response_string2(response2->begin(), response2->end());
-      auto start2 = response_string2.find(",") + 1;
-
-      DataBuffer response_vector(
-          response2->begin() + start2,
-          response2->begin() + start2 + static_cast<std::ptrdiff_t>(size));
-      AE_TELED_DEBUG("Data {}", response_vector);
-      return response_vector;
-    }
+    auto start2 = static_cast<std::ptrdiff_t>(stop);
+    DataBuffer response_vector(
+        response->begin() + start2,
+        response->begin() + start2 + static_cast<std::ptrdiff_t>(size));
+    AE_TELED_DEBUG("Data {}", response_vector);
+    return response_vector;
   }
+  //}
+  //}
 
   return {};
 }
@@ -665,45 +769,34 @@ DataBuffer Sim7070AtModem::ReadUdp(Sim7070Connection const& connection,
                                    Duration /* timeout */) {
   std::string connect_i_str = std::to_string(connection.handle.connect_index);
 
-  // AT+CAACK=0
-  // Query send data information of the TCP/UDP
-  // connection with an identifier 0.
-  SendATCommand("AT+CAACK=" + connect_i_str);
-  // +CAACK: 5,0 // Total size of sent data is 5 and unack data is 0
-  // get data size
-  std::ptrdiff_t size = 0;
+  std::uint16_t size{kModemMTU};
+
+  // if (size > 0) {
+  // if (auto err =
+  // CheckResponse("+CADATAIND", 1000, "+CADATAIND command error!");
+  // err != kModemError::kNoError) {
+  // AT+CARECV=0,<length> Receive data via an established connection
+  SendATCommand("AT+CARECV=" + connect_i_str + "," + std::to_string(size));
   auto response = serial_->Read();
-  std::string response_string(response->begin(), response->end());
-  auto start = response_string.find("+CAACK: ") + 8;
-  auto stop = response_string.find(",");
-  if (stop > start && start != std::string::npos && stop != std::string::npos) {
-    size =
-        FromChars<std::ptrdiff_t>(response_string.substr(start, stop - start))
-            .value_or(0);
-    AE_TELED_DEBUG("Size {}", size);
-  } else {
+  if (!response) {
     return {};
   }
-
-  if (size > 0) {
-    if (auto err =
-            CheckResponse("+CADATAIND", 1000, "+CADATAIND command error!");
-        err != kModemError::kNoError) {
-      // AT+CARECV=0,<length> Receive data via an established connection
-      SendATCommand("AT+CARECV=" + connect_i_str + "," + std::to_string(size));
-      auto response2 = serial_->Read();
-      std::string response_string2(response2->begin(), response2->end());
-      auto start2 = response_string2.find(",") + 1;
-
-      DataBuffer response_vector(
-          response2->begin() + start2,
-          response2->begin() + start2 + static_cast<std::ptrdiff_t>(size));
-      AE_TELED_DEBUG("Data {}", response_vector);
-      return response_vector;
-    }
+  std::string response_string(response->begin(), response->end());
+  auto error = response_string.find("+CME ERROR:");
+  if (error != std::string::npos) {
+    return {};
   }
+  auto start = response_string.find(",") + 1;
 
-  return {};
+  DataBuffer response_vector(
+      response->begin() + start,
+      response->begin() + start + static_cast<std::ptrdiff_t>(size));
+  AE_TELED_DEBUG("Data {}", response_vector);
+  return response_vector;
+  //}
+  //}
+
+  // return {};
 }
 
 void Sim7070AtModem::SendATCommand(const std::string& command) {
@@ -715,18 +808,16 @@ void Sim7070AtModem::SendATCommand(const std::string& command) {
 }
 
 bool Sim7070AtModem::WaitForResponse(const std::string& expected,
-                                     Duration timeout_ms) {
+                                     Duration timeout) {
   // Simplified implementation of waiting for a response
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start = Now();
+  auto exponent_time = ExponentTime(std::chrono::milliseconds{1},
+                                    std::chrono::milliseconds{100});
 
   while (true) {
-    auto elapsed = std::chrono::high_resolution_clock::now() - start;
-    if (elapsed > timeout_ms) {
-      return false;
-    }
-
-    if (auto response = serial_->Read()) {
-      std::string response_str(response->begin(), response->end());
+    if (auto response = serial_->Read(); response) {
+      std::string_view response_str(
+          reinterpret_cast<char const*>(response->data()), response->size());
       AE_TELED_DEBUG("AT response: {}", response_str);
       if (response_str.find(expected) != std::string::npos) {
         return true;
@@ -736,7 +827,17 @@ bool Sim7070AtModem::WaitForResponse(const std::string& expected,
       }
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    auto elapsed = Now() - start;
+    if (elapsed > timeout) {
+      return false;
+    }
+
+    // sleep for some time while waiting for response but no more than timeout
+    auto sleep_time = exponent_time.Next();
+    sleep_time = (elapsed + sleep_time > timeout)
+                     ? std::chrono::duration_cast<Duration>(timeout - elapsed)
+                     : sleep_time;
+    std::this_thread::sleep_for(sleep_time);
   }
 }
 

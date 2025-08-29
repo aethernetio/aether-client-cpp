@@ -111,7 +111,7 @@ class Sim7070AtModem final : public IModemDriver {
   
   void SendATCommand(const std::string& command);
   bool WaitForResponse(const std::string& expected,
-                       Duration timeout_ms);
+                       Duration timeout);
   std::string PinToString(const std::uint8_t pin[4]);
 };
 

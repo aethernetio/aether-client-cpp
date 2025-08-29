@@ -845,7 +845,8 @@ DataBuffer Thingy91xAtModem::ReadTcp(Thingy91xConnection const& connection,
       reinterpret_cast<char const*>(response->data()), response->size());
   auto start = response_string.find("#XRECV: ") + 8;
   auto stop = response_string.find("\r\n", 2);
-  if ((stop > start) && (start != std::string_view::npos) &&
+  if ((stop > start) && 
+      (start != std::string_view::npos) &&
       (stop != std::string_view::npos)) {
     size =
         FromChars<std::ptrdiff_t>(response_string.substr(start, stop - start))
