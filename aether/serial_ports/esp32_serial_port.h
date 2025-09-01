@@ -24,6 +24,8 @@
 #  include <memory>
 #  include <optional>
 
+#  include "driver/uart.h"
+
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
 
@@ -40,11 +42,12 @@ class ESP32SerialPort : public ISerialPort {
   bool IsOpen() override;
 
  private:
-  void* h_port_;
+  uart_port_t uart_num_;
+  bool is_open_;
 
-  void Open(std::string const& port_name, std::uint32_t baud_rate);
-  void ConfigurePort(std::uint32_t baud_rate);
-  void SetupTimeouts();
+  bool Initialize(SerialInit const& serial_init);
+  bool GetUartNumber(const std::string& port_name, uart_port_t* out_uart_num);
+  esp_err_t SetupTimeouts();
   void Close();
 };
 } /* namespace ae */

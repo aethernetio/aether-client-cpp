@@ -50,6 +50,10 @@ struct SerialInit {
 
   std::string port_name;
   kBaudRate baud_rate;
+  int tx_io_num; 
+  int rx_io_num; 
+  int rts_io_num; 
+  int cts_io_num;
 };
 }  // namespace ae
 
