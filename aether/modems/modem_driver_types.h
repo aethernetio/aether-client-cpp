@@ -92,8 +92,8 @@ struct kRequestedActiveTimeT3324 {
 
   // Constructor for convenient initialization
   kRequestedActiveTimeT3324(std::uint8_t val = 0, std::uint8_t mult = 0) {
-    bits.Value = val;
-    bits.Multiplier = mult;
+    bits.Value = (val & 0x1F);
+    bits.Multiplier = (mult & 0x07);
   }
 
   // Conversion operator to uint8_t for compatibility
@@ -124,8 +124,8 @@ struct kRequestedPeriodicTAUT3412 {
 
   // Constructor for convenient initialization
   kRequestedPeriodicTAUT3412(std::uint8_t val = 0, std::uint8_t mult = 0) {
-    bits.Value = val;
-    bits.Multiplier = mult;
+    bits.Value = (val & 0x1F);
+    bits.Multiplier = (mult & 0x03);
   }
 
   // Conversion operator to uint8_t for compatibility
@@ -184,9 +184,9 @@ struct kEDrx {
   // Constructor for convenient initialization
   kEDrx(std::uint8_t r_edrx = 0, std::uint8_t p_edrx = 0,
         std::uint8_t ptw_val = 0) {
-    bits.ReqEDRXValue = r_edrx;
-    bits.ProvEDRXValue = p_edrx;
-    bits.PTWValue = ptw_val;
+    bits.ReqEDRXValue = (r_edrx & 0x0F);
+    bits.ProvEDRXValue = (p_edrx & 0x0F);
+    bits.PTWValue = (ptw_val & 0x0F);
   }
 
   // Conversion operator to uint16_t for compatibility

@@ -19,6 +19,14 @@
 
 #if defined(ESP_PLATFORM)
 
+#  include <vector>
+#  include <string>
+#  include <memory>
+#  include <optional>
+
+#  include "aether/serial_ports/iserial_port.h"
+#  include "aether/serial_ports/serial_port_types.h"
+
 #  define ESP32_SERIAL_PORT_ENABLED 1
 
 namespace ae {
