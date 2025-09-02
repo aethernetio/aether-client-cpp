@@ -69,6 +69,7 @@ class Sim7070AtModem final : public IModemDriver {
  public:
   explicit Sim7070AtModem(ModemInit modem_init, Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
+  ~Sim7070AtModem();
 
   bool Init() override;
   bool Start() override;
