@@ -44,8 +44,12 @@ std::optional<DataBuffer> ESP32SerialPort::Read() {
 
   size_t length = 0;
   esp_err_t err = uart_get_buffered_data_len(uart_num_, &length);
-  if (err != ESP_OK || length == 0) {
+  if (err != ESP_OK) {
     AE_TELE_ERROR(kAdapterSerialReadFiled, "Read failed {}!", err);
+    return std::nullopt;
+  }
+
+  if (length == 0) {
     return std::nullopt;
   }
 
@@ -54,16 +58,14 @@ std::optional<DataBuffer> ESP32SerialPort::Read() {
                                    0  // Non-blocking reading
   );
 
-  if (bytes_read > 0) {
-    buffer.resize(bytes_read);
-    return buffer;
+  // Reading error
+  if (bytes_read <= 0) {
+    AE_TELE_ERROR(kAdapterSerialReadFiled, "Read failed, no data!");
+    return std::nullopt;
   }
 
-  // Reading error
-  if (bytes_read < 0) {
-    AE_TELE_ERROR(kAdapterSerialReadFiled, "Read failed, no data!");    
-  }
-  return std::nullopt;
+  buffer.resize(bytes_read);
+  return buffer;
 }
 
 bool ESP32SerialPort::IsOpen() { return is_open_; }
@@ -126,7 +128,7 @@ bool ESP32SerialPort::GetUartNumber(const std::string& port_name,
 }
 
 esp_err_t ESP32SerialPort::SetupTimeouts() {
-  return uart_set_rx_timeout(uart_num_, 10);  // 10 units ≈ 100 ms
+  return uart_set_rx_timeout(uart_num_, 10);  // 10 units ? 100 ms
 }
 
 void ESP32SerialPort::Close() {

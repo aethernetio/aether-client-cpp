@@ -46,13 +46,14 @@ enum class kBaudRate : std::uint32_t {
 };
 
 struct SerialInit {
-  AE_REFLECT_MEMBERS(port_name, baud_rate)
+  AE_REFLECT_MEMBERS(port_name, baud_rate, tx_io_num, rx_io_num, rts_io_num,
+                     cts_io_num)
 
   std::string port_name;
   kBaudRate baud_rate;
-  int tx_io_num; 
-  int rx_io_num; 
-  int rts_io_num; 
+  int tx_io_num;
+  int rx_io_num;
+  int rts_io_num;
   int cts_io_num;
 };
 }  // namespace ae

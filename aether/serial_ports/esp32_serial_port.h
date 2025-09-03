@@ -21,7 +21,6 @@
 
 #  include <vector>
 #  include <string>
-#  include <memory>
 #  include <optional>
 
 #  include "driver/uart.h"
