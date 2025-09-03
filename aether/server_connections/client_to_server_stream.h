@@ -30,6 +30,7 @@
 #include "aether/stream_api/delegate_gate.h"
 #include "aether/stream_api/protocol_gates.h"
 #include "aether/stream_api/event_subscribe_gate.h"
+#include "aether/server_connections/server_channel.h"
 
 #include "aether/methods/client_api/client_root_api.h"
 #include "aether/methods/client_api/client_safe_api.h"
@@ -43,7 +44,7 @@ class ClientToServerStream final : public ByteIStream {
  public:
   ClientToServerStream(ActionContext action_context, Ptr<Client> const& client,
                        ServerId server_id,
-                       std::unique_ptr<ByteIStream> server_stream);
+                       std::unique_ptr<ServerChannel> server_channel);
 
   ~ClientToServerStream() override;
 
@@ -76,14 +77,14 @@ class ClientToServerStream final : public ByteIStream {
   Event<void()> connected_event_;
   Event<void()> connection_error_event_;
 
+  std::unique_ptr<ServerChannel> server_channel_;
+
   // stream to the server with login api and encryption
   std::optional<GatesStream<ProtocolReadGate<ClientSafeApi&>, DebugGate,
                             CryptoGate, DelegateWriteInGate<DataBuffer>,
                             EventWriteOutGate<DataBuffer>,
                             ProtocolReadGate<ClientRootApi&>>>
       client_auth_stream_;
-
-  std::unique_ptr<ByteIStream> server_stream_;
 
   OutDataEvent out_data_event_;
 

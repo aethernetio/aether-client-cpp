@@ -17,16 +17,14 @@
 #ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_
 #define AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_
 
-#include "aether/transport/actions/packet_send_action.h"
+#include "aether/stream_api/stream_write_action.h"
 
 namespace ae {
-class SocketPacketSendAction : public PacketSendAction {
+class SocketPacketSendAction : public StreamWriteAction {
  public:
-  using PacketSendAction::PacketSendAction;
+  using StreamWriteAction::StreamWriteAction;
 
   UpdateStatus Update() override;
-
-  void Stop() override;
 
   // Trigger event to send data
   virtual void Send() = 0;

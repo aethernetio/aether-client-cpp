@@ -30,7 +30,7 @@
 
 #include "aether/channel.h"
 #include "aether/adapters/adapter.h"
-#include "aether/transport/itransport.h"
+#include "aether/stream_api/istream.h"
 
 namespace ae {
 
@@ -51,7 +51,7 @@ class BuildTransportAction final : public Action<BuildTransportAction> {
   UpdateStatus Update();
 
   // return connected transport
-  std::unique_ptr<ITransport> transport();
+  std::unique_ptr<ByteIStream> transport();
 
  private:
   void MakeBuilders();
@@ -59,10 +59,10 @@ class BuildTransportAction final : public Action<BuildTransportAction> {
 
   PtrView<Adapter> adapter_;
   PtrView<Channel> channel_;
-  std::vector<std::unique_ptr<ITransportBuilder>> builders_;
-  std::vector<std::unique_ptr<ITransportBuilder>>::iterator it_;
-  std::optional<AsyncForLoop<std::unique_ptr<ITransport>>> builder_loop_;
-  std::unique_ptr<ITransport> transport_;
+  std::vector<std::unique_ptr<ITransportStreamBuilder>> builders_;
+  std::vector<std::unique_ptr<ITransportStreamBuilder>>::iterator it_;
+  std::optional<AsyncForLoop<std::unique_ptr<ByteIStream>>> builder_loop_;
+  std::unique_ptr<ByteIStream> transport_stream_;
   StateMachine<State> state_;
   Subscription state_changed_sub_;
   Subscription builders_sub_;

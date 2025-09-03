@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_ITRANSPORT_BUILDER_H_
-#define AETHER_TRANSPORT_ITRANSPORT_BUILDER_H_
+#ifndef AETHER_TRANSPORT_ITRANSPORT_STREAM_BUILDER_H_
+#define AETHER_TRANSPORT_ITRANSPORT_STREAM_BUILDER_H_
 
 #include <memory>
 
-#include "aether/transport/itransport.h"
+#include "aether/stream_api/istream.h"
 
 namespace ae {
-class ITransportBuilder {
+class ITransportStreamBuilder {
  public:
-  virtual ~ITransportBuilder() = default;
+  virtual ~ITransportStreamBuilder() = default;
 
-  virtual std::unique_ptr<ITransport> BuildTransport() = 0;
+  virtual std::unique_ptr<ByteIStream> BuildTransportStream() = 0;
 };
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_ITRANSPORT_BUILDER_H_
+#endif  // AETHER_TRANSPORT_ITRANSPORT_STREAM_BUILDER_H_
