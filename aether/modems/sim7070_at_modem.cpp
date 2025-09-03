@@ -33,7 +33,7 @@ Sim7070AtModem::Sim7070AtModem(ModemInit modem_init, Domain* domain)
   serial_ = SerialPortFactory::CreatePort(get_modem_init().serial_init);
 };
 
-Sim7070AtModem::~Sim7070AtModem() {
+/*Sim7070AtModem::~Sim7070AtModem() {
   if (!serial_->IsOpen()) {
     AE_TELED_ERROR("Serial port is not open");
     return ;
@@ -51,7 +51,7 @@ Sim7070AtModem::~Sim7070AtModem() {
     return;
   }
 
-}
+}*/
 
 bool Sim7070AtModem::Init() {
   if (!serial_->IsOpen()) {
@@ -85,6 +85,7 @@ bool Sim7070AtModem::Init() {
 
 bool Sim7070AtModem::Start() {
   ModemInit modem_init = get_modem_init();
+
   if (!serial_->IsOpen()) {
     AE_TELED_ERROR("Serial port is not open");
     return false;
@@ -132,11 +133,23 @@ bool Sim7070AtModem::Start() {
 }
 
 bool Sim7070AtModem::Stop() {
+  std::string context_i_str{"0"};
+    
   if (!serial_->IsOpen()) {
     AE_TELED_ERROR("Serial port is not open");
     return false;
   }
 
+  // AT+CNACT=<pdpidx>,<action> // Deactivate the PDP context
+  SendATCommand("AT+CNACT=" + context_i_str +
+                ",0");  // Enabling extended errors
+  if (auto err = CheckResponse("+APP PDP: " + context_i_str + ",DEACTIVE", 1000,
+                               "AT+CNACT command error!");
+      err != kModemError::kNoError) {
+    AE_TELED_ERROR("AT+CNACT command error {}", err);
+    return false;
+  }
+  
   // Reset modem settings correctly
   SendATCommand("ATZ");
   if (auto err = CheckResponse("OK", 1000, "ATZ command error!");
