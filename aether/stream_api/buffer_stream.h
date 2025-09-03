@@ -67,7 +67,7 @@ class BufferStream final : public ByteStream {
   void Unlink() override;
 
  private:
-  void SetSoftWriteable(bool value);
+  void SetWriteable(bool value);
   void UpdateGate();
   void DrainBuffer(OutStream& out);
 

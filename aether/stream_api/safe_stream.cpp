@@ -52,7 +52,8 @@ SafeStream::SafeStream(ActionContext action_context, SafeStreamConfig config)
       safe_stream_api_{protocol_context_, *this},
       send_action_{action_context_, *this, config_},
       recv_acion_{action_context_, *this, config_},
-      stream_info_{config.max_packet_size, false, true, false, false, false} {
+      stream_info_{config_.max_packet_size, config_.max_packet_size, false,
+                   LinkState::kUnlinked, false} {
   recv_acion_->receive_event().Subscribe(*this,
                                          MethodPtr<&SafeStream::WriteOut>{});
 }
@@ -83,11 +84,11 @@ void SafeStream::OnStreamUpdate() {
       1 + sizeof(SSRingIndex::type) + 1 + 1 + 2;
 
   auto out_info = out_->stream_info();
-  stream_info_.is_linked = out_info.is_linked;
+  stream_info_.link_state = out_info.link_state;
   stream_info_.is_writable = out_info.is_writable;
-  stream_info_.is_soft_writable = out_info.is_soft_writable;
-  stream_info_.strict_size_rules = false;  // packet's will be split in a chunks
   stream_info_.is_reliable = true;  // safe stream here to make stream reliable
+  stream_info_.rec_element_size = out_info.max_element_size;
+  stream_info_.max_element_size = config_.max_packet_size;
 
   send_action_->SetMaxPayload((out_info.max_element_size > 0)
                                   ? (out_info.max_element_size - kSendOverhead)
