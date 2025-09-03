@@ -73,7 +73,7 @@ class Sim7070AtModem final : public IModemDriver {
   bool Init() override;
   bool Start() override;
   bool Stop() override;
-  ConnectionIndex OpenNetwork(ae::Protocol protocol, std::string const& host, 
+  ConnectionIndex OpenNetwork(ae::Protocol protocol, std::string const& host,
                               std::uint16_t port) override;
   void CloseNetwork(ae::ConnectionIndex connect_index) override;
   void WritePacket(ae::ConnectionIndex connect_index,
@@ -88,8 +88,8 @@ class Sim7070AtModem final : public IModemDriver {
   std::vector<Sim7070Connection> connect_vec_;
 
   static constexpr std::uint16_t kModemMTU{1520};
-  
-  kModemError CheckResponse(std::string const response, 
+
+  kModemError CheckResponse(std::string const response,
                             std::uint32_t const wait_time,
                             std::string const error_message);
   kModemError SetBaudRate(kBaudRate rate);
@@ -101,17 +101,18 @@ class Sim7070AtModem final : public IModemDriver {
                            std::string apn_pass, kModemMode modem_mode,
                            kAuthType auth_type);
   kModemError SetupProtoPar();
-  
-  ConnectionHandle OpenTcpConnection(std::string const& host, std::uint16_t port);
-  ConnectionHandle OpenUdpConnection(std::string const& host, std::uint16_t port);
+
+  ConnectionHandle OpenTcpConnection(std::string const& host,
+                                     std::uint16_t port);
+  ConnectionHandle OpenUdpConnection(std::string const& host,
+                                     std::uint16_t port);
   void SendTcp(Sim7070Connection const& connection, DataBuffer const& data);
   void SendUdp(Sim7070Connection const& connection, DataBuffer const& data);
   DataBuffer ReadTcp(Sim7070Connection const& connection, Duration timeout);
   DataBuffer ReadUdp(Sim7070Connection const& connection, Duration timeout);
-  
+
   void SendATCommand(const std::string& command);
-  bool WaitForResponse(const std::string& expected,
-                       Duration timeout);
+  bool WaitForResponse(const std::string& expected, Duration timeout);
   std::string PinToString(const std::uint8_t pin[4]);
 };
 

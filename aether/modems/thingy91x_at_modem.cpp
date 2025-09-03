@@ -376,7 +376,7 @@ kModemError Thingy91xAtModem::SetNetMode(kModemMode const modem_mode) {
   if (err != kModemError::kNoError) {
     err = kModemError::kSetNetMode;
   }
-  
+
   return err;
 }
 
@@ -431,7 +431,7 @@ kModemError Thingy91xAtModem::SetupNetwork(std::string const operator_name,
   if (err != kModemError::kNoError) {
     err = kModemError::kSetNetwork;
   }
-  
+
   AE_TELED_DEBUG("apn_user {}", apn_user);
   AE_TELED_DEBUG("apn_pass {}", apn_pass);
   AE_TELED_DEBUG("auth_type {}", auth_type);
@@ -696,7 +696,7 @@ std::int32_t Thingy91xAtModem::OpenTcpConnection(std::string const& host,
   auto response = serial_->Read();    // Get socket handle
   if (!response) {
     AE_TELED_DEBUG("No response");
-    return -1; 
+    return -1;
   }
   std::string_view response_string{
       reinterpret_cast<char const*>(response->data()), response->size()};
@@ -845,8 +845,7 @@ DataBuffer Thingy91xAtModem::ReadTcp(Thingy91xConnection const& connection,
       reinterpret_cast<char const*>(response->data()), response->size());
   auto start = response_string.find("#XRECV: ") + 8;
   auto stop = response_string.find("\r\n", 2);
-  if ((stop > start) && 
-      (start != std::string_view::npos) &&
+  if ((stop > start) && (start != std::string_view::npos) &&
       (stop != std::string_view::npos)) {
     size =
         FromChars<std::ptrdiff_t>(response_string.substr(start, stop - start))
