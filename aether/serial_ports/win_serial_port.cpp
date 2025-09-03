@@ -16,7 +16,7 @@
 
 #include "aether/serial_ports/win_serial_port.h"
 
-#if defined WIN_SERIAL_PORT_ENABLED
+#if WIN_SERIAL_PORT_ENABLED == 1
 
 #  include "aether/serial_ports/serial_ports_tele.h"
 
@@ -141,4 +141,4 @@ void WINSerialPort::Close() {
 
 } /* namespace ae */
 
-#endif  // _WIN32
+#endif  // WIN_SERIAL_PORT_ENABLED

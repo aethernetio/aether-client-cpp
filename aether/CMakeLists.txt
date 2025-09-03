@@ -331,7 +331,7 @@ else()
                             ${statistics_srcs}
                             ${tele_srcs}
                             INCLUDE_DIRS ${include_dirs}
-                            REQUIRES esp_wifi nvs_flash spiffs)
+                            REQUIRES esp_wifi nvs_flash spiffs esp_driver_uart)
 
     set(TARGET_NAME "${COMPONENT_LIB}")
 
