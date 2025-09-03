@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,26 @@
  * limitations under the License.
  */
 
-#include "aether/connection_manager/cloud_cache.h"
+#ifndef AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
+#define AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
+
+#include "aether/obj/obj.h"
+
+#include "aether/connection_manager/client_server_connection_pool.h"
 
 namespace ae {
-std::optional<std::reference_wrapper<Cloud::ptr>> CloudCache::GetCache(
-    Uid uid) {
-  auto it = clouds_.find(uid);
-  if (it == std::end(clouds_)) {
-    return {};
-  }
-  return std::ref(it->second);
-}
+class Client;
+class ClientConnectionManager : public Obj {
+  AE_OBJECT(ClientConnectionManager, Obj, 0)
+ public:
+  ClientConnectionManager() = default;
 
-void CloudCache::AddCloud(Uid uid, Cloud::ptr cloud) {
-  clouds_[uid] = std::move(cloud);
-}
+#if AE_DISTILLATION
+  ClientConnectionManager(ObjPtr<Client> client, Domain* domain);
+#endif
 
+ private:
+};
 }  // namespace ae
+
+#endif  // AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_

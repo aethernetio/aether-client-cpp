@@ -26,9 +26,7 @@
 #include "aether/actions/timer_action.h"
 #include "aether/actions/action_context.h"
 
-#include "aether/server.h"
 #include "aether/channel.h"
-#include "aether/adapters/adapter.h"
 
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/buffer_stream.h"
@@ -38,8 +36,7 @@
 namespace ae {
 class ServerChannel final {
  public:
-  ServerChannel(ActionContext action_context, Adapter::ptr const& adapter,
-                Server::ptr const& server, Channel::ptr const& channel);
+  ServerChannel(ActionContext action_context, Channel::ptr const& channel);
 
   AE_CLASS_NO_COPY_MOVE(ServerChannel)
 
@@ -50,18 +47,18 @@ class ServerChannel final {
   void OnConnectedFailed();
 
   ActionContext action_context_;
-  PtrView<Server> server_;
   PtrView<Channel> channel_;
-  ActionPtr<BuildTransportAction> build_transport_action_;
 
   std::unique_ptr<ByteIStream> transport_stream_;
   BufferStream buffer_stream_;
+
+  ActionPtr<BuildTransportAction> build_transport_action_;
+  Subscription build_transport_sub_;
 
   TimePoint connection_start_time_;
   ActionPtr<TimerAction> connection_timer_;
 
   Subscription connection_timeout_;
-  Subscription build_transport_sub_;
   Subscription connection_error_;
 };
 }  // namespace ae

@@ -22,30 +22,39 @@
 
 namespace ae {
 
-Channel::Channel(Domain* domain)
-    : Obj{domain}, channel_statistics{domain->CreateObj<ChannelStatistics>()} {
-  channel_statistics->AddPingTime(
+Channel::Channel(Adapter::ptr adapter, Domain* domain)
+    : Obj{domain},
+      adapter_{std::move(adapter)},
+      channel_statistics_{domain->CreateObj<ChannelStatistics>()} {
+  channel_statistics_->AddPingTime(
       std::chrono::milliseconds{AE_DEFAULT_PING_TIMEOUT_MS});
-  channel_statistics->AddConnectionTime(
+  channel_statistics_->AddConnectionTime(
       std::chrono::milliseconds{AE_DEFAULT_CONNECTION_TIMEOUT_MS});
 }
 
+ActionPtr<TransportBuilderAction> Channel::TransportBuilder() {
+  if (!adapter_) {
+    domain_->LoadRoot(adapter_);
+  }
+  return adapter_->CreateTransport(address);
+}
+
 void Channel::AddConnectionTime(Duration connection_time) {
-  channel_statistics->AddConnectionTime(std::move(connection_time));
+  channel_statistics_->AddConnectionTime(std::move(connection_time));
 }
 
 void Channel::AddPingTime(Duration ping_time) {
-  channel_statistics->AddPingTime(std::move(ping_time));
+  channel_statistics_->AddPingTime(std::move(ping_time));
 }
 
 Duration Channel::expected_connection_time() const {
-  assert(!channel_statistics->connection_time_statistics().empty());
-  return 2 * channel_statistics->connection_time_statistics().percentile<99>();
+  assert(!channel_statistics_->connection_time_statistics().empty());
+  return 2 * channel_statistics_->connection_time_statistics().percentile<99>();
 }
 
 Duration Channel::expected_ping_time() const {
-  assert(!channel_statistics->ping_time_statistics().empty());
-  return channel_statistics->ping_time_statistics().percentile<99>();
+  assert(!channel_statistics_->ping_time_statistics().empty());
+  return channel_statistics_->ping_time_statistics().percentile<99>();
 }
 
 }  // namespace ae

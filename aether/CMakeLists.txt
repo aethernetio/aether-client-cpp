@@ -126,11 +126,6 @@ list(APPEND transport_srcs
             "transport/low_level/udp/udp.cpp"
 )
 
-list(APPEND server_list_srcs
-            "server_list/server_list.cpp"
-            "server_list/no_filter_server_list_policy.cpp"
-)
-
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
             "stream_api/crypto_gate.cpp"
@@ -196,10 +191,10 @@ list(APPEND server_connections_srcs
 )
 
 list(APPEND connection_manager_srcs
-            "connection_manager/client_server_connection_pool.cpp"
             "connection_manager/cloud_cache.cpp"
             "connection_manager/client_cloud_manager.cpp"
             "connection_manager/server_connection_selector.cpp"
+            "connection_manager/server_connection_manager.cpp"
 )
 
 list(APPEND client_messages_srcs
@@ -258,7 +253,6 @@ if(REGULAR_CMAKE_PROJECT)
                             ${events_srcs}
                             ${actions_srcs}
                             ${transport_srcs}
-                            ${server_list_srcs}
                             ${stream_api_src}
                             ${adapters_srcs}
                             ${api_protocol_srcs}
@@ -304,7 +298,6 @@ else()
                             ${actions_srcs}
                             ${adapters_srcs}
                             ${transport_srcs}
-                            ${server_list_srcs}
                             ${stream_api_src}
                             ${api_protocol_srcs}
                             ${crypto_srcs}

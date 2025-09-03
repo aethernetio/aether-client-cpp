@@ -19,6 +19,7 @@
 
 #include "aether/obj/obj.h"
 #include "aether/types/address.h"
+#include "aether/adapters/adapter.h"
 #include "aether/statistics/channel_statistics.h"
 
 namespace ae {
@@ -30,9 +31,14 @@ class Channel : public Obj {
   Channel() = default;
 
  public:
-  explicit Channel(Domain* domain);
+  Channel(Adapter::ptr adapter, Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(address, channel_statistics))
+  AE_OBJECT_REFLECT(AE_MMBRS(address, channel_statistics_))
+
+  /**
+   * \brief Make transport from this channel.
+   */
+  ActionPtr<TransportBuilderAction> TransportBuilder();
 
   void AddConnectionTime(Duration connection_time);
   void AddPingTime(Duration ping_time);
@@ -43,7 +49,8 @@ class Channel : public Obj {
   UnifiedAddress address;
 
  private:
-  ChannelStatistics::ptr channel_statistics;
+  Adapter::ptr adapter_;
+  ChannelStatistics::ptr channel_statistics_;
 };
 
 }  // namespace ae

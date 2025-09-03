@@ -28,11 +28,15 @@
 #include "aether/ae_actions/ping.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/ae_actions/telemetry.h"
+#include "aether/types/async_for_loop.h"
 #include "aether/client_messages/message_stream_dispatcher.h"
+#include "aether/server_connections/server_channel_stream.h"
 #include "aether/server_connections/client_to_server_stream.h"
 
 namespace ae {
 class Aether;
+class Client;
+
 /**
  * \brief Client's connection to a server for messages send.
  */
@@ -41,10 +45,10 @@ class ClientServerConnection {
   using NewStreamEvent = Event<void(Uid uid, MessageStream& stream)>;
   using ServerErrorEvent = Event<void()>;
 
-  explicit ClientServerConnection(
-      ActionContext action_context, ObjPtr<Aether> const& aether,
-      Server::ptr const& server, Channel::ptr const& channel,
-      std::unique_ptr<ClientToServerStream> client_to_server_stream);
+  explicit ClientServerConnection(ActionContext action_context,
+                                  ObjPtr<Aether> const& aether,
+                                  ObjPtr<Client> const& client,
+                                  Server::ptr const& server);
 
   AE_CLASS_NO_COPY_MOVE(ClientServerConnection)
 
@@ -57,13 +61,24 @@ class ClientServerConnection {
 
   void SendTelemetry();
 
+  void NextChannel();
+
  private:
-  std::unique_ptr<ClientToServerStream> server_stream_;
-  MessageStreamDispatcher message_stream_dispatcher_;
+  void PingError();
+
+  ActionContext action_context_;
+  PtrView<Client> client_;
+  PtrView<Server> server_;
+  std::unique_ptr<MessageStreamDispatcher> message_stream_dispatcher_;
   OwnActionPtr<Ping> ping_;
 #if defined TELEMETRY_ENABLED
   OwnActionPtr<Telemetry> telemetry_;
 #endif
+  std::optional<AsyncForLoop<Channel::ptr>> channel_loop_;
+  std::size_t selected_channel_index_;
+  std::unique_ptr<ServerChannelStream> server_channel_stream_;
+  std::unique_ptr<ClientToServerStream> client_to_server_stream_;
+
   NewStreamEvent new_stream_event_;
   ServerErrorEvent server_error_event_;
   Subscription new_stream_event_sub_;

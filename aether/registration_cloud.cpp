@@ -19,7 +19,6 @@
 #if AE_SUPPORT_REGISTRATION
 #  include <utility>
 
-#  include "aether/aether.h"
 #  include "aether/server.h"
 #  include "aether/channel.h"
 
@@ -34,7 +33,7 @@ void RegistrationCloud::AddServerSettings(UnifiedAddress address) {
   // don't care for registration
   server->server_id = 0;
 
-  auto channel = domain_->CreateObj<Channel>();
+  auto channel = domain_->CreateObj<Channel>(adapter());
   channel->address = std::move(address);
   server->AddChannel(std::move(channel));
 

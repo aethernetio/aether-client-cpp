@@ -21,7 +21,6 @@
 
 #include "aether/server.h"
 #include "aether/obj/obj.h"
-#include "aether/adapters/adapter.h"
 
 namespace ae {
 class Cloud : public Obj {
@@ -35,19 +34,15 @@ class Cloud : public Obj {
   explicit Cloud(Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(AE_MMBRS(servers_, adapter_))
+  AE_OBJECT_REFLECT(AE_MMBRS(servers_))
 
   void AddServer(Server::ptr const& server);
   void LoadServer(Server::ptr& server);
-
-  void set_adapter(Adapter::ptr const& adapter);
-  Adapter::ptr& adapter();
 
   std::vector<Server::ptr>& servers();
 
  private:
   std::vector<Server::ptr> servers_;
-  Adapter::ptr adapter_;
 };
 
 }  // namespace ae

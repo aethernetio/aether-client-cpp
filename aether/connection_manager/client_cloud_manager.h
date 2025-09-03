@@ -21,28 +21,30 @@
 
 #include "aether/obj/obj.h"
 #include "aether/ptr/ptr.h"
+#include "aether/actions/action.h"
 #include "aether/actions/action_ptr.h"
+#include "aether/actions/action_context.h"
 
 #include "aether/cloud.h"
-
-#include "aether/ae_actions/get_client_cloud_connection.h"
-
-#include "aether/connection_manager/cloud_cache.h"
-#include "aether/client_connections/client_connection.h"
-#include "aether/connection_manager/server_connection_selector.h"
-#include "aether/connection_manager/client_server_connection_pool.h"
+#include "aether/types/uid.h"
 
 namespace ae {
 class Aether;
 class Client;
+struct ServerDescriptor;
 
-namespace ccm_internal {
-class CachedServerConnectionFactory;
-}
+/**
+ * \brief Action to get a cloud.
+ */
+class GetCloudAction : public Action<GetCloudAction> {
+ public:
+  using Action::Action;
+
+  virtual UpdateStatus Update() = 0;
+  virtual Cloud::ptr cloud() = 0;
+};
 
 class ClientCloudManager : public Obj {
-  friend class ccm_internal::CachedServerConnectionFactory;
-
   AE_OBJECT(ClientCloudManager, Obj, 0)
 
   ClientCloudManager() = default;
@@ -53,36 +55,17 @@ class ClientCloudManager : public Obj {
 
   AE_CLASS_NO_COPY_MOVE(ClientCloudManager)
 
-  Ptr<ClientConnection> GetClientConnection();
-  ActionPtr<GetClientCloudConnection> GetClientConnection(Uid client_uid);
-
-  Ptr<ClientConnection> CreateClientConnection(Cloud::ptr const& cloud);
+  ActionPtr<GetCloudAction> GetCloud(Uid client_uid);
 
   Cloud::ptr RegisterCloud(
       Uid uid, std::vector<ServerDescriptor> const& server_descriptors);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_,
-                             client_server_connection_pool_))
-
-  template <typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_);
-    dnv(aether_, client_, cloud_cache_);
-  }
-  template <typename Dnv>
-  void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(base_);
-    dnv(aether_, client_, cloud_cache_);
-  }
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_))
 
  private:
-  void RegisterCloud(Uid uid, Cloud::ptr cloud);
-
   Obj::ptr aether_;
   Obj::ptr client_;
-
-  CloudCache cloud_cache_;
-  ClientServerConnectionPool client_server_connection_pool_;
+  std::map<Uid, Cloud::ptr> cloud_cache_;
 };
 }  // namespace ae
 

@@ -20,10 +20,8 @@
 
 namespace ae {
 BuildTransportAction::BuildTransportAction(ActionContext action_context,
-                                           Adapter::ptr const& adapter,
                                            Channel::ptr const& channel)
     : Action{action_context},
-      adapter_{adapter},
       channel_{channel},
       state_{State::kGetBuilders},
       state_changed_sub_{state_.changed_event().Subscribe(
@@ -57,12 +55,10 @@ std::unique_ptr<ByteIStream> BuildTransportAction::transport() {
 }
 
 void BuildTransportAction::MakeBuilders() {
-  auto adapter_ptr = adapter_.Lock();
-  assert(adapter_ptr);
   auto channel_ptr = channel_.Lock();
   assert(channel_ptr);
 
-  auto builder_action = adapter_ptr->CreateTransport(channel_ptr->address);
+  auto builder_action = channel_ptr->TransportBuilder();
   builders_sub_ = builder_action->StatusEvent().Subscribe(ActionHandler{
       OnResult{[this](auto& action) {
         builders_ = action.builders();

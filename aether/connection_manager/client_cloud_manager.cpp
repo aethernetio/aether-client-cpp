@@ -22,169 +22,137 @@
 #include "aether/aether.h"
 #include "aether/client.h"
 
-#include "aether/server_connections/server_channel.h"
-#include "aether/server_connections/client_to_server_stream.h"
-#include "aether/client_connections/client_cloud_connection.h"
-#include "aether/connection_manager/iserver_connection_factory.h"
+#include "aether/types/state_machine.h"
+#include "aether/methods/server_descriptor.h"
+#include "aether/ae_actions/get_client_cloud.h"
+#include "aether/server_connections/iserver_api_stream.h"
 
 #include "aether/client_connections/client_connections_tele.h"
 
 namespace ae {
-namespace ccm_internal {
-class CachedServerConnectionFactory : public IServerConnectionFactory {
+namespace client_cloud_manager_internal {
+class GetCloudFromCache : public GetCloudAction {
  public:
-  CachedServerConnectionFactory(
-      Ptr<ClientCloudManager> const& client_connection_manager,
-      Ptr<Aether> const& aether, Ptr<Adapter> const& adapter,
-      Ptr<Client> const& client)
-      : client_connection_manager_{client_connection_manager},
-        aether_{aether},
-        adapter_{adapter},
-        client_{client} {}
+  GetCloudFromCache(ActionContext action_context, Cloud::ptr cloud)
+      : GetCloudAction{action_context}, cloud_{std::move(cloud)} {}
 
-  RcPtr<ClientServerConnection> CreateConnection(
-      Server::ptr const& server, Channel::ptr const& channel) override {
-    auto ccm = client_connection_manager_.Lock();
-    assert(ccm);
-    auto cached_connection = ccm->client_server_connection_pool_.Find(
-        server->server_id, channel.GetId());
-    if (cached_connection) {
-      AE_TELED_DEBUG("Return cached connection");
-      return cached_connection;
-    }
-
-    AE_TELED_DEBUG("Create new connection to server {}, channel id {}",
-                   server->server_id, channel.GetId().id());
-
-    auto aether = aether_.Lock();
-    auto adapter = adapter_.Lock();
-    auto client = client_.Lock();
-    if (!aether || !adapter || !client) {
-      AE_TELE_ERROR(ClientConnectionManagerUnableCreateClientServerConnection,
-                    "Unable to create connection, aether {} or adapter {} or "
-                    "client {} is null",
-                    !!aether, !!adapter, !!client);
-      assert(false);
-      return {};
-    }
-
-    auto action_context = ActionContext{*aether};
-
-    auto server_channel_stream =
-        make_unique<ServerChannel>(*aether, adapter, server, channel);
-    auto client_server_stream = make_unique<ClientToServerStream>(
-        action_context, client, server->server_id,
-        std::move(server_channel_stream));
-    auto connection = MakeRcPtr<ClientServerConnection>(
-        action_context, aether, server, channel,
-        std::move(client_server_stream));
-
-    ccm->client_server_connection_pool_.Add(server->server_id, channel.GetId(),
-                                            connection);
-    return connection;
-  }
+  UpdateStatus Update() override { return UpdateStatus::Result(); }
+  Cloud::ptr cloud() override { return std::move(cloud_); }
 
  private:
-  PtrView<ClientCloudManager> client_connection_manager_;
-  PtrView<Aether> aether_;
-  PtrView<Adapter> adapter_;
-  PtrView<Client> client_;
+  Cloud::ptr cloud_;
 };
-}  // namespace ccm_internal
+
+class GetCloudFromAether : public GetCloudAction {
+ public:
+  enum class State : std::uint8_t {
+    kCloudResolve,
+    kDone,
+    kError,
+  };
+
+  explicit GetCloudFromAether(
+      ActionContext action_context, ClientCloudManager& client_cloud_manager,
+      IServerApiStreamProvider& server_api_stream_provider, Uid client_uid)
+      : GetCloudAction{action_context},
+        action_context_{action_context},
+        client_cloud_manager_{&client_cloud_manager},
+        server_api_stream_provider_{&server_api_stream_provider},
+        client_uid_{client_uid},
+        state_{State::kCloudResolve} {}
+
+  UpdateStatus Update() override {
+    if (state_.changed()) {
+      switch (state_.Acquire()) {
+        case State::kCloudResolve:
+          ResolveCloud();
+          break;
+        case State::kDone:
+          return UpdateStatus::Result();
+        case State::kError:
+          return UpdateStatus::Error();
+      }
+    }
+    return {};
+  }
+
+  Cloud::ptr cloud() override { return std::move(cloud_); }
+
+ private:
+  void ResolveCloud() {
+    get_client_cloud_action_ = ActionPtr<GetClientCloudAction>(
+        action_context_, *server_api_stream_provider_, client_uid_);
+    get_client_cloud_sub_ = get_client_cloud_action_->StatusEvent().Subscribe(
+        ActionHandler{OnResult{[this](auto const& action) {
+                        RegisterCloud(action.server_descriptors());
+                        state_ = State::kDone;
+                        Action::Trigger();
+                      }},
+                      OnError{[this]() {
+                        state_ = State::kError;
+                        Action::Trigger();
+                      }}});
+  }
+
+  void RegisterCloud(std::vector<ServerDescriptor> const& servers) {
+    cloud_ = client_cloud_manager_->RegisterCloud(client_uid_, servers);
+  }
+
+  ActionContext action_context_;
+  ClientCloudManager* client_cloud_manager_;
+  IServerApiStreamProvider* server_api_stream_provider_;
+  Uid client_uid_;
+  StateMachine<State> state_;
+  ActionPtr<GetClientCloudAction> get_client_cloud_action_;
+  Subscription get_client_cloud_sub_;
+  Cloud::ptr cloud_;
+};
+
+}  // namespace client_cloud_manager_internal
 
 ClientCloudManager::ClientCloudManager(ObjPtr<Aether> aether,
-                                       Client::ptr client, Domain* domain)
-    : Obj(domain), aether_{std::move(aether)}, client_{std::move(client)} {
-  client_.SetFlags(ObjFlags{});
-  auto client_ptr = Ptr<Client>{client_};
-  RegisterCloud(client_ptr->uid(), client_ptr->cloud());
-}
+                                       ObjPtr<Client> client, Domain* domain)
+    : Obj(domain), aether_{std::move(aether)}, client_{std::move(client)} {}
 
-Ptr<ClientConnection> ClientCloudManager::GetClientConnection() {
-  AE_TELE_DEBUG(ClientConnectionManagerSelfCloudConnection,
-                "GetClientConnection to self client {}",
-                client_.as<Client>()->uid());
-
-  auto cache = cloud_cache_.GetCache(client_.as<Client>()->uid());
-  if (!cache) {
-    return {};
+ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
+  if (!aether_) {
+    domain_->LoadRoot(aether_);
   }
-  auto& cloud = cache->get();
-  if (!cloud) {
-    domain_->LoadRoot(cloud);
-    assert(cloud);
+  assert(aether_);
+  auto* aether = aether_.as<Aether>();
+
+  auto cached = cloud_cache_.find(client_uid);
+  if (cached != cloud_cache_.end()) {
+    return ActionPtr<client_cloud_manager_internal::GetCloudFromCache>{
+        *aether, cached->second};
   }
-  return CreateClientConnection(cloud);
-}
-
-ActionPtr<GetClientCloudConnection> ClientCloudManager::GetClientConnection(
-    Uid client_uid) {
-  AE_TELE_DEBUG(ClientConnectionManagerUidCloudConnection,
-                "GetClientCloudConnection to another client {}", client_uid);
-
-  auto aether = Ptr<Aether>{aether_};
-  auto action_context = ActionContext{*aether};
-  auto client_ptr = Ptr<Client>{client_};
-
-  auto self_ptr = MakePtrFromThis(this);
-  assert(self_ptr);
-
-  auto cache = cloud_cache_.GetCache(client_.as<Client>()->uid());
-  if (!cache) {
-    return {};
+  // get from aethernet
+  if (!client_) {
+    domain_->LoadRoot(client_);
   }
-  auto& cloud = cache->get();
-  if (!cloud) {
-    domain_->LoadRoot(cloud);
-    assert(cloud);
-  }
-  auto& adapter = cloud->adapter();
-  if (!adapter) {
-    domain_->LoadRoot(adapter);
-    assert(adapter);
-  }
+  assert(client_);
 
-  auto action = ActionPtr<GetClientCloudConnection>{
-      action_context,
-      self_ptr,
-      client_ptr,
-      client_uid,
-      cloud,
-      make_unique<ccm_internal::CachedServerConnectionFactory>(
-          self_ptr, aether, adapter, client_ptr)};
-
-  return action;
-}
-
-Ptr<ClientConnection> ClientCloudManager::CreateClientConnection(
-    Cloud::ptr const& cloud) {
-  auto aether = Ptr<Aether>{aether_};
-  auto client_ptr = Ptr<Client>{client_};
-  auto self_ptr = MakePtrFromThis(this);
-  assert(self_ptr);
-
-  auto& adapter = cloud->adapter();
-  if (!adapter) {
-    domain_->LoadRoot(adapter);
-    assert(adapter);
-  }
-
-  auto action_context = ActionContext{*aether_.as<Aether>()};
-
-  return MakePtr<ClientCloudConnection>(
-      action_context, cloud,
-      make_unique<ccm_internal::CachedServerConnectionFactory>(
-          self_ptr, aether_, adapter, client_ptr));
+  auto* client = client_.as<Client>();
+  return ActionPtr<client_cloud_manager_internal::GetCloudFromAether>{
+      *aether, *this, *client->client_connection(), client_uid};
 }
 
 Cloud::ptr ClientCloudManager::RegisterCloud(
     Uid uid, std::vector<ServerDescriptor> const& server_descriptors) {
-  auto new_cloud = domain_->LoadCopy(aether_.as<Aether>()->cloud_prefab);
+  if (!aether_) {
+    domain_->LoadRoot(aether_);
+  }
+  assert(aether_);
+  auto* aether = aether_.as<Aether>();
+  auto new_cloud = domain_->LoadCopy(aether->cloud_prefab);
   assert(new_cloud);
+
+  // TODO: use AdapterRegistry
+  auto adapter = aether->adapter_factories[0];
 
   for (auto const& descriptor : server_descriptors) {
     auto server_id = descriptor.server_id;
-    auto cached_server = aether_.as<Aether>()->GetServer(server_id);
+    auto cached_server = aether->GetServer(server_id);
     if (cached_server) {
       new_cloud->AddServer(cached_server);
       continue;
@@ -194,31 +162,18 @@ Cloud::ptr ClientCloudManager::RegisterCloud(
     server->server_id = server_id;
     for (auto const& endpoint : descriptor.ips) {
       for (auto const& protocol_port : endpoint.protocol_and_ports) {
-        auto channel = server->domain_->CreateObj<Channel>();
+        auto channel = server->domain_->CreateObj<Channel>(adapter);
         channel->address = IpAddressPortProtocol{
             {endpoint.ip, protocol_port.port}, protocol_port.protocol};
         server->AddChannel(std::move(channel));
       }
     }
     new_cloud->AddServer(server);
-    aether_.as<Aether>()->AddServer(std::move(server));
+    aether->AddServer(std::move(server));
   }
 
-  auto cache = cloud_cache_.GetCache(client_.as<Client>()->uid());
-  assert(cache);
-  auto& client_cloud = cache->get();
-  if (!client_cloud) {
-    domain_->LoadRoot(client_cloud);
-    assert(client_cloud);
-  }
-
-  new_cloud->set_adapter(client_cloud->adapter());
-  cloud_cache_.AddCloud(uid, new_cloud);
+  cloud_cache_[uid] = new_cloud;
   return new_cloud;
-}
-
-void ClientCloudManager::RegisterCloud(Uid uid, Cloud::ptr cloud) {
-  cloud_cache_.AddCloud(uid, std::move(cloud));
 }
 
 }  // namespace ae
