@@ -124,8 +124,6 @@ bool Thingy91xAtModem::Stop() {
     return false;
   }
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
   // Disabling full functionality
   SendATCommand("AT+CFUN=0");
   if (auto err = CheckResponse("OK", 1000, "AT+CFUN command error!");
@@ -374,6 +372,11 @@ kModemError Thingy91xAtModem::SetNetMode(kModemMode const modem_mode) {
       break;
   }
 
+  err = CheckResponse("OK", 1000, "No response from modem!");
+  if (err != kModemError::kNoError) {
+    err = kModemError::kSetNetMode;
+  }
+
   return err;
 }
 
@@ -423,6 +426,10 @@ kModemError Thingy91xAtModem::SetupNetwork(std::string const operator_name,
   if (err == kModemError::kNoError) {
     SendATCommand("AT+CEREG=1");
     err = CheckResponse("OK", 1000, "AT+CEREG command error!");
+  }
+
+  if (err != kModemError::kNoError) {
+    err = kModemError::kSetNetwork;
   }
 
   AE_TELED_DEBUG("apn_user {}", apn_user);
@@ -687,6 +694,10 @@ std::int32_t Thingy91xAtModem::OpenTcpConnection(std::string const& host,
   // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
   SendATCommand("AT#XSOCKET=1,1,0");  // Create TCP socket
   auto response = serial_->Read();    // Get socket handle
+  if (!response) {
+    AE_TELED_DEBUG("No response");
+    return -1;
+  }
   std::string_view response_string{
       reinterpret_cast<char const*>(response->data()), response->size()};
   // find opened handle
@@ -757,6 +768,8 @@ std::int32_t Thingy91xAtModem::OpenUdpConnection() {
 
 void Thingy91xAtModem::SendTcp(Thingy91xConnection const& connection,
                                DataBuffer const& data) {
+  DataBuffer terminated_data{data};
+
   // #XSOCKETSELECT=<handle>
   SendATCommand("AT#XSOCKETSELECT=" +
                 std::to_string(connection.handle));  // Set socket
@@ -767,8 +780,6 @@ void Thingy91xAtModem::SendTcp(Thingy91xConnection const& connection,
   }
 
   // #XSEND[=<data>]
-  // std::string data_string(data.begin(), data.end());
-  // sendATCommand("AT#XSEND=\"" + data_string + "\"");
   SendATCommand("AT#XSEND");
 
   if (auto err = CheckResponse("OK", 1000, "AT#XSEND command error!");
@@ -777,8 +788,10 @@ void Thingy91xAtModem::SendTcp(Thingy91xConnection const& connection,
     return;
   }
 
-  serial_->Write(data);
-  SendATCommand("+++");
+  terminated_data.push_back('+');
+  terminated_data.push_back('+');
+  terminated_data.push_back('+');
+  serial_->Write(terminated_data);
 
   if (auto err = CheckResponse("#XDATAMODE: 0", 10000, "+++ command error!");
       err != kModemError::kNoError) {

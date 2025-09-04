@@ -60,7 +60,7 @@ class Thingy91xAtModem final : public IModemDriver {
   std::unique_ptr<ISerialPort> serial_;
   std::vector<Thingy91xConnection> connect_vec_;
 
-  std::uint16_t kModemMTU{1024};
+  static constexpr std::uint16_t kModemMTU{1024};
 
   kModemError CheckResponse(std::string const response,
                             std::uint32_t const wait_time,

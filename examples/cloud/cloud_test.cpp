@@ -22,8 +22,7 @@
 static constexpr std::string_view kWifiSsid = "Test1234";
 static constexpr std::string_view kWifiPass = "Test1234";
 
-static constexpr std::string_view kSerialPort = "COM47";  // Thingy91x
-// static constexpr std::string_view kSerialPort = "COM17";   // Sim7070g
+static constexpr std::string_view kSerialPort_modem = "COM1";  // Modem serial port
 
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
@@ -38,26 +37,23 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
 }  // namespace ae::cloud_test
 
 int AetherCloudExample() {
-  ae::SerialInit serial_init = {std::string(kSerialPort),
-                                ae::kBaudRate::kBaudRate115200};
-
+  ae::SerialInit serial_init_modem = {std::string(kSerialPort_modem),
+                                          ae::kBaudRate::kBaudRate115200};
   ae::PowerSaveParam const& psp{};
   ae::BaseStation const& bs{};
   
   ae::ModemInit modem_init{
-      serial_init,                  // Serial port
+      serial_init_modem,            // Serial port
       psp,                          // Power save parameters
       bs,                           // Base station
       {1, 1, 1, 1},                 // Pin code
       false,                        // Use pin
-      ae::kModemMode::kModeNbIot,   // Modem mode Thingy91x
-      //ae::kModemMode::kModeAuto,      // Modem mode Sim7070g
-      "25001",                      // Operator code Thingy91x
-      //"25020",                      // Operator code Sim7070g
+      ae::kModemMode::kModeNbIot,   // Modem mode
+      "00001",                      // Operator code
       "",                           // Operator long name
-      "iot",                        // APN
-      "",                           // APN user
-      "",                           // APN pass
+      "internet",                   // APN
+      "user",                       // APN user
+      "password",                   // APN pass
       ae::kAuthType::kAuthTypeNone  // Auth type
   };
 
@@ -72,7 +68,8 @@ int AetherCloudExample() {
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppContext{}
 #if defined AE_DISTILLATION
-          .AdapterFactory([modem_init](ae::AetherAppContext const& context) {
+          .AdapterFactory([modem_init](
+                              ae::AetherAppContext const& context) {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, context.aether(),

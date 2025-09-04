@@ -61,7 +61,7 @@ std::optional<DataBuffer> WINSerialPort::Read() {
     return std::nullopt;
   }
 
-  DataBuffer buffer(1024);
+  DataBuffer buffer(4096);
   DWORD bytes_read = 0;
 
   if (!ReadFile(h_port_, buffer.data(), static_cast<DWORD>(buffer.size()),

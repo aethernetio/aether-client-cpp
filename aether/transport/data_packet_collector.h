@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_TCP_DATA_PACKET_COLLECTOR_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_TCP_DATA_PACKET_COLLECTOR_H_
+#ifndef AETHER_TRANSPORT_DATA_PACKET_COLLECTOR_H_
+#define AETHER_TRANSPORT_DATA_PACKET_COLLECTOR_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -64,4 +64,4 @@ class StreamDataPacketCollector {
 };
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_TCP_DATA_PACKET_COLLECTOR_H_
+#endif  // AETHER_TRANSPORT_DATA_PACKET_COLLECTOR_H_
