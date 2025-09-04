@@ -628,10 +628,11 @@ DataBuffer Sim7070AtModem::ReadTcp(Sim7070Connection const& connection,
 
   SendATCommand("AT+CARECV?");
   auto response = serial_->Read();
-  std::string response_string(response->begin(), response->end());
+  std::string_view response_string{
+      reinterpret_cast<char const*>(response->data()), response->size()};
   auto start = response_string.find("+CARECV: ") + 9;
   auto stop = response_string.find(",");
-  if (start == std::string::npos) {
+  if (start == std::string_view::npos) {
     return {};
   }
   if ((stop > start) && (start != std::string_view::npos) &&
@@ -657,9 +658,10 @@ DataBuffer Sim7070AtModem::ReadTcp(Sim7070Connection const& connection,
     SendATCommand("AT+CARECV=" + connect_i_str + "," + std::to_string(size));
     response = serial_->Read();
 
-    std::string response_string2(response->begin(), response->end());
+    std::string_view response_string2{
+        reinterpret_cast<char const*>(response->data()), response->size()};
     auto error = response_string2.find("+CME ERROR:");
-    if (error != std::string::npos) {
+    if (error != std::string_view::npos) {
       return {};
     }
 
@@ -698,10 +700,11 @@ DataBuffer Sim7070AtModem::ReadUdp(Sim7070Connection const& connection,
 
   SendATCommand("AT+CARECV?");
   auto response = serial_->Read();
-  std::string response_string(response->begin(), response->end());
+  std::string_view response_string{
+      reinterpret_cast<char const*>(response->data()), response->size()};
   auto start = response_string.find("+CARECV: ") + 9;
   auto stop = response_string.find(",");
-  if (start == std::string::npos) {
+  if (start == std::string_view::npos) {
     return {};
   }
   if ((stop > start) && (start != std::string_view::npos) &&
@@ -728,9 +731,10 @@ DataBuffer Sim7070AtModem::ReadUdp(Sim7070Connection const& connection,
     SendATCommand("AT+CARECV=" + connect_i_str + "," + std::to_string(size));
     response = serial_->Read();
 
-    std::string response_string2(response->begin(), response->end());
+    std::string_view response_string2{
+        reinterpret_cast<char const*>(response->data()), response->size()};
     auto error = response_string2.find("+CME ERROR:");
-    if (error != std::string::npos) {
+    if (error != std::string_view::npos) {
       return {};
     }
 
