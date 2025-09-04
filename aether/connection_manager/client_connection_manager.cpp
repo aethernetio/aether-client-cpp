@@ -22,7 +22,7 @@
 #include "aether/aether.h"
 #include "aether/client.h"
 
-#include "aether/server_connections/server_channel_stream.h"
+#include "aether/server_connections/server_channel.h"
 #include "aether/server_connections/client_to_server_stream.h"
 #include "aether/client_connections/client_cloud_connection.h"
 #include "aether/connection_manager/iserver_connection_factory.h"
@@ -71,7 +71,7 @@ class CachedServerConnectionFactory : public IServerConnectionFactory {
     auto action_context = ActionContext{*aether};
 
     auto server_channel_stream =
-        make_unique<ServerChannelStream>(*aether, adapter, server, channel);
+        make_unique<ServerChannel>(*aether, adapter, server, channel);
     auto client_server_stream = make_unique<ClientToServerStream>(
         action_context, client, server->server_id,
         std::move(server_channel_stream));

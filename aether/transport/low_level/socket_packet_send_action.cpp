@@ -20,11 +20,10 @@ namespace ae {
 UpdateStatus SocketPacketSendAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
-      case State::kSuccess:
+      case State::kDone:
         return UpdateStatus::Result();
         break;
       case State::kFailed:
-      case State::kPanic:
       case State::kTimeout:
         return UpdateStatus::Error();
         break;
@@ -36,10 +35,5 @@ UpdateStatus SocketPacketSendAction::Update() {
     }
   }
   return {};
-}
-
-void SocketPacketSendAction::Stop() {
-  state_.Set(State::kStopped);
-  Action::Trigger();
 }
 }  // namespace ae

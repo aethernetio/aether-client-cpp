@@ -29,7 +29,7 @@
 
 namespace ae {
 namespace ethernet_adapter_internal {
-class EthernetTransportBuilder final : public ITransportBuilder {
+class EthernetTransportBuilder final : public ITransportStreamBuilder {
  public:
   EthernetTransportBuilder(EthernetAdapter& adapter,
                            IpAddressPortProtocol address_port_protocol)
@@ -38,7 +38,7 @@ class EthernetTransportBuilder final : public ITransportBuilder {
 
   ~EthernetTransportBuilder() override = default;
 
-  std::unique_ptr<ITransport> BuildTransport() override {
+  std::unique_ptr<ByteIStream> BuildTransportStream() override {
     switch (address_port_protocol_.protocol) {
       case Protocol::kTcp:
         return BuildTcp();
@@ -51,7 +51,7 @@ class EthernetTransportBuilder final : public ITransportBuilder {
   }
 
  private:
-  std::unique_ptr<ITransport> BuildTcp() {
+  std::unique_ptr<ByteIStream> BuildTcp() {
 #if defined COMMON_TCP_TRANSPORT_ENABLED
     assert(address_port_protocol_.protocol == Protocol::kTcp);
     return make_unique<TcpTransport>(*adapter_->aether_.as<Aether>(),
@@ -61,7 +61,7 @@ class EthernetTransportBuilder final : public ITransportBuilder {
 #endif
   }
 
-  std::unique_ptr<ITransport> BuildUdp() {
+  std::unique_ptr<ByteIStream> BuildUdp() {
 #if defined COMMON_UDP_TRANSPORT_ENABLED
     assert(address_port_protocol_.protocol == Protocol::kUdp);
     return make_unique<UdpTransport>(*adapter_->aether_.as<Aether>(),
@@ -104,7 +104,7 @@ UpdateStatus EthernetTransportBuilderAction::Update() {
   return {};
 }
 
-std::vector<std::unique_ptr<ITransportBuilder>>
+std::vector<std::unique_ptr<ITransportStreamBuilder>>
 EthernetTransportBuilderAction::builders() {
   return std::move(transport_builders_);
 }

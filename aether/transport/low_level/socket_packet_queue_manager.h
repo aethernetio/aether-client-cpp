@@ -23,9 +23,7 @@
 
 #include "aether/common.h"
 #include "aether/actions/action_ptr.h"
-#include "aether/events/multi_subscription.h"
 
-#include "aether/transport/actions/packet_send_action.h"
 #include "aether/transport/low_level/socket_packet_send_action.h"
 
 namespace ae {
@@ -78,13 +76,13 @@ class SocketPacketQueueManager
 
     // call send on current active action
     if (auto state = current_active_->state().get();
-        (state == PacketSendAction::State::kQueued) ||
-        (state == PacketSendAction::State::kProgress)) {
+        (state == StreamWriteAction::State::kQueued) ||
+        (state == StreamWriteAction::State::kInProgress)) {
       current_active_->Send();
     }
     // if after send state is changed from progress to something else move to
     // the next action
-    if (current_active_->state() != PacketSendAction::State::kProgress) {
+    if (current_active_->state() != StreamWriteAction::State::kInProgress) {
       current_active_.reset();
       BaseAction::Trigger();
     }

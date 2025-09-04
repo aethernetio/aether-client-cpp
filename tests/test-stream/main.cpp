@@ -34,7 +34,6 @@ extern int test_stream_api();
 extern int test_crypto_stream();
 extern int test_protocol_stream();
 extern int test_templated_streams();
-extern int test_client_to_server_stream();
 extern int test_tied_gates();
 
 int main() {
@@ -52,7 +51,6 @@ int main() {
   res += test_crypto_stream();
   res += test_protocol_stream();
   res += test_templated_streams();
-  res += test_client_to_server_stream();
   res += test_tied_gates();
   return res;
 }

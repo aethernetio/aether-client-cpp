@@ -32,7 +32,7 @@
 #  include "aether/actions/action_context.h"
 #  include "aether/events/multi_subscription.h"
 
-#  include "aether/transport/itransport.h"
+#  include "aether/stream_api/istream.h"
 #  include "aether/transport/low_level/tcp/data_packet_collector.h"
 #  include "aether/transport/low_level/socket_packet_send_action.h"
 #  include "aether/transport/low_level/socket_packet_queue_manager.h"
@@ -40,7 +40,7 @@
 #  include "aether/transport/low_level/sockets/tcp_sockets_factory.h"
 
 namespace ae {
-class TcpTransport : public ITransport {
+class TcpTransport final : public ByteIStream {
   static constexpr int kInvalidSocket = -1;
 
   class ConnectionAction : public Action<ConnectionAction> {
@@ -55,6 +55,8 @@ class TcpTransport : public ITransport {
     };
 
     ConnectionAction(ActionContext action_context, TcpTransport& transport);
+
+    AE_CLASS_NO_COPY_MOVE(ConnectionAction)
 
     UpdateStatus Update();
     void Stop();
@@ -75,16 +77,15 @@ class TcpTransport : public ITransport {
   class SendAction : public SocketPacketSendAction {
    public:
     SendAction(ActionContext action_context, TcpTransport& transport,
-               DataBuffer data, TimePoint current_time);
+               DataBuffer data);
 
-    SendAction(SendAction&& other) noexcept;
+    AE_CLASS_NO_COPY_MOVE(SendAction)
 
     void Send() override;
 
    private:
     TcpTransport* transport_;
     DataBuffer data_;
-    TimePoint current_time_;
     std::size_t sent_offset_ = 0;
     Subscription state_changed_subscription_;
   };
@@ -92,6 +93,8 @@ class TcpTransport : public ITransport {
   class ReadAction : public Action<ReadAction> {
    public:
     ReadAction(ActionContext action_context, TcpTransport& transport);
+
+    AE_CLASS_NO_COPY_MOVE(ReadAction)
 
     UpdateStatus Update();
     void Read();
@@ -113,19 +116,13 @@ class TcpTransport : public ITransport {
                IpAddressPort const& endpoint);
   ~TcpTransport() override;
 
-  void Connect() override;
-  ConnectionInfo const& GetConnectionInfo() const override;
-  ConnectionSuccessEvent::Subscriber ConnectionSuccess() override;
-  ConnectionErrorEvent::Subscriber ConnectionError() override;
-
-  DataReceiveEvent::Subscriber ReceiveEvent() override;
-
-  ActionPtr<PacketSendAction> Send(DataBuffer data,
-                                   TimePoint current_time) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
+  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamInfo stream_info() const override;
+  OutDataEvent::Subscriber out_data_event() override;
 
  private:
   void OnConnected();
-  void OnConnectionFailed();
 
   void ReadSocket();
   void WriteSocket();
@@ -137,10 +134,9 @@ class TcpTransport : public ITransport {
   PtrView<IPoller> poller_;
   IpAddressPort endpoint_;
 
-  ConnectionInfo connection_info_;
-  DataReceiveEvent data_receive_event_;
-  ConnectionSuccessEvent connection_success_event_;
-  ConnectionErrorEvent connection_error_event_;
+  StreamInfo stream_info_;
+  OutDataEvent out_data_event_;
+  StreamUpdateEvent stream_update_event_;
 
   TcpSocket socket_;
   std::mutex socket_lock_;

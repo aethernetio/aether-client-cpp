@@ -137,7 +137,6 @@ list(APPEND stream_api_src
             "stream_api/header_gate.cpp"
             "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
-            "stream_api/transport_write_stream.cpp"
             "stream_api/debug_gate.cpp"
             "stream_api/buffer_stream.cpp"
             "stream_api/stream_splitter.cpp"
@@ -193,7 +192,7 @@ list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
             "server_connections/client_to_server_stream.cpp"
             "server_connections/build_transport_action.cpp"
-            "server_connections/server_channel_stream.cpp"
+            "server_connections/server_channel.cpp"
 )
 
 list(APPEND connection_manager_srcs

@@ -99,22 +99,14 @@ std::optional<Telemetric> Telemetry::CollectTelemetry(
   res.cpp.compiler =
       Format("{}-{}", env_storage.compiler, env_storage.compiler_version);
 
-  if (stream_info.strict_size_rules) {
-    // max element size - telemetry struct size except blob
-    auto blob_max_size = stream_info.max_element_size -
-                         (11 + res.cpp.lib_version.size() + res.cpp.os.size() +
-                          res.cpp.compiler.size());
-    res.blob.reserve(blob_max_size);
-    auto vector_writer = LimitVectorWriter<>{res.blob, res.blob.capacity()};
-    auto os = omstream{vector_writer};
-    os << statistics_storage;
-  } else {
-    // store blob without limit
-    auto vector_writer = VectorWriter<>{res.blob};
-    auto os = omstream{vector_writer};
-    os << statistics_storage;
-  }
-
+  // max element size - telemetry struct size except blob
+  auto blob_max_size = stream_info.max_element_size -
+                       (11 + res.cpp.lib_version.size() + res.cpp.os.size() +
+                        res.cpp.compiler.size());
+  res.blob.reserve(blob_max_size);
+  auto vector_writer = LimitVectorWriter<>{res.blob, res.blob.capacity()};
+  auto os = omstream{vector_writer};
+  os << statistics_storage;
   // TODO: should we reset stored statistics?
 
   return res;

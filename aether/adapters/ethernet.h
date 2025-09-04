@@ -45,7 +45,7 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
                                  UnifiedAddress address_port_protocol);
   UpdateStatus Update() override;
 
-  std::vector<std::unique_ptr<ITransportBuilder>> builders() override;
+  std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() override;
 
  private:
   void ResolveAddress();
@@ -54,7 +54,7 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
   EthernetAdapter* adapter_;
   UnifiedAddress address_port_protocol_;
   std::vector<IpAddressPortProtocol> ip_address_port_protocols_;
-  std::vector<std::unique_ptr<ITransportBuilder>> transport_builders_;
+  std::vector<std::unique_ptr<ITransportStreamBuilder>> transport_builders_;
   StateMachine<State> state_;
   Subscription state_changed_;
   Subscription address_resolve_sub_;

@@ -24,7 +24,7 @@
 #include "aether/types/address.h"
 #include "aether/actions/action.h"
 
-#include "aether/transport/itransport_builder.h"
+#include "aether/transport/itransport_stream_builder.h"
 
 namespace ae {
 /**
@@ -38,7 +38,7 @@ class TransportBuilderAction : public Action<TransportBuilderAction> {
 
   virtual UpdateStatus Update() = 0;
 
-  virtual std::vector<std::unique_ptr<ITransportBuilder>> builders() = 0;
+  virtual std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() = 0;
 };
 
 /**

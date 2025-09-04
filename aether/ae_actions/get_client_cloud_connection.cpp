@@ -111,7 +111,8 @@ void GetClientCloudConnection::SelectConnection() {
     return;
   }
 
-  if (server_connection_->server_stream().stream_info().is_linked) {
+  if (server_connection_->server_stream().stream_info().link_state ==
+      LinkState::kLinked) {
     state_ = State::kGetCloud;
     return;
   }
@@ -119,7 +120,8 @@ void GetClientCloudConnection::SelectConnection() {
   connection_subscription_ =
       server_connection_->server_stream().stream_update_event().Subscribe(
           [this]() {
-            if (server_connection_->server_stream().stream_info().is_linked) {
+            if (server_connection_->server_stream().stream_info().link_state ==
+                LinkState::kLinked) {
               state_ = State::kGetCloud;
             } else {
               state_ = State::kSelectConnection;
