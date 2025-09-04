@@ -108,8 +108,8 @@ class Sim7070AtModem final : public IModemDriver {
                                      std::uint16_t port);
   void SendTcp(Sim7070Connection const& connection, DataBuffer const& data);
   void SendUdp(Sim7070Connection const& connection, DataBuffer const& data);
-  DataBuffer ReadTcp(Sim7070Connection const& connection, Duration timeout);
-  DataBuffer ReadUdp(Sim7070Connection const& connection, Duration timeout);
+  DataBuffer ReadTcp(Sim7070Connection const& connection);
+  DataBuffer ReadUdp(Sim7070Connection const& connection);
 
   void SendATCommand(const std::string& command);
   bool WaitForResponse(const std::string& expected, Duration timeout);

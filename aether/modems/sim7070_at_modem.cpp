@@ -219,7 +219,7 @@ void Sim7070AtModem::WritePacket(ConnectionIndex connect_index,
 }
 
 DataBuffer Sim7070AtModem::ReadPacket(ConnectionIndex connect_index,
-                                      Duration timeout) {
+                                      Duration /* timeout */) {
   if (connect_index >= connect_vec_.size()) {
     AE_TELED_ERROR("Connection index overflow");
     return {};
@@ -232,10 +232,10 @@ DataBuffer Sim7070AtModem::ReadPacket(ConnectionIndex connect_index,
       connect_vec_.at(static_cast<std::size_t>(connect_index));
 
   if (connection.protocol == ae::Protocol::kTcp) {
-    return ReadTcp(connection, timeout);
+    return ReadTcp(connection);
   }
   if (connection.protocol == ae::Protocol::kUdp) {
-    return ReadUdp(connection, timeout);
+    return ReadUdp(connection);
   }
   return {};
 }
@@ -619,8 +619,7 @@ void Sim7070AtModem::SendUdp(Sim7070Connection const& connection,
   }
 }
 
-DataBuffer Sim7070AtModem::ReadTcp(Sim7070Connection const& connection,
-                                   Duration /* timeout */) {
+DataBuffer Sim7070AtModem::ReadTcp(Sim7070Connection const& connection) {
   std::string connect_i_str = std::to_string(connection.handle.connect_index);
 
   std::int32_t cid{-1};
@@ -691,8 +690,7 @@ DataBuffer Sim7070AtModem::ReadTcp(Sim7070Connection const& connection,
   return {};
 }
 
-DataBuffer Sim7070AtModem::ReadUdp(Sim7070Connection const& connection,
-                                   Duration /* timeout */) {
+DataBuffer Sim7070AtModem::ReadUdp(Sim7070Connection const& connection) {
   std::string connect_i_str = std::to_string(connection.handle.connect_index);
 
   std::int32_t cid{-1};
