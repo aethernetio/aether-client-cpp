@@ -18,6 +18,8 @@
 
 #include <chrono>
 
+#include "aether/server.h"
+
 namespace ae {
 ClientServerConnection::ClientServerConnection(
     ActionContext action_context, [[maybe_unused]] ObjPtr<Aether> const& aether,
@@ -29,6 +31,7 @@ ClientServerConnection::ClientServerConnection(
   client_to_server_stream_ = std::make_unique<ClientToServerStream>(
       action_context, client, server->server_id);
 
+  // TODO: add channel priorities
   channel_loop_.emplace([&]() { selected_channel_index_ = 0; },
                         [&]() {
                           auto server_ptr = server_.Lock();
@@ -59,10 +62,6 @@ ClientToServerStream& ClientServerConnection::server_stream() {
   return *client_to_server_stream_;
 }
 
-ByteIStream& ClientServerConnection::GetStream(Uid destination_uid) {
-  return message_stream_dispatcher_->GetMessageStream(destination_uid);
-}
-
 ClientServerConnection::NewStreamEvent::Subscriber
 ClientServerConnection::new_stream_event() {
   return new_stream_event_;
@@ -71,6 +70,10 @@ ClientServerConnection::new_stream_event() {
 ClientServerConnection::ServerErrorEvent::Subscriber
 ClientServerConnection::server_error_event() {
   return server_error_event_;
+}
+
+ByteIStream& ClientServerConnection::GetStream(Uid destination_uid) {
+  return message_stream_dispatcher_->GetMessageStream(destination_uid);
 }
 
 void ClientServerConnection::CloseStream(Uid uid) {
@@ -96,10 +99,17 @@ void ClientServerConnection::NextChannel() {
     return;
   }
 
-  // TODO: add handle link and unlink events
-  server_channel_stream_ =
-      std::make_unique<ServerChannelStream>(action_context_, channel);
-  Tie(*client_to_server_stream_, *server_channel_stream_);
+  server_channel_ = std::make_unique<ServerChannel>(action_context_, channel);
+
+  channel_stream_update_sub_ =
+      server_channel_->stream().stream_update_event().Subscribe([this]() {
+        auto info = server_channel_->stream().stream_info();
+        if (info.link_state == LinkState::kLinkError) {
+          NextChannel();
+        }
+      });
+
+  Tie(*client_to_server_stream_, server_channel_->stream());
 
   // Ping action should be created for channel personally
   ping_ = OwnActionPtr<Ping>{action_context_, server_ptr, channel,

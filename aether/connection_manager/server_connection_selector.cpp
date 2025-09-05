@@ -20,12 +20,14 @@
 #include <algorithm>
 
 #include "aether/cloud.h"
+#include "aether/server.h"
 
 namespace ae {
 ServerConnectionSelector::ServerConnectionSelector(
     ObjPtr<Cloud> const& cloud, IServerPriorityPolicy& server_priority_policy,
     std::unique_ptr<IServerConnectionFactory> client_server_connection_factory)
     : server_connection_factory_{std::move(client_server_connection_factory)} {
+  // TODO: add server priority
   auto srvs = cloud->servers();
   // filter servers
   srvs.erase(std::remove_if(std::begin(srvs), std::end(srvs),

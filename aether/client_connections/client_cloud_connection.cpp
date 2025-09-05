@@ -16,18 +16,30 @@
 
 #include "aether/client_connections/client_cloud_connection.h"
 
-#include "aether/server_list/no_filter_server_list_policy.h"
-
 #include "aether/client_connections/client_connections_tele.h"
+#include "aether/connection_manager/iserver_priority_policy.h"
 
 namespace ae {
+namespace client_cloud_connection_internal {
+class ServerPriority final : public IServerPriorityPolicy {
+ public:
+  bool Filter(ObjPtr<Server> const&) override { return false; }
+
+  bool Compare(ObjPtr<Server> const& left,
+               ObjPtr<Server> const& right) override {
+    return left->server_id < right->server_id;
+  }
+};
+static ServerPriority server_priority{};
+}  // namespace client_cloud_connection_internal
+
 ClientCloudConnection::ClientCloudConnection(
     ActionContext action_context, ObjPtr<Cloud> const& cloud,
     std::unique_ptr<IServerConnectionFactory>&& server_connection_factory)
     : action_context_{action_context},
-      server_connection_selector_{cloud,
-                                  make_unique<NoFilterServerListPolicy>(),
-                                  std::move(server_connection_factory)} {
+      server_connection_selector_{
+          cloud, client_cloud_connection_internal::server_priority,
+          std::move(server_connection_factory)} {
   Connect();
 }
 
@@ -74,11 +86,22 @@ void ClientCloudConnection::SendTelemetry() {
   server_connection_->SendTelemetry();
 }
 
+RcPtr<ClientServerConnection> ClientCloudConnection::TopConnection() {
+  return server_connection_;
+}
+
+bool ClientCloudConnection::Rotate() {
+  if (server_connection_) {
+    server_connection_->NextChannel();
+    return true;
+  }
+  return false;
+}
+
 void ClientCloudConnection::Connect() {
   connection_selector_loop_ =
       AsyncForLoop<RcPtr<ClientServerConnection>>::Construct(
-          server_connection_selector_,
-          [this]() { return server_connection_selector_.GetConnection(); });
+          server_connection_selector_);
 
   SelectConnection();
 }
@@ -91,22 +114,9 @@ void ClientCloudConnection::SelectConnection() {
     return;
   }
 
-  if (server_connection_->server_stream().stream_info().link_state ==
-      LinkState::kLinked) {
-    OnConnected();
-  } else {
-    connection_status_sub_ =
-        server_connection_->server_stream().stream_update_event().Subscribe(
-            [this]() {
-              if (server_connection_->server_stream()
-                      .stream_info()
-                      .link_state == LinkState::kLinked) {
-                OnConnected();
-              } else {
-                OnConnectionError();
-              }
-            });
-  }
+  // subscribe to server error
+  server_error_sub_ = server_connection_->server_error_event().Subscribe(
+      [this]() { OnConnectionError(); });
 
   // restore all known streams to a new server
   for (auto& [uid, stream] : streams_) {
@@ -118,31 +128,10 @@ void ClientCloudConnection::SelectConnection() {
           *this, MethodPtr<&ClientCloudConnection::NewStream>{});
 }
 
-void ClientCloudConnection::OnConnected() {
-  AE_TELED_INFO("Client cloud connection is connected");
-  // subscribe to disconnection
-  connection_status_sub_ =
-      server_connection_->server_stream().stream_update_event().Subscribe(
-          [this]() {
-            if (server_connection_->server_stream().stream_info().link_state !=
-                LinkState::kLinked) {
-              OnConnectionError();
-            }
-          });
-
-  server_error_sub_ = server_connection_->server_error_event().Subscribe(
-      [this]() { OnConnectionError(); });
-}
-
 void ClientCloudConnection::OnConnectionError() {
   AE_TELED_ERROR("Connection error");
-  reconnect_notify_ = ActionPtr<ReconnectNotify>{action_context_};
-  reconnect_notify_sub_ =
-      reconnect_notify_->StatusEvent().Subscribe(OnResult{[this]() {
-        AE_TELED_DEBUG("Reconnect");
-        SelectConnection();
-      }});
-  reconnect_notify_->Notify();
+  AE_TELED_DEBUG("Reconnect");
+  SelectConnection();
 }
 
 void ClientCloudConnection::ServerListEnded() {
@@ -166,8 +155,8 @@ void ClientCloudConnection::NewStream(Uid uid, ByteIStream& stream) {
   }
 
   // new stream created
-  bool ok;
-  std::tie(stream_it, ok) = streams_.emplace(uid, make_unique<ByteStream>());
+  std::tie(stream_it, std::ignore) =
+      streams_.emplace(uid, make_unique<ByteStream>());
   Tie(*stream_it->second, stream);
   auto ret_stream = make_unique<ByteStream>();
   Tie(*ret_stream, *stream_it->second);

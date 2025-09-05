@@ -25,7 +25,7 @@
 #include "aether/types/state_machine.h"
 #include "aether/methods/server_descriptor.h"
 #include "aether/ae_actions/get_client_cloud.h"
-#include "aether/server_connections/iserver_api_stream.h"
+#include "aether/connection_manager/iserver_connection_pool.h"
 
 #include "aether/client_connections/client_connections_tele.h"
 
@@ -47,25 +47,31 @@ class GetCloudFromAether : public GetCloudAction {
  public:
   enum class State : std::uint8_t {
     kCloudResolve,
+    kWaitCloudResolve,
     kDone,
     kError,
   };
 
-  explicit GetCloudFromAether(
-      ActionContext action_context, ClientCloudManager& client_cloud_manager,
-      IServerApiStreamProvider& server_api_stream_provider, Uid client_uid)
+  explicit GetCloudFromAether(ActionContext action_context,
+                              ClientCloudManager& client_cloud_manager,
+                              IServerConnectionPool& server_connection_pool,
+                              Uid client_uid)
       : GetCloudAction{action_context},
         action_context_{action_context},
         client_cloud_manager_{&client_cloud_manager},
-        server_api_stream_provider_{&server_api_stream_provider},
+        server_connection_pool_{&server_connection_pool},
         client_uid_{client_uid},
-        state_{State::kCloudResolve} {}
+        state_{State::kCloudResolve},
+        state_changed_sub_{state_.changed_event().Subscribe(
+            [this](auto&&) { Action::Trigger(); })} {}
 
   UpdateStatus Update() override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kCloudResolve:
           ResolveCloud();
+          break;
+        case State::kWaitCloudResolve:
           break;
         case State::kDone:
           return UpdateStatus::Result();
@@ -80,8 +86,15 @@ class GetCloudFromAether : public GetCloudAction {
 
  private:
   void ResolveCloud() {
+    current_connection_ = server_connection_pool_->TopConnection();
+    if (!current_connection_) {
+      state_ = State::kError;
+      Action::Trigger();
+      return;
+    }
+
     get_client_cloud_action_ = ActionPtr<GetClientCloudAction>(
-        action_context_, *server_api_stream_provider_, client_uid_);
+        action_context_, current_connection_->server_stream(), client_uid_);
     get_client_cloud_sub_ = get_client_cloud_action_->StatusEvent().Subscribe(
         ActionHandler{OnResult{[this](auto const& action) {
                         RegisterCloud(action.server_descriptors());
@@ -89,9 +102,12 @@ class GetCloudFromAether : public GetCloudAction {
                         Action::Trigger();
                       }},
                       OnError{[this]() {
-                        state_ = State::kError;
+                        // try again
+                        server_connection_pool_->Rotate();
+                        state_ = State::kCloudResolve;
                         Action::Trigger();
                       }}});
+    state_ = State::kWaitCloudResolve;
   }
 
   void RegisterCloud(std::vector<ServerDescriptor> const& servers) {
@@ -100,11 +116,13 @@ class GetCloudFromAether : public GetCloudAction {
 
   ActionContext action_context_;
   ClientCloudManager* client_cloud_manager_;
-  IServerApiStreamProvider* server_api_stream_provider_;
+  IServerConnectionPool* server_connection_pool_;
+  RcPtr<ClientServerConnection> current_connection_;
   Uid client_uid_;
   StateMachine<State> state_;
   ActionPtr<GetClientCloudAction> get_client_cloud_action_;
   Subscription get_client_cloud_sub_;
+  Subscription state_changed_sub_;
   Cloud::ptr cloud_;
 };
 
@@ -134,7 +152,7 @@ ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
 
   auto* client = client_.as<Client>();
   return ActionPtr<client_cloud_manager_internal::GetCloudFromAether>{
-      *aether, *this, *client->client_connection(), client_uid};
+      *aether, *this, client->server_connection_pool(), client_uid};
 }
 
 Cloud::ptr ClientCloudManager::RegisterCloud(

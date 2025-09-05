@@ -26,14 +26,13 @@
 #include "aether/actions/timer_action.h"
 #include "aether/actions/action_context.h"
 
-#include "aether/channel.h"
-
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/buffer_stream.h"
 
-#include "aether/server_connections/build_transport_action.h"
+#include "aether/transport/build_transport_action.h"
 
 namespace ae {
+class Channel;
 class ServerChannel final {
  public:
   ServerChannel(ActionContext action_context, Channel::ptr const& channel);

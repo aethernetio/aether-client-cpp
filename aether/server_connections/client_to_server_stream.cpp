@@ -158,6 +158,10 @@ ApiCallAdapter<AuthorizedApi> ClientToServerStream::authorized_api_adapter() {
   return ApiCallAdapter{ApiContext{protocol_context_, authorized_api_}, *this};
 }
 
+ProtocolContext& ClientToServerStream::protocol_context() {
+  return protocol_context_;
+}
+
 DataBuffer ClientToServerStream::Login(DataBuffer&& data) {
   auto client_ptr = client_.Lock();
   auto api_context = ApiContext{protocol_context_, login_api_};

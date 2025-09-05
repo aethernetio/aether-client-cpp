@@ -25,13 +25,14 @@
 #include "aether/actions/action_ptr.h"
 #include "aether/types/async_for_loop.h"
 #include "aether/actions/timer_action.h"
-#include "aether/actions/notify_action.h"
 #include "aether/events/event_subscription.h"
 
 #include "aether/stream_api/istream.h"
 
 #include "aether/client_connections/client_connection.h"
+#include "aether/connection_manager/iserver_connection_pool.h"
 #include "aether/server_connections/client_server_connection.h"
+#include "aether/server_connections/iserver_connection_factory.h"
 #include "aether/connection_manager/server_connection_selector.h"
 
 namespace ae {
@@ -39,8 +40,8 @@ class Cloud;
 /**
  * \brief The simplest cloud connection, which connects to one server a time.
  */
-class ClientCloudConnection final : public ClientConnection {
-  using ReconnectNotify = NotifyAction;
+class ClientCloudConnection final : public ClientConnection,
+                                    public IServerConnectionPool {
   using NextServerLoopTimer = TimerAction;
 
  public:
@@ -53,6 +54,9 @@ class ClientCloudConnection final : public ClientConnection {
   void CloseStream(Uid uid) override;
   void SendTelemetry() override;
 
+  RcPtr<ClientServerConnection> TopConnection() override;
+  bool Rotate() override;
+
   AE_REFLECT()
 
  private:
@@ -60,7 +64,6 @@ class ClientCloudConnection final : public ClientConnection {
   void SelectConnection();
   void ServerListEnded();
 
-  void OnConnected();
   void OnConnectionError();
   void NewStream(Uid uid, ByteIStream& stream);
 
@@ -75,16 +78,13 @@ class ClientCloudConnection final : public ClientConnection {
   NewStreamEvent new_stream_event_;
   Subscription new_stream_event_subscription_;
 
-  Subscription connection_status_sub_;
   Subscription server_error_sub_;
 
   // known streams to clients
   std::map<Uid, std::unique_ptr<ByteStream>> streams_;
 
-  ActionPtr<ReconnectNotify> reconnect_notify_;
   ActionPtr<NextServerLoopTimer> next_server_loop_timer_;
 
-  Subscription reconnect_notify_sub_;
   Subscription next_server_loop_subs_;
 };
 }  // namespace ae

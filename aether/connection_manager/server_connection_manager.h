@@ -30,18 +30,31 @@ namespace ae {
 class Aether;
 class Client;
 
-class ServerConnectionManager final : public IServerConnectionFactory {
+class ServerConnectionManager {
+  class ServerConnectionFactory final : public IServerConnectionFactory {
+   public:
+    explicit ServerConnectionFactory(
+        ServerConnectionManager& server_connection_manager);
+
+    RcPtr<ClientServerConnection> CreateConnection(
+        ObjPtr<Server> const& server) override;
+
+   private:
+    ServerConnectionManager* server_connection_manager_;
+  };
+
  public:
   ServerConnectionManager(ActionContext action_context,
                           ObjPtr<Aether> const& aether,
                           ObjPtr<Client> const& client);
 
-  RcPtr<ClientServerConnection> CreateConnection(
-      Server::ptr const& server) override;
+  std::unique_ptr<IServerConnectionFactory> GetServerConnectionFactory();
 
- private:
+  RcPtr<ClientServerConnection> CreateConnection(ObjPtr<Server> const& server);
+
   RcPtr<ClientServerConnection> FindInCache(ServerId server_id) const;
 
+ private:
   ActionContext action_context_;
   PtrView<Aether> aether_;
   PtrView<Client> client_;

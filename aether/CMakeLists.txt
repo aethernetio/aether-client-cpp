@@ -124,6 +124,7 @@ list(APPEND transport_srcs
             "transport/low_level/tcp/tcp.cpp"
             "transport/low_level/tcp/data_packet_collector.cpp"
             "transport/low_level/udp/udp.cpp"
+            "transport/build_transport_action.cpp"
 )
 
 list(APPEND stream_api_src
@@ -186,12 +187,10 @@ list(APPEND client_connections_srcs
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
             "server_connections/client_to_server_stream.cpp"
-            "server_connections/build_transport_action.cpp"
             "server_connections/server_channel.cpp"
 )
 
 list(APPEND connection_manager_srcs
-            "connection_manager/cloud_cache.cpp"
             "connection_manager/client_cloud_manager.cpp"
             "connection_manager/server_connection_selector.cpp"
             "connection_manager/server_connection_manager.cpp"

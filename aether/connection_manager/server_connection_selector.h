@@ -23,8 +23,8 @@
 #include "aether/ptr/rc_ptr.h"
 #include "aether/ptr/ptr_view.h"
 
+#include "aether/connection_manager/iserver_priority_policy.h"
 #include "aether/server_connections/client_server_connection.h"
-
 #include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {

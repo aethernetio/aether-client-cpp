@@ -23,19 +23,18 @@
 
 #include "aether/common.h"
 #include "aether/memory.h"
-#include "aether/server.h"
-#include "aether/channel.h"
 #include "aether/ae_actions/ping.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/ae_actions/telemetry.h"
 #include "aether/types/async_for_loop.h"
+#include "aether/server_connections/server_channel.h"
 #include "aether/client_messages/message_stream_dispatcher.h"
-#include "aether/server_connections/server_channel_stream.h"
 #include "aether/server_connections/client_to_server_stream.h"
 
 namespace ae {
 class Aether;
 class Client;
+class Server;
 
 /**
  * \brief Client's connection to a server for messages send.
@@ -48,16 +47,16 @@ class ClientServerConnection {
   explicit ClientServerConnection(ActionContext action_context,
                                   ObjPtr<Aether> const& aether,
                                   ObjPtr<Client> const& client,
-                                  Server::ptr const& server);
+                                  ObjPtr<Server> const& server);
 
   AE_CLASS_NO_COPY_MOVE(ClientServerConnection)
 
   ClientToServerStream& server_stream();
 
   ByteIStream& GetStream(Uid destination);
+  void CloseStream(Uid uid);
   NewStreamEvent::Subscriber new_stream_event();
   ServerErrorEvent::Subscriber server_error_event();
-  void CloseStream(Uid uid);
 
   void SendTelemetry();
 
@@ -76,12 +75,13 @@ class ClientServerConnection {
 #endif
   std::optional<AsyncForLoop<Channel::ptr>> channel_loop_;
   std::size_t selected_channel_index_;
-  std::unique_ptr<ServerChannelStream> server_channel_stream_;
+  std::unique_ptr<ServerChannel> server_channel_;
   std::unique_ptr<ClientToServerStream> client_to_server_stream_;
 
   NewStreamEvent new_stream_event_;
   ServerErrorEvent server_error_event_;
   Subscription new_stream_event_sub_;
+  Subscription channel_stream_update_sub_;
   Subscription ping_error_sub_;
 };
 }  // namespace ae

@@ -16,7 +16,21 @@
 
 #include "aether/connection_manager/server_connection_manager.h"
 
+#include "aether/client.h"
+#include "aether/aether.h"
+#include "aether/server.h"
+
 namespace ae {
+ServerConnectionManager::ServerConnectionFactory::ServerConnectionFactory(
+    ServerConnectionManager& server_connection_manager)
+    : server_connection_manager_{&server_connection_manager} {}
+
+RcPtr<ClientServerConnection>
+ServerConnectionManager::ServerConnectionFactory::CreateConnection(
+    ObjPtr<Server> const& server) {
+  return server_connection_manager_->CreateConnection(server);
+}
+
 ServerConnectionManager::ServerConnectionManager(ActionContext action_context,
                                                  ObjPtr<Aether> const& aether,
                                                  ObjPtr<Client> const& client)
@@ -24,6 +38,11 @@ ServerConnectionManager::ServerConnectionManager(ActionContext action_context,
       aether_{aether},
       client_{client},
       cached_connections_{} {}
+
+std::unique_ptr<IServerConnectionFactory>
+ServerConnectionManager::GetServerConnectionFactory() {
+  return std::make_unique<ServerConnectionFactory>(*this);
+}
 
 RcPtr<ClientServerConnection> ServerConnectionManager::CreateConnection(
     Server::ptr const& server) {
@@ -39,7 +58,7 @@ RcPtr<ClientServerConnection> ServerConnectionManager::CreateConnection(
   assert(client);
 
   auto connection = MakeRcPtr<ClientServerConnection>(action_context_, aether,
-                                                      server, client);
+                                                      client, server);
   // save in cache
   cached_connections_[server->server_id] = connection;
   return connection;

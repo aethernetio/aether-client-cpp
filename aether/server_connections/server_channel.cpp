@@ -18,6 +18,8 @@
 
 #include "aether/actions/action_context.h"
 
+#include "aether/channel.h"
+
 #include "aether/tele/tele.h"
 
 namespace ae {

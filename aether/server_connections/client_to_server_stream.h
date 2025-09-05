@@ -59,6 +59,7 @@ class ClientToServerStream final : public ByteStream {
   ClientSafeApi& client_safe_api();
   AuthorizedApi& authorized_api();
   ApiCallAdapter<AuthorizedApi> authorized_api_adapter();
+  ProtocolContext& protocol_context();
 
  private:
   DataBuffer Login(DataBuffer&& data);
