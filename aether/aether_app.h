@@ -82,7 +82,7 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
   }
 
   Domain& domain() const { return *domain_; }
-  Aether::ptr const& aether() const { return aether_; }
+  Aether::ptr aether() const { return aether_; }
 
 #if defined AE_DISTILLATION
   Adapter::ptr adapter() const { return Resolve<Adapter>(); }

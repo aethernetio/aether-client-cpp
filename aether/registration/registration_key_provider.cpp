@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/ae_actions/registration/registration_key_provider.h"
+#include "aether/registration/registration_key_provider.h"
 
 namespace ae {
 RegistrationAsyncKeyProvider::RegistrationAsyncKeyProvider() = default;
@@ -24,11 +24,11 @@ Key RegistrationAsyncKeyProvider::PublicKey() const { return public_key_; }
 Key RegistrationAsyncKeyProvider::SecretKey() const { return secret_key_; }
 
 void RegistrationAsyncKeyProvider::set_public_key(Key key) {
-  public_key_ = key;
+  public_key_ = std::move(key);
 }
 
 void RegistrationAsyncKeyProvider::set_secret_key(Key key) {
-  secret_key_ = key;
+  secret_key_ = std::move(key);
 }
 
 RegistrationSyncKeyProvider::RegistrationSyncKeyProvider() : nonce_{} {
@@ -42,6 +42,8 @@ CryptoNonce const& RegistrationSyncKeyProvider::Nonce() const {
   return nonce_;
 }
 
-void RegistrationSyncKeyProvider::set_key(Key key) { sync_key_ = key; }
+void RegistrationSyncKeyProvider::set_key(Key key) {
+  sync_key_ = std::move(key);
+}
 
 }  // namespace ae

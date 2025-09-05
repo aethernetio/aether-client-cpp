@@ -34,9 +34,6 @@ void Cloud::LoadServer(Server::ptr& server) {
   }
 }
 
-void Cloud::set_adapter(Adapter::ptr const& adapter) { adapter_ = adapter; }
-Adapter::ptr& Cloud::adapter() { return adapter_; }
-
 std::vector<Server::ptr>& Cloud::servers() { return servers_; }
 
 }  // namespace ae

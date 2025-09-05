@@ -20,12 +20,14 @@
 #  include <utility>
 
 #  include "aether/server.h"
+#  include "aether/aether.h"
 #  include "aether/channel.h"
 
 namespace ae {
 
 #  ifdef AE_DISTILLATION
-RegistrationCloud::RegistrationCloud(Domain* domain) : Cloud(domain) {}
+RegistrationCloud::RegistrationCloud(ObjPtr<Aether> aether, Domain* domain)
+    : Cloud{domain}, aether_{std::move(aether)} {}
 #  endif
 
 void RegistrationCloud::AddServerSettings(UnifiedAddress address) {
@@ -33,7 +35,10 @@ void RegistrationCloud::AddServerSettings(UnifiedAddress address) {
   // don't care for registration
   server->server_id = 0;
 
-  auto channel = domain_->CreateObj<Channel>(adapter());
+  // TODO: use all adapters
+  auto adapter = aether_.as<Aether>()->adapter_factories[0];
+
+  auto channel = domain_->CreateObj<Channel>(std::move(adapter));
   channel->address = std::move(address);
   server->AddChannel(std::move(channel));
 

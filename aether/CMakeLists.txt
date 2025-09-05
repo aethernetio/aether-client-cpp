@@ -51,7 +51,6 @@ list(APPEND aether_srcs
             "registration_cloud.cpp"
             "work_cloud.cpp"
             "server.cpp"
-            "proof_of_work.cpp"
             "server_keys.cpp"
             "socket_initializer.cpp")
 
@@ -87,8 +86,6 @@ list(APPEND ptr_srcs
 list(APPEND events_srcs)
 
 list(APPEND actions_srcs
-            "ae_actions/registration/registration.cpp"
-            "ae_actions/registration/registration_key_provider.cpp"
             "ae_actions/get_client_cloud.cpp"
             "ae_actions/get_client_cloud_connection.cpp"
             "ae_actions/ping.cpp"
@@ -102,6 +99,16 @@ list(APPEND actions_srcs
             "actions/task_queue.cpp"
             "actions/repeatable_task.cpp"
             )
+
+list(APPEND registration_srcs
+            "registration/global_reg_server_stream.cpp"
+            "registration/reg_server_stream.cpp"
+            "registration/proof_of_work.cpp"
+            "registration/reg_server_connection_pool.cpp"
+            "registration/registration.cpp"
+            "registration/registration_key_provider.cpp"
+            )
+
 
 list(APPEND adapters_srcs
             "adapters/adapter.cpp"
@@ -257,6 +264,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${api_protocol_srcs}
                             ${crypto_srcs}
                             ${methods_srcs}
+                            ${registration_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${server_connections_srcs}
@@ -301,6 +309,7 @@ else()
                             ${api_protocol_srcs}
                             ${crypto_srcs}
                             ${methods_srcs}
+                            ${registration_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${server_connections_srcs}

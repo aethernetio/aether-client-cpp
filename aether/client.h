@@ -28,6 +28,8 @@
 
 #include "aether/client_connections/client_connection.h"
 #include "aether/connection_manager/client_cloud_manager.h"
+#include "aether/connection_manager/iserver_connection_pool.h"
+#include "aether/connection_manager/server_connection_manager.h"
 
 namespace ae {
 class Aether;
@@ -48,7 +50,9 @@ class Client : public Obj {
   Uid const& ephemeral_uid() const;
   ServerKeys* server_state(ServerId server_id);
   Cloud::ptr const& cloud() const;
-  ClientCloudManager::ptr const& client_connection_manager() const;
+  ClientCloudManager::ptr const& cloud_manager() const;
+  ServerConnectionManager& server_connection_manager();
+  IServerConnectionPool& server_connection_pool();
 
   Ptr<ClientConnection> const& client_connection();
 

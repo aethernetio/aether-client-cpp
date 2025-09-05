@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "aether/aether.h"
+#include "aether/client_connections/client_cloud_connection.h"
 
 #include "aether/tele/tele.h"
 
@@ -41,7 +42,7 @@ ServerKeys* Client::server_state(ServerId server_id) {
 
 Cloud::ptr const& Client::cloud() const { return cloud_; }
 
-ClientCloudManager::ptr const& Client::client_connection_manager() const {
+ClientCloudManager::ptr const& Client::cloud_manager() const {
   assert(client_connection_manager_);
   return client_connection_manager_;
 }
@@ -63,7 +64,10 @@ void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
 
 Ptr<ClientConnection> const& Client::client_connection() {
   if (!client_connection_) {
-    client_connection_ = client_connection_manager_->GetClientConnection();
+    // the default implementation
+    client_connection_ = MakePtr<ClientCloudConnection>(
+        *aether_.as<Aether>(), cloud_,
+        server_connection_manager().GetServerConnectionFactory());
   }
   return client_connection_;
 }

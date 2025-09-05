@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-#include "aether/proof_of_work.h"
+#include "aether/registration/proof_of_work.h"
+#if AE_SUPPORT_REGISTRATION
 
-#include <cassert>
-#include <array>
-#include <limits>
+#  include <cassert>
+#  include <array>
+#  include <limits>
 
-#include "third_party/libbcrypt/bcrypt.h"
+#  include "third_party/libbcrypt/bcrypt.h"
 
-#include "aether/crc.h"
+#  include "aether/crc.h"
 
 namespace ae {
 
@@ -84,5 +85,6 @@ uint32_t ProofOfWork::ComputeHash(const std::string& pass,
   // min output size is 16. Is it enough just to use RCR32?
   return crc32::from_string(hash.data()).value;
 }
+#endif
 
 }  // namespace ae

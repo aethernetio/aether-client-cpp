@@ -82,8 +82,7 @@ int AetherRegistrator(const std::string& ini_file,
                                         ae::AetherAppContext const& context) {
             auto registration_cloud =
                 context.domain().CreateObj<ae::RegistrationCloud>(
-                    ae::kRegistrationCloud);
-            registration_cloud->set_adapter(context.adapter());
+                    ae::kRegistrationCloud, context.aether());
 
             auto servers_list = registrator_config.GetServers();
             for (auto s : servers_list) {
