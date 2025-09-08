@@ -42,6 +42,7 @@ class GetCloudAction : public Action<GetCloudAction> {
 
   virtual UpdateStatus Update() = 0;
   virtual Cloud::ptr cloud() = 0;
+  virtual void Stop() = 0;
 };
 
 class ClientCloudManager : public Obj {

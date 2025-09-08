@@ -18,19 +18,14 @@
 #define AETHER_AE_ACTIONS_GET_CLIENT_CLOUD_CONNECTION_H_
 
 #include <cstdint>
-#include <optional>
 
 #include "aether/types/uid.h"
-#include "aether/memory.h"
-#include "aether/types/async_for_loop.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/client_connections/client_connection.h"
-#include "aether/connection_manager/server_connection_selector.h"
-
-#include "aether/ae_actions/get_client_cloud.h"
+#include "aether/connection_manager/client_cloud_manager.h"
 
 namespace ae {
 class Client;
@@ -39,9 +34,6 @@ class ClientCloudManager;
 
 class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   enum class State : std::uint8_t {
-    kTryCache,
-    kSelectConnection,
-    kConnection,
     kGetCloud,
     kCreateConnection,
     kSuccess,
@@ -50,11 +42,8 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   };
 
  public:
-  GetClientCloudConnection(
-      ActionContext action_context,
-      Ptr<ClientCloudManager> const& client_connection_manager,
-      ObjPtr<Client> const& client, Uid client_uid, ObjPtr<Cloud> const& cloud,
-      std::unique_ptr<IServerConnectionFactory>&& server_connection_factory);
+  GetClientCloudConnection(ActionContext action_context,
+                           ObjPtr<Client> const& client, Uid client_uid);
 
   ~GetClientCloudConnection() override;
 
@@ -65,29 +54,20 @@ class GetClientCloudConnection : public Action<GetClientCloudConnection> {
   Ptr<ClientConnection> client_cloud_connection();
 
  private:
-  void TryCache();
-  void SelectConnection();
   void GetCloud();
   void CreateConnection();
 
   ActionContext action_context_;
   PtrView<Client> client_;
   Uid client_uid_;
-  PtrView<ClientCloudManager> client_connection_manager_;
-  ServerConnectionSelector server_connection_selector_;
-  std::optional<AsyncForLoop<RcPtr<ClientServerConnection>>>
-      connection_selection_loop_;
 
   StateMachine<State> state_;
-
-  RcPtr<ClientServerConnection> server_connection_;
-  Subscription connection_subscription_;
-
-  ActionPtr<GetClientCloudAction> get_client_cloud_action_;
-  MultiSubscription get_client_cloud_subscriptions_;
+  ActionPtr<GetCloudAction> get_cloud_action_;
+  PtrView<Cloud> new_cloud_;
 
   Ptr<ClientConnection> client_cloud_connection_;
   Subscription state_changed_subscription_;
+  Subscription get_cloud_sub_;
 };
 }  // namespace ae
 

@@ -141,11 +141,11 @@ void GetClientCloudAction::RequestCloud() {
             cloud_request_action_->StatusEvent().Subscribe(
                 ActionHandler{OnStop{[this]() {
                                 request_cloud_task_->Stop();
-                                state_.Set(State::kFailed);
+                                state_ = State::kFailed;
                               }},
                               OnError{[this]() {
                                 request_cloud_task_->Stop();
-                                state_.Set(State::kFailed);
+                                state_ = State::kFailed;
                               }}}));
       },
       std::chrono::milliseconds{500}, repeat_count};

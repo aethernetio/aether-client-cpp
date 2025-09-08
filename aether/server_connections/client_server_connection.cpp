@@ -20,6 +20,8 @@
 
 #include "aether/server.h"
 
+#include "aether/tele/tele.h"
+
 namespace ae {
 ClientServerConnection::ClientServerConnection(
     ActionContext action_context, [[maybe_unused]] ObjPtr<Aether> const& aether,
@@ -56,6 +58,7 @@ ClientServerConnection::ClientServerConnection(
   telemetry_ = OwnActionPtr<Telemetry>{action_context, aether,
                                        *client_to_server_stream_};
 #endif
+  NextChannel();
 }
 
 ClientToServerStream& ClientServerConnection::server_stream() {
@@ -89,12 +92,14 @@ void ClientServerConnection::SendTelemetry() {
 void ClientServerConnection::NextChannel() {
   auto server_ptr = server_.Lock();
   if (!server_ptr) {
+    AE_TELED_ERROR("No server");
     server_error_event_.Emit();
     return;
   }
 
   auto channel = channel_loop_->Update();
   if (!channel) {
+    AE_TELED_ERROR("Channel list is ended");
     server_error_event_.Emit();
     return;
   }
@@ -120,6 +125,7 @@ void ClientServerConnection::NextChannel() {
 }
 
 void ClientServerConnection::PingError() {
+  AE_TELED_ERROR("Ping error");
   // TODO: handle ping error depends on connection open status
   server_error_event_.Emit();
 }

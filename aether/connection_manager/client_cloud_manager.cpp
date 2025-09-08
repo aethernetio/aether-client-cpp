@@ -31,13 +31,14 @@
 
 namespace ae {
 namespace client_cloud_manager_internal {
-class GetCloudFromCache : public GetCloudAction {
+class GetCloudFromCache final : public GetCloudAction {
  public:
   GetCloudFromCache(ActionContext action_context, Cloud::ptr cloud)
       : GetCloudAction{action_context}, cloud_{std::move(cloud)} {}
 
   UpdateStatus Update() override { return UpdateStatus::Result(); }
   Cloud::ptr cloud() override { return std::move(cloud_); }
+  void Stop() override {};
 
  private:
   Cloud::ptr cloud_;
@@ -50,6 +51,7 @@ class GetCloudFromAether : public GetCloudAction {
     kWaitCloudResolve,
     kDone,
     kError,
+    kStopped,
   };
 
   explicit GetCloudFromAether(ActionContext action_context,
@@ -77,12 +79,15 @@ class GetCloudFromAether : public GetCloudAction {
           return UpdateStatus::Result();
         case State::kError:
           return UpdateStatus::Error();
+        case State::kStopped:
+          return UpdateStatus::Stop();
       }
     }
     return {};
   }
 
   Cloud::ptr cloud() override { return std::move(cloud_); }
+  void Stop() override { state_ = State::kStopped; };
 
  private:
   void ResolveCloud() {
@@ -99,13 +104,11 @@ class GetCloudFromAether : public GetCloudAction {
         ActionHandler{OnResult{[this](auto const& action) {
                         RegisterCloud(action.server_descriptors());
                         state_ = State::kDone;
-                        Action::Trigger();
                       }},
                       OnError{[this]() {
                         // try again
                         server_connection_pool_->Rotate();
                         state_ = State::kCloudResolve;
-                        Action::Trigger();
                       }}});
     state_ = State::kWaitCloudResolve;
   }

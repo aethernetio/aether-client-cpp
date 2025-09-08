@@ -24,6 +24,8 @@
 #  include "aether/api_protocol/api_protocol.h"
 #  include "aether/stream_api/protocol_gates.h"
 
+#  include "aether/tele/tele.h"
+
 namespace ae {
 GlobalRegServerStream::GlobalRegServerStream(
     ProtocolContext& protocol_context, ClientGlobalRegApi& client_global_api,
@@ -63,7 +65,9 @@ void GlobalRegServerStream::LinkOut(OutStream& out) {
 
 void GlobalRegServerStream::ReadData(DataBuffer const& data) {
   auto decrypt_data = crypto_gate_.WriteOut(data);
-  auto parser = ApiParser{*protocol_context_, data};
+  AE_TELED_DEBUG("Global reg server read data size {}\n{}", decrypt_data.size(),
+                 decrypt_data);
+  auto parser = ApiParser{*protocol_context_, decrypt_data};
   parser.Parse(*client_global_api_);
 }
 }  // namespace ae

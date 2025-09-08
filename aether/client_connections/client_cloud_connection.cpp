@@ -91,6 +91,7 @@ RcPtr<ClientServerConnection> ClientCloudConnection::TopConnection() {
 }
 
 bool ClientCloudConnection::Rotate() {
+  AE_TELED_DEBUG("Rotate connection");
   if (server_connection_) {
     server_connection_->NextChannel();
     return true;

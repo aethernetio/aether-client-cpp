@@ -18,6 +18,7 @@
 #define AETHER_CONNECTION_MANAGER_ISERVER_CONNECTION_POOL_H_
 
 #include "aether/ptr/rc_ptr.h"
+#include "aether/reflect/reflect.h"
 #include "aether/server_connections/client_server_connection.h"
 
 namespace ae {
@@ -40,6 +41,8 @@ class IServerConnectionPool {
    * \return true if rotation was successful, false otherwise.
    */
   virtual bool Rotate() = 0;
+
+  AE_REFLECT()
 };
 }  // namespace ae
 

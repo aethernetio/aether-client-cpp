@@ -19,6 +19,8 @@
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/stream_api/protocol_gates.h"
 
+#include "aether/tele/tele.h"
+
 #if AE_SUPPORT_REGISTRATION
 namespace ae {
 RegServerStream::RegServerStream(
@@ -78,12 +80,15 @@ void RegServerStream::LinkOut(OutStream& out) {
 }
 
 void RegServerStream::ReadRoot(DataBuffer const& data) {
+  AE_TELED_DEBUG("Reg server stream root size {}\n{}", data.size(), data);
   auto parser = ApiParser{*protocol_context_, data};
   parser.Parse(client_reg_root_api_);
 }
 
 void RegServerStream::ReadRootEnter(DataBuffer const& data) {
   auto decrypted_data = crypto_gate_.WriteOut(data);
+  AE_TELED_DEBUG("Reg server read root enter size {}\n{}",
+                 decrypted_data.size(), decrypted_data);
   auto parser = ApiParser{*protocol_context_, decrypted_data};
   parser.Parse(*client_api_);
 }

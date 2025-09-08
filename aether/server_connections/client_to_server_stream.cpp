@@ -120,6 +120,7 @@ ClientToServerStream::~ClientToServerStream() = default;
 ActionPtr<StreamWriteAction> ClientToServerStream::Write(DataBuffer&& in_data) {
   auto info = client_auth_stream_->stream_info();
   if (in_data.size() > info.max_element_size) {
+    AE_TELED_ERROR("Data size exceeds maximum element size");
     return ActionPtr<FailedStreamWriteAction>{action_context_};
   }
   return client_auth_stream_->Write(std::move(in_data));

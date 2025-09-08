@@ -43,8 +43,24 @@ ServerKeys* Client::server_state(ServerId server_id) {
 Cloud::ptr const& Client::cloud() const { return cloud_; }
 
 ClientCloudManager::ptr const& Client::cloud_manager() const {
-  assert(client_connection_manager_);
-  return client_connection_manager_;
+  assert(client_cloud_manager_);
+  return client_cloud_manager_;
+}
+
+ServerConnectionManager& Client::server_connection_manager() {
+  if (!server_connection_manager_) {
+    auto aether = Aether::ptr{aether_};
+    server_connection_manager_ = std::make_unique<ServerConnectionManager>(
+        *aether, aether, MakePtrFromThis(this));
+  }
+  return *server_connection_manager_;
+}
+
+IServerConnectionPool& Client::server_connection_pool() {
+  if (!server_connection_pool_) {
+    MakeClientConnection();
+  }
+  return *server_connection_pool_;
 }
 
 void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
@@ -58,18 +74,23 @@ void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
     server_keys_.emplace(s->server_id, ServerKeys{s->server_id, master_key_});
   }
 
-  client_connection_manager_ = domain_->CreateObj<ClientCloudManager>(
+  client_cloud_manager_ = domain_->CreateObj<ClientCloudManager>(
       ObjPtr<Aether>{aether_}, MakePtrFromThis(this));
 }
 
 Ptr<ClientConnection> const& Client::client_connection() {
   if (!client_connection_) {
-    // the default implementation
-    client_connection_ = MakePtr<ClientCloudConnection>(
-        *aether_.as<Aether>(), cloud_,
-        server_connection_manager().GetServerConnectionFactory());
+    MakeClientConnection();
   }
   return client_connection_;
 }
 
+void Client::MakeClientConnection() {
+  // the default implementation
+  auto client_cloud_connection = MakePtr<ClientCloudConnection>(
+      *aether_.as<Aether>(), cloud_,
+      server_connection_manager().GetServerConnectionFactory());
+  server_connection_pool_ = client_cloud_connection;
+  client_connection_ = client_cloud_connection;
+}
 }  // namespace ae

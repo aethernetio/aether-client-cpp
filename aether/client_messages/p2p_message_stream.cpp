@@ -16,6 +16,8 @@
 
 #include "aether/client_messages/p2p_message_stream.h"
 
+#include "aether/ae_actions/get_client_cloud_connection.h"
+
 #include "aether/client_messages/client_messages_tele.h"
 
 namespace ae {
@@ -26,7 +28,7 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
       destination_{destination},
       receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
-      buffer_stream_{action_context_, 20 * 1024} {
+      buffer_stream_{action_context_, 20 * 1024, 20 * 1024} {
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
   // destination uid must not be empty
   assert(!destination_.empty());
@@ -92,9 +94,8 @@ void P2pStream::ConnectSend() {
     auto client_ptr = client_.Lock();
 
     // get destination client's cloud connection  to creat stream
-    auto get_client_connection_action =
-        client_ptr->client_connection_manager()->GetClientConnection(
-            destination_);
+    auto get_client_connection_action = ActionPtr<GetClientCloudConnection>{
+        action_context_, client_ptr, destination_};
     get_client_connection_subscription_ =
         get_client_connection_action->StatusEvent().Subscribe(
             OnResult{[this](auto& action) {
