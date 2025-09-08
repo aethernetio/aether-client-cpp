@@ -262,7 +262,7 @@ bool Sim7070AtModem::PowerOff() {
   return true;
 }
 
-//=============================private members================================//
+// =============================private members=========================== //
 kModemError Sim7070AtModem::CheckResponse(std::string const& response,
                                           std::uint32_t const wait_time,
                                           std::string const& error_message) {
@@ -457,8 +457,8 @@ kModemError Sim7070AtModem::SetupNetwork(
 kModemError Sim7070AtModem::SetupProtoPar() {
   kModemError err{kModemError::kNoError};
 
-  // AT+CACFG	Set transparent parameters	OK
-  // AT+CASSLCFG	Set SSL parameters	OK
+  // AT+CACFG Set transparent parameters OK
+  // AT+CASSLCFG Set SSL parameters OK
 
   return err;
 }

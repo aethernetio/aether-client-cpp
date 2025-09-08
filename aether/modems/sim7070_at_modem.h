@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
-#define AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
+#ifndef AETHER_MODEMS_SIM7070_AT_MODEM_H_
+#define AETHER_MODEMS_SIM7070_AT_MODEM_H_
 
 #include <memory>
 
@@ -119,4 +119,4 @@ class Sim7070AtModem final : public IModemDriver {
 
 } /* namespace ae */
 
-#endif  // AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
+#endif  // AETHER_MODEMS_SIM7070_AT_MODEM_H_

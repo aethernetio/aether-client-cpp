@@ -23,7 +23,7 @@ namespace ae {
 Bg95AtModem::Bg95AtModem(ModemInit modem_init, Domain* domain)
     : IModemDriver(modem_init, domain) {
   serial_ = SerialPortFactory::CreatePort(modem_init.serial_init);
-};
+}
 
 void Bg95AtModem::Init() {
   kModemError err{kModemError::kNoError};
@@ -107,7 +107,7 @@ void Bg95AtModem::WritePacket(std::int8_t const connect_index,
                               std::vector<uint8_t> const& data) {
   serial_->Write(data);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
-};
+}
 
 void Bg95AtModem::ReadPacket(std::int8_t const connect_index,
                              std::vector<std::uint8_t>& data,
@@ -119,9 +119,9 @@ void Bg95AtModem::ReadPacket(std::int8_t const connect_index,
   data = response_vector;
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
   AE_TELE_ERROR(kAdapterSerialNotOpen, "Timeout {}", timeout);
-};
+}
 
-//=============================private members=============================//
+// ============================private members============================= //
 kModemError Bg95AtModem::CheckResponse(std::string responce,
                                        std::uint32_t wait_time,
                                        std::string error_message) {
