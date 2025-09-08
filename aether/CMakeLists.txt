@@ -142,7 +142,7 @@ list(APPEND transport_srcs
             "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
             "transport/low_level/udp/udp.cpp"
-            "transport/modems/modem_tcp.cpp"
+            "transport/modems/modem_transport.cpp"
 )
 
 list(APPEND server_list_srcs
