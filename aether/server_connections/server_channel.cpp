@@ -30,7 +30,8 @@ ServerChannel::ServerChannel(ActionContext action_context,
                              Channel::ptr const& channel)
     : action_context_{action_context},
       channel_{channel},
-      buffer_stream_{action_context_, kBufferGateCapacity},
+      buffer_stream_{action_context_, channel->max_packet_size(),
+                     kBufferGateCapacity},
       build_transport_action_{action_context, channel},
       build_transport_sub_{build_transport_action_->StatusEvent().Subscribe(
           ActionHandler{OnResult{[this](auto& action) { OnConnected(action); }},

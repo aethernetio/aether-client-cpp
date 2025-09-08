@@ -54,12 +54,14 @@ std::size_t BufferStream::BufferedWriteAction::size() const {
   return data_size_;
 }
 
-BufferStream::BufferStream(ActionContext action_context, std::size_t buffer_max)
+BufferStream::BufferStream(ActionContext action_context,
+                           std::size_t max_packet_size, std::size_t buffer_max)
     : action_context_{action_context},
       buffer_max_{buffer_max},
       stream_info_{},
       last_out_stream_info_{} {
   stream_info_.is_writable = true;
+  stream_info_.max_element_size = max_packet_size;
 }
 
 ActionPtr<StreamWriteAction> BufferStream::Write(DataBuffer&& data) {

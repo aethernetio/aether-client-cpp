@@ -57,4 +57,20 @@ Duration Channel::expected_ping_time() const {
   return channel_statistics_->ping_time_statistics().percentile<99>();
 }
 
+std::size_t Channel::max_packet_size() const {
+  // TODO: make it depend on the adapter's capabilities
+  auto protocol =
+      std::visit([](auto const& addr) { return addr.protocol; }, address);
+  switch (protocol) {
+    case Protocol::kTcp:
+      return static_cast<std::size_t>(
+          std::numeric_limits<std::uint32_t>::max());
+    case Protocol::kUdp:
+      return 1200;
+    default:
+      break;
+  }
+  return 0;
+}
+
 }  // namespace ae

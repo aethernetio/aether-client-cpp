@@ -46,6 +46,8 @@ class Channel : public Obj {
   Duration expected_connection_time() const;
   Duration expected_ping_time() const;
 
+  std::size_t max_packet_size() const;
+
   UnifiedAddress address;
 
  private:

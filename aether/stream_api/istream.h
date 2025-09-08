@@ -139,7 +139,7 @@ class Stream : public IStream<TIn, TOut> {
   virtual void Unlink() = 0;
 
  protected:
-  OutStream* out_;
+  OutStream* out_{};
   StreamUpdateEvent stream_update_event_;
   OutDataEvent out_data_event_;
   Subscription update_sub_;
@@ -201,7 +201,7 @@ class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
   }
 
  protected:
-  OutStream* out_;
+  OutStream* out_{};
   StreamUpdateEvent stream_update_event_;
   OutDataEvent out_data_event_;
   Subscription update_sub_;
