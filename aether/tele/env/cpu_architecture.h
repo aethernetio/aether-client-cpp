@@ -124,6 +124,10 @@
 #  define AE_CPU_TYPE "PA-RISC"
 #endif
 
+#if defined __riscv
+#  define AE_CPU_TYPE "RISCV"
+#endif
+
 #if defined ESP_PLATFORM
 #  include <sdkconfig.h>
 #  define AE_CPU_TYPE CONFIG_IDF_TARGET
