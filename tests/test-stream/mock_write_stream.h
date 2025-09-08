@@ -40,7 +40,7 @@ class MockWriteStream : public ByteStream {
   explicit MockWriteStream(ActionContext action_context,
                            std::size_t max_data_size)
       : action_context_{action_context},
-        stream_info_{max_data_size, {}, {}, {}} {}
+        stream_info_{max_data_size, max_data_size, {}, {}, {}} {}
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& buffer) override {
     on_write_.Emit(std::move(buffer));

@@ -30,7 +30,8 @@ class RegistratorAction : public Action<RegistratorAction> {
   };
 
  public:
-  explicit RegistratorAction(RcPtr<AetherApp> const& aether_app,
+  explicit RegistratorAction(ActionContext action_context,
+                             RcPtr<AetherApp> const& aether_app,
                              RegistratorConfig const& registrator_config);
   UpdateStatus Update();
 

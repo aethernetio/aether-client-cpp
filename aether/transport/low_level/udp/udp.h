@@ -32,13 +32,13 @@
 #  include "aether/events/multi_subscription.h"
 
 #  include "aether/poller/poller.h"
-#  include "aether/transport/itransport.h"
+#  include "aether/stream_api/istream.h"
 #  include "aether/transport/socket_packet_send_action.h"
 #  include "aether/transport/socket_packet_queue_manager.h"
 #  include "aether/transport/low_level/sockets/udp_sockets_factory.h"
 
 namespace ae {
-class UdpTransport : public ITransport {
+class UdpTransport : public ByteIStream {
   class ReadAction final : public Action<ReadAction> {
    public:
     ReadAction(ActionContext action_context, UdpTransport& transport);
@@ -79,21 +79,17 @@ class UdpTransport : public ITransport {
                IpAddressPort endpoint);
   ~UdpTransport() override;
 
-  void Connect() override;
-  ConnectionInfo const& GetConnectionInfo() const override;
-  ConnectionSuccessEvent::Subscriber ConnectionSuccess() override;
-  ConnectionErrorEvent::Subscriber ConnectionError() override;
-  DataReceiveEvent::Subscriber ReceiveEvent() override;
-
-  ActionPtr<PacketSendAction> Send(DataBuffer data,
-                                   TimePoint current_time) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
+  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamInfo stream_info() const override;
+  OutDataEvent::Subscriber out_data_event() override;
 
  private:
+  void Connect();
   void ReadSocket();
   void WriteSocket();
   void ErrorSocket();
 
-  void OnConnectionError();
   void Disconnect();
 
   ActionContext action_context_;
@@ -103,10 +99,10 @@ class UdpTransport : public ITransport {
   std::mutex socket_mutex_;
   UdpSocket socket_;
 
-  ConnectionInfo connection_info_;
-  ConnectionSuccessEvent connection_success_event_;
-  ConnectionErrorEvent connection_error_event_;
-  DataReceiveEvent data_receive_event_;
+  StreamInfo stream_info_;
+  OutDataEvent out_data_event_;
+  StreamUpdateEvent stream_update_event_;
+
   OwnActionPtr<SocketPacketQueueManager<SendAction>> send_queue_manager_;
   OwnActionPtr<ErrorEventAction> notify_error_action_;
   OwnActionPtr<ReadAction> read_action_;

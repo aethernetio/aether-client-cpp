@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/client_connections/client_to_server_stream.h"
+#include "aether/server_connections/client_to_server_stream.h"
 
 #include <utility>
 
@@ -80,7 +80,7 @@ class ClientDecryptKeyProvider : public ClientKeyProvider {
 
 ClientToServerStream::ClientToServerStream(
     ActionContext action_context, Ptr<Client> const& client, ServerId server_id,
-    std::unique_ptr<ByteIStream> server_stream)
+    std::unique_ptr<ServerChannel> server_channel)
     : action_context_{action_context},
       client_{client},
       server_id_{server_id},
@@ -88,7 +88,7 @@ ClientToServerStream::ClientToServerStream(
       client_safe_api_{protocol_context_},
       login_api_{protocol_context_},
       authorized_api_{protocol_context_, action_context_},
-      server_stream_{std::move(server_stream)} {
+      server_channel_{std::move(server_channel)} {
   AE_TELE_INFO(ClientServerStreamCreate, "Create ClientToServerStreamGate");
 
   auto client_ptr = client_.Lock();
@@ -115,14 +115,14 @@ ClientToServerStream::ClientToServerStream(
           EventSubscriber{client_root_api_.send_safe_api_data_event}},
       ProtocolReadGate{protocol_context_, client_root_api_});
 
-  Tie(*client_auth_stream_, *server_stream_);
+  Tie(*client_auth_stream_, server_channel_->stream());
 }
 
 ClientToServerStream::~ClientToServerStream() = default;
 
 ActionPtr<StreamWriteAction> ClientToServerStream::Write(DataBuffer&& in_data) {
   auto info = client_auth_stream_->stream_info();
-  if (info.strict_size_rules && (in_data.size() > info.max_element_size)) {
+  if (in_data.size() > info.max_element_size) {
     return ActionPtr<FailedStreamWriteAction>{action_context_};
   }
   return client_auth_stream_->Write(std::move(in_data));

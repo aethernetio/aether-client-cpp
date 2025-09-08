@@ -20,9 +20,9 @@
 
 #include "aether/client.h"
 #include "aether/server_list/no_filter_server_list_policy.h"
-#include "aether/client_connections/client_to_server_stream.h"
+#include "aether/server_connections/client_to_server_stream.h"
 #include "aether/client_connections/client_cloud_connection.h"
-#include "aether/client_connections/client_connection_manager.h"
+#include "aether/connection_manager/client_connection_manager.h"
 
 #include "aether/ae_actions/ae_actions_tele.h"
 
@@ -111,7 +111,8 @@ void GetClientCloudConnection::SelectConnection() {
     return;
   }
 
-  if (server_connection_->server_stream().stream_info().is_linked) {
+  if (server_connection_->server_stream().stream_info().link_state ==
+      LinkState::kLinked) {
     state_ = State::kGetCloud;
     return;
   }
@@ -119,7 +120,8 @@ void GetClientCloudConnection::SelectConnection() {
   connection_subscription_ =
       server_connection_->server_stream().stream_update_event().Subscribe(
           [this]() {
-            if (server_connection_->server_stream().stream_info().is_linked) {
+            if (server_connection_->server_stream().stream_info().link_state ==
+                LinkState::kLinked) {
               state_ = State::kGetCloud;
             } else {
               state_ = State::kSelectConnection;

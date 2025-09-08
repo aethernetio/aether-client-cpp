@@ -190,6 +190,11 @@ class GatesStream final
     auto info = Base::out_->stream_info();
     auto overhead = std::apply(
         [&](auto const&... gates) { return TiedOverhead(gates...); }, gates_);
+    if (info.rec_element_size < overhead) {
+      info.rec_element_size = 0;
+    } else {
+      info.rec_element_size -= overhead;
+    }
     if (info.max_element_size < overhead) {
       info.max_element_size = 0;
     } else {

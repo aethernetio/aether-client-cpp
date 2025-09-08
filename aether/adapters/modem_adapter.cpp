@@ -18,17 +18,18 @@
 
 #include "aether/modems/modem_factory.h"
 #include "aether/transport/modems/modem_tcp.h"
+#include "aether/transport/itransport_stream_builder.h"
 
 #include "aether/adapters/adapter_tele.h"
 
 namespace ae {
 namespace modem_adapter_internal {
-class ModemAdapterTransportBuilder final : public ITransportBuilder {
+class ModemAdapterTransportBuilder final : public ITransportStreamBuilder {
  public:
   ModemAdapterTransportBuilder(ModemAdapter& adapter, UnifiedAddress address)
       : adapter_{&adapter}, address_{std::move(address)} {}
 
-  std::unique_ptr<ITransport> BuildTransport() override {
+  std::unique_ptr<ByteIStream> BuildTransportStream() override {
     auto protocol = std::visit(
         [&](auto const& address_port_protocol) {
           return address_port_protocol.protocol;
@@ -47,7 +48,7 @@ class ModemAdapterTransportBuilder final : public ITransportBuilder {
   }
 
  private:
-  std::unique_ptr<ITransport> BuildTcp() {
+  std::unique_ptr<ByteIStream> BuildTcp() {
 #if defined MODEM_TCP_ENABLED
     return make_unique<ModemTcpTransport>(*adapter_->aether_.as<Aether>(),
                                           *adapter_->modem_driver_, address_);
@@ -57,7 +58,7 @@ class ModemAdapterTransportBuilder final : public ITransportBuilder {
 #endif
   }
 
-  std::unique_ptr<ITransport> BuildUdp() {
+  std::unique_ptr<ByteIStream> BuildUdp() {
 #if defined MODEM_UDP_ENABLED
     assert(address_port_protocol_.protocol == Protocol::kUdp);
     return make_unique<ModemUdpTransport>(*adapter_->aether_.as<Aether>(),
@@ -121,9 +122,9 @@ UpdateStatus ModemAdapterTransportBuilderAction::Update() {
   return {};
 }
 
-std::vector<std::unique_ptr<ITransportBuilder>>
+std::vector<std::unique_ptr<ITransportStreamBuilder>>
 ModemAdapterTransportBuilderAction::builders() {
-  std::vector<std::unique_ptr<ITransportBuilder>> res;
+  std::vector<std::unique_ptr<ITransportStreamBuilder>> res;
   res.emplace_back(std::move(transport_builder_));
   return res;
 }

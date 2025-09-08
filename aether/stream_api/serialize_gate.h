@@ -21,9 +21,8 @@
 
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
+#include "aether/types/data_buffer.h"
 #include "aether/api_protocol/api_message.h"
-
-#include "aether/stream_api/istream.h"
 
 namespace ae {
 template <typename TIn, typename TOut>

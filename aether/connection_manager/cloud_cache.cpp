@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2024 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_ITRANSPORT_BUILDER_H_
-#define AETHER_TRANSPORT_ITRANSPORT_BUILDER_H_
-
-#include <memory>
-
-#include "aether/transport/itransport.h"
+#include "aether/connection_manager/cloud_cache.h"
 
 namespace ae {
-class ITransportBuilder {
- public:
-  virtual ~ITransportBuilder() = default;
+std::optional<std::reference_wrapper<Cloud::ptr>> CloudCache::GetCache(
+    Uid uid) {
+  auto it = clouds_.find(uid);
+  if (it == std::end(clouds_)) {
+    return {};
+  }
+  return std::ref(it->second);
+}
 
-  virtual std::unique_ptr<ITransport> BuildTransport() = 0;
-};
+void CloudCache::AddCloud(Uid uid, Cloud::ptr cloud) {
+  clouds_[uid] = std::move(cloud);
+}
+
 }  // namespace ae
-
-#endif  // AETHER_TRANSPORT_ITRANSPORT_BUILDER_H_

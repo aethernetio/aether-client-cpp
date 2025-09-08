@@ -19,7 +19,7 @@
 
 #include <string>
 
-#include "aether/stream_api/istream.h"
+#include "aether/types/data_buffer.h"
 
 namespace ae {
 class DebugGate {

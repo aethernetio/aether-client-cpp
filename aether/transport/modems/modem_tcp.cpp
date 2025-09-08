@@ -17,8 +17,8 @@
 #include "aether/transport/modems/modem_tcp.h"
 
 #if defined MODEM_TCP_ENABLED
-#  include "aether/reflect/reflect.h"
 #  include "aether/mstream.h"
+#  include "aether/reflect/reflect.h"
 #  include "aether/mstream_buffers.h"
 
 #  include "aether/transport/transport_tele.h"
@@ -35,7 +35,7 @@ ModemTcpTransport::SendAction::SendAction(ActionContext action_context,
       sent_offset_{} {}
 
 void ModemTcpTransport::SendAction::Send() {
-  state_ = State::kProgress;
+  state_ = State::kInProgress;
 
   auto remain_to_send = data_.size() - sent_offset_;
   auto size_to_send =
@@ -49,7 +49,7 @@ void ModemTcpTransport::SendAction::Send() {
 
   sent_offset_ += size_to_send;
   if (sent_offset_ >= data_.size()) {
-    state_ = State::kSuccess;
+    state_ = State::kDone;
   }
   Action::Trigger();
 }
@@ -83,7 +83,7 @@ void ModemTcpTransport::ReadAction::Read() {
        data = data_packet_collector_.PopPacket()) {
     AE_TELE_DEBUG(kModemTcpTransportReceive, "Receive data size {}",
                   data.size());
-    transport_->data_receive_event_.Emit(data, Now());
+    transport_->out_data_event_.Emit(data);
   }
 }
 
@@ -93,20 +93,21 @@ ModemTcpTransport::ModemTcpTransport(ActionContext action_context,
     : action_context_{action_context},
       modem_driver_{&modem_driver},
       address_{std::move(address)},
-      connection_info_{kMaxPacketSize, ConnectionState::kUndefined,
-                       ConnectionType::kConnectionOriented,
-                       Reliability::kUnreliable},
+      stream_info_{},
       // poll send queue each 50 ms
       send_action_queue_manager_{action_context_,
                                  std::chrono::milliseconds{50}} {
   AE_TELE_INFO(kModemTcpTransport, "Modem tcp transport created for {}",
                address_);
+  stream_info_.link_state = LinkState::kUnlinked;
+  stream_info_.is_reliable = true;
+  stream_info_.max_element_size = 2 * kMaxPacketSize;
+  stream_info_.rec_element_size = kMaxPacketSize;
 }
 
 ModemTcpTransport::~ModemTcpTransport() { Disconnect(); }
 
 void ModemTcpTransport::Connect() {
-  connection_info_.connection_state = ConnectionState::kConnecting;
   // open network depend on address type
   connection_ = std::visit(
       reflect::OverrideFunc{[&](IpAddressPortProtocol const& address) {
@@ -126,47 +127,38 @@ void ModemTcpTransport::Connect() {
 
   // Connection failed
   if (connection_ == kInvalidConnectionIndex) {
-    connection_info_.connection_state = ConnectionState::kDisconnected;
-    connection_error_event_.Emit();
+    stream_info_.link_state = LinkState::kLinkError;
+    stream_update_event_.Emit();
     return;
   }
 
   // Connection succeeded
   read_action_ = OwnActionPtr<ReadAction>{action_context_, *this};
 
-  connection_info_.connection_state = ConnectionState::kConnected;
-  connection_success_event_.Emit();
+  stream_info_.link_state = LinkState::kLinked;
+  stream_update_event_.Emit();
 }
 
-ConnectionInfo const& ModemTcpTransport::GetConnectionInfo() const {
-  return connection_info_;
+ModemTcpTransport::StreamUpdateEvent::Subscriber
+ModemTcpTransport::stream_update_event() {
+  return stream_update_event_;
 }
 
-ModemTcpTransport::ConnectionSuccessEvent::Subscriber
-ModemTcpTransport::ConnectionSuccess() {
-  return EventSubscriber{connection_success_event_};
+StreamInfo ModemTcpTransport::stream_info() const { return stream_info_; }
+
+ModemTcpTransport::OutDataEvent::Subscriber
+ModemTcpTransport::out_data_event() {
+  return out_data_event_;
 }
 
-ModemTcpTransport::ConnectionErrorEvent::Subscriber
-ModemTcpTransport::ConnectionError() {
-  return EventSubscriber{connection_error_event_};
-}
-
-ModemTcpTransport::DataReceiveEvent::Subscriber
-ModemTcpTransport::ReceiveEvent() {
-  return EventSubscriber{data_receive_event_};
-}
-
-ActionPtr<PacketSendAction> ModemTcpTransport::Send(DataBuffer data,
-                                                    TimePoint current_time) {
-  AE_TELE_DEBUG(kModemTcpTransportSend, "Send data size {} at {:%H:%M:%S}",
-                data.size(), current_time);
+ActionPtr<StreamWriteAction> ModemTcpTransport::Write(DataBuffer&& in_data) {
+  AE_TELE_DEBUG(kModemTcpTransportSend, "Send data size {}", in_data.size());
 
   auto packet_data = std::vector<std::uint8_t>{};
   VectorWriter<PacketSize> vw{packet_data};
   auto os = omstream{vw};
   // copy data with size
-  os << data;
+  os << in_data;
 
   auto send_action = send_action_queue_manager_->AddPacket(
       ActionPtr<SendAction>{action_context_, *this, std::move(packet_data)});
@@ -179,8 +171,8 @@ ActionPtr<PacketSendAction> ModemTcpTransport::Send(DataBuffer data,
 }
 
 void ModemTcpTransport::OnConnectionFailed() {
-  connection_info_.connection_state = ConnectionState::kDisconnected;
-  connection_error_event_.Emit();
+  stream_info_.link_state = LinkState::kLinkError;
+  stream_update_event_.Emit();
 }
 
 void ModemTcpTransport::Disconnect() {

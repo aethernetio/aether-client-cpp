@@ -21,12 +21,11 @@
 
 #include "aether/events/events.h"
 #include "aether/reflect/reflect.h"
+#include "aether/types/data_buffer.h"
 #include "aether/api_protocol/child_data.h"
 #include "aether/api_protocol/api_method.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/api_protocol/api_class_impl.h"
-
-#include "aether/stream_api/istream.h"
 
 namespace ae {
 using StreamId = std::uint8_t;

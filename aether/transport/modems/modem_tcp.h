@@ -24,17 +24,16 @@
 #  define MODEM_TCP_ENABLED 1
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
-#  include "aether/events/event_subscription.h"
 #  include "aether/events/multi_subscription.h"
 
+#  include "aether/stream_api/istream.h"
 #  include "aether/modems/imodem_driver.h"
-#  include "aether/transport/itransport.h"
 #  include "aether/transport/data_packet_collector.h"
 #  include "aether/transport/modems/send_queue_poller.h"
 #  include "aether/transport/socket_packet_send_action.h"
 
 namespace ae {
-class ModemTcpTransport final : public ITransport {
+class ModemTcpTransport final : public ByteIStream {
   class SendAction final : public SocketPacketSendAction {
    public:
     SendAction(ActionContext action_context, ModemTcpTransport& transport,
@@ -69,20 +68,13 @@ class ModemTcpTransport final : public ITransport {
                     UnifiedAddress address);
   ~ModemTcpTransport() override;
 
-  void Connect() override;
-
-  ConnectionInfo const& GetConnectionInfo() const override;
-
-  ConnectionSuccessEvent::Subscriber ConnectionSuccess() override;
-
-  ConnectionErrorEvent::Subscriber ConnectionError() override;
-
-  DataReceiveEvent::Subscriber ReceiveEvent() override;
-
-  ActionPtr<PacketSendAction> Send(DataBuffer data,
-                                   TimePoint current_time) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
+  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamInfo stream_info() const override;
+  OutDataEvent::Subscriber out_data_event() override;
 
  private:
+  void Connect();
   void OnConnectionFailed();
   void Disconnect();
 
@@ -90,16 +82,15 @@ class ModemTcpTransport final : public ITransport {
   IModemDriver* modem_driver_;
   UnifiedAddress address_;
 
-  ConnectionInfo connection_info_;
+  StreamInfo stream_info_;
 
   ConnectionIndex connection_ = kInvalidConnectionIndex;
 
-  ConnectionSuccessEvent connection_success_event_;
-  ConnectionErrorEvent connection_error_event_;
-  DataReceiveEvent data_receive_event_;
-
   OwnActionPtr<SendQueuePoller<SendAction>> send_action_queue_manager_;
   OwnActionPtr<ReadAction> read_action_;
+
+  OutDataEvent out_data_event_;
+  StreamUpdateEvent stream_update_event_;
 
   MultiSubscription send_action_subs_;
 };

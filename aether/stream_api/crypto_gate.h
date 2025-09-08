@@ -18,6 +18,7 @@
 #define AETHER_STREAM_API_CRYPTO_GATE_H_
 
 #include "aether/memory.h"
+#include "aether/types/data_buffer.h"
 #include "aether/crypto/icrypto_provider.h"
 
 namespace ae {

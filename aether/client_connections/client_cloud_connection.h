@@ -31,8 +31,8 @@
 #include "aether/stream_api/istream.h"
 
 #include "aether/client_connections/client_connection.h"
-#include "aether/client_connections/client_server_connection.h"
-#include "aether/client_connections/server_connection_selector.h"
+#include "aether/server_connections/client_server_connection.h"
+#include "aether/connection_manager/server_connection_selector.h"
 
 namespace ae {
 class Cloud;

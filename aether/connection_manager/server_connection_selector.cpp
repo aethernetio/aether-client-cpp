@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/client_connections/server_connection_selector.h"
+#include "aether/connection_manager/server_connection_selector.h"
 
 #include <utility>
 

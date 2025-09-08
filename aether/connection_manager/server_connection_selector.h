@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_SERVER_CONNECTION_SELECTOR_H_
-#define AETHER_CLIENT_CONNECTIONS_SERVER_CONNECTION_SELECTOR_H_
+#ifndef AETHER_CONNECTION_MANAGER_SERVER_CONNECTION_SELECTOR_H_
+#define AETHER_CONNECTION_MANAGER_SERVER_CONNECTION_SELECTOR_H_
 
 #include "aether/memory.h"
 #include "aether/ptr/rc_ptr.h"
 #include "aether/server_list/server_list.h"
-#include "aether/client_connections/client_server_connection.h"
-#include "aether/client_connections/iserver_connection_factory.h"
+#include "aether/server_connections/client_server_connection.h"
+#include "aether/connection_manager/iserver_connection_factory.h"
 
 namespace ae {
 class Cloud;
@@ -46,4 +46,4 @@ class ServerConnectionSelector {
 };
 }  // namespace ae
 
-#endif  // AETHER_CLIENT_CONNECTIONS_SERVER_CONNECTION_SELECTOR_H_
+#endif  // AETHER_CONNECTION_MANAGER_SERVER_CONNECTION_SELECTOR_H_

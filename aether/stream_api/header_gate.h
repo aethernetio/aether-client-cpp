@@ -17,8 +17,6 @@
 #ifndef AETHER_STREAM_API_HEADER_GATE_H_
 #define AETHER_STREAM_API_HEADER_GATE_H_
 
-#include "aether/stream_api/istream.h"
-
 #include "aether/types/data_buffer.h"
 
 namespace ae {
