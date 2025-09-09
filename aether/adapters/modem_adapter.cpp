@@ -112,7 +112,7 @@ void ModemAdapterTransportBuilderAction::CreateBuilders() {
 }
 }  // namespace modem_adapter_internal
 
-//#if defined AE_DISTILLATION
+#if defined AE_DISTILLATION
 ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, ModemInit modem_init,
                            Domain* domain)
     : ParentModemAdapter{std::move(aether), std::move(modem_init), domain} {
@@ -120,6 +120,7 @@ ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, ModemInit modem_init,
   modem_driver_->Init();
   AE_TELED_DEBUG("Modem instance created!");
 }
+#endif  // AE_DISTILLATION
 
 ModemAdapter::~ModemAdapter() {
   if (connected_) {
@@ -128,7 +129,6 @@ ModemAdapter::~ModemAdapter() {
     connected_ = false;
   }
 }
-//#endif  // AE_DISTILLATION
 
 ActionPtr<TransportBuilderAction> ModemAdapter::CreateTransport(
     UnifiedAddress const& address_port_protocol) {
