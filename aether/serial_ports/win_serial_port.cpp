@@ -101,7 +101,7 @@ void WINSerialPort::Open(std::string const& port_name,
 }
 
 void WINSerialPort::ConfigurePort(std::uint32_t baud_rate) {
-  DCB dcb = {sizeof(DCB)};
+  DCB dcb{};
   if (!GetCommState(h_port_, &dcb)) {
     Close();
     AE_TELE_ERROR(kAdapterSerialPortState, "Failed to get port state");
@@ -120,7 +120,7 @@ void WINSerialPort::ConfigurePort(std::uint32_t baud_rate) {
 }
 
 void WINSerialPort::SetupTimeouts() {
-  COMMTIMEOUTS timeouts = {0};
+  COMMTIMEOUTS timeouts = {};
   timeouts.ReadIntervalTimeout = 50;
   timeouts.ReadTotalTimeoutConstant = 50;
   timeouts.ReadTotalTimeoutMultiplier = 10;

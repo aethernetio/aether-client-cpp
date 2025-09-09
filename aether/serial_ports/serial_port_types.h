@@ -49,12 +49,12 @@ struct SerialInit {
   AE_REFLECT_MEMBERS(port_name, baud_rate, tx_io_num, rx_io_num, rts_io_num,
                      cts_io_num)
 
-  std::string port_name;
-  kBaudRate baud_rate;
-  int tx_io_num;
-  int rx_io_num;
-  int rts_io_num;
-  int cts_io_num;
+  std::string port_name{};
+  kBaudRate baud_rate{kBaudRate::kBaudRate115200};
+  int tx_io_num{1};
+  int rx_io_num{2};
+  int rts_io_num{3};
+  int cts_io_num{4};
 };
 }  // namespace ae
 
