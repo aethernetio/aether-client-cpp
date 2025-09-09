@@ -426,31 +426,22 @@ kModemError Sim7070AtModem::SetupNetwork(
   SendATCommand("AT+CNACT=" + context_i_str + ",1");
   if (auto err = CheckResponse("OK", 1000, "AT+CNACT command error!");
       err != kModemError::kNoError) {
-    return err;
+    // AT+CNACT=<pdpidx>,<action> // Deactivate the PDP context
+    SendATCommand("AT+CNACT=" + context_i_str + ",0");
+
+    if (err = CheckResponse("+APP PDP: " + context_i_str + ",DEACTIVE", 10000,
+                            "AT+CNACT command error!");
+        err != kModemError::kNoError) {
+      return err;
+    }
+
+    // AT+CNACT=<pdpidx>,<action> // Activate the PDP context
+    SendATCommand("AT+CNACT=" + context_i_str + ",1");
+    if (err = CheckResponse("OK", 1000, "AT+CNACT command error!");
+        err != kModemError::kNoError) {
+      return err;
+    }
   }
-
-  // AT+CNACT=<pdpidx>,<action> // Deactivate the PDP context
-  SendATCommand("AT+CNACT=" + context_i_str + ",0");
-
-  if (auto err = CheckResponse("+APP PDP: " + context_i_str + ",DEACTIVE",
-                               10000, "AT+CNACT command error!");
-      err != kModemError::kNoError) {
-    return err;
-  }
-
-  // AT+CNACT=<pdpidx>,<action> // Activate the PDP context
-  SendATCommand("AT+CNACT=" + context_i_str + ",1");
-  if (auto err = CheckResponse("OK", 1000, "AT+CNACT command error!");
-      err != kModemError::kNoError) {
-    return err;
-  }
-
-  if (auto err = CheckResponse("+APP PDP: " + context_i_str + ",ACTIVE", 5000,
-                               "AT+CNACT command error!");
-      err != kModemError::kNoError) {
-    return kModemError::kSetNetwork;
-  }
-
   return kModemError::kNoError;
 }
 
@@ -556,8 +547,8 @@ void Sim7070AtModem::SendTcp(Sim7070Connection const& connection,
   // Query send data information of the TCP/UDP
   // connection with an identifier 0.
   SendATCommand("AT+CAACK=" + connect_i_str);
-  // +CAACK: <totalsize>,<unacksize> // Total size of sent data is totalsize and
-  // unack data is unacksize get data size
+  // +CAACK: <totalsize>,<unacksize> // Total size of sent data is totalsize
+  // and unack data is unacksize get data size
   std::ptrdiff_t size = 0;
   auto response = serial_->Read();
   std::string response_string(response->begin(), response->end());
@@ -596,8 +587,8 @@ void Sim7070AtModem::SendUdp(Sim7070Connection const& connection,
   // Query send data information of the TCP/UDP
   // connection with an identifier 0.
   SendATCommand("AT+CAACK=" + connect_i_str);
-  // +CAACK: <totalsize>,<unacksize> // Total size of sent data is totalsize and
-  // unack data is unacksize get data size
+  // +CAACK: <totalsize>,<unacksize> // Total size of sent data is totalsize
+  // and unack data is unacksize get data size
   std::ptrdiff_t size = 0;
   auto response = serial_->Read();
   std::string response_string(response->begin(), response->end());
