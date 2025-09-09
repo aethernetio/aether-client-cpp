@@ -52,8 +52,6 @@ class ModemTransport final : public ByteIStream {
     void Send() override;
 
    private:
-    ModemTransport* transport_;
-    DataBuffer data_;
     std::size_t sent_offset_;
   };
 
@@ -63,22 +61,19 @@ class ModemTransport final : public ByteIStream {
                   DataBuffer data);
 
     void Send() override;
-
-   private:
-    ModemTransport* transport_;
-    DataBuffer data_;
   };
 
   class ModemReadAction : public Action<ModemReadAction> {
    public:
-    using Action::Action;
+    ModemReadAction(ActionContext action_context, ModemTransport& transport);
 
     UpdateStatus Update(TimePoint current_time);
     void Stop();
 
     virtual void Read() = 0;
 
-   private:
+   protected:
+    ModemTransport* transport_;
     bool stopped_ = false;
   };
 
@@ -89,7 +84,6 @@ class ModemTransport final : public ByteIStream {
     void Read() override;
 
    private:
-    ModemTransport* transport_;
     StreamDataPacketCollector data_packet_collector_;
   };
 
@@ -98,9 +92,6 @@ class ModemTransport final : public ByteIStream {
     ReadUdpAction(ActionContext action_context, ModemTransport& transport);
 
     void Read() override;
-
-   private:
-    ModemTransport* transport_;
   };
 
  public:

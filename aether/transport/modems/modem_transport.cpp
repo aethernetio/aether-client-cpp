@@ -72,6 +72,10 @@ void ModemTransport::SendUdpAction::Send() {
   Action::Trigger();
 }
 
+ModemTransport::ModemReadAction::ModemReadAction(ActionContext action_context,
+                                                 ModemTransport& transport)
+    : Action{action_context}, transport_{&transport} {}
+
 UpdateStatus ModemTransport::ModemReadAction::Update(TimePoint current_time) {
   if (stopped_) {
     return UpdateStatus::Stop();
@@ -88,7 +92,7 @@ void ModemTransport::ModemReadAction::Stop() {
 
 ModemTransport::ReadTcpAction::ReadTcpAction(ActionContext action_context,
                                              ModemTransport& transport)
-    : ModemReadAction{action_context}, transport_{&transport} {}
+    : ModemReadAction{action_context, transport} {}
 
 void ModemTransport::ReadTcpAction::Read() {
   auto data_buffer = transport_->modem_driver_->ReadPacket(
@@ -106,7 +110,7 @@ void ModemTransport::ReadTcpAction::Read() {
 
 ModemTransport::ReadUdpAction::ReadUdpAction(ActionContext action_context,
                                              ModemTransport& transport)
-    : ModemReadAction{action_context}, transport_{&transport} {}
+    : ModemReadAction{action_context, transport} {}
 
 void ModemTransport::ReadUdpAction::Read() {
   auto data_buffer = transport_->modem_driver_->ReadPacket(
