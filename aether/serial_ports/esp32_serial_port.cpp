@@ -34,7 +34,7 @@ void ESP32SerialPort::Write(DataBuffer const& data) {
   int bytes_written = uart_write_bytes(uart_num_, data.data(), data.size());
   if (bytes_written < 0) {
     // Recording error
-    AE_TELE_ERROR(kAdapterSerialWriteFiled, "Write failed!");
+    AE_TELE_ERROR(kAdapterSerialWriteFailed, "Write failed!");
     Close();
   }
 }
@@ -45,7 +45,7 @@ std::optional<DataBuffer> ESP32SerialPort::Read() {
   size_t length = 0;
   esp_err_t err = uart_get_buffered_data_len(uart_num_, &length);
   if (err != ESP_OK) {
-    AE_TELE_ERROR(kAdapterSerialReadFiled, "Read failed {}!", err);
+    AE_TELE_ERROR(kAdapterSerialReadFailed, "Read failed {}!", err);
     return std::nullopt;
   }
 
@@ -60,7 +60,7 @@ std::optional<DataBuffer> ESP32SerialPort::Read() {
 
   // Reading error
   if (bytes_read <= 0) {
-    AE_TELE_ERROR(kAdapterSerialReadFiled, "Read failed, no data!");
+    AE_TELE_ERROR(kAdapterSerialReadFailed, "Read failed, no data!");
     return std::nullopt;
   }
 

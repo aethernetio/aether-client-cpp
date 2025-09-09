@@ -646,9 +646,9 @@ DataBuffer Sim7070AtModem::ReadTcp(Sim7070Connection const& connection) {
   stop = response_string.find("\r\n", 2);
   if ((stop > start) && (start != std::string_view::npos) &&
       (stop != std::string_view::npos)) {
-    size =
+    size = static_cast<std::uint16_t>(
         FromChars<std::ptrdiff_t>(response_string.substr(start, stop - start))
-            .value_or(0);
+            .value_or(0));
     AE_TELED_DEBUG("Receiving size {}", size);
   }
 
@@ -669,9 +669,10 @@ DataBuffer Sim7070AtModem::ReadTcp(Sim7070Connection const& connection) {
 
     if ((stop > start) && (start != std::string_view::npos) &&
         (stop != std::string_view::npos)) {
-      size = FromChars<std::ptrdiff_t>(
-                 response_string2.substr(start, stop - start))
-                 .value_or(0);
+      size = static_cast<std::uint16_t>(
+          FromChars<std::ptrdiff_t>(
+              response_string2.substr(start, stop - start))
+              .value_or(0));
       AE_TELED_DEBUG("Received size {}", size);
     } else {
       return {};
@@ -717,9 +718,9 @@ DataBuffer Sim7070AtModem::ReadUdp(Sim7070Connection const& connection) {
   stop = response_string.find("\r\n", 2);
   if ((stop > start) && (start != std::string_view::npos) &&
       (stop != std::string_view::npos)) {
-    size =
+    size = static_cast<std::uint16_t>(
         FromChars<std::ptrdiff_t>(response_string.substr(start, stop - start))
-            .value_or(0);
+            .value_or(0));
     AE_TELED_DEBUG("Size {}", response_string.substr(start, stop - start));
     AE_TELED_DEBUG("Size {}", size);
   }
@@ -741,9 +742,10 @@ DataBuffer Sim7070AtModem::ReadUdp(Sim7070Connection const& connection) {
 
     if ((stop > start) && (start != std::string_view::npos) &&
         (stop != std::string_view::npos)) {
-      size = FromChars<std::ptrdiff_t>(
-                 response_string2.substr(start, stop - start))
-                 .value_or(0);
+      size = static_cast<std::uint16_t>(
+          FromChars<std::ptrdiff_t>(
+              response_string2.substr(start, stop - start))
+              .value_or(0));
       AE_TELED_DEBUG("Size {}", response_string2.substr(start, stop - start));
       AE_TELED_DEBUG("Size {}", size);
     } else {
