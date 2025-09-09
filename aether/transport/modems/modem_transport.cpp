@@ -99,8 +99,7 @@ void ModemTransport::ReadTcpAction::Read() {
 
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG(kModemTcpTransportReceive, "Receive data size {}",
-                  data.size());
+    AE_TELE_DEBUG(kModemTransportReceive, "Receive data size {}", data.size());
     transport_->out_data_event_.Emit(data);
   }
 }
@@ -116,7 +115,7 @@ void ModemTransport::ReadUdpAction::Read() {
     return;
   }
 
-  AE_TELE_DEBUG(kModemTcpTransportReceive, "Receive data size {}",
+  AE_TELE_DEBUG(kModemTransportReceive, "Receive data size {}",
                 data_buffer.size());
   transport_->out_data_event_.Emit(data_buffer);
 }
@@ -133,12 +132,13 @@ ModemTransport::ModemTransport(ActionContext action_context,
       // poll send queue each 50 ms
       send_action_queue_manager_{action_context_,
                                  std::chrono::milliseconds{50}} {
-  AE_TELE_INFO(kModemTcpTransport, "Modem tcp transport created for {}",
-               address_);
+  AE_TELE_INFO(kModemTransport, "Modem transport created for {}", address_);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = true;
   stream_info_.max_element_size = 2 * kMaxPacketSize;
   stream_info_.rec_element_size = kMaxPacketSize;
+
+  Connect();
 }
 
 ModemTransport::~ModemTransport() { Disconnect(); }
@@ -191,7 +191,7 @@ ModemTransport::OutDataEvent::Subscriber ModemTransport::out_data_event() {
 }
 
 ActionPtr<StreamWriteAction> ModemTransport::Write(DataBuffer&& in_data) {
-  AE_TELE_DEBUG(kModemTcpTransportSend, "Send data size {}", in_data.size());
+  AE_TELE_DEBUG(kModemTransportSend, "Send data size {}", in_data.size());
 
   if (protocol_ == Protocol::kTcp) {
     auto packet_data = std::vector<std::uint8_t>{};
