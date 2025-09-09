@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/transport/server/server_channel_stream.h"
+#include "aether/server_connections/server_channel.h"
 
 #include "aether/actions/action_context.h"
 
@@ -24,10 +24,10 @@ namespace ae {
 // TODO: add config
 static constexpr auto kBufferGateCapacity = std::size_t{20 * 1024};
 
-ServerChannelStream::ServerChannelStream(ActionContext action_context,
-                                         Adapter::ptr const& adapter,
-                                         Server::ptr const& server,
-                                         Channel::ptr const& channel)
+ServerChannel::ServerChannel(ActionContext action_context,
+                             Adapter::ptr const& adapter,
+                             Server::ptr const& server,
+                             Channel::ptr const& channel)
     : action_context_{action_context},
       server_{server},
       channel_{channel},
@@ -45,24 +45,9 @@ ServerChannelStream::ServerChannelStream(ActionContext action_context,
       }});
 }
 
-ActionPtr<StreamWriteAction> ServerChannelStream::Write(DataBuffer&& data) {
-  return buffer_stream_.Write(std::move(data));
-}
+ByteIStream& ServerChannel::stream() { return buffer_stream_; }
 
-ServerChannelStream::OutDataEvent::Subscriber
-ServerChannelStream::out_data_event() {
-  return buffer_stream_.out_data_event();
-}
-ServerChannelStream::StreamUpdateEvent::Subscriber
-ServerChannelStream::stream_update_event() {
-  return buffer_stream_.stream_update_event();
-}
-StreamInfo ServerChannelStream::stream_info() const {
-  return buffer_stream_.stream_info();
-}
-
-void ServerChannelStream::OnConnected(
-    BuildTransportAction& build_transport_action) {
+void ServerChannel::OnConnected(BuildTransportAction& build_transport_action) {
   build_transport_sub_.Reset();
 
   auto channel_ptr = channel_.Lock();
@@ -73,22 +58,15 @@ void ServerChannelStream::OnConnected(
       std::chrono::duration_cast<Duration>(Now() - connection_start_time_);
   channel_ptr->AddConnectionTime(connection_time);
 
-  transport_ = build_transport_action.transport();
-  ConnectTransportToStream();
+  transport_stream_ = build_transport_action.transport();
+  Tie(buffer_stream_, *transport_stream_);
 }
 
-void ServerChannelStream::OnConnectedFailed() {
+void ServerChannel::OnConnectedFailed() {
   AE_TELED_ERROR("ServerChannelStream:OnConnectedFailed");
   connection_timeout_.Reset();
   build_transport_sub_.Reset();
   buffer_stream_.Unlink();
-}
-
-void ServerChannelStream::ConnectTransportToStream() {
-  connection_error_ = transport_->ConnectionError().Subscribe(
-      *this, MethodPtr<&ServerChannelStream::OnConnectedFailed>{});
-  transport_write_gate_.emplace(action_context_, *transport_);
-  Tie(buffer_stream_, *transport_write_gate_);
 }
 
 }  // namespace ae

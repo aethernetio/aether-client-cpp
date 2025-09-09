@@ -54,9 +54,7 @@ std::optional<DataBuffer> ESP32SerialPort::Read() {
   }
 
   DataBuffer buffer(length);
-  int bytes_read = uart_read_bytes(uart_num_, buffer.data(), length,
-                                   0  // Non-blocking reading
-  );
+  int bytes_read = uart_read_bytes(uart_num_, buffer.data(), length, 0);
 
   // Reading error
   if (bytes_read <= 0) {
@@ -95,12 +93,16 @@ bool ESP32SerialPort::Initialize(SerialInit const& serial_init) {
   }
 
   if (uart_driver_install(uart_num_,
-                          4096,  // Receive buffer size
-                          0,     // Transmit Buffer size
-                          0,     // Event Queue size
-                          NULL,  // Event Queue Handler
-                          0      // Flags
-                          ) != ESP_OK) {
+                          // Receive buffer size
+                          4096,
+                          // Transmit Buffer size
+                          0,
+                          // Event Queue size
+                          0,
+                          // Event Queue Handler
+                          NULL,
+                          // Flags
+                          0) != ESP_OK) {
     return false;
   }
 

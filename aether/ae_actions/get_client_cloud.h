@@ -32,7 +32,7 @@
 #include "aether/methods/uid_and_cloud.h"
 #include "aether/methods/server_descriptor.h"
 
-#include "aether/client_connections/client_to_server_stream.h"
+#include "aether/server_connections/client_to_server_stream.h"
 
 namespace ae {
 class GetClientCloudAction : public Action<GetClientCloudAction> {

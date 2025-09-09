@@ -28,7 +28,7 @@
 #  include "aether/types/state_machine.h"
 #  include "aether/actions/action.h"
 #  include "aether/events/event_subscription.h"
-#  include "aether/client_connections/client_to_server_stream.h"
+#  include "aether/server_connections/client_to_server_stream.h"
 
 #  include "aether/methods/telemetric.h"
 

@@ -21,10 +21,14 @@ void tearDown() {}
 
 extern int test_action_registry();
 extern int test_action_processor();
+extern int test_action_status_event();
+extern int test_action();
 
 int main() {
   auto res = 0;
   res += test_action_registry();
   res += test_action_processor();
+  res += test_action_status_event();
+  res += test_action();
   return res;
 }

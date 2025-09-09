@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/client_connections/client_server_connection_pool.h"
+#include "aether/connection_manager/client_server_connection_pool.h"
 
 namespace ae {
 

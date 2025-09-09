@@ -64,11 +64,10 @@ std::unique_ptr<MessageStream> MessageStreamDispatcher::CreateMessageStream(
 void MessageStreamDispatcher::OnSendMessage(Uid const& sender,
                                             DataBuffer const& data) {
   auto stream_it = streams_.find(sender);
-  AE_TELED_DEBUG("received message from uid {}\ndata {}", sender, data);
   if (stream_it == std::end(streams_)) {
-    AE_TELED_DEBUG("Stream not found create it {}", sender);
-    stream_it =
-        streams_.emplace_hint(stream_it, sender, CreateMessageStream(sender));
+    AE_TELED_DEBUG("Stream not found create it for {}", sender);
+    std::tie(stream_it, std::ignore) =
+        streams_.emplace(sender, CreateMessageStream(sender));
     new_stream_event_.Emit(sender, *stream_it->second);
   }
 

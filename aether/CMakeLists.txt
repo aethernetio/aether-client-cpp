@@ -129,8 +129,6 @@ list(APPEND serial_ports_srcs
             )
 
 list(APPEND transport_srcs
-            "transport/actions/build_transport_action.cpp"
-            "transport/server/server_channel_stream.cpp"
             "transport/low_level/sockets/unix_socket.cpp"
             "transport/low_level/sockets/unix_tcp_socket.cpp"
             "transport/low_level/sockets/unix_udp_socket.cpp"
@@ -144,7 +142,7 @@ list(APPEND transport_srcs
             "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
             "transport/low_level/udp/udp.cpp"
-            "transport/modems/modem_tcp.cpp"
+            "transport/modems/modem_transport.cpp"
 )
 
 list(APPEND server_list_srcs
@@ -158,7 +156,6 @@ list(APPEND stream_api_src
             "stream_api/header_gate.cpp"
             "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
-            "stream_api/transport_write_stream.cpp"
             "stream_api/debug_gate.cpp"
             "stream_api/buffer_stream.cpp"
             "stream_api/stream_splitter.cpp"
@@ -206,14 +203,22 @@ list(APPEND methods_srcs
 
 
 list(APPEND client_connections_srcs
-            "client_connections/cloud_cache.cpp"
-            "client_connections/client_server_connection_pool.cpp"
             "client_connections/client_cloud_connection.cpp"
-            "client_connections/client_connection_manager.cpp"
-            "client_connections/client_server_connection.cpp"
-            "client_connections/server_connection_selector.cpp"
-            "client_connections/client_to_server_stream.cpp"
             "client_connections/split_stream_client_connection.cpp"
+)
+
+list(APPEND server_connections_srcs
+            "server_connections/client_server_connection.cpp"
+            "server_connections/client_to_server_stream.cpp"
+            "server_connections/build_transport_action.cpp"
+            "server_connections/server_channel.cpp"
+)
+
+list(APPEND connection_manager_srcs
+            "connection_manager/client_server_connection_pool.cpp"
+            "connection_manager/cloud_cache.cpp"
+            "connection_manager/client_connection_manager.cpp"
+            "connection_manager/server_connection_selector.cpp"
 )
 
 list(APPEND client_messages_srcs
@@ -282,6 +287,8 @@ if(REGULAR_CMAKE_PROJECT)
                             ${methods_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
+                            ${server_connections_srcs}
+                            ${connection_manager_srcs}
                             ${domain_storage_srcs}
                             ${statistics_srcs}
                             ${tele_srcs}
@@ -327,6 +334,8 @@ else()
                             ${methods_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
+                            ${server_connections_srcs}
+                            ${connection_manager_srcs}
                             ${domain_storage_srcs}
                             ${statistics_srcs}
                             ${tele_srcs}

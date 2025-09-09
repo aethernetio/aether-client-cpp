@@ -56,14 +56,14 @@ class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
 
   UpdateStatus Update() override;
 
-  std::vector<std::unique_ptr<ITransportBuilder>> builders() override;
+  std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() override;
 
  private:
   void CreateBuilders();
 
   ModemAdapter* adapter_;
   UnifiedAddress address_;
-  std::unique_ptr<ITransportBuilder> transport_builder_;
+  std::unique_ptr<ITransportStreamBuilder> transport_builder_;
   StateMachine<State> state_;
   Subscription state_changed_;
   Subscription lte_modem_connected_subscription_;

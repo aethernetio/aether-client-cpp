@@ -239,7 +239,7 @@ struct BandPower {
   std::uint8_t power;
 };
 
-//========================modem init==========================================
+// ========================modem init========================================
 struct PowerSaveParam {
   AE_REFLECT_MEMBERS(psm_mode, tau, act, edrx_mode, act_type, edrx_val,
                      rai_mode, bands_mode, bands, modem_mode, power)

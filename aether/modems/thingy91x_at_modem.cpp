@@ -299,7 +299,7 @@ bool Thingy91xAtModem::PowerOff() {
   return true;
 }
 
-//=============================private members================================//
+// ============================private members=============================== //
 kModemError Thingy91xAtModem::CheckResponse(std::string const response,
                                             std::uint32_t const wait_time,
                                             std::string const error_message) {
@@ -457,9 +457,9 @@ kModemError Thingy91xAtModem::SetTxPower(kModemMode const modem_mode,
     err = kModemError::kSetPwr;
   }
 
-  //%XEMPR=<system_mode>,<k>,<band0>,<pr0>,<band1>,<pr1>,…,<bandk-1>,<prk-1>
+  // %XEMPR=<system_mode>,<k>,<band0>,<pr0>,<band1>,<pr1>,…,<bandk-1>,<prk-1>
   // or
-  //%XEMPR=<system_mode>,0,<pr_for_all_bands>
+  // %XEMPR=<system_mode>,0,<pr_for_all_bands>
   if (power.size() > 0 && err == kModemError::kNoError) {
     for (auto& pwr : power) {
       if (pwr.band == kModemBand::kALL_BAND) {

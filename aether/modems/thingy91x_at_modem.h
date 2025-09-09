@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_THINGY91X_AT_MODEM_H_
-#define AETHER_ADAPTERS_MODEMS_THINGY91X_AT_MODEM_H_
+#ifndef AETHER_MODEMS_THINGY91X_AT_MODEM_H_
+#define AETHER_MODEMS_THINGY91X_AT_MODEM_H_
 
 #include <chrono>
 #include <memory>
@@ -106,4 +106,4 @@ class Thingy91xAtModem final : public IModemDriver {
 
 } /* namespace ae */
 
-#endif  // AETHER_ADAPTERS_MODEMS_THINGY91X_AT_MODEM_H_
+#endif  // AETHER_MODEMS_THINGY91X_AT_MODEM_H_

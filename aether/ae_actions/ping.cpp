@@ -39,7 +39,8 @@ Ping::Ping(ActionContext action_context, Server::ptr const& server,
           [this](auto) { Action::Trigger(); })},
       stream_changed_sub_{
           client_to_server_stream_->stream_update_event().Subscribe([this]() {
-            if (client_to_server_stream_->stream_info().is_linked) {
+            if (client_to_server_stream_->stream_info().link_state ==
+                LinkState::kLinked) {
               state_ = State::kSendPing;
             }
           })} {

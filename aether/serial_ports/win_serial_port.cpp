@@ -40,7 +40,8 @@ void WINSerialPort::Write(DataBuffer const& data) {
   DWORD bytes_written;
   if (!WriteFile(h_port_, data.data(), static_cast<DWORD>(data.size()),
                  &bytes_written, NULL)) {
-    AE_TELE_ERROR(kAdapterSerialWriteFailed, "Write failed: {}", GetLastError());
+    AE_TELE_ERROR(kAdapterSerialWriteFailed, "Write failed: {}",
+                  GetLastError());
     return;
   }
 

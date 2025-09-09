@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/client_connections/client_server_connection.h"
+#include "aether/server_connections/client_server_connection.h"
 
 #include <chrono>
 

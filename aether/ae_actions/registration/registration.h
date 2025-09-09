@@ -40,7 +40,7 @@
 
 #  include "aether/server_list/server_list.h"
 #  include "aether/stream_api/delegate_gate.h"
-#  include "aether/transport/server/server_channel_stream.h"
+#  include "aether/server_connections/server_channel.h"
 
 #  include "aether/methods/client_reg_api/client_reg_api.h"
 #  include "aether/methods/client_reg_api/client_reg_root_api.h"
@@ -103,9 +103,9 @@ class Registration final : public Action<Registration> {
   Uid parent_uid_;
 
   std::unique_ptr<ServerList> server_list_;
-  std::optional<AsyncForLoop<std::unique_ptr<ServerChannelStream>>>
+  std::optional<AsyncForLoop<std::unique_ptr<ServerChannel>>>
       connection_selection_;
-  std::unique_ptr<ServerChannelStream> server_channel_stream_;
+  std::unique_ptr<ServerChannel> server_channel_;
 
   ProtocolContext protocol_context_;
   ClientRegRootApi client_root_api_;

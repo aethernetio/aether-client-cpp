@@ -20,15 +20,15 @@
 
 namespace ae::registrator {
 RegistratorAction::RegistratorAction(
-    RcPtr<AetherApp> const& aether_app,
+    ActionContext action_context, RcPtr<AetherApp> const& aether_app,
     RegistratorConfig const& registrator_config)
-    : Action{*aether_app},
+    : Action{action_context},
       aether_{aether_app->aether()},
       registrator_config_{registrator_config},
       state_{State::kRegistration},
       state_changed_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {
-  AE_TELED_INFO("Registration test");
+  AE_TELED_INFO("RegistratorAction");
 }
 
 UpdateStatus RegistratorAction::Update() {

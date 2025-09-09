@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
-#define AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
+#ifndef AETHER_MODEMS_SIM7070_AT_MODEM_H_
+#define AETHER_MODEMS_SIM7070_AT_MODEM_H_
 
-#include <chrono>
 #include <memory>
 
 #include "aether/modems/imodem_driver.h"
@@ -89,16 +88,18 @@ class Sim7070AtModem final : public IModemDriver {
 
   static constexpr std::uint16_t kModemMTU{1520};
 
-  kModemError CheckResponse(std::string const response,
+  kModemError CheckResponse(std::string const& response,
                             std::uint32_t const wait_time,
-                            std::string const error_message);
+                            std::string const& error_message);
   kModemError SetBaudRate(kBaudRate rate);
   kModemError CheckSimStatus();
   kModemError SetupSim(const std::uint8_t pin[4]);
   kModemError SetNetMode(kModemMode modem_mode);
-  kModemError SetupNetwork(std::string operator_name, std::string operator_code,
-                           std::string apn_name, std::string apn_user,
-                           std::string apn_pass, kModemMode modem_mode,
+  kModemError SetupNetwork(std::string const& operator_name,
+                           std::string const& operator_code,
+                           std::string const& apn_name,
+                           std::string const& apn_user,
+                           std::string const& apn_pass, kModemMode modem_mode,
                            kAuthType auth_type);
   kModemError SetupProtoPar();
 
@@ -118,4 +119,4 @@ class Sim7070AtModem final : public IModemDriver {
 
 } /* namespace ae */
 
-#endif  // AETHER_ADAPTERS_MODEMS_SIM7070_AT_MODEM_H_
+#endif  // AETHER_MODEMS_SIM7070_AT_MODEM_H_
