@@ -83,11 +83,11 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
   server_list_ =
       make_unique<ServerList>(make_unique<NoFilterServerListPolicy>(), cloud);
   connection_selection_ =
-      AsyncForLoop<std::unique_ptr<ServerChannelStream>>::Construct(
+      AsyncForLoop<std::unique_ptr<ServerChannel>>::Construct(
           *server_list_, [this, aether_ptr, adapter{adapter}]() {
             auto item = server_list_->Get();
-            return make_unique<ServerChannelStream>(
-                *aether_ptr, adapter, item.server(), item.channel());
+            return make_unique<ServerChannel>(*aether_ptr, adapter,
+                                              item.server(), item.channel());
           });
 
   // trigger action on state change
@@ -142,8 +142,7 @@ UpdateStatus Registration::Update() {
 Client::ptr Registration::client() const { return client_; }
 
 void Registration::IterateConnection() {
-  if (server_channel_stream_ = connection_selection_->Update();
-      !server_channel_stream_) {
+  if (server_channel_ = connection_selection_->Update(); !server_channel_) {
     AE_TELE_ERROR(RegisterServerConnectionListOver,
                   "Server connection list is over");
     state_ = State::kRegistrationFailed;
@@ -151,14 +150,16 @@ void Registration::IterateConnection() {
   }
 
   AE_TELED_DEBUG("Selected server");
-  if (server_channel_stream_->stream_info().is_linked) {
+  if (server_channel_->stream().stream_info().link_state ==
+      LinkState::kLinked) {
     state_ = State::kConnected;
     return;
   }
 
   connection_subscription_ =
-      server_channel_stream_->stream_update_event().Subscribe([this]() {
-        if (server_channel_stream_->stream_info().is_linked) {
+      server_channel_->stream().stream_update_event().Subscribe([this]() {
+        if (server_channel_->stream().stream_info().link_state ==
+            LinkState::kLinked) {
           state_ = State::kConnected;
         } else {
           AE_TELE_WARNING(RegisterConnectionErrorTryNext,
@@ -182,7 +183,7 @@ void Registration::Connected() {
   reg_server_stream_ = make_unique<GatesStream>(
       ByteGate{}, ProtocolReadGate{protocol_context_, client_root_api_});
 
-  Tie(*reg_server_stream_, *server_channel_stream_);
+  Tie(*reg_server_stream_, server_channel_->stream());
 
   state_ = State::kGetKeys;
 }
@@ -252,7 +253,7 @@ void Registration::RequestPowParams() {
       CreateRegServerStream(std::move(server_async_key_provider),
                             std::move(server_sync_key_provider));
 
-  Tie(*reg_server_stream_, *server_channel_stream_);
+  Tie(*reg_server_stream_, server_channel_->stream());
 
   auto api_context = ApiContext{protocol_context_, server_reg_api_};
   auto pow_params_promise = api_context->request_proof_of_work_data(

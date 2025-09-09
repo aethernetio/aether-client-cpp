@@ -19,7 +19,7 @@
 #if defined COMMON_TCP_TRANSPORT_ENABLED
 
 #  include <vector>
-#  include <cstring>
+#  include <limits>
 #  include <utility>
 
 #  include "aether/mstream.h"
@@ -135,25 +135,15 @@ void TcpTransport::ConnectionAction::ConnectionUpdate() {
 }
 
 TcpTransport::SendAction::SendAction(ActionContext action_context,
-                                     TcpTransport& transport, DataBuffer data,
-                                     TimePoint current_time)
+                                     TcpTransport& transport, DataBuffer data)
     : SocketPacketSendAction{action_context},
       transport_{&transport},
       data_{std::move(data)},
-      current_time_{current_time},
-      state_changed_subscription_{state_.changed_event().Subscribe(
-          [this](auto) { Action::Trigger(); })} {}
-
-TcpTransport::SendAction::SendAction(SendAction&& other) noexcept
-    : SocketPacketSendAction{std::move(other)},
-      transport_{other.transport_},
-      data_{std::move(other.data_)},
-      current_time_{other.current_time_},
       state_changed_subscription_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {}
 
 void TcpTransport::SendAction::Send() {
-  state_ = State::kProgress;
+  state_ = State::kInProgress;
 
   if (!transport_->socket_lock_.try_lock()) {
     Action::Trigger();
@@ -171,7 +161,7 @@ void TcpTransport::SendAction::Send() {
   sent_offset_ += *res;
 
   if (sent_offset_ >= data_.size()) {
-    state_ = State::kSuccess;
+    state_ = State::kDone;
   }
 }
 
@@ -227,7 +217,7 @@ void TcpTransport::ReadAction::DataReceived() {
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
     AE_TELE_DEBUG(kTcpTransportReceive, "Receive data size {}", data.size());
-    transport_->data_receive_event_.Emit(data, Now());
+    transport_->out_data_event_.Emit(data);
   }
 }
 
@@ -237,82 +227,77 @@ TcpTransport::TcpTransport(ActionContext action_context,
     : action_context_{action_context},
       poller_{poller},
       endpoint_{endpoint},
-      connection_info_{},
+      stream_info_{},
       socket_{},
       send_queue_manager_{action_context_} {
   AE_TELE_INFO(kTcpTransport, "Created tcp transport to endpoint {}",
                endpoint_);
-  connection_info_.connection_state = ConnectionState::kUndefined;
-  connection_info_.connection_type = ConnectionType::kConnectionOriented;
-  connection_info_.reliability = Reliability::kReliable;
-}
+  stream_info_.link_state = LinkState::kUnlinked;
+  stream_info_.is_reliable = true;
 
-TcpTransport::~TcpTransport() { Disconnect(); }
-
-void TcpTransport::Connect() {
-  connection_info_.connection_state = ConnectionState::kConnecting;
-
+  // Make connection
   connection_action_ = OwnActionPtr<ConnectionAction>{action_context_, *this};
-  // как второй, но если нужно что-то одно
-  connection_sub_ = connection_action_->StatusEvent().Subscribe(
-      OnError{[&]() { OnConnectionFailed(); }});
+  connection_sub_ = connection_action_->StatusEvent().Subscribe(OnError{[&]() {
+    stream_info_.link_state = LinkState::kLinkError;
+    Disconnect();
+  }});
 }
 
-ConnectionInfo const& TcpTransport::GetConnectionInfo() const {
-  return connection_info_;
+TcpTransport::~TcpTransport() {
+  stream_info_.link_state = LinkState::kUnlinked;
+  Disconnect();
 }
 
-ITransport::ConnectionSuccessEvent::Subscriber
-TcpTransport::ConnectionSuccess() {
-  return connection_success_event_;
-}
-
-ITransport::ConnectionErrorEvent::Subscriber TcpTransport::ConnectionError() {
-  return connection_error_event_;
-}
-
-ITransport::DataReceiveEvent::Subscriber TcpTransport::ReceiveEvent() {
-  return data_receive_event_;
-}
-
-ActionPtr<PacketSendAction> TcpTransport::Send(DataBuffer data,
-                                               TimePoint current_time) {
-  AE_TELE_DEBUG(kTcpTransportSend, "Send data size {} at {:%H:%M:%S}",
-                data.size(), current_time);
+ActionPtr<StreamWriteAction> TcpTransport::Write(DataBuffer&& in_data) {
+  AE_TELE_DEBUG(kTcpTransportSend, "Send data size {}", in_data.size());
 
   auto packet_data = std::vector<std::uint8_t>{};
   VectorWriter<PacketSize> vw{packet_data};
   auto os = omstream{vw};
   // copy data with size
-  os << data;
+  os << in_data;
 
-  auto send_action = send_queue_manager_->AddPacket(ActionPtr<SendAction>{
-      action_context_, *this, std::move(packet_data), current_time});
+  auto send_action = send_queue_manager_->AddPacket(
+      ActionPtr<SendAction>{action_context_, *this, std::move(packet_data)});
   send_action_subs_.Push(send_action->StatusEvent().Subscribe(OnError{[this]() {
     AE_TELED_ERROR("Send error, disconnect!");
-    OnConnectionFailed();
+    stream_info_.link_state = LinkState::kLinkError;
     Disconnect();
   }}));
   return send_action;
 }
 
-void TcpTransport::OnConnected() {
-  connection_info_.connection_state = ConnectionState::kConnected;
-  // 2 - for max packet size
-  connection_info_.max_packet_size = socket_.GetMaxPacketSize() - 2;
+TcpTransport::StreamUpdateEvent::Subscriber
+TcpTransport::stream_update_event() {
+  return stream_update_event_;
+}
 
+StreamInfo TcpTransport::stream_info() const { return stream_info_; }
+
+TcpTransport::OutDataEvent::Subscriber TcpTransport::out_data_event() {
+  return out_data_event_;
+}
+
+void TcpTransport::OnConnected() {
+  stream_info_.is_writable = true;
+  stream_info_.link_state = LinkState::kLinked;
+  // 2 - for max packet size
+  stream_info_.rec_element_size = socket_.GetMaxPacketSize() - 2;
+  // TODO: find a better value for max element size
+  stream_info_.max_element_size = std::numeric_limits<std::uint32_t>::max();
   read_action_ = OwnActionPtr<ReadAction>{action_context_, *this};
   read_action_error_sub_ =
       read_action_->StatusEvent().Subscribe(OnError{[this]() {
         AE_TELED_ERROR("Read error, disconnect!");
-        OnConnectionFailed();
+        stream_info_.link_state = LinkState::kLinkError;
         Disconnect();
       }});
 
   socket_error_action_ = OwnActionPtr<SocketEventAction>{action_context_};
   socket_error_subscription_ =
       socket_error_action_->StatusEvent().Subscribe(OnResult{[this]() {
-        OnConnectionFailed();
+        AE_TELED_ERROR("Socket error, disconnect!");
+        stream_info_.link_state = LinkState::kLinkError;
         Disconnect();
       }});
 
@@ -338,12 +323,7 @@ void TcpTransport::OnConnected() {
             }
           });
 
-  connection_success_event_.Emit();
-}
-
-void TcpTransport::OnConnectionFailed() {
-  connection_info_.connection_state = ConnectionState::kDisconnected;
-  connection_error_event_.Emit();
+  stream_update_event_.Emit();
 }
 
 void TcpTransport::ReadSocket() { read_action_->Read(); }
@@ -358,7 +338,7 @@ void TcpTransport::ErrorSocket() {
 
 void TcpTransport::Disconnect() {
   AE_TELE_INFO(kTcpTransportDisconnect, "Disconnect from {}", endpoint_);
-  connection_info_.connection_state = ConnectionState::kDisconnected;
+  stream_info_.is_writable = false;
   socket_error_subscription_.Reset();
 
   auto lock = std::lock_guard{socket_lock_};
@@ -369,6 +349,8 @@ void TcpTransport::Disconnect() {
     poller_ptr->Remove(static_cast<DescriptorType>(socket_));
   }
   socket_.Disconnect();
+
+  stream_update_event_.Emit();
 }
 }  // namespace ae
 #endif

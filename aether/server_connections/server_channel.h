@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SERVER_SERVER_CHANNEL_STREAM_H_
-#define AETHER_TRANSPORT_SERVER_SERVER_CHANNEL_STREAM_H_
+#ifndef AETHER_SERVER_CONNECTIONS_SERVER_CHANNEL_H_
+#define AETHER_SERVER_CONNECTIONS_SERVER_CHANNEL_H_
 
 #include <cassert>
-#include <optional>
 
 #include "aether/common.h"
 #include "aether/memory.h"
@@ -33,38 +32,30 @@
 
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/buffer_stream.h"
-#include "aether/stream_api/transport_write_stream.h"
 
-#include "aether/transport/actions/build_transport_action.h"
+#include "aether/server_connections/build_transport_action.h"
 
 namespace ae {
-class Aether;
-
-class ServerChannelStream final : public ByteIStream {
+class ServerChannel final {
  public:
-  ServerChannelStream(ActionContext action_context, Adapter::ptr const& adapter,
-                      Server::ptr const& server, Channel::ptr const& channel);
+  ServerChannel(ActionContext action_context, Adapter::ptr const& adapter,
+                Server::ptr const& server, Channel::ptr const& channel);
 
-  AE_CLASS_NO_COPY_MOVE(ServerChannelStream)
+  AE_CLASS_NO_COPY_MOVE(ServerChannel)
 
-  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
-  OutDataEvent::Subscriber out_data_event() override;
-  StreamUpdateEvent::Subscriber stream_update_event() override;
-  StreamInfo stream_info() const override;
+  ByteIStream& stream();
 
  private:
   void OnConnected(BuildTransportAction& build_transport_action);
   void OnConnectedFailed();
-  void ConnectTransportToStream();
 
   ActionContext action_context_;
   PtrView<Server> server_;
   PtrView<Channel> channel_;
   ActionPtr<BuildTransportAction> build_transport_action_;
 
+  std::unique_ptr<ByteIStream> transport_stream_;
   BufferStream buffer_stream_;
-  std::unique_ptr<ITransport> transport_;
-  std::optional<TransportWriteStream> transport_write_gate_;
 
   TimePoint connection_start_time_;
   ActionPtr<TimerAction> connection_timer_;
@@ -75,4 +66,4 @@ class ServerChannelStream final : public ByteIStream {
 };
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_SERVER_SERVER_CHANNEL_STREAM_H_
+#endif  // AETHER_SERVER_CONNECTIONS_SERVER_CHANNEL_H_

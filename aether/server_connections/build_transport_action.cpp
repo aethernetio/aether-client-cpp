@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/transport/actions/build_transport_action.h"
+#include "aether/server_connections/build_transport_action.h"
 
 #include "aether/tele/tele.h"
 
@@ -51,9 +51,9 @@ UpdateStatus BuildTransportAction::Update() {
   return {};
 }
 
-std::unique_ptr<ITransport> BuildTransportAction::transport() {
-  assert(transport_);
-  return std::move(transport_);
+std::unique_ptr<ByteIStream> BuildTransportAction::transport() {
+  assert(transport_stream_);
+  return std::move(transport_stream_);
 }
 
 void BuildTransportAction::MakeBuilders() {
@@ -70,10 +70,11 @@ void BuildTransportAction::MakeBuilders() {
           AE_TELED_ERROR("Got empty transport builders list");
           state_ = State::kFailed;
         }
-        builder_loop_ = AsyncForLoop<std::unique_ptr<ITransport>>{
+        builder_loop_ = AsyncForLoop<std::unique_ptr<ByteIStream>>{
             [this]() { it_ = std::begin(builders_); },
             [this]() { return it_ != std::end(builders_); },
-            [this]() { it_++; }, [this]() { return (*it_)->BuildTransport(); }};
+            [this]() { it_++; },
+            [this]() { return (*it_)->BuildTransportStream(); }};
 
         state_ = State::kConnect;
       }},
@@ -87,8 +88,8 @@ void BuildTransportAction::Connect() {
   assert(!builders_.empty());
   assert(builder_loop_);
 
-  auto transport = builder_loop_->Update();
-  if (!transport) {
+  auto transport_stream = builder_loop_->Update();
+  if (!transport_stream) {
     AE_TELED_ERROR("Builders list end");
     state_ = State::kFailed;
     return;
@@ -96,18 +97,29 @@ void BuildTransportAction::Connect() {
 
   state_ = State::kWaitForConnection;
 
-  transport_ = std::move(transport);
+  transport_stream_ = std::move(transport_stream);
+
+  if (transport_stream_->stream_info().link_state == LinkState::kLinked) {
+    state_ = State::kConnected;
+    return;
+  }
 
   // subscribe to connection result
-  connected_sub_ = transport_->ConnectionSuccess().Subscribe([this]() {
-    // connected successfully
-    state_ = State::kConnected;
-  });
-  connection_failed_sub_ = transport_->ConnectionError().Subscribe([this]() {
-    // try connect again
-    state_ = State::kConnect;
-  });
-
-  transport_->Connect();
+  connected_sub_ = transport_stream_->stream_update_event().Subscribe(
+      [this, transport{transport_stream_.get()}]() {
+        // connected successfully
+        switch (transport->stream_info().link_state) {
+          case LinkState::kLinked:
+            // stream is connected
+            state_ = State::kConnected;
+            break;
+          case LinkState::kLinkError:
+            // try new stream
+            state_ = State::kConnect;
+            break;
+          default:
+            break;
+        }
+      });
 }
 }  // namespace ae

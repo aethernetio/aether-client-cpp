@@ -36,7 +36,7 @@ UnixSerialPort::~UnixSerialPort() { Close(); }
 void UnixSerialPort::Write(DataBuffer const& data) {
   auto bytes_written = write(fd_, data.data(), data.size());
   if (bytes_written < 0) {
-    AE_TELE_ERROR(kAdapterSerialWriteFiled, "Write serial port error {}",
+    AE_TELE_ERROR(kAdapterSerialWriteFailed, "Write serial port error {}",
                   strerror(errno));
   }
 

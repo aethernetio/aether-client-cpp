@@ -50,6 +50,11 @@ UpdateStatus StreamWriteAction::Update() {
   return {};
 }
 
+void StreamWriteAction::Stop() {
+  state_ = State::kStopped;
+  Action::Trigger();
+}
+
 FailedStreamWriteAction::FailedStreamWriteAction(ActionContext action_context)
     : StreamWriteAction{action_context} {
   state_.Set(State::kFailed);

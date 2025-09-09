@@ -19,15 +19,14 @@
 
 #include "aether/common.h"
 
-#include "aether/types/uid.h"
 #include "aether/memory.h"
 #include "aether/client.h"
+#include "aether/types/uid.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/buffer_stream.h"
-#include "aether/stream_api/unidirectional_stream.h"
 
 #include "aether/client_connections/client_connection.h"
 
@@ -67,9 +66,10 @@ class P2pStream final : public ByteIStream {
   Ptr<ClientConnection> send_client_connection_;
 
   BufferStream buffer_stream_;
-  ParallelStream<DataBuffer> send_receive_stream_;
   std::unique_ptr<ByteIStream> receive_stream_;
   std::unique_ptr<ByteIStream> send_stream_;
+  OutDataEvent out_data_event_;
+  Subscription out_data_sub_;
 
   Subscription get_client_connection_subscription_;
 };

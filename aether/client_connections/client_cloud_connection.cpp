@@ -91,13 +91,16 @@ void ClientCloudConnection::SelectConnection() {
     return;
   }
 
-  if (server_connection_->server_stream().stream_info().is_linked) {
+  if (server_connection_->server_stream().stream_info().link_state ==
+      LinkState::kLinked) {
     OnConnected();
   } else {
     connection_status_sub_ =
         server_connection_->server_stream().stream_update_event().Subscribe(
             [this]() {
-              if (server_connection_->server_stream().stream_info().is_linked) {
+              if (server_connection_->server_stream()
+                      .stream_info()
+                      .link_state == LinkState::kLinked) {
                 OnConnected();
               } else {
                 OnConnectionError();
@@ -121,7 +124,8 @@ void ClientCloudConnection::OnConnected() {
   connection_status_sub_ =
       server_connection_->server_stream().stream_update_event().Subscribe(
           [this]() {
-            if (!server_connection_->server_stream().stream_info().is_linked) {
+            if (server_connection_->server_stream().stream_info().link_state !=
+                LinkState::kLinked) {
               OnConnectionError();
             }
           });

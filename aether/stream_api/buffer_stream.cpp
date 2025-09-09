@@ -59,16 +59,17 @@ BufferStream::BufferStream(ActionContext action_context, std::size_t buffer_max)
       buffer_max_{buffer_max},
       stream_info_{},
       last_out_stream_info_{} {
-  stream_info_.is_soft_writable = true;
+  stream_info_.is_writable = true;
 }
 
 ActionPtr<StreamWriteAction> BufferStream::Write(DataBuffer&& data) {
-  auto add_to_buffer =
-      !last_out_stream_info_.is_writable || !last_out_stream_info_.is_linked;
+  auto allow_add_to_buffer =
+      !last_out_stream_info_.is_writable ||
+      (last_out_stream_info_.link_state != LinkState::kLinked);
   // add to buffer either if is write buffered or buffer is not empty to observe
   // write order
-  if (add_to_buffer || !write_in_buffer_.empty()) {
-    if (!stream_info_.is_soft_writable) {
+  if (allow_add_to_buffer || !write_in_buffer_.empty()) {
+    if (!stream_info_.is_writable) {
       AE_TELED_ERROR("Buffer overflow");
       // decline write
       return ActionPtr<FailedStreamWriteAction>{action_context_};
@@ -82,12 +83,12 @@ ActionPtr<StreamWriteAction> BufferStream::Write(DataBuffer&& data) {
     write_in_subscription_.Push(
         (*action_it)->FinishedEvent().Subscribe([this, action_it]() {
           write_in_buffer_.erase(action_it);
-          SetSoftWriteable(true);
+          SetWriteable(true);
           DrainBuffer(*out_);
         }));
 
     if (write_in_buffer_.size() == buffer_max_) {
-      SetSoftWriteable(false);
+      SetWriteable(false);
     }
 
     return *action_it;
@@ -116,18 +117,17 @@ void BufferStream::Unlink() {
   out_data_sub_.Reset();
   update_sub_.Reset();
 
-  stream_info_.is_linked = false;
+  stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_writable = false;
-  stream_info_.strict_size_rules = false;
   stream_info_.is_reliable = false;
   stream_info_.max_element_size = 0;
-  stream_info_.is_soft_writable = write_in_buffer_.size() < buffer_max_;
+  stream_info_.rec_element_size = 0;
   stream_update_event_.Emit();
 }
 
-void BufferStream::SetSoftWriteable(bool value) {
-  if (stream_info_.is_soft_writable != value) {
-    stream_info_.is_soft_writable = value;
+void BufferStream::SetWriteable(bool value) {
+  if (stream_info_.is_writable != value) {
+    stream_info_.is_writable = value;
     stream_update_event_.Emit();
   }
 }
@@ -135,10 +135,10 @@ void BufferStream::SetSoftWriteable(bool value) {
 void BufferStream::UpdateGate() {
   auto out_info = out_->stream_info();
   if (last_out_stream_info_ != out_info) {
-    stream_info_.is_linked = out_info.is_linked;
-    stream_info_.strict_size_rules = out_info.strict_size_rules;
+    stream_info_.link_state = out_info.link_state;
     stream_info_.is_reliable = out_info.is_reliable;
     stream_info_.max_element_size = out_info.max_element_size;
+    stream_info_.rec_element_size = out_info.rec_element_size;
     stream_info_.is_writable = out_info.is_writable;
 
     last_out_stream_info_ = out_info;
@@ -146,7 +146,7 @@ void BufferStream::UpdateGate() {
     stream_update_event_.Emit();
   }
 
-  if (stream_info_.is_linked) {
+  if (stream_info_.link_state == LinkState::kLinked) {
     DrainBuffer(*out_);
   }
 }

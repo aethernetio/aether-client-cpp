@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
-#define AETHER_CLIENT_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
+#ifndef AETHER_CONNECTION_MANAGER_ISERVER_CONNECTION_FACTORY_H_
+#define AETHER_CONNECTION_MANAGER_ISERVER_CONNECTION_FACTORY_H_
 
 #include "aether/server.h"
 #include "aether/channel.h"
 #include "aether/ptr/rc_ptr.h"
-#include "aether/client_connections/client_server_connection.h"
+#include "aether/server_connections/client_server_connection.h"
 
 namespace ae {
 class IServerConnectionFactory {
@@ -32,4 +32,4 @@ class IServerConnectionFactory {
 };
 }  // namespace ae
 
-#endif  // AETHER_CLIENT_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
+#endif  // AETHER_CONNECTION_MANAGER_ISERVER_CONNECTION_FACTORY_H_

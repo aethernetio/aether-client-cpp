@@ -18,6 +18,7 @@
 #define AETHER_ACTIONS_ACTION_EVENT_STATUS_H_
 
 #include <tuple>
+#include <utility>
 #include <functional>
 #include <type_traits>
 
@@ -33,7 +34,7 @@ class ActionEventStatus {
  public:
   ActionEventStatus() = default;
 
-  ActionEventStatus(TAction& action, UpdateStatus result)
+  constexpr ActionEventStatus(TAction& action, UpdateStatus result)
       : action_{&action}, result_{result} {}
 
   AE_CLASS_COPY_MOVE(ActionEventStatus);
@@ -87,11 +88,14 @@ class ActionEventStatus {
   UpdateStatus result_{};
 };
 
+/**
+ * \brief Handler for result type in action event status.
+ */
 template <typename F>
 struct OnResult {
   template <typename T>
-  void operator()(ActionEventStatus<T> action_event_result) {
-    action_event_result.OnResult(func);
+  auto operator()(ActionEventStatus<T> action_event_result) {
+    return action_event_result.OnResult(func);
   }
 
   F func;
@@ -100,11 +104,14 @@ struct OnResult {
 template <typename F>
 OnResult(F&&) -> OnResult<F>;
 
+/**
+ * \brief Handler for error type in action event status.
+ */
 template <typename F>
 struct OnError {
   template <typename T>
-  void operator()(ActionEventStatus<T> action_event_result) {
-    action_event_result.OnError(func);
+  auto operator()(ActionEventStatus<T> action_event_result) {
+    return action_event_result.OnError(func);
   }
 
   F func;
@@ -113,11 +120,14 @@ struct OnError {
 template <typename F>
 OnError(F&&) -> OnError<F>;
 
+/**
+ * \brief Handler for stop type in action event status.
+ */
 template <typename F>
 struct OnStop {
   template <typename T>
-  void operator()(ActionEventStatus<T> action_event_result) {
-    action_event_result.OnStop(func);
+  auto operator()(ActionEventStatus<T> action_event_result) {
+    return action_event_result.OnStop(func);
   }
 
   F func;
@@ -140,17 +150,41 @@ class ActionHandler {
   template <typename T>
   struct IsHandler<OnStop<T>> : std::true_type {};
 
+  template <typename A, typename B>
+  struct IsSameHandler : std::false_type {};
+  template <typename Af, typename Bf>
+  struct IsSameHandler<OnResult<Af>, OnResult<Bf>> : std::true_type {};
+  template <typename Af, typename Bf>
+  struct IsSameHandler<OnError<Af>, OnError<Bf>> : std::true_type {};
+  template <typename Af, typename Bf>
+  struct IsSameHandler<OnStop<Af>, OnStop<Bf>> : std::true_type {};
+
+  template <typename H, typename... Hs>
+  static constexpr bool HasDuplicate() {
+    if constexpr (sizeof...(Hs) == 0) {
+      return false;
+    } else {
+      return (IsSameHandler<H, Hs>::value || ...) || HasDuplicate<Hs...>();
+    }
+  }
+
  public:
+  static_assert(sizeof...(Handlers) > 0, "There must be at least one handler");
   static_assert((IsHandler<Handlers>::value && ...),
                 "Handlers must be OnResult, OnError or OnStop");
+  static_assert(!HasDuplicate<Handlers...>(),
+                "Handlers must not have duplicates");
 
-  explicit ActionHandler(Handlers... hdlrs) : handlers_{hdlrs...} {}
+  constexpr explicit ActionHandler(Handlers... hdlrs)
+      : handlers_{std::move(hdlrs)...} {}
 
   template <typename TAction>
   void operator()(ActionEventStatus<TAction> action_event_result) {
-    std::apply([&action_event_result](
-                   Handlers&... h) { (h(action_event_result), ...); },
-               handlers_);
+    std::apply(
+        [&action_event_result](Handlers&... h) {
+          ((action_event_result = h(action_event_result)), ...);
+        },
+        handlers_);
   }
 
  private:

@@ -17,57 +17,34 @@
 #include "aether/adapters/modem_adapter.h"
 
 #include "aether/modems/modem_factory.h"
-#include "aether/transport/modems/modem_tcp.h"
+#include "aether/transport/modems/modem_transport.h"
+#include "aether/transport/itransport_stream_builder.h"
 
 #include "aether/adapters/adapter_tele.h"
 
 namespace ae {
 namespace modem_adapter_internal {
-class ModemAdapterTransportBuilder final : public ITransportBuilder {
+class ModemAdapterTransportBuilder final : public ITransportStreamBuilder {
  public:
   ModemAdapterTransportBuilder(ModemAdapter& adapter, UnifiedAddress address)
       : adapter_{&adapter}, address_{std::move(address)} {}
 
-  std::unique_ptr<ITransport> BuildTransport() override {
-    auto protocol = std::visit(
+  std::unique_ptr<ByteIStream> BuildTransportStream() override {
+    [[maybe_unused]] auto protocol = std::visit(
         [&](auto const& address_port_protocol) {
           return address_port_protocol.protocol;
         },
         address_);
-
-    switch (protocol) {
-      case Protocol::kTcp:
-        return BuildTcp();
-      case Protocol::kUdp:
-        return BuildUdp();
-      default:
-        assert(false);
-        return nullptr;
-    }
+    assert(protocol == Protocol::kTcp || protocol == Protocol::kUdp);
+#if defined MODEM_TRANSPORT_ENABLED
+    return make_unique<ModemTransport>(*adapter_->aether_.as<Aether>(),
+                                       *adapter_->modem_driver_, address_);
+#else
+    return nullptr;
+#endif
   }
 
  private:
-  std::unique_ptr<ITransport> BuildTcp() {
-#if defined MODEM_TCP_ENABLED
-    return make_unique<ModemTcpTransport>(*adapter_->aether_.as<Aether>(),
-                                          *adapter_->modem_driver_, address_);
-#else
-    static_assert(false, "No transport enabled");
-    return nullptr;
-#endif
-  }
-
-  std::unique_ptr<ITransport> BuildUdp() {
-#if defined MODEM_UDP_ENABLED
-    assert(address_port_protocol_.protocol == Protocol::kUdp);
-    return make_unique<ModemUdpTransport>(*adapter_->aether_.as<Aether>(),
-                                          *adapter_->modem_driver_, address_);
-#else
-    // static_assert(false, "No transport enabled");
-    return nullptr;
-#endif
-  }
-
   ModemAdapter* adapter_;
   UnifiedAddress address_;
 };
@@ -121,9 +98,9 @@ UpdateStatus ModemAdapterTransportBuilderAction::Update() {
   return {};
 }
 
-std::vector<std::unique_ptr<ITransportBuilder>>
+std::vector<std::unique_ptr<ITransportStreamBuilder>>
 ModemAdapterTransportBuilderAction::builders() {
-  std::vector<std::unique_ptr<ITransportBuilder>> res;
+  std::vector<std::unique_ptr<ITransportStreamBuilder>> res;
   res.emplace_back(std::move(transport_builder_));
   return res;
 }

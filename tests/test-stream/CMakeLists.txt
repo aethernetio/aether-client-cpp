@@ -16,7 +16,6 @@ cmake_minimum_required( VERSION 3.18 )
 
 list(APPEND test_srcs
   main.cpp
-  mock_transport.cpp
   mock_bad_streams.cpp
   safe-stream/test_safe_stream_types.cpp
   safe-stream/test_sending_chunk_list.cpp
@@ -31,7 +30,6 @@ list(APPEND test_srcs
   crypto-stream/test_crypto_stream.cpp
   protocol-stream/test_protocol_stream.cpp
   templated-streams/test_templated_streams.cpp
-  client-to-server-stream/test_client_to_server_stream.cpp
   test-tied-gates.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp
 )
