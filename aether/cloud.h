@@ -30,9 +30,7 @@ class Cloud : public Obj {
   Cloud() = default;
 
  public:
-#ifdef AE_DISTILLATION
   explicit Cloud(Domain* domain);
-#endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(servers_))
 

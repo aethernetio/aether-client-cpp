@@ -144,6 +144,17 @@ ActionPtr<TransportBuilderAction> ModemAdapter::CreateTransport(
       address_port_protocol);
 }
 
+std::vector<ObjPtr<Channel>> ModemAdapter::GenerateChannels(
+    std::vector<UnifiedAddress> const& addresses) {
+  std::vector<ObjPtr<Channel>> channels;
+  auto self_ptr = ObjPtr{MakePtrFromThis(this)};
+  for (auto const& address : addresses) {
+    channels.emplace_back(domain_->CreateObj<Channel>(self_ptr));
+    channels.back()->address = address;
+  }
+  return channels;
+}
+
 void ModemAdapter::Update(TimePoint current_time) {
   if (!connected_) {
     connected_ = true;

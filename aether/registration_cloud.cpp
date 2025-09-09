@@ -35,12 +35,9 @@ void RegistrationCloud::AddServerSettings(UnifiedAddress address) {
   // don't care for registration
   server->server_id = 0;
 
-  // TODO: use all adapters
-  auto adapter = aether_.as<Aether>()->adapter_factories[0];
-
-  auto channel = domain_->CreateObj<Channel>(std::move(adapter));
-  channel->address = std::move(address);
-  server->AddChannel(std::move(channel));
+  auto channels = aether_.as<Aether>()->adapter_registry->GenerateChannels(
+      {std::move(address)});
+  server->SetChannels(std::move(channels));
 
   AddServer(server);
 }

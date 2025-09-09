@@ -57,27 +57,30 @@ int AetherRegistrator(const std::string& ini_file,
           },
           // empty tele initializer
           [](auto const&) {}}
-          .AdapterFactory(
-              [&registrator_config](
-                  ae::AetherAppContext const& context) -> ae::Adapter::ptr {
-                if (registrator_config.GetWiFiIsSet()) {
-                  AE_TELED_DEBUG("ae::registrator::RegisterWifiAdapter");
-                  auto adapter =
-                      context.domain()
-                          .CreateObj<ae::registrator::RegisterWifiAdapter>(
-                              ae::GlobalId::kRegisterWifiAdapter,
-                              context.aether(), context.poller(),
-                              context.dns_resolver(),
-                              registrator_config.GetWiFiSsid(),
-                              registrator_config.GetWiFiPass());
-                  return adapter;
-                }
-                AE_TELED_DEBUG("ae::EthernetAdapter");
-                auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
-                    ae::GlobalId::kEthernetAdapter, context.aether(),
-                    context.poller(), context.dns_resolver());
-                return adapter;
-              })
+          .AdaptersFactory([&registrator_config](
+                               ae::AetherAppContext const& context)
+                               -> ae::AdapterRegistry::ptr {
+            auto adapter_registry =
+                context.domain().CreateObj<ae::AdapterRegistry>();
+
+            if (registrator_config.GetWiFiIsSet()) {
+              AE_TELED_DEBUG("ae::registrator::RegisterWifiAdapter");
+              adapter_registry->Add(
+                  context.domain()
+                      .CreateObj<ae::registrator::RegisterWifiAdapter>(
+                          ae::GlobalId::kRegisterWifiAdapter, context.aether(),
+                          context.poller(), context.dns_resolver(),
+                          registrator_config.GetWiFiSsid(),
+                          registrator_config.GetWiFiPass()));
+            } else {
+              AE_TELED_DEBUG("ae::EthernetAdapter");
+              adapter_registry->Add(
+                  context.domain().CreateObj<ae::EthernetAdapter>(
+                      ae::GlobalId::kEthernetAdapter, context.aether(),
+                      context.poller(), context.dns_resolver()));
+            }
+            return adapter_registry;
+          })
           .RegistrationCloudFactory([&registrator_config](
                                         ae::AetherAppContext const& context) {
             auto registration_cloud =

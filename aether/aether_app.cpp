@@ -48,15 +48,17 @@ AetherAppContext::TelemetryInit::TelemetryInit() {
 
 void AetherAppContext::TelemetryInit::operator()(
     AetherAppContext const& context) const {
-  ae::tele::TeleInit::Init(context.aether()->tele_statistics());
+  ae::tele::TeleInit::Init(context.aether()->tele_statistics);
 }
 
 void AetherAppContext::InitComponentContext() {
 #if defined AE_DISTILLATION
-  Factory<Adapter>([](AetherAppContext const& context) {
-    return context.domain().CreateObj<EthernetAdapter>(
+  Factory<AdapterRegistry>([](AetherAppContext const& context) {
+    auto adapter_registry = context.domain().CreateObj<AdapterRegistry>();
+    adapter_registry->Add(context.domain().CreateObj<EthernetAdapter>(
         GlobalId::kEthernetAdapter, context.aether(), context.poller(),
-        context.dns_resolver());
+        context.dns_resolver()));
+    return adapter_registry;
   });
 
 #  if AE_SUPPORT_REGISTRATION
@@ -134,9 +136,7 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
   context.init_tele_(context);
 
 #if defined AE_DISTILLATION
-  auto adapter = context.adapter();
-  adapter.SetFlags(ObjFlags::kUnloadedByDefault);
-  app->aether_->adapter_factories.emplace_back(adapter);
+  app->aether_->adapter_registry = context.adapter_registry();
 
 #  if AE_SUPPORT_REGISTRATION
   app->aether_->registration_cloud = context.registration_cloud();

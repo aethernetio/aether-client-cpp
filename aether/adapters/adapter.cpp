@@ -16,6 +16,8 @@
 
 #include "aether/adapters/adapter.h"
 
+#include "aether/channel.h"
+
 namespace ae {
 
 #ifdef AE_DISTILLATION
@@ -27,6 +29,12 @@ Adapter::Adapter(Domain* domain) : Obj{domain} {}
  */
 ActionPtr<TransportBuilderAction> Adapter::CreateTransport(
     UnifiedAddress const& /* address */) {
+  assert(false);
+  return {};
+}
+
+std::vector<ObjPtr<Channel>> Adapter::GenerateChannels(
+    std::vector<UnifiedAddress> const& /* server_channels */) {
   assert(false);
   return {};
 }

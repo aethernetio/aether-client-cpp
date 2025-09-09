@@ -35,10 +35,7 @@ Aether::Aether(Domain* domain) : Obj{domain} {
   client_prefab = domain->CreateObj<Client>(GlobalId::kClientFactory, self_ptr);
   client_prefab.SetFlags(ae::ObjFlags::kUnloadedByDefault);
 
-  cloud_prefab = domain->CreateObj<WorkCloud>(GlobalId::kCloudFactory);
-  cloud_prefab.SetFlags(ae::ObjFlags::kUnloadedByDefault);
-
-  tele_statistics_ =
+  tele_statistics =
       domain->CreateObj<tele::TeleStatistics>(GlobalId::kTeleStatistics);
 
   AE_TELE_DEBUG(AetherCreated);
@@ -61,10 +58,6 @@ ActionPtr<SelectClientAction> Aether::SelectClient(
 #else
   return ActionPtr<SelectClientAction>{*action_processor};
 #endif
-}
-
-tele::TeleStatistics::ptr const& Aether::tele_statistics() const {
-  return tele_statistics_;
 }
 
 void Aether::AddServer(Server::ptr&& s) {

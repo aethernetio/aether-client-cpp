@@ -18,9 +18,7 @@
 
 namespace ae {
 
-#ifdef AE_DISTILLATION
 Cloud::Cloud(Domain* domain) : Obj{domain} {}
-#endif  // AE_DISTILLATION
 
 void Cloud::AddServer(Server::ptr const& server) {
   servers_.push_back(server);

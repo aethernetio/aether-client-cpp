@@ -28,11 +28,11 @@
 #  include "aether/crypto/crypto_definitions.h"
 
 #  include "aether/stream_api/byte_gate.h"
-#  include "aether/stream_api/crypto_gate.h"
-#  include "aether/stream_api/event_subscribe_gate.h"
 
 #  include "aether/crypto/sync_crypto_provider.h"
 #  include "aether/crypto/async_crypto_provider.h"
+
+#  include "aether/work_cloud.h"
 
 #  include "aether/api_protocol/api_context.h"
 
@@ -381,10 +381,8 @@ void Registration::OnCloudResolved(
     return;
   }
 
-  Cloud::ptr new_cloud = aether->domain_->LoadCopy(aether->cloud_prefab);
+  Cloud::ptr new_cloud = aether->domain_->CreateObj<WorkCloud>();
   assert(new_cloud);
-  // TODO: this temporary
-  auto adapter = aether->adapter_factories[0];
 
   for (const auto& description : servers) {
     auto server_id = description.server_id;
@@ -401,18 +399,15 @@ void Registration::OnCloudResolved(
     assert(server);
     server->server_id = server_id;
 
-    for (const auto& i : description.ips) {
-      for (const auto& protocol_port : i.protocol_and_ports) {
-        AE_TELED_DEBUG("Add channel ip {}, port {} protocol {}", i.ip,
-                       protocol_port.port, protocol_port.protocol);
-        auto channel = server->domain_->CreateObj<Channel>(adapter);
-        assert(channel);
-
-        channel->address = IpAddressPortProtocol{{i.ip, protocol_port.port},
-                                                 protocol_port.protocol};
-        server->AddChannel(std::move(channel));
+    std::vector<UnifiedAddress> addresses;
+    for (auto const& ip : description.ips) {
+      for (auto const& pp : ip.protocol_and_ports) {
+        addresses.emplace_back(
+            IpAddressPortProtocol{{ip.ip, pp.port}, pp.protocol});
       }
     }
+    auto channels = aether->adapter_registry->GenerateChannels(addresses);
+    server->SetChannels(std::move(channels));
     new_cloud->AddServer(server);
     aether->AddServer(std::move(server));
   }

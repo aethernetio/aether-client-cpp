@@ -87,6 +87,9 @@ class EthernetAdapter final : public Adapter {
   ActionPtr<TransportBuilderAction> CreateTransport(
       UnifiedAddress const& address_port_protocol) override;
 
+  std::vector<ObjPtr<Channel>> GenerateChannels(
+      std::vector<UnifiedAddress> const& addresses) override;
+
  private:
   Obj::ptr aether_;
   IPoller::ptr poller_;

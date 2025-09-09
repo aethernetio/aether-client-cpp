@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "aether/aether.h"
+#include "aether/channel.h"
 #include "aether/reflect/reflect.h"
 #include "aether/adapters/adapter_tele.h"
 
@@ -168,6 +169,17 @@ ActionPtr<TransportBuilderAction> EthernetAdapter::CreateTransport(
 
   return ActionPtr<ethernet_adapter_internal::EthernetTransportBuilderAction>{
       *aether_.as<Aether>(), *this, address_port_protocol};
+}
+
+std::vector<ObjPtr<Channel>> EthernetAdapter::GenerateChannels(
+    std::vector<UnifiedAddress> const& addresses) {
+  std::vector<ObjPtr<Channel>> channels;
+  auto self_ptr = ObjPtr{MakePtrFromThis(this)};
+  for (auto const& address : addresses) {
+    channels.emplace_back(domain_->CreateObj<Channel>(self_ptr));
+    channels.back()->address = address;
+  }
+  return channels;
 }
 
 }  // namespace ae
