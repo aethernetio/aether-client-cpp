@@ -85,6 +85,6 @@ uint32_t ProofOfWork::ComputeHash(const std::string& pass,
   // min output size is 16. Is it enough just to use RCR32?
   return crc32::from_string(hash.data()).value;
 }
-#endif
 
 }  // namespace ae
+#endif
