@@ -134,7 +134,7 @@ ModemTransport::ModemTransport(ActionContext action_context,
                                  std::chrono::milliseconds{50}} {
   AE_TELE_INFO(kModemTransport, "Modem transport created for {}", address_);
   stream_info_.link_state = LinkState::kUnlinked;
-  stream_info_.is_reliable = true;
+  stream_info_.is_reliable = (protocol_ == Protocol::kTcp);
   stream_info_.max_element_size = 2 * kMaxPacketSize;
   stream_info_.rec_element_size = kMaxPacketSize;
 
@@ -175,6 +175,7 @@ void ModemTransport::Connect() {
     read_action_ = OwnActionPtr<ReadUdpAction>{action_context_, *this};
   }
 
+  stream_info_.is_writable = true;
   stream_info_.link_state = LinkState::kLinked;
   stream_update_event_.Emit();
 }
