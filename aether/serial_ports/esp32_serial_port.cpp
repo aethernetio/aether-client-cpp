@@ -117,13 +117,19 @@ bool ESP32SerialPort::Initialize(SerialInit const& serial_init) {
 bool ESP32SerialPort::GetUartNumber(const std::string& port_name,
                                     uart_port_t* out_uart_num) {
   if (port_name == "UART0" || port_name == "/dev/uart/0") {
+#  if defined UART_NUM_0
     *out_uart_num = UART_NUM_0;
+#  endif
     return true;
   } else if (port_name == "UART1" || port_name == "/dev/uart/1") {
+#  if defined UART_NUM_1
     *out_uart_num = UART_NUM_1;
+#  endif
     return true;
   } else if (port_name == "UART2" || port_name == "/dev/uart/2") {
+#  if defined UART_NUM_2
     *out_uart_num = UART_NUM_2;
+#  endif
     return true;
   }
   return false;

@@ -30,7 +30,7 @@ if(NOT COMPILE_EXAMPLE )
 endif()
 
 if (NOT USER_CONFIG)
-  set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../config/user_config_optimized.h" CACHE PATH "")
+  set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../../config/user_config_optimized.h" CACHE PATH "")
 endif()
 
 if (NOT FS_INIT)
