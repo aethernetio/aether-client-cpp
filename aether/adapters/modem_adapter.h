@@ -79,9 +79,9 @@ class ModemAdapter : public ParentModemAdapter {
   ModemAdapter() = default;
 
  public:
-#ifdef AE_DISTILLATION
+//#ifdef AE_DISTILLATION
   ModemAdapter(ObjPtr<Aether> aether, ModemInit modem_init, Domain* domain);
-#endif  // AE_DISTILLATION
+//#endif  // AE_DISTILLATION
 
   ~ModemAdapter() override;
 
