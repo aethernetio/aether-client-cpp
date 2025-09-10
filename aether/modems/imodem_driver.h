@@ -1,0 +1,65 @@
+/*
+ * Copyright 2025 Aethernet Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef AETHER_MODEMS_IMODEM_DRIVER_H_
+#define AETHER_MODEMS_IMODEM_DRIVER_H_
+
+#include <string>
+#include <cstdint>
+
+#include "aether/obj/obj.h"
+#include "aether/types/address.h"
+#include "aether/types/data_buffer.h"
+#include "aether/modems/modem_driver_types.h"
+
+namespace ae {
+
+class IModemDriver : public Obj {
+  AE_OBJECT(IModemDriver, Obj, 0)
+
+ protected:
+  IModemDriver() = default;
+
+ public:
+  explicit IModemDriver(ModemInit modem_init, Domain* /*domain*/);
+  AE_OBJECT_REFLECT()
+
+  ~IModemDriver() override = default;
+
+  virtual bool Init();
+  virtual bool Start();
+  virtual bool Stop();
+  virtual ConnectionIndex OpenNetwork(Protocol /*protocol*/,
+                                      std::string const& /*host*/,
+                                      std::uint16_t /*port*/);
+  virtual void CloseNetwork(ConnectionIndex /*connect_index*/);
+  virtual void WritePacket(ConnectionIndex /*connect_index*/,
+                           DataBuffer const& /*data*/);
+  virtual DataBuffer ReadPacket(ConnectionIndex /*connect_index*/,
+                                Duration /*timeout*/);
+
+  virtual bool SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/);
+  virtual bool PowerOff();
+
+  ModemInit get_modem_init();
+
+ private:
+  ModemInit modem_init_;
+};
+
+} /* namespace ae */
+
+#endif  // AETHER_MODEMS_IMODEM_DRIVER_H_

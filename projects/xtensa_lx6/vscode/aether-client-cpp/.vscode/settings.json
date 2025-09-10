@@ -15,7 +15,7 @@
   ],
   "idf.svdFilePath": "${workspaceFolder}/system/svd/esp32.svd",
   "terminal.integrated.defaultProfile.windows": "PowerShell",
-  "idf.flashType": "UART",
+  "idf.flashType": "JTAG",
   "idf.portWin": "COM3",
   "editor.formatOnSave": true,
   "[cpp]": {
@@ -117,5 +117,8 @@
     "xtr1common": "cpp",
     "xutility": "cpp",
     "filesystem": "cpp"
-  }
+  },
+  "idf.espIdfPathWin": "g:\\dev\\esp32\\v5.5\\esp-idf",
+  "idf.toolsPathWin": "C:\\Users\\Vise\\.espressif",
+  "idf.pythonInstallPath": "C:\\Users\\Vise\\.espressif\\tools\\idf-python\\3.11.2\\python.exe"
 }

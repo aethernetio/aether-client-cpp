@@ -37,4 +37,8 @@ AE_TAG(kUdpTransportDisconnect, kTransport)
 AE_TAG(kUdpTransportSend, kTransportDebug)
 AE_TAG(kUdpTransportReceive, kTransportDebug)
 
+AE_TAG(kModemTransportSend, kTransportDebug)
+AE_TAG(kModemTransportReceive, kTransportDebug)
+AE_TAG(kModemTransport, kTransport)
+
 #endif  // AETHER_TRANSPORT_TRANSPORT_TELE_H_

@@ -27,25 +27,21 @@
 #endif
 // IWYU pragma: end_exports
 
-#ifndef CM_PLATFORM
+#ifndef AE_SUPPORT_IPV4
+#  define AE_SUPPORT_IPV4 1
+#endif  // AE_SUPPORT_IPV4
 
-#  ifndef AE_SUPPORT_IPV4
-#    define AE_SUPPORT_IPV4 1
-#  endif  // AE_SUPPORT_IPV4
+#ifndef AE_SUPPORT_IPV6
+#  define AE_SUPPORT_IPV6 1
+#endif  // AE_SUPPORT_IPV6
 
-#  ifndef AE_SUPPORT_IPV6
-#    define AE_SUPPORT_IPV6 1
-#  endif  // AE_SUPPORT_IPV6
+#ifndef AE_SUPPORT_UDP
+#  define AE_SUPPORT_UDP 1
+#endif  // AE_SUPPORT_UDP
 
-#  ifndef AE_SUPPORT_UDP
-#    define AE_SUPPORT_UDP 1
-#  endif  // AE_SUPPORT_UDP
-
-#  ifndef AE_SUPPORT_TCP
-#    define AE_SUPPORT_TCP 1
-#  endif  // AE_SUPPORT_TCP
-
-#endif /* CM_PLATFORM */
+#ifndef AE_SUPPORT_TCP
+#  define AE_SUPPORT_TCP 1
+#endif  // AE_SUPPORT_TCP
 
 #ifndef AE_SUPPORT_WEBSOCKET
 #  define AE_SUPPORT_WEBSOCKET 1
