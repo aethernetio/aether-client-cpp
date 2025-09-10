@@ -121,6 +121,12 @@ list(APPEND modems_srcs
             "modems/exponent_time.cpp"
             )
 
+list(APPEND lora_modules_srcs
+            "lora_modules/ebyte22_lora_module.cpp"
+            "lora_modules/ilora_driver.cpp"
+            "lora_modules/lora_module_factory.cpp"
+            )
+
 list(APPEND serial_ports_srcs
             "serial_ports/serial_port_factory.cpp"
             "serial_ports/esp32_serial_port.cpp"
@@ -281,6 +287,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${stream_api_src}
                             ${adapters_srcs}
                             ${modems_srcs}
+                            ${lora_modules_srcs}
                             ${serial_ports_srcs}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
@@ -325,6 +332,7 @@ else()
                             ${actions_srcs}
                             ${adapters_srcs}
                             ${modems_srcs}
+                            ${lora_modules_srcs}
                             ${serial_ports_srcs}
                             ${transport_srcs}
                             ${server_list_srcs}
