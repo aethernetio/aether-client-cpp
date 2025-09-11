@@ -14,25 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_SIZED_PACKET_GATE_H_
-#define AETHER_STREAM_API_SIZED_PACKET_GATE_H_
+#ifndef AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
+#define AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
 
-#include "aether/events/events.h"
-#include "aether/transport/data_packet_collector.h"
+#include "aether/stream_api/stream_write_action.h"
 
 namespace ae {
-class SizedPacketGate {
+class SocketPacketSendAction : public StreamWriteAction {
  public:
-  DataBuffer WriteIn(DataBuffer&& buffer);
-  void WriteOut(DataBuffer const& buffer);
-  std::size_t Overhead() const;
-  EventSubscriber<void(DataBuffer const& data)> out_data_event();
+  using StreamWriteAction::StreamWriteAction;
 
- private:
-  void DataReceived(DataBuffer const& buffer);
+  UpdateStatus Update() override;
 
-  StreamDataPacketCollector data_packet_collector_;
-  Event<void(DataBuffer const& data)> out_data_event_;
+  // Trigger event to send data
+  virtual void Send() = 0;
 };
 }  // namespace ae
-#endif  // AETHER_STREAM_API_SIZED_PACKET_GATE_H_
+
+#endif  // AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_

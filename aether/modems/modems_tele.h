@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,27 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef AETHER_MODEMS_MODEMS_TELE_H_
+#define AETHER_MODEMS_MODEMS_TELE_H_
 
-#include "aether/transport/low_level/socket_packet_send_action.h"
+// IWYU pragma: begin_exports
+#include "aether/tele/tele.h"
+// IWYU pragma: end_exports
 
-namespace ae {
-UpdateStatus SocketPacketSendAction::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kDone:
-        return UpdateStatus::Result();
-        break;
-      case State::kFailed:
-      case State::kTimeout:
-        return UpdateStatus::Error();
-        break;
-      case State::kStopped:
-        return UpdateStatus::Stop();
-        break;
-      default:
-        break;
-    }
-  }
-  return {};
-}
-}  // namespace ae
+#endif  // AETHER_MODEMS_MODEMS_TELE_H_

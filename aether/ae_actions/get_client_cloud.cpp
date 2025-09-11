@@ -191,7 +191,7 @@ void GetClientCloudAction::RequestServerResolve() {
 
               server_resolve_actions_[server_id] = std::move(swa);
             },
-            std::chrono::milliseconds{500}, repeat_count});
+            std::chrono::milliseconds{5000}, repeat_count});
 
     server_resolve_subscriptions_.Push(
         it->second->StatusEvent().Subscribe(OnError{[this, server_id]() {

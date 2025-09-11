@@ -14,21 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_
-
-#include "aether/stream_api/stream_write_action.h"
+#include "aether/transport/socket_packet_send_action.h"
 
 namespace ae {
-class SocketPacketSendAction : public StreamWriteAction {
- public:
-  using StreamWriteAction::StreamWriteAction;
-
-  UpdateStatus Update() override;
-
-  // Trigger event to send data
-  virtual void Send() = 0;
-};
+UpdateStatus SocketPacketSendAction::Update() {
+  if (state_.changed()) {
+    switch (state_.Acquire()) {
+      case State::kDone:
+        return UpdateStatus::Result();
+        break;
+      case State::kFailed:
+      case State::kTimeout:
+        return UpdateStatus::Error();
+        break;
+      case State::kStopped:
+        return UpdateStatus::Stop();
+        break;
+      default:
+        break;
+    }
+  }
+  return {};
+}
 }  // namespace ae
-
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKET_PACKET_SEND_ACTION_H_
