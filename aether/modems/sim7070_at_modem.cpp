@@ -31,7 +31,7 @@ namespace ae {
 
 Sim7070AtModem::Sim7070AtModem(ModemInit modem_init, Domain* domain)
     : IModemDriver{std::move(modem_init), domain} {
-  serial_ = SerialPortFactory::CreatePort(get_modem_init().serial_init);
+  serial_ = SerialPortFactory::CreatePort(GetModemInit().serial_init);
 };
 
 bool Sim7070AtModem::Init() {
@@ -65,7 +65,7 @@ bool Sim7070AtModem::Init() {
 }
 
 bool Sim7070AtModem::Start() {
-  ModemInit modem_init = get_modem_init();
+  ModemInit modem_init = GetModemInit();
 
   if (!serial_->IsOpen()) {
     AE_TELED_ERROR("Serial port is not open");

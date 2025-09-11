@@ -20,9 +20,10 @@
 
 namespace ae {
 
-ILoraDriver::ptr LoraModuleDriverFactory::CreateLoraModule(LoraInit lora_init, Domain* domain ) {
+ILoraModuleDriver::ptr LoraModuleDriverFactory::CreateLoraModule(
+    LoraModuleInit lora_module_init, Domain* domain) {
 #if AE_LORA_MODULE_EBYTE22_ENABLED == 1
-  return domain->CreateObj<EbyteE22Lora>(lora_init);
+  return domain->CreateObj<EbyteE22LoraModule>(lora_module_init);
 #endif
 }
 

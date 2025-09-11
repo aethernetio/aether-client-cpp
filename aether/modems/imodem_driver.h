@@ -54,7 +54,7 @@ class IModemDriver : public Obj {
   virtual bool SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/);
   virtual bool PowerOff();
 
-  ModemInit get_modem_init();
+  ModemInit GetModemInit();
 
  private:
   ModemInit modem_init_;

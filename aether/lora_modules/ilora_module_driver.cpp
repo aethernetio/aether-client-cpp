@@ -14,22 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
-#define AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
-
-#include "aether/reflect/reflect.h"
-#include "aether/serial_ports/serial_port_types.h"
+#include "aether/lora_modules/ilora_module_driver.h"
 
 namespace ae {
 
-struct LoraModuleInit {
-  AE_REFLECT_MEMBERS(serial_init, lora_adress, lora_channel, lora_config)
-  SerialInit serial_init;
-  std::uint16_t lora_adress{0};
-  std::uint8_t lora_channel{0};
-  std::uint8_t lora_config{0};
-};
+ILoraModuleDriver::ILoraModuleDriver(LoraModuleInit lora_module_init,
+                                     Domain* domain)
+    : Obj{domain}, lora_module_init_{std::move(lora_module_init)} {}
 
-}  // namespace ae
-
-#endif  // AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
+LoraModuleInit ILoraModuleDriver::GetLoraInit() { return lora_module_init_; }
+} /* namespace ae */

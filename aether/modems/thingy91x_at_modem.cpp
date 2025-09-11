@@ -30,7 +30,7 @@ namespace ae {
 
 Thingy91xAtModem::Thingy91xAtModem(ModemInit modem_init, Domain* domain)
     : IModemDriver{std::move(modem_init), domain} {
-  serial_ = SerialPortFactory::CreatePort(get_modem_init().serial_init);
+  serial_ = SerialPortFactory::CreatePort(GetModemInit().serial_init);
 };
 
 bool Thingy91xAtModem::Init() {
@@ -57,7 +57,7 @@ bool Thingy91xAtModem::Init() {
 }
 
 bool Thingy91xAtModem::Start() {
-  ModemInit modem_init = get_modem_init();
+  ModemInit modem_init = GetModemInit();
   if (!serial_->IsOpen()) {
     AE_TELED_ERROR("Serial port is not open");
     return false;

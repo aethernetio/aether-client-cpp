@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-#include "aether/lora_modules/ilora_driver.h"
+#include "aether/adapters/lora_module_adapter.h"
+
+#include "aether/lora_modules/lora_module_factory.h"
+#include "aether/transport/itransport_stream_builder.h"
+
+#include "aether/adapters/adapter_tele.h"
 
 namespace ae {
   
-  ILoraDriver::ILoraDriver(LoraInit lora_init, Domain* domain)
-    : Obj{domain}, lora_init_{std::move(lora_init)} {}
-
-  LoraInit ILoraDriver::GetLoraInit() { return lora_init_; }
-} /* namespace ae */
+}  // namespace ae

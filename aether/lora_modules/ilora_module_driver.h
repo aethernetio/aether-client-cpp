@@ -24,23 +24,22 @@
 
 namespace ae {
 
-class ILoraDriver : public Obj {
-  AE_OBJECT(ILoraDriver, Obj, 0)
+class ILoraModuleDriver : public Obj {
+  AE_OBJECT(ILoraModuleDriver, Obj, 0)
 
  protected:
-  ILoraDriver() = default;
+  ILoraModuleDriver() = default;
 
  public:
-  explicit ILoraDriver(LoraInit modem_init, Domain* /*domain*/);
+  explicit ILoraModuleDriver(LoraModuleInit lora_module_init, Domain* /* domain */);
   AE_OBJECT_REFLECT()
   
-  ~ILoraDriver() override = default;
+  ~ILoraModuleDriver() override = default;
   
-  LoraInit GetLoraInit();
+  LoraModuleInit GetLoraInit();
 
  private:
-  LoraInit lora_init_;
-  
+  LoraModuleInit lora_module_init_;  
 };
 
 } /* namespace ae */

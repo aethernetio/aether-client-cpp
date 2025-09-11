@@ -63,6 +63,10 @@ int AetherCloudExample() {
       false                          // Use SSL
   };
 
+  ae::LoraModuleInit lora_module_init{
+      serial_init_modem,  // Serial port
+  };
+
   /**
    * Construct a main aether application class.
    * It's include a Domain and Aether instances accessible by getter methods.
@@ -74,7 +78,8 @@ int AetherCloudExample() {
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppContext{}
 #if defined AE_DISTILLATION
-          .AdapterFactory([modem_init](ae::AetherAppContext const& context) {
+          .AdapterFactory([lora_module_init](
+                              ae::AetherAppContext const& context) {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, context.aether(),
@@ -83,6 +88,9 @@ int AetherCloudExample() {
 #  elif defined MODEM_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::ModemAdapter>(
                 ae::GlobalId::kModemAdapter, context.aether(), modem_init);
+#  elif defined LORA_MODULE_ADAPTER_ENABLED
+            auto adapter = context.domain().CreateObj<ae::LoraModuleAdapter>(
+                ae::GlobalId::kModemAdapter, context.aether(), lora_module_init);
 #  else
             auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, context.aether(),

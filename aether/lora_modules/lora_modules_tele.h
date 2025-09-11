@@ -13,23 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef AETHER_LORA_MODULES_LORA_MODULES_TELE_H_
+#define AETHER_LORA_MODULES_LORA_MODULES_TELE_H_
 
-#ifndef AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
-#define AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
+// IWYU pragma: begin_exports
+#include "aether/tele/tele.h"
+// IWYU pragma: end_exports
 
-#include "aether/reflect/reflect.h"
-#include "aether/serial_ports/serial_port_types.h"
-
-namespace ae {
-
-struct LoraModuleInit {
-  AE_REFLECT_MEMBERS(serial_init, lora_adress, lora_channel, lora_config)
-  SerialInit serial_init;
-  std::uint16_t lora_adress{0};
-  std::uint8_t lora_channel{0};
-  std::uint8_t lora_config{0};
-};
-
-}  // namespace ae
-
-#endif  // AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
+#endif  // AETHER_LORA_MODULES_LORA_MODULES_TELE_H_

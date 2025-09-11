@@ -107,6 +107,7 @@ list(APPEND adapters_srcs
             "adapters/adapter.cpp"
             "adapters/esp32_wifi.cpp"
             "adapters/ethernet.cpp"
+            "adapters/lora_module_adapter.cpp"
             "adapters/parent_wifi.cpp"
             "adapters/parent_modem.cpp"
             "adapters/modem_adapter.cpp"
@@ -123,7 +124,7 @@ list(APPEND modems_srcs
 
 list(APPEND lora_modules_srcs
             "lora_modules/ebyte22_lora_module.cpp"
-            "lora_modules/ilora_driver.cpp"
+            "lora_modules/ilora_module_driver.cpp"
             "lora_modules/lora_module_factory.cpp"
             )
 

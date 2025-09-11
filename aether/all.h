@@ -61,6 +61,7 @@
 #include "aether/adapters/ethernet.h"
 #include "aether/adapters/esp32_wifi.h"
 #include "aether/adapters/modem_adapter.h"
+#include "aether/adapters/lora_module_adapter.h"
 
 #include "aether/aether.h"
 #include "aether/client.h"

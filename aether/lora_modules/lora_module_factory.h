@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#include "aether/lora_modules/ilora_driver.h"
+#include "aether/lora_modules/ilora_module_driver.h"
 
 #define AE_LORA_MODULE_EBYTE22_ENABLED 1
 
@@ -30,7 +30,8 @@
 namespace ae {
 class LoraModuleDriverFactory {
  public:
-  static ILoraDriver::ptr CreateLoraModule(LoraInit lora_init, Domain* domain);
+  static ILoraModuleDriver::ptr CreateLoraModule(
+      LoraModuleInit lora_module_init, Domain* domain);
 };
 }  // namespace ae
 

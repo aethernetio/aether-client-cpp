@@ -45,12 +45,37 @@ enum class kBaudRate : std::uint32_t {
   kBaudRate4000000 = 4000000
 };
 
+enum class kBits : std::uint8_t {
+  kFiveBits = 5,
+  kSixBits = 6,
+  kSevenBits = 7,
+  kEigthBits = 8,
+  kNineBits = 9
+};
+
+enum class kParity : std::uint8_t {
+  kNoParity = 0,
+  kOddParity = 1,
+  kEvenParity = 2,
+  kMarkParity = 3,
+  kSpaceParity = 4
+};
+
+enum class kStopBits : std::uint8_t {
+  kOneStopBit = 1,
+  kOneAndHalfStopBit = 2,
+  kTwoStopBit = 3
+};
+
 struct SerialInit {
-  AE_REFLECT_MEMBERS(port_name, baud_rate, tx_io_num, rx_io_num, rts_io_num,
-                     cts_io_num)
+  AE_REFLECT_MEMBERS(port_name, baud_rate, byte_size, parity, stop_bits,
+                     tx_io_num, rx_io_num, rts_io_num, cts_io_num)
 
   std::string port_name{};
   kBaudRate baud_rate{kBaudRate::kBaudRate115200};
+  kBits byte_size{kBits::kEigthBits};
+  kParity parity{kParity::kNoParity};
+  kStopBits stop_bits{kStopBits::kOneStopBit};
   int tx_io_num{1};
   int rx_io_num{2};
   int rts_io_num{3};

@@ -42,6 +42,6 @@ bool IModemDriver::SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/) {
 }
 bool IModemDriver::PowerOff() { return {}; }
 
-ModemInit IModemDriver::get_modem_init() { return modem_init_; }
+ModemInit IModemDriver::GetModemInit() { return modem_init_; }
 
 } /* namespace ae */
