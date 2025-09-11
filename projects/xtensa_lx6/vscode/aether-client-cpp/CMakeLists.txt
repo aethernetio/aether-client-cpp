@@ -34,7 +34,7 @@ if (NOT USER_CONFIG)
 endif()
 
 if (NOT FS_INIT)
-  set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../config/file_system_init.h"  CACHE PATH "")
+  set(FS_INIT "${CMAKE_CURRENT_LIST_DIR}/../../../../config/file_system_init.h" CACHE PATH "")
 endif()
 
 # enable doubles in unity tests

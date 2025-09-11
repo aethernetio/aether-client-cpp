@@ -33,8 +33,8 @@
 
 #  include "aether/poller/poller.h"
 #  include "aether/stream_api/istream.h"
-#  include "aether/transport/low_level/socket_packet_send_action.h"
-#  include "aether/transport/low_level/socket_packet_queue_manager.h"
+#  include "aether/transport/socket_packet_send_action.h"
+#  include "aether/transport/socket_packet_queue_manager.h"
 #  include "aether/transport/low_level/sockets/udp_sockets_factory.h"
 
 namespace ae {

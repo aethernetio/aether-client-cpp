@@ -22,19 +22,47 @@
 static constexpr std::string_view kWifiSsid = "Test1234";
 static constexpr std::string_view kWifiPass = "Test1234";
 
+static constexpr std::string_view kSerialPort_modem =
+    "COM1";  // Modem serial port
+
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
     (std::numeric_limits<std::uint16_t>::max() / 2) - 1 - 1,  // max_data_size
-    10,                               // max_repeat_count
-    std::chrono::milliseconds{1500},  // wait_confirm_timeout
-    {},                               // send_confirm_timeout
-    std::chrono::milliseconds{400},   // send_repeat_timeout
+    10,                              // max_repeat_count
+    std::chrono::milliseconds{600},  // wait_confirm_timeout
+    {},                              // send_confirm_timeout
+    std::chrono::milliseconds{400},  // send_repeat_timeout
 };
 }  // namespace ae::cloud_test
 
 int AetherCloudExample() {
+  ae::SerialInit serial_init_modem = {std::string(kSerialPort_modem),
+                                      ae::kBaudRate::kBaudRate115200};
+  ae::PowerSaveParam const& psp{};
+  ae::BaseStation const& bs{};
+
+  ae::ModemInit modem_init{
+      serial_init_modem,             // Serial port
+      psp,                           // Power save parameters
+      bs,                            // Base station
+      {1, 1, 1, 1},                  // Pin code
+      false,                         // Use pin
+      ae::kModemMode::kModeNbIot,    // Modem mode
+      "00001",                       // Operator code
+      "",                            // Operator long name
+      "internet",                    // APN
+      "user",                        // APN user
+      "password",                    // APN pass
+      ae::kAuthType::kAuthTypeNone,  // Auth type
+      false,                         // Use auth
+      "",                            // Auth user
+      "",                            // Auth pass
+      "",                            // SSL cert
+      false                          // Use SSL
+  };
+
   /**
    * Construct a main aether application class.
    * It's include a Domain and Aether instances accessible by getter methods.
@@ -46,12 +74,15 @@ int AetherCloudExample() {
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppContext{}
 #if defined AE_DISTILLATION
-          .AdapterFactory([](ae::AetherAppContext const& context) {
+          .AdapterFactory([modem_init](ae::AetherAppContext const& context) {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::Esp32WifiAdapter>(
                 ae::GlobalId::kEsp32WiFiAdapter, context.aether(),
                 context.poller(), context.dns_resolver(),
                 std::string(kWifiSsid), std::string(kWifiPass));
+#  elif defined MODEM_ADAPTER_ENABLED
+            auto adapter = context.domain().CreateObj<ae::ModemAdapter>(
+                ae::GlobalId::kModemAdapter, context.aether(), modem_init);
 #  else
             auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, context.aether(),
