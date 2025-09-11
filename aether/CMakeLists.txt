@@ -45,6 +45,7 @@ set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
 list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
+            "adapter_registry.cpp"
             "channel.cpp"
             "client.cpp"
             "cloud.cpp"

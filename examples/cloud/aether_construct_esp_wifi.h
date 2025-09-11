@@ -33,11 +33,13 @@ RcPtr<AetherApp> construct_aether_app() {
       AetherAppContext{}
 #  if defined AE_DISTILLATION
           .AdapterFactory([](AetherAppContext const& context) {
-            auto adapter = context.domain().CreateObj<Esp32WifiAdapter>(
+            auto adapter_registry =
+                context.domain().CreateObj<AdapterRegistry>();
+            adapter_registry->Add(context.domain().CreateObj<Esp32WifiAdapter>(
                 GlobalId::kEsp32WiFiAdapter, context.aether(), context.poller(),
                 context.dns_resolver(), std::string(kWifiSsid),
-                std::string(kWifiPass));
-            return adapter;
+                std::string(kWifiPass)));
+            return adapter_registry;
           })
 #  endif
   );

@@ -21,16 +21,10 @@
 namespace ae {
 Server::Server(Domain* domain) : Obj{domain} {}
 
-void Server::AddChannel(Channel::ptr channel) {
-  channel.SetFlags(ObjFlags::kUnloadedByDefault);
-  channels.push_back(std::move(channel));
-}
-
-void Server::LoadChannel(Channel::ptr& channel) {
-  if (!channel) {
-    domain_->LoadRoot(channel);
-    assert(channel);
+void Server::SetChannels(std::vector<Channel::ptr> chans) {
+  for (auto& channel : chans) {
+    channel.SetFlags(ObjFlags::kUnloadedByDefault);
   }
+  channels = std::move(chans);
 }
-
 }  // namespace ae

@@ -17,7 +17,5 @@
 #include "aether/work_cloud.h"
 
 namespace ae {
-#ifdef AE_DISTILLATION
 WorkCloud::WorkCloud(Domain* domain) : Cloud(domain) {}
-#endif  // AE_DISTILLATION
 }  // namespace ae

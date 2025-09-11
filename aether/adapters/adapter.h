@@ -27,6 +27,7 @@
 #include "aether/transport/itransport_stream_builder.h"
 
 namespace ae {
+class Channel;
 /**
  * \brief Action makes all the preparation required to build transport for
  * specified address.
@@ -66,6 +67,12 @@ class Adapter : public Obj {
    */
   virtual ActionPtr<TransportBuilderAction> CreateTransport(
       UnifiedAddress const& address);
+
+  /**
+   * \brief Generate list of channels.
+   */
+  virtual std::vector<ObjPtr<Channel>> GenerateChannels(
+      std::vector<UnifiedAddress> const& server_channels);
 };
 
 }  // namespace ae

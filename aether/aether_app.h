@@ -28,7 +28,6 @@
 #include "aether/obj/domain.h"
 #include "aether/global_ids.h"
 #include "aether/type_traits.h"
-#include "aether/reflect/reflect.h"
 
 #include "aether/events/events.h"   // IWYU pragma: keep
 #include "aether/actions/action.h"  // IWYU pragma: keep
@@ -40,13 +39,13 @@
 #include "aether/aether.h"
 #include "aether/crypto.h"
 #include "aether/poller/poller.h"
-#include "aether/adapters/adapter.h"
+#include "aether/dns/dns_resolve.h"
+#include "aether/adapter_registry.h"
 #include "aether/obj/component_context.h"
 
 #include "aether/domain_storage/domain_storage_factory.h"
 
 namespace ae {
-
 class AetherAppContext : public ComponentContext<AetherAppContext> {
   friend class AetherApp;
   class TelemetryInit {
@@ -85,7 +84,9 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
   Aether::ptr aether() const { return aether_; }
 
 #if defined AE_DISTILLATION
-  Adapter::ptr adapter() const { return Resolve<Adapter>(); }
+  AdapterRegistry::ptr adapter_registry() const {
+    return Resolve<AdapterRegistry>();
+  }
 #  if AE_SUPPORT_REGISTRATION
   Cloud::ptr registration_cloud() const { return Resolve<Cloud>(); }
 #  endif  // AE_SUPPORT_REGISTRATION
@@ -94,8 +95,8 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
   DnsResolver::ptr dns_resolver() const { return Resolve<DnsResolver>(); }
 
   template <typename TFunc>
-  AetherAppContext&& AdapterFactory(TFunc&& func) && {
-    Factory<Adapter>(std::forward<TFunc>(func));
+  AetherAppContext&& AdaptersFactory(TFunc&& func) && {
+    Factory<AdapterRegistry>(std::forward<TFunc>(func));
     return std::move(*this);
   }
 

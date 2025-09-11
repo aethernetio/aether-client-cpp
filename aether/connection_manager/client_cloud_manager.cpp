@@ -21,6 +21,7 @@
 
 #include "aether/aether.h"
 #include "aether/client.h"
+#include "aether/work_cloud.h"
 
 #include "aether/types/state_machine.h"
 #include "aether/methods/server_descriptor.h"
@@ -165,11 +166,8 @@ Cloud::ptr ClientCloudManager::RegisterCloud(
   }
   assert(aether_);
   auto* aether = aether_.as<Aether>();
-  auto new_cloud = domain_->LoadCopy(aether->cloud_prefab);
+  auto new_cloud = domain_->CreateObj<WorkCloud>();
   assert(new_cloud);
-
-  // TODO: use AdapterRegistry
-  auto adapter = aether->adapter_factories[0];
 
   for (auto const& descriptor : server_descriptors) {
     auto server_id = descriptor.server_id;
@@ -181,14 +179,16 @@ Cloud::ptr ClientCloudManager::RegisterCloud(
 
     auto server = domain_->CreateObj<Server>();
     server->server_id = server_id;
-    for (auto const& endpoint : descriptor.ips) {
-      for (auto const& protocol_port : endpoint.protocol_and_ports) {
-        auto channel = server->domain_->CreateObj<Channel>(adapter);
-        channel->address = IpAddressPortProtocol{
-            {endpoint.ip, protocol_port.port}, protocol_port.protocol};
-        server->AddChannel(std::move(channel));
+    std::vector<UnifiedAddress> addresses;
+    for (auto const& ip : descriptor.ips) {
+      for (auto const& pp : ip.protocol_and_ports) {
+        addresses.emplace_back(
+            IpAddressPortProtocol{{ip.ip, pp.port}, pp.protocol});
       }
     }
+
+    auto channels = aether->adapter_registry->GenerateChannels(addresses);
+    server->SetChannels(std::move(channels));
     new_cloud->AddServer(server);
     aether->AddServer(std::move(server));
   }

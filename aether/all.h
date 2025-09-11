@@ -58,6 +58,8 @@
 #include "aether/serial_ports/serial_port_types.h"
 #include "aether/serial_ports/serial_port_factory.h"
 
+#include "aether/adapter_registry.h"
+
 #include "aether/adapters/ethernet.h"
 #include "aether/adapters/esp32_wifi.h"
 #include "aether/adapters/modem_adapter.h"
