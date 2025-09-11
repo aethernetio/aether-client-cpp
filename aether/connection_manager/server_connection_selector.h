@@ -17,31 +17,37 @@
 #ifndef AETHER_CONNECTION_MANAGER_SERVER_CONNECTION_SELECTOR_H_
 #define AETHER_CONNECTION_MANAGER_SERVER_CONNECTION_SELECTOR_H_
 
+#include <vector>
+
 #include "aether/memory.h"
 #include "aether/ptr/rc_ptr.h"
-#include "aether/server_list/server_list.h"
+#include "aether/ptr/ptr_view.h"
+
+#include "aether/connection_manager/iserver_priority_policy.h"
 #include "aether/server_connections/client_server_connection.h"
-#include "aether/connection_manager/iserver_connection_factory.h"
+#include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {
 class Cloud;
+class Server;
 
 class ServerConnectionSelector {
  public:
-  ServerConnectionSelector(
-      ObjPtr<Cloud> const& cloud,
-      std::unique_ptr<ServerListPolicy>&& server_list_policy,
-      std::unique_ptr<IServerConnectionFactory>&&
-          client_server_connection_factory);
+  ServerConnectionSelector(ObjPtr<Cloud> const& cloud,
+                           IServerPriorityPolicy& server_priority_policy,
+                           std::unique_ptr<IServerConnectionFactory>
+                               client_server_connection_factory);
 
+  // Async for loop api
   void Init();
   void Next();
   // Return connection to current server
-  RcPtr<ClientServerConnection> GetConnection();
+  RcPtr<ClientServerConnection> Get();
   bool End();
 
  private:
-  ServerList server_list_;
+  std::vector<PtrView<Server>> servers_;
+  std::vector<PtrView<Server>>::iterator current_server_;
   std::unique_ptr<IServerConnectionFactory> server_connection_factory_;
 };
 }  // namespace ae

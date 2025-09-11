@@ -61,8 +61,8 @@ void AetherAppContext::InitComponentContext() {
 
 #  if AE_SUPPORT_REGISTRATION
   Factory<Cloud>([](AetherAppContext const& context) {
-    auto reg_c =
-        context.domain().CreateObj<RegistrationCloud>(kRegistrationCloud);
+    auto reg_c = context.domain().CreateObj<RegistrationCloud>(
+        kRegistrationCloud, context.aether());
 #    if defined _AE_REG_CLOUD_IP
     auto reg_cloud_ip = IpAddressParser{}.StringToIP(_AE_REG_CLOUD_IP);
     assert(reg_cloud_ip.has_value());
@@ -77,7 +77,6 @@ void AetherAppContext::InitComponentContext() {
     // in case of ip address change
     reg_c->AddServerSettings(NameAddress{"registration.aethernet.io", 9010});
 #    endif
-    reg_c->set_adapter(context.adapter());
     return reg_c;
   });
 #  endif  // AE_SUPPORT_REGISTRATION
@@ -138,7 +137,6 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
   auto adapter = context.adapter();
   adapter.SetFlags(ObjFlags::kUnloadedByDefault);
   app->aether_->adapter_factories.emplace_back(adapter);
-  app->aether_->cloud_prefab->set_adapter(adapter);
 
 #  if AE_SUPPORT_REGISTRATION
   app->aether_->registration_cloud = context.registration_cloud();

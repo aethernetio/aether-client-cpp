@@ -234,6 +234,8 @@ TcpTransport::TcpTransport(ActionContext action_context,
                endpoint_);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = true;
+  // TODO: find a better value for max element size
+  stream_info_.max_element_size = std::numeric_limits<std::uint32_t>::max();
 
   // Make connection
   connection_action_ = OwnActionPtr<ConnectionAction>{action_context_, *this};
@@ -283,8 +285,6 @@ void TcpTransport::OnConnected() {
   stream_info_.link_state = LinkState::kLinked;
   // 2 - for max packet size
   stream_info_.rec_element_size = socket_.GetMaxPacketSize() - 2;
-  // TODO: find a better value for max element size
-  stream_info_.max_element_size = std::numeric_limits<std::uint32_t>::max();
   read_action_ = OwnActionPtr<ReadAction>{action_context_, *this};
   read_action_error_sub_ =
       read_action_->StatusEvent().Subscribe(OnError{[this]() {

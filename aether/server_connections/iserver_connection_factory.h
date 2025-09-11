@@ -14,19 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_SERVER_LIST_NO_FILTER_SERVER_LIST_POLICY_H_
-#define AETHER_SERVER_LIST_NO_FILTER_SERVER_LIST_POLICY_H_
+#ifndef AETHER_SERVER_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
+#define AETHER_SERVER_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
 
-#include "aether/server_list/list_policy.h"
+#include "aether/ptr/rc_ptr.h"
+#include "aether/obj/obj_ptr.h"
+#include "aether/server_connections/client_server_connection.h"
 
 namespace ae {
-class NoFilterServerListPolicy : public ServerListPolicy {
+class Server;
+class IServerConnectionFactory {
  public:
-  bool Preferred(ServerListItem const& left,
-                 ServerListItem const& right) const override;
+  virtual ~IServerConnectionFactory() = default;
 
-  bool Filter(ServerListItem const& /* info */) const override;
+  virtual RcPtr<ClientServerConnection> CreateConnection(
+      ObjPtr<Server> const& server) = 0;
 };
 }  // namespace ae
 
-#endif  // AETHER_SERVER_LIST_NO_FILTER_SERVER_LIST_POLICY_H_
+#endif  // AETHER_SERVER_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_

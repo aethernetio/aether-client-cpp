@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,13 @@
  * limitations under the License.
  */
 
-#include "aether/connection_manager/cloud_cache.h"
+#ifndef CLOUD_AETHER_CONSTRUCT_H_
+#define CLOUD_AETHER_CONSTRUCT_H_
 
-namespace ae {
-std::optional<std::reference_wrapper<Cloud::ptr>> CloudCache::GetCache(
-    Uid uid) {
-  auto it = clouds_.find(uid);
-  if (it == std::end(clouds_)) {
-    return {};
-  }
-  return std::ref(it->second);
+#include "aether/all.h"
+
+namespace ae::cloud_test {
+static RcPtr<AetherApp> construct_aether_app();
 }
 
-void CloudCache::AddCloud(Uid uid, Cloud::ptr cloud) {
-  clouds_[uid] = std::move(cloud);
-}
-
-}  // namespace ae
+#endif  // CLOUD_AETHER_CONSTRUCT_H_

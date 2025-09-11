@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/ae_actions/registration/registration.h"
+#include "aether/registration/registration.h"
 
 #if AE_SUPPORT_REGISTRATION
 
@@ -36,26 +36,31 @@
 
 #  include "aether/api_protocol/api_context.h"
 
-#  include "aether/proof_of_work.h"
-#  include "aether/server_list/no_filter_server_list_policy.h"
-#  include "aether/ae_actions/registration/registration_key_provider.h"
+#  include "aether/registration/proof_of_work.h"
+#  include "aether/registration/reg_server_stream.h"
+#  include "aether/registration/registration_key_provider.h"
+#  include "aether/registration/global_reg_server_stream.h"
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
 
-Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
+Registration::Registration(ActionContext action_context,
+                           ObjPtr<Aether> const& aether,
+                           RegistrationCloud::ptr const& reg_cloud,
                            Uid parent_uid, Client::ptr client)
     : Action{action_context},
-      aether_{std::move(aether)},
+      action_context_{action_context},
+      aether_{aether},
       client_{std::move(client)},
       parent_uid_{std::move(parent_uid)},
       client_root_api_{protocol_context_},
       client_safe_api_{protocol_context_},
       client_global_reg_api_{protocol_context_},
-      server_reg_root_api_{protocol_context_, action_context},
-      server_reg_api_{protocol_context_, action_context},
-      global_reg_server_api_{protocol_context_, action_context},
+      server_reg_root_api_{protocol_context_, action_context_},
+      server_reg_api_{protocol_context_, action_context_},
+      global_reg_server_api_{protocol_context_, action_context_},
+      reg_server_connection_pool_{action_context_, reg_cloud},
       state_{State::kSelectConnection},
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
@@ -65,30 +70,8 @@ Registration::Registration(ActionContext action_context, PtrView<Aether> aether,
   auto aether_ptr = aether_.Lock();
   assert(aether_ptr);
 
-  auto& cloud = aether_ptr->registration_cloud;
-  if (!cloud) {
-    aether_ptr->domain_->LoadRoot(cloud);
-    assert(cloud);
-  }
-
-  auto& adapter = cloud->adapter();
-  if (!adapter) {
-    aether_ptr->domain_->LoadRoot(adapter);
-    assert(adapter);
-  }
-
   // parent uid must not be empty
   assert(!parent_uid_.empty());
-
-  server_list_ =
-      make_unique<ServerList>(make_unique<NoFilterServerListPolicy>(), cloud);
-  connection_selection_ =
-      AsyncForLoop<std::unique_ptr<ServerChannel>>::Construct(
-          *server_list_, [this, aether_ptr, adapter{adapter}]() {
-            auto item = server_list_->Get();
-            return make_unique<ServerChannel>(*aether_ptr, adapter,
-                                              item.server(), item.channel());
-          });
 
   // trigger action on state change
   state_change_subscription_ =
@@ -108,6 +91,9 @@ UpdateStatus Registration::Update() {
         IterateConnection();
         break;
       case State::kWaitingConnection:
+        break;
+      case State::kConnectionFailed:
+        ConnectionFailed();
         break;
       case State::kConnected:
         Connected();
@@ -142,14 +128,15 @@ UpdateStatus Registration::Update() {
 Client::ptr Registration::client() const { return client_; }
 
 void Registration::IterateConnection() {
-  if (server_channel_ = connection_selection_->Update(); !server_channel_) {
+  if (server_channel_ = reg_server_connection_pool_.TopConnection();
+      server_channel_ == nullptr) {
     AE_TELE_ERROR(RegisterServerConnectionListOver,
                   "Server connection list is over");
     state_ = State::kRegistrationFailed;
     return;
   }
 
-  AE_TELED_DEBUG("Selected server");
+  AE_TELED_DEBUG("Server selected");
   if (server_channel_->stream().stream_info().link_state ==
       LinkState::kLinked) {
     state_ = State::kConnected;
@@ -164,7 +151,7 @@ void Registration::IterateConnection() {
         } else {
           AE_TELE_WARNING(RegisterConnectionErrorTryNext,
                           "Connection error, try next");
-          state_ = State::kSelectConnection;
+          state_ = State::kConnectionFailed;
         }
       });
 
@@ -173,10 +160,6 @@ void Registration::IterateConnection() {
 
 void Registration::Connected() {
   AE_TELED_DEBUG("Registration::Connected");
-  auto aether = aether_.Lock();
-  if (!aether) {
-    return;
-  }
 
   // create simplest stream to server
   // On RequestPowParams will be created a more complicated one
@@ -188,14 +171,24 @@ void Registration::Connected() {
   state_ = State::kGetKeys;
 }
 
+void Registration::ConnectionFailed() {
+  AE_TELED_DEBUG("Registration::ConnectionFailed");
+  if (!reg_server_connection_pool_.Rotate()) {
+    state_ = State::kRegistrationFailed;
+  } else {
+    state_ = State::kSelectConnection;
+  }
+}
+
 void Registration::GetKeys() {
   AE_TELE_INFO(RegisterGetKeys, "GetKeys");
 
-  auto packet_context = ApiContext{protocol_context_, server_reg_root_api_};
+  auto api_call = ApiCallAdapter{
+      ApiContext{protocol_context_, server_reg_root_api_}, *reg_server_stream_};
   auto get_key_promise =
-      packet_context->get_asymmetric_public_key(kDefaultCryptoLibProfile);
+      api_call->get_asymmetric_public_key(kDefaultCryptoLibProfile);
 
-  subscriptions_.Push(get_key_promise->StatusEvent().Subscribe(ActionHandler{
+  response_sub_ = get_key_promise->StatusEvent().Subscribe(ActionHandler{
       OnResult{[&](auto& promise) {
         auto& signed_key = promise.value();
         auto r = CryptoSignVerify(signed_key.sign, signed_key.key, sign_pk_);
@@ -210,14 +203,16 @@ void Registration::GetKeys() {
         state_ = State::kGetPowParams;
       }},
       OnError{[&]() { state_ = State::kRegistrationFailed; }},
-  }));
+  });
 
-  packet_write_action_ = reg_server_stream_->Write(std::move(packet_context));
+  packet_write_action_ = api_call.Flush();
 
   // on error try repeat
   raw_transport_send_action_subscription_ =
-      packet_write_action_->StatusEvent().Subscribe(
-          OnError{[&]() { state_ = State::kSelectConnection; }});
+      packet_write_action_->StatusEvent().Subscribe(OnError{[&]() {
+        reg_server_connection_pool_.Rotate();
+        state_ = State::kConnectionFailed;
+      }});
   last_request_time_ = Now();
 
   state_ = State::kWaitKeys;
@@ -228,7 +223,7 @@ TimePoint Registration::WaitKeys() {
   if (last_request_time_ + response_timeout_ < current_time) {
     AE_TELE_WARNING(RegisterWaitKeysTimeout,
                     "WaitKeys timeout {:%Y-%m-%d %H:%M:%S}", current_time);
-    state_ = State::kSelectConnection;
+    state_ = State::kConnectionFailed;
     return current_time;
   }
   return last_request_time_ + response_timeout_;
@@ -249,17 +244,20 @@ void Registration::RequestPowParams() {
   server_sync_key_provider->set_key(secret_key);
   server_sync_key_provider_ = server_sync_key_provider.get();
 
-  reg_server_stream_ =
-      CreateRegServerStream(std::move(server_async_key_provider),
-                            std::move(server_sync_key_provider));
+  reg_server_stream_ = std::make_unique<RegServerStream>(
+      action_context_, protocol_context_, client_safe_api_,
+      kDefaultCryptoLibProfile,
+      make_unique<AsyncEncryptProvider>(std::move(server_async_key_provider)),
+      make_unique<SyncDecryptProvider>(std::move(server_sync_key_provider)));
 
   Tie(*reg_server_stream_, server_channel_->stream());
 
-  auto api_context = ApiContext{protocol_context_, server_reg_api_};
-  auto pow_params_promise = api_context->request_proof_of_work_data(
+  auto api_call = ApiCallAdapter{ApiContext{protocol_context_, server_reg_api_},
+                                 *reg_server_stream_};
+  auto pow_params_promise = api_call->request_proof_of_work_data(
       parent_uid_, PowMethod::kBCryptCrc32, std::move(secret_key));
 
-  subscriptions_.Push(pow_params_promise->StatusEvent().Subscribe(ActionHandler{
+  response_sub_ = pow_params_promise->StatusEvent().Subscribe(ActionHandler{
       OnResult{[&](auto& promise) {
         auto& pow_params = promise.value();
         [[maybe_unused]] auto res = CryptoSignVerify(
@@ -280,9 +278,9 @@ void Registration::RequestPowParams() {
 
         state_ = State::kMakeRegistration;
       }},
-      OnError{[&]() { state_ = State::kRegistrationFailed; }}}));
+      OnError{[&]() { state_ = State::kRegistrationFailed; }}});
 
-  packet_write_action_ = reg_server_stream_->Write(std::move(api_context));
+  packet_write_action_ = api_call.Flush();
 
   reg_server_write_subscription_ =
       packet_write_action_->StatusEvent().Subscribe(OnError{[this]() {
@@ -315,40 +313,36 @@ void Registration::MakeRegistration() {
   auto global_sync_key_provider = make_unique<RegistrationSyncKeyProvider>();
   global_sync_key_provider->set_key(master_key_);
 
-  global_reg_server_stream_ = CreateGlobalRegServerStream(
-      std::move(global_async_key_provider), std::move(global_sync_key_provider),
-      DelegateWriteInGate<DataBuffer>{[this, pow_params{pow_params_},
-                                       proofs{std::move(proofs)}](
-                                          DataBuffer&& data) -> DataBuffer {
-        auto api_context = ApiContext{protocol_context_, server_reg_api_};
-        api_context->registration(
-            pow_params.salt, pow_params.password_suffix, proofs, parent_uid_,
-            server_sync_key_provider_->GetKey(), std::move(data));
-        return api_context;
-      }});
+  global_reg_server_stream_ = std::make_unique<GlobalRegServerStream>(
+      protocol_context_, client_global_reg_api_, server_reg_api_,
+      pow_params_.salt, pow_params_.password_suffix, std::move(proofs),
+      parent_uid_, server_sync_key_provider_->GetKey(),
+      make_unique<AsyncEncryptProvider>(std::move(global_async_key_provider)),
+      make_unique<SyncDecryptProvider>(std::move(global_sync_key_provider)));
 
   Tie(*global_reg_server_stream_, *reg_server_stream_);
 
-  auto api_context = ApiContext{protocol_context_, global_reg_server_api_};
-  api_context->set_master_key(master_key_);
-  auto confirm_promise = api_context->finish();
+  auto api_call =
+      ApiCallAdapter{ApiContext{protocol_context_, global_reg_server_api_},
+                     *global_reg_server_stream_};
+  api_call->set_master_key(master_key_);
+  auto confirm_promise = api_call->finish();
 
-  subscriptions_.Push(confirm_promise->StatusEvent().Subscribe(ActionHandler{
+  response_sub_ = confirm_promise->StatusEvent().Subscribe(ActionHandler{
       OnResult{[&](auto& promise) {
         auto& reg_response = promise.value();
         AE_TELE_INFO(RegisterRegistrationConfirmed, "Registration confirmed");
 
         ephemeral_uid_ = reg_response.ephemeral_uid;
         uid_ = reg_response.uid;
-        cloud_ = reg_response.cloud;
-        assert(cloud_.size() > 0);
+        client_cloud_ = reg_response.cloud;
+        assert(client_cloud_.size() > 0);
 
         state_ = State::kRequestCloudResolving;
       }},
-      OnError{[&]() { state_ = State::kRegistrationFailed; }}}));
+      OnError{[&]() { state_ = State::kRegistrationFailed; }}});
 
-  packet_write_action_ =
-      global_reg_server_stream_->Write(std::move(api_context));
+  packet_write_action_ = api_call.Flush();
 
   reg_server_write_subscription_ =
       packet_write_action_->StatusEvent().Subscribe(OnError{[this]() {
@@ -359,17 +353,17 @@ void Registration::MakeRegistration() {
 
 void Registration::ResolveCloud() {
   AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud with {} servers",
-               cloud_.size());
+               client_cloud_.size());
 
-  auto api_context = ApiContext{protocol_context_, server_reg_api_};
-  auto resolve_cloud_promise = api_context->resolve_servers(cloud_);
+  auto api_call = ApiCallAdapter{ApiContext{protocol_context_, server_reg_api_},
+                                 *reg_server_stream_};
+  auto resolve_cloud_promise = api_call->resolve_servers(client_cloud_);
 
-  subscriptions_.Push(
-      resolve_cloud_promise->StatusEvent().Subscribe(ActionHandler{
-          OnResult{[&](auto& promise) { OnCloudResolved(promise.value()); }},
-          OnError{[&]() { state_ = State::kRegistrationFailed; }}}));
+  response_sub_ = resolve_cloud_promise->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[&](auto& promise) { OnCloudResolved(promise.value()); }},
+      OnError{[&]() { state_ = State::kRegistrationFailed; }}});
 
-  packet_write_action_ = reg_server_stream_->Write(std::move(api_context));
+  packet_write_action_ = api_call.Flush();
 
   reg_server_write_subscription_ =
       packet_write_action_->StatusEvent().Subscribe(OnError{[this]() {
@@ -389,6 +383,8 @@ void Registration::OnCloudResolved(
 
   Cloud::ptr new_cloud = aether->domain_->LoadCopy(aether->cloud_prefab);
   assert(new_cloud);
+  // TODO: this temporary
+  auto adapter = aether->adapter_factories[0];
 
   for (const auto& description : servers) {
     auto server_id = description.server_id;
@@ -409,7 +405,7 @@ void Registration::OnCloudResolved(
       for (const auto& protocol_port : i.protocol_and_ports) {
         AE_TELED_DEBUG("Add channel ip {}, port {} protocol {}", i.ip,
                        protocol_port.port, protocol_port.protocol);
-        auto channel = server->domain_->CreateObj<Channel>();
+        auto channel = server->domain_->CreateObj<Channel>(adapter);
         assert(channel);
 
         channel->address = IpAddressPortProtocol{{i.ip, protocol_port.port},
@@ -428,51 +424,6 @@ void Registration::OnCloudResolved(
                 client_->uid(), client_->ephemeral_uid());
   state_ = State::kRegistered;
 }
-
-std::unique_ptr<ByteStream> Registration::CreateRegServerStream(
-    std::unique_ptr<IAsyncKeyProvider> async_key_provider,
-    std::unique_ptr<ISyncKeyProvider> sync_key_provider) {
-  auto aether = aether_.Lock();
-  if (!aether) {
-    return {};
-  }
-
-  auto tied_stream = make_unique<GatesStream>(
-      ProtocolReadGate{protocol_context_, client_safe_api_},
-      DebugGate{"RegServer write {}", "RegServer read {}"},
-      CryptoGate{
-          make_unique<AsyncEncryptProvider>(std::move(async_key_provider)),
-          make_unique<SyncDecryptProvider>(std::move(sync_key_provider))},
-      DelegateWriteInGate<DataBuffer>{[this](DataBuffer&& data) -> DataBuffer {
-        auto api_context = ApiContext{protocol_context_, server_reg_root_api_};
-        api_context->enter(kDefaultCryptoLibProfile, std::move(data));
-        return DataBuffer{std::move(api_context)};
-      }},
-      EventWriteOutGate<DataBuffer>{
-          EventSubscriber{client_root_api_.enter_event}},
-      ProtocolReadGate{protocol_context_, client_root_api_});
-
-  return tied_stream;
-}
-
-std::unique_ptr<ByteStream> Registration::CreateGlobalRegServerStream(
-    std::unique_ptr<IAsyncKeyProvider> global_async_key_provider,
-    std::unique_ptr<ISyncKeyProvider> global_sync_key_provider,
-    DelegateWriteInGate<DataBuffer> enter_global_api_gate) {
-  auto tied_stream = make_unique<GatesStream>(
-      ProtocolReadGate{protocol_context_, client_global_reg_api_},
-      DebugGate{"GlobalRegServer write {}", "GlobalRegServer read {}"},
-      CryptoGate{make_unique<AsyncEncryptProvider>(
-                     std::move(global_async_key_provider)),
-                 make_unique<SyncDecryptProvider>(
-                     std::move(global_sync_key_provider))},
-      EventWriteOutGate<DataBuffer>{
-          EventSubscriber{client_safe_api_.global_api_event}},
-      std::move(enter_global_api_gate));
-
-  return tied_stream;
-}
-
 }  // namespace ae
 
 #endif

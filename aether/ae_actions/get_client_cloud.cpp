@@ -20,11 +20,26 @@
 
 #include "aether/api_protocol/api_context.h"
 
-#include "aether/methods/work_server_api/authorized_api.h"
-
 #include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
+GetClientCloudAction::AddResolversGate::AddResolversGate(
+    ClientToServerStream& client_to_server_stream, StreamId server_stream_id,
+    StreamId cloud_stream_id)
+    : client_to_server_stream_{&client_to_server_stream},
+      server_stream_id_{server_stream_id},
+      cloud_stream_id_{cloud_stream_id} {}
+
+DataBuffer GetClientCloudAction::AddResolversGate::WriteIn(
+    DataBuffer&& buffer) {
+  auto api = ApiContext{client_to_server_stream_->protocol_context(),
+                        client_to_server_stream_->authorized_api()};
+  api->resolvers(server_stream_id_, cloud_stream_id_);
+  DataBuffer resolvers = std::move(api);
+  buffer.insert(std::end(buffer), std::begin(resolvers), std::end(resolvers));
+  return std::move(buffer);
+}
+
 GetClientCloudAction::GetClientCloudAction(
     ActionContext action_context, ClientToServerStream& client_to_server_stream,
     Uid client_uid)
@@ -36,39 +51,7 @@ GetClientCloudAction::GetClientCloudAction(
       state_changed_subscription_{state_.changed_event().Subscribe(
           [this](auto) { Action::Trigger(); })} {
   AE_TELE_INFO(kGetClientCloud, "GetClientCloudAction created");
-
-  auto server_stream_id = StreamIdGenerator::GetNextClientStreamId();
-  auto cloud_stream_id = StreamIdGenerator::GetNextClientStreamId();
-
-  auto auth_api = ApiContext{client_to_server_stream_->protocol_context(),
-                             client_to_server_stream_->authorized_api()};
-  auth_api->resolvers(server_stream_id, cloud_stream_id);
-
-  add_resolvers_.emplace(DataBuffer{std::move(auth_api)});
-
-  server_resolver_stream_.emplace(
-      SerializeGate<ServerId, ServerDescriptor>{},
-      StreamApiGate{client_to_server_stream_->protocol_context(),
-                    server_stream_id},
-      *add_resolvers_);
-
-  cloud_request_stream_.emplace(
-      SerializeGate<Uid, UidAndCloud>{},
-      StreamApiGate{client_to_server_stream_->protocol_context(),
-                    cloud_stream_id},
-      *add_resolvers_);
-
-  Tie(*cloud_request_stream_, *client_to_server_stream_);
-  Tie(*server_resolver_stream_, *client_to_server_stream_);
-
-  cloud_response_subscription_ =
-      cloud_request_stream_->out_data_event().Subscribe(
-          [this](auto const& data) { OnCloudResponse(data); });
-
-  server_resolve_subscription_ =
-      server_resolver_stream_->out_data_event().Subscribe(
-          [this](auto const& data) { OnServerResponse(data); });
-  start_resolve_ = Now();
+  InitStreams();
 }
 
 UpdateStatus GetClientCloudAction::Update() {
@@ -105,9 +88,42 @@ void GetClientCloudAction::Stop() {
   }
 }
 
-std::vector<ServerDescriptor> const&
-GetClientCloudAction::server_descriptors() {
+std::vector<ServerDescriptor> const& GetClientCloudAction::server_descriptors()
+    const {
   return server_descriptors_;
+}
+
+void GetClientCloudAction::InitStreams() {
+  auto server_stream_id = StreamIdGenerator::GetNextClientStreamId();
+  auto cloud_stream_id = StreamIdGenerator::GetNextClientStreamId();
+
+  add_resolvers_.emplace(*client_to_server_stream_, server_stream_id,
+                         cloud_stream_id);
+
+  cloud_request_stream_.emplace(
+      SerializeGate<Uid, UidAndCloud>{},
+      StreamApiGate{client_to_server_stream_->protocol_context(),
+                    cloud_stream_id},
+      *add_resolvers_);
+
+  server_resolver_stream_.emplace(
+      SerializeGate<ServerId, ServerDescriptor>{},
+      StreamApiGate{client_to_server_stream_->protocol_context(),
+                    server_stream_id},
+      *add_resolvers_);
+
+  Tie(*cloud_request_stream_, *client_to_server_stream_);
+  Tie(*server_resolver_stream_, *client_to_server_stream_);
+
+  cloud_response_subscription_ =
+      cloud_request_stream_->out_data_event().Subscribe(
+          [this](auto const& data) { OnCloudResponse(data); });
+
+  server_resolve_subscription_ =
+      server_resolver_stream_->out_data_event().Subscribe(
+          [this](auto const& data) { OnServerResponse(data); });
+  start_resolve_ = Now();
+  state_ = State::kRequestCloud;
 }
 
 void GetClientCloudAction::RequestCloud() {
@@ -125,11 +141,11 @@ void GetClientCloudAction::RequestCloud() {
             cloud_request_action_->StatusEvent().Subscribe(
                 ActionHandler{OnStop{[this]() {
                                 request_cloud_task_->Stop();
-                                state_.Set(State::kFailed);
+                                state_ = State::kFailed;
                               }},
                               OnError{[this]() {
                                 request_cloud_task_->Stop();
-                                state_.Set(State::kFailed);
+                                state_ = State::kFailed;
                               }}}));
       },
       std::chrono::milliseconds{500}, repeat_count};

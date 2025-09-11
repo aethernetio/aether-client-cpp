@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_PROOF_OF_WORK_H_
-#define AETHER_PROOF_OF_WORK_H_
+#ifndef AETHER_REGISTRATION_PROOF_OF_WORK_H_
+#define AETHER_REGISTRATION_PROOF_OF_WORK_H_
 
-#include <string>
-#include <cstdint>
-#include <vector>
+#include "aether/config.h"
+
+#if AE_SUPPORT_REGISTRATION
+
+#  include <string>
+#  include <cstdint>
+#  include <vector>
 
 namespace ae {
 class ProofOfWork {
@@ -35,4 +39,5 @@ class ProofOfWork {
 };
 }  // namespace ae
 
-#endif  // AETHER_PROOF_OF_WORK_H_ */
+#endif
+#endif  // AETHER_REGISTRATION_PROOF_OF_WORK_H_ */

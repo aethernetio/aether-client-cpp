@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_AE_ACTIONS_REGISTRATION_REGISTRATION_H_
-#define AETHER_AE_ACTIONS_REGISTRATION_REGISTRATION_H_
+#ifndef AETHER_REGISTRATION_REGISTRATION_H_
+#define AETHER_REGISTRATION_REGISTRATION_H_
 
 #include "aether/config.h"
 
@@ -23,24 +23,19 @@
 
 #  include <vector>
 
-#  include "aether/types/uid.h"
 #  include "aether/common.h"
 #  include "aether/memory.h"
 #  include "aether/ptr/ptr.h"
+#  include "aether/types/uid.h"
 #  include "aether/ptr/ptr_view.h"
-#  include "aether/types/state_machine.h"
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
+#  include "aether/stream_api/istream.h"
+#  include "aether/types/state_machine.h"
 #  include "aether/events/multi_subscription.h"
 
 #  include "aether/client.h"
-
-#  include "aether/stream_api/istream.h"
-#  include "aether/crypto/ikey_provider.h"
-
-#  include "aether/server_list/server_list.h"
-#  include "aether/stream_api/delegate_gate.h"
-#  include "aether/server_connections/server_channel.h"
+#  include "aether/registration_cloud.h"
 
 #  include "aether/methods/client_reg_api/client_reg_api.h"
 #  include "aether/methods/client_reg_api/client_reg_root_api.h"
@@ -50,6 +45,8 @@
 #  include "aether/methods/server_reg_api/global_reg_server_api.h"
 #  include "aether/methods/server_reg_api/server_registration_api.h"
 
+#  include "aether/registration/reg_server_connection_pool.h"
+
 namespace ae {
 
 class Aether;
@@ -58,6 +55,7 @@ class Registration final : public Action<Registration> {
   enum class State : std::uint8_t {
     kSelectConnection,
     kWaitingConnection,
+    kConnectionFailed,
     kConnected,
     kGetKeys,
     kWaitKeys,
@@ -69,8 +67,9 @@ class Registration final : public Action<Registration> {
   };
 
  public:
-  Registration(ActionContext action_context, PtrView<Aether> aether,
-               Uid parent_uid, Client::ptr client);
+  Registration(ActionContext action_context, ObjPtr<Aether> const& aether,
+               RegistrationCloud::ptr const& reg_cloud, Uid parent_uid,
+               Client::ptr client);
   ~Registration() override;
 
   UpdateStatus Update();
@@ -79,9 +78,9 @@ class Registration final : public Action<Registration> {
 
  private:
   void IterateConnection();
-  void IterateChannel();
 
   void Connected();
+  void ConnectionFailed();
 
   void GetKeys();
   TimePoint WaitKeys();
@@ -90,22 +89,10 @@ class Registration final : public Action<Registration> {
   void ResolveCloud();
   void OnCloudResolved(std::vector<ServerDescriptor> const& servers);
 
-  std::unique_ptr<ByteStream> CreateRegServerStream(
-      std::unique_ptr<IAsyncKeyProvider> async_key_provider,
-      std::unique_ptr<ISyncKeyProvider> sync_key_provider);
-  std::unique_ptr<ByteStream> CreateGlobalRegServerStream(
-      std::unique_ptr<IAsyncKeyProvider> global_async_key_provider,
-      std::unique_ptr<ISyncKeyProvider> global_sync_key_provider,
-      DelegateWriteInGate<DataBuffer> enter_global_api_gate);
-
+  ActionContext action_context_;
   PtrView<Aether> aether_;
   Ptr<Client> client_;
   Uid parent_uid_;
-
-  std::unique_ptr<ServerList> server_list_;
-  std::optional<AsyncForLoop<std::unique_ptr<ServerChannel>>>
-      connection_selection_;
-  std::unique_ptr<ServerChannel> server_channel_;
 
   ProtocolContext protocol_context_;
   ClientRegRootApi client_root_api_;
@@ -114,6 +101,9 @@ class Registration final : public Action<Registration> {
   RootApi server_reg_root_api_;
   ServerRegistrationApi server_reg_api_;
   GlobalRegServerApi global_reg_server_api_;
+
+  RegServerConnectionPool reg_server_connection_pool_;
+  ServerChannel* server_channel_;
 
   StateMachine<State> state_;
 
@@ -127,7 +117,7 @@ class Registration final : public Action<Registration> {
   Key sign_pk_;
   PowParams pow_params_;
   Key aether_global_key_;
-  std::vector<ServerId> cloud_;
+  std::vector<ServerId> client_cloud_;
 
   class RegistrationAsyncKeyProvider* server_async_key_provider_;
   class RegistrationSyncKeyProvider* server_sync_key_provider_;
@@ -139,10 +129,10 @@ class Registration final : public Action<Registration> {
   Subscription connection_subscription_;
   Subscription raw_transport_send_action_subscription_;
   Subscription reg_server_write_subscription_;
-  MultiSubscription subscriptions_;
+  Subscription response_sub_;
   Subscription state_change_subscription_;
 };
 }  // namespace ae
 
 #endif
-#endif  // AETHER_AE_ACTIONS_REGISTRATION_REGISTRATION_H_
+#endif  // AETHER_REGISTRATION_REGISTRATION_H_

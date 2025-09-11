@@ -78,17 +78,16 @@ class ClientDecryptKeyProvider : public ClientKeyProvider {
 };
 }  // namespace _internal
 
-ClientToServerStream::ClientToServerStream(
-    ActionContext action_context, Ptr<Client> const& client, ServerId server_id,
-    std::unique_ptr<ServerChannel> server_channel)
+ClientToServerStream::ClientToServerStream(ActionContext action_context,
+                                           Ptr<Client> const& client,
+                                           ServerId server_id)
     : action_context_{action_context},
       client_{client},
       server_id_{server_id},
       client_root_api_{protocol_context_},
       client_safe_api_{protocol_context_},
       login_api_{protocol_context_},
-      authorized_api_{protocol_context_, action_context_},
-      server_channel_{std::move(server_channel)} {
+      authorized_api_{protocol_context_, action_context_} {
   AE_TELE_INFO(ClientServerStreamCreate, "Create ClientToServerStreamGate");
 
   auto client_ptr = client_.Lock();
@@ -114,8 +113,6 @@ ClientToServerStream::ClientToServerStream(
       EventWriteOutGate<DataBuffer>{
           EventSubscriber{client_root_api_.send_safe_api_data_event}},
       ProtocolReadGate{protocol_context_, client_root_api_});
-
-  Tie(*client_auth_stream_, server_channel_->stream());
 }
 
 ClientToServerStream::~ClientToServerStream() = default;
@@ -123,6 +120,7 @@ ClientToServerStream::~ClientToServerStream() = default;
 ActionPtr<StreamWriteAction> ClientToServerStream::Write(DataBuffer&& in_data) {
   auto info = client_auth_stream_->stream_info();
   if (in_data.size() > info.max_element_size) {
+    AE_TELED_ERROR("Data size exceeds maximum element size");
     return ActionPtr<FailedStreamWriteAction>{action_context_};
   }
   return client_auth_stream_->Write(std::move(in_data));
@@ -142,9 +140,12 @@ ClientToServerStream::out_data_event() {
   return out_data_event_;
 }
 
-ProtocolContext& ClientToServerStream::protocol_context() {
-  return protocol_context_;
+void ClientToServerStream::LinkOut(OutStream& out) {
+  out_ = &out;
+  Tie(*client_auth_stream_, *out_);
 }
+
+void ClientToServerStream::Unlink() { client_auth_stream_->Unlink(); }
 
 ClientSafeApi& ClientToServerStream::client_safe_api() {
   return client_safe_api_;
@@ -156,6 +157,10 @@ AuthorizedApi& ClientToServerStream::authorized_api() {
 
 ApiCallAdapter<AuthorizedApi> ClientToServerStream::authorized_api_adapter() {
   return ApiCallAdapter{ApiContext{protocol_context_, authorized_api_}, *this};
+}
+
+ProtocolContext& ClientToServerStream::protocol_context() {
+  return protocol_context_;
 }
 
 DataBuffer ClientToServerStream::Login(DataBuffer&& data) {

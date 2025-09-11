@@ -16,7 +16,8 @@
 
 #include "aether/transport/modems/modem_transport.h"
 
-#if defined MODEM_TRANSPORT_ENABLED
+#if MODEM_TRANSPORT_ENABLED
+
 #  include "aether/mstream.h"
 #  include "aether/reflect/reflect.h"
 #  include "aether/mstream_buffers.h"

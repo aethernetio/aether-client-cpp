@@ -56,6 +56,7 @@ class BufferStream final : public ByteStream {
 
  public:
   explicit BufferStream(ActionContext action_context,
+                        std::size_t max_packet_size,
                         std::size_t buffer_max = static_cast<std::size_t>(100));
 
   AE_CLASS_NO_COPY_MOVE(BufferStream)

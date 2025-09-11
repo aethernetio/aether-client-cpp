@@ -18,31 +18,51 @@
 
 #include <chrono>
 
+#include "aether/server.h"
+
+#include "aether/tele/tele.h"
+
 namespace ae {
 ClientServerConnection::ClientServerConnection(
     ActionContext action_context, [[maybe_unused]] ObjPtr<Aether> const& aether,
-    Server::ptr const& server, Channel::ptr const& channel,
-    std::unique_ptr<ClientToServerStream> client_to_server_stream)
-    : server_stream_{std::move(client_to_server_stream)},
-      message_stream_dispatcher_{*server_stream_},
-      ping_{action_context, server, channel, *server_stream_,
-            std::chrono::milliseconds{AE_PING_INTERVAL_MS}},
+    ObjPtr<Client> const& client, Server::ptr const& server)
+    : action_context_{action_context},
+      client_{client},
+      server_{server},
+      selected_channel_index_{0} {
+  client_to_server_stream_ = std::make_unique<ClientToServerStream>(
+      action_context, client, server->server_id);
+
+  // TODO: add channel priorities
+  channel_loop_.emplace([&]() { selected_channel_index_ = 0; },
+                        [&]() {
+                          auto server_ptr = server_.Lock();
+                          assert(server_ptr);
+                          return selected_channel_index_ <
+                                 server_ptr->channels.size();
+                        },
+                        [&]() { selected_channel_index_++; },
+                        [&]() {
+                          auto server_ptr = server_.Lock();
+                          assert(server_ptr);
+                          return server_ptr->channels[selected_channel_index_];
+                        });
+
+  message_stream_dispatcher_ =
+      std::make_unique<MessageStreamDispatcher>(*client_to_server_stream_);
+  new_stream_event_sub_ =
+      message_stream_dispatcher_->new_stream_event().Subscribe(
+          new_stream_event_, MethodPtr<&NewStreamEvent::Emit>{});
+
 #if defined TELEMETRY_ENABLED
-      telemetry_{action_context, aether, *server_stream_},
+  telemetry_ = OwnActionPtr<Telemetry>{action_context, aether,
+                                       *client_to_server_stream_};
 #endif
-      new_stream_event_sub_{
-          message_stream_dispatcher_.new_stream_event().Subscribe(
-              new_stream_event_, MethodPtr<&NewStreamEvent::Emit>{})},
-      ping_error_sub_{ping_->StatusEvent().Subscribe(
-          OnError{[this]() { server_error_event_.Emit(); }})} {
+  NextChannel();
 }
 
 ClientToServerStream& ClientServerConnection::server_stream() {
-  return *server_stream_;
-}
-
-ByteIStream& ClientServerConnection::GetStream(Uid destination_uid) {
-  return message_stream_dispatcher_.GetMessageStream(destination_uid);
+  return *client_to_server_stream_;
 }
 
 ClientServerConnection::NewStreamEvent::Subscriber
@@ -55,14 +75,59 @@ ClientServerConnection::server_error_event() {
   return server_error_event_;
 }
 
+ByteIStream& ClientServerConnection::GetStream(Uid destination_uid) {
+  return message_stream_dispatcher_->GetMessageStream(destination_uid);
+}
+
 void ClientServerConnection::CloseStream(Uid uid) {
-  message_stream_dispatcher_.CloseStream(uid);
+  message_stream_dispatcher_->CloseStream(uid);
 }
 
 void ClientServerConnection::SendTelemetry() {
 #if defined TELEMETRY_ENABLED
   telemetry_->SendTelemetry();
 #endif
+}
+
+void ClientServerConnection::NextChannel() {
+  auto server_ptr = server_.Lock();
+  if (!server_ptr) {
+    AE_TELED_ERROR("No server");
+    server_error_event_.Emit();
+    return;
+  }
+
+  auto channel = channel_loop_->Update();
+  if (!channel) {
+    AE_TELED_ERROR("Channel list is ended");
+    server_error_event_.Emit();
+    return;
+  }
+
+  server_channel_ = std::make_unique<ServerChannel>(action_context_, channel);
+
+  channel_stream_update_sub_ =
+      server_channel_->stream().stream_update_event().Subscribe([this]() {
+        auto info = server_channel_->stream().stream_info();
+        if (info.link_state == LinkState::kLinkError) {
+          NextChannel();
+        }
+      });
+
+  Tie(*client_to_server_stream_, server_channel_->stream());
+
+  // Ping action should be created for channel personally
+  ping_ = OwnActionPtr<Ping>{action_context_, server_ptr, channel,
+                             *client_to_server_stream_,
+                             std::chrono::milliseconds{AE_PING_INTERVAL_MS}},
+  ping_error_sub_ =
+      ping_->StatusEvent().Subscribe(OnError{[this]() { PingError(); }});
+}
+
+void ClientServerConnection::PingError() {
+  AE_TELED_ERROR("Ping error");
+  // TODO: handle ping error depends on connection open status
+  server_error_event_.Emit();
 }
 
 }  // namespace ae

@@ -51,7 +51,6 @@ list(APPEND aether_srcs
             "registration_cloud.cpp"
             "work_cloud.cpp"
             "server.cpp"
-            "proof_of_work.cpp"
             "server_keys.cpp"
             "socket_initializer.cpp")
 
@@ -87,8 +86,6 @@ list(APPEND ptr_srcs
 list(APPEND events_srcs)
 
 list(APPEND actions_srcs
-            "ae_actions/registration/registration.cpp"
-            "ae_actions/registration/registration_key_provider.cpp"
             "ae_actions/get_client_cloud.cpp"
             "ae_actions/get_client_cloud_connection.cpp"
             "ae_actions/ping.cpp"
@@ -102,6 +99,16 @@ list(APPEND actions_srcs
             "actions/task_queue.cpp"
             "actions/repeatable_task.cpp"
             )
+
+list(APPEND registration_srcs
+            "registration/global_reg_server_stream.cpp"
+            "registration/reg_server_stream.cpp"
+            "registration/proof_of_work.cpp"
+            "registration/reg_server_connection_pool.cpp"
+            "registration/registration.cpp"
+            "registration/registration_key_provider.cpp"
+            )
+
 
 list(APPEND adapters_srcs
             "adapters/adapter.cpp"
@@ -138,16 +145,12 @@ list(APPEND transport_srcs
             "transport/low_level/sockets/win_socket.cpp"
             "transport/low_level/sockets/win_tcp_socket.cpp"
             "transport/low_level/sockets/win_udp_socket.cpp"
+            "transport/modems/modem_transport.cpp"
             "transport/socket_packet_send_action.cpp"
             "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
             "transport/low_level/udp/udp.cpp"
-            "transport/modems/modem_transport.cpp"
-)
-
-list(APPEND server_list_srcs
-            "server_list/server_list.cpp"
-            "server_list/no_filter_server_list_policy.cpp"
+            "transport/build_transport_action.cpp"
 )
 
 list(APPEND stream_api_src
@@ -210,15 +213,13 @@ list(APPEND client_connections_srcs
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
             "server_connections/client_to_server_stream.cpp"
-            "server_connections/build_transport_action.cpp"
             "server_connections/server_channel.cpp"
 )
 
 list(APPEND connection_manager_srcs
-            "connection_manager/client_server_connection_pool.cpp"
-            "connection_manager/cloud_cache.cpp"
-            "connection_manager/client_connection_manager.cpp"
+            "connection_manager/client_cloud_manager.cpp"
             "connection_manager/server_connection_selector.cpp"
+            "connection_manager/server_connection_manager.cpp"
 )
 
 list(APPEND client_messages_srcs
@@ -277,7 +278,6 @@ if(REGULAR_CMAKE_PROJECT)
                             ${events_srcs}
                             ${actions_srcs}
                             ${transport_srcs}
-                            ${server_list_srcs}
                             ${stream_api_src}
                             ${adapters_srcs}
                             ${modems_srcs}
@@ -285,6 +285,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${api_protocol_srcs}
                             ${crypto_srcs}
                             ${methods_srcs}
+                            ${registration_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${server_connections_srcs}
@@ -327,11 +328,11 @@ else()
                             ${modems_srcs}
                             ${serial_ports_srcs}
                             ${transport_srcs}
-                            ${server_list_srcs}
                             ${stream_api_src}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
                             ${methods_srcs}
+                            ${registration_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${server_connections_srcs}

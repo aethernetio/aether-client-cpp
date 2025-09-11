@@ -18,6 +18,8 @@
 
 #include "aether/actions/action_context.h"
 
+#include "aether/channel.h"
+
 #include "aether/tele/tele.h"
 
 namespace ae {
@@ -25,25 +27,22 @@ namespace ae {
 static constexpr auto kBufferGateCapacity = std::size_t{20 * 1024};
 
 ServerChannel::ServerChannel(ActionContext action_context,
-                             Adapter::ptr const& adapter,
-                             Server::ptr const& server,
                              Channel::ptr const& channel)
     : action_context_{action_context},
-      server_{server},
       channel_{channel},
-      build_transport_action_{action_context, adapter, channel},
-      buffer_stream_{action_context_, kBufferGateCapacity},
-      connection_start_time_{Now()},
-      connection_timer_{action_context_, channel->expected_connection_time()},
+      buffer_stream_{action_context_, channel->max_packet_size(),
+                     kBufferGateCapacity},
+      build_transport_action_{action_context, channel},
       build_transport_sub_{build_transport_action_->StatusEvent().Subscribe(
           ActionHandler{OnResult{[this](auto& action) { OnConnected(action); }},
-                        OnError{[this]() { OnConnectedFailed(); }}})} {
-  connection_timeout_ = connection_timer_->StatusEvent().Subscribe(
-      OnResult{[this](auto const& timer) {
-        AE_TELED_ERROR("Connection timeout {:%S}", timer.duration());
-        OnConnectedFailed();
-      }});
-}
+                        OnError{[this]() { OnConnectedFailed(); }}})},
+      connection_start_time_{Now()},
+      connection_timer_{action_context_, channel->expected_connection_time()},
+      connection_timeout_{connection_timer_->StatusEvent().Subscribe(
+          OnResult{[this](auto const& timer) {
+            AE_TELED_ERROR("Connection timeout {:%S}", timer.duration());
+            OnConnectedFailed();
+          }})} {}
 
 ByteIStream& ServerChannel::stream() { return buffer_stream_; }
 

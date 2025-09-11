@@ -118,8 +118,9 @@ ActionPtr<Registration> Aether::RegisterClient(Uid parent_uid,
   // after registration done, add it to clients list
   // user also can get new client after
   auto [new_reg_it, _] = registration_actions_.emplace(
-      client_id, ActionPtr<Registration>(*action_processor, self_ptr,
-                                         parent_uid, std::move(new_client)));
+      client_id,
+      ActionPtr<Registration>(*action_processor, self_ptr, registration_cloud,
+                              parent_uid, std::move(new_client)));
 
   // on registration success save client to client_ and remove registration
   // action at the end

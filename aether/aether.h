@@ -30,7 +30,7 @@
 #include "aether/ae_actions/select_client.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/tele/traps/tele_statistics.h"
-#include "aether/ae_actions/registration/registration.h"  // IWYU pragma: keep
+#include "aether/registration/registration.h"  // IWYU pragma: keep
 
 #include "aether/cloud.h"
 #include "aether/client.h"

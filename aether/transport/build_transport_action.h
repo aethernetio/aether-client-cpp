@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_SERVER_CONNECTIONS_BUILD_TRANSPORT_ACTION_H_
-#define AETHER_SERVER_CONNECTIONS_BUILD_TRANSPORT_ACTION_H_
+#ifndef AETHER_TRANSPORT_BUILD_TRANSPORT_ACTION_H_
+#define AETHER_TRANSPORT_BUILD_TRANSPORT_ACTION_H_
 
 #include <vector>
 #include <memory>
@@ -29,7 +29,6 @@
 #include "aether/events/event_subscription.h"
 
 #include "aether/channel.h"
-#include "aether/adapters/adapter.h"
 #include "aether/stream_api/istream.h"
 
 namespace ae {
@@ -45,7 +44,6 @@ class BuildTransportAction final : public Action<BuildTransportAction> {
 
  public:
   BuildTransportAction(ActionContext action_context,
-                       Adapter::ptr const& adapter,
                        Channel::ptr const& channel);
 
   UpdateStatus Update();
@@ -57,7 +55,6 @@ class BuildTransportAction final : public Action<BuildTransportAction> {
   void MakeBuilders();
   void Connect();
 
-  PtrView<Adapter> adapter_;
   PtrView<Channel> channel_;
   std::vector<std::unique_ptr<ITransportStreamBuilder>> builders_;
   std::vector<std::unique_ptr<ITransportStreamBuilder>>::iterator it_;
@@ -71,4 +68,4 @@ class BuildTransportAction final : public Action<BuildTransportAction> {
 };
 
 }  // namespace ae
-#endif  // AETHER_SERVER_CONNECTIONS_BUILD_TRANSPORT_ACTION_H_
+#endif  // AETHER_TRANSPORT_BUILD_TRANSPORT_ACTION_H_
