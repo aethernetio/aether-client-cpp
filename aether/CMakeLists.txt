@@ -106,11 +106,13 @@ list(APPEND actions_srcs
 list(APPEND adapters_srcs
             "adapters/adapter.cpp"
             "adapters/esp32_wifi.cpp"
-            "adapters/ethernet.cpp"
+            "adapters/ethernet.cpp"            
             "adapters/lora_module_adapter.cpp"
-            "adapters/parent_wifi.cpp"
-            "adapters/parent_modem.cpp"
             "adapters/modem_adapter.cpp"
+            "adapters/parent_lora_module.cpp"
+            "adapters/parent_modem.cpp"
+            "adapters/parent_wifi.cpp"
+            
             )
 
 list(APPEND modems_srcs
@@ -149,7 +151,8 @@ list(APPEND transport_srcs
             "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
             "transport/low_level/udp/udp.cpp"
-            "transport/modems/modem_transport.cpp"
+            "transport/modems/lora_modules_transport.cpp"
+            "transport/lora_modules/modem_transport.cpp"
 )
 
 list(APPEND server_list_srcs

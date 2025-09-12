@@ -14,34 +14,34 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LORA_MODULES_ILORA_DRIVER_H_
-#define AETHER_LORA_MODULES_ILORA_DRIVER_H_
+#ifndef AETHER_ADAPTERS_PARENT_LORA_MODULE_H_
+#define AETHER_ADAPTERS_PARENT_LORA_MODULE_H_
 
-#include "aether/obj/obj.h"
-#include "aether/types/address.h"
-#include "aether/types/data_buffer.h"
+#include "aether/aether.h"
+#include "aether/adapters/adapter.h"
 #include "aether/lora_modules/lora_module_driver_types.h"
 
 namespace ae {
+class Aether;
 
-class ILoraModuleDriver : public Obj {
-  AE_OBJECT(ILoraModuleDriver, Obj, 0)
+class ParentLoraModuleAdapter : public Adapter {
+  AE_OBJECT(ParentLoraModuleAdapter, Adapter, 0)
 
  protected:
-  ILoraModuleDriver() = default;
+  ParentLoraModuleAdapter() = default;
 
  public:
-  explicit ILoraModuleDriver(LoraModuleInit lora_module_init, Domain* /* domain */);
-  AE_OBJECT_REFLECT()
-  
-  ~ILoraModuleDriver() override = default;
-  
-  LoraModuleInit GetLoraInit();
+#ifdef AE_DISTILLATION
+  ParentLoraModuleAdapter(ObjPtr<Aether> aether, LoraModuleInit lora_module_init,
+                     Domain* domain);
+#endif  // AE_DISTILLATION
 
- private:
-  LoraModuleInit lora_module_init_;  
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, lora_module_init_))
+
+  Obj::ptr aether_;
+
+  LoraModuleInit lora_module_init_;
 };
+}  // namespace ae
 
-} /* namespace ae */
-
-#endif  // AETHER_LORA_MODULES_ILORA_DRIVER_H_
+#endif  // AETHER_ADAPTERS_PARENT_MODEM_H_
