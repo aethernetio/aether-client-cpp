@@ -425,7 +425,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Cla
                          -Wno-ignored-attributes
                          -Wno-cpp)
   # gcc before 10.0 has bagous Wconversion check
-  if (GCC_VERSION VERSION_GREATER 10.0)
+  if (GCC_VERSION VERSION_GREATER 10.0 OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang.*")
     target_compile_options(${TARGET_NAME} PRIVATE -Wconversion)
   endif()
 
