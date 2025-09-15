@@ -22,5 +22,9 @@ ILoraModuleDriver::ILoraModuleDriver(LoraModuleInit lora_module_init,
                                      Domain* domain)
     : Obj{domain}, lora_module_init_{std::move(lora_module_init)} {}
 
+bool ILoraModuleDriver::Init() { return {}; }
+bool ILoraModuleDriver::Start() { return {}; }
+bool ILoraModuleDriver::Stop() { return {}; }
+
 LoraModuleInit ILoraModuleDriver::GetLoraInit() { return lora_module_init_; }
 } /* namespace ae */

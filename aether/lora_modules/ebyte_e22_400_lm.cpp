@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/lora_modules/ebyte22_lora_module.h"
+#include "aether/lora_modules/ebyte_e22_400_lm.h"
 #include "aether/serial_ports/serial_port_factory.h"
 
 #include "aether/lora_modules/lora_modules_tele.h"

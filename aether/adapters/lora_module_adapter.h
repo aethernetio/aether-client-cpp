@@ -66,7 +66,7 @@ class LoraModuleAdapterTransportBuilderAction final : public TransportBuilderAct
   std::unique_ptr<ITransportStreamBuilder> transport_builder_;
   StateMachine<State> state_;
   Subscription state_changed_;
-  Subscription lte_modem_connected_subscription_;
+  Subscription lora_module_connected_subscription_;
   Subscription resolve_sub_;
 };
 } // lora_module_adapter_internal
@@ -87,6 +87,20 @@ class LoraModuleAdapter : public ParentLoraModuleAdapter {
 
   AE_OBJECT_REFLECT(AE_MMBRS(lora_module_driver_))
   
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_);
+  }
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    dnv(base_);
+  }
+
+  ActionPtr<TransportBuilderAction> CreateTransport(
+      UnifiedAddress const& address_port_protocol) override;
+
+  void Update(TimePoint current_time) override;
+
  private:
   void Connect();
   void DisConnect();

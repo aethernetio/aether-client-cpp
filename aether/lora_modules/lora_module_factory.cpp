@@ -16,7 +16,7 @@
 
 #include "aether/lora_modules/lora_module_factory.h"
 
-#include "aether/lora_modules/ebyte22_lora_module.h"
+#include "aether/lora_modules/ebyte_e22_400_lm.h"
 
 namespace ae {
 

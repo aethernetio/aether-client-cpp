@@ -17,13 +17,13 @@
 #include "aether/adapters/lora_module_adapter.h"
 
 #include "aether/lora_modules/lora_module_factory.h"
-#include "aether/transport/lora_modules/lora_modules_transport.h"
+#include "aether/transport/lora_modules/lora_module_transport.h"
 #include "aether/transport/itransport_stream_builder.h"
 
 #include "aether/adapters/adapter_tele.h"
 
 namespace ae {
-namespace modem_adapter_internal {
+namespace lora_module_adapter_internal {
 class LoraModuleAdapterTransportBuilder final : public ITransportStreamBuilder {
  public:
   LoraModuleAdapterTransportBuilder(LoraModuleAdapter& adapter,
@@ -116,4 +116,63 @@ void LoraModuleAdapterTransportBuilderAction::CreateBuilders() {
 }
 }  // namespace modem_adapter_internal
 
+#if defined AE_DISTILLATION
+LoraModuleAdapter::LoraModuleAdapter(ObjPtr<Aether> aether, LoraModuleInit lora_module_init,
+                           Domain* domain)
+    : ParentLoraModuleAdapter{std::move(aether), std::move(lora_module_init), domain} {
+  lora_module_driver_ = LoraModuleDriverFactory::CreateLoraModule(lora_module_init_, domain);
+  lora_module_driver_->Init();
+  AE_TELED_DEBUG("Lora module instance created!");
+}
+#endif  // AE_DISTILLATION
+
+LoraModuleAdapter::~LoraModuleAdapter() {
+  if (connected_) {
+    DisConnect();
+    AE_TELED_DEBUG("Lora module instance deleted!");
+    connected_ = false;
+  }
+}
+
+ActionPtr<TransportBuilderAction> LoraModuleAdapter::CreateTransport(
+    UnifiedAddress const& address_port_protocol) {
+  AE_TELE_INFO(kAdapterLoraModuleAdapterCreate, "Create transport for {}",
+               address_port_protocol);
+  if (connected_) {
+    return ActionPtr<
+        lora_module_adapter_internal::LoraModuleAdapterTransportBuilderAction>(
+        *aether_.as<Aether>(), *this, address_port_protocol);
+  }
+  return ActionPtr<lora_module_adapter_internal::LoraModuleAdapterTransportBuilderAction>(
+      *aether_.as<Aether>(), EventSubscriber{lora_module_connected_event_}, *this,
+      address_port_protocol);
+}
+
+void LoraModuleAdapter::Update(TimePoint current_time) {
+  if (!connected_) {
+    connected_ = true;
+    Connect();
+  }
+
+  update_time_ = current_time;
+}
+
+void LoraModuleAdapter::Connect() {
+  AE_TELE_DEBUG(kAdapterLoraModuleDisconnected, "Lora module connecting to the network");
+  if (!lora_module_driver_->Start()) {
+    AE_TELED_ERROR("Lora module driver does not start");
+    return;
+  }
+  lora_module_connected_event_.Emit(true);
+}
+
+void LoraModuleAdapter::DisConnect() {
+  AE_TELE_DEBUG(kAdapterLoraModuleDisconnected,
+                "Lora module disconnecting from the network");
+  if (!lora_module_driver_->Stop()) {
+    AE_TELED_ERROR("Lora module driver does not stop");
+    return;
+  }
+  lora_module_connected_event_.Emit(false);
+}
 }  // namespace ae

@@ -36,6 +36,9 @@ class ILoraModuleDriver : public Obj {
   
   ~ILoraModuleDriver() override = default;
   
+  virtual bool Init();
+  virtual bool Start();
+  virtual bool Stop();
   LoraModuleInit GetLoraInit();
 
  private:
