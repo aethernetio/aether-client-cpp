@@ -419,12 +419,15 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Cla
                          -Werror
                          -Wall
                          -Wextra
-                         -Wconversion
                          -Wimplicit-fallthrough
                          -Wno-missing-braces
                          -Wno-sign-compare
                          -Wno-ignored-attributes
                          -Wno-cpp)
+  # gcc before 10.0 has bagous Wconversion check
+  if (GCC_VERSION VERSION_GREATER 10.0)
+    target_compile_options(${TARGET_NAME} PRIVATE -Wconversion)
+  endif()
 
   if (CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_options(${TARGET_NAME} PUBLIC
