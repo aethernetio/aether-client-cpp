@@ -21,6 +21,10 @@
 #  define AE_CPU_TYPE "IBM PowerPC 750 (NGC)"
 #endif
 
+#if defined __s390__ || defined __s390x__
+#  define AE_CPU_TYPE "IBM s390"
+#endif
+
 #if defined mc68000 || defined m68k || defined __MC68K__ || defined m68000
 #  define AE_CPU_TYPE "MC68000"
 #endif
