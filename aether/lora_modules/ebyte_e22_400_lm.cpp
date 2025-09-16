@@ -23,7 +23,7 @@ namespace ae {
 
 EbyteE22LoraModule::EbyteE22LoraModule(LoraModuleInit lora_module_init, Domain* domain)
     : ILoraModuleDriver{std::move(lora_module_init), domain} {
-  serial_ = SerialPortFactory::CreatePort(GetLoraInit().serial_init);
+  serial_ = SerialPortFactory::CreatePort(GetLoraModuleInit().serial_init);
 };
 
 }  // namespace ae

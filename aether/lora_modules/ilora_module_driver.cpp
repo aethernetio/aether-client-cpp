@@ -26,5 +26,5 @@ bool ILoraModuleDriver::Init() { return {}; }
 bool ILoraModuleDriver::Start() { return {}; }
 bool ILoraModuleDriver::Stop() { return {}; }
 
-LoraModuleInit ILoraModuleDriver::GetLoraInit() { return lora_module_init_; }
+LoraModuleInit ILoraModuleDriver::GetLoraModuleInit() { return lora_module_init_; }
 } /* namespace ae */

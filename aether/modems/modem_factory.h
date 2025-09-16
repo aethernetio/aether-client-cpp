@@ -22,8 +22,8 @@
 #include "aether/modems/imodem_driver.h"
 
 #define AE_MODEM_BG95_ENABLED 0
-#define AE_MODEM_SIM7070_ENABLED 1
-#define AE_MODEM_THINGY91X_ENABLED 0
+#define AE_MODEM_SIM7070_ENABLED 0
+#define AE_MODEM_THINGY91X_ENABLED 1
 
 // check if any mode is enabled
 #if (AE_MODEM_SIM7070_ENABLED == 1) || (AE_MODEM_BG95_ENABLED == 1) || \

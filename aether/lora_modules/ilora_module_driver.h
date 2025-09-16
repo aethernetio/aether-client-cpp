@@ -39,7 +39,7 @@ class ILoraModuleDriver : public Obj {
   virtual bool Init();
   virtual bool Start();
   virtual bool Stop();
-  LoraModuleInit GetLoraInit();
+  LoraModuleInit GetLoraModuleInit();
 
  private:
   LoraModuleInit lora_module_init_;  

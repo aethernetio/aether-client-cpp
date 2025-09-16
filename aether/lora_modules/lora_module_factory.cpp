@@ -17,6 +17,7 @@
 #include "aether/lora_modules/lora_module_factory.h"
 
 #include "aether/lora_modules/ebyte_e22_400_lm.h"
+#include "aether/lora_modules/dx_smart_lr02_433_lm.h"
 
 namespace ae {
 
@@ -24,6 +25,8 @@ ILoraModuleDriver::ptr LoraModuleDriverFactory::CreateLoraModule(
     LoraModuleInit lora_module_init, Domain* domain) {
 #if AE_LORA_MODULE_EBYTE22_ENABLED == 1
   return domain->CreateObj<EbyteE22LoraModule>(lora_module_init);
+#elif AE_LORA_MODULE_DXSMART_LR02_ENABLED == 1
+  return domain->CreateObj<DxSmartLr02LoraModule>(lora_module_init);
 #endif
 }
 

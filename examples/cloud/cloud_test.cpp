@@ -78,7 +78,7 @@ int AetherCloudExample() {
   auto aether_app = ae::AetherApp::Construct(
       ae::AetherAppContext{}
 #if defined AE_DISTILLATION
-          .AdapterFactory([lora_module_init](
+          .AdapterFactory([modem_init, lora_module_init](
                               ae::AetherAppContext const& context) {
 #  if defined ESP32_WIFI_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::Esp32WifiAdapter>(

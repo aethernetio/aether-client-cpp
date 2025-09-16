@@ -23,9 +23,11 @@
 namespace ae {
 
 struct LoraModuleInit {
-  AE_REFLECT_MEMBERS(serial_init, lora_adress, lora_channel, lora_config)
+  AE_REFLECT_MEMBERS(serial_init, lora_my_adress, lora_bs_adress, lora_channel,
+                     lora_config)
   SerialInit serial_init;
-  std::uint16_t lora_adress{0};
+  std::uint16_t lora_my_adress{0};
+  std::uint16_t lora_bs_adress{0};
   std::uint8_t lora_channel{0};
   std::uint8_t lora_config{0};
 };
