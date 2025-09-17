@@ -118,7 +118,7 @@ list(APPEND adapters_srcs
 list(APPEND modems_srcs
             "modems/imodem_driver.cpp"
             "modems/modem_factory.cpp"
-            #"modems/bg95_at_modem.cpp"
+            "modems/bg95_at_modem.cpp"
             "modems/sim7070_at_modem.cpp"
             "modems/thingy91x_at_modem.cpp"
             "modems/exponent_time.cpp"
@@ -132,6 +132,7 @@ list(APPEND lora_modules_srcs
             )
 
 list(APPEND serial_ports_srcs
+            "serial_ports/at_comm_support.cpp"
             "serial_ports/serial_port_factory.cpp"
             "serial_ports/esp32_serial_port.cpp"
             "serial_ports/win_serial_port.cpp"

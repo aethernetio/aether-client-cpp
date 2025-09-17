@@ -14,31 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
-#define AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
+#ifndef AETHER_SERIAL_PORT_AT_COMM_SUPPORT_H_
+#define AETHER_SERIAL_PORT_AT_COMM_SUPPORT_H_
 
-#include <memory>
+#include <chrono>
+#include <string>
 
-#include "aether/lora_modules/ilora_module_driver.h"
 #include "aether/serial_ports/iserial_port.h"
-#include "aether/serial_ports/at_comm_support.h"
+#include "aether/serial_ports/serial_port_types.h"
 
 namespace ae {
-
-class EbyteE22LoraModule final : public ILoraModuleDriver {
-  AE_OBJECT(EbyteE22LoraModule, ILoraModuleDriver, 0)
-
- protected:
-  EbyteE22LoraModule() = default;
-
+class AtCommSupport {
  public:
-  explicit EbyteE22LoraModule(LoraModuleInit lora_module_init, Domain* domain);
-  AE_OBJECT_REFLECT()
+  AtCommSupport(ISerialPort *serial);
 
+  void SendATCommand(const std::string& command);
+  bool WaitForResponse(const std::string& expected, Duration timeout);
+  std::string PinToString(const std::uint8_t pin[4]);
  private:
-  std::unique_ptr<ISerialPort> serial_;
-
-  static constexpr std::uint16_t kLoraModuleMTU{200};
+  ISerialPort *serial_;
 };
 
 } /* namespace ae */

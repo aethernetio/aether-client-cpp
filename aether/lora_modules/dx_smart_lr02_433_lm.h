@@ -21,6 +21,7 @@
 
 #include "aether/lora_modules/ilora_module_driver.h"
 #include "aether/serial_ports/iserial_port.h"
+#include "aether/serial_ports/at_comm_support.h"
 
 namespace ae {
 
@@ -31,16 +32,26 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   DxSmartLr02LoraModule() = default;
 
  public:
-  explicit DxSmartLr02LoraModule(LoraModuleInit lora_module_init, Domain* domain);
+  explicit DxSmartLr02LoraModule(LoraModuleInit lora_module_init,
+                                 Domain* domain);
   AE_OBJECT_REFLECT()
 
   bool Init() override;
   bool Start() override;
   bool Stop() override;
+
  private:
   std::unique_ptr<ISerialPort> serial_;
+  std::unique_ptr<AtCommSupport> at_comm_support_;
+  bool at_mode_{false};
 
   static constexpr std::uint16_t kLoraModuleMTU{200};
+
+  kLoraModuleError CheckResponse(std::string const& response,
+                                 std::uint32_t const wait_time,
+                                 std::string const& error_message);
+  void EnterAtMode();
+  void LeaveAtMode();
 };
 
 } /* namespace ae */

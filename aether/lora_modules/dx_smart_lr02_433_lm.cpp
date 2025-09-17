@@ -24,11 +24,21 @@ namespace ae {
 DxSmartLr02LoraModule::DxSmartLr02LoraModule(LoraModuleInit lora_module_init, Domain* domain)
     : ILoraModuleDriver{std::move(lora_module_init), domain} {
   serial_ = SerialPortFactory::CreatePort(GetLoraModuleInit().serial_init);
+  at_comm_support_ = std::make_unique<AtCommSupport>(serial_.get());
 };
 
 bool DxSmartLr02LoraModule::Init() {
   if (!serial_->IsOpen()) {
     AE_TELED_ERROR("Serial port is not open");
+    return false;
+  }
+  
+  EnterAtMode();
+  
+  at_comm_support_->SendATCommand("AT");  // Checking the connection
+  if (auto err = CheckResponse("OK", 1000, "AT command error!");
+      err != kLoraModuleError::kNoError) {
+    AE_TELED_ERROR("AT command error {}", err);
     return false;
   }
   
@@ -53,6 +63,35 @@ bool DxSmartLr02LoraModule::Stop() {
   }
 
   return true;
+};
+
+// =============================private members=========================== //
+kLoraModuleError DxSmartLr02LoraModule::CheckResponse(std::string const& response,
+                                          std::uint32_t const wait_time,
+                                          std::string const& error_message) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+
+  if (!at_comm_support_->WaitForResponse(
+          response, std::chrono::milliseconds(wait_time))) {
+    AE_TELED_ERROR(error_message);
+    err = kLoraModuleError::kAtCommandError;
+  }
+
+  return err;
+}
+
+void DxSmartLr02LoraModule::EnterAtMode(){
+  if(at_mode_ == false){
+  at_comm_support_->SendATCommand("+++");
+  at_mode_ = true;
+  }
+};
+
+void DxSmartLr02LoraModule::LeaveAtMode(){
+  if(at_mode_ == true){
+  at_comm_support_->SendATCommand("+++");
+  at_mode_ = false;
+  }
 };
 
 }  // namespace ae

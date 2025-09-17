@@ -23,7 +23,7 @@ static constexpr std::string_view kWifiSsid = "Test1234";
 static constexpr std::string_view kWifiPass = "Test1234";
 
 static constexpr std::string_view kSerialPort_modem =
-    "COM1";  // Modem serial port
+    "COM38";  // Modem serial port
 
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
@@ -63,8 +63,11 @@ int AetherCloudExample() {
       false                          // Use SSL
   };
 
+  ae::SerialInit serial_init_lora_module = {std::string(kSerialPort_modem),
+                                            ae::kBaudRate::kBaudRate9600};
+
   ae::LoraModuleInit lora_module_init{
-      serial_init_modem,  // Serial port
+      serial_init_lora_module,  // Serial port
   };
 
   /**
@@ -90,7 +93,8 @@ int AetherCloudExample() {
                 ae::GlobalId::kModemAdapter, context.aether(), modem_init);
 #  elif defined LORA_MODULE_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::LoraModuleAdapter>(
-                ae::GlobalId::kModemAdapter, context.aether(), lora_module_init);
+                ae::GlobalId::kModemAdapter, context.aether(),
+                lora_module_init);
 #  else
             auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(
                 ae::GlobalId::kEthernetAdapter, context.aether(),

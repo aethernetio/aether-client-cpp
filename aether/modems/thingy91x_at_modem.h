@@ -22,6 +22,7 @@
 
 #include "aether/modems/imodem_driver.h"
 #include "aether/serial_ports/iserial_port.h"
+#include "aether/serial_ports/at_comm_support.h"
 
 namespace ae {
 
@@ -58,6 +59,7 @@ class Thingy91xAtModem final : public IModemDriver {
 
  private:
   std::unique_ptr<ISerialPort> serial_;
+  std::unique_ptr<AtCommSupport> at_comm_support_;
   std::vector<Thingy91xConnection> connect_vec_;
 
   static constexpr std::uint16_t kModemMTU{1024};
@@ -96,12 +98,6 @@ class Thingy91xAtModem final : public IModemDriver {
   void SendUdp(Thingy91xConnection const& connection, DataBuffer const& data);
   DataBuffer ReadTcp(Thingy91xConnection const& connection, Duration timeout);
   DataBuffer ReadUdp(Thingy91xConnection const& connection, Duration timeout);
-
-  void SendATCommand(std::string const& command);
-  bool WaitForResponse(std::string const& expected, Duration timeout);
-  static int GetProtocolCode(Protocol protocol);
-
-  std::string PinToString(const std::uint8_t pin[4]);
 };
 
 } /* namespace ae */

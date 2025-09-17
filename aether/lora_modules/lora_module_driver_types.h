@@ -21,7 +21,13 @@
 #include "aether/serial_ports/serial_port_types.h"
 
 namespace ae {
+enum class kLoraModuleError : std::int8_t {
+  kNoError = 0,
+  kSerialPortError = -1,
+  kAtCommandError = -2
+};
 
+// ========================lora module init=====================================
 struct LoraModuleInit {
   AE_REFLECT_MEMBERS(serial_init, lora_my_adress, lora_bs_adress, lora_channel,
                      lora_config)

@@ -21,6 +21,7 @@
 
 #include "aether/modems/imodem_driver.h"
 #include "aether/serial_ports/iserial_port.h"
+#include "aether/serial_ports/at_comm_support.h"
 
 namespace ae {
 
@@ -84,6 +85,7 @@ class Sim7070AtModem final : public IModemDriver {
 
  private:
   std::unique_ptr<ISerialPort> serial_;
+  std::unique_ptr<AtCommSupport> at_comm_support_;
   std::vector<Sim7070Connection> connect_vec_;
 
   static constexpr std::uint16_t kModemMTU{1520};
@@ -111,10 +113,6 @@ class Sim7070AtModem final : public IModemDriver {
   void SendUdp(Sim7070Connection const& connection, DataBuffer const& data);
   DataBuffer ReadTcp(Sim7070Connection const& connection);
   DataBuffer ReadUdp(Sim7070Connection const& connection);
-
-  void SendATCommand(const std::string& command);
-  bool WaitForResponse(const std::string& expected, Duration timeout);
-  std::string PinToString(const std::uint8_t pin[4]);
 };
 
 } /* namespace ae */
