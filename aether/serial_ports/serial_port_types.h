@@ -35,6 +35,7 @@ enum class kBaudRate : std::uint32_t {
   kBaudRate38400 = 38400,
   kBaudRate57600 = 57600,
   kBaudRate115200 = 115200,
+  kBaudRate128000 = 128000,
   kBaudRate230400 = 230400,
   kBaudRate921600 = 921600,
   kBaudRate2000000 = 2000000,

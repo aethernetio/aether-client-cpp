@@ -22,9 +22,12 @@
 static constexpr std::string_view kWifiSsid = "Test1234";
 static constexpr std::string_view kWifiPass = "Test1234";
 
-static constexpr std::string_view kSerialPort_modem =
-    "COM38";  // Modem serial port
+static constexpr std::string_view kSerialPortModem =
+    "COM1";  // Modem serial port
 
+static constexpr std::string_view kSerialPortLoraModule =
+    "COM38";  // Lora module serial port
+    
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
@@ -38,7 +41,7 @@ constexpr ae::SafeStreamConfig kSafeStreamConfig{
 }  // namespace ae::cloud_test
 
 int AetherCloudExample() {
-  ae::SerialInit serial_init_modem = {std::string(kSerialPort_modem),
+  ae::SerialInit serial_init_modem = {std::string(kSerialPortModem),
                                       ae::kBaudRate::kBaudRate115200};
   ae::PowerSaveParam const& psp{};
   ae::BaseStation const& bs{};
@@ -63,7 +66,7 @@ int AetherCloudExample() {
       false                          // Use SSL
   };
 
-  ae::SerialInit serial_init_lora_module = {std::string(kSerialPort_modem),
+  ae::SerialInit serial_init_lora_module = {std::string(kSerialPortLoraModule),
                                             ae::kBaudRate::kBaudRate9600};
 
   ae::LoraModuleInit lora_module_init{

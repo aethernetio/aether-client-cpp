@@ -25,6 +25,17 @@
 
 namespace ae {
 
+static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
+    {kBaudRate::kBaudRate1200, "AT+BAUD1"},
+    {kBaudRate::kBaudRate2400, "AT+BAUD2"},
+    {kBaudRate::kBaudRate4800, "AT+BAUD3"},
+    {kBaudRate::kBaudRate9600, "AT+BAUD4"},
+    {kBaudRate::kBaudRate19200, "AT+BAUD5"},
+    {kBaudRate::kBaudRate38400, "AT+BAUD6"},
+    {kBaudRate::kBaudRate57600, "AT+BAUD7"},
+    {kBaudRate::kBaudRate115200, "AT+BAUD8"},
+    {kBaudRate::kBaudRate128000, "AT+BAUD9"}};
+    
 class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   AE_OBJECT(DxSmartLr02LoraModule, ILoraModuleDriver, 0)
 
@@ -50,8 +61,16 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   kLoraModuleError CheckResponse(std::string const& response,
                                  std::uint32_t const wait_time,
                                  std::string const& error_message);
-  void EnterAtMode();
-  void LeaveAtMode();
+
+  kLoraModuleError EnterAtMode();
+  kLoraModuleError ExitAtMode();
+  
+  kLoraModuleError SetupSerialPort(SerialInit serial_init);
+  kLoraModuleError SetBaudRate(kBaudRate baud_rate);
+  kLoraModuleError SetParity(kParity parity);
+  kLoraModuleError SetStopBits(kStopBits stop_bits);
+
+  kLoraModuleError SetupLoraNet(LoraModuleInit lora_module_init);
 };
 
 } /* namespace ae */
