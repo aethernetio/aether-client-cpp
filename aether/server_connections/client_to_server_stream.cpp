@@ -88,7 +88,7 @@ ClientToServerStream::ClientToServerStream(ActionContext action_context,
       client_safe_api_{protocol_context_},
       login_api_{protocol_context_},
       authorized_api_{protocol_context_, action_context_} {
-  AE_TELE_INFO(ClientServerStreamCreate, "Create ClientToServerStreamGate");
+  AE_TELE_INFO(ClientServerStreamCreate, "Create ClientToServerStream");
 
   auto client_ptr = client_.Lock();
 

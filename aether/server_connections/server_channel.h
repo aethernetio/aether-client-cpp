@@ -34,12 +34,23 @@
 namespace ae {
 class Channel;
 class ServerChannel final {
+  class ServerChannelStream : public ByteStream {
+   public:
+    explicit ServerChannelStream(ServerChannel& server_channel);
+
+    StreamInfo stream_info() const override;
+
+   private:
+    ServerChannel* server_channel_;
+  };
+
  public:
-  ServerChannel(ActionContext action_context, Channel::ptr const& channel);
+  ServerChannel(ActionContext action_context, ObjPtr<Channel> const& channel);
 
   AE_CLASS_NO_COPY_MOVE(ServerChannel)
 
   ByteIStream& stream();
+  ObjPtr<Channel> channel() const;
 
  private:
   void OnConnected(BuildTransportAction& build_transport_action);
@@ -49,7 +60,8 @@ class ServerChannel final {
   PtrView<Channel> channel_;
 
   std::unique_ptr<ByteIStream> transport_stream_;
-  BufferStream buffer_stream_;
+  ServerChannelStream server_channel_stream_;
+  BufferStream<DataBuffer> buffer_stream_;
 
   ActionPtr<BuildTransportAction> build_transport_action_;
   Subscription build_transport_sub_;

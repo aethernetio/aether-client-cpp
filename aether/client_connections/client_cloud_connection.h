@@ -18,12 +18,9 @@
 #define AETHER_CLIENT_CONNECTIONS_CLIENT_CLOUD_CONNECTION_H_
 
 #include <map>
-#include <optional>
 
 #include "aether/memory.h"
 #include "aether/types/uid.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/types/async_for_loop.h"
 #include "aether/actions/timer_action.h"
 #include "aether/events/event_subscription.h"
 
@@ -32,11 +29,9 @@
 #include "aether/client_connections/client_connection.h"
 #include "aether/connection_manager/iserver_connection_pool.h"
 #include "aether/server_connections/client_server_connection.h"
-#include "aether/server_connections/iserver_connection_factory.h"
-#include "aether/connection_manager/server_connection_selector.h"
+#include "aether/connection_manager/client_connection_manager.h"
 
 namespace ae {
-class Cloud;
 /**
  * \brief The simplest cloud connection, which connects to one server a time.
  */
@@ -45,9 +40,8 @@ class ClientCloudConnection final : public ClientConnection,
   using NextServerLoopTimer = TimerAction;
 
  public:
-  ClientCloudConnection(
-      ActionContext action_context, ObjPtr<Cloud> const& cloud,
-      std::unique_ptr<IServerConnectionFactory>&& server_connection_factory);
+  ClientCloudConnection(ActionContext action_context,
+                        ClientConnectionManager& connection_manager);
 
   std::unique_ptr<ByteIStream> CreateStream(Uid destination_uid) override;
   NewStreamEvent::Subscriber new_stream_event() override;
@@ -60,20 +54,12 @@ class ClientCloudConnection final : public ClientConnection,
   AE_REFLECT()
 
  private:
-  void Connect();
-  void SelectConnection();
-  void ServerListEnded();
+  void SubscribeToMessageStreams();
 
-  void OnConnectionError();
   void NewStream(Uid uid, ByteIStream& stream);
 
   ActionContext action_context_;
-  ServerConnectionSelector server_connection_selector_;
-  std::optional<AsyncForLoop<RcPtr<ClientServerConnection>>>
-      connection_selector_loop_;
-
-  // currently selected connection
-  RcPtr<ClientServerConnection> server_connection_;
+  ClientConnectionManager* connection_manager_;
 
   NewStreamEvent new_stream_event_;
   Subscription new_stream_event_subscription_;
@@ -82,10 +68,6 @@ class ClientCloudConnection final : public ClientConnection,
 
   // known streams to clients
   std::map<Uid, std::unique_ptr<ByteStream>> streams_;
-
-  ActionPtr<NextServerLoopTimer> next_server_loop_timer_;
-
-  Subscription next_server_loop_subs_;
 };
 }  // namespace ae
 

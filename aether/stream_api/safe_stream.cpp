@@ -80,6 +80,7 @@ void SafeStream::WriteOut(DataBuffer const& data) {
 }
 
 void SafeStream::OnStreamUpdate() {
+  AE_TELED_DEBUG("Safe stream update");
   static constexpr std::size_t kSendOverhead =
       1 + sizeof(SSRingIndex::type) + 1 + 1 + 2;
 
@@ -87,11 +88,11 @@ void SafeStream::OnStreamUpdate() {
   stream_info_.link_state = out_info.link_state;
   stream_info_.is_writable = out_info.is_writable;
   stream_info_.is_reliable = true;  // safe stream here to make stream reliable
-  stream_info_.rec_element_size = out_info.max_element_size;
+  stream_info_.rec_element_size = out_info.rec_element_size;
   stream_info_.max_element_size = config_.max_packet_size;
 
-  send_action_->SetMaxPayload((out_info.max_element_size > 0)
-                                  ? (out_info.max_element_size - kSendOverhead)
+  send_action_->SetMaxPayload((out_info.rec_element_size > 0)
+                                  ? (out_info.rec_element_size - kSendOverhead)
                                   : 0);
 
   stream_update_event_.Emit();
