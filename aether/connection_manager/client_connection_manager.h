@@ -17,22 +17,32 @@
 #ifndef AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
 #define AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
 
-#include "aether/obj/obj.h"
+#include "aether/obj/obj_ptr.h"
+#include "aether/ptr/ptr_view.h"
 
-#include "aether/connection_manager/client_server_connection_pool.h"
+#include "aether/server_connections/server_connection.h"
+#include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {
-class Client;
-class ClientConnectionManager : public Obj {
-  AE_OBJECT(ClientConnectionManager, Obj, 0)
- public:
-  ClientConnectionManager() = default;
+class Cloud;
 
-#if AE_DISTILLATION
-  ClientConnectionManager(ObjPtr<Client> client, Domain* domain);
-#endif
+/**
+ * \brief Manager of all connections to the client's cloud
+ */
+class ClientConnectionManager {
+ public:
+  ClientConnectionManager(
+      ObjPtr<Cloud> const& cloud,
+      std::unique_ptr<IServerConnectionFactory>&& connection_factory);
+
+  std::vector<ServerConnection>& server_connections();
 
  private:
+  void InitServerConnections();
+
+  PtrView<Cloud> cloud_;
+  std::unique_ptr<IServerConnectionFactory> connection_factory_;
+  std::vector<ServerConnection> server_connections_;
 };
 }  // namespace ae
 

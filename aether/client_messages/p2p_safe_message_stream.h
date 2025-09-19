@@ -26,12 +26,14 @@
 #include "aether/stream_api/sized_packet_gate.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
 
+#include "aether/client_messages/p2p_message_stream.h"
+
 namespace ae {
 
 class P2pSafeStream final : public ByteIStream {
  public:
   P2pSafeStream(ActionContext action_context, SafeStreamConfig const& config,
-                std::unique_ptr<ByteIStream> base_stream);
+                RcPtr<P2pStream> p2p_stream);
 
   AE_CLASS_NO_COPY_MOVE(P2pSafeStream)
 
@@ -43,7 +45,7 @@ class P2pSafeStream final : public ByteIStream {
  private:
   SizedPacketGate sized_packet_gate_;
   SafeStream safe_stream_;
-  std::unique_ptr<ByteIStream> base_stream_;
+  RcPtr<P2pStream> p2p_stream_;
   OutDataEvent out_data_event_;
   std::array<Subscription, 2> out_data_sub_;
 };

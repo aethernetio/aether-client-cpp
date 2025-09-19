@@ -24,14 +24,25 @@
 
 namespace ae {
 // TODO: add config
-static constexpr auto kBufferGateCapacity = std::size_t{20 * 1024};
+static constexpr auto kBufferStreamCapacity = std::size_t{200};
+
+ServerChannel::ServerChannelStream::ServerChannelStream(
+    ServerChannel& server_channel)
+    : server_channel_{&server_channel} {}
+
+StreamInfo ServerChannel::ServerChannelStream::stream_info() const {
+  auto channel = server_channel_->channel();
+  auto info = out_->stream_info();
+  info.max_element_size = channel->max_packet_size();
+  return info;
+}
 
 ServerChannel::ServerChannel(ActionContext action_context,
                              Channel::ptr const& channel)
     : action_context_{action_context},
       channel_{channel},
-      buffer_stream_{action_context_, channel->max_packet_size(),
-                     kBufferGateCapacity},
+      server_channel_stream_{*this},
+      buffer_stream_{action_context_, kBufferStreamCapacity},
       build_transport_action_{action_context, channel},
       build_transport_sub_{build_transport_action_->StatusEvent().Subscribe(
           ActionHandler{OnResult{[this](auto& action) { OnConnected(action); }},
@@ -42,9 +53,17 @@ ServerChannel::ServerChannel(ActionContext action_context,
           OnResult{[this](auto const& timer) {
             AE_TELED_ERROR("Connection timeout {:%S}", timer.duration());
             OnConnectedFailed();
-          }})} {}
+          }})} {
+  Tie(server_channel_stream_, buffer_stream_);
+}
 
-ByteIStream& ServerChannel::stream() { return buffer_stream_; }
+ByteIStream& ServerChannel::stream() { return server_channel_stream_; }
+
+ObjPtr<Channel> ServerChannel::channel() const {
+  auto channel_ptr = channel_.Lock();
+  assert(channel_ptr);
+  return channel_ptr;
+}
 
 void ServerChannel::OnConnected(BuildTransportAction& build_transport_action) {
   build_transport_sub_.Reset();

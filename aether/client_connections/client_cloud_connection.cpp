@@ -34,20 +34,16 @@ static ServerPriority server_priority{};
 }  // namespace client_cloud_connection_internal
 
 ClientCloudConnection::ClientCloudConnection(
-    ActionContext action_context, ObjPtr<Cloud> const& cloud,
-    std::unique_ptr<IServerConnectionFactory>&& server_connection_factory)
+    ActionContext action_context, ClientConnectionManager& connection_manager)
     : action_context_{action_context},
-      server_connection_selector_{
-          cloud, client_cloud_connection_internal::server_priority,
-          std::move(server_connection_factory)} {
-  Connect();
+      connection_manager_{&connection_manager} {
+  SubscribeToMessageStreams();
 }
 
 std::unique_ptr<ByteIStream> ClientCloudConnection::CreateStream(
     Uid destination_uid) {
   AE_TELE_DEBUG(CloudClientConnStreamCreate, "CreateStream destination uid {}",
                 destination_uid);
-  assert(server_connection_);
 
   auto stream_it = streams_.find(destination_uid);
   if (stream_it == std::end(streams_)) {
@@ -143,6 +139,28 @@ void ClientCloudConnection::ServerListEnded() {
         AE_TELED_DEBUG("Connect again");
         Connect();
       }});
+}
+
+void ClientCloudConnection::SubscribeToMessageStreams() {
+  auto servers = connection_manager_->server_connections();
+  assert(!servers.empty());
+  std::remove_if(
+      std::begin(servers), std::end(servers),
+      [&](auto const& conn) {
+        return client_cloud_connection_internal::server_priority.Filter(
+            conn->server());
+      },
+      std::end(servers));
+
+  auto min = std::min_element(
+      std::begin(servers), std::end(servers),
+      [](auto const& left, auto const& right) {
+        return client_cloud_connection_internal::server_priority.Compare(
+            left->server(), right->server());
+      });
+  auto& connection = (*min)->ClientConnection();
+  new_stream_event_subscription_ = connection.new_stream_event().Subscribe(
+      *this, MethodPtr<ClientCloudConnection::NewStreamEvent>{});
 }
 
 void ClientCloudConnection::NewStream(Uid uid, ByteIStream& stream) {

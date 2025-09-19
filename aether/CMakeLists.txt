@@ -88,7 +88,7 @@ list(APPEND events_srcs)
 
 list(APPEND actions_srcs
             "ae_actions/get_client_cloud.cpp"
-            "ae_actions/get_client_cloud_connection.cpp"
+            # "ae_actions/get_client_cloud_connection.cpp"
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
@@ -161,7 +161,6 @@ list(APPEND stream_api_src
             "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
             "stream_api/debug_gate.cpp"
-            "stream_api/buffer_stream.cpp"
             "stream_api/stream_splitter.cpp"
 
             "stream_api/safe_stream.cpp"
@@ -207,17 +206,22 @@ list(APPEND methods_srcs
 
 
 list(APPEND client_connections_srcs
-            "client_connections/client_cloud_connection.cpp"
-            "client_connections/split_stream_client_connection.cpp"
+            "client_connections/cloud_message_stream.cpp"
+            # "client_connections/client_cloud_connection.cpp"
+            # "client_connections/split_stream_client_connection.cpp"
 )
 
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
             "server_connections/client_to_server_stream.cpp"
             "server_connections/server_channel.cpp"
+            "server_connections/channel_manager.cpp"
+            "server_connections/channel_connection.cpp"
+            "server_connections/server_connection.cpp"
 )
 
 list(APPEND connection_manager_srcs
+            "connection_manager/client_connection_manager.cpp"
             "connection_manager/client_cloud_manager.cpp"
             "connection_manager/server_connection_selector.cpp"
             "connection_manager/server_connection_manager.cpp"
@@ -227,6 +231,7 @@ list(APPEND client_messages_srcs
             "client_messages/message_stream.cpp"
             "client_messages/message_stream_dispatcher.cpp"
             "client_messages/p2p_message_stream.cpp"
+            "client_messages/p2p_message_stream_manager.cpp"
             "client_messages/p2p_safe_message_stream.cpp"
             )
 

@@ -23,14 +23,14 @@
 namespace ae {
 P2pSafeStream::P2pSafeStream(ActionContext action_context,
                              SafeStreamConfig const& config,
-                             std::unique_ptr<ByteIStream> base_stream)
+                             RcPtr<P2pStream> p2p_stream)
     : sized_packet_gate_{},
       safe_stream_{action_context, config},
-      base_stream_{std::move(base_stream)},
+      p2p_stream_{std::move(p2p_stream)},
       out_data_sub_{TiedEventOutData(
           [this](auto const& data) { out_data_event_.Emit(data); },
           sized_packet_gate_, safe_stream_)} {
-  Tie(safe_stream_, *base_stream_);
+  Tie(safe_stream_, *p2p_stream_);
 }
 
 ActionPtr<StreamWriteAction> P2pSafeStream::Write(DataBuffer&& data) {

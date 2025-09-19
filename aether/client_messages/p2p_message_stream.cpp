@@ -16,19 +16,19 @@
 
 #include "aether/client_messages/p2p_message_stream.h"
 
-#include "aether/ae_actions/get_client_cloud_connection.h"
+#include "aether/cloud.h"
+#include "aether/client.h"
 
 #include "aether/client_messages/client_messages_tele.h"
 
 namespace ae {
-P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
+P2pStream::P2pStream(ActionContext action_context, ObjPtr<Client> const& client,
                      Uid destination)
     : action_context_{action_context},
       client_{client},
       destination_{destination},
-      receive_client_connection_{client->client_connection()},
       // TODO: add buffer config
-      buffer_stream_{action_context_, 20 * 1024, 20 * 1024} {
+      buffer_stream_{action_context_, 100} {
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
   // destination uid must not be empty
   assert(!destination_.empty());
@@ -37,37 +37,12 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
   ConnectSend();
 }
 
-P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
-                     Uid destination,
-                     std::unique_ptr<ByteIStream> receive_stream)
-    : action_context_{action_context},
-      client_{client},
-      destination_{destination},
-      receive_client_connection_{client->client_connection()},
-      // TODO: add buffer config
-      buffer_stream_{action_context_, 20 * 1024},
-      receive_stream_{std::move(receive_stream)} {
-  AE_TELE_DEBUG(kP2pMessageStreamRec, "P2pStream received for {}",
-                destination_);
-  // destination uid must not be empty
-  assert(!destination_.empty());
-
-  out_data_sub_ = receive_stream_->out_data_event().Subscribe(
-      out_data_event_, MethodPtr<&OutDataEvent::Emit>{});
-  ConnectSend();
-}
-
-P2pStream::~P2pStream() {
-  if (receive_client_connection_) {
-    receive_client_connection_->CloseStream(destination_);
-  }
-  if (send_client_connection_) {
-    send_client_connection_->CloseStream(destination_);
-  }
-}
+P2pStream::~P2pStream() = default;
 
 ActionPtr<StreamWriteAction> P2pStream::Write(DataBuffer&& data) {
-  return buffer_stream_.Write(std::move(data));
+  AE_TELED_DEBUG("Write message {}", data.size());
+  MessageData message_data{destination_, std::move(data)};
+  return buffer_stream_.Write(std::move(message_data));
 }
 
 P2pStream::StreamUpdateEvent::Subscriber P2pStream::stream_update_event() {
@@ -83,33 +58,56 @@ P2pStream::OutDataEvent::Subscriber P2pStream::out_data_event() {
   return out_data_event_;
 }
 
+void P2pStream::WriteOut(DataBuffer const& data) { out_data_event_.Emit(data); }
+
+Uid P2pStream::destination() const { return destination_; }
+
 void P2pStream::ConnectReceive() {
-  receive_stream_ = receive_client_connection_->CreateStream(destination_);
+  auto client_ptr = client_.Lock();
+  assert(client_ptr);
+  receive_stream_ = &client_ptr->cloud_message_stream();
   out_data_sub_ = receive_stream_->out_data_event().Subscribe(
-      out_data_event_, MethodPtr<&OutDataEvent::Emit>{});
+      *this, MethodPtr<&P2pStream::DataReceived>{});
 }
 
 void P2pStream::ConnectSend() {
-  if (!send_client_connection_) {
-    auto client_ptr = client_.Lock();
+  auto client_ptr = client_.Lock();
+  assert(client_ptr);
 
-    // get destination client's cloud connection  to creat stream
-    auto get_client_connection_action = ActionPtr<GetClientCloudConnection>{
-        action_context_, client_ptr, destination_};
-    get_client_connection_subscription_ =
-        get_client_connection_action->StatusEvent().Subscribe(
-            OnResult{[this](auto& action) {
-              send_client_connection_ = action.client_cloud_connection();
-              TieSendStream(*send_client_connection_);
-            }});
+  auto get_client_cloud = client_ptr->cloud_manager()->GetCloud(destination_);
+
+  get_client_connection_subscription_ =
+      get_client_cloud->StatusEvent().Subscribe(
+          OnResult{[this](GetCloudAction& action) {
+            auto cloud = action.cloud();
+            destination_connection_manager_ = MakeConnectionManager(cloud);
+            destination_stream_ =
+                MakeDestinationStream(*destination_connection_manager_);
+            AE_TELED_DEBUG("Send connected");
+            Tie(buffer_stream_, *destination_stream_);
+          }});
+}
+
+void P2pStream::DataReceived(MessageData const& data) {
+  if (data.destination != destination_) {
     return;
   }
-  TieSendStream(*send_client_connection_);
+  WriteOut(data.data);
 }
 
-void P2pStream::TieSendStream(ClientConnection& client_connection) {
-  send_stream_ = client_connection.CreateStream(destination_);
-  AE_TELED_DEBUG("Send tied");
-  Tie(buffer_stream_, *send_stream_);
+std::unique_ptr<ClientConnectionManager> P2pStream::MakeConnectionManager(
+    ObjPtr<Cloud> const& cloud) {
+  auto client_ptr = client_.Lock();
+  assert(client_ptr);
+  return std::make_unique<ClientConnectionManager>(
+      cloud,
+      client_ptr->server_connection_manager().GetServerConnectionFactory());
 }
+
+std::unique_ptr<CloudMessageStream> P2pStream::MakeDestinationStream(
+    ClientConnectionManager& connection_manager) {
+  return std::make_unique<CloudMessageStream>(action_context_,
+                                              connection_manager);
+}
+
 }  // namespace ae

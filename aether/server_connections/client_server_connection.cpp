@@ -16,118 +16,119 @@
 
 #include "aether/server_connections/client_server_connection.h"
 
-#include <chrono>
-
 #include "aether/server.h"
+#include "aether/server_connections/server_channel.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae {
-ClientServerConnection::ClientServerConnection(
-    ActionContext action_context, [[maybe_unused]] ObjPtr<Aether> const& aether,
-    ObjPtr<Client> const& client, Server::ptr const& server)
+ClientServerConnection::ChannelSelectStream ::ChannelSelectStream(
+    ClientServerConnection& client_server_connection)
+    : client_server_connection_{&client_server_connection},
+      server_channel_{},
+      stream_info_{} {
+  SelectChannel();
+}
+
+ActionPtr<StreamWriteAction> ClientServerConnection::ChannelSelectStream::Write(
+    DataBuffer&& data) {
+  if (server_channel_ == nullptr) {
+    SelectChannel();
+  }
+  if (server_channel_ == nullptr) {
+    AE_TELED_ERROR("There is no channels, write failed");
+    return ActionPtr<FailedStreamWriteAction>{
+        client_server_connection_->action_context_};
+  }
+  AE_TELED_ERROR("Write to channel size {}", data.size());
+  return server_channel_->stream().Write(std::move(data));
+}
+
+StreamInfo ClientServerConnection::ChannelSelectStream::stream_info() const {
+  return stream_info_;
+}
+
+ClientServerConnection::ChannelSelectStream::StreamUpdateEvent::Subscriber
+ClientServerConnection::ChannelSelectStream::stream_update_event() {
+  return stream_update_event_;
+}
+
+ClientServerConnection::ChannelSelectStream::OutDataEvent::Subscriber
+ClientServerConnection::ChannelSelectStream::out_data_event() {
+  return out_data_event_;
+}
+
+ServerChannel const*
+ClientServerConnection::ChannelSelectStream::server_channel() const {
+  return server_channel_;
+}
+
+void ClientServerConnection::ChannelSelectStream::SelectChannel() {
+  auto& channel_manager = client_server_connection_->channel_manager_;
+  auto& channels = channel_manager.channels();
+  // TODO: add select channel logic
+  auto& channel_connection = channels.front();
+
+  // TODO: how to reset channel?
+  server_channel_ = &channel_connection.GetServerChannel();
+
+  stream_update_sub_ =
+      server_channel_->stream().stream_update_event().Subscribe(
+          *this,
+          MethodPtr<
+              &ClientServerConnection::ChannelSelectStream::StreamUpdate>{});
+  out_data_sub_ = server_channel_->stream().out_data_event().Subscribe(
+      out_data_event_, MethodPtr<&OutDataEvent::Emit>{});
+
+  // TODO: add handle for channels update
+  StreamUpdate();
+}
+
+void ClientServerConnection::ChannelSelectStream::StreamUpdate() {
+  stream_info_ = server_channel_->stream().stream_info();
+  stream_update_event_.Emit();
+}
+
+ClientServerConnection::ClientServerConnection(ActionContext action_context,
+                                               ObjPtr<Aether> const& aether,
+                                               ObjPtr<Client> const& client,
+                                               Server::ptr const& server)
     : action_context_{action_context},
       client_{client},
       server_{server},
-      selected_channel_index_{0} {
-  client_to_server_stream_ = std::make_unique<ClientToServerStream>(
-      action_context, client, server->server_id);
-
-  // TODO: add channel priorities
-  channel_loop_.emplace([&]() { selected_channel_index_ = 0; },
-                        [&]() {
-                          auto server_ptr = server_.Lock();
-                          assert(server_ptr);
-                          return selected_channel_index_ <
-                                 server_ptr->channels.size();
-                        },
-                        [&]() { selected_channel_index_++; },
-                        [&]() {
-                          auto server_ptr = server_.Lock();
-                          assert(server_ptr);
-                          return server_ptr->channels[selected_channel_index_];
-                        });
-
-  message_stream_dispatcher_ =
-      std::make_unique<MessageStreamDispatcher>(*client_to_server_stream_);
-  new_stream_event_sub_ =
-      message_stream_dispatcher_->new_stream_event().Subscribe(
-          new_stream_event_, MethodPtr<&NewStreamEvent::Emit>{});
-
-#if defined TELEMETRY_ENABLED
-  telemetry_ = OwnActionPtr<Telemetry>{action_context, aether,
-                                       *client_to_server_stream_};
-#endif
-  NextChannel();
+      channel_manager_{action_context_, aether, server},
+      client_to_server_stream_{action_context, client, server->server_id},
+      channel_select_stream_{*this} {
+  AE_TELED_DEBUG("Client server connection");
+  Tie(client_to_server_stream_, channel_select_stream_);
+  StreamUpdate();
+  SubscribeToSelectChannel();
 }
 
 ClientToServerStream& ClientServerConnection::server_stream() {
-  return *client_to_server_stream_;
+  return client_to_server_stream_;
 }
 
-ClientServerConnection::NewStreamEvent::Subscriber
-ClientServerConnection::new_stream_event() {
-  return new_stream_event_;
+void ClientServerConnection::SubscribeToSelectChannel() {
+  stream_update_sub_ = channel_select_stream_.stream_update_event().Subscribe(
+      *this, MethodPtr<&ClientServerConnection::StreamUpdate>{});
 }
 
-ClientServerConnection::ServerErrorEvent::Subscriber
-ClientServerConnection::server_error_event() {
-  return server_error_event_;
-}
-
-ByteIStream& ClientServerConnection::GetStream(Uid destination_uid) {
-  return message_stream_dispatcher_->GetMessageStream(destination_uid);
-}
-
-void ClientServerConnection::CloseStream(Uid uid) {
-  message_stream_dispatcher_->CloseStream(uid);
-}
-
-void ClientServerConnection::SendTelemetry() {
-#if defined TELEMETRY_ENABLED
-  telemetry_->SendTelemetry();
-#endif
-}
-
-void ClientServerConnection::NextChannel() {
-  auto server_ptr = server_.Lock();
-  if (!server_ptr) {
-    AE_TELED_ERROR("No server");
-    server_error_event_.Emit();
+void ClientServerConnection::StreamUpdate() {
+  auto const* channel = channel_select_stream_.server_channel();
+  // check if channel is updated
+  if (server_channel_ == channel) {
     return;
   }
+  server_channel_ = channel;
 
-  auto channel = channel_loop_->Update();
-  if (!channel) {
-    AE_TELED_ERROR("Channel list is ended");
-    server_error_event_.Emit();
-    return;
-  }
-
-  server_channel_ = std::make_unique<ServerChannel>(action_context_, channel);
-
-  channel_stream_update_sub_ =
-      server_channel_->stream().stream_update_event().Subscribe([this]() {
-        auto info = server_channel_->stream().stream_info();
-        if (info.link_state == LinkState::kLinkError) {
-          NextChannel();
-        }
-      });
-
-  Tie(*client_to_server_stream_, server_channel_->stream());
-
-  // Ping action should be created for channel personally
-  ping_ = OwnActionPtr<Ping>{action_context_, server_ptr, channel,
-                             *client_to_server_stream_,
-                             std::chrono::milliseconds{AE_PING_INTERVAL_MS}},
-  ping_error_sub_ =
-      ping_->StatusEvent().Subscribe(OnError{[this]() { PingError(); }});
-}
-
-void ClientServerConnection::PingError() {
-  AE_TELED_ERROR("Ping error");
-  // TODO: handle ping error depends on connection open status
-  server_error_event_.Emit();
+  Server::ptr server = server_.Lock();
+  assert(server);
+  // Create new ping if channel is updated
+  // TODO: add ping interval config
+  ping_ =
+      OwnActionPtr<Ping>{action_context_, server, server_channel_->channel(),
+                         client_to_server_stream_, std::chrono::seconds{5}};
 }
 
 }  // namespace ae

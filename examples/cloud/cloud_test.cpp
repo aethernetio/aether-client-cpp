@@ -92,12 +92,11 @@ int AetherCloudExample() {
    * Send confirmation to received message.
    */
   std::unique_ptr<ae::ByteIStream> receiver_stream;
-  client_a->client_connection()->new_stream_event().Subscribe(
-      [&](auto uid, auto raw_stream) {
+  client_a->message_stream_manager().new_stream_event().Subscribe(
+      [&](auto p2p_stream) {
         receiver_stream = ae::make_unique<ae::P2pSafeStream>(
             *aether_app, ae::cloud_test::kSafeStreamConfig,
-            ae::make_unique<ae::P2pStream>(*aether_app, client_a, uid,
-                                           std::move(raw_stream)));
+            std::move(p2p_stream));
 
         receiver_stream->out_data_event().Subscribe([&](auto const& data) {
           auto str_msg = std::string(reinterpret_cast<const char*>(data.data()),
@@ -121,7 +120,7 @@ int AetherCloudExample() {
    */
   auto sender_stream = ae::make_unique<ae::P2pSafeStream>(
       *aether_app, ae::cloud_test::kSafeStreamConfig,
-      ae::make_unique<ae::P2pStream>(*aether_app, client_b, client_a->uid()));
+      ae::MakeRcPtr<ae::P2pStream>(*aether_app, client_b, client_a->uid()));
 
   sender_stream->out_data_event().Subscribe([&](auto const& data) {
     auto str_response =
