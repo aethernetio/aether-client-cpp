@@ -213,8 +213,8 @@ void GetClientCloudAction::OnCloudResponse(UidAndCloud const& uid_and_cloud) {
 void GetClientCloudAction::OnServerResponse(
     ServerDescriptor const& server_descriptor) {
   AE_TELE_DEBUG(kGetClientCloudServerResolved,
-                "Server resolved {} ips count {}", server_descriptor.server_id,
-                server_descriptor.ips.size());
+                "Server resolved id: {} ips count {}",
+                server_descriptor.server_id, server_descriptor.ips.size());
   if (auto it = server_resolve_tasks_.find(server_descriptor.server_id);
       it != std::end(server_resolve_tasks_)) {
     it->second->Stop();
