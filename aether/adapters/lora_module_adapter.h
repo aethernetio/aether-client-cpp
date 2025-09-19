@@ -48,10 +48,10 @@ class LoraModuleAdapterTransportBuilderAction final : public TransportBuilderAct
   LoraModuleAdapterTransportBuilderAction(ActionContext action_context,
                                      LoraModuleAdapter& adapter,
                                      UnifiedAddress address_);
-  // create the transport when lte modem is connected
+  // create the transport when lora module is connected
   LoraModuleAdapterTransportBuilderAction(
       ActionContext action_context,
-      EventSubscriber<void(bool)> lte_modem_connected_event,
+      EventSubscriber<void(bool)> lora_module_connected_event,
       LoraModuleAdapter& adapter, UnifiedAddress address_);
 
   UpdateStatus Update() override;

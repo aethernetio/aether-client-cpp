@@ -39,6 +39,18 @@ class ILoraModuleDriver : public Obj {
   virtual bool Init();
   virtual bool Start();
   virtual bool Stop();
+  virtual ConnectionLoraIndex OpenNetwork(Protocol /*protocol*/,
+                                      std::string const& /*host*/,
+                                      std::uint16_t /*port*/);
+  virtual void CloseNetwork(ConnectionLoraIndex /*connect_index*/);
+  virtual void WritePacket(ConnectionLoraIndex /*connect_index*/,
+                           DataBuffer const& /*data*/);
+  virtual DataBuffer ReadPacket(ConnectionLoraIndex /*connect_index*/,
+                                Duration /*timeout*/);
+
+  virtual bool SetPowerSaveParam(std::string const& /*psp*/);
+  virtual bool PowerOff();
+  
   LoraModuleInit GetLoraModuleInit();
 
  private:

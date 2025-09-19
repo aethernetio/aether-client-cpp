@@ -26,5 +26,23 @@ bool ILoraModuleDriver::Init() { return {}; }
 bool ILoraModuleDriver::Start() { return {}; }
 bool ILoraModuleDriver::Stop() { return {}; }
 
+ConnectionLoraIndex ILoraModuleDriver::OpenNetwork(ae::Protocol /*protocol*/,
+                                          std::string const& /*host*/,
+                                          std::uint16_t /*port*/) {
+  return {};
+}
+void ILoraModuleDriver::CloseNetwork(ConnectionLoraIndex /*connect_index*/) {}
+void ILoraModuleDriver::WritePacket(ConnectionLoraIndex /*connect_index*/,
+                               DataBuffer const& /*data*/) {}
+DataBuffer ILoraModuleDriver::ReadPacket(ConnectionLoraIndex /*connect_index*/,
+                                    Duration /*timeout*/) {
+  return {};
+}
+
+bool ILoraModuleDriver::SetPowerSaveParam(std::string const& /*psp*/) {
+  return {};
+}
+bool ILoraModuleDriver::PowerOff() { return {}; }
+
 LoraModuleInit ILoraModuleDriver::GetLoraModuleInit() { return lora_module_init_; }
 } /* namespace ae */

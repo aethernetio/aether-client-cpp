@@ -37,7 +37,7 @@ class LoraModuleAdapterTransportBuilder final : public ITransportStreamBuilder {
         },
         address_);
     assert(protocol == Protocol::kTcp || protocol == Protocol::kUdp);
-#if defined MODEM_TRANSPORT_ENABLED
+#if defined LORA_MODULE_TRANSPORT_ENABLED
     return make_unique<LoraModuleTransport>(*adapter_->aether_.as<Aether>(),
                                             *adapter_->lora_module_driver_,
                                             address_);
@@ -114,7 +114,7 @@ void LoraModuleAdapterTransportBuilderAction::CreateBuilders() {
       std::make_unique<LoraModuleAdapterTransportBuilder>(*adapter_, address_);
   state_ = State::kBuildersCreated;
 }
-}  // namespace modem_adapter_internal
+}  // namespace lora_module_adapter_internal
 
 #if defined AE_DISTILLATION
 LoraModuleAdapter::LoraModuleAdapter(ObjPtr<Aether> aether, LoraModuleInit lora_module_init,

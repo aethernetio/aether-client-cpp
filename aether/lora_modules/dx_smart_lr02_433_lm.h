@@ -50,6 +50,15 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   bool Init() override;
   bool Start() override;
   bool Stop() override;
+  ConnectionLoraIndex OpenNetwork(ae::Protocol protocol, std::string const& host,
+                              std::uint16_t port) override;
+  void CloseNetwork(ae::ConnectionLoraIndex connect_index) override;
+  void WritePacket(ae::ConnectionLoraIndex connect_index,
+                   ae::DataBuffer const& data) override;
+  DataBuffer ReadPacket(ae::ConnectionLoraIndex connect_index,
+                        ae::Duration timeout) override;
+  bool SetPowerSaveParam(std::string const& psp) override;
+  bool PowerOff() override;
 
  private:
   std::unique_ptr<ISerialPort> serial_;
@@ -65,12 +74,15 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   kLoraModuleError EnterAtMode();
   kLoraModuleError ExitAtMode();
   
-  kLoraModuleError SetupSerialPort(SerialInit serial_init);
+  kLoraModuleError SetupSerialPort(SerialInit& serial_init);
   kLoraModuleError SetBaudRate(kBaudRate baud_rate);
   kLoraModuleError SetParity(kParity parity);
   kLoraModuleError SetStopBits(kStopBits stop_bits);
 
-  kLoraModuleError SetupLoraNet(LoraModuleInit lora_module_init);
+  kLoraModuleError SetupLoraNet(LoraModuleInit& lora_module_init);
+  
+  std::string AdressToString(uint16_t value);
+  std::string ChannelToString(uint8_t value);
 };
 
 } /* namespace ae */

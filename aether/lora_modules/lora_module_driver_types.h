@@ -27,7 +27,17 @@ enum class kLoraModuleError : std::int8_t {
   kAtCommandError = -2,
   kBaudRateError = -3,
   kParityError = -4,
-  kStopBitsError = -5
+  kStopBitsError = -5,
+  kLoraAddressError = -6,
+  kLoraChannelError = -7,
+  kLoraModeError = -8,
+  kLoraLevelError = -9,
+  kLoraPowerError = -10,
+  kLoraBandWidthError = -11,
+  kLoraCodingRateError = -12,
+  kLoraSFError = -13,
+  kLoraCRCError = -14,
+  kLoraSIError = -15
 };
 
 enum class kLoraModuleMode : std::int8_t {
@@ -124,6 +134,8 @@ struct LoraModuleInit {
       kLoraModuleIQSignalInversion::kIQoff};
 };
 
+using ConnectionLoraIndex = std::int8_t;
+static constexpr ConnectionLoraIndex kInvalidConnectionLoraIndex = -1;
 }  // namespace ae
 
 #endif  // AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
