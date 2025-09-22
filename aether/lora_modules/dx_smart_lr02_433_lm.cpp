@@ -113,29 +113,188 @@ bool DxSmartLr02LoraModule::Stop() {
   return true;
 };
 
-ConnectionLoraIndex DxSmartLr02LoraModule::OpenNetwork(ae::Protocol /* protocol */,
-                                std::string const& /* host */,
-                                std::uint16_t /* port */) {
+ConnectionLoraIndex DxSmartLr02LoraModule::OpenNetwork(
+    ae::Protocol /* protocol */, std::string const& /* host */,
+    std::uint16_t /* port */) {
   ConnectionLoraIndex index{0};
 
   return index;
 };
 
-void DxSmartLr02LoraModule::CloseNetwork(ae::ConnectionLoraIndex /* connect_index */){};
+void DxSmartLr02LoraModule::CloseNetwork(
+    ae::ConnectionLoraIndex /* connect_index */){};
 
-void DxSmartLr02LoraModule::WritePacket(ae::ConnectionLoraIndex /* connect_index */,
-                 ae::DataBuffer const& /* data */) {};
+void DxSmartLr02LoraModule::WritePacket(
+    ae::ConnectionLoraIndex /* connect_index */,
+    ae::DataBuffer const& /* data */) {};
 
-DataBuffer DxSmartLr02LoraModule::ReadPacket(ae::ConnectionLoraIndex /* connect_index */,
-                      ae::Duration /* timeout */) {
+DataBuffer DxSmartLr02LoraModule::ReadPacket(
+    ae::ConnectionLoraIndex /* connect_index */, ae::Duration /* timeout */) {
   DataBuffer data{};
 
   return data;
 };
 
-bool DxSmartLr02LoraModule::SetPowerSaveParam(std::string const& /* psp */) { return true; };
+bool DxSmartLr02LoraModule::SetPowerSaveParam(std::string const& /* psp */) {
+  return true;
+};
 
 bool DxSmartLr02LoraModule::PowerOff() { return true; };
+
+bool DxSmartLr02LoraModule::SetLoraModuleAddress(std::uint16_t const& address) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+  
+  at_comm_support_->SendATCommand(
+      "AT+MAC" + AdressToString(address));  // Set module address
+
+  err = CheckResponse("OK", 1000, "No response from lora module!");
+  if (err != kLoraModuleError::kNoError) {
+    return false;
+  }
+
+  return true;
+};
+
+bool DxSmartLr02LoraModule::SetLoraModuleChannel(std::uint8_t const& channel) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+  
+  if (channel > 0x1E) {
+    return false;
+  }
+  
+  at_comm_support_->SendATCommand(
+      "AT+CHANNEL" + ChannelToString(channel));  // Set module channel
+
+  err = CheckResponse("OK", 1000, "No response from lora module!");
+  if (err != kLoraModuleError::kNoError) {
+    return false;
+  }
+
+  return true;
+};
+
+bool DxSmartLr02LoraModule::SetLoraModuleMode(kLoraModuleMode const& mode) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+  
+  at_comm_support_->SendATCommand(
+      "AT+MODE" + std::to_string(static_cast<int>(mode)));  // Set module mode
+
+  err = CheckResponse("OK", 1000, "No response from lora module!");
+  if (err != kLoraModuleError::kNoError) {
+    return false;
+  }
+
+  return true;
+};
+
+bool DxSmartLr02LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& level) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+  
+  at_comm_support_->SendATCommand(
+      "AT+LEVEL" +
+      std::to_string(static_cast<int>(level)));  // Set module level
+
+  err = CheckResponse("OK", 1000, "No response from lora module!");
+  if (err != kLoraModuleError::kNoError) {
+    return false;
+  }
+
+  return true;
+};
+
+bool DxSmartLr02LoraModule::SetLoraModulePower(kLoraModulePower const& power) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+  
+  at_comm_support_->SendATCommand(
+      "AT+POWE" + std::to_string(static_cast<int>(power)));  // Set module power
+
+  err = CheckResponse("OK", 1000, "No response from lora module!");
+  if (err != kLoraModuleError::kNoError) {
+    return false;
+  }
+
+  return true;
+};
+
+bool DxSmartLr02LoraModule::SetLoraModuleBandWidth(
+    kLoraModuleBandWidth const& band_width) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+  
+  at_comm_support_->SendATCommand(
+      "AT+BW" +
+      std::to_string(static_cast<int>(band_width)));  // Set module bandwidth
+
+  err = CheckResponse("OK", 1000, "No response from lora module!");
+  if (err != kLoraModuleError::kNoError) {
+    return false;
+  }
+
+  return true;
+};
+
+bool DxSmartLr02LoraModule::SetLoraModuleCodingRate(
+    kLoraModuleCodingRate const& coding_rate) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+  
+  at_comm_support_->SendATCommand(
+      "AT+CR" +
+      std::to_string(static_cast<int>(coding_rate)));  // Set module coding rate
+
+  err = CheckResponse("OK", 1000, "No response from lora module!");
+  if (err != kLoraModuleError::kNoError) {
+    return false;
+  }
+
+  return true;
+};
+
+bool DxSmartLr02LoraModule::SetLoraModuleSpreadingFactor(
+    kLoraModuleSpreadingFactor const& spreading_factor) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+  
+  at_comm_support_->SendATCommand(
+      "AT+SF" + std::to_string(static_cast<int>(
+                    spreading_factor)));  // Set module spreading factor
+
+  err = CheckResponse("OK", 1000, "No response from lora module!");
+  if (err != kLoraModuleError::kNoError) {
+    return false;
+  }
+
+  return true;
+};
+
+bool DxSmartLr02LoraModule::SetLoraModuleCRCCheck(
+    kLoraModuleCRCCheck const& crc_check) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+  
+  at_comm_support_->SendATCommand(
+      "AT+CRC" +
+      std::to_string(static_cast<int>(crc_check)));  // Set module crc check
+
+  err = CheckResponse("OK", 1000, "No response from lora module!");
+  if (err != kLoraModuleError::kNoError) {
+    return false;
+  }
+
+  return true;
+};
+
+bool DxSmartLr02LoraModule::SetLoraModuleIQSignalInversion(
+    kLoraModuleIQSignalInversion const& signal_inversion) {
+  kLoraModuleError err{kLoraModuleError::kNoError};
+  
+  at_comm_support_->SendATCommand(
+      "AT+IQ" + std::to_string(static_cast<int>(
+                    signal_inversion)));  // Set module signal inversion
+
+  err = CheckResponse("OK", 1000, "No response from lora module!");
+  if (err != kLoraModuleError::kNoError) {
+    return false;
+  }
+
+  return true;
+};
 
 // =============================private members=========================== //
 kLoraModuleError DxSmartLr02LoraModule::CheckResponse(
@@ -269,115 +428,51 @@ kLoraModuleError DxSmartLr02LoraModule::SetStopBits(kStopBits stop_bits) {
 }
 
 kLoraModuleError DxSmartLr02LoraModule::SetupLoraNet(
-    LoraModuleInit& lora_module_init) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  if (lora_module_init.lora_module_channel > 0x1E) {
-    return kLoraModuleError::kLoraChannelError;
-  }
+    LoraModuleInit& lora_module_init) {  
   // Module address
-  at_comm_support_->SendATCommand(
-      "AT+MAC" +
-      AdressToString(
-          lora_module_init.lora_module_my_adress));  // Set module address
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
+  if (!SetLoraModuleAddress(lora_module_init.lora_module_my_adress)) {
     return kLoraModuleError::kLoraAddressError;
-  }
+  };
   // Module channel
-  at_comm_support_->SendATCommand(
-      "AT+CHANNEL" +
-      ChannelToString(
-          lora_module_init.lora_module_channel));  // Set module channel
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
+  if (!SetLoraModuleChannel(lora_module_init.lora_module_channel)) {
     return kLoraModuleError::kLoraChannelError;
-  }
+  };
   // Module mode
-  at_comm_support_->SendATCommand(
-      "AT+MODE" + std::to_string(static_cast<int>(
-                      lora_module_init.lora_module_mode)));  // Set module mode
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
+  if (!SetLoraModuleMode(lora_module_init.lora_module_mode)) {
     return kLoraModuleError::kLoraModeError;
-  }
+  };
   // Module level
-  at_comm_support_->SendATCommand(
-      "AT+LEVEL" +
-      std::to_string(static_cast<int>(
-          lora_module_init.lora_module_level)));  // Set module level
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
+  if (!SetLoraModuleLevel(lora_module_init.lora_module_level)) {
     return kLoraModuleError::kLoraLevelError;
-  }
+  };
   // Module power
-  at_comm_support_->SendATCommand(
-      "AT+POWE" +
-      std::to_string(static_cast<int>(
-          lora_module_init.lora_module_power)));  // Set module power
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
+  if (!SetLoraModulePower(lora_module_init.lora_module_power)) {
     return kLoraModuleError::kLoraPowerError;
-  }
+  };
   // Module BandWidth
-  at_comm_support_->SendATCommand(
-      "AT+BW" +
-      std::to_string(static_cast<int>(
-          lora_module_init.lora_module_band_width)));  // Set module bandwidth
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
+  if (!SetLoraModuleBandWidth(lora_module_init.lora_module_band_width)) {
     return kLoraModuleError::kLoraBandWidthError;
-  }
+  };
   // Module CodingRate
-  at_comm_support_->SendATCommand(
-      "AT+CR" + std::to_string(static_cast<int>(
-                    lora_module_init
-                        .lora_module_coding_rate)));  // Set module coding rate
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
+  if (!SetLoraModuleCodingRate(lora_module_init.lora_module_coding_rate)) {
     return kLoraModuleError::kLoraCodingRateError;
-  }
+  };
   // Module spreading factor
-  at_comm_support_->SendATCommand(
-      "AT+SF" +
-      std::to_string(static_cast<int>(
-          lora_module_init
-              .lora_module_spreading_factor)));  // Set module spreading factor
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
+  if (!SetLoraModuleSpreadingFactor(
+          lora_module_init.lora_module_spreading_factor)) {
     return kLoraModuleError::kLoraSFError;
-  }
+  };
   // Module crc check
-  at_comm_support_->SendATCommand(
-      "AT+CRC" +
-      std::to_string(static_cast<int>(
-          lora_module_init.lora_module_crc_check)));  // Set module crc check
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
+  if (!SetLoraModuleCRCCheck(lora_module_init.lora_module_crc_check)) {
     return kLoraModuleError::kLoraCRCError;
-  }
+  };
   // Module signal inversion
-  at_comm_support_->SendATCommand(
-      "AT+IQ" +
-      std::to_string(static_cast<int>(
-          lora_module_init
-              .lora_module_signal_inversion)));  // Set module signal inversion
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
+  if (!SetLoraModuleIQSignalInversion(
+          lora_module_init.lora_module_signal_inversion)) {
     return kLoraModuleError::kLoraSIError;
-  }
+  };
 
-  return err;
+  return kLoraModuleError::kNoError;
 }
 
 std::string DxSmartLr02LoraModule::AdressToString(uint16_t value) {

@@ -35,7 +35,7 @@ static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
     {kBaudRate::kBaudRate57600, "AT+BAUD7"},
     {kBaudRate::kBaudRate115200, "AT+BAUD8"},
     {kBaudRate::kBaudRate128000, "AT+BAUD9"}};
-    
+
 class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   AE_OBJECT(DxSmartLr02LoraModule, ILoraModuleDriver, 0)
 
@@ -50,8 +50,9 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   bool Init() override;
   bool Start() override;
   bool Stop() override;
-  ConnectionLoraIndex OpenNetwork(ae::Protocol protocol, std::string const& host,
-                              std::uint16_t port) override;
+  ConnectionLoraIndex OpenNetwork(ae::Protocol protocol,
+                                  std::string const& host,
+                                  std::uint16_t port) override;
   void CloseNetwork(ae::ConnectionLoraIndex connect_index) override;
   void WritePacket(ae::ConnectionLoraIndex connect_index,
                    ae::DataBuffer const& data) override;
@@ -59,6 +60,23 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
                         ae::Duration timeout) override;
   bool SetPowerSaveParam(std::string const& psp) override;
   bool PowerOff() override;
+  bool SetLoraModuleAddress(std::uint16_t const& address);  // Module address
+  bool SetLoraModuleChannel(std::uint8_t const& channel);   // Module channel
+  bool SetLoraModuleMode(kLoraModuleMode const& mode);      // Module mode
+  bool SetLoraModuleLevel(kLoraModuleLevel const& level);   // Module level
+  bool SetLoraModulePower(kLoraModulePower const& power);   // Module power
+  bool SetLoraModuleBandWidth(
+      kLoraModuleBandWidth const& band_width);  // Module BandWidth
+  bool SetLoraModuleCodingRate(
+      kLoraModuleCodingRate const& coding_rate);  // Module CodingRate
+  bool SetLoraModuleSpreadingFactor(
+      kLoraModuleSpreadingFactor const&
+          spreading_factor);  // Module spreading factor
+  bool SetLoraModuleCRCCheck(
+      kLoraModuleCRCCheck const& crc_check);  // Module crc check
+  bool SetLoraModuleIQSignalInversion(
+      kLoraModuleIQSignalInversion const&
+          signal_inversion);  // Module signal inversion
 
  private:
   std::unique_ptr<ISerialPort> serial_;
@@ -73,14 +91,14 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
 
   kLoraModuleError EnterAtMode();
   kLoraModuleError ExitAtMode();
-  
+
   kLoraModuleError SetupSerialPort(SerialInit& serial_init);
   kLoraModuleError SetBaudRate(kBaudRate baud_rate);
   kLoraModuleError SetParity(kParity parity);
   kLoraModuleError SetStopBits(kStopBits stop_bits);
 
   kLoraModuleError SetupLoraNet(LoraModuleInit& lora_module_init);
-  
+
   std::string AdressToString(uint16_t value);
   std::string ChannelToString(uint8_t value);
 };
