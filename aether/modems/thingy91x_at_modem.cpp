@@ -190,6 +190,8 @@ void Thingy91xAtModem::CloseNetwork(ConnectionIndex connect_index) {
     AE_TELED_ERROR("AT#XSOCKET command error {}", err);
     return;
   }
+  
+  connect_vec_.erase(connect_vec_.begin() + connect_index);
 }
 
 void Thingy91xAtModem::WritePacket(ConnectionIndex connect_index,

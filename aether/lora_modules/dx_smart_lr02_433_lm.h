@@ -45,7 +45,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
  public:
   explicit DxSmartLr02LoraModule(LoraModuleInit lora_module_init,
                                  Domain* domain);
-  AE_OBJECT_REFLECT()
+  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
   bool Init() override;
   bool Start() override;
@@ -80,6 +80,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
 
  private:
   std::unique_ptr<ISerialPort> serial_;
+  std::vector<LoraConnection> connect_vec_;
   std::unique_ptr<AtCommSupport> at_comm_support_;
   bool at_mode_{false};
 

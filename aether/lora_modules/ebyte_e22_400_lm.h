@@ -33,10 +33,11 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
 
  public:
   explicit EbyteE22LoraModule(LoraModuleInit lora_module_init, Domain* domain);
-  AE_OBJECT_REFLECT()
+  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
  private:
   std::unique_ptr<ISerialPort> serial_;
+  std::vector<LoraConnection> connect_vec_;
 
   static constexpr std::uint16_t kLoraModuleMTU{200};
 };

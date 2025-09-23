@@ -136,6 +136,22 @@ struct LoraModuleInit {
 
 using ConnectionLoraIndex = std::int8_t;
 static constexpr ConnectionLoraIndex kInvalidConnectionLoraIndex = -1;
+
+struct LoraConnection {
+  AE_REFLECT_MEMBERS(connect_index, protocol, host, port)
+  ConnectionLoraIndex connect_index;
+  ae::Protocol protocol;
+  std::string host;
+  std::uint16_t port;
+};
+
+struct LoraPacket {
+  AE_REFLECT_MEMBERS(connection, length, data, crc)
+  LoraConnection connection;
+  std::size_t length{0};  
+  ae::DataBuffer data;
+  std::uint32_t crc{0};
+};
 }  // namespace ae
 
 #endif  // AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_

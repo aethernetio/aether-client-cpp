@@ -189,6 +189,8 @@ void Sim7070AtModem::CloseNetwork(ConnectionIndex connect_index) {
     AE_TELED_ERROR("AT+CACLOSE command error {}", err);
     return;
   }
+  
+  connect_vec_.erase(connect_vec_.begin() + connect_index);
 }
 
 void Sim7070AtModem::WritePacket(ConnectionIndex connect_index,

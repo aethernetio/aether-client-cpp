@@ -125,7 +125,7 @@
 #endif
 
 #if defined __riscv
-#  define AE_CPU_TYPE "RISCV"
+// #  define AE_CPU_TYPE "RISCV"
 #endif
 
 #if defined ESP_PLATFORM

@@ -16,6 +16,9 @@
 
 #include "aether/lora_modules/dx_smart_lr02_433_lm.h"
 #include "aether/serial_ports/serial_port_factory.h"
+#include "aether/mstream.h"
+#include "aether/mstream_buffers.h"
+#include "aether/transport/data_packet_collector.h"
 
 #include "aether/lora_modules/lora_modules_tele.h"
 
@@ -114,24 +117,66 @@ bool DxSmartLr02LoraModule::Stop() {
 };
 
 ConnectionLoraIndex DxSmartLr02LoraModule::OpenNetwork(
-    ae::Protocol /* protocol */, std::string const& /* host */,
-    std::uint16_t /* port */) {
-  ConnectionLoraIndex index{0};
+    ae::Protocol protocol, std::string const& host,
+    std::uint16_t port) {
+  auto connect_index = static_cast<ConnectionLoraIndex>(connect_vec_.size());
+  connect_vec_.emplace_back(LoraConnection{connect_index, protocol, host, port});
 
-  return index;
+  return connect_index;
 };
 
 void DxSmartLr02LoraModule::CloseNetwork(
-    ae::ConnectionLoraIndex /* connect_index */){};
+    ae::ConnectionLoraIndex connect_index) {
+  if (connect_index >= connect_vec_.size()) {
+    AE_TELED_ERROR("Connection index overflow");
+    return;
+  }
+  if (!serial_->IsOpen()) {
+    AE_TELED_ERROR("Serial port not open");
+    return;
+  }
+  /* Removing connection
+    auto const& connection =
+      connect_vec_.at(static_cast<std::size_t>(connect_index));*/
+  
+  connect_vec_.erase(connect_vec_.begin() + connect_index);
+};
 
-void DxSmartLr02LoraModule::WritePacket(
-    ae::ConnectionLoraIndex /* connect_index */,
-    ae::DataBuffer const& /* data */) {};
+void DxSmartLr02LoraModule::WritePacket(ae::ConnectionLoraIndex connect_index,
+                                        ae::DataBuffer const& data ) {
+  LoraPacket lora_packet{};
+  
+  auto const& connection =
+      connect_vec_.at(static_cast<std::size_t>(connect_index));
+      
+  lora_packet.connection = connection;
+  lora_packet.length = data.size();
+  lora_packet.data = data;
+  lora_packet.crc = 0; // Not implemented yet
+
+  auto packet_data = std::vector<std::uint8_t>{};
+  VectorWriter<PacketSize> vw{packet_data};
+  auto os = omstream{vw};
+  // copy data with size
+  os << lora_packet;
+  
+  serial_->Write(packet_data);  
+};
 
 DataBuffer DxSmartLr02LoraModule::ReadPacket(
-    ae::ConnectionLoraIndex /* connect_index */, ae::Duration /* timeout */) {
+    ae::ConnectionLoraIndex /* connect_index*/, ae::Duration /* timeout */) {
+  LoraPacket lora_packet{};
   DataBuffer data{};
 
+  auto response = serial_->Read();
+  std::vector<std::uint8_t> packet_data(response->begin(), response->end());
+  VectorReader<PacketSize> vr(packet_data);
+  auto is = imstream{vr};
+  // copy data with size
+  is >> lora_packet;
+  
+  data = lora_packet.data;
+  
   return data;
 };
 
@@ -143,7 +188,7 @@ bool DxSmartLr02LoraModule::PowerOff() { return true; };
 
 bool DxSmartLr02LoraModule::SetLoraModuleAddress(std::uint16_t const& address) {
   kLoraModuleError err{kLoraModuleError::kNoError};
-  
+
   at_comm_support_->SendATCommand(
       "AT+MAC" + AdressToString(address));  // Set module address
 
@@ -157,11 +202,11 @@ bool DxSmartLr02LoraModule::SetLoraModuleAddress(std::uint16_t const& address) {
 
 bool DxSmartLr02LoraModule::SetLoraModuleChannel(std::uint8_t const& channel) {
   kLoraModuleError err{kLoraModuleError::kNoError};
-  
+
   if (channel > 0x1E) {
     return false;
   }
-  
+
   at_comm_support_->SendATCommand(
       "AT+CHANNEL" + ChannelToString(channel));  // Set module channel
 
@@ -175,7 +220,7 @@ bool DxSmartLr02LoraModule::SetLoraModuleChannel(std::uint8_t const& channel) {
 
 bool DxSmartLr02LoraModule::SetLoraModuleMode(kLoraModuleMode const& mode) {
   kLoraModuleError err{kLoraModuleError::kNoError};
-  
+
   at_comm_support_->SendATCommand(
       "AT+MODE" + std::to_string(static_cast<int>(mode)));  // Set module mode
 
@@ -189,7 +234,7 @@ bool DxSmartLr02LoraModule::SetLoraModuleMode(kLoraModuleMode const& mode) {
 
 bool DxSmartLr02LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& level) {
   kLoraModuleError err{kLoraModuleError::kNoError};
-  
+
   at_comm_support_->SendATCommand(
       "AT+LEVEL" +
       std::to_string(static_cast<int>(level)));  // Set module level
@@ -204,7 +249,7 @@ bool DxSmartLr02LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& level) {
 
 bool DxSmartLr02LoraModule::SetLoraModulePower(kLoraModulePower const& power) {
   kLoraModuleError err{kLoraModuleError::kNoError};
-  
+
   at_comm_support_->SendATCommand(
       "AT+POWE" + std::to_string(static_cast<int>(power)));  // Set module power
 
@@ -219,7 +264,7 @@ bool DxSmartLr02LoraModule::SetLoraModulePower(kLoraModulePower const& power) {
 bool DxSmartLr02LoraModule::SetLoraModuleBandWidth(
     kLoraModuleBandWidth const& band_width) {
   kLoraModuleError err{kLoraModuleError::kNoError};
-  
+
   at_comm_support_->SendATCommand(
       "AT+BW" +
       std::to_string(static_cast<int>(band_width)));  // Set module bandwidth
@@ -235,7 +280,7 @@ bool DxSmartLr02LoraModule::SetLoraModuleBandWidth(
 bool DxSmartLr02LoraModule::SetLoraModuleCodingRate(
     kLoraModuleCodingRate const& coding_rate) {
   kLoraModuleError err{kLoraModuleError::kNoError};
-  
+
   at_comm_support_->SendATCommand(
       "AT+CR" +
       std::to_string(static_cast<int>(coding_rate)));  // Set module coding rate
@@ -251,7 +296,7 @@ bool DxSmartLr02LoraModule::SetLoraModuleCodingRate(
 bool DxSmartLr02LoraModule::SetLoraModuleSpreadingFactor(
     kLoraModuleSpreadingFactor const& spreading_factor) {
   kLoraModuleError err{kLoraModuleError::kNoError};
-  
+
   at_comm_support_->SendATCommand(
       "AT+SF" + std::to_string(static_cast<int>(
                     spreading_factor)));  // Set module spreading factor
@@ -267,7 +312,7 @@ bool DxSmartLr02LoraModule::SetLoraModuleSpreadingFactor(
 bool DxSmartLr02LoraModule::SetLoraModuleCRCCheck(
     kLoraModuleCRCCheck const& crc_check) {
   kLoraModuleError err{kLoraModuleError::kNoError};
-  
+
   at_comm_support_->SendATCommand(
       "AT+CRC" +
       std::to_string(static_cast<int>(crc_check)));  // Set module crc check
@@ -283,7 +328,7 @@ bool DxSmartLr02LoraModule::SetLoraModuleCRCCheck(
 bool DxSmartLr02LoraModule::SetLoraModuleIQSignalInversion(
     kLoraModuleIQSignalInversion const& signal_inversion) {
   kLoraModuleError err{kLoraModuleError::kNoError};
-  
+
   at_comm_support_->SendATCommand(
       "AT+IQ" + std::to_string(static_cast<int>(
                     signal_inversion)));  // Set module signal inversion
@@ -428,7 +473,7 @@ kLoraModuleError DxSmartLr02LoraModule::SetStopBits(kStopBits stop_bits) {
 }
 
 kLoraModuleError DxSmartLr02LoraModule::SetupLoraNet(
-    LoraModuleInit& lora_module_init) {  
+    LoraModuleInit& lora_module_init) {
   // Module address
   if (!SetLoraModuleAddress(lora_module_init.lora_module_my_adress)) {
     return kLoraModuleError::kLoraAddressError;
@@ -476,9 +521,9 @@ kLoraModuleError DxSmartLr02LoraModule::SetupLoraNet(
 }
 
 std::string DxSmartLr02LoraModule::AdressToString(uint16_t value) {
-  uint8_t high = value >> 8;   // High byte
-  uint8_t low = value & 0xFF;  // Low byte
-  char buffer[7];              // Buffer for string
+  uint8_t high = static_cast<uint8_t>((value >> 8));  // High byte
+  uint8_t low = static_cast<uint8_t>(value & 0xFF);   // Low byte
+  char buffer[7];                                     // Buffer for string
 
   // Formatting hex string
   std::snprintf(buffer, sizeof(buffer), "%02x,%02x", high, low);
