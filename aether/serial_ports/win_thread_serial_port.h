@@ -28,13 +28,36 @@
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
 
-#  define WIN_SERIAL_PORT_ENABLED 0
+#  define WIN_SERIAL_PORT_ENABLED 1
 
 namespace ae {
-class WINSerialPort final : public ISerialPort {
+
+// A thread for reading a sequence of bytes from a COM port into a buffer
+class ReadThread : public TThread
+{
+private:
+void __fastcall Output(); // Output function
+protected:
+void __fastcall Execute(); // Main thread function
+public:
+__fastcall ReadThread(bool CreateSuspended); // Thread constructor
+};
+
+// A stream for writing a sequence of bytes from a buffer to a COM port
+class WriteThread : public TThread
+{
+private:
+void __fastcall Output(); // Output function
+protected:
+void __fastcall Execute(); // Main thread function
+public:
+__fastcall WriteThread(bool CreateSuspended); // Thread constructor
+};
+
+class WINThreadSerialPort final : public ISerialPort {
  public:
-  WINSerialPort(SerialInit const& serial_init);
-  ~WINSerialPort() override;
+  WINThreadSerialPort(SerialInit const& serial_init);
+  ~WINThreadSerialPort() override;
 
   void Write(DataBuffer const& data) override;
   std::optional<DataBuffer> Read() override;
@@ -42,6 +65,8 @@ class WINSerialPort final : public ISerialPort {
 
  private:
   void* h_port_;
+  ReadThread *reader;
+  WriteThread *writer;
 
   void Open(std::string const& port_name, std::uint32_t baud_rate);
   void ConfigurePort(std::uint32_t baud_rate);

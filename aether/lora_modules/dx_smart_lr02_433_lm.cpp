@@ -123,7 +123,7 @@ ConnectionLoraIndex DxSmartLr02LoraModule::OpenNetwork(
     AE_TELED_ERROR("Serial port not open");
     return -1;
   }
-  
+
   auto connect_index = static_cast<ConnectionLoraIndex>(connect_vec_.size());
   connect_vec_.emplace_back(LoraConnection{connect_index, protocol, host, port});
 
@@ -165,11 +165,11 @@ void DxSmartLr02LoraModule::WritePacket(ae::ConnectionLoraIndex connect_index,
   // copy data with size
   os << lora_packet;
   
-  serial_->Write(packet_data);  
+  serial_->Write(packet_data); 
 };
 
 DataBuffer DxSmartLr02LoraModule::ReadPacket(
-    ae::ConnectionLoraIndex /* connect_index*/, ae::Duration /* timeout */) {
+    ae::ConnectionLoraIndex /* connect_index*/, ae::Duration /* timeout*/) {
   LoraPacket lora_packet{};
   DataBuffer data{};
 
