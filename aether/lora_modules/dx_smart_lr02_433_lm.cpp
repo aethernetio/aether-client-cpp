@@ -119,6 +119,11 @@ bool DxSmartLr02LoraModule::Stop() {
 ConnectionLoraIndex DxSmartLr02LoraModule::OpenNetwork(
     ae::Protocol protocol, std::string const& host,
     std::uint16_t port) {
+  if (!serial_->IsOpen()) {
+    AE_TELED_ERROR("Serial port not open");
+    return -1;
+  }
+  
   auto connect_index = static_cast<ConnectionLoraIndex>(connect_vec_.size());
   connect_vec_.emplace_back(LoraConnection{connect_index, protocol, host, port});
 
@@ -374,6 +379,7 @@ kLoraModuleError DxSmartLr02LoraModule::EnterAtMode() {
 
 kLoraModuleError DxSmartLr02LoraModule::ExitAtMode() {
   kLoraModuleError err{kLoraModuleError::kNoError};
+  uint8_t answer_cnt{0};
 
   if (at_mode_ == true) {
     at_comm_support_->SendATCommand("+++");
@@ -381,10 +387,23 @@ kLoraModuleError DxSmartLr02LoraModule::ExitAtMode() {
         err != kLoraModuleError::kNoError) {
       AE_TELED_ERROR("AT command error {}", err);
     } else {
-      at_mode_ = false;
+      answer_cnt++;
     }
   }
 
+  if (answer_cnt == 1){
+    if (err = CheckResponse("Power on", 1000, "ExitAtMode command error!");
+        err != kLoraModuleError::kNoError) {
+      AE_TELED_ERROR("AT command error {}", err);
+    } else {
+      answer_cnt++;
+    }
+  }
+  
+  if (answer_cnt == 2){
+    at_mode_ = false;
+  }
+  
   return err;
 };
 
