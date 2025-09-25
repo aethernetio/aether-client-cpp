@@ -135,8 +135,8 @@ list(APPEND serial_ports_srcs
             "serial_ports/at_comm_support.cpp"
             "serial_ports/serial_port_factory.cpp"
             "serial_ports/esp32_serial_port.cpp"
+            "serial_ports/iserial_port.cpp"
             "serial_ports/win_serial_port.cpp"
-            "serial_ports/win_thread_serial_port.cpp"
             "serial_ports/unix_serial_port.cpp"
             )
 
