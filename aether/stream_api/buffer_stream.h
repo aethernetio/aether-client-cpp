@@ -100,6 +100,7 @@ class BufferStream final : public Stream<T, T, T, T> {
         !write_in_buffer_.empty();
     if (should_be_buffered) {
       if (!stream_info_.is_writable) {
+        AE_TELED_ERROR("Buffer overflow");
         // decline write
         return ActionPtr<FailedStreamWriteAction>{action_context_};
       }
@@ -175,7 +176,6 @@ class BufferStream final : public Stream<T, T, T, T> {
       stream_info_.is_reliable = out_info.is_reliable;
       stream_info_.max_element_size = out_info.max_element_size;
       stream_info_.rec_element_size = out_info.rec_element_size;
-      stream_info_.is_writable = out_info.is_writable;
 
       last_out_stream_info_ = out_info;
     }

@@ -58,4 +58,6 @@ P2pSafeStream::OutDataEvent::Subscriber P2pSafeStream::out_data_event() {
   return EventSubscriber{out_data_event_};
 }
 
+void P2pSafeStream::Restream() { safe_stream_.Restream(); }
+
 }  // namespace ae

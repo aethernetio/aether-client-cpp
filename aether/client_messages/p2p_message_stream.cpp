@@ -58,6 +58,15 @@ P2pStream::OutDataEvent::Subscriber P2pStream::out_data_event() {
   return out_data_event_;
 }
 
+void P2pStream::Restream() {
+  if (destination_stream_) {
+    destination_stream_->Restream();
+  }
+  if (receive_stream_ != nullptr) {
+    receive_stream_->Restream();
+  }
+}
+
 void P2pStream::WriteOut(DataBuffer const& data) { out_data_event_.Emit(data); }
 
 Uid P2pStream::destination() const { return destination_; }

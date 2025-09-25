@@ -49,6 +49,8 @@ class P2pStream final : public ByteIStream {
 
   OutDataEvent::Subscriber out_data_event() override;
 
+  void Restream() override;
+
   void WriteOut(DataBuffer const& data);
 
   Uid destination() const;

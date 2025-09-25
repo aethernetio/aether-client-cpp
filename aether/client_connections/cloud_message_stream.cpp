@@ -50,6 +50,13 @@ CloudMessageStream::stream_update_event() {
   return stream_update_event_;
 }
 
+void CloudMessageStream::Restream() {
+  // TODO: add handle restream
+  auto& connection =
+      connection_manager_->server_connections().front().ClientConnection();
+  connection.server_stream().Restream();
+}
+
 void CloudMessageStream::SubscribeData() {
   // TODO: add politics for receive data
   // TODO: add check if connection is valid

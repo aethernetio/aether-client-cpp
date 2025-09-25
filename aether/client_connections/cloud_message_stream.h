@@ -41,6 +41,7 @@ class CloudMessageStream final : public IStream<MessageData, MessageData> {
   OutDataEvent::Subscriber out_data_event() override;
   StreamInfo stream_info() const override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
+  void Restream() override;
 
  private:
   void SubscribeData();

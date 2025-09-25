@@ -104,6 +104,7 @@ class ModemTransport final : public ByteIStream {
   StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;
   OutDataEvent::Subscriber out_data_event() override;
+  void Restream() override;
 
  private:
   void Connect();

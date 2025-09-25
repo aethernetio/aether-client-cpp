@@ -41,6 +41,7 @@ class P2pSafeStream final : public ByteIStream {
   StreamInfo stream_info() const override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   OutDataEvent::Subscriber out_data_event() override;
+  void Restream() override;
 
  private:
   SizedPacketGate sized_packet_gate_;
