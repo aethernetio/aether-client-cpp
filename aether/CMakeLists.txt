@@ -87,7 +87,6 @@ list(APPEND events_srcs)
 
 list(APPEND actions_srcs
             "ae_actions/get_client_cloud.cpp"
-            # "ae_actions/get_client_cloud_connection.cpp"
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
@@ -157,7 +156,6 @@ list(APPEND transport_srcs
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
             "stream_api/crypto_gate.cpp"
-            "stream_api/header_gate.cpp"
             "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
             "stream_api/debug_gate.cpp"
@@ -207,8 +205,6 @@ list(APPEND methods_srcs
 
 list(APPEND client_connections_srcs
             "client_connections/cloud_message_stream.cpp"
-            # "client_connections/client_cloud_connection.cpp"
-            # "client_connections/split_stream_client_connection.cpp"
 )
 
 list(APPEND server_connections_srcs
@@ -229,8 +225,6 @@ list(APPEND connection_manager_srcs
 )
 
 list(APPEND client_messages_srcs
-            "client_messages/message_stream.cpp"
-            "client_messages/message_stream_dispatcher.cpp"
             "client_messages/p2p_message_stream.cpp"
             "client_messages/p2p_message_stream_manager.cpp"
             "client_messages/p2p_safe_message_stream.cpp"
