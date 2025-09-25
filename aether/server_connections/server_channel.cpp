@@ -16,53 +16,39 @@
 
 #include "aether/server_connections/server_channel.h"
 
-#include "aether/actions/action_context.h"
-
-#include "aether/channel.h"
+#include "aether/channels/channel.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae {
-// TODO: add config
-static constexpr auto kBufferStreamCapacity = std::size_t{200};
-
-ServerChannel::ServerChannelStream::ServerChannelStream(
-    ServerChannel& server_channel)
-    : server_channel_{&server_channel} {}
-
-StreamInfo ServerChannel::ServerChannelStream::stream_info() const {
-  auto channel = server_channel_->channel();
-  auto info = out_->stream_info();
-  info.max_element_size = channel->max_packet_size();
-  return info;
-}
-
 ServerChannel::ServerChannel(ActionContext action_context,
                              Channel::ptr const& channel)
     : action_context_{action_context},
       channel_{channel},
-      server_channel_stream_{*this},
-      buffer_stream_{action_context_, kBufferStreamCapacity},
       build_transport_action_{action_context, channel},
       build_transport_sub_{build_transport_action_->StatusEvent().Subscribe(
           ActionHandler{OnResult{[this](auto& action) { OnConnected(action); }},
                         OnError{[this]() { OnConnectedFailed(); }}})},
       connection_start_time_{Now()},
-      connection_timer_{action_context_, channel->expected_connection_time()},
+      connection_timer_{action_context_, channel->channel_statistics()
+                                             .connection_time_statistics()
+                                             .percentile<99>()},
       connection_timeout_{connection_timer_->StatusEvent().Subscribe(
           OnResult{[this](auto const& timer) {
             AE_TELED_ERROR("Connection timeout {:%S}", timer.duration());
             OnConnectedFailed();
-          }})} {
-  Tie(server_channel_stream_, buffer_stream_);
-}
+          }})} {}
 
-ByteIStream& ServerChannel::stream() { return server_channel_stream_; }
+ByteIStream* ServerChannel::stream() { return transport_stream_.get(); }
 
 ObjPtr<Channel> ServerChannel::channel() const {
   auto channel_ptr = channel_.Lock();
   assert(channel_ptr);
   return channel_ptr;
+}
+
+ServerChannel::ConnectionResult::Subscriber ServerChannel::connection_result() {
+  return EventSubscriber{connection_result_event_};
 }
 
 void ServerChannel::OnConnected(BuildTransportAction& build_transport_action) {
@@ -74,17 +60,17 @@ void ServerChannel::OnConnected(BuildTransportAction& build_transport_action) {
   connection_timer_->Stop();
   auto connection_time =
       std::chrono::duration_cast<Duration>(Now() - connection_start_time_);
-  channel_ptr->AddConnectionTime(connection_time);
+  channel_ptr->channel_statistics().AddConnectionTime(connection_time);
 
   transport_stream_ = build_transport_action.transport();
-  Tie(buffer_stream_, *transport_stream_);
+  connection_result_event_.Emit(true);
 }
 
 void ServerChannel::OnConnectedFailed() {
   AE_TELED_ERROR("ServerChannelStream:OnConnectedFailed");
   connection_timeout_.Reset();
   build_transport_sub_.Reset();
-  buffer_stream_.Unlink();
+  connection_result_event_.Emit(false);
 }
 
 }  // namespace ae

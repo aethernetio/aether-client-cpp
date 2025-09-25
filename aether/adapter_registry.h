@@ -19,7 +19,7 @@
 
 #include "aether/obj/obj.h"
 
-#include "aether/channel.h"
+#include "aether/channels/channel.h"
 #include "aether/adapters/adapter.h"
 
 namespace ae {

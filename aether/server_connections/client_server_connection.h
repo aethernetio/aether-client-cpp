@@ -17,8 +17,6 @@
 #ifndef AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 
-#include "aether/events/events.h"
-#include "aether/stream_api/istream.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/common.h"
@@ -26,9 +24,11 @@
 #include "aether/ae_actions/ping.h"
 #include "aether/actions/action_ptr.h"
 // #include "aether/ae_actions/telemetry.h"
+#include "aether/stream_api/buffer_stream.h"
 #include "aether/server_connections/server_channel.h"
 #include "aether/server_connections/channel_manager.h"
 #include "aether/server_connections/client_to_server_stream.h"
+#include "aether/server_connections/channel_selection_stream.h"
 
 namespace ae {
 class Aether;
@@ -40,35 +40,6 @@ class Channel;
  * \brief Client's connection to a server for messages send.
  */
 class ClientServerConnection {
-  class ChannelSelectStream final : public ByteIStream {
-   public:
-    explicit ChannelSelectStream(
-        ClientServerConnection& client_server_connection);
-
-    ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
-    StreamInfo stream_info() const override;
-    StreamUpdateEvent::Subscriber stream_update_event() override;
-    OutDataEvent::Subscriber out_data_event() override;
-
-    ServerChannel const* server_channel() const;
-
-    // Mark selected channel as failed
-    void ChannelFailed();
-
-   private:
-    void SelectChannel();
-    void StreamUpdate();
-
-    ClientServerConnection* client_server_connection_;
-    ServerChannel* server_channel_;
-    StreamInfo stream_info_;
-    OutDataEvent out_data_event_;
-    StreamUpdateEvent stream_update_event_;
-
-    Subscription stream_update_sub_;
-    Subscription out_data_sub_;
-  };
-
  public:
   explicit ClientServerConnection(ActionContext action_context,
                                   ObjPtr<Aether> const& aether,
@@ -91,9 +62,12 @@ class ClientServerConnection {
   //   OwnActionPtr<Telemetry> telemetry_;
   // #endif
   ChannelManager channel_manager_;
-  ServerChannel const* server_channel_;
-  ClientToServerStream client_to_server_stream_;
+
   ChannelSelectStream channel_select_stream_;
+  BufferStream<DataBuffer> buffer_stream_;
+  ClientToServerStream client_to_server_stream_;
+
+  ServerChannel const* server_channel_;
 
   Subscription stream_update_sub_;
 };

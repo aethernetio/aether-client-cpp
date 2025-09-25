@@ -46,7 +46,6 @@ list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
             "adapter_registry.cpp"
-            "channel.cpp"
             "client.cpp"
             "cloud.cpp"
             "registration_cloud.cpp"
@@ -105,7 +104,8 @@ list(APPEND registration_srcs
             "registration/global_reg_server_stream.cpp"
             "registration/reg_server_stream.cpp"
             "registration/proof_of_work.cpp"
-            "registration/reg_server_connection_pool.cpp"
+            "registration/root_server_select_stream.cpp"
+            "registration/root_server_stream.cpp"
             "registration/registration.cpp"
             "registration/registration_key_provider.cpp"
             )
@@ -214,6 +214,7 @@ list(APPEND client_connections_srcs
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
             "server_connections/client_to_server_stream.cpp"
+            "server_connections/channel_selection_stream.cpp"
             "server_connections/server_channel.cpp"
             "server_connections/channel_manager.cpp"
             "server_connections/channel_connection.cpp"
@@ -244,8 +245,10 @@ list(APPEND domain_storage_srcs
             "domain_storage/file_system_std_storage.cpp"
             "domain_storage/sync_domain_storage.cpp")
 
-list(APPEND statistics_srcs
-      "statistics/channel_statistics.cpp")
+list(APPEND channels_srcs
+            "channels/channel_statistics.cpp"
+            "channels/channel.cpp"
+            "channels/channel.cpp")
 
 list(APPEND tele_srcs
             "tele/tele_init.cpp"
@@ -297,7 +300,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${server_connections_srcs}
                             ${connection_manager_srcs}
                             ${domain_storage_srcs}
-                            ${statistics_srcs}
+                            ${channels_srcs}
                             ${tele_srcs}
                             )
 
@@ -344,7 +347,7 @@ else()
                             ${server_connections_srcs}
                             ${connection_manager_srcs}
                             ${domain_storage_srcs}
-                            ${statistics_srcs}
+                            ${channels_srcs}
                             ${tele_srcs}
                             INCLUDE_DIRS ${include_dirs}
                             REQUIRES esp_wifi nvs_flash spiffs esp_driver_uart)

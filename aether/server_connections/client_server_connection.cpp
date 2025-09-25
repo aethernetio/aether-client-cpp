@@ -22,72 +22,7 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-ClientServerConnection::ChannelSelectStream ::ChannelSelectStream(
-    ClientServerConnection& client_server_connection)
-    : client_server_connection_{&client_server_connection},
-      server_channel_{},
-      stream_info_{} {
-  SelectChannel();
-}
-
-ActionPtr<StreamWriteAction> ClientServerConnection::ChannelSelectStream::Write(
-    DataBuffer&& data) {
-  if (server_channel_ == nullptr) {
-    SelectChannel();
-  }
-  if (server_channel_ == nullptr) {
-    AE_TELED_ERROR("There is no channels, write failed");
-    return ActionPtr<FailedStreamWriteAction>{
-        client_server_connection_->action_context_};
-  }
-  AE_TELED_ERROR("Write to channel size {}", data.size());
-  return server_channel_->stream().Write(std::move(data));
-}
-
-StreamInfo ClientServerConnection::ChannelSelectStream::stream_info() const {
-  return stream_info_;
-}
-
-ClientServerConnection::ChannelSelectStream::StreamUpdateEvent::Subscriber
-ClientServerConnection::ChannelSelectStream::stream_update_event() {
-  return stream_update_event_;
-}
-
-ClientServerConnection::ChannelSelectStream::OutDataEvent::Subscriber
-ClientServerConnection::ChannelSelectStream::out_data_event() {
-  return out_data_event_;
-}
-
-ServerChannel const*
-ClientServerConnection::ChannelSelectStream::server_channel() const {
-  return server_channel_;
-}
-
-void ClientServerConnection::ChannelSelectStream::SelectChannel() {
-  auto& channel_manager = client_server_connection_->channel_manager_;
-  auto& channels = channel_manager.channels();
-  // TODO: add select channel logic
-  auto& channel_connection = channels.front();
-
-  // TODO: how to reset channel?
-  server_channel_ = &channel_connection.GetServerChannel();
-
-  stream_update_sub_ =
-      server_channel_->stream().stream_update_event().Subscribe(
-          *this,
-          MethodPtr<
-              &ClientServerConnection::ChannelSelectStream::StreamUpdate>{});
-  out_data_sub_ = server_channel_->stream().out_data_event().Subscribe(
-      out_data_event_, MethodPtr<&OutDataEvent::Emit>{});
-
-  // TODO: add handle for channels update
-  StreamUpdate();
-}
-
-void ClientServerConnection::ChannelSelectStream::StreamUpdate() {
-  stream_info_ = server_channel_->stream().stream_info();
-  stream_update_event_.Emit();
-}
+static constexpr std::size_t kBufferCapacity = 200;
 
 ClientServerConnection::ClientServerConnection(ActionContext action_context,
                                                ObjPtr<Aether> const& aether,
@@ -97,10 +32,11 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
       client_{client},
       server_{server},
       channel_manager_{action_context_, aether, server},
-      client_to_server_stream_{action_context, client, server->server_id},
-      channel_select_stream_{*this} {
+      channel_select_stream_{action_context_, channel_manager_},
+      buffer_stream_{action_context_, kBufferCapacity},
+      client_to_server_stream_{action_context, client, server->server_id} {
   AE_TELED_DEBUG("Client server connection");
-  Tie(client_to_server_stream_, channel_select_stream_);
+  Tie(client_to_server_stream_, buffer_stream_, channel_select_stream_);
   StreamUpdate();
   SubscribeToSelectChannel();
 }

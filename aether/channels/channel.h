@@ -14,17 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CHANNEL_H_
-#define AETHER_CHANNEL_H_
+#ifndef AETHER_CHANNELS_CHANNEL_H_
+#define AETHER_CHANNELS_CHANNEL_H_
 
 #include "aether/obj/obj.h"
 #include "aether/types/address.h"
 #include "aether/adapters/adapter.h"
-#include "aether/statistics/channel_statistics.h"
+#include "aether/channels/channels_types.h"
+#include "aether/channels/channel_statistics.h"
 
 namespace ae {
-class Aether;
-
 class Channel : public Obj {
   AE_OBJECT(Channel, Obj, 0)
 
@@ -33,28 +32,25 @@ class Channel : public Obj {
  public:
   Channel(Adapter::ptr adapter, Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(address, channel_statistics_))
+  AE_OBJECT_REFLECT(AE_MMBRS(address, adapter_, transport_properties_,
+                             channel_statistics_))
 
   /**
    * \brief Make transport from this channel.
    */
   ActionPtr<TransportBuilderAction> TransportBuilder();
 
-  void AddConnectionTime(Duration connection_time);
-  void AddPingTime(Duration ping_time);
-
-  Duration expected_connection_time() const;
-  Duration expected_ping_time() const;
-
-  std::size_t max_packet_size() const;
+  ChannelTransportProperties const& transport_properties() const;
+  ChannelStatistics& channel_statistics();
 
   UnifiedAddress address;
 
  private:
   Adapter::ptr adapter_;
+  ChannelTransportProperties transport_properties_;
   ChannelStatistics::ptr channel_statistics_;
 };
 
 }  // namespace ae
 
-#endif  // AETHER_CHANNEL_H_
+#endif  // AETHER_CHANNELS_CHANNEL_H_

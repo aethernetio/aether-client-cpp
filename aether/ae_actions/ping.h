@@ -28,7 +28,7 @@ DISABLE_WARNING_POP()
 
 #include "aether/common.h"
 #include "aether/server.h"
-#include "aether/channel.h"
+#include "aether/channels/channel.h"
 #include "aether/ptr/ptr.h"
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"

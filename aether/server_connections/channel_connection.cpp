@@ -16,25 +16,26 @@
 
 #include "aether/server_connections/channel_connection.h"
 
-#include "aether/channel.h"
+#include "aether/channels/channel.h"
 
 namespace ae {
 ChannelConnection::ChannelConnection(ActionContext action_context,
                                      Channel::ptr const& channel)
-    : action_context_{action_context}, channel_{channel} {}
+    : connection_penalty{},
+      action_context_{action_context},
+      channel_{channel} {}
 
 ObjPtr<Channel> ChannelConnection::channel() const {
   Channel::ptr channel = channel_.Lock();
   return channel;
 }
 
-ServerChannel& ChannelConnection::GetServerChannel() {
-  if (!server_channel_) {
-    Channel::ptr channel = channel_.Lock();
-    assert(channel);
-    server_channel_ = std::make_unique<ServerChannel>(action_context_, channel);
-  }
-  return *server_channel_;
+std::unique_ptr<ServerChannel> ChannelConnection::GetServerChannel() {
+  Channel::ptr channel = channel_.Lock();
+  assert(channel);
+  return std::make_unique<ServerChannel>(action_context_, channel);
 }
+
+void ChannelConnection::Reset() { connection_penalty = 0; }
 
 }  // namespace ae

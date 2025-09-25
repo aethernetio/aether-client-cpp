@@ -17,8 +17,6 @@
 #ifndef AETHER_SERVER_CONNECTIONS_CHANNEL_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_CHANNEL_CONNECTION_H_
 
-#include <optional>
-
 #include "aether/common.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/actions/action_context.h"
@@ -38,14 +36,19 @@ class ChannelConnection {
 
   /**
    * \brief Return ServerChannel.
-   * If ServerChannel is not created create it.
    */
-  ServerChannel& GetServerChannel();
+  std::unique_ptr<ServerChannel> GetServerChannel();
+
+  void Reset();
+
+  /**
+   * \brief Connection penalty points increased during runtime
+   */
+  std::size_t connection_penalty;
 
  private:
   ActionContext action_context_;
   PtrView<Channel> channel_;
-  std::unique_ptr<ServerChannel> server_channel_;
 };
 }  // namespace ae
 

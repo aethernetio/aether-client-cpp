@@ -19,7 +19,7 @@
 #include <utility>
 
 #include "aether/aether.h"
-#include "aether/channel.h"
+#include "aether/channels/channel.h"
 #include "aether/reflect/reflect.h"
 #include "aether/adapters/adapter_tele.h"
 
