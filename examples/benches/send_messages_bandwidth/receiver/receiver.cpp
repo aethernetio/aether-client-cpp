@@ -30,22 +30,18 @@ Receiver::Receiver(ActionContext action_context, Client::ptr client)
 EventSubscriber<void()> Receiver::error_event() { return error_event_; }
 
 void Receiver::Connect() {
-  client_connection_ = client_->client_connection();
-
-  message_stream_received_ = client_connection_->new_stream_event().Subscribe(
-      [this](auto uid, auto stream) {
-        AE_TELED_DEBUG("Received message stream from {}", uid);
-        message_stream_ = make_unique<P2pStream>(action_context_, client_, uid,
-                                                 std::move(stream));
-        recv_data_sub_ = message_stream_->out_data_event().Subscribe(
-            *this, MethodPtr<&Receiver::OnRecvData>{});
-      });
+  message_stream_received_ =
+      client_->message_stream_manager().new_stream_event().Subscribe(
+          [this](RcPtr<P2pStream> stream) {
+            AE_TELED_DEBUG("Received message stream from {}",
+                           stream->destination());
+            message_stream_ = std::move(stream);
+            recv_data_sub_ = message_stream_->out_data_event().Subscribe(
+                *this, MethodPtr<&Receiver::OnRecvData>{});
+          });
 }
 
-void Receiver::Disconnect() {
-  client_connection_.Reset();
-  message_stream_.reset();
-}
+void Receiver::Disconnect() { message_stream_.Reset(); }
 
 EventSubscriber<void()> Receiver::Handshake() {
   handshake_received_ =

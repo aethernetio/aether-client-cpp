@@ -23,7 +23,6 @@
 #include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/event_subscription.h"
-#include "aether/client_connections/client_connection.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
 #include "send_messages_bandwidth/common/bandwidth_api.h"
@@ -53,8 +52,7 @@ class Receiver {
   ProtocolContext protocol_context_;
   BandwidthApi bandwidth_api_;
 
-  Ptr<ClientConnection> client_connection_;
-  std::unique_ptr<ByteIStream> message_stream_;
+  RcPtr<P2pStream> message_stream_;
 
   OwnActionPtr<MessageReceiver> message_receiver_;
 
