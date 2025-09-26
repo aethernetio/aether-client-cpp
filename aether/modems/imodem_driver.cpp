@@ -18,7 +18,8 @@
 
 namespace ae {
 
-IModemDriver::IModemDriver(ModemInit modem_init, Domain* domain)
+IModemDriver::IModemDriver(ModemInit modem_init,
+                           Domain* domain)
     : Obj{domain}, modem_init_{std::move(modem_init)} {}
 
 bool IModemDriver::Init() { return {}; }

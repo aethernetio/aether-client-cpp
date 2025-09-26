@@ -23,8 +23,13 @@
 #  include <Windows.h>
 
 namespace ae {
-WINSerialPort::WINSerialPort(SerialInit const& serial_init)
-    : h_port_{INVALID_HANDLE_VALUE} {
+WINSerialPort::WINSerialPort(ActionContext action_context,
+                             IPoller::ptr const& poller,
+                             SerialInit const& serial_init)
+    : ISerialPort{std::move(action_context), std::move(poller), std::move(serial_init)},
+      action_context_{std::move(action_context)},
+      poller_{poller},
+      h_port_{INVALID_HANDLE_VALUE} {
   Open(serial_init.port_name,
        static_cast<std::uint32_t>(serial_init.baud_rate));
 }

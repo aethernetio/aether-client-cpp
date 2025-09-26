@@ -28,9 +28,13 @@
 
 namespace ae {
 
-Thingy91xAtModem::Thingy91xAtModem(ModemInit modem_init, Domain* domain)
-    : IModemDriver{std::move(modem_init), domain} {
-  serial_ = SerialPortFactory::CreatePort(GetModemInit().serial_init);
+Thingy91xAtModem::Thingy91xAtModem(ModemAdapter& adapter, ModemInit modem_init,
+                                   Domain* domain)
+    : adapter_{&adapter},
+      IModemDriver{std::move(modem_init), domain} {
+  serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
+                                          adapter_->poller_,
+                                          GetModemInit().serial_init);
   at_comm_support_ = std::make_unique<AtCommSupport>(serial_.get());
 };
 
@@ -177,8 +181,7 @@ void Thingy91xAtModem::CloseNetwork(ConnectionIndex connect_index) {
 
   // #XSOCKETSELECT=<handle>
   at_comm_support_->SendATCommand(
-      "AT#XSOCKETSELECT=" +
-                std::to_string(connection.handle));  // Set socket
+      "AT#XSOCKETSELECT=" + std::to_string(connection.handle));  // Set socket
   if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
       err != kModemError::kNoError) {
     AE_TELED_ERROR("AT#XSOCKETSELECT command error {}", err);
@@ -190,7 +193,7 @@ void Thingy91xAtModem::CloseNetwork(ConnectionIndex connect_index) {
     AE_TELED_ERROR("AT#XSOCKET command error {}", err);
     return;
   }
-  
+
   connect_vec_.erase(connect_vec_.begin() + connect_index);
 }
 
@@ -705,7 +708,7 @@ std::int32_t Thingy91xAtModem::OpenTcpConnection(std::string const& host,
 
   // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
   at_comm_support_->SendATCommand("AT#XSOCKET=1,1,0");  // Create TCP socket
-  auto response = serial_->Read();    // Get socket handle
+  auto response = serial_->Read();                      // Get socket handle
   if (!response) {
     AE_TELED_DEBUG("No response");
     return -1;
@@ -744,7 +747,7 @@ std::int32_t Thingy91xAtModem::OpenTcpConnection(std::string const& host,
   }
   // AT#XCONNECT="example.com",1234
   at_comm_support_->SendATCommand("AT#XCONNECT=\"" + host + "\"," +
-                std::to_string(port));  // Connect
+                                  std::to_string(port));  // Connect
   if (auto err = CheckResponse("OK", 1000, "AT#XCONNECT command error!");
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Failed to connect to host {}", err);
@@ -757,7 +760,7 @@ std::int32_t Thingy91xAtModem::OpenTcpConnection(std::string const& host,
 std::int32_t Thingy91xAtModem::OpenUdpConnection() {
   // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
   at_comm_support_->SendATCommand("AT#XSOCKET=1,2,0");  // Create UDP socket
-  auto response = serial_->Read();    // Get socket handle
+  auto response = serial_->Read();                      // Get socket handle
   std::int32_t handle{-1};
   std::string response_string(response->begin(), response->end());
   auto start = response_string.find("#XSOCKET: ") + 10;
@@ -786,8 +789,7 @@ void Thingy91xAtModem::SendTcp(Thingy91xConnection const& connection,
 
   // #XSOCKETSELECT=<handle>
   at_comm_support_->SendATCommand(
-      "AT#XSOCKETSELECT=" +
-                std::to_string(connection.handle));  // Set socket
+      "AT#XSOCKETSELECT=" + std::to_string(connection.handle));  // Set socket
   if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Select socket error {}", err);
@@ -819,8 +821,7 @@ void Thingy91xAtModem::SendUdp(Thingy91xConnection const& connection,
                                DataBuffer const& data) {
   // #XSOCKETSELECT=<handle>
   at_comm_support_->SendATCommand(
-      "AT#XSOCKETSELECT=" +
-                std::to_string(connection.handle));  // Set socket
+      "AT#XSOCKETSELECT=" + std::to_string(connection.handle));  // Set socket
   if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Send data error {}", err);
@@ -829,8 +830,8 @@ void Thingy91xAtModem::SendUdp(Thingy91xConnection const& connection,
   // #XSENDTO=<url>,<port>[,<data>]
   std::string data_string(data.begin(), data.end());
   at_comm_support_->SendATCommand(Format(R"(AT#XSENDTO="{}",{},"{}")",
-                                         connection.host,
-                       connection.port, data_string));
+                                         connection.host, connection.port,
+                                         data_string));
 
   if (auto err = CheckResponse("OK", 1000, "AT#XSENDTO command error!");
       err != kModemError::kNoError) {
@@ -843,8 +844,7 @@ DataBuffer Thingy91xAtModem::ReadTcp(Thingy91xConnection const& connection,
                                      Duration /*timeout*/) {
   // #XSOCKETSELECT=<handle>
   at_comm_support_->SendATCommand(
-      "AT#XSOCKETSELECT=" +
-                std::to_string(connection.handle));  // Set socket
+      "AT#XSOCKETSELECT=" + std::to_string(connection.handle));  // Set socket
   if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Socket select error {}", err);
@@ -888,8 +888,7 @@ DataBuffer Thingy91xAtModem::ReadUdp(Thingy91xConnection const& connection,
                                      Duration /*timeout*/) {
   // #XSOCKETSELECT=<handle>
   at_comm_support_->SendATCommand(
-      "AT#XSOCKETSELECT=" +
-                std::to_string(connection.handle));  // Set socket
+      "AT#XSOCKETSELECT=" + std::to_string(connection.handle));  // Set socket
   if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Socket select error {}", err);

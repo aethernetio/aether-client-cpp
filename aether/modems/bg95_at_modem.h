@@ -150,36 +150,44 @@ class Bg95AtModem final : public IModemDriver {
   Bg95AtModem() = default;
 
  public:
-  explicit Bg95AtModem(ModemInit modem_init, Domain* domain);
+  explicit Bg95AtModem(ModemAdapter& adapter, ModemInit modem_init,
+                       Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
   bool Init() override;
   bool Start() override;
   bool Stop() override;
-  ConnectionIndex OpenNetwork(ae::Protocol protocol, std::string const& host,
+  ConnectionIndex OpenNetwork(Protocol protocol, std::string const& host,
                               std::uint16_t port) override;
   void CloseNetwork(ConnectionIndex connect_index) override;
   void WritePacket(ConnectionIndex connect_index,
                    DataBuffer const& data) override;
   DataBuffer ReadPacket(ConnectionIndex connect_index,
                         Duration timeout) override;
-  bool SetPowerSaveParam(ae::PowerSaveParam const& psp) override;
+  bool SetPowerSaveParam(PowerSaveParam const& psp) override;
   bool PowerOff() override;
 
  private:
   std::unique_ptr<ISerialPort> serial_;
   std::unique_ptr<AtCommSupport> at_comm_support_;
   std::vector<Bg95Connection> connect_vec_;
-  
-  kModemError CheckResponse(std::string response, std::uint32_t wait_time,
+  ModemAdapter* adapter_;
+
+  static constexpr std::uint16_t kModemMTU{1520};
+
+  kModemError CheckResponse(std::string response, 
+                            std::uint32_t wait_time,
                             std::string error_message);
   kModemError SetBaudRate(kBaudRate rate);
   kModemError CheckSimStatus();
   kModemError SetupSim(const std::uint8_t pin[4]);
   kModemError SetNetMode(kModemMode modem_mode);
-  kModemError SetupNetwork(std::string operator_name, std::string operator_code,
-                           std::string apn_name, std::string apn_user,
-                           std::string apn_pass);
+  kModemError SetupNetwork(std::string const& operator_name, 
+                           std::string const& operator_code,
+                           std::string const& apn_name, 
+                           std::string const& apn_user,
+                           std::string const& apn_pass, kModemMode modem_mode,
+                           kAuthType auth_type);
   kModemError SetTxPower(kModemBand band, const float& power);
   kModemError GetTxPower(kModemBand band, float& power);
   kModemError DbmaToHex(kModemBand band, const float& power, std::string& hex);

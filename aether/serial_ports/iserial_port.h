@@ -62,8 +62,8 @@ class ISerialPort : public ByteIStream {
 
   class SendAction final : public SocketPacketSendAction {
    public:
-    SendAction(ActionContext action_context,
-               ISerialPort& serial_port, DataBuffer&& data_buffer);
+    SendAction(ActionContext action_context, ISerialPort& serial_port,
+               DataBuffer&& data_buffer);
     SendAction(SendAction&& other) noexcept;
 
     void Send() override;
@@ -72,12 +72,15 @@ class ISerialPort : public ByteIStream {
     ISerialPort* serial_port_;
     DataBuffer data_buffer_;
   };
-  
+
   using ErrorEventAction = NotifyAction;
-  
+
+ protected:
+  ISerialPort() = default;
+
  public:
-  ISerialPort(ActionContext action_context, IPoller::ptr const& poller,
-               SerialInit const& serial_init);
+  explicit ISerialPort(ActionContext action_context, IPoller::ptr const& poller,
+              SerialInit const& serial_init);
   virtual ~ISerialPort() override;
 
   /**
@@ -92,12 +95,12 @@ class ISerialPort : public ByteIStream {
    * \brief Check if the serial port is open.
    */
   virtual bool IsOpen() = 0;
-  
+
   ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;
   OutDataEvent::Subscriber out_data_event() override;
-  
+
  private:
   void Connect();
   void ReadPort();
@@ -109,13 +112,13 @@ class ISerialPort : public ByteIStream {
   SerialInit serial_init_;
   ActionContext action_context_;
   PtrView<IPoller> poller_;
-  
+
   StreamInfo stream_info_;
-  
+
   OwnActionPtr<SocketPacketQueueManager<SendAction>> send_queue_manager_;
   OwnActionPtr<ErrorEventAction> notify_error_action_;
   OwnActionPtr<ReadAction> read_action_;
-  
+
   MultiSubscription send_action_error_subs_;
 };
 

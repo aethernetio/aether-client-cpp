@@ -25,8 +25,7 @@ ILoraModuleDriver::ILoraModuleDriver(LoraModuleInit lora_module_init,
 bool ILoraModuleDriver::Init() { return {}; }
 bool ILoraModuleDriver::Start() { return {}; }
 bool ILoraModuleDriver::Stop() { return {}; }
-
-ConnectionLoraIndex ILoraModuleDriver::OpenNetwork(ae::Protocol /*protocol*/,
+ConnectionLoraIndex ILoraModuleDriver::OpenNetwork(Protocol /*protocol*/,
                                           std::string const& /*host*/,
                                           std::uint16_t /*port*/) {
   return {};

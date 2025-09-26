@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "aether/lora_modules/ilora_module_driver.h"
+#include "aether/adapters/lora_module_adapter.h"
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/at_comm_support.h"
 
@@ -32,12 +33,44 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
   EbyteE22LoraModule() = default;
 
  public:
-  explicit EbyteE22LoraModule(LoraModuleInit lora_module_init, Domain* domain);
+  explicit EbyteE22LoraModule(LoraModuleAdapter& adapter, LoraModuleInit lora_module_init, Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
+
+  bool Init() override;
+  bool Start() override;
+  bool Stop() override;
+  ConnectionLoraIndex OpenNetwork(ae::Protocol protocol,
+                                  std::string const& host,
+                                  std::uint16_t port) override;
+  void CloseNetwork(ae::ConnectionLoraIndex connect_index) override;
+  void WritePacket(ae::ConnectionLoraIndex connect_index,
+                   ae::DataBuffer const& data) override;
+  DataBuffer ReadPacket(ae::ConnectionLoraIndex connect_index,
+                        ae::Duration timeout) override;
+  bool SetPowerSaveParam(std::string const& psp) override;
+  bool PowerOff() override;
+  bool SetLoraModuleAddress(std::uint16_t const& address);  // Module address
+  bool SetLoraModuleChannel(std::uint8_t const& channel);   // Module channel
+  bool SetLoraModuleMode(kLoraModuleMode const& mode);      // Module mode
+  bool SetLoraModuleLevel(kLoraModuleLevel const& level);   // Module level
+  bool SetLoraModulePower(kLoraModulePower const& power);   // Module power
+  bool SetLoraModuleBandWidth(
+      kLoraModuleBandWidth const& band_width);  // Module BandWidth
+  bool SetLoraModuleCodingRate(
+      kLoraModuleCodingRate const& coding_rate);  // Module CodingRate
+  bool SetLoraModuleSpreadingFactor(
+      kLoraModuleSpreadingFactor const&
+          spreading_factor);  // Module spreading factor
+  bool SetLoraModuleCRCCheck(
+      kLoraModuleCRCCheck const& crc_check);  // Module crc check
+  bool SetLoraModuleIQSignalInversion(
+      kLoraModuleIQSignalInversion const&
+          signal_inversion);  // Module signal inversion
 
  private:
   std::unique_ptr<ISerialPort> serial_;
   std::vector<LoraConnection> connect_vec_;
+  LoraModuleAdapter* adapter_;
 
   static constexpr std::uint16_t kLoraModuleMTU{200};
 };

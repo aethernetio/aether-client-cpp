@@ -24,9 +24,13 @@
 
 namespace ae {
 
-Sim7070AtModem::Sim7070AtModem(ModemInit modem_init, Domain* domain)
-    : IModemDriver{std::move(modem_init), domain} {
-  serial_ = SerialPortFactory::CreatePort(GetModemInit().serial_init);
+Sim7070AtModem::Sim7070AtModem(ModemAdapter& adapter, ModemInit modem_init,
+                               Domain* domain)
+    : adapter_{&adapter},
+      IModemDriver{std::move(modem_init), domain} {
+  serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
+                                          adapter_->poller_,
+                                          GetModemInit().serial_init);
   at_comm_support_ = std::make_unique<AtCommSupport>(serial_.get());
 };
 
@@ -119,7 +123,7 @@ bool Sim7070AtModem::Stop() {
 
   // AT+CNACT=<pdpidx>,<action> // Deactivate the PDP context
   at_comm_support_->SendATCommand("AT+CNACT=" + context_i_str +
-                ",0");  // Enabling extended errors
+                                  ",0");  // Enabling extended errors
   if (auto err = CheckResponse("+APP PDP: " + context_i_str + ",DEACTIVE", 1000,
                                "AT+CNACT command error!");
       err != kModemError::kNoError) {
@@ -182,14 +186,13 @@ void Sim7070AtModem::CloseNetwork(ConnectionIndex connect_index) {
 
   // AT+CACLOSE=<cid> // Close TCP/UDP socket 0.
   at_comm_support_->SendATCommand(
-      "AT+CACLOSE=" +
-                std::to_string(connection.handle.connect_index));
+      "AT+CACLOSE=" + std::to_string(connection.handle.connect_index));
   if (auto err = CheckResponse("OK", 1000, "AT+CACLOSE command error!");
       err != kModemError::kNoError) {
     AE_TELED_ERROR("AT+CACLOSE command error {}", err);
     return;
   }
-  
+
   connect_vec_.erase(connect_vec_.begin() + connect_index);
 }
 
@@ -413,8 +416,8 @@ kModemError Sim7070AtModem::SetupNetwork(
 
   // AT+CNCFG=<pdpidx>,<ip_type>,[<APN>,[<usename>,<password>,[<authentication>]]]
   at_comm_support_->SendATCommand("AT+CNCFG=" + context_i_str + ",0,\"" +
-                                  apn_name + "\",\"" +
-                apn_user + "\",\"" + apn_pass + "\"," + type);
+                                  apn_name + "\",\"" + apn_user + "\",\"" +
+                                  apn_pass + "\"," + type);
   if (auto err = CheckResponse("OK", 1000, "No response from modem!");
       err != kModemError::kNoError) {
     return err;
@@ -481,8 +484,8 @@ ConnectionHandle Sim7070AtModem::OpenTcpConnection(std::string const& host,
   // AT+CAOPEN=<cid>,<pdp_index>,<conn_type>,<server>,<port>[,<recv_mode>]
   // AT+CAOPEN=0,0,"TCP","URL",PORT
   at_comm_support_->SendATCommand("AT+CAOPEN=" + connect_i_str + "," +
-                                  context_i_str + ",\"" +
-                protocol_str + "\",\"" + host + "\"," + port_str);
+                                  context_i_str + ",\"" + protocol_str +
+                                  "\",\"" + host + "\"," + port_str);
   auto err = CheckResponse("+CAOPEN: " + connect_i_str + ",0", 1000,
                            "AT+CAOPEN command error!");
   if (err != kModemError::kNoError) {
@@ -516,8 +519,8 @@ ConnectionHandle Sim7070AtModem::OpenUdpConnection(std::string const& host,
   // AT+CAOPEN=<cid>,<pdp_index>,<conn_type>,<server>,<port>[,<recv_mode>]
   // AT+CAOPEN=0,0,"UDP","URL",PORT
   at_comm_support_->SendATCommand("AT+CAOPEN=" + connect_i_str + "," +
-                                  context_i_str + ",\"" +
-                protocol_str + "\",\"" + host + "\"," + port_str);
+                                  context_i_str + ",\"" + protocol_str +
+                                  "\",\"" + host + "\"," + port_str);
   auto err = CheckResponse("+CAOPEN: " + connect_i_str + ",0", 1000,
                            "AT+CAOPEN command error!");
   if (err != kModemError::kNoError) {
@@ -535,7 +538,7 @@ void Sim7070AtModem::SendTcp(Sim7070Connection const& connection,
   // AT+CASEND=<cid>,<datalen>[,<inputtime>]
   // Send TCP/UDP data 0.
   at_comm_support_->SendATCommand("AT+CASEND=" + connect_i_str + "," +
-                std::to_string(data.size()));  // Send size
+                                  std::to_string(data.size()));  // Send size
   if (auto err = CheckResponse(">", 1000, "AT+CASEND command error!");
       err != kModemError::kNoError) {
     AE_TELED_ERROR("AT+CASEND command error {}", err);
@@ -575,7 +578,7 @@ void Sim7070AtModem::SendUdp(Sim7070Connection const& connection,
   // AT+CASEND=<cid>,<datalen>[,<inputtime>]
   // Send TCP/UDP data 0.
   at_comm_support_->SendATCommand("AT+CASEND=" + connect_i_str + "," +
-                std::to_string(data.size()));  // Send size
+                                  std::to_string(data.size()));  // Send size
   if (auto err = CheckResponse(">", 1000, "AT+CASEND command error!");
       err != kModemError::kNoError) {
     AE_TELED_ERROR("AT+CASEND command error {}", err);

@@ -18,9 +18,10 @@
 #include "aether/serial_ports/serial_ports_tele.h"
 
 namespace ae {
-  
+
 ISerialPort::ISerialPort(ActionContext action_context,
-                           IPoller::ptr const& poller, SerialInit const& serial_init)
+                         IPoller::ptr const& poller,
+                         SerialInit const& serial_init)
     : action_context_{std::move(action_context)},
       poller_{poller},
       serial_init_{std::move(serial_init)},
@@ -39,8 +40,8 @@ ISerialPort::ReadAction::ReadAction(ActionContext action_context,
                                     ISerialPort& serial_port)
     : Action{action_context},
       serial_port_{&serial_port},
-      read_buffer_(4096/*transport_->socket_.GetMaxPacketSize()*/) {}
-      
+      read_buffer_(4096) {}
+
 UpdateStatus ISerialPort::ReadAction::Update() {
   if (read_event_.exchange(false)) {
     ReadEvent();
@@ -155,4 +156,8 @@ ActionPtr<StreamWriteAction> ISerialPort::Write(DataBuffer&& in_data) {
 
   return send_packet_action;
 }
+
+std::optional<DataBuffer> ISerialPort::Read() { return {}; }
+
+bool ISerialPort::IsOpen() { return true; }
 } /* namespace ae */

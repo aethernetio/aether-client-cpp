@@ -32,13 +32,14 @@ class ParentLoraModuleAdapter : public Adapter {
 
  public:
 #ifdef AE_DISTILLATION
-  ParentLoraModuleAdapter(ObjPtr<Aether> aether, LoraModuleInit lora_module_init,
-                     Domain* domain);
+  ParentLoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
+                          LoraModuleInit lora_module_init, Domain* domain);
 #endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, lora_module_init_))
 
   Obj::ptr aether_;
+  IPoller::ptr poller_;
 
   LoraModuleInit lora_module_init_;
 };

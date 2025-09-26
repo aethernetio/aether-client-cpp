@@ -35,7 +35,8 @@ class LoraModuleAdapter;
 namespace lora_module_adapter_internal {
 class LoraModuleAdapterTransportBuilder;
 
-class LoraModuleAdapterTransportBuilderAction final : public TransportBuilderAction {
+class LoraModuleAdapterTransportBuilderAction final
+    : public TransportBuilderAction {
   enum class State : std::uint8_t {
     kWaitConnection,
     kBuildersCreate,
@@ -46,8 +47,8 @@ class LoraModuleAdapterTransportBuilderAction final : public TransportBuilderAct
  public:
   // immediately create the transport
   LoraModuleAdapterTransportBuilderAction(ActionContext action_context,
-                                     LoraModuleAdapter& adapter,
-                                     UnifiedAddress address_);
+                                          LoraModuleAdapter& adapter,
+                                          UnifiedAddress address_);
   // create the transport when lora module is connected
   LoraModuleAdapterTransportBuilderAction(
       ActionContext action_context,
@@ -69,7 +70,7 @@ class LoraModuleAdapterTransportBuilderAction final : public TransportBuilderAct
   Subscription lora_module_connected_subscription_;
   Subscription resolve_sub_;
 };
-} // lora_module_adapter_internal
+}  // namespace lora_module_adapter_internal
 
 class LoraModuleAdapter : public ParentLoraModuleAdapter {
   friend class lora_module_adapter_internal::LoraModuleAdapterTransportBuilder;
@@ -80,13 +81,14 @@ class LoraModuleAdapter : public ParentLoraModuleAdapter {
 
  public:
 #ifdef AE_DISTILLATION
-  LoraModuleAdapter(ObjPtr<Aether> aether, LoraModuleInit lora_module_init, Domain* domain);
+  LoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
+                    LoraModuleInit lora_module_init, Domain* domain);
 #endif  // AE_DISTILLATION
 
   ~LoraModuleAdapter() override;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(lora_module_driver_))
-  
+  AE_OBJECT_REFLECT()
+
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
     dnv(base_);

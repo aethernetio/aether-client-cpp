@@ -31,8 +31,13 @@
 
 namespace ae {
 class WINSerialPort final : public ISerialPort {
+ 
+ protected:
+  WINSerialPort() = default;
+  
  public:
-  WINSerialPort(SerialInit const& serial_init);
+  WINSerialPort(ActionContext action_context, IPoller::ptr const& poller,
+                SerialInit const& serial_init);
   ~WINSerialPort() override;
 
   void Write(DataBuffer const& data) override;
@@ -41,6 +46,8 @@ class WINSerialPort final : public ISerialPort {
 
  private:
   void* h_port_;
+  ActionContext action_context_;
+  PtrView<IPoller> poller_;
 
   void Open(std::string const& port_name, std::uint32_t baud_rate);
   void ConfigurePort(std::uint32_t baud_rate);

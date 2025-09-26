@@ -19,10 +19,12 @@
 namespace ae {
 
 #if defined AE_DISTILLATION
-ParentLoraModuleAdapter::ParentLoraModuleAdapter(ObjPtr<Aether> aether,
-                                       LoraModuleInit lora_module_init, Domain* domain)
+ParentLoraModuleAdapter::ParentLoraModuleAdapter(
+    ObjPtr<Aether> aether, IPoller::ptr poller,
+    LoraModuleInit lora_module_init, Domain* domain)
     : Adapter{domain},
       aether_{std::move(aether)},
+      poller_{std::move(poller)},
       lora_module_init_{std::move(lora_module_init)} {}
 #endif  // AE_DISTILLATION
 

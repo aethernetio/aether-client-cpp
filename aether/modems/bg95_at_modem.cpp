@@ -14,15 +14,23 @@
  * limitations under the License.
  */
 
+#include "aether/format/format.h"
+#include "aether/misc/from_chars.h"
+#include "aether/modems/exponent_time.h"
 #include "aether/modems/bg95_at_modem.h"
 #include "aether/serial_ports/serial_port_factory.h"
-#include "aether/adapters/adapter_tele.h"
+
+#include "aether/modems/modems_tele.h"
 
 namespace ae {
 
-Bg95AtModem::Bg95AtModem(ModemInit modem_init, Domain* domain)
-    : IModemDriver(modem_init, domain) {
-  serial_ = SerialPortFactory::CreatePort(modem_init.serial_init);
+Bg95AtModem::Bg95AtModem(ModemAdapter& adapter, ModemInit modem_init,
+                         Domain* domain)
+    : adapter_{&adapter},
+      IModemDriver(std::move(modem_init), domain) {
+  serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
+                                          adapter_->poller_,
+                                          GetModemInit().serial_init);
   at_comm_support_ = std::make_unique<AtCommSupport>(serial_.get());
 }
 
@@ -45,7 +53,7 @@ bool Bg95AtModem::Init() {
   if (err != kModemError::kNoError) {
     return false;
   }
-  
+
   return true;
 }
 
@@ -76,7 +84,8 @@ bool Bg95AtModem::Start() {
   if (err == kModemError::kNoError) {
     err = SetupNetwork(modem_init.operator_name, modem_init.operator_code,
                        modem_init.apn_name, modem_init.apn_user,
-                       modem_init.apn_pass);
+                       modem_init.apn_pass, modem_init.modem_mode,
+                       modem_init.auth_type);
   }
 
   // float power = 23.5;  // DBm
@@ -86,7 +95,7 @@ bool Bg95AtModem::Start() {
   if (err != kModemError::kNoError) {
     return false;
   }
-  
+
   return true;
 }
 
@@ -100,7 +109,7 @@ ConnectionIndex Bg95AtModem::OpenNetwork(ae::Protocol protocol,
   AE_TELED_ERROR("Protocol {}", protocol);
   AE_TELED_ERROR("Host {}", host);
   AE_TELED_ERROR("Port {}", port);
-  
+
   return connect_index;
 }
 
@@ -115,7 +124,7 @@ void Bg95AtModem::WritePacket(ConnectionIndex connect_index,
 }
 
 DataBuffer Bg95AtModem::ReadPacket(ConnectionIndex connect_index,
-                        Duration timeout) {
+                                   Duration timeout) {
   // std::size_t size{};
 
   auto response = serial_->Read();
@@ -123,7 +132,7 @@ DataBuffer Bg95AtModem::ReadPacket(ConnectionIndex connect_index,
   DataBuffer data = response_vector;
   AE_TELED_ERROR("Connect index {}", connect_index);
   AE_TELED_ERROR("Timeout {}", timeout);
-  
+
   return data;
 }
 
@@ -338,11 +347,10 @@ kModemError Bg95AtModem::HexToDbma(kModemBand band, float& power,
   return err;
 }
 
-kModemError Bg95AtModem::SetupNetwork(std::string operator_name,
-                                      std::string operator_code,
-                                      std::string apn_name,
-                                      std::string apn_user,
-                                      std::string apn_pass) {
+kModemError Bg95AtModem::SetupNetwork(
+    std::string const& operator_name, std::string const& operator_code,
+    std::string const& apn_name, std::string const& apn_user,
+    std::string const& apn_pass, kModemMode modem_mode, kAuthType auth_type) {
   kModemError err{kModemError::kNoError};
 
   at_comm_support_->SendATCommand("AT+COPS=1,2,\"" + operator_code + "\",0");

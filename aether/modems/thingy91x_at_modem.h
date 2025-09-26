@@ -41,7 +41,8 @@ class Thingy91xAtModem final : public IModemDriver {
   Thingy91xAtModem() = default;
 
  public:
-  explicit Thingy91xAtModem(ModemInit modem_init, Domain* domain);
+  explicit Thingy91xAtModem(ModemAdapter& adapter, ModemInit modem_init,
+                            Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
   bool Init() override;
@@ -61,6 +62,7 @@ class Thingy91xAtModem final : public IModemDriver {
   std::unique_ptr<ISerialPort> serial_;
   std::unique_ptr<AtCommSupport> at_comm_support_;
   std::vector<Thingy91xConnection> connect_vec_;
+  ModemAdapter* adapter_;
 
   static constexpr std::uint16_t kModemMTU{1024};
 

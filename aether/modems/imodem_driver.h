@@ -23,6 +23,7 @@
 #include "aether/obj/obj.h"
 #include "aether/types/address.h"
 #include "aether/types/data_buffer.h"
+#include "aether/adapters/modem_adapter.h"
 #include "aether/modems/modem_driver_types.h"
 
 namespace ae {
@@ -34,7 +35,8 @@ class IModemDriver : public Obj {
   IModemDriver() = default;
 
  public:
-  explicit IModemDriver(ModemInit modem_init, Domain* /*domain*/);
+  IModemDriver(ModemInit modem_init,
+               Domain* /*domain*/);
   AE_OBJECT_REFLECT()
 
   ~IModemDriver() override = default;

@@ -17,13 +17,16 @@
 #ifndef AETHER_LORA_MODULES_ILORA_DRIVER_H_
 #define AETHER_LORA_MODULES_ILORA_DRIVER_H_
 
+#include <string>
+#include <cstdint>
+
 #include "aether/obj/obj.h"
 #include "aether/types/address.h"
 #include "aether/types/data_buffer.h"
+#include "aether/adapters/lora_module_adapter.h"
 #include "aether/lora_modules/lora_module_driver_types.h"
 
 namespace ae {
-
 class ILoraModuleDriver : public Obj {
   AE_OBJECT(ILoraModuleDriver, Obj, 0)
 
@@ -31,17 +34,18 @@ class ILoraModuleDriver : public Obj {
   ILoraModuleDriver() = default;
 
  public:
-  explicit ILoraModuleDriver(LoraModuleInit lora_module_init, Domain* /* domain */);
-  AE_OBJECT_REFLECT()
-  
+  ILoraModuleDriver(LoraModuleInit lora_module_init,
+                    Domain* /* domain */);
+  AE_OBJECT_REFLECT(AE_MMBRS(lora_module_init_))
+
   ~ILoraModuleDriver() override = default;
-  
+
   virtual bool Init();
   virtual bool Start();
   virtual bool Stop();
   virtual ConnectionLoraIndex OpenNetwork(Protocol /*protocol*/,
-                                      std::string const& /*host*/,
-                                      std::uint16_t /*port*/);
+                                          std::string const& /*host*/,
+                                          std::uint16_t /*port*/);
   virtual void CloseNetwork(ConnectionLoraIndex /*connect_index*/);
   virtual void WritePacket(ConnectionLoraIndex /*connect_index*/,
                            DataBuffer const& /*data*/);
@@ -50,11 +54,11 @@ class ILoraModuleDriver : public Obj {
 
   virtual bool SetPowerSaveParam(std::string const& /*psp*/);
   virtual bool PowerOff();
-  
+
   LoraModuleInit GetLoraModuleInit();
 
  private:
-  LoraModuleInit lora_module_init_;  
+  LoraModuleInit lora_module_init_;
 };
 
 } /* namespace ae */

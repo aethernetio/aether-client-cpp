@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "aether/lora_modules/ilora_module_driver.h"
+#include "aether/adapters/lora_module_adapter.h"
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/at_comm_support.h"
 
@@ -43,7 +44,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   DxSmartLr02LoraModule() = default;
 
  public:
-  explicit DxSmartLr02LoraModule(LoraModuleInit lora_module_init,
+  explicit DxSmartLr02LoraModule(LoraModuleAdapter& adapter, LoraModuleInit lora_module_init,
                                  Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
@@ -82,6 +83,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   std::unique_ptr<ISerialPort> serial_;
   std::vector<LoraConnection> connect_vec_;
   std::unique_ptr<AtCommSupport> at_comm_support_;
+  LoraModuleAdapter* adapter_;
   bool at_mode_{false};
 
   static constexpr std::uint16_t kLoraModuleMTU{200};

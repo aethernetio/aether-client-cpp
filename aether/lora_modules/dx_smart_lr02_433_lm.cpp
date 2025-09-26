@@ -24,10 +24,14 @@
 
 namespace ae {
 
-DxSmartLr02LoraModule::DxSmartLr02LoraModule(LoraModuleInit lora_module_init,
+DxSmartLr02LoraModule::DxSmartLr02LoraModule(LoraModuleAdapter& adapter,
+                                             LoraModuleInit lora_module_init,
                                              Domain* domain)
-    : ILoraModuleDriver{std::move(lora_module_init), domain} {
-  serial_ = SerialPortFactory::CreatePort(GetLoraModuleInit().serial_init);
+    : adapter_{&adapter},
+      ILoraModuleDriver{std::move(lora_module_init), domain} {
+  serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
+                                          adapter_->poller_,
+                                          GetLoraModuleInit().serial_init);
   at_comm_support_ = std::make_unique<AtCommSupport>(serial_.get());
 };
 
@@ -116,16 +120,17 @@ bool DxSmartLr02LoraModule::Stop() {
   return true;
 };
 
-ConnectionLoraIndex DxSmartLr02LoraModule::OpenNetwork(
-    ae::Protocol protocol, std::string const& host,
-    std::uint16_t port) {
+ConnectionLoraIndex DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
+                                                       std::string const& host,
+                                                       std::uint16_t port) {
   if (!serial_->IsOpen()) {
     AE_TELED_ERROR("Serial port not open");
     return -1;
   }
 
   auto connect_index = static_cast<ConnectionLoraIndex>(connect_vec_.size());
-  connect_vec_.emplace_back(LoraConnection{connect_index, protocol, host, port});
+  connect_vec_.emplace_back(
+      LoraConnection{connect_index, protocol, host, port});
 
   return connect_index;
 };
@@ -143,29 +148,29 @@ void DxSmartLr02LoraModule::CloseNetwork(
   /* Removing connection
     auto const& connection =
       connect_vec_.at(static_cast<std::size_t>(connect_index));*/
-  
+
   connect_vec_.erase(connect_vec_.begin() + connect_index);
 };
 
 void DxSmartLr02LoraModule::WritePacket(ae::ConnectionLoraIndex connect_index,
-                                        ae::DataBuffer const& data ) {
+                                        ae::DataBuffer const& data) {
   LoraPacket lora_packet{};
-  
+
   auto const& connection =
       connect_vec_.at(static_cast<std::size_t>(connect_index));
-      
+
   lora_packet.connection = connection;
   lora_packet.length = data.size();
   lora_packet.data = data;
-  lora_packet.crc = 0; // Not implemented yet
+  lora_packet.crc = 0;  // Not implemented yet
 
   auto packet_data = std::vector<std::uint8_t>{};
   VectorWriter<PacketSize> vw{packet_data};
   auto os = omstream{vw};
   // copy data with size
   os << lora_packet;
-  
-  serial_->Write(packet_data); 
+
+  serial_->Write(packet_data);
 };
 
 DataBuffer DxSmartLr02LoraModule::ReadPacket(
@@ -179,9 +184,9 @@ DataBuffer DxSmartLr02LoraModule::ReadPacket(
   auto is = imstream{vr};
   // copy data with size
   is >> lora_packet;
-  
+
   data = lora_packet.data;
-  
+
   return data;
 };
 
@@ -391,7 +396,7 @@ kLoraModuleError DxSmartLr02LoraModule::ExitAtMode() {
     }
   }
 
-  if (answer_cnt == 1){
+  if (answer_cnt == 1) {
     if (err = CheckResponse("Power on", 1000, "ExitAtMode command error!");
         err != kLoraModuleError::kNoError) {
       AE_TELED_ERROR("AT command error {}", err);
@@ -399,11 +404,11 @@ kLoraModuleError DxSmartLr02LoraModule::ExitAtMode() {
       answer_cnt++;
     }
   }
-  
-  if (answer_cnt == 2){
+
+  if (answer_cnt == 2) {
     at_mode_ = false;
   }
-  
+
   return err;
 };
 

@@ -38,9 +38,9 @@ class LoraModuleAdapterTransportBuilder final : public ITransportStreamBuilder {
         address_);
     assert(protocol == Protocol::kTcp || protocol == Protocol::kUdp);
 #if defined LORA_MODULE_TRANSPORT_ENABLED
-    return make_unique<LoraModuleTransport>(*adapter_->aether_.as<Aether>(),
-                                            *adapter_->lora_module_driver_,
-                                            address_);
+    return make_unique<LoraModuleTransport>(
+        *adapter_->aether_.as<Aether>(),
+        *adapter_->lora_module_driver_, address_);
 #else
     return nullptr;
 #endif
@@ -117,10 +117,13 @@ void LoraModuleAdapterTransportBuilderAction::CreateBuilders() {
 }  // namespace lora_module_adapter_internal
 
 #if defined AE_DISTILLATION
-LoraModuleAdapter::LoraModuleAdapter(ObjPtr<Aether> aether, LoraModuleInit lora_module_init,
-                           Domain* domain)
-    : ParentLoraModuleAdapter{std::move(aether), std::move(lora_module_init), domain} {
-  lora_module_driver_ = LoraModuleDriverFactory::CreateLoraModule(lora_module_init_, domain);
+LoraModuleAdapter::LoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
+                                     LoraModuleInit lora_module_init,
+                                     Domain* domain)
+    : ParentLoraModuleAdapter{std::move(aether), std::move(poller),
+                              std::move(lora_module_init), domain} {
+  lora_module_driver_ =
+      LoraModuleDriverFactory::CreateLoraModule(lora_module_init_, domain);
   lora_module_driver_->Init();
   AE_TELED_DEBUG("Lora module instance created!");
 }
@@ -143,9 +146,10 @@ ActionPtr<TransportBuilderAction> LoraModuleAdapter::CreateTransport(
         lora_module_adapter_internal::LoraModuleAdapterTransportBuilderAction>(
         *aether_.as<Aether>(), *this, address_port_protocol);
   }
-  return ActionPtr<lora_module_adapter_internal::LoraModuleAdapterTransportBuilderAction>(
-      *aether_.as<Aether>(), EventSubscriber{lora_module_connected_event_}, *this,
-      address_port_protocol);
+  return ActionPtr<
+      lora_module_adapter_internal::LoraModuleAdapterTransportBuilderAction>(
+      *aether_.as<Aether>(), EventSubscriber{lora_module_connected_event_},
+      *this, address_port_protocol);
 }
 
 void LoraModuleAdapter::Update(TimePoint current_time) {
@@ -158,7 +162,8 @@ void LoraModuleAdapter::Update(TimePoint current_time) {
 }
 
 void LoraModuleAdapter::Connect() {
-  AE_TELE_DEBUG(kAdapterLoraModuleDisconnected, "Lora module connecting to the network");
+  AE_TELE_DEBUG(kAdapterLoraModuleDisconnected,
+                "Lora module connecting to the network");
   if (!lora_module_driver_->Start()) {
     AE_TELED_ERROR("Lora module driver does not start");
     return;
