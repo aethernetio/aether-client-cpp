@@ -26,8 +26,8 @@ namespace ae {
 
 Bg95AtModem::Bg95AtModem(ModemAdapter& adapter, ModemInit modem_init,
                          Domain* domain)
-    : adapter_{&adapter},
-      IModemDriver(std::move(modem_init), domain) {
+    : IModemDriver(std::move(modem_init), domain),
+      adapter_{&adapter} {
   serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
                                           adapter_->poller_,
                                           GetModemInit().serial_init);

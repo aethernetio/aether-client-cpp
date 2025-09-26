@@ -86,7 +86,7 @@ class ModemAdapter : public ParentModemAdapter {
 
   ~ModemAdapter() override;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_driver_))
+  AE_OBJECT_REFLECT(AE_MMBRS(connected_, modem_connected_event_, modem_driver_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {

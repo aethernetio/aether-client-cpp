@@ -123,7 +123,7 @@ LoraModuleAdapter::LoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
     : ParentLoraModuleAdapter{std::move(aether), std::move(poller),
                               std::move(lora_module_init), domain} {
   lora_module_driver_ =
-      LoraModuleDriverFactory::CreateLoraModule(lora_module_init_, domain);
+      LoraModuleDriverFactory::CreateLoraModule(lora_module_init_, poller, domain);
   lora_module_driver_->Init();
   AE_TELED_DEBUG("Lora module instance created!");
 }

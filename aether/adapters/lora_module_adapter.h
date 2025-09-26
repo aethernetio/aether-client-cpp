@@ -25,8 +25,8 @@
 #include "aether/actions/action_ptr.h"
 #include "aether/events/event_subscription.h"
 
-#include "aether/lora_modules/ilora_module_driver.h"
 #include "aether/adapters/parent_lora_module.h"
+#include "aether/lora_modules/ilora_module_driver.h"
 
 #define LORA_MODULE_TCP_TRANSPORT_ENABLED 1
 
@@ -87,7 +87,8 @@ class LoraModuleAdapter : public ParentLoraModuleAdapter {
 
   ~LoraModuleAdapter() override;
 
-  AE_OBJECT_REFLECT()
+  AE_OBJECT_REFLECT(AE_MMBRS(connected_, lora_module_connected_event_,
+                             lora_module_driver_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {

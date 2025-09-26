@@ -37,7 +37,7 @@ class IModemDriver : public Obj {
  public:
   IModemDriver(ModemInit modem_init,
                Domain* /*domain*/);
-  AE_OBJECT_REFLECT()
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
 
   ~IModemDriver() override = default;
 

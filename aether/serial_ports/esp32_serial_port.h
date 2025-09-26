@@ -33,16 +33,18 @@
 namespace ae {
 class ESP32SerialPort : public ISerialPort {
  public:
-  ESP32SerialPort(SerialInit const& serial_init);
+  ESP32SerialPort(ActionContext action_context, IPoller::ptr const& poller,
+                  SerialInit const& serial_init);
   ~ESP32SerialPort() override;
 
   void Write(DataBuffer const& data) override;
   std::optional<DataBuffer> Read() override;
   bool IsOpen() override;
 
- private:
-  uart_port_t uart_num_;
+ private:ActionContext action_context_;
+  PtrView<IPoller> poller_;  
   bool is_open_;
+  uart_port_t uart_num_;  
 
   bool Initialize(SerialInit const& serial_init);
   bool GetUartNumber(const std::string& port_name, uart_port_t* out_uart_num);

@@ -117,7 +117,7 @@ ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                            ModemInit modem_init, Domain* domain)
     : ParentModemAdapter{std::move(aether), std::move(poller),
                          std::move(modem_init), domain} {
-  modem_driver_ = ModemDriverFactory::CreateModem(modem_init_, domain);
+  modem_driver_ = ModemDriverFactory::CreateModem(modem_init_, poller, domain);
   modem_driver_->Init();
   AE_TELED_DEBUG("Modem instance created!");
 }

@@ -21,8 +21,14 @@
 #  include "aether/serial_ports/serial_ports_tele.h"
 
 namespace ae {
-ESP32SerialPort::ESP32SerialPort(SerialInit const& serial_init)
-    : is_open_(false) {
+ESP32SerialPort::ESP32SerialPort(ActionContext action_context, 
+                                 IPoller::ptr const& poller,
+                                 SerialInit const& serial_init)
+    : ISerialPort{std::move(action_context), std::move(poller), std::move(serial_init)},
+      action_context_{std::move(action_context)},
+      poller_{std::move(poller)},
+      is_open_(false),
+      uart_num_(UART_NUM_0) {
   is_open_ = Initialize(serial_init);
 }
 

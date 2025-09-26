@@ -25,14 +25,15 @@
 #define AE_LORA_MODULE_DXSMART_LR02_ENABLED 1
 
 // check if any mode is enabled
-#if (AE_LORA_MODULE_EBYTE_E22_ENABLED == 1) || (AE_LORA_MODULE_DXSMART_LR02_ENABLED == 1)
+#if (AE_LORA_MODULE_EBYTE_E22_ENABLED == 1) || \
+    (AE_LORA_MODULE_DXSMART_LR02_ENABLED == 1)
 #  define AE_LORA_MODULE_ENABLED 1
 
 namespace ae {
 class LoraModuleDriverFactory {
  public:
   static ILoraModuleDriver::ptr CreateLoraModule(
-      LoraModuleInit lora_module_init, Domain* domain);
+      LoraModuleInit lora_module_init, IPoller::ptr poller, Domain* domain);
 };
 }  // namespace ae
 

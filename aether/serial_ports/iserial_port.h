@@ -80,7 +80,7 @@ class ISerialPort : public ByteIStream {
 
  public:
   explicit ISerialPort(ActionContext action_context, IPoller::ptr const& poller,
-              SerialInit const& serial_init);
+                       SerialInit const& serial_init);
   virtual ~ISerialPort() override;
 
   /**
@@ -109,9 +109,9 @@ class ISerialPort : public ByteIStream {
 
   void Disconnect();
 
-  SerialInit serial_init_;
   ActionContext action_context_;
   PtrView<IPoller> poller_;
+  SerialInit serial_init_;
 
   StreamInfo stream_info_;
 

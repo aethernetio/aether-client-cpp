@@ -22,11 +22,11 @@
 namespace ae {
 
 ILoraModuleDriver::ptr LoraModuleDriverFactory::CreateLoraModule(
-    LoraModuleInit lora_module_init, Domain* domain) {
+    LoraModuleInit lora_module_init, IPoller::ptr poller, Domain* domain) {
 #if AE_LORA_MODULE_EBYTE22_ENABLED == 1
-  return domain->CreateObj<EbyteE22LoraModule>(lora_module_init);
+  return domain->CreateObj<EbyteE22LoraModule>(lora_module_init, poller, domain);
 #elif AE_LORA_MODULE_DXSMART_LR02_ENABLED == 1
-  return domain->CreateObj<DxSmartLr02LoraModule>(lora_module_init);
+  return domain->CreateObj<DxSmartLr02LoraModule>(lora_module_init, poller, domain);
 #endif
 }
 

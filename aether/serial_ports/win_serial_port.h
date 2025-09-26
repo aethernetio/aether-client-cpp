@@ -45,9 +45,9 @@ class WINSerialPort final : public ISerialPort {
   bool IsOpen() override;
 
  private:
-  void* h_port_;
   ActionContext action_context_;
   PtrView<IPoller> poller_;
+  void* h_port_;
 
   void Open(std::string const& port_name, std::uint32_t baud_rate);
   void ConfigurePort(std::uint32_t baud_rate);
