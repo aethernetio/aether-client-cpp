@@ -280,6 +280,12 @@ TcpTransport::OutDataEvent::Subscriber TcpTransport::out_data_event() {
   return out_data_event_;
 }
 
+void TcpTransport::Restream() {
+  AE_TELED_DEBUG("TCP restream");
+  stream_info_.link_state = LinkState::kLinkError;
+  Disconnect();
+}
+
 void TcpTransport::OnConnected() {
   stream_info_.is_writable = true;
   stream_info_.link_state = LinkState::kLinked;

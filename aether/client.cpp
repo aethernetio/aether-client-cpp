@@ -19,9 +19,6 @@
 #include <utility>
 
 #include "aether/aether.h"
-#include "aether/client_connections/client_cloud_connection.h"
-
-#include "aether/tele/tele.h"
 
 namespace ae {
 
@@ -56,11 +53,31 @@ ServerConnectionManager& Client::server_connection_manager() {
   return *server_connection_manager_;
 }
 
-IServerConnectionPool& Client::server_connection_pool() {
-  if (!server_connection_pool_) {
-    MakeClientConnection();
+ClientConnectionManager& Client::connection_manager() {
+  if (!client_connection_manager_) {
+    auto aether = Aether::ptr{aether_};
+    client_connection_manager_ = std::make_unique<ClientConnectionManager>(
+        cloud_, server_connection_manager().GetServerConnectionFactory());
   }
-  return *server_connection_pool_;
+  return *client_connection_manager_;
+}
+
+CloudMessageStream& Client::cloud_message_stream() {
+  if (!cloud_message_stream_) {
+    auto aether = Aether::ptr{aether_};
+    cloud_message_stream_ =
+        std::make_unique<CloudMessageStream>(*aether, connection_manager());
+  }
+  return *cloud_message_stream_;
+}
+
+P2pMessageStreamManager& Client::message_stream_manager() {
+  if (!message_stream_manager_) {
+    auto aether = Aether::ptr{aether_};
+    message_stream_manager_ = std::make_unique<P2pMessageStreamManager>(
+        *aether, MakePtrFromThis(this));
+  }
+  return *message_stream_manager_;
 }
 
 void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
@@ -78,19 +95,4 @@ void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
       ObjPtr<Aether>{aether_}, MakePtrFromThis(this));
 }
 
-Ptr<ClientConnection> const& Client::client_connection() {
-  if (!client_connection_) {
-    MakeClientConnection();
-  }
-  return client_connection_;
-}
-
-void Client::MakeClientConnection() {
-  // the default implementation
-  auto client_cloud_connection = MakePtr<ClientCloudConnection>(
-      *aether_.as<Aether>(), cloud_,
-      server_connection_manager().GetServerConnectionFactory());
-  server_connection_pool_ = client_cloud_connection;
-  client_connection_ = client_cloud_connection;
-}
 }  // namespace ae

@@ -38,6 +38,9 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
   ActionPtr<TransportBuilderAction> CreateTransport(
       UnifiedAddress const& address) override;
 
+  std::vector<ObjPtr<Channel>> GenerateChannels(
+      std::vector<UnifiedAddress> const& server_channels) override;
+
  private:
   // whose doing all job
   EthernetAdapter::ptr ethernet_adapter_;

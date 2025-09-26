@@ -28,7 +28,7 @@
 #include "aether/types/async_for_loop.h"
 #include "aether/events/event_subscription.h"
 
-#include "aether/channel.h"
+#include "aether/channels/channel.h"
 #include "aether/stream_api/istream.h"
 
 namespace ae {

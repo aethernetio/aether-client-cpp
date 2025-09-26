@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "aether/common.h"
-#include "aether/channel.h"
+#include "aether/channels/channel.h"
 
 namespace ae {
 class Server : public Obj {

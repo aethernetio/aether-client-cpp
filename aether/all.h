@@ -85,7 +85,7 @@
 #include "aether/aether.h"
 #include "aether/client.h"
 #include "aether/server.h"
-#include "aether/channel.h"
+#include "aether/channels/channel.h"
 #include "aether/crypto.h"
 #include "aether/cloud.h"
 #include "aether/work_cloud.h"

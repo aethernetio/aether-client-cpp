@@ -46,7 +46,6 @@ list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
             "adapter_registry.cpp"
-            "channel.cpp"
             "client.cpp"
             "cloud.cpp"
             "registration_cloud.cpp"
@@ -88,7 +87,6 @@ list(APPEND events_srcs)
 
 list(APPEND actions_srcs
             "ae_actions/get_client_cloud.cpp"
-            "ae_actions/get_client_cloud_connection.cpp"
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
@@ -105,7 +103,8 @@ list(APPEND registration_srcs
             "registration/global_reg_server_stream.cpp"
             "registration/reg_server_stream.cpp"
             "registration/proof_of_work.cpp"
-            "registration/reg_server_connection_pool.cpp"
+            "registration/root_server_select_stream.cpp"
+            "registration/root_server_stream.cpp"
             "registration/registration.cpp"
             "registration/registration_key_provider.cpp"
             )
@@ -157,11 +156,9 @@ list(APPEND transport_srcs
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
             "stream_api/crypto_gate.cpp"
-            "stream_api/header_gate.cpp"
             "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
             "stream_api/debug_gate.cpp"
-            "stream_api/buffer_stream.cpp"
             "stream_api/stream_splitter.cpp"
 
             "stream_api/safe_stream.cpp"
@@ -207,26 +204,29 @@ list(APPEND methods_srcs
 
 
 list(APPEND client_connections_srcs
-            "client_connections/client_cloud_connection.cpp"
-            "client_connections/split_stream_client_connection.cpp"
+            "client_connections/cloud_message_stream.cpp"
 )
 
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
             "server_connections/client_to_server_stream.cpp"
+            "server_connections/channel_selection_stream.cpp"
             "server_connections/server_channel.cpp"
+            "server_connections/channel_manager.cpp"
+            "server_connections/channel_connection.cpp"
+            "server_connections/server_connection.cpp"
 )
 
 list(APPEND connection_manager_srcs
+            "connection_manager/client_connection_manager.cpp"
             "connection_manager/client_cloud_manager.cpp"
             "connection_manager/server_connection_selector.cpp"
             "connection_manager/server_connection_manager.cpp"
 )
 
 list(APPEND client_messages_srcs
-            "client_messages/message_stream.cpp"
-            "client_messages/message_stream_dispatcher.cpp"
             "client_messages/p2p_message_stream.cpp"
+            "client_messages/p2p_message_stream_manager.cpp"
             "client_messages/p2p_safe_message_stream.cpp"
             )
 
@@ -239,8 +239,10 @@ list(APPEND domain_storage_srcs
             "domain_storage/file_system_std_storage.cpp"
             "domain_storage/sync_domain_storage.cpp")
 
-list(APPEND statistics_srcs
-      "statistics/channel_statistics.cpp")
+list(APPEND channels_srcs
+            "channels/channel_statistics.cpp"
+            "channels/channel.cpp"
+            "channels/channel.cpp")
 
 list(APPEND tele_srcs
             "tele/tele_init.cpp"
@@ -292,7 +294,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${server_connections_srcs}
                             ${connection_manager_srcs}
                             ${domain_storage_srcs}
-                            ${statistics_srcs}
+                            ${channels_srcs}
                             ${tele_srcs}
                             )
 
@@ -339,7 +341,7 @@ else()
                             ${server_connections_srcs}
                             ${connection_manager_srcs}
                             ${domain_storage_srcs}
-                            ${statistics_srcs}
+                            ${channels_srcs}
                             ${tele_srcs}
                             INCLUDE_DIRS ${include_dirs}
                             REQUIRES esp_wifi nvs_flash spiffs esp_driver_uart)

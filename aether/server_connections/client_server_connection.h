@@ -17,33 +17,30 @@
 #ifndef AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 
-#include "aether/events/events.h"
-#include "aether/stream_api/istream.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/common.h"
-#include "aether/memory.h"
+// #include "aether/memory.h"
 #include "aether/ae_actions/ping.h"
 #include "aether/actions/action_ptr.h"
-#include "aether/ae_actions/telemetry.h"
-#include "aether/types/async_for_loop.h"
+// #include "aether/ae_actions/telemetry.h"
+#include "aether/stream_api/buffer_stream.h"
 #include "aether/server_connections/server_channel.h"
-#include "aether/client_messages/message_stream_dispatcher.h"
+#include "aether/server_connections/channel_manager.h"
 #include "aether/server_connections/client_to_server_stream.h"
+#include "aether/server_connections/channel_selection_stream.h"
 
 namespace ae {
 class Aether;
 class Client;
 class Server;
+class Channel;
 
 /**
  * \brief Client's connection to a server for messages send.
  */
 class ClientServerConnection {
  public:
-  using NewStreamEvent = Event<void(Uid uid, MessageStream& stream)>;
-  using ServerErrorEvent = Event<void()>;
-
   explicit ClientServerConnection(ActionContext action_context,
                                   ObjPtr<Aether> const& aether,
                                   ObjPtr<Client> const& client,
@@ -53,36 +50,26 @@ class ClientServerConnection {
 
   ClientToServerStream& server_stream();
 
-  ByteIStream& GetStream(Uid destination);
-  void CloseStream(Uid uid);
-  NewStreamEvent::Subscriber new_stream_event();
-  ServerErrorEvent::Subscriber server_error_event();
-
-  void SendTelemetry();
-
-  void NextChannel();
-
  private:
-  void PingError();
+  void SubscribeToSelectChannel();
+  void StreamUpdate();
 
   ActionContext action_context_;
   PtrView<Client> client_;
   PtrView<Server> server_;
-  std::unique_ptr<MessageStreamDispatcher> message_stream_dispatcher_;
   OwnActionPtr<Ping> ping_;
-#if defined TELEMETRY_ENABLED
-  OwnActionPtr<Telemetry> telemetry_;
-#endif
-  std::optional<AsyncForLoop<Channel::ptr>> channel_loop_;
-  std::size_t selected_channel_index_;
-  std::unique_ptr<ServerChannel> server_channel_;
-  std::unique_ptr<ClientToServerStream> client_to_server_stream_;
+  // #if defined TELEMETRY_ENABLED
+  //   OwnActionPtr<Telemetry> telemetry_;
+  // #endif
+  ChannelManager channel_manager_;
 
-  NewStreamEvent new_stream_event_;
-  ServerErrorEvent server_error_event_;
-  Subscription new_stream_event_sub_;
-  Subscription channel_stream_update_sub_;
-  Subscription ping_error_sub_;
+  ChannelSelectStream channel_select_stream_;
+  BufferStream<DataBuffer> buffer_stream_;
+  ClientToServerStream client_to_server_stream_;
+
+  ServerChannel const* server_channel_;
+
+  Subscription stream_update_sub_;
 };
 }  // namespace ae
 

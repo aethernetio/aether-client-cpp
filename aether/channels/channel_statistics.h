@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STATISTICS_CHANNEL_STATISTICS_H_
-#define AETHER_STATISTICS_CHANNEL_STATISTICS_H_
+#ifndef AETHER_CHANNELS_CHANNEL_STATISTICS_H_
+#define AETHER_CHANNELS_CHANNEL_STATISTICS_H_
 
 #include "aether/config.h"
 #include "aether/common.h"
@@ -37,7 +37,7 @@ class ChannelStatistics final : public Obj {
   using PingTimeStatistics = StatisticsCounter<Duration, kPingWindowSize>;
 
  public:
-  ChannelStatistics(Domain* domain);
+  explicit ChannelStatistics(Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(connection_time_statistics_,
                              ping_time_statistics_))
@@ -48,6 +48,7 @@ class ChannelStatistics final : public Obj {
   ConnectionTimeStatistics const& connection_time_statistics() const {
     return connection_time_statistics_;
   }
+
   PingTimeStatistics const& ping_time_statistics() const {
     return ping_time_statistics_;
   }
@@ -59,4 +60,4 @@ class ChannelStatistics final : public Obj {
 
 }  // namespace ae
 
-#endif  // AETHER_STATISTICS_CHANNEL_STATISTICS_H_
+#endif  // AETHER_CHANNELS_CHANNEL_STATISTICS_H_

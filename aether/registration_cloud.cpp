@@ -21,7 +21,7 @@
 
 #  include "aether/server.h"
 #  include "aether/aether.h"
-#  include "aether/channel.h"
+#  include "aether/channels/channel.h"
 
 namespace ae {
 

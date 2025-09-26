@@ -16,7 +16,7 @@
 
 #include "aether/adapters/adapter.h"
 
-#include "aether/channel.h"
+#include "aether/channels/channel.h"
 
 namespace ae {
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/statistics/channel_statistics.h"
+#include "aether/channels/channel_statistics.h"
 
 namespace ae {
 ChannelStatistics::ChannelStatistics(Domain* domain) : Base{domain} {}

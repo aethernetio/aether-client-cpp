@@ -20,8 +20,8 @@
 #include <cstdint>
 
 #include "aether/common.h"
-#include "aether/types/state_machine.h"
 #include "aether/actions/action.h"
+#include "aether/types/state_machine.h"
 #include "aether/events/event_subscription.h"
 
 namespace ae {

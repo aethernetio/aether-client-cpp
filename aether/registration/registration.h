@@ -45,7 +45,7 @@
 #  include "aether/methods/server_reg_api/global_reg_server_api.h"
 #  include "aether/methods/server_reg_api/server_registration_api.h"
 
-#  include "aether/registration/reg_server_connection_pool.h"
+#  include "aether/registration/root_server_select_stream.h"
 
 namespace ae {
 
@@ -53,10 +53,8 @@ class Aether;
 
 class Registration final : public Action<Registration> {
   enum class State : std::uint8_t {
-    kSelectConnection,
-    kWaitingConnection,
-    kConnectionFailed,
-    kConnected,
+    kInitConnection,
+    kRestreamConnection,
     kGetKeys,
     kWaitKeys,
     kGetPowParams,
@@ -77,11 +75,8 @@ class Registration final : public Action<Registration> {
   Client::ptr client() const;
 
  private:
-  void IterateConnection();
-
-  void Connected();
-  void ConnectionFailed();
-
+  void InitConnection();
+  void Restream();
   void GetKeys();
   TimePoint WaitKeys();
   void RequestPowParams();
@@ -102,8 +97,7 @@ class Registration final : public Action<Registration> {
   ServerRegistrationApi server_reg_api_;
   GlobalRegServerApi global_reg_server_api_;
 
-  RegServerConnectionPool reg_server_connection_pool_;
-  ServerChannel* server_channel_;
+  RootServerSelectStream root_server_select_stream_;
 
   StateMachine<State> state_;
 

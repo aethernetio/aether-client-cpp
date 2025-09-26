@@ -60,8 +60,8 @@ Registration::Registration(ActionContext action_context,
       server_reg_root_api_{protocol_context_, action_context_},
       server_reg_api_{protocol_context_, action_context_},
       global_reg_server_api_{protocol_context_, action_context_},
-      reg_server_connection_pool_{action_context_, reg_cloud},
-      state_{State::kSelectConnection},
+      root_server_select_stream_{action_context_, aether, reg_cloud},
+      state_{State::kInitConnection},
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
       sign_pk_{aether_.Lock()->crypto->signs_pk_[kDefaultSignatureMethod]} {
@@ -87,16 +87,11 @@ UpdateStatus Registration::Update() {
 
   if (state_.changed()) {
     switch (state_.Acquire()) {
-      case State::kSelectConnection:
-        IterateConnection();
+      case State::kInitConnection:
+        InitConnection();
         break;
-      case State::kWaitingConnection:
-        break;
-      case State::kConnectionFailed:
-        ConnectionFailed();
-        break;
-      case State::kConnected:
-        Connected();
+      case State::kRestreamConnection:
+        Restream();
         break;
       case State::kGetKeys:
         GetKeys();
@@ -127,57 +122,36 @@ UpdateStatus Registration::Update() {
 
 Client::ptr Registration::client() const { return client_; }
 
-void Registration::IterateConnection() {
-  if (server_channel_ = reg_server_connection_pool_.TopConnection();
-      server_channel_ == nullptr) {
-    AE_TELE_ERROR(RegisterServerConnectionListOver,
-                  "Server connection list is over");
-    state_ = State::kRegistrationFailed;
-    return;
-  }
+void Registration::InitConnection() {
+  AE_TELED_DEBUG("Registration::InitConnection");
 
-  AE_TELED_DEBUG("Server selected");
-  if (server_channel_->stream().stream_info().link_state ==
-      LinkState::kLinked) {
-    state_ = State::kConnected;
-    return;
-  }
+  root_server_select_stream_.server_changed_event().Subscribe([this]() {
+    // Reinit connection and start registration from the beginning
+    AE_TELED_ERROR("Server changed");
+    state_ = State::kInitConnection;
+  });
 
-  connection_subscription_ =
-      server_channel_->stream().stream_update_event().Subscribe([this]() {
-        if (server_channel_->stream().stream_info().link_state ==
-            LinkState::kLinked) {
-          state_ = State::kConnected;
-        } else {
-          AE_TELE_WARNING(RegisterConnectionErrorTryNext,
-                          "Connection error, try next");
-          state_ = State::kConnectionFailed;
-        }
-      });
-
-  state_ = State::kWaitingConnection;
-}
-
-void Registration::Connected() {
-  AE_TELED_DEBUG("Registration::Connected");
+  root_server_select_stream_.stream_update_event().Subscribe([this]() {
+    if (root_server_select_stream_.stream_info().link_state ==
+        LinkState::kLinkError) {
+      AE_TELED_ERROR("Link Error, Registration failed");
+      state_ = State::kRegistrationFailed;
+    }
+  });
 
   // create simplest stream to server
   // On RequestPowParams will be created a more complicated one
   reg_server_stream_ = make_unique<GatesStream>(
       ByteGate{}, ProtocolReadGate{protocol_context_, client_root_api_});
 
-  Tie(*reg_server_stream_, server_channel_->stream());
+  Tie(*reg_server_stream_, root_server_select_stream_);
 
   state_ = State::kGetKeys;
 }
 
-void Registration::ConnectionFailed() {
-  AE_TELED_DEBUG("Registration::ConnectionFailed");
-  if (!reg_server_connection_pool_.Rotate()) {
-    state_ = State::kRegistrationFailed;
-  } else {
-    state_ = State::kSelectConnection;
-  }
+void Registration::Restream() {
+  state_ = State::kInitConnection;
+  root_server_select_stream_.Restream();
 }
 
 void Registration::GetKeys() {
@@ -209,10 +183,8 @@ void Registration::GetKeys() {
 
   // on error try repeat
   raw_transport_send_action_subscription_ =
-      packet_write_action_->StatusEvent().Subscribe(OnError{[&]() {
-        reg_server_connection_pool_.Rotate();
-        state_ = State::kConnectionFailed;
-      }});
+      packet_write_action_->StatusEvent().Subscribe(
+          OnError{[&]() { state_ = State::kRestreamConnection; }});
   last_request_time_ = Now();
 
   state_ = State::kWaitKeys;
@@ -223,7 +195,7 @@ TimePoint Registration::WaitKeys() {
   if (last_request_time_ + response_timeout_ < current_time) {
     AE_TELE_WARNING(RegisterWaitKeysTimeout,
                     "WaitKeys timeout {:%Y-%m-%d %H:%M:%S}", current_time);
-    state_ = State::kConnectionFailed;
+    state_ = State::kRestreamConnection;
     return current_time;
   }
   return last_request_time_ + response_timeout_;
@@ -250,7 +222,7 @@ void Registration::RequestPowParams() {
       make_unique<AsyncEncryptProvider>(std::move(server_async_key_provider)),
       make_unique<SyncDecryptProvider>(std::move(server_sync_key_provider)));
 
-  Tie(*reg_server_stream_, server_channel_->stream());
+  Tie(*reg_server_stream_, root_server_select_stream_);
 
   auto api_call = ApiCallAdapter{ApiContext{protocol_context_, server_reg_api_},
                                  *reg_server_stream_};

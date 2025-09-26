@@ -19,24 +19,23 @@
 
 #include "aether/common.h"
 
-#include "aether/memory.h"
-#include "aether/client.h"
 #include "aether/types/uid.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/actions/action_context.h"
 
-#include "aether/stream_api/istream.h"
 #include "aether/stream_api/buffer_stream.h"
 
-#include "aether/client_connections/client_connection.h"
+#include "aether/client_connections/cloud_message_stream.h"
+#include "aether/connection_manager/client_cloud_manager.h"
+#include "aether/connection_manager/client_connection_manager.h"
 
 namespace ae {
+class Client;
+class Cloud;
 class P2pStream final : public ByteIStream {
  public:
-  P2pStream(ActionContext action_context, Ptr<Client> const& client,
+  P2pStream(ActionContext action_context, ObjPtr<Client> const& client,
             Uid destination);
-  P2pStream(ActionContext action_context, Ptr<Client> const& client,
-            Uid destination, std::unique_ptr<ByteIStream> receive_stream);
 
   ~P2pStream() override;
 
@@ -50,24 +49,32 @@ class P2pStream final : public ByteIStream {
 
   OutDataEvent::Subscriber out_data_event() override;
 
+  void Restream() override;
+
+  void WriteOut(DataBuffer const& data);
+
+  Uid destination() const;
+
  private:
   void ConnectReceive();
   void ConnectSend();
-  void TieSendStream(ClientConnection& client_connection);
 
-  void GetReceiveStream();
-  void GetSendStream();
+  void DataReceived(MessageData const& data);
+  std::unique_ptr<ClientConnectionManager> MakeConnectionManager(
+      ObjPtr<Cloud> const& cloud);
+  std::unique_ptr<CloudMessageStream> MakeDestinationStream(
+      ClientConnectionManager& connection_manager);
 
   ActionContext action_context_;
   PtrView<Client> client_;
   Uid destination_;
 
-  Ptr<ClientConnection> receive_client_connection_;
-  Ptr<ClientConnection> send_client_connection_;
+  // connection manager to destination cloud
+  std::unique_ptr<ClientConnectionManager> destination_connection_manager_;
+  std::unique_ptr<CloudMessageStream> destination_stream_;
 
-  BufferStream buffer_stream_;
-  std::unique_ptr<ByteIStream> receive_stream_;
-  std::unique_ptr<ByteIStream> send_stream_;
+  BufferStream<MessageData> buffer_stream_;
+  CloudMessageStream* receive_stream_;
   OutDataEvent out_data_event_;
   Subscription out_data_sub_;
 

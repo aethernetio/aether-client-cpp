@@ -38,4 +38,9 @@ ActionPtr<TransportBuilderAction> RegisterWifiAdapter::CreateTransport(
   return ethernet_adapter_->CreateTransport(address);
 }
 
+std::vector<ObjPtr<Channel>> RegisterWifiAdapter::GenerateChannels(
+    std::vector<UnifiedAddress> const& server_channels) {
+  return ethernet_adapter_->GenerateChannels(server_channels);
+}
+
 }  // namespace ae::registrator

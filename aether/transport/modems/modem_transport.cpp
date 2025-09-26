@@ -196,6 +196,12 @@ ModemTransport::OutDataEvent::Subscriber ModemTransport::out_data_event() {
   return out_data_event_;
 }
 
+void ModemTransport::Restream() {
+  AE_TELED_DEBUG("Modem transport restream");
+  stream_info_.link_state = LinkState::kLinkError;
+  Disconnect();
+}
+
 ActionPtr<StreamWriteAction> ModemTransport::Write(DataBuffer&& in_data) {
   AE_TELE_DEBUG(kModemTransportSend, "Send data size {}", in_data.size());
 
