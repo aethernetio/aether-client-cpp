@@ -64,7 +64,7 @@ void AetherAppContext::InitComponentContext() {
 #  if AE_SUPPORT_REGISTRATION
   Factory<Cloud>([](AetherAppContext const& context) {
     auto reg_c = context.domain().CreateObj<RegistrationCloud>(
-        kRegistrationCloud, context.aether());
+        GlobalId::kRegistrationCloud, context.aether());
 #    if defined _AE_REG_CLOUD_IP
     auto reg_cloud_ip = IpAddressParser{}.StringToIP(_AE_REG_CLOUD_IP);
     assert(reg_cloud_ip.has_value());

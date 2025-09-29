@@ -17,36 +17,37 @@
 #ifndef AETHER_GLOBAL_IDS_H_
 #define AETHER_GLOBAL_IDS_H_
 
+#include "aether/obj/obj_id.h"
+
 namespace ae {
+static constexpr ObjId kGlobalIdAdaptersOffset{1000};
+static constexpr ObjId kGlobalIdFactoriesOffset{2000};
+static constexpr ObjId kGlobalIdCryptoOffset{3000};
+static constexpr ObjId kGlobalIdPollerOffset{4000};
+static constexpr ObjId kGlobalIdDnsResolverOffset{5000};
 
-constexpr int kGlobalIdAdaptersOffset = 1000;
-constexpr int kGlobalIdFactoriesOffset = 2000;
-constexpr int kGlobalIdCryptoOffset = 3000;
-constexpr int kGlobalIdPollerOffset = 4000;
-constexpr int kGlobalIdDnsResolverOffset = 5000;
+struct GlobalId {
+  static constexpr ObjId kAether{1};
+  static constexpr ObjId kRegistrationCloud{2};
+  static constexpr ObjId kTeleStatistics{3};
+  static constexpr ObjId kEthernetAdapter = kGlobalIdAdaptersOffset + 1;
+  static constexpr ObjId kLanAdapter = kGlobalIdAdaptersOffset + 2;
+  static constexpr ObjId kEsp32WiFiAdapter = kGlobalIdAdaptersOffset + 3;
+  static constexpr ObjId kRegisterWifiAdapter = kGlobalIdAdaptersOffset + 4;
+  static constexpr ObjId kModemAdapter = kGlobalIdAdaptersOffset + 5;
+  static constexpr ObjId kRegisterModemAdapter = kGlobalIdAdaptersOffset + 6;
 
-enum GlobalId {
-  kAether = 1,
-  kRegistrationCloud = 2,
-  kTeleStatistics = 3,
-  kEthernetAdapter = kGlobalIdAdaptersOffset + 1,
-  kLanAdapter = kGlobalIdAdaptersOffset + 2,
-  kEsp32WiFiAdapter = kGlobalIdAdaptersOffset + 3,
-  kRegisterWifiAdapter = kGlobalIdAdaptersOffset + 4,
-  kModemAdapter = kGlobalIdAdaptersOffset + 5,
-  kRegisterModemAdapter = kGlobalIdAdaptersOffset + 6,
+  static constexpr ObjId kServerFactory = kGlobalIdFactoriesOffset + 0;
+  static constexpr ObjId kClientFactory = kGlobalIdFactoriesOffset + 1;
+  static constexpr ObjId kIpFactory = kGlobalIdFactoriesOffset + 2;
+  static constexpr ObjId kChannelFactory = kGlobalIdFactoriesOffset + 3;
+  static constexpr ObjId kProxyFactory = kGlobalIdFactoriesOffset + 5;
+  static constexpr ObjId kStatisticsFactory = kGlobalIdFactoriesOffset + 6;
 
-  kServerFactory = kGlobalIdFactoriesOffset + 0,
-  kClientFactory = kGlobalIdFactoriesOffset + 1,
-  kIpFactory = kGlobalIdFactoriesOffset + 2,
-  kChannelFactory = kGlobalIdFactoriesOffset + 3,
-  kProxyFactory = kGlobalIdFactoriesOffset + 5,
-  kStatisticsFactory = kGlobalIdFactoriesOffset + 6,
+  static constexpr ObjId kPoller = kGlobalIdPollerOffset + 0;
+  static constexpr ObjId kDnsResolver = kGlobalIdDnsResolverOffset + 0;
 
-  kPoller = kGlobalIdPollerOffset + 0,
-  kDnsResolver = kGlobalIdDnsResolverOffset + 0,
-
-  kCrypto = kGlobalIdCryptoOffset + 0,
+  static constexpr ObjId kCrypto = kGlobalIdCryptoOffset + 0;
 };
 
 }  // namespace ae
