@@ -22,15 +22,14 @@
 
 namespace ae {
 
-IModemDriver::ptr ModemDriverFactory::CreateModem(ModemInit modem_init,
-                                                  IPoller::ptr poller,
+IModemDriver::ptr ModemDriverFactory::CreateModem(IPoller::ptr poller, ModemInit modem_init,
                                                   Domain* domain) {
 #if AE_MODEM_BG95_ENABLED == 1
-  return domain->CreateObj<Bg95AtModem>(modem_init, poller);
+  return domain->CreateObj<Bg95AtModem>(poller, modem_init);
 #elif AE_MODEM_SIM7070_ENABLED == 1
-  return domain->CreateObj<Sim7070AtModem>(modem_init, poller);
+  return domain->CreateObj<Sim7070AtModem>(poller, modem_init);
 #elif AE_MODEM_THINGY91X_ENABLED == 1
-  return domain->CreateObj<Thingy91xAtModem>(modem_init, poller);
+  return domain->CreateObj<Thingy91xAtModem>(poller, modem_init);
 #endif
 }
 

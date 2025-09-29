@@ -27,7 +27,7 @@ static constexpr std::string_view kSerialPortModem =
 
 static constexpr std::string_view kSerialPortLoraModule =
     "COM38";  // Lora module serial port
-    
+
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
@@ -93,10 +93,11 @@ int AetherCloudExample() {
                 std::string(kWifiSsid), std::string(kWifiPass));
 #  elif defined MODEM_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::ModemAdapter>(
-                ae::GlobalId::kModemAdapter, context.aether(), modem_init);
+                ae::GlobalId::kModemAdapter, context.aether(), context.poller(),
+                modem_init);
 #  elif defined LORA_MODULE_ADAPTER_ENABLED
             auto adapter = context.domain().CreateObj<ae::LoraModuleAdapter>(
-                ae::GlobalId::kModemAdapter, context.aether(),
+                ae::GlobalId::kModemAdapter, context.aether(), context.poller(),
                 lora_module_init);
 #  else
             auto adapter = context.domain().CreateObj<ae::EthernetAdapter>(

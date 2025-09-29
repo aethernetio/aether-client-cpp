@@ -24,9 +24,9 @@
 
 namespace ae {
 
-Bg95AtModem::Bg95AtModem(ModemAdapter& adapter, ModemInit modem_init,
+Bg95AtModem::Bg95AtModem(ModemAdapter& adapter, IPoller::ptr poller, ModemInit modem_init,
                          Domain* domain)
-    : IModemDriver(std::move(modem_init), domain),
+    : IModemDriver(std::move(poller), std::move(modem_init), domain),
       adapter_{&adapter} {
   serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
                                           adapter_->poller_,
@@ -207,6 +207,13 @@ kModemError Bg95AtModem::SetupSim(const std::uint8_t pin[4]) {
   return err;
 }
 
+kModemError SetNetMode(kModemMode /*modem_mode*/)
+{
+  kModemError err{kModemError::kNoError};
+  
+  return err;
+}
+
 kModemError Bg95AtModem::SetTxPower(kModemBand band, const float& power) {
   kModemError err{kModemError::kNoError};
   std::string power_command, hex;
@@ -362,6 +369,8 @@ kModemError Bg95AtModem::SetupNetwork(
   AE_TELED_ERROR("APN name {}", apn_name);
   AE_TELED_ERROR("APN user {}", apn_user);
   AE_TELED_ERROR("APN pass {}", apn_pass);
+  AE_TELED_ERROR("Modem mode {}", modem_mode);
+  AE_TELED_ERROR("Auth type {}", auth_type);
 
   return err;
 }

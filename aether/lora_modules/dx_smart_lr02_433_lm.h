@@ -44,7 +44,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   DxSmartLr02LoraModule() = default;
 
  public:
-  explicit DxSmartLr02LoraModule(LoraModuleAdapter& adapter,
+  explicit DxSmartLr02LoraModule(LoraModuleAdapter& adapter, IPoller::ptr poller,
                                  LoraModuleInit lora_module_init,
                                  Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))

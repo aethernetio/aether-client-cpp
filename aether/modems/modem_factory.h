@@ -33,8 +33,8 @@
 namespace ae {
 class ModemDriverFactory {
  public:
-  static IModemDriver::ptr CreateModem(ModemInit modem_init,
-                                       IPoller::ptr poller, Domain* domain);
+  static IModemDriver::ptr CreateModem(IPoller::ptr poller, ModemInit modem_init,
+                                       Domain* domain);
 };
 }  // namespace ae
 

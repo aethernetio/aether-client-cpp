@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "aether/modems/imodem_driver.h"
+#include "aether/adapters/modem_adapter.h"
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/at_comm_support.h"
 
@@ -28,10 +29,10 @@ namespace ae {
 
 struct Thingy91xConnection {
   AE_REFLECT_MEMBERS(handle, protocol, host, port)
-  std::int32_t handle;
-  ae::Protocol protocol;
-  std::string host;
-  std::uint16_t port;
+  std::int32_t handle{-1};
+  Protocol protocol{Protocol::kTcp};
+  std::string host{};
+  std::uint16_t port{0};
 };
 
 class Thingy91xAtModem final : public IModemDriver {
@@ -41,8 +42,8 @@ class Thingy91xAtModem final : public IModemDriver {
   Thingy91xAtModem() = default;
 
  public:
-  explicit Thingy91xAtModem(ModemAdapter& adapter, ModemInit modem_init,
-                            Domain* domain);
+  explicit Thingy91xAtModem(ModemAdapter& adapter, IPoller::ptr poller,
+                            ModemInit modem_init, Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
   bool Init() override;

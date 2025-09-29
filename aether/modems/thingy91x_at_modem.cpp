@@ -28,9 +28,9 @@
 
 namespace ae {
 
-Thingy91xAtModem::Thingy91xAtModem(ModemAdapter& adapter, ModemInit modem_init,
-                                   Domain* domain)
-    : IModemDriver{std::move(modem_init), domain},
+Thingy91xAtModem::Thingy91xAtModem(ModemAdapter& adapter, IPoller::ptr poller,
+                                   ModemInit modem_init, Domain* domain)
+    : IModemDriver{std::move(poller), std::move(modem_init), domain},
       adapter_{&adapter} {
   serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
                                           adapter_->poller_,

@@ -24,9 +24,9 @@
 
 namespace ae {
 
-Sim7070AtModem::Sim7070AtModem(ModemAdapter& adapter, ModemInit modem_init,
-                               Domain* domain)
-    : IModemDriver{std::move(modem_init), domain},
+Sim7070AtModem::Sim7070AtModem(ModemAdapter& adapter, IPoller::ptr poller,
+                               ModemInit modem_init, Domain* domain)
+    : IModemDriver{std::move(poller), std::move(modem_init), domain},
       adapter_{&adapter} {
   serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
                                           adapter_->poller_,

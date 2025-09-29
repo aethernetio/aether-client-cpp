@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "aether/modems/imodem_driver.h"
+#include "aether/adapters/modem_adapter.h"
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/at_comm_support.h"
 
@@ -28,8 +29,8 @@ namespace ae {
 
 struct ConnectionHandle {
   AE_REFLECT_MEMBERS(context_index, connect_index)
-  std::int32_t context_index;
-  std::int32_t connect_index;
+  std::int32_t context_index{-1};
+  std::int32_t connect_index{-1};
 };
 
 struct Sim7070Connection {
@@ -68,8 +69,8 @@ class Sim7070AtModem final : public IModemDriver {
   Sim7070AtModem() = default;
 
  public:
-  explicit Sim7070AtModem(ModemAdapter& adapter, ModemInit modem_init,
-                          Domain* domain);
+  explicit Sim7070AtModem(ModemAdapter& adapter, IPoller::ptr poller,
+                          ModemInit modem_init, Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
   bool Init() override;

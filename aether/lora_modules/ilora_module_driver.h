@@ -23,8 +23,8 @@
 #include "aether/obj/obj.h"
 #include "aether/types/address.h"
 #include "aether/types/data_buffer.h"
-#include "aether/adapters/lora_module_adapter.h"
 #include "aether/lora_modules/lora_module_driver_types.h"
+#include "aether/poller/poller.h"
 
 namespace ae {
 class ILoraModuleDriver : public Obj {
@@ -34,7 +34,7 @@ class ILoraModuleDriver : public Obj {
   ILoraModuleDriver() = default;
 
  public:
-  ILoraModuleDriver(LoraModuleInit lora_module_init, Domain* domain);
+  ILoraModuleDriver(IPoller::ptr poller, LoraModuleInit lora_module_init, Domain* domain);
   ~ILoraModuleDriver() override = default;
   AE_OBJECT_REFLECT(AE_MMBRS(lora_module_init_))
 

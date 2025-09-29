@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "aether/modems/imodem_driver.h"
+#include "aether/adapters/modem_adapter.h"
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/at_comm_support.h"
 
@@ -150,7 +151,7 @@ class Bg95AtModem final : public IModemDriver {
   Bg95AtModem() = default;
 
  public:
-  explicit Bg95AtModem(ModemAdapter& adapter, ModemInit modem_init,
+  explicit Bg95AtModem(ModemAdapter& adapter, IPoller::ptr poller, ModemInit modem_init,
                        Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
