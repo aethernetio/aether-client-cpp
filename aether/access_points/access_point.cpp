@@ -14,36 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTER_REGISTRY_H_
-#define AETHER_ADAPTER_REGISTRY_H_
-
-#include "aether/obj/obj.h"
-
-#include "aether/adapters/adapter.h"
+#include "aether/access_points/access_point.h"
 
 namespace ae {
-class AdapterRegistry final : public Obj {
-  AE_OBJECT(AdapterRegistry, Obj, 0)
+AccessPoint::AccessPoint(Domain* domain) : Obj{domain} {}
 
-  AdapterRegistry() = default;
-
- public:
-#if AE_DISTILLATION
-  explicit AdapterRegistry(Domain* domain);
-#endif
-
-  AE_OBJECT_REFLECT(AE_MMBRS(adapters_))
-
-  /**
-   * \brief Add adapter to the registry
-   */
-  void Add(Adapter::ptr adapter);
-
-  std::vector<Adapter::ptr> const& adapters() const;
-
- private:
-  std::vector<Adapter::ptr> adapters_;
-};
 }  // namespace ae
-
-#endif  // AETHER_ADAPTER_REGISTRY_H_

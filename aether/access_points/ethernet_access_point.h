@@ -14,36 +14,33 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTER_REGISTRY_H_
-#define AETHER_ADAPTER_REGISTRY_H_
+#include "aether/access_points/access_point.h"
 
 #include "aether/obj/obj.h"
-
-#include "aether/adapters/adapter.h"
+#include "aether/obj/obj_ptr.h"
 
 namespace ae {
-class AdapterRegistry final : public Obj {
-  AE_OBJECT(AdapterRegistry, Obj, 0)
+class Aether;
+class IPoller;
+class DnsResolver;
 
-  AdapterRegistry() = default;
+class EthernetAccessPoint : public AccessPoint {
+  AE_OBJECT(EthernetAccessPoint, AccessPoint, 0)
 
  public:
-#if AE_DISTILLATION
-  explicit AdapterRegistry(Domain* domain);
-#endif
+  EthernetAccessPoint() = default;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(adapters_))
+  EthernetAccessPoint(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
+                      ObjPtr<DnsResolver> dns_resolver, Domain* domain);
 
-  /**
-   * \brief Add adapter to the registry
-   */
-  void Add(Adapter::ptr adapter);
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_))
 
-  std::vector<Adapter::ptr> const& adapters() const;
+  std::vector<ObjPtr<Channel>> GenerateChannels(
+      std::vector<UnifiedAddress> const& endpoints) override;
 
  private:
-  std::vector<Adapter::ptr> adapters_;
+  Obj::ptr aether_;
+  Obj::ptr poller_;
+  Obj::ptr dns_resolver_;
 };
 }  // namespace ae
-
-#endif  // AETHER_ADAPTER_REGISTRY_H_

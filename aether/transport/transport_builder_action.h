@@ -14,36 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ADAPTER_REGISTRY_H_
-#define AETHER_ADAPTER_REGISTRY_H_
+#ifndef AETHER_TRANSPORT_TRANSPORT_BUILDER_ACTION_H_
+#define AETHER_TRANSPORT_TRANSPORT_BUILDER_ACTION_H_
 
-#include "aether/obj/obj.h"
+#include <vector>
+#include <memory>
 
-#include "aether/adapters/adapter.h"
+#include "aether/actions/action.h"
+#include "aether/transport/itransport_stream_builder.h"
 
 namespace ae {
-class AdapterRegistry final : public Obj {
-  AE_OBJECT(AdapterRegistry, Obj, 0)
-
-  AdapterRegistry() = default;
-
+/**
+ * \brief Action makes all the preparation required to build transport for
+ * specified address.
+ */
+class TransportBuilderAction : public Action<TransportBuilderAction> {
  public:
-#if AE_DISTILLATION
-  explicit AdapterRegistry(Domain* domain);
-#endif
+  using Action::Action;
+  using Action::operator=;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(adapters_))
+  virtual UpdateStatus Update() = 0;
 
-  /**
-   * \brief Add adapter to the registry
-   */
-  void Add(Adapter::ptr adapter);
-
-  std::vector<Adapter::ptr> const& adapters() const;
-
- private:
-  std::vector<Adapter::ptr> adapters_;
+  virtual std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() = 0;
 };
 }  // namespace ae
 
-#endif  // AETHER_ADAPTER_REGISTRY_H_
+#endif  // AETHER_TRANSPORT_TRANSPORT_BUILDER_ACTION_H_

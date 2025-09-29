@@ -22,7 +22,6 @@
 #include "aether/aether.h"
 #include "aether/adapters/adapter.h"
 
-
 namespace ae {
 class Aether;
 

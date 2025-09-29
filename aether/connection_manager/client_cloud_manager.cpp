@@ -178,18 +178,18 @@ Cloud::ptr ClientCloudManager::RegisterCloud(
       continue;
     }
 
-    auto server = domain_->CreateObj<Server>();
-    server->server_id = server_id;
-    std::vector<UnifiedAddress> addresses;
+    std::vector<UnifiedAddress> endpoints;
     for (auto const& ip : descriptor.ips) {
       for (auto const& pp : ip.protocol_and_ports) {
-        addresses.emplace_back(
+        endpoints.emplace_back(
             IpAddressPortProtocol{{ip.ip, pp.port}, pp.protocol});
       }
     }
 
-    auto channels = aether->adapter_registry->GenerateChannels(addresses);
-    server->SetChannels(std::move(channels));
+    auto server = domain_->CreateObj<Server>(server_id, std::move(endpoints));
+    assert(server);
+    server->Register(aether->adapter_registry);
+
     new_cloud->AddServer(server);
     aether->AddServer(std::move(server));
   }

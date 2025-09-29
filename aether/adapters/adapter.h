@@ -18,36 +18,16 @@
 #define AETHER_ADAPTERS_ADAPTER_H_
 
 #include <vector>
-#include <memory>
 
 #include "aether/obj/obj.h"
-#include "aether/types/address.h"
-#include "aether/actions/action.h"
+#include "aether/events/events.h"
 
-#include "aether/transport/itransport_stream_builder.h"
+#include "aether/access_points/access_point.h"
 
 namespace ae {
-class Channel;
 /**
- * \brief Action makes all the preparation required to build transport for
- * specified address.
- */
-class TransportBuilderAction : public Action<TransportBuilderAction> {
- public:
-  using Action::Action;
-  using Action::operator=;
-
-  virtual UpdateStatus Update() = 0;
-
-  virtual std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() = 0;
-};
-
-/**
- * \brief The transport builder factory.
- * It represents network adapter like gsm modem, wifi, ethernet or any other
- * network interface.
- * It must configure interface and provide transport builders for specified
- * address.
+ * \brief The interface to control network adapter.
+ * It must configure interface and provide list of access points.
  */
 class Adapter : public Obj {
   AE_OBJECT(Adapter, Obj, 0)
@@ -56,23 +36,20 @@ class Adapter : public Obj {
   Adapter() = default;
 
  public:
+  using NewAccessPoint = Event<void(AccessPoint::ptr const&)>;
+
 #ifdef AE_DISTILLATION
   explicit Adapter(Domain* domain);
 #endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT()
 
-  /**
-   * \brief Provide an action creating transport builders for address
-   */
-  virtual ActionPtr<TransportBuilderAction> CreateTransport(
-      UnifiedAddress const& address);
+  virtual std::vector<AccessPoint::ptr> access_points() = 0;
 
-  /**
-   * \brief Generate list of channels.
-   */
-  virtual std::vector<ObjPtr<Channel>> GenerateChannels(
-      std::vector<UnifiedAddress> const& server_channels);
+  virtual NewAccessPoint::Subscriber new_access_point();
+
+ protected:
+  NewAccessPoint new_access_point_event_;
 };
 
 }  // namespace ae

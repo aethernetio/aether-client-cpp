@@ -19,26 +19,26 @@
 
 #include "aether/obj/obj.h"
 #include "aether/types/address.h"
-#include "aether/adapters/adapter.h"
 #include "aether/channels/channels_types.h"
 #include "aether/channels/channel_statistics.h"
+#include "aether/transport/transport_builder_action.h"
 
 namespace ae {
 class Channel : public Obj {
   AE_OBJECT(Channel, Obj, 0)
 
+ public:
   Channel() = default;
 
- public:
-  Channel(Adapter::ptr adapter, Domain* domain);
+  Channel(UnifiedAddress address, Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(address, adapter_, transport_properties_,
+  AE_OBJECT_REFLECT(AE_MMBRS(address, transport_properties_,
                              channel_statistics_))
 
   /**
    * \brief Make transport from this channel.
    */
-  ActionPtr<TransportBuilderAction> TransportBuilder();
+  virtual ActionPtr<TransportBuilderAction> TransportBuilder() = 0;
 
   ChannelTransportProperties const& transport_properties() const;
   ChannelStatistics& channel_statistics();
@@ -46,7 +46,6 @@ class Channel : public Obj {
   UnifiedAddress address;
 
  private:
-  Adapter::ptr adapter_;
   ChannelTransportProperties transport_properties_;
   ChannelStatistics::ptr channel_statistics_;
 };
