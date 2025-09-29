@@ -22,7 +22,8 @@
 
 namespace ae {
 
-IModemDriver::ptr ModemDriverFactory::CreateModem(IPoller::ptr poller, ModemInit modem_init,
+IModemDriver::ptr ModemDriverFactory::CreateModem(IPoller::ptr poller,
+                                                  ModemInit modem_init,
                                                   Domain* domain) {
 #if AE_MODEM_BG95_ENABLED == 1
   return domain->CreateObj<Bg95AtModem>(poller, modem_init);

@@ -34,7 +34,8 @@ class ILoraModuleDriver : public Obj {
   ILoraModuleDriver() = default;
 
  public:
-  ILoraModuleDriver(IPoller::ptr poller, LoraModuleInit lora_module_init, Domain* domain);
+  ILoraModuleDriver(IPoller::ptr poller, LoraModuleInit lora_module_init,
+                    Domain* /* domain */);
   ~ILoraModuleDriver() override = default;
   AE_OBJECT_REFLECT(AE_MMBRS(lora_module_init_))
 
