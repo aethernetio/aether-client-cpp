@@ -157,7 +157,21 @@ ActionPtr<StreamWriteAction> ISerialPort::Write(DataBuffer&& in_data) {
   return send_packet_action;
 }
 
-std::optional<DataBuffer> ISerialPort::Read() { return {}; }
+/* StreamUpdateEvent::Subscriber ISerialPort::stream_update_event() {
+  return stream_update_event_;
+}*/
+
+/* StreamInfo ISerialPort::stream_info() { return stream_info_; }*/
+
+/* OutDataEvent::Subscriber ISerialPort::out_data_event() {
+  return out_data_event_;
+}*/
+  
+std::optional<DataBuffer> ISerialPort::Read() { 
+    DataBuffer buffer{};
+
+    return buffer;
+}
 
 bool ISerialPort::IsOpen() { return true; }
 } /* namespace ae */

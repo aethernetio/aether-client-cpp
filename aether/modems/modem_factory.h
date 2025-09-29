@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "aether/modems/imodem_driver.h"
+#include "aether/adapters/modem_adapter.h"
 
 #define AE_MODEM_BG95_ENABLED 0
 #define AE_MODEM_SIM7070_ENABLED 1
@@ -33,8 +34,9 @@
 namespace ae {
 class ModemDriverFactory {
  public:
-  static IModemDriver::ptr CreateModem(IPoller::ptr poller, ModemInit modem_init,
-                                       Domain* domain);
+  static IModemDriver::ptr CreateModem(ModemAdapter& adapter,
+                                       IPoller::ptr poller,
+                                       ModemInit modem_init, Domain* domain);
 };
 }  // namespace ae
 

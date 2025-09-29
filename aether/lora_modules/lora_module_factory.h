@@ -20,7 +20,7 @@
 #include <memory>
 
 #include "aether/lora_modules/ilora_module_driver.h"
-#include "aether/poller/poller.h"
+#include "aether/adapters/lora_module_adapter.h"
 
 #define AE_LORA_MODULE_EBYTE_E22_ENABLED 0
 #define AE_LORA_MODULE_DXSMART_LR02_ENABLED 1
@@ -34,7 +34,8 @@ namespace ae {
 class LoraModuleDriverFactory {
  public:
   static ILoraModuleDriver::ptr CreateLoraModule(
-      IPoller::ptr poller, LoraModuleInit lora_module_init, Domain* domain);
+      LoraModuleAdapter& adapter, IPoller::ptr poller,
+      LoraModuleInit lora_module_init, Domain* domain);
 };
 }  // namespace ae
 

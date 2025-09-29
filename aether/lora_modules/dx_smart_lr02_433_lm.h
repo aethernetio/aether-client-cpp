@@ -45,8 +45,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
 
  public:
   explicit DxSmartLr02LoraModule(LoraModuleAdapter& adapter, IPoller::ptr poller,
-                                 LoraModuleInit lora_module_init,
-                                 Domain* domain);
+                                 LoraModuleInit lora_module_init, Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
   bool Init() override;

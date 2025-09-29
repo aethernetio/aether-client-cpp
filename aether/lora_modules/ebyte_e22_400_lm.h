@@ -73,6 +73,7 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
   std::vector<LoraConnection> connect_vec_;
   std::unique_ptr<AtCommSupport> at_comm_support_;
   LoraModuleAdapter* adapter_;
+  bool at_mode_{false};
 
   static constexpr std::uint16_t kLoraModuleMTU{200};
 };

@@ -32,4 +32,91 @@ EbyteE22LoraModule::EbyteE22LoraModule(LoraModuleAdapter& adapter,
                                           GetLoraModuleInit().serial_init);
 };
 
+bool EbyteE22LoraModule::Init() { return true; };
+
+bool EbyteE22LoraModule::Start() { return true; };
+
+bool EbyteE22LoraModule::Stop() { return true; };
+
+ConnectionLoraIndex EbyteE22LoraModule::OpenNetwork(ae::Protocol /* protocol*/, std::string const& /*host*/,
+                                                    std::uint16_t /* port*/) { 
+                                
+  ConnectionLoraIndex index{-1};
+  
+  return index; };
+
+void EbyteE22LoraModule::CloseNetwork(
+    ae::ConnectionLoraIndex /*connect_index*/) {};
+
+void EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
+                 ae::DataBuffer const& /*data*/) {};
+
+DataBuffer EbyteE22LoraModule::ReadPacket(
+    ae::ConnectionLoraIndex /*connect_index*/,
+                      ae::Duration /*timeout*/) { 
+  DataBuffer data{};
+  
+  return data; };
+
+bool EbyteE22LoraModule::SetPowerSaveParam(std::string const& /*psp*/) {
+  return true;
+};
+
+bool EbyteE22LoraModule::PowerOff() { return true; };
+
+bool EbyteE22LoraModule::SetLoraModuleAddress(
+    std::uint16_t const& /*address*/) {
+  return true;
+};
+
+bool EbyteE22LoraModule::SetLoraModuleChannel(std::uint8_t const& /*channel*/)
+{
+  return true;
+};
+
+bool EbyteE22LoraModule::SetLoraModuleMode(kLoraModuleMode const& /*mode*/)
+{
+  return true;
+};
+
+bool EbyteE22LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& /*level*/)
+{
+  return true;
+};
+
+bool EbyteE22LoraModule::SetLoraModulePower(kLoraModulePower const& /*power*/)
+{
+  return true;
+};
+
+bool EbyteE22LoraModule::SetLoraModuleBandWidth(
+    kLoraModuleBandWidth const& /*band_width*/)
+{
+  return true;
+};
+
+bool EbyteE22LoraModule::SetLoraModuleCodingRate(
+    kLoraModuleCodingRate const& /*coding_rate*/)
+{
+  return true;
+};
+
+bool EbyteE22LoraModule::SetLoraModuleSpreadingFactor(
+    kLoraModuleSpreadingFactor const& /*spreading_factor*/)
+{
+  return true;
+};
+
+bool EbyteE22LoraModule::SetLoraModuleCRCCheck(
+    kLoraModuleCRCCheck const& /*crc_check*/)
+{
+  return true;
+};
+
+bool EbyteE22LoraModule::SetLoraModuleIQSignalInversion(
+    kLoraModuleIQSignalInversion const& /*signal_inversion*/)
+{
+  return true;
+};
+
 }  // namespace ae

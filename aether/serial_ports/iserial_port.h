@@ -97,9 +97,9 @@ class ISerialPort : public ByteIStream {
   virtual bool IsOpen() = 0;
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
-  StreamUpdateEvent::Subscriber stream_update_event() override;
-  StreamInfo stream_info() const override;
-  OutDataEvent::Subscriber out_data_event() override;
+  //StreamUpdateEvent::Subscriber stream_update_event() override;
+  //StreamInfo stream_info() const override;
+  //OutDataEvent::Subscriber out_data_event() override;
 
  private:
   void Connect();
@@ -114,6 +114,8 @@ class ISerialPort : public ByteIStream {
   SerialInit serial_init_;
 
   StreamInfo stream_info_;
+  OutDataEvent out_data_event_;
+  StreamUpdateEvent stream_update_event_;
 
   OwnActionPtr<SocketPacketQueueManager<SendAction>> send_queue_manager_;
   OwnActionPtr<ErrorEventAction> notify_error_action_;
