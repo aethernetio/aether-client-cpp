@@ -24,9 +24,9 @@ namespace ae {
 EbyteE22LoraModule::EbyteE22LoraModule(LoraModuleAdapter& adapter,
                                        LoraModuleInit lora_module_init,
                                        Domain* domain)
-    : adapter_{&adapter},
-      ILoraModuleDriver{std::move(lora_module_init),
-                        domain} {
+    : ILoraModuleDriver{std::move(lora_module_init),
+                        domain},
+      adapter_{&adapter} {
   serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
                                           adapter_->poller_,
                                           GetLoraModuleInit().serial_init);

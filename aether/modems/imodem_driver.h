@@ -27,7 +27,6 @@
 #include "aether/modems/modem_driver_types.h"
 
 namespace ae {
-
 class IModemDriver : public Obj {
   AE_OBJECT(IModemDriver, Obj, 0)
 
@@ -35,11 +34,9 @@ class IModemDriver : public Obj {
   IModemDriver() = default;
 
  public:
-  IModemDriver(ModemInit modem_init,
-               Domain* /*domain*/);
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
-
+  IModemDriver(ModemInit modem_init, Domain* domain);
   ~IModemDriver() override = default;
+  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
 
   virtual bool Init();
   virtual bool Start();

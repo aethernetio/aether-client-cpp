@@ -34,11 +34,9 @@ class ILoraModuleDriver : public Obj {
   ILoraModuleDriver() = default;
 
  public:
-  ILoraModuleDriver(LoraModuleInit lora_module_init,
-                    Domain* /* domain */);
-  AE_OBJECT_REFLECT(AE_MMBRS(lora_module_init_))
-
+  ILoraModuleDriver(LoraModuleInit lora_module_init, Domain* domain);
   ~ILoraModuleDriver() override = default;
+  AE_OBJECT_REFLECT(AE_MMBRS(lora_module_init_))
 
   virtual bool Init();
   virtual bool Start();
