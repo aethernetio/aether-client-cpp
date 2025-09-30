@@ -48,10 +48,20 @@ class WINSerialPort final : public ISerialPort {
   PtrView<IPoller> poller_;
   void* h_port_;
 
+  void Connect();
+  void ReadPort();
+  void WritePort();
+  void ErrorPort();
+  void Disconnect();
+  
   void Open(std::string const& port_name, std::uint32_t baud_rate);
   void ConfigurePort(std::uint32_t baud_rate);
   void SetupTimeouts();
   void Close();
+  
+  IPoller::OnPollEventSubscriber::Subscription port_event_sub_;
+  Subscription port_error_sub_;
+  Subscription read_error_sub_;
 };
 } /* namespace ae */
 

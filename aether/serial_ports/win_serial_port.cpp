@@ -26,7 +26,8 @@ namespace ae {
 WINSerialPort::WINSerialPort(ActionContext action_context,
                              IPoller::ptr const& poller,
                              SerialInit const& serial_init)
-    : ISerialPort{std::move(action_context), std::move(poller), std::move(serial_init)},
+    : ISerialPort{std::move(action_context), std::move(poller),
+                  std::move(serial_init)},
       action_context_{std::move(action_context)},
       poller_{std::move(poller)},
       h_port_{INVALID_HANDLE_VALUE} {
@@ -89,6 +90,39 @@ std::optional<DataBuffer> WINSerialPort::Read() {
 
 bool WINSerialPort::IsOpen() { return h_port_ != INVALID_HANDLE_VALUE; }
 
+void WINSerialPort::Connect() {
+  AE_TELE_INFO(kSerialTransportConnect, "Serial port connect");
+
+  auto poller_ptr = poller_.Lock();
+  assert(poller_ptr);
+  port_event_sub_ =
+      poller_ptr->Add(static_cast<DescriptorType>(h_port_))
+          .Subscribe([this](PollerEvent event) {
+            if (event.descriptor != static_cast<DescriptorType>(h_port_)) {
+              return;
+            }
+            switch (event.event_type) {
+              case EventType::kRead:
+                ReadPort();
+                break;
+              case EventType::kWrite:
+                WritePort();
+                break;
+              case EventType::kError:
+                ErrorPort();
+                break;
+            }
+          });
+}
+
+void WINSerialPort::ReadPort() {}
+
+void WINSerialPort::WritePort() {}
+
+void WINSerialPort::ErrorPort() {}
+
+void WINSerialPort::Disconnect() {}
+
 void WINSerialPort::Open(std::string const& port_name,
                          std::uint32_t baud_rate) {
   std::string full_name = "\\\\.\\" + port_name;
@@ -103,6 +137,8 @@ void WINSerialPort::Open(std::string const& port_name,
 
   ConfigurePort(baud_rate);
   SetupTimeouts();
+  
+  Connect();
 }
 
 void WINSerialPort::ConfigurePort(std::uint32_t baud_rate) {
@@ -142,6 +178,8 @@ void WINSerialPort::Close() {
   if (h_port_ != INVALID_HANDLE_VALUE) {
     CloseHandle(h_port_);
     h_port_ = INVALID_HANDLE_VALUE;
+    
+    Disconnect();
   }
 }
 
