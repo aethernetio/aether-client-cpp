@@ -20,56 +20,47 @@
 #include <optional>
 #include <mutex>
 
-#include "aether/ptr/ptr_view.h"
-#include "aether/actions/action.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/actions/notify_action.h"
-#include "aether/actions/action_context.h"
-#include "aether/events/event_subscription.h"
-#include "aether/events/multi_subscription.h"
-#include "aether/types/data_buffer.h"
-
-#include "aether/poller/poller.h"
-#include "aether/stream_api/istream.h"
-#include "aether/transport/socket_packet_send_action.h"
-#include "aether/transport/socket_packet_queue_manager.h"
 #include "aether/serial_ports/serial_port_types.h"
+
+#include "aether/types/data_buffer.h"
+#include "aether/ptr/ptr_view.h"
+#include "aether/poller/poller.h"
+//#include "aether/actions/action.h"
+//#include "aether/actions/action_ptr.h"
+#include "aether/actions/action_context.h"
+
 
 namespace ae {
 /**
  * \brief Represents serial port interface for device communication.
  */
-class ISerialPort : public ByteIStream {
+class ISerialPort {
  protected:
   ISerialPort() = default;
 
  public:
   explicit ISerialPort(ActionContext action_context, IPoller::ptr const& poller,
                        SerialInit const& serial_init);
-  virtual ~ISerialPort() override;
+  virtual ~ISerialPort() = default;
 
   /**
    * \brief Write amount of data.
    */
-  //virtual void Write(DataBuffer const& data) = 0;
+  virtual void Write(DataBuffer const& data) = 0;
   /**
    * \brief Read all the data.
    */
-  //virtual std::optional<DataBuffer> Read() = 0;
+  virtual std::optional<DataBuffer> Read() = 0;
   /**
    * \brief Check if the serial port is open.
    */
-  //virtual bool IsOpen() = 0;
-
-  ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
-  StreamUpdateEvent::Subscriber stream_update_event() override;
-  StreamInfo stream_info() const override;
-  OutDataEvent::Subscriber out_data_event() override;
+  virtual bool IsOpen() = 0;
 
  private:
-  
+  ActionContext action_context_;
+  PtrView<IPoller> poller_;
+  SerialInit serial_init_;
 };
-
 } /* namespace ae */
 
 #endif  // AETHER_SERIAL_PORTS_ISERIAL_PORT_H_

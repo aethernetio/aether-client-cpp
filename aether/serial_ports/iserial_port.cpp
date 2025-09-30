@@ -24,16 +24,8 @@ ISerialPort::ISerialPort(ActionContext action_context,
                          SerialInit const& serial_init)
     : action_context_{std::move(action_context)},
       poller_{poller},
-      serial_init_{std::move(serial_init)},
-      send_queue_manager_{action_context_},
-      notify_error_action_{action_context_} {
+      serial_init_{std::move(serial_init)} {
   AE_TELE_INFO(kSerialTransport);
-  stream_info_.link_state = LinkState::kUnlinked;
-  stream_info_.is_reliable = false;
-
-  Connect();
 }
-
-ISerialPort::~ISerialPort() { Disconnect(); }
 
 } /* namespace ae */
