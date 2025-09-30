@@ -36,7 +36,7 @@ WINSerialPort::WINSerialPort(ActionContext action_context,
 
 WINSerialPort::~WINSerialPort() { Close(); }
 
-void WINSerialPort::Write(DataBuffer const& data) {
+/*void WINSerialPort::Write(DataBuffer const& data) {
   if (h_port_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
     return;
@@ -103,7 +103,7 @@ void WINSerialPort::Open(std::string const& port_name,
 
   ConfigurePort(baud_rate);
   SetupTimeouts();
-}
+}*/
 
 void WINSerialPort::ConfigurePort(std::uint32_t baud_rate) {
   DCB dcb{};

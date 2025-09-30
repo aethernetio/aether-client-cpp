@@ -40,41 +40,6 @@ namespace ae {
  * \brief Represents serial port interface for device communication.
  */
 class ISerialPort : public ByteIStream {
-  class ReadAction final : public Action<ReadAction> {
-   public:
-    ReadAction(ActionContext action_context, ISerialPort& serial_port);
-
-    UpdateStatus Update();
-
-    void Read();
-    void Stop();
-
-   private:
-    void ReadEvent();
-
-    ISerialPort* serial_port_;
-    DataBuffer read_buffer_;
-    std::vector<DataBuffer> read_buffers_;
-    std::atomic_bool read_event_{false};
-    std::atomic_bool error_event_{false};
-    std::atomic_bool stop_event_{false};
-  };
-
-  class SendAction final : public SocketPacketSendAction {
-   public:
-    SendAction(ActionContext action_context, ISerialPort& serial_port,
-               DataBuffer&& data_buffer);
-    SendAction(SendAction&& other) noexcept;
-
-    void Send() override;
-
-   private:
-    ISerialPort* serial_port_;
-    DataBuffer data_buffer_;
-  };
-
-  using ErrorEventAction = NotifyAction;
-
  protected:
   ISerialPort() = default;
 
@@ -86,42 +51,23 @@ class ISerialPort : public ByteIStream {
   /**
    * \brief Write amount of data.
    */
-  virtual void Write(DataBuffer const& data) = 0;
+  //virtual void Write(DataBuffer const& data) = 0;
   /**
    * \brief Read all the data.
    */
-  virtual std::optional<DataBuffer> Read() = 0;
+  //virtual std::optional<DataBuffer> Read() = 0;
   /**
    * \brief Check if the serial port is open.
    */
-  virtual bool IsOpen() = 0;
+  //virtual bool IsOpen() = 0;
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
-  //StreamUpdateEvent::Subscriber stream_update_event() override;
-  //StreamInfo stream_info() const override;
-  //OutDataEvent::Subscriber out_data_event() override;
+  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamInfo stream_info() const override;
+  OutDataEvent::Subscriber out_data_event() override;
 
  private:
-  void Connect();
-  void ReadPort();
-  void WritePort();
-  void ErrorPort();
-
-  void Disconnect();
-
-  ActionContext action_context_;
-  PtrView<IPoller> poller_;
-  SerialInit serial_init_;
-
-  StreamInfo stream_info_;
-  OutDataEvent out_data_event_;
-  StreamUpdateEvent stream_update_event_;
-
-  OwnActionPtr<SocketPacketQueueManager<SendAction>> send_queue_manager_;
-  OwnActionPtr<ErrorEventAction> notify_error_action_;
-  OwnActionPtr<ReadAction> read_action_;
-
-  MultiSubscription send_action_error_subs_;
+  
 };
 
 } /* namespace ae */
