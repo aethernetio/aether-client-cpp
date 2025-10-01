@@ -32,7 +32,7 @@ struct GlobalId {
   static constexpr ObjId kTeleStatistics{3};
   static constexpr ObjId kEthernetAdapter = kGlobalIdAdaptersOffset + 1;
   static constexpr ObjId kLanAdapter = kGlobalIdAdaptersOffset + 2;
-  static constexpr ObjId kEsp32WiFiAdapter = kGlobalIdAdaptersOffset + 3;
+  static constexpr ObjId kWiFiAdapter = kGlobalIdAdaptersOffset + 3;
   static constexpr ObjId kRegisterWifiAdapter = kGlobalIdAdaptersOffset + 4;
   static constexpr ObjId kModemAdapter = kGlobalIdAdaptersOffset + 5;
   static constexpr ObjId kRegisterModemAdapter = kGlobalIdAdaptersOffset + 6;

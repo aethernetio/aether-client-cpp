@@ -26,11 +26,12 @@ Server::Server(ServerId server_id, std::vector<UnifiedAddress> endpoints,
       endpoints{std::move(endpoints)},
       subscribed_{} {}
 
-void Server::Update(TimePoint /* current_time */) {
+void Server::Update(TimePoint current_time) {
   if (!subscribed_) {
     subscribed_ = true;
     UpdateSubscription();
   }
+  update_time_ = current_time;
 }
 
 void Server::Register(AdapterRegistry::ptr adapter_registry) {

@@ -14,38 +14,31 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ACCESS_POINTS_ETHERNET_ACCESS_POINT_H_
-#define AETHER_ACCESS_POINTS_ETHERNET_ACCESS_POINT_H_
+#ifndef AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_
+#define AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_
 
+#include "aether/modems/imodem_driver.h"
 #include "aether/access_points/access_point.h"
-
-#include "aether/obj/obj.h"
-#include "aether/obj/obj_ptr.h"
 
 namespace ae {
 class Aether;
-class IPoller;
-class DnsResolver;
-
-class EthernetAccessPoint : public AccessPoint {
-  AE_OBJECT(EthernetAccessPoint, AccessPoint, 0)
+class ModemAccessPoint final : public AccessPoint {
+  AE_OBJECT(ModemAccessPoint, AccessPoint, 0)
+  ModemAccessPoint() = default;
 
  public:
-  EthernetAccessPoint() = default;
+  ModemAccessPoint(ObjPtr<Aether> aether, IModemDriver::ptr modem_driver,
+                   Domain* domain);
 
-  EthernetAccessPoint(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
-                      ObjPtr<DnsResolver> dns_resolver, Domain* domain);
-
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_))
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, modem_driver_));
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
       std::vector<UnifiedAddress> const& endpoints) override;
 
  private:
   Obj::ptr aether_;
-  Obj::ptr poller_;
-  Obj::ptr dns_resolver_;
+  IModemDriver::ptr modem_driver_;
 };
 }  // namespace ae
 
-#endif  // AETHER_ACCESS_POINTS_ETHERNET_ACCESS_POINT_H_
+#endif  // AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_

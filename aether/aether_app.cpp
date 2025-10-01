@@ -23,7 +23,7 @@
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"
 #include "aether/adapters/ethernet.h"
-#include "aether/adapters/esp32_wifi.h"
+#include "aether/adapters/wifi_adapter.h"
 #include "aether/poller/win_poller.h"
 #include "aether/poller/epoll_poller.h"
 #include "aether/poller/kqueue_poller.h"

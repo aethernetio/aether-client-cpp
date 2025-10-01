@@ -74,7 +74,7 @@
 #include "aether/adapter_registry.h"
 
 #include "aether/adapters/ethernet.h"
-#include "aether/adapters/esp32_wifi.h"
+#include "aether/adapters/wifi_adapter.h"
 #include "aether/adapters/modem_adapter.h"
 
 #include "aether/modems/imodem_driver.h"

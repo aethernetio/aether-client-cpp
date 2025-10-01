@@ -14,38 +14,36 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ACCESS_POINTS_ETHERNET_ACCESS_POINT_H_
-#define AETHER_ACCESS_POINTS_ETHERNET_ACCESS_POINT_H_
+#ifndef AETHER_CHANNELS_WIFI_CHANNEL_H_
+#define AETHER_CHANNELS_WIFI_CHANNEL_H_
 
-#include "aether/access_points/access_point.h"
-
-#include "aether/obj/obj.h"
-#include "aether/obj/obj_ptr.h"
+#include "aether/channels/channel.h"
+#include "aether/access_points/wifi_access_point.h"
 
 namespace ae {
 class Aether;
 class IPoller;
 class DnsResolver;
 
-class EthernetAccessPoint : public AccessPoint {
-  AE_OBJECT(EthernetAccessPoint, AccessPoint, 0)
+class WifiChannel final : public Channel {
+  AE_OBJECT(WifiChannel, Channel, 0)
+  WifiChannel() = default;
 
  public:
-  EthernetAccessPoint() = default;
+  WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
+              ObjPtr<DnsResolver> resolver, WifiAccessPoint::ptr access_point,
+              UnifiedAddress address, Domain* domain);
 
-  EthernetAccessPoint(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
-                      ObjPtr<DnsResolver> dns_resolver, Domain* domain);
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, resolver_, access_point_))
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_))
-
-  std::vector<ObjPtr<Channel>> GenerateChannels(
-      std::vector<UnifiedAddress> const& endpoints) override;
+  ActionPtr<TransportBuilderAction> TransportBuilder() override;
 
  private:
   Obj::ptr aether_;
   Obj::ptr poller_;
-  Obj::ptr dns_resolver_;
+  Obj::ptr resolver_;
+  WifiAccessPoint::ptr access_point_;
 };
 }  // namespace ae
 
-#endif  // AETHER_ACCESS_POINTS_ETHERNET_ACCESS_POINT_H_
+#endif  // AETHER_CHANNELS_WIFI_CHANNEL_H_

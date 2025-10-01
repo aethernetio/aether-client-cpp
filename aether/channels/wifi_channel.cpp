@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-#include "aether/channels/ethernet_channel.h"
+#include "aether/channels/wifi_channel.h"
 
 #include <limits>
 #include <utility>
+#include <cstdint>
 
-#include "aether/memory.h"
+#include "aether/ptr/ptr_view.h"
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
 #include "aether/events/event_subscription.h"
@@ -31,40 +32,45 @@
 #include "aether/channels/ethernet_transport_builder.h"
 
 namespace ae {
-namespace ethernet_access_point_internal {
-
-class EthernetTransportBuilderAction final : public TransportBuilderAction {
+namespace wifi_channel_internal {
+class WifiTransportBuilderAction final : public TransportBuilderAction {
  public:
   enum class State : std::uint8_t {
     kAddressResolve,
+    kWifiConnect,
     kBuildersCreate,
-    kBuildersCreated,
-    kFailed
+    kBuildersReady,
+    kError,
   };
 
-  EthernetTransportBuilderAction(ActionContext action_context,
-                                 UnifiedAddress address,
-                                 DnsResolver::ptr const& dns_resolver,
-                                 IPoller::ptr const& poller)
+  WifiTransportBuilderAction(ActionContext action_context,
+                             WifiAccessPoint::ptr const& access_point,
+                             IPoller::ptr const& poller,
+                             DnsResolver::ptr const& resolver,
+                             UnifiedAddress address)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
-        address_{std::move(address)},
-        resolver_{dns_resolver},
+        access_point_{access_point},
         poller_{poller},
-        state_{State::kAddressResolve} {}
+        resolver_{resolver},
+        address_{std::move(address)},
+        state_{State::kWifiConnect} {}
 
   UpdateStatus Update() override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
+        case State::kWifiConnect:
+          WifiConnect();
+          break;
         case State::kAddressResolve:
           ResolveAddress();
           break;
         case State::kBuildersCreate:
-          CreateBuilders();
+          BuildersCreate();
           break;
-        case State::kBuildersCreated:
+        case State::kBuildersReady:
           return UpdateStatus::Result();
-        case State::kFailed:
+        case State::kError:
           return UpdateStatus::Error();
       }
     }
@@ -76,6 +82,22 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
   }
 
  private:
+  void WifiConnect() {
+    auto access_point = access_point_.Lock();
+    assert(access_point);
+    auto connect_action = access_point->Connect();
+    wifi_connected_sub_ = connect_action->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[this]() {
+          state_ = State::kAddressResolve;
+          Action::Trigger();
+        }},
+        OnError{[this]() {
+          state_ = State::kError;
+          Action::Trigger();
+        }},
+    });
+  }
+
 #if AE_SUPPORT_CLOUD_DNS
   void ResolveAddress() {
     std::visit(reflect::OverrideFunc{
@@ -98,7 +120,7 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
                              }},
                              OnError {
                                [this]() {
-                                 state_ = State::kFailed;
+                                 state_ = State::kError;
                                  Action::Trigger();
                                }
                              }});
@@ -107,7 +129,7 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
   }
 #else
   void ResolveAddress() {
-    std::visitr(
+    std::visit(
         reflect::OverrideFunc{[this](IpAddressPortProtocol const& ip_address) {
           ip_addresses_.push_back(ip_address);
         }},
@@ -117,37 +139,42 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
   }
 #endif
 
-  void CreateBuilders() {
+  void BuildersCreate() {
+    transport_builders_.reserve(ip_addresses_.size());
     IPoller::ptr poller = poller_.Lock();
     assert(poller);
     for (auto const& addr : ip_addresses_) {
-      auto builder = std::make_unique<EthernetTransportBuilder>(action_context_,
-                                                                poller, addr);
-      transport_builders_.push_back(std::move(builder));
+      transport_builders_.emplace_back(
+          std::make_unique<EthernetTransportBuilder>(action_context_, poller,
+                                                     addr));
     }
-    state_ = State::kBuildersCreated;
+    state_ = State::kBuildersReady;
     Action::Trigger();
   }
 
   ActionContext action_context_;
-  UnifiedAddress address_;
-  PtrView<DnsResolver> resolver_;
+  PtrView<WifiAccessPoint> access_point_;
   PtrView<IPoller> poller_;
-  StateMachine<State> state_;
+  PtrView<DnsResolver> resolver_;
+  UnifiedAddress address_;
+
   std::vector<IpAddressPortProtocol> ip_addresses_;
   std::vector<std::unique_ptr<ITransportStreamBuilder>> transport_builders_;
+  Subscription wifi_connected_sub_;
   Subscription address_resolve_sub_;
+  StateMachine<State> state_;
 };
-}  // namespace ethernet_access_point_internal
+}  // namespace wifi_channel_internal
 
-EthernetChannel::EthernetChannel(ObjPtr<Aether> aether,
-                                 ObjPtr<DnsResolver> dns_resolver,
-                                 ObjPtr<IPoller> poller, UnifiedAddress address,
-                                 Domain* domain)
+WifiChannel::WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
+                         ObjPtr<DnsResolver> resolver,
+                         WifiAccessPoint::ptr access_point,
+                         UnifiedAddress address, Domain* domain)
     : Channel{std::move(address), domain},
-      aether_{std::move(aether)},
-      poller_{std::move(poller)},
-      dns_resolver_{std::move(dns_resolver)} {
+      aether_(std::move(aether)),
+      poller_(std::move(poller)),
+      resolver_(std::move(resolver)),
+      access_point_(std::move(access_point)) {
   // fill transport properties
   auto protocol = std::visit([](auto&& adr) { return adr.protocol; }, address);
 
@@ -173,14 +200,12 @@ EthernetChannel::EthernetChannel(ObjPtr<Aether> aether,
   }
 }
 
-ActionPtr<TransportBuilderAction> EthernetChannel::TransportBuilder() {
-  DnsResolver::ptr dns_resolver = dns_resolver_;
+ActionPtr<TransportBuilderAction> WifiChannel::TransportBuilder() {
   IPoller::ptr poller = poller_;
-  assert(dns_resolver);
-  assert(poller);
-  return ActionPtr<
-      ethernet_access_point_internal::EthernetTransportBuilderAction>(
-      *aether_.as<Aether>(), address, dns_resolver, poller);
+  DnsResolver::ptr resolver = resolver_;
+
+  return ActionPtr<wifi_channel_internal::WifiTransportBuilderAction>{
+      *aether_.as<Aether>(), access_point_, poller, resolver, address};
 }
 
 }  // namespace ae

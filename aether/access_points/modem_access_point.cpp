@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2025 Aethernet Inc.
  *
@@ -15,36 +14,28 @@
  * limitations under the License.
  */
 
-#include "aether/access_points/ethernet_access_point.h"
-
-#include <utility>
+#include "aether/access_points/modem_access_point.h"
 
 #include "aether/aether.h"
-#include "aether/poller/poller.h"
-#include "aether/dns/dns_resolve.h"
-#include "aether/channels/ethernet_channel.h"
+
+#include "aether/channels/modem_channel.h"
 
 namespace ae {
-EthernetAccessPoint::EthernetAccessPoint(ObjPtr<Aether> aether,
-                                         ObjPtr<IPoller> poller,
-                                         ObjPtr<DnsResolver> dns_resolver,
-                                         Domain* domain)
+ModemAccessPoint::ModemAccessPoint(ObjPtr<Aether> aether,
+                                   IModemDriver::ptr modem_driver,
+                                   Domain* domain)
     : AccessPoint{domain},
       aether_{std::move(aether)},
-      poller_{std::move(poller)},
-      dns_resolver_{std::move(dns_resolver)} {}
+      modem_driver_{std::move(modem_driver)} {}
 
-std::vector<ObjPtr<Channel>> EthernetAccessPoint::GenerateChannels(
+std::vector<ObjPtr<Channel>> ModemAccessPoint::GenerateChannels(
     std::vector<UnifiedAddress> const& endpoints) {
-  Aether::ptr aether = aether_;
-  DnsResolver::ptr resolver = dns_resolver_;
-  IPoller::ptr poller = poller_;
-
   std::vector<ObjPtr<Channel>> channels;
   channels.reserve(endpoints.size());
-  for (auto const& address : endpoints) {
+  Aether::ptr aether = aether_;
+  for (auto const& endpoint : endpoints) {
     channels.emplace_back(
-        domain_->CreateObj<EthernetChannel>(aether, resolver, poller, address));
+        domain_->CreateObj<ModemChannel>(aether, modem_driver_, endpoint));
   }
   return channels;
 }

@@ -45,7 +45,7 @@ class Channel : public Obj {
 
   UnifiedAddress address;
 
- private:
+ protected:
   ChannelTransportProperties transport_properties_;
   ChannelStatistics::ptr channel_statistics_;
 };
