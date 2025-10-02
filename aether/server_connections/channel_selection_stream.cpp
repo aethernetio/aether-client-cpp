@@ -38,7 +38,7 @@ ActionPtr<StreamWriteAction> ChannelSelectStream::Write(DataBuffer&& data) {
     return ActionPtr<FailedStreamWriteAction>{action_context_};
   }
 
-  AE_TELED_ERROR("Write to channel size {}", data.size());
+  AE_TELED_DEBUG("Write to channel size {}", data.size());
   auto* stream = server_channel_->stream();
   assert(stream != nullptr);
   return stream->Write(std::move(data));
