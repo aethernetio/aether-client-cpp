@@ -23,7 +23,7 @@ void ChannelStatistics::AddConnectionTime(Duration duration) {
   connection_time_statistics_.Add(std::move(duration));
 }
 
-void ChannelStatistics::AddPingTime(Duration duration) {
-  ping_time_statistics_.Add(std::move(duration));
+void ChannelStatistics::AddResponseTime(Duration duration) {
+  response_time_statistics_.Add(std::move(duration));
 }
 }  // namespace ae

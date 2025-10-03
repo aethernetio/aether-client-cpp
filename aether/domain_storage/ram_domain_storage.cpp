@@ -72,7 +72,7 @@ std::unique_ptr<IDomainStorageWriter> RamDomainStorage::Store(
 }
 
 ClassList RamDomainStorage::Enumerate(ObjId const& obj_id) {
-  auto obj_map_it = state.find(obj_id.id());
+  auto obj_map_it = state.find(obj_id);
   if (obj_map_it == std::end(state)) {
     AE_TELE_ERROR(kRamDsEnumObjIdNotFound, "Obj not found {}",
                   obj_id.ToString());
@@ -93,7 +93,7 @@ ClassList RamDomainStorage::Enumerate(ObjId const& obj_id) {
 }
 
 DomainLoad RamDomainStorage::Load(DomainQuiery const& query) {
-  auto obj_map_it = state.find(query.id.id());
+  auto obj_map_it = state.find(query.id);
   if (obj_map_it == std::end(state)) {
     AE_TELE_ERROR(kRamDsLoadObjIdNoFound,
                   "Unable to find object id={}, class id={}, version={}",
@@ -132,7 +132,7 @@ DomainLoad RamDomainStorage::Load(DomainQuiery const& query) {
 }
 
 void RamDomainStorage::Remove(ObjId const& obj_id) {
-  auto obj_map_it = state.find(obj_id.id());
+  auto obj_map_it = state.find(obj_id);
   if (obj_map_it == std::end(state)) {
     state.emplace(obj_id, std::nullopt);
     return;
@@ -145,7 +145,7 @@ void RamDomainStorage::Remove(ObjId const& obj_id) {
 void RamDomainStorage::CleanUp() { state.clear(); }
 
 void RamDomainStorage::SaveData(DomainQuiery const& query, ObjectData&& data) {
-  auto& objcect_classes = state[query.id.id()];
+  auto& objcect_classes = state[query.id];
   if (!objcect_classes) {
     objcect_classes.emplace();
   }

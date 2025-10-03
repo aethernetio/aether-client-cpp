@@ -21,6 +21,10 @@
 
 #include "aether/common.h"
 #include "aether/channels/channel.h"
+#include "aether/adapter_registry.h"
+
+#include "aether/events/events.h"
+#include "aether/events/multi_subscription.h"
 
 namespace ae {
 class Server : public Obj {
@@ -29,14 +33,31 @@ class Server : public Obj {
   Server() = default;
 
  public:
-  explicit Server(Domain* domain);
+  using ChannelsChanged = Event<void()>;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(server_id, channels))
+  explicit Server(ServerId server_id, std::vector<UnifiedAddress> endpoints,
+                  Domain* domain);
 
-  void SetChannels(std::vector<Channel::ptr> chans);
+  AE_OBJECT_REFLECT(AE_MMBRS(server_id, endpoints, adapter_registry_, channels))
+
+  void Update(TimePoint current_time) override;
+
+  void Register(AdapterRegistry::ptr adapter_registry);
+  ChannelsChanged::Subscriber channels_changed();
 
   ServerId server_id;
+  std::vector<UnifiedAddress> endpoints;
+
   std::vector<Channel::ptr> channels;
+
+ private:
+  void UpdateSubscription();
+  void AddChannels(AccessPoint::ptr const& access_point);
+
+  AdapterRegistry::ptr adapter_registry_;
+  MultiSubscription access_point_added_;
+  ChannelsChanged channels_changed_;
+  bool subscribed_;
 };
 }  // namespace ae
 #endif  // AETHER_SERVER_H_ */

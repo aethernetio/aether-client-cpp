@@ -35,11 +35,8 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
 
   AE_OBJECT_REFLECT(AE_MMBR(ethernet_adapter_))
 
-  ActionPtr<TransportBuilderAction> CreateTransport(
-      UnifiedAddress const& address) override;
-
-  std::vector<ObjPtr<Channel>> GenerateChannels(
-      std::vector<UnifiedAddress> const& server_channels) override;
+  std::vector<AccessPoint::ptr> access_points() override;
+  NewAccessPoint::Subscriber new_access_point() override;
 
  private:
   // whose doing all job

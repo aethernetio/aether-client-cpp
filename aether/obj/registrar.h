@@ -56,9 +56,14 @@ class Registrar {
       : std::true_type {};
 
   static ObjPtr<Obj> Create() {
-    static_assert(IsDefaultConstructible<T>::value,
-                  "AE_OBJECT class should be default constructible");
-    return ObjPtr(MakePtr<T>());
+    if constexpr (std::is_abstract_v<T>) {
+      assert(false);
+      return {};
+    } else {
+      static_assert(IsDefaultConstructible<T>::value,
+                    "AE_OBJECT class should be default constructible");
+      return ObjPtr(MakePtr<T>());
+    }
   }
   static ObjPtr<Obj> Load(Domain* domain, ObjPtr<Obj> obj) {
     auto self_ptr = ObjPtr<T>{std::move(obj)};

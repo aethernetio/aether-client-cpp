@@ -46,5 +46,4 @@ class RegistrationCloud : public Cloud {
 }  // namespace ae
 
 #endif  // AE_SUPPORT_REGISTRATION
-
 #endif  // AETHER_REGISTRATION_CLOUD_H_

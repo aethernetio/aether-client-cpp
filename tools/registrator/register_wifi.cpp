@@ -33,14 +33,13 @@ RegisterWifiAdapter::RegisterWifiAdapter(ObjPtr<Aether> aether,
                                                            dns_resolver_)} {}
 #endif  // AE_DISTILLATION
 
-ActionPtr<TransportBuilderAction> RegisterWifiAdapter::CreateTransport(
-    UnifiedAddress const& address) {
-  return ethernet_adapter_->CreateTransport(address);
+std::vector<AccessPoint::ptr> RegisterWifiAdapter::access_points() {
+  return ethernet_adapter_->access_points();
 }
 
-std::vector<ObjPtr<Channel>> RegisterWifiAdapter::GenerateChannels(
-    std::vector<UnifiedAddress> const& server_channels) {
-  return ethernet_adapter_->GenerateChannels(server_channels);
+RegisterWifiAdapter::NewAccessPoint::Subscriber
+RegisterWifiAdapter::new_access_point() {
+  return ethernet_adapter_->new_access_point();
 }
 
 }  // namespace ae::registrator

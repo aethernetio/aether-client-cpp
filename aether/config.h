@@ -166,18 +166,23 @@
 #endif
 
 // window size for server answear to ping statistics
-#ifndef AE_STATISTICS_PING_WINDOW_SIZE
-#  define AE_STATISTICS_PING_WINDOW_SIZE 100
+#ifndef AE_STATISTICS_RESPONSE_WINDOW_SIZE
+#  define AE_STATISTICS_RESPONSE_WINDOW_SIZE 100
 #endif
 
 // default value used for ping timeout, until statistics are available
-#ifndef AE_DEFAULT_PING_TIMEOUT_MS
-#  define AE_DEFAULT_PING_TIMEOUT_MS 1000
+#ifndef AE_DEFAULT_RESPONSE_TIMEOUT_MS
+#  define AE_DEFAULT_RESPONSE_TIMEOUT_MS 1000
 #endif
 
 // window size for safe stream response time statistics
 #ifndef AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE
 #  define AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE 100
+#endif
+
+// the default timeout for establishing a wifi connection
+#ifndef AE_WIFI_CONNECTION_TIMEOUT_MS
+#  define AE_WIFI_CONNECTION_TIMEOUT_MS 20000
 #endif
 
 // Telemetry configuration

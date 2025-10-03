@@ -16,27 +16,12 @@
 
 #include "aether/adapters/adapter.h"
 
-#include "aether/channels/channel.h"
-
 namespace ae {
-
 #ifdef AE_DISTILLATION
 Adapter::Adapter(Domain* domain) : Obj{domain} {}
 #endif  // AE_DISTILLATION
 
-/**
- * \brief Provide an action creating transport builders for address
- */
-ActionPtr<TransportBuilderAction> Adapter::CreateTransport(
-    UnifiedAddress const& /* address */) {
-  assert(false);
-  return {};
+Adapter::NewAccessPoint::Subscriber Adapter::new_access_point() {
+  return EventSubscriber{new_access_point_event_};
 }
-
-std::vector<ObjPtr<Channel>> Adapter::GenerateChannels(
-    std::vector<UnifiedAddress> const& /* server_channels */) {
-  assert(false);
-  return {};
-}
-
 }  // namespace ae

@@ -115,8 +115,7 @@ TimePoint Ping::WaitResponse() {
   auto channel_ptr = channel_.Lock();
   assert(channel_ptr);
   auto current_time = Now();
-  auto expected_ping_time =
-      channel_ptr->channel_statistics().ping_time_statistics().percentile<99>();
+  auto expected_ping_time = channel_ptr->ResponseTimeout();
   auto timeout = expected_ping_time;
 
   auto const& ping_time = ping_times_.back().second;
@@ -159,7 +158,7 @@ void Ping::PingResponse(RequestId request_id) {
   AE_TELED_DEBUG("Ping received by {:%S} s", ping_duration);
   auto channel_ptr = channel_.Lock();
   assert(channel_ptr);
-  channel_ptr->channel_statistics().AddPingTime(ping_duration);
+  channel_ptr->channel_statistics().AddResponseTime(ping_duration);
 
   state_ = State::kWaitInterval;
 }

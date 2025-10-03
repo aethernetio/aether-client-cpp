@@ -52,7 +52,8 @@ void test_StatisticsRotation() {
   ram_ds.CleanUp();
   auto domain = ae::Domain{ae::ClockType::now(), ram_ds};
 
-  TeleStatistics::ptr tele_statistics = domain.CreateObj<TeleStatistics>(1);
+  TeleStatistics::ptr tele_statistics =
+      domain.CreateObj<TeleStatistics>(ObjId{1});
   tele_statistics->trap()->MergeStatistics(*statistics_trap);
   // set 100 byte
   tele_statistics->trap()->statistics_store.SetSizeLimit(100);
@@ -81,7 +82,8 @@ void test_SaveLoadTeleStatistics() {
 
   AE_TELE_ENV();
 
-  TeleStatistics::ptr tele_statistics = domain.CreateObj<TeleStatistics>(1);
+  TeleStatistics::ptr tele_statistics =
+      domain.CreateObj<TeleStatistics>(ObjId{1});
   tele_statistics->trap()->MergeStatistics(*statistics_trap);
   InitTeleSink(tele_statistics->trap());
   {
@@ -101,7 +103,7 @@ void test_SaveLoadTeleStatistics() {
   // load stored object in new instance
   auto domain2 = ae::Domain{ae::ClockType::now(), ram_ds};
   TeleStatistics::ptr tele_statistics2;
-  tele_statistics2.SetId(1);
+  tele_statistics2.SetId(ObjId{1});
   domain2.LoadRoot(tele_statistics2);
   TEST_ASSERT(static_cast<bool>(tele_statistics2));
 
@@ -121,9 +123,9 @@ void test_SaveLoadTeleStatistics() {
                 _AE_MODULE_CONFIG(MLog.id, AE_TELE_METRICS_DURATION)) {
     auto log_index = kLog.offset;
     TEST_ASSERT_EQUAL(metrics1[log_index].invocations_count,
-                          metrics2[log_index].invocations_count);
+                      metrics2[log_index].invocations_count);
     TEST_ASSERT_EQUAL(metrics1[log_index].sum_duration,
-                          metrics2[log_index].sum_duration);
+                      metrics2[log_index].sum_duration);
   }
 }
 }  // namespace ae::tele::test

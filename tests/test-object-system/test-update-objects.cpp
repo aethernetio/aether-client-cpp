@@ -46,7 +46,7 @@ void test_increaseVersion() {
   Domain domain{ae::ClockType::now(), facility};
   // the oldest version
   {
-    Friday0::ptr friday = domain.CreateObj<Friday0>(1);
+    Friday0::ptr friday = domain.CreateObj<Friday0>(ObjId{1});
     domain.SaveRoot(friday);
   }
 
@@ -54,7 +54,7 @@ void test_increaseVersion() {
   replace_class_id(facility, Friday0::kClassId, Friday1::kClassId);
   {
     Friday1::ptr friday;
-    friday.SetId(1);
+    friday.SetId(ObjId{1});
     domain.LoadRoot(friday);
     TEST_ASSERT(friday);
     TEST_ASSERT_EQUAL(22, friday->a);
@@ -68,7 +68,7 @@ void test_increaseVersion() {
   replace_class_id(facility, Friday1::kClassId, Friday2::kClassId);
   {
     Friday2::ptr friday;
-    friday.SetId(1);
+    friday.SetId(ObjId{1});
     domain.LoadRoot(friday);
     TEST_ASSERT(friday);
     TEST_ASSERT_EQUAL_FLOAT(123.f, friday->a);
@@ -80,7 +80,7 @@ void test_increaseVersion() {
   replace_class_id(facility, Friday2::kClassId, Friday3::kClassId);
   {
     Friday3::ptr friday;
-    friday.SetId(1);
+    friday.SetId(ObjId{1});
     domain.LoadRoot(friday);
     TEST_ASSERT(friday);
     TEST_ASSERT_EQUAL(42.42f, friday->a);
@@ -93,7 +93,7 @@ void test_decreaseVersion() {
   Domain domain{ae::ClockType::now(), facility};
   // the newest version
   {
-    Friday3::ptr friday = domain.CreateObj<Friday3>(1);
+    Friday3::ptr friday = domain.CreateObj<Friday3>(ObjId{1});
     friday->x = "hello";
     friday->a = 123.123f;
     domain.SaveRoot(friday);
@@ -106,7 +106,7 @@ void test_decreaseVersion() {
   remove_class_id(facility, Hoopa::kClassId);
   {
     Friday2::ptr friday;
-    friday.SetId(1);
+    friday.SetId(ObjId{1});
     domain.LoadRoot(friday);
     TEST_ASSERT(friday);
     TEST_ASSERT_EQUAL(123.123f, friday->a);
@@ -117,7 +117,7 @@ void test_decreaseVersion() {
   replace_class_id(facility, Friday2::kClassId, Friday1::kClassId);
   {
     Friday1::ptr friday;
-    friday.SetId(1);
+    friday.SetId(ObjId{1});
     domain.LoadRoot(friday);
     TEST_ASSERT(friday);
     TEST_ASSERT_EQUAL(123, friday->a);
@@ -130,7 +130,7 @@ void test_decreaseVersion() {
   replace_class_id(facility, Friday1::kClassId, Friday0::kClassId);
   {
     Friday0::ptr friday;
-    friday.SetId(1);
+    friday.SetId(ObjId{1});
     domain.LoadRoot(friday);
     TEST_ASSERT(friday);
   }

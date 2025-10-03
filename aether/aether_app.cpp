@@ -23,7 +23,7 @@
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"
 #include "aether/adapters/ethernet.h"
-#include "aether/adapters/esp32_wifi.h"
+#include "aether/adapters/wifi_adapter.h"
 #include "aether/poller/win_poller.h"
 #include "aether/poller/epoll_poller.h"
 #include "aether/poller/kqueue_poller.h"
@@ -64,7 +64,7 @@ void AetherAppContext::InitComponentContext() {
 #  if AE_SUPPORT_REGISTRATION
   Factory<Cloud>([](AetherAppContext const& context) {
     auto reg_c = context.domain().CreateObj<RegistrationCloud>(
-        kRegistrationCloud, context.aether());
+        GlobalId::kRegistrationCloud, context.aether());
 #    if defined _AE_REG_CLOUD_IP
     auto reg_cloud_ip = IpAddressParser{}.StringToIP(_AE_REG_CLOUD_IP);
     assert(reg_cloud_ip.has_value());

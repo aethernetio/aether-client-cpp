@@ -19,7 +19,6 @@
 
 #include "aether/obj/obj.h"
 
-#include "aether/channels/channel.h"
 #include "aether/adapters/adapter.h"
 
 namespace ae {
@@ -39,12 +38,6 @@ class AdapterRegistry final : public Obj {
    * \brief Add adapter to the registry
    */
   void Add(Adapter::ptr adapter);
-
-  /**
-   * \brief Generate set of channels for each adapter and place them in one list
-   */
-  std::vector<Channel::ptr> GenerateChannels(
-      std::vector<UnifiedAddress> const& server_channels);
 
   std::vector<Adapter::ptr> const& adapters() const;
 

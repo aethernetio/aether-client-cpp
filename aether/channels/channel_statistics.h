@@ -30,32 +30,34 @@ class ChannelStatistics final : public Obj {
 
   static constexpr std::size_t kConnectionWindowSize =
       AE_STATISTICS_CONNECTION_WINDOW_SIZE;
-  static constexpr std::size_t kPingWindowSize = AE_STATISTICS_PING_WINDOW_SIZE;
+  static constexpr std::size_t kResponseWindowSize =
+      AE_STATISTICS_RESPONSE_WINDOW_SIZE;
 
   using ConnectionTimeStatistics =
       StatisticsCounter<Duration, kConnectionWindowSize>;
-  using PingTimeStatistics = StatisticsCounter<Duration, kPingWindowSize>;
+  using ResponseTimeStatistics =
+      StatisticsCounter<Duration, kResponseWindowSize>;
 
  public:
   explicit ChannelStatistics(Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(connection_time_statistics_,
-                             ping_time_statistics_))
+                             response_time_statistics_))
 
   void AddConnectionTime(Duration duration);
-  void AddPingTime(Duration duration);
+  void AddResponseTime(Duration duration);
 
   ConnectionTimeStatistics const& connection_time_statistics() const {
     return connection_time_statistics_;
   }
 
-  PingTimeStatistics const& ping_time_statistics() const {
-    return ping_time_statistics_;
+  ResponseTimeStatistics const& response_time_statistics() const {
+    return response_time_statistics_;
   }
 
  private:
   ConnectionTimeStatistics connection_time_statistics_;
-  PingTimeStatistics ping_time_statistics_;
+  ResponseTimeStatistics response_time_statistics_;
 };
 
 }  // namespace ae
