@@ -27,6 +27,8 @@
 
 #  include "aether/serial_ports/iserial_port.h"
 
+#  include <Windows.h>
+
 #  define WIN_SERIAL_PORT_ENABLED 1
 
 namespace ae {
@@ -44,6 +46,9 @@ class WINSerialPort final : public ISerialPort {
   bool IsOpen() override;
 
  private:
+  OVERLAPPED overlapped_rd_;
+  OVERLAPPED overlapped_wr_;
+  DWORD signal_;
   ActionContext action_context_;
   PtrView<IPoller> poller_;
   void* h_port_;

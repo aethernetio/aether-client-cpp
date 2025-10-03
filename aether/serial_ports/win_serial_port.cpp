@@ -20,8 +20,6 @@
 
 #  include "aether/serial_ports/serial_ports_tele.h"
 
-#  include <Windows.h>
-
 namespace ae {
 WINSerialPort::WINSerialPort(ActionContext action_context,
                              IPoller::ptr const& poller,
@@ -38,26 +36,35 @@ WINSerialPort::WINSerialPort(ActionContext action_context,
 WINSerialPort::~WINSerialPort() { Close(); }
 
 void WINSerialPort::Write(DataBuffer const& data) {
+  DWORD temp;
+
   if (h_port_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
     return;
   }
 
-  DWORD bytes_written;
-  if (!WriteFile(h_port_, data.data(), static_cast<DWORD>(data.size()),
-                 &bytes_written, NULL)) {
+  if (!WriteFile(h_port_, data.data(), static_cast<DWORD>(data.size()), &temp,
+                 &overlapped_wr_)) {
     AE_TELE_ERROR(kAdapterSerialWriteFailed, "Write failed: {}",
                   GetLastError());
     return;
   }
 
-  if (bytes_written != data.size()) {
+  signal_ = WaitForSingleObject(overlapped_wr_.hEvent, INFINITE);
+  if ((signal_ == WAIT_OBJECT_0) && (GetOverlappedResult(h_port_, &overlapped_wr_, &temp, true))) {
+    AE_TELED_DEBUG("Write ok!");
+  } else {
+    AE_TELED_DEBUG("Write not ok!");
+  }
+  CloseHandle(overlapped_wr_.hEvent);
+
+  if (temp != data.size()) {
     AE_TELE_ERROR(kAdapterSerialPartialData, "Partial write occurred");
     return;
   }
 
   // For debug
-  AE_TELED_DEBUG("Serial data write {} bytes: {}", bytes_written,
+  AE_TELED_DEBUG("Serial data write {} bytes: {}", temp,
                  std::vector(data.begin(), data.end()));
 }
 
@@ -115,19 +122,23 @@ void WINSerialPort::Connect() {
           });
 }
 
-void WINSerialPort::ReadPort() {}
+void WINSerialPort::ReadPort() { AE_TELED_DEBUG("Read port"); }
 
-void WINSerialPort::WritePort() {}
+void WINSerialPort::WritePort() { AE_TELED_DEBUG("Write port"); }
 
-void WINSerialPort::ErrorPort() {}
+void WINSerialPort::ErrorPort() { AE_TELED_DEBUG("Error port"); }
 
 void WINSerialPort::Disconnect() {}
 
 void WINSerialPort::Open(std::string const& port_name,
                          std::uint32_t baud_rate) {
   std::string full_name = "\\\\.\\" + port_name;
-  h_port_ = CreateFileA(full_name.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
-                        NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  overlapped_rd_.hEvent = CreateEventA(NULL, true, true, NULL);
+  overlapped_wr_.hEvent = CreateEventA(NULL, true, true, NULL); 
+  SetCommMask(h_port_, EV_RXCHAR);
+  h_port_ = CreateFileA(full_name.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
+      /* FILE_ATTRIBUTE_NORMAL | */ FILE_FLAG_OVERLAPPED,
+                       NULL);
 
   if (h_port_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Failed to open port: {}",
@@ -138,7 +149,7 @@ void WINSerialPort::Open(std::string const& port_name,
   ConfigurePort(baud_rate);
   SetupTimeouts();
   
-  Connect();
+  //Connect();
 }
 
 void WINSerialPort::ConfigurePort(std::uint32_t baud_rate) {
