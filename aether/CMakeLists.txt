@@ -160,9 +160,7 @@ list(APPEND transport_srcs
             "transport/socket_packet_send_action.cpp"
             "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
-            "transport/low_level/udp/udp.cpp"
-            "transport/build_transport_action.cpp"
-)
+            "transport/low_level/udp/udp.cpp")
 
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
@@ -253,7 +251,7 @@ list(APPEND domain_storage_srcs
 list(APPEND channels_srcs
             "channels/channel_statistics.cpp"
             "channels/channel.cpp"
-            "channels/ethernet_transport_builder.cpp"
+            "channels/ethernet_transport_factory.cpp"
             "channels/ethernet_channel.cpp"
             "channels/wifi_channel.cpp"
             "channels/modem_channel.cpp")

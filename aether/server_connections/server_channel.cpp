@@ -25,7 +25,7 @@ ServerChannel::ServerChannel(ActionContext action_context,
                              Channel::ptr const& channel)
     : action_context_{action_context},
       channel_{channel},
-      build_transport_action_{action_context, channel},
+      build_transport_action_{channel->TransportBuilder()},
       build_transport_sub_{build_transport_action_->StatusEvent().Subscribe(
           ActionHandler{OnResult{[this](auto& action) { OnConnected(action); }},
                         OnError{[this]() { OnConnectedFailed(); }}})},
@@ -51,7 +51,8 @@ ServerChannel::ConnectionResult::Subscriber ServerChannel::connection_result() {
   return EventSubscriber{connection_result_event_};
 }
 
-void ServerChannel::OnConnected(BuildTransportAction& build_transport_action) {
+void ServerChannel::OnConnected(
+    TransportBuilderAction& transport_builder_action) {
   build_transport_sub_.Reset();
 
   auto channel_ptr = channel_.Lock();
@@ -62,7 +63,7 @@ void ServerChannel::OnConnected(BuildTransportAction& build_transport_action) {
       std::chrono::duration_cast<Duration>(Now() - connection_start_time_);
   channel_ptr->channel_statistics().AddConnectionTime(connection_time);
 
-  transport_stream_ = build_transport_action.transport();
+  transport_stream_ = transport_builder_action.transport_stream();
   connection_result_event_.Emit(true);
 }
 

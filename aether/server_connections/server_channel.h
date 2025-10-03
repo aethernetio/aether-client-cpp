@@ -21,6 +21,7 @@
 
 #include "aether/common.h"
 #include "aether/memory.h"
+#include "aether/obj/obj_ptr.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/events/events.h"
 #include "aether/actions/action_ptr.h"
@@ -28,8 +29,7 @@
 #include "aether/actions/action_context.h"
 
 #include "aether/stream_api/istream.h"
-
-#include "aether/transport/build_transport_action.h"
+#include "aether/transport/transport_builder_action.h"
 
 namespace ae {
 class Channel;
@@ -50,7 +50,7 @@ class ServerChannel final {
   ConnectionResult::Subscriber connection_result();
 
  private:
-  void OnConnected(BuildTransportAction& build_transport_action);
+  void OnConnected(TransportBuilderAction& transport_builder_action);
   void OnConnectedFailed();
 
   ActionContext action_context_;
@@ -58,7 +58,7 @@ class ServerChannel final {
 
   std::unique_ptr<ByteIStream> transport_stream_;
 
-  ActionPtr<BuildTransportAction> build_transport_action_;
+  ActionPtr<TransportBuilderAction> build_transport_action_;
   Subscription build_transport_sub_;
 
   TimePoint connection_start_time_;

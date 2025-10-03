@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/channels/ethernet_transport_builder.h"
+#include "aether/channels/ethernet_transport_factory.h"
 
 #include "aether/poller/poller.h"
 
@@ -24,40 +24,39 @@
 // IWYU pragma: end_keeps
 
 namespace ae {
-EthernetTransportBuilder::EthernetTransportBuilder(
+std::unique_ptr<ByteIStream> EthernetTransportFactory::Create(
     ActionContext action_context, ObjPtr<IPoller> const& poller,
-    IpAddressPortProtocol address_port_protocol)
-    : action_context_{action_context},
-      poller_{poller},
-      address_port_protocol_{std::move(address_port_protocol)} {}
-
-std::unique_ptr<ByteIStream> EthernetTransportBuilder::BuildTransportStream() {
-  switch (address_port_protocol_.protocol) {
+    IpAddressPortProtocol address_port_protocol) {
+  switch (address_port_protocol.protocol) {
     case Protocol::kTcp:
-      return BuildTcp();
+      return BuildTcp(action_context, poller, address_port_protocol);
     case Protocol::kUdp:
-      return BuildUdp();
+      return BuildUdp(action_context, poller, address_port_protocol);
     default:
       assert(false);
       return nullptr;
   }
 }
 
-std::unique_ptr<ByteIStream> EthernetTransportBuilder::BuildTcp() {
+std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
+    [[maybe_unused]] ActionContext action_context,
+    [[maybe_unused]] ObjPtr<IPoller> const& poller,
+    [[maybe_unused]] IpAddressPortProtocol address_port_protocol) {
 #if defined COMMON_TCP_TRANSPORT_ENABLED
-  IPoller::ptr poller = poller_.Lock();
-  return std::make_unique<TcpTransport>(action_context_, poller,
-                                        address_port_protocol_);
+  return std::make_unique<TcpTransport>(action_context, poller,
+                                        address_port_protocol);
 #else
   static_assert(false, "No transport enabled");
 #endif
 }
 
-std::unique_ptr<ByteIStream> EthernetTransportBuilder::BuildUdp() {
+std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
+    [[maybe_unused]] ActionContext action_context,
+    [[maybe_unused]] ObjPtr<IPoller> const& poller,
+    [[maybe_unused]] IpAddressPortProtocol address_port_protocol) {
 #if defined COMMON_UDP_TRANSPORT_ENABLED
-  IPoller::ptr poller = poller_.Lock();
-  return std::make_unique<UdpTransport>(action_context_, poller,
-                                        address_port_protocol_);
+  return std::make_unique<UdpTransport>(action_context, poller,
+                                        address_port_protocol);
 #else
   static_assert(false, "No transport enabled");
 #endif

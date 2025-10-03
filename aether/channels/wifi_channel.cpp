@@ -29,7 +29,7 @@
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 
-#include "aether/channels/ethernet_transport_builder.h"
+#include "aether/channels/ethernet_transport_factory.h"
 
 namespace ae {
 namespace wifi_channel_internal {
@@ -38,9 +38,10 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   enum class State : std::uint8_t {
     kAddressResolve,
     kWifiConnect,
-    kBuildersCreate,
-    kBuildersReady,
-    kError,
+    kTransportCreate,
+    kWaitTransportConnect,
+    kTransportConnected,
+    kFailed,
   };
 
   WifiTransportBuilderAction(ActionContext action_context,
@@ -65,20 +66,22 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
         case State::kAddressResolve:
           ResolveAddress();
           break;
-        case State::kBuildersCreate:
-          BuildersCreate();
+        case State::kTransportCreate:
+          CreateTransport();
           break;
-        case State::kBuildersReady:
+        case State::kWaitTransportConnect:
+          break;
+        case State::kTransportConnected:
           return UpdateStatus::Result();
-        case State::kError:
+        case State::kFailed:
           return UpdateStatus::Error();
       }
     }
     return {};
   }
 
-  std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() override {
-    return std::move(transport_builders_);
+  std::unique_ptr<ByteIStream> transport_stream() override {
+    return std::move(transport_stream_);
   }
 
  private:
@@ -92,64 +95,82 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
           Action::Trigger();
         }},
         OnError{[this]() {
-          state_ = State::kError;
+          state_ = State::kFailed;
           Action::Trigger();
         }},
     });
   }
 
-#if AE_SUPPORT_CLOUD_DNS
   void ResolveAddress() {
-    std::visit(reflect::OverrideFunc{
-                   [this](IpAddressPortProtocol const& ip_address) {
-                     ip_addresses_.push_back(ip_address);
-                     state_ = State::kBuildersCreate;
-                     Action::Trigger();
-                   },
-                   [this](NameAddress const& name_address) {
-                     auto dns_resolver = resolver_.Lock();
-                     assert(dns_resolver);
-                     auto resolve_action = dns_resolver->Resolve(name_address);
-
-                     address_resolve_sub_ =
-                         resolve_action->StatusEvent().Subscribe(ActionHandler{
-                             OnResult{[this](auto& action) {
-                               ip_addresses_ = std::move(action.addresses);
-                               state_ = State::kBuildersCreate;
-                               Action::Trigger();
-                             }},
-                             OnError {
-                               [this]() {
-                                 state_ = State::kError;
-                                 Action::Trigger();
-                               }
-                             }});
-                   }},
-               address_);
+    std::visit([this](auto const& addr) { DoResolverAddress(addr); }, address_);
   }
-#else
-  void ResolveAddress() {
-    std::visit(
-        reflect::OverrideFunc{[this](IpAddressPortProtocol const& ip_address) {
-          ip_addresses_.push_back(ip_address);
-        }},
-        address_);
-    state_ = State::kBuildersCreate;
-    Action::Trigger();
+
+#if AE_SUPPORT_CLOUD_DNS
+  void DoResolverAddress(NameAddress const& name_address) {
+    auto dns_resolver = resolver_.Lock();
+    assert(dns_resolver);
+    auto resolve_action = dns_resolver->Resolve(name_address);
+
+    address_resolve_sub_ = resolve_action->StatusEvent().Subscribe(
+        ActionHandler{OnResult{[this](auto& action) {
+                        ip_addresses_ = std::move(action.addresses);
+                        it_ = std::begin(ip_addresses_);
+                        state_ = State::kTransportCreate;
+                        Action::Trigger();
+                      }},
+                      OnError{[this]() {
+                        state_ = State::kFailed;
+                        Action::Trigger();
+                      }}});
   }
 #endif
 
-  void BuildersCreate() {
-    transport_builders_.reserve(ip_addresses_.size());
+  void DoResolverAddress(IpAddressPortProtocol const& ip_address) {
+    ip_addresses_.push_back(ip_address);
+    it_ = std::begin(ip_addresses_);
+    state_ = State::kTransportCreate;
+    Action::Trigger();
+  }
+
+  void CreateTransport() {
+    state_ = State::kWaitTransportConnect;
+
+    if (it_ == std::end(ip_addresses_)) {
+      state_ = State::kFailed;
+      Action::Trigger();
+      return;
+    }
+
     IPoller::ptr poller = poller_.Lock();
     assert(poller);
-    for (auto const& addr : ip_addresses_) {
-      transport_builders_.emplace_back(
-          std::make_unique<EthernetTransportBuilder>(action_context_, poller,
-                                                     addr));
+    auto& addr = *(it_++);
+    transport_stream_ =
+        EthernetTransportFactory::Create(action_context_, poller, addr);
+    if (!transport_stream_) {
+      // try next address
+      state_ = State::kTransportCreate;
+      Action::Trigger();
+      return;
     }
-    state_ = State::kBuildersReady;
-    Action::Trigger();
+    if (transport_stream_->stream_info().link_state == LinkState::kLinked) {
+      state_ = State::kTransportConnected;
+      Action::Trigger();
+      return;
+    }
+    transport_sub_ =
+        transport_stream_->stream_update_event().Subscribe([this]() {
+          if (transport_stream_->stream_info().link_state ==
+              LinkState::kLinked) {
+            // transport connected
+            state_ = State::kTransportConnected;
+            Action::Trigger();
+          } else if (transport_stream_->stream_info().link_state ==
+                     LinkState::kLinkError) {
+            // try next address
+            state_ = State::kTransportCreate;
+            Action::Trigger();
+          }
+        });
   }
 
   ActionContext action_context_;
@@ -159,9 +180,11 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   UnifiedAddress address_;
 
   std::vector<IpAddressPortProtocol> ip_addresses_;
-  std::vector<std::unique_ptr<ITransportStreamBuilder>> transport_builders_;
+  std::vector<IpAddressPortProtocol>::iterator it_;
+  std::unique_ptr<ByteIStream> transport_stream_;
   Subscription wifi_connected_sub_;
   Subscription address_resolve_sub_;
+  Subscription transport_sub_;
   StateMachine<State> state_;
 };
 }  // namespace wifi_channel_internal

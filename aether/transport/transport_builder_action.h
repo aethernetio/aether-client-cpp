@@ -17,16 +17,14 @@
 #ifndef AETHER_TRANSPORT_TRANSPORT_BUILDER_ACTION_H_
 #define AETHER_TRANSPORT_TRANSPORT_BUILDER_ACTION_H_
 
-#include <vector>
 #include <memory>
 
 #include "aether/actions/action.h"
-#include "aether/transport/itransport_stream_builder.h"
+#include "aether/stream_api/istream.h"
 
 namespace ae {
 /**
- * \brief Action makes all the preparation required to build transport for
- * specified address.
+ * \brief Action builds transport stream.
  */
 class TransportBuilderAction : public Action<TransportBuilderAction> {
  public:
@@ -35,7 +33,7 @@ class TransportBuilderAction : public Action<TransportBuilderAction> {
 
   virtual UpdateStatus Update() = 0;
 
-  virtual std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() = 0;
+  virtual std::unique_ptr<ByteIStream> transport_stream() = 0;
 };
 }  // namespace ae
 

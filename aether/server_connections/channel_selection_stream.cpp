@@ -18,6 +18,8 @@
 
 #include <algorithm>
 
+#include "aether/channels/channel.h"
+
 #include "aether/tele/tele.h"
 
 namespace ae {
@@ -156,7 +158,7 @@ void ChannelSelectStream::SelectChannel() {
 void ChannelSelectStream::LinkStream() {
   assert(server_channel_);
   auto* stream = server_channel_->stream();
-  assert(stream);
+  assert(stream != nullptr);
 
   stream_update_sub_ = stream->stream_update_event().Subscribe(
       *this, MethodPtr<&ChannelSelectStream::StreamUpdate>{});
@@ -169,7 +171,7 @@ void ChannelSelectStream::LinkStream() {
 void ChannelSelectStream::StreamUpdate() {
   assert(server_channel_);
   auto* stream = server_channel_->stream();
-  assert(stream);
+  assert(stream != nullptr);
   auto info = stream->stream_info();
   if (info.link_state == LinkState::kLinkError) {
     AE_TELED_DEBUG("Transport link error");

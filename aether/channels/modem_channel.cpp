@@ -20,46 +20,16 @@
 
 #include "aether/memory.h"
 #include "aether/aether.h"
+#include "aether/types/state_machine.h"
 #include "aether/transport/modems/modem_transport.h"
 
 namespace ae {
 namespace modem_channel_internal {
-class ModemAdapterTransportBuilder final : public ITransportStreamBuilder {
- public:
-  ModemAdapterTransportBuilder(ActionContext action_context,
-                               IModemDriver::ptr const& modem_driver,
-                               UnifiedAddress address)
-      : action_context_{action_context},
-        modem_driver_{modem_driver},
-        address_{std::move(address)} {}
-
-  std::unique_ptr<ByteIStream> BuildTransportStream() override {
-    [[maybe_unused]] auto protocol = std::visit(
-        [&](auto const& address_port_protocol) {
-          return address_port_protocol.protocol;
-        },
-        address_);
-    assert(protocol == Protocol::kTcp || protocol == Protocol::kUdp);
-#if defined MODEM_TRANSPORT_ENABLED
-    IModemDriver::ptr modem_driver = modem_driver_.Lock();
-    assert(modem_driver);
-    return make_unique<ModemTransport>(action_context_, *modem_driver,
-                                       address_);
-#else
-    return nullptr;
-#endif
-  }
-
- private:
-  ActionContext action_context_;
-  PtrView<IModemDriver> modem_driver_;
-  UnifiedAddress address_;
-};
-
 class ModemTransportBuilderAction final : public TransportBuilderAction {
   enum class State : std::uint8_t {
-    kBuildersCreate,
-    kBuildersCreated,
+    kTransportCreate,
+    kWaitTransportConnected,
+    kTransportConnected,
     kFailed
   };
 
@@ -70,45 +40,65 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
       : TransportBuilderAction{action_context},
         action_context_{action_context},
         modem_driver_{modem_driver},
-        address_{std::move(address)},
-        state_{State::kBuildersCreate} {}
+        address_{std::move(address)} {}
 
   UpdateStatus Update() override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
-        case State::kBuildersCreate:
-          CreateBuilders();
+        case State::kTransportCreate:
+          CreateTransport();
           break;
-        case State::kBuildersCreated:
+        case State::kWaitTransportConnected:
+          break;
+        case State::kTransportConnected:
           return UpdateStatus::Result();
         case State::kFailed:
           return UpdateStatus::Error();
       }
     }
+
     return {};
   }
 
-  std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() override {
-    std::vector<std::unique_ptr<ITransportStreamBuilder>> res;
-    res.emplace_back(std::move(transport_builder_));
-    return res;
+  std::unique_ptr<ByteIStream> transport_stream() override {
+    return std::move(transport_stream_);
   }
 
  private:
-  void CreateBuilders() {
+  void CreateTransport() {
+    state_ = State::kWaitTransportConnected;
+
     IModemDriver::ptr modem_driver = modem_driver_.Lock();
     assert(modem_driver);
+    transport_stream_ = std::make_unique<ModemTransport>(
+        action_context_, *modem_driver, address_);
 
-    transport_builder_ = std::make_unique<ModemAdapterTransportBuilder>(
-        action_context_, modem_driver, address_);
-    state_ = State::kBuildersCreated;
+    if (transport_stream_->stream_info().link_state == LinkState::kLinked) {
+      state_ = State::kTransportConnected;
+      Action::Trigger();
+      return;
+    }
+
+    tranpsport_sub_ =
+        transport_stream_->stream_update_event().Subscribe([this]() {
+          if (transport_stream_->stream_info().link_state ==
+              LinkState::kLinked) {
+            state_ = State::kTransportConnected;
+            Action::Trigger();
+          } else if (transport_stream_->stream_info().link_state ==
+                     LinkState::kLinkError) {
+            state_ = State::kFailed;
+            Action::Trigger();
+          }
+        });
   }
 
   ActionContext action_context_;
   PtrView<IModemDriver> modem_driver_;
   UnifiedAddress address_;
-  std::unique_ptr<ITransportStreamBuilder> transport_builder_;
   StateMachine<State> state_;
+  std::unique_ptr<ModemTransport> transport_stream_;
+  Subscription tranpsport_sub_;
 };
 
 }  // namespace modem_channel_internal
