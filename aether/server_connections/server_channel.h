@@ -50,8 +50,8 @@ class ServerChannel final {
   ConnectionResult::Subscriber connection_result();
 
  private:
-  void OnConnected(TransportBuilderAction& transport_builder_action);
-  void OnConnectedFailed();
+  void OnTransportCreated(TransportBuilderAction& transport_builder_action);
+  void OnTransportCreateFailed();
 
   ActionContext action_context_;
   PtrView<Channel> channel_;
@@ -61,9 +61,8 @@ class ServerChannel final {
   ActionPtr<TransportBuilderAction> build_transport_action_;
   Subscription build_transport_sub_;
 
-  TimePoint connection_start_time_;
-  ActionPtr<TimerAction> connection_timer_;
-  Subscription connection_timeout_;
+  ActionPtr<TimerAction> transport_build_timer_;
+  Subscription transport_build_timer_sub_;
   Subscription connection_error_;
 
   ConnectionResult connection_result_event_;

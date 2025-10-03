@@ -44,15 +44,18 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
   };
 
   EthernetTransportBuilderAction(ActionContext action_context,
+                                 EthernetChannel& channel,
                                  UnifiedAddress address,
                                  DnsResolver::ptr const& dns_resolver,
                                  IPoller::ptr const& poller)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
+        ethernet_channel_{&channel},
         address_{std::move(address)},
         resolver_{dns_resolver},
         poller_{poller},
-        state_{State::kAddressResolve} {}
+        state_{State::kAddressResolve},
+        start_time_{Now()} {}
 
   UpdateStatus Update() override {
     if (state_.changed()) {
@@ -132,8 +135,7 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
     }
 
     if (transport_stream_->stream_info().link_state == LinkState::kLinked) {
-      state_ = State::kTransportConnected;
-      Action::Trigger();
+      Connected();
       return;
     }
 
@@ -142,8 +144,7 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
           if (transport_stream_->stream_info().link_state ==
               LinkState::kLinked) {
             // transport stream is connected
-            state_ = State::kTransportConnected;
-            Action::Trigger();
+            Connected();
           } else if (transport_stream_->stream_info().link_state ==
                      LinkState::kLinkError) {
             // connection failed, try next address
@@ -153,7 +154,16 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
         });
   }
 
+  void Connected() {
+    auto built_time = std::chrono::duration_cast<Duration>(Now() - start_time_);
+    AE_TELED_DEBUG("Transport built by {:%S}", built_time);
+    ethernet_channel_->channel_statistics().AddConnectionTime(built_time);
+    state_ = State::kTransportConnected;
+    Action::Trigger();
+  }
+
   ActionContext action_context_;
+  EthernetChannel* ethernet_channel_;
   UnifiedAddress address_;
   PtrView<DnsResolver> resolver_;
   PtrView<IPoller> poller_;
@@ -163,6 +173,8 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
   std::unique_ptr<ByteIStream> transport_stream_;
   Subscription address_resolve_sub_;
   Subscription transport_stream_sub_;
+
+  TimePoint start_time_;
 };
 }  // namespace ethernet_access_point_internal
 
@@ -206,7 +218,7 @@ ActionPtr<TransportBuilderAction> EthernetChannel::TransportBuilder() {
   assert(poller);
   return ActionPtr<
       ethernet_access_point_internal::EthernetTransportBuilderAction>(
-      *aether_.as<Aether>(), address, dns_resolver, poller);
+      *aether_.as<Aether>(), *this, address, dns_resolver, poller);
 }
 
 }  // namespace ae

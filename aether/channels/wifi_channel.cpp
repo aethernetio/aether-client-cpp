@@ -44,13 +44,14 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
     kFailed,
   };
 
-  WifiTransportBuilderAction(ActionContext action_context,
+  WifiTransportBuilderAction(ActionContext action_context, WifiChannel& channel,
                              WifiAccessPoint::ptr const& access_point,
                              IPoller::ptr const& poller,
                              DnsResolver::ptr const& resolver,
                              UnifiedAddress address)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
+        channel_{&channel},
         access_point_{access_point},
         poller_{poller},
         resolver_{resolver},
@@ -91,6 +92,8 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
     auto connect_action = access_point->Connect();
     wifi_connected_sub_ = connect_action->StatusEvent().Subscribe(ActionHandler{
         OnResult{[this]() {
+          // build transport start after wifi is connected
+          start_time_ = Now();
           state_ = State::kAddressResolve;
           Action::Trigger();
         }},
@@ -153,8 +156,7 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
       return;
     }
     if (transport_stream_->stream_info().link_state == LinkState::kLinked) {
-      state_ = State::kTransportConnected;
-      Action::Trigger();
+      Connected();
       return;
     }
     transport_sub_ =
@@ -162,8 +164,7 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
           if (transport_stream_->stream_info().link_state ==
               LinkState::kLinked) {
             // transport connected
-            state_ = State::kTransportConnected;
-            Action::Trigger();
+            Connected();
           } else if (transport_stream_->stream_info().link_state ==
                      LinkState::kLinkError) {
             // try next address
@@ -173,7 +174,16 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
         });
   }
 
+  void Connected() {
+    auto built_time = std::chrono::duration_cast<Duration>(Now() - start_time_);
+    AE_TELED_DEBUG("Transport built by {:%S}", built_time);
+    channel_->channel_statistics().AddConnectionTime(built_time);
+    state_ = State::kTransportConnected;
+    Action::Trigger();
+  }
+
   ActionContext action_context_;
+  WifiChannel* channel_;
   PtrView<WifiAccessPoint> access_point_;
   PtrView<IPoller> poller_;
   PtrView<DnsResolver> resolver_;
@@ -186,6 +196,7 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   Subscription address_resolve_sub_;
   Subscription transport_sub_;
   StateMachine<State> state_;
+  TimePoint start_time_;
 };
 }  // namespace wifi_channel_internal
 
@@ -223,12 +234,21 @@ WifiChannel::WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
   }
 }
 
+Duration WifiChannel::TransportBuildTimeout() const {
+  if (access_point_->IsConnected()) {
+    return channel_statistics_->connection_time_statistics().percentile<99>();
+  }
+  // add time required for wifi connection
+  return channel_statistics_->connection_time_statistics().percentile<99>() +
+         std::chrono::milliseconds{AE_WIFI_CONNECTION_TIMEOUT_MS};
+}
+
 ActionPtr<TransportBuilderAction> WifiChannel::TransportBuilder() {
   IPoller::ptr poller = poller_;
   DnsResolver::ptr resolver = resolver_;
 
   return ActionPtr<wifi_channel_internal::WifiTransportBuilderAction>{
-      *aether_.as<Aether>(), access_point_, poller, resolver, address};
+      *aether_.as<Aether>(), *this, access_point_, poller, resolver, address};
 }
 
 }  // namespace ae

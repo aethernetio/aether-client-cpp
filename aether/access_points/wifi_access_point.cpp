@@ -97,4 +97,10 @@ ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
       *aether_.as<Aether>(), adapter_.as<WifiAdapter>()->driver(), wifi_creds_};
 }
 
+bool WifiAccessPoint::IsConnected() {
+  auto& driver = adapter_.as<WifiAdapter>()->driver();
+  auto connected_to = driver.connected_to();
+  return connected_to.ssid == wifi_creds_.ssid;
+}
+
 }  // namespace ae

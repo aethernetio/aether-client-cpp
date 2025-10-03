@@ -43,6 +43,9 @@ class Channel : public Obj {
   ChannelTransportProperties const& transport_properties() const;
   ChannelStatistics& channel_statistics();
 
+  virtual Duration TransportBuildTimeout() const;
+  virtual Duration ResponseTimeout() const;
+
   UnifiedAddress address;
 
  protected:

@@ -27,8 +27,8 @@ Channel::Channel(UnifiedAddress address, Domain* domain)
     : Obj{domain},
       address{std::move(address)},
       channel_statistics_{domain->CreateObj<ChannelStatistics>()} {
-  channel_statistics_->AddPingTime(
-      std::chrono::milliseconds{AE_DEFAULT_PING_TIMEOUT_MS});
+  channel_statistics_->AddResponseTime(
+      std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS});
   channel_statistics_->AddConnectionTime(
       std::chrono::milliseconds{AE_DEFAULT_CONNECTION_TIMEOUT_MS});
 }
@@ -39,6 +39,14 @@ ChannelTransportProperties const& Channel::transport_properties() const {
 
 ChannelStatistics& Channel::channel_statistics() {
   return *channel_statistics_;
+}
+
+Duration Channel::TransportBuildTimeout() const {
+  return channel_statistics_->connection_time_statistics().percentile<99>();
+}
+
+Duration Channel::ResponseTimeout() const {
+  return channel_statistics_->response_time_statistics().percentile<99>();
 }
 
 }  // namespace ae

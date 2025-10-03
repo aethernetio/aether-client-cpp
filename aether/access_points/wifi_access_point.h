@@ -76,6 +76,8 @@ class WifiAccessPoint final : public AccessPoint {
    */
   ActionPtr<WifiConnectAction> Connect();
 
+  bool IsConnected();
+
  private:
   Obj::ptr aether_;
   Obj::ptr adapter_;

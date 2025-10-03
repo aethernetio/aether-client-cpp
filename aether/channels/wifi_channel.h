@@ -36,6 +36,8 @@ class WifiChannel final : public Channel {
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, resolver_, access_point_))
 
+  Duration TransportBuildTimeout() const override;
+
   ActionPtr<TransportBuilderAction> TransportBuilder() override;
 
  private:
