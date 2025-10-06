@@ -18,7 +18,7 @@
 
 namespace ae {
 
-IModemDriver::IModemDriver(IPoller::ptr poller, ModemInit modem_init,
+IModemDriver::IModemDriver(IPoller::ptr /* poller */, ModemInit modem_init,
                            Domain* domain)
     : Obj{domain}, modem_init_{std::move(modem_init)} {}
 

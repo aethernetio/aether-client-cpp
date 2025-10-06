@@ -18,7 +18,8 @@
 
 namespace ae {
 
-ILoraModuleDriver::ILoraModuleDriver(IPoller::ptr poller, LoraModuleInit lora_module_init,
+ILoraModuleDriver::ILoraModuleDriver(IPoller::ptr /* poller */,
+                                     LoraModuleInit lora_module_init,
                                      Domain* domain)
     : Obj{domain}, lora_module_init_{std::move(lora_module_init)} {}
 
