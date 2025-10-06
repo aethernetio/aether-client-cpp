@@ -23,6 +23,7 @@ extern int test_action_registry();
 extern int test_action_processor();
 extern int test_action_status_event();
 extern int test_action();
+extern int test_pipeline();
 
 int main() {
   auto res = 0;
@@ -30,5 +31,6 @@ int main() {
   res += test_action_processor();
   res += test_action_status_event();
   res += test_action();
+  res += test_pipeline();
   return res;
 }
