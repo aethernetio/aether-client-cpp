@@ -27,6 +27,7 @@ namespace ae {
 namespace modem_channel_internal {
 class ModemTransportBuilderAction final : public TransportBuilderAction {
   enum class State : std::uint8_t {
+    kModemConnect,
     kTransportCreate,
     kWaitTransportConnected,
     kTransportConnected,
@@ -36,19 +37,22 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
  public:
   ModemTransportBuilderAction(ActionContext action_context,
                               ModemChannel& channel,
-                              IModemDriver::ptr const& modem_driver,
+                              ModemAccessPoint& access_point,
                               UnifiedAddress address)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
         channel_{&channel},
-        modem_driver_{modem_driver},
+        access_point_{&access_point},
         address_{std::move(address)},
-        state_{State::kTransportCreate},
+        state_{State::kModemConnect},
         start_time_{Now()} {}
 
   UpdateStatus Update() override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
+        case State::kModemConnect:
+          ConnectModem();
+          break;
         case State::kTransportCreate:
           CreateTransport();
           break;
@@ -69,13 +73,26 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
   }
 
  private:
+  void ConnectModem() {
+    modem_connect_sub_ =
+        access_point_->Connect()->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[this]() {
+              state_ = State::kTransportCreate;
+              Action::Trigger();
+            }},
+            OnError{[this]() {
+              state_ = State::kFailed;
+              Action::Trigger();
+            }},
+        });
+  }
+
   void CreateTransport() {
     state_ = State::kWaitTransportConnected;
 
-    IModemDriver::ptr modem_driver = modem_driver_.Lock();
-    assert(modem_driver);
+    auto& modem_driver = access_point_->modem_driver();
     transport_stream_ = std::make_unique<ModemTransport>(
-        action_context_, *modem_driver, address_);
+        action_context_, modem_driver, address_);
 
     if (transport_stream_->stream_info().link_state == LinkState::kLinked) {
       Connected();
@@ -105,22 +122,23 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
 
   ActionContext action_context_;
   ModemChannel* channel_;
-  PtrView<IModemDriver> modem_driver_;
+  ModemAccessPoint* access_point_;
   UnifiedAddress address_;
   StateMachine<State> state_;
   std::unique_ptr<ModemTransport> transport_stream_;
   Subscription tranpsport_sub_;
+  Subscription modem_connect_sub_;
   TimePoint start_time_;
 };
 
 }  // namespace modem_channel_internal
 
 ModemChannel::ModemChannel(ObjPtr<Aether> aether,
-                           IModemDriver::ptr modem_driver,
+                           ModemAccessPoint::ptr access_point,
                            UnifiedAddress address, Domain* domain)
     : Channel{std::move(address), domain},
       aether_{std::move(aether)},
-      modem_driver_{std::move(modem_driver)} {
+      access_point_{std::move(access_point)} {
   // fill transport properties
   auto protocol = std::visit([](auto&& adr) { return adr.protocol; }, address);
 
@@ -147,7 +165,12 @@ ModemChannel::ModemChannel(ObjPtr<Aether> aether,
 
 ActionPtr<TransportBuilderAction> ModemChannel::TransportBuilder() {
   return ActionPtr<modem_channel_internal::ModemTransportBuilderAction>{
-      *aether_.as<Aether>(), *this, modem_driver_, address};
+      *aether_.as<Aether>(), *this, *access_point_, address};
+}
+
+Duration ModemChannel::TransportBuildTimeout() const {
+  return channel_statistics_->connection_time_statistics().percentile<99>() +
+         std::chrono::seconds{5};
 }
 
 }  // namespace ae

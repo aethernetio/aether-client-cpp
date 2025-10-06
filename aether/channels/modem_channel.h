@@ -18,7 +18,7 @@
 #define AETHER_CHANNELS_MODEM_CHANNEL_H_
 
 #include "aether/channels/channel.h"
-#include "aether/modems/imodem_driver.h"
+#include "aether/access_points/modem_access_point.h"
 
 namespace ae {
 class Aether;
@@ -28,16 +28,18 @@ class ModemChannel final : public Channel {
   ModemChannel() = default;
 
  public:
-  ModemChannel(ObjPtr<Aether> aether, IModemDriver::ptr modem_driver,
+  ModemChannel(ObjPtr<Aether> aether, ModemAccessPoint::ptr access_point,
                UnifiedAddress address, Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_driver_))
+  AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
 
   ActionPtr<TransportBuilderAction> TransportBuilder() override;
 
+  Duration TransportBuildTimeout() const override;
+
  private:
   Obj::ptr aether_;
-  IModemDriver::ptr modem_driver_;
+  ModemAccessPoint::ptr access_point_;
 };
 }  // namespace ae
 

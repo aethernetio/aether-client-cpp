@@ -42,19 +42,16 @@ class ModemAdapter : public ParentModemAdapter {
 
   ~ModemAdapter() override;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_driver_, access_point_))
-
-  void Update(TimePoint current_time) override;
+  AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
 
   std::vector<AccessPoint::ptr> access_points() override;
 
- private:
-  void Connect();
-  void DisConnect();
+  IModemDriver& modem_driver();
 
+ private:
   bool connected_{false};
 
-  IModemDriver::ptr modem_driver_;
+  std::unique_ptr<IModemDriver> modem_driver_;
   AccessPoint::ptr access_point_;
 };
 

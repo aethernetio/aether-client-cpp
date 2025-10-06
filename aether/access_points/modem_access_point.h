@@ -17,27 +17,41 @@
 #ifndef AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_
 #define AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_
 
+#include "aether/actions/action.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/modems/imodem_driver.h"
+#include "aether/adapters/modem_adapter.h"
 #include "aether/access_points/access_point.h"
 
 namespace ae {
 class Aether;
+
+class ModemConnectAction final : public Action<ModemConnectAction> {
+ public:
+  ModemConnectAction(ActionContext action_context, IModemDriver& driver);
+
+  UpdateStatus Update();
+};
+
 class ModemAccessPoint final : public AccessPoint {
   AE_OBJECT(ModemAccessPoint, AccessPoint, 0)
   ModemAccessPoint() = default;
 
  public:
-  ModemAccessPoint(ObjPtr<Aether> aether, IModemDriver::ptr modem_driver,
+  ModemAccessPoint(ObjPtr<Aether> aether, ModemAdapter::ptr modem_adapter,
                    Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, modem_driver_));
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, modem_adapter_));
+
+  ActionPtr<ModemConnectAction> Connect();
+  IModemDriver& modem_driver();
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
       std::vector<UnifiedAddress> const& endpoints) override;
 
  private:
   Obj::ptr aether_;
-  IModemDriver::ptr modem_driver_;
+  ModemAdapter::ptr modem_adapter_;
 };
 }  // namespace ae
 

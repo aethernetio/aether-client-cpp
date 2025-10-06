@@ -28,52 +28,31 @@ namespace ae {
 ModemAdapter::ModemAdapter(ObjPtr<Aether> aether, ModemInit modem_init,
                            Domain* domain)
     : ParentModemAdapter{std::move(aether), std::move(modem_init), domain} {
-  modem_driver_ = ModemDriverFactory::CreateModem(modem_init_, domain);
   AE_TELED_DEBUG("Modem instance created!");
 }
 #endif  // AE_DISTILLATION
 
 ModemAdapter::~ModemAdapter() {
   if (connected_) {
-    DisConnect();
     AE_TELED_DEBUG("Modem instance deleted!");
     connected_ = false;
   }
 }
 
-void ModemAdapter::Update(TimePoint current_time) {
-  if (!connected_) {
-    connected_ = true;
-    Connect();
-  }
-
-  update_time_ = current_time;
-}
-
 std::vector<AccessPoint::ptr> ModemAdapter::access_points() {
   if (!access_point_) {
     Aether::ptr aether = aether_;
-    access_point_ = domain_->CreateObj<ModemAccessPoint>(aether, modem_driver_);
+    ModemAdapter::ptr self = MakePtrFromThis(this);
+    access_point_ = domain_->CreateObj<ModemAccessPoint>(aether, self);
   }
   return {access_point_};
 }
 
-void ModemAdapter::Connect() {
-  AE_TELE_DEBUG(kAdapterModemDisconnected, "Modem connecting to the network");
-  modem_driver_->Init();
-  if (!modem_driver_->Start()) {
-    AE_TELED_ERROR("Modem driver does not start");
-    return;
+IModemDriver& ModemAdapter::modem_driver() {
+  if (!modem_driver_) {
+    modem_driver_ = ModemDriverFactory::CreateModem(modem_init_);
   }
-}
-
-void ModemAdapter::DisConnect() {
-  AE_TELE_DEBUG(kAdapterModemDisconnected,
-                "Modem disconnecting from the network");
-  if (!modem_driver_->Stop()) {
-    AE_TELED_ERROR("Modem driver does not stop");
-    return;
-  }
+  return *modem_driver_;
 }
 
 }  // namespace ae

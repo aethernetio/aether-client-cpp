@@ -20,44 +20,30 @@
 #include <string>
 #include <cstdint>
 
-#include "aether/obj/obj.h"
 #include "aether/types/address.h"
 #include "aether/types/data_buffer.h"
 #include "aether/modems/modem_driver_types.h"
 
 namespace ae {
 
-class IModemDriver : public Obj {
-  AE_OBJECT(IModemDriver, Obj, 0)
-
- protected:
-  IModemDriver() = default;
-
+class IModemDriver {
  public:
-  explicit IModemDriver(ModemInit modem_init, Domain* /*domain*/);
-  AE_OBJECT_REFLECT()
+  virtual ~IModemDriver() = default;
 
-  ~IModemDriver() override = default;
+  virtual bool Init() = 0;
+  virtual bool Start() = 0;
+  virtual bool Stop() = 0;
+  virtual ConnectionIndex OpenNetwork(Protocol protocol,
+                                      std::string const& host,
+                                      std::uint16_t port) = 0;
+  virtual void CloseNetwork(ConnectionIndex connect_index) = 0;
+  virtual void WritePacket(ConnectionIndex connect_index,
+                           DataBuffer const& data) = 0;
+  virtual DataBuffer ReadPacket(ConnectionIndex connect_index,
+                                Duration timeout) = 0;
 
-  virtual bool Init();
-  virtual bool Start();
-  virtual bool Stop();
-  virtual ConnectionIndex OpenNetwork(Protocol /*protocol*/,
-                                      std::string const& /*host*/,
-                                      std::uint16_t /*port*/);
-  virtual void CloseNetwork(ConnectionIndex /*connect_index*/);
-  virtual void WritePacket(ConnectionIndex /*connect_index*/,
-                           DataBuffer const& /*data*/);
-  virtual DataBuffer ReadPacket(ConnectionIndex /*connect_index*/,
-                                Duration /*timeout*/);
-
-  virtual bool SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/);
-  virtual bool PowerOff();
-
-  ModemInit get_modem_init();
-
- private:
-  ModemInit modem_init_;
+  virtual bool SetPowerSaveParam(PowerSaveParam const& psp) = 0;
+  virtual bool PowerOff() = 0;
 };
 
 } /* namespace ae */

@@ -33,7 +33,7 @@
 namespace ae {
 class ModemDriverFactory {
  public:
-  static IModemDriver::ptr CreateModem(ModemInit modem_init, Domain* domain);
+  static std::unique_ptr<IModemDriver> CreateModem(ModemInit modem_init);
 };
 }  // namespace ae
 
