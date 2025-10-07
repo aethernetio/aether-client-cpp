@@ -28,11 +28,11 @@ std::unique_ptr<ISerialPort> SerialPortFactory::CreatePort(
     [[maybe_unused]] ActionContext action_context, IPoller::ptr const& poller,
     SerialInit const& serial_init) {
 #if WIN_SERIAL_PORT_ENABLED == 1
-  return std::make_unique<WINSerialPort>(action_context, poller, serial_init);
+  return std::make_unique<WinSerialPort>(action_context, serial_init, poller);
 #elif ESP32_SERIAL_PORT_ENABLED == 1
-  return std::make_unique<ESP32SerialPort>(action_context, poller, serial_init);
+  return std::make_unique<ESP32SerialPort>(action_context, serial_init, poller);
 #elif UNIX_SERIAL_PORT_ENABLED == 1
-  return std::make_unique<UnixSerialPort>(action_context, poller, serial_init);
+  return std::make_unique<UnixSerialPort>(action_context, serial_init, poller);
 #else
   return nullptr;
 #endif
