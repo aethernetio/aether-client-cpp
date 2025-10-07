@@ -25,14 +25,12 @@
 #include "aether/actions/action_context.h"
 
 namespace ae {
-namespace action_ptr_internal {
 template <typename T, typename Enable = void>
 struct ActionStoppable : std::false_type {};
 
 template <typename T>
 struct ActionStoppable<T, std::void_t<decltype(std::declval<T&>().Stop())>>
     : std::true_type {};
-}  // namespace action_ptr_internal
 
 /**
  * \brief Shared ownership to actions
@@ -88,6 +86,12 @@ ActionPtr(ActionPtr<T>&& t) -> ActionPtr<T>;
 template <typename T>
 ActionPtr(ActionPtr<T> const& t) -> ActionPtr<T>;
 
+template <template <typename...> typename T, typename... TArgs>
+auto MakeActionPtr(ActionContext action_context, TArgs&&... args) {
+  using DeducedT = decltype(T(action_context, std::forward<TArgs>(args)...));
+  return ActionPtr<DeducedT>(action_context, std::forward<TArgs>(args)...);
+}
+
 /**
  * \brief Ownership to actions. Calls Action::Stop on destruction.
  */
@@ -97,8 +101,7 @@ class OwnActionPtr : public ActionPtr<TAction> {
   template <typename UAction>
   friend class OwnActionPtr;
 
-  static_assert(action_ptr_internal::ActionStoppable<TAction>::value,
-                "TAction must be stoppable");
+  static_assert(ActionStoppable<TAction>::value, "TAction must be stoppable");
   OwnActionPtr() = default;
 
   template <typename... TArgs>

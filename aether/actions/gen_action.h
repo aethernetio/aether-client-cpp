@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,23 +14,24 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#ifndef AETHER_ACTIONS_GEN_ACTION_H_
+#define AETHER_ACTIONS_GEN_ACTION_H_
 
-void setUp() {}
-void tearDown() {}
+#include "aether/actions/action.h"
 
-extern int test_action_registry();
-extern int test_action_processor();
-extern int test_action_status_event();
-extern int test_action();
-extern int test_pipeline();
+namespace ae {
+template <typename TBody>
+class GenAction final : public Action<GenAction<TBody>> {
+ public:
+  using BaseAction = Action<GenAction<TBody>>;
+  GenAction(ActionContext action_context, TBody&& body)
+      : BaseAction{action_context}, body_{std::move(body)} {}
 
-int main() {
-  auto res = 0;
-  res += test_action_registry();
-  res += test_action_processor();
-  res += test_action_status_event();
-  res += test_action();
-  res += test_pipeline();
-  return res;
-}
+  UpdateStatus Update() { return body_(); }
+
+ private:
+  TBody body_;
+};
+}  // namespace ae
+
+#endif  // AETHER_ACTIONS_GEN_ACTION_H_
