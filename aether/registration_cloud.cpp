@@ -21,7 +21,6 @@
 
 #  include "aether/server.h"
 #  include "aether/aether.h"
-#  include "aether/channels/channel.h"
 
 namespace ae {
 
@@ -31,13 +30,10 @@ RegistrationCloud::RegistrationCloud(ObjPtr<Aether> aether, Domain* domain)
 #  endif
 
 void RegistrationCloud::AddServerSettings(UnifiedAddress address) {
-  auto server = domain_->CreateObj<Server>();
-  // don't care for registration
-  server->server_id = 0;
-
-  auto channels = aether_.as<Aether>()->adapter_registry->GenerateChannels(
-      {std::move(address)});
-  server->SetChannels(std::move(channels));
+  // don't care about server id for registration
+  auto server =
+      domain_->CreateObj<Server>(ServerId{0}, std::vector{std::move(address)});
+  server->Register(aether_.as<Aether>()->adapter_registry);
 
   AddServer(server);
 }

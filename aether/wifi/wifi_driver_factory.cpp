@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_ITRANSPORT_STREAM_BUILDER_H_
-#define AETHER_TRANSPORT_ITRANSPORT_STREAM_BUILDER_H_
+#include "aether/wifi/wifi_driver_factory.h"
 
-#include <memory>
-
-#include "aether/stream_api/istream.h"
+// IWYU pragma: begin_keeps
+#include "aether/wifi/esp_wifi_driver.h"
+// IWYU pragma: end_keeps
 
 namespace ae {
-class ITransportStreamBuilder {
- public:
-  virtual ~ITransportStreamBuilder() = default;
+std::unique_ptr<WifiDriver> WifiDriverFactory::CreateWifiDriver() {
+#if defined ESP_WIFI_DRIVER_ENABLED
+  return std::make_unique<EspWifiDriver>();
+#else
+  return nullptr;
+#endif
+}
 
-  virtual std::unique_ptr<ByteIStream> BuildTransportStream() = 0;
-};
 }  // namespace ae
-
-#endif  // AETHER_TRANSPORT_ITRANSPORT_STREAM_BUILDER_H_

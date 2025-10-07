@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-#include "aether/format/format.h"
+#include <thread>
+#include <chrono>
+#include <string_view>
+
 #include "aether/misc/from_chars.h"
 #include "aether/modems/exponent_time.h"
 #include "aether/modems/sim7070_at_modem.h"
@@ -24,15 +27,14 @@
 
 namespace ae {
 
-Sim7070AtModem::Sim7070AtModem(ModemAdapter& adapter, IPoller::ptr poller,
-                               ModemInit modem_init, Domain* domain)
-    : IModemDriver{std::move(poller), std::move(modem_init), domain},
-      adapter_{&adapter} {
-  serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
-                                          adapter_->poller_,
-                                          GetModemInit().serial_init);
-  at_comm_support_ = std::make_unique<AtCommSupport>(serial_.get());
-};
+Sim7070AtModem::Sim7070AtModem(ModemInit modem_init)
+    : modem_init_{std::move(modem_init)} {
+  serial_ = SerialPortFactory::CreatePort(modem_init_.serial_init);
+  Init();
+  Start();
+}
+
+Sim7070AtModem::~Sim7070AtModem() { Stop(); }
 
 bool Sim7070AtModem::Init() {
   if (!serial_->IsOpen()) {
@@ -65,8 +67,6 @@ bool Sim7070AtModem::Init() {
 }
 
 bool Sim7070AtModem::Start() {
-  ModemInit modem_init = GetModemInit();
-
   if (!serial_->IsOpen()) {
     AE_TELED_ERROR("Serial port is not open");
     return false;
@@ -74,8 +74,8 @@ bool Sim7070AtModem::Start() {
 
   // Check Sim card
   auto sim_err = CheckSimStatus();
-  if ((sim_err == kModemError::kNoError) && modem_init.use_pin) {
-    if (auto err = SetupSim(modem_init.pin); err != kModemError::kNoError) {
+  if ((sim_err == kModemError::kNoError) && modem_init_.use_pin) {
+    if (auto err = SetupSim(modem_init_.pin); err != kModemError::kNoError) {
       AE_TELED_ERROR("Setup sim error {}", err);
       return false;
     }
@@ -89,22 +89,22 @@ bool Sim7070AtModem::Start() {
     return false;
   }
 
-  if (auto err = SetBaudRate(modem_init.serial_init.baud_rate);
+  if (auto err = SetBaudRate(modem_init_.serial_init.baud_rate);
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Set baud rate error {}", err);
     return false;
   }
 
-  if (auto err = SetNetMode(modem_init.modem_mode);
+  if (auto err = SetNetMode(modem_init_.modem_mode);
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Set net mode error {}", err);
     return false;
   }
 
-  if (auto err = SetupNetwork(modem_init.operator_name,
-                              modem_init.operator_code, modem_init.apn_name,
-                              modem_init.apn_user, modem_init.apn_pass,
-                              modem_init.modem_mode, modem_init.auth_type);
+  if (auto err = SetupNetwork(modem_init_.operator_name,
+                              modem_init_.operator_code, modem_init_.apn_name,
+                              modem_init_.apn_user, modem_init_.apn_pass,
+                              modem_init_.modem_mode, modem_init_.auth_type);
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Setup network error {}", err);
     return false;

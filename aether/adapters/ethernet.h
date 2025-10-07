@@ -17,50 +17,15 @@
 #ifndef AETHER_ADAPTERS_ETHERNET_H_
 #define AETHER_ADAPTERS_ETHERNET_H_
 
-#include "aether/memory.h"
 #include "aether/poller/poller.h"
 #include "aether/obj/dummy_obj.h"    // IWYU pragma: keep
 #include "aether/dns/dns_resolve.h"  // IWYU pragma: keep
 #include "aether/adapters/adapter.h"
-#include "aether/types/state_machine.h"
-#include "aether/events/event_subscription.h"
+
+#include "aether/access_points/ethernet_access_point.h"
 
 namespace ae {
 class Aether;
-class EthernetAdapter;
-namespace ethernet_adapter_internal {
-class EthernetTransportBuilder;
-
-class EthernetTransportBuilderAction final : public TransportBuilderAction {
- public:
-  enum class State : std::uint8_t {
-    kAddressResolve,
-    kBuildersCreate,
-    kBuildersCreated,
-    kFailed
-  };
-
-  EthernetTransportBuilderAction(ActionContext action_context,
-                                 EthernetAdapter& adapter,
-                                 UnifiedAddress address_port_protocol);
-  UpdateStatus Update() override;
-
-  std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() override;
-
- private:
-  void ResolveAddress();
-  void CreateBuilders();
-
-  EthernetAdapter* adapter_;
-  UnifiedAddress address_port_protocol_;
-  std::vector<IpAddressPortProtocol> ip_address_port_protocols_;
-  std::vector<std::unique_ptr<ITransportStreamBuilder>> transport_builders_;
-  StateMachine<State> state_;
-  Subscription state_changed_;
-  Subscription address_resolve_sub_;
-};
-}  // namespace ethernet_adapter_internal
-
 /**
  * \brief The Ethernet interface adapter.
  * This is the most common and suitable for most devices adapter. It's not tied
@@ -69,9 +34,6 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
  * mobile).
  */
 class EthernetAdapter final : public Adapter {
-  friend class ethernet_adapter_internal ::EthernetTransportBuilderAction;
-  friend class ethernet_adapter_internal::EthernetTransportBuilder;
-
   AE_OBJECT(EthernetAdapter, Adapter, 0)
 
   EthernetAdapter() = default;
@@ -82,18 +44,12 @@ class EthernetAdapter final : public Adapter {
                   DnsResolver::ptr dns_resolver, Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_))
+  AE_OBJECT_REFLECT(AE_MMBRS(ethernet_access_point_))
 
-  ActionPtr<TransportBuilderAction> CreateTransport(
-      UnifiedAddress const& address_port_protocol) override;
-
-  std::vector<ObjPtr<Channel>> GenerateChannels(
-      std::vector<UnifiedAddress> const& addresses) override;
+  std::vector<AccessPoint::ptr> access_points() override;
 
  private:
-  Obj::ptr aether_;
-  IPoller::ptr poller_;
-  DnsResolver::ptr dns_resolver_;
+  EthernetAccessPoint::ptr ethernet_access_point_;
 };
 }  // namespace ae
 

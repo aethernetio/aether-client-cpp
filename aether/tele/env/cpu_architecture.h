@@ -33,12 +33,10 @@
 
 #  if defined __PPC__ || defined __POWERPC__ || defined powerpc || \
       defined _POWER || defined __ppc__ || defined __powerpc__
-#    if !defined AE_CPU_TYPE
-#      if defined __powerpc64__
-#        define AE_CPU_TYPE "PowerPC64"
-#      else
-#        define AE_CPU_TYPE "PowerPC"
-#      endif
+#    if defined __powerpc64__
+#      define AE_CPU_TYPE "PowerPC64"
+#    else
+#      define AE_CPU_TYPE "PowerPC"
 #    endif
 #  endif
 
