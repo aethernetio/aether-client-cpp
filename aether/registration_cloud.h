@@ -24,6 +24,8 @@
 #  include "aether/cloud.h"
 
 namespace ae {
+class Aether;
+
 class RegistrationCloud : public Cloud {
   AE_OBJECT(RegistrationCloud, Cloud, 0)
 
@@ -31,12 +33,15 @@ class RegistrationCloud : public Cloud {
 
  public:
 #  ifdef AE_DISTILLATION
-  explicit RegistrationCloud(Domain* domain);
+  explicit RegistrationCloud(ObjPtr<Aether> aether, Domain* domain);
 #  endif
 
-  AE_OBJECT_REFLECT()
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_));
 
   void AddServerSettings(UnifiedAddress address);
+
+ private:
+  Obj::ptr aether_;
 };
 }  // namespace ae
 

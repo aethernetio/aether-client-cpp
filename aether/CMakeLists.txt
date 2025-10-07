@@ -45,13 +45,12 @@ set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
 list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
-            "channel.cpp"
+            "adapter_registry.cpp"
             "client.cpp"
             "cloud.cpp"
             "registration_cloud.cpp"
             "work_cloud.cpp"
             "server.cpp"
-            "proof_of_work.cpp"
             "server_keys.cpp"
             "socket_initializer.cpp")
 
@@ -87,10 +86,7 @@ list(APPEND ptr_srcs
 list(APPEND events_srcs)
 
 list(APPEND actions_srcs
-            "ae_actions/registration/registration.cpp"
-            "ae_actions/registration/registration_key_provider.cpp"
             "ae_actions/get_client_cloud.cpp"
-            "ae_actions/get_client_cloud_connection.cpp"
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
@@ -102,6 +98,17 @@ list(APPEND actions_srcs
             "actions/task_queue.cpp"
             "actions/repeatable_task.cpp"
             )
+
+list(APPEND registration_srcs
+            "registration/global_reg_server_stream.cpp"
+            "registration/reg_server_stream.cpp"
+            "registration/proof_of_work.cpp"
+            "registration/root_server_select_stream.cpp"
+            "registration/root_server_stream.cpp"
+            "registration/registration.cpp"
+            "registration/registration_key_provider.cpp"
+            )
+
 
 list(APPEND adapters_srcs
             "adapters/adapter.cpp"
@@ -149,27 +156,22 @@ list(APPEND transport_srcs
             "transport/low_level/sockets/win_socket.cpp"
             "transport/low_level/sockets/win_tcp_socket.cpp"
             "transport/low_level/sockets/win_udp_socket.cpp"
+            "transport/modems/modem_transport.cpp"
             "transport/socket_packet_send_action.cpp"
             "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
             "transport/low_level/udp/udp.cpp"
             "transport/modems/modem_transport.cpp"
             "transport/lora_modules/lora_module_transport.cpp"
-)
-
-list(APPEND server_list_srcs
-            "server_list/server_list.cpp"
-            "server_list/no_filter_server_list_policy.cpp"
+            "transport/build_transport_action.cpp"
 )
 
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
             "stream_api/crypto_gate.cpp"
-            "stream_api/header_gate.cpp"
             "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
             "stream_api/debug_gate.cpp"
-            "stream_api/buffer_stream.cpp"
             "stream_api/stream_splitter.cpp"
 
             "stream_api/safe_stream.cpp"
@@ -215,28 +217,29 @@ list(APPEND methods_srcs
 
 
 list(APPEND client_connections_srcs
-            "client_connections/client_cloud_connection.cpp"
-            "client_connections/split_stream_client_connection.cpp"
+            "client_connections/cloud_message_stream.cpp"
 )
 
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
             "server_connections/client_to_server_stream.cpp"
-            "server_connections/build_transport_action.cpp"
+            "server_connections/channel_selection_stream.cpp"
             "server_connections/server_channel.cpp"
+            "server_connections/channel_manager.cpp"
+            "server_connections/channel_connection.cpp"
+            "server_connections/server_connection.cpp"
 )
 
 list(APPEND connection_manager_srcs
-            "connection_manager/client_server_connection_pool.cpp"
-            "connection_manager/cloud_cache.cpp"
             "connection_manager/client_connection_manager.cpp"
+            "connection_manager/client_cloud_manager.cpp"
             "connection_manager/server_connection_selector.cpp"
+            "connection_manager/server_connection_manager.cpp"
 )
 
 list(APPEND client_messages_srcs
-            "client_messages/message_stream.cpp"
-            "client_messages/message_stream_dispatcher.cpp"
             "client_messages/p2p_message_stream.cpp"
+            "client_messages/p2p_message_stream_manager.cpp"
             "client_messages/p2p_safe_message_stream.cpp"
             )
 
@@ -249,8 +252,10 @@ list(APPEND domain_storage_srcs
             "domain_storage/file_system_std_storage.cpp"
             "domain_storage/sync_domain_storage.cpp")
 
-list(APPEND statistics_srcs
-      "statistics/channel_statistics.cpp")
+list(APPEND channels_srcs
+            "channels/channel_statistics.cpp"
+            "channels/channel.cpp"
+            "channels/channel.cpp")
 
 list(APPEND tele_srcs
             "tele/tele_init.cpp"
@@ -289,7 +294,6 @@ if(REGULAR_CMAKE_PROJECT)
                             ${events_srcs}
                             ${actions_srcs}
                             ${transport_srcs}
-                            ${server_list_srcs}
                             ${stream_api_src}
                             ${adapters_srcs}
                             ${modems_srcs}
@@ -298,12 +302,13 @@ if(REGULAR_CMAKE_PROJECT)
                             ${api_protocol_srcs}
                             ${crypto_srcs}
                             ${methods_srcs}
+                            ${registration_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${server_connections_srcs}
                             ${connection_manager_srcs}
                             ${domain_storage_srcs}
-                            ${statistics_srcs}
+                            ${channels_srcs}
                             ${tele_srcs}
                             )
 
@@ -341,17 +346,17 @@ else()
                             ${lora_modules_srcs}
                             ${serial_ports_srcs}
                             ${transport_srcs}
-                            ${server_list_srcs}
                             ${stream_api_src}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
                             ${methods_srcs}
+                            ${registration_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
                             ${server_connections_srcs}
                             ${connection_manager_srcs}
                             ${domain_storage_srcs}
-                            ${statistics_srcs}
+                            ${channels_srcs}
                             ${tele_srcs}
                             INCLUDE_DIRS ${include_dirs}
                             REQUIRES esp_wifi nvs_flash spiffs esp_driver_uart)
@@ -431,12 +436,15 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Cla
                          -Werror
                          -Wall
                          -Wextra
-                         -Wconversion
                          -Wimplicit-fallthrough
                          -Wno-missing-braces
                          -Wno-sign-compare
                          -Wno-ignored-attributes
                          -Wno-cpp)
+  # gcc before 10.0 has bagous Wconversion check
+  if (GCC_VERSION VERSION_GREATER 10.0 OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang.*")
+    target_compile_options(${TARGET_NAME} PRIVATE -Wconversion)
+  endif()
 
   if (CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_options(${TARGET_NAME} PUBLIC

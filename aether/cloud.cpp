@@ -18,9 +18,7 @@
 
 namespace ae {
 
-#ifdef AE_DISTILLATION
 Cloud::Cloud(Domain* domain) : Obj{domain} {}
-#endif  // AE_DISTILLATION
 
 void Cloud::AddServer(Server::ptr const& server) {
   servers_.push_back(server);
@@ -33,9 +31,6 @@ void Cloud::LoadServer(Server::ptr& server) {
     assert(server);
   }
 }
-
-void Cloud::set_adapter(Adapter::ptr const& adapter) { adapter_ = adapter; }
-Adapter::ptr& Cloud::adapter() { return adapter_; }
 
 std::vector<Server::ptr>& Cloud::servers() { return servers_; }
 

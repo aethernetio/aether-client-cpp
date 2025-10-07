@@ -40,7 +40,6 @@ enum GlobalId {
   kClientFactory = kGlobalIdFactoriesOffset + 1,
   kIpFactory = kGlobalIdFactoriesOffset + 2,
   kChannelFactory = kGlobalIdFactoriesOffset + 3,
-  kCloudFactory = kGlobalIdFactoriesOffset + 4,
   kProxyFactory = kGlobalIdFactoriesOffset + 5,
   kStatisticsFactory = kGlobalIdFactoriesOffset + 6,
 

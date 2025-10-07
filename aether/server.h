@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "aether/common.h"
-#include "aether/channel.h"
+#include "aether/channels/channel.h"
 
 namespace ae {
 class Server : public Obj {
@@ -33,8 +33,7 @@ class Server : public Obj {
 
   AE_OBJECT_REFLECT(AE_MMBRS(server_id, channels))
 
-  void AddChannel(Channel::ptr channel);
-  void LoadChannel(Channel::ptr& channel);
+  void SetChannels(std::vector<Channel::ptr> chans);
 
   ServerId server_id;
   std::vector<Channel::ptr> channels;

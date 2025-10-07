@@ -65,7 +65,7 @@ class Sender {
   Event<void()> test_stopped_event_;
   Event<void()> error_event_;
 
-  std::unique_ptr<ByteIStream> message_stream_;
+  RcPtr<P2pStream> message_stream_;
 
   OwnActionPtr<RepeatableTask> start_test_action_;
   OwnActionPtr<RepeatableTask> stop_test_action_;

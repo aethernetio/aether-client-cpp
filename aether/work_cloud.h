@@ -28,9 +28,7 @@ class WorkCloud : public Cloud {
   WorkCloud() = default;
 
  public:
-#ifdef AE_DISTILLATION
   explicit WorkCloud(Domain* domain);
-#endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT()
 };

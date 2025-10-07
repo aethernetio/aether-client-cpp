@@ -34,12 +34,13 @@ EventSubscriber<void()> Sender::error_event() { return error_event_; }
 
 void Sender::Connect() {
   message_stream_ =
-      make_unique<P2pStream>(action_context_, client_, destination_);
+      client_->message_stream_manager().CreateStream(destination_);
+
   on_recv_data_sub_ = message_stream_->out_data_event().Subscribe(
       *this, MethodPtr<&Sender::OnRecvData>{});
 }
 
-void Sender::Disconnect() { message_stream_.reset(); }
+void Sender::Disconnect() { message_stream_.Reset(); }
 
 EventSubscriber<void()> Sender::Handshake() {
   auto api = ApiCallAdapter{ApiContext{protocol_context_, bandwidth_api_},

@@ -16,7 +16,8 @@
 
 #include "aether/transport/modems/modem_transport.h"
 
-#if defined MODEM_TRANSPORT_ENABLED
+#if MODEM_TRANSPORT_ENABLED
+
 #  include "aether/mstream.h"
 #  include "aether/reflect/reflect.h"
 #  include "aether/mstream_buffers.h"
@@ -193,6 +194,12 @@ StreamInfo ModemTransport::stream_info() const { return stream_info_; }
 
 ModemTransport::OutDataEvent::Subscriber ModemTransport::out_data_event() {
   return out_data_event_;
+}
+
+void ModemTransport::Restream() {
+  AE_TELED_DEBUG("Modem transport restream");
+  stream_info_.link_state = LinkState::kLinkError;
+  Disconnect();
 }
 
 ActionPtr<StreamWriteAction> ModemTransport::Write(DataBuffer&& in_data) {

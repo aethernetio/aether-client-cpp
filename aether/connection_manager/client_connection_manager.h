@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,72 +17,32 @@
 #ifndef AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
 #define AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
 
-#include <vector>
+#include "aether/obj/obj_ptr.h"
+#include "aether/ptr/ptr_view.h"
 
-#include "aether/obj/obj.h"
-#include "aether/ptr/ptr.h"
-#include "aether/actions/action_ptr.h"
-
-#include "aether/cloud.h"
-
-#include "aether/ae_actions/get_client_cloud_connection.h"
-
-#include "aether/connection_manager/cloud_cache.h"
-#include "aether/client_connections/client_connection.h"
-#include "aether/connection_manager/server_connection_selector.h"
-#include "aether/connection_manager/client_server_connection_pool.h"
+#include "aether/server_connections/server_connection.h"
+#include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {
-class Aether;
-class Client;
+class Cloud;
 
-namespace ccm_internal {
-class CachedServerConnectionFactory;
-}
-
-class ClientConnectionManager : public Obj {
-  friend class ccm_internal::CachedServerConnectionFactory;
-
-  AE_OBJECT(ClientConnectionManager, Obj, 0)
-
-  ClientConnectionManager() = default;
-
+/**
+ * \brief Manager of all connections to the client's cloud
+ */
+class ClientConnectionManager {
  public:
-  explicit ClientConnectionManager(ObjPtr<Aether> aether, ObjPtr<Client> client,
-                                   Domain* domain);
+  ClientConnectionManager(
+      ObjPtr<Cloud> const& cloud,
+      std::unique_ptr<IServerConnectionFactory>&& connection_factory);
 
-  AE_CLASS_NO_COPY_MOVE(ClientConnectionManager)
-
-  Ptr<ClientConnection> GetClientConnection();
-  ActionPtr<GetClientCloudConnection> GetClientConnection(Uid client_uid);
-
-  Ptr<ClientConnection> CreateClientConnection(Cloud::ptr const& cloud);
-
-  Cloud::ptr RegisterCloud(
-      Uid uid, std::vector<ServerDescriptor> const& server_descriptors);
-
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_,
-                             client_server_connection_pool_))
-
-  template <typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_);
-    dnv(aether_, client_, cloud_cache_);
-  }
-  template <typename Dnv>
-  void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(base_);
-    dnv(aether_, client_, cloud_cache_);
-  }
+  std::vector<ServerConnection>& server_connections();
 
  private:
-  void RegisterCloud(Uid uid, Cloud::ptr cloud);
+  void InitServerConnections();
 
-  Obj::ptr aether_;
-  Obj::ptr client_;
-
-  CloudCache cloud_cache_;
-  ClientServerConnectionPool client_server_connection_pool_;
+  PtrView<Cloud> cloud_;
+  std::unique_ptr<IServerConnectionFactory> connection_factory_;
+  std::vector<ServerConnection> server_connections_;
 };
 }  // namespace ae
 

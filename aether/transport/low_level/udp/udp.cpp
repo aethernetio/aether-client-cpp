@@ -209,6 +209,12 @@ UdpTransport::OutDataEvent::Subscriber UdpTransport::out_data_event() {
   return out_data_event_;
 }
 
+void UdpTransport::Restream() {
+  AE_TELED_DEBUG("UDP restream");
+  stream_info_.link_state = LinkState::kLinkError;
+  Disconnect();
+}
+
 ActionPtr<StreamWriteAction> UdpTransport::Write(DataBuffer&& in_data) {
   AE_TELE_DEBUG(kUdpTransportSend, "Send data size:{}", in_data.size());
   auto send_packet_action = send_queue_manager_->AddPacket(

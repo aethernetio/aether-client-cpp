@@ -25,8 +25,9 @@
 #include "aether/events/multi_subscription.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/actions/action_context.h"
+#include "aether/client_messages/p2p_message_stream.h"
+#include "aether/client_messages/p2p_safe_message_stream.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
-#include "aether/client_connections/split_stream_client_connection.h"
 
 #include "send_message_delays/timed_sender.h"
 #include "send_message_delays/api/bench_delays_api.h"
@@ -56,9 +57,9 @@ class Sender {
   Client::ptr client_;
   Uid destination_uid_;
   SafeStreamConfig safe_stream_config_;
-  std::unique_ptr<SplitStreamCloudConnection> split_stream_connection_;
 
-  std::unique_ptr<ByteIStream> send_message_stream_;
+  RcPtr<P2pStream> send_message_stream_;
+  std::unique_ptr<P2pSafeStream> send_message_safe_stream_;
   ProtocolContext protocol_context_;
   BenchDelaysApi bench_delays_api_;
 

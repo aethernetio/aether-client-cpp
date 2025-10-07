@@ -21,48 +21,52 @@
 
 #include "aether/common.h"
 #include "aether/memory.h"
-
 #include "aether/ptr/ptr_view.h"
+#include "aether/events/events.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/actions/timer_action.h"
 #include "aether/actions/action_context.h"
 
-#include "aether/server.h"
-#include "aether/channel.h"
-#include "aether/adapters/adapter.h"
-
 #include "aether/stream_api/istream.h"
-#include "aether/stream_api/buffer_stream.h"
 
-#include "aether/server_connections/build_transport_action.h"
+#include "aether/transport/build_transport_action.h"
 
 namespace ae {
+class Channel;
 class ServerChannel final {
  public:
-  ServerChannel(ActionContext action_context, Adapter::ptr const& adapter,
-                Server::ptr const& server, Channel::ptr const& channel);
+  // Connected or not
+  using ConnectionResult = Event<void(bool is_connected)>;
+
+  ServerChannel(ActionContext action_context, ObjPtr<Channel> const& channel);
 
   AE_CLASS_NO_COPY_MOVE(ServerChannel)
 
-  ByteIStream& stream();
+  /**
+   * \brief Get the channel stream. May be null.
+   */
+  ByteIStream* stream();
+  ObjPtr<Channel> channel() const;
+  ConnectionResult::Subscriber connection_result();
 
  private:
   void OnConnected(BuildTransportAction& build_transport_action);
   void OnConnectedFailed();
 
   ActionContext action_context_;
-  PtrView<Server> server_;
   PtrView<Channel> channel_;
-  ActionPtr<BuildTransportAction> build_transport_action_;
 
   std::unique_ptr<ByteIStream> transport_stream_;
-  BufferStream buffer_stream_;
+
+  ActionPtr<BuildTransportAction> build_transport_action_;
+  Subscription build_transport_sub_;
 
   TimePoint connection_start_time_;
   ActionPtr<TimerAction> connection_timer_;
-
   Subscription connection_timeout_;
-  Subscription build_transport_sub_;
   Subscription connection_error_;
+
+  ConnectionResult connection_result_event_;
 };
 }  // namespace ae
 

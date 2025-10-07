@@ -16,53 +16,55 @@
 
 #include "aether/server_connections/client_server_connection.h"
 
-#include <chrono>
+#include "aether/server.h"
+#include "aether/server_connections/server_channel.h"
+
+#include "aether/tele/tele.h"
 
 namespace ae {
-ClientServerConnection::ClientServerConnection(
-    ActionContext action_context, [[maybe_unused]] ObjPtr<Aether> const& aether,
-    Server::ptr const& server, Channel::ptr const& channel,
-    std::unique_ptr<ClientToServerStream> client_to_server_stream)
-    : server_stream_{std::move(client_to_server_stream)},
-      message_stream_dispatcher_{*server_stream_},
-      ping_{action_context, server, channel, *server_stream_,
-            std::chrono::milliseconds{AE_PING_INTERVAL_MS}},
-#if defined TELEMETRY_ENABLED
-      telemetry_{action_context, aether, *server_stream_},
-#endif
-      new_stream_event_sub_{
-          message_stream_dispatcher_.new_stream_event().Subscribe(
-              new_stream_event_, MethodPtr<&NewStreamEvent::Emit>{})},
-      ping_error_sub_{ping_->StatusEvent().Subscribe(
-          OnError{[this]() { server_error_event_.Emit(); }})} {
+static constexpr std::size_t kBufferCapacity = 200;
+
+ClientServerConnection::ClientServerConnection(ActionContext action_context,
+                                               ObjPtr<Aether> const& aether,
+                                               ObjPtr<Client> const& client,
+                                               Server::ptr const& server)
+    : action_context_{action_context},
+      client_{client},
+      server_{server},
+      channel_manager_{action_context_, aether, server},
+      channel_select_stream_{action_context_, channel_manager_},
+      buffer_stream_{action_context_, kBufferCapacity},
+      client_to_server_stream_{action_context, client, server->server_id} {
+  AE_TELED_DEBUG("Client server connection");
+  Tie(client_to_server_stream_, buffer_stream_, channel_select_stream_);
+  StreamUpdate();
+  SubscribeToSelectChannel();
 }
 
 ClientToServerStream& ClientServerConnection::server_stream() {
-  return *server_stream_;
+  return client_to_server_stream_;
 }
 
-ByteIStream& ClientServerConnection::GetStream(Uid destination_uid) {
-  return message_stream_dispatcher_.GetMessageStream(destination_uid);
+void ClientServerConnection::SubscribeToSelectChannel() {
+  stream_update_sub_ = channel_select_stream_.stream_update_event().Subscribe(
+      *this, MethodPtr<&ClientServerConnection::StreamUpdate>{});
 }
 
-ClientServerConnection::NewStreamEvent::Subscriber
-ClientServerConnection::new_stream_event() {
-  return new_stream_event_;
-}
+void ClientServerConnection::StreamUpdate() {
+  auto const* channel = channel_select_stream_.server_channel();
+  // check if channel is updated
+  if (server_channel_ == channel) {
+    return;
+  }
+  server_channel_ = channel;
 
-ClientServerConnection::ServerErrorEvent::Subscriber
-ClientServerConnection::server_error_event() {
-  return server_error_event_;
-}
-
-void ClientServerConnection::CloseStream(Uid uid) {
-  message_stream_dispatcher_.CloseStream(uid);
-}
-
-void ClientServerConnection::SendTelemetry() {
-#if defined TELEMETRY_ENABLED
-  telemetry_->SendTelemetry();
-#endif
+  Server::ptr server = server_.Lock();
+  assert(server);
+  // Create new ping if channel is updated
+  // TODO: add ping interval config
+  ping_ =
+      OwnActionPtr<Ping>{action_context_, server, server_channel_->channel(),
+                         client_to_server_stream_, std::chrono::seconds{5}};
 }
 
 }  // namespace ae

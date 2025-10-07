@@ -33,28 +33,23 @@ Sender::Sender(ActionContext action_context, Client::ptr client,
       client_{std::move(client)},
       destination_uid_{destination_uid},
       safe_stream_config_{safe_stream_config},
-      split_stream_connection_{make_unique<SplitStreamCloudConnection>(
-          action_context_, client_, *client_->client_connection())},
       bench_delays_api_{protocol_context_} {}
 
 void Sender::ConnectP2pStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pStream()");
 
   send_message_stream_ =
-      split_stream_connection_->CreateStream(destination_uid_, StreamId{0});
+      client_->message_stream_manager().CreateStream(destination_uid_);
 }
 
 void Sender::ConnectP2pSafeStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pSafeStream()");
-  send_message_stream_ = make_unique<P2pSafeStream>(
+  send_message_safe_stream_ = make_unique<P2pSafeStream>(
       action_context_, safe_stream_config_,
-      split_stream_connection_->CreateStream(destination_uid_, StreamId{1}));
+      client_->message_stream_manager().CreateStream(destination_uid_));
 }
 
-void Sender::Disconnect() {
-  AE_TELED_DEBUG("Sender::Disconnect()");
-  send_message_stream_.reset();
-}
+void Sender::Disconnect() { AE_TELED_DEBUG("Sender::Disconnect()"); }
 
 ActionPtr<TimedSender> Sender::WarmUp(Duration min_send_interval) {
   return CreateBenchAction([](auto& api, auto id) { api->warm_up(id, {}); },

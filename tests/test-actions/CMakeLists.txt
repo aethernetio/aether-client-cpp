@@ -20,6 +20,7 @@ list(APPEND test_srcs
   test-action-processor.cpp
   test-action-status-event.cpp
   test-action.cpp
+  test-pipeline.cpp
 )
 
 if(NOT CM_PLATFORM)
