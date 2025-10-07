@@ -17,49 +17,31 @@
 #ifndef AETHER_SERIAL_PORTS_ISERIAL_PORT_H_
 #define AETHER_SERIAL_PORTS_ISERIAL_PORT_H_
 
-#include <optional>
-#include <mutex>
-
-#include "aether/serial_ports/serial_port_types.h"
-
+#include "aether/events/events.h"
 #include "aether/types/data_buffer.h"
-#include "aether/ptr/ptr_view.h"
-#include "aether/poller/poller.h"
-//#include "aether/actions/action.h"
-//#include "aether/actions/action_ptr.h"
-#include "aether/actions/action_context.h"
-
 
 namespace ae {
 /**
  * \brief Represents serial port interface for device communication.
  */
 class ISerialPort {
- protected:
-  ISerialPort() = default;
-
  public:
-  explicit ISerialPort(ActionContext action_context, IPoller::ptr const& poller,
-                       SerialInit const& serial_init);
+  using DataReadEvent = Event<void(DataBuffer const&)>;
+
   virtual ~ISerialPort() = default;
 
+  /**
+   * \brief Check if the serial port is open.
+   */
+  virtual bool IsOpen() = 0;
   /**
    * \brief Write amount of data.
    */
   virtual void Write(DataBuffer const& data) = 0;
   /**
-   * \brief Read all the data.
+   * \brief Read data event.
    */
-  virtual std::optional<DataBuffer> Read() = 0;
-  /**
-   * \brief Check if the serial port is open.
-   */
-  virtual bool IsOpen() = 0;
-
- private:
-  ActionContext action_context_;
-  PtrView<IPoller> poller_;
-  SerialInit serial_init_;
+  virtual DataReadEvent::Subscriber read_event() = 0;
 };
 } /* namespace ae */
 

@@ -106,13 +106,13 @@ list(APPEND actions_srcs
 list(APPEND adapters_srcs
             "adapters/adapter.cpp"
             "adapters/esp32_wifi.cpp"
-            "adapters/ethernet.cpp"            
+            "adapters/ethernet.cpp"
             "adapters/lora_module_adapter.cpp"
             "adapters/modem_adapter.cpp"
             "adapters/parent_lora_module.cpp"
             "adapters/parent_modem.cpp"
             "adapters/parent_wifi.cpp"
-            
+
             )
 
 list(APPEND modems_srcs
@@ -135,7 +135,6 @@ list(APPEND serial_ports_srcs
             "serial_ports/at_comm_support.cpp"
             "serial_ports/serial_port_factory.cpp"
             "serial_ports/esp32_serial_port.cpp"
-            "serial_ports/iserial_port.cpp"
             "serial_ports/win_serial_port.cpp"
             "serial_ports/unix_serial_port.cpp"
             )

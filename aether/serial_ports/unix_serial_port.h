@@ -22,18 +22,44 @@
 
 #  define UNIX_SERIAL_PORT_ENABLED 1
 
+#  include <mutex>
+#  include <atomic>
+
+#  include "aether/ptr/ptr_view.h"
+#  include "aether/actions/action.h"
+#  include "aether/actions/action_ptr.h"
+#  include "aether/actions/action_context.h"
+
+#  include "aether/poller/poller.h"
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
 
 namespace ae {
 class UnixSerialPort final : public ISerialPort {
+  class ReadAction final : public Action<ReadAction> {
+   public:
+    ReadAction(ActionContext action_context, UnixSerialPort& serial_port);
+
+    UpdateStatus Update();
+
+   private:
+    void PollEvent(PollerEvent event);
+    void ReadData();
+
+    UnixSerialPort* serial_port_;
+    IPoller::OnPollEventSubscriber::Subscription poll_sub_;
+    std::list<DataBuffer> buffers_;
+    std::atomic_bool read_event_;
+  };
+
  public:
-  explicit UnixSerialPort(SerialInit const& serial_init);
+  explicit UnixSerialPort(ActionContext action_context, SerialInit serial_init,
+                          IPoller::ptr const& poller);
   ~UnixSerialPort() override;
 
   void Write(DataBuffer const& data) override;
 
-  std::optional<DataBuffer> Read() override;
+  DataReadEvent::Subscriber read_event() override;
 
   bool IsOpen() override;
 
@@ -43,7 +69,15 @@ class UnixSerialPort final : public ISerialPort {
 
   void Close();
 
+  ActionContext action_context_;
+  SerialInit serial_init_;
+  PtrView<IPoller> poller_;
+
+  std::mutex fd_lock_;
   int fd_;
+  DataReadEvent read_event_;
+
+  ActionPtr<ReadAction> read_action_;
 };
 }  // namespace ae
 
