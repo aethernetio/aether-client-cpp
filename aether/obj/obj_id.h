@@ -32,15 +32,21 @@ class ObjId {
 
   ObjId() { Invalidate(); }
 
-  ObjId(Type i) : id_{i} {}
+  explicit constexpr ObjId(Type i) : id_{i} {}
 
-  Type id() const { return id_; }
+  constexpr Type id() const { return id_; }
 
   void Invalidate() { id_ = 0; }
-  bool IsValid() const { return id_ != 0; }
-  bool operator<(const ObjId& i) const { return id_ < i.id_; }
-  bool operator!=(const ObjId& i) const { return id_ != i.id_; }
-  bool operator==(const ObjId& i) const { return id_ == i.id_; }
+  constexpr bool IsValid() const { return id_ != 0; }
+  constexpr bool operator<(const ObjId& i) const { return id_ < i.id_; }
+  constexpr bool operator!=(const ObjId& i) const { return id_ != i.id_; }
+  constexpr bool operator==(const ObjId& i) const { return id_ == i.id_; }
+
+  ObjId& operator+=(Type i) {
+    id_ += i;
+    return *this;
+  }
+  constexpr ObjId operator+(Type i) const { return ObjId{id_ + i}; }
 
   template <typename Ob>
   friend omstream<Ob>& operator<<(omstream<Ob>& s, const ObjId& i) {

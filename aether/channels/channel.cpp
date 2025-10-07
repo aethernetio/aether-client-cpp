@@ -17,29 +17,20 @@
 #include "aether/channels/channel.h"
 
 #include <chrono>
+#include <utility>
 
 #include "aether/config.h"
 
 namespace ae {
 
-Channel::Channel(Adapter::ptr adapter, Domain* domain)
+Channel::Channel(UnifiedAddress address, Domain* domain)
     : Obj{domain},
-      adapter_{std::move(adapter)},
+      address{std::move(address)},
       channel_statistics_{domain->CreateObj<ChannelStatistics>()} {
-  adapter_.SetFlags(ObjFlags::kUnloadedByDefault);
-
-  channel_statistics_->AddPingTime(
-      std::chrono::milliseconds{AE_DEFAULT_PING_TIMEOUT_MS});
+  channel_statistics_->AddResponseTime(
+      std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS});
   channel_statistics_->AddConnectionTime(
       std::chrono::milliseconds{AE_DEFAULT_CONNECTION_TIMEOUT_MS});
-}
-
-ActionPtr<TransportBuilderAction> Channel::TransportBuilder() {
-  if (!adapter_) {
-    domain_->LoadRoot(adapter_);
-  }
-  assert(adapter_);
-  return adapter_->CreateTransport(address);
 }
 
 ChannelTransportProperties const& Channel::transport_properties() const {
@@ -48,6 +39,14 @@ ChannelTransportProperties const& Channel::transport_properties() const {
 
 ChannelStatistics& Channel::channel_statistics() {
   return *channel_statistics_;
+}
+
+Duration Channel::TransportBuildTimeout() const {
+  return channel_statistics_->connection_time_statistics().percentile<99>();
+}
+
+Duration Channel::ResponseTimeout() const {
+  return channel_statistics_->response_time_statistics().percentile<99>();
 }
 
 }  // namespace ae

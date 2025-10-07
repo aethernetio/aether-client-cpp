@@ -22,58 +22,15 @@
 #include <cstdint>
 
 #include "aether/events/events.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/events/event_subscription.h"
 
 #include "aether/modems/imodem_driver.h"
 #include "aether/adapters/parent_modem.h"
+#include "aether/access_points/access_point.h"
 
 #define MODEM_TCP_TRANSPORT_ENABLED 1
 
 namespace ae {
-class ModemAdapter;
-namespace modem_adapter_internal {
-class ModemAdapterTransportBuilder;
-
-class ModemAdapterTransportBuilderAction final : public TransportBuilderAction {
-  enum class State : std::uint8_t {
-    kWaitConnection,
-    kBuildersCreate,
-    kBuildersCreated,
-    kFailed
-  };
-
- public:
-  // immediately create the transport
-  ModemAdapterTransportBuilderAction(ActionContext action_context,
-                                     ModemAdapter& adapter,
-                                     UnifiedAddress address_);
-  // create the transport when lte modem is connected
-  ModemAdapterTransportBuilderAction(
-      ActionContext action_context,
-      EventSubscriber<void(bool)> lte_modem_connected_event,
-      ModemAdapter& adapter, UnifiedAddress address_);
-
-  UpdateStatus Update() override;
-
-  std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() override;
-
- private:
-  void CreateBuilders();
-
-  ModemAdapter* adapter_;
-  UnifiedAddress address_;
-  std::unique_ptr<ITransportStreamBuilder> transport_builder_;
-  StateMachine<State> state_;
-  Subscription state_changed_;
-  Subscription lte_modem_connected_subscription_;
-  Subscription resolve_sub_;
-};
-}  // namespace modem_adapter_internal
-
 class ModemAdapter : public ParentModemAdapter {
-  friend class modem_adapter_internal::ModemAdapterTransportBuilder;
-
   AE_OBJECT(ModemAdapter, ParentModemAdapter, 0)
 
   ModemAdapter() = default;
@@ -85,32 +42,17 @@ class ModemAdapter : public ParentModemAdapter {
 
   ~ModemAdapter() override;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_driver_))
+  AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
 
-  template <typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_);
-  }
-  template <typename Dnv>
-  void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(base_);
-  }
+  std::vector<AccessPoint::ptr> access_points() override;
 
-  ActionPtr<TransportBuilderAction> CreateTransport(
-      UnifiedAddress const& address_port_protocol) override;
-
-  std::vector<ObjPtr<Channel>> GenerateChannels(
-      std::vector<UnifiedAddress> const& addresses) override;
-
-  void Update(TimePoint current_time) override;
+  IModemDriver& modem_driver();
 
  private:
-  void Connect();
-  void DisConnect();
-
   bool connected_{false};
-  Event<void(bool result)> modem_connected_event_;
-  IModemDriver::ptr modem_driver_;
+
+  std::unique_ptr<IModemDriver> modem_driver_;
+  AccessPoint::ptr access_point_;
 };
 
 }  // namespace ae

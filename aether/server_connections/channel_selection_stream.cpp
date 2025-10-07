@@ -18,6 +18,8 @@
 
 #include <algorithm>
 
+#include "aether/channels/channel.h"
+
 #include "aether/tele/tele.h"
 
 namespace ae {
@@ -38,7 +40,7 @@ ActionPtr<StreamWriteAction> ChannelSelectStream::Write(DataBuffer&& data) {
     return ActionPtr<FailedStreamWriteAction>{action_context_};
   }
 
-  AE_TELED_ERROR("Write to channel size {}", data.size());
+  AE_TELED_DEBUG("Write to channel size {}", data.size());
   auto* stream = server_channel_->stream();
   assert(stream != nullptr);
   return stream->Write(std::move(data));
@@ -101,15 +103,15 @@ ChannelSelectStream::TopChannel() {
         if (props_a.connection_type > props_b.connection_type) {
           return true;
         }
-        // select the lower ping time
         if (props_a.connection_type == props_b.connection_type) {
-          if (a->channel()
-                  ->channel_statistics()
-                  .ping_time_statistics()
-                  .percentile<99>() < b->channel()
-                                          ->channel_statistics()
-                                          .ping_time_statistics()
-                                          .percentile<99>()) {
+          // select the lower connection time
+          if (a->channel()->TransportBuildTimeout() <
+              b->channel()->TransportBuildTimeout()) {
+            return true;
+          }
+          // select the lower ping time
+          if (a->channel()->ResponseTimeout() <
+              b->channel()->ResponseTimeout()) {
             return true;
           }
         }
@@ -156,7 +158,7 @@ void ChannelSelectStream::SelectChannel() {
 void ChannelSelectStream::LinkStream() {
   assert(server_channel_);
   auto* stream = server_channel_->stream();
-  assert(stream);
+  assert(stream != nullptr);
 
   stream_update_sub_ = stream->stream_update_event().Subscribe(
       *this, MethodPtr<&ChannelSelectStream::StreamUpdate>{});
@@ -169,7 +171,7 @@ void ChannelSelectStream::LinkStream() {
 void ChannelSelectStream::StreamUpdate() {
   assert(server_channel_);
   auto* stream = server_channel_->stream();
-  assert(stream);
+  assert(stream != nullptr);
   auto info = stream->stream_info();
   if (info.link_state == LinkState::kLinkError) {
     AE_TELED_DEBUG("Transport link error");

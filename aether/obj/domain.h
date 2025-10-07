@@ -182,7 +182,7 @@ ObjPtr<TClass> Domain::CreateObj(ObjId obj_id, TArgs&&... args) {
 
 template <typename TClass, typename TArg, typename... TArgs>
 ObjPtr<TClass> Domain::CreateObj(TArg&& arg1, TArgs&&... args) {
-  if constexpr (std::is_constructible_v<ObjId, TArg>) {
+  if constexpr (std::is_convertible_v<ObjId, TArg>) {
     // if first arg is object id
     return CreateObj<TClass>(ObjId{static_cast<ObjId::Type>(arg1)},
                              std::forward<TArgs>(args)...);

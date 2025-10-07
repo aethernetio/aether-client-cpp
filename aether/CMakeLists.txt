@@ -112,20 +112,30 @@ list(APPEND registration_srcs
 
 list(APPEND adapters_srcs
             "adapters/adapter.cpp"
-            "adapters/esp32_wifi.cpp"
+            "adapters/wifi_adapter.cpp"
             "adapters/ethernet.cpp"
             "adapters/parent_wifi.cpp"
             "adapters/parent_modem.cpp"
             "adapters/modem_adapter.cpp"
             )
 
+list(APPEND access_points_srcs
+            "access_points/access_point.cpp"
+            "access_points/ethernet_access_point.cpp"
+            "access_points/wifi_access_point.cpp"
+            "access_points/modem_access_point.cpp")
+
 list(APPEND modems_srcs
-            "modems/imodem_driver.cpp"
             "modems/modem_factory.cpp"
             #"modems/bg95_at_modem.cpp"
             "modems/sim7070_at_modem.cpp"
             "modems/thingy91x_at_modem.cpp"
             "modems/exponent_time.cpp"
+            )
+
+list(APPEND wifi_srcs
+            "wifi/wifi_driver_factory.cpp"
+            "wifi/esp_wifi_driver.cpp"
             )
 
 list(APPEND serial_ports_srcs
@@ -149,9 +159,7 @@ list(APPEND transport_srcs
             "transport/socket_packet_send_action.cpp"
             "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
-            "transport/low_level/udp/udp.cpp"
-            "transport/build_transport_action.cpp"
-)
+            "transport/low_level/udp/udp.cpp")
 
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
@@ -242,7 +250,10 @@ list(APPEND domain_storage_srcs
 list(APPEND channels_srcs
             "channels/channel_statistics.cpp"
             "channels/channel.cpp"
-            "channels/channel.cpp")
+            "channels/ethernet_transport_factory.cpp"
+            "channels/ethernet_channel.cpp"
+            "channels/wifi_channel.cpp"
+            "channels/modem_channel.cpp")
 
 list(APPEND tele_srcs
             "tele/tele_init.cpp"
@@ -283,7 +294,9 @@ if(REGULAR_CMAKE_PROJECT)
                             ${transport_srcs}
                             ${stream_api_src}
                             ${adapters_srcs}
+                            ${access_points_srcs}
                             ${modems_srcs}
+                            ${wifi_srcs}
                             ${serial_ports_srcs}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
@@ -328,7 +341,9 @@ else()
                             ${events_srcs}
                             ${actions_srcs}
                             ${adapters_srcs}
+                            ${access_points_srcs}
                             ${modems_srcs}
+                            ${wifi_srcs}
                             ${serial_ports_srcs}
                             ${transport_srcs}
                             ${stream_api_src}

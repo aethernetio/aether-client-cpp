@@ -19,12 +19,54 @@
 #include <utility>
 
 namespace ae {
-Server::Server(Domain* domain) : Obj{domain} {}
+Server::Server(ServerId server_id, std::vector<UnifiedAddress> endpoints,
+               Domain* domain)
+    : Obj{domain},
+      server_id{server_id},
+      endpoints{std::move(endpoints)},
+      subscribed_{} {}
 
-void Server::SetChannels(std::vector<Channel::ptr> chans) {
-  for (auto& channel : chans) {
-    channel.SetFlags(ObjFlags::kUnloadedByDefault);
+void Server::Update(TimePoint current_time) {
+  if (!subscribed_) {
+    subscribed_ = true;
+    UpdateSubscription();
   }
-  channels = std::move(chans);
+  update_time_ = current_time;
 }
+
+void Server::Register(AdapterRegistry::ptr adapter_registry) {
+  adapter_registry_ = std::move(adapter_registry);
+  UpdateSubscription();
+
+  for (auto const& adapter : adapter_registry_->adapters()) {
+    for (auto const& ap : adapter->access_points()) {
+      AddChannels(ap);
+    }
+  }
+  subscribed_ = true;
+  channels_changed_.Emit();
+}
+
+Server::ChannelsChanged::Subscriber Server::channels_changed() {
+  return EventSubscriber{channels_changed_};
+}
+
+void Server::UpdateSubscription() {
+  if (!adapter_registry_) {
+    domain_->LoadRoot(adapter_registry_);
+  }
+  assert(adapter_registry_);
+  for (auto const& adapter : adapter_registry_->adapters()) {
+    access_point_added_.Push(adapter->new_access_point().Subscribe(
+        *this, MethodPtr<&Server::AddChannels>{}));
+  }
+}
+
+void Server::AddChannels(AccessPoint::ptr const& access_point) {
+  auto new_channels = access_point->GenerateChannels(endpoints);
+  channels.insert(std::end(channels), std::begin(new_channels),
+                  std::end(new_channels));
+  channels_changed_.Emit();
+}
+
 }  // namespace ae
