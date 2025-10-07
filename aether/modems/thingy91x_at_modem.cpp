@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "aether/modems/thingy91x_at_modem.h"
+
 #include <bitset>
 #include <thread>
 #include <string_view>
@@ -21,22 +23,20 @@
 #include "aether/format/format.h"
 #include "aether/misc/from_chars.h"
 #include "aether/modems/exponent_time.h"
-#include "aether/modems/thingy91x_at_modem.h"
 #include "aether/serial_ports/serial_port_factory.h"
 
 #include "aether/modems/modems_tele.h"
 
 namespace ae {
 
-Thingy91xAtModem::Thingy91xAtModem(ModemAdapter& adapter, IPoller::ptr poller,
-                                   ModemInit modem_init, Domain* domain)
-    : IModemDriver{std::move(poller), std::move(modem_init), domain},
-      adapter_{&adapter} {
-  serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
-                                          adapter_->poller_,
-                                          GetModemInit().serial_init);
-  at_comm_support_ = std::make_unique<AtCommSupport>(serial_.get());
-};
+Thingy91xAtModem::Thingy91xAtModem(ModemInit modem_init)
+    : modem_init_{std::move(modem_init)} {
+  serial_ = SerialPortFactory::CreatePort(modem_init_.serial_init);
+  Init();
+  Start();
+}
+
+Thingy91xAtModem::~Thingy91xAtModem() { Stop(); }
 
 bool Thingy91xAtModem::Init() {
   if (!serial_->IsOpen()) {
@@ -62,7 +62,6 @@ bool Thingy91xAtModem::Init() {
 }
 
 bool Thingy91xAtModem::Start() {
-  ModemInit modem_init = GetModemInit();
   if (!serial_->IsOpen()) {
     AE_TELED_ERROR("Serial port is not open");
     return false;
@@ -82,10 +81,10 @@ bool Thingy91xAtModem::Start() {
     return false;
   }
 
-  if (auto err = SetupNetwork(modem_init.operator_name,
-                              modem_init.operator_code, modem_init.apn_name,
-                              modem_init.apn_user, modem_init.apn_pass,
-                              modem_init.modem_mode, modem_init.auth_type);
+  if (auto err = SetupNetwork(modem_init_.operator_name,
+                              modem_init_.operator_code, modem_init_.apn_name,
+                              modem_init_.apn_user, modem_init_.apn_pass,
+                              modem_init_.modem_mode, modem_init_.auth_type);
       err != kModemError::kNoError) {
     AE_TELED_ERROR("Setup network error {}", err);
     return false;
@@ -113,8 +112,8 @@ bool Thingy91xAtModem::Start() {
 
   // Check Sim card
   auto sim_err = CheckSimStatus();
-  if ((sim_err == kModemError::kNoError) && modem_init.use_pin) {
-    if (auto err = SetupSim(modem_init.pin); err != kModemError::kNoError) {
+  if ((sim_err == kModemError::kNoError) && modem_init_.use_pin) {
+    if (auto err = SetupSim(modem_init_.pin); err != kModemError::kNoError) {
       AE_TELED_ERROR("Setup sim error {}", err);
       return false;
     }

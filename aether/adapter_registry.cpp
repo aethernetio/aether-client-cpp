@@ -25,19 +25,6 @@ void AdapterRegistry::Add(Adapter::ptr adapter) {
   adapters_.emplace_back(std::move(adapter));
 }
 
-std::vector<Channel::ptr> AdapterRegistry::GenerateChannels(
-    std::vector<UnifiedAddress> const& server_channels) {
-  std::vector<Channel::ptr> res;
-  for (auto& adapter : adapters_) {
-    if (!adapter) {
-      domain_->LoadRoot(adapter);
-    }
-    auto channels = adapter->GenerateChannels(server_channels);
-    res.insert(res.end(), channels.begin(), channels.end());
-  }
-  return res;
-}
-
 std::vector<Adapter::ptr> const& AdapterRegistry::adapters() const {
   return adapters_;
 }

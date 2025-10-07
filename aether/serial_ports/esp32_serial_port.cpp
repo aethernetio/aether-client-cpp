@@ -21,10 +21,11 @@
 #  include "aether/serial_ports/serial_ports_tele.h"
 
 namespace ae {
-ESP32SerialPort::ESP32SerialPort(ActionContext action_context, 
+ESP32SerialPort::ESP32SerialPort(ActionContext action_context,
                                  IPoller::ptr const& poller,
                                  SerialInit const& serial_init)
-    : ISerialPort{std::move(action_context), std::move(poller), std::move(serial_init)},
+    : ISerialPort{std::move(action_context), std::move(poller),
+                  std::move(serial_init)},
       action_context_{std::move(action_context)},
       poller_{std::move(poller)},
       is_open_(false),
@@ -80,14 +81,14 @@ bool ESP32SerialPort::Initialize(SerialInit const& serial_init) {
   }
 
   uart_config_t uart_config = {
-      .baud_rate = static_cast<int>(serial_init.baud_rate),
-      .data_bits = UART_DATA_8_BITS,
-      .parity = UART_PARITY_DISABLE,
-      .stop_bits = UART_STOP_BITS_1,
-      .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-      .rx_flow_ctrl_thresh = 122,
-      .source_clk = UART_SCLK_DEFAULT,
-      .flags = {}};
+      /* baud_rate */ static_cast<int>(serial_init.baud_rate),
+      /* data_bits */ UART_DATA_8_BITS,
+      /* parity */ UART_PARITY_DISABLE,
+      /* stop_bits */ UART_STOP_BITS_1,
+      /* flow_ctrl */ UART_HW_FLOWCTRL_DISABLE,
+      /* rx_flow_ctrl_thresh */ 122,
+      /* source_clk */ UART_SCLK_DEFAULT,
+      /* flags */ {}};
 
   if (uart_param_config(uart_num_, &uart_config) != ESP_OK) {
     return false;

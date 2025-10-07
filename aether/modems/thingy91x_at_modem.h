@@ -28,23 +28,19 @@
 namespace ae {
 
 struct Thingy91xConnection {
-  AE_REFLECT_MEMBERS(handle, protocol, host, port)
-  std::int32_t handle{-1};
-  Protocol protocol{Protocol::kTcp};
-  std::string host{};
-  std::uint16_t port{0};
+  std::int32_t handle;
+  ae::Protocol protocol;
+  std::string host;
+  std::uint16_t port;
 };
 
 class Thingy91xAtModem final : public IModemDriver {
-  AE_OBJECT(Thingy91xAtModem, IModemDriver, 0)
-
  protected:
   Thingy91xAtModem() = default;
 
  public:
-  explicit Thingy91xAtModem(ModemAdapter& adapter, IPoller::ptr poller,
-                            ModemInit modem_init, Domain* domain);
-  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
+  explicit Thingy91xAtModem(ModemInit modem_init);
+  ~Thingy91xAtModem() override;
 
   bool Init() override;
   bool Start() override;
@@ -60,6 +56,7 @@ class Thingy91xAtModem final : public IModemDriver {
   bool PowerOff() override;
 
  private:
+  ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::unique_ptr<AtCommSupport> at_comm_support_;
   std::vector<Thingy91xConnection> connect_vec_;

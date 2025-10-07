@@ -20,9 +20,6 @@
 #include "aether_construct.h"
 
 #if CLOUD_TEST_ESP_WIFI
-#  if !defined ESP32_WIFI_ADAPTER_ENABLED
-#    error "ESP32_WIFI_ADAPTER_ENABLED must be defined"
-#  endif
 
 namespace ae::cloud_test {
 static constexpr std::string_view kWifiSsid = "Test1234";
@@ -32,11 +29,11 @@ RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
 #  if defined AE_DISTILLATION
-          .AdapterFactory([](AetherAppContext const& context) {
+          .AdaptersFactory([](AetherAppContext const& context) {
             auto adapter_registry =
                 context.domain().CreateObj<AdapterRegistry>();
-            adapter_registry->Add(context.domain().CreateObj<Esp32WifiAdapter>(
-                GlobalId::kEsp32WiFiAdapter, context.aether(), context.poller(),
+            adapter_registry->Add(context.domain().CreateObj<WifiAdapter>(
+                GlobalId::kWiFiAdapter, context.aether(), context.poller(),
                 context.dns_resolver(), std::string(kWifiSsid),
                 std::string(kWifiPass)));
             return adapter_registry;
