@@ -22,6 +22,7 @@
 
 #if (AE_MODEM_ENABLED == 1) && ((AE_SUPPORT_TCP == 1) || (AE_SUPPORT_UDP == 1))
 #  define MODEM_TRANSPORT_ENABLED 1
+
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
 #  include "aether/events/multi_subscription.h"
@@ -103,6 +104,7 @@ class ModemTransport final : public ByteIStream {
   StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;
   OutDataEvent::Subscriber out_data_event() override;
+  void Restream() override;
 
  private:
   void Connect();

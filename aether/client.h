@@ -17,16 +17,20 @@
 #ifndef AETHER_CLIENT_H_
 #define AETHER_CLIENT_H_
 
-#include <cassert>
 #include <map>
+#include <cassert>
 
-#include "aether/types/uid.h"
-#include "aether/cloud.h"
+#include "aether/memory.h"
 #include "aether/common.h"
+#include "aether/cloud.h"
 #include "aether/obj/obj.h"
+#include "aether/types/uid.h"
 #include "aether/server_keys.h"
 
-#include "aether/client_connections/client_connection.h"
+#include "aether/connection_manager/client_cloud_manager.h"
+#include "aether/client_connections/cloud_message_stream.h"
+#include "aether/client_messages/p2p_message_stream_manager.h"
+#include "aether/connection_manager/server_connection_manager.h"
 #include "aether/connection_manager/client_connection_manager.h"
 
 namespace ae {
@@ -48,34 +52,32 @@ class Client : public Obj {
   Uid const& ephemeral_uid() const;
   ServerKeys* server_state(ServerId server_id);
   Cloud::ptr const& cloud() const;
-  ClientConnectionManager::ptr const& client_connection_manager() const;
-
-  Ptr<ClientConnection> const& client_connection();
+  ClientCloudManager::ptr const& cloud_manager() const;
+  ServerConnectionManager& server_connection_manager();
+  ClientConnectionManager& connection_manager();
+  CloudMessageStream& cloud_message_stream();
+  P2pMessageStreamManager& message_stream_manager();
 
   void SetConfig(Uid uid, Uid ephemeral_uid, Key master_key, Cloud::ptr c);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, uid_, ephemeral_uid_, master_key_, cloud_,
-                             server_keys_, client_connection_manager_,
-                             client_connection_))
+                             server_keys_, client_cloud_manager_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
     dnv(base_);
     dnv(aether_, uid_, ephemeral_uid_, master_key_, cloud_, server_keys_,
-        client_connection_manager_);
+        client_cloud_manager_);
   }
 
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
     dnv(base_);
     dnv(aether_, uid_, ephemeral_uid_, master_key_, cloud_, server_keys_,
-        client_connection_manager_);
+        client_cloud_manager_);
   }
 
  private:
-  void MakeServerStream();
-  void MakeMessageStreamDispatcher();
-
   Obj::ptr aether_;
   // configuration
   Uid uid_{};
@@ -86,8 +88,11 @@ class Client : public Obj {
   // states
   std::map<ServerId, ServerKeys> server_keys_;
 
-  ClientConnectionManager::ptr client_connection_manager_;
-  Ptr<ClientConnection> client_connection_;
+  ClientCloudManager::ptr client_cloud_manager_;
+  std::unique_ptr<ServerConnectionManager> server_connection_manager_;
+  std::unique_ptr<ClientConnectionManager> client_connection_manager_;
+  std::unique_ptr<CloudMessageStream> cloud_message_stream_;
+  std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
 };
 }  // namespace ae
 

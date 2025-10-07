@@ -100,6 +100,9 @@ class ModemAdapter : public ParentModemAdapter {
   ActionPtr<TransportBuilderAction> CreateTransport(
       UnifiedAddress const& address_port_protocol) override;
 
+  std::vector<ObjPtr<Channel>> GenerateChannels(
+      std::vector<UnifiedAddress> const& addresses) override;
+
   void Update(TimePoint current_time) override;
 
  private:

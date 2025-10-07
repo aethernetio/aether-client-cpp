@@ -48,21 +48,23 @@ AetherAppContext::TelemetryInit::TelemetryInit() {
 
 void AetherAppContext::TelemetryInit::operator()(
     AetherAppContext const& context) const {
-  ae::tele::TeleInit::Init(context.aether()->tele_statistics());
+  ae::tele::TeleInit::Init(context.aether()->tele_statistics);
 }
 
 void AetherAppContext::InitComponentContext() {
 #if defined AE_DISTILLATION
-  Factory<Adapter>([](AetherAppContext const& context) {
-    return context.domain().CreateObj<EthernetAdapter>(
+  Factory<AdapterRegistry>([](AetherAppContext const& context) {
+    auto adapter_registry = context.domain().CreateObj<AdapterRegistry>();
+    adapter_registry->Add(context.domain().CreateObj<EthernetAdapter>(
         GlobalId::kEthernetAdapter, context.aether(), context.poller(),
-        context.dns_resolver());
+        context.dns_resolver()));
+    return adapter_registry;
   });
 
 #  if AE_SUPPORT_REGISTRATION
   Factory<Cloud>([](AetherAppContext const& context) {
-    auto reg_c =
-        context.domain().CreateObj<RegistrationCloud>(kRegistrationCloud);
+    auto reg_c = context.domain().CreateObj<RegistrationCloud>(
+        kRegistrationCloud, context.aether());
 #    if defined _AE_REG_CLOUD_IP
     auto reg_cloud_ip = IpAddressParser{}.StringToIP(_AE_REG_CLOUD_IP);
     assert(reg_cloud_ip.has_value());
@@ -77,7 +79,6 @@ void AetherAppContext::InitComponentContext() {
     // in case of ip address change
     reg_c->AddServerSettings(NameAddress{"registration.aethernet.io", 9010});
 #    endif
-    reg_c->set_adapter(context.adapter());
     return reg_c;
   });
 #  endif  // AE_SUPPORT_REGISTRATION
@@ -135,10 +136,7 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
   context.init_tele_(context);
 
 #if defined AE_DISTILLATION
-  auto adapter = context.adapter();
-  adapter.SetFlags(ObjFlags::kUnloadedByDefault);
-  app->aether_->adapter_factories.emplace_back(adapter);
-  app->aether_->cloud_prefab->set_adapter(adapter);
+  app->aether_->adapter_registry = context.adapter_registry();
 
 #  if AE_SUPPORT_REGISTRATION
   app->aether_->registration_cloud = context.registration_cloud();

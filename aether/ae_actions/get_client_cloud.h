@@ -25,7 +25,6 @@
 #include "aether/events/multi_subscription.h"
 
 #include "aether/stream_api/stream_api.h"
-#include "aether/stream_api/header_gate.h"
 #include "aether/stream_api/gates_stream.h"
 #include "aether/stream_api/serialize_gate.h"
 
@@ -44,6 +43,19 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
     kStopped,
   };
 
+  class AddResolversGate {
+   public:
+    AddResolversGate(ClientToServerStream& client_to_server_stream,
+                     StreamId server_stream_id, StreamId cloud_stream_id);
+
+    DataBuffer WriteIn(DataBuffer&& buffer);
+
+   private:
+    ClientToServerStream* client_to_server_stream_;
+    StreamId server_stream_id_;
+    StreamId cloud_stream_id_;
+  };
+
  public:
   explicit GetClientCloudAction(ActionContext action_context,
                                 ClientToServerStream& client_to_server_stream,
@@ -53,10 +65,12 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
 
   void Stop();
 
-  std::vector<ServerDescriptor> const& server_descriptors();
+  std::vector<ServerDescriptor> const& server_descriptors() const;
 
  private:
+  void InitStreams();
   void RequestCloud();
+  void RequestCloudFailed();
   void RequestServerResolve();
 
   void OnCloudResponse(UidAndCloud const& uid_and_cloud);
@@ -66,12 +80,12 @@ class GetClientCloudAction : public Action<GetClientCloudAction> {
   ClientToServerStream* client_to_server_stream_;
   Uid client_uid_;
 
-  std::optional<AddHeaderGate> add_resolvers_;
+  std::optional<AddResolversGate> add_resolvers_;
   std::optional<GatesStream<SerializeGate<Uid, UidAndCloud>, StreamApiGate,
-                            AddHeaderGate&>>
+                            AddResolversGate&>>
       cloud_request_stream_;
   std::optional<GatesStream<SerializeGate<ServerId, ServerDescriptor>,
-                            StreamApiGate, AddHeaderGate&>>
+                            StreamApiGate, AddResolversGate&>>
       server_resolver_stream_;
 
   StateMachine<State> state_;

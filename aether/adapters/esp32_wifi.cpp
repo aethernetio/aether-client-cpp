@@ -220,6 +220,17 @@ ActionPtr<TransportBuilderAction> Esp32WifiAdapter::CreateTransport(
   }
 }
 
+std::vector<ObjPtr<Channel>> Esp32WifiAdapter::GenerateChannels(
+    std::vector<UnifiedAddress> const& addresses) {
+  std::vector<ObjPtr<Channel>> channels;
+  auto self_ptr = ObjPtr{MakePtrFromThis(this)};
+  for (auto const& address : addresses) {
+    channels.emplace_back(domain_->CreateObj<Channel>(self_ptr));
+    channels.back()->address = address;
+  }
+  return channels;
+}
+
 void Esp32WifiAdapter::Update(TimePoint t) {
   if (connected_ == false) {
     connected_ = true;

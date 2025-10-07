@@ -18,8 +18,9 @@
 
 #include <cassert>
 
+#include "aether/registration/registration.h"
+
 #include "aether/ae_actions/ae_actions_tele.h"
-#include "aether/ae_actions/registration/registration.h"
 
 namespace ae {
 SelectClientAction::SelectClientAction(ActionContext action_context,

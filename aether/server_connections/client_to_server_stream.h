@@ -30,21 +30,19 @@
 #include "aether/stream_api/delegate_gate.h"
 #include "aether/stream_api/protocol_gates.h"
 #include "aether/stream_api/event_subscribe_gate.h"
-#include "aether/server_connections/server_channel.h"
 
+#include "aether/methods/work_server_api/login_api.h"
 #include "aether/methods/client_api/client_root_api.h"
 #include "aether/methods/client_api/client_safe_api.h"
-#include "aether/methods/work_server_api/login_api.h"
 #include "aether/methods/work_server_api/authorized_api.h"
 
 namespace ae {
 class Client;
 
-class ClientToServerStream final : public ByteIStream {
+class ClientToServerStream final : public ByteStream {
  public:
   ClientToServerStream(ActionContext action_context, Ptr<Client> const& client,
-                       ServerId server_id,
-                       std::unique_ptr<ServerChannel> server_channel);
+                       ServerId server_id);
 
   ~ClientToServerStream() override;
 
@@ -55,10 +53,13 @@ class ClientToServerStream final : public ByteIStream {
   StreamInfo stream_info() const override;
   OutDataEvent::Subscriber out_data_event() override;
 
-  ProtocolContext& protocol_context();
+  void LinkOut(OutStream& out) override;
+  void Unlink() override;
+
   ClientSafeApi& client_safe_api();
   AuthorizedApi& authorized_api();
   ApiCallAdapter<AuthorizedApi> authorized_api_adapter();
+  ProtocolContext& protocol_context();
 
  private:
   DataBuffer Login(DataBuffer&& data);
@@ -74,23 +75,12 @@ class ClientToServerStream final : public ByteIStream {
   LoginApi login_api_;
   AuthorizedApi authorized_api_;
 
-  Event<void()> connected_event_;
-  Event<void()> connection_error_event_;
-
-  std::unique_ptr<ServerChannel> server_channel_;
-
   // stream to the server with login api and encryption
   std::optional<GatesStream<ProtocolReadGate<ClientSafeApi&>, DebugGate,
                             CryptoGate, DelegateWriteInGate<DataBuffer>,
                             EventWriteOutGate<DataBuffer>,
                             ProtocolReadGate<ClientRootApi&>>>
       client_auth_stream_;
-
-  OutDataEvent out_data_event_;
-
-  Subscription connection_success_subscription_;
-  Subscription connection_failed_subscription_;
-  Subscription gate_update_subscription_;
 };
 }  // namespace ae
 

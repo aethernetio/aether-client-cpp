@@ -17,26 +17,52 @@
 #include "aether/connection_manager/server_connection_selector.h"
 
 #include <utility>
+#include <algorithm>
+
+#include "aether/cloud.h"
+#include "aether/server.h"
 
 namespace ae {
 ServerConnectionSelector::ServerConnectionSelector(
-    ObjPtr<Cloud> const& cloud,
-    std::unique_ptr<ServerListPolicy>&& server_list_policy,
-    std::unique_ptr<IServerConnectionFactory>&&
-        client_server_connection_factory)
-    : server_list_{std::move(server_list_policy), cloud},
-      server_connection_factory_{std::move(client_server_connection_factory)} {}
-
-void ServerConnectionSelector::Init() { server_list_.Init(); }
-
-void ServerConnectionSelector::Next() { server_list_.Next(); }
-
-RcPtr<ClientServerConnection> ServerConnectionSelector::GetConnection() {
-  auto item = server_list_.Get();
-  return server_connection_factory_->CreateConnection(item.server(),
-                                                      item.channel());
+    ObjPtr<Cloud> const& cloud, IServerPriorityPolicy& server_priority_policy,
+    std::unique_ptr<IServerConnectionFactory> client_server_connection_factory)
+    : server_connection_factory_{std::move(client_server_connection_factory)} {
+  // TODO: add server priority
+  auto srvs = cloud->servers();
+  // filter servers
+  srvs.erase(std::remove_if(std::begin(srvs), std::end(srvs),
+                            [&](auto const& server) {
+                              return server_priority_policy.Filter(server);
+                            }),
+             std::end(srvs));
+  // sort servers
+  std::sort(std::begin(srvs), std::end(srvs),
+            [&](auto const& left, auto const& right) {
+              return server_priority_policy.Compare(left, right);
+            });
+  // copy to servers_ list
+  servers_.reserve(srvs.size());
+  std::transform(std::begin(srvs), std::end(srvs), std::back_inserter(servers_),
+                 [](auto const& server) -> PtrView<Server> { return server; });
 }
 
-bool ServerConnectionSelector::End() { return server_list_.End(); }
+void ServerConnectionSelector::Init() {
+  current_server_ = std::begin(servers_);
+}
+
+void ServerConnectionSelector::Next() { ++current_server_; }
+
+RcPtr<ClientServerConnection> ServerConnectionSelector::Get() {
+  auto server = current_server_->Lock();
+  if (!server) {
+    current_server_ = std::end(servers_);
+    return nullptr;
+  }
+  return server_connection_factory_->CreateConnection(server);
+}
+
+bool ServerConnectionSelector::End() {
+  return current_server_ == std::end(servers_);
+}
 
 }  // namespace ae

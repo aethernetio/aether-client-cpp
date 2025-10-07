@@ -98,6 +98,13 @@ class IStream {
    * \brief New data received event.
    */
   virtual typename OutDataEvent::Subscriber out_data_event() = 0;
+
+  /**
+   * \brief Reconfigure the stream in case on user request.
+   * This notifies lower layers about need of stream reconfiguration because the
+   * higher layers detect problems.
+   */
+  virtual void Restream() = 0;
 };
 
 template <typename TIn, typename TOut, typename TInOut, typename TOutIn>
@@ -129,6 +136,13 @@ class Stream : public IStream<TIn, TOut> {
     return EventSubscriber{out_data_event_};
   }
 
+  void Restream() override {
+    if (out_ == nullptr) {
+      return;
+    }
+    out_->Restream();
+  }
+
   /**
    * \brief Link with out stream.
    */
@@ -139,7 +153,7 @@ class Stream : public IStream<TIn, TOut> {
   virtual void Unlink() = 0;
 
  protected:
-  OutStream* out_;
+  OutStream* out_{};
   StreamUpdateEvent stream_update_event_;
   OutDataEvent out_data_event_;
   Subscription update_sub_;
@@ -179,6 +193,13 @@ class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
     return EventSubscriber{out_data_event_};
   }
 
+  void Restream() override {
+    if (out_ == nullptr) {
+      return;
+    }
+    out_->Restream();
+  }
+
   /**
    * \brief Link with out stream.
    */
@@ -201,7 +222,7 @@ class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
   }
 
  protected:
-  OutStream* out_;
+  OutStream* out_{};
   StreamUpdateEvent stream_update_event_;
   OutDataEvent out_data_event_;
   Subscription update_sub_;
