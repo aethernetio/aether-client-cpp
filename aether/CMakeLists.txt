@@ -126,6 +126,7 @@ list(APPEND access_points_srcs
             "access_points/access_point.cpp"
             "access_points/ethernet_access_point.cpp"
             "access_points/wifi_access_point.cpp"
+            "access_points/lora_module_access_point.cpp"
             "access_points/modem_access_point.cpp")
 
 list(APPEND modems_srcs

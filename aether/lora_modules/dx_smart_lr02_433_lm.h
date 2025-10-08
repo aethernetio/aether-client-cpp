@@ -38,55 +38,52 @@ static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
     {kBaudRate::kBaudRate128000, "AT+BAUD9"}};
 
 class DxSmartLr02LoraModule final : public ILoraModuleDriver {
-  AE_OBJECT(DxSmartLr02LoraModule, ILoraModuleDriver, 0)
-
- protected:
-  DxSmartLr02LoraModule() = default;
-
  public:
   explicit DxSmartLr02LoraModule(LoraModuleAdapter& adapter, IPoller::ptr poller,
                                  LoraModuleInit lora_module_init, Domain* domain);
-  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
+  ~DxSmartLr02LoraModule() override;
 
-  bool Init() override;
-  bool Start() override;
-  bool Stop() override;
-  ConnectionLoraIndex OpenNetwork(ae::Protocol protocol,
+  ActionPtr<LoraModuleOperation> Init() override;
+  ActionPtr<LoraModuleOperation> Start() override;
+  ActionPtr<LoraModuleOperation> Stop() override;
+  ActionPtr<OpenNetworkOperation> OpenNetwork(ae::Protocol protocol,
                                   std::string const& host,
                                   std::uint16_t port) override;
-  void CloseNetwork(ae::ConnectionLoraIndex connect_index) override;
-  void WritePacket(ae::ConnectionLoraIndex connect_index,
+  ActionPtr<LoraModuleOperation> CloseNetwork(ae::ConnectionLoraIndex connect_index) override;
+  ActionPtr<LoraModuleOperation> WritePacket(ae::ConnectionLoraIndex connect_index,
                    ae::DataBuffer const& data) override;
-  DataBuffer ReadPacket(ae::ConnectionLoraIndex connect_index,
-                        ae::Duration timeout) override;
-  bool SetPowerSaveParam(std::string const& psp) override;
-  bool PowerOff() override;
-  bool SetLoraModuleAddress(std::uint16_t const& address);  // Module address
-  bool SetLoraModuleChannel(std::uint8_t const& channel);   // Module channel
-  bool SetLoraModuleMode(kLoraModuleMode const& mode);      // Module mode
-  bool SetLoraModuleLevel(kLoraModuleLevel const& level);   // Module level
-  bool SetLoraModulePower(kLoraModulePower const& power);   // Module power
-  bool SetLoraModuleBandWidth(
+  
+  DataEvent::Subscriber data_event() override;
+  
+  ActionPtr<LoraModuleOperation> SetPowerSaveParam(std::string const& psp) override;
+  ActionPtr<LoraModuleOperation> PowerOff() override;
+  ActionPtr<LoraModuleOperation> SetLoraModuleAddress(std::uint16_t const& address);  // Module address
+  ActionPtr<LoraModuleOperation> SetLoraModuleChannel(std::uint8_t const& channel);   // Module channel
+  ActionPtr<LoraModuleOperation> SetLoraModuleMode(kLoraModuleMode const& mode);      // Module mode
+  ActionPtr<LoraModuleOperation> SetLoraModuleLevel(kLoraModuleLevel const& level);   // Module level
+  ActionPtr<LoraModuleOperation> SetLoraModulePower(kLoraModulePower const& power);   // Module power
+  ActionPtr<LoraModuleOperation> SetLoraModuleBandWidth(
       kLoraModuleBandWidth const& band_width);  // Module BandWidth
-  bool SetLoraModuleCodingRate(
+  ActionPtr<LoraModuleOperation> SetLoraModuleCodingRate(
       kLoraModuleCodingRate const& coding_rate);  // Module CodingRate
-  bool SetLoraModuleSpreadingFactor(
+  ActionPtr<LoraModuleOperation> SetLoraModuleSpreadingFactor(
       kLoraModuleSpreadingFactor const&
           spreading_factor);  // Module spreading factor
-  bool SetLoraModuleCRCCheck(
+  ActionPtr<LoraModuleOperation> SetLoraModuleCRCCheck(
       kLoraModuleCRCCheck const& crc_check);  // Module crc check
-  bool SetLoraModuleIQSignalInversion(
+  ActionPtr<LoraModuleOperation> SetLoraModuleIQSignalInversion(
       kLoraModuleIQSignalInversion const&
           signal_inversion);  // Module signal inversion
 
  private:
+  ActionContext action_context_;
+  LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::vector<LoraConnection> connect_vec_;
   std::unique_ptr<AtCommSupport> at_comm_support_;
-  LoraModuleAdapter* adapter_;
   bool at_mode_{false};
 
-  static constexpr std::uint16_t kLoraModuleMTU{200};
+  static constexpr std::uint16_t kLoraModuleMTU{400};
 
   kLoraModuleError CheckResponse(std::string const& response,
                                  std::uint32_t const wait_time,
