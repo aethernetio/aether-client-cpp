@@ -35,62 +35,57 @@ struct Thingy91xConnection {
 };
 
 class Thingy91xAtModem final : public IModemDriver {
- protected:
-  Thingy91xAtModem() = default;
-
  public:
-  explicit Thingy91xAtModem(ModemInit modem_init);
+  explicit Thingy91xAtModem(ActionContext action_context, IPoller::ptr poller,
+                            ModemInit modem_init);
   ~Thingy91xAtModem() override;
 
-  bool Init() override;
-  bool Start() override;
-  bool Stop() override;
-  ConnectionIndex OpenNetwork(ae::Protocol protocol, std::string const& host,
-                              std::uint16_t port) override;
-  void CloseNetwork(ConnectionIndex connect_index) override;
-  void WritePacket(ConnectionIndex connect_index,
-                   DataBuffer const& data) override;
-  DataBuffer ReadPacket(ConnectionIndex connect_index,
-                        Duration timeout) override;
-  bool SetPowerSaveParam(ae::PowerSaveParam const& psp) override;
-  bool PowerOff() override;
+  ActionPtr<ModemOperation> Init() override;
+  ActionPtr<ModemOperation> Start() override;
+  ActionPtr<ModemOperation> Stop() override;
+  ActionPtr<OpenNetworkOperation> OpenNetwork(ae::Protocol protocol,
+                                              std::string const& host,
+                                              std::uint16_t port) override;
+  ActionPtr<ModemOperation> CloseNetwork(
+      ConnectionIndex connect_index) override;
+  ActionPtr<ModemOperation> WritePacket(ConnectionIndex connect_index,
+                                        DataBuffer const& data) override;
+
+  DataEvent::Subscriber data_event() override;
+
+  ActionPtr<ModemOperation> SetPowerSaveParam(
+      PowerSaveParam const& psp) override;
+  ActionPtr<ModemOperation> PowerOff() override;
 
  private:
+  ActionContext action_context_;
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
-  std::unique_ptr<AtCommSupport> at_comm_support_;
+  AtCommSupport at_comm_support_;
   std::vector<Thingy91xConnection> connect_vec_;
-  ModemAdapter* adapter_;
 
   static constexpr std::uint16_t kModemMTU{1024};
 
-  kModemError CheckResponse(std::string const response,
-                            std::uint32_t const wait_time,
-                            std::string const error_message);
-  kModemError SetBaudRate(std::uint32_t const rate);
-  kModemError CheckSimStatus();
-  kModemError SetupSim(std::uint8_t const pin[4]);
-  kModemError SetNetMode(kModemMode const modem_mode);
-  kModemError SetupNetwork(std::string const operator_name,
-                           std::string const operator_code,
-                           std::string const apn_name,
-                           std::string const apn_user,
-                           std::string const apn_pass,
-                           kModemMode const modem_mode,
-                           kAuthType const auth_type);
-  kModemError SetTxPower(kModemMode const modem_mode,
-                         std::vector<BandPower> const& power);
-  kModemError GetTxPower(kModemMode const modem_mode,
-                         std::vector<BandPower>& power);
-  kModemError SetPsm(std::uint8_t const psm_mode,
-                     kRequestedPeriodicTAUT3412 const psm_tau,
-                     kRequestedActiveTimeT3324 const psm_active);
-  kModemError SetEdrx(EdrxMode const edrx_mode, EdrxActTType const act_type,
-                      kEDrx const edrx_val);
-  kModemError SetRai(std::uint8_t const rai_mode);
-  kModemError SetBandLock(std::uint8_t const bl_mode,
-                          std::vector<std::int32_t> const& bands);
-  kModemError ResetModemFactory(std::uint8_t const res_mode);
+  ActionPtr<ModemOperation> CheckSimStatus();
+  ActionPtr<ModemOperation> SetupSim(std::uint16_t pin);
+  ActionPtr<ModemOperation> SetNetMode(kModemMode const modem_mode);
+  ActionPtr<ModemOperation> SetupNetwork(
+      std::string const& operator_name, std::string const& operator_code,
+      std::string const& apn_name, std::string const& apn_user,
+      std::string const& apn_pass, kModemMode modem_mode, kAuthType auth_type);
+  ActionPtr<ModemOperation> SetTxPower(kModemMode modem_mode,
+                                       std::vector<BandPower> const& power);
+  ActionPtr<ModemOperation> GetTxPower(kModemMode modem_mode,
+                                       std::vector<BandPower>& power);
+  ActionPtr<ModemOperation> SetPsm(std::uint8_t psm_mode,
+                                   kRequestedPeriodicTAUT3412 psm_tau,
+                                   kRequestedActiveTimeT3324 psm_active);
+  ActionPtr<ModemOperation> SetEdrx(EdrxMode edrx_mode, EdrxActTType act_type,
+                                    kEDrx edrx_val);
+  ActionPtr<ModemOperation> SetRai(std::uint8_t rai_mode);
+  ActionPtr<ModemOperation> SetBandLock(std::uint8_t bl_mode,
+                                        std::vector<std::int32_t> const& bands);
+  ActionPtr<ModemOperation> ResetModemFactory(std::uint8_t res_mode);
 
   std::int32_t OpenTcpConnection(std::string const& host, std::uint16_t port);
   std::int32_t OpenUdpConnection();

@@ -21,29 +21,42 @@
 #include <cstdint>
 
 #include "aether/types/address.h"
+#include "aether/events/events.h"
+#include "aether/actions/action.h"
+#include "aether/actions/pipeline.h"
 #include "aether/types/data_buffer.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/modems/modem_driver_types.h"
 
 namespace ae {
-
+class IPipeline;
 class IModemDriver {
  public:
+  using ModemOperation = IPipeline;
+  using DataEvent = Event<void(ConnectionIndex, DataBuffer const& data)>;
+  class OpenNetworkOperation : public Action<OpenNetworkOperation> {
+   public:
+    virtual UpdateStatus Update() = 0;
+    virtual ConnectionIndex connection_index() const = 0;
+  };
+
   virtual ~IModemDriver() = default;
 
-  virtual bool Init() = 0;
-  virtual bool Start() = 0;
-  virtual bool Stop() = 0;
-  virtual ConnectionIndex OpenNetwork(Protocol protocol,
-                                      std::string const& host,
-                                      std::uint16_t port) = 0;
-  virtual void CloseNetwork(ConnectionIndex connect_index) = 0;
-  virtual void WritePacket(ConnectionIndex connect_index,
-                           DataBuffer const& data) = 0;
-  virtual DataBuffer ReadPacket(ConnectionIndex connect_index,
-                                Duration timeout) = 0;
+  virtual ActionPtr<ModemOperation> Init() = 0;
+  virtual ActionPtr<ModemOperation> Start() = 0;
+  virtual ActionPtr<ModemOperation> Stop() = 0;
+  virtual ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
+                                                      std::string const& host,
+                                                      std::uint16_t port) = 0;
+  virtual ActionPtr<ModemOperation> CloseNetwork(
+      ConnectionIndex connect_index) = 0;
+  virtual ActionPtr<ModemOperation> WritePacket(ConnectionIndex connect_index,
+                                                DataBuffer const& data) = 0;
+  virtual DataEvent::Subscriber data_event() = 0;
 
-  virtual bool SetPowerSaveParam(PowerSaveParam const& psp) = 0;
-  virtual bool PowerOff() = 0;
+  virtual ActionPtr<ModemOperation> SetPowerSaveParam(
+      PowerSaveParam const& psp) = 0;
+  virtual ActionPtr<ModemOperation> PowerOff() = 0;
 };
 
 } /* namespace ae */
