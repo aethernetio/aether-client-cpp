@@ -17,22 +17,59 @@
 #ifndef AETHER_SERIAL_PORT_AT_COMM_SUPPORT_H_
 #define AETHER_SERIAL_PORT_AT_COMM_SUPPORT_H_
 
-#include <chrono>
 #include <string>
+#include <optional>
+
+#include "aether/common.h"
+#include "aether/actions/action.h"
+#include "aether/types/data_buffer.h"
+#include "aether/actions/action_ptr.h"
+#include "aether/actions/action_context.h"
+#include "aether/events/event_subscription.h"
 
 #include "aether/serial_ports/iserial_port.h"
-#include "aether/serial_ports/serial_port_types.h"
 
 namespace ae {
 class AtCommSupport {
  public:
-  AtCommSupport(ISerialPort *serial);
+  class WriteAction final : public Action<WriteAction> {
+   public:
+    using Action::Action;
+    UpdateStatus Update();
+  };
 
-  void SendATCommand(const std::string& command);
-  bool WaitForResponse(const std::string& expected, Duration timeout);
-  std::string PinToString(const std::uint8_t pin[4]);
+  class WaitForResponseAction final : public Action<WaitForResponseAction> {
+   public:
+    WaitForResponseAction(ActionContext action_context, ISerialPort& serial,
+                          std::string expected, Duration timeout);
+
+    UpdateStatus Update(TimePoint current_time);
+
+    std::optional<DataBuffer> response() const;
+
+   private:
+    void DataRead(DataBuffer const& data);
+
+    std::string expected_;
+    Duration timeout_;
+    TimePoint timeout_time_;
+    Subscription data_read_sub_;
+    std::optional<DataBuffer> response_;
+    bool success_;
+    bool error_;
+  };
+
+  static std::string PinToString(std::uint16_t pin);
+
+  AtCommSupport(ActionContext action_context, ISerialPort& serial);
+
+  ActionPtr<WriteAction> SendATCommand(std::string const& command);
+  ActionPtr<WaitForResponseAction> WaitForResponse(std::string expected,
+                                                   Duration timeout);
+
  private:
-  ISerialPort *serial_;
+  ActionContext action_context_;
+  ISerialPort* serial_;
 };
 
 } /* namespace ae */

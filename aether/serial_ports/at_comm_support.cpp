@@ -14,74 +14,93 @@
  * limitations under the License.
  */
 
-#include <memory>
 #include <vector>
-#include <bitset>
-#include <thread>
 #include <string_view>
 
 #include "aether/serial_ports/at_comm_support.h"
-#include "aether/modems/exponent_time.h"
+
 #include "aether/serial_ports/serial_ports_tele.h"
 
 namespace ae {
-  
-AtCommSupport::AtCommSupport(ISerialPort *serial)
-    : serial_{serial} {};
+UpdateStatus AtCommSupport::WriteAction::Update() {
+  // TODO: Is it possible to return Error?
+  return UpdateStatus::Result();
+}
 
-void AtCommSupport::SendATCommand(const std::string& command) {
+AtCommSupport::WaitForResponseAction::WaitForResponseAction(
+    ActionContext action_context, ISerialPort& serial, std::string expected,
+    Duration timeout)
+    : Action{action_context},
+      expected_{std::move(expected)},
+      timeout_{timeout},
+      success_{},
+      error_{} {
+  timeout_time_ = Now() + timeout;
+  data_read_sub_ = serial.read_event().Subscribe(
+      *this, MethodPtr<&AtCommSupport::WaitForResponseAction::DataRead>{});
+}
+
+UpdateStatus AtCommSupport::WaitForResponseAction::Update(
+    TimePoint current_time) {
+  if (success_) {
+    return UpdateStatus::Result();
+  }
+  if (error_) {
+    return UpdateStatus::Error();
+  }
+  if (timeout_time_ <= current_time) {
+    return UpdateStatus::Error();
+  }
+  return UpdateStatus::Delay(timeout_time_);
+}
+
+std::optional<DataBuffer> AtCommSupport::WaitForResponseAction::response()
+    const {
+  return response_;
+}
+
+void AtCommSupport::WaitForResponseAction::DataRead(DataBuffer const& data) {
+  std::string_view response_str(reinterpret_cast<char const*>(data.data()),
+                                data.size());
+  AE_TELED_DEBUG("AT response: {}", response_str);
+  if (response_str.find(expected_) != std::string::npos) {
+    success_ = true;
+    response_ = data;
+  }
+  if (response_str.find("ERROR") != std::string::npos) {
+    error_ = true;
+    response_.reset();
+  }
+  Action::Trigger();
+}
+
+AtCommSupport::AtCommSupport(ActionContext action_context, ISerialPort& serial)
+    : action_context_{action_context}, serial_{&serial} {};
+
+ActionPtr<AtCommSupport::WriteAction> AtCommSupport::SendATCommand(
+    std::string const& command) {
   AE_TELED_DEBUG("AT command: {}", command);
-  std::vector<uint8_t> data(command.begin(), command.end());
-  data.push_back('\r');  // Adding a carriage return symbols
-  data.push_back('\n');
+  std::vector<uint8_t> data(command.size() + 2);
+  data.insert(data.begin(), command.begin(), command.end());
+  data.emplace_back('\r');  // Adding a carriage return symbols
+  data.emplace_back('\n');
   serial_->Write(data);
+
+  return ActionPtr<WriteAction>{action_context_};
 }
 
-bool AtCommSupport::WaitForResponse(const std::string& expected,
-                                     Duration timeout) {
-  // Simplified implementation of waiting for a response
-  auto start = Now();
-  auto exponent_time = ExponentTime(std::chrono::milliseconds{1},
-                                    std::chrono::milliseconds{100});
+ActionPtr<AtCommSupport::WaitForResponseAction> AtCommSupport::WaitForResponse(
+    std::string expected, Duration timeout) {
+  return ActionPtr<WaitForResponseAction>{action_context_, *serial_,
+                                          std::move(expected), timeout};
+}
 
-  while (true) {
-    if (auto response = serial_->Read(); response) {
-      std::string_view response_str(
-          reinterpret_cast<char const*>(response->data()), response->size());
-      AE_TELED_DEBUG("AT response: {}", response_str);
-      if (response_str.find(expected) != std::string::npos) {
-        return true;
-      }
-      if (response_str.find("ERROR") != std::string::npos) {
-        return false;
-      }
-    }
-
-    auto elapsed = Now() - start;
-    if (elapsed > timeout) {
-      return false;
-    }
-
-    // sleep for some time while waiting for response but no more than timeout
-    auto sleep_time = exponent_time.Next();
-    sleep_time = (elapsed + sleep_time > timeout)
-                     ? std::chrono::duration_cast<Duration>(timeout - elapsed)
-                     : sleep_time;
-    std::this_thread::sleep_for(sleep_time);
+std::string AtCommSupport::PinToString(std::uint16_t pin) {
+  static constexpr std::uint16_t kFourNine = 9999;
+  if (pin > kFourNine) {
+    return "";
   }
+  return std::to_string(pin);
 }
 
-std::string AtCommSupport::PinToString(const std::uint8_t pin[4]) {
-  std::string result{};
-
-  for (int i = 0; i < 4; ++i) {
-    if (pin[i] > 9) {
-      result = "ERROR";
-      break;
-    }
-    result += static_cast<char>('0' + pin[i]);
-  }
-
-  return result;
-}
 }  // namespace ae
