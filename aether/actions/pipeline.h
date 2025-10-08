@@ -72,6 +72,36 @@ class IPipeline : public Action<IPipeline> {
 };
 
 /**
+ * \brief The pipeline context.
+ * Stores all the stages accessible by index.
+ * Pipeline context is optionally passed to all stage.Run to use by the stages.
+ */
+template <typename... TStages>
+class PipelineContext {
+ public:
+  static constexpr std::size_t kNumStages = sizeof...(TStages);
+
+  explicit PipelineContext(TStages&&... stages)
+      : stages_(std::forward<TStages>(stages)...) {}
+
+  template <typename TFunc>
+  void DispatchByIndex(IPipeline::Index index, TFunc func) {
+    pipeline_internal::DispatchIndex<kNumStages>(
+        [&](auto index) { func(GetStage<decltype(index)::value>()); },
+        static_cast<std::size_t>(index));
+  }
+
+  template <std::size_t Index>
+  auto& GetStage() {
+    static_assert(Index < kNumStages);
+    return std::get<Index>(stages_);
+  }
+
+ private:
+  std::tuple<TStages...> stages_;
+};
+
+/**
  * \brief Templated pipeline implementation.
  * Each TStages should be a Stage runner - something with Run method and
  * operator-> returns ActionPtr.
@@ -90,12 +120,11 @@ class Pipeline final : public IPipeline {
 
  public:
   using BaseAction = Action<IPipeline>;
-
-  static constexpr std::size_t kNumStages = sizeof...(TStages);
+  using Context = PipelineContext<TStages...>;
 
   explicit Pipeline(ActionContext action_context, TStages&&... args)
       : IPipeline{action_context},
-        stages_{std::forward<TStages>(args)...},
+        pipeline_context_{std::forward<TStages>(args)...},
         state_{State::kStart} {}
 
   UpdateStatus Update() override {
@@ -118,7 +147,7 @@ class Pipeline final : public IPipeline {
   }
 
   Index index() const override { return stage_index_; }
-  Index count() const override { return kNumStages; }
+  Index count() const override { return Context::kNumStages; }
 
   void Stop() override {
     if (state_ != State::kRunning) {
@@ -137,7 +166,7 @@ class Pipeline final : public IPipeline {
   }
 
   void NextStage() {
-    if (++stage_index_ == kNumStages) {
+    if (++stage_index_ == Context::kNumStages) {
       state_ = State::kCompleted;
       BaseAction::Trigger();
       return;
@@ -146,17 +175,24 @@ class Pipeline final : public IPipeline {
   }
 
   void RunStage(Index index) {
-    pipeline_internal::DispatchIndex<kNumStages>(
-        [this](auto index) {
-          auto& stage = std::get<decltype(index)::value>(stages_);
-          stage_sub_ = RunStage(stage);
-        },
-        static_cast<std::size_t>(index));
+    pipeline_context_.DispatchByIndex(
+        index, [this](auto&& stage) { RunStage(stage); });
   }
 
   template <typename TStage>
-  Subscription RunStage(TStage& stage) {
-    auto sub = stage.Run()->StatusEvent().Subscribe(ActionHandler{
+  void RunStage(TStage& stage) {
+    stage.Run(pipeline_context_);
+    StageSubscribe(stage.action());
+  }
+
+  template <typename TAction>
+  void StageSubscribe(ActionPtr<TAction>& action) {
+    if (!action) {
+      state_ = State::kFailed;
+      BaseAction::Trigger();
+      return;
+    }
+    stage_sub_ = action->StatusEvent().Subscribe(ActionHandler{
         OnResult{[this]() { NextStage(); }},
         OnError{[this]() {
           state_ = State::kFailed;
@@ -167,32 +203,31 @@ class Pipeline final : public IPipeline {
           BaseAction::Trigger();
         }},
     });
-    return sub;
   }
 
   void StopStage() {
-    pipeline_internal::DispatchIndex<kNumStages>(
-        [this](auto index) {
-          auto& stage = std::get<decltype(index)::value>(stages_);
-          StopStage(stage);
-        },
-        stage_index_);
+    pipeline_context_.DispatchByIndex(
+        stage_index_, [this](auto& stage) { StopStage(stage); });
   }
 
   template <typename TStage>
   void StopStage(TStage& stage) {
     using ActionType = typename TStage::type;
     if constexpr (ActionStoppable<ActionType>::value) {
-      stage->Stop();
+      auto action = stage.action();
+      if (action) {
+        action->Stop();
+      } else {
+        state_ = State::kStopped;
+        BaseAction::Trigger();
+      }
     } else {
       stage_sub_.Reset();
       state_ = State::kStopped;
       BaseAction::Trigger();
     }
   }
-
-  std::tuple<TStages...> stages_;
-
+  Context pipeline_context_;
   Index stage_index_{};
   StateMachine<State> state_;
 
@@ -220,20 +255,21 @@ class StageRunner<T, TArgs...> {
   explicit StageRunner(TArgs... args)
       : construction_args_{std::forward<TArgs>(args)...} {}
 
-  StageRunner& Run() {
+  template <typename TPipelineContext>
+  void Run([[maybe_unused]] TPipelineContext& pipeline) {
+    // TODO: how to use pipeline?
     action_ = std::apply(
         [&](TArgs&... args) {
           return ActionPtr<T>{std::forward<TArgs>(args)...};
         },
         construction_args_);
-    return *this;
   }
 
-  ActionPtr<T>& operator->() { return action_; }
+  ActionPtr<type>& action() { return action_; }
 
  private:
   std::tuple<TArgs...> construction_args_;
-  ActionPtr<T> action_;
+  ActionPtr<type> action_;
 };
 
 /**
@@ -256,12 +292,16 @@ class StageRunner<TFunc> {
 
   explicit StageRunner(TFunc&& factory) : factory_(std::move(factory)) {}
 
-  StageRunner& Run() {
-    action_ = factory_();
-    return *this;
+  template <typename TPipelineContext>
+  void Run([[maybe_unused]] TPipelineContext& pipeline) {
+    if constexpr (std::is_invocable_v<TFunc, TPipelineContext&>) {
+      action_ = factory_(pipeline);
+    } else {
+      action_ = factory_();
+    }
   }
 
-  ActionPtr<type>& operator->() { return action_; }
+  ActionPtr<type>& action() { return action_; }
 
  private:
   TFunc factory_;
