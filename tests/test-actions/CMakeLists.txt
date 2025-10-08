@@ -14,6 +14,15 @@
 
 cmake_minimum_required( VERSION 3.18 )
 
+list(APPEND action_srcs
+  ${ROOT_DIR}/aether/actions/action_processor.cpp
+  ${ROOT_DIR}/aether/actions/action_registry.cpp
+  ${ROOT_DIR}/aether/actions/action_trigger.cpp
+  ${ROOT_DIR}/aether/actions/repeatable_task.cpp
+  ${ROOT_DIR}/aether/actions/task_queue.cpp
+  ${ROOT_DIR}/aether/actions/timer_action.cpp
+)
+
 list(APPEND test_srcs
   main.cpp
   test-action-registry.cpp
@@ -28,10 +37,10 @@ if(NOT CM_PLATFORM)
   project(test-actions LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME})
-  target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
+  target_sources(${PROJECT_NAME} PRIVATE ${action_srcs} ${test_srcs})
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-  target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
+  target_link_libraries(${PROJECT_NAME} PRIVATE unity)
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()
