@@ -85,19 +85,15 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
 
   static constexpr std::uint16_t kLoraModuleMTU{400};
 
-  kLoraModuleError CheckResponse(std::string const& response,
-                                 std::uint32_t const wait_time,
-                                 std::string const& error_message);
+  ActionPtr<LoraModuleOperation> EnterAtMode();
+  ActionPtr<LoraModuleOperation> ExitAtMode();
 
-  kLoraModuleError EnterAtMode();
-  kLoraModuleError ExitAtMode();
+  ActionPtr<LoraModuleOperation> SetupSerialPort(SerialInit& serial_init);
+  ActionPtr<LoraModuleOperation> SetBaudRate(kBaudRate baud_rate);
+  ActionPtr<LoraModuleOperation> SetParity(kParity parity);
+  ActionPtr<LoraModuleOperation> SetStopBits(kStopBits stop_bits);
 
-  kLoraModuleError SetupSerialPort(SerialInit& serial_init);
-  kLoraModuleError SetBaudRate(kBaudRate baud_rate);
-  kLoraModuleError SetParity(kParity parity);
-  kLoraModuleError SetStopBits(kStopBits stop_bits);
-
-  kLoraModuleError SetupLoraNet(LoraModuleInit& lora_module_init);
+  ActionPtr<LoraModuleOperation> SetupLoraNet(LoraModuleInit& lora_module_init);
 
   std::string AdressToString(uint16_t value);
   std::string ChannelToString(uint8_t value);
