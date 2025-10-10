@@ -29,7 +29,8 @@ namespace ae {
 
 class EbyteE22LoraModule final : public ILoraModuleDriver {
  public:
-  explicit EbyteE22LoraModule(ActionContext action_context, IPoller::ptr poller,
+  explicit EbyteE22LoraModule(ActionContext action_context, 
+                              IPoller::ptr poller,
                               LoraModuleInit lora_module_init);
   ~EbyteE22LoraModule() override;
 
@@ -45,7 +46,7 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
   
   DataEvent::Subscriber data_event() override;
   
-  ActionPtr<LoraModuleOperation> SetPowerSaveParam(std::string const& psp) override;
+  ActionPtr<LoraModuleOperation> SetPowerSaveParam(std::string const& psp);
   ActionPtr<LoraModuleOperation> PowerOff() override;
   ActionPtr<LoraModuleOperation> SetLoraModuleAddress(std::uint16_t const& address);  // Module address
   ActionPtr<LoraModuleOperation> SetLoraModuleChannel(std::uint8_t const& channel);   // Module channel

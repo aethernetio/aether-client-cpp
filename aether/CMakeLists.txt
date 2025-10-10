@@ -140,7 +140,6 @@ list(APPEND modems_srcs
 list(APPEND lora_modules_srcs
             "lora_modules/dx_smart_lr02_433_lm.cpp"
             "lora_modules/ebyte_e22_400_lm.cpp"
-            "lora_modules/ilora_module_driver.cpp"
             "lora_modules/lora_module_factory.cpp")
 
 list(APPEND wifi_srcs

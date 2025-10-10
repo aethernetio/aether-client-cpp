@@ -40,7 +40,7 @@ class ILoraModuleDriver{
     virtual ConnectionIndex connection_index() const = 0;
   };
 
-  virtual ~ILoraModule() = default;
+  virtual ~ILoraModuleDriver() = default;
 
   virtual ActionPtr<LoraModuleOperation> Init() = 0;
   virtual ActionPtr<LoraModuleOperation> Start() = 0;

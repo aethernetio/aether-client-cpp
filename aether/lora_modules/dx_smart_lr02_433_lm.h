@@ -39,8 +39,9 @@ static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
 
 class DxSmartLr02LoraModule final : public ILoraModuleDriver {
  public:
-  explicit DxSmartLr02LoraModule(LoraModuleAdapter& adapter, IPoller::ptr poller,
-                                 LoraModuleInit lora_module_init, Domain* domain);
+  explicit DxSmartLr02LoraModule(ActionContext action_context,
+                                 IPoller::ptr poller,
+                                 LoraModuleInit lora_module_init);
   ~DxSmartLr02LoraModule() override;
 
   ActionPtr<LoraModuleOperation> Init() override;
@@ -55,7 +56,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   
   DataEvent::Subscriber data_event() override;
   
-  ActionPtr<LoraModuleOperation> SetPowerSaveParam(std::string const& psp) override;
+  ActionPtr<LoraModuleOperation> SetPowerSaveParam(std::string const& psp);
   ActionPtr<LoraModuleOperation> PowerOff() override;
   ActionPtr<LoraModuleOperation> SetLoraModuleAddress(std::uint16_t const& address);  // Module address
   ActionPtr<LoraModuleOperation> SetLoraModuleChannel(std::uint8_t const& channel);   // Module channel
