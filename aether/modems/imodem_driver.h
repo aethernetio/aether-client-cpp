@@ -23,26 +23,22 @@
 #include "aether/types/address.h"
 #include "aether/events/events.h"
 #include "aether/actions/action.h"
-#include "aether/actions/pipeline.h"
 #include "aether/types/data_buffer.h"
 #include "aether/actions/action_ptr.h"
+#include "aether/actions/notify_action.h"
+#include "aether/actions/promise_action.h"
 #include "aether/modems/modem_driver_types.h"
 
 namespace ae {
-class IPipeline;
 class IModemDriver {
  public:
-  using ModemOperation = IPipeline;
+  using ModemOperation = NotifyAction;
+  using WriteOperation = NotifyAction;
+  using OpenNetworkOperation = PromiseAction<ConnectionIndex>;
   using DataEvent = Event<void(ConnectionIndex, DataBuffer const& data)>;
-  class OpenNetworkOperation : public Action<OpenNetworkOperation> {
-   public:
-    virtual UpdateStatus Update() = 0;
-    virtual ConnectionIndex connection_index() const = 0;
-  };
 
   virtual ~IModemDriver() = default;
 
-  virtual ActionPtr<ModemOperation> Init() = 0;
   virtual ActionPtr<ModemOperation> Start() = 0;
   virtual ActionPtr<ModemOperation> Stop() = 0;
   virtual ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
@@ -50,7 +46,7 @@ class IModemDriver {
                                                       std::uint16_t port) = 0;
   virtual ActionPtr<ModemOperation> CloseNetwork(
       ConnectionIndex connect_index) = 0;
-  virtual ActionPtr<ModemOperation> WritePacket(ConnectionIndex connect_index,
+  virtual ActionPtr<WriteOperation> WritePacket(ConnectionIndex connect_index,
                                                 DataBuffer const& data) = 0;
   virtual DataEvent::Subscriber data_event() = 0;
 
