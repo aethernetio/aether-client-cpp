@@ -49,9 +49,6 @@ class PipelineQueue final : public Action<PipelineQueue<TAction>> {
   using BaseAction::BaseAction;
 
   UpdateStatus Update() {
-    if (error_) {
-      return UpdateStatus::Error();
-    }
     if (stop_) {
       return UpdateStatus::Stop();
     }
@@ -67,40 +64,34 @@ class PipelineQueue final : public Action<PipelineQueue<TAction>> {
   }
 
   void Stop() {
-    if (!running_action_) {
-      stop_ = true;
-      BaseAction::Trigger();
-      return;
-    }
     if constexpr (ActionStoppable<TAction>::value) {
-      running_action_->Stop();
-    } else {
-      stop_ = true;
-      BaseAction::Trigger();
+      if (running_action_) {
+        running_action_->Stop();
+      }
     }
+    // drop the queue
+    auto empty = decltype(queue_){};
+    queue_.swap(empty);
+    running_action_.reset();
+    stop_ = true;
+    BaseAction::Trigger();
   }
 
  private:
   void RunStage() {
     auto& stage = queue_.front();
     running_action_ = stage.CreateStage();
+    queue_.pop();
+
     if (!running_action_) {
-      error_ = true;
-      BaseAction::Trigger();
+      NextStage();
       return;
     }
     stage_sub_ = running_action_->StatusEvent().Subscribe(ActionHandler{
         OnResult{[this]() { NextStage(); }},
-        OnError{[this]() {
-          error_ = true;
-          BaseAction::Trigger();
-        }},
-        OnStop{[this]() {
-          stop_ = true;
-          BaseAction::Trigger();
-        }},
+        OnError{[this]() { NextStage(); }},
+        OnStop{[this]() { NextStage(); }},
     });
-    queue_.pop();
   }
 
   void NextStage() {
@@ -112,7 +103,6 @@ class PipelineQueue final : public Action<PipelineQueue<TAction>> {
   std::queue<StageFactory> queue_;
   ActionPtr<TAction> running_action_;
   Subscription stage_sub_;
-  bool error_{};
   bool stop_{};
 };
 }  // namespace ae
