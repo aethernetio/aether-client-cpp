@@ -29,12 +29,13 @@ UpdateStatus AtCommSupport::WriteAction::Update() {
 
 AtCommSupport::WaitForResponseAction::WaitForResponseAction(
     ActionContext action_context, ISerialPort& serial, std::string expected,
-    Duration timeout)
+    Duration timeout, Handler response_handler)
     : Action{action_context},
       expected_{std::move(expected)},
       timeout_{timeout},
       success_{},
-      error_{} {
+      error_{},
+      response_handler_{std::move(response_handler)} {
   timeout_time_ = Now() + timeout;
   data_read_sub_ = serial.read_event().Subscribe(
       *this, MethodPtr<&AtCommSupport::WaitForResponseAction::DataRead>{});
@@ -43,7 +44,7 @@ AtCommSupport::WaitForResponseAction::WaitForResponseAction(
 UpdateStatus AtCommSupport::WaitForResponseAction::Update(
     TimePoint current_time) {
   if (success_) {
-    return UpdateStatus::Result();
+    return response_handler_(response_buffer_);
   }
   if (error_) {
     return UpdateStatus::Error();
@@ -54,24 +55,36 @@ UpdateStatus AtCommSupport::WaitForResponseAction::Update(
   return UpdateStatus::Delay(timeout_time_);
 }
 
-std::optional<DataBuffer> AtCommSupport::WaitForResponseAction::response()
-    const {
-  return response_;
-}
-
 void AtCommSupport::WaitForResponseAction::DataRead(DataBuffer const& data) {
   std::string_view response_str(reinterpret_cast<char const*>(data.data()),
                                 data.size());
   AE_TELED_DEBUG("AT response: {}", response_str);
   if (response_str.find(expected_) != std::string::npos) {
     success_ = true;
-    response_ = data;
+    response_buffer_ = data;
   }
   if (response_str.find("ERROR") != std::string::npos) {
     error_ = true;
-    response_.reset();
   }
   Action::Trigger();
+}
+
+AtCommSupport::AtListener::AtListener(ISerialPort& serial, std::string expected,
+                                      Handler handler)
+    : expected_{std::move(expected)}, handler_{std::move(handler)} {
+  data_read_sub_ =
+      serial.read_event().Subscribe(*this, MethodPtr<&AtListener::DataRead>{});
+}
+
+void AtCommSupport::AtListener::DataRead(DataBuffer const& data) {
+  std::string_view response_str(reinterpret_cast<char const*>(data.data()),
+                                data.size());
+  AE_TELED_DEBUG("AT listen: {}", response_str);
+  if (response_str.find(expected_) == std::string::npos) {
+    return;
+  }
+
+  handler_(data);
 }
 
 AtCommSupport::AtCommSupport(ActionContext action_context, ISerialPort& serial)
@@ -93,6 +106,20 @@ ActionPtr<AtCommSupport::WaitForResponseAction> AtCommSupport::WaitForResponse(
     std::string expected, Duration timeout) {
   return ActionPtr<WaitForResponseAction>{action_context_, *serial_,
                                           std::move(expected), timeout};
+}
+
+ActionPtr<AtCommSupport::WaitForResponseAction> AtCommSupport::WaitForResponse(
+    std::string expected, Duration timeout,
+    WaitForResponseAction::Handler response_handler) {
+  return ActionPtr<WaitForResponseAction>{action_context_, *serial_,
+                                          std::move(expected), timeout,
+                                          std::move(response_handler)};
+}
+
+std::unique_ptr<AtCommSupport::AtListener> AtCommSupport::ListenForResponse(
+    std::string expected, AtListener::Handler handler) {
+  return std::make_unique<AtListener>(*serial_, std::move(expected),
+                                      std::move(handler));
 }
 
 std::string AtCommSupport::PinToString(std::uint16_t pin) {
