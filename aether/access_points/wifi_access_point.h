@@ -84,6 +84,8 @@ class WifiAccessPoint final : public AccessPoint {
   Obj::ptr poller_;
   Obj::ptr resolver_;
   WifiCreds wifi_creds_;
+  ActionPtr<WifiConnectAction> connect_action_;
+  Subscription connect_sub_;
 };
 }  // namespace ae
 
