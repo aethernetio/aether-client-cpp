@@ -176,12 +176,12 @@ class Pipeline final : public IPipeline {
 
   void RunStage(Index index) {
     pipeline_context_.DispatchByIndex(
-        index, [this](auto&& stage) { RunStage(stage); });
+        index, [this](auto&& stage) { this->RunStage(stage); });
   }
 
   template <typename TStage>
   void RunStage(TStage& stage) {
-    stage.Run(pipeline_context_);
+    stage.Run();
     StageSubscribe(stage.action());
   }
 
@@ -207,7 +207,7 @@ class Pipeline final : public IPipeline {
 
   void StopStage() {
     pipeline_context_.DispatchByIndex(
-        stage_index_, [this](auto& stage) { StopStage(stage); });
+        stage_index_, [this](auto& stage) { this->StopStage(stage); });
   }
 
   template <typename TStage>
@@ -255,12 +255,10 @@ class StageRunner<T, TArgs...> {
   explicit StageRunner(TArgs... args)
       : construction_args_{std::forward<TArgs>(args)...} {}
 
-  template <typename TPipelineContext>
-  void Run([[maybe_unused]] TPipelineContext& pipeline) {
-    // TODO: how to use pipeline?
+  void Run() {
     action_ = std::apply(
         [&](TArgs&... args) {
-          return ActionPtr<T>{std::forward<TArgs>(args)...};
+          return ActionPtr<type>{std::forward<TArgs>(args)...};
         },
         construction_args_);
   }
@@ -292,14 +290,7 @@ class StageRunner<TFunc> {
 
   explicit StageRunner(TFunc&& factory) : factory_(std::move(factory)) {}
 
-  template <typename TPipelineContext>
-  void Run([[maybe_unused]] TPipelineContext& pipeline) {
-    if constexpr (std::is_invocable_v<TFunc, TPipelineContext&>) {
-      action_ = factory_(pipeline);
-    } else {
-      action_ = factory_();
-    }
-  }
+  void Run() { action_ = factory_(); }
 
   ActionPtr<type>& action() { return action_; }
 
