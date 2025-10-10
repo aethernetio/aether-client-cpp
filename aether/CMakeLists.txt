@@ -54,6 +54,11 @@ list(APPEND aether_srcs
             "server_keys.cpp"
             "socket_initializer.cpp")
 
+list(APPEND aether_c_api_srcs
+            "aether_c/c_uid.cpp"
+            "aether_c/aether_capi.cpp"
+)
+
 list(APPEND types_srcs
             "types/address.cpp"
             "types/address_parser.cpp")
@@ -284,6 +289,7 @@ if(REGULAR_CMAKE_PROJECT)
   endforeach()
 
   add_library(aether STATIC ${aether_srcs}
+                            ${aether_c_api_srcs}
                             ${types_srcs}
                             ${poller_srcs}
                             ${dns_srcs}
@@ -333,6 +339,7 @@ else()
 
     idf_component_register( SRCS
                             ${aether_srcs}
+                            ${aether_c_api_srcs}
                             ${types_srcs}
                             ${poller_srcs}
                             ${dns_srcs}
