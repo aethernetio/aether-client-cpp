@@ -33,9 +33,9 @@
 namespace ae {
 class LoraModuleDriverFactory {
  public:
-  static ILoraModuleDriver::ptr CreateLoraModule(
-      LoraModuleAdapter& adapter, IPoller::ptr poller,
-      LoraModuleInit lora_module_init, Domain* domain);
+  static std::unique_ptr<ILoraModuleDriver> CreateLoraModule(
+      ActionContext action_context, IPoller::ptr poller,
+      LoraModuleInit lora_module_init);
 };
 }  // namespace ae
 
