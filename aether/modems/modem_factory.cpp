@@ -16,8 +16,8 @@
 
 #include "aether/modems/modem_factory.h"
 
-#include "aether/modems/bg95_at_modem.h"
-#include "aether/modems/sim7070_at_modem.h"
+// #include "aether/modems/bg95_at_modem.h"
+// #include "aether/modems/sim7070_at_modem.h"
 #include "aether/modems/thingy91x_at_modem.h"
 // IWYU pragma: end_keeps
 

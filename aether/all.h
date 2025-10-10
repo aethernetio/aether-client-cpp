@@ -76,7 +76,7 @@
 #include "aether/adapters/ethernet.h"
 #include "aether/adapters/wifi_adapter.h"
 #include "aether/adapters/modem_adapter.h"
-#include "aether/adapters/lora_module_adapter.h"
+// #include "aether/adapters/lora_module_adapter.h"
 
 #include "aether/modems/imodem_driver.h"
 #include "aether/modems/modem_factory.h"
