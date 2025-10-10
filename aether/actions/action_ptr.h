@@ -86,6 +86,11 @@ ActionPtr(ActionPtr<T>&& t) -> ActionPtr<T>;
 template <typename T>
 ActionPtr(ActionPtr<T> const& t) -> ActionPtr<T>;
 
+template <typename T, typename... TArgs>
+auto MakeActionPtr(ActionContext action_context, TArgs&&... args) {
+  return ActionPtr<T>(action_context, std::forward<TArgs>(args)...);
+}
+
 template <template <typename...> typename T, typename... TArgs>
 auto MakeActionPtr(ActionContext action_context, TArgs&&... args) {
   using DeducedT = decltype(T(action_context, std::forward<TArgs>(args)...));
