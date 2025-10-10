@@ -14,18 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_API_PROTOCOL_PROMISE_ACTION_H_
-#define AETHER_API_PROTOCOL_PROMISE_ACTION_H_
+#ifndef AETHER_ACTIONS_PROMISE_ACTION_H_
+#define AETHER_ACTIONS_PROMISE_ACTION_H_
 
 #include <cstdint>
 #include <optional>
 
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/actions/action_context.h"
-
-#include "aether/api_protocol/request_id.h"
 
 namespace ae {
 template <typename TValue>
@@ -39,8 +35,7 @@ class PromiseAction : public Action<PromiseAction<TValue>> {
   using BaseAction = Action<PromiseAction<TValue>>;
 
  public:
-  PromiseAction(ActionContext action_context, RequestId req_id)
-      : BaseAction{action_context}, request_id_{req_id} {}
+  using BaseAction::BaseAction;
 
   AE_CLASS_MOVE_ONLY(PromiseAction);
 
@@ -81,10 +76,7 @@ class PromiseAction : public Action<PromiseAction<TValue>> {
     return *value_;
   }
 
-  RequestId const& request_id() const { return request_id_; }
-
  private:
-  RequestId request_id_;
   std::optional<TValue> value_{};
   StateMachine<State> state_{State::kEmpty};
 };
@@ -100,8 +92,7 @@ class PromiseAction<void> : public Action<PromiseAction<void>> {
   using BaseAction = Action<PromiseAction<void>>;
 
  public:
-  PromiseAction(ActionContext action_context, RequestId req_id)
-      : BaseAction{action_context}, request_id_{req_id} {}
+  using BaseAction::BaseAction;
 
   AE_CLASS_MOVE_ONLY(PromiseAction);
 
@@ -131,14 +122,8 @@ class PromiseAction<void> : public Action<PromiseAction<void>> {
     BaseAction::Trigger();
   }
 
-  RequestId const& request_id() const { return request_id_; }
-
  private:
-  RequestId request_id_;
   StateMachine<State> state_{State::kEmpty};
 };
-
-template <typename T>
-using PromisePtr = ActionPtr<PromiseAction<T>>;
 }  // namespace ae
-#endif  // AETHER_API_PROTOCOL_PROMISE_ACTION_H_
+#endif  // AETHER_ACTIONS_PROMISE_ACTION_H_
