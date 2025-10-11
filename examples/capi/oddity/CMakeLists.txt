@@ -14,24 +14,15 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
-list( APPEND src_list
-  aether_capi.cpp
-  aether_class.cpp
-  main.cpp
-  c_api.c
-)
+list(APPEND src_list
+            main.c
+            aether_oddity.c)
 
 if(NOT CM_PLATFORM)
-  project("aether-client-cpp-capi" VERSION "1.0.0" LANGUAGES C CXX)
+  project("aether-oddity" VERSION "1.0.0" LANGUAGES C)
 
   add_executable(${PROJECT_NAME} ${src_list})
   target_link_libraries(${PROJECT_NAME} PRIVATE aether)
-
-  include(GNUInstallDirs)
-  install(TARGETS ${PROJECT_NAME}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
 else()
   idf_build_get_property(CM_PLATFORM CM_PLATFORM)
   if(CM_PLATFORM STREQUAL "ESP32")
