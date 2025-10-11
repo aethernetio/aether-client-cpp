@@ -22,33 +22,82 @@
 #include <functional>
 
 #include "aether/actions/action.h"
+#include "aether/actions/pipeline.h"  // IWYU pragma: export
 #include "aether/actions/action_ptr.h"
 #include "aether/events/event_subscription.h"
 
 namespace ae {
-template <typename TAction>
-class PipelineQueue final : public Action<PipelineQueue<TAction>> {
+class PipelineQueue final : public Action<PipelineQueue> {
   class StageFactory {
    public:
-    using Factory = std::function<ActionPtr<TAction>()>;
+    struct VTable {
+      void (*stop)(void* obj);  // stop the action
+      Subscription (*finished_event)(
+          void* obj,
+          std::function<void()>
+              on_finished);  // subscribe to the action finished
+    };
+
+    using Factory = std::function<std::pair<VTable*, void*>()>;
+
     template <typename TStageRunner>
     explicit StageFactory(TStageRunner runner)
         : factory_([runner{std::move(runner)}]() mutable {
             runner.Run();
-            return runner.action();
+            auto action = runner.action();
+
+            using ActionType = std::decay_t<decltype(*action)>;
+            static VTable vtable = [&]() {
+              VTable vtable;
+              vtable.stop = [](void* obj) {
+                if (obj == nullptr) {
+                  return;
+                }
+                if constexpr (ActionStoppable<ActionType>::value) {
+                  auto* a = static_cast<ActionType*>(obj);
+                  a->Stop();
+                }
+              };
+              vtable.finished_event =
+                  [](void* obj,
+                     std::function<void()> on_finished) -> Subscription {
+                if (obj == nullptr) {
+                  return Subscription{};
+                }
+                auto* action = static_cast<ActionType*>(obj);
+                return action->FinishedEvent().Subscribe(
+                    [on_finished{std::move(on_finished)}]() { on_finished(); });
+              };
+              return vtable;
+            }();
+
+            return std::make_pair(&vtable, action ? &*action : nullptr);
           }) {}
 
-    ActionPtr<TAction> CreateStage() { return factory_(); }
+    template <typename TFunc>
+    Subscription RunStage(TFunc&& on_finished) {
+      std::tie(vtable_, action_obj_) = factory_();
+      return vtable_->finished_event(action_obj_,
+                                     std::forward<TFunc>(on_finished));
+    }
+
+    void Stop() {
+      if (vtable_ == nullptr) {
+        return;
+      }
+      vtable_->stop(action_obj_);
+    }
 
    private:
     Factory factory_;
+    VTable* vtable_{};
+    void* action_obj_{};
   };
 
  public:
-  using BaseAction = Action<PipelineQueue<TAction>>;
-  using BaseAction::BaseAction;
+  using Action::Action;
 
-  UpdateStatus Update() {
+  UpdateStatus Update() const {
     if (stop_) {
       return UpdateStatus::Stop();
     }
@@ -58,40 +107,33 @@ class PipelineQueue final : public Action<PipelineQueue<TAction>> {
   template <typename TStageRunner>
   void Push(TStageRunner&& stage_runner) {
     queue_.emplace(std::forward<TStageRunner>(stage_runner));
-    if (!running_action_) {
+    if (!running_stage_) {
       RunStage();
     }
   }
 
   void Stop() {
-    if constexpr (ActionStoppable<TAction>::value) {
-      if (running_action_) {
-        running_action_->Stop();
-      }
-    }
     // drop the queue
     auto empty = decltype(queue_){};
     queue_.swap(empty);
-    running_action_.reset();
+
+    if (running_stage_) {
+      running_stage_->Stop();
+    }
+
     stop_ = true;
-    BaseAction::Trigger();
+    Action::Trigger();
   }
 
  private:
   void RunStage() {
-    auto& stage = queue_.front();
-    running_action_ = stage.CreateStage();
+    running_stage_ = std::move(queue_.front());
     queue_.pop();
+    stage_sub_ = running_stage_->RunStage([this]() { NextStage(); });
 
-    if (!running_action_) {
+    if (!stage_sub_) {
       NextStage();
-      return;
     }
-    stage_sub_ = running_action_->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[this]() { NextStage(); }},
-        OnError{[this]() { NextStage(); }},
-        OnStop{[this]() { NextStage(); }},
-    });
   }
 
   void NextStage() {
@@ -101,7 +143,7 @@ class PipelineQueue final : public Action<PipelineQueue<TAction>> {
   }
 
   std::queue<StageFactory> queue_;
-  ActionPtr<TAction> running_action_;
+  std::optional<StageFactory> running_stage_;
   Subscription stage_sub_;
   bool stop_{};
 };

@@ -62,7 +62,7 @@ class TestGenAction final : public ITestGenAction {
 
 void test_EmptyQueueCreation() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   // Verify queue can be created without issues
   TEST_ASSERT_TRUE(static_cast<bool>(queue));
@@ -91,7 +91,7 @@ void test_EmptyQueueCreation() {
 
 void test_SingleStageExecution() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   int execution_counter = 0;
   bool result_triggered = false;
@@ -125,7 +125,7 @@ void test_SingleStageExecution() {
 
 void test_MultipleStageSequentialExecution() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   int execution_counter1 = 0;
   int execution_counter2 = 0;
@@ -173,7 +173,7 @@ void test_MultipleStageSequentialExecution() {
 
 void test_StageFailureResilience() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   int success_counter = 0;
   int failure_counter = 0;
@@ -221,7 +221,7 @@ void test_StageFailureResilience() {
 
 void test_NullStageHandling() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   int success_counter = 0;
   bool result_triggered = false;
@@ -265,7 +265,7 @@ void test_NullStageHandling() {
 
 void test_MultipleConsecutiveFailures() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   int failure_counter = 0;
   bool result_triggered = false;
@@ -311,7 +311,7 @@ void test_MultipleConsecutiveFailures() {
 
 void test_StopEmptyQueue() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   bool result_triggered = false;
   bool error_triggered = false;
@@ -340,7 +340,7 @@ void test_StopEmptyQueue() {
 
 void test_StopDuringExecution() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   bool stage_started = false;
   bool stage_stopped = false;
@@ -385,7 +385,7 @@ void test_StopDuringExecution() {
 
 void test_StopAfterStageCompletion() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   bool stage_executed = false;
   bool result_triggered = false;
@@ -430,7 +430,7 @@ void test_StopAfterStageCompletion() {
 
 void test_DynamicStageAddition() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   int execution_counter1 = 0;
   int execution_counter2 = 0;
@@ -482,7 +482,7 @@ void test_DynamicStageAddition() {
 
 void test_SinglePushStopCycle() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   bool stage_executed = false;
   bool stop_triggered = false;
@@ -513,7 +513,7 @@ void test_SinglePushStopCycle() {
 
 void test_TimerExpirationSequence() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<TimerAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   int completed_timers = 0;
   bool stop_triggered = false;
@@ -555,7 +555,7 @@ void test_TimerExpirationSequence() {
 
 void test_StopBeforeTimerExpiration() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<TimerAction>>(ap);
+  auto queue = MakeActionPtr<PipelineQueue>(ap);
 
   int expired_timers = 0;
   bool stop_triggered = false;
