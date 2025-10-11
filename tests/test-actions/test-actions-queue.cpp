@@ -17,13 +17,12 @@
 #include <unity.h>
 
 #include "aether/actions/action.h"
-#include "aether/actions/pipeline_queue.h"
-#include "aether/actions/gen_action.h"
 #include "aether/actions/timer_action.h"
+#include "aether/actions/actions_queue.h"
 #include "aether/actions/action_processor.h"
 #include "aether/actions/pipeline.h"
 
-namespace ae::test_pipeline_queue {
+namespace ae::test_actions_queue {
 
 // Test action interface for flexible testing
 class ITestGenAction : public Action<ITestGenAction> {
@@ -62,7 +61,7 @@ class TestGenAction final : public ITestGenAction {
 
 void test_EmptyQueueCreation() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   // Verify queue can be created without issues
   TEST_ASSERT_TRUE(static_cast<bool>(queue));
@@ -91,7 +90,7 @@ void test_EmptyQueueCreation() {
 
 void test_SingleStageExecution() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   int execution_counter = 0;
   bool result_triggered = false;
@@ -125,7 +124,7 @@ void test_SingleStageExecution() {
 
 void test_MultipleStageSequentialExecution() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   int execution_counter1 = 0;
   int execution_counter2 = 0;
@@ -173,7 +172,7 @@ void test_MultipleStageSequentialExecution() {
 
 void test_StageFailureResilience() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   int success_counter = 0;
   int failure_counter = 0;
@@ -221,7 +220,7 @@ void test_StageFailureResilience() {
 
 void test_NullStageHandling() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   int success_counter = 0;
   bool result_triggered = false;
@@ -265,7 +264,7 @@ void test_NullStageHandling() {
 
 void test_MultipleConsecutiveFailures() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   int failure_counter = 0;
   bool result_triggered = false;
@@ -311,7 +310,7 @@ void test_MultipleConsecutiveFailures() {
 
 void test_StopEmptyQueue() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   bool result_triggered = false;
   bool error_triggered = false;
@@ -340,7 +339,7 @@ void test_StopEmptyQueue() {
 
 void test_StopDuringExecution() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   bool stage_started = false;
   bool stage_stopped = false;
@@ -385,7 +384,7 @@ void test_StopDuringExecution() {
 
 void test_StopAfterStageCompletion() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   bool stage_executed = false;
   bool result_triggered = false;
@@ -430,7 +429,7 @@ void test_StopAfterStageCompletion() {
 
 void test_DynamicStageAddition() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   int execution_counter1 = 0;
   int execution_counter2 = 0;
@@ -482,7 +481,7 @@ void test_DynamicStageAddition() {
 
 void test_SinglePushStopCycle() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<ITestGenAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   bool stage_executed = false;
   bool stop_triggered = false;
@@ -513,7 +512,7 @@ void test_SinglePushStopCycle() {
 
 void test_TimerExpirationSequence() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<TimerAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   int completed_timers = 0;
   bool stop_triggered = false;
@@ -555,7 +554,7 @@ void test_TimerExpirationSequence() {
 
 void test_StopBeforeTimerExpiration() {
   auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<PipelineQueue<TimerAction>>(ap);
+  auto queue = MakeActionPtr<ActionsQueue>(ap);
 
   int expired_timers = 0;
   bool stop_triggered = false;
@@ -600,23 +599,23 @@ void test_StopBeforeTimerExpiration() {
   TEST_ASSERT_EQUAL(0, expired_timers);
 }
 
-}  // namespace ae::test_pipeline_queue
+}  // namespace ae::test_actions_queue
 
-int test_pipeline_queue() {
+int test_actions_queue() {
   UNITY_BEGIN();
-  RUN_TEST(ae::test_pipeline_queue::test_EmptyQueueCreation);
-  RUN_TEST(ae::test_pipeline_queue::test_SingleStageExecution);
-  RUN_TEST(ae::test_pipeline_queue::test_MultipleStageSequentialExecution);
-  RUN_TEST(ae::test_pipeline_queue::test_StageFailureResilience);
-  RUN_TEST(ae::test_pipeline_queue::test_NullStageHandling);
-  RUN_TEST(ae::test_pipeline_queue::test_MultipleConsecutiveFailures);
-  RUN_TEST(ae::test_pipeline_queue::test_StopEmptyQueue);
-  RUN_TEST(ae::test_pipeline_queue::test_StopDuringExecution);
-  RUN_TEST(ae::test_pipeline_queue::test_StopAfterStageCompletion);
-  RUN_TEST(ae::test_pipeline_queue::test_DynamicStageAddition);
-  RUN_TEST(ae::test_pipeline_queue::test_SinglePushStopCycle);
-  RUN_TEST(ae::test_pipeline_queue::test_TimerExpirationSequence);
-  RUN_TEST(ae::test_pipeline_queue::test_StopBeforeTimerExpiration);
+  RUN_TEST(ae::test_actions_queue::test_EmptyQueueCreation);
+  RUN_TEST(ae::test_actions_queue::test_SingleStageExecution);
+  RUN_TEST(ae::test_actions_queue::test_MultipleStageSequentialExecution);
+  RUN_TEST(ae::test_actions_queue::test_StageFailureResilience);
+  RUN_TEST(ae::test_actions_queue::test_NullStageHandling);
+  RUN_TEST(ae::test_actions_queue::test_MultipleConsecutiveFailures);
+  RUN_TEST(ae::test_actions_queue::test_StopEmptyQueue);
+  RUN_TEST(ae::test_actions_queue::test_StopDuringExecution);
+  RUN_TEST(ae::test_actions_queue::test_StopAfterStageCompletion);
+  RUN_TEST(ae::test_actions_queue::test_DynamicStageAddition);
+  RUN_TEST(ae::test_actions_queue::test_SinglePushStopCycle);
+  RUN_TEST(ae::test_actions_queue::test_TimerExpirationSequence);
+  RUN_TEST(ae::test_actions_queue::test_StopBeforeTimerExpiration);
 
   return UNITY_END();
 }

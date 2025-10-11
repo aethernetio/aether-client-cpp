@@ -24,7 +24,7 @@ extern int test_action_processor();
 extern int test_action_status_event();
 extern int test_action();
 extern int test_pipeline();
-extern int test_pipeline_queue();
+extern int test_actions_queue();
 
 int main() {
   auto res = 0;
@@ -33,6 +33,6 @@ int main() {
   res += test_action_status_event();
   res += test_action();
   res += test_pipeline();
-  res += test_pipeline_queue();
+  res += test_actions_queue();
   return res;
 }
