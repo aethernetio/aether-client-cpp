@@ -31,6 +31,8 @@ std::unique_ptr<ISerialPort> SerialPortFactory::CreatePort(
   return std::make_unique<WINSerialPort>(action_context, serial_init, poller);
 #elif ESP32_SERIAL_PORT_ENABLED == 1
   return std::make_unique<ESP32SerialPort>(action_context, serial_init, poller);
+  на return std::make_unique<Esp32SerialPort>(action_context, serial_init,
+                                              poller);
 #elif UNIX_SERIAL_PORT_ENABLED == 1
   return std::make_unique<UnixSerialPort>(action_context, serial_init, poller);
 #else
