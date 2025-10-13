@@ -24,7 +24,8 @@
 namespace ae {
 
 AtCommSupport::AtBuffer::AtBuffer(ISerialPort& serial_port)
-    : data_read_sub_{serial_port.read_event().Subscribe(
+    : is_open_{serial_port.IsOpen()},
+      data_read_sub_{serial_port.read_event().Subscribe(
           *this, MethodPtr<&AtBuffer::DataRead>{})} {}
 
 AtCommSupport::AtBuffer::UpdateEvent::Subscriber
@@ -68,14 +69,22 @@ AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::erase(
   return data_lines_.erase(first, last);
 }
 
+bool AtCommSupport::AtBuffer::IsOpen() const { return is_open_; }
+
 void AtCommSupport::AtBuffer::DataRead(DataBuffer const& data) {
   auto it = data_lines_.emplace(std::end(data_lines_), data);
   update_event_.Emit(it);
 }
 
-UpdateStatus AtCommSupport::WriteAction::Update() {
-  // TODO: Is it possible to return Error?
-  return UpdateStatus::Result();
+AtCommSupport::WriteAction::WriteAction(ActionContext action_context,
+                                        bool is_write_success)
+    : Action{action_context}, is_write_success_{is_write_success} {}
+
+UpdateStatus AtCommSupport::WriteAction::Update() const {
+  if (is_write_success_) {
+    return UpdateStatus::Result();
+  }
+  return UpdateStatus::Error();
 }
 
 AtCommSupport::WaitForResponseAction::WaitForResponseAction(
@@ -86,7 +95,7 @@ AtCommSupport::WaitForResponseAction::WaitForResponseAction(
       timeout_{timeout},
       buffer_{&buffer},
       success_{},
-      error_{},
+      error_{!buffer_->IsOpen()},
       response_handler_{std::move(response_handler)} {
   timeout_time_ = Now() + timeout;
 
@@ -161,6 +170,10 @@ AtCommSupport::AtCommSupport(ActionContext action_context, ISerialPort& serial)
 
 ActionPtr<AtCommSupport::WriteAction> AtCommSupport::SendATCommand(
     std::string const& command) {
+  if (!serial_->IsOpen()) {
+    return ActionPtr<WriteAction>{action_context_, false};
+  }
+
   AE_TELED_DEBUG("AT command: {}", command);
   std::vector<uint8_t> data(command.size() + 2);
   data.insert(data.begin(), command.begin(), command.end());
@@ -168,7 +181,7 @@ ActionPtr<AtCommSupport::WriteAction> AtCommSupport::SendATCommand(
   data.emplace_back('\n');
   serial_->Write(data);
 
-  return ActionPtr<WriteAction>{action_context_};
+  return ActionPtr<WriteAction>{action_context_, true};
 }
 
 ActionPtr<AtCommSupport::WaitForResponseAction> AtCommSupport::WaitForResponse(

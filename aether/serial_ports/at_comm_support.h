@@ -52,9 +52,12 @@ class AtCommSupport {
     iterator erase(iterator it);
     iterator erase(iterator first, iterator last);
 
+    bool IsOpen() const;
+
    private:
     void DataRead(DataBuffer const& data);
 
+    bool is_open_;
     std::list<DataBuffer> data_lines_;
     UpdateEvent update_event_;
     Subscription data_read_sub_;
@@ -62,8 +65,12 @@ class AtCommSupport {
 
   class WriteAction final : public Action<WriteAction> {
    public:
-    using Action::Action;
-    UpdateStatus Update();
+    WriteAction(ActionContext action_context, bool is_write_success);
+
+    UpdateStatus Update() const;
+
+   private:
+    bool is_write_success_;
   };
 
   class WaitForResponseAction final : public Action<WaitForResponseAction> {
