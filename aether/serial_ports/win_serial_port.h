@@ -19,70 +19,54 @@
 
 #if defined _WIN32
 
-#  include <mutex>
-#  include <atomic>
+#  include <vector>
+#  include <string>
+#  include <memory>
+#  include <optional>
+#  include <stdexcept>
 
-#  include "aether/ptr/ptr_view.h"
-#  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
-#  include "aether/actions/action_context.h"
-
-#  include "aether/poller/poller.h"
 #  include "aether/serial_ports/iserial_port.h"
-#  include "aether/serial_ports/serial_port_types.h"
 
 #  include <Windows.h>
 
 #  define WIN_SERIAL_PORT_ENABLED 1
 
 namespace ae {
-class WinSerialPort final : public ISerialPort {
- class ReadAction final : public Action<ReadAction> {
-   public:
-    ReadAction(ActionContext action_context, WinSerialPort& serial_port);
-
-    UpdateStatus Update();
-
-   private:
-    void PollEvent(PollerEvent event);
-    void ReadData();
-
-    WinSerialPort* serial_port_;
-    IPoller::OnPollEventSubscriber::Subscription poll_sub_;
-    std::list<DataBuffer> buffers_;
-    std::atomic_bool read_event_;
-  };
+class WINSerialPort final : public ISerialPort {
+ protected:
+  WINSerialPort() = default;
   
  public:
-  explicit WinSerialPort(ActionContext action_context, SerialInit serial_init,
-                          IPoller::ptr const& poller);
-  ~WinSerialPort() override;
+  WINSerialPort(ActionContext action_context, IPoller::ptr const& poller,
+                SerialInit const& serial_init);
+  ~WINSerialPort() override;
 
   void Write(DataBuffer const& data) override;
-
-  DataReadEvent::Subscriber read_event() override;
-
+  std::optional<DataBuffer> Read() override;
   bool IsOpen() override;
 
  private:
-  static void* OpenPort(SerialInit const& serial_init);
-  static bool SetOptions(void* fd, SerialInit const& serial_init);
-
-  void Close();
-
-  ActionContext action_context_;
-  SerialInit serial_init_;
-  PtrView<IPoller> poller_;
-
-  std::mutex fd_lock_;
-  void* fd_;
-  DataReadEvent read_event_;
-  
   OVERLAPPED overlapped_rd_;
   OVERLAPPED overlapped_wr_;
   DWORD signal_;
+  ActionContext action_context_;
+  PtrView<IPoller> poller_;
+  void* h_port_;
 
-  ActionPtr<ReadAction> read_action_;  
+  void Connect();
+  void ReadPort();
+  void WritePort();
+  void ErrorPort();
+  void Disconnect();
+  
+  void Open(std::string const& port_name, std::uint32_t baud_rate);
+  void ConfigurePort(std::uint32_t baud_rate);
+  void SetupTimeouts();
+  void Close();
+  
+  IPoller::OnPollEventSubscriber::Subscription port_event_sub_;
+  Subscription port_error_sub_;
+  Subscription read_error_sub_;
 };
 } /* namespace ae */
 
