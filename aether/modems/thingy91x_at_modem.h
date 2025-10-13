@@ -22,7 +22,7 @@
 
 #include "aether/poller/poller.h"
 #include "aether/actions/pipeline.h"
-#include "aether/actions/pipeline_queue.h"
+#include "aether/actions/actions_queue.h"
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/at_comm_support.h"
 
@@ -107,7 +107,7 @@ class Thingy91xAtModem final : public IModemDriver {
   DataEvent data_event_;
   Subscription poll_sub_;
   std::unique_ptr<AtCommSupport::AtListener> poll_listener_;
-  OwnActionPtr<PipelineQueue<IPipeline>> operation_queue_;
+  OwnActionPtr<ActionsQueue> operation_queue_;
   bool started_;
 };
 
