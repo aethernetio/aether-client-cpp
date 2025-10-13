@@ -38,6 +38,7 @@ endif()
 enable_testing()
 
 add_subdirectory("../../examples/cloud" "cloud")
+add_subdirectory("../../examples/capi/oddity" "oddity")
 
 add_subdirectory("../../examples/benches/send_message_delays" "send_message_delays")
 add_subdirectory("../../examples/benches/send_messages_bandwidth" "send_messages_bandwidth")

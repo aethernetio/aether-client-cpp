@@ -42,6 +42,7 @@ add_compile_definitions("CONFIG_UNITY_ENABLE_DOUBLE")
 
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../aether"
                                  "../../../../examples/cloud"
+                                 "../../../../examples/capi/oddity"
                                  "../../../../examples/benches/send_message_delays"
 )
 
