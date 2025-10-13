@@ -84,9 +84,9 @@ class ModemTransport final : public ByteIStream {
   void OnConnectionFailed();
   void Disconnect();
 
-  void DataReceived(ConnectionIndex connection, DataBuffer const& data);
-  void DataReceivedTcp(DataBuffer const& data);
-  void DataReceivedUdp(DataBuffer const& data);
+  void DataReceived(ConnectionIndex connection, DataBuffer const& data_in);
+  void DataReceivedTcp(DataBuffer const& data_in);
+  void DataReceivedUdp(DataBuffer const& data_in);
 
   ActionContext action_context_;
   IModemDriver* modem_driver_;

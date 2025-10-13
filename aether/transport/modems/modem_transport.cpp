@@ -243,19 +243,19 @@ void ModemTransport::Disconnect() {
 }
 
 void ModemTransport::DataReceived(ConnectionIndex connection,
-                                  DataBuffer const& data) {
+                                  DataBuffer const& data_in) {
   if (connection_ != connection) {
     return;
   }
   if (protocol_ == Protocol::kTcp) {
-    DataReceivedTcp(data);
+    DataReceivedTcp(data_in);
   } else if (protocol_ == Protocol::kUdp) {
-    DataReceivedUdp(data);
+    DataReceivedUdp(data_in);
   }
 }
 
-void ModemTransport::DataReceivedTcp(DataBuffer const& data) {
-  data_packet_collector_.AddData(data.data(), data.size());
+void ModemTransport::DataReceivedTcp(DataBuffer const& data_in) {
+  data_packet_collector_.AddData(data_in.data(), data_in.size());
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
     AE_TELE_DEBUG(kModemTransportReceive, "Receive data size {}", data.size());
@@ -263,8 +263,8 @@ void ModemTransport::DataReceivedTcp(DataBuffer const& data) {
   }
 }
 
-void ModemTransport::DataReceivedUdp(DataBuffer const& data) {
-  out_data_event_.Emit(data);
+void ModemTransport::DataReceivedUdp(DataBuffer const& data_in) {
+  out_data_event_.Emit(data_in);
 }
 
 }  // namespace ae
