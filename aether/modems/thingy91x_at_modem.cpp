@@ -19,6 +19,7 @@
 #include <bitset>
 #include <string_view>
 
+#include "aether/misc/defer.h"
 #include "aether/misc/from_chars.h"
 #include "aether/actions/pipeline.h"
 #include "aether/actions/gen_action.h"
@@ -50,10 +51,12 @@ class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
         }),
         Stage([this]() {
           return at_comm_support_->WaitForResponse(
-              "#XSCOCKET: ", kTwoSeconds, [this](auto const& response) {
+              "#XSCOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
+                // remove used pos from buffer
+                defer[&]() { at_buffer.erase(pos); };
                 // #XSOCKET: <handle>,<type>,<protocol>
                 auto res =
-                    AtCommSupport::ParseResponse(response, "#XSOCKET", handle_);
+                    AtCommSupport::ParseResponse(*pos, "#XSOCKET", handle_);
                 if (!res) {
                   AE_TELED_DEBUG("Failed to parser connection handle");
                   handle_ = -1;
@@ -155,10 +158,12 @@ class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
         }),
         Stage([this]() {
           return at_comm_support_->WaitForResponse(
-              "#XSCOCKET: ", kTwoSeconds, [this](auto const& response) {
+              "#XSCOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
+                // remove used pos from buffer
+                defer[&]() { at_buffer.erase(pos); };
                 // #XSOCKET: <handle>,<type>,<protocol>
                 auto res =
-                    AtCommSupport::ParseResponse(response, "#XSOCKET", handle_);
+                    AtCommSupport::ParseResponse(*pos, "#XSOCKET", handle_);
                 if (!res) {
                   AE_TELED_DEBUG("Failed to parser connection handle");
                   handle_ = -1;
@@ -243,6 +248,7 @@ Thingy91xAtModem::Thingy91xAtModem(ActionContext action_context,
                                             modem_init_.serial_init)},
       at_comm_support_{action_context_, *serial_},
       operation_queue_{action_context_} {
+  AE_TELED_DEBUG("Thingy91xAtModem init");
   Init();
 }
 
@@ -938,10 +944,12 @@ ActionPtr<IPipeline> Thingy91xAtModem::SendData(ConnectionIndex connection,
                        }),
       Stage([this]() {
         return at_comm_support_.WaitForResponse(
-            "#XDATAMODE:", kTenSeconds, [](auto const& response) {
+            "#XDATAMODE:", kTenSeconds, [](auto& at_buffer, auto pos) {
+              // remove used pos from buffer
+              defer[&]() { at_buffer.erase(pos); };
+
               auto response_str = std::string_view{
-                  reinterpret_cast<char const*>(response.data()),
-                  response.size()};
+                  reinterpret_cast<char const*>(pos->data()), pos->size()};
               AE_TELED_DEBUG("Send data result {}", response_str);
               if (response_str == "+XDATAMODE:0") {
                 return UpdateStatus::Result();
@@ -968,25 +976,28 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
       Stage([this, connection]() {
         return at_comm_support_.WaitForResponse(
             "#XRECV:", kTenSeconds,
-            [this, connection](DataBuffer const& response) {
+            [this, connection](auto& at_buffer, auto pos) {
+              // remove used pos from buffer
+              defer[&]() { at_buffer.erase(pos); };
+
               std::ptrdiff_t size{};
-              if (!AtCommSupport::ParseResponse(response, "#XRECV", size)) {
+              if (!AtCommSupport::ParseResponse(*pos, "#XRECV", size)) {
                 AE_TELED_ERROR("Parser recv error");
                 return UpdateStatus::Error();
               }
               AE_TELED_DEBUG("Size {}", size);
               std::string_view response_string(
-                  reinterpret_cast<char const*>(response.data()),
-                  response.size());
+                  reinterpret_cast<char const*>(pos->data()), pos->size());
               auto start = response_string.find("\r\n");
               if (start == std::string_view::npos) {
                 AE_TELED_ERROR("Parser recv data error");
                 return UpdateStatus::Error();
               }
+              // TODO: check if recv_data really contains size bytes
               start += 2;
               DataBuffer recv_data(
-                  response.begin() + static_cast<std::ptrdiff_t>(start),
-                  response.begin() + static_cast<std::ptrdiff_t>(start) + size);
+                  pos->begin() + static_cast<std::ptrdiff_t>(start),
+                  pos->begin() + static_cast<std::ptrdiff_t>(start) + size);
 
               // Emit the received data
               data_event_.Emit(connection, recv_data);
@@ -1009,18 +1020,19 @@ ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
       Stage<GenAction>(action_context_,
                        [this]() {
                          poll_listener_ = at_comm_support_.ListenForResponse(
-                             "#XPOLL: ", [this](DataBuffer const& data) {
+                             "#XPOLL: ", [this](auto& at_buffer, auto pos) {
                                std::int32_t handle{};
                                std::string flags;
-                               AtCommSupport::ParseResponse(data, "#XPOLL",
+                               AtCommSupport::ParseResponse(*pos, "#XPOLL",
                                                             handle, flags);
                                PollEvent(handle, flags);
+                               return at_buffer.erase(pos);
                              });
                          return UpdateStatus::Result();
                        }),
       Stage([this]() {
         // wait really long
-        return at_comm_support_.WaitForResponse("OK", std::chrono::hours{8762});
+        return at_comm_support_.WaitForResponse("OK", std::chrono::hours{8076});
       }));
 }
 

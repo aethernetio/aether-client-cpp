@@ -34,6 +34,32 @@
 namespace ae {
 class AtCommSupport {
  public:
+  class AtBuffer {
+   public:
+    using DataLines = std::list<DataBuffer>;
+    using iterator = DataLines::iterator;
+    using UpdateEvent = Event<void(iterator it)>;
+
+    explicit AtBuffer(ISerialPort& serial_port);
+
+    UpdateEvent::Subscriber update_event();
+
+    iterator FindPattern(std::string_view str);
+    iterator FindPattern(std::string_view str, iterator start);
+
+    iterator begin();
+    iterator end();
+    iterator erase(iterator it);
+    iterator erase(iterator first, iterator last);
+
+   private:
+    void DataRead(DataBuffer const& data);
+
+    std::list<DataBuffer> data_lines_;
+    UpdateEvent update_event_;
+    Subscription data_read_sub_;
+  };
+
   class WriteAction final : public Action<WriteAction> {
    public:
     using Action::Action;
@@ -42,24 +68,29 @@ class AtCommSupport {
 
   class WaitForResponseAction final : public Action<WaitForResponseAction> {
    public:
-    using Handler = std::function<UpdateStatus(DataBuffer const& data)>;
+    using Handler = std::function<UpdateStatus(
+        AtBuffer& buffer, AtBuffer::iterator response_pos)>;
 
     WaitForResponseAction(
-        ActionContext action_context, ISerialPort& serial, std::string expected,
-        Duration timeout, Handler response_handler = [](auto const&) {
+        ActionContext action_context, AtBuffer& buffer, std::string expected,
+        Duration timeout,
+        Handler response_handler = [](AtBuffer& buffer,
+                                      AtBuffer::iterator response_pos) {
+          buffer.erase(response_pos);
           return UpdateStatus::Result();
         });
 
     UpdateStatus Update(TimePoint current_time);
 
    private:
-    void DataRead(DataBuffer const& data);
+    void DataRead(AtBuffer::iterator pos);
 
     std::string expected_;
     Duration timeout_;
     TimePoint timeout_time_;
-    Subscription data_read_sub_;
-    DataBuffer response_buffer_;
+    AtBuffer* buffer_;
+    AtBuffer::iterator response_pos_;
+    Subscription data_update_sub_;
     bool success_;
     bool error_;
     Handler response_handler_;
@@ -67,16 +98,18 @@ class AtCommSupport {
 
   class AtListener {
    public:
-    using Handler = std::function<void(DataBuffer const& data)>;
+    using Handler = std::function<AtBuffer::iterator(AtBuffer& buffer,
+                                                     AtBuffer::iterator pos)>;
 
-    AtListener(ISerialPort& serial, std::string expected, Handler handler);
+    AtListener(AtBuffer& buffer, std::string expected, Handler handler);
 
    private:
-    void DataRead(DataBuffer const& data);
+    void DataRead(AtBuffer::iterator it);
 
     std::string expected_;
+    AtBuffer* buffer_;
     Handler handler_;
-    Subscription data_read_sub_;
+    Subscription data_update_sub_;
   };
 
   static std::string PinToString(std::uint16_t pin);
@@ -134,6 +167,7 @@ class AtCommSupport {
 
   ActionContext action_context_;
   ISerialPort* serial_;
+  AtBuffer at_buffer_;
 };
 
 } /* namespace ae */

@@ -22,29 +22,89 @@
 #include "aether/serial_ports/serial_ports_tele.h"
 
 namespace ae {
+
+AtCommSupport::AtBuffer::AtBuffer(ISerialPort& serial_port)
+    : data_read_sub_{serial_port.read_event().Subscribe(
+          *this, MethodPtr<&AtBuffer::DataRead>{})} {}
+
+AtCommSupport::AtBuffer::UpdateEvent::Subscriber
+AtCommSupport::AtBuffer::update_event() {
+  return EventSubscriber{update_event_};
+}
+
+AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::FindPattern(
+    std::string_view str) {
+  return FindPattern(str, begin());
+}
+
+AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::FindPattern(
+    std::string_view str, iterator start) {
+  auto it = start;
+  for (; it != std::end(data_lines_); ++it) {
+    std::string_view it_str(reinterpret_cast<char const*>(it->data()),
+                            it->size());
+    if (it_str.find(str) != std::string::npos) {
+      break;
+    }
+  }
+
+  return it;
+}
+
+AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::begin() {
+  return std::begin(data_lines_);
+}
+
+AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::end() {
+  return std::end(data_lines_);
+}
+
+AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::erase(iterator it) {
+  return data_lines_.erase(it);
+}
+
+AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::erase(
+    iterator first, iterator last) {
+  return data_lines_.erase(first, last);
+}
+
+void AtCommSupport::AtBuffer::DataRead(DataBuffer const& data) {
+  auto it = data_lines_.emplace(std::end(data_lines_), data);
+  update_event_.Emit(it);
+}
+
 UpdateStatus AtCommSupport::WriteAction::Update() {
   // TODO: Is it possible to return Error?
   return UpdateStatus::Result();
 }
 
 AtCommSupport::WaitForResponseAction::WaitForResponseAction(
-    ActionContext action_context, ISerialPort& serial, std::string expected,
+    ActionContext action_context, AtBuffer& buffer, std::string expected,
     Duration timeout, Handler response_handler)
     : Action{action_context},
       expected_{std::move(expected)},
       timeout_{timeout},
+      buffer_{&buffer},
       success_{},
       error_{},
       response_handler_{std::move(response_handler)} {
   timeout_time_ = Now() + timeout;
-  data_read_sub_ = serial.read_event().Subscribe(
-      *this, MethodPtr<&AtCommSupport::WaitForResponseAction::DataRead>{});
+
+  // check buffer for pattern or subscribe to new updates
+  auto res = buffer_->FindPattern(expected_);
+  if (res != std::end(*buffer_)) {
+    response_pos_ = res;
+    success_ = true;
+  } else {
+    data_update_sub_ = buffer_->update_event().Subscribe(
+        *this, MethodPtr<&AtCommSupport::WaitForResponseAction::DataRead>{});
+  }
 }
 
 UpdateStatus AtCommSupport::WaitForResponseAction::Update(
     TimePoint current_time) {
   if (success_) {
-    return response_handler_(response_buffer_);
+    return response_handler_(*buffer_, response_pos_);
   }
   if (error_) {
     return UpdateStatus::Error();
@@ -55,40 +115,49 @@ UpdateStatus AtCommSupport::WaitForResponseAction::Update(
   return UpdateStatus::Delay(timeout_time_);
 }
 
-void AtCommSupport::WaitForResponseAction::DataRead(DataBuffer const& data) {
-  std::string_view response_str(reinterpret_cast<char const*>(data.data()),
-                                data.size());
-  AE_TELED_DEBUG("AT response: {}", response_str);
-  if (response_str.find(expected_) != std::string::npos) {
+void AtCommSupport::WaitForResponseAction::DataRead(AtBuffer::iterator pos) {
+  auto res = buffer_->FindPattern(expected_, pos);
+  if (res != std::end(*buffer_)) {
     success_ = true;
-    response_buffer_ = data;
+    response_pos_ = res;
+    data_update_sub_.Reset();
+    Action::Trigger();
   }
-  if (response_str.find("ERROR") != std::string::npos) {
+  res = buffer_->FindPattern("ERROR", pos);
+  if (res != std::end(*buffer_)) {
+    buffer_->erase(res);
     error_ = true;
+    data_update_sub_.Reset();
+    Action::Trigger();
   }
-  Action::Trigger();
 }
 
-AtCommSupport::AtListener::AtListener(ISerialPort& serial, std::string expected,
+AtCommSupport::AtListener::AtListener(AtBuffer& buffer, std::string expected,
                                       Handler handler)
-    : expected_{std::move(expected)}, handler_{std::move(handler)} {
-  data_read_sub_ =
-      serial.read_event().Subscribe(*this, MethodPtr<&AtListener::DataRead>{});
-}
-
-void AtCommSupport::AtListener::DataRead(DataBuffer const& data) {
-  std::string_view response_str(reinterpret_cast<char const*>(data.data()),
-                                data.size());
-  AE_TELED_DEBUG("AT listen: {}", response_str);
-  if (response_str.find(expected_) == std::string::npos) {
-    return;
+    : expected_{std::move(expected)},
+      buffer_{&buffer},
+      handler_{std::move(handler)} {
+  // check all the buffer first
+  auto res = buffer_->FindPattern(expected_);
+  for (; res != std::end(*buffer_);
+       res = buffer_->FindPattern(expected_, res)) {
+    res = handler_(*buffer_, res);
   }
 
-  handler_(data);
+  // subscribe to new data updates
+  data_update_sub_ = buffer_->update_event().Subscribe(
+      *this, MethodPtr<&AtListener::DataRead>{});
+}
+
+void AtCommSupport::AtListener::DataRead(AtBuffer::iterator it) {
+  if (auto res = buffer_->FindPattern(expected_, it);
+      res != std::end(*buffer_)) {
+    handler_(*buffer_, res);
+  }
 }
 
 AtCommSupport::AtCommSupport(ActionContext action_context, ISerialPort& serial)
-    : action_context_{action_context}, serial_{&serial} {};
+    : action_context_{action_context}, serial_{&serial}, at_buffer_{serial} {};
 
 ActionPtr<AtCommSupport::WriteAction> AtCommSupport::SendATCommand(
     std::string const& command) {
@@ -104,21 +173,21 @@ ActionPtr<AtCommSupport::WriteAction> AtCommSupport::SendATCommand(
 
 ActionPtr<AtCommSupport::WaitForResponseAction> AtCommSupport::WaitForResponse(
     std::string expected, Duration timeout) {
-  return ActionPtr<WaitForResponseAction>{action_context_, *serial_,
+  return ActionPtr<WaitForResponseAction>{action_context_, at_buffer_,
                                           std::move(expected), timeout};
 }
 
 ActionPtr<AtCommSupport::WaitForResponseAction> AtCommSupport::WaitForResponse(
     std::string expected, Duration timeout,
     WaitForResponseAction::Handler response_handler) {
-  return ActionPtr<WaitForResponseAction>{action_context_, *serial_,
+  return ActionPtr<WaitForResponseAction>{action_context_, at_buffer_,
                                           std::move(expected), timeout,
                                           std::move(response_handler)};
 }
 
 std::unique_ptr<AtCommSupport::AtListener> AtCommSupport::ListenForResponse(
     std::string expected, AtListener::Handler handler) {
-  return std::make_unique<AtListener>(*serial_, std::move(expected),
+  return std::make_unique<AtListener>(at_buffer_, std::move(expected),
                                       std::move(handler));
 }
 
