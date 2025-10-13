@@ -36,7 +36,7 @@ namespace ae {
 class ModemDriverFactory {
  public:
   static std::unique_ptr<IModemDriver> CreateModem(ActionContext action_context,
-                                                   IPoller::ptr poller,
+                                                   IPoller::ptr const& poller,
                                                    ModemInit modem_init);
 };
 }  // namespace ae
