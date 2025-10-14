@@ -180,8 +180,8 @@ ActionPtr<AtCommSupport::WriteAction> AtCommSupport::SendATCommand(
   AE_TELED_DEBUG("AT command: {}", command);
   std::vector<uint8_t> data(command.size() + 2);
   auto pos = data.insert(data.begin(), command.begin(), command.end());
-  data.insert(++pos, '\r');  // Adding a carriage return symbols
-  data.insert(++pos, '\n');
+  *(++pos) = '\r';
+  *(++pos) = '\n';
   serial_->Write(data);
 
   return ActionPtr<WriteAction>{action_context_, true};
