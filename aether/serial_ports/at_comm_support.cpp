@@ -179,9 +179,9 @@ ActionPtr<AtCommSupport::WriteAction> AtCommSupport::SendATCommand(
 
   AE_TELED_DEBUG("AT command: {}", command);
   std::vector<uint8_t> data(command.size() + 2);
-  auto pos = data.insert(data.begin(), command.begin(), command.end());
-  *(++pos) = '\r';
-  *(++pos) = '\n';
+  data.insert(data.begin(), command.begin(), command.end());
+  data[command.size()] = '\r';
+  data[command.size() + 1] = '\n';
   serial_->Write(data);
 
   return ActionPtr<WriteAction>{action_context_, true};
