@@ -137,6 +137,7 @@ class ActionsQueue final : public Action<ActionsQueue> {
   }
 
   void NextStage() {
+    running_stage_.reset();
     if (!queue_.empty()) {
       RunStage();
     }
