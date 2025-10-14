@@ -108,6 +108,7 @@ class Thingy91xAtModem final : public IModemDriver {
   Subscription poll_sub_;
   std::unique_ptr<AtCommSupport::AtListener> poll_listener_;
   OwnActionPtr<ActionsQueue> operation_queue_;
+  bool initiated_;
   bool started_;
 };
 

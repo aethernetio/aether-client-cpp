@@ -247,14 +247,16 @@ Thingy91xAtModem::Thingy91xAtModem(ActionContext action_context,
       serial_{SerialPortFactory::CreatePort(action_context_, poller,
                                             modem_init_.serial_init)},
       at_comm_support_{action_context_, *serial_},
-      operation_queue_{action_context_} {
+      operation_queue_{action_context_},
+      initiated_{false},
+      started_{false} {
   AE_TELED_DEBUG("Thingy91xAtModem init");
   Init();
 }
 
 void Thingy91xAtModem::Init() {
   operation_queue_->Push(Stage([this]() {
-    return MakeActionPtr<Pipeline>(
+    auto init_pipeline = MakeActionPtr<Pipeline>(
         action_context_,
         Stage([this]() { return at_comm_support_.SendATCommand("AT"); }),
         Stage([this]() {
@@ -263,7 +265,18 @@ void Thingy91xAtModem::Init() {
         Stage([this]() { return at_comm_support_.SendATCommand("AT+CMEE=1"); }),
         Stage([this]() {
           return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        }),
+        Stage<GenAction>(action_context_, [this]() {
+          initiated_ = true;
+          return UpdateStatus::Result();
         }));
+
+    init_pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[]() { AE_TELED_INFO("Thingy91xAtModem init success"); }},
+        OnError{[]() { AE_TELED_ERROR("Thingy91xAtModem init failed"); }},
+    });
+
+    return init_pipeline;
   }));
 }
 
@@ -283,6 +296,13 @@ ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::Start() {
 
     auto pipeline = MakeActionPtr<Pipeline>(
         action_context_,
+        Stage<GenAction>(action_context_,
+                         [this]() {
+                           if (!initiated_) {
+                             return UpdateStatus::Error();
+                           }
+                           return UpdateStatus::Result();
+                         }),
         // Disabling full functionality
         Stage([this]() { return at_comm_support_.SendATCommand("AT+CFUN=0"); }),
         Stage([this]() {
