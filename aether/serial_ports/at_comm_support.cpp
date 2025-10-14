@@ -179,11 +179,9 @@ ActionPtr<AtCommSupport::WriteAction> AtCommSupport::SendATCommand(
 
   AE_TELED_DEBUG("AT command: {}", command);
   std::vector<uint8_t> data(command.size() + 2);
-  data.insert(data.begin(), command.begin(), command.end());
-  data.emplace(data.begin() + static_cast<std::ptrdiff_t>(command.size()),
-               '\r');  // Adding a carriage return symbols
-  data.emplace(data.begin() + static_cast<std::ptrdiff_t>(command.size() + 1),
-               '\n');
+  auto pos = data.insert(data.begin(), command.begin(), command.end());
+  data.insert(++pos, '\r');  // Adding a carriage return symbols
+  data.insert(++pos, '\n');
   serial_->Write(data);
 
   return ActionPtr<WriteAction>{action_context_, true};
