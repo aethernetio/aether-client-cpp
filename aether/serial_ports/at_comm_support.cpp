@@ -127,6 +127,9 @@ UpdateStatus AtCommSupport::WaitForResponseAction::Update(
 void AtCommSupport::WaitForResponseAction::DataRead(AtBuffer::iterator pos) {
   auto res = buffer_->FindPattern(expected_, pos);
   if (res != std::end(*buffer_)) {
+    auto res_str = std::string_view{reinterpret_cast<char const*>(res->data()),
+                                    res->size()};
+    AE_TELED_DEBUG("Received response: {}", res_str);
     success_ = true;
     response_pos_ = res;
     data_update_sub_.Reset();
