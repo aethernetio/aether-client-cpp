@@ -132,11 +132,11 @@ class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
   std::uint16_t port_;
   ActionPtr<IPipeline> operation_pipeline_;
   Subscription operation_sub_;
-  std::int32_t handle_;
+  std::int32_t handle_{-1};
   ConnectionIndex connection_index_ = kInvalidConnectionIndex;
-  bool success_;
-  bool error_;
-  bool stop_;
+  bool success_{};
+  bool error_{};
+  bool stop_{};
 };
 
 class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
@@ -232,11 +232,11 @@ class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
   std::uint16_t port_;
   ActionPtr<IPipeline> operation_pipeline_;
   Subscription operation_sub_;
-  std::int32_t handle_;
+  std::int32_t handle_{-1};
   ConnectionIndex connection_index_ = kInvalidConnectionIndex;
-  bool success_;
-  bool error_;
-  bool stop_;
+  bool success_{};
+  bool error_{};
+  bool stop_{};
 };
 
 Thingy91xAtModem::Thingy91xAtModem(ActionContext action_context,
