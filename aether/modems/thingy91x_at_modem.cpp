@@ -51,7 +51,7 @@ class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
         }),
         Stage([this]() {
           return at_comm_support_->WaitForResponse(
-              "#XSCOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
+              "#XSOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
                 // remove used pos from buffer
                 defer[&]() { at_buffer.erase(pos); };
                 // #XSOCKET: <handle>,<type>,<protocol>
@@ -158,7 +158,7 @@ class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
         }),
         Stage([this]() {
           return at_comm_support_->WaitForResponse(
-              "#XSCOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
+              "#XSOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
                 // remove used pos from buffer
                 defer[&]() { at_buffer.erase(pos); };
                 // #XSOCKET: <handle>,<type>,<protocol>
@@ -999,29 +999,26 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
             "#XRECV:", kTenSeconds,
             [this, connection](auto& at_buffer, auto pos) {
               // remove used pos from buffer
-              defer[&]() { at_buffer.erase(pos); };
+              auto end = std::next(pos);
+              defer[&]() { at_buffer.erase(pos, end); };
 
-              std::ptrdiff_t size{};
-              if (!AtCommSupport::ParseResponse(*pos, "#XRECV", size)) {
+              std::size_t size{};
+              auto parse_end =
+                  AtCommSupport::ParseResponse(*pos, "#XRECV", size);
+              if (parse_end == 0) {
                 AE_TELED_ERROR("Parser recv error");
                 return UpdateStatus::Error();
               }
               AE_TELED_DEBUG("Size {}", size);
-              std::string_view response_string(
-                  reinterpret_cast<char const*>(pos->data()), pos->size());
-              auto start = response_string.find("\r\n");
-              if (start == std::string_view::npos) {
+              DataBuffer data_crate;
+              std::tie(data_crate, end) = at_buffer.GetCrate(size, ++pos);
+              if (data_crate.size() != size) {
                 AE_TELED_ERROR("Parser recv data error");
                 return UpdateStatus::Error();
               }
-              // TODO: check if recv_data really contains size bytes
-              start += 2;
-              DataBuffer recv_data(
-                  pos->begin() + static_cast<std::ptrdiff_t>(start),
-                  pos->begin() + static_cast<std::ptrdiff_t>(start) + size);
 
               // Emit the received data
-              data_event_.Emit(connection, recv_data);
+              data_event_.Emit(connection, data_crate);
               return UpdateStatus::Result();
             });
       }));
