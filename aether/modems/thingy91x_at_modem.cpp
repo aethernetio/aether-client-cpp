@@ -1052,8 +1052,13 @@ void Thingy91xAtModem::SetupPoll() {
 
 ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
   return MakeActionPtr<Pipeline>(
-      action_context_,
-      Stage([this]() { return at_comm_support_.SendATCommand("#XPOLL=0"); }),
+      action_context_, Stage([this]() {
+        std::string handles;
+        for (auto ci : connections_) {
+          handles += "," + std::to_string(ci);
+        }
+        return at_comm_support_.SendATCommand("#XPOLL=0" + handles);
+      }),
       Stage([this]() {
         return at_comm_support_.WaitForResponse("OK", kOneSecond);
       }));
