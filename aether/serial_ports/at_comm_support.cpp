@@ -95,7 +95,7 @@ void AtCommSupport::AtBuffer::DataRead(DataBuffer const& data) {
   auto start = std::end(data_lines_);
   while (!data_str.empty()) {
     auto line_end = data_str.find('\n');
-    assert(line_end < 1);
+    assert(line_end != 0);
     // skip \r\n
     auto sub = data_str.substr(0, line_end - 1);
     if (sub.empty()) {
