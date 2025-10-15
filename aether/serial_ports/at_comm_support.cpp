@@ -96,9 +96,13 @@ void AtCommSupport::AtBuffer::DataRead(DataBuffer const& data) {
   while (!data_str.empty()) {
     auto line_end = data_str.find("\r\n");
     auto sub = data_str.substr(0, line_end);
+    // skip \r\n
+    data_str = data_str.substr(line_end + 2);
+
     if (sub.empty()) {
       continue;
     }
+
     AE_TELED_DEBUG("AtBuffer adds line {}", sub);
     auto it = data_lines_.emplace(
         std::end(data_lines_),
@@ -108,9 +112,6 @@ void AtCommSupport::AtBuffer::DataRead(DataBuffer const& data) {
     if (start == std::end(data_lines_)) {
       start = it;
     }
-
-    // skip \r\n
-    data_str = data_str.substr(line_end + 2);
   }
   update_event_.Emit(start);
 }
