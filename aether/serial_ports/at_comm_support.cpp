@@ -138,6 +138,7 @@ void AtCommSupport::WaitForResponseAction::DataRead(AtBuffer::iterator pos) {
     response_pos_ = res;
     data_update_sub_.Reset();
     Action::Trigger();
+    return;
   }
   res = buffer_->FindPattern("ERROR", pos);
   if (res != std::end(*buffer_)) {
@@ -145,6 +146,7 @@ void AtCommSupport::WaitForResponseAction::DataRead(AtBuffer::iterator pos) {
     error_ = true;
     data_update_sub_.Reset();
     Action::Trigger();
+    return;
   }
 }
 
@@ -183,7 +185,7 @@ ActionPtr<AtCommSupport::WriteAction> AtCommSupport::SendATCommand(
 
   AE_TELED_DEBUG("AT command: {}", command);
   std::vector<uint8_t> data(command.size() + 2);
-  data.insert(data.begin(), command.begin(), command.end());
+  std::copy(command.begin(), command.end(), data.begin());
   data[command.size()] = '\r';
   data[command.size() + 1] = '\n';
   serial_->Write(data);
