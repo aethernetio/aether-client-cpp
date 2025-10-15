@@ -53,6 +53,22 @@ AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::FindPattern(
   return it;
 }
 
+std::pair<DataBuffer, AtCommSupport::AtBuffer::iterator>
+AtCommSupport::AtBuffer::GetCrate(std::size_t size) {
+  return GetCrate(size, begin());
+}
+
+std::pair<DataBuffer, AtCommSupport::AtBuffer::iterator>
+AtCommSupport::AtBuffer::GetCrate(std::size_t size, iterator start) {
+  DataBuffer res;
+  auto it = start;
+  for (; it != std::end(data_lines_) && res.size() < size; it++) {
+    res.insert(std::end(res), it->begin(), it->end());
+  }
+
+  return {std::move(res), it};
+}
+
 AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::begin() {
   return std::begin(data_lines_);
 }
@@ -73,11 +89,30 @@ AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::erase(
 bool AtCommSupport::AtBuffer::IsOpen() const { return is_open_; }
 
 void AtCommSupport::AtBuffer::DataRead(DataBuffer const& data) {
-  AE_TELED_DEBUG("AtBuffer receives line {}",
-                 std::string_view{reinterpret_cast<char const*>(data.data()),
-                                  data.size()});
-  auto it = data_lines_.emplace(std::end(data_lines_), data);
-  update_event_.Emit(it);
+  AE_TELED_DEBUG("AtBuffer receives packet {}", data);
+  auto data_str =
+      std::string_view{reinterpret_cast<const char*>(data.data()), data.size()};
+  auto start = std::end(data_lines_);
+  while (!data_str.empty()) {
+    auto line_end = data_str.find('\n');
+    assert(line_end != 0);
+    // skip \r\n
+    auto sub = data_str.substr(0, line_end - 2);
+    if (sub.empty()) {
+      continue;
+    }
+    auto it = data_lines_.emplace(
+        std::end(data_lines_),
+        reinterpret_cast<std::uint8_t const*>(sub.data()),
+        reinterpret_cast<std::uint8_t const*>(sub.data()) + sub.size());
+
+    if (start == std::end(data_lines_)) {
+      start = it;
+    }
+
+    data_str = data_str.substr(line_end + 1);
+  }
+  update_event_.Emit(start);
 }
 
 AtCommSupport::WriteAction::WriteAction(ActionContext action_context,

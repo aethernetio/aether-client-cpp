@@ -38,7 +38,7 @@ class AtCommSupport {
    public:
     using DataLines = std::list<DataBuffer>;
     using iterator = DataLines::iterator;
-    using UpdateEvent = Event<void(iterator it)>;
+    using UpdateEvent = Event<void(iterator iters)>;
 
     explicit AtBuffer(ISerialPort& serial_port);
 
@@ -46,6 +46,9 @@ class AtCommSupport {
 
     iterator FindPattern(std::string_view str);
     iterator FindPattern(std::string_view str, iterator start);
+
+    std::pair<DataBuffer, iterator> GetCrate(std::size_t size);
+    std::pair<DataBuffer, iterator> GetCrate(std::size_t size, iterator start);
 
     iterator begin();
     iterator end();
@@ -75,15 +78,15 @@ class AtCommSupport {
 
   class WaitForResponseAction final : public Action<WaitForResponseAction> {
    public:
-    using Handler = std::function<UpdateStatus(
-        AtBuffer& buffer, AtBuffer::iterator response_pos)>;
+    using Handler =
+        std::function<UpdateStatus(AtBuffer& buffer, AtBuffer::iterator pos)>;
 
     WaitForResponseAction(
         ActionContext action_context, AtBuffer& buffer, std::string expected,
         Duration timeout,
         Handler response_handler = [](AtBuffer& buffer,
-                                      AtBuffer::iterator response_pos) {
-          buffer.erase(response_pos);
+                                      AtBuffer::iterator pos) {
+          buffer.erase(pos);
           return UpdateStatus::Result();
         });
 
@@ -135,8 +138,8 @@ class AtCommSupport {
                                                 AtListener::Handler handler);
 
   template <typename... Ts>
-  static bool ParseResponse(DataBuffer const& response, std::string_view cmd,
-                            Ts&... args) {
+  static std::size_t ParseResponse(DataBuffer const& response,
+                                   std::string_view cmd, Ts&... args) {
     auto resp_str = std::string_view{
         reinterpret_cast<char const*>(response.data()), response.size()};
     auto start = resp_str.find(cmd);
@@ -153,7 +156,7 @@ class AtCommSupport {
           start = end + 1;
         }(),
         ...);
-    return res;
+    return res ? start : 0;
   }
 
  private:
