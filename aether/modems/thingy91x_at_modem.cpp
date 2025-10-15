@@ -1041,6 +1041,9 @@ void Thingy91xAtModem::SetupPoll() {
   poll_task_ = ActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
+        if (connections_.empty()) {
+          return;
+        }
         // add poll to operation queue
         operation_queue_->Push(Stage([this]() { return Poll(); }));
       },
