@@ -342,6 +342,7 @@ ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::Start() {
         // save it's started
         Stage<GenAction>(action_context_, [this]() {
           started_ = true;
+          SetupPoll();
           return UpdateStatus::Result();
         }));
 
