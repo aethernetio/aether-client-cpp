@@ -94,10 +94,8 @@ void AtCommSupport::AtBuffer::DataRead(DataBuffer const& data) {
       std::string_view{reinterpret_cast<const char*>(data.data()), data.size()};
   auto start = std::end(data_lines_);
   while (!data_str.empty()) {
-    auto line_end = data_str.find('\n');
-    assert(line_end != 0);
-    // skip \r\n
-    auto sub = data_str.substr(0, line_end - 1);
+    auto line_end = data_str.find("\r\n");
+    auto sub = data_str.substr(0, line_end);
     if (sub.empty()) {
       continue;
     }
@@ -111,7 +109,8 @@ void AtCommSupport::AtBuffer::DataRead(DataBuffer const& data) {
       start = it;
     }
 
-    data_str = data_str.substr(line_end + 1);
+    // skip \r\n
+    data_str = data_str.substr(line_end + 2);
   }
   update_event_.Emit(start);
 }
