@@ -1028,32 +1028,31 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
 }
 
 void Thingy91xAtModem::SetupPoll() {
-  poll_sub_ =
-      Poll()->StatusEvent().Subscribe(OnResult{[this]() { SetupPoll(); }});
+  poll_listener_ = at_comm_support_.ListenForResponse(
+      "#XPOLL: ", [this](auto& at_buffer, auto pos) {
+        std::int32_t handle{};
+        std::string flags;
+        AtCommSupport::ParseResponse(*pos, "#XPOLL", handle, flags);
+        PollEvent(handle, flags);
+        return at_buffer.erase(pos);
+      });
+
+  // TODO: config for poll interval
+  poll_task_ = ActionPtr<RepeatableTask>{
+      action_context_,
+      [this]() {
+        // add poll to operation queue
+        operation_queue_->Push(Stage([this]() { return Poll(); }));
+      },
+      std::chrono::milliseconds{100}};
 }
 
 ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
   return MakeActionPtr<Pipeline>(
-      action_context_, Stage([this]() {
-        // poll indefinitely
-        return at_comm_support_.SendATCommand("#XPOLL=-1");
-      }),
-      Stage<GenAction>(action_context_,
-                       [this]() {
-                         poll_listener_ = at_comm_support_.ListenForResponse(
-                             "#XPOLL: ", [this](auto& at_buffer, auto pos) {
-                               std::int32_t handle{};
-                               std::string flags;
-                               AtCommSupport::ParseResponse(*pos, "#XPOLL",
-                                                            handle, flags);
-                               PollEvent(handle, flags);
-                               return at_buffer.erase(pos);
-                             });
-                         return UpdateStatus::Result();
-                       }),
+      action_context_,
+      Stage([this]() { return at_comm_support_.SendATCommand("#XPOLL=0"); }),
       Stage([this]() {
-        // wait really long
-        return at_comm_support_.WaitForResponse("OK", std::chrono::hours{8076});
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
       }));
 }
 

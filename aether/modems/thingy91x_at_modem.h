@@ -23,6 +23,7 @@
 #include "aether/poller/poller.h"
 #include "aether/actions/pipeline.h"
 #include "aether/actions/actions_queue.h"
+#include "aether/actions/repeatable_task.h"
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/at_comm_support.h"
 
@@ -105,7 +106,7 @@ class Thingy91xAtModem final : public IModemDriver {
   AtCommSupport at_comm_support_;
   std::set<ConnectionIndex> connections_;
   DataEvent data_event_;
-  Subscription poll_sub_;
+  ActionPtr<RepeatableTask> poll_task_;
   std::unique_ptr<AtCommSupport::AtListener> poll_listener_;
   OwnActionPtr<ActionsQueue> operation_queue_;
   bool initiated_;
