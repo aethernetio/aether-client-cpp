@@ -44,6 +44,7 @@ AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::FindPattern(
   for (; it != std::end(data_lines_); ++it) {
     std::string_view it_str(reinterpret_cast<char const*>(it->data()),
                             it->size());
+    AE_TELED_DEBUG("Searching pattern {} in {}", str, it_str);
     if (it_str.find(str) != std::string::npos) {
       break;
     }
@@ -72,6 +73,9 @@ AtCommSupport::AtBuffer::iterator AtCommSupport::AtBuffer::erase(
 bool AtCommSupport::AtBuffer::IsOpen() const { return is_open_; }
 
 void AtCommSupport::AtBuffer::DataRead(DataBuffer const& data) {
+  AE_TELED_DEBUG("AtBuffer receives line {}",
+                 std::string_view{reinterpret_cast<char const*>(data.data()),
+                                  data.size()});
   auto it = data_lines_.emplace(std::end(data_lines_), data);
   update_event_.Emit(it);
 }
