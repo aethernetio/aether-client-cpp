@@ -947,13 +947,12 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
 }
 
 void Thingy91xAtModem::SetupPoll() {
-  poll_listener_ = at_comm_support_.ListenForResponse(
-      "#XPOLL: ", [this](auto& at_buffer, auto pos) {
+  poll_listener_ =
+      at_comm_support_.ListenForResponse("#XPOLL: ", [this](auto&, auto pos) {
         std::int32_t handle{};
         std::string flags;
         AtSupport::ParseResponse(*pos, "#XPOLL", handle, flags);
         PollEvent(handle, flags);
-        return at_buffer.erase(pos);
       });
 
   // TODO: config for poll interval

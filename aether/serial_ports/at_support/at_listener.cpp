@@ -16,6 +16,8 @@
 
 #include "aether/serial_ports/at_support/at_listener.h"
 
+#include "aether/tele/tele.h"
+
 namespace ae {
 
 AtListener::AtListener(AtDispatcher& dispatcher, std::string expected,
@@ -27,6 +29,7 @@ AtListener::AtListener(AtDispatcher& dispatcher, std::string expected,
 AtListener::~AtListener() { dispatcher_->Remove(this); }
 
 void AtListener::Observe(AtBuffer& buffer, AtBuffer::iterator pos) {
+  AE_TELED_DEBUG("Listener have heard");
   handler_(buffer, pos);
 }
 }  // namespace ae

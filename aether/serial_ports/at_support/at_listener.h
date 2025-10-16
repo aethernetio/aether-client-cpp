@@ -25,8 +25,7 @@
 namespace ae {
 class AtListener final : public IAtObserver {
  public:
-  using Handler = std::function<AtBuffer::iterator(AtBuffer& buffer,
-                                                   AtBuffer::iterator pos)>;
+  using Handler = std::function<void(AtBuffer& buffer, AtBuffer::iterator pos)>;
 
   AtListener(AtDispatcher& dispatcher, std::string expected, Handler handler);
   ~AtListener();
