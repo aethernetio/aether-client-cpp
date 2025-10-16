@@ -19,7 +19,6 @@
 #include <bitset>
 #include <string_view>
 
-#include "aether/misc/defer.h"
 #include "aether/misc/from_chars.h"
 #include "aether/actions/pipeline.h"
 #include "aether/actions/gen_action.h"
@@ -52,9 +51,7 @@ class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
           return at_comm_support_->MakeRequest(
               "AT#XSOCKET=1,1,0",
               AtRequest::Wait{
-                  "#XSOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
-                    // remove used pos from buffer
-                    defer[&]() { at_buffer.erase(pos); };
+                  "#XSOCKET: ", kTwoSeconds, [this](auto&, auto pos) {
                     // #XSOCKET: <handle>,<type>,<protocol>
                     auto res =
                         AtSupport::ParseResponse(*pos, "#XSOCKET", handle_);
@@ -151,9 +148,7 @@ class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
           return at_comm_support_->MakeRequest(
               "AT#XSOCKET=1,2,0",
               AtRequest::Wait{
-                  "#XSOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
-                    // remove used pos from buffer
-                    defer[&]() { at_buffer.erase(pos); };
+                  "#XSOCKET: ", kTwoSeconds, [this](auto&, auto pos) {
                     // #XSOCKET: <handle>,<type>,<protocol>
                     auto res =
                         AtSupport::ParseResponse(*pos, "#XSOCKET", handle_);
@@ -898,18 +893,12 @@ ActionPtr<IPipeline> Thingy91xAtModem::SendData(ConnectionIndex connection,
       Stage([this]() {
         return at_comm_support_.MakeRequest(
             "", AtRequest::Wait{
-                    "#XDATAMODE:", kTenSeconds, [](auto& at_buffer, auto pos) {
-                      // remove used pos from buffer
-                      defer[&]() { at_buffer.erase(pos); };
-
+                    "#XDATAMODE:", kTenSeconds, [](auto&, auto pos) {
                       auto response_str = std::string_view{
                           reinterpret_cast<char const*>(pos->data()),
                           pos->size()};
                       AE_TELED_DEBUG("Send data result {}", response_str);
-                      if (response_str == "+XDATAMODE:0") {
-                        return true;
-                      }
-                      return false;
+                      return response_str == "+XDATAMODE:0";
                     }});
       }));
 }
@@ -930,10 +919,6 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
         return at_comm_support_.MakeRequest(
             "", AtRequest::Wait{"#XRECV:", kTenSeconds,
                                 [this, connection](auto& at_buffer, auto pos) {
-                                  // remove used pos from buffer
-                                  auto end = std::next(pos);
-                                  defer[&]() { at_buffer.erase(pos, end); };
-
                                   std::size_t size{};
                                   auto parse_end = AtSupport::ParseResponse(
                                       *pos, "#XRECV", size);
@@ -942,8 +927,7 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
                                     return false;
                                   }
                                   AE_TELED_DEBUG("Size {}", size);
-                                  DataBuffer data_crate;
-                                  std::tie(data_crate, end) =
+                                  auto data_crate =
                                       at_buffer.GetCrate(size, ++pos);
                                   if (data_crate.size() != size) {
                                     AE_TELED_ERROR("Parser recv data error");

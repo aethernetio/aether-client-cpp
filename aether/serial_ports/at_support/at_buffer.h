@@ -41,8 +41,8 @@ class AtBuffer {
   iterator FindPattern(std::string_view str);
   iterator FindPattern(std::string_view str, iterator start);
 
-  std::pair<DataBuffer, iterator> GetCrate(std::size_t size);
-  std::pair<DataBuffer, iterator> GetCrate(std::size_t size, iterator start);
+  DataBuffer GetCrate(std::size_t size);
+  DataBuffer GetCrate(std::size_t size, iterator start);
 
   iterator begin();
   iterator end();

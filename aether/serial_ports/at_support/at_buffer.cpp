@@ -46,19 +46,18 @@ AtBuffer::iterator AtBuffer::FindPattern(std::string_view str, iterator start) {
   return it;
 }
 
-std::pair<DataBuffer, AtBuffer::iterator> AtBuffer::GetCrate(std::size_t size) {
+DataBuffer AtBuffer::GetCrate(std::size_t size) {
   return GetCrate(size, begin());
 }
 
-std::pair<DataBuffer, AtBuffer::iterator> AtBuffer::GetCrate(std::size_t size,
-                                                             iterator start) {
+DataBuffer AtBuffer::GetCrate(std::size_t size, iterator start) {
   DataBuffer res;
-  auto it = start;
-  for (; it != std::end(data_lines_) && res.size() < size; it++) {
+  for (auto it = start; it != std::end(data_lines_) && res.size() < size;
+       it++) {
     res.insert(std::end(res), it->begin(), it->end());
   }
 
-  return {std::move(res), it};
+  return res;
 }
 
 AtBuffer::iterator AtBuffer::begin() { return std::begin(data_lines_); }
