@@ -898,11 +898,15 @@ ActionPtr<IPipeline> Thingy91xAtModem::SendData(ConnectionIndex connection,
         return at_comm_support_.MakeRequest(
             "", AtRequest::Wait{
                     "#XDATAMODE:", kTenSeconds, [](auto&, auto pos) {
-                      auto response_str = std::string_view{
-                          reinterpret_cast<char const*>(pos->data()),
-                          pos->size()};
-                      AE_TELED_DEBUG("Send data result {}", response_str);
-                      return response_str == "+XDATAMODE:0";
+                      AE_TELED_DEBUG(
+                          "Send data result {}",
+                          std::string_view{
+                              reinterpret_cast<char const*>(pos->data()),
+                              pos->size()});
+
+                      int code{-1};
+                      AtSupport::ParseResponse(*pos, "#XDATAMODE", code);
+                      return code == 0;
                     }});
       }));
 }
