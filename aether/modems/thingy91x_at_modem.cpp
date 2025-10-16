@@ -952,6 +952,7 @@ void Thingy91xAtModem::SetupPoll() {
         std::int32_t handle{};
         std::string flags;
         AtSupport::ParseResponse(*pos, "#XPOLL", handle, flags);
+        AE_TELED_DEBUG("Poll for handle {}, and flags {}", handle, flags);
         PollEvent(handle, flags);
       });
 
@@ -981,6 +982,7 @@ ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
 
 void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
   auto flags_val = FromChars<std::uint32_t>(flags);
+  AE_TELED_DEBUG("Poll flag value {}", flags_val);
   if (!flags_val) {
     return;
   }

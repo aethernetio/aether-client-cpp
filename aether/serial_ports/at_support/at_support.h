@@ -90,7 +90,13 @@ class AtSupport {
 
  private:
   static bool ParseArg(std::string_view arg, std::string& value) {
-    value = std::string{arg};
+    // string value should be in ""
+    auto start = arg.find_first_of('"');
+    auto end = arg.find_last_of('"');
+    if (start == std::string_view::npos || end == std::string_view::npos) {
+      return false;
+    }
+    value = std::string{arg.substr(start + 1, end - start - 1)};
     return true;
   }
 
