@@ -70,10 +70,10 @@ class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
               "AT#XSOCKETSELECT=" + std::to_string(handle_), kWaitOk);
         }),
         // AT#XSOCKETOPT=1,20,30
-        // Stage([this]() {
-        //   return at_comm_support_->MakeRequest("AT#XSOCKETOPT=1,20,30",
-        //                                        kWaitOk);
-        // }),
+        Stage([this]() {
+          return at_comm_support_->MakeRequest("AT#XSOCKETOPT=1,20,30",
+                                               kWaitOk);
+        }),
         // AT#XCONNECT="example.com",1234
         Stage([this]() {
           return at_comm_support_->MakeRequest(
@@ -976,7 +976,7 @@ ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
                                      handles += "," + std::to_string(ci);
                                    }
                                    return at_comm_support_.MakeRequest(
-                                       "#XPOLL=0" + handles, kWaitOk);
+                                       "AT#XPOLL=0" + handles, kWaitOk);
                                  }));
 }
 
