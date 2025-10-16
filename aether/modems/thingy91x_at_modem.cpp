@@ -982,7 +982,7 @@ ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
 
 void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
   auto flags_val = FromChars<std::uint32_t>(flags);
-  AE_TELED_DEBUG("Poll flag value {}", flags_val);
+  AE_TELED_DEBUG("Poll has flag value {}", static_cast<bool>(flags_val));
   if (!flags_val) {
     return;
   }
