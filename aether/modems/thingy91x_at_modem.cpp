@@ -60,6 +60,7 @@ class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
                       handle_ = -1;
                       return false;
                     }
+                    AE_TELED_DEBUG("Got socket handle {}", handle_);
                     return true;
                   }});
         }),
@@ -113,7 +114,9 @@ class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
     return {};
   }
 
-  ConnectionIndex connection_index() const { return connection_index_; }
+  ConnectionIndex connection_index() const {
+    return static_cast<ConnectionIndex>(handle_);
+  }
 
  private:
   ActionContext action_context_;
@@ -124,7 +127,6 @@ class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
   ActionPtr<IPipeline> operation_pipeline_;
   Subscription operation_sub_;
   std::int32_t handle_{-1};
-  ConnectionIndex connection_index_ = kInvalidConnectionIndex;
   bool success_{};
   bool error_{};
   bool stop_{};
@@ -157,6 +159,7 @@ class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
                       handle_ = -1;
                       return false;
                     }
+                    AE_TELED_DEBUG("Got socket handle {}", handle_);
                     return true;
                   }});
         }),
@@ -205,7 +208,9 @@ class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
     return {};
   }
 
-  ConnectionIndex connection_index() const { return connection_index_; }
+  ConnectionIndex connection_index() const {
+    return static_cast<ConnectionIndex>(handle_);
+  }
 
  private:
   ActionContext action_context_;
@@ -216,7 +221,6 @@ class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
   ActionPtr<IPipeline> operation_pipeline_;
   Subscription operation_sub_;
   std::int32_t handle_{-1};
-  ConnectionIndex connection_index_ = kInvalidConnectionIndex;
   bool success_{};
   bool error_{};
   bool stop_{};
@@ -828,7 +832,7 @@ ActionPtr<IPipeline> Thingy91xAtModem::OpenTcpConnection(
       action_context_,
       Stage([this, open_network_operation{std::move(open_network_operation)},
              host{host}, port]() {
-        auto open_operation = ActionPtr<Thingy91UdpOpenNetwork>{
+        auto open_operation = ActionPtr<Thingy91TcpOpenNetwork>{
             action_context_, *this, host, port};
 
         open_operation->StatusEvent().Subscribe(ActionHandler{
