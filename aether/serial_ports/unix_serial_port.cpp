@@ -45,6 +45,7 @@ UnixSerialPort::ReadAction::ReadAction(ActionContext action_context,
 
 UpdateStatus UnixSerialPort::ReadAction::Update() {
   if (read_event_) {
+    auto lock = std::lock_guard{serial_port_->fd_lock_};
     for (auto const& b : buffers_) {
       serial_port_->read_event_.Emit(b);
     }

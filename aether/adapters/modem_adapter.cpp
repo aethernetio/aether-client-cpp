@@ -44,7 +44,9 @@ std::vector<AccessPoint::ptr> ModemAdapter::access_points() {
   if (!access_point_) {
     Aether::ptr aether = aether_;
     ModemAdapter::ptr self = MakePtrFromThis(this);
-    access_point_ = domain_->CreateObj<ModemAccessPoint>(aether, self);
+    assert(self);
+    access_point_ =
+        domain_->CreateObj<ModemAccessPoint>(aether, std::move(self));
   }
   return {access_point_};
 }

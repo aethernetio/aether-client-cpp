@@ -45,7 +45,9 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
         access_point_{&access_point},
         address_{std::move(address)},
         state_{State::kModemConnect},
-        start_time_{Now()} {}
+        start_time_{Now()} {
+    AE_TELED_DEBUG("Modem transport building");
+  }
 
   UpdateStatus Update() override {
     if (state_.changed()) {

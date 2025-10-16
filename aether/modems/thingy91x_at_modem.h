@@ -17,87 +17,100 @@
 #ifndef AETHER_MODEMS_THINGY91X_AT_MODEM_H_
 #define AETHER_MODEMS_THINGY91X_AT_MODEM_H_
 
-#include <chrono>
+#include <set>
 #include <memory>
 
-#include "aether/modems/imodem_driver.h"
-#include "aether/adapters/modem_adapter.h"
+#include "aether/poller/poller.h"
+#include "aether/actions/pipeline.h"
+#include "aether/actions/actions_queue.h"
+#include "aether/actions/repeatable_task.h"
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/at_comm_support.h"
 
-namespace ae {
+#include "aether/modems/imodem_driver.h"
 
-struct Thingy91xConnection {
-  std::int32_t handle;
-  ae::Protocol protocol;
-  std::string host;
-  std::uint16_t port;
-};
+namespace ae {
+class Thingy91TcpOpenNetwork;
+class Thingy91UdpOpenNetwork;
 
 class Thingy91xAtModem final : public IModemDriver {
- protected:
-  Thingy91xAtModem() = default;
-
- public:
-  explicit Thingy91xAtModem(ModemInit modem_init);
-  ~Thingy91xAtModem() override;
-
-  bool Init() override;
-  bool Start() override;
-  bool Stop() override;
-  ConnectionIndex OpenNetwork(ae::Protocol protocol, std::string const& host,
-                              std::uint16_t port) override;
-  void CloseNetwork(ConnectionIndex connect_index) override;
-  void WritePacket(ConnectionIndex connect_index,
-                   DataBuffer const& data) override;
-  DataBuffer ReadPacket(ConnectionIndex connect_index,
-                        Duration timeout) override;
-  bool SetPowerSaveParam(ae::PowerSaveParam const& psp) override;
-  bool PowerOff() override;
-
- private:
-  ModemInit modem_init_;
-  std::unique_ptr<ISerialPort> serial_;
-  std::unique_ptr<AtCommSupport> at_comm_support_;
-  std::vector<Thingy91xConnection> connect_vec_;
-  ModemAdapter* adapter_;
-
+  friend class Thingy91TcpOpenNetwork;
+  friend class Thingy91UdpOpenNetwork;
   static constexpr std::uint16_t kModemMTU{1024};
 
-  kModemError CheckResponse(std::string const response,
-                            std::uint32_t const wait_time,
-                            std::string const error_message);
-  kModemError SetBaudRate(std::uint32_t const rate);
-  kModemError CheckSimStatus();
-  kModemError SetupSim(std::uint8_t const pin[4]);
-  kModemError SetNetMode(kModemMode const modem_mode);
-  kModemError SetupNetwork(std::string const operator_name,
-                           std::string const operator_code,
-                           std::string const apn_name,
-                           std::string const apn_user,
-                           std::string const apn_pass,
-                           kModemMode const modem_mode,
-                           kAuthType const auth_type);
-  kModemError SetTxPower(kModemMode const modem_mode,
-                         std::vector<BandPower> const& power);
-  kModemError GetTxPower(kModemMode const modem_mode,
-                         std::vector<BandPower>& power);
-  kModemError SetPsm(std::uint8_t const psm_mode,
-                     kRequestedPeriodicTAUT3412 const psm_tau,
-                     kRequestedActiveTimeT3324 const psm_active);
-  kModemError SetEdrx(EdrxMode const edrx_mode, EdrxActTType const act_type,
-                      kEDrx const edrx_val);
-  kModemError SetRai(std::uint8_t const rai_mode);
-  kModemError SetBandLock(std::uint8_t const bl_mode,
-                          std::vector<std::int32_t> const& bands);
-  kModemError ResetModemFactory(std::uint8_t const res_mode);
+ public:
+  explicit Thingy91xAtModem(ActionContext action_context,
+                            IPoller::ptr const& poller, ModemInit modem_init);
 
-  std::int32_t OpenTcpConnection(std::string const& host, std::uint16_t port);
-  std::int32_t OpenUdpConnection();
-  void SendTcp(Thingy91xConnection const& connection, DataBuffer const& data);
-  void SendUdp(Thingy91xConnection const& connection, DataBuffer const& data);
-  DataBuffer ReadTcp(Thingy91xConnection const& connection, Duration timeout);
-  DataBuffer ReadUdp(Thingy91xConnection const& connection, Duration timeout);
+  ActionPtr<ModemOperation> Start() override;
+  ActionPtr<ModemOperation> Stop() override;
+  ActionPtr<OpenNetworkOperation> OpenNetwork(ae::Protocol protocol,
+                                              std::string const& host,
+                                              std::uint16_t port) override;
+  ActionPtr<ModemOperation> CloseNetwork(
+      ConnectionIndex connect_index) override;
+  ActionPtr<WriteOperation> WritePacket(ConnectionIndex connect_index,
+                                        DataBuffer const& data) override;
+
+  DataEvent::Subscriber data_event() override;
+
+  ActionPtr<ModemOperation> SetPowerSaveParam(
+      PowerSaveParam const& psp) override;
+  ActionPtr<ModemOperation> PowerOff() override;
+
+ private:
+  void Init();
+
+  ActionPtr<IPipeline> CheckSimStatus();
+  ActionPtr<IPipeline> SetupSim(std::uint16_t pin);
+  ActionPtr<IPipeline> SetNetMode(kModemMode modem_mode);
+  ActionPtr<IPipeline> SetupNetwork(std::string const& operator_name,
+                                    std::string const& operator_code,
+                                    std::string const& apn_name,
+                                    std::string const& apn_user,
+                                    std::string const& apn_pass,
+                                    kModemMode modem_mode, kAuthType auth_type);
+  ActionPtr<IPipeline> SetTxPower(kModemMode modem_mode,
+                                  std::vector<BandPower> const& power);
+  ActionPtr<IPipeline> GetTxPower(kModemMode modem_mode,
+                                  std::vector<BandPower>& power);
+  ActionPtr<IPipeline> SetPsm(std::uint8_t psm_mode,
+                              kRequestedPeriodicTAUT3412 psm_tau,
+                              kRequestedActiveTimeT3324 psm_active);
+  ActionPtr<IPipeline> SetEdrx(EdrxMode edrx_mode, EdrxActTType act_type,
+                               kEDrx edrx_val);
+  ActionPtr<IPipeline> SetRai(std::uint8_t rai_mode);
+  ActionPtr<IPipeline> SetBandLock(std::uint8_t bl_mode,
+                                   std::vector<std::int32_t> const& bands);
+  ActionPtr<IPipeline> ResetModemFactory(std::uint8_t res_mode);
+
+  ActionPtr<IPipeline> OpenTcpConnection(
+      ActionPtr<OpenNetworkOperation> open_network_operation,
+      std::string const& host, std::uint16_t port);
+
+  ActionPtr<IPipeline> OpenUdpConnection(
+      ActionPtr<OpenNetworkOperation> open_network_operation,
+      std::string const& host, std::uint16_t port);
+
+  ActionPtr<IPipeline> SendData(ConnectionIndex connection,
+                                DataBuffer const& data);
+  ActionPtr<IPipeline> ReadPacket(ConnectionIndex connection);
+
+  void SetupPoll();
+  ActionPtr<IPipeline> Poll();
+  void PollEvent(std::int32_t handle, std::string_view flags);
+
+  ActionContext action_context_;
+  ModemInit modem_init_;
+  std::unique_ptr<ISerialPort> serial_;
+  AtCommSupport at_comm_support_;
+  std::set<ConnectionIndex> connections_;
+  DataEvent data_event_;
+  ActionPtr<RepeatableTask> poll_task_;
+  std::unique_ptr<AtCommSupport::AtListener> poll_listener_;
+  OwnActionPtr<ActionsQueue> operation_queue_;
+  bool initiated_;
+  bool started_;
 };
 
 } /* namespace ae */

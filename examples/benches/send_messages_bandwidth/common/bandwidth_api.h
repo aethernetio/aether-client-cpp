@@ -32,11 +32,11 @@ class BandwidthApi : public ReturnResultApiImpl,
   BandwidthApi(ActionContext action_context, ProtocolContext& protocol_context);
 
   // sender sends handshake until receiver doesn't answers true
-  Method<0x03, PromisePtr<bool>()> handshake;
+  Method<0x03, ApiPromisePtr<bool>()> handshake;
   // sender sends start or stop test and wait for receiver's response true to
   // continue/stop tests
-  Method<0x04, PromisePtr<bool>()> start_test;
-  Method<0x05, PromisePtr<bool>()> stop_test;
+  Method<0x04, ApiPromisePtr<bool>()> start_test;
+  Method<0x05, ApiPromisePtr<bool>()> stop_test;
 
   Method<0x06, void(std::uint16_t id, PayloadData data)> message;
 

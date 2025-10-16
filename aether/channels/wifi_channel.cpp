@@ -36,8 +36,8 @@ namespace wifi_channel_internal {
 class WifiTransportBuilderAction final : public TransportBuilderAction {
  public:
   enum class State : std::uint8_t {
-    kAddressResolve,
     kWifiConnect,
+    kAddressResolve,
     kTransportCreate,
     kWaitTransportConnect,
     kTransportConnected,
