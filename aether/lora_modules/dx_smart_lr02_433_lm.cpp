@@ -159,7 +159,7 @@ DataBuffer DxSmartLr02LoraModule::ReadPacket(
 };
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetPowerSaveParam(std::string const& /* psp */) {
+DxSmartLr02LoraModule::SetPowerSaveParam(std::string const& psp) {
     return MakeActionPtr<Pipeline>(
       action_context_,
       // Enter AT command mode
@@ -354,13 +354,13 @@ ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::SetupSerialPort(SerialInit& serial_init) {
     return MakeActionPtr<Pipeline>(
       action_context_,
-      Stage([this, psp]() {
+      Stage([this, serial_init]() {
     return SetBaudRate(serial_init.baud_rate); }),
-      Stage([this, psp]() {
+      Stage([this, serial_init]() {
     return SetParity(serial_init.parity); }),
-      Stage([this, psp]() {
-    return SetStopBits(serial_init.stop_bits); })
-      ));
+      Stage([this, serial_init]() {
+    return SetStopBits(serial_init.stop_bits); 
+    }));
 }
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
@@ -398,7 +398,7 @@ DxSmartLr02LoraModule::SetParity(kParity parity) {
       break;
   }
 
-  return MakeActionPtr<Pipeline>(action_context_, Stage([this]() {
+  return MakeActionPtr<Pipeline>(action_context_, Stage([this, cmd]() {
                                    return at_comm_support_.SendATCommand(cmd);
                                  }),
                                  Stage([this]() {
@@ -433,38 +433,39 @@ DxSmartLr02LoraModule::SetStopBits(kStopBits stop_bits) {
 }
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-    DxSmartLr02LoraModule::SetupLoraNet(return MakeActionPtr<Pipeline>(
-        action_context_, Stage([this, psp]() {
+    DxSmartLr02LoraModule::SetupLoraNet(LoraModuleInit& lora_module_init){
+  return MakeActionPtr<Pipeline>(
+        action_context_, Stage([this, lora_module_init]() {
           return SetLoraModuleAddress(lora_module_init.lora_module_my_adress);
         }),
-        Stage([this, psp]() {
+        Stage([this, lora_module_init]() {
           return SetLoraModuleChannel(lora_module_init.lora_module_channel);
         }),
-        Stage([this, psp]() {
-          return SetLoraModuleMode(lora_module_init.lora_module_mode);
+        Stage([this, lora_module_init]() {
+          return SetLoraModuleMode(lora_module_init.psp.lora_module_mode);
         }),
-        Stage([this, psp]() {
-          return SetLoraModuleLevel(lora_module_init.lora_module_level);
+        Stage([this, lora_module_init]() {
+          return SetLoraModuleLevel(lora_module_init.psp.lora_module_level);
         }),
-        Stage([this, psp]() {
-          return SetLoraModulePower(lora_module_init.lora_module_power);
+        Stage([this, lora_module_init]() {
+          return SetLoraModulePower(lora_module_init.psp.lora_module_power);
         }),
-        Stage([this, psp]() {
+        Stage([this, lora_module_init]() {
           return SetLoraModuleBandWidth(
-              lora_module_init.lora_module_band_width);
+              lora_module_init.psp.lora_module_band_width);
         }),
-        Stage([this, psp]() {
+        Stage([this, lora_module_init]() {
           return SetLoraModuleCodingRate(
-              lora_module_init.lora_module_coding_rate);
+              lora_module_init.psp.lora_module_coding_rate);
         }),
-        Stage([this, psp]() {
+        Stage([this, lora_module_init]() {
           return SetLoraModuleSpreadingFactor(
-              lora_module_init.lora_module_spreading_factor);
+              lora_module_init.psp.lora_module_spreading_factor);
         }),
-        Stage([this, psp]() {
+        Stage([this, lora_module_init]() {
           return SetLoraModuleCRCCheck(lora_module_init.lora_module_crc_check);
         }),
-        Stage([this, psp]() {
+        Stage([this, lora_module_init]() {
           return SetLoraModuleIQSignalInversion(
               lora_module_init.lora_module_signal_inversion)
         }), ));

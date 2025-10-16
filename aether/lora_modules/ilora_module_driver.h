@@ -33,11 +33,11 @@ class IPipeline;
 class ILoraModuleDriver{
  public:
   using LoraModuleOperation = IPipeline;
-  using DataEvent = Event<void(ConnectionIndex, DataBuffer const& data)>;
+  using DataEvent = Event<void(ConnectionLoraIndex, DataBuffer const& data)>;
   class OpenNetworkOperation : public Action<OpenNetworkOperation> {
    public:
     virtual UpdateStatus Update() = 0;
-    virtual ConnectionIndex connection_index() const = 0;
+    virtual ConnectionLoraIndex connection_index() const = 0;
   };
 
   virtual ~ILoraModuleDriver() = default;
@@ -49,13 +49,14 @@ class ILoraModuleDriver{
                                                       std::string const& host,
                                                       std::uint16_t port) = 0;
   virtual ActionPtr<LoraModuleOperation> CloseNetwork(
-      ConnectionIndex connect_index) = 0;
-  virtual ActionPtr<LoraModuleOperation> WritePacket(ConnectionIndex connect_index,
+      ConnectionLoraIndex connect_index) = 0;
+  virtual ActionPtr<LoraModuleOperation> WritePacket(
+      ConnectionLoraIndex connect_index,
                                                 DataBuffer const& data) = 0;
   virtual DataEvent::Subscriber data_event() = 0;
 
   virtual ActionPtr<LoraModuleOperation> SetPowerSaveParam(
-      PowerSaveParam const& psp) = 0;
+      LoraPowerSaveParam const& psp) = 0;
   virtual ActionPtr<LoraModuleOperation> PowerOff() = 0;
 };
 
