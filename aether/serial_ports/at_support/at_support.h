@@ -66,8 +66,9 @@ class AtSupport {
                                                 AtListener::Handler handler);
 
   template <typename... Ts>
-  static std::size_t ParseResponse(DataBuffer const& response,
-                                   std::string_view cmd, Ts&... args) {
+  static std::optional<std::size_t> ParseResponse(DataBuffer const& response,
+                                                  std::string_view cmd,
+                                                  Ts&... args) {
     auto resp_str = std::string_view{
         reinterpret_cast<char const*>(response.data()), response.size()};
     auto start = resp_str.find(cmd);
@@ -84,7 +85,7 @@ class AtSupport {
           start = end + 1;
         }(),
         ...);
-    return res ? start : 0;
+    return res ? std::optional{start} : std::nullopt;
   }
 
  private:
