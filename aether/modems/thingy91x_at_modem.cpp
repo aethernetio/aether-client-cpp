@@ -873,6 +873,12 @@ ActionPtr<IPipeline> Thingy91xAtModem::OpenUdpConnection(
 
 ActionPtr<IPipeline> Thingy91xAtModem::SendData(ConnectionIndex connection,
                                                 DataBuffer const& data) {
+  auto terminated_data = DataBuffer(data.size() + 3);
+  std::copy(std::begin(data), std::end(data), std::begin(terminated_data));
+  terminated_data[terminated_data.size() - 3] = '+';
+  terminated_data[terminated_data.size() - 2] = '+';
+  terminated_data[terminated_data.size() - 1] = '+';
+
   return MakeActionPtr<Pipeline>(
       action_context_,
       // #XSOCKETSELECT=<handle>
@@ -881,14 +887,14 @@ ActionPtr<IPipeline> Thingy91xAtModem::SendData(ConnectionIndex connection,
             "AT#XSOCKETSELECT=" + std::to_string(handle), kWaitOk);
       }),
       // #XSEND[=<data>]
-      Stage([this, data]() {
+      Stage([this, terminated_data{std::move(terminated_data)}]() mutable {
         return at_comm_support_.MakeRequest(
             "AT#XSEND",
             AtRequest::Wait{"OK", kOneSecond,
-                            [this, data](auto&, auto) {
+                            [this, terminated_data{std::move(terminated_data)}](
+                                auto&, auto) {
                               // write data and termination sequence
-                              serial_->Write(data);
-                              serial_->Write(DataBuffer{'+', '+', '+'});
+                              serial_->Write(terminated_data);
                               return true;
                             }},
             AtRequest::Wait{
