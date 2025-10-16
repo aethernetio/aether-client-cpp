@@ -21,6 +21,8 @@
 
 #include "aether/serial_ports/at_support/at_support.h"
 
+#include "aether/tele/tele.h"
+
 namespace ae {
 AtRequest::WaitObserver::WaitObserver(AtDispatcher& dispatcher, Wait wait)
     : dispatcher_{&dispatcher}, wait_{std::move(wait)}, observed_{false} {
@@ -112,7 +114,8 @@ UpdateStatus AtRequest::WaitResponses(TimePoint current_time) {
   }
 
   auto timeout_time = start_time_ + timeout;
-  if (timeout_time < current_time) {
+  if (timeout_time >= current_time) {
+    AE_TELED_ERROR("AtRequest wait response timeout");
     return UpdateStatus::Error();
   }
 
