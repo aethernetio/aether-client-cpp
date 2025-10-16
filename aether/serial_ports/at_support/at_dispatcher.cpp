@@ -26,9 +26,8 @@ AtDispatcher::AtDispatcher(AtBuffer& buffer)
           *this, MethodPtr<&AtDispatcher::BufferUpdate>{})} {}
 
 void AtDispatcher::Listen(std::string command, IAtObserver* observer) {
-  auto [_, ok] = observers_.emplace(std::move(command), observer);
-  // for one command should be only one observer
-  assert(ok);
+  // there should be only one observer for one command use last
+  observers_.insert_or_assign(std::move(command), observer);
 }
 
 void AtDispatcher::Remove(IAtObserver* observer) {
