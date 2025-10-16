@@ -881,33 +881,27 @@ ActionPtr<IPipeline> Thingy91xAtModem::SendData(ConnectionIndex connection,
             "AT#XSOCKETSELECT=" + std::to_string(handle), kWaitOk);
       }),
       // #XSEND[=<data>]
-      Stage([this]() {
-        return at_comm_support_.MakeRequest("AT#XSEND", kWaitOk);
-      }),
-      Stage<GenAction>(action_context_,
-                       [this, data]() {
-                         serial_->Write(data);
-                         return UpdateStatus::Result();
-                       }),
-      Stage<GenAction>(action_context_,
-                       [this, data]() {
-                         serial_->Write(DataBuffer{'+', '+', '+'});
-                         return UpdateStatus::Result();
-                       }),
-      Stage([this]() {
+      Stage([this, data]() {
         return at_comm_support_.MakeRequest(
-            "", AtRequest::Wait{
-                    "#XDATAMODE:", kTenSeconds, [](auto&, auto pos) {
-                      AE_TELED_DEBUG(
-                          "Send data result {}",
-                          std::string_view{
-                              reinterpret_cast<char const*>(pos->data()),
-                              pos->size()});
+            "AT#XSEND",
+            AtRequest::Wait{"OK", kOneSecond,
+                            [this, data](auto&, auto) {
+                              // write data and termination sequence
+                              serial_->Write(data);
+                              serial_->Write(DataBuffer{'+', '+', '+'});
+                              return true;
+                            }},
+            AtRequest::Wait{
+                "#XDATAMODE:", kTenSeconds, [](auto&, auto pos) {
+                  AE_TELED_DEBUG("Send data result {}",
+                                 std::string_view{
+                                     reinterpret_cast<char const*>(pos->data()),
+                                     pos->size()});
 
-                      int code{-1};
-                      AtSupport::ParseResponse(*pos, "#XDATAMODE", code);
-                      return code == 0;
-                    }});
+                  int code{-1};
+                  AtSupport::ParseResponse(*pos, "#XDATAMODE", code);
+                  return code == 0;
+                }});
       }));
 }
 
@@ -920,32 +914,29 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
             "AT#XSOCKETSELECT=" + std::to_string(handle), kWaitOk);
       }),
       // #XRECV=<timeout>[,<flags>]
-      Stage([this]() {
-        return at_comm_support_.MakeRequest("AT#XRECV=0,64", kWaitOk);
-      }),
       Stage([this, connection]() {
         return at_comm_support_.MakeRequest(
-            "", AtRequest::Wait{"#XRECV:", kTenSeconds,
-                                [this, connection](auto& at_buffer, auto pos) {
-                                  std::size_t size{};
-                                  auto parse_end = AtSupport::ParseResponse(
-                                      *pos, "#XRECV", size);
-                                  if (parse_end == 0) {
-                                    AE_TELED_ERROR("Parser recv error");
-                                    return false;
-                                  }
-                                  AE_TELED_DEBUG("Size {}", size);
-                                  auto data_crate =
-                                      at_buffer.GetCrate(size, ++pos);
-                                  if (data_crate.size() != size) {
-                                    AE_TELED_ERROR("Parser recv data error");
-                                    return false;
-                                  }
+            "AT#XRECV=0,64", kWaitOk,
+            AtRequest::Wait{"#XRECV:", kTenSeconds,
+                            [this, connection](auto& at_buffer, auto pos) {
+                              std::size_t size{};
+                              auto parse_end = AtSupport::ParseResponse(
+                                  *pos, "#XRECV", size);
+                              if (parse_end == 0) {
+                                AE_TELED_ERROR("Parser recv error");
+                                return false;
+                              }
+                              AE_TELED_DEBUG("Size {}", size);
+                              auto data_crate = at_buffer.GetCrate(size, ++pos);
+                              if (data_crate.size() != size) {
+                                AE_TELED_ERROR("Parser recv data error");
+                                return false;
+                              }
 
-                                  // Emit the received data
-                                  data_event_.Emit(connection, data_crate);
-                                  return true;
-                                }});
+                              // Emit the received data
+                              data_event_.Emit(connection, data_crate);
+                              return true;
+                            }});
       }));
 }
 
