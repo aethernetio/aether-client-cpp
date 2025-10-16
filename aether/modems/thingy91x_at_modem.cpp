@@ -31,6 +31,8 @@ namespace ae {
 static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
 static constexpr Duration kTwoSeconds = std::chrono::milliseconds{2000};
 static constexpr Duration kTenSeconds = std::chrono::milliseconds{10000};
+static const AtRequest::Wait kWaitOk{"OK", kOneSecond};
+static const AtRequest::Wait kWaitOkTwoSeconds{"OK", kTwoSeconds};
 
 class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
  public:
@@ -47,46 +49,38 @@ class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
         action_context_,
         // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
         Stage([this]() {
-          return at_comm_support_->SendATCommand("AT#XSOCKET=1,1,0");
-        }),
-        Stage([this]() {
-          return at_comm_support_->WaitForResponse(
-              "#XSOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
-                // remove used pos from buffer
-                defer[&]() { at_buffer.erase(pos); };
-                // #XSOCKET: <handle>,<type>,<protocol>
-                auto res =
-                    AtCommSupport::ParseResponse(*pos, "#XSOCKET", handle_);
-                if (!res) {
-                  AE_TELED_DEBUG("Failed to parser connection handle");
-                  handle_ = -1;
-                  return UpdateStatus::Error();
-                }
-                return UpdateStatus::Result();
-              });
+          return at_comm_support_->MakeRequest(
+              "AT#XSOCKET=1,1,0",
+              AtRequest::Wait{
+                  "#XSOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
+                    // remove used pos from buffer
+                    defer[&]() { at_buffer.erase(pos); };
+                    // #XSOCKET: <handle>,<type>,<protocol>
+                    auto res =
+                        AtSupport::ParseResponse(*pos, "#XSOCKET", handle_);
+                    if (!res) {
+                      AE_TELED_DEBUG("Failed to parser connection handle");
+                      handle_ = -1;
+                      return false;
+                    }
+                    return true;
+                  }});
         }),
         // #XSOCKETSELECT=<handle>
         Stage([this]() {
-          return at_comm_support_->SendATCommand("AT#XSOCKETSELECT=" +
-                                                 std::to_string(handle_));
-        }),
-        Stage([this]() {
-          return at_comm_support_->WaitForResponse("OK", kOneSecond);
+          return at_comm_support_->MakeRequest(
+              "AT#XSOCKETSELECT=" + std::to_string(handle_), kWaitOk);
         }),
         // AT#XSOCKETOPT=1,20,30
         Stage([this]() {
-          return at_comm_support_->SendATCommand("AT#XSOCKETOPT=1,20,30");
-        }),
-        Stage([this]() {
-          return at_comm_support_->WaitForResponse("OK", kOneSecond);
+          return at_comm_support_->MakeRequest("AT#XSOCKETOPT=1,20,30",
+                                               kWaitOk);
         }),
         // AT#XCONNECT="example.com",1234
         Stage([this]() {
-          return at_comm_support_->SendATCommand("AT#XCONNECT=\"" + host_ +
-                                                 "\"," + std::to_string(port_));
-        }),
-        Stage([this]() {
-          return at_comm_support_->WaitForResponse("OK", kOneSecond);
+          return at_comm_support_->MakeRequest(
+              "AT#XCONNECT=\"" + host_ + "\"," + std::to_string(port_),
+              kWaitOk);
         }),
         Stage<GenAction>(action_context_, [this]() {
           modem_->connections_.emplace(static_cast<ConnectionIndex>(handle_));
@@ -127,7 +121,7 @@ class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
  private:
   ActionContext action_context_;
   Thingy91xAtModem* modem_;
-  AtCommSupport* at_comm_support_;
+  AtSupport* at_comm_support_;
   std::string host_;
   std::uint16_t port_;
   ActionPtr<IPipeline> operation_pipeline_;
@@ -154,39 +148,33 @@ class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
         action_context_,
         // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
         Stage([this]() {
-          return at_comm_support_->SendATCommand("AT#XSOCKET=1,2,0");
-        }),
-        Stage([this]() {
-          return at_comm_support_->WaitForResponse(
-              "#XSOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
-                // remove used pos from buffer
-                defer[&]() { at_buffer.erase(pos); };
-                // #XSOCKET: <handle>,<type>,<protocol>
-                auto res =
-                    AtCommSupport::ParseResponse(*pos, "#XSOCKET", handle_);
-                if (!res) {
-                  AE_TELED_DEBUG("Failed to parser connection handle");
-                  handle_ = -1;
-                  return UpdateStatus::Error();
-                }
-                return UpdateStatus::Result();
-              });
+          return at_comm_support_->MakeRequest(
+              "AT#XSOCKET=1,2,0",
+              AtRequest::Wait{
+                  "#XSOCKET: ", kTwoSeconds, [this](auto& at_buffer, auto pos) {
+                    // remove used pos from buffer
+                    defer[&]() { at_buffer.erase(pos); };
+                    // #XSOCKET: <handle>,<type>,<protocol>
+                    auto res =
+                        AtSupport::ParseResponse(*pos, "#XSOCKET", handle_);
+                    if (!res) {
+                      AE_TELED_DEBUG("Failed to parser connection handle");
+                      handle_ = -1;
+                      return false;
+                    }
+                    return true;
+                  }});
         }),
         // #XSOCKETSELECT=<handle>
         Stage([this]() {
-          return at_comm_support_->SendATCommand("AT#XSOCKETSELECT=" +
-                                                 std::to_string(handle_));
-        }),
-        Stage([this]() {
-          return at_comm_support_->WaitForResponse("OK", kOneSecond);
+          return at_comm_support_->MakeRequest(
+              "AT#XSOCKETSELECT=" + std::to_string(handle_), kWaitOk);
         }),
         // AT#XCONNECT="example.com",1234
         Stage([this]() {
-          return at_comm_support_->SendATCommand("AT#XCONNECT=\"" + host_ +
-                                                 "\"," + std::to_string(port_));
-        }),
-        Stage([this]() {
-          return at_comm_support_->WaitForResponse("OK", kOneSecond);
+          return at_comm_support_->MakeRequest(
+              "AT#XCONNECT=\"" + host_ + "\"," + std::to_string(port_),
+              kWaitOk);
         }),
         Stage<GenAction>(action_context_, [this]() {
           modem_->connections_.emplace(static_cast<ConnectionIndex>(handle_));
@@ -227,7 +215,7 @@ class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
  private:
   ActionContext action_context_;
   Thingy91xAtModem* modem_;
-  AtCommSupport* at_comm_support_;
+  AtSupport* at_comm_support_;
   std::string host_;
   std::uint16_t port_;
   ActionPtr<IPipeline> operation_pipeline_;
@@ -258,13 +246,9 @@ void Thingy91xAtModem::Init() {
   operation_queue_->Push(Stage([this]() {
     auto init_pipeline = MakeActionPtr<Pipeline>(
         action_context_,
-        Stage([this]() { return at_comm_support_.SendATCommand("AT"); }),
+        Stage([this]() { return at_comm_support_.MakeRequest("AT", kWaitOk); }),
         Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kOneSecond);
-        }),
-        Stage([this]() { return at_comm_support_.SendATCommand("AT+CMEE=1"); }),
-        Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+          return at_comm_support_.MakeRequest("AT+CMEE=1", kWaitOk);
         }),
         Stage<GenAction>(action_context_, [this]() {
           initiated_ = true;
@@ -304,9 +288,8 @@ ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::Start() {
                            return UpdateStatus::Result();
                          }),
         // Disabling full functionality
-        Stage([this]() { return at_comm_support_.SendATCommand("AT+CFUN=0"); }),
         Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+          return at_comm_support_.MakeRequest("AT+CFUN=0", kWaitOk);
         }),
         Stage([this]() { return SetNetMode(kModemMode::kModeCatMNbIot); }),
         Stage([this]() {
@@ -315,18 +298,12 @@ ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::Start() {
                               modem_init_.apn_user, modem_init_.apn_pass,
                               modem_init_.modem_mode, modem_init_.auth_type);
         }),
-        // Enabling full functionality
-        Stage([this]() { return at_comm_support_.SendATCommand("AT+CFUN=1"); }),
+        // Enabling full functionality and waiting for network registration
         Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kOneSecond);
-        }),
-        Stage([this]() {
-          return at_comm_support_.WaitForResponse("+CEREG: 2",
-                                                  std::chrono::seconds{60});
-        }),
-        Stage([this]() {
-          return at_comm_support_.WaitForResponse("+CEREG: 1",
-                                                  std::chrono::seconds{60});
+          return at_comm_support_.MakeRequest(
+              "AT+CFUN=1", kWaitOk,
+              AtRequest::Wait{"+CEREG: 2", std::chrono::seconds{60}},
+              AtRequest::Wait{"+CEREG: 1", std::chrono::seconds{60}});
         }),
         Stage([this]() { return CheckSimStatus(); }),
         Stage([this]() -> ActionPtr<IPipeline> {
@@ -364,9 +341,8 @@ ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::Stop() {
     auto pipeline = MakeActionPtr<Pipeline>(
         action_context_,
         // Disabling full functionality
-        Stage([this]() { return at_comm_support_.SendATCommand("AT+CFUN=0"); }),
         Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+          return at_comm_support_.MakeRequest("AT+CFUN=0", kWaitOk);
         }),
         Stage([this]() { return ResetModemFactory(1); }));
 
@@ -409,17 +385,12 @@ ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::CloseNetwork(
         action_context_,
         Stage([this, handle{static_cast<std::int32_t>(connect_index)}]() {
           // #XSOCKETSELECT=<handle>
-          return at_comm_support_.SendATCommand("AT#XSOCKETSELECT=" +
-                                                std::to_string(handle));
+          return at_comm_support_.MakeRequest(
+              "AT#XSOCKETSELECT=" + std::to_string(handle), kWaitOk);
         }),
         Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kOneSecond);
-        }),
-        Stage([this]() {
-          return at_comm_support_.SendATCommand("AT#XSOCKET=0");
-        }),
-        Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kTenSeconds);
+          return at_comm_support_.MakeRequest(
+              "AT#XSOCKET=0", AtRequest::Wait{"OK", kTenSeconds});
         }),
         Stage<GenAction>(action_context_, [this, connect_index]() {
           connections_.erase(connect_index);
@@ -470,10 +441,8 @@ ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::SetPowerSaveParam(
 
   operation_queue_->Push(Stage([this, modem_operation, psp{psp}]() {
     auto pipeline = MakeActionPtr<Pipeline>(
-        action_context_,
-        Stage([this]() { return at_comm_support_.SendATCommand("AT+CFUN=0"); }),
-        Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        action_context_, Stage([this]() {
+          return at_comm_support_.MakeRequest("AT+CFUN=0", kWaitOk);
         }),
         // Configure eDRX
         Stage([this, psp]() {
@@ -485,9 +454,8 @@ ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::SetPowerSaveParam(
         Stage([this, psp]() { return SetBandLock(psp.bands_mode, psp.bands); }),
         // Set TX power limits
         Stage([this, psp]() { return SetTxPower(psp.modem_mode, psp.power); }),
-        Stage([this]() { return at_comm_support_.SendATCommand("AT+CFUN=1"); }),
         Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+          return at_comm_support_.MakeRequest("AT+CFUN=1", kWaitOk);
         }));
     pipeline->StatusEvent().Subscribe(ActionHandler{
         OnResult{[modem_operation]() { modem_operation->Notify(); }},
@@ -507,9 +475,8 @@ ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::PowerOff() {
     auto pipeline = MakeActionPtr<Pipeline>(
         action_context_,
         // Disabling full functionality
-        Stage([this]() { return at_comm_support_.SendATCommand("AT+CFUN=0"); }),
         Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+          return at_comm_support_.MakeRequest("AT+CFUN=0", kWaitOk);
         }));
 
     pipeline->StatusEvent().Subscribe(ActionHandler{
@@ -525,55 +492,49 @@ ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::PowerOff() {
 
 // ============================private members=============================== //
 ActionPtr<IPipeline> Thingy91xAtModem::CheckSimStatus() {
-  return MakeActionPtr<Pipeline>(
-      action_context_,
-      Stage([this]() { return at_comm_support_.SendATCommand("AT+CPIN?"); }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
-      }));
+  return MakeActionPtr<Pipeline>(action_context_, Stage([this]() {
+                                   return at_comm_support_.MakeRequest(
+                                       "AT+CPIN?", kWaitOk);
+                                 }));
 }
 
 ActionPtr<IPipeline> Thingy91xAtModem::SetupSim(std::uint16_t pin) {
   return MakeActionPtr<Pipeline>(
-      action_context_,
-      Stage([this, pin]() -> ActionPtr<AtCommSupport::WriteAction> {
-        auto pin_string = AtCommSupport::PinToString(pin);
+      action_context_, Stage([this, pin]() -> ActionPtr<AtRequest> {
+        auto pin_string = AtSupport::PinToString(pin);
 
         if (pin_string.empty()) {
           AE_TELED_ERROR("Pin wrong!");
           return {};
         }
         // Check SIM card status
-        return at_comm_support_.SendATCommand("AT+CPIN=" + pin_string);
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        return at_comm_support_.MakeRequest("AT+CPIN=" + pin_string, kWaitOk);
       }));
 }
 
 ActionPtr<IPipeline> Thingy91xAtModem::SetNetMode(kModemMode const modem_mode) {
   return MakeActionPtr<Pipeline>(
-      action_context_,
-      Stage([this, modem_mode]() -> ActionPtr<AtCommSupport::WriteAction> {
+      action_context_, Stage([this, modem_mode]() -> ActionPtr<AtRequest> {
         switch (modem_mode) {
           case kModemMode::kModeAuto:
-            return at_comm_support_.SendATCommand(
-                "AT%XSYSTEMMODE=1,1,0,4");  // Set modem mode Auto
+            return at_comm_support_.MakeRequest(
+                "AT%XSYSTEMMODE=1,1,0,4",
+                kWaitOk);  // Set modem mode Auto
           case kModemMode::kModeCatM:
-            return at_comm_support_.SendATCommand(
-                "AT%XSYSTEMMODE=1,0,0,1");  // Set modem mode CatM
+            return at_comm_support_.MakeRequest(
+                "AT%XSYSTEMMODE=1,0,0,1",
+                kWaitOk);  // Set modem mode CatM
           case kModemMode::kModeNbIot:
-            return at_comm_support_.SendATCommand(
-                "AT%XSYSTEMMODE=0,1,0,2");  // Set modem mode NbIot
+            return at_comm_support_.MakeRequest(
+                "AT%XSYSTEMMODE=0,1,0,2",
+                kWaitOk);  // Set modem mode NbIot
           case kModemMode::kModeCatMNbIot:
-            return at_comm_support_.SendATCommand(
-                "AT%XSYSTEMMODE=1,1,0,0");  // Set modem mode CatMNbIot
+            return at_comm_support_.MakeRequest(
+                "AT%XSYSTEMMODE=1,1,0,0",
+                kWaitOk);  // Set modem mode CatMNbIot
           default:
             return {};
         }
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
       }));
 }
 
@@ -617,25 +578,17 @@ ActionPtr<IPipeline> Thingy91xAtModem::SetupNetwork(
           // Auto
           cmd = "AT+COPS=0";
         }
-        return at_comm_support_.SendATCommand(cmd);
+        return at_comm_support_.MakeRequest(
+            cmd, AtRequest::Wait{"OK", std::chrono::seconds{120}});
       }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK",
-                                                std::chrono::seconds{120});
+
+      Stage([this, apn_name]() {
+        return at_comm_support_.MakeRequest(
+            R"(AT+CGDCONT=0,"IP",")" + apn_name + "\"", kWaitOk);
       }),
       Stage([this, apn_name]() {
-        return at_comm_support_.SendATCommand(R"(AT+CGDCONT=0,"IP",")" +
-                                              apn_name + "\"");
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
-      }),
-      Stage([this, apn_name]() {
-        return at_comm_support_.SendATCommand(R"(AT+CEREG=1,"IP",")" +
-                                              apn_name + "\"");
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        return at_comm_support_.MakeRequest(
+            R"(AT+CEREG=1,"IP",")" + apn_name + "\"", kWaitOk);
       }));
 }
 
@@ -682,12 +635,11 @@ ActionPtr<IPipeline> Thingy91xAtModem::SetTxPower(
     return {};
   }
 
-  return MakeActionPtr<Pipeline>(
-      action_context_,  //
-      Stage([this, cmd]() { return at_comm_support_.SendATCommand(cmd); }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
-      }));
+  return MakeActionPtr<Pipeline>(action_context_,  //
+                                 Stage([this, cmd]() {
+                                   return at_comm_support_.MakeRequest(
+                                       cmd, AtRequest::Wait{"OK", kOneSecond});
+                                 }));
 }
 
 ActionPtr<IPipeline> Thingy91xAtModem::GetTxPower(
@@ -740,10 +692,7 @@ ActionPtr<IPipeline> Thingy91xAtModem::SetPsm(
           cmd = "AT+CPSMS=" + std::to_string(psm_mode) + ",,,\"" + tau_str +
                 "\",\"" + active_str + "\"";
         }
-        return at_comm_support_.SendATCommand(cmd);
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        return at_comm_support_.MakeRequest(cmd, kWaitOk);
       }));
 }
 
@@ -770,19 +719,14 @@ ActionPtr<IPipeline> Thingy91xAtModem::SetEdrx(EdrxMode const edrx_mode,
       req_edrx_str + "\"";
 
   return MakeActionPtr<Pipeline>(
-      action_context_,
-      Stage([this, cmd]() { return at_comm_support_.SendATCommand(cmd); }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kTwoSeconds);
+      action_context_, Stage([this, cmd]() {
+        return at_comm_support_.MakeRequest(cmd, kWaitOkTwoSeconds);
       }),
       Stage([this, ptw_str, act_type]() {
         std::string cmd =
             "AT%XPTW=" + std::to_string(static_cast<std::uint8_t>(act_type)) +
             ",\"" + ptw_str + "\"";
-        return at_comm_support_.SendATCommand(cmd);
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kTwoSeconds);
+        return at_comm_support_.MakeRequest(cmd, kWaitOkTwoSeconds);
       }));
 }
 
@@ -803,10 +747,7 @@ ActionPtr<IPipeline> Thingy91xAtModem::SetRai(std::uint8_t const rai_mode) {
       action_context_,  //
       Stage([this, rai_mode]() {
         std::string cmd = "AT%RAI=" + std::to_string(rai_mode);
-        return at_comm_support_.SendATCommand(cmd);
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kTwoSeconds);
+        return at_comm_support_.MakeRequest(cmd, kWaitOkTwoSeconds);
       }));
 }
 
@@ -841,12 +782,10 @@ ActionPtr<IPipeline> Thingy91xAtModem::SetBandLock(
            std::bitset<64>(band_bit1).to_string() + "\"";
   }
 
-  return MakeActionPtr<Pipeline>(
-      action_context_,
-      Stage([this, cmd]() { return at_comm_support_.SendATCommand(cmd); }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kTwoSeconds);
-      }));
+  return MakeActionPtr<Pipeline>(action_context_, Stage([this, cmd]() {
+                                   return at_comm_support_.MakeRequest(
+                                       cmd, kWaitOkTwoSeconds);
+                                 }));
 }
 
 /**
@@ -882,11 +821,8 @@ ActionPtr<IPipeline> Thingy91xAtModem::ResetModemFactory(
   }
   return MakeActionPtr<Pipeline>(
       action_context_, Stage([this, res_mode]() {
-        return at_comm_support_.SendATCommand("AT%XFACTORYRESET=" +
-                                              std::to_string(res_mode));
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kTwoSeconds);
+        return at_comm_support_.MakeRequest(
+            "AT%XFACTORYRESET=" + std::to_string(res_mode), kWaitOkTwoSeconds);
       }));
 }
 
@@ -942,16 +878,12 @@ ActionPtr<IPipeline> Thingy91xAtModem::SendData(ConnectionIndex connection,
       action_context_,
       // #XSOCKETSELECT=<handle>
       Stage([this, handle{static_cast<std::int32_t>(connection)}]() {
-        return at_comm_support_.SendATCommand(
-            "AT#XSOCKETSELECT=" + std::to_string(handle));  // Set socket
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        return at_comm_support_.MakeRequest(
+            "AT#XSOCKETSELECT=" + std::to_string(handle), kWaitOk);
       }),
       // #XSEND[=<data>]
-      Stage([this]() { return at_comm_support_.SendATCommand("AT#XSEND"); }),
       Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        return at_comm_support_.MakeRequest("AT#XSEND", kWaitOk);
       }),
       Stage<GenAction>(action_context_,
                        [this, data]() {
@@ -964,19 +896,21 @@ ActionPtr<IPipeline> Thingy91xAtModem::SendData(ConnectionIndex connection,
                          return UpdateStatus::Result();
                        }),
       Stage([this]() {
-        return at_comm_support_.WaitForResponse(
-            "#XDATAMODE:", kTenSeconds, [](auto& at_buffer, auto pos) {
-              // remove used pos from buffer
-              defer[&]() { at_buffer.erase(pos); };
+        return at_comm_support_.MakeRequest(
+            "", AtRequest::Wait{
+                    "#XDATAMODE:", kTenSeconds, [](auto& at_buffer, auto pos) {
+                      // remove used pos from buffer
+                      defer[&]() { at_buffer.erase(pos); };
 
-              auto response_str = std::string_view{
-                  reinterpret_cast<char const*>(pos->data()), pos->size()};
-              AE_TELED_DEBUG("Send data result {}", response_str);
-              if (response_str == "+XDATAMODE:0") {
-                return UpdateStatus::Result();
-              }
-              return UpdateStatus::Error();
-            });
+                      auto response_str = std::string_view{
+                          reinterpret_cast<char const*>(pos->data()),
+                          pos->size()};
+                      AE_TELED_DEBUG("Send data result {}", response_str);
+                      if (response_str == "+XDATAMODE:0") {
+                        return true;
+                      }
+                      return false;
+                    }});
       }));
 }
 
@@ -985,42 +919,41 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
       action_context_,
       // #XSOCKETSELECT=<handle>
       Stage([this, handle{static_cast<std::int32_t>(connection)}]() {
-        return at_comm_support_.SendATCommand("AT#XSOCKETSELECT=" +
-                                              std::to_string(handle));
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        return at_comm_support_.MakeRequest(
+            "AT#XSOCKETSELECT=" + std::to_string(handle), kWaitOk);
       }),
       // #XRECV=<timeout>[,<flags>]
-      Stage(
-          [this]() { return at_comm_support_.SendATCommand("AT#XRECV=0,64"); }),
+      Stage([this]() {
+        return at_comm_support_.MakeRequest("AT#XRECV=0,64", kWaitOk);
+      }),
       Stage([this, connection]() {
-        return at_comm_support_.WaitForResponse(
-            "#XRECV:", kTenSeconds,
-            [this, connection](auto& at_buffer, auto pos) {
-              // remove used pos from buffer
-              auto end = std::next(pos);
-              defer[&]() { at_buffer.erase(pos, end); };
+        return at_comm_support_.MakeRequest(
+            "", AtRequest::Wait{"#XRECV:", kTenSeconds,
+                                [this, connection](auto& at_buffer, auto pos) {
+                                  // remove used pos from buffer
+                                  auto end = std::next(pos);
+                                  defer[&]() { at_buffer.erase(pos, end); };
 
-              std::size_t size{};
-              auto parse_end =
-                  AtCommSupport::ParseResponse(*pos, "#XRECV", size);
-              if (parse_end == 0) {
-                AE_TELED_ERROR("Parser recv error");
-                return UpdateStatus::Error();
-              }
-              AE_TELED_DEBUG("Size {}", size);
-              DataBuffer data_crate;
-              std::tie(data_crate, end) = at_buffer.GetCrate(size, ++pos);
-              if (data_crate.size() != size) {
-                AE_TELED_ERROR("Parser recv data error");
-                return UpdateStatus::Error();
-              }
+                                  std::size_t size{};
+                                  auto parse_end = AtSupport::ParseResponse(
+                                      *pos, "#XRECV", size);
+                                  if (parse_end == 0) {
+                                    AE_TELED_ERROR("Parser recv error");
+                                    return false;
+                                  }
+                                  AE_TELED_DEBUG("Size {}", size);
+                                  DataBuffer data_crate;
+                                  std::tie(data_crate, end) =
+                                      at_buffer.GetCrate(size, ++pos);
+                                  if (data_crate.size() != size) {
+                                    AE_TELED_ERROR("Parser recv data error");
+                                    return false;
+                                  }
 
-              // Emit the received data
-              data_event_.Emit(connection, data_crate);
-              return UpdateStatus::Result();
-            });
+                                  // Emit the received data
+                                  data_event_.Emit(connection, data_crate);
+                                  return true;
+                                }});
       }));
 }
 
@@ -1029,7 +962,7 @@ void Thingy91xAtModem::SetupPoll() {
       "#XPOLL: ", [this](auto& at_buffer, auto pos) {
         std::int32_t handle{};
         std::string flags;
-        AtCommSupport::ParseResponse(*pos, "#XPOLL", handle, flags);
+        AtSupport::ParseResponse(*pos, "#XPOLL", handle, flags);
         PollEvent(handle, flags);
         return at_buffer.erase(pos);
       });
@@ -1048,17 +981,14 @@ void Thingy91xAtModem::SetupPoll() {
 }
 
 ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
-  return MakeActionPtr<Pipeline>(
-      action_context_, Stage([this]() {
-        std::string handles;
-        for (auto ci : connections_) {
-          handles += "," + std::to_string(ci);
-        }
-        return at_comm_support_.SendATCommand("#XPOLL=0" + handles);
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
-      }));
+  return MakeActionPtr<Pipeline>(action_context_, Stage([this]() {
+                                   std::string handles;
+                                   for (auto ci : connections_) {
+                                     handles += "," + std::to_string(ci);
+                                   }
+                                   return at_comm_support_.MakeRequest(
+                                       "#XPOLL=0" + handles, kWaitOk);
+                                 }));
 }
 
 void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
