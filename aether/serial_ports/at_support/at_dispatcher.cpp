@@ -45,7 +45,6 @@ void AtDispatcher::BufferUpdate(AtBuffer::iterator pos) {
     auto res = buffer_->FindPattern(command, pos);
     if (res != buffer_->end()) {
       observer->Observe(*buffer_, res);
-      break;
     }
   }
   // clean the buffer
