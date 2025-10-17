@@ -41,20 +41,17 @@ class AtBuffer {
   iterator FindPattern(std::string_view str);
   iterator FindPattern(std::string_view str, iterator start);
 
-  DataBuffer GetCrate(std::size_t size);
-  DataBuffer GetCrate(std::size_t size, iterator start);
+  DataBuffer GetCrate(std::size_t size, std::size_t offset = 0);
+  DataBuffer GetCrate(std::size_t size, std::size_t offset, iterator start);
 
   iterator begin();
   iterator end();
   iterator erase(iterator it);
   iterator erase(iterator first, iterator last);
 
-  bool IsOpen() const;
-
  private:
   void DataRead(DataBuffer const& data);
 
-  bool is_open_;
   std::list<DataBuffer> data_lines_;
   UpdateEvent update_event_;
   Subscription data_read_sub_;

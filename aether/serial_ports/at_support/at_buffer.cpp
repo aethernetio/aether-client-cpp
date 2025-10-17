@@ -20,8 +20,7 @@
 
 namespace ae {
 AtBuffer::AtBuffer(ISerialPort& serial_port)
-    : is_open_{serial_port.IsOpen()},
-      data_read_sub_{serial_port.read_event().Subscribe(
+    : data_read_sub_{serial_port.read_event().Subscribe(
           *this, MethodPtr<&AtBuffer::DataRead>{})} {}
 
 AtBuffer::UpdateEvent::Subscriber AtBuffer::update_event() {
@@ -46,15 +45,30 @@ AtBuffer::iterator AtBuffer::FindPattern(std::string_view str, iterator start) {
   return it;
 }
 
-DataBuffer AtBuffer::GetCrate(std::size_t size) {
-  return GetCrate(size, begin());
+DataBuffer AtBuffer::GetCrate(std::size_t size, std::size_t offset) {
+  return GetCrate(size, offset, begin());
 }
 
-DataBuffer AtBuffer::GetCrate(std::size_t size, iterator start) {
+DataBuffer AtBuffer::GetCrate(std::size_t size, std::size_t offset,
+                              iterator start) {
   DataBuffer res;
+  auto copy_offset = offset;
+  auto remaining_size = size;
   for (auto it = start; it != std::end(data_lines_) && res.size() < size;
        it++) {
-    res.insert(std::end(res), it->begin(), it->end());
+    if (copy_offset > it->size()) {
+      copy_offset -= it->size();
+      continue;
+    }
+    auto start = it->begin() + static_cast<std::ptrdiff_t>(copy_offset);
+    auto end = start + static_cast<std::ptrdiff_t>(remaining_size);
+    if (end > it->end()) {
+      end = it->end();
+    }
+
+    res.insert(std::end(res), start, end);
+    remaining_size -= static_cast<std::size_t>(end - start);
+    copy_offset = 0;
   }
 
   return res;
@@ -72,8 +86,6 @@ AtBuffer::iterator AtBuffer::erase(iterator first, iterator last) {
   return data_lines_.erase(first, last);
 }
 
-bool AtBuffer::IsOpen() const { return is_open_; }
-
 void AtBuffer::DataRead(DataBuffer const& data) {
   AE_TELED_DEBUG("AtBuffer receives packet {}", data);
   auto data_str =
@@ -81,8 +93,12 @@ void AtBuffer::DataRead(DataBuffer const& data) {
   auto start = std::end(data_lines_);
   while (!data_str.empty()) {
     auto line_end = data_str.find("\r\n");
-    auto sub = data_str.substr(0, line_end);
+    if (line_end == std::string_view::npos) {
+      AE_TELED_ERROR("The line without \\r\\n {}", data_str);
+    }
     // skip \r\n
+    auto sub = data_str.substr(0, line_end);
+    // move to next line
     data_str = data_str.substr(line_end + 2);
 
     if (sub.empty()) {
