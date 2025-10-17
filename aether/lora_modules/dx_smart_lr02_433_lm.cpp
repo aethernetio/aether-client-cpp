@@ -15,145 +15,161 @@
  */
 
 #include "aether/lora_modules/dx_smart_lr02_433_lm.h"
-#include "aether/serial_ports/serial_port_factory.h"
-#include "aether/mstream.h"
+
+#include <bitset>
+#include <string_view>
+
+#include "aether/misc/defer.h"
+#include "aether/misc/from_chars.h"
+#include "aether/actions/pipeline.h"
+#include "aether/actions/gen_action.h"
 #include "aether/mstream_buffers.h"
-#include "aether/transport/data_packet_collector.h"
+#include "aether/serial_ports/serial_port_factory.h"
 
 #include "aether/lora_modules/lora_modules_tele.h"
 
 namespace ae {
+static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
+static constexpr Duration kTwoSeconds = std::chrono::milliseconds{2000};
+static constexpr Duration kTenSeconds = std::chrono::milliseconds{10000};
 
-DxSmartLr02LoraModule::DxSmartLr02LoraModule(LoraModuleAdapter& adapter,
-                                             IPoller::ptr poller,
-                                             LoraModuleInit lora_module_init,
-                                             Domain* domain)
-    : ILoraModuleDriver{std::move(poller), std::move(lora_module_init), domain},
-      adapter_{&adapter} {
-  serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
-                                          adapter_->poller_,
-                                          GetLoraModuleInit().serial_init);
-  at_comm_support_ = std::make_unique<AtCommSupport>(serial_.get());
+DxSmartLr02LoraModule::DxSmartLr02LoraModule(ActionContext action_context,
+                                             IPoller::ptr const& poller,
+                                             LoraModuleInit lora_module_init)
+    : action_context_{action_context},
+      lora_module_init_{std::move(lora_module_init)},
+      serial_{SerialPortFactory::CreatePort(action_context_, poller,
+                                            lora_module_init_.serial_init)},
+      at_comm_support_{action_context_, *serial_},
+      operation_queue_{action_context_},
+      initiated_{false},
+      started_{false} {
+  Init();
+  Start();
+}
+
+DxSmartLr02LoraModule::~DxSmartLr02LoraModule() { Stop(); }
+
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::Init() {
+  operation_queue_->Push(Stage([this]() {
+    auto init_pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+        // Enter AT command mode
+        Stage([this]() { return EnterAtMode(); }),
+        Stage([this]() { return at_comm_support_.SendATCommand("AT"); }),
+        Stage([this]() {
+          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        }),
+        Stage([this]() {
+          return SetupSerialPort(lora_module_init_.serial_init);
+        }),
+        Stage([this]() { return SetPowerSaveParam(lora_module_init_.psp); }),
+        Stage([this]() { return SetupLoraNet(lora_module_init_); }),
+        // Exit AT command mode
+        Stage([this]() { return ExitAtMode(); }),
+        Stage<GenAction>(action_context_, [this]() {
+          initiated_ = true;
+          return UpdateStatus::Result();
+        }));
+
+    init_pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[]() { AE_TELED_INFO("DxSmartLr02LoraModule init success"); }},
+        OnError{[]() { AE_TELED_ERROR("DxSmartLr02LoraModule init failed"); }},
+    });
+
+    return init_pipeline;
+  }));
 };
 
-bool DxSmartLr02LoraModule::Init() {
-  LoraModuleInit lora_module_init = GetLoraModuleInit();
-  kLoraModuleError err{kLoraModuleError::kNoError};
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::Start() {
+  auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
+  operation_queue_->Push(Stage([this, lora_module_operation]()
+                                   -> ActionPtr<IPipeline> {
+    // if already started, notify of success and return
+    if (started_) {
+      return MakeActionPtr<Pipeline>(
+          action_context_,
+          Stage<GenAction>(action_context_, [lora_module_operation]() {
+            lora_module_operation->Notify();
+            return UpdateStatus::Result();
+          }));
+    }
 
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port is not open.");
-    return false;
-  }
+    auto pipeline =
+        MakeActionPtr<Pipeline>(action_context_,
+                                // Enter AT command mode
+                                Stage([this]() { return EnterAtMode(); }),
+                                // Exit AT command mode
+                                Stage([this]() { return ExitAtMode(); }),
+                                // save it's started
+                                Stage<GenAction>(action_context_, [this]() {
+                                  started_ = true;
+                                  SetupPoll();
+                                  return UpdateStatus::Result();
+                                }));
 
-  err = EnterAtMode();
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{
+            [lora_module_operation]() { lora_module_operation->Notify(); }},
+        OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
+        OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
+  }));
 
-  if (err != kLoraModuleError::kNoError) {
-    AE_TELED_ERROR("Can't enter to the AT command mode.");
-    return false;
-  }
-
-  at_comm_support_->SendATCommand("AT");  // Checking the connection
-  if (err = CheckResponse("OK", 1000, "AT command error!");
-      err != kLoraModuleError::kNoError) {
-    AE_TELED_ERROR("AT command error {}", err);
-    return false;
-  }
-
-  if (err = SetupSerialPort(lora_module_init.serial_init);
-      err != kLoraModuleError::kNoError) {
-    AE_TELED_ERROR("Setup module serial port error {}", err);
-    return false;
-  }
-
-  if (err = SetupLoraNet(lora_module_init); err != kLoraModuleError::kNoError) {
-    AE_TELED_ERROR("Setup module serial port error {}", err);
-    return false;
-  }
-
-  err = ExitAtMode();
-
-  if (err != kLoraModuleError::kNoError) {
-    AE_TELED_ERROR("Can't exit from the AT command mode.");
-    return false;
-  }
-
-  return true;
+  return lora_module_operation;
 };
 
-bool DxSmartLr02LoraModule::Start() {
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port is not open");
-    return false;
-  }
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::Stop() {
+  auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
+  
+  operation_queue_->Push(Stage([this, lora_module_operation]() {
+  auto pipeline = MakeActionPtr<Pipeline>(
+      action_context_,
+      // Enter AT command mode
+      Stage([this]() { return EnterAtMode(); }),
+      Stage([this]() { return at_comm_support_.SendATCommand("AT+RESET"); }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }),
+      // Exit AT command mode
+      Stage([this]() { return ExitAtMode(); }));
+      
+      pipeline->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[lora_module_operation]() { lora_module_operation->Notify(); }},
+      OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
+      OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
 
-  return true;
+  return pipeline;
+}));
+
+return lora_module_operation;
 };
 
-bool DxSmartLr02LoraModule::Stop() {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port is not open");
-    return false;
-  }
-
-  err = EnterAtMode();
-
-  if (err != kLoraModuleError::kNoError) {
-    AE_TELED_ERROR("Can't enter to the AT command mode.");
-    return false;
-  }
-
-  at_comm_support_->SendATCommand("AT+RESET");  // Reset module
-  if (err = CheckResponse("OK", 1000, "AT command error!");
-      err != kLoraModuleError::kNoError) {
-    AE_TELED_ERROR("AT command error {}", err);
-    return false;
-  }
-
-  err = ExitAtMode();
-
-  if (err != kLoraModuleError::kNoError) {
-    AE_TELED_ERROR("Can't exit from the AT command mode.");
-    return false;
-  }
-
-  return true;
-};
-
-ConnectionLoraIndex DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
-                                                       std::string const& host,
-                                                       std::uint16_t port) {
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port not open");
-    return -1;
-  }
-
+/* ActionPtr<DxSmartLr02LoraModule::OpenNetworkOperation>
+DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
+                                   std::string const& host,
+                                   std::uint16_t port) {
   auto connect_index = static_cast<ConnectionLoraIndex>(connect_vec_.size());
   connect_vec_.emplace_back(
       LoraConnection{connect_index, protocol, host, port});
 
   return connect_index;
-};
+};*/
 
-void DxSmartLr02LoraModule::CloseNetwork(
+/* void DxSmartLr02LoraModule::CloseNetwork(
     ae::ConnectionLoraIndex connect_index) {
   if (connect_index >= connect_vec_.size()) {
     AE_TELED_ERROR("Connection index overflow");
     return;
   }
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port not open");
-    return;
-  }
-  /* Removing connection
-    auto const& connection =
-      connect_vec_.at(static_cast<std::size_t>(connect_index));*/
 
   connect_vec_.erase(connect_vec_.begin() + connect_index);
-};
+};*/
 
-void DxSmartLr02LoraModule::WritePacket(ae::ConnectionLoraIndex connect_index,
+/* void DxSmartLr02LoraModule::WritePacket(
+    ae::ConnectionLoraIndex connect_index,
                                         ae::DataBuffer const& data) {
   LoraPacket lora_packet{};
 
@@ -172,377 +188,335 @@ void DxSmartLr02LoraModule::WritePacket(ae::ConnectionLoraIndex connect_index,
   os << lora_packet;
 
   serial_->Write(packet_data);
+};*/
+
+// DataBuffer DxSmartLr02LoraModule::ReadPacket(
+//     ae::ConnectionLoraIndex /* connect_index*/, ae::Duration /* timeout*/) {
+//   LoraPacket lora_packet{};
+//   DataBuffer data{};
+//
+//   auto response = serial_->Read();
+//   std::vector<std::uint8_t> packet_data(response->begin(), response->end());
+//   VectorReader<PacketSize> vr(packet_data);
+//   auto is = imstream{vr};
+//   // copy data with size
+//   is >> lora_packet;
+//
+//   data = lora_packet.data;
+//
+//   return data;
+// };
+
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetPowerSaveParam(LoraPowerSaveParam const& psp) {
+ auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
+
+operation_queue_->Push(Stage([this, lora_module_operation, psp{psp}]() {
+  auto pipeline = MakeActionPtr<Pipeline>(
+      action_context_,
+      // Enter AT command mode
+      Stage([this]() { return EnterAtMode(); }),
+      // Configure Lora Module Mode
+      Stage([this, psp]() {
+      return SetLoraModuleMode(psp.lora_module_mode);
+      }),
+      // Configure Lora Module Level
+      Stage([this, psp]() {
+      return SetLoraModuleLevel(psp.lora_module_level);
+      }),
+      // Configure Lora Module Power
+      Stage([this, psp]() {
+      return SetLoraModulePower(psp.lora_module_power);
+      }),
+      // Configure Lora Module BandWidth
+      Stage([this, psp]() {
+      return SetLoraModuleBandWidth(psp.lora_module_band_width);
+      }),
+      // Configure Lora Module Coding Rate
+      Stage([this, psp]() {
+      return SetLoraModuleCodingRate(psp.lora_module_coding_rate);
+      }),
+      // Configure Lora Module Spreading Factor
+      Stage([this, psp]() {
+      return SetLoraModuleSpreadingFactor(psp.lora_module_spreading_factor);
+      }),
+      // Exit AT command mode
+      Stage([this]() { return ExitAtMode(); 
+  }));
+  pipeline->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[lora_module_operation]() { lora_module_operation->Notify(); }},
+      OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
+      OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
+
+  return pipeline;
+}));
+
+return lora_module_operation;
 };
 
-DataBuffer DxSmartLr02LoraModule::ReadPacket(
-    ae::ConnectionLoraIndex /* connect_index*/, ae::Duration /* timeout*/) {
-  LoraPacket lora_packet{};
-  DataBuffer data{};
-
-  auto response = serial_->Read();
-  std::vector<std::uint8_t> packet_data(response->begin(), response->end());
-  VectorReader<PacketSize> vr(packet_data);
-  auto is = imstream{vr};
-  // copy data with size
-  is >> lora_packet;
-
-  data = lora_packet.data;
-
-  return data;
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::PowerOff() {
+  return {};
 };
 
-bool DxSmartLr02LoraModule::SetPowerSaveParam(std::string const& /* psp */) {
-  return true;
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetLoraModuleAddress(std::uint16_t const& address) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, address]() {
+        return at_comm_support_.SendATCommand("AT+MAC" +
+                                              AdressToString(address));
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
 };
 
-bool DxSmartLr02LoraModule::PowerOff() { return true; };
-
-bool DxSmartLr02LoraModule::SetLoraModuleAddress(std::uint16_t const& address) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  at_comm_support_->SendATCommand(
-      "AT+MAC" + AdressToString(address));  // Set module address
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return false;
-  }
-
-  return true;
-};
-
-bool DxSmartLr02LoraModule::SetLoraModuleChannel(std::uint8_t const& channel) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetLoraModuleChannel(std::uint8_t const& channel) {
   if (channel > 0x1E) {
-    return false;
+    return {};
   }
 
-  at_comm_support_->SendATCommand(
-      "AT+CHANNEL" + ChannelToString(channel));  // Set module channel
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return false;
-  }
-
-  return true;
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, channel]() {
+        return at_comm_support_.SendATCommand("AT+CHANNEL" +
+                                              ChannelToString(channel));
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
 };
 
-bool DxSmartLr02LoraModule::SetLoraModuleMode(kLoraModuleMode const& mode) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  at_comm_support_->SendATCommand(
-      "AT+MODE" + std::to_string(static_cast<int>(mode)));  // Set module mode
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return false;
-  }
-
-  return true;
-};
-
-bool DxSmartLr02LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& level) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  at_comm_support_->SendATCommand(
-      "AT+LEVEL" +
-      std::to_string(static_cast<int>(level)));  // Set module level
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return false;
-  }
-
-  return true;
-};
-
-bool DxSmartLr02LoraModule::SetLoraModulePower(kLoraModulePower const& power) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  at_comm_support_->SendATCommand(
-      "AT+POWE" + std::to_string(static_cast<int>(power)));  // Set module power
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return false;
-  }
-
-  return true;
-};
-
-bool DxSmartLr02LoraModule::SetLoraModuleBandWidth(
-    kLoraModuleBandWidth const& band_width) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  at_comm_support_->SendATCommand(
-      "AT+BW" +
-      std::to_string(static_cast<int>(band_width)));  // Set module bandwidth
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return false;
-  }
-
-  return true;
-};
-
-bool DxSmartLr02LoraModule::SetLoraModuleCodingRate(
-    kLoraModuleCodingRate const& coding_rate) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  at_comm_support_->SendATCommand(
-      "AT+CR" +
-      std::to_string(static_cast<int>(coding_rate)));  // Set module coding rate
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return false;
-  }
-
-  return true;
-};
-
-bool DxSmartLr02LoraModule::SetLoraModuleSpreadingFactor(
-    kLoraModuleSpreadingFactor const& spreading_factor) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  at_comm_support_->SendATCommand(
-      "AT+SF" + std::to_string(static_cast<int>(
-                    spreading_factor)));  // Set module spreading factor
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return false;
-  }
-
-  return true;
-};
-
-bool DxSmartLr02LoraModule::SetLoraModuleCRCCheck(
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetLoraModuleCRCCheck(
     kLoraModuleCRCCheck const& crc_check) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  at_comm_support_->SendATCommand(
-      "AT+CRC" +
-      std::to_string(static_cast<int>(crc_check)));  // Set module crc check
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return false;
-  }
-
-  return true;
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, crc_check]() {
+        return at_comm_support_.SendATCommand(
+            "AT+CRC" + std::to_string(static_cast<int>(crc_check)));
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
 };
 
-bool DxSmartLr02LoraModule::SetLoraModuleIQSignalInversion(
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetLoraModuleIQSignalInversion(
     kLoraModuleIQSignalInversion const& signal_inversion) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  at_comm_support_->SendATCommand(
-      "AT+IQ" + std::to_string(static_cast<int>(
-                    signal_inversion)));  // Set module signal inversion
-
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return false;
-  }
-
-  return true;
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, signal_inversion]() {
+        return at_comm_support_.SendATCommand(
+            "AT+IQ" + std::to_string(static_cast<int>(signal_inversion)));
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
 };
 
 // =============================private members=========================== //
-kLoraModuleError DxSmartLr02LoraModule::CheckResponse(
-    std::string const& response, std::uint32_t const wait_time,
-    std::string const& error_message) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
-  if (!at_comm_support_->WaitForResponse(
-          response, std::chrono::milliseconds(wait_time))) {
-    AE_TELED_ERROR(error_message);
-    err = kLoraModuleError::kAtCommandError;
-  }
-
-  return err;
-}
-
-kLoraModuleError DxSmartLr02LoraModule::EnterAtMode() {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::EnterAtMode() {
   if (at_mode_ == false) {
-    at_comm_support_->SendATCommand("+++");
-    if (err = CheckResponse("Entry AT", 1000, "EnterAtMode command error!");
-        err != kLoraModuleError::kNoError) {
-      AE_TELED_ERROR("AT command error {}", err);
-    } else {
-      at_mode_ = true;
-    }
+    at_mode_ = true;
+    return MakeActionPtr<Pipeline>(
+        action_context_,
+        Stage([this]() { return at_comm_support_.SendATCommand("+++"); }),
+        Stage([this]() {
+          return at_comm_support_.WaitForResponse("Entry AT", kOneSecond);
+        }));
   }
 
-  return err;
+  return {};
 };
 
-kLoraModuleError DxSmartLr02LoraModule::ExitAtMode() {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-  uint8_t answer_cnt{0};
-
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::ExitAtMode() {
   if (at_mode_ == true) {
-    at_comm_support_->SendATCommand("+++");
-    if (err = CheckResponse("Exit AT", 1000, "ExitAtMode command error!");
-        err != kLoraModuleError::kNoError) {
-      AE_TELED_ERROR("AT command error {}", err);
-    } else {
-      answer_cnt++;
-    }
-  }
-
-  if (answer_cnt == 1) {
-    if (err = CheckResponse("Power on", 1000, "ExitAtMode command error!");
-        err != kLoraModuleError::kNoError) {
-      AE_TELED_ERROR("AT command error {}", err);
-    } else {
-      answer_cnt++;
-    }
-  }
-
-  if (answer_cnt == 2) {
     at_mode_ = false;
+    return MakeActionPtr<Pipeline>(
+        action_context_,
+        Stage([this]() { return at_comm_support_.SendATCommand("+++"); }),
+        Stage([this]() {
+          return at_comm_support_.WaitForResponse("Exit AT", kOneSecond);
+        }),
+        Stage([this]() {
+          return at_comm_support_.WaitForResponse("Power on", kOneSecond);
+        }));
   }
 
-  return err;
+  return {};
 };
 
-kLoraModuleError DxSmartLr02LoraModule::SetupSerialPort(
-    SerialInit& serial_init) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetLoraModuleMode(kLoraModuleMode const& mode) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, mode]() {
+        return at_comm_support_.SendATCommand(
+            "AT+MODE" + std::to_string(static_cast<int>(mode)));
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
+};
 
-  err = SetBaudRate(serial_init.baud_rate);
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& level) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, level]() {
+        return at_comm_support_.SendATCommand(
+            "AT+LEVEL" + std::to_string(static_cast<int>(level)));
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
+};
 
-  if (err != kLoraModuleError::kNoError) {
-    return err;
-  }
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetLoraModulePower(kLoraModulePower const& power) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, power]() {
+        return at_comm_support_.SendATCommand(
+            "AT+POWE" + std::to_string(static_cast<int>(power)));
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
+};
 
-  err = SetParity(serial_init.parity);
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetLoraModuleBandWidth(
+    kLoraModuleBandWidth const& band_width) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, band_width]() {
+        return at_comm_support_.SendATCommand(
+            "AT+BW" + std::to_string(static_cast<int>(band_width)));
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
+};
 
-  if (err != kLoraModuleError::kNoError) {
-    return err;
-  }
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetLoraModuleCodingRate(
+    kLoraModuleCodingRate const& coding_rate) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, coding_rate]() {
+        return at_comm_support_.SendATCommand(
+            "AT+CR" + std::to_string(static_cast<int>(coding_rate)));
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
+};
 
-  err = SetStopBits(serial_init.stop_bits);
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetLoraModuleSpreadingFactor(
+    kLoraModuleSpreadingFactor const& spreading_factor) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, spreading_factor]() {
+        return at_comm_support_.SendATCommand(
+            "AT+SF" + std::to_string(static_cast<int>(spreading_factor)));
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
+};
 
-  return err;
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetupSerialPort(SerialInit& serial_init) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, serial_init]() {
+        return SetBaudRate(serial_init.baud_rate);
+      }),
+      Stage([this, serial_init]() { return SetParity(serial_init.parity); }),
+      Stage([this, serial_init]() {
+        return SetStopBits(serial_init.stop_bits);
+      }));
 }
 
-kLoraModuleError DxSmartLr02LoraModule::SetBaudRate(kBaudRate baud_rate) {
-  kLoraModuleError err{kLoraModuleError::kNoError};
-
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetBaudRate(kBaudRate baud_rate) {
   auto it = baud_rate_commands_lr02.find(baud_rate);
   if (it == baud_rate_commands_lr02.end()) {
-    err = kLoraModuleError::kBaudRateError;
-    return err;
+    return {};
   }
 
-  at_comm_support_->SendATCommand(it->second);
-  err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    err = kLoraModuleError::kBaudRateError;
-  }
-
-  return err;
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, it]() {
+        return at_comm_support_.SendATCommand(it->second);
+      }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
 }
 
-kLoraModuleError DxSmartLr02LoraModule::SetParity(kParity parity) {
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetParity(kParity parity) {
+  std::string cmd{};
+
   switch (parity) {
     case kParity::kNoParity:
-      at_comm_support_->SendATCommand("AT+PARI0");  // Set no parity
+      cmd = "AT+PARI0";  // Set no parity
       break;
     case kParity::kOddParity:
-      at_comm_support_->SendATCommand("AT+PARI1");  // Set odd parity
+      cmd = "AT+PARI1";  // Set odd parity
       break;
     case kParity::kEvenParity:
-      at_comm_support_->SendATCommand("AT+PARI2");  // Set even parity
+      cmd = "AT+PARI2";  // Set even parity
       break;
     default:
-      return kLoraModuleError::kParityError;
+      return {};
       break;
   }
 
-  auto err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return kLoraModuleError::kParityError;
-  }
-
-  return kLoraModuleError::kNoError;
+  return MakeActionPtr<Pipeline>(
+      action_context_,
+      Stage([this, cmd]() { return at_comm_support_.SendATCommand(cmd); }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
 }
 
-kLoraModuleError DxSmartLr02LoraModule::SetStopBits(kStopBits stop_bits) {
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetStopBits(kStopBits stop_bits) {
+  std::string cmd{};
+
   switch (stop_bits) {
     case kStopBits::kOneStopBit:
-      at_comm_support_->SendATCommand("AT+STOP0");  // 0 stop bits
+      cmd = "AT+STOP0";  // 0 stop bits
       break;
     case kStopBits::kTwoStopBit:
-      at_comm_support_->SendATCommand("AT+PARI1");  // 2 stop bits
+      cmd = "AT+PARI1";  // 2 stop bits
       break;
     default:
-      return kLoraModuleError::kStopBitsError;
+      return {};
       break;
   }
 
-  auto err = CheckResponse("OK", 1000, "No response from lora module!");
-  if (err != kLoraModuleError::kNoError) {
-    return kLoraModuleError::kStopBitsError;
-  }
-
-  return kLoraModuleError::kNoError;
+  return MakeActionPtr<Pipeline>(
+      action_context_,
+      Stage([this, cmd]() { return at_comm_support_.SendATCommand(cmd); }),
+      Stage([this]() {
+        return at_comm_support_.WaitForResponse("OK", kOneSecond);
+      }));
 }
 
-kLoraModuleError DxSmartLr02LoraModule::SetupLoraNet(
-    LoraModuleInit& lora_module_init) {
-  // Module address
-  if (!SetLoraModuleAddress(lora_module_init.lora_module_my_adress)) {
-    return kLoraModuleError::kLoraAddressError;
-  };
-  // Module channel
-  if (!SetLoraModuleChannel(lora_module_init.lora_module_channel)) {
-    return kLoraModuleError::kLoraChannelError;
-  };
-  // Module mode
-  if (!SetLoraModuleMode(lora_module_init.lora_module_mode)) {
-    return kLoraModuleError::kLoraModeError;
-  };
-  // Module level
-  if (!SetLoraModuleLevel(lora_module_init.lora_module_level)) {
-    return kLoraModuleError::kLoraLevelError;
-  };
-  // Module power
-  if (!SetLoraModulePower(lora_module_init.lora_module_power)) {
-    return kLoraModuleError::kLoraPowerError;
-  };
-  // Module BandWidth
-  if (!SetLoraModuleBandWidth(lora_module_init.lora_module_band_width)) {
-    return kLoraModuleError::kLoraBandWidthError;
-  };
-  // Module CodingRate
-  if (!SetLoraModuleCodingRate(lora_module_init.lora_module_coding_rate)) {
-    return kLoraModuleError::kLoraCodingRateError;
-  };
-  // Module spreading factor
-  if (!SetLoraModuleSpreadingFactor(
-          lora_module_init.lora_module_spreading_factor)) {
-    return kLoraModuleError::kLoraSFError;
-  };
-  // Module crc check
-  if (!SetLoraModuleCRCCheck(lora_module_init.lora_module_crc_check)) {
-    return kLoraModuleError::kLoraCRCError;
-  };
-  // Module signal inversion
-  if (!SetLoraModuleIQSignalInversion(
-          lora_module_init.lora_module_signal_inversion)) {
-    return kLoraModuleError::kLoraSIError;
-  };
-
-  return kLoraModuleError::kNoError;
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::SetupLoraNet(LoraModuleInit& lora_module_init) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, lora_module_init]() {
+        return SetLoraModuleAddress(lora_module_init.lora_module_my_adress);
+      }),
+      Stage([this, lora_module_init]() {
+        return SetLoraModuleChannel(lora_module_init.lora_module_channel);
+      }),
+      Stage([this, lora_module_init]() {
+        return SetLoraModuleCRCCheck(lora_module_init.lora_module_crc_check);
+      }),
+      Stage([this, lora_module_init]() {
+        return SetLoraModuleIQSignalInversion(
+            lora_module_init.lora_module_signal_inversion);
+      }));
 }
 
 std::string DxSmartLr02LoraModule::AdressToString(uint16_t value) {

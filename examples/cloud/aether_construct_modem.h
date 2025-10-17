@@ -27,11 +27,11 @@ static constexpr std::string_view kSerialPortModem =
 SerialInit serial_init_modem = {std::string(kSerialPortModem),
                                 kBaudRate::kBaudRate115200};
 
-ae::ModemInit const modem_init{
+static ae::ModemInit const modem_init{
     serial_init_modem,             // Serial port
     {},                            // Power save parameters
     {},                            // Base station
-    {1, 1, 1, 1},                  // Pin code
+    1111,                          // Pin code
     false,                         // Use pin
     ae::kModemMode::kModeNbIot,    // Modem mode
     "00001",                       // Operator code
@@ -46,6 +46,7 @@ ae::ModemInit const modem_init{
     "",                            // SSL cert
     false                          // Use SSL
 };
+
 static RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
@@ -54,7 +55,8 @@ static RcPtr<AetherApp> construct_aether_app() {
             auto adapter_registry =
                 context.domain().CreateObj<AdapterRegistry>();
             adapter_registry->Add(context.domain().CreateObj<ae::ModemAdapter>(
-                ae::GlobalId::kModemAdapter, context.aether(), modem_init));
+                ae::GlobalId::kModemAdapter, context.aether(), context.poller(),
+                modem_init));
             return adapter_registry;
           })
 #  endif

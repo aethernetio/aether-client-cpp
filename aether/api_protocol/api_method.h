@@ -22,8 +22,8 @@
 #include "aether/api_protocol/send_result.h"
 #include "aether/api_protocol/api_context.h"
 #include "aether/api_protocol/api_protocol.h"
-#include "aether/api_protocol/promise_action.h"
 #include "aether/api_protocol/protocol_context.h"
+#include "aether/api_protocol/api_promise_action.h"
 
 namespace ae {
 /**
@@ -65,20 +65,20 @@ struct Method<MessageCode, void(Args...)> {
  * return PromiseView<R> for waiting the result or error.
  */
 template <MessageId MessageCode, typename R, typename... Args>
-struct Method<MessageCode, PromisePtr<R>(Args...)> {
+struct Method<MessageCode, ApiPromisePtr<R>(Args...)> {
   explicit Method(ProtocolContext& protocol_context,
                   ActionContext action_context)
       : protocol_context_{&protocol_context},
         action_context_{std::move(action_context)} {}
 
-  PromisePtr<R> operator()(Args... args) {
+  ApiPromisePtr<R> operator()(Args... args) {
     auto request_id = RequestId::GenRequestId();
     auto* packet_stack = protocol_context_->packet_stack();
     assert(packet_stack);
     packet_stack->Push(*this,
                        GenericMessage{request_id, std::forward<Args>(args)...});
 
-    auto promise_ptr = PromisePtr<R>{action_context_, request_id};
+    auto promise_ptr = ApiPromisePtr<R>{action_context_, request_id};
 
     SendResult::OnResponse(*protocol_context_, request_id,
                            [p_ptr{promise_ptr}](ApiParser& parser) mutable {

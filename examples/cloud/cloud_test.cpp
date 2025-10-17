@@ -19,22 +19,21 @@
 
 #include "aether/all.h"
 
+#define CLOUD_TEST_LORA_MODULE 1
 #define CLOUD_TEST_MODEM 0
 
 #if defined ESP_PLATFORM
-#  define CLOUD_TEST_ESP_WIFI 1
+#  define CLOUD_TEST_ESP_WIFI 0
 #else
-#  define CLOUD_TEST_ETHERNET 1
+#  define CLOUD_TEST_ETHERNET 0
 #endif
 
 // IWYU pragma: begin_keeps
+#include "aether_construct_lora_module.h"
 #include "aether_construct_modem.h"
 #include "aether_construct_ethernet.h"
 #include "aether_construct_esp_wifi.h"
 // IWYU pragma: end_keeps
-
-static constexpr std::string_view kSerialPortLoraModule =
-    "COM38";  // Lora module serial port
 
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{

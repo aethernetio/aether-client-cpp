@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-#include "aether/channels/modem_channel.h"
+#include "aether/channels/lora_module_channel.h"
 
 #include <utility>
 
 #include "aether/memory.h"
 #include "aether/aether.h"
 #include "aether/types/state_machine.h"
-#include "aether/transport/modems/modem_transport.h"
+#include "aether/transport/lora_modules/lora_module_transport.h"
 
 namespace ae {
-namespace modem_channel_internal {
-class ModemTransportBuilderAction final : public TransportBuilderAction {
+namespace lora_module_channel_internal {
+class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
   enum class State : std::uint8_t {
-    kModemConnect,
+    kLoraModuleConnect,
     kTransportCreate,
     kWaitTransportConnected,
     kTransportConnected,
@@ -35,24 +35,22 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
   };
 
  public:
-  ModemTransportBuilderAction(ActionContext action_context,
-                              ModemChannel& channel,
-                              ModemAccessPoint& access_point,
-                              UnifiedAddress address)
+  LoraModuleTransportBuilderAction(ActionContext action_context,
+                                   LoraModuleChannel& channel,
+                                   LoraModuleAccessPoint& access_point,
+                                   UnifiedAddress address)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
         channel_{&channel},
         access_point_{&access_point},
         address_{std::move(address)},
-        state_{State::kModemConnect},
-        start_time_{Now()} {
-    AE_TELED_DEBUG("Modem transport building");
-  }
+        state_{State::kLoraModuleConnect},
+        start_time_{Now()} {}
 
   UpdateStatus Update() override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
-        case State::kModemConnect:
+        case State::kLoraModuleConnect:
           ConnectModem();
           break;
         case State::kTransportCreate:
@@ -75,7 +73,7 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
   }
 
  private:
-  void ConnectModem() {
+  void ConnectLoraModule() {
     modem_connect_sub_ =
         access_point_->Connect()->StatusEvent().Subscribe(ActionHandler{
             OnResult{[this]() {
@@ -92,9 +90,9 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
   void CreateTransport() {
     state_ = State::kWaitTransportConnected;
 
-    auto& modem_driver = access_point_->modem_driver();
-    transport_stream_ = std::make_unique<ModemTransport>(
-        action_context_, modem_driver, address_);
+    auto& lora_module_driver = access_point_->lora_module_driver();
+    transport_stream_ = std::make_unique<LoraModuleTransport>(
+        action_context_, lora_module_driver, address_);
 
     if (transport_stream_->stream_info().link_state == LinkState::kLinked) {
       Connected();
@@ -116,7 +114,7 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
 
   void Connected() {
     auto built_time = std::chrono::duration_cast<Duration>(Now() - start_time_);
-    AE_TELED_DEBUG("Modem transport built by {:%S}", built_time);
+    AE_TELED_DEBUG("Lora modem transport built by {:%S}", built_time);
     channel_->channel_statistics().AddConnectionTime(built_time);
     state_ = State::kTransportConnected;
     Action::Trigger();
@@ -135,8 +133,8 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
 
 }  // namespace modem_channel_internal
 
-ModemChannel::ModemChannel(ObjPtr<Aether> aether,
-                           ModemAccessPoint::ptr access_point,
+LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
+                           LoraModuleAccessPoint::ptr access_point,
                            UnifiedAddress address, Domain* domain)
     : Channel{std::move(address), domain},
       aether_{std::move(aether)},
@@ -147,15 +145,15 @@ ModemChannel::ModemChannel(ObjPtr<Aether> aether,
   switch (protocol) {
     case Protocol::kTcp: {
       transport_properties_.connection_type = ConnectionType::kConnectionFull;
-      transport_properties_.max_packet_size = 1024;
-      transport_properties_.rec_packet_size = 1024;
+      transport_properties_.max_packet_size = 400;
+      transport_properties_.rec_packet_size = 400;
       transport_properties_.reliability = Reliability::kReliable;
       break;
     }
     case Protocol::kUdp: {
       transport_properties_.connection_type = ConnectionType::kConnectionLess;
-      transport_properties_.max_packet_size = 1024;
-      transport_properties_.rec_packet_size = 1024;
+      transport_properties_.max_packet_size = 400;
+      transport_properties_.rec_packet_size = 400;
       transport_properties_.reliability = Reliability::kUnreliable;
       break;
     }
@@ -165,12 +163,12 @@ ModemChannel::ModemChannel(ObjPtr<Aether> aether,
   }
 }
 
-ActionPtr<TransportBuilderAction> ModemChannel::TransportBuilder() {
-  return ActionPtr<modem_channel_internal::ModemTransportBuilderAction>{
+ActionPtr<TransportBuilderAction> LoraModuleChannel::TransportBuilder() {
+  return ActionPtr<modem_channel_internal::LoraModuleTransportBuilderAction>{
       *aether_.as<Aether>(), *this, *access_point_, address};
 }
 
-Duration ModemChannel::TransportBuildTimeout() const {
+Duration LoraModuleChannel::TransportBuildTimeout() const {
   return channel_statistics_->connection_time_statistics().percentile<99>() +
          std::chrono::seconds{5};
 }
