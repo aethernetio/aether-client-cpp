@@ -15,20 +15,35 @@
  */
 
 #include "aether/lora_modules/ebyte_e22_400_lm.h"
+
+#include <bitset>
+#include <string_view>
+
+#include "aether/misc/defer.h"
+#include "aether/misc/from_chars.h"
+#include "aether/actions/pipeline.h"
+#include "aether/actions/gen_action.h"
+#include "aether/mstream_buffers.h"
 #include "aether/serial_ports/serial_port_factory.h"
 
 #include "aether/lora_modules/lora_modules_tele.h"
 
 namespace ae {
+static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
+static constexpr Duration kTwoSeconds = std::chrono::milliseconds{2000};
+static constexpr Duration kTenSeconds = std::chrono::milliseconds{10000};
 
 EbyteE22LoraModule::EbyteE22LoraModule(ActionContext action_context,
-                                       IPoller::ptr poller,
+                                       IPoller::ptr const& poller,
                                        LoraModuleInit lora_module_init)
     : action_context_{action_context},
       lora_module_init_{std::move(lora_module_init)},
       serial_{SerialPortFactory::CreatePort(action_context_, std::move(poller),
                                             lora_module_init_.serial_init)},
-      at_comm_support_{action_context_, *serial_} {
+      at_comm_support_{action_context_, *serial_},
+      operation_queue_{action_context_},
+      initiated_{false},
+      started_{false} {
   Init();
   Start();
 }
@@ -54,18 +69,18 @@ EbyteE22LoraModule::OpenNetwork(ae::Protocol /* protocol*/,
   return {};
 };
 
-void EbyteE22LoraModule::CloseNetwork(
-    ae::ConnectionLoraIndex /*connect_index*/){};
+// void EbyteE22LoraModule::CloseNetwork(
+//    ae::ConnectionLoraIndex /*connect_index*/){};
 
-void EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
-                                     ae::DataBuffer const& /*data*/) {};
+//void EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
+//                                     ae::DataBuffer const& /*data*/) {};
 
-DataBuffer EbyteE22LoraModule::ReadPacket(
-    ae::ConnectionLoraIndex /*connect_index*/, ae::Duration /*timeout*/) {
-  DataBuffer data{};
-
-  return data;
-};
+//DataBuffer EbyteE22LoraModule::ReadPacket(
+//    ae::ConnectionLoraIndex /*connect_index*/, ae::Duration /*timeout*/) {
+//  DataBuffer data{};
+//
+//  return data;
+//};
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetPowerSaveParam(std::string const& /*psp*/) {

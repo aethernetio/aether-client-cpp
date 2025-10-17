@@ -27,7 +27,7 @@ std::unique_ptr<IModemDriver> ModemDriverFactory::CreateModem(
     ActionContext action_context, IPoller::ptr const& poller,
     ModemInit modem_init) {
 #if AE_MODEM_BG95_ENABLED == 1
-  return domain->CreateObj<Bg95AtModem>(adapter, poller, std::move(modem_init));
+  return domain->CreateObj<Bg95AtModem>(action_context, poller, std::move(modem_init));
 #elif AE_MODEM_SIM7070_ENABLED == 1
   return std::make_unique<Sim7070AtModem>(action_context, poller,
                                           std::move(modem_init));

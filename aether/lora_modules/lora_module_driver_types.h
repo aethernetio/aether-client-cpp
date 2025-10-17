@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
-#define AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
+#ifndef AETHER_LORA_MODULES_LORA_MODULE_DRIVER_TYPES_H_
+#define AETHER_LORA_MODULES_LORA_MODULE_DRIVER_TYPES_H_
+
+#include <string>
+#include <vector>
 
 #include "aether/reflect/reflect.h"
 #include "aether/serial_ports/serial_port_types.h"
@@ -159,4 +162,4 @@ struct LoraPacket {
 };
 }  // namespace ae
 
-#endif  // AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
+#endif  // AETHER_LORA_MODULES_LORA_MODULE_DRIVER_TYPES_H_

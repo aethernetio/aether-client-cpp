@@ -27,19 +27,23 @@ static constexpr std::string_view kSerialPortLoraModule =
 SerialInit serial_init_lora_module = {std::string(kSerialPortLoraModule),
                                       kBaudRate::kBaudRate115200};
 
-ae::LoraModuleInit const lora_module_init{
-    serial_init_modem,                           // Serial port
-    {0},                                         // Lora module address
-    {0},                                         // Lora module BS address
-    {0},                                         // Channel
-    {kLoraModuleMode::kTransparentTransmission}, // Mode
-    {kLoraModuleLevel::kLevel0},                 // Level
-    {kLoraModulePower::kPower22},                // Power
-    {kLoraModuleBandWidth::kBandWidth125K},      // Bandwidth
-    {kLoraModuleCodingRate::kCR4_6},             // Coding rate
-    {kLoraModuleSpreadingFactor::kSF12},         // Spread factor
-    {kLoraModuleCRCCheck::kCRCOff},              // CRC check
+LoraPowerSaveParam psp{
+   {kLoraModuleMode::kTransparentTransmission}, //kLoraModuleMode
+   {kLoraModuleLevel::kLevel0},                 //kLoraModuleLevel
+   {kLoraModulePower::kPower22},                //kLoraModulePower
+   {kLoraModuleBandWidth::kBandWidth125K},      //kLoraModuleBandWidth
+   {kLoraModuleCodingRate::kCR4_6},             //kLoraModuleCodingRate
+   {kLoraModuleSpreadingFactor::kSF12}          //kLoraModuleSpreadingFactor
 };
+
+ae::LoraModuleInit const lora_module_init{
+    serial_init_lora_module,                    // Serial port
+    psp,                                        // Power Save Parameters
+    {0},                                        // Lora module address
+    {0},                                        // Lora module BS address
+    {0},                                        // Channel
+    {kLoraModuleCRCCheck::kCRCOff},             // CRC check
+    {kLoraModuleIQSignalInversion::kIQoff}};    // Signal inversion
 
 static RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(

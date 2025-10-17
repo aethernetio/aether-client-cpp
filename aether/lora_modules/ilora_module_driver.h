@@ -23,22 +23,19 @@
 #include "aether/types/address.h"
 #include "aether/events/events.h"
 #include "aether/actions/action.h"
-#include "aether/actions/pipeline.h"
 #include "aether/types/data_buffer.h"
 #include "aether/actions/action_ptr.h"
+#include "aether/actions/notify_action.h"
+#include "aether/actions/promise_action.h"
 #include "aether/lora_modules/lora_module_driver_types.h"
 
 namespace ae {
-class IPipeline;
 class ILoraModuleDriver{
  public:
-  using LoraModuleOperation = IPipeline;
-  using DataEvent = Event<void(ConnectionLoraIndex, DataBuffer const& data)>;
-  class OpenNetworkOperation : public Action<OpenNetworkOperation> {
-   public:
-    virtual UpdateStatus Update() = 0;
-    virtual ConnectionLoraIndex connection_index() const = 0;
-  };
+  using ModemOperation = NotifyAction;
+  using WriteOperation = NotifyAction;
+  using OpenNetworkOperation = PromiseAction<ConnectionIndex>;
+  using DataEvent = Event<void(ConnectionIndex, DataBuffer const& data)>;
 
   virtual ~ILoraModuleDriver() = default;
 

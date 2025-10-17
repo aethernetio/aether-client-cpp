@@ -17,12 +17,17 @@
 #ifndef AETHER_LORA_MODULES_DX_SMART_LR02_433_LM_H_
 #define AETHER_LORA_MODULES_DX_SMART_LR02_433_LM_H_
 
+#include <set>
 #include <memory>
 
-#include "aether/lora_modules/ilora_module_driver.h"
-#include "aether/adapters/lora_module_adapter.h"
+#include "aether/poller/poller.h"
+#include "aether/actions/pipeline.h"
+#include "aether/actions/actions_queue.h"
+#include "aether/actions/repeatable_task.h"
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/at_comm_support.h"
+
+#include "aether/lora_modules/ilora_module_driver.h"
 
 namespace ae {
 
@@ -38,9 +43,11 @@ static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
     {kBaudRate::kBaudRate128000, "AT+BAUD9"}};
 
 class DxSmartLr02LoraModule final : public ILoraModuleDriver {
+  static constexpr std::uint16_t kLoraModuleMTU{400};
+  
  public:
   explicit DxSmartLr02LoraModule(ActionContext action_context,
-                                 IPoller::ptr poller,
+                                 IPoller::ptr const& poller,
                                  LoraModuleInit lora_module_init);
   ~DxSmartLr02LoraModule() override;
 
@@ -81,10 +88,14 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::vector<LoraConnection> connect_vec_;
-  std::unique_ptr<AtCommSupport> at_comm_support_;
+  AtCommSupport at_comm_support_;
+  DataEvent data_event_;
+  ActionPtr<RepeatableTask> poll_task_;
+  std::unique_ptr<AtCommSupport::AtListener> poll_listener_;
+  OwnActionPtr<ActionsQueue> operation_queue_;
+  bool initiated_;
+  bool started_;
   bool at_mode_{false};
-
-  static constexpr std::uint16_t kLoraModuleMTU{400};
 
   ActionPtr<LoraModuleOperation> EnterAtMode();
   ActionPtr<LoraModuleOperation> ExitAtMode();

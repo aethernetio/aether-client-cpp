@@ -19,8 +19,9 @@
 
 #include <memory>
 
+#include "aether/poller/poller.h"
+#include "aether/actions/action_context.h"
 #include "aether/lora_modules/ilora_module_driver.h"
-#include "aether/adapters/lora_module_adapter.h"
 
 #define AE_LORA_MODULE_EBYTE_E22_ENABLED 0
 #define AE_LORA_MODULE_DXSMART_LR02_ENABLED 1
@@ -34,7 +35,7 @@ namespace ae {
 class LoraModuleDriverFactory {
  public:
   static std::unique_ptr<ILoraModuleDriver> CreateLoraModule(
-      ActionContext action_context, IPoller::ptr poller,
+      ActionContext action_context, IPoller::ptr const& poller,
       LoraModuleInit lora_module_init);
 };
 }  // namespace ae

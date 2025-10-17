@@ -35,9 +35,6 @@
 #include "aether_construct_esp_wifi.h"
 // IWYU pragma: end_keeps
 
-static constexpr std::string_view kSerialPortLoraModule =
-    "COM38";  // Lora module serial port
-
 namespace ae::cloud_test {
 constexpr ae::SafeStreamConfig kSafeStreamConfig{
     std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
