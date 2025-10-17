@@ -18,6 +18,7 @@
 
 #include <utility>
 
+#include "aether/config.h"
 #include "aether/memory.h"
 #include "aether/aether.h"
 #include "aether/types/state_machine.h"
@@ -44,8 +45,7 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
         channel_{&channel},
         access_point_{&access_point},
         address_{std::move(address)},
-        state_{State::kModemConnect},
-        start_time_{Now()} {
+        state_{State::kModemConnect} {
     AE_TELED_DEBUG("Modem transport building");
   }
 
@@ -91,6 +91,7 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
 
   void CreateTransport() {
     state_ = State::kWaitTransportConnected;
+    start_time_ = Now();
 
     auto& modem_driver = access_point_->modem_driver();
     transport_stream_ = std::make_unique<ModemTransport>(
@@ -173,7 +174,7 @@ ActionPtr<TransportBuilderAction> ModemChannel::TransportBuilder() {
 
 Duration ModemChannel::TransportBuildTimeout() const {
   return channel_statistics_->connection_time_statistics().percentile<99>() +
-         std::chrono::seconds{5};
+         std::chrono::milliseconds{AE_MODEM_CONNECTION_TIMEOUT_MS};
 }
 
 }  // namespace ae
