@@ -27,7 +27,7 @@ class MockSerialPort final : public ISerialPort {
  public:
   MockSerialPort() = default;
 
-  bool IsOpen() override { return true; }
+  bool IsOpen() override { return is_open_; }
 
   void Write(DataBuffer const& data) override { write_event_.Emit(data); }
 
@@ -42,9 +42,12 @@ class MockSerialPort final : public ISerialPort {
     return EventSubscriber{write_event_};
   }
 
+  void close() { is_open_ = false; }
+
  private:
   DataReadEvent read_event_;
   Event<void(DataBuffer const& data)> write_event_;
+  bool is_open_{true};
 };
 }  // namespace ae::tests
 

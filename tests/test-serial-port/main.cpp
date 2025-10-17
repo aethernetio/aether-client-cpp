@@ -25,6 +25,7 @@ extern int test_at_support();
 extern int test_at_buffer();
 extern int test_at_dispatcher();
 extern int test_at_listener();
+extern int test_at_request();
 
 int main() {
   int res = 0;
@@ -32,5 +33,6 @@ int main() {
   res += test_at_buffer();
   res += test_at_dispatcher();
   res += test_at_listener();
+  res += test_at_request();
   return res;
 }
