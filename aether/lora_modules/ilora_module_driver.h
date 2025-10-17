@@ -32,10 +32,10 @@
 namespace ae {
 class ILoraModuleDriver{
  public:
-  using ModemOperation = NotifyAction;
+  using LoraModuleOperation = NotifyAction;
   using WriteOperation = NotifyAction;
-  using OpenNetworkOperation = PromiseAction<ConnectionIndex>;
-  using DataEvent = Event<void(ConnectionIndex, DataBuffer const& data)>;
+  using OpenNetworkOperation = PromiseAction<ConnectionLoraIndex>;
+  using DataEvent = Event<void(ConnectionLoraIndex, DataBuffer const& data)>;
 
   virtual ~ILoraModuleDriver() = default;
 
