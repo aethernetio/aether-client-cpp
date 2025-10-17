@@ -24,7 +24,7 @@
 #include "aether/actions/pipeline.h"
 #include "aether/actions/actions_queue.h"
 #include "aether/serial_ports/iserial_port.h"
-#include "aether/serial_ports/at_comm_support.h"
+#include "aether/serial_ports/at_support/at_support.h"
 
 #include "aether/modems/imodem_driver.h"
 
@@ -43,7 +43,7 @@ class Sim7070AtModem final : public IModemDriver {
 
   ActionPtr<ModemOperation> Start() override;
   ActionPtr<ModemOperation> Stop() override;
-  ActionPtr<OpenNetworkOperation> OpenNetwork(ae::Protocol protocol,
+  ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
                                               std::string const& host,
                                               std::uint16_t port) override;
   ActionPtr<ModemOperation> CloseNetwork(
@@ -72,13 +72,9 @@ class Sim7070AtModem final : public IModemDriver {
                                     kModemMode modem_mode, kAuthType auth_type);
   ActionPtr<IPipeline> SetupProtoPar();
 
-  ActionPtr<IPipeline> OpenTcpConnection(
-      ActionPtr<OpenNetworkOperation> open_network_operation,
-      std::string const& host, std::uint16_t port);
-
-  ActionPtr<IPipeline> OpenUdpConnection(
-      ActionPtr<OpenNetworkOperation> open_network_operation,
-      std::string const& host, std::uint16_t port);
+  ActionPtr<IPipeline> OpenConnection(
+      ActionPtr<OpenNetworkOperation> const& open_network_operation,
+      Protocol protocol, std::string const& host, std::uint16_t port);
 
   ActionPtr<IPipeline> SendData(ConnectionIndex connection,
                                 DataBuffer const& data);
@@ -90,11 +86,11 @@ class Sim7070AtModem final : public IModemDriver {
   ActionContext action_context_;
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
-  AtCommSupport at_comm_support_;
+  AtSupport at_support_;
   std::set<ConnectionIndex> connections_;
   ConnectionIndex next_connection_index_{0};
   DataEvent data_event_;
-  std::unique_ptr<AtCommSupport::AtListener> poll_listener_;
+  std::unique_ptr<AtListener> poll_listener_;
   OwnActionPtr<ActionsQueue> operation_queue_;
   bool initiated_;
   bool started_;
