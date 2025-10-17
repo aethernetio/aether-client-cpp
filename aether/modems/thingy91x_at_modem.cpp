@@ -887,27 +887,24 @@ ActionPtr<IPipeline> Thingy91xAtModem::SendData(ConnectionIndex connection,
             "AT#XSOCKETSELECT=" + std::to_string(handle), kWaitOk);
       }),
       // #XSEND[=<data>]
+      Stage([this]() {
+        return at_comm_support_.MakeRequest("AT#XSEND", kWaitOk);
+      }),
       Stage([this, terminated_data{std::move(terminated_data)}]() mutable {
         return at_comm_support_.MakeRequest(
-            "AT#XSEND",
-            AtRequest::Wait{"OK", kOneSecond,
-                            [this, terminated_data{std::move(terminated_data)}](
-                                auto&, auto) {
-                              // write data and termination sequence
-                              serial_->Write(terminated_data);
-                              return true;
-                            }},
-            AtRequest::Wait{
-                "#XDATAMODE:", kTenSeconds, [](auto&, auto pos) {
-                  AE_TELED_DEBUG("Send data result {}",
-                                 std::string_view{
-                                     reinterpret_cast<char const*>(pos->data()),
-                                     pos->size()});
-
-                  int code{-1};
-                  AtSupport::ParseResponse(*pos, "#XDATAMODE", code);
-                  return code == 0;
-                }});
+            [this, terminated_data{std::move(terminated_data)}]() {
+              auto at_action = ActionPtr<AtWriteAction>{action_context_};
+              serial_->Write(terminated_data);
+              at_action->Notify();
+              return at_action;
+            },
+            AtRequest::Wait{"#XDATAMODE:", kTenSeconds, [](auto&, auto pos) {
+                              int code{-1};
+                              AtSupport::ParseResponse(*pos, "#XDATAMODE",
+                                                       code);
+                              AE_TELED_DEBUG("Send data result code: {}", code);
+                              return code == 0;
+                            }});
       }));
 }
 
