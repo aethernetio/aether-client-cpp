@@ -185,6 +185,11 @@
 #  define AE_WIFI_CONNECTION_TIMEOUT_MS 20000
 #endif
 
+// default value for connection modem
+#ifndef AE_MODEM_CONNECTION_TIMEOUT_MS
+#  define AE_MODEM_CONNECTION_TIMEOUT_MS 15000
+#endif
+
 // Telemetry configuration
 // Compilation info
 // Environment info

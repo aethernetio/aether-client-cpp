@@ -30,7 +30,7 @@
 #define MODEM_TCP_TRANSPORT_ENABLED 1
 
 namespace ae {
-class ModemAdapter : public ParentModemAdapter {
+class ModemAdapter final : public ParentModemAdapter {
   AE_OBJECT(ModemAdapter, ParentModemAdapter, 0)
 
   ModemAdapter() = default;

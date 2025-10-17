@@ -36,8 +36,8 @@ namespace wifi_channel_internal {
 class WifiTransportBuilderAction final : public TransportBuilderAction {
  public:
   enum class State : std::uint8_t {
-    kAddressResolve,
     kWifiConnect,
+    kAddressResolve,
     kTransportCreate,
     kWaitTransportConnect,
     kTransportConnected,
@@ -175,6 +175,7 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   }
 
   void Connected() {
+    transport_sub_.Reset();
     auto built_time = std::chrono::duration_cast<Duration>(Now() - start_time_);
     AE_TELED_DEBUG("Transport built by {:%S}", built_time);
     channel_->channel_statistics().AddConnectionTime(built_time);

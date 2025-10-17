@@ -16,8 +16,6 @@
 
 #include <unity.h>
 
-#include <utility>
-
 #include "aether/actions/action.h"
 #include "aether/actions/pipeline.h"
 #include "aether/actions/gen_action.h"
@@ -25,13 +23,23 @@
 #include "aether/actions/action_processor.h"
 
 namespace ae::test_pipeline {
+struct Success {
+  UpdateStatus operator()() { return UpdateStatus::Result(); }
+};
+
+struct Failure {
+  UpdateStatus operator()() { return UpdateStatus::Error(); }
+};
+
+struct Stop {
+  UpdateStatus operator()() { return UpdateStatus::Stop(); }
+};
 
 void test_BasicPipelineExecution() {
   auto ap = ActionProcessor{};
 
-  auto pipeline = MakeActionPtr<Pipeline>(
-      ap, Stage<GenAction>(ap, []() { return UpdateStatus::Result(); }),
-      Stage<GenAction>(ap, []() { return UpdateStatus::Result(); }));
+  auto pipeline = MakeActionPtr<Pipeline>(ap, Stage<GenAction>(ap, Success{}),
+                                          Stage<GenAction>(ap, Success{}));
 
   TEST_ASSERT_EQUAL(0, pipeline->index());
   TEST_ASSERT_EQUAL(2, pipeline->count());
@@ -60,9 +68,8 @@ void test_Fails() {
 
   // the first stage fails
   {
-    auto pipeline = MakeActionPtr<Pipeline>(
-        ap, Stage<GenAction>(ap, []() { return UpdateStatus::Error(); }),
-        Stage<GenAction>(ap, []() { return UpdateStatus::Result(); }));
+    auto pipeline = MakeActionPtr<Pipeline>(ap, Stage<GenAction>(ap, Failure{}),
+                                            Stage<GenAction>(ap, Success{}));
 
     bool success = false;
     bool failed = false;
@@ -85,10 +92,9 @@ void test_Fails() {
 
   // the last stage fails
   {
-    auto pipeline = MakeActionPtr<Pipeline>(
-        ap, Stage<GenAction>(ap, []() { return UpdateStatus::Result(); }),
-        Stage<GenAction>(ap, []() { return UpdateStatus::Result(); }),
-        Stage<GenAction>(ap, []() { return UpdateStatus::Error(); }));
+    auto pipeline = MakeActionPtr<Pipeline>(ap, Stage<GenAction>(ap, Success{}),
+                                            Stage<GenAction>(ap, Success{}),
+                                            Stage<GenAction>(ap, Failure{}));
 
     bool success = false;
     bool failed = false;
@@ -114,9 +120,8 @@ void test_StageStopped() {
   auto ap = ActionProcessor{};
   // the first stage is stopped
   {
-    auto pipeline = MakeActionPtr<Pipeline>(
-        ap, Stage<GenAction>(ap, []() { return UpdateStatus::Stop(); }),
-        Stage<GenAction>(ap, []() { return UpdateStatus::Result(); }));
+    auto pipeline = MakeActionPtr<Pipeline>(ap, Stage<GenAction>(ap, Stop{}),
+                                            Stage<GenAction>(ap, Success{}));
 
     bool success = false;
     bool failed = false;
@@ -138,10 +143,9 @@ void test_StageStopped() {
   }
   // the last stage is stopped
   {
-    auto pipeline = MakeActionPtr<Pipeline>(
-        ap, Stage<GenAction>(ap, []() { return UpdateStatus::Result(); }),
-        Stage<GenAction>(ap, []() { return UpdateStatus::Result(); }),
-        Stage<GenAction>(ap, []() { return UpdateStatus::Stop(); }));
+    auto pipeline = MakeActionPtr<Pipeline>(ap, Stage<GenAction>(ap, Success{}),
+                                            Stage<GenAction>(ap, Success{}),
+                                            Stage<GenAction>(ap, Stop{}));
 
     bool success = false;
     bool failed = false;
@@ -170,8 +174,8 @@ void test_PipelineStopped() {
   bool timer_expired = false;
 
   auto pipeline = MakeActionPtr<Pipeline>(
-      ap,                                                             //
-      Stage<GenAction>(ap, []() { return UpdateStatus::Result(); }),  //
+      ap,                               //
+      Stage<GenAction>(ap, Success{}),  //
       Stage([&]() {
         auto timer = ActionPtr<TimerAction>(ap, std::chrono::seconds{1});
         timer->StatusEvent().Subscribe(ActionHandler{
@@ -198,6 +202,34 @@ void test_PipelineStopped() {
   TEST_ASSERT_FALSE(timer_expired);
 }
 
+void test_NullStage() {
+  auto ap = ActionProcessor{};
+
+  auto pipeline = MakeActionPtr<Pipeline>(
+      ap,  //
+      Stage<GenAction>(ap, Success{}),
+      // return null
+      Stage([]() -> ActionPtr<GenAction<Success>> { return {}; }));
+
+  bool success = false;
+  bool failed = false;
+  bool stopped = false;
+
+  pipeline->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[&]() { success = true; }},
+      OnError{[&]() { failed = true; }},
+      OnStop{[&]() { stopped = true; }},
+  });
+
+  while (!(success || failed || stopped)) {
+    ap.Update(Now());
+  }
+
+  TEST_ASSERT_FALSE(success);
+  TEST_ASSERT_TRUE(failed);
+  TEST_ASSERT_FALSE(stopped);
+}
+
 }  // namespace ae::test_pipeline
 
 int test_pipeline() {
@@ -206,5 +238,6 @@ int test_pipeline() {
   RUN_TEST(ae::test_pipeline::test_Fails);
   RUN_TEST(ae::test_pipeline::test_StageStopped);
   RUN_TEST(ae::test_pipeline::test_PipelineStopped);
+  RUN_TEST(ae::test_pipeline::test_NullStage);
   return UNITY_END();
 }

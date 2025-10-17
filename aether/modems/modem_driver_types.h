@@ -268,7 +268,7 @@ struct ModemInit {
   SerialInit serial_init;
   PowerSaveParam psp;
   BaseStation bs;
-  std::uint8_t pin[4];
+  std::uint16_t pin;
   bool use_pin;
   kModemMode modem_mode;
   std::string operator_code;
