@@ -55,6 +55,7 @@ AtRequest::AtRequest(ActionContext action_context, AtDispatcher& dispatcher,
       at_command_{std::move(at_command)},
       error_observer_{dispatcher,
                       Wait{"ERROR", {}, [](auto&, auto) { return false; }}},
+      start_time_{Now()},
       response_count_{0},
       state_{State::kMakeRequest} {
   for (auto&& w : std::move(waits)) {
@@ -120,6 +121,8 @@ void AtRequest::MakeRequest() {
 }
 
 UpdateStatus AtRequest::WaitResponses(TimePoint current_time) {
+  AE_TELED_DEBUG("Response count {}, wait observers {}", response_count_,
+                 wait_observers_.size());
   if (response_count_ == wait_observers_.size()) {
     state_ = State::kSuccess;
     return UpdateStatus::Result();
@@ -133,7 +136,7 @@ UpdateStatus AtRequest::WaitResponses(TimePoint current_time) {
   }
 
   auto timeout_time = start_time_ + timeout;
-  if (timeout_time >= current_time) {
+  if (timeout_time <= current_time) {
     AE_TELED_ERROR("AtRequest wait response timeout");
     return UpdateStatus::Error();
   }
