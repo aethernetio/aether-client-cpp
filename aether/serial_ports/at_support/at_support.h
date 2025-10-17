@@ -34,31 +34,25 @@
 #include "aether/serial_ports/at_support/at_request.h"
 #include "aether/serial_ports/at_support/at_listener.h"
 #include "aether/serial_ports/at_support/at_dispatcher.h"
+#include "aether/serial_ports/at_support/at_write_action.h"
 // IWYU pragma: end_exports
 
 namespace ae {
 class AtSupport {
  public:
-  class WriteAction final : public Action<WriteAction> {
-   public:
-    WriteAction(ActionContext action_context, bool is_write_success);
-
-    UpdateStatus Update() const;
-
-   private:
-    bool is_write_success_;
-  };
-
   static std::string PinToString(std::uint16_t pin);
 
   AtSupport(ActionContext action_context, ISerialPort& serial);
 
-  ActionPtr<WriteAction> SendATCommand(std::string const& command);
+  ActionPtr<AtWriteAction> SendATCommand(std::string const& command);
 
-  template <typename... Waits>
-  ActionPtr<AtRequest> MakeRequest(std::string command, Waits&&... waits) {
+  template <typename TCommand, typename... Waits>
+  ActionPtr<AtRequest> MakeRequest(TCommand&& command, Waits&&... waits) {
+    if (!serial_->IsOpen()) {
+      return {};
+    }
     return ActionPtr<AtRequest>{action_context_, dispatcher_, *this,
-                                std::move(command),
+                                std::forward<TCommand>(command),
                                 std::forward<Waits>(waits)...};
   }
 

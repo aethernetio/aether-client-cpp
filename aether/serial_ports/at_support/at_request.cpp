@@ -19,6 +19,7 @@
 #include <chrono>
 #include <algorithm>
 
+#include "aether/reflect/override_func.h"
 #include "aether/serial_ports/at_support/at_support.h"
 
 #include "aether/tele/tele.h"
@@ -47,11 +48,11 @@ Duration AtRequest::WaitObserver::timeout() const { return wait_.timeout; }
 bool AtRequest::WaitObserver::observed() const { return observed_; }
 
 AtRequest::AtRequest(ActionContext action_context, AtDispatcher& dispatcher,
-                     AtSupport& at_support, std::string at_command,
+                     AtSupport& at_support, Command at_command,
                      std::vector<Wait> waits)
     : Action{action_context},
       at_support_{&at_support},
-      command_{std::move(at_command)},
+      at_command_{std::move(at_command)},
       error_observer_{dispatcher,
                       Wait{"ERROR", {}, [](auto&, auto) { return false; }}},
       response_count_{0},
@@ -95,9 +96,27 @@ UpdateStatus AtRequest::Update(TimePoint current_time) {
   return {};
 }
 
+ActionPtr<AtWriteAction> AtRequest::CallCommand() {
+  return std::visit(ae::reflect::OverrideFunc{
+                        [this](std::string const& str) {
+                          return at_support_->SendATCommand(str);
+                        },
+                        [](CommandMaker& command) { return command(); }},
+                    at_command_.command);
+}
+
 void AtRequest::MakeRequest() {
-  at_support_->SendATCommand(command_);
-  state_ = State::kWaitResponse;
+  auto action = CallCommand();
+  command_sub_ = action->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[this]() {
+        state_ = State::kWaitResponse;
+        Action::Trigger();
+      }},
+      OnError{[this]() {
+        state_ = State::kError;
+        Action::Trigger();
+      }},
+  });
 }
 
 UpdateStatus AtRequest::WaitResponses(TimePoint current_time) {

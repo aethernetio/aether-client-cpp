@@ -22,27 +22,17 @@
 #include "aether/serial_ports/serial_ports_tele.h"
 
 namespace ae {
-AtSupport::WriteAction::WriteAction(ActionContext action_context,
-                                    bool is_write_success)
-    : Action{action_context}, is_write_success_{is_write_success} {}
-
-UpdateStatus AtSupport::WriteAction::Update() const {
-  if (is_write_success_) {
-    return UpdateStatus::Result();
-  }
-  return UpdateStatus::Error();
-}
-
 AtSupport::AtSupport(ActionContext action_context, ISerialPort& serial)
     : action_context_{action_context},
       serial_{&serial},
       at_buffer_{serial},
       dispatcher_{at_buffer_} {};
 
-ActionPtr<AtSupport::WriteAction> AtSupport::SendATCommand(
-    std::string const& command) {
+ActionPtr<AtWriteAction> AtSupport::SendATCommand(std::string const& command) {
+  auto at_action = ActionPtr<AtWriteAction>{action_context_};
   if (!serial_->IsOpen()) {
-    return ActionPtr<WriteAction>{action_context_, false};
+    at_action->Failed();
+    return at_action;
   }
 
   AE_TELED_DEBUG("AT command: {}", command);
@@ -51,8 +41,9 @@ ActionPtr<AtSupport::WriteAction> AtSupport::SendATCommand(
   data[command.size()] = '\r';
   data[command.size() + 1] = '\n';
   serial_->Write(data);
+  at_action->Notify();
 
-  return ActionPtr<WriteAction>{action_context_, true};
+  return at_action;
 }
 
 std::unique_ptr<AtListener> AtSupport::ListenForResponse(
