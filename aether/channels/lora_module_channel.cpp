@@ -45,13 +45,15 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
         access_point_{&access_point},
         address_{std::move(address)},
         state_{State::kLoraModuleConnect},
-        start_time_{Now()} {}
+        start_time_{Now()} {
+    AE_TELED_DEBUG("Lora module transport building");
+        }
 
   UpdateStatus Update() override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
         case State::kLoraModuleConnect:
-          ConnectModem();
+          ConnectLoraModule();
           break;
         case State::kTransportCreate:
           CreateTransport();
@@ -74,7 +76,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
 
  private:
   void ConnectLoraModule() {
-    modem_connect_sub_ =
+    lora_module_connect_sub_ =
         access_point_->Connect()->StatusEvent().Subscribe(ActionHandler{
             OnResult{[this]() {
               state_ = State::kTransportCreate;
@@ -121,13 +123,13 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
   }
 
   ActionContext action_context_;
-  ModemChannel* channel_;
-  ModemAccessPoint* access_point_;
+  LoraModuleChannel* channel_;
+  LoraModuleAccessPoint* access_point_;
   UnifiedAddress address_;
   StateMachine<State> state_;
-  std::unique_ptr<ModemTransport> transport_stream_;
+  std::unique_ptr<LoraModuleTransport> transport_stream_;
   Subscription tranpsport_sub_;
-  Subscription modem_connect_sub_;
+  Subscription lora_module_connect_sub_;
   TimePoint start_time_;
 };
 
@@ -164,7 +166,7 @@ LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
 }
 
 ActionPtr<TransportBuilderAction> LoraModuleChannel::TransportBuilder() {
-  return ActionPtr<modem_channel_internal::LoraModuleTransportBuilderAction>{
+  return ActionPtr<lora_module_channel_internal::LoraModuleTransportBuilderAction>{
       *aether_.as<Aether>(), *this, *access_point_, address};
 }
 

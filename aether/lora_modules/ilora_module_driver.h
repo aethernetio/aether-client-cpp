@@ -39,7 +39,6 @@ class ILoraModuleDriver{
 
   virtual ~ILoraModuleDriver() = default;
 
-  virtual ActionPtr<LoraModuleOperation> Init() = 0;
   virtual ActionPtr<LoraModuleOperation> Start() = 0;
   virtual ActionPtr<LoraModuleOperation> Stop() = 0;
   virtual ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
@@ -48,8 +47,7 @@ class ILoraModuleDriver{
   virtual ActionPtr<LoraModuleOperation> CloseNetwork(
       ConnectionLoraIndex connect_index) = 0;
   virtual ActionPtr<LoraModuleOperation> WritePacket(
-      ConnectionLoraIndex connect_index,
-                                                DataBuffer const& data) = 0;
+      ConnectionLoraIndex connect_index, DataBuffer const& data) = 0;
   virtual DataEvent::Subscriber data_event() = 0;
 
   virtual ActionPtr<LoraModuleOperation> SetPowerSaveParam(

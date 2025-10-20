@@ -30,7 +30,9 @@
 #include "aether/lora_modules/ilora_module_driver.h"
 
 namespace ae {
-
+class DxSmartLr02TcpOpenNetwork;
+class DxSmartLr02UdpOpenNetwork;
+  
 static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
     {kBaudRate::kBaudRate1200, "AT+BAUD1"},
     {kBaudRate::kBaudRate2400, "AT+BAUD2"},
@@ -43,6 +45,8 @@ static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
     {kBaudRate::kBaudRate128000, "AT+BAUD9"}};
 
 class DxSmartLr02LoraModule final : public ILoraModuleDriver {
+  friend class DxSmartLr02TcpOpenNetwork;
+  friend class DxSmartLr02UdpOpenNetwork;
   static constexpr std::uint16_t kLoraModuleMTU{400};
   
  public:
@@ -51,14 +55,13 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
                                  LoraModuleInit lora_module_init);
   ~DxSmartLr02LoraModule() override;
 
-  ActionPtr<LoraModuleOperation> Init() override;
   ActionPtr<LoraModuleOperation> Start() override;
   ActionPtr<LoraModuleOperation> Stop() override;
-  ActionPtr<OpenNetworkOperation> OpenNetwork(ae::Protocol protocol,
+  ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
                                   std::string const& host,
                                   std::uint16_t port) override;
-  ActionPtr<LoraModuleOperation> CloseNetwork(ae::ConnectionLoraIndex connect_index) override;
-  ActionPtr<LoraModuleOperation> WritePacket(ae::ConnectionLoraIndex connect_index,
+  ActionPtr<LoraModuleOperation> CloseNetwork(ConnectionLoraIndex connect_index) override;
+  ActionPtr<WriteOperation> WritePacket(ConnectionLoraIndex connect_index,
                    ae::DataBuffer const& data) override;
   
   DataEvent::Subscriber data_event() override;
@@ -75,6 +78,20 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
           signal_inversion);  // Module signal inversion
 
  private:
+  void Init(); 
+  
+  ActionPtr<IPipeline> OpenTcpConnection(
+      ActionPtr<OpenNetworkOperation> open_network_operation,
+      std::string const& host, std::uint16_t port);
+
+  ActionPtr<IPipeline> OpenUdpConnection(
+      ActionPtr<OpenNetworkOperation> open_network_operation,
+      std::string const& host, std::uint16_t port);
+
+  ActionPtr<IPipeline> SendData(ConnectionLoraIndex connection,
+                                DataBuffer const& data);
+  ActionPtr<IPipeline> ReadPacket(ConnectionLoraIndex connection);
+  
   void SetupPoll();
   ActionPtr<IPipeline> Poll();
   void PollEvent(std::int32_t handle, std::string_view flags);
@@ -82,7 +99,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   ActionContext action_context_;
   LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;
-  std::vector<LoraConnection> connect_vec_;
+  std::set<ConnectionLoraIndex> connections_;
   AtCommSupport at_comm_support_;
   DataEvent data_event_;
   ActionPtr<RepeatableTask> poll_task_;
@@ -92,25 +109,21 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   bool started_;
   bool at_mode_{false};
 
-  ActionPtr<LoraModuleOperation> EnterAtMode();
-  ActionPtr<LoraModuleOperation> ExitAtMode();
+  ActionPtr<IPipeline> EnterAtMode();
+  ActionPtr<IPipeline> ExitAtMode();
 
-  ActionPtr<LoraModuleOperation> SetLoraModuleMode(kLoraModuleMode const& mode);      // Module mode
-  ActionPtr<LoraModuleOperation> SetLoraModuleLevel(kLoraModuleLevel const& level);   // Module level
-  ActionPtr<LoraModuleOperation> SetLoraModulePower(kLoraModulePower const& power);   // Module power
-  ActionPtr<LoraModuleOperation> SetLoraModuleBandWidth(
-      kLoraModuleBandWidth const& band_width);  // Module BandWidth
-  ActionPtr<LoraModuleOperation> SetLoraModuleCodingRate(
-      kLoraModuleCodingRate const& coding_rate);  // Module CodingRate
-  ActionPtr<LoraModuleOperation> SetLoraModuleSpreadingFactor(
-      kLoraModuleSpreadingFactor const&
-          spreading_factor);  // Module spreading factor
-  ActionPtr<LoraModuleOperation> SetupSerialPort(SerialInit& serial_init);
-  ActionPtr<LoraModuleOperation> SetBaudRate(kBaudRate baud_rate);
-  ActionPtr<LoraModuleOperation> SetParity(kParity parity);
-  ActionPtr<LoraModuleOperation> SetStopBits(kStopBits stop_bits);
+  ActionPtr<IPipeline> SetLoraModuleMode(kLoraModuleMode const& mode);      // Module mode
+  ActionPtr<IPipeline> SetLoraModuleLevel(kLoraModuleLevel const& level);   // Module level
+  ActionPtr<IPipeline> SetLoraModulePower(kLoraModulePower const& power);   // Module power
+  ActionPtr<IPipeline> SetLoraModuleBandWidth(kLoraModuleBandWidth const& band_width);  // Module BandWidth
+  ActionPtr<IPipeline> SetLoraModuleCodingRate(kLoraModuleCodingRate const& coding_rate);  // Module CodingRate
+  ActionPtr<IPipeline> SetLoraModuleSpreadingFactor(kLoraModuleSpreadingFactor const& spreading_factor);  // Module spreading factor
+  ActionPtr<IPipeline> SetupSerialPort(SerialInit& serial_init);
+  ActionPtr<IPipeline> SetBaudRate(kBaudRate baud_rate);
+  ActionPtr<IPipeline> SetParity(kParity parity);
+  ActionPtr<IPipeline> SetStopBits(kStopBits stop_bits);
 
-  ActionPtr<LoraModuleOperation> SetupLoraNet(LoraModuleInit& lora_module_init);
+  ActionPtr<IPipeline> SetupLoraNet(LoraModuleInit& lora_module_init);
 
   std::string AdressToString(uint16_t value);
   std::string ChannelToString(uint8_t value);

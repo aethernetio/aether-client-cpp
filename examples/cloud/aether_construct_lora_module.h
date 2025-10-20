@@ -23,27 +23,27 @@
 
 namespace ae::cloud_test {
 static constexpr std::string_view kSerialPortLoraModule =
-    "COM1";  // Modem serial port
+    "COM3";  // Modem serial port
 SerialInit serial_init_lora_module = {std::string(kSerialPortLoraModule),
-                                      kBaudRate::kBaudRate115200};
+                                      kBaudRate::kBaudRate9600};
 
 LoraPowerSaveParam psp{
-   {kLoraModuleMode::kTransparentTransmission}, //kLoraModuleMode
-   {kLoraModuleLevel::kLevel0},                 //kLoraModuleLevel
-   {kLoraModulePower::kPower22},                //kLoraModulePower
-   {kLoraModuleBandWidth::kBandWidth125K},      //kLoraModuleBandWidth
-   {kLoraModuleCodingRate::kCR4_6},             //kLoraModuleCodingRate
-   {kLoraModuleSpreadingFactor::kSF12}          //kLoraModuleSpreadingFactor
+    {kLoraModuleMode::kTransparentTransmission},  // kLoraModuleMode
+    {kLoraModuleLevel::kLevel0},                  // kLoraModuleLevel
+    {kLoraModulePower::kPower22},                 // kLoraModulePower
+    {kLoraModuleBandWidth::kBandWidth125K},       // kLoraModuleBandWidth
+    {kLoraModuleCodingRate::kCR4_6},              // kLoraModuleCodingRate
+    {kLoraModuleSpreadingFactor::kSF12}           // kLoraModuleSpreadingFactor
 };
 
 ae::LoraModuleInit const lora_module_init{
-    serial_init_lora_module,                    // Serial port
-    psp,                                        // Power Save Parameters
-    {0},                                        // Lora module address
-    {0},                                        // Lora module BS address
-    {0},                                        // Channel
-    {kLoraModuleCRCCheck::kCRCOff},             // CRC check
-    {kLoraModuleIQSignalInversion::kIQoff}};    // Signal inversion
+    serial_init_lora_module,                  // Serial port
+    psp,                                      // Power Save Parameters
+    {0},                                      // Lora module address
+    {0},                                      // Lora module BS address
+    {0},                                      // Channel
+    {kLoraModuleCRCCheck::kCRCOff},           // CRC check
+    {kLoraModuleIQSignalInversion::kIQoff}};  // Signal inversion
 
 static RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
@@ -52,8 +52,10 @@ static RcPtr<AetherApp> construct_aether_app() {
           .AdaptersFactory([](AetherAppContext const& context) {
             auto adapter_registry =
                 context.domain().CreateObj<AdapterRegistry>();
-            adapter_registry->Add(context.domain().CreateObj<ae::LoraModuleAdapter>(
-                ae::GlobalId::kLoraModuleAdapter, context.aether(), lora_module_init));
+            adapter_registry->Add(
+                context.domain().CreateObj<ae::LoraModuleAdapter>(
+                    ae::GlobalId::kLoraModuleAdapter, context.aether(),
+                    context.poller(), lora_module_init));
             return adapter_registry;
           })
 #  endif

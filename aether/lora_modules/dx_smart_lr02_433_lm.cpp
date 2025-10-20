@@ -33,6 +33,96 @@ static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
 static constexpr Duration kTwoSeconds = std::chrono::milliseconds{2000};
 static constexpr Duration kTenSeconds = std::chrono::milliseconds{10000};
 
+class DxSmartLr02TcpOpenNetwork final
+    : public Action<DxSmartLr02TcpOpenNetwork> {
+ public:
+  DxSmartLr02TcpOpenNetwork(ActionContext action_context,
+                            DxSmartLr02LoraModule& lora_module,
+                            std::string host, std::uint16_t port)
+      : Action{action_context},
+        action_context_{action_context},
+        lora_module_{&lora_module},
+        at_comm_support_{&lora_module.at_comm_support_},
+        host_{std::move(host)},
+        port_{port} {
+    AE_TELED_DEBUG("Open tcp connection for {}:{}", host_, port_);
+  }
+
+  UpdateStatus Update() const {
+    if (success_) {
+      return UpdateStatus::Result();
+    }
+    if (error_) {
+      return UpdateStatus::Error();
+    }
+    if (stop_) {
+      return UpdateStatus::Stop();
+    }
+    return {};
+  }
+
+  ConnectionLoraIndex connection_index() const { return connection_index_; }
+
+ private:
+  ActionContext action_context_;
+  DxSmartLr02LoraModule* lora_module_;
+  AtCommSupport* at_comm_support_;
+  std::string host_;
+  std::uint16_t port_;
+  ActionPtr<IPipeline> operation_pipeline_;
+  Subscription operation_sub_;
+  std::int32_t handle_{-1};
+  ConnectionLoraIndex connection_index_ = kInvalidConnectionLoraIndex;
+  bool success_{};
+  bool error_{};
+  bool stop_{};
+};
+
+class DxSmartLr02UdpOpenNetwork final
+    : public Action<DxSmartLr02UdpOpenNetwork> {
+ public:
+  DxSmartLr02UdpOpenNetwork(ActionContext action_context,
+                            DxSmartLr02LoraModule& lora_module,
+                            std::string host, std::uint16_t port)
+      : Action{action_context},
+        action_context_{action_context},
+        lora_module_{&lora_module},
+        at_comm_support_{&lora_module.at_comm_support_},
+        host_{std::move(host)},
+        port_{port} {
+    AE_TELED_DEBUG("Open UDP connection for {}:{}", host_, port_);
+  }
+
+  UpdateStatus Update() const {
+    if (success_) {
+      return UpdateStatus::Result();
+    }
+    if (error_) {
+      return UpdateStatus::Error();
+    }
+    if (stop_) {
+      return UpdateStatus::Stop();
+    }
+    return {};
+  }
+
+  ConnectionLoraIndex connection_index() const { return connection_index_; }
+
+ private:
+  ActionContext action_context_;
+  DxSmartLr02LoraModule* lora_module_;
+  AtCommSupport* at_comm_support_;
+  std::string host_;
+  std::uint16_t port_;
+  ActionPtr<IPipeline> operation_pipeline_;
+  Subscription operation_sub_;
+  std::int32_t handle_{-1};
+  ConnectionLoraIndex connection_index_ = kInvalidConnectionLoraIndex;
+  bool success_{};
+  bool error_{};
+  bool stop_{};
+};
+
 DxSmartLr02LoraModule::DxSmartLr02LoraModule(ActionContext action_context,
                                              IPoller::ptr const& poller,
                                              LoraModuleInit lora_module_init)
@@ -45,42 +135,9 @@ DxSmartLr02LoraModule::DxSmartLr02LoraModule(ActionContext action_context,
       initiated_{false},
       started_{false} {
   Init();
-  Start();
 }
 
 DxSmartLr02LoraModule::~DxSmartLr02LoraModule() { Stop(); }
-
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::Init() {
-  operation_queue_->Push(Stage([this]() {
-    auto init_pipeline = MakeActionPtr<Pipeline>(
-        action_context_,
-        // Enter AT command mode
-        Stage([this]() { return EnterAtMode(); }),
-        Stage([this]() { return at_comm_support_.SendATCommand("AT"); }),
-        Stage([this]() {
-          return at_comm_support_.WaitForResponse("OK", kOneSecond);
-        }),
-        Stage([this]() {
-          return SetupSerialPort(lora_module_init_.serial_init);
-        }),
-        Stage([this]() { return SetPowerSaveParam(lora_module_init_.psp); }),
-        Stage([this]() { return SetupLoraNet(lora_module_init_); }),
-        // Exit AT command mode
-        Stage([this]() { return ExitAtMode(); }),
-        Stage<GenAction>(action_context_, [this]() {
-          initiated_ = true;
-          return UpdateStatus::Result();
-        }));
-
-    init_pipeline->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[]() { AE_TELED_INFO("DxSmartLr02LoraModule init success"); }},
-        OnError{[]() { AE_TELED_ERROR("DxSmartLr02LoraModule init failed"); }},
-    });
-
-    return init_pipeline;
-  }));
-};
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::Start() {
@@ -115,6 +172,8 @@ DxSmartLr02LoraModule::Start() {
             [lora_module_operation]() { lora_module_operation->Notify(); }},
         OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
         OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
+
+    return pipeline;
   }));
 
   return lora_module_operation;
@@ -123,41 +182,55 @@ DxSmartLr02LoraModule::Start() {
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::Stop() {
   auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
-  
+
   operation_queue_->Push(Stage([this, lora_module_operation]() {
-  auto pipeline = MakeActionPtr<Pipeline>(
-      action_context_,
-      // Enter AT command mode
-      Stage([this]() { return EnterAtMode(); }),
-      Stage([this]() { return at_comm_support_.SendATCommand("AT+RESET"); }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
-      }),
-      // Exit AT command mode
-      Stage([this]() { return ExitAtMode(); }));
-      
-      pipeline->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[lora_module_operation]() { lora_module_operation->Notify(); }},
-      OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
-      OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+        // Enter AT command mode
+        Stage([this]() { return EnterAtMode(); }),
+        Stage([this]() { return at_comm_support_.SendATCommand("AT+RESET"); }),
+        Stage([this]() {
+          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        }),
+        // Exit AT command mode
+        Stage([this]() { return ExitAtMode(); }));
 
-  return pipeline;
-}));
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{
+            [lora_module_operation]() { lora_module_operation->Notify(); }},
+        OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
+        OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
 
-return lora_module_operation;
+    return pipeline;
+  }));
+
+  return lora_module_operation;
 };
 
-/* ActionPtr<DxSmartLr02LoraModule::OpenNetworkOperation>
+ActionPtr<DxSmartLr02LoraModule::OpenNetworkOperation>
 DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
                                    std::string const& host,
                                    std::uint16_t port) {
-  auto connect_index = static_cast<ConnectionLoraIndex>(connect_vec_.size());
-  connect_vec_.emplace_back(
-      LoraConnection{connect_index, protocol, host, port});
+  auto open_network_operation =
+      ActionPtr<OpenNetworkOperation>{action_context_};
 
-  return connect_index;
-};*/
+  operation_queue_->Push(Stage([this, open_network_operation, protocol,
+                                host{host}, port]() -> ActionPtr<IPipeline> {
+    if (protocol == Protocol::kTcp) {
+      return OpenTcpConnection(open_network_operation, host, port);
+    }
+    if (protocol == Protocol::kUdp) {
+      return OpenUdpConnection(open_network_operation, host, port);
+    }
+    return {};
+  }));
 
+  return open_network_operation;
+};
+
+ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
+DxSmartLr02LoraModule::CloseNetwork(
+    ae::ConnectionLoraIndex /*connect_index*/) { return{}; };
 /* void DxSmartLr02LoraModule::CloseNetwork(
     ae::ConnectionLoraIndex connect_index) {
   if (connect_index >= connect_vec_.size()) {
@@ -168,6 +241,10 @@ DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
   connect_vec_.erase(connect_vec_.begin() + connect_index);
 };*/
 
+ActionPtr<DxSmartLr02LoraModule::WriteOperation>
+DxSmartLr02LoraModule::WritePacket(
+    ae::ConnectionLoraIndex /*connect_index*/,
+                                        ae::DataBuffer const& /*data*/) { return{}; }
 /* void DxSmartLr02LoraModule::WritePacket(
     ae::ConnectionLoraIndex connect_index,
                                         ae::DataBuffer const& data) {
@@ -207,51 +284,59 @@ DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
 //   return data;
 // };
 
+ActionPtr<IPipeline> DxSmartLr02LoraModule::ReadPacket(
+    ConnectionLoraIndex /* connection */) {
+  return {};
+}
+
+DxSmartLr02LoraModule::DataEvent::Subscriber DxSmartLr02LoraModule::data_event() {
+  return EventSubscriber{data_event_};
+}
+
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::SetPowerSaveParam(LoraPowerSaveParam const& psp) {
- auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
+  auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
 
-operation_queue_->Push(Stage([this, lora_module_operation, psp{psp}]() {
-  auto pipeline = MakeActionPtr<Pipeline>(
-      action_context_,
-      // Enter AT command mode
-      Stage([this]() { return EnterAtMode(); }),
-      // Configure Lora Module Mode
-      Stage([this, psp]() {
-      return SetLoraModuleMode(psp.lora_module_mode);
-      }),
-      // Configure Lora Module Level
-      Stage([this, psp]() {
-      return SetLoraModuleLevel(psp.lora_module_level);
-      }),
-      // Configure Lora Module Power
-      Stage([this, psp]() {
-      return SetLoraModulePower(psp.lora_module_power);
-      }),
-      // Configure Lora Module BandWidth
-      Stage([this, psp]() {
-      return SetLoraModuleBandWidth(psp.lora_module_band_width);
-      }),
-      // Configure Lora Module Coding Rate
-      Stage([this, psp]() {
-      return SetLoraModuleCodingRate(psp.lora_module_coding_rate);
-      }),
-      // Configure Lora Module Spreading Factor
-      Stage([this, psp]() {
-      return SetLoraModuleSpreadingFactor(psp.lora_module_spreading_factor);
-      }),
-      // Exit AT command mode
-      Stage([this]() { return ExitAtMode(); 
+  operation_queue_->Push(Stage([this, lora_module_operation, psp{psp}]() {
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+        // Enter AT command mode
+        Stage([this]() { return EnterAtMode(); }),
+        // Configure Lora Module Mode
+        Stage(
+            [this, psp]() { return SetLoraModuleMode(psp.lora_module_mode); }),
+        // Configure Lora Module Level
+        Stage([this, psp]() {
+          return SetLoraModuleLevel(psp.lora_module_level);
+        }),
+        // Configure Lora Module Power
+        Stage([this, psp]() {
+          return SetLoraModulePower(psp.lora_module_power);
+        }),
+        // Configure Lora Module BandWidth
+        Stage([this, psp]() {
+          return SetLoraModuleBandWidth(psp.lora_module_band_width);
+        }),
+        // Configure Lora Module Coding Rate
+        Stage([this, psp]() {
+          return SetLoraModuleCodingRate(psp.lora_module_coding_rate);
+        }),
+        // Configure Lora Module Spreading Factor
+        Stage([this, psp]() {
+          return SetLoraModuleSpreadingFactor(psp.lora_module_spreading_factor);
+        }),
+        // Exit AT command mode
+        Stage([this]() { return ExitAtMode(); }));
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{
+            [lora_module_operation]() { lora_module_operation->Notify(); }},
+        OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
+        OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
+
+    return pipeline;
   }));
-  pipeline->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[lora_module_operation]() { lora_module_operation->Notify(); }},
-      OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
-      OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
 
-  return pipeline;
-}));
-
-return lora_module_operation;
+  return lora_module_operation;
 };
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
@@ -261,14 +346,30 @@ DxSmartLr02LoraModule::PowerOff() {
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::SetLoraModuleAddress(std::uint16_t const& address) {
-  return MakeActionPtr<Pipeline>(
-      action_context_, Stage([this, address]() {
-        return at_comm_support_.SendATCommand("AT+MAC" +
-                                              AdressToString(address));
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
-      }));
+  auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
+
+  operation_queue_->Push(Stage([this, lora_module_operation, address]() {
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+
+        Stage([this, address]() {
+          return at_comm_support_.SendATCommand("AT+MAC" +
+                                                AdressToString(address));
+        }),
+        Stage([this]() {
+          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        }));
+
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{
+            [lora_module_operation]() { lora_module_operation->Notify(); }},
+        OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
+        OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
+
+    return pipeline;
+  }));
+
+  return lora_module_operation;
 };
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
@@ -277,45 +378,229 @@ DxSmartLr02LoraModule::SetLoraModuleChannel(std::uint8_t const& channel) {
     return {};
   }
 
-  return MakeActionPtr<Pipeline>(
-      action_context_, Stage([this, channel]() {
-        return at_comm_support_.SendATCommand("AT+CHANNEL" +
-                                              ChannelToString(channel));
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
-      }));
+  auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
+
+  operation_queue_->Push(Stage([this, lora_module_operation, channel]() {
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+
+        Stage([this, channel]() {
+          return at_comm_support_.SendATCommand("AT+CHANNEL" +
+                                                ChannelToString(channel));
+        }),
+        Stage([this]() {
+          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        }));
+
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{
+            [lora_module_operation]() { lora_module_operation->Notify(); }},
+        OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
+        OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
+
+    return pipeline;
+  }));
+
+  return lora_module_operation;
 };
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::SetLoraModuleCRCCheck(
     kLoraModuleCRCCheck const& crc_check) {
-  return MakeActionPtr<Pipeline>(
-      action_context_, Stage([this, crc_check]() {
-        return at_comm_support_.SendATCommand(
-            "AT+CRC" + std::to_string(static_cast<int>(crc_check)));
-      }),
-      Stage([this]() {
-        return at_comm_support_.WaitForResponse("OK", kOneSecond);
-      }));
+  auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
+
+  operation_queue_->Push(Stage([this, lora_module_operation, crc_check]() {
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+
+        Stage([this, crc_check]() {
+          return at_comm_support_.SendATCommand(
+              "AT+CRC" + std::to_string(static_cast<int>(crc_check)));
+        }),
+        Stage([this]() {
+          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        }));
+
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{
+            [lora_module_operation]() { lora_module_operation->Notify(); }},
+        OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
+        OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
+
+    return pipeline;
+  }));
+
+  return lora_module_operation;
 };
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::SetLoraModuleIQSignalInversion(
     kLoraModuleIQSignalInversion const& signal_inversion) {
+  auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
+
+  operation_queue_->Push(Stage([this, lora_module_operation,
+                                signal_inversion]() {
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+
+        Stage([this, signal_inversion]() {
+          return at_comm_support_.SendATCommand(
+              "AT+IQ" + std::to_string(static_cast<int>(signal_inversion)));
+        }),
+        Stage([this]() {
+          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        }));
+
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{
+            [lora_module_operation]() { lora_module_operation->Notify(); }},
+        OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
+        OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
+
+    return pipeline;
+  }));
+
+  return lora_module_operation;
+};
+
+// =============================private members=========================== //
+void DxSmartLr02LoraModule::Init() {
+  operation_queue_->Push(Stage([this]() {
+    auto init_pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+        // Enter AT command mode
+        Stage([this]() { return EnterAtMode(); }),
+        Stage([this]() { return at_comm_support_.SendATCommand("AT"); }),
+        Stage([this]() {
+          return at_comm_support_.WaitForResponse("OK", kOneSecond);
+        }),
+        Stage([this]() {
+          return SetupSerialPort(lora_module_init_.serial_init);
+        }),
+        Stage([this]() { return SetPowerSaveParam(lora_module_init_.psp); }),
+        Stage([this]() { return SetupLoraNet(lora_module_init_); }),
+        // Exit AT command mode
+        Stage([this]() { return ExitAtMode(); }),
+        Stage<GenAction>(action_context_, [this]() {
+          initiated_ = true;
+          return UpdateStatus::Result();
+        }));
+
+    init_pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[]() { AE_TELED_INFO("DxSmartLr02LoraModule init success"); }},
+        OnError{[]() { AE_TELED_ERROR("DxSmartLr02LoraModule init failed"); }},
+    });
+
+    return init_pipeline;
+  }));
+};
+
+ActionPtr<IPipeline> DxSmartLr02LoraModule::OpenTcpConnection(
+    ActionPtr<OpenNetworkOperation> open_network_operation,
+    std::string const& host, std::uint16_t port) {
   return MakeActionPtr<Pipeline>(
-      action_context_, Stage([this, signal_inversion]() {
-        return at_comm_support_.SendATCommand(
-            "AT+IQ" + std::to_string(static_cast<int>(signal_inversion)));
+      action_context_,
+      Stage([this, open_network_operation{std::move(open_network_operation)},
+             host{host}, port]() {
+        auto open_operation = ActionPtr<DxSmartLr02TcpOpenNetwork>{
+            action_context_, *this, host, port};
+
+        open_operation->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[open_network_operation](auto const& action) {
+              open_network_operation->SetValue(action.connection_index());
+            }},
+            OnError{[open_network_operation]() {
+              open_network_operation->Reject();
+            }},
+        });
+
+        return open_operation;
+      }));
+}
+
+ActionPtr<IPipeline> DxSmartLr02LoraModule::OpenUdpConnection(
+    ActionPtr<OpenNetworkOperation> open_network_operation,
+    std::string const& host, std::uint16_t port) {
+  return MakeActionPtr<Pipeline>(
+      action_context_,
+      Stage([this, open_network_operation{std::move(open_network_operation)},
+             host{host}, port]() {
+        auto open_operation = ActionPtr<DxSmartLr02UdpOpenNetwork>{
+            action_context_, *this, host, port};
+
+        open_operation->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[open_network_operation](auto const& action) {
+              open_network_operation->SetValue(action.connection_index());
+            }},
+            OnError{[open_network_operation]() {
+              open_network_operation->Reject();
+            }},
+        });
+
+        return open_operation;
+      }));
+}
+
+
+void DxSmartLr02LoraModule::SetupPoll() {
+  poll_listener_ = at_comm_support_.ListenForResponse(
+      "#XPOLL: ", [this](auto& at_buffer, auto pos) {
+        std::int32_t handle{};
+        std::string flags;
+        AtCommSupport::ParseResponse(*pos, "#XPOLL", handle, flags);
+        PollEvent(handle, flags);
+        return at_buffer.erase(pos);
+      });
+
+  // TODO: config for poll interval
+  poll_task_ = ActionPtr<RepeatableTask>{
+      action_context_,
+      [this]() {
+        if (connections_.empty()) {
+          return;
+        }
+        // add poll to operation queue
+        operation_queue_->Push(Stage([this]() { return Poll(); }));
+      },
+      std::chrono::milliseconds{100}};
+}
+
+ActionPtr<IPipeline> DxSmartLr02LoraModule::Poll() {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this]() {
+        std::string handles;
+        for (auto ci : connections_) {
+          handles += "," + std::to_string(ci);
+        }
+        return at_comm_support_.SendATCommand("#XPOLL=0" + handles);
       }),
       Stage([this]() {
         return at_comm_support_.WaitForResponse("OK", kOneSecond);
       }));
-};
+}
 
-// =============================private members=========================== //
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::EnterAtMode() {
+void DxSmartLr02LoraModule::PollEvent(std::int32_t handle,
+                                      std::string_view flags) {
+  auto flags_val = FromChars<std::uint32_t>(flags);
+  if (!flags_val) {
+    return;
+  }
+
+  // get connection index
+  auto it = connections_.find(static_cast<ConnectionLoraIndex>(handle));
+  if (it == std::end(connections_)) {
+    AE_TELED_ERROR("Poll unknown handle {}", handle);
+    return;
+  }
+
+  constexpr std::uint32_t kPollIn = 0x01;
+  if (*flags_val | kPollIn) {
+    operation_queue_->Push(
+        Stage([this, connection{*it}]() { return ReadPacket(connection); }));
+  }
+}
+
+ActionPtr<IPipeline> DxSmartLr02LoraModule::EnterAtMode() {
   if (at_mode_ == false) {
     at_mode_ = true;
     return MakeActionPtr<Pipeline>(
@@ -329,8 +614,7 @@ DxSmartLr02LoraModule::EnterAtMode() {
   return {};
 };
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::ExitAtMode() {
+ActionPtr<IPipeline> DxSmartLr02LoraModule::ExitAtMode() {
   if (at_mode_ == true) {
     at_mode_ = false;
     return MakeActionPtr<Pipeline>(
@@ -347,8 +631,8 @@ DxSmartLr02LoraModule::ExitAtMode() {
   return {};
 };
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetLoraModuleMode(kLoraModuleMode const& mode) {
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleMode(
+    kLoraModuleMode const& mode) {
   return MakeActionPtr<Pipeline>(
       action_context_, Stage([this, mode]() {
         return at_comm_support_.SendATCommand(
@@ -359,8 +643,8 @@ DxSmartLr02LoraModule::SetLoraModuleMode(kLoraModuleMode const& mode) {
       }));
 };
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& level) {
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleLevel(
+    kLoraModuleLevel const& level) {
   return MakeActionPtr<Pipeline>(
       action_context_, Stage([this, level]() {
         return at_comm_support_.SendATCommand(
@@ -371,8 +655,8 @@ DxSmartLr02LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& level) {
       }));
 };
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetLoraModulePower(kLoraModulePower const& power) {
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModulePower(
+    kLoraModulePower const& power) {
   return MakeActionPtr<Pipeline>(
       action_context_, Stage([this, power]() {
         return at_comm_support_.SendATCommand(
@@ -383,8 +667,7 @@ DxSmartLr02LoraModule::SetLoraModulePower(kLoraModulePower const& power) {
       }));
 };
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetLoraModuleBandWidth(
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleBandWidth(
     kLoraModuleBandWidth const& band_width) {
   return MakeActionPtr<Pipeline>(
       action_context_, Stage([this, band_width]() {
@@ -396,8 +679,7 @@ DxSmartLr02LoraModule::SetLoraModuleBandWidth(
       }));
 };
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetLoraModuleCodingRate(
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleCodingRate(
     kLoraModuleCodingRate const& coding_rate) {
   return MakeActionPtr<Pipeline>(
       action_context_, Stage([this, coding_rate]() {
@@ -409,8 +691,7 @@ DxSmartLr02LoraModule::SetLoraModuleCodingRate(
       }));
 };
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetLoraModuleSpreadingFactor(
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleSpreadingFactor(
     kLoraModuleSpreadingFactor const& spreading_factor) {
   return MakeActionPtr<Pipeline>(
       action_context_, Stage([this, spreading_factor]() {
@@ -422,8 +703,8 @@ DxSmartLr02LoraModule::SetLoraModuleSpreadingFactor(
       }));
 };
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetupSerialPort(SerialInit& serial_init) {
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetupSerialPort(
+    SerialInit& serial_init) {
   return MakeActionPtr<Pipeline>(
       action_context_, Stage([this, serial_init]() {
         return SetBaudRate(serial_init.baud_rate);
@@ -434,8 +715,7 @@ DxSmartLr02LoraModule::SetupSerialPort(SerialInit& serial_init) {
       }));
 }
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetBaudRate(kBaudRate baud_rate) {
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetBaudRate(kBaudRate baud_rate) {
   auto it = baud_rate_commands_lr02.find(baud_rate);
   if (it == baud_rate_commands_lr02.end()) {
     return {};
@@ -450,8 +730,7 @@ DxSmartLr02LoraModule::SetBaudRate(kBaudRate baud_rate) {
       }));
 }
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetParity(kParity parity) {
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetParity(kParity parity) {
   std::string cmd{};
 
   switch (parity) {
@@ -477,16 +756,15 @@ DxSmartLr02LoraModule::SetParity(kParity parity) {
       }));
 }
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetStopBits(kStopBits stop_bits) {
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetStopBits(kStopBits stop_bits) {
   std::string cmd{};
 
   switch (stop_bits) {
     case kStopBits::kOneStopBit:
-      cmd = "AT+STOP0";  // 0 stop bits
+      cmd = "AT+STOP1";  // 0 stop bits
       break;
     case kStopBits::kTwoStopBit:
-      cmd = "AT+PARI1";  // 2 stop bits
+      cmd = "AT+STOP2";  // 2 stop bits
       break;
     default:
       return {};
@@ -501,8 +779,8 @@ DxSmartLr02LoraModule::SetStopBits(kStopBits stop_bits) {
       }));
 }
 
-ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetupLoraNet(LoraModuleInit& lora_module_init) {
+ActionPtr<IPipeline> DxSmartLr02LoraModule::SetupLoraNet(
+    LoraModuleInit& lora_module_init) {
   return MakeActionPtr<Pipeline>(
       action_context_, Stage([this, lora_module_init]() {
         return SetLoraModuleAddress(lora_module_init.lora_module_my_adress);

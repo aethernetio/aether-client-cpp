@@ -50,10 +50,6 @@ EbyteE22LoraModule::EbyteE22LoraModule(ActionContext action_context,
 
 EbyteE22LoraModule::~EbyteE22LoraModule() { Stop(); }
 
-ActionPtr<EbyteE22LoraModule::LoraModuleOperation> EbyteE22LoraModule::Init() {
-  return {};
-};
-
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation> EbyteE22LoraModule::Start() {
   return {};
 };
@@ -146,5 +142,7 @@ EbyteE22LoraModule::SetLoraModuleIQSignalInversion(
     kLoraModuleIQSignalInversion const& /*signal_inversion*/) {
   return {};
 };
+
+void EbyteE22LoraModule::Init() {};
 
 }  // namespace ae

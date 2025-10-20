@@ -20,8 +20,10 @@
 #include "aether/obj/obj.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_ptr.h"
+#include "aether/types/state_machine.h"
 #include "aether/lora_modules/ilora_module_driver.h"
 #include "aether/adapters/lora_module_adapter.h"
+#include "aether/events/event_subscription.h"
 #include "aether/access_points/access_point.h"
 
 namespace ae {
@@ -29,9 +31,22 @@ class Aether;
 
 class LoraModuleConnectAction final : public Action<LoraModuleConnectAction> {
  public:
+    enum class State : std::uint8_t {
+    kStart,
+    kSuccess,
+    kFailed,
+  };
+
   LoraModuleConnectAction(ActionContext action_context, ILoraModuleDriver& driver);
 
   UpdateStatus Update();
+
+  private:
+  void Start();
+
+  ILoraModuleDriver* driver_;
+  Subscription start_sub_;
+  StateMachine<State> state_;
 };
 
 class LoraModuleAccessPoint final : public AccessPoint {
@@ -53,6 +68,8 @@ class LoraModuleAccessPoint final : public AccessPoint {
  private:
   Obj::ptr aether_;
   LoraModuleAdapter::ptr lora_module_adapter_;
+  ActionPtr<LoraModuleConnectAction> connect_action_;
+  Subscription connect_sub_;
 };
 }  // namespace ae
 

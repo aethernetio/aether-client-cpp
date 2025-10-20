@@ -28,8 +28,8 @@ namespace ae {
 LoraModuleAdapter::LoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                                      LoraModuleInit lora_module_init,
                                      Domain* domain)
-    : ParentLoraModuleAdapter{std::move(aether), poller, lora_module_init,
-                              domain} {
+    : ParentLoraModuleAdapter{std::move(aether), std::move(poller),
+                              std::move(lora_module_init), domain} {
   AE_TELED_DEBUG("Lora module instance created!");
 }
 #endif  // AE_DISTILLATION
@@ -45,7 +45,9 @@ std::vector<AccessPoint::ptr> LoraModuleAdapter::access_points() {
   if (!access_point_) {
     Aether::ptr aether = aether_;
     LoraModuleAdapter::ptr self = MakePtrFromThis(this);
-    access_point_ = domain_->CreateObj<LoraModuleAccessPoint>(aether, self);
+    assert(self);
+    access_point_ =
+        domain_->CreateObj<LoraModuleAccessPoint>(aether, std::move(self));
   }
   return {access_point_};
 }

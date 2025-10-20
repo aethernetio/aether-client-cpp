@@ -24,11 +24,45 @@
 namespace ae {
 LoraModuleConnectAction::LoraModuleConnectAction(ActionContext action_context,
                                        [[maybe_unused]] ILoraModuleDriver& driver)
-    : Action{action_context} {}
+    : Action{action_context}, driver_{&driver}, state_{State::kStart} {
+  AE_TELED_DEBUG("LoraModuleConnectAction created");
+}
 
 UpdateStatus LoraModuleConnectAction::Update() {
-  // TODO: Implement asynchronous modem connection
-  return UpdateStatus::Result();
+  if (state_.changed()) {
+    switch (state_.Acquire()) {
+      case State::kStart:
+        Start();
+        break;
+      case State::kSuccess:
+        return UpdateStatus::Result();
+      case State::kFailed:
+        return UpdateStatus::Error();
+    }
+  }
+  return {};
+}
+
+void LoraModuleConnectAction::Start() {
+  AE_TELED_DEBUG("LoraModuleConnectAction start");
+  auto action = driver_->Start();
+  if (!action) {
+    state_ = State::kFailed;
+    Action::Trigger();
+    return;
+  }
+  action->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[this]() {
+        AE_TELED_INFO("Lora module access point start success");
+        state_ = State::kSuccess;
+        Action::Trigger();
+      }},
+      OnError{[this]() {
+        AE_TELED_ERROR("Lora module access point start failed");
+        state_ = State::kFailed;
+        Action::Trigger();
+      }},
+  });
 }
 
 LoraModuleAccessPoint::LoraModuleAccessPoint(ObjPtr<Aether> aether,
@@ -39,8 +73,16 @@ LoraModuleAccessPoint::LoraModuleAccessPoint(ObjPtr<Aether> aether,
       lora_module_adapter_{std::move(lora_module_adapter)} {}
 
 ActionPtr<LoraModuleConnectAction> LoraModuleAccessPoint::Connect() {
-  return ActionPtr<LoraModuleConnectAction>{*aether_.as<Aether>(),
-                                       lora_module_adapter_->lora_module_driver()};
+  AE_TELED_DEBUG("Make lora module access point connection");
+
+  // reuse connect action if it's in progress
+  if (!connect_action_) {
+    connect_action_ = ActionPtr<LoraModuleConnectAction>{
+        *aether_.as<Aether>(), lora_module_adapter_->lora_module_driver()};
+    connect_sub_ = connect_action_->FinishedEvent().Subscribe(
+        [this]() { connect_action_.reset(); });
+  }
+  return connect_action_;
 }
 
 ILoraModuleDriver& LoraModuleAccessPoint::lora_module_driver() {
@@ -49,6 +91,7 @@ ILoraModuleDriver& LoraModuleAccessPoint::lora_module_driver() {
 
 std::vector<ObjPtr<Channel>> LoraModuleAccessPoint::GenerateChannels(
     std::vector<UnifiedAddress> const& endpoints) {
+  AE_TELED_DEBUG("Generate lora module channels");
   std::vector<ObjPtr<Channel>> channels;
   channels.reserve(endpoints.size());
   Aether::ptr aether = aether_;

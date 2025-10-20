@@ -40,7 +40,6 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
                               LoraModuleInit lora_module_init);
   ~EbyteE22LoraModule() override;
 
-  ActionPtr<LoraModuleOperation> Init() override;
   ActionPtr<LoraModuleOperation> Start() override;
   ActionPtr<LoraModuleOperation> Stop() override;
   ActionPtr<OpenNetworkOperation> OpenNetwork(ae::Protocol protocol,
@@ -73,6 +72,11 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
           signal_inversion);  // Module signal inversion
 
  private:
+  void Init();
+  void SetupPoll();
+  ActionPtr<IPipeline> Poll();
+  void PollEvent(std::int32_t handle, std::string_view flags);
+  
   ActionContext action_context_;
   LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;

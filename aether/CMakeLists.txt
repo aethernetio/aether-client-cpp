@@ -114,7 +114,7 @@ list(APPEND adapters_srcs
             "adapters/adapter.cpp"
             "adapters/wifi_adapter.cpp"
             "adapters/ethernet.cpp"
-            # "adapters/lora_module_adapter.cpp"
+            "adapters/lora_module_adapter.cpp"
             "adapters/modem_adapter.cpp"
             "adapters/parent_lora_module.cpp"
             "adapters/parent_modem.cpp"
@@ -170,7 +170,7 @@ list(APPEND transport_srcs
             "transport/low_level/tcp/tcp.cpp"
             "transport/low_level/udp/udp.cpp"
             "transport/modems/modem_transport.cpp"
-            # "transport/lora_modules/lora_module_transport.cpp"
+            "transport/lora_modules/lora_module_transport.cpp"
 )
 
 list(APPEND stream_api_src
@@ -265,6 +265,7 @@ list(APPEND channels_srcs
             "channels/ethernet_transport_factory.cpp"
             "channels/ethernet_channel.cpp"
             "channels/wifi_channel.cpp"
+            "channels/lora_module_channel.cpp"
             "channels/modem_channel.cpp")
 
 list(APPEND tele_srcs
