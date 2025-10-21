@@ -24,6 +24,11 @@ namespace ae {
 template <typename T>
 std::optional<T> FromChars(std::string_view str, int base = 10) {
   T value;
+  // skip 0x if present
+  auto skip_pos = str.find("0x");
+  if (skip_pos != std::string_view::npos) {
+    str.remove_prefix(skip_pos + 2);
+  }
   auto [ptr, ec] =
       std::from_chars(str.data(), str.data() + str.size(), value, base);
   if (ec == std::errc()) {
