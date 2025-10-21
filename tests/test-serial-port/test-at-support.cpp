@@ -18,12 +18,50 @@
 
 #include "aether/serial_ports/at_support/at_support.h"
 
-#include "tests/test-serial-port/mock-serial-port.h"
+namespace ae::test_at_support {
+void test_ParseAtResponse() {
+  std::string_view str = "#XRECV: 104";
+  DataBuffer buffer{
+      reinterpret_cast<std::uint8_t const*>(str.data()),
+      reinterpret_cast<std::uint8_t const*>(str.data() + str.size())};
+  std::size_t size;
+  auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size);
+  TEST_ASSERT_TRUE(parse_end.has_value());
+  TEST_ASSERT_EQUAL(str.size(), *parse_end);
+  TEST_ASSERT_EQUAL(104, size);
+}
 
-namespace ae::test_at_support {}
+void test_ParseAtResponseTwoValues() {
+  std::string_view str = "#XRECV: 104,105";
+  DataBuffer buffer{
+      reinterpret_cast<std::uint8_t const*>(str.data()),
+      reinterpret_cast<std::uint8_t const*>(str.data() + str.size())};
+  std::size_t size;
+  std::size_t count;
+  auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size, count);
+  TEST_ASSERT_TRUE(parse_end.has_value());
+  TEST_ASSERT_EQUAL(str.size(), *parse_end);
+  TEST_ASSERT_EQUAL(104, size);
+  TEST_ASSERT_EQUAL(105, count);
+}
+
+void test_ParseAtNoValue() {
+  std::string_view str = "#XRECV:";
+  DataBuffer buffer{
+      reinterpret_cast<std::uint8_t const*>(str.data()),
+      reinterpret_cast<std::uint8_t const*>(str.data() + str.size())};
+  std::size_t size{22};
+  auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size);
+  TEST_ASSERT_FALSE(parse_end.has_value());
+  TEST_ASSERT_EQUAL(22, size);
+}
+
+}  // namespace ae::test_at_support
 
 int test_at_support() {
   UNITY_BEGIN();
-
+  RUN_TEST(ae::test_at_support::test_ParseAtResponse);
+  RUN_TEST(ae::test_at_support::test_ParseAtResponseTwoValues);
+  RUN_TEST(ae::test_at_support::test_ParseAtNoValue);
   return UNITY_END();
 }
