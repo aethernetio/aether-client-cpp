@@ -28,7 +28,7 @@ class RegistrationAsyncKeyProvider : public IAsyncKeyProvider {
   Key SecretKey() const override;
 
   void set_public_key(Key key);
-  void set_secret_key(Key key);
+  void set_private_key(Key key);
 
  private:
   Key public_key_;

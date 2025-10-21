@@ -19,17 +19,25 @@
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 #  include "third_party/libsodium/src/libsodium/include/sodium/randombytes.h"
 #endif
+#if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
+#  include "third_party/libhydrogen/hydrogen.h"
+#endif
 
 namespace ae {
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 void CryptoNonceChacha20Poly1305::Next() {
   static_assert(kNonceSize >= sizeof(std::uint64_t));
-  auto& v = *reinterpret_cast<std::uint64_t*>(this->data());
+  auto& v = *reinterpret_cast<std::uint64_t*>(value.data());
   v = +1;
 }
 void CryptoNonceChacha20Poly1305::Init() {
-  randombytes_buf(this->data(), this->size());
+  randombytes_buf(value.data(), value.size());
 }
+#endif
+
+#if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
+void CryptoNonceHydrogen::Next() { value += 1; }
+void CryptoNonceHydrogen::Init() { hydro_random_buf(&value, sizeof(value)); }
 #endif
 
 void CryptoNonceEmpty::Next() {}

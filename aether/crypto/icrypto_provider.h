@@ -17,6 +17,8 @@
 #ifndef AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
 #define AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
 
+#include <cstddef>
+
 #include "aether/types/data_buffer.h"
 
 namespace ae {
@@ -40,6 +42,22 @@ class IDecryptProvider {
    */
   virtual DataBuffer Decrypt(DataBuffer const& data) = 0;
 };
+
+class ICryptoProvider {
+ public:
+  virtual ~ICryptoProvider() = default;
+
+  /**
+   * \brief Access to encryption provider
+   */
+  virtual IEncryptProvider* encryptor() = 0;
+
+  /**
+   * \brief Access to decryption provider
+   */
+  virtual IDecryptProvider* decryptor() = 0;
+};
+
 }  // namespace ae
 
 #endif  // AETHER_CRYPTO_ICRYPTO_PROVIDER_H_
