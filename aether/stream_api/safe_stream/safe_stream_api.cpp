@@ -21,7 +21,7 @@
 namespace ae {
 SafeStreamApi::SafeStreamApi(ProtocolContext& protocol_context,
                              SafeStreamApiImpl& safe_stream_api_impl)
-    : ReturnResultApiImpl(protocol_context),
+    : ApiClassImpl{protocol_context},
       ack{protocol_context},
       request_repeat{protocol_context},
       send{protocol_context},

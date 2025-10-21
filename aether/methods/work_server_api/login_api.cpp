@@ -18,5 +18,7 @@
 
 namespace ae {
 LoginApi::LoginApi(ProtocolContext& protocol_context)
-    : login_by_uid{protocol_context}, login_by_alias{protocol_context} {}
+    : ApiClass{protocol_context},
+      login_by_uid{protocol_context},
+      login_by_alias{protocol_context} {}
 }  // namespace ae

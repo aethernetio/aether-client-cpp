@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/api_protocol/api_protocol.h"
-
-#include <limits>
-#include <iostream>
+#include "aether/api_protocol/api_pack_parser.h"
 
 #include "aether/api_protocol/child_data.h"
 
@@ -31,14 +28,6 @@ ApiParser::ApiParser(ProtocolContext& protocol_context_,
     : ApiParser{protocol_context_, child_data.PackData()} {}
 
 ApiParser::~ApiParser() = default;
-
-void ApiParser::Parse(ApiClass& api_class) {
-  while (buffer_reader_.offset_ < buffer_reader_.data_.size()) {
-    MessageId message_id{std::numeric_limits<MessageId>::max()};
-    istream_ >> message_id;
-    api_class.LoadFactory(message_id, *this);
-  }
-}
 
 ProtocolContext& ApiParser::Context() { return protocol_context_; }
 
@@ -55,35 +44,4 @@ ApiPacker::~ApiPacker() = default;
 MessageBufferWriter& ApiPacker::Buffer() { return buffer_writer_; }
 
 ProtocolContext& ApiPacker::Context() { return protocol_context_; }
-
-bool ReturnResultApi::LoadResult(MessageId message_id, ApiParser& parser) {
-  switch (message_id) {
-    case kSendResult:
-      parser.Load<SendResult>(*this);
-      return true;
-    case kSendError:
-      parser.Load<SendError>(*this);
-      return true;
-    default:
-      break;
-  }
-  return false;
-}
-
-void ReturnResultApi::Execute(SendResult&& result, ApiParser& parser) {
-  parser.Context().SetSendResultResponse(std::move(result).request_id, parser);
-}
-
-void ReturnResultApi::Execute(SendError&& error, ApiParser& parser) {
-  parser.Context().SetSendErrorResponse(std::move(error), parser);
-}
-
-void ReturnResultApi::Pack(SendResult&& result, ApiPacker& packer) const {
-  packer.Pack(kSendResult, std::move(result));
-}
-
-void ReturnResultApi::Pack(SendError&& error, ApiPacker& packer) const {
-  packer.Pack(kSendError, std::move(error));
-}
-
 }  // namespace ae

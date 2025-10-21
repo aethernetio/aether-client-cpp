@@ -17,8 +17,8 @@
 #ifndef AETHER_API_PROTOCOL_API_CLASS_IMPL_H_
 #define AETHER_API_PROTOCOL_API_CLASS_IMPL_H_
 
-#include "aether/api_protocol/api_method.h"
-#include "aether/api_protocol/api_protocol.h"
+#include "aether/api_protocol/api_class.h"
+#include "aether/api_protocol/api_pack_parser.h"
 
 namespace ae {
 /**
@@ -178,9 +178,11 @@ struct ImplList {
  * api class.
  */
 template <typename MainApi, typename... ExtApis>
-class ApiClassImpl : public ApiClass {
+class ApiClassImpl : public virtual ApiClass {
  public:
-  void LoadFactory(MessageId message_id, ApiParser& parser) override {
+  using ApiClass::ApiClass;
+
+  void LoadFactory(MessageId message_id, ApiParser& parser) {
     auto res = ApiLoadFactory<MainApi>(message_id, parser) ||
                (ApiLoadFactory<ExtApis>(message_id, parser) || ...);
     if (!res) {

@@ -23,7 +23,10 @@
 
 namespace ae {
 ClientSafeApi::ClientSafeApi(ProtocolContext& protocol_context)
-    : ReturnResultApiImpl{protocol_context}, StreamApiImpl{protocol_context} {}
+    : ApiClass{protocol_context},
+      ReturnResultApi{protocol_context},
+      StreamApiImpl{protocol_context},
+      ApiClassImpl{protocol_context} {}
 
 void ClientSafeApi::SendMessage(ApiParser&, Uid uid, DataBuffer data) {
   send_message_event.Emit(uid, data);

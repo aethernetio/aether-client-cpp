@@ -19,7 +19,7 @@
 
 #include "aether/types/uid.h"
 #include "aether/types/data_buffer.h"
-#include "aether/api_protocol/api_method.h"
+#include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
 class LoginApi : public ApiClass {
