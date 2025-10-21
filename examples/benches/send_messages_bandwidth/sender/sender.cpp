@@ -43,8 +43,7 @@ void Sender::Connect() {
 void Sender::Disconnect() { message_stream_.Reset(); }
 
 EventSubscriber<void()> Sender::Handshake() {
-  auto api = ApiCallAdapter{ApiContext{protocol_context_, bandwidth_api_},
-                            *message_stream_};
+  auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
 
   auto res = api->handshake();
   handshake_sub_ =
@@ -76,8 +75,7 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
             action_context_,
             [this, payload_size](std::uint16_t id) {
               auto api =
-                  ApiCallAdapter{ApiContext{protocol_context_, bandwidth_api_},
-                                 *message_stream_};
+                  ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
               api->message(id, DataBuffer(payload_size));
               return api.Flush();
             },
@@ -103,8 +101,7 @@ EventSubscriber<void()> Sender::StartTest() {
       action_context_,
       [this]() {
         AE_TELED_DEBUG("Sending start test request");
-        auto api = ApiCallAdapter{ApiContext{protocol_context_, bandwidth_api_},
-                                  *message_stream_};
+        auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
 
         auto res = api->start_test();
         sync_subs_.Push(res->StatusEvent().Subscribe(OnResult{[this]() {
@@ -126,8 +123,7 @@ EventSubscriber<void()> Sender::StopTest() {
       action_context_,
       [this]() {
         AE_TELED_DEBUG("Sending stop test request");
-        auto api = ApiCallAdapter{ApiContext{protocol_context_, bandwidth_api_},
-                                  *message_stream_};
+        auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
 
         auto res = api->stop_test();
         sync_subs_.Push(res->StatusEvent().Subscribe(OnResult{[this]() {

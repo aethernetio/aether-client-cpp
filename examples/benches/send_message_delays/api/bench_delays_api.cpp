@@ -18,7 +18,8 @@
 
 namespace ae::bench {
 BenchDelaysApi::BenchDelaysApi(ProtocolContext& protocol_context)
-    : warm_up{protocol_context},
+    : ApiClassImpl{protocol_context},
+      warm_up{protocol_context},
       two_bytes{protocol_context},
       ten_bytes{protocol_context},
       hundred_bytes{protocol_context},

@@ -19,11 +19,12 @@
 namespace ae::bench {
 BandwidthApi::BandwidthApi(ActionContext action_context,
                            ProtocolContext& protocol_context)
-    : ReturnResultApiImpl{protocol_context},
+    : ApiClassImpl{protocol_context},
       handshake{protocol_context, action_context},
       start_test{protocol_context, action_context},
       stop_test{protocol_context, action_context},
-      message{protocol_context} {}
+      message{protocol_context},
+      return_result{protocol_context} {}
 
 void BandwidthApi::HandshakeImpl(ApiParser&, PromiseResult<bool> res) {
   handshake_event_.Emit(res.request_id);

@@ -24,8 +24,7 @@
 #include "aether/api_protocol/return_result_api.h"
 
 namespace ae::bench {
-class BandwidthApi : public ReturnResultApiImpl,
-                     public ApiClassImpl<BandwidthApi, ReturnResultApiImpl> {
+class BandwidthApi : public ApiClassImpl<BandwidthApi> {
  public:
   using PayloadData = DataBuffer;
 
@@ -45,10 +44,13 @@ class BandwidthApi : public ReturnResultApiImpl,
   void StopTestImpl(ApiParser& parser, PromiseResult<bool> res);
   void MessageImpl(ApiParser& parser, std::uint16_t id, PayloadData data);
 
+  ReturnResultApi return_result;
+
   using ApiMethods = ImplList<RegMethod<0x03, &BandwidthApi::HandshakeImpl>,
                               RegMethod<0x04, &BandwidthApi::StartTestImpl>,
                               RegMethod<0x05, &BandwidthApi::StopTestImpl>,
-                              RegMethod<0x06, &BandwidthApi::MessageImpl>>;
+                              RegMethod<0x06, &BandwidthApi::MessageImpl>,
+                              ExtApi<&BandwidthApi::return_result>>;
 
   EventSubscriber<void(RequestId req_id)> handshake_event();
   EventSubscriber<void(RequestId req_id)> start_test_event();
