@@ -169,7 +169,6 @@ ActionPtr<StreamWriteAction> ModemTransport::Write(DataBuffer&& in_data) {
         send_action->StatusEvent().Subscribe(OnError{[this]() {
           AE_TELED_ERROR("Send error, disconnect!");
           OnConnectionFailed();
-          Disconnect();
         }}));
     return send_action;
   }
@@ -180,7 +179,6 @@ ActionPtr<StreamWriteAction> ModemTransport::Write(DataBuffer&& in_data) {
         send_action->StatusEvent().Subscribe(OnError{[this]() {
           AE_TELED_ERROR("Send error, disconnect!");
           OnConnectionFailed();
-          Disconnect();
         }}));
     return send_action;
   }
@@ -230,7 +228,7 @@ void ModemTransport::OnConnected(ConnectionIndex connection_index) {
 
 void ModemTransport::OnConnectionFailed() {
   stream_info_.link_state = LinkState::kLinkError;
-  stream_update_event_.Emit();
+  Disconnect();
 }
 
 void ModemTransport::Disconnect() {
@@ -240,6 +238,8 @@ void ModemTransport::Disconnect() {
 
   modem_driver_->CloseNetwork(connection_);
   connection_ = kInvalidConnectionIndex;
+
+  stream_update_event_.Emit();
 }
 
 void ModemTransport::DataReceived(ConnectionIndex connection,
