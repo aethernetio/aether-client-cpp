@@ -111,6 +111,7 @@ class Thingy91xAtModem final : public IModemDriver {
   OwnActionPtr<ActionsQueue> operation_queue_;
   bool initiated_;
   bool started_;
+  int poll_in_queue_ = 0;
 };
 
 } /* namespace ae */

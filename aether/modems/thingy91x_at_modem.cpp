@@ -958,28 +958,38 @@ void Thingy91xAtModem::SetupPoll() {
   poll_task_ = ActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
-        if (connections_.empty()) {
-          return;
-        }
         // add poll to operation queue
         operation_queue_->Push(Stage([this]() { return Poll(); }));
       },
-      std::chrono::milliseconds{100}};
+      std::chrono::milliseconds{200}};
 }
 
 ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
-  return MakeActionPtr<Pipeline>(action_context_, Stage([this]() {
+  if (connections_.empty()) {
+    return {};
+  }
+  if (poll_in_queue_ > 0) {
+    return {};
+  }
+  poll_in_queue_++;
+  return MakeActionPtr<Pipeline>(action_context_,  //
+                                 Stage([this]() {
                                    std::string handles;
                                    for (auto ci : connections_) {
                                      handles += "," + std::to_string(ci);
                                    }
                                    return at_comm_support_.MakeRequest(
                                        "AT#XPOLL=0" + handles, kWaitOk);
+                                 }),
+                                 Stage<GenAction>(action_context_, [this]() {
+                                   poll_in_queue_--;
+                                   return UpdateStatus::Result();
                                  }));
 }
 
 void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
-  auto flags_val = FromChars<std::uint32_t>(flags);
+  // flags is in hexadecimal format like "0x001"
+  auto flags_val = FromChars<std::uint32_t>(flags, 16);
   AE_TELED_DEBUG("Poll has flag value {}", flags_val);
   if (!flags_val) {
     return;
@@ -993,7 +1003,8 @@ void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
   }
 
   constexpr std::uint32_t kPollIn = 0x01;
-  if (*flags_val | kPollIn) {
+  if ((*flags_val & kPollIn) != 0) {
+    AE_TELED_DEBUG("Add read packet in queue");
     operation_queue_->Push(
         Stage([this, connection{*it}]() { return ReadPacket(connection); }));
   }
