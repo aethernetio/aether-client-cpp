@@ -56,6 +56,19 @@ void test_ParseAtNoValue() {
   TEST_ASSERT_EQUAL(22, size);
 }
 
+void test_ParseAtResponseTwoNoValue() {
+  std::string_view str = "#XRECV: 12";
+  DataBuffer buffer{
+      reinterpret_cast<std::uint8_t const*>(str.data()),
+      reinterpret_cast<std::uint8_t const*>(str.data() + str.size())};
+  std::size_t size{22};
+  std::size_t count{10};
+  auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size, count);
+  TEST_ASSERT_FALSE(parse_end.has_value());
+  TEST_ASSERT_EQUAL(12, size);
+  TEST_ASSERT_EQUAL(10, count);
+}
+
 }  // namespace ae::test_at_support
 
 int test_at_support() {
@@ -63,5 +76,6 @@ int test_at_support() {
   RUN_TEST(ae::test_at_support::test_ParseAtResponse);
   RUN_TEST(ae::test_at_support::test_ParseAtResponseTwoValues);
   RUN_TEST(ae::test_at_support::test_ParseAtNoValue);
+  RUN_TEST(ae::test_at_support::test_ParseAtResponseTwoNoValue);
   return UNITY_END();
 }
