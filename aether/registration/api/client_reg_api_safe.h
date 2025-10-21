@@ -14,28 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_METHODS_SERVER_REG_API_ROOT_API_H_
-#define AETHER_METHODS_SERVER_REG_API_ROOT_API_H_
+#ifndef AETHER_REGISTRATION_API_CLIENT_REG_API_SAFE_H_
+#define AETHER_REGISTRATION_API_CLIENT_REG_API_SAFE_H_
 
 #include "aether/config.h"
 
 #if AE_SUPPORT_REGISTRATION
-#  include "aether/crypto/signed_key.h"
-#  include "aether/crypto/crypto_definitions.h"
 
-#  include "aether/types/data_buffer.h"
-#  include "aether/api_protocol/api_method.h"
+#  include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
 
-class RootApi {
+class ClientRegApiSafe final : public ApiClassImpl<ClientRegApiSafe> {
  public:
-  RootApi(ProtocolContext& protocol_context, ActionContext action_context);
+  explicit ClientRegApiSafe(ProtocolContext& protocol_context);
 
-  Method<03, ApiPromisePtr<SignedKey>(CryptoLibProfile crypto_lib_profile)>
-      get_asymmetric_public_key;
-  Method<04, void(CryptoLibProfile crypto_lib_profile, DataBuffer data)> enter;
+  ReturnResultApi return_result;
+  using ApiMethods = ImplList<ExtApi<&ClientRegApiSafe::return_result>>;
 };
 }  // namespace ae
+
 #endif
-#endif  // AETHER_METHODS_SERVER_REG_API_ROOT_API_H_ */
+#endif  // AETHER_REGISTRATION_API_CLIENT_REG_API_SAFE_H_

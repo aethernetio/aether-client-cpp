@@ -112,7 +112,12 @@ list(APPEND registration_srcs
             "registration/root_server_stream.cpp"
             "registration/registration.cpp"
             "registration/registration_key_provider.cpp"
-            )
+            "registration/api/client_reg_api_unsafe.cpp"
+            "registration/api/client_reg_api_safe.cpp"
+            "registration/api/global_reg_client_api.cpp"
+            "registration/api/registration_root_api.cpp"
+            "registration/api/server_registration_api.cpp"
+            "registration/api/global_reg_server_api.cpp")
 
 
 list(APPEND adapters_srcs
@@ -206,13 +211,7 @@ list(APPEND methods_srcs
             "methods/work_server_api/login_api.cpp"
             "methods/work_server_api/authorized_api.cpp"
             "methods/client_api/client_root_api.cpp"
-            "methods/client_api/client_safe_api.cpp"
-            "methods/client_reg_api/client_reg_root_api.cpp"
-            "methods/client_reg_api/client_reg_api.cpp"
-            "methods/client_reg_api/client_global_reg_api.cpp"
-            "methods/server_reg_api/root_api.cpp"
-            "methods/server_reg_api/server_registration_api.cpp"
-            "methods/server_reg_api/global_reg_server_api.cpp")
+            "methods/client_api/client_safe_api.cpp")
 
 
 list(APPEND client_connections_srcs

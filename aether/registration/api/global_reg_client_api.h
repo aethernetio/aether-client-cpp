@@ -14,10 +14,22 @@
  * limitations under the License.
  */
 
-#include "aether/methods/client_reg_api/client_global_reg_api.h"
+#ifndef AETHER_REGISTRATION_API_GLOBAL_REG_CLIENT_API_H_
+#define AETHER_REGISTRATION_API_GLOBAL_REG_CLIENT_API_H_
+
+#include "aether/config.h"
+
 #if AE_SUPPORT_REGISTRATION
+#  include "aether/api_protocol/api_protocol.h"
+
 namespace ae {
-ClientGlobalRegApi::ClientGlobalRegApi(ProtocolContext& protocol_context)
-    : ReturnResultApiImpl{protocol_context} {}
+class GlobalRegClientApi : public ApiClassImpl<GlobalRegClientApi> {
+ public:
+  explicit GlobalRegClientApi(ProtocolContext& protocol_context);
+
+  ReturnResultApi return_result;
+  using ApiMethods = ImplList<ExtApi<&GlobalRegClientApi::return_result>>;
+};
 }  // namespace ae
 #endif
+#endif  // AETHER_REGISTRATION_API_GLOBAL_REG_CLIENT_API_H_

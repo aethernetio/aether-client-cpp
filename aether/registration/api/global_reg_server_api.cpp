@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#include "aether/methods/server_reg_api/global_reg_server_api.h"
+#include "aether/registration/api/global_reg_server_api.h"
 
 #if AE_SUPPORT_REGISTRATION
 namespace ae {
 GlobalRegServerApi::GlobalRegServerApi(ProtocolContext& protocol_context,
                                        ActionContext action_context)
-    : set_master_key{protocol_context},
+    : ApiClass{protocol_context},
+      set_master_key{protocol_context},
       finish{protocol_context, action_context} {}
 }  // namespace ae
 #endif

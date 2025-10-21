@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_METHODS_SERVER_REG_API_GLOBAL_REG_SERVER_API_H_
-#define AETHER_METHODS_SERVER_REG_API_GLOBAL_REG_SERVER_API_H_
+#ifndef AETHER_REGISTRATION_API_GLOBAL_REG_SERVER_API_H_
+#define AETHER_REGISTRATION_API_GLOBAL_REG_SERVER_API_H_
 
 #include "aether/config.h"
 
@@ -26,7 +26,7 @@
 #  include "aether/common.h"
 #  include "aether/crypto/key.h"
 #  include "aether/reflect/reflect.h"
-#  include "aether/api_protocol/api_method.h"
+#  include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
 
@@ -37,7 +37,7 @@ struct RegistrationResponse {
   std::vector<ServerId> cloud;
 };
 
-class GlobalRegServerApi {
+class GlobalRegServerApi : public ApiClass {
  public:
   GlobalRegServerApi(ProtocolContext& protocol_context,
                      ActionContext action_context);
@@ -48,4 +48,4 @@ class GlobalRegServerApi {
 
 }  // namespace ae
 #endif
-#endif  // AETHER_METHODS_SERVER_REG_API_GLOBAL_REG_SERVER_API_H_ */
+#endif  // AETHER_REGISTRATION_API_GLOBAL_REG_SERVER_API_H_ */
