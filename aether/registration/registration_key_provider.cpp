@@ -27,7 +27,7 @@ void RegistrationAsyncKeyProvider::set_public_key(Key key) {
   public_key_ = std::move(key);
 }
 
-void RegistrationAsyncKeyProvider::set_secret_key(Key key) {
+void RegistrationAsyncKeyProvider::set_private_key(Key key) {
   secret_key_ = std::move(key);
 }
 
