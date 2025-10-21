@@ -78,6 +78,7 @@ void test_ParseAtBigValue() {
   std::size_t size{22};
   auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size);
   TEST_ASSERT_TRUE(parse_end.has_value());
+  TEST_ASSERT_EQUAL(11, *parse_end);
   TEST_ASSERT_EQUAL(104, size);
 }
 
