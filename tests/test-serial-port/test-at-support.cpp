@@ -69,6 +69,18 @@ void test_ParseAtResponseTwoNoValue() {
   TEST_ASSERT_EQUAL(10, count);
 }
 
+void test_ParseAtBigValue() {
+  std::string_view str = R"(#XRECV: 104
+    ╪4(╨Ю}█4"нК╝heКдАХ│"%n▓╨г-`╟┘╕"ЪЫ|ИФ°6иi4хМц"$х>hCпD╟╦{Nb├rж┐P7;╩{ъ┘i╠ПйN&юЙ▄*║One g╜%W)";
+  DataBuffer buffer{
+      reinterpret_cast<std::uint8_t const*>(str.data()),
+      reinterpret_cast<std::uint8_t const*>(str.data() + str.size())};
+  std::size_t size{22};
+  auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size);
+  TEST_ASSERT_TRUE(parse_end.has_value());
+  TEST_ASSERT_EQUAL(104, size);
+}
+
 }  // namespace ae::test_at_support
 
 int test_at_support() {
@@ -77,5 +89,6 @@ int test_at_support() {
   RUN_TEST(ae::test_at_support::test_ParseAtResponseTwoValues);
   RUN_TEST(ae::test_at_support::test_ParseAtNoValue);
   RUN_TEST(ae::test_at_support::test_ParseAtResponseTwoNoValue);
+  RUN_TEST(ae::test_at_support::test_ParseAtBigValue);
   return UNITY_END();
 }
