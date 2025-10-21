@@ -77,7 +77,7 @@ class AtSupport {
          res = false;
          return;
        }
-       end = resp_str.find(',', start);
+       end = resp_str.find_first_of(", \n\r", start);
        if (end == std::string_view::npos) {
          end = resp_str.size();
        }
