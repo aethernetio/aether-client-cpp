@@ -925,7 +925,7 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
                               std::size_t size{};
                               auto parse_end = AtSupport::ParseResponse(
                                   *pos, "#XRECV", size);
-                              if (parse_end == 0) {
+                              if (parse_end.value_or(0) == 0) {
                                 AE_TELED_ERROR("Parser recv error");
                                 return false;
                               }
