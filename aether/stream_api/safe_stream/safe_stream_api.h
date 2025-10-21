@@ -34,8 +34,7 @@ class SafeStreamApiImpl {
                     DataMessage data_message) = 0;
 };
 
-class SafeStreamApi : public ReturnResultApiImpl,
-                      public ApiClassImpl<SafeStreamApi, ReturnResultApiImpl> {
+class SafeStreamApi final : public ApiClassImpl<SafeStreamApi> {
  public:
   explicit SafeStreamApi(ProtocolContext& protocol_context,
                          SafeStreamApiImpl& safe_stream_api_impl);
@@ -57,6 +56,7 @@ class SafeStreamApi : public ReturnResultApiImpl,
  private:
   SafeStreamApiImpl* safe_stream_api_impl_;
 };
+
 }  // namespace ae
 
 #endif  // AETHER_STREAM_API_SAFE_STREAM_SAFE_STREAM_API_H_

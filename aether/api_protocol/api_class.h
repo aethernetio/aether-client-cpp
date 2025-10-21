@@ -14,16 +14,22 @@
  * limitations under the License.
  */
 
-#include "aether/methods/client_api/client_root_api.h"
+#ifndef AETHER_API_PROTOCOL_API_CLASS_H_
+#define AETHER_API_PROTOCOL_API_CLASS_H_
+
+#include "aether/api_protocol/protocol_context.h"
 
 namespace ae {
-ClientRootApi::ClientRootApi(ProtocolContext& protocol_context)
-    : ApiClass{protocol_context},
-      ReturnResultApi{protocol_context},
-      ApiClassImpl{protocol_context} {}
+class ApiClass {
+ public:
+  explicit ApiClass(ProtocolContext& protocol_context)
+      : protocol_context_{&protocol_context} {}
 
-void ClientRootApi::SendSafeApiData(ApiParser&, DataBuffer data) {
-  send_safe_api_data_event.Emit(std::move(data));
-}
+  ProtocolContext& protocol_context() const { return *protocol_context_; }
 
+ private:
+  ProtocolContext* protocol_context_;
+};
 }  // namespace ae
+
+#endif  // AETHER_API_PROTOCOL_API_CLASS_H_

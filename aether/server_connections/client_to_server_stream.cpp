@@ -156,7 +156,7 @@ AuthorizedApi& ClientToServerStream::authorized_api() {
 }
 
 ApiCallAdapter<AuthorizedApi> ClientToServerStream::authorized_api_adapter() {
-  return ApiCallAdapter{ApiContext{protocol_context_, authorized_api_}, *this};
+  return ApiCallAdapter{ApiContext{authorized_api_}, *this};
 }
 
 ProtocolContext& ClientToServerStream::protocol_context() {
@@ -165,7 +165,7 @@ ProtocolContext& ClientToServerStream::protocol_context() {
 
 DataBuffer ClientToServerStream::Login(DataBuffer&& data) {
   auto client_ptr = client_.Lock();
-  auto api_context = ApiContext{protocol_context_, login_api_};
+  auto api_context = ApiContext{login_api_};
   api_context->login_by_alias(client_ptr->ephemeral_uid(), std::move(data));
   return DataBuffer{std::move(api_context)};
 }

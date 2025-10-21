@@ -17,15 +17,13 @@
 #ifndef AETHER_METHODS_CLIENT_API_CLIENT_ROOT_API_H_
 #define AETHER_METHODS_CLIENT_API_CLIENT_ROOT_API_H_
 
-#include "aether/types/uid.h"
 #include "aether/events/events.h"
 #include "aether/types/data_buffer.h"
-#include "aether/api_protocol/api_class_impl.h"
-#include "aether/api_protocol/return_result_api.h"
+#include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
-class ClientRootApi : public ReturnResultApiImpl,
-                      public ApiClassImpl<ClientRootApi, ReturnResultApiImpl> {
+class ClientRootApi : public ReturnResultApi,
+                      public ApiClassImpl<ClientRootApi, ReturnResultApi> {
  public:
   explicit ClientRootApi(ProtocolContext& protocol_context);
 

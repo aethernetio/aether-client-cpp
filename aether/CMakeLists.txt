@@ -172,7 +172,6 @@ list(APPEND stream_api_src
             "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
             "stream_api/debug_gate.cpp"
-            "stream_api/stream_splitter.cpp"
 
             "stream_api/safe_stream.cpp"
             "stream_api/safe_stream/safe_stream_api.cpp"
@@ -186,7 +185,7 @@ list(APPEND stream_api_src
 
 list(APPEND api_protocol_srcs
             "api_protocol/protocol_context.cpp"
-            "api_protocol/api_protocol.cpp"
+            "api_protocol/api_pack_parser.cpp"
             "api_protocol/child_data.cpp"
             "api_protocol/return_result_api.cpp"
             )

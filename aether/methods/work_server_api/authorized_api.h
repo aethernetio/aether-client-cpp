@@ -21,11 +21,11 @@
 #include "aether/methods/telemetric.h"
 #include "aether/types/data_buffer.h"
 #include "aether/stream_api/stream_api.h"
-#include "aether/api_protocol/api_method.h"
+#include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
 
-class AuthorizedApi {
+class AuthorizedApi : public ApiClass {
  public:
   AuthorizedApi(ProtocolContext& protocol_context,
                 ActionContext action_context);

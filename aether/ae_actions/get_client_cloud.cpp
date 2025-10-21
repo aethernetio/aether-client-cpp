@@ -32,8 +32,7 @@ GetClientCloudAction::AddResolversGate::AddResolversGate(
 
 DataBuffer GetClientCloudAction::AddResolversGate::WriteIn(
     DataBuffer&& buffer) {
-  auto api = ApiContext{client_to_server_stream_->protocol_context(),
-                        client_to_server_stream_->authorized_api()};
+  auto api = ApiContext{client_to_server_stream_->authorized_api()};
   api->resolvers(server_stream_id_, cloud_stream_id_);
   DataBuffer resolvers = std::move(api);
   buffer.insert(std::end(buffer), std::begin(resolvers), std::end(resolvers));
@@ -102,13 +101,13 @@ void GetClientCloudAction::InitStreams() {
 
   cloud_request_stream_.emplace(
       SerializeGate<Uid, UidAndCloud>{},
-      StreamApiGate{client_to_server_stream_->protocol_context(),
+      StreamApiGate{client_to_server_stream_->client_safe_api(),
                     cloud_stream_id},
       *add_resolvers_);
 
   server_resolver_stream_.emplace(
       SerializeGate<ServerId, ServerDescriptor>{},
-      StreamApiGate{client_to_server_stream_->protocol_context(),
+      StreamApiGate{client_to_server_stream_->client_safe_api(),
                     server_stream_id},
       *add_resolvers_);
 

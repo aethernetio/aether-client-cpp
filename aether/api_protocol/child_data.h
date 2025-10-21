@@ -24,8 +24,8 @@
 #include <variant>
 
 #include "aether/api_protocol/api_message.h"
-#include "aether/api_protocol/protocol_context.h"
 #include "aether/api_protocol/packet_builder.h"
+#include "aether/api_protocol/protocol_context.h"
 
 namespace ae {
 class ChildData {

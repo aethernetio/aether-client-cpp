@@ -19,9 +19,8 @@
 
 #include "aether/actions/action_context.h"
 #include "aether/api_protocol/api_message.h"
-#include "aether/api_protocol/send_result.h"
 #include "aether/api_protocol/api_context.h"
-#include "aether/api_protocol/api_protocol.h"
+#include "aether/api_protocol/api_pack_parser.h"
 #include "aether/api_protocol/protocol_context.h"
 #include "aether/api_protocol/api_promise_action.h"
 
@@ -80,21 +79,22 @@ struct Method<MessageCode, ApiPromisePtr<R>(Args...)> {
 
     auto promise_ptr = ApiPromisePtr<R>{action_context_, request_id};
 
-    SendResult::OnResponse(*protocol_context_, request_id,
-                           [p_ptr{promise_ptr}](ApiParser& parser) mutable {
-                             assert(p_ptr);
-                             if constexpr (!std::is_same_v<void, R>) {
-                               auto value = parser.Extract<R>();
-                               p_ptr->SetValue(value);
-                             } else {
-                               p_ptr->SetValue();
-                             }
-                           });
-    SendError::OnError(*protocol_context_, request_id,
-                       [p_ptr{promise_ptr}](auto const&) mutable {
-                         assert(p_ptr);
-                         p_ptr->Reject();
-                       });
+    protocol_context_->AddSendResultCallback(
+        request_id, [p_ptr{promise_ptr}](ApiParser& parser) mutable {
+          assert(p_ptr);
+          if constexpr (!std::is_same_v<void, R>) {
+            auto value = parser.Extract<R>();
+            p_ptr->SetValue(value);
+          } else {
+            p_ptr->SetValue();
+          }
+        });
+    protocol_context_->AddSendErrorCallback(
+        request_id, [p_ptr{promise_ptr}](auto, auto) mutable {
+          assert(p_ptr);
+          p_ptr->Reject();
+        });
+
     return promise_ptr;
   }
 
@@ -120,7 +120,7 @@ struct Method<MessageCode, SubContext<Api>(Args...)> {
 
   SubContext<Api> operator()(Args... args) {
     auto child_stack = ChildPacketStack{};
-    SubContext context{*protocol_context_, *api_, *child_stack};
+    SubContext context{*api_, *child_stack};
 
     auto* packet_stack = protocol_context_->packet_stack();
     assert(packet_stack);

@@ -123,8 +123,7 @@ void SafeStream::Send(SSRingIndex::type begin_offset,
 ActionPtr<StreamWriteAction> SafeStream::PushData(SSRingIndex begin,
                                                   DataMessage&& data_message) {
   assert(out_);
-  auto api_adapter =
-      ApiCallAdapter{ApiContext{protocol_context_, safe_stream_api_}, *out_};
+  auto api_adapter = ApiCallAdapter{ApiContext{safe_stream_api_}, *out_};
   api_adapter->send(static_cast<SSRingIndex::type>(begin),
                     std::move(data_message));
 
@@ -133,8 +132,7 @@ ActionPtr<StreamWriteAction> SafeStream::PushData(SSRingIndex begin,
 
 void SafeStream::SendAck(SSRingIndex offset) {
   assert(out_);
-  auto api_adapter =
-      ApiCallAdapter{ApiContext{protocol_context_, safe_stream_api_}, *out_};
+  auto api_adapter = ApiCallAdapter{ApiContext{safe_stream_api_}, *out_};
 
   api_adapter->ack(static_cast<SSRingIndex::type>(offset));
   api_adapter.Flush();
@@ -142,8 +140,7 @@ void SafeStream::SendAck(SSRingIndex offset) {
 
 void SafeStream::SendRepeatRequest(SSRingIndex offset) {
   assert(out_);
-  auto api_adapter =
-      ApiCallAdapter{ApiContext{protocol_context_, safe_stream_api_}, *out_};
+  auto api_adapter = ApiCallAdapter{ApiContext{safe_stream_api_}, *out_};
 
   api_adapter->request_repeat(static_cast<SSRingIndex::type>(offset));
   api_adapter.Flush();

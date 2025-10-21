@@ -17,43 +17,17 @@
 #include "aether/stream_api/stream_api.h"
 
 #include <cstddef>
-#include <utility>
-
-#include "aether/api_protocol/api_message.h"
-#include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
-bool StreamApi::LoadResult(MessageId message_id, ApiParser& parser) {
-  switch (message_id) {
-    case Stream::kMessageCode:
-      parser.Load<Stream>(*this);
-      return true;
-    default:
-      return false;
-  }
-}
-
-void StreamApi::LoadFactory(MessageId message_id, ApiParser& parser) {
-  [[maybe_unused]] auto res = LoadResult(message_id, parser);
-  assert(res);
-}
-
-void StreamApi::Execute(Stream&& message, ApiParser& parser) {
-  parser.Context().MessageNotify(std::move(message));
-}
-
-void StreamApi::Pack(Stream&& message, ApiPacker& packer) {
-  packer.Pack(Stream::kMessageCode, std::move(message));
-}
-
 StreamApiImpl::StreamApiImpl(ProtocolContext& protocol_context)
-    : stream{protocol_context} {}
+    : ApiClass{protocol_context}, stream{protocol_context} {}
 
-void StreamApiImpl::Stream(ApiParser& parser, StreamId stream_id,
-                           DataBuffer data) {
-  // TODO: impl without MessageNotify
-  parser.Context().MessageNotify(
-      StreamApi::Stream{{}, stream_id, std::move(data)});
+void StreamApiImpl::Stream(ApiParser&, StreamId stream_id, DataBuffer data) {
+  stream_event_.Emit(stream_id, data);
+}
+
+StreamApiImpl::StreamEvent::Subscriber StreamApiImpl::stream_event() {
+  return EventSubscriber{stream_event_};
 }
 
 std::uint8_t StreamIdGenerator::GetNextClientStreamId() {
@@ -75,38 +49,16 @@ static constexpr std::size_t kStreamMessageOverhead =
     sizeof(
         PackedSize::ValueType);  // message code + stream id +  child data size
 
-StreamApiGate::StreamApiGate(ProtocolContext& protocol_context,
-                             StreamId stream_id)
-    : protocol_context_{&protocol_context}, stream_id_{stream_id} {
-  read_subscription_ =
-      protocol_context_->MessageEvent<StreamApi::Stream>().Subscribe(
-          *this, MethodPtr<&StreamApiGate::OnStream>{});
-}
-
-StreamApiGate::StreamApiGate(StreamApiGate&& other) noexcept
-    : protocol_context_{other.protocol_context_}, stream_id_{other.stream_id_} {
-  read_subscription_ =
-      protocol_context_->MessageEvent<StreamApi::Stream>().Subscribe(
-          *this, MethodPtr<&StreamApiGate::OnStream>{});
-}
-
-StreamApiGate& StreamApiGate::operator=(StreamApiGate&& other) noexcept {
-  if (this != &other) {
-    protocol_context_ = other.protocol_context_;
-    stream_id_ = other.stream_id_;
-    read_subscription_ =
-        protocol_context_->MessageEvent<StreamApi::Stream>().Subscribe(
-            *this, MethodPtr<&StreamApiGate::OnStream>{});
-  }
-  return *this;
-}
+StreamApiGate::StreamApiGate(StreamApiImpl& stream_api, StreamId stream_id)
+    : stream_id_{stream_id},
+      stream_api_{&stream_api},
+      read_subscription_{stream_api_->stream_event().Subscribe(
+          *this, MethodPtr<&StreamApiGate::OnStream>{})} {}
 
 DataBuffer StreamApiGate::WriteIn(DataBuffer&& buffer) {
-  return PacketBuilder{*protocol_context_,
-                       PackMessage{
-                           StreamApi{},
-                           StreamApi::Stream{{}, stream_id_, std::move(buffer)},
-                       }};
+  auto api_call = ApiContext{*stream_api_};
+  api_call->stream(stream_id_, std::move(buffer));
+  return DataBuffer{std::move(api_call)};
 }
 
 void StreamApiGate::WriteOut(DataBuffer const& buffer) {
@@ -119,10 +71,9 @@ EventSubscriber<void(DataBuffer const& data)> StreamApiGate::out_data_event() {
 
 std::size_t StreamApiGate::Overhead() const { return kStreamMessageOverhead; }
 
-void StreamApiGate::OnStream(MessageEventData<StreamApi::Stream> const& msg) {
-  auto const& message = msg.message();
-  if (stream_id_ == message.stream_id) {
-    out_data_event_.Emit(message.child_data.PackData());
+void StreamApiGate::OnStream(StreamId stream_id, DataBuffer const& data) {
+  if (stream_id_ == stream_id) {
+    out_data_event_.Emit(data);
   }
 }
 

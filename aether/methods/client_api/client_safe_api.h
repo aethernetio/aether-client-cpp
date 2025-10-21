@@ -22,15 +22,14 @@
 
 #include "aether/events/events.h"
 #include "aether/stream_api/stream_api.h"
-#include "aether/api_protocol/api_class_impl.h"
-#include "aether/api_protocol/return_result_api.h"
+#include "aether/api_protocol/api_protocol.h"
 
 namespace ae {
 
 class ClientSafeApi
-    : public ReturnResultApiImpl,
+    : public ReturnResultApi,
       public StreamApiImpl,
-      public ApiClassImpl<ClientSafeApi, ReturnResultApiImpl, StreamApiImpl> {
+      public ApiClassImpl<ClientSafeApi, ReturnResultApi, StreamApiImpl> {
  public:
   explicit ClientSafeApi(ProtocolContext& protocol_context);
 
