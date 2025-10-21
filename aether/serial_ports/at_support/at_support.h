@@ -70,16 +70,25 @@ class AtSupport {
       return false;
     }
     start += cmd.size() + 2;  // 2 for ": "
+    if (start >= resp_str.size()) {
+      return std::nullopt;
+    }
     auto end = start;
     bool res = true;
-    (
-        [&]() {
-          end = resp_str.find(',', start);
-          res = res && ParseArg(resp_str.substr(start, end - start), args);
-          start = end + 1;
-        }(),
-        ...);
-    return res ? std::optional{start} : std::nullopt;
+    (std::invoke([&]() {
+       end = resp_str.find(',', start);
+       if (end == std::string_view::npos) {
+         end = resp_str.size();
+       }
+       if (end == start) {
+         res = false;
+         return;
+       }
+       res = res && ParseArg(resp_str.substr(start, end - start), args);
+       start = end + 1;
+     }),
+     ...);
+    return res ? std::optional{end} : std::nullopt;
   }
 
  private:
