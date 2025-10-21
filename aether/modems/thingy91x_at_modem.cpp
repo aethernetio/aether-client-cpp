@@ -929,9 +929,9 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
                                 AE_TELED_ERROR("Parser recv error");
                                 return false;
                               }
-                              AE_TELED_DEBUG("Size {}", size);
+                              AE_TELED_DEBUG("Expected data size {}", size);
                               auto data_crate =
-                                  at_buffer.GetCrate(size, 0, ++pos);
+                                  at_buffer.GetCrate(size, *parse_end, pos);
                               if (data_crate.size() != size) {
                                 AE_TELED_ERROR("Parser recv data error");
                                 return false;
