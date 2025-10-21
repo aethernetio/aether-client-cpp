@@ -37,7 +37,9 @@ namespace ae::test_method_call {
 class ApiLevel1 : public ApiClassImpl<ApiLevel1> {
  public:
   explicit ApiLevel1(ProtocolContext& protocol_context)
-      : method_3{protocol_context} {}
+      : ApiClass{protocol_context},
+        ApiClassImpl{protocol_context},
+        method_3{protocol_context} {}
 
   void Method3Impl(ApiParser&, float a) { method_3_event.Emit(a); }
 
@@ -48,11 +50,13 @@ class ApiLevel1 : public ApiClassImpl<ApiLevel1> {
   Event<void(float a)> method_3_event;
 };
 
-class ApiLevel0 : public ReturnResultApiImpl,
-                  public ApiClassImpl<ApiLevel0, ReturnResultApiImpl> {
+class ApiLevel0 : public ReturnResultApi,
+                  public ApiClassImpl<ApiLevel0, ReturnResultApi> {
  public:
   ApiLevel0(ProtocolContext& protocol_context, ActionContext action_context)
-      : ReturnResultApiImpl{protocol_context},
+      : ApiClass{protocol_context},
+        ReturnResultApi{protocol_context},
+        ApiClassImpl{protocol_context},
         api_level1{protocol_context},
         method_3{protocol_context},
         method_4{protocol_context, action_context},
@@ -83,7 +87,6 @@ class ApiLevel0 : public ReturnResultApiImpl,
   Event<void(RequestId request_id, int a)> method_4_event;
 
   ApiLevel1 api_level1;
-  ProtocolContext* protocol_context;
 };
 
 void test_ApiMethodInvoke() {
@@ -93,7 +96,7 @@ void test_ApiMethodInvoke() {
   ProtocolContext pc;
 
   auto api_level0 = ApiLevel0{pc, ActionContext{ap}};
-  auto call_context = ApiContext{pc, api_level0};
+  auto call_context = ApiContext{api_level0};
 
   call_context->method_3(12, "asd");
 
@@ -130,7 +133,7 @@ void test_ReturnResult() {
   bool promise_get_value = false;
 
   auto api_level0 = ApiLevel0{pc, ActionContext{ap}};
-  auto call_context = ApiContext{pc, api_level0};
+  auto call_context = ApiContext{api_level0};
 
   auto promise = call_context->method_4(42);
   promise->StatusEvent().Subscribe(
@@ -150,7 +153,7 @@ void test_ReturnResult() {
   EventSubscriber{api_level0.method_4_event}.Subscribe(
       [&](RequestId req_id, int) {
         level0_method4_called = true;
-        auto response_context = ApiContext{pc, api_level0};
+        auto response_context = ApiContext{api_level0};
         response_context->SendResult(req_id, 78);
         auto data = std::move(response_context).Pack();
         auto parser = ApiParser{pc, data};
