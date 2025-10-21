@@ -949,7 +949,11 @@ void Thingy91xAtModem::SetupPoll() {
       at_comm_support_.ListenForResponse("#XPOLL: ", [this](auto&, auto pos) {
         std::int32_t handle{};
         std::string flags;
-        AtSupport::ParseResponse(*pos, "#XPOLL", handle, flags);
+        auto res = AtSupport::ParseResponse(*pos, "#XPOLL", handle, flags);
+        if (!res) {
+          AE_TELED_ERROR("Failed to parse XPOLL response");
+          return;
+        }
         AE_TELED_DEBUG("Poll for handle {}, and flags {}", handle, flags);
         PollEvent(handle, flags);
       });
