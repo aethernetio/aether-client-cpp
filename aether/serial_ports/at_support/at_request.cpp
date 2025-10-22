@@ -121,8 +121,6 @@ void AtRequest::MakeRequest() {
 }
 
 UpdateStatus AtRequest::WaitResponses(TimePoint current_time) {
-  AE_TELED_DEBUG("Response count {}, wait observers {}", response_count_,
-                 wait_observers_.size());
   if (response_count_ == wait_observers_.size()) {
     state_ = State::kSuccess;
     return UpdateStatus::Result();
