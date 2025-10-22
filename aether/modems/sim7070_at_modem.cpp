@@ -220,6 +220,8 @@ ActionPtr<Sim7070AtModem::WriteOperation> Sim7070AtModem::WritePacket(
 
   auto write_notify = ActionPtr<WriteOperation>{action_context_};
 
+  AE_TELED_DEBUG("Queue write packet for data size {}", data.size());
+
   operation_queue_->Push(
       Stage([this, write_notify, connect_index, data{data}]() {
         auto write_pipeline = SendData(connect_index, data);
@@ -477,15 +479,15 @@ ActionPtr<IPipeline> Sim7070AtModem::SendData(ConnectionIndex connection,
   return MakeActionPtr<Pipeline>(
       action_context_,
       // AT+CASEND=<cid>,<datalen>[,<inputtime>]
-      Stage([this, connection, data]() {
+      Stage([this, connection, size{data.size()}]() {
         return at_support_.MakeRequest(
             "AT+CASEND=" + std::to_string(connection) + "," +
-                std::to_string(data.size()),
+                std::to_string(size),
             AtRequest::Wait{">", kOneSecond});
       }),
-      Stage([this, data]() {
+      Stage([this, data{data}]() mutable {
         return at_support_.MakeRequest(
-            [this, data]() {
+            [this, data{std::move(data)}]() {
               auto write_action = ActionPtr<AtWriteAction>{action_context_};
               serial_->Write(data);
               write_action->Notify();
