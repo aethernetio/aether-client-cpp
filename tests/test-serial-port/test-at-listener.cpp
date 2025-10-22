@@ -149,6 +149,27 @@ void test_AtListenerMultipleListenersDifferentPatterns() {
   TEST_ASSERT_EQUAL(1, handler3_call_count);
 }
 
+void test_AtListenerSingleListenerMultipleMatch() {
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
+  AtDispatcher dispatcher{buffer};
+  int handler_call_count = 0;
+
+  // Create multiple listeners with different patterns
+  AtListener listener1{dispatcher, "OK", [&](AtBuffer&, AtBuffer::iterator) {
+                         handler_call_count++;
+                       }};
+
+  // Add data matching "OK" pattern several times
+  DataBuffer data1;
+  std::string_view line1{"OK\r\nOK\r\nOK\r\n"};
+  data1.insert(data1.end(), line1.begin(), line1.end());
+  mock_serial.WriteOut(data1);
+
+  // Verify handler was called 3 times
+  TEST_ASSERT_EQUAL(3, handler_call_count);
+}
+
 void test_AtListenerDestructorUnregistersFromDispatcher() {
   tests::MockSerialPort mock_serial{};
   AtBuffer buffer{mock_serial};
@@ -378,6 +399,7 @@ int test_at_listener() {
   RUN_TEST(ae::test_at_listener::test_AtListenerStoresHandlerCorrectly);
   RUN_TEST(
       ae::test_at_listener::test_AtListenerMultipleListenersDifferentPatterns);
+  RUN_TEST(ae::test_at_listener::test_AtListenerSingleListenerMultipleMatch);
   RUN_TEST(
       ae::test_at_listener::test_AtListenerDestructorUnregistersFromDispatcher);
   RUN_TEST(ae::test_at_listener::test_AtListenerNoHandlerCallsAfterDestruction);
