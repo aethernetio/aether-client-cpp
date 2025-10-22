@@ -112,6 +112,7 @@ class Thingy91xAtModem final : public IModemDriver {
   bool initiated_;
   bool started_;
   int poll_in_queue_ = 0;
+  int recv_in_queue_ = 0;
 };
 
 } /* namespace ae */

@@ -964,31 +964,35 @@ void Thingy91xAtModem::SetupPoll() {
       action_context_,
       [this]() {
         // add poll to operation queue
-        operation_queue_->Push(Stage([this]() { return Poll(); }));
+        if (connections_.empty()) {
+          return;
+        }
+        if (poll_in_queue_ > 0) {
+          return;
+        }
+        if (recv_in_queue_ > 0) {
+          return;
+        }
+        operation_queue_->Push(Stage([this]() {
+          poll_in_queue_++;
+          auto operation = Poll();
+          operation->FinishedEvent().Subscribe([this]() { poll_in_queue_--; });
+          return operation;
+        }));
       },
       std::chrono::milliseconds{200}};
 }
 
 ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
-  if (connections_.empty()) {
-    return {};
-  }
-  if (poll_in_queue_ > 0) {
-    return {};
-  }
-  poll_in_queue_++;
-  auto operation = MakeActionPtr<Pipeline>(
-      action_context_,  //
-      Stage([this]() {
-        std::string handles;
-        for (auto ci : connections_) {
-          handles += "," + std::to_string(ci);
-        }
-        return at_comm_support_.MakeRequest("AT#XPOLL=0" + handles, kWaitOk);
-      }));
-  operation->FinishedEvent().Subscribe([this]() { poll_in_queue_--; });
-
-  return operation;
+  return MakeActionPtr<Pipeline>(action_context_,  //
+                                 Stage([this]() {
+                                   std::string handles;
+                                   for (auto ci : connections_) {
+                                     handles += "," + std::to_string(ci);
+                                   }
+                                   return at_comm_support_.MakeRequest(
+                                       "AT#XPOLL=0" + handles, kWaitOk);
+                                 }));
 }
 
 void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
@@ -1009,8 +1013,12 @@ void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
   constexpr std::uint32_t kPollIn = 0x01;
   if ((*flags_val & kPollIn) != 0) {
     AE_TELED_DEBUG("Add read packet in queue");
-    operation_queue_->Push(
-        Stage([this, connection{*it}]() { return ReadPacket(connection); }));
+    recv_in_queue_++;
+    operation_queue_->Push(Stage([this, connection{*it}]() {
+      auto operation = ReadPacket(connection);
+      operation->FinishedEvent().Subscribe([this]() { recv_in_queue_--; });
+      return operation;
+    }));
   }
 }
 
