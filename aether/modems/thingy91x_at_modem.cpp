@@ -920,28 +920,26 @@ ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
       Stage([this, connection]() {
         return at_comm_support_.MakeRequest(
             "AT#XRECV=0,64", kWaitOk,
-            AtRequest::Wait{
-                "#XRECV:", kTenSeconds,
-                [this, connection](auto& at_buffer, auto pos) {
-                  std::size_t size{};
-                  auto parse_end =
-                      AtSupport::ParseResponse(*pos, "#XRECV", size);
-                  if (parse_end.value_or(0) == 0) {
-                    AE_TELED_ERROR("Parser recv error");
-                    return false;
-                  }
-                  AE_TELED_DEBUG("Expected data size {} data_start at {}", size,
-                                 *parse_end);
-                  auto data_crate = at_buffer.GetCrate(size, *parse_end, pos);
-                  if (data_crate.size() != size) {
-                    AE_TELED_ERROR("Parser recv data error");
-                    return false;
-                  }
+            AtRequest::Wait{"#XRECV:", kTenSeconds,
+                            [this, connection](auto& at_buffer, auto pos) {
+                              std::size_t size{};
+                              auto parse_end = AtSupport::ParseResponse(
+                                  *pos, "#XRECV", size);
+                              if (parse_end.value_or(0) == 0) {
+                                AE_TELED_ERROR("Parser recv error");
+                                return false;
+                              }
+                              auto data_crate =
+                                  at_buffer.GetCrate(size, *parse_end, pos);
+                              if (data_crate.size() != size) {
+                                AE_TELED_ERROR("Parser recv data error");
+                                return false;
+                              }
 
-                  // Emit the received data
-                  data_event_.Emit(connection, data_crate);
-                  return true;
-                }});
+                              // Emit the received data
+                              data_event_.Emit(connection, data_crate);
+                              return true;
+                            }});
       }));
 }
 
@@ -955,7 +953,6 @@ void Thingy91xAtModem::SetupPoll() {
           AE_TELED_ERROR("Failed to parse XPOLL response");
           return;
         }
-        AE_TELED_DEBUG("Poll for handle {}, and flags {}", handle, flags);
         PollEvent(handle, flags);
       });
 
@@ -998,7 +995,6 @@ ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
 void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
   // flags is in hexadecimal format like "0x001"
   auto flags_val = FromChars<std::uint32_t>(flags, 16);
-  AE_TELED_DEBUG("Poll has flag value {}", flags_val);
   if (!flags_val) {
     return;
   }
@@ -1012,7 +1008,6 @@ void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
 
   constexpr std::uint32_t kPollIn = 0x01;
   if ((*flags_val & kPollIn) != 0) {
-    AE_TELED_DEBUG("Add read packet in queue");
     recv_in_queue_++;
     operation_queue_->Push(Stage([this, connection{*it}]() {
       auto operation = ReadPacket(connection);
