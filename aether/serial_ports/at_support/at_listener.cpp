@@ -14,27 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_SERIAL_PORT_AT_COMM_SUPPORT_H_
-#define AETHER_SERIAL_PORT_AT_COMM_SUPPORT_H_
-
-#include <chrono>
-#include <string>
-
-#include "aether/serial_ports/iserial_port.h"
-#include "aether/serial_ports/serial_port_types.h"
+#include "aether/serial_ports/at_support/at_listener.h"
 
 namespace ae {
-class AtCommSupport {
- public:
-  AtCommSupport(ISerialPort *serial);
 
-  void SendATCommand(const std::string& command);
-  bool WaitForResponse(const std::string& expected, Duration timeout);
-  std::string PinToString(const std::uint8_t pin[4]);
- private:
-  ISerialPort *serial_;
-};
+AtListener::AtListener(AtDispatcher& dispatcher, std::string expected,
+                       Handler handler)
+    : dispatcher_{&dispatcher}, handler_{std::move(handler)} {
+  dispatcher_->Listen(std::move(expected), this);
+}
 
-} /* namespace ae */
+AtListener::~AtListener() { dispatcher_->Remove(this); }
 
-#endif  // AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
+void AtListener::Observe(AtBuffer& buffer, AtBuffer::iterator pos) {
+  handler_(buffer, pos);
+}
+}  // namespace ae

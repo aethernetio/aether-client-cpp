@@ -16,21 +16,24 @@
 
 #include "aether/modems/modem_factory.h"
 
-#include "aether/modems/bg95_at_modem.h"
-#include "aether/modems/sim7070_at_modem.h"
+// #include "aether/modems/bg95_at_modem.h"
+// #include "aether/modems/sim7070_at_modem.h"
 #include "aether/modems/thingy91x_at_modem.h"
 // IWYU pragma: end_keeps
 
 namespace ae {
 
 std::unique_ptr<IModemDriver> ModemDriverFactory::CreateModem(
-    ActionContext action_context, IPoller::ptr poller, ModemInit modem_init) {
+    ActionContext action_context, IPoller::ptr const& poller,
+    ModemInit modem_init) {
 #if AE_MODEM_BG95_ENABLED == 1
-  return domain->CreateObj<Bg95AtModem>(adapter, poller, modem_init);
+  return domain->CreateObj<Bg95AtModem>(adapter, poller, std::move(modem_init));
 #elif AE_MODEM_SIM7070_ENABLED == 1
-  return std::make_unique<Sim7070AtModem>(action_context, poller, modem_init);
+  return std::make_unique<Sim7070AtModem>(action_context, poller,
+                                          std::move(modem_init));
 #elif AE_MODEM_THINGY91X_ENABLED == 1
-  return std::make_unique<Thingy91xAtModem>(action_context, poller, modem_init);
+  return std::make_unique<Thingy91xAtModem>(action_context, poller,
+                                            std::move(modem_init));
 #endif
 }
 

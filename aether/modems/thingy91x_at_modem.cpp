@@ -17,445 +17,582 @@
 #include "aether/modems/thingy91x_at_modem.h"
 
 #include <bitset>
-#include <thread>
 #include <string_view>
 
-#include "aether/format/format.h"
 #include "aether/misc/from_chars.h"
-#include "aether/modems/exponent_time.h"
+#include "aether/actions/pipeline.h"
+#include "aether/actions/gen_action.h"
 #include "aether/serial_ports/serial_port_factory.h"
 
 #include "aether/modems/modems_tele.h"
 
 namespace ae {
+static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
+static constexpr Duration kTwoSeconds = std::chrono::milliseconds{2000};
+static constexpr Duration kTenSeconds = std::chrono::milliseconds{10000};
+static const AtRequest::Wait kWaitOk{"OK", kOneSecond};
+static const AtRequest::Wait kWaitOkTwoSeconds{"OK", kTwoSeconds};
 
-Thingy91xAtModem::Thingy91xAtModem(ModemInit modem_init)
-    : modem_init_{std::move(modem_init)} {
-  serial_ = SerialPortFactory::CreatePort(modem_init_.serial_init);
+class Thingy91TcpOpenNetwork final : public Action<Thingy91TcpOpenNetwork> {
+ public:
+  Thingy91TcpOpenNetwork(ActionContext action_context, Thingy91xAtModem& modem,
+                         std::string host, std::uint16_t port)
+      : Action{action_context},
+        action_context_{action_context},
+        modem_{&modem},
+        at_comm_support_{&modem.at_comm_support_},
+        host_{std::move(host)},
+        port_{port} {
+    AE_TELED_DEBUG("Open tcp connection for {}:{}", host_, port_);
+    operation_pipeline_ = MakeActionPtr<Pipeline>(
+        action_context_,
+        // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
+        Stage([this]() {
+          return at_comm_support_->MakeRequest(
+              "AT#XSOCKET=1,1,0",
+              AtRequest::Wait{
+                  "#XSOCKET: ", kTwoSeconds, [this](auto&, auto pos) {
+                    // #XSOCKET: <handle>,<type>,<protocol>
+                    auto res =
+                        AtSupport::ParseResponse(*pos, "#XSOCKET", handle_);
+                    if (!res) {
+                      AE_TELED_DEBUG("Failed to parser connection handle");
+                      handle_ = -1;
+                      return false;
+                    }
+                    AE_TELED_DEBUG("Got socket handle {}", handle_);
+                    return true;
+                  }});
+        }),
+        // #XSOCKETSELECT=<handle>
+        Stage([this]() {
+          return at_comm_support_->MakeRequest(
+              "AT#XSOCKETSELECT=" + std::to_string(handle_), kWaitOk);
+        }),
+        // AT#XSOCKETOPT=1,20,30
+        Stage([this]() {
+          return at_comm_support_->MakeRequest("AT#XSOCKETOPT=1,20,30",
+                                               kWaitOk);
+        }),
+        // AT#XCONNECT="example.com",1234
+        Stage([this]() {
+          return at_comm_support_->MakeRequest(
+              "AT#XCONNECT=\"" + host_ + "\"," + std::to_string(port_),
+              kWaitOk);
+        }),
+        Stage<GenAction>(action_context_, [this]() {
+          modem_->connections_.emplace(static_cast<ConnectionIndex>(handle_));
+          return UpdateStatus::Result();
+        }));
+
+    operation_pipeline_->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[this]() {
+          success_ = true;
+          Action::Trigger();
+        }},
+        OnError{[this]() {
+          error_ = true;
+          Action::Trigger();
+        }},
+        OnStop{[this]() {
+          stop_ = true;
+          Action::Trigger();
+        }},
+    });
+  }
+
+  UpdateStatus Update() const {
+    if (success_) {
+      return UpdateStatus::Result();
+    }
+    if (error_) {
+      return UpdateStatus::Error();
+    }
+    if (stop_) {
+      return UpdateStatus::Stop();
+    }
+    return {};
+  }
+
+  ConnectionIndex connection_index() const {
+    return static_cast<ConnectionIndex>(handle_);
+  }
+
+ private:
+  ActionContext action_context_;
+  Thingy91xAtModem* modem_;
+  AtSupport* at_comm_support_;
+  std::string host_;
+  std::uint16_t port_;
+  ActionPtr<IPipeline> operation_pipeline_;
+  Subscription operation_sub_;
+  std::int32_t handle_{-1};
+  bool success_{};
+  bool error_{};
+  bool stop_{};
+};
+
+class Thingy91UdpOpenNetwork final : public Action<Thingy91UdpOpenNetwork> {
+ public:
+  Thingy91UdpOpenNetwork(ActionContext action_context, Thingy91xAtModem& modem,
+                         std::string host, std::uint16_t port)
+      : Action{action_context},
+        action_context_{action_context},
+        modem_{&modem},
+        at_comm_support_{&modem.at_comm_support_},
+        host_{std::move(host)},
+        port_{port} {
+    AE_TELED_DEBUG("Open UDP connection for {}:{}", host_, port_);
+    operation_pipeline_ = MakeActionPtr<Pipeline>(
+        action_context_,
+        // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
+        Stage([this]() {
+          return at_comm_support_->MakeRequest(
+              "AT#XSOCKET=1,2,0",
+              AtRequest::Wait{
+                  "#XSOCKET: ", kTwoSeconds, [this](auto&, auto pos) {
+                    // #XSOCKET: <handle>,<type>,<protocol>
+                    auto res =
+                        AtSupport::ParseResponse(*pos, "#XSOCKET", handle_);
+                    if (!res) {
+                      AE_TELED_DEBUG("Failed to parser connection handle");
+                      handle_ = -1;
+                      return false;
+                    }
+                    AE_TELED_DEBUG("Got socket handle {}", handle_);
+                    return true;
+                  }});
+        }),
+        // #XSOCKETSELECT=<handle>
+        Stage([this]() {
+          return at_comm_support_->MakeRequest(
+              "AT#XSOCKETSELECT=" + std::to_string(handle_), kWaitOk);
+        }),
+        // AT#XCONNECT="example.com",1234
+        Stage([this]() {
+          return at_comm_support_->MakeRequest(
+              "AT#XCONNECT=\"" + host_ + "\"," + std::to_string(port_),
+              kWaitOk);
+        }),
+        Stage<GenAction>(action_context_, [this]() {
+          modem_->connections_.emplace(static_cast<ConnectionIndex>(handle_));
+          return UpdateStatus::Result();
+        }));
+
+    operation_pipeline_->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[this]() {
+          success_ = true;
+          Action::Trigger();
+        }},
+        OnError{[this]() {
+          error_ = true;
+          Action::Trigger();
+        }},
+        OnStop{[this]() {
+          stop_ = true;
+          Action::Trigger();
+        }},
+    });
+  }
+
+  UpdateStatus Update() const {
+    if (success_) {
+      return UpdateStatus::Result();
+    }
+    if (error_) {
+      return UpdateStatus::Error();
+    }
+    if (stop_) {
+      return UpdateStatus::Stop();
+    }
+    return {};
+  }
+
+  ConnectionIndex connection_index() const {
+    return static_cast<ConnectionIndex>(handle_);
+  }
+
+ private:
+  ActionContext action_context_;
+  Thingy91xAtModem* modem_;
+  AtSupport* at_comm_support_;
+  std::string host_;
+  std::uint16_t port_;
+  ActionPtr<IPipeline> operation_pipeline_;
+  Subscription operation_sub_;
+  std::int32_t handle_{-1};
+  bool success_{};
+  bool error_{};
+  bool stop_{};
+};
+
+Thingy91xAtModem::Thingy91xAtModem(ActionContext action_context,
+                                   IPoller::ptr const& poller,
+                                   ModemInit modem_init)
+    : action_context_{action_context},
+      modem_init_{std::move(modem_init)},
+      serial_{SerialPortFactory::CreatePort(action_context_, poller,
+                                            modem_init_.serial_init)},
+      at_comm_support_{action_context_, *serial_},
+      operation_queue_{action_context_},
+      initiated_{false},
+      started_{false} {
+  AE_TELED_DEBUG("Thingy91xAtModem init");
   Init();
-  Start();
 }
 
-Thingy91xAtModem::~Thingy91xAtModem() { Stop(); }
+void Thingy91xAtModem::Init() {
+  operation_queue_->Push(Stage([this]() {
+    auto init_pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+        Stage([this]() { return at_comm_support_.MakeRequest("AT", kWaitOk); }),
+        Stage([this]() {
+          return at_comm_support_.MakeRequest("AT+CMEE=1", kWaitOk);
+        }),
+        Stage<GenAction>(action_context_, [this]() {
+          initiated_ = true;
+          return UpdateStatus::Result();
+        }));
 
-bool Thingy91xAtModem::Init() {
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port is not open");
-    return false;
-  }
+    init_pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[]() { AE_TELED_INFO("Thingy91xAtModem init success"); }},
+        OnError{[]() { AE_TELED_ERROR("Thingy91xAtModem init failed"); }},
+    });
 
-  at_comm_support_->SendATCommand("AT");  // Checking the connection
-  if (auto err = CheckResponse("OK", 1000, "AT command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT command error {}", err);
-    return false;
-  }
-
-  at_comm_support_->SendATCommand("AT+CMEE=1");  // Enabling extended errors
-  if (auto err = CheckResponse("OK", 1000, "AT+CMEE command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT+CMEE command error {}", err);
-    return false;
-  }
-
-  return true;
+    return init_pipeline;
+  }));
 }
 
-bool Thingy91xAtModem::Start() {
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port is not open");
-    return false;
-  }
+ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::Start() {
+  auto modem_operation = ActionPtr<ModemOperation>{action_context_};
+  operation_queue_->Push(Stage([this,
+                                modem_operation]() -> ActionPtr<IPipeline> {
+    // if already started, notify of success and return
+    if (started_) {
+      return MakeActionPtr<Pipeline>(
+          action_context_,
+          Stage<GenAction>(action_context_, [modem_operation]() {
+            modem_operation->Notify();
+            return UpdateStatus::Result();
+          }));
+    }
 
-  // Disabling full functionality
-  at_comm_support_->SendATCommand("AT+CFUN=0");
-  if (auto err = CheckResponse("OK", 1000, "AT+CFUN command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT+CFUN command error {}", err);
-    return false;
-  }
-
-  if (auto err = SetNetMode(kModemMode::kModeCatMNbIot);
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Set net mode error {}", err);
-    return false;
-  }
-
-  if (auto err = SetupNetwork(modem_init_.operator_name,
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+        Stage<GenAction>(action_context_,
+                         [this]() {
+                           if (!initiated_) {
+                             return UpdateStatus::Error();
+                           }
+                           return UpdateStatus::Result();
+                         }),
+        // Disabling full functionality
+        Stage([this]() {
+          return at_comm_support_.MakeRequest("AT+CFUN=0", kWaitOk);
+        }),
+        Stage([this]() { return SetNetMode(kModemMode::kModeCatMNbIot); }),
+        Stage([this]() {
+          return SetupNetwork(modem_init_.operator_name,
                               modem_init_.operator_code, modem_init_.apn_name,
                               modem_init_.apn_user, modem_init_.apn_pass,
                               modem_init_.modem_mode, modem_init_.auth_type);
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Setup network error {}", err);
-    return false;
-  }
+        }),
+        // Enabling full functionality and waiting for network registration
+        Stage([this]() {
+          return at_comm_support_.MakeRequest(
+              "AT+CFUN=1", kWaitOk,
+              AtRequest::Wait{"+CEREG: 2", std::chrono::seconds{60}},
+              AtRequest::Wait{"+CEREG: 1", std::chrono::seconds{60}});
+        }),
+        Stage([this]() { return CheckSimStatus(); }),
+        Stage([this]() -> ActionPtr<IPipeline> {
+          if (modem_init_.use_pin) {
+            return SetupSim(modem_init_.pin);
+          }
+          // ignore setup sim
+          return MakeActionPtr<Pipeline>(
+              action_context_, Stage<GenAction>(action_context_, []() {
+                return UpdateStatus::Result();
+              }));
+        }),
+        // save it's started
+        Stage<GenAction>(action_context_, [this]() {
+          started_ = true;
+          SetupPoll();
+          return UpdateStatus::Result();
+        }));
 
-  // Enabling full functionality
-  at_comm_support_->SendATCommand("AT+CFUN=1");
-  if (auto err = CheckResponse("OK", 1000, "AT+CFUN command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT+CFUN command error {}", err);
-    return false;
-  }
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[modem_operation]() { modem_operation->Notify(); }},
+        OnError{[modem_operation]() { modem_operation->Failed(); }},
+        OnStop{[modem_operation]() { modem_operation->Stop(); }}});
 
-  if (auto err = CheckResponse("+CEREG: 2", 600000, "AT+CFUN command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT+CFUN command error {}", err);
-    return false;
-  }
+    return pipeline;
+  }));
 
-  if (auto err = CheckResponse("+CEREG: 1", 600000, "AT+CFUN command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT+CFUN command error {}", err);
-    return false;
-  }
+  return modem_operation;
+}
 
-  // Check Sim card
-  auto sim_err = CheckSimStatus();
-  if ((sim_err == kModemError::kNoError) && modem_init_.use_pin) {
-    if (auto err = SetupSim(modem_init_.pin); err != kModemError::kNoError) {
-      AE_TELED_ERROR("Setup sim error {}", err);
-      return false;
+ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::Stop() {
+  auto modem_operation = ActionPtr<ModemOperation>{action_context_};
+
+  operation_queue_->Push(Stage([this, modem_operation]() {
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+        // Disabling full functionality
+        Stage([this]() {
+          return at_comm_support_.MakeRequest("AT+CFUN=0", kWaitOk);
+        }),
+        Stage([this]() { return ResetModemFactory(1); }));
+
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[modem_operation]() { modem_operation->Notify(); }},
+        OnError{[modem_operation]() { modem_operation->Failed(); }},
+        OnStop{[modem_operation]() { modem_operation->Stop(); }}});
+
+    return pipeline;
+  }));
+
+  return modem_operation;
+}
+
+ActionPtr<Thingy91xAtModem::OpenNetworkOperation> Thingy91xAtModem::OpenNetwork(
+    Protocol protocol, std::string const& host, std::uint16_t port) {
+  auto open_network_operation =
+      ActionPtr<OpenNetworkOperation>{action_context_};
+
+  operation_queue_->Push(Stage([this, open_network_operation, protocol,
+                                host{host}, port]() -> ActionPtr<IPipeline> {
+    if (protocol == Protocol::kTcp) {
+      return OpenTcpConnection(open_network_operation, host, port);
     }
-  }
+    if (protocol == Protocol::kUdp) {
+      return OpenUdpConnection(open_network_operation, host, port);
+    }
+    return {};
+  }));
 
-  return true;
+  return open_network_operation;
 }
 
-bool Thingy91xAtModem::Stop() {
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port is not open");
-    return false;
-  }
+ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::CloseNetwork(
+    ConnectionIndex connect_index) {
+  auto modem_operation = ActionPtr<ModemOperation>{action_context_};
 
-  // Disabling full functionality
-  at_comm_support_->SendATCommand("AT+CFUN=0");
-  if (auto err = CheckResponse("OK", 1000, "AT+CFUN command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT+CFUN command error {}", err);
-    return false;
-  }
+  operation_queue_->Push(Stage([this, modem_operation, connect_index]() {
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+        Stage([this, handle{static_cast<std::int32_t>(connect_index)}]() {
+          // #XSOCKETSELECT=<handle>
+          return at_comm_support_.MakeRequest(
+              "AT#XSOCKETSELECT=" + std::to_string(handle), kWaitOk);
+        }),
+        Stage([this]() {
+          return at_comm_support_.MakeRequest(
+              "AT#XSOCKET=0", AtRequest::Wait{"OK", kTenSeconds});
+        }),
+        Stage<GenAction>(action_context_, [this, connect_index]() {
+          connections_.erase(connect_index);
+          return UpdateStatus::Result();
+        }));
 
-  if (auto err = ResetModemFactory(1); err != kModemError::kNoError) {
-    AE_TELED_ERROR("Reset modem factory error {}", err);
-    return false;
-  }
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[modem_operation]() { modem_operation->Notify(); }},
+        OnError{[modem_operation]() { modem_operation->Failed(); }},
+        OnStop{[modem_operation]() { modem_operation->Stop(); }}});
 
-  return true;
+    return pipeline;
+  }));
+
+  return modem_operation;
 }
 
-ConnectionIndex Thingy91xAtModem::OpenNetwork(ae::Protocol protocol,
-                                              std::string const& host,
-                                              std::uint16_t port) {
-  if (!serial_->IsOpen()) {
-    return kInvalidConnectionIndex;
-  }
-
-  std::int32_t handle{-1};
-  if (protocol == ae::Protocol::kTcp) {
-    handle = OpenTcpConnection(host, port);
-  } else if (protocol == ae::Protocol::kUdp) {
-    handle = OpenUdpConnection();
-  }
-
-  if (handle < 0) {
-    return kInvalidConnectionIndex;
-  }
-  auto connect_index = static_cast<ConnectionIndex>(connect_vec_.size());
-  connect_vec_.emplace_back(Thingy91xConnection{handle, protocol, host, port});
-  return connect_index;
-}
-
-void Thingy91xAtModem::CloseNetwork(ConnectionIndex connect_index) {
-  if (connect_index >= connect_vec_.size()) {
-    AE_TELED_ERROR("Connection index overflow");
-    return;
-  }
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port not open");
-    return;
-  }
-  auto const& connection =
-      connect_vec_.at(static_cast<std::size_t>(connect_index));
-
-  // #XSOCKETSELECT=<handle>
-  at_comm_support_->SendATCommand(
-      "AT#XSOCKETSELECT=" + std::to_string(connection.handle));  // Set socket
-  if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT#XSOCKETSELECT command error {}", err);
-    return;
-  }
-  at_comm_support_->SendATCommand("AT#XSOCKET=0");  // Close socket
-  if (auto err = CheckResponse("OK", 10000, "AT#XSOCKET command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT#XSOCKET command error {}", err);
-    return;
-  }
-
-  connect_vec_.erase(connect_vec_.begin() + connect_index);
-}
-
-void Thingy91xAtModem::WritePacket(ConnectionIndex connect_index,
-                                   DataBuffer const& data) {
-  if (connect_index >= connect_vec_.size()) {
-    AE_TELED_ERROR("Connection index overflow");
-    return;
-  }
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port not open");
-    return;
-  }
+ActionPtr<Thingy91xAtModem::WriteOperation> Thingy91xAtModem::WritePacket(
+    ConnectionIndex connect_index, DataBuffer const& data) {
   if (data.size() > kModemMTU) {
     assert(false);
-    return;
-  }
-
-  auto const& connection =
-      connect_vec_.at(static_cast<std::size_t>(connect_index));
-
-  if (connection.protocol == ae::Protocol::kTcp) {
-    SendTcp(connection, data);
-  } else if (connection.protocol == ae::Protocol::kUdp) {
-    SendUdp(connection, data);
-  }
-}
-
-DataBuffer Thingy91xAtModem::ReadPacket(ConnectionIndex connect_index,
-                                        Duration timeout) {
-  if (connect_index >= connect_vec_.size()) {
-    AE_TELED_ERROR("Connection index overflow");
-    return {};
-  } else if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port is not open");
     return {};
   }
 
-  auto const& connection =
-      connect_vec_.at(static_cast<std::size_t>(connect_index));
+  auto write_notify = ActionPtr<WriteOperation>{action_context_};
 
-  if (connection.protocol == ae::Protocol::kTcp) {
-    return ReadTcp(connection, timeout);
-  }
-  if (connection.protocol == ae::Protocol::kUdp) {
-    return ReadUdp(connection, timeout);
-  }
-  return {};
+  operation_queue_->Push(
+      Stage([this, write_notify, connect_index, data{data}]() {
+        auto write_pipeline = SendData(connect_index, data);
+        write_pipeline->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[write_notify]() { write_notify->Notify(); }},
+            OnError{[write_notify]() { write_notify->Failed(); }},
+            OnStop{[write_notify]() { write_notify->Stop(); }},
+        });
+        return write_pipeline;
+      }));
+
+  return write_notify;
 }
 
-bool Thingy91xAtModem::SetPowerSaveParam(ae::PowerSaveParam const& psp) {
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port is not open");
-    return false;
-  }
-  at_comm_support_->SendATCommand("AT+CFUN=0");
-  if (auto err = CheckResponse("OK", 1000, "AT+CFUN command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT+CFUN command error {}", err);
-    return false;
-  }
-
-  // Configure eDRX
-  if (auto err = SetEdrx(psp.edrx_mode, psp.act_type, psp.edrx_val);
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Set edrx error {}", err);
-    return false;
-  }
-
-  // Configure RAI
-  if (auto err = SetRai(psp.rai_mode); err != kModemError::kNoError) {
-    AE_TELED_ERROR("Set rai error {}", err);
-    return false;
-  }
-
-  // Configure Band Locking
-  if (auto err = SetBandLock(psp.bands_mode, psp.bands);  // Unlock all bands
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Set band lock error {}", err);
-    return false;
-  }
-
-  // Set TX power limits
-  if (auto err = SetTxPower(psp.modem_mode, psp.power);
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Set tx power error {}", err);
-    return false;
-  }
-  at_comm_support_->SendATCommand("AT+CFUN=1");
-  if (auto err = CheckResponse("OK", 1000, "AT+CFUN command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT+CFUN command error {}", err);
-    return false;
-  }
-  return true;
+Thingy91xAtModem::DataEvent::Subscriber Thingy91xAtModem::data_event() {
+  return EventSubscriber{data_event_};
 }
 
-bool Thingy91xAtModem::PowerOff() {
-  if (!serial_->IsOpen()) {
-    AE_TELED_ERROR("Serial port is not open");
-    return false;
-  }
-  // Disabling full functionality
-  at_comm_support_->SendATCommand("AT+CFUN=0");
-  if (auto err = CheckResponse("OK", 1000, "AT+CFUN command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("AT+CFUN command error {}", err);
-    return false;
-  }
-  return true;
+ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::SetPowerSaveParam(
+    PowerSaveParam const& psp) {
+  auto modem_operation = ActionPtr<ModemOperation>{action_context_};
+
+  operation_queue_->Push(Stage([this, modem_operation, psp{psp}]() {
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_, Stage([this]() {
+          return at_comm_support_.MakeRequest("AT+CFUN=0", kWaitOk);
+        }),
+        // Configure eDRX
+        Stage([this, psp]() {
+          return SetEdrx(psp.edrx_mode, psp.act_type, psp.edrx_val);
+        }),
+        // Configure RAI
+        Stage([this, psp]() { return SetRai(psp.rai_mode); }),
+        // Configure Band Locking
+        Stage([this, psp]() { return SetBandLock(psp.bands_mode, psp.bands); }),
+        // Set TX power limits
+        Stage([this, psp]() { return SetTxPower(psp.modem_mode, psp.power); }),
+        Stage([this]() {
+          return at_comm_support_.MakeRequest("AT+CFUN=1", kWaitOk);
+        }));
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[modem_operation]() { modem_operation->Notify(); }},
+        OnError{[modem_operation]() { modem_operation->Failed(); }},
+        OnStop{[modem_operation]() { modem_operation->Stop(); }}});
+
+    return pipeline;
+  }));
+
+  return modem_operation;
+}
+
+ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::PowerOff() {
+  auto modem_operation = ActionPtr<ModemOperation>{action_context_};
+
+  operation_queue_->Push(Stage([this, modem_operation]() {
+    auto pipeline = MakeActionPtr<Pipeline>(
+        action_context_,
+        // Disabling full functionality
+        Stage([this]() {
+          return at_comm_support_.MakeRequest("AT+CFUN=0", kWaitOk);
+        }));
+
+    pipeline->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[modem_operation]() { modem_operation->Notify(); }},
+        OnError{[modem_operation]() { modem_operation->Failed(); }},
+        OnStop{[modem_operation]() { modem_operation->Stop(); }}});
+
+    return pipeline;
+  }));
+
+  return modem_operation;
 }
 
 // ============================private members=============================== //
-kModemError Thingy91xAtModem::CheckResponse(std::string const response,
-                                            std::uint32_t const wait_time,
-                                            std::string const error_message) {
-  kModemError err{kModemError::kNoError};
-
-  if (!at_comm_support_->WaitForResponse(
-          response, std::chrono::milliseconds(wait_time))) {
-    AE_TELED_ERROR(error_message);
-    err = kModemError::kAtCommandError;
-  }
-
-  return err;
+ActionPtr<IPipeline> Thingy91xAtModem::CheckSimStatus() {
+  return MakeActionPtr<Pipeline>(action_context_, Stage([this]() {
+                                   return at_comm_support_.MakeRequest(
+                                       "AT+CPIN?", kWaitOk);
+                                 }));
 }
 
-kModemError Thingy91xAtModem::SetBaudRate(std::uint32_t const /*rate*/) {
-  kModemError err{kModemError::kNoError};
+ActionPtr<IPipeline> Thingy91xAtModem::SetupSim(std::uint16_t pin) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, pin]() -> ActionPtr<AtRequest> {
+        auto pin_string = AtSupport::PinToString(pin);
 
-  return err;
+        if (pin_string.empty()) {
+          AE_TELED_ERROR("Pin wrong!");
+          return {};
+        }
+        // Check SIM card status
+        return at_comm_support_.MakeRequest("AT+CPIN=" + pin_string, kWaitOk);
+      }));
 }
 
-kModemError Thingy91xAtModem::CheckSimStatus() {
-  kModemError err{kModemError::kNoError};
-
-  at_comm_support_->SendATCommand("AT+CPIN?");  // Check SIM card status
-  err = CheckResponse("OK", 1000, "SIM card error!");
-  if (err != kModemError::kNoError) {
-    err = kModemError::kCheckSimStatus;
-  }
-
-  return err;
+ActionPtr<IPipeline> Thingy91xAtModem::SetNetMode(kModemMode const modem_mode) {
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, modem_mode]() -> ActionPtr<AtRequest> {
+        switch (modem_mode) {
+          case kModemMode::kModeAuto:
+            return at_comm_support_.MakeRequest(
+                "AT%XSYSTEMMODE=1,1,0,4",
+                kWaitOk);  // Set modem mode Auto
+          case kModemMode::kModeCatM:
+            return at_comm_support_.MakeRequest(
+                "AT%XSYSTEMMODE=1,0,0,1",
+                kWaitOk);  // Set modem mode CatM
+          case kModemMode::kModeNbIot:
+            return at_comm_support_.MakeRequest(
+                "AT%XSYSTEMMODE=0,1,0,2",
+                kWaitOk);  // Set modem mode NbIot
+          case kModemMode::kModeCatMNbIot:
+            return at_comm_support_.MakeRequest(
+                "AT%XSYSTEMMODE=1,1,0,0",
+                kWaitOk);  // Set modem mode CatMNbIot
+          default:
+            return {};
+        }
+      }));
 }
 
-kModemError Thingy91xAtModem::SetupSim(std::uint8_t const pin[4]) {
-  kModemError err{kModemError::kNoError};
+ActionPtr<IPipeline> Thingy91xAtModem::SetupNetwork(
+    std::string const& operator_name, std::string const& operator_code,
+    std::string const& apn_name, std::string const& apn_user,
+    std::string const& apn_pass, kModemMode modem_mode, kAuthType auth_type) {
+  AE_TELED_DEBUG("\n apn_user {}\n apn_pass {}\n auth_type {}", apn_user,
+                 apn_pass, auth_type);
 
-  auto pin_string = at_comm_support_->PinToString(pin);
+  std::string mode_str = std::invoke([&] {
+    switch (modem_mode) {
+      case kModemMode::kModeAuto:
+        return "0";  // Set modem mode Auto
+        break;
+      case kModemMode::kModeCatM:
+        return "8";  // Set modem mode CatM
+        break;
+      case kModemMode::kModeNbIot:
+        return "9";  // Set modem mode NbIot
+        break;
+      default:
+        return "0";
+        break;
+    }
+  });
 
-  if (pin_string == "ERROR") {
-    err = kModemError::kPinWrong;
-    return err;
-  }
+  return MakeActionPtr<Pipeline>(
+      action_context_,
+      //
+      Stage([this, operator_name, mode_str, operator_code]() {
+        std::string cmd;
+        // Connect to the network
+        if (!operator_name.empty()) {
+          // Operator long name
+          cmd = "AT+COPS=1,0,\"" + operator_name + "\"," + mode_str;
+        } else if (!operator_code.empty()) {
+          // Operator code
+          cmd = "AT+COPS=1,2,\"" + operator_code + "\"," + mode_str;
+        } else {
+          // Auto
+          cmd = "AT+COPS=0";
+        }
+        return at_comm_support_.MakeRequest(
+            cmd, AtRequest::Wait{"OK", std::chrono::seconds{120}});
+      }),
 
-  at_comm_support_->SendATCommand("AT+CPIN=" +
-                                  pin_string);  // Check SIM card status
-  err = CheckResponse("OK", 1000, "SIM card PIN error!");
-  if (err != kModemError::kNoError) {
-    err = kModemError::kSetupSim;
-  }
-
-  return err;
+      Stage([this, apn_name]() {
+        return at_comm_support_.MakeRequest(
+            R"(AT+CGDCONT=0,"IP",")" + apn_name + "\"", kWaitOk);
+      }),
+      Stage([this, apn_name]() {
+        return at_comm_support_.MakeRequest(
+            R"(AT+CEREG=1,"IP",")" + apn_name + "\"", kWaitOk);
+      }));
 }
 
-kModemError Thingy91xAtModem::SetNetMode(kModemMode const modem_mode) {
-  kModemError err{kModemError::kNoError};
-
-  switch (modem_mode) {
-    case kModemMode::kModeAuto:
-      at_comm_support_->SendATCommand(
-          "AT%XSYSTEMMODE=1,1,0,4");  // Set modem mode Auto
-      break;
-    case kModemMode::kModeCatM:
-      at_comm_support_->SendATCommand(
-          "AT%XSYSTEMMODE=1,0,0,1");  // Set modem mode CatM
-      break;
-    case kModemMode::kModeNbIot:
-      at_comm_support_->SendATCommand(
-          "AT%XSYSTEMMODE=0,1,0,2");  // Set modem mode NbIot
-      break;
-    case kModemMode::kModeCatMNbIot:
-      at_comm_support_->SendATCommand(
-          "AT%XSYSTEMMODE=1,1,0,0");  // Set modem mode CatMNbIot
-      break;
-    default:
-      err = kModemError::kSetNetMode;
-      return err;
-      break;
-  }
-
-  err = CheckResponse("OK", 1000, "No response from modem!");
-  if (err != kModemError::kNoError) {
-    err = kModemError::kSetNetMode;
-  }
-
-  return err;
-}
-
-kModemError Thingy91xAtModem::SetupNetwork(std::string const operator_name,
-                                           std::string const operator_code,
-                                           std::string const apn_name,
-                                           std::string const apn_user,
-                                           std::string const apn_pass,
-                                           kModemMode const modem_mode,
-                                           kAuthType const auth_type) {
-  std::string mode_str;
-  kModemError err{kModemError::kNoError};
-
-  switch (modem_mode) {
-    case kModemMode::kModeAuto:
-      mode_str = "0";  // Set modem mode Auto
-      break;
-    case kModemMode::kModeCatM:
-      mode_str = "8";  // Set modem mode CatM
-      break;
-    case kModemMode::kModeNbIot:
-      mode_str = "9";  // Set modem mode NbIot
-      break;
-    default:
-      mode_str = "0";
-      break;
-  }
-
-  // Connect to the network
-  if (!operator_name.empty()) {
-    // Operator long name
-    at_comm_support_->SendATCommand("AT+COPS=1,0,\"" + operator_name + "\"," +
-                                    mode_str);
-  } else if (!operator_code.empty()) {
-    // Operator code
-    at_comm_support_->SendATCommand("AT+COPS=1,2,\"" + operator_code + "\"," +
-                                    mode_str);
-  } else {
-    // Auto
-    at_comm_support_->SendATCommand("AT+COPS=0");
-  }
-
-  err = CheckResponse("OK", 120000, "AT+COPS command error!");
-  if (err == kModemError::kNoError) {
-    at_comm_support_->SendATCommand("AT+CGDCONT=0,\"IP\",\"" + apn_name + "\"");
-    err = CheckResponse("OK", 1000, "AT+CGDCONT command error!");
-  }
-
-  if (err == kModemError::kNoError) {
-    at_comm_support_->SendATCommand("AT+CEREG=1");
-    err = CheckResponse("OK", 1000, "AT+CEREG command error!");
-  }
-
-  if (err != kModemError::kNoError) {
-    err = kModemError::kSetNetwork;
-  }
-
-  AE_TELED_DEBUG("apn_user {}", apn_user);
-  AE_TELED_DEBUG("apn_pass {}", apn_pass);
-  AE_TELED_DEBUG("auth_type {}", auth_type);
-
-  return err;
-}
-
-kModemError Thingy91xAtModem::SetTxPower(kModemMode const modem_mode,
-                                         std::vector<BandPower> const& power) {
-  kModemError err{kModemError::kNoError};
+ActionPtr<IPipeline> Thingy91xAtModem::SetTxPower(
+    kModemMode const modem_mode, std::vector<BandPower> const& power) {
   std::string cmd{"AT%XEMPR="};
   std::string bands{};
   std::uint8_t k{0};
@@ -468,13 +605,13 @@ kModemError Thingy91xAtModem::SetTxPower(kModemMode const modem_mode,
   } else if (modem_mode == kModemMode::kModeCatM) {
     system_mode = 1;
   } else {
-    err = kModemError::kSetPwr;
+    return {};
   }
 
   // %XEMPR=<system_mode>,<k>,<band0>,<pr0>,<band1>,<pr1>,…,<bandk-1>,<prk-1>
   // or
   // %XEMPR=<system_mode>,0,<pr_for_all_bands>
-  if (power.size() > 0 && err == kModemError::kNoError) {
+  if (power.size() > 0) {
     for (auto& pwr : power) {
       if (pwr.band == kModemBand::kALL_BAND) {
         all_bands = true;
@@ -494,27 +631,28 @@ kModemError Thingy91xAtModem::SetTxPower(kModemMode const modem_mode,
           std::to_string(system_mode) + "," + std::to_string(k) + "," + bands;
     }
   } else {
-    err = kModemError::kSetPwr;
+    return {};
   }
 
-  if (err == kModemError::kNoError) {
-    at_comm_support_->SendATCommand(cmd);
-    err = CheckResponse("OK", 1000, "AT%XEMPR command error!");
-  }
-
-  return err;
+  return MakeActionPtr<Pipeline>(action_context_,  //
+                                 Stage([this, cmd]() {
+                                   return at_comm_support_.MakeRequest(
+                                       cmd, AtRequest::Wait{"OK", kOneSecond});
+                                 }));
 }
 
-kModemError Thingy91xAtModem::GetTxPower(kModemMode const modem_mode,
-                                         std::vector<BandPower>& power) {
-  kModemError err{kModemError::kNoError};
-
+ActionPtr<IPipeline> Thingy91xAtModem::GetTxPower(
+    kModemMode const modem_mode, std::vector<BandPower>& power) {
   AE_TELED_DEBUG("modem_mode {}", modem_mode);
   for (auto& pwr : power) {
     AE_TELED_DEBUG("power band {} power power {}", pwr.band, pwr.power);
   }
 
-  return err;
+  // TODO: not implemented
+  return MakeActionPtr<Pipeline>(action_context_,
+                                 Stage<GenAction>(action_context_, []() {
+                                   return UpdateStatus::Result();
+                                 }));
 }
 
 /**
@@ -527,36 +665,34 @@ kModemError Thingy91xAtModem::GetTxPower(kModemMode const modem_mode,
  * skip
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetPsm(
+ActionPtr<IPipeline> Thingy91xAtModem::SetPsm(
     std::uint8_t const psm_mode, kRequestedPeriodicTAUT3412 const psm_tau,
     kRequestedActiveTimeT3324 const psm_active) {
-  std::string cmd;
-  kModemError err{kModemError::kNoError};
-
-  if (psm_mode == 0) {
-    cmd = "AT+CPSMS=0";
-  } else if (psm_mode == 1) {
-    std::string tau_str =
-        std::bitset<8>(static_cast<unsigned long long>(
-                           (psm_tau.bits.Multiplier << 5) | psm_tau.bits.Value))
-            .to_string();
-    std::string active_str =
-        std::bitset<8>(
-            static_cast<unsigned long long>((psm_active.bits.Multiplier << 5) |
-                                            psm_active.bits.Value))
-            .to_string();
-    cmd = "AT+CPSMS=" + std::to_string(psm_mode) + ",,,\"" + tau_str + "\",\"" +
-          active_str + "\"";
-  } else {
-    err = kModemError::kSetPsm;
+  if (psm_mode > 1) {
+    return {};
   }
 
-  if (err == kModemError::kNoError) {
-    at_comm_support_->SendATCommand(cmd);
-    err = CheckResponse("OK", 2000, "AT+CPSMS command error!");
-  }
-
-  return err;
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, psm_mode, psm_tau, psm_active]() {
+        std::string cmd;
+        if (psm_mode == 0) {
+          cmd = "AT+CPSMS=0";
+        } else if (psm_mode == 1) {
+          std::string tau_str =
+              std::bitset<8>(
+                  static_cast<unsigned long long>(
+                      (psm_tau.bits.Multiplier << 5) | psm_tau.bits.Value))
+                  .to_string();
+          std::string active_str =
+              std::bitset<8>(static_cast<unsigned long long>(
+                                 (psm_active.bits.Multiplier << 5) |
+                                 psm_active.bits.Value))
+                  .to_string();
+          cmd = "AT+CPSMS=" + std::to_string(psm_mode) + ",,,\"" + tau_str +
+                "\",\"" + active_str + "\"";
+        }
+        return at_comm_support_.MakeRequest(cmd, kWaitOk);
+      }));
 }
 
 /**
@@ -567,33 +703,30 @@ kModemError Thingy91xAtModem::SetPsm(
  * @param edrx_val     eDRX value in seconds. Use -1 for network default
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetEdrx(EdrxMode const edrx_mode,
-                                      EdrxActTType const act_type,
-                                      kEDrx const edrx_val) {
-  std::string cmd;
-  kModemError err{kModemError::kNoError};
-
+ActionPtr<IPipeline> Thingy91xAtModem::SetEdrx(EdrxMode const edrx_mode,
+                                               EdrxActTType const act_type,
+                                               kEDrx const edrx_val) {
   std::string req_edrx_str =
       std::bitset<4>((edrx_val.bits.ReqEDRXValue)).to_string();
   // std::string prov_edrx_str =
   // std::bitset<4>((edrx_val.ProvEDRXValue)).to_string();
   std::string ptw_str = std::bitset<4>((edrx_val.bits.PTWValue)).to_string();
 
-  cmd = "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(edrx_mode)) +
-        "," + std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
-        req_edrx_str + "\"";
+  std::string cmd =
+      "AT+CEDRXS=" + std::to_string(static_cast<std::uint8_t>(edrx_mode)) +
+      "," + std::to_string(static_cast<std::uint8_t>(act_type)) + ",\"" +
+      req_edrx_str + "\"";
 
-  at_comm_support_->SendATCommand(cmd);
-  err = CheckResponse("OK", 2000, "AT+CPSMS command error!");
-
-  if (err == kModemError::kNoError) {
-    cmd = "AT%XPTW=" + std::to_string(static_cast<std::uint8_t>(act_type)) +
-          ",\"" + ptw_str + "\"";
-    at_comm_support_->SendATCommand(cmd);
-    err = CheckResponse("OK", 2000, "AT%XPTW command error!");
-  }
-
-  return err;
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, cmd]() {
+        return at_comm_support_.MakeRequest(cmd, kWaitOkTwoSeconds);
+      }),
+      Stage([this, ptw_str, act_type]() {
+        std::string cmd =
+            "AT%XPTW=" + std::to_string(static_cast<std::uint8_t>(act_type)) +
+            ",\"" + ptw_str + "\"";
+        return at_comm_support_.MakeRequest(cmd, kWaitOkTwoSeconds);
+      }));
 }
 
 /**
@@ -603,20 +736,18 @@ kModemError Thingy91xAtModem::SetEdrx(EdrxMode const edrx_mode,
  * unsolicited notifications
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetRai(std::uint8_t const rai_mode) {
+ActionPtr<IPipeline> Thingy91xAtModem::SetRai(std::uint8_t const rai_mode) {
   std::string cmd;
-  kModemError err{kModemError::kNoError};
-
   if (rai_mode >= 3) {
-    err = kModemError::kSetRai;
-  } else {
-    cmd = "AT%RAI=" + std::to_string(rai_mode);
-
-    at_comm_support_->SendATCommand(cmd);
-    err = CheckResponse("OK", 2000, "AT+CPSMS command error!");
+    return {};
   }
 
-  return err;
+  return MakeActionPtr<Pipeline>(
+      action_context_,  //
+      Stage([this, rai_mode]() {
+        std::string cmd = "AT%RAI=" + std::to_string(rai_mode);
+        return at_comm_support_.MakeRequest(cmd, kWaitOkTwoSeconds);
+      }));
 }
 
 /**
@@ -628,35 +759,32 @@ kModemError Thingy91xAtModem::SetRai(std::uint8_t const rai_mode) {
  * @param bands        Vector of band numbers (empty for unlock)
  * @return kModemError ErrorCode
  */
-kModemError Thingy91xAtModem::SetBandLock(
+ActionPtr<IPipeline> Thingy91xAtModem::SetBandLock(
     std::uint8_t const bl_mode, const std::vector<std::int32_t>& bands) {
-  std::string cmd{};
   std::uint64_t band_bit1{0}, band_bit2{0};
-  kModemError err{kModemError::kNoError};
 
   if (bl_mode >= 4) {
-    err = kModemError::kSetBandLock;
-  } else {
-    cmd = "AT%XBANDLOCK=" + std::to_string(bl_mode);
+    return {};
+  }
+  std::string cmd = "AT%XBANDLOCK=" + std::to_string(bl_mode);
 
-    if (bl_mode == 1 && !bands.empty()) {
-      cmd += ",\"";
-      for (const auto& band : bands) {
-        if (band < 32) {
-          band_bit1 |= 1ULL << band;
-        } else {
-          band_bit2 |= 1ULL << (band - 32);
-        }
+  if (bl_mode == 1 && !bands.empty()) {
+    cmd += ",\"";
+    for (const auto& band : bands) {
+      if (band < 32) {
+        band_bit1 |= 1ULL << band;
+      } else {
+        band_bit2 |= 1ULL << (band - 32);
       }
-      cmd += std::bitset<24>(band_bit2).to_string() +
-             std::bitset<64>(band_bit1).to_string() + "\"";
     }
-
-    at_comm_support_->SendATCommand(cmd);
-    err = CheckResponse("OK", 2000, "AT+CPSMS command error!");
+    cmd += std::bitset<24>(band_bit2).to_string() +
+           std::bitset<64>(band_bit1).to_string() + "\"";
   }
 
-  return err;
+  return MakeActionPtr<Pipeline>(action_context_, Stage([this, cmd]() {
+                                   return at_comm_support_.MakeRequest(
+                                       cmd, kWaitOkTwoSeconds);
+                                 }));
 }
 
 /**
@@ -685,245 +813,208 @@ kModemError Thingy91xAtModem::SetBandLock(
  * - Device may reboot after successful execution
  * - Uses 2000ms response timeout for command verification
  */
-kModemError Thingy91xAtModem::ResetModemFactory(std::uint8_t const res_mode) {
-  std::string cmd{};
-  kModemError err{kModemError::kNoError};
-
+ActionPtr<IPipeline> Thingy91xAtModem::ResetModemFactory(
+    std::uint8_t res_mode) {
   if (res_mode >= 2) {
-    err = kModemError::kResetMode;
-  } else {
-    cmd = "AT%XFACTORYRESET=" + std::to_string(res_mode);
-
-    at_comm_support_->SendATCommand(cmd);
-    err = CheckResponse("OK", 2000, "AT%XFACTORYRESET command error!");
+    return {};
   }
-
-  return err;
+  return MakeActionPtr<Pipeline>(
+      action_context_, Stage([this, res_mode]() {
+        return at_comm_support_.MakeRequest(
+            "AT%XFACTORYRESET=" + std::to_string(res_mode), kWaitOkTwoSeconds);
+      }));
 }
 
-std::int32_t Thingy91xAtModem::OpenTcpConnection(std::string const& host,
-                                                 std::uint16_t port) {
-  AE_TELED_DEBUG("Open tcp connection for {}:{}", host, port);
+ActionPtr<IPipeline> Thingy91xAtModem::OpenTcpConnection(
+    ActionPtr<OpenNetworkOperation> open_network_operation,
+    std::string const& host, std::uint16_t port) {
+  return MakeActionPtr<Pipeline>(
+      action_context_,
+      Stage([this, open_network_operation{std::move(open_network_operation)},
+             host{host}, port]() {
+        auto open_operation = ActionPtr<Thingy91TcpOpenNetwork>{
+            action_context_, *this, host, port};
 
-  // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
-  at_comm_support_->SendATCommand("AT#XSOCKET=1,1,0");  // Create TCP socket
-  auto response = serial_->Read();                      // Get socket handle
-  if (!response) {
-    AE_TELED_DEBUG("No response");
-    return -1;
-  }
-  std::string_view response_string{
-      reinterpret_cast<char const*>(response->data()), response->size()};
-  // find opened handle
-  std::int32_t handle{-1};
-  auto start = response_string.find("#XSOCKET: ") + 10;
-  auto stop = response_string.find(",");
-  if ((stop > start) && (start != std::string_view::npos) &&
-      (stop != std::string_view::npos)) {
-    handle =
-        FromChars<std::int32_t>(response_string.substr(start, stop - start))
-            .value_or(-1);
-    AE_TELED_DEBUG("Handle {}", handle);
-  } else {
-    AE_TELED_DEBUG("Failed to parser connection handle");
-    return -1;
-  }
+        open_operation->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[open_network_operation](auto const& action) {
+              open_network_operation->SetValue(action.connection_index());
+            }},
+            OnError{[open_network_operation]() {
+              open_network_operation->Reject();
+            }},
+        });
 
-  // #XSOCKETSELECT=<handle>
-  at_comm_support_->SendATCommand("AT#XSOCKETSELECT=" +
-                                  std::to_string(handle));  // Set socket
-  if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Failed to check opened handle {}", err);
-    return -1;
-  }
-  // AT#XSOCKETOPT=1,20,30
-  at_comm_support_->SendATCommand("AT#XSOCKETOPT=1,20,30");  // Set parameters
-  if (auto err = CheckResponse("OK", 1000, "AT#XSOCKET command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Failed to set socket parameters {}", err);
-    return -1;
-  }
-  // AT#XCONNECT="example.com",1234
-  at_comm_support_->SendATCommand("AT#XCONNECT=\"" + host + "\"," +
-                                  std::to_string(port));  // Connect
-  if (auto err = CheckResponse("OK", 1000, "AT#XCONNECT command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Failed to connect to host {}", err);
-    return -1;
-  }
-
-  return handle;
+        return open_operation;
+      }));
 }
 
-std::int32_t Thingy91xAtModem::OpenUdpConnection() {
-  // #XSOCKET=<op>[,<type>,<role>[,<cid>]]
-  at_comm_support_->SendATCommand("AT#XSOCKET=1,2,0");  // Create UDP socket
-  auto response = serial_->Read();                      // Get socket handle
-  std::int32_t handle{-1};
-  std::string response_string(response->begin(), response->end());
-  auto start = response_string.find("#XSOCKET: ") + 10;
-  auto stop = response_string.find(",");
-  if (stop > start && start != std::string::npos && stop != std::string::npos) {
-    handle =
-        FromChars<std::int32_t>(response_string.substr(start, stop - start))
-            .value_or(-1);
-    AE_TELED_DEBUG("Handle {}", handle);
-  } else {
-    return -1;
-  }
-  // #XSOCKETSELECT=<handle>
-  at_comm_support_->SendATCommand("AT#XSOCKETSELECT=" +
-                                  std::to_string(handle));  // Set socket
-  if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
-      err != kModemError::kNoError) {
-    return -1;
-  }
-  return handle;
+ActionPtr<IPipeline> Thingy91xAtModem::OpenUdpConnection(
+    ActionPtr<OpenNetworkOperation> open_network_operation,
+    std::string const& host, std::uint16_t port) {
+  return MakeActionPtr<Pipeline>(
+      action_context_,
+      Stage([this, open_network_operation{std::move(open_network_operation)},
+             host{host}, port]() {
+        auto open_operation = ActionPtr<Thingy91UdpOpenNetwork>{
+            action_context_, *this, host, port};
+
+        open_operation->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[open_network_operation](auto const& action) {
+              open_network_operation->SetValue(action.connection_index());
+            }},
+            OnError{[open_network_operation]() {
+              open_network_operation->Reject();
+            }},
+        });
+
+        return open_operation;
+      }));
 }
 
-void Thingy91xAtModem::SendTcp(Thingy91xConnection const& connection,
-                               DataBuffer const& data) {
-  DataBuffer terminated_data{data};
+ActionPtr<IPipeline> Thingy91xAtModem::SendData(ConnectionIndex connection,
+                                                DataBuffer const& data) {
+  auto terminated_data = DataBuffer(data.size() + 3);
+  std::copy(std::begin(data), std::end(data), std::begin(terminated_data));
+  terminated_data[terminated_data.size() - 3] = '+';
+  terminated_data[terminated_data.size() - 2] = '+';
+  terminated_data[terminated_data.size() - 1] = '+';
 
-  // #XSOCKETSELECT=<handle>
-  at_comm_support_->SendATCommand(
-      "AT#XSOCKETSELECT=" + std::to_string(connection.handle));  // Set socket
-  if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Select socket error {}", err);
+  return MakeActionPtr<Pipeline>(
+      action_context_,
+      // #XSOCKETSELECT=<handle>
+      Stage([this, handle{static_cast<std::int32_t>(connection)}]() {
+        return at_comm_support_.MakeRequest(
+            "AT#XSOCKETSELECT=" + std::to_string(handle), kWaitOk);
+      }),
+      // #XSEND[=<data>]
+      Stage([this]() {
+        return at_comm_support_.MakeRequest("AT#XSEND", kWaitOk);
+      }),
+      Stage([this, terminated_data{std::move(terminated_data)}]() mutable {
+        return at_comm_support_.MakeRequest(
+            [this, terminated_data{std::move(terminated_data)}]() {
+              auto at_action = ActionPtr<AtWriteAction>{action_context_};
+              serial_->Write(terminated_data);
+              at_action->Notify();
+              return at_action;
+            },
+            AtRequest::Wait{"#XDATAMODE:", kTenSeconds, [](auto&, auto pos) {
+                              int code{-1};
+                              AtSupport::ParseResponse(*pos, "#XDATAMODE",
+                                                       code);
+                              AE_TELED_DEBUG("Send data result code: {}", code);
+                              return code == 0;
+                            }});
+      }));
+}
+
+ActionPtr<IPipeline> Thingy91xAtModem::ReadPacket(ConnectionIndex connection) {
+  return MakeActionPtr<Pipeline>(
+      action_context_,
+      // #XSOCKETSELECT=<handle>
+      Stage([this, handle{static_cast<std::int32_t>(connection)}]() {
+        return at_comm_support_.MakeRequest(
+            "AT#XSOCKETSELECT=" + std::to_string(handle), kWaitOk);
+      }),
+      // #XRECV=<timeout>[,<flags>]
+      Stage([this, connection]() {
+        return at_comm_support_.MakeRequest(
+            "AT#XRECV=0,64", kWaitOk,
+            AtRequest::Wait{"#XRECV:", kTenSeconds,
+                            [this, connection](auto& at_buffer, auto pos) {
+                              std::size_t size{};
+                              auto parse_end = AtSupport::ParseResponse(
+                                  *pos, "#XRECV", size);
+                              if (parse_end.value_or(0) == 0) {
+                                AE_TELED_ERROR("Parser recv error");
+                                return false;
+                              }
+                              auto data_crate =
+                                  at_buffer.GetCrate(size, *parse_end, pos);
+                              if (data_crate.size() != size) {
+                                AE_TELED_ERROR("Parser recv data error");
+                                return false;
+                              }
+
+                              // Emit the received data
+                              data_event_.Emit(connection, data_crate);
+                              return true;
+                            }});
+      }));
+}
+
+void Thingy91xAtModem::SetupPoll() {
+  poll_listener_ =
+      at_comm_support_.ListenForResponse("#XPOLL: ", [this](auto&, auto pos) {
+        std::int32_t handle{};
+        std::string flags;
+        auto res = AtSupport::ParseResponse(*pos, "#XPOLL", handle, flags);
+        if (!res) {
+          AE_TELED_ERROR("Failed to parse XPOLL response");
+          return;
+        }
+        PollEvent(handle, flags);
+      });
+
+  // TODO: config for poll interval
+  poll_task_ = ActionPtr<RepeatableTask>{
+      action_context_,
+      [this]() {
+        // add poll to operation queue
+        if (connections_.empty()) {
+          return;
+        }
+        if (poll_in_queue_ > 0) {
+          return;
+        }
+        if (recv_in_queue_ > 0) {
+          return;
+        }
+        operation_queue_->Push(Stage([this]() {
+          poll_in_queue_++;
+          auto operation = Poll();
+          operation->FinishedEvent().Subscribe([this]() { poll_in_queue_--; });
+          return operation;
+        }));
+      },
+      std::chrono::milliseconds{200}};
+}
+
+ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
+  return MakeActionPtr<Pipeline>(action_context_,  //
+                                 Stage([this]() {
+                                   std::string handles;
+                                   for (auto ci : connections_) {
+                                     handles += "," + std::to_string(ci);
+                                   }
+                                   return at_comm_support_.MakeRequest(
+                                       "AT#XPOLL=0" + handles, kWaitOk);
+                                 }));
+}
+
+void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
+  // flags is in hexadecimal format like "0x001"
+  auto flags_val = FromChars<std::uint32_t>(flags, 16);
+  if (!flags_val) {
     return;
   }
 
-  // #XSEND[=<data>]
-  at_comm_support_->SendATCommand("AT#XSEND");
-
-  if (auto err = CheckResponse("OK", 1000, "AT#XSEND command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Send data error {}", err);
+  // get connection index
+  auto it = connections_.find(static_cast<ConnectionIndex>(handle));
+  if (it == std::end(connections_)) {
+    AE_TELED_ERROR("Poll unknown handle {}", handle);
     return;
   }
 
-  terminated_data.push_back('+');
-  terminated_data.push_back('+');
-  terminated_data.push_back('+');
-  serial_->Write(terminated_data);
-
-  if (auto err = CheckResponse("#XDATAMODE: 0", 10000, "+++ command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Send data error {}", err);
-    return;
+  constexpr std::uint32_t kPollIn = 0x01;
+  if ((*flags_val & kPollIn) != 0) {
+    recv_in_queue_++;
+    operation_queue_->Push(Stage([this, connection{*it}]() {
+      auto operation = ReadPacket(connection);
+      operation->FinishedEvent().Subscribe([this]() { recv_in_queue_--; });
+      return operation;
+    }));
   }
 }
 
-void Thingy91xAtModem::SendUdp(Thingy91xConnection const& connection,
-                               DataBuffer const& data) {
-  // #XSOCKETSELECT=<handle>
-  at_comm_support_->SendATCommand(
-      "AT#XSOCKETSELECT=" + std::to_string(connection.handle));  // Set socket
-  if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Send data error {}", err);
-    return;
-  }
-  // #XSENDTO=<url>,<port>[,<data>]
-  std::string data_string(data.begin(), data.end());
-  at_comm_support_->SendATCommand(Format(R"(AT#XSENDTO="{}",{},"{}")",
-                                         connection.host, connection.port,
-                                         data_string));
-
-  if (auto err = CheckResponse("OK", 1000, "AT#XSENDTO command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Send data error {}", err);
-    return;
-  }
-}
-
-DataBuffer Thingy91xAtModem::ReadTcp(Thingy91xConnection const& connection,
-                                     Duration /*timeout*/) {
-  // #XSOCKETSELECT=<handle>
-  at_comm_support_->SendATCommand(
-      "AT#XSOCKETSELECT=" + std::to_string(connection.handle));  // Set socket
-  if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Socket select error {}", err);
-    return {};
-  }
-  // #XRECV=<timeout>[,<flags>]
-  at_comm_support_->SendATCommand("AT#XRECV=0,64");
-  auto response = serial_->Read();
-  if (!response) {
-    AE_TELED_ERROR("Read response empty");
-    return {};
-  }
-  // get data size
-  std::ptrdiff_t size = 0;
-  std::string_view response_string(
-      reinterpret_cast<char const*>(response->data()), response->size());
-  auto start = response_string.find("#XRECV: ") + 8;
-  auto stop = response_string.find("\r\n", 2);
-  if ((stop > start) && (start != std::string_view::npos) &&
-      (stop != std::string_view::npos)) {
-    size =
-        FromChars<std::ptrdiff_t>(response_string.substr(start, stop - start))
-            .value_or(0);
-    AE_TELED_DEBUG("Size {}", size);
-  } else {
-    return {};
-  }
-
-  if (size > 0) {
-    auto start2 = static_cast<std::ptrdiff_t>(stop + 2);
-    DataBuffer response_vector(
-        response->begin() + start2,
-        response->begin() + start2 + static_cast<std::ptrdiff_t>(size));
-    AE_TELED_DEBUG("Data {}", response_vector);
-    return response_vector;
-  }
-  return {};
-}
-
-DataBuffer Thingy91xAtModem::ReadUdp(Thingy91xConnection const& connection,
-                                     Duration /*timeout*/) {
-  // #XSOCKETSELECT=<handle>
-  at_comm_support_->SendATCommand(
-      "AT#XSOCKETSELECT=" + std::to_string(connection.handle));  // Set socket
-  if (auto err = CheckResponse("OK", 1000, "AT#XSOCKETSELECT command error!");
-      err != kModemError::kNoError) {
-    AE_TELED_ERROR("Socket select error {}", err);
-    return {};
-  }
-  // #XRECVFROM=<timeout>[,<flags>]
-  at_comm_support_->SendATCommand("AT#XRECVFROM=0,64");
-  auto response = serial_->Read();
-  if (!response) {
-    AE_TELED_ERROR("Read error");
-    return {};
-  }
-  std::ptrdiff_t size = 0;
-  std::string_view response_string(
-      reinterpret_cast<char const*>(response->data()), response->size());
-  auto start = response_string.find("#XRECVFROM: ") + 12;
-  auto stop = response_string.find(",");
-  if ((stop > start) && (start != std::string_view::npos) &&
-      (stop != std::string_view::npos)) {
-    size =
-        FromChars<std::ptrdiff_t>(response_string.substr(start, stop - start))
-            .value_or(0);
-    AE_TELED_DEBUG("Size {}", size);
-  } else {
-    return {};
-  }
-
-  if (size > 0) {
-    auto port_str = std::to_string(connection.port);
-    auto start2 = static_cast<std::ptrdiff_t>(response_string.find(port_str) +
-                                              port_str.size() + 2);
-    DataBuffer response_vector(response->begin() + start2,
-                               response->begin() + start2 + size);
-    AE_TELED_DEBUG("Data {}", response_vector);
-    return response_vector;
-  }
-  return {};
-}
 } /* namespace ae */

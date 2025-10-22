@@ -28,6 +28,7 @@
 #  include "aether/actions/action_context.h"
 
 #  include "aether/poller/poller.h"
+#  include "aether/poller/win_poller.h"
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
 
@@ -47,10 +48,19 @@ class WinSerialPort final : public ISerialPort {
     void PollEvent(PollerEvent event);
     void ReadData();
 
+    void RequestRead();
+    void HandleRead();
+    
     WinSerialPort* serial_port_;
     IPoller::OnPollEventSubscriber::Subscription poll_sub_;
     std::list<DataBuffer> buffers_;
     std::atomic_bool read_event_;
+    
+    DataBuffer read_buffer_;
+    WinPollerOverlapped overlapped_rd_{0};
+    
+    static constexpr int kReadBufSize{4096};
+    static constexpr int kReadTimeOutMSec{250};
   };
   
  public:
@@ -77,12 +87,14 @@ class WinSerialPort final : public ISerialPort {
   std::mutex fd_lock_;
   void* fd_;
   DataReadEvent read_event_;
-  
-  OVERLAPPED overlapped_rd_;
-  OVERLAPPED overlapped_wr_;
+
+  OVERLAPPED overlapped_wr_{0};
   DWORD signal_;
 
-  ActionPtr<ReadAction> read_action_;  
+  ActionPtr<ReadAction> read_action_;
+  
+  static constexpr int kReadBufSize{4096};
+  static constexpr int kReadTimeOutMSec{250};
 };
 } /* namespace ae */
 

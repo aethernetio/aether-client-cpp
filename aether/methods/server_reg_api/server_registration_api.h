@@ -56,11 +56,11 @@ class ServerRegistrationApi {
                   Key return_key, DataBuffer data)>
       registration;
 
-  Method<40, PromisePtr<PowParams>(Uid parent_id, PowMethod pow_method,
+  Method<40, ApiPromisePtr<PowParams>(Uid parent_id, PowMethod pow_method,
                                     Key return_key)>
       request_proof_of_work_data;
 
-  Method<70, PromisePtr<std::vector<ServerDescriptor>>(
+  Method<70, ApiPromisePtr<std::vector<ServerDescriptor>>(
                  std::vector<ServerId> servers)>
       resolve_servers;
 };
