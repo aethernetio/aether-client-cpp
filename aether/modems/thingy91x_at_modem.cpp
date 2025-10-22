@@ -977,19 +977,18 @@ ActionPtr<IPipeline> Thingy91xAtModem::Poll() {
     return {};
   }
   poll_in_queue_++;
-  return MakeActionPtr<Pipeline>(action_context_,  //
-                                 Stage([this]() {
-                                   std::string handles;
-                                   for (auto ci : connections_) {
-                                     handles += "," + std::to_string(ci);
-                                   }
-                                   return at_comm_support_.MakeRequest(
-                                       "AT#XPOLL=0" + handles, kWaitOk);
-                                 }),
-                                 Stage<GenAction>(action_context_, [this]() {
-                                   poll_in_queue_--;
-                                   return UpdateStatus::Result();
-                                 }));
+  auto operation = MakeActionPtr<Pipeline>(
+      action_context_,  //
+      Stage([this]() {
+        std::string handles;
+        for (auto ci : connections_) {
+          handles += "," + std::to_string(ci);
+        }
+        return at_comm_support_.MakeRequest("AT#XPOLL=0" + handles, kWaitOk);
+      }));
+  operation->FinishedEvent().Subscribe([this]() { poll_in_queue_--; });
+
+  return operation;
 }
 
 void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
