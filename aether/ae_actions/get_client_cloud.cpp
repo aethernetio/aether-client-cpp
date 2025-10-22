@@ -148,7 +148,7 @@ void GetClientCloudAction::RequestCloud() {
                                 state_ = State::kFailed;
                               }}}));
       },
-      std::chrono::milliseconds{500}, repeat_count};
+      std::chrono::milliseconds{5000}, repeat_count};
   cloud_request_subscriptions_.Push(
       request_cloud_task_->StatusEvent().Subscribe(OnError{[this]() {
         AE_TELED_ERROR("Cloud request count exceeded");
