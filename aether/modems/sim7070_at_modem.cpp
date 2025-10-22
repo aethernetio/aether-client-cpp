@@ -519,7 +519,8 @@ ActionPtr<IPipeline> Sim7070AtModem::ReadPacket(ConnectionIndex connection) {
                                  static_cast<std::int32_t>(connection));
 
                   // Extract the actual data
-                  auto recv_data = at_buffer.GetCrate(size, *parse_res, pos);
+                  auto recv_data =
+                      at_buffer.GetCrate(size, *parse_res + 1, pos);
                   AE_TELED_DEBUG("Received size {} bytes \ndata{}",
                                  recv_data.size(), recv_data);
 
