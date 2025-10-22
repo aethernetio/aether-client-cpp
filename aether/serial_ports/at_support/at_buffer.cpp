@@ -95,11 +95,13 @@ void AtBuffer::DataRead(DataBuffer const& data) {
     auto line_end = data_str.find("\r\n");
     if (line_end == std::string_view::npos) {
       AE_TELED_ERROR("The line without \\r\\n {}", data_str);
+      line_end = data_str.size();
     }
     // skip \r\n
     auto sub = data_str.substr(0, line_end);
     // move to next line
-    data_str = data_str.substr(line_end + 2);
+    data_str.remove_prefix((line_end == data_str.size()) ? data_str.size()
+                                                         : line_end + 2);
 
     if (sub.empty()) {
       continue;
