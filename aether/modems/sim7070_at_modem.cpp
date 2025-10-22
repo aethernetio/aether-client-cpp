@@ -451,10 +451,11 @@ ActionPtr<IPipeline> Sim7070AtModem::OpenConnection(
           return "UNKNOWN";
         });
         return at_support_.MakeRequest(
-            Format(R"(AT+CAOPEN={},0,"{}","{}",{})", handle, protocol_str, host,
-                   port),
-            AtRequest::Wait{"+CAOPEN: " + std::to_string(handle) + ",0",
-                            kTenSeconds});
+            Format(R"(AT+CAOPEN={},0,"{}","{}",{})",
+                   static_cast<std::int32_t>(handle), protocol_str, host, port),
+            AtRequest::Wait{
+                Format("+CAOPEN: {},0", static_cast<std::int32_t>(handle)),
+                kTenSeconds});
       }),
       Stage<GenAction>(action_context_, [this, handle]() {
         connections_.emplace(static_cast<ConnectionIndex>(handle));
