@@ -42,9 +42,14 @@ void AtDispatcher::Remove(IAtObserver* observer) {
 
 void AtDispatcher::BufferUpdate(AtBuffer::iterator pos) {
   for (auto const& [command, observer] : observers_) {
-    auto res = buffer_->FindPattern(command, pos);
-    if (res != buffer_->end()) {
+    auto search = pos;
+    while (search != buffer_->end()) {
+      auto res = buffer_->FindPattern(command, search);
+      if (res == buffer_->end()) {
+        break;
+      }
       observer->Observe(*buffer_, res);
+      search = ++res;
     }
   }
   // clean the buffer
