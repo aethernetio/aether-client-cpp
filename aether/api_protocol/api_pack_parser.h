@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_API_PROTOCOL_API_PACK_PARSE_H_
-#define AETHER_API_PROTOCOL_API_PACK_PARSE_H_
+#ifndef AETHER_API_PROTOCOL_API_PACK_PARSER_H_
+#define AETHER_API_PROTOCOL_API_PACK_PARSER_H_
 
 #include <vector>
 #include <limits>
@@ -98,4 +98,4 @@ class ApiPacker {
 
 }  // namespace ae
 
-#endif  // AETHER_API_PROTOCOL_API_PACK_PARSE_H_
+#endif  // AETHER_API_PROTOCOL_API_PACK_PARSER_H_

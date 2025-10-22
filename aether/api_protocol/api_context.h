@@ -85,7 +85,8 @@ class ChildPacketStack {
  */
 template <typename TApi>
 class ApiContext {
-  template <MessageId MessageCode, typename Signature, typename Enable>
+  template <MessageId MessageCode, typename Signature, typename ArgProc,
+            typename Enable>
   friend struct Method;
 
  public:
@@ -133,7 +134,8 @@ class ApiContext {
  */
 template <typename TApi>
 class SubContext {
-  template <MessageId MessageCode, typename Signature, typename Enable>
+  template <MessageId MessageCode, typename Signature, typename ArgProc,
+            typename Enable>
   friend struct Method;
 
  public:

@@ -18,6 +18,7 @@
 #define AETHER_API_PROTOCOL_API_PROTOCOL_H_
 
 // IWYU pragma: begin_exports
+#include "aether/api_protocol/sub_api.h"
 #include "aether/api_protocol/api_class.h"
 #include "aether/api_protocol/request_id.h"
 #include "aether/api_protocol/api_method.h"
