@@ -17,18 +17,12 @@
 #include <unity.h>
 
 #include <string>
-#include <iostream>
 
 #include "aether/events/events.h"
 #include "aether/actions/action_processor.h"
-#include "aether/api_protocol/api_method.h"
-#include "aether/api_protocol/api_class_impl.h"
-#include "aether/api_protocol/protocol_context.h"
-#include "aether/api_protocol/return_result_api.h"
+#include "aether/api_protocol/api_protocol.h"
 
 #include "aether/types/data_buffer.h"
-
-#include "aether/tele/tele_init.h"
 
 #include "assert_packet.h"
 
@@ -37,9 +31,7 @@ namespace ae::test_method_call {
 class ApiLevel1 : public ApiClassImpl<ApiLevel1> {
  public:
   explicit ApiLevel1(ProtocolContext& protocol_context)
-      : ApiClass{protocol_context},
-        ApiClassImpl{protocol_context},
-        method_3{protocol_context} {}
+      : ApiClassImpl{protocol_context}, method_3{protocol_context} {}
 
   void Method3Impl(ApiParser&, float a) { method_3_event.Emit(a); }
 
@@ -50,37 +42,58 @@ class ApiLevel1 : public ApiClassImpl<ApiLevel1> {
   Event<void(float a)> method_3_event;
 };
 
-class ApiLevel0 : public ReturnResultApi,
-                  public ApiClassImpl<ApiLevel0, ReturnResultApi> {
+class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
+  class Method6Proc {
+   public:
+    explicit Method6Proc(ApiLevel1& api_level1) : api_{&api_level1} {}
+
+    auto operator()(int a, SubApi<ApiLevel1> const& sub_api) {
+      return DefaultArgProc{}(a, sub_api(*api_));
+    }
+
+   private:
+    ApiLevel1* api_;
+  };
+
  public:
   ApiLevel0(ProtocolContext& protocol_context, ActionContext action_context)
-      : ApiClass{protocol_context},
-        ReturnResultApi{protocol_context},
-        ApiClassImpl{protocol_context},
+      : ApiClassImpl{protocol_context},
         api_level1{protocol_context},
         method_3{protocol_context},
         method_4{protocol_context, action_context},
-        method_5{protocol_context, api_level1} {}
+        method_5{protocol_context, api_level1},
+        method_6{protocol_context, Method6Proc{api_level1}},
+        return_result_api{protocol_context} {}
 
   // methods invoked then packet received
   void Method3Impl(ApiParser&, int a, std::string b) {
     method_3_event.Emit(a, b);
   }
-  void Method4Impl(ApiParser& parser, PromiseResult<int> promise, int a) {
+  void Method4Impl(ApiParser& /*parser*/, PromiseResult<int> promise, int a) {
     method_4_event.Emit(promise.request_id, a);
   }
-  void Method5Impl(ApiParser& parser, SubApi<ApiLevel1> sub_api, int a) {
+  void Method5Impl(ApiParser& /*parser*/, SubContextImpl<ApiLevel1> sub_api,
+                   int a) {
+    sub_api.Parse(api_level1);
+  }
+  void Method6Impl(ApiParser& /*parser*/, int a,
+                   SubApiImpl<ApiLevel1> sub_api) {
     sub_api.Parse(api_level1);
   }
 
+  ReturnResultApi return_result_api;
+
   using ApiMethods = ImplList<RegMethod<03, &ApiLevel0::Method3Impl>,
                               RegMethod<04, &ApiLevel0::Method4Impl>,
-                              RegMethod<05, &ApiLevel0::Method5Impl>>;
+                              RegMethod<05, &ApiLevel0::Method5Impl>,
+                              RegMethod<06, &ApiLevel0::Method6Impl>,
+                              ExtApi<&ApiLevel0::return_result_api>>;
 
   // call methods to make packet
   Method<03, void(int a, std::string b)> method_3;
   Method<04, ApiPromisePtr<int>(int a)> method_4;
   Method<05, SubContext<ApiLevel1>(int a)> method_5;
+  Method<06, void(int a, SubApi<ApiLevel1> sub), Method6Proc> method_6;
 
   // to signal method impl is called
   Event<void(int a, std::string const& b)> method_3_event;
@@ -90,8 +103,6 @@ class ApiLevel0 : public ReturnResultApi,
 };
 
 void test_ApiMethodInvoke() {
-  ae::tele::TeleInit::Init();
-
   ActionProcessor ap;
   ProtocolContext pc;
 
@@ -154,7 +165,7 @@ void test_ReturnResult() {
       [&](RequestId req_id, int) {
         level0_method4_called = true;
         auto response_context = ApiContext{api_level0};
-        response_context->SendResult(req_id, 78);
+        response_context->return_result_api.SendResult(req_id, 78);
         auto data = std::move(response_context).Pack();
         auto parser = ApiParser{pc, data};
         // send/receive
@@ -171,11 +182,37 @@ void test_ReturnResult() {
   TEST_ASSERT(promise_get_value);
 }
 
+void test_MethodWithSubApi() {
+  ActionProcessor ap;
+  ProtocolContext pc;
+
+  auto api_level0 = ApiLevel0{pc, ActionContext{ap}};
+  auto call_context = ApiContext{api_level0};
+
+  call_context->method_6(
+      12, SubApi{[&](ApiContext<ApiLevel1>& api) { api->method_3(42.12F); }});
+
+  DataBuffer packet = std::move(call_context);
+  AssertPacket(packet, MessageId{6}, int{12}, Skip<PackedSize>{}, MessageId{3},
+               float{42.12F});
+
+  bool level1_method3_called = false;
+
+  EventSubscriber{api_level0.api_level1.method_3_event}.Subscribe(
+      [&](float a) { level1_method3_called = true; });
+
+  auto parser = ApiParser{pc, packet};
+  parser.Parse(api_level0);
+
+  TEST_ASSERT_TRUE(level1_method3_called);
+}
+
 }  // namespace ae::test_method_call
 
 int test_method_call() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_method_call::test_ApiMethodInvoke);
   RUN_TEST(ae::test_method_call::test_ReturnResult);
+  RUN_TEST(ae::test_method_call::test_MethodWithSubApi);
   return UNITY_END();
 }
