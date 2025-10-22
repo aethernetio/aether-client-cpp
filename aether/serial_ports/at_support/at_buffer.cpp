@@ -56,18 +56,18 @@ DataBuffer AtBuffer::GetCrate(std::size_t size, std::size_t offset,
   auto remaining_size = size;
   for (auto it = start; it != std::end(data_lines_) && res.size() < size;
        it++) {
-    if (copy_offset > it->size()) {
+    if (copy_offset >= it->size()) {
       copy_offset -= it->size();
       continue;
     }
-    auto start = it->begin() + static_cast<std::ptrdiff_t>(copy_offset);
-    auto end = start + static_cast<std::ptrdiff_t>(remaining_size);
-    if (end > it->end()) {
-      end = it->end();
+    auto first = it->begin() + static_cast<std::ptrdiff_t>(copy_offset);
+    auto last = first + static_cast<std::ptrdiff_t>(remaining_size);
+    if (last > it->end()) {
+      last = it->end();
     }
 
-    res.insert(std::end(res), start, end);
-    remaining_size -= static_cast<std::size_t>(end - start);
+    res.insert(std::end(res), first, last);
+    remaining_size -= static_cast<std::size_t>(last - first);
     copy_offset = 0;
   }
 
