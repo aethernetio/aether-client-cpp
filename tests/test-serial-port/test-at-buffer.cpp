@@ -225,6 +225,29 @@ void test_AtBufferGetCrateWithStartIteratorAndOffset() {
   TEST_ASSERT_EQUAL_STRING_LEN("K", crate_content.data(), crate_content.size());
 }
 
+void test_AtBufferGetCrateWithStartIteratorAndOffsetBiggerThanLine() {
+  ae::tests::MockSerialPort mock_serial{};
+  ae::AtBuffer buffer{mock_serial};
+
+  // Add some data to the buffer
+  ae::DataBuffer data;
+  std::string_view lines{"AT\r\nOK\r\nERROR\r\n"};
+  data.insert(data.end(), lines.begin(), lines.end());
+  mock_serial.WriteOut(data);
+
+  // Test GetCrate with start iterator and offset
+  auto it = buffer.begin();
+  ++it;  // Move to second line "OK"
+
+  auto crate_data = buffer.GetCrate(
+      4, 2, it);  // Request 4 byte from "OK" line starting at offset 2
+  TEST_ASSERT_EQUAL(4, crate_data.size());
+  std::string_view crate_content(
+      reinterpret_cast<char const*>(crate_data.data()), crate_data.size());
+  TEST_ASSERT_EQUAL_STRING_LEN("ERRO", crate_content.data(),
+                               crate_content.size());
+}
+
 int test_at_buffer() {
   UNITY_BEGIN();
 
@@ -237,6 +260,7 @@ int test_at_buffer() {
   RUN_TEST(test_AtBufferGetCrateWithOffset);
   RUN_TEST(test_AtBufferGetCrateWithStartIterator);
   RUN_TEST(test_AtBufferGetCrateWithStartIteratorAndOffset);
+  RUN_TEST(test_AtBufferGetCrateWithStartIteratorAndOffsetBiggerThanLine);
 
   return UNITY_END();
 }
