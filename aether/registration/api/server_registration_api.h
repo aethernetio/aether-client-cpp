@@ -33,8 +33,8 @@
 #  include "aether/crypto/signed_key.h"
 #  include "aether/types/data_buffer.h"
 #  include "aether/crypto/icrypto_provider.h"
-#  include "aether/methods/server_descriptor.h"
 #  include "aether/api_protocol/api_protocol.h"
+#  include "aether/work_cloud_api/server_descriptor.h"
 
 #  include "aether/registration/api/global_reg_server_api.h"
 
