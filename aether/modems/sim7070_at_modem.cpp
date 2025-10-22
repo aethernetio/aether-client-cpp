@@ -515,12 +515,14 @@ ActionPtr<IPipeline> Sim7070AtModem::ReadPacket(ConnectionIndex connection) {
                     AE_TELED_ERROR("Failed to parse CARECV response");
                     return false;
                   }
-
-                  AE_TELED_DEBUG("Received {} bytes for connection {}", size,
-                                 connection);
+                  AE_TELED_DEBUG("Received data size {} connection {}", size,
+                                 static_cast<std::int32_t>(connection));
 
                   // Extract the actual data
                   auto recv_data = at_buffer.GetCrate(size, *parse_res, pos);
+                  AE_TELED_DEBUG("Received size {} bytes \ndata{}",
+                                 recv_data.size(), recv_data);
+
                   if (recv_data.size() != size) {
                     AE_TELED_ERROR("Received {} bytes, expected {}",
                                    recv_data.size(), size);
