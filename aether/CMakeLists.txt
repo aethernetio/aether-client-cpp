@@ -105,19 +105,17 @@ list(APPEND actions_srcs
             )
 
 list(APPEND registration_srcs
-            "registration/global_reg_server_stream.cpp"
-            "registration/reg_server_stream.cpp"
-            "registration/proof_of_work.cpp"
-            "registration/root_server_select_stream.cpp"
-            "registration/root_server_stream.cpp"
-            "registration/registration.cpp"
-            "registration/registration_key_provider.cpp"
-            "registration/api/client_reg_api_unsafe.cpp"
             "registration/api/client_reg_api_safe.cpp"
+            "registration/api/client_reg_api_unsafe.cpp"
             "registration/api/global_reg_client_api.cpp"
+            "registration/api/global_reg_server_api.cpp"
             "registration/api/registration_root_api.cpp"
             "registration/api/server_registration_api.cpp"
-            "registration/api/global_reg_server_api.cpp")
+            "registration/proof_of_work.cpp"
+            "registration/registration.cpp"
+            "registration/registration_crypto_provider.cpp"
+            "registration/root_server_select_stream.cpp"
+            "registration/root_server_stream.cpp")
 
 
 list(APPEND adapters_srcs
