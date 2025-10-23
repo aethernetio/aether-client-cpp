@@ -25,7 +25,7 @@
 #include "aether/actions/actions_queue.h"
 #include "aether/actions/repeatable_task.h"
 #include "aether/serial_ports/iserial_port.h"
-#include "aether/serial_ports/at_comm_support.h"
+#include "aether/serial_ports/at_support/at_support.h"
 
 #include "aether/lora_modules/ilora_module_driver.h"
 
@@ -100,10 +100,10 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::set<ConnectionLoraIndex> connections_;
-  AtCommSupport at_comm_support_;
+  AtSupport at_comm_support_;
   DataEvent data_event_;
   ActionPtr<RepeatableTask> poll_task_;
-  std::unique_ptr<AtCommSupport::AtListener> poll_listener_;
+  std::unique_ptr<AtListener> poll_listener_;
   OwnActionPtr<ActionsQueue> operation_queue_;
   bool initiated_;
   bool started_;
