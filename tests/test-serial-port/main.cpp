@@ -14,19 +14,25 @@
  * limitations under the License.
  */
 
-#include "aether/actions/action_registry.h"
+#include <unity.h>
 
-#include <algorithm>
+#include "aether/tele/tele_init.h"
 
-namespace ae {
-ActionRegistry::ActionRegistry() = default;
+void setUp() { ae::tele::TeleInit::Init(); }
+void tearDown() {}
 
-void ActionRegistry::PushBack(std::shared_ptr<IAction> action) {
-  action_list_.push_back(action);
+extern int test_at_support();
+extern int test_at_buffer();
+extern int test_at_dispatcher();
+extern int test_at_listener();
+extern int test_at_request();
+
+int main() {
+  int res = 0;
+  res += test_at_support();
+  res += test_at_buffer();
+  res += test_at_dispatcher();
+  res += test_at_listener();
+  res += test_at_request();
+  return res;
 }
-
-ActionRegistry::ActionList::iterator ActionRegistry::Remove(
-    ActionList::iterator pos) {
-  return action_list_.erase(pos);
-}
-}  // namespace ae

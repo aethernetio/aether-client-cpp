@@ -13,29 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef AETHER_MISC_FROM_CHARS_H_
-#define AETHER_MISC_FROM_CHARS_H_
 
-#include <charconv>
-#include <optional>
-#include <string_view>
+#include "aether/serial_ports/at_support/at_listener.h"
 
 namespace ae {
-template <typename T>
-std::optional<T> FromChars(std::string_view str, int base = 10) {
-  T value;
-  // skip 0x if present
-  auto skip_pos = str.find("0x");
-  if (skip_pos != std::string_view::npos) {
-    str.remove_prefix(skip_pos + 2);
-  }
-  auto [ptr, ec] =
-      std::from_chars(str.data(), str.data() + str.size(), value, base);
-  if (ec == std::errc()) {
-    return value;
-  }
-  return std::nullopt;
+
+AtListener::AtListener(AtDispatcher& dispatcher, std::string expected,
+                       Handler handler)
+    : dispatcher_{&dispatcher}, handler_{std::move(handler)} {
+  dispatcher_->Listen(std::move(expected), this);
+}
+
+AtListener::~AtListener() { dispatcher_->Remove(this); }
+
+void AtListener::Observe(AtBuffer& buffer, AtBuffer::iterator pos) {
+  handler_(buffer, pos);
 }
 }  // namespace ae
-
-#endif  // AETHER_MISC_FROM_CHARS_H_

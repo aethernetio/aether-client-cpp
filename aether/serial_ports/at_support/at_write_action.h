@@ -13,29 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef AETHER_MISC_FROM_CHARS_H_
-#define AETHER_MISC_FROM_CHARS_H_
 
-#include <charconv>
-#include <optional>
-#include <string_view>
+#ifndef AETHER_SERIAL_PORTS_AT_SUPPORT_AT_WRITE_ACTION_H_
+#define AETHER_SERIAL_PORTS_AT_SUPPORT_AT_WRITE_ACTION_H_
+
+#include "aether/actions/notify_action.h"
 
 namespace ae {
-template <typename T>
-std::optional<T> FromChars(std::string_view str, int base = 10) {
-  T value;
-  // skip 0x if present
-  auto skip_pos = str.find("0x");
-  if (skip_pos != std::string_view::npos) {
-    str.remove_prefix(skip_pos + 2);
-  }
-  auto [ptr, ec] =
-      std::from_chars(str.data(), str.data() + str.size(), value, base);
-  if (ec == std::errc()) {
-    return value;
-  }
-  return std::nullopt;
+using AtWriteAction = NotifyAction;
 }
-}  // namespace ae
 
-#endif  // AETHER_MISC_FROM_CHARS_H_
+#endif  // AETHER_SERIAL_PORTS_AT_SUPPORT_AT_WRITE_ACTION_H_

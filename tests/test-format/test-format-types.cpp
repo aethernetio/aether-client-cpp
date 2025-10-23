@@ -21,6 +21,7 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 
 #include "aether/format/format.h"
@@ -119,6 +120,17 @@ void test_Containers() {
   auto arr_floats_str = Format("{}", arr_floats);
   TEST_ASSERT_EQUAL_STRING("25.5, 4.2, 35.4", arr_floats_str.data());
 }
+
+void test_Optional() {
+  auto opt_value = std::optional{42};
+  auto opt_value_str = Format("{}", opt_value);
+  TEST_ASSERT_EQUAL_STRING("42", opt_value_str.data());
+
+  auto opt_no_value = std::optional<std::string>{};
+  auto opt_no_value_str = Format("{}", opt_no_value);
+  TEST_ASSERT_EQUAL_STRING("nullopt", opt_no_value_str.data());
+}
+
 }  // namespace ae::test_format_types
 
 int test_format_types() {
@@ -128,5 +140,6 @@ int test_format_types() {
   RUN_TEST(ae::test_format_types::test_FormatEnums);
   RUN_TEST(ae::test_format_types::test_FormatStrings);
   RUN_TEST(ae::test_format_types::test_Containers);
+  RUN_TEST(ae::test_format_types::test_Optional);
   return UNITY_END();
 }
