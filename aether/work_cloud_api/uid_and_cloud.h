@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_METHODS_UID_AND_CLOUD_H_
-#define AETHER_METHODS_UID_AND_CLOUD_H_
+#ifndef AETHER_WORK_CLOUD_API_UID_AND_CLOUD_H_
+#define AETHER_WORK_CLOUD_API_UID_AND_CLOUD_H_
 
 #include <vector>
 
@@ -36,4 +36,4 @@ struct UidAndCloudDescriptor {
 };
 }  // namespace ae
 
-#endif  // AETHER_METHODS_UID_AND_CLOUD_H_
+#endif  // AETHER_WORK_CLOUD_API_UID_AND_CLOUD_H_

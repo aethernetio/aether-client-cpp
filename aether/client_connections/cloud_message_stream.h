@@ -21,23 +21,20 @@
 #include "aether/types/data_buffer.h"
 #include "aether/stream_api/istream.h"
 
+#include "aether/work_cloud_api/ae_message.h"
 #include "aether/connection_manager/client_connection_manager.h"
 
 namespace ae {
-struct MessageData {
-  Uid destination;
-  DataBuffer data;
-};
 
 /**
  * \brief Message stream to client's cloud.
  */
-class CloudMessageStream final : public IStream<MessageData, MessageData> {
+class CloudMessageStream final : public IStream<AeMessage, AeMessage> {
  public:
   CloudMessageStream(ActionContext action_context,
                      ClientConnectionManager& connection_manager);
 
-  ActionPtr<StreamWriteAction> Write(MessageData&& data) override;
+  ActionPtr<StreamWriteAction> Write(AeMessage&& data) override;
   OutDataEvent::Subscriber out_data_event() override;
   StreamInfo stream_info() const override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
@@ -45,7 +42,7 @@ class CloudMessageStream final : public IStream<MessageData, MessageData> {
 
  private:
   void SubscribeData();
-  void NewMessage(Uid const& uid, DataBuffer const& data);
+  void NewMessages(std::vector<AeMessage> const& messages);
   void UpdateStream();
 
   ActionContext action_context_;

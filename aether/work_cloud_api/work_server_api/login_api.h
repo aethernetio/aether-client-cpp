@@ -31,8 +31,8 @@ class LoginApi : public ApiClass {
     explicit LoginProc(LoginApi& login_api) : login_api_{&login_api} {}
 
     auto operator()(Uid uid, SubApi<AuthorizedApi> sub_api) {
-      return DefaultArgProc{}(
-          uid, login_api_->Encrypt(sub_api(login_api_->auth_api_)));
+      auto def_proc = DefaultArgProc{};
+      return def_proc(uid, login_api_->Encrypt(sub_api(login_api_->auth_api_)));
     }
 
    private:

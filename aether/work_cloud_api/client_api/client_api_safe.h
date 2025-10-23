@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_WORK_CLOUD_API_CLIENT_API_SAFE_H_
-#define AETHER_WORK_CLOUD_API_CLIENT_API_SAFE_H_
+#ifndef AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_SAFE_H_
+#define AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_SAFE_H_
 
 #include "aether/types/uid.h"
 
@@ -72,4 +72,4 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
 };
 }  // namespace ae
 
-#endif  // AETHER_WORK_CLOUD_API_CLIENT_API_SAFE_H_
+#endif  // AETHER_WORK_CLOUD_API_CLIENT_API_CLIENT_API_SAFE_H_
