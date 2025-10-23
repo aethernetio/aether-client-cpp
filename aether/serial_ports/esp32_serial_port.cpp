@@ -73,15 +73,14 @@ bool ESP32SerialPort::Initialize(SerialInit const& serial_init) {
     return false;
   }
 
-  uart_config_t uart_config = {
-      /* baud_rate */ static_cast<int>(serial_init.baud_rate),
-      /* data_bits */ UART_DATA_8_BITS,
-      /* parity */ UART_PARITY_DISABLE,
-      /* stop_bits */ UART_STOP_BITS_1,
-      /* flow_ctrl */ UART_HW_FLOWCTRL_DISABLE,
-      /* rx_flow_ctrl_thresh */ 122,
-      /* source_clk */ UART_SCLK_DEFAULT,
-      /* flags */ {}};
+  uart_config_t uart_config = {};
+  uart_config.baud_rate = static_cast<int>(serial_init.baud_rate);
+  uart_config.data_bits = UART_DATA_8_BITS;
+  uart_config.parity = UART_PARITY_DISABLE;
+  uart_config.stop_bits = UART_STOP_BITS_1;
+  uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+  uart_config.rx_flow_ctrl_thresh = 122;
+  uart_config.source_clk = UART_SCLK_DEFAULT;
 
   if (uart_param_config(uart_num_, &uart_config) != ESP_OK) {
     return false;

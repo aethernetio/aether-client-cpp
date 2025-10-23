@@ -176,7 +176,8 @@ def make_aether_headers_h(repo_dir:str, out_dir: str):
         if '.h' in file:
           included = True
           rel_path = os.path.relpath(os.path.join(root, file), aether_path)
-          f.write("  #include \"{}\"\n".format(rel_path))
+          l = "  #include \"{}\"\n".format(PureWindowsPath(rel_path).as_posix())
+          f.write(l)
       #split dirs with v space
       if included:
         f.write("\n")

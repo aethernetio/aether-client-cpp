@@ -15,8 +15,11 @@
  */
 
 #include "aether/modems/bg95_at_modem.h"
-#include "aether/serial_ports/serial_port_factory.h"
-#include "aether/adapters/adapter_tele.h"
+
+#if 0
+
+#  include "aether/serial_ports/serial_port_factory.h"
+#  include "aether/adapters/adapter_tele.h"
 
 namespace ae {
 
@@ -392,3 +395,5 @@ std::string Bg95AtModem::PinToString(const std::uint8_t pin[4]) {
 }
 
 } /* namespace ae */
+
+#endif
