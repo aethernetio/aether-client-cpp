@@ -14,21 +14,32 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_METHODS_WORK_SERVER_API_LOGIN_API_H_
-#define AETHER_METHODS_WORK_SERVER_API_LOGIN_API_H_
+#ifndef AETHER_WORK_CLOUD_API_SERVER_DESCRIPTOR_H_
+#define AETHER_WORK_CLOUD_API_SERVER_DESCRIPTOR_H_
 
-#include "aether/types/uid.h"
-#include "aether/types/data_buffer.h"
-#include "aether/api_protocol/api_protocol.h"
+#include <vector>
+
+#include "aether/types/address.h"
 
 namespace ae {
-class LoginApi : public ApiClass {
- public:
-  explicit LoginApi(ProtocolContext& protocol_context);
 
-  Method<06, void(Uid uid, DataBuffer data)> login_by_uid;
-  Method<07, void(Uid alias, DataBuffer data)> login_by_alias;
+struct CoderAndPort {
+  AE_REFLECT_MEMBERS(protocol, port)
+  Protocol protocol;
+  std::uint16_t port;
+};
+
+struct IpAddressAndPort {
+  AE_REFLECT_MEMBERS(ip, protocol_and_ports)
+  IpAddress ip;
+  std::vector<CoderAndPort> protocol_and_ports;
+};
+
+struct ServerDescriptor {
+  AE_REFLECT_MEMBERS(server_id, ips)
+  ServerId server_id;
+  std::vector<IpAddressAndPort> ips;
 };
 }  // namespace ae
 
-#endif  // AETHER_METHODS_WORK_SERVER_API_LOGIN_API_H_
+#endif  // AETHER_WORK_CLOUD_API_SERVER_DESCRIPTOR_H_

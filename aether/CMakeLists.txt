@@ -207,11 +207,11 @@ list(APPEND crypto_srcs
             "crypto/hydrogen/hydro_sync_crypto_provider.cpp"
             )
 
-list(APPEND methods_srcs
-            "methods/work_server_api/login_api.cpp"
-            "methods/work_server_api/authorized_api.cpp"
-            "methods/client_api/client_root_api.cpp"
-            "methods/client_api/client_safe_api.cpp")
+list(APPEND work_cloud_api_srcs
+            "work_cloud_api/work_server_api/login_api.cpp"
+            "work_cloud_api/work_server_api/authorized_api.cpp"
+            "work_cloud_api/client_api/client_api_unsafe.cpp"
+            "work_cloud_api/client_api/client_api_safe.cpp")
 
 
 list(APPEND client_connections_srcs
@@ -220,7 +220,6 @@ list(APPEND client_connections_srcs
 
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
-            "server_connections/client_to_server_stream.cpp"
             "server_connections/channel_selection_stream.cpp"
             "server_connections/server_channel.cpp"
             "server_connections/channel_manager.cpp"
@@ -304,7 +303,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${serial_ports_srcs}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
-                            ${methods_srcs}
+                            ${work_cloud_api_srcs}
                             ${registration_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
@@ -354,7 +353,7 @@ else()
                             ${stream_api_src}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
-                            ${methods_srcs}
+                            ${work_cloud_api_srcs}
                             ${registration_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
