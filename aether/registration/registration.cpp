@@ -24,13 +24,8 @@
 #  include "aether/common.h"
 #  include "aether/obj/domain.h"
 #  include "aether/crypto/sign.h"
-#  include "aether/crypto/key_gen.h"
 #  include "aether/crypto/crypto_definitions.h"
-
-#  include "aether/stream_api/byte_gate.h"
-
-#  include "aether/crypto/sync_crypto_provider.h"
-#  include "aether/crypto/async_crypto_provider.h"
+#  include "aether/stream_api/protocol_gates.h"
 
 #  include "aether/work_cloud.h"
 
@@ -349,7 +344,7 @@ void Registration::OnCloudResolved(
     return;
   }
 
-  CloudDescriptor::ptr new_cloud = aether->domain_->CreateObj<WorkCloud>();
+  Cloud::ptr new_cloud = aether->domain_->CreateObj<WorkCloud>();
   assert(new_cloud);
 
   for (const auto& description : servers) {
