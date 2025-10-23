@@ -22,59 +22,15 @@
 #include <cstdint>
 
 #include "aether/events/events.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/events/event_subscription.h"
 
 #include "aether/lora_modules/ilora_module_driver.h"
 #include "aether/adapters/parent_lora_module.h"
+#include "aether/access_points/access_point.h"
 
 #define LORA_MODULE_TCP_TRANSPORT_ENABLED 1
 
 namespace ae {
-class LoraModuleAdapter;
-namespace lora_module_adapter_internal {
-class LoraModuleAdapterTransportBuilder;
-
-class LoraModuleAdapterTransportBuilderAction final
-    : public TransportBuilderAction {
-  enum class State : std::uint8_t {
-    kWaitConnection,
-    kBuildersCreate,
-    kBuildersCreated,
-    kFailed
-  };
-
- public:
-  // immediately create the transport
-  LoraModuleAdapterTransportBuilderAction(ActionContext action_context,
-                                          LoraModuleAdapter& adapter,
-                                          UnifiedAddress address_);
-  // create the transport when lora module is connected
-  LoraModuleAdapterTransportBuilderAction(
-      ActionContext action_context,
-      EventSubscriber<void(bool)> lora_module_connected_event,
-      LoraModuleAdapter& adapter, UnifiedAddress address_);
-
-  UpdateStatus Update() override;
-
-  std::vector<std::unique_ptr<ITransportStreamBuilder>> builders() override;
-
- private:
-  void CreateBuilders();
-
-  LoraModuleAdapter* adapter_;
-  UnifiedAddress address_;
-  std::unique_ptr<ITransportStreamBuilder> transport_builder_;
-  StateMachine<State> state_;
-  Subscription state_changed_;
-  Subscription lora_module_connected_subscription_;
-  Subscription resolve_sub_;
-};
-}  // namespace lora_module_adapter_internal
-
 class LoraModuleAdapter : public ParentLoraModuleAdapter {
-  friend class lora_module_adapter_internal::LoraModuleAdapterTransportBuilder;
-
   AE_OBJECT(LoraModuleAdapter, ParentLoraModuleAdapter, 0)
 
   LoraModuleAdapter() = default;
@@ -87,30 +43,17 @@ class LoraModuleAdapter : public ParentLoraModuleAdapter {
 
   ~LoraModuleAdapter() override;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(connected_, lora_module_connected_event_,
-                             lora_module_driver_))
+  AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
 
-  template <typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_);
-  }
-  template <typename Dnv>
-  void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(base_);
-  }
+  std::vector<AccessPoint::ptr> access_points() override;
 
-  ActionPtr<TransportBuilderAction> CreateTransport(
-      UnifiedAddress const& address_port_protocol) override;
-
-  void Update(TimePoint current_time) override;
+  ILoraModuleDriver& lora_module_driver();
 
  private:
-  void Connect();
-  void DisConnect();
-
   bool connected_{false};
-  Event<void(bool result)> lora_module_connected_event_;
-  ILoraModuleDriver::ptr lora_module_driver_;
+
+  std::unique_ptr<ILoraModuleDriver> lora_module_driver_;
+  AccessPoint::ptr access_point_;  
 };
 
 }  // namespace ae
