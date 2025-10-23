@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_WORK_TELEMETRIC_H_
-#define AETHER_WORK_TELEMETRIC_H_
+#ifndef AETHER_WORK_CLOUD_API_TELEMETRIC_H_
+#define AETHER_WORK_CLOUD_API_TELEMETRIC_H_
 
 #include <vector>
 #include <string>
