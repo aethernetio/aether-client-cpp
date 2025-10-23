@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_METHODS_WORK_SERVER_API_AUTHORIZED_API_H_
-#define AETHER_METHODS_WORK_SERVER_API_AUTHORIZED_API_H_
+#ifndef AETHER_WORK_CLOUD_API_WORK_SERVER_API_AUTHORIZED_API_H_
+#define AETHER_WORK_CLOUD_API_WORK_SERVER_API_AUTHORIZED_API_H_
 
 #include "aether/types/uid.h"
-#include "aether/methods/telemetric.h"
-#include "aether/types/data_buffer.h"
-#include "aether/stream_api/stream_api.h"
 #include "aether/api_protocol/api_protocol.h"
+
+#include "aether/work_cloud_api/ae_message.h"
+#include "aether/work_cloud_api/telemetric.h"
 
 namespace ae {
 
@@ -30,14 +30,15 @@ class AuthorizedApi : public ApiClass {
   AuthorizedApi(ProtocolContext& protocol_context,
                 ActionContext action_context);
 
-  Method<06, ApiPromisePtr<void>(std::uint64_t next_ping_duration)> ping;
-  Method<10, void(Uid uid, DataBuffer data)> send_message;
-  Method<12, void(StreamId servers_stream_id, StreamId cloud_stream_id)>
-      resolvers;
-  Method<16, ApiPromisePtr<void>(Uid uid)> check_access_for_send_message;
+  Method<4, ApiPromisePtr<void>(std::uint64_t next_connect_ms_duration)> ping;
+  Method<6, void(AeMessage message)> send_message;
+  Method<7, void(std::vector<AeMessage> messages)> send_messages;
+  Method<11, ApiPromisePtr<void>(Uid uid)> check_access_for_send_message;
+  Method<12, void(std::vector<ServerId> sids)> resolver_servers;
+  Method<13, void(std::vector<Uid> uids)> resolver_clouds;
 
-  Method<70, void(Telemetric telemetric)> send_telemetric;
+  Method<18, void(Telemetric telemetric)> send_telemetry;
 };
 }  // namespace ae
 
-#endif  // AETHER_METHODS_WORK_SERVER_API_AUTHORIZED_API_H_
+#endif  // AETHER_WORK_CLOUD_API_WORK_SERVER_API_AUTHORIZED_API_H_

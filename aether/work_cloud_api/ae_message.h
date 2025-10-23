@@ -14,16 +14,20 @@
  * limitations under the License.
  */
 
-#include "aether/methods/client_api/client_root_api.h"
+#ifndef AETHER_WORK_CLOUD_API_AE_MESSAGE_H_
+#define AETHER_WORK_CLOUD_API_AE_MESSAGE_H_
+
+#include "aether/types/uid.h"
+#include "aether/reflect/reflect.h"
+#include "aether/types/data_buffer.h"
 
 namespace ae {
-ClientRootApi::ClientRootApi(ProtocolContext& protocol_context)
-    : ApiClass{protocol_context},
-      ReturnResultApi{protocol_context},
-      ApiClassImpl{protocol_context} {}
+struct AeMessage {
+  AE_REFLECT_MEMBERS(uid, data)
 
-void ClientRootApi::SendSafeApiData(ApiParser&, DataBuffer data) {
-  send_safe_api_data_event.Emit(std::move(data));
-}
-
+  Uid uid;
+  DataBuffer data;
+};
 }  // namespace ae
+
+#endif  // AETHER_WORK_CLOUD_API_AE_MESSAGE_H_

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,32 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_METHODS_UID_AND_CLOUD_H_
-#define AETHER_METHODS_UID_AND_CLOUD_H_
+#ifndef AETHER_WORK_TELEMETRIC_H_
+#define AETHER_WORK_TELEMETRIC_H_
 
 #include <vector>
+#include <string>
+#include <cstdint>
 
-#include "aether/types/uid.h"
-#include "aether/common.h"
+#include "aether/reflect/reflect.h"
 
 namespace ae {
-struct UidAndCloud {
-  AE_REFLECT_MEMBERS(uid, cloud)
-  Uid uid;
-  std::vector<ServerId> cloud;
+struct Telemetric {
+  struct Cpp {
+    AE_REFLECT_MEMBERS(utm_id, blob, lib_version, os, compiler)
+
+    std::uint32_t utm_id;
+    std::vector<std::uint8_t> blob;
+
+    std::string lib_version;
+    std::string os;
+    std::string compiler;
+  };
+
+  AE_REFLECT_MEMBERS(type, cpp);
+  std::uint8_t const type = 0;  //< Cpp type
+  Cpp cpp;
 };
 }  // namespace ae
 
-#endif  // AETHER_METHODS_UID_AND_CLOUD_H_
+#endif  // AETHER_WORK_CLOUD_API_TELEMETRIC_H_
