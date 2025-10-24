@@ -24,7 +24,7 @@
 #include "aether/ae_actions/ping.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/crypto/icrypto_provider.h"
-// #include "aether/ae_actions/telemetry.h"
+#include "aether/ae_actions/telemetry.h"
 #include "aether/stream_api/buffer_stream.h"
 #include "aether/server_connections/server_channel.h"
 #include "aether/server_connections/channel_manager.h"
@@ -54,9 +54,12 @@ class ClientServerConnection {
   AE_CLASS_NO_COPY_MOVE(ClientServerConnection)
 
   ByteIStream& stream();
+  void Restream();
   ActionPtr<StreamWriteAction> AuthorizedApiCall(
       SubApi<AuthorizedApi> auth_api);
   ClientApiSafe& client_safe_api();
+
+  void SendTelemetry();
 
  private:
   void OutData(DataBuffer const& data);
@@ -78,9 +81,9 @@ class ClientServerConnection {
   BufferStream<DataBuffer> buffer_stream_;
 
   OwnActionPtr<Ping> ping_;
-  // #if defined TELEMETRY_ENABLED
-  //   OwnActionPtr<Telemetry> telemetry_;
-  // #endif
+#if defined TELEMETRY_ENABLED
+  OwnActionPtr<Telemetry> telemetry_;
+#endif
 
   ServerChannel const* server_channel_;
 
