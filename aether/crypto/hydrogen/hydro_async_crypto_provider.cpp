@@ -28,15 +28,19 @@
 namespace ae {
 namespace _internal {
 inline std::vector<std::uint8_t> EncryptWithAsymmetric(
-    HydrogenCurvePublicKey const& pk,
+    std::uint64_t msg_id, HydrogenCurvePublicKey const& pk,
     std::vector<std::uint8_t> const& raw_data) {
   hydro_kx_session_keypair session_kp;
 
   // ciphertext with  ephemeral_pk added to the begin of ciphertext
-  std::vector<uint8_t> ciphertext(
-      hydro_kx_N_PACKET1BYTES + hydro_secretbox_HEADERBYTES + +raw_data.size());
+  std::vector<uint8_t> ciphertext(hydro_kx_N_PACKET1BYTES + sizeof(msg_id) +
+                                  hydro_secretbox_HEADERBYTES +
+                                  +raw_data.size());
   auto* ephemeral_pk = ciphertext.data();
-  auto* ciphertext_ptr = ciphertext.data() + hydro_kx_N_PACKET1BYTES;
+  auto* msg_id_save = ephemeral_pk + hydro_kx_N_PACKET1BYTES;
+  auto* ciphertext_ptr = msg_id_save + sizeof(msg_id);
+
+  *reinterpret_cast<std::uint64_t*>(msg_id_save) = msg_id;
 
   [[maybe_unused]] auto r1 =
       hydro_kx_n_1(&session_kp, ephemeral_pk, nullptr, pk.key.data());
@@ -44,26 +48,31 @@ inline std::vector<std::uint8_t> EncryptWithAsymmetric(
 
   [[maybe_unused]] auto r2 =
       hydro_secretbox_encrypt(ciphertext_ptr, raw_data.data(), raw_data.size(),
-                              0, HYDRO_CONTEXT, session_kp.tx);
+                              msg_id, HYDRO_CONTEXT, session_kp.tx);
   assert(r2 == 0);
   return ciphertext;
 }
 
 inline std::vector<std::uint8_t> DecryptWithAsymmetric(
-    HydrogenCurvePublicKey const& pk, HydrogenCurveSecretKey const& secret_key,
+    HydrogenCurvePublicKey const& pk, HydrogenCurvePrivateKey const& secret_key,
     std::vector<std::uint8_t> const& encrypted_data) {
-  assert(encrypted_data.size() > hydro_kx_N_PACKET1BYTES);
+  assert(encrypted_data.size() >
+         hydro_kx_N_PACKET1BYTES + sizeof(std::uint64_t));
 
   hydro_kx_keypair kp;
   std::copy(pk.key.begin(), pk.key.end(), std::begin(kp.pk));
   std::copy(secret_key.key.begin(), secret_key.key.end(), std::begin(kp.sk));
 
+  std::uint64_t msg_id = 0;
   auto const* ephemeral_pk = encrypted_data.data();
-  auto const* encrypted_data_ptr =
-      encrypted_data.data() + hydro_kx_N_PACKET1BYTES;
-  auto encrypted_data_size = encrypted_data.size() - hydro_kx_N_PACKET1BYTES;
+  auto const* msg_id_save = ephemeral_pk + hydro_kx_N_PACKET1BYTES;
+  auto const* encrypted_data_ptr = msg_id_save + sizeof(msg_id);
+  auto encrypted_data_size =
+      encrypted_data.size() - hydro_kx_N_PACKET1BYTES - sizeof(msg_id);
 
   std::vector<std::uint8_t> decrypted_data;
+
+  msg_id = *reinterpret_cast<std::uint64_t const*>(msg_id_save);
 
   hydro_kx_session_keypair session_kp;
   [[maybe_unused]] auto r1 =
@@ -72,7 +81,7 @@ inline std::vector<std::uint8_t> DecryptWithAsymmetric(
 
   decrypted_data.resize(encrypted_data_size - hydro_secretbox_HEADERBYTES);
   [[maybe_unused]] auto r2 = hydro_secretbox_decrypt(
-      decrypted_data.data(), encrypted_data_ptr, encrypted_data_size, 0,
+      decrypted_data.data(), encrypted_data_ptr, encrypted_data_size, msg_id,
       HYDRO_CONTEXT, session_kp.rx);
   assert(r2 == 0);
 
@@ -89,8 +98,8 @@ DataBuffer HydroAsyncEncryptProvider::Encrypt(DataBuffer const& data) {
   auto key = key_provider_->PublicKey();
   assert(key.Index() == CryptoKeyType::kHydrogenCurvePublic);
 
-  return _internal::EncryptWithAsymmetric(key.Get<HydrogenCurvePublicKey>(),
-                                          data);
+  return _internal::EncryptWithAsymmetric(
+      msg_id_++, key.Get<HydrogenCurvePublicKey>(), data);
 }
 
 std::size_t HydroAsyncEncryptProvider::EncryptOverhead() const {
@@ -105,11 +114,11 @@ DataBuffer HydroAsyncDecryptProvider::Decrypt(DataBuffer const& data) {
   auto pub_key = key_provider_->PublicKey();
   assert(pub_key.Index() == CryptoKeyType::kHydrogenCurvePublic);
   auto sec_key = key_provider_->SecretKey();
-  assert(sec_key.Index() == CryptoKeyType::kHydrogenCurveSecret);
+  assert(sec_key.Index() == CryptoKeyType::kHydrogenCurvePrivate);
 
-  return _internal::DecryptWithAsymmetric(pub_key.Get<HydrogenCurvePublicKey>(),
-                                          sec_key.Get<HydrogenCurveSecretKey>(),
-                                          data);
+  return _internal::DecryptWithAsymmetric(
+      pub_key.Get<HydrogenCurvePublicKey>(),
+      sec_key.Get<HydrogenCurvePrivateKey>(), data);
 }
 
 }  // namespace ae

@@ -37,13 +37,8 @@
 #  include "aether/client.h"
 #  include "aether/registration_cloud.h"
 
-#  include "aether/methods/client_reg_api/client_reg_api.h"
-#  include "aether/methods/client_reg_api/client_reg_root_api.h"
-#  include "aether/methods/client_reg_api/client_global_reg_api.h"
-
-#  include "aether/methods/server_reg_api/root_api.h"
-#  include "aether/methods/server_reg_api/global_reg_server_api.h"
-#  include "aether/methods/server_reg_api/server_registration_api.h"
+#  include "aether/registration/api/client_reg_api_unsafe.h"
+#  include "aether/registration/api/registration_root_api.h"
 
 #  include "aether/registration/root_server_select_stream.h"
 
@@ -90,12 +85,12 @@ class Registration final : public Action<Registration> {
   Uid parent_uid_;
 
   ProtocolContext protocol_context_;
+
+  std::unique_ptr<class RegistrationCryptoProvider> root_crypto_provider_;
+  std::unique_ptr<class RegistrationCryptoProvider> global_crypto_provider_;
+
   ClientRegRootApi client_root_api_;
-  ClientApiRegSafe client_safe_api_;
-  ClientGlobalRegApi client_global_reg_api_;
-  RootApi server_reg_root_api_;
-  ServerRegistrationApi server_reg_api_;
-  GlobalRegServerApi global_reg_server_api_;
+  RegistrationRootApi server_reg_root_api_;
 
   RootServerSelectStream root_server_select_stream_;
 
@@ -113,13 +108,8 @@ class Registration final : public Action<Registration> {
   Key aether_global_key_;
   std::vector<ServerId> client_cloud_;
 
-  class RegistrationAsyncKeyProvider* server_async_key_provider_;
-  class RegistrationSyncKeyProvider* server_sync_key_provider_;
-
-  std::unique_ptr<ByteStream> reg_server_stream_;
-  std::unique_ptr<ByteStream> global_reg_server_stream_;
-
   ActionPtr<StreamWriteAction> packet_write_action_;
+  Subscription data_read_subscription_;
   Subscription connection_subscription_;
   Subscription raw_transport_send_action_subscription_;
   Subscription reg_server_write_subscription_;

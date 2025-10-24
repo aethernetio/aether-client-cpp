@@ -131,10 +131,14 @@ void ChannelSelectStream::SelectChannel() {
 
   std::tie(server_channel_, selected_channel_) = TopChannel();
   if (!server_channel_) {
+    AE_TELED_ERROR("Unable to select channel, server error");
     stream_info_.link_state = LinkState::kLinkError;
     stream_update_event_.Emit();
     return;
   }
+
+  AE_TELED_DEBUG("New channel selected, address {}",
+                 server_channel_->channel()->address);
 
   auto const& transport_properties =
       server_channel_->channel()->transport_properties();
@@ -176,9 +180,11 @@ void ChannelSelectStream::StreamUpdate() {
   if (info.link_state == LinkState::kLinkError) {
     AE_TELED_DEBUG("Transport link error");
     if (is_full_open_) {
+      AE_TELED_DEBUG("Server error");
       stream_info_.link_state = LinkState::kLinkError;
       stream_update_event_.Emit();
     } else {
+      AE_TELED_DEBUG("Select channel");
       SelectChannel();
     }
     return;

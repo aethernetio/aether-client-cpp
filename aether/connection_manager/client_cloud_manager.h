@@ -17,7 +17,7 @@
 #ifndef AETHER_CONNECTION_MANAGER_CLIENT_CLOUD_MANAGER_H_
 #define AETHER_CONNECTION_MANAGER_CLIENT_CLOUD_MANAGER_H_
 
-#include <vector>
+#include <map>
 
 #include "aether/obj/obj.h"
 #include "aether/ptr/ptr.h"
@@ -58,8 +58,8 @@ class ClientCloudManager : public Obj {
 
   ActionPtr<GetCloudAction> GetCloud(Uid client_uid);
 
-  Cloud::ptr RegisterCloud(
-      Uid uid, std::vector<ServerDescriptor> const& server_descriptors);
+  Cloud::ptr RegisterCloud(Uid uid,
+                           std::map<ServerId, ServerDescriptor> const& servers);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_))
 

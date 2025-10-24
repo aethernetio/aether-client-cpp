@@ -28,20 +28,24 @@
 crypto_aead_chacha20poly1305.h"  //"
 #endif
 
+#if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
+#  include "third_party/libsodium/src/libsodium/include/sodium/crypto_box.h"
+#endif
+
 #if AE_KDF == AE_SODIUM_KDF
 #  include "third_party/libsodium/src/libsodium/include/sodium/crypto_kdf.h"
 #endif
 
-#if AE_SIGNATURE == AE_HYDRO_SIGNATURE || \
-    AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK || AE_KDF == AE_HYDRO_KDF
+#if AE_SIGNATURE == AE_HYDRO_SIGNATURE ||   \
+    AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK || \
+    AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK || AE_KDF == AE_HYDRO_KDF
 #  include "third_party/libhydrogen/hydrogen.h"
 #endif
 
 namespace ae {
-
 bool CryptoSyncKeygen(Key& secret_key) {
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-  SodiumChachaKey key;
+  SodiumChacha20Poly1305Key key;
   crypto_aead_chacha20poly1305_keygen(key.key.data());
   secret_key = std::move(key);
 #elif AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
@@ -62,8 +66,8 @@ bool CryptoSyncKeyDerive(Key const& master_key, std::uint32_t server_id,
   static_assert(sizeof(SODIUM_KDF_CONTEXT) - 1 == crypto_kdf_CONTEXTBYTES,
                 "Invalid libsodium KDF context length.");
 
-  SodiumChachaKey client_to_server_key_chacha;
-  SodiumChachaKey server_to_client_key_chacha;
+  SodiumChacha20Poly1305Key client_to_server_key_chacha;
+  SodiumChacha20Poly1305Key server_to_client_key_chacha;
 
   std::array<std::uint8_t, client_to_server_key_chacha.key.size() +
                                server_to_client_key_chacha.key.size()>

@@ -20,23 +20,62 @@
 #include <cstddef>
 #include <utility>
 #include <variant>
+#include <functional>
 
 #include "aether/mstream.h"
+#include "aether/types/type_list.h"
 
 namespace ae {
-template <typename IndexType, typename... Ts>
-class VariantType : public std::variant<Ts...> {
+template <auto I, typename T>
+struct VPair {
+  constexpr static auto Index = I;
+  using Type = T;
+};
+
+/**
+ * \brief Variant type with serialization.
+ * All types mapped to indexes.
+ */
+template <typename IndexType, typename... Variants>
+class VariantType : public std::variant<typename Variants::Type...> {
  public:
   using index_type = IndexType;
+  using Variant = std::variant<typename Variants::Type...>;
 
   // use all variant constructors
-  using std::variant<Ts...>::variant;
+  using Variant::Variant;
   virtual ~VariantType() = default;
 
  private:
+  template <std::size_t... Is>
+  static index_type GetIndexByOrder(std::size_t order,
+                                    std::index_sequence<Is...>) {
+    index_type res{};
+    (std::invoke([&]() {
+       if (order == Is) {
+         res = TypeAtT<Is, TypeList<Variants...>>::Index;
+       }
+     }),
+     ...);
+    return res;
+  }
+
+  template <std::size_t... Is>
+  static std::size_t GetOrderByIndex(index_type index,
+                                     std::index_sequence<Is...>) {
+    std::size_t res{};
+    (std::invoke([&]() {
+       if (index == TypeAtT<Is, TypeList<Variants...>>::Index) {
+         res = Is;
+       }
+     }),
+     ...);
+    return res;
+  }
+
   template <std::size_t I, typename Stream>
-  static bool LoadElement(Stream &stream, std::variant<Ts...> &var) {
-    using T = std::variant_alternative_t<I, std::variant<Ts...>>;
+  static bool LoadElement(Stream &stream, Variant &var) {
+    using T = std::variant_alternative_t<I, Variant>;
     T t{};
     stream >> t;
     var = std::move(t);
@@ -44,22 +83,31 @@ class VariantType : public std::variant<Ts...> {
   }
 
   template <typename Stream, std::size_t... Is>
-  static void Load(Stream &stream, std::size_t order, std::variant<Ts...> &var,
+  static void Load(Stream &stream, std::size_t order, Variant &var,
                    std::index_sequence<Is...> const &) {
-    (((order == Is) ? LoadElement<Is>(stream, var) : false) || ...);
+    (std::invoke([&]() {
+       if (order == Is) {
+         LoadElement<Is>(stream, var);
+       }
+     }),
+     ...);
   }
 
   template <typename Stream, std::size_t... Is>
-  static void Save(Stream &stream, std::size_t order,
-                   std::variant<Ts...> const &var,
+  static void Save(Stream &stream, std::size_t order, Variant const &var,
                    std::index_sequence<Is...> const &) {
-    (((order == Is) ? stream << std::get<Is>(var) : stream), ...);
+    (std::invoke([&]() {
+       if (order == Is) {
+         stream << std::get<Is>(var);
+       }
+     }),
+     ...);
   }
 
   template <typename Type, std::size_t I, std::size_t... Is>
   auto const &GetImpl(std::index_sequence<I, Is...> const &) const {
-    if constexpr (std::is_same_v<Type, std::variant_alternative_t<
-                                           I, std::variant<Ts...>>>) {
+    if constexpr (std::is_same_v<Type,
+                                 std::variant_alternative_t<I, Variant>>) {
       return std::get<I>(*this);
     } else {
       return GetImpl<Type>(std::index_sequence<Is...>{});
@@ -68,38 +116,35 @@ class VariantType : public std::variant<Ts...> {
 
  public:
   // Get currently stored variant index
-  auto Index() const { return OrderToIndex(this->index()); }
+  auto Index() const {
+    return GetIndexByOrder(this->index(),
+                           std::make_index_sequence<sizeof...(Variants)>());
+  }
 
   template <typename Type>
   auto const &Get() const {
-    static_assert((std::is_same_v<Type, Ts> || ...), "Type not found");
-    return GetImpl<Type>(std::make_index_sequence<sizeof...(Ts)>());
-  }
-
-  // Conversion from index type to variant type order
-  virtual std::size_t IndexToOrder(index_type index) const {
-    return static_cast<std::size_t>(index);
-  }
-
-  // Conversion from variant type order to index type
-  virtual index_type OrderToIndex(std::size_t order) const {
-    return static_cast<index_type>(order);
+    static_assert((std::is_same_v<Type, typename Variants::Type> || ...),
+                  "Type not found");
+    return GetImpl<Type>(std::make_index_sequence<sizeof...(Variants)>());
   }
 
   template <typename Ib>
   friend imstream<Ib> operator>>(imstream<Ib> &is, VariantType &v) {
     index_type index{};
     is >> index;
-    auto order = v.IndexToOrder(index);
-    Load(is, order, v, std::make_index_sequence<sizeof...(Ts)>());
+    auto order =
+        GetOrderByIndex(index, std::make_index_sequence<sizeof...(Variants)>());
+    assert(order < sizeof...(Variants));
+    Load(is, order, v, std::make_index_sequence<sizeof...(Variants)>());
     return is;
   }
 
   template <typename Ob>
   friend omstream<Ob> operator<<(omstream<Ob> &os, VariantType const &v) {
     auto order = v.index();
-    os << v.OrderToIndex(order);
-    Save(os, order, v, std::make_index_sequence<sizeof...(Ts)>());
+    os << GetIndexByOrder(order,
+                          std::make_index_sequence<sizeof...(Variants)>());
+    Save(os, order, v, std::make_index_sequence<sizeof...(Variants)>());
     return os;
   }
 };

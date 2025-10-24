@@ -21,6 +21,7 @@
 namespace ae {
 ServerKeys::ServerKeys(ServerId server_id, const Key& master_key)
     : server_id_{server_id}, master_key_{master_key} {
+  nonce_.Init();
   nonce_.Next();
   Derive(server_id, master_key, key_number_);
 }
@@ -37,11 +38,13 @@ Key const& ServerKeys::server_to_client() const {
 
 void ServerKeys::Next() { nonce_.Next(); }
 
-void ServerKeys::Derive(ServerId server_id, const Key& master_key,
-                        std::uint32_t key_number) {
-  [[maybe_unused]] auto res =
-      CryptoSyncKeyDerive(master_key, server_id, key_number,
-                          client_to_server_key_, server_to_client_key_);
-  assert(res);
+void ServerKeys::Derive(ServerId /* server_id*/, const Key& master_key,
+                        std::uint32_t /* key_number */) {
+  client_to_server_key_ = master_key;
+  server_to_client_key_ = master_key;
+  // [[maybe_unused]] auto res =
+  //     CryptoSyncKeyDerive(master_key, server_id, key_number,
+  //                         client_to_server_key_, server_to_client_key_);
+  // assert(res);
 }
 }  // namespace ae

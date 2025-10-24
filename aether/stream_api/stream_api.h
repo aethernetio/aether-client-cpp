@@ -17,43 +17,20 @@
 #ifndef AETHER_STREAM_API_STREAM_API_H_
 #define AETHER_STREAM_API_STREAM_API_H_
 
-#include "aether/crc.h"
-
 #include "aether/events/events.h"
-#include "aether/reflect/reflect.h"
 #include "aether/types/data_buffer.h"
-#include "aether/api_protocol/child_data.h"
 #include "aether/api_protocol/api_method.h"
+#include "aether/events/event_subscription.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/api_protocol/api_class_impl.h"
 
 namespace ae {
 using StreamId = std::uint8_t;
 
-class StreamApi : public ApiClass {
+class StreamApiImpl : public ApiClass {
  public:
-  static constexpr auto kClassId = crc32::checksum_from_literal("StreamApi");
+  using StreamEvent = Event<void(StreamId, DataBuffer const& data)>;
 
-  struct Stream : public Message<Stream> {
-    static constexpr auto kMessageId =
-        crc32::checksum_from_literal("StreamApi::Stream");
-    static constexpr MessageId kMessageCode = 2;
-
-    AE_REFLECT_MEMBERS(stream_id, child_data)
-
-    StreamId stream_id;
-    ChildData child_data;
-  };
-
-  bool LoadResult(MessageId message_id, ApiParser& parser);
-  void LoadFactory(MessageId message_id, ApiParser& parser) override;
-
-  void Execute(Stream&& message, ApiParser& parser);
-  void Pack(Stream&& message, ApiPacker& packer);
-};
-
-class StreamApiImpl {
- public:
   explicit StreamApiImpl(ProtocolContext& protocol_context);
   virtual ~StreamApiImpl() = default;
 
@@ -61,6 +38,11 @@ class StreamApiImpl {
   using ApiMethods = ImplList<RegMethod<02, &StreamApiImpl::Stream>>;
 
   Method<02, void(StreamId stream_id, DataBuffer data)> stream;
+
+  StreamEvent::Subscriber stream_event();
+
+ private:
+  StreamEvent stream_event_;
 };
 
 class StreamIdGenerator {
@@ -71,11 +53,7 @@ class StreamIdGenerator {
 
 class StreamApiGate {
  public:
-  StreamApiGate(ProtocolContext& protocol_context, StreamId stream_id);
-  StreamApiGate(StreamApiGate&& other) noexcept;
-
-  StreamApiGate& operator=(StreamApiGate const& other) = delete;
-  StreamApiGate& operator=(StreamApiGate&& other) noexcept;
+  StreamApiGate(StreamApiImpl& stream_api, StreamId stream_id);
 
   DataBuffer WriteIn(DataBuffer&& buffer);
   void WriteOut(DataBuffer const& buffer);
@@ -84,11 +62,10 @@ class StreamApiGate {
   EventSubscriber<void(DataBuffer const& data)> out_data_event();
 
  private:
-  void OnStream(MessageEventData<StreamApi::Stream> const& msg);
+  void OnStream(StreamId stream_id, DataBuffer const& data);
 
-  ProtocolContext* protocol_context_;
   StreamId stream_id_;
-  StreamApi api_;
+  StreamApiImpl* stream_api_;
   Subscription read_subscription_;
   Event<void(DataBuffer const& data)> out_data_event_;
 };

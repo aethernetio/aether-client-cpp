@@ -37,7 +37,7 @@ static constexpr char test_data[] =
 
 MockSyncKeyProvider SyncKeyProviderFactory() {
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-  SodiumChachaKey key;
+  SodiumChacha20Poly1305Key key;
   crypto_aead_chacha20poly1305_keygen(key.key.data());
   CryptoNonce nonce;
   nonce.Init();
@@ -52,7 +52,7 @@ MockSyncKeyProvider SyncKeyProviderFactory() {
 MockAsyncKeyProvider AsyncKeyProviderFactory() {
 #if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
   SodiumCurvePublicKey pub_key;
-  SodiumCurveSecretKey sec_key;
+  SodiumCurvePrivateKey sec_key;
   crypto_box_keypair(pub_key.key.data(), sec_key.key.data());
   return MockAsyncKeyProvider{std::move(pub_key), std::move(sec_key)};
 #elif AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
@@ -61,7 +61,7 @@ MockAsyncKeyProvider AsyncKeyProviderFactory() {
   HydrogenCurvePublicKey pub_key;
   std::copy(key_pair.pk, key_pair.pk + sizeof(key_pair.pk),
             std::begin(pub_key.key));
-  HydrogenCurveSecretKey sec_key;
+  HydrogenCurvePrivateKey sec_key;
   std::copy(key_pair.sk, key_pair.sk + sizeof(key_pair.sk),
             std::begin(sec_key.key));
 

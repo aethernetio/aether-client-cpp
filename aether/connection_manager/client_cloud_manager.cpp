@@ -24,8 +24,8 @@
 #include "aether/work_cloud.h"
 
 #include "aether/types/state_machine.h"
-#include "aether/methods/server_descriptor.h"
 #include "aether/ae_actions/get_client_cloud.h"
+#include "aether/work_cloud_api/server_descriptor.h"
 #include "aether/connection_manager/client_connection_manager.h"
 
 #include "aether/client_connections/client_connections_tele.h"
@@ -101,8 +101,7 @@ class GetCloudFromAether : public GetCloudAction {
     auto& server_connection = servers.at(server_index_++);
 
     get_client_cloud_action_ = ActionPtr<GetClientCloudAction>(
-        action_context_, server_connection.ClientConnection().server_stream(),
-        client_uid_);
+        action_context_, server_connection.ClientConnection(), client_uid_);
     get_client_cloud_sub_ = get_client_cloud_action_->StatusEvent().Subscribe(
         ActionHandler{OnResult{[this](auto const& action) {
                         RegisterCloud(action.server_descriptors());
@@ -115,7 +114,7 @@ class GetCloudFromAether : public GetCloudAction {
     state_ = State::kWaitCloudResolve;
   }
 
-  void RegisterCloud(std::vector<ServerDescriptor> const& servers) {
+  void RegisterCloud(std::map<ServerId, ServerDescriptor> const& servers) {
     cloud_ = client_cloud_manager_->RegisterCloud(client_uid_, servers);
   }
 
@@ -161,7 +160,7 @@ ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
 }
 
 Cloud::ptr ClientCloudManager::RegisterCloud(
-    Uid uid, std::vector<ServerDescriptor> const& server_descriptors) {
+    Uid uid, std::map<ServerId, ServerDescriptor> const& server_descriptors) {
   if (!aether_) {
     domain_->LoadRoot(aether_);
   }
@@ -170,7 +169,7 @@ Cloud::ptr ClientCloudManager::RegisterCloud(
   auto new_cloud = domain_->CreateObj<WorkCloud>();
   assert(new_cloud);
 
-  for (auto const& descriptor : server_descriptors) {
+  for (auto const& [_, descriptor] : server_descriptors) {
     auto server_id = descriptor.server_id;
     auto cached_server = aether->GetServer(server_id);
     if (cached_server) {

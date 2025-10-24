@@ -21,6 +21,7 @@
 #include <cstdint>
 
 #include "aether/config.h"
+#include "aether/reflect/reflect.h"
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 // too long include string
@@ -29,54 +30,54 @@ crypto_aead_chacha20poly1305.h"  // " this helps ide to parse following quotes
 
 #endif
 
-#include "aether/mstream.h"
-
 namespace ae {
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 static constexpr auto kNonceSize = crypto_aead_chacha20poly1305_NPUBBYTES;
-struct CryptoNonceChacha20Poly1305
-    : public std::array<std::uint8_t, kNonceSize> {
+struct CryptoNonceChacha20Poly1305 {
   void Next();
   void Init();
+
+  AE_REFLECT_MEMBERS(value)
+
+  std::array<std::uint8_t, kNonceSize> value;
+};
+#endif
+
+#if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
+struct CryptoNonceHydrogen {
+  void Next();
+  void Init();
+
+  AE_REFLECT_MEMBERS(value)
+
+  std::uint64_t value;
 };
 #endif
 
 struct CryptoNonceEmpty {
   void Next();
   void Init();
+
+  AE_REFLECT()
 };
 
 struct CryptoNonce : public
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
                      CryptoNonceChacha20Poly1305
+#elif AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
+                     CryptoNonceHydrogen
 #else
                      CryptoNonceEmpty
 #endif
 {
-};
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-template <typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& s,
-                         CryptoNonceChacha20Poly1305 const& val) {
-  s << static_cast<std::array<std::uint8_t, kNonceSize> const&>(val);
-  return s;
-}
-template <typename Ob>
-imstream<Ob>& operator>>(imstream<Ob>& s, CryptoNonceChacha20Poly1305& val) {
-  s >> static_cast<std::array<std::uint8_t, kNonceSize>&>(val);
-  return s;
-}
+  AE_REFLECT(AE_REF_BASE(CryptoNonceChacha20Poly1305))
+#elif AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
+  AE_REFLECT(AE_REF_BASE(CryptoNonceHydrogen))
 #else
-template <typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& s, CryptoNonceEmpty const& /*val*/) {
-  return s;
-}
-template <typename Ob>
-imstream<Ob>& operator>>(imstream<Ob>& s, CryptoNonceEmpty& /*val*/) {
-  return s;
-}
+  AE_REFLECT(AE_REF_BASE(CryptoNonceEmpty))
 #endif
-
+};
 }  // namespace ae
 
 #endif  // AETHER_CRYPTO_CRYPTO_NONCE_H_

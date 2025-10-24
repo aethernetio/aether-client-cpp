@@ -19,6 +19,8 @@
 
 #include <vector>
 
+#include "aether/events/events.h"
+
 #include "aether/server.h"
 #include "aether/obj/obj.h"
 
@@ -35,12 +37,15 @@ class Cloud : public Obj {
   AE_OBJECT_REFLECT(AE_MMBRS(servers_))
 
   void AddServer(Server::ptr const& server);
+  void AddServers(std::vector<Server::ptr> const& servers);
   void LoadServer(Server::ptr& server);
 
   std::vector<Server::ptr>& servers();
+  EventSubscriber<void()> cloud_updated();
 
  private:
   std::vector<Server::ptr> servers_;
+  Event<void()> cloud_updated_;
 };
 
 }  // namespace ae

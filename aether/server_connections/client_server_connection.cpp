@@ -17,11 +17,81 @@
 #include "aether/server_connections/client_server_connection.h"
 
 #include "aether/server.h"
-#include "aether/server_connections/server_channel.h"
+#include "aether/client.h"
+#include "aether/crypto/ikey_provider.h"
+#include "aether/stream_api/protocol_gates.h"
+#include "aether/api_protocol/api_protocol.h"
+#include "aether/crypto/sync_crypto_provider.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae {
+namespace _internal {
+class ClientKeyProvider : public ISyncKeyProvider {
+ public:
+  explicit ClientKeyProvider(Ptr<Client> const& client, ServerId server_id)
+      : client_{client}, server_id_{server_id} {}
+
+  CryptoNonce const& Nonce() const override {
+    auto client_ptr = client_.Lock();
+    assert(client_ptr);
+    auto* server_key = client_ptr->server_state(server_id_);
+    assert(server_key);
+    server_key->Next();
+    return server_key->nonce();
+  }
+
+ protected:
+  PtrView<Client> client_;
+  ServerId server_id_;
+};
+
+class ClientEncryptKeyProvider : public ClientKeyProvider {
+ public:
+  using ClientKeyProvider::ClientKeyProvider;
+
+  Key GetKey() const override {
+    auto client_ptr = client_.Lock();
+    assert(client_ptr);
+    auto const* server_key = client_ptr->server_state(server_id_);
+    assert(server_key);
+
+    return server_key->client_to_server();
+  }
+};
+
+class ClientDecryptKeyProvider : public ClientKeyProvider {
+ public:
+  using ClientKeyProvider::ClientKeyProvider;
+
+  Key GetKey() const override {
+    auto client_ptr = client_.Lock();
+    assert(client_ptr);
+    auto const* server_key = client_ptr->server_state(server_id_);
+    assert(server_key);
+
+    return server_key->server_to_client();
+  }
+};
+
+class ClientCryptoProvider final : public ICryptoProvider {
+ public:
+  ClientCryptoProvider(Ptr<Client> const& client, ServerId server_id)
+      : encryptor_{std::make_unique<ClientEncryptKeyProvider>(client,
+                                                              server_id)},
+        decryptor_{
+            std::make_unique<ClientDecryptKeyProvider>(client, server_id)} {}
+
+  IEncryptProvider* encryptor() override { return &encryptor_; }
+  IDecryptProvider* decryptor() override { return &decryptor_; }
+
+ private:
+  SyncEncryptProvider encryptor_;
+  SyncDecryptProvider decryptor_;
+};
+
+}  // namespace _internal
+
 static constexpr std::size_t kBufferCapacity = 200;
 
 ClientServerConnection::ClientServerConnection(ActionContext action_context,
@@ -31,18 +101,54 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
     : action_context_{action_context},
       client_{client},
       server_{server},
+      crypto_provider_{std::make_unique<_internal::ClientCryptoProvider>(
+          client, server->server_id)},
+      client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
+      login_api_{protocol_context_, action_context_,
+                 *crypto_provider_->encryptor()},
       channel_manager_{action_context_, aether, server},
       channel_select_stream_{action_context_, channel_manager_},
       buffer_stream_{action_context_, kBufferCapacity},
-      client_to_server_stream_{action_context, client, server->server_id} {
+#if defined TELEMETRY_ENABLED
+      telemetry_{action_context, aether, *this},
+#endif
+      server_channel_{} {
   AE_TELED_DEBUG("Client server connection");
-  Tie(client_to_server_stream_, buffer_stream_, channel_select_stream_);
+
+  Tie(buffer_stream_, channel_select_stream_);
+  out_data_sub_ = buffer_stream_.out_data_event().Subscribe(
+      *this, MethodPtr<&ClientServerConnection::OutData>{});
+
   StreamUpdate();
   SubscribeToSelectChannel();
 }
 
-ClientToServerStream& ClientServerConnection::server_stream() {
-  return client_to_server_stream_;
+ByteIStream& ClientServerConnection::stream() { return buffer_stream_; }
+
+void ClientServerConnection::Restream() { channel_select_stream_.Restream(); }
+
+ActionPtr<StreamWriteAction> ClientServerConnection::AuthorizedApiCall(
+    SubApi<AuthorizedApi> auth_api) {
+  auto client_ptr = client_.Lock();
+  assert(client_ptr);
+  auto api_call = ApiCallAdapter{ApiContext{login_api_}, buffer_stream_};
+  api_call->login_by_alias(client_ptr->ephemeral_uid(), std::move(auth_api));
+  return api_call.Flush();
+}
+
+ClientApiSafe& ClientServerConnection::client_safe_api() {
+  return client_api_unsafe_.client_api_safe();
+}
+
+void ClientServerConnection::SendTelemetry() {
+#if defined TELEMETRY_ENABLED
+  telemetry_->SendTelemetry();
+#endif
+}
+
+void ClientServerConnection::OutData(DataBuffer const& data) {
+  auto parser = ApiParser{protocol_context_, data};
+  parser.Parse(client_api_unsafe_);
 }
 
 void ClientServerConnection::SubscribeToSelectChannel() {
@@ -51,6 +157,10 @@ void ClientServerConnection::SubscribeToSelectChannel() {
 }
 
 void ClientServerConnection::StreamUpdate() {
+  if (channel_select_stream_.stream_info().link_state != LinkState::kLinked) {
+    return;
+  }
+
   auto const* channel = channel_select_stream_.server_channel();
   // check if channel is updated
   if (server_channel_ == channel) {
@@ -58,13 +168,14 @@ void ClientServerConnection::StreamUpdate() {
   }
   server_channel_ = channel;
 
+  AE_TELED_DEBUG("Channel is linked, make new ping");
   Server::ptr server = server_.Lock();
   assert(server);
   // Create new ping if channel is updated
   // TODO: add ping interval config
   ping_ =
       OwnActionPtr<Ping>{action_context_, server, server_channel_->channel(),
-                         client_to_server_stream_, std::chrono::seconds{5}};
+                         *this, std::chrono::seconds{5}};
 }
 
 }  // namespace ae

@@ -59,7 +59,7 @@ class P2pStream final : public ByteIStream {
   void ConnectReceive();
   void ConnectSend();
 
-  void DataReceived(MessageData const& data);
+  void DataReceived(AeMessage const& data);
   std::unique_ptr<ClientConnectionManager> MakeConnectionManager(
       ObjPtr<Cloud> const& cloud);
   std::unique_ptr<CloudMessageStream> MakeDestinationStream(
@@ -73,7 +73,7 @@ class P2pStream final : public ByteIStream {
   std::unique_ptr<ClientConnectionManager> destination_connection_manager_;
   std::unique_ptr<CloudMessageStream> destination_stream_;
 
-  BufferStream<MessageData> buffer_stream_;
+  BufferStream<AeMessage> buffer_stream_;
   CloudMessageStream* receive_stream_;
   OutDataEvent out_data_event_;
   Subscription out_data_sub_;

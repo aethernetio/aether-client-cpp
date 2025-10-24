@@ -22,8 +22,8 @@
 
 #include "aether/memory.h"
 #include "aether/common.h"
-#include "aether/api_protocol/api_protocol.h"
 #include "aether/api_protocol/packet_builder.h"
+#include "aether/api_protocol/api_pack_parser.h"
 
 namespace ae {
 /**
@@ -85,40 +85,37 @@ class ChildPacketStack {
  */
 template <typename TApi>
 class ApiContext {
-  template <MessageId MessageCode, typename Signature, typename Enable>
+  template <MessageId MessageCode, typename Signature, typename ArgProc,
+            typename Enable>
   friend struct Method;
 
  public:
   // push and pop packet stack for api method call
   struct ApiCallProxy {
-    ApiCallProxy(ProtocolContext& protocol_context, TApi& api,
-                 PacketStack& packet_stack)
-        : protocol_context_{&protocol_context}, api_{&api} {
-      protocol_context_->PushPacketStack(packet_stack);
+    ApiCallProxy(TApi& api, PacketStack& packet_stack) : api_{&api} {
+      api_->protocol_context().PushPacketStack(packet_stack);
     }
-    ~ApiCallProxy() { protocol_context_->PopPacketStack(); }
+    ~ApiCallProxy() { api_->protocol_context().PopPacketStack(); }
 
     [[nodiscard]] TApi* operator->() { return api_; }
 
    private:
-    ProtocolContext* protocol_context_;
     TApi* api_;
   };
 
-  ApiContext(ProtocolContext& protocol_context, TApi& api)
-      : protocol_context_{&protocol_context}, api_{&api}, packet_stack_{} {}
+  explicit ApiContext(TApi& api) : api_{&api} {}
 
   AE_CLASS_MOVE_ONLY(ApiContext)
 
   // return the object setting the context of the api method call
   [[nodiscard]] ApiCallProxy operator->() {
-    return ApiCallProxy{*protocol_context_, *api_, packet_stack_};
+    return ApiCallProxy{*api_, packet_stack_};
   }
 
   [[nodiscard]] std::vector<std::uint8_t> Pack() && {
     auto data = std::vector<std::uint8_t>{};
 
-    ApiPacker packer{*protocol_context_, data};
+    ApiPacker packer{api_->protocol_context(), data};
 
     std::move(packet_stack_).Pack(packer);
     return data;
@@ -127,7 +124,6 @@ class ApiContext {
   operator std::vector<std::uint8_t>() && { return std::move(*this).Pack(); }
 
  private:
-  ProtocolContext* protocol_context_;
   TApi* api_;
   PacketStack packet_stack_;
 };
@@ -138,26 +134,22 @@ class ApiContext {
  */
 template <typename TApi>
 class SubContext {
-  template <MessageId MessageCode, typename Signature, typename Enable>
+  template <MessageId MessageCode, typename Signature, typename ArgProc,
+            typename Enable>
   friend struct Method;
 
  public:
-  SubContext(ProtocolContext& protocol_context, TApi& api,
-             PacketStack& packet_stack)
-      : protocol_context_{&protocol_context},
-        api_{&api},
-        packet_stack_{&packet_stack} {}
+  SubContext(TApi& api, PacketStack& packet_stack)
+      : api_{&api}, packet_stack_{&packet_stack} {}
 
   AE_CLASS_MOVE_ONLY(SubContext)
 
   // return the object setting the context of the api method call
   [[nodiscard]] typename ApiContext<TApi>::ApiCallProxy operator->() {
-    return typename ApiContext<TApi>::ApiCallProxy{*protocol_context_, *api_,
-                                                   *packet_stack_};
+    return typename ApiContext<TApi>::ApiCallProxy{*api_, *packet_stack_};
   }
 
  private:
-  ProtocolContext* protocol_context_;
   TApi* api_;
   PacketStack* packet_stack_;
 };

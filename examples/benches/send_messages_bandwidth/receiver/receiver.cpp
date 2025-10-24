@@ -47,9 +47,8 @@ EventSubscriber<void()> Receiver::Handshake() {
   handshake_received_ =
       bandwidth_api_.handshake_event().Subscribe([this](RequestId req_id) {
         AE_TELED_DEBUG("Received handshake request {}", req_id);
-        auto api = ApiCallAdapter{ApiContext{protocol_context_, bandwidth_api_},
-                                  *message_stream_};
-        api->SendResult(req_id, true);
+        auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
+        api->return_result.SendResult(req_id, true);
         api.Flush();
         handshake_made_event_.Emit();
       });
@@ -62,9 +61,8 @@ EventSubscriber<void(Bandwidth const&)> Receiver::TestMessages(
   test_start_sub_ =
       bandwidth_api_.start_test_event().Subscribe([this](RequestId req_id) {
         AE_TELED_DEBUG("Received start test request {}", req_id);
-        auto api = ApiCallAdapter{ApiContext{protocol_context_, bandwidth_api_},
-                                  *message_stream_};
-        api->SendResult(req_id, true);
+        auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
+        api->return_result.SendResult(req_id, true);
         api.Flush();
       });
 
@@ -72,13 +70,12 @@ EventSubscriber<void(Bandwidth const&)> Receiver::TestMessages(
   test_stop_sub_ =
       bandwidth_api_.stop_test_event().Subscribe([this](RequestId req_id) {
         AE_TELED_DEBUG("Received stop test request {}", req_id);
-        auto api = ApiCallAdapter{ApiContext{protocol_context_, bandwidth_api_},
-                                  *message_stream_};
+        auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
         if (message_receiver_ && !test_stopped_) {
           message_receiver_->StopTest();
           test_stopped_ = true;
         }
-        api->SendResult(req_id, true);
+        api->return_result.SendResult(req_id, true);
         api.Flush();
       });
 

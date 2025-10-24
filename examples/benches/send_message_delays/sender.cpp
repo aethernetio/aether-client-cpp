@@ -84,9 +84,8 @@ ActionPtr<TimedSender> Sender::CreateBenchAction(Func&& func,
   sender_action_ = ActionPtr<TimedSender>{
       action_context_,
       [&, f{std::forward<Func>(func)}](std::uint16_t id) {
-        auto api_context =
-            ApiCallAdapter{ApiContext{protocol_context_, bench_delays_api_},
-                           *send_message_stream_};
+        auto api_context = ApiCallAdapter{ApiContext{bench_delays_api_},
+                                          *send_message_stream_};
         f(api_context, id);
         api_context.Flush();
       },

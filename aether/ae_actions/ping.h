@@ -33,14 +33,15 @@ DISABLE_WARNING_POP()
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
 #include "aether/actions/action_context.h"
+#include "aether/api_protocol/request_id.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/server_connections/client_to_server_stream.h"
 
 namespace ae {
+class ClientServerConnection;
+
 class Ping : public Action<Ping> {
   enum class State : std::uint8_t {
-    kWaitLink,
     kSendPing,
     kWaitResponse,
     kWaitInterval,
@@ -54,7 +55,8 @@ class Ping : public Action<Ping> {
  public:
   Ping(ActionContext action_context, Server::ptr const& server,
        Channel::ptr const& channel,
-       ClientToServerStream& client_to_server_stream, Duration ping_interval);
+       ClientServerConnection& client_server_connection,
+       Duration ping_interval);
   ~Ping() override;
 
   AE_CLASS_NO_COPY_MOVE(Ping);
@@ -70,7 +72,7 @@ class Ping : public Action<Ping> {
 
   PtrView<Server> server_;
   PtrView<Channel> channel_;
-  ClientToServerStream* client_to_server_stream_;
+  ClientServerConnection* client_server_connection_;
   Duration ping_interval_;
 
   std::size_t repeat_count_;
@@ -81,7 +83,6 @@ class Ping : public Action<Ping> {
   MultiSubscription wait_responses_;
   StateMachine<State> state_;
   Subscription state_changed_sub_;
-  Subscription stream_changed_sub_;
 };
 }  // namespace ae
 

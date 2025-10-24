@@ -26,16 +26,17 @@ CloudMessageStream::CloudMessageStream(
   SubscribeData();
 }
 
-ActionPtr<StreamWriteAction> CloudMessageStream::Write(MessageData&& data) {
-  AE_TELED_DEBUG("Write message to {} size: {}\ndata {}", data.destination,
+ActionPtr<StreamWriteAction> CloudMessageStream::Write(AeMessage&& data) {
+  AE_TELED_DEBUG("Write message to {} size: {}\ndata {}", data.uid,
                  data.data.size(), data.data);
 
   // TODO: add politics for send data
   auto& connection =
       connection_manager_->server_connections().front().ClientConnection();
-  auto api_call = connection.server_stream().authorized_api_adapter();
-  api_call->send_message(data.destination, std::move(std::move(data).data));
-  return api_call.Flush();
+  return connection.AuthorizedApiCall(
+      SubApi{[&](ApiContext<AuthorizedApi>& api_context) {
+        api_context->send_message(std::move(data));
+      }});
 }
 
 CloudMessageStream::OutDataEvent::Subscriber
@@ -54,7 +55,7 @@ void CloudMessageStream::Restream() {
   // TODO: add handle restream
   auto& connection =
       connection_manager_->server_connections().front().ClientConnection();
-  connection.server_stream().Restream();
+  connection.stream().Restream();
 }
 
 void CloudMessageStream::SubscribeData() {
@@ -63,28 +64,29 @@ void CloudMessageStream::SubscribeData() {
   // TODO: add subscribe to update connection
   auto& connection =
       connection_manager_->server_connections().front().ClientConnection();
-  auto send_message_event = EventSubscriber{
-      connection.server_stream().client_safe_api().send_message_event};
 
-  stream_info_ = connection.server_stream().stream_info();
+  stream_info_ = connection.stream().stream_info();
 
-  send_message_sub_ = send_message_event.Subscribe(
-      *this, MethodPtr<&CloudMessageStream::NewMessage>{});
+  send_message_sub_ =
+      connection.client_safe_api().send_messages_event().Subscribe(
+          *this, MethodPtr<&CloudMessageStream::NewMessages>{});
 
-  stream_update_sub_ =
-      connection.server_stream().stream_update_event().Subscribe(
-          *this, MethodPtr<&CloudMessageStream::UpdateStream>{});
+  stream_update_sub_ = connection.stream().stream_update_event().Subscribe(
+      *this, MethodPtr<&CloudMessageStream::UpdateStream>{});
 }
 
-void CloudMessageStream::NewMessage(Uid const& uid, DataBuffer const& data) {
-  AE_TELED_DEBUG("Message from {} size: {}\ndata {}", uid, data.size(), data);
-  out_data_event_.Emit(MessageData{uid, data});
+void CloudMessageStream::NewMessages(std::vector<AeMessage> const& messages) {
+  for (auto const& msg : messages) {
+    AE_TELED_DEBUG("Message from {} size: {}\ndata {}", msg.uid,
+                   msg.data.size(), msg.data);
+    out_data_event_.Emit(msg);
+  }
 }
 
 void CloudMessageStream::UpdateStream() {
   auto& connection =
       connection_manager_->server_connections().front().ClientConnection();
-  stream_info_ = connection.server_stream().stream_info();
+  stream_info_ = connection.stream().stream_info();
   stream_update_event_.Emit();
 }
 

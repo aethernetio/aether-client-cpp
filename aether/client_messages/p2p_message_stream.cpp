@@ -41,7 +41,7 @@ P2pStream::~P2pStream() = default;
 
 ActionPtr<StreamWriteAction> P2pStream::Write(DataBuffer&& data) {
   AE_TELED_DEBUG("Write message {}", data.size());
-  MessageData message_data{destination_, std::move(data)};
+  AeMessage message_data{destination_, std::move(data)};
   return buffer_stream_.Write(std::move(message_data));
 }
 
@@ -97,8 +97,8 @@ void P2pStream::ConnectSend() {
           }});
 }
 
-void P2pStream::DataReceived(MessageData const& data) {
-  if (data.destination != destination_) {
+void P2pStream::DataReceived(AeMessage const& data) {
+  if (data.uid != destination_) {
     return;
   }
   WriteOut(data.data);

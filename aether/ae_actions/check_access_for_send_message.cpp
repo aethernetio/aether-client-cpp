@@ -16,17 +16,18 @@
 
 #include "aether/ae_actions/check_access_for_send_message.h"
 
-#include "aether/methods/work_server_api/authorized_api.h"
+#include "aether/server_connections/client_server_connection.h"
+#include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 #include "aether/ae_actions/ae_actions_tele.h"  // IWYU pragma: keep
 
 namespace ae {
 CheckAccessForSendMessage::CheckAccessForSendMessage(
-    ActionContext action_context, ClientToServerStream& client_to_server_stream,
-    Uid destination)
+    ActionContext action_context,
+    ClientServerConnection& client_server_connection, Uid destination)
     : Action{action_context},
       action_context_{action_context},
-      client_to_server_stream_{&client_to_server_stream},
+      client_server_connection_{&client_server_connection},
       destination_{destination},
       state_{State::kSendRequest},
       state_changed_sub_{state_.changed_event().Subscribe(
@@ -52,21 +53,23 @@ UpdateStatus CheckAccessForSendMessage::Update() {
 }
 
 void CheckAccessForSendMessage::SendRequest() {
-  int repeat_count = client_to_server_stream_->stream_info().is_reliable
-                         ? 1
-                         : kMaxRequestRepeatCount;
+  int repeat_count =
+      client_server_connection_->stream().stream_info().is_reliable
+          ? 1
+          : kMaxRequestRepeatCount;
   repeatable_task_ = ActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
-        auto api_adapter = client_to_server_stream_->authorized_api_adapter();
-        auto check_promise =
-            api_adapter->check_access_for_send_message(destination_);
-        wait_check_sub_ = check_promise->StatusEvent().Subscribe(
-            ActionHandler{OnResult{[&]() { ResponseReceived(); }},
-                          OnError{[&]() { ErrorReceived(); }}});
+        auto send_action = client_server_connection_->AuthorizedApiCall(
+            SubApi{[this](ApiContext<AuthorizedApi>& auth_api) {
+              auto check_promise =
+                  auth_api->check_access_for_send_message(destination_);
+              wait_check_sub_ = check_promise->StatusEvent().Subscribe(
+                  ActionHandler{OnResult{[&]() { ResponseReceived(); }},
+                                OnError{[&]() { ErrorReceived(); }}});
+            }});
 
-        auto send_event = api_adapter.Flush();
-        send_error_sub_ = send_event->StatusEvent().Subscribe(
+        send_error_sub_ = send_action->StatusEvent().Subscribe(
             OnError{[&]() { SendError(); }});
       },
       kRequestTimeout, repeat_count};

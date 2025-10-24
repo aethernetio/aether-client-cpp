@@ -17,18 +17,22 @@
 #include "aether/api_protocol/return_result_api.h"
 
 namespace ae {
-ReturnResultApiImpl::ReturnResultApiImpl(ProtocolContext& protocol_context)
-    : protocol_context_{&protocol_context}, send_error_{*protocol_context_} {}
+ReturnResultApi::ReturnResultApi(ProtocolContext& protocol_context)
+    : ApiClass{protocol_context}, send_error_{protocol_context} {}
 
-void ReturnResultApiImpl::SendResultImpl(ApiParser& parser,
-                                         RequestId request_id) {
-  protocol_context_->SetSendResultResponse(request_id, parser);
+void ReturnResultApi::SendResultImpl(ApiParser& parser, RequestId request_id) {
+  protocol_context().SetSendResultResponse(request_id, parser);
 }
 
-void ReturnResultApiImpl::SendErrorImpl(ApiParser& parser, RequestId request_id,
-                                        std::uint8_t error_type,
-                                        std::uint32_t error_code) {
-  protocol_context_->SetSendErrorResponse(
-      ::ae::SendError{{}, request_id, error_type, error_code}, parser);
+void ReturnResultApi::SendErrorImpl(ApiParser& parser, RequestId request_id,
+                                    std::uint8_t error_type,
+                                    std::uint32_t error_code) {
+  protocol_context().SetSendErrorResponse(request_id, error_type, error_code,
+                                          parser);
 }
+
+void ReturnResultApi::Pack(ae::SendResult&& result, ApiPacker& packer) {
+  packer.Pack(kSendResult, std::move(result));
+}
+
 }  // namespace ae

@@ -34,7 +34,7 @@
 
 namespace ae {
 // Cryptographic profiles
-enum class CryptoLibProfile : std::uint8_t {
+enum class CryptoLib : std::uint8_t {
   kSodiumLib = 0,  // use sodium library only
   kHydrogenLib,    // use hydrogen library only
   // TODO: add different ASYNC/SYNC combinations
@@ -42,12 +42,12 @@ enum class CryptoLibProfile : std::uint8_t {
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305 && \
     AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
-inline constexpr auto kDefaultCryptoLibProfile = CryptoLibProfile::kSodiumLib;
+inline constexpr auto kDefaultCryptoLibProfile = CryptoLib::kSodiumLib;
 #endif
 
 #if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK && \
     AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
-inline constexpr auto kDefaultCryptoLibProfile = CryptoLibProfile::kHydrogenLib;
+inline constexpr auto kDefaultCryptoLibProfile = CryptoLib::kHydrogenLib;
 #endif
 
 #if CRYPTO_HASH_USED

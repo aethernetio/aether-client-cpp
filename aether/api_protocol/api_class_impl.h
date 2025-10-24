@@ -17,8 +17,9 @@
 #ifndef AETHER_API_PROTOCOL_API_CLASS_IMPL_H_
 #define AETHER_API_PROTOCOL_API_CLASS_IMPL_H_
 
-#include "aether/api_protocol/api_method.h"
-#include "aether/api_protocol/api_protocol.h"
+#include "aether/reflect/reflect.h"
+#include "aether/api_protocol/api_class.h"
+#include "aether/api_protocol/api_pack_parser.h"
 
 namespace ae {
 /**
@@ -39,8 +40,9 @@ struct IsPromiseResult<PromiseResult<T>> : std::true_type {};
  * \brief Use as helper to continue parsing with subapi.
  */
 template <typename Api>
-struct SubApi {
-  SubApi(ProtocolContext& protocol_context, std::vector<std::uint8_t>&& data)
+struct SubContextImpl {
+  SubContextImpl(ProtocolContext& protocol_context,
+                 std::vector<std::uint8_t>&& data)
       : sub_data{std::move(data)}, parser{protocol_context, sub_data} {}
 
   void Parse(Api& api) { parser.Parse(api); }
@@ -50,9 +52,9 @@ struct SubApi {
 };
 
 template <typename T>
-struct IsSubApi : std::false_type {};
+struct IsSubContextImpl : std::false_type {};
 template <typename T>
-struct IsSubApi<SubApi<T>> : std::true_type {};
+struct IsSubContextImpl<SubContextImpl<T>> : std::true_type {};
 
 /**
  * \brief Helper struct to invoke method implementations with received message
@@ -84,7 +86,7 @@ template <MessageId message_id, typename TApi, typename First, typename... Args,
 struct MethodInvoke<message_id, TApi, method_ptr,
                     // solve instantiation ambiguity
                     std::enable_if_t<!IsPromiseResult<First>::value &&
-                                     !IsSubApi<First>::value>> {
+                                     !IsSubContextImpl<First>::value>> {
  public:
   static constexpr auto kMessageCode = message_id;
   using Message = GenericMessage<First, Args...>;
@@ -126,7 +128,8 @@ struct MethodInvoke<message_id, TApi, method_ptr> {
  */
 template <MessageId message_id, typename TApi, typename TSubApi,
           typename... Args,
-          void (TApi::*method_ptr)(ApiParser& parser, SubApi<TSubApi>, Args...)>
+          void (TApi::*method_ptr)(ApiParser& parser, SubContextImpl<TSubApi>,
+                                   Args...)>
 struct MethodInvoke<message_id, TApi, method_ptr> {
  public:
   static constexpr auto kMessageCode = message_id;
@@ -137,9 +140,10 @@ struct MethodInvoke<message_id, TApi, method_ptr> {
         [&](auto&&... args) {
           auto data = parser.Extract<std::vector<std::uint8_t>>();
 
-          (obj->*method_ptr)(parser,
-                             SubApi<TSubApi>{parser.Context(), std::move(data)},
-                             std::forward<Args>(args)...);
+          (obj->*method_ptr)(
+              parser,
+              SubContextImpl<TSubApi>{parser.Context(), std::move(data)},
+              std::forward<Args>(args)...);
         },
         std::move(message).fields);
   }
@@ -158,59 +162,99 @@ struct RegMethod<message_id, method_ptr> {
 };
 
 /**
- * \brief A registered list of method implementation.
- * Each Api class should provide ApiMethods alias to instance of ImplList.
- * Use RegMethod for each element.
+ * \brief A helper for registration api extension.
  */
-template <typename... TRegMethod>
-struct ImplList {
-  using Methods = TypeList<typename TRegMethod::Method...>;
+template <auto p>
+struct ExtApi;
+
+template <typename T, typename M, M T::* ptr>
+struct ExtApi<ptr> {
+  using type = T;
+  using Field = reflect::reflect_internal::FieldPtr<T, ptr>;
 };
 
 /**
- * \brief Api Class Implementation.
- * Implements ApiClass in generic way configured with MainApi and optional
- * ExtApis which extends main api class.
- * Each api class should provide a list of implemented methods through
- * ApiMethods alias \see ImplList.
- * MainApi should be derived from ExtApis.
- * Method invoke performed by pointer to method and *this* casted to selected
- * api class.
+ * \brief A registered list of method implementation.
+ * Each Api class should provide ApiMethods alias to instance of ImplList.
+ * Use RegMethod or ExtApi for each element.
  */
-template <typename MainApi, typename... ExtApis>
+template <typename... TRegs>
+struct ImplList {
+  using Impls = TypeList<TRegs...>;
+};
+
+template <typename T, typename = void>
+struct HasApiMethods : std::false_type {};
+
+template <typename T>
+struct HasApiMethods<T, std::void_t<typename T::ApiMethods>> : std::true_type {
+};
+/**
+ * \brief Api Class Implementation.
+ * Implements Api class with LoadFactory in generic way configured with MainApi.
+ * Each api class should provide a list of implemented methods through
+ * ApiMethods alias \see ImplList. Method invoke performed by pointer to method
+ * and *this* casted to selected api class.
+ * Also MainApi class could provide api extensions through Extensions alias \see
+ * ExtList.
+ */
+template <typename MainApi>
 class ApiClassImpl : public ApiClass {
  public:
-  void LoadFactory(MessageId message_id, ApiParser& parser) override {
-    auto res = ApiLoadFactory<MainApi>(message_id, parser) ||
-               (ApiLoadFactory<ExtApis>(message_id, parser) || ...);
+  using ApiClass::ApiClass;
+
+  void LoadFactory(MessageId message_id, ApiParser& parser) {
+    auto res = LoadFactoryImpl(static_cast<MainApi*>(this), message_id, parser);
     if (!res) {
-      assert(false);
+      assert(res);
     }
-  }  // namespace ae
+  }
+
+  template <typename Api>
+  static bool LoadFactoryImpl(Api* api, MessageId message_id,
+                              ApiParser& parser) {
+    static_assert(HasApiMethods<Api>::value,
+                  "Api should provide ApiMethods as alias to ImplList");
+
+    constexpr auto list_size = TypeListSize<typename Api::ApiMethods::Impls>;
+
+    return ApiLoadFactory<typename Api::ApiMethods::Impls>(
+        api, message_id, parser, std::make_index_sequence<list_size>());
+  }
 
  private:
-  template <typename Api>
-  bool ApiLoadFactory(MessageId message_id, ApiParser& parser) {
-    constexpr auto list_size = TypeListSize<typename Api::ApiMethods::Methods>;
-    return ApiLoadFactoryImpl<Api>(message_id, parser,
-                                   std::make_index_sequence<list_size>());
+  template <typename ImplList, typename Api, std::size_t... Is>
+  static bool ApiLoadFactory(Api* api, MessageId message_id, ApiParser& parser,
+                             std::index_sequence<Is...>) {
+    return (LoadSelector<Api, TypeAtT<Is, ImplList>>::Load(api, message_id,
+                                                           parser) ||
+            ...);
   }
 
-  template <typename Api, std::size_t... Is>
-  bool ApiLoadFactoryImpl([[maybe_unused]] MessageId message_id,
-                          [[maybe_unused]] ApiParser& parser,
-                          std::index_sequence<Is...>) {
-    return ([&]() {
-      using MethodImpl = TypeAtT<Is, typename Api::ApiMethods::Methods>;
-      if (MethodImpl::kMessageCode != message_id) {
+  template <typename Api, typename T>
+  struct LoadSelector;
+
+  template <typename Api, MessageId Id, auto method>
+  struct LoadSelector<Api, RegMethod<Id, method>> {
+    static bool Load(Api* api, MessageId message_id, ApiParser& parser) {
+      if (Id != message_id) {
         return false;
       }
-      auto* self = static_cast<Api*>(static_cast<MainApi*>(this));
-      auto message = parser.Extract<typename MethodImpl::Message>();
-      MethodImpl::Invoke(self, std::move(message), parser);
+      using Method = typename RegMethod<Id, method>::Method;
+      auto message = parser.Extract<typename Method::Message>();
+      Method::Invoke(api, std::move(message), parser);
       return true;
-    }() || ...);
-  }
+    }
+  };
+
+  template <typename Api, auto ptr>
+  struct LoadSelector<Api, ExtApi<ptr>> {
+    static bool Load(Api* api, MessageId message_id, ApiParser& parser) {
+      using Field = typename ExtApi<ptr>::Field;
+      auto&& ext_api = Field::get(*api);
+      return ApiClassImpl::LoadFactoryImpl(&ext_api, message_id, parser);
+    }
+  };
 };
 }  // namespace ae
 

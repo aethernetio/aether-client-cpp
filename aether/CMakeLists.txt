@@ -105,14 +105,17 @@ list(APPEND actions_srcs
             )
 
 list(APPEND registration_srcs
-            "registration/global_reg_server_stream.cpp"
-            "registration/reg_server_stream.cpp"
+            "registration/api/client_reg_api_safe.cpp"
+            "registration/api/client_reg_api_unsafe.cpp"
+            "registration/api/global_reg_client_api.cpp"
+            "registration/api/global_reg_server_api.cpp"
+            "registration/api/registration_root_api.cpp"
+            "registration/api/server_registration_api.cpp"
             "registration/proof_of_work.cpp"
-            "registration/root_server_select_stream.cpp"
-            "registration/root_server_stream.cpp"
             "registration/registration.cpp"
-            "registration/registration_key_provider.cpp"
-            )
+            "registration/registration_crypto_provider.cpp"
+            "registration/root_server_select_stream.cpp"
+            "registration/root_server_stream.cpp")
 
 
 list(APPEND adapters_srcs
@@ -172,7 +175,6 @@ list(APPEND stream_api_src
             "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
             "stream_api/debug_gate.cpp"
-            "stream_api/stream_splitter.cpp"
 
             "stream_api/safe_stream.cpp"
             "stream_api/safe_stream/safe_stream_api.cpp"
@@ -186,7 +188,7 @@ list(APPEND stream_api_src
 
 list(APPEND api_protocol_srcs
             "api_protocol/protocol_context.cpp"
-            "api_protocol/api_protocol.cpp"
+            "api_protocol/api_pack_parser.cpp"
             "api_protocol/child_data.cpp"
             "api_protocol/return_result_api.cpp"
             )
@@ -203,17 +205,11 @@ list(APPEND crypto_srcs
             "crypto/hydrogen/hydro_sync_crypto_provider.cpp"
             )
 
-list(APPEND methods_srcs
-            "methods/work_server_api/login_api.cpp"
-            "methods/work_server_api/authorized_api.cpp"
-            "methods/client_api/client_root_api.cpp"
-            "methods/client_api/client_safe_api.cpp"
-            "methods/client_reg_api/client_reg_root_api.cpp"
-            "methods/client_reg_api/client_reg_api.cpp"
-            "methods/client_reg_api/client_global_reg_api.cpp"
-            "methods/server_reg_api/root_api.cpp"
-            "methods/server_reg_api/server_registration_api.cpp"
-            "methods/server_reg_api/global_reg_server_api.cpp")
+list(APPEND work_cloud_api_srcs
+            "work_cloud_api/work_server_api/login_api.cpp"
+            "work_cloud_api/work_server_api/authorized_api.cpp"
+            "work_cloud_api/client_api/client_api_unsafe.cpp"
+            "work_cloud_api/client_api/client_api_safe.cpp")
 
 
 list(APPEND client_connections_srcs
@@ -222,7 +218,6 @@ list(APPEND client_connections_srcs
 
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
-            "server_connections/client_to_server_stream.cpp"
             "server_connections/channel_selection_stream.cpp"
             "server_connections/server_channel.cpp"
             "server_connections/channel_manager.cpp"
@@ -306,7 +301,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${serial_ports_srcs}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
-                            ${methods_srcs}
+                            ${work_cloud_api_srcs}
                             ${registration_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
@@ -356,7 +351,7 @@ else()
                             ${stream_api_src}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
-                            ${methods_srcs}
+                            ${work_cloud_api_srcs}
                             ${registration_srcs}
                             ${client_messages_srcs}
                             ${client_connections_srcs}
