@@ -108,7 +108,11 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
                  *crypto_provider_->encryptor()},
       channel_manager_{action_context_, aether, server},
       channel_select_stream_{action_context_, channel_manager_},
-      buffer_stream_{action_context_, kBufferCapacity} {
+      buffer_stream_{action_context_, kBufferCapacity},
+#if defined TELEMETRY_ENABLED
+      telemetry_{action_context, aether, *this},
+#endif
+      server_channel_{} {
   AE_TELED_DEBUG("Client server connection");
 
   Tie(buffer_stream_, channel_select_stream_);
@@ -120,6 +124,8 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
 }
 
 ByteIStream& ClientServerConnection::stream() { return buffer_stream_; }
+
+void ClientServerConnection::Restream() { channel_select_stream_.Restream(); }
 
 ActionPtr<StreamWriteAction> ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
@@ -134,6 +140,12 @@ ClientApiSafe& ClientServerConnection::client_safe_api() {
   return client_api_unsafe_.client_api_safe();
 }
 
+void ClientServerConnection::SendTelemetry() {
+#if defined TELEMETRY_ENABLED
+  telemetry_->SendTelemetry();
+#endif
+}
+
 void ClientServerConnection::OutData(DataBuffer const& data) {
   auto parser = ApiParser{protocol_context_, data};
   parser.Parse(client_api_unsafe_);
@@ -145,6 +157,10 @@ void ClientServerConnection::SubscribeToSelectChannel() {
 }
 
 void ClientServerConnection::StreamUpdate() {
+  if (channel_select_stream_.stream_info().link_state != LinkState::kLinked) {
+    return;
+  }
+
   auto const* channel = channel_select_stream_.server_channel();
   // check if channel is updated
   if (server_channel_ == channel) {
@@ -152,6 +168,7 @@ void ClientServerConnection::StreamUpdate() {
   }
   server_channel_ = channel;
 
+  AE_TELED_DEBUG("Channel is linked, make new ping");
   Server::ptr server = server_.Lock();
   assert(server);
   // Create new ping if channel is updated
