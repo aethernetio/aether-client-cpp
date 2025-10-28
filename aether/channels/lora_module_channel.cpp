@@ -47,7 +47,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
         state_{State::kLoraModuleConnect},
         start_time_{Now()} {
     AE_TELED_DEBUG("Lora module transport building");
-        }
+  }
 
   UpdateStatus Update() override {
     if (state_.changed()) {
@@ -133,11 +133,11 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
   TimePoint start_time_;
 };
 
-}  // namespace modem_channel_internal
+}  // namespace lora_module_channel_internal
 
 LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
-                           LoraModuleAccessPoint::ptr access_point,
-                           UnifiedAddress address, Domain* domain)
+                                     LoraModuleAccessPoint::ptr access_point,
+                                     UnifiedAddress address, Domain* domain)
     : Channel{std::move(address), domain},
       aether_{std::move(aether)},
       access_point_{std::move(access_point)} {
@@ -166,7 +166,8 @@ LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
 }
 
 ActionPtr<TransportBuilderAction> LoraModuleChannel::TransportBuilder() {
-  return ActionPtr<lora_module_channel_internal::LoraModuleTransportBuilderAction>{
+  return ActionPtr<
+      lora_module_channel_internal::LoraModuleTransportBuilderAction>{
       *aether_.as<Aether>(), *this, *access_point_, address};
 }
 

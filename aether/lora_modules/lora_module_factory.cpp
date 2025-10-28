@@ -26,7 +26,7 @@ std::unique_ptr<ILoraModuleDriver> LoraModuleDriverFactory::CreateLoraModule(
     LoraModuleInit lora_module_init) {
 #if AE_LORA_MODULE_EBYTE22_ENABLED == 1
   return std::make_unique<EbyteE22LoraModule>(action_context, poller,
-                                               std::move(lora_module_init));
+                                              std::move(lora_module_init));
 #elif AE_LORA_MODULE_DXSMART_LR02_ENABLED == 1
   return std::make_unique<DxSmartLr02LoraModule>(action_context, poller,
                                                  std::move(lora_module_init));

@@ -358,8 +358,7 @@ DxSmartLr02LoraModule::SetLoraModuleAddress(std::uint16_t const& address) {
     auto pipeline = MakeActionPtr<Pipeline>(
         action_context_,
         // Enter AT command mode
-        Stage([this]() { return EnterAtMode(); }),
-        Stage([this, address]() {
+        Stage([this]() { return EnterAtMode(); }), Stage([this, address]() {
           return at_comm_support_.MakeRequest(
               "AT+MAC" + AdressToString(address), kWaitOk);
         }),
@@ -390,8 +389,7 @@ DxSmartLr02LoraModule::SetLoraModuleChannel(std::uint8_t const& channel) {
     auto pipeline = MakeActionPtr<Pipeline>(
         action_context_,
         // Enter AT command mode
-        Stage([this]() { return EnterAtMode(); }),
-        Stage([this, channel]() {
+        Stage([this]() { return EnterAtMode(); }), Stage([this, channel]() {
           return at_comm_support_.MakeRequest(
               "AT+CHANNEL" + ChannelToString(channel), kWaitOk);
         }),
@@ -419,8 +417,7 @@ DxSmartLr02LoraModule::SetLoraModuleCRCCheck(
     auto pipeline = MakeActionPtr<Pipeline>(
         action_context_,
         // Enter AT command mode
-        Stage([this]() { return EnterAtMode(); }),
-        Stage([this, crc_check]() {
+        Stage([this]() { return EnterAtMode(); }), Stage([this, crc_check]() {
           return at_comm_support_.MakeRequest(
               "AT+CRC" + std::to_string(static_cast<int>(crc_check)), kWaitOk);
         }),

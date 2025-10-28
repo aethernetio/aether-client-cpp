@@ -53,7 +53,7 @@ class LoraModuleAdapter : public ParentLoraModuleAdapter {
   bool connected_{false};
 
   std::unique_ptr<ILoraModuleDriver> lora_module_driver_;
-  AccessPoint::ptr access_point_;  
+  AccessPoint::ptr access_point_;
 };
 
 }  // namespace ae

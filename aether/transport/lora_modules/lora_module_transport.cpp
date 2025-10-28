@@ -27,17 +27,18 @@
 namespace ae {
 static constexpr auto kMaxPacketSize = 400;
 
-LoraModuleTransport::LoraModuleSend::LoraModuleSend(ActionContext action_context,
-                                     LoraModuleTransport& transport, DataBuffer data)
+LoraModuleTransport::LoraModuleSend::LoraModuleSend(
+    ActionContext action_context, LoraModuleTransport& transport,
+    DataBuffer data)
     : SocketPacketSendAction{action_context},
       transport_{&transport},
       data_{std::move(data)} {}
-      
-LoraModuleTransport::SendTcpAction::SendTcpAction(ActionContext action_context,
-                                             LoraModuleTransport& transport,
-                                             DataBuffer data)
+
+LoraModuleTransport::SendTcpAction::SendTcpAction(
+    ActionContext action_context, LoraModuleTransport& transport,
+    DataBuffer data)
     : LoraModuleSend{action_context, transport, std::move(data)} {}
-    
+
 void LoraModuleTransport::SendTcpAction::Send() {
   if (state_ == State::kInProgress) {
     return;
@@ -79,19 +80,19 @@ void LoraModuleTransport::SendTcpAction::Send() {
   }
 }
 
-LoraModuleTransport::SendUdpAction::SendUdpAction(ActionContext action_context,
-                                             LoraModuleTransport& transport,
-                                             DataBuffer data)
+LoraModuleTransport::SendUdpAction::SendUdpAction(
+    ActionContext action_context, LoraModuleTransport& transport,
+    DataBuffer data)
     : LoraModuleSend{action_context, transport, std::move(data)} {}
-    
+
 void LoraModuleTransport::SendUdpAction::Send() {
   if (state_ == State::kInProgress) {
     return;
   }
   state_ = State::kInProgress;
 
-  auto write_action =
-      transport_->lora_module_driver_->WritePacket(transport_->connection_, data_);
+  auto write_action = transport_->lora_module_driver_->WritePacket(
+      transport_->connection_, data_);
 
   if (!write_action) {
     state_ = State::kFailed;
@@ -116,8 +117,8 @@ void LoraModuleTransport::SendUdpAction::Send() {
 }
 
 LoraModuleTransport::LoraModuleTransport(ActionContext action_context,
-                               ILoraModuleDriver& lora_module_driver,
-                               UnifiedAddress address)
+                                         ILoraModuleDriver& lora_module_driver,
+                                         UnifiedAddress address)
     : action_context_{action_context},
       lora_module_driver_{&lora_module_driver},
       address_{std::move(address)},
@@ -125,7 +126,8 @@ LoraModuleTransport::LoraModuleTransport(ActionContext action_context,
           std::visit([](auto const& arg) { return arg.protocol; }, address_)},
       stream_info_{},
       send_action_queue_manager_{action_context_} {
-  AE_TELE_INFO(kLoraModuleTransport, "Lora module transport created for {}", address_);
+  AE_TELE_INFO(kLoraModuleTransport, "Lora module transport created for {}",
+               address_);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = (protocol_ == Protocol::kTcp);
   stream_info_.max_element_size = 2 * kMaxPacketSize;
@@ -143,7 +145,8 @@ LoraModuleTransport::stream_update_event() {
 
 StreamInfo LoraModuleTransport::stream_info() const { return stream_info_; }
 
-LoraModuleTransport::OutDataEvent::Subscriber LoraModuleTransport::out_data_event() {
+LoraModuleTransport::OutDataEvent::Subscriber
+LoraModuleTransport::out_data_event() {
   return out_data_event_;
 }
 
@@ -243,7 +246,7 @@ void LoraModuleTransport::Disconnect() {
 }
 
 void LoraModuleTransport::DataReceived(ConnectionLoraIndex connection,
-                                  DataBuffer const& data_in) {
+                                       DataBuffer const& data_in) {
   if (connection_ != connection) {
     return;
   }
@@ -258,7 +261,8 @@ void LoraModuleTransport::DataReceivedTcp(DataBuffer const& data_in) {
   data_packet_collector_.AddData(data_in.data(), data_in.size());
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG(kLoraModuleTransportReceive, "Receive data size {}", data.size());
+    AE_TELE_DEBUG(kLoraModuleTransportReceive, "Receive data size {}",
+                  data.size());
     out_data_event_.Emit(data);
   }
 }

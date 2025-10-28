@@ -68,15 +68,16 @@ EbyteE22LoraModule::OpenNetwork(ae::Protocol /* protocol*/,
 // void EbyteE22LoraModule::CloseNetwork(
 //    ae::ConnectionLoraIndex /*connect_index*/){};
 
-//void EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
-//                                     ae::DataBuffer const& /*data*/) {};
+// void EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex
+// /*connect_index*/,
+//                                      ae::DataBuffer const& /*data*/) {};
 
-//DataBuffer EbyteE22LoraModule::ReadPacket(
-//    ae::ConnectionLoraIndex /*connect_index*/, ae::Duration /*timeout*/) {
-//  DataBuffer data{};
+// DataBuffer EbyteE22LoraModule::ReadPacket(
+//     ae::ConnectionLoraIndex /*connect_index*/, ae::Duration /*timeout*/) {
+//   DataBuffer data{};
 //
-//  return data;
-//};
+//   return data;
+// };
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetPowerSaveParam(std::string const& /*psp*/) {

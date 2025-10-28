@@ -30,7 +30,7 @@
 #include "aether/lora_modules/lora_module_driver_types.h"
 
 namespace ae {
-class ILoraModuleDriver{
+class ILoraModuleDriver {
  public:
   using LoraModuleOperation = NotifyAction;
   using WriteOperation = NotifyAction;

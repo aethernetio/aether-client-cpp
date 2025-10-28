@@ -20,7 +20,8 @@
 #include "aether/config.h"
 #include "aether/lora_modules/lora_module_factory.h"
 
-#if (AE_LORA_MODULE_ENABLED == 1) && ((AE_SUPPORT_TCP == 1) || (AE_SUPPORT_UDP == 1))
+#if (AE_LORA_MODULE_ENABLED == 1) && \
+    ((AE_SUPPORT_TCP == 1) || (AE_SUPPORT_UDP == 1))
 #  define LORA_MODULE_TRANSPORT_ENABLED 1
 
 #  include "aether/actions/action.h"
@@ -38,7 +39,7 @@ class LoraModuleTransport final : public ByteIStream {
   class LoraModuleSend : public SocketPacketSendAction {
    public:
     LoraModuleSend(ActionContext action_context, LoraModuleTransport& transport,
-              DataBuffer data);
+                   DataBuffer data);
 
    protected:
     LoraModuleTransport* transport_;
@@ -62,14 +63,15 @@ class LoraModuleTransport final : public ByteIStream {
                   DataBuffer data);
 
     void Send() override;
-    
-    private:
+
+   private:
     Subscription send_sub_;
   };
 
  public:
-  LoraModuleTransport(ActionContext action_context, ILoraModuleDriver& lora_module_driver,
-                 UnifiedAddress address);
+  LoraModuleTransport(ActionContext action_context,
+                      ILoraModuleDriver& lora_module_driver,
+                      UnifiedAddress address);
   ~LoraModuleTransport() override;
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
@@ -87,7 +89,7 @@ class LoraModuleTransport final : public ByteIStream {
   void DataReceived(ConnectionLoraIndex connection, DataBuffer const& data_in);
   void DataReceivedTcp(DataBuffer const& data_in);
   void DataReceivedUdp(DataBuffer const& data_in);
-  
+
   ActionContext action_context_;
   ILoraModuleDriver* lora_module_driver_;
   UnifiedAddress address_;
@@ -96,7 +98,8 @@ class LoraModuleTransport final : public ByteIStream {
   StreamInfo stream_info_;
 
   ConnectionLoraIndex connection_ = kInvalidConnectionLoraIndex;
-  OwnActionPtr<SocketPacketQueueManager<LoraModuleSend>> send_action_queue_manager_;
+  OwnActionPtr<SocketPacketQueueManager<LoraModuleSend>>
+      send_action_queue_manager_;
   StreamDataPacketCollector data_packet_collector_;
 
   OutDataEvent out_data_event_;

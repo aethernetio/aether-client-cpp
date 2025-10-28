@@ -33,9 +33,9 @@ namespace ae {
 
 class EbyteE22LoraModule final : public ILoraModuleDriver {
   static constexpr std::uint16_t kLoraModuleMTU{400};
-  
+
  public:
-  explicit EbyteE22LoraModule(ActionContext action_context, 
+  explicit EbyteE22LoraModule(ActionContext action_context,
                               IPoller::ptr const& poller,
                               LoraModuleInit lora_module_init);
   ~EbyteE22LoraModule() override;
@@ -43,21 +43,28 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
   ActionPtr<LoraModuleOperation> Start() override;
   ActionPtr<LoraModuleOperation> Stop() override;
   ActionPtr<OpenNetworkOperation> OpenNetwork(ae::Protocol protocol,
-                                  std::string const& host,
-                                  std::uint16_t port) override;
-  ActionPtr<LoraModuleOperation> CloseNetwork(ae::ConnectionLoraIndex connect_index) override;
-  ActionPtr<LoraModuleOperation> WritePacket(ae::ConnectionLoraIndex connect_index,
-                   ae::DataBuffer const& data) override;
-  
+                                              std::string const& host,
+                                              std::uint16_t port) override;
+  ActionPtr<LoraModuleOperation> CloseNetwork(
+      ae::ConnectionLoraIndex connect_index) override;
+  ActionPtr<LoraModuleOperation> WritePacket(
+      ae::ConnectionLoraIndex connect_index,
+      ae::DataBuffer const& data) override;
+
   DataEvent::Subscriber data_event() override;
-  
+
   ActionPtr<LoraModuleOperation> SetPowerSaveParam(std::string const& psp);
   ActionPtr<LoraModuleOperation> PowerOff() override;
-  ActionPtr<LoraModuleOperation> SetLoraModuleAddress(std::uint16_t const& address);  // Module address
-  ActionPtr<LoraModuleOperation> SetLoraModuleChannel(std::uint8_t const& channel);   // Module channel
-  ActionPtr<LoraModuleOperation> SetLoraModuleMode(kLoraModuleMode const& mode);      // Module mode
-  ActionPtr<LoraModuleOperation> SetLoraModuleLevel(kLoraModuleLevel const& level);   // Module level
-  ActionPtr<LoraModuleOperation> SetLoraModulePower(kLoraModulePower const& power);   // Module power
+  ActionPtr<LoraModuleOperation> SetLoraModuleAddress(
+      std::uint16_t const& address);  // Module address
+  ActionPtr<LoraModuleOperation> SetLoraModuleChannel(
+      std::uint8_t const& channel);  // Module channel
+  ActionPtr<LoraModuleOperation> SetLoraModuleMode(
+      kLoraModuleMode const& mode);  // Module mode
+  ActionPtr<LoraModuleOperation> SetLoraModuleLevel(
+      kLoraModuleLevel const& level);  // Module level
+  ActionPtr<LoraModuleOperation> SetLoraModulePower(
+      kLoraModulePower const& power);  // Module power
   ActionPtr<LoraModuleOperation> SetLoraModuleBandWidth(
       kLoraModuleBandWidth const& band_width);  // Module BandWidth
   ActionPtr<LoraModuleOperation> SetLoraModuleCodingRate(
@@ -76,7 +83,7 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
   void SetupPoll();
   ActionPtr<IPipeline> Poll();
   void PollEvent(std::int32_t handle, std::string_view flags);
-  
+
   ActionContext action_context_;
   LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;

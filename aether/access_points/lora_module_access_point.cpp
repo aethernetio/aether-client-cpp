@@ -22,8 +22,8 @@
 #include "aether/channels/lora_module_channel.h"
 
 namespace ae {
-LoraModuleConnectAction::LoraModuleConnectAction(ActionContext action_context,
-                                       [[maybe_unused]] ILoraModuleDriver& driver)
+LoraModuleConnectAction::LoraModuleConnectAction(
+    ActionContext action_context, [[maybe_unused]] ILoraModuleDriver& driver)
     : Action{action_context}, driver_{&driver}, state_{State::kStart} {
   AE_TELED_DEBUG("LoraModuleConnectAction created");
 }
@@ -65,9 +65,9 @@ void LoraModuleConnectAction::Start() {
   });
 }
 
-LoraModuleAccessPoint::LoraModuleAccessPoint(ObjPtr<Aether> aether,
-                                   LoraModuleAdapter::ptr lora_module_adapter,
-                                   Domain* domain)
+LoraModuleAccessPoint::LoraModuleAccessPoint(
+    ObjPtr<Aether> aether, LoraModuleAdapter::ptr lora_module_adapter,
+    Domain* domain)
     : AccessPoint{domain},
       aether_{std::move(aether)},
       lora_module_adapter_{std::move(lora_module_adapter)} {}

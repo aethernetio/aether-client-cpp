@@ -31,17 +31,18 @@ class Aether;
 
 class LoraModuleConnectAction final : public Action<LoraModuleConnectAction> {
  public:
-    enum class State : std::uint8_t {
+  enum class State : std::uint8_t {
     kStart,
     kSuccess,
     kFailed,
   };
 
-  LoraModuleConnectAction(ActionContext action_context, ILoraModuleDriver& driver);
+  LoraModuleConnectAction(ActionContext action_context,
+                          ILoraModuleDriver& driver);
 
   UpdateStatus Update();
 
-  private:
+ private:
   void Start();
 
   ILoraModuleDriver* driver_;
@@ -54,8 +55,9 @@ class LoraModuleAccessPoint final : public AccessPoint {
   LoraModuleAccessPoint() = default;
 
  public:
-  LoraModuleAccessPoint(ObjPtr<Aether> aether, LoraModuleAdapter::ptr lora_module_adapter,
-                   Domain* domain);
+  LoraModuleAccessPoint(ObjPtr<Aether> aether,
+                        LoraModuleAdapter::ptr lora_module_adapter,
+                        Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, lora_module_adapter_));
 
