@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_
-#define AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_
+#ifndef AETHER_ACCESS_POINTS_LORA_MODULE_ACCESS_POINT_H_
+#define AETHER_ACCESS_POINTS_LORA_MODULE_ACCESS_POINT_H_
 
 #include "aether/obj/obj.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/types/state_machine.h"
-#include "aether/modems/imodem_driver.h"
-#include "aether/adapters/modem_adapter.h"
+#include "aether/lora_modules/ilora_module_driver.h"
+#include "aether/adapters/lora_module_adapter.h"
 #include "aether/events/event_subscription.h"
 #include "aether/access_points/access_point.h"
 
 namespace ae {
 class Aether;
 
-class ModemConnectAction final : public Action<ModemConnectAction> {
+class LoraModuleConnectAction final : public Action<LoraModuleConnectAction> {
  public:
   enum class State : std::uint8_t {
     kStart,
@@ -37,40 +37,42 @@ class ModemConnectAction final : public Action<ModemConnectAction> {
     kFailed,
   };
 
-  ModemConnectAction(ActionContext action_context, IModemDriver& driver);
+  LoraModuleConnectAction(ActionContext action_context,
+                          ILoraModuleDriver& driver);
 
   UpdateStatus Update();
 
  private:
   void Start();
 
-  IModemDriver* driver_;
+  ILoraModuleDriver* driver_;
   Subscription start_sub_;
   StateMachine<State> state_;
 };
 
-class ModemAccessPoint final : public AccessPoint {
-  AE_OBJECT(ModemAccessPoint, AccessPoint, 0)
-  ModemAccessPoint() = default;
+class LoraModuleAccessPoint final : public AccessPoint {
+  AE_OBJECT(LoraModuleAccessPoint, AccessPoint, 0)
+  LoraModuleAccessPoint() = default;
 
  public:
-  ModemAccessPoint(ObjPtr<Aether> aether, ModemAdapter::ptr modem_adapter,
-                   Domain* domain);
+  LoraModuleAccessPoint(ObjPtr<Aether> aether,
+                        LoraModuleAdapter::ptr lora_module_adapter,
+                        Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, modem_adapter_));
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, lora_module_adapter_));
 
-  ActionPtr<ModemConnectAction> Connect();
-  IModemDriver& modem_driver();
+  ActionPtr<LoraModuleConnectAction> Connect();
+  ILoraModuleDriver& lora_module_driver();
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
       std::vector<UnifiedAddress> const& endpoints) override;
 
  private:
   Obj::ptr aether_;
-  ModemAdapter::ptr modem_adapter_;
-  ActionPtr<ModemConnectAction> connect_action_;
+  LoraModuleAdapter::ptr lora_module_adapter_;
+  ActionPtr<LoraModuleConnectAction> connect_action_;
   Subscription connect_sub_;
 };
 }  // namespace ae
 
-#endif  // AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_
+#endif  // AETHER_ACCESS_POINTS_LORA_MODULE_ACCESS_POINT_H_

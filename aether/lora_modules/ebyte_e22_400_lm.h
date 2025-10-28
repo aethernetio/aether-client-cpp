@@ -17,65 +17,85 @@
 #ifndef AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
 #define AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
 
+#include <set>
 #include <memory>
 
-#include "aether/lora_modules/ilora_module_driver.h"
-#include "aether/adapters/lora_module_adapter.h"
+#include "aether/poller/poller.h"
+#include "aether/actions/pipeline.h"
+#include "aether/actions/actions_queue.h"
+#include "aether/actions/repeatable_task.h"
 #include "aether/serial_ports/iserial_port.h"
-#include "aether/serial_ports/at_comm_support.h"
+#include "aether/serial_ports/at_support/at_support.h"
+
+#include "aether/lora_modules/ilora_module_driver.h"
 
 namespace ae {
 
 class EbyteE22LoraModule final : public ILoraModuleDriver {
-  AE_OBJECT(EbyteE22LoraModule, ILoraModuleDriver, 0)
-
- protected:
-  EbyteE22LoraModule() = default;
+  static constexpr std::uint16_t kLoraModuleMTU{400};
 
  public:
-  explicit EbyteE22LoraModule(LoraModuleAdapter& adapter, IPoller::ptr poller,
-                              LoraModuleInit lora_module_init, Domain* domain);
-  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
+  explicit EbyteE22LoraModule(ActionContext action_context,
+                              IPoller::ptr const& poller,
+                              LoraModuleInit lora_module_init);
+  ~EbyteE22LoraModule() override;
 
-  bool Init() override;
-  bool Start() override;
-  bool Stop() override;
-  ConnectionLoraIndex OpenNetwork(ae::Protocol protocol,
-                                  std::string const& host,
-                                  std::uint16_t port) override;
-  void CloseNetwork(ae::ConnectionLoraIndex connect_index) override;
-  void WritePacket(ae::ConnectionLoraIndex connect_index,
-                   ae::DataBuffer const& data) override;
-  DataBuffer ReadPacket(ae::ConnectionLoraIndex connect_index,
-                        ae::Duration timeout) override;
-  bool SetPowerSaveParam(std::string const& psp) override;
-  bool PowerOff() override;
-  bool SetLoraModuleAddress(std::uint16_t const& address);  // Module address
-  bool SetLoraModuleChannel(std::uint8_t const& channel);   // Module channel
-  bool SetLoraModuleMode(kLoraModuleMode const& mode);      // Module mode
-  bool SetLoraModuleLevel(kLoraModuleLevel const& level);   // Module level
-  bool SetLoraModulePower(kLoraModulePower const& power);   // Module power
-  bool SetLoraModuleBandWidth(
+  ActionPtr<LoraModuleOperation> Start() override;
+  ActionPtr<LoraModuleOperation> Stop() override;
+  ActionPtr<OpenNetworkOperation> OpenNetwork(ae::Protocol protocol,
+                                              std::string const& host,
+                                              std::uint16_t port) override;
+  ActionPtr<LoraModuleOperation> CloseNetwork(
+      ae::ConnectionLoraIndex connect_index) override;
+  ActionPtr<LoraModuleOperation> WritePacket(
+      ae::ConnectionLoraIndex connect_index,
+      ae::DataBuffer const& data) override;
+
+  DataEvent::Subscriber data_event() override;
+
+  ActionPtr<LoraModuleOperation> SetPowerSaveParam(std::string const& psp);
+  ActionPtr<LoraModuleOperation> PowerOff() override;
+  ActionPtr<LoraModuleOperation> SetLoraModuleAddress(
+      std::uint16_t const& address);  // Module address
+  ActionPtr<LoraModuleOperation> SetLoraModuleChannel(
+      std::uint8_t const& channel);  // Module channel
+  ActionPtr<LoraModuleOperation> SetLoraModuleMode(
+      kLoraModuleMode const& mode);  // Module mode
+  ActionPtr<LoraModuleOperation> SetLoraModuleLevel(
+      kLoraModuleLevel const& level);  // Module level
+  ActionPtr<LoraModuleOperation> SetLoraModulePower(
+      kLoraModulePower const& power);  // Module power
+  ActionPtr<LoraModuleOperation> SetLoraModuleBandWidth(
       kLoraModuleBandWidth const& band_width);  // Module BandWidth
-  bool SetLoraModuleCodingRate(
+  ActionPtr<LoraModuleOperation> SetLoraModuleCodingRate(
       kLoraModuleCodingRate const& coding_rate);  // Module CodingRate
-  bool SetLoraModuleSpreadingFactor(
+  ActionPtr<LoraModuleOperation> SetLoraModuleSpreadingFactor(
       kLoraModuleSpreadingFactor const&
           spreading_factor);  // Module spreading factor
-  bool SetLoraModuleCRCCheck(
+  ActionPtr<LoraModuleOperation> SetLoraModuleCRCCheck(
       kLoraModuleCRCCheck const& crc_check);  // Module crc check
-  bool SetLoraModuleIQSignalInversion(
+  ActionPtr<LoraModuleOperation> SetLoraModuleIQSignalInversion(
       kLoraModuleIQSignalInversion const&
           signal_inversion);  // Module signal inversion
 
  private:
+  void Init();
+  void SetupPoll();
+  ActionPtr<IPipeline> Poll();
+  void PollEvent(std::int32_t handle, std::string_view flags);
+
+  ActionContext action_context_;
+  LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::vector<LoraConnection> connect_vec_;
-  std::unique_ptr<AtCommSupport> at_comm_support_;
-  LoraModuleAdapter* adapter_;
+  AtSupport at_comm_support_;
+  DataEvent data_event_;
+  ActionPtr<RepeatableTask> poll_task_;
+  std::unique_ptr<AtListener> poll_listener_;
+  OwnActionPtr<ActionsQueue> operation_queue_;
+  bool initiated_;
+  bool started_;
   bool at_mode_{false};
-
-  static constexpr std::uint16_t kLoraModuleMTU{200};
 };
 
 } /* namespace ae */

@@ -36,6 +36,9 @@ struct GlobalId {
   static constexpr ObjId kRegisterWifiAdapter = kGlobalIdAdaptersOffset + 4;
   static constexpr ObjId kModemAdapter = kGlobalIdAdaptersOffset + 5;
   static constexpr ObjId kRegisterModemAdapter = kGlobalIdAdaptersOffset + 6;
+  static constexpr ObjId kLoraModuleAdapter = kGlobalIdAdaptersOffset + 7;
+  static constexpr ObjId kRegisterLoraModuleAdapter =
+      kGlobalIdAdaptersOffset + 8;
 
   static constexpr ObjId kServerFactory = kGlobalIdFactoriesOffset + 0;
   static constexpr ObjId kClientFactory = kGlobalIdFactoriesOffset + 1;

@@ -20,44 +20,39 @@
 #include <string>
 #include <cstdint>
 
-#include "aether/obj/obj.h"
 #include "aether/types/address.h"
+#include "aether/events/events.h"
+#include "aether/actions/action.h"
 #include "aether/types/data_buffer.h"
+#include "aether/actions/action_ptr.h"
+#include "aether/actions/notify_action.h"
+#include "aether/actions/promise_action.h"
 #include "aether/lora_modules/lora_module_driver_types.h"
-#include "aether/poller/poller.h"
 
 namespace ae {
-class ILoraModuleDriver : public Obj {
-  AE_OBJECT(ILoraModuleDriver, Obj, 0)
-
- protected:
-  ILoraModuleDriver() = default;
-
+class ILoraModuleDriver {
  public:
-  ILoraModuleDriver(IPoller::ptr poller, LoraModuleInit lora_module_init,
-                    Domain* /* domain */);
-  ~ILoraModuleDriver() override = default;
-  AE_OBJECT_REFLECT(AE_MMBRS(lora_module_init_))
+  using LoraModuleOperation = NotifyAction;
+  using WriteOperation = NotifyAction;
+  using OpenNetworkOperation = PromiseAction<ConnectionLoraIndex>;
+  using DataEvent = Event<void(ConnectionLoraIndex, DataBuffer const& data)>;
 
-  virtual bool Init();
-  virtual bool Start();
-  virtual bool Stop();
-  virtual ConnectionLoraIndex OpenNetwork(Protocol /*protocol*/,
-                                          std::string const& /*host*/,
-                                          std::uint16_t /*port*/);
-  virtual void CloseNetwork(ConnectionLoraIndex /*connect_index*/);
-  virtual void WritePacket(ConnectionLoraIndex /*connect_index*/,
-                           DataBuffer const& /*data*/);
-  virtual DataBuffer ReadPacket(ConnectionLoraIndex /*connect_index*/,
-                                Duration /*timeout*/);
+  virtual ~ILoraModuleDriver() = default;
 
-  virtual bool SetPowerSaveParam(std::string const& /*psp*/);
-  virtual bool PowerOff();
+  virtual ActionPtr<LoraModuleOperation> Start() = 0;
+  virtual ActionPtr<LoraModuleOperation> Stop() = 0;
+  virtual ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
+                                                      std::string const& host,
+                                                      std::uint16_t port) = 0;
+  virtual ActionPtr<LoraModuleOperation> CloseNetwork(
+      ConnectionLoraIndex connect_index) = 0;
+  virtual ActionPtr<LoraModuleOperation> WritePacket(
+      ConnectionLoraIndex connect_index, DataBuffer const& data) = 0;
+  virtual DataEvent::Subscriber data_event() = 0;
 
-  LoraModuleInit GetLoraModuleInit();
-
- private:
-  LoraModuleInit lora_module_init_;
+  virtual ActionPtr<LoraModuleOperation> SetPowerSaveParam(
+      LoraPowerSaveParam const& psp) = 0;
+  virtual ActionPtr<LoraModuleOperation> PowerOff() = 0;
 };
 
 } /* namespace ae */

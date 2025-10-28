@@ -15,108 +15,135 @@
  */
 
 #include "aether/lora_modules/ebyte_e22_400_lm.h"
+
+#include <bitset>
+#include <string_view>
+
+#include "aether/misc/defer.h"
+#include "aether/misc/from_chars.h"
+#include "aether/actions/pipeline.h"
+#include "aether/actions/gen_action.h"
+#include "aether/mstream_buffers.h"
 #include "aether/serial_ports/serial_port_factory.h"
 
 #include "aether/lora_modules/lora_modules_tele.h"
 
 namespace ae {
+static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
+static constexpr Duration kTwoSeconds = std::chrono::milliseconds{2000};
+static constexpr Duration kTenSeconds = std::chrono::milliseconds{10000};
 
-EbyteE22LoraModule::EbyteE22LoraModule(LoraModuleAdapter& adapter,
-                                       IPoller::ptr poller,
-                                       LoraModuleInit lora_module_init,
-                                       Domain* domain)
-    : ILoraModuleDriver{std::move(poller), std::move(lora_module_init), domain},
-      adapter_{&adapter} {
-  serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
-                                          adapter_->poller_,
-                                          GetLoraModuleInit().serial_init);
+EbyteE22LoraModule::EbyteE22LoraModule(ActionContext action_context,
+                                       IPoller::ptr const& poller,
+                                       LoraModuleInit lora_module_init)
+    : action_context_{action_context},
+      lora_module_init_{std::move(lora_module_init)},
+      serial_{SerialPortFactory::CreatePort(action_context_, std::move(poller),
+                                            lora_module_init_.serial_init)},
+      at_comm_support_{action_context_, *serial_},
+      operation_queue_{action_context_},
+      initiated_{false},
+      started_{false} {
+  Init();
+  Start();
+}
+
+EbyteE22LoraModule::~EbyteE22LoraModule() { Stop(); }
+
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation> EbyteE22LoraModule::Start() {
+  return {};
 };
 
-bool EbyteE22LoraModule::Init() { return true; };
-
-bool EbyteE22LoraModule::Start() { return true; };
-
-bool EbyteE22LoraModule::Stop() { return true; };
-
-ConnectionLoraIndex EbyteE22LoraModule::OpenNetwork(ae::Protocol /* protocol*/, std::string const& /*host*/,
-                                                    std::uint16_t /* port*/) { 
-                                
-  ConnectionLoraIndex index{-1};
-  
-  return index; };
-
-void EbyteE22LoraModule::CloseNetwork(
-    ae::ConnectionLoraIndex /*connect_index*/) {};
-
-void EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
-                 ae::DataBuffer const& /*data*/) {};
-
-DataBuffer EbyteE22LoraModule::ReadPacket(
-    ae::ConnectionLoraIndex /*connect_index*/,
-                      ae::Duration /*timeout*/) { 
-  DataBuffer data{};
-  
-  return data; };
-
-bool EbyteE22LoraModule::SetPowerSaveParam(std::string const& /*psp*/) {
-  return true;
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation> EbyteE22LoraModule::Stop() {
+  return {};
 };
 
-bool EbyteE22LoraModule::PowerOff() { return true; };
-
-bool EbyteE22LoraModule::SetLoraModuleAddress(
-    std::uint16_t const& /*address*/) {
-  return true;
+ActionPtr<EbyteE22LoraModule::OpenNetworkOperation>
+EbyteE22LoraModule::OpenNetwork(ae::Protocol /* protocol*/,
+                                std::string const& /*host*/,
+                                std::uint16_t /* port*/) {
+  return {};
 };
 
-bool EbyteE22LoraModule::SetLoraModuleChannel(std::uint8_t const& /*channel*/)
-{
-  return true;
+// void EbyteE22LoraModule::CloseNetwork(
+//    ae::ConnectionLoraIndex /*connect_index*/){};
+
+// void EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex
+// /*connect_index*/,
+//                                      ae::DataBuffer const& /*data*/) {};
+
+// DataBuffer EbyteE22LoraModule::ReadPacket(
+//     ae::ConnectionLoraIndex /*connect_index*/, ae::Duration /*timeout*/) {
+//   DataBuffer data{};
+//
+//   return data;
+// };
+
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetPowerSaveParam(std::string const& /*psp*/) {
+  return {};
 };
 
-bool EbyteE22LoraModule::SetLoraModuleMode(kLoraModuleMode const& /*mode*/)
-{
-  return true;
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::PowerOff() {
+  return {};
 };
 
-bool EbyteE22LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& /*level*/)
-{
-  return true;
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetLoraModuleAddress(std::uint16_t const& /*address*/) {
+  return {};
 };
 
-bool EbyteE22LoraModule::SetLoraModulePower(kLoraModulePower const& /*power*/)
-{
-  return true;
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetLoraModuleChannel(std::uint8_t const& /*channel*/) {
+  return {};
 };
 
-bool EbyteE22LoraModule::SetLoraModuleBandWidth(
-    kLoraModuleBandWidth const& /*band_width*/)
-{
-  return true;
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetLoraModuleMode(kLoraModuleMode const& /*mode*/) {
+  return {};
 };
 
-bool EbyteE22LoraModule::SetLoraModuleCodingRate(
-    kLoraModuleCodingRate const& /*coding_rate*/)
-{
-  return true;
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& /*level*/) {
+  return {};
 };
 
-bool EbyteE22LoraModule::SetLoraModuleSpreadingFactor(
-    kLoraModuleSpreadingFactor const& /*spreading_factor*/)
-{
-  return true;
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetLoraModulePower(kLoraModulePower const& /*power*/) {
+  return {};
 };
 
-bool EbyteE22LoraModule::SetLoraModuleCRCCheck(
-    kLoraModuleCRCCheck const& /*crc_check*/)
-{
-  return true;
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetLoraModuleBandWidth(
+    kLoraModuleBandWidth const& /*band_width*/) {
+  return {};
 };
 
-bool EbyteE22LoraModule::SetLoraModuleIQSignalInversion(
-    kLoraModuleIQSignalInversion const& /*signal_inversion*/)
-{
-  return true;
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetLoraModuleCodingRate(
+    kLoraModuleCodingRate const& /*coding_rate*/) {
+  return {};
 };
+
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetLoraModuleSpreadingFactor(
+    kLoraModuleSpreadingFactor const& /*spreading_factor*/) {
+  return {};
+};
+
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetLoraModuleCRCCheck(
+    kLoraModuleCRCCheck const& /*crc_check*/) {
+  return {};
+};
+
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::SetLoraModuleIQSignalInversion(
+    kLoraModuleIQSignalInversion const& /*signal_inversion*/) {
+  return {};
+};
+
+void EbyteE22LoraModule::Init() {};
 
 }  // namespace ae

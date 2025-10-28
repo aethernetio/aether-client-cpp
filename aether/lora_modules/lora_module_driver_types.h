@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
-#define AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
+#ifndef AETHER_LORA_MODULES_LORA_MODULE_DRIVER_TYPES_H_
+#define AETHER_LORA_MODULES_LORA_MODULE_DRIVER_TYPES_H_
+
+#include <string>
+#include <vector>
 
 #include "aether/reflect/reflect.h"
 #include "aether/serial_ports/serial_port_types.h"
@@ -111,16 +114,10 @@ enum class kLoraModuleIQSignalInversion : std::int8_t {
 };
 
 // ========================lora module init=====================================
-struct LoraModuleInit {
-  AE_REFLECT_MEMBERS(serial_init, lora_module_my_adress, lora_module_bs_adress,
-                     lora_module_channel, lora_module_mode, lora_module_level,
-                     lora_module_power, lora_module_band_width,
-                     lora_module_coding_rate, lora_module_spreading_factor,
-                     lora_module_crc_check, lora_module_signal_inversion)
-  SerialInit serial_init;
-  std::uint16_t lora_module_my_adress{0};
-  std::uint16_t lora_module_bs_adress{0};
-  std::uint8_t lora_module_channel{0};
+struct LoraPowerSaveParam {
+  AE_REFLECT_MEMBERS(lora_module_mode, lora_module_level, lora_module_power,
+                     lora_module_band_width, lora_module_coding_rate,
+                     lora_module_spreading_factor)
   kLoraModuleMode lora_module_mode{kLoraModuleMode::kTransparentTransmission};
   kLoraModuleLevel lora_module_level{kLoraModuleLevel::kLevel0};
   kLoraModulePower lora_module_power{kLoraModulePower::kPower22};
@@ -129,6 +126,17 @@ struct LoraModuleInit {
   kLoraModuleCodingRate lora_module_coding_rate{kLoraModuleCodingRate::kCR4_6};
   kLoraModuleSpreadingFactor lora_module_spreading_factor{
       kLoraModuleSpreadingFactor::kSF12};
+};
+
+struct LoraModuleInit {
+  AE_REFLECT_MEMBERS(serial_init, psp, lora_module_my_adress,
+                     lora_module_bs_adress, lora_module_channel,
+                     lora_module_crc_check, lora_module_signal_inversion)
+  SerialInit serial_init;
+  LoraPowerSaveParam psp;
+  std::uint16_t lora_module_my_adress{0};
+  std::uint16_t lora_module_bs_adress{0};
+  std::uint8_t lora_module_channel{0};
   kLoraModuleCRCCheck lora_module_crc_check{kLoraModuleCRCCheck::kCRCOff};
   kLoraModuleIQSignalInversion lora_module_signal_inversion{
       kLoraModuleIQSignalInversion::kIQoff};
@@ -154,4 +162,4 @@ struct LoraPacket {
 };
 }  // namespace ae
 
-#endif  // AETHER_LORA_MODULES_LORA_DRIVER_TYPES_H_
+#endif  // AETHER_LORA_MODULES_LORA_MODULE_DRIVER_TYPES_H_
