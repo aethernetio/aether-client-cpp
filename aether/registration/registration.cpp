@@ -54,15 +54,12 @@ Registration::Registration(ActionContext action_context,
       server_reg_root_api_{protocol_context_, action_context_,
                            *root_crypto_provider_->encryptor(),
                            *global_crypto_provider_->encryptor()},
-      root_server_select_stream_{action_context_, aether, reg_cloud},
+      root_server_select_stream_{action_context_, reg_cloud},
       state_{State::kInitConnection},
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
       sign_pk_{aether_.Lock()->crypto->signs_pk_[kDefaultSignatureMethod]} {
   AE_TELE_INFO(RegisterStarted);
-
-  auto aether_ptr = aether_.Lock();
-  assert(aether_ptr);
 
   // parent uid must not be empty
   assert(!parent_uid_.empty());

@@ -26,7 +26,7 @@
 #include "aether/types/state_machine.h"
 #include "aether/ae_actions/get_client_cloud.h"
 #include "aether/work_cloud_api/server_descriptor.h"
-#include "aether/connection_manager/client_connection_manager.h"
+#include "aether/client_connections/cloud_connection.h"
 
 #include "aether/client_connections/client_connections_tele.h"
 
@@ -55,17 +55,17 @@ class GetCloudFromAether : public GetCloudAction {
     kStopped,
   };
 
-  explicit GetCloudFromAether(
-      ActionContext action_context, ClientCloudManager& client_cloud_manager,
-      ClientConnectionManager& client_connection_manager, Uid client_uid)
+  explicit GetCloudFromAether(ActionContext action_context,
+                              ClientCloudManager& client_cloud_manager,
+                              CloudConnection& cloud_connection, Uid client_uid)
       : GetCloudAction{action_context},
         action_context_{action_context},
         client_cloud_manager_{&client_cloud_manager},
-        client_connection_manager_{&client_connection_manager},
+        cloud_connection_{&cloud_connection},
         client_uid_{client_uid},
-        state_{State::kCloudResolve},
-        state_changed_sub_{state_.changed_event().Subscribe(
-            [this](auto&&) { Action::Trigger(); })} {}
+        state_{State::kCloudResolve} {
+    state_.changed_event().Subscribe([this](auto&&) { Action::Trigger(); });
+  }
 
   UpdateStatus Update() override {
     if (state_.changed()) {
@@ -91,26 +91,16 @@ class GetCloudFromAether : public GetCloudAction {
 
  private:
   void ResolveCloud() {
-    auto& servers = client_connection_manager_->server_connections();
-    if (server_index_ >= servers.size()) {
-      state_ = State::kError;
-      Action::Trigger();
-      return;
-    }
-
-    auto& server_connection = servers.at(server_index_++);
-
     get_client_cloud_action_ = ActionPtr<GetClientCloudAction>(
-        action_context_, server_connection.ClientConnection(), client_uid_);
+        action_context_, client_uid_, *cloud_connection_,
+        RequestPolicy::Replica{cloud_connection_->count_connections()});
+
     get_client_cloud_sub_ = get_client_cloud_action_->StatusEvent().Subscribe(
         ActionHandler{OnResult{[this](auto const& action) {
                         RegisterCloud(action.server_descriptors());
                         state_ = State::kDone;
                       }},
-                      OnError{[this]() {
-                        // try again
-                        state_ = State::kCloudResolve;
-                      }}});
+                      OnError{[this]() { state_ = State::kError; }}});
     state_ = State::kWaitCloudResolve;
   }
 
@@ -120,13 +110,11 @@ class GetCloudFromAether : public GetCloudAction {
 
   ActionContext action_context_;
   ClientCloudManager* client_cloud_manager_;
-  ClientConnectionManager* client_connection_manager_;
-  std::size_t server_index_{};
+  CloudConnection* cloud_connection_;
   Uid client_uid_;
   StateMachine<State> state_;
   ActionPtr<GetClientCloudAction> get_client_cloud_action_;
   Subscription get_client_cloud_sub_;
-  Subscription state_changed_sub_;
   Cloud::ptr cloud_;
 };
 
@@ -156,7 +144,7 @@ ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
 
   auto* client = client_.as<Client>();
   return ActionPtr<client_cloud_manager_internal::GetCloudFromAether>{
-      *aether, *this, client->connection_manager(), client_uid};
+      *aether, *this, client->cloud_connection(), client_uid};
 }
 
 Cloud::ptr ClientCloudManager::RegisterCloud(

@@ -25,10 +25,10 @@
 #include "aether/actions/action_ptr.h"
 #include "aether/types/state_machine.h"
 #include "aether/actions/repeatable_task.h"
+#include "aether/client_connections/cloud_connection.h"
 
 namespace ae {
-class ClientServerConnection;
-
+class CloudConnection;
 class CheckAccessForSendMessage final
     : public Action<CheckAccessForSendMessage> {
   static constexpr std::uint8_t kMaxRequestRepeatCount = 5;
@@ -44,9 +44,9 @@ class CheckAccessForSendMessage final
   };
 
  public:
-  CheckAccessForSendMessage(ActionContext action_context,
-                            ClientServerConnection& client_server_connection,
-                            Uid destination);
+  CheckAccessForSendMessage(ActionContext action_context, Uid destination,
+                            CloudConnection& cloud_connection,
+                            RequestPolicy::Variant request_policy);
 
   AE_CLASS_NO_COPY_MOVE(CheckAccessForSendMessage)
 
@@ -62,13 +62,13 @@ class CheckAccessForSendMessage final
   void SendError();
 
   ActionContext action_context_;
-  ClientServerConnection* client_server_connection_;
   Uid destination_;
+  CloudConnection* cloud_connection_;
+  RequestPolicy::Variant request_policy_;
 
   StateMachine<State> state_;
   ActionPtr<RepeatableTask> repeatable_task_;
   Subscription wait_check_sub_;
-  Subscription state_changed_sub_;
   Subscription send_error_sub_;
   Subscription repeat_task_error_sub_;
 };

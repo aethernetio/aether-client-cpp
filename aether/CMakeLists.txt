@@ -229,8 +229,7 @@ list(APPEND work_cloud_api_srcs
 
 
 list(APPEND client_connections_srcs
-            "client_connections/cloud_message_stream.cpp"
-)
+            "client_connections/cloud_connection.cpp")
 
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
@@ -238,21 +237,17 @@ list(APPEND server_connections_srcs
             "server_connections/server_channel.cpp"
             "server_connections/channel_manager.cpp"
             "server_connections/channel_connection.cpp"
-            "server_connections/server_connection.cpp"
-)
+            "server_connections/server_connection.cpp")
 
 list(APPEND connection_manager_srcs
             "connection_manager/client_connection_manager.cpp"
             "connection_manager/client_cloud_manager.cpp"
-            "connection_manager/server_connection_selector.cpp"
-            "connection_manager/server_connection_manager.cpp"
-)
+            "connection_manager/server_connection_manager.cpp")
 
 list(APPEND client_messages_srcs
             "client_messages/p2p_message_stream.cpp"
             "client_messages/p2p_message_stream_manager.cpp"
-            "client_messages/p2p_safe_message_stream.cpp"
-            )
+            "client_messages/p2p_safe_message_stream.cpp")
 
 list(APPEND domain_storage_srcs
             "domain_storage/domain_storage_factory.cpp"

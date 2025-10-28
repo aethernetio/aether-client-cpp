@@ -27,8 +27,9 @@
 #include "aether/types/uid.h"
 #include "aether/server_keys.h"
 
+#include "aether/ae_actions/telemetry.h"
+#include "aether/client_connections/cloud_connection.h"
 #include "aether/connection_manager/client_cloud_manager.h"
-#include "aether/client_connections/cloud_message_stream.h"
 #include "aether/client_messages/p2p_message_stream_manager.h"
 #include "aether/connection_manager/server_connection_manager.h"
 #include "aether/connection_manager/client_connection_manager.h"
@@ -55,7 +56,7 @@ class Client : public Obj {
   ClientCloudManager::ptr const& cloud_manager() const;
   ServerConnectionManager& server_connection_manager();
   ClientConnectionManager& connection_manager();
-  CloudMessageStream& cloud_message_stream();
+  CloudConnection& cloud_connection();
   P2pMessageStreamManager& message_stream_manager();
 
   void SetConfig(Uid uid, Uid ephemeral_uid, Key master_key, Cloud::ptr c);
@@ -77,6 +78,8 @@ class Client : public Obj {
         client_cloud_manager_);
   }
 
+  void SendTelemetry();
+
  private:
   Obj::ptr aether_;
   // configuration
@@ -91,8 +94,12 @@ class Client : public Obj {
   ClientCloudManager::ptr client_cloud_manager_;
   std::unique_ptr<ServerConnectionManager> server_connection_manager_;
   std::unique_ptr<ClientConnectionManager> client_connection_manager_;
-  std::unique_ptr<CloudMessageStream> cloud_message_stream_;
+  std::unique_ptr<CloudConnection> cloud_connection_;
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
+
+#if AE_TELE_ENABLED
+  ActionPtr<Telemetry> telemetry_;
+#endif
 };
 }  // namespace ae
 

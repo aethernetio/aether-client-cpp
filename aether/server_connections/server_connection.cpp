@@ -21,16 +21,44 @@
 namespace ae {
 ServerConnection::ServerConnection(ObjPtr<Server> const& server,
                                    IServerConnectionFactory& connection_factory)
-    : server_{server}, connection_factory_{&connection_factory} {}
+    : server_{server},
+      connection_factory_{&connection_factory},
+      priority_{},
+      is_connection_{},
+      is_quarantined_{} {}
 
-ClientServerConnection& ServerConnection::ClientConnection() {
-  if (!client_connection_) {
+std::size_t ServerConnection::priority() const { return priority_; }
+
+bool ServerConnection::quarantine() const { return is_quarantined_; }
+void ServerConnection::quarantine(bool value) { is_quarantined_ = value; }
+
+void ServerConnection::Restream() {
+  if (client_connection_) {
+    client_connection_->Restream();
+  }
+}
+
+void ServerConnection::BeginConnection(std::size_t priority) {
+  priority_ = priority;
+  if (!is_connection_) {
     Server::ptr server = server_.Lock();
     assert(server);
-    // TODO:  how to reset client_connection_?
+    client_connection_.Reset();
     client_connection_ = connection_factory_->CreateConnection(server);
   }
-  return *client_connection_;
+  is_connection_ = true;
+}
+
+void ServerConnection::EndConnection(std::size_t priority) {
+  priority_ = priority;
+  is_connection_ = false;
+}
+
+ClientServerConnection* ServerConnection::ClientConnection() {
+  if (client_connection_) {
+    return client_connection_.get();
+  }
+  return nullptr;
 }
 
 ObjPtr<Server> ServerConnection::server() const {

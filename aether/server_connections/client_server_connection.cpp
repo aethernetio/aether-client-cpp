@@ -95,7 +95,6 @@ class ClientCryptoProvider final : public ICryptoProvider {
 static constexpr std::size_t kBufferCapacity = 200;
 
 ClientServerConnection::ClientServerConnection(ActionContext action_context,
-                                               ObjPtr<Aether> const& aether,
                                                ObjPtr<Client> const& client,
                                                Server::ptr const& server)
     : action_context_{action_context},
@@ -106,12 +105,9 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
       client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
       login_api_{protocol_context_, action_context_,
                  *crypto_provider_->encryptor()},
-      channel_manager_{action_context_, aether, server},
+      channel_manager_{action_context_, server},
       channel_select_stream_{action_context_, channel_manager_},
       buffer_stream_{action_context_, kBufferCapacity},
-#if defined TELEMETRY_ENABLED
-      telemetry_{action_context, aether, *this},
-#endif
       server_channel_{} {
   AE_TELED_DEBUG("Client server connection");
 
@@ -123,9 +119,16 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
   SubscribeToSelectChannel();
 }
 
-ByteIStream& ClientServerConnection::stream() { return buffer_stream_; }
-
 void ClientServerConnection::Restream() { channel_select_stream_.Restream(); }
+
+StreamInfo ClientServerConnection::stream_info() const {
+  return buffer_stream_.stream_info();
+}
+
+ByteIStream::StreamUpdateEvent::Subscriber
+ClientServerConnection::stream_update_event() {
+  return buffer_stream_.stream_update_event();
+}
 
 ActionPtr<StreamWriteAction> ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
@@ -138,12 +141,6 @@ ActionPtr<StreamWriteAction> ClientServerConnection::AuthorizedApiCall(
 
 ClientApiSafe& ClientServerConnection::client_safe_api() {
   return client_api_unsafe_.client_api_safe();
-}
-
-void ClientServerConnection::SendTelemetry() {
-#if defined TELEMETRY_ENABLED
-  telemetry_->SendTelemetry();
-#endif
 }
 
 void ClientServerConnection::OutData(DataBuffer const& data) {
@@ -176,6 +173,11 @@ void ClientServerConnection::StreamUpdate() {
   ping_ =
       OwnActionPtr<Ping>{action_context_, server, server_channel_->channel(),
                          *this, std::chrono::seconds{5}};
+
+  ping_sub_ = ping_->StatusEvent().Subscribe(OnError{[this]() {
+    AE_TELED_ERROR("Ping failed");
+    channel_select_stream_.Restream();
+  }});
 }
 
 }  // namespace ae

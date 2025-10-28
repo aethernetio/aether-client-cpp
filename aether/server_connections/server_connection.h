@@ -34,11 +34,39 @@ class ServerConnection {
   ServerConnection(ObjPtr<Server> const& server,
                    IServerConnectionFactory& connection_factory);
 
+  std::size_t priority() const;
+
+  void Restream();
+
+  /**
+   * \brief It's possible to put failed server to quarantine.
+   * Server in quarantine should not be used.
+   */
+  bool quarantine() const;
+  void quarantine(bool value);
+
+  /**
+   * \brief Call to begin connection with specified priority.
+   * If connection already established, do nothing.
+   * If connection is not created, create it.
+   * \param priority the new priority value.
+   * Priority is used to sort connection in cloud for performing requests.
+   */
+  void BeginConnection(std::size_t priority);
+  /**
+   * \brief Call to end connection with specified priority.
+   * \param priority the new priority value.
+   * Priority is used to sort connection in cloud for selecting the most
+   * prioritized servers.
+   */
+  void EndConnection(std::size_t priority);
+
   /**
    * \brief The stream to write data for that server.
-   * If there is no connection object, create it.
+   * Should be called after BeginConnection.
+   * \return The client-server connection object or nullptr.
    */
-  ClientServerConnection& ClientConnection();
+  ClientServerConnection* ClientConnection();
 
   ObjPtr<Server> server() const;
 
@@ -46,6 +74,9 @@ class ServerConnection {
   PtrView<Server> server_;
   IServerConnectionFactory* connection_factory_;
   RcPtr<ClientServerConnection> client_connection_;
+  std::size_t priority_;
+  bool is_connection_;
+  bool is_quarantined_;
 };
 }  // namespace ae
 

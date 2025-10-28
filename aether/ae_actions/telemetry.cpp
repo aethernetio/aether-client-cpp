@@ -24,21 +24,24 @@
 
 #  include "aether/mstream.h"
 #  include "aether/mstream_buffers.h"
+#  include "aether/client_connections/cloud_connection.h"
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
 Telemetry::Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
-                     ClientServerConnection& client_server_connection)
+                     CloudConnection& cloud_connection)
     : Action{action_context},
       aether_{aether},
-      client_server_connection_{&client_server_connection},
-      telemetry_request_sub_{
-          client_server_connection_->client_safe_api()
-              .request_telemetry_event()
-              .Subscribe(*this, MethodPtr<&Telemetry::OnRequestTelemetry>{})},
+      cloud_connection_{&cloud_connection},
       state_{State::kWaitRequest} {
   AE_TELE_INFO(TelemetryCreated);
+  telemetry_request_sub_ = cloud_connection_->ClientApiSubscription(
+      [&](ClientApiSafe& api, ServerConnection* sever_connect) {
+        return api.request_telemetry_event().Subscribe(
+            [&]() { OnRequestTelemetry(sever_connect->priority()); });
+      },
+      RequestPolicy::Replica{cloud_connection_->max_connections()});
 }
 
 UpdateStatus Telemetry::Update() {
@@ -66,23 +69,36 @@ void Telemetry::SendTelemetry() {
   AE_TELE_DEBUG(TelemetrySending);
 
   state_ = State::kWaitRequest;
-  auto telemetry =
-      CollectTelemetry(client_server_connection_->stream().stream_info());
+  auto server_priority = request_for_priority_.value_or(0);
+
+  ClientServerConnection* con{};
+  cloud_connection_->VisitServers(
+      [&](ServerConnection* sc) { con = sc->ClientConnection(); },
+      RequestPolicy::Priority{server_priority});
+
+  if (con == nullptr) {
+    AE_TELED_ERROR("Connection for requested telemetry is null");
+    return;
+  }
+
+  auto telemetry = CollectTelemetry(con->stream_info());
   if (!telemetry) {
     AE_TELE_ERROR(TelemetryCollectFailed);
     return;
   }
 
-  client_server_connection_->AuthorizedApiCall(
-      SubApi{[&](ApiContext<AuthorizedApi>& auth_api) {
+  cloud_connection_->AuthorizedApiCall(
+      [&](ApiContext<AuthorizedApi>& auth_api, auto*) {
         auth_api->send_telemetry(std::move(*telemetry));
-      }});
+      },
+      RequestPolicy::Priority{server_priority});
 
   AE_TELE_INFO(TelemetrySent);
 }
 
-void Telemetry::OnRequestTelemetry() {
+void Telemetry::OnRequestTelemetry(std::size_t server_priority) {
   state_ = State::kSendTelemetry;
+  request_for_priority_ = server_priority;
   Action::Trigger();
 }
 
