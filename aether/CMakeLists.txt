@@ -131,7 +131,7 @@ list(APPEND access_points_srcs
 list(APPEND modems_srcs
             "modems/modem_factory.cpp"
             # "modems/bg95_at_modem.cpp"
-            # "modems/sim7070_at_modem.cpp"
+            "modems/sim7070_at_modem.cpp"
             "modems/thingy91x_at_modem.cpp"
             "modems/exponent_time.cpp")
 
