@@ -356,10 +356,15 @@ DxSmartLr02LoraModule::SetLoraModuleAddress(std::uint16_t const& address) {
 
   operation_queue_->Push(Stage([this, lora_module_operation, address]() {
     auto pipeline = MakeActionPtr<Pipeline>(
-        action_context_, Stage([this, address]() {
+        action_context_,
+        // Enter AT command mode
+        Stage([this]() { return EnterAtMode(); }),
+        Stage([this, address]() {
           return at_comm_support_.MakeRequest(
               "AT+MAC" + AdressToString(address), kWaitOk);
-        }));
+        }),
+        // Exit AT command mode
+        Stage([this]() { return ExitAtMode(); }));
 
     pipeline->StatusEvent().Subscribe(ActionHandler{
         OnResult{
@@ -383,10 +388,15 @@ DxSmartLr02LoraModule::SetLoraModuleChannel(std::uint8_t const& channel) {
 
   operation_queue_->Push(Stage([this, lora_module_operation, channel]() {
     auto pipeline = MakeActionPtr<Pipeline>(
-        action_context_, Stage([this, channel]() {
+        action_context_,
+        // Enter AT command mode
+        Stage([this]() { return EnterAtMode(); }),
+        Stage([this, channel]() {
           return at_comm_support_.MakeRequest(
               "AT+CHANNEL" + ChannelToString(channel), kWaitOk);
-        }));
+        }),
+        // Exit AT command mode
+        Stage([this]() { return ExitAtMode(); }));
 
     pipeline->StatusEvent().Subscribe(ActionHandler{
         OnResult{
@@ -407,10 +417,15 @@ DxSmartLr02LoraModule::SetLoraModuleCRCCheck(
 
   operation_queue_->Push(Stage([this, lora_module_operation, crc_check]() {
     auto pipeline = MakeActionPtr<Pipeline>(
-        action_context_, Stage([this, crc_check]() {
+        action_context_,
+        // Enter AT command mode
+        Stage([this]() { return EnterAtMode(); }),
+        Stage([this, crc_check]() {
           return at_comm_support_.MakeRequest(
               "AT+CRC" + std::to_string(static_cast<int>(crc_check)), kWaitOk);
-        }));
+        }),
+        // Exit AT command mode
+        Stage([this]() { return ExitAtMode(); }));
 
     pipeline->StatusEvent().Subscribe(ActionHandler{
         OnResult{
@@ -432,11 +447,16 @@ DxSmartLr02LoraModule::SetLoraModuleIQSignalInversion(
   operation_queue_->Push(Stage([this, lora_module_operation,
                                 signal_inversion]() {
     auto pipeline = MakeActionPtr<Pipeline>(
-        action_context_, Stage([this, signal_inversion]() {
+        action_context_,
+        // Enter AT command mode
+        Stage([this]() { return EnterAtMode(); }),
+        Stage([this, signal_inversion]() {
           return at_comm_support_.MakeRequest(
               "AT+IQ" + std::to_string(static_cast<int>(signal_inversion)),
               kWaitOk);
-        }));
+        }),
+        // Exit AT command mode
+        Stage([this]() { return ExitAtMode(); }));
 
     pipeline->StatusEvent().Subscribe(ActionHandler{
         OnResult{
