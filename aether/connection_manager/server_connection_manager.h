@@ -27,7 +27,6 @@
 #include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {
-class Aether;
 class Client;
 
 class ServerConnectionManager {
@@ -45,7 +44,6 @@ class ServerConnectionManager {
 
  public:
   ServerConnectionManager(ActionContext action_context,
-                          ObjPtr<Aether> const& aether,
                           ObjPtr<Client> const& client);
 
   std::unique_ptr<IServerConnectionFactory> GetServerConnectionFactory();
@@ -56,7 +54,6 @@ class ServerConnectionManager {
 
  private:
   ActionContext action_context_;
-  PtrView<Aether> aether_;
   PtrView<Client> client_;
   std::map<ServerId, RcPtrView<ClientServerConnection>> cached_connections_;
 };

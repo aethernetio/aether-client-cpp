@@ -20,11 +20,9 @@
 #include "aether/actions/action_context.h"
 
 #include "aether/common.h"
-// #include "aether/memory.h"
 #include "aether/ae_actions/ping.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/crypto/icrypto_provider.h"
-#include "aether/ae_actions/telemetry.h"
 #include "aether/stream_api/buffer_stream.h"
 #include "aether/server_connections/server_channel.h"
 #include "aether/server_connections/channel_manager.h"
@@ -36,7 +34,6 @@
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 namespace ae {
-class Aether;
 class Client;
 class Server;
 class Channel;
@@ -47,7 +44,6 @@ class Channel;
 class ClientServerConnection {
  public:
   explicit ClientServerConnection(ActionContext action_context,
-                                  ObjPtr<Aether> const& aether,
                                   ObjPtr<Client> const& client,
                                   ObjPtr<Server> const& server);
 
@@ -58,8 +54,6 @@ class ClientServerConnection {
   ActionPtr<StreamWriteAction> AuthorizedApiCall(
       SubApi<AuthorizedApi> auth_api);
   ClientApiSafe& client_safe_api();
-
-  void SendTelemetry();
 
  private:
   void OutData(DataBuffer const& data);
@@ -81,9 +75,6 @@ class ClientServerConnection {
   BufferStream<DataBuffer> buffer_stream_;
 
   OwnActionPtr<Ping> ping_;
-#if defined TELEMETRY_ENABLED
-  OwnActionPtr<Telemetry> telemetry_;
-#endif
 
   ServerChannel const* server_channel_;
 

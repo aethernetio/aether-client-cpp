@@ -22,9 +22,8 @@
 
 namespace ae {
 ChannelManager::ChannelManager(ActionContext action_context,
-                               ObjPtr<Aether> const& aether,
                                ObjPtr<Server> const& server)
-    : action_context_(action_context), aether_(aether), server_(server) {
+    : action_context_(action_context), server_(server) {
   AE_TELED_DEBUG("Create channel manager");
   InitChannels();
 }

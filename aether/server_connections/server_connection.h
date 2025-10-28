@@ -34,6 +34,11 @@ class ServerConnection {
   ServerConnection(ObjPtr<Server> const& server,
                    IServerConnectionFactory& connection_factory);
 
+  void SetPriority(std::size_t priority);
+  std::size_t priority() const;
+
+  void Restream();
+
   /**
    * \brief The stream to write data for that server.
    * If there is no connection object, create it.
@@ -46,6 +51,7 @@ class ServerConnection {
   PtrView<Server> server_;
   IServerConnectionFactory* connection_factory_;
   RcPtr<ClientServerConnection> client_connection_;
+  std::size_t priority_;
 };
 }  // namespace ae
 

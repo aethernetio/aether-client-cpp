@@ -18,18 +18,12 @@
 
 #if AE_SUPPORT_REGISTRATION
 
-#  include "aether/aether.h"
-
 #  include "aether/tele/tele.h"
 
 namespace ae {
 RootServerSelectStream::RootServerSelectStream(
-    ActionContext action_context, ObjPtr<Aether> const& aether,
-    RegistrationCloud::ptr const& cloud)
-    : action_context_{action_context},
-      aether_{aether},
-      cloud_{cloud},
-      server_index_{} {
+    ActionContext action_context, RegistrationCloud::ptr const& cloud)
+    : action_context_{action_context}, cloud_{cloud}, server_index_{} {
   SelectServer();
 }
 
@@ -74,10 +68,7 @@ void RootServerSelectStream::SelectServer() {
   }
   auto chosen_server = cloud_ptr->servers()[server_index_++];
 
-  ObjPtr<Aether> aether_ptr = aether_.Lock();
-  assert(aether_ptr);
-
-  server_stream_.emplace(action_context_, aether_ptr, chosen_server);
+  server_stream_.emplace(action_context_, chosen_server);
   stream_update_sub_ = server_stream_->stream_update_event().Subscribe(
       *this, MethodPtr<&RootServerSelectStream::StreamUpdate>{});
   out_data_sub_ = server_stream_->out_data_event().Subscribe(

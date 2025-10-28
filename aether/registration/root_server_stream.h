@@ -30,8 +30,7 @@ class Server;
 
 class RootServerStream final : public ByteIStream {
  public:
-  RootServerStream(ActionContext action_context, ObjPtr<Aether> const& aether,
-                   ObjPtr<Server> const& server);
+  RootServerStream(ActionContext action_context, ObjPtr<Server> const& server);
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;

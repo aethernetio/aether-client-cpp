@@ -26,7 +26,7 @@
 #include "aether/events/events.h"
 #include "aether/events/event_subscription.h"
 #include "aether/client_messages/p2p_message_stream.h"
-#include "aether/client_connections/cloud_message_stream.h"
+#include "aether/client_connections/cloud_connection.h"
 
 namespace ae {
 class Client;
@@ -48,10 +48,10 @@ class P2pMessageStreamManager {
   ActionContext action_context_;
   PtrView<Client> client_;
   ClientConnectionManager* connection_manager_;
-  CloudMessageStream* client_stream_;
+  CloudConnection* cloud_connection_;
   std::map<Uid, RcPtrView<P2pStream>> streams_;
   NewStreamEvent new_stream_event_;
-  Subscription on_message_received_;
+  Subscription on_message_received_sub_;
 };
 }  // namespace ae
 

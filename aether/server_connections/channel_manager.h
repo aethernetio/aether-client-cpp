@@ -24,12 +24,10 @@
 #include "aether/server_connections/channel_connection.h"
 
 namespace ae {
-class Aether;
 class Server;
 class ChannelManager {
  public:
-  ChannelManager(ActionContext action_context, ObjPtr<Aether> const& aether,
-                 ObjPtr<Server> const& server);
+  ChannelManager(ActionContext action_context, ObjPtr<Server> const& server);
 
   std::vector<ChannelConnection>& channels();
 
@@ -37,7 +35,6 @@ class ChannelManager {
   void InitChannels();
 
   ActionContext action_context_;
-  PtrView<Aether> aether_;
   PtrView<Server> server_;
   std::vector<ChannelConnection> channels_;
 };
