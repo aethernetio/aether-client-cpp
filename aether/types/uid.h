@@ -77,7 +77,14 @@ struct Uid {
     return Uid{static_cast<std::array<std::uint8_t, 16>>(str)};
   }
 
-  explicit constexpr Uid(std::array<std::uint8_t, kSize> uid) : value(uid) {}
+  explicit constexpr Uid(std::array<std::uint8_t, kSize> uid) : value{uid} {}
+
+  explicit constexpr Uid(std::uint8_t const (&uid)[kSize]) : value{} {
+    for (std::size_t i = 0; i < kSize; ++i) {
+      value[i] = uid[i];
+    }
+  }
+
   Uid() = default;
 
   AE_REFLECT_MEMBERS(value)
