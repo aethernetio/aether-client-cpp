@@ -28,7 +28,10 @@ ClientApiSafe::ClientApiSafe(ProtocolContext& protocol_context)
 
 void ClientApiSafe::SendMessages(ApiParser& /* parser */,
                                  std::vector<AeMessage> messages) {
-  send_messages_event_.Emit(messages);
+  for (auto const& msg : messages) {
+    AE_TELED_DEBUG("Received message uid:{}", msg.uid);
+    send_message_event_.Emit(msg);
+  }
 }
 
 void ClientApiSafe::SendServerDescriptor(ApiParser& /* parser */,
