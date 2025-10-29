@@ -82,11 +82,12 @@ class LoraModuleTransport final : public ByteIStream {
 
  private:
   void Connect();
-  void OnConnected(ConnectionLoraIndex connection_index);
+  void OnConnected(ConnectionLoraModuleIndex connection_index);
   void OnConnectionFailed();
   void Disconnect();
 
-  void DataReceived(ConnectionLoraIndex connection, DataBuffer const& data_in);
+  void DataReceived(ConnectionLoraModuleIndex connection,
+                    DataBuffer const& data_in);
   void DataReceivedTcp(DataBuffer const& data_in);
   void DataReceivedUdp(DataBuffer const& data_in);
 
@@ -97,7 +98,7 @@ class LoraModuleTransport final : public ByteIStream {
 
   StreamInfo stream_info_;
 
-  ConnectionLoraIndex connection_ = kInvalidConnectionLoraIndex;
+  ConnectionLoraModuleIndex connection_ = kInvalidConnectionLoraModuleIndex;
   OwnActionPtr<SocketPacketQueueManager<LoraModuleSend>>
       send_action_queue_manager_;
   StreamDataPacketCollector data_packet_collector_;

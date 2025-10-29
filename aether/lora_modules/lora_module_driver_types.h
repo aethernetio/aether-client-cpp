@@ -86,7 +86,18 @@ enum class kLoraModulePower : std::int8_t {
   kPower22 = 22
 };
 
-enum class kLoraModuleBandWidth : std::int8_t { kBandWidth125K = 0 };
+enum class kLoraModuleBandWidth : std::int8_t { 
+  kBandWidth7K81  = 0,
+  kBandWidth10K42 = 1,
+  kBandWidth15K63 = 2,
+  kBandWidth20K83 = 3,
+  kBandWidth31K25 = 4,
+  kBandWidth41K67 = 5,
+  kBandWidth62K5  = 6,
+  kBandWidth125K = 7,
+  kBandWidth250K = 8,
+  kBandWidth500K = 9 
+};
 
 enum class kLoraModuleCodingRate : std::int8_t {
   kCR4_5 = 1,
@@ -114,7 +125,7 @@ enum class kLoraModuleIQSignalInversion : std::int8_t {
 };
 
 // ========================lora module init=====================================
-struct LoraPowerSaveParam {
+struct LoraModulePowerSaveParam {
   AE_REFLECT_MEMBERS(lora_module_mode, lora_module_level, lora_module_power,
                      lora_module_band_width, lora_module_coding_rate,
                      lora_module_spreading_factor)
@@ -133,7 +144,7 @@ struct LoraModuleInit {
                      lora_module_bs_adress, lora_module_channel,
                      lora_module_crc_check, lora_module_signal_inversion)
   SerialInit serial_init;
-  LoraPowerSaveParam psp;
+  LoraModulePowerSaveParam psp;
   std::uint16_t lora_module_my_adress{0};
   std::uint16_t lora_module_bs_adress{0};
   std::uint8_t lora_module_channel{0};
@@ -142,12 +153,13 @@ struct LoraModuleInit {
       kLoraModuleIQSignalInversion::kIQoff};
 };
 
-using ConnectionLoraIndex = std::int8_t;
-static constexpr ConnectionLoraIndex kInvalidConnectionLoraIndex = -1;
+using ConnectionLoraModuleIndex = std::int8_t;
+static constexpr ConnectionLoraModuleIndex kInvalidConnectionLoraModuleIndex =
+    -1;
 
-struct LoraConnection {
+struct LoraModuleConnection {
   AE_REFLECT_MEMBERS(connect_index, protocol, host, port)
-  ConnectionLoraIndex connect_index;
+  ConnectionLoraModuleIndex connect_index;
   ae::Protocol protocol;
   std::string host;
   std::uint16_t port;
@@ -155,7 +167,7 @@ struct LoraConnection {
 
 struct LoraPacket {
   AE_REFLECT_MEMBERS(connection, length, data, crc)
-  LoraConnection connection;
+  LoraModuleConnection connection;
   std::size_t length{0};
   ae::DataBuffer data;
   std::uint32_t crc{0};

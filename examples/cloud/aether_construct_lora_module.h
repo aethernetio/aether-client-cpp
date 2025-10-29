@@ -27,7 +27,7 @@ static constexpr std::string_view kSerialPortLoraModule =
 SerialInit serial_init_lora_module = {std::string(kSerialPortLoraModule),
                                       kBaudRate::kBaudRate9600};
 
-LoraPowerSaveParam psp{
+LoraModulePowerSaveParam psp{
     {kLoraModuleMode::kTransparentTransmission},  // kLoraModuleMode
     {kLoraModuleLevel::kLevel0},                  // kLoraModuleLevel
     {kLoraModulePower::kPower22},                 // kLoraModulePower

@@ -66,7 +66,9 @@ class DxSmartLr02TcpOpenNetwork final
     return {};
   }
 
-  ConnectionLoraIndex connection_index() const { return connection_index_; }
+  ConnectionLoraModuleIndex connection_index() const {
+    return connection_index_;
+  }
 
  private:
   ActionContext action_context_;
@@ -77,7 +79,8 @@ class DxSmartLr02TcpOpenNetwork final
   ActionPtr<IPipeline> operation_pipeline_;
   Subscription operation_sub_;
   std::int32_t handle_{-1};
-  ConnectionLoraIndex connection_index_ = kInvalidConnectionLoraIndex;
+  ConnectionLoraModuleIndex connection_index_ =
+      kInvalidConnectionLoraModuleIndex;
   bool success_{};
   bool error_{};
   bool stop_{};
@@ -111,7 +114,7 @@ class DxSmartLr02UdpOpenNetwork final
     return {};
   }
 
-  ConnectionLoraIndex connection_index() const { return connection_index_; }
+  ConnectionLoraModuleIndex connection_index() const { return connection_index_; }
 
  private:
   ActionContext action_context_;
@@ -122,7 +125,8 @@ class DxSmartLr02UdpOpenNetwork final
   ActionPtr<IPipeline> operation_pipeline_;
   Subscription operation_sub_;
   std::int32_t handle_{-1};
-  ConnectionLoraIndex connection_index_ = kInvalidConnectionLoraIndex;
+  ConnectionLoraModuleIndex connection_index_ =
+      kInvalidConnectionLoraModuleIndex;
   bool success_{};
   bool error_{};
   bool stop_{};
@@ -232,7 +236,8 @@ DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
 }
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::CloseNetwork(ae::ConnectionLoraIndex /*connect_index*/) {
+DxSmartLr02LoraModule::CloseNetwork(
+    ae::ConnectionLoraModuleIndex /*connect_index*/) {
   return {};
 }
 // void DxSmartLr02LoraModule::CloseNetwork(
@@ -246,7 +251,8 @@ DxSmartLr02LoraModule::CloseNetwork(ae::ConnectionLoraIndex /*connect_index*/) {
 //};
 
 ActionPtr<DxSmartLr02LoraModule::WriteOperation>
-DxSmartLr02LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
+DxSmartLr02LoraModule::WritePacket(
+    ae::ConnectionLoraModuleIndex /*connect_index*/,
                                    ae::DataBuffer const& /*data*/) {
   return {};
 }
@@ -290,7 +296,7 @@ DxSmartLr02LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
 // };
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::ReadPacket(
-    ConnectionLoraIndex /* connection */) {
+    ConnectionLoraModuleIndex /* connection */) {
   return {};
 }
 
@@ -300,7 +306,7 @@ DxSmartLr02LoraModule::data_event() {
 }
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
-DxSmartLr02LoraModule::SetPowerSaveParam(LoraPowerSaveParam const& psp) {
+DxSmartLr02LoraModule::SetPowerSaveParam(LoraModulePowerSaveParam const& psp) {
   auto lora_module_operation = ActionPtr<LoraModuleOperation>{action_context_};
 
   operation_queue_->Push(Stage([this, lora_module_operation, psp{psp}]() {
@@ -584,7 +590,7 @@ void DxSmartLr02LoraModule::PollEvent(std::int32_t handle,
   }
 
   // get connection index
-  auto it = connections_.find(static_cast<ConnectionLoraIndex>(handle));
+  auto it = connections_.find(static_cast<ConnectionLoraModuleIndex>(handle));
   if (it == std::end(connections_)) {
     AE_TELED_ERROR("Poll unknown handle {}", handle);
     return;
@@ -650,10 +656,15 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModulePower(
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleBandWidth(
     kLoraModuleBandWidth const& band_width) {
+  int bw{0};
+  if (band_width != kLoraModuleBandWidth::kBandWidth125K) {
+    return {};
+  }
+
   return MakeActionPtr<Pipeline>(
-      action_context_, Stage([this, band_width]() {
+      action_context_, Stage([this, bw]() {
         return at_comm_support_.MakeRequest(
-            "AT+BW" + std::to_string(static_cast<int>(band_width)), kWaitOk);
+            "AT+BW" + std::to_string(bw), kWaitOk);
       }));
 }
 

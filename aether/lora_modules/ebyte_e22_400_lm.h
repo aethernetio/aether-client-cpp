@@ -46,15 +46,15 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
                                               std::string const& host,
                                               std::uint16_t port) override;
   ActionPtr<LoraModuleOperation> CloseNetwork(
-      ae::ConnectionLoraIndex connect_index) override;
+      ae::ConnectionLoraModuleIndex connect_index) override;
   ActionPtr<LoraModuleOperation> WritePacket(
-      ae::ConnectionLoraIndex connect_index,
+      ae::ConnectionLoraModuleIndex connect_index,
       ae::DataBuffer const& data) override;
 
   DataEvent::Subscriber data_event() override;
 
   ActionPtr<LoraModuleOperation> SetPowerSaveParam(
-      LoraPowerSaveParam const& psp) override;
+      LoraModulePowerSaveParam const& psp) override;
   ActionPtr<LoraModuleOperation> PowerOff() override;
   ActionPtr<LoraModuleOperation> SetLoraModuleAddress(
       std::uint16_t const& address);  // Module address
@@ -88,7 +88,7 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
   ActionContext action_context_;
   LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;
-  std::vector<LoraConnection> connect_vec_;
+  std::vector<LoraModuleConnection> connect_vec_;
   AtSupport at_comm_support_;
   DataEvent data_event_;
   ActionPtr<RepeatableTask> poll_task_;

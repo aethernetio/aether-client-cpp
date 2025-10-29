@@ -27,32 +27,32 @@
 #include "aether/actions/action_ptr.h"
 #include "aether/actions/notify_action.h"
 #include "aether/actions/promise_action.h"
-#include "aether/lora_modules/lora_module_driver_types.h"
+#include "aether/lora_gateways/lora_gateway_driver_types.h"
 
 namespace ae {
-class ILoraModuleDriver {
+class ILoraGatewayDriver {
  public:
-  using LoraModuleOperation = NotifyAction;
+  using LoraGatewayOperation = NotifyAction;
   using WriteOperation = NotifyAction;
-  using OpenNetworkOperation = PromiseAction<ConnectionLoraModuleIndex>;
-  using DataEvent = Event<void(ConnectionLoraModuleIndex, DataBuffer const& data)>;
+  using OpenNetworkOperation = PromiseAction<ConnectionLoraIndex>;
+  using DataEvent = Event<void(ConnectionLoraIndex, DataBuffer const& data)>;
 
-  virtual ~ILoraModuleDriver() = default;
+  virtual ~ILoraGatewayDriver() = default;
 
-  virtual ActionPtr<LoraModuleOperation> Start() = 0;
-  virtual ActionPtr<LoraModuleOperation> Stop() = 0;
+  virtual ActionPtr<LoraGatewayOperation> Start() = 0;
+  virtual ActionPtr<LoraGatewayOperation> Stop() = 0;
   virtual ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
                                                       std::string const& host,
                                                       std::uint16_t port) = 0;
-  virtual ActionPtr<LoraModuleOperation> CloseNetwork(
-      ConnectionLoraModuleIndex connect_index) = 0;
-  virtual ActionPtr<LoraModuleOperation> WritePacket(
-      ConnectionLoraModuleIndex connect_index, DataBuffer const& data) = 0;
+  virtual ActionPtr<LoraGatewayOperation> CloseNetwork(
+      ConnectionLoraIndex connect_index) = 0;
+  virtual ActionPtr<LoraGatewayOperation> WritePacket(
+      ConnectionLoraIndex connect_index, DataBuffer const& data) = 0;
   virtual DataEvent::Subscriber data_event() = 0;
 
-  virtual ActionPtr<LoraModuleOperation> SetPowerSaveParam(
-      LoraModulePowerSaveParam const& psp) = 0;
-  virtual ActionPtr<LoraModuleOperation> PowerOff() = 0;
+  virtual ActionPtr<LoraGatewayOperation> SetPowerSaveParam(
+      LoraGatewayPowerSaveParam const& psp) = 0;
+  virtual ActionPtr<LoraGatewayOperation> PowerOff() = 0;
 };
 
 } /* namespace ae */

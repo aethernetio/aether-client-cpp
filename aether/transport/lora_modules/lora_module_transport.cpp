@@ -220,7 +220,8 @@ void LoraModuleTransport::Connect() {
   });
 }
 
-void LoraModuleTransport::OnConnected(ConnectionLoraIndex connection_index) {
+void LoraModuleTransport::OnConnected(
+    ConnectionLoraModuleIndex connection_index) {
   connection_ = connection_index;
 
   read_packet_sub_ = lora_module_driver_->data_event().Subscribe(
@@ -237,15 +238,15 @@ void LoraModuleTransport::OnConnectionFailed() {
 }
 
 void LoraModuleTransport::Disconnect() {
-  if (connection_ == kInvalidConnectionLoraIndex) {
+  if (connection_ == kInvalidConnectionLoraModuleIndex) {
     return;
   }
 
   lora_module_driver_->CloseNetwork(connection_);
-  connection_ = kInvalidConnectionLoraIndex;
+  connection_ = kInvalidConnectionLoraModuleIndex;
 }
 
-void LoraModuleTransport::DataReceived(ConnectionLoraIndex connection,
+void LoraModuleTransport::DataReceived(ConnectionLoraModuleIndex connection,
                                        DataBuffer const& data_in) {
   if (connection_ != connection) {
     return;
