@@ -80,7 +80,7 @@ EbyteE22LoraModule::OpenNetwork(ae::Protocol /* protocol*/,
 // };
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
-EbyteE22LoraModule::SetPowerSaveParam(std::string const& /*psp*/) {
+EbyteE22LoraModule::SetPowerSaveParam(LoraPowerSaveParam const& /*psp*/) {
   return {};
 }
 

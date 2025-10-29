@@ -53,7 +53,8 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
 
   DataEvent::Subscriber data_event() override;
 
-  ActionPtr<LoraModuleOperation> SetPowerSaveParam(std::string const& psp);
+  ActionPtr<LoraModuleOperation> SetPowerSaveParam(
+      LoraPowerSaveParam const& psp);
   ActionPtr<LoraModuleOperation> PowerOff() override;
   ActionPtr<LoraModuleOperation> SetLoraModuleAddress(
       std::uint16_t const& address);  // Module address
