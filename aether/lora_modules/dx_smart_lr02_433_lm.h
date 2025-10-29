@@ -68,7 +68,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   DataEvent::Subscriber data_event() override;
 
   ActionPtr<LoraModuleOperation> SetPowerSaveParam(
-      LoraPowerSaveParam const& psp);
+      LoraPowerSaveParam const& psp) override;
   ActionPtr<LoraModuleOperation> PowerOff() override;
   ActionPtr<LoraModuleOperation> SetLoraModuleAddress(
       std::uint16_t const& address);  // Module address

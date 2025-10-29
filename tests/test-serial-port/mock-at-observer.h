@@ -17,10 +17,10 @@
 #ifndef TESTS_TEST_SERIAL_PORT_MOCK_AT_OBSERVER_H_
 #define TESTS_TEST_SERIAL_PORT_MOCK_AT_OBSERVER_H_
 
+#include <utility>
+
 #include "aether/serial_ports/at_support/at_dispatcher.h"
 #include "aether/serial_ports/at_support/at_buffer.h"
-
-#include <utility>
 
 namespace ae::tests {
 class MockAtObserver final : public IAtObserver {
