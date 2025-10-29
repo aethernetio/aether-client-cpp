@@ -144,6 +144,6 @@ EbyteE22LoraModule::SetLoraModuleIQSignalInversion(
   return {};
 }
 
-void EbyteE22LoraModule::Init() {};
+void EbyteE22LoraModule::Init() {}
 
 }  // namespace ae

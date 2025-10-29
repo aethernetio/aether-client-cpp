@@ -234,7 +234,7 @@ DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::CloseNetwork(ae::ConnectionLoraIndex /*connect_index*/) {
   return {};
-};
+}
 // void DxSmartLr02LoraModule::CloseNetwork(
 //    ae::ConnectionLoraIndex connect_index) {
 //  if (connect_index >= connect_vec_.size()) {
