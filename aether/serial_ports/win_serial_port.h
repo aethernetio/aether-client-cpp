@@ -57,7 +57,7 @@ class WinSerialPort final : public ISerialPort {
     std::atomic_bool read_event_;
 
     DataBuffer read_buffer_;
-    WinPollerOverlapped overlapped_rd_{0};
+    WinPollerOverlapped overlapped_rd_{};
 
     static constexpr int kReadBufSize{4096};
     static constexpr int kReadTimeOutMSec{250};
@@ -88,7 +88,7 @@ class WinSerialPort final : public ISerialPort {
   void* fd_;
   DataReadEvent read_event_;
 
-  OVERLAPPED overlapped_wr_{0};
+  OVERLAPPED overlapped_wr_{};
   DWORD signal_;
 
   ActionPtr<ReadAction> read_action_;
