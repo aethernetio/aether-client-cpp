@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LORA_MODULES_ILORA_DRIVER_H_
-#define AETHER_LORA_MODULES_ILORA_DRIVER_H_
+#ifndef AETHER_LORA_MODULES_ILORA_MODULE_DRIVER_H_
+#define AETHER_LORA_MODULES_ILORA_MODULE_DRIVER_H_
 
 #include <string>
 #include <cstdint>
@@ -57,4 +57,4 @@ class ILoraModuleDriver {
 
 } /* namespace ae */
 
-#endif  // AETHER_LORA_MODULES_ILORA_DRIVER_H_
+#endif  // AETHER_LORA_MODULES_ILORA_MODULE_DRIVER_H_

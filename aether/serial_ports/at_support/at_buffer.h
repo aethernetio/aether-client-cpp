@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_AT_SUPPORT_AT_BUFFER_H_
-#define AETHER_AT_SUPPORT_AT_BUFFER_H_
+#ifndef AETHER_SERIAL_PORTS_AT_SUPPORT_AT_BUFFER_H_
+#define AETHER_SERIAL_PORTS_AT_SUPPORT_AT_BUFFER_H_
 
 #include <list>
 #include <cstddef>
@@ -57,4 +57,4 @@ class AtBuffer {
   Subscription data_read_sub_;
 };
 }  // namespace ae
-#endif  // AETHER_AT_SUPPORT_AT_BUFFER_H_
+#endif  // AETHER_SERIAL_PORTS_AT_SUPPORT_AT_BUFFER_H_

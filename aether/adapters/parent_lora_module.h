@@ -45,4 +45,4 @@ class ParentLoraModuleAdapter : public Adapter {
 };
 }  // namespace ae
 
-#endif  // AETHER_ADAPTERS_PARENT_MODEM_H_
+#endif  // AETHER_ADAPTERS_PARENT_LORA_MODULE_H_

@@ -38,7 +38,7 @@
 
 namespace ae {
 class WinSerialPort final : public ISerialPort {
- class ReadAction final : public Action<ReadAction> {
+  class ReadAction final : public Action<ReadAction> {
    public:
     ReadAction(ActionContext action_context, WinSerialPort& serial_port);
 
@@ -50,22 +50,22 @@ class WinSerialPort final : public ISerialPort {
 
     void RequestRead();
     void HandleRead();
-    
+
     WinSerialPort* serial_port_;
     IPoller::OnPollEventSubscriber::Subscription poll_sub_;
     std::list<DataBuffer> buffers_;
     std::atomic_bool read_event_;
-    
+
     DataBuffer read_buffer_;
     WinPollerOverlapped overlapped_rd_{0};
-    
+
     static constexpr int kReadBufSize{4096};
     static constexpr int kReadTimeOutMSec{250};
   };
-  
+
  public:
   explicit WinSerialPort(ActionContext action_context, SerialInit serial_init,
-                          IPoller::ptr const& poller);
+                         IPoller::ptr const& poller);
   ~WinSerialPort() override;
 
   void Write(DataBuffer const& data) override;
@@ -92,7 +92,7 @@ class WinSerialPort final : public ISerialPort {
   DWORD signal_;
 
   ActionPtr<ReadAction> read_action_;
-  
+
   static constexpr int kReadBufSize{4096};
   static constexpr int kReadTimeOutMSec{250};
 };

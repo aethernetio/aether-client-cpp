@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_SERIAL_PORT_AT_SUPPORT_AT_SUPPORT_H_
-#define AETHER_SERIAL_PORT_AT_SUPPORT_AT_SUPPORT_H_
+#ifndef AETHER_SERIAL_PORTS_AT_SUPPORT_AT_SUPPORT_H_
+#define AETHER_SERIAL_PORTS_AT_SUPPORT_AT_SUPPORT_H_
 
 #include <string>
 #include <utility>
@@ -122,4 +122,4 @@ class AtSupport {
 
 } /* namespace ae */
 
-#endif  // AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
+#endif  // AETHER_SERIAL_PORTS_AT_SUPPORT_AT_SUPPORT_H_

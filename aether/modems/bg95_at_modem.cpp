@@ -24,8 +24,8 @@
 
 namespace ae {
 
-Bg95AtModem::Bg95AtModem(ModemAdapter& adapter, IPoller::ptr poller, ModemInit modem_init,
-                         Domain* domain)
+Bg95AtModem::Bg95AtModem(ModemAdapter& adapter, IPoller::ptr poller,
+                         ModemInit modem_init, Domain* domain)
     : IModemDriver(std::move(poller), std::move(modem_init), domain),
       adapter_{&adapter} {
   serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
@@ -207,10 +207,9 @@ kModemError Bg95AtModem::SetupSim(const std::uint8_t pin[4]) {
   return err;
 }
 
-kModemError SetNetMode(kModemMode /*modem_mode*/)
-{
+kModemError SetNetMode(kModemMode /*modem_mode*/) {
   kModemError err{kModemError::kNoError};
-  
+
   return err;
 }
 

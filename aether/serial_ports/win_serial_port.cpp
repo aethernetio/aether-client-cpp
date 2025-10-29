@@ -18,14 +18,16 @@
 
 #if WIN_SERIAL_PORT_ENABLED == 1
 
-#include "aether/misc/defer.h"
-#include "aether/serial_ports/serial_ports_tele.h"
+#  include "aether/misc/defer.h"
+#  include "aether/serial_ports/serial_ports_tele.h"
 
 namespace ae {
 
 WinSerialPort::ReadAction::ReadAction(ActionContext action_context,
                                       WinSerialPort &serial_port)
-    : Action{action_context}, serial_port_{&serial_port}, read_event_{},
+    : Action{action_context},
+      serial_port_{&serial_port},
+      read_event_{},
       read_buffer_(kReadBufSize),
       overlapped_rd_{} {
   if (serial_port_->fd_ == INVALID_HANDLE_VALUE) {
@@ -60,11 +62,11 @@ void WinSerialPort::ReadAction::PollEvent(PollerEvent event) {
     return;
   }
   switch (event.event_type) {
-  case EventType::kRead:
-    ReadData();
-    break;
-  default:
-    break;
+    case EventType::kRead:
+      ReadData();
+      break;
+    default:
+      break;
   }
 }
 
@@ -85,8 +87,9 @@ void WinSerialPort::ReadAction::RequestRead() {
   auto lock = std::lock_guard{serial_port_->fd_lock_};
 
   // Issue read operation.
-  fRes = ::ReadFile(serial_port_->fd_, read_buffer_.data(), static_cast<DWORD>(read_buffer_.size()),
-                    &dwRead, overlapped_rd);
+  fRes = ::ReadFile(serial_port_->fd_, read_buffer_.data(),
+                    static_cast<DWORD>(read_buffer_.size()), &dwRead,
+                    overlapped_rd);
   if (!fRes) {
     dwErr = GetLastError();
     // err should be ERROR_IO_PENDING
@@ -125,8 +128,10 @@ void WinSerialPort::ReadAction::HandleRead() {
 
 WinSerialPort::WinSerialPort(ActionContext action_context,
                              SerialInit serial_init, IPoller::ptr const &poller)
-    : action_context_{action_context}, serial_init_{std::move(serial_init)},
-      poller_{poller}, fd_{OpenPort(serial_init_)},
+    : action_context_{action_context},
+      serial_init_{std::move(serial_init)},
+      poller_{poller},
+      fd_{OpenPort(serial_init_)},
       read_action_{action_context_, *this} {}
 
 WinSerialPort::~WinSerialPort() { Close(); }
@@ -274,4 +279,4 @@ void WinSerialPort::Close() {
 
 } /* namespace ae */
 
-#endif // WIN_SERIAL_PORT_ENABLED
+#endif  // WIN_SERIAL_PORT_ENABLED

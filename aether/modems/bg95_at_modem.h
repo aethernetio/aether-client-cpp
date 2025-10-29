@@ -151,8 +151,8 @@ class Bg95AtModem final : public IModemDriver {
   Bg95AtModem() = default;
 
  public:
-  explicit Bg95AtModem(ModemAdapter& adapter, IPoller::ptr poller, ModemInit modem_init,
-                       Domain* domain);
+  explicit Bg95AtModem(ModemAdapter& adapter, IPoller::ptr poller,
+                       ModemInit modem_init, Domain* domain);
   AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
   bool Init() override;
@@ -176,16 +176,15 @@ class Bg95AtModem final : public IModemDriver {
 
   static constexpr std::uint16_t kModemMTU{1520};
 
-  kModemError CheckResponse(std::string response, 
-                            std::uint32_t wait_time,
+  kModemError CheckResponse(std::string response, std::uint32_t wait_time,
                             std::string error_message);
   kModemError SetBaudRate(kBaudRate rate);
   kModemError CheckSimStatus();
   kModemError SetupSim(const std::uint8_t pin[4]);
   kModemError SetNetMode(kModemMode modem_mode);
-  kModemError SetupNetwork(std::string const& operator_name, 
+  kModemError SetupNetwork(std::string const& operator_name,
                            std::string const& operator_code,
-                           std::string const& apn_name, 
+                           std::string const& apn_name,
                            std::string const& apn_user,
                            std::string const& apn_pass, kModemMode modem_mode,
                            kAuthType auth_type);

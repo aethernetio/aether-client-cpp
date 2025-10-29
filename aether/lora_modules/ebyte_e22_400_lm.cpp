@@ -52,18 +52,18 @@ EbyteE22LoraModule::~EbyteE22LoraModule() { Stop(); }
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation> EbyteE22LoraModule::Start() {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation> EbyteE22LoraModule::Stop() {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::OpenNetworkOperation>
 EbyteE22LoraModule::OpenNetwork(ae::Protocol /* protocol*/,
                                 std::string const& /*host*/,
                                 std::uint16_t /* port*/) {
   return {};
-};
+}
 
 // void EbyteE22LoraModule::CloseNetwork(
 //    ae::ConnectionLoraIndex /*connect_index*/){};
@@ -82,67 +82,67 @@ EbyteE22LoraModule::OpenNetwork(ae::Protocol /* protocol*/,
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetPowerSaveParam(std::string const& /*psp*/) {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::PowerOff() {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleAddress(std::uint16_t const& /*address*/) {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleChannel(std::uint8_t const& /*channel*/) {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleMode(kLoraModuleMode const& /*mode*/) {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleLevel(kLoraModuleLevel const& /*level*/) {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModulePower(kLoraModulePower const& /*power*/) {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleBandWidth(
     kLoraModuleBandWidth const& /*band_width*/) {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleCodingRate(
     kLoraModuleCodingRate const& /*coding_rate*/) {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleSpreadingFactor(
     kLoraModuleSpreadingFactor const& /*spreading_factor*/) {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleCRCCheck(
     kLoraModuleCRCCheck const& /*crc_check*/) {
   return {};
-};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleIQSignalInversion(
     kLoraModuleIQSignalInversion const& /*signal_inversion*/) {
   return {};
-};
+}
 
 void EbyteE22LoraModule::Init() {};
 

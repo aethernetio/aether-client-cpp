@@ -182,7 +182,7 @@ DxSmartLr02LoraModule::Start() {
   }));
 
   return lora_module_operation;
-};
+}
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::Stop() {
@@ -208,7 +208,7 @@ DxSmartLr02LoraModule::Stop() {
   }));
 
   return lora_module_operation;
-};
+}
 
 ActionPtr<DxSmartLr02LoraModule::OpenNetworkOperation>
 DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
@@ -229,7 +229,7 @@ DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
   }));
 
   return open_network_operation;
-};
+}
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::CloseNetwork(ae::ConnectionLoraIndex /*connect_index*/) {
@@ -343,12 +343,12 @@ DxSmartLr02LoraModule::SetPowerSaveParam(LoraPowerSaveParam const& psp) {
   }));
 
   return lora_module_operation;
-};
+}
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::PowerOff() {
   return {};
-};
+}
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::SetLoraModuleAddress(std::uint16_t const& address) {
@@ -375,7 +375,7 @@ DxSmartLr02LoraModule::SetLoraModuleAddress(std::uint16_t const& address) {
   }));
 
   return lora_module_operation;
-};
+}
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::SetLoraModuleChannel(std::uint8_t const& channel) {
@@ -406,7 +406,7 @@ DxSmartLr02LoraModule::SetLoraModuleChannel(std::uint8_t const& channel) {
   }));
 
   return lora_module_operation;
-};
+}
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::SetLoraModuleCRCCheck(
@@ -434,7 +434,7 @@ DxSmartLr02LoraModule::SetLoraModuleCRCCheck(
   }));
 
   return lora_module_operation;
-};
+}
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::SetLoraModuleIQSignalInversion(
@@ -465,7 +465,7 @@ DxSmartLr02LoraModule::SetLoraModuleIQSignalInversion(
   }));
 
   return lora_module_operation;
-};
+}
 
 // =============================private members=========================== //
 void DxSmartLr02LoraModule::Init() {
@@ -494,7 +494,7 @@ void DxSmartLr02LoraModule::Init() {
 
     return init_pipeline;
   }));
-};
+}
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::OpenTcpConnection(
     ActionPtr<OpenNetworkOperation> open_network_operation,
@@ -607,7 +607,7 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::EnterAtMode() {
   }
 
   return {};
-};
+}
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::ExitAtMode() {
   if (at_mode_ == true) {
@@ -619,7 +619,7 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::ExitAtMode() {
   }
 
   return {};
-};
+}
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleMode(
     kLoraModuleMode const& mode) {
@@ -628,7 +628,7 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleMode(
         return at_comm_support_.MakeRequest(
             "AT+MODE" + std::to_string(static_cast<int>(mode)), kWaitOk);
       }));
-};
+}
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleLevel(
     kLoraModuleLevel const& level) {
@@ -637,7 +637,7 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleLevel(
         return at_comm_support_.MakeRequest(
             "AT+LEVEL" + std::to_string(static_cast<int>(level)), kWaitOk);
       }));
-};
+}
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModulePower(
     kLoraModulePower const& power) {
@@ -646,7 +646,7 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModulePower(
         return at_comm_support_.MakeRequest(
             "AT+POWE" + std::to_string(static_cast<int>(power)), kWaitOk);
       }));
-};
+}
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleBandWidth(
     kLoraModuleBandWidth const& band_width) {
@@ -655,7 +655,7 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleBandWidth(
         return at_comm_support_.MakeRequest(
             "AT+BW" + std::to_string(static_cast<int>(band_width)), kWaitOk);
       }));
-};
+}
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleCodingRate(
     kLoraModuleCodingRate const& coding_rate) {
@@ -664,7 +664,7 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleCodingRate(
         return at_comm_support_.MakeRequest(
             "AT+CR" + std::to_string(static_cast<int>(coding_rate)), kWaitOk);
       }));
-};
+}
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleSpreadingFactor(
     kLoraModuleSpreadingFactor const& spreading_factor) {
@@ -674,7 +674,7 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SetLoraModuleSpreadingFactor(
             "AT+SF" + std::to_string(static_cast<int>(spreading_factor)),
             kWaitOk);
       }));
-};
+}
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SetupSerialPort(
     SerialInit& serial_init) {
