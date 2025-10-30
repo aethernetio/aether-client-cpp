@@ -23,7 +23,7 @@
 
 namespace ae::cloud_test {
 static constexpr std::string_view kSerialPortLoraModule =
-    "COM2";  // Lora module serial port
+    "COM1";  // Lora module serial port
 SerialInit serial_init_lora_module = {std::string(kSerialPortLoraModule),
                                       kBaudRate::kBaudRate9600};
 
