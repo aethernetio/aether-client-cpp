@@ -19,17 +19,18 @@
 
 #include <cstdint>
 
-#include "aether/api_protocol/api_class_impl.h"
+#include "aether/api_protocol/api_method.h"
 #include "aether/api_protocol/send_result.h"
+#include "aether/api_protocol/api_class_impl.h"
 
 namespace ae {
-class ReturnResultApiImpl {
+class ReturnResultApi : public ApiClass {
  public:
   static constexpr MessageId kSendResult = 0;
   static constexpr MessageId kSendError = 1;
 
-  explicit ReturnResultApiImpl(ProtocolContext& protocol_context);
-  virtual ~ReturnResultApiImpl() = default;
+  explicit ReturnResultApi(ProtocolContext& protocol_context);
+  virtual ~ReturnResultApi() = default;
 
   void SendResultImpl(ApiParser& parser, RequestId request_id);
   void SendErrorImpl(ApiParser& parser, RequestId request_id,
@@ -37,10 +38,9 @@ class ReturnResultApiImpl {
 
   template <typename T>
   void SendResult(RequestId req_id, T&& data) {
-    auto* packet_stack = protocol_context_->packet_stack();
+    auto* packet_stack = protocol_context().packet_stack();
     assert(packet_stack);
-    packet_stack->Push(ReturnResultApi{},
-                       ::ae::SendResult{req_id, std::move(data)});
+    packet_stack->Push(*this, ::ae::SendResult{req_id, std::forward<T>(data)});
   }
 
   void SendError(RequestId req_id, std::uint8_t error_type,
@@ -49,14 +49,14 @@ class ReturnResultApiImpl {
   }
 
   using ApiMethods =
-      ImplList<RegMethod<kSendResult, &ReturnResultApiImpl::SendResultImpl>,
-               RegMethod<kSendError, &ReturnResultApiImpl::SendErrorImpl>>;
+      ImplList<RegMethod<kSendResult, &ReturnResultApi::SendResultImpl>,
+               RegMethod<kSendError, &ReturnResultApi::SendErrorImpl>>;
+
+  void Pack(ae::SendResult&& result, ApiPacker& packer);
 
  private:
-  ProtocolContext* protocol_context_;
-
-  Method<kSendResult, void(RequestId req_id, std::uint8_t error_type,
-                           std::uint32_t error_code)>
+  Method<kSendError, void(RequestId req_id, std::uint8_t error_type,
+                          std::uint32_t error_code)>
       send_error_;
 };
 

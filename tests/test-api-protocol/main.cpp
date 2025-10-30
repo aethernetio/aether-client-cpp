@@ -19,12 +19,10 @@
 void setUp() {}
 void tearDown() {}
 
-extern int test_api_protocol();
 extern int test_method_call();
 
 int main() {
   int res = 0;
-  res += test_api_protocol();
   res += test_method_call();
 
   return res;

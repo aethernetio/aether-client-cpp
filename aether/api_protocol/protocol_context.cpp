@@ -26,28 +26,6 @@ namespace ae {
 ProtocolContext::ProtocolContext() = default;
 ProtocolContext::~ProtocolContext() = default;
 
-void ProtocolContext::PushApiClass(std::uint32_t class_id,
-                                   void const* api_class) {
-  api_class_map_[class_id] = api_class;
-}
-
-void ProtocolContext::PopApiClass(std::uint32_t class_id) {
-  api_class_map_.erase(class_id);
-}
-
-void ProtocolContext::PushUserData(void* data) { user_data_stack_.push(data); }
-void ProtocolContext::PopUserData() {
-  assert(!user_data_stack_.empty());
-  user_data_stack_.pop();
-}
-
-void* ProtocolContext::TopUserData() {
-  if (user_data_stack_.empty()) {
-    return nullptr;
-  }
-  return user_data_stack_.top();
-}
-
 void ProtocolContext::AddSendResultCallback(
     RequestId request_id, std::function<void(ApiParser& parser)> callback) {
   send_result_events_.emplace(request_id, std::move(callback));
@@ -55,7 +33,8 @@ void ProtocolContext::AddSendResultCallback(
 
 void ProtocolContext::AddSendErrorCallback(
     RequestId request_id,
-    std::function<void(struct SendError const& parser)> callback) {
+    std::function<void(std::uint8_t error_type, std::uint32_t error_code)>
+        callback) {
   send_error_events_.emplace(request_id, std::move(callback));
 }
 
@@ -73,21 +52,22 @@ void ProtocolContext::SetSendResultResponse(RequestId request_id,
   send_error_events_.erase(request_id);
 }
 
-void ProtocolContext::SetSendErrorResponse(struct SendError const& error,
+void ProtocolContext::SetSendErrorResponse(RequestId req_id,
+                                           std::uint8_t error_type,
+                                           std::uint32_t error_code,
                                            ApiParser& parser) {
-  auto it = send_error_events_.find(error.request_id);
+  auto it = send_error_events_.find(req_id);
   if (it != std::end(send_error_events_)) {
-    it->second(error);
+    it->second(error_type, error_code);
     send_error_events_.erase(it);
   } else {
-    AE_TELED_DEBUG("No callback for error with request id {}",
-                   error.request_id);
-    std::cerr << "SendError: id " << error.request_id.id
-              << " type: " << static_cast<int>(error.error_type)
-              << " error code: " << error.error_code << std::endl;
+    AE_TELED_DEBUG("No callback for error with request id {}", req_id);
+    std::cerr << "SendError: id " << req_id
+              << " type: " << static_cast<int>(error_type)
+              << " error code: " << error_code << std::endl;
     parser.Cancel();
   }
-  send_result_events_.erase(error.request_id);
+  send_result_events_.erase(req_id);
 }
 
 void ProtocolContext::PushPacketStack(class PacketStack& packet_stack) {

@@ -25,15 +25,17 @@
 
 #  include "aether/obj/obj_ptr.h"
 #  include "aether/ptr/ptr_view.h"
-#  include "aether/types/state_machine.h"
 #  include "aether/actions/action.h"
+#  include "aether/stream_api/istream.h"
+#  include "aether/types/state_machine.h"
 #  include "aether/events/event_subscription.h"
-#  include "aether/server_connections/client_to_server_stream.h"
 
-#  include "aether/methods/telemetric.h"
+#  include "aether/work_cloud_api/telemetric.h"
 
 namespace ae {
 class Aether;
+class ClientServerConnection;
+
 class Telemetry : public Action<Telemetry> {
   enum class State : std::uint8_t {
     kWaitRequest,
@@ -43,7 +45,7 @@ class Telemetry : public Action<Telemetry> {
 
  public:
   Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
-            ClientToServerStream& client_to_server);
+            ClientServerConnection& client_server_connection);
 
   AE_CLASS_NO_COPY_MOVE(Telemetry)
 
@@ -58,7 +60,7 @@ class Telemetry : public Action<Telemetry> {
   std::optional<Telemetric> CollectTelemetry(StreamInfo const& stream_info);
 
   PtrView<Aether> aether_;
-  ClientToServerStream* client_to_server_;
+  ClientServerConnection* client_server_connection_;
 
   Subscription telemetry_request_sub_;
   StateMachine<State> state_;

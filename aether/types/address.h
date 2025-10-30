@@ -31,8 +31,8 @@ namespace ae {
 
 struct IpAddress {
   enum class Version : std::uint8_t {
-    kIpV4,
-    kIpV6,
+    kIpV4 = 1,
+    kIpV6 = 2,
   };
 
   Version version = Version::kIpV4;
@@ -140,14 +140,16 @@ struct NameAddress {
 enum class AddressType : std::uint8_t {
   kResolvedAddress,
   kUnresolvedAddress,
+  kLast,
 };
 
-struct UnifiedAddress : public VariantType<AddressType, IpAddressPortProtocol
+struct UnifiedAddress
+    : public VariantType<
+          AddressType,
 #if AE_SUPPORT_CLOUD_DNS
-                                           ,
-                                           NameAddress
+          VPair<AddressType::kUnresolvedAddress, NameAddress>,
 #endif
-                                           > {
+          VPair<AddressType::kResolvedAddress, IpAddressPortProtocol> > {
   using VariantType::VariantType;
 };
 

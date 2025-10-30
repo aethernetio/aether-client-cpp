@@ -38,7 +38,7 @@ inline std::vector<std::uint8_t> EncryptWithAsymmetric(
 }
 
 std::vector<std::uint8_t> DecryptWithAsymmetric(
-    SodiumCurvePublicKey const& pk, SodiumCurveSecretKey const& secret_key,
+    SodiumCurvePublicKey const& pk, SodiumCurvePrivateKey const& secret_key,
     std::vector<std::uint8_t> const& encrypted_data) {
   auto decrypted_data =
       std::vector<std::uint8_t>(encrypted_data.size() - crypto_box_SEALBYTES);
@@ -78,10 +78,10 @@ DataBuffer SodiumAsyncDecryptProvider::Decrypt(DataBuffer const& data) {
   assert(pub_key.Index() == CryptoKeyType::kSodiumCurvePublic);
 
   auto sec_key = key_provider_->SecretKey();
-  assert(sec_key.Index() == CryptoKeyType::kSodiumCurveSecret);
+  assert(sec_key.Index() == CryptoKeyType::kSodiumCurvePrivate);
 
   return _internal::DecryptWithAsymmetric(pub_key.Get<SodiumCurvePublicKey>(),
-                                          sec_key.Get<SodiumCurveSecretKey>(),
+                                          sec_key.Get<SodiumCurvePrivateKey>(),
                                           data);
 }
 

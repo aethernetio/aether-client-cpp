@@ -16,8 +16,6 @@
 
 #include "aether/client_messages/p2p_message_stream_manager.h"
 
-#include <algorithm>
-
 #include "aether/client.h"
 
 namespace ae {
@@ -50,10 +48,10 @@ P2pMessageStreamManager::new_stream_event() {
   return EventSubscriber{new_stream_event_};
 }
 
-void P2pMessageStreamManager::NewMessageReceived(MessageData const& message) {
-  auto it = streams_.find(message.destination);
+void P2pMessageStreamManager::NewMessageReceived(AeMessage const& message) {
+  auto it = streams_.find(message.uid);
   if (it == std::end(streams_) || !it->second) {
-    auto stream = CreateStream(message.destination);
+    auto stream = CreateStream(message.uid);
     new_stream_event_.Emit(stream);
     // write out first data
     stream->WriteOut(message.data);
