@@ -31,7 +31,6 @@
 namespace ae {
 static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
 static constexpr Duration kTwoSeconds = std::chrono::milliseconds{2000};
-static constexpr Duration kTenSeconds = std::chrono::milliseconds{10000};
 static const AtRequest::Wait kWaitOk{"OK", kOneSecond};
 static const AtRequest::Wait kWaitOkTwoSeconds{"OK", kTwoSeconds};
 static const AtRequest::Wait kWaitEntryAt{"Entry AT", kOneSecond};
@@ -42,12 +41,10 @@ class DxSmartLr02TcpOpenNetwork final
     : public Action<DxSmartLr02TcpOpenNetwork> {
  public:
   DxSmartLr02TcpOpenNetwork(ActionContext action_context,
-                            DxSmartLr02LoraModule& lora_module,
+                            DxSmartLr02LoraModule& /* lora_module */,
                             std::string host, std::uint16_t port)
       : Action{action_context},
         action_context_{action_context},
-        lora_module_{&lora_module},
-        at_comm_support_{&lora_module.at_comm_support_},
         host_{std::move(host)},
         port_{port} {
     AE_TELED_DEBUG("Open tcp connection for {}:{}", host_, port_);
@@ -70,13 +67,10 @@ class DxSmartLr02TcpOpenNetwork final
 
  private:
   ActionContext action_context_;
-  DxSmartLr02LoraModule* lora_module_;
-  AtSupport* at_comm_support_;
   std::string host_;
   std::uint16_t port_;
   ActionPtr<IPipeline> operation_pipeline_;
   Subscription operation_sub_;
-  std::int32_t handle_{-1};
   ConnectionLoraIndex connection_index_ = kInvalidConnectionLoraIndex;
   bool success_{};
   bool error_{};
@@ -87,12 +81,10 @@ class DxSmartLr02UdpOpenNetwork final
     : public Action<DxSmartLr02UdpOpenNetwork> {
  public:
   DxSmartLr02UdpOpenNetwork(ActionContext action_context,
-                            DxSmartLr02LoraModule& lora_module,
+                            DxSmartLr02LoraModule& /* lora_module */,
                             std::string host, std::uint16_t port)
       : Action{action_context},
         action_context_{action_context},
-        lora_module_{&lora_module},
-        at_comm_support_{&lora_module.at_comm_support_},
         host_{std::move(host)},
         port_{port} {
     AE_TELED_DEBUG("Open UDP connection for {}:{}", host_, port_);
@@ -115,13 +107,10 @@ class DxSmartLr02UdpOpenNetwork final
 
  private:
   ActionContext action_context_;
-  DxSmartLr02LoraModule* lora_module_;
-  AtSupport* at_comm_support_;
   std::string host_;
   std::uint16_t port_;
   ActionPtr<IPipeline> operation_pipeline_;
   Subscription operation_sub_;
-  std::int32_t handle_{-1};
   ConnectionLoraIndex connection_index_ = kInvalidConnectionLoraIndex;
   bool success_{};
   bool error_{};
