@@ -14,22 +14,18 @@
  * limitations under the License.
  */
 
-#include "aether/lora_modules/lora_module_factory.h"
+#include "aether/lora_gateways/lora_gateway_factory.h"
 
-#include "aether/lora_modules/ebyte_e22_lm.h"
-#include "aether/lora_modules/dx_smart_lr02_lm.h"
+#include "aether/lora_gateways/dx_smart_lr02_gw.h"
 
 namespace ae {
 
-std::unique_ptr<ILoraModuleDriver> LoraModuleDriverFactory::CreateLoraModule(
+std::unique_ptr<ILoraGatewayDriver> LoraGatewayDriverFactory::CreateLoraGateway(
     ActionContext action_context, IPoller::ptr const& poller,
-    LoraModuleInit lora_module_init) {
-#if AE_LORA_MODULE_EBYTE22_ENABLED == 1
-  return std::make_unique<EbyteE22LoraModule>(action_context, poller,
-                                              std::move(lora_module_init));
-#elif AE_LORA_MODULE_DXSMART_LR02_ENABLED == 1
-  return std::make_unique<DxSmartLr02LoraModule>(action_context, poller,
-                                                 std::move(lora_module_init));
+    LoraGatewayInit lora_gateway_init) {
+#if AE_LORA_GATEWAY_DXSMART_LR02_ENABLED == 1
+  return std::make_unique<DxSmartLr02LoraGateway>(action_context, poller,
+                                                 std::move(lora_gateway_init));
 #endif
 }
 

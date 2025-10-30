@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/lora_modules/ebyte_e22_400_lm.h"
+#include "aether/lora_modules/ebyte_e22_lm.h"
 
 #include <bitset>
 #include <string_view>

@@ -39,6 +39,7 @@ LoraModulePowerSaveParam psp{
 ae::LoraModuleInit const lora_module_init{
     serial_init_lora_module,                  // Serial port
     psp,                                      // Power Save Parameters
+    {kLoraModuleFreqRange::kFREU433},         // Frequency range
     {0},                                      // Lora module address
     {0},                                      // Lora module BS address
     {0},                                      // Channel
