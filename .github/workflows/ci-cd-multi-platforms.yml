@@ -67,7 +67,7 @@ jobs:
             }
           - {
               name: "macOS Latest Clang",
-              os: [self-hosted, macOS, ARM64],
+              os: self-hosted,
               platform: "macos_clang",
               shell: "bash",
               generator: "Unix Makefiles",
