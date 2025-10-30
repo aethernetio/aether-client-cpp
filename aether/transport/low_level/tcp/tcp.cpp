@@ -347,14 +347,16 @@ void TcpTransport::Disconnect() {
   stream_info_.is_writable = false;
   socket_error_subscription_.Reset();
 
-  auto lock = std::lock_guard{socket_lock_};
-  if (!socket_.IsValid()) {
-    return;
+  {
+    auto lock = std::lock_guard{socket_lock_};
+    if (!socket_.IsValid()) {
+      return;
+    }
+    if (auto poller_ptr = poller_.Lock(); poller_ptr) {
+      poller_ptr->Remove(static_cast<DescriptorType>(socket_));
+    }
+    socket_.Disconnect();
   }
-  if (auto poller_ptr = poller_.Lock(); poller_ptr) {
-    poller_ptr->Remove(static_cast<DescriptorType>(socket_));
-  }
-  socket_.Disconnect();
 
   stream_update_event_.Emit();
 }

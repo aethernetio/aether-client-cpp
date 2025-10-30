@@ -25,7 +25,6 @@
 #include "aether/mstream_buffers.h"
 #include "aether/api_protocol/request_id.h"
 #include "aether/api_protocol/api_message.h"
-#include "aether/api_protocol/protocol_context.h"
 
 namespace ae {
 struct SendResult : public Message<SendResult> {
@@ -52,12 +51,6 @@ struct SendResult : public Message<SendResult> {
     return t;
   }
 
-  template <typename CbFunc>
-  static void OnResponse(ProtocolContext& context, RequestId req_id,
-                         CbFunc&& cb) {
-    context.AddSendResultCallback(req_id, std::forward<CbFunc>(cb));
-  }
-
   template <typename Ib>
   friend imstream<Ib>& operator>>(imstream<Ib>& is, SendResult& sr) {
     is >> sr.request_id;
@@ -76,20 +69,6 @@ struct SendResult : public Message<SendResult> {
   RequestId request_id;
   // for serialize only
   std::vector<std::uint8_t> child_data;
-};
-
-struct SendError : public Message<SendError> {
-  static constexpr std::uint32_t kMessageId = 1;
-
-  template <typename CbFunc>
-  static void OnError(ProtocolContext& context, RequestId req_id, CbFunc&& cb) {
-    context.AddSendResultCallback(req_id, std::forward<CbFunc>(cb));
-  }
-
-  AE_REFLECT_MEMBERS(request_id, error_type, error_code)
-  RequestId request_id;
-  std::uint8_t error_type;
-  std::uint32_t error_code;
 };
 }  // namespace ae
 

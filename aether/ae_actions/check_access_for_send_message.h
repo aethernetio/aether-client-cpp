@@ -20,13 +20,15 @@
 #include <cstdint>
 
 #include "aether/common.h"
+#include "aether/types/uid.h"
 #include "aether/actions/action.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/types/state_machine.h"
 #include "aether/actions/repeatable_task.h"
 
-#include "aether/server_connections/client_to_server_stream.h"
-
 namespace ae {
+class ClientServerConnection;
+
 class CheckAccessForSendMessage final
     : public Action<CheckAccessForSendMessage> {
   static constexpr std::uint8_t kMaxRequestRepeatCount = 5;
@@ -43,7 +45,7 @@ class CheckAccessForSendMessage final
 
  public:
   CheckAccessForSendMessage(ActionContext action_context,
-                            ClientToServerStream& client_to_server_stream,
+                            ClientServerConnection& client_server_connection,
                             Uid destination);
 
   AE_CLASS_NO_COPY_MOVE(CheckAccessForSendMessage)
@@ -60,7 +62,7 @@ class CheckAccessForSendMessage final
   void SendError();
 
   ActionContext action_context_;
-  ClientToServerStream* client_to_server_stream_;
+  ClientServerConnection* client_server_connection_;
   Uid destination_;
 
   StateMachine<State> state_;

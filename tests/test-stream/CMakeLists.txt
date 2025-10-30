@@ -26,7 +26,6 @@ list(APPEND test_srcs
   safe-stream/test_safe_stream_send_recv.cpp
   safe-stream/test_safe_stream.cpp
   safe-stream/test_safe_stream_reliability.cpp
-  stream-api/test_stream_api.cpp
   crypto-stream/test_crypto_stream.cpp
   protocol-stream/test_protocol_stream.cpp
   templated-streams/test_templated_streams.cpp

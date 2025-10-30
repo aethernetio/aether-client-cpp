@@ -36,6 +36,7 @@ class HydroAsyncEncryptProvider : public IEncryptProvider {
   std::size_t EncryptOverhead() const override;
 
  private:
+  std::uint64_t msg_id_ = 0;
   std::unique_ptr<IAsyncKeyProvider> key_provider_;
 };
 

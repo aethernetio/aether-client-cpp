@@ -44,13 +44,15 @@ std::unique_ptr<IDecryptProvider> CreateDecryptImpl(
 
 template <>
 std::unique_ptr<IEncryptProvider> CreateEncryptImpl(
-    SodiumChachaKey const&, std::unique_ptr<ISyncKeyProvider> key_provider) {
+    SodiumChacha20Poly1305Key const&,
+    std::unique_ptr<ISyncKeyProvider> key_provider) {
   return make_unique<SodiumSyncEncryptProvider>(std::move(key_provider));
 }
 
 template <>
 std::unique_ptr<IDecryptProvider> CreateDecryptImpl(
-    SodiumChachaKey const&, std::unique_ptr<ISyncKeyProvider> key_provider) {
+    SodiumChacha20Poly1305Key const&,
+    std::unique_ptr<ISyncKeyProvider> key_provider) {
   return make_unique<SodiumSyncDecryptProvider>(std::move(key_provider));
 }
 #endif

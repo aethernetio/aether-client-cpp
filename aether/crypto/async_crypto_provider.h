@@ -23,7 +23,7 @@
 #include "aether/crypto/ikey_provider.h"
 
 namespace ae {
-class AsyncEncryptProvider : public IEncryptProvider {
+class AsyncEncryptProvider final : public IEncryptProvider {
  public:
   explicit AsyncEncryptProvider(
       std::unique_ptr<IAsyncKeyProvider> key_provider);
@@ -35,7 +35,7 @@ class AsyncEncryptProvider : public IEncryptProvider {
   std::unique_ptr<IEncryptProvider> impl_;
 };
 
-class AsyncDecryptProvider : public IDecryptProvider {
+class AsyncDecryptProvider final : public IDecryptProvider {
  public:
   explicit AsyncDecryptProvider(
       std::unique_ptr<IAsyncKeyProvider> key_provider);
