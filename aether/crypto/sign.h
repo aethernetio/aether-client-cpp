@@ -33,8 +33,8 @@
 #    include "third_party/libhydrogen/hydrogen.h"
 #  endif
 
-#  include "aether/types/variant_type.h"
 #  include "aether/reflect/reflect.h"
+#  include "aether/types/variant_type.h"
 
 namespace ae {
 
@@ -68,9 +68,10 @@ struct SignHydrogen {
 // Signature type
 struct Sign : public VariantType<SignatureMethod,
 #  if AE_SIGNATURE == AE_ED25519
-                                 SignSodium
+                                 VPair<SignatureMethod::kEd25519, SignSodium>
 #  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-                                 SignHydrogen
+                                 VPair<SignatureMethod::kHydroSignature,
+                                       SignHydrogen>
 #  endif
                                  > {
   using VariantType::VariantType;
@@ -83,30 +84,6 @@ struct Sign : public VariantType<SignatureMethod,
   std::size_t Size() const {
     return std::visit([](auto const& v) { return v.signature.size(); },
                       static_cast<VariantType::variant const&>(*this));
-  }
-
-  std::size_t IndexToOrder(index_type index) const override {
-    switch (index) {
-#  if AE_SIGNATURE == AE_ED25519
-      case SignatureMethod::kEd25519:
-        return static_cast<std::size_t>(index);
-#  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-      case SignatureMethod::kHydroSignature:
-        return static_cast<std::size_t>(index) -
-               static_cast<std::size_t>(SignatureMethod::kHydroSignature);
-#  endif
-      default:
-        assert(false);
-    }
-    return {};
-  }
-  index_type OrderToIndex(std::size_t order) const override {
-#  if AE_SIGNATURE == AE_ED25519
-    return static_cast<index_type>(order);
-#  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-    return static_cast<index_type>(
-        order + static_cast<std::size_t>(SignatureMethod::kHydroSignature));
-#  endif
   }
 
   static std::string text(Sign const& v) {

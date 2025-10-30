@@ -28,41 +28,44 @@
 namespace ae {
 
 namespace _internal {
-inline DataBuffer EncryptWithSymmetric(SodiumChachaKey const& secret_key,
-                                       CryptoNonce const& nonce,
-                                       DataBuffer const& raw_data) {
-  std::vector<uint8_t> ciphertext(
-      raw_data.size() + crypto_aead_chacha20poly1305_ABYTES + nonce.size());
+inline DataBuffer EncryptWithSymmetric(
+    SodiumChacha20Poly1305Key const& secret_key, CryptoNonce const& nonce,
+    DataBuffer const& raw_data) {
+  std::vector<uint8_t> ciphertext(raw_data.size() +
+                                  crypto_aead_chacha20poly1305_ABYTES +
+                                  nonce.value.size());
 
   unsigned long long ciphertext_len;
 
   [[maybe_unused]] auto r = crypto_aead_chacha20poly1305_encrypt(
       ciphertext.data(), &ciphertext_len, raw_data.data(), raw_data.size(),
-      nullptr, 0, nullptr, nonce.data(), secret_key.key.data());
+      nullptr, 0, nullptr, nonce.value.data(), secret_key.key.data());
 
   assert(r == 0);
 
-  ciphertext.resize(static_cast<std::size_t>(ciphertext_len + nonce.size()));
+  ciphertext.resize(
+      static_cast<std::size_t>(ciphertext_len + nonce.value.size()));
 
   // add nonce to the end of ciphertext
   std::copy(
-      std::begin(nonce), std::end(nonce),
+      std::begin(nonce.value), std::end(nonce.value),
       std::begin(ciphertext) + static_cast<std::ptrdiff_t>(ciphertext_len));
 
   return ciphertext;
 }
 
-inline DataBuffer DecryptWithSymmetric(SodiumChachaKey const& secret_key,
-                                       DataBuffer const& encrypted_data) {
+inline DataBuffer DecryptWithSymmetric(
+    SodiumChacha20Poly1305Key const& secret_key,
+    DataBuffer const& encrypted_data) {
   assert(encrypted_data.size() > kNonceSize);
 
   auto nonce = CryptoNonce{};
-  auto encrypted_data_size = encrypted_data.size() - nonce.size();
+  auto encrypted_data_size = encrypted_data.size() - nonce.value.size();
 
   // get nonce from the end of child_data_
   std::copy(
       encrypted_data.begin() + static_cast<std::ptrdiff_t>(encrypted_data_size),
-      encrypted_data.end(), nonce.begin());
+      encrypted_data.end(), nonce.value.begin());
 
   auto decrypted_data = std::vector<uint8_t>(
       encrypted_data_size - crypto_aead_chacha20poly1305_ABYTES);
@@ -70,7 +73,8 @@ inline DataBuffer DecryptWithSymmetric(SodiumChachaKey const& secret_key,
 
   [[maybe_unused]] auto r = crypto_aead_chacha20poly1305_decrypt(
       decrypted_data.data(), &decrypted_len, nullptr, encrypted_data.data(),
-      encrypted_data_size, nullptr, 0, nonce.data(), secret_key.key.data());
+      encrypted_data_size, nullptr, 0, nonce.value.data(),
+      secret_key.key.data());
 
   assert(r == 0);
 
@@ -84,9 +88,9 @@ SodiumSyncEncryptProvider::SodiumSyncEncryptProvider(
 
 DataBuffer SodiumSyncEncryptProvider::Encrypt(DataBuffer const& data) {
   auto key = key_provider_->GetKey();
-  assert(key.Index() == CryptoKeyType::kSodiumChacha);
+  assert(key.Index() == CryptoKeyType::kSodiumChacha20Poly1305);
 
-  return _internal::EncryptWithSymmetric(key.Get<SodiumChachaKey>(),
+  return _internal::EncryptWithSymmetric(key.Get<SodiumChacha20Poly1305Key>(),
                                          key_provider_->Nonce(), data);
 }
 
@@ -100,9 +104,10 @@ SodiumSyncDecryptProvider::SodiumSyncDecryptProvider(
 
 DataBuffer SodiumSyncDecryptProvider::Decrypt(DataBuffer const& data) {
   auto key = key_provider_->GetKey();
-  assert(key.Index() == CryptoKeyType::kSodiumChacha);
+  assert(key.Index() == CryptoKeyType::kSodiumChacha20Poly1305);
 
-  return _internal::DecryptWithSymmetric(key.Get<SodiumChachaKey>(), data);
+  return _internal::DecryptWithSymmetric(key.Get<SodiumChacha20Poly1305Key>(),
+                                         data);
 }
 
 }  // namespace ae

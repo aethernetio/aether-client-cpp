@@ -16,7 +16,6 @@ cmake_minimum_required( VERSION 3.16 )
 
 list(APPEND test_srcs
   main.cpp
-  test-api-protocol.cpp
   test-method-call.cpp
 )
 

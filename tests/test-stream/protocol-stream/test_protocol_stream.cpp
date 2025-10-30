@@ -23,7 +23,6 @@
 #include "aether/api_protocol/api_class_impl.h"
 
 #include "aether/stream_api/protocol_gates.h"
-#include "aether/api_protocol/packet_builder.h"
 
 #include "aether/types/data_buffer.h"
 #include "tests/test-stream/to_data_buffer.h"
@@ -33,7 +32,8 @@ namespace ae::test_protocol_stream {
 class TestApiClass : public ApiClassImpl<TestApiClass> {
  public:
   explicit TestApiClass(ProtocolContext& protocol_context)
-      : method1{protocol_context},
+      : ApiClassImpl{protocol_context},
+        method1{protocol_context},
         method2{protocol_context},
         data_method{protocol_context} {}
 
@@ -90,7 +90,7 @@ void test_ProtocolReadStream() {
 
   auto protocol_gate = ProtocolReadGate{pc, api};
 
-  auto api_context = ApiContext{pc, api};
+  auto api_context = ApiContext{api};
 
   api_context->method1(1, 2);
   protocol_gate.WriteOut(std::move(api_context));
@@ -127,7 +127,7 @@ void test_ApiClassAdapter() {
         reinterpret_cast<const std::uint8_t*>(data.data()) + data.size()};
   });
 
-  auto api_adapter = ApiCallAdapter{ApiContext{pc, api}, write_stream};
+  auto api_adapter = ApiCallAdapter{ApiContext{api}, write_stream};
 
   api_adapter->data_method(ToDataBuffer(test_data));
   api_adapter.Flush();

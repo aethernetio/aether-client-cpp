@@ -24,22 +24,15 @@
 #  include "aether/common.h"
 #  include "aether/obj/domain.h"
 #  include "aether/crypto/sign.h"
-#  include "aether/crypto/key_gen.h"
 #  include "aether/crypto/crypto_definitions.h"
-
-#  include "aether/stream_api/byte_gate.h"
-
-#  include "aether/crypto/sync_crypto_provider.h"
-#  include "aether/crypto/async_crypto_provider.h"
+#  include "aether/stream_api/protocol_gates.h"
 
 #  include "aether/work_cloud.h"
 
 #  include "aether/api_protocol/api_context.h"
 
 #  include "aether/registration/proof_of_work.h"
-#  include "aether/registration/reg_server_stream.h"
-#  include "aether/registration/registration_key_provider.h"
-#  include "aether/registration/global_reg_server_stream.h"
+#  include "aether/registration/registration_crypto_provider.h"
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 
@@ -54,12 +47,13 @@ Registration::Registration(ActionContext action_context,
       aether_{aether},
       client_{std::move(client)},
       parent_uid_{std::move(parent_uid)},
-      client_root_api_{protocol_context_},
-      client_safe_api_{protocol_context_},
-      client_global_reg_api_{protocol_context_},
-      server_reg_root_api_{protocol_context_, action_context_},
-      server_reg_api_{protocol_context_, action_context_},
-      global_reg_server_api_{protocol_context_, action_context_},
+      root_crypto_provider_{std::make_unique<RegistrationCryptoProvider>()},
+      global_crypto_provider_{std::make_unique<RegistrationCryptoProvider>()},
+      client_root_api_{protocol_context_, *root_crypto_provider_->decryptor(),
+                       *global_crypto_provider_->decryptor()},
+      server_reg_root_api_{protocol_context_, action_context_,
+                           *root_crypto_provider_->encryptor(),
+                           *global_crypto_provider_->encryptor()},
       root_server_select_stream_{action_context_, aether, reg_cloud},
       state_{State::kInitConnection},
       // TODO: add configuration
@@ -139,12 +133,13 @@ void Registration::InitConnection() {
     }
   });
 
-  // create simplest stream to server
-  // On RequestPowParams will be created a more complicated one
-  reg_server_stream_ = make_unique<GatesStream>(
-      ByteGate{}, ProtocolReadGate{protocol_context_, client_root_api_});
-
-  Tie(*reg_server_stream_, root_server_select_stream_);
+  // Connect parser for out data
+  data_read_subscription_ =
+      root_server_select_stream_.out_data_event().Subscribe(
+          [this](const auto& data) {
+            auto parser = ApiParser{protocol_context_, data};
+            parser.Parse(client_root_api_);
+          });
 
   state_ = State::kGetKeys;
 }
@@ -157,8 +152,9 @@ void Registration::Restream() {
 void Registration::GetKeys() {
   AE_TELE_INFO(RegisterGetKeys, "GetKeys");
 
-  auto api_call = ApiCallAdapter{
-      ApiContext{protocol_context_, server_reg_root_api_}, *reg_server_stream_};
+  auto api_call = ApiCallAdapter{ApiContext{server_reg_root_api_},
+                                 root_server_select_stream_};
+
   auto get_key_promise =
       api_call->get_asymmetric_public_key(kDefaultCryptoLibProfile);
 
@@ -204,53 +200,43 @@ TimePoint Registration::WaitKeys() {
 void Registration::RequestPowParams() {
   AE_TELE_INFO(RegisterRequestPowParams, "Request proof of work params");
 
-  Key secret_key;
-  [[maybe_unused]] auto r = CryptoSyncKeygen(secret_key);
-  assert(r);
+  // setup crypto config
+  root_crypto_provider_->SetEncryptionKey(server_pub_key_);
+  auto ret_key = root_crypto_provider_->GetDecryptionKey();
 
-  auto server_async_key_provider = make_unique<RegistrationAsyncKeyProvider>();
-  server_async_key_provider->set_public_key(server_pub_key_);
-  server_async_key_provider_ = server_async_key_provider.get();
-
-  auto server_sync_key_provider = make_unique<RegistrationSyncKeyProvider>();
-  server_sync_key_provider->set_key(secret_key);
-  server_sync_key_provider_ = server_sync_key_provider.get();
-
-  reg_server_stream_ = std::make_unique<RegServerStream>(
-      action_context_, protocol_context_, client_safe_api_,
+  auto api_call = ApiCallAdapter{ApiContext{server_reg_root_api_},
+                                 root_server_select_stream_};
+  api_call->enter(
       kDefaultCryptoLibProfile,
-      make_unique<AsyncEncryptProvider>(std::move(server_async_key_provider)),
-      make_unique<SyncDecryptProvider>(std::move(server_sync_key_provider)));
-
-  Tie(*reg_server_stream_, root_server_select_stream_);
-
-  auto api_call = ApiCallAdapter{ApiContext{protocol_context_, server_reg_api_},
-                                 *reg_server_stream_};
-  auto pow_params_promise = api_call->request_proof_of_work_data(
-      parent_uid_, PowMethod::kBCryptCrc32, std::move(secret_key));
-
-  response_sub_ = pow_params_promise->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[&](auto& promise) {
-        auto& pow_params = promise.value();
-        [[maybe_unused]] auto res = CryptoSignVerify(
-            pow_params.global_key.sign, pow_params.global_key.key, sign_pk_);
-        if (!res) {
-          AE_TELE_ERROR(RegisterPowParamsVerificationFailed,
+      SubApi{[this, &ret_key](ApiContext<ServerRegistrationApi>& server_api) {
+        auto pow_params_promise = server_api->request_proof_of_work_data(
+            parent_uid_, PowMethod::kBCryptCrc32, std::move(ret_key));
+        response_sub_ =
+            pow_params_promise->StatusEvent().Subscribe(ActionHandler{
+                OnResult{[&](auto& promise) {
+                  auto& pow_params = promise.value();
+                  [[maybe_unused]] auto res =
+                      CryptoSignVerify(pow_params.global_key.sign,
+                                       pow_params.global_key.key, sign_pk_);
+                  if (!res) {
+                    AE_TELE_ERROR(
+                        RegisterPowParamsVerificationFailed,
                         "Proof of work params sign verification failed");
-          state_ = State::kRegistrationFailed;
-          return;
-        }
+                    state_ = State::kRegistrationFailed;
+                    return;
+                  }
 
-        aether_global_key_ = pow_params.global_key.key;
+                  aether_global_key_ = pow_params.global_key.key;
 
-        pow_params_.salt = pow_params.salt;
-        pow_params_.max_hash_value = pow_params.max_hash_value;
-        pow_params_.password_suffix = pow_params.password_suffix;
-        pow_params_.pool_size = pow_params.pool_size;
+                  pow_params_.salt = pow_params.salt;
+                  pow_params_.max_hash_value = pow_params.max_hash_value;
+                  pow_params_.password_suffix = pow_params.password_suffix;
+                  pow_params_.pool_size = pow_params.pool_size;
 
-        state_ = State::kMakeRegistration;
-      }},
-      OnError{[&]() { state_ = State::kRegistrationFailed; }}});
+                  state_ = State::kMakeRegistration;
+                }},
+                OnError{[&]() { state_ = State::kRegistrationFailed; }}});
+      }});
 
   packet_write_action_ = api_call.Flush();
 
@@ -272,47 +258,46 @@ void Registration::MakeRegistration() {
       pow_params_.pool_size, pow_params_.salt, pow_params_.password_suffix,
       pow_params_.max_hash_value);
 
-  [[maybe_unused]] auto r = CryptoSyncKeygen(master_key_);
-  assert(r);
+  global_crypto_provider_->SetEncryptionKey(aether_global_key_);
+  master_key_ = global_crypto_provider_->GetDecryptionKey();
+
+  auto return_key = root_crypto_provider_->GetDecryptionKey();
 
   AE_TELE_DEBUG(RegisterKeysGenerated, "Global Pk: {}:{}, Masterkey: {}:{}",
                 aether_global_key_.Index(), aether_global_key_,
                 master_key_.Index(), master_key_);
 
-  auto global_async_key_provider = make_unique<RegistrationAsyncKeyProvider>();
-  global_async_key_provider->set_public_key(aether_global_key_);
+  auto api_call = ApiCallAdapter{ApiContext{server_reg_root_api_},
+                                 root_server_select_stream_};
+  api_call->enter(
+      kDefaultCryptoLibProfile,
+      SubApi{[this, &proofs,
+              &return_key](ApiContext<ServerRegistrationApi>& server_api) {
+        server_api->registration(
+            pow_params_.salt, pow_params_.password_suffix, proofs, parent_uid_,
+            std::move(return_key),
+            SubApi{[this](ApiContext<GlobalRegServerApi>& global_api) {
+              // set master key and wait for confirmation
+              global_api->set_master_key(master_key_);
+              auto confirm_promise = global_api->finish();
 
-  auto global_sync_key_provider = make_unique<RegistrationSyncKeyProvider>();
-  global_sync_key_provider->set_key(master_key_);
+              response_sub_ =
+                  confirm_promise->StatusEvent().Subscribe(ActionHandler{
+                      OnResult{[&](auto& promise) {
+                        auto& reg_response = promise.value();
+                        AE_TELE_INFO(RegisterRegistrationConfirmed,
+                                     "Registration confirmed");
 
-  global_reg_server_stream_ = std::make_unique<GlobalRegServerStream>(
-      protocol_context_, client_global_reg_api_, server_reg_api_,
-      pow_params_.salt, pow_params_.password_suffix, std::move(proofs),
-      parent_uid_, server_sync_key_provider_->GetKey(),
-      make_unique<AsyncEncryptProvider>(std::move(global_async_key_provider)),
-      make_unique<SyncDecryptProvider>(std::move(global_sync_key_provider)));
+                        ephemeral_uid_ = reg_response.ephemeral_uid;
+                        uid_ = reg_response.uid;
+                        client_cloud_ = reg_response.cloud;
+                        assert(client_cloud_.size() > 0);
 
-  Tie(*global_reg_server_stream_, *reg_server_stream_);
-
-  auto api_call =
-      ApiCallAdapter{ApiContext{protocol_context_, global_reg_server_api_},
-                     *global_reg_server_stream_};
-  api_call->set_master_key(master_key_);
-  auto confirm_promise = api_call->finish();
-
-  response_sub_ = confirm_promise->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[&](auto& promise) {
-        auto& reg_response = promise.value();
-        AE_TELE_INFO(RegisterRegistrationConfirmed, "Registration confirmed");
-
-        ephemeral_uid_ = reg_response.ephemeral_uid;
-        uid_ = reg_response.uid;
-        client_cloud_ = reg_response.cloud;
-        assert(client_cloud_.size() > 0);
-
-        state_ = State::kRequestCloudResolving;
-      }},
-      OnError{[&]() { state_ = State::kRegistrationFailed; }}});
+                        state_ = State::kRequestCloudResolving;
+                      }},
+                      OnError{[&]() { state_ = State::kRegistrationFailed; }}});
+            }});
+      }});
 
   packet_write_action_ = api_call.Flush();
 
@@ -327,13 +312,19 @@ void Registration::ResolveCloud() {
   AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud with {} servers",
                client_cloud_.size());
 
-  auto api_call = ApiCallAdapter{ApiContext{protocol_context_, server_reg_api_},
-                                 *reg_server_stream_};
-  auto resolve_cloud_promise = api_call->resolve_servers(client_cloud_);
+  auto api_call = ApiCallAdapter{ApiContext{server_reg_root_api_},
+                                 root_server_select_stream_};
 
-  response_sub_ = resolve_cloud_promise->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[&](auto& promise) { OnCloudResolved(promise.value()); }},
-      OnError{[&]() { state_ = State::kRegistrationFailed; }}});
+  api_call->enter(
+      kDefaultCryptoLibProfile,
+      SubApi{[this](ApiContext<ServerRegistrationApi>& server_api) {
+        auto resolve_cloud_promise = server_api->resolve_servers(client_cloud_);
+        response_sub_ =
+            resolve_cloud_promise->StatusEvent().Subscribe(ActionHandler{
+                OnResult{
+                    [&](auto& promise) { OnCloudResolved(promise.value()); }},
+                OnError{[&]() { state_ = State::kRegistrationFailed; }}});
+      }});
 
   packet_write_action_ = api_call.Flush();
 
@@ -374,6 +365,8 @@ void Registration::OnCloudResolved(
             IpAddressPortProtocol{{ip.ip, pp.port}, pp.protocol});
       }
     }
+
+    AE_TELED_DEBUG("Got server endpoints {}", endpoints);
 
     Server::ptr server =
         aether->domain_->CreateObj<Server>(server_id, std::move(endpoints));

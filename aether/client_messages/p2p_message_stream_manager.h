@@ -41,7 +41,7 @@ class P2pMessageStreamManager {
   NewStreamEvent::Subscriber new_stream_event();
 
  private:
-  void NewMessageReceived(MessageData const& message);
+  void NewMessageReceived(AeMessage const& message);
   void CleanUpStreams();
   RcPtr<P2pStream> MakeStream(Uid destination);
 

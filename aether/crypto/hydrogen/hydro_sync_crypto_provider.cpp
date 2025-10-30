@@ -28,14 +28,19 @@
 namespace ae {
 namespace _internal {
 inline std::vector<std::uint8_t> EncryptWithSymmetric(
-    HydrogenSecretBoxKey const& secret_key,
+    std::uint64_t msg_id, HydrogenSecretBoxKey const& secret_key,
     std::vector<std::uint8_t> const& raw_data) {
-  std::vector<uint8_t> ciphertext(raw_data.size() +
+  std::vector<uint8_t> ciphertext(sizeof(msg_id) + raw_data.size() +
                                   hydro_secretbox_HEADERBYTES);
 
-  [[maybe_unused]] auto r = hydro_secretbox_encrypt(
-      ciphertext.data(), raw_data.data(), raw_data.size(), 0, HYDRO_CONTEXT,
-      secret_key.key.data());
+  auto* msg_id_ptr = ciphertext.data();
+  auto* cipher_ptr = msg_id_ptr + sizeof(msg_id);
+
+  *reinterpret_cast<std::uint64_t*>(msg_id_ptr) = msg_id;
+
+  [[maybe_unused]] auto r =
+      hydro_secretbox_encrypt(cipher_ptr, raw_data.data(), raw_data.size(),
+                              msg_id, HYDRO_CONTEXT, secret_key.key.data());
   assert(r == 0);
 
   return ciphertext;
@@ -44,12 +49,18 @@ inline std::vector<std::uint8_t> EncryptWithSymmetric(
 inline std::vector<std::uint8_t> DecryptWithSymmetric(
     HydrogenSecretBoxKey const& secret_key,
     std::vector<std::uint8_t> const& encrypted_data) {
-  auto decrypted_data = std::vector<std::uint8_t>(encrypted_data.size() -
-                                                  hydro_secretbox_HEADERBYTES);
+  auto const* msg_id_ptr = encrypted_data.data();
+  auto msg_id = *reinterpret_cast<std::uint64_t const*>(msg_id_ptr);
 
-  [[maybe_unused]] auto r = hydro_secretbox_decrypt(
-      decrypted_data.data(), encrypted_data.data(), encrypted_data.size(), 0,
-      HYDRO_CONTEXT, secret_key.key.data());
+  auto decrypted_data = std::vector<std::uint8_t>(
+      encrypted_data.size() - sizeof(msg_id) - hydro_secretbox_HEADERBYTES);
+
+  auto const* encrypted_ptr = msg_id_ptr + sizeof(msg_id);
+
+  [[maybe_unused]] auto r =
+      hydro_secretbox_decrypt(decrypted_data.data(), encrypted_ptr,
+                              encrypted_data.size() - sizeof(msg_id), msg_id,
+                              HYDRO_CONTEXT, secret_key.key.data());
   assert(r == 0);
 
   return decrypted_data;
@@ -63,13 +74,15 @@ HydroSyncEncryptProvider::HydroSyncEncryptProvider(
 
 DataBuffer HydroSyncEncryptProvider::Encrypt(DataBuffer const& data) {
   auto key = key_provider_->GetKey();
+  auto nonce = key_provider_->Nonce();
   assert(key.Index() == CryptoKeyType::kHydrogenSecretBox);
 
-  return _internal::EncryptWithSymmetric(key.Get<HydrogenSecretBoxKey>(), data);
+  return _internal::EncryptWithSymmetric(nonce.value,
+                                         key.Get<HydrogenSecretBoxKey>(), data);
 }
 
 std::size_t HydroSyncEncryptProvider::EncryptOverhead() const {
-  return hydro_secretbox_HEADERBYTES;
+  return hydro_secretbox_HEADERBYTES + sizeof(std::uint64_t);
 }
 
 HydroSyncDecryptProvider::HydroSyncDecryptProvider(

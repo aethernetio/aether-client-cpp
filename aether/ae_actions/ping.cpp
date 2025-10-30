@@ -19,31 +19,25 @@
 #include <utility>
 #include <optional>
 
-#include "aether/methods/work_server_api/authorized_api.h"
+#include "aether/server_connections/client_server_connection.h"
+#include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 #include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
 Ping::Ping(ActionContext action_context, Server::ptr const& server,
            Channel::ptr const& channel,
-           ClientToServerStream& client_to_server_stream,
+           ClientServerConnection& client_server_connection,
            Duration ping_interval)
     : Action{action_context},
       server_{server},
       channel_{channel},
-      client_to_server_stream_{&client_to_server_stream},
+      client_server_connection_{&client_server_connection},
       ping_interval_{ping_interval},
       repeat_count_{},
-      state_{State::kWaitLink},
+      state_{State::kSendPing},
       state_changed_sub_{state_.changed_event().Subscribe(
-          [this](auto) { Action::Trigger(); })},
-      stream_changed_sub_{
-          client_to_server_stream_->stream_update_event().Subscribe([this]() {
-            if (client_to_server_stream_->stream_info().link_state ==
-                LinkState::kLinked) {
-              state_ = State::kSendPing;
-            }
-          })} {
+          [this](auto) { Action::Trigger(); })} {
   AE_TELE_INFO(kPing, "Ping action created, interval {:%S}", ping_interval);
 }
 
@@ -52,8 +46,6 @@ Ping::~Ping() = default;
 UpdateStatus Ping::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
-      case State::kWaitLink:
-        break;
       case State::kSendPing:
         SendPing();
         break;
@@ -82,17 +74,19 @@ void Ping::Stop() { state_ = State::kStopped; }
 void Ping::SendPing() {
   AE_TELE_DEBUG(kPingSend, "Send ping");
 
-  auto api_adapter = client_to_server_stream_->authorized_api_adapter();
-  auto pong_promise = api_adapter->ping(static_cast<std::uint64_t>(
-      std::chrono::duration_cast<std::chrono::milliseconds>(ping_interval_)
-          .count()));
+  auto write_action = client_server_connection_->AuthorizedApiCall(
+      SubApi{[this](ApiContext<AuthorizedApi>& auth_api) {
+        auto pong_promise = auth_api->ping(static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                ping_interval_)
+                .count()));
 
-  ping_times_.push(std::make_pair(pong_promise->request_id(), Now()));
-  // Wait for response
-  wait_responses_.Push(pong_promise->StatusEvent().Subscribe(OnResult{
-      [&](auto const& promise) { PingResponse(promise.request_id()); }}));
+        ping_times_.push(std::make_pair(pong_promise->request_id(), Now()));
+        // Wait for response
+        wait_responses_.Push(pong_promise->StatusEvent().Subscribe(OnResult{
+            [&](auto const& promise) { PingResponse(promise.request_id()); }}));
+      }});
 
-  auto write_action = api_adapter.Flush();
   write_subscription_ = write_action->StatusEvent().Subscribe(OnError{[this]() {
     AE_TELE_ERROR(kPingWriteError, "Ping write error");
     state_ = State::kError;

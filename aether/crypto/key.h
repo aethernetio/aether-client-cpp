@@ -47,22 +47,23 @@ crypto_aead_chacha20poly1305.h"  //"
 #    include "third_party/libhydrogen/hydrogen.h"
 #  endif
 
-#  include "aether/types/variant_type.h"
 #  include "aether/reflect/reflect.h"
+#  include "aether/types/variant_type.h"
 
 namespace ae {
 
 enum class CryptoKeyType : std::uint8_t {
-  kSodiumCurvePublic,
-  kSodiumCurveSecret,
-  kSodiumChacha,
-  kSodiumSignPublic,
-  kSodiumSignSecret,
-  kHydrogenSignPublic,
-  kHydrogenSignPrivate,
-  kHydrogenCurvePublic,
-  kHydrogenCurveSecret,
-  kHydrogenSecretBox,
+  kHydrogenCurvePrivate = 1,
+  kHydrogenCurvePublic = 2,
+  kHydrogenSecretBox = 3,
+  kHydrogenSignPrivate = 4,
+  kHydrogenSignPublic = 5,
+  kSodiumChacha20Poly1305 = 6,
+  kSodiumCurvePrivate = 7,
+  kSodiumCurvePublic = 8,
+  kSodiumSignPrivate = 9,
+  kSodiumSignPublic = 10,
+  kLast,
 };
 
 #  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
@@ -72,14 +73,14 @@ struct SodiumCurvePublicKey {
   std::array<std::uint8_t, crypto_box_PUBLICKEYBYTES> key;
 };
 
-struct SodiumCurveSecretKey {
+struct SodiumCurvePrivateKey {
   AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_box_SECRETKEYBYTES> key;
 };
 #  endif
 
 #  if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-struct SodiumChachaKey {
+struct SodiumChacha20Poly1305Key {
   AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_aead_chacha20poly1305_KEYBYTES> key;
 };
@@ -91,7 +92,7 @@ struct SodiumSignPublicKey {
   std::array<std::uint8_t, crypto_sign_PUBLICKEYBYTES> key;
 };
 
-struct SodiumSignSecretKey {
+struct SodiumSignPrivateKey {
   AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, crypto_sign_SECRETKEYBYTES> key;
 };
@@ -103,7 +104,7 @@ struct HydrogenCurvePublicKey {
   std::array<std::uint8_t, hydro_kx_PUBLICKEYBYTES> key;
 };
 
-struct HydrogenCurveSecretKey {
+struct HydrogenCurvePrivateKey {
   AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_kx_SECRETKEYBYTES> key;
 };
@@ -122,7 +123,7 @@ struct HydrogenSignPublicKey {
   std::array<std::uint8_t, hydro_sign_PUBLICKEYBYTES> key;
 };
 
-struct HydrogenSignSecretKey {
+struct HydrogenSignPrivateKey {
   AE_REFLECT_MEMBERS(key)
   std::array<std::uint8_t, hydro_sign_SECRETKEYBYTES> key;
 };
@@ -134,147 +135,46 @@ struct BlankKey {
   AE_REFLECT_MEMBERS(key)
 };
 
-class Key : public VariantType<CryptoKeyType,
-#  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
-                               SodiumCurvePublicKey, SodiumCurveSecretKey,
-#  endif
+class Key
+    : public VariantType<
+          CryptoKeyType,
 #  if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-
-                               SodiumChachaKey,
-#  endif
-#  if AE_SIGNATURE == AE_ED25519
-
-                               SodiumSignPublicKey, SodiumSignSecretKey,
-#  endif
-#  if AE_SIGNATURE == AE_HYDRO_SIGNATURE
-                               HydrogenSignPublicKey, HydrogenSignSecretKey,
+          VPair<CryptoKeyType::kSodiumChacha20Poly1305,
+                SodiumChacha20Poly1305Key>,
 #  endif
 #  if AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
-                               HydrogenCurvePublicKey, HydrogenCurveSecretKey,
+          VPair<CryptoKeyType::kHydrogenCurvePrivate, HydrogenCurvePrivateKey>,
+          VPair<CryptoKeyType::kHydrogenCurvePublic, HydrogenCurvePublicKey>,
 #  endif
 #  if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
-                               HydrogenSecretBoxKey,
+          VPair<CryptoKeyType::kHydrogenSecretBox, HydrogenSecretBoxKey>,
 #  endif
-                               BlankKey  // leave it here to make sure type list
-                                         // ended without comma
-                               > {
- private:
-  static constexpr std::size_t kSodiumCurveOffset = 0;
-  static constexpr std::size_t kChachaOffset =
-      kSodiumCurveOffset + ((AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL) ? 2 : 0);
-  static constexpr std::size_t kSodiumSignOffset =
-      kChachaOffset + ((AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305) ? 1 : 0);
-  static constexpr std::size_t kHydrogenSignOffset =
-      kChachaOffset + ((AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305) ? 1 : 0);
-  static constexpr std::size_t kHydrogenCurveOffset =
-      kHydrogenSignOffset + ((AE_SIGNATURE != AE_NONE) ? 2 : 0);
-  static constexpr std::size_t kHydrogenSecretBoxOffset =
-      kHydrogenCurveOffset + (AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK ? 2 : 0);
-
+#  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
+          VPair<CryptoKeyType::kSodiumCurvePublic, SodiumCurvePublicKey>,
+          VPair<CryptoKeyType::kSodiumCurvePrivate, SodiumCurvePrivateKey>,
+#  endif
+#  if AE_SIGNATURE == AE_ED25519
+          VPair<CryptoKeyType::kSodiumSignPrivate, SodiumSignPrivateKey>,
+          VPair<CryptoKeyType::kSodiumSignPublic, SodiumSignPublicKey>,
+#  endif
+#  if AE_SIGNATURE == AE_HYDRO_SIGNATURE
+          VPair<CryptoKeyType::kHydrogenSignPrivate, HydrogenSignPrivateKey>,
+          VPair<CryptoKeyType::kHydrogenSignPublic, HydrogenSignPublicKey>,
+#  endif
+          VPair<CryptoKeyType::kLast, BlankKey>
+          // leave it here to make sure type list ended without comma
+          > {
  public:
   using VariantType::VariantType;
 
-  // Conversion from index type to variant type order
-  std::size_t IndexToOrder(index_type index) const override {
-    switch (index) {
-#  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
-      case CryptoKeyType::kSodiumCurvePublic:
-      case CryptoKeyType::kSodiumCurveSecret: {
-        return kSodiumCurveOffset + static_cast<std::size_t>(index) -
-               static_cast<std::size_t>(CryptoKeyType::kSodiumCurvePublic);
-      }
-#  endif
-#  if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-      case CryptoKeyType::kSodiumChacha: {
-        return kChachaOffset + static_cast<std::size_t>(index) -
-               static_cast<std::size_t>(CryptoKeyType::kSodiumChacha);
-      }
-#  endif
-#  if AE_SIGNATURE == AE_ED25519
-      case CryptoKeyType::kSodiumSignPublic:
-      case CryptoKeyType::kSodiumSignSecret: {
-        return kSodiumSignOffset + static_cast<std::size_t>(index) -
-               static_cast<std::size_t>(CryptoKeyType::kSodiumSignPublic);
-      }
-#  endif
-#  if AE_SIGNATURE == AE_HYDRO_SIGNATURE
-      case CryptoKeyType::kHydrogenSignPublic:
-      case CryptoKeyType::kHydrogenSignPrivate: {
-        return kHydrogenSignOffset + static_cast<std::size_t>(index) -
-               static_cast<std::size_t>(CryptoKeyType::kHydrogenSignPublic);
-      }
-#  endif
-#  if AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
-      case CryptoKeyType::kHydrogenCurvePublic:
-      case CryptoKeyType::kHydrogenCurveSecret: {
-        return kHydrogenCurveOffset + static_cast<std::size_t>(index) -
-               static_cast<std::size_t>(CryptoKeyType::kHydrogenCurvePublic);
-      }
-#  endif
-#  if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
-      case CryptoKeyType::kHydrogenSecretBox:
-        return kHydrogenSecretBoxOffset + static_cast<std::size_t>(index) -
-               static_cast<std::size_t>(CryptoKeyType::kHydrogenSecretBox);
-#  endif
-      default:
-        assert(false);
-    }
-    return {};
-  }
-
-  // Conversion from variant type order to index type
-  index_type OrderToIndex(std::size_t order) const override {
-#  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
-    if (order < kSodiumCurveOffset + 2) {
-      return static_cast<index_type>(
-          static_cast<std::size_t>(CryptoKeyType::kSodiumCurvePublic) +
-          (order - kSodiumCurveOffset));
-    }
-#  endif
-#  if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-    if (order == kChachaOffset) {
-      return CryptoKeyType::kSodiumChacha;
-    }
-#  endif
-#  if AE_SIGNATURE == AE_ED25519
-    if (order < kSodiumSignOffset + 2) {
-      return static_cast<index_type>(
-          static_cast<std::size_t>(CryptoKeyType::kSodiumSignPublic) +
-          (order - kSodiumSignOffset));
-    }
-#  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-    if (order < kHydrogenSignOffset + 2) {
-      return static_cast<index_type>(
-          static_cast<std::size_t>(CryptoKeyType::kHydrogenSignPublic) +
-          (order - kHydrogenSignOffset));
-    }
-#  endif
-
-#  if AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK
-    if (order < kHydrogenCurveOffset + 2) {
-      return static_cast<index_type>(
-          static_cast<std::size_t>(CryptoKeyType::kHydrogenCurvePublic) +
-          (order - kHydrogenCurveOffset));
-    }
-#  endif
-#  if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
-    if (order == kHydrogenSecretBoxOffset) {
-      return CryptoKeyType::kHydrogenSecretBox;
-    }
-#  endif
-    // no supported type found
-    assert(false);
-    return {};
-  }
-
   std::uint8_t const* Data() const {
     return std::visit([](auto const& v) { return v.key.data(); },
-                      static_cast<VariantType::variant const&>(*this));
+                      static_cast<typename VariantType::variant const&>(*this));
   }
 
   std::size_t Size() const {
     return std::visit([](auto const& v) { return v.key.size(); },
-                      static_cast<VariantType::variant const&>(*this));
+                      static_cast<typename VariantType::variant const&>(*this));
   }
 
   static std::string text(Key const& v) {
@@ -287,7 +187,7 @@ class Key : public VariantType<CryptoKeyType,
                << static_cast<std::uint32_t>(s);
           }
         },
-        static_cast<VariantType::variant const&>(v));
+        static_cast<typename VariantType::variant const&>(v));
     ss << "]";
     return ss.str();
   }

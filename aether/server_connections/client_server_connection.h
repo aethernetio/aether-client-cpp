@@ -23,12 +23,17 @@
 // #include "aether/memory.h"
 #include "aether/ae_actions/ping.h"
 #include "aether/actions/action_ptr.h"
-// #include "aether/ae_actions/telemetry.h"
+#include "aether/crypto/icrypto_provider.h"
+#include "aether/ae_actions/telemetry.h"
 #include "aether/stream_api/buffer_stream.h"
 #include "aether/server_connections/server_channel.h"
 #include "aether/server_connections/channel_manager.h"
-#include "aether/server_connections/client_to_server_stream.h"
 #include "aether/server_connections/channel_selection_stream.h"
+
+#include "aether/work_cloud_api/work_server_api/login_api.h"
+#include "aether/work_cloud_api/client_api/client_api_safe.h"
+#include "aether/work_cloud_api/client_api/client_api_unsafe.h"
+#include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 namespace ae {
 class Aether;
@@ -48,27 +53,41 @@ class ClientServerConnection {
 
   AE_CLASS_NO_COPY_MOVE(ClientServerConnection)
 
-  ClientToServerStream& server_stream();
+  ByteIStream& stream();
+  void Restream();
+  ActionPtr<StreamWriteAction> AuthorizedApiCall(
+      SubApi<AuthorizedApi> auth_api);
+  ClientApiSafe& client_safe_api();
+
+  void SendTelemetry();
 
  private:
+  void OutData(DataBuffer const& data);
   void SubscribeToSelectChannel();
   void StreamUpdate();
 
   ActionContext action_context_;
   PtrView<Client> client_;
   PtrView<Server> server_;
-  OwnActionPtr<Ping> ping_;
-  // #if defined TELEMETRY_ENABLED
-  //   OwnActionPtr<Telemetry> telemetry_;
-  // #endif
+
+  std::unique_ptr<ICryptoProvider> crypto_provider_;
+  ProtocolContext protocol_context_;
+  ClientApiUnsafe client_api_unsafe_;
+  LoginApi login_api_;
+
   ChannelManager channel_manager_;
 
   ChannelSelectStream channel_select_stream_;
   BufferStream<DataBuffer> buffer_stream_;
-  ClientToServerStream client_to_server_stream_;
+
+  OwnActionPtr<Ping> ping_;
+#if defined TELEMETRY_ENABLED
+  OwnActionPtr<Telemetry> telemetry_;
+#endif
 
   ServerChannel const* server_channel_;
 
+  Subscription out_data_sub_;
   Subscription stream_update_sub_;
 };
 }  // namespace ae
