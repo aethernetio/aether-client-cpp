@@ -30,6 +30,8 @@ namespace ae {
 template <typename TSyncPolicy>
 class BaseSubscription {
  public:
+  using EventHandler = EventHandlerDeleter<TSyncPolicy>;
+
   BaseSubscription() = default;
 
   BaseSubscription(EventHandlerDeleter<TSyncPolicy>&& event_handler_deleter)

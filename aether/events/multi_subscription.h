@@ -32,6 +32,8 @@ namespace ae {
 template <typename TSyncPolicy>
 class BaseMultiSubscription {
  public:
+  using EventHandler = EventHandlerDeleter<TSyncPolicy>;
+
   BaseMultiSubscription() = default;
   ~BaseMultiSubscription() { Reset(); }
 

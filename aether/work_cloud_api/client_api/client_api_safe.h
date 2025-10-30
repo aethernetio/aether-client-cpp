@@ -54,7 +54,7 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
                RegMethod<11, &ClientApiSafe::RequestTelemetry>,
                ExtApi<&ClientApiSafe::return_result>>;
 
-  auto send_messages_event() { return EventSubscriber{send_messages_event_}; }
+  auto send_message_event() { return EventSubscriber{send_message_event_}; }
   auto send_cloud_event() { return EventSubscriber{send_cloud_event_}; }
   auto send_server_descriptor_event() {
     return EventSubscriber{send_server_descriptor_event_};
@@ -64,7 +64,7 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
   }
 
  private:
-  Event<void(std::vector<AeMessage> const& messages)> send_messages_event_;
+  Event<void(AeMessage const& message)> send_message_event_;
   Event<void(ServerDescriptor const& server_descriptor)>
       send_server_descriptor_event_;
   Event<void(Uid uid, CloudDescriptor const& cloud)> send_cloud_event_;

@@ -21,7 +21,20 @@
 namespace ae {
 ServerConnection::ServerConnection(ObjPtr<Server> const& server,
                                    IServerConnectionFactory& connection_factory)
-    : server_{server}, connection_factory_{&connection_factory} {}
+    : server_{server}, connection_factory_{&connection_factory}, priority_{} {}
+
+void ServerConnection::SetPriority(std::size_t priority) {
+  priority_ = priority;
+  // TODO: propagate priority to client connection
+}
+
+std::size_t ServerConnection::priority() const { return priority_; }
+
+void ServerConnection::Restream() {
+  if (client_connection_) {
+    client_connection_->Restream();
+  }
+}
 
 ClientServerConnection& ServerConnection::ClientConnection() {
   if (!client_connection_) {
