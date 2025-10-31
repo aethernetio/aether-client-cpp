@@ -210,6 +210,33 @@ void test_EventReSubscribeOnHandler() {
   event.Emit(2);
   TEST_ASSERT(cb_called_second);
 }
+
+void test_EventHandlerDestructed() {
+  Event<void(int)> event;
+  EventSubscriber<void(int)> sub{event};
+
+  bool cb_called = false;
+  bool cb_destroyed = false;
+
+  struct Handler {
+    ~Handler() { destroyed_ = true; }
+
+    void operator()(int x) {
+      called_ = true;
+      TEST_ASSERT_EQUAL(1, x);
+    }
+
+    bool& called_;
+    bool& destroyed_;
+  };
+
+  Subscription s = sub.Subscribe(Handler{cb_called, cb_destroyed});
+  event.Emit(1);
+  s.Reset();
+  TEST_ASSERT(cb_called);
+  TEST_ASSERT(cb_destroyed);
+}
+
 }  // namespace ae::test_events
 
 int test_events() {
@@ -221,5 +248,6 @@ int test_events() {
   RUN_TEST(ae::test_events::test_MultiSubscription);
   RUN_TEST(ae::test_events::test_EventRecursionCall);
   RUN_TEST(ae::test_events::test_EventReSubscribeOnHandler);
+  RUN_TEST(ae::test_events::test_EventHandlerDestructed);
   return UNITY_END();
 }

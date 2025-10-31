@@ -21,6 +21,7 @@
 #include <atomic>
 #include <cstddef>
 #include <algorithm>
+#include <optional>
 
 #include "aether/events/events_mt.h"
 #include "aether/events/event_handler.h"
@@ -33,7 +34,8 @@ class EventHandlersList : public TSyncPolicy {
   // all event handlers has the same size
   static constexpr std::size_t kElementSize = sizeof(TemplateHandler);
   static constexpr std::size_t kElementAlign = alignof(TemplateHandler);
-  using StoreType = ManagedStorage<kElementSize, kElementAlign>;
+  using ValueType = ManagedStorage<kElementSize, kElementAlign>;
+  using StoreType = std::optional<ValueType>;
 
  public:
   /**
@@ -58,7 +60,7 @@ class EventHandlersList : public TSyncPolicy {
           : size_{size} {
         auto counter = index;
         for (auto i = it; counter < size_; ++i, ++counter) {
-          if (i->ptr<EventHandler<TSignature>>()->is_alive()) {
+          if (*i) {
             it_ = i;
             index_ = counter;
             return;
@@ -75,7 +77,7 @@ class EventHandlersList : public TSyncPolicy {
         if (index_ == size_) {
           return *this;
         }
-        if (!it_->ptr<EventHandler<TSignature>>()->is_alive()) {
+        if (!*it_) {
           return operator++();
         }
         return *this;
@@ -94,11 +96,11 @@ class EventHandlersList : public TSyncPolicy {
       bool operator!=(const Iterator& other) const { return !(*this == other); }
 
       EventHandler<TSignature>& operator*() const {
-        return *it_->ptr<EventHandler<TSignature>>();
+        return *(*it_)->template ptr<EventHandler<TSignature>>();
       }
 
       EventHandler<TSignature>* operator->() const {
-        return it_->ptr<EventHandler<TSignature>>();
+        return (*it_)->template ptr<EventHandler<TSignature>>();
       }
 
      private:
@@ -176,8 +178,7 @@ class EventHandlersList : public TSyncPolicy {
     TSyncPolicy::InLock([&]() {
       if (index <= handlers_.size()) {
         std::next(std::begin(handlers_), static_cast<std::ptrdiff_t>(index))
-            ->template ptr<IEventHandler>()
-            ->set_alive(false);
+            ->reset();
       }
     });
   }
@@ -190,8 +191,7 @@ class EventHandlersList : public TSyncPolicy {
       if (index <= handlers_.size()) {
         return std::next(std::begin(handlers_),
                          static_cast<std::ptrdiff_t>(index))
-            -> template ptr<IEventHandler>()
-            ->is_alive();
+            ->has_value();
       }
       return false;
     });
@@ -208,10 +208,8 @@ class EventHandlersList : public TSyncPolicy {
       }
       // remove only from the end
       auto remove_begin = std::end(handlers_);
-      auto it = std::find_if(
-          std::rbegin(handlers_), std::rend(handlers_), [](auto const& h) {
-            return h.template ptr<IEventHandler>()->is_alive();
-          });
+      auto it = std::find_if(std::rbegin(handlers_), std::rend(handlers_),
+                             [](auto const& h) { return h.has_value(); });
       if (it != std::rend(handlers_)) {
         remove_begin = it.base();
       }

@@ -113,16 +113,24 @@ class OwnActionPtr : public ActionPtr<TAction> {
   explicit OwnActionPtr(ActionContext action_context, TArgs&&... args)
       : ActionPtr<TAction>{action_context, std::forward<TArgs>(args)...} {}
 
+  OwnActionPtr(OwnActionPtr<TAction>&& other) noexcept
+      : ActionPtr<TAction>{std::move(other)} {}
+
   template <typename UAction, AE_REQUIRERS((std::is_base_of<TAction, UAction>))>
   OwnActionPtr(OwnActionPtr<UAction>&& other) noexcept
       : ActionPtr<TAction>{std::move(other)} {}
 
   ~OwnActionPtr() { reset(); }
 
-  AE_CLASS_MOVE_ONLY(OwnActionPtr)
+  OwnActionPtr& operator=(OwnActionPtr<TAction>&& other) noexcept {
+    reset();
+    ActionPtr<TAction>::operator=(std::move(other));
+    return *this;
+  }
 
   template <typename UAction, AE_REQUIRERS((std::is_base_of<TAction, UAction>))>
   OwnActionPtr& operator=(OwnActionPtr<UAction>&& other) noexcept {
+    reset();
     ActionPtr<TAction>::operator=(std::move(other));
     return *this;
   }
