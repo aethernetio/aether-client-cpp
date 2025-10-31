@@ -25,19 +25,6 @@
 
 namespace ae {
 
-/**
- * Base for any event handler stored in list.
- * Base class to eliminate template bloating
- */
-class IEventHandler {
- public:
-  void set_alive(bool value) { is_alive_ = value; }
-  bool is_alive() const { return is_alive_; }
-
- protected:
-  bool is_alive_{true};  // true on construction
-};
-
 template <typename TSignature>
 class EventHandler;
 
@@ -45,7 +32,7 @@ class EventHandler;
  * \brief Object to store event handler callback
  */
 template <typename... TArgs>
-class EventHandler<void(TArgs...)> final : public IEventHandler {
+class EventHandler<void(TArgs...)> final {
  public:
   constexpr explicit EventHandler(std::function<void(TArgs...)>&& func)
       : callback_{std::move(func)} {}
