@@ -17,7 +17,7 @@
 #ifndef AETHER_ADAPTERS_MODEM_ADAPTER_H_
 #define AETHER_ADAPTERS_MODEM_ADAPTER_H_
 
-#define MODEM_ADAPTER_ENABLED 1
+// #define MODEM_ADAPTER_ENABLED 1
 
 #include <cstdint>
 
@@ -30,14 +30,15 @@
 #define MODEM_TCP_TRANSPORT_ENABLED 1
 
 namespace ae {
-class ModemAdapter : public ParentModemAdapter {
+class ModemAdapter final : public ParentModemAdapter {
   AE_OBJECT(ModemAdapter, ParentModemAdapter, 0)
 
   ModemAdapter() = default;
 
  public:
 #ifdef AE_DISTILLATION
-  ModemAdapter(ObjPtr<Aether> aether, ModemInit modem_init, Domain* domain);
+  ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller, ModemInit modem_init,
+               Domain* domain);
 #endif  // AE_DISTILLATION
 
   ~ModemAdapter() override;

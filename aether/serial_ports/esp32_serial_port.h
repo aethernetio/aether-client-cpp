@@ -25,29 +25,62 @@
 
 #  include "driver/uart.h"
 
+#  include "aether/ptr/ptr_view.h"
+#  include "aether/actions/action.h"
+#  include "aether/actions/action_ptr.h"
+#  include "aether/actions/action_context.h"
+
+#  include "aether/poller/poller.h"
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
 
 #  define ESP32_SERIAL_PORT_ENABLED 1
 
 namespace ae {
-class ESP32SerialPort : public ISerialPort {
+class Esp32SerialPort : public ISerialPort {
+  class ReadAction final : public Action<ReadAction> {
+   public:
+    ReadAction(ActionContext action_context, Esp32SerialPort& serial_port);
+
+    UpdateStatus Update();
+
+   private:
+    void PollEvent(PollerEvent event);
+    void ReadData();
+
+    Esp32SerialPort* serial_port_;
+    IPoller::OnPollEventSubscriber::Subscription poll_sub_;
+    std::list<DataBuffer> buffers_;
+    std::atomic_bool read_event_;
+  };
+
  public:
-  ESP32SerialPort(SerialInit const& serial_init);
-  ~ESP32SerialPort() override;
+  Esp32SerialPort(ActionContext action_context,
+                  SerialInit serial_init, IPoller::ptr const& poller);
+  ~Esp32SerialPort() override;
 
   void Write(DataBuffer const& data) override;
-  std::optional<DataBuffer> Read() override;
+
+  DataReadEvent::Subscriber read_event() override;
+
   bool IsOpen() override;
 
  private:
-  uart_port_t uart_num_;
-  bool is_open_;
-
-  bool Initialize(SerialInit const& serial_init);
-  bool GetUartNumber(const std::string& port_name, uart_port_t* out_uart_num);
+  uart_port_t OpenPort(SerialInit const& serial_init);
+  bool SetOptions(uart_port_t uart_num, SerialInit const& serial_init);
   esp_err_t SetupTimeouts();
+  bool GetUartNumber(const std::string& port_name, uart_port_t* out_uart_num);
+
   void Close();
+
+  ActionContext action_context_;
+  SerialInit serial_init_;
+  PtrView<IPoller> poller_;
+  uart_port_t uart_num_;
+
+  DataReadEvent read_event_;
+
+  ActionPtr<ReadAction> read_action_;
 };
 } /* namespace ae */
 

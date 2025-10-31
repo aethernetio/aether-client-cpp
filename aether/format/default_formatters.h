@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <iostream>
 #include <type_traits>
 #include <string_view>
@@ -140,6 +141,22 @@ struct Formatter<T, std::enable_if_t<!(IsString<std::decay_t<T>>::value ||
     ctx.out().stream() << std::setfill(' ') << std::setw(0) << std::dec;
   }
 };
+
+// for std::optional
+template <typename T>
+struct Formatter<std::optional<T>> : Formatter<T> {
+  template <typename TStream>
+  void Format(std::optional<T> const& value,
+              FormatContext<TStream>& ctx) const {
+    if (!value) {
+      static constexpr std::string_view null_str = "nullopt";
+      ctx.out().stream().write(null_str.data(), null_str.size());
+    } else {
+      Formatter<T>::Format(value.value(), ctx);
+    }
+  }
+};
+
 }  // namespace ae
 
 #endif  // AETHER_FORMAT_DEFAULT_FORMATTERS_H_

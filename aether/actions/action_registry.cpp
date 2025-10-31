@@ -27,18 +27,6 @@ void ActionRegistry::PushBack(std::shared_ptr<IAction> action) {
 
 ActionRegistry::ActionList::iterator ActionRegistry::Remove(
     ActionList::iterator pos) {
-  if (action_list_.empty()) {
-    return action_list_.end();
-  }
-  // make swap remove
-  auto pre_end = action_list_.end() - 1;
-  if (pos == pre_end) {
-    action_list_.pop_back();
-    return action_list_.end();
-  }
-  std::iter_swap(pos, pre_end);
-  // pre_end and end will be invalidated
-  action_list_.pop_back();
-  return pos;
+  return action_list_.erase(pos);
 }
 }  // namespace ae

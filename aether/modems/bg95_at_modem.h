@@ -17,13 +17,13 @@
 #ifndef AETHER_MODEMS_BG95_AT_MODEM_H_
 #define AETHER_MODEMS_BG95_AT_MODEM_H_
 
-#if 0
+#include <chrono>
+#include <memory>
 
-#  include <chrono>
-#  include <memory>
-
-#  include "aether/adapters/parent_modem.h"
-#  include "aether/serial_ports/iserial_port.h"
+#include "aether/modems/imodem_driver.h"
+#include "aether/adapters/modem_adapter.h"
+#include "aether/serial_ports/iserial_port.h"
+#include "aether/serial_ports/at_comm_support.h"
 
 namespace ae {
 
@@ -136,6 +136,14 @@ static const std::map<kModemBand, std::string> get_band_power_bg95 = {
     {kModemBand::kTDSCDMA_B34, "AT+QNVFR=\"/nv/item_files/rfnv/00022622\""},
     {kModemBand::kTDSCDMA_B39, "AT+QNVFR=\"/nv/item_files/rfnv/00022663\""}};
 
+struct Bg95Connection {
+  AE_REFLECT_MEMBERS(handle, protocol, host, port)
+  std::int32_t handle;
+  ae::Protocol protocol;
+  std::string host;
+  std::uint16_t port;
+};
+
 class Bg95AtModem final : public IModemDriver {
   AE_OBJECT(Bg95AtModem, IModemDriver, 0)
 
@@ -143,26 +151,30 @@ class Bg95AtModem final : public IModemDriver {
   Bg95AtModem() = default;
 
  public:
-  explicit Bg95AtModem(ModemInit modem_init, Domain* domain);
-  AE_OBJECT_REFLECT(AE_MMBRS(modem_init_))
+  explicit Bg95AtModem(ModemAdapter& adapter, IPoller::ptr poller,
+                       ModemInit modem_init, Domain* domain);
+  AE_OBJECT_REFLECT(AE_MMBRS(connect_vec_))
 
-  void Init() override;
-  void Start() override;
-  void Stop() override;
-  void OpenNetwork(std::int8_t& connect_index, ae::Protocol const protocol,
-                   std::string const host, std::uint16_t const port) override;
-  void CloseNetwork(std::int8_t const connect_index) override;
-  void WritePacket(std::int8_t const connect_index,
-                   std::vector<uint8_t> const& data) override;
-  void ReadPacket(std::int8_t const connect_index,
-                  std::vector<std::uint8_t>& data,
-                  std::int32_t const timeout) override;
-  void PollSockets(std::int8_t const connect_index, PollResult& results,
-                   std::int32_t const timeout) override;
-  void PowerOff() override;
+  bool Init() override;
+  bool Start() override;
+  bool Stop() override;
+  ConnectionIndex OpenNetwork(Protocol protocol, std::string const& host,
+                              std::uint16_t port) override;
+  void CloseNetwork(ConnectionIndex connect_index) override;
+  void WritePacket(ConnectionIndex connect_index,
+                   DataBuffer const& data) override;
+  DataBuffer ReadPacket(ConnectionIndex connect_index,
+                        Duration timeout) override;
+  bool SetPowerSaveParam(PowerSaveParam const& psp) override;
+  bool PowerOff() override;
 
  private:
   std::unique_ptr<ISerialPort> serial_;
+  std::unique_ptr<AtCommSupport> at_comm_support_;
+  std::vector<Bg95Connection> connect_vec_;
+  ModemAdapter* adapter_;
+
+  static constexpr std::uint16_t kModemMTU{1520};
 
   kModemError CheckResponse(std::string response, std::uint32_t wait_time,
                             std::string error_message);
@@ -170,21 +182,18 @@ class Bg95AtModem final : public IModemDriver {
   kModemError CheckSimStatus();
   kModemError SetupSim(const std::uint8_t pin[4]);
   kModemError SetNetMode(kModemMode modem_mode);
-  kModemError SetupNetwork(std::string operator_name, std::string operator_code,
-                           std::string apn_name, std::string apn_user,
-                           std::string apn_pass);
+  kModemError SetupNetwork(std::string const& operator_name,
+                           std::string const& operator_code,
+                           std::string const& apn_name,
+                           std::string const& apn_user,
+                           std::string const& apn_pass, kModemMode modem_mode,
+                           kAuthType auth_type);
   kModemError SetTxPower(kModemBand band, const float& power);
   kModemError GetTxPower(kModemBand band, float& power);
   kModemError DbmaToHex(kModemBand band, const float& power, std::string& hex);
   kModemError HexToDbma(kModemBand band, float& power, const std::string& hex);
-
-  void SendATCommand(const std::string& command);
-  bool WaitForResponse(const std::string& expected,
-                       std::chrono::milliseconds timeout_ms);
-  std::string PinToString(const std::uint8_t pin[4]);
 };
 
 } /* namespace ae */
 
-#endif
 #endif  // AETHER_MODEMS_BG95_AT_MODEM_H_

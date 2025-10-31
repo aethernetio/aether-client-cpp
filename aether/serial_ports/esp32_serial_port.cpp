@@ -18,18 +18,102 @@
 
 #if ESP32_SERIAL_PORT_ENABLED == 1
 
+#  include "aether/misc/defer.h"
 #  include "aether/serial_ports/serial_ports_tele.h"
 
 namespace ae {
-ESP32SerialPort::ESP32SerialPort(SerialInit const& serial_init)
-    : is_open_(false) {
-  is_open_ = Initialize(serial_init);
+Esp32SerialPort::ReadAction::ReadAction(ActionContext action_context,
+                                        Esp32SerialPort& serial_port)
+    : Action{action_context}, serial_port_{&serial_port}, read_event_{} {
+  if (serial_port_->uart_num_ == UART_NUM_MAX) {
+    return;
+  }
+  auto poller = serial_port_->poller_.Lock();
+  assert(poller);
+  poll_sub_ =
+      poller->Add({serial_port_->uart_num_})
+          .Subscribe(
+              *this,
+              MethodPtr<&Esp32SerialPort::ReadAction::ReadAction::PollEvent>{});
 }
 
-ESP32SerialPort::~ESP32SerialPort() { Close(); }
+UpdateStatus Esp32SerialPort::ReadAction::Update() {
+  if (read_event_) {
+    for (auto const& b : buffers_) {
+      serial_port_->read_event_.Emit(b);
+    }
+    buffers_.clear();
+    read_event_ = false;
+  }
+  return {};
+}
 
-void ESP32SerialPort::Write(DataBuffer const& data) {
-  if (!is_open_) return;
+void Esp32SerialPort::ReadAction::PollEvent(PollerEvent event) {
+  if (event.descriptor != DescriptorType{serial_port_->uart_num_}) {
+    return;
+  }
+  switch (event.event_type) {
+    case EventType::kRead:
+      ReadData();
+      break;
+    default:
+      break;
+  }
+}
+
+void Esp32SerialPort::ReadAction::ReadData() {
+  if (serial_port_->uart_num_ == UART_NUM_MAX) {
+    AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
+
+    return;
+  }
+
+  size_t length = 0;
+  esp_err_t err = uart_get_buffered_data_len(serial_port_->uart_num_, &length);
+  if (err != ESP_OK) {
+    AE_TELE_ERROR(kAdapterSerialReadFailed, "Read failed {}!", err);
+    return;
+  }
+
+  if (length == 0) {
+    return;
+  }
+
+  DataBuffer buffer(length);
+  int bytes_read =
+      uart_read_bytes(serial_port_->uart_num_, buffer.data(), length, 0);
+
+  // Reading error
+  if (bytes_read <= 0) {
+    AE_TELE_ERROR(kAdapterSerialReadFailed, "Read failed, no data!");
+    return;
+  } else {
+    buffer.resize(bytes_read);
+
+    AE_TELED_DEBUG("Serial data read {} bytes: {}", bytes_read, buffer);
+
+    buffers_.emplace_back(std::move(buffer));
+    read_event_ = true;
+    Action::Trigger();
+  }
+}
+
+Esp32SerialPort::Esp32SerialPort(ActionContext action_context,
+                                 SerialInit serial_init,
+                                 IPoller::ptr const& poller)
+    : action_context_{action_context},
+      serial_init_{std::move(serial_init)},
+      poller_{poller},
+      uart_num_{OpenPort(serial_init_)},
+      read_action_{action_context_, *this} {}
+
+Esp32SerialPort::~Esp32SerialPort() { Close(); }
+
+void Esp32SerialPort::Write(DataBuffer const& data) {
+  if (uart_num_ == UART_NUM_MAX) {
+    AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
+    return;
+  }
 
   int bytes_written = uart_write_bytes(uart_num_, data.data(), data.size());
   if (bytes_written < 0) {
@@ -39,48 +123,41 @@ void ESP32SerialPort::Write(DataBuffer const& data) {
   }
 }
 
-std::optional<DataBuffer> ESP32SerialPort::Read() {
-  if (!is_open_) return std::nullopt;
-
-  size_t length = 0;
-  esp_err_t err = uart_get_buffered_data_len(uart_num_, &length);
-  if (err != ESP_OK) {
-    AE_TELE_ERROR(kAdapterSerialReadFailed, "Read failed {}!", err);
-    return std::nullopt;
-  }
-
-  if (length == 0) {
-    return std::nullopt;
-  }
-
-  DataBuffer buffer(length);
-  int bytes_read = uart_read_bytes(uart_num_, buffer.data(), length, 0);
-
-  // Reading error
-  if (bytes_read <= 0) {
-    AE_TELE_ERROR(kAdapterSerialReadFailed, "Read failed, no data!");
-    return std::nullopt;
-  }
-
-  buffer.resize(bytes_read);
-  return buffer;
+Esp32SerialPort::DataReadEvent::Subscriber Esp32SerialPort::read_event() {
+  return EventSubscriber{read_event_};
 }
 
-bool ESP32SerialPort::IsOpen() { return is_open_; }
+bool Esp32SerialPort::IsOpen() { return uart_num_ != UART_NUM_MAX; }
 
-bool ESP32SerialPort::Initialize(SerialInit const& serial_init) {
-  if (!GetUartNumber(serial_init.port_name, &uart_num_)) {
-    return false;
+uart_port_t Esp32SerialPort::OpenPort(SerialInit const& serial_init) {
+  uart_port_t uart_num{UART_NUM_MAX};
+
+  if (!GetUartNumber(serial_init.port_name, &uart_num)) {
+    return UART_NUM_MAX;
   }
 
-  uart_config_t uart_config = {};
-  uart_config.baud_rate = static_cast<int>(serial_init.baud_rate);
-  uart_config.data_bits = UART_DATA_8_BITS;
-  uart_config.parity = UART_PARITY_DISABLE;
-  uart_config.stop_bits = UART_STOP_BITS_1;
-  uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-  uart_config.rx_flow_ctrl_thresh = 122;
-  uart_config.source_clk = UART_SCLK_DEFAULT;
+  auto close_on_exit = defer_at[&] { uart_driver_delete(uart_num); };
+
+  if (!SetOptions(uart_num, serial_init)) {
+    return UART_NUM_MAX;
+  }
+
+  close_on_exit.Reset();
+
+  return uart_num;
+}
+
+bool Esp32SerialPort::SetOptions(uart_port_t uart_num,
+                                 SerialInit const& serial_init) {
+  uart_config_t uart_config = {
+      /* baud_rate */ static_cast<int>(serial_init.baud_rate),
+      /* data_bits */ UART_DATA_8_BITS,
+      /* parity */ UART_PARITY_DISABLE,
+      /* stop_bits */ UART_STOP_BITS_1,
+      /* flow_ctrl */ UART_HW_FLOWCTRL_DISABLE,
+      /* rx_flow_ctrl_thresh */ 122,
+      /* source_clk */ UART_SCLK_DEFAULT,
+      /* flags */ {}};
 
   if (uart_param_config(uart_num_, &uart_config) != ESP_OK) {
     return false;
@@ -113,7 +190,11 @@ bool ESP32SerialPort::Initialize(SerialInit const& serial_init) {
   return true;
 }
 
-bool ESP32SerialPort::GetUartNumber(const std::string& port_name,
+esp_err_t Esp32SerialPort::SetupTimeouts() {
+  return uart_set_rx_timeout(uart_num_, 10);  // 10 units ? 100 ms
+}
+
+bool Esp32SerialPort::GetUartNumber(const std::string& port_name,
                                     uart_port_t* out_uart_num) {
   if (port_name == "UART0" || port_name == "/dev/uart/0") {
 #  if defined UART_NUM_0
@@ -134,14 +215,9 @@ bool ESP32SerialPort::GetUartNumber(const std::string& port_name,
   return false;
 }
 
-esp_err_t ESP32SerialPort::SetupTimeouts() {
-  return uart_set_rx_timeout(uart_num_, 10);  // 10 units ? 100 ms
-}
-
-void ESP32SerialPort::Close() {
-  if (is_open_) {
+void Esp32SerialPort::Close() {
+  if (uart_num_ != UART_NUM_MAX) {
     uart_driver_delete(uart_num_);
-    is_open_ = false;
   }
 }
 } /* namespace ae */

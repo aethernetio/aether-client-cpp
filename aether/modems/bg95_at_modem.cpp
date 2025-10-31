@@ -14,42 +14,50 @@
  * limitations under the License.
  */
 
+#include "aether/format/format.h"
+#include "aether/misc/from_chars.h"
+#include "aether/modems/exponent_time.h"
 #include "aether/modems/bg95_at_modem.h"
+#include "aether/serial_ports/serial_port_factory.h"
 
-#if 0
-
-#  include "aether/serial_ports/serial_port_factory.h"
-#  include "aether/adapters/adapter_tele.h"
+#include "aether/modems/modems_tele.h"
 
 namespace ae {
 
-Bg95AtModem::Bg95AtModem(ModemInit modem_init, Domain* domain)
-    : IModemDriver(modem_init, domain) {
-  serial_ = SerialPortFactory::CreatePort(modem_init.serial_init);
+Bg95AtModem::Bg95AtModem(ModemAdapter& adapter, IPoller::ptr poller,
+                         ModemInit modem_init, Domain* domain)
+    : IModemDriver(std::move(poller), std::move(modem_init), domain),
+      adapter_{&adapter} {
+  serial_ = SerialPortFactory::CreatePort(*adapter_->aether_.as<Aether>(),
+                                          adapter_->poller_,
+                                          GetModemInit().serial_init);
+  at_comm_support_ = std::make_unique<AtCommSupport>(serial_.get());
 }
 
-void Bg95AtModem::Init() {
+bool Bg95AtModem::Init() {
   kModemError err{kModemError::kNoError};
 
   if (err == kModemError::kNoError) {
-    sendATCommand("AT");  // Checking the connection
+    at_comm_support_->SendATCommand("AT");  // Checking the connection
     err = CheckResponse("OK", 1000, "AT command error!");
   }
   if (err == kModemError::kNoError) {
-    sendATCommand("ATE0");  // Turning off the echo
+    at_comm_support_->SendATCommand("ATE0");  // Turning off the echo
     err = CheckResponse("OK", 1000, "ATE command error!");
   }
   if (err == kModemError::kNoError) {
-    sendATCommand("AT+CMEE=2");  // Enabling extended errors
+    at_comm_support_->SendATCommand("AT+CMEE=2");  // Enabling extended errors
     err = CheckResponse("OK", 1000, "AT+CMEE command error!");
   }
 
   if (err != kModemError::kNoError) {
-    modem_error_event_.Emit(static_cast<int>(err));
+    return false;
   }
+
+  return true;
 }
 
-void Bg95AtModem::Start() {
+bool Bg95AtModem::Start() {
   kModemError err{kModemError::kNoError};
   ModemInit modem_init = GetModemInit();
 
@@ -61,7 +69,7 @@ void Bg95AtModem::Start() {
 
   // Enabling full functionality
   if (err == kModemError::kNoError) {
-    sendATCommand("AT+CFUN=1");
+    at_comm_support_->SendATCommand("AT+CFUN=1");
     err = CheckResponse("OK", 1000, "AT+CFUN command error!");
   }
 
@@ -76,7 +84,8 @@ void Bg95AtModem::Start() {
   if (err == kModemError::kNoError) {
     err = SetupNetwork(modem_init.operator_name, modem_init.operator_code,
                        modem_init.apn_name, modem_init.apn_user,
-                       modem_init.apn_pass);
+                       modem_init.apn_pass, modem_init.modem_mode,
+                       modem_init.auth_type);
   }
 
   // float power = 23.5;  // DBm
@@ -84,54 +93,63 @@ void Bg95AtModem::Start() {
   // err = GetTxPower(kModemBand::kWCDMA_B1, power);
 
   if (err != kModemError::kNoError) {
-    modem_error_event_.Emit(static_cast<int>(err));
-  } else {
-    modem_connected_event_.Emit(true);
+    return false;
   }
+
+  return true;
 }
 
-void Bg95AtModem::Stop() {}
+bool Bg95AtModem::Stop() { return true; }
 
-void Bg95AtModem::OpenNetwork(std::int8_t& connect_index,
-                              ae::Protocol const protocol,
-                              std::string const host,
-                              std::uint16_t const port) {
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Protocol {}", protocol);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Host {}", host);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Port {}", port);
+ConnectionIndex Bg95AtModem::OpenNetwork(ae::Protocol protocol,
+                                         std::string const& host,
+                                         std::uint16_t port) {
+  ConnectionIndex connect_index{};
+  AE_TELED_ERROR("Connect index {}", connect_index);
+  AE_TELED_ERROR("Protocol {}", protocol);
+  AE_TELED_ERROR("Host {}", host);
+  AE_TELED_ERROR("Port {}", port);
+
+  return connect_index;
 }
 
-void Bg95AtModem::CloseNetwork(std::int8_t const connect_index) {
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
+void Bg95AtModem::CloseNetwork(ConnectionIndex connect_index) {
+  AE_TELED_ERROR("Connect index {}", connect_index);
 }
 
-void Bg95AtModem::WritePacket(std::int8_t const connect_index,
-                              std::vector<uint8_t> const& data) {
+void Bg95AtModem::WritePacket(ConnectionIndex connect_index,
+                              DataBuffer const& data) {
   serial_->Write(data);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
+  AE_TELED_ERROR("Connect index {}", connect_index);
 }
 
-void Bg95AtModem::ReadPacket(std::int8_t const connect_index,
-                             std::vector<std::uint8_t>& data,
-                             std::int32_t timeout) {
+DataBuffer Bg95AtModem::ReadPacket(ConnectionIndex connect_index,
+                                   Duration timeout) {
   // std::size_t size{};
 
   auto response = serial_->Read();
   std::vector<std::uint8_t> response_vector(response->begin(), response->end());
-  data = response_vector;
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Connect index {}", connect_index);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Timeout {}", timeout);
+  DataBuffer data = response_vector;
+  AE_TELED_ERROR("Connect index {}", connect_index);
+  AE_TELED_ERROR("Timeout {}", timeout);
+
+  return data;
 }
 
+bool Bg95AtModem::SetPowerSaveParam(ae::PowerSaveParam const& /*psp*/) {
+  return true;
+}
+
+bool Bg95AtModem::PowerOff() { return true; }
 // ============================private members============================= //
 kModemError Bg95AtModem::CheckResponse(std::string responce,
                                        std::uint32_t wait_time,
                                        std::string error_message) {
   kModemError err{kModemError::kNoError};
 
-  if (!waitForResponse(responce, std::chrono::milliseconds(wait_time))) {
-    AE_TELE_ERROR(kAdapterModemAtError, error_message);
+  if (!at_comm_support_->WaitForResponse(
+          responce, std::chrono::milliseconds(wait_time))) {
+    AE_TELED_ERROR(error_message);
     err = kModemError::kAtCommandError;
   }
 
@@ -146,7 +164,7 @@ kModemError Bg95AtModem::SetBaudRate(kBaudRate rate) {
     err = kModemError::kBaudRateError;
     return err;
   } else {
-    sendATCommand(it->second);
+    at_comm_support_->SendATCommand(it->second);
   }
 
   err = CheckResponse("OK", 1000, "No response from modem!");
@@ -160,7 +178,7 @@ kModemError Bg95AtModem::SetBaudRate(kBaudRate rate) {
 kModemError Bg95AtModem::CheckSimStatus() {
   kModemError err{kModemError::kNoError};
 
-  sendATCommand("AT+CPIN?");  // Check SIM card status
+  at_comm_support_->SendATCommand("AT+CPIN?");  // Check SIM card status
   err = CheckResponse("OK", 1000, "SIM card error!");
   if (err != kModemError::kNoError) {
     err = kModemError::kCheckSimStatus;
@@ -172,18 +190,25 @@ kModemError Bg95AtModem::CheckSimStatus() {
 kModemError Bg95AtModem::SetupSim(const std::uint8_t pin[4]) {
   kModemError err{kModemError::kNoError};
 
-  auto pin_string = pinToString(pin);
+  auto pin_string = at_comm_support_->PinToString(pin);
 
   if (pin_string == "ERROR") {
     err = kModemError::kPinWrong;
     return err;
   }
 
-  sendATCommand("AT+CPIN=" + pin_string);  // Check SIM card status
+  at_comm_support_->SendATCommand("AT+CPIN=" +
+                                  pin_string);  // Check SIM card status
   err = CheckResponse("OK", 1000, "SIM card PIN error!");
   if (err != kModemError::kNoError) {
     err = kModemError::kSetupSim;
   }
+
+  return err;
+}
+
+kModemError SetNetMode(kModemMode /*modem_mode*/) {
+  kModemError err{kModemError::kNoError};
 
   return err;
 }
@@ -205,7 +230,7 @@ kModemError Bg95AtModem::SetTxPower(kModemBand band, const float& power) {
       } else {
         power_command = Format(it->second, hex);
       }
-      sendATCommand(power_command);
+      at_comm_support_->SendATCommand(power_command);
       err = CheckResponse("OK", 1000, "No response from modem!");
     }
   }
@@ -229,7 +254,7 @@ kModemError Bg95AtModem::GetTxPower(kModemBand band, float& power) {
     } else {
       power_command = Format(it->second);
 
-      sendATCommand(power_command);
+      at_comm_support_->SendATCommand(power_command);
       err = CheckResponse("OK", 1000, "No response from modem!");
     }
   }
@@ -321,79 +346,31 @@ kModemError Bg95AtModem::HexToDbma(kModemBand band, float& power,
                                    const std::string& hex) {
   kModemError err{kModemError::kNoError};
 
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Band {}", band);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Power {}", power);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Hex {}", hex);
+  AE_TELED_ERROR("Band {}", band);
+  AE_TELED_ERROR("Power {}", power);
+  AE_TELED_ERROR("Hex {}", hex);
 
   return err;
 }
 
-kModemError Bg95AtModem::SetupNetwork(std::string operator_name,
-                                      std::string operator_code,
-                                      std::string apn_name,
-                                      std::string apn_user,
-                                      std::string apn_pass) {
+kModemError Bg95AtModem::SetupNetwork(
+    std::string const& operator_name, std::string const& operator_code,
+    std::string const& apn_name, std::string const& apn_user,
+    std::string const& apn_pass, kModemMode modem_mode, kAuthType auth_type) {
   kModemError err{kModemError::kNoError};
 
-  sendATCommand("AT+COPS=1,2,\"" + operator_code + "\",0");
+  at_comm_support_->SendATCommand("AT+COPS=1,2,\"" + operator_code + "\",0");
   // err = CheckResponse("OK", 1000, "No response from modem!");
   // if (err != kModemError::kNoError) {}
 
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Operator name {}", operator_name);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "Operator code {}", operator_code);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "APN name {}", apn_name);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "APN user {}", apn_user);
-  AE_TELE_ERROR(kAdapterSerialNotOpen, "APN pass {}", apn_pass);
+  AE_TELED_ERROR("Operator name {}", operator_name);
+  AE_TELED_ERROR("Operator code {}", operator_code);
+  AE_TELED_ERROR("APN name {}", apn_name);
+  AE_TELED_ERROR("APN user {}", apn_user);
+  AE_TELED_ERROR("APN pass {}", apn_pass);
+  AE_TELED_ERROR("Modem mode {}", modem_mode);
+  AE_TELED_ERROR("Auth type {}", auth_type);
 
   return err;
 }
-
-void Bg95AtModem::SendATCommand(const std::string& command) {
-  std::vector<uint8_t> data(command.begin(), command.end());
-  data.push_back('\r');  // Adding a carriage return symbols
-  data.push_back('\n');
-  serial_->Write(data);
-}
-
-bool Bg95AtModem::WaitForResponse(const std::string& expected,
-                                  std::chrono::milliseconds timeout_ms) {
-  // Simplified implementation of waiting for a response
-  auto start = std::chrono::high_resolution_clock::now();
-
-  while (true) {
-    auto elapsed = std::chrono::high_resolution_clock::now() - start;
-    if (elapsed > timeout_ms) {
-      return false;
-    }
-
-    if (auto response = serial_->Read()) {
-      std::string response_str(response->begin(), response->end());
-      if (response_str.find(expected) != std::string::npos) {
-        return true;
-      }
-      if (response_str.find("ERROR") != std::string::npos) {
-        return false;
-      }
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  }
-}
-
-std::string Bg95AtModem::PinToString(const std::uint8_t pin[4]) {
-  std::string result{};
-
-  for (int i = 0; i < 4; ++i) {
-    if (pin[i] > 9) {
-      result = "ERROR";
-      break;
-    }
-    result += static_cast<char>('0' + pin[i]);
-  }
-
-  return result;
-}
-
 } /* namespace ae */
-
-#endif

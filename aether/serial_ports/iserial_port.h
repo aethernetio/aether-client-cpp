@@ -17,8 +17,7 @@
 #ifndef AETHER_SERIAL_PORTS_ISERIAL_PORT_H_
 #define AETHER_SERIAL_PORTS_ISERIAL_PORT_H_
 
-#include <optional>
-
+#include "aether/events/events.h"
 #include "aether/types/data_buffer.h"
 
 namespace ae {
@@ -27,22 +26,23 @@ namespace ae {
  */
 class ISerialPort {
  public:
+  using DataReadEvent = Event<void(DataBuffer const&)>;
+
   virtual ~ISerialPort() = default;
 
+  /**
+   * \brief Check if the serial port is open.
+   */
+  virtual bool IsOpen() = 0;
   /**
    * \brief Write amount of data.
    */
   virtual void Write(DataBuffer const& data) = 0;
   /**
-   * \brief Read all the data.
+   * \brief Read data event.
    */
-  virtual std::optional<DataBuffer> Read() = 0;
-  /**
-   * \brief Check if the serial port is open.
-   */
-  virtual bool IsOpen() = 0;
+  virtual DataReadEvent::Subscriber read_event() = 0;
 };
-
 } /* namespace ae */
 
 #endif  // AETHER_SERIAL_PORTS_ISERIAL_PORT_H_

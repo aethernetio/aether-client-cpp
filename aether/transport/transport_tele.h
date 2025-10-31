@@ -41,4 +41,8 @@ AE_TAG(kModemTransportSend, kTransportDebug)
 AE_TAG(kModemTransportReceive, kTransportDebug)
 AE_TAG(kModemTransport, kTransport)
 
+AE_TAG(kLoraModuleTransportSend, kTransportDebug)
+AE_TAG(kLoraModuleTransportReceive, kTransportDebug)
+AE_TAG(kLoraModuleTransport, kTransport)
+
 #endif  // AETHER_TRANSPORT_TRANSPORT_TELE_H_

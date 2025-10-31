@@ -122,24 +122,32 @@ list(APPEND adapters_srcs
             "adapters/adapter.cpp"
             "adapters/wifi_adapter.cpp"
             "adapters/ethernet.cpp"
-            "adapters/parent_wifi.cpp"
-            "adapters/parent_modem.cpp"
+            "adapters/lora_module_adapter.cpp"
             "adapters/modem_adapter.cpp"
+            "adapters/parent_lora_module.cpp"
+            "adapters/parent_modem.cpp"
+            "adapters/parent_wifi.cpp"
             )
 
 list(APPEND access_points_srcs
             "access_points/access_point.cpp"
             "access_points/ethernet_access_point.cpp"
             "access_points/wifi_access_point.cpp"
+            "access_points/lora_module_access_point.cpp"
             "access_points/modem_access_point.cpp")
 
 list(APPEND modems_srcs
             "modems/modem_factory.cpp"
-            #"modems/bg95_at_modem.cpp"
+            # "modems/bg95_at_modem.cpp"
             "modems/sim7070_at_modem.cpp"
             "modems/thingy91x_at_modem.cpp"
-            "modems/exponent_time.cpp"
-            )
+            "modems/exponent_time.cpp")
+
+list(APPEND lora_modules_srcs
+            "lora_modules/dx_smart_lr02_433_lm.cpp"
+            # "lora_modules/ebyte_e22_400_lm.cpp"
+            "lora_modules/lora_module_factory.cpp")
+
 
 list(APPEND wifi_srcs
             "wifi/wifi_driver_factory.cpp"
@@ -147,6 +155,11 @@ list(APPEND wifi_srcs
             )
 
 list(APPEND serial_ports_srcs
+            "serial_ports/at_support/at_buffer.cpp"
+            "serial_ports/at_support/at_dispatcher.cpp"
+            "serial_ports/at_support/at_request.cpp"
+            "serial_ports/at_support/at_listener.cpp"
+            "serial_ports/at_support/at_support.cpp"
             "serial_ports/serial_port_factory.cpp"
             "serial_ports/esp32_serial_port.cpp"
             "serial_ports/win_serial_port.cpp"
@@ -167,7 +180,10 @@ list(APPEND transport_srcs
             "transport/socket_packet_send_action.cpp"
             "transport/data_packet_collector.cpp"
             "transport/low_level/tcp/tcp.cpp"
-            "transport/low_level/udp/udp.cpp")
+            "transport/low_level/udp/udp.cpp"
+            "transport/modems/modem_transport.cpp"
+            "transport/lora_modules/lora_module_transport.cpp"
+)
 
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
@@ -253,6 +269,7 @@ list(APPEND channels_srcs
             "channels/ethernet_transport_factory.cpp"
             "channels/ethernet_channel.cpp"
             "channels/wifi_channel.cpp"
+            "channels/lora_module_channel.cpp"
             "channels/modem_channel.cpp")
 
 list(APPEND tele_srcs
@@ -297,6 +314,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${adapters_srcs}
                             ${access_points_srcs}
                             ${modems_srcs}
+                            ${lora_modules_srcs}
                             ${wifi_srcs}
                             ${serial_ports_srcs}
                             ${api_protocol_srcs}
@@ -345,6 +363,7 @@ else()
                             ${adapters_srcs}
                             ${access_points_srcs}
                             ${modems_srcs}
+                            ${lora_modules_srcs}
                             ${wifi_srcs}
                             ${serial_ports_srcs}
                             ${transport_srcs}

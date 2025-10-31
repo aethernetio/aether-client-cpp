@@ -17,103 +17,83 @@
 #ifndef AETHER_MODEMS_SIM7070_AT_MODEM_H_
 #define AETHER_MODEMS_SIM7070_AT_MODEM_H_
 
+#include <set>
 #include <memory>
 
-#include "aether/modems/imodem_driver.h"
+#include "aether/poller/poller.h"
+#include "aether/actions/pipeline.h"
+#include "aether/actions/actions_queue.h"
 #include "aether/serial_ports/iserial_port.h"
+#include "aether/serial_ports/at_support/at_support.h"
+
+#include "aether/modems/imodem_driver.h"
 
 namespace ae {
-
-struct ConnectionHandle {
-  AE_REFLECT_MEMBERS(context_index, connect_index)
-  std::int32_t context_index;
-  std::int32_t connect_index;
-};
-
-struct Sim7070Connection {
-  AE_REFLECT_MEMBERS(handle, protocol, host, port)
-  ae::ConnectionHandle handle;
-  ae::Protocol protocol;
-  std::string host;
-  std::uint16_t port;
-};
-
-static const std::map<kBaudRate, std::string> baud_rate_commands_sim7070 = {
-    {kBaudRate::kBaudRate0, "AT+IPR=0"},
-    {kBaudRate::kBaudRate300, "AT+IPR=300"},
-    {kBaudRate::kBaudRate600, "AT+IPR=600"},
-    {kBaudRate::kBaudRate1200, "AT+IPR=1200"},
-    {kBaudRate::kBaudRate2400, "AT+IPR=2400"},
-    {kBaudRate::kBaudRate4800, "AT+IPR=4800"},
-    {kBaudRate::kBaudRate9600, "AT+IPR=9600"},
-    {kBaudRate::kBaudRate19200, "AT+IPR=19200"},
-    {kBaudRate::kBaudRate38400, "AT+IPR=38400"},
-    {kBaudRate::kBaudRate57600, "AT+IPR=57600"},
-    {kBaudRate::kBaudRate115200, "AT+IPR=115200"},
-    {kBaudRate::kBaudRate230400, "AT+IPR=230400"},
-    {kBaudRate::kBaudRate921600, "AT+IPR=921600"},
-    {kBaudRate::kBaudRate2000000, "AT+IPR=2000000"},
-    {kBaudRate::kBaudRate2900000, "AT+IPR=2900000"},
-    {kBaudRate::kBaudRate3000000, "AT+IPR=3000000"},
-    {kBaudRate::kBaudRate3200000, "AT+IPR=3200000"},
-    {kBaudRate::kBaudRate3684000, "AT+IPR=3684000"},
-    {kBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
+class Sim7070TcpOpenNetwork;
+class Sim7070UdpOpenNetwork;
 
 class Sim7070AtModem final : public IModemDriver {
- protected:
-  Sim7070AtModem() = default;
-
- public:
-  explicit Sim7070AtModem(ModemInit modem_init);
-  ~Sim7070AtModem() override;
-
-  bool Init() override;
-  bool Start() override;
-  bool Stop() override;
-  ConnectionIndex OpenNetwork(ae::Protocol protocol, std::string const& host,
-                              std::uint16_t port) override;
-  void CloseNetwork(ae::ConnectionIndex connect_index) override;
-  void WritePacket(ae::ConnectionIndex connect_index,
-                   ae::DataBuffer const& data) override;
-  DataBuffer ReadPacket(ae::ConnectionIndex connect_index,
-                        ae::Duration timeout) override;
-  bool SetPowerSaveParam(ae::PowerSaveParam const& psp) override;
-  bool PowerOff() override;
-
- private:
-  ModemInit modem_init_;
-  std::unique_ptr<ISerialPort> serial_;
-  std::vector<Sim7070Connection> connect_vec_;
-
+  friend class Sim7070TcpOpenNetwork;
+  friend class Sim7070UdpOpenNetwork;
   static constexpr std::uint16_t kModemMTU{1520};
 
-  kModemError CheckResponse(std::string const& response,
-                            std::uint32_t const wait_time,
-                            std::string const& error_message);
-  kModemError SetBaudRate(kBaudRate rate);
-  kModemError CheckSimStatus();
-  kModemError SetupSim(const std::uint8_t pin[4]);
-  kModemError SetNetMode(kModemMode modem_mode);
-  kModemError SetupNetwork(std::string const& operator_name,
-                           std::string const& operator_code,
-                           std::string const& apn_name,
-                           std::string const& apn_user,
-                           std::string const& apn_pass, kModemMode modem_mode,
-                           kAuthType auth_type);
-  kModemError SetupProtoPar();
+ public:
+  explicit Sim7070AtModem(ActionContext action_context,
+                          IPoller::ptr const& poller, ModemInit modem_init);
 
-  ConnectionHandle OpenTcpConnection(std::string const& host,
-                                     std::uint16_t port);
-  ConnectionHandle OpenUdpConnection(std::string const& host,
-                                     std::uint16_t port);
-  void SendTcp(Sim7070Connection const& connection, DataBuffer const& data);
-  void SendUdp(Sim7070Connection const& connection, DataBuffer const& data);
-  DataBuffer ReadTcp(Sim7070Connection const& connection);
-  DataBuffer ReadUdp(Sim7070Connection const& connection);
+  ActionPtr<ModemOperation> Start() override;
+  ActionPtr<ModemOperation> Stop() override;
+  ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
+                                              std::string const& host,
+                                              std::uint16_t port) override;
+  ActionPtr<ModemOperation> CloseNetwork(
+      ConnectionIndex connect_index) override;
+  ActionPtr<WriteOperation> WritePacket(ConnectionIndex connect_index,
+                                        DataBuffer const& data) override;
 
-  void SendATCommand(const std::string& command);
-  bool WaitForResponse(const std::string& expected, Duration timeout);
-  std::string PinToString(const std::uint8_t pin[4]);
+  DataEvent::Subscriber data_event() override;
+
+  ActionPtr<ModemOperation> SetPowerSaveParam(
+      PowerSaveParam const& psp) override;
+  ActionPtr<ModemOperation> PowerOff() override;
+
+ private:
+  void Init();
+
+  ActionPtr<IPipeline> CheckSimStatus();
+  ActionPtr<IPipeline> SetupSim(std::uint16_t pin);
+  ActionPtr<IPipeline> SetBaudRate(kBaudRate rate);
+  ActionPtr<IPipeline> SetNetMode(kModemMode modem_mode);
+  ActionPtr<IPipeline> SetupNetwork(std::string const& operator_name,
+                                    std::string const& operator_code,
+                                    std::string const& apn_name,
+                                    std::string const& apn_user,
+                                    std::string const& apn_pass,
+                                    kModemMode modem_mode, kAuthType auth_type);
+  ActionPtr<IPipeline> SetupProtoPar();
+
+  ActionPtr<IPipeline> OpenConnection(
+      ActionPtr<OpenNetworkOperation> const& open_network_operation,
+      Protocol protocol, std::string const& host, std::uint16_t port);
+
+  ActionPtr<IPipeline> SendData(ConnectionIndex connection,
+                                DataBuffer const& data);
+  ActionPtr<IPipeline> ReadPacket(ConnectionIndex connection);
+
+  void SetupPoll();
+  void PollEvent(std::int32_t handle);
+
+  ActionContext action_context_;
+  ModemInit modem_init_;
+  std::unique_ptr<ISerialPort> serial_;
+  AtSupport at_support_;
+  std::set<ConnectionIndex> connections_;
+  ConnectionIndex next_connection_index_{0};
+  DataEvent data_event_;
+  std::unique_ptr<AtListener> poll_listener_;
+  OwnActionPtr<ActionsQueue> operation_queue_;
+  bool initiated_;
+  bool started_;
 };
 
 } /* namespace ae */

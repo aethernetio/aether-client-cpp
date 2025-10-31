@@ -19,7 +19,7 @@
 
 #include "aether/tele/tele.h"
 
-AE_TELE_MODULE(kAdapter, 5, 101, 120);
+AE_TELE_MODULE(kAdapter, 5, 101, 121);
 AE_TAG(kEthernetAdapterCreate, kAdapter)
 AE_TAG(kEspWifiAdapterCreate, kAdapter)
 AE_TAG(kEspWifiAdapterWifiTransportWait, kAdapter)
@@ -36,5 +36,12 @@ AE_TAG(kAdapterModemTransportImmediately, kAdapter)
 AE_TAG(kAdapterModemConnected, kAdapter)
 AE_TAG(kAdapterModemDisconnected, kAdapter)
 AE_TAG(kAdapterModemAtError, kAdapter)
+
+AE_TAG(kAdapterLoraModuleAdapterCreate, kAdapter)
+AE_TAG(kAdapterLoraModuleTransportWait, kAdapter)
+AE_TAG(kAdapterLoraModuleTransportImmediately, kAdapter)
+AE_TAG(kAdapterLoraModuleConnected, kAdapter)
+AE_TAG(kAdapterLoraModuleDisconnected, kAdapter)
+AE_TAG(kAdapterLoraModuleAtError, kAdapter)
 
 #endif  // AETHER_ADAPTERS_ADAPTER_TELE_H_

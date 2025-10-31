@@ -27,5 +27,8 @@ AE_TAG(kAdapterSerialReadFailed, kSerialPorts)
 AE_TAG(kAdapterSerialPartialData, kSerialPorts)
 AE_TAG(kAdapterSerialPortState, kSerialPorts)
 AE_TAG(kAdapterSerialConfigurePort, kSerialPorts)
+AE_TAG(kSerialTransport, kSerialPorts)
+AE_TAG(kSerialTransportConnect, kSerialPorts)
+AE_TAG(kSerialTransportSend, kSerialPorts)
 
 #endif  // AETHER_SERIAL_PORTS_SERIAL_PORTS_TELE_H_

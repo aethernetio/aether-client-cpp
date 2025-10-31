@@ -93,8 +93,15 @@ std::vector<ObjPtr<Channel>> WifiAccessPoint::GenerateChannels(
 }
 
 ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
-  return ActionPtr<WifiConnectAction>{
-      *aether_.as<Aether>(), adapter_.as<WifiAdapter>()->driver(), wifi_creds_};
+  // reuse connect action if it's in progress
+  if (!connect_action_) {
+    connect_action_ = ActionPtr<WifiConnectAction>{
+        *aether_.as<Aether>(), adapter_.as<WifiAdapter>()->driver(),
+        wifi_creds_};
+    connect_sub_ = connect_action_->FinishedEvent().Subscribe(
+        [this]() { connect_action_.reset(); });
+  }
+  return connect_action_;
 }
 
 bool WifiAccessPoint::IsConnected() {

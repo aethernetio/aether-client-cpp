@@ -76,11 +76,10 @@
 #include "aether/adapters/ethernet.h"
 #include "aether/adapters/wifi_adapter.h"
 #include "aether/adapters/modem_adapter.h"
+#include "aether/adapters/lora_module_adapter.h"
 
 #include "aether/modems/imodem_driver.h"
 #include "aether/modems/modem_factory.h"
-#include "aether/modems/sim7070_at_modem.h"
-#include "aether/modems/thingy91x_at_modem.h"
 
 #include "aether/aether.h"
 #include "aether/client.h"

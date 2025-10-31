@@ -28,8 +28,70 @@
 namespace ae {
 static constexpr int kInvalidPort = -1;
 
-UnixSerialPort::UnixSerialPort(SerialInit const& serial_init)
-    : fd_{OpenPort(serial_init)} {}
+UnixSerialPort::ReadAction::ReadAction(ActionContext action_context,
+                                       UnixSerialPort& serial_port)
+    : Action{action_context}, serial_port_{&serial_port}, read_event_{} {
+  if (serial_port_->fd_ == kInvalidPort) {
+    return;
+  }
+  auto poller = serial_port_->poller_.Lock();
+  assert(poller);
+  poll_sub_ =
+      poller->Add({serial_port_->fd_})
+          .Subscribe(
+              *this,
+              MethodPtr<&UnixSerialPort::ReadAction::ReadAction::PollEvent>{});
+}
+
+UpdateStatus UnixSerialPort::ReadAction::Update() {
+  if (read_event_) {
+    auto lock = std::lock_guard{serial_port_->fd_lock_};
+    for (auto const& b : buffers_) {
+      serial_port_->read_event_.Emit(b);
+    }
+    buffers_.clear();
+    read_event_ = false;
+  }
+  return {};
+}
+
+void UnixSerialPort::ReadAction::PollEvent(PollerEvent event) {
+  if (event.descriptor != serial_port_->fd_) {
+    return;
+  }
+  switch (event.event_type) {
+    case EventType::kRead:
+      ReadData();
+      break;
+    default:
+      break;
+  }
+}
+
+void UnixSerialPort::ReadAction::ReadData() {
+  auto lock = std::lock_guard{serial_port_->fd_lock_};
+
+  static std::uint8_t buffer[1024];
+  ssize_t bytes_read = read(serial_port_->fd_, buffer, sizeof(buffer));
+  if (bytes_read < 0) {
+    AE_TELED_ERROR("Read serial port error {}", strerror(errno));
+    return;
+  }
+  DataBuffer data(static_cast<std::size_t>(bytes_read));
+  std::copy(buffer, buffer + bytes_read, data.begin());
+  buffers_.emplace_back(std::move(data));
+  read_event_ = true;
+  Action::Trigger();
+}
+
+UnixSerialPort::UnixSerialPort(ActionContext action_context,
+                               SerialInit serial_init,
+                               IPoller::ptr const& poller)
+    : action_context_{action_context},
+      serial_init_{std::move(serial_init)},
+      poller_{poller},
+      fd_{OpenPort(serial_init_)},
+      read_action_{action_context_, *this} {}
 
 UnixSerialPort::~UnixSerialPort() { Close(); }
 
@@ -46,16 +108,8 @@ void UnixSerialPort::Write(DataBuffer const& data) {
   }
 }
 
-std::optional<DataBuffer> UnixSerialPort::Read() {
-  static std::uint8_t buffer[1024];
-  ssize_t bytes_read = read(fd_, buffer, sizeof(buffer));
-  if (bytes_read < 0) {
-    AE_TELED_ERROR("Read serial port error {}", strerror(errno));
-    return std::nullopt;
-  }
-  DataBuffer data(static_cast<std::size_t>(bytes_read));
-  std::copy(buffer, buffer + bytes_read, data.begin());
-  return data;
+UnixSerialPort::DataReadEvent::Subscriber UnixSerialPort::read_event() {
+  return EventSubscriber{read_event_};
 }
 
 bool UnixSerialPort::IsOpen() { return fd_ != kInvalidPort; }
