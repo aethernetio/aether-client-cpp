@@ -17,7 +17,7 @@
 #ifndef AETHER_ACTIONS_ACTION_REGISTRY_H_
 #define AETHER_ACTIONS_ACTION_REGISTRY_H_
 
-#include <vector>
+#include <list>
 #include <memory>
 
 namespace ae {
@@ -25,7 +25,7 @@ class IAction;
 
 class ActionRegistry {
  public:
-  using ActionList = std::vector<std::shared_ptr<IAction>>;
+  using ActionList = std::list<std::shared_ptr<IAction>>;
   using value_type = ActionList::value_type;
 
   ActionRegistry();
