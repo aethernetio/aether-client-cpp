@@ -109,8 +109,8 @@ struct IpAddressPort {
 
 enum class Protocol : std::uint8_t {
   kTcp,
-  kWebSocket,
   kUdp,
+  kWebSocket,
   // TODO: rest does not supported yet
   /*
   kAny,
