@@ -19,13 +19,13 @@
 
 #include "aether/all.h"
 
-#define CLOUD_TEST_LORA_MODULE 1
+#define CLOUD_TEST_LORA_MODULE 0
 #define CLOUD_TEST_MODEM 0
 
 #if defined ESP_PLATFORM
-#  define CLOUD_TEST_ESP_WIFI 0
+#  define CLOUD_TEST_ESP_WIFI 1
 #else
-#  define CLOUD_TEST_ETHERNET 0
+#  define CLOUD_TEST_ETHERNET 1
 #endif
 
 // IWYU pragma: begin_keeps
