@@ -15,11 +15,12 @@
  */
 
 #include "aether/access_points/lora_module_access_point.h"
+#if AE_SUPPORT_LORA
 
-#include "aether/aether.h"
-#include "aether/lora_modules/ilora_module_driver.h"
+#  include "aether/aether.h"
+#  include "aether/lora_modules/ilora_module_driver.h"
 
-#include "aether/channels/lora_module_channel.h"
+#  include "aether/channels/lora_module_channel.h"
 
 namespace ae {
 LoraModuleConnectAction::LoraModuleConnectAction(
@@ -104,3 +105,4 @@ std::vector<ObjPtr<Channel>> LoraModuleAccessPoint::GenerateChannels(
 }
 
 }  // namespace ae
+#endif

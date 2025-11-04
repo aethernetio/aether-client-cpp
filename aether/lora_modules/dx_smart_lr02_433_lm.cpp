@@ -15,18 +15,19 @@
  */
 
 #include "aether/lora_modules/dx_smart_lr02_433_lm.h"
+#if AE_SUPPORT_LORA && AE_ENABLE_DX_SMART_LR02_433_LM
 
-#include <bitset>
-#include <string_view>
+#  include <bitset>
+#  include <string_view>
 
-#include "aether/misc/defer.h"
-#include "aether/misc/from_chars.h"
-#include "aether/actions/pipeline.h"
-#include "aether/actions/gen_action.h"
-#include "aether/mstream_buffers.h"
-#include "aether/serial_ports/serial_port_factory.h"
+#  include "aether/misc/defer.h"
+#  include "aether/misc/from_chars.h"
+#  include "aether/actions/pipeline.h"
+#  include "aether/actions/gen_action.h"
+#  include "aether/mstream_buffers.h"
+#  include "aether/serial_ports/serial_port_factory.h"
 
-#include "aether/lora_modules/lora_modules_tele.h"
+#  include "aether/lora_modules/lora_modules_tele.h"
 
 namespace ae {
 static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
@@ -775,3 +776,4 @@ std::string DxSmartLr02LoraModule::ChannelToString(uint8_t value) {
 }
 
 }  // namespace ae
+#endif

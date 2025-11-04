@@ -15,11 +15,12 @@
  */
 
 #include "aether/access_points/modem_access_point.h"
+#if AE_SUPPORT_MODEMS
 
-#include "aether/aether.h"
-#include "aether/modems/imodem_driver.h"
+#  include "aether/aether.h"
+#  include "aether/modems/imodem_driver.h"
 
-#include "aether/channels/modem_channel.h"
+#  include "aether/channels/modem_channel.h"
 
 namespace ae {
 ModemConnectAction::ModemConnectAction(ActionContext action_context,
@@ -104,3 +105,4 @@ std::vector<ObjPtr<Channel>> ModemAccessPoint::GenerateChannels(
 }
 
 }  // namespace ae
+#endif

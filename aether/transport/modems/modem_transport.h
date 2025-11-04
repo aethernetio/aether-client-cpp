@@ -18,9 +18,8 @@
 #define AETHER_TRANSPORT_MODEMS_MODEM_TRANSPORT_H_
 
 #include "aether/config.h"
-#include "aether/modems/modem_factory.h"
 
-#if (AE_MODEM_ENABLED == 1) && ((AE_SUPPORT_TCP == 1) || (AE_SUPPORT_UDP == 1))
+#if AE_SUPPORT_MODEMS
 #  define MODEM_TRANSPORT_ENABLED 1
 
 #  include "aether/actions/action.h"
@@ -109,5 +108,4 @@ class ModemTransport final : public ByteIStream {
 }  // namespace ae
 
 #endif
-
 #endif  // AETHER_TRANSPORT_MODEMS_MODEM_TRANSPORT_H_

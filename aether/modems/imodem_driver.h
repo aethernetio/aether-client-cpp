@@ -17,17 +17,20 @@
 #ifndef AETHER_MODEMS_IMODEM_DRIVER_H_
 #define AETHER_MODEMS_IMODEM_DRIVER_H_
 
-#include <string>
-#include <cstdint>
+#include "aether/config.h"
 
-#include "aether/types/address.h"
-#include "aether/events/events.h"
-#include "aether/actions/action.h"
-#include "aether/types/data_buffer.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/actions/notify_action.h"
-#include "aether/actions/promise_action.h"
-#include "aether/modems/modem_driver_types.h"
+#if AE_SUPPORT_MODEMS
+#  include <string>
+#  include <cstdint>
+
+#  include "aether/types/address.h"
+#  include "aether/events/events.h"
+#  include "aether/actions/action.h"
+#  include "aether/types/data_buffer.h"
+#  include "aether/actions/action_ptr.h"
+#  include "aether/actions/notify_action.h"
+#  include "aether/actions/promise_action.h"
+#  include "aether/modems/modem_driver_types.h"
 
 namespace ae {
 class IModemDriver {
@@ -56,5 +59,5 @@ class IModemDriver {
 };
 
 } /* namespace ae */
-
+#endif
 #endif  // AETHER_MODEMS_IMODEM_DRIVER_H_

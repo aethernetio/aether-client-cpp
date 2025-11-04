@@ -17,13 +17,17 @@
 #ifndef AETHER_MODEMS_BG95_AT_MODEM_H_
 #define AETHER_MODEMS_BG95_AT_MODEM_H_
 
-#include <chrono>
-#include <memory>
+#include "aether/config.h"
 
-#include "aether/modems/imodem_driver.h"
-#include "aether/adapters/modem_adapter.h"
-#include "aether/serial_ports/iserial_port.h"
-#include "aether/serial_ports/at_comm_support.h"
+#if AE_SUPPORT_MODEMS && AE_ENABLE_BG95
+
+#  include <chrono>
+#  include <memory>
+
+#  include "aether/modems/imodem_driver.h"
+#  include "aether/adapters/modem_adapter.h"
+#  include "aether/serial_ports/iserial_port.h"
+#  include "aether/serial_ports/at_comm_support.h"
 
 namespace ae {
 
@@ -195,5 +199,5 @@ class Bg95AtModem final : public IModemDriver {
 };
 
 } /* namespace ae */
-
+#endif
 #endif  // AETHER_MODEMS_BG95_AT_MODEM_H_

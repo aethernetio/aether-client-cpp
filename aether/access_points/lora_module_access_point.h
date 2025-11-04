@@ -17,14 +17,17 @@
 #ifndef AETHER_ACCESS_POINTS_LORA_MODULE_ACCESS_POINT_H_
 #define AETHER_ACCESS_POINTS_LORA_MODULE_ACCESS_POINT_H_
 
-#include "aether/obj/obj.h"
-#include "aether/actions/action.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/types/state_machine.h"
-#include "aether/lora_modules/ilora_module_driver.h"
-#include "aether/adapters/lora_module_adapter.h"
-#include "aether/events/event_subscription.h"
-#include "aether/access_points/access_point.h"
+#include "aether/config.h"
+
+#if AE_SUPPORT_LORA
+#  include "aether/obj/obj.h"
+#  include "aether/actions/action.h"
+#  include "aether/actions/action_ptr.h"
+#  include "aether/types/state_machine.h"
+#  include "aether/lora_modules/ilora_module_driver.h"
+#  include "aether/adapters/lora_module_adapter.h"
+#  include "aether/events/event_subscription.h"
+#  include "aether/access_points/access_point.h"
 
 namespace ae {
 class Aether;
@@ -74,5 +77,5 @@ class LoraModuleAccessPoint final : public AccessPoint {
   Subscription connect_sub_;
 };
 }  // namespace ae
-
+#endif
 #endif  // AETHER_ACCESS_POINTS_LORA_MODULE_ACCESS_POINT_H_

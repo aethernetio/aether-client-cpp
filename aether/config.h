@@ -89,6 +89,44 @@
 #  endif  // AE_SUPPORT_DYNAMIC_CLOUD_IPS
 #endif    // AE_SUPPORT_CLOUD_IPS
 
+/**
+ * Is mobile modems supported.
+ * Also choose one of the supported modem implementations.
+ */
+#ifndef AE_SUPPORT_MODEMS
+#  define AE_SUPPORT_MODEMS 0
+#endif
+
+// Thingy91x modem implementation is enabled.
+#ifndef AE_ENABLE_THINGY91X
+#  define AE_ENABLE_THINGY91X 0
+#endif
+
+// SIM7070 modem implementation is enabled.
+#ifndef AE_ENABLE_SIM7070
+#  define AE_ENABLE_SIM7070 0
+#endif
+
+// BG95 modem implementation is enabled.
+#ifndef AE_ENABLE_BG95
+#  define AE_ENABLE_BG95 0
+#endif
+
+/**
+ * \brief Is lora protocol supported.
+ */
+#ifndef AE_SUPPORT_LORA
+#  define AE_SUPPORT_LORA 0
+#endif
+
+#ifndef AE_ENABLE_EBYTE_E22_400
+#  define AE_ENABLE_EBYTE_E22_400 0
+#endif
+
+#ifndef AE_ENABLE_DX_SMART_LR02_433_LM
+#  define AE_ENABLE_DX_SMART_LR02_433_LM 0
+#endif
+
 // Registration functionality can be stripped-out for pre-registered clients.
 #ifndef AE_SUPPORT_REGISTRATION
 #  define AE_SUPPORT_REGISTRATION 1

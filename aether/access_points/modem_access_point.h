@@ -17,14 +17,17 @@
 #ifndef AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_
 #define AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_
 
-#include "aether/obj/obj.h"
-#include "aether/actions/action.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/types/state_machine.h"
-#include "aether/modems/imodem_driver.h"
-#include "aether/adapters/modem_adapter.h"
-#include "aether/events/event_subscription.h"
-#include "aether/access_points/access_point.h"
+#include "aether/config.h"
+#if AE_SUPPORT_MODEMS
+
+#  include "aether/obj/obj.h"
+#  include "aether/actions/action.h"
+#  include "aether/actions/action_ptr.h"
+#  include "aether/types/state_machine.h"
+#  include "aether/modems/imodem_driver.h"
+#  include "aether/adapters/modem_adapter.h"
+#  include "aether/events/event_subscription.h"
+#  include "aether/access_points/access_point.h"
 
 namespace ae {
 class Aether;
@@ -72,5 +75,6 @@ class ModemAccessPoint final : public AccessPoint {
   Subscription connect_sub_;
 };
 }  // namespace ae
+#endif
 
 #endif  // AETHER_ACCESS_POINTS_MODEM_ACCESS_POINT_H_

@@ -17,19 +17,13 @@
 #ifndef AETHER_LORA_MODULES_LORA_MODULE_FACTORY_H_
 #define AETHER_LORA_MODULES_LORA_MODULE_FACTORY_H_
 
-#include <memory>
+#include "aether/config.h"
+#if AE_SUPPORT_LORA
+#  include <memory>
 
-#include "aether/poller/poller.h"
-#include "aether/actions/action_context.h"
-#include "aether/lora_modules/ilora_module_driver.h"
-
-#define AE_LORA_MODULE_EBYTE_E22_ENABLED 0
-#define AE_LORA_MODULE_DXSMART_LR02_ENABLED 1
-
-// check if any mode is enabled
-#if (AE_LORA_MODULE_EBYTE_E22_ENABLED == 1) || \
-    (AE_LORA_MODULE_DXSMART_LR02_ENABLED == 1)
-#  define AE_LORA_MODULE_ENABLED 1
+#  include "aether/poller/poller.h"
+#  include "aether/actions/action_context.h"
+#  include "aether/lora_modules/ilora_module_driver.h"
 
 namespace ae {
 class LoraModuleDriverFactory {
@@ -41,5 +35,4 @@ class LoraModuleDriverFactory {
 }  // namespace ae
 
 #endif
-
 #endif  // AETHER_LORA_MODULES_LORA_MODULE_FACTORY_H_

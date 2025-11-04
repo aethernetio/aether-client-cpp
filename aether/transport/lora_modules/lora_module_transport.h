@@ -18,10 +18,7 @@
 #define AETHER_TRANSPORT_LORA_MODULES_LORA_MODULE_TRANSPORT_H_
 
 #include "aether/config.h"
-#include "aether/lora_modules/lora_module_factory.h"
-
-#if (AE_LORA_MODULE_ENABLED == 1) && \
-    ((AE_SUPPORT_TCP == 1) || (AE_SUPPORT_UDP == 1))
+#if AE_SUPPORT_LORA
 #  define LORA_MODULE_TRANSPORT_ENABLED 1
 
 #  include "aether/actions/action.h"
@@ -112,5 +109,4 @@ class LoraModuleTransport final : public ByteIStream {
 }  // namespace ae
 
 #endif
-
 #endif  // AETHER_TRANSPORT_LORA_MODULES_LORA_MODULE_TRANSPORT_H_

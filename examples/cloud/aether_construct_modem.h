@@ -20,6 +20,9 @@
 #include "aether_construct.h"
 
 #if CLOUD_TEST_MODEM
+#  if !AE_SUPPORT_MODEMS
+#    error "Modem support is required for cloud test modem"
+#  else
 
 namespace ae::cloud_test {
 static constexpr std::string_view kSerialPortModem =
@@ -50,7 +53,7 @@ static ae::ModemInit const modem_init{
 static RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
-#  if defined AE_DISTILLATION
+#    if defined AE_DISTILLATION
           .AdaptersFactory([](AetherAppContext const& context) {
             auto adapter_registry =
                 context.domain().CreateObj<AdapterRegistry>();
@@ -59,10 +62,11 @@ static RcPtr<AetherApp> construct_aether_app() {
                 modem_init));
             return adapter_registry;
           })
-#  endif
+#    endif
   );
 }
 }  // namespace ae::cloud_test
 
+#  endif
 #endif
 #endif  // CLOUD_AETHER_CONSTRUCT_MODEM_H_

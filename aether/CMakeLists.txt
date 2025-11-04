@@ -138,10 +138,9 @@ list(APPEND access_points_srcs
 
 list(APPEND modems_srcs
             "modems/modem_factory.cpp"
-            # "modems/bg95_at_modem.cpp"
+            "modems/bg95_at_modem.cpp"
             "modems/sim7070_at_modem.cpp"
-            "modems/thingy91x_at_modem.cpp"
-            "modems/exponent_time.cpp")
+            "modems/thingy91x_at_modem.cpp")
 
 list(APPEND lora_modules_srcs
             "lora_modules/dx_smart_lr02_433_lm.cpp"

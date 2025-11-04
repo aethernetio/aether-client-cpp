@@ -19,7 +19,12 @@
 
 #include "aether_construct.h"
 
+#include "aether/config.h"
+
 #if CLOUD_TEST_LORA_MODULE
+#  if !AE_SUPPORT_LORA
+#    error "Lora module is not supported"
+#  else
 
 namespace ae::cloud_test {
 static constexpr std::string_view kSerialPortLoraModule =
@@ -49,7 +54,7 @@ ae::LoraModuleInit const lora_module_init{
 static RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
-#  if defined AE_DISTILLATION
+#    if defined AE_DISTILLATION
           .AdaptersFactory([](AetherAppContext const& context) {
             auto adapter_registry =
                 context.domain().CreateObj<AdapterRegistry>();
@@ -59,10 +64,11 @@ static RcPtr<AetherApp> construct_aether_app() {
                     context.poller(), lora_module_init));
             return adapter_registry;
           })
-#  endif
+#    endif
   );
 }
 }  // namespace ae::cloud_test
 
+#  endif
 #endif
 #endif  // CLOUD_AETHER_CONSTRUCT_LORA_MODULE_H_

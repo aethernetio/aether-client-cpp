@@ -15,22 +15,28 @@
  */
 
 #include "aether/lora_modules/lora_module_factory.h"
+#if AE_SUPPORT_LORA
 
-#include "aether/lora_modules/ebyte_e22_400_lm.h"
-#include "aether/lora_modules/dx_smart_lr02_433_lm.h"
+//// IWYU pragma: begin_keeps
+#  include "aether/lora_modules/ebyte_e22_400_lm.h"
+#  include "aether/lora_modules/dx_smart_lr02_433_lm.h"
+// IWYU pragma: end_keeps
 
 namespace ae {
 
 std::unique_ptr<ILoraModuleDriver> LoraModuleDriverFactory::CreateLoraModule(
     ActionContext action_context, IPoller::ptr const& poller,
     LoraModuleInit lora_module_init) {
-#if AE_LORA_MODULE_EBYTE22_ENABLED == 1
+#  if AE_ENABLE_EBYTE_E22_400
   return std::make_unique<EbyteE22LoraModule>(action_context, poller,
                                               std::move(lora_module_init));
-#elif AE_LORA_MODULE_DXSMART_LR02_ENABLED == 1
+#  elif AE_ENABLE_DX_SMART_LR02_433_LM
   return std::make_unique<DxSmartLr02LoraModule>(action_context, poller,
                                                  std::move(lora_module_init));
-#endif
+#  else
+#    error "No supported LoRa module driver found"
+#  endif
 }
 
 }  // namespace ae
+#endif

@@ -17,20 +17,14 @@
 #ifndef AETHER_MODEMS_MODEM_FACTORY_H_
 #define AETHER_MODEMS_MODEM_FACTORY_H_
 
-#include <memory>
+#include "aether/config.h"
 
-#include "aether/poller/poller.h"
-#include "aether/actions/action_context.h"
-#include "aether/modems/imodem_driver.h"
+#if AE_SUPPORT_MODEMS
+#  include <memory>
 
-#define AE_MODEM_BG95_ENABLED 0
-#define AE_MODEM_SIM7070_ENABLED 0
-#define AE_MODEM_THINGY91X_ENABLED 1
-
-// check if any mode is enabled
-#if (AE_MODEM_SIM7070_ENABLED == 1) || (AE_MODEM_BG95_ENABLED == 1) || \
-    (AE_MODEM_THINGY91X_ENABLED == 1)
-#  define AE_MODEM_ENABLED 1
+#  include "aether/poller/poller.h"
+#  include "aether/actions/action_context.h"
+#  include "aether/modems/imodem_driver.h"
 
 namespace ae {
 class ModemDriverFactory {
@@ -42,5 +36,4 @@ class ModemDriverFactory {
 }  // namespace ae
 
 #endif
-
 #endif  // AETHER_MODEMS_MODEM_FACTORY_H_

@@ -15,13 +15,14 @@
  */
 
 #include "aether/channels/lora_module_channel.h"
+#if AE_SUPPORT_LORA
 
-#include <utility>
+#  include <utility>
 
-#include "aether/memory.h"
-#include "aether/aether.h"
-#include "aether/types/state_machine.h"
-#include "aether/transport/lora_modules/lora_module_transport.h"
+#  include "aether/memory.h"
+#  include "aether/aether.h"
+#  include "aether/types/state_machine.h"
+#  include "aether/transport/lora_modules/lora_module_transport.h"
 
 namespace ae {
 namespace lora_module_channel_internal {
@@ -177,3 +178,4 @@ Duration LoraModuleChannel::TransportBuildTimeout() const {
 }
 
 }  // namespace ae
+#endif
