@@ -167,6 +167,9 @@ LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
 }
 
 ActionPtr<TransportBuilderAction> LoraModuleChannel::TransportBuilder() {
+  if (!access_point_) {
+    aether_->domain_->LoadRoot(access_point_);
+  }
   return ActionPtr<
       lora_module_channel_internal::LoraModuleTransportBuilderAction>{
       *aether_.as<Aether>(), *this, *access_point_, address};

@@ -245,6 +245,16 @@ Duration WifiChannel::TransportBuildTimeout() const {
 }
 
 ActionPtr<TransportBuilderAction> WifiChannel::TransportBuilder() {
+  if (!resolver_) {
+    aether_->domain_->LoadRoot(resolver_);
+  }
+  if (!poller_) {
+    aether_->domain_->LoadRoot(poller_);
+  }
+  if (!access_point_) {
+    aether_->domain_->LoadRoot(access_point_);
+  }
+
   IPoller::ptr poller = poller_;
   DnsResolver::ptr resolver = resolver_;
 

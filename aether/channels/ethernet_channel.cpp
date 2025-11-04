@@ -213,6 +213,13 @@ EthernetChannel::EthernetChannel(ObjPtr<Aether> aether,
 }
 
 ActionPtr<TransportBuilderAction> EthernetChannel::TransportBuilder() {
+  if (!dns_resolver_) {
+    aether_->domain_->LoadRoot(dns_resolver_);
+  }
+  if (!poller_) {
+    aether_->domain_->LoadRoot(poller_);
+  }
+
   DnsResolver::ptr dns_resolver = dns_resolver_;
   IPoller::ptr poller = poller_;
   assert(dns_resolver);

@@ -169,6 +169,9 @@ ModemChannel::ModemChannel(ObjPtr<Aether> aether,
 }
 
 ActionPtr<TransportBuilderAction> ModemChannel::TransportBuilder() {
+  if (!access_point_) {
+    aether_->domain_->LoadRoot(access_point_);
+  }
   return ActionPtr<modem_channel_internal::ModemTransportBuilderAction>{
       *aether_.as<Aether>(), *this, *access_point_, address};
 }
