@@ -216,7 +216,8 @@ void TcpTransport::ReadAction::DataReceived() {
   auto lock = std::lock_guard{transport_->socket_lock_};
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG(kTcpTransportReceive, "Receive data size {}", data.size());
+    AE_TELE_DEBUG(kTcpTransportReceive, "Socket {} received data size {}",
+                  transport_->endpoint_, data.size());
     transport_->out_data_event_.Emit(data);
   }
 }
@@ -251,7 +252,8 @@ TcpTransport::~TcpTransport() {
 }
 
 ActionPtr<StreamWriteAction> TcpTransport::Write(DataBuffer&& in_data) {
-  AE_TELE_DEBUG(kTcpTransportSend, "Send data size {}", in_data.size());
+  AE_TELE_DEBUG(kTcpTransportSend, "Socket {} send data size {}", endpoint_,
+                in_data.size());
 
   auto packet_data = std::vector<std::uint8_t>{};
   VectorWriter<PacketSize> vw{packet_data};

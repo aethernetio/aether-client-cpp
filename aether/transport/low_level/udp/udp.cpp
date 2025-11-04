@@ -76,7 +76,8 @@ void UdpTransport::ReadAction::Stop() {
 void UdpTransport::ReadAction::ReadEvent() {
   auto lock = std::lock_guard{transport_->socket_mutex_};
   for (auto& packet : read_buffers_) {
-    AE_TELE_DEBUG(kUdpTransportReceive, "Receive data size:{}", packet.size());
+    AE_TELE_DEBUG(kUdpTransportReceive, "Socket {} receive data size:{}",
+                  transport_->endpoint_, packet.size());
     transport_->out_data_event_.Emit(packet);
   }
   read_buffers_.clear();
@@ -216,7 +217,8 @@ void UdpTransport::Restream() {
 }
 
 ActionPtr<StreamWriteAction> UdpTransport::Write(DataBuffer&& in_data) {
-  AE_TELE_DEBUG(kUdpTransportSend, "Send data size:{}", in_data.size());
+  AE_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}", endpoint_,
+                in_data.size());
   auto send_packet_action = send_queue_manager_->AddPacket(
       ActionPtr<SendAction>{action_context_, *this, std::move(in_data)});
 
