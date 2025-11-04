@@ -37,15 +37,10 @@ struct Index {
 };
 
 template <typename Func, std::size_t... Is>
-void DispatchIndexImpl(Func&& func, std::size_t index,
+void DispatchIndexImpl(Func func, std::size_t index,
                        std::index_sequence<Is...>) {
-  (  //
-      std::invoke([&]() {
-        if (index == Is) {
-          std::forward<Func>(func)(Index<Is>{});
-        }
-      }),
-      ...);
+  bool res = ((index == Is ? (func(Index<Is>{}), true) : false) || ...);
+  (void)(res);
 }
 
 template <std::size_t N, typename Func>
