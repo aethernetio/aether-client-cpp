@@ -17,17 +17,18 @@
 #ifndef AETHER_ADAPTERS_LORA_MODULE_ADAPTER_H_
 #define AETHER_ADAPTERS_LORA_MODULE_ADAPTER_H_
 
-#define LORA_MODULE_ADAPTER_ENABLED 1
+#include "aether/config.h"
 
-#include <cstdint>
+#if AE_SUPPORT_LORA
+#  include <cstdint>
 
-#include "aether/events/events.h"
+#  include "aether/events/events.h"
 
-#include "aether/lora_modules/ilora_module_driver.h"
-#include "aether/adapters/parent_lora_module.h"
-#include "aether/access_points/access_point.h"
+#  include "aether/lora_modules/ilora_module_driver.h"
+#  include "aether/adapters/parent_lora_module.h"
+#  include "aether/access_points/access_point.h"
 
-#define LORA_MODULE_TCP_TRANSPORT_ENABLED 1
+#  define LORA_MODULE_TCP_TRANSPORT_ENABLED 1
 
 namespace ae {
 class LoraModuleAdapter : public ParentLoraModuleAdapter {
@@ -36,10 +37,10 @@ class LoraModuleAdapter : public ParentLoraModuleAdapter {
   LoraModuleAdapter() = default;
 
  public:
-#ifdef AE_DISTILLATION
+#  ifdef AE_DISTILLATION
   LoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                     LoraModuleInit lora_module_init, Domain* domain);
-#endif  // AE_DISTILLATION
+#  endif  // AE_DISTILLATION
 
   ~LoraModuleAdapter() override;
 
@@ -57,5 +58,5 @@ class LoraModuleAdapter : public ParentLoraModuleAdapter {
 };
 
 }  // namespace ae
-
+#endif
 #endif  // AETHER_ADAPTERS_LORA_MODULE_ADAPTER_H_

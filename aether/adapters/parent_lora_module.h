@@ -17,9 +17,12 @@
 #ifndef AETHER_ADAPTERS_PARENT_LORA_MODULE_H_
 #define AETHER_ADAPTERS_PARENT_LORA_MODULE_H_
 
-#include "aether/aether.h"
-#include "aether/adapters/adapter.h"
-#include "aether/lora_modules/lora_module_driver_types.h"
+#include "aether/config.h"
+
+#if AE_SUPPORT_LORA
+#  include "aether/aether.h"
+#  include "aether/adapters/adapter.h"
+#  include "aether/lora_modules/lora_module_driver_types.h"
 
 namespace ae {
 class Aether;
@@ -31,10 +34,10 @@ class ParentLoraModuleAdapter : public Adapter {
   ParentLoraModuleAdapter() = default;
 
  public:
-#ifdef AE_DISTILLATION
+#  ifdef AE_DISTILLATION
   ParentLoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                           LoraModuleInit lora_module_init, Domain* domain);
-#endif  // AE_DISTILLATION
+#  endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, lora_module_init_))
 
@@ -44,5 +47,5 @@ class ParentLoraModuleAdapter : public Adapter {
   LoraModuleInit lora_module_init_;
 };
 }  // namespace ae
-
+#endif
 #endif  // AETHER_ADAPTERS_PARENT_LORA_MODULE_H_

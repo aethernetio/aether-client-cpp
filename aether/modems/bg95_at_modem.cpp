@@ -13,14 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#include "aether/format/format.h"
-#include "aether/misc/from_chars.h"
-#include "aether/modems/exponent_time.h"
 #include "aether/modems/bg95_at_modem.h"
-#include "aether/serial_ports/serial_port_factory.h"
 
-#include "aether/modems/modems_tele.h"
+#if AE_SUPPORT_MODEMS && AE_ENABLE_BG95
+
+#  include "aether/format/format.h"
+#  include "aether/misc/from_chars.h"
+#  include "aether/modems/exponent_time.h"
+#  include "aether/serial_ports/serial_port_factory.h"
+
+#  include "aether/modems/modems_tele.h"
 
 namespace ae {
 
@@ -374,3 +376,4 @@ kModemError Bg95AtModem::SetupNetwork(
   return err;
 }
 } /* namespace ae */
+#endif

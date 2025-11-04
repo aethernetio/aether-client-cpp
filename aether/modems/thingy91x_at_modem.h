@@ -17,17 +17,19 @@
 #ifndef AETHER_MODEMS_THINGY91X_AT_MODEM_H_
 #define AETHER_MODEMS_THINGY91X_AT_MODEM_H_
 
-#include <set>
-#include <memory>
+#include "aether/config.h"
+#if AE_SUPPORT_MODEMS && AE_ENABLE_THINGY91X
+#  include <set>
+#  include <memory>
 
-#include "aether/poller/poller.h"
-#include "aether/actions/pipeline.h"
-#include "aether/actions/actions_queue.h"
-#include "aether/actions/repeatable_task.h"
-#include "aether/serial_ports/iserial_port.h"
-#include "aether/serial_ports/at_support/at_support.h"
+#  include "aether/poller/poller.h"
+#  include "aether/actions/pipeline.h"
+#  include "aether/actions/actions_queue.h"
+#  include "aether/actions/repeatable_task.h"
+#  include "aether/serial_ports/iserial_port.h"
+#  include "aether/serial_ports/at_support/at_support.h"
 
-#include "aether/modems/imodem_driver.h"
+#  include "aether/modems/imodem_driver.h"
 
 namespace ae {
 class Thingy91TcpOpenNetwork;
@@ -116,5 +118,5 @@ class Thingy91xAtModem final : public IModemDriver {
 };
 
 } /* namespace ae */
-
+#endif
 #endif  // AETHER_MODEMS_THINGY91X_AT_MODEM_H_

@@ -17,11 +17,13 @@
 #ifndef AETHER_MODEMS_MODEM_DRIVER_TYPES_H_
 #define AETHER_MODEMS_MODEM_DRIVER_TYPES_H_
 
-#include <string>
-#include <vector>
+#include "aether/config.h"
+#if AE_SUPPORT_MODEMS
+#  include <string>
+#  include <vector>
 
-#include "aether/reflect/reflect.h"
-#include "aether/serial_ports/serial_port_types.h"
+#  include "aether/reflect/reflect.h"
+#  include "aether/serial_ports/serial_port_types.h"
 
 namespace ae {
 enum class kModemError : std::int8_t {
@@ -287,5 +289,5 @@ struct ModemInit {
 using ConnectionIndex = std::int8_t;
 static constexpr ConnectionIndex kInvalidConnectionIndex = -1;
 }  // namespace ae
-
+#endif
 #endif  // AETHER_MODEMS_MODEM_DRIVER_TYPES_H_

@@ -15,17 +15,19 @@
  */
 
 #include "aether/adapters/parent_lora_module.h"
+#if AE_SUPPORT_LORA
 
 namespace ae {
 
-#if defined AE_DISTILLATION
+#  if defined AE_DISTILLATION
 ParentLoraModuleAdapter::ParentLoraModuleAdapter(
-    ObjPtr<Aether> aether, IPoller::ptr poller,
-    LoraModuleInit lora_module_init, Domain* domain)
+    ObjPtr<Aether> aether, IPoller::ptr poller, LoraModuleInit lora_module_init,
+    Domain* domain)
     : Adapter{domain},
       aether_{std::move(aether)},
       poller_{std::move(poller)},
       lora_module_init_{std::move(lora_module_init)} {}
-#endif  // AE_DISTILLATION
+#  endif  // AE_DISTILLATION
 
 } /* namespace ae */
+#endif

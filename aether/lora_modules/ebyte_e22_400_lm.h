@@ -17,17 +17,21 @@
 #ifndef AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
 #define AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
 
-#include <set>
-#include <memory>
+#include "aether/config.h"
 
-#include "aether/poller/poller.h"
-#include "aether/actions/pipeline.h"
-#include "aether/actions/actions_queue.h"
-#include "aether/actions/repeatable_task.h"
-#include "aether/serial_ports/iserial_port.h"
-#include "aether/serial_ports/at_support/at_support.h"
+#if AE_SUPPORT_LORA && AE_ENABLE_EBYTE_E22_400
 
-#include "aether/lora_modules/ilora_module_driver.h"
+#  include <set>
+#  include <memory>
+
+#  include "aether/poller/poller.h"
+#  include "aether/actions/pipeline.h"
+#  include "aether/actions/actions_queue.h"
+#  include "aether/actions/repeatable_task.h"
+#  include "aether/serial_ports/iserial_port.h"
+#  include "aether/serial_ports/at_support/at_support.h"
+
+#  include "aether/lora_modules/ilora_module_driver.h"
 
 namespace ae {
 
@@ -101,4 +105,5 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
 
 } /* namespace ae */
 
+#endif
 #endif  // AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_

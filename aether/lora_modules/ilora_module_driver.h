@@ -17,17 +17,21 @@
 #ifndef AETHER_LORA_MODULES_ILORA_MODULE_DRIVER_H_
 #define AETHER_LORA_MODULES_ILORA_MODULE_DRIVER_H_
 
-#include <string>
-#include <cstdint>
+#include "aether/config.h"
 
-#include "aether/types/address.h"
-#include "aether/events/events.h"
-#include "aether/actions/action.h"
-#include "aether/types/data_buffer.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/actions/notify_action.h"
-#include "aether/actions/promise_action.h"
-#include "aether/lora_modules/lora_module_driver_types.h"
+#if AE_SUPPORT_LORA
+
+#  include <string>
+#  include <cstdint>
+
+#  include "aether/types/address.h"
+#  include "aether/events/events.h"
+#  include "aether/actions/action.h"
+#  include "aether/types/data_buffer.h"
+#  include "aether/actions/action_ptr.h"
+#  include "aether/actions/notify_action.h"
+#  include "aether/actions/promise_action.h"
+#  include "aether/lora_modules/lora_module_driver_types.h"
 
 namespace ae {
 class ILoraModuleDriver {
@@ -57,4 +61,5 @@ class ILoraModuleDriver {
 
 } /* namespace ae */
 
+#endif
 #endif  // AETHER_LORA_MODULES_ILORA_MODULE_DRIVER_H_

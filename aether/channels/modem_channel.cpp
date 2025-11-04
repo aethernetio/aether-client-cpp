@@ -15,14 +15,15 @@
  */
 
 #include "aether/channels/modem_channel.h"
+#if AE_SUPPORT_MODEMS
 
-#include <utility>
+#  include <utility>
 
-#include "aether/config.h"
-#include "aether/memory.h"
-#include "aether/aether.h"
-#include "aether/types/state_machine.h"
-#include "aether/transport/modems/modem_transport.h"
+#  include "aether/config.h"
+#  include "aether/memory.h"
+#  include "aether/aether.h"
+#  include "aether/types/state_machine.h"
+#  include "aether/transport/modems/modem_transport.h"
 
 namespace ae {
 namespace modem_channel_internal {
@@ -178,3 +179,4 @@ Duration ModemChannel::TransportBuildTimeout() const {
 }
 
 }  // namespace ae
+#endif

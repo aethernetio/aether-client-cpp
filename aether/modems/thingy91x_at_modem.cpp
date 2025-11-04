@@ -15,16 +15,17 @@
  */
 
 #include "aether/modems/thingy91x_at_modem.h"
+#if AE_SUPPORT_MODEMS && AE_ENABLE_THINGY91X
 
-#include <bitset>
-#include <string_view>
+#  include <bitset>
+#  include <string_view>
 
-#include "aether/misc/from_chars.h"
-#include "aether/actions/pipeline.h"
-#include "aether/actions/gen_action.h"
-#include "aether/serial_ports/serial_port_factory.h"
+#  include "aether/misc/from_chars.h"
+#  include "aether/actions/pipeline.h"
+#  include "aether/actions/gen_action.h"
+#  include "aether/serial_ports/serial_port_factory.h"
 
-#include "aether/modems/modems_tele.h"
+#  include "aether/modems/modems_tele.h"
 
 namespace ae {
 static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
@@ -1018,3 +1019,4 @@ void Thingy91xAtModem::PollEvent(std::int32_t handle, std::string_view flags) {
 }
 
 } /* namespace ae */
+#endif

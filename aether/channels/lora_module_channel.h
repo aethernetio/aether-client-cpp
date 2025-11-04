@@ -17,8 +17,11 @@
 #ifndef AETHER_CHANNELS_LORA_MODULE_CHANNEL_H_
 #define AETHER_CHANNELS_LORA_MODULE_CHANNEL_H_
 
-#include "aether/channels/channel.h"
-#include "aether/access_points/lora_module_access_point.h"
+#include "aether/config.h"
+
+#if AE_SUPPORT_LORA
+#  include "aether/channels/channel.h"
+#  include "aether/access_points/lora_module_access_point.h"
 
 namespace ae {
 class Aether;
@@ -43,5 +46,5 @@ class LoraModuleChannel final : public Channel {
   LoraModuleAccessPoint::ptr access_point_;
 };
 }  // namespace ae
-
+#endif
 #endif  // AETHER_CHANNELS_LORA_MODULE_CHANNEL_H_

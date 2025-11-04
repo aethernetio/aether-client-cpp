@@ -61,16 +61,15 @@ using DataPointerConstType = std::uint8_t const*;
 
 struct ManagedStorageVtable {
   void (*copy_construct)(DataPointerType dst, DataPointerConstType src);
-  void (*copy_assign)(DataPointerType dst, DataPointerConstType src);
   void (*move_construct)(DataPointerType dst, DataPointerType src);
-  void (*move_assign)(DataPointerType dst, DataPointerType src);
   void (*destroy)(DataPointerType dst);
 };
 
 template <typename T>
 struct VTableFuncs {
-  static void CopyConstruct(DataPointerType dst,
-                            DataPointerConstType src) noexcept {
+  static void CopyConstruct(
+      [[maybe_unused]] DataPointerType dst,
+      [[maybe_unused]] DataPointerConstType src) noexcept {
     if constexpr (std::is_trivially_copy_constructible_v<T>) {
       std::memcpy(dst, src, sizeof(T));
     } else if constexpr (std::is_copy_constructible_v<T>) {
@@ -80,19 +79,8 @@ struct VTableFuncs {
     }
   }
 
-  static void CopyAssign(DataPointerType dst,
-                         DataPointerConstType src) noexcept {
-    if constexpr (std::is_trivially_copy_assignable_v<T>) {
-      std::memcpy(dst, src, sizeof(T));
-    } else if constexpr (std::is_copy_assignable_v<T>) {
-      *std::launder(reinterpret_cast<T*>(dst)) =
-          *std::launder(reinterpret_cast<const T*>(src));
-    } else {
-      assert(false);
-    }
-  }
-
-  static void MoveConstruct(DataPointerType dst, DataPointerType src) noexcept {
+  static void MoveConstruct([[maybe_unused]] DataPointerType dst,
+                            [[maybe_unused]] DataPointerType src) noexcept {
     if constexpr (std::is_trivially_move_constructible_v<T>) {
       std::memcpy(dst, src, sizeof(T));
     } else if constexpr (std::is_move_constructible_v<T>) {
@@ -102,18 +90,7 @@ struct VTableFuncs {
     }
   }
 
-  static void MoveAssign(DataPointerType dst, DataPointerType src) noexcept {
-    if constexpr (std::is_trivially_move_assignable_v<T>) {
-      std::memcpy(dst, src, sizeof(T));
-    } else if constexpr (std::is_move_assignable_v<T>) {
-      *std::launder(reinterpret_cast<T*>(dst)) =
-          std::move(*std::launder(reinterpret_cast<T*>(src)));
-    } else {
-      assert(false);
-    }
-  }
-
-  static void Destroy(DataPointerType ptr) noexcept {
+  static void Destroy([[maybe_unused]] DataPointerType ptr) noexcept {
     if constexpr (!std::is_trivially_destructible_v<T>) {
       std::launder(reinterpret_cast<T*>(ptr))->~T();
     }
@@ -124,8 +101,8 @@ template <typename T>
 static ManagedStorageVtable const* CreateVTable() {
   static_assert(sizeof(T) > 0, "T must be a complete type");
   static constexpr ManagedStorageVtable vtable{
-      &VTableFuncs<T>::CopyConstruct, &VTableFuncs<T>::CopyAssign,
-      &VTableFuncs<T>::MoveConstruct, &VTableFuncs<T>::MoveAssign,
+      &VTableFuncs<T>::CopyConstruct,
+      &VTableFuncs<T>::MoveConstruct,
       &VTableFuncs<T>::Destroy,
   };
   return &vtable;
@@ -201,21 +178,12 @@ class ManagedStorage {
 
   ManagedStorage& operator=(ManagedStorage const& other) noexcept {
     if (this != &other) {
-      // if vtables are same, types must also be same, make copy assign
-      if (vtable_ == other.vtable_) {
-        if (vtable_ != nullptr) {
-          vtable_->copy_assign(storage_.data(), other.storage_.data());
-        }
-      } else {
-        // vtables different. It must be a different type, so destroy and copy
-        // construct
-        if (vtable_ != nullptr) {
-          vtable_->destroy(storage_.data());
-        }
-        vtable_ = other.vtable_;
-        if (vtable_ != nullptr) {
-          vtable_->copy_construct(storage_.data(), other.storage_.data());
-        }
+      if (vtable_ != nullptr) {
+        vtable_->destroy(storage_.data());
+      }
+      vtable_ = other.vtable_;
+      if (vtable_ != nullptr) {
+        vtable_->copy_construct(storage_.data(), other.storage_.data());
       }
     }
     return *this;
@@ -223,21 +191,12 @@ class ManagedStorage {
 
   ManagedStorage& operator=(ManagedStorage&& other) noexcept {
     if (this != &other) {
-      // if vtables are the same, move assign
-      if (vtable_ == other.vtable_) {
-        if (vtable_ != nullptr) {
-          vtable_->move_assign(storage_.data(), other.storage_.data());
-        }
-      } else {
-        // vtables different. It must be a different type, so destroy and move
-        // construct
-        if (vtable_ != nullptr) {
-          vtable_->destroy(storage_.data());
-        }
-        vtable_ = other.vtable_;
-        if (vtable_ != nullptr) {
-          vtable_->move_construct(storage_.data(), other.storage_.data());
-        }
+      if (vtable_ != nullptr) {
+        vtable_->destroy(storage_.data());
+      }
+      vtable_ = other.vtable_;
+      if (vtable_ != nullptr) {
+        vtable_->move_construct(storage_.data(), other.storage_.data());
       }
       other.vtable_ = nullptr;
     }

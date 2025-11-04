@@ -15,16 +15,17 @@
  */
 
 #include "aether/adapters/lora_module_adapter.h"
+#if AE_SUPPORT_LORA
 
-#include "aether/aether.h"
-#include "aether/lora_modules/lora_module_factory.h"
-#include "aether/access_points/lora_module_access_point.h"
+#  include "aether/aether.h"
+#  include "aether/lora_modules/lora_module_factory.h"
+#  include "aether/access_points/lora_module_access_point.h"
 
-#include "aether/adapters/adapter_tele.h"
+#  include "aether/adapters/adapter_tele.h"
 
 namespace ae {
 
-#if defined AE_DISTILLATION
+#  if defined AE_DISTILLATION
 LoraModuleAdapter::LoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                                      LoraModuleInit lora_module_init,
                                      Domain* domain)
@@ -32,7 +33,7 @@ LoraModuleAdapter::LoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
                               std::move(lora_module_init), domain} {
   AE_TELED_DEBUG("Lora module instance created!");
 }
-#endif  // AE_DISTILLATION
+#  endif  // AE_DISTILLATION
 
 LoraModuleAdapter::~LoraModuleAdapter() {
   if (connected_) {
@@ -60,3 +61,4 @@ ILoraModuleDriver& LoraModuleAdapter::lora_module_driver() {
   return *lora_module_driver_;
 }
 }  // namespace ae
+#endif

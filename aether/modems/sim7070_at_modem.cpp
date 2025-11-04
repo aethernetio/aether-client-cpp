@@ -15,16 +15,17 @@
  */
 
 #include "aether/modems/sim7070_at_modem.h"
+#if AE_SUPPORT_MODEMS && AE_ENABLE_SIM7070
 
-#include <string_view>
+#  include <string_view>
 
-#include "aether/misc/defer.h"
+#  include "aether/misc/defer.h"
 
-#include "aether/actions/pipeline.h"
-#include "aether/actions/gen_action.h"
-#include "aether/serial_ports/serial_port_factory.h"
+#  include "aether/actions/pipeline.h"
+#  include "aether/actions/gen_action.h"
+#  include "aether/serial_ports/serial_port_factory.h"
 
-#include "aether/modems/modems_tele.h"
+#  include "aether/modems/modems_tele.h"
 
 namespace ae {
 static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
@@ -562,3 +563,4 @@ void Sim7070AtModem::PollEvent(std::int32_t handle) {
 }
 
 } /* namespace ae */
+#endif

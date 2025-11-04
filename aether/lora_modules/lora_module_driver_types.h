@@ -17,11 +17,15 @@
 #ifndef AETHER_LORA_MODULES_LORA_MODULE_DRIVER_TYPES_H_
 #define AETHER_LORA_MODULES_LORA_MODULE_DRIVER_TYPES_H_
 
-#include <string>
-#include <vector>
+#include "aether/config.h"
 
-#include "aether/reflect/reflect.h"
-#include "aether/serial_ports/serial_port_types.h"
+#if AE_SUPPORT_LORA
+
+#  include <string>
+#  include <vector>
+
+#  include "aether/reflect/reflect.h"
+#  include "aether/serial_ports/serial_port_types.h"
 
 namespace ae {
 enum class kLoraModuleError : std::int8_t {
@@ -162,4 +166,5 @@ struct LoraPacket {
 };
 }  // namespace ae
 
+#endif
 #endif  // AETHER_LORA_MODULES_LORA_MODULE_DRIVER_TYPES_H_

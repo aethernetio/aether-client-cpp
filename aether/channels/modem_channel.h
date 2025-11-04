@@ -17,8 +17,11 @@
 #ifndef AETHER_CHANNELS_MODEM_CHANNEL_H_
 #define AETHER_CHANNELS_MODEM_CHANNEL_H_
 
-#include "aether/channels/channel.h"
-#include "aether/access_points/modem_access_point.h"
+#include "aether/config.h"
+#if AE_SUPPORT_MODEMS
+
+#  include "aether/channels/channel.h"
+#  include "aether/access_points/modem_access_point.h"
 
 namespace ae {
 class Aether;
@@ -42,5 +45,5 @@ class ModemChannel final : public Channel {
   ModemAccessPoint::ptr access_point_;
 };
 }  // namespace ae
-
+#endif
 #endif  // AETHER_CHANNELS_MODEM_CHANNEL_H_
