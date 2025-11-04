@@ -122,7 +122,7 @@ int AetherCloudExample() {
    */
   auto sender_stream = ae::make_unique<ae::P2pSafeStream>(
       *aether_app, ae::cloud_test::kSafeStreamConfig,
-      ae::MakeRcPtr<ae::P2pStream>(*aether_app, client_b, client_a->uid()));
+      client_b->message_stream_manager().CreateStream(client_a->uid()));
 
   sender_stream->out_data_event().Subscribe([&](auto const& data) {
     auto str_response =

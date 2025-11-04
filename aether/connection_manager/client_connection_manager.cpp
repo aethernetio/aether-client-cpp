@@ -36,7 +36,11 @@ void ClientConnectionManager::InitServerConnections() {
   Cloud::ptr cloud = cloud_.Lock();
   assert(cloud);
   server_connections_.reserve(cloud->servers().size());
-  for (auto const& server : cloud->servers()) {
+  for (auto& server : cloud->servers()) {
+    if (!server) {
+      cloud->LoadServer(server);
+    }
+    assert(server);
     server_connections_.emplace_back(server, *connection_factory_);
   }
   std::sort(std::begin(server_connections_), std::end(server_connections_),

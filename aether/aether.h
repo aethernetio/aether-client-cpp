@@ -94,19 +94,11 @@ class Aether : public Obj {
   std::unique_ptr<ActionProcessor> action_processor =
       make_unique<ActionProcessor>();
 
-#if AE_SUPPORT_REGISTRATION
   RegistrationCloud::ptr registration_cloud;
-#else
-  DummyObj::ptr registration_cloud;
-#endif
 
   Crypto::ptr crypto;
   IPoller::ptr poller;
-#if AE_SUPPORT_CLOUD_DNS
   DnsResolver::ptr dns_resolver;
-#else
-  DummyObj::ptr dns_resolver;
-#endif
 
   AdapterRegistry::ptr adapter_registry;
 

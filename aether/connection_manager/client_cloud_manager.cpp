@@ -133,6 +133,10 @@ ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
 
   auto cached = cloud_cache_.find(client_uid);
   if (cached != cloud_cache_.end()) {
+    if (!cached->second) {
+      domain_->LoadRoot(cached->second);
+    }
+    assert(cached->second);
     return ActionPtr<client_cloud_manager_internal::GetCloudFromCache>{
         *aether, cached->second};
   }
