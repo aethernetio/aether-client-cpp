@@ -68,7 +68,13 @@ class DnsResolver : public Obj {
 }  // namespace ae
 #else
 namespace ae {
-using DnsResolver = DummyObj;
-}
+class DnsResolver : public DummyObj {
+  AE_OBJECT(DnsResolver, DummyObj, 0)
+  DnsResolver() = default;
+
+ public:
+  AE_OBJECT_REFLECT()
+};
+}  // namespace ae
 #endif
 #endif  // AETHER_DNS_DNS_RESOLVE_H_

@@ -17,6 +17,7 @@
 #define AETHER_REGISTRATION_CLOUD_H_
 
 #include "aether/config.h"
+#include "aether/obj/dummy_obj.h"  // IWYU pragma: keep
 
 #if AE_SUPPORT_REGISTRATION
 #  include "aether/obj/obj.h"
@@ -44,6 +45,16 @@ class RegistrationCloud : public Cloud {
   Obj::ptr aether_;
 };
 }  // namespace ae
+#else
+namespace ae {
+class RegistrationCloud : public DummyObj {
+  AE_OBJECT(RegistrationCloud, DummyObj, 0)
+  RegistrationCloud() = default;
 
+ public:
+  AE_OBJECT_REFLECT()
+};
+}  // namespace ae
 #endif  // AE_SUPPORT_REGISTRATION
+
 #endif  // AETHER_REGISTRATION_CLOUD_H_
