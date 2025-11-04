@@ -16,22 +16,22 @@
 
 #include "aether/ae_actions/check_access_for_send_message.h"
 
-#include "aether/server_connections/client_server_connection.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 #include "aether/ae_actions/ae_actions_tele.h"  // IWYU pragma: keep
 
 namespace ae {
 CheckAccessForSendMessage::CheckAccessForSendMessage(
-    ActionContext action_context,
-    ClientServerConnection& client_server_connection, Uid destination)
+    ActionContext action_context, Uid destination,
+    CloudConnection& cloud_connection, RequestPolicy::Variant request_policy)
     : Action{action_context},
       action_context_{action_context},
-      client_server_connection_{&client_server_connection},
       destination_{destination},
-      state_{State::kSendRequest},
-      state_changed_sub_{state_.changed_event().Subscribe(
-          [&](auto const&) { Action::Trigger(); })} {}
+      cloud_connection_{&cloud_connection},
+      request_policy_{request_policy},
+      state_{State::kSendRequest} {
+  state_.changed_event().Subscribe([&](auto const&) { Action::Trigger(); });
+}
 
 UpdateStatus CheckAccessForSendMessage::Update() {
   if (state_.changed()) {
@@ -53,21 +53,18 @@ UpdateStatus CheckAccessForSendMessage::Update() {
 }
 
 void CheckAccessForSendMessage::SendRequest() {
-  int repeat_count =
-      client_server_connection_->stream().stream_info().is_reliable
-          ? 1
-          : kMaxRequestRepeatCount;
+  int repeat_count = kMaxRequestRepeatCount;
   repeatable_task_ = ActionPtr<RepeatableTask>{
       action_context_,
       [this]() {
-        auto send_action = client_server_connection_->AuthorizedApiCall(
-            SubApi{[this](ApiContext<AuthorizedApi>& auth_api) {
+        auto send_action = cloud_connection_->AuthorizedApiCall(
+            [this](ApiContext<AuthorizedApi>& auth_api, auto*) {
               auto check_promise =
                   auth_api->check_access_for_send_message(destination_);
               wait_check_sub_ = check_promise->StatusEvent().Subscribe(
                   ActionHandler{OnResult{[&]() { ResponseReceived(); }},
                                 OnError{[&]() { ErrorReceived(); }}});
-            }});
+            });
 
         send_error_sub_ = send_action->StatusEvent().Subscribe(
             OnError{[&]() { SendError(); }});

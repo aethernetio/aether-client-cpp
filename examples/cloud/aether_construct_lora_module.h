@@ -28,22 +28,23 @@ SerialInit serial_init_lora_module = {std::string(kSerialPortLoraModule),
                                       kBaudRate::kBaudRate9600};
 
 LoraPowerSaveParam psp{
-    {kLoraModuleMode::kTransparentTransmission},  // kLoraModuleMode
-    {kLoraModuleLevel::kLevel0},                  // kLoraModuleLevel
-    {kLoraModulePower::kPower22},                 // kLoraModulePower
-    {kLoraModuleBandWidth::kBandWidth125K},       // kLoraModuleBandWidth
-    {kLoraModuleCodingRate::kCR4_6},              // kLoraModuleCodingRate
-    {kLoraModuleSpreadingFactor::kSF12}           // kLoraModuleSpreadingFactor
+    kLoraModuleMode::kTransparentTransmission,  // kLoraModuleMode
+    kLoraModuleLevel::kLevel0,                  // kLoraModuleLevel
+    kLoraModulePower::kPower22,                 // kLoraModulePower
+    kLoraModuleBandWidth::kBandWidth125K,       // kLoraModuleBandWidth
+    kLoraModuleCodingRate::kCR4_6,              // kLoraModuleCodingRate
+    kLoraModuleSpreadingFactor::kSF12           // kLoraModuleSpreadingFactor
 };
 
 ae::LoraModuleInit const lora_module_init{
-    serial_init_lora_module,                  // Serial port
-    psp,                                      // Power Save Parameters
-    {0},                                      // Lora module address
-    {0},                                      // Lora module BS address
-    {0},                                      // Channel
-    {kLoraModuleCRCCheck::kCRCOff},           // CRC check
-    {kLoraModuleIQSignalInversion::kIQoff}};  // Signal inversion
+    serial_init_lora_module,              // Serial port
+    psp,                                  // Power Save Parameters
+    0,                                    // Lora module address
+    0,                                    // Lora module BS address
+    0,                                    // Channel
+    kLoraModuleCRCCheck::kCRCOff,         // CRC check
+    kLoraModuleIQSignalInversion::kIQoff  // Signal inversion
+};
 
 static RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(

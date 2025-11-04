@@ -17,6 +17,7 @@
 #include "aether/client_messages/p2p_message_stream_manager.h"
 
 #include "aether/client.h"
+#include "aether/work_cloud_api/client_api/client_api_safe.h"
 
 namespace ae {
 P2pMessageStreamManager::P2pMessageStreamManager(ActionContext action_context,
@@ -24,9 +25,13 @@ P2pMessageStreamManager::P2pMessageStreamManager(ActionContext action_context,
     : action_context_{action_context},
       client_{client},
       connection_manager_{&client->connection_manager()},
-      client_stream_{&client->cloud_message_stream()} {
-  on_message_received_ = client_stream_->out_data_event().Subscribe(
-      *this, MethodPtr<&P2pMessageStreamManager::NewMessageReceived>{});
+      cloud_connection_{&client->cloud_connection()} {
+  on_message_received_sub_ = cloud_connection_->ClientApiSubscription(
+      [this](ClientApiSafe& client_api, auto*) {
+        return client_api.send_message_event().Subscribe(
+            *this, MethodPtr<&P2pMessageStreamManager::NewMessageReceived>{});
+      },
+      RequestPolicy::Replica{cloud_connection_->count_connections()});
 }
 
 RcPtr<P2pStream> P2pMessageStreamManager::CreateStream(Uid destination) {
@@ -49,8 +54,10 @@ P2pMessageStreamManager::new_stream_event() {
 }
 
 void P2pMessageStreamManager::NewMessageReceived(AeMessage const& message) {
+  AE_TELED_DEBUG("New message received {}", message.uid);
   auto it = streams_.find(message.uid);
-  if (it == std::end(streams_) || !it->second) {
+  // if there is no stream or stream was closed
+  if ((it == std::end(streams_)) || !it->second) {
     auto stream = CreateStream(message.uid);
     new_stream_event_.Emit(stream);
     // write out first data

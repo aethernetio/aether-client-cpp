@@ -24,13 +24,12 @@
 #include "aether/actions/action_ptr.h"
 #include "aether/actions/repeatable_task.h"
 #include "aether/events/event_subscription.h"
+#include "aether/client_connections/cloud_connection.h"
 
 #include "aether/work_cloud_api/uid_and_cloud.h"
 #include "aether/work_cloud_api/server_descriptor.h"
 
 namespace ae {
-class ClientServerConnection;
-
 class GetClientCloudAction final : public Action<GetClientCloudAction> {
   enum class State : std::uint8_t {
     kRequestCloud,
@@ -40,9 +39,9 @@ class GetClientCloudAction final : public Action<GetClientCloudAction> {
   };
 
  public:
-  explicit GetClientCloudAction(
-      ActionContext action_context,
-      ClientServerConnection& client_server_connection, Uid client_uid);
+  GetClientCloudAction(ActionContext action_context, Uid client_uid,
+                       CloudConnection& cloud_connection,
+                       RequestPolicy::Variant request_policy);
 
   UpdateStatus Update();
 
@@ -51,6 +50,8 @@ class GetClientCloudAction final : public Action<GetClientCloudAction> {
   std::map<ServerId, ServerDescriptor> const& server_descriptors() const;
 
  private:
+  void SubscribeClientApi();
+
   void RequestCloud();
   void ResolveServers(CloudDescriptor const& cloud_descriptor);
   void RequestCloudFailed();
@@ -59,14 +60,14 @@ class GetClientCloudAction final : public Action<GetClientCloudAction> {
   void OnServerResponse(ServerDescriptor const& server_descriptor);
 
   ActionContext action_context_;
-  ClientServerConnection* client_server_connection_;
   Uid client_uid_;
+  CloudConnection* cloud_connection_;
+  RequestPolicy::Variant request_policy_;
 
   StateMachine<State> state_;
-  ActionPtr<RepeatableTask> request_cloud_task_;
-  ActionPtr<RepeatableTask> server_resolve_task_;
+  OwnActionPtr<RepeatableTask> request_cloud_task_;
+  OwnActionPtr<RepeatableTask> server_resolve_task_;
 
-  Subscription state_changed_subscription_;
   Subscription cloud_resolved_sub_;
   Subscription server_resolved_sub_;
 

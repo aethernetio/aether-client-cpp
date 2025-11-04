@@ -190,6 +190,11 @@
 #  define AE_MODEM_CONNECTION_TIMEOUT_MS 15000
 #endif
 
+// Maximal number of server connections
+#ifndef AE_CLOUD_MAX_SERVER_CONNECTIONS
+#  define AE_CLOUD_MAX_SERVER_CONNECTIONS 3
+#endif
+
 // Telemetry configuration
 // Compilation info
 // Environment info

@@ -19,13 +19,12 @@
 #if AE_SUPPORT_REGISTRATION
 
 namespace ae {
-static constexpr auto kBufferCapacity = 5;
+static constexpr auto kBufferCapacity = 1;
 
 RootServerStream::RootServerStream(ActionContext action_context,
-                                   ObjPtr<Aether> const& aether,
                                    ObjPtr<Server> const& server)
     : action_context_{action_context},
-      channel_manager_{action_context, aether, server},
+      channel_manager_{action_context, server},
       buffer_stream_{action_context, kBufferCapacity},
       channel_select_stream_{action_context, channel_manager_} {
   Tie(buffer_stream_, channel_select_stream_);

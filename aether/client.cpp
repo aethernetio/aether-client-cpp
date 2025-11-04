@@ -48,7 +48,7 @@ ServerConnectionManager& Client::server_connection_manager() {
   if (!server_connection_manager_) {
     auto aether = Aether::ptr{aether_};
     server_connection_manager_ = std::make_unique<ServerConnectionManager>(
-        *aether, aether, MakePtrFromThis(this));
+        *aether, MakePtrFromThis(this));
   }
   return *server_connection_manager_;
 }
@@ -62,13 +62,19 @@ ClientConnectionManager& Client::connection_manager() {
   return *client_connection_manager_;
 }
 
-CloudMessageStream& Client::cloud_message_stream() {
-  if (!cloud_message_stream_) {
+CloudConnection& Client::cloud_connection() {
+  if (!cloud_connection_) {
     auto aether = Aether::ptr{aether_};
-    cloud_message_stream_ =
-        std::make_unique<CloudMessageStream>(*aether, connection_manager());
+    cloud_connection_ = std::make_unique<CloudConnection>(
+        *aether, connection_manager(), AE_CLOUD_MAX_SERVER_CONNECTIONS);
+
+#if AE_TELE_ENABLED
+    // also create telemetry
+    telemetry_ = ActionPtr<Telemetry>(*aether, aether, *cloud_connection_);
+#endif
   }
-  return *cloud_message_stream_;
+
+  return *cloud_connection_;
 }
 
 P2pMessageStreamManager& Client::message_stream_manager() {
@@ -93,6 +99,12 @@ void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
 
   client_cloud_manager_ = domain_->CreateObj<ClientCloudManager>(
       ObjPtr<Aether>{aether_}, MakePtrFromThis(this));
+}
+
+void Client::SendTelemetry() {
+#if AE_TELE_ENABLED
+  telemetry_->SendTelemetry();
+#endif
 }
 
 }  // namespace ae

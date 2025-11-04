@@ -34,7 +34,7 @@
 
 namespace ae {
 class Aether;
-class ClientServerConnection;
+class CloudConnection;
 
 class Telemetry : public Action<Telemetry> {
   enum class State : std::uint8_t {
@@ -45,7 +45,7 @@ class Telemetry : public Action<Telemetry> {
 
  public:
   Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
-            ClientServerConnection& client_server_connection);
+            CloudConnection& cloud_connection);
 
   AE_CLASS_NO_COPY_MOVE(Telemetry)
 
@@ -56,14 +56,15 @@ class Telemetry : public Action<Telemetry> {
   void SendTelemetry();
 
  private:
-  void OnRequestTelemetry();
+  void OnRequestTelemetry(std::size_t server_priority);
   std::optional<Telemetric> CollectTelemetry(StreamInfo const& stream_info);
 
   PtrView<Aether> aether_;
-  ClientServerConnection* client_server_connection_;
+  CloudConnection* cloud_connection_;
 
   Subscription telemetry_request_sub_;
   StateMachine<State> state_;
+  std::optional<std::size_t> request_for_priority_;
 };
 }  // namespace ae
 #endif
