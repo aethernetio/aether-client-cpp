@@ -17,20 +17,24 @@
 #ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_TCP_SOCKETS_FACTORY_H_
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_TCP_SOCKETS_FACTORY_H_
 
+#include "aether/config.h"
+
+#if AE_SUPPORT_TCP
+
 // IWYU pragma: begin_exports
-#include "aether/transport/system_sockets/sockets/win_tcp_socket.h"
-#include "aether/transport/system_sockets/sockets/unix_tcp_socket.h"
-#include "aether/transport/system_sockets/sockets/lwip_tcp_socket.h"
+#  include "aether/transport/system_sockets/sockets/win_tcp_socket.h"
+#  include "aether/transport/system_sockets/sockets/unix_tcp_socket.h"
+#  include "aether/transport/system_sockets/sockets/lwip_tcp_socket.h"
 // IWYU pragma: end_exports
 
 namespace ae {
-#if UNIX_SOCKET_ENABLED
+#  if UNIX_SOCKET_ENABLED
 using TcpSocket = UnixTcpSocket;
-#elif LWIP_SOCKET_ENABLED
+#  elif LWIP_SOCKET_ENABLED
 using TcpSocket = LwipTcpSocket;
-#elif WIN_SOCKET_ENABLED
+#  elif WIN_SOCKET_ENABLED
 using TcpSocket = WinTcpSocket;
-#endif
+#  endif
 }  // namespace ae
-
+#endif
 #endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_TCP_SOCKETS_FACTORY_H_

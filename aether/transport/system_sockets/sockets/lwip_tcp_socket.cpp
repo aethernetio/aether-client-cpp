@@ -15,7 +15,7 @@
  */
 #include "aether/transport/system_sockets/sockets/lwip_tcp_socket.h"
 
-#if LWIP_SOCKET_ENABLED
+#if AE_SUPPORT_TCP && LWIP_SOCKET_ENABLED
 
 #  include "lwip/err.h"
 #  include "lwip/sockets.h"

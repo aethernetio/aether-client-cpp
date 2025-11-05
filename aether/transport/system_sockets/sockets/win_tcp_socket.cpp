@@ -16,7 +16,7 @@
 
 #include "aether/transport/system_sockets/sockets/win_tcp_socket.h"
 
-#if defined WIN_SOCKET_ENABLED
+#if AE_SUPPORT_TCP && defined WIN_SOCKET_ENABLED
 
 #  include <winsock2.h>
 #  include <ws2def.h>

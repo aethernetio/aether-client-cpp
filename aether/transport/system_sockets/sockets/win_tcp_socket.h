@@ -17,9 +17,10 @@
 #ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_TCP_SOCKET_H_
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_TCP_SOCKET_H_
 
+#include "aether/config.h"
 #include "aether/transport/system_sockets/sockets/win_socket.h"
 
-#if defined WIN_SOCKET_ENABLED
+#if AE_SUPPORT_TCP && defined WIN_SOCKET_ENABLED
 
 #  include "winsock2.h"
 

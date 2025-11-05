@@ -16,7 +16,7 @@
 
 #include "aether/transport/system_sockets/sockets/unix_tcp_socket.h"
 
-#if UNIX_SOCKET_ENABLED
+#if AE_SUPPORT_TCP && UNIX_SOCKET_ENABLED
 
 #  include <fcntl.h>
 #  include <unistd.h>

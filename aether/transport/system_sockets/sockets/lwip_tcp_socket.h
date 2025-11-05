@@ -17,9 +17,10 @@
 #ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
 
+#include "aether/config.h"
 #include "aether/transport/system_sockets/sockets/lwip_socket.h"
 
-#if LWIP_SOCKET_ENABLED
+#if AE_SUPPORT_TCP && LWIP_SOCKET_ENABLED
 namespace ae {
 class LwipTcpSocket final : public LwipSocket {
   static constexpr int kRcvTimeoutSec = 0;

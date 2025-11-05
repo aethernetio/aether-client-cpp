@@ -38,17 +38,26 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::Create(
   }
 }
 
+#if AE_SUPPORT_TCP
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
     [[maybe_unused]] ActionContext action_context,
     [[maybe_unused]] ObjPtr<IPoller> const& poller,
     [[maybe_unused]] IpAddressPortProtocol address_port_protocol) {
-#if defined COMMON_TCP_TRANSPORT_ENABLED
+#  if defined COMMON_TCP_TRANSPORT_ENABLED
   return std::make_unique<TcpTransport>(action_context, poller,
                                         address_port_protocol);
-#else
+#  else
   static_assert(false, "No transport enabled");
-#endif
+#  endif
 }
+#else
+std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
+    [[maybe_unused]] ActionContext action_context,
+    [[maybe_unused]] ObjPtr<IPoller> const& poller,
+    [[maybe_unused]] IpAddressPortProtocol address_port_protocol) {
+  return nullptr;
+}
+#endif
 
 #if AE_SUPPORT_UDP
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
