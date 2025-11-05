@@ -21,6 +21,7 @@
 #  include "aether/lora_modules/ilora_module_driver.h"
 
 #  include "aether/channels/lora_module_channel.h"
+#  include "aether/access_points/filter_protocols.h"
 
 namespace ae {
 LoraModuleConnectAction::LoraModuleConnectAction(
@@ -98,6 +99,9 @@ std::vector<ObjPtr<Channel>> LoraModuleAccessPoint::GenerateChannels(
   Aether::ptr aether = aether_;
   LoraModuleAccessPoint::ptr self = MakePtrFromThis(this);
   for (auto const& endpoint : endpoints) {
+    if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
+      continue;
+    }
     channels.emplace_back(
         domain_->CreateObj<LoraModuleChannel>(aether, self, endpoint));
   }

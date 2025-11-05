@@ -23,6 +23,7 @@
 #include "aether/dns/dns_resolve.h"
 #include "aether/adapters/wifi_adapter.h"
 #include "aether/channels/wifi_channel.h"
+#include "aether/access_points/filter_protocols.h"
 
 namespace ae {
 
@@ -86,6 +87,9 @@ std::vector<ObjPtr<Channel>> WifiAccessPoint::GenerateChannels(
   std::vector<ObjPtr<Channel>> channels;
   channels.reserve(endpoints.size());
   for (auto const& endpoint : endpoints) {
+    if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
+      continue;
+    }
     channels.emplace_back(domain_->CreateObj<WifiChannel>(
         aether, poller, resolver, wifi_access_point, endpoint));
   }
