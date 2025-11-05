@@ -21,6 +21,7 @@
 #  include "aether/modems/imodem_driver.h"
 
 #  include "aether/channels/modem_channel.h"
+#  include "aether/access_points/filter_protocols.h"
 
 namespace ae {
 ModemConnectAction::ModemConnectAction(ActionContext action_context,
@@ -98,6 +99,9 @@ std::vector<ObjPtr<Channel>> ModemAccessPoint::GenerateChannels(
   Aether::ptr aether = aether_;
   ModemAccessPoint::ptr self = MakePtrFromThis(this);
   for (auto const& endpoint : endpoints) {
+    if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
+      continue;
+    }
     channels.emplace_back(
         domain_->CreateObj<ModemChannel>(aether, self, endpoint));
   }

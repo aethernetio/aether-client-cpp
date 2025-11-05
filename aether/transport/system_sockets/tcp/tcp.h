@@ -14,30 +14,33 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_TCP_TCP_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_TCP_TCP_H_
 
-#if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-    defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
+#include "aether/config.h"
+#if AE_SUPPORT_TCP
 
-#  define COMMON_TCP_TRANSPORT_ENABLED 1
+#  if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
+      defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
 
-#  include <mutex>
+#    define COMMON_TCP_TRANSPORT_ENABLED 1
 
-#  include "aether/common.h"
-#  include "aether/ptr/ptr_view.h"
-#  include "aether/poller/poller.h"
-#  include "aether/actions/action.h"
-#  include "aether/actions/notify_action.h"
-#  include "aether/actions/action_context.h"
-#  include "aether/events/multi_subscription.h"
+#    include <mutex>
 
-#  include "aether/stream_api/istream.h"
-#  include "aether/transport/data_packet_collector.h"
-#  include "aether/transport/socket_packet_send_action.h"
-#  include "aether/transport/socket_packet_queue_manager.h"
+#    include "aether/common.h"
+#    include "aether/ptr/ptr_view.h"
+#    include "aether/poller/poller.h"
+#    include "aether/actions/action.h"
+#    include "aether/actions/notify_action.h"
+#    include "aether/actions/action_context.h"
+#    include "aether/events/multi_subscription.h"
 
-#  include "aether/transport/low_level/sockets/tcp_sockets_factory.h"
+#    include "aether/stream_api/istream.h"
+#    include "aether/transport/data_packet_collector.h"
+#    include "aether/transport/socket_packet_send_action.h"
+#    include "aether/transport/socket_packet_queue_manager.h"
+
+#    include "aether/transport/system_sockets/sockets/tcp_sockets_factory.h"
 
 namespace ae {
 class TcpTransport final : public ByteIStream {
@@ -156,5 +159,6 @@ class TcpTransport final : public ByteIStream {
 
 }  // namespace ae
 
+#  endif
 #endif
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_TCP_TCP_H_

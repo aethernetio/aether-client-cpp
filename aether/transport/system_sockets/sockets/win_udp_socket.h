@@ -14,24 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_UDP_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_UDP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_UDP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_UDP_SOCKET_H_
 
-#include "aether/transport/low_level/sockets/lwip_socket.h"
+#include "aether/config.h"
+#include "aether/transport/system_sockets/sockets/win_socket.h"
 
-#if LWIP_SOCKET_ENABLED
+#if AE_SUPPORT_UDP && defined WIN_SOCKET_ENABLED
 
 namespace ae {
-class LwipUdpSocket final : public LwipSocket {
+class WinUdpSocket final : public WinSocket {
  public:
-  LwipUdpSocket();
+  WinUdpSocket();
+  ~WinUdpSocket() override;
 
-  std::size_t GetMaxPacketSize() const override;
+  ConnectionState Connect(IpAddressPort const& destination) override;
+  ConnectionState GetConnectionState() override;
 
- private:
-  static int MakeSocket();
+  void Disconnect() override;
 };
 }  // namespace ae
-
 #endif
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_UDP_SOCKET_H_
+
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_UDP_SOCKET_H_

@@ -19,14 +19,7 @@
 #include <utility>
 
 #include "aether/aether.h"
-#include "aether/channels/channel.h"
-#include "aether/reflect/reflect.h"
 #include "aether/adapters/adapter_tele.h"
-
-// IWYU pragma: begin_keeps
-#include "aether/transport/low_level/tcp/tcp.h"
-#include "aether/transport/low_level/udp/udp.h"
-// IWYU pragma: end_keeps
 
 namespace ae {
 

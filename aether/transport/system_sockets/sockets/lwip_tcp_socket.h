@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_TCP_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_TCP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
 
-#include "aether/transport/low_level/sockets/lwip_socket.h"
+#include "aether/config.h"
+#include "aether/transport/system_sockets/sockets/lwip_socket.h"
 
-#if LWIP_SOCKET_ENABLED
+#if AE_SUPPORT_TCP && LWIP_SOCKET_ENABLED
 namespace ae {
 class LwipTcpSocket final : public LwipSocket {
   static constexpr int kRcvTimeoutSec = 0;
@@ -36,4 +37,4 @@ class LwipTcpSocket final : public LwipSocket {
 }  // namespace ae
 #endif
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_TCP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_

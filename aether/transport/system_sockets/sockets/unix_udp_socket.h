@@ -13,26 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_UNIX_UDP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_UNIX_UDP_SOCKET_H_
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_UDP_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_UDP_SOCKET_H_
+#include "aether/config.h"
+#include "aether/transport/system_sockets/sockets/unix_socket.h"
 
-#include "aether/transport/low_level/sockets/win_socket.h"
-
-#if defined WIN_SOCKET_ENABLED
+#if AE_SUPPORT_UDP && UNIX_SOCKET_ENABLED
 
 namespace ae {
-class WinUdpSocket final : public WinSocket {
+class UnixUdpSocket final : public UnixSocket {
  public:
-  WinUdpSocket();
-  ~WinUdpSocket() override;
+  UnixUdpSocket();
 
-  ConnectionState Connect(IpAddressPort const& destination) override;
-  ConnectionState GetConnectionState() override;
+  std::size_t GetMaxPacketSize() const override;
 
-  void Disconnect() override;
+ private:
+  static int MakeSocket();
 };
 }  // namespace ae
-#endif
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_UDP_SOCKET_H_
+#endif
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_UNIX_UDP_SOCKET_H_

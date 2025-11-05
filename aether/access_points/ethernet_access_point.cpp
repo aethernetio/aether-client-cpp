@@ -23,6 +23,7 @@
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/channels/ethernet_channel.h"
+#include "aether/access_points/filter_protocols.h"
 
 namespace ae {
 EthernetAccessPoint::EthernetAccessPoint(ObjPtr<Aether> aether,
@@ -42,9 +43,12 @@ std::vector<ObjPtr<Channel>> EthernetAccessPoint::GenerateChannels(
 
   std::vector<ObjPtr<Channel>> channels;
   channels.reserve(endpoints.size());
-  for (auto const& address : endpoints) {
-    channels.emplace_back(
-        domain_->CreateObj<EthernetChannel>(aether, resolver, poller, address));
+  for (auto const& endpoint : endpoints) {
+    if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
+      continue;
+    }
+    channels.emplace_back(domain_->CreateObj<EthernetChannel>(
+        aether, resolver, poller, endpoint));
   }
   return channels;
 }

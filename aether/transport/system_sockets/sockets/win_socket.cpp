@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/transport/low_level/sockets/win_socket.h"
+#include "aether/transport/system_sockets/sockets/win_socket.h"
 
 #if defined WIN_SOCKET_ENABLED
 

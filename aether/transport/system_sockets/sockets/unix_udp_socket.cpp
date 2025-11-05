@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "aether/transport/low_level/sockets/unix_udp_socket.h"
+#include "aether/transport/system_sockets/sockets/unix_udp_socket.h"
 
-#if UNIX_SOCKET_ENABLED
+#if AE_SUPPORT_UDP && UNIX_SOCKET_ENABLED
 #  include <fcntl.h>
 #  include <unistd.h>
 #  include <sys/ioctl.h>

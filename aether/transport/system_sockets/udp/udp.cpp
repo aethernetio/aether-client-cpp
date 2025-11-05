@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "aether/transport/low_level/udp/udp.h"
+#include "aether/transport/system_sockets/udp/udp.h"
 
-#if COMMON_UDP_TRANSPORT_ENABLED
+#if SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED
 
 #  include "aether/transport/transport_tele.h"
 

@@ -143,20 +143,17 @@ LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
       aether_{std::move(aether)},
       access_point_{std::move(access_point)} {
   // fill transport properties
+  transport_properties_.max_packet_size = 400;
+  transport_properties_.rec_packet_size = 400;
   auto protocol = std::visit([](auto&& adr) { return adr.protocol; }, address);
-
   switch (protocol) {
     case Protocol::kTcp: {
       transport_properties_.connection_type = ConnectionType::kConnectionFull;
-      transport_properties_.max_packet_size = 400;
-      transport_properties_.rec_packet_size = 400;
       transport_properties_.reliability = Reliability::kReliable;
       break;
     }
     case Protocol::kUdp: {
       transport_properties_.connection_type = ConnectionType::kConnectionLess;
-      transport_properties_.max_packet_size = 400;
-      transport_properties_.rec_packet_size = 400;
       transport_properties_.reliability = Reliability::kUnreliable;
       break;
     }

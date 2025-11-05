@@ -13,17 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UNIX_UDP_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UNIX_UDP_SOCKET_H_
 
-#include "aether/transport/low_level/sockets/unix_socket.h"
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_UDP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_UDP_SOCKET_H_
 
-#if UNIX_SOCKET_ENABLED
+#include "aether/config.h"
+
+#include "aether/transport/system_sockets/sockets/lwip_socket.h"
+
+#if AE_SUPPORT_UDP && LWIP_SOCKET_ENABLED
 
 namespace ae {
-class UnixUdpSocket final : public UnixSocket {
+class LwipUdpSocket final : public LwipSocket {
  public:
-  UnixUdpSocket();
+  LwipUdpSocket();
 
   std::size_t GetMaxPacketSize() const override;
 
@@ -33,4 +36,4 @@ class UnixUdpSocket final : public UnixSocket {
 }  // namespace ae
 
 #endif
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UNIX_UDP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_UDP_SOCKET_H_
