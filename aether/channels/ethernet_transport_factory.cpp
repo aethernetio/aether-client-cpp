@@ -19,8 +19,8 @@
 #include "aether/poller/poller.h"
 
 // IWYU pragma: begin_keeps
-#include "aether/transport/low_level/tcp/tcp.h"
-#include "aether/transport/low_level/udp/udp.h"
+#include "aether/transport/system_sockets/tcp/tcp.h"
+#include "aether/transport/system_sockets/udp/udp.h"
 // IWYU pragma: end_keeps
 
 namespace ae {
@@ -50,16 +50,25 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
 #endif
 }
 
+#if AE_SUPPORT_UDP
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
     [[maybe_unused]] ActionContext action_context,
     [[maybe_unused]] ObjPtr<IPoller> const& poller,
     [[maybe_unused]] IpAddressPortProtocol address_port_protocol) {
-#if defined COMMON_UDP_TRANSPORT_ENABLED
+#  if defined SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED
   return std::make_unique<UdpTransport>(action_context, poller,
                                         address_port_protocol);
-#else
+#  else
   static_assert(false, "No transport enabled");
-#endif
+#  endif
 }
+#else
+std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
+    [[maybe_unused]] ActionContext action_context,
+    [[maybe_unused]] ObjPtr<IPoller> const& poller,
+    [[maybe_unused]] IpAddressPortProtocol address_port_protocol) {
+  return nullptr;
+}
+#endif
 
 }  // namespace ae

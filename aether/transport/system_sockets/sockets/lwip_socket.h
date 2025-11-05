@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
 
 #if (defined(ESP_PLATFORM))
 
 #  define LWIP_SOCKET_ENABLED 1
 
-#  include "aether/transport/low_level/sockets/isocket.h"
+#  include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
 class LwipSocket : public ISocket {
@@ -45,4 +45,4 @@ class LwipSocket : public ISocket {
 }  // namespace ae
 
 #endif
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_

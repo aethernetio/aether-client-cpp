@@ -14,48 +14,50 @@
  * limitations under the License.
  */
 
-#include "aether/transport/low_level/sockets/unix_udp_socket.h"
+#include "aether/transport/system_sockets/sockets/lwip_udp_socket.h"
+#if AE_SUPPORT_UDP && LWIP_SOCKET_ENABLED
 
-#if UNIX_SOCKET_ENABLED
-#  include <fcntl.h>
-#  include <unistd.h>
-#  include <sys/ioctl.h>
-#  include <arpa/inet.h>
-#  include <sys/socket.h>
-#  include <netinet/in.h>
-#  include <netinet/udp.h>
+#  include "lwip/err.h"
+#  include "lwip/sockets.h"
+#  include "lwip/sys.h"
+#  include "lwip/netdb.h"
+#  include "lwip/netif.h"
 
 #  include "aether/misc/defer.h"
 
 #  include "aether/tele/tele.h"
 
 namespace ae {
-UnixUdpSocket::UnixUdpSocket() : UnixSocket{MakeSocket()} {}
+LwipUdpSocket::LwipUdpSocket() : LwipSocket{MakeSocket()} {}
 
-std::size_t UnixUdpSocket::GetMaxPacketSize() const { return 1200; }
+std::size_t LwipUdpSocket::GetMaxPacketSize() const { return 1200; }
 
-int UnixUdpSocket::MakeSocket() {
+int LwipUdpSocket::MakeSocket() {
   bool created = false;
   auto sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (sock == kInvalidSocket) {
-    AE_TELED_DEBUG("Socket creation error {} {}", errno, strerror(errno));
+  if (sock < 0) {
+    AE_TELED_ERROR("Socket not created");
     return kInvalidSocket;
   }
 
-  // close socket on error
+  // close the socket if not created
   defer[&] {
     if (!created) {
       close(sock);
     }
   };
 
-  // make socket non-blocking
-  if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
-    AE_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
+  // make socket nonblocking
+  if (lwip_fcntl(sock, F_SETFL, O_NONBLOCK) != ESP_OK) {
+    AE_TELED_ERROR("lwip_fcntl set nonblocking mode error {} {}", errno,
+                   strerror(errno));
     return kInvalidSocket;
   }
+
+  AE_TELED_DEBUG("Socket created");
   created = true;
   return sock;
 }
 }  // namespace ae
-#endif
+
+#endif  // LWIP_SOCKET_ENABLED

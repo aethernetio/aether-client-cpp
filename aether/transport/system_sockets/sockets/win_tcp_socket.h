@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_TCP_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_TCP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_TCP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_TCP_SOCKET_H_
 
-#include "aether/transport/low_level/sockets/win_socket.h"
+#include "aether/transport/system_sockets/sockets/win_socket.h"
 
 #if defined WIN_SOCKET_ENABLED
 
@@ -45,4 +45,4 @@ class WinTcpSocket final : public WinSocket {
 };
 }  // namespace ae
 #endif
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_WIN_TCP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_TCP_SOCKET_H_

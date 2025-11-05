@@ -13,29 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_UDP_UDP_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_UDP_UDP_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_UDP_UDP_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_UDP_UDP_H_
 
-#if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
-    defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
+#include "aether/config.h"
 
-#  define COMMON_UDP_TRANSPORT_ENABLED 1
+#if AE_SUPPORT_UDP
 
-#  include <mutex>
+#  if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
+      defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
 
-#  include "aether/ptr/ptr_view.h"
-#  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
-#  include "aether/actions/notify_action.h"
-#  include "aether/actions/action_context.h"
-#  include "aether/events/event_subscription.h"
-#  include "aether/events/multi_subscription.h"
+#    define SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED 1
 
-#  include "aether/poller/poller.h"
-#  include "aether/stream_api/istream.h"
-#  include "aether/transport/socket_packet_send_action.h"
-#  include "aether/transport/socket_packet_queue_manager.h"
-#  include "aether/transport/low_level/sockets/udp_sockets_factory.h"
+#    include <mutex>
+
+#    include "aether/ptr/ptr_view.h"
+#    include "aether/actions/action.h"
+#    include "aether/actions/action_ptr.h"
+#    include "aether/actions/notify_action.h"
+#    include "aether/actions/action_context.h"
+#    include "aether/events/event_subscription.h"
+#    include "aether/events/multi_subscription.h"
+
+#    include "aether/poller/poller.h"
+#    include "aether/stream_api/istream.h"
+#    include "aether/transport/socket_packet_send_action.h"
+#    include "aether/transport/socket_packet_queue_manager.h"
+#    include "aether/transport/system_sockets/sockets/udp_sockets_factory.h"
 
 namespace ae {
 class UdpTransport : public ByteIStream {
@@ -115,6 +119,7 @@ class UdpTransport : public ByteIStream {
 };
 }  // namespace ae
 
+#  endif
 #endif
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_UDP_UDP_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_UDP_UDP_H_

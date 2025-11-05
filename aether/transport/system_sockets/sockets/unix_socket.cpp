@@ -14,32 +14,30 @@
  * limitations under the License.
  */
 
-#include "aether/transport/low_level/sockets/lwip_socket.h"
+#include "aether/transport/system_sockets/sockets/unix_socket.h"
 
-#if LWIP_SOCKET_ENABLED
+#if UNIX_SOCKET_ENABLED
 
-#  include "lwip/err.h"
-#  include "lwip/sockets.h"
-#  include "lwip/sys.h"
-#  include "lwip/netdb.h"
-#  include "lwip/netif.h"
+#  include <fcntl.h>
+#  include <unistd.h>
+#  include <arpa/inet.h>
+#  include <sys/ioctl.h>
+#  include <sys/socket.h>
+#  include <netinet/in.h>
+#  include <netinet/tcp.h>
+
+#  include <cerrno>
+
+#  include "aether/env.h"
 
 #  include "aether/tele/tele.h"
 
-extern "C" int lwip_hook_ip6_input(struct pbuf* p, struct netif* inp)
-    __attribute__((weak));
-extern "C" int lwip_hook_ip6_input(struct pbuf* p, struct netif* inp) {
-  if (ip6_addr_isany_val(inp->ip6_addr[0].u_addr.ip6)) {
-    // We don't have an LL address -> eat this packet here, so it won't get
-    // accepted on input netif
-    pbuf_free(p);
-    return 1;
-  }
-  return 0;
-}
+#  if not defined MSG_NOSIGNAL
+#    define MSG_NOSIGNAL 0
+#  endif
 
 namespace ae {
-namespace lwip_socket_internal {
+namespace unix_socket_internal {
 struct SockAddr {
   sockaddr* addr() { return reinterpret_cast<sockaddr*>(&data); }
 
@@ -64,6 +62,9 @@ inline SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
       sock_addr.size = sizeof(sock_addr.data.ipv4);
       auto& addr = sock_addr.data.ipv4;
 
+#    ifndef __unix__
+      addr.sin_len = sizeof(sockaddr_in);
+#    endif  // __unix__
       std::memcpy(&addr.sin_addr.s_addr, ip_address_port.ip.value.ipv4_value,
                   4);
       addr.sin_port = ae::SwapToInet(ip_address_port.port);
@@ -82,6 +83,9 @@ inline SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
       SockAddr sock_addr;
       sock_addr.size = sizeof(sock_addr.data.ipv6);
       auto& addr = sock_addr.data.ipv6;
+#    ifndef __unix__
+      addr.sin6_len = sizeof(sockaddr_in6);
+#    endif  // __unix__
       std::memcpy(&addr.sin6_addr, ip_address_port.ip.value.ipv6_value, 16);
       addr.sin6_port = ae::SwapToInet(ip_address_port.port);
       addr.sin6_family = AF_INET6;
@@ -97,20 +101,19 @@ inline SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
   }
   return {};
 }
-}  // namespace lwip_socket_internal
+}  // namespace unix_socket_internal
 
-LwipSocket::LwipSocket(int socket) : socket_{socket} {}
+UnixSocket::UnixSocket(int socket) : socket_{socket} {}
 
-LwipSocket::~LwipSocket() { Disconnect(); }
+UnixSocket::~UnixSocket() { Disconnect(); }
 
-LwipSocket::operator DescriptorType() const { return DescriptorType{socket_}; }
+UnixSocket::operator DescriptorType() const { return DescriptorType{socket_}; }
 
-LwipSocket::ConnectionState LwipSocket::Connect(
+UnixSocket::ConnectionState UnixSocket::Connect(
     IpAddressPort const& destination) {
   assert(socket_ != kInvalidSocket);
-
-  auto sock_addr = lwip_socket_internal::GetSockAddr(destination);
-  auto res = connect(socket_, sock_addr.addr(), sock_addr.size);
+  auto addr = unix_socket_internal::GetSockAddr(destination);
+  auto res = connect(socket_, addr.addr(), static_cast<socklen_t>(addr.size));
   if (res == -1) {
     if ((errno == EAGAIN) || (errno == EINPROGRESS)) {
       AE_TELED_DEBUG("Wait connection");
@@ -119,10 +122,11 @@ LwipSocket::ConnectionState LwipSocket::Connect(
     AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
     return ConnectionState::kConnectionFailed;
   }
+
   return ConnectionState::kConnected;
 }
 
-LwipSocket::ConnectionState LwipSocket::GetConnectionState() {
+UnixSocket::ConnectionState UnixSocket::GetConnectionState() {
   // check socket status
   int err;
   socklen_t len = sizeof(len);
@@ -131,7 +135,6 @@ LwipSocket::ConnectionState LwipSocket::GetConnectionState() {
     AE_TELED_ERROR("Getsockopt error {}, {}", errno, strerror(errno));
     return ConnectionState::kConnectionFailed;
   }
-
   if (err != 0) {
     AE_TELED_ERROR("Connect error {}, {}", err, strerror(err));
     return ConnectionState::kConnectionFailed;
@@ -140,7 +143,7 @@ LwipSocket::ConnectionState LwipSocket::GetConnectionState() {
   return ConnectionState::kConnected;
 }
 
-void LwipSocket::Disconnect() {
+void UnixSocket::Disconnect() {
   if (socket_ == kInvalidSocket) {
     return;
   }
@@ -151,9 +154,11 @@ void LwipSocket::Disconnect() {
   socket_ = kInvalidSocket;
 }
 
-std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
+std::optional<std::size_t> UnixSocket::Send(Span<std::uint8_t> data) {
   auto size_to_send = data.size();
-  auto res = send(socket_, data.data(), size_to_send, 0);
+  // add nosignal to prevent throw SIGPIPE and handle it manually
+  int flags = MSG_NOSIGNAL;
+  auto res = send(socket_, data.data(), size_to_send, flags);
   if (res == -1) {
     if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
       AE_TELED_ERROR("Send to socket error {} {}", errno, strerror(errno));
@@ -164,7 +169,7 @@ std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
   return static_cast<std::size_t>(res);
 }
 
-std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> data) {
+std::optional<std::size_t> UnixSocket::Receive(Span<std::uint8_t> data) {
   auto res = recv(socket_, data.data(), data.size(), 0);
   if (res < 0) {
     // No data
@@ -182,7 +187,7 @@ std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> data) {
   return static_cast<std::size_t>(res);
 }
 
-bool LwipSocket::IsValid() const { return socket_ != kInvalidSocket; }
+bool UnixSocket::IsValid() const { return socket_ != kInvalidSocket; }
 
 }  // namespace ae
 #endif

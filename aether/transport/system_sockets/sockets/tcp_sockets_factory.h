@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UDP_SOCKETS_FACTORY_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UDP_SOCKETS_FACTORY_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_TCP_SOCKETS_FACTORY_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_TCP_SOCKETS_FACTORY_H_
 
 // IWYU pragma: begin_exports
-#include "aether/transport/low_level/sockets/win_udp_socket.h"
-#include "aether/transport/low_level/sockets/unix_udp_socket.h"
-#include "aether/transport/low_level/sockets/lwip_udp_socket.h"
+#include "aether/transport/system_sockets/sockets/win_tcp_socket.h"
+#include "aether/transport/system_sockets/sockets/unix_tcp_socket.h"
+#include "aether/transport/system_sockets/sockets/lwip_tcp_socket.h"
 // IWYU pragma: end_exports
 
 namespace ae {
 #if UNIX_SOCKET_ENABLED
-using UdpSocket = UnixUdpSocket;
+using TcpSocket = UnixTcpSocket;
 #elif LWIP_SOCKET_ENABLED
-using UdpSocket = LwipUdpSocket;
+using TcpSocket = LwipTcpSocket;
 #elif WIN_SOCKET_ENABLED
-using UdpSocket = WinUdpSocket;
+using TcpSocket = WinTcpSocket;
 #endif
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_UDP_SOCKETS_FACTORY_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_TCP_SOCKETS_FACTORY_H_

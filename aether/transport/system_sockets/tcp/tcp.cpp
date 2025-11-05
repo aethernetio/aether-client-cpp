@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/transport/low_level/tcp/tcp.h"
+#include "aether/transport/system_sockets/tcp/tcp.h"
 
 #if defined COMMON_TCP_TRANSPORT_ENABLED
 

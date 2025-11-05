@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "aether/transport/low_level/sockets/lwip_tcp_socket.h"
+#include "aether/transport/system_sockets/sockets/lwip_tcp_socket.h"
 
 #if LWIP_SOCKET_ENABLED
 

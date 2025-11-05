@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_TCP_SOCKET_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_TCP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_UDP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_UDP_SOCKET_H_
 
-#include "aether/transport/low_level/sockets/lwip_socket.h"
+#include "aether/config.h"
 
-#if LWIP_SOCKET_ENABLED
+#include "aether/transport/system_sockets/sockets/lwip_socket.h"
+
+#if AE_SUPPORT_UDP && LWIP_SOCKET_ENABLED
+
 namespace ae {
-class LwipTcpSocket final : public LwipSocket {
-  static constexpr int kRcvTimeoutSec = 0;
-  static constexpr int kRcvTimeoutUsec = 10000;
-
+class LwipUdpSocket final : public LwipSocket {
  public:
-  LwipTcpSocket();
+  LwipUdpSocket();
 
   std::size_t GetMaxPacketSize() const override;
 
@@ -34,6 +34,6 @@ class LwipTcpSocket final : public LwipSocket {
   static int MakeSocket();
 };
 }  // namespace ae
-#endif
 
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_SOCKETS_LWIP_TCP_SOCKET_H_
+#endif
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_UDP_SOCKET_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
-#define AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_TCP_TCP_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_TCP_TCP_H_
 
 #if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
     defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
@@ -37,7 +37,7 @@
 #  include "aether/transport/socket_packet_send_action.h"
 #  include "aether/transport/socket_packet_queue_manager.h"
 
-#  include "aether/transport/low_level/sockets/tcp_sockets_factory.h"
+#  include "aether/transport/system_sockets/sockets/tcp_sockets_factory.h"
 
 namespace ae {
 class TcpTransport final : public ByteIStream {
@@ -157,4 +157,4 @@ class TcpTransport final : public ByteIStream {
 }  // namespace ae
 
 #endif
-#endif  // AETHER_TRANSPORT_LOW_LEVEL_TCP_TCP_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_TCP_TCP_H_
