@@ -70,9 +70,10 @@ class DnsResolver : public Obj {
 namespace ae {
 class DnsResolver : public DummyObj {
   AE_OBJECT(DnsResolver, DummyObj, 0)
-  DnsResolver() = default;
 
  public:
+  using DummyObj::DummyObj;
+
   AE_OBJECT_REFLECT()
 };
 }  // namespace ae
