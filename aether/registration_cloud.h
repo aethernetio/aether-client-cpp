@@ -49,9 +49,10 @@ class RegistrationCloud : public Cloud {
 namespace ae {
 class RegistrationCloud : public DummyObj {
   AE_OBJECT(RegistrationCloud, DummyObj, 0)
-  RegistrationCloud() = default;
 
  public:
+  using DummyObj::DummyObj;
+
   AE_OBJECT_REFLECT()
 };
 }  // namespace ae
