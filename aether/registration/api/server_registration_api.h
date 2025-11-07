@@ -57,12 +57,10 @@ class ServerRegistrationApi : public ApiClass {
     template <typename... Args>
     auto operator()(std::string&& salt, std::string&& password_suffix,
                     std::vector<uint32_t>&& passwords, Uid parent_uid_,
-                    Key&& return_key,
                     SubApi<GlobalRegServerApi> const& sub_api) {
       auto def_proc = DefaultArgProc{};
       return def_proc(std::move(salt), std::move(password_suffix),
                       std::move(passwords), std::move(parent_uid_),
-                      std::move(return_key),
                       api_->Encrypt(sub_api(api_->global_reg_server_api_)));
     }
 
@@ -77,18 +75,19 @@ class ServerRegistrationApi : public ApiClass {
 
   Method<3,
          void(std::string salt, std::string password_suffix,
-              std::vector<uint32_t> passwords, Uid parent_uid_, Key return_key,
+              std::vector<uint32_t> passwords, Uid parent_uid_,
               SubApi<GlobalRegServerApi> sub_api),
          RegistrationProc>
       registration;
 
-  Method<4, ApiPromisePtr<PowParams>(Uid parent_id, PowMethod pow_method,
-                                     Key return_key)>
+  Method<4, ApiPromisePtr<PowParams>(Uid parent_id, PowMethod pow_method)>
       request_proof_of_work_data;
 
   Method<5, ApiPromisePtr<std::vector<ServerDescriptor>>(
                 std::vector<ServerId> servers)>
       resolve_servers;
+
+  Method<6, void(Key key)> set_return_key;
 
  private:
   DataBuffer Encrypt(DataBuffer const& data) const;
