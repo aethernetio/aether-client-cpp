@@ -26,6 +26,7 @@ ServerRegistrationApi::ServerRegistrationApi(ProtocolContext& protocol_context,
       registration{protocol_context, RegistrationProc{*this}},
       request_proof_of_work_data{protocol_context, action_context},
       resolve_servers{protocol_context, action_context},
+      set_return_key{protocol_context},
       encrypt_provider_{&encrypt_provider},
       global_reg_server_api_{protocol_context, action_context} {}
 

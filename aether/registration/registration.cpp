@@ -206,8 +206,9 @@ void Registration::RequestPowParams() {
   api_call->enter(
       kDefaultCryptoLibProfile,
       SubApi{[this, &ret_key](ApiContext<ServerRegistrationApi>& server_api) {
+        server_api->set_return_key(std::move(ret_key));
         auto pow_params_promise = server_api->request_proof_of_work_data(
-            parent_uid_, PowMethod::kBCryptCrc32, std::move(ret_key));
+            parent_uid_, PowMethod::kBCryptCrc32);
         response_sub_ =
             pow_params_promise->StatusEvent().Subscribe(ActionHandler{
                 OnResult{[&](auto& promise) {
@@ -258,8 +259,6 @@ void Registration::MakeRegistration() {
   global_crypto_provider_->SetEncryptionKey(aether_global_key_);
   master_key_ = global_crypto_provider_->GetDecryptionKey();
 
-  auto return_key = root_crypto_provider_->GetDecryptionKey();
-
   AE_TELE_DEBUG(RegisterKeysGenerated, "Global Pk: {}:{}, Masterkey: {}:{}",
                 aether_global_key_.Index(), aether_global_key_,
                 master_key_.Index(), master_key_);
@@ -268,11 +267,9 @@ void Registration::MakeRegistration() {
                                  root_server_select_stream_};
   api_call->enter(
       kDefaultCryptoLibProfile,
-      SubApi{[this, &proofs,
-              &return_key](ApiContext<ServerRegistrationApi>& server_api) {
+      SubApi{[this, &proofs](ApiContext<ServerRegistrationApi>& server_api) {
         server_api->registration(
             pow_params_.salt, pow_params_.password_suffix, proofs, parent_uid_,
-            std::move(return_key),
             SubApi{[this](ApiContext<GlobalRegServerApi>& global_api) {
               // set master key and wait for confirmation
               global_api->set_master_key(master_key_);
