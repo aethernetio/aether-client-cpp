@@ -57,64 +57,63 @@ class AlignedStorage {
 };
 
 using DataPointerType = std::uint8_t*;
-using DataPointerConstType = std::uint8_t const*;
+
+enum class Operation : std::uint8_t {
+  kCopy,
+  kMove,
+  kDestroy,
+};
 
 struct ManagedStorageVtable {
-  void (*copy_construct)(DataPointerType dst, DataPointerConstType src);
-  void (*move_construct)(DataPointerType dst, DataPointerType src);
-  void (*destroy)(DataPointerType dst);
+  void (*manage)(DataPointerType a, DataPointerType b, Operation op);
 };
 
 template <typename T>
-struct VTableFuncs {
-  static void CopyConstruct(
-      [[maybe_unused]] DataPointerType dst,
-      [[maybe_unused]] DataPointerConstType src) noexcept {
-    if constexpr (std::is_trivially_copy_constructible_v<T>) {
-      std::memcpy(dst, src, sizeof(T));
-    } else if constexpr (std::is_copy_constructible_v<T>) {
-      new (dst) T(*std::launder(reinterpret_cast<const T*>(src)));
-    } else {
-      assert(false);
+static void ManageFunc([[maybe_unused]] DataPointerType a,
+                       [[maybe_unused]] DataPointerType b,
+                       Operation op) noexcept {
+  switch (op) {
+    case Operation::kCopy: {
+      if constexpr (std::is_trivially_copy_constructible_v<T>) {
+        std::memcpy(b, a, sizeof(T));
+      } else if constexpr (std::is_copy_constructible_v<T>) {
+        new (b) T(*std::launder(reinterpret_cast<const T*>(a)));
+      } else {
+        assert(false && "For copy operation, T must be copy constructible");
+      }
+      break;
+    }
+    case Operation::kMove: {
+      if constexpr (std::is_trivially_move_constructible_v<T>) {
+        std::memcpy(b, a, sizeof(T));
+      } else if constexpr (std::is_move_constructible_v<T>) {
+        new (b) T(std::move(*std::launder(reinterpret_cast<T*>(a))));
+      } else {
+        assert(false && "For move operation, T must be move constructible");
+      }
+      break;
+    }
+    case Operation::kDestroy: {
+      if constexpr (!std::is_trivially_destructible_v<T>) {
+        std::launder(reinterpret_cast<T*>(a))->~T();
+      }
+      break;
     }
   }
-
-  static void MoveConstruct([[maybe_unused]] DataPointerType dst,
-                            [[maybe_unused]] DataPointerType src) noexcept {
-    if constexpr (std::is_trivially_move_constructible_v<T>) {
-      std::memcpy(dst, src, sizeof(T));
-    } else if constexpr (std::is_move_constructible_v<T>) {
-      new (dst) T(std::move(*std::launder(reinterpret_cast<T*>(src))));
-    } else {
-      assert(false);
-    }
-  }
-
-  static void Destroy([[maybe_unused]] DataPointerType ptr) noexcept {
-    if constexpr (!std::is_trivially_destructible_v<T>) {
-      std::launder(reinterpret_cast<T*>(ptr))->~T();
-    }
-  }
-};
-
-template <typename T>
-static ManagedStorageVtable const* CreateVTable() {
-  static_assert(sizeof(T) > 0, "T must be a complete type");
-  static constexpr ManagedStorageVtable vtable{
-      &VTableFuncs<T>::CopyConstruct,
-      &VTableFuncs<T>::MoveConstruct,
-      &VTableFuncs<T>::Destroy,
-  };
-  return &vtable;
 }
+
+template <typename T>
+static constexpr ManagedStorageVtable MSVTableForT = ManagedStorageVtable{
+    ManageFunc<T>,
+};
 
 template <typename T>
 struct InPlace {};
 
 /**
  * \brief Managed storage with specified alignment in stack.
- * Maybe initialized with particular type T and erases it with custom vtable for
- * manage copy, move and destruction.
+ * Maybe initialized with particular type T and erases it with custom vtable
+ * for manage copy, move and destruction.
  */
 template <std::size_t Size, std::size_t Align>
 class ManagedStorage {
@@ -126,8 +125,7 @@ class ManagedStorage {
   // Create from instance of T
   template <typename T,
             AE_REQUIRERS_NOT((std::is_same<ManagedStorage, std::decay_t<T>>))>
-  explicit ManagedStorage(T&& value)
-      : vtable_{CreateVTable<std::decay_t<T>>()} {
+  explicit ManagedStorage(T&& value) : vtable_{&MSVTableForT<std::decay_t<T>>} {
     static_assert(sizeof(T) <= Size, "T should fit into storage");
     static_assert(Align % alignof(T) == 0, "T should be aligned like Align");
     new (storage_.data()) T{std::forward<T>(value)};
@@ -136,7 +134,7 @@ class ManagedStorage {
   // Create instance of T with arguments in place
   template <typename T, typename... TArgs>
   explicit ManagedStorage(InPlace<T>, TArgs&&... args)
-      : vtable_{CreateVTable<T>()} {
+      : vtable_{&MSVTableForT<T>} {
     static_assert(sizeof(T) <= Size, "T should fit into storage");
     static_assert(Align % alignof(T) == 0, "T should be aligned like Align");
     new (storage_.data()) T{std::forward<TArgs>(args)...};
@@ -149,9 +147,9 @@ class ManagedStorage {
     static_assert(sizeof(T) <= Size, "T should fit into storage");
     static_assert(Align % alignof(T) == 0, "T should be aligned like Align");
     if (vtable_ != nullptr) {
-      vtable_->destroy(storage_.data());
+      Destroy();
     }
-    vtable_ = CreateVTable<std::decay_t<T>>();
+    vtable_ = &MSVTableForT<std::decay_t<T>>;
     new (storage_.data()) T{std::forward<T>(value)};
     return *this;
   }
@@ -159,31 +157,32 @@ class ManagedStorage {
   ManagedStorage(ManagedStorage const& other) noexcept
       : vtable_{other.vtable_} {
     if (vtable_ != nullptr) {
-      vtable_->copy_construct(storage_.data(), other.storage_.data());
+      Copy(other.storage_, storage_);
     }
   }
 
   ManagedStorage(ManagedStorage&& other) noexcept : vtable_{other.vtable_} {
-    other.vtable_ = nullptr;
     if (vtable_ != nullptr) {
-      vtable_->move_construct(storage_.data(), other.storage_.data());
+      Move(other.storage_, storage_);
+      other.Destroy();
     }
+    other.vtable_ = nullptr;
   }
 
   ~ManagedStorage() {
     if (vtable_ != nullptr) {
-      vtable_->destroy(storage_.data());
+      Destroy();
     }
   }
 
   ManagedStorage& operator=(ManagedStorage const& other) noexcept {
     if (this != &other) {
       if (vtable_ != nullptr) {
-        vtable_->destroy(storage_.data());
+        Destroy();
       }
       vtable_ = other.vtable_;
       if (vtable_ != nullptr) {
-        vtable_->copy_construct(storage_.data(), other.storage_.data());
+        Copy(other.storage_, storage_);
       }
     }
     return *this;
@@ -192,11 +191,12 @@ class ManagedStorage {
   ManagedStorage& operator=(ManagedStorage&& other) noexcept {
     if (this != &other) {
       if (vtable_ != nullptr) {
-        vtable_->destroy(storage_.data());
+        Destroy();
       }
       vtable_ = other.vtable_;
       if (vtable_ != nullptr) {
-        vtable_->move_construct(storage_.data(), other.storage_.data());
+        Move(other.storage_, storage_);
+        other.Destroy();
       }
       other.vtable_ = nullptr;
     }
@@ -209,9 +209,9 @@ class ManagedStorage {
     static_assert(Align % alignof(T) == 0, "T should be aligned like Align");
     // destroy existing object if any
     if (vtable_ != nullptr) {
-      vtable_->destroy(storage_.data());
+      Destroy();
     }
-    vtable_ = CreateVTable<T>();
+    vtable_ = &MSVTableForT<T>;
     new (storage_.data()) T{std::forward<TArgs>(args)...};
   }
 
@@ -226,6 +226,19 @@ class ManagedStorage {
   }
 
  private:
+  void Destroy() noexcept {
+    vtable_->manage(storage_.data(), nullptr, Operation::kDestroy);
+  }
+
+  void Copy(StorageType const& src, StorageType& dst) noexcept {
+    vtable_->manage(const_cast<std::uint8_t*>(src.data()), dst.data(),
+                    Operation::kCopy);
+  }
+
+  void Move(StorageType& src, StorageType& dst) noexcept {
+    vtable_->manage(src.data(), dst.data(), Operation::kMove);
+  }
+
   ManagedStorageVtable const* vtable_{};
   StorageType storage_{};
 };

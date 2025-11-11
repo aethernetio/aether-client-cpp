@@ -28,6 +28,7 @@ extern int test_statistics_counter();
 extern int test_aligned_storage();
 extern int test_type_list();
 extern int test_uid();
+extern int test_small_function();
 
 int main() {
   int res = 0;
@@ -40,5 +41,6 @@ int main() {
   res += test_aligned_storage();
   res += test_type_list();
   res += test_uid();
+  res += test_small_function();
   return res;
 }
