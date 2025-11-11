@@ -18,12 +18,15 @@
 #define AETHER_EVENTS_EVENT_HANDLER_H_
 
 #include <utility>
-#include <functional>
 
+#include "aether/config.h"
 #include "aether/common.h"
-#include "aether/events/delegate.h"
+#include "aether/types/small_function.h"
 
 namespace ae {
+
+static constexpr std::size_t kFunctionSize = AE_EVENT_HANDLER_MAX_SIZE;
+static constexpr std::size_t kFunctionAlign = AE_EVENT_HANDLER_ALIGN;
 
 template <typename TSignature>
 class EventHandler;
@@ -34,11 +37,18 @@ class EventHandler;
 template <typename... TArgs>
 class EventHandler<void(TArgs...)> final {
  public:
-  constexpr explicit EventHandler(std::function<void(TArgs...)>&& func)
-      : callback_{std::move(func)} {}
+  using Fun = SmallFunction<void(TArgs...), kFunctionSize, kFunctionAlign>;
 
-  constexpr explicit EventHandler(Delegate<void(TArgs...)>&& delegate)
-      : callback_{std::move(delegate)} {}
+  template <typename TFunc>
+  constexpr explicit EventHandler(TFunc&& func)
+      : callback_{std::forward<TFunc>(func)} {}
+
+  template <auto Method>
+  constexpr explicit EventHandler(MethodPtr<Method> func_ptr)
+      : callback_{func_ptr} {}
+
+  constexpr explicit EventHandler(void (*func_ptr)(TArgs...))
+      : callback_{func_ptr} {}
 
   AE_CLASS_COPY_MOVE(EventHandler);
 
@@ -47,7 +57,7 @@ class EventHandler<void(TArgs...)> final {
   }
 
  private:
-  std::function<void(TArgs...)> callback_;
+  Fun callback_;
 };
 }  // namespace ae
 #endif  // AETHER_EVENTS_EVENT_HANDLER_H_
