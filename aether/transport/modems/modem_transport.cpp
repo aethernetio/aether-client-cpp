@@ -219,7 +219,7 @@ void ModemTransport::OnConnected(ConnectionIndex connection_index) {
   connection_ = connection_index;
 
   read_packet_sub_ = modem_driver_->data_event().Subscribe(
-      *this, MethodPtr<&ModemTransport::DataReceived>{});
+      MethodPtr<&ModemTransport::DataReceived>{this});
 
   stream_info_.is_writable = true;
   stream_info_.link_state = LinkState::kLinked;

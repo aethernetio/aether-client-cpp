@@ -24,7 +24,7 @@
 namespace ae {
 
 Domain::Domain(TimePoint p, IDomainStorage& storage)
-    : update_time_{p}, storage_(&storage) {}
+    : update_time_{p}, storage_(&storage), registry_{Registry::GetRegistry()} {}
 
 TimePoint Domain::Update(TimePoint current_time) {
   update_time_ = current_time;
@@ -57,8 +57,7 @@ ObjPtr<Obj> Domain::ConstructObj(Factory const& factory, ObjId obj_id) {
 }
 
 bool Domain::IsLast(uint32_t class_id) const {
-  return registry_.base_to_derived_.find(class_id) ==
-         registry_.base_to_derived_.end();
+  return registry_.relations.find(class_id) == registry_.relations.end();
 }
 
 bool Domain::IsExisting(uint32_t class_id) const {
@@ -107,7 +106,7 @@ Factory* Domain::GetMostRelatedFactory(ObjId id) {
             });
 
   // Find the Final class for the most derived class provided and create it.
-  for (auto& f : registry_.factories_) {
+  for (auto& f : registry_.factories) {
     if (IsLast(f.first)) {
       // check with most derived class
       int distance = registry_.GenerationDistance(classes.back(), f.first);

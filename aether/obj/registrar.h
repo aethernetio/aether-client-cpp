@@ -29,21 +29,19 @@ template <class T>
 class Registrar {
  public:
   Registrar(std::uint32_t cls_id, std::uint32_t base_id) {
-    Registry::RegisterClass(cls_id, base_id,
-                            {
-                                // create
-                                Delegate(MethodPtr<&Create>{}),
-                                // load
-                                Delegate(MethodPtr<&Load>{}),
-                                // save
-                                Delegate(MethodPtr<&Save>{})
+    Registry::GetRegistry().RegisterClass(
+        cls_id, base_id,
+        {
+            Factory::CreateFunc(&Create),
+            Factory::LoadFunc(&Load),
+            Factory::SaveFunc(&Save)
 #ifdef DEBUG
-                                    ,
-                                std::string{reflect::GetTypeName<T>()},
-                                cls_id,
-                                base_id,
+                ,
+            std::string{reflect::GetTypeName<T>()},
+            cls_id,
+            base_id,
 #endif  // DEBUG
-                            });
+        });
   }
 
  private:
@@ -57,7 +55,7 @@ class Registrar {
 
   static ObjPtr<Obj> Create() {
     if constexpr (std::is_abstract_v<T>) {
-      assert(false);
+      assert(false && "Create called on abstract class");
       return {};
     } else {
       static_assert(IsDefaultConstructible<T>::value,
@@ -65,11 +63,13 @@ class Registrar {
       return ObjPtr(MakePtr<T>());
     }
   }
+
   static ObjPtr<Obj> Load(Domain* domain, ObjPtr<Obj> obj) {
     auto self_ptr = ObjPtr<T>{std::move(obj)};
     domain->Load(*self_ptr.get());
     return self_ptr;
   }
+
   static void Save(Domain* domain, ObjPtr<Obj> const& obj) {
     auto self_ptr = static_cast<T*>(obj.get());
     domain->Save(*self_ptr);

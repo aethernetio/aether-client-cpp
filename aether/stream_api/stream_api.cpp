@@ -53,7 +53,7 @@ StreamApiGate::StreamApiGate(StreamApiImpl& stream_api, StreamId stream_id)
     : stream_id_{stream_id},
       stream_api_{&stream_api},
       read_subscription_{stream_api_->stream_event().Subscribe(
-          *this, MethodPtr<&StreamApiGate::OnStream>{})} {}
+          MethodPtr<&StreamApiGate::OnStream>{this})} {}
 
 DataBuffer StreamApiGate::WriteIn(DataBuffer&& buffer) {
   auto api_call = ApiContext{*stream_api_};

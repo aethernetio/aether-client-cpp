@@ -38,8 +38,8 @@ WinSerialPort::ReadAction::ReadAction(ActionContext action_context,
   poll_sub_ =
       poller->Add({serial_port_->fd_})
           .Subscribe(
-              *this,
-              MethodPtr<&WinSerialPort::ReadAction::ReadAction::PollEvent>{});
+              MethodPtr<&WinSerialPort::ReadAction::ReadAction::PollEvent>{
+                  this});
 
   overlapped_rd_.event_type = EventType::kRead;
   RequestRead();

@@ -70,9 +70,8 @@ void RootServerSelectStream::SelectServer() {
 
   server_stream_.emplace(action_context_, chosen_server);
   stream_update_sub_ = server_stream_->stream_update_event().Subscribe(
-      *this, MethodPtr<&RootServerSelectStream::StreamUpdate>{});
-  out_data_sub_ = server_stream_->out_data_event().Subscribe(
-      out_data_event_, MethodPtr<&OutDataEvent::Emit>{});
+      MethodPtr<&RootServerSelectStream::StreamUpdate>{this});
+  out_data_sub_ = server_stream_->out_data_event().Subscribe(out_data_event_);
 
   StreamUpdate();
   server_changed_event_.Emit();

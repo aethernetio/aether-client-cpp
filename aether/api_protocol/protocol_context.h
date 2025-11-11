@@ -20,8 +20,8 @@
 #include <map>
 #include <stack>
 #include <cstdint>
-#include <functional>
 
+#include "aether/types/small_function.h"
 #include "aether/api_protocol/request_id.h"
 
 namespace ae {
@@ -29,15 +29,17 @@ class ApiParser;
 
 class ProtocolContext {
  public:
+  using SendResultCb =
+      SmallFunction<void(ApiParser& parser), sizeof(void*) * 2>;
+  using SendErrorCb =
+      SmallFunction<void(std::uint8_t error_type, std::uint32_t error_code),
+                    sizeof(void*) * 2>;
+
   ProtocolContext();
   ~ProtocolContext();
 
-  void AddSendResultCallback(RequestId request_id,
-                             std::function<void(ApiParser& parser)> callback);
-  void AddSendErrorCallback(
-      RequestId request_id,
-      std::function<void(std::uint8_t error_type, std::uint32_t error_code)>
-          callback);
+  void AddSendResultCallback(RequestId request_id, SendResultCb callback);
+  void AddSendErrorCallback(RequestId request_id, SendErrorCb callback);
 
   void SetSendResultResponse(RequestId request_id, ApiParser& parser);
   void SetSendErrorResponse(RequestId req_id, std::uint8_t error_type,
@@ -48,11 +50,8 @@ class ProtocolContext {
   class PacketStack* packet_stack();
 
  private:
-  std::map<RequestId, std::function<void(ApiParser& parser)>>
-      send_result_events_;
-  std::map<RequestId, std::function<void(std::uint8_t error_type,
-                                         std::uint32_t error_code)>>
-      send_error_events_;
+  std::map<RequestId, SendResultCb> send_result_events_;
+  std::map<RequestId, SendErrorCb> send_error_events_;
 
   std::stack<class PacketStack*> packet_stacks_;
 };

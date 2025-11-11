@@ -113,7 +113,7 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
 
   Tie(buffer_stream_, channel_select_stream_);
   out_data_sub_ = buffer_stream_.out_data_event().Subscribe(
-      *this, MethodPtr<&ClientServerConnection::OutData>{});
+      MethodPtr<&ClientServerConnection::OutData>{this});
 
   StreamUpdate();
   SubscribeToSelectChannel();
@@ -150,7 +150,7 @@ void ClientServerConnection::OutData(DataBuffer const& data) {
 
 void ClientServerConnection::SubscribeToSelectChannel() {
   stream_update_sub_ = channel_select_stream_.stream_update_event().Subscribe(
-      *this, MethodPtr<&ClientServerConnection::StreamUpdate>{});
+      MethodPtr<&ClientServerConnection::StreamUpdate>{this});
 }
 
 void ClientServerConnection::StreamUpdate() {

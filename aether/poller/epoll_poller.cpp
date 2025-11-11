@@ -51,7 +51,7 @@ class EpollPoller::PollWorker {
     // add wake up pipe to epoll
     wake_up_subscription_ =
         Add(DescriptorType{wake_up_pipe_[kPipeReadEnd]})
-            .Subscribe(*this, MethodPtr<&PollWorker::EmptyWakeUpPipe>{});
+            .Subscribe(MethodPtr<&PollWorker::EmptyWakeUpPipe>{this});
   }
 
   ~PollWorker() {

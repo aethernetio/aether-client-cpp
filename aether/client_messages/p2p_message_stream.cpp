@@ -34,7 +34,7 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
       : cloud_connection_{&cloud_connection},
         request_policy_{request_policy},
         servers_update_sub_{cloud_connection_->servers_update_event().Subscribe(
-            *this, MethodPtr<&MessageSendStream::UpdateStream>{})} {
+            MethodPtr<&MessageSendStream::UpdateStream>{this})} {
     UpdateServers();
   }
 
@@ -59,7 +59,7 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
         [this](ServerConnection* sc) {
           if (auto* con = sc->ClientConnection(); con != nullptr) {
             streams_update_sub_.Push(con->stream_update_event().Subscribe(
-                *this, MethodPtr<&MessageSendStream::UpdateStream>{}));
+                MethodPtr<&MessageSendStream::UpdateStream>{this}));
           }
         },
         request_policy_);
@@ -239,7 +239,7 @@ void P2pStream::ConnectReceive() {
           client_ptr->cloud_connection().count_connections()});
   // write out received data
   read_message_gate_->out_data_event().Subscribe(
-      *this, MethodPtr<&P2pStream::WriteOut>{});
+      MethodPtr<&P2pStream::WriteOut>{this});
 }
 
 void P2pStream::ConnectSend() {

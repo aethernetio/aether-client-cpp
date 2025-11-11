@@ -33,9 +33,8 @@ class ActionsQueue final : public Action<ActionsQueue> {
     struct VTable {
       void (*stop)(void* obj);  // stop the action
       Subscription (*finished_event)(
-          void* obj,
-          std::function<void()>
-              on_finished);  // subscribe to the action finished
+          void* obj, SmallFunction<void(), sizeof(void*)>
+                         on_finished);  // subscribe to the action finished
     };
 
     using Factory = std::function<std::pair<VTable*, void*>()>;
@@ -60,7 +59,8 @@ class ActionsQueue final : public Action<ActionsQueue> {
               };
               vt.finished_event =
                   [](void* obj,
-                     std::function<void()> on_finished) -> Subscription {
+                     SmallFunction<void(), sizeof(void*)> on_finished)
+                  -> Subscription {
                 if (obj == nullptr) {
                   return Subscription{};
                 }

@@ -39,8 +39,8 @@ UnixSerialPort::ReadAction::ReadAction(ActionContext action_context,
   poll_sub_ =
       poller->Add({serial_port_->fd_})
           .Subscribe(
-              *this,
-              MethodPtr<&UnixSerialPort::ReadAction::ReadAction::PollEvent>{});
+              MethodPtr<&UnixSerialPort::ReadAction::ReadAction::PollEvent>{
+                  this});
 }
 
 UpdateStatus UnixSerialPort::ReadAction::Update() {

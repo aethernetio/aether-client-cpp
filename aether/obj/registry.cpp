@@ -16,20 +16,19 @@
 
 #include "aether/obj/registry.h"
 
-#include <iostream>
 #include <utility>
-#include <algorithm>
 
 #include "aether/crc.h"
 #include "aether/obj/obj_tele.h"
 
 namespace ae {
-Registry::Registry()
-    : base_to_derived_(GetRelations()), factories_(GetFactories()) {}
+Registry& Registry::GetRegistry() {
+  static Registry registry;
+  return registry;
+}
 
 void Registry::RegisterClass(uint32_t cls_id, std::uint32_t base_id,
                              Factory&& factory) {
-  Factories& factories = GetFactories();
 #ifdef DEBUG
   // Fixme: Commented out to fix the build crash in MinGW
   /*std::cout << "Registering class " << factory.class_name << " id " << cls_id
@@ -43,41 +42,26 @@ void Registry::RegisterClass(uint32_t cls_id, std::uint32_t base_id,
   // Refer to
   // https://learn.microsoft.com/en-us/cpp/overview/compiler-versions?view=msvc-170
 #  if !defined(_MSC_VER) || _MSC_VER >= 1920
-  assert(factories.find(cls_id) == factories.end());
+  auto no_duplication = factories.find(cls_id) == factories.end();
+  assert(no_duplication && "Duplicate class id in registry");
 #  endif  // !defined(_MSC_VER) || _MSC_VER >= 1920
 #endif    // DEBUG
   factories.emplace(cls_id, std::move(factory));
   // TODO: maybe remove this check
   if (base_id != crc32::from_literal("Obj").value) {
-    GetRelations()[base_id].push_back(cls_id);
+    relations[base_id].push_back(cls_id);
   }
 }
 
-void Registry::UnregisterClass(uint32_t cls_id) {
-  if (auto it = factories_.find(cls_id); it != factories_.end()) {
-    factories_.erase(it);
-  }
-
-  if (auto it = base_to_derived_.find(cls_id); it != base_to_derived_.end()) {
-    base_to_derived_.erase(it);
-  }
-
-  for (auto it = base_to_derived_.begin(); it != base_to_derived_.end();) {
-    it->second.erase(std::remove(it->second.begin(), it->second.end(), cls_id),
-                     it->second.end());
-    it = it->second.empty() ? base_to_derived_.erase(it) : std::next(it);
-  }
-}
-
-bool Registry::IsExisting(uint32_t class_id) const {
-  return factories_.find(class_id) != factories_.end();
+bool Registry::IsExisting(uint32_t class_id) {
+  return factories.find(class_id) != factories.end();
 }
 
 int Registry::GenerationDistanceInternal(std::uint32_t base_id,
-                                         std::uint32_t derived_id) const {
-  auto d = base_to_derived_.find(base_id);
+                                         std::uint32_t derived_id) {
+  auto d = relations.find(base_id);
   // The base class is final.
-  if (d == base_to_derived_.end()) {
+  if (d == relations.end()) {
     return -1;
   }
 
@@ -96,7 +80,7 @@ int Registry::GenerationDistanceInternal(std::uint32_t base_id,
 }
 
 int Registry::GenerationDistance(std::uint32_t base_id,
-                                 std::uint32_t derived_id) const {
+                                 std::uint32_t derived_id) {
   if (!IsExisting(base_id) || !IsExisting(derived_id)) {
     return -1;
   }
@@ -108,9 +92,9 @@ int Registry::GenerationDistance(std::uint32_t base_id,
   return GenerationDistanceInternal(base_id, derived_id);
 }
 
-Factory* Registry::FindFactory(uint32_t class_id) {
-  auto it = factories_.find(class_id);
-  if (it == factories_.end()) {
+Factory* Registry::FindFactory(std::uint32_t base_id) {
+  auto it = factories.find(base_id);
+  if (it == factories.end()) {
     return nullptr;
   }
   return &it->second;
@@ -118,7 +102,6 @@ Factory* Registry::FindFactory(uint32_t class_id) {
 
 void Registry::Log() {
 #ifdef DEBUG
-  const auto& factories = GetFactories();
   for (const auto& c : factories) {
     AE_TELE_DEBUG(ObjectRegistryLog, "name {}, id {}, base_id {}",
                   c.second.class_name, c.second.cls_id, c.second.base_id);

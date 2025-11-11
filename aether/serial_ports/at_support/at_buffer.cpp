@@ -21,7 +21,7 @@
 namespace ae {
 AtBuffer::AtBuffer(ISerialPort& serial_port)
     : data_read_sub_{serial_port.read_event().Subscribe(
-          *this, MethodPtr<&AtBuffer::DataRead>{})} {}
+          MethodPtr<&AtBuffer::DataRead>{this})} {}
 
 AtBuffer::UpdateEvent::Subscriber AtBuffer::update_event() {
   return EventSubscriber{update_event_};

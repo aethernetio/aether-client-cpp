@@ -165,9 +165,9 @@ void ChannelSelectStream::LinkStream() {
   assert(stream != nullptr);
 
   stream_update_sub_ = stream->stream_update_event().Subscribe(
-      *this, MethodPtr<&ChannelSelectStream::StreamUpdate>{});
+      MethodPtr<&ChannelSelectStream::StreamUpdate>{this});
   out_data_sub_ = stream->out_data_event().Subscribe(
-      *this, MethodPtr<&ChannelSelectStream::OutData>{});
+      MethodPtr<&ChannelSelectStream::OutData>{this});
 
   StreamUpdate();
 }

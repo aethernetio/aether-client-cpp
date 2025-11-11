@@ -116,10 +116,10 @@ class BufferStream final : public Stream<T, T, T, T> {
   void LinkOut(typename Base::OutStream& out) override {
     Base::out_ = &out;
 
-    Base::out_data_sub_ = Base::out_->out_data_event().Subscribe(
-        Base::out_data_event_, MethodPtr<&Base::OutDataEvent::Emit>{});
+    Base::out_data_sub_ =
+        Base::out_->out_data_event().Subscribe(Base::out_data_event_);
     Base::update_sub_ = Base::out_->stream_update_event().Subscribe(
-        *this, MethodPtr<&BufferStream::UpdateStream>{});
+        MethodPtr<&BufferStream::UpdateStream>{this});
 
     UpdateStream();
   }

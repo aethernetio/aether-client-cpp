@@ -54,6 +54,7 @@ UpdateStatus CheckAccessForSendMessage::Update() {
 
 void CheckAccessForSendMessage::SendRequest() {
   int repeat_count = kMaxRequestRepeatCount;
+
   repeatable_task_ = ActionPtr<RepeatableTask>{
       action_context_,
       [this]() {

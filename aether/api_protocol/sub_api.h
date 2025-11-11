@@ -18,11 +18,11 @@
 #define AETHER_API_PROTOCOL_SUB_API_H_
 
 #include <vector>
-#include <functional>
 
 #include "aether/type_traits.h"
 #include "aether/types/type_list.h"
 #include "aether/reflect/reflect.h"
+#include "aether/types/small_function.h"
 #include "aether/api_protocol/api_context.h"
 #include "aether/api_protocol/api_pack_parser.h"
 
@@ -40,7 +40,7 @@ struct ApiContextApiType<ApiContext<T>> {
 template <typename TApi>
 class SubApi {
  public:
-  using Method = std::function<void(ApiContext<TApi>& api)>;
+  using Method = SmallFunction<void(ApiContext<TApi>& api)>;
 
   template <typename TFunc, AE_REQUIRERS_NOT((std::is_same<SubApi, TFunc>))>
   explicit SubApi(TFunc&& caller) : caller_{std::forward<TFunc>(caller)} {}
