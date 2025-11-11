@@ -37,7 +37,7 @@ void Receiver::Connect() {
                            stream->destination());
             message_stream_ = std::move(stream);
             recv_data_sub_ = message_stream_->out_data_event().Subscribe(
-                *this, MethodPtr<&Receiver::OnRecvData>{});
+                MethodPtr<&Receiver::OnRecvData>{this});
           });
 }
 

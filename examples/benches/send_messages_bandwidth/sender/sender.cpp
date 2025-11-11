@@ -37,7 +37,7 @@ void Sender::Connect() {
       client_->message_stream_manager().CreateStream(destination_);
 
   on_recv_data_sub_ = message_stream_->out_data_event().Subscribe(
-      *this, MethodPtr<&Sender::OnRecvData>{});
+      MethodPtr<&Sender::OnRecvData>{this});
 }
 
 void Sender::Disconnect() { message_stream_.Reset(); }
