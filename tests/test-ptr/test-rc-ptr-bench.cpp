@@ -38,7 +38,7 @@ struct Rabbit {
 void test_rc_ptr_CreationBench() {
   tests::BenchmarkFunc(
       [](auto i) {
-        auto rabbit_ptr = MakeRcPtr<Rabbit>(i);
+        auto rabbit_ptr = MakeRcPtr<Rabbit>(static_cast<int>(i));
         rabbit_ptr->x += static_cast<int>(i) % 100;
         rabbit_ptr.Reset();
       },
@@ -49,7 +49,7 @@ void test_rc_ptr_CreationBench() {
   tests::BenchmarkFunc(
       [&](auto i) {
         for (volatile auto j = 0; j < rabbits1.capacity(); j++) {
-          rabbits1.push_back(MakeRcPtr<Rabbit>(i + j));
+          rabbits1.push_back(MakeRcPtr<Rabbit>(static_cast<int>(i + j)));
           rabbits1.back()->x += static_cast<int>(i) % 100;
         }
         rabbits1.clear();
@@ -62,7 +62,7 @@ std::vector<RcPtr<Rabbit>> rabbits2;
 void test_rc_ptr_CopyingBench() {
   tests::BenchmarkFunc(
       [&](auto i) {
-        rabbits2.push_back(MakeRcPtr<Rabbit>(i % 10'000));
+        rabbits2.push_back(MakeRcPtr<Rabbit>(static_cast<int>(i % 10'000)));
         if (((i + 1) % 10'000) == 0) {
           rabbits2.clear();
           rabbits2.shrink_to_fit();
@@ -74,7 +74,7 @@ void test_rc_ptr_CopyingBench() {
   std::vector<RcPtr<Rabbit>> rabbits3;
   rabbits3.reserve(1000);
   for (volatile std::size_t j = 0; j < rabbits3.capacity(); j++) {
-    rabbits3.push_back(MakeRcPtr<Rabbit>(j));
+    rabbits3.push_back(MakeRcPtr<Rabbit>(static_cast<int>(j)));
   }
   tests::BenchmarkFunc(
       [&](auto i) {
