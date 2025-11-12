@@ -29,7 +29,7 @@ P2pMessageStreamManager::P2pMessageStreamManager(ActionContext action_context,
   on_message_received_sub_ = cloud_connection_->ClientApiSubscription(
       [this](ClientApiSafe& client_api, auto*) {
         return client_api.send_message_event().Subscribe(
-            *this, MethodPtr<&P2pMessageStreamManager::NewMessageReceived>{});
+            MethodPtr<&P2pMessageStreamManager::NewMessageReceived>{this});
       },
       RequestPolicy::Replica{cloud_connection_->count_connections()});
 }

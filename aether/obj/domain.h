@@ -161,7 +161,7 @@ class Domain {
 
   TimePoint update_time_;
   IDomainStorage* storage_;
-  Registry registry_;
+  Registry& registry_;
 
   std::map<std::uint32_t, PtrView<Obj>> id_objects_{};
 

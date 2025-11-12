@@ -17,11 +17,11 @@
 #define AETHER_CLIENT_CONNECTIONS_CLOUD_CONNECTION_H_
 
 #include <vector>
-#include <functional>
 
 #include "aether/events/events.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/actions/timer_action.h"
+#include "aether/types/small_function.h"
 #include "aether/actions/notify_action.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
@@ -53,11 +53,11 @@ class CloudConnection {
 
  public:
   using ServerVisitor =
-      std::function<void(ServerConnection* server_connection)>;
+      SmallFunction<void(ServerConnection* server_connection)>;
   using AuthorizedApiCaller =
-      std::function<void(ApiContext<AuthorizedApi>& auth_api,
+      SmallFunction<void(ApiContext<AuthorizedApi>& auth_api,
                          ServerConnection* server_connection)>;
-  using ClientApiSubscriber = std::function<MultiSubscription::EventHandler(
+  using ClientApiSubscriber = SmallFunction<MultiSubscription::EventHandler(
       ClientApiSafe& client_api, ServerConnection* server_connection)>;
 
   using ServersUpdate = Event<void()>;

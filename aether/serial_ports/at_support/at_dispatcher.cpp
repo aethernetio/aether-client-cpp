@@ -23,7 +23,7 @@ namespace ae {
 AtDispatcher::AtDispatcher(AtBuffer& buffer)
     : buffer_{&buffer},
       buffer_sub_{buffer_->update_event().Subscribe(
-          *this, MethodPtr<&AtDispatcher::BufferUpdate>{})} {}
+          MethodPtr<&AtDispatcher::BufferUpdate>{this})} {}
 
 void AtDispatcher::Listen(std::string command, IAtObserver* observer) {
   // there should be only one observer for one command use last

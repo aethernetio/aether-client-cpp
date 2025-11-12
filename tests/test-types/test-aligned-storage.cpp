@@ -64,12 +64,18 @@ struct CopyMoveCounter {
   static inline int delete_count = 0;
 
   CopyMoveCounter() = default;
-  ~CopyMoveCounter() { delete_count++; }
+  ~CopyMoveCounter() {
+    if (!moved) {
+      delete_count++;
+    }
+  }
 
   CopyMoveCounter(CopyMoveCounter const& other)
       : copy_count{other.copy_count + 1}, move_count{other.move_count} {}
   CopyMoveCounter(CopyMoveCounter&& other) noexcept
-      : copy_count{other.copy_count}, move_count{other.move_count + 1} {}
+      : copy_count{other.copy_count}, move_count{other.move_count + 1} {
+    other.moved = true;
+  }
 
   CopyMoveCounter& operator=(CopyMoveCounter const& other) {
     if (this != &other) {
@@ -83,12 +89,14 @@ struct CopyMoveCounter {
     if (this != &other) {
       copy_count = other.copy_count;
       move_count = other.move_count + 1;
+      other.moved = true;
     }
     return *this;
   }
 
   int copy_count{};
   int move_count{};
+  bool moved{};
 };
 
 void test_ManagedStorage() {
@@ -127,7 +135,11 @@ struct NonCopyable {
   inline static int delete_count = 0;
 
   explicit NonCopyable(int v) : value(v) {}
-  ~NonCopyable() { delete_count++; }
+  ~NonCopyable() {
+    if (!moved) {
+      delete_count++;
+    }
+  }
 
   // Delete copy operations
   NonCopyable(const NonCopyable&) = delete;
@@ -136,15 +148,18 @@ struct NonCopyable {
   // Allow move operations
   NonCopyable(NonCopyable&& other) noexcept : value(other.value) {
     other.value = -1;
+    other.moved = true;
   }
 
   NonCopyable& operator=(NonCopyable&& other) noexcept {
     value = other.value;
     other.value = -1;
+    other.moved = true;
     return *this;
   }
 
   int value;
+  bool moved{};
 };
 
 void test_ManagedStorageNonCopyable() {

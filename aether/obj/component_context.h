@@ -18,13 +18,13 @@
 #define AETHER_OBJ_COMPONENT_CONTEXT_H_
 
 #include <cstdint>
-#include <functional>
 #include <unordered_map>
 
 #include "aether/common.h"
 #include "aether/obj/obj.h"
 #include "aether/type_traits.h"
 #include "aether/obj/obj_ptr.h"
+#include "aether/types/small_function.h"
 
 namespace ae {
 template <typename TContext>
@@ -64,7 +64,7 @@ class ComponentContext {
 
  private:
   std::unordered_map<TypeIndex,
-                     std::function<ObjPtr<Obj>(TContext const& context)>>
+                     SmallFunction<ObjPtr<Obj>(TContext const& context)>>
       factories_;
   mutable std::unordered_map<TypeIndex, ObjPtr<Obj>> components_;
 };

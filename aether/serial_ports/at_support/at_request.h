@@ -22,13 +22,13 @@
 #include <variant>
 #include <vector>
 #include <cstdint>
-#include <functional>
 
 #include "aether/common.h"
 #include "aether/events/events.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/types/state_machine.h"
+#include "aether/types/small_function.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/serial_ports/at_support/at_buffer.h"
 #include "aether/serial_ports/at_support/at_dispatcher.h"
@@ -47,7 +47,7 @@ class AtRequest final : public Action<AtRequest> {
     kError,
   };
 
-  using CommandMaker = std::function<ActionPtr<AtWriteAction>()>;
+  using CommandMaker = SmallFunction<ActionPtr<AtWriteAction>()>;
 
   struct Command {
     std::variant<std::string, CommandMaker> command;

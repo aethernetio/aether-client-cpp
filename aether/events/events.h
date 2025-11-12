@@ -23,10 +23,10 @@
 #include <type_traits>
 
 #include "aether/ptr/rc_ptr.h"
-#include "aether/events/delegate.h"
 #include "aether/events/event_list.h"
 #include "aether/events/event_handler.h"
 #include "aether/events/event_deleter.h"
+#include "aether/types/small_function.h"
 #include "aether/events/event_subscription.h"
 
 namespace ae {
@@ -45,10 +45,6 @@ class Event<void(TArgs...), TSyncPolicy> {
   using CallbackSignature = void(TArgs...);
   using Subscriber = EventSubscriber<CallbackSignature, TSyncPolicy>;
   using List = EventHandlersList<TSyncPolicy>;
-
-  template <typename TCallback>
-  static constexpr bool kIsInvocable =
-      std::is_invocable_r_v<void, std::decay_t<TCallback>, TArgs...>;
 
   explicit Event(TSyncPolicy sync_policy = {})
       : events_list_{MakeRcPtr<List>(std::forward<TSyncPolicy>(sync_policy))} {}
@@ -97,11 +93,16 @@ class Event<void(TArgs...), TSyncPolicy> {
  * It is designed to be constructed implicitly from Event<T> and to be returned
  * from getter to Event<T> in classes
  */
-template <typename TSignature, typename TSyncPolicy>
-class EventSubscriber {
+template <typename... TArgs, typename TSyncPolicy>
+class EventSubscriber<void(TArgs...), TSyncPolicy> {
  public:
+  using Signature = void(TArgs...);
   using Subscription = BaseSubscription<TSyncPolicy>;
-  using EventType = Event<TSignature, TSyncPolicy>;
+  using EventType = Event<Signature, TSyncPolicy>;
+
+  template <typename TCallback>
+  static constexpr bool kIsInvocable =
+      std::is_invocable_r_v<void, std::decay_t<TCallback>, TArgs...>;
 
   EventSubscriber(EventType& event) : event_{&event} {}
 
@@ -113,32 +114,57 @@ class EventSubscriber {
    */
   template <typename TCallback>
   auto Subscribe(TCallback&& cb) {
-    static_assert(EventType::template kIsInvocable<TCallback>,
+    static_assert(std::is_invocable_v<std::decay_t<TCallback>, TArgs...>,
                   "TCallable must have same signature");
-
-    return event_->Add(EventHandler<TSignature>{
-        std::function<TSignature>{std::forward<TCallback>(cb)}});
+    return event_->Add(EventHandler<Signature>{std::forward<TCallback>(cb)});
   }
 
   /**
-   * \brief Create new subscription to event with callback to Event's signature.
+   * \brief Create new subscription to event with pointer to member function.
    *
    * \return EventHandlerDeleter to remove handler after it does not needed
    * anymore \see Subscription for RAII wrapper
    */
-  template <typename TInstance, auto Method>
-  auto Subscribe(TInstance& instance, MethodPtr<Method> const& method) {
-    static_assert(
-        EventType::template kIsInvocable<
-            Delegate<typename FunctionSignature<decltype(Method)>::Signature>>,
-        "Method must have the same signature");
+  template <auto Method>
+  auto Subscribe(MethodPtr<Method> method) {
+    static_assert(std::is_invocable_v<decltype(Method),
+                                      decltype(method.instance), TArgs...>,
+                  "Method must have same signature");
+    return event_->Add(EventHandler<Signature>{method});
+  }
 
-    return event_->Add(EventHandler<TSignature>{Delegate{instance, method}});
+  /**
+   * \brief Create new subscription to event with pointer to free function.
+   *
+   * \return EventHandlerDeleter to remove handler after it does not needed
+   * anymore \see Subscription for RAII wrapper
+   */
+  auto Subscribe(void (*method)(TArgs...)) {
+    static_assert(std::is_invocable_v<decltype(method), TArgs...>,
+                  "method must have same signature");
+    return event_->Add(EventHandler<Signature>{method});
+  }
+
+  /**
+   * \brief Create new subscription to event with different event with same
+   * signature.
+   *
+   * \return EventHandlerDeleter to remove handler after it does not needed
+   * anymore \see Subscription for RAII wrapper
+   */
+  template <typename USyncPolicy>
+  auto Subscribe(Event<void(TArgs...), USyncPolicy>& event) {
+    return event_->Add(EventHandler<Signature>{
+        MethodPtr<&Event<void(TArgs...), USyncPolicy>::Emit>{&event}});
   }
 
  private:
   EventType* event_;
 };
+
+template <typename... TArgs, typename TSyncPolicy>
+EventSubscriber(Event<void(TArgs...), TSyncPolicy>&)
+    -> EventSubscriber<void(TArgs...), TSyncPolicy>;
 
 }  // namespace ae
 

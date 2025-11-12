@@ -25,6 +25,7 @@ list(APPEND test_srcs
     test-aligned-storage.cpp
     test-type-list.cpp
     test-uid.cpp
+    test-small-function.cpp
 )
 
 if(NOT CM_PLATFORM)

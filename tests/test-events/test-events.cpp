@@ -28,7 +28,8 @@ void test_EventCreate() {
     TEST_ASSERT_EQUAL(i, 1);
   };
   {
-    auto deleter = EventSubscriber{event}.Subscribe(lambda, FunctorPtr(lambda));
+    auto deleter = EventSubscriber{event}.Subscribe(
+        MethodPtr<&decltype(lambda)::operator()>{&lambda});
     // callback must be called until s is alive
     event.Emit(1);
     TEST_ASSERT(cb_called);
@@ -150,9 +151,8 @@ void test_MultiSubscription() {
     TEST_ASSERT_EQUAL(1, x);
   };
 
-  subscriptions_.Push(sub.Subscribe(lambda1, FunctorPtr(lambda1)),
-                      sub.Subscribe(lambda2, FunctorPtr(lambda2)),
-                      sub.Subscribe(lambda3, FunctorPtr(lambda3)));
+  subscriptions_.Push(sub.Subscribe(lambda1), sub.Subscribe(lambda2),
+                      sub.Subscribe(lambda3));
   event.Emit(1);
   for (auto b : cb_called) {
     TEST_ASSERT(b);
@@ -176,7 +176,7 @@ void test_EventRecursionCall() {
     TEST_ASSERT_EQUAL(2, x);
   };
 
-  auto s = sub.Subscribe(lambda, FunctorPtr(lambda));
+  auto s = sub.Subscribe(lambda);
 
   event.Emit(1);
   TEST_ASSERT(cb_called_first);
@@ -200,10 +200,10 @@ void test_EventReSubscribeOnHandler() {
   auto outer_lambda = [&](int x) {
     TEST_ASSERT_EQUAL(1, x);
     cb_called_first = true;
-    s = sub.Subscribe(inner_lambda, FunctorPtr(inner_lambda));
+    s = sub.Subscribe(inner_lambda);
   };
 
-  s = sub.Subscribe(outer_lambda, FunctorPtr(outer_lambda));
+  s = sub.Subscribe(outer_lambda);
 
   event.Emit(1);
   TEST_ASSERT(cb_called_first);

@@ -40,10 +40,10 @@
 namespace ae {
 
 AetherAppContext::TelemetryInit::TelemetryInit() {
-  ae::tele::TeleInit::Init();
+  tele::TeleInit::Init();
   AE_TELE_ENV();
   AE_TELE_INFO(AetherStarted);
-  ae::Registry::Log();
+  Registry::GetRegistry().Log();
 }
 
 void AetherAppContext::TelemetryInit::operator()(

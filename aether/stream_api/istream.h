@@ -205,10 +205,8 @@ class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
    */
   virtual void LinkOut(OutStream& out) {
     out_ = &out;
-    update_sub_ = out_->stream_update_event().Subscribe(
-        stream_update_event_, MethodPtr<&StreamUpdateEvent::Emit>{});
-    out_data_sub_ = out_->out_data_event().Subscribe(
-        out_data_event_, MethodPtr<&OutDataEvent::Emit>{});
+    update_sub_ = out_->stream_update_event().Subscribe(stream_update_event_);
+    out_data_sub_ = out_->out_data_event().Subscribe(out_data_event_);
     stream_update_event_.Emit();
   }
   /**

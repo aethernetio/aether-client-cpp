@@ -224,7 +224,7 @@ void LoraModuleTransport::OnConnected(ConnectionLoraIndex connection_index) {
   connection_ = connection_index;
 
   read_packet_sub_ = lora_module_driver_->data_event().Subscribe(
-      *this, MethodPtr<&LoraModuleTransport::DataReceived>{});
+      MethodPtr<&LoraModuleTransport::DataReceived>{this});
 
   stream_info_.is_writable = true;
   stream_info_.link_state = LinkState::kLinked;

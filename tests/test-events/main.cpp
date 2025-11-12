@@ -19,25 +19,12 @@
 void setUp() {}
 void tearDown() {}
 
-#if defined AE_TEST_EVENTS_BENCH
-const bool run_bench_tests = true;
-#else
-const bool run_bench_tests = false;
-#endif
-
 extern int test_events();
-extern int test_event_delegates();
-extern int test_std_function();
 extern int test_events_mt();
 
 int main() {
   auto res = 0;
   res += test_events();
   res += test_events_mt();
-
-  if (run_bench_tests) {
-    res += test_event_delegates();
-    res += test_std_function();
-  }
   return res;
 }

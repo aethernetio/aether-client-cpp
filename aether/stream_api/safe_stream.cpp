@@ -54,8 +54,8 @@ SafeStream::SafeStream(ActionContext action_context, SafeStreamConfig config)
       recv_acion_{action_context_, *this, config_},
       stream_info_{config_.max_packet_size, config_.max_packet_size, false,
                    LinkState::kUnlinked, false} {
-  recv_acion_->receive_event().Subscribe(*this,
-                                         MethodPtr<&SafeStream::WriteOut>{});
+  recv_acion_->receive_event().Subscribe(
+      MethodPtr<&SafeStream::WriteOut>{this});
 }
 
 ActionPtr<StreamWriteAction> SafeStream::Write(DataBuffer&& data) {
@@ -68,9 +68,9 @@ StreamInfo SafeStream::stream_info() const { return stream_info_; }
 void SafeStream::LinkOut(OutStream& out) {
   out_ = &out;
   update_sub_ = out_->stream_update_event().Subscribe(
-      *this, MethodPtr<&SafeStream::OnStreamUpdate>{});
-  out_data_sub_ = out_->out_data_event().Subscribe(
-      *this, MethodPtr<&SafeStream::OnOutData>{});
+      MethodPtr<&SafeStream::OnStreamUpdate>{this});
+  out_data_sub_ =
+      out_->out_data_event().Subscribe(MethodPtr<&SafeStream::OnOutData>{this});
 
   OnStreamUpdate();
 }

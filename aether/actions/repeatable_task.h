@@ -17,11 +17,10 @@
 #ifndef AETHER_ACTIONS_REPEATABLE_TASK_H_
 #define AETHER_ACTIONS_REPEATABLE_TASK_H_
 
-#include <functional>
-
 #include "aether/common.h"
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
+#include "aether/types/small_function.h"
 #include "aether/actions/action_context.h"
 
 namespace ae {
@@ -39,7 +38,7 @@ class RepeatableTask : public Action<RepeatableTask> {
     kRepeatCountExceeded,
   };
 
-  using Task = std::function<void()>;
+  using Task = SmallFunction<void()>;
   static constexpr auto kRepeatCountInfinite = -1;
 
   RepeatableTask(ActionContext action_context, Task&& task, Duration interval,

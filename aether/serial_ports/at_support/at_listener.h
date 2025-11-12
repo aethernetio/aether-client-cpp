@@ -17,15 +17,14 @@
 #ifndef AETHER_SERIAL_PORTS_AT_SUPPORT_AT_LISTENER_H_
 #define AETHER_SERIAL_PORTS_AT_SUPPORT_AT_LISTENER_H_
 
-#include <functional>
-
+#include "aether/types/small_function.h"
 #include "aether/serial_ports/at_support/at_buffer.h"
 #include "aether/serial_ports/at_support/at_dispatcher.h"
 
 namespace ae {
 class AtListener final : public IAtObserver {
  public:
-  using Handler = std::function<void(AtBuffer& buffer, AtBuffer::iterator pos)>;
+  using Handler = SmallFunction<void(AtBuffer& buffer, AtBuffer::iterator pos)>;
 
   AtListener(AtDispatcher& dispatcher, std::string expected, Handler handler);
   ~AtListener();

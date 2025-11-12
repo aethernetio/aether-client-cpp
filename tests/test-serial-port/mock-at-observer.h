@@ -18,6 +18,7 @@
 #define TESTS_TEST_SERIAL_PORT_MOCK_AT_OBSERVER_H_
 
 #include <utility>
+#include <functional>
 
 #include "aether/serial_ports/at_support/at_dispatcher.h"
 #include "aether/serial_ports/at_support/at_buffer.h"

@@ -67,27 +67,35 @@ ae::ActionPtr<ae::SelectClientAction> SelectClientImpl(
   auto select_action =
       aether_app->aether()->SelectClient(parent_uid, config->id);
 
+  struct SelectContext {
+    AetherClient* client;
+    ClientSelectedCb client_selected_cb;
+    MessageReceivedCb message_recv_cb;
+    void* user_data;
+  };
+
+  auto select_context = ae::MakeRcPtr<SelectContext>(
+      SelectContext{client, config->client_selected_cb,
+                    config->message_received_cb, config->user_data});
+
   select_action->StatusEvent().Subscribe(ae::ActionHandler{
-      ae::OnResult{[client, callback{config->client_selected_cb},
-                    message_recv_cb{config->message_received_cb},
-                    user_data{config->user_data}](auto const& action) {
+      ae::OnResult{[context{select_context}](auto const& action) {
         // save the client
-        client->client = action.client();
+        context->client->client = action.client();
         // subscribe to messages
-        if (message_recv_cb != nullptr) {
-          Listen(client, message_recv_cb, user_data);
+        if (context->message_recv_cb != nullptr) {
+          Listen(context->client, context->message_recv_cb, context->user_data);
         }
         // notify client was selected
-        if (callback != nullptr) {
-          callback(client, user_data);
+        if (context->client_selected_cb != nullptr) {
+          context->client_selected_cb(context->client, context->user_data);
         }
       }},
-      ae::OnError{[callback{config->client_selected_cb},
-                   user_data{config->user_data}]() {
-        if (!callback) {
+      ae::OnError{[context{select_context}]() {
+        if (!context->client_selected_cb) {
           return;
         }
-        callback(nullptr, user_data);
+        context->client_selected_cb(nullptr, context->user_data);
       }},
   });
 
@@ -157,11 +165,21 @@ void Listen(AetherClient* client, MessageReceivedCb cb, void* user_data) {
         // create cuid for callback
         auto c_dest = CUidFromBytes(dest.value.data(), dest.value.size());
 
+        // special context saved in heap
+        struct ListenContext {
+          void* user_data;
+          AetherClient* client;
+          MessageReceivedCb cb;
+          CUid c_dest;
+        };
+
         // call the callback on data received
         stream->out_data_event().Subscribe(
-            [client, c_dest, cb, user_data, stream](auto const& data) {
-              cb(client, c_dest, static_cast<void const*>(data.data()),
-                 data.size(), user_data);
+            [context{std::unique_ptr<ListenContext>{new ListenContext{
+                user_data, client, cb, c_dest}}}](auto const& data) {
+              context->cb(context->client, context->c_dest,
+                          static_cast<void const*>(data.data()), data.size(),
+                          context->user_data);
             });
       });
 }

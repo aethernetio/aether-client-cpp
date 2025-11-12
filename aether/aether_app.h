@@ -28,6 +28,7 @@
 #include "aether/obj/domain.h"
 #include "aether/global_ids.h"
 #include "aether/type_traits.h"
+#include "aether/types/small_function.h"
 
 #include "aether/events/events.h"   // IWYU pragma: keep
 #include "aether/actions/action.h"  // IWYU pragma: keep
@@ -131,7 +132,7 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
  private:
   void InitComponentContext();
 
-  std::function<void(AetherAppContext const&)> init_tele_;
+  SmallFunction<void(AetherAppContext const&)> init_tele_;
   std::unique_ptr<IDomainStorage> domain_storage_;
   std::unique_ptr<Domain> domain_;
   Aether::ptr aether_;

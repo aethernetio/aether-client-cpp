@@ -39,10 +39,41 @@ struct HasUpdate<T, std::void_t<decltype(&T::Update)>> : std::true_type {};
 // Base Action class
 class IAction {
  public:
+  explicit IAction(ActionTrigger* action_trigger)
+      : action_trigger_{action_trigger} {}
+
   virtual ~IAction() = default;
 
+  AE_CLASS_MOVE_ONLY(IAction);
+
   virtual TimePoint ActionUpdate(TimePoint current_time) = 0;
-  virtual bool IsFinished() const = 0;
+
+  bool IsFinished() const { return finished_; }
+
+  [[nodiscard]] auto FinishedEvent() {
+    return EventSubscriber{finished_event_};
+  }
+
+  // Trigger an event on action which leads to run action's Update as soon as
+  // possible.
+  void Trigger() {
+    if (action_trigger_ != nullptr) {
+      action_trigger_->Trigger();
+    }
+  }
+
+  // Action is finished all it's job and may be removed.
+  void Finish() {
+    Trigger();
+    finished_ = true;
+    finished_event_.Emit();
+  }
+
+ protected:
+  Event<void()> finished_event_;
+
+  ActionTrigger* action_trigger_{};
+  bool finished_{false};
 };
 
 /**
@@ -55,7 +86,7 @@ template <typename T>
 class Action : public IAction {
  public:
   explicit Action(ActionContext action_context)
-      : action_trigger_{&action_context.get_trigger()} {
+      : IAction{&action_context.get_trigger()} {
     Trigger();
   }
 
@@ -101,25 +132,13 @@ class Action : public IAction {
     }
   }
 
-  bool IsFinished() const override { return finished_; }
-
   /**
    * Add callback to be called when action is done result is encoded as
    * ActionEventResult.
    */
   [[nodiscard]] auto StatusEvent() { return EventSubscriber{action_result_}; }
 
-  [[nodiscard]] auto FinishedEvent() {
-    return EventSubscriber{finished_event_};
-  }
-
-  // Trigger an event on action which leads to run action's Update as soon as
-  // possible.
-  void Trigger() {
-    if (action_trigger_ != nullptr) {
-      action_trigger_->Trigger();
-    }
-  }
+  using IAction::Trigger;
 
  protected:
   // Set action status and emit status event, and make action finished.
@@ -129,18 +148,7 @@ class Action : public IAction {
   }
 
  private:
-  // Action is finished all it's job and may be removed.
-  void Finish() {
-    Trigger();
-    finished_ = true;
-    finished_event_.Emit();
-  }
-
   Event<void(ActionEventStatus<T>)> action_result_;
-  Event<void()> finished_event_;
-
-  ActionTrigger* action_trigger_{};
-  bool finished_{false};
 };
 }  // namespace ae
 

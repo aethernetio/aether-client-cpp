@@ -207,10 +207,9 @@ class GatesStream final
     Base::out_ = &out;
 
     Base::out_data_sub_ = Base::out_->out_data_event().Subscribe(
-        *this, MethodPtr<&GatesStream::OutData>{});
-    Base::update_sub_ = Base::out_->stream_update_event().Subscribe(
-        Base::stream_update_event_,
-        MethodPtr<&Base::StreamUpdateEvent::Emit>{});
+        MethodPtr<&GatesStream::OutData>{this});
+    Base::update_sub_ =
+        Base::out_->stream_update_event().Subscribe(Base::stream_update_event_);
 
     Base::stream_update_event_.Emit();
   }

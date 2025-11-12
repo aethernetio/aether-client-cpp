@@ -24,16 +24,19 @@
 
 #include "aether/config.h"
 #include "aether/obj/obj_ptr.h"
-#include "aether/events/delegate.h"
 
 namespace ae {
 class Obj;
 class Domain;
 
 struct Factory {
-  Delegate<ObjPtr<Obj>()> create;
-  Delegate<ObjPtr<Obj>(Domain* domain, ObjPtr<Obj> prefab)> load;
-  Delegate<void(Domain* domain, ObjPtr<Obj> const& obj)> save;
+  using CreateFunc = ObjPtr<Obj> (*)();
+  using LoadFunc = ObjPtr<Obj> (*)(Domain* domain, ObjPtr<Obj> prefab);
+  using SaveFunc = void (*)(Domain* domain, ObjPtr<Obj> const& obj);
+
+  CreateFunc create;
+  LoadFunc load;
+  SaveFunc save;
 #ifdef DEBUG
   std::string class_name{};
   std::uint32_t cls_id{};
@@ -46,37 +49,24 @@ class Registry {
   using Relations = std::unordered_map<uint32_t, std::vector<uint32_t>>;
   using Factories = std::unordered_map<uint32_t, Factory>;
 
-  Relations base_to_derived_;
-  Factories factories_;
+  static Registry& GetRegistry();
 
-  static void RegisterClass(uint32_t cls_id, std::uint32_t base_id,
-                            Factory&& factory);
-  static void Log();
-
-  static Relations& GetRelations() {
-    static Relations relations;
-    return relations;
-  }
-  static Factories& GetFactories() {
-    static Factories factories;
-    return factories;
-  }
-
-  Registry();
-
-  void UnregisterClass(uint32_t cls_id);
-
-  bool IsExisting(uint32_t class_id) const;
+  void RegisterClass(uint32_t cls_id, std::uint32_t base_id, Factory&& factory);
+  void Log();
+  bool IsExisting(uint32_t class_id);
 
   int GenerationDistanceInternal(std::uint32_t base_id,
-                                 std::uint32_t derived_id) const;
+                                 std::uint32_t derived_id);
 
   // Calculates distance from base to derived in generations:
   //  -1 - derived is not inherited directly or indirectly from base or any
   //  class doesn't exist.
-  int GenerationDistance(std::uint32_t base_id, std::uint32_t derived_id) const;
+  int GenerationDistance(std::uint32_t base_id, std::uint32_t derived_id);
 
   Factory* FindFactory(uint32_t base_id);
+
+  Relations relations;
+  Factories factories;
 };
 }  // namespace ae
 

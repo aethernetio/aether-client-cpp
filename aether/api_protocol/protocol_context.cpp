@@ -26,15 +26,13 @@ namespace ae {
 ProtocolContext::ProtocolContext() = default;
 ProtocolContext::~ProtocolContext() = default;
 
-void ProtocolContext::AddSendResultCallback(
-    RequestId request_id, std::function<void(ApiParser& parser)> callback) {
+void ProtocolContext::AddSendResultCallback(RequestId request_id,
+                                            SendResultCb callback) {
   send_result_events_.emplace(request_id, std::move(callback));
 }
 
-void ProtocolContext::AddSendErrorCallback(
-    RequestId request_id,
-    std::function<void(std::uint8_t error_type, std::uint32_t error_code)>
-        callback) {
+void ProtocolContext::AddSendErrorCallback(RequestId request_id,
+                                           SendErrorCb callback) {
   send_error_events_.emplace(request_id, std::move(callback));
 }
 

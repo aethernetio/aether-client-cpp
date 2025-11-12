@@ -61,15 +61,15 @@ class ReplicaSubscription {
       : cloud_connection_{&cloud_connection},
         subscriber_{std::move(subscriber)},
         request_policy_{request_policy},
-        subscriptions_{MakeRcPtr<MultiSubscription>()} {}
+        subscriptions_{MultiSubscription()} {}
 
   void operator()() {
     // clean old subscriptions and make new
-    subscriptions_->Reset();
+    subscriptions_.Reset();
     cloud_connection_->VisitServers(
         [&](ServerConnection* sc) {
           if (auto* conn = sc->ClientConnection(); conn != nullptr) {
-            subscriptions_->Push(subscriber_(conn->client_safe_api(), sc));
+            subscriptions_.Push(subscriber_(conn->client_safe_api(), sc));
           }
         },
         request_policy_);
@@ -79,9 +79,7 @@ class ReplicaSubscription {
   CloudConnection* cloud_connection_;
   CloudConnection::ClientApiSubscriber subscriber_;
   RequestPolicy::Variant request_policy_;
-  // FIXME: RcPtr is used because Events requires copy_constructible for
-  // std::function
-  RcPtr<MultiSubscription> subscriptions_;
+  MultiSubscription subscriptions_;
 };
 
 }  // namespace cloud_connection_internal
@@ -114,12 +112,14 @@ ActionPtr<StreamWriteAction> CloudConnection::AuthorizedApiCall(
 
 Subscription CloudConnection::ClientApiSubscription(
     ClientApiSubscriber subscriber, RequestPolicy::Variant policy) {
-  auto replica_subscriber = cloud_connection_internal::ReplicaSubscription{
-      *this, std::move(subscriber), policy};
+  auto replica_subscriber =
+      std::make_unique<cloud_connection_internal::ReplicaSubscription>(
+          *this, std::move(subscriber), policy);
   // call the subscriber
-  replica_subscriber();
+  (*replica_subscriber)();
   // call the subscriber on server update
-  return servers_update_event().Subscribe(std::move(replica_subscriber));
+  return servers_update_event().Subscribe(
+      [rs{std::move(replica_subscriber)}]() { (*rs)(); });
 }
 
 void CloudConnection::VisitServers(ServerVisitor const& visitor,

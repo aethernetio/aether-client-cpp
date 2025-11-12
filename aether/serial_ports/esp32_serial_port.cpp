@@ -33,8 +33,8 @@ Esp32SerialPort::ReadAction::ReadAction(ActionContext action_context,
   poll_sub_ =
       poller->Add({serial_port_->uart_num_})
           .Subscribe(
-              *this,
-              MethodPtr<&Esp32SerialPort::ReadAction::ReadAction::PollEvent>{});
+              MethodPtr<&Esp32SerialPort::ReadAction::ReadAction::PollEvent>{
+                  this});
 }
 
 UpdateStatus Esp32SerialPort::ReadAction::Update() {

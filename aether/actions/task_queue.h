@@ -19,14 +19,14 @@
 
 #include <mutex>
 #include <vector>
-#include <functional>
 
 #include "aether/actions/action.h"
+#include "aether/types/small_function.h"
 
 namespace ae {
 class TaskQueue : public Action<TaskQueue> {
  public:
-  using Task = std::function<void()>;
+  using Task = SmallFunction<void()>;
 
   using Action::Action;
 

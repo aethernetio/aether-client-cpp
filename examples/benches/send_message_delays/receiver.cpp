@@ -44,14 +44,14 @@ void Receiver::Connect() {
               receive_message_stream_ = std::move(message_stream);
               recv_data_sub_ =
                   receive_message_stream_->out_data_event().Subscribe(
-                      *this, MethodPtr<&Receiver::OnRecvData>{});
+                      MethodPtr<&Receiver::OnRecvData>{this});
             } else {
               receive_message_safe_stream_ = make_unique<P2pSafeStream>(
                   action_context_, safe_stream_config_,
                   std::move(message_stream));
               recv_data_sub_ =
                   receive_message_stream_->out_data_event().Subscribe(
-                      *this, MethodPtr<&Receiver::OnRecvData>{});
+                      MethodPtr<&Receiver::OnRecvData>{this});
             }
           });
 }

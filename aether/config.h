@@ -382,6 +382,13 @@
 #  define AE_STATISTICS_MAX_SIZE (10 * 1024)  // 10 KB
 #endif
 
+#ifndef AE_EVENT_HANDLER_MAX_SIZE
+#  define AE_EVENT_HANDLER_MAX_SIZE (sizeof(void*) * 6)
+#endif
+#ifndef AE_EVENT_HANDLER_ALIGN
+#  define AE_EVENT_HANDLER_ALIGN (alignof(void*))
+#endif
+
 #ifndef NDEBUG
 #  define DEBUG 1
 #endif

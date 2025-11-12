@@ -58,8 +58,7 @@ ActionPtr<StreamWriteAction> LostPacketsStream::Write(
 
 void LostPacketsStream::LinkOut(ByteIStream& out) {
   out_ = &out;
-  out_data_sub_ = out_->out_data_event().Subscribe(
-      out_data_event_, MethodPtr<&OutDataEvent::Emit>{});
+  out_data_sub_ = out_->out_data_event().Subscribe(out_data_event_);
   stream_update_event_.Emit();
 }
 
@@ -114,8 +113,7 @@ ActionPtr<StreamWriteAction> PacketDelayStream::Write(
 
 void PacketDelayStream::LinkOut(ByteIStream& out) {
   out_ = &out;
-  out_data_sub_ = out_->out_data_event().Subscribe(
-      out_data_event_, MethodPtr<&OutDataEvent::Emit>{});
+  out_data_sub_ = out_->out_data_event().Subscribe(out_data_event_);
   stream_update_event_.Emit();
 }
 
