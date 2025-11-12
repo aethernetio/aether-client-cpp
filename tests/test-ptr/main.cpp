@@ -22,6 +22,7 @@ void tearDown() {}
 extern int test_rc_ptr();
 extern int test_rc_ptr_bench();
 extern int test_shared_ptr_bench();
+
 extern int run_test_ptr();
 extern int test_ptr_cycles();
 extern int test_ptr_view();

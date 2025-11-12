@@ -85,7 +85,9 @@ list(APPEND obj_srcs
         )
 
 list(APPEND ptr_srcs
-            "ptr/ptr_management.cpp"
+            "ptr/ptr.cpp"
+            "ptr/ptr_view.cpp"
+            "ptr/ref_tree.cpp"
         )
 
 list(APPEND events_srcs)
