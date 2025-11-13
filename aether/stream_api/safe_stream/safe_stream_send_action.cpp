@@ -16,22 +16,19 @@
 
 #include "aether/stream_api/safe_stream/safe_stream_send_action.h"
 
-#include <random>
+#include <cstdlib>
 
 #include "aether/tele/tele.h"
 
 namespace ae {
 namespace safe_stream_send_action_internal {
-auto GetRand() {
-  static std::random_device dev;
-  static std::mt19937 rng(dev());
-  static std::uniform_int_distribution<std::mt19937::result_type> dist6(
-      1, std::numeric_limits<std::uint32_t>::max());
-  return dist6(rng);
-}
-
 SSRingIndex RandomOffset() {
-  return SSRingIndex{static_cast<SSRingIndex::type>(GetRand())};
+  // set seed once
+  static bool const seed =
+      (std::srand(static_cast<unsigned int>(time(nullptr))), true);
+  (void)seed;
+  auto value = std::rand();
+  return SSRingIndex{static_cast<SSRingIndex::type>(value)};
 }
 }  // namespace safe_stream_send_action_internal
 

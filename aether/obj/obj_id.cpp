@@ -16,15 +16,16 @@
 
 #include "aether/obj/obj_id.h"
 
-#include <random>
-#include <limits>
+#include <cstdlib>
 
 namespace ae {
 ObjId ObjId::GenerateUnique() {
-  static std::random_device dev;
-  static std::mt19937 rng(dev());
-  static std::uniform_int_distribution<std::mt19937::result_type> dist6(
-      1, std::numeric_limits<Type>::max());
-  return ObjId{static_cast<ObjId::Type>(dist6(rng))};
+  // set seed once
+  static bool const seed =
+      (std::srand(static_cast<unsigned int>(time(nullptr))), true);
+  (void)seed;
+  // new id would be bigger than any user defined id
+  auto value = std::rand() + 10000;
+  return ObjId{static_cast<ObjId::Type>(value)};
 }
 }  // namespace ae
