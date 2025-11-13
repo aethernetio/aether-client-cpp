@@ -35,13 +35,13 @@ class MapDomainStorage : public IDomainStorage {
   using ObjClassData = std::unordered_map<ObjKey, ClassData>;
 
   std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuiery const& query) override;
+      DomainQuery const& query) override;
   ClassList Enumerate(ObjId const& obj_id) override;
-  DomainLoad Load(DomainQuiery const& query) override;
+  DomainLoad Load(DomainQuery const& query) override;
   void Remove(ObjId const& obj_id) override;
   void CleanUp() override;
 
-  void SaveData(DomainQuiery const& query, ObjectData&& data);
+  void SaveData(DomainQuery const& query, ObjectData&& data);
 
   ObjClassData map;
 };

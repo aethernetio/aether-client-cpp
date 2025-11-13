@@ -39,7 +39,7 @@ RegistrarDomainStorage::~RegistrarDomainStorage() {
 }
 
 std::unique_ptr<IDomainStorageWriter> RegistrarDomainStorage::Store(
-    DomainQuiery const& query) {
+    DomainQuery const& query) {
   return ram_storage.Store(query);
 }
 
@@ -47,7 +47,7 @@ ClassList RegistrarDomainStorage::Enumerate(const ObjId& obj_id) {
   return ram_storage.Enumerate(obj_id);
 }
 
-DomainLoad RegistrarDomainStorage::Load(DomainQuiery const& query) {
+DomainLoad RegistrarDomainStorage::Load(DomainQuery const& query) {
   return ram_storage.Load(query);
 }
 

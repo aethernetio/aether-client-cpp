@@ -45,7 +45,7 @@ class StaticDomainStorage final : public IDomainStorage {
       : static_domain_data_{&sdd} {}
 
   std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuiery const& /*query*/) override {
+      DomainQuery const& /*query*/) override {
     // does not supported
     return {};
   }
@@ -62,7 +62,7 @@ class StaticDomainStorage final : public IDomainStorage {
     return ClassList{std::begin(classes->second), std::end(classes->second)};
   }
 
-  DomainLoad Load(DomainQuiery const& query) override {
+  DomainLoad Load(DomainQuery const& query) override {
     // state_map is defined in FS_INIT
     auto obj_path = ObjectPathKey{query.id.id(), query.class_id, query.version};
     auto const data = static_domain_data_->state_map.find(obj_path);

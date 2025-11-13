@@ -22,7 +22,7 @@ SyncDomainStorage::SyncDomainStorage(std::unique_ptr<IDomainStorage> read_only,
     : read_only_{std::move(read_only)}, read_write_{std::move(read_write)} {}
 
 std::unique_ptr<IDomainStorageWriter> SyncDomainStorage::Store(
-    DomainQuiery const& query) {
+    DomainQuery const& query) {
   return read_write_->Store(query);
 }
 
@@ -34,7 +34,7 @@ ClassList SyncDomainStorage::Enumerate(ObjId const& obj_id) {
   return rw_list;
 }
 
-DomainLoad SyncDomainStorage::Load(DomainQuiery const& query) {
+DomainLoad SyncDomainStorage::Load(DomainQuery const& query) {
   auto rw_load = read_write_->Load(query);
   if (rw_load.result == DomainLoadResult::kEmpty) {
     return read_only_->Load(query);

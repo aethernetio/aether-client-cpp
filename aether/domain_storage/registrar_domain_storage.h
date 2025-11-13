@@ -31,9 +31,9 @@ class RegistrarDomainStorage : public IDomainStorage {
   ~RegistrarDomainStorage() override;
 
   std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuiery const& query) override;
+      DomainQuery const& query) override;
   ClassList Enumerate(ObjId const& obj_id) override;
-  DomainLoad Load(DomainQuiery const& query) override;
+  DomainLoad Load(DomainQuery const& query) override;
   void Remove(const ae::ObjId& obj_id) override;
   void CleanUp() override;
 
