@@ -20,7 +20,9 @@ list(APPEND other_aether_srcs
 )
 
 list(APPEND obj_srcs
-    ${ROOT_DIR}/aether/ptr/ptr_management.cpp
+    ${ROOT_DIR}/aether/ptr/ptr.cpp
+    ${ROOT_DIR}/aether/ptr/ptr_view.cpp
+    ${ROOT_DIR}/aether/ptr/ref_tree.cpp
     ${ROOT_DIR}/aether/obj/obj_ptr.cpp
     ${ROOT_DIR}/aether/obj/obj.cpp
     ${ROOT_DIR}/aether/obj/domain.cpp

@@ -21,57 +21,68 @@
 
 namespace ae {
 
+class PtrViewBase {
+ public:
+  PtrViewBase() noexcept : ptr_storage_{} {}
+  ~PtrViewBase() { Reset(); }
+
+  // Create/Assign
+  explicit PtrViewBase(PtrBase const& ptr_base) noexcept;
+  PtrViewBase& operator=(PtrBase const& ptr_base) noexcept;
+
+  // Copy
+  PtrViewBase(PtrViewBase const& other) noexcept;
+  PtrViewBase& operator=(PtrViewBase const& other) noexcept;
+
+  // Move
+  PtrViewBase(PtrViewBase&& other) noexcept;
+  PtrViewBase& operator=(PtrViewBase&& other) noexcept;
+
+  explicit operator bool() const noexcept;
+
+  void Reset() noexcept;
+
+ protected:
+  void Increment();
+  void Decrement();
+
+  PtrStorageBase* ptr_storage_;
+};
+
 template <typename T>
-class PtrView {
+class PtrView : public PtrViewBase {
   template <typename U>
   friend class PtrView;
 
  public:
-  PtrView() noexcept : ptr_storage_{} {}
-  ~PtrView() { Reset(); }
+  PtrView() noexcept : PtrViewBase{} {}
+  ~PtrView() = default;
 
   // Creation
   template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
   PtrView(Ptr<U> const& ptr) noexcept
-      : ptr_storage_{ptr.ptr_storage_},
-        ptr_{static_cast<T*>(ptr.ptr_)},
-        visitor_func_{ptr.visitor_func_} {
-    Increment();
-  }
+      : PtrViewBase{static_cast<PtrBase const&>(ptr)},
+        ptr_{static_cast<T*>(ptr.ptr_)} {}
 
   template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
   PtrView& operator=(Ptr<U> const& ptr) noexcept {
-    Reset();
-    ptr_storage_ = ptr.ptr_storage_;
+    PtrViewBase::operator=(static_cast<PtrBase const&>(ptr));
     ptr_ = static_cast<T*>(ptr.ptr_);
-    visitor_func_ = ptr.visitor_func_;
-    Increment();
     return *this;
   }
 
   // Copying
   PtrView(PtrView const& other) noexcept
-      : ptr_storage_{other.ptr_storage_},
-        ptr_{other.ptr_},
-        visitor_func_{other.visitor_func_} {
-    Increment();
-  }
+      : PtrViewBase{other}, ptr_{other.ptr_} {}
 
   template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
   PtrView(PtrView<U> const& other) noexcept
-      : ptr_storage_{other.ptr_storage_},
-        ptr_{static_cast<T*>(other.ptr_)},
-        visitor_func_{other.visitor_func_} {
-    Increment();
-  }
+      : PtrViewBase{other}, ptr_{static_cast<T*>(other.ptr_)} {}
 
   PtrView& operator=(PtrView const& other) noexcept {
     if (this != &other) {
-      Reset();
-      ptr_storage_ = other.ptr_storage_;
+      PtrViewBase::operator=(other);
       ptr_ = other.ptr_;
-      visitor_func_ = other.visitor_func_;
-      Increment();
     }
 
     return *this;
@@ -80,11 +91,8 @@ class PtrView {
   template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
   PtrView& operator=(PtrView<U> const& other) noexcept {
     if (this != &other) {
-      Reset();
-      ptr_storage_ = other.ptr_storage_;
+      PtrViewBase::operator=(other);
       ptr_ = static_cast<T*>(other.ptr_);
-      visitor_func_ = other.visitor_func_;
-      Increment();
     }
 
     return *this;
@@ -92,87 +100,39 @@ class PtrView {
 
   // Moving
   PtrView(PtrView&& other) noexcept
-      : ptr_storage_{other.ptr_storage_},
-        ptr_{other.ptr_},
-        visitor_func_{other.visitor_func_} {
-    other.ptr_storage_ = nullptr;
-  }
+      : PtrViewBase{std::move(other)}, ptr_{other.ptr_} {}
 
   template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
   PtrView(PtrView<U>&& other) noexcept
-      : ptr_storage_{other.ptr_storage_},
-        ptr_{static_cast<T*>(other.ptr_)},
-        visitor_func_{other.visitor_func_} {
-    other.ptr_storage_ = nullptr;
-  }
+      : PtrViewBase{std::move(other)}, ptr_{static_cast<T*>(other.ptr_)} {}
 
   PtrView& operator=(PtrView&& other) noexcept {
     if (this != &other) {
-      Reset();
-      std::swap(ptr_storage_, other.ptr_storage_);
+      PtrViewBase::operator=(std::move(other));
       ptr_ = other.ptr_;
-      visitor_func_ = other.visitor_func_;
     }
     return *this;
   }
 
   template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
   PtrView& operator=(PtrView<U>&& other) noexcept {
-    Reset();
-    std::swap(ptr_storage_, other.ptr_storage_);
+    PtrViewBase::operator=(std::move(other));
     ptr_ = static_cast<T*>(other.ptr_);
-    visitor_func_ = other.visitor_func_;
     return *this;
   }
+
+  using PtrViewBase::operator bool;
 
   // Access
   Ptr<T> Lock() const noexcept {
     if (operator bool()) {
-      return Ptr<T>{ptr_storage_, ptr_, visitor_func_};
+      return Ptr<T>{ptr_, ptr_storage_};
     }
     return Ptr<T>{nullptr};
   }
 
-  explicit operator bool() const noexcept {
-    return (ptr_storage_ != nullptr) ? ptr_storage_->ref_counters.main_refs != 0
-                                     : false;
-  }
-
-  // Modify
-  void Reset() noexcept {
-    if (ptr_storage_ == nullptr) {
-      return;
-    }
-
-    Decrement();
-
-    if ((ptr_storage_->ref_counters.main_refs == 0) &&
-        (ptr_storage_->ref_counters.weak_refs == 0)) {
-      auto alloc = std::allocator<std::uint8_t>{};
-      alloc.deallocate(reinterpret_cast<std::uint8_t*>(ptr_storage_),
-                       static_cast<std::size_t>(ptr_storage_->alloc_size));
-    }
-    ptr_storage_ = nullptr;
-  }
-
  private:
-  void Increment() {
-    if (ptr_storage_ == nullptr) {
-      return;
-    }
-    ptr_storage_->ref_counters.weak_refs += 1;
-  }
-
-  void Decrement() {
-    if (ptr_storage_ == nullptr) {
-      return;
-    }
-    ptr_storage_->ref_counters.weak_refs -= 1;
-  }
-
-  PtrStorageBase* ptr_storage_;
   T* ptr_;
-  typename Ptr<T>::VisitorFuncPtr visitor_func_;
 };
 
 template <typename U>

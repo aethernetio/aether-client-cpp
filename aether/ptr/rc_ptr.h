@@ -56,9 +56,7 @@ class RcPtr {
   RcPtr() noexcept : rc_storage_{nullptr} {}
   RcPtr(std::nullptr_t) noexcept : rc_storage_{nullptr} {}
   explicit RcPtr(RcStorage<T>* rc_storage) noexcept : rc_storage_{rc_storage} {
-    if (rc_storage_ != nullptr) {
-      Increment();
-    }
+    Increment();
   }
   ~RcPtr() { Reset(); }
 
@@ -69,9 +67,7 @@ class RcPtr {
     if (this != &other) {
       Reset();
       rc_storage_ = other.rc_storage_;
-      if (rc_storage_ != nullptr) {
-        Increment();
-      }
+      Increment();
     }
     return *this;
   }
@@ -97,12 +93,24 @@ class RcPtr {
     return (rc_storage_ != nullptr) ? rc_storage_->ptr() : nullptr;
   }
 
-  [[nodiscard]] T* operator->() noexcept { return get(); }
-  [[nodiscard]] T* operator->() const noexcept { return get(); }
-  [[nodiscard]] T& operator*() noexcept { return *get(); }
-  [[nodiscard]] T& operator*() const noexcept { return *get(); }
+  [[nodiscard]] T* operator->() noexcept {
+    assert((rc_storage_ != nullptr) && "Dereferencing a null pointer");
+    return get();
+  }
+  [[nodiscard]] T* operator->() const noexcept {
+    assert((rc_storage_ != nullptr) && "Dereferencing a null pointer");
+    return get();
+  }
+  [[nodiscard]] T& operator*() noexcept {
+    assert((rc_storage_ != nullptr) && "Dereferencing a null pointer");
+    return *get();
+  }
+  [[nodiscard]] T& operator*() const noexcept {
+    assert((rc_storage_ != nullptr) && "Dereferencing a null pointer");
+    return *get();
+  }
 
-  explicit operator bool() const { return rc_storage_ != nullptr; }
+  explicit operator bool() const noexcept { return rc_storage_ != nullptr; }
 
   // Modifying
   void Reset() {
@@ -112,14 +120,9 @@ class RcPtr {
 
     Decrement();
     if (rc_storage_->ref_counters.main_refs == 0) {
-      // prevent cycled rcptrviews delete rc_storage
-      rc_storage_->ref_counters.weak_refs += 1;
-      // Call destructor on T
-      rc_storage_->ptr()->~T();
-      rc_storage_->ref_counters.weak_refs -= 1;
+      Destroy();
       if (rc_storage_->ref_counters.weak_refs == 0) {
-        auto alloc = std::allocator<RcStorage<T>>{};
-        alloc.deallocate(rc_storage_, std::size_t{1});
+        Free();
       }
     }
     rc_storage_ = nullptr;
@@ -127,7 +130,25 @@ class RcPtr {
 
  private:
   void Decrement() noexcept { rc_storage_->ref_counters.main_refs -= 1; }
-  void Increment() noexcept { rc_storage_->ref_counters.main_refs += 1; }
+  void Increment() noexcept {
+    if (rc_storage_ == nullptr) {
+      return;
+    }
+    rc_storage_->ref_counters.main_refs += 1;
+  }
+
+  void Destroy() {
+    // prevent cycled rcptrviews delete rc_storage
+    rc_storage_->ref_counters.weak_refs += 1;
+    // Call destructor on T
+    rc_storage_->ptr()->~T();
+    rc_storage_->ref_counters.weak_refs -= 1;
+  }
+
+  void Free() noexcept {
+    auto alloc = std::allocator<RcStorage<T>>{};
+    alloc.deallocate(rc_storage_, std::size_t{1});
+  }
 
   RcStorage<T>* rc_storage_;
 };
@@ -139,12 +160,10 @@ template <typename T, typename... TArgs>
 auto MakeRcPtr(TArgs&&... args) noexcept {
   auto alloc = std::allocator<RcStorage<T>>{};
   auto* rc_storage = alloc.allocate(std::size_t{1});
-  assert(rc_storage != nullptr);
-  auto* constructed = new (rc_storage->ptr()) T(std::forward<TArgs>(args)...);
-  if (!constructed) {
-    alloc.deallocate(rc_storage, std::size_t{1});
-    return RcPtr<T>{};
-  }
+  assert((rc_storage != nullptr) && "Bad alloc!");
+  [[maybe_unused]] auto* constructed =
+      new (rc_storage->ptr()) T{std::forward<TArgs>(args)...};
+  assert(constructed != nullptr && "Construction failed!");
   rc_storage->ref_counters.main_refs = 0;
   rc_storage->ref_counters.weak_refs = 0;
   return RcPtr<T>{rc_storage};
@@ -177,9 +196,7 @@ class RcPtrView {
     if (this != &other) {
       Reset();
       rc_storage_ = other.rc_storage_;
-      if (rc_storage_ != nullptr) {
-        Increment();
-      }
+      Increment();
     }
     return *this;
   }
@@ -198,7 +215,7 @@ class RcPtrView {
   }
 
   // Access
-  OurRcPtr lock() noexcept {
+  [[nodiscard]] OurRcPtr lock() noexcept {
     if (rc_storage_ != nullptr) {
       if (rc_storage_->ref_counters.main_refs != 0) {
         return OurRcPtr{rc_storage_};
@@ -207,7 +224,7 @@ class RcPtrView {
     return OurRcPtr{};
   }
 
-  OurRcPtr lock() const noexcept {
+  [[nodiscard]] OurRcPtr lock() const noexcept {
     if (rc_storage_ != nullptr) {
       if (rc_storage_->ref_counters.main_refs != 0) {
         return OurRcPtr{rc_storage_};
@@ -230,8 +247,7 @@ class RcPtrView {
     Decrement();
     if ((rc_storage_->ref_counters.main_refs == 0) &&
         (rc_storage_->ref_counters.weak_refs == 0)) {
-      auto alloc = std::allocator<RcStorage<T>>{};
-      alloc.deallocate(rc_storage_, std::size_t{1});
+      Free();
     }
     rc_storage_ = nullptr;
   }
@@ -239,14 +255,20 @@ class RcPtrView {
  private:
   explicit RcPtrView(RcStorage<T>* rc_storage) noexcept
       : rc_storage_{rc_storage} {
-    if (rc_storage_ == nullptr) {
-      return;
-    }
     Increment();
   }
 
   void Decrement() noexcept { rc_storage_->ref_counters.weak_refs -= 1; }
-  void Increment() noexcept { rc_storage_->ref_counters.weak_refs += 1; }
+  void Increment() noexcept {
+    if (rc_storage_ == nullptr) {
+      return;
+    }
+    rc_storage_->ref_counters.weak_refs += 1;
+  }
+  void Free() noexcept {
+    auto alloc = std::allocator<RcStorage<T>>{};
+    alloc.deallocate(rc_storage_, std::size_t{1});
+  }
 
   RcStorage<T>* rc_storage_;
 };
