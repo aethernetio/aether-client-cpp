@@ -154,7 +154,8 @@ DataBuffer ReceiveChunkList::JoinChunks(
 void ReceiveChunkList::FixChunkOverlapsBegin(ReceivingChunk& overlapped,
                                              SSRingIndex expected_offset) {
   // fix offset and begin if chunks overlap
-  auto const distance = overlapped.offset.Distance(expected_offset);
+  auto const distance =
+      static_cast<std::ptrdiff_t>(overlapped.offset.Distance(expected_offset));
   overlapped.offset = expected_offset;
   overlapped.begin = ((overlapped.end - overlapped.begin) > distance)
                          ? overlapped.begin + distance
@@ -163,7 +164,8 @@ void ReceiveChunkList::FixChunkOverlapsBegin(ReceivingChunk& overlapped,
 
 void ReceiveChunkList::FixChunkOverlapsEnd(ReceivingChunk& overlapped,
                                            SSRingIndex expected_end) {
-  auto const distance = expected_end.Distance(overlapped.offset_range().right);
+  auto const distance = static_cast<std::ptrdiff_t>(
+      expected_end.Distance(overlapped.offset_range().right));
   overlapped.end = ((overlapped.end - overlapped.begin) > distance)
                        ? overlapped.end - distance
                        : overlapped.begin;
@@ -187,7 +189,8 @@ ReceiveChunkList::GetContinuousChunkChain(SSRingIndex start_chunks) {
 
   std::vector<std::pair<DataBuffer::iterator, DataBuffer::iterator>> res;
 
-  auto distance = from->offset.Distance(start_chunks);
+  auto distance =
+      static_cast<std::ptrdiff_t>(from->offset.Distance(start_chunks));
   res.emplace_back(from->begin + distance, from->end);
 
   auto it = std::next(from);

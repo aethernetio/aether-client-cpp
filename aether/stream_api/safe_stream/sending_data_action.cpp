@@ -61,7 +61,8 @@ void SendingDataAction::Stop() {
 bool SendingDataAction::Acknowledge(SSRingIndex offset) {
   assert(sending_data_.offset.IsBefore(offset));
 
-  auto distance = sending_data_.offset.Distance(offset);
+  auto distance =
+      static_cast<std::ptrdiff_t>(sending_data_.offset.Distance(offset));
   auto size = sending_data_.end - sending_data_.begin;
 
   sending_data_.begin =
