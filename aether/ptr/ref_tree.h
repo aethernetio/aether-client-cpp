@@ -40,7 +40,7 @@ class RefTree {
     bool ForEach(TFunc&& func, std::set<Index>&& visited = {}) noexcept {
       visited.insert(index);
       for (auto const& child_index : children_indices) {
-        if (auto next = func(tree->nodes_[child_index]); !next) {
+        if (auto next = func(tree->get(child_index)); !next) {
           break;
         }
       }

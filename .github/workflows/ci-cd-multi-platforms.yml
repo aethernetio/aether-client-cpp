@@ -27,11 +27,11 @@ jobs:
       matrix:
         config:
           - {
-              name: "Windows Latest MSVC",
+              name: "Windows MSVC x64",
               os: windows-latest,
-              platform: "msvc64",
               shell: "powershell",
               generator: "Visual Studio 17 2022",
+              arch: "x64",
               cc: "cl",
               cxx: "cl",
               cxx_flags: "",
@@ -40,9 +40,21 @@ jobs:
               distillation: On,
             }
           - {
-              name: "Windows Latest MinGW",
+              name: "Windows MSVC x86",
               os: windows-latest,
-              platform: "mingw64_gcc",
+              shell: "powershell",
+              generator: "Visual Studio 17 2022",
+              arch: "Win32",
+              cc: "cl",
+              cxx: "cl",
+              cxx_flags: "",
+              cxx_standard: 17,
+              build_type: Release,
+              distillation: On,
+            }
+          - {
+              name: "Windows MinGW",
+              os: windows-latest,
               shell: "msys2",
               generator: "Ninja",
               cc: "gcc",
@@ -53,9 +65,8 @@ jobs:
               distillation: On,
             }
           - {
-              name: "Ubuntu Latest GCC",
+              name: "Ubuntu GCC",
               os: ubuntu-latest,
-              platform: "linux_gcc",
               shell: "bash",
               generator: "Unix Makefiles",
               cc: "gcc",
@@ -66,9 +77,8 @@ jobs:
               distillation: On,
             }
           - {
-              name: "macOS Latest Clang",
+              name: "macOS Clang",
               os: [self-hosted, macOS, ARM64],
-              platform: "macos_clang",
               shell: "bash",
               generator: "Unix Makefiles",
               cc: "clang",
@@ -93,11 +103,11 @@ jobs:
 
     steps:
       - name: Set Windows enviroment
-        if: ${{ (matrix.config.platform == 'msvc64') }}
+        if: ${{ (matrix.config.os == 'windows-latest' && matrix.config.cc == 'cl') }}
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Set MinGW enviroment
-        if: ${{ (matrix.config.platform == 'mingw64_gcc') }}
+        if: ${{ (matrix.config.os == 'windows-latest' && matrix.config.cc == 'gcc') }}
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -110,13 +120,6 @@ jobs:
             gcc:p
           update: true
 
-      - name: Set Ubuntu environment
-        if: ${{ (runner.os == 'Linux') }}
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: libx11-dev
-          version: 1.0
-
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -127,6 +130,7 @@ jobs:
         run: >
           cmake -B build
           -G "${{ matrix.config.generator }}"
+          -A "${{ matrix.config.arch }}"
           -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }}
           -DCMAKE_C_COMPILER=${{ matrix.config.cc }}
           -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}

@@ -87,6 +87,21 @@ SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
   }
   return {};
 }
+
+LPFN_CONNECTEX GetConnectEx(SOCKET socket) {
+  LPFN_CONNECTEX func_ptr = nullptr;
+  GUID guid = WSAID_CONNECTEX;
+  DWORD bytes;
+  int rc =
+      WSAIoctl(socket, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid),
+               &func_ptr, sizeof(func_ptr), &bytes, NULL, NULL);
+  if (rc == SOCKET_ERROR || func_ptr == nullptr) {
+    AE_TELED_ERROR("ConnectEx load failed: {}", WSAGetLastError());
+    return nullptr;
+  }
+  return func_ptr;
+}
+
 }  // namespace win_socket_internal
 
 WinTcpSocket::WinTcpSocket()
@@ -132,7 +147,7 @@ WinTcpSocket::ConnectionState WinTcpSocket::Connect(
     IpAddressPort const& destination) {
   assert(socket_ != INVALID_SOCKET);
 
-  auto connect_ex = GetConnectEx();
+  auto connect_ex = win_socket_internal::GetConnectEx(socket_);
   if (connect_ex == nullptr) {
     return ConnectionState::kConnectionFailed;
   }
@@ -151,8 +166,10 @@ WinTcpSocket::ConnectionState WinTcpSocket::Connect(
 
   auto addr = win_socket_internal::GetSockAddr(destination);
 
-  if (!connect_ex(socket_, addr.addr(), static_cast<int>(addr.size), nullptr, 0,
-                  nullptr, reinterpret_cast<OVERLAPPED*>(&conn_overlapped_))) {
+  static_assert(std::is_same_v<decltype(socket_), SOCKET>);
+
+  if (!connect_ex(socket_, addr.addr(), static_cast<int>(addr.size), NULL, 0,
+                  NULL, reinterpret_cast<OVERLAPPED*>(&conn_overlapped_))) {
     auto err_code = WSAGetLastError();
     if (err_code != WSA_IO_PENDING) {
       AE_TELED_ERROR("Socket connect error {}", err_code);
@@ -201,20 +218,6 @@ void WinTcpSocket::Disconnect() {
   }
   closesocket(socket_);
   socket_ = INVALID_SOCKET;
-}
-
-WinTcpSocket::ConnectExPtr WinTcpSocket::GetConnectEx() {
-  ConnectExPtr func_ptr = nullptr;
-  GUID guid = WSAID_CONNECTEX;
-  DWORD bytes;
-  int rc =
-      WSAIoctl(socket_, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid),
-               &func_ptr, sizeof(func_ptr), &bytes, NULL, NULL);
-  if (rc == SOCKET_ERROR || func_ptr == nullptr) {
-    AE_TELED_ERROR("ConnectEx load failed: {}", WSAGetLastError());
-    return nullptr;
-  }
-  return func_ptr;
 }
 
 bool WinTcpSocket::InitConnection() {

@@ -26,9 +26,6 @@
 
 namespace ae {
 class WinTcpSocket final : public WinSocket {
-  using ConnectExPtr = bool (*)(DescriptorType::Socket, sockaddr const*, int,
-                                void*, DWORD, LPDWORD, LPOVERLAPPED);
-
  public:
   WinTcpSocket();
   ~WinTcpSocket() override;
@@ -38,7 +35,6 @@ class WinTcpSocket final : public WinSocket {
   void Disconnect() override;
 
  private:
-  ConnectExPtr GetConnectEx();
   bool InitConnection();
 
   bool connection_initiated_{false};

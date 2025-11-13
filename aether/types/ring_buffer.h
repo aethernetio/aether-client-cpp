@@ -32,7 +32,8 @@ namespace ae {
  * start from zero
  * The window size is set as Max/2 - 1.
  */
-template <typename T, T Max = std::numeric_limits<T>::max()>
+template <typename T, T Max = std::numeric_limits<T>::max(),
+          AE_REQUIRERS((std::is_integral<T>))>
 struct RingIndex {
   using type = T;
   static constexpr T max = Max;

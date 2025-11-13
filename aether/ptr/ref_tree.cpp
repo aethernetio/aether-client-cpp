@@ -62,6 +62,8 @@ RefTree::Node& RefTree::Emplace(Value value) {
 RefTree::Node& RefTree::get(Index index) {
   assert((static_cast<std::size_t>(index) < nodes_.size()) &&
          "Index out of bounds");
-  return nodes_[static_cast<std::size_t>(index)];
+  auto& node = nodes_[static_cast<std::size_t>(index)];
+  node.tree = this;
+  return node;
 }
 }  // namespace ae
