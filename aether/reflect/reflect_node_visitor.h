@@ -22,10 +22,8 @@
 #include "aether/reflect/reflect_impl.h"
 #include "aether/reflect/node_visitor.h"
 #include "aether/reflect/cycle_detector.h"
-#include "aether/reflect/domain_visitor_impl.h"
 
 namespace ae::reflect {
-
 // For reflectable classes
 template <typename T>
 struct NodeVisitor<T, std::enable_if_t<IsReflectable<T>::value>> {
@@ -34,17 +32,21 @@ struct NodeVisitor<T, std::enable_if_t<IsReflectable<T>::value>> {
   // for non const
   template <typename Visitor>
   void Visit(T& obj, CycleDetector& cycle_detector, Visitor&& visitor) const {
-    auto reflection = Reflection{obj};
-    reflection.Apply([&](auto&... fields) {
-      (ApplyVisit(fields, cycle_detector, std::forward<Visitor>(visitor)), ...);
-    });
+    VisitImpl(obj, cycle_detector, std::forward<Visitor>(visitor));
   }
 
   // for const
   template <typename Visitor>
   void Visit(T const& obj, CycleDetector& cycle_detector,
              Visitor&& visitor) const {
-    auto reflection = Reflection{obj};
+    VisitImpl(obj, cycle_detector, std::forward<Visitor>(visitor));
+  }
+
+  // universal
+  template <typename U, typename Visitor>
+  void VisitImpl(U&& obj, CycleDetector& cycle_detector,
+                 Visitor&& visitor) const {
+    auto reflection = Reflection{std::forward<U>(obj)};
     reflection.Apply([&](auto&... fields) {
       (ApplyVisit(fields, cycle_detector, std::forward<Visitor>(visitor)), ...);
     });

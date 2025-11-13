@@ -20,7 +20,6 @@
 #include <utility>
 #include <type_traits>
 
-#include "aether/common.h"
 #include "aether/reflect/node_visitor.h"
 #include "aether/reflect/cycle_detector.h"
 
@@ -30,12 +29,12 @@ template <typename Visitor, int policy>
 struct DomainNodeVisitor {
   static constexpr auto kPolicy = policy;
 
-  constexpr DomainNodeVisitor(Visitor vis)
+  explicit constexpr DomainNodeVisitor(Visitor vis)
       : visitor{std::forward<Visitor>(vis)} {}
 
   template <typename U>
   auto operator()(U&& val) {
-    return std::forward<Visitor>(visitor)(std::forward<U>(val));
+    return std::invoke(std::forward<Visitor>(visitor), std::forward<U>(val));
   }
 
   Visitor visitor;

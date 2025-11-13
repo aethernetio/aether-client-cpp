@@ -19,6 +19,7 @@
 
 #include <utility>
 #include <type_traits>
+#include <functional>
 
 #include "aether/reflect/cycle_detector.h"
 
@@ -54,19 +55,24 @@ template <typename U, typename Visitor>
 bool CallVisitor(U&& obj, Visitor&& visitor) {
   if constexpr (std::is_same_v<bool, std::invoke_result_t<Visitor, U>>) {
     // do not propagate on false
-    return std::forward<Visitor>(visitor)(std::forward<U>(obj));
+    return std::invoke(std::forward<Visitor>(visitor), std::forward<U>(obj));
   } else {
-    std::forward<Visitor>(visitor)(std::forward<U>(obj));
-  return true;
+    std::invoke(std::forward<Visitor>(visitor), std::forward<U>(obj));
+    return true;
   }
 }
+
+template <typename T, typename Visitor>
+void DomainVisit(CycleDetector& cycle_detector, T&& obj, Visitor&& visitor);
 
 template <typename U, typename Visitor>
 void ApplyVisitor(U&& obj, CycleDetector& cycle_detector, Visitor&& visitor) {
   if constexpr ((Visitor::kPolicy != VisitPolicy::kAny) &&
                 PolicyMatch<VisitPolicy::kShallow>::Match(Visitor::kPolicy)) {
+    // Call visitor only on current node
     CallVisitor(std::forward<U>(obj), std::forward<Visitor>(visitor));
   } else {
+    // Call visitor on current node and go deeper with new DomainVisit
     if (CallVisitor(std::forward<U>(obj), std::forward<Visitor>(visitor))) {
       DomainVisit(cycle_detector, std::forward<U>(obj),
                   std::forward<Visitor>(visitor));

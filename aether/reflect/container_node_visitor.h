@@ -20,13 +20,9 @@
 #include <utility>
 #include <type_traits>
 
-#include <map>
-
-#include "aether/common.h"
 #include "aether/type_traits.h"
 #include "aether/reflect/node_visitor.h"
 #include "aether/reflect/cycle_detector.h"
-#include "aether/reflect/domain_visitor_impl.h"
 
 namespace ae::reflect {
 namespace container_node_visitor_internal {
@@ -58,16 +54,20 @@ struct NodeVisitor<
   // for non const
   template <typename Visitor>
   void Visit(T& obj, CycleDetector& cycle_detector, Visitor&& visitor) const {
-    for (auto& v : obj) {
-      ApplyVisit(v, cycle_detector, std::forward<Visitor>(visitor));
-    }
+    VisitImpl(obj, cycle_detector, std::forward<Visitor>(visitor));
   }
 
   // for const
   template <typename Visitor>
   void Visit(T const& obj, CycleDetector& cycle_detector,
              Visitor&& visitor) const {
-    for (auto const& v : obj) {
+    VisitImpl(obj, cycle_detector, std::forward<Visitor>(visitor));
+  }
+
+  template <typename U, typename Visitor>
+  void VisitImpl(U&& obj, CycleDetector& cycle_detector,
+                 Visitor&& visitor) const {
+    for (auto& v : obj) {
       ApplyVisit(v, cycle_detector, std::forward<Visitor>(visitor));
     }
   }
