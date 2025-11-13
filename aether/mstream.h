@@ -43,7 +43,7 @@
 #include <unordered_map>
 
 #include "aether/reflect/reflect.h"
-#include "aether/reflect/domain_visitor.h"
+#include "aether/reflect/domain_visitor.h"  // IWYU pragma: keep
 
 namespace ae {
 

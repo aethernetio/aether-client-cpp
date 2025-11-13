@@ -31,34 +31,31 @@ ObjectPtrBase::ObjectPtrBase(Obj* ptr) : ptr_{ptr}, id_{}, flags_{} {
 
 ObjectPtrBase::ObjectPtrBase(ObjectPtrBase const& ptr) noexcept = default;
 
-ObjectPtrBase::ObjectPtrBase(ObjectPtrBase&& ptr) noexcept
-    : ptr_{ptr.ptr_}, id_{ptr.id_}, flags_{ptr.flags_} {
-  ptr.ptr_ = nullptr;
-  ptr.id_ = {};
-  ptr.flags_ = {};
-}
+ObjectPtrBase::ObjectPtrBase(ObjectPtrBase&& ptr) noexcept = default;
 
 void ObjectPtrBase::SetId(ObjId id) {
   id_ = id;
-  if (ptr_) {
+  if (ptr_ != nullptr) {
     ptr_->id_ = id;
   }
 }
 void ObjectPtrBase::SetFlags(ObjFlags flags) {
   flags_ = flags;
-  if (ptr_) {
+  if (ptr_ != nullptr) {
     ptr_->flags_ = flags;
   }
 }
 
-ObjId ObjectPtrBase::GetId() const { return ptr_ ? ptr_->id_ : id_; }
+ObjId ObjectPtrBase::GetId() const {
+  return (ptr_ != nullptr) ? ptr_->id_ : id_;
+}
 ObjFlags ObjectPtrBase::GetFlags() const {
-  return ptr_ ? ptr_->flags_ : flags_;
+  return (ptr_ != nullptr) ? ptr_->flags_ : flags_;
 }
 
 ObjectPtrBase& ObjectPtrBase::operator=(Obj* ptr) noexcept {
   ptr_ = ptr;
-  if (ptr_) {
+  if (ptr_ != nullptr) {
     id_ = ptr_->id_;
     flags_ = ptr_->flags_;
   } else {
@@ -71,16 +68,6 @@ ObjectPtrBase& ObjectPtrBase::operator=(Obj* ptr) noexcept {
 ObjectPtrBase& ObjectPtrBase::operator=(ObjectPtrBase const& ptr) noexcept =
     default;
 
-ObjectPtrBase& ObjectPtrBase::operator=(ObjectPtrBase&& ptr) noexcept {
-  if (this != &ptr) {
-    ptr_ = ptr.ptr_;
-    id_ = ptr.id_;
-    flags_ = ptr.flags_;
-    ptr.ptr_ = nullptr;
-    ptr.id_ = {};
-    ptr.flags_ = {};
-  }
-  return *this;
-}
+ObjectPtrBase& ObjectPtrBase::operator=(ObjectPtrBase&& ptr) noexcept = default;
 
 }  // namespace ae

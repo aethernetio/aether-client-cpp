@@ -24,7 +24,9 @@
 namespace ae {
 
 Domain::Domain(TimePoint p, IDomainStorage& storage)
-    : update_time_{p}, storage_(&storage), registry_{Registry::GetRegistry()} {}
+    : update_time_{p},
+      storage_(&storage),
+      registry_{&Registry::GetRegistry()} {}
 
 TimePoint Domain::Update(TimePoint current_time) {
   update_time_ = current_time;
@@ -57,11 +59,11 @@ ObjPtr<Obj> Domain::ConstructObj(Factory const& factory, ObjId obj_id) {
 }
 
 bool Domain::IsLast(uint32_t class_id) const {
-  return registry_.relations.find(class_id) == registry_.relations.end();
+  return registry_->relations.find(class_id) == registry_->relations.end();
 }
 
 bool Domain::IsExisting(uint32_t class_id) const {
-  return registry_.IsExisting(class_id);
+  return registry_->IsExisting(class_id);
 }
 
 ObjPtr<Obj> Domain::Find(ObjId obj_id) const {
@@ -94,10 +96,10 @@ Factory* Domain::GetMostRelatedFactory(ObjId id) {
   // from base to derived.
   std::sort(std::begin(classes), std::end(classes),
             [this](auto left, auto right) {
-              if (registry_.GenerationDistance(right, left) > 0) {
+              if (registry_->GenerationDistance(right, left) > 0) {
                 return false;
               }
-              if (registry_.GenerationDistance(left, right) >= 0) {
+              if (registry_->GenerationDistance(left, right) >= 0) {
                 return true;
               }
               // All classes must be in one inheritance chain.
@@ -106,10 +108,10 @@ Factory* Domain::GetMostRelatedFactory(ObjId id) {
             });
 
   // Find the Final class for the most derived class provided and create it.
-  for (auto& f : registry_.factories) {
+  for (auto& f : registry_->factories) {
     if (IsLast(f.first)) {
       // check with most derived class
-      int distance = registry_.GenerationDistance(classes.back(), f.first);
+      int distance = registry_->GenerationDistance(classes.back(), f.first);
       if (distance >= 0) {
         return &f.second;
       }
@@ -120,7 +122,26 @@ Factory* Domain::GetMostRelatedFactory(ObjId id) {
 }
 
 Factory* Domain::FindClassFactory(Obj const& obj) {
-  return registry_.FindFactory(obj.GetClassId());
+  return registry_->FindFactory(obj.GetClassId());
+}
+
+std::unique_ptr<IDomainStorageReader> Domain::GetReader(
+    DomainQuery const& query) {
+  auto load = storage_->Load(query);
+  if ((load.result == DomainLoadResult::kEmpty) ||
+      (load.result == DomainLoadResult::kRemoved)) {
+    load.reader = std::make_unique<DomainStorageReaderEmpty>();
+  }
+
+  assert(load.reader && "Reader must be created!");
+  return std::move(load.reader);
+}
+
+std::unique_ptr<IDomainStorageWriter> Domain::GetWriter(
+    DomainQuery const& query) {
+  auto writer = storage_->Store(query);
+  assert(writer && "Writer must be created!");
+  return writer;
 }
 
 ObjPtr<Obj> Domain::LoadRootImpl(ObjId obj_id, ObjFlags obj_flags) {
@@ -153,8 +174,6 @@ void Domain::SaveRootImpl(ObjPtr<Obj> const& ptr) {
 }
 
 ObjPtr<Obj> Domain::LoadCopyImpl(ObjPtr<Obj> const& ref, ObjId copy_id) {
-  cycle_detector_ = {};
-
   auto obj_id = ref.GetId();
   auto obj_flags = ref.GetFlags();
   if (!obj_id.IsValid() || !copy_id.IsValid()) {
@@ -181,4 +200,29 @@ ObjPtr<Obj> Domain::LoadCopyImpl(ObjPtr<Obj> const& ref, ObjId copy_id) {
   ptr.SetId(copy_id);
   return ptr;
 }
+
+imstream<DomainBufferReader>& operator>>(imstream<DomainBufferReader>& is,
+                                         ObjPtr<Obj>& ptr) {
+  ObjId id;
+  ObjFlags flags;
+  is >> id >> flags;
+  if ((flags & ObjFlags::kUnloadedByDefault) || (flags & ObjFlags::kUnloaded)) {
+    ptr.SetId(id);
+    ptr.SetFlags(flags);
+    return is;
+  }
+
+  ptr = is.ib_.domain->LoadRootImpl(id, flags);
+  return is;
+}
+
+omstream<DomainBufferWriter>& operator<<(omstream<DomainBufferWriter>& os,
+                                         ObjPtr<Obj> const& ptr) {
+  auto id = ptr.GetId();
+  auto flags = ptr.GetFlags();
+  os << id << flags;
+  os.ob_.domain->SaveRootImpl(ptr);
+  return os;
+}
+
 }  // namespace ae

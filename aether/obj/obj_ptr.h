@@ -23,7 +23,7 @@
 
 #include "aether/ptr/ptr.h"
 #include "aether/obj/obj_id.h"
-#include "aether/reflect/domain_visitor.h"
+#include "aether/reflect/domain_visitor.h"  // IWYU pragma: keep
 
 namespace ae {
 class Obj;
