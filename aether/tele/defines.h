@@ -42,31 +42,39 @@ using ae::tele::Tele;
 AE_TELE_MODULE(MLog, AE_LOG_MODULE, AE_LOG_MODULE, AE_LOG_MODULE);
 AE_TAG(kLog, MLog)
 
-#define AE_TELE_(TAG, LEVEL, ...)                                              \
-  [[maybe_unused]] auto AE_UNIQUE_NAME(TELE_) =                                \
-      ::ae::tele::Tele<TELE_SINK,                                              \
-                       typename TELE_SINK::TeleConfig<LEVEL, TAG.module.id>> { \
-    TELE_SINK::Instance(), TAG, ::ae::tele::Level{LEVEL}, __FILE__, __LINE__,  \
-        __VA_ARGS__                                                            \
+#define AE_TELE_(TAG_NAME, TAG, LEVEL, ...)                                   \
+  [[maybe_unused]] auto TAG_NAME =                                            \
+      ::ae::tele::Tele<TELE_SINK,                                             \
+                       typename TELE_SINK::TeleConfig<LEVEL, TAG.module.id>>{ \
+          TELE_SINK::Instance(), TAG};                                        \
+  {                                                                           \
+    auto log_collector = TAG_NAME.LogCollector();                             \
+    log_collector.InvokeTime();                                               \
+    log_collector.LevelModule(::ae::tele::Level{LEVEL});                      \
+    log_collector.Location(__FILE__, __LINE__);                               \
+    log_collector.TagName(TAG.name);                                          \
+    log_collector.Blob(__VA_ARGS__);                                          \
   }
 
-#define AE_TELE_DEBUG(TAG_NAME, ...) \
-  AE_TELE_(TAG_NAME, ::ae::tele::Level::kDebug, __VA_ARGS__)
-#define AE_TELE_INFO(TAG_NAME, ...) \
-  AE_TELE_(TAG_NAME, ::ae::tele::Level::kInfo, __VA_ARGS__)
-#define AE_TELE_WARNING(TAG_NAME, ...) \
-  AE_TELE_(TAG_NAME, ::ae::tele::Level::kWarning, __VA_ARGS__)
-#define AE_TELE_ERROR(TAG_NAME, ...) \
-  AE_TELE_(TAG_NAME, ::ae::tele::Level::kError, __VA_ARGS__)
+#define AE_TELE_DEBUG(TAG, ...) \
+  AE_TELE_(AE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kDebug, __VA_ARGS__)
+#define AE_TELE_INFO(TAG, ...) \
+  AE_TELE_(AE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kInfo, __VA_ARGS__)
+#define AE_TELE_WARNING(TAG, ...) \
+  AE_TELE_(AE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kWarning, __VA_ARGS__)
+#define AE_TELE_ERROR(TAG, ...) \
+  AE_TELE_(AE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kError, __VA_ARGS__)
 
 // For simple logging
 #define AE_TELED_DEBUG(...) \
-  AE_TELE_(kLog, ::ae::tele::Level::kDebug, __VA_ARGS__)
-#define AE_TELED_INFO(...) AE_TELE_(kLog, ::ae::tele::Level::kInfo, __VA_ARGS__)
-#define AE_TELED_WARNING(...) \
-  AE_TELE_(kLog, ::ae::tele::Level::kWarning, __VA_ARGS__)
+  AE_TELE_(AE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kDebug, __VA_ARGS__)
+#define AE_TELED_INFO(...) \
+  AE_TELE_(AE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kInfo, __VA_ARGS__)
+#define AE_TELED_WARNING(...)                                        \
+  AE_TELE_(AE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kWarning, \
+           __VA_ARGS__)
 #define AE_TELED_ERROR(...) \
-  AE_TELE_(kLog, ::ae::tele::Level::kError, __VA_ARGS__)
+  AE_TELE_(AE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kError, __VA_ARGS__)
 
 // Log environment data
 #define AE_TELE_ENV(...)                                                      \
