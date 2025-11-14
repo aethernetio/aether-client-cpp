@@ -21,7 +21,7 @@
 namespace ae {
 class MapDomainStorageWriter final : public IDomainStorageWriter {
  public:
-  MapDomainStorageWriter(DomainQuiery q, MapDomainStorage& s)
+  MapDomainStorageWriter(DomainQuery q, MapDomainStorage& s)
       : query{std::move(q)}, storage{&s}, vector_writer{data} {}
   ~MapDomainStorageWriter() override {
     storage->SaveData(query, std::move(data));
@@ -31,7 +31,7 @@ class MapDomainStorageWriter final : public IDomainStorageWriter {
     vector_writer.write(data, size);
   }
 
-  DomainQuiery query;
+  DomainQuery query;
   MapDomainStorage* storage;
   ObjectData data;
   VectorWriter<IDomainStorageWriter::size_type> vector_writer;
@@ -52,7 +52,7 @@ class MapDomainStorageReader final : public IDomainStorageReader {
 };
 
 std::unique_ptr<IDomainStorageWriter> MapDomainStorage::Store(
-    DomainQuiery const& query) {
+    DomainQuery const& query) {
   return std::make_unique<MapDomainStorageWriter>(query, *this);
 }
 
@@ -69,7 +69,7 @@ ClassList MapDomainStorage::Enumerate(ObjId const& obj_id) {
   return classes;
 }
 
-DomainLoad MapDomainStorage::Load(DomainQuiery const& query) {
+DomainLoad MapDomainStorage::Load(DomainQuery const& query) {
   auto obj_map_it = map.find(query.id.id());
   if (obj_map_it == std::end(map)) {
     return DomainLoad{DomainLoadResult::kEmpty, {}};
@@ -104,7 +104,7 @@ void MapDomainStorage::Remove(ObjId const& obj_id) {
 
 void MapDomainStorage::CleanUp() { map.clear(); }
 
-void MapDomainStorage::SaveData(DomainQuiery const& query, ObjectData&& data) {
+void MapDomainStorage::SaveData(DomainQuery const& query, ObjectData&& data) {
   map[query.id.id()][query.class_id][query.version] = std::move(data);
 }
 

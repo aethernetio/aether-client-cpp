@@ -34,7 +34,7 @@ enum class DomainLoadResult : std::uint8_t {
 using ObjectData = std::vector<std::uint8_t>;
 using ClassList = std::vector<std::uint32_t>;
 
-struct DomainQuiery {
+struct DomainQuery {
   ObjId id;
   std::uint32_t class_id;
   std::uint8_t version;
@@ -75,7 +75,7 @@ class IDomainStorage {
    * \brief Store an ObjectData by query.
    */
   virtual std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuiery const& query) = 0;
+      DomainQuery const& query) = 0;
   /**
    * \brief Enumerate all classes for object.
    */
@@ -83,7 +83,7 @@ class IDomainStorage {
   /**
    * \brief Load object data by query.
    */
-  virtual DomainLoad Load(DomainQuiery const& query) = 0;
+  virtual DomainLoad Load(DomainQuery const& query) = 0;
 
   /**
    * \brief Remove object data by query

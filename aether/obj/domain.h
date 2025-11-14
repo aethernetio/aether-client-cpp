@@ -58,13 +58,9 @@ struct DomainCycleDetector {
   };
 
   template <typename T>
-  bool IsVisited(T const* obj) const {
-    auto node = Node{obj->GetId(), T::kClassId};
-    return visited_nodes.find(node) != visited_nodes.end();
-  }
-  template <typename T>
-  void Add(T const* obj) {
-    visited_nodes.insert(Node{obj->GetId(), T::kClassId});
+  bool Add(T const* obj) {
+    auto [_, ok] = visited_nodes.insert(Node{obj->GetId(), T::kClassId});
+    return ok;
   }
 
   std::set<Node> visited_nodes;
@@ -159,19 +155,23 @@ class Domain {
   Factory* GetMostRelatedFactory(ObjId id);
   Factory* FindClassFactory(Obj const& obj);
 
+  std::unique_ptr<IDomainStorageReader> GetReader(DomainQuery const& query);
+  std::unique_ptr<IDomainStorageWriter> GetWriter(DomainQuery const& query);
+
   TimePoint update_time_;
   IDomainStorage* storage_;
-  Registry& registry_;
+  Registry* registry_;
 
-  std::map<std::uint32_t, PtrView<Obj>> id_objects_{};
+  std::map<ObjId::Type, PtrView<Obj>> id_objects_;
 
   DomainCycleDetector cycle_detector_{};
 };
 
 template <typename TClass, typename... TArgs>
 ObjPtr<TClass> Domain::CreateObj(ObjId obj_id, TArgs&&... args) {
-  static_assert(std::is_constructible_v<TClass, TArgs..., Domain*>,
-                "Class must be constructible passed arguments and Domain*");
+  static_assert(
+      std::is_constructible_v<TClass, TArgs..., Domain*>,
+      "Class must be constructible with passed arguments and Domain*");
 
   // allocate object first and add it to the list
   auto object = ObjPtr{MakePtr<TClass>(std::forward<TArgs>(args)..., this)};
@@ -211,15 +211,15 @@ void Domain::SaveRoot(ObjPtr<T> const& ptr) {
 
 template <typename T>
 ObjPtr<T> Domain::LoadCopy(ObjPtr<T> const& ref, ObjId copy_id) {
+  cycle_detector_ = {};
   return ObjPtr<T>{LoadCopyImpl(ref, copy_id)};
 }
 
 template <typename T>
 void Domain::Load(T& obj) {
-  if (cycle_detector_.IsVisited(&obj)) {
+  if (!cycle_detector_.Add(&obj)) {
     return;
   }
-  cycle_detector_.Add(&obj);
 
   if constexpr (HasAnyVersionedLoad<T>::value) {
     constexpr auto version_bounds = VersionedLoadMinMax<T>::value;
@@ -234,14 +234,8 @@ void Domain::Load(T& obj) {
 
 template <typename T, auto V>
 void Domain::LoadVersion(Version<V> version, T& obj) {
-  auto load = storage_->Load({obj.GetId(), T::kClassId, V});
-  if ((load.result == DomainLoadResult::kEmpty) ||
-      (load.result == DomainLoadResult::kRemoved)) {
-    load.reader = std::make_unique<DomainStorageReaderEmpty>();
-  }
-
-  assert(load.reader);
-  DomainBufferReader reader{this, *load.reader};
+  auto storage_reader = GetReader({obj.GetId(), T::kClassId, V});
+  DomainBufferReader reader{this, *storage_reader};
   imstream is(reader);
 
   auto visitor_func = [&is](auto& value) {
@@ -251,20 +245,19 @@ void Domain::LoadVersion(Version<V> version, T& obj) {
 
   // if T has any versioned, it also must have Load for this version
   if constexpr (HasAnyVersionedLoad<T>::value) {
-    VersionNodeVisitor visitor{visitor_func};
+    VersionNodeVisitor visitor{std::move(visitor_func)};
     obj.Load(version, visitor);
   } else {
     // load or deserialize object
-    reflect::DomainVisit(obj, visitor_func);
+    reflect::DomainVisit(obj, std::move(visitor_func));
   }
 }
 
 template <typename T>
 void Domain::Save(T const& obj) {
-  if (cycle_detector_.IsVisited(&obj)) {
+  if (!cycle_detector_.Add(&obj)) {
     return;
   }
-  cycle_detector_.Add(&obj);
 
   if constexpr (HasAnyVersionedSave<T>::value) {
     constexpr auto version_bounds = VersionedSaveMinMax<T>::value;
@@ -279,9 +272,7 @@ void Domain::Save(T const& obj) {
 
 template <typename T, auto V>
 void Domain::SaveVersion(Version<V> version, T const& obj) {
-  auto storage_writer =
-      storage_->Store({obj.GetId(), T::kClassId, Version<V>::value});
-  assert(storage_writer);
+  auto storage_writer = GetWriter({obj.GetId(), T::kClassId, V});
   DomainBufferWriter writer{this, *storage_writer};
   omstream os(writer);
 
@@ -291,7 +282,7 @@ void Domain::SaveVersion(Version<V> version, T const& obj) {
   };
 
   if constexpr (HasAnyVersionedSave<T>::value) {
-    VersionNodeVisitor visitor{visitor_func};
+    VersionNodeVisitor visitor{std::move(visitor_func)};
     obj.Save(version, visitor);
   } else {
     // load or deserialize object
@@ -299,29 +290,26 @@ void Domain::SaveVersion(Version<V> version, T const& obj) {
   }
 }
 
-template <typename T>
+imstream<DomainBufferReader>& operator>>(imstream<DomainBufferReader>& is,
+                                         ObjPtr<Obj>& ptr);
+
+omstream<DomainBufferWriter>& operator<<(omstream<DomainBufferWriter>& os,
+                                         ObjPtr<Obj> const& ptr);
+
+template <typename T, AE_REQUIRERS_NOT((std::is_same<Obj, T>))>
 imstream<DomainBufferReader>& operator>>(imstream<DomainBufferReader>& is,
                                          ObjPtr<T>& ptr) {
-  ObjId id;
-  ObjFlags flags;
-  is >> id >> flags;
-  if ((flags & ObjFlags::kUnloadedByDefault) || (flags & ObjFlags::kUnloaded)) {
-    ptr.SetId(id);
-    ptr.SetFlags(flags);
-    return is;
-  }
-
-  ptr = is.ib_.domain->LoadRootImpl(id, flags);
+  auto obj_ptr = ObjPtr<Obj>{};
+  is >> obj_ptr;
+  ptr = obj_ptr;
   return is;
 }
 
-template <typename T>
+template <typename T, AE_REQUIRERS_NOT((std::is_same<Obj, T>))>
 omstream<DomainBufferWriter>& operator<<(omstream<DomainBufferWriter>& os,
                                          ObjPtr<T> const& ptr) {
-  auto id = ptr.GetId();
-  auto flags = ptr.GetFlags();
-  os << id << flags;
-  os.ob_.domain->SaveRootImpl(ptr);
+  auto obj_ptr = ObjPtr<Obj>{ptr};
+  os << obj_ptr;
   return os;
 }
 

@@ -26,7 +26,7 @@
 namespace ae {
 class RamDomainStorageWriter final : public IDomainStorageWriter {
  public:
-  RamDomainStorageWriter(DomainQuiery q, RamDomainStorage& s)
+  RamDomainStorageWriter(DomainQuery q, RamDomainStorage& s)
       : query{std::move(q)}, storage{&s}, vector_writer{data_buffer} {
     assert(!storage->write_lock);
   }
@@ -38,7 +38,7 @@ class RamDomainStorageWriter final : public IDomainStorageWriter {
     vector_writer.write(data, size);
   }
 
-  DomainQuiery query;
+  DomainQuery query;
   RamDomainStorage* storage;
   ObjectData data_buffer;
   VectorWriter<IDomainStorageWriter::size_type> vector_writer;
@@ -67,7 +67,7 @@ RamDomainStorage::RamDomainStorage() = default;
 RamDomainStorage::~RamDomainStorage() = default;
 
 std::unique_ptr<IDomainStorageWriter> RamDomainStorage::Store(
-    DomainQuiery const& query) {
+    DomainQuery const& query) {
   return std::make_unique<RamDomainStorageWriter>(query, *this);
 }
 
@@ -92,7 +92,7 @@ ClassList RamDomainStorage::Enumerate(ObjId const& obj_id) {
   return classes;
 }
 
-DomainLoad RamDomainStorage::Load(DomainQuiery const& query) {
+DomainLoad RamDomainStorage::Load(DomainQuery const& query) {
   auto obj_map_it = state.find(query.id);
   if (obj_map_it == std::end(state)) {
     AE_TELE_ERROR(kRamDsLoadObjIdNoFound,
@@ -144,7 +144,7 @@ void RamDomainStorage::Remove(ObjId const& obj_id) {
 
 void RamDomainStorage::CleanUp() { state.clear(); }
 
-void RamDomainStorage::SaveData(DomainQuiery const& query, ObjectData&& data) {
+void RamDomainStorage::SaveData(DomainQuery const& query, ObjectData&& data) {
   auto& objcect_classes = state[query.id];
   if (!objcect_classes) {
     objcect_classes.emplace();

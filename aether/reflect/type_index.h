@@ -34,7 +34,7 @@ template <typename T>
 struct TypeNameHolder {
   template <std::size_t... Is>
   static constexpr auto NameArray(std::string_view str,
-                                  std::index_sequence<Is...> const&) {
+                                  std::index_sequence<Is...>) {
     return std::array{str[Is]...};
   }
 

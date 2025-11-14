@@ -31,7 +31,7 @@ namespace ae {
 
 class FstreamStorageWriter final : public IDomainStorageWriter {
  public:
-  FstreamStorageWriter(DomainQuiery q, std::ofstream&& f)
+  FstreamStorageWriter(DomainQuery q, std::ofstream&& f)
       : query{std::move(q)}, file{std::move(f)} {}
 
   ~FstreamStorageWriter() override {
@@ -47,7 +47,7 @@ class FstreamStorageWriter final : public IDomainStorageWriter {
   }
 
  private:
-  DomainQuiery query;
+  DomainQuery query;
   std::ofstream file;
 };
 
@@ -73,7 +73,7 @@ FileSystemStdStorage::FileSystemStdStorage() = default;
 FileSystemStdStorage::~FileSystemStdStorage() = default;
 
 std::unique_ptr<IDomainStorageWriter> FileSystemStdStorage::Store(
-    DomainQuiery const& query) {
+    DomainQuery const& query) {
   auto class_dir = std::filesystem::path("state") / query.id.ToString() /
                    std::to_string(query.class_id);
 
@@ -107,7 +107,7 @@ ClassList FileSystemStdStorage::Enumerate(const ae::ObjId& obj_id) {
   return ClassList{classes.begin(), classes.end()};
 }
 
-DomainLoad FileSystemStdStorage::Load(DomainQuiery const& query) {
+DomainLoad FileSystemStdStorage::Load(DomainQuery const& query) {
   auto object_dir = std::filesystem::path("state") / query.id.ToString();
   auto ec = std::error_code{};
   if (!std::filesystem::exists(object_dir, ec)) {
