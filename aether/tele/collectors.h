@@ -71,11 +71,106 @@ constexpr bool IsAnyTele() {
   return IsAnyLogs<TConfig>() || IsAnyMetrics<TConfig>();
 }
 
+template <typename TSinkConfig, typename Enabled = void>
+struct TeleLogCollector;
+
+template <typename TSinkConfig>
+struct TeleLogCollector<TSinkConfig,
+                        std::enable_if_t<!IsAnyLogs<TSinkConfig>()>> {
+  template <typename... TArgs>
+  explicit TeleLogCollector(TArgs&&...) {}
+
+  void InvokeTime() {}
+  void LevelModule([[maybe_unused]] Level) {}
+  void Location([[maybe_unused]] char const*, int) {}
+  void TagName(std::string_view) {}
+  template <typename... TArgs>
+  void Blob(std::string_view, TArgs&&...) {}
+  void Blob() {}
+};
+
+template <typename TSinkConfig>
+struct TeleLogCollector<TSinkConfig,
+                        std::enable_if_t<IsAnyLogs<TSinkConfig>()>> {
+  TeleLogCollector(std::shared_ptr<ITrap> const& trap, Tag const& tag)
+      : trap_(trap.get()), tag_(&tag) {
+    if (trap_ == nullptr) {
+      return;
+    }
+    trap_->OpenLogLine(*tag_);
+  }
+
+  ~TeleLogCollector() {
+    if (trap_ == nullptr) {
+      return;
+    }
+    trap_->CloseLogLine(*tag_);
+  }
+
+  void InvokeTime() {
+    if constexpr (TSinkConfig::kStartTimeLogs) {
+      if (trap_ == nullptr) {
+        return;
+      }
+      trap_->InvokeTime(Now());
+    }
+  }
+
+  void LevelModule([[maybe_unused]] Level level) {
+    if constexpr (TSinkConfig::kLevelModuleLogs) {
+      if (trap_ == nullptr) {
+        return;
+      }
+      trap_->WriteLevel(level);
+      trap_->WriteModule(tag_->module);
+    }
+  }
+
+  void Location([[maybe_unused]] char const* file, int line) {
+    if constexpr (TSinkConfig::kLocationLogs) {
+      if (trap_ == nullptr) {
+        return;
+      }
+      trap_->Location(file, static_cast<std::uint32_t>(line));
+    }
+  }
+
+  void TagName(std::string_view name) {
+    if constexpr (TSinkConfig::kNameLogs) {
+      if (trap_ == nullptr) {
+        return;
+      }
+      trap_->TagName(name);
+    }
+  }
+
+  template <typename... TArgs>
+  void Blob(std::string_view format, TArgs&&... args) {
+    if constexpr (TSinkConfig::kBlobLogs) {
+      if (trap_ == nullptr) {
+        return;
+      }
+      auto blob_string = Format(format, std::forward<TArgs>(args)...);
+      trap_->Blob(reinterpret_cast<std::uint8_t const*>(blob_string.data()),
+                  blob_string.size());
+    }
+  }
+
+  void Blob() {}
+
+  ITrap* trap_;
+  Tag const* tag_;
+};
+
 template <typename TSink, typename TSinkConfig, typename _ = void>
 struct Tele {
   // Dummy tele
   template <typename... TArgs>
   constexpr explicit Tele(TArgs&&... /* args */) {}
+
+  [[nodiscard]] auto LogCollector() const noexcept {
+    return TeleLogCollector<TSinkConfig>{};
+  }
 };
 
 template <typename TSink, typename TSinkConfig>
@@ -86,64 +181,20 @@ struct Tele<TSink, TSinkConfig,
   using TimedTele = std::conditional_t<SinkConfig::kTimeMetrics,
                                        ae::tele::TimedTele, EmptyNull>;
 
-  constexpr Tele(Sink& sink, Tag const& tag, Level level,
-                 char const* file, int line)
-      : Tele(sink, tag) {
-    if constexpr (IsAnyLogs<SinkConfig>()) {
-      // Start the log line with current tag
+  constexpr Tele(Sink& sink, Tag const& tag)
+      : sink_{&sink}, tag_{&tag}, timed_tele_{std::invoke([&]() -> TimedTele {
+          if constexpr (std::is_same_v<ae::tele::TimedTele, TimedTele>) {
+            return {{}, tag, sink.trap()};
+          } else {
+            return {};
+          }
+        })} {
+    if constexpr (SinkConfig::kCountMetrics) {
       auto const& trap = sink.trap();
       if (!trap) {
         return;
       }
-      trap->OpenLogLine(tag);
-      defer[&] { trap->CloseLogLine(tag); };
-
-      if constexpr (SinkConfig::kStartTimeLogs) {
-        trap->InvokeTime(Now());
-      }
-      if constexpr (SinkConfig::kLevelModuleLogs) {
-        trap->WriteLevel(level);
-        trap->WriteModule(tag.module);
-      }
-      if constexpr (SinkConfig::kLocationLogs) {
-        trap->Location(file, static_cast<std::uint32_t>(line));
-      }
-      if constexpr (SinkConfig::kNameLogs) {
-        trap->TagName(tag.name);
-      }
-    }
-  }
-
-  template <typename... TArgs>
-  Tele(Sink& sink, Tag const& tag, Level level, char const* file,
-       int line, std::string_view format, TArgs&&... args)
-      : Tele(sink, tag) {
-    if constexpr (IsAnyLogs<SinkConfig>()) {
-      auto const& trap = sink.trap();
-      if (!trap) {
-        return;
-      }
-      trap->OpenLogLine(tag);
-      defer[&] { trap->CloseLogLine(tag); };
-
-      if constexpr (SinkConfig::kStartTimeLogs) {
-        trap->InvokeTime(Now());
-      }
-      if constexpr (SinkConfig::kLevelModuleLogs) {
-        trap->WriteLevel(level);
-        trap->WriteModule(tag.module);
-      }
-      if constexpr (SinkConfig::kLocationLogs) {
-        trap->Location(file, static_cast<std::uint32_t>(line));
-      }
-      if constexpr (SinkConfig::kNameLogs) {
-        trap->TagName(tag.name);
-      }
-      if constexpr (SinkConfig::kBlobLogs) {
-        auto blob_string = Format(format, std::forward<TArgs>(args)...);
-        trap->Blob(reinterpret_cast<std::uint8_t const*>(blob_string.data()),
-                   blob_string.size());
-      }
+      trap->AddInvoke(tag, 1);
     }
   }
 
@@ -157,24 +208,13 @@ struct Tele<TSink, TSinkConfig,
     }
   }
 
- private:
-  constexpr Tele(Sink& sink, Tag const& tag)
-      : timed_tele_{[&]() -> TimedTele {
-          if constexpr (std::is_same_v<ae::tele::TimedTele, TimedTele>) {
-            return {{}, tag, sink.trap()};
-          } else {
-            return {};
-          }
-        }()} {
-    if constexpr (SinkConfig::kCountMetrics) {
-      auto const& trap = sink.trap();
-      if (!trap) {
-        return;
-      }
-      trap->AddInvoke(tag, 1);
-    }
+  [[nodiscard]] auto LogCollector() const noexcept {
+    return TeleLogCollector<TSinkConfig>{sink_->trap(), *tag_};
   }
 
+ private:
+  Sink* sink_;
+  Tag const* tag_;
   TimedTele timed_tele_;
 };
 }  // namespace ae::tele
