@@ -30,24 +30,23 @@
 #include "aether/events/event_subscription.h"
 
 namespace ae {
-template <typename TSignature, typename TSyncPolicy = NoLockSyncPolicy>
+template <typename TSignature>
 class Event;
 
-template <typename TSignature, typename TSyncPolicy = NoLockSyncPolicy>
+template <typename TSignature>
 class EventSubscriber;
 
 /**
  * \brief Storage for handlers to some event
  */
-template <typename... TArgs, typename TSyncPolicy>
-class Event<void(TArgs...), TSyncPolicy> {
+template <typename... TArgs>
+class Event<void(TArgs...)> {
  public:
   using CallbackSignature = void(TArgs...);
-  using Subscriber = EventSubscriber<CallbackSignature, TSyncPolicy>;
-  using List = EventHandlersList<TSyncPolicy>;
+  using Subscriber = EventSubscriber<CallbackSignature>;
+  using List = EventHandlersList;
 
-  explicit Event(TSyncPolicy sync_policy = {})
-      : events_list_{MakeRcPtr<List>(std::forward<TSyncPolicy>(sync_policy))} {}
+  explicit Event() : events_list_{MakeRcPtr<List>()} {}
 
   ~Event() = default;
 
@@ -79,9 +78,12 @@ class Event<void(TArgs...), TSyncPolicy> {
    * invoking.
    */
   static void EmitImpl(RcPtr<List> events_list, TArgs&&... args) {
-    auto iterate_list = events_list->template Iterator<CallbackSignature>();
-    for (auto const& handler : iterate_list) {
-      handler.Invoke(std::forward<TArgs>(args)...);
+    auto iterate_list = events_list->Iterator();
+    for (auto it = std::begin(iterate_list); it != std::end(iterate_list);
+         ++it) {
+      auto* handler = it.get<CallbackSignature>();
+      assert((handler != nullptr) && "Handler is null");
+      handler->Invoke(std::forward<TArgs>(args)...);
     }
   }
 
@@ -93,12 +95,12 @@ class Event<void(TArgs...), TSyncPolicy> {
  * It is designed to be constructed implicitly from Event<T> and to be returned
  * from getter to Event<T> in classes
  */
-template <typename... TArgs, typename TSyncPolicy>
-class EventSubscriber<void(TArgs...), TSyncPolicy> {
+template <typename... TArgs>
+class EventSubscriber<void(TArgs...)> {
  public:
   using Signature = void(TArgs...);
-  using Subscription = BaseSubscription<TSyncPolicy>;
-  using EventType = Event<Signature, TSyncPolicy>;
+  using Subscription = ae::Subscription;
+  using EventType = Event<Signature>;
 
   template <typename TCallback>
   static constexpr bool kIsInvocable =
@@ -152,19 +154,17 @@ class EventSubscriber<void(TArgs...), TSyncPolicy> {
    * \return EventHandlerDeleter to remove handler after it does not needed
    * anymore \see Subscription for RAII wrapper
    */
-  template <typename USyncPolicy>
-  auto Subscribe(Event<void(TArgs...), USyncPolicy>& event) {
+  auto Subscribe(Event<void(TArgs...)>& event) {
     return event_->Add(EventHandler<Signature>{
-        MethodPtr<&Event<void(TArgs...), USyncPolicy>::Emit>{&event}});
+        MethodPtr<&Event<void(TArgs...)>::Emit>{&event}});
   }
 
  private:
   EventType* event_;
 };
 
-template <typename... TArgs, typename TSyncPolicy>
-EventSubscriber(Event<void(TArgs...), TSyncPolicy>&)
-    -> EventSubscriber<void(TArgs...), TSyncPolicy>;
+template <typename... TArgs>
+EventSubscriber(Event<void(TArgs...)>&) -> EventSubscriber<void(TArgs...)>;
 
 }  // namespace ae
 

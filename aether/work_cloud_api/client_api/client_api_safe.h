@@ -67,7 +67,7 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
   Event<void(AeMessage const& message)> send_message_event_;
   Event<void(ServerDescriptor const& server_descriptor)>
       send_server_descriptor_event_;
-  Event<void(Uid uid, CloudDescriptor const& cloud)> send_cloud_event_;
+  Event<void(Uid const& uid, CloudDescriptor const& cloud)> send_cloud_event_;
   Event<void()> request_telemetry_event_;
 };
 }  // namespace ae

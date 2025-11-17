@@ -43,7 +43,7 @@ struct InsertedHandle {
 
 class WinPoller::IoCPPoller {
  public:
-  IoCPPoller() : poll_event_{SharedMutexSyncPolicy{events_lock_}} {
+  IoCPPoller() {
     AE_TELE_INFO(kWinpollWorkerCreate);
     iocp_ = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 1);
     if (iocp_ == nullptr) {
@@ -73,7 +73,7 @@ class WinPoller::IoCPPoller {
   WinPoller::OnPollEventSubscriber Add(DescriptorType descriptor) {
     assert(iocp_ != INVALID_HANDLE_VALUE);
 
-    auto lock = std::lock_guard{events_lock_};
+    auto lock = std::scoped_lock{events_lock_};
     AE_TELE_DEBUG(kWinpollAddDescriptor, "Add poller descriptor");
 
     auto comp_key = static_cast<HANDLE>(descriptor);
@@ -93,7 +93,7 @@ class WinPoller::IoCPPoller {
   }
 
   void Remove(DescriptorType descriptor) {
-    auto lock = std::lock_guard{events_lock_};
+    auto lock = std::scoped_lock{events_lock_};
     AE_TELE_DEBUG(kWinpollRemoveDescriptor, "Remove poller event");
     auto comp_key = static_cast<HANDLE>(descriptor);
     auto it = handles_.find(comp_key);
@@ -115,6 +115,7 @@ class WinPoller::IoCPPoller {
                                      &overlapped, INFINITE)) {
         auto error = GetLastError();
         if (error == ERROR_CONNECTION_ABORTED) {
+          auto lock = std::scoped_lock{events_lock_};
           // socket closed
           handles_.erase(reinterpret_cast<HANDLE>(completion_key));
           continue;
@@ -123,11 +124,15 @@ class WinPoller::IoCPPoller {
                       error);
       }
 
-      auto lock = std::lock_guard{events_lock_};
-      auto descriptor = reinterpret_cast<HANDLE>(completion_key);
-      auto it = handles_.find(descriptor);
-      if ((it == std::end(handles_)) || !it->inserted) {
-        continue;
+      HANDLE descriptor;
+      {
+        // check if descriptor still in handles_
+        auto lock = std::scoped_lock{events_lock_};
+        descriptor = reinterpret_cast<HANDLE>(completion_key);
+        auto it = handles_.find(descriptor);
+        if ((it == std::end(handles_)) || !it->inserted) {
+          continue;
+        }
       }
 
       assert(overlapped);
@@ -139,7 +144,7 @@ class WinPoller::IoCPPoller {
 
   HANDLE iocp_ = INVALID_HANDLE_VALUE;
   std::set<InsertedHandle> handles_;
-  std::recursive_mutex events_lock_;
+  std::mutex events_lock_;
   WinPoller::OnPollEvent poll_event_;
   std::atomic_bool stop_requested_{false};
   std::thread loop_thread_;

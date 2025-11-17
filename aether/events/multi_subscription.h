@@ -22,22 +22,20 @@
 
 #include "aether/common.h"
 
-#include "aether/events/events_mt.h"
 #include "aether/events/event_deleter.h"
 
 namespace ae {
 /**
  * \brief RAII object to manage set of subscriptions
  */
-template <typename TSyncPolicy>
-class BaseMultiSubscription {
+class MultiSubscription {
  public:
-  using EventHandler = EventHandlerDeleter<TSyncPolicy>;
+  using EventHandler = EventHandlerDeleter;
 
-  BaseMultiSubscription() = default;
-  ~BaseMultiSubscription() { Reset(); }
+  MultiSubscription() = default;
+  ~MultiSubscription();
 
-  AE_CLASS_MOVE_ONLY(BaseMultiSubscription)
+  AE_CLASS_MOVE_ONLY(MultiSubscription)
 
   /**
    * \brief Push as many as you need subscriptions to the list.
@@ -52,31 +50,16 @@ class BaseMultiSubscription {
   /**
    * \brief Reset all subscriptions.
    */
-  void Reset() {
-    for (auto& del : deleters_) {
-      if (del.alive()) {
-        del.Delete();
-      }
-    }
-    deleters_.clear();
-  }
+  void Reset();
 
  private:
-  void CleanUp() {
-    deleters_.erase(
-        std::remove_if(std::begin(deleters_), std::end(deleters_),
-                       [](auto const& del) { return !del.alive(); }),
-        std::end(deleters_));
-  }
+  void CleanUp();
 
-  void PushToVector(EventHandlerDeleter<TSyncPolicy>&& deleter) {
-    deleters_.push_back(std::move(deleter));
-  }
+  void PushToVector(EventHandlerDeleter&& deleter);
 
-  std::vector<EventHandlerDeleter<TSyncPolicy>> deleters_;
+  std::vector<EventHandlerDeleter> deleters_;
 };
 
-using MultiSubscription = BaseMultiSubscription<NoLockSyncPolicy>;
 }  // namespace ae
 
 #endif  // AETHER_EVENTS_MULTI_SUBSCRIPTION_H_

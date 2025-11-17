@@ -63,6 +63,11 @@ list(APPEND types_srcs
             "types/address.cpp"
             "types/address_parser.cpp")
 
+list(APPEND events_srcs
+          "events/event_list.cpp"
+          "events/event_deleter.cpp"
+          "events/event_subscription.cpp"
+          "events/multi_subscription.cpp")
 
 list(APPEND poller_srcs
             "poller/poller.cpp"
@@ -299,6 +304,7 @@ if(REGULAR_CMAKE_PROJECT)
   add_library(aether STATIC ${aether_srcs}
                             ${aether_c_api_srcs}
                             ${types_srcs}
+                            ${events_srcs}
                             ${poller_srcs}
                             ${dns_srcs}
                             ${obj_srcs}
@@ -350,6 +356,7 @@ else()
                             ${aether_srcs}
                             ${aether_c_api_srcs}
                             ${types_srcs}
+                            ${events_srcs}
                             ${poller_srcs}
                             ${dns_srcs}
                             ${obj_srcs}

@@ -112,7 +112,7 @@ class UdpTransport : public ByteIStream {
   OwnActionPtr<ErrorEventAction> notify_error_action_;
   OwnActionPtr<ReadAction> read_action_;
 
-  IPoller::OnPollEventSubscriber::Subscription socket_event_sub_;
+  Subscription socket_event_sub_;
   Subscription socket_error_sub_;
   Subscription read_error_sub_;
   MultiSubscription send_action_error_subs_;

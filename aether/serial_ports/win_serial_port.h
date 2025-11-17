@@ -52,7 +52,7 @@ class WinSerialPort final : public ISerialPort {
     void HandleRead();
 
     WinSerialPort* serial_port_;
-    IPoller::OnPollEventSubscriber::Subscription poll_sub_;
+    Subscription poll_sub_;
     std::list<DataBuffer> buffers_;
     std::atomic_bool read_event_;
 

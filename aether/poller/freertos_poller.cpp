@@ -105,8 +105,7 @@ class FreertosPoller::PollWorker {
  public:
   PollWorker()
       : wake_up_pipe_{freertos_poller_internal::MakePipe()},
-        stop_requested_{false},
-        poll_event_{SharedMutexSyncPolicy{ctl_mutex_}} {
+        stop_requested_{false} {
     assert(wake_up_pipe_[0] != -1);
     assert(wake_up_pipe_[1] != -1);
 
@@ -127,7 +126,7 @@ class FreertosPoller::PollWorker {
   }
 
   [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) {
-    auto lock = std::lock_guard(ctl_mutex_);
+    auto lock = std::scoped_lock{ctl_mutex_};
     AE_TELE_DEBUG(kFreertosAddDescriptor, "Added descriptor {}", descriptor);
     freertos_poller_internal::WritePipe(wake_up_pipe_);
     descriptors_.insert(descriptor);
@@ -135,7 +134,7 @@ class FreertosPoller::PollWorker {
   }
 
   void Remove(DescriptorType descriptor) {
-    auto lock = std::lock_guard(ctl_mutex_);
+    auto lock = std::scoped_lock{ctl_mutex_};
     freertos_poller_internal::WritePipe(wake_up_pipe_);
     descriptors_.erase(descriptor);
     AE_TELE_DEBUG(kFreertosRemoveDescriptor, "Removed descriptor {}",
@@ -147,11 +146,12 @@ class FreertosPoller::PollWorker {
     int res;
 
     while (!stop_requested_) {
+      std::vector<pollfd> fds_vector;
       {
-        auto lock = std::lock_guard{ctl_mutex_};
-        fds_vector_ = FillFdsVector(descriptors_);
+        auto lock = std::scoped_lock{ctl_mutex_};
+        fds_vector = FillFdsVector(descriptors_);
       }
-      res = lwip_poll(fds_vector_.data(), fds_vector_.size(), kPollingTimeout);
+      res = lwip_poll(fds_vector.data(), fds_vector.size(), kPollingTimeout);
       if (res == -1) {
         AE_TELE_ERROR(kFreertosWaitFailed, "Polling error {} {}", errno,
                       strerror(errno));
@@ -161,8 +161,7 @@ class FreertosPoller::PollWorker {
         continue;
       }
 
-      auto lock = std::lock_guard{ctl_mutex_};
-      for (auto const &v : fds_vector_) {
+      for (auto const &v : fds_vector) {
         if ((v.fd == wake_up_pipe_[0])) {
           if ((v.revents & POLLIN) != 0) {
             freertos_poller_internal::ReadPipe(wake_up_pipe_);
@@ -178,23 +177,25 @@ class FreertosPoller::PollWorker {
 
  private:
   std::vector<pollfd> FillFdsVector(std::set<int> const &descriptors) {
-    std::vector<pollfd> fds_vector_l;
-    fds_vector_l.reserve(descriptors_.size() + 1);
-    pollfd fds;
-
-    fds.fd = wake_up_pipe_[0];
-    fds.events = POLLIN;
-    fds.revents = 0;
-    fds_vector_l.push_back(fds);
-
-    for (const auto &desc : descriptors) {
-      fds.fd = desc;
-      fds.events = POLLIN | POLLOUT;
-      fds.revents = 0;
-      fds_vector_l.push_back(fds);
+    std::vector<pollfd> fds;
+    fds.reserve(descriptors_.size() + 1);
+    {
+      pollfd pfd;
+      pfd.fd = wake_up_pipe_[0];
+      pfd.events = POLLIN;
+      pfd.revents = 0;
+      fds.push_back(pfd);
     }
 
-    return fds_vector_l;
+    for (const auto &desc : descriptors) {
+      pollfd pfd;
+      pfd.fd = desc;
+      pfd.events = POLLIN | POLLOUT;
+      pfd.revents = 0;
+      fds.push_back(pfd);
+    }
+
+    return fds;
   }
 
   std::vector<EventType> FromEpollEvent(std::uint32_t events) {
@@ -216,9 +217,8 @@ class FreertosPoller::PollWorker {
   TaskHandle_t myTaskHandle_ = nullptr;
   std::array<int, 2> wake_up_pipe_;
   std::atomic_bool stop_requested_;
-  std::vector<pollfd> fds_vector_;
   std::set<int> descriptors_;
-  std::recursive_mutex ctl_mutex_;
+  std::mutex ctl_mutex_;
   OnPollEvent poll_event_;
 };
 

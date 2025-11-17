@@ -62,6 +62,30 @@ class CloudConnection {
 
   using ServersUpdate = Event<void()>;
 
+  class ReplicaSubscription {
+   public:
+    ReplicaSubscription() = default;
+    ReplicaSubscription(CloudConnection& cloud_connection,
+                        CloudConnection::ClientApiSubscriber subscriber,
+                        RequestPolicy::Variant request_policy);
+
+    ReplicaSubscription(ReplicaSubscription&& other) noexcept;
+    ReplicaSubscription& operator=(ReplicaSubscription&& other) noexcept;
+
+    AE_CLASS_NO_COPY(ReplicaSubscription)
+
+    void Reset();
+
+   private:
+    void ServersUpdate();
+
+    CloudConnection* cloud_connection_;
+    CloudConnection::ClientApiSubscriber subscriber_;
+    RequestPolicy::Variant request_policy_;
+    Subscription server_update_sub_;
+    MultiSubscription subscriptions_;
+  };
+
   CloudConnection(ActionContext action_context,
                   ClientConnectionManager& connection_manager,
                   std::size_t max_connections);
@@ -83,7 +107,7 @@ class CloudConnection {
   /**
    * \brief Access to client safe api with policy.
    */
-  Subscription ClientApiSubscription(
+  ReplicaSubscription ClientApiSubscription(
       ClientApiSubscriber subscriber,
       RequestPolicy::Variant policy = RequestPolicy::MainServer{});
 
