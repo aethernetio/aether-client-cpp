@@ -19,7 +19,6 @@
 
 #include "aether/obj/obj.h"
 #include "aether/events/events.h"
-#include "aether/events/events_mt.h"
 #include "aether/poller/poller_types.h"
 
 namespace ae {
@@ -34,8 +33,7 @@ class IPoller : public Obj {
    * \brief Event type for event.
    * User should check event.descriptor to match with its own.
    */
-  using OnPollEvent = Event<void(PollerEvent event),
-                            SharedMutexSyncPolicy<std::recursive_mutex>>;
+  using OnPollEvent = Event<void(PollerEvent event)>;
   using OnPollEventSubscriber = typename OnPollEvent::Subscriber;
 
 #if defined AE_DISTILLATION

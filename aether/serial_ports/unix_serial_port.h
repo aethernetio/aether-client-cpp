@@ -47,7 +47,7 @@ class UnixSerialPort final : public ISerialPort {
     void ReadData();
 
     UnixSerialPort* serial_port_;
-    IPoller::OnPollEventSubscriber::Subscription poll_sub_;
+    Subscription poll_sub_;
     std::list<DataBuffer> buffers_;
     std::atomic_bool read_event_;
   };

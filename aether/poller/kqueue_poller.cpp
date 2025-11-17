@@ -41,9 +41,7 @@ constexpr auto kMaxEvents = 10;
 class KqueuePoller::PollerWorker {
  public:
   PollerWorker()
-      : kqueue_fd_{InitKqueue()},
-        poll_event_{SharedMutexSyncPolicy{ctl_mutex_}},
-        thread_{&PollerWorker::Loop, this} {
+      : kqueue_fd_{InitKqueue()}, thread_{&PollerWorker::Loop, this} {
     if (kqueue_fd_ == -1) {
       return;
     }
@@ -86,7 +84,6 @@ class KqueuePoller::PollerWorker {
 
   [[nodiscard]] KqueuePoller::OnPollEventSubscriber Add(
       DescriptorType descriptor) {
-    auto lock = std::lock_guard{ctl_mutex_};
     AE_TELE_DEBUG(kKqueueAddDescriptor, "Add event descriptor {}", descriptor);
     std::array<struct kevent, 2> events;
     std::size_t index = 0;
@@ -106,7 +103,6 @@ class KqueuePoller::PollerWorker {
   }
 
   void Remove(DescriptorType descriptor) {
-    auto lock = std::lock_guard{ctl_mutex_};
     AE_TELE_DEBUG(kKqueueRemoveDescriptor, "Remove event descriptor {}",
                   descriptor);
     std::array<struct kevent, 2> events;
@@ -160,7 +156,7 @@ class KqueuePoller::PollerWorker {
         assert(false);
         return;
       }
-      auto lock = std::lock_guard{ctl_mutex_};
+
       for (std::size_t i = 0; (i < num_events) && (i < kMaxEvents); ++i) {
         auto& ev = events[i];
         if (ev.filter == EVFILT_USER) {
@@ -177,7 +173,6 @@ class KqueuePoller::PollerWorker {
   int kqueue_fd_;
   const int exit_kqueue_event_ = 1;
 
-  std::recursive_mutex ctl_mutex_;
   KqueuePoller::OnPollEvent poll_event_;
   std::thread thread_;
 };

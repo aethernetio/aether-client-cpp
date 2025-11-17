@@ -49,14 +49,14 @@ class Esp32SerialPort : public ISerialPort {
     void ReadData();
 
     Esp32SerialPort* serial_port_;
-    IPoller::OnPollEventSubscriber::Subscription poll_sub_;
+    Subscription poll_sub_;
     std::list<DataBuffer> buffers_;
     std::atomic_bool read_event_;
   };
 
  public:
-  Esp32SerialPort(ActionContext action_context,
-                  SerialInit serial_init, IPoller::ptr const& poller);
+  Esp32SerialPort(ActionContext action_context, SerialInit serial_init,
+                  IPoller::ptr const& poller);
   ~Esp32SerialPort() override;
 
   void Write(DataBuffer const& data) override;

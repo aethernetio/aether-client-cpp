@@ -45,7 +45,6 @@ class EpollPoller::PollWorker {
   PollWorker()
       : wake_up_pipe_{WakeUpPipe()},
         epoll_fd_{InitEpoll()},
-        poll_event_{SharedMutexSyncPolicy{ctl_mutex_}},
         thread_(&PollWorker::Loop, this) {
     AE_TELE_INFO(kEpollWorkerCreate);
     // add wake up pipe to epoll
@@ -80,8 +79,6 @@ class EpollPoller::PollWorker {
 
   [[nodiscard]] EpollPoller::OnPollEventSubscriber Add(
       DescriptorType descriptor) {
-    auto lock = std::lock_guard(ctl_mutex_);
-
     AE_TELE_DEBUG(kEpollAddDescriptor, "Add poller descriptor {}", descriptor);
     struct epoll_event epoll_event;
     // watch in and out
@@ -103,8 +100,6 @@ class EpollPoller::PollWorker {
   }
 
   void Remove(DescriptorType descriptor) {
-    auto lock = std::lock_guard(ctl_mutex_);
-
     AE_TELE_DEBUG(kEpollRemoveDescriptor, "Remove poller event {}", descriptor);
     struct epoll_event epoll_event{};
 
@@ -182,8 +177,6 @@ class EpollPoller::PollWorker {
         continue;
       }
 
-      auto lock = std::lock_guard(ctl_mutex_);
-
       for (std::size_t i = 0;
            (i < static_cast<std::size_t>(res)) && (i < kMaxEvents); ++i) {
         auto& event = events[i];
@@ -198,8 +191,6 @@ class EpollPoller::PollWorker {
   std::atomic_bool stop_requested_{false};
   std::array<int, 2> wake_up_pipe_;
   int epoll_fd_;
-
-  std::recursive_mutex ctl_mutex_;
 
   EpollPoller::OnPollEvent poll_event_;
   OnPollEventSubscriber::Subscription wake_up_subscription_;
