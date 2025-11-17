@@ -14,6 +14,12 @@
 
 cmake_minimum_required( VERSION 3.16 )
 
+list(APPEND events_srcs
+  ${ROOT_DIR}/aether/events/event_list.cpp
+  ${ROOT_DIR}/aether/events/event_deleter.cpp
+  ${ROOT_DIR}/aether/events/event_subscription.cpp
+  ${ROOT_DIR}/aether/events/multi_subscription.cpp
+)
 
 list(APPEND test_events_srcs
   main.cpp
@@ -25,7 +31,7 @@ if(NOT CM_PLATFORM)
   project(test-events LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME})
-  target_sources(${PROJECT_NAME} PRIVATE ${test_events_srcs})
+  target_sources(${PROJECT_NAME} PRIVATE ${events_srcs} ${test_events_srcs})
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE unity)
 

@@ -21,6 +21,10 @@ list(APPEND action_srcs
   ${ROOT_DIR}/aether/actions/repeatable_task.cpp
   ${ROOT_DIR}/aether/actions/task_queue.cpp
   ${ROOT_DIR}/aether/actions/timer_action.cpp
+  ${ROOT_DIR}/aether/events/event_list.cpp
+  ${ROOT_DIR}/aether/events/event_deleter.cpp
+  ${ROOT_DIR}/aether/events/event_subscription.cpp
+  ${ROOT_DIR}/aether/events/multi_subscription.cpp
 )
 
 list(APPEND test_srcs

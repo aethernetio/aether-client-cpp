@@ -25,9 +25,8 @@
 #include "aether/events/events.h"
 
 namespace ae::test_events_mt {
-using TestEvent = Event<void(int), MutexSyncPolicy>;
-using TestSubscriber = EventSubscriber<void(int), MutexSyncPolicy>;
-using MTSubscription = BaseSubscription<MutexSyncPolicy>;
+using TestEvent = Event<void(int)>;
+using TestSubscriber = EventSubscriber<void(int)>;
 
 // Test one emitter thread with multiple subscriber threads
 void test_OneEmitterMultipleSubscribers() {
@@ -51,7 +50,7 @@ void test_OneEmitterMultipleSubscribers() {
     while (running) {
       // Subscribe
       active_subscribers++;
-      MTSubscription sub = subscriber.Subscribe([&](int) {
+      Subscription sub = subscriber.Subscribe([&](int) {
         // No-op handler, we just care about the notification
       });
 
@@ -102,7 +101,7 @@ void test_ThreadSafety() {
 
   // Shared vector for subscriptions (protected by mutex)
   std::mutex subscriptions_mutex;
-  std::vector<MTSubscription> subscriptions;
+  std::vector<Subscription> subscriptions;
 
   // Worker function for subscription/unsubscription
   auto worker_func = [&] {
@@ -113,7 +112,7 @@ void test_ThreadSafety() {
     while (running) {
       // Subscribe a new handler
       if (active_handlers < 1024) {
-        MTSubscription sub = subscriber.Subscribe([&](int) { total_events++; });
+        Subscription sub = subscriber.Subscribe([&](int) { total_events++; });
         active_handlers++;
 
         {
@@ -124,7 +123,7 @@ void test_ThreadSafety() {
 
       // Randomly unsubscribe handlers 50% of the time
       if (std::uniform_int_distribution<>(0, 1)(gen) == 1) {
-        MTSubscription to_delete;
+        Subscription to_delete;
         {
           std::lock_guard lock(subscriptions_mutex);
           if (subscriptions.empty()) {
