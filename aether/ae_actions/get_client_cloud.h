@@ -68,8 +68,8 @@ class GetClientCloudAction final : public Action<GetClientCloudAction> {
   OwnActionPtr<RepeatableTask> request_cloud_task_;
   OwnActionPtr<RepeatableTask> server_resolve_task_;
 
-  Subscription cloud_resolved_sub_;
-  Subscription server_resolved_sub_;
+  CloudConnection::ReplicaSubscription cloud_resolved_sub_;
+  CloudConnection::ReplicaSubscription server_resolved_sub_;
 
   Subscription cloud_request_sub_;
   Subscription servers_resolve_sub_;

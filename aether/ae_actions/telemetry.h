@@ -28,13 +28,12 @@
 #  include "aether/actions/action.h"
 #  include "aether/stream_api/istream.h"
 #  include "aether/types/state_machine.h"
-#  include "aether/events/event_subscription.h"
+#  include "aether/client_connections/cloud_connection.h"
 
 #  include "aether/work_cloud_api/telemetric.h"
 
 namespace ae {
 class Aether;
-class CloudConnection;
 
 class Telemetry : public Action<Telemetry> {
   enum class State : std::uint8_t {
@@ -62,7 +61,7 @@ class Telemetry : public Action<Telemetry> {
   PtrView<Aether> aether_;
   CloudConnection* cloud_connection_;
 
-  Subscription telemetry_request_sub_;
+  CloudConnection::ReplicaSubscription telemetry_request_sub_;
   StateMachine<State> state_;
   std::optional<std::size_t> request_for_priority_;
 };

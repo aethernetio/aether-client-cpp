@@ -51,7 +51,7 @@ class P2pMessageStreamManager {
   CloudConnection* cloud_connection_;
   std::map<Uid, RcPtrView<P2pStream>> streams_;
   NewStreamEvent new_stream_event_;
-  Subscription on_message_received_sub_;
+  CloudConnection::ReplicaSubscription on_message_received_sub_;
 };
 }  // namespace ae
 

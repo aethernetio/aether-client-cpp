@@ -53,36 +53,61 @@ class ReplicaStreamWriteAction final : public StreamWriteAction {
   MultiSubscription subs_;
 };
 
-class ReplicaSubscription {
- public:
-  ReplicaSubscription(CloudConnection& cloud_connection,
-                      CloudConnection::ClientApiSubscriber subscriber,
-                      RequestPolicy::Variant request_policy)
-      : cloud_connection_{&cloud_connection},
-        subscriber_{std::move(subscriber)},
-        request_policy_{request_policy},
-        subscriptions_{MultiSubscription()} {}
-
-  void operator()() {
-    // clean old subscriptions and make new
-    subscriptions_.Reset();
-    cloud_connection_->VisitServers(
-        [&](ServerConnection* sc) {
-          if (auto* conn = sc->ClientConnection(); conn != nullptr) {
-            subscriptions_.Push(subscriber_(conn->client_safe_api(), sc));
-          }
-        },
-        request_policy_);
-  }
-
- private:
-  CloudConnection* cloud_connection_;
-  CloudConnection::ClientApiSubscriber subscriber_;
-  RequestPolicy::Variant request_policy_;
-  MultiSubscription subscriptions_;
-};
-
 }  // namespace cloud_connection_internal
+
+CloudConnection::ReplicaSubscription::ReplicaSubscription(
+    CloudConnection& cloud_connection,
+    CloudConnection::ClientApiSubscriber subscriber,
+    RequestPolicy::Variant request_policy)
+    : cloud_connection_{&cloud_connection},
+      subscriber_{std::move(subscriber)},
+      request_policy_{request_policy} {
+  server_update_sub_ = cloud_connection_->servers_update_event().Subscribe(
+      MethodPtr<&ReplicaSubscription::ServersUpdate>{this});
+  ServersUpdate();
+}
+
+CloudConnection::ReplicaSubscription::ReplicaSubscription(
+    ReplicaSubscription&& other) noexcept
+    : cloud_connection_{other.cloud_connection_},
+      subscriber_{std::move(other.subscriber_)},
+      request_policy_{other.request_policy_},
+      subscriptions_{std::move(other.subscriptions_)} {
+  server_update_sub_ = cloud_connection_->servers_update_event().Subscribe(
+      MethodPtr<&ReplicaSubscription::ServersUpdate>{this});
+}
+
+CloudConnection::ReplicaSubscription&
+CloudConnection::ReplicaSubscription::operator=(
+    ReplicaSubscription&& other) noexcept {
+  if (this != &other) {
+    cloud_connection_ = other.cloud_connection_;
+    subscriber_ = std::move(other.subscriber_);
+    request_policy_ = other.request_policy_;
+    subscriptions_ = std::move(other.subscriptions_);
+    server_update_sub_ = cloud_connection_->servers_update_event().Subscribe(
+        MethodPtr<&ReplicaSubscription::ServersUpdate>{this});
+  }
+  return *this;
+}
+
+void CloudConnection::ReplicaSubscription::ServersUpdate() {
+  assert((cloud_connection_ != nullptr) && "CloudConnection is null");
+  // clean old subscriptions and make new
+  subscriptions_.Reset();
+  cloud_connection_->VisitServers(
+      [&](ServerConnection* sc) {
+        if (auto* conn = sc->ClientConnection(); conn != nullptr) {
+          subscriptions_.Push(subscriber_(conn->client_safe_api(), sc));
+        }
+      },
+      request_policy_);
+}
+
+void CloudConnection::ReplicaSubscription::Reset() {
+  server_update_sub_.Reset();
+  subscriptions_.Reset();
+}
 
 CloudConnection::CloudConnection(ActionContext action_context,
                                  ClientConnectionManager& connection_manager,
@@ -110,16 +135,13 @@ ActionPtr<StreamWriteAction> CloudConnection::AuthorizedApiCall(
       action_context_, std::move(write_actions)};
 }
 
-Subscription CloudConnection::ClientApiSubscription(
+CloudConnection::ReplicaSubscription CloudConnection::ClientApiSubscription(
     ClientApiSubscriber subscriber, RequestPolicy::Variant policy) {
+  // replica subscriber automatically subscribe to servers update event and call
+  // ServerUpdate
   auto replica_subscriber =
-      std::make_unique<cloud_connection_internal::ReplicaSubscription>(
-          *this, std::move(subscriber), policy);
-  // call the subscriber
-  (*replica_subscriber)();
-  // call the subscriber on server update
-  return servers_update_event().Subscribe(
-      [rs{std::move(replica_subscriber)}]() { (*rs)(); });
+      ReplicaSubscription{*this, std::move(subscriber), policy};
+  return replica_subscriber;
 }
 
 void CloudConnection::VisitServers(ServerVisitor const& visitor,

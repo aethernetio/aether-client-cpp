@@ -170,7 +170,7 @@ class ReadMessageGate {
   Uid uid_;
   CloudConnection* cloud_connection_;
   RequestPolicy::Variant request_policy_;
-  Subscription message_event_sub_;
+  CloudConnection::ReplicaSubscription message_event_sub_;
   OutDataEvent out_data_event_;
 };
 
