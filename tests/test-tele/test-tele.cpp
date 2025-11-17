@@ -198,12 +198,18 @@ void test_TeleConfigurations() {
     auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
 
     Sink::Instance().SetTrap(tele_trap);
-    int remember_line = __LINE__ + 3;
+    int remember_line = __LINE__ + 8;
     {
       auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag, Level{Level::kDebug}, __FILE__, __LINE__,
-          "message {}",     12};
-
+          Sink::Instance(), TestTag};
+      {
+        auto lc = t.LogCollector();
+        lc.InvokeTime();
+        lc.LevelModule(Level{Level::kDebug});
+        lc.Location(__FILE__, __LINE__);
+        lc.TagName(TestTag.name);
+        lc.Blob("message {}", 12);
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -231,8 +237,15 @@ void test_TeleConfigurations() {
     Sink::Instance().SetTrap(tele_trap);
     {
       auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag, Level{Level::kDebug}, __FILE__, __LINE__,
-          "message {}",     12};
+          Sink::Instance(), TestTag};
+      {
+        auto lc = t.LogCollector();
+        lc.InvokeTime();
+        lc.LevelModule(Level{Level::kDebug});
+        lc.Location(__FILE__, __LINE__);
+        lc.TagName(TestTag.name);
+        lc.Blob("message {}", 12);
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -249,10 +262,15 @@ void test_TeleConfigurations() {
     Sink::Instance().SetTrap(tele_trap);
     {
       auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag, Level{Level::kDebug}, __FILE__, __LINE__,
-          "message {}",     12};
-
-      TEST_ASSERT_EQUAL(1, sizeof(t));
+          Sink::Instance(), TestTag};
+      {
+        auto lc = t.LogCollector();
+        lc.InvokeTime();
+        lc.LevelModule(Level{Level::kDebug});
+        lc.Location(__FILE__, __LINE__);
+        lc.TagName(TestTag.name);
+        lc.Blob("message {}", 12);
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -278,10 +296,16 @@ void test_TeleConfigurations() {
     Sink::Instance().SetTrap(tele_trap);
     {
       auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag, Level{Level::kDebug}, __FILE__, __LINE__,
-          "message {}",     12};
+          Sink::Instance(), TestTag};
+      {
+        auto lc = t.LogCollector();
+        lc.InvokeTime();
+        lc.LevelModule(Level{Level::kDebug});
+        lc.Location(__FILE__, __LINE__);
+        lc.TagName(TestTag.name);
+        lc.Blob("message {}", 12);
+      }
 
-      TEST_ASSERT_EQUAL(1, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT(tele_trap->metric_data_.empty());
@@ -297,10 +321,16 @@ void test_TeleConfigurations() {
     Sink::Instance().SetTrap(tele_trap);
     {
       auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag, Level{Level::kDebug}, __FILE__, __LINE__,
-          "message {}",     12};
+          Sink::Instance(), TestTag};
+      {
+        auto lc = t.LogCollector();
+        lc.InvokeTime();
+        lc.LevelModule(Level{Level::kDebug});
+        lc.Location(__FILE__, __LINE__);
+        lc.TagName(TestTag.name);
+        lc.Blob("message {}", 12);
+      }
 
-      TEST_ASSERT_EQUAL(1, sizeof(t));
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
