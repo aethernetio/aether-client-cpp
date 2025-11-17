@@ -64,10 +64,14 @@ ServerChannel const* ChannelSelectStream::server_channel() const {
 
 void ChannelSelectStream::Restream() {
   AE_TELED_DEBUG("Restream channels");
+  stream_update_sub_.Reset();
+  out_data_sub_.Reset();
+
   if (is_full_open_) {
     server_channel_.reset();
     stream_info_.link_state = LinkState::kLinkError;
     stream_update_event_.Emit();
+    return;
   }
   SelectChannel();
 }
@@ -173,7 +177,7 @@ void ChannelSelectStream::LinkStream() {
 }
 
 void ChannelSelectStream::StreamUpdate() {
-  assert(server_channel_);
+  assert(server_channel_ && "Call stream update on empty server channel");
   auto* stream = server_channel_->stream();
   assert(stream != nullptr);
   auto info = stream->stream_info();
