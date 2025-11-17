@@ -50,10 +50,9 @@ class CumulativeEvent {
  public:
   CumulativeEvent() = default;
 
-  template <typename TFunc, typename TSyncPolicy, typename... TSignatures>
+  template <typename TFunc, typename... TSignatures>
   explicit CumulativeEvent(
-      TFunc&& func,
-      EventSubscriber<TSignatures, TSyncPolicy>&&... event_subscribers) {
+      TFunc&& func, EventSubscriber<TSignatures>&&... event_subscribers) {
     Connect(std::forward<TFunc>(func), std::move(event_subscribers)...);
   }
 
@@ -120,7 +119,7 @@ class CumulativeEvent<void, Count> {
 
   template <typename TSyncPolicy, typename... TSignatures>
   explicit CumulativeEvent(
-      EventSubscriber<TSignatures, TSyncPolicy>&&... event_subscribers) {
+      EventSubscriber<TSignatures>&&... event_subscribers) {
     Connect(std::move(event_subscribers)...);
   }
 
@@ -166,25 +165,23 @@ namespace events_internal {
 template <typename TFunc, typename EvetSubscriber, typename Enable = void>
 struct HandlerResult;
 
-template <typename TFunc, typename TSyncPolicy, typename... Args>
-struct HandlerResult<TFunc, EventSubscriber<void(Args...), TSyncPolicy>,
+template <typename TFunc, typename... Args>
+struct HandlerResult<TFunc, EventSubscriber<void(Args...)>,
                      std::enable_if_t<std::is_invocable_v<TFunc, Args...>>> {
   using Ret = std::invoke_result_t<TFunc, Args...>;
 };
 }  // namespace events_internal
 
-template <typename TSyncPolicy, typename... TSignatures>
-CumulativeEvent(
-    EventSubscriber<TSignatures, TSyncPolicy>&&... event_subscribers)
+template <typename... TSignatures>
+CumulativeEvent(EventSubscriber<TSignatures>&&... event_subscribers)
     -> CumulativeEvent<void, sizeof...(TSignatures)>;
 
-template <typename TFunc, typename TSyncPolicy, typename... TSignatures>
-CumulativeEvent(
-    TFunc&& func,
-    EventSubscriber<TSignatures, TSyncPolicy>&&... event_subscribers)
+template <typename TFunc, typename... TSignatures>
+CumulativeEvent(TFunc&& func,
+                EventSubscriber<TSignatures>&&... event_subscribers)
     -> CumulativeEvent<
         std::common_type_t<typename events_internal::HandlerResult<
-            TFunc, EventSubscriber<TSignatures, TSyncPolicy>>::Ret...>,
+            TFunc, EventSubscriber<TSignatures>>::Ret...>,
         sizeof...(TSignatures)>;
 
 }  // namespace ae

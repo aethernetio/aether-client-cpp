@@ -26,32 +26,19 @@ namespace ae {
  * \brief Class for remove event handlers that are not needed anymore.
  * \see Subscription for RAII wrapper.
  */
-template <typename TSyncPolicy>
 class EventHandlerDeleter {
  public:
-  EventHandlerDeleter(
-      RcPtr<EventHandlersList<TSyncPolicy>> const& event_handlers,
-      std::size_t index)
-      : event_handlers_{event_handlers}, index_{index} {}
-
+  EventHandlerDeleter(RcPtr<EventHandlersList> const& event_handlers,
+                      typename EventHandlersList::Index index);
   AE_CLASS_COPY_MOVE(EventHandlerDeleter)
 
-  void Delete() {
-    if (auto handlers = event_handlers_.lock(); handlers) {
-      handlers->Remove(index_);
-    }
-  }
+  void Delete();
 
-  bool alive() const {
-    if (auto handlers = event_handlers_.lock(); handlers) {
-      return handlers->Alive(index_);
-    }
-    return false;
-  }
+  bool alive() const;
 
  private:
-  RcPtrView<EventHandlersList<TSyncPolicy>> event_handlers_;
-  std::size_t index_;
+  RcPtrView<EventHandlersList> event_handlers_;
+  typename EventHandlersList::Index index_;
 };
 
 }  // namespace ae

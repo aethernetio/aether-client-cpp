@@ -18,33 +18,43 @@
 #define AETHER_EVENTS_EVENT_LIST_H_
 
 #include <list>
+#include <mutex>
 #include <atomic>
 #include <cstddef>
 #include <algorithm>
-#include <optional>
 
-#include "aether/events/events_mt.h"
 #include "aether/events/event_handler.h"
 #include "aether/types/aligned_storage.h"
 
 namespace ae {
-template <typename TSyncPolicy = NoLockSyncPolicy>
-class EventHandlersList : public TSyncPolicy {
+class EventHandlersList {
   using TemplateHandler = EventHandler<void(int)>;
   // all event handlers has the same size
   static constexpr std::size_t kElementSize = sizeof(TemplateHandler);
   static constexpr std::size_t kElementAlign = alignof(TemplateHandler);
   using ValueType = ManagedStorage<kElementSize, kElementAlign>;
-  using StoreType = std::optional<ValueType>;
+  struct StoreType {
+    template <typename U,
+              AE_REQUIRERS_NOT((std::is_same<StoreType, std::decay_t<U>>))>
+    explicit StoreType(U&& value) : value{std::forward<U>(value)} {}
+
+    ValueType value;
+    bool is_alive = true;
+  };
+
+  using ListType = std::list<StoreType>;
 
  public:
+  struct Index {
+    typename ListType::iterator it;
+  };
+
   /**
    * \brief The iterator adapter provide interface for 'for range loop' and lock
    * list from actual removing any elements.
    * Removed elements will be deleted if no other IteratorAdapter to that list
    * exists
    */
-  template <typename TSignature>
   class IteratorAdapter {
    public:
     /**
@@ -55,56 +65,25 @@ class EventHandlersList : public TSyncPolicy {
      public:
       Iterator() = default;
 
-      Iterator(typename std::list<StoreType>::iterator it, std::uint16_t index,
-               std::uint16_t size)
-          : size_{size} {
-        auto counter = index;
-        for (auto i = it; counter < size_; ++i, ++counter) {
-          if (*i) {
-            it_ = i;
-            index_ = counter;
-            return;
-          }
-        }
-        index_ = size_;
-      }
+      Iterator(typename ListType::iterator it, std::uint16_t index,
+               std::uint16_t size);
 
       AE_CLASS_COPY_MOVE(Iterator)
 
-      Iterator& operator++() {
-        it_++;
-        index_++;
-        if (index_ == size_) {
-          return *this;
-        }
-        if (!*it_) {
-          return operator++();
-        }
-        return *this;
-      }
+      Iterator& operator++();
 
-      Iterator operator++(int) {
-        Iterator tmp(*this);
-        ++(*this);
-        return tmp;
-      }
+      Iterator operator++(int);
 
-      bool operator==(const Iterator& other) const {
-        return index_ == other.index_;
-      }
+      bool operator==(const Iterator& other) const;
 
-      bool operator!=(const Iterator& other) const { return !(*this == other); }
-
-      EventHandler<TSignature>& operator*() const {
-        return *(*it_)->template ptr<EventHandler<TSignature>>();
-      }
-
-      EventHandler<TSignature>* operator->() const {
-        return (*it_)->template ptr<EventHandler<TSignature>>();
+      bool operator!=(const Iterator& other) const;
+      template <typename TSignature>
+      auto* get() const {
+        return it_->value.template ptr<EventHandler<TSignature>>();
       }
 
      private:
-      typename std::list<StoreType>::iterator it_;
+      typename ListType::iterator it_;
       /**
        * index and size used to control the end of the list.
        * using end iterator is not appropriate here because it's grow with new
@@ -116,21 +95,8 @@ class EventHandlersList : public TSyncPolicy {
 
     using iterator = Iterator;
 
-    explicit IteratorAdapter(EventHandlersList* self)
-        : self_{self},
-          begin_{std::begin(self_->handlers_), 0,
-                 static_cast<std::uint16_t>(self_->handlers_.size())},
-          end_{std::end(self_->handlers_),
-               static_cast<std::uint16_t>(self_->handlers_.size()),
-               static_cast<std::uint16_t>(self_->handlers_.size())} {
-      ++self_->use_counter_;
-    }
-
-    ~IteratorAdapter() {
-      if ((--self_->use_counter_) == 0) {
-        self_->CleanUp();
-      }
-    }
+    explicit IteratorAdapter(EventHandlersList* self);
+    ~IteratorAdapter();
 
     AE_CLASS_COPY_MOVE(IteratorAdapter)
 
@@ -143,8 +109,7 @@ class EventHandlersList : public TSyncPolicy {
     iterator end_;
   };
 
-  explicit EventHandlersList(TSyncPolicy&& policy)
-      : TSyncPolicy(std::move(policy)) {}
+  EventHandlersList() = default;
 
   /**
    * \brief Insert a new event handler into the list.
@@ -152,11 +117,10 @@ class EventHandlersList : public TSyncPolicy {
    * level, so it's user's responsibility to ensure it.
    */
   template <typename TSignature>
-  std::size_t Insert(EventHandler<TSignature>&& handler) {
-    return TSyncPolicy::InLock([&]() {
-      handlers_.emplace_back(std::move(handler));
-      return handlers_.size() - 1;
-    });
+  Index Insert(EventHandler<TSignature>&& handler) {
+    auto lock = std::scoped_lock{lock_handlers_};
+    auto it = handlers_.emplace(handlers_.end(), std::move(handler));
+    return Index{it};
   }
 
   /**
@@ -164,61 +128,28 @@ class EventHandlersList : public TSyncPolicy {
    * The TSignature must be always be the same. We can't control it on this
    * level, so it's user's responsibility to ensure it.
    */
-  template <typename TSignature>
-  IteratorAdapter<TSignature> Iterator() {
-    return TSyncPolicy::InLock(
-        [&]() { return IteratorAdapter<TSignature>{this}; });
-  }
+  IteratorAdapter Iterator();
 
   /**
    * \brief Remove element by index.
    * It only marks the handler as dead.
    */
-  void Remove(std::size_t index) {
-    TSyncPolicy::InLock([&]() {
-      if (index <= handlers_.size()) {
-        std::next(std::begin(handlers_), static_cast<std::ptrdiff_t>(index))
-            ->reset();
-      }
-    });
-  }
+  void Remove(Index index);
 
   /**
    * \brief Check if element is alive by index.
    */
-  bool Alive(std::size_t index) const {
-    return TSyncPolicy::InLock([&]() {
-      if (index <= handlers_.size()) {
-        return std::next(std::begin(handlers_),
-                         static_cast<std::ptrdiff_t>(index))
-            ->has_value();
-      }
-      return false;
-    });
-  }
+  bool Alive(Index index) const;
 
  private:
   /**
    * \brief Remove last unalived handlers.
    */
-  void CleanUp() {
-    TSyncPolicy::InLock([&]() {
-      if (use_counter_ != 0) {
-        return;
-      }
-      // remove only from the end
-      auto remove_begin = std::end(handlers_);
-      auto it = std::find_if(std::rbegin(handlers_), std::rend(handlers_),
-                             [](auto const& h) { return h.has_value(); });
-      if (it != std::rend(handlers_)) {
-        remove_begin = it.base();
-      }
-      handlers_.erase(remove_begin, std::end(handlers_));
-    });
-  }
+  void CleanUp();
 
   std::atomic_int16_t use_counter_{0};
-  std::list<StoreType> handlers_;
+  mutable std::mutex lock_handlers_;
+  ListType handlers_;
 };
 }  // namespace ae
 

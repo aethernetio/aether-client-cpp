@@ -39,7 +39,9 @@ class EventHandler<void(TArgs...)> final {
  public:
   using Fun = SmallFunction<void(TArgs...), kFunctionSize, kFunctionAlign>;
 
-  template <typename TFunc>
+  template <
+      typename TFunc,
+      AE_REQUIRERS_NOT((std::is_same<EventHandler<void(TArgs...)>, TFunc>))>
   constexpr explicit EventHandler(TFunc&& func)
       : callback_{std::forward<TFunc>(func)} {}
 
