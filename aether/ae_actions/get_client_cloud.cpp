@@ -75,7 +75,7 @@ void GetClientCloudAction::SubscribeClientApi() {
   cloud_resolved_sub_ = cloud_connection_->ClientApiSubscription(
       [this](ClientApiSafe& client_api, auto*) {
         return client_api.send_cloud_event().Subscribe(
-            [this](auto uid, auto const& cloud_descriptor) {
+            [this](auto const& uid, auto const& cloud_descriptor) {
               if (uid == client_uid_) {
                 ResolveServers(cloud_descriptor);
               }
