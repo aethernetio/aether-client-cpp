@@ -77,8 +77,9 @@ inline SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
       break;
     }
 #  endif
-    case IpAddress::Version::kIpV6: {
+    case IpAddress::Version::kIpV6:
 #  if AE_SUPPORT_IPV6 == 1
+    {
       SockAddr sock_addr;
       sock_addr.size = sizeof(sock_addr.data.ipv6);
       auto& addr = sock_addr.data.ipv6;
@@ -89,10 +90,10 @@ inline SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
       return sock_addr;
     }
 #  else
-      {
-        assert(false);
-        break;
-      }
+    {
+      assert(false);
+      break;
+    }
 #  endif
   }
   return {};

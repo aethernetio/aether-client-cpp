@@ -103,16 +103,24 @@ int AetherRegistrator(const std::string& ini_file,
                     s.server_protocol};
                 if (s.server_ip_address_version ==
                     ae::IpAddress::Version::kIpV4) {
+#  if AE_SUPPORT_IPV4
                   for (std::size_t i{0}; i < 4; i++) {
                     settings.ip.value.ipv4_value[i] =
                         s.server_ip_address.value.ipv4_value[i];
                   }
+#  else
+                  assert(!"IPv4 not supported");
+#  endif
                 } else if (s.server_ip_address_version ==
                            ae::IpAddress::Version::kIpV6) {
+#  if AE_SUPPORT_IPV6
                   for (std::size_t i{0}; i < 16; i++) {
                     settings.ip.value.ipv6_value[i] =
                         s.server_ip_address.value.ipv6_value[i];
                   }
+#  else
+                  assert(!"IPv6 not supported");
+#  endif
                 }
                 registration_cloud->AddServerSettings(settings);
               } else if (s.server_address_type ==

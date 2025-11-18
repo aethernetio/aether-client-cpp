@@ -180,6 +180,7 @@ list(APPEND transport_srcs
             "transport/system_sockets/sockets/lwip_tcp_socket.cpp"
             "transport/system_sockets/sockets/lwip_udp_socket.cpp"
             "transport/system_sockets/sockets/win_socket.cpp"
+            "transport/system_sockets/sockets/win_sock_addr.cpp"
             "transport/system_sockets/sockets/win_tcp_socket.cpp"
             "transport/system_sockets/sockets/win_udp_socket.cpp"
             "transport/modems/modem_transport.cpp"
