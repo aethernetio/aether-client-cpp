@@ -121,8 +121,7 @@ def fix_include_paths(dir: str):
           match = re_include.match(l)
           if match:
             should_include = get_file_path_relative_to(match[1], root, base_dir)
-            l = '#include \"{}\"\n'.format(should_include)
-            l = PureWindowsPath(l).as_posix()
+            l = '#include \"{}\"\n'.format(PureWindowsPath(should_include).as_posix())
           open_file.write(l)
 
 def copy_aether_dir(aether_path:str, out_dir: str):
