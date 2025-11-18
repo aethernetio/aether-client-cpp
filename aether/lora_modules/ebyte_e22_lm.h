@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
-#define AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
+#ifndef AETHER_LORA_MODULES_EBYTE_E22_LM_H_
+#define AETHER_LORA_MODULES_EBYTE_E22_LM_H_
 
 #include "aether/config.h"
 
-#if AE_SUPPORT_LORA && AE_ENABLE_EBYTE_E22_400
+#if AE_SUPPORT_LORA && AE_ENABLE_EBYTE_E22
 
 #  include <set>
 #  include <memory>
@@ -106,4 +106,4 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
 } /* namespace ae */
 
 #endif
-#endif  // AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
+#endif  // AETHER_LORA_MODULES_EBYTE_E22_LM_H_

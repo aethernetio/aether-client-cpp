@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/lora_modules/dx_smart_lr02_433_lm.h"
+#include "aether/lora_modules/dx_smart_lr02_lm.h"
 #if AE_SUPPORT_LORA && AE_ENABLE_DX_SMART_LR02_433_LM
 
 #  include <bitset>

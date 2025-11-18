@@ -150,8 +150,8 @@ list(APPEND modems_srcs
             "modems/thingy91x_at_modem.cpp")
 
 list(APPEND lora_modules_srcs
-            "lora_modules/dx_smart_lr02_433_lm.cpp"
-            # "lora_modules/ebyte_e22_400_lm.cpp"
+            "lora_modules/dx_smart_lr02_lm.cpp"
+            # "lora_modules/ebyte_e22_lm.cpp"
             "lora_modules/lora_module_factory.cpp")
 
 

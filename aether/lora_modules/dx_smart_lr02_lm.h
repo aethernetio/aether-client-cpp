@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LORA_MODULES_DX_SMART_LR02_433_LM_H_
-#define AETHER_LORA_MODULES_DX_SMART_LR02_433_LM_H_
+#ifndef AETHER_LORA_MODULES_DX_SMART_LR02_LM_H_
+#define AETHER_LORA_MODULES_DX_SMART_LR02_LM_H_
 
 #include "aether/config.h"
 
-#if AE_SUPPORT_LORA && AE_ENABLE_DX_SMART_LR02_433_LM
+#if AE_SUPPORT_LORA && AE_ENABLE_DX_SMART_LR02_LM
 #  include <set>
 #  include <memory>
 
@@ -145,4 +145,4 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
 
 } /* namespace ae */
 #endif
-#endif  // AETHER_LORA_MODULES_DX_SMART_LR02_433_LM_H_
+#endif  // AETHER_LORA_MODULES_DX_SMART_LR02_LM_H_
