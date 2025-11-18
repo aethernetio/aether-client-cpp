@@ -32,7 +32,7 @@
 #endif  // AE_SUPPORT_IPV4
 
 #ifndef AE_SUPPORT_IPV6
-#  define AE_SUPPORT_IPV6 1
+#  define AE_SUPPORT_IPV6 0
 #endif  // AE_SUPPORT_IPV6
 
 #ifndef AE_SUPPORT_UDP
