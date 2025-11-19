@@ -151,8 +151,9 @@ list(APPEND modems_srcs
 
 list(APPEND lora_modules_srcs
             "lora_modules/dx_smart_lr02_lm.cpp"
-            # "lora_modules/ebyte_e22_lm.cpp"
-            "lora_modules/lora_module_factory.cpp")
+            "lora_modules/ebyte_e22_lm.cpp"
+            "lora_modules/lora_module_factory.cpp"
+            "lora_modules/api/lora_module_api.cpp")
 
 
 list(APPEND wifi_srcs
@@ -279,6 +280,9 @@ list(APPEND tele_srcs
             "tele/traps/statistics_trap.cpp"
             "tele/traps/tele_statistics.cpp")
 
+list(APPEND crc_srcs
+            "crc/crc32.cpp")
+
 message(STATUS "Cmake system name is ${CMAKE_SYSTEM_NAME}")
 
 if(NOT CM_PLATFORM)
@@ -330,6 +334,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${domain_storage_srcs}
                             ${channels_srcs}
                             ${tele_srcs}
+                            ${crc_srcs}
                             )
 
   # https://stackoverflow.com/questions/25676277/cmake-target-include-directories-prints-an-error-when-i-try-to-add-the-source
@@ -382,6 +387,7 @@ else()
                             ${domain_storage_srcs}
                             ${channels_srcs}
                             ${tele_srcs}
+                            ${crc_srcs}
                             INCLUDE_DIRS ${include_dirs}
                             REQUIRES esp_wifi nvs_flash spiffs esp_driver_uart)
 

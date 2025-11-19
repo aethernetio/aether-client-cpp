@@ -19,7 +19,7 @@
 
 #include "aether/config.h"
 
-#if AE_SUPPORT_LORA && AE_ENABLE_EBYTE_E22
+#if AE_SUPPORT_LORA && AE_ENABLE_EBYTE_E22_LM
 
 #  include <set>
 #  include <memory>
@@ -85,6 +85,11 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
 
  private:
   void Init();
+  
+  ActionPtr<IPipeline> SendData(ConnectionLoraIndex connection,
+                                DataBuffer const& data);
+  ActionPtr<IPipeline> ReadPacket(ConnectionLoraIndex connection);
+  
   void SetupPoll();
   ActionPtr<IPipeline> Poll();
   void PollEvent(std::int32_t handle, std::string_view flags);

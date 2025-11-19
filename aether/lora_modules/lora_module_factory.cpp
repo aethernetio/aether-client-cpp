@@ -18,8 +18,8 @@
 #if AE_SUPPORT_LORA
 
 //// IWYU pragma: begin_keeps
-#  include "aether/lora_modules/ebyte_e22_400_lm.h"
-#  include "aether/lora_modules/dx_smart_lr02_433_lm.h"
+#  include "aether/lora_modules/ebyte_e22_lm.h"
+#  include "aether/lora_modules/dx_smart_lr02_lm.h"
 // IWYU pragma: end_keeps
 
 namespace ae {
@@ -27,10 +27,10 @@ namespace ae {
 std::unique_ptr<ILoraModuleDriver> LoraModuleDriverFactory::CreateLoraModule(
     ActionContext action_context, IPoller::ptr const& poller,
     LoraModuleInit lora_module_init) {
-#  if AE_ENABLE_EBYTE_E22_400
+#  if AE_ENABLE_EBYTE_E22_LM
   return std::make_unique<EbyteE22LoraModule>(action_context, poller,
                                               std::move(lora_module_init));
-#  elif AE_ENABLE_DX_SMART_LR02_433_LM
+#  elif AE_ENABLE_DX_SMART_LR02_LM
   return std::make_unique<DxSmartLr02LoraModule>(action_context, poller,
                                                  std::move(lora_module_init));
 #  else

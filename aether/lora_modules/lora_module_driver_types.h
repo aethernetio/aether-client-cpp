@@ -178,14 +178,6 @@ struct LoraConnection {
   std::string host;
   std::uint16_t port;
 };
-
-struct LoraPacket {
-  AE_REFLECT_MEMBERS(connection, length, data, crc)
-  LoraConnection connection;
-  std::size_t length{0};
-  ae::DataBuffer data;
-  std::uint32_t crc{0};
-};
 }  // namespace ae
 
 #endif
