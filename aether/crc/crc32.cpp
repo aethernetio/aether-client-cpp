@@ -17,7 +17,7 @@
 #include "aether/crc/crc32.h"
 
 namespace ae {
-  
+
 static constexpr std::uint32_t kCRCPolynomial{0xEDB88320UL};
 static constexpr std::uint32_t kCRCInit{0xFFFFFFFFUL};
 

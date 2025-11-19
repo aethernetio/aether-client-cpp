@@ -85,11 +85,11 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
 
  private:
   void Init();
-  
+
   ActionPtr<IPipeline> SendData(ConnectionLoraIndex connection,
                                 DataBuffer const& data);
   ActionPtr<IPipeline> ReadPacket(ConnectionLoraIndex connection);
-  
+
   void SetupPoll();
   ActionPtr<IPipeline> Poll();
   void PollEvent(std::int32_t handle, std::string_view flags);

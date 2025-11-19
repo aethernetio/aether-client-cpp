@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 #ifndef AETHER_CRC_CRC32_H_
 #define AETHER_CRC_CRC32_H_
 
 #include "aether/types/data_buffer.h"
 
 namespace ae {
-  std::uint32_t CRC32_function(DataBuffer data);
+std::uint32_t CRC32_function(DataBuffer data);
 }  // namespace ae
 
 #endif  // AETHER_CRC_CRC32_H_
