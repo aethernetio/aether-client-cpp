@@ -41,13 +41,30 @@ endfunction()
 
 #
 # Get list of submodules
+# in format <hash> <path> <tag> <timestamp>
 #
 function(_ae_submodules_list RESULT_VAR)
   execute_process(COMMAND "${GIT_EXECUTABLE}" -C ${ROOT_REPO_DIR} submodule status
     OUTPUT_VARIABLE output_result
     ERROR_QUIET
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-  set(${RESULT_VAR} "${output_result}" PARENT_SCOPE)
+
+  # output_result should has list of strings in format
+  # <hash> <path> <tag>
+  # b9d897b5f38674248c86fb58342b87cb6006fe1f ../third_party/Unity (v2.6.1-15-gb9d897b)
+  #
+  # Add a timestamp for a path at the end of the line
+  string(REPLACE "\n" ";" output_result ${output_result})
+
+  set(modules_list "")
+  foreach(module IN LISTS output_result)
+    string(REGEX MATCH "[a-fA-F0-9]+ (.+) \(.*\)$" match "${module}")
+    set(file_path ${CMAKE_MATCH_1})
+    file(TIMESTAMP "${ROOT_REPO_DIR}/${file_path}" timestamp)
+    string(APPEND modules_list "${module} ${timestamp}\n")
+  endforeach()
+
+  set(${RESULT_VAR} "${modules_list}" PARENT_SCOPE)
 endfunction()
 
 #
@@ -133,5 +150,6 @@ function(ae_update_dependencies)
 
   #write updated file
   _ae_submodules_list(submodules_list)
+  message(STATUS "Submodules list is\n${submodules_list}")
   file(WRITE "${UPDATED_FILE}" "${submodules_list}")
 endfunction()
