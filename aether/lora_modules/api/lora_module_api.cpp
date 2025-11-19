@@ -17,7 +17,7 @@
 #if AE_SUPPORT_LORA
 
 #  include "aether/lora_modules/api/lora_module_api.h"
-#  include "aether/crc/crc32.h"
+#  include "crc.h"
 
 namespace ae {
 LoraModuleApi::LoraModuleApi(ProtocolContext& protocol_context)
@@ -25,7 +25,8 @@ LoraModuleApi::LoraModuleApi(ProtocolContext& protocol_context)
 
 void LoraModuleApi::LoraPacketImpl(ApiParser& parser, LoraConnection lc,
                                    DataBuffer data, std::uint32_t crc) {
-  if (crc == CRC32_function(data)) {
+  result_t _curr{0xFFFFFFFFUL};
+  if (crc == from_buffer(data.data(), data.size(), _curr)) {
     lora_packet_event_.Emit(lc, data, crc);
   }
 }
