@@ -56,4 +56,4 @@ class LoraModuleApi : public ApiClassImpl<LoraModuleApi> {
 }  // namespace ae
 
 #endif  // AE_SUPPORT_LORA
-#endif  // EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_API_BENCH_DELAYS_API_H_
+#endif  // AETHER_LORA_MODULES_API_LORA_MODULE_API_H_
