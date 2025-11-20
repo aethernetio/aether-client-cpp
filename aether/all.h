@@ -65,6 +65,7 @@
 #include "aether/types/ring_buffer.h"
 #include "aether/types/state_machine.h"
 #include "aether/types/literal_array.h"
+#include "aether/types/nullable_type.h"
 #include "aether/types/address_parser.h"
 
 #include "aether/serial_ports/iserial_port.h"
