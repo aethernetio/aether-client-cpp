@@ -48,7 +48,6 @@
 #include "aether/obj/registry.h"
 
 #include "aether/tele/tele_init.h"
-#include "aether/stream_api/istream.h"
 
 #include "aether/domain_storage/ram_domain_storage.h"
 #include "aether/domain_storage/spifs_domain_storage.h"
@@ -67,6 +66,12 @@
 #include "aether/types/literal_array.h"
 #include "aether/types/nullable_type.h"
 #include "aether/types/address_parser.h"
+
+#include "aether/stream_api/istream.h"
+#include "aether/stream_api/safe_stream.h"
+#include "aether/stream_api/buffer_stream.h"
+#include "aether/stream_api/protocol_gates.h"
+#include "aether/stream_api/stream_write_action.h"
 
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/serial_port_types.h"
