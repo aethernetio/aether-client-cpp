@@ -26,6 +26,7 @@ list(APPEND test_srcs
     test-type-list.cpp
     test-uid.cpp
     test-small-function.cpp
+    test-nullable-type.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -37,6 +38,9 @@ if(NOT CM_PLATFORM)
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE unity gcem)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(${PROJECT_NAME} PUBLIC /Zc:preprocessor)
+  endif()
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()
