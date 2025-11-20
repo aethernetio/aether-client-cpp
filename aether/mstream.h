@@ -43,6 +43,7 @@
 #include <unordered_map>
 
 #include "aether/reflect/reflect.h"
+#include "aether/types/nullable_type.h"
 #include "aether/reflect/domain_visitor.h"  // IWYU pragma: keep
 
 namespace ae {
@@ -568,16 +569,24 @@ imstream_enable_if_t<has_imstream<T, Ib>::value, Ib> operator>>(imstream<Ib>& s,
 template <typename T, typename Ib>
 std::enable_if_t<reflect::IsReflectable<T>::value, imstream<Ib>&> operator>>(
     imstream<Ib>& s, T& t) {
-  auto reflection = reflect::Reflection{t};
-  reflection.Apply([&s](auto&... val) { ((s >> val), ...); });
+  if constexpr (std::is_base_of_v<NullableType<T>, T>) {
+    t.Load(s);
+  } else {
+    auto reflection = reflect::Reflection{t};
+    reflection.Apply([&s](auto&... val) { ((s >> val), ...); });
+  }
   return s;
 }
 
 template <typename T, typename Ob>
 std::enable_if_t<reflect::IsReflectable<T>::value, omstream<Ob>&> operator<<(
     omstream<Ob>& s, T const& t) {
-  auto reflection = reflect::Reflection{t};
-  reflection.Apply([&s](auto const&... val) { ((s << val), ...); });
+  if constexpr (std::is_base_of_v<NullableType<T>, T>) {
+    t.Save(s);
+  } else {
+    auto reflection = reflect::Reflection{t};
+    reflection.Apply([&s](auto const&... val) { ((s << val), ...); });
+  }
   return s;
 }
 }  // namespace ae

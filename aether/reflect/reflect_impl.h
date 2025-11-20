@@ -79,9 +79,9 @@ struct FieldList {
    * \brief Apply func to obj fields
    */
   template <typename U, typename Func>
-  static constexpr void Apply(U&& obj, Func&& func) {
+  static constexpr decltype(auto) Apply(U&& obj, Func&& func) {
     // apply to each field
-    std::forward<Func>(func)(TFields::get(std::forward<U>(obj))...);
+    return std::forward<Func>(func)(TFields::get(std::forward<U>(obj))...);
   }
 
   /**
@@ -101,8 +101,8 @@ class ReflectionImpl {
   constexpr explicit ReflectionImpl(T obj) : obj_{std::forward<T>(obj)} {}
 
   template <typename Func>
-  constexpr void Apply(Func&& func) {
-    FieldList::Apply(obj_, std::forward<Func>(func));
+  constexpr decltype(auto) Apply(Func&& func) {
+    return FieldList::Apply(obj_, std::forward<Func>(func));
   }
 
   template <std::size_t I>
