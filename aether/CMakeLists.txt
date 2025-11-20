@@ -64,10 +64,10 @@ list(APPEND types_srcs
             "types/address_parser.cpp")
 
 list(APPEND events_srcs
-          "events/event_list.cpp"
-          "events/event_deleter.cpp"
-          "events/event_subscription.cpp"
-          "events/multi_subscription.cpp")
+            "events/event_list.cpp"
+            "events/event_deleter.cpp"
+            "events/event_subscription.cpp"
+            "events/multi_subscription.cpp")
 
 list(APPEND poller_srcs
             "poller/poller.cpp"
@@ -153,7 +153,7 @@ list(APPEND lora_modules_srcs
             "lora_modules/dx_smart_lr02_lm.cpp"
             "lora_modules/ebyte_e22_lm.cpp"
             "lora_modules/lora_module_factory.cpp"
-            "lora_modules/api/lora_module_api.cpp")
+            "lora_modules/api/gateway_api.cpp")
 
 
 list(APPEND wifi_srcs

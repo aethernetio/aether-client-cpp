@@ -23,6 +23,7 @@
 
 #  include <array>
 
+#  include "aether/reflect/reflect.h"
 #  include "aether/events/events.h"
 #  include "aether/types/data_buffer.h"
 #  include "aether/api_protocol/api_method.h"
@@ -31,26 +32,27 @@
 
 namespace ae {
 
-class LoraModuleApi : public ApiClassImpl<LoraModuleApi> {
+struct GwConnection {
+  AE_REFLECT_MEMBERS(client_id, server_id)
+  std::uint32_t client_id{0};
+  std::uint32_t server_id{0};
+};
+
+class GatewayApi : public ApiClassImpl<GatewayApi> {
  public:
-  explicit LoraModuleApi(ProtocolContext& protocol_context);
+  explicit GatewayApi(ProtocolContext& protocol_context);
 
-  Method<0x03, void(LoraConnection lc, DataBuffer data, std::uint32_t crc)>
-      lora_packet;
+  Method<3, void(GwConnection gwc, DataBuffer data)> packet;
 
-  void LoraPacketImpl(ApiParser& parser, struct LoraConnection1 lc,
-                      DataBuffer data, std::uint32_t crc);
+  void PacketImpl(ApiParser& parser, GwConnection gwc, DataBuffer data);
 
-  EventSubscriber<void(LoraConnection const& lc, DataBuffer const& data,
-                       std::uint32_t crc)>
-  lora_packet_event();
+  EventSubscriber<void(GwConnection const& gwc, DataBuffer const& data)>
+  packet_event();
 
-  using ApiMethods = ImplList<RegMethod<0x03, &LoraModuleApi::LoraPacketImpl>>;
+  using ApiMethods = ImplList<RegMethod<0x03, &GatewayApi::PacketImpl>>;
 
  private:
-  Event<void(LoraConnection const& lc, DataBuffer const& data,
-             std::uint32_t crc)>
-      lora_packet_event_;
+  Event<void(GwConnection const& gwc, DataBuffer const& data)> packet_event_;
 };
 
 }  // namespace ae

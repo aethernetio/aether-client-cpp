@@ -24,6 +24,7 @@
 #  include <string>
 #  include <vector>
 
+#  include "aether/types/address.h"
 #  include "aether/reflect/reflect.h"
 #  include "aether/serial_ports/serial_port_types.h"
 
@@ -174,7 +175,7 @@ static constexpr ConnectionLoraIndex kInvalidConnectionLoraIndex = -1;
 struct LoraConnection {
   AE_REFLECT_MEMBERS(connect_index, protocol, host, port)
   ConnectionLoraIndex connect_index;
-  ae::Protocol protocol;
+  Protocol protocol;
   std::string host;
   std::uint16_t port;
 };
