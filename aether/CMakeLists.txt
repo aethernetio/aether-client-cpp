@@ -152,9 +152,10 @@ list(APPEND modems_srcs
 list(APPEND lora_modules_srcs
             "lora_modules/dx_smart_lr02_lm.cpp"
             "lora_modules/ebyte_e22_lm.cpp"
-            "lora_modules/lora_module_factory.cpp"
-            "lora_modules/api/gateway_api.cpp")
-
+            "lora_modules/lora_module_factory.cpp")
+            
+list(APPEND gateway_api_srcs
+            "lora_modules/gateway_api/gateway_api.cpp")
 
 list(APPEND wifi_srcs
             "wifi/wifi_driver_factory.cpp"
@@ -318,6 +319,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${access_points_srcs}
                             ${modems_srcs}
                             ${lora_modules_srcs}
+                            ${gateway_api_srcs}
                             ${wifi_srcs}
                             ${serial_ports_srcs}
                             ${api_protocol_srcs}
@@ -368,6 +370,7 @@ else()
                             ${access_points_srcs}
                             ${modems_srcs}
                             ${lora_modules_srcs}
+                            ${gateway_api_srcs}
                             ${wifi_srcs}
                             ${serial_ports_srcs}
                             ${transport_srcs}
