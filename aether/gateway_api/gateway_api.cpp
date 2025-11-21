@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/lora_modules/api/gateway_api.h"
+#include "aether/gateway_api/gateway_api.h"
 
 #if AE_SUPPORT_LORA
 
