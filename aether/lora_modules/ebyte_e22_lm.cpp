@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "aether/lora_modules/ebyte_e22_400_lm.h"
-#if AE_SUPPORT_LORA && AE_ENABLE_EBYTE_E22_400
+#include "aether/lora_modules/ebyte_e22_lm.h"
+#if AE_SUPPORT_LORA && AE_ENABLE_EBYTE_E22_LM
 
 #  include <bitset>
 #  include <string_view>
@@ -66,19 +66,37 @@ EbyteE22LoraModule::OpenNetwork(ae::Protocol /* protocol*/,
   return {};
 }
 
+ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
+EbyteE22LoraModule::CloseNetwork(ae::ConnectionLoraIndex /*connect_index*/) {
+  return {};
+}
 // void EbyteE22LoraModule::CloseNetwork(
 //    ae::ConnectionLoraIndex /*connect_index*/){};
 
+ActionPtr<EbyteE22LoraModule::WriteOperation>
+EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
+                                   ae::DataBuffer const& /*data*/) {
+  return {};
+}
 // void EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex
 // /*connect_index*/,
 //                                      ae::DataBuffer const& /*data*/) {};
 
+ActionPtr<IPipeline> EbyteE22LoraModule::ReadPacket(
+    ConnectionLoraIndex /* connection */) {
+  return {};
+}
 // DataBuffer EbyteE22LoraModule::ReadPacket(
 //     ae::ConnectionLoraIndex /*connect_index*/, ae::Duration /*timeout*/) {
 //   DataBuffer data{};
 //
 //   return data;
 // };
+
+EbyteE22LoraModule::DataEvent::Subscriber
+EbyteE22LoraModule::data_event() {
+  return EventSubscriber{data_event_};
+}
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetPowerSaveParam(LoraPowerSaveParam const& /*psp*/) {

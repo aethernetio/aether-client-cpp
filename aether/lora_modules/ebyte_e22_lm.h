@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
-#define AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
+#ifndef AETHER_LORA_MODULES_EBYTE_E22_LM_H_
+#define AETHER_LORA_MODULES_EBYTE_E22_LM_H_
 
 #include "aether/config.h"
 
-#if AE_SUPPORT_LORA && AE_ENABLE_EBYTE_E22_400
+#if AE_SUPPORT_LORA && AE_ENABLE_EBYTE_E22_LM
 
 #  include <set>
 #  include <memory>
@@ -85,6 +85,11 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
 
  private:
   void Init();
+
+  ActionPtr<IPipeline> SendData(ConnectionLoraIndex connection,
+                                DataBuffer const& data);
+  ActionPtr<IPipeline> ReadPacket(ConnectionLoraIndex connection);
+
   void SetupPoll();
   ActionPtr<IPipeline> Poll();
   void PollEvent(std::int32_t handle, std::string_view flags);
@@ -106,4 +111,4 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
 } /* namespace ae */
 
 #endif
-#endif  // AETHER_LORA_MODULES_EBYTE_E22_400_LM_H_
+#endif  // AETHER_LORA_MODULES_EBYTE_E22_LM_H_

@@ -24,6 +24,7 @@
 #  include <string>
 #  include <vector>
 
+#  include "aether/types/address.h"
 #  include "aether/reflect/reflect.h"
 #  include "aether/serial_ports/serial_port_types.h"
 
@@ -117,6 +118,27 @@ enum class kLoraModuleIQSignalInversion : std::int8_t {
   kIQon = 1,
 };
 
+// LoRa uses license-free sub-gigahertz radio frequency bands
+// EU433 (LPD433) or
+// CH470 (470-510) in China;
+// EU868 (863–870/873 MHz) in Europe;
+// AU915 (915–928 MHz) in America;
+// SA923 (923–928 MHz) in South America;
+// US915 (902–928 MHz) in North America;
+// IN865 (865–867 MHz) in India; and
+// AS923 (915–928 MHz) in Asia
+enum class kLoraModuleFreqRange : std::int8_t {
+  kFREUndef = -1,
+  kFREU433 = 0,
+  kFRCH470 = 1,
+  kFREU868 = 2,
+  kFRAU915 = 3,
+  kFRSA923 = 4,
+  kFRUS915 = 5,
+  kFRIN865 = 6,
+  kFRAS923 = 7
+};
+
 // ========================lora module init=====================================
 struct LoraPowerSaveParam {
   AE_REFLECT_MEMBERS(lora_module_mode, lora_module_level, lora_module_power,
@@ -138,6 +160,7 @@ struct LoraModuleInit {
                      lora_module_crc_check, lora_module_signal_inversion)
   SerialInit serial_init;
   LoraPowerSaveParam psp;
+  kLoraModuleFreqRange lora_module_freq_range{kLoraModuleFreqRange::kFREUndef};
   std::uint16_t lora_module_my_adress{0};
   std::uint16_t lora_module_bs_adress{0};
   std::uint8_t lora_module_channel{0};
@@ -152,17 +175,9 @@ static constexpr ConnectionLoraIndex kInvalidConnectionLoraIndex = -1;
 struct LoraConnection {
   AE_REFLECT_MEMBERS(connect_index, protocol, host, port)
   ConnectionLoraIndex connect_index;
-  ae::Protocol protocol;
+  Protocol protocol;
   std::string host;
   std::uint16_t port;
-};
-
-struct LoraPacket {
-  AE_REFLECT_MEMBERS(connection, length, data, crc)
-  LoraConnection connection;
-  std::size_t length{0};
-  ae::DataBuffer data;
-  std::uint32_t crc{0};
 };
 }  // namespace ae
 

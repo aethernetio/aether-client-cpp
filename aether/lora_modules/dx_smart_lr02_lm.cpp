@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "aether/lora_modules/dx_smart_lr02_433_lm.h"
-#if AE_SUPPORT_LORA && AE_ENABLE_DX_SMART_LR02_433_LM
+#include "aether/lora_modules/dx_smart_lr02_lm.h"
+#if AE_SUPPORT_LORA && AE_ENABLE_DX_SMART_LR02_LM
 
 #  include <bitset>
 #  include <string_view>
@@ -262,6 +262,11 @@ DxSmartLr02LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
 //  serial_->Write(packet_data);
 //};
 
+ActionPtr<IPipeline> DxSmartLr02LoraModule::ReadPacket(
+    ConnectionLoraIndex /* connection */) {
+  return {};
+}
+
 // DataBuffer DxSmartLr02LoraModule::ReadPacket(
 //     ae::ConnectionLoraIndex /* connect_index*/, ae::Duration /* timeout*/) {
 //   LoraPacket lora_packet{};
@@ -278,11 +283,6 @@ DxSmartLr02LoraModule::WritePacket(ae::ConnectionLoraIndex /*connect_index*/,
 //
 //   return data;
 // };
-
-ActionPtr<IPipeline> DxSmartLr02LoraModule::ReadPacket(
-    ConnectionLoraIndex /* connection */) {
-  return {};
-}
 
 DxSmartLr02LoraModule::DataEvent::Subscriber
 DxSmartLr02LoraModule::data_event() {
