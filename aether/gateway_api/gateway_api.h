@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_LORA_MODULES_API_LORA_MODULE_API_H_
-#define AETHER_LORA_MODULES_API_LORA_MODULE_API_H_
+#ifndef AETHER_GATEWAY_API_GATEWAY_API_H_
+#define AETHER_GATEWAY_API_GATEWAY_API_H_
 
 #include "aether/config.h"
 
@@ -58,4 +58,4 @@ class GatewayApi : public ApiClassImpl<GatewayApi> {
 }  // namespace ae
 
 #endif  // AE_SUPPORT_LORA
-#endif  // AETHER_LORA_MODULES_API_LORA_MODULE_API_H_
+#endif  // AETHER_GATEWAY_API_GATEWAY_API_H_

@@ -155,7 +155,7 @@ list(APPEND lora_modules_srcs
             "lora_modules/lora_module_factory.cpp")
             
 list(APPEND gateway_api_srcs
-            "lora_modules/gateway_api/gateway_api.cpp")
+            "gateway_api/gateway_api.cpp")
 
 list(APPEND wifi_srcs
             "wifi/wifi_driver_factory.cpp"
