@@ -60,7 +60,7 @@ ActionPtr<SelectClientAction> Aether::SelectClient(
 #endif
 }
 
-void Aether::AddServer(Server::ptr&& s) {
+void Aether::AddServer(Server::ptr s) {
   servers_.insert({s->server_id, std::move(s)});
 }
 
