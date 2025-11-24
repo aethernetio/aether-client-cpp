@@ -46,8 +46,6 @@ namespace ae {
 #define AE_ESC_(...) AE_VAN_##__VA_ARGS__
 #define AE_VAN_AE_ISH
 
-using ServerId = std::uint16_t;
-
 using Duration = std::chrono::duration<uint32_t, std::micro>;
 using ClockType = std::chrono::system_clock;
 using TimePoint = std::chrono::time_point<ClockType>;

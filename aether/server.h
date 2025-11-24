@@ -19,11 +19,11 @@
 
 #include <vector>
 
-#include "aether/common.h"
 #include "aether/channels/channel.h"
 #include "aether/adapter_registry.h"
 
 #include "aether/events/events.h"
+#include "aether/types/server_id.h"
 #include "aether/events/multi_subscription.h"
 
 namespace ae {

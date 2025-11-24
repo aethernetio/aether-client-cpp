@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_WORK_CLOUD_API_UID_AND_CLOUD_H_
-#define AETHER_WORK_CLOUD_API_UID_AND_CLOUD_H_
+#ifndef AETHER_TYPES_SERVER_ID_H_
+#define AETHER_TYPES_SERVER_ID_H_
 
-#include <vector>
-
-#include "aether/types/uid.h"
-#include "aether/types/server_id.h"
+#include <cstdint>
 
 namespace ae {
-struct CloudDescriptor {
-  AE_REFLECT_MEMBERS(sids)
-
-  std::vector<ServerId> sids;
-};
-
-struct UidAndCloudDescriptor {
-  AE_REFLECT_MEMBERS(uid, cloud)
-  Uid uid;
-  CloudDescriptor cloud;
-};
+/**
+ * \brief Aether server identifier
+ */
+using ServerId = std::uint16_t;
 }  // namespace ae
 
-#endif  // AETHER_WORK_CLOUD_API_UID_AND_CLOUD_H_
+#endif  // AETHER_TYPES_SERVER_ID_H_

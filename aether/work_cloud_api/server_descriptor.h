@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "aether/types/address.h"
+#include "aether/types/server_id.h"
 
 namespace ae {
 
