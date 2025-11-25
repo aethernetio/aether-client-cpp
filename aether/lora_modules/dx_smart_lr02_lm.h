@@ -33,8 +33,7 @@
 #  include "aether/lora_modules/ilora_module_driver.h"
 
 namespace ae {
-class DxSmartLr02TcpOpenNetwork;
-class DxSmartLr02UdpOpenNetwork;
+class DxSmartLr02LoraOpenNetwork;
 
 static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
     {kBaudRate::kBaudRate1200, "AT+BAUD1"},
@@ -48,9 +47,8 @@ static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
     {kBaudRate::kBaudRate128000, "AT+BAUD9"}};
 
 class DxSmartLr02LoraModule final : public ILoraModuleDriver {
-  friend class DxSmartLr02TcpOpenNetwork;
-  friend class DxSmartLr02UdpOpenNetwork;
-  static constexpr std::uint16_t kLoraModuleMTU{400};
+  friend class DxSmartLr02LoraOpenNetwork;
+  static constexpr std::uint16_t kLoraModuleMTU{200};
 
  public:
   explicit DxSmartLr02LoraModule(ActionContext action_context,
@@ -67,17 +65,16 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
       ConnectionLoraIndex connect_index) override;
   ActionPtr<WriteOperation> WritePacket(ConnectionLoraIndex connect_index,
                                         ae::DataBuffer const& data) override;
-
   DataEvent::Subscriber data_event() override;
-
   ActionPtr<LoraModuleOperation> SetPowerSaveParam(
       LoraPowerSaveParam const& psp) override;
-  ActionPtr<LoraModuleOperation> PowerOff() override;
+  ActionPtr<LoraModuleOperation> PowerOff() override; 
+  std::uint16_t GetMtu() override;
+  
   ActionPtr<LoraModuleOperation> SetLoraModuleAddress(
       std::uint16_t const& address);  // Module address
   ActionPtr<LoraModuleOperation> SetLoraModuleChannel(
       std::uint8_t const& channel);  // Module channel
-
   ActionPtr<LoraModuleOperation> SetLoraModuleCRCCheck(
       kLoraModuleCRCCheck const& crc_check);  // Module crc check
   ActionPtr<LoraModuleOperation> SetLoraModuleIQSignalInversion(
@@ -87,11 +84,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
  private:
   void Init();
 
-  ActionPtr<IPipeline> OpenTcpConnection(
-      ActionPtr<OpenNetworkOperation> open_network_operation,
-      std::string const& host, std::uint16_t port);
-
-  ActionPtr<IPipeline> OpenUdpConnection(
+  ActionPtr<IPipeline> OpenLoraConnection(
       ActionPtr<OpenNetworkOperation> open_network_operation,
       std::string const& host, std::uint16_t port);
 

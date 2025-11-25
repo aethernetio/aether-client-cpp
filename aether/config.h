@@ -116,15 +116,15 @@
  * \brief Is lora protocol supported.
  */
 #ifndef AE_SUPPORT_LORA
-#  define AE_SUPPORT_LORA 0
+#  define AE_SUPPORT_LORA 1
 #endif
 
 #ifndef AE_ENABLE_EBYTE_E22_LM
-#  define AE_ENABLE_EBYTE_E22_LM 0
+#  define AE_ENABLE_EBYTE_E22_LM 1
 #endif
 
 #ifndef AE_ENABLE_DX_SMART_LR02_LM
-#  define AE_ENABLE_DX_SMART_LR02_LM 0
+#  define AE_ENABLE_DX_SMART_LR02_LM 1
 #endif
 
 // Registration functionality can be stripped-out for pre-registered clients.

@@ -108,6 +108,10 @@ EbyteE22LoraModule::PowerOff() {
   return {};
 }
 
+std::uint16_t EbyteE22LoraModule::GetMtu(){
+  return kLoraModuleMTU;
+}
+
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleAddress(std::uint16_t const& /*address*/) {
   return {};

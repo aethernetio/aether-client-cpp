@@ -57,6 +57,8 @@ class ILoraModuleDriver {
   virtual ActionPtr<LoraModuleOperation> SetPowerSaveParam(
       LoraPowerSaveParam const& psp) = 0;
   virtual ActionPtr<LoraModuleOperation> PowerOff() = 0;
+  
+  virtual std::uint16_t GetMtu() = 0;
 };
 
 } /* namespace ae */

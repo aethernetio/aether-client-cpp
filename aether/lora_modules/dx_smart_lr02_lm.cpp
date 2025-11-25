@@ -38,57 +38,17 @@ static const AtRequest::Wait kWaitEntryAt{"Entry AT", kOneSecond};
 static const AtRequest::Wait kWaitExitAt{"Exit AT", kOneSecond};
 static const AtRequest::Wait kWaitPowerOn{"Power on", kOneSecond};
 
-class DxSmartLr02TcpOpenNetwork final
-    : public Action<DxSmartLr02TcpOpenNetwork> {
+class DxSmartLr02LoraOpenNetwork final
+    : public Action<DxSmartLr02LoraOpenNetwork> {
  public:
-  DxSmartLr02TcpOpenNetwork(ActionContext action_context,
+  DxSmartLr02LoraOpenNetwork(ActionContext action_context,
                             DxSmartLr02LoraModule& /* lora_module */,
                             std::string host, std::uint16_t port)
       : Action{action_context},
         action_context_{action_context},
         host_{std::move(host)},
         port_{port} {
-    AE_TELED_DEBUG("Open tcp connection for {}:{}", host_, port_);
-  }
-
-  UpdateStatus Update() const {
-    if (success_) {
-      return UpdateStatus::Result();
-    }
-    if (error_) {
-      return UpdateStatus::Error();
-    }
-    if (stop_) {
-      return UpdateStatus::Stop();
-    }
-    return {};
-  }
-
-  ConnectionLoraIndex connection_index() const { return connection_index_; }
-
- private:
-  ActionContext action_context_;
-  std::string host_;
-  std::uint16_t port_;
-  ActionPtr<IPipeline> operation_pipeline_;
-  Subscription operation_sub_;
-  ConnectionLoraIndex connection_index_ = kInvalidConnectionLoraIndex;
-  bool success_{};
-  bool error_{};
-  bool stop_{};
-};
-
-class DxSmartLr02UdpOpenNetwork final
-    : public Action<DxSmartLr02UdpOpenNetwork> {
- public:
-  DxSmartLr02UdpOpenNetwork(ActionContext action_context,
-                            DxSmartLr02LoraModule& /* lora_module */,
-                            std::string host, std::uint16_t port)
-      : Action{action_context},
-        action_context_{action_context},
-        host_{std::move(host)},
-        port_{port} {
-    AE_TELED_DEBUG("Open UDP connection for {}:{}", host_, port_);
+    AE_TELED_DEBUG("Open lora connection for {}:{}", host_, port_);
   }
 
   UpdateStatus Update() const {
@@ -209,11 +169,8 @@ DxSmartLr02LoraModule::OpenNetwork(ae::Protocol protocol,
 
   operation_queue_->Push(Stage([this, open_network_operation, protocol,
                                 host{host}, port]() -> ActionPtr<IPipeline> {
-    if (protocol == Protocol::kTcp) {
-      return OpenTcpConnection(open_network_operation, host, port);
-    }
-    if (protocol == Protocol::kUdp) {
-      return OpenUdpConnection(open_network_operation, host, port);
+    if (protocol == Protocol::kLora) {
+      return OpenLoraConnection(open_network_operation, host, port);
     }
     return {};
   }));
@@ -338,6 +295,10 @@ DxSmartLr02LoraModule::SetPowerSaveParam(LoraPowerSaveParam const& psp) {
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
 DxSmartLr02LoraModule::PowerOff() {
   return {};
+}
+
+std::uint16_t DxSmartLr02LoraModule::GetMtu(){
+  return kLoraModuleMTU;
 }
 
 ActionPtr<DxSmartLr02LoraModule::LoraModuleOperation>
@@ -486,37 +447,14 @@ void DxSmartLr02LoraModule::Init() {
   }));
 }
 
-ActionPtr<IPipeline> DxSmartLr02LoraModule::OpenTcpConnection(
+ActionPtr<IPipeline> DxSmartLr02LoraModule::OpenLoraConnection(
     ActionPtr<OpenNetworkOperation> open_network_operation,
     std::string const& host, std::uint16_t port) {
   return MakeActionPtr<Pipeline>(
       action_context_,
       Stage([this, open_network_operation{std::move(open_network_operation)},
              host{host}, port]() {
-        auto open_operation = ActionPtr<DxSmartLr02TcpOpenNetwork>{
-            action_context_, *this, host, port};
-
-        open_operation->StatusEvent().Subscribe(ActionHandler{
-            OnResult{[open_network_operation](auto const& action) {
-              open_network_operation->SetValue(action.connection_index());
-            }},
-            OnError{[open_network_operation]() {
-              open_network_operation->Reject();
-            }},
-        });
-
-        return open_operation;
-      }));
-}
-
-ActionPtr<IPipeline> DxSmartLr02LoraModule::OpenUdpConnection(
-    ActionPtr<OpenNetworkOperation> open_network_operation,
-    std::string const& host, std::uint16_t port) {
-  return MakeActionPtr<Pipeline>(
-      action_context_,
-      Stage([this, open_network_operation{std::move(open_network_operation)},
-             host{host}, port]() {
-        auto open_operation = ActionPtr<DxSmartLr02UdpOpenNetwork>{
+        auto open_operation = ActionPtr<DxSmartLr02LoraOpenNetwork>{
             action_context_, *this, host, port};
 
         open_operation->StatusEvent().Subscribe(ActionHandler{

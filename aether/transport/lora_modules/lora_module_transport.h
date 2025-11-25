@@ -37,32 +37,25 @@ class LoraModuleTransport final : public ByteIStream {
    public:
     LoraModuleSend(ActionContext action_context, LoraModuleTransport& transport,
                    DataBuffer data);
+ 
+   private:
+    std::uint16_t max_packet_size_{0};
 
-   protected:
+   protected:    
     LoraModuleTransport* transport_;
-    DataBuffer data_;
+    DataBuffer data_;        
   };
 
-  class SendTcpAction final : public LoraModuleSend {
+  class SendLoraAction final : public LoraModuleSend {
    public:
-    SendTcpAction(ActionContext action_context, LoraModuleTransport& transport,
+    SendLoraAction(ActionContext action_context, LoraModuleTransport& transport,
                   DataBuffer data);
     void Send() override;
 
    private:
     void SendPacket(DataBuffer const& data);
     MultiSubscription send_subs_;
-  };
-
-  class SendUdpAction final : public LoraModuleSend {
-   public:
-    SendUdpAction(ActionContext action_context, LoraModuleTransport& transport,
-                  DataBuffer data);
-
-    void Send() override;
-
-   private:
-    Subscription send_sub_;
+    std::uint16_t max_packet_size_{0};
   };
 
  public:
@@ -84,8 +77,7 @@ class LoraModuleTransport final : public ByteIStream {
   void Disconnect();
 
   void DataReceived(ConnectionLoraIndex connection, DataBuffer const& data_in);
-  void DataReceivedTcp(DataBuffer const& data_in);
-  void DataReceivedUdp(DataBuffer const& data_in);
+  void DataReceivedLora(DataBuffer const& data_in);
 
   ActionContext action_context_;
   ILoraModuleDriver* lora_module_driver_;
@@ -105,6 +97,8 @@ class LoraModuleTransport final : public ByteIStream {
   MultiSubscription send_action_subs_;
   Subscription connection_sub_;
   Subscription read_packet_sub_;
+  
+  std::uint16_t max_packet_size_{0};
 };
 }  // namespace ae
 

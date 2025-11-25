@@ -54,12 +54,12 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
   ActionPtr<LoraModuleOperation> WritePacket(
       ae::ConnectionLoraIndex connect_index,
       ae::DataBuffer const& data) override;
-
   DataEvent::Subscriber data_event() override;
-
   ActionPtr<LoraModuleOperation> SetPowerSaveParam(
       LoraPowerSaveParam const& psp) override;
-  ActionPtr<LoraModuleOperation> PowerOff() override;
+  ActionPtr<LoraModuleOperation> PowerOff() override;  
+  std::uint16_t GetMtu() override;
+  
   ActionPtr<LoraModuleOperation> SetLoraModuleAddress(
       std::uint16_t const& address);  // Module address
   ActionPtr<LoraModuleOperation> SetLoraModuleChannel(

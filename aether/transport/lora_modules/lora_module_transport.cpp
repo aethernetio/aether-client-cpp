@@ -25,21 +25,21 @@
 #  include "aether/transport/transport_tele.h"
 
 namespace ae {
-static constexpr auto kMaxPacketSize = 400;
-
 LoraModuleTransport::LoraModuleSend::LoraModuleSend(
     ActionContext action_context, LoraModuleTransport& transport,
     DataBuffer data)
     : SocketPacketSendAction{action_context},
       transport_{&transport},
-      data_{std::move(data)} {}
+      data_{std::move(data)},
+      max_packet_size_{std::move(transport_->lora_module_driver_->GetMtu())} {}
 
-LoraModuleTransport::SendTcpAction::SendTcpAction(
+LoraModuleTransport::SendLoraAction::SendLoraAction(
     ActionContext action_context, LoraModuleTransport& transport,
     DataBuffer data)
-    : LoraModuleSend{action_context, transport, std::move(data)} {}
+    : LoraModuleSend{action_context, transport, std::move(data)},
+      max_packet_size_{std::move(transport_->lora_module_driver_->GetMtu())} {}
 
-void LoraModuleTransport::SendTcpAction::Send() {
+void LoraModuleTransport::SendLoraAction::Send() {
   if (state_ == State::kInProgress) {
     return;
   }
@@ -49,7 +49,7 @@ void LoraModuleTransport::SendTcpAction::Send() {
   for (std::size_t sent_offset = 0; sent_offset < data_.size();) {
     auto remain_to_send = data_.size() - sent_offset;
     auto size_to_send =
-        remain_to_send > kMaxPacketSize ? kMaxPacketSize : remain_to_send;
+        remain_to_send > max_packet_size_ ? max_packet_size_ : remain_to_send;
 
     auto write_action = transport_->lora_module_driver_->WritePacket(
         transport_->connection_,
@@ -80,42 +80,6 @@ void LoraModuleTransport::SendTcpAction::Send() {
   }
 }
 
-LoraModuleTransport::SendUdpAction::SendUdpAction(
-    ActionContext action_context, LoraModuleTransport& transport,
-    DataBuffer data)
-    : LoraModuleSend{action_context, transport, std::move(data)} {}
-
-void LoraModuleTransport::SendUdpAction::Send() {
-  if (state_ == State::kInProgress) {
-    return;
-  }
-  state_ = State::kInProgress;
-
-  auto write_action = transport_->lora_module_driver_->WritePacket(
-      transport_->connection_, data_);
-
-  if (!write_action) {
-    state_ = State::kFailed;
-    Action::Trigger();
-    return;
-  }
-
-  send_sub_ = write_action->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this]() {
-        state_ = State::kDone;
-        Action::Trigger();
-      }},
-      OnError{[this]() {
-        state_ = State::kFailed;
-        Action::Trigger();
-      }},
-      OnStop{[this]() {
-        state_ = State::kStopped;
-        Action::Trigger();
-      }},
-  });
-}
-
 LoraModuleTransport::LoraModuleTransport(ActionContext action_context,
                                          ILoraModuleDriver& lora_module_driver,
                                          UnifiedAddress address)
@@ -125,13 +89,14 @@ LoraModuleTransport::LoraModuleTransport(ActionContext action_context,
       protocol_{
           std::visit([](auto const& arg) { return arg.protocol; }, address_)},
       stream_info_{},
-      send_action_queue_manager_{action_context_} {
+      send_action_queue_manager_{action_context_},
+      max_packet_size_{lora_module_driver_->GetMtu()} {
   AE_TELE_INFO(kLoraModuleTransport, "Lora module transport created for {}",
                address_);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = (protocol_ == Protocol::kTcp);
-  stream_info_.max_element_size = 2 * kMaxPacketSize;
-  stream_info_.rec_element_size = kMaxPacketSize;
+  stream_info_.max_element_size = 2 * max_packet_size_;
+  stream_info_.rec_element_size = max_packet_size_;
 
   Connect();
 }
@@ -159,26 +124,9 @@ void LoraModuleTransport::Restream() {
 ActionPtr<StreamWriteAction> LoraModuleTransport::Write(DataBuffer&& in_data) {
   AE_TELE_DEBUG(kLoraModuleTransportSend, "Send data size {}", in_data.size());
 
-  if (protocol_ == Protocol::kTcp) {
-    auto packet_data = std::vector<std::uint8_t>{};
-    VectorWriter<PacketSize> vw{packet_data};
-    auto os = omstream{vw};
-    // copy data with size
-    os << in_data;
-    auto send_action =
-        send_action_queue_manager_->AddPacket(ActionPtr<SendTcpAction>{
-            action_context_, *this, std::move(packet_data)});
-    send_action_subs_.Push(
-        send_action->StatusEvent().Subscribe(OnError{[this]() {
-          AE_TELED_ERROR("Send error, disconnect!");
-          OnConnectionFailed();
-          Disconnect();
-        }}));
-    return send_action;
-  }
-  if (protocol_ == Protocol::kUdp) {
+  if (protocol_ == Protocol::kLora) {
     auto send_action = send_action_queue_manager_->AddPacket(
-        ActionPtr<SendUdpAction>{action_context_, *this, std::move(in_data)});
+        ActionPtr<SendLoraAction>{action_context_, *this, std::move(in_data)});
     send_action_subs_.Push(
         send_action->StatusEvent().Subscribe(OnError{[this]() {
           AE_TELED_ERROR("Send error, disconnect!");
@@ -250,24 +198,12 @@ void LoraModuleTransport::DataReceived(ConnectionLoraIndex connection,
   if (connection_ != connection) {
     return;
   }
-  if (protocol_ == Protocol::kTcp) {
-    DataReceivedTcp(data_in);
-  } else if (protocol_ == Protocol::kUdp) {
-    DataReceivedUdp(data_in);
-  }
+  if (protocol_ == Protocol::kLora) {
+    DataReceivedLora(data_in);
+  } 
 }
 
-void LoraModuleTransport::DataReceivedTcp(DataBuffer const& data_in) {
-  data_packet_collector_.AddData(data_in.data(), data_in.size());
-  for (auto data = data_packet_collector_.PopPacket(); !data.empty();
-       data = data_packet_collector_.PopPacket()) {
-    AE_TELE_DEBUG(kLoraModuleTransportReceive, "Receive data size {}",
-                  data.size());
-    out_data_event_.Emit(data);
-  }
-}
-
-void LoraModuleTransport::DataReceivedUdp(DataBuffer const& data_in) {
+void LoraModuleTransport::DataReceivedLora(DataBuffer const& data_in) {
   out_data_event_.Emit(data_in);
 }
 
