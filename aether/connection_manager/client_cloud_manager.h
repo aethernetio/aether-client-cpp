@@ -26,6 +26,7 @@
 
 #include "aether/cloud.h"
 #include "aether/types/uid.h"
+#include "aether/types/server_id.h"
 
 namespace ae {
 class Aether;
@@ -57,8 +58,7 @@ class ClientCloudManager : public Obj {
 
   ActionPtr<GetCloudAction> GetCloud(Uid client_uid);
 
-  Cloud::ptr RegisterCloud(Uid uid,
-                           std::map<ServerId, ServerDescriptor> const& servers);
+  Cloud::ptr RegisterCloud(Uid uid, std::vector<Server::ptr> servers);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_))
 

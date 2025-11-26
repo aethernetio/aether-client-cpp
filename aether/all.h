@@ -60,6 +60,8 @@
 #include "aether/types/span.h"
 #include "aether/types/address.h"
 #include "aether/types/static_map.h"
+#include "aether/types/server_id.h"
+#include "aether/types/client_id.h"
 #include "aether/types/data_buffer.h"
 #include "aether/types/ring_buffer.h"
 #include "aether/types/state_machine.h"
@@ -83,6 +85,13 @@
 #include "aether/adapters/wifi_adapter.h"
 #include "aether/adapters/modem_adapter.h"
 #include "aether/adapters/lora_module_adapter.h"
+
+#include "aether/ae_actions/ping.h"
+#include "aether/ae_actions/telemetry.h"
+#include "aether/ae_actions/get_servers.h"
+#include "aether/ae_actions/select_client.h"
+#include "aether/ae_actions/get_client_cloud.h"
+#include "aether/ae_actions/check_access_for_send_message.h"
 
 #include "aether/modems/imodem_driver.h"
 #include "aether/modems/modem_factory.h"

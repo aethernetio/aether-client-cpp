@@ -23,8 +23,8 @@
 #  include <vector>
 
 #  include "aether/types/uid.h"
-#  include "aether/common.h"
 #  include "aether/crypto/key.h"
+#  include "aether/types/server_id.h"
 #  include "aether/reflect/reflect.h"
 #  include "aether/api_protocol/api_protocol.h"
 

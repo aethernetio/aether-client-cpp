@@ -99,6 +99,7 @@ list(APPEND events_srcs)
 
 list(APPEND actions_srcs
             "ae_actions/get_client_cloud.cpp"
+            "ae_actions/get_servers.cpp"
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
@@ -153,7 +154,7 @@ list(APPEND lora_modules_srcs
             "lora_modules/dx_smart_lr02_lm.cpp"
             "lora_modules/ebyte_e22_lm.cpp"
             "lora_modules/lora_module_factory.cpp")
-            
+
 list(APPEND gateway_api_srcs
             "gateway_api/gateway_api.cpp")
 

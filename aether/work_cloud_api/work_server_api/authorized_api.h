@@ -17,7 +17,10 @@
 #ifndef AETHER_WORK_CLOUD_API_WORK_SERVER_API_AUTHORIZED_API_H_
 #define AETHER_WORK_CLOUD_API_WORK_SERVER_API_AUTHORIZED_API_H_
 
+#include <vector>
+
 #include "aether/types/uid.h"
+#include "aether/types/server_id.h"
 #include "aether/api_protocol/api_protocol.h"
 
 #include "aether/work_cloud_api/ae_message.h"

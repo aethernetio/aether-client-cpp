@@ -22,8 +22,8 @@
 
 #include "third_party/aethernet-numeric/numeric/tiered_int.h"
 
-#include "aether/common.h"
 #include "aether/crypto/key.h"
+#include "aether/types/server_id.h"
 #include "aether/crypto/crypto_nonce.h"
 
 namespace ae {
