@@ -16,20 +16,26 @@
 
 #include "aether/gateway_api/gateway_api.h"
 
-#if AE_SUPPORT_LORA
+#if AE_SUPPORT_GATEWAY
 
 namespace ae {
 GatewayApi::GatewayApi(ProtocolContext& protocol_context)
-    : ApiClassImpl{protocol_context}, packet{protocol_context} {}
+    : ApiClass{protocol_context},
+      packet_to_server_id{protocol_context},
+      packet_to_server{protocol_context} {}
 
-void GatewayApi::PacketImpl(ApiParser& /* parser */, GwConnection gwc,
-                            DataBuffer data) {
-  packet_event_.Emit(gwc, data);
+GatewayClientApi::GatewayClientApi(ProtocolContext& protocol_context)
+    : ApiClass{protocol_context} {}
+
+void GatewayClientApi::FromServerId(ApiParser&, ClientId client_id,
+                                    ServerId server_id, DataBuffer data) {
+  from_server_id_event_.Emit(client_id, server_id, data);
 }
 
-EventSubscriber<void(GwConnection const& gwc, DataBuffer const& data)>
-GatewayApi::packet_event() {
-  return EventSubscriber{packet_event_};
+void GatewayClientApi::FromServer(ApiParser& parser, ClientId client_id,
+                                  std::uin64_t descriptor_hash,
+                                  DataBuffer data) {
+  from_server_event_.Emit(client_id, descriptor_hash, data);
 }
 
 }  // namespace ae
