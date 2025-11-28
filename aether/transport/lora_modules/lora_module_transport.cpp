@@ -141,7 +141,7 @@ ActionPtr<StreamWriteAction> LoraModuleTransport::Write(DataBuffer&& in_data) {
 
 void LoraModuleTransport::Connect() {
   // open network depend on address type
-  auto connection_operation = std::visit(
+  /* auto connection_operation = std::visit(
       reflect::OverrideFunc{[&](IpAddressPortProtocol const& address) {
                               return lora_module_driver_->OpenNetwork(
                                   address.protocol, Format("{}", address.ip),
@@ -165,7 +165,7 @@ void LoraModuleTransport::Connect() {
   connection_sub_ = connection_operation->StatusEvent().Subscribe(ActionHandler{
       OnResult{[this](auto const& action) { OnConnected(action.value()); }},
       OnError{[this]() { OnConnectionFailed(); }},
-  });
+  });*/
 }
 
 void LoraModuleTransport::OnConnected(ConnectionLoraIndex connection_index) {
@@ -189,7 +189,7 @@ void LoraModuleTransport::Disconnect() {
     return;
   }
 
-  lora_module_driver_->CloseNetwork(connection_);
+  /* lora_module_driver_->CloseNetwork(connection_);*/
   connection_ = kInvalidConnectionLoraIndex;
 }
 

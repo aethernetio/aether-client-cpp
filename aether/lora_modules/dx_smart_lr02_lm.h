@@ -58,19 +58,14 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
 
   ActionPtr<LoraModuleOperation> Start() override;
   ActionPtr<LoraModuleOperation> Stop() override;
-  ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
-                                              std::string const& host,
-                                              std::uint16_t port) override;
-  ActionPtr<LoraModuleOperation> CloseNetwork(
-      ConnectionLoraIndex connect_index) override;
   ActionPtr<WriteOperation> WritePacket(ConnectionLoraIndex connect_index,
-                                        ae::DataBuffer const& data) override;
+                                        DataBuffer const& data) override;
   DataEvent::Subscriber data_event() override;
   ActionPtr<LoraModuleOperation> SetPowerSaveParam(
       LoraPowerSaveParam const& psp) override;
-  ActionPtr<LoraModuleOperation> PowerOff() override; 
+  ActionPtr<LoraModuleOperation> PowerOff() override;
   std::uint16_t GetMtu() override;
-  
+
   ActionPtr<LoraModuleOperation> SetLoraModuleAddress(
       std::uint16_t const& address);  // Module address
   ActionPtr<LoraModuleOperation> SetLoraModuleChannel(
@@ -100,7 +95,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::set<ConnectionLoraIndex> connections_;
-  AtSupport at_comm_support_;
+  AtSupport at_support_;
   DataEvent data_event_;
   ActionPtr<RepeatableTask> poll_task_;
   std::unique_ptr<AtListener> poll_listener_;
@@ -125,6 +120,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   ActionPtr<IPipeline> SetLoraModuleSpreadingFactor(
       kLoraModuleSpreadingFactor const&
           spreading_factor);  // Module spreading factor
+
   ActionPtr<IPipeline> SetupSerialPort(SerialInit& serial_init);
   ActionPtr<IPipeline> SetBaudRate(kBaudRate baud_rate);
   ActionPtr<IPipeline> SetParity(kParity parity);
