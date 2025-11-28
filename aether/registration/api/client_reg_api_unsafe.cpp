@@ -28,14 +28,13 @@ ClientRegRootApi::ClientRegRootApi(ProtocolContext& protocol_context,
       client_reg_api_{protocol_context},
       global_reg_client_api_{protocol_context} {}
 
-void ClientRegRootApi::Enter(ApiParser&, SubApiImpl<ClientRegApiSafe> sub_api) {
+void ClientRegRootApi::Enter(SubApiImpl<ClientRegApiSafe> sub_api) {
   sub_api.Parse(client_reg_api_, [this](auto const& data) {
     return root_decrypt_provider_->Decrypt(data);
   });
 }
 
-void ClientRegRootApi::EnterGlobal(ApiParser&,
-                                   SubApiImpl<GlobalRegClientApi> sub_api) {
+void ClientRegRootApi::EnterGlobal(SubApiImpl<GlobalRegClientApi> sub_api) {
   sub_api.Parse(global_reg_client_api_, [this](auto const& data) {
     return global_decrypt_provider_->Decrypt(data);
   });

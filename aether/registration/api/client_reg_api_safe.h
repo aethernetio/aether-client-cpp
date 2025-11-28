@@ -30,7 +30,7 @@ class ClientRegApiSafe final : public ApiClassImpl<ClientRegApiSafe> {
   explicit ClientRegApiSafe(ProtocolContext& protocol_context);
 
   ReturnResultApi return_result;
-  using ApiMethods = ImplList<ExtApi<&ClientRegApiSafe::return_result>>;
+  AE_METHODS(ExtApi<&ClientRegApiSafe::return_result>);
 };
 }  // namespace ae
 

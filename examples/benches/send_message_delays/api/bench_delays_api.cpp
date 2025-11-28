@@ -25,23 +25,19 @@ BenchDelaysApi::BenchDelaysApi(ProtocolContext& protocol_context)
       hundred_bytes{protocol_context},
       thousand_bytes{protocol_context} {}
 
-void BenchDelaysApi::WarmUpImpl(ApiParser&, std::uint16_t id,
-                                Payload<98> payload) {
+void BenchDelaysApi::WarmUpImpl(std::uint16_t id, Payload<98> payload) {
   warm_up_event_.Emit(id, payload);
 }
-void BenchDelaysApi::TwoBytesImpl(ApiParser&, std::uint16_t id) {
+void BenchDelaysApi::TwoBytesImpl(std::uint16_t id) {
   two_bytes_event_.Emit(id);
 }
-void BenchDelaysApi::TenBytesImpl(ApiParser&, std::uint16_t id,
-                                  Payload<8> payload) {
+void BenchDelaysApi::TenBytesImpl(std::uint16_t id, Payload<8> payload) {
   ten_bytes_event_.Emit(id, payload);
 }
-void BenchDelaysApi::HundredBytesImpl(ApiParser&, std::uint16_t id,
-                                      Payload<98> payload) {
+void BenchDelaysApi::HundredBytesImpl(std::uint16_t id, Payload<98> payload) {
   hundred_bytes_event_.Emit(id, payload);
 }
-void BenchDelaysApi::ThousandBytesImpl(ApiParser&, std::uint16_t id,
-                                       Payload<998> payload) {
+void BenchDelaysApi::ThousandBytesImpl(std::uint16_t id, Payload<998> payload) {
   thousand_bytes_event_.Emit(id, payload);
 }
 

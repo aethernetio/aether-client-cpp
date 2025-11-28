@@ -28,7 +28,7 @@ class GlobalRegClientApi : public ApiClassImpl<GlobalRegClientApi> {
   explicit GlobalRegClientApi(ProtocolContext& protocol_context);
 
   ReturnResultApi return_result;
-  using ApiMethods = ImplList<ExtApi<&GlobalRegClientApi::return_result>>;
+  AE_METHODS(ExtApi<&GlobalRegClientApi::return_result>);
 };
 }  // namespace ae
 #endif

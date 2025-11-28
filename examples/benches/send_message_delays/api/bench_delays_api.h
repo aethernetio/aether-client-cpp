@@ -37,13 +37,11 @@ class BenchDelaysApi : public ApiClassImpl<BenchDelaysApi> {
   Method<0x06, void(std::uint16_t id, Payload<98>)> hundred_bytes;
   Method<0x08, void(std::uint16_t id, Payload<998>)> thousand_bytes;
 
-  void WarmUpImpl(ApiParser& parser, std::uint16_t id, Payload<98> payload);
-  void TwoBytesImpl(ApiParser& parser, std::uint16_t id);
-  void TenBytesImpl(ApiParser& parser, std::uint16_t id, Payload<8> payload);
-  void HundredBytesImpl(ApiParser& parser, std::uint16_t id,
-                        Payload<98> payload);
-  void ThousandBytesImpl(ApiParser& parser, std::uint16_t id,
-                         Payload<998> payload);
+  void WarmUpImpl(std::uint16_t id, Payload<98> payload);
+  void TwoBytesImpl(std::uint16_t id);
+  void TenBytesImpl(std::uint16_t id, Payload<8> payload);
+  void HundredBytesImpl(std::uint16_t id, Payload<98> payload);
+  void ThousandBytesImpl(std::uint16_t id, Payload<998> payload);
 
   EventSubscriber<void(std::uint16_t, Payload<98>)> warm_up_event();
   EventSubscriber<void(std::uint16_t)> two_bytes_event();
@@ -51,12 +49,11 @@ class BenchDelaysApi : public ApiClassImpl<BenchDelaysApi> {
   EventSubscriber<void(std::uint16_t, Payload<98>)> hundred_bytes_event();
   EventSubscriber<void(std::uint16_t, Payload<998>)> thousand_bytes_event();
 
-  using ApiMethods =
-      ImplList<RegMethod<0x03, &BenchDelaysApi::WarmUpImpl>,
-               RegMethod<0x04, &BenchDelaysApi::TwoBytesImpl>,
-               RegMethod<0x05, &BenchDelaysApi::TenBytesImpl>,
-               RegMethod<0x06, &BenchDelaysApi::HundredBytesImpl>,
-               RegMethod<0x08, &BenchDelaysApi::ThousandBytesImpl>>;
+  AE_METHODS(RegMethod<0x03, &BenchDelaysApi::WarmUpImpl>,
+             RegMethod<0x04, &BenchDelaysApi::TwoBytesImpl>,
+             RegMethod<0x05, &BenchDelaysApi::TenBytesImpl>,
+             RegMethod<0x06, &BenchDelaysApi::HundredBytesImpl>,
+             RegMethod<0x08, &BenchDelaysApi::ThousandBytesImpl>);
 
  private:
   Event<void(std::uint16_t, Payload<98>)> warm_up_event_;

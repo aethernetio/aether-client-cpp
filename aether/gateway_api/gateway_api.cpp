@@ -27,12 +27,12 @@ GatewayApi::GatewayApi(ProtocolContext& protocol_context)
 GatewayClientApi::GatewayClientApi(ProtocolContext& protocol_context)
     : ApiClass{protocol_context} {}
 
-void GatewayClientApi::FromServerId(ApiParser&, ClientId client_id,
-                                    ServerId server_id, DataBuffer data) {
+void GatewayClientApi::FromServerId(ClientId client_id, ServerId server_id,
+                                    DataBuffer data) {
   from_server_id_event_.Emit(client_id, server_id, data);
 }
 
-void GatewayClientApi::FromServer(ApiParser& parser, ClientId client_id,
+void GatewayClientApi::FromServer(ClientId client_id,
                                   std::uin64_t descriptor_hash,
                                   DataBuffer data) {
   from_server_event_.Emit(client_id, descriptor_hash, data);

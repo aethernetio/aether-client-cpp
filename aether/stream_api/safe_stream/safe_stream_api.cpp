@@ -27,17 +27,15 @@ SafeStreamApi::SafeStreamApi(ProtocolContext& protocol_context,
       send{protocol_context},
       safe_stream_api_impl_{&safe_stream_api_impl} {}
 
-void SafeStreamApi::AckImpl(ApiParser& /* parser */, SSRingIndex::type offset) {
+void SafeStreamApi::AckImpl(SSRingIndex::type offset) {
   safe_stream_api_impl_->Ack(offset);
 }
 
-void SafeStreamApi::RequestRepeatImpl(ApiParser& /* parser */,
-                                      SSRingIndex::type offset) {
+void SafeStreamApi::RequestRepeatImpl(SSRingIndex::type offset) {
   safe_stream_api_impl_->RequestRepeat(offset);
 }
 
-void SafeStreamApi::SendImpl(ApiParser& /* parser */,
-                             SSRingIndex::type begin_offset,
+void SafeStreamApi::SendImpl(SSRingIndex::type begin_offset,
                              DataMessage data_message) {
   safe_stream_api_impl_->Send(begin_offset, std::move(data_message));
 }

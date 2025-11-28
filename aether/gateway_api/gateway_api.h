@@ -45,14 +45,13 @@ class GatewayClientApi : public ApiClassImpl<GatewayClientApi> {
  public:
   GatewayClientApi(ProtocolContext& protocol_context);
 
-  void FromServerId(ApiParser& parser, ClientId client_id, ServerId server_id,
-                    DataBuffer data);
+  void FromServerId(ClientId client_id, ServerId server_id, DataBuffer data);
 
-  void FromServer(ApiParser& parser, ClientId client_id,
-                  std::uin64_t descriptor_hash, DataBuffer data);
+  void FromServer(ClientId client_id, std::uin64_t descriptor_hash,
+                  DataBuffer data);
 
-  using ApiMethods = ImplList<RegMethod<3, &GatewayClientApi::FromServerId>,
-                              RegMethod<4, &GatewayClientApi::FromServer>>;
+  AE_METHODS(RegMethod<3, &GatewayClientApi::FromServerId>,
+             RegMethod<4, &GatewayClientApi::FromServer>);
 
   auto from_server_id_event() { return EventSubscriber{from_server_id_event_}; }
   auto from_server_event() { return EventSubscriber{from_server_event_}; }

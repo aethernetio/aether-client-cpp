@@ -26,8 +26,7 @@ ClientApiUnsafe::ClientApiUnsafe(ProtocolContext& protocol_context,
       decrypt_provider_{&decrypt_provider},
       client_safe_api_{protocol_context} {}
 
-void ClientApiUnsafe::SendSafeApiData(ApiParser& /*parser*/,
-                                      SubApiImpl<ClientApiSafe> sub_api) {
+void ClientApiUnsafe::SendSafeApiData(SubApiImpl<ClientApiSafe> sub_api) {
   sub_api.Parse(client_safe_api_, [this](auto const& data) {
     auto decrypted = Decrypt(data);
     AE_TELED_DEBUG("Client api unsafe data {}", decrypted);

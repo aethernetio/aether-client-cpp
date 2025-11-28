@@ -32,27 +32,24 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
  public:
   explicit ClientApiSafe(ProtocolContext& protocol_context);
 
-  void SendMessages(ApiParser& parser, std::vector<AeMessage> messages);
+  void SendMessages(std::vector<AeMessage> messages);
 
-  void SendServerDescriptor(ApiParser& parser,
-                            ServerDescriptor server_descriptor);
-  void SendServerDescriptors(ApiParser& parser,
-                             std::vector<ServerDescriptor> server_descriptors);
-  void SendCloud(ApiParser& parser, Uid uid, CloudDescriptor cloud);
-  void SendClouds(ApiParser& parser, std::vector<UidAndCloudDescriptor> clouds);
+  void SendServerDescriptor(ServerDescriptor server_descriptor);
+  void SendServerDescriptors(std::vector<ServerDescriptor> server_descriptors);
+  void SendCloud(Uid uid, CloudDescriptor cloud);
+  void SendClouds(std::vector<UidAndCloudDescriptor> clouds);
 
-  void RequestTelemetry(ApiParser& parser);
+  void RequestTelemetry();
 
   ReturnResultApi return_result;
 
-  using ApiMethods =
-      ImplList<RegMethod<6, &ClientApiSafe::SendMessages>,
-               RegMethod<7, &ClientApiSafe::SendServerDescriptor>,
-               RegMethod<8, &ClientApiSafe::SendServerDescriptors>,
-               RegMethod<9, &ClientApiSafe::SendCloud>,
-               RegMethod<10, &ClientApiSafe::SendClouds>,
-               RegMethod<11, &ClientApiSafe::RequestTelemetry>,
-               ExtApi<&ClientApiSafe::return_result>>;
+  AE_METHODS(RegMethod<6, &ClientApiSafe::SendMessages>,
+             RegMethod<7, &ClientApiSafe::SendServerDescriptor>,
+             RegMethod<8, &ClientApiSafe::SendServerDescriptors>,
+             RegMethod<9, &ClientApiSafe::SendCloud>,
+             RegMethod<10, &ClientApiSafe::SendClouds>,
+             RegMethod<11, &ClientApiSafe::RequestTelemetry>,
+             ExtApi<&ClientApiSafe::return_result>);
 
   auto send_message_event() { return EventSubscriber{send_message_event_}; }
   auto send_cloud_event() { return EventSubscriber{send_cloud_event_}; }

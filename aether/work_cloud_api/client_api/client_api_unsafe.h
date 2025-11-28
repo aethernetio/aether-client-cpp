@@ -29,12 +29,12 @@ class ClientApiUnsafe : public ApiClassImpl<ClientApiUnsafe> {
   explicit ClientApiUnsafe(ProtocolContext& protocol_context,
                            IDecryptProvider& decrypt_provider);
 
-  void SendSafeApiData(ApiParser& parser, SubApiImpl<ClientApiSafe> sub_api);
+  void SendSafeApiData(SubApiImpl<ClientApiSafe> sub_api);
 
   ReturnResultApi return_result;
 
-  using ApiMethods = ImplList<RegMethod<4, &ClientApiUnsafe::SendSafeApiData>,
-                              ExtApi<&ClientApiUnsafe::return_result>>;
+  AE_METHODS(RegMethod<4, &ClientApiUnsafe::SendSafeApiData>,
+             ExtApi<&ClientApiUnsafe::return_result>);
 
   ClientApiSafe& client_api_safe() { return client_safe_api_; }
 
