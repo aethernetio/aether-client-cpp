@@ -32,9 +32,9 @@ class ReturnResultApi : public ApiClass {
   explicit ReturnResultApi(ProtocolContext& protocol_context);
   virtual ~ReturnResultApi() = default;
 
-  void SendResultImpl(ApiParser& parser, RequestId request_id);
-  void SendErrorImpl(ApiParser& parser, RequestId request_id,
-                     std::uint8_t error_type, std::uint32_t error_code);
+  void SendResultImpl(RequestId request_id);
+  void SendErrorImpl(RequestId request_id, std::uint8_t error_type,
+                     std::uint32_t error_code);
 
   template <typename T>
   void SendResult(RequestId req_id, T&& data) {
@@ -48,9 +48,8 @@ class ReturnResultApi : public ApiClass {
     send_error_(req_id, error_type, error_code);
   }
 
-  using ApiMethods =
-      ImplList<RegMethod<kSendResult, &ReturnResultApi::SendResultImpl>,
-               RegMethod<kSendError, &ReturnResultApi::SendErrorImpl>>;
+  AE_METHODS(RegMethod<kSendResult, &ReturnResultApi::SendResultImpl>,
+             RegMethod<kSendError, &ReturnResultApi::SendErrorImpl>);
 
   void Pack(ae::SendResult&& result, ApiPacker& packer);
 

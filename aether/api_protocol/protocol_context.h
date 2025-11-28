@@ -26,14 +26,14 @@
 
 namespace ae {
 class ApiParser;
+class ApiPacker;
 
 class ProtocolContext {
  public:
-  using SendResultCb =
-      SmallFunction<void(ApiParser& parser), sizeof(void*) * 2>;
+  using SendResultCb = SmallFunction<void(), sizeof(void*) * 4>;
   using SendErrorCb =
       SmallFunction<void(std::uint8_t error_type, std::uint32_t error_code),
-                    sizeof(void*) * 2>;
+                    sizeof(void*) * 4>;
 
   ProtocolContext();
   ~ProtocolContext();
@@ -41,19 +41,29 @@ class ProtocolContext {
   void AddSendResultCallback(RequestId request_id, SendResultCb callback);
   void AddSendErrorCallback(RequestId request_id, SendErrorCb callback);
 
-  void SetSendResultResponse(RequestId request_id, ApiParser& parser);
+  void SetSendResultResponse(RequestId request_id);
   void SetSendErrorResponse(RequestId req_id, std::uint8_t error_type,
-                            std::uint32_t error_code, ApiParser& parser);
+                            std::uint32_t error_code);
 
   void PushPacketStack(class PacketStack& packet_stack);
   void PopPacketStack();
   class PacketStack* packet_stack();
+
+  void PushParser(ApiParser& parser);
+  void PopParser();
+  ApiParser* parser();
+
+  void PushPacker(ApiPacker& packer);
+  void PopPacker();
+  ApiPacker* packer();
 
  private:
   std::map<RequestId, SendResultCb> send_result_events_;
   std::map<RequestId, SendErrorCb> send_error_events_;
 
   std::stack<class PacketStack*> packet_stacks_;
+  std::stack<ApiParser*> parsers_;
+  std::stack<ApiPacker*> packers_;
 };
 }  // namespace ae
 
