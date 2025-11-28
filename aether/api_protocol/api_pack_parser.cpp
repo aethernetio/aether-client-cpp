@@ -21,13 +21,15 @@
 namespace ae {
 ApiParser::ApiParser(ProtocolContext& protocol_context,
                      std::vector<std::uint8_t> const& data)
-    : protocol_context_{protocol_context}, buffer_reader_{data, *this} {}
+    : protocol_context_{protocol_context}, buffer_reader_{data, *this} {
+  protocol_context_.PushParser(*this);
+}
 
 ApiParser::ApiParser(ProtocolContext& protocol_context_,
                      ChildData const& child_data)
     : ApiParser{protocol_context_, child_data.PackData()} {}
 
-ApiParser::~ApiParser() = default;
+ApiParser::~ApiParser() { protocol_context_.PopParser(); }
 
 ProtocolContext& ApiParser::Context() { return protocol_context_; }
 
@@ -37,9 +39,11 @@ void ApiParser::Cancel() {
 
 ApiPacker::ApiPacker(ProtocolContext& protocol_context_,
                      std::vector<std::uint8_t>& data)
-    : protocol_context_{protocol_context_}, buffer_writer_{data, *this} {}
+    : protocol_context_{protocol_context_}, buffer_writer_{data, *this} {
+  protocol_context_.PushPacker(*this);
+}
 
-ApiPacker::~ApiPacker() = default;
+ApiPacker::~ApiPacker() { protocol_context_.PopPacker(); }
 
 MessageBufferWriter& ApiPacker::Buffer() { return buffer_writer_; }
 

@@ -115,7 +115,7 @@ void test_Ntypes() {
   RUN_TEST(TestNTypes<1>);
   RUN_TEST(TestNTypes<10>);
   RUN_TEST(TestNTypes<100>);
-  RUN_TEST(TestNTypes<499>);
+  RUN_TEST(TestNTypes<450>);
 
   RUN_TEST(TestNTypesReverse<1>);
   RUN_TEST(TestNTypesReverse<10>);

@@ -26,40 +26,34 @@ namespace ae {
 ClientApiSafe::ClientApiSafe(ProtocolContext& protocol_context)
     : ApiClassImpl{protocol_context}, return_result{protocol_context} {}
 
-void ClientApiSafe::SendMessages(ApiParser& /* parser */,
-                                 std::vector<AeMessage> messages) {
+void ClientApiSafe::SendMessages(std::vector<AeMessage> messages) {
   for (auto const& msg : messages) {
     AE_TELED_DEBUG("Received message uid:{}", msg.uid);
     send_message_event_.Emit(msg);
   }
 }
 
-void ClientApiSafe::SendServerDescriptor(ApiParser& /* parser */,
-                                         ServerDescriptor server_descriptor) {
+void ClientApiSafe::SendServerDescriptor(ServerDescriptor server_descriptor) {
   send_server_descriptor_event_.Emit(server_descriptor);
 }
 
 void ClientApiSafe::SendServerDescriptors(
-    ApiParser& /* parser */, std::vector<ServerDescriptor> server_descriptors) {
+    std::vector<ServerDescriptor> server_descriptors) {
   for (auto const& sd : server_descriptors) {
     send_server_descriptor_event_.Emit(sd);
   }
 }
 
-void ClientApiSafe::SendCloud(ApiParser& /* parser */, Uid uid,
-                              CloudDescriptor cloud) {
+void ClientApiSafe::SendCloud(Uid uid, CloudDescriptor cloud) {
   send_cloud_event_.Emit(uid, cloud);
 }
 
-void ClientApiSafe::SendClouds(ApiParser& /* parser */,
-                               std::vector<UidAndCloudDescriptor> clouds) {
+void ClientApiSafe::SendClouds(std::vector<UidAndCloudDescriptor> clouds) {
   for (auto const& cloud : clouds) {
     send_cloud_event_.Emit(cloud.uid, cloud.cloud);
   }
 }
 
-void ClientApiSafe::RequestTelemetry(ApiParser& /* parser */) {
-  request_telemetry_event_.Emit();
-}
+void ClientApiSafe::RequestTelemetry() { request_telemetry_event_.Emit(); }
 
 }  // namespace ae

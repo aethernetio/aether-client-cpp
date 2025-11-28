@@ -20,15 +20,14 @@ namespace ae {
 ReturnResultApi::ReturnResultApi(ProtocolContext& protocol_context)
     : ApiClass{protocol_context}, send_error_{protocol_context} {}
 
-void ReturnResultApi::SendResultImpl(ApiParser& parser, RequestId request_id) {
-  protocol_context().SetSendResultResponse(request_id, parser);
+void ReturnResultApi::SendResultImpl(RequestId request_id) {
+  protocol_context().SetSendResultResponse(request_id);
 }
 
-void ReturnResultApi::SendErrorImpl(ApiParser& parser, RequestId request_id,
+void ReturnResultApi::SendErrorImpl(RequestId request_id,
                                     std::uint8_t error_type,
                                     std::uint32_t error_code) {
-  protocol_context().SetSendErrorResponse(request_id, error_type, error_code,
-                                          parser);
+  protocol_context().SetSendErrorResponse(request_id, error_type, error_code);
 }
 
 void ReturnResultApi::Pack(ae::SendResult&& result, ApiPacker& packer) {

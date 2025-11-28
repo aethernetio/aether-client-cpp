@@ -22,7 +22,7 @@ namespace ae {
 StreamApiImpl::StreamApiImpl(ProtocolContext& protocol_context)
     : ApiClass{protocol_context}, stream{protocol_context} {}
 
-void StreamApiImpl::Stream(ApiParser&, StreamId stream_id, DataBuffer data) {
+void StreamApiImpl::Stream(StreamId stream_id, DataBuffer data) {
   stream_event_.Emit(stream_id, data);
 }
 
