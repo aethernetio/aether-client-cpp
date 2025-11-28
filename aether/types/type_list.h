@@ -69,11 +69,16 @@ struct TypeAtImpl<0, T, Ts...> {
   using type = T;
 };
 
+template <std::size_t I, typename List>
+struct TypeAt;
+
 template <std::size_t I, typename... Ts>
-constexpr auto GetTypeAt(TypeList<Ts...>) -> TypeAtImpl<I, Ts...>;
+struct TypeAt<I, TypeList<Ts...>> {
+  using type = typename TypeAtImpl<I, Ts...>::type;
+};
 
 template <std::size_t I, typename TList>
-using TypeAtT = typename decltype(GetTypeAt<I>(std::declval<TList>()))::type;
+using TypeAtT = typename TypeAt<I, TList>::type;
 
 /**
  * \brief Get I'th argument in args list.
