@@ -28,7 +28,7 @@ namespace ae {
 LoraModuleTransport::LoraModuleSend::LoraModuleSend(
     ActionContext action_context, LoraModuleTransport& transport,
     DataBuffer data)
-    : SocketPacketSendAction{action_context},      
+    : SocketPacketSendAction{action_context},
       max_packet_size_{std::move(transport_->lora_module_driver_->GetMtu())},
       transport_{&transport},
       data_{std::move(data)} {}
