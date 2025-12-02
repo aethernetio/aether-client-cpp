@@ -140,32 +140,7 @@ ActionPtr<StreamWriteAction> LoraModuleTransport::Write(DataBuffer&& in_data) {
 }
 
 void LoraModuleTransport::Connect() {
-  // open network depend on address type
-  /* auto connection_operation = std::visit(
-      reflect::OverrideFunc{[&](IpAddressPortProtocol const& address) {
-                              return lora_module_driver_->OpenNetwork(
-                                  address.protocol, Format("{}", address.ip),
-                                  address.port);
-                            }
-#  if AE_SUPPORT_CLOUD_DNS
-                            ,
-                            [&](NameAddress const& address) {
-                              return lora_module_driver_->OpenNetwork(
-                                  address.protocol, address.name, address.port);
-                            }
-#  endif
-      },
-      address_);
 
-  if (!connection_operation) {
-    OnConnectionFailed();
-    return;
-  }
-
-  connection_sub_ = connection_operation->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this](auto const& action) { OnConnected(action.value()); }},
-      OnError{[this]() { OnConnectionFailed(); }},
-  });*/
 }
 
 void LoraModuleTransport::OnConnected(ConnectionLoraIndex connection_index) {
