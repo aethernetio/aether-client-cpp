@@ -30,8 +30,8 @@ LoraModuleTransport::LoraModuleSend::LoraModuleSend(
     DataBuffer data)
     : SocketPacketSendAction{action_context},
       transport_{&transport},
-      data_{std::move(data)},
-      max_packet_size_{std::move(transport_->lora_module_driver_->GetMtu())} {}
+      max_packet_size_{std::move(transport_->lora_module_driver_->GetMtu())},
+      data_{std::move(data)} {}
 
 LoraModuleTransport::SendLoraAction::SendLoraAction(
     ActionContext action_context, LoraModuleTransport& transport,
