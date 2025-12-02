@@ -139,9 +139,7 @@ ActionPtr<StreamWriteAction> LoraModuleTransport::Write(DataBuffer&& in_data) {
   return ActionPtr<FailedStreamWriteAction>{action_context_};
 }
 
-void LoraModuleTransport::Connect() {
-
-}
+void LoraModuleTransport::Connect() {}
 
 void LoraModuleTransport::OnConnected(ConnectionLoraIndex connection_index) {
   connection_ = connection_index;
@@ -175,7 +173,7 @@ void LoraModuleTransport::DataReceived(ConnectionLoraIndex connection,
   }
   if (protocol_ == Protocol::kLora) {
     DataReceivedLora(data_in);
-  } 
+  }
 }
 
 void LoraModuleTransport::DataReceivedLora(DataBuffer const& data_in) {

@@ -39,12 +39,11 @@ static const AtRequest::Wait kWaitEntryAt{"Entry AT", kOneSecond};
 static const AtRequest::Wait kWaitExitAt{"Exit AT", kOneSecond};
 static const AtRequest::Wait kWaitPowerOn{"Power on", kOneSecond};
 
-class EbyteE22LoraOpenNetwork final
-    : public Action<EbyteE22LoraOpenNetwork> {
+class EbyteE22LoraOpenNetwork final : public Action<EbyteE22LoraOpenNetwork> {
  public:
   EbyteE22LoraOpenNetwork(ActionContext action_context,
-                            EbyteE22LoraModule& /* lora_module */,
-                            std::string host, std::uint16_t port)
+                          EbyteE22LoraModule& /* lora_module */,
+                          std::string host, std::uint16_t port)
       : Action{action_context},
         action_context_{action_context},
         host_{std::move(host)},
@@ -104,9 +103,8 @@ ActionPtr<EbyteE22LoraModule::LoraModuleOperation> EbyteE22LoraModule::Stop() {
   return {};
 }
 
-ActionPtr<EbyteE22LoraModule::WriteOperation>
-EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex connect_index,
-                                   ae::DataBuffer const& data) {
+ActionPtr<EbyteE22LoraModule::WriteOperation> EbyteE22LoraModule::WritePacket(
+    ae::ConnectionLoraIndex connect_index, ae::DataBuffer const& data) {
   if (data.size() > kLoraModuleMTU) {
     assert(false);
     return {};
@@ -130,8 +128,7 @@ EbyteE22LoraModule::WritePacket(ae::ConnectionLoraIndex connect_index,
   return write_notify;
 }
 
-EbyteE22LoraModule::DataEvent::Subscriber
-EbyteE22LoraModule::data_event() {
+EbyteE22LoraModule::DataEvent::Subscriber EbyteE22LoraModule::data_event() {
   return EventSubscriber{data_event_};
 }
 
@@ -145,9 +142,7 @@ EbyteE22LoraModule::PowerOff() {
   return {};
 }
 
-std::uint16_t EbyteE22LoraModule::GetMtu(){
-  return kLoraModuleMTU;
-}
+std::uint16_t EbyteE22LoraModule::GetMtu() { return kLoraModuleMTU; }
 
 ActionPtr<EbyteE22LoraModule::LoraModuleOperation>
 EbyteE22LoraModule::SetLoraModuleAddress(std::uint16_t const& /*address*/) {
@@ -180,8 +175,8 @@ ActionPtr<IPipeline> EbyteE22LoraModule::OpenLoraConnection(
   return {};
 }
 
-ActionPtr<IPipeline> EbyteE22LoraModule::SendData(ConnectionLoraIndex /* connection */,
-                                              DataBuffer const& /* data */) {
+ActionPtr<IPipeline> EbyteE22LoraModule::SendData(
+    ConnectionLoraIndex /* connection */, DataBuffer const& /* data */) {
   return {};
 }
 
@@ -190,27 +185,16 @@ ActionPtr<IPipeline> EbyteE22LoraModule::ReadPacket(
   return {};
 }
 
+void EbyteE22LoraModule::SetupPoll() {}
 
-void EbyteE22LoraModule::SetupPoll() {
-  
-}
-
-ActionPtr<IPipeline> EbyteE22LoraModule::Poll() {
-  return {};
-}
+ActionPtr<IPipeline> EbyteE22LoraModule::Poll() { return {}; }
 
 void EbyteE22LoraModule::PollEvent(std::int32_t /* handle */,
-                                      std::string_view /* flags */) {
+                                   std::string_view /* flags */) {}
 
-}
+ActionPtr<IPipeline> EbyteE22LoraModule::EnterAtMode() { return {}; }
 
-ActionPtr<IPipeline> EbyteE22LoraModule::EnterAtMode() {
-  return {};
-}
-
-ActionPtr<IPipeline> EbyteE22LoraModule::ExitAtMode() {
-  return {};
-}
+ActionPtr<IPipeline> EbyteE22LoraModule::ExitAtMode() { return {}; }
 
 ActionPtr<IPipeline> EbyteE22LoraModule::SetLoraModuleMode(
     kLoraModuleMode const& mode) {
@@ -286,8 +270,8 @@ ActionPtr<IPipeline> EbyteE22LoraModule::SetBaudRate(kBaudRate baud_rate) {
   }
 
   return MakeActionPtr<Pipeline>(action_context_, Stage([this, it]() {
-                                   return at_support_.MakeRequest(
-                                       it->second, kWaitOk);
+                                   return at_support_.MakeRequest(it->second,
+                                                                  kWaitOk);
                                  }));
 }
 
@@ -310,8 +294,7 @@ ActionPtr<IPipeline> EbyteE22LoraModule::SetParity(kParity parity) {
   }
 
   return MakeActionPtr<Pipeline>(action_context_, Stage([this, cmd]() {
-                                   return at_support_.MakeRequest(cmd,
-                                                                       kWaitOk);
+                                   return at_support_.MakeRequest(cmd, kWaitOk);
                                  }));
 }
 
@@ -330,12 +313,10 @@ ActionPtr<IPipeline> EbyteE22LoraModule::SetStopBits(kStopBits stop_bits) {
       break;
   }
 
-  return MakeActionPtr<Pipeline>(action_context_,
+  return MakeActionPtr<Pipeline>(
+      action_context_,
 
-                                 Stage([this, cmd]() {
-                                   return at_support_.MakeRequest(cmd,
-                                                                       kWaitOk);
-                                 }));
+      Stage([this, cmd]() { return at_support_.MakeRequest(cmd, kWaitOk); }));
 }
 
 ActionPtr<IPipeline> EbyteE22LoraModule::SetupLoraNet(

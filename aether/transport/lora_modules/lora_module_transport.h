@@ -37,19 +37,19 @@ class LoraModuleTransport final : public ByteIStream {
    public:
     LoraModuleSend(ActionContext action_context, LoraModuleTransport& transport,
                    DataBuffer data);
- 
+
    private:
     std::uint16_t max_packet_size_{0};
 
-   protected:    
+   protected:
     LoraModuleTransport* transport_;
-    DataBuffer data_;        
+    DataBuffer data_;
   };
 
   class SendLoraAction final : public LoraModuleSend {
    public:
     SendLoraAction(ActionContext action_context, LoraModuleTransport& transport,
-                  DataBuffer data);
+                   DataBuffer data);
     void Send() override;
 
    private:
@@ -97,7 +97,7 @@ class LoraModuleTransport final : public ByteIStream {
   MultiSubscription send_action_subs_;
   Subscription connection_sub_;
   Subscription read_packet_sub_;
-  
+
   std::uint16_t max_packet_size_{0};
 };
 }  // namespace ae
