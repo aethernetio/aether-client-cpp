@@ -36,8 +36,7 @@ LoraModuleTransport::LoraModuleSend::LoraModuleSend(
 LoraModuleTransport::SendLoraAction::SendLoraAction(
     ActionContext action_context, LoraModuleTransport& transport,
     DataBuffer data)
-    : LoraModuleSend{action_context, transport, std::move(data)},
-      max_packet_size_{std::move(transport_->lora_module_driver_->GetMtu())} {}
+    : LoraModuleSend{action_context, transport, std::move(data)} {}
 
 void LoraModuleTransport::SendLoraAction::Send() {
   if (state_ == State::kInProgress) {

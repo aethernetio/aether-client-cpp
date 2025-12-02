@@ -37,8 +37,6 @@ class LoraModuleTransport final : public ByteIStream {
    public:
     LoraModuleSend(ActionContext action_context, LoraModuleTransport& transport,
                    DataBuffer data);
-
-   private:
     std::uint16_t max_packet_size_{0};
 
    protected:
@@ -55,7 +53,6 @@ class LoraModuleTransport final : public ByteIStream {
    private:
     void SendPacket(DataBuffer const& data);
     MultiSubscription send_subs_;
-    std::uint16_t max_packet_size_{0};
   };
 
  public:
