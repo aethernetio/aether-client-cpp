@@ -372,7 +372,7 @@ void DxSmartLr02LoraModule::Init() {
         Stage([this]() { return at_support_.MakeRequest("AT", kWaitOk); }),
         Stage([this]() {
           return SetupSerialPort(lora_module_init_.serial_init);
-        }),        
+        }),
         // Exit AT command mode
         Stage([this]() { return ExitAtMode(); }),
         Stage([this]() { return SetPowerSaveParam(lora_module_init_.psp); }),
