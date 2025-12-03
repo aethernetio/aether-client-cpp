@@ -32,7 +32,6 @@
 namespace ae {
 static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
 static constexpr Duration kTwoSeconds = std::chrono::milliseconds{2000};
-static constexpr Duration kTenSeconds = std::chrono::milliseconds{10000};
 static const AtRequest::Wait kWaitOk{"OK", kOneSecond};
 static const AtRequest::Wait kWaitOkTwoSeconds{"OK", kTwoSeconds};
 static const AtRequest::Wait kWaitEntryAt{"Entry AT", kOneSecond};
@@ -86,9 +85,7 @@ EbyteE22LoraModule::EbyteE22LoraModule(ActionContext action_context,
       serial_{SerialPortFactory::CreatePort(action_context_, std::move(poller),
                                             lora_module_init_.serial_init)},
       at_support_{action_context_, *serial_},
-      operation_queue_{action_context_},
-      initiated_{false},
-      started_{false} {
+      operation_queue_{action_context_}{
   Init();
   Start();
 }

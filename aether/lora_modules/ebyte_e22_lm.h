@@ -101,8 +101,8 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
   ActionPtr<RepeatableTask> poll_task_;
   std::unique_ptr<AtListener> poll_listener_;
   OwnActionPtr<ActionsQueue> operation_queue_;
-  bool initiated_;
-  bool started_;
+  bool initiated_{false};
+  bool started_{false};
   bool at_mode_{false};
 
   ActionPtr<IPipeline> EnterAtMode();
