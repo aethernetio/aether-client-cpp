@@ -85,7 +85,7 @@ EbyteE22LoraModule::EbyteE22LoraModule(ActionContext action_context,
       serial_{SerialPortFactory::CreatePort(action_context_, std::move(poller),
                                             lora_module_init_.serial_init)},
       at_support_{action_context_, *serial_},
-      operation_queue_{action_context_}{
+      operation_queue_{action_context_} {
   Init();
   Start();
 }
