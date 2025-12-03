@@ -120,7 +120,7 @@
 #endif
 
 #ifndef AE_ENABLE_EBYTE_E22_LM
-#  define AE_ENABLE_EBYTE_E22_LM 1
+#  define AE_ENABLE_EBYTE_E22_LM 0
 #endif
 
 #ifndef AE_ENABLE_DX_SMART_LR02_LM

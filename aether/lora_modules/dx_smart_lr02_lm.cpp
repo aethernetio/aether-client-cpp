@@ -372,11 +372,11 @@ void DxSmartLr02LoraModule::Init() {
         Stage([this]() { return at_support_.MakeRequest("AT", kWaitOk); }),
         Stage([this]() {
           return SetupSerialPort(lora_module_init_.serial_init);
-        }),
-        Stage([this]() { return SetPowerSaveParam(lora_module_init_.psp); }),
-        Stage([this]() { return SetupLoraNet(lora_module_init_); }),
+        }),        
         // Exit AT command mode
         Stage([this]() { return ExitAtMode(); }),
+        Stage([this]() { return SetPowerSaveParam(lora_module_init_.psp); }),
+        Stage([this]() { return SetupLoraNet(lora_module_init_); }),
         Stage<GenAction>(action_context_, [this]() {
           initiated_ = true;
           return UpdateStatus::Result();
@@ -415,8 +415,18 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::OpenLoraConnection(
 }
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SendData(
-    ConnectionLoraIndex /* connection */, DataBuffer const& /* data */) {
-  return {};
+    ConnectionLoraIndex /* connection */, DataBuffer const& data) {
+  return MakeActionPtr<Pipeline>(
+      action_context_,
+      Stage([this, data{data}]() mutable {
+        return at_support_.MakeRequest(
+            [this, data{std::move(data)}]() {
+              auto write_action = ActionPtr<AtWriteAction>{action_context_};
+              serial_->Write(data);
+              write_action->Notify();
+              return write_action;
+            });
+      }));
 }
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::ReadPacket(
