@@ -141,8 +141,7 @@ void ChannelSelectStream::SelectChannel() {
     return;
   }
 
-  AE_TELED_DEBUG("New channel selected, address {}",
-                 server_channel_->channel()->address);
+  AE_TELED_DEBUG("New channel selected, address");
 
   auto const& transport_properties =
       server_channel_->channel()->transport_properties();

@@ -117,7 +117,7 @@ class CumulativeEvent<void, Count> {
  public:
   CumulativeEvent() = default;
 
-  template <typename TSyncPolicy, typename... TSignatures>
+  template <typename... TSignatures>
   explicit CumulativeEvent(
       EventSubscriber<TSignatures>&&... event_subscribers) {
     Connect(std::move(event_subscribers)...);

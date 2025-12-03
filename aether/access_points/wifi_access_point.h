@@ -69,7 +69,7 @@ class WifiAccessPoint final : public AccessPoint {
                              wifi_creds_))
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
-      std::vector<UnifiedAddress> const& endpoints) override;
+      ObjPtr<Server> const& server) override;
 
   /**
    * \brief Connect or ensure it's connected to current access point.

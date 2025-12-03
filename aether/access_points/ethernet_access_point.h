@@ -39,7 +39,7 @@ class EthernetAccessPoint : public AccessPoint {
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_))
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
-      std::vector<UnifiedAddress> const& endpoints) override;
+      ObjPtr<Server> const& server) override;
 
  private:
   Obj::ptr aether_;

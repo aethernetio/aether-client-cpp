@@ -66,7 +66,7 @@ class ModemAccessPoint final : public AccessPoint {
   IModemDriver& modem_driver();
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
-      std::vector<UnifiedAddress> const& endpoints) override;
+      ObjPtr<Server> const& server) override;
 
  private:
   Obj::ptr aether_;

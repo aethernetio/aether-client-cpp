@@ -141,7 +141,8 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
 ModemChannel::ModemChannel(ObjPtr<Aether> aether,
                            ModemAccessPoint::ptr access_point,
                            UnifiedAddress address, Domain* domain)
-    : Channel{std::move(address), domain},
+    : Channel{, domain},
+      address{std::move(address)},
       aether_{std::move(aether)},
       access_point_{std::move(access_point)} {
   // fill transport properties

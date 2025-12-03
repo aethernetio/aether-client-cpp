@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "aether/aether.h"
+#include "aether/server.h"
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/channels/ethernet_channel.h"
@@ -36,14 +37,14 @@ EthernetAccessPoint::EthernetAccessPoint(ObjPtr<Aether> aether,
       dns_resolver_{std::move(dns_resolver)} {}
 
 std::vector<ObjPtr<Channel>> EthernetAccessPoint::GenerateChannels(
-    std::vector<UnifiedAddress> const& endpoints) {
+    ObjPtr<Server> const& server) {
   Aether::ptr aether = aether_;
   DnsResolver::ptr resolver = dns_resolver_;
   IPoller::ptr poller = poller_;
 
   std::vector<ObjPtr<Channel>> channels;
-  channels.reserve(endpoints.size());
-  for (auto const& endpoint : endpoints) {
+  channels.reserve(server->endpoints.size());
+  for (auto const& endpoint : server->endpoints) {
     if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
       continue;
     }
