@@ -123,6 +123,10 @@ void LoraModuleTransport::Restream() {
 ActionPtr<StreamWriteAction> LoraModuleTransport::Write(DataBuffer&& in_data) {
   AE_TELE_DEBUG(kLoraModuleTransportSend, "Send data size {}", in_data.size());
 
+  if (protocol_ == Protocol::kTcp || protocol_ == Protocol::kUdp) {
+    protocol_ = Protocol::kLora;
+  }
+
   if (protocol_ == Protocol::kLora) {
     auto send_action = send_action_queue_manager_->AddPacket(
         ActionPtr<SendLoraAction>{action_context_, *this, std::move(in_data)});
@@ -138,7 +142,11 @@ ActionPtr<StreamWriteAction> LoraModuleTransport::Write(DataBuffer&& in_data) {
   return ActionPtr<FailedStreamWriteAction>{action_context_};
 }
 
-void LoraModuleTransport::Connect() {}
+void LoraModuleTransport::Connect() {
+  ConnectionLoraIndex connection_index{};
+  
+  OnConnected(connection_index);
+}
 
 void LoraModuleTransport::OnConnected(ConnectionLoraIndex connection_index) {
   connection_ = connection_index;
@@ -161,7 +169,6 @@ void LoraModuleTransport::Disconnect() {
     return;
   }
 
-  /* lora_module_driver_->CloseNetwork(connection_);*/
   connection_ = kInvalidConnectionLoraIndex;
 }
 

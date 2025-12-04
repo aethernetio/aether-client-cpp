@@ -87,10 +87,6 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
                                 DataBuffer const& data);
   ActionPtr<IPipeline> ReadPacket(ConnectionLoraIndex connection);
 
-  void SetupPoll();
-  ActionPtr<IPipeline> Poll();
-  void PollEvent(std::int32_t handle, std::string_view flags);
-
   ActionContext action_context_;
   LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;
@@ -121,12 +117,12 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
       kLoraModuleSpreadingFactor const&
           spreading_factor);  // Module spreading factor
 
-  ActionPtr<IPipeline> SetupSerialPort(SerialInit& serial_init);
+  ActionPtr<IPipeline> SetupSerialPort(SerialInit const& serial_init);
   ActionPtr<IPipeline> SetBaudRate(kBaudRate baud_rate);
   ActionPtr<IPipeline> SetParity(kParity parity);
   ActionPtr<IPipeline> SetStopBits(kStopBits stop_bits);
 
-  ActionPtr<IPipeline> SetupLoraNet(LoraModuleInit& lora_module_init);
+  ActionPtr<IPipeline> SetupLoraNet(LoraModuleInit const& lora_module_init);
 
   std::string AdressToString(uint16_t value);
   std::string ChannelToString(uint8_t value);

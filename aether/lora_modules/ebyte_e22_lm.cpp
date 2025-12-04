@@ -182,13 +182,6 @@ ActionPtr<IPipeline> EbyteE22LoraModule::ReadPacket(
   return {};
 }
 
-void EbyteE22LoraModule::SetupPoll() {}
-
-ActionPtr<IPipeline> EbyteE22LoraModule::Poll() { return {}; }
-
-void EbyteE22LoraModule::PollEvent(std::int32_t /* handle */,
-                                   std::string_view /* flags */) {}
-
 ActionPtr<IPipeline> EbyteE22LoraModule::EnterAtMode() { return {}; }
 
 ActionPtr<IPipeline> EbyteE22LoraModule::ExitAtMode() { return {}; }
