@@ -27,15 +27,8 @@ GatewayApi::GatewayApi(ProtocolContext& protocol_context)
 GatewayClientApi::GatewayClientApi(ProtocolContext& protocol_context)
     : ApiClassImpl{protocol_context} {}
 
-void GatewayClientApi::FromServerId(ClientId client_id, ServerId server_id,
-                                    DataBuffer data) {
-  from_server_id_event_.Emit(client_id, server_id, data);
-}
-
-void GatewayClientApi::FromServer(ClientId client_id,
-                                  std::uint32_t endpoints_hash,
-                                  DataBuffer data) {
-  from_server_event_.Emit(client_id, endpoints_hash, data);
+void GatewayClientApi::FromServer(ClientId client_id, DataBuffer data) {
+  from_server_event_.Emit(client_id, data);
 }
 
 }  // namespace ae
