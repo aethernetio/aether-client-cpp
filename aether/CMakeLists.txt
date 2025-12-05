@@ -190,7 +190,7 @@ list(APPEND transport_srcs
             "transport/system_sockets/tcp/tcp.cpp"
             "transport/system_sockets/udp/udp.cpp"
             "transport/modems/modem_transport.cpp"
-            "transport/lora_modules/lora_module_transport.cpp"
+            "transport/gateway/gateway_transport.cpp"
 )
 
 list(APPEND stream_api_src
