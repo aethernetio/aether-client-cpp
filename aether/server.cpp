@@ -63,7 +63,8 @@ void Server::UpdateSubscription() {
 }
 
 void Server::AddChannels(AccessPoint::ptr const& access_point) {
-  auto new_channels = access_point->GenerateChannels(endpoints);
+  auto server_ptr = MakePtrFromThis(this);
+  auto new_channels = access_point->GenerateChannels(server_ptr);
   channels.insert(std::end(channels), std::begin(new_channels),
                   std::end(new_channels));
   channels_changed_.Emit();

@@ -79,6 +79,9 @@
 #include "aether/serial_ports/serial_port_types.h"
 #include "aether/serial_ports/serial_port_factory.h"
 
+#include "aether/gateway_api/gateway_api.h"
+#include "aether/gateway_api/server_endpoints.h"
+
 #include "aether/adapter_registry.h"
 
 #include "aether/adapters/ethernet.h"

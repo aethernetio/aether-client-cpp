@@ -18,13 +18,9 @@
 #define AETHER_WORK_CLOUD_API_SERVER_DESCRIPTOR_H_
 
 #include <vector>
-#include <functional>
 
-#include "aether/crc.h"
-#include "aether/mstream.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
-#include "aether/mstream_buffers.h"
 
 namespace ae {
 
@@ -46,19 +42,5 @@ struct ServerDescriptor {
   std::vector<IpAddressAndPort> ips;
 };
 }  // namespace ae
-
-namespace std {
-template <>
-struct hash<ae::ServerDescriptor> {
-  std::size_t operator()(ae::ServerDescriptor const& value) {
-    std::vector<std::uint8_t> buffer;
-    auto bw = ae::VectorWriter<>{buffer};
-    auto os = ae::omstream{bw};
-    os << value;
-    return static_cast<std::size_t>(
-        crc32::from_buffer(buffer.data(), buffer.size()).value);
-  }
-};
-}  // namespace std
 
 #endif  // AETHER_WORK_CLOUD_API_SERVER_DESCRIPTOR_H_

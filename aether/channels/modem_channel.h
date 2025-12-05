@@ -20,6 +20,7 @@
 #include "aether/config.h"
 #if AE_SUPPORT_MODEMS
 
+#  include "aether/types/address.h"
 #  include "aether/channels/channel.h"
 #  include "aether/access_points/modem_access_point.h"
 
@@ -34,11 +35,13 @@ class ModemChannel final : public Channel {
   ModemChannel(ObjPtr<Aether> aether, ModemAccessPoint::ptr access_point,
                UnifiedAddress address, Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
+  AE_OBJECT_REFLECT(AE_MMBRS(access_point_, address))
 
   ActionPtr<TransportBuilderAction> TransportBuilder() override;
 
   Duration TransportBuildTimeout() const override;
+
+  UnifiedAddress address;
 
  private:
   Obj::ptr aether_;

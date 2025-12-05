@@ -18,6 +18,7 @@
 #if AE_SUPPORT_MODEMS
 
 #  include "aether/aether.h"
+#  include "aether/server.h"
 #  include "aether/modems/imodem_driver.h"
 
 #  include "aether/channels/modem_channel.h"
@@ -92,13 +93,13 @@ IModemDriver& ModemAccessPoint::modem_driver() {
 }
 
 std::vector<ObjPtr<Channel>> ModemAccessPoint::GenerateChannels(
-    std::vector<UnifiedAddress> const& endpoints) {
+    ObjPtr<Server> const& server) {
   AE_TELED_DEBUG("Generate modem channels");
   std::vector<ObjPtr<Channel>> channels;
-  channels.reserve(endpoints.size());
+  channels.reserve(server->endpoints.size());
   Aether::ptr aether = aether_;
   ModemAccessPoint::ptr self = MakePtrFromThis(this);
-  for (auto const& endpoint : endpoints) {
+  for (auto const& endpoint : server->endpoints) {
     if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
       continue;
     }

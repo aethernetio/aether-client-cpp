@@ -17,16 +17,13 @@
 #include "aether/channels/channel.h"
 
 #include <chrono>
-#include <utility>
 
 #include "aether/config.h"
 
 namespace ae {
 
-Channel::Channel(UnifiedAddress address, Domain* domain)
-    : Obj{domain},
-      address{std::move(address)},
-      channel_statistics_{domain->CreateObj<ChannelStatistics>()} {
+Channel::Channel(Domain* domain)
+    : Obj{domain}, channel_statistics_{domain->CreateObj<ChannelStatistics>()} {
   channel_statistics_->AddResponseTime(
       std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS});
   channel_statistics_->AddConnectionTime(

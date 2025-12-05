@@ -95,8 +95,6 @@ list(APPEND ptr_srcs
             "ptr/ref_tree.cpp"
         )
 
-list(APPEND events_srcs)
-
 list(APPEND actions_srcs
             "ae_actions/get_client_cloud.cpp"
             "ae_actions/get_servers.cpp"
@@ -293,16 +291,16 @@ else()
 endif()
 
 if(REGULAR_CMAKE_PROJECT)
-  project(aether VERSION ${AE_PROJECT_VERSION} LANGUAGES CXX)
+  project(aether VERSION ${AE_PROJECT_VERSION} LANGUAGES CXX C)
 
   set(CARES_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
   set(CARES_STATIC ON CACHE BOOL "" FORCE)
   set(CARES_SHARED OFF CACHE BOOL "" FORCE)
-  add_subdirectory("../third_party/c-ares" "c-ares")
+  list(APPEND common_dependencies "../third_party/c-ares")
 
   foreach(dep ${common_dependencies})
     get_filename_component(DEP_NAME ${dep} NAME)
-    add_subdirectory(${dep} ${DEP_NAME})
+    add_subdirectory(${dep} "${CMAKE_CURRENT_BINARY_DIR}/${DEP_NAME}")
   endforeach()
 
   add_library(aether STATIC ${aether_srcs}
@@ -313,7 +311,6 @@ if(REGULAR_CMAKE_PROJECT)
                             ${dns_srcs}
                             ${obj_srcs}
                             ${ptr_srcs}
-                            ${events_srcs}
                             ${actions_srcs}
                             ${transport_srcs}
                             ${stream_api_src}
@@ -366,7 +363,6 @@ else()
                             ${dns_srcs}
                             ${obj_srcs}
                             ${ptr_srcs}
-                            ${events_srcs}
                             ${actions_srcs}
                             ${adapters_srcs}
                             ${access_points_srcs}

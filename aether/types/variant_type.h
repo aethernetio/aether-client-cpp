@@ -18,6 +18,7 @@
 #define AETHER_TYPES_VARIANT_TYPE_H_
 
 #include <cstddef>
+#include <cassert>
 #include <utility>
 #include <variant>
 #include <functional>

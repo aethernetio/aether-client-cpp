@@ -17,6 +17,7 @@
 #ifndef AETHER_CHANNELS_WIFI_CHANNEL_H_
 #define AETHER_CHANNELS_WIFI_CHANNEL_H_
 
+#include "aether/types/address.h"
 #include "aether/channels/channel.h"
 #include "aether/access_points/wifi_access_point.h"
 
@@ -34,11 +35,14 @@ class WifiChannel final : public Channel {
               ObjPtr<DnsResolver> resolver, WifiAccessPoint::ptr access_point,
               UnifiedAddress address, Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, resolver_, access_point_))
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, resolver_, access_point_,
+                             address))
 
   Duration TransportBuildTimeout() const override;
 
   ActionPtr<TransportBuilderAction> TransportBuilder() override;
+
+  UnifiedAddress address;
 
  private:
   Obj::ptr aether_;
