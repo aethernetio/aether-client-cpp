@@ -121,13 +121,15 @@ void LoraModuleTransport::Restream() {
 }
 
 ActionPtr<StreamWriteAction> LoraModuleTransport::Write(DataBuffer&& in_data) {
+  Protocol proto{Protocol::kTcp};
+  
   AE_TELE_DEBUG(kLoraModuleTransportSend, "Send data size {}", in_data.size());
 
   if (protocol_ == Protocol::kTcp || protocol_ == Protocol::kUdp) {
-    protocol_ = Protocol::kLora;
+    proto = Protocol::kLora;
   }
 
-  if (protocol_ == Protocol::kLora) {
+  if (proto == Protocol::kLora) {
     auto send_action = send_action_queue_manager_->AddPacket(
         ActionPtr<SendLoraAction>{action_context_, *this, std::move(in_data)});
     send_action_subs_.Push(
@@ -174,16 +176,28 @@ void LoraModuleTransport::Disconnect() {
 
 void LoraModuleTransport::DataReceived(ConnectionLoraIndex connection,
                                        DataBuffer const& data_in) {
+  Protocol proto{Protocol::kTcp};
+  
   if (connection_ != connection) {
     return;
   }
-  if (protocol_ == Protocol::kLora) {
+  
+  if (protocol_ == Protocol::kTcp || protocol_ == Protocol::kUdp) {
+    proto = Protocol::kLora;
+  }
+  
+  if (proto == Protocol::kLora) {
     DataReceivedLora(data_in);
   }
 }
 
 void LoraModuleTransport::DataReceivedLora(DataBuffer const& data_in) {
-  out_data_event_.Emit(data_in);
+  data_packet_collector_.AddData(data_in.data(), data_in.size());
+  for (auto data = data_packet_collector_.PopPacket(); !data.empty();
+       data = data_packet_collector_.PopPacket()) {
+    AE_TELE_DEBUG(kModemTransportReceive, "Receive data size {}", data.size());
+    out_data_event_.Emit(data);
+  }
 }
 
 }  // namespace ae

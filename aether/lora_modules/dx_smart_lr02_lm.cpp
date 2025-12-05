@@ -115,6 +115,7 @@ DxSmartLr02LoraModule::Start() {
                                 // save it's started
                                 Stage<GenAction>(action_context_, [this]() {
                                   started_ = true;
+                                  SetupPoll();
                                   return UpdateStatus::Result();
                                 }));
 
@@ -389,7 +390,25 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SendData(
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::ReadPacket(
     ConnectionLoraIndex /* connection */) {
-  return {};
+  return {};  
+}
+
+void DxSmartLr02LoraModule::SetupPoll() {
+  poll_listener_ =
+      at_support_.ListenForResponse("", [this](auto&, auto pos) {
+        std::int32_t cid{};
+        AtSupport::ParseResponse(*pos, "", cid);
+        PollEvent();
+      });
+}
+
+void DxSmartLr02LoraModule::PollEvent() {
+  ConnectionLoraIndex connection{};
+  // get connection index
+
+  AE_TELED_DEBUG("Data available for connection");
+  operation_queue_->Push(Stage(
+      [this, connection{connection}]() { return ReadPacket(connection); }));
 }
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::EnterAtMode() {
