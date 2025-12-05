@@ -28,7 +28,7 @@
 
 namespace ae::cloud_test {
 static constexpr std::string_view kSerialPortLoraModule =
-    "COM2";  // Lora module serial port
+    "COM3";  // Lora module serial port
 SerialInit serial_init_lora_module = {std::string(kSerialPortLoraModule),
                                       kBaudRate::kBaudRate9600};
 
@@ -44,7 +44,7 @@ LoraPowerSaveParam psp{
 ae::LoraModuleInit const lora_module_init{
     serial_init_lora_module,              // Serial port
     psp,                                  // Power Save Parameters
-    kLoraModuleFreqRange::kFREUndef       // Frequency range
+    kLoraModuleFreqRange::kFREUndef,      // Frequency range
     0,                                    // Lora module address
     0,                                    // Lora module BS address
     0,                                    // Channel

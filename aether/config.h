@@ -116,7 +116,7 @@
  * \brief Is lora protocol supported.
  */
 #ifndef AE_SUPPORT_LORA
-#  define AE_SUPPORT_LORA 0
+#  define AE_SUPPORT_LORA 1
 #endif
 
 #ifndef AE_ENABLE_EBYTE_E22_LM
@@ -124,7 +124,7 @@
 #endif
 
 #ifndef AE_ENABLE_DX_SMART_LR02_LM
-#  define AE_ENABLE_DX_SMART_LR02_LM 0
+#  define AE_ENABLE_DX_SMART_LR02_LM 1
 #endif
 
 /**
@@ -207,7 +207,7 @@
 #endif
 // default value used for connection timeout, until statistics are available
 #ifndef AE_DEFAULT_CONNECTION_TIMEOUT_MS
-#  define AE_DEFAULT_CONNECTION_TIMEOUT_MS 5000
+#  define AE_DEFAULT_CONNECTION_TIMEOUT_MS 15000
 #endif
 
 // window size for server answear to ping statistics
