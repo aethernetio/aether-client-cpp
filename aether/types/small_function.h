@@ -128,7 +128,7 @@ struct MethodPtr<Method> {
   T* instance;
 };
 
-static constexpr std::size_t kDefaultSize = sizeof(void*) * 8;
+static constexpr std::size_t kDefaultSize = sizeof(void*) * 4;
 static constexpr std::size_t kDefaultAlignment = alignof(void*);
 
 template <typename Signature, std::size_t Size = kDefaultSize,
