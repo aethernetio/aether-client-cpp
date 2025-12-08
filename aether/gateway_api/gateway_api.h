@@ -46,25 +46,16 @@ class GatewayApi : public ApiClass {
 
 class GatewayClientApi : public ApiClassImpl<GatewayClientApi> {
  public:
-  GatewayClientApi(ProtocolContext& protocol_context);
+  explicit GatewayClientApi(ProtocolContext& protocol_context);
 
-  void FromServerId(ClientId client_id, ServerId server_id, DataBuffer data);
+  void FromServer(ClientId client_id, DataBuffer data);
 
-  void FromServer(ClientId client_id, std::uint32_t endpoints_hash,
-                  DataBuffer data);
+  AE_METHODS(RegMethod<3, &GatewayClientApi::FromServer>);
 
-  AE_METHODS(RegMethod<3, &GatewayClientApi::FromServerId>,
-             RegMethod<4, &GatewayClientApi::FromServer>);
-
-  auto from_server_id_event() { return EventSubscriber{from_server_id_event_}; }
   auto from_server_event() { return EventSubscriber{from_server_event_}; }
 
  private:
-  Event<void(ClientId client_id, ServerId server_id, DataBuffer const& data)>
-      from_server_id_event_;
-  Event<void(ClientId client_id, std::uint32_t endpoints_hash,
-             DataBuffer const& data)>
-      from_server_event_;
+  Event<void(ClientId client_id, DataBuffer const& data)> from_server_event_;
 };
 
 }  // namespace ae
