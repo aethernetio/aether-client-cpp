@@ -86,7 +86,7 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   ActionPtr<IPipeline> SendData(ConnectionLoraIndex connection,
                                 DataBuffer const& data);
   void ReadPacket(DataBuffer const& data);
-  
+
   ActionContext action_context_;
   LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;

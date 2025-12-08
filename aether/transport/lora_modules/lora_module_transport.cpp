@@ -122,7 +122,7 @@ void LoraModuleTransport::Restream() {
 
 ActionPtr<StreamWriteAction> LoraModuleTransport::Write(DataBuffer&& in_data) {
   Protocol proto{Protocol::kTcp};
-  
+
   AE_TELE_DEBUG(kLoraModuleTransportSend, "Send data size {}", in_data.size());
 
   if (protocol_ == Protocol::kTcp || protocol_ == Protocol::kUdp) {
@@ -146,7 +146,7 @@ ActionPtr<StreamWriteAction> LoraModuleTransport::Write(DataBuffer&& in_data) {
 
 void LoraModuleTransport::Connect() {
   ConnectionLoraIndex connection_index{};
-  
+
   OnConnected(connection_index);
 }
 
@@ -177,15 +177,15 @@ void LoraModuleTransport::Disconnect() {
 void LoraModuleTransport::DataReceived(ConnectionLoraIndex connection,
                                        DataBuffer const& data_in) {
   Protocol proto{Protocol::kTcp};
-  
+
   if (connection_ != connection) {
     return;
   }
-  
+
   if (protocol_ == Protocol::kTcp || protocol_ == Protocol::kUdp) {
     proto = Protocol::kLora;
   }
-  
+
   if (proto == Protocol::kLora) {
     DataReceivedLora(data_in);
   }

@@ -89,7 +89,8 @@ DxSmartLr02LoraModule::DxSmartLr02LoraModule(ActionContext action_context,
       operation_queue_{action_context_},
       initiated_{false},
       started_{false} {
-  serial_->read_event().Subscribe(MethodPtr<&DxSmartLr02LoraModule::ReadPacket>{this});
+  serial_->read_event().Subscribe(
+      MethodPtr<&DxSmartLr02LoraModule::ReadPacket>{this});
   Init();
   Start();
 }
@@ -116,7 +117,7 @@ DxSmartLr02LoraModule::Start() {
                                 // save it's started
                                 Stage<GenAction>(action_context_, [this]() {
                                   started_ = true;
-                                  //SetupPoll();
+                                  // SetupPoll();
                                   return UpdateStatus::Result();
                                 }));
 
@@ -223,7 +224,7 @@ DxSmartLr02LoraModule::SetPowerSaveParam(LoraPowerSaveParam const& psp) {
   pipeline->StatusEvent().Subscribe(ActionHandler{
       OnResult{[lora_module_operation]() { lora_module_operation->Notify(); }},
       OnError{[lora_module_operation]() { lora_module_operation->Failed(); }},
-      OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}}); 
+      OnStop{[lora_module_operation]() { lora_module_operation->Stop(); }}});
 
   return lora_module_operation;
 }
@@ -335,8 +336,9 @@ DxSmartLr02LoraModule::SetLoraModuleIQSignalInversion(
 void DxSmartLr02LoraModule::Init() {
   operation_queue_->Push(Stage([this]() {
     auto init_pipeline = MakeActionPtr<Pipeline>(
-        action_context_,        
-        Stage([this]() { return SetupSerialPort(lora_module_init_.serial_init); }),        
+        action_context_, Stage([this]() {
+          return SetupSerialPort(lora_module_init_.serial_init);
+        }),
         Stage([this]() { return SetPowerSaveParam(lora_module_init_.psp); }),
         Stage([this]() { return SetupLoraNet(lora_module_init_); }),
         Stage<GenAction>(action_context_, [this]() {
@@ -391,7 +393,7 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SendData(
 
 void DxSmartLr02LoraModule::ReadPacket(DataBuffer const& data) {
   ConnectionLoraIndex connection{};
-  
+
   AE_TELED_DEBUG("Received {} bytes.", data.size());
   // Emit the received data
   data_event_.Emit(connection, data);
@@ -481,13 +483,14 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SetupSerialPort(
   return MakeActionPtr<Pipeline>(
       action_context_,
       // Enter AT command mode
-      Stage([this]() { return EnterAtMode(); }),
-      Stage([this, serial_init]() { return SetBaudRate(serial_init.baud_rate); }),
+      Stage([this]() { return EnterAtMode(); }), Stage([this, serial_init]() {
+        return SetBaudRate(serial_init.baud_rate);
+      }),
       Stage([this, serial_init]() { return SetParity(serial_init.parity); }),
-      Stage([this, serial_init]() { return SetStopBits(serial_init.stop_bits); }),
+      Stage(
+          [this, serial_init]() { return SetStopBits(serial_init.stop_bits); }),
       // Exit AT command mode
-      Stage([this]() { return ExitAtMode(); })
-      );
+      Stage([this]() { return ExitAtMode(); }));
 }
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SetBaudRate(kBaudRate baud_rate) {
@@ -549,8 +552,7 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SetStopBits(kStopBits stop_bits) {
 ActionPtr<IPipeline> DxSmartLr02LoraModule::SetupLoraNet(
     LoraModuleInit const& lora_module_init) {
   return MakeActionPtr<Pipeline>(
-      action_context_,
-      Stage([this, lora_module_init]() {
+      action_context_, Stage([this, lora_module_init]() {
         return SetLoraModuleAddress(lora_module_init.lora_module_my_adress);
       }),
       Stage([this, lora_module_init]() {
