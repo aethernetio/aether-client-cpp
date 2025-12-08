@@ -21,10 +21,10 @@
 
 #include "aether/obj/obj.h"
 #include "aether/obj/obj_ptr.h"
-#include "aether/types/address.h"
 
 namespace ae {
 class Channel;
+class Server;
 
 /**
  * \brief The channel factory.
@@ -44,7 +44,7 @@ class AccessPoint : public Obj {
   AE_OBJECT_REFLECT()
 
   virtual std::vector<ObjPtr<Channel>> GenerateChannels(
-      std::vector<UnifiedAddress> const& endpoints) = 0;
+      ObjPtr<Server> const& server) = 0;
 };
 }  // namespace ae
 

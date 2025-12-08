@@ -183,7 +183,8 @@ EthernetChannel::EthernetChannel(ObjPtr<Aether> aether,
                                  ObjPtr<DnsResolver> dns_resolver,
                                  ObjPtr<IPoller> poller, UnifiedAddress address,
                                  Domain* domain)
-    : Channel{std::move(address), domain},
+    : Channel{domain},
+      address{std::move(address)},
       aether_{std::move(aether)},
       poller_{std::move(poller)},
       dns_resolver_{std::move(dns_resolver)} {

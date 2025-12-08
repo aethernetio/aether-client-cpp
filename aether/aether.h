@@ -88,7 +88,7 @@ class Aether : public Obj {
   ActionPtr<SelectClientAction> SelectClient(Uid parent_uid,
                                              std::uint32_t client_id);
 
-  void AddServer(Server::ptr&& s);
+  void AddServer(Server::ptr s);
   Server::ptr GetServer(ServerId server_id);
 
   std::unique_ptr<ActionProcessor> action_processor =

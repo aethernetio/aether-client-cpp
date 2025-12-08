@@ -44,14 +44,13 @@ class SafeStreamApi final : public ApiClassImpl<SafeStreamApi> {
   Method<5, void(SSRingIndex::type begin_offset, DataMessage data_message)>
       send;
 
-  void AckImpl(ApiParser& parser, SSRingIndex::type offset);
-  void RequestRepeatImpl(ApiParser& parser, SSRingIndex::type offset);
-  void SendImpl(ApiParser& parser, SSRingIndex::type begin_offset,
-                DataMessage data_message);
+  void AckImpl(SSRingIndex::type offset);
+  void RequestRepeatImpl(SSRingIndex::type offset);
+  void SendImpl(SSRingIndex::type begin_offset, DataMessage data_message);
 
-  using ApiMethods = ImplList<RegMethod<3, &SafeStreamApi::AckImpl>,
-                              RegMethod<4, &SafeStreamApi::RequestRepeatImpl>,
-                              RegMethod<5, &SafeStreamApi::SendImpl>>;
+  AE_METHODS(RegMethod<3, &SafeStreamApi::AckImpl>,
+             RegMethod<4, &SafeStreamApi::RequestRepeatImpl>,
+             RegMethod<5, &SafeStreamApi::SendImpl>);
 
  private:
   SafeStreamApiImpl* safe_stream_api_impl_;

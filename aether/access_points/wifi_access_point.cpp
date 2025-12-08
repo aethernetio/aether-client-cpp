@@ -78,15 +78,15 @@ WifiAccessPoint::WifiAccessPoint(ObjPtr<Aether> aether,
       wifi_creds_{std::move(wifi_creds)} {}
 
 std::vector<ObjPtr<Channel>> WifiAccessPoint::GenerateChannels(
-    std::vector<UnifiedAddress> const& endpoints) {
+    ObjPtr<Server> const& server) {
   Aether::ptr aether = aether_;
   IPoller::ptr poller = poller_;
   DnsResolver::ptr resolver = resolver_;
   WifiAccessPoint::ptr wifi_access_point = MakePtrFromThis(this);
 
   std::vector<ObjPtr<Channel>> channels;
-  channels.reserve(endpoints.size());
-  for (auto const& endpoint : endpoints) {
+  channels.reserve(server->endpoints.size());
+  for (auto const& endpoint : server->endpoints) {
     if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
       continue;
     }

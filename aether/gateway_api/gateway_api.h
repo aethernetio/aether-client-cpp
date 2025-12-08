@@ -19,43 +19,46 @@
 
 #include "aether/config.h"
 
-#if AE_SUPPORT_LORA
+#if AE_SUPPORT_GATEWAY
 
-#  include <array>
+#  include <cstdint>
 
-#  include "aether/reflect/reflect.h"
 #  include "aether/events/events.h"
+#  include "aether/types/server_id.h"
+#  include "aether/types/client_id.h"
 #  include "aether/types/data_buffer.h"
 #  include "aether/api_protocol/api_method.h"
 #  include "aether/api_protocol/api_class_impl.h"
-#  include "aether/lora_modules/lora_module_driver_types.h"
+
+#  include "aether/gateway_api/server_endpoints.h"
 
 namespace ae {
-
-struct GwConnection {
-  AE_REFLECT_MEMBERS(client_id, server_id)
-  std::uint32_t client_id{0};
-  std::uint32_t server_id{0};
-};
-
-class GatewayApi : public ApiClassImpl<GatewayApi> {
+class GatewayApi : public ApiClass {
  public:
   explicit GatewayApi(ProtocolContext& protocol_context);
 
-  Method<3, void(GwConnection gwc, DataBuffer data)> packet;
+  Method<3, void(ClientId client_id, ServerId server_id, DataBuffer data)>
+      to_server_id;
+  Method<4, void(ClientId client_id, ServerEndpoints server_endpoints,
+                 DataBuffer data)>
+      to_server;
+};
 
-  void PacketImpl(ApiParser& parser, GwConnection gwc, DataBuffer data);
+class GatewayClientApi : public ApiClassImpl<GatewayClientApi> {
+ public:
+  explicit GatewayClientApi(ProtocolContext& protocol_context);
 
-  EventSubscriber<void(GwConnection const& gwc, DataBuffer const& data)>
-  packet_event();
+  void FromServer(ClientId client_id, DataBuffer data);
 
-  using ApiMethods = ImplList<RegMethod<0x03, &GatewayApi::PacketImpl>>;
+  AE_METHODS(RegMethod<3, &GatewayClientApi::FromServer>);
+
+  auto from_server_event() { return EventSubscriber{from_server_event_}; }
 
  private:
-  Event<void(GwConnection const& gwc, DataBuffer const& data)> packet_event_;
+  Event<void(ClientId client_id, DataBuffer const& data)> from_server_event_;
 };
 
 }  // namespace ae
 
-#endif  // AE_SUPPORT_LORA
+#endif  // AE_SUPPORT_GATEWAY
 #endif  // AETHER_GATEWAY_API_GATEWAY_API_H_

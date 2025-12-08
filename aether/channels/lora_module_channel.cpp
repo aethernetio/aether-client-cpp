@@ -139,7 +139,8 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
 LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
                                      LoraModuleAccessPoint::ptr access_point,
                                      UnifiedAddress address, Domain* domain)
-    : Channel{std::move(address), domain},
+    : Channel{domain},
+      address{std::move(address)},
       aether_{std::move(aether)},
       access_point_{std::move(access_point)} {
   // fill transport properties

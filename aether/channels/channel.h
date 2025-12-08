@@ -18,7 +18,6 @@
 #define AETHER_CHANNELS_CHANNEL_H_
 
 #include "aether/obj/obj.h"
-#include "aether/types/address.h"
 #include "aether/channels/channels_types.h"
 #include "aether/channels/channel_statistics.h"
 #include "aether/transport/transport_builder_action.h"
@@ -30,10 +29,9 @@ class Channel : public Obj {
  public:
   Channel() = default;
 
-  Channel(UnifiedAddress address, Domain* domain);
+  explicit Channel(Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(address, transport_properties_,
-                             channel_statistics_))
+  AE_OBJECT_REFLECT(AE_MMBRS(transport_properties_, channel_statistics_))
 
   /**
    * \brief Make transport from this channel.
@@ -45,8 +43,6 @@ class Channel : public Obj {
 
   virtual Duration TransportBuildTimeout() const;
   virtual Duration ResponseTimeout() const;
-
-  UnifiedAddress address;
 
  protected:
   ChannelTransportProperties transport_properties_;

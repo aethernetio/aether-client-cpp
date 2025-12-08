@@ -42,20 +42,17 @@ class TestApiClass : public ApiClassImpl<TestApiClass> {
   Method<24, void(std::string dynamic_size_value)> method2;
   Method<25, void(DataBuffer data)> data_method;
 
-  void Method1Impl(ApiParser& parser, std::uint16_t value_2byte,
-                   std::uint32_t value_4byte) {
+  void Method1Impl(std::uint16_t value_2byte, std::uint32_t value_4byte) {
     method1_event.Emit(value_2byte, value_4byte);
   }
-  void Method2Impl(ApiParser& parser, std::string dynamic_size_value) {
+  void Method2Impl(std::string dynamic_size_value) {
     method2_event.Emit(dynamic_size_value);
   }
-  void DataMethodImpl(ApiParser& parser, DataBuffer data) {
-    data_event.Emit(data);
-  }
+  void DataMethodImpl(DataBuffer data) { data_event.Emit(data); }
 
-  using ApiMethods = ImplList<RegMethod<42, &TestApiClass::Method1Impl>,
-                              RegMethod<24, &TestApiClass::Method2Impl>,
-                              RegMethod<25, &TestApiClass::DataMethodImpl>>;
+  AE_METHODS(RegMethod<42, &TestApiClass::Method1Impl>,
+             RegMethod<24, &TestApiClass::Method2Impl>,
+             RegMethod<25, &TestApiClass::DataMethodImpl>);
 
   Event<void(std::uint16_t value_2byte, std::uint32_t value_4byte)>
       method1_event;

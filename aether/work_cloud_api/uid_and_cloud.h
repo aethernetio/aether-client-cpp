@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "aether/types/uid.h"
-#include "aether/common.h"
+#include "aether/types/server_id.h"
 
 namespace ae {
 struct CloudDescriptor {

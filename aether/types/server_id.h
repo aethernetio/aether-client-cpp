@@ -14,23 +14,16 @@
  * limitations under the License.
  */
 
-#include "aether/gateway_api/gateway_api.h"
+#ifndef AETHER_TYPES_SERVER_ID_H_
+#define AETHER_TYPES_SERVER_ID_H_
 
-#if AE_SUPPORT_GATEWAY
+#include <cstdint>
 
 namespace ae {
-GatewayApi::GatewayApi(ProtocolContext& protocol_context)
-    : ApiClass{protocol_context},
-      to_server_id{protocol_context},
-      to_server{protocol_context} {}
-
-GatewayClientApi::GatewayClientApi(ProtocolContext& protocol_context)
-    : ApiClassImpl{protocol_context} {}
-
-void GatewayClientApi::FromServer(ClientId client_id, DataBuffer data) {
-  from_server_event_.Emit(client_id, data);
-}
-
+/**
+ * \brief Aether server identifier
+ */
+using ServerId = std::uint16_t;
 }  // namespace ae
 
-#endif  // AE_SUPPORT_GATEWAY
+#endif  // AETHER_TYPES_SERVER_ID_H_

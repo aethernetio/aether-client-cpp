@@ -25,8 +25,8 @@
 #  include <vector>
 
 #  include "aether/types/uid.h"
-#  include "aether/common.h"
 #  include "aether/crypto/key.h"
+#  include "aether/types/server_id.h"
 #  include "aether/crypto/crypto_definitions.h"
 
 #  include "aether/reflect/reflect.h"

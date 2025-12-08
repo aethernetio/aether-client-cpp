@@ -127,6 +127,13 @@
 #  define AE_ENABLE_DX_SMART_LR02_LM 1
 #endif
 
+/**
+ * \brief Is work with gateway supported.
+ */
+#ifndef AE_SUPPORT_GATEWAY
+#  define AE_SUPPORT_GATEWAY 0
+#endif
+
 // Registration functionality can be stripped-out for pre-registered clients.
 #ifndef AE_SUPPORT_REGISTRATION
 #  define AE_SUPPORT_REGISTRATION 1

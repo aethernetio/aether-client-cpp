@@ -33,9 +33,9 @@ class ApiLevel1 : public ApiClassImpl<ApiLevel1> {
   explicit ApiLevel1(ProtocolContext& protocol_context)
       : ApiClassImpl{protocol_context}, method_3{protocol_context} {}
 
-  void Method3Impl(ApiParser&, float a) { method_3_event.Emit(a); }
+  void Method3Impl(float a) { method_3_event.Emit(a); }
 
-  using ApiMethods = ImplList<RegMethod<03, &ApiLevel1::Method3Impl>>;
+  AE_METHODS(RegMethod<03, &ApiLevel1::Method3Impl>);
 
   Method<03, void(float a)> method_3;
 
@@ -66,28 +66,24 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
         return_result_api{protocol_context} {}
 
   // methods invoked then packet received
-  void Method3Impl(ApiParser&, int a, std::string b) {
-    method_3_event.Emit(a, b);
-  }
-  void Method4Impl(ApiParser& /*parser*/, PromiseResult<int> promise, int a) {
+  void Method3Impl(int a, std::string b) { method_3_event.Emit(a, b); }
+  void Method4Impl(PromiseResult<int> promise, int a) {
     method_4_event.Emit(promise.request_id, a);
   }
-  void Method5Impl(ApiParser& /*parser*/, SubContextImpl<ApiLevel1> sub_api,
-                   int a) {
+  void Method5Impl(SubContextImpl<ApiLevel1> sub_api, int a) {
     sub_api.Parse(api_level1);
   }
-  void Method6Impl(ApiParser& /*parser*/, int a,
-                   SubApiImpl<ApiLevel1> sub_api) {
+  void Method6Impl(int a, SubApiImpl<ApiLevel1> sub_api) {
     sub_api.Parse(api_level1);
   }
 
   ReturnResultApi return_result_api;
 
-  using ApiMethods = ImplList<RegMethod<03, &ApiLevel0::Method3Impl>,
-                              RegMethod<04, &ApiLevel0::Method4Impl>,
-                              RegMethod<05, &ApiLevel0::Method5Impl>,
-                              RegMethod<06, &ApiLevel0::Method6Impl>,
-                              ExtApi<&ApiLevel0::return_result_api>>;
+  AE_METHODS(RegMethod<03, &ApiLevel0::Method3Impl>,
+             RegMethod<04, &ApiLevel0::Method4Impl>,
+             RegMethod<05, &ApiLevel0::Method5Impl>,
+             RegMethod<06, &ApiLevel0::Method6Impl>,
+             ExtApi<&ApiLevel0::return_result_api>);
 
   // call methods to make packet
   Method<03, void(int a, std::string b)> method_3;

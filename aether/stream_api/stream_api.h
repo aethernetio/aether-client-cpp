@@ -34,8 +34,8 @@ class StreamApiImpl : public ApiClass {
   explicit StreamApiImpl(ProtocolContext& protocol_context);
   virtual ~StreamApiImpl() = default;
 
-  void Stream(ApiParser& parser, StreamId stream_id, DataBuffer data);
-  using ApiMethods = ImplList<RegMethod<02, &StreamApiImpl::Stream>>;
+  void Stream(StreamId stream_id, DataBuffer data);
+  AE_METHODS(RegMethod<02, &StreamApiImpl::Stream>);
 
   Method<02, void(StreamId stream_id, DataBuffer data)> stream;
 

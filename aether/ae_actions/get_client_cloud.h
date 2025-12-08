@@ -17,23 +17,22 @@
 #ifndef AETHER_AE_ACTIONS_GET_CLIENT_CLOUD_H_
 #define AETHER_AE_ACTIONS_GET_CLIENT_CLOUD_H_
 
-#include <map>
 #include <vector>
 
 #include "aether/actions/action.h"
+#include "aether/types/server_id.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/actions/repeatable_task.h"
 #include "aether/events/event_subscription.h"
 #include "aether/client_connections/cloud_connection.h"
 
-#include "aether/work_cloud_api/uid_and_cloud.h"
 #include "aether/work_cloud_api/server_descriptor.h"
 
 namespace ae {
 class GetClientCloudAction final : public Action<GetClientCloudAction> {
   enum class State : std::uint8_t {
     kRequestCloud,
-    kAllServersResolved,
+    kResult,
     kFailed,
     kStopped,
   };
@@ -47,13 +46,10 @@ class GetClientCloudAction final : public Action<GetClientCloudAction> {
 
   void Stop();
 
-  std::map<ServerId, ServerDescriptor> const& server_descriptors() const;
+  std::vector<ServerId> const& cloud() const;
 
  private:
-  void SubscribeClientApi();
-
   void RequestCloud();
-  void ResolveServers(CloudDescriptor const& cloud_descriptor);
   void RequestCloudFailed();
   void RequestServerResolve();
 
@@ -66,16 +62,12 @@ class GetClientCloudAction final : public Action<GetClientCloudAction> {
 
   StateMachine<State> state_;
   OwnActionPtr<RepeatableTask> request_cloud_task_;
-  OwnActionPtr<RepeatableTask> server_resolve_task_;
 
   CloudConnection::ReplicaSubscription cloud_resolved_sub_;
-  CloudConnection::ReplicaSubscription server_resolved_sub_;
 
   Subscription cloud_request_sub_;
-  Subscription servers_resolve_sub_;
 
-  std::vector<ServerId> requested_cloud_;
-  std::map<ServerId, ServerDescriptor> server_descriptors_;
+  std::vector<ServerId> cloud_;
   TimePoint start_resolve_;
 };
 }  // namespace ae

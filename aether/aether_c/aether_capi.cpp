@@ -51,6 +51,7 @@
 static ae::RcPtr<ae::AetherApp> aether_app;
 
 struct AetherClient {
+  ClientConfig config;
   ae::Client::ptr client;
   std::map<ae::Uid, ae::RcPtr<ae::P2pStream>> streams;
   ae::OwnActionPtr<ae::ActionsQueue> actions_queue_;
@@ -59,7 +60,10 @@ struct AetherClient {
 std::unique_ptr<AetherClient, void (*)(AetherClient*)> default_client{
     nullptr, &FreeClient};
 
-void Listen(AetherClient* client, MessageReceivedCb cb, void* user_data);
+void Listen(AetherClient* client, void* user_data);
+
+void ListenStream(AetherClient* client, void* user_data, CUid const& c_dest,
+                  ae::RcPtr<ae::P2pStream> const& stream);
 
 ae::ActionPtr<ae::SelectClientAction> SelectClientImpl(
     AetherClient* client, ClientConfig const* config) {
@@ -84,7 +88,7 @@ ae::ActionPtr<ae::SelectClientAction> SelectClientImpl(
         context->client->client = action.client();
         // subscribe to messages
         if (context->message_recv_cb != nullptr) {
-          Listen(context->client, context->message_recv_cb, context->user_data);
+          Listen(context->client, context->user_data);
         }
         // notify client was selected
         if (context->client_selected_cb != nullptr) {
@@ -113,6 +117,10 @@ ae::ActionPtr<ae::StreamWriteAction> WriteMessageImpl(AetherClient* client,
     // create new stream
     auto stream =
         client->client->message_stream_manager().CreateStream(destination);
+    auto c_dest =
+        CUidFromBytes(destination.value.data(), destination.value.size());
+    ListenStream(client, user_data, c_dest, stream);
+
     std::tie(it, std::ignore) = client->streams.emplace(destination, stream);
   }
   auto action = it->second->Write(std::move(data));
@@ -153,34 +161,49 @@ void WriteMessage(AetherClient* client, ae::Uid destination,
   }
 }
 
-void Listen(AetherClient* client, MessageReceivedCb cb, void* user_data) {
+void Listen(AetherClient* client, void* user_data) {
   assert(client);
-  assert(cb);
+  auto cb = client->config.message_received_cb;
+  if (cb == nullptr) {
+    return;
+  }
+
   client->client->message_stream_manager().new_stream_event().Subscribe(
-      [client, cb, user_data](ae::RcPtr<ae::P2pStream> stream) {
+      [client, user_data](ae::RcPtr<ae::P2pStream> stream) {
         auto dest = stream->destination();
         // store the stream for future use
         client->streams.emplace(dest, stream);
 
         // create cuid for callback
         auto c_dest = CUidFromBytes(dest.value.data(), dest.value.size());
+        // listen for incoming messages
+        ListenStream(client, user_data, c_dest, stream);
+      });
+}
 
-        // special context saved in heap
-        struct ListenContext {
-          void* user_data;
-          AetherClient* client;
-          MessageReceivedCb cb;
-          CUid c_dest;
-        };
+void ListenStream(AetherClient* client, void* user_data, CUid const& c_dest,
+                  ae::RcPtr<ae::P2pStream> const& stream) {
+  // special context saved in heap
+  struct ListenContext {
+    void* user_data;
+    AetherClient* client;
+    CUid c_dest;
+  };
 
-        // call the callback on data received
-        stream->out_data_event().Subscribe(
-            [context{std::unique_ptr<ListenContext>{new ListenContext{
-                user_data, client, cb, c_dest}}}](auto const& data) {
-              context->cb(context->client, context->c_dest,
-                          static_cast<void const*>(data.data()), data.size(),
-                          context->user_data);
-            });
+  // call the callback on data received
+  stream->out_data_event().Subscribe(
+      [context{std::unique_ptr<ListenContext>{new ListenContext{
+          user_data,
+          client,
+          c_dest,
+      }}}](auto const& data) {
+        auto cb = context->client->config.message_received_cb;
+        if (cb == nullptr) {
+          return;
+        }
+        cb(context->client, context->c_dest,
+           static_cast<void const*>(data.data()), data.size(),
+           context->user_data);
       });
 }
 
@@ -308,6 +331,7 @@ AetherClient* SelectClient(ClientConfig const* config) {
   assert(config != nullptr);
 
   auto* ret_client = new AetherClient{};
+  ret_client->config = *config;
   ret_client->actions_queue_ = ae::OwnActionPtr<ae::ActionsQueue>{*aether_app};
 
   ret_client->actions_queue_->Push(ae::Stage(

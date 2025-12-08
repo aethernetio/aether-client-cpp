@@ -39,18 +39,18 @@ class BandwidthApi : public ApiClassImpl<BandwidthApi> {
 
   Method<0x06, void(std::uint16_t id, PayloadData data)> message;
 
-  void HandshakeImpl(ApiParser& parser, PromiseResult<bool> res);
-  void StartTestImpl(ApiParser& parser, PromiseResult<bool> res);
-  void StopTestImpl(ApiParser& parser, PromiseResult<bool> res);
-  void MessageImpl(ApiParser& parser, std::uint16_t id, PayloadData data);
+  void HandshakeImpl(PromiseResult<bool> res);
+  void StartTestImpl(PromiseResult<bool> res);
+  void StopTestImpl(PromiseResult<bool> res);
+  void MessageImpl(std::uint16_t id, PayloadData data);
 
   ReturnResultApi return_result;
 
-  using ApiMethods = ImplList<RegMethod<0x03, &BandwidthApi::HandshakeImpl>,
-                              RegMethod<0x04, &BandwidthApi::StartTestImpl>,
-                              RegMethod<0x05, &BandwidthApi::StopTestImpl>,
-                              RegMethod<0x06, &BandwidthApi::MessageImpl>,
-                              ExtApi<&BandwidthApi::return_result>>;
+  AE_METHODS(RegMethod<0x03, &BandwidthApi::HandshakeImpl>,
+             RegMethod<0x04, &BandwidthApi::StartTestImpl>,
+             RegMethod<0x05, &BandwidthApi::StopTestImpl>,
+             RegMethod<0x06, &BandwidthApi::MessageImpl>,
+             ExtApi<&BandwidthApi::return_result>);
 
   EventSubscriber<void(RequestId req_id)> handshake_event();
   EventSubscriber<void(RequestId req_id)> start_test_event();

@@ -92,13 +92,13 @@ ILoraModuleDriver& LoraModuleAccessPoint::lora_module_driver() {
 }
 
 std::vector<ObjPtr<Channel>> LoraModuleAccessPoint::GenerateChannels(
-    std::vector<UnifiedAddress> const& endpoints) {
+    ObjPtr<Server> const& server) {
   AE_TELED_DEBUG("Generate lora module channels");
   std::vector<ObjPtr<Channel>> channels;
-  channels.reserve(endpoints.size());
+  channels.reserve(server->endpoints.size());
   Aether::ptr aether = aether_;
   LoraModuleAccessPoint::ptr self = MakePtrFromThis(this);
-  for (auto const& endpoint : endpoints) {
+  for (auto const& endpoint : server->endpoints) {
     if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
       continue;
     }

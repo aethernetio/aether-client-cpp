@@ -90,16 +90,16 @@ struct Method<MessageCode, ApiPromisePtr<R>(Args...), ArgProc> {
 
     auto promise_ptr = ApiPromisePtr<R>{action_context_, request_id};
 
-    protocol_context_->AddSendResultCallback(
-        request_id, [p_ptr{promise_ptr}](ApiParser& parser) mutable {
-          assert(p_ptr);
-          if constexpr (!std::is_same_v<void, R>) {
-            auto value = parser.Extract<R>();
-            p_ptr->SetValue(value);
-          } else {
-            p_ptr->SetValue();
-          }
-        });
+    if constexpr (!std::is_same_v<void, R>) {
+      protocol_context_->AddSendResultCallback(
+          request_id,
+          [p_ptr{promise_ptr}, context{protocol_context_}]() mutable {
+            p_ptr->SetValue(context->parser()->template Extract<R>());
+          });
+    } else {
+      protocol_context_->AddSendResultCallback(
+          request_id, [p_ptr{promise_ptr}]() mutable { p_ptr->SetValue(); });
+    }
     protocol_context_->AddSendErrorCallback(
         request_id, [p_ptr{promise_ptr}](auto, auto) mutable {
           assert(p_ptr);

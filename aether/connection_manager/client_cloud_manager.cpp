@@ -24,6 +24,7 @@
 #include "aether/work_cloud.h"
 
 #include "aether/types/state_machine.h"
+#include "aether/ae_actions/get_servers.h"
 #include "aether/ae_actions/get_client_cloud.h"
 #include "aether/work_cloud_api/server_descriptor.h"
 #include "aether/client_connections/cloud_connection.h"
@@ -48,32 +49,30 @@ class GetCloudFromCache final : public GetCloudAction {
 class GetCloudFromAether : public GetCloudAction {
  public:
   enum class State : std::uint8_t {
-    kCloudResolve,
-    kWaitCloudResolve,
+    kGetCloud,
     kDone,
     kError,
     kStopped,
   };
 
-  explicit GetCloudFromAether(ActionContext action_context,
+  explicit GetCloudFromAether(ActionContext action_context, Aether& aether,
                               ClientCloudManager& client_cloud_manager,
                               CloudConnection& cloud_connection, Uid client_uid)
       : GetCloudAction{action_context},
         action_context_{action_context},
+        aether_{&aether},
         client_cloud_manager_{&client_cloud_manager},
         cloud_connection_{&cloud_connection},
         client_uid_{client_uid},
-        state_{State::kCloudResolve} {
+        state_{State::kGetCloud} {
     state_.changed_event().Subscribe([this](auto&&) { Action::Trigger(); });
   }
 
   UpdateStatus Update() override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
-        case State::kCloudResolve:
-          ResolveCloud();
-          break;
-        case State::kWaitCloudResolve:
+        case State::kGetCloud:
+          RequestCloud();
           break;
         case State::kDone:
           return UpdateStatus::Result();
@@ -90,31 +89,90 @@ class GetCloudFromAether : public GetCloudAction {
   void Stop() override { state_ = State::kStopped; };
 
  private:
-  void ResolveCloud() {
-    get_client_cloud_action_ = ActionPtr<GetClientCloudAction>(
+  void RequestCloud() {
+    get_client_cloud_action_ = OwnActionPtr<GetClientCloudAction>(
         action_context_, client_uid_, *cloud_connection_,
         RequestPolicy::Replica{cloud_connection_->count_connections()});
 
     get_client_cloud_sub_ = get_client_cloud_action_->StatusEvent().Subscribe(
         ActionHandler{OnResult{[this](auto const& action) {
-                        RegisterCloud(action.server_descriptors());
+                        BuildServers(action.cloud());
                         state_ = State::kDone;
                       }},
                       OnError{[this]() { state_ = State::kError; }}});
-    state_ = State::kWaitCloudResolve;
   }
 
-  void RegisterCloud(std::map<ServerId, ServerDescriptor> const& servers) {
-    cloud_ = client_cloud_manager_->RegisterCloud(client_uid_, servers);
+  void BuildServers(std::vector<ServerId> const& sids) {
+    std::vector<Server::ptr> servers;
+    std::vector<ServerId> missing_servers;
+    for (auto const& sid : sids) {
+      auto server = aether_->GetServer(sid);
+      if (server) {
+        servers.push_back(server);
+      } else {
+        missing_servers.push_back(sid);
+      }
+    }
+    if (!missing_servers.empty()) {
+      // If there are missing servers, resolve them from the cloud
+      get_servers_action_ = OwnActionPtr<GetServersAction>{
+          action_context_, missing_servers, *cloud_connection_,
+          RequestPolicy::Replica{cloud_connection_->count_connections()}};
+      get_servers_sub_ =
+          get_servers_action_->StatusEvent().Subscribe(ActionHandler{
+              OnResult{[this, servers{std::move(servers)}](
+                           auto const& action) mutable {
+                auto new_servers = BuildNewServers(action.servers());
+                // extend the existing servers with the new ones
+                servers.insert(std::end(servers), std::begin(new_servers),
+                               std::end(new_servers));
+                RegisterCloud(std::move(servers));
+                state_ = State::kDone;
+              }},
+              OnError{[this]() { state_ = State::kError; }},
+          });
+    } else {
+      // all servers already known to aether, just build a new cloud
+      RegisterCloud(std::move(servers));
+      state_ = State::kDone;
+    }
+  }
+
+  std::vector<Server::ptr> BuildNewServers(
+      std::vector<ServerDescriptor> const& descriptors) {
+    std::vector<Server::ptr> servers;
+    for (auto const& sd : descriptors) {
+      std::vector<UnifiedAddress> endpoints;
+      for (auto const& ip : sd.ips) {
+        for (auto const& pp : ip.protocol_and_ports) {
+          endpoints.emplace_back(
+              IpAddressPortProtocol{{ip.ip, pp.port}, pp.protocol});
+        }
+      }
+      Server::ptr s =
+          aether_->domain_->CreateObj<Server>(sd.server_id, endpoints);
+      s->Register(aether_->adapter_registry);
+      aether_->AddServer(s);
+      servers.emplace_back(std::move(s));
+    }
+    return servers;
+  }
+
+  void RegisterCloud(std::vector<Server::ptr> servers) {
+    cloud_ =
+        client_cloud_manager_->RegisterCloud(client_uid_, std::move(servers));
   }
 
   ActionContext action_context_;
+  Aether* aether_;
   ClientCloudManager* client_cloud_manager_;
   CloudConnection* cloud_connection_;
   Uid client_uid_;
   StateMachine<State> state_;
-  ActionPtr<GetClientCloudAction> get_client_cloud_action_;
+  OwnActionPtr<GetClientCloudAction> get_client_cloud_action_;
   Subscription get_client_cloud_sub_;
+  OwnActionPtr<GetServersAction> get_servers_action_;
+  Subscription get_servers_sub_;
   Cloud::ptr cloud_;
 };
 
@@ -148,42 +206,17 @@ ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
 
   auto* client = client_.as<Client>();
   return ActionPtr<client_cloud_manager_internal::GetCloudFromAether>{
-      *aether, *this, client->cloud_connection(), client_uid};
+      *aether, *aether, *this, client->cloud_connection(), client_uid};
 }
 
-Cloud::ptr ClientCloudManager::RegisterCloud(
-    Uid uid, std::map<ServerId, ServerDescriptor> const& server_descriptors) {
+Cloud::ptr ClientCloudManager::RegisterCloud(Uid uid,
+                                             std::vector<Server::ptr> servers) {
   if (!aether_) {
     domain_->LoadRoot(aether_);
   }
-  assert(aether_);
-  auto* aether = aether_.as<Aether>();
   auto new_cloud = domain_->CreateObj<WorkCloud>();
   assert(new_cloud);
-
-  for (auto const& [_, descriptor] : server_descriptors) {
-    auto server_id = descriptor.server_id;
-    auto cached_server = aether->GetServer(server_id);
-    if (cached_server) {
-      new_cloud->AddServer(cached_server);
-      continue;
-    }
-
-    std::vector<UnifiedAddress> endpoints;
-    for (auto const& ip : descriptor.ips) {
-      for (auto const& pp : ip.protocol_and_ports) {
-        endpoints.emplace_back(
-            IpAddressPortProtocol{{ip.ip, pp.port}, pp.protocol});
-      }
-    }
-
-    auto server = domain_->CreateObj<Server>(server_id, std::move(endpoints));
-    assert(server);
-    server->Register(aether->adapter_registry);
-
-    new_cloud->AddServer(server);
-    aether->AddServer(std::move(server));
-  }
+  new_cloud->AddServers(std::move(servers));
 
   cloud_cache_[uid] = new_cloud;
   return new_cloud;

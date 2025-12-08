@@ -26,19 +26,19 @@ BandwidthApi::BandwidthApi(ActionContext action_context,
       message{protocol_context},
       return_result{protocol_context} {}
 
-void BandwidthApi::HandshakeImpl(ApiParser&, PromiseResult<bool> res) {
+void BandwidthApi::HandshakeImpl(PromiseResult<bool> res) {
   handshake_event_.Emit(res.request_id);
 }
 
-void BandwidthApi::StartTestImpl(ApiParser&, PromiseResult<bool> res) {
+void BandwidthApi::StartTestImpl(PromiseResult<bool> res) {
   start_test_event_.Emit(res.request_id);
 }
 
-void BandwidthApi::StopTestImpl(ApiParser&, PromiseResult<bool> res) {
+void BandwidthApi::StopTestImpl(PromiseResult<bool> res) {
   stop_test_event_.Emit(res.request_id);
 }
 
-void BandwidthApi::MessageImpl(ApiParser&, std::uint16_t id, PayloadData data) {
+void BandwidthApi::MessageImpl(std::uint16_t id, PayloadData data) {
   message_event_.Emit(id, std::move(data));
 }
 

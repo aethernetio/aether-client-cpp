@@ -41,6 +41,8 @@ class LoraModuleChannel final : public Channel {
 
   Duration TransportBuildTimeout() const override;
 
+  UnifiedAddress address;
+
  private:
   Obj::ptr aether_;
   LoraModuleAccessPoint::ptr access_point_;

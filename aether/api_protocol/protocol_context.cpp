@@ -36,15 +36,14 @@ void ProtocolContext::AddSendErrorCallback(RequestId request_id,
   send_error_events_.emplace(request_id, std::move(callback));
 }
 
-void ProtocolContext::SetSendResultResponse(RequestId request_id,
-                                            ApiParser& parser) {
+void ProtocolContext::SetSendResultResponse(RequestId request_id) {
   auto it = send_result_events_.find(request_id);
   if (it != send_result_events_.end()) {
-    it->second(parser);
+    it->second();
     send_result_events_.erase(it);
   } else {
     AE_TELED_DEBUG("No callback for request id {} cancel parse", request_id);
-    parser.Cancel();
+    parser()->Cancel();
   }
 
   send_error_events_.erase(request_id);
@@ -52,8 +51,7 @@ void ProtocolContext::SetSendResultResponse(RequestId request_id,
 
 void ProtocolContext::SetSendErrorResponse(RequestId req_id,
                                            std::uint8_t error_type,
-                                           std::uint32_t error_code,
-                                           ApiParser& parser) {
+                                           std::uint32_t error_code) {
   auto it = send_error_events_.find(req_id);
   if (it != std::end(send_error_events_)) {
     it->second(error_type, error_code);
@@ -63,7 +61,7 @@ void ProtocolContext::SetSendErrorResponse(RequestId req_id,
     std::cerr << "SendError: id " << req_id
               << " type: " << static_cast<int>(error_type)
               << " error code: " << error_code << std::endl;
-    parser.Cancel();
+    parser()->Cancel();
   }
   send_result_events_.erase(req_id);
 }
@@ -79,6 +77,28 @@ class PacketStack* ProtocolContext::packet_stack() {
     return nullptr;
   }
   return packet_stacks_.top();
+}
+
+void ProtocolContext::PushParser(ApiParser& parser) { parsers_.push(&parser); }
+
+void ProtocolContext::PopParser() { parsers_.pop(); }
+
+ApiParser* ProtocolContext::parser() {
+  if (parsers_.empty()) {
+    return nullptr;
+  }
+  return parsers_.top();
+}
+
+void ProtocolContext::PushPacker(ApiPacker& packer) { packers_.push(&packer); }
+
+void ProtocolContext::PopPacker() { packers_.pop(); }
+
+ApiPacker* ProtocolContext::packer() {
+  if (packers_.empty()) {
+    return nullptr;
+  }
+  return packers_.top();
 }
 
 }  // namespace ae

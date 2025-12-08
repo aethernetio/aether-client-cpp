@@ -33,14 +33,14 @@ class ClientRegRootApi final : public ApiClassImpl<ClientRegRootApi> {
                             IDecryptProvider& root_decrypt_provider,
                             IDecryptProvider& global_decrypt_provider);
 
-  void Enter(ApiParser&, SubApiImpl<ClientRegApiSafe> sub_api);
-  void EnterGlobal(ApiParser&, SubApiImpl<GlobalRegClientApi> sub_api);
+  void Enter(SubApiImpl<ClientRegApiSafe> sub_api);
+  void EnterGlobal(SubApiImpl<GlobalRegClientApi> sub_api);
 
   ReturnResultApi return_result;
 
-  using ApiMethods = ImplList<RegMethod<03, &ClientRegRootApi::Enter>,
-                              RegMethod<04, &ClientRegRootApi::EnterGlobal>,
-                              ExtApi<&ClientRegRootApi::return_result>>;
+  AE_METHODS(RegMethod<03, &ClientRegRootApi::Enter>,
+             RegMethod<04, &ClientRegRootApi::EnterGlobal>,
+             ExtApi<&ClientRegRootApi::return_result>);
 
  private:
   IDecryptProvider* root_decrypt_provider_;
