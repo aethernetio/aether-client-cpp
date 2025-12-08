@@ -86,7 +86,7 @@ class EbyteE22LoraModule final : public ILoraModuleDriver {
 
   ActionPtr<IPipeline> SendData(ConnectionLoraIndex connection,
                                 DataBuffer const& data);
-  ActionPtr<IPipeline> ReadPacket(ConnectionLoraIndex connection);
+  void ReadPacket(DataBuffer const& data);
 
   ActionContext action_context_;
   LoraModuleInit lora_module_init_;

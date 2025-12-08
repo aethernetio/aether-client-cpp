@@ -89,6 +89,7 @@ DxSmartLr02LoraModule::DxSmartLr02LoraModule(ActionContext action_context,
       operation_queue_{action_context_},
       initiated_{false},
       started_{false} {
+  serial_->read_event().Subscribe(MethodPtr<&DxSmartLr02LoraModule::ReadPacket>{this});
   Init();
   Start();
 }
@@ -115,7 +116,7 @@ DxSmartLr02LoraModule::Start() {
                                 // save it's started
                                 Stage<GenAction>(action_context_, [this]() {
                                   started_ = true;
-                                  SetupPoll();
+                                  //SetupPoll();
                                   return UpdateStatus::Result();
                                 }));
 
@@ -388,27 +389,12 @@ ActionPtr<IPipeline> DxSmartLr02LoraModule::SendData(
       }));
 }
 
-ActionPtr<IPipeline> DxSmartLr02LoraModule::ReadPacket(
-    ConnectionLoraIndex /* connection */) {
-  return {};  
-}
-
-void DxSmartLr02LoraModule::SetupPoll() {
-  poll_listener_ =
-      at_support_.ListenForResponse("", [this](auto&, auto pos) {
-        std::int32_t cid{};
-        AtSupport::ParseResponse(*pos, "", cid);
-        PollEvent();
-      });
-}
-
-void DxSmartLr02LoraModule::PollEvent() {
+void DxSmartLr02LoraModule::ReadPacket(DataBuffer const& data) {
   ConnectionLoraIndex connection{};
-  // get connection index
-
-  AE_TELED_DEBUG("Data available for connection");
-  operation_queue_->Push(Stage(
-      [this, connection{connection}]() { return ReadPacket(connection); }));
+  
+  AE_TELED_DEBUG("Received {} bytes.", data.size());
+  // Emit the received data
+  data_event_.Emit(connection, data);
 }
 
 ActionPtr<IPipeline> DxSmartLr02LoraModule::EnterAtMode() {

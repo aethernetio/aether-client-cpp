@@ -177,9 +177,8 @@ ActionPtr<IPipeline> EbyteE22LoraModule::SendData(
   return {};
 }
 
-ActionPtr<IPipeline> EbyteE22LoraModule::ReadPacket(
-    ConnectionLoraIndex /* connection */) {
-  return {};
+void EbyteE22LoraModule::ReadPacket(
+    DataBuffer const& /* data */) {
 }
 
 ActionPtr<IPipeline> EbyteE22LoraModule::EnterAtMode() { return {}; }
