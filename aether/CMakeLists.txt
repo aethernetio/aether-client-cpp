@@ -36,8 +36,7 @@ list(APPEND common_dependencies
     "../third_party/libsodium"
     "../third_party/gcem"
     "../third_party/etl"
-    "../third_party/aethernet-numeric"
-)
+    "../third_party/aethernet-numeric")
 
 # for etl
 set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
@@ -56,8 +55,7 @@ list(APPEND aether_srcs
 
 list(APPEND aether_c_api_srcs
             "aether_c/c_uid.cpp"
-            "aether_c/aether_capi.cpp"
-)
+            "aether_c/aether_capi.cpp")
 
 list(APPEND types_srcs
             "types/address.cpp"
@@ -86,14 +84,12 @@ list(APPEND obj_srcs
             "obj/domain.cpp"
             "obj/obj_id.cpp"
             "obj/registry.cpp"
-            "obj/obj_ptr.cpp"
-        )
+            "obj/obj_ptr.cpp")
 
 list(APPEND ptr_srcs
             "ptr/ptr.cpp"
             "ptr/ptr_view.cpp"
-            "ptr/ref_tree.cpp"
-        )
+            "ptr/ref_tree.cpp")
 
 list(APPEND actions_srcs
             "ae_actions/get_client_cloud.cpp"
@@ -107,8 +103,7 @@ list(APPEND actions_srcs
             "actions/action_processor.cpp"
             "actions/timer_action.cpp"
             "actions/task_queue.cpp"
-            "actions/repeatable_task.cpp"
-            )
+            "actions/repeatable_task.cpp")
 
 list(APPEND registration_srcs
             "registration/api/client_reg_api_safe.cpp"
@@ -132,8 +127,7 @@ list(APPEND adapters_srcs
             "adapters/modem_adapter.cpp"
             "adapters/parent_lora_module.cpp"
             "adapters/parent_modem.cpp"
-            "adapters/parent_wifi.cpp"
-            )
+            "adapters/parent_wifi.cpp")
 
 list(APPEND access_points_srcs
             "access_points/access_point.cpp"
@@ -151,6 +145,7 @@ list(APPEND modems_srcs
 list(APPEND lora_modules_srcs
             "lora_modules/dx_smart_lr02_lm.cpp"
             "lora_modules/ebyte_e22_lm.cpp"
+            "lora_modules/gw_lora_device.cpp"
             "lora_modules/lora_module_factory.cpp")
 
 list(APPEND gateway_api_srcs
@@ -158,8 +153,7 @@ list(APPEND gateway_api_srcs
 
 list(APPEND wifi_srcs
             "wifi/wifi_driver_factory.cpp"
-            "wifi/esp_wifi_driver.cpp"
-            )
+            "wifi/esp_wifi_driver.cpp")
 
 list(APPEND serial_ports_srcs
             "serial_ports/at_support/at_buffer.cpp"
@@ -170,8 +164,7 @@ list(APPEND serial_ports_srcs
             "serial_ports/serial_port_factory.cpp"
             "serial_ports/esp32_serial_port.cpp"
             "serial_ports/win_serial_port.cpp"
-            "serial_ports/unix_serial_port.cpp"
-            )
+            "serial_ports/unix_serial_port.cpp")
 
 list(APPEND transport_srcs
             "transport/system_sockets/sockets/unix_socket.cpp"
@@ -191,8 +184,7 @@ list(APPEND transport_srcs
             "transport/system_sockets/tcp/tcp.cpp"
             "transport/system_sockets/udp/udp.cpp"
             "transport/modems/modem_transport.cpp"
-            "transport/gateway/gateway_transport.cpp"
-)
+            "transport/gateway/gateway_transport.cpp")
 
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
@@ -208,15 +200,13 @@ list(APPEND stream_api_src
             "stream_api/safe_stream/sending_chunk_list.cpp"
             "stream_api/safe_stream/receiving_chunk_list.cpp"
             "stream_api/safe_stream/safe_stream_send_action.cpp"
-            "stream_api/safe_stream/safe_stream_recv_action.cpp"
-)
+            "stream_api/safe_stream/safe_stream_recv_action.cpp")
 
 list(APPEND api_protocol_srcs
             "api_protocol/protocol_context.cpp"
             "api_protocol/api_pack_parser.cpp"
             "api_protocol/child_data.cpp"
-            "api_protocol/return_result_api.cpp"
-            )
+            "api_protocol/return_result_api.cpp")
 
 list(APPEND crypto_srcs
             "crypto/crypto_nonce.cpp"
@@ -227,8 +217,7 @@ list(APPEND crypto_srcs
             "crypto/sodium/sodium_async_crypto_provider.cpp"
             "crypto/sodium/sodium_sync_crypto_provider.cpp"
             "crypto/hydrogen/hydro_async_crypto_provider.cpp"
-            "crypto/hydrogen/hydro_sync_crypto_provider.cpp"
-            )
+            "crypto/hydrogen/hydro_sync_crypto_provider.cpp")
 
 list(APPEND work_cloud_api_srcs
             "work_cloud_api/work_server_api/login_api.cpp"
