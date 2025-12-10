@@ -37,12 +37,12 @@ class ResolveAction : public Action<ResolveAction> {
   UpdateStatus Update() const;
 
   // Set ip addresses after resolve query finished
-  void SetAddress(std::vector<IpAddressPortProtocol> addr);
+  void SetAddress(std::vector<Endpoint> addr);
   void Failed();
 
   bool is_resolved{false};
   bool is_failed{false};
-  std::vector<IpAddressPortProtocol> addresses;
+  std::vector<Endpoint> addresses;
 };
 
 /**
@@ -63,7 +63,9 @@ class DnsResolver : public Obj {
   AE_OBJECT_REFLECT()
 
   // Make a host name resolve
-  virtual ActionPtr<ResolveAction> Resolve(NameAddress const& name_address);
+  virtual ActionPtr<ResolveAction> Resolve(NamedAddr const& name_address,
+                                           std::uint16_t port_hint,
+                                           Protocol protocol_hint);
 };
 }  // namespace ae
 #else

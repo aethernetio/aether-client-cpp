@@ -142,11 +142,10 @@ class GetCloudFromAether : public GetCloudAction {
       std::vector<ServerDescriptor> const& descriptors) {
     std::vector<Server::ptr> servers;
     for (auto const& sd : descriptors) {
-      std::vector<UnifiedAddress> endpoints;
+      std::vector<Endpoint> endpoints;
       for (auto const& ip : sd.ips) {
         for (auto const& pp : ip.protocol_and_ports) {
-          endpoints.emplace_back(
-              IpAddressPortProtocol{{ip.ip, pp.port}, pp.protocol});
+          endpoints.emplace_back(Endpoint{{ip.ip, pp.port}, pp.protocol});
         }
       }
       Server::ptr s =

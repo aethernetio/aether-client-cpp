@@ -16,106 +16,111 @@
 
 #include "aether/types/address.h"
 
-#include <algorithm>
 #include <iterator>
+#include <algorithm>
 
 namespace ae {
-bool operator==(const IpAddress& left, const IpAddress& right) {
-  using Version = IpAddress::Version;
-
-  if (left.version != right.version) {
+bool operator==(const Address& left, const Address& right) {
+  if (left.Index() != right.Index()) {
     return false;
   }
-  switch (left.version) {
-    case Version::kIpV6:
-#if AE_SUPPORT_IPV6
-      return std::equal(std::begin(left.value.ipv6_value),
-                        std::end(left.value.ipv6_value),
-                        std::begin(right.value.ipv6_value));
-#else
-      assert(false);
-      return false;
-#endif
-    case Version::kIpV4:
-#if AE_SUPPORT_IPV4
-      return std::equal(std::begin(left.value.ipv4_value),
-                        std::end(left.value.ipv4_value),
-                        std::begin(right.value.ipv4_value));
-#else
-      assert(false);
-      return false;
-#endif
 
+  switch (left.Index()) {
+    case AddrVersion::kIpV4:
+#if AE_SUPPORT_IPV4 == 1
+    {
+      auto const& left_value = left.Get<IpV4Addr>();
+      auto const& right_value = right.Get<IpV4Addr>();
+      return std::equal(std::begin(left_value.ipv4_value),
+                        std::end(left_value.ipv4_value),
+                        std::begin(right_value.ipv4_value));
+    }
+#endif
+    break;
+    case AddrVersion::kIpV6:
+#if AE_SUPPORT_IPV6 == 1
+    {
+      auto const& left_value = left.Get<IpV6Addr>();
+      auto const& right_value = right.Get<IpV6Addr>();
+      return std::equal(std::begin(left_value.ipv6_value),
+                        std::end(left_value.ipv6_value),
+                        std::begin(right_value.ipv6_value));
+    }
+#endif
+    break;
+    case AddrVersion::kNamed:
+#if AE_SUPPORT_CLOUD_DNS == 1
+    {
+      auto const& left_value = left.Get<NamedAddr>();
+      auto const& right_value = right.Get<NamedAddr>();
+      return left_value.name == right_value.name;
+    }
+#endif
+    break;
     default:
-      return false;
+      break;
   }
+  return false;
 }
-bool operator!=(const IpAddress& left, const IpAddress& right) {
+
+bool operator!=(const Address& left, const Address& right) {
   return !(left == right);
 }
 
-bool operator<(const IpAddress& left, const IpAddress& right) {
-  using Version = IpAddress::Version;
-  if (left.version == right.version) {
-    switch (left.version) {
-      case Version::kIpV6: {
-#if AE_SUPPORT_IPV6
-        return std::lexicographical_compare(std::begin(left.value.ipv6_value),
-                                            std::end(left.value.ipv6_value),
-                                            std::begin(right.value.ipv6_value),
-                                            std::end(right.value.ipv6_value));
-#else
-        assert(false);
-        return false;
-#endif
-      }
-      case Version::kIpV4: {
-#if AE_SUPPORT_IPV4
-        return std::lexicographical_compare(std::begin(left.value.ipv4_value),
-                                            std::end(left.value.ipv4_value),
-                                            std::begin(right.value.ipv4_value),
-                                            std::end(right.value.ipv4_value));
-#else
-        assert(false);
-        return false;
-#endif
-      }
+bool operator<(const Address& left, const Address& right) {
+  if (left.Index() < right.Index()) {
+    return true;
+  }
+  if (left.Index() > right.Index()) {
+    return false;
+  }
+
+  switch (left.Index()) {
+    case AddrVersion::kIpV4:
+#if AE_SUPPORT_IPV4 == 1
+    {
+      auto const& left_value = left.Get<IpV4Addr>();
+      auto const& right_value = right.Get<IpV4Addr>();
+      return std::lexicographical_compare(
+          std::begin(left_value.ipv4_value), std::end(left_value.ipv4_value),
+          std::begin(right_value.ipv4_value), std::end(right_value.ipv4_value));
     }
-  }
-
-  return left.version < right.version;
-}
-
-void IpAddress::set_value(const std::uint8_t* val) {
-  switch (version) {
-    case Version::kIpV6:
-#if AE_SUPPORT_IPV6
-      std::copy(val, val + 16, std::begin(value.ipv6_value));
-#else
-      assert(false);
 #endif
-      break;
-    case Version::kIpV4:
-#if AE_SUPPORT_IPV4
-      std::copy(val, val + 4, std::begin(value.ipv4_value));
-#else
-      assert(false);
+    break;
+    case AddrVersion::kIpV6:
+#if AE_SUPPORT_IPV6 == 1
+    {
+      auto const& left_value = left.Get<IpV6Addr>();
+      auto const& right_value = right.Get<IpV6Addr>();
+      return std::lexicographical_compare(
+          std::begin(left_value.ipv6_value), std::end(left_value.ipv6_value),
+          std::begin(right_value.ipv6_value), std::end(right_value.ipv6_value));
+    }
 #endif
-      break;
+    break;
+    case AddrVersion::kNamed:
+#if AE_SUPPORT_CLOUD_DNS == 1
+    {
+      auto const& left_value = left.Get<NamedAddr>();
+      auto const& right_value = right.Get<NamedAddr>();
+      return left_value.name < right_value.name;
+    }
+#endif
+    break;
     default:
-      assert(false);
+      break;
   }
+  return false;
 }
 
-bool operator<(IpAddressPortProtocol const& left,
-               IpAddressPortProtocol const& right) {
-  if (left.ip == right.ip) {
+bool operator<(Endpoint const& left, Endpoint const& right) {
+  if (left.address == right.address) {
     if (left.port == right.port) {
       return left.protocol < right.protocol;
     }
     return left.port < right.port;
   }
-  return left.ip < right.ip;
+  return left.address < right.address;
 }
 
 }  // namespace ae

@@ -28,9 +28,8 @@ namespace ae {
  * \return True if protocol is supported, false otherwise.
  */
 template <Protocol... supported_protocols>
-bool FilterProtocol(UnifiedAddress const& address) {
-  auto protocol =
-      std::visit([](auto const& addr) { return addr.protocol; }, address);
+bool FilterProtocol(Endpoint const& address) {
+  auto protocol = address.protocol;
 
 #if !AE_SUPPORT_TCP
   if (protocol == Protocol::kTcp) {

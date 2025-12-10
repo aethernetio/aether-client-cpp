@@ -32,8 +32,8 @@ class LoraModuleChannel final : public Channel {
 
  public:
   LoraModuleChannel(ObjPtr<Aether> aether,
-                    LoraModuleAccessPoint::ptr access_point,
-                    UnifiedAddress address, Domain* domain);
+                    LoraModuleAccessPoint::ptr access_point, Endpoint address,
+                    Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
 

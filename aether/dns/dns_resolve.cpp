@@ -31,7 +31,7 @@ UpdateStatus ResolveAction::Update() const {
   return {};
 }
 
-void ResolveAction::SetAddress(std::vector<IpAddressPortProtocol> addr) {
+void ResolveAction::SetAddress(std::vector<Endpoint> addr) {
   addresses = std::move(addr);
   is_resolved = true;
   this->Trigger();
@@ -44,7 +44,8 @@ void ResolveAction::Failed() {
 }
 
 ActionPtr<ResolveAction> DnsResolver::Resolve(
-    NameAddress const& /* name_address */) {
+    NamedAddr const& /* name_address */, std::uint16_t /* port_hint */,
+    Protocol /* protocol_hint */) {
   // must be overridden
   assert(false);
   return {};

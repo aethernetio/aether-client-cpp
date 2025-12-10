@@ -86,7 +86,7 @@ WinTcpSocket::WinTcpSocket()
 WinTcpSocket::~WinTcpSocket() { Disconnect(); }
 
 WinTcpSocket::ConnectionState WinTcpSocket::Connect(
-    IpAddressPort const& destination) {
+    AddressPort const& destination) {
   assert(socket_ != INVALID_SOCKET);
 
   auto connect_ex = win_socket_internal::GetConnectEx(socket_);

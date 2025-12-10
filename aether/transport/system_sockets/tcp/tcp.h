@@ -116,7 +116,7 @@ class TcpTransport final : public ByteIStream {
 
  public:
   TcpTransport(ActionContext action_context, IPoller::ptr const& poller,
-               IpAddressPort const& endpoint);
+               AddressPort const& endpoint);
   ~TcpTransport() override;
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
@@ -136,7 +136,7 @@ class TcpTransport final : public ByteIStream {
 
   ActionContext action_context_;
   PtrView<IPoller> poller_;
-  IpAddressPort endpoint_;
+  AddressPort endpoint_;
 
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;

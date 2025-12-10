@@ -39,7 +39,7 @@ class RegistrationCloud : public Cloud {
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_));
 
-  void AddServerSettings(UnifiedAddress address);
+  void AddServerSettings(Endpoint address);
 
  private:
   Obj::ptr aether_;

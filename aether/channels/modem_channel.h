@@ -33,7 +33,7 @@ class ModemChannel final : public Channel {
 
  public:
   ModemChannel(ObjPtr<Aether> aether, ModemAccessPoint::ptr access_point,
-               UnifiedAddress address, Domain* domain);
+               Endpoint address, Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(access_point_, address))
 
@@ -41,7 +41,7 @@ class ModemChannel final : public Channel {
 
   Duration TransportBuildTimeout() const override;
 
-  UnifiedAddress address;
+  Endpoint address;
 
  private:
   Obj::ptr aether_;

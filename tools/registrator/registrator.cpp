@@ -81,59 +81,24 @@ int AetherRegistrator(const std::string& ini_file,
             }
             return adapter_registry;
           })
-          .RegistrationCloudFactory([&registrator_config](
-                                        ae::AetherAppContext const& context) {
-            auto registration_cloud =
-                context.domain().CreateObj<ae::RegistrationCloud>(
-                    ae::GlobalId::kRegistrationCloud, context.aether());
+          .RegistrationCloudFactory(
+              [&registrator_config](ae::AetherAppContext const& context) {
+                auto registration_cloud =
+                    context.domain().CreateObj<ae::RegistrationCloud>(
+                        ae::GlobalId::kRegistrationCloud, context.aether());
 
-            auto servers_list = registrator_config.GetServers();
-            for (auto s : servers_list) {
-              AE_TELED_DEBUG("Server address type={}", s.server_address_type);
-              AE_TELED_DEBUG("Server ip address version={}",
-                             s.server_ip_address_version);
-              AE_TELED_DEBUG("Server address={}", s.server_address);
-              AE_TELED_DEBUG("Server port={}", s.server_port);
-              AE_TELED_DEBUG("Server protocol={}", s.server_protocol);
+                auto servers_list = registrator_config.GetServers();
+                for (auto s : servers_list) {
+                  AE_TELED_DEBUG("Server address={}", s.server_ip_address);
+                  AE_TELED_DEBUG("Server port={}", s.server_port);
+                  AE_TELED_DEBUG("Server protocol={}", s.server_protocol);
 
-              if (s.server_address_type == ae::ServerAddressType::kIpAddress) {
-                ae::IpAddressPortProtocol settings{
-                    {ae::IpAddress{s.server_ip_address_version, {}},
-                     s.server_port},
-                    s.server_protocol};
-                if (s.server_ip_address_version ==
-                    ae::IpAddress::Version::kIpV4) {
-#  if AE_SUPPORT_IPV4
-                  for (std::size_t i{0}; i < 4; i++) {
-                    settings.ip.value.ipv4_value[i] =
-                        s.server_ip_address.value.ipv4_value[i];
-                  }
-#  else
-                  assert(!"IPv4 not supported");
-#  endif
-                } else if (s.server_ip_address_version ==
-                           ae::IpAddress::Version::kIpV6) {
-#  if AE_SUPPORT_IPV6
-                  for (std::size_t i{0}; i < 16; i++) {
-                    settings.ip.value.ipv6_value[i] =
-                        s.server_ip_address.value.ipv6_value[i];
-                  }
-#  else
-                  assert(!"IPv6 not supported");
-#  endif
+                  ae::Endpoint settings{{s.server_ip_address, s.server_port},
+                                        s.server_protocol};
+                  registration_cloud->AddServerSettings(settings);
                 }
-                registration_cloud->AddServerSettings(settings);
-              } else if (s.server_address_type ==
-                         ae::ServerAddressType::kUrlAddress) {
-#  if AE_SUPPORT_CLOUD_DNS
-                registration_cloud->AddServerSettings(ae::NameAddress{
-                    s.server_address, s.server_port, s.server_protocol});
-#  endif
-              }
-            }
-
-            return registration_cloud;
-          }));
+                return registration_cloud;
+              }));
 
   auto registrator_action = ae::ActionPtr<ae::registrator::RegistratorAction>{
       *aether_app, aether_app, registrator_config};

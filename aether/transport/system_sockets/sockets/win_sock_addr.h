@@ -45,7 +45,7 @@ struct SockAddr {
   std::size_t size;
 };
 
-SockAddr GetSockAddr(IpAddressPort const& ip_address_port);
+SockAddr GetSockAddr(AddressPort const& ip_address_port);
 }  // namespace ae::win_socket_internal
 
 #endif

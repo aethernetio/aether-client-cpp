@@ -68,7 +68,7 @@ class LoraModuleAccessPoint final : public AccessPoint {
   ILoraModuleDriver& lora_module_driver();
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
-      ObjPtr<Server> const& server) override;
+      std::vector<Endpoint> const& endpoints) override;
 
  private:
   Obj::ptr aether_;
