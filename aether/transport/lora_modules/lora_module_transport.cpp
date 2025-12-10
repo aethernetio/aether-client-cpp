@@ -81,12 +81,12 @@ void LoraModuleTransport::SendLoraAction::Send() {
 
 LoraModuleTransport::LoraModuleTransport(ActionContext action_context,
                                          ILoraModuleDriver& lora_module_driver,
-                                         UnifiedAddress address)
+                                         Endpoint address)
     : action_context_{action_context},
       lora_module_driver_{&lora_module_driver},
       address_{std::move(address)},
-      protocol_{
-          std::visit([](auto const& arg) { return arg.protocol; }, address_)},
+      protocol_{ std::visit([](auto const& arg) { return arg.protocol; },
+                                address_)},
       stream_info_{},
       send_action_queue_manager_{action_context_},
       max_packet_size_{lora_module_driver_->GetMtu()} {

@@ -120,8 +120,8 @@ ModemTransport::ModemTransport(ActionContext action_context,
     : action_context_{action_context},
       modem_driver_{&modem_driver},
       address_{std::move(address)},
-      protocol_{
-          std::visit([](auto const& arg) { return arg.protocol; }, address_)},
+      protocol_{ std::visit([](auto const& arg) { return arg.protocol; },
+                                address_)},
       stream_info_{},
       send_action_queue_manager_{action_context_} {
   AE_TELE_INFO(kModemTransport, "Modem transport created for {}", address_);

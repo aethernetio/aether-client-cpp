@@ -59,7 +59,7 @@ class LoraModuleTransport final : public ByteIStream {
  public:
   LoraModuleTransport(ActionContext action_context,
                       ILoraModuleDriver& lora_module_driver,
-                      UnifiedAddress address);
+                      Endpoint address);
   ~LoraModuleTransport() override;
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
@@ -79,7 +79,7 @@ class LoraModuleTransport final : public ByteIStream {
 
   ActionContext action_context_;
   ILoraModuleDriver* lora_module_driver_;
-  UnifiedAddress address_;
+  Endpoint address_;
   Protocol protocol_;
 
   StreamInfo stream_info_;
