@@ -21,212 +21,159 @@
 #include <string>
 
 #include "aether/config.h"
-#include "aether/type_traits.h"
-#include "aether/types/variant_type.h"
 #include "aether/reflect/reflect.h"
+#include "aether/types/variant_type.h"
 
 #include "aether/format/format.h"
 
 namespace ae {
 
-struct IpAddress {
-  enum class Version : std::uint8_t {
-    kIpV4 = 1,
-    kIpV6 = 2,
-  };
+enum class AddrVersion : std::uint8_t {
+  kNull = 0,
+  kIpV4 = 1,
+  kIpV6 = 2,
+  kNamed = 3,
+};
 
-  Version version = Version::kIpV4;
-  union {
-#if AE_SUPPORT_IPV6 == 1
-    std::uint8_t ipv6_value[16];
-#endif  // AE_SUPPORT_IPV6 == 1
-#if AE_SUPPORT_IPV4 == 1
-    std::uint8_t ipv4_value[4];
-#endif  // AE_SUPPORT_IPV4 == 1
-  } value;
-
-  friend bool operator==(const IpAddress& left, const IpAddress& right);
-  friend bool operator!=(const IpAddress& left, const IpAddress& right);
-  friend bool operator<(const IpAddress& lef, const IpAddress& right);
-
-  void set_value(const std::uint8_t* val);
+struct IpV4Addr {
+  std::uint8_t ipv4_value[4];
 };
 
 template <typename Ib>
-imstream<Ib>& operator>>(imstream<Ib>& s, IpAddress& ip_address) {
-  s >> ip_address.version;
-  switch (ip_address.version) {
-    case IpAddress::Version::kIpV4:
-#if AE_SUPPORT_IPV4 == 1
-      s >> ip_address.value.ipv4_value;
-#else
-      assert(false);
-#endif  // AE_SUPPORT_IPV4 == 1
-      break;
-    case IpAddress::Version::kIpV6:
-#if AE_SUPPORT_IPV6 == 1
-      s >> ip_address.value.ipv6_value;
-#else
-      assert(false);
-#endif  // AE_SUPPORT_IPV6 == 1
-      break;
-    default:
-      break;
-  }
+imstream<Ib>& operator>>(imstream<Ib>& s, IpV4Addr& ipv4) {
+  s >> ipv4.ipv4_value;
   return s;
 }
 
 template <typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& s, IpAddress const& ip_address) {
-  s << ip_address.version;
-  switch (ip_address.version) {
-    case IpAddress::Version::kIpV4:
-#if AE_SUPPORT_IPV4 == 1
-      s << ip_address.value.ipv4_value;
-#else
-      assert(false);
-#endif  // AE_SUPPORT_IPV4 == 1
-      break;
-    case IpAddress::Version::kIpV6:
-#if AE_SUPPORT_IPV6 == 1
-      s << ip_address.value.ipv6_value;
-#else
-      assert(false);
-#endif  // AE_SUPPORT_IPV6 == 1
-      break;
-    default:
-      break;
-  }
+omstream<Ob>& operator<<(omstream<Ob>& s, IpV4Addr const& ipv4) {
+  s << ipv4.ipv4_value;
   return s;
 }
 
-struct IpAddressPort {
-  AE_REFLECT_MEMBERS(ip, port)
+struct IpV6Addr {
+  std::uint8_t ipv6_value[16];
+};
 
-  IpAddress ip;
+template <typename Ib>
+imstream<Ib>& operator>>(imstream<Ib>& s, IpV6Addr& ipv6) {
+  s >> ipv6.ipv6_value;
+  return s;
+}
+
+template <typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& s, IpV6Addr const& ipv6) {
+  s << ipv6.ipv6_value;
+  return s;
+}
+
+struct NamedAddr {
+  AE_REFLECT_MEMBERS(name)
+  std::string name;
+};
+
+struct Address
+    : public VariantType<AddrVersion, VPair<AddrVersion::kIpV4, IpV4Addr>,
+                         VPair<AddrVersion::kIpV6, IpV6Addr>,
+                         VPair<AddrVersion::kNamed, NamedAddr>> {
+  using VariantType::VariantType;
+  using VariantType::operator=;
+};
+
+struct AddressPort {
+  AE_REFLECT_MEMBERS(address, port)
+
+  Address address;
   std::uint16_t port;
 };
 
 enum class Protocol : std::uint8_t {
   kTcp,
   kUdp,
-  kWebSocket,
+  kWebSocket,  // does not supported really
   // TODO: rest does not supported yet
   /*
   kAny,
-    kHttp,
-    kHttps, */
+  kHttp,
+  kHttps, */
 };
 
-struct IpAddressPortProtocol : public IpAddressPort {
-  AE_REFLECT(AE_REF_BASE(IpAddressPort), AE_MMBR(protocol))
+struct Endpoint : public AddressPort {
+  AE_REFLECT(AE_REF_BASE(AddressPort), AE_MMBR(protocol))
 
-  friend bool operator<(const IpAddressPortProtocol& left,
-                        const IpAddressPortProtocol& right);
+  friend bool operator<(const Endpoint& left, const Endpoint& right);
 
   Protocol protocol{};
-};
-
-#if AE_SUPPORT_CLOUD_DNS
-struct NameAddress {
-  AE_REFLECT_MEMBERS(name, port, protocol)
-
-  std::string name;
-  std::uint16_t port;
-  Protocol protocol{};
-};
-#endif
-
-enum class AddressType : std::uint8_t {
-  kResolvedAddress,
-  kUnresolvedAddress,
-  kLast,
-};
-
-struct UnifiedAddress
-    : public VariantType<
-          AddressType,
-#if AE_SUPPORT_CLOUD_DNS
-          VPair<AddressType::kUnresolvedAddress, NameAddress>,
-#endif
-          VPair<AddressType::kResolvedAddress, IpAddressPortProtocol> > {
-  using VariantType::VariantType;
 };
 
 template <>
-struct Formatter<IpAddress> {
+struct Formatter<IpV4Addr> {
   template <typename TStream>
-  void Format(IpAddress const& value, FormatContext<TStream>& ctx) const {
-    switch (value.version) {
-      case IpAddress::Version::kIpV4: {
+  void Format([[maybe_unused]] IpV4Addr const& value,
+              [[maybe_unused]] FormatContext<TStream>& ctx) const {
 #if AE_SUPPORT_IPV4 == 1
-        ctx.out().stream() << static_cast<int>(value.value.ipv4_value[0]) << '.'
-                           << static_cast<int>(value.value.ipv4_value[1]) << '.'
-                           << static_cast<int>(value.value.ipv4_value[2]) << '.'
-                           << static_cast<int>(value.value.ipv4_value[3]);
-#else
-        assert(false);
-#endif  // AE_SUPPORT_IPV4 == 1
-        break;
-      }
-      case IpAddress::Version::kIpV6: {
+    ae::Format(ctx.out(), "{}.{}.{}.{}", static_cast<int>(value.ipv4_value[0]),
+               static_cast<int>(value.ipv4_value[1]),
+               static_cast<int>(value.ipv4_value[2]),
+               static_cast<int>(value.ipv4_value[3]));
+#endif
+  }
+};
+
+template <>
+struct Formatter<IpV6Addr> {
+  template <typename TStream>
+  void Format([[maybe_unused]] IpV6Addr const& value,
+              [[maybe_unused]] FormatContext<TStream>& ctx) const {
 #if AE_SUPPORT_IPV6 == 1
-        // TODO: print as conventional IpV6 format
-        ctx.out().stream() << std::hex;
-        for (std::size_t i = 0; i < 16; i++) {
-          ctx.out().stream() << static_cast<int>(value.value.ipv6_value[i]);
-          if (i < 15) {
-            ctx.out().stream() << ':';
-          }
-        }
-        ctx.out().stream() << std::dec;
-#else
-        assert(false);
-#endif  // AE_SUPPORT_IPV6 == 1
-        break;
+    ctx.out().stream() << std::hex;
+    for (std::size_t i = 0; i < 16; i++) {
+      ctx.out().stream() << static_cast<int>(value.ipv6_value[i]);
+      if (i < 15) {
+        ctx.out().stream() << ':';
       }
     }
-  }
-};
-
-template <>
-struct Formatter<IpAddressPort> {
-  template <typename TStream>
-  void Format(IpAddressPort const& value, FormatContext<TStream>& ctx) const {
-    ae::Format(ctx.out(), "{}:{}", value.ip, value.port);
-  }
-};
-
-template <>
-struct Formatter<IpAddressPortProtocol> {
-  template <typename TStream>
-  void Format(IpAddressPortProtocol const& value,
-              FormatContext<TStream>& ctx) const {
-    ae::Format(ctx.out(), "{}:{} protocol:{}", value.ip, value.port,
-               static_cast<int>(value.protocol));
-  }
-};
-
-#if AE_SUPPORT_CLOUD_DNS
-template <>
-struct Formatter<NameAddress> {
-  template <typename TStream>
-  void Format(NameAddress const& value, FormatContext<TStream>& ctx) const {
-    ae::Format(ctx.out(), "{}:{} protocol:{}", value.name, value.port,
-               static_cast<int>(value.protocol));
-  }
-};
+    ctx.out().stream() << std::dec;
 #endif
+  }
+};
 
 template <>
-struct Formatter<UnifiedAddress> {
+struct Formatter<NamedAddr> {
   template <typename TStream>
-  void Format(UnifiedAddress const& value, FormatContext<TStream>& ctx) const {
+  void Format([[maybe_unused]] NamedAddr const& value,
+              [[maybe_unused]] FormatContext<TStream>& ctx) const {
+#if AE_SUPPORT_CLOUD_DNS == 1
+    ctx.out().stream() << value.name;
+#endif
+  }
+};
+
+template <>
+struct Formatter<Address> {
+  template <typename TStream>
+  void Format(Address const& value, FormatContext<TStream>& ctx) const {
     std::visit([&](auto const& addr) { ae::Format(ctx.out(), "{}", addr); },
                value);
   }
 };
 
+template <>
+struct Formatter<AddressPort> {
+  template <typename TStream>
+  void Format(AddressPort const& value, FormatContext<TStream>& ctx) const {
+    ae::Format(ctx.out(), "{}:{}", value.address, value.port);
+  }
+};
+
+template <>
+struct Formatter<Endpoint> {
+  template <typename TStream>
+  void Format(Endpoint const& value, FormatContext<TStream>& ctx) const {
+    ae::Format(ctx.out(), "{}:{} protocol:{}", value.address, value.port,
+               static_cast<int>(value.protocol));
+  }
+};
 }  // namespace ae
 
 #endif  // AETHER_TYPES_ADDRESS_H_

@@ -45,32 +45,34 @@ class VariantType : public std::variant<typename Variants::Type...> {
 
   // use all variant constructors
   using Variant::Variant;
-  virtual ~VariantType() = default;
+  using Variant::operator=;
 
  private:
   template <std::size_t... Is>
-  static index_type GetIndexByOrder(std::size_t order,
-                                    std::index_sequence<Is...>) {
+  static constexpr index_type GetIndexByOrder(std::size_t order,
+                                              std::index_sequence<Is...>) {
     index_type res{};
-    (std::invoke([&]() {
-       if (order == Is) {
-         res = TypeAtT<Is, TypeList<Variants...>>::Index;
-       }
-     }),
-     ...);
+    (
+        [&]() {
+          if (order == Is) {
+            res = TypeAtT<Is, TypeList<Variants...>>::Index;
+          }
+        }(),
+        ...);
     return res;
   }
 
   template <std::size_t... Is>
-  static std::size_t GetOrderByIndex(index_type index,
-                                     std::index_sequence<Is...>) {
+  static constexpr std::size_t GetOrderByIndex(index_type index,
+                                               std::index_sequence<Is...>) {
     std::size_t res{};
-    (std::invoke([&]() {
-       if (index == TypeAtT<Is, TypeList<Variants...>>::Index) {
-         res = Is;
-       }
-     }),
-     ...);
+    (
+        [&]() {
+          if (index == TypeAtT<Is, TypeList<Variants...>>::Index) {
+            res = Is;
+          }
+        }(),
+        ...);
     return res;
   }
 
@@ -106,7 +108,7 @@ class VariantType : public std::variant<typename Variants::Type...> {
   }
 
   template <typename Type, std::size_t I, std::size_t... Is>
-  auto const &GetImpl(std::index_sequence<I, Is...> const &) const {
+  constexpr auto const &GetImpl(std::index_sequence<I, Is...> const &) const {
     if constexpr (std::is_same_v<Type,
                                  std::variant_alternative_t<I, Variant>>) {
       return std::get<I>(*this);
@@ -117,13 +119,13 @@ class VariantType : public std::variant<typename Variants::Type...> {
 
  public:
   // Get currently stored variant index
-  auto Index() const {
+  constexpr auto Index() const {
     return GetIndexByOrder(this->index(),
                            std::make_index_sequence<sizeof...(Variants)>());
   }
 
   template <typename Type>
-  auto const &Get() const {
+  constexpr auto const &Get() const {
     static_assert((std::is_same_v<Type, typename Variants::Type> || ...),
                   "Type not found");
     return GetImpl<Type>(std::make_index_sequence<sizeof...(Variants)>());
