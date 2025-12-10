@@ -27,6 +27,7 @@ list(APPEND test_srcs
     test-uid.cpp
     test-small-function.cpp
     test-nullable-type.cpp
+    test-address-parser.cpp
 )
 
 if(NOT CM_PLATFORM)
