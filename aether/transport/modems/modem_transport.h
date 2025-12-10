@@ -68,7 +68,7 @@ class ModemTransport final : public ByteIStream {
 
  public:
   ModemTransport(ActionContext action_context, IModemDriver& modem_driver,
-                 UnifiedAddress address);
+                 Endpoint address);
   ~ModemTransport() override;
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
@@ -89,7 +89,7 @@ class ModemTransport final : public ByteIStream {
 
   ActionContext action_context_;
   IModemDriver* modem_driver_;
-  UnifiedAddress address_;
+  Endpoint address_;
   Protocol protocol_;
 
   StreamInfo stream_info_;

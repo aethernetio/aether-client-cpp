@@ -30,7 +30,7 @@ class WinTcpSocket final : public WinSocket {
   WinTcpSocket();
   ~WinTcpSocket() override;
 
-  ConnectionState Connect(IpAddressPort const& destination) override;
+  ConnectionState Connect(AddressPort const& destination) override;
   ConnectionState GetConnectionState() override;
   void Disconnect() override;
 

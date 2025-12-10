@@ -85,8 +85,6 @@ int RegistratorConfig::ParseConfig() {
   ae::ServerConfig server_config{};
 
   for (std::uint8_t i{0}; i < servers_num; i++) {
-    std::string str_ip_address_type =
-        file["ServerID" + std::to_string(i + 1)]["ipAddressType"];
     std::string str_ip_address =
         file["ServerID" + std::to_string(i + 1)]["ipAddress"];
     std::uint16_t int_ip_port =
@@ -94,34 +92,17 @@ int RegistratorConfig::ParseConfig() {
     std::string str_ip_protocol =
         file["ServerID" + std::to_string(i + 1)]["ipProtocol"];
 
-    if (str_ip_address_type == "kIpAddress") {
-      ae::IpAddress ip_address{};
-      ae::IpAddressParser ip_address_parser{};
+    ae::Address ip_address{};
+    auto res = ae::AddressParser::StringToAddress(str_ip_address);
+    ip_address = res;
 
-      auto res = ip_address_parser.StringToIP(str_ip_address);
-      if (res == std::nullopt) {
-        AE_TELED_ERROR("Configuration failed, wrong IP address {}.",
-                       str_ip_address);
-        return -2;
-      } else {
-        ip_address = *res;
-      }
-
-      server_config.server_ip_address = ip_address;
-      server_config.server_address_type = ae::ServerAddressType::kIpAddress;
-      server_config.server_ip_address_version = ip_address.version;
-      server_config.server_address = str_ip_address;
-      server_config.server_port = int_ip_port;
-      if (str_ip_protocol == "kTcp") {
-        server_config.server_protocol = ae::Protocol::kTcp;
-      }
-    } else if (str_ip_address_type == "kUrlAddress") {
-      server_config.server_address_type = ae::ServerAddressType::kUrlAddress;
-      server_config.server_address = str_ip_address;
-      server_config.server_port = int_ip_port;
-      if (str_ip_protocol == "kTcp") {
-        server_config.server_protocol = ae::Protocol::kTcp;
-      }
+    server_config.server_ip_address = ip_address;
+    server_config.server_address = str_ip_address;
+    server_config.server_port = int_ip_port;
+    if (str_ip_protocol == "kTcp") {
+      server_config.server_protocol = ae::Protocol::kTcp;
+    } else if (str_ip_protocol == "kUdp") {
+      server_config.server_protocol = ae::Protocol::kUdp;
     }
 
     servers_.push_back(server_config);

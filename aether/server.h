@@ -35,7 +35,7 @@ class Server : public Obj {
  public:
   using ChannelsChanged = Event<void()>;
 
-  explicit Server(ServerId server_id, std::vector<UnifiedAddress> endpoints,
+  explicit Server(ServerId server_id, std::vector<Endpoint> endpoints,
                   Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(server_id, endpoints, adapter_registry_, channels))
@@ -46,7 +46,7 @@ class Server : public Obj {
   ChannelsChanged::Subscriber channels_changed();
 
   ServerId server_id;
-  std::vector<UnifiedAddress> endpoints;
+  std::vector<Endpoint> endpoints;
 
   std::vector<Channel::ptr> channels;
 

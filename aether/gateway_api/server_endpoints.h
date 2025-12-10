@@ -29,7 +29,7 @@
 namespace ae {
 struct ServerEndpoints {
   AE_REFLECT_MEMBERS(endpoints);
-  std::vector<UnifiedAddress> endpoints;
+  std::vector<Endpoint> endpoints;
 };
 }  // namespace ae
 

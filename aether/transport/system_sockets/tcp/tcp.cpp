@@ -224,7 +224,7 @@ void TcpTransport::ReadAction::DataReceived() {
 
 TcpTransport::TcpTransport(ActionContext action_context,
                            IPoller::ptr const& poller,
-                           IpAddressPort const& endpoint)
+                           AddressPort const& endpoint)
     : action_context_{action_context},
       poller_{poller},
       endpoint_{endpoint},

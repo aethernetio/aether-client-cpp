@@ -32,7 +32,7 @@ class LwipSocket : public ISocket {
   ~LwipSocket() override;
 
   explicit operator DescriptorType() const override;
-  ConnectionState Connect(IpAddressPort const& destination) override;
+  ConnectionState Connect(AddressPort const& destination) override;
   ConnectionState GetConnectionState() override;
   void Disconnect() override;
   std::optional<std::size_t> Send(Span<std::uint8_t> data) override;

@@ -80,7 +80,7 @@ class UdpTransport : public ByteIStream {
 
  public:
   UdpTransport(ActionContext action_context, IPoller::ptr const& poller,
-               IpAddressPort endpoint);
+               AddressPort endpoint);
   ~UdpTransport() override;
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
@@ -99,7 +99,7 @@ class UdpTransport : public ByteIStream {
 
   ActionContext action_context_;
   PtrView<IPoller> poller_;
-  IpAddressPort endpoint_;
+  AddressPort endpoint_;
 
   std::mutex socket_mutex_;
   UdpSocket socket_;

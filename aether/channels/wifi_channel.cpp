@@ -47,8 +47,7 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   WifiTransportBuilderAction(ActionContext action_context, WifiChannel& channel,
                              WifiAccessPoint::ptr const& access_point,
                              IPoller::ptr const& poller,
-                             DnsResolver::ptr const& resolver,
-                             UnifiedAddress address)
+                             DnsResolver::ptr const& resolver, Endpoint address)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
         channel_{&channel},
@@ -105,14 +104,19 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   }
 
   void ResolveAddress() {
-    std::visit([this](auto const& addr) { DoResolverAddress(addr); }, address_);
+    std::visit(
+        [this](auto const& addr) {
+          DoResolverAddress(addr, address_.port, address_.protocol);
+        },
+        address_.address);
   }
 
 #if AE_SUPPORT_CLOUD_DNS
-  void DoResolverAddress(NameAddress const& name_address) {
+  void DoResolverAddress(NamedAddr const& name_address, std::uint16_t port,
+                         Protocol protocol) {
     auto dns_resolver = resolver_.Lock();
     assert(dns_resolver);
-    auto resolve_action = dns_resolver->Resolve(name_address);
+    auto resolve_action = dns_resolver->Resolve(name_address, port, protocol);
 
     address_resolve_sub_ = resolve_action->StatusEvent().Subscribe(
         ActionHandler{OnResult{[this](auto& action) {
@@ -128,8 +132,10 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   }
 #endif
 
-  void DoResolverAddress(IpAddressPortProtocol const& ip_address) {
-    ip_addresses_.push_back(ip_address);
+  template <typename TAddr>
+  void DoResolverAddress(TAddr const& addr, std::uint16_t port,
+                         Protocol protocol) {
+    ip_addresses_.push_back(Endpoint{{addr, port}, protocol});
     it_ = std::begin(ip_addresses_);
     state_ = State::kTransportCreate;
     Action::Trigger();
@@ -188,10 +194,10 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   PtrView<WifiAccessPoint> access_point_;
   PtrView<IPoller> poller_;
   PtrView<DnsResolver> resolver_;
-  UnifiedAddress address_;
+  Endpoint address_;
 
-  std::vector<IpAddressPortProtocol> ip_addresses_;
-  std::vector<IpAddressPortProtocol>::iterator it_;
+  std::vector<Endpoint> ip_addresses_;
+  std::vector<Endpoint>::iterator it_;
   std::unique_ptr<ByteIStream> transport_stream_;
   Subscription wifi_connected_sub_;
   Subscription address_resolve_sub_;
@@ -203,8 +209,8 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
 
 WifiChannel::WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
                          ObjPtr<DnsResolver> resolver,
-                         WifiAccessPoint::ptr access_point,
-                         UnifiedAddress address, Domain* domain)
+                         WifiAccessPoint::ptr access_point, Endpoint address,
+                         Domain* domain)
     : Channel{domain},
       address{std::move(address)},
       aether_(std::move(aether)),
@@ -212,7 +218,7 @@ WifiChannel::WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
       resolver_(std::move(resolver)),
       access_point_(std::move(access_point)) {
   // fill transport properties
-  auto protocol = std::visit([](auto&& adr) { return adr.protocol; }, address);
+  auto protocol = address.protocol;
 
   switch (protocol) {
     case Protocol::kTcp: {

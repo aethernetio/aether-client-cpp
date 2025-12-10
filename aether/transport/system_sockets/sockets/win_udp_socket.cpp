@@ -58,7 +58,7 @@ WinUdpSocket::WinUdpSocket() : WinSocket{1200} {
 WinUdpSocket::~WinUdpSocket() { Disconnect(); }
 
 WinUdpSocket::ConnectionState WinUdpSocket::Connect(
-    IpAddressPort const& destination) {
+    AddressPort const& destination) {
   auto addr = win_socket_internal::GetSockAddr(destination);
   auto res = connect(socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
   if (res == SOCKET_ERROR) {

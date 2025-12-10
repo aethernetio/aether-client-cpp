@@ -30,6 +30,7 @@ extern int test_type_list();
 extern int test_uid();
 extern int test_small_function();
 extern int test_nullable_type();
+extern int test_address_parser();
 
 int main() {
   int res = 0;
@@ -44,5 +45,6 @@ int main() {
   res += test_uid();
   res += test_small_function();
   res += test_nullable_type();
+  res += test_address_parser();
   return res;
 }

@@ -33,7 +33,7 @@ class WifiChannel final : public Channel {
  public:
   WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
               ObjPtr<DnsResolver> resolver, WifiAccessPoint::ptr access_point,
-              UnifiedAddress address, Domain* domain);
+              Endpoint address, Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, resolver_, access_point_,
                              address))
@@ -42,7 +42,7 @@ class WifiChannel final : public Channel {
 
   ActionPtr<TransportBuilderAction> TransportBuilder() override;
 
-  UnifiedAddress address;
+  Endpoint address;
 
  private:
   Obj::ptr aether_;

@@ -130,7 +130,7 @@ void UdpTransport::SendAction::Send() {
 }
 
 UdpTransport::UdpTransport(ActionContext action_context,
-                           IPoller::ptr const& poller, IpAddressPort endpoint)
+                           IPoller::ptr const& poller, AddressPort endpoint)
     : action_context_{std::move(action_context)},
       poller_{poller},
       endpoint_{std::move(endpoint)},

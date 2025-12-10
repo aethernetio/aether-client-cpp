@@ -39,7 +39,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
   LoraModuleTransportBuilderAction(ActionContext action_context,
                                    LoraModuleChannel& channel,
                                    LoraModuleAccessPoint& access_point,
-                                   UnifiedAddress address)
+                                   Endpoint address)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
         channel_{&channel},
@@ -126,7 +126,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
   ActionContext action_context_;
   LoraModuleChannel* channel_;
   LoraModuleAccessPoint* access_point_;
-  UnifiedAddress address_;
+  Endpoint address_;
   StateMachine<State> state_;
   std::unique_ptr<LoraModuleTransport> transport_stream_;
   Subscription tranpsport_sub_;
@@ -138,7 +138,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
 
 LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
                                      LoraModuleAccessPoint::ptr access_point,
-                                     UnifiedAddress address, Domain* domain)
+                                     Endpoint address, Domain* domain)
     : Channel{std::move(address), domain},
       aether_{std::move(aether)},
       access_point_{std::move(access_point)} {

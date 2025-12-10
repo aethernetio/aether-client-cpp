@@ -116,8 +116,7 @@ void ModemTransport::SendUdpAction::Send() {
 }
 
 ModemTransport::ModemTransport(ActionContext action_context,
-                               IModemDriver& modem_driver,
-                               UnifiedAddress address)
+                               IModemDriver& modem_driver, Endpoint address)
     : action_context_{action_context},
       modem_driver_{&modem_driver},
       address_{std::move(address)},
@@ -189,7 +188,7 @@ ActionPtr<StreamWriteAction> ModemTransport::Write(DataBuffer&& in_data) {
 void ModemTransport::Connect() {
   // open network depend on address type
   auto connection_operation = std::visit(
-      reflect::OverrideFunc{[&](IpAddressPortProtocol const& address) {
+      reflect::OverrideFunc{[&](Endpoint const& address) {
                               return modem_driver_->OpenNetwork(
                                   address.protocol, Format("{}", address.ip),
                                   address.port);

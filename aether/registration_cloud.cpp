@@ -29,7 +29,7 @@ RegistrationCloud::RegistrationCloud(ObjPtr<Aether> aether, Domain* domain)
     : Cloud{domain}, aether_{std::move(aether)} {}
 #  endif
 
-void RegistrationCloud::AddServerSettings(UnifiedAddress address) {
+void RegistrationCloud::AddServerSettings(Endpoint address) {
   // don't care about server id for registration
   auto server =
       domain_->CreateObj<Server>(ServerId{0}, std::vector{std::move(address)});
