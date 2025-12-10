@@ -32,7 +32,7 @@ struct CoderAndPort {
 
 struct IpAddressAndPort {
   AE_REFLECT_MEMBERS(ip, protocol_and_ports)
-  IpAddress ip;
+  Address ip;
   std::vector<CoderAndPort> protocol_and_ports;
 };
 

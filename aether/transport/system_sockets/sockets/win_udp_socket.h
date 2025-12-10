@@ -28,7 +28,7 @@ class WinUdpSocket final : public WinSocket {
   WinUdpSocket();
   ~WinUdpSocket() override;
 
-  ConnectionState Connect(IpAddressPort const& destination) override;
+  ConnectionState Connect(AddressPort const& destination) override;
   ConnectionState GetConnectionState() override;
 
   void Disconnect() override;

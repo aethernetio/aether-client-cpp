@@ -36,7 +36,7 @@ class Proxy : public Obj {
 
   AE_OBJECT_REFLECT(/* end_point_, mode_ */)
 
-  IpAddressPortProtocol end_point_;
+  Endpoint end_point_;
   enum class Mode : std::uint8_t {
     kExclusive,  // Adapter works only through proxies.
     kOptional,   // Adapter uses no proxies if possible.

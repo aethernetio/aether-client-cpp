@@ -60,8 +60,7 @@ list(APPEND aether_c_api_srcs
 )
 
 list(APPEND types_srcs
-            "types/address.cpp"
-            "types/address_parser.cpp")
+            "types/address.cpp")
 
 list(APPEND events_srcs
             "events/event_list.cpp"

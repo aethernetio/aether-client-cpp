@@ -352,11 +352,10 @@ void Registration::OnCloudResolved(
 
     AE_TELED_DEBUG("Create new server id: {}", server_id);
 
-    std::vector<UnifiedAddress> endpoints;
+    std::vector<Endpoint> endpoints;
     for (auto const& ip : description.ips) {
       for (auto const& pp : ip.protocol_and_ports) {
-        endpoints.emplace_back(
-            IpAddressPortProtocol{{ip.ip, pp.port}, pp.protocol});
+        endpoints.emplace_back(Endpoint{{ip.ip, pp.port}, pp.protocol});
       }
     }
 

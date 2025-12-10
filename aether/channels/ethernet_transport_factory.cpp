@@ -26,7 +26,7 @@
 namespace ae {
 std::unique_ptr<ByteIStream> EthernetTransportFactory::Create(
     ActionContext action_context, ObjPtr<IPoller> const& poller,
-    IpAddressPortProtocol address_port_protocol) {
+    Endpoint address_port_protocol) {
   switch (address_port_protocol.protocol) {
     case Protocol::kTcp:
       return BuildTcp(action_context, poller, address_port_protocol);
@@ -42,7 +42,7 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::Create(
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
     [[maybe_unused]] ActionContext action_context,
     [[maybe_unused]] ObjPtr<IPoller> const& poller,
-    [[maybe_unused]] IpAddressPortProtocol address_port_protocol) {
+    [[maybe_unused]] Endpoint address_port_protocol) {
 #  if defined COMMON_TCP_TRANSPORT_ENABLED
   return std::make_unique<TcpTransport>(action_context, poller,
                                         address_port_protocol);
@@ -54,7 +54,7 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
     [[maybe_unused]] ActionContext action_context,
     [[maybe_unused]] ObjPtr<IPoller> const& poller,
-    [[maybe_unused]] IpAddressPortProtocol address_port_protocol) {
+    [[maybe_unused]] Endpoint address_port_protocol) {
   return nullptr;
 }
 #endif
@@ -63,7 +63,7 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
     [[maybe_unused]] ActionContext action_context,
     [[maybe_unused]] ObjPtr<IPoller> const& poller,
-    [[maybe_unused]] IpAddressPortProtocol address_port_protocol) {
+    [[maybe_unused]] Endpoint address_port_protocol) {
 #  if defined SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED
   return std::make_unique<UdpTransport>(action_context, poller,
                                         address_port_protocol);
@@ -75,7 +75,7 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
     [[maybe_unused]] ActionContext action_context,
     [[maybe_unused]] ObjPtr<IPoller> const& poller,
-    [[maybe_unused]] IpAddressPortProtocol address_port_protocol) {
+    [[maybe_unused]] Endpoint address_port_protocol) {
   return nullptr;
 }
 #endif

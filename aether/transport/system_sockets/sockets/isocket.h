@@ -53,7 +53,7 @@ class ISocket {
    * finished.
    * \return connection state.
    */
-  virtual ConnectionState Connect(IpAddressPort const& destination) = 0;
+  virtual ConnectionState Connect(AddressPort const& destination) = 0;
   /**
    * \brief Get current connection state.
    */

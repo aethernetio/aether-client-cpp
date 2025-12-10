@@ -46,8 +46,12 @@ namespace ae {
 class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
  public:
   GetHostByNameQueryAction(ActionContext action_context,
-                           NameAddress name_address)
-      : Action{action_context}, name_address_{std::move(name_address)} {}
+                           NamedAddr const& name_address, std::uint16_t port,
+                           Protocol protocol)
+      : Action{action_context},
+        name_address_{std::move(name_address)},
+        port_{port},
+        protocol_{protocol} {}
 
   UpdateStatus Update() {
     if (is_result_) {
@@ -66,22 +70,33 @@ class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
     }
     auto& addr = resolved_addresses_.emplace_back();
     if (IP_IS_V4_VAL(*ipaddr)) {
-      addr.ip.version = IpAddress::Version::kIpV4;
+#  if AE_SUPPORT_IPV4
+      IpV4Addr ipv4{};
       auto ip4 = ip_2_ip4(ipaddr);
-      addr.ip.set_value(reinterpret_cast<std::uint8_t const*>(&ip4->addr));
+      std::memcpy(&ipv4.ipv4_value,
+                  reinterpret_cast<std::uint8_t const*>(&ip4->addr),
+                  sizeof(ipv4.ipv4_value));
+      addr.address = ipv4;
+#  endif
     } else if (IP_IS_V6_VAL(*ipaddr)) {
-      addr.ip.version = IpAddress::Version::kIpV6;
+#  if AE_SUPPORT_IPV6
+      IpV6Addr ipv6{};
       auto ip6 = ip_2_ip6(ipaddr);
       addr.ip.set_value(reinterpret_cast<std::uint8_t const*>(&ip6->addr));
+      std::memcpy(&ipv6.ipv6_value,
+                  reinterpret_cast<std::uint8_t const*>(&ip6->addr),
+                  sizeof(ipv6.ipv6_value));
+      addr.address = ipv6;
+#  endif
     }
-    addr.port = name_address_.port;
-    addr.protocol = name_address_.protocol;
+    addr.port = port_;
+    addr.protocol = protocol_;
 
     AE_TELE_DEBUG(kEspDnsQuerySuccess, "Got addresses {}", addr);
     Result();
   }
 
-  std::vector<IpAddressPortProtocol> const& resolved_addresses() const {
+  std::vector<Endpoint> const& resolved_addresses() const {
     return resolved_addresses_;
   }
 
@@ -96,8 +111,10 @@ class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
     Action::Trigger();
   }
 
-  NameAddress name_address_;
-  std::vector<IpAddressPortProtocol> resolved_addresses_;
+  NamedAddr name_address_;
+  std::uint16_t port_;
+  Protocol protocol_;
+  std::vector<Endpoint> resolved_addresses_;
   std::atomic_bool is_result_{false};
   std::atomic_bool is_failed_{false};
 };
@@ -107,11 +124,13 @@ class GethostByNameDnsResolver {
   explicit GethostByNameDnsResolver(ActionContext action_context)
       : action_context_{action_context} {}
 
-  ActionPtr<ResolveAction> Query(NameAddress const& name_address) {
+  ActionPtr<ResolveAction> Query(NamedAddr const& name_address,
+                                 std::uint16_t port_hint,
+                                 Protocol protocol_hint) {
     AE_TELE_DEBUG(kEspDnsQueryHost, "Querying host: {}", name_address);
     auto resolve_action = ActionPtr<ResolveAction>{action_context_};
-    auto query_action =
-        ActionPtr<GetHostByNameQueryAction>{action_context_, name_address};
+    auto query_action = ActionPtr<GetHostByNameQueryAction>{
+        action_context_, name_address, port_hint, protocol_hint};
 
     // connect actions
     multi_subscription_.Push(
@@ -162,12 +181,14 @@ Esp32DnsResolver::Esp32DnsResolver(ObjPtr<Aether> aether, Domain* domain)
 Esp32DnsResolver::~Esp32DnsResolver() = default;
 
 ActionPtr<ResolveAction> Esp32DnsResolver::Resolve(
-    NameAddress const& name_address) {
+    NamedAddr const& name_address, std::uint16_t port_hint,
+    Protocol protocol_hint) {
   if (!gethostbyname_dns_resolver_) {
     gethostbyname_dns_resolver_ =
         std::make_unique<GethostByNameDnsResolver>(*aether_.as<Aether>());
   }
-  return gethostbyname_dns_resolver_->Query(name_address);
+  return gethostbyname_dns_resolver_->Query(name_address, port_hint,
+                                            protocol_hint);
 }
 
 }  // namespace ae

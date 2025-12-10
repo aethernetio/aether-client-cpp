@@ -31,14 +31,13 @@ class EthernetChannel : public Channel {
   EthernetChannel() = default;
 
   EthernetChannel(ObjPtr<Aether> aether, ObjPtr<DnsResolver> dns_resolver,
-                  ObjPtr<IPoller> poller, UnifiedAddress address,
-                  Domain* domain);
+                  ObjPtr<IPoller> poller, Endpoint address, Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_, address))
 
   ActionPtr<TransportBuilderAction> TransportBuilder() override;
 
-  UnifiedAddress address;
+  Endpoint address;
 
  private:
   Obj::ptr aether_;

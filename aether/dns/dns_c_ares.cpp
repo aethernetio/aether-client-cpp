@@ -36,8 +36,12 @@
 namespace ae {
 class AresQueryAction : public Action<AresQueryAction> {
  public:
-  AresQueryAction(ActionContext action_context, NameAddress name_address)
-      : Action{action_context}, name_address_{std::move(name_address)} {}
+  AresQueryAction(ActionContext action_context, NamedAddr name_address,
+                  std::uint16_t port, Protocol protocol)
+      : Action{action_context},
+        name_address_{std::move(name_address)},
+        port_{port},
+        protocol_{protocol} {}
 
   UpdateStatus Update() {
     if (is_result_) {
@@ -63,18 +67,27 @@ class AresQueryAction : public Action<AresQueryAction> {
       auto& addr = resolved_addresses_.emplace_back();
 
       if (node->ai_family == AF_INET) {
-        addr.ip.version = IpAddress::Version::kIpV4;
+#  if AE_SUPPORT_IPV4
+        IpV4Addr ipv4{};
         auto* ip4_addr = reinterpret_cast<struct sockaddr_in*>(node->ai_addr);
-        addr.ip.set_value(
-            reinterpret_cast<std::uint8_t*>(&ip4_addr->sin_addr.s_addr));
+        std::memcpy(&ipv4.ipv4_value,
+                    reinterpret_cast<std::uint8_t*>(&ip4_addr->sin_addr.s_addr),
+                    sizeof(ipv4.ipv4_value));
+        addr.address = ipv4;
+#  endif
       } else if (node->ai_family == AF_INET6) {
-        addr.ip.version = IpAddress::Version::kIpV6;
+#  if AE_SUPPORT_IPV6
+        IpV6Addr ipv6{};
         auto* ip6_addr = reinterpret_cast<struct sockaddr_in6*>(node->ai_addr);
-        addr.ip.set_value(
-            reinterpret_cast<std::uint8_t*>(&ip6_addr->sin6_addr.s6_addr));
+        std::memcpy(
+            &ipv6.ipv6_value,
+            reinterpret_cast<std::uint8_t*>(&ip6_addr->sin6_addr.s6_addr),
+            sizeof(ipv6.ipv6_value));
+        addr.address = ipv6;
+#  endif
       }
-      addr.port = name_address_.port;
-      addr.protocol = name_address_.protocol;
+      addr.port = port_;
+      addr.protocol = protocol_;
     }
 
     AE_TELE_DEBUG(kAresDnsQuerySuccess, "Got addresses {}",
@@ -82,7 +95,7 @@ class AresQueryAction : public Action<AresQueryAction> {
     Result();
   }
 
-  std::vector<IpAddressPortProtocol> const& resolved_addresses() const {
+  std::vector<Endpoint> const& resolved_addresses() const {
     return resolved_addresses_;
   }
 
@@ -96,20 +109,16 @@ class AresQueryAction : public Action<AresQueryAction> {
     Action::Trigger();
   }
 
-  NameAddress name_address_;
-  std::vector<IpAddressPortProtocol> resolved_addresses_;
+  NamedAddr name_address_;
+  std::uint16_t port_;
+  Protocol protocol_;
+  std::vector<Endpoint> resolved_addresses_;
   std::atomic_bool is_result_{false};
   std::atomic_bool is_failed_{false};
 };
 
 class AresImpl {
  public:
-  struct QueryContext {
-    AresImpl* self;
-    ResolveAction resolve_action;
-    NameAddress name_address;
-  };
-
   explicit AresImpl(ActionContext action_context)
       : action_context_{action_context} {
     ares_library_init(ARES_LIB_INIT_ALL);
@@ -135,12 +144,14 @@ class AresImpl {
     ares_library_cleanup();
   }
 
-  ActionPtr<ResolveAction> Query(NameAddress const& name_address) {
+  ActionPtr<ResolveAction> Query(NamedAddr const& name_address,
+                                 std::uint16_t port_hint,
+                                 Protocol protocol_hint) {
     AE_TELE_DEBUG(kAresDnsQueryHost, "Querying host: {}", name_address);
 
     auto resolve_action = ActionPtr<ResolveAction>{action_context_};
-    auto query_action =
-        ActionPtr<AresQueryAction>{action_context_, name_address};
+    auto query_action = ActionPtr<AresQueryAction>{
+        action_context_, name_address, port_hint, protocol_hint};
 
     // connect actions
     multi_subscription_.Push(
@@ -186,11 +197,12 @@ DnsResolverCares::DnsResolverCares(ObjPtr<Aether> aether, Domain* domain)
 DnsResolverCares::~DnsResolverCares() = default;
 
 ActionPtr<ResolveAction> DnsResolverCares::Resolve(
-    NameAddress const& name_address) {
+    NamedAddr const& name_address, std::uint16_t port_hint,
+    Protocol protocol_hint) {
   if (!ares_impl_) {
     ares_impl_ = std::make_unique<AresImpl>(*aether_.as<Aether>());
   }
-  return ares_impl_->Query(name_address);
+  return ares_impl_->Query(name_address, port_hint, protocol_hint);
 }
 
 }  // namespace ae

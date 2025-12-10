@@ -55,48 +55,31 @@ struct SockAddr {
   std::size_t size;
 };
 
-inline SockAddr GetSockAddr(IpAddressPort const& ip_address_port) {
-  switch (ip_address_port.ip.version) {
-    case IpAddress::Version::kIpV4:
+inline SockAddr GetSockAddr(AddressPort const& ip_address_port) {
+  SockAddr sock_addr{};
+  std::visit(reflect::OverrideFunc{
 #  if AE_SUPPORT_IPV4 == 1
-    {
-      SockAddr sock_addr{};
-      sock_addr.size = sizeof(sock_addr.data.ipv4);
-      auto& addr = sock_addr.data.ipv4;
-
-      std::memcpy(&addr.sin_addr.s_addr, ip_address_port.ip.value.ipv4_value,
-                  4);
-      addr.sin_port = ae::SwapToInet(ip_address_port.port);
-      addr.sin_family = AF_INET;
-
-      return sock_addr;
-    }
-#  else
-    {
-      assert(false);
-      break;
-    }
+                 [&](IpV4Addr const& ipv4) {
+                   sock_addr.size = sizeof(sock_addr.data.ipv4);
+                   auto& addr = sock_addr.data.ipv4;
+                   std::memcpy(&addr.sin_addr.s_addr, ipv4.ipv4_value, 4);
+                   addr.sin_port = ae::SwapToInet(ip_address_port.port);
+                   addr.sin_family = AF_INET;
+                 },
 #  endif
-    case IpAddress::Version::kIpV6:
 #  if AE_SUPPORT_IPV6 == 1
-    {
-      SockAddr sock_addr;
-      sock_addr.size = sizeof(sock_addr.data.ipv6);
-      auto& addr = sock_addr.data.ipv6;
-      std::memcpy(&addr.sin6_addr, ip_address_port.ip.value.ipv6_value, 16);
-      addr.sin6_port = ae::SwapToInet(ip_address_port.port);
-      addr.sin6_family = AF_INET6;
-
-      return sock_addr;
-    }
-#  else
-    {
-      assert(false);
-      break;
-    }
+                 [&](IpV6Addr const& ipv6) {
+                   sock_addr.size = sizeof(sock_addr.data.ipv6);
+                   auto& addr = sock_addr.data.ipv6;
+                   std::memcpy(&addr.sin6_addr, ipv6.ipv6_value, 16);
+                   addr.sin6_port = ae::SwapToInet(ip_address_port.port);
+                   addr.sin6_family = AF_INET6;
+                 },
 #  endif
-  }
-  return {};
+                 [](auto&&) { assert(false && "Unsupported address type"); }},
+             ip_address_port.address);
+
+  return sock_addr;
 }
 }  // namespace lwip_socket_internal
 
@@ -107,7 +90,7 @@ LwipSocket::~LwipSocket() { Disconnect(); }
 LwipSocket::operator DescriptorType() const { return DescriptorType{socket_}; }
 
 LwipSocket::ConnectionState LwipSocket::Connect(
-    IpAddressPort const& destination) {
+    AddressPort const& destination) {
   assert(socket_ != kInvalidSocket);
 
   auto sock_addr = lwip_socket_internal::GetSockAddr(destination);

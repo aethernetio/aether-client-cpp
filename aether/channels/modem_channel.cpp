@@ -39,8 +39,7 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
  public:
   ModemTransportBuilderAction(ActionContext action_context,
                               ModemChannel& channel,
-                              ModemAccessPoint& access_point,
-                              UnifiedAddress address)
+                              ModemAccessPoint& access_point, Endpoint address)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
         channel_{&channel},
@@ -128,7 +127,7 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
   ActionContext action_context_;
   ModemChannel* channel_;
   ModemAccessPoint* access_point_;
-  UnifiedAddress address_;
+  Endpoint address_;
   StateMachine<State> state_;
   std::unique_ptr<ModemTransport> transport_stream_;
   Subscription modem_connect_sub_;
@@ -139,8 +138,8 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
 }  // namespace modem_channel_internal
 
 ModemChannel::ModemChannel(ObjPtr<Aether> aether,
-                           ModemAccessPoint::ptr access_point,
-                           UnifiedAddress address, Domain* domain)
+                           ModemAccessPoint::ptr access_point, Endpoint address,
+                           Domain* domain)
     : Channel{, domain},
       address{std::move(address)},
       aether_{std::move(aether)},

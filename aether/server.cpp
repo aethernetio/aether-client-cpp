@@ -19,7 +19,7 @@
 #include <utility>
 
 namespace ae {
-Server::Server(ServerId server_id, std::vector<UnifiedAddress> endpoints,
+Server::Server(ServerId server_id, std::vector<Endpoint> endpoints,
                Domain* domain)
     : Obj{domain},
       server_id{server_id},

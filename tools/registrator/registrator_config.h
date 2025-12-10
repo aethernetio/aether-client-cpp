@@ -23,15 +23,11 @@
 #include "aether/types/address.h"
 
 namespace ae {
-enum class ServerAddressType : std::uint8_t { kIpAddress, kUrlAddress };
-
 struct ServerConfig {
-  ae::ServerAddressType server_address_type;
-  ae::IpAddress::Version server_ip_address_version;
   std::string server_address;
   std::uint16_t server_port;
   ae::Protocol server_protocol;
-  ae::IpAddress server_ip_address;
+  ae::Address server_ip_address;
 };
 
 struct ClientParents {
