@@ -21,11 +21,22 @@
 
 #include "aether/types/server_id.h"
 #include "aether/types/client_id.h"
+#include "aether/reflect/reflect.h"
 #include "aether/gateway_api/gateway_api.h"
 #include "aether/transport/gateway/gateway_device.h"
 
 namespace ae {
 using DeviceId = std::uint8_t;
+
+static constexpr std::uint16_t kLoraModuleAddress = 2;
+
+struct LoraPacket {
+  AE_REFLECT_MEMBERS(address, length, data, crc)
+  std::uint16_t address{kLoraModuleAddress};
+  std::size_t length{0};
+  DataBuffer data;
+  std::uint32_t crc{0};
+};
 
 class GwLoraDevice final : public IGatewayDevice {
  public:
