@@ -139,14 +139,13 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
 LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
                                      LoraModuleAccessPoint::ptr access_point,
                                      Endpoint address, Domain* domain)
-    : Channel{std::move(address), domain},
+    : Channel{domain},
       aether_{std::move(aether)},
       access_point_{std::move(access_point)} {
   // fill transport properties
   transport_properties_.max_packet_size = 400;
   transport_properties_.rec_packet_size = 400;
-  auto protocol = std::visit([](auto&& adr) { return adr.protocol; }, address);
-  switch (protocol) {
+  switch (address.protocol) {
     case Protocol::kTcp: {
       transport_properties_.connection_type = ConnectionType::kConnectionFull;
       transport_properties_.reliability = Reliability::kReliable;
