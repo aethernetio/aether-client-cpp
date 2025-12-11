@@ -73,6 +73,13 @@ list(APPEND libsodium_crypto_hash_srcs
             "src/libsodium/crypto_hash/sha512/hash_sha512.c"
             "src/libsodium/crypto_hash/sha512/cp/hash_sha512_cp.c")
 
+list(APPEND libsodium_crypto_ipcrypt_srcs
+            "src/libsodium/crypto_ipcrypt/crypto_ipcrypt.c"
+            "src/libsodium/crypto_ipcrypt/ipcrypt_aesni.c"
+            "src/libsodium/crypto_ipcrypt/ipcrypt_armcrypto.c"
+            "src/libsodium/crypto_ipcrypt/ipcrypt_soft.c")
+
+
 list(APPEND libsodium_crypto_kdf_srcs
             "src/libsodium/crypto_kdf/crypto_kdf.c"
             "src/libsodium/crypto_kdf/blake2b/kdf_blake2b.c"
@@ -182,6 +189,7 @@ if(NOT CM_PLATFORM )
                             ${libsodium_crypto_core_srcs}
                             ${libsodium_crypto_generichash_srcs}
                             ${libsodium_crypto_hash_srcs}
+                            ${libsodium_crypto_ipcrypt_srcs}
                             ${libsodium_crypto_kdf_srcs}
                             ${libsodium_crypto_kx_srcs}
                             ${libsodium_crypto_onetimeauth_srcs}
