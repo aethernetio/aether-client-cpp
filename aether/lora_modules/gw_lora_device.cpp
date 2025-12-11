@@ -19,5 +19,53 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
+namespace gw_lora_device_internal {
+class GwStreamWriteAction final : public StreamWriteAction {
+ public:
+  explicit GwStreamWriteAction(ActionContext action_context)
+      : StreamWriteAction{action_context} {
+    state_ = State::kDone;
+  }
+};
+}  // namespace gw_lora_device_internal
 
+GwLoraDevice::GwLoraDevice(ActionContext action_context)
+    : action_context_{action_context},
+      device_id_{},
+      gateway_api_{protocol_context_},
+      gateway_client_api_{protocol_context_} {}
+
+GwLoraDevice::~GwLoraDevice() {}
+
+ActionPtr<StreamWriteAction> GwLoraDevice::ToServer(ClientId client_id,
+                                                   ServerId server_id,
+                                                   DataBuffer&& data) {
+  auto api = ApiContext{gateway_api_};
+  api->to_server_id(client_id, server_id, std::move(data));
+  DataBuffer packet = std::move(api);
+
+  AE_TELED_DEBUG("Publish from device_id {} data {}",
+                 static_cast<int>(device_id_), packet);
+
+  return ActionPtr<gw_lora_device_internal::GwStreamWriteAction>{
+      action_context_};
+}
+
+ActionPtr<StreamWriteAction> GwLoraDevice::ToServer(
+    ClientId client_id, ServerEndpoints const& server_endpoints,
+    DataBuffer&& data) {
+  auto api = ApiContext{gateway_api_};
+  api->to_server(client_id, server_endpoints, std::move(data));
+  DataBuffer packet = std::move(api);
+
+  AE_TELED_DEBUG("Publish from device_id {} data {}",
+                 static_cast<int>(device_id_), packet);
+
+  return ActionPtr<gw_lora_device_internal::GwStreamWriteAction>{
+      action_context_};
+}
+
+GwLoraDevice::FromServerEvent::Subscriber GwLoraDevice::from_server_event() {
+  return gateway_client_api_.from_server_event();
+}
 }  // namespace ae

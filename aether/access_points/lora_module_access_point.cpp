@@ -18,6 +18,7 @@
 #if AE_SUPPORT_LORA
 
 #  include "aether/aether.h"
+#  include "aether/server.h"
 #  include "aether/lora_modules/ilora_module_driver.h"
 
 #  include "aether/channels/lora_module_channel.h"
