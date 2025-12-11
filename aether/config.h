@@ -131,7 +131,7 @@
  * \brief Is work with gateway supported.
  */
 #ifndef AE_SUPPORT_GATEWAY
-#  define AE_SUPPORT_GATEWAY 0
+#  define AE_SUPPORT_GATEWAY 1
 #endif
 
 // Registration functionality can be stripped-out for pre-registered clients.
