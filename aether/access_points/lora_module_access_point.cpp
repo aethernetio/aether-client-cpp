@@ -93,7 +93,7 @@ ILoraModuleDriver& LoraModuleAccessPoint::lora_module_driver() {
 }
 
 std::vector<ObjPtr<Channel>> LoraModuleAccessPoint::GenerateChannels(
-    std::vector<Endpoint> const& endpoints) {
+    ObjPtr<Server> const& server) {
   AE_TELED_DEBUG("Generate lora module channels");
   std::vector<ObjPtr<Channel>> channels;
   channels.reserve(server->endpoints.size());
