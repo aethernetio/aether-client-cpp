@@ -120,8 +120,7 @@ ModemTransport::ModemTransport(ActionContext action_context,
     : action_context_{action_context},
       modem_driver_{&modem_driver},
       address_{std::move(address)},
-      protocol_{
-          std::visit([](auto const& arg) { return arg.protocol; }, address_)},
+      protocol_{address_.protocol},
       stream_info_{},
       send_action_queue_manager_{action_context_} {
   AE_TELE_INFO(kModemTransport, "Modem transport created for {}", address_);
@@ -187,21 +186,8 @@ ActionPtr<StreamWriteAction> ModemTransport::Write(DataBuffer&& in_data) {
 
 void ModemTransport::Connect() {
   // open network depend on address type
-  auto connection_operation = std::visit(
-      reflect::OverrideFunc{[&](Endpoint const& address) {
-                              return modem_driver_->OpenNetwork(
-                                  address.protocol, Format("{}", address.ip),
-                                  address.port);
-                            }
-#  if AE_SUPPORT_CLOUD_DNS
-                            ,
-                            [&](NameAddress const& address) {
-                              return modem_driver_->OpenNetwork(
-                                  address.protocol, address.name, address.port);
-                            }
-#  endif
-      },
-      address_);
+  auto connection_operation = modem_driver_->OpenNetwork(
+      address_.protocol, Format("{}", address_.address), address_.port);
 
   if (!connection_operation) {
     OnConnectionFailed();
