@@ -16,6 +16,9 @@
 
 #include "aether/lora_modules/gw_lora_device.h"
 
+#if AE_SUPPORT_GATEWAY
+
+#include "aether/stream_api/stream_write_action.h"
 #include "aether/crc.h"
 #include "aether/tele/tele.h"
 
@@ -92,3 +95,5 @@ GwLoraDevice::FromServerEvent::Subscriber GwLoraDevice::from_server_event() {
   return gateway_client_api_.from_server_event();
 }
 }  // namespace ae
+
+#endif

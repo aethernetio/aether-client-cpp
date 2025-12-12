@@ -17,6 +17,10 @@
 #ifndef AETHER_LORA_MODULES_GW_LORA_DEVICE_H_
 #define AETHER_LORA_MODULES_GW_LORA_DEVICE_H_
 
+#include "aether/config.h"
+
+#if AE_SUPPORT_GATEWAY
+
 #include <cstdint>
 
 #include "aether/types/server_id.h"
@@ -24,6 +28,7 @@
 #include "aether/reflect/reflect.h"
 #include "aether/gateway_api/gateway_api.h"
 #include "aether/transport/gateway/gateway_device.h"
+
 
 namespace ae {
 using DeviceId = std::uint8_t;
@@ -62,4 +67,5 @@ class GwLoraDevice final : public IGatewayDevice {
 };
 }  // namespace ae
 
+#endif
 #endif  // AETHER_LORA_MODULES_GW_LORA_DEVICE_H_

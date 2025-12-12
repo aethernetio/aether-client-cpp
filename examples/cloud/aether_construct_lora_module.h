@@ -22,7 +22,7 @@
 #include "aether/config.h"
 
 #if CLOUD_TEST_LORA_MODULE
-#  if !AE_SUPPORT_LORA
+#  if !AE_SUPPORT_LORA || !AE_SUPPORT_GATEWAY
 #    error "Lora module is not supported"
 #  else
 

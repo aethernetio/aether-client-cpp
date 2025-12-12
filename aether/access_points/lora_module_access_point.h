@@ -19,62 +19,44 @@
 
 #include "aether/config.h"
 
-#if AE_SUPPORT_LORA
+#if AE_SUPPORT_LORA && AE_SUPPORT_GATEWAY
+
 #  include "aether/obj/obj.h"
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
-#  include "aether/types/state_machine.h"
-#  include "aether/lora_modules/ilora_module_driver.h"
 #  include "aether/adapters/lora_module_adapter.h"
-#  include "aether/events/event_subscription.h"
 #  include "aether/access_points/access_point.h"
+#  include "aether/lora_modules/gw_lora_device.h"
 
 namespace ae {
-class Aether;
-
-class LoraModuleConnectAction final : public Action<LoraModuleConnectAction> {
- public:
-  enum class State : std::uint8_t {
-    kStart,
-    kSuccess,
-    kFailed,
-  };
-
-  LoraModuleConnectAction(ActionContext action_context,
-                          ILoraModuleDriver& driver);
-
-  UpdateStatus Update();
-
- private:
-  void Start();
-
-  ILoraModuleDriver* driver_;
-  Subscription start_sub_;
-  StateMachine<State> state_;
-};
-
 class LoraModuleAccessPoint final : public AccessPoint {
   AE_OBJECT(LoraModuleAccessPoint, AccessPoint, 0)
   LoraModuleAccessPoint() = default;
 
  public:
+  class JoinAction : public Action<JoinAction> {
+   public:
+    explicit JoinAction(ActionContext action_context);
+    UpdateStatus Update();
+  };
+  
   LoraModuleAccessPoint(ObjPtr<Aether> aether,
                         LoraModuleAdapter::ptr lora_module_adapter,
                         Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, lora_module_adapter_));
+  AE_OBJECT_REFLECT(AE_MMBRS(lora_module_adapter_));
 
-  ActionPtr<LoraModuleConnectAction> Connect();
-  ILoraModuleDriver& lora_module_driver();
+  ActionPtr<JoinAction> Join();
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
-      ObjPtr<Server> const& server) override;
+      Server::ptr const& server) override;
 
+  Aether::ptr const& aether() const;
+  GwLoraDevice& gw_lora_device();
  private:
-  Obj::ptr aether_;
-  LoraModuleAdapter::ptr lora_module_adapter_;
-  ActionPtr<LoraModuleConnectAction> connect_action_;
-  Subscription connect_sub_;
+  Aether::ptr aether_;
+  Adapter::ptr lora_module_adapter_;
+  std::unique_ptr<GwLoraDevice> gw_lora_device_;
 };
 }  // namespace ae
 #endif

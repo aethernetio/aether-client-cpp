@@ -176,7 +176,6 @@ list(APPEND transport_srcs
             "transport/system_sockets/sockets/win_sock_addr.cpp"
             "transport/system_sockets/sockets/win_tcp_socket.cpp"
             "transport/system_sockets/sockets/win_udp_socket.cpp"
-            "transport/lora_modules/lora_module_transport.cpp"
             "transport/modems/modem_transport.cpp"
             "transport/socket_packet_send_action.cpp"
             "transport/data_packet_collector.cpp"

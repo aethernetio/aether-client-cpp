@@ -19,33 +19,29 @@
 
 #include "aether/config.h"
 
-#if AE_SUPPORT_LORA
+#if AE_SUPPORT_LORA && AE_SUPPORT_GATEWAY
+
 #  include "aether/channels/channel.h"
 #  include "aether/access_points/lora_module_access_point.h"
 
 namespace ae {
-class Aether;
-
 class LoraModuleChannel final : public Channel {
   AE_OBJECT(LoraModuleChannel, Channel, 0)
   LoraModuleChannel() = default;
 
  public:
-  LoraModuleChannel(ObjPtr<Aether> aether,
-                    LoraModuleAccessPoint::ptr access_point, Endpoint address,
+  LoraModuleChannel(LoraModuleAccessPoint::ptr access_point, Server::ptr server,
                     Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
 
   ActionPtr<TransportBuilderAction> TransportBuilder() override;
 
-  Duration TransportBuildTimeout() const override;
-
   Endpoint address;
 
  private:
-  Obj::ptr aether_;
   LoraModuleAccessPoint::ptr access_point_;
+  Server::ptr server_;
 };
 }  // namespace ae
 #endif
