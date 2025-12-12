@@ -15,7 +15,8 @@
  */
 
 #include "aether/adapters/lora_module_adapter.h"
-#if AE_SUPPORT_LORA
+
+#if AE_SUPPORT_LORA && AE_SUPPORT_GATEWAY
 
 #  include "aether/aether.h"
 #  include "aether/lora_modules/lora_module_factory.h"

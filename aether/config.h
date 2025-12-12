@@ -207,7 +207,7 @@
 #endif
 // default value used for connection timeout, until statistics are available
 #ifndef AE_DEFAULT_CONNECTION_TIMEOUT_MS
-#  define AE_DEFAULT_CONNECTION_TIMEOUT_MS 5000
+#  define AE_DEFAULT_CONNECTION_TIMEOUT_MS 15000
 #endif
 
 // window size for server answear to ping statistics

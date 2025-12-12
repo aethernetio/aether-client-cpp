@@ -45,11 +45,6 @@ class ILoraModuleDriver {
 
   virtual ActionPtr<LoraModuleOperation> Start() = 0;
   virtual ActionPtr<LoraModuleOperation> Stop() = 0;
-  virtual ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
-                                                      std::string const& host,
-                                                      std::uint16_t port) = 0;
-  virtual ActionPtr<LoraModuleOperation> CloseNetwork(
-      ConnectionLoraIndex connect_index) = 0;
   virtual ActionPtr<LoraModuleOperation> WritePacket(
       ConnectionLoraIndex connect_index, DataBuffer const& data) = 0;
   virtual DataEvent::Subscriber data_event() = 0;
@@ -57,6 +52,8 @@ class ILoraModuleDriver {
   virtual ActionPtr<LoraModuleOperation> SetPowerSaveParam(
       LoraPowerSaveParam const& psp) = 0;
   virtual ActionPtr<LoraModuleOperation> PowerOff() = 0;
+
+  virtual std::uint16_t GetMtu() = 0;
 };
 
 } /* namespace ae */
