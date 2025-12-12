@@ -57,12 +57,6 @@ PtrBase& PtrBase::operator=(PtrBase&& other) noexcept {
   return *this;
 }
 
-void PtrBase::VisitDeeper(RefCounterVisitor& visitor) const {
-  assert((ptr_storage_ != nullptr) &&
-         "VisitDeeper but ptr_storage_ is nullptr");
-  ptr_storage_->manage_table->visitor(visitor, this);
-}
-
 void PtrBase::Reset() {
   if (!operator bool()) {
     return;
@@ -107,7 +101,7 @@ std::uint8_t PtrBase::DecrementGraphCount() {
   assert((ptr_storage_ != nullptr) &&
          "DecrementGraphCount but ptr_storage_ is nullptr");
 
-  auto ref_tree = ptr_storage_->manage_table->decrement_graph(this);
+  auto ref_tree = BuildDecrementGraph();
 
   // Check if current obj has no external references
   // External references may be direct or by children objects
@@ -138,9 +132,56 @@ std::uint8_t PtrBase::DecrementGraphCount() {
   return 1;
 }
 
+RefTree PtrBase::BuildDecrementGraph() {
+  RefTree tree;
+  auto& node = tree.Emplace(reinterpret_cast<std::uintptr_t>(ptr_storage_),
+                            ptr_storage_->ref_counters.main_refs);
+  node.value.reachable_ref_count++;
+  std::set<std::uintptr_t> visited;
+  visited.insert(reinterpret_cast<std::uintptr_t>(ptr_storage_));
+  BuildDecrementGraphImpl(tree, node.index, Children(), visited);
+  return tree;
+}
+
+void PtrBase::BuildDecrementGraphImpl(
+    RefTree& tree, RefTree::Index head_index,
+    std::vector<PtrBase const*> const& children,
+    std::set<std::uintptr_t>& visited) {
+  for (auto const* child : children) {
+    auto& node =
+        tree.Emplace(reinterpret_cast<std::uintptr_t>(child->ptr_storage_),
+                     child->ptr_storage_->ref_counters.main_refs);
+    node.value.reachable_ref_count++;
+    tree.get(head_index).children_indices.push_back(node.index);
+
+    // cycle detection
+    auto [_, not_visited] =
+        visited.emplace(reinterpret_cast<std::uintptr_t>(child->ptr_storage_));
+    if (not_visited) {
+      BuildDecrementGraphImpl(tree, node.index, child->Children(), visited);
+    }
+  }
+}
+
+std::vector<PtrBase const*> PtrBase::Children() const {
+  if (ptr_storage_ == nullptr) {
+    return {};
+  }
+  if (ptr_storage_->ref_counters.main_refs == 0) {
+    return {};
+  }
+  return ptr_storage_->manage_table->child_ptrs(this);
+}
+
 void PtrBase::Destroy() {
   assert((ptr_storage_ != nullptr) && "Destroy but ptr_storage_ is nullptr");
+  // prevent cycled ptrviews delete ptr_storage
+  ptr_storage_->ref_counters.weak_refs += 1;
+  // call the destructor on pointer
+  // Note if T is derived from Base, Base must have virtual ~Base to prevent
+  // memory leaks
   ptr_storage_->manage_table->destroy(this);
+  ptr_storage_->ref_counters.weak_refs -= 1;
 }
 
 void PtrBase::Free() {

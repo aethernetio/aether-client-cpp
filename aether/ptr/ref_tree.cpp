@@ -43,16 +43,17 @@ bool RefTree::Node::IsReachable(Index i,
   return res;
 }
 
-RefTree::Node& RefTree::Emplace(Value value) {
-  auto it = std::find_if(
-      std::begin(nodes_), std::end(nodes_),
-      [&](Node const& n) { return n.value.pointer == value.pointer; });
+RefTree::Node& RefTree::Emplace(std::uintptr_t pointer,
+                                std::uint8_t ref_count) {
+  auto it =
+      std::find_if(std::begin(nodes_), std::end(nodes_),
+                   [&](Node const& n) { return n.value.pointer == pointer; });
   if (it != std::end(nodes_)) {
     return *it;
   }
 
   return nodes_.emplace_back(Node{
-      value,
+      Value{pointer, ref_count, {}},
       static_cast<Index>(nodes_.size()),
       {},
       this,

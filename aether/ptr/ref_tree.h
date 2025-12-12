@@ -29,7 +29,7 @@ class RefTree {
   using Index = std::uint8_t;
 
   struct Value {
-    void const* pointer;
+    std::uintptr_t pointer;
     std::uint8_t ref_count;
     std::uint8_t reachable_ref_count;
   };
@@ -69,7 +69,7 @@ class RefTree {
     RefTree* tree;
   };
 
-  Node& Emplace(Value value);
+  Node& Emplace(std::uintptr_t pointer, std::uint8_t ref_count);
   Node& get(Index index);
 
  private:
