@@ -33,6 +33,7 @@
 namespace ae {
 class PtrBase {
   friend class PtrViewBase;
+  friend struct RefVisitor;
 
   friend bool operator==(PtrBase const& left, PtrBase const& right);
   friend bool operator!=(PtrBase const& left, PtrBase const& right);
@@ -51,9 +52,6 @@ class PtrBase {
 
   explicit operator bool() const noexcept;
 
-  // reflect for graph builder
-  void VisitDeeper(RefCounterVisitor& visitor) const;
-
  protected:
   void Reset();
 
@@ -61,6 +59,11 @@ class PtrBase {
   void Decrement();
   void DecrementRef(std::uint8_t count = 1);
   std::uint8_t DecrementGraphCount();
+  RefTree BuildDecrementGraph();
+  void BuildDecrementGraphImpl(RefTree& tree, RefTree::Index head_index,
+                               std::vector<PtrBase const*> const& children,
+                               std::set<std::uintptr_t>& visited);
+  std::vector<PtrBase const*> Children() const;
   void Destroy();
   void Free();
 
@@ -71,11 +74,9 @@ bool operator==(PtrBase const& left, PtrBase const& right);
 bool operator!=(PtrBase const& left, PtrBase const& right);
 
 template <typename T>
-static void PtrVisitor(RefCounterVisitor& visitor, PtrBase const*);
-template <typename T>
 static void PtrDestroy(PtrBase*);
 template <typename T>
-static RefTree PtrDecrementGraph(PtrBase*);
+std::vector<PtrBase const*> PtrChildren(PtrBase*);
 
 /**
  * \brief Pointer - like shared pointer but with ability to create object
@@ -90,11 +91,8 @@ class Ptr : public PtrBase {
   template <typename U>
   friend class ObjPtr;
 
-  friend struct RefCounterVisitor;
-
-  friend void PtrVisitor<T>(RefCounterVisitor& visitor, PtrBase const*);
   friend void PtrDestroy<T>(PtrBase*);
-  friend RefTree PtrDecrementGraph<T>(PtrBase*);
+  friend std::vector<PtrBase const*> PtrChildren<T>(PtrBase*);
 
  public:
   Ptr() noexcept : PtrBase() {}
@@ -200,50 +198,31 @@ class Ptr : public PtrBase {
   explicit Ptr(T* ptr, PtrStorageBase* ptr_storage) noexcept
       : PtrBase{ptr_storage}, ptr_{ptr} {}
 
-  RefTree DecrementGraph() {
-    // count all reference reachable from current ptr
-    // iterate through all objects with domain node visitor in Domain::Save like
-    // mode
-    return PtrGraphBuilder::BuildGraph(*ptr_, ptr_storage_->ref_counters, this);
-  }
-
-  void Destroy() {
-    // prevent cycled ptrviews delete ptr_storage
-    ptr_storage_->ref_counters.weak_refs += 1;
-    // call the destructor on pointer
-    // Note if T is derived from Base, Base must have virtual ~Base to prevent
-    // memory leaks
-    ptr_->~T();
-    ptr_storage_->ref_counters.weak_refs -= 1;
-  }
-
   T* ptr_;
 };
 
 template <typename T>
-static void PtrVisitor(RefCounterVisitor& visitor, PtrBase const* self) {
-  auto const* _this = reinterpret_cast<Ptr<T> const*>(self);
-  auto* obj = _this->get();
-  visitor.Visit(obj);
-}
-
-template <typename T>
 static void PtrDestroy(PtrBase* self) {
   auto* _this = reinterpret_cast<Ptr<T>*>(self);
-  _this->Destroy();
+  auto* obj = _this->get();
+  obj->~T();
 }
 
 template <typename T>
-static RefTree PtrDecrementGraph(PtrBase* self) {
-  auto* _this = reinterpret_cast<Ptr<T>*>(self);
-  return _this->DecrementGraph();
+std::vector<PtrBase const*> PtrChildren(PtrBase const* self) {
+  auto const* _this = reinterpret_cast<Ptr<T> const*>(self);
+  auto const* obj = _this->get();
+  assert(obj != nullptr && "Ptr is not initialized");
+
+  auto ref_visitor = RefVisitor{};
+  reflect::DomainVisit(*obj, PtrRefDnv{ref_visitor});
+  return ref_visitor.children;
 }
 
 template <typename T>
 static constexpr auto kManageTableForT = ManageTable{
-    PtrVisitor<T>,
     PtrDestroy<T>,
-    PtrDecrementGraph<T>,
+    PtrChildren<T>,
 };
 
 /**
@@ -299,7 +278,7 @@ struct NodeVisitor<ae::Ptr<T>> {
   using Policy = AnyPolicyMatch;
 
   void Visit(ae::Ptr<T>& /* obj */, CycleDetector& /* cycle_detector */,
-             PtrDnv&& /* visitor */) const {}
+             PtrRefDnv&& /* visitor */) const {}
 
   template <typename Visitor>
   void Visit(ae::Ptr<T> const& obj, CycleDetector& cycle_detector,

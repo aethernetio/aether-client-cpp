@@ -158,6 +158,9 @@ constexpr inline auto _compile_options_list = std::array{
 #else
     _OPTION_VALUE(DEBUG, 0),
 #endif
+#if defined _AE_REG_CLOUD_IP
+    _OPTION(_AE_REG_CLOUD_IP),
+#endif
 };
 }  // namespace ae
 #endif  // AETHER_TELE_ENV_COMPILATION_OPTIONS_H_ */
