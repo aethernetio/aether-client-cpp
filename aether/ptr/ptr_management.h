@@ -21,36 +21,21 @@
 #include <cassert>
 #include <type_traits>
 
-#include "aether/ptr/ref_tree.h"
 #include "aether/types/aligned_storage.h"
 #include "aether/reflect/domain_visitor.h"
 
 namespace ae {
-template <typename T>
-class Ptr;
-
-namespace ptr_management_internal {
-template <typename T, typename _ = void>
-struct IsPtr : std::false_type {};
-
-template <typename T, template <typename...> typename UPtr>
-struct IsPtr<UPtr<T>, std::enable_if_t<std::is_base_of_v<Ptr<T>, UPtr<T>>>>
-    : std::true_type {};
-}  // namespace ptr_management_internal
-
 struct PtrRefcounters {
   std::uint8_t main_refs = 0;
   std::uint8_t weak_refs = 0;
 };
 
 class PtrBase;
-struct RefCounterVisitor;
 
 // function table for managing Ptr<T> from PtrBase
 struct ManageTable {
-  void (*visitor)(RefCounterVisitor& visitor, PtrBase const* ptr);
   void (*destroy)(PtrBase* self);
-  RefTree (*decrement_graph)(PtrBase* self);
+  std::vector<PtrBase const*> (*child_ptrs)(PtrBase const* self);
 };
 
 // PtrStorageBase* is used in general case, but PtrStorage<T>* in case there T
@@ -73,17 +58,22 @@ class PtrStorage {
   Storage<T> storage;
 };
 
-using PtrDnv =
-    reflect::DomainNodeVisitor<RefCounterVisitor, reflect::VisitPolicy::kDeep>;
+template <typename T>
+class Ptr;
 
-struct RefCounterVisitor {
+namespace ptr_management_internal {
+template <typename T, typename _ = void>
+struct IsPtr : std::false_type {};
+
+template <typename T, template <typename...> typename UPtr>
+struct IsPtr<UPtr<T>, std::enable_if_t<std::is_base_of_v<Ptr<T>, UPtr<T>>>>
+    : std::true_type {};
+}  // namespace ptr_management_internal
+
+struct RefVisitor {
   template <typename U>
   std::enable_if_t<ptr_management_internal::IsPtr<U>::value, bool> operator()(
       U const& obj) {
-    if (ignore_obj == static_cast<void const*>(&obj)) {
-      return false;
-    }
-
     auto const* obj_ptr = static_cast<void const*>(obj.get());
     if (!obj_ptr) {
       return false;
@@ -93,16 +83,7 @@ struct RefCounterVisitor {
       return false;
     }
 
-    auto& node = ref_tree.Emplace(RefTree::Value{obj_ptr, refs.main_refs, 0});
-    node.value.reachable_ref_count++;
-
-    assert((node.value.reachable_ref_count <= node.value.ref_count) &&
-           "Bug in ref graph build algorithm");
-    ref_tree.get(node_index).children_indices.push_back(node.index);
-
-    auto next_visitor =
-        RefCounterVisitor{cycle_detector, ref_tree, node.index, ignore_obj};
-    obj.VisitDeeper(next_visitor);
+    children.push_back(&obj);
     return false;
   }
 
@@ -110,35 +91,11 @@ struct RefCounterVisitor {
   std::enable_if_t<!ptr_management_internal::IsPtr<U>::value> operator()(
       U const& /* obj */) {}
 
-  template <typename U>
-  void Visit(U* obj) {
-    reflect::DomainVisit(cycle_detector, *obj, PtrDnv{*this});
-  }
-
-  reflect::CycleDetector& cycle_detector;
-  RefTree& ref_tree;
-  RefTree::Index node_index;
-  void const* ignore_obj;
+  std::vector<PtrBase const*> children;
 };
 
-class PtrGraphBuilder {
- public:
-  template <typename T>
-  static RefTree BuildGraph(T& obj, PtrRefcounters const& ref_counters,
-                            void const* ignore_obj) {
-    auto ref_tree = RefTree{};
-    auto& head_node =
-        ref_tree.Emplace(RefTree::Value{&obj, ref_counters.main_refs, 0});
-    head_node.value.reachable_ref_count++;
-
-    auto cycle_detector = reflect::CycleDetector{};
-    auto visitor = RefCounterVisitor{cycle_detector, ref_tree, head_node.index,
-                                     ignore_obj};
-    reflect::DomainVisit(cycle_detector, obj, PtrDnv{visitor});
-    return ref_tree;
-  }
-};
-
+using PtrRefDnv =
+    reflect::DomainNodeVisitor<RefVisitor&, reflect::VisitPolicy::kDeep>;
 }  // namespace ae
 
 #endif  // AETHER_PTR_PTR_MANAGEMENT_H_
