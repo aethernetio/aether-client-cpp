@@ -39,7 +39,7 @@ class LoraModuleAccessPoint final : public AccessPoint {
     explicit JoinAction(ActionContext action_context);
     UpdateStatus Update();
   };
-  
+
   LoraModuleAccessPoint(ObjPtr<Aether> aether,
                         LoraModuleAdapter::ptr lora_module_adapter,
                         Domain* domain);
@@ -53,6 +53,7 @@ class LoraModuleAccessPoint final : public AccessPoint {
 
   Aether::ptr const& aether() const;
   GwLoraDevice& gw_lora_device();
+
  private:
   Aether::ptr aether_;
   Adapter::ptr lora_module_adapter_;

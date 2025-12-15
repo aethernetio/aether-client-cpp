@@ -28,12 +28,7 @@
 namespace ae {
 namespace lora_module_channel_internal {
 class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
-  enum class State : std::uint8_t {
-    kJoin,
-    kCreateTransport,
-    kResult,
-    kError
-  };
+  enum class State : std::uint8_t { kJoin, kCreateTransport, kResult, kError };
 
  public:
   LoraModuleTransportBuilderAction(ActionContext action_context,
@@ -43,7 +38,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
         action_context_{action_context},
         access_point_{&access_point},
         server_{server},
-        state_{State::kJoin}{
+        state_{State::kJoin} {
     AE_TELED_DEBUG("Lora module transport building");
     state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
   }
@@ -104,7 +99,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
 }  // namespace lora_module_channel_internal
 
 LoraModuleChannel::LoraModuleChannel(LoraModuleAccessPoint::ptr access_point,
-                           Server::ptr server, Domain* domain)
+                                     Server::ptr server, Domain* domain)
     : Channel{domain},
       access_point_{std::move(access_point)},
       server_{std::move(server)} {
@@ -116,7 +111,8 @@ LoraModuleChannel::LoraModuleChannel(LoraModuleAccessPoint::ptr access_point,
 
 ActionPtr<TransportBuilderAction> LoraModuleChannel::TransportBuilder() {
   auto const& aether = access_point_->aether();
-  return ActionPtr<lora_module_channel_internal::LoraModuleTransportBuilderAction>{
+  return ActionPtr<
+      lora_module_channel_internal::LoraModuleTransportBuilderAction>{
       *aether, *access_point_, server_};
 }
 
