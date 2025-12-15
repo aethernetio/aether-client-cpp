@@ -28,7 +28,13 @@
 namespace ae {
 namespace lora_module_channel_internal {
 class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
-  enum class State : std::uint8_t { kJoin, kCreateTransport, kResult, kError };
+  enum class State : std::uint8_t {
+    kMLoraModuleConnect,
+    kJoin,
+    kTransportCreate,
+    kResult,
+    kError
+  };
 
  public:
   LoraModuleTransportBuilderAction(ActionContext action_context,
@@ -38,7 +44,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
         action_context_{action_context},
         access_point_{&access_point},
         server_{server},
-        state_{State::kJoin} {
+        state_{State::kMLoraModuleConnect} {
     AE_TELED_DEBUG("Lora module transport building");
     state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
   }
@@ -46,10 +52,13 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
   UpdateStatus Update() override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
+        case State::kMLoraModuleConnect:
+          ConnectLoraModule();
+          break;
         case State::kJoin:
           Join();
           break;
-        case State::kCreateTransport:
+        case State::kTransportCreate:
           CreateTransport();
           break;
         case State::kResult:
@@ -66,10 +75,24 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
   }
 
  private:
+  void ConnectLoraModule() {
+    modem_connect_sub_ =
+        access_point_->Connect()->StatusEvent().Subscribe(ActionHandler{
+            OnResult{[this]() {
+              state_ = State::kTransportCreate;
+              Action::Trigger();
+            }},
+            OnError{[this]() {
+              state_ = State::kError;
+              Action::Trigger();
+            }},
+        });
+  }
+
   void Join() {
     auto join = access_point_->Join();
     join->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[this]() { state_ = State::kCreateTransport; }},
+        OnResult{[this]() { state_ = State::kTransportCreate; }},
         OnError{[this]() { state_ = State::kError; }},
     });
   }
@@ -94,6 +117,7 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
   StateMachine<State> state_;
 
   std::unique_ptr<ByteIStream> transport_stream_;
+  Subscription modem_connect_sub_;
 };
 
 }  // namespace lora_module_channel_internal

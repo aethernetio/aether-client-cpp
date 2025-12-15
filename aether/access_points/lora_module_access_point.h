@@ -29,6 +29,28 @@
 #  include "aether/lora_modules/gw_lora_device.h"
 
 namespace ae {
+class Aether;
+
+class LoraModuleConnectAction final : public Action<LoraModuleConnectAction> {
+ public:
+  enum class State : std::uint8_t {
+    kStart,
+    kSuccess,
+    kFailed,
+  };
+
+  LoraModuleConnectAction(ActionContext action_context, ILoraModuleDriver& driver);
+
+  UpdateStatus Update();
+
+ private:
+  void Start();
+
+  ILoraModuleDriver* driver_;
+  Subscription start_sub_;
+  StateMachine<State> state_;
+};
+
 class LoraModuleAccessPoint final : public AccessPoint {
   AE_OBJECT(LoraModuleAccessPoint, AccessPoint, 0)
   LoraModuleAccessPoint() = default;
@@ -46,6 +68,9 @@ class LoraModuleAccessPoint final : public AccessPoint {
 
   AE_OBJECT_REFLECT(AE_MMBRS(lora_module_adapter_));
 
+  ActionPtr<LoraModuleConnectAction> Connect();
+  ILoraModuleDriver& lora_module_driver();
+  
   ActionPtr<JoinAction> Join();
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
@@ -56,7 +81,9 @@ class LoraModuleAccessPoint final : public AccessPoint {
 
  private:
   Aether::ptr aether_;
-  Adapter::ptr lora_module_adapter_;
+  LoraModuleAdapter::ptr lora_module_adapter_;
+  ActionPtr<LoraModuleConnectAction> connect_action_;
+  Subscription connect_sub_;
   std::unique_ptr<GwLoraDevice> gw_lora_device_;
 };
 }  // namespace ae

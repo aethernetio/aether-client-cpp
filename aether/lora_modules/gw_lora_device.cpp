@@ -44,19 +44,8 @@ GwLoraDevice::~GwLoraDevice() {}
 ActionPtr<StreamWriteAction> GwLoraDevice::ToServer(ClientId client_id,
                                                     ServerId server_id,
                                                     DataBuffer&& data) {
-  LoraPacket lora_packet{};
   auto api = ApiContext{gateway_api_};
-
-  lora_packet.length = data.size();
-  lora_packet.data = data;
-  lora_packet.crc = crc32::from_buffer(data.data(), data.size()).value;
-
-  std::vector<std::uint8_t> packet_data;
-  auto writer = ae::VectorWriter<>{packet_data};
-  auto os = ae::omstream{writer};
-  os << lora_packet;
-
-  api->to_server_id(client_id, server_id, std::move(packet_data));
+  api->to_server_id(client_id, server_id, std::move(data));
   DataBuffer packet = std::move(api);
 
   AE_TELED_DEBUG("Publish from device_id {} data {}",
@@ -69,19 +58,8 @@ ActionPtr<StreamWriteAction> GwLoraDevice::ToServer(ClientId client_id,
 ActionPtr<StreamWriteAction> GwLoraDevice::ToServer(
     ClientId client_id, ServerEndpoints const& server_endpoints,
     DataBuffer&& data) {
-  LoraPacket lora_packet{};
   auto api = ApiContext{gateway_api_};
-
-  lora_packet.length = data.size();
-  lora_packet.data = data;
-  lora_packet.crc = crc32::from_buffer(data.data(), data.size()).value;
-
-  std::vector<std::uint8_t> packet_data;
-  auto writer = ae::VectorWriter<>{packet_data};
-  auto os = ae::omstream{writer};
-  os << lora_packet;
-
-  api->to_server(client_id, server_endpoints, std::move(packet_data));
+  api->to_server(client_id, server_endpoints, std::move(data));
   DataBuffer packet = std::move(api);
 
   AE_TELED_DEBUG("Publish from device_id {} data {}",

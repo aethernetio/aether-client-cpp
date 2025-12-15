@@ -19,7 +19,8 @@
 
 #include "aether/config.h"
 
-#if AE_SUPPORT_LORA
+#if AE_SUPPORT_LORA && AE_SUPPORT_GATEWAY
+
 #  include "aether/aether.h"
 #  include "aether/adapters/adapter.h"
 #  include "aether/lora_modules/lora_module_driver_types.h"
@@ -47,5 +48,6 @@ class ParentLoraModuleAdapter : public Adapter {
   LoraModuleInit lora_module_init_;
 };
 }  // namespace ae
+
 #endif
 #endif  // AETHER_ADAPTERS_PARENT_LORA_MODULE_H_

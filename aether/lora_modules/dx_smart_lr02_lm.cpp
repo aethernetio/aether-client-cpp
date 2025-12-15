@@ -38,7 +38,7 @@ static const AtRequest::Wait kWaitEntryAt{"Entry AT", kOneSecond};
 static const AtRequest::Wait kWaitExitAt{"Exit AT", kOneSecond};
 static const AtRequest::Wait kWaitPowerOn{"Power on", kOneSecond};
 
-class DxSmartLr02LoraOpenNetwork final
+ class DxSmartLr02LoraOpenNetwork final
     : public Action<DxSmartLr02LoraOpenNetwork> {
  public:
   DxSmartLr02LoraOpenNetwork(ActionContext action_context,
