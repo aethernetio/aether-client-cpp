@@ -123,7 +123,6 @@ class AresImpl {
       : action_context_{action_context} {
     ares_library_init(ARES_LIB_INIT_ALL);
 
-    // ares and win_poller are not compatible
     int optmask = ARES_OPT_EVENT_THREAD;
     ares_options options{};
     options.evsys = ARES_EVSYS_DEFAULT;
