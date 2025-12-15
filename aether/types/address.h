@@ -91,6 +91,7 @@ enum class Protocol : std::uint8_t {
   kTcp,
   kUdp,
   kWebSocket,  // does not supported really
+  kLora
   // TODO: rest does not supported yet
   /*
   kAny,

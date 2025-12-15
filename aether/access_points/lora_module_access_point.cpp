@@ -15,17 +15,19 @@
  */
 
 #include "aether/access_points/lora_module_access_point.h"
-#if AE_SUPPORT_LORA
+
+#if AE_SUPPORT_LORA && AE_SUPPORT_GATEWAY
 
 #  include "aether/aether.h"
+#  include "aether/server.h"
 #  include "aether/lora_modules/ilora_module_driver.h"
 
 #  include "aether/channels/lora_module_channel.h"
 #  include "aether/access_points/filter_protocols.h"
 
 namespace ae {
-LoraModuleConnectAction::LoraModuleConnectAction(
-    ActionContext action_context, [[maybe_unused]] ILoraModuleDriver& driver)
+LoraModuleConnectAction::LoraModuleConnectAction(ActionContext action_context,
+                                       [[maybe_unused]] ILoraModuleDriver& driver)
     : Action{action_context}, driver_{&driver}, state_{State::kStart} {
   AE_TELED_DEBUG("LoraModuleConnectAction created");
 }
@@ -67,6 +69,13 @@ void LoraModuleConnectAction::Start() {
   });
 }
 
+LoraModuleAccessPoint::JoinAction::JoinAction(ActionContext action_context)
+    : Action{action_context} {}
+
+UpdateStatus LoraModuleAccessPoint::JoinAction::Update() {
+  return UpdateStatus::Result();
+}
+
 LoraModuleAccessPoint::LoraModuleAccessPoint(
     ObjPtr<Aether> aether, LoraModuleAdapter::ptr lora_module_adapter,
     Domain* domain)
@@ -91,21 +100,25 @@ ILoraModuleDriver& LoraModuleAccessPoint::lora_module_driver() {
   return lora_module_adapter_->lora_module_driver();
 }
 
+ActionPtr<LoraModuleAccessPoint::JoinAction> LoraModuleAccessPoint::Join() {
+  return ActionPtr<JoinAction>{*aether_};
+}
+
 std::vector<ObjPtr<Channel>> LoraModuleAccessPoint::GenerateChannels(
-    std::vector<Endpoint> const& endpoints) {
+    ObjPtr<Server> const& server) {
   AE_TELED_DEBUG("Generate lora module channels");
-  std::vector<ObjPtr<Channel>> channels;
-  channels.reserve(endpoints.size());
-  Aether::ptr aether = aether_;
-  LoraModuleAccessPoint::ptr self = MakePtrFromThis(this);
-  for (auto const& endpoint : endpoints) {
-    if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
-      continue;
-    }
-    channels.emplace_back(
-        domain_->CreateObj<LoraModuleChannel>(aether, self, endpoint));
+  auto self_ptr = MakePtrFromThis(this);
+  return {domain_->CreateObj<LoraModuleChannel>(self_ptr, server)};
+}
+
+Aether::ptr const& LoraModuleAccessPoint::aether() const { return aether_; }
+
+GwLoraDevice& LoraModuleAccessPoint::gw_lora_device() {
+  if (!gw_lora_device_) {
+    gw_lora_device_ = std::make_unique<GwLoraDevice>(
+        *aether_);
   }
-  return channels;
+  return *gw_lora_device_;
 }
 
 }  // namespace ae

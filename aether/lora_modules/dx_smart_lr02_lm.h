@@ -33,8 +33,7 @@
 #  include "aether/lora_modules/ilora_module_driver.h"
 
 namespace ae {
-class DxSmartLr02TcpOpenNetwork;
-class DxSmartLr02UdpOpenNetwork;
+class DxSmartLr02LoraOpenNetwork;
 
 static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
     {kBaudRate::kBaudRate1200, "AT+BAUD1"},
@@ -48,9 +47,8 @@ static const std::map<kBaudRate, std::string> baud_rate_commands_lr02 = {
     {kBaudRate::kBaudRate128000, "AT+BAUD9"}};
 
 class DxSmartLr02LoraModule final : public ILoraModuleDriver {
-  friend class DxSmartLr02TcpOpenNetwork;
-  friend class DxSmartLr02UdpOpenNetwork;
-  static constexpr std::uint16_t kLoraModuleMTU{400};
+  friend class DxSmartLr02LoraOpenNetwork;
+  static constexpr std::uint16_t kLoraModuleMTU{200};
 
  public:
   explicit DxSmartLr02LoraModule(ActionContext action_context,
@@ -60,24 +58,18 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
 
   ActionPtr<LoraModuleOperation> Start() override;
   ActionPtr<LoraModuleOperation> Stop() override;
-  ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
-                                              std::string const& host,
-                                              std::uint16_t port) override;
-  ActionPtr<LoraModuleOperation> CloseNetwork(
-      ConnectionLoraIndex connect_index) override;
   ActionPtr<WriteOperation> WritePacket(ConnectionLoraIndex connect_index,
-                                        ae::DataBuffer const& data) override;
-
+                                        DataBuffer const& data) override;
   DataEvent::Subscriber data_event() override;
-
   ActionPtr<LoraModuleOperation> SetPowerSaveParam(
       LoraPowerSaveParam const& psp) override;
   ActionPtr<LoraModuleOperation> PowerOff() override;
+  std::uint16_t GetMtu() override;
+
   ActionPtr<LoraModuleOperation> SetLoraModuleAddress(
       std::uint16_t const& address);  // Module address
   ActionPtr<LoraModuleOperation> SetLoraModuleChannel(
       std::uint8_t const& channel);  // Module channel
-
   ActionPtr<LoraModuleOperation> SetLoraModuleCRCCheck(
       kLoraModuleCRCCheck const& crc_check);  // Module crc check
   ActionPtr<LoraModuleOperation> SetLoraModuleIQSignalInversion(
@@ -87,27 +79,19 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
  private:
   void Init();
 
-  ActionPtr<IPipeline> OpenTcpConnection(
-      ActionPtr<OpenNetworkOperation> open_network_operation,
-      std::string const& host, std::uint16_t port);
-
-  ActionPtr<IPipeline> OpenUdpConnection(
+  ActionPtr<IPipeline> OpenLoraConnection(
       ActionPtr<OpenNetworkOperation> open_network_operation,
       std::string const& host, std::uint16_t port);
 
   ActionPtr<IPipeline> SendData(ConnectionLoraIndex connection,
                                 DataBuffer const& data);
-  ActionPtr<IPipeline> ReadPacket(ConnectionLoraIndex connection);
-
-  void SetupPoll();
-  ActionPtr<IPipeline> Poll();
-  void PollEvent(std::int32_t handle, std::string_view flags);
+  void ReadPacket(DataBuffer const& data);
 
   ActionContext action_context_;
   LoraModuleInit lora_module_init_;
   std::unique_ptr<ISerialPort> serial_;
   std::set<ConnectionLoraIndex> connections_;
-  AtSupport at_comm_support_;
+  AtSupport at_support_;
   DataEvent data_event_;
   ActionPtr<RepeatableTask> poll_task_;
   std::unique_ptr<AtListener> poll_listener_;
@@ -132,12 +116,13 @@ class DxSmartLr02LoraModule final : public ILoraModuleDriver {
   ActionPtr<IPipeline> SetLoraModuleSpreadingFactor(
       kLoraModuleSpreadingFactor const&
           spreading_factor);  // Module spreading factor
-  ActionPtr<IPipeline> SetupSerialPort(SerialInit& serial_init);
+
+  ActionPtr<IPipeline> SetupSerialPort(SerialInit const& serial_init);
   ActionPtr<IPipeline> SetBaudRate(kBaudRate baud_rate);
   ActionPtr<IPipeline> SetParity(kParity parity);
   ActionPtr<IPipeline> SetStopBits(kStopBits stop_bits);
 
-  ActionPtr<IPipeline> SetupLoraNet(LoraModuleInit& lora_module_init);
+  ActionPtr<IPipeline> SetupLoraNet(LoraModuleInit const& lora_module_init);
 
   std::string AdressToString(uint16_t value);
   std::string ChannelToString(uint8_t value);

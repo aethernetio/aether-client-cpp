@@ -15,59 +15,58 @@
  */
 
 #include "aether/channels/lora_module_channel.h"
-#if AE_SUPPORT_LORA
+
+#if AE_SUPPORT_LORA && AE_SUPPORT_GATEWAY
 
 #  include <utility>
 
 #  include "aether/memory.h"
 #  include "aether/aether.h"
 #  include "aether/types/state_machine.h"
-#  include "aether/transport/lora_modules/lora_module_transport.h"
+#  include "aether/transport/gateway/gateway_transport.h"
 
 namespace ae {
 namespace lora_module_channel_internal {
 class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
   enum class State : std::uint8_t {
-    kLoraModuleConnect,
+    kMLoraModuleConnect,
+    kJoin,
     kTransportCreate,
-    kWaitTransportConnected,
-    kTransportConnected,
-    kFailed
+    kResult,
+    kError
   };
 
  public:
   LoraModuleTransportBuilderAction(ActionContext action_context,
-                                   LoraModuleChannel& channel,
                                    LoraModuleAccessPoint& access_point,
-                                   Endpoint address)
+                                   Server::ptr const& server)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
-        channel_{&channel},
         access_point_{&access_point},
-        address_{std::move(address)},
-        state_{State::kLoraModuleConnect},
-        start_time_{Now()} {
+        server_{server},
+        state_{State::kMLoraModuleConnect} {
     AE_TELED_DEBUG("Lora module transport building");
+    state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
   }
 
   UpdateStatus Update() override {
     if (state_.changed()) {
       switch (state_.Acquire()) {
-        case State::kLoraModuleConnect:
+        case State::kMLoraModuleConnect:
           ConnectLoraModule();
+          break;
+        case State::kJoin:
+          Join();
           break;
         case State::kTransportCreate:
           CreateTransport();
           break;
-        case State::kWaitTransportConnected:
-          break;
-        case State::kTransportConnected:
+        case State::kResult:
           return UpdateStatus::Result();
-        case State::kFailed:
+        case State::kError:
           return UpdateStatus::Error();
       }
     }
-
     return {};
   }
 
@@ -77,104 +76,68 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
 
  private:
   void ConnectLoraModule() {
-    lora_module_connect_sub_ =
+    modem_connect_sub_ =
         access_point_->Connect()->StatusEvent().Subscribe(ActionHandler{
             OnResult{[this]() {
               state_ = State::kTransportCreate;
               Action::Trigger();
             }},
             OnError{[this]() {
-              state_ = State::kFailed;
+              state_ = State::kError;
               Action::Trigger();
             }},
         });
   }
 
-  void CreateTransport() {
-    state_ = State::kWaitTransportConnected;
-
-    auto& lora_module_driver = access_point_->lora_module_driver();
-    transport_stream_ = std::make_unique<LoraModuleTransport>(
-        action_context_, lora_module_driver, address_);
-
-    if (transport_stream_->stream_info().link_state == LinkState::kLinked) {
-      Connected();
-      return;
-    }
-
-    tranpsport_sub_ =
-        transport_stream_->stream_update_event().Subscribe([this]() {
-          if (transport_stream_->stream_info().link_state ==
-              LinkState::kLinked) {
-            Connected();
-          } else if (transport_stream_->stream_info().link_state ==
-                     LinkState::kLinkError) {
-            state_ = State::kFailed;
-            Action::Trigger();
-          }
-        });
+  void Join() {
+    auto join = access_point_->Join();
+    join->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[this]() { state_ = State::kTransportCreate; }},
+        OnError{[this]() { state_ = State::kError; }},
+    });
   }
 
-  void Connected() {
-    auto built_time = std::chrono::duration_cast<Duration>(Now() - start_time_);
-    AE_TELED_DEBUG("Lora modem transport built by {:%S}", built_time);
-    channel_->channel_statistics().AddConnectionTime(built_time);
-    state_ = State::kTransportConnected;
-    Action::Trigger();
+  void CreateTransport() {
+    auto server = server_.Lock();
+    assert(server && "Server should be alive");
+
+    if (server->server_id == 0) {
+      transport_stream_ = std::make_unique<GatewayTransport>(
+          ServerEndpoints{server->endpoints}, access_point_->gw_lora_device());
+    } else {
+      transport_stream_ = std::make_unique<GatewayTransport>(
+          server->server_id, access_point_->gw_lora_device());
+    }
+    state_ = State::kResult;
   }
 
   ActionContext action_context_;
-  LoraModuleChannel* channel_;
   LoraModuleAccessPoint* access_point_;
-  Endpoint address_;
+  PtrView<Server> server_;
   StateMachine<State> state_;
-  std::unique_ptr<LoraModuleTransport> transport_stream_;
-  Subscription tranpsport_sub_;
-  Subscription lora_module_connect_sub_;
-  TimePoint start_time_;
+
+  std::unique_ptr<ByteIStream> transport_stream_;
+  Subscription modem_connect_sub_;
 };
 
 }  // namespace lora_module_channel_internal
 
-LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
-                                     LoraModuleAccessPoint::ptr access_point,
-                                     Endpoint address, Domain* domain)
-    : Channel{std::move(address), domain},
-      aether_{std::move(aether)},
-      access_point_{std::move(access_point)} {
-  // fill transport properties
-  transport_properties_.max_packet_size = 400;
+LoraModuleChannel::LoraModuleChannel(LoraModuleAccessPoint::ptr access_point,
+                                     Server::ptr server, Domain* domain)
+    : Channel{domain},
+      access_point_{std::move(access_point)},
+      server_{std::move(server)} {
+  transport_properties_.connection_type = ConnectionType::kConnectionLess;
+  transport_properties_.reliability = Reliability::kUnreliable;
   transport_properties_.rec_packet_size = 400;
-  auto protocol = std::visit([](auto&& adr) { return adr.protocol; }, address);
-  switch (protocol) {
-    case Protocol::kTcp: {
-      transport_properties_.connection_type = ConnectionType::kConnectionFull;
-      transport_properties_.reliability = Reliability::kReliable;
-      break;
-    }
-    case Protocol::kUdp: {
-      transport_properties_.connection_type = ConnectionType::kConnectionLess;
-      transport_properties_.reliability = Reliability::kUnreliable;
-      break;
-    }
-    default:
-      // protocol is not supported
-      assert(false);
-  }
+  transport_properties_.max_packet_size = 400;
 }
 
 ActionPtr<TransportBuilderAction> LoraModuleChannel::TransportBuilder() {
-  if (!access_point_) {
-    aether_->domain_->LoadRoot(access_point_);
-  }
+  auto const& aether = access_point_->aether();
   return ActionPtr<
       lora_module_channel_internal::LoraModuleTransportBuilderAction>{
-      *aether_.as<Aether>(), *this, *access_point_, address};
-}
-
-Duration LoraModuleChannel::TransportBuildTimeout() const {
-  return channel_statistics_->connection_time_statistics().percentile<99>() +
-         std::chrono::seconds{5};
+      *aether, *access_point_, server_};
 }
 
 }  // namespace ae

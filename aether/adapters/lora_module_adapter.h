@@ -17,21 +17,19 @@
 #ifndef AETHER_ADAPTERS_LORA_MODULE_ADAPTER_H_
 #define AETHER_ADAPTERS_LORA_MODULE_ADAPTER_H_
 
+#include <cstdint>
+
 #include "aether/config.h"
 
-#if AE_SUPPORT_LORA
-#  include <cstdint>
-
+#if AE_SUPPORT_LORA && AE_SUPPORT_GATEWAY
 #  include "aether/events/events.h"
 
 #  include "aether/lora_modules/ilora_module_driver.h"
 #  include "aether/adapters/parent_lora_module.h"
 #  include "aether/access_points/access_point.h"
 
-#  define LORA_MODULE_TCP_TRANSPORT_ENABLED 1
-
 namespace ae {
-class LoraModuleAdapter : public ParentLoraModuleAdapter {
+class LoraModuleAdapter final : public ParentLoraModuleAdapter {
   AE_OBJECT(LoraModuleAdapter, ParentLoraModuleAdapter, 0)
 
   LoraModuleAdapter() = default;
