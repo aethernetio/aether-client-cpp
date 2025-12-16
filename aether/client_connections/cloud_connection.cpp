@@ -18,6 +18,7 @@
 
 #include <algorithm>
 
+#include "aether/server.h"
 #include "aether/stream_api/stream_write_action.h"
 #include "aether/server_connections/server_connection.h"
 
