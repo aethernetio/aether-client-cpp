@@ -155,9 +155,13 @@ void TcpTransport::SendAction::Send() {
   auto res =
       transport_->socket_.Send(Span{data_.data() + sent_offset_, size_to_send});
   if (!res) {
+    AE_TELED_ERROR("Data has not been written to {} size {}",
+                   transport_->endpoint_, size_to_send)
     state_ = State::kFailed;
     return;
   }
+  AE_TELED_DEBUG("Data has been written to {} size {}", transport_->endpoint_,
+                 *res);
   sent_offset_ += *res;
 
   if (sent_offset_ >= data_.size()) {
@@ -186,7 +190,7 @@ UpdateStatus TcpTransport::ReadAction::Update() {
 }
 
 void TcpTransport::ReadAction::Read() {
-  auto lock = std::lock_guard{transport_->socket_lock_};
+  auto lock = std::scoped_lock{transport_->socket_lock_};
   while (true) {
     auto res = transport_->socket_.Receive(
         Span{read_buffer_.data(), read_buffer_.size()});
@@ -199,6 +203,7 @@ void TcpTransport::ReadAction::Read() {
     if (*res == 0) {
       break;
     }
+    AE_TELED_DEBUG("Received data {}", *res);
     data_packet_collector_.AddData(read_buffer_.data(), *res);
     read_event_ = true;
   }
@@ -213,7 +218,7 @@ void TcpTransport::ReadAction::Stop() {
 }
 
 void TcpTransport::ReadAction::DataReceived() {
-  auto lock = std::lock_guard{transport_->socket_lock_};
+  auto lock = std::scoped_lock{transport_->socket_lock_};
   for (auto data = data_packet_collector_.PopPacket(); !data.empty();
        data = data_packet_collector_.PopPacket()) {
     AE_TELE_DEBUG(kTcpTransportReceive, "Socket {} received data size {}",
@@ -340,7 +345,7 @@ void TcpTransport::WriteSocket() { send_queue_manager_->Send(); }
 
 void TcpTransport::ErrorSocket() {
   AE_TELED_ERROR("Socket error");
-  auto lock = std::lock_guard{socket_lock_};
+  auto lock = std::scoped_lock{socket_lock_};
   socket_error_action_->Notify();
 }
 
@@ -350,7 +355,7 @@ void TcpTransport::Disconnect() {
   socket_error_subscription_.Reset();
 
   {
-    auto lock = std::lock_guard{socket_lock_};
+    auto lock = std::scoped_lock{socket_lock_};
     if (!socket_.IsValid()) {
       return;
     }

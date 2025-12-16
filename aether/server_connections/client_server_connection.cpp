@@ -98,8 +98,8 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
                                                ObjPtr<Client> const& client,
                                                Server::ptr const& server)
     : action_context_{action_context},
-      client_{client},
       server_{server},
+      ephemeral_uid_{client->ephemeral_uid()},
       crypto_provider_{std::make_unique<_internal::ClientCryptoProvider>(
           client, server->server_id)},
       client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
@@ -132,10 +132,8 @@ ClientServerConnection::stream_update_event() {
 
 ActionPtr<StreamWriteAction> ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
   auto api_call = ApiCallAdapter{ApiContext{login_api_}, buffer_stream_};
-  api_call->login_by_alias(client_ptr->ephemeral_uid(), std::move(auth_api));
+  api_call->login_by_alias(ephemeral_uid_, std::move(auth_api));
   return api_call.Flush();
 }
 
@@ -170,9 +168,8 @@ void ClientServerConnection::StreamUpdate() {
   assert(server);
   // Create new ping if channel is updated
   // TODO: add ping interval config
-  ping_ =
-      OwnActionPtr<Ping>{action_context_, server, server_channel_->channel(),
-                         *this, std::chrono::seconds{5}};
+  ping_ = OwnActionPtr<Ping>{action_context_, server_channel_->channel(), *this,
+                             std::chrono::seconds{5}};
 
   ping_sub_ = ping_->StatusEvent().Subscribe(OnError{[this]() {
     AE_TELED_ERROR("Ping failed");

@@ -38,6 +38,7 @@ GetClientCloudAction::GetClientCloudAction(
             [this](auto const& uid, auto const& cloud_descriptor) {
               if (uid == client_uid_) {
                 cloud_ = cloud_descriptor.sids;
+                AE_TELED_DEBUG("Cloud resolved as {}", cloud_);
                 request_cloud_task_->Stop();
                 state_ = State::kResult;
               }
@@ -96,7 +97,7 @@ void GetClientCloudAction::RequestCloud() {
       },
       std::chrono::milliseconds{1000},
       repeat_count,
-  };  // namespace ae
+  };
 
   cloud_request_sub_ =
       request_cloud_task_->StatusEvent().Subscribe(OnError{[this]() {

@@ -22,17 +22,17 @@ namespace ae {
 TimerAction::TimerAction(ActionContext action_context, Duration duration)
     : Action{std::forward<ActionContext>(action_context)},
       timer_duration_{duration},
-      state_{State::kStart},
-      state_changed_sub_{state_.changed_event().Subscribe(
-          [this](auto) { Action::Trigger(); })} {}
+      state_{State::kStart} {
+  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+}
 
 TimerAction::TimerAction(TimerAction&& other) noexcept
     : Action{std::move(other)},
       timer_duration_{other.timer_duration_},
       start_time_{other.start_time_},
-      state_{std::move(other.state_)},
-      state_changed_sub_{state_.changed_event().Subscribe(
-          [this](auto) { Action::Trigger(); })} {}
+      state_{std::move(other.state_)} {
+  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+}
 
 TimerAction& TimerAction::operator=(TimerAction&& other) noexcept {
   if (this != &other) {
@@ -40,8 +40,7 @@ TimerAction& TimerAction::operator=(TimerAction&& other) noexcept {
     timer_duration_ = other.timer_duration_;
     start_time_ = other.start_time_;
     state_ = std::move(other.state_);
-    state_changed_sub_ =
-        state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+    state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
   }
   return *this;
 }

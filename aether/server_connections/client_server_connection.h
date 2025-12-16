@@ -63,8 +63,8 @@ class ClientServerConnection {
   void StreamUpdate();
 
   ActionContext action_context_;
-  PtrView<Client> client_;
   PtrView<Server> server_;
+  Uid ephemeral_uid_;
 
   std::unique_ptr<ICryptoProvider> crypto_provider_;
   ProtocolContext protocol_context_;
