@@ -64,7 +64,10 @@ class AresQueryAction : public Action<AresQueryAction> {
     assert(result);
 
     for (auto* node = result->nodes; node != nullptr; node = node->ai_next) {
-      auto& addr = resolved_addresses_.emplace_back();
+      auto addr_add = [this](auto const& ip) {
+        Endpoint addr{{ip, port_}, protocol_};
+        resolved_addresses_.emplace_back(std::move(addr));
+      };
 
       if (node->ai_family == AF_INET) {
 #  if AE_SUPPORT_IPV4
@@ -73,7 +76,7 @@ class AresQueryAction : public Action<AresQueryAction> {
         std::memcpy(&ipv4.ipv4_value,
                     reinterpret_cast<std::uint8_t*>(&ip4_addr->sin_addr.s_addr),
                     sizeof(ipv4.ipv4_value));
-        addr.address = ipv4;
+        addr_add(ipv4);
 #  endif
       } else if (node->ai_family == AF_INET6) {
 #  if AE_SUPPORT_IPV6
@@ -83,11 +86,9 @@ class AresQueryAction : public Action<AresQueryAction> {
             &ipv6.ipv6_value,
             reinterpret_cast<std::uint8_t*>(&ip6_addr->sin6_addr.s6_addr),
             sizeof(ipv6.ipv6_value));
-        addr.address = ipv6;
+        addr_add(ipv6);
 #  endif
       }
-      addr.port = port_;
-      addr.protocol = protocol_;
     }
 
     AE_TELE_DEBUG(kAresDnsQuerySuccess, "Got addresses {}",

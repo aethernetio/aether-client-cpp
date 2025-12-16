@@ -68,7 +68,11 @@ class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
       Failed();
       return;
     }
-    auto& addr = resolved_addresses_.emplace_back();
+    auto addr_add = [this](auto const& ip) {
+      Endpoint addr{{ip, port_}, protocol_};
+      resolved_addresses_.emplace_back(std::move(addr));
+    };
+
     if (IP_IS_V4_VAL(*ipaddr)) {
 #  if AE_SUPPORT_IPV4
       IpV4Addr ipv4{};
@@ -76,7 +80,7 @@ class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
       std::memcpy(&ipv4.ipv4_value,
                   reinterpret_cast<std::uint8_t const*>(&ip4->addr),
                   sizeof(ipv4.ipv4_value));
-      addr.address = ipv4;
+      addr_add(ipv4);
 #  endif
     } else if (IP_IS_V6_VAL(*ipaddr)) {
 #  if AE_SUPPORT_IPV6
@@ -86,13 +90,10 @@ class GetHostByNameQueryAction : public Action<GetHostByNameQueryAction> {
       std::memcpy(&ipv6.ipv6_value,
                   reinterpret_cast<std::uint8_t const*>(&ip6->addr),
                   sizeof(ipv6.ipv6_value));
-      addr.address = ipv6;
+      addr_add(ipv6);
 #  endif
     }
-    addr.port = port_;
-    addr.protocol = protocol_;
-
-    AE_TELE_DEBUG(kEspDnsQuerySuccess, "Got addresses {}", addr);
+    AE_TELE_DEBUG(kEspDnsQuerySuccess, "Got addresses {}", resolved_addresses_);
     Result();
   }
 
