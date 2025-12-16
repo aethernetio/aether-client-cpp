@@ -39,6 +39,10 @@ struct IpV4Addr {
   std::uint8_t ipv4_value[4];
 };
 
+bool operator==(IpV4Addr const& left, IpV4Addr const& right);
+bool operator!=(IpV4Addr const& left, IpV4Addr const& right);
+bool operator<(IpV4Addr const& left, IpV4Addr const& right);
+
 template <typename Ib>
 imstream<Ib>& operator>>(imstream<Ib>& s, IpV4Addr& ipv4) {
   s >> ipv4.ipv4_value;
@@ -54,6 +58,10 @@ omstream<Ob>& operator<<(omstream<Ob>& s, IpV4Addr const& ipv4) {
 struct IpV6Addr {
   std::uint8_t ipv6_value[16];
 };
+
+bool operator==(IpV6Addr const& left, IpV6Addr const& right);
+bool operator!=(IpV6Addr const& left, IpV6Addr const& right);
+bool operator<(IpV6Addr const& left, IpV6Addr const& right);
 
 template <typename Ib>
 imstream<Ib>& operator>>(imstream<Ib>& s, IpV6Addr& ipv6) {
@@ -72,6 +80,10 @@ struct NamedAddr {
   std::string name;
 };
 
+bool operator==(NamedAddr const& left, NamedAddr const& right);
+bool operator!=(NamedAddr const& left, NamedAddr const& right);
+bool operator<(NamedAddr const& left, NamedAddr const& right);
+
 struct Address
     : public VariantType<AddrVersion, VPair<AddrVersion::kIpV4, IpV4Addr>,
                          VPair<AddrVersion::kIpV6, IpV6Addr>,
@@ -79,6 +91,10 @@ struct Address
   using VariantType::VariantType;
   using VariantType::operator=;
 };
+
+bool operator==(Address const& left, Address const& right);
+bool operator!=(Address const& left, Address const& right);
+bool operator<(Address const& left, Address const& right);
 
 struct AddressPort {
   AE_REFLECT_MEMBERS(address, port)
@@ -105,6 +121,8 @@ struct Endpoint : public AddressPort {
 
   Protocol protocol{};
 };
+
+bool operator<(Endpoint const& left, Endpoint const& right);
 
 template <>
 struct Formatter<IpV4Addr> {
