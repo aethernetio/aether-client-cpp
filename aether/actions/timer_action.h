@@ -51,7 +51,6 @@ class TimerAction : public Action<TimerAction> {
   Duration timer_duration_;
   TimePoint start_time_;
   StateMachine<State> state_;
-  Subscription state_changed_sub_;
 };
 }  // namespace ae
 
