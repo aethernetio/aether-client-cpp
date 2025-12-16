@@ -27,9 +27,8 @@ IGNORE_IMPLICIT_CONVERSION()
 DISABLE_WARNING_POP()
 
 #include "aether/common.h"
-#include "aether/server.h"
-#include "aether/channels/channel.h"
 #include "aether/ptr/ptr.h"
+#include "aether/ptr/ptr_view.h"
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
 #include "aether/actions/action_context.h"
@@ -38,6 +37,7 @@ DISABLE_WARNING_POP()
 #include "aether/events/multi_subscription.h"
 
 namespace ae {
+class Channel;
 class ClientServerConnection;
 
 class Ping : public Action<Ping> {
@@ -49,15 +49,18 @@ class Ping : public Action<Ping> {
     kError,
   };
 
-  static constexpr std::uint8_t kMaxRepeatPingCount = 5;
-  static constexpr std::uint8_t kMaxStorePingTimes = kMaxRepeatPingCount * 2;
+  static constexpr std::uint8_t kMaxStorePingTimes = 10;
+
+  struct PingRequest {
+    TimePoint start;
+    TimePoint expected_end;
+    RequestId request_id;
+  };
 
  public:
-  Ping(ActionContext action_context, Server::ptr const& server,
-       Channel::ptr const& channel,
+  Ping(ActionContext action_context, Ptr<Channel> const& channel,
        ClientServerConnection& client_server_connection,
        Duration ping_interval);
-  ~Ping() override;
 
   AE_CLASS_NO_COPY_MOVE(Ping);
 
@@ -70,19 +73,15 @@ class Ping : public Action<Ping> {
   TimePoint WaitResponse();
   void PingResponse(RequestId request_id);
 
-  PtrView<Server> server_;
   PtrView<Channel> channel_;
   ClientServerConnection* client_server_connection_;
   Duration ping_interval_;
 
-  std::size_t repeat_count_;
-  etl::circular_buffer<std::pair<RequestId, TimePoint>, kMaxStorePingTimes>
-      ping_times_;
+  etl::circular_buffer<PingRequest, kMaxStorePingTimes> ping_requests_;
 
   Subscription write_subscription_;
   MultiSubscription wait_responses_;
   StateMachine<State> state_;
-  Subscription state_changed_sub_;
 };
 }  // namespace ae
 
