@@ -41,7 +41,7 @@ UpdateStatus UdpTransport::ReadAction::Update() {
 }
 
 void UdpTransport::ReadAction::Read() {
-  auto lock = std::lock_guard{transport_->socket_mutex_};
+  auto lock = std::scoped_lock{transport_->socket_mutex_};
 
   while (true) {
     auto res = transport_->socket_.Receive(
@@ -55,6 +55,7 @@ void UdpTransport::ReadAction::Read() {
       // No more data to receive
       break;
     }
+    AE_TELED_DEBUG("Received data {}", *res);
     auto& new_packet = read_buffers_.emplace_back();
     new_packet.reserve(*res);
     std::copy(std::begin(read_buffer_),
@@ -74,7 +75,7 @@ void UdpTransport::ReadAction::Stop() {
 }
 
 void UdpTransport::ReadAction::ReadEvent() {
-  auto lock = std::lock_guard{transport_->socket_mutex_};
+  auto lock = std::scoped_lock{transport_->socket_mutex_};
   for (auto& packet : read_buffers_) {
     AE_TELE_DEBUG(kUdpTransportReceive, "Socket {} receive data size:{}",
                   transport_->endpoint_, packet.size());
@@ -113,9 +114,13 @@ void UdpTransport::SendAction::Send() {
   auto res =
       transport_->socket_.Send(Span{data_buffer_.data(), data_buffer_.size()});
   if (!res) {
+    AE_TELED_ERROR("Data has not been written to {} size {}",
+                   transport_->endpoint_, data_buffer_.size());
     state_ = State::kFailed;
     return;
   }
+  AE_TELED_DEBUG("Data has been written to {} size {}", transport_->endpoint_,
+                 data_buffer_.size());
 
   if (*res == 0) {
     // Not sent yet
@@ -243,7 +248,7 @@ void UdpTransport::Disconnect() {
   stream_info_.is_writable = false;
   socket_error_sub_.Reset();
   {
-    auto lock = std::lock_guard{socket_mutex_};
+    auto lock = std::scoped_lock{socket_mutex_};
     if (!socket_.IsValid()) {
       return;
     }
