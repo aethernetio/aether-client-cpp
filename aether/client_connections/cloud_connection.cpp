@@ -213,7 +213,7 @@ void CloudConnection::SelectServers() {
 
   // sort list of servers by it's pririties
   std::sort(std::begin(servers), std::end(servers),
-            [](auto const* left, auto const* right) {
+            [this](auto const* left, auto const* right) {
               // Quarantine servers are always at the end
               if (left->quarantine()) {
                 return false;
@@ -227,12 +227,33 @@ void CloudConnection::SelectServers() {
               }
               // Sort by sorting policy
               // TODO: add policy to sort if the priority is same
-              return left->server()->server_id < right->server()->server_id;
+
+              // default order set by aether
+              auto left_order = std::find_if(
+                  std::begin(connection_manager_->server_connections()),
+                  std::end(connection_manager_->server_connections()),
+                  [&](auto const& sc) { return &sc == left; });
+              auto right_order = std::find_if(
+                  std::begin(connection_manager_->server_connections()),
+                  std::end(connection_manager_->server_connections()),
+                  [&](auto const& sc) { return &sc == right; });
+
+              return left_order < right_order;
             });
+
   auto select_count = std::min(servers.size(), max_connections_);
   auto select_begin = selected_servers_.size();
-  AE_TELED_DEBUG("Select servers begin {} count {}", select_begin,
-                 select_count);
+
+  auto get_ids = [&] {
+    std::vector<ServerId> sids;
+    sids.reserve(servers.size());
+    for (auto const* server : servers) {
+      sids.push_back(server->server()->server_id);
+    }
+    return sids;
+  };
+  AE_TELED_DEBUG("Select servers begin {} count {} from sids [{}]",
+                 select_begin, select_count, get_ids());
   selected_servers_.reserve(select_count);
 
   std::size_t i = select_begin;

@@ -237,7 +237,7 @@
 
 // Maximal number of server connections
 #ifndef AE_CLOUD_MAX_SERVER_CONNECTIONS
-#  define AE_CLOUD_MAX_SERVER_CONNECTIONS 3
+#  define AE_CLOUD_MAX_SERVER_CONNECTIONS 12
 #endif
 
 // Telemetry configuration
