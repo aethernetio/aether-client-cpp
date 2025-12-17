@@ -43,10 +43,6 @@ void ClientConnectionManager::InitServerConnections() {
     assert(server);
     server_connections_.emplace_back(server, *connection_factory_);
   }
-  std::sort(std::begin(server_connections_), std::end(server_connections_),
-            [](auto const& lhs, auto const& rhs) {
-              return lhs.server()->server_id < rhs.server()->server_id;
-            });
 }
 
 }  // namespace ae

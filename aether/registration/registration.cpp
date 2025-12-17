@@ -303,8 +303,7 @@ void Registration::MakeRegistration() {
 }
 
 void Registration::ResolveCloud() {
-  AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud with {} servers",
-               client_cloud_.size());
+  AE_TELE_INFO(RegisterResolveCloud, "Resolve cloud as [{}]", client_cloud_);
 
   auto api_call = ApiCallAdapter{ApiContext{server_reg_root_api_},
                                  root_server_select_stream_};
@@ -341,12 +340,15 @@ void Registration::OnCloudResolved(
   Cloud::ptr new_cloud = aether->domain_->CreateObj<WorkCloud>();
   assert(new_cloud);
 
+  std::vector<Server::ptr> server_objects;
+  server_objects.reserve(servers.size());
+
   for (const auto& description : servers) {
     auto server_id = description.server_id;
     auto cached_server = aether->GetServer(server_id);
     if (cached_server) {
-      AE_TELED_DEBUG("Use cached server");
-      new_cloud->AddServer(cached_server);
+      AE_TELED_DEBUG("Use cached server {}", cached_server->server_id);
+      server_objects.emplace_back(cached_server);
       continue;
     }
 
@@ -365,10 +367,22 @@ void Registration::OnCloudResolved(
         aether->domain_->CreateObj<Server>(server_id, std::move(endpoints));
     assert(server);
     server->Register(aether->adapter_registry);
-    new_cloud->AddServer(server);
-    aether->AddServer(std::move(server));
+    aether->AddServer(server);
+    server_objects.emplace_back(std::move(server));
   }
 
+  // sort server objects by order of client_cloud_
+  std::sort(
+      std::begin(server_objects), std::end(server_objects),
+      [this](Server::ptr const& left, Server::ptr const& right) {
+        auto left_order = std::find(std::begin(client_cloud_),
+                                    std::end(client_cloud_), left->server_id);
+        auto right_order = std::find(std::begin(client_cloud_),
+                                     std::end(client_cloud_), right->server_id);
+        return left_order < right_order;
+      });
+
+  new_cloud->AddServers(std::move(server_objects));
   client_->SetConfig(uid_, ephemeral_uid_, master_key_, std::move(new_cloud));
 
   AE_TELE_DEBUG(RegisterClientRegistered,
@@ -377,5 +391,4 @@ void Registration::OnCloudResolved(
   state_ = State::kRegistered;
 }
 }  // namespace ae
-
 #endif

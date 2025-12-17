@@ -38,7 +38,7 @@ GetClientCloudAction::GetClientCloudAction(
             [this](auto const& uid, auto const& cloud_descriptor) {
               if (uid == client_uid_) {
                 cloud_ = cloud_descriptor.sids;
-                AE_TELED_DEBUG("Cloud resolved as {}", cloud_);
+                AE_TELED_DEBUG("Cloud resolved as [{}]", cloud_);
                 request_cloud_task_->Stop();
                 state_ = State::kResult;
               }

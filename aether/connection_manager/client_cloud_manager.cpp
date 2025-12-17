@@ -102,13 +102,14 @@ class GetCloudFromAether : public GetCloudAction {
                       OnError{[this]() { state_ = State::kError; }}});
   }
 
-  void BuildServers(std::vector<ServerId> const& sids) {
-    std::vector<Server::ptr> servers;
+  void BuildServers(std::vector<ServerId> cloud) {
+    cloud_sids_ = std::move(cloud);
+    // find servers in cache and make request servers for missing
     std::vector<ServerId> missing_servers;
-    for (auto const& sid : sids) {
+    for (auto const& sid : cloud_sids_) {
       auto server = aether_->GetServer(sid);
       if (server) {
-        servers.push_back(server);
+        servers_.emplace_back(std::move(server));
       } else {
         missing_servers.push_back(sid);
       }
@@ -120,20 +121,31 @@ class GetCloudFromAether : public GetCloudAction {
           RequestPolicy::Replica{cloud_connection_->count_connections()}};
       get_servers_sub_ =
           get_servers_action_->StatusEvent().Subscribe(ActionHandler{
-              OnResult{[this, servers{std::move(servers)}](
-                           auto const& action) mutable {
+              OnResult{[this](auto const& action) mutable {
                 auto new_servers = BuildNewServers(action.servers());
                 // extend the existing servers with the new ones
-                servers.insert(std::end(servers), std::begin(new_servers),
-                               std::end(new_servers));
-                RegisterCloud(std::move(servers));
+                servers_.insert(std::end(servers_), std::begin(new_servers),
+                                std::end(new_servers));
+                // sort servers by cloud order
+                std::sort(std::begin(servers_), std::end(servers_),
+                          [&](auto const& left, auto const& right) {
+                            auto left_order = std::find(std::begin(cloud_sids_),
+                                                        std::end(cloud_sids_),
+                                                        left->server_id);
+                            auto right_order = std::find(
+                                std::begin(cloud_sids_), std::end(cloud_sids_),
+                                right->server_id);
+                            return left_order < right_order;
+                          });
+
+                RegisterCloud(std::move(servers_));
                 state_ = State::kDone;
               }},
               OnError{[this]() { state_ = State::kError; }},
           });
     } else {
       // all servers already known to aether, just build a new cloud
-      RegisterCloud(std::move(servers));
+      RegisterCloud(std::move(servers_));
       state_ = State::kDone;
     }
   }
@@ -172,6 +184,8 @@ class GetCloudFromAether : public GetCloudAction {
   Subscription get_client_cloud_sub_;
   OwnActionPtr<GetServersAction> get_servers_action_;
   Subscription get_servers_sub_;
+  std::vector<ServerId> cloud_sids_;
+  std::vector<Server::ptr> servers_;
   Cloud::ptr cloud_;
 };
 
