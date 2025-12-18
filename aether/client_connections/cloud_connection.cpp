@@ -213,7 +213,7 @@ void CloudConnection::SelectServers() {
 
   // sort list of servers by it's pririties
   std::sort(std::begin(servers), std::end(servers),
-            [this](auto const* left, auto const* right) {
+            [](auto const* left, auto const* right) {
               // Quarantine servers are always at the end
               if (left->quarantine()) {
                 return false;
@@ -221,24 +221,9 @@ void CloudConnection::SelectServers() {
               if (right->quarantine()) {
                 return true;
               }
+              // TODO: add sorting by external policy
               // Sort by priority
-              if (left->priority() != right->priority()) {
-                return left->priority() < right->priority();
-              }
-              // Sort by sorting policy
-              // TODO: add policy to sort if the priority is same
-
-              // default order set by aether
-              auto left_order = std::find_if(
-                  std::begin(connection_manager_->server_connections()),
-                  std::end(connection_manager_->server_connections()),
-                  [&](auto const& sc) { return &sc == left; });
-              auto right_order = std::find_if(
-                  std::begin(connection_manager_->server_connections()),
-                  std::end(connection_manager_->server_connections()),
-                  [&](auto const& sc) { return &sc == right; });
-
-              return left_order < right_order;
+              return left->priority() < right->priority();
             });
 
   auto select_count = std::min(servers.size(), max_connections_);
