@@ -20,26 +20,21 @@
 
 namespace ae::registrator {
 
-#ifdef AE_DISTILLATION
-RegisterWifiAdapter::RegisterWifiAdapter(ObjPtr<Aether> aether,
-                                         IPoller::ptr poller,
-                                         DnsResolver::ptr dns_resolver,
+RegisterWifiAdapter::RegisterWifiAdapter(Aether& aether, IPoller& poller,
+                                         DnsResolver& dns_resolver,
                                          std::string ssid, std::string pass,
                                          Domain* domain)
-    : ParentWifiAdapter{std::move(aether),       std::move(poller),
-                        std::move(dns_resolver), std::move(ssid),
-                        std::move(pass),         domain},
-      ethernet_adapter_{domain->CreateObj<EthernetAdapter>(aether_, poller_,
-                                                           dns_resolver_)} {}
-#endif  // AE_DISTILLATION
+    : ParentWifiAdapter{aether,          poller,          dns_resolver,
+                        std::move(ssid), std::move(pass), domain},
+      ethernet_adapter_{*aether_, *poller_, *dns_resolver_, domain_} {}
 
-std::vector<AccessPoint::ptr> RegisterWifiAdapter::access_points() {
-  return ethernet_adapter_->access_points();
+std::vector<AccessPoint*> RegisterWifiAdapter::access_points() {
+  return ethernet_adapter_.access_points();
 }
 
 RegisterWifiAdapter::NewAccessPoint::Subscriber
 RegisterWifiAdapter::new_access_point() {
-  return ethernet_adapter_->new_access_point();
+  return ethernet_adapter_.new_access_point();
 }
 
 }  // namespace ae::registrator

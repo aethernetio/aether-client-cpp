@@ -58,47 +58,42 @@ int AetherRegistrator(const std::string& ini_file,
           // empty tele initializer
           [](auto const&) {}}
           .AdaptersFactory([&registrator_config](
-                               ae::AetherAppContext const& context)
-                               -> ae::AdapterRegistry::ptr {
+                               ae::AetherAppContext const& context) {
             auto adapter_registry =
-                context.domain().CreateObj<ae::AdapterRegistry>();
+                std::make_shared<ae::AdapterRegistry>(context.domain());
 
             if (registrator_config.GetWiFiIsSet()) {
               AE_TELED_DEBUG("ae::registrator::RegisterWifiAdapter");
               adapter_registry->Add(
-                  context.domain()
-                      .CreateObj<ae::registrator::RegisterWifiAdapter>(
-                          ae::GlobalId::kRegisterWifiAdapter, context.aether(),
-                          context.poller(), context.dns_resolver(),
-                          registrator_config.GetWiFiSsid(),
-                          registrator_config.GetWiFiPass()));
+                  std::make_shared<ae::registrator::RegisterWifiAdapter>(
+                      *context.aether(), *context.poller(),
+                      *context.dns_resolver(), registrator_config.GetWiFiSsid(),
+                      registrator_config.GetWiFiPass(), context.domain()));
             } else {
               AE_TELED_DEBUG("ae::EthernetAdapter");
-              adapter_registry->Add(
-                  context.domain().CreateObj<ae::EthernetAdapter>(
-                      ae::GlobalId::kEthernetAdapter, context.aether(),
-                      context.poller(), context.dns_resolver()));
+              adapter_registry->Add(std::make_shared<ae::EthernetAdapter>(
+                  *context.aether(), *context.poller(), *context.dns_resolver(),
+                  context.domain()));
             }
             return adapter_registry;
           })
-          .RegistrationCloudFactory(
-              [&registrator_config](ae::AetherAppContext const& context) {
-                auto registration_cloud =
-                    context.domain().CreateObj<ae::RegistrationCloud>(
-                        ae::GlobalId::kRegistrationCloud, context.aether());
+          .RegistrationCloudFactory([&registrator_config](
+                                        ae::AetherAppContext const& context) {
+            auto registration_cloud = std::make_shared<ae::RegistrationCloud>(
+                *context.aether(), context.domain());
 
-                auto servers_list = registrator_config.GetServers();
-                for (auto s : servers_list) {
-                  AE_TELED_DEBUG("Server address={}", s.server_ip_address);
-                  AE_TELED_DEBUG("Server port={}", s.server_port);
-                  AE_TELED_DEBUG("Server protocol={}", s.server_protocol);
+            auto servers_list = registrator_config.GetServers();
+            for (auto s : servers_list) {
+              AE_TELED_DEBUG("Server address={}", s.server_ip_address);
+              AE_TELED_DEBUG("Server port={}", s.server_port);
+              AE_TELED_DEBUG("Server protocol={}", s.server_protocol);
 
-                  ae::Endpoint settings{{s.server_ip_address, s.server_port},
-                                        s.server_protocol};
-                  registration_cloud->AddServerSettings(settings);
-                }
-                return registration_cloud;
-              }));
+              ae::Endpoint settings{{s.server_ip_address, s.server_port},
+                                    s.server_protocol};
+              registration_cloud->AddServerSettings(settings);
+            }
+            return registration_cloud;
+          }));
 
   auto registrator_action = ae::ActionPtr<ae::registrator::RegistratorAction>{
       *aether_app, aether_app, registrator_config};
