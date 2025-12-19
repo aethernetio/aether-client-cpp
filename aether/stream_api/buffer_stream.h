@@ -130,7 +130,6 @@ class BufferStream final : public Stream<T, T, T, T> {
     Base::update_sub_.Reset();
 
     stream_info_.link_state = LinkState::kUnlinked;
-    stream_info_.is_writable = false;
     stream_info_.is_reliable = false;
     stream_info_.max_element_size = 0;
     stream_info_.rec_element_size = 0;
