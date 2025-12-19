@@ -27,7 +27,7 @@
 #include "send_message_delays/api/bench_delays_api.h"
 
 namespace ae::bench {
-Sender::Sender(ActionContext action_context, Client::ptr client,
+Sender::Sender(ActionContext action_context, std::shared_ptr<Client> client,
                Uid destination_uid, SafeStreamConfig safe_stream_config)
     : action_context_{action_context},
       client_{std::move(client)},

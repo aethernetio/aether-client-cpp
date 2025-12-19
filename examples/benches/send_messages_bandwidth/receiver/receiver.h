@@ -31,7 +31,7 @@
 namespace ae::bench {
 class Receiver {
  public:
-  Receiver(ActionContext action_context, Client::ptr client);
+  Receiver(ActionContext action_context, std::shared_ptr<Client> client);
 
   EventSubscriber<void()> error_event();
 
@@ -48,7 +48,7 @@ class Receiver {
   void OnRecvData(DataBuffer const& data);
 
   ActionContext action_context_;
-  Client::ptr client_;
+  std::shared_ptr<Client> client_;
   ProtocolContext protocol_context_;
   BandwidthApi bandwidth_api_;
 

@@ -66,9 +66,9 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
  private:
   void GetClients() {
     auto get_sender = aether_->SelectClient(
-        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 1);
+        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "Sender");
     auto get_receiver = aether_->SelectClient(
-        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 2);
+        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "Receiver");
 
     client_selected_event_.Connect(
         [&](auto client_setter, auto result) {
@@ -152,13 +152,13 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         }}});
   }
 
-  Aether::ptr aether_;
+  Aether* aether_;
   std::ostream& write_results_stream_;
-  Client::ptr client_sender_;
-  Client::ptr client_receiver_;
+  std::shared_ptr<Client> client_sender_;
+  std::shared_ptr<Client> client_receiver_;
   std::unique_ptr<SendMessageDelaysManager> send_message_delays_manager_;
 
-  CumulativeEvent<Client::ptr, 2> client_selected_event_;
+  CumulativeEvent<std::shared_ptr<Client>, 2> client_selected_event_;
   Subscription clients_selected_sub_;
   Subscription test_result_sub_;
   StateMachine<State> state_;
