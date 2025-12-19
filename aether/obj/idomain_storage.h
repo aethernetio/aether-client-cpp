@@ -21,7 +21,7 @@
 #include <memory>
 #include <cstdint>
 
-#include "aether/obj/obj_id.h"
+#include "aether/misc/hash.h"  // IWYU pragma: keep
 
 namespace ae {
 
@@ -31,14 +31,8 @@ enum class DomainLoadResult : std::uint8_t {
   kLoaded,   //< Data loaded successfully
 };
 
-using ObjectData = std::vector<std::uint8_t>;
-using ClassList = std::vector<std::uint32_t>;
-
-struct DomainQuery {
-  ObjId id;
-  std::uint32_t class_id;
-  std::uint8_t version;
-};
+using DataKey = std::uint32_t;
+using DataValue = std::vector<std::uint8_t>;
 
 class IDomainStorageWriter {
  public:
@@ -56,8 +50,6 @@ class IDomainStorageReader {
   virtual ~IDomainStorageReader() = default;
 
   virtual void read(void* data, std::size_t size) = 0;
-  virtual ReadResult result() const = 0;
-  virtual void result(ReadResult result) = 0;
 };
 
 struct DomainLoad {
@@ -72,23 +64,18 @@ class IDomainStorage {
  public:
   virtual ~IDomainStorage() = default;
   /**
-   * \brief Store an ObjectData by query.
+   * \brief Store an DataValue by query.
    */
-  virtual std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuery const& query) = 0;
-  /**
-   * \brief Enumerate all classes for object.
-   */
-  virtual ClassList Enumerate(ObjId const& obj_id) = 0;
+  virtual std::unique_ptr<IDomainStorageWriter> Store(DataKey key,
+                                                      std::uint8_t version) = 0;
   /**
    * \brief Load object data by query.
    */
-  virtual DomainLoad Load(DomainQuery const& query) = 0;
-
+  virtual DomainLoad Load(DataKey key, std::uint8_t version) = 0;
   /**
    * \brief Remove object data by query
    */
-  virtual void Remove(ObjId const& obj_id) = 0;
+  virtual void Remove(DataKey key) = 0;
   /**
    * \brief Clean up the whole storage.
    */

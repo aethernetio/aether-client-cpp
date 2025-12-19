@@ -31,10 +31,4 @@ void StaticDomainStorageReader::read(void* out, std::size_t size) {
             reinterpret_cast<std::uint8_t*>(out));
   offset += size;
 }
-
-ReadResult StaticDomainStorageReader::result() const {
-  return ReadResult::kYes;
-}
-
-void StaticDomainStorageReader::result(ReadResult) {}
 }  // namespace ae

@@ -26,11 +26,8 @@ namespace ae {
  */
 class DummyObj : public Obj {
   AE_OBJECT(DummyObj, Obj, 0)
-
-  using Obj::Obj;
-
  public:
-  AE_OBJECT_REFLECT()
+  using Obj::Obj;
 };
 }  // namespace ae
 
