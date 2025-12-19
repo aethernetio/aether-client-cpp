@@ -87,24 +87,15 @@ void TcpTransport::ConnectionAction::Connect() {
 void TcpTransport::ConnectionAction::WaitConnection() {
   state_ = State::kWaitConnection;
 
-  auto poller_ptr = transport_->poller_.Lock();
-  if (!poller_ptr) {
-    AE_TELED_ERROR("Poller is null");
-    state_ = State::kConnectionFailed;
-    return;
-  }
-
   poller_subscription_ =
-      poller_ptr->Add(static_cast<DescriptorType>(transport_->socket_))
+      transport_->poller_->Add(static_cast<DescriptorType>(transport_->socket_))
           .Subscribe([&](auto event) {
             if (event.descriptor !=
                 static_cast<DescriptorType>(transport_->socket_)) {
               return;
             }
             // remove poller first
-            auto poller_ptr = transport_->poller_.Lock();
-            assert(poller_ptr);
-            poller_ptr->Remove(
+            transport_->poller_->Remove(
                 static_cast<DescriptorType>(transport_->socket_));
             state_ = State::kGetConnectionUpdate;
           });
@@ -227,11 +218,10 @@ void TcpTransport::ReadAction::DataReceived() {
   }
 }
 
-TcpTransport::TcpTransport(ActionContext action_context,
-                           IPoller::ptr const& poller,
+TcpTransport::TcpTransport(ActionContext action_context, IPoller& poller,
                            AddressPort const& endpoint)
     : action_context_{action_context},
-      poller_{poller},
+      poller_{&poller},
       endpoint_{endpoint},
       stream_info_{},
       socket_{},
@@ -314,11 +304,8 @@ void TcpTransport::OnConnected() {
         Disconnect();
       }});
 
-  auto poller_ptr = poller_.Lock();
-  assert(poller_ptr);
-
   socket_poll_subscription_ =
-      poller_ptr->Add(static_cast<DescriptorType>(socket_))
+      poller_->Add(static_cast<DescriptorType>(socket_))
           .Subscribe([this](auto const& event) {
             if (event.descriptor != static_cast<DescriptorType>(socket_)) {
               return;
@@ -359,9 +346,7 @@ void TcpTransport::Disconnect() {
     if (!socket_.IsValid()) {
       return;
     }
-    if (auto poller_ptr = poller_.Lock(); poller_ptr) {
-      poller_ptr->Remove(static_cast<DescriptorType>(socket_));
-    }
+    poller_->Remove(static_cast<DescriptorType>(socket_));
     socket_.Disconnect();
   }
 

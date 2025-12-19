@@ -38,7 +38,7 @@ bool ActionTrigger::WaitUntil(TimePoint timeout) {
 }
 
 void ActionTrigger::Trigger() {
-  std::lock_guard lock(sync_object_->mutex);
+  std::scoped_lock lock(sync_object_->mutex);
   sync_object_->triggered = true;
   sync_object_->condition.notify_all();
 }

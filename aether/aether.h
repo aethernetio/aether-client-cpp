@@ -44,80 +44,45 @@ namespace ae {
 class Aether : public Obj {
   AE_OBJECT(Aether, Obj, 0)
 
-  Aether() = default;
-
  public:
-  // Internal.
-#ifdef AE_DISTILLATION
   explicit Aether(Domain* domain);
-#endif  // AE_DISTILLATION
-
   ~Aether() override;
-
-#if AE_SUPPORT_REGISTRATION
-  AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, registration_cloud, crypto,
-                             clients_, servers_, tele_statistics, poller,
-                             dns_resolver, adapter_registry,
-                             registration_actions_,
-                             registration_subscriptions_))
-#else
-  AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, registration_cloud, crypto,
-                             clients_, servers_, tele_statistics, poller,
-                             dns_resolver, adapter_registry))
-#endif
-
-  template <typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_);
-    dnv(client_prefab, registration_cloud, crypto, clients_, servers_,
-        tele_statistics, poller, dns_resolver, adapter_registry);
-  }
-
-  template <typename Dnv>
-  void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(base_);
-    dnv(client_prefab, registration_cloud, crypto, clients_, servers_,
-        tele_statistics, poller, dns_resolver, adapter_registry);
-  }
-
-  void Update(TimePoint current_time) override;
 
   // User-facing API.
   operator ActionContext() const { return ActionContext{*action_processor}; }
 
   ActionPtr<SelectClientAction> SelectClient(Uid parent_uid,
-                                             std::uint32_t client_id);
+                                             std::string client_id);
 
-  void AddServer(Server::ptr s);
-  Server::ptr GetServer(ServerId server_id);
+  void AddServer(std::shared_ptr<Server> s);
+  std::shared_ptr<Server> GetServer(ServerId server_id);
 
   std::unique_ptr<ActionProcessor> action_processor =
       make_unique<ActionProcessor>();
 
-  RegistrationCloud::ptr registration_cloud;
+  std::shared_ptr<Cloud> registration_cloud;
 
-  Crypto::ptr crypto;
-  IPoller::ptr poller;
-  DnsResolver::ptr dns_resolver;
+  std::shared_ptr<Crypto> crypto;
+  std::shared_ptr<IPoller> poller;
+  std::shared_ptr<DnsResolver> dns_resolver;
 
-  AdapterRegistry::ptr adapter_registry;
+  std::shared_ptr<AdapterRegistry> adapter_registry;
 
-  tele::TeleStatistics::ptr tele_statistics;
+  std::shared_ptr<tele::TeleStatistics> tele_statistics;
 
  private:
-  Client::ptr FindClient(std::uint32_t client_id);
+  std::shared_ptr<Client> FindClient(std::string const& client_id);
+  std::shared_ptr<Client> AddClient(Uid parent_uid, std::string client_id);
 #if AE_SUPPORT_REGISTRATION
-  ActionPtr<Registration> RegisterClient(Uid parent_uid,
-                                         std::uint32_t client_id);
+  ActionPtr<Registration> FindRegistration(std::string const& client_id);
+  ActionPtr<Registration> RegisterClient(std::shared_ptr<Client> client);
 #endif
 
-  Client::ptr client_prefab;
-
-  std::map<std::uint32_t, Client::ptr> clients_;
-  std::map<ServerId, Server::ptr> servers_;
+  std::vector<std::shared_ptr<Client>> clients_;
+  std::map<ServerId, std::shared_ptr<Server>> servers_;
 
 #if AE_SUPPORT_REGISTRATION
-  std::map<std::uint32_t, ActionPtr<Registration>> registration_actions_;
+  std::map<std::string, ActionPtr<Registration>> registration_actions_;
   MultiSubscription registration_subscriptions_;
 #endif
 };

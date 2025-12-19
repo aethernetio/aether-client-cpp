@@ -21,10 +21,10 @@
 #include <string>
 
 #include "aether/config.h"
+#include "aether/misc/hash.h"
+#include "aether/format/format.h"
 #include "aether/reflect/reflect.h"
 #include "aether/types/variant_type.h"
-
-#include "aether/format/format.h"
 
 namespace ae {
 
@@ -192,6 +192,59 @@ struct Formatter<Endpoint> {
                static_cast<int>(value.protocol));
   }
 };
+
+template <>
+struct Hasher<IpV4Addr> {
+  static constexpr std::uint32_t Get([[maybe_unused]] IpV4Addr const& value,
+                                     crc32::result_t res) {
+#if AE_SUPPORT_IPV4
+    return crc32::from_buffer(value.ipv4_value, sizeof(value.ipv4_value), res)
+        .value;
+#else
+    return res;
+#endif
+  }
+};
+template <>
+struct Hasher<IpV6Addr> {
+  static constexpr crc32::result_t Get([[maybe_unused]] IpV6Addr const& value,
+                                       crc32::result_t res) {
+#if AE_SUPPORT_IPV6
+    return crc32::from_buffer(value.ipv6_value, sizeof(value.ipv6_value), res);
+#else
+    return res;
+#endif
+  }
+};
+template <>
+struct Hasher<NamedAddr> {
+  static constexpr crc32::result_t Get([[maybe_unused]] NamedAddr const& value,
+                                       crc32::result_t res) {
+#if AE_SUPPORT_CLOUD_DNS
+    return Hash(res, value.name);
+#else
+    return res;
+#endif
+  }
+};
+
+template <>
+struct Hasher<Address> {
+  static constexpr crc32::result_t Get(Address const& value,
+                                       crc32::result_t res) {
+    return std::visit([&](auto const& value) { return Hash(res, value); },
+                      value);
+  }
+};
+
+template <>
+struct Hasher<Endpoint> {
+  static constexpr crc32::result_t Get(Endpoint const& value,
+                                       crc32::result_t res) {
+    return Hash(res, value.address, value.port, value.protocol);
+  }
+};
+
 }  // namespace ae
 
 #endif  // AETHER_TYPES_ADDRESS_H_

@@ -42,7 +42,7 @@ class ApiParser {
 
   template <typename TApiClass>
   void Parse(TApiClass& api_class) {
-    while (buffer_reader_.offset_ < buffer_reader_.data_.size()) {
+    while (buffer_reader_.offset < buffer_reader_.data.size()) {
       MessageId message_id{std::numeric_limits<MessageId>::max()};
       istream_ >> message_id;
       api_class.LoadFactory(message_id, *this);

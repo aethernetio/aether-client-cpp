@@ -57,14 +57,12 @@ void RegistratorAction::RegisterClients() {
   // registration should be supported for this tool
   assert(false);
 #else
-  auto aether_ptr = aether_.Lock();
-  assert(aether_ptr);
   for (auto const& p : registrator_config_.GetParents()) {
     auto parent_uid = ae::Uid::FromString(p.uid_str);
     auto clients_num = p.clients_num;
 
     for (auto i = 0; i < clients_num; i++) {
-      auto select_action = aether_ptr->SelectClient(parent_uid, i);
+      auto select_action = aether_->SelectClient(parent_uid, std::to_string(i));
 
       registration_sub_.Push(select_action->StatusEvent().Subscribe(
           ActionHandler{OnResult{[this](auto const&) {

@@ -25,11 +25,11 @@ namespace ae::bench {
 int test_sender_bandwidth(Uid receiver_uid) {
   auto aether_app = ae::AetherApp::Construct(AetherAppContext{});
 
-  ae::Client::ptr client;
+  std::shared_ptr<Client> client;
 
   // select one client
   auto select_client = aether_app->aether()->SelectClient(
-      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 2);
+      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "Sender");
 
   select_client->StatusEvent().Subscribe(
       OnResult{[&](auto const& reg) { client = reg.client(); }});

@@ -22,7 +22,7 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-Receiver::Receiver(ActionContext action_context, Client::ptr client)
+Receiver::Receiver(ActionContext action_context, std::shared_ptr<Client> client)
     : action_context_{action_context},
       client_{std::move(client)},
       bandwidth_api_{action_context, protocol_context_} {}

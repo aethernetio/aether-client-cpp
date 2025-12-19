@@ -31,14 +31,14 @@ class Crypto : public Obj {
   Crypto() = default;
 
  public:
-#ifdef AE_DISTILLATION
-  Crypto(Domain* domain) : Obj{domain} {}
-#endif  // AE_DISTILLATION
+  explicit Crypto(Domain* domain) : Obj{domain} {
+    domain_->Load(*this, Hash(kTypeName));
+  }
 
 #if AE_SIGNATURE != AE_NONE
-  AE_OBJECT_REFLECT(AE_MMBR(signs_pk_))
+  AE_REFLECT_MEMBERS(signs_pk_)
 #else
-  AE_OBJECT_REFLECT()
+  AE_REFLECT()
 #endif
 
 #if AE_SIGNATURE != AE_NONE

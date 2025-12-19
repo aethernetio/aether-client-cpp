@@ -22,29 +22,19 @@ SyncDomainStorage::SyncDomainStorage(std::unique_ptr<IDomainStorage> read_only,
     : read_only_{std::move(read_only)}, read_write_{std::move(read_write)} {}
 
 std::unique_ptr<IDomainStorageWriter> SyncDomainStorage::Store(
-    DomainQuery const& query) {
-  return read_write_->Store(query);
+    DataKey key, std::uint8_t version) {
+  return read_write_->Store(key, version);
 }
 
-ClassList SyncDomainStorage::Enumerate(ObjId const& obj_id) {
-  auto rw_list = read_write_->Enumerate(obj_id);
-  if (rw_list.empty()) {
-    return read_only_->Enumerate(obj_id);
-  }
-  return rw_list;
-}
-
-DomainLoad SyncDomainStorage::Load(DomainQuery const& query) {
-  auto rw_load = read_write_->Load(query);
+DomainLoad SyncDomainStorage::Load(DataKey key, std::uint8_t version) {
+  auto rw_load = read_write_->Load(key, version);
   if (rw_load.result == DomainLoadResult::kEmpty) {
-    return read_only_->Load(query);
+    return read_only_->Load(key, version);
   }
   return rw_load;
 }
 
-void SyncDomainStorage::Remove(ObjId const& obj_id) {
-  read_write_->Remove(obj_id);
-}
+void SyncDomainStorage::Remove(DataKey key) { read_write_->Remove(key); }
 
 void SyncDomainStorage::CleanUp() { read_write_->CleanUp(); }
 

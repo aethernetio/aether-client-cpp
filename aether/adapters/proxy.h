@@ -25,16 +25,12 @@ namespace ae {
 class Proxy : public Obj {
   AE_OBJECT(Proxy, Obj, 0)
 
-  Proxy() = default;
-
  public:
-#ifdef AE_DISTILLATION
   explicit Proxy(Domain* domain) : Obj{domain} {}
-#endif  // AE_DISTILLATION
 
 #if AE_SUPPORT_PROXY == 1
 
-  AE_OBJECT_REFLECT(/* end_point_, mode_ */)
+  AE_REFLECT(/* end_point_, mode_ */)
 
   Endpoint end_point_;
   enum class Mode : std::uint8_t {
@@ -43,7 +39,7 @@ class Proxy : public Obj {
   };
   // [[maybe_unused]] Mode mode_;
 #else
-  AE_OBJECT_REFLECT()
+  AE_REFLECT()
 #endif  // AE_SUPPORT_PROXY == 1
 };
 

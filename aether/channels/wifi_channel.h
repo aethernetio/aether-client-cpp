@@ -28,15 +28,9 @@ class DnsResolver;
 
 class WifiChannel final : public Channel {
   AE_OBJECT(WifiChannel, Channel, 0)
-  WifiChannel() = default;
-
  public:
-  WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
-              ObjPtr<DnsResolver> resolver, WifiAccessPoint::ptr access_point,
-              Endpoint address, Domain* domain);
-
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, resolver_, access_point_,
-                             address))
+  WifiChannel(Aether& aether, IPoller& poller, DnsResolver& resolver,
+              WifiAccessPoint& access_point, Endpoint address, Domain* domain);
 
   Duration TransportBuildTimeout() const override;
 
@@ -45,10 +39,10 @@ class WifiChannel final : public Channel {
   Endpoint address;
 
  private:
-  Obj::ptr aether_;
-  Obj::ptr poller_;
-  Obj::ptr resolver_;
-  WifiAccessPoint::ptr access_point_;
+  Aether* aether_;
+  IPoller* poller_;
+  DnsResolver* resolver_;
+  WifiAccessPoint* access_point_;
 };
 }  // namespace ae
 

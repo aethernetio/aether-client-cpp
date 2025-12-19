@@ -17,8 +17,7 @@
 #include <unity.h>
 
 #include "aether/obj/domain.h"
-#include "aether/obj/obj_ptr.h"
-#include "aether/obj/registry.h"
+
 #include "objects/foo.h"
 #include "objects/bob.h"
 #include "objects/bar.h"

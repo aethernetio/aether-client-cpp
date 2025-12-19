@@ -123,7 +123,7 @@ class StatisticsCounter final {
   }
 
  private:
-  etl::circular_buffer<TValue, Capacity> value_buffer_;
+  etl::circular_buffer<TValue, Capacity> value_buffer_{};
 };
 
 /**

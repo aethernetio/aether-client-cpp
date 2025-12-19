@@ -25,11 +25,11 @@
 #include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
-Ping::Ping(ActionContext action_context, Ptr<Channel> const& channel,
+Ping::Ping(ActionContext action_context, Channel& channel,
            ClientServerConnection& client_server_connection,
            Duration ping_interval)
     : Action{action_context},
-      channel_{channel},
+      channel_{&channel},
       client_server_connection_{&client_server_connection},
       ping_interval_{ping_interval},
       state_{State::kSendPing} {
@@ -77,9 +77,7 @@ void Ping::SendPing() {
                 .count()));
         // save the ping request
         auto current_time = Now();
-        auto channel_ptr = channel_.Lock();
-        assert(channel_ptr);
-        auto expected_ping_time = channel_ptr->ResponseTimeout();
+        auto expected_ping_time = channel_->ResponseTimeout();
         AE_TELED_DEBUG("Ping request expected time {:%S}s", expected_ping_time);
 
         ping_requests_.push(PingRequest{
@@ -144,10 +142,8 @@ void Ping::PingResponse(RequestId request_id) {
       std::chrono::duration_cast<Duration>(current_time - *request_time);
 
   AE_TELED_DEBUG("Ping received by {:%S} s", ping_duration);
-  auto channel_ptr = channel_.Lock();
-  assert(channel_ptr);
-  channel_ptr->channel_statistics().AddResponseTime(ping_duration);
 
+  channel_->channel_statistics().AddResponseTime(ping_duration);
   state_ = State::kWaitInterval;
 }
 

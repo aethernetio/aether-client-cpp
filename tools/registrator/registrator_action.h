@@ -38,7 +38,7 @@ class RegistratorAction : public Action<RegistratorAction> {
  private:
   void RegisterClients();
 
-  PtrView<Aether> aether_;
+  Aether* aether_;
   RegistratorConfig registrator_config_;
 
   std::size_t clients_registered_{0};

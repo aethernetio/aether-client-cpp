@@ -28,7 +28,6 @@
 #    include <mutex>
 
 #    include "aether/common.h"
-#    include "aether/ptr/ptr_view.h"
 #    include "aether/poller/poller.h"
 #    include "aether/actions/action.h"
 #    include "aether/actions/notify_action.h"
@@ -115,7 +114,7 @@ class TcpTransport final : public ByteIStream {
   };
 
  public:
-  TcpTransport(ActionContext action_context, IPoller::ptr const& poller,
+  TcpTransport(ActionContext action_context, IPoller& poller,
                AddressPort const& endpoint);
   ~TcpTransport() override;
 
@@ -135,7 +134,7 @@ class TcpTransport final : public ByteIStream {
   void Disconnect();
 
   ActionContext action_context_;
-  PtrView<IPoller> poller_;
+  IPoller* poller_;
   AddressPort endpoint_;
 
   StreamInfo stream_info_;

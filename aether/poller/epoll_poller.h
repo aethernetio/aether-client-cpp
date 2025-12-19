@@ -31,23 +31,14 @@ class EpollPoller : public IPoller {
 
   class PollWorker;
 
-  EpollPoller();
-
  public:
-#  if defined AE_DISTILLATION
   explicit EpollPoller(Domain* domain);
-#  endif
-
   ~EpollPoller() override;
-
-  AE_OBJECT_REFLECT()
 
   [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) override;
   void Remove(DescriptorType descriptor) override;
 
  private:
-  void InitPollWorker();
-
   std::unique_ptr<PollWorker> poll_worker_;
 };
 

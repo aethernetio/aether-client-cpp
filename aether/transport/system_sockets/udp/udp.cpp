@@ -134,10 +134,10 @@ void UdpTransport::SendAction::Send() {
   state_ = State::kDone;
 }
 
-UdpTransport::UdpTransport(ActionContext action_context,
-                           IPoller::ptr const& poller, AddressPort endpoint)
+UdpTransport::UdpTransport(ActionContext action_context, IPoller& poller,
+                           AddressPort endpoint)
     : action_context_{std::move(action_context)},
-      poller_{poller},
+      poller_{&poller},
       endpoint_{std::move(endpoint)},
       send_queue_manager_{action_context_},
       notify_error_action_{action_context_} {
@@ -176,10 +176,8 @@ void UdpTransport::Connect() {
         Disconnect();
       }});
 
-  auto poller_ptr = poller_.Lock();
-  assert(poller_ptr);
   socket_event_sub_ =
-      poller_ptr->Add(static_cast<DescriptorType>(socket_))
+      poller_->Add(static_cast<DescriptorType>(socket_))
           .Subscribe([this](PollerEvent event) {
             if (event.descriptor != static_cast<DescriptorType>(socket_)) {
               return;
@@ -252,9 +250,7 @@ void UdpTransport::Disconnect() {
     if (!socket_.IsValid()) {
       return;
     }
-    if (auto poller_ptr = poller_.Lock(); poller_ptr) {
-      poller_ptr->Remove(static_cast<DescriptorType>(socket_));
-    }
+    poller_->Remove(static_cast<DescriptorType>(socket_));
     socket_.Disconnect();
   }
 

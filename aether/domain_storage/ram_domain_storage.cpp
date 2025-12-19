@@ -26,27 +26,28 @@
 namespace ae {
 class RamDomainStorageWriter final : public IDomainStorageWriter {
  public:
-  RamDomainStorageWriter(DomainQuery q, RamDomainStorage& s)
-      : query{std::move(q)}, storage{&s}, vector_writer{data_buffer} {
+  RamDomainStorageWriter(DataKey key, std::uint8_t version, RamDomainStorage& s)
+      : key{key}, version{version}, storage{&s}, vector_writer{data_buffer} {
     assert(!storage->write_lock);
   }
   ~RamDomainStorageWriter() override {
-    storage->SaveData(query, std::move(data_buffer));
+    storage->SaveData(key, version, std::move(data_buffer));
   }
 
   void write(void const* data, std::size_t size) override {
     vector_writer.write(data, size);
   }
 
-  DomainQuery query;
+  DataKey key;
+  std::uint8_t version;
   RamDomainStorage* storage;
-  ObjectData data_buffer;
+  DataValue data_buffer;
   VectorWriter<IDomainStorageWriter::size_type> vector_writer;
 };
 
 class RamDomainStorageReader final : public IDomainStorageReader {
  public:
-  RamDomainStorageReader(ObjectData const& d, RamDomainStorage& s)
+  RamDomainStorageReader(DataValue const& d, RamDomainStorage& s)
       : storage{&s}, data_buffer{&d}, reader{*data_buffer} {
     storage->write_lock = true;
   }
@@ -54,11 +55,8 @@ class RamDomainStorageReader final : public IDomainStorageReader {
 
   void read(void* data, std::size_t size) override { reader.read(data, size); }
 
-  ReadResult result() const override { return ReadResult::kYes; }
-  void result(ReadResult) override {}
-
   RamDomainStorage* storage;
-  ObjectData const* data_buffer;
+  DataValue const* data_buffer;
   VectorReader<IDomainStorageReader::size_type> reader;
 };
 
@@ -67,94 +65,61 @@ RamDomainStorage::RamDomainStorage() = default;
 RamDomainStorage::~RamDomainStorage() = default;
 
 std::unique_ptr<IDomainStorageWriter> RamDomainStorage::Store(
-    DomainQuery const& query) {
-  return std::make_unique<RamDomainStorageWriter>(query, *this);
+    DataKey key, std::uint8_t version) {
+  return std::make_unique<RamDomainStorageWriter>(key, version, *this);
 }
 
-ClassList RamDomainStorage::Enumerate(ObjId const& obj_id) {
-  auto obj_map_it = state.find(obj_id);
-  if (obj_map_it == std::end(state)) {
-    AE_TELE_ERROR(kRamDsEnumObjIdNotFound, "Obj not found {}",
-                  obj_id.ToString());
-    return {};
-  }
-  if (!obj_map_it->second) {
-    return {};
-  }
-
-  ClassList classes;
-  classes.reserve(obj_map_it->second->size());
-  for (auto& [cls, _] : *obj_map_it->second) {
-    classes.emplace_back(cls);
-  }
-  AE_TELE_DEBUG(kRamDsEnumerated, "Enumerated for obj {} classes {}",
-                obj_id.ToString(), classes);
-  return classes;
-}
-
-DomainLoad RamDomainStorage::Load(DomainQuery const& query) {
-  auto obj_map_it = state.find(query.id);
+DomainLoad RamDomainStorage::Load(DataKey key, std::uint8_t version) {
+  auto obj_map_it = state.find(key);
   if (obj_map_it == std::end(state)) {
     AE_TELE_ERROR(kRamDsLoadObjIdNoFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+                  "Unable to find data key={}, version={}", key,
+                  static_cast<int>(version));
     return {DomainLoadResult::kEmpty, {}};
   }
   if (!obj_map_it->second) {
     return {DomainLoadResult::kRemoved, {}};
   }
 
-  auto class_map_it = obj_map_it->second->find(query.class_id);
-  if (class_map_it == std::end(*obj_map_it->second)) {
-    AE_TELE_ERROR(kRamDsLoadObjClassIdNotFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
-    return {DomainLoadResult::kEmpty, {}};
-  }
-  auto version_it = class_map_it->second.find(query.version);
-  if (version_it == std::end(class_map_it->second)) {
+  auto version_it = obj_map_it->second->find(version);
+  if (version_it == std::end(*obj_map_it->second)) {
     AE_TELE_ERROR(kRamDsLoadObjVersionNotFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+                  "Unable to find data key={key}, version={}", key,
+                  static_cast<int>(version));
     return {DomainLoadResult::kEmpty, {}};
   }
 
-  AE_TELE_DEBUG(kRamDsObjLoaded,
-                "Loaded object id={}, class id={}, version={}, size={}",
-                query.id.ToString(), query.class_id,
-                static_cast<int>(query.version), version_it->second.size());
+  AE_TELE_DEBUG(kRamDsObjLoaded, "Loaded data key={}, version={}, size={}", key,
+                static_cast<int>(version), version_it->second.size());
 
   return {DomainLoadResult::kLoaded,
           std::make_unique<RamDomainStorageReader>(version_it->second, *this)};
 }
 
-void RamDomainStorage::Remove(ObjId const& obj_id) {
-  auto obj_map_it = state.find(obj_id);
+void RamDomainStorage::Remove(DataKey key) {
+  auto obj_map_it = state.find(key);
   if (obj_map_it == std::end(state)) {
-    state.emplace(obj_id, std::nullopt);
+    // if there was no object, explicitly mark it as removed
+    state.emplace(key, std::nullopt);
     return;
   }
 
   obj_map_it->second.reset();
-  AE_TELE_DEBUG(kRamDsObjRemoved, "Removed object {}", obj_id.ToString());
+  AE_TELE_DEBUG(kRamDsObjRemoved, "Removed data {}", key);
 }
 
 void RamDomainStorage::CleanUp() { state.clear(); }
 
-void RamDomainStorage::SaveData(DomainQuery const& query, ObjectData&& data) {
-  auto& objcect_classes = state[query.id];
-  if (!objcect_classes) {
-    objcect_classes.emplace();
+void RamDomainStorage::SaveData(DataKey key, std::uint8_t version,
+                                DataValue&& data) {
+  auto& versioned_data = state[key];
+  if (!versioned_data) {
+    versioned_data.emplace();
   }
-  auto& saved = (*objcect_classes)[query.class_id][query.version];
+  auto& saved = (*versioned_data)[version];
   saved = std::move(data);
-  AE_TELE_DEBUG(kRamDsObjSaved,
-                "Saved object id={}, class id={}, version={}, size={}",
-                query.id.ToString(), query.class_id,
-                std::to_string(query.version), saved.size());
+  AE_TELE_DEBUG(kRamDsObjSaved, "Saved data key={}, version={}, size={}", key,
+                static_cast<int>(version), saved.size());
 }
 
 }  // namespace ae

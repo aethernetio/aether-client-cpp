@@ -23,8 +23,6 @@
 
 #  include <optional>
 
-#  include "aether/obj/obj_ptr.h"
-#  include "aether/ptr/ptr_view.h"
 #  include "aether/actions/action.h"
 #  include "aether/stream_api/istream.h"
 #  include "aether/types/state_machine.h"
@@ -43,7 +41,7 @@ class Telemetry : public Action<Telemetry> {
   };
 
  public:
-  Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
+  Telemetry(ActionContext action_context, Aether& aether,
             CloudConnection& cloud_connection);
 
   AE_CLASS_NO_COPY_MOVE(Telemetry)
@@ -58,7 +56,7 @@ class Telemetry : public Action<Telemetry> {
   void OnRequestTelemetry(std::size_t server_priority);
   std::optional<Telemetric> CollectTelemetry(StreamInfo const& stream_info);
 
-  PtrView<Aether> aether_;
+  Aether* aether_;
   CloudConnection* cloud_connection_;
 
   CloudConnection::ReplicaSubscription telemetry_request_sub_;

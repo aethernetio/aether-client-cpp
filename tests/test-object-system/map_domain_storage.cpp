@@ -21,91 +21,79 @@
 namespace ae {
 class MapDomainStorageWriter final : public IDomainStorageWriter {
  public:
-  MapDomainStorageWriter(DomainQuery q, MapDomainStorage& s)
-      : query{std::move(q)}, storage{&s}, vector_writer{data} {}
+  MapDomainStorageWriter(DataKey key, std::uint8_t version, MapDomainStorage& s)
+      : key{key}, version{version}, storage{&s}, vector_writer{data_buffer} {}
   ~MapDomainStorageWriter() override {
-    storage->SaveData(query, std::move(data));
+    storage->SaveData(key, version, std::move(data_buffer));
   }
 
   void write(void const* data, std::size_t size) override {
     vector_writer.write(data, size);
   }
 
-  DomainQuery query;
+  DataKey key;
+  std::uint8_t version;
   MapDomainStorage* storage;
-  ObjectData data;
+  DataValue data_buffer;
   VectorWriter<IDomainStorageWriter::size_type> vector_writer;
 };
 
 class MapDomainStorageReader final : public IDomainStorageReader {
  public:
-  explicit MapDomainStorageReader(ObjectData const& d)
-      : data{&d}, reader{*data} {}
+  MapDomainStorageReader(DataValue const& d, MapDomainStorage& s)
+      : storage{&s}, data_buffer{&d}, reader{*data_buffer} {}
 
   void read(void* data, std::size_t size) override { reader.read(data, size); }
 
-  ReadResult result() const override { return ReadResult::kYes; }
-  void result(ReadResult) override {}
-
-  ObjectData const* data;
+  MapDomainStorage* storage;
+  DataValue const* data_buffer;
   VectorReader<IDomainStorageReader::size_type> reader;
 };
 
 std::unique_ptr<IDomainStorageWriter> MapDomainStorage::Store(
-    DomainQuery const& query) {
-  return std::make_unique<MapDomainStorageWriter>(query, *this);
+    DataKey key, std::uint8_t version) {
+  return std::make_unique<MapDomainStorageWriter>(key, version, *this);
 }
 
-ClassList MapDomainStorage::Enumerate(ObjId const& obj_id) {
-  auto class_data_it = map.find(obj_id.id());
-  if (class_data_it == std::end(map)) {
-    return {};
-  }
-  ClassList classes;
-  classes.reserve(class_data_it->second.size());
-  for (auto& [cls, _] : class_data_it->second) {
-    classes.push_back(cls);
-  }
-  return classes;
-}
-
-DomainLoad MapDomainStorage::Load(DomainQuery const& query) {
-  auto obj_map_it = map.find(query.id.id());
+DomainLoad MapDomainStorage::Load(DataKey key, std::uint8_t version) {
+  auto obj_map_it = map.find(key);
   if (obj_map_it == std::end(map)) {
-    return DomainLoad{DomainLoadResult::kEmpty, {}};
+    return {DomainLoadResult::kEmpty, {}};
   }
-  auto class_map_it = obj_map_it->second.find(query.class_id);
-  if (class_map_it == std::end(obj_map_it->second)) {
-    return DomainLoad{DomainLoadResult::kEmpty, {}};
+  if (!obj_map_it->second) {
+    return {DomainLoadResult::kRemoved, {}};
   }
-  auto version_it = class_map_it->second.find(query.version);
-  if (version_it == std::end(class_map_it->second)) {
-    return DomainLoad{DomainLoadResult::kEmpty, {}};
+
+  auto version_it = obj_map_it->second->find(version);
+  if (version_it == std::end(*obj_map_it->second)) {
+    return {DomainLoadResult::kEmpty, {}};
   }
-  if (!version_it->second) {
-    return DomainLoad{DomainLoadResult::kRemoved, {}};
-  }
-  return DomainLoad{
-      DomainLoadResult::kLoaded,
-      std::make_unique<MapDomainStorageReader>(*version_it->second)};
+
+  return {DomainLoadResult::kLoaded,
+          std::make_unique<MapDomainStorageReader>(version_it->second, *this)};
 }
 
-void MapDomainStorage::Remove(ObjId const& obj_id) {
-  auto obj_map_it = map.find(obj_id.id());
+void MapDomainStorage::Remove(DataKey key) {
+  auto obj_map_it = map.find(key);
   if (obj_map_it == std::end(map)) {
+    // if there was no object, explicitly mark it as removed
+    map.emplace(key, std::nullopt);
     return;
   }
-  for (auto& [_, class_data] : obj_map_it->second) {
-    for (auto& [_, version_data] : class_data) {
-      version_data.reset();
-    }
-  }
+
+  obj_map_it->second.reset();
 }
 
 void MapDomainStorage::CleanUp() { map.clear(); }
 
-void MapDomainStorage::SaveData(DomainQuery const& query, ObjectData&& data) {
-  map[query.id.id()][query.class_id][query.version] = std::move(data);
+void MapDomainStorage::SaveData(DataKey key, std::uint8_t version,
+                                DataValue&& data) {
+  auto& versioned_data = map[key];
+  if (!versioned_data) {
+    versioned_data.emplace();
+  }
+  auto& saved = (*versioned_data)[version];
+  saved = std::move(data);
 }
 
 }  // namespace ae

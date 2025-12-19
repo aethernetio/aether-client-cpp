@@ -20,13 +20,11 @@
 #include <map>
 
 #include "aether/obj/obj.h"
-#include "aether/ptr/ptr.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_ptr.h"
 
-#include "aether/cloud.h"
 #include "aether/types/uid.h"
-#include "aether/types/server_id.h"
+#include "aether/work_cloud.h"
 
 namespace ae {
 class Aether;
@@ -41,7 +39,7 @@ class GetCloudAction : public Action<GetCloudAction> {
   using Action::Action;
 
   virtual UpdateStatus Update() = 0;
-  virtual Cloud::ptr cloud() = 0;
+  virtual std::shared_ptr<Cloud> cloud() = 0;
   virtual void Stop() = 0;
 };
 
@@ -51,21 +49,38 @@ class ClientCloudManager : public Obj {
   ClientCloudManager() = default;
 
  public:
-  explicit ClientCloudManager(ObjPtr<Aether> aether, ObjPtr<Client> client,
-                              Domain* domain);
+  explicit ClientCloudManager(Aether& aether, Client& client, Domain* domain);
 
   AE_CLASS_NO_COPY_MOVE(ClientCloudManager)
 
   ActionPtr<GetCloudAction> GetCloud(Uid client_uid);
 
-  Cloud::ptr RegisterCloud(Uid uid, std::vector<Server::ptr> servers);
+  std::shared_ptr<Cloud> RegisterCloud(
+      Uid uid, std::vector<std::shared_ptr<Server>> servers);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_))
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv) {
+    std::vector<Uid> uids;
+    dnv(uids);
+    for (auto const& uid : uids) {
+      cloud_cache_[uid] = std::make_shared<WorkCloud>(*aether_, uid, domain_);
+    }
+  }
+
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv& dnv) const {
+    std::vector<Uid> uids;
+    uids.reserve(cloud_cache_.size());
+    for (auto const& [uid, _] : cloud_cache_) {
+      uids.push_back(uid);
+    }
+    dnv(uids);
+  }
 
  private:
-  Obj::ptr aether_;
-  Obj::ptr client_;
-  std::map<Uid, Cloud::ptr> cloud_cache_;
+  Aether* aether_;
+  Client* client_;
+  std::map<Uid, std::shared_ptr<Cloud>> cloud_cache_;
 };
 }  // namespace ae
 

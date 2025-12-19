@@ -17,9 +17,7 @@
 #include "aether/adapters/adapter.h"
 
 namespace ae {
-#ifdef AE_DISTILLATION
 Adapter::Adapter(Domain* domain) : Obj{domain} {}
-#endif  // AE_DISTILLATION
 
 Adapter::NewAccessPoint::Subscriber Adapter::new_access_point() {
   return EventSubscriber{new_access_point_event_};

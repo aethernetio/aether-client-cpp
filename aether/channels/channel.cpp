@@ -20,30 +20,40 @@
 
 #include "aether/config.h"
 
+#include "aether/tele/tele.h"
+
 namespace ae {
 
-Channel::Channel(Domain* domain)
-    : Obj{domain}, channel_statistics_{domain->CreateObj<ChannelStatistics>()} {
-  channel_statistics_->AddResponseTime(
-      std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS});
-  channel_statistics_->AddConnectionTime(
-      std::chrono::milliseconds{AE_DEFAULT_CONNECTION_TIMEOUT_MS});
+Channel::Channel(DataKey channel_key, Domain* domain)
+    : Obj{domain}, channel_key_{channel_key} {
+  AE_TELED_DEBUG("Create channel with key {}", Hash(kTypeName, channel_key_));
+  domain_->Load(*this, Hash(kTypeName, channel_key_));
+
+  if (channel_statistics_.connection_time_statistics().empty()) {
+    channel_statistics_.AddConnectionTime(
+        std::chrono::milliseconds{AE_DEFAULT_CONNECTION_TIMEOUT_MS});
+  }
+  if (channel_statistics_.response_time_statistics().empty()) {
+    channel_statistics_.AddResponseTime(
+        std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS});
+  }
+  // TODO: add save while state updated
 }
+
+Channel::~Channel() { domain_->Save(*this, Hash(kTypeName, channel_key_)); }
 
 ChannelTransportProperties const& Channel::transport_properties() const {
   return transport_properties_;
 }
 
-ChannelStatistics& Channel::channel_statistics() {
-  return *channel_statistics_;
-}
+ChannelStatistics& Channel::channel_statistics() { return channel_statistics_; }
 
 Duration Channel::TransportBuildTimeout() const {
-  return channel_statistics_->connection_time_statistics().percentile<99>();
+  return channel_statistics_.connection_time_statistics().percentile<99>();
 }
 
 Duration Channel::ResponseTimeout() const {
-  return channel_statistics_->response_time_statistics().percentile<99>();
+  return channel_statistics_.response_time_statistics().percentile<99>();
 }
 
 }  // namespace ae

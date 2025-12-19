@@ -150,25 +150,16 @@ class WinPoller::IoCPPoller {
   std::thread loop_thread_;
 };
 
-WinPoller::WinPoller() = default;
-
-#  if defined AE_DISTILLATION
-WinPoller::WinPoller(Domain* domain) : IPoller(domain) {}
-#  endif
+WinPoller::WinPoller(Domain* domain)
+    : IPoller(domain), iocp_poller_{std::make_unique<IoCPPoller>()} {}
 
 WinPoller::~WinPoller() = default;
 
 WinPoller::OnPollEventSubscriber WinPoller::Add(DescriptorType descriptor) {
-  if (!iocp_poller_) {
-    iocp_poller_ = std::make_unique<IoCPPoller>();
-  }
   return iocp_poller_->Add(descriptor);
 }
 
 void WinPoller::Remove(DescriptorType descriptor) {
-  if (!iocp_poller_) {
-    return;
-  }
   iocp_poller_->Remove(descriptor);
 }
 

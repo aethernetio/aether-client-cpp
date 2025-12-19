@@ -24,10 +24,6 @@
 namespace ae {
 class IPoller : public Obj {
   AE_OBJECT(IPoller, Obj, 0)
-
- protected:
-  IPoller() = default;
-
  public:
   /**
    * \brief Event type for event.
@@ -36,22 +32,19 @@ class IPoller : public Obj {
   using OnPollEvent = Event<void(PollerEvent event)>;
   using OnPollEventSubscriber = typename OnPollEvent::Subscriber;
 
-#if defined AE_DISTILLATION
   explicit IPoller(Domain* domain);
-#endif
   ~IPoller() override;
-
-  AE_OBJECT_REFLECT()
 
   /**
    * \brief Add event for descriptor
    * User must subscribe to returned event subscriber, \see OnPollEvent
    */
-  [[nodiscard]] virtual OnPollEventSubscriber Add(DescriptorType descriptor);
+  [[nodiscard]] virtual OnPollEventSubscriber Add(
+      DescriptorType descriptor) = 0;
   /**
    * \brief Remove event for descriptor
    */
-  virtual void Remove(DescriptorType descriptor);
+  virtual void Remove(DescriptorType descriptor) = 0;
 };
 }  // namespace ae
 

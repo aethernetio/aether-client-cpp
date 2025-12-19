@@ -35,8 +35,7 @@ class RootServerSelectStream final : public ByteIStream {
  public:
   using ServerChangedEvent = Event<void()>;
 
-  RootServerSelectStream(ActionContext action_context,
-                         RegistrationCloud::ptr const& cloud);
+  RootServerSelectStream(ActionContext action_context, Cloud& cloud);
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
@@ -52,7 +51,7 @@ class RootServerSelectStream final : public ByteIStream {
   void StreamUpdateError();
 
   ActionContext action_context_;
-  PtrView<RegistrationCloud> cloud_;
+  Cloud* cloud_;
 
   std::size_t server_index_;
   std::optional<RootServerStream> server_stream_;

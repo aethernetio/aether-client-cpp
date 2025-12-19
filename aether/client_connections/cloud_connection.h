@@ -17,6 +17,7 @@
 #define AETHER_CLIENT_CONNECTIONS_CLOUD_CONNECTION_H_
 
 #include <vector>
+#include <variant>
 
 #include "aether/events/events.h"
 #include "aether/actions/action_ptr.h"

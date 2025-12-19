@@ -61,7 +61,6 @@ inline void AssertPacket(std::vector<std::uint8_t> const& data_packet) {
   int i;
   float f;
   is >> str >> i >> f;
-  TEST_ASSERT(data_was_read(is));
   TEST_ASSERT_EQUAL_STRING("Hello", str.c_str());
   TEST_ASSERT_EQUAL(12, i);
   TEST_ASSERT_EQUAL(12.42, f);

@@ -24,8 +24,9 @@
 #include <cassert>
 #include <string_view>
 
-#include "aether/type_traits.h"
+#include "aether/misc/hash.h"
 #include "aether/types/span.h"
+#include "aether/type_traits.h"
 #include "aether/format/format.h"
 #include "aether/reflect/reflect.h"
 #include "aether/types/literal_array.h"
@@ -105,6 +106,13 @@ struct Formatter<Uid> {
     ae::Format(ctx.out(), "{}-{}-{}-{}-{}", Span{uid.value.data(), 4},
                Span{uid.value.data() + 4, 2}, Span{uid.value.data() + 6, 2},
                Span{uid.value.data() + 8, 2}, Span{uid.value.data() + 10, 6});
+  }
+};
+
+template <>
+struct Hasher<Uid> {
+  static constexpr crc32::result_t Get(Uid const& value, crc32::result_t res) {
+    return crc32::from_buffer(value.value.data(), value.value.size(), res);
   }
 };
 

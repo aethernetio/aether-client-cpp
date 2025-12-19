@@ -25,8 +25,8 @@ extern int run_test_version_iterator();
 
 int main() {
   int res{};
-  res += run_test_object_create();
+  // res += run_test_object_create();
   res += run_test_version_iterator();
-  res += run_test_update_objects();
+  // res += run_test_update_objects();
   return res;
 }

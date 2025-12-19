@@ -24,17 +24,16 @@
 namespace ae {
 
 #ifdef AE_DISTILLATION
-EthernetAdapter::EthernetAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                                 DnsResolver::ptr dns_resolver, Domain* domain)
+EthernetAdapter::EthernetAdapter(Aether& aether, IPoller& poller,
+                                 DnsResolver& dns_resolver, Domain* domain)
     : Adapter{domain},
-      ethernet_access_point_{domain->CreateObj<EthernetAccessPoint>(
-          std::move(aether), std::move(poller), std::move(dns_resolver))} {
+      ethernet_access_point_{aether, poller, dns_resolver, domain_} {
   AE_TELED_INFO("EthernetAdapter created");
 }
 #endif  // AE_DISTILLATION
 
-std::vector<AccessPoint::ptr> EthernetAdapter::access_points() {
-  return {ethernet_access_point_};
+std::vector<AccessPoint*> EthernetAdapter::access_points() {
+  return {&ethernet_access_point_};
 }
 
 }  // namespace ae

@@ -17,13 +17,14 @@
 #ifndef AETHER_OBJ_COMPONENT_CONTEXT_H_
 #define AETHER_OBJ_COMPONENT_CONTEXT_H_
 
+#include <memory>
 #include <cstdint>
+#include <utility>
 #include <unordered_map>
 
 #include "aether/common.h"
 #include "aether/obj/obj.h"
 #include "aether/type_traits.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/types/small_function.h"
 
 namespace ae {
@@ -32,23 +33,23 @@ class ComponentContext {
  public:
   using TypeIndex = std::uint32_t;
 
-  template <
-      typename T, typename TFunc,
-      AE_REQUIRERS((IsFunctor<TFunc, ObjPtr<T>(TContext const& context)>))>
+  template <typename T, typename TFunc,
+            AE_REQUIRERS((
+                IsFunctor<TFunc, std::shared_ptr<T>(TContext const& context)>))>
   void Factory(TFunc&& factory) {
     factories_[T::kClassId] =
-        [fac{std::forward<TFunc>(factory)}](TContext const& context) {
-          return fac(context);
+        [f{std::forward<TFunc>(factory)}](TContext const& context) mutable {
+          return std::invoke(std::forward<TFunc>(f), context);
         };
   }
 
   template <typename T>
-  ObjPtr<T> Resolve() const {
+  std::shared_ptr<T> Resolve() const {
     static constexpr auto class_id = T::kClassId;
     // try cached component
     auto it = components_.find(class_id);
     if (it != components_.end()) {
-      return it->second;
+      return std::static_pointer_cast<T>(it->second);
     }
     // try factory
     auto factory_it = factories_.find(class_id);
@@ -59,14 +60,14 @@ class ComponentContext {
     // create component and save it to factory
     auto component = factory_it->second(static_cast<TContext const&>(*this));
     components_[class_id] = component;
-    return component;
+    return std::static_pointer_cast<T>(component);
   }
 
  private:
-  std::unordered_map<TypeIndex,
-                     SmallFunction<ObjPtr<Obj>(TContext const& context)>>
+  std::unordered_map<
+      TypeIndex, SmallFunction<std::shared_ptr<Obj>(TContext const& context)>>
       factories_;
-  mutable std::unordered_map<TypeIndex, ObjPtr<Obj>> components_;
+  mutable std::unordered_map<TypeIndex, std::shared_ptr<Obj>> components_;
 };
 }  // namespace ae
 

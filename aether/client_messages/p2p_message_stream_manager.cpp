@@ -21,11 +21,11 @@
 
 namespace ae {
 P2pMessageStreamManager::P2pMessageStreamManager(ActionContext action_context,
-                                                 ObjPtr<Client> const& client)
+                                                 Client& client)
     : action_context_{action_context},
-      client_{client},
-      connection_manager_{&client->connection_manager()},
-      cloud_connection_{&client->cloud_connection()} {
+      client_{&client},
+      connection_manager_{&client_->connection_manager()},
+      cloud_connection_{&client_->cloud_connection()} {
   on_message_received_sub_ = cloud_connection_->ClientApiSubscription(
       [this](ClientApiSafe& client_api, auto*) {
         return client_api.send_message_event().Subscribe(
@@ -77,9 +77,7 @@ void P2pMessageStreamManager::CleanUpStreams() {
 }
 
 RcPtr<P2pStream> P2pMessageStreamManager::MakeStream(Uid destination) {
-  Client::ptr client_ptr = client_.Lock();
-  assert(client_ptr);
-  return MakeRcPtr<P2pStream>(action_context_, client_ptr, destination);
+  return MakeRcPtr<P2pStream>(action_context_, *client_, destination);
 }
 
 }  // namespace ae

@@ -32,11 +32,10 @@ class FileSystemStdStorage : public IDomainStorage {
   FileSystemStdStorage();
   ~FileSystemStdStorage() override;
 
-  std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuery const& query) override;
-  ClassList Enumerate(ObjId const& obj_id) override;
-  DomainLoad Load(DomainQuery const& query) override;
-  void Remove(ObjId const& obj_id) override;
+  std::unique_ptr<IDomainStorageWriter> Store(DataKey key,
+                                              std::uint8_t version) override;
+  DomainLoad Load(DataKey key, std::uint8_t version) override;
+  void Remove(DataKey key) override;
   void CleanUp() override;
 };
 }  // namespace ae

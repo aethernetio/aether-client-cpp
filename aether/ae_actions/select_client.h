@@ -42,7 +42,8 @@ class SelectClientAction final : public Action<SelectClientAction> {
   /**
    * \brief Create with client already ready.
    */
-  SelectClientAction(ActionContext action_context, Client::ptr const& client);
+  SelectClientAction(ActionContext action_context,
+                     std::shared_ptr<Client> client);
   /**
    * \brief Wait for client registration or error.
    */
@@ -54,11 +55,11 @@ class SelectClientAction final : public Action<SelectClientAction> {
 
   UpdateStatus Update();
 
-  Client::ptr client() const;
+  std::shared_ptr<Client> client() const;
   State state() const;
 
  private:
-  PtrView<Client> client_;
+  std::shared_ptr<Client> client_;
   StateMachine<State> state_;
 
 #if AE_SUPPORT_REGISTRATION

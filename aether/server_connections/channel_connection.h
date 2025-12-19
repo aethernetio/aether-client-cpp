@@ -18,7 +18,6 @@
 #define AETHER_SERVER_CONNECTIONS_CHANNEL_CONNECTION_H_
 
 #include "aether/common.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/server_connections/server_channel.h"
@@ -27,12 +26,11 @@ namespace ae {
 class Channel;
 class ChannelConnection {
  public:
-  ChannelConnection(ActionContext action_context,
-                    ObjPtr<Channel> const& channel);
+  ChannelConnection(ActionContext action_context, Channel& channel);
 
   AE_CLASS_MOVE_ONLY(ChannelConnection)
 
-  ObjPtr<Channel> channel() const;
+  Channel& channel() const;
 
   /**
    * \brief Return ServerChannel.
@@ -48,7 +46,7 @@ class ChannelConnection {
 
  private:
   ActionContext action_context_;
-  PtrView<Channel> channel_;
+  Channel* channel_;
 };
 }  // namespace ae
 

@@ -27,8 +27,6 @@ IGNORE_IMPLICIT_CONVERSION()
 DISABLE_WARNING_POP()
 
 #include "aether/common.h"
-#include "aether/ptr/ptr.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
 #include "aether/actions/action_context.h"
@@ -58,7 +56,7 @@ class Ping : public Action<Ping> {
   };
 
  public:
-  Ping(ActionContext action_context, Ptr<Channel> const& channel,
+  Ping(ActionContext action_context, Channel& channel,
        ClientServerConnection& client_server_connection,
        Duration ping_interval);
 
@@ -73,7 +71,7 @@ class Ping : public Action<Ping> {
   TimePoint WaitResponse();
   void PingResponse(RequestId request_id);
 
-  PtrView<Channel> channel_;
+  Channel* channel_;
   ClientServerConnection* client_server_connection_;
   Duration ping_interval_;
 

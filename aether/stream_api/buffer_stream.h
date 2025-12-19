@@ -169,7 +169,7 @@ class BufferStream final : public Stream<T, T, T, T> {
 
   void UpdateStream() {
     auto out_info = Base::out_->stream_info();
-    AE_TELED_DEBUG("Rec element size {}", out_info.rec_element_size);
+    AE_TELED_DEBUG("Link state is {}", out_info.link_state);
     if (last_out_stream_info_ != out_info) {
       stream_info_.link_state = out_info.link_state;
       stream_info_.is_reliable = out_info.is_reliable;

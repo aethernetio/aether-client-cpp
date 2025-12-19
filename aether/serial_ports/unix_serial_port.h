@@ -25,7 +25,6 @@
 #  include <mutex>
 #  include <atomic>
 
-#  include "aether/ptr/ptr_view.h"
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
 #  include "aether/actions/action_context.h"
@@ -54,7 +53,7 @@ class UnixSerialPort final : public ISerialPort {
 
  public:
   explicit UnixSerialPort(ActionContext action_context, SerialInit serial_init,
-                          IPoller::ptr const& poller);
+                          IPoller& poller);
   ~UnixSerialPort() override;
 
   void Write(DataBuffer const& data) override;
@@ -71,7 +70,7 @@ class UnixSerialPort final : public ISerialPort {
 
   ActionContext action_context_;
   SerialInit serial_init_;
-  PtrView<IPoller> poller_;
+  IPoller* poller_;
 
   std::mutex fd_lock_;
   int fd_;

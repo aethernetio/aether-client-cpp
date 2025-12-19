@@ -19,15 +19,11 @@
 
 #include "aether/config.h"
 #include "aether/common.h"
-#include "aether/obj/obj.h"
 
 #include "aether/types/statistic_counter.h"
 
 namespace ae {
-class ChannelStatistics final : public Obj {
-  AE_OBJECT(ChannelStatistics, Obj, 0)
-  ChannelStatistics() = default;
-
+class ChannelStatistics {
   static constexpr std::size_t kConnectionWindowSize =
       AE_STATISTICS_CONNECTION_WINDOW_SIZE;
   static constexpr std::size_t kResponseWindowSize =
@@ -39,10 +35,9 @@ class ChannelStatistics final : public Obj {
       StatisticsCounter<Duration, kResponseWindowSize>;
 
  public:
-  explicit ChannelStatistics(Domain* domain);
+  ChannelStatistics() = default;
 
-  AE_OBJECT_REFLECT(AE_MMBRS(connection_time_statistics_,
-                             response_time_statistics_))
+  AE_REFLECT_MEMBERS(connection_time_statistics_, response_time_statistics_)
 
   void AddConnectionTime(Duration duration);
   void AddResponseTime(Duration duration);

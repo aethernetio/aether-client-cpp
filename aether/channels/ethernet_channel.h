@@ -28,21 +28,19 @@ class DnsResolver;
 class EthernetChannel : public Channel {
   AE_OBJECT(EthernetChannel, Channel, 0)
  public:
-  EthernetChannel() = default;
+  EthernetChannel(Aether& aether, DnsResolver& dns_resolver, IPoller& poller,
+                  Endpoint address, Domain* domain);
 
-  EthernetChannel(ObjPtr<Aether> aether, ObjPtr<DnsResolver> dns_resolver,
-                  ObjPtr<IPoller> poller, Endpoint address, Domain* domain);
-
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_, address))
+  AE_REFLECT_MEMBERS(address)
 
   ActionPtr<TransportBuilderAction> TransportBuilder() override;
 
   Endpoint address;
 
  private:
-  Obj::ptr aether_;
-  Obj::ptr poller_;
-  Obj::ptr dns_resolver_;
+  Aether* aether_;
+  IPoller* poller_;
+  DnsResolver* dns_resolver_;
 };
 }  // namespace ae
 

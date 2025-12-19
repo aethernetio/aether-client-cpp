@@ -51,14 +51,14 @@ inline int MakeListenPart() {
   }
   fcntl(l_socket, F_SETFL, O_NONBLOCK);
   auto const addr = MakeLoopbackAddr();
-  if (bind(l_socket, reinterpret_cast<sockaddr const *>(&addr), sizeof(addr)) !=
+  if (bind(l_socket, reinterpret_cast<sockaddr const*>(&addr), sizeof(addr)) !=
       0) {
     AE_TELED_ERROR("Bind listen socket failed with {}", errno);
     close(l_socket);
     assert(false);
     return -1;
   }
-  if (connect(l_socket, reinterpret_cast<sockaddr const *>(&addr),
+  if (connect(l_socket, reinterpret_cast<sockaddr const*>(&addr),
               sizeof(addr)) != 0) {
     AE_TELED_ERROR("Create  socket failed with {}", errno);
     close(l_socket);
@@ -73,13 +73,13 @@ inline std::array<int, 2> MakePipe() {
   return {sock, sock};
 }
 
-inline void WritePipe(std::array<int, 2> const &pipe) {
+inline void WritePipe(std::array<int, 2> const& pipe) {
   if (pipe[1] != -1) {
     send(pipe[1], "1", 1, 0);
   }
 }
 
-inline void ReadPipe(std::array<int, 2> const &pipe) {
+inline void ReadPipe(std::array<int, 2> const& pipe) {
   if (pipe[0] != -1) {
     std::uint8_t buff[16];
     auto n = recv(pipe[0], &buff, sizeof(buff), 0);
@@ -87,7 +87,7 @@ inline void ReadPipe(std::array<int, 2> const &pipe) {
   }
 }
 
-inline void ClosePipe(std::array<int, 2> &pipe) {
+inline void ClosePipe(std::array<int, 2>& pipe) {
   if (pipe[1] != -1) {
     close(pipe[1]);
     pipe[1] = -1;
@@ -99,7 +99,7 @@ inline void ClosePipe(std::array<int, 2> &pipe) {
 }
 }  // namespace freertos_poller_internal
 
-void vTaskFunction(void *pvParameters);
+void vTaskFunction(void* pvParameters);
 
 class FreertosPoller::PollWorker {
  public:
@@ -109,8 +109,8 @@ class FreertosPoller::PollWorker {
     assert(wake_up_pipe_[0] != -1);
     assert(wake_up_pipe_[1] != -1);
 
-    xTaskCreate(static_cast<void (*)(void *)>(&vTaskFunction), "Poller loop",
-                4096, static_cast<void *>(this), tskIDLE_PRIORITY,
+    xTaskCreate(static_cast<void (*)(void*)>(&vTaskFunction), "Poller loop",
+                4096, static_cast<void*>(this), tskIDLE_PRIORITY,
                 &myTaskHandle_);
     AE_TELE_DEBUG(kFreertosWorkerCreate, "Poll worker was created");
   }
@@ -161,7 +161,7 @@ class FreertosPoller::PollWorker {
         continue;
       }
 
-      for (auto const &v : fds_vector) {
+      for (auto const& v : fds_vector) {
         if ((v.fd == wake_up_pipe_[0])) {
           if ((v.revents & POLLIN) != 0) {
             freertos_poller_internal::ReadPipe(wake_up_pipe_);
@@ -176,7 +176,7 @@ class FreertosPoller::PollWorker {
   }
 
  private:
-  std::vector<pollfd> FillFdsVector(std::set<int> const &descriptors) {
+  std::vector<pollfd> FillFdsVector(std::set<int> const& descriptors) {
     std::vector<pollfd> fds;
     fds.reserve(descriptors_.size() + 1);
     {
@@ -187,7 +187,7 @@ class FreertosPoller::PollWorker {
       fds.push_back(pfd);
     }
 
-    for (const auto &desc : descriptors) {
+    for (const auto& desc : descriptors) {
       pollfd pfd;
       pfd.fd = desc;
       pfd.events = POLLIN | POLLOUT;
@@ -222,39 +222,26 @@ class FreertosPoller::PollWorker {
   OnPollEvent poll_event_;
 };
 
-void vTaskFunction(void *pvParameters) {
-  FreertosPoller::PollWorker *poller;
+void vTaskFunction(void* pvParameters) {
+  FreertosPoller::PollWorker* poller;
 
-  poller = static_cast<FreertosPoller::PollWorker *>(pvParameters);
+  poller = static_cast<FreertosPoller::PollWorker*>(pvParameters);
 
   poller->Loop();
 }
 
-FreertosPoller::FreertosPoller() = default;
-
-#  if defined AE_DISTILLATION
-FreertosPoller::FreertosPoller(Domain *domain) : IPoller(domain) {}
-#  endif
+FreertosPoller::FreertosPoller(Domain* domain)
+    : IPoller(domain), poll_worker_{std::make_unique<PollWorker>()} {}
 
 FreertosPoller::~FreertosPoller() = default;
 
 FreertosPoller::OnPollEventSubscriber FreertosPoller::Add(
     DescriptorType descriptor) {
-  if (!poll_worker_) {
-    InitPollWorker();
-  }
   return poll_worker_->Add(descriptor);
 }
 
 void FreertosPoller::Remove(DescriptorType descriptor) {
-  if (!poll_worker_) {
-    return;
-  }
   poll_worker_->Remove(descriptor);
-}
-
-void FreertosPoller::InitPollWorker() {
-  poll_worker_ = std::make_unique<PollWorker>();
 }
 }  // namespace ae
 

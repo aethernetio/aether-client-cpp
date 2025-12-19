@@ -22,9 +22,9 @@
 
 namespace ae {
 ClientConnectionManager::ClientConnectionManager(
-    ObjPtr<Cloud> const& cloud,
+    Cloud& cloud,
     std::unique_ptr<IServerConnectionFactory>&& connection_factory)
-    : cloud_{cloud}, connection_factory_{std::move(connection_factory)} {
+    : cloud_{&cloud}, connection_factory_{std::move(connection_factory)} {
   InitServerConnections();
 }
 
@@ -33,14 +33,8 @@ std::vector<ServerConnection>& ClientConnectionManager::server_connections() {
 }
 
 void ClientConnectionManager::InitServerConnections() {
-  Cloud::ptr cloud = cloud_.Lock();
-  assert(cloud);
-  server_connections_.reserve(cloud->servers().size());
-  for (auto& server : cloud->servers()) {
-    if (!server) {
-      cloud->LoadServer(server);
-    }
-    assert(server);
+  server_connections_.reserve(cloud_->servers().size());
+  for (auto& server : cloud_->servers()) {
     server_connections_.emplace_back(server, *connection_factory_);
   }
 }

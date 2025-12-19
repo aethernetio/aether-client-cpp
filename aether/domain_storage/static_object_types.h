@@ -29,26 +29,22 @@
 namespace ae {
 struct ObjectPathKey {
   bool operator==(ObjectPathKey const& right) const {
-    return std::tie(obj_id, class_id, version) ==
-           std::tie(right.obj_id, right.class_id, right.version);
+    return std::tie(key, version) == std::tie(right.key, right.version);
   }
 
-  std::uint32_t obj_id;
-  std::uint32_t class_id;
+  std::uint32_t key;
   std::uint8_t version;
 };
 
-template <auto ObjectCount, auto ClassDataCount>
+template <auto ObjectCount>
 struct StaticDomainData {
-  StaticMap<std::uint32_t, Span<std::uint32_t const>, ObjectCount> object_map;
-  StaticMap<ObjectPathKey, Span<std::uint8_t const>, ClassDataCount> state_map;
+  StaticMap<ObjectPathKey, Span<std::uint8_t const>, ObjectCount> state_map;
 };
 
-template <std::size_t ObjectCount, std::size_t ClassDataCount>
+template <std::size_t ObjectCount>
 StaticDomainData(
-    StaticMap<std::uint32_t, Span<std::uint32_t const>, ObjectCount>&& om,
-    StaticMap<ObjectPathKey, Span<std::uint8_t const>, ClassDataCount>&& sm)
-    -> StaticDomainData<ObjectCount, ClassDataCount>;
+    StaticMap<ObjectPathKey, Span<std::uint8_t const>, ObjectCount>&& sm)
+    -> StaticDomainData<ObjectCount>;
 }  // namespace ae
 
 #endif  // AETHER_DOMAIN_STORAGE_STATIC_OBJECT_TYPES_H_

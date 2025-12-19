@@ -21,9 +21,8 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-ChannelManager::ChannelManager(ActionContext action_context,
-                               ObjPtr<Server> const& server)
-    : action_context_(action_context), server_(server) {
+ChannelManager::ChannelManager(ActionContext action_context, Server& server)
+    : action_context_{action_context}, server_{&server} {
   AE_TELED_DEBUG("Create channel manager");
   InitChannels();
 }
@@ -31,13 +30,10 @@ ChannelManager::ChannelManager(ActionContext action_context,
 std::vector<ChannelConnection>& ChannelManager::channels() { return channels_; }
 
 void ChannelManager::InitChannels() {
-  auto server = server_.Lock();
-  assert(server);
-
   // TODO: add update channels
-  channels_.reserve(server->channels.size());
-  for (auto const& channel : server->channels) {
-    channels_.emplace_back(action_context_, channel);
+  channels_.reserve(server_->channels.size());
+  for (auto const& channel : server_->channels) {
+    channels_.emplace_back(action_context_, *channel);
   }
 }
 

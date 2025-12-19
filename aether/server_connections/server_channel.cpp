@@ -21,16 +21,16 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-ServerChannel::ServerChannel(ActionContext action_context,
-                             Channel::ptr const& channel)
+ServerChannel::ServerChannel(ActionContext action_context, Channel& channel)
     : action_context_{action_context},
-      channel_{channel},
-      build_transport_action_{channel->TransportBuilder()},
+      channel_{&channel},
+      build_transport_action_{channel_->TransportBuilder()},
       build_transport_sub_{
           build_transport_action_->StatusEvent().Subscribe(ActionHandler{
               OnResult{[this](auto& action) { OnTransportCreated(action); }},
               OnError{[this]() { OnTransportCreateFailed(); }}})},
-      transport_build_timer_{action_context_, channel->TransportBuildTimeout()},
+      transport_build_timer_{action_context_,
+                             channel_->TransportBuildTimeout()},
       transport_build_timer_sub_{
           transport_build_timer_->StatusEvent().Subscribe(
               OnResult{[this](auto const& timer) {
@@ -41,11 +41,7 @@ ServerChannel::ServerChannel(ActionContext action_context,
 
 ByteIStream* ServerChannel::stream() { return transport_stream_.get(); }
 
-ObjPtr<Channel> ServerChannel::channel() const {
-  auto channel_ptr = channel_.Lock();
-  assert(channel_ptr);
-  return channel_ptr;
-}
+Channel& ServerChannel::channel() const { return *channel_; }
 
 ServerChannel::ConnectionResult::Subscriber ServerChannel::connection_result() {
   return EventSubscriber{connection_result_event_};
@@ -57,9 +53,6 @@ void ServerChannel::OnTransportCreated(
 
   build_transport_sub_.Reset();
   transport_build_timer_->Stop();
-
-  auto channel_ptr = channel_.Lock();
-  assert(channel_ptr);
 
   transport_stream_ = transport_builder_action.transport_stream();
   connection_result_event_.Emit(true);

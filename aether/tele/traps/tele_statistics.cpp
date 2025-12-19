@@ -17,9 +17,12 @@
 #include "aether/tele/traps/tele_statistics.h"
 
 namespace ae::tele {
-#ifdef AE_DISTILLATION
-TeleStatistics::TeleStatistics(Domain* domain) : Obj{domain} {}
-#endif
+TeleStatistics::TeleStatistics(Domain* domain) : Obj{domain} {
+  domain_->Load(*this, Hash(kTypeName));
+  // TODO: add save
+}
+
+void TeleStatistics::Save() { domain_->Save(*this, Hash(kTypeName)); }
 
 #if AE_TELE_ENABLED
 std::shared_ptr<statistics::StatisticsTrap> const& TeleStatistics::trap() {

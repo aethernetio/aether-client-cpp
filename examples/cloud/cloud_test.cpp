@@ -63,17 +63,17 @@ int AetherCloudExample() {
    * Clients might be loaded from data storage saved during previous run
    * or Registered if not found.
    */
-  ae::Client::ptr client_a;
-  ae::Client::ptr client_b;
+  std::shared_ptr<ae::Client> client_a;
+  std::shared_ptr<ae::Client> client_b;
 
   auto select_client_a = aether_app->aether()->SelectClient(
-      ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 0);
+      ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "A");
   select_client_a->StatusEvent().Subscribe(ae::ActionHandler{
       ae::OnResult{[&](auto const& action) { client_a = action.client(); }},
       ae::OnError{[&]() { aether_app->Exit(1); }}});
 
   auto select_client_b = aether_app->aether()->SelectClient(
-      ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), 1);
+      ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "B");
   select_client_b->StatusEvent().Subscribe(ae::ActionHandler{
       ae::OnResult{[&](auto const& action) { client_b = action.client(); }},
       ae::OnError{[&]() { aether_app->Exit(1); }}});
@@ -170,8 +170,7 @@ int AetherCloudExample() {
     // Wait for next event or timeout
     auto current_time = ae::Now();
     auto next_time = aether_app->Update(current_time);
-    aether_app->WaitUntil(
-        std::min(next_time, current_time + std::chrono::seconds{5}));
+    aether_app->WaitUntil(next_time);
   }
 
   return aether_app->ExitCode();

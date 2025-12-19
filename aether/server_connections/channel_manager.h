@@ -18,6 +18,7 @@
 #define AETHER_SERVER_CONNECTIONS_CHANNEL_MANAGER_H_
 
 #include <vector>
+#include <memory>
 
 #include "aether/ptr/ptr_view.h"
 
@@ -27,7 +28,7 @@ namespace ae {
 class Server;
 class ChannelManager {
  public:
-  ChannelManager(ActionContext action_context, ObjPtr<Server> const& server);
+  ChannelManager(ActionContext action_context, Server& server);
 
   std::vector<ChannelConnection>& channels();
 
@@ -35,7 +36,7 @@ class ChannelManager {
   void InitChannels();
 
   ActionContext action_context_;
-  PtrView<Server> server_;
+  Server* server_;
   std::vector<ChannelConnection> channels_;
 };
 }  // namespace ae

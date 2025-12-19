@@ -93,15 +93,12 @@ std::pair<std::size_t, std::size_t> StreamDataPacketCollector::GetPacketSize(
 
   PacketSize packet_size;
   is >> packet_size;
-  if (!data_was_read(is)) {
-    return {0, size};
-  }
 
   temp_data_buffer_.clear();
 
-  assert((temp_buffer_size + size) >= reader.offset_);
+  assert((temp_buffer_size + size) >= reader.offset);
   return {static_cast<std::size_t>(packet_size),
-          reader.offset_ - temp_buffer_size};
+          reader.offset - temp_buffer_size};
 }
 
 std::size_t StreamDataPacketCollector::WriteToPacket(Packet& packet,

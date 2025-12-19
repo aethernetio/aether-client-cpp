@@ -27,11 +27,10 @@ class Channel : public Obj {
   AE_OBJECT(Channel, Obj, 0)
 
  public:
-  Channel() = default;
+  Channel(DataKey channel_key, Domain* domain);
+  ~Channel();
 
-  explicit Channel(Domain* domain);
-
-  AE_OBJECT_REFLECT(AE_MMBRS(transport_properties_, channel_statistics_))
+  AE_REFLECT_MEMBERS(transport_properties_, channel_statistics_)
 
   /**
    * \brief Make transport from this channel.
@@ -45,8 +44,9 @@ class Channel : public Obj {
   virtual Duration ResponseTimeout() const;
 
  protected:
+  DataKey channel_key_;
   ChannelTransportProperties transport_properties_;
-  ChannelStatistics::ptr channel_statistics_;
+  ChannelStatistics channel_statistics_;
 };
 
 }  // namespace ae

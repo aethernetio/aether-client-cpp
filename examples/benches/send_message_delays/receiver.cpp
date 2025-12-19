@@ -27,7 +27,7 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-Receiver::Receiver(ActionContext action_context, Client::ptr client,
+Receiver::Receiver(ActionContext action_context, std::shared_ptr<Client> client,
                    SafeStreamConfig safe_stream_config)
     : action_context_{action_context},
       client_{std::move(client)},

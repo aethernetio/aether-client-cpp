@@ -21,19 +21,7 @@ Obj::Obj() = default;
 
 Obj::Obj(Domain* domain) : domain_(domain) {}
 
-Obj::~Obj() {
-  if (domain_ != nullptr) {
-    domain_->RemoveObject(this);
-  }
-}
+Obj::~Obj() = default;
 
 uint32_t Obj::GetClassId() const { return kClassId; }
-
-ObjId Obj::GetId() const { return id_; }
-
-void Obj::Update(TimePoint current_time) {
-  // FIXME: 365 * 24 ?
-  update_time_ = current_time + std::chrono::hours(365 * 24);
-}
-
 }  // namespace ae

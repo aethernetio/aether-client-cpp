@@ -17,15 +17,13 @@
 #include "aether/adapter_registry.h"
 
 namespace ae {
-#if AE_DISTILLATION
 AdapterRegistry::AdapterRegistry(Domain* domain) : Obj{domain} {}
-#endif
 
-void AdapterRegistry::Add(Adapter::ptr adapter) {
+void AdapterRegistry::Add(std::shared_ptr<Adapter> adapter) {
   adapters_.emplace_back(std::move(adapter));
 }
 
-std::vector<Adapter::ptr> const& AdapterRegistry::adapters() const {
+std::vector<std::shared_ptr<Adapter>> const& AdapterRegistry::adapters() const {
   return adapters_;
 }
 }  // namespace ae

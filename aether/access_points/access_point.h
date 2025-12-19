@@ -20,8 +20,6 @@
 #include <vector>
 
 #include "aether/obj/obj.h"
-#include "aether/obj/obj_ptr.h"
-
 namespace ae {
 class Channel;
 class Server;
@@ -41,10 +39,8 @@ class AccessPoint : public Obj {
 
   explicit AccessPoint(Domain* domain);
 
-  AE_OBJECT_REFLECT()
-
-  virtual std::vector<ObjPtr<Channel>> GenerateChannels(
-      ObjPtr<Server> const& server) = 0;
+  virtual std::vector<std::unique_ptr<Channel>> GenerateChannels(
+      Server& server) = 0;
 };
 }  // namespace ae
 

@@ -44,15 +44,9 @@ class WinPoller : public IPoller {
 
   class IoCPPoller;
 
-  WinPoller();
-
  public:
-#  if defined AE_DISTILLATION
   explicit WinPoller(Domain* domain);
-#  endif
   ~WinPoller() override;
-
-  AE_OBJECT_REFLECT()
 
   OnPollEventSubscriber Add(DescriptorType descriptor) override;
   void Remove(DescriptorType descriptor) override;

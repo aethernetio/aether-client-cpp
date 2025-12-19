@@ -39,21 +39,15 @@ RegistrarDomainStorage::~RegistrarDomainStorage() {
 }
 
 std::unique_ptr<IDomainStorageWriter> RegistrarDomainStorage::Store(
-    DomainQuery const& query) {
-  return ram_storage.Store(query);
+    DataKey key, std::uint8_t version) {
+  return ram_storage.Store(key, version);
 }
 
-ClassList RegistrarDomainStorage::Enumerate(const ObjId& obj_id) {
-  return ram_storage.Enumerate(obj_id);
+DomainLoad RegistrarDomainStorage::Load(DataKey key, std::uint8_t version) {
+  return ram_storage.Load(key, version);
 }
 
-DomainLoad RegistrarDomainStorage::Load(DomainQuery const& query) {
-  return ram_storage.Load(query);
-}
-
-void RegistrarDomainStorage::Remove(ObjId const& obj_id) {
-  ram_storage.Remove(obj_id);
-}
+void RegistrarDomainStorage::Remove(DataKey key) { ram_storage.Remove(key); }
 
 void RegistrarDomainStorage::CleanUp() { ram_storage.CleanUp(); }
 
@@ -75,66 +69,35 @@ void RegistrarDomainStorage::SaveState() {
 
   file << preamble;
 
-  // write list of class arrays
-  for (auto const& [obj_id, obj_data] : ram_storage.state) {
-    if (!obj_data) {
-      continue;
-    }
-    Format(file,
-           "static constexpr auto class_array_{} = "
-           "std::array<std::uint32_t, {}>{",
-           obj_id.ToString(), obj_data->size());
-    PrintMapKeysAsData(file, *obj_data);
-    file << "};\n";
-  }
-  file << "\n";
-
   // write list of data arrays
-  for (auto const& [obj_id, obj_data] : ram_storage.state) {
-    if (!obj_data) {
+  for (auto const& [key, version_data] : ram_storage.state) {
+    if (!version_data) {
       continue;
     }
-    for (auto const& [class_id, class_data] : *obj_data) {
-      for (auto const& [version, data] : class_data) {
-        Format(file,
-               "static constexpr auto data_array_{}_{}_{} = "
-               "std::array<std::uint8_t, {}>{",
-               obj_id.ToString(), class_id, static_cast<int>(version),
-               data.size());
-        PrintData(file, data);
-        file << "};\n";
-      }
+    for (auto const& [version, data] : *version_data) {
+      Format(file,
+             "static constexpr auto data_array_{}_{} = "
+             "std::array<std::uint8_t, {}>{",
+             key, static_cast<int>(version), data.size());
+      PrintData(file, data);
+      file << "};\n";
     }
   }
 
   file << "\n";
-  file << "static constexpr auto static_domain_data = ae::StaticDomainData{\n";
 
-  // write object map
-  file << "  ae::StaticMap{{\n";
-  for (auto const& [obj_id, obj_data] : ram_storage.state) {
-    file << "    std::pair{ std::uint32_t{ " << obj_id.ToString()
-         << " } , ae::Span{ class_array_" << obj_id.ToString() << " }},\n";
-  }
-  file << "  }},\n";
-
-  file << "\n";
   // write map
   file << "  ae::StaticMap{{\n";
-  for (auto const& [obj_id, obj_data] : ram_storage.state) {
-    if (!obj_data) {
+  for (auto const& [key, version_data] : ram_storage.state) {
+    if (!version_data) {
       continue;
     }
-    for (auto const& [class_id, class_data] : *obj_data) {
-      for (auto const& [version, _] : class_data) {
-        file << "    std::pair{ ae::ObjectPathKey{ ";
-        Format(file, "{}, {}, {}", obj_id.ToString(), class_id,
-               static_cast<int>(version));
-        file << " }, ae::Span{ ";
-        Format(file, "data_array_{}_{}_{}", obj_id.ToString(), class_id,
-               static_cast<int>(version));
-        file << " }},\n";
-      }
+    for (auto const& [version, _] : *version_data) {
+      file << "    std::pair{ ae::ObjectPathKey{ ";
+      Format(file, "{}, {}", key, static_cast<int>(version));
+      file << " }, ae::Span{ ";
+      Format(file, "data_array_{}_{}", key, static_cast<int>(version));
+      file << " }},\n";
     }
   }
   file << "  \n}},\n";
@@ -150,16 +113,6 @@ void RegistrarDomainStorage::PrintData(std::ofstream& file,
   }
   file << std::setfill(' ') << std::dec << std::setw(0);
 }
-
-template <typename K, typename T>
-void RegistrarDomainStorage::PrintMapKeysAsData(std::ofstream& file,
-                                                std::map<K, T> const& map) {
-  for (auto const& [k, _] : map) {
-    file << static_cast<std::uint64_t>(k) << ", ";
-  }
-  file << std::setfill(' ') << std::dec << std::setw(0);
-}
-
 }  // namespace ae
 
 #endif  // REGISTRAR_DOMAIN_FACILITY_ENABLED

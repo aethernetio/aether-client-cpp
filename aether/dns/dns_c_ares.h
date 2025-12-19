@@ -37,22 +37,15 @@ class AresImpl;
 class DnsResolverCares : public DnsResolver {
   AE_OBJECT(DnsResolverCares, DnsResolver, 0)
 
-  DnsResolverCares();
-
  public:
-#    if defined AE_DISTILLATION
-  DnsResolverCares(ObjPtr<Aether> aether, Domain* domain);
-#    endif
+  DnsResolverCares(Aether& aether, Domain* domain);
   ~DnsResolverCares() override;
-
-  AE_OBJECT_REFLECT(AE_MMBR(aether_))
 
   ActionPtr<ResolveAction> Resolve(NamedAddr const& name_address,
                                    std::uint16_t port_hint,
                                    Protocol protocol_hint) override;
 
  private:
-  Obj::ptr aether_;
   std::unique_ptr<AresImpl> ares_impl_;
 };
 }  // namespace ae
