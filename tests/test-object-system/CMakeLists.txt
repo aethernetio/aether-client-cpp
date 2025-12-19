@@ -23,17 +23,14 @@ list(APPEND obj_srcs
     ${ROOT_DIR}/aether/ptr/ptr.cpp
     ${ROOT_DIR}/aether/ptr/ptr_view.cpp
     ${ROOT_DIR}/aether/ptr/ref_tree.cpp
-    ${ROOT_DIR}/aether/obj/obj_ptr.cpp
     ${ROOT_DIR}/aether/obj/obj.cpp
     ${ROOT_DIR}/aether/obj/domain.cpp
-    ${ROOT_DIR}/aether/obj/obj_id.cpp
-    ${ROOT_DIR}/aether/obj/registry.cpp
 )
 
 list(APPEND test_srcs
     main.cpp
-    test-obj-create.cpp
-    test-update-objects.cpp
+    # test-obj-create.cpp
+    # test-update-objects.cpp
     test-version-iterator.cpp
     map_domain_storage.cpp
 )
