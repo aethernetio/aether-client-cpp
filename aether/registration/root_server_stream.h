@@ -20,7 +20,6 @@
 #if AE_SUPPORT_REGISTRATION
 
 #  include "aether/stream_api/istream.h"
-#  include "aether/stream_api/buffer_stream.h"
 #  include "aether/server_connections/channel_manager.h"
 #  include "aether/server_connections/channel_selection_stream.h"
 
@@ -42,7 +41,6 @@ class RootServerStream final : public ByteIStream {
   ActionContext action_context_;
 
   ChannelManager channel_manager_;
-  BufferStream<DataBuffer> buffer_stream_;
   ChannelSelectStream channel_select_stream_;
 };
 }  // namespace ae

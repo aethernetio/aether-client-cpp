@@ -18,6 +18,7 @@
 #define AETHER_SERVER_CONNECTIONS_CHANNEL_SELECTION_STREAM_H_
 
 #include "aether/stream_api/istream.h"
+#include "aether/stream_api/buffer_stream.h"
 
 #include "aether/server_connections/channel_manager.h"
 
@@ -40,12 +41,15 @@ class ChannelSelectStream final : public ByteIStream {
   void SelectChannel();
   void LinkStream();
   void StreamUpdate();
+  void ServerError();
   void OutData(DataBuffer const& data);
 
   ActionContext action_context_;
   ChannelManager* channel_manager_;
   ChannelConnection* selected_channel_;
   std::unique_ptr<ServerChannel> server_channel_;
+  BufferStream<DataBuffer> buffer_stream_;
+
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;
   StreamUpdateEvent stream_update_event_;
