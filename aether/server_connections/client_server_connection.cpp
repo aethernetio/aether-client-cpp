@@ -92,8 +92,6 @@ class ClientCryptoProvider final : public ICryptoProvider {
 
 }  // namespace _internal
 
-static constexpr std::size_t kBufferCapacity = 200;
-
 ClientServerConnection::ClientServerConnection(ActionContext action_context,
                                                ObjPtr<Client> const& client,
                                                Server::ptr const& server)
@@ -107,12 +105,10 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
                  *crypto_provider_->encryptor()},
       channel_manager_{action_context_, server},
       channel_select_stream_{action_context_, channel_manager_},
-      buffer_stream_{action_context_, kBufferCapacity},
       server_channel_{} {
   AE_TELED_DEBUG("Client server connection");
 
-  Tie(buffer_stream_, channel_select_stream_);
-  out_data_sub_ = buffer_stream_.out_data_event().Subscribe(
+  out_data_sub_ = channel_select_stream_.out_data_event().Subscribe(
       MethodPtr<&ClientServerConnection::OutData>{this});
 
   StreamUpdate();
@@ -122,17 +118,18 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
 void ClientServerConnection::Restream() { channel_select_stream_.Restream(); }
 
 StreamInfo ClientServerConnection::stream_info() const {
-  return buffer_stream_.stream_info();
+  return channel_select_stream_.stream_info();
 }
 
 ByteIStream::StreamUpdateEvent::Subscriber
 ClientServerConnection::stream_update_event() {
-  return buffer_stream_.stream_update_event();
+  return channel_select_stream_.stream_update_event();
 }
 
 ActionPtr<StreamWriteAction> ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
-  auto api_call = ApiCallAdapter{ApiContext{login_api_}, buffer_stream_};
+  auto api_call =
+      ApiCallAdapter{ApiContext{login_api_}, channel_select_stream_};
   api_call->login_by_alias(ephemeral_uid_, std::move(auth_api));
   return api_call.Flush();
 }

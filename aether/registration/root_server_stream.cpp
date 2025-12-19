@@ -19,31 +19,27 @@
 #if AE_SUPPORT_REGISTRATION
 
 namespace ae {
-static constexpr auto kBufferCapacity = 1;
 
 RootServerStream::RootServerStream(ActionContext action_context,
                                    ObjPtr<Server> const& server)
     : action_context_{action_context},
       channel_manager_{action_context, server},
-      buffer_stream_{action_context, kBufferCapacity},
-      channel_select_stream_{action_context, channel_manager_} {
-  Tie(buffer_stream_, channel_select_stream_);
-}
+      channel_select_stream_{action_context, channel_manager_} {}
 
 ActionPtr<StreamWriteAction> RootServerStream::Write(DataBuffer&& data) {
-  return buffer_stream_.Write(std::move(data));
+  return channel_select_stream_.Write(std::move(data));
 }
 StreamInfo RootServerStream::stream_info() const {
-  return buffer_stream_.stream_info();
+  return channel_select_stream_.stream_info();
 }
 
 RootServerStream::StreamUpdateEvent::Subscriber
 RootServerStream::stream_update_event() {
-  return buffer_stream_.stream_update_event();
+  return channel_select_stream_.stream_update_event();
 }
 
 RootServerStream::OutDataEvent::Subscriber RootServerStream::out_data_event() {
-  return buffer_stream_.out_data_event();
+  return channel_select_stream_.out_data_event();
 }
 
 void RootServerStream::Restream() {

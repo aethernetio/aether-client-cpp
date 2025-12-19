@@ -23,15 +23,21 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
+static constexpr std::size_t kBufferCapacity = 200;
+
 ChannelSelectStream::ChannelSelectStream(ActionContext action_context,
                                          ChannelManager& channel_manager)
     : action_context_{action_context},
       channel_manager_{&channel_manager},
       selected_channel_{},
+      buffer_stream_{action_context_, kBufferCapacity},
       stream_info_{},
       is_full_open_{} {
   // TODO: add handle for channels update
   SelectChannel();
+
+  out_data_sub_ = buffer_stream_.out_data_event().Subscribe(
+      MethodPtr<&ChannelSelectStream::OutData>{this});
 }
 
 ActionPtr<StreamWriteAction> ChannelSelectStream::Write(DataBuffer&& data) {
@@ -41,9 +47,7 @@ ActionPtr<StreamWriteAction> ChannelSelectStream::Write(DataBuffer&& data) {
   }
 
   AE_TELED_DEBUG("Write to channel size {}", data.size());
-  auto* stream = server_channel_->stream();
-  assert(stream != nullptr);
-  return stream->Write(std::move(data));
+  return buffer_stream_.Write(std::move(data));
 }
 
 StreamInfo ChannelSelectStream::stream_info() const { return stream_info_; }
@@ -65,15 +69,12 @@ ServerChannel const* ChannelSelectStream::server_channel() const {
 void ChannelSelectStream::Restream() {
   AE_TELED_DEBUG("Restream channels");
   stream_update_sub_.Reset();
-  out_data_sub_.Reset();
 
   if (is_full_open_) {
-    server_channel_.reset();
-    stream_info_.link_state = LinkState::kLinkError;
-    stream_update_event_.Emit();
-    return;
+    ServerError();
+  } else {
+    SelectChannel();
   }
-  SelectChannel();
 }
 
 std::pair<std::unique_ptr<ServerChannel>, ChannelConnection*>
@@ -127,7 +128,10 @@ ChannelSelectStream::TopChannel() {
 }
 
 void ChannelSelectStream::SelectChannel() {
+  stream_update_sub_.Reset();
+  buffer_stream_.Unlink();
   is_full_open_ = false;
+
   // add penalty for previous channel
   if (selected_channel_ != nullptr) {
     selected_channel_->connection_penalty++;
@@ -143,14 +147,12 @@ void ChannelSelectStream::SelectChannel() {
 
   AE_TELED_DEBUG("New channel selected");
 
-  auto const& transport_properties =
-      server_channel_->channel()->transport_properties();
+  auto const& tp = server_channel_->channel()->transport_properties();
+  stream_info_.max_element_size = tp.max_packet_size;
+  stream_info_.rec_element_size = tp.rec_packet_size;
+  stream_info_.is_reliable = (tp.reliability == Reliability::kReliable);
 
   stream_info_.link_state = LinkState::kUnlinked;
-  stream_info_.max_element_size = transport_properties.max_packet_size;
-  stream_info_.rec_element_size = transport_properties.rec_packet_size;
-  stream_info_.is_reliable =
-      transport_properties.reliability == Reliability::kReliable;
 
   channel_connection_sub_ =
       server_channel_->connection_result().Subscribe([this](auto is_connected) {
@@ -167,10 +169,10 @@ void ChannelSelectStream::LinkStream() {
   auto* stream = server_channel_->stream();
   assert(stream != nullptr);
 
+  Tie(buffer_stream_, *stream);
+
   stream_update_sub_ = stream->stream_update_event().Subscribe(
       MethodPtr<&ChannelSelectStream::StreamUpdate>{this});
-  out_data_sub_ = stream->out_data_event().Subscribe(
-      MethodPtr<&ChannelSelectStream::OutData>{this});
 
   StreamUpdate();
 }
@@ -178,14 +180,13 @@ void ChannelSelectStream::LinkStream() {
 void ChannelSelectStream::StreamUpdate() {
   assert(server_channel_ && "Call stream update on empty server channel");
   auto* stream = server_channel_->stream();
-  assert(stream != nullptr);
+  assert(stream != nullptr && "Stream is null");
+
   auto info = stream->stream_info();
   if (info.link_state == LinkState::kLinkError) {
     AE_TELED_DEBUG("Transport link error");
     if (is_full_open_) {
-      AE_TELED_DEBUG("Server error");
-      stream_info_.link_state = LinkState::kLinkError;
-      stream_update_event_.Emit();
+      ServerError();
     } else {
       AE_TELED_DEBUG("Select channel");
       SelectChannel();
@@ -195,6 +196,15 @@ void ChannelSelectStream::StreamUpdate() {
 
   stream_info_.is_writable = info.is_writable;
   stream_info_.link_state = info.link_state;
+  stream_update_event_.Emit();
+}
+
+void ChannelSelectStream::ServerError() {
+  AE_TELED_DEBUG("Server error");
+  stream_update_sub_.Reset();
+  buffer_stream_.Unlink();
+  server_channel_.reset();
+  stream_info_.link_state = LinkState::kLinkError;
   stream_update_event_.Emit();
 }
 
