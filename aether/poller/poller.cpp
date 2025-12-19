@@ -17,21 +17,6 @@
 #include "aether/poller/poller.h"
 
 namespace ae {
-#if defined AE_DISTILLATION
 IPoller::IPoller(Domain* domain) : Obj{domain} {}
-#endif
 IPoller::~IPoller() = default;
-
-[[noreturn]] IPoller::OnPollEventSubscriber no_return_subscriber() {
-  std::abort();
-}
-
-IPoller::OnPollEventSubscriber IPoller::Add(DescriptorType /* descriptor */) {
-  assert(false);
-  // this must never invoked
-  return no_return_subscriber();
-}
-
-void IPoller::Remove(DescriptorType /* descriptor */) { assert(false); }
-
 }  // namespace ae

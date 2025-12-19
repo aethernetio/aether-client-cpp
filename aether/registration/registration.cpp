@@ -38,15 +38,12 @@
 
 namespace ae {
 
-Registration::Registration(ActionContext action_context,
-                           ObjPtr<Aether> const& aether,
-                           RegistrationCloud::ptr const& reg_cloud,
-                           Uid parent_uid, Client::ptr client)
+Registration::Registration(ActionContext action_context, Aether& aether,
+                           Cloud& reg_cloud, std::shared_ptr<Client> client)
     : Action{action_context},
       action_context_{action_context},
-      aether_{aether},
+      aether_{&aether},
       client_{std::move(client)},
-      parent_uid_{std::move(parent_uid)},
       root_crypto_provider_{std::make_unique<RegistrationCryptoProvider>()},
       global_crypto_provider_{std::make_unique<RegistrationCryptoProvider>()},
       client_root_api_{protocol_context_, *root_crypto_provider_->decryptor(),
@@ -58,15 +55,14 @@ Registration::Registration(ActionContext action_context,
       state_{State::kInitConnection},
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
-      sign_pk_{aether_.Lock()->crypto->signs_pk_[kDefaultSignatureMethod]} {
+      sign_pk_{aether_->crypto->signs_pk_[kDefaultSignatureMethod]} {
   AE_TELE_INFO(RegisterStarted);
 
   // parent uid must not be empty
-  assert(!parent_uid_.empty());
+  assert(!client_->parent_uid().empty());
 
   // trigger action on state change
-  state_change_subscription_ =
-      state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
 }
 
 Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
@@ -111,7 +107,7 @@ UpdateStatus Registration::Update() {
   return {};
 }
 
-Client::ptr Registration::client() const { return client_; }
+std::shared_ptr<Client> Registration::client() const { return client_; }
 
 void Registration::InitConnection() {
   AE_TELED_DEBUG("Registration::InitConnection");
@@ -208,7 +204,7 @@ void Registration::RequestPowParams() {
       SubApi{[this, &ret_key](ApiContext<ServerRegistrationApi>& server_api) {
         server_api->set_return_key(std::move(ret_key));
         auto pow_params_promise = server_api->request_proof_of_work_data(
-            parent_uid_, PowMethod::kBCryptCrc32);
+            client_->parent_uid(), PowMethod::kBCryptCrc32);
         response_sub_ =
             pow_params_promise->StatusEvent().Subscribe(ActionHandler{
                 OnResult{[&](auto& promise) {
@@ -269,7 +265,8 @@ void Registration::MakeRegistration() {
       kDefaultCryptoLibProfile,
       SubApi{[this, &proofs](ApiContext<ServerRegistrationApi>& server_api) {
         server_api->registration(
-            pow_params_.salt, pow_params_.password_suffix, proofs, parent_uid_,
+            pow_params_.salt, pow_params_.password_suffix, proofs,
+            client_->parent_uid(),
             SubApi{[this](ApiContext<GlobalRegServerApi>& global_api) {
               // set master key and wait for confirmation
               global_api->set_master_key(master_key_);
@@ -332,20 +329,15 @@ void Registration::OnCloudResolved(
     std::vector<ServerDescriptor> const& servers) {
   AE_TELE_INFO(RegisterResolveCloudResponse);
 
-  auto aether = aether_.Lock();
-  if (!aether) {
-    return;
-  }
+  auto new_cloud =
+      std::make_unique<WorkCloud>(*aether_, uid_, aether_->domain_);
 
-  Cloud::ptr new_cloud = aether->domain_->CreateObj<WorkCloud>();
-  assert(new_cloud);
-
-  std::vector<Server::ptr> server_objects;
+  std::vector<std::shared_ptr<Server>> server_objects;
   server_objects.reserve(servers.size());
 
   for (const auto& description : servers) {
     auto server_id = description.server_id;
-    auto cached_server = aether->GetServer(server_id);
+    auto cached_server = aether_->GetServer(server_id);
     if (cached_server) {
       AE_TELED_DEBUG("Use cached server {}", cached_server->server_id);
       server_objects.emplace_back(cached_server);
@@ -363,18 +355,17 @@ void Registration::OnCloudResolved(
 
     AE_TELED_DEBUG("Got server endpoints {}", endpoints);
 
-    Server::ptr server =
-        aether->domain_->CreateObj<Server>(server_id, std::move(endpoints));
-    assert(server);
-    server->Register(aether->adapter_registry);
-    aether->AddServer(server);
+    auto server =
+        std::make_shared<Server>(server_id, std::move(endpoints),
+                                 aether_->adapter_registry, aether_->domain_);
+    aether_->AddServer(server);
     server_objects.emplace_back(std::move(server));
   }
 
   // sort server objects by order of client_cloud_
   std::sort(
       std::begin(server_objects), std::end(server_objects),
-      [this](Server::ptr const& left, Server::ptr const& right) {
+      [this](auto const& left, auto const& right) {
         auto left_order = std::find(std::begin(client_cloud_),
                                     std::end(client_cloud_), left->server_id);
         auto right_order = std::find(std::begin(client_cloud_),
@@ -382,7 +373,7 @@ void Registration::OnCloudResolved(
         return left_order < right_order;
       });
 
-  new_cloud->AddServers(std::move(server_objects));
+  new_cloud->SetServers(std::move(server_objects));
   client_->SetConfig(uid_, ephemeral_uid_, master_key_, std::move(new_cloud));
 
   AE_TELE_DEBUG(RegisterClientRegistered,

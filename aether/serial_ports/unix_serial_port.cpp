@@ -34,10 +34,8 @@ UnixSerialPort::ReadAction::ReadAction(ActionContext action_context,
   if (serial_port_->fd_ == kInvalidPort) {
     return;
   }
-  auto poller = serial_port_->poller_.Lock();
-  assert(poller);
   poll_sub_ =
-      poller->Add({serial_port_->fd_})
+      serial_port_->poller_->Add({serial_port_->fd_})
           .Subscribe(
               MethodPtr<&UnixSerialPort::ReadAction::ReadAction::PollEvent>{
                   this});
@@ -85,11 +83,10 @@ void UnixSerialPort::ReadAction::ReadData() {
 }
 
 UnixSerialPort::UnixSerialPort(ActionContext action_context,
-                               SerialInit serial_init,
-                               IPoller::ptr const& poller)
+                               SerialInit serial_init, IPoller& poller)
     : action_context_{action_context},
       serial_init_{std::move(serial_init)},
-      poller_{poller},
+      poller_{&poller},
       fd_{OpenPort(serial_init_)},
       read_action_{action_context_, *this} {}
 

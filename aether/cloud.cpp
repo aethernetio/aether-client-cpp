@@ -20,29 +20,6 @@ namespace ae {
 
 Cloud::Cloud(Domain* domain) : Obj{domain} {}
 
-void Cloud::AddServer(Server::ptr server) {
-  servers_.emplace_back(std::move(server));
-  servers_.back().SetFlags(ObjFlags::kUnloadedByDefault);
-  cloud_updated_.Emit();
-}
-
-void Cloud::AddServers(std::vector<Server::ptr> servers) {
-  for (auto&& s : std::move(servers)) {
-    servers_.emplace_back(std::move(s));
-    servers_.back().SetFlags(ObjFlags::kUnloadedByDefault);
-  }
-  cloud_updated_.Emit();
-}
-
-void Cloud::LoadServer(Server::ptr& server) {
-  if (!server) {
-    domain_->LoadRoot(server);
-    assert(server);
-  }
-}
-
-std::vector<Server::ptr>& Cloud::servers() { return servers_; }
-
 EventSubscriber<void()> Cloud::cloud_updated() {
   return EventSubscriber{cloud_updated_};
 }

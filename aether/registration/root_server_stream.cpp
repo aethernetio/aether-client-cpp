@@ -20,8 +20,7 @@
 
 namespace ae {
 
-RootServerStream::RootServerStream(ActionContext action_context,
-                                   ObjPtr<Server> const& server)
+RootServerStream::RootServerStream(ActionContext action_context, Server& server)
     : action_context_{action_context},
       channel_manager_{action_context, server},
       channel_select_stream_{action_context, channel_manager_} {}

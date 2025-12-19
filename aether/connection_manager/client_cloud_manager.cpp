@@ -35,15 +35,15 @@ namespace ae {
 namespace client_cloud_manager_internal {
 class GetCloudFromCache final : public GetCloudAction {
  public:
-  GetCloudFromCache(ActionContext action_context, Cloud::ptr cloud)
+  GetCloudFromCache(ActionContext action_context, std::shared_ptr<Cloud> cloud)
       : GetCloudAction{action_context}, cloud_{std::move(cloud)} {}
 
   UpdateStatus Update() override { return UpdateStatus::Result(); }
-  Cloud::ptr cloud() override { return std::move(cloud_); }
+  std::shared_ptr<Cloud> cloud() override { return std::move(cloud_); }
   void Stop() override {};
 
  private:
-  Cloud::ptr cloud_;
+  std::shared_ptr<Cloud> cloud_;
 };
 
 class GetCloudFromAether : public GetCloudAction {
@@ -85,7 +85,7 @@ class GetCloudFromAether : public GetCloudAction {
     return {};
   }
 
-  Cloud::ptr cloud() override { return std::move(cloud_); }
+  std::shared_ptr<Cloud> cloud() override { return std::move(cloud_); }
   void Stop() override { state_ = State::kStopped; };
 
  private:
@@ -114,6 +114,7 @@ class GetCloudFromAether : public GetCloudAction {
         missing_servers.push_back(sid);
       }
     }
+
     if (!missing_servers.empty()) {
       // If there are missing servers, resolve them from the cloud
       get_servers_action_ = OwnActionPtr<GetServersAction>{
@@ -150,9 +151,9 @@ class GetCloudFromAether : public GetCloudAction {
     }
   }
 
-  std::vector<Server::ptr> BuildNewServers(
+  std::vector<std::shared_ptr<Server>> BuildNewServers(
       std::vector<ServerDescriptor> const& descriptors) {
-    std::vector<Server::ptr> servers;
+    std::vector<std::shared_ptr<Server>> servers;
     for (auto const& sd : descriptors) {
       std::vector<Endpoint> endpoints;
       for (auto const& ip : sd.ips) {
@@ -160,16 +161,16 @@ class GetCloudFromAether : public GetCloudAction {
           endpoints.emplace_back(Endpoint{{ip.ip, pp.port}, pp.protocol});
         }
       }
-      Server::ptr s =
-          aether_->domain_->CreateObj<Server>(sd.server_id, endpoints);
-      s->Register(aether_->adapter_registry);
+
+      auto s = std::make_shared<Server>(
+          sd.server_id, endpoints, aether_->adapter_registry, aether_->domain_);
       aether_->AddServer(s);
       servers.emplace_back(std::move(s));
     }
     return servers;
   }
 
-  void RegisterCloud(std::vector<Server::ptr> servers) {
+  void RegisterCloud(std::vector<std::shared_ptr<Server>> servers) {
     cloud_ =
         client_cloud_manager_->RegisterCloud(client_uid_, std::move(servers));
   }
@@ -185,53 +186,38 @@ class GetCloudFromAether : public GetCloudAction {
   OwnActionPtr<GetServersAction> get_servers_action_;
   Subscription get_servers_sub_;
   std::vector<ServerId> cloud_sids_;
-  std::vector<Server::ptr> servers_;
-  Cloud::ptr cloud_;
+  std::vector<std::shared_ptr<Server>> servers_;
+  std::shared_ptr<Cloud> cloud_;
 };
 
 }  // namespace client_cloud_manager_internal
 
-ClientCloudManager::ClientCloudManager(ObjPtr<Aether> aether,
-                                       ObjPtr<Client> client, Domain* domain)
-    : Obj(domain), aether_{std::move(aether)}, client_{std::move(client)} {}
-
-ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
-  if (!aether_) {
-    domain_->LoadRoot(aether_);
-  }
-  assert(aether_);
-  auto* aether = aether_.as<Aether>();
-
-  auto cached = cloud_cache_.find(client_uid);
-  if (cached != cloud_cache_.end()) {
-    if (!cached->second) {
-      domain_->LoadRoot(cached->second);
-    }
-    assert(cached->second);
-    return ActionPtr<client_cloud_manager_internal::GetCloudFromCache>{
-        *aether, cached->second};
-  }
-  // get from aethernet
-  if (!client_) {
-    domain_->LoadRoot(client_);
-  }
-  assert(client_);
-
-  auto* client = client_.as<Client>();
-  return ActionPtr<client_cloud_manager_internal::GetCloudFromAether>{
-      *aether, *aether, *this, client->cloud_connection(), client_uid};
+ClientCloudManager::ClientCloudManager(Aether& aether, Client& client,
+                                       Domain* domain)
+    : Obj{domain}, aether_{&aether}, client_{&client} {
+  domain_->Load(*this, Hash(kTypeName, client_->uid()));
 }
 
-Cloud::ptr ClientCloudManager::RegisterCloud(Uid uid,
-                                             std::vector<Server::ptr> servers) {
-  if (!aether_) {
-    domain_->LoadRoot(aether_);
+ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
+  auto cached = cloud_cache_.find(client_uid);
+  if (cached != cloud_cache_.end()) {
+    return ActionPtr<client_cloud_manager_internal::GetCloudFromCache>{
+        *aether_, cached->second};
   }
-  auto new_cloud = domain_->CreateObj<WorkCloud>();
-  assert(new_cloud);
-  new_cloud->AddServers(std::move(servers));
+  // get from aethernet
+  return ActionPtr<client_cloud_manager_internal::GetCloudFromAether>{
+      ActionContext{*aether_}, *aether_, *this, client_->cloud_connection(),
+      client_uid};
+}
 
+std::shared_ptr<Cloud> ClientCloudManager::RegisterCloud(
+    Uid uid, std::vector<std::shared_ptr<Server>> servers) {
+  auto new_cloud = std::make_shared<WorkCloud>(*aether_, uid, aether_->domain_);
+  new_cloud->SetServers(std::move(servers));
   cloud_cache_[uid] = new_cloud;
+  // save updated cache
+  domain_->Save(*this, Hash(kTypeName, client_->uid()));
+
   return new_cloud;
 }
 

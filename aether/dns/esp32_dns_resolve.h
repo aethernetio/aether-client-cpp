@@ -36,23 +36,15 @@ class GethostByNameDnsResolver;
 class Esp32DnsResolver : public DnsResolver {
   AE_OBJECT(Esp32DnsResolver, DnsResolver, 0)
 
-  Esp32DnsResolver();
-
  public:
-#    ifdef AE_DISTILLATION
-  Esp32DnsResolver(ObjPtr<Aether> aether, Domain* domain);
-#    endif
-
+  Esp32DnsResolver(Aether& aether, Domain* domain);
   ~Esp32DnsResolver() override;
-
-  AE_OBJECT_REFLECT(AE_MMBR(aether_))
 
   ActionPtr<ResolveAction> Resolve(NamedAddr const& name_address,
                                    std::uint16_t port_hint,
                                    Protocol protocol_hint) override;
 
  private:
-  Obj::ptr aether_;
   std::unique_ptr<GethostByNameDnsResolver> gethostbyname_dns_resolver_;
 };
 }  // namespace ae

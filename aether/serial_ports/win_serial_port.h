@@ -65,7 +65,7 @@ class WinSerialPort final : public ISerialPort {
 
  public:
   explicit WinSerialPort(ActionContext action_context, SerialInit serial_init,
-                         IPoller::ptr const& poller);
+                         IPoller& poller);
   ~WinSerialPort() override;
 
   void Write(DataBuffer const& data) override;
@@ -82,7 +82,7 @@ class WinSerialPort final : public ISerialPort {
 
   ActionContext action_context_;
   SerialInit serial_init_;
-  PtrView<IPoller> poller_;
+  IPoller* poller_;
 
   std::mutex fd_lock_;
   void* fd_;

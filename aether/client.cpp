@@ -19,16 +19,32 @@
 #include <utility>
 
 #include "aether/aether.h"
+#include "aether/work_cloud.h"
+
+#include "aether/tele/tele.h"
 
 namespace ae {
 
-#ifdef AE_DISTILLATION
-Client::Client(Aether::ptr aether, Domain* domain)
-    : Base(domain), aether_{std::move(aether)} {}
-#endif  // AE_DISTILLATION
+Client::Client(Aether& aether, Uid parent_uid, std::string id, Domain* domain)
+    : Obj{domain},
+      aether_{&aether},
+      id_{std::move(id)},
+      parent_uid_{parent_uid} {
+  AE_TELED_DEBUG("Created client parent_uid={}, id={}", parent_uid_, id_);
+  domain_->Load(*this, Hash(kTypeName, id_));
+  if (uid_.empty()) {
+    return;
+  }
 
+  AE_TELED_DEBUG("Loaded client id={}, uid={}", id_, uid_);
+  Init(std::make_unique<WorkCloud>(*aether_, uid_, domain_));
+}
+
+std::string const& Client::client_id() const { return id_; }
+Uid const& Client::parent_uid() const { return parent_uid_; }
 Uid const& Client::uid() const { return uid_; }
 Uid const& Client::ephemeral_uid() const { return ephemeral_uid_; }
+
 ServerKeys* Client::server_state(ServerId server_id) {
   auto ss_it = server_keys_.find(server_id);
   if (ss_it == server_keys_.end()) {
@@ -37,73 +53,62 @@ ServerKeys* Client::server_state(ServerId server_id) {
   return &ss_it->second;
 }
 
-Cloud::ptr const& Client::cloud() const { return cloud_; }
+Cloud& Client::cloud() { return *cloud_; }
 
-ClientCloudManager::ptr const& Client::cloud_manager() const {
-  assert(client_cloud_manager_);
-  return client_cloud_manager_;
-}
+ClientCloudManager& Client::cloud_manager() { return *client_cloud_manager_; }
 
 ServerConnectionManager& Client::server_connection_manager() {
-  if (!server_connection_manager_) {
-    auto aether = Aether::ptr{aether_};
-    server_connection_manager_ = std::make_unique<ServerConnectionManager>(
-        *aether, MakePtrFromThis(this));
-  }
   return *server_connection_manager_;
 }
 
 ClientConnectionManager& Client::connection_manager() {
-  if (!client_connection_manager_) {
-    auto aether = Aether::ptr{aether_};
-    client_connection_manager_ = std::make_unique<ClientConnectionManager>(
-        cloud_, server_connection_manager().GetServerConnectionFactory());
-  }
   return *client_connection_manager_;
 }
 
-CloudConnection& Client::cloud_connection() {
-  if (!cloud_connection_) {
-    auto aether = Aether::ptr{aether_};
-    cloud_connection_ = std::make_unique<CloudConnection>(
-        *aether, connection_manager(), AE_CLOUD_MAX_SERVER_CONNECTIONS);
-
-#if AE_TELE_ENABLED
-    // also create telemetry
-    telemetry_ = ActionPtr<Telemetry>(*aether, aether, *cloud_connection_);
-#endif
-  }
-
-  return *cloud_connection_;
-}
+CloudConnection& Client::cloud_connection() { return *cloud_connection_; }
 
 P2pMessageStreamManager& Client::message_stream_manager() {
-  if (!message_stream_manager_) {
-    auto aether = Aether::ptr{aether_};
-    message_stream_manager_ = std::make_unique<P2pMessageStreamManager>(
-        *aether, MakePtrFromThis(this));
-  }
   return *message_stream_manager_;
 }
 
 void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
-                       Cloud::ptr cloud) {
+                       std::unique_ptr<Cloud> c) {
   uid_ = uid;
   ephemeral_uid_ = ephemeral_uid;
   master_key_ = std::move(master_key);
-  cloud_ = std::move(cloud);
-
-  for (auto& s : cloud_->servers()) {
+  for (auto& s : c->servers()) {
     server_keys_.emplace(s->server_id, ServerKeys{s->server_id, master_key_});
   }
 
-  client_cloud_manager_ = domain_->CreateObj<ClientCloudManager>(
-      ObjPtr<Aether>{aether_}, MakePtrFromThis(this));
+  Init(std::move(c));
+
+  // Save the config
+  domain_->Save(*this, Hash(kTypeName, id_));
 }
 
 void Client::SendTelemetry() {
 #if AE_TELE_ENABLED
   telemetry_->SendTelemetry();
+#endif
+}
+
+void Client::Init(std::unique_ptr<Cloud> cloud) {
+  cloud_ = std::move(cloud);
+  client_cloud_manager_ =
+      std::make_unique<ClientCloudManager>(*aether_, *this, domain_);
+  server_connection_manager_ =
+      std::make_unique<ServerConnectionManager>(*aether_, *this);
+
+  client_connection_manager_ = std::make_unique<ClientConnectionManager>(
+      *cloud_, server_connection_manager_->GetServerConnectionFactory());
+  cloud_connection_ = std::make_unique<CloudConnection>(
+      *aether_, connection_manager(), AE_CLOUD_MAX_SERVER_CONNECTIONS);
+  message_stream_manager_ =
+      std::make_unique<P2pMessageStreamManager>(*aether_, *this);
+#if AE_TELE_ENABLED
+  // also create telemetry
+  telemetry_ = ActionPtr<Telemetry>(ActionContext{*aether_}, *aether_,
+                                    *cloud_connection_);
 #endif
 }
 

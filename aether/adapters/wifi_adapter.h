@@ -22,29 +22,23 @@
 
 #include "aether/wifi/wifi_driver.h"
 #include "aether/adapters/parent_wifi.h"
+#include "aether/access_points/wifi_access_point.h"
 
 namespace ae {
 
 class WifiAdapter final : public ParentWifiAdapter {
   AE_OBJECT(WifiAdapter, ParentWifiAdapter, 0)
-  WifiAdapter() = default;
-
  public:
-#ifdef AE_DISTILLATION
-  WifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-              DnsResolver::ptr dns_resolver, std::string ssid, std::string pass,
-              Domain* domain);
-#endif  // AE_DISTILLATION
+  WifiAdapter(Aether& aether, IPoller& poller, DnsResolver& dns_resolver,
+              std::string ssid, std::string pass, Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
-
-  std::vector<AccessPoint::ptr> access_points() override;
+  std::vector<AccessPoint*> access_points() override;
 
   WifiDriver& driver();
 
  private:
   std::unique_ptr<WifiDriver> wifi_driver_;
-  AccessPoint::ptr access_point_;
+  WifiAccessPoint access_point_;
 };
 }  // namespace ae
 #endif  // AETHER_ADAPTERS_WIFI_ADAPTER_H_

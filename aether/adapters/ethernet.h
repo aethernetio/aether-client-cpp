@@ -36,20 +36,14 @@ class Aether;
 class EthernetAdapter final : public Adapter {
   AE_OBJECT(EthernetAdapter, Adapter, 0)
 
-  EthernetAdapter() = default;
-
  public:
-#ifdef AE_DISTILLATION
-  EthernetAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                  DnsResolver::ptr dns_resolver, Domain* domain);
-#endif  // AE_DISTILLATION
+  EthernetAdapter(Aether& aether, IPoller& poller, DnsResolver& dns_resolver,
+                  Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(ethernet_access_point_))
-
-  std::vector<AccessPoint::ptr> access_points() override;
+  std::vector<AccessPoint*> access_points() override;
 
  private:
-  EthernetAccessPoint::ptr ethernet_access_point_;
+  EthernetAccessPoint ethernet_access_point_;
 };
 }  // namespace ae
 

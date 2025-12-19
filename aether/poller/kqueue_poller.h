@@ -30,22 +30,14 @@ class KqueuePoller : public IPoller {
 
   class PollerWorker;
 
-  KqueuePoller();
-
  public:
-#  if defined AE_DISTILLATION
   KqueuePoller(Domain* domain);
-#  endif
   ~KqueuePoller() override;
-
-  AE_OBJECT_REFLECT()
 
   [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) override;
   void Remove(DescriptorType descriptor) override;
 
  private:
-  void InitPollWorker();
-
   std::unique_ptr<PollerWorker> poller_worker_;
 };
 }  // namespace ae

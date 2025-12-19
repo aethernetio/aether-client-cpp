@@ -19,7 +19,6 @@
 
 #include <cstdint>
 
-#include "aether/obj/obj_ptr.h"
 #include "aether/actions/action.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/types/state_machine.h"
@@ -61,15 +60,11 @@ class WifiAccessPoint final : public AccessPoint {
   WifiAccessPoint() = default;
 
  public:
-  WifiAccessPoint(ObjPtr<Aether> aether, ObjPtr<WifiAdapter> adapter,
-                  ObjPtr<IPoller> poller, ObjPtr<DnsResolver> resolver,
-                  WifiCreds wifi_creds, Domain* domain);
+  WifiAccessPoint(Aether& aether, WifiAdapter& adapter, IPoller& poller,
+                  DnsResolver& resolver, WifiCreds wifi_creds, Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, adapter_, poller_, resolver_,
-                             wifi_creds_))
-
-  std::vector<ObjPtr<Channel>> GenerateChannels(
-      ObjPtr<Server> const& server) override;
+  std::vector<std::unique_ptr<Channel>> GenerateChannels(
+      Server& server) override;
 
   /**
    * \brief Connect or ensure it's connected to current access point.
@@ -78,11 +73,13 @@ class WifiAccessPoint final : public AccessPoint {
 
   bool IsConnected();
 
+  WifiCreds const& creds() const;
+
  private:
-  Obj::ptr aether_;
-  Obj::ptr adapter_;
-  Obj::ptr poller_;
-  Obj::ptr resolver_;
+  Aether* aether_;
+  WifiAdapter* adapter_;
+  IPoller* poller_;
+  DnsResolver* resolver_;
   WifiCreds wifi_creds_;
   ActionPtr<WifiConnectAction> connect_action_;
   Subscription connect_sub_;

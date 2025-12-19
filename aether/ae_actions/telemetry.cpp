@@ -29,10 +29,10 @@
 #  include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
-Telemetry::Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
+Telemetry::Telemetry(ActionContext action_context, Aether& aether,
                      CloudConnection& cloud_connection)
     : Action{action_context},
-      aether_{aether},
+      aether_{&aether},
       cloud_connection_{&cloud_connection},
       state_{State::kWaitRequest} {
   AE_TELE_INFO(TelemetryCreated);
@@ -104,13 +104,7 @@ void Telemetry::OnRequestTelemetry(std::size_t server_priority) {
 
 std::optional<Telemetric> Telemetry::CollectTelemetry(
     StreamInfo const& stream_info) {
-  auto aether_ptr = aether_.Lock();
-  if (!aether_ptr) {
-    assert(false);
-    return std::nullopt;
-  }
-  auto& statistics_storage =
-      aether_ptr->tele_statistics->trap()->statistics_store;
+  auto& statistics_storage = aether_->tele_statistics->trap()->statistics_store;
   auto& env_storage = statistics_storage.env_store();
   Telemetric res{};
   res.cpp.utm_id = env_storage.utm_id;

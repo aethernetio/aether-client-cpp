@@ -24,8 +24,10 @@
 
 namespace ae {
 SelectClientAction::SelectClientAction(ActionContext action_context,
-                                       Client::ptr const& client)
-    : Action{action_context}, client_{client}, state_{State::kClientReady} {
+                                       std::shared_ptr<Client> client)
+    : Action{action_context},
+      client_{std::move(client)},
+      state_{State::kClientReady} {
   AE_TELED_DEBUG("Select loaded client");
   Action::Trigger();
 }
@@ -75,12 +77,7 @@ UpdateStatus SelectClientAction::Update() {
   return {};
 }
 
-Client::ptr SelectClientAction::client() const {
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
-  return client_ptr;
-}
-
+std::shared_ptr<Client> SelectClientAction::client() const { return client_; }
 SelectClientAction::State SelectClientAction::state() const { return state_; }
 
 }  // namespace ae

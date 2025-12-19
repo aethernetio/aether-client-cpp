@@ -21,9 +21,9 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-RootServerSelectStream::RootServerSelectStream(
-    ActionContext action_context, RegistrationCloud::ptr const& cloud)
-    : action_context_{action_context}, cloud_{cloud}, server_index_{} {
+RootServerSelectStream::RootServerSelectStream(ActionContext action_context,
+                                               Cloud& cloud)
+    : action_context_{action_context}, cloud_{&cloud}, server_index_{} {
   SelectServer();
 }
 
@@ -59,16 +59,13 @@ RootServerSelectStream::server_changed_event() {
 }
 
 void RootServerSelectStream::SelectServer() {
-  RegistrationCloud::ptr cloud_ptr = cloud_.Lock();
-  assert(cloud_ptr);
-
-  if (server_index_ >= cloud_ptr->servers().size()) {
+  if (server_index_ >= cloud_->servers().size()) {
     StreamUpdateError();
     return;
   }
-  auto chosen_server = cloud_ptr->servers()[server_index_++];
+  auto chosen_server = cloud_->servers()[server_index_++];
 
-  server_stream_.emplace(action_context_, chosen_server);
+  server_stream_.emplace(action_context_, *chosen_server);
   stream_update_sub_ = server_stream_->stream_update_event().Subscribe(
       MethodPtr<&RootServerSelectStream::StreamUpdate>{this});
   out_data_sub_ = server_stream_->out_data_event().Subscribe(out_data_event_);

@@ -28,25 +28,16 @@ namespace ae {
 
 class FreertosPoller : public IPoller {
   AE_OBJECT(FreertosPoller, IPoller, 0)
-
-  FreertosPoller();
+  class PollWorker;
 
  public:
-  class PollWorker;
-#  if defined AE_DISTILLATION
   explicit FreertosPoller(Domain* domain);
-#  endif
-
   ~FreertosPoller() override;
-
-  AE_OBJECT_REFLECT()
 
   [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) override;
   void Remove(DescriptorType descriptor) override;
 
  private:
-  void InitPollWorker();
-
   std::unique_ptr<PollWorker> poll_worker_;
 };
 

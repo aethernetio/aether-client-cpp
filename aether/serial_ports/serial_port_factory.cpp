@@ -25,8 +25,9 @@
 namespace ae {
 
 std::unique_ptr<ISerialPort> SerialPortFactory::CreatePort(
-    [[maybe_unused]] ActionContext action_context, IPoller::ptr const& poller,
-    SerialInit const& serial_init) {
+    [[maybe_unused]] ActionContext action_context,
+    [[maybe_unused]] IPoller& poller,
+    [[maybe_unused]] SerialInit const& serial_init) {
 #if WIN_SERIAL_PORT_ENABLED == 1
   return std::make_unique<WinSerialPort>(action_context, serial_init, poller);
 #elif ESP32_SERIAL_PORT_ENABLED == 1

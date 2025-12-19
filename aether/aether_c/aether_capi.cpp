@@ -24,8 +24,6 @@
 #include "aether/aether_c/c_errors.h"
 
 #include "aether/memory.h"
-#include "aether/ptr/ptr.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/actions/action.h"
 #include "aether/actions/pipeline.h"
 #include "aether/actions/actions_queue.h"
@@ -52,7 +50,7 @@ static ae::RcPtr<ae::AetherApp> aether_app;
 
 struct AetherClient {
   ClientConfig config;
-  ae::Client::ptr client;
+  std::shared_ptr<ae::Client> client;
   std::map<ae::Uid, ae::RcPtr<ae::P2pStream>> streams;
   ae::OwnActionPtr<ae::ActionsQueue> actions_queue_;
 };
@@ -69,7 +67,7 @@ ae::ActionPtr<ae::SelectClientAction> SelectClientImpl(
     AetherClient* client, ClientConfig const* config) {
   auto parent_uid = ae::Uid{config->parent_uid.value};
   auto select_action =
-      aether_app->aether()->SelectClient(parent_uid, config->id);
+      aether_app->aether()->SelectClient(parent_uid, config->client_id);
 
   struct SelectContext {
     AetherClient* client;
@@ -236,29 +234,30 @@ int AetherInit(AetherConfig const* config) {
       })
 #if AE_DISTILLATION
           .AdaptersFactory([&](ae::AetherAppContext const& context) {
-            auto adapters = context.domain().CreateObj<ae::AdapterRegistry>();
+            auto adapter_registry =
+                std::make_shared<ae::AdapterRegistry>(context.domain());
             if (config->adapters == nullptr) {
-              adapters->Add(context.domain().CreateObj<ae::EthernetAdapter>(
-                  context.aether(), context.poller(), context.dns_resolver()));
+              adapter_registry->Add(std::make_shared<ae::EthernetAdapter>(
+                  *context.aether(), *context.poller(), *context.dns_resolver(),
+                  context.domain()));
             } else {
               assert(config->adapters->count != 0);
               for (size_t i = 0; i < config->adapters->count; ++i) {
                 auto* conf = config->adapters->adapters[i];
                 switch (conf->type) {
                   case AeEthernetAdapter: {
-                    adapters->Add(
-                        context.domain().CreateObj<ae::EthernetAdapter>(
-                            context.aether(), context.poller(),
-                            context.dns_resolver()));
+                    adapter_registry->Add(std::make_shared<ae::EthernetAdapter>(
+                        *context.aether(), *context.poller(),
+                        *context.dns_resolver(), context.domain()));
                     break;
                   }
                   case AeWifiAdapter: {
                     auto* wifi_conf =
                         reinterpret_cast<AeWifiAdapterConf*>(conf);
-                    adapters->Add(context.domain().CreateObj<ae::WifiAdapter>(
-                        context.aether(), context.poller(),
-                        context.dns_resolver(), wifi_conf->ssid,
-                        wifi_conf->password));
+                    adapter_registry->Add(std::make_shared<ae::WifiAdapter>(
+                        *context.aether(), *context.poller(),
+                        *context.dns_resolver(), wifi_conf->ssid,
+                        wifi_conf->password, context.domain()));
                     break;
                   }
                   default:
@@ -267,7 +266,7 @@ int AetherInit(AetherConfig const* config) {
                 }  // switch
               }  // for
             }  // if
-            return adapters;
+            return adapter_registry;
           })
 #endif  // AE_DISTILLATION
   );

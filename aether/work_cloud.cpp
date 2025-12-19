@@ -16,6 +16,42 @@
 
 #include "aether/work_cloud.h"
 
+#include "aether/aether.h"
+
+#include "aether/tele/tele.h"
+
 namespace ae {
-WorkCloud::WorkCloud(Domain* domain) : Cloud(domain) {}
+WorkCloud::WorkCloud(Aether& aether, Uid uid, Domain* domain)
+    : Cloud(domain), aether_{&aether}, uid_{uid} {
+  domain_->Load(*this, Hash(kTypeName, uid_));
+  if (cloud_.empty()) {
+    return;
+  }
+  AE_TELED_DEBUG("Loaded work cloud for uid {} sids [{}]", uid_, cloud_);
+  for (auto const& sid : cloud_) {
+    // check server in aether
+    auto s = aether_->GetServer(sid);
+    if (s) {
+      servers_.emplace_back(std::move(s));
+    } else {
+      s = std::make_shared<Server>(sid, aether_->adapter_registry, domain_);
+      aether_->AddServer(s);
+      servers_.emplace_back(std::move(s));
+    }
+  }
+}
+
+void WorkCloud::SetServers(std::vector<std::shared_ptr<Server>> servers) {
+  servers_ = std::move(servers);
+  cloud_.clear();
+  for (auto const& server : servers_) {
+    cloud_.push_back(server->server_id);
+  }
+  // save cloud
+  domain_->Save(*this, Hash(kTypeName, uid_));
+  cloud_updated_.Emit();
+}
+
+std::vector<std::shared_ptr<Server>>& WorkCloud::servers() { return servers_; }
+
 }  // namespace ae

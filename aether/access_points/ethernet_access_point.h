@@ -20,7 +20,6 @@
 #include "aether/access_points/access_point.h"
 
 #include "aether/obj/obj.h"
-#include "aether/obj/obj_ptr.h"
 
 namespace ae {
 class Aether;
@@ -33,18 +32,16 @@ class EthernetAccessPoint : public AccessPoint {
  public:
   EthernetAccessPoint() = default;
 
-  EthernetAccessPoint(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
-                      ObjPtr<DnsResolver> dns_resolver, Domain* domain);
+  EthernetAccessPoint(Aether& aether, IPoller& poller,
+                      DnsResolver& dns_resolver, Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_))
-
-  std::vector<ObjPtr<Channel>> GenerateChannels(
-      ObjPtr<Server> const& server) override;
+  std::vector<std::unique_ptr<Channel>> GenerateChannels(
+      Server& server) override;
 
  private:
-  Obj::ptr aether_;
-  Obj::ptr poller_;
-  Obj::ptr dns_resolver_;
+  Aether* aether_;
+  IPoller* poller_;
+  DnsResolver* dns_resolver_;
 };
 }  // namespace ae
 

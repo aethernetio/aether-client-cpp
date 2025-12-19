@@ -20,8 +20,6 @@
 #include <map>
 
 #include "aether/ptr/rc_ptr.h"
-#include "aether/obj/obj_ptr.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/actions/action_context.h"
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
@@ -36,25 +34,25 @@ class ServerConnectionManager {
         ServerConnectionManager& server_connection_manager);
 
     RcPtr<ClientServerConnection> CreateConnection(
-        ObjPtr<Server> const& server) override;
+        std::shared_ptr<Server> const& server) override;
 
    private:
     ServerConnectionManager* server_connection_manager_;
   };
 
  public:
-  ServerConnectionManager(ActionContext action_context,
-                          ObjPtr<Client> const& client);
+  ServerConnectionManager(ActionContext action_context, Client& client);
 
   std::unique_ptr<IServerConnectionFactory> GetServerConnectionFactory();
 
-  RcPtr<ClientServerConnection> CreateConnection(ObjPtr<Server> const& server);
+  RcPtr<ClientServerConnection> CreateConnection(
+      std::shared_ptr<Server> const& server);
 
   RcPtr<ClientServerConnection> FindInCache(ServerId server_id) const;
 
  private:
   ActionContext action_context_;
-  PtrView<Client> client_;
+  Client* client_;
   std::map<ServerId, RcPtrView<ClientServerConnection>> cached_connections_;
 };
 }  // namespace ae

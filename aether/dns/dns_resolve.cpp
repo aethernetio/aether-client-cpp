@@ -43,13 +43,7 @@ void ResolveAction::Failed() {
   this->Trigger();
 }
 
-ActionPtr<ResolveAction> DnsResolver::Resolve(
-    NamedAddr const& /* name_address */, std::uint16_t /* port_hint */,
-    Protocol /* protocol_hint */) {
-  // must be overridden
-  assert(false);
-  return {};
-}
+DnsResolver::DnsResolver(Domain* domain) : Obj{domain} {}
 
 }  // namespace ae
 #endif

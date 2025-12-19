@@ -79,7 +79,7 @@ class UdpTransport : public ByteIStream {
   using ErrorEventAction = NotifyAction;
 
  public:
-  UdpTransport(ActionContext action_context, IPoller::ptr const& poller,
+  UdpTransport(ActionContext action_context, IPoller& poller,
                AddressPort endpoint);
   ~UdpTransport() override;
 
@@ -98,7 +98,7 @@ class UdpTransport : public ByteIStream {
   void Disconnect();
 
   ActionContext action_context_;
-  PtrView<IPoller> poller_;
+  IPoller* poller_;
   AddressPort endpoint_;
 
   std::mutex socket_mutex_;

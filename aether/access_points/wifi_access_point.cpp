@@ -65,33 +65,26 @@ UpdateStatus WifiConnectAction::Update() {
 
 WifiConnectAction::State WifiConnectAction::state() const { return state_; }
 
-WifiAccessPoint::WifiAccessPoint(ObjPtr<Aether> aether,
-                                 ObjPtr<WifiAdapter> adapter,
-                                 ObjPtr<IPoller> poller,
-                                 ObjPtr<DnsResolver> resolver,
+WifiAccessPoint::WifiAccessPoint(Aether& aether, WifiAdapter& adapter,
+                                 IPoller& poller, DnsResolver& resolver,
                                  WifiCreds wifi_creds, Domain* domain)
     : AccessPoint{domain},
-      aether_{std::move(aether)},
-      adapter_{std::move(adapter)},
-      poller_{std::move(poller)},
-      resolver_{std::move(resolver)},
+      aether_{&aether},
+      adapter_{&adapter},
+      poller_{&poller},
+      resolver_{&resolver},
       wifi_creds_{std::move(wifi_creds)} {}
 
-std::vector<ObjPtr<Channel>> WifiAccessPoint::GenerateChannels(
-    ObjPtr<Server> const& server) {
-  Aether::ptr aether = aether_;
-  IPoller::ptr poller = poller_;
-  DnsResolver::ptr resolver = resolver_;
-  WifiAccessPoint::ptr wifi_access_point = MakePtrFromThis(this);
-
-  std::vector<ObjPtr<Channel>> channels;
-  channels.reserve(server->endpoints.size());
-  for (auto const& endpoint : server->endpoints) {
+std::vector<std::unique_ptr<Channel>> WifiAccessPoint::GenerateChannels(
+    Server& server) {
+  std::vector<std::unique_ptr<Channel>> channels;
+  channels.reserve(server.endpoints.size());
+  for (auto const& endpoint : server.endpoints) {
     if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
       continue;
     }
-    channels.emplace_back(domain_->CreateObj<WifiChannel>(
-        aether, poller, resolver, wifi_access_point, endpoint));
+    channels.emplace_back(std::make_unique<WifiChannel>(
+        *aether_, *poller_, *resolver_, *this, endpoint, domain_));
   }
   return channels;
 }
@@ -99,9 +92,8 @@ std::vector<ObjPtr<Channel>> WifiAccessPoint::GenerateChannels(
 ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
   // reuse connect action if it's in progress
   if (!connect_action_) {
-    connect_action_ = ActionPtr<WifiConnectAction>{
-        *aether_.as<Aether>(), adapter_.as<WifiAdapter>()->driver(),
-        wifi_creds_};
+    connect_action_ =
+        ActionPtr<WifiConnectAction>{*aether_, adapter_->driver(), wifi_creds_};
     connect_sub_ = connect_action_->FinishedEvent().Subscribe(
         [this]() { connect_action_.reset(); });
   }
@@ -109,9 +101,11 @@ ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
 }
 
 bool WifiAccessPoint::IsConnected() {
-  auto& driver = adapter_.as<WifiAdapter>()->driver();
+  auto& driver = adapter_->driver();
   auto connected_to = driver.connected_to();
   return connected_to.ssid == wifi_creds_.ssid;
 }
+
+WifiCreds const& WifiAccessPoint::creds() const { return wifi_creds_; }
 
 }  // namespace ae

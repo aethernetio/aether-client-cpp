@@ -34,17 +34,10 @@ class Cloud : public Obj {
  public:
   explicit Cloud(Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(servers_))
-
-  void AddServer(Server::ptr server);
-  void AddServers(std::vector<Server::ptr> servers);
-  void LoadServer(Server::ptr& server);
-
-  std::vector<Server::ptr>& servers();
+  virtual std::vector<std::shared_ptr<Server>>& servers() = 0;
   EventSubscriber<void()> cloud_updated();
 
- private:
-  std::vector<Server::ptr> servers_;
+ protected:
   Event<void()> cloud_updated_;
 };
 

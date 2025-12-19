@@ -70,17 +70,10 @@ class omstream : public ostream {
   void write(const void* data, size_t size) { ob_.write(data, size); }
 };
 
-enum class ReadResult {
-  kNo,
-  kYes,
-};
-
 /**
  * struct IBuffer {
  * using size_type = std::uint32_t;
  * size_t read(void* data, size_t size, size_t minimum_size);
- * ReadResult result() const;
- * void result(ReadResult);
  };
  */
 
@@ -92,25 +85,7 @@ class imstream : public istream {
   imstream(IBuffer& input_buffer) : ib_{input_buffer} {}
 
   void read(void* data, size_t size) { ib_.read(data, size); }
-
-  ReadResult result() const { return ib_.result(); }
-  void result(ReadResult result) { ib_.result(result); }
 };
-
-template <typename TStream>
-inline bool data_was_read(TStream& /* is */) {
-  return true;
-}
-
-template <typename Ib>
-inline bool data_was_read(imstream<Ib>& is) {
-  return is.result() == ReadResult::kYes;
-}
-
-template <typename TStream>
-inline bool data_was_written(TStream& /* s */) {
-  return true;
-}
 
 template <bool condition, typename T>
 struct omstream_enable_if : std::enable_if<condition, omstream<T>&> {};
@@ -174,9 +149,7 @@ imstream_enable_if_t<std::is_enum<T>::value, Ib> operator>>(imstream<Ib>& s,
   using Type = typename std::underlying_type<T>::type;
   Type t;
   s >> t;
-  if (s.result() == ReadResult::kYes) {
-    v = static_cast<T>(t);
-  }
+  v = static_cast<T>(t);
   return s;
 }
 
@@ -220,10 +193,8 @@ template <typename Ib>
 imstream<Ib>& operator>>(imstream<Ib>& s, std::string& t) {
   typename Ib::size_type size;
   s >> size;
-  if (data_was_read(s)) {
-    t.resize(static_cast<size_t>(size));
-    s.read(t.data(), static_cast<size_t>(size));
-  }
+  t.resize(static_cast<size_t>(size));
+  s.read(t.data(), static_cast<size_t>(size));
   return s;
 }
 
@@ -247,10 +218,8 @@ imstream_enable_if_t<std::is_scalar_v<T>, Ib> operator>>(imstream<Ib>& s,
                                                          std::vector<T>& t) {
   typename Ib::size_type size;
   s >> size;
-  if (data_was_read(s)) {
-    t.resize(static_cast<size_t>(size));
-    s.read(reinterpret_cast<uint8_t*>(t.data()), t.size() * sizeof(T));
-  }
+  t.resize(static_cast<size_t>(size));
+  s.read(reinterpret_cast<uint8_t*>(t.data()), t.size() * sizeof(T));
   return s;
 }
 
@@ -269,15 +238,9 @@ imstream_enable_if_t<!std::is_scalar_v<T>, Ib> operator>>(imstream<Ib>& s,
                                                           std::vector<T>& t) {
   typename Ib::size_type size;
   s >> size;
-  if (!data_was_read(s)) {
-    return s;
-  }
   t.resize(static_cast<std::size_t>(size));
   for (auto& v : t) {
     s >> v;
-    if (!data_was_read(s)) {
-      break;
-    }
   }
   return s;
 }
@@ -324,9 +287,6 @@ imstream_enable_if_t<!std::is_scalar_v<T>, Ib> operator>>(imstream<Ib>& s,
                                                           std::array<T, N>& t) {
   for (auto& v : t) {
     s >> v;
-    if (!data_was_read(s)) {
-      break;
-    }
   }
   return s;
 }
@@ -352,16 +312,10 @@ template <typename T1, typename T2, typename Ib>
 imstream<Ib>& operator>>(imstream<Ib>& s, std::map<T1, T2>& t) {
   typename Ib::size_type size{};
   s >> size;
-  if (!data_was_read(s)) {
-    return s;
-  }
   t.clear();
   for (uint32_t i = 0; i < static_cast<size_t>(size); i++) {
     std::pair<T1, T2> kv;
     s >> kv;
-    if (!data_was_read(s)) {
-      break;
-    }
     t.emplace(std::move(kv));
   }
   return s;
@@ -371,17 +325,11 @@ template <typename T1, typename T2, typename Ib>
 imstream<Ib>& operator>>(imstream<Ib>& s, std::unordered_map<T1, T2>& t) {
   typename Ib::size_type size{};
   s >> size;
-  if (!data_was_read(s)) {
-    return s;
-  }
   t.clear();
   t.reserve(static_cast<size_t>(size));
   for (auto i = 0; i < static_cast<size_t>(size); ++i) {
     std::pair<T1, T2> kv;
     s >> kv;
-    if (!data_was_read(s)) {
-      break;
-    }
     t.emplace(std::move(kv));
   }
   return s;
@@ -411,16 +359,10 @@ imstream<Ib>& operator>>(imstream<Ib>& s, std::deque<T>& t) {
   typename Ib::size_type size;
   s >> size;
 
-  if (!data_was_read(s)) {
-    return s;
-  }
   t.resize(static_cast<size_t>(size));
 
   for (auto& v : t) {
     s >> v;
-    if (!data_was_read(s)) {
-      break;
-    }
   }
   return s;
 }
@@ -439,16 +381,10 @@ imstream_enable_if_t<std::is_default_constructible_v<T>, Ib>& operator>>(
     imstream<Ib>& s, std::list<T>& t) {
   typename Ib::size_type size;
   s >> size;
-  if (!data_was_read(s)) {
-    return s;
-  }
   t.clear();
   for (uint32_t i = 0; i < size; i++) {
     T v;
     s >> v;
-    if (!data_was_read(s)) {
-      break;
-    }
     t.push_back(std::move(v));
   }
   return s;
@@ -485,9 +421,6 @@ template <typename... T, typename Ib>
 imstream<Ib>& operator>>(imstream<Ib>& s, std::chrono::time_point<T...>& t) {
   std::uint64_t tp;
   s >> tp;
-  if (!data_was_read(s)) {
-    return s;
-  }
   t = std::chrono::time_point<T...>(std::chrono::microseconds(tp));
   return s;
 }
@@ -518,15 +451,10 @@ template <typename T, typename Ib>
 imstream<Ib>& operator>>(imstream<Ib>& s, std::unique_ptr<T>& v) {
   bool has_value{};
   s >> has_value;
-  if (!data_was_read(s)) {
-    return s;
-  }
   if (has_value) {
     auto temp = std::make_unique<T>();
     s >> *temp;
-    if (data_was_read(s)) {
-      v = std::move(temp);
-    }
+    v = std::move(temp);
   }
   return s;
 }
@@ -535,15 +463,10 @@ template <typename T, typename Ib>
 imstream<Ib>& operator>>(imstream<Ib>& s, std::shared_ptr<T>& v) {
   bool has_value{};
   s >> has_value;
-  if (!data_was_read(s)) {
-    return s;
-  }
   if (has_value) {
     auto temp = std::make_unique<T>();
     s >> *temp;
-    if (data_was_read(s)) {
-      v = std::move(temp);
-    }
+    v = std::move(temp);
   }
   return s;
 }

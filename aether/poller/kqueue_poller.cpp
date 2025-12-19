@@ -24,7 +24,6 @@
 
 #  include <map>
 #  include <array>
-#  include <mutex>
 #  include <thread>
 #  include <memory>
 #  include <atomic>
@@ -177,31 +176,18 @@ class KqueuePoller::PollerWorker {
   std::thread thread_;
 };
 
-KqueuePoller::KqueuePoller() = default;
-
-#  if defined AE_DISTILLATION
-KqueuePoller::KqueuePoller(Domain* domain) : IPoller(domain) {}
-#  endif
+KqueuePoller::KqueuePoller(Domain* domain)
+    : IPoller(domain), poller_worker_{std::make_unique<PollerWorker>()} {}
 
 KqueuePoller::~KqueuePoller() = default;
 
 [[nodiscard]] KqueuePoller::OnPollEventSubscriber KqueuePoller::Add(
     DescriptorType descriptor) {
-  if (!poller_worker_) {
-    InitPollWorker();
-  }
   return poller_worker_->Add(descriptor);
 }
 
 void KqueuePoller::Remove(DescriptorType descriptor) {
-  if (!poller_worker_) {
-    return;
-  }
   poller_worker_->Remove(descriptor);
-}
-
-void KqueuePoller::InitPollWorker() {
-  poller_worker_ = std::make_unique<PollerWorker>();
 }
 }  // namespace ae
 #endif

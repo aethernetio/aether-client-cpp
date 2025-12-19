@@ -23,7 +23,6 @@
 #  include <sys/epoll.h>
 
 #  include <array>
-#  include <mutex>
 #  include <atomic>
 #  include <thread>
 #  include <cerrno>
@@ -198,30 +197,17 @@ class EpollPoller::PollWorker {
   std::thread thread_;
 };
 
-EpollPoller::EpollPoller() = default;
-
-#  if defined AE_DISTILLATION
-EpollPoller::EpollPoller(Domain* domain) : IPoller(domain) {}
-#  endif
+EpollPoller::EpollPoller(Domain* domain)
+    : IPoller(domain), poll_worker_{std::make_unique<PollWorker>()} {}
 
 EpollPoller::~EpollPoller() = default;
 
 EpollPoller::OnPollEventSubscriber EpollPoller::Add(DescriptorType descriptor) {
-  if (!poll_worker_) {
-    InitPollWorker();
-  }
   return poll_worker_->Add(descriptor);
 }
 
 void EpollPoller::Remove(DescriptorType descriptor) {
-  if (!poll_worker_) {
-    return;
-  }
   poll_worker_->Remove(descriptor);
-}
-
-void EpollPoller::InitPollWorker() {
-  poll_worker_ = std::make_unique<PollWorker>();
 }
 }  // namespace ae
 #endif

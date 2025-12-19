@@ -18,7 +18,6 @@
 #define AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 
 #include "aether/ptr/rc_ptr.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
@@ -31,7 +30,7 @@ class Server;
  */
 class ServerConnection {
  public:
-  ServerConnection(ObjPtr<Server> const& server,
+  ServerConnection(std::shared_ptr<Server> server,
                    IServerConnectionFactory& connection_factory);
 
   std::size_t priority() const;
@@ -68,10 +67,10 @@ class ServerConnection {
    */
   ClientServerConnection* ClientConnection();
 
-  ObjPtr<Server> server() const;
+  std::shared_ptr<Server> server() const;
 
  private:
-  PtrView<Server> server_;
+  std::shared_ptr<Server> server_;
   IServerConnectionFactory* connection_factory_;
   RcPtr<ClientServerConnection> client_connection_;
   std::size_t priority_;

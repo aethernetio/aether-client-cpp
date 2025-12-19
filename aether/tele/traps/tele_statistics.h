@@ -18,8 +18,6 @@
 #define AETHER_TELE_TRAPS_TELE_STATISTICS_H_
 
 #include "aether/obj/obj.h"
-#include "aether/ptr/rc_ptr.h"
-#include "aether/reflect/reflect.h"
 
 #include "aether/tele/tele.h"
 #include "aether/tele/traps/statistics_trap.h"
@@ -31,23 +29,24 @@ class TeleStatistics : public Obj {
   TeleStatistics() = default;
 
  public:
-#ifdef AE_DISTILLATION
   explicit TeleStatistics(Domain* domain);
-#endif  // AE_DISTILLATION
+
+  void Save();
 
 #if AE_TELE_ENABLED
-  AE_OBJECT_REFLECT(AE_MMBR(trap_))
-
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_, *trap_);
+    dnv(*trap_);
   }
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(base_, *trap_);
+    dnv(*trap_);
   }
 #else
-  AE_OBJECT_REFLECT()
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv&) {}
+  template <typename Dnv>
+  void Save(CurrentVersion, Dnv&) const {}
 #endif
 
 #if AE_TELE_ENABLED

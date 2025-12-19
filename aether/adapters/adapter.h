@@ -32,19 +32,12 @@ namespace ae {
 class Adapter : public Obj {
   AE_OBJECT(Adapter, Obj, 0)
 
- protected:
-  Adapter() = default;
-
  public:
-  using NewAccessPoint = Event<void(AccessPoint::ptr const&)>;
+  using NewAccessPoint = Event<void(AccessPoint&)>;
 
-#ifdef AE_DISTILLATION
   explicit Adapter(Domain* domain);
-#endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT()
-
-  virtual std::vector<AccessPoint::ptr> access_points() = 0;
+  virtual std::vector<AccessPoint*> access_points() = 0;
 
   virtual NewAccessPoint::Subscriber new_access_point();
 

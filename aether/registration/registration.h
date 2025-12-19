@@ -25,14 +25,10 @@
 
 #  include "aether/common.h"
 #  include "aether/memory.h"
-#  include "aether/ptr/ptr.h"
 #  include "aether/types/uid.h"
-#  include "aether/ptr/ptr_view.h"
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
-#  include "aether/stream_api/istream.h"
 #  include "aether/types/state_machine.h"
-#  include "aether/events/multi_subscription.h"
 
 #  include "aether/client.h"
 #  include "aether/registration_cloud.h"
@@ -60,14 +56,13 @@ class Registration final : public Action<Registration> {
   };
 
  public:
-  Registration(ActionContext action_context, ObjPtr<Aether> const& aether,
-               RegistrationCloud::ptr const& reg_cloud, Uid parent_uid,
-               Client::ptr client);
+  Registration(ActionContext action_context, Aether& aether, Cloud& reg_cloud,
+               std::shared_ptr<Client> client);
   ~Registration() override;
 
   UpdateStatus Update();
 
-  Client::ptr client() const;
+  std::shared_ptr<Client> client() const;
 
  private:
   void InitConnection();
@@ -80,9 +75,8 @@ class Registration final : public Action<Registration> {
   void OnCloudResolved(std::vector<ServerDescriptor> const& servers);
 
   ActionContext action_context_;
-  PtrView<Aether> aether_;
-  Ptr<Client> client_;
-  Uid parent_uid_;
+  Aether* aether_;
+  std::shared_ptr<Client> client_;
 
   ProtocolContext protocol_context_;
 
@@ -114,7 +108,6 @@ class Registration final : public Action<Registration> {
   Subscription raw_transport_send_action_subscription_;
   Subscription reg_server_write_subscription_;
   Subscription response_sub_;
-  Subscription state_change_subscription_;
 };
 }  // namespace ae
 

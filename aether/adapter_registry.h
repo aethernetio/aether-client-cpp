@@ -25,24 +25,18 @@ namespace ae {
 class AdapterRegistry final : public Obj {
   AE_OBJECT(AdapterRegistry, Obj, 0)
 
-  AdapterRegistry() = default;
-
  public:
-#if AE_DISTILLATION
   explicit AdapterRegistry(Domain* domain);
-#endif
-
-  AE_OBJECT_REFLECT(AE_MMBRS(adapters_))
 
   /**
    * \brief Add adapter to the registry
    */
-  void Add(Adapter::ptr adapter);
+  void Add(std::shared_ptr<Adapter> adapter);
 
-  std::vector<Adapter::ptr> const& adapters() const;
+  std::vector<std::shared_ptr<Adapter>> const& adapters() const;
 
  private:
-  std::vector<Adapter::ptr> adapters_;
+  std::vector<std::shared_ptr<Adapter>> adapters_;
 };
 }  // namespace ae
 
