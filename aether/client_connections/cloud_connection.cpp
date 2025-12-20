@@ -33,13 +33,17 @@ class ReplicaStreamWriteAction final : public StreamWriteAction {
       std::vector<ActionPtr<StreamWriteAction>> replica_actions)
       : StreamWriteAction(action_context),
         replica_actions_(std::move(replica_actions)) {
+    if (replica_actions_.empty()) {
+      state_ = State::kFailed;
+      return;
+    }
     for (auto& action : replica_actions_) {
       // get the state from replicas by OR
-      subs_.Push(action->state().changed_event().Subscribe([this](auto state) {
+      subs_ += action->state().changed_event().Subscribe([this](auto state) {
         if (state_ < state) {
           state_ = state;
         }
-      }));
+      });
     }
   }
 
@@ -99,7 +103,7 @@ void CloudConnection::ReplicaSubscription::ServersUpdate() {
   cloud_connection_->VisitServers(
       [&](ServerConnection* sc) {
         if (auto* conn = sc->ClientConnection(); conn != nullptr) {
-          subscriptions_.Push(subscriber_(conn->client_safe_api(), sc));
+          subscriptions_ += subscriber_(conn->client_safe_api(), sc);
         }
       },
       request_policy_);
@@ -172,14 +176,19 @@ void CloudConnection::Restream() {
 
 void CloudConnection::VisitServers(RequestPolicy::MainServer,
                                    ServerVisitor const& visitor) {
+  if (selected_servers_.empty()) {
+    return;
+  }
   auto* server_conn = selected_servers_.front();
   visitor(server_conn);
 }
 
 void CloudConnection::VisitServers(RequestPolicy::Priority priority,
                                    ServerVisitor const& visitor) {
-  auto index = std::min(selected_servers_.size() - 1, priority.priority);
-  auto* server_conn = selected_servers_[index];
+  if (priority.priority >= selected_servers_.size()) {
+    return;
+  }
+  auto* server_conn = selected_servers_[priority.priority];
   visitor(server_conn);
 }
 
@@ -227,21 +236,21 @@ void CloudConnection::SelectServers() {
             });
 
   auto select_count = std::min(servers.size(), max_connections_);
-  auto select_begin = selected_servers_.size();
 
-  auto get_ids = [&] {
+  auto get_ids = [&](auto const& ss) {
     std::vector<ServerId> sids;
-    sids.reserve(servers.size());
-    for (auto const* server : servers) {
+    sids.reserve(ss.size());
+    for (auto const* server : ss) {
       sids.push_back(server->server()->server_id);
     }
     return sids;
   };
-  AE_TELED_DEBUG("Select servers begin {} count {} from sids [{}]",
-                 select_begin, select_count, get_ids());
+  AE_TELED_DEBUG("Select servers count {} from sids [{}]", select_count,
+                 get_ids(servers));
+  selected_servers_.clear();
   selected_servers_.reserve(select_count);
 
-  std::size_t i = select_begin;
+  std::size_t i = 0;
   // Select required count of servers and begin connection.
   for (; i < select_count; i++) {
     auto* serv = servers[i];
@@ -257,6 +266,7 @@ void CloudConnection::SelectServers() {
     servers[i]->EndConnection(i);
   }
 
+  AE_TELED_DEBUG("Selected servers [{}]", get_ids(selected_servers_));
   servers_update_event_.Emit();
 }
 
@@ -281,9 +291,10 @@ void CloudConnection::SubscribeToServerState(
   // any link error leads to reselect the servers
   if (conn->stream_info().link_state == LinkState::kLinkError) {
     bad_server();
+    return;
   }
 
-  server_state_subs_.Push(conn->stream_update_event().Subscribe(
+  server_state_subs_ += conn->stream_update_event().Subscribe(
       [bad_server, conn, sid{server_connection->server()->server_id}]() {
         AE_TELED_DEBUG("Server connection id {}, link state {}", sid,
                        conn->stream_info().link_state);
@@ -291,7 +302,7 @@ void CloudConnection::SubscribeToServerState(
         if (conn->stream_info().link_state == LinkState::kLinkError) {
           bad_server();
         }
-      }));
+      });
 }
 
 void CloudConnection::UnselectServer(ServerConnection* server_connection) {
@@ -312,21 +323,26 @@ void CloudConnection::UnselectServer(ServerConnection* server_connection) {
 }
 
 void CloudConnection::QuarantineTimer(ServerConnection* server_connection) {
-  if (!quarantine_timer_) {
+  AE_TELED_DEBUG("Set server {} to qurantine",
+                 server_connection->server()->server_id);
+  if (!quarantine_timer_ || quarantine_timer_->IsFinished()) {
     // TODO: add config for server quarantine duration
     quarantine_timer_ =
-        OwnActionPtr<TimerAction>{action_context_, std::chrono::seconds{5}};
+        OwnActionPtr<TimerAction>{action_context_, std::chrono::seconds{10}};
   }
   server_connection->quarantine(true);
-  quarantine_timer_->StatusEvent().Subscribe(
-      OnResult{[this, sc{server_connection}]() {
-        AE_TELED_DEBUG("Release from quarantine");
-        sc->quarantine(false);
-        // update selected servers if required
-        if (selected_servers_.size() < max_connections_) {
-          reselect_servers_action_->Notify();
-        }
-      }});
+  quarantine_subs_ += quarantine_timer_->StatusEvent().Subscribe(  // ~(^.^)~
+      OnResult{
+          [this, sc{server_connection}]() {
+            AE_TELED_DEBUG("Release from quarantine server {}",
+                           sc->server()->server_id);
+            sc->quarantine(false);
+            // update selected servers if required
+            if (selected_servers_.size() < max_connections_) {
+              reselect_servers_action_->Notify();
+            }
+          },
+      });
 }
 
 }  // namespace ae
