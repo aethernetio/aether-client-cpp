@@ -106,13 +106,21 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
       channel_manager_{action_context_, server},
       channel_select_stream_{action_context_, channel_manager_},
       server_channel_{} {
-  AE_TELED_DEBUG("Client server connection");
+  AE_TELED_DEBUG("Client server connection from {} to {}", ephemeral_uid_,
+                 server->server_id);
 
   out_data_sub_ = channel_select_stream_.out_data_event().Subscribe(
       MethodPtr<&ClientServerConnection::OutData>{this});
 
   StreamUpdate();
   SubscribeToSelectChannel();
+}
+
+ClientServerConnection::~ClientServerConnection() {
+  auto server = server_.Lock();
+  assert(server);
+  AE_TELED_DEBUG("Destroy client server connection from {} to {}",
+                 ephemeral_uid_, server->server_id);
 }
 
 void ClientServerConnection::Restream() { channel_select_stream_.Restream(); }
@@ -149,6 +157,13 @@ void ClientServerConnection::SubscribeToSelectChannel() {
 }
 
 void ClientServerConnection::StreamUpdate() {
+  if (channel_select_stream_.stream_info().link_state ==
+      LinkState::kLinkError) {
+    auto server = server_.Lock();
+    assert(server);
+    AE_TELED_ERROR("ClientServerConnection connection error from {} to {}",
+                   ephemeral_uid_, server->server_id);
+  }
   if (channel_select_stream_.stream_info().link_state != LinkState::kLinked) {
     return;
   }

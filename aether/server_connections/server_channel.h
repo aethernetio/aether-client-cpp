@@ -33,6 +33,7 @@
 
 namespace ae {
 class Channel;
+
 class ServerChannel final {
  public:
   // Connected or not
