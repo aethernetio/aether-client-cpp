@@ -16,6 +16,8 @@
 
 #include "aether/channels/ethernet_transport_factory.h"
 
+#include <cassert>
+
 #include "aether/poller/poller.h"
 
 // IWYU pragma: begin_keeps
@@ -27,11 +29,15 @@ namespace ae {
 std::unique_ptr<ByteIStream> EthernetTransportFactory::Create(
     ActionContext action_context, ObjPtr<IPoller> const& poller,
     Endpoint address_port_protocol) {
+  assert((address_port_protocol.address.Index() == AddrVersion::kIpV4 ||
+          address_port_protocol.address.Index() == AddrVersion::kIpV6) &&
+         "Invalid address type");
+
   switch (address_port_protocol.protocol) {
     case Protocol::kTcp:
-      return BuildTcp(action_context, poller, address_port_protocol);
+      return BuildTcp(action_context, poller, std::move(address_port_protocol));
     case Protocol::kUdp:
-      return BuildUdp(action_context, poller, address_port_protocol);
+      return BuildUdp(action_context, poller, std::move(address_port_protocol));
     default:
       assert(false);
       return nullptr;
@@ -45,7 +51,7 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
     [[maybe_unused]] Endpoint address_port_protocol) {
 #  if defined COMMON_TCP_TRANSPORT_ENABLED
   return std::make_unique<TcpTransport>(action_context, poller,
-                                        address_port_protocol);
+                                        std::move(address_port_protocol));
 #  else
   static_assert(false, "No transport enabled");
 #  endif
@@ -66,7 +72,7 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
     [[maybe_unused]] Endpoint address_port_protocol) {
 #  if defined SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED
   return std::make_unique<UdpTransport>(action_context, poller,
-                                        address_port_protocol);
+                                        std::move(address_port_protocol));
 #  else
   static_assert(false, "No transport enabled");
 #  endif

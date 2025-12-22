@@ -22,7 +22,7 @@
 #  include "aether/modems/imodem_driver.h"
 
 #  include "aether/channels/modem_channel.h"
-#  include "aether/access_points/filter_protocols.h"
+#  include "aether/access_points/filter_endpoints.h"
 
 namespace ae {
 ModemConnectAction::ModemConnectAction(ActionContext action_context,
@@ -100,6 +100,10 @@ std::vector<ObjPtr<Channel>> ModemAccessPoint::GenerateChannels(
   Aether::ptr aether = aether_;
   ModemAccessPoint::ptr self = MakePtrFromThis(this);
   for (auto const& endpoint : server->endpoints) {
+    if (!FilterAddresses<AddrVersion::kIpV4, AddrVersion::kIpV6,
+                         AddrVersion::kNamed>(endpoint)) {
+      continue;
+    }
     if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
       continue;
     }

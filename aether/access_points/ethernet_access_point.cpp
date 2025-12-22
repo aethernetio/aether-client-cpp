@@ -24,7 +24,7 @@
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/channels/ethernet_channel.h"
-#include "aether/access_points/filter_protocols.h"
+#include "aether/access_points/filter_endpoints.h"
 
 namespace ae {
 EthernetAccessPoint::EthernetAccessPoint(ObjPtr<Aether> aether,
@@ -45,6 +45,10 @@ std::vector<ObjPtr<Channel>> EthernetAccessPoint::GenerateChannels(
   std::vector<ObjPtr<Channel>> channels;
   channels.reserve(server->endpoints.size());
   for (auto const& endpoint : server->endpoints) {
+    if (!FilterAddresses<AddrVersion::kIpV4, AddrVersion::kIpV6,
+                         AddrVersion::kNamed>(endpoint)) {
+      continue;
+    }
     if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
       continue;
     }

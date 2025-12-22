@@ -111,9 +111,10 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
         address_.address);
   }
 
+  void DoResolverAddress([[maybe_unused]] NamedAddr const& name_address,
+                         [[maybe_unused]] std::uint16_t port,
+                         [[maybe_unused]] Protocol protocol) {
 #if AE_SUPPORT_CLOUD_DNS
-  void DoResolverAddress(NamedAddr const& name_address, std::uint16_t port,
-                         Protocol protocol) {
     auto dns_resolver = resolver_.Lock();
     assert(dns_resolver);
     auto resolve_action = dns_resolver->Resolve(name_address, port, protocol);
@@ -125,12 +126,18 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
                         state_ = State::kTransportCreate;
                         Action::Trigger();
                       }},
-                      OnError{[this]() {
-                        state_ = State::kFailed;
-                        Action::Trigger();
-                      }}});
-  }
+                      OnError {
+                        [this]() {
+                          state_ = State::kFailed;
+                          Action::Trigger();
+                        }
+                      }});
+#else
+    AE_TELED_ERROR("Unable to resolve named address");
+    state_ = State::kFailed;
+    Action::Trigger();
 #endif
+  }
 
   template <typename TAddr>
   void DoResolverAddress(TAddr const& addr, std::uint16_t port,
