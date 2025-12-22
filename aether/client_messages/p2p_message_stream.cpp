@@ -34,7 +34,7 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
       : cloud_connection_{&cloud_connection},
         request_policy_{request_policy},
         servers_update_sub_{cloud_connection_->servers_update_event().Subscribe(
-            MethodPtr<&MessageSendStream::UpdateStream>{this})} {
+            MethodPtr<&MessageSendStream::UpdateServers>{this})} {
     UpdateServers();
   }
 
@@ -165,8 +165,6 @@ class ReadMessageGate {
   OutDataEvent::Subscriber out_data_event() { return out_data_event_; }
 
  private:
-  void UpdateServers() {}
-
   Uid uid_;
   CloudConnection* cloud_connection_;
   RequestPolicy::Variant request_policy_;
