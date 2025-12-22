@@ -35,6 +35,9 @@ void MultiSubscription::CleanUp() {
 }
 
 void MultiSubscription::PushToVector(EventHandlerDeleter&& deleter) {
-  deleters_.push_back(std::move(deleter));
+  deleters_.emplace_back(std::move(deleter));
 }
+
+std::size_t MultiSubscription::count() const { return deleters_.size(); }
+
 }  // namespace ae

@@ -59,6 +59,8 @@ class MultiSubscription {
    */
   void Reset();
 
+  std::size_t count() const;
+
  private:
   void CleanUp();
 
