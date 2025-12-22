@@ -66,18 +66,19 @@ void AetherAppContext::InitComponentContext() {
     auto reg_c = context.domain().CreateObj<RegistrationCloud>(
         GlobalId::kRegistrationCloud, context.aether());
 #    if defined _AE_REG_CLOUD_IP
-    auto reg_cloud_addr = AddressParser::StringToAddress(_AE_REG_CLOUD_IP);
-    reg_c->AddServerSettings(Endpoint{{reg_cloud_addr, 9010}, Protocol::kTcp});
+    reg_c->AddServerSettings(
+        Endpoint{{AddressParser::StringToAddress(_AE_REG_CLOUD_IP), 9010},
+                 Protocol::kTcp});
 #    endif
 #    if !AE_SUPPORT_CLOUD_DNS
-    auto reg_cloud_addr = IpAddressParser::StringToAddress("34.60.244.148");
-    reg_c->AddServerSettings(Endpoint{{reg_cloud_addr, 9010}, Protocol::kTcp});
-#    else
-    auto reg_cloud_addr_name =
-        AddressParser::StringToAddress("registration.aethernet.io");
-    // in case of ip address change
     reg_c->AddServerSettings(
-        Endpoint{{reg_cloud_addr_name, 9010}, Protocol::kTcp});
+        Endpoint{{AddressParser::StringToAddress("34.60.244.148"), 9010},
+                 Protocol::kTcp});
+#    else
+    // in case of ip address change
+    reg_c->AddServerSettings(Endpoint{
+        {AddressParser::StringToAddress("registration.aethernet.io"), 9010},
+        Protocol::kTcp});
 #    endif
     return reg_c;
   });

@@ -92,19 +92,17 @@ class BufferStream final : public Stream<T, T, T, T> {
   AE_CLASS_NO_COPY_MOVE(BufferStream)
 
   ActionPtr<StreamWriteAction> Write(T&& data) override {
+    if (!stream_info_.is_writable) {
+      AE_TELED_ERROR("Buffer overflow");
+      // decline write
+      return ActionPtr<FailedStreamWriteAction>{action_context_};
+    }
     // add to buffer either if is write buffered or buffer is not empty to
     // observe write order
-    auto should_be_buffered =
-        !last_out_stream_info_.is_writable ||
-        (last_out_stream_info_.link_state != LinkState::kLinked) ||
-        !write_in_buffer_.empty();
+    auto should_be_buffered = (stream_info_.link_state != LinkState::kLinked) ||
+                              !last_out_stream_info_.is_writable ||
+                              !write_in_buffer_.empty();
     if (should_be_buffered) {
-      if (!stream_info_.is_writable) {
-        AE_TELED_ERROR("Buffer overflow");
-        // decline write
-        return ActionPtr<FailedStreamWriteAction>{action_context_};
-      }
-
       return WriteToBuffer(std::move(data));
     }
 
@@ -128,6 +126,7 @@ class BufferStream final : public Stream<T, T, T, T> {
     Base::out_ = nullptr;
     Base::out_data_sub_.Reset();
     Base::update_sub_.Reset();
+    last_out_stream_info_ = {};
 
     stream_info_.link_state = LinkState::kUnlinked;
     stream_info_.is_reliable = false;

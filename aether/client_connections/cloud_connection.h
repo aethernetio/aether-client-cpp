@@ -150,6 +150,7 @@ class CloudConnection {
   ServersUpdate servers_update_event_;
 
   MultiSubscription server_state_subs_;
+  MultiSubscription quarantine_subs_;
 };
 }  // namespace ae
 

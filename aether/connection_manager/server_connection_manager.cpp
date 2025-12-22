@@ -32,7 +32,7 @@ ServerConnectionManager::ServerConnectionFactory::CreateConnection(
 
 ServerConnectionManager::ServerConnectionManager(ActionContext action_context,
                                                  ObjPtr<Client> const& client)
-    : action_context_{action_context}, client_{client}, cached_connections_{} {}
+    : action_context_{action_context}, client_{client} {}
 
 std::unique_ptr<IServerConnectionFactory>
 ServerConnectionManager::GetServerConnectionFactory() {
@@ -52,8 +52,13 @@ RcPtr<ClientServerConnection> ServerConnectionManager::CreateConnection(
 
   auto connection =
       MakeRcPtr<ClientServerConnection>(action_context_, client, server);
+
+  // check updates
+  server_update_subs_ += connection->stream_update_event().Subscribe(
+      [this, sid{server->server_id}]() { ServerUpdate(sid); });
   // save in cache
   cached_connections_[server->server_id] = connection;
+
   return connection;
 }
 
@@ -64,6 +69,19 @@ RcPtr<ClientServerConnection> ServerConnectionManager::FindInCache(
     return it->second.lock();
   }
   return nullptr;
+}
+
+void ServerConnectionManager::ServerUpdate(ServerId server_id) {
+  auto in_cache = FindInCache(server_id);
+  if (!in_cache) {
+    return;
+  }
+  auto info = in_cache->stream_info();
+  // if server error
+  if (info.link_state == LinkState::kLinkError) {
+    // remove from cache
+    cached_connections_.erase(server_id);
+  }
 }
 
 }  // namespace ae
