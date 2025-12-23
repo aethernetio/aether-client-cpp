@@ -22,12 +22,12 @@
 #  include <ws2ipdef.h>
 
 #  include "aether/misc/defer.h"
-#  include "aether/transport/system_sockets/sockets/win_sock_addr.h"
+#  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
 
 #  include "aether/tele/tele.h"
 
 namespace ae {
-WinUdpSocket::WinUdpSocket() : WinSocket{1200} {
+WinUdpSocket::WinUdpSocket(IPoller& poller) : WinSocket{poller, 1200} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
@@ -55,50 +55,40 @@ WinUdpSocket::WinUdpSocket() : WinSocket{1200} {
   socket_ = sock;
 }
 
-WinUdpSocket::~WinUdpSocket() { Disconnect(); }
+WinUdpSocket::~WinUdpSocket() = default;
 
-WinUdpSocket::ConnectionState WinUdpSocket::Connect(
-    AddressPort const& destination) {
-  auto addr = win_socket_internal::GetSockAddr(destination);
-  auto res = connect(socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-  if (res == SOCKET_ERROR) {
-    AE_TELED_ERROR("Socket connect error {}", WSAGetLastError());
-    return ConnectionState::kConnectionFailed;
+ISocket& WinUdpSocket::Connect(AddressPort const& destination,
+                               ConnectedCb connected_cb) {
+  assert(socket_ != INVALID_SOCKET);
+
+  ConnectionState connection_state{ConnectionState::kNone};
+
+  defer[&]() {
+    Poll();
+    connected_cb(connection_state);
+  };
+
+  {
+    auto lock = std::scoped_lock{socket_lock_};
+
+    auto addr = GetSockAddr(destination);
+    auto res =
+        connect(socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    if (res == SOCKET_ERROR) {
+      AE_TELED_ERROR("Socket connect error {}", WSAGetLastError());
+      connection_state = ConnectionState::kConnectionFailed;
+      return *this;
+    }
   }
 
   if (!RequestRecv()) {
     AE_TELED_ERROR("Request receive failed!");
-    return ConnectionState::kConnectionFailed;
+    connection_state = ConnectionState::kConnectionFailed;
+    return *this;
   }
 
-  return ConnectionState::kConnected;
+  connection_state = ConnectionState::kConnected;
+  return *this;
 }
-
-WinUdpSocket::ConnectionState WinUdpSocket::GetConnectionState() {
-  int error = 0;
-  int opt_len = sizeof(error);
-  if (auto res = getsockopt(socket_, SOL_SOCKET, SO_ERROR,
-                            reinterpret_cast<char*>(&error), &opt_len);
-      res == SOCKET_ERROR) {
-    AE_TELED_ERROR("Getsockopt returns error {}", res);
-    return ConnectionState::kConnectionFailed;
-  }
-
-  if (error != 0) {
-    AE_TELED_ERROR("Socket connect error {}", error);
-    return ConnectionState::kConnectionFailed;
-  }
-
-  return ConnectionState::kConnected;
-}
-
-void WinUdpSocket::Disconnect() {
-  if (socket_ == INVALID_SOCKET) {
-    return;
-  }
-  closesocket(socket_);
-  socket_ = INVALID_SOCKET;
-}
-
 }  // namespace ae
 #endif
