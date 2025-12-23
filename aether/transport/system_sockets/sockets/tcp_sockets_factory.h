@@ -30,6 +30,8 @@
 namespace ae {
 #  if UNIX_SOCKET_ENABLED
 using TcpSocket = UnixTcpSocket;
+#  elif LWIP_CB_SOCKET_ENABLED
+using TcpSocket = LwipCBTcpSocket;
 #  elif LWIP_SOCKET_ENABLED
 using TcpSocket = LwipTcpSocket;
 #  elif WIN_SOCKET_ENABLED

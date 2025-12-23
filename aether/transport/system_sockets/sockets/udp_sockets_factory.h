@@ -30,6 +30,8 @@
 namespace ae {
 #  if UNIX_SOCKET_ENABLED
 using UdpSocket = UnixUdpSocket;
+#  elif LWIP_CB_SOCKET_ENABLED
+using UdpSocket = LwipCBUdpSocket;
 #  elif LWIP_SOCKET_ENABLED
 using UdpSocket = LwipUdpSocket;
 #  elif WIN_SOCKET_ENABLED
