@@ -18,21 +18,18 @@
 
 #if SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED
 
+#  include "aether/transport/system_sockets/sockets/udp_sockets_factory.h"
+
 #  include "aether/transport/transport_tele.h"
 
 namespace ae {
 UdpTransport::ReadAction::ReadAction(ActionContext action_context,
                                      UdpTransport& transport)
-    : Action{action_context},
-      transport_{&transport},
-      read_buffer_(transport_->socket_.GetMaxPacketSize()) {}
+    : Action{action_context}, transport_{&transport} {}
 
 UpdateStatus UdpTransport::ReadAction::Update() {
   if (read_event_.exchange(false)) {
     ReadEvent();
-  }
-  if (error_event_) {
-    return UpdateStatus::Error();
   }
   if (stop_event_) {
     return UpdateStatus::Stop();
@@ -40,33 +37,16 @@ UpdateStatus UdpTransport::ReadAction::Update() {
   return {};
 }
 
-void UdpTransport::ReadAction::Read() {
+void UdpTransport::ReadAction::Read(Span<std::uint8_t> data) {
   auto lock = std::scoped_lock{transport_->socket_mutex_};
 
-  while (true) {
-    auto res = transport_->socket_.Receive(
-        Span{read_buffer_.data(), read_buffer_.size()});
-    if (!res) {
-      AE_TELED_ERROR("Socket receiver error");
-      error_event_ = true;
-      break;
-    }
-    if (*res == 0) {
-      // No more data to receive
-      break;
-    }
-    AE_TELED_DEBUG("Received data {}", *res);
-    auto& new_packet = read_buffers_.emplace_back();
-    new_packet.reserve(*res);
-    std::copy(std::begin(read_buffer_),
-              std::begin(read_buffer_) + static_cast<std::ptrdiff_t>(*res),
-              std::back_inserter(new_packet));
+  AE_TELED_DEBUG("Received data {}", data.size());
+  auto& new_packet = read_buffers_.emplace_back();
+  new_packet.reserve(data.size());
+  std::copy(std::begin(data), std::end(data), std::back_inserter(new_packet));
 
-    read_event_ = true;
-  }
-  if (read_event_ || error_event_) {
-    Action::Trigger();
-  }
+  read_event_ = true;
+  Action::Trigger();
 }
 
 void UdpTransport::ReadAction::Stop() {
@@ -89,12 +69,7 @@ UdpTransport::SendAction::SendAction(ActionContext action_context,
                                      DataBuffer&& data_buffer)
     : SocketPacketSendAction{action_context},
       transport_{&transport},
-      data_buffer_{std::move(data_buffer)} {
-  if (data_buffer_.size() > transport_->socket_.GetMaxPacketSize()) {
-    AE_TELED_ERROR("Send message to big");
-    state_ = State::kFailed;
-  }
-}
+      data_buffer_{std::move(data_buffer)} {}
 
 UdpTransport::SendAction::SendAction(SendAction&& other) noexcept
     : SocketPacketSendAction{std::move(other)},
@@ -108,15 +83,15 @@ void UdpTransport::SendAction::Send() {
     Action::Trigger();
     return;
   }
-  auto lock = std::lock_guard{transport_->socket_mutex_, std::adopt_lock};
+  auto lock = std::scoped_lock{std::adopt_lock, transport_->socket_mutex_};
 
-  assert(data_buffer_.size() <= transport_->socket_.GetMaxPacketSize());
   auto res =
-      transport_->socket_.Send(Span{data_buffer_.data(), data_buffer_.size()});
+      transport_->socket_->Send(Span{data_buffer_.data(), data_buffer_.size()});
   if (!res) {
     AE_TELED_ERROR("Data has not been written to {} size {}",
                    transport_->endpoint_, data_buffer_.size());
     state_ = State::kFailed;
+    Action::Trigger();
     return;
   }
   AE_TELED_DEBUG("Data has been written to {} size {}", transport_->endpoint_,
@@ -129,6 +104,7 @@ void UdpTransport::SendAction::Send() {
   if (*res != data_buffer_.size()) {
     AE_TELED_ERROR("Send error, sent size isn't same as packet size");
     state_ = State::kFailed;
+    Action::Trigger();
     return;
   }
   state_ = State::kDone;
@@ -137,37 +113,17 @@ void UdpTransport::SendAction::Send() {
 UdpTransport::UdpTransport(ActionContext action_context,
                            IPoller::ptr const& poller, AddressPort endpoint)
     : action_context_{std::move(action_context)},
-      poller_{poller},
       endpoint_{std::move(endpoint)},
+      socket_{UdpSocketFactory::Create(*poller)},
       send_queue_manager_{action_context_},
+      read_action_{action_context_, *this},
       notify_error_action_{action_context_} {
   AE_TELE_INFO(kUdpTransport);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = false;
 
-  Connect();
-}
-
-UdpTransport::~UdpTransport() { Disconnect(); }
-
-void UdpTransport::Connect() {
+  // Make connection
   AE_TELE_INFO(kUdpTransportConnect, "Udp connect to endpoint {}", endpoint_);
-
-  auto res = socket_.Connect(endpoint_);
-  // Udp must be immediately connected
-  if (res != ISocket::ConnectionState::kConnected) {
-    AE_TELE_ERROR(kUdpTransportConnectFailed,
-                  "Failed to connect udp transport to endpoint {}", endpoint_);
-    stream_info_.link_state = LinkState::kLinkError;
-    return;
-  }
-
-  read_action_ = OwnActionPtr<ReadAction>{action_context_, *this};
-  read_error_sub_ = read_action_->StatusEvent().Subscribe(OnError{[this]() {
-    AE_TELED_ERROR("Read error, disconnect!");
-    stream_info_.link_state = LinkState::kLinkError;
-    Disconnect();
-  }});
 
   socket_error_sub_ =
       notify_error_action_->StatusEvent().Subscribe(OnResult{[this]() {
@@ -176,32 +132,35 @@ void UdpTransport::Connect() {
         Disconnect();
       }});
 
-  auto poller_ptr = poller_.Lock();
-  assert(poller_ptr);
-  socket_event_sub_ =
-      poller_ptr->Add(static_cast<DescriptorType>(socket_))
-          .Subscribe([this](PollerEvent event) {
-            if (event.descriptor != static_cast<DescriptorType>(socket_)) {
-              return;
-            }
-            switch (event.event_type) {
-              case EventType::kRead:
-                ReadSocket();
-                break;
-              case EventType::kWrite:
-                WriteSocket();
-                break;
-              case EventType::kError:
-                ErrorSocket();
-                break;
-            }
-          });
+  socket_->RecvData(MethodPtr<&UdpTransport::OnRecvData>{this})
+      .ReadyToWrite(MethodPtr<&UdpTransport::OnReadyToWrite>{this})
+      .Error(MethodPtr<&UdpTransport::OnSocketError>{this})
+      .Connect(endpoint_, MethodPtr<&UdpTransport::OnConnected>{this});
+}
 
-  stream_info_.link_state = LinkState::kLinked;
-  stream_info_.rec_element_size = socket_.GetMaxPacketSize();
-  stream_info_.max_element_size = socket_.GetMaxPacketSize();
-  stream_info_.is_writable = true;
-  stream_update_event_.Emit();
+UdpTransport::~UdpTransport() { Disconnect(); }
+
+void UdpTransport::OnConnected(ISocket::ConnectionState connection_state) {
+  switch (connection_state) {
+    case ISocket::ConnectionState::kConnecting:
+    case ISocket::ConnectionState::kNone:
+    case ISocket::ConnectionState::kConnectionFailed:
+    case ISocket::ConnectionState::kDisconnected: {
+      // Udp must be immediately connected
+      AE_TELE_ERROR(kUdpTransportConnectFailed,
+                    "Failed to connect udp transport to endpoint {}",
+                    endpoint_);
+      stream_info_.link_state = LinkState::kLinkError;
+      stream_update_event_.Emit();
+      break;
+    }
+    case ISocket::ConnectionState::kConnected: {
+      stream_info_.link_state = LinkState::kLinked;
+      stream_info_.is_writable = true;
+      stream_update_event_.Emit();
+      break;
+    }
+  }
 }
 
 UdpTransport::StreamUpdateEvent::Subscriber
@@ -227,21 +186,23 @@ ActionPtr<StreamWriteAction> UdpTransport::Write(DataBuffer&& in_data) {
   auto send_packet_action = send_queue_manager_->AddPacket(
       ActionPtr<SendAction>{action_context_, *this, std::move(in_data)});
 
-  send_action_error_subs_.Push(
+  send_action_error_subs_ +=
       send_packet_action->StatusEvent().Subscribe(OnError{[this]() {
         AE_TELED_ERROR("Send error, disconnect!");
         stream_info_.link_state = LinkState::kLinkError;
         Disconnect();
-      }}));
+      }});
 
   return send_packet_action;
 }
 
-void UdpTransport::ReadSocket() { read_action_->Read(); }
+void UdpTransport::OnRecvData(Span<std::uint8_t> data) {
+  read_action_->Read(data);
+}
 
-void UdpTransport::WriteSocket() { send_queue_manager_->Send(); }
+void UdpTransport::OnReadyToWrite() { send_queue_manager_->Send(); }
 
-void UdpTransport::ErrorSocket() { notify_error_action_->Notify(); }
+void UdpTransport::OnSocketError() { notify_error_action_->Notify(); }
 
 void UdpTransport::Disconnect() {
   AE_TELE_INFO(kUdpTransportDisconnect, "Disconnect from {}", endpoint_);
@@ -249,13 +210,11 @@ void UdpTransport::Disconnect() {
   socket_error_sub_.Reset();
   {
     auto lock = std::scoped_lock{socket_mutex_};
-    if (!socket_.IsValid()) {
+    if (!socket_) {
       return;
     }
-    if (auto poller_ptr = poller_.Lock(); poller_ptr) {
-      poller_ptr->Remove(static_cast<DescriptorType>(socket_));
-    }
-    socket_.Disconnect();
+    socket_->Disconnect();
+    socket_.reset();
   }
 
   stream_update_event_.Emit();

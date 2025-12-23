@@ -18,7 +18,7 @@
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_TCP_SOCKET_H_
 
 #include "aether/config.h"
-#include "aether/transport/system_sockets/sockets/win_socket.h"
+#include "aether/transport/system_sockets/sockets/win_socket.h"  // IWYU pragma: keep
 
 #if AE_SUPPORT_TCP && defined WIN_SOCKET_ENABLED
 
@@ -27,17 +27,20 @@
 namespace ae {
 class WinTcpSocket final : public WinSocket {
  public:
-  WinTcpSocket();
+  explicit WinTcpSocket(IPoller& poller);
   ~WinTcpSocket() override;
 
-  ConnectionState Connect(AddressPort const& destination) override;
-  ConnectionState GetConnectionState() override;
-  void Disconnect() override;
+  ISocket& Connect(AddressPort const& destination,
+                   ConnectedCb connected_cb) override;
 
  private:
+  void PollEvent(PollerEvent const& event) override;
+
+  ConnectionState TestConnectionState();
   bool InitConnection();
 
-  bool connection_initiated_{false};
+  ConnectedCb connected_cb_;
+  ConnectionState connection_state_;
   WinPollerOverlapped conn_overlapped_;
 };
 }  // namespace ae

@@ -20,21 +20,16 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_TCP
+#  include <memory>
 
-// IWYU pragma: begin_exports
-#  include "aether/transport/system_sockets/sockets/win_tcp_socket.h"
-#  include "aether/transport/system_sockets/sockets/unix_tcp_socket.h"
-#  include "aether/transport/system_sockets/sockets/lwip_tcp_socket.h"
-// IWYU pragma: end_exports
+#  include "aether/poller/poller.h"
+#  include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
-#  if UNIX_SOCKET_ENABLED
-using TcpSocket = UnixTcpSocket;
-#  elif LWIP_SOCKET_ENABLED
-using TcpSocket = LwipTcpSocket;
-#  elif WIN_SOCKET_ENABLED
-using TcpSocket = WinTcpSocket;
-#  endif
+class TcpSocketsFactory {
+ public:
+  static std::unique_ptr<ISocket> Create(IPoller& poller);
+};
 }  // namespace ae
 #endif
 #endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_TCP_SOCKETS_FACTORY_H_

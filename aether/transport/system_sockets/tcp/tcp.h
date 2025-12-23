@@ -28,7 +28,6 @@
 #    include <mutex>
 
 #    include "aether/common.h"
-#    include "aether/ptr/ptr_view.h"
 #    include "aether/poller/poller.h"
 #    include "aether/actions/action.h"
 #    include "aether/actions/notify_action.h"
@@ -39,43 +38,12 @@
 #    include "aether/transport/data_packet_collector.h"
 #    include "aether/transport/socket_packet_send_action.h"
 #    include "aether/transport/socket_packet_queue_manager.h"
-
-#    include "aether/transport/system_sockets/sockets/tcp_sockets_factory.h"
+#    include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
 class TcpTransport final : public ByteIStream {
-  static constexpr int kInvalidSocket = -1;
-
-  class ConnectionAction : public Action<ConnectionAction> {
-   public:
-    enum class State : std::uint8_t {
-      kConnecting,
-      kWaitConnection,
-      kGetConnectionUpdate,
-      kConnectionFailed,
-      kConnected,
-      kStopped,
-    };
-
-    ConnectionAction(ActionContext action_context, TcpTransport& transport);
-
-    AE_CLASS_NO_COPY_MOVE(ConnectionAction)
-
-    UpdateStatus Update();
-    void Stop();
-
-   private:
-    void Connect();
-    void WaitConnection();
-    void ConnectionUpdate();
-
-    TcpTransport* transport_;
-    StateMachine<State> state_;
-    Subscription state_changed_subscription_;
-    Subscription poller_subscription_;
-  };
-
   using SocketEventAction = NotifyAction;
+  using SocketConnectAction = NotifyAction;
 
   class SendAction : public SocketPacketSendAction {
    public:
@@ -90,7 +58,6 @@ class TcpTransport final : public ByteIStream {
     TcpTransport* transport_;
     DataBuffer data_;
     std::size_t sent_offset_ = 0;
-    Subscription state_changed_subscription_;
   };
 
   class ReadAction : public Action<ReadAction> {
@@ -100,7 +67,7 @@ class TcpTransport final : public ByteIStream {
     AE_CLASS_NO_COPY_MOVE(ReadAction)
 
     UpdateStatus Update();
-    void Read();
+    void Read(Span<std::uint8_t> buffer);
     void Stop();
 
    private:
@@ -108,15 +75,13 @@ class TcpTransport final : public ByteIStream {
 
     TcpTransport* transport_;
     StreamDataPacketCollector data_packet_collector_;
-    DataBuffer read_buffer_;
     std::atomic_bool read_event_{};
-    std::atomic_bool error_event_{};
     std::atomic_bool stop_event_{};
   };
 
  public:
   TcpTransport(ActionContext action_context, IPoller::ptr const& poller,
-               AddressPort const& endpoint);
+               AddressPort endpoint);
   ~TcpTransport() override;
 
   ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
@@ -126,35 +91,31 @@ class TcpTransport final : public ByteIStream {
   void Restream() override;
 
  private:
-  void OnConnected();
-
-  void ReadSocket();
-  void WriteSocket();
-  void ErrorSocket();
+  void OnConnection(ISocket::ConnectionState connection_state);
+  void OnRecvData(Span<std::uint8_t> data);
+  void OnReadyToWrite();
+  void OnSocketError();
 
   void Disconnect();
 
   ActionContext action_context_;
-  PtrView<IPoller> poller_;
   AddressPort endpoint_;
 
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;
   StreamUpdateEvent stream_update_event_;
 
-  TcpSocket socket_;
+  std::unique_ptr<ISocket> socket_;
   std::mutex socket_lock_;
 
   OwnActionPtr<SocketPacketQueueManager<SendAction>> send_queue_manager_;
-  OwnActionPtr<ConnectionAction> connection_action_;
   OwnActionPtr<ReadAction> read_action_;
+  OwnActionPtr<SocketConnectAction> socket_connect_action_;
   OwnActionPtr<SocketEventAction> socket_error_action_;
 
-  Subscription connection_sub_;
   MultiSubscription send_action_subs_;
-  Subscription read_action_error_sub_;
-  Subscription socket_poll_subscription_;
-  Subscription socket_error_subscription_;
+  Subscription socket_connect_sub_;
+  Subscription socket_error_sub_;
 };
 
 }  // namespace ae

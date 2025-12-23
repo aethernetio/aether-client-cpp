@@ -18,20 +18,18 @@
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_UDP_SOCKET_H_
 
 #include "aether/config.h"
-#include "aether/transport/system_sockets/sockets/win_socket.h"
+#include "aether/transport/system_sockets/sockets/win_socket.h"  // IWYU pragma: keep
 
 #if AE_SUPPORT_UDP && defined WIN_SOCKET_ENABLED
 
 namespace ae {
 class WinUdpSocket final : public WinSocket {
  public:
-  WinUdpSocket();
+  explicit WinUdpSocket(IPoller& poller);
   ~WinUdpSocket() override;
 
-  ConnectionState Connect(AddressPort const& destination) override;
-  ConnectionState GetConnectionState() override;
-
-  void Disconnect() override;
+  ISocket& Connect(AddressPort const& destination,
+                   ConnectedCb connected_cb) override;
 };
 }  // namespace ae
 #endif

@@ -39,7 +39,7 @@
 #    include "aether/stream_api/istream.h"
 #    include "aether/transport/socket_packet_send_action.h"
 #    include "aether/transport/socket_packet_queue_manager.h"
-#    include "aether/transport/system_sockets/sockets/udp_sockets_factory.h"
+#    include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
 class UdpTransport : public ByteIStream {
@@ -49,17 +49,15 @@ class UdpTransport : public ByteIStream {
 
     UpdateStatus Update();
 
-    void Read();
+    void Read(Span<std::uint8_t> data);
     void Stop();
 
    private:
     void ReadEvent();
 
     UdpTransport* transport_;
-    DataBuffer read_buffer_;
     std::vector<DataBuffer> read_buffers_;
     std::atomic_bool read_event_{false};
-    std::atomic_bool error_event_{false};
     std::atomic_bool stop_event_{false};
   };
 
@@ -90,31 +88,28 @@ class UdpTransport : public ByteIStream {
   void Restream() override;
 
  private:
-  void Connect();
-  void ReadSocket();
-  void WriteSocket();
-  void ErrorSocket();
+  void OnConnected(ISocket::ConnectionState connection_state);
+  void OnRecvData(Span<std::uint8_t> data);
+  void OnReadyToWrite();
+  void OnSocketError();
 
   void Disconnect();
 
   ActionContext action_context_;
-  PtrView<IPoller> poller_;
   AddressPort endpoint_;
 
   std::mutex socket_mutex_;
-  UdpSocket socket_;
+  std::unique_ptr<ISocket> socket_;
 
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;
   StreamUpdateEvent stream_update_event_;
 
   OwnActionPtr<SocketPacketQueueManager<SendAction>> send_queue_manager_;
-  OwnActionPtr<ErrorEventAction> notify_error_action_;
   OwnActionPtr<ReadAction> read_action_;
+  OwnActionPtr<ErrorEventAction> notify_error_action_;
 
-  Subscription socket_event_sub_;
   Subscription socket_error_sub_;
-  Subscription read_error_sub_;
   MultiSubscription send_action_error_subs_;
 };
 }  // namespace ae

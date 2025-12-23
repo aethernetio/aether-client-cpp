@@ -21,20 +21,14 @@
 
 #if AE_SUPPORT_UDP
 
-// IWYU pragma: begin_exports
-#  include "aether/transport/system_sockets/sockets/win_udp_socket.h"
-#  include "aether/transport/system_sockets/sockets/unix_udp_socket.h"
-#  include "aether/transport/system_sockets/sockets/lwip_udp_socket.h"
-// IWYU pragma: end_exports
+#  include "aether/poller/poller.h"
+#  include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
-#  if UNIX_SOCKET_ENABLED
-using UdpSocket = UnixUdpSocket;
-#  elif LWIP_SOCKET_ENABLED
-using UdpSocket = LwipUdpSocket;
-#  elif WIN_SOCKET_ENABLED
-using UdpSocket = WinUdpSocket;
-#  endif
+class UdpSocketFactory {
+ public:
+  static std::unique_ptr<ISocket> Create(IPoller& poller);
+};
 }  // namespace ae
 #endif
 #endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_UDP_SOCKETS_FACTORY_H_

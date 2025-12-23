@@ -27,16 +27,32 @@
 #  include "aether/transport/transport_tele.h"
 
 namespace ae {
-WinSocket::WinSocket(std::size_t max_packet_size)
-    : recv_overlapped_{{}, EventType::kRead},
+WinSocket::WinSocket(IPoller& poller, std::size_t max_packet_size)
+    : poller_{&poller},
+      recv_overlapped_{{}, EventType::kRead},
       send_overlapped_{{}, EventType::kWrite},
-      read_buffer_(max_packet_size) {}
+      recv_buffer_(max_packet_size) {}
 
-WinSocket::~WinSocket() = default;
+WinSocket::~WinSocket() { Disconnect(); }
 
-WinSocket::operator DescriptorType() const { return DescriptorType{socket_}; }
+ISocket& WinSocket::ReadyToWrite(ReadyToWriteCb ready_to_write_cb) {
+  ready_to_write_cb_ = std::move(ready_to_write_cb);
+  return *this;
+}
+
+ISocket& WinSocket::RecvData(RecvDataCb recv_data_cb) {
+  recv_data_cb_ = std::move(recv_data_cb);
+  return *this;
+}
+
+ISocket& WinSocket::Error(ErrorCb error_cb) {
+  error_cb_ = std::move(error_cb);
+  return *this;
+}
 
 std::optional<std::size_t> WinSocket::Send(Span<std::uint8_t> data) {
+  auto lock = std::scoped_lock{socket_lock_};
+
   DWORD bytes_transferred = 0;
   DWORD flags = 0;
   if (!is_send_pending_) {
@@ -66,26 +82,88 @@ std::optional<std::size_t> WinSocket::Send(Span<std::uint8_t> data) {
                      socket_, WSAGetLastError());
       return std::nullopt;
     }
+    is_send_pending_ = false;
   }
 
   return static_cast<std::size_t>(bytes_transferred);
 }
 
-std::optional<std::size_t> WinSocket::Receive(Span<std::uint8_t> data) {
-  auto res = HandleRecv(data);
-  RequestRecv();
-  return res;
+void WinSocket::Disconnect() {
+  if (socket_ == INVALID_SOCKET) {
+    return;
+  }
+
+  poller_event_sub_.Reset();
+  poller_->Remove(socket_);
+  auto lock = std::scoped_lock{socket_lock_};
+  closesocket(socket_);
+  socket_ = INVALID_SOCKET;
 }
 
-std::size_t WinSocket::GetMaxPacketSize() const { return read_buffer_.size(); }
+void WinSocket::Poll() {
+  poller_event_sub_ =
+      poller_->Add(socket_).Subscribe(MethodPtr<&WinSocket::PollEvent>{this});
+}
 
-bool WinSocket::IsValid() const { return socket_ != INVALID_SOCKET; }
+void WinSocket::PollEvent(PollerEvent const& event) {
+  if (event.descriptor != static_cast<DescriptorType>(socket_)) {
+    return;
+  }
+
+  switch (event.event_type) {
+    case EventType::kRead:
+      OnRead();
+      break;
+    case EventType::kWrite:
+      OnWrite();
+      break;
+    case EventType::kError:
+      OnError();
+      break;
+  }
+}
+
+void WinSocket::OnRead() {
+  defer[&]() {
+    // request new recv after all
+    RequestRecv();
+  };
+
+  auto res = HandleRecv();
+  if (!res) {
+    OnError();
+    return;
+  }
+  if (*res == 0) {
+    // No data yet
+    return;
+  }
+
+  if (recv_data_cb_) {
+    auto buffer = Span{recv_buffer_.data(), *res};
+    recv_data_cb_(buffer);
+  }
+}
+
+void WinSocket::OnWrite() {
+  if (ready_to_write_cb_) {
+    ready_to_write_cb_();
+  }
+}
+
+void WinSocket::OnError() {
+  if (error_cb_) {
+    return error_cb_();
+  }
+}
 
 bool WinSocket::RequestRecv() {
+  auto lock = std::scoped_lock{socket_lock_};
+
   DWORD flags = 0;
   // request for read
-  auto wsabuf = WSABUF{static_cast<ULONG>(read_buffer_.size()),
-                       reinterpret_cast<char*>(read_buffer_.data())};
+  auto wsabuf = WSABUF{static_cast<ULONG>(recv_buffer_.size()),
+                       reinterpret_cast<char*>(recv_buffer_.data())};
   auto res = WSARecv(socket_, &wsabuf, 1, nullptr, &flags,
                      reinterpret_cast<OVERLAPPED*>(&recv_overlapped_), nullptr);
   if (res == SOCKET_ERROR) {
@@ -101,11 +179,13 @@ bool WinSocket::RequestRecv() {
   return true;
 }
 
-std::optional<std::size_t> WinSocket::HandleRecv(Span<std::uint8_t> data) {
+std::optional<std::size_t> WinSocket::HandleRecv() {
   if (!is_recv_pending_) {
     return 0;
   }
   is_recv_pending_ = false;
+
+  auto lock = std::scoped_lock{socket_lock_};
 
   DWORD bytes_transferred = 0;
   DWORD flags = 0;
@@ -123,11 +203,6 @@ std::optional<std::size_t> WinSocket::HandleRecv(Span<std::uint8_t> data) {
                    socket_, WSAGetLastError());
     return std::nullopt;
   }
-
-  assert(bytes_transferred <= data.size());
-
-  std::copy_n(std::begin(read_buffer_),
-              static_cast<std::size_t>(bytes_transferred), std::begin(data));
 
   return static_cast<std::size_t>(bytes_transferred);
 }
