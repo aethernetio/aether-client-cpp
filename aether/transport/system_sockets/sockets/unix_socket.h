@@ -46,7 +46,6 @@ class UnixSocket : public ISocket {
   std::optional<std::size_t> Send(Span<std::uint8_t> data) override;
 
   void Disconnect() override;
-  bool IsValid() const override;
 
  protected:
   void Poll();

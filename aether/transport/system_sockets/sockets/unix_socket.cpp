@@ -87,8 +87,6 @@ void UnixSocket::Disconnect() {
   }
 }
 
-bool UnixSocket::IsValid() const { return socket_ != kInvalidSocket; }
-
 void UnixSocket::Poll() {
   poller_subscription_ = poller_->Add(socket_).Subscribe(
       MethodPtr<&UnixSocket::OnPollerEvent>{this});
@@ -123,7 +121,7 @@ void UnixSocket::OnReadEvent() {
       return;
     }
     if (*res == 0) {
-      // end of data
+      // No data yet
       return;
     }
     buffer = buffer.sub(0, *res);

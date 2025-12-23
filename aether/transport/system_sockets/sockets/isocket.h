@@ -74,10 +74,6 @@ class ISocket {
    * \brief Broke the connection.
    */
   virtual void Disconnect() = 0;
-  /**
-   * \brief Know if socket is valid.
-   */
-  virtual bool IsValid() const = 0;
 };
 }  // namespace ae
 
