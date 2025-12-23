@@ -109,16 +109,30 @@ TcpTransport::TcpTransport(ActionContext action_context,
       stream_info_{},
       socket_{TcpSocketsFactory::Create(*poller)},
       send_queue_manager_{action_context_},
-      read_action_{OwnActionPtr<ReadAction>{action_context_, *this}},
-      socket_error_action_{OwnActionPtr<SocketEventAction>{action_context_}} {
+      read_action_{action_context_, *this},
+      socket_connect_action_{action_context_},
+      socket_error_action_{action_context_} {
   AE_TELE_INFO(kTcpTransport);
 
-  socket_error_subscription_ =
+  socket_error_sub_ =
       socket_error_action_->StatusEvent().Subscribe(OnResult{[this]() {
         AE_TELED_ERROR("Socket error, disconnect!");
         stream_info_.link_state = LinkState::kLinkError;
         Disconnect();
       }});
+
+  socket_connect_sub_ =
+      socket_connect_action_->StatusEvent().Subscribe(ActionHandler{
+          OnResult{[this]() {
+            stream_info_.is_writable = true;
+            stream_info_.link_state = LinkState::kLinked;
+            stream_update_event_.Emit();
+          }},
+          OnError{[this]() {
+            stream_info_.link_state = LinkState::kLinkError;
+            stream_update_event_.Emit();
+          }},
+      });
 
   AE_TELE_INFO(kTcpTransportConnect, "Tcp connect to endpoint {}", endpoint_);
 
@@ -184,14 +198,11 @@ void TcpTransport::OnConnection(ISocket::ConnectionState connection_state) {
     case ISocket::ConnectionState::kNone:
     case ISocket::ConnectionState::kConnectionFailed:
     case ISocket::ConnectionState::kDisconnected: {
-      stream_info_.link_state = LinkState::kLinkError;
-      stream_update_event_.Emit();
+      socket_connect_action_->Failed();
       break;
     }
     case ISocket::ConnectionState::kConnected: {
-      stream_info_.is_writable = true;
-      stream_info_.link_state = LinkState::kLinked;
-      stream_update_event_.Emit();
+      socket_connect_action_->Notify();
       break;
     }
   }
@@ -211,7 +222,7 @@ void TcpTransport::OnSocketError() {
 void TcpTransport::Disconnect() {
   AE_TELE_INFO(kTcpTransportDisconnect, "Disconnect from {}", endpoint_);
   stream_info_.is_writable = false;
-  socket_error_subscription_.Reset();
+  socket_error_sub_.Reset();
 
   {
     auto lock = std::scoped_lock{socket_lock_};

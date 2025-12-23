@@ -43,6 +43,7 @@
 namespace ae {
 class TcpTransport final : public ByteIStream {
   using SocketEventAction = NotifyAction;
+  using SocketConnectAction = NotifyAction;
 
   class SendAction : public SocketPacketSendAction {
    public:
@@ -109,10 +110,12 @@ class TcpTransport final : public ByteIStream {
 
   OwnActionPtr<SocketPacketQueueManager<SendAction>> send_queue_manager_;
   OwnActionPtr<ReadAction> read_action_;
+  OwnActionPtr<SocketConnectAction> socket_connect_action_;
   OwnActionPtr<SocketEventAction> socket_error_action_;
 
   MultiSubscription send_action_subs_;
-  Subscription socket_error_subscription_;
+  Subscription socket_connect_sub_;
+  Subscription socket_error_sub_;
 };
 
 }  // namespace ae
