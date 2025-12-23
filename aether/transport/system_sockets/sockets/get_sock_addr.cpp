@@ -32,9 +32,9 @@ SockAddr GetSockAddr(AddressPort const& ip_address_port) {
                  [&](IpV4Addr const& ipv4) {
                    sock_addr.size = sizeof(sock_addr.data.ipv4);
                    auto& addr = sock_addr.data.ipv4;
-#    ifndef __unix__
+#    if !defined __unix__ && !defined _WIN32 && !defined ESP_PLATFORM
                    addr.sin_len = sizeof(sockaddr_in);
-#    endif  // __unix__
+#    endif  // !defined __unix__ && !defined _WIN32 && !defined ESP_PLATFORM
                    std::memcpy(&addr.sin_addr.s_addr, ipv4.ipv4_value, 4);
                    addr.sin_port = ae::SwapToInet(ip_address_port.port);
                    addr.sin_family = AF_INET;
@@ -44,9 +44,9 @@ SockAddr GetSockAddr(AddressPort const& ip_address_port) {
                  [&](IpV6Addr const& ipv6) {
                    sock_addr.size = sizeof(sock_addr.data.ipv6);
                    auto& addr = sock_addr.data.ipv6;
-#    ifndef __unix__
+#    if !defined __unix__ && !defined _WIN32 && !defined ESP_PLATFORM
                    addr.sin6_len = sizeof(sockaddr_in6);
-#    endif  // __unix__
+#    endif  // !defined __unix__ && !defined _WIN32 && !defined ESP_PLATFORM
                    std::memcpy(&addr.sin6_addr, ipv6.ipv6_value, 16);
                    addr.sin6_port = ae::SwapToInet(ip_address_port.port);
                    addr.sin6_family = AF_INET6;
