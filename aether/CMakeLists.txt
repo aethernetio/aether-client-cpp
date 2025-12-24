@@ -174,9 +174,6 @@ list(APPEND serial_ports_srcs
 
 list(APPEND transport_srcs
             "transport/system_sockets/sockets/get_sock_addr.cpp"
-            "transport/system_sockets/sockets/lwip_cb_socket.cpp"
-            "transport/system_sockets/sockets/lwip_cb_tcp_socket.cpp"
-            "transport/system_sockets/sockets/lwip_cb_udp_socket.cpp"
             "transport/system_sockets/sockets/lwip_socket.cpp"
             "transport/system_sockets/sockets/lwip_tcp_socket.cpp"
             "transport/system_sockets/sockets/lwip_udp_socket.cpp"

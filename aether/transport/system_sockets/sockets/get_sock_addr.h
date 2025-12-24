@@ -34,7 +34,7 @@
 #  endif
 
 #  if defined(ESP_PLATFORM)
-// TODO: ?
+#    include "lwip/sockets.h"
 #  endif
 
 #  include <cstddef>
