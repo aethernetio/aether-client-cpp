@@ -64,6 +64,8 @@
 #include "aether/types/client_id.h"
 #include "aether/types/data_buffer.h"
 #include "aether/types/ring_buffer.h"
+#include "aether/types/client_config.h"
+#include "aether/types/server_config.h"
 #include "aether/types/state_machine.h"
 #include "aether/types/literal_array.h"
 #include "aether/types/nullable_type.h"

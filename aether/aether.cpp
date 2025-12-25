@@ -28,7 +28,6 @@
 namespace ae {
 
 #ifdef AE_DISTILLATION
-
 Aether::Aether(Domain* domain) : Obj{domain} {
   auto self_ptr = MakePtrFromThis(this);
 
@@ -44,23 +43,68 @@ Aether::Aether(Domain* domain) : Obj{domain} {
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
+void Aether::Update(TimePoint current_time) {
+  update_time_ = action_processor->Update(current_time);
+}
+
+Client::ptr Aether::CreateClient(ClientConfig const& config,
+                                 std::string const& client_id) {
+  auto client = FindClient(client_id);
+  if (client) {
+    return client;
+  }
+  // create new client
+  AE_TELED_DEBUG("Create new client {} with uid {}", client_id, config.uid);
+
+  client = domain_->LoadCopy(client_prefab);
+  client.SetFlags(ObjFlags::kUnloadedByDefault);
+
+  // make servers
+  std::vector<Server::ptr> servers;
+  for (auto const& server_config : config.cloud) {
+    if (auto cached = GetServer(server_config.id); cached) {
+      servers.emplace_back(std::move(cached));
+    } else {
+      auto new_server = domain_->CreateObj<Server>(
+          server_config.id, server_config.endpoints, adapter_registry);
+      StoreServer(new_server);
+      servers.emplace_back(std::move(new_server));
+    }
+  }
+
+  auto client_cloud = domain_->CreateObj<WorkCloud>(config.uid);
+  client_cloud->SetServers(std::move(servers));
+  client->SetConfig(client_id, config.parent_uid, config.uid,
+                    config.ephemeral_uid, config.master_key,
+                    std::move(client_cloud));
+
+  StoreClient(client);
+  return client;
+}
+
 ActionPtr<SelectClientAction> Aether::SelectClient(
-    [[maybe_unused]] Uid parent_uid, std::uint32_t client_id) {
-  AE_TELED_DEBUG("Select parent {}'s client with id {}", parent_uid, client_id);
+    [[maybe_unused]] Uid parent_uid, std::string const& client_id) {
+  AE_TELED_DEBUG("Select client {} with parent uid {}", client_id, parent_uid);
+
+  auto select_action = FindSelectClientAction(client_id);
+  if (select_action) {
+    return select_action;
+  }
 
   auto client = FindClient(client_id);
   if (client) {
-    return ActionPtr<SelectClientAction>{*action_processor, client};
+    return MakeSelectClient(client);
   }
+// register new client
 #if AE_SUPPORT_REGISTRATION
-  auto registration = RegisterClient(parent_uid, client_id);
-  return ActionPtr<SelectClientAction>{*action_processor, *registration};
+  auto registration = RegisterClient(parent_uid);
+  return MakeSelectClient(std::move(registration), client_id);
 #else
-  return ActionPtr<SelectClientAction>{*action_processor};
+  return MakeSelectClient();
 #endif
 }
 
-void Aether::AddServer(Server::ptr s) {
+void Aether::StoreServer(Server::ptr s) {
   servers_.insert({s->server_id, std::move(s)});
 }
 
@@ -75,11 +119,7 @@ Server::ptr Aether::GetServer(ServerId server_id) {
   return it->second;
 }
 
-void Aether::Update(TimePoint current_time) {
-  update_time_ = action_processor->Update(current_time);
-}
-
-Client::ptr Aether::FindClient(std::uint32_t client_id) {
+Client::ptr Aether::FindClient(std::string const& client_id) {
   auto client_it = clients_.find(client_id);
   if (client_it == std::end(clients_)) {
     return {};
@@ -90,44 +130,49 @@ Client::ptr Aether::FindClient(std::uint32_t client_id) {
   return client_it->second;
 }
 
-#if AE_SUPPORT_REGISTRATION
-ActionPtr<Registration> Aether::RegisterClient(Uid parent_uid,
-                                               std::uint32_t client_id) {
-  // try to find existent registrations
-  auto reg_it = registration_actions_.find(client_id);
-  if (reg_it != std::end(registration_actions_)) {
-    return ActionPtr{reg_it->second};
-  }
+void Aether::StoreClient(Client::ptr client) {
+  assert(client && "Client is null");
+  clients_[client->id()] = std::move(client);
+}
 
+ActionPtr<SelectClientAction> Aether::FindSelectClientAction(
+    std::string const& client_id) {
+  auto select_act_it = select_client_actions_.find(client_id);
+  if (select_act_it != std::end(select_client_actions_)) {
+    return ActionPtr{select_act_it->second};
+  }
+  return {};
+}
+
+ActionPtr<SelectClientAction> Aether::MakeSelectClient() const {
+  return ActionPtr<SelectClientAction>{*action_processor};
+}
+
+ActionPtr<SelectClientAction> Aether::MakeSelectClient(
+    Client::ptr const& client) const {
+  return ActionPtr<SelectClientAction>{*action_processor, client};
+}
+
+#if AE_SUPPORT_REGISTRATION
+ActionPtr<SelectClientAction> Aether::MakeSelectClient(
+    ActionPtr<Registration> registration, std::string const& client_id) {
+  auto select_action = ActionPtr<SelectClientAction>{
+      *action_processor, *this, std::move(registration), client_id};
+  select_client_actions_[client_id] = select_action;
+  return select_action;
+}
+
+ActionPtr<Registration> Aether::RegisterClient(Uid parent_uid) {
   if (!registration_cloud) {
     domain_->LoadRoot(registration_cloud);
   }
-  auto self_ptr = MakePtrFromThis(this);
-
-  auto new_client = domain_->LoadCopy(client_prefab);
-  new_client.SetFlags(ObjFlags::kUnloadedByDefault);
+  assert(registration_cloud && "Registration cloud not loaded");
 
   // registration new client is long termed process
   // after registration done, add it to clients list
   // user also can get new client after
-  auto [new_reg_it, _] = registration_actions_.emplace(
-      client_id,
-      ActionPtr<Registration>(*action_processor, self_ptr, registration_cloud,
-                              parent_uid, std::move(new_client)));
-
-  // on registration success save client to client_ and remove registration
-  // action at the end
-  registration_subscriptions_.Push(
-      new_reg_it->second->StatusEvent().Subscribe(
-          OnResult{[this, client_id](auto const& action) {
-            auto client = action.client();
-            assert(client);
-            clients_.emplace(client_id, std::move(client));
-          }}),
-      new_reg_it->second->FinishedEvent().Subscribe(
-          [this, client_id]() { registration_actions_.erase(client_id); }));
-
-  return ActionPtr{new_reg_it->second};
+  return ActionPtr<Registration>(*action_processor, *this, registration_cloud,
+                                 parent_uid);
 }
 #endif
 }  // namespace ae

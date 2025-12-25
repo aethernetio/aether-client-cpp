@@ -17,8 +17,9 @@
 #ifndef AETHER_WORK_CLOUD_H_
 #define AETHER_WORK_CLOUD_H_
 
-#include "aether/obj/obj.h"
 #include "aether/cloud.h"
+#include "aether/obj/obj.h"
+#include "aether/types/uid.h"
 
 namespace ae {
 class Aether;
@@ -28,9 +29,10 @@ class WorkCloud : public Cloud {
   WorkCloud() = default;
 
  public:
-  explicit WorkCloud(Domain* domain);
+  WorkCloud(Uid client_uid, Domain* domain);
 
-  AE_OBJECT_REFLECT()
+  AE_OBJECT_REFLECT(AE_MMBRS(client_uid))
+  Uid client_uid;
 };
 }  // namespace ae
 #endif  // AETHER_WORK_CLOUD_H_

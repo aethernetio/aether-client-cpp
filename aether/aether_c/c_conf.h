@@ -106,7 +106,7 @@ typedef void (*MessageReceivedCb)(AetherClient* client, CUid sender,
  * \brief Client configuration
  */
 struct ClientConfig {
-  uint32_t id;      //< the local id of client
+  char const* id;   //< the local id of client
   CUid parent_uid;  //< the parent uid, required for client registration
   ClientSelectedCb client_selected_cb;    //< callback for client selection,
                                           // called when client is selected

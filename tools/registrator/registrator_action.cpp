@@ -21,14 +21,13 @@
 namespace ae::registrator {
 RegistratorAction::RegistratorAction(
     ActionContext action_context, RcPtr<AetherApp> const& aether_app,
-    RegistratorConfig const& registrator_config)
+    std::vector<reg::ClientConfig> client_configs)
     : Action{action_context},
       aether_{aether_app->aether()},
-      registrator_config_{registrator_config},
-      state_{State::kRegistration},
-      state_changed_{state_.changed_event().Subscribe(
-          [this](auto) { Action::Trigger(); })} {
+      client_configs_{std::move(client_configs)},
+      state_{State::kRegistration} {
   AE_TELED_INFO("RegistratorAction");
+  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
 }
 
 UpdateStatus RegistratorAction::Update() {
@@ -59,25 +58,21 @@ void RegistratorAction::RegisterClients() {
 #else
   auto aether_ptr = aether_.Lock();
   assert(aether_ptr);
-  for (auto const& p : registrator_config_.GetParents()) {
-    auto parent_uid = ae::Uid::FromString(p.uid_str);
-    auto clients_num = p.clients_num;
-
-    for (auto i = 0; i < clients_num; i++) {
-      auto select_action = aether_ptr->SelectClient(parent_uid, i);
-
-      registration_sub_.Push(select_action->StatusEvent().Subscribe(
-          ActionHandler{OnResult{[this](auto const&) {
-                          if (++clients_registered_ ==
-                              registrator_config_.GetClientsTotal()) {
-                            state_ = State::kResult;
-                          }
-                        }},
-                        OnError{[this]() {
-                          AE_TELED_ERROR("Registration error");
-                          state_ = State::kError;
-                        }}}));
-    }
+  for (auto const& c : client_configs_) {
+    auto parent_uid = ae::Uid::FromString(c.parent_uid);
+    assert(!parent_uid.empty());
+    auto select_action = aether_ptr->SelectClient(parent_uid, c.client_id);
+    registration_sub_ += select_action->StatusEvent().Subscribe(ActionHandler{
+        OnResult{[this](auto const&) {
+          if (++clients_registered_ == client_configs_.size()) {
+            state_ = State::kResult;
+          }
+        }},
+        OnError{[this]() {
+          AE_TELED_ERROR("Registration error");
+          state_ = State::kError;
+        }},
+    });
   }
 #endif
 }

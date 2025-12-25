@@ -160,10 +160,9 @@ class GetCloudFromAether : public GetCloudAction {
           endpoints.emplace_back(Endpoint{{ip.ip, pp.port}, pp.protocol});
         }
       }
-      Server::ptr s =
-          aether_->domain_->CreateObj<Server>(sd.server_id, endpoints);
-      s->Register(aether_->adapter_registry);
-      aether_->AddServer(s);
+      Server::ptr s = aether_->domain_->CreateObj<Server>(
+          sd.server_id, endpoints, aether_->adapter_registry);
+      aether_->StoreServer(s);
       servers.emplace_back(std::move(s));
     }
     return servers;
@@ -227,9 +226,9 @@ Cloud::ptr ClientCloudManager::RegisterCloud(Uid uid,
   if (!aether_) {
     domain_->LoadRoot(aether_);
   }
-  auto new_cloud = domain_->CreateObj<WorkCloud>();
+  auto new_cloud = domain_->CreateObj<WorkCloud>(uid);
   assert(new_cloud);
-  new_cloud->AddServers(std::move(servers));
+  new_cloud->SetServers(std::move(servers));
 
   cloud_cache_[uid] = new_cloud;
   return new_cloud;

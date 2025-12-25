@@ -36,21 +36,20 @@ class Server : public Obj {
   using ChannelsChanged = Event<void()>;
 
   explicit Server(ServerId server_id, std::vector<Endpoint> endpoints,
-                  Domain* domain);
+                  AdapterRegistry::ptr adapter_registry, Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(server_id, endpoints, adapter_registry_, channels))
 
   void Update(TimePoint current_time) override;
 
-  void Register(AdapterRegistry::ptr adapter_registry);
   ChannelsChanged::Subscriber channels_changed();
 
   ServerId server_id;
   std::vector<Endpoint> endpoints;
-
   std::vector<Channel::ptr> channels;
 
  private:
+  void Register();
   void UpdateSubscription();
   void AddChannels(AccessPoint::ptr const& access_point);
 
