@@ -20,11 +20,14 @@
 
 namespace ae {
 Server::Server(ServerId server_id, std::vector<Endpoint> endpoints,
-               Domain* domain)
+               AdapterRegistry::ptr adapter_registry, Domain* domain)
     : Obj{domain},
       server_id{server_id},
       endpoints{std::move(endpoints)},
-      subscribed_{} {}
+      adapter_registry_{std::move(adapter_registry)},
+      subscribed_{} {
+  Register();
+}
 
 void Server::Update(TimePoint current_time) {
   if (!subscribed_) {
@@ -34,8 +37,7 @@ void Server::Update(TimePoint current_time) {
   update_time_ = current_time;
 }
 
-void Server::Register(AdapterRegistry::ptr adapter_registry) {
-  adapter_registry_ = std::move(adapter_registry);
+void Server::Register() {
   UpdateSubscription();
 
   for (auto const& adapter : adapter_registry_->adapters()) {
@@ -44,7 +46,6 @@ void Server::Register(AdapterRegistry::ptr adapter_registry) {
     }
   }
   subscribed_ = true;
-  channels_changed_.Emit();
 }
 
 Server::ChannelsChanged::Subscriber Server::channels_changed() {
@@ -57,9 +58,10 @@ void Server::UpdateSubscription() {
   }
   assert(adapter_registry_);
   for (auto const& adapter : adapter_registry_->adapters()) {
-    access_point_added_.Push(adapter->new_access_point().Subscribe(
-        MethodPtr<&Server::AddChannels>{this}));
+    access_point_added_ += adapter->new_access_point().Subscribe(
+        MethodPtr<&Server::AddChannels>{this});
   }
+  channels_changed_.Emit();
 }
 
 void Server::AddChannels(AccessPoint::ptr const& access_point) {

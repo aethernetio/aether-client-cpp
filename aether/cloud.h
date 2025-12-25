@@ -37,7 +37,7 @@ class Cloud : public Obj {
   AE_OBJECT_REFLECT(AE_MMBRS(servers_))
 
   void AddServer(Server::ptr server);
-  void AddServers(std::vector<Server::ptr> servers);
+  void SetServers(std::vector<Server::ptr> servers);
   void LoadServer(Server::ptr& server);
 
   std::vector<Server::ptr>& servers();

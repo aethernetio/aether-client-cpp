@@ -27,6 +27,8 @@ Client::Client(Aether::ptr aether, Domain* domain)
     : Base(domain), aether_{std::move(aether)} {}
 #endif  // AE_DISTILLATION
 
+std::string const& Client::id() const { return client_id_; }
+Uid const& Client::parent_uid() const { return parent_uid_; }
 Uid const& Client::uid() const { return uid_; }
 Uid const& Client::ephemeral_uid() const { return ephemeral_uid_; }
 ServerKeys* Client::server_state(ServerId server_id) {
@@ -86,8 +88,10 @@ P2pMessageStreamManager& Client::message_stream_manager() {
   return *message_stream_manager_;
 }
 
-void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
-                       Cloud::ptr cloud) {
+void Client::SetConfig(std::string client_id, Uid parent_uid, Uid uid,
+                       Uid ephemeral_uid, Key master_key, Cloud::ptr cloud) {
+  client_id_ = std::move(client_id);
+  parent_uid_ = parent_uid;
   uid_ = uid;
   ephemeral_uid_ = ephemeral_uid;
   master_key_ = std::move(master_key);
