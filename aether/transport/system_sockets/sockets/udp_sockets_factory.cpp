@@ -21,6 +21,7 @@
 // IWYU pragma: begin_exports
 #  include "aether/transport/system_sockets/sockets/win_udp_socket.h"
 #  include "aether/transport/system_sockets/sockets/unix_udp_socket.h"
+#  include "aether/transport/system_sockets/sockets/lwip_cb_udp_socket.h"
 #  include "aether/transport/system_sockets/sockets/lwip_udp_socket.h"
 // IWYU pragma: end_exports
 
@@ -29,6 +30,8 @@ std::unique_ptr<ISocket> UdpSocketFactory::Create(
     [[maybe_unused]] IPoller& poller) {
 #  if UNIX_SOCKET_ENABLED
   return std::make_unique<UnixUdpSocket>(poller);
+#  elif LWIP_CB_SOCKET_ENABLED
+  return std::make_unique<LwipCBUdpSocket>(poller);
 #  elif LWIP_SOCKET_ENABLED
   return std::make_unique<LwipUdpSocket>(poller);
 #  elif WIN_SOCKET_ENABLED

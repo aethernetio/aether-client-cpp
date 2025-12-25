@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "aether/transport/system_sockets/sockets/lwip_socket.h"
+#include "aether/transport/system_sockets/sockets/lwip_cb_socket.h"
 
-#if LWIP_SOCKET_ENABLED
+#if LWIP_CB_SOCKET_ENABLED
 
 #  include "lwip/err.h"
 #  include "lwip/sockets.h"
@@ -27,28 +27,27 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-LwipSocket::LwipSocket(IPoller& poller, int socket)
-    : poller_{&poller}, socket_{socket} {}
+LwipCBSocket::LwipCBSocket(IPoller& /*poller*/, int /*socket*/) {}
 
-LwipSocket::~LwipSocket() { Disconnect(); }
+LwipCBSocket::~LwipCBSocket() { Disconnect(); }
 
-ISocket& LwipSocket::ReadyToWrite(ReadyToWriteCb ready_to_write_cb) {
+ISocket& LwipCBSocket::ReadyToWrite(ReadyToWriteCb ready_to_write_cb) {
   ready_to_write_cb_ = std::move(ready_to_write_cb);
   return *this;
 }
 
-ISocket& LwipSocket::RecvData(RecvDataCb recv_data_cb) {
+ISocket& LwipCBSocket::RecvData(RecvDataCb recv_data_cb) {
   recv_data_cb_ = std::move(recv_data_cb);
   return *this;
 }
 
-ISocket& LwipSocket::Error(ErrorCb error_cb) {
+ISocket& LwipCBSocket::Error(ErrorCb error_cb) {
   error_cb_ = std::move(error_cb);
   return *this;
 }
 
-std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
-  auto lock = std::scoped_lock{socket_lock_};
+std::optional<std::size_t> LwipCBSocket::Send(Span<std::uint8_t> data) {
+  /*auto lock = std::scoped_lock{socket_lock_};
   auto size_to_send = data.size();
   // add nosignal to prevent throw SIGPIPE and handle it manually
   int flags = MSG_NOSIGNAL;
@@ -60,11 +59,12 @@ std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
     }
     return 0;
   }
-  return static_cast<std::size_t>(res);
+  return static_cast<std::size_t>(res);*/
+  return {};
 }
 
-void LwipSocket::Disconnect() {
-  auto lock = std::scoped_lock{socket_lock_};
+void LwipCBSocket::Disconnect() {
+  /*auto lock = std::scoped_lock{socket_lock_};
   if (socket_ == kInvalidSocket) {
     return;
   }
@@ -76,39 +76,12 @@ void LwipSocket::Disconnect() {
   shutdown(s, SHUT_RDWR);
   if (close(s) != 0) {
     return;
-  }
+  }*/
 }
 
-void LwipSocket::Poll() {
-  poller_subscription_ = poller_->Add(socket_).Subscribe(
-      MethodPtr<&LwipSocket::OnPollerEvent>{this});
-}
-
-void LwipSocket::OnPollerEvent(PollerEvent const& event) {
-  AE_TELED_DEBUG("Poll event desc={},event={}", event.descriptor,
-                 event.event_type);
-  if (socket_ == kInvalidSocket) {
-    return;
-  }
-  if (event.descriptor != socket_) {
-    return;
-  }
-  switch (event.event_type) {
-    case ae::EventType::kRead:
-      OnReadEvent();
-      break;
-    case ae::EventType::kWrite:
-      OnWriteEvent();
-      break;
-    case ae::EventType::kError:
-      OnErrorEvent();
-      break;
-  }
-}
-
-void LwipSocket::OnReadEvent() {
+void LwipCBSocket::OnReadEvent() {
   // read all data
-  while (true) {
+  /*while (true) {
     auto buffer = Span{recv_buffer_.data(), recv_buffer_.size()};
     auto res = Receive(buffer);
     if (!res) {
@@ -124,24 +97,24 @@ void LwipSocket::OnReadEvent() {
       recv_data_cb_(buffer);
     }
   return;
-  }
+  }*/
 }
 
-void LwipSocket::OnWriteEvent() {
-  if (ready_to_write_cb_) {
+void LwipCBSocket::OnWriteEvent() {
+  /*if (ready_to_write_cb_) {
     ready_to_write_cb_();
-  }
+  }*/
 }
 
-void LwipSocket::OnErrorEvent() {
-  if (error_cb_) {
+void LwipCBSocket::OnErrorEvent() {
+  /*if (error_cb_) {
     error_cb_();
-  }
+  }*/
 }
 
-std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> buffer) {
-  auto lock = std::scoped_lock{socket_lock_};
-
+std::optional<std::size_t> LwipCBSocket::Receive(Span<std::uint8_t> buffer) {
+  /*auto lock = std::scoped_lock{socket_lock_};
+  
   auto res = recv(socket_, buffer.data(), buffer.size(), 0);
   if (res < 0) {
     // No data
@@ -156,11 +129,12 @@ std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> buffer) {
     AE_TELED_ERROR("Recv shutdown");
     return std::nullopt;
   }
-  return static_cast<std::size_t>(res);
+  return static_cast<std::size_t>(res);*/
+  return {};
 }
 
-std::optional<int> LwipSocket::GetSocketError() {
-  auto lock = std::scoped_lock{socket_lock_};
+std::optional<int> LwipCBSocket::GetSocketError() {
+  /*auto lock = std::scoped_lock{socket_lock_};
   int err{};
 
   socklen_t len = sizeof(len);
@@ -169,7 +143,8 @@ std::optional<int> LwipSocket::GetSocketError() {
     AE_TELED_ERROR("Getsockopt error {}, {}", errno, strerror(errno));
     return std::nullopt;
   }
-  return err;
+  return err;*/
+  return{};
 }
 
 }  // namespace ae
