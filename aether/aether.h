@@ -18,20 +18,19 @@
 #define AETHER_AETHER_H_
 
 #include <map>
+#include <string>
 
 #include "aether/common.h"
 #include "aether/memory.h"
 #include "aether/obj/obj.h"
-#include "aether/obj/dummy_obj.h"  // IWYU pragma: keep
 #include "aether/actions/action_ptr.h"
+#include "aether/types/client_config.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
 #include "aether/ae_actions/select_client.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/tele/traps/tele_statistics.h"
 #include "aether/registration/registration.h"  // IWYU pragma: keep
 
-#include "aether/cloud.h"
 #include "aether/client.h"
 #include "aether/crypto.h"
 #include "aether/server.h"
@@ -54,17 +53,10 @@ class Aether : public Obj {
 
   ~Aether() override;
 
-#if AE_SUPPORT_REGISTRATION
   AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, registration_cloud, crypto,
                              clients_, servers_, tele_statistics, poller,
                              dns_resolver, adapter_registry,
-                             registration_actions_,
-                             registration_subscriptions_))
-#else
-  AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, registration_cloud, crypto,
-                             clients_, servers_, tele_statistics, poller,
-                             dns_resolver, adapter_registry))
-#endif
+                             select_client_actions_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
@@ -85,10 +77,12 @@ class Aether : public Obj {
   // User-facing API.
   operator ActionContext() const { return ActionContext{*action_processor}; }
 
+  Client::ptr CreateClient(ClientConfig const& config,
+                           std::string const& client_id);
   ActionPtr<SelectClientAction> SelectClient(Uid parent_uid,
-                                             std::uint32_t client_id);
+                                             std::string const& client_id);
 
-  void AddServer(Server::ptr s);
+  void StoreServer(Server::ptr s);
   Server::ptr GetServer(ServerId server_id);
 
   std::unique_ptr<ActionProcessor> action_processor =
@@ -105,21 +99,27 @@ class Aether : public Obj {
   tele::TeleStatistics::ptr tele_statistics;
 
  private:
-  Client::ptr FindClient(std::uint32_t client_id);
+  Client::ptr FindClient(std::string const& client_id);
+  void StoreClient(Client::ptr client);
+
+  ActionPtr<SelectClientAction> FindSelectClientAction(
+      std::string const& client_id);
+  ActionPtr<SelectClientAction> MakeSelectClient() const;
+  ActionPtr<SelectClientAction> MakeSelectClient(
+      Client::ptr const& client) const;
 #if AE_SUPPORT_REGISTRATION
-  ActionPtr<Registration> RegisterClient(Uid parent_uid,
-                                         std::uint32_t client_id);
+  ActionPtr<SelectClientAction> MakeSelectClient(
+      ActionPtr<Registration> registration, std::string const& client_id);
+
+  ActionPtr<Registration> RegisterClient(Uid parent_uid);
 #endif
 
   Client::ptr client_prefab;
 
-  std::map<std::uint32_t, Client::ptr> clients_;
+  std::map<std::string, Client::ptr> clients_;
   std::map<ServerId, Server::ptr> servers_;
 
-#if AE_SUPPORT_REGISTRATION
-  std::map<std::uint32_t, ActionPtr<Registration>> registration_actions_;
-  MultiSubscription registration_subscriptions_;
-#endif
+  std::map<std::string, ActionPtr<SelectClientAction>> select_client_actions_;
 };
 
 }  // namespace ae

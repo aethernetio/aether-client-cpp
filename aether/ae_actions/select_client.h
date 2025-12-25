@@ -27,6 +27,7 @@
 #include "aether/events/event_subscription.h"
 
 namespace ae {
+class Aether;
 class Registration;
 
 class SelectClientAction final : public Action<SelectClientAction> {
@@ -43,10 +44,16 @@ class SelectClientAction final : public Action<SelectClientAction> {
    * \brief Create with client already ready.
    */
   SelectClientAction(ActionContext action_context, Client::ptr const& client);
+
+#if AE_SUPPORT_REGISTRATION
   /**
    * \brief Wait for client registration or error.
    */
-  SelectClientAction(ActionContext action_context, Registration& registration);
+  SelectClientAction(ActionContext action_context, Aether& aether,
+                     ActionPtr<Registration> registration,
+                     std::string client_id);
+#endif
+
   /**
    * \brief There is not client to select, throw error.
    */
@@ -62,8 +69,9 @@ class SelectClientAction final : public Action<SelectClientAction> {
   StateMachine<State> state_;
 
 #if AE_SUPPORT_REGISTRATION
+  std::string client_id_;
+  ActionPtr<Registration> registration_;
   Subscription registration_sub_;
-  Subscription state_changed_sub_;
 #endif
 };
 }  // namespace ae
