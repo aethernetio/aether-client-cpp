@@ -32,20 +32,19 @@ class RegistratorAction : public Action<RegistratorAction> {
  public:
   explicit RegistratorAction(ActionContext action_context,
                              RcPtr<AetherApp> const& aether_app,
-                             RegistratorConfig const& registrator_config);
+                             std::vector<reg::ClientConfig> client_configs);
   UpdateStatus Update();
 
  private:
   void RegisterClients();
 
   PtrView<Aether> aether_;
-  RegistratorConfig registrator_config_;
+  std::vector<reg::ClientConfig> client_configs_;
 
   std::size_t clients_registered_{0};
 
   MultiSubscription registration_sub_;
   StateMachine<State> state_;
-  Subscription state_changed_;
 };
 
 }  // namespace ae::registrator
