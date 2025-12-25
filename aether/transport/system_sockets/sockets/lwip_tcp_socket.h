@@ -33,8 +33,6 @@ class LwipTcpSocket final : public LwipSocket {
 
   ISocket& Connect(AddressPort const& destination,
                    ConnectedCb connected_cb) override;
-                   
-  std::size_t GetMaxPacketSize() const override;
 
  private:
   static int MakeSocket();

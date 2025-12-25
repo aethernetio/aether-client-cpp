@@ -30,8 +30,6 @@
 namespace ae {
 LwipUdpSocket::LwipUdpSocket() : LwipSocket{MakeSocket()} {}
 
-std::size_t LwipUdpSocket::GetMaxPacketSize() const { return 1200; }
-
 int LwipUdpSocket::MakeSocket() {
   bool created = false;
   auto sock = socket(AF_INET, SOCK_DGRAM, 0);

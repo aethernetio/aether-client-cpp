@@ -48,8 +48,11 @@ ISocket& LwipSocket::Error(ErrorCb error_cb) {
 }
 
 std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
+  auto lock = std::scoped_lock{socket_lock_};
   auto size_to_send = data.size();
-  auto res = send(socket_, data.data(), size_to_send, 0);
+  // add nosignal to prevent throw SIGPIPE and handle it manually
+  int flags = MSG_NOSIGNAL;
+  auto res = send(socket_, data.data(), size_to_send, flags);
   if (res == -1) {
     if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
       AE_TELED_ERROR("Send to socket error {} {}", errno, strerror(errno));
@@ -132,8 +135,10 @@ void LwipSocket::OnErrorEvent() {
   }
 }
 
-std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> data) {
-  auto res = recv(socket_, data.data(), data.size(), 0);
+std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> buffer) {
+  auto lock = std::scoped_lock{socket_lock_};
+
+  auto res = recv(socket_, buffer.data(), buffer.size(), 0);
   if (res < 0) {
     // No data
     if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
@@ -149,8 +154,6 @@ std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> data) {
   }
   return static_cast<std::size_t>(res);
 }
-
-/*bool LwipSocket::IsValid() const { return socket_ != kInvalidSocket; }*/
 
 std::optional<int> LwipSocket::GetSocketError() {
   auto lock = std::scoped_lock{socket_lock_};

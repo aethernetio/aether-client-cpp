@@ -82,15 +82,13 @@ LwipTcpSocket::LwipTcpSocket(IPoller& poller)
   recv_buffer_.resize(1500);
 }
 
-std::size_t LwipTcpSocket::GetMaxPacketSize() const { return 1500; }
-
 int LwipTcpSocket::MakeSocket() {
   bool created = false;
   constexpr int on = 1;
 
   auto sock = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
   if (sock < 0) {
-    AE_TELED_ERROR("Socket not created");
+    AE_TELED_ERROR("Socket creation error {} {}", errno, strerror(errno));
     return kInvalidSocket;
   }
 
@@ -115,8 +113,6 @@ int LwipTcpSocket::MakeSocket() {
                                                    kRcvTimeoutUsec)) {
     return kInvalidSocket;
   }
-
-  AE_TELED_DEBUG("Socket created");
   created = true;
   return sock;
 }
