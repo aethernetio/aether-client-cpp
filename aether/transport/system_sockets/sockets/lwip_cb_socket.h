@@ -14,12 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
-#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_SOCKET_H_
 
 #if (defined(ESP_PLATFORM))
 
-#  define LWIP_SOCKET_ENABLED 1
+#  define LWIP_CB_SOCKET_ENABLED 1
+
+#  include "lwip/tcp.h"
+#  include "lwip/err.h"
+#  include "lwip/sockets.h"
+#  include "lwip/sys.h"
+#  include "lwip/netdb.h"
+#  include "lwip/netif.h"
+#  include "lwip/ip_addr.h"
 
 #  include "aether/poller/poller.h"
 #  include "aether/types/data_buffer.h"
@@ -27,27 +35,47 @@
 #  include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
+class LwipCBSocket;
+
+typedef struct {
+  LwipCBSocket *my_class;
+  struct tcp_pcb *pcb;
+  uint8_t buffer[1500];
+  uint16_t buffer_len;
+  bool connected;
+  bool data_received;
+  err_t err;
+} cb_client_t;
+
 /**
  * \brief Base implementation of LWIP socket.
  */
-class LwipSocket : public ISocket {
+class LwipCBSocket : public ISocket {
  public:
   static constexpr int kInvalidSocket = -1;
 
-  explicit LwipSocket(IPoller& poller, int socket);
-  ~LwipSocket() override;
+  explicit LwipCBSocket(IPoller &poller, int socket);
+  ~LwipCBSocket() override;
 
-  ISocket& ReadyToWrite(ReadyToWriteCb ready_to_write_cb) override;
-  ISocket& RecvData(RecvDataCb recv_data_cb) override;
-  ISocket& Error(ErrorCb error_cb) override;
+  ISocket &ReadyToWrite(ReadyToWriteCb ready_to_write_cb) override;
+  ISocket &RecvData(RecvDataCb recv_data_cb) override;
+  ISocket &Error(ErrorCb error_cb) override;
   std::optional<std::size_t> Send(Span<std::uint8_t> data) override;
 
   void Disconnect() override;
 
- protected:
-  void Poll();
-  virtual void OnPollerEvent(PollerEvent const& event);
+  virtual void OnConnectionEvent() = 0;
 
+  // LWIP RAW callbacks
+  static err_t tcp_client_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p,
+                               err_t err);
+  static err_t tcp_client_sent(void *arg, struct tcp_pcb *tpcb, u16_t len);
+  static err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err);
+  static void tcp_client_error(void *arg, err_t err);
+
+  cb_client_t cb_client{};
+
+ protected:
   void OnReadEvent();
   void OnWriteEvent();
   void OnErrorEvent();
@@ -56,19 +84,13 @@ class LwipSocket : public ISocket {
 
   std::optional<int> GetSocketError();
 
-  IPoller* poller_;
-  int socket_;
-  std::mutex socket_lock_;
-
   ReadyToWriteCb ready_to_write_cb_;
   RecvDataCb recv_data_cb_;
   ErrorCb error_cb_;
 
   DataBuffer recv_buffer_;
-
-  Subscription poller_subscription_;
 };
 }  // namespace ae
 
 #endif
-#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_SOCKET_H_

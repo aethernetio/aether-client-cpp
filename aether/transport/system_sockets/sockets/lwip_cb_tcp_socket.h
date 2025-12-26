@@ -14,31 +14,27 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
-#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_
 
 #include "aether/config.h"
 #include "aether/poller/poller.h"
-#include "aether/transport/system_sockets/sockets/lwip_socket.h"
+#include "aether/transport/system_sockets/sockets/lwip_cb_socket.h"
 
-#if AE_SUPPORT_TCP && LWIP_SOCKET_ENABLED
+#if AE_SUPPORT_TCP && LWIP_CB_SOCKET_ENABLED
 
 namespace ae {
-class LwipTcpSocket final : public LwipSocket {
-  static constexpr int kRcvTimeoutSec = 0;
-  static constexpr int kRcvTimeoutUsec = 10000;
-
+class LwipCBTcpSocket final : public LwipCBSocket {
  public:
-  explicit LwipTcpSocket(IPoller& poller);
+  explicit LwipCBTcpSocket(IPoller& poller);
 
   ISocket& Connect(AddressPort const& destination,
                    ConnectedCb connected_cb) override;
 
+  void OnConnectionEvent() override;
+
  private:
-  static int MakeSocket();
-  
-  void OnPollerEvent(PollerEvent const& event) override;
-  void OnConnectionEvent();
+  int MakeSocket();
 
   ConnectionState connection_state_;
   ConnectedCb connected_cb_;
@@ -46,4 +42,4 @@ class LwipTcpSocket final : public LwipSocket {
 }  // namespace ae
 #endif
 
-#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_
