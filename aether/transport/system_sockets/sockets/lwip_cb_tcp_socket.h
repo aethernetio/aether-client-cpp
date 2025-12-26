@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
-#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_
 
 #include "aether/config.h"
 #include "aether/poller/poller.h"
@@ -23,17 +23,7 @@
 
 #if AE_SUPPORT_TCP && LWIP_CB_SOCKET_ENABLED
 
-#  include "lwip/tcp.h"
-
 namespace ae {
-typedef struct {
-  struct tcp_pcb* pcb;
-  uint8_t buffer[1500];
-  uint16_t buffer_len;
-  bool connected;
-  bool data_received;
-} tcp_client_t;
-
 class LwipCBTcpSocket final : public LwipCBSocket {
  public:
   explicit LwipCBTcpSocket(IPoller& poller);
@@ -41,16 +31,15 @@ class LwipCBTcpSocket final : public LwipCBSocket {
   ISocket& Connect(AddressPort const& destination,
                    ConnectedCb connected_cb) override;
 
+  void OnConnectionEvent() override;
+
  private:
   int MakeSocket();
 
-  void OnConnectionEvent();
-
-  tcp_client_t tcp_client_{};
   ConnectionState connection_state_;
   ConnectedCb connected_cb_;
 };
 }  // namespace ae
 #endif
 
-#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_

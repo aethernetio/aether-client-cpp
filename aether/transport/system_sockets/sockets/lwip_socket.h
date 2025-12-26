@@ -28,7 +28,7 @@
 
 namespace ae {
 /**
- * \brief Base implementation of unix socket.
+ * \brief Base implementation of LWIP socket.
  */
 class LwipSocket : public ISocket {
  public:
