@@ -28,7 +28,8 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-LwipUdpSocket::LwipUdpSocket() : LwipSocket{MakeSocket()} {}
+LwipUdpSocket::LwipUdpSocket(IPoller& poller)
+    : LwipSocket(poller, MakeSocket()) {}
 
 int LwipUdpSocket::MakeSocket() {
   bool created = false;
@@ -55,6 +56,11 @@ int LwipUdpSocket::MakeSocket() {
   AE_TELED_DEBUG("Socket created");
   created = true;
   return sock;
+}
+
+ISocket& LwipUdpSocket::Connect(AddressPort const& /*destination*/,
+                                ConnectedCb /*connected_cb*/) {
+  return *this;
 }
 }  // namespace ae
 

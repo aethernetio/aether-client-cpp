@@ -30,7 +30,7 @@ std::unique_ptr<ISocket> UdpSocketFactory::Create(
     [[maybe_unused]] IPoller& poller) {
 #  if UNIX_SOCKET_ENABLED
   return std::make_unique<UnixUdpSocket>(poller);
-#  elif LWIP_CB_SOCKET_ENABLED
+#  elif LWIP_CB_UDP_SOCKET_ENABLED
   return std::make_unique<LwipCBUdpSocket>(poller);
 #  elif LWIP_SOCKET_ENABLED
   return std::make_unique<LwipUdpSocket>(poller);
