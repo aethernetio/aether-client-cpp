@@ -113,6 +113,7 @@ void UnixSocket::OnPollerEvent(PollerEvent const& event) {
 
 void UnixSocket::OnReadEvent() {
   // read all data
+  auto lock = std::scoped_lock{socket_lock_};
   while (true) {
     auto buffer = Span{recv_buffer_.data(), recv_buffer_.size()};
     auto res = Receive(buffer);
@@ -143,9 +144,8 @@ void UnixSocket::OnErrorEvent() {
   }
 }
 
+// call on locked socket
 std::optional<std::size_t> UnixSocket::Receive(Span<std::uint8_t> buffer) {
-  auto lock = std::scoped_lock{socket_lock_};
-
   auto res = recv(socket_, buffer.data(), buffer.size(), 0);
   if (res < 0) {
     // No data
