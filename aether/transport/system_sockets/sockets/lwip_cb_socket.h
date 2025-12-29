@@ -37,15 +37,14 @@
 namespace ae {
 class LwipCBSocket;
 
-typedef struct {
-  LwipCBSocket *my_class;
-  struct tcp_pcb *pcb;
-  uint8_t buffer[1500];
-  uint16_t buffer_len;
-  bool connected;
-  bool data_received;
-  err_t err;
-} cb_client_t;
+struct CBClient{
+  LwipCBSocket *my_class{nullptr};
+  struct tcp_pcb *pcb{nullptr};
+  uint16_t buffer_len{0};
+  bool connected{false};
+  bool data_received{false};
+  err_t err{ERR_OK};
+};
 
 /**
  * \brief Base implementation of LWIP socket.
@@ -67,17 +66,17 @@ class LwipCBSocket : public ISocket {
   virtual void OnConnectionEvent() = 0;
 
   // LWIP RAW callbacks
-  static err_t tcp_client_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p,
+  static err_t TcpClientRecv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p,
                                err_t err);
-  static err_t tcp_client_sent(void *arg, struct tcp_pcb *tpcb, u16_t len);
-  static err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err);
-  static void tcp_client_error(void *arg, err_t err);
+  static err_t TcpClientSent(void *arg, struct tcp_pcb *tpcb, u16_t len);
+  static err_t TcpClientConnected(void *arg, struct tcp_pcb *tpcb, err_t err);
+  static void TcpClientError(void *arg, err_t err);
 
-  cb_client_t cb_client{};
+  CBClient cb_client{};
 
  protected:
-  void OnReadEvent();
-  void OnWriteEvent();
+  //void OnReadEvent();
+  //void OnWriteEvent();
   void OnErrorEvent();
 
   std::optional<std::size_t> Receive(Span<std::uint8_t> buffer);

@@ -32,7 +32,7 @@ LwipCBTcpSocket::LwipCBTcpSocket(IPoller& poller)
   recv_buffer_.resize(1500);
 }
 
-int LwipCBTcpSocket::MakeSocket() {
+int LwipCBTcpSocket::MakeSocket(){
   AE_TELED_DEBUG("MakeSocket");
 
   return 0;
@@ -61,26 +61,17 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
   // Reuse address
   ip_set_option(this->cb_client.pcb, SOF_REUSEADDR);
 
-  // Binding port
-  /*err = tcp_bind(this->cb_client.pcb, IP_ADDR_ANY, port);
-  if (err != ERR_OK) {
-      AE_TELED_ERROR("Not binded: {} {}", static_cast<int>(err),
-  strerror(err_to_errno(err))); tcp_close(this->cb_client.pcb);
-      this->cb_client.pcb = nullptr;
-      return *this;
-  }
-  AE_TELED_DEBUG("Port binded!");*/
-
   ipaddr = IPADDR4_INIT(addr.data.ipv4.sin_addr.s_addr);
 
-  AE_TELED_ERROR("IP {}, port {}", addr.data.ipv4.sin_addr.s_addr, port);
-  AE_TELED_ERROR("IP {}, port {}", ipaddr.u_addr.ip4.addr, port);
+  AE_TELED_DEBUG("IP {}, port {}", addr.data.ipv4.sin_addr.s_addr, port);
+  AE_TELED_DEBUG("IP {}, port {}", ipaddr.u_addr.ip4.addr, port);
 
-  // Setting callbacks
+  // Setting arguments
   tcp_arg(this->cb_client.pcb, &this->cb_client);
-  tcp_err(this->cb_client.pcb, this->tcp_client_error);
+  // Setting callback
+  tcp_err(this->cb_client.pcb, this->TcpClientError);
 
-  err = tcp_connect(this->cb_client.pcb, &ipaddr, port, tcp_client_connected);
+  err = tcp_connect(this->cb_client.pcb, &ipaddr, port, this->TcpClientConnected);
 
   if (err != ERR_OK) {
     AE_TELED_ERROR("Not connected: {} {}", static_cast<int>(err),

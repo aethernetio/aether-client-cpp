@@ -75,9 +75,11 @@ void LwipCBSocket::Disconnect() {
 }
 
 // Callback client data received
-err_t LwipCBSocket::tcp_client_recv(void *arg, struct tcp_pcb *tpcb,
-                                    struct pbuf *p, err_t err) {
-  cb_client_t *client = (cb_client_t *)arg;
+err_t LwipCBSocket::TcpClientRecv(void *arg, struct tcp_pcb *tpcb,
+                                  struct pbuf *p, err_t err) {
+  CBClient *client = static_cast<CBClient *>(arg);
+
+  defer[&] { pbuf_free(p); };
 
   if (p == NULL) {
     // Connection is closed
@@ -91,43 +93,35 @@ err_t LwipCBSocket::tcp_client_recv(void *arg, struct tcp_pcb *tpcb,
   if (err != ERR_OK) {
     AE_TELED_ERROR("TCP recv error: {} {}", static_cast<int>(err),
                    strerror(err_to_errno(err)));
-    pbuf_free(p);
     return err;
   }
 
-  // Copy
-  uint16_t copy_len = p->len;
-  if (copy_len > sizeof(client->buffer) - client->buffer_len) {
-    copy_len = sizeof(client->buffer) - client->buffer_len;
-  }
-
-  memcpy(client->buffer + client->buffer_len, p->payload, copy_len);
-  client->buffer_len += copy_len;
+  auto payload_span =
+      Span<std::uint8_t>{static_cast<std::uint8_t *>(p->payload), p->len};
   client->data_received = true;
 
   // Ack
   tcp_recved(tpcb, p->tot_len);
-  pbuf_free(p);
 
-  AE_TELED_DEBUG("Received {} bytes", copy_len);
+  AE_TELED_DEBUG("Received {} bytes", p->len);
 
-  client->my_class->OnReadEvent();
+  client->my_class->recv_data_cb_(payload_span);
+
   return ERR_OK;
 }
 
 // Callback client send
-err_t LwipCBSocket::tcp_client_sent(void *arg, struct tcp_pcb *tpcb,
-                                    u16_t len) {
-  cb_client_t *client = (cb_client_t *)arg;
+err_t LwipCBSocket::TcpClientSent(void *arg, struct tcp_pcb *tpcb, u16_t len) {
+  CBClient *client = static_cast<CBClient *>(arg);
   AE_TELED_DEBUG("Sended {} bytes", len);
 
-  client->my_class->OnWriteEvent();
+  client->my_class->ready_to_write_cb_();
   return ERR_OK;
 }
 
 // Callback for errors
-void LwipCBSocket::tcp_client_error(void *arg, err_t err) {
-  cb_client_t *client = (cb_client_t *)arg;
+void LwipCBSocket::TcpClientError(void *arg, err_t err) {
+  CBClient *client = static_cast<CBClient *>(arg);
 
   client->err = err;
   if (err != ERR_OK) {
@@ -139,9 +133,9 @@ void LwipCBSocket::tcp_client_error(void *arg, err_t err) {
   }
 }
 
-err_t LwipCBSocket::tcp_client_connected(void *arg, struct tcp_pcb *tpcb,
-                                         err_t err) {
-  cb_client_t *client = (cb_client_t *)arg;
+err_t LwipCBSocket::TcpClientConnected(void *arg, struct tcp_pcb *tpcb,
+                                       err_t err) {
+  CBClient *client = static_cast<CBClient *>(arg);
 
   client->err = err;
   if (err != ERR_OK) {
@@ -151,9 +145,9 @@ err_t LwipCBSocket::tcp_client_connected(void *arg, struct tcp_pcb *tpcb,
   }
 
   // Setting callbacks
-  tcp_recv(tpcb, LwipCBSocket::tcp_client_recv);
-  tcp_sent(tpcb, LwipCBSocket::tcp_client_sent);
-  tcp_err(tpcb, LwipCBSocket::tcp_client_error);
+  tcp_recv(tpcb, LwipCBSocket::TcpClientRecv);
+  tcp_sent(tpcb, LwipCBSocket::TcpClientSent);
+  tcp_err(tpcb, LwipCBSocket::TcpClientError);
 
   client->connected = true;
   AE_TELED_DEBUG("Connected to the server");
@@ -163,46 +157,10 @@ err_t LwipCBSocket::tcp_client_connected(void *arg, struct tcp_pcb *tpcb,
   return ERR_OK;
 }
 
-void LwipCBSocket::OnReadEvent() {
-  auto buffer = Span{recv_buffer_.data(), recv_buffer_.size()};
-  auto res = Receive(buffer);
-  if (!res) {
-    OnErrorEvent();
-    return;
-  }
-  if (*res == 0) {
-    // No data yet
-    return;
-  }
-  buffer = buffer.sub(0, *res);
-  if (recv_data_cb_) {
-    recv_data_cb_(buffer);
-  }
-}
-
-void LwipCBSocket::OnWriteEvent() {
-  if (ready_to_write_cb_) {
-    ready_to_write_cb_();
-  }
-}
-
 void LwipCBSocket::OnErrorEvent() {
   if (error_cb_) {
     error_cb_();
   }
-}
-
-std::optional<std::size_t> LwipCBSocket::Receive(Span<std::uint8_t> buffer) {
-  auto res = cb_client.buffer_len;
-
-  if (cb_client.data_received) {
-    std::memcpy(buffer.data(), cb_client.buffer, cb_client.buffer_len);
-
-    cb_client.buffer_len = 0;
-    cb_client.data_received = false;
-  }
-
-  return static_cast<std::size_t>(res);
 }
 
 std::optional<int> LwipCBSocket::GetSocketError() {
