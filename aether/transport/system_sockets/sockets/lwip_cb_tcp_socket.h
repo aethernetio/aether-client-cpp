@@ -54,7 +54,7 @@ class LwipCBTcpSocket : public ISocket {
  public:
   static constexpr int kInvalidSocket = -1;
 
-  explicit LwipCBTcpSocket(IPoller &poller);
+  explicit LwipCBTcpSocket();
   ~LwipCBTcpSocket() override;
 
   ISocket &ReadyToWrite(ReadyToWriteCb ready_to_write_cb) override;

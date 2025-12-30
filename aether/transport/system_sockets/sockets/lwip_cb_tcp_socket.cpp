@@ -22,7 +22,7 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-LwipCBTcpSocket::LwipCBTcpSocket(IPoller & /*poller*/) {
+LwipCBTcpSocket::LwipCBTcpSocket() {
   cb_tcp_client.my_class = this;
 }
 

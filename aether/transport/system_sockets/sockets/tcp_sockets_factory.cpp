@@ -31,7 +31,7 @@ std::unique_ptr<ISocket> TcpSocketsFactory::Create(
 #  if UNIX_SOCKET_ENABLED
   return std::make_unique<UnixTcpSocket>(poller);
 #  elif LWIP_CB_TCP_SOCKET_ENABLED
-  return std::make_unique<LwipCBTcpSocket>(poller);
+  return std::make_unique<LwipCBTcpSocket>();
 #  elif LWIP_SOCKET_ENABLED
   return std::make_unique<LwipTcpSocket>(poller);
 #  elif WIN_SOCKET_ENABLED

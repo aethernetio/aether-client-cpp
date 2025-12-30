@@ -22,7 +22,7 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-LwipCBUdpSocket::LwipCBUdpSocket(IPoller & /*poller*/) {
+LwipCBUdpSocket::LwipCBUdpSocket() {
   cb_udp_client.my_class = this;
 }
 
