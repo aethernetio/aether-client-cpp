@@ -16,15 +16,14 @@
 
 #include "aether/transport/system_sockets/sockets/lwip_cb_tcp_socket.h"
 #include "aether/transport/system_sockets/sockets/get_sock_addr.h"
+#include "aether/transport/system_sockets/sockets/lwip_get_addr.h"
 
 #if LWIP_CB_TCP_SOCKET_ENABLED
 
 #  include "aether/tele/tele.h"
 
 namespace ae {
-LwipCBTcpSocket::LwipCBTcpSocket() {
-  cb_tcp_client.my_class = this;
-}
+LwipCBTcpSocket::LwipCBTcpSocket() { cb_tcp_client.my_class = this; }
 
 LwipCBTcpSocket::~LwipCBTcpSocket() { Disconnect(); }
 
@@ -51,8 +50,8 @@ std::optional<std::size_t> LwipCBTcpSocket::Send(Span<std::uint8_t> data) {
     return std::nullopt;
   }
 
-  err_t err =
-      tcp_write(cb_tcp_client.pcb, data.data(), size_to_send, TCP_WRITE_FLAG_COPY);
+  err_t err = tcp_write(cb_tcp_client.pcb, data.data(), size_to_send,
+                        TCP_WRITE_FLAG_COPY);
   if (err != ERR_OK) {
     AE_TELED_ERROR("Sending error: {}, {}", static_cast<int>(err),
                    strerror(err_to_errno(err)));
@@ -74,7 +73,7 @@ void LwipCBTcpSocket::Disconnect() {
   }
 }
 
-ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
+ISocket &LwipCBTcpSocket::Connect(AddressPort const &destination,
                                   ConnectedCb connected_cb) {
   err_t err;
   ip_addr_t ipaddr;
@@ -86,16 +85,11 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
 
   connection_state_ = ConnectionState::kConnecting;
 
-  defer[&]() {
-    if (connected_cb_) {
-      connected_cb_(connection_state_);
-    }
-  };
-  
+  defer[&]() { LwipCBTcpSocket::OnConnectionEvent(); };
+
   this->cb_tcp_client.pcb = tcp_new();
   if (this->cb_tcp_client.pcb == nullptr) {
     AE_TELED_ERROR("MakeSocket TCP error");
-    this->cb_tcp_client.pcb = nullptr;
     connection_state_ = ConnectionState::kConnectionFailed;
     return *this;
   }
@@ -103,7 +97,11 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
   // Reuse address
   ip_set_option(this->cb_tcp_client.pcb, SOF_REUSEADDR);
 
-  ipaddr = IPADDR4_INIT(addr.data.ipv4.sin_addr.s_addr);
+  auto lwip_adr = convert_address_port_to_lwip(destination);
+
+  if (lwip_adr.has_value()) {
+    ipaddr = *lwip_adr;
+  }
 
   AE_TELED_DEBUG("IP {}, port {}", addr.data.ipv4.sin_addr.s_addr, port);
   AE_TELED_DEBUG("IP {}, port {}", ipaddr.u_addr.ip4.addr, port);
@@ -113,7 +111,8 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
   // Setting callback
   tcp_err(this->cb_tcp_client.pcb, this->TcpClientError);
 
-  err = tcp_connect(this->cb_tcp_client.pcb, &ipaddr, port, LwipCBTcpSocket::TcpClientConnected);
+  err = tcp_connect(this->cb_tcp_client.pcb, &ipaddr, port,
+                    LwipCBTcpSocket::TcpClientConnected);
 
   if (err != ERR_OK) {
     AE_TELED_ERROR("Not connected: {} {}", static_cast<int>(err),
@@ -125,29 +124,28 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
   }
   AE_TELED_DEBUG("Connect finished");
 
+  cb_tcp_client.connected = true;
   connection_state_ = ConnectionState::kConnected;
   return *this;
 }
 
 void LwipCBTcpSocket::OnConnectionEvent() {
-  defer[&]() {
-    if (connected_cb_) {
-      connected_cb_(connection_state_);
-    }
-  };
+  AE_TELED_DEBUG("LwIp CB TCP socket connectioin event {}", connection_state_);
 
-  AE_TELED_DEBUG("Socket TCP connected");
-  connection_state_ = ConnectionState::kConnected;
+  if (connected_cb_) {
+    connected_cb_(connection_state_);
+  }
 }
 
 // Callback client data received
 err_t LwipCBTcpSocket::TcpClientRecv(void *arg, struct tcp_pcb *tpcb,
-                                  struct pbuf *p, err_t err) {
+                                     struct pbuf *p, err_t err) {
   CBTcpClient *client = static_cast<CBTcpClient *>(arg);
 
   defer[&] {
-    if (p != nullptr){
-    pbuf_free(p);}
+    if (p != nullptr) {
+      pbuf_free(p);
+    }
   };
 
   if (p == nullptr) {
@@ -167,19 +165,20 @@ err_t LwipCBTcpSocket::TcpClientRecv(void *arg, struct tcp_pcb *tpcb,
 
   auto payload_span =
       Span<std::uint8_t>{static_cast<std::uint8_t *>(p->payload), p->len};
-  
+
   client->my_class->recv_data_cb_(payload_span);
 
   // Ack
   tcp_recved(tpcb, p->tot_len);
 
-  AE_TELED_DEBUG("Received {} bytes", p->len);  
+  AE_TELED_DEBUG("Received {} bytes", p->len);
 
   return ERR_OK;
 }
 
 // Callback client send
-err_t LwipCBTcpSocket::TcpClientSent(void *arg, struct tcp_pcb *tpcb, u16_t len) {
+err_t LwipCBTcpSocket::TcpClientSent(void *arg, struct tcp_pcb *tpcb,
+                                     u16_t len) {
   CBTcpClient *client = static_cast<CBTcpClient *>(arg);
   AE_TELED_DEBUG("Sended {} bytes", len);
 
@@ -202,7 +201,7 @@ void LwipCBTcpSocket::TcpClientError(void *arg, err_t err) {
 }
 
 err_t LwipCBTcpSocket::TcpClientConnected(void *arg, struct tcp_pcb *tpcb,
-                                       err_t err) {
+                                          err_t err) {
   CBTcpClient *client = static_cast<CBTcpClient *>(arg);
 
   client->err = err;

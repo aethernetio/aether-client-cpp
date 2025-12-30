@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_SOCKET_H_
-#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_UDP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_UDP_SOCKET_H_
 
 #if (defined(ESP_PLATFORM))
 
@@ -38,12 +38,12 @@
 namespace ae {
 class LwipCBUdpSocket;
 
-struct CBUdpClient{
+struct CBUdpClient {
   LwipCBUdpSocket *my_class{nullptr};
   struct udp_pcb *pcb{nullptr};
-  uint16_t buffer_len{0};
   bool connected{false};
-  bool data_received{false};
+  ip_addr_t server_ipaddr{};
+  std::uint16_t server_port{0};
   err_t err{ERR_OK};
 };
 
@@ -64,20 +64,18 @@ class LwipCBUdpSocket : public ISocket {
 
   void Disconnect() override;
 
-  ISocket& Connect(AddressPort const& destination,
+  ISocket &Connect(AddressPort const &destination,
                    ConnectedCb connected_cb) override;
 
   void OnConnectionEvent();
 
   // LWIP RAW callbacks
-  static err_t UdpClientRecv(void *arg, struct udp_pcb *upcb, struct pbuf *p,
-                               const ip_addr_t *addr, u16_t port);
+  static void UdpClientRecv(void *arg, struct udp_pcb *upcb, struct pbuf *p,
+                            const ip_addr_t *addr, u16_t port);
 
   CBUdpClient cb_udp_client{};
 
  protected:
-  void OnErrorEvent();
-
   std::optional<std::size_t> Receive(Span<std::uint8_t> buffer);
 
   std::optional<int> GetSocketError();
@@ -93,4 +91,4 @@ class LwipCBUdpSocket : public ISocket {
 }  // namespace ae
 
 #endif
-#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_UDP_SOCKET_H_

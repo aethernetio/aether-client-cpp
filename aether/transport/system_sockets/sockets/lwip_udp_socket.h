@@ -26,13 +26,17 @@
 namespace ae {
 class LwipUdpSocket final : public LwipSocket {
  public:
-  LwipUdpSocket(IPoller& poller);
+  explicit LwipUdpSocket(IPoller& poller);
 
   ISocket& Connect(AddressPort const& destination,
                    ConnectedCb connected_cb) override;
+
  private:
   static int MakeSocket();
-  
+
+  void OnPollerEvent(PollerEvent const& event) override;
+
+  ConnectionState connection_state_;
   ConnectedCb connected_cb_;
 };
 }  // namespace ae

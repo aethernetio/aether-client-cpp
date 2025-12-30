@@ -36,7 +36,7 @@ class LwipTcpSocket final : public LwipSocket {
 
  private:
   static int MakeSocket();
-  
+
   void OnPollerEvent(PollerEvent const& event) override;
   void OnConnectionEvent();
 

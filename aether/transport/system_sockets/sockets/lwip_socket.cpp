@@ -55,7 +55,8 @@ std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
   auto res = send(socket_, data.data(), size_to_send, flags);
   if (res == -1) {
     if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
-      AE_TELED_ERROR("Send to socket error: {}, {}", static_cast<int>(errno), strerror(errno));
+      AE_TELED_ERROR("Send to socket error: {}, {}", static_cast<int>(errno),
+                     strerror(errno));
       return std::nullopt;
     }
     return 0;
@@ -123,7 +124,7 @@ void LwipSocket::OnReadEvent() {
     if (recv_data_cb_) {
       recv_data_cb_(buffer);
     }
-  return;
+    return;
   }
 }
 
@@ -148,7 +149,8 @@ std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> buffer) {
     if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
       return 0;
     }
-    AE_TELED_ERROR("Recv error: {}, {}", static_cast<int>(errno), strerror(errno));
+    AE_TELED_ERROR("Recv error: {}, {}", static_cast<int>(errno),
+                   strerror(errno));
     return std::nullopt;
   }
   // probably the socket is shutdown
@@ -166,7 +168,8 @@ std::optional<int> LwipSocket::GetSocketError() {
   socklen_t len = sizeof(len);
   if (getsockopt(socket_, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err),
                  &len) != 0) {
-    AE_TELED_ERROR("Getsockopt error: {}, {}", static_cast<int>(errno), strerror(errno));
+    AE_TELED_ERROR("Getsockopt error: {}, {}", static_cast<int>(errno),
+                   strerror(errno));
     return std::nullopt;
   }
   return err;

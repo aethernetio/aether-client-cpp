@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_SOCKET_H_
-#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_
 
 #if (defined(ESP_PLATFORM))
 
@@ -38,10 +38,9 @@
 namespace ae {
 class LwipCBTcpSocket;
 
-struct CBTcpClient{
+struct CBTcpClient {
   LwipCBTcpSocket *my_class{nullptr};
   struct tcp_pcb *pcb{nullptr};
-  uint16_t buffer_len{0};
   bool connected{false};
   err_t err{ERR_OK};
 };
@@ -63,14 +62,14 @@ class LwipCBTcpSocket : public ISocket {
 
   void Disconnect() override;
 
-  ISocket& Connect(AddressPort const& destination,
+  ISocket &Connect(AddressPort const &destination,
                    ConnectedCb connected_cb) override;
 
   void OnConnectionEvent();
 
   // LWIP RAW callbacks
   static err_t TcpClientRecv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p,
-                               err_t err);
+                             err_t err);
   static err_t TcpClientSent(void *arg, struct tcp_pcb *tpcb, u16_t len);
   static err_t TcpClientConnected(void *arg, struct tcp_pcb *tpcb, err_t err);
   static void TcpClientError(void *arg, err_t err);
@@ -86,7 +85,7 @@ class LwipCBTcpSocket : public ISocket {
 
   ReadyToWriteCb ready_to_write_cb_;
   RecvDataCb recv_data_cb_;
-  ErrorCb error_cb_;  
+  ErrorCb error_cb_;
   ConnectedCb connected_cb_;
 
   ConnectionState connection_state_;
@@ -95,4 +94,4 @@ class LwipCBTcpSocket : public ISocket {
 }  // namespace ae
 
 #endif
-#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_

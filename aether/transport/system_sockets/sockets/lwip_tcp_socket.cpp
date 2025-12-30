@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "aether/transport/system_sockets/sockets/lwip_tcp_socket.h"
 
 #if AE_SUPPORT_TCP && LWIP_SOCKET_ENABLED
@@ -88,7 +89,8 @@ int LwipTcpSocket::MakeSocket() {
 
   auto sock = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
   if (sock < 0) {
-    AE_TELED_ERROR("Socket creation error {} {}", errno, strerror(errno));
+    AE_TELED_ERROR("LwIp TCP socket creation error {} {}", errno,
+                   strerror(errno));
     return kInvalidSocket;
   }
 
@@ -113,6 +115,8 @@ int LwipTcpSocket::MakeSocket() {
                                                    kRcvTimeoutUsec)) {
     return kInvalidSocket;
   }
+
+  AE_TELED_DEBUG("LwIp TCP socket created");
   created = true;
   return sock;
 }
@@ -135,6 +139,8 @@ ISocket& LwipTcpSocket::Connect(AddressPort const& destination,
     if ((errno == EAGAIN) || (errno == EINPROGRESS)) {
       AE_TELED_DEBUG("Wait connection");
       connection_state_ = ConnectionState::kConnecting;
+      Poll();
+      connected_cb_(connection_state_);
       return *this;
     }
     AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
@@ -160,6 +166,7 @@ void LwipTcpSocket::OnPollerEvent(PollerEvent const& event) {
 void LwipTcpSocket::OnConnectionEvent() {
   defer[&]() {
     if (connected_cb_) {
+      AE_TELED_DEBUG("LwIp TCP socket connectioin event {}", connection_state_);
       connected_cb_(connection_state_);
     }
   };
