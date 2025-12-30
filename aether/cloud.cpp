@@ -26,7 +26,7 @@ void Cloud::AddServer(Server::ptr server) {
   cloud_updated_.Emit();
 }
 
-void Cloud::AddServers(std::vector<Server::ptr> servers) {
+void Cloud::SetServers(std::vector<Server::ptr> servers) {
   for (auto&& s : std::move(servers)) {
     servers_.emplace_back(std::move(s));
     servers_.back().SetFlags(ObjFlags::kUnloadedByDefault);

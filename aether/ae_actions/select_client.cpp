@@ -18,6 +18,7 @@
 
 #include <cassert>
 
+#include "aether/aether.h"
 #include "aether/registration/registration.h"
 
 #include "aether/ae_actions/ae_actions_tele.h"
@@ -32,25 +33,24 @@ SelectClientAction::SelectClientAction(ActionContext action_context,
 
 #if AE_SUPPORT_REGISTRATION  // only if registration is supported
 SelectClientAction::SelectClientAction(ActionContext action_context,
-                                       Registration& registration)
+                                       Aether& aether,
+                                       ActionPtr<Registration> registration,
+                                       std::string client_id)
     : Action{action_context},
       state_{State::kWaitRegistration},
-      registration_sub_{registration.StatusEvent().Subscribe(ActionHandler{
-          OnResult{[this](auto& action) {
-            client_ = action.client();
-            state_ = State::kClientRegistered;
-          }},
-          OnError{[this]() { state_ = State::kClientRegistrationError; }},
-      })},
-      state_changed_sub_{state_.changed_event().Subscribe(
-          [this](auto) { Action::Trigger(); })} {
+      client_id_{std::move(client_id)},
+      registration_{std::move(registration)} {
   AE_TELED_DEBUG("Waiting for client registration");
-}
+  registration_sub_ = registration_->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[this, aeth{&aether}](auto& action) {
+        client_ = aeth->CreateClient(action.client_config(), client_id_);
+        state_ = State::kClientRegistered;
+      }},
+      OnError{[this]() { state_ = State::kClientRegistrationError; }},
+  });
 
-#else  // or init like there is not client to select
-SelectClientAction::SelectClientAction(ActionContext action_context,
-                                       Registration&)
-    : SelectClientAction{action_context} {}
+  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+}
 #endif
 
 SelectClientAction::SelectClientAction(ActionContext action_context)

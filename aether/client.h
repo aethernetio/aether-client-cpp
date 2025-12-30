@@ -18,10 +18,10 @@
 #define AETHER_CLIENT_H_
 
 #include <map>
+#include <string>
 #include <cassert>
 
 #include "aether/memory.h"
-#include "aether/common.h"
 #include "aether/cloud.h"
 #include "aether/obj/obj.h"
 #include "aether/types/uid.h"
@@ -49,6 +49,8 @@ class Client : public Obj {
 #endif  // AE_DISTILLATION
 
   // Public API.
+  std::string const& id() const;
+  Uid const& parent_uid() const;
   Uid const& uid() const;
   Uid const& ephemeral_uid() const;
   ServerKeys* server_state(ServerId server_id);
@@ -59,10 +61,12 @@ class Client : public Obj {
   CloudConnection& cloud_connection();
   P2pMessageStreamManager& message_stream_manager();
 
-  void SetConfig(Uid uid, Uid ephemeral_uid, Key master_key, Cloud::ptr c);
+  void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
+                 Uid ephemeral_uid, Key master_key, Cloud::ptr c);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, uid_, ephemeral_uid_, master_key_, cloud_,
-                             server_keys_, client_cloud_manager_))
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_id_, parent_uid_, uid_,
+                             ephemeral_uid_, master_key_, cloud_, server_keys_,
+                             client_cloud_manager_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
@@ -83,8 +87,10 @@ class Client : public Obj {
  private:
   Obj::ptr aether_;
   // configuration
-  Uid uid_{};
-  Uid ephemeral_uid_{};
+  std::string client_id_;  // User-defined client id
+  Uid parent_uid_;         // Parent aethernet client uid
+  Uid uid_{};              // Aethernet client uid
+  Uid ephemeral_uid_{};    // Used for server aethentication
   Key master_key_;
   Cloud::ptr cloud_;
 

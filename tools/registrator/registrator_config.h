@@ -19,42 +19,60 @@
 
 #include <string>
 #include <vector>
+#include <filesystem>
 
 #include "aether/types/address.h"
+#include "aether/types/server_id.h"
 
-namespace ae {
-struct ServerConfig {
-  std::string server_address;
-  std::uint16_t server_port;
-  ae::Protocol server_protocol;
-  ae::Address server_ip_address;
+namespace ini {
+class Section;
+}
+
+namespace ae::reg {
+struct Aether {
+  std::string ed25519_sign_key;
+  std::string hydrogen_sign_key;
 };
 
-struct ClientParents {
-  std::string uid_str;
-  std::uint8_t clients_num;
+struct WifiAdapter {
+  std::string ssid;
+  std::string password;
+};
+
+struct RegServer {
+  ServerId server_id;
+  std::string address;
+  std::uint16_t port;
+  ae::Protocol protocol;
+};
+
+struct ClientConfig {
+  std::string client_id;
+  std::string parent_uid;
 };
 
 class RegistratorConfig {
  public:
-  explicit RegistratorConfig(const std::string& ini_file);
+  explicit RegistratorConfig(std::filesystem::path const& ini_file);
 
-  int ParseConfig();
-  std::vector<ae::ClientParents> GetParents();
-  std::vector<ae::ServerConfig> GetServers();
-  std::uint8_t GetClientsTotal();
-  std::string GetWiFiSsid();
-  std::string GetWiFiPass();
-  bool GetWiFiIsSet();
+  std::optional<Aether> const& aether() const;
+  std::optional<WifiAdapter> const& wifi_adapter() const;
+  std::vector<RegServer> const& reg_servers() const;
+  std::vector<ClientConfig> const& clients() const;
 
  private:
-  const std::string ini_file_;
-  std::vector<ae::ClientParents> parents_;
-  std::vector<ae::ServerConfig> servers_;
-  std::uint8_t clients_total_{0};
-  std::string wifi_ssid_{};
-  std::string wifi_pass_{};
+  void ParseConfig(std::filesystem::path const& ini_file);
+
+  void ParseAether(ini::Section const& aether);
+  void ParseWifiAdapter(ini::Section const& wifi_adapter);
+  void ParseRegServer(ini::Section const& reg_server, std::string const& name);
+  void ParseClient(ini::Section const& client, std::string const& name);
+
+  std::optional<Aether> aether_;
+  std::optional<WifiAdapter> wifi_adapter_;
+  std::vector<RegServer> reg_servers_;
+  std::vector<ClientConfig> clients_;
 };
-}  // namespace ae
+}  // namespace ae::reg
 
 #endif  // TOOLS_REGISTRATOR_REGISTRATOR_CONFIG_H_
