@@ -46,7 +46,7 @@ ISocket &LwipCBTcpSocket::Error(ErrorCb error_cb) {
 std::optional<std::size_t> LwipCBTcpSocket::Send(Span<std::uint8_t> data) {
   auto size_to_send = data.size();
 
-  if (!cb_tcp_client.connected || cb_tcp_client.pcb == NULL) {
+  if (!cb_tcp_client.connected || cb_tcp_client.pcb == nullptr) {
     AE_TELED_DEBUG("Not connected to the server");
     return std::nullopt;
   }
@@ -67,9 +67,9 @@ std::optional<std::size_t> LwipCBTcpSocket::Send(Span<std::uint8_t> data) {
 }
 
 void LwipCBTcpSocket::Disconnect() {
-  if (cb_tcp_client.pcb != NULL) {
+  if (cb_tcp_client.pcb != nullptr) {
     tcp_close(cb_tcp_client.pcb);
-    cb_tcp_client.pcb = NULL;
+    cb_tcp_client.pcb = nullptr;
     cb_tcp_client.connected = false;
   }
 }
@@ -86,6 +86,12 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
 
   connection_state_ = ConnectionState::kConnecting;
 
+  defer[&]() {
+    if (connected_cb_) {
+      connected_cb_(connection_state_);
+    }
+  };
+  
   this->cb_tcp_client.pcb = tcp_new();
   if (this->cb_tcp_client.pcb == nullptr) {
     AE_TELED_ERROR("MakeSocket TCP error");
@@ -107,7 +113,7 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
   // Setting callback
   tcp_err(this->cb_tcp_client.pcb, this->TcpClientError);
 
-  err = tcp_connect(this->cb_tcp_client.pcb, &ipaddr, port, this->TcpClientConnected);
+  err = tcp_connect(this->cb_tcp_client.pcb, &ipaddr, port, LwipCBTcpSocket::TcpClientConnected);
 
   if (err != ERR_OK) {
     AE_TELED_ERROR("Not connected: {} {}", static_cast<int>(err),
@@ -139,9 +145,12 @@ err_t LwipCBTcpSocket::TcpClientRecv(void *arg, struct tcp_pcb *tpcb,
                                   struct pbuf *p, err_t err) {
   CBTcpClient *client = static_cast<CBTcpClient *>(arg);
 
-  defer[&] { pbuf_free(p); };
+  defer[&] {
+    if (p != nullptr){
+    pbuf_free(p);}
+  };
 
-  if (p == NULL) {
+  if (p == nullptr) {
     // Connection is closed
     client->connected = false;
     AE_TELED_DEBUG("Connection is closed");
@@ -160,8 +169,6 @@ err_t LwipCBTcpSocket::TcpClientRecv(void *arg, struct tcp_pcb *tpcb,
       Span<std::uint8_t>{static_cast<std::uint8_t *>(p->payload), p->len};
   
   client->my_class->recv_data_cb_(payload_span);
-  
-  client->data_received = true;
 
   // Ack
   tcp_recved(tpcb, p->tot_len);
@@ -219,6 +226,8 @@ err_t LwipCBTcpSocket::TcpClientConnected(void *arg, struct tcp_pcb *tpcb,
 }
 
 void LwipCBTcpSocket::OnErrorEvent() {
+  connection_state_ = ConnectionState::kConnectionFailed;
+
   if (error_cb_) {
     error_cb_();
   }

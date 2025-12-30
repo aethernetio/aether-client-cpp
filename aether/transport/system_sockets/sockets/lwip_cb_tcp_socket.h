@@ -43,7 +43,6 @@ struct CBTcpClient{
   struct tcp_pcb *pcb{nullptr};
   uint16_t buffer_len{0};
   bool connected{false};
-  bool data_received{false};
   err_t err{ERR_OK};
 };
 
