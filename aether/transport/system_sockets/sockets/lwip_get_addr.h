@@ -18,17 +18,15 @@
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_GET_ADDR_H_
 
 #if (defined(ESP_PLATFORM))
-  
+
 #  include <optional>
-#  include <cstring>
-#  include <string>
 
 #  include "lwip/ip_addr.h"
 
 #  include "aether/types/address.h"
 
 namespace ae {
-std::optional<ip_addr_t> convert_address_port_to_lwip(const AddressPort& addr_port);
+std::optional<ip_addr_t> LwipGetAddr(const AddressPort& addr_port);
 }  // namespace ae
 #endif  // (defined(ESP_PLATFORM))
 #endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_GET_ADDR_H_
