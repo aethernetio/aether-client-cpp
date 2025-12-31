@@ -89,7 +89,7 @@ void GetServersAction::MakeRequest() {
             request_policy_);
       },
       // TODO: add config for repeat time and count
-      std::chrono::milliseconds{1000},
+      std::chrono::milliseconds{10000},
       repeat_count,
   };
 
