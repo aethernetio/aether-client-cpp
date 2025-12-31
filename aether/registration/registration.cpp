@@ -24,7 +24,7 @@
 #  include "aether/crypto/sign.h"
 #  include "aether/api_protocol/api_context.h"
 #  include "aether/crypto/crypto_definitions.h"
-#  include "aether/stream_api/protocol_gates.h"
+#  include "aether/stream_api/api_call_adapter.h"
 
 #  include "aether/registration/proof_of_work.h"
 #  include "aether/registration/registration_crypto_provider.h"

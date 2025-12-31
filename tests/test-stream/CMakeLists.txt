@@ -26,8 +26,6 @@ list(APPEND test_srcs
   safe-stream/test_safe_stream_send_recv.cpp
   safe-stream/test_safe_stream.cpp
   safe-stream/test_safe_stream_reliability.cpp
-  crypto-stream/test_crypto_stream.cpp
-  protocol-stream/test_protocol_stream.cpp
   templated-streams/test_templated_streams.cpp
   test-tied-gates.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp

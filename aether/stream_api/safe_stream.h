@@ -54,10 +54,10 @@ class SafeStream final : public ByteStream,
 
   AE_CLASS_NO_COPY_MOVE(SafeStream);
 
-  ActionPtr<StreamWriteAction> Write(DataBuffer &&data) override;
+  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
 
-  void LinkOut(OutStream &out) override;
+  void LinkOut(OutStream& out) override;
 
   // Api impl methods
   void Ack(SSRingIndex::type offset) override;
@@ -66,16 +66,16 @@ class SafeStream final : public ByteStream,
 
   // Implement ISendDataPush
   ActionPtr<StreamWriteAction> PushData(SSRingIndex begin,
-                                        DataMessage &&data_message) override;
+                                        DataMessage&& data_message) override;
 
   // Implement ISendConfirmRepeat
   void SendAck(SSRingIndex offset) override;
   void SendRepeatRequest(SSRingIndex offset) override;
 
  private:
-  void WriteOut(DataBuffer const &data);
+  void WriteOut(DataBuffer const& data);
   void OnStreamUpdate();
-  void OnOutData(DataBuffer const &data);
+  void OnOutData(DataBuffer const& data);
 
   ActionContext action_context_;
   SafeStreamConfig config_;

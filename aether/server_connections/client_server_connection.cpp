@@ -19,7 +19,7 @@
 #include "aether/server.h"
 #include "aether/client.h"
 #include "aether/crypto/ikey_provider.h"
-#include "aether/stream_api/protocol_gates.h"
+#include "aether/stream_api/api_call_adapter.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/crypto/sync_crypto_provider.h"
 
