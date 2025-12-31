@@ -47,12 +47,7 @@ class MultiSubscription {
     (PushToVector(std::forward<TDeleters>(deleters)), ...);
   }
 
-  template <typename TDeleter>
-  MultiSubscription& operator+=(TDeleter&& deleter) {
-    CleanUp();
-    PushToVector(std::forward<TDeleter>(deleter));
-    return *this;
-  }
+  MultiSubscription& operator+=(EventHandlerDeleter&& deleter);
 
   /**
    * \brief Reset all subscriptions.

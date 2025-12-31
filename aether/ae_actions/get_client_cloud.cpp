@@ -22,87 +22,69 @@ namespace ae {
 
 GetClientCloudAction::GetClientCloudAction(
     ActionContext action_context, Uid client_uid,
-    CloudConnection& cloud_connection, RequestPolicy::Variant request_policy)
+    CloudServerConnections& cloud_connection,
+    RequestPolicy::Variant request_policy)
     : Action(action_context),
-      action_context_{action_context},
       client_uid_{client_uid},
-      cloud_connection_{&cloud_connection},
-      request_policy_{request_policy},
-      state_{State::kRequestCloud} {
+      state_{State::kNone},
+      cloud_request_{
+          action_context,
+          AuthApiCaller{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
+            AE_TELED_DEBUG("Resolve cloud for {}", client_uid_);
+            auth_api->resolver_clouds({client_uid_});
+          }},
+          ClientResponseListener{[this](ClientApiSafe& client_api, auto*,
+                                        auto* request) {
+            return client_api.send_cloud_event().Subscribe(
+                [this, request](auto const& uid, auto const& cloud_descriptor) {
+                  if (uid == client_uid_) {
+                    cloud_ = cloud_descriptor.sids;
+                    request->Succeeded();
+                  }
+                });
+          }},
+          cloud_connection,
+          request_policy,
+      } {
   AE_TELE_INFO(kGetClientCloud, "GetClientCloudAction created");
-  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
-
-  cloud_resolved_sub_ = cloud_connection_->ClientApiSubscription(
-      [this](ClientApiSafe& client_api, auto*) {
-        return client_api.send_cloud_event().Subscribe(
-            [this](auto const& uid, auto const& cloud_descriptor) {
-              if (uid == client_uid_) {
-                cloud_ = cloud_descriptor.sids;
-                AE_TELED_DEBUG("Cloud resolved as [{}]", cloud_);
-                request_cloud_task_->Stop();
-                state_ = State::kResult;
-              }
-            });
-      },
-      request_policy_);
+  cloud_request_sub_ = cloud_request_->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[this]() {
+        AE_TELED_DEBUG("Cloud resolved as [{}]", cloud_);
+        state_ = State::kResult;
+        Action::Trigger();
+      }},
+      OnError{[this]() {
+        AE_TELED_ERROR("Cloud resolution failed");
+        state_ = State::kFailed;
+        Action::Trigger();
+      }},
+  });
 }
 
 UpdateStatus GetClientCloudAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
-      case State::kRequestCloud:
-        RequestCloud();
-        break;
       case State::kResult:
         return UpdateStatus::Result();
       case State::kFailed:
         return UpdateStatus::Error();
       case State::kStopped:
         return UpdateStatus::Stop();
+      default:
+        break;
     }
   }
-
   return {};
 }
 
 void GetClientCloudAction::Stop() {
-  state_.Set(State::kStopped);
-
-  if (request_cloud_task_) {
-    request_cloud_task_->Stop();
-  }
+  cloud_request_->Stop();
+  state_ = State::kStopped;
+  Action::Trigger();
 }
 
 std::vector<ServerId> const& GetClientCloudAction::cloud() const {
   return cloud_;
 }
 
-void GetClientCloudAction::RequestCloud() {
-  AE_TELE_INFO(kGetClientCloudRequestCloud, "RequestCloud for uid {}",
-               client_uid_);
-
-  // TODO: add config for repeat time and count
-  auto repeat_count = 5;
-
-  // Repeat request's until get the answear
-  request_cloud_task_ = OwnActionPtr<RepeatableTask>{
-      action_context_,
-      [this]() {
-        cloud_connection_->AuthorizedApiCall(
-            [this](ApiContext<AuthorizedApi>& auth_api, auto*) {
-              AE_TELED_DEBUG("Resolve cloud for {}", client_uid_);
-              auth_api->resolver_clouds({client_uid_});
-            },
-            request_policy_);
-      },
-      std::chrono::milliseconds{10000},
-      repeat_count,
-  };
-
-  cloud_request_sub_ =
-      request_cloud_task_->StatusEvent().Subscribe(OnError{[this]() {
-        AE_TELED_ERROR("Cloud request count exceeded");
-        state_ = State::kFailed;
-      }});
-}
 }  // namespace ae

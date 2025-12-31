@@ -25,14 +25,14 @@ P2pMessageStreamManager::P2pMessageStreamManager(ActionContext action_context,
     : action_context_{action_context},
       client_{client},
       connection_manager_{&client->connection_manager()},
-      cloud_connection_{&client->cloud_connection()} {
-  on_message_received_sub_ = cloud_connection_->ClientApiSubscription(
-      [this](ClientApiSafe& client_api, auto*) {
-        return client_api.send_message_event().Subscribe(
-            MethodPtr<&P2pMessageStreamManager::NewMessageReceived>{this});
-      },
-      RequestPolicy::Replica{cloud_connection_->count_connections()});
-}
+      cloud_connection_{&client->cloud_connection()},
+      on_message_received_sub_{CloudSubscription{
+          ClientListener{[this](ClientApiSafe& client_api, auto*) {
+            return client_api.send_message_event().Subscribe(
+                MethodPtr<&P2pMessageStreamManager::NewMessageReceived>{this});
+          }},
+          *cloud_connection_,
+          RequestPolicy::Replica{cloud_connection_->count_connections()}}} {}
 
 RcPtr<P2pStream> P2pMessageStreamManager::CreateStream(Uid destination) {
   CleanUpStreams();

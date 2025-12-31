@@ -27,9 +27,7 @@
 #include "aether/ae_actions/get_servers.h"
 #include "aether/ae_actions/get_client_cloud.h"
 #include "aether/work_cloud_api/server_descriptor.h"
-#include "aether/client_connections/cloud_connection.h"
-
-#include "aether/client_connections/client_connections_tele.h"
+#include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
 namespace client_cloud_manager_internal {
@@ -57,7 +55,8 @@ class GetCloudFromAether : public GetCloudAction {
 
   explicit GetCloudFromAether(ActionContext action_context, Aether& aether,
                               ClientCloudManager& client_cloud_manager,
-                              CloudConnection& cloud_connection, Uid client_uid)
+                              CloudServerConnections& cloud_connection,
+                              Uid client_uid)
       : GetCloudAction{action_context},
         action_context_{action_context},
         aether_{&aether},
@@ -176,7 +175,7 @@ class GetCloudFromAether : public GetCloudAction {
   ActionContext action_context_;
   Aether* aether_;
   ClientCloudManager* client_cloud_manager_;
-  CloudConnection* cloud_connection_;
+  CloudServerConnections* cloud_connection_;
   Uid client_uid_;
   StateMachine<State> state_;
   OwnActionPtr<GetClientCloudAction> get_client_cloud_action_;

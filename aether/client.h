@@ -28,7 +28,7 @@
 #include "aether/server_keys.h"
 
 #include "aether/ae_actions/telemetry.h"
-#include "aether/client_connections/cloud_connection.h"
+#include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/connection_manager/client_cloud_manager.h"
 #include "aether/client_messages/p2p_message_stream_manager.h"
 #include "aether/connection_manager/server_connection_manager.h"
@@ -58,7 +58,7 @@ class Client : public Obj {
   ClientCloudManager::ptr const& cloud_manager() const;
   ServerConnectionManager& server_connection_manager();
   ClientConnectionManager& connection_manager();
-  CloudConnection& cloud_connection();
+  CloudServerConnections& cloud_connection();
   P2pMessageStreamManager& message_stream_manager();
 
   void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
@@ -100,7 +100,7 @@ class Client : public Obj {
   ClientCloudManager::ptr client_cloud_manager_;
   std::unique_ptr<ServerConnectionManager> server_connection_manager_;
   std::unique_ptr<ClientConnectionManager> client_connection_manager_;
-  std::unique_ptr<CloudConnection> cloud_connection_;
+  std::unique_ptr<CloudServerConnections> cloud_connection_;
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
 
 #if AE_TELE_ENABLED

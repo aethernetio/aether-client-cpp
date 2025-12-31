@@ -24,28 +24,24 @@
 #include "aether/actions/action.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/types/state_machine.h"
-#include "aether/actions/repeatable_task.h"
-#include "aether/client_connections/cloud_connection.h"
+#include "aether/cloud_connections/cloud_request.h"
+#include "aether/cloud_connections/request_policy.h"
+#include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
-class CloudConnection;
+class CloudServerConnections;
 class CheckAccessForSendMessage final
     : public Action<CheckAccessForSendMessage> {
-  static constexpr std::uint8_t kMaxRequestRepeatCount = 5;
-  static constexpr Duration kRequestTimeout = std::chrono::seconds{1};
-
   enum class State : std::uint8_t {
-    kSendRequest,
-    kWaitResponse,
+    kNone,
     kReceivedSuccess,
     kReceivedError,
     kSendError,
-    kTimeout,
   };
 
  public:
   CheckAccessForSendMessage(ActionContext action_context, Uid destination,
-                            CloudConnection& cloud_connection,
+                            CloudServerConnections& cloud_connection,
                             RequestPolicy::Variant request_policy);
 
   AE_CLASS_NO_COPY_MOVE(CheckAccessForSendMessage)
@@ -55,22 +51,15 @@ class CheckAccessForSendMessage final
   State state() const { return state_.get(); }
 
  private:
-  void SendRequest();
-  TimePoint WaitResponse();
   void ResponseReceived();
   void ErrorReceived();
-  void SendError();
 
-  ActionContext action_context_;
   Uid destination_;
-  CloudConnection* cloud_connection_;
-  RequestPolicy::Variant request_policy_;
 
   StateMachine<State> state_;
-  ActionPtr<RepeatableTask> repeatable_task_;
+  OwnActionPtr<CloudRequestAction> cloud_request_;
   Subscription wait_check_sub_;
-  Subscription send_error_sub_;
-  Subscription repeat_task_error_sub_;
+  Subscription request_sub_;
 };
 }  // namespace ae
 

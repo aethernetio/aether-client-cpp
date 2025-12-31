@@ -28,7 +28,8 @@
 #  include "aether/actions/action.h"
 #  include "aether/stream_api/istream.h"
 #  include "aether/types/state_machine.h"
-#  include "aether/client_connections/cloud_connection.h"
+#  include "aether/cloud_connections/cloud_server_connections.h"
+#  include "aether/cloud_connections/cloud_subscription.h"
 
 #  include "aether/work_cloud_api/telemetric.h"
 
@@ -44,7 +45,7 @@ class Telemetry : public Action<Telemetry> {
 
  public:
   Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
-            CloudConnection& cloud_connection);
+            CloudServerConnections& cloud_connection);
 
   AE_CLASS_NO_COPY_MOVE(Telemetry)
 
@@ -59,11 +60,11 @@ class Telemetry : public Action<Telemetry> {
   std::optional<Telemetric> CollectTelemetry(StreamInfo const& stream_info);
 
   PtrView<Aether> aether_;
-  CloudConnection* cloud_connection_;
+  CloudServerConnections* cloud_connection_;
 
-  CloudConnection::ReplicaSubscription telemetry_request_sub_;
+  CloudSubscription telemetry_request_sub_;
   StateMachine<State> state_;
-  std::optional<std::size_t> request_for_priority_;
+  std::optional<std::size_t> request_for_server_;
 };
 }  // namespace ae
 #endif

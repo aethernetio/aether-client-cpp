@@ -52,7 +52,7 @@ class CloudServerConnection {
    * \param priority the new priority value.
    * Priority is used to sort connection in cloud for performing requests.
    */
-  void BeginConnection(std::size_t priority);
+  bool BeginConnection(std::size_t priority);
   /**
    * \brief Call to end connection with specified priority.
    * \param priority the new priority value.
@@ -66,7 +66,7 @@ class CloudServerConnection {
    * Should be called after BeginConnection.
    * \return The client-server connection object or nullptr.
    */
-  ClientServerConnection* ClientConnection();
+  ClientServerConnection* client_connection();
 
   ObjPtr<Server> server() const;
 
