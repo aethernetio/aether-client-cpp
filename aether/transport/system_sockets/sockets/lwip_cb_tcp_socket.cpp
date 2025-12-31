@@ -92,7 +92,7 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
   // Reuse address
   ip_set_option(pcb_, SOF_REUSEADDR);
 
-  auto lwip_adr = convert_address_port_to_lwip(destination);
+  auto lwip_adr = LwipGetAddr(destination);
   if (!lwip_adr) {
     AE_TELED_ERROR("Make lwip address error");
     connection_state_ = ConnectionState::kConnectionFailed;

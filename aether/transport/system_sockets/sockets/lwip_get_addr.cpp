@@ -17,39 +17,44 @@
 #include "aether/transport/system_sockets/sockets/lwip_get_addr.h"
 
 #if (defined(ESP_PLATFORM))
-  
+
+#  include <variant>
+#  include <cassert>
+
+#  include "aether/reflect/reflect.h"
+
 namespace ae {
-std::optional<ip_addr_t> convert_address_port_to_lwip(const AddressPort& addr_port) {
-    ip_addr_t lwip_addr;
-    
-    if (addr_port.address.Index() == AddrVersion::kIpV4) {
-        const auto& ipv4 = addr_port.address.Get<IpV4Addr>();
-        IP_ADDR4(&lwip_addr, 
-                ipv4.ipv4_value[0],
-                ipv4.ipv4_value[1],
-                ipv4.ipv4_value[2],
-                ipv4.ipv4_value[3]);
-        return lwip_addr;
-    }
-    else if (addr_port.address.Index() == AddrVersion::kIpV6) {
-        const auto& ipv6 = addr_port.address.Get<IpV6Addr>();
-        
-        // LwIP expects a 4-element uint32_t array for IPv6
-        uint32_t ip6_parts[4];
-        std::memcpy(ip6_parts, ipv6.ipv6_value, 16);
-        
-        IP_ADDR6(&lwip_addr,
-                PP_HTONL(ip6_parts[0]),
-                PP_HTONL(ip6_parts[1]),
-                PP_HTONL(ip6_parts[2]),
-                PP_HTONL(ip6_parts[3]));
-        return lwip_addr;
-    }
-    else if (addr_port.address.Index() == AddrVersion::kNamed) {        
-        return std::nullopt; // Name could not be resolved
-    }
-    
-    return std::nullopt; // Unsupported address type
+std::optional<ip_addr_t> LwipGetAddr(const AddressPort& addr_port) {
+  return std::visit(
+      reflect::OverrideFunc{
+#  if AE_SUPPORT_IPV4
+          [&](IpV4Addr const& ipv4) -> std::optional<ip_addr_t> {
+            ip_addr_t lwip_addr;
+            IP_ADDR4(&lwip_addr, ipv4.ipv4_value[0], ipv4.ipv4_value[1],
+                     ipv4.ipv4_value[2], ipv4.ipv4_value[3]);
+            return lwip_addr;
+          },
+#  endif
+#  if AE_SUPPORT_IPV6
+          [&](IpV6Addr const& ipv6) -> std::optional<ip_addr_t> {
+            ip_addr_t lwip_addr;
+            std::array<std::uint32_t const*, 4> ip6_parts{};
+            for (auto i = 0; i < 4; ++i) {
+              ip6_parts[i] = reinterpret_cast<std::uint32_t const*>(
+                  &ipv6.ipv6_value[i * 4]);
+            }
+            IP_ADDR6(&lwip_addr, PP_HTONL(*ip6_parts[0]),
+                     PP_HTONL(*ip6_parts[1]), PP_HTONL(*ip6_parts[2]),
+                     PP_HTONL(*ip6_parts[3]));
+            return lwip_addr;
+          },
+#  endif
+          [](auto const&) -> std::optional<ip_addr_t> {
+            assert(false && "Unsupported address type");
+            return std::nullopt;
+          },
+      },
+      addr_port.address);
 }
 }  // namespace ae
 #endif  // (defined(ESP_PLATFORM))
