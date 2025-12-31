@@ -25,7 +25,7 @@
 
 #include "aether/stream_api/buffer_stream.h"
 
-#include "aether/client_connections/cloud_connection.h"
+#include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/connection_manager/client_cloud_manager.h"
 #include "aether/connection_manager/client_connection_manager.h"
 
@@ -67,7 +67,7 @@ class P2pStream final : public ByteIStream {
   void DataReceived(AeMessage const& data);
   std::unique_ptr<ClientConnectionManager> MakeConnectionManager(
       ObjPtr<Cloud> const& cloud);
-  std::unique_ptr<CloudConnection> MakeDestinationStream(
+  std::unique_ptr<CloudServerConnections> MakeDestinationStream(
       ClientConnectionManager& connection_manager);
 
   ActionContext action_context_;
@@ -76,7 +76,7 @@ class P2pStream final : public ByteIStream {
 
   // connection manager to destination cloud
   std::unique_ptr<ClientConnectionManager> destination_connection_manager_;
-  std::unique_ptr<CloudConnection> destination_cloud_connection_;
+  std::unique_ptr<CloudServerConnections> destination_cloud_connection_;
   BufferStream<AeMessage> buffer_stream_;
   std::unique_ptr<p2p_stream_internal::MessageSendStream> message_send_stream_;
 

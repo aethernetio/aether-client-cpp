@@ -14,193 +14,49 @@
  * limitations under the License.
  */
 
-#include "aether/client_connections/cloud_connection.h"
-
-#include <algorithm>
+#include "aether/cloud_connections/cloud_server_connections.h"
 
 #include "aether/server.h"
-#include "aether/stream_api/stream_write_action.h"
 #include "aether/server_connections/server_connection.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae {
-namespace cloud_connection_internal {
-class ReplicaStreamWriteAction final : public StreamWriteAction {
- public:
-  ReplicaStreamWriteAction(
-      ActionContext action_context,
-      std::vector<ActionPtr<StreamWriteAction>> replica_actions)
-      : StreamWriteAction(action_context),
-        replica_actions_(std::move(replica_actions)) {
-    if (replica_actions_.empty()) {
-      state_ = State::kFailed;
-      return;
-    }
-    for (auto& action : replica_actions_) {
-      // get the state from replicas by OR
-      subs_ += action->state().changed_event().Subscribe([this](auto state) {
-        if (state_ < state) {
-          state_ = state;
-        }
-      });
-    }
-  }
 
-  void Stop() override {
-    for (auto& action : replica_actions_) {
-      action->Stop();
-    }
-  }
-
- private:
-  std::vector<ActionPtr<StreamWriteAction>> replica_actions_;
-  MultiSubscription subs_;
-};
-
-}  // namespace cloud_connection_internal
-
-CloudConnection::ReplicaSubscription::ReplicaSubscription(
-    CloudConnection& cloud_connection,
-    CloudConnection::ClientApiSubscriber subscriber,
-    RequestPolicy::Variant request_policy)
-    : cloud_connection_{&cloud_connection},
-      subscriber_{std::move(subscriber)},
-      request_policy_{request_policy} {
-  server_update_sub_ = cloud_connection_->servers_update_event().Subscribe(
-      MethodPtr<&ReplicaSubscription::ServersUpdate>{this});
-  ServersUpdate();
-}
-
-CloudConnection::ReplicaSubscription::ReplicaSubscription(
-    ReplicaSubscription&& other) noexcept
-    : cloud_connection_{other.cloud_connection_},
-      subscriber_{std::move(other.subscriber_)},
-      request_policy_{other.request_policy_},
-      subscriptions_{std::move(other.subscriptions_)} {
-  server_update_sub_ = cloud_connection_->servers_update_event().Subscribe(
-      MethodPtr<&ReplicaSubscription::ServersUpdate>{this});
-}
-
-CloudConnection::ReplicaSubscription&
-CloudConnection::ReplicaSubscription::operator=(
-    ReplicaSubscription&& other) noexcept {
-  if (this != &other) {
-    cloud_connection_ = other.cloud_connection_;
-    subscriber_ = std::move(other.subscriber_);
-    request_policy_ = other.request_policy_;
-    subscriptions_ = std::move(other.subscriptions_);
-    server_update_sub_ = cloud_connection_->servers_update_event().Subscribe(
-        MethodPtr<&ReplicaSubscription::ServersUpdate>{this});
-  }
-  return *this;
-}
-
-void CloudConnection::ReplicaSubscription::ServersUpdate() {
-  assert((cloud_connection_ != nullptr) && "CloudConnection is null");
-  // clean old subscriptions and make new
-  subscriptions_.Reset();
-  cloud_connection_->VisitServers(
-      [&](ServerConnection* sc) {
-        if (auto* conn = sc->ClientConnection(); conn != nullptr) {
-          subscriptions_ += subscriber_(conn->client_safe_api(), sc);
-        }
-      },
-      request_policy_);
-}
-
-void CloudConnection::ReplicaSubscription::Reset() {
-  server_update_sub_.Reset();
-  subscriptions_.Reset();
-}
-
-CloudConnection::CloudConnection(ActionContext action_context,
-                                 ClientConnectionManager& connection_manager,
-                                 std::size_t max_connections)
+CloudServerConnections::CloudServerConnections(
+    ActionContext action_context, ClientConnectionManager& connection_manager,
+    std::size_t max_connections)
     : action_context_{action_context},
       connection_manager_{&connection_manager},
       max_connections_{max_connections} {
   InitServers();
 }
 
-ActionPtr<StreamWriteAction> CloudConnection::AuthorizedApiCall(
-    AuthorizedApiCaller const& auth_api_caller, RequestPolicy::Variant policy) {
-  std::vector<ActionPtr<StreamWriteAction>> write_actions;
-
-  VisitServers(
-      [&](ServerConnection* sc) {
-        if (auto* conn = sc->ClientConnection(); conn != nullptr) {
-          write_actions.push_back(conn->AuthorizedApiCall(SubApi<AuthorizedApi>{
-              [&](auto& api) { auth_api_caller(api, sc); }}));
-        }
-      },
-      policy);
-
-  return ActionPtr<cloud_connection_internal::ReplicaStreamWriteAction>{
-      action_context_, std::move(write_actions)};
-}
-
-CloudConnection::ReplicaSubscription CloudConnection::ClientApiSubscription(
-    ClientApiSubscriber subscriber, RequestPolicy::Variant policy) {
-  // replica subscriber automatically subscribe to servers update event and call
-  // ServerUpdate
-  auto replica_subscriber =
-      ReplicaSubscription{*this, std::move(subscriber), policy};
-  return replica_subscriber;
-}
-
-void CloudConnection::VisitServers(ServerVisitor const& visitor,
-                                   RequestPolicy::Variant policy) {
-  std::visit([this, &visitor](auto p) { VisitServers(p, visitor); }, policy);
-}
-
-CloudConnection::ServersUpdate::Subscriber
-CloudConnection::servers_update_event() {
+CloudServerConnections::ServersUpdate::Subscriber
+CloudServerConnections::servers_update_event() {
   return servers_update_event_;
 }
 
-std::size_t CloudConnection::count_connections() const {
+std::vector<ServerConnection*> const& CloudServerConnections::servers() const {
+  return selected_servers_;
+}
+
+std::size_t CloudServerConnections::count_connections() const {
   return selected_servers_.size();
 }
 
-std::size_t CloudConnection::max_connections() const {
+std::size_t CloudServerConnections::max_connections() const {
   return max_connections_;
 }
 
-void CloudConnection::Restream() {
+void CloudServerConnections::Restream() {
   // restream all servers
   for (auto const& server : selected_servers_) {
     server->Restream();
   }
 }
 
-void CloudConnection::VisitServers(RequestPolicy::MainServer,
-                                   ServerVisitor const& visitor) {
-  if (selected_servers_.empty()) {
-    return;
-  }
-  auto* server_conn = selected_servers_.front();
-  visitor(server_conn);
-}
-
-void CloudConnection::VisitServers(RequestPolicy::Priority priority,
-                                   ServerVisitor const& visitor) {
-  if (priority.priority >= selected_servers_.size()) {
-    return;
-  }
-  auto* server_conn = selected_servers_[priority.priority];
-  visitor(server_conn);
-}
-
-void CloudConnection::VisitServers(RequestPolicy::Replica replica,
-                                   ServerVisitor const& visitor) {
-  auto count = std::min(selected_servers_.size(), replica.count);
-  for (std::size_t i = 0; i < count; ++i) {
-    visitor(selected_servers_[i]);
-  }
-}
-
-void CloudConnection::InitServers() {
+void CloudServerConnections::InitServers() {
   AE_TELED_DEBUG("Init servers");
   reselect_servers_action_ = OwnActionPtr<ReselectServers>{action_context_};
 
@@ -210,7 +66,7 @@ void CloudConnection::InitServers() {
   SelectServers();
 }
 
-void CloudConnection::SelectServers() {
+void CloudServerConnections::SelectServers() {
   server_state_subs_.Reset();
 
   std::vector<ServerConnection*> servers;
@@ -270,7 +126,7 @@ void CloudConnection::SelectServers() {
   servers_update_event_.Emit();
 }
 
-void CloudConnection::SubscribeToServerState(
+void CloudServerConnections::SubscribeToServerState(
     ServerConnection* server_connection) {
   auto bad_server = [this, server_connection]() {
     // TODO: add the policy how to change the server priority on failure
@@ -305,7 +161,8 @@ void CloudConnection::SubscribeToServerState(
       });
 }
 
-void CloudConnection::UnselectServer(ServerConnection* server_connection) {
+void CloudServerConnections::UnselectServer(
+    ServerConnection* server_connection) {
   auto it = std::find(std::begin(selected_servers_),
                       std::end(selected_servers_), server_connection);
   if (it == std::end(selected_servers_)) {
@@ -322,7 +179,8 @@ void CloudConnection::UnselectServer(ServerConnection* server_connection) {
                  selected_servers_.size());
 }
 
-void CloudConnection::QuarantineTimer(ServerConnection* server_connection) {
+void CloudServerConnections::QuarantineTimer(
+    ServerConnection* server_connection) {
   AE_TELED_DEBUG("Set server {} to qurantine",
                  server_connection->server()->server_id);
   if (!quarantine_timer_ || quarantine_timer_->IsFinished()) {

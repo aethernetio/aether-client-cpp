@@ -22,14 +22,13 @@
 #include "aether/actions/action.h"
 #include "aether/types/server_id.h"
 #include "aether/types/state_machine.h"
-#include "aether/actions/repeatable_task.h"
-#include "aether/client_connections/cloud_connection.h"
+#include "aether/cloud_connections/cloud_request.h"
+#include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
 class GetServersAction : public Action<GetServersAction> {
   enum class State : std::uint8_t {
-    kMakeRequest,
-    kWait,
+    kNone,
     kResult,
     kFailed,
     kStop,
@@ -38,28 +37,23 @@ class GetServersAction : public Action<GetServersAction> {
  public:
   GetServersAction(ActionContext action_context,
                    std::vector<ServerId> server_ids,
-                   CloudConnection& cloud_connection,
+                   CloudServerConnections& cloud_connection,
                    RequestPolicy::Variant request_policy);
 
-  UpdateStatus Update(TimePoint current_time);
+  UpdateStatus Update();
 
   std::vector<ServerDescriptor> const& servers() const;
   void Stop();
 
  private:
-  void MakeRequest();
-  void GetResponse(ServerDescriptor const& server_descriptor);
-  UpdateStatus Wait(TimePoint current_time);
+  void GetResponse(ServerDescriptor const& server_descriptor,
+                   CloudRequestAction* request);
 
-  ActionContext action_context_;
   std::vector<ServerId> server_ids_;
-  CloudConnection* cloud_connection_;
-  RequestPolicy::Variant request_policy_;
-  CloudConnection::ReplicaSubscription response_sub_;
   StateMachine<State> state_;
   TimePoint timeout_point_;
 
-  OwnActionPtr<RepeatableTask> repeatable_task_;
+  OwnActionPtr<CloudRequestAction> cloud_request_;
   Subscription request_sub_;
 
   std::vector<ServerDescriptor> server_descriptors_;

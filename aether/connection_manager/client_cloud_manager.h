@@ -26,7 +26,6 @@
 
 #include "aether/cloud.h"
 #include "aether/types/uid.h"
-#include "aether/types/server_id.h"
 
 namespace ae {
 class Aether;

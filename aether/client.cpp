@@ -64,10 +64,10 @@ ClientConnectionManager& Client::connection_manager() {
   return *client_connection_manager_;
 }
 
-CloudConnection& Client::cloud_connection() {
+CloudServerConnections& Client::cloud_connection() {
   if (!cloud_connection_) {
     auto aether = Aether::ptr{aether_};
-    cloud_connection_ = std::make_unique<CloudConnection>(
+    cloud_connection_ = std::make_unique<CloudServerConnections>(
         *aether, connection_manager(), AE_CLOUD_MAX_SERVER_CONNECTIONS);
 
 #if AE_TELE_ENABLED

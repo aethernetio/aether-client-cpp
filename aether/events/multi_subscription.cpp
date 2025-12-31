@@ -34,6 +34,13 @@ void MultiSubscription::CleanUp() {
                   std::end(deleters_));
 }
 
+MultiSubscription& MultiSubscription::operator+=(
+    EventHandlerDeleter&& deleter) {
+  CleanUp();
+  PushToVector(std::move(deleter));
+  return *this;
+}
+
 void MultiSubscription::PushToVector(EventHandlerDeleter&& deleter) {
   deleters_.emplace_back(std::move(deleter));
 }

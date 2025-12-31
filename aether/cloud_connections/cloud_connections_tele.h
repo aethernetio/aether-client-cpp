@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTIONS_TELE_H_
-#define AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTIONS_TELE_H_
+#ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_CONNECTIONS_TELE_H_
+#define AETHER_CLOUD_CONNECTIONS_CLOUD_CONNECTIONS_TELE_H_
 
 #include "aether/tele/tele.h"
 
@@ -34,4 +34,4 @@ AE_TAG(ClientConnectionManagerUidCloudConnection, kClientConnectionManager)
 AE_TAG(ClientConnectionManagerUnableCreateClientServerConnection,
        kClientConnectionManager)
 
-#endif  // AETHER_CLIENT_CONNECTIONS_CLIENT_CONNECTIONS_TELE_H_
+#endif  // AETHER_CLOUD_CONNECTIONS_CLOUD_CONNECTIONS_TELE_H_
