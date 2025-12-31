@@ -93,8 +93,6 @@ void UnixSocket::Poll() {
 }
 
 void UnixSocket::OnPollerEvent(PollerEvent const& event) {
-  AE_TELED_DEBUG("Poll event desc={},event={}", event.descriptor,
-                 event.event_type);
   if (event.descriptor != socket_) {
     return;
   }

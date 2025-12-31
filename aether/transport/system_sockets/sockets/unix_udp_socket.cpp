@@ -41,7 +41,7 @@ int UnixUdpSocket::MakeSocket() {
   bool created = false;
   auto sock = socket(AF_INET, SOCK_DGRAM, 0);
   if (sock == kInvalidSocket) {
-    AE_TELED_DEBUG("Socket creation error {} {}", errno, strerror(errno));
+    AE_TELED_ERROR("Socket creation error {} {}", errno, strerror(errno));
     return kInvalidSocket;
   }
 
