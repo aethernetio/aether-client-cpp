@@ -22,13 +22,13 @@
 
 #include "aether/types/span.h"
 #include "aether/types/address.h"
-#include "aether/poller/poller_types.h"
+#include "aether/types/small_function.h"
 
 namespace ae {
 /**
  * \brief Socket representation.
- * Socket implementation should create non blocking client sockets with
- * functions connect, disconnect, send, receive.
+ * Socket implementation should create non blocking client sockets allowed to
+ * send and receive data, with callback notifications.
  */
 class ISocket {
  public:
@@ -40,29 +40,30 @@ class ISocket {
     kConnectionFailed
   };
 
+  using ConnectedCb = SmallFunction<void(ConnectionState state)>;
+  using ReadyToWriteCb = SmallFunction<void()>;
+  using RecvDataCb = SmallFunction<void(Span<std::uint8_t> data_span)>;
+  using ErrorCb = SmallFunction<void()>;
+
   virtual ~ISocket() = default;
 
   /**
-   * \brief Casting to pollers DescriptorType
+   * \brief Set ready to write callback.
    */
-  virtual explicit operator DescriptorType() const = 0;
-
+  virtual ISocket& ReadyToWrite(ReadyToWriteCb ready_to_write_cb) = 0;
   /**
-   * \brief Establish a connection to the specified destination.
-   * Non blocking method. If connection state is kConnecting wait until it's
-   * finished.
-   * \return connection state.
+   * \brief Set recv data callback.
    */
-  virtual ConnectionState Connect(AddressPort const& destination) = 0;
+  virtual ISocket& RecvData(RecvDataCb recv_data_cb) = 0;
   /**
-   * \brief Get current connection state.
+   * \brief Set error callback.
    */
-  virtual ConnectionState GetConnectionState() = 0;
+  virtual ISocket& Error(ErrorCb error_cb) = 0;
   /**
-   * \brief Broke the connection.
+   * \brief Connect socket to the address.
    */
-  virtual void Disconnect() = 0;
-
+  virtual ISocket& Connect(AddressPort const& destination,
+                           ConnectedCb connected_cb) = 0;
   /**
    * \brief Non blocking send data.
    * \return sent count, in case of error returns nullopt, if socket is busy
@@ -70,21 +71,9 @@ class ISocket {
    */
   virtual std::optional<std::size_t> Send(Span<std::uint8_t> data) = 0;
   /**
-   * \brief Non blocking receive data.
-   * \return received count, in case of error returns nullopt, if socket is busy
-   * return 0.
+   * \brief Broke the connection.
    */
-  virtual std::optional<std::size_t> Receive(Span<std::uint8_t> data) = 0;
-
-  /**
-   * \brief Get the maximum packet size (MTU)
-   */
-  virtual std::size_t GetMaxPacketSize() const = 0;
-
-  /**
-   * \brief Know if socket is valid.
-   */
-  virtual bool IsValid() const = 0;
+  virtual void Disconnect() = 0;
 };
 }  // namespace ae
 

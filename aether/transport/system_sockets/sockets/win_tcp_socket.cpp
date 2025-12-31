@@ -24,7 +24,7 @@
 #  include <mswsock.h>
 
 #  include "aether/misc/defer.h"
-#  include "aether/transport/system_sockets/sockets/win_sock_addr.h"
+#  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
 
 #  include "aether/tele/tele.h"
 
@@ -46,8 +46,8 @@ LPFN_CONNECTEX GetConnectEx(SOCKET socket) {
 
 }  // namespace win_socket_internal
 
-WinTcpSocket::WinTcpSocket()
-    : WinSocket{1500}, conn_overlapped_{{}, EventType::kRead} {
+WinTcpSocket::WinTcpSocket(IPoller& poller)
+    : WinSocket{poller, 1500}, conn_overlapped_{{}, EventType::kRead} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
@@ -64,17 +64,17 @@ WinTcpSocket::WinTcpSocket()
   };
 
   int on = 1;
-  if (auto res = ::setsockopt(sock, IPPROTO_TCP, TCP_NODELAY,
-                              reinterpret_cast<char const*>(&on), sizeof(on));
-      res == SOCKET_ERROR) {
+  auto res1 = ::setsockopt(sock, IPPROTO_TCP, TCP_NODELAY,
+                           reinterpret_cast<char const*>(&on), sizeof(on));
+  if (res1 == SOCKET_ERROR) {
     AE_TELED_ERROR("Socket connect error {}", WSAGetLastError());
     return;
   }
 
   // make socket non-blocking
   u_long nonblocking = 1;
-  if (auto res = ::ioctlsocket(sock, FIONBIO, &nonblocking);
-      res == SOCKET_ERROR) {
+  auto res2 = ::ioctlsocket(sock, FIONBIO, &nonblocking);
+  if (res2 == SOCKET_ERROR) {
     AE_TELED_ERROR("Socket make non-blocking error {}", WSAGetLastError());
     return;
   }
@@ -83,15 +83,25 @@ WinTcpSocket::WinTcpSocket()
   socket_ = sock;
 }
 
-WinTcpSocket::~WinTcpSocket() { Disconnect(); }
+WinTcpSocket::~WinTcpSocket() = default;
 
-WinTcpSocket::ConnectionState WinTcpSocket::Connect(
-    AddressPort const& destination) {
+ISocket& WinTcpSocket::Connect(AddressPort const& destination,
+                               ConnectedCb connected_cb) {
   assert(socket_ != INVALID_SOCKET);
+
+  connected_cb_ = std::move(connected_cb);
+
+  defer[&]() {
+    Poll();
+    connected_cb_(connection_state_);
+  };
+
+  auto lock = std::scoped_lock{socket_lock_};
 
   auto connect_ex = win_socket_internal::GetConnectEx(socket_);
   if (connect_ex == nullptr) {
-    return ConnectionState::kConnectionFailed;
+    connection_state_ = ConnectionState::kConnectionFailed;
+    return *this;
   }
 
   // Bind socket first (required for proper IOCP connection handling)
@@ -103,34 +113,34 @@ WinTcpSocket::ConnectionState WinTcpSocket::Connect(
   if (bind(socket_, reinterpret_cast<sockaddr*>(&localAddr),
            sizeof(localAddr)) == SOCKET_ERROR) {
     AE_TELED_ERROR("Socket bind error {}", WSAGetLastError());
-    return ConnectionState::kConnectionFailed;
+    connection_state_ = ConnectionState::kConnectionFailed;
+    return *this;
   }
 
-  auto addr = win_socket_internal::GetSockAddr(destination);
-
-  static_assert(std::is_same_v<decltype(socket_), SOCKET>);
-
+  auto addr = GetSockAddr(destination);
   if (!connect_ex(socket_, addr.addr(), static_cast<int>(addr.size), NULL, 0,
                   NULL, reinterpret_cast<OVERLAPPED*>(&conn_overlapped_))) {
     auto err_code = WSAGetLastError();
     if (err_code != WSA_IO_PENDING) {
       AE_TELED_ERROR("Socket connect error {}", err_code);
-      return ConnectionState::kConnectionFailed;
+      connection_state_ = ConnectionState::kConnectionFailed;
+      return *this;
     }
   }
-  return ConnectionState::kConnecting;
+
+  AE_TELED_DEBUG("Wait connection");
+  connection_state_ = ConnectionState::kConnecting;
+  return *this;
 }
 
-WinTcpSocket::ConnectionState WinTcpSocket::GetConnectionState() {
+WinTcpSocket::ConnectionState WinTcpSocket::TestConnectionState() {
+  auto lock = std::scoped_lock{socket_lock_};
+
   int error = 0;
   int opt_len = sizeof(error);
   if (auto res = getsockopt(socket_, SOL_SOCKET, SO_ERROR,
                             reinterpret_cast<char*>(&error), &opt_len);
       res == SOCKET_ERROR) {
-    if (res == WSAEWOULDBLOCK) {
-      AE_TELED_DEBUG("Still connecting");
-      return ConnectionState::kConnecting;
-    }
     AE_TELED_ERROR("Getsockopt returns error {}", res);
     return ConnectionState::kConnectionFailed;
   }
@@ -144,30 +154,41 @@ WinTcpSocket::ConnectionState WinTcpSocket::GetConnectionState() {
     return ConnectionState::kConnectionFailed;
   }
 
-  if (!connection_initiated_) {
-    if (connection_initiated_ = InitConnection(); !connection_initiated_) {
-      AE_TELED_ERROR("Failed to initiate connection");
-      return ConnectionState::kConnectionFailed;
-    }
-  }
-
+  AE_TELED_DEBUG("Tcp connected");
   return ConnectionState::kConnected;
 }
 
-void WinTcpSocket::Disconnect() {
-  if (socket_ == INVALID_SOCKET) {
+void WinTcpSocket::PollEvent(PollerEvent const& event) {
+  if (connection_state_ == ConnectionState::kConnecting) {
+    if (event.descriptor != static_cast<DescriptorType>(socket_)) {
+      return;
+    }
+
+    defer[&]() {
+      if (connected_cb_) {
+        connected_cb_(connection_state_);
+      }
+    };
+
+    connection_state_ = TestConnectionState();
+    if (!InitConnection()) {
+      AE_TELED_ERROR("Failed to initiate connection");
+      connection_state_ = ConnectionState::kConnectionFailed;
+    }
     return;
   }
-  closesocket(socket_);
-  socket_ = INVALID_SOCKET;
+  WinSocket::PollEvent(event);
 }
 
 bool WinTcpSocket::InitConnection() {
-  // Update socket context for proper API usage
-  if (setsockopt(socket_, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) ==
-      SOCKET_ERROR) {
-    AE_TELED_ERROR("SO_UPDATE_CONNECT_CONTEXT failed: {}", WSAGetLastError());
-    return false;
+  {
+    auto lock = std::scoped_lock{socket_lock_};
+    // Update socket context for proper API usage
+    if (setsockopt(socket_, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) ==
+        SOCKET_ERROR) {
+      AE_TELED_ERROR("SO_UPDATE_CONNECT_CONTEXT failed: {}", WSAGetLastError());
+      return false;
+    }
   }
 
   if (!RequestRecv()) {

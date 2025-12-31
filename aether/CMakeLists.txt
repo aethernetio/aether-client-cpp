@@ -173,14 +173,19 @@ list(APPEND serial_ports_srcs
             )
 
 list(APPEND transport_srcs
-            "transport/system_sockets/sockets/unix_socket.cpp"
-            "transport/system_sockets/sockets/unix_tcp_socket.cpp"
-            "transport/system_sockets/sockets/unix_udp_socket.cpp"
+            "transport/system_sockets/sockets/get_sock_addr.cpp"
+            "transport/system_sockets/sockets/lwip_cb_tcp_socket.cpp"
+            "transport/system_sockets/sockets/lwip_cb_udp_socket.cpp"
+            "transport/system_sockets/sockets/lwip_get_addr.cpp"
             "transport/system_sockets/sockets/lwip_socket.cpp"
             "transport/system_sockets/sockets/lwip_tcp_socket.cpp"
             "transport/system_sockets/sockets/lwip_udp_socket.cpp"
+            "transport/system_sockets/sockets/tcp_sockets_factory.cpp"
+            "transport/system_sockets/sockets/udp_sockets_factory.cpp"
+            "transport/system_sockets/sockets/unix_socket.cpp"
+            "transport/system_sockets/sockets/unix_tcp_socket.cpp"
+            "transport/system_sockets/sockets/unix_udp_socket.cpp"
             "transport/system_sockets/sockets/win_socket.cpp"
-            "transport/system_sockets/sockets/win_sock_addr.cpp"
             "transport/system_sockets/sockets/win_tcp_socket.cpp"
             "transport/system_sockets/sockets/win_udp_socket.cpp"
             "transport/modems/modem_transport.cpp"

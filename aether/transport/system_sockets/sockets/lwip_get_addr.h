@@ -14,24 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_UDP_SOCKET_H_
-#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_UDP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_GET_ADDR_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_GET_ADDR_H_
 
-#include "aether/config.h"
-#include "aether/transport/system_sockets/sockets/win_socket.h"  // IWYU pragma: keep
+#if (defined(ESP_PLATFORM))
 
-#if AE_SUPPORT_UDP && defined WIN_SOCKET_ENABLED
+#  include <optional>
+
+#  include "lwip/ip_addr.h"
+
+#  include "aether/types/address.h"
 
 namespace ae {
-class WinUdpSocket final : public WinSocket {
- public:
-  explicit WinUdpSocket(IPoller& poller);
-  ~WinUdpSocket() override;
-
-  ISocket& Connect(AddressPort const& destination,
-                   ConnectedCb connected_cb) override;
-};
+std::optional<ip_addr_t> LwipGetAddr(const AddressPort& addr_port);
 }  // namespace ae
-#endif
-
-#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_UDP_SOCKET_H_
+#endif  // (defined(ESP_PLATFORM))
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_GET_ADDR_H_

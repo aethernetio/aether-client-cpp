@@ -14,28 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
-#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_UDP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_UDP_SOCKET_H_
 
 #if (defined(ESP_PLATFORM))
 
-#  define LWIP_SOCKET_ENABLED 1
+#  define LWIP_CB_UDP_SOCKET_ENABLED 1
 
-#  include "aether/poller/poller.h"
-#  include "aether/types/data_buffer.h"
-#  include "aether/events/event_subscription.h"
+#  include "lwip/udp.h"
+#  include "lwip/ip_addr.h"
+
 #  include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
 /**
  * \brief Base implementation of LWIP socket.
  */
-class LwipSocket : public ISocket {
+class LwipCBUdpSocket : public ISocket {
  public:
   static constexpr int kInvalidSocket = -1;
 
-  explicit LwipSocket(IPoller& poller, int socket);
-  ~LwipSocket() override;
+  explicit LwipCBUdpSocket();
+  ~LwipCBUdpSocket() override;
 
   ISocket& ReadyToWrite(ReadyToWriteCb ready_to_write_cb) override;
   ISocket& RecvData(RecvDataCb recv_data_cb) override;
@@ -44,31 +44,25 @@ class LwipSocket : public ISocket {
 
   void Disconnect() override;
 
+  ISocket& Connect(AddressPort const& destination,
+                   ConnectedCb connected_cb) override;
+
+  // LWIP RAW callbacks
+  static void UdpClientRecv(void* arg, struct udp_pcb* upcb, struct pbuf* p,
+                            const ip_addr_t* addr, u16_t port);
+
  protected:
-  void Poll();
-  virtual void OnPollerEvent(PollerEvent const& event);
-
-  void OnReadEvent();
-  void OnWriteEvent();
-  void OnErrorEvent();
-
-  std::optional<std::size_t> Receive(Span<std::uint8_t> buffer);
-
-  std::optional<int> GetSocketError();
-
-  IPoller* poller_;
-  int socket_;
-  std::mutex socket_lock_;
+  void OnError();
 
   ReadyToWriteCb ready_to_write_cb_;
   RecvDataCb recv_data_cb_;
   ErrorCb error_cb_;
 
-  DataBuffer recv_buffer_;
-
-  Subscription poller_subscription_;
+  udp_pcb* pcb_{nullptr};
+  ip_addr_t server_ipaddr_{};
+  std::uint16_t server_port_{0};
 };
 }  // namespace ae
 
 #endif
-#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_UDP_SOCKET_H_
