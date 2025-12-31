@@ -21,6 +21,7 @@
 // IWYU pragma: begin_exports
 #  include "aether/transport/system_sockets/sockets/win_tcp_socket.h"
 #  include "aether/transport/system_sockets/sockets/unix_tcp_socket.h"
+#  include "aether/transport/system_sockets/sockets/lwip_cb_tcp_socket.h"
 #  include "aether/transport/system_sockets/sockets/lwip_tcp_socket.h"
 // IWYU pragma: end_exports
 
@@ -29,8 +30,10 @@ std::unique_ptr<ISocket> TcpSocketsFactory::Create(
     [[maybe_unused]] IPoller& poller) {
 #  if UNIX_SOCKET_ENABLED
   return std::make_unique<UnixTcpSocket>(poller);
+#  elif LWIP_CB_TCP_SOCKET_ENABLED
+  return std::make_unique<LwipCBTcpSocket>();
 #  elif LWIP_SOCKET_ENABLED
-  return std::make_unique<LwipTcpSocket>();
+  return std::make_unique<LwipTcpSocket>(poller);
 #  elif WIN_SOCKET_ENABLED
   return std::make_unique<WinTcpSocket>(poller);
 #  else

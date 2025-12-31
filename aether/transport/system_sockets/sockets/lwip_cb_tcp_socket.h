@@ -14,28 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
-#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_
 
 #if (defined(ESP_PLATFORM))
 
-#  define LWIP_SOCKET_ENABLED 1
+#  define LWIP_CB_TCP_SOCKET_ENABLED 1
 
-#  include "aether/poller/poller.h"
+#  include "lwip/tcp.h"
+#  include "lwip/err.h"
+
 #  include "aether/types/data_buffer.h"
-#  include "aether/events/event_subscription.h"
 #  include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
 /**
  * \brief Base implementation of LWIP socket.
  */
-class LwipSocket : public ISocket {
+class LwipCBTcpSocket : public ISocket {
  public:
   static constexpr int kInvalidSocket = -1;
 
-  explicit LwipSocket(IPoller& poller, int socket);
-  ~LwipSocket() override;
+  explicit LwipCBTcpSocket();
+  ~LwipCBTcpSocket() override;
 
   ISocket& ReadyToWrite(ReadyToWriteCb ready_to_write_cb) override;
   ISocket& RecvData(RecvDataCb recv_data_cb) override;
@@ -44,31 +45,30 @@ class LwipSocket : public ISocket {
 
   void Disconnect() override;
 
+  ISocket& Connect(AddressPort const& destination,
+                   ConnectedCb connected_cb) override;
+
+  // LWIP RAW callbacks
+  static err_t TcpClientRecv(void* arg, struct tcp_pcb* tpcb, struct pbuf* p,
+                             err_t err);
+  static err_t TcpClientSent(void* arg, struct tcp_pcb* tpcb, u16_t len);
+  static err_t TcpClientConnected(void* arg, struct tcp_pcb* tpcb, err_t err);
+  static void TcpClientError(void* arg, err_t err);
+
  protected:
-  void Poll();
-  virtual void OnPollerEvent(PollerEvent const& event);
-
-  void OnReadEvent();
-  void OnWriteEvent();
   void OnErrorEvent();
-
-  std::optional<std::size_t> Receive(Span<std::uint8_t> buffer);
-
-  std::optional<int> GetSocketError();
-
-  IPoller* poller_;
-  int socket_;
-  std::mutex socket_lock_;
+  void OnConnectionEvent();
 
   ReadyToWriteCb ready_to_write_cb_;
   RecvDataCb recv_data_cb_;
   ErrorCb error_cb_;
+  ConnectedCb connected_cb_;
 
+  tcp_pcb* pcb_{nullptr};
+  ConnectionState connection_state_;
   DataBuffer recv_buffer_;
-
-  Subscription poller_subscription_;
 };
 }  // namespace ae
 
 #endif
-#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_SOCKET_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_CB_TCP_SOCKET_H_

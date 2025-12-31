@@ -26,121 +26,37 @@
 
 #  include "aether/tele/tele.h"
 
-extern "C" int lwip_hook_ip6_input(struct pbuf* p, struct netif* inp)
-    __attribute__((weak));
-extern "C" int lwip_hook_ip6_input(struct pbuf* p, struct netif* inp) {
-  if (ip6_addr_isany_val(inp->ip6_addr[0].u_addr.ip6)) {
-    // We don't have an LL address -> eat this packet here, so it won't get
-    // accepted on input netif
-    pbuf_free(p);
-    return 1;
-  }
-  return 0;
-}
-
 namespace ae {
-namespace lwip_socket_internal {
-struct SockAddr {
-  sockaddr* addr() { return reinterpret_cast<sockaddr*>(&data); }
-
-  union {
-#  if AE_SUPPORT_IPV4 == 1
-    struct sockaddr_in ipv4;
-#  endif
-#  if AE_SUPPORT_IPV6 == 1
-    struct sockaddr_in6 ipv6;
-#  endif
-  } data;
-
-  std::size_t size;
-};
-
-inline SockAddr GetSockAddr(AddressPort const& ip_address_port) {
-  SockAddr sock_addr{};
-  std::visit(reflect::OverrideFunc{
-#  if AE_SUPPORT_IPV4 == 1
-                 [&](IpV4Addr const& ipv4) {
-                   sock_addr.size = sizeof(sock_addr.data.ipv4);
-                   auto& addr = sock_addr.data.ipv4;
-                   std::memcpy(&addr.sin_addr.s_addr, ipv4.ipv4_value, 4);
-                   addr.sin_port = ae::SwapToInet(ip_address_port.port);
-                   addr.sin_family = AF_INET;
-                 },
-#  endif
-#  if AE_SUPPORT_IPV6 == 1
-                 [&](IpV6Addr const& ipv6) {
-                   sock_addr.size = sizeof(sock_addr.data.ipv6);
-                   auto& addr = sock_addr.data.ipv6;
-                   std::memcpy(&addr.sin6_addr, ipv6.ipv6_value, 16);
-                   addr.sin6_port = ae::SwapToInet(ip_address_port.port);
-                   addr.sin6_family = AF_INET6;
-                 },
-#  endif
-                 [](auto&&) { assert(false && "Unsupported address type"); }},
-             ip_address_port.address);
-
-  return sock_addr;
-}
-}  // namespace lwip_socket_internal
-
-LwipSocket::LwipSocket(int socket) : socket_{socket} {}
+LwipSocket::LwipSocket(IPoller& poller, int socket)
+    : poller_{&poller}, socket_{socket} {}
 
 LwipSocket::~LwipSocket() { Disconnect(); }
 
-LwipSocket::operator DescriptorType() const { return DescriptorType{socket_}; }
-
-LwipSocket::ConnectionState LwipSocket::Connect(
-    AddressPort const& destination) {
-  assert(socket_ != kInvalidSocket);
-
-  auto sock_addr = lwip_socket_internal::GetSockAddr(destination);
-  auto res = connect(socket_, sock_addr.addr(), sock_addr.size);
-  if (res == -1) {
-    if ((errno == EAGAIN) || (errno == EINPROGRESS)) {
-      AE_TELED_DEBUG("Wait connection");
-      return ConnectionState::kConnecting;
-    }
-    AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
-    return ConnectionState::kConnectionFailed;
-  }
-  return ConnectionState::kConnected;
+ISocket& LwipSocket::ReadyToWrite(ReadyToWriteCb ready_to_write_cb) {
+  ready_to_write_cb_ = std::move(ready_to_write_cb);
+  return *this;
 }
 
-LwipSocket::ConnectionState LwipSocket::GetConnectionState() {
-  // check socket status
-  int err;
-  socklen_t len = sizeof(len);
-  if (getsockopt(socket_, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err),
-                 &len) != 0) {
-    AE_TELED_ERROR("Getsockopt error {}, {}", errno, strerror(errno));
-    return ConnectionState::kConnectionFailed;
-  }
-
-  if (err != 0) {
-    AE_TELED_ERROR("Connect error {}, {}", err, strerror(err));
-    return ConnectionState::kConnectionFailed;
-  }
-
-  return ConnectionState::kConnected;
+ISocket& LwipSocket::RecvData(RecvDataCb recv_data_cb) {
+  recv_data_cb_ = std::move(recv_data_cb);
+  return *this;
 }
 
-void LwipSocket::Disconnect() {
-  if (socket_ == kInvalidSocket) {
-    return;
-  }
-  shutdown(socket_, SHUT_RDWR);
-  if (close(socket_) != 0) {
-    return;
-  }
-  socket_ = kInvalidSocket;
+ISocket& LwipSocket::Error(ErrorCb error_cb) {
+  error_cb_ = std::move(error_cb);
+  return *this;
 }
 
 std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
+  auto lock = std::scoped_lock{socket_lock_};
   auto size_to_send = data.size();
-  auto res = send(socket_, data.data(), size_to_send, 0);
+  // add nosignal to prevent throw SIGPIPE and handle it manually
+  int flags = MSG_NOSIGNAL;
+  auto res = send(socket_, data.data(), size_to_send, flags);
   if (res == -1) {
     if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
-      AE_TELED_ERROR("Send to socket error {} {}", errno, strerror(errno));
+      AE_TELED_ERROR("Send to socket error: {}, {}", static_cast<int>(errno),
+                     strerror(errno));
       return std::nullopt;
     }
     return 0;
@@ -148,14 +64,93 @@ std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
   return static_cast<std::size_t>(res);
 }
 
-std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> data) {
-  auto res = recv(socket_, data.data(), data.size(), 0);
+void LwipSocket::Disconnect() {
+  auto lock = std::scoped_lock{socket_lock_};
+  if (socket_ == kInvalidSocket) {
+    return;
+  }
+  auto s = socket_;
+  socket_ = kInvalidSocket;
+
+  poller_->Remove(s);
+  poller_subscription_.Reset();
+  shutdown(s, SHUT_RDWR);
+  if (close(s) != 0) {
+    return;
+  }
+}
+
+void LwipSocket::Poll() {
+  poller_subscription_ = poller_->Add(socket_).Subscribe(
+      MethodPtr<&LwipSocket::OnPollerEvent>{this});
+}
+
+void LwipSocket::OnPollerEvent(PollerEvent const& event) {
+  AE_TELED_DEBUG("Poll event desc={},event={}", event.descriptor,
+                 event.event_type);
+  if (socket_ == kInvalidSocket) {
+    return;
+  }
+  if (event.descriptor != socket_) {
+    return;
+  }
+  switch (event.event_type) {
+    case ae::EventType::kRead:
+      OnReadEvent();
+      break;
+    case ae::EventType::kWrite:
+      OnWriteEvent();
+      break;
+    case ae::EventType::kError:
+      OnErrorEvent();
+      break;
+  }
+}
+
+void LwipSocket::OnReadEvent() {
+  // read all data
+  while (true) {
+    auto buffer = Span{recv_buffer_.data(), recv_buffer_.size()};
+    auto res = Receive(buffer);
+    if (!res) {
+      OnErrorEvent();
+      return;
+    }
+    if (*res == 0) {
+      // No data yet
+      return;
+    }
+    buffer = buffer.sub(0, *res);
+    if (recv_data_cb_) {
+      recv_data_cb_(buffer);
+    }
+    return;
+  }
+}
+
+void LwipSocket::OnWriteEvent() {
+  if (ready_to_write_cb_) {
+    ready_to_write_cb_();
+  }
+}
+
+void LwipSocket::OnErrorEvent() {
+  if (error_cb_) {
+    error_cb_();
+  }
+}
+
+std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> buffer) {
+  auto lock = std::scoped_lock{socket_lock_};
+
+  auto res = recv(socket_, buffer.data(), buffer.size(), 0);
   if (res < 0) {
     // No data
     if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
       return 0;
     }
-    AE_TELED_ERROR("Recv error {} {}", errno, strerror(errno));
+    AE_TELED_ERROR("Recv error: {}, {}", static_cast<int>(errno),
+                   strerror(errno));
     return std::nullopt;
   }
   // probably the socket is shutdown
@@ -166,7 +161,19 @@ std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> data) {
   return static_cast<std::size_t>(res);
 }
 
-bool LwipSocket::IsValid() const { return socket_ != kInvalidSocket; }
+std::optional<int> LwipSocket::GetSocketError() {
+  auto lock = std::scoped_lock{socket_lock_};
+  int err{};
+
+  socklen_t len = sizeof(len);
+  if (getsockopt(socket_, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err),
+                 &len) != 0) {
+    AE_TELED_ERROR("Getsockopt error: {}, {}", static_cast<int>(errno),
+                   strerror(errno));
+    return std::nullopt;
+  }
+  return err;
+}
 
 }  // namespace ae
 #endif
