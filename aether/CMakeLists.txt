@@ -195,6 +195,7 @@ list(APPEND transport_srcs
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
             "stream_api/sized_packet_gate.cpp"
+            "stream_api/buffer_stream.cpp"
             "stream_api/stream_api.cpp"
 
             "stream_api/safe_stream.cpp"
