@@ -233,8 +233,7 @@ void P2pStream::ConnectReceive() {
   // TODO: config request policy
   read_message_gate_ = std::make_unique<p2p_stream_internal::ReadMessageGate>(
       destination_, client_ptr->cloud_connection(),
-      RequestPolicy::Replica{
-          client_ptr->cloud_connection().count_connections()});
+      RequestPolicy::Replica{client_ptr->cloud_connection().max_connections()});
   // write out received data
   read_message_gate_->out_data_event().Subscribe(
       MethodPtr<&P2pStream::WriteOut>{this});
@@ -246,19 +245,24 @@ void P2pStream::ConnectSend() {
 
   auto get_client_cloud = client_ptr->cloud_manager()->GetCloud(destination_);
 
-  get_client_connection_sub_ = get_client_cloud->StatusEvent().Subscribe(
-      OnResult{[this](GetCloudAction& action) {
-        auto cloud = action.cloud();
-        destination_connection_manager_ = MakeConnectionManager(cloud);
-        destination_cloud_connection_ =
-            MakeDestinationStream(*destination_connection_manager_);
-        // TODO: add config for request policy
-        message_send_stream_ =
-            std::make_unique<p2p_stream_internal::MessageSendStream>(
-                *destination_cloud_connection_, RequestPolicy::MainServer{});
-        AE_TELED_DEBUG("Send connected");
-        Tie(buffer_stream_, *message_send_stream_);
-      }});
+  get_client_cloud_sub_ =
+      get_client_cloud->StatusEvent().Subscribe(ActionHandler{
+          OnResult{[this](GetCloudAction& action) {
+            auto cloud = action.cloud();
+            dest_conn_manager_ = MakeConnectionManager(cloud);
+            dest_cloud_conn_ = MakeDestinationCloudConn(*dest_conn_manager_);
+            // TODO: add config for request policy
+            message_send_stream_ =
+                std::make_unique<p2p_stream_internal::MessageSendStream>(
+                    *dest_cloud_conn_, RequestPolicy::MainServer{});
+            AE_TELED_DEBUG("Send connected");
+            Tie(buffer_stream_, *message_send_stream_);
+          }},
+          OnError{[this]() {
+            AE_TELED_ERROR("Send connection failed ");
+            buffer_stream_.DropLink();
+          }},
+      });
 }
 
 std::unique_ptr<ClientConnectionManager> P2pStream::MakeConnectionManager(
@@ -270,10 +274,9 @@ std::unique_ptr<ClientConnectionManager> P2pStream::MakeConnectionManager(
       client_ptr->server_connection_manager().GetServerConnectionFactory());
 }
 
-std::unique_ptr<CloudConnection> P2pStream::MakeDestinationStream(
+std::unique_ptr<CloudConnection> P2pStream::MakeDestinationCloudConn(
     ClientConnectionManager& connection_manager) {
   return std::make_unique<CloudConnection>(action_context_, connection_manager,
                                            AE_CLOUD_MAX_SERVER_CONNECTIONS);
 }
-
 }  // namespace ae

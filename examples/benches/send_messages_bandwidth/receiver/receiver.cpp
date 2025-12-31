@@ -16,7 +16,7 @@
 
 #include "send_messages_bandwidth/receiver/receiver.h"
 
-#include "aether/stream_api/protocol_gates.h"
+#include "aether/stream_api/api_call_adapter.h"
 #include "aether/client_messages/p2p_message_stream.h"
 
 #include "aether/tele/tele.h"

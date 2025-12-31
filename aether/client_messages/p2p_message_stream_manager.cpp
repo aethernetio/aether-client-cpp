@@ -45,6 +45,8 @@ RcPtr<P2pStream> P2pMessageStreamManager::CreateStream(Uid destination) {
   // create new stream
   auto stream = MakeStream(destination);
   streams_.emplace(destination, stream);
+  message_stream_update_subs_ += stream->stream_update_event().Subscribe(
+      [this, dest{destination}]() { OnStreamUpdated(dest); });
   return stream;
 }
 
@@ -80,6 +82,22 @@ RcPtr<P2pStream> P2pMessageStreamManager::MakeStream(Uid destination) {
   Client::ptr client_ptr = client_.Lock();
   assert(client_ptr);
   return MakeRcPtr<P2pStream>(action_context_, client_ptr, destination);
+}
+
+void P2pMessageStreamManager::OnStreamUpdated(Uid destination) {
+  auto it = streams_.find(destination);
+  if (it == std::end(streams_)) {
+    return;
+  }
+  auto stream = it->second.lock();
+  if (!stream) {
+    return;
+  }
+  auto info = stream->stream_info();
+  // remove failed streams
+  if (info.link_state == LinkState::kLinkError) {
+    streams_.erase(it);
+  }
 }
 
 }  // namespace ae
