@@ -45,6 +45,8 @@ class P2pMessageStreamManager {
   void CleanUpStreams();
   RcPtr<P2pStream> MakeStream(Uid destination);
 
+  void OnStreamUpdated(Uid destination);
+
   ActionContext action_context_;
   PtrView<Client> client_;
   ClientConnectionManager* connection_manager_;
@@ -52,6 +54,7 @@ class P2pMessageStreamManager {
   std::map<Uid, RcPtrView<P2pStream>> streams_;
   NewStreamEvent new_stream_event_;
   CloudConnection::ReplicaSubscription on_message_received_sub_;
+  MultiSubscription message_stream_update_subs_;
 };
 }  // namespace ae
 
