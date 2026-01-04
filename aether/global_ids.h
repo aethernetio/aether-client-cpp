@@ -21,7 +21,7 @@
 
 namespace ae {
 static constexpr ObjId kGlobalIdAdaptersOffset{1000};
-static constexpr ObjId kGlobalIdFactoriesOffset{2000};
+static constexpr ObjId kGlobalIdClientsOffset{2000};
 static constexpr ObjId kGlobalIdCryptoOffset{3000};
 static constexpr ObjId kGlobalIdPollerOffset{4000};
 static constexpr ObjId kGlobalIdDnsResolverOffset{5000};
@@ -40,12 +40,7 @@ struct GlobalId {
   static constexpr ObjId kRegisterLoraModuleAdapter =
       kGlobalIdAdaptersOffset + 8;
 
-  static constexpr ObjId kServerFactory = kGlobalIdFactoriesOffset + 0;
-  static constexpr ObjId kClientFactory = kGlobalIdFactoriesOffset + 1;
-  static constexpr ObjId kIpFactory = kGlobalIdFactoriesOffset + 2;
-  static constexpr ObjId kChannelFactory = kGlobalIdFactoriesOffset + 3;
-  static constexpr ObjId kProxyFactory = kGlobalIdFactoriesOffset + 5;
-  static constexpr ObjId kStatisticsFactory = kGlobalIdFactoriesOffset + 6;
+  static constexpr ObjId kClientFactory = kGlobalIdClientsOffset;
 
   static constexpr ObjId kPoller = kGlobalIdPollerOffset + 0;
   static constexpr ObjId kDnsResolver = kGlobalIdDnsResolverOffset + 0;
