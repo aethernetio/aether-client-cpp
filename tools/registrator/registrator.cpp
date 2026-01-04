@@ -25,9 +25,6 @@
 #include "registrator/registrator_config.h"
 
 int AetherRegistrator(const std::string& ini_file,
-                      const std::string& header_file);
-
-int AetherRegistrator(const std::string& ini_file,
                       const std::string& header_file) {
   // Init tlemetry
   auto io_trap = std::make_shared<ae::tele::IoStreamTrap>(std::cout);
@@ -36,27 +33,24 @@ int AetherRegistrator(const std::string& ini_file,
 #if AE_SUPPORT_REGISTRATION
   // get registrator config
   ae::reg::RegistratorConfig registrator_config{ini_file};
-  assert(registrator_config.aether() && "Aether config is required");
+  if (!registrator_config.aether()) {
+    std::cerr << "Aether section in config is required" << std::endl;
+    return -1;
+  }
 
-  /**
-   * Construct a main aether application class.
-   * It's include a Domain and Aether instances accessible by getter
-   * methods. It has Update, WaitUntil, Exit, IsExit, ExitCode methods to
-   * integrate it in your update loop. Also it has action context protocol
-   * implementation \see Action. To configure its creation \see
-   * AetherAppConstructor.
-   */
-  auto aether_app = ae::AetherApp::Construct(
+  auto construct_context =
       ae::AetherAppContext{
           // make special domain storage to write all state into header file
           [header_file]() {
             return ae::make_unique<ae::RegistrarDomainStorage>(header_file);
           },
           // empty tele initializer
-          [](auto const&) {}}
+          [](auto const&) {},
+      }
           .CryptoFactory([&registrator_config](
                              ae::AetherAppContext const& context) {
-            auto crypto = context.domain().CreateObj<ae::Crypto>();
+            auto crypto =
+                context.domain().CreateObj<ae::Crypto>(ae::GlobalId::kCrypto);
 #  if AE_SIGNATURE == AE_ED25519
             assert((registrator_config.aether()->ed25519_sign_key.size() / 2 ==
                     crypto_sign_PUBLICKEYBYTES) &&
@@ -76,29 +70,28 @@ int AetherRegistrator(const std::string& ini_file,
 #  endif  // AE_SIGNATURE
             return crypto;
           })
-          .AdaptersFactory([&registrator_config](
-                               ae::AetherAppContext const& context)
-                               -> ae::AdapterRegistry::ptr {
-            auto adapter_registry =
-                context.domain().CreateObj<ae::AdapterRegistry>();
+          .AdaptersFactory(
+              [&registrator_config](ae::AetherAppContext const& context)
+                  -> ae::AdapterRegistry::ptr {
+                auto adapter_registry =
+                    context.domain().CreateObj<ae::AdapterRegistry>();
 
-            if (auto wifi = registrator_config.wifi_adapter(); wifi) {
-              AE_TELED_DEBUG("ae::registrator::RegisterWifiAdapter");
-              adapter_registry->Add(
-                  context.domain()
-                      .CreateObj<ae::registrator::RegisterWifiAdapter>(
+                if (auto wifi = registrator_config.wifi_adapter(); wifi) {
+                  AE_TELED_DEBUG("ae::reg::RegisterWifiAdapter");
+                  adapter_registry->Add(
+                      context.domain().CreateObj<ae::reg::RegisterWifiAdapter>(
                           ae::GlobalId::kRegisterWifiAdapter, context.aether(),
                           context.poller(), context.dns_resolver(), wifi->ssid,
                           wifi->password));
-            } else {
-              AE_TELED_DEBUG("ae::EthernetAdapter");
-              adapter_registry->Add(
-                  context.domain().CreateObj<ae::EthernetAdapter>(
-                      ae::GlobalId::kEthernetAdapter, context.aether(),
-                      context.poller(), context.dns_resolver()));
-            }
-            return adapter_registry;
-          })
+                } else {
+                  AE_TELED_DEBUG("ae::EthernetAdapter");
+                  adapter_registry->Add(
+                      context.domain().CreateObj<ae::EthernetAdapter>(
+                          ae::GlobalId::kEthernetAdapter, context.aether(),
+                          context.poller(), context.dns_resolver()));
+                }
+                return adapter_registry;
+              })
           .RegistrationCloudFactory(
               [&registrator_config](ae::AetherAppContext const& context) {
                 auto registration_cloud =
@@ -116,21 +109,35 @@ int AetherRegistrator(const std::string& ini_file,
                   registration_cloud->AddServerSettings(std::move(endpoint));
                 }
                 return registration_cloud;
-              }));
+              });
 
-  auto registrator_action = ae::ActionPtr<ae::registrator::RegistratorAction>{
+  auto aether_app = ae::AetherApp::Construct(std::move(construct_context));
+
+  if (registrator_config.clients().empty()) {
+    std::cout << "No client configurations provided! Exit!" << std::endl;
+    return 0;
+  }
+
+  auto registrator_action = ae::ActionPtr<ae::reg::RegistratorAction>{
       *aether_app, aether_app, registrator_config.clients()};
 
   registrator_action->StatusEvent().Subscribe(ae::ActionHandler{
-      ae::OnResult{[&]() { aether_app->Exit(0); }},
+      ae::OnResult{[&](auto const& action) {
+        auto const& clients = action.registered_clients();
+        for (auto const& c_conf : clients) {
+          std::cout << ae::Format("\nclient={},\n{}\n", c_conf.client_id,
+                                  c_conf.config);
+          aether_app->aether()->CreateClient(c_conf.config, c_conf.client_id);
+        }
+        aether_app->Exit(0);
+      }},
       ae::OnError{[&]() { aether_app->Exit(1); }},
   });
 
   while (!aether_app->IsExited()) {
     auto current_time = ae::Now();
     auto next_time = aether_app->Update(current_time);
-    aether_app->WaitUntil(
-        std::min(next_time, current_time + std::chrono::seconds{5}));
+    aether_app->WaitUntil(next_time);
   }
 
   return aether_app->ExitCode();

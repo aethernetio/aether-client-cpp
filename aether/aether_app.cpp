@@ -131,7 +131,7 @@ void AetherAppContext::InitComponentContext() {
 #endif  //  defined AE_DISTILLATION
 }
 
-RcPtr<AetherApp> AetherApp::Construct(AetherAppContext&& context) {
+RcPtr<AetherApp> AetherApp::Construct(AetherAppContext context) {
   auto app = MakeRcPtr<AetherApp>();
   app->aether_ = context.aether();
   context.init_tele_(context);

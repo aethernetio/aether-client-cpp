@@ -81,6 +81,8 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
 #endif  //  defined AE_DISTILLATION
   }
 
+  AE_CLASS_MOVE_ONLY(AetherAppContext)
+
   Domain& domain() const { return *domain_; }
   Aether::ptr aether() const { return aether_; }
 
@@ -143,7 +145,7 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
  */
 class AetherApp {
  public:
-  static RcPtr<AetherApp> Construct(AetherAppContext&& context);
+  static RcPtr<AetherApp> Construct(AetherAppContext context);
 
   AetherApp() = default;
   ~AetherApp();

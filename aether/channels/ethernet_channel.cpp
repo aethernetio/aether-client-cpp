@@ -236,8 +236,6 @@ ActionPtr<TransportBuilderAction> EthernetChannel::TransportBuilder() {
 
   DnsResolver::ptr dns_resolver = dns_resolver_;
   IPoller::ptr poller = poller_;
-  assert(dns_resolver);
-  assert(poller);
   return ActionPtr<
       ethernet_access_point_internal::EthernetTransportBuilderAction>(
       *aether_.as<Aether>(), *this, address, dns_resolver, poller);
