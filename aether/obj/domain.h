@@ -177,6 +177,7 @@ ObjPtr<TClass> Domain::CreateObj(ObjId obj_id, TArgs&&... args) {
   auto object = ObjPtr{MakePtr<TClass>(std::forward<TArgs>(args)..., this)};
   AddObject(obj_id, object);
   object.SetId(obj_id);
+  object.SetFlags(ObjFlags{});
   return object;
 }
 
