@@ -36,7 +36,8 @@ template <>
 struct Formatter<ServerConfig> {
   template <typename TStream>
   void Format(ServerConfig const& value, FormatContext<TStream>& ctx) const {
-    ae::Format(ctx.out(), "id={}, endpoints=[{}]", value.id, value.endpoints);
+    ae::Format(ctx.out(), "server_id={}, endpoints=[{}]", value.id,
+               value.endpoints);
   }
 };
 }  // namespace ae
