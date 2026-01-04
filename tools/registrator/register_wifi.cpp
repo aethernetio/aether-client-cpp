@@ -18,7 +18,7 @@
 
 #include "aether/aether.h"
 
-namespace ae::registrator {
+namespace ae::reg {
 
 #ifdef AE_DISTILLATION
 RegisterWifiAdapter::RegisterWifiAdapter(ObjPtr<Aether> aether,
@@ -42,4 +42,4 @@ RegisterWifiAdapter::new_access_point() {
   return ethernet_adapter_->new_access_point();
 }
 
-}  // namespace ae::registrator
+}  // namespace ae::reg
