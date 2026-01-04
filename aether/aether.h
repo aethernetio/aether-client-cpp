@@ -111,7 +111,10 @@ class Aether : public Obj {
   ActionPtr<SelectClientAction> MakeSelectClient(
       ActionPtr<Registration> registration, std::string const& client_id);
 
+ public:
   ActionPtr<Registration> RegisterClient(Uid parent_uid);
+
+ private:
 #endif
 
   Client::ptr client_prefab;
