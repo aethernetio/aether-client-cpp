@@ -96,33 +96,35 @@ struct ObjectIndex<T, std::enable_if_t<std::is_base_of_v<Obj, T>>> {
 
 }  // namespace ae
 
+#define _AE_OBJECT_FIELDS(CLASS_ID, BASE_CLASS_ID, VERSION)    \
+  static constexpr std::uint32_t kClassId = CLASS_ID;          \
+  static constexpr std::uint32_t kBaseClassId = BASE_CLASS_ID; \
+  static constexpr std::uint32_t kVersion = VERSION;           \
+  using CurrentVersion = Version<kVersion>;                    \
+  static constexpr CurrentVersion kCurrentVersion{};
+
 /**
  * \brief Use it inside each derived class to register it with the object system
  */
-#define AE_OBJECT(DERIVED, BASE, VERSION)                        \
- protected:                                                      \
-  friend class ae::Registrar<DERIVED>;                           \
-  friend ae::Ptr<DERIVED> ae::MakePtr<DERIVED>();                \
-                                                                 \
- public:                                                         \
-  static constexpr std::uint32_t kClassId =                      \
-      crc32::from_literal(#DERIVED).value;                       \
-  static constexpr std::uint32_t kBaseClassId =                  \
-      crc32::from_literal(#BASE).value;                          \
-  static constexpr std::uint32_t kVersion = VERSION;             \
-  using CurrentVersion = Version<kVersion>;                      \
-  static constexpr CurrentVersion kCurrentVersion{};             \
-  inline static auto registrar_ =                                \
-      ae::Registrar<DERIVED>(kClassId, kBaseClassId);            \
-                                                                 \
-  using Base = BASE;                                             \
-  using ptr = ae::ObjPtr<DERIVED>;                               \
-                                                                 \
-  Base& base_{*this};                                            \
-                                                                 \
-  std::uint32_t GetClassId() const override { return kClassId; } \
-                                                                 \
- private:                                                        \
+#define AE_OBJECT(DERIVED, BASE, VERSION)                                \
+ protected:                                                              \
+  friend class ae::Registrar<DERIVED>;                                   \
+  friend ae::Ptr<DERIVED> ae::MakePtr<DERIVED>();                        \
+                                                                         \
+ public:                                                                 \
+  _AE_OBJECT_FIELDS(crc32::from_literal(#DERIVED).value, BASE::kClassId, \
+                    VERSION)                                             \
+  inline static auto registrar_ =                                        \
+      ae::Registrar<DERIVED>(kClassId, kBaseClassId);                    \
+                                                                         \
+  using Base = BASE;                                                     \
+  using ptr = ae::ObjPtr<DERIVED>;                                       \
+                                                                         \
+  Base& base_{*this};                                                    \
+                                                                         \
+  std::uint32_t GetClassId() const override { return kClassId; }         \
+                                                                         \
+ private:                                                                \
   /* add rest class's staff after */
 
 /**

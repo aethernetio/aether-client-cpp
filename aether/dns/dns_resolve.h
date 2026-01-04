@@ -22,7 +22,7 @@
 
 #include "aether/config.h"
 #include "aether/obj/obj.h"
-#include "aether/obj/dummy_obj.h"
+#include "aether/obj/dummy_obj.h"  // IWYU pragma: keep
 #if AE_SUPPORT_CLOUD_DNS
 #  include "aether/types/address.h"
 #  include "aether/actions/action.h"
@@ -71,12 +71,7 @@ class DnsResolver : public Obj {
 #else
 namespace ae {
 class DnsResolver : public DummyObj {
-  AE_OBJECT(DnsResolver, DummyObj, 0)
-
- public:
-  using DummyObj::DummyObj;
-
-  AE_OBJECT_REFLECT()
+  AE_DUMMY_OBJ(DnsResolver)
 };
 }  // namespace ae
 #endif
