@@ -37,8 +37,8 @@ struct ChannelTransportProperties {
   AE_REFLECT_MEMBERS(max_packet_size, rec_packet_size, connection_type,
                      reliability)
 
-  std::size_t max_packet_size;  // < Maximum packet size in bytes
-  std::size_t rec_packet_size;  // < Recommended packet size in bytes
+  std::uint32_t max_packet_size;  // < Maximum packet size in bytes
+  std::uint32_t rec_packet_size;  // < Recommended packet size in bytes
   ConnectionType connection_type;
   Reliability reliability;
 };
