@@ -34,9 +34,8 @@ class Registrar {
         {
             Factory::CreateFunc(&Create),
             Factory::LoadFunc(&Load),
-            Factory::SaveFunc(&Save)
+            Factory::SaveFunc(&Save),
 #ifdef DEBUG
-                ,
             std::string{reflect::GetTypeName<T>()},
             cls_id,
             base_id,
