@@ -14,6 +14,9 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(NOT TARGET aether)
   add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../aether aether)
 endif()
@@ -38,9 +41,6 @@ list( APPEND src_list
 )
 
 project("aether-registrator" VERSION "1.0.0" LANGUAGES C CXX)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(${PROJECT_NAME} ${src_list})
 target_link_libraries(${PROJECT_NAME} PRIVATE aether)
