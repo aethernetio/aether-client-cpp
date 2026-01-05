@@ -14,10 +14,12 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(AE_PROJECT_VERSION "0.1.0")
 
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
-
 option(AE_DISTILLATION "Build aether in distillation mode" On)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
