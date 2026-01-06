@@ -16,10 +16,10 @@
 
 #include "aether/transport/system_sockets/sockets/lwip_cb_udp_socket.h"
 
-#include "aether/transport/system_sockets/sockets/get_sock_addr.h"
-#include "aether/transport/system_sockets/sockets/lwip_get_addr.h"
-
 #if LWIP_CB_UDP_SOCKET_ENABLED
+#  include "lwip/tcpip.h"
+
+#  include "aether/transport/system_sockets/sockets/lwip_get_addr.h"
 
 #  include "aether/tele/tele.h"
 
@@ -48,6 +48,9 @@ std::optional<std::size_t> LwipCBUdpSocket::Send(Span<std::uint8_t> data) {
   err_t err;
 
   assert(pcb_ != nullptr && "Not connected to the server");
+
+  LOCK_TCPIP_CORE();
+  defer[] { UNLOCK_TCPIP_CORE(); };
 
   defer[&] {
     if (p != nullptr) {
@@ -81,8 +84,10 @@ void LwipCBUdpSocket::Disconnect() {
   if (pcb_ == nullptr) {
     return;
   }
+  LOCK_TCPIP_CORE();
   udp_remove(pcb_);
   pcb_ = nullptr;
+  UNLOCK_TCPIP_CORE();
 }
 
 ISocket& LwipCBUdpSocket::Connect(AddressPort const& destination,
@@ -90,6 +95,9 @@ ISocket& LwipCBUdpSocket::Connect(AddressPort const& destination,
   err_t err;
   auto connection_state = ConnectionState::kConnecting;
   defer[&] { connected_cb(connection_state); };
+
+  LOCK_TCPIP_CORE();
+  defer[] { UNLOCK_TCPIP_CORE(); };
 
   pcb_ = udp_new();
   if (pcb_ == nullptr) {
