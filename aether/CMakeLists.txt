@@ -71,7 +71,6 @@ list(APPEND events_srcs
             "events/multi_subscription.cpp")
 
 list(APPEND poller_srcs
-            "poller/poller.cpp"
             "poller/epoll_poller.cpp"
             "poller/kqueue_poller.cpp"
             "poller/freertos_poller.cpp"
