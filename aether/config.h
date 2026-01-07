@@ -89,6 +89,10 @@
 #  endif  // AE_SUPPORT_DYNAMIC_CLOUD_IPS
 #endif    // AE_SUPPORT_CLOUD_IPS
 
+#ifndef AE_LWIP_SOCKET_TYPES
+#  define AE_LWIP_SOCKET_TYPES LWIP_CB_SOCKETS
+#endif
+
 /**
  * Is mobile modems supported.
  * Also choose one of the supported modem implementations.
@@ -237,7 +241,7 @@
 
 // Maximal number of server connections
 #ifndef AE_CLOUD_MAX_SERVER_CONNECTIONS
-#  define AE_CLOUD_MAX_SERVER_CONNECTIONS 12
+#  define AE_CLOUD_MAX_SERVER_CONNECTIONS 3
 #endif
 
 // Telemetry configuration

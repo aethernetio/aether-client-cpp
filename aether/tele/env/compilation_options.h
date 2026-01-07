@@ -101,6 +101,7 @@ constexpr inline auto _compile_options_list = std::array{
 #else
     _OPTION_VALUE(AE_SUPPORT_DYNAMIC_CLOUD_IPS, 0),
 #endif
+    _OPTION(AE_LWIP_SOCKET_TYPES),
     _OPTION(AE_SUPPORT_MODEMS),
     _OPTION(AE_ENABLE_THINGY91X),
     _OPTION(AE_ENABLE_SIM7070),

@@ -45,6 +45,9 @@
 #define AE_LITTLE_ENDIAN 1
 #define AE_BIG_ENDIAN 2
 
+#define LWIP_CB_SOCKETS 1
+#define LWIP_BSD_SOCKETS 2
+
 #define AE_ALL 0xffffffff
 #define AE_TELE_LEVELS_ALL AE_ALL
 #define AE_EMPTY_LIST \
