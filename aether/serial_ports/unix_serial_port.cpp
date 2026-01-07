@@ -34,18 +34,14 @@ UnixSerialPort::ReadAction::ReadAction(ActionContext action_context,
   if (serial_port_->fd_ == kInvalidPort) {
     return;
   }
-  auto poller = serial_port_->poller_.Lock();
-  assert(poller);
-  poll_sub_ =
-      poller->Add({serial_port_->fd_})
-          .Subscribe(
-              MethodPtr<&UnixSerialPort::ReadAction::ReadAction::PollEvent>{
-                  this});
+  serial_port_->poller_->Event(
+      serial_port_->fd_, EventType::kRead,
+      MethodPtr<&UnixSerialPort::ReadAction::ReadAction::PollEvent>{this});
 }
 
 UpdateStatus UnixSerialPort::ReadAction::Update() {
   if (read_event_) {
-    auto lock = std::lock_guard{serial_port_->fd_lock_};
+    auto lock = std::scoped_lock{serial_port_->fd_lock_};
     for (auto const& b : buffers_) {
       serial_port_->read_event_.Emit(b);
     }
@@ -55,11 +51,9 @@ UpdateStatus UnixSerialPort::ReadAction::Update() {
   return {};
 }
 
-void UnixSerialPort::ReadAction::PollEvent(PollerEvent event) {
-  if (event.descriptor != serial_port_->fd_) {
-    return;
-  }
-  switch (event.event_type) {
+void UnixSerialPort::ReadAction::PollEvent(EventType event) {
+  auto event_type = event & EventType::kRead;
+  switch (event_type) {
     case EventType::kRead:
       ReadData();
       break;
@@ -69,7 +63,7 @@ void UnixSerialPort::ReadAction::PollEvent(PollerEvent event) {
 }
 
 void UnixSerialPort::ReadAction::ReadData() {
-  auto lock = std::lock_guard{serial_port_->fd_lock_};
+  auto lock = std::scoped_lock{serial_port_->fd_lock_};
 
   static std::uint8_t buffer[1024];
   ssize_t bytes_read = read(serial_port_->fd_, buffer, sizeof(buffer));
@@ -89,7 +83,7 @@ UnixSerialPort::UnixSerialPort(ActionContext action_context,
                                IPoller::ptr const& poller)
     : action_context_{action_context},
       serial_init_{std::move(serial_init)},
-      poller_{poller},
+      poller_{static_cast<UnixPollerImpl*>(poller->Native())},
       fd_{OpenPort(serial_init_)},
       read_action_{action_context_, *this} {}
 

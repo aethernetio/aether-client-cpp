@@ -115,7 +115,10 @@ ISocket& UnixTcpSocket::Connect(AddressPort const& destination,
   connected_cb_ = std::move(connected_cb);
 
   defer[&]() {
-    Poll();
+    // add poll for all events to detect connection
+    poller_->Event(socket_,
+                   EventType::kRead | EventType::kError | EventType::kWrite,
+                   MethodPtr<&UnixTcpSocket::OnPollerEvent>{this});
     connected_cb_(connection_state_);
   };
 
@@ -138,10 +141,7 @@ ISocket& UnixTcpSocket::Connect(AddressPort const& destination,
   return *this;
 }
 
-void UnixTcpSocket::OnPollerEvent(PollerEvent const& event) {
-  if (socket_ != event.descriptor) {
-    return;
-  }
+void UnixTcpSocket::OnPollerEvent(EventType event) {
   if (connection_state_ == ConnectionState::kConnecting) {
     OnConnectionEvent();
     return;

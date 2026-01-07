@@ -34,7 +34,7 @@ class UnixTcpSocket final : public UnixSocket {
  private:
   static int MakeSocket();
 
-  void OnPollerEvent(PollerEvent const& event) override;
+  void OnPollerEvent(EventType event) override;
   void OnConnectionEvent();
 
   ConnectionState connection_state_;
