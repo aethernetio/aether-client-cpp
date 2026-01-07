@@ -23,6 +23,7 @@
 
 #  include "aether/poller/poller.h"
 #  include "aether/types/data_buffer.h"
+#  include "aether/poller/freertos_poller.h"
 #  include "aether/events/event_subscription.h"
 #  include "aether/transport/system_sockets/sockets/isocket.h"
 
@@ -46,7 +47,7 @@ class LwipSocket : public ISocket {
 
  protected:
   void Poll();
-  virtual void OnPollerEvent(PollerEvent const& event);
+  void OnPollerEvent(EventType event);
 
   void OnReadEvent();
   void OnWriteEvent();
@@ -56,7 +57,7 @@ class LwipSocket : public ISocket {
 
   std::optional<int> GetSocketError();
 
-  IPoller* poller_;
+  FreeRtosLwipPollerImpl* poller_;
   int socket_;
   std::mutex socket_lock_;
 
@@ -65,8 +66,6 @@ class LwipSocket : public ISocket {
   ErrorCb error_cb_;
 
   DataBuffer recv_buffer_;
-
-  Subscription poller_subscription_;
 };
 }  // namespace ae
 

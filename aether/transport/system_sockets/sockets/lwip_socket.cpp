@@ -18,17 +18,14 @@
 
 #if LWIP_SOCKET_ENABLED
 
-#  include "lwip/err.h"
 #  include "lwip/sockets.h"
-#  include "lwip/sys.h"
-#  include "lwip/netdb.h"
-#  include "lwip/netif.h"
 
 #  include "aether/tele/tele.h"
 
 namespace ae {
 LwipSocket::LwipSocket(IPoller& poller, int socket)
-    : poller_{&poller}, socket_{socket} {}
+    : poller_{static_cast<FreeRtosLwipPollerImpl*>(poller.Native())},
+      socket_{socket} {}
 
 LwipSocket::~LwipSocket() { Disconnect(); }
 
@@ -54,6 +51,13 @@ std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
   int flags = MSG_NOSIGNAL;
   auto res = send(socket_, data.data(), size_to_send, flags);
   if (res == -1) {
+    if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+      // add wait for kWrite
+      poller_->Event(socket_,
+                     EventType::kRead | EventType::kWrite | EventType::kError,
+                     MethodPtr<&LwipSocket::OnPollerEvent>{this});
+    }
+
     if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
       AE_TELED_ERROR("Send to socket error: {}, {}", static_cast<int>(errno),
                      strerror(errno));
@@ -73,7 +77,6 @@ void LwipSocket::Disconnect() {
   socket_ = kInvalidSocket;
 
   poller_->Remove(s);
-  poller_subscription_.Reset();
   shutdown(s, SHUT_RDWR);
   if (close(s) != 0) {
     return;
@@ -81,29 +84,29 @@ void LwipSocket::Disconnect() {
 }
 
 void LwipSocket::Poll() {
-  poller_subscription_ = poller_->Add(socket_).Subscribe(
-      MethodPtr<&LwipSocket::OnPollerEvent>{this});
+  poller_->Event(socket_, EventType::kRead | EventType::kError,
+                 MethodPtr<&LwipSocket::OnPollerEvent>{this});
 }
 
-void LwipSocket::OnPollerEvent(PollerEvent const& event) {
-  AE_TELED_DEBUG("Poll event desc={},event={}", event.descriptor,
-                 event.event_type);
-  if (socket_ == kInvalidSocket) {
-    return;
-  }
-  if (event.descriptor != socket_) {
-    return;
-  }
-  switch (event.event_type) {
-    case ae::EventType::kRead:
-      OnReadEvent();
-      break;
-    case ae::EventType::kWrite:
-      OnWriteEvent();
-      break;
-    case ae::EventType::kError:
-      OnErrorEvent();
-      break;
+void LwipSocket::OnPollerEvent(EventType event) {
+  AE_TELED_DEBUG("Poll event desc={},event={}", socket_, event);
+  for (auto e : {EventType::kRead, EventType::kWrite, EventType::kError}) {
+    if ((event & e) == 0) {
+      continue;
+    }
+    switch (e) {
+      case ae::EventType::kRead:
+        OnReadEvent();
+        break;
+      case ae::EventType::kWrite:
+        OnWriteEvent();
+        break;
+      case ae::EventType::kError:
+        OnErrorEvent();
+        break;
+      default:
+        break;
+    }
   }
 }
 
@@ -132,6 +135,8 @@ void LwipSocket::OnWriteEvent() {
   if (ready_to_write_cb_) {
     ready_to_write_cb_();
   }
+  // update poller without kWrite
+  Poll();
 }
 
 void LwipSocket::OnErrorEvent() {

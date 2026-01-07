@@ -34,8 +34,6 @@ class LwipUdpSocket final : public LwipSocket {
  private:
   static int MakeSocket();
 
-  void OnPollerEvent(PollerEvent const& event) override;
-
   ConnectionState connection_state_;
   ConnectedCb connected_cb_;
 };
