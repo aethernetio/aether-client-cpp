@@ -118,7 +118,7 @@ ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
 }
 
 DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
-  auto obj_map_it = object_map_.find(static_cast<ObjId>(query.id.id()));
+  auto obj_map_it = object_map_.find(query.id);
   if (obj_map_it == std::end(object_map_)) {
     AE_TELE_ERROR(kSpifsDsLoadObjIdNoFound,
                   "Unable to find object id={}, class id={}, version={}",
@@ -166,7 +166,7 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
 }
 
 void SpiFsDomainStorage::Remove(const ae::ObjId& obj_id) {
-  auto obj_map_it = object_map_.find(static_cast<ObjId>(obj_id.id()));
+  auto obj_map_it = object_map_.find(obj_id);
   if (obj_map_it == std::end(object_map_)) {
     object_map_.emplace(obj_id.id(), ClassMap{});
     return;
