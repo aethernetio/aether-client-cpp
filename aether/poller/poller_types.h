@@ -55,8 +55,14 @@ struct DescriptorType {
   DescriptorType(Handle des) : descriptor{des} {}
   DescriptorType(Socket des) : descriptor{reinterpret_cast<Handle>(des)} {}
 
-  operator Handle() const { return descriptor; }
-  operator Socket() const { return reinterpret_cast<Socket>(descriptor); }
+  explicit operator Handle() const { return descriptor; }
+  explicit operator Socket() const {
+    return reinterpret_cast<Socket>(descriptor);
+  }
+
+  bool operator<(DescriptorType const& other) const {
+    return descriptor < other.descriptor;
+  }
 
   bool operator==(DescriptorType const& other) const {
     return descriptor == other.descriptor;
