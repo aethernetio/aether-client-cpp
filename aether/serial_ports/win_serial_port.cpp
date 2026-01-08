@@ -33,13 +33,10 @@ WinSerialPort::ReadAction::ReadAction(ActionContext action_context,
   if (serial_port_->fd_ == INVALID_HANDLE_VALUE) {
     return;
   }
-  poll_sub_ =
-      serial_port_->poller_->Add({serial_port_->fd_})
-          .Subscribe(
-              MethodPtr<&WinSerialPort::ReadAction::ReadAction::PollEvent>{
-                  this});
 
-  overlapped_rd_.event_type = EventType::kRead;
+  serial_port_->poller_->Add(
+      {serial_port_->fd_},
+      MethodPtr<&WinSerialPort::ReadAction::ReadAction::PollEvent>{this});
   RequestRead();
 }
 
@@ -54,19 +51,7 @@ UpdateStatus WinSerialPort::ReadAction::Update() {
   return {};
 }
 
-void WinSerialPort::ReadAction::PollEvent(PollerEvent event) {
-  // if (static_cast<HANDLE>(event.descriptor) != serial_port_->fd_)
-  if (event.descriptor != DescriptorType{serial_port_->fd_}) {
-    return;
-  }
-  switch (event.event_type) {
-    case EventType::kRead:
-      ReadData();
-      break;
-    default:
-      break;
-  }
-}
+void WinSerialPort::ReadAction::PollEvent(LPOVERLAPPED) { ReadData(); }
 
 void WinSerialPort::ReadAction::ReadData() {
   HandleRead();
@@ -75,7 +60,6 @@ void WinSerialPort::ReadAction::ReadData() {
 
 void WinSerialPort::ReadAction::RequestRead() {
   DWORD dwErr, dwRead, fRes;
-  OVERLAPPED* overlapped_rd = reinterpret_cast<OVERLAPPED*>(&overlapped_rd_);
 
   if (serial_port_->fd_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
@@ -87,7 +71,7 @@ void WinSerialPort::ReadAction::RequestRead() {
   // Issue read operation.
   fRes = ::ReadFile(serial_port_->fd_, read_buffer_.data(),
                     static_cast<DWORD>(read_buffer_.size()), &dwRead,
-                    overlapped_rd);
+                    &overlapped_rd_);
   if (!fRes) {
     dwErr = GetLastError();
     // err should be ERROR_IO_PENDING
@@ -103,9 +87,8 @@ void WinSerialPort::ReadAction::RequestRead() {
 void WinSerialPort::ReadAction::HandleRead() {
   DWORD dwErr;
   DWORD dwRead;
-  OVERLAPPED* overlapped_rd = reinterpret_cast<OVERLAPPED*>(&overlapped_rd_);
 
-  if (!::GetOverlappedResult(serial_port_->fd_, overlapped_rd, &dwRead,
+  if (!::GetOverlappedResult(serial_port_->fd_, &overlapped_rd_, &dwRead,
                              FALSE)) {
     dwErr = GetLastError();
     AE_TELED_ERROR("GetOverlappedResult err {}", dwErr);
@@ -128,7 +111,7 @@ WinSerialPort::WinSerialPort(ActionContext action_context,
                              SerialInit serial_init, IPoller& poller)
     : action_context_{action_context},
       serial_init_{std::move(serial_init)},
-      poller_{&poller},
+      poller_{static_cast<IoCpPoller*>(poller.Native())},
       fd_{OpenPort(serial_init_)},
       read_action_{action_context_, *this} {}
 

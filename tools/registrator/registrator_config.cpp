@@ -18,143 +18,112 @@
 
 #include "third_party/ini.h/ini.h"
 
-#include "aether/types/address_parser.h"
-#include "aether/tele/tele.h"
+#include <charconv>
+#include <string_view>
 
-constexpr std::uint8_t clients_max = 4;
-constexpr std::uint8_t servers_max = 4;
-
-namespace ae {
+namespace ae::reg {
 
 /**
  * \brief Class constructor.
  */
-RegistratorConfig::RegistratorConfig(const std::string& ini_file)
-    : ini_file_{ini_file} {};
+RegistratorConfig::RegistratorConfig(std::filesystem::path const& ini_file) {
+  ParseConfig(ini_file);
+};
 
-/**
- * \brief Config parser.
- */
-int RegistratorConfig::ParseConfig() {
-  std::string uid;
-  std::uint8_t clients_num, clients_total{0};
-  std::tuple<std::string, std::uint8_t> parent;
+std::optional<Aether> const& RegistratorConfig::aether() const {
+  return aether_;
+}
+std::optional<WifiAdapter> const& RegistratorConfig::wifi_adapter() const {
+  return wifi_adapter_;
+}
+std::vector<RegServer> const& RegistratorConfig::reg_servers() const {
+  return reg_servers_;
+}
+std::vector<ClientConfig> const& RegistratorConfig::clients() const {
+  return clients_;
+}
 
+void RegistratorConfig::ParseConfig(std::filesystem::path const& ini_file) {
   // Reading settings from the ini file.
-  ini::File file = ini::open(ini_file_);
+  ini::File file = ini::open(ini_file);
 
-  std::string wifi_ssid = file["Aether"]["wifiSsid"];
-  std::string wifi_pass = file["Aether"]["wifiPass"];
-
-  AE_TELED_DEBUG("WiFi ssid={}", wifi_ssid);
-  AE_TELED_DEBUG("WiFi pass={}", wifi_pass);
-
-  wifi_ssid_ = wifi_ssid;
-  wifi_pass_ = wifi_pass;
-
-  std::string sodium_key = file["Aether"]["sodiumKey"];
-  std::string hydrogen_key = file["Aether"]["hydrogenKey"];
-
-  AE_TELED_DEBUG("Sodium key={}", sodium_key);
-  AE_TELED_DEBUG("Hydrogen key={}", hydrogen_key);
-
-  // Clients configuration
-  std::int8_t parents_num = file["Aether"].get<int>("parentsNum");
-
-  for (std::uint8_t i{0}; i < parents_num; i++) {
-    uid = file["ParentID" + std::to_string(i + 1)]["uid"];
-    clients_num =
-        file["ParentID" + std::to_string(i + 1)].get<int>("clientsNum");
-    ae::ClientParents parent{uid, clients_num};
-    parents_.push_back(parent);
-    clients_total += clients_num;
-  }
-
-  // Clients max assertion
-  if (clients_total > clients_max) {
-    AE_TELED_ERROR("Total clients must be < {} clients", clients_max);
-    return -1;
-  }
-
-  clients_total_ = clients_total;
-
-  // Servers configuration
-  std::int8_t servers_num = file["Aether"].get<int>("serversNum");
-
-  std::uint8_t servers_total{0};
-  ae::ServerConfig server_config{};
-
-  for (std::uint8_t i{0}; i < servers_num; i++) {
-    std::string str_ip_address =
-        file["ServerID" + std::to_string(i + 1)]["ipAddress"];
-    std::uint16_t int_ip_port =
-        file["ServerID" + std::to_string(i + 1)].get<int>("ipPort");
-    std::string str_ip_protocol =
-        file["ServerID" + std::to_string(i + 1)]["ipProtocol"];
-
-    ae::Address ip_address{};
-    auto res = ae::AddressParser::StringToAddress(str_ip_address);
-    ip_address = res;
-
-    server_config.server_ip_address = ip_address;
-    server_config.server_address = str_ip_address;
-    server_config.server_port = int_ip_port;
-    if (str_ip_protocol == "kTcp") {
-      server_config.server_protocol = ae::Protocol::kTcp;
-    } else if (str_ip_protocol == "kUdp") {
-      server_config.server_protocol = ae::Protocol::kUdp;
+  for (auto const& [name, section] : file) {
+    if (name == "Aether") {
+      ParseAether(section);
     }
-
-    servers_.push_back(server_config);
-    servers_total++;
+    if (name == "WifiAdapter") {
+      ParseWifiAdapter(section);
+    }
+    if (name.find("RegServer") != std::string::npos) {
+      ParseRegServer(section, name);
+    }
+    if (name.find("Client") != std::string::npos) {
+      ParseClient(section, name);
+    }
   }
+}
 
-  // Servers max assertion
-  if (servers_total > servers_max) {
-    AE_TELED_ERROR("Total servers must be < {} servers", servers_max);
-    return -3;
+void RegistratorConfig::ParseAether(ini::Section const& aether) {
+  aether_.emplace();
+
+  if (aether.has_key("ed25519_sign_key")) {
+    aether_->ed25519_sign_key = aether.get<std::string>("ed25519_sign_key");
   }
-
-  return 0;
+  if (aether.has_key("hydrogen_sign_key")) {
+    aether_->hydrogen_sign_key = aether.get<std::string>("hydrogen_sign_key");
+  }
 }
 
-/**
- * \brief Getter for the parents_.
- */
-std::vector<ae::ClientParents> RegistratorConfig::GetParents() {
-  return parents_;
+void RegistratorConfig::ParseWifiAdapter(ini::Section const& wifi_adapter) {
+  wifi_adapter_.emplace();
+  assert(wifi_adapter.has_key("ssid"));
+  assert(wifi_adapter.has_key("pass"));
+  wifi_adapter_->ssid = wifi_adapter.get<std::string>("ssid");
+  wifi_adapter_->password = wifi_adapter.get<std::string>("pass");
 }
 
-/**
- * \brief Getter for the servers_.
- */
-std::vector<ae::ServerConfig> RegistratorConfig::GetServers() {
-  return servers_;
+void RegistratorConfig::ParseRegServer(ini::Section const& reg_server,
+                                       std::string const& name) {
+  RegServer server;
+
+  // parse name and get id
+  auto pos = name.find('_');
+  if (pos != std::string::npos) {
+    auto suffix = std::string_view{name}.substr(pos + 1);
+    auto res = std::from_chars(suffix.data(), suffix.data() + suffix.size(),
+                               server.server_id);
+  }
+  assert(reg_server.has_key("address"));
+  assert(reg_server.has_key("port"));
+  assert(reg_server.has_key("protocol"));
+
+  server.address = reg_server.get<std::string>("address");
+  server.port = static_cast<std::uint16_t>(reg_server.get<int>("port"));
+
+  auto protocol = reg_server.get<std::string>("protocol");
+  static auto const protocols_map = std::map<std::string_view, Protocol>{
+      {"kTcp", Protocol::kTcp},
+      {"kUdp", Protocol::kUdp},
+      {"kWebSocket", Protocol::kWebSocket}};
+  auto p_it = protocols_map.find(protocol);
+  assert((p_it != protocols_map.end()) && "Unknown protocol");
+  server.protocol = p_it->second;
+
+  reg_servers_.push_back(std::move(server));
 }
 
-/**
- * \brief Getter for the clients_total_.
- */
-std::uint8_t RegistratorConfig::GetClientsTotal() { return clients_total_; }
+void RegistratorConfig::ParseClient(ini::Section const& client,
+                                    std::string const& name) {
+  ClientConfig client_config{};
+  // parser client id
+  auto pos = name.find('_');
+  assert((pos != std::string::npos) && "Invalid client name");
+  client_config.client_id = name.substr(pos + 1);
 
-/**
- * \brief Getter for the wifi_ssid_.
- */
-std::string RegistratorConfig::GetWiFiSsid() { return wifi_ssid_; }
+  assert(client.has_key("parent_uid"));
+  client_config.parent_uid = client.get<std::string>("parent_uid");
 
-/**
- * \brief Getter for the wifi_pass_.
- */
-std::string RegistratorConfig::GetWiFiPass() { return wifi_pass_; }
-
-/**
- * \brief Getter for the WiFi parameters is set.
- */
-bool RegistratorConfig::GetWiFiIsSet() {
-  bool res{false};
-
-  if (!wifi_ssid_.empty() && !wifi_pass_.empty()) res = true;
-
-  return res;
+  clients_.emplace_back(std::move(client_config));
 }
-}  // namespace ae
+
+}  // namespace ae::reg

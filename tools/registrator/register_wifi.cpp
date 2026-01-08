@@ -18,7 +18,7 @@
 
 #include "aether/aether.h"
 
-namespace ae::registrator {
+namespace ae::reg {
 
 RegisterWifiAdapter::RegisterWifiAdapter(Aether& aether, IPoller& poller,
                                          DnsResolver& dns_resolver,
@@ -37,4 +37,4 @@ RegisterWifiAdapter::new_access_point() {
   return ethernet_adapter_.new_access_point();
 }
 
-}  // namespace ae::registrator
+}  // namespace ae::reg

@@ -17,6 +17,7 @@
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_UNIX_UDP_SOCKET_H_
 
 #include "aether/config.h"
+#include "aether/poller/poller.h"
 #include "aether/transport/system_sockets/sockets/unix_socket.h"
 
 #if AE_SUPPORT_UDP && UNIX_SOCKET_ENABLED
@@ -24,9 +25,10 @@
 namespace ae {
 class UnixUdpSocket final : public UnixSocket {
  public:
-  UnixUdpSocket();
+  explicit UnixUdpSocket(IPoller& poller);
 
-  std::size_t GetMaxPacketSize() const override;
+  ISocket& Connect(AddressPort const& destination,
+                   ConnectedCb connected_cb) override;
 
  private:
   static int MakeSocket();

@@ -61,6 +61,8 @@
 #include "aether/types/client_id.h"
 #include "aether/types/data_buffer.h"
 #include "aether/types/ring_buffer.h"
+#include "aether/types/client_config.h"
+#include "aether/types/server_config.h"
 #include "aether/types/state_machine.h"
 #include "aether/types/literal_array.h"
 #include "aether/types/nullable_type.h"
@@ -69,7 +71,7 @@
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/safe_stream.h"
 #include "aether/stream_api/buffer_stream.h"
-#include "aether/stream_api/protocol_gates.h"
+#include "aether/stream_api/api_call_adapter.h"
 #include "aether/stream_api/stream_write_action.h"
 
 #include "aether/serial_ports/iserial_port.h"

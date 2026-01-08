@@ -18,20 +18,19 @@
 #define AETHER_AETHER_H_
 
 #include <map>
+#include <string>
 
 #include "aether/common.h"
 #include "aether/memory.h"
 #include "aether/obj/obj.h"
-#include "aether/obj/dummy_obj.h"  // IWYU pragma: keep
 #include "aether/actions/action_ptr.h"
+#include "aether/types/client_config.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
 #include "aether/ae_actions/select_client.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/tele/traps/tele_statistics.h"
 #include "aether/registration/registration.h"  // IWYU pragma: keep
 
-#include "aether/cloud.h"
 #include "aether/client.h"
 #include "aether/crypto.h"
 #include "aether/server.h"
@@ -51,10 +50,12 @@ class Aether : public Obj {
   // User-facing API.
   operator ActionContext() const { return ActionContext{*action_processor}; }
 
+  std::shared_ptr<Client> CreateClient(ClientConfig const& config,
+                                       std::string const& client_id);
   ActionPtr<SelectClientAction> SelectClient(Uid parent_uid,
-                                             std::string client_id);
+                                             std::string const& client_id);
 
-  void AddServer(std::shared_ptr<Server> s);
+  void StoreServer(std::shared_ptr<Server> s);
   std::shared_ptr<Server> GetServer(ServerId server_id);
 
   std::unique_ptr<ActionProcessor> action_processor =
@@ -72,19 +73,27 @@ class Aether : public Obj {
 
  private:
   std::shared_ptr<Client> FindClient(std::string const& client_id);
-  std::shared_ptr<Client> AddClient(Uid parent_uid, std::string client_id);
+  void StoreClient(std::shared_ptr<Client> client);
+
+  ActionPtr<SelectClientAction> FindSelectClientAction(
+      std::string const& client_id);
+  ActionPtr<SelectClientAction> MakeSelectClient() const;
+  ActionPtr<SelectClientAction> MakeSelectClient(
+      std::shared_ptr<Client> const& client) const;
 #if AE_SUPPORT_REGISTRATION
-  ActionPtr<Registration> FindRegistration(std::string const& client_id);
-  ActionPtr<Registration> RegisterClient(std::shared_ptr<Client> client);
+  ActionPtr<SelectClientAction> MakeSelectClient(
+      ActionPtr<Registration> registration, std::string const& client_id);
+
+ public:
+  ActionPtr<Registration> RegisterClient(Uid parent_uid);
+
+ private:
 #endif
 
-  std::vector<std::shared_ptr<Client>> clients_;
+  std::map<std::string, std::shared_ptr<Client>> clients_;
   std::map<ServerId, std::shared_ptr<Server>> servers_;
 
-#if AE_SUPPORT_REGISTRATION
-  std::map<std::string, ActionPtr<Registration>> registration_actions_;
-  MultiSubscription registration_subscriptions_;
-#endif
+  std::map<std::string, ActionPtr<SelectClientAction>> select_client_actions_;
 };
 
 }  // namespace ae

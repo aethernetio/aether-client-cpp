@@ -164,7 +164,7 @@ class GetCloudFromAether : public GetCloudAction {
 
       auto s = std::make_shared<Server>(
           sd.server_id, endpoints, aether_->adapter_registry, aether_->domain_);
-      aether_->AddServer(s);
+      aether_->StoreServer(s);
       servers.emplace_back(std::move(s));
     }
     return servers;

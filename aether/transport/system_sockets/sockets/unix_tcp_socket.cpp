@@ -29,6 +29,7 @@
 #  include <cerrno>
 
 #  include "aether/misc/defer.h"
+#  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
 
 #  include "aether/tele/tele.h"
 
@@ -38,7 +39,6 @@
 #  endif
 
 namespace ae {
-
 namespace unix_tcp_socket_internal {
 inline bool SetTcpNoDelay(int sock) {
   constexpr int one = 1;
@@ -73,9 +73,12 @@ inline bool SetNonblocking(int sock) {
 }
 }  // namespace unix_tcp_socket_internal
 
-UnixTcpSocket::UnixTcpSocket() : UnixSocket(MakeSocket()) {}
-
-std::size_t UnixTcpSocket::GetMaxPacketSize() const { return 1500; }
+UnixTcpSocket::UnixTcpSocket(IPoller& poller)
+    : UnixSocket(poller, MakeSocket()),
+      connection_state_{ConnectionState::kNone} {
+  // 1500 is our default MTU for TCP
+  recv_buffer_.resize(1500);
+}
 
 int UnixTcpSocket::MakeSocket() {
   bool created = false;
@@ -105,5 +108,66 @@ int UnixTcpSocket::MakeSocket() {
   created = true;
   return sock;
 }
+
+ISocket& UnixTcpSocket::Connect(AddressPort const& destination,
+                                ConnectedCb connected_cb) {
+  assert((socket_ != kInvalidSocket) && "Socket is not initialized");
+  connected_cb_ = std::move(connected_cb);
+
+  defer[&]() {
+    // add poll for all events to detect connection
+    poller_->Event(socket_,
+                   EventType::kRead | EventType::kError | EventType::kWrite,
+                   MethodPtr<&UnixTcpSocket::OnPollerEvent>{this});
+    connected_cb_(connection_state_);
+  };
+
+  auto lock = std::scoped_lock{socket_lock_};
+
+  auto addr = GetSockAddr(destination);
+  auto res = connect(socket_, addr.addr(), static_cast<socklen_t>(addr.size));
+  if (res == -1) {
+    if ((errno == EAGAIN) || (errno == EINPROGRESS)) {
+      AE_TELED_DEBUG("Wait connection");
+      connection_state_ = ConnectionState::kConnecting;
+      return *this;
+    }
+    AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
+    connection_state_ = ConnectionState::kConnectionFailed;
+    return *this;
+  }
+
+  connection_state_ = ConnectionState::kConnected;
+  return *this;
+}
+
+void UnixTcpSocket::OnPollerEvent(EventType event) {
+  if (connection_state_ == ConnectionState::kConnecting) {
+    OnConnectionEvent();
+    return;
+  }
+  UnixSocket::OnPollerEvent(event);
+}
+
+void UnixTcpSocket::OnConnectionEvent() {
+  defer[&]() {
+    if (connected_cb_) {
+      connected_cb_(connection_state_);
+    }
+  };
+
+  // check socket status
+  auto sock_err = GetSocketError();
+  if (!sock_err || (sock_err.value() != 0)) {
+    AE_TELED_ERROR("Connect error {}, {}", sock_err,
+                   strerror(sock_err.value_or(0)));
+    connection_state_ = ConnectionState::kConnectionFailed;
+    return;
+  }
+
+  AE_TELED_DEBUG("Socket connected");
+  connection_state_ = ConnectionState::kConnected;
+}
+
 }  // namespace ae
 #endif

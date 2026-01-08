@@ -95,7 +95,7 @@ void GetClientCloudAction::RequestCloud() {
             },
             request_policy_);
       },
-      std::chrono::milliseconds{1000},
+      std::chrono::milliseconds{10000},
       repeat_count,
   };
 

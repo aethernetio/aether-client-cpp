@@ -61,9 +61,10 @@ void Server::Register() {
 
 void Server::UpdateSubscription() {
   for (auto const& adapter : adapter_registry_->adapters()) {
-    access_point_added_.Push(adapter->new_access_point().Subscribe(
-        MethodPtr<&Server::AddChannels>{this}));
+    access_point_added_ += adapter->new_access_point().Subscribe(
+        MethodPtr<&Server::AddChannels>{this});
   }
+  channels_changed_.Emit();
 }
 
 void Server::AddChannels(AccessPoint& access_point) {

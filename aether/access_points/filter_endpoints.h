@@ -14,15 +14,39 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ACCESS_POINTS_FILTER_PROTOCOLS_H_
-#define AETHER_ACCESS_POINTS_FILTER_PROTOCOLS_H_
+#ifndef AETHER_ACCESS_POINTS_FILTER_ENDPOINTS_H_
+#define AETHER_ACCESS_POINTS_FILTER_ENDPOINTS_H_
 
+#include <array>
 #include <algorithm>
 
 #include "aether/config.h"
 #include "aether/types/address.h"
 
 namespace ae {
+template <AddrVersion... supported_versions>
+bool FilterAddresses(Endpoint const& address) {
+  auto addr_version = address.address.Index();
+#if !AE_SUPPORT_CLOUD_DNS
+  if (addr_version == AddrVersion::kNamed) {
+    return false;
+  }
+#endif
+#if !AE_SUPPORT_IPV4
+  if (addr_version == AddrVersion::kIpV4) {
+    return false;
+  }
+#endif
+#if !AE_SUPPORT_IPV6
+  if (addr_version == AddrVersion::kIpV6) {
+    return false;
+  }
+#endif
+  static constexpr std::array supported = {supported_versions...};
+  return std::any_of(std::begin(supported), std::end(supported),
+                     [addr_version](auto v) { return v == addr_version; });
+}
+
 /**
  * \brief Check if protocol in address is supported.
  * \return True if protocol is supported, false otherwise.
@@ -47,4 +71,4 @@ bool FilterProtocol(Endpoint const& address) {
 }
 }  // namespace ae
 
-#endif  // AETHER_ACCESS_POINTS_FILTER_PROTOCOLS_H_
+#endif  // AETHER_ACCESS_POINTS_FILTER_ENDPOINTS_H_

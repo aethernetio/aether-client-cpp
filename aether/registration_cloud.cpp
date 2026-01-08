@@ -29,9 +29,9 @@ RegistrationCloud::RegistrationCloud(Aether& aether, Domain* domain)
 
 void RegistrationCloud::AddServerSettings(Endpoint address) {
   // don't care about server id for registration
-  servers_.emplace_back(std::make_shared<Server>(
-      ServerId{0}, std::vector<Endpoint>{std::move(address)},
-      aether_->adapter_registry, domain_));
+  servers_.emplace_back(
+      std::make_shared<Server>(ServerId{0}, std::vector{std::move(address)},
+                               aether_->adapter_registry, domain_));
 }
 
 std::vector<std::shared_ptr<Server>>& RegistrationCloud::servers() {

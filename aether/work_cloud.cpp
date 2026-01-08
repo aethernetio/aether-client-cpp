@@ -35,7 +35,7 @@ WorkCloud::WorkCloud(Aether& aether, Uid uid, Domain* domain)
       servers_.emplace_back(std::move(s));
     } else {
       s = std::make_shared<Server>(sid, aether_->adapter_registry, domain_);
-      aether_->AddServer(s);
+      aether_->StoreServer(s);
       servers_.emplace_back(std::move(s));
     }
   }

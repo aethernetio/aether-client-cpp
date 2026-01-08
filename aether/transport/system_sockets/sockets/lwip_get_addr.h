@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_DEBUG_GATE_H_
-#define AETHER_STREAM_API_DEBUG_GATE_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_GET_ADDR_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_GET_ADDR_H_
 
-#include <string>
+#if (defined(ESP_PLATFORM))
 
-#include "aether/types/data_buffer.h"
+#  include <optional>
+
+#  include "lwip/ip_addr.h"
+
+#  include "aether/types/address.h"
 
 namespace ae {
-class DebugGate {
- public:
-  explicit DebugGate(std::string in_format, std::string out_format);
-
-  DataBuffer WriteIn(DataBuffer buffer);
-  DataBuffer WriteOut(DataBuffer buffer);
-
- private:
-  std::string in_format_;
-  std::string out_format_;
-};
+std::optional<ip_addr_t> LwipGetAddr(const AddressPort& addr_port);
 }  // namespace ae
-
-#endif  // AETHER_STREAM_API_DEBUG_GATE_H_
+#endif  // (defined(ESP_PLATFORM))
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_GET_ADDR_H_

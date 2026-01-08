@@ -29,7 +29,7 @@ int test_sender_bandwidth(Uid receiver_uid) {
 
   // select one client
   auto select_client = aether_app->aether()->SelectClient(
-      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "Sender");
+      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "sender");
 
   select_client->StatusEvent().Subscribe(
       OnResult{[&](auto const& reg) { client = reg.client(); }});

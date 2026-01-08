@@ -33,7 +33,6 @@
 
 #include "aether/crc.h"
 #include "aether/obj/domain.h"
-#include "aether/reflect/reflect.h"
 
 namespace ae {
 /**
@@ -61,19 +60,21 @@ class Obj {
 };
 }  // namespace ae
 
+#define _AE_OBJECT_FIELDS(CLASS_ID, BASE_CLASS_ID, VERSION)    \
+  static constexpr std::uint32_t kClassId = CLASS_ID;          \
+  static constexpr std::uint32_t kBaseClassId = BASE_CLASS_ID; \
+  static constexpr std::uint32_t kVersion = VERSION;           \
+  using CurrentVersion = Version<kVersion>;                    \
+  static constexpr CurrentVersion kCurrentVersion{};
+
 /**
  * \brief Use it inside each derived class to register it with the object system
  */
 #define AE_OBJECT(DERIVED, BASE, VERSION)                                \
  public:                                                                 \
-  static constexpr std::uint32_t kClassId =                              \
-      crc32::from_literal(#DERIVED).value;                               \
-  static constexpr std::uint32_t kBaseClassId =                          \
-      crc32::from_literal(#BASE).value;                                  \
-  using CurrentVersion = Version<VERSION>;                               \
-                                                                         \
+  _AE_OBJECT_FIELDS(crc32::from_literal(#DERIVED).value, BASE::kClassId, \
+                    VERSION)                                             \
   static constexpr auto kTypeName = ae::reflect::GetTypeName<DERIVED>(); \
-  static constexpr CurrentVersion kCurrentVersion{};                     \
   using Base = BASE;                                                     \
   Base& base_{*this};                                                    \
                                                                          \

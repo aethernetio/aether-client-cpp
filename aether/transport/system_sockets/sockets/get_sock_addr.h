@@ -14,22 +14,34 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_SOCK_ADDR_H_
-#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_SOCK_ADDR_H_
+#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_GET_SOCK_ADDR_H_
+#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_GET_SOCK_ADDR_H_
 
-#if defined _WIN32
-#  define WIN_SOCK_ADDR_ENABLED 1
+#if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
+    defined(__FreeBSD__) || defined(ESP_PLATFORM) || defined(_WIN32)
 
-#  include <winsock2.h>
-#  include <ws2def.h>
-#  include <ws2ipdef.h>
-#  include <mswsock.h>
+#  define GET_SOCK_ADDR_ENABLED 1
+
+#  if defined _WIN32
+#    include <winsock2.h>
+#    include <ws2def.h>
+#    include <ws2ipdef.h>
+#    include <mswsock.h>
+#  endif
+#  if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
+      defined(__FreeBSD__)
+#    include <netinet/in.h>
+#  endif
+
+#  if defined(ESP_PLATFORM)
+#    include "lwip/sockets.h"
+#  endif
 
 #  include <cstddef>
 
 #  include "aether/types/address.h"
 
-namespace ae::win_socket_internal {
+namespace ae {
 struct SockAddr {
   sockaddr* addr() { return reinterpret_cast<sockaddr*>(&data); }
 
@@ -46,7 +58,7 @@ struct SockAddr {
 };
 
 SockAddr GetSockAddr(AddressPort const& ip_address_port);
-}  // namespace ae::win_socket_internal
+}  // namespace ae
 
 #endif
-#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_WIN_SOCK_ADDR_H_
+#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_GET_SOCK_ADDR_H_

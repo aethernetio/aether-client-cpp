@@ -40,6 +40,8 @@ void ServerConnection::Restream() {
 
 void ServerConnection::BeginConnection(std::size_t priority) {
   priority_ = priority;
+  AE_TELED_DEBUG("Begin connection server_id={}, priority={}, is_connection={}",
+                 server()->server_id, priority_, is_connection_);
   if (!is_connection_) {
     client_connection_.Reset();
     client_connection_ = connection_factory_->CreateConnection(server_);
@@ -49,6 +51,8 @@ void ServerConnection::BeginConnection(std::size_t priority) {
 
 void ServerConnection::EndConnection(std::size_t priority) {
   priority_ = priority;
+  AE_TELED_DEBUG("End connection server_id={}, priority={}, is_connection={}",
+                 server()->server_id, priority_, is_connection_);
   is_connection_ = false;
 }
 

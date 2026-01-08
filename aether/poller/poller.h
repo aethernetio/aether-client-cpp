@@ -18,33 +18,19 @@
 #define AETHER_POLLER_POLLER_H_
 
 #include "aether/obj/obj.h"
-#include "aether/events/events.h"
-#include "aether/poller/poller_types.h"
 
 namespace ae {
+class NativePoller {};
+
 class IPoller : public Obj {
   AE_OBJECT(IPoller, Obj, 0)
  public:
-  /**
-   * \brief Event type for event.
-   * User should check event.descriptor to match with its own.
-   */
-  using OnPollEvent = Event<void(PollerEvent event)>;
-  using OnPollEventSubscriber = typename OnPollEvent::Subscriber;
-
-  explicit IPoller(Domain* domain);
-  ~IPoller() override;
+  explicit IPoller(Domain* domain) : Obj{domain} {}
 
   /**
-   * \brief Add event for descriptor
-   * User must subscribe to returned event subscriber, \see OnPollEvent
+   * \brief Return native poller implementation.
    */
-  [[nodiscard]] virtual OnPollEventSubscriber Add(
-      DescriptorType descriptor) = 0;
-  /**
-   * \brief Remove event for descriptor
-   */
-  virtual void Remove(DescriptorType descriptor) = 0;
+  virtual NativePoller* Native() = 0;
 };
 }  // namespace ae
 

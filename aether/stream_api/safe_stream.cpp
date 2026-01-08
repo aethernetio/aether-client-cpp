@@ -18,7 +18,7 @@
 
 #include <utility>
 
-#include "aether/stream_api/protocol_gates.h"
+#include "aether/stream_api/api_call_adapter.h"
 
 #include "aether/tele/tele.h"
 

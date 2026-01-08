@@ -22,6 +22,12 @@
 
 #  define UNIX_SOCKET_ENABLED 1
 
+#  include <mutex>
+
+#  include "aether/poller/poller.h"
+#  include "aether/poller/unix_poller.h"
+#  include "aether/types/data_buffer.h"
+#  include "aether/events/event_subscription.h"
 #  include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
@@ -32,19 +38,37 @@ class UnixSocket : public ISocket {
  public:
   static constexpr int kInvalidSocket = -1;
 
-  explicit UnixSocket(int socket);
+  explicit UnixSocket(IPoller& poller, int socket);
   ~UnixSocket() override;
 
-  explicit operator DescriptorType() const override;
-  ConnectionState Connect(AddressPort const& destination) override;
-  ConnectionState GetConnectionState() override;
-  void Disconnect() override;
+  ISocket& ReadyToWrite(ReadyToWriteCb ready_to_write_cb) override;
+  ISocket& RecvData(RecvDataCb recv_data_cb) override;
+  ISocket& Error(ErrorCb error_cb) override;
   std::optional<std::size_t> Send(Span<std::uint8_t> data) override;
-  std::optional<std::size_t> Receive(Span<std::uint8_t> data) override;
-  bool IsValid() const override;
+
+  void Disconnect() override;
 
  protected:
+  void Poll();
+  virtual void OnPollerEvent(EventType event);
+
+  void OnReadEvent();
+  void OnWriteEvent();
+  void OnErrorEvent();
+
+  std::optional<std::size_t> Receive(Span<std::uint8_t> buffer);
+
+  std::optional<int> GetSocketError();
+
+  UnixPollerImpl* poller_;
   int socket_;
+  std::mutex socket_lock_;
+
+  ReadyToWriteCb ready_to_write_cb_;
+  RecvDataCb recv_data_cb_;
+  ErrorCb error_cb_;
+
+  DataBuffer recv_buffer_;
 };
 }  // namespace ae
 

@@ -20,12 +20,14 @@
 #if defined _WIN32
 #  define WIN_SOCKET_ENABLED 1
 
+#  include <mutex>
 #  include <atomic>
 #  include <cstddef>
 
-#  include "aether/poller/win_poller.h"  // for WinPollerOverlapped
+#  include "aether/poller/win_poller.h"
 #  include "aether/types/data_buffer.h"
 #  include "aether/socket_initializer.h"
+#  include "aether/events/event_subscription.h"
 
 #  include "aether/transport/system_sockets/sockets/isocket.h"
 
@@ -35,31 +37,44 @@ class WinSocket : public ISocket {
   static constexpr auto kInvalidSocketValue =
       static_cast<DescriptorType::Socket>(~0);
 
-  explicit WinSocket(std::size_t max_packet_size);
+  WinSocket(IPoller& poller, std::size_t max_packet_size);
   ~WinSocket() override;
 
-  explicit operator DescriptorType() const override;
+  ISocket& ReadyToWrite(ReadyToWriteCb ready_to_write_cb) override;
+  ISocket& RecvData(RecvDataCb recv_data_cb) override;
+  ISocket& Error(ErrorCb error_cb) override;
 
   std::optional<std::size_t> Send(Span<std::uint8_t> data) override;
-  std::optional<std::size_t> Receive(Span<std::uint8_t> data) override;
-  std::size_t GetMaxPacketSize() const override;
-  bool IsValid() const override;
+  void Disconnect() override;
 
  protected:
-  bool RequestRecv();
-  std::optional<std::size_t> HandleRecv(Span<std::uint8_t> data);
+  void Poll();
 
+  virtual void PollEvent(LPOVERLAPPED overlapped);
+  void OnRead();
+  void OnWrite();
+  void OnError();
+
+  bool RequestRecv();
+  std::optional<std::size_t> HandleRecv();
+
+  IoCpPoller* poller_;
   SocketInitializer socket_initializer_;
   DescriptorType::Socket socket_ = kInvalidSocketValue;
+  std::mutex socket_lock_;
+
+  ReadyToWriteCb ready_to_write_cb_;
+  RecvDataCb recv_data_cb_;
+  ErrorCb error_cb_;
 
   // READ / WRITE operation states
-  WinPollerOverlapped recv_overlapped_;
-  WinPollerOverlapped send_overlapped_;
+  OVERLAPPED recv_overlapped_;
+  OVERLAPPED send_overlapped_;
 
   std::atomic_bool is_recv_pending_ = false;
   std::atomic_bool is_send_pending_ = false;
 
-  DataBuffer read_buffer_;
+  DataBuffer recv_buffer_;
 };
 }  // namespace ae
 #endif

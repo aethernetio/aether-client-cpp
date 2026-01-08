@@ -21,7 +21,7 @@
 #  include "aether/lora_modules/ilora_module_driver.h"
 
 #  include "aether/channels/lora_module_channel.h"
-#  include "aether/access_points/filter_protocols.h"
+#  include "aether/access_points/filter_endpoints.h"
 
 namespace ae {
 LoraModuleConnectAction::LoraModuleConnectAction(

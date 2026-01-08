@@ -20,25 +20,47 @@
 #if defined __APPLE__ || defined __FreeBSD__
 #  define KQUEUE_POLLER_ENABLED 1
 
-#  include <memory>
+#  include <mutex>
+#  include <atomic>
+#  include <thread>
+#  include <optional>
 
 #  include "aether/poller/poller.h"
+#  include "aether/poller/unix_poller.h"
 
 namespace ae {
-class KqueuePoller : public IPoller {
-  AE_OBJECT(KqueuePoller, IPoller, 0)
-
-  class PollerWorker;
-
+class KqueuePollerImpl : public UnixPollerImpl {
  public:
-  KqueuePoller(Domain* domain);
-  ~KqueuePoller() override;
+  KqueuePollerImpl();
+  ~KqueuePollerImpl() override;
 
-  [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) override;
+  void Event(DescriptorType fd, EventType event, EventCb cb) override;
   void Remove(DescriptorType descriptor) override;
 
  private:
-  std::unique_ptr<PollerWorker> poller_worker_;
+  static int InitKqueue();
+  void Loop();
+
+  const int exit_kqueue_event_ = 1;
+
+  int kqueue_fd_;
+
+  std::recursive_mutex poller_mutex_;
+  std::map<DescriptorType, EventCb> event_map_;
+  std::atomic_bool stop_requested_{false};
+  std::thread thread_;
+};
+
+class KqueuePoller : public IPoller {
+  AE_OBJECT(KqueuePoller, IPoller, 0)
+
+ public:
+  KqueuePoller(Domain* domain);
+
+  NativePoller* Native() override;
+
+ private:
+  std::optional<KqueuePollerImpl> impl_;
 };
 }  // namespace ae
 

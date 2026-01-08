@@ -31,7 +31,7 @@ int AetherOddity(char const* destination_uid) {
   // Send a message and wait for response
 
   ClientConfig client_config = {
-      .client_id = "tom",
+      .id = "Tom",
       .parent_uid = CUidFromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"),
       .message_received_cb = MessageReceived,
   };

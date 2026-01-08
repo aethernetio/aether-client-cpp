@@ -17,37 +17,47 @@
 #ifndef TOOLS_REGISTRATOR_REGISTRATOR_ACTION_H_
 #define TOOLS_REGISTRATOR_REGISTRATOR_ACTION_H_
 
+#include <vector>
+#include <string>
+#include <cstdint>
+
+#include "aether/aether.h"
 #include "aether/aether_app.h"
+#include "aether/actions/action.h"
 
 #include "registrator/registrator_config.h"
 
-namespace ae::registrator {
+namespace ae::reg {
+struct RegisteredClient {
+  ae::ClientConfig config;
+  std::string client_id;
+};
+
 class RegistratorAction : public Action<RegistratorAction> {
   enum class State : std::uint8_t {
-    kRegistration,
+    kWait,
     kResult,
     kError,
   };
 
  public:
-  explicit RegistratorAction(ActionContext action_context,
-                             RcPtr<AetherApp> const& aether_app,
-                             RegistratorConfig const& registrator_config);
+  explicit RegistratorAction(
+      ae::ActionContext action_context, RcPtr<ae::AetherApp> const& aether_app,
+      std::vector<reg::ClientConfig> const& client_configs);
   UpdateStatus Update();
 
+  std::vector<RegisteredClient> const& registered_clients() const;
+
  private:
-  void RegisterClients();
+  void RegisterClients(ae::Aether& aether,
+                       std::vector<reg::ClientConfig> const& client_configs);
 
-  Aether* aether_;
-  RegistratorConfig registrator_config_;
-
-  std::size_t clients_registered_{0};
+  std::vector<RegisteredClient> registered_clients_;
 
   MultiSubscription registration_sub_;
   StateMachine<State> state_;
-  Subscription state_changed_;
 };
 
-}  // namespace ae::registrator
+}  // namespace ae::reg
 
 #endif  // TOOLS_REGISTRATOR_REGISTRATOR_ACTION_H_

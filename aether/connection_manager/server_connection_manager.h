@@ -51,9 +51,12 @@ class ServerConnectionManager {
   RcPtr<ClientServerConnection> FindInCache(ServerId server_id) const;
 
  private:
+  void ServerUpdate(ServerId server_id);
+
   ActionContext action_context_;
   Client* client_;
   std::map<ServerId, RcPtrView<ClientServerConnection>> cached_connections_;
+  MultiSubscription server_update_subs_;
 };
 }  // namespace ae
 

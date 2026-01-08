@@ -29,13 +29,11 @@
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
 #  include "aether/types/state_machine.h"
+#  include "aether/types/client_config.h"
 
-#  include "aether/client.h"
 #  include "aether/registration_cloud.h"
-
 #  include "aether/registration/api/client_reg_api_unsafe.h"
 #  include "aether/registration/api/registration_root_api.h"
-
 #  include "aether/registration/root_server_select_stream.h"
 
 namespace ae {
@@ -57,12 +55,12 @@ class Registration final : public Action<Registration> {
 
  public:
   Registration(ActionContext action_context, Aether& aether, Cloud& reg_cloud,
-               std::shared_ptr<Client> client);
+               Uid parent_uid);
   ~Registration() override;
 
   UpdateStatus Update();
 
-  std::shared_ptr<Client> client() const;
+  ClientConfig const& client_config() const;
 
  private:
   void InitConnection();
@@ -75,8 +73,7 @@ class Registration final : public Action<Registration> {
   void OnCloudResolved(std::vector<ServerDescriptor> const& servers);
 
   ActionContext action_context_;
-  Aether* aether_;
-  std::shared_ptr<Client> client_;
+  Uid parent_uid_;
 
   ProtocolContext protocol_context_;
 
@@ -94,7 +91,6 @@ class Registration final : public Action<Registration> {
   TimePoint last_request_time_;
 
   Key server_pub_key_;
-  Key master_key_;
   Uid uid_;
   Uid ephemeral_uid_;
   Key sign_pk_;
@@ -102,9 +98,10 @@ class Registration final : public Action<Registration> {
   Key aether_global_key_;
   std::vector<ServerId> client_cloud_;
 
+  ClientConfig client_config_;
+
   ActionPtr<StreamWriteAction> packet_write_action_;
   Subscription data_read_subscription_;
-  Subscription connection_subscription_;
   Subscription raw_transport_send_action_subscription_;
   Subscription reg_server_write_subscription_;
   Subscription response_sub_;

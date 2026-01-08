@@ -26,19 +26,22 @@
 #  include <netinet/udp.h>
 
 #  include "aether/misc/defer.h"
+#  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
 
 #  include "aether/tele/tele.h"
 
 namespace ae {
-UnixUdpSocket::UnixUdpSocket() : UnixSocket{MakeSocket()} {}
-
-std::size_t UnixUdpSocket::GetMaxPacketSize() const { return 1200; }
+UnixUdpSocket::UnixUdpSocket(IPoller& poller)
+    : UnixSocket{poller, MakeSocket()} {
+  // 1200 is our default MTU for UDP
+  recv_buffer_.resize(1200);
+}
 
 int UnixUdpSocket::MakeSocket() {
   bool created = false;
   auto sock = socket(AF_INET, SOCK_DGRAM, 0);
   if (sock == kInvalidSocket) {
-    AE_TELED_DEBUG("Socket creation error {} {}", errno, strerror(errno));
+    AE_TELED_ERROR("Socket creation error {} {}", errno, strerror(errno));
     return kInvalidSocket;
   }
 
@@ -57,5 +60,30 @@ int UnixUdpSocket::MakeSocket() {
   created = true;
   return sock;
 }
+
+ISocket& UnixUdpSocket::Connect(AddressPort const& destination,
+                                ConnectedCb connected_cb) {
+  // UDP connection means binding socket to a destination address
+  assert((socket_ != kInvalidSocket) && "Socket is not initialized");
+  ConnectionState connection_state{ConnectionState::kNone};
+  defer[&]() {
+    Poll();
+    connected_cb(connection_state);
+  };
+
+  auto lock = std::scoped_lock{socket_lock_};
+
+  auto addr = GetSockAddr(destination);
+  auto res = connect(socket_, addr.addr(), static_cast<socklen_t>(addr.size));
+  if (res == -1) {
+    AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
+    connection_state = ConnectionState::kConnectionFailed;
+    return *this;
+  }
+
+  connection_state = ConnectionState::kConnected;
+  return *this;
+}
+
 }  // namespace ae
 #endif

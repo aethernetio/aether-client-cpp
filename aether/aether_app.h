@@ -135,7 +135,7 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
  */
 class AetherApp {
  public:
-  static RcPtr<AetherApp> Construct(AetherAppContext&& context);
+  static RcPtr<AetherApp> Construct(AetherAppContext context);
 
   AetherApp() = default;
   ~AetherApp();

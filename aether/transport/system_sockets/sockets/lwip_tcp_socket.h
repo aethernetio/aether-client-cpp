@@ -21,18 +21,27 @@
 #include "aether/transport/system_sockets/sockets/lwip_socket.h"
 
 #if AE_SUPPORT_TCP && LWIP_SOCKET_ENABLED
+#  include "aether/poller/poller.h"
+
 namespace ae {
 class LwipTcpSocket final : public LwipSocket {
   static constexpr int kRcvTimeoutSec = 0;
   static constexpr int kRcvTimeoutUsec = 10000;
 
  public:
-  LwipTcpSocket();
+  explicit LwipTcpSocket(IPoller& poller);
 
-  std::size_t GetMaxPacketSize() const override;
+  ISocket& Connect(AddressPort const& destination,
+                   ConnectedCb connected_cb) override;
 
  private:
   static int MakeSocket();
+
+  void OnPollerEvent(EventType event);
+  void OnConnectionEvent();
+
+  ConnectionState connection_state_;
+  ConnectedCb connected_cb_;
 };
 }  // namespace ae
 #endif

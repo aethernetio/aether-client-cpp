@@ -18,6 +18,7 @@
 #define AETHER_CLIENT_H_
 
 #include <map>
+#include <string>
 #include <cassert>
 
 #include "aether/memory.h"
@@ -40,13 +41,13 @@ class Client final : public Obj {
   AE_OBJECT(Client, Obj, 0)
 
  public:
-  Client(Aether& aether, Uid parent_uid, std::string id, Domain* domain);
+  Client(Aether& aether, std::string id, Domain* domain);
 
   AE_REFLECT_MEMBERS(parent_uid_, uid_, ephemeral_uid_, master_key_,
                      server_keys_)
 
   // Public API.
-  std::string const& client_id() const;
+  std::string const& id() const;
   Uid const& parent_uid() const;
   Uid const& uid() const;
   Uid const& ephemeral_uid() const;
@@ -58,7 +59,7 @@ class Client final : public Obj {
   CloudConnection& cloud_connection();
   P2pMessageStreamManager& message_stream_manager();
 
-  void SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
+  void SetConfig(Uid parent_uid, Uid uid, Uid ephemeral_uid, Key master_key,
                  std::unique_ptr<Cloud> c);
 
   void SendTelemetry();
@@ -69,9 +70,10 @@ class Client final : public Obj {
   Aether* aether_;
   std::string id_;  //< User defined client id
   // configuration
-  Uid parent_uid_{};
-  Uid uid_{};
-  Uid ephemeral_uid_{};
+  std::string client_id_;  // User-defined client id
+  Uid parent_uid_;         // Parent aethernet client uid
+  Uid uid_{};              // Aethernet client uid
+  Uid ephemeral_uid_{};    // Used for server aethentication
   Key master_key_;
   std::unique_ptr<Cloud> cloud_;
 

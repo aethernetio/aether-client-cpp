@@ -16,26 +16,20 @@
 
 #include "registrator/registrator_action.h"
 
-#include "aether/aether.h"
-
-namespace ae::registrator {
+namespace ae::reg {
 RegistratorAction::RegistratorAction(
     ActionContext action_context, RcPtr<AetherApp> const& aether_app,
-    RegistratorConfig const& registrator_config)
-    : Action{action_context},
-      aether_{aether_app->aether()},
-      registrator_config_{registrator_config},
-      state_{State::kRegistration},
-      state_changed_{state_.changed_event().Subscribe(
-          [this](auto) { Action::Trigger(); })} {
+    std::vector<reg::ClientConfig> const& client_configs)
+    : Action{action_context}, state_{State::kWait} {
   AE_TELED_INFO("RegistratorAction");
+  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+  RegisterClients(*aether_app->aether(), client_configs);
 }
 
 UpdateStatus RegistratorAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
-      case State::kRegistration:
-        RegisterClients();
+      case State::kWait:
         break;
       case State::kResult:
         return UpdateStatus::Result();
@@ -43,40 +37,50 @@ UpdateStatus RegistratorAction::Update() {
         return UpdateStatus::Error();
     }
   }
-
   return {};
+}
+
+std::vector<RegisteredClient> const& RegistratorAction::registered_clients()
+    const {
+  return registered_clients_;
 }
 
 /**
  * \brief Perform a client registration.
  * We need a two clients for this test.
  */
-void RegistratorAction::RegisterClients() {
+void RegistratorAction::RegisterClients(
+    ae::Aether& aether, std::vector<reg::ClientConfig> const& client_configs) {
   AE_TELED_INFO("Client registration");
 #if not AE_SUPPORT_REGISTRATION
   // registration should be supported for this tool
   assert(false);
 #else
-  for (auto const& p : registrator_config_.GetParents()) {
-    auto parent_uid = ae::Uid::FromString(p.uid_str);
-    auto clients_num = p.clients_num;
 
-    for (auto i = 0; i < clients_num; i++) {
-      auto select_action = aether_->SelectClient(parent_uid, std::to_string(i));
+  std::size_t clients_count = client_configs.size();
+  assert(clients_count > 0 && "No client configurations provided");
 
-      registration_sub_.Push(select_action->StatusEvent().Subscribe(
-          ActionHandler{OnResult{[this](auto const&) {
-                          if (++clients_registered_ ==
-                              registrator_config_.GetClientsTotal()) {
-                            state_ = State::kResult;
-                          }
-                        }},
-                        OnError{[this]() {
-                          AE_TELED_ERROR("Registration error");
-                          state_ = State::kError;
-                        }}}));
-    }
+  for (auto const& c : client_configs) {
+    auto parent_uid = ae::Uid::FromString(c.parent_uid);
+    assert(!parent_uid.empty());
+    auto reg_action = aether.RegisterClient(parent_uid);
+    registration_sub_ += reg_action->StatusEvent().Subscribe(ActionHandler{
+        OnResult{
+            [this, clients_count, client_id{&c.client_id}](auto const& action) {
+              registered_clients_.emplace_back(RegisteredClient{
+                  action.client_config(),
+                  *client_id,
+              });
+              if (registered_clients_.size() == clients_count) {
+                state_ = State::kResult;
+              }
+            }},
+        OnError{[this]() {
+          AE_TELED_ERROR("Registration error");
+          state_ = State::kError;
+        }},
+    });
   }
 #endif
 }
-}  // namespace ae::registrator
+}  // namespace ae::reg

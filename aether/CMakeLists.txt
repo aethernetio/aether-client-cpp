@@ -14,10 +14,12 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(AE_PROJECT_VERSION "0.1.0")
 
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
-
 option(AE_DISTILLATION "Build aether in distillation mode" On)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
@@ -69,7 +71,6 @@ list(APPEND events_srcs
             "events/multi_subscription.cpp")
 
 list(APPEND poller_srcs
-            "poller/poller.cpp"
             "poller/epoll_poller.cpp"
             "poller/kqueue_poller.cpp"
             "poller/freertos_poller.cpp"
@@ -170,14 +171,19 @@ list(APPEND serial_ports_srcs
             )
 
 list(APPEND transport_srcs
-            "transport/system_sockets/sockets/unix_socket.cpp"
-            "transport/system_sockets/sockets/unix_tcp_socket.cpp"
-            "transport/system_sockets/sockets/unix_udp_socket.cpp"
+            "transport/system_sockets/sockets/get_sock_addr.cpp"
+            "transport/system_sockets/sockets/lwip_cb_tcp_socket.cpp"
+            "transport/system_sockets/sockets/lwip_cb_udp_socket.cpp"
+            "transport/system_sockets/sockets/lwip_get_addr.cpp"
             "transport/system_sockets/sockets/lwip_socket.cpp"
             "transport/system_sockets/sockets/lwip_tcp_socket.cpp"
             "transport/system_sockets/sockets/lwip_udp_socket.cpp"
+            "transport/system_sockets/sockets/tcp_sockets_factory.cpp"
+            "transport/system_sockets/sockets/udp_sockets_factory.cpp"
+            "transport/system_sockets/sockets/unix_socket.cpp"
+            "transport/system_sockets/sockets/unix_tcp_socket.cpp"
+            "transport/system_sockets/sockets/unix_udp_socket.cpp"
             "transport/system_sockets/sockets/win_socket.cpp"
-            "transport/system_sockets/sockets/win_sock_addr.cpp"
             "transport/system_sockets/sockets/win_tcp_socket.cpp"
             "transport/system_sockets/sockets/win_udp_socket.cpp"
             "transport/modems/modem_transport.cpp"
@@ -191,10 +197,9 @@ list(APPEND transport_srcs
 
 list(APPEND stream_api_src
             "stream_api/stream_write_action.cpp"
-            "stream_api/crypto_gate.cpp"
             "stream_api/sized_packet_gate.cpp"
+            "stream_api/buffer_stream.cpp"
             "stream_api/stream_api.cpp"
-            "stream_api/debug_gate.cpp"
 
             "stream_api/safe_stream.cpp"
             "stream_api/safe_stream/safe_stream_api.cpp"

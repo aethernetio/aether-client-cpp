@@ -20,7 +20,7 @@
 #include "aether/adapters/ethernet.h"
 #include "aether/adapters/parent_wifi.h"
 
-namespace ae::registrator {
+namespace ae::reg {
 class RegisterWifiAdapter : public ParentWifiAdapter {
   AE_OBJECT(RegisterWifiAdapter, ParentWifiAdapter, 0)
 
@@ -36,6 +36,6 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
   // whose doing all job
   EthernetAdapter ethernet_adapter_;
 };
-}  // namespace ae::registrator
+}  // namespace ae::reg
 
 #endif  // REGISTRATOR_REGISTER_WIFI_H_

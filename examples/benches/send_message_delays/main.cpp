@@ -66,9 +66,9 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
  private:
   void GetClients() {
     auto get_sender = aether_->SelectClient(
-        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "Sender");
+        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "sender");
     auto get_receiver = aether_->SelectClient(
-        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "Receiver");
+        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "receiver");
 
     client_selected_event_.Connect(
         [&](auto client_setter, auto result) {

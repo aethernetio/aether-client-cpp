@@ -66,9 +66,7 @@ class DnsResolver : public Obj {
 #else
 namespace ae {
 class DnsResolver : public DummyObj {
-  AE_OBJECT(DnsResolver, DummyObj, 0)
- public:
-  using DummyObj::DummyObj;
+  AE_DUMMY_OBJ(DnsResolver)
 };
 }  // namespace ae
 #endif

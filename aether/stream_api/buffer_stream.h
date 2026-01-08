@@ -17,7 +17,7 @@
 #ifndef AETHER_STREAM_API_BUFFER_STREAM_H_
 #define AETHER_STREAM_API_BUFFER_STREAM_H_
 
-#include <vector>
+#include <deque>
 #include <cstddef>
 
 #include "aether/common.h"
@@ -32,6 +32,24 @@
 
 namespace ae {
 // TODO: add Buffer stream tests
+
+class BufferedWriteAction final : public StreamWriteAction {
+ public:
+  explicit BufferedWriteAction(ActionContext action_context);
+
+  AE_CLASS_MOVE_ONLY(BufferedWriteAction)
+
+  void Stop() override;
+  // set to the sent state
+  void Sent(ActionPtr<StreamWriteAction> swa);
+  // drop the write action from the buffer
+  void Drop();
+
+ private:
+  ActionPtr<StreamWriteAction> swa_;
+  Subscription swa_sub_;
+};
+
 /**
  * \brief Buffers write requests until gate is not ready to accept them.
  */
@@ -39,44 +57,9 @@ template <typename T>
 class BufferStream final : public Stream<T, T, T, T> {
   using Base = Stream<T, T, T, T>;
 
-  class BufferedWriteAction final : public StreamWriteAction {
-   public:
-    BufferedWriteAction(ActionContext action_context, T&& data)
-        : StreamWriteAction(action_context), data_{std::move(data)} {
-      state_ = State::kQueued;
-    }
-
-    AE_CLASS_MOVE_ONLY(BufferedWriteAction)
-
-    void Stop() override {
-      if (write_action_) {
-        write_action_->Stop();
-      } else {
-        state_ = State::kStopped;
-        Action::Trigger();
-      }
-    }
-
-    void Send(typename Base::OutStream& out_gate) {
-      AE_TELED_DEBUG("Buffer send");
-
-      is_sent_ = true;
-      write_action_ = out_gate.Write(std::move(data_));
-      state_changed_subscription_ =
-          write_action_->state().changed_event().Subscribe([this](auto state) {
-            state_ = state;
-            Action::Trigger();
-          });
-    }
-
-    bool is_sent() const { return is_sent_; }
-
-   private:
-    T data_;
-    bool is_sent_{false};
-
-    ActionPtr<StreamWriteAction> write_action_;
-    Subscription state_changed_subscription_;
+  struct BufferEntry {
+    ActionPtr<BufferedWriteAction> bwa;
+    T data;
   };
 
  public:
@@ -85,26 +68,24 @@ class BufferStream final : public Stream<T, T, T, T> {
       : action_context_{action_context},
         buffer_max_{buffer_max},
         stream_info_{},
-        last_out_stream_info_{} {
+        linked_stream_info_{} {
     stream_info_.is_writable = true;
   }
 
   AE_CLASS_NO_COPY_MOVE(BufferStream)
 
   ActionPtr<StreamWriteAction> Write(T&& data) override {
+    if (!stream_info_.is_writable) {
+      AE_TELED_ERROR("Buffer is not writable");
+      // decline write
+      return ActionPtr<FailedStreamWriteAction>{action_context_};
+    }
     // add to buffer either if is write buffered or buffer is not empty to
     // observe write order
-    auto should_be_buffered =
-        !last_out_stream_info_.is_writable ||
-        (last_out_stream_info_.link_state != LinkState::kLinked) ||
-        !write_in_buffer_.empty();
+    auto should_be_buffered = (stream_info_.link_state != LinkState::kLinked) ||
+                              !linked_stream_info_.is_writable ||
+                              !buffer_.empty();
     if (should_be_buffered) {
-      if (!stream_info_.is_writable) {
-        AE_TELED_ERROR("Buffer overflow");
-        // decline write
-        return ActionPtr<FailedStreamWriteAction>{action_context_};
-      }
-
       return WriteToBuffer(std::move(data));
     }
 
@@ -129,34 +110,63 @@ class BufferStream final : public Stream<T, T, T, T> {
     Base::out_data_sub_.Reset();
     Base::update_sub_.Reset();
 
+    linked_stream_info_ = {};
+    stream_info_ = {};
     stream_info_.link_state = LinkState::kUnlinked;
-    stream_info_.is_reliable = false;
-    stream_info_.max_element_size = 0;
-    stream_info_.rec_element_size = 0;
+    stream_info_.is_writable = true;
+
+    // drop the buffer
+    for (auto& b : buffer_) {
+      b.bwa->Drop();
+    }
+    buffer_.clear();
+
+    Base::stream_update_event_.Emit();
+  }
+
+  void DropLink() {
+    // drop the buffer
+    for (auto& b : buffer_) {
+      b.bwa->Drop();
+    }
+    buffer_.clear();
+
+    Base::out_ = nullptr;
+    Base::out_data_sub_.Reset();
+    Base::update_sub_.Reset();
+
+    linked_stream_info_ = {};
+    stream_info_ = {};
+    stream_info_.link_state = LinkState::kLinkError;
+    stream_info_.is_writable = true;
+
     Base::stream_update_event_.Emit();
   }
 
  private:
   ActionPtr<StreamWriteAction> WriteToBuffer(T&& data) {
-    AE_TELED_DEBUG("Buffered write");
-    auto& action =
-        write_in_buffer_.emplace_back(action_context_, std::move(data));
-    // auto remove action on finish
-    write_in_subscription_.Push(action->FinishedEvent().Subscribe([this]() {
+    AE_TELED_DEBUG("BufferStream buffer write");
+    auto& buff_entry = buffer_.emplace_back(BufferEntry{
+        ActionPtr<BufferedWriteAction>{action_context_},
+        std::move(data),
+    });
+    // Drain the buffer when the action is finished
+    bwa_finished_sub_ += buff_entry.bwa->FinishedEvent().Subscribe([this]() {
       SetWriteable(true);
-      DrainBuffer(*Base::out_);
-    }));
+      DrainBuffer();
+    });
 
-    if (write_in_buffer_.size() == buffer_max_) {
+    if (buffer_.size() == buffer_max_) {
+      AE_TELED_WARNING("Buffer is full");
       SetWriteable(false);
     }
-    return action;
+    return buff_entry.bwa;
   }
 
   ActionPtr<StreamWriteAction> DirectWrite(T&& data) {
-    AE_TELED_DEBUG("Direct write");
+    AE_TELED_DEBUG("BufferStream direct write");
 
-    assert(Base::out_);
+    assert(Base::out_ && "Buffer stream is not linked");
     return Base::out_->Write(std::move(data));
   }
 
@@ -169,46 +179,45 @@ class BufferStream final : public Stream<T, T, T, T> {
 
   void UpdateStream() {
     auto out_info = Base::out_->stream_info();
-    AE_TELED_DEBUG("Link state is {}", out_info.link_state);
-    if (last_out_stream_info_ != out_info) {
-      stream_info_.link_state = out_info.link_state;
-      stream_info_.is_reliable = out_info.is_reliable;
-      stream_info_.max_element_size = out_info.max_element_size;
-      stream_info_.rec_element_size = out_info.rec_element_size;
+    AE_TELED_DEBUG("Buffer stream link state {}", out_info.link_state);
+    stream_info_.link_state = out_info.link_state;
+    stream_info_.is_reliable = out_info.is_reliable;
+    stream_info_.max_element_size = out_info.max_element_size;
+    stream_info_.rec_element_size = out_info.rec_element_size;
+    // is_writable set by buffer stream itself
 
-      last_out_stream_info_ = out_info;
-    }
+    linked_stream_info_ = out_info;
+
     Base::stream_update_event_.Emit();
 
     if (stream_info_.link_state == LinkState::kLinked) {
-      DrainBuffer(*Base::out_);
+      DrainBuffer();
     }
   }
 
-  void DrainBuffer(typename Base::OutStream& out) {
-    AE_TELED_DEBUG("Buffer drain");
-    auto it = std::begin(write_in_buffer_);
-    for (; it != std::end(write_in_buffer_); ++it) {
+  void DrainBuffer() {
+    AE_TELED_DEBUG("BufferStream drain the buffer");
+    auto it = std::begin(buffer_);
+    for (; it != std::end(buffer_); ++it) {
       // last_out_stream_info_ may be updated during write buffered data \see
       // UpdateStream
-      if (!last_out_stream_info_.is_writable) {
+      if (!linked_stream_info_.is_writable) {
         break;
       }
-      if ((*it)->is_sent()) {
-        continue;
-      }
-      (*it)->Send(out);
+      it->bwa->Sent(DirectWrite(std::move(it->data)));
     }
-    write_in_buffer_.erase(std::begin(write_in_buffer_), it);
+    // erase sent buffered actions
+    buffer_.erase(std::begin(buffer_), it);
   }
 
   ActionContext action_context_;
   std::size_t buffer_max_;
 
   StreamInfo stream_info_;
-  StreamInfo last_out_stream_info_;
-  std::vector<ActionPtr<BufferedWriteAction>> write_in_buffer_;
-  MultiSubscription write_in_subscription_;
+  StreamInfo linked_stream_info_;
+  MultiSubscription bwa_finished_sub_;
+
+  std::deque<BufferEntry> buffer_;
 };
 }  // namespace ae
 

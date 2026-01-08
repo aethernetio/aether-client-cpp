@@ -18,20 +18,24 @@
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_UDP_SOCKET_H_
 
 #include "aether/config.h"
-
 #include "aether/transport/system_sockets/sockets/lwip_socket.h"
 
 #if AE_SUPPORT_UDP && LWIP_SOCKET_ENABLED
+#  include "aether/poller/poller.h"
 
 namespace ae {
 class LwipUdpSocket final : public LwipSocket {
  public:
-  LwipUdpSocket();
+  explicit LwipUdpSocket(IPoller& poller);
 
-  std::size_t GetMaxPacketSize() const override;
+  ISocket& Connect(AddressPort const& destination,
+                   ConnectedCb connected_cb) override;
 
  private:
   static int MakeSocket();
+
+  ConnectionState connection_state_;
+  ConnectedCb connected_cb_;
 };
 }  // namespace ae
 

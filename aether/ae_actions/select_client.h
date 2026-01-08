@@ -17,16 +17,17 @@
 #ifndef AETHER_AE_ACTIONS_SELECT_CLIENT_H_
 #define AETHER_AE_ACTIONS_SELECT_CLIENT_H_
 
+#include <string>
 #include <cstdint>
 
 #include "aether/config.h"
 #include "aether/client.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
 #include "aether/events/event_subscription.h"
 
 namespace ae {
+class Aether;
 class Registration;
 
 class SelectClientAction final : public Action<SelectClientAction> {
@@ -44,10 +45,15 @@ class SelectClientAction final : public Action<SelectClientAction> {
    */
   SelectClientAction(ActionContext action_context,
                      std::shared_ptr<Client> client);
+#if AE_SUPPORT_REGISTRATION
   /**
    * \brief Wait for client registration or error.
    */
-  SelectClientAction(ActionContext action_context, Registration& registration);
+  SelectClientAction(ActionContext action_context, Aether& aether,
+                     ActionPtr<Registration> registration,
+                     std::string client_id);
+#endif
+
   /**
    * \brief There is not client to select, throw error.
    */
@@ -63,8 +69,9 @@ class SelectClientAction final : public Action<SelectClientAction> {
   StateMachine<State> state_;
 
 #if AE_SUPPORT_REGISTRATION
+  std::string client_id_;
+  ActionPtr<Registration> registration_;
   Subscription registration_sub_;
-  Subscription state_changed_sub_;
 #endif
 };
 }  // namespace ae

@@ -22,10 +22,24 @@
 #include "aether/format/format.h"
 
 namespace ae {
-enum class EventType : std::uint8_t {
-  kRead = 1,
-  kWrite,
-  kError,
+struct EventType {
+  static constexpr std::uint8_t kRead = 0x1;
+  static constexpr std::uint8_t kWrite = 0x2;
+  static constexpr std::uint8_t kError = 0x4;
+
+  EventType() = default;
+  EventType(std::uint8_t v) : value{v} {}
+
+  std::uint8_t operator&(std::uint8_t other) const { return value & other; }
+  std::uint8_t operator|(std::uint8_t other) const { return value | other; }
+  EventType operator|=(std::uint8_t other) { return EventType{value |= other}; }
+
+  bool operator==(EventType ev) const { return value == ev.value; }
+  bool operator!=(EventType ev) const { return value != ev.value; }
+
+  explicit operator std::uint8_t() const { return value; }
+
+  std::uint8_t value;
 };
 
 struct DescriptorType {
@@ -41,8 +55,14 @@ struct DescriptorType {
   DescriptorType(Handle des) : descriptor{des} {}
   DescriptorType(Socket des) : descriptor{reinterpret_cast<Handle>(des)} {}
 
-  operator Handle() const { return descriptor; }
-  operator Socket() const { return reinterpret_cast<Socket>(descriptor); }
+  explicit operator Handle() const { return descriptor; }
+  explicit operator Socket() const {
+    return reinterpret_cast<Socket>(descriptor);
+  }
+
+  bool operator<(DescriptorType const& other) const {
+    return descriptor < other.descriptor;
+  }
 
   bool operator==(DescriptorType const& other) const {
     return descriptor == other.descriptor;
@@ -62,54 +82,36 @@ struct DescriptorType {
 #endif
 };
 
-struct PollerEvent {
-  DescriptorType descriptor;
-  EventType event_type;
-
-  bool operator>(const PollerEvent& evt) const {
-    return this->descriptor.descriptor > evt.descriptor.descriptor;
-  }
-
-  bool operator<(const PollerEvent& evt) const {
-    return this->descriptor.descriptor < evt.descriptor.descriptor;
-  }
-
-  bool operator==(const PollerEvent& evt) const {
-    return std::tie(this->descriptor.descriptor, this->event_type) ==
-           std::tie(evt.descriptor.descriptor, evt.event_type);
-  }
-};
-
 template <>
 struct Formatter<EventType> {
   template <typename TStream>
   void Format(EventType const& value, FormatContext<TStream>& ctx) {
-    auto str_value = [](auto value) {
-      switch (value) {
-        case EventType::kRead:
-          return std::string_view{"kRead"};
-        case EventType::kWrite:
-          return std::string_view{"kWrite"};
-        case EventType::kError:
-          return std::string_view{"kError"};
-        default:
-          break;
+    int index = 0;
+    for (auto e : {EventType::kRead, EventType::kWrite, EventType::kError}) {
+      if (auto v = (value & e); v != 0) {
+        auto str_value = std::invoke(
+            [](auto value, int flag) {
+              switch (value) {
+                case EventType::kRead:
+                  return !flag ? std::string_view{"kRead"}
+                               : std::string_view{" | kRead"};
+                case EventType::kWrite:
+                  return !flag ? std::string_view{"kWrite"}
+                               : std::string_view{" | kWrite"};
+                case EventType::kError:
+                  return !flag ? std::string_view{"kError"}
+                               : std::string_view{" | kError"};
+                default:
+                  break;
+              }
+              return std::string_view{"UNKNOWN"};
+            },
+            v, index++);
+        ctx.out().write(str_value);
       }
-      return std::string_view{"UNKNOWN"};
-    }(value);
-    ctx.out().write(str_value);
+    }
   }
 };
-
-template <>
-struct Formatter<PollerEvent> {
-  template <typename TStream>
-  void Format(PollerEvent const& value, FormatContext<TStream>& ctx) {
-    ae::Format(ctx.out(), "Descriptor: {} PollerEvent type: {}",
-               value.descriptor.descriptor, value.event_type);
-  }
-};
-
 }  // namespace ae
 
 #endif  // AETHER_POLLER_POLLER_TYPES_H_

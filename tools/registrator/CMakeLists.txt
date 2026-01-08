@@ -14,11 +14,23 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(NOT TARGET aether)
+  add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../aether aether)
+endif()
+
 if (NOT AE_DISTILLATION)
   message(STATUS "AE_DISTILLATION is not defined registrator not build")
   return()
 endif()
 
+if(CM_PLATFORM)
+  #Other platforms
+  msessage(FATAL_ERROR "Platform ${CM_PLATFORM} is not supported")
+  return()
+endif()
 
 list( APPEND src_list
   main.cpp
@@ -28,20 +40,7 @@ list( APPEND src_list
   register_wifi.cpp
 )
 
-if(CM_PLATFORM)
-  #Other platforms
-  msessage(FATAL_ERROR "Platform ${CM_PLATFORM} is not supported")
-  return()
-endif()
-
 project("aether-registrator" VERSION "1.0.0" LANGUAGES C CXX)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-if(NOT TARGET aether)
-  add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../aether aether)
-endif()
 
 add_executable(${PROJECT_NAME} ${src_list})
 target_link_libraries(${PROJECT_NAME} PRIVATE aether)

@@ -119,12 +119,18 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
                         state_ = State::kTransportCreate;
                         Action::Trigger();
                       }},
-                      OnError{[this]() {
-                        state_ = State::kFailed;
-                        Action::Trigger();
-                      }}});
-  }
+                      OnError {
+                        [this]() {
+                          state_ = State::kFailed;
+                          Action::Trigger();
+                        }
+                      }});
+#else
+  AE_TELED_ERROR("Unable to resolve named address");
+  state_ = State::kFailed;
+  Action::Trigger();
 #endif
+  }
 
   template <typename TAddr>
   void DoResolverAddress(TAddr const& addr, std::uint16_t port,

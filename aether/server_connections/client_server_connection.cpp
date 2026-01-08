@@ -19,7 +19,7 @@
 #include "aether/server.h"
 #include "aether/client.h"
 #include "aether/crypto/ikey_provider.h"
-#include "aether/stream_api/protocol_gates.h"
+#include "aether/stream_api/api_call_adapter.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/crypto/sync_crypto_provider.h"
 
@@ -99,7 +99,8 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
       channel_manager_{action_context_, server},
       channel_select_stream_{action_context_, channel_manager_},
       server_channel_{} {
-  AE_TELED_DEBUG("Client server connection");
+  AE_TELED_DEBUG("Client server connection from {} to {}", ephemeral_uid_,
+                 server_->server_id);
 
   out_data_sub_ = channel_select_stream_.out_data_event().Subscribe(
       MethodPtr<&ClientServerConnection::OutData>{this});
@@ -142,6 +143,11 @@ void ClientServerConnection::SubscribeToSelectChannel() {
 }
 
 void ClientServerConnection::StreamUpdate() {
+  if (channel_select_stream_.stream_info().link_state ==
+      LinkState::kLinkError) {
+    AE_TELED_ERROR("ClientServerConnection connection error from {} to {}",
+                   ephemeral_uid_, server_->server_id);
+  }
   if (channel_select_stream_.stream_info().link_state != LinkState::kLinked) {
     return;
   }

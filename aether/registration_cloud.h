@@ -45,10 +45,7 @@ class RegistrationCloud final : public Cloud {
 #else
 namespace ae {
 class RegistrationCloud : public DummyObj {
-  AE_OBJECT(RegistrationCloud, DummyObj, 0)
-
- public:
-  using DummyObj::DummyObj;
+  AE_DUMMY_OBJ(RegistrationCloud)
 };
 }  // namespace ae
 #endif  // AE_SUPPORT_REGISTRATION

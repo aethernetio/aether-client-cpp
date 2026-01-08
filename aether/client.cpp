@@ -25,12 +25,9 @@
 
 namespace ae {
 
-Client::Client(Aether& aether, Uid parent_uid, std::string id, Domain* domain)
-    : Obj{domain},
-      aether_{&aether},
-      id_{std::move(id)},
-      parent_uid_{parent_uid} {
-  AE_TELED_DEBUG("Created client parent_uid={}, id={}", parent_uid_, id_);
+Client::Client(Aether& aether, std::string id, Domain* domain)
+    : Obj{domain}, aether_{&aether}, id_{std::move(id)} {
+  AE_TELED_DEBUG("Created client id={}", id_);
   domain_->Load(*this, Hash(kTypeName, id_));
   if (uid_.empty()) {
     return;
@@ -40,7 +37,7 @@ Client::Client(Aether& aether, Uid parent_uid, std::string id, Domain* domain)
   Init(std::make_unique<WorkCloud>(*aether_, uid_, domain_));
 }
 
-std::string const& Client::client_id() const { return id_; }
+std::string const& Client::id() const { return client_id_; }
 Uid const& Client::parent_uid() const { return parent_uid_; }
 Uid const& Client::uid() const { return uid_; }
 Uid const& Client::ephemeral_uid() const { return ephemeral_uid_; }
@@ -71,8 +68,9 @@ P2pMessageStreamManager& Client::message_stream_manager() {
   return *message_stream_manager_;
 }
 
-void Client::SetConfig(Uid uid, Uid ephemeral_uid, Key master_key,
-                       std::unique_ptr<Cloud> c) {
+void Client::SetConfig(Uid parent_uid, Uid uid, Uid ephemeral_uid,
+                       Key master_key, std::unique_ptr<Cloud> c) {
+  parent_uid_ = parent_uid;
   uid_ = uid;
   ephemeral_uid_ = ephemeral_uid;
   master_key_ = std::move(master_key);

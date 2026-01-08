@@ -67,7 +67,7 @@ ae::ActionPtr<ae::SelectClientAction> SelectClientImpl(
     AetherClient* client, ClientConfig const* config) {
   auto parent_uid = ae::Uid{config->parent_uid.value};
   auto select_action =
-      aether_app->aether()->SelectClient(parent_uid, config->client_id);
+      aether_app->aether()->SelectClient(parent_uid, config->id);
 
   struct SelectContext {
     AetherClient* client;

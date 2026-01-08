@@ -30,8 +30,6 @@ extern int test_safe_stream_recv();
 extern int test_safe_stream_send_recv();
 extern int test_safe_stream();
 extern int test_safe_stream_reliability();
-extern int test_crypto_stream();
-extern int test_protocol_stream();
 extern int test_templated_streams();
 extern int test_tied_gates();
 
@@ -46,8 +44,6 @@ int main() {
   res += test_safe_stream_send_recv();
   res += test_safe_stream();
   res += test_safe_stream_reliability();
-  res += test_crypto_stream();
-  res += test_protocol_stream();
   res += test_templated_streams();
   res += test_tied_gates();
   return res;
