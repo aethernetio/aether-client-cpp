@@ -34,14 +34,14 @@ class WinTcpSocket final : public WinSocket {
                    ConnectedCb connected_cb) override;
 
  private:
-  void PollEvent(PollerEvent const& event) override;
+  void PollEvent(LPOVERLAPPED overlapped) override;
 
   ConnectionState TestConnectionState();
   bool InitConnection();
 
   ConnectedCb connected_cb_;
   ConnectionState connection_state_;
-  WinPollerOverlapped conn_overlapped_;
+  OVERLAPPED conn_overlapped_;
 };
 }  // namespace ae
 #endif

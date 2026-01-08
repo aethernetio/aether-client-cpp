@@ -20,35 +20,52 @@
 #if defined __linux__
 #  define EPOLL_POLLER_ENABLED 1
 
-#  include <memory>
+#  include <mutex>
+#  include <thread>
+#  include <atomic>
+#  include <optional>
 
 #  include "aether/poller/poller.h"
+#  include "aether/poller/unix_poller.h"
 
 namespace ae {
+class EpollImpl final : public UnixPollerImpl {
+ public:
+  EpollImpl();
+  ~EpollImpl() override;
+
+  void Event(DescriptorType fd, EventType event, EventCb cb) override;
+  void Remove(DescriptorType fd) override;
+
+ private:
+  static int InitEpoll();
+  static int MakeEventFd();
+  void EmptyWakeUpPipe(EventType event);
+  void Loop();
+
+  int epoll_fd_;
+  int event_fd_;
+  std::recursive_mutex poller_mutex_;
+  std::map<DescriptorType, EventCb> event_map_;
+
+  std::atomic_bool stop_requested_{false};
+  std::thread thread_;
+};
 
 class EpollPoller : public IPoller {
   AE_OBJECT(EpollPoller, IPoller, 0)
 
-  class PollWorker;
-
   EpollPoller();
 
  public:
-#  if defined AE_DISTILLATION
   explicit EpollPoller(Domain* domain);
-#  endif
-
-  ~EpollPoller() override;
 
   AE_OBJECT_REFLECT()
 
-  [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) override;
-  void Remove(DescriptorType descriptor) override;
+  NativePoller* Native() override;
 
  private:
-  void InitPollWorker();
-
-  std::unique_ptr<PollWorker> poll_worker_;
+  std::optional<EpollImpl> impl_;
 };
 
 }  // namespace ae

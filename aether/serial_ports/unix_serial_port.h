@@ -25,12 +25,12 @@
 #  include <mutex>
 #  include <atomic>
 
-#  include "aether/ptr/ptr_view.h"
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
 #  include "aether/actions/action_context.h"
 
 #  include "aether/poller/poller.h"
+#  include "aether/poller/unix_poller.h"
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
 
@@ -43,11 +43,10 @@ class UnixSerialPort final : public ISerialPort {
     UpdateStatus Update();
 
    private:
-    void PollEvent(PollerEvent event);
+    void PollEvent(EventType event);
     void ReadData();
 
     UnixSerialPort* serial_port_;
-    Subscription poll_sub_;
     std::list<DataBuffer> buffers_;
     std::atomic_bool read_event_;
   };
@@ -71,7 +70,7 @@ class UnixSerialPort final : public ISerialPort {
 
   ActionContext action_context_;
   SerialInit serial_init_;
-  PtrView<IPoller> poller_;
+  UnixPollerImpl* poller_;
 
   std::mutex fd_lock_;
   int fd_;

@@ -27,16 +27,36 @@
 #    undef RegisterClass
 #  endif
 
-#  include <memory>
+#  include <map>
+#  include <mutex>
+#  include <thread>
+#  include <atomic>
+#  include <optional>
 
 #  include "aether/poller/poller.h"
+#  include "aether/poller/poller_types.h"
+#  include "aether/types/small_function.h"
 
 namespace ae {
+class IoCpPoller final : public NativePoller {
+ public:
+  using EventCb = SmallFunction<void(LPOVERLAPPED overlapped)>;
 
-// structure to mark async operations
-struct WinPollerOverlapped {
-  OVERLAPPED overlapped;
-  EventType event_type;
+  IoCpPoller();
+  ~IoCpPoller();
+
+  void Add(DescriptorType descriptor, EventCb cb);
+  void Remove(DescriptorType descriptor);
+
+ private:
+  void Loop();
+
+  HANDLE iocp_ = INVALID_HANDLE_VALUE;
+
+  std::mutex poller_mutex_;
+  std::map<DescriptorType, EventCb> event_map_;
+  std::atomic_bool stop_requested_{false};
+  std::thread loop_thread_;
 };
 
 class WinPoller : public IPoller {
@@ -47,18 +67,15 @@ class WinPoller : public IPoller {
   WinPoller();
 
  public:
-#  if defined AE_DISTILLATION
   explicit WinPoller(Domain* domain);
-#  endif
   ~WinPoller() override;
 
   AE_OBJECT_REFLECT()
 
-  OnPollEventSubscriber Add(DescriptorType descriptor) override;
-  void Remove(DescriptorType descriptor) override;
+  NativePoller* Native() override;
 
  private:
-  std::unique_ptr<IoCPPoller> iocp_poller_;
+  std::optional<IoCpPoller> impl_;
 };
 }  // namespace ae
 #endif

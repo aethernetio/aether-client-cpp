@@ -19,6 +19,8 @@
 
 #if defined _WIN32
 
+#  define WIN_SERIAL_PORT_ENABLED 1
+
 #  include <mutex>
 #  include <atomic>
 
@@ -34,8 +36,6 @@
 
 #  include <Windows.h>
 
-#  define WIN_SERIAL_PORT_ENABLED 1
-
 namespace ae {
 class WinSerialPort final : public ISerialPort {
   class ReadAction final : public Action<ReadAction> {
@@ -45,19 +45,18 @@ class WinSerialPort final : public ISerialPort {
     UpdateStatus Update();
 
    private:
-    void PollEvent(PollerEvent event);
+    void PollEvent(LPOVERLAPPED overlapped);
     void ReadData();
 
     void RequestRead();
     void HandleRead();
 
     WinSerialPort* serial_port_;
-    Subscription poll_sub_;
     std::list<DataBuffer> buffers_;
     std::atomic_bool read_event_;
 
     DataBuffer read_buffer_;
-    WinPollerOverlapped overlapped_rd_{};
+    OVERLAPPED overlapped_rd_{};
 
     static constexpr int kReadBufSize{4096};
     static constexpr int kReadTimeOutMSec{250};
@@ -82,7 +81,7 @@ class WinSerialPort final : public ISerialPort {
 
   ActionContext action_context_;
   SerialInit serial_init_;
-  PtrView<IPoller> poller_;
+  IoCpPoller* poller_;
 
   std::mutex fd_lock_;
   void* fd_;

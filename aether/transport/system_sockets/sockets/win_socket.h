@@ -24,7 +24,7 @@
 #  include <atomic>
 #  include <cstddef>
 
-#  include "aether/poller/win_poller.h"  // for WinPollerOverlapped
+#  include "aether/poller/win_poller.h"
 #  include "aether/types/data_buffer.h"
 #  include "aether/socket_initializer.h"
 #  include "aether/events/event_subscription.h"
@@ -50,7 +50,7 @@ class WinSocket : public ISocket {
  protected:
   void Poll();
 
-  virtual void PollEvent(PollerEvent const& event);
+  virtual void PollEvent(LPOVERLAPPED overlapped);
   void OnRead();
   void OnWrite();
   void OnError();
@@ -58,7 +58,7 @@ class WinSocket : public ISocket {
   bool RequestRecv();
   std::optional<std::size_t> HandleRecv();
 
-  IPoller* poller_;
+  IoCpPoller* poller_;
   SocketInitializer socket_initializer_;
   DescriptorType::Socket socket_ = kInvalidSocketValue;
   std::mutex socket_lock_;
@@ -68,14 +68,13 @@ class WinSocket : public ISocket {
   ErrorCb error_cb_;
 
   // READ / WRITE operation states
-  WinPollerOverlapped recv_overlapped_;
-  WinPollerOverlapped send_overlapped_;
+  OVERLAPPED recv_overlapped_;
+  OVERLAPPED send_overlapped_;
 
   std::atomic_bool is_recv_pending_ = false;
   std::atomic_bool is_send_pending_ = false;
 
   DataBuffer recv_buffer_;
-  Subscription poller_event_sub_;
 };
 }  // namespace ae
 #endif

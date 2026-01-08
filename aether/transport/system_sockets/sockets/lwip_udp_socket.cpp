@@ -18,11 +18,7 @@
 
 #if AE_SUPPORT_UDP && LWIP_SOCKET_ENABLED
 
-#  include "lwip/err.h"
 #  include "lwip/sockets.h"
-#  include "lwip/sys.h"
-#  include "lwip/netdb.h"
-#  include "lwip/netif.h"
 
 #  include "aether/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
@@ -41,7 +37,7 @@ int LwipUdpSocket::MakeSocket() {
   bool created = false;
   auto sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (sock < 0) {
-    AE_TELED_ERROR("LwIp UDP socket not created");
+    AE_TELED_ERROR("LwIp UDP socket not created {}", strerror(errno));
     return kInvalidSocket;
   }
 
@@ -87,13 +83,6 @@ ISocket& LwipUdpSocket::Connect(AddressPort const& destination,
 
   connection_state_ = ConnectionState::kConnected;
   return *this;
-}
-
-void LwipUdpSocket::OnPollerEvent(PollerEvent const& event) {
-  if (socket_ != event.descriptor) {
-    return;
-  }
-  LwipSocket::OnPollerEvent(event);
 }
 }  // namespace ae
 

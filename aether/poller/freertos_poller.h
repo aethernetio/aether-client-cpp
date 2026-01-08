@@ -20,11 +20,47 @@
 #if (defined(ESP_PLATFORM))
 #  define FREERTOS_POLLER_ENABLED 1
 
-#  include <memory>
+#  include <freertos/FreeRTOS.h>  // IWYU pragma: keep
+#  include <freertos/task.h>
+#  include <sys/poll.h>
+
+#  include <map>
+#  include <mutex>
+#  include <atomic>
+#  include <optional>
 
 #  include "aether/poller/poller.h"
+#  include "aether/poller/poller_types.h"
+#  include "aether/types/small_function.h"
 
 namespace ae {
+class FreeRtosLwipPollerImpl : public NativePoller {
+  friend void vTaskFunction(void* pvParameters);
+
+ public:
+  using EventCb = SmallFunction<void(EventType event)>;
+
+  struct PollEvent {
+    EventType event_type;
+    EventCb cb;
+  };
+
+  FreeRtosLwipPollerImpl();
+  ~FreeRtosLwipPollerImpl();
+
+  void Event(DescriptorType fd, EventType event_type, EventCb cb);
+  void Remove(DescriptorType fd);
+
+ private:
+  void Loop();
+  std::vector<pollfd> FillFdsVector();
+
+  TaskHandle_t myTaskHandle_ = nullptr;
+  std::array<int, 2> wake_up_pipe_;
+  std::atomic_bool stop_requested_;
+  std::map<DescriptorType, PollEvent> event_map_;
+  std::recursive_mutex ctl_mutex_;
+};
 
 class FreertosPoller : public IPoller {
   AE_OBJECT(FreertosPoller, IPoller, 0)
@@ -32,22 +68,14 @@ class FreertosPoller : public IPoller {
   FreertosPoller();
 
  public:
-  class PollWorker;
-#  if defined AE_DISTILLATION
   explicit FreertosPoller(Domain* domain);
-#  endif
-
-  ~FreertosPoller() override;
 
   AE_OBJECT_REFLECT()
 
-  [[nodiscard]] OnPollEventSubscriber Add(DescriptorType descriptor) override;
-  void Remove(DescriptorType descriptor) override;
+  NativePoller* Native() override;
 
  private:
-  void InitPollWorker();
-
-  std::unique_ptr<PollWorker> poll_worker_;
+  std::optional<FreeRtosLwipPollerImpl> impl_;
 };
 
 }  // namespace ae

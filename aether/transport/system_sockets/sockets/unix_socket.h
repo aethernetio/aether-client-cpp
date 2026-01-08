@@ -25,6 +25,7 @@
 #  include <mutex>
 
 #  include "aether/poller/poller.h"
+#  include "aether/poller/unix_poller.h"
 #  include "aether/types/data_buffer.h"
 #  include "aether/events/event_subscription.h"
 #  include "aether/transport/system_sockets/sockets/isocket.h"
@@ -49,7 +50,7 @@ class UnixSocket : public ISocket {
 
  protected:
   void Poll();
-  virtual void OnPollerEvent(PollerEvent const& event);
+  virtual void OnPollerEvent(EventType event);
 
   void OnReadEvent();
   void OnWriteEvent();
@@ -59,7 +60,7 @@ class UnixSocket : public ISocket {
 
   std::optional<int> GetSocketError();
 
-  IPoller* poller_;
+  UnixPollerImpl* poller_;
   int socket_;
   std::mutex socket_lock_;
 
@@ -68,8 +69,6 @@ class UnixSocket : public ISocket {
   ErrorCb error_cb_;
 
   DataBuffer recv_buffer_;
-
-  Subscription poller_subscription_;
 };
 }  // namespace ae
 

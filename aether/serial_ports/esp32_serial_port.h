@@ -17,7 +17,8 @@
 #ifndef AETHER_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
 #define AETHER_SERIAL_PORTS_ESP32_SERIAL_PORT_H_
 
-#if defined(ESP_PLATFORM)
+// FIXME: add implementation for esp32 serial port
+#if 0 && defined(ESP_PLATFORM)
 
 #  include <vector>
 #  include <string>

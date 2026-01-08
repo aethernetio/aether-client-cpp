@@ -28,9 +28,9 @@
 
 namespace ae {
 WinSocket::WinSocket(IPoller& poller, std::size_t max_packet_size)
-    : poller_{&poller},
-      recv_overlapped_{{}, EventType::kRead},
-      send_overlapped_{{}, EventType::kWrite},
+    : poller_{static_cast<IoCpPoller*>(poller.Native())},
+      recv_overlapped_{},
+      send_overlapped_{},
       recv_buffer_(max_packet_size) {}
 
 WinSocket::~WinSocket() { Disconnect(); }
@@ -58,28 +58,30 @@ std::optional<std::size_t> WinSocket::Send(Span<std::uint8_t> data) {
   if (!is_send_pending_) {
     auto wsa_buffer = WSABUF{static_cast<ULONG>(data.size()),
                              reinterpret_cast<char*>(data.data())};
-    auto res =
-        WSASend(socket_, &wsa_buffer, 1, &bytes_transferred, 0,
-                reinterpret_cast<OVERLAPPED*>(&send_overlapped_), nullptr);
+    auto res = WSASend(socket_, &wsa_buffer, 1, &bytes_transferred, 0,
+                       &send_overlapped_, nullptr);
     if (res == SOCKET_ERROR) {
       auto error_code = WSAGetLastError();
       if (error_code == WSA_IO_PENDING) {
         // pending send
         is_send_pending_ = true;
         return 0;
-      } else {
-        AE_TELED_ERROR("Socket send error {}", error_code);
-        return std::nullopt;
       }
+      // Get real error
+      AE_TELED_ERROR("Socket send error {}", error_code);
+      return std::nullopt;
     }
   } else {
-    auto res = WSAGetOverlappedResult(
-        socket_, reinterpret_cast<OVERLAPPED*>(&send_overlapped_),
-        &bytes_transferred, false, &flags);
-
+    auto res = WSAGetOverlappedResult(socket_, &send_overlapped_,
+                                      &bytes_transferred, false, &flags);
     if (!res) {
-      AE_TELED_ERROR("Send WSAGetOverlappedResult socket {} get error {}",
-                     socket_, WSAGetLastError());
+      auto error_code = WSAGetLastError();
+      if (error_code == WSA_IO_INCOMPLETE) {
+        // still incomplete
+        return 0;
+      }
+      // Get real error
+      AE_TELED_ERROR("Send WSAGetOverlappedResult get error {}", error_code);
       return std::nullopt;
     }
     is_send_pending_ = false;
@@ -93,7 +95,6 @@ void WinSocket::Disconnect() {
     return;
   }
 
-  poller_event_sub_.Reset();
   poller_->Remove(socket_);
   auto lock = std::scoped_lock{socket_lock_};
   closesocket(socket_);
@@ -101,25 +102,14 @@ void WinSocket::Disconnect() {
 }
 
 void WinSocket::Poll() {
-  poller_event_sub_ =
-      poller_->Add(socket_).Subscribe(MethodPtr<&WinSocket::PollEvent>{this});
+  poller_->Add(socket_, MethodPtr<&WinSocket::PollEvent>{this});
 }
 
-void WinSocket::PollEvent(PollerEvent const& event) {
-  if (event.descriptor != static_cast<DescriptorType>(socket_)) {
-    return;
-  }
-
-  switch (event.event_type) {
-    case EventType::kRead:
-      OnRead();
-      break;
-    case EventType::kWrite:
-      OnWrite();
-      break;
-    case EventType::kError:
-      OnError();
-      break;
+void WinSocket::PollEvent(LPOVERLAPPED overlapped) {
+  if (overlapped == &recv_overlapped_) {
+    OnRead();
+  } else if (overlapped == &send_overlapped_) {
+    OnWrite();
   }
 }
 
@@ -164,8 +154,8 @@ bool WinSocket::RequestRecv() {
   // request for read
   auto wsabuf = WSABUF{static_cast<ULONG>(recv_buffer_.size()),
                        reinterpret_cast<char*>(recv_buffer_.data())};
-  auto res = WSARecv(socket_, &wsabuf, 1, nullptr, &flags,
-                     reinterpret_cast<OVERLAPPED*>(&recv_overlapped_), nullptr);
+  auto res =
+      WSARecv(socket_, &wsabuf, 1, nullptr, &flags, &recv_overlapped_, nullptr);
   if (res == SOCKET_ERROR) {
     auto err_code = WSAGetLastError();
     if (err_code == WSA_IO_PENDING) {
@@ -183,20 +173,17 @@ std::optional<std::size_t> WinSocket::HandleRecv() {
   if (!is_recv_pending_) {
     return 0;
   }
-  is_recv_pending_ = false;
 
   auto lock = std::scoped_lock{socket_lock_};
 
   DWORD bytes_transferred = 0;
   DWORD flags = 0;
 
-  auto res = WSAGetOverlappedResult(
-      socket_, reinterpret_cast<OVERLAPPED*>(&recv_overlapped_),
-      &bytes_transferred, false, &flags);
+  auto res = WSAGetOverlappedResult(socket_, &recv_overlapped_,
+                                    &bytes_transferred, false, &flags);
   if (!res) {
     auto error_code = WSAGetLastError();
     if (error_code == WSA_IO_INCOMPLETE) {
-      is_recv_pending_ = true;
       return 0;
     }
     AE_TELED_ERROR("Receive WSAGetOverlappedResult socket {} get error {}",
@@ -204,6 +191,7 @@ std::optional<std::size_t> WinSocket::HandleRecv() {
     return std::nullopt;
   }
 
+  is_recv_pending_ = false;
   return static_cast<std::size_t>(bytes_transferred);
 }
 

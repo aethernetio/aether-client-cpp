@@ -18,11 +18,7 @@
 
 #if AE_SUPPORT_TCP && LWIP_SOCKET_ENABLED
 
-#  include "lwip/err.h"
 #  include "lwip/sockets.h"
-#  include "lwip/sys.h"
-#  include "lwip/netdb.h"
-#  include "lwip/netif.h"
 
 #  include "aether/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
@@ -127,7 +123,10 @@ ISocket& LwipTcpSocket::Connect(AddressPort const& destination,
   connected_cb_ = std::move(connected_cb);
 
   defer[&]() {
-    Poll();
+    // wait for all events to detect connection
+    poller_->Event(socket_,
+                   EventType::kRead | EventType::kWrite | EventType::kError,
+                   MethodPtr<&LwipTcpSocket::OnPollerEvent>{this});
     connected_cb_(connection_state_);
   };
 
@@ -152,10 +151,7 @@ ISocket& LwipTcpSocket::Connect(AddressPort const& destination,
   return *this;
 }
 
-void LwipTcpSocket::OnPollerEvent(PollerEvent const& event) {
-  if (socket_ != event.descriptor) {
-    return;
-  }
+void LwipTcpSocket::OnPollerEvent(EventType event) {
   if (connection_state_ == ConnectionState::kConnecting) {
     OnConnectionEvent();
     return;

@@ -47,7 +47,7 @@ LPFN_CONNECTEX GetConnectEx(SOCKET socket) {
 }  // namespace win_socket_internal
 
 WinTcpSocket::WinTcpSocket(IPoller& poller)
-    : WinSocket{poller, 1500}, conn_overlapped_{{}, EventType::kRead} {
+    : WinSocket{poller, 1500}, conn_overlapped_{} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
@@ -119,7 +119,7 @@ ISocket& WinTcpSocket::Connect(AddressPort const& destination,
 
   auto addr = GetSockAddr(destination);
   if (!connect_ex(socket_, addr.addr(), static_cast<int>(addr.size), NULL, 0,
-                  NULL, reinterpret_cast<OVERLAPPED*>(&conn_overlapped_))) {
+                  NULL, &conn_overlapped_)) {
     auto err_code = WSAGetLastError();
     if (err_code != WSA_IO_PENDING) {
       AE_TELED_ERROR("Socket connect error {}", err_code);
@@ -158,12 +158,8 @@ WinTcpSocket::ConnectionState WinTcpSocket::TestConnectionState() {
   return ConnectionState::kConnected;
 }
 
-void WinTcpSocket::PollEvent(PollerEvent const& event) {
+void WinTcpSocket::PollEvent(LPOVERLAPPED overlapped) {
   if (connection_state_ == ConnectionState::kConnecting) {
-    if (event.descriptor != static_cast<DescriptorType>(socket_)) {
-      return;
-    }
-
     defer[&]() {
       if (connected_cb_) {
         connected_cb_(connection_state_);
@@ -177,7 +173,7 @@ void WinTcpSocket::PollEvent(PollerEvent const& event) {
     }
     return;
   }
-  WinSocket::PollEvent(event);
+  WinSocket::PollEvent(overlapped);
 }
 
 bool WinTcpSocket::InitConnection() {

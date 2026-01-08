@@ -36,7 +36,7 @@
 
 namespace ae {
 UnixSocket::UnixSocket(IPoller& poller, int socket)
-    : poller_{&poller}, socket_{socket} {}
+    : poller_{static_cast<UnixPollerImpl*>(poller.Native())}, socket_{socket} {}
 
 UnixSocket::~UnixSocket() { Disconnect(); }
 
@@ -62,7 +62,11 @@ std::optional<std::size_t> UnixSocket::Send(Span<std::uint8_t> data) {
   int flags = MSG_NOSIGNAL;
   auto res = send(socket_, data.data(), size_to_send, flags);
   if (res == -1) {
-    if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
+    if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+      poller_->Event(socket_,
+                     EventType::kRead | EventType::kError | EventType::kWrite,
+                     MethodPtr<&UnixSocket::OnPollerEvent>{this});
+    } else {
       AE_TELED_ERROR("Send to socket error {} {}", errno, strerror(errno));
       return std::nullopt;
     }
@@ -80,7 +84,6 @@ void UnixSocket::Disconnect() {
   socket_ = kInvalidSocket;
 
   poller_->Remove(s);
-  poller_subscription_.Reset();
   shutdown(s, SHUT_RDWR);
   if (close(s) != 0) {
     return;
@@ -88,24 +91,26 @@ void UnixSocket::Disconnect() {
 }
 
 void UnixSocket::Poll() {
-  poller_subscription_ = poller_->Add(socket_).Subscribe(
-      MethodPtr<&UnixSocket::OnPollerEvent>{this});
+  poller_->Event(socket_, EventType::kRead | EventType::kError,
+                 MethodPtr<&UnixSocket::OnPollerEvent>{this});
 }
 
-void UnixSocket::OnPollerEvent(PollerEvent const& event) {
-  if (event.descriptor != socket_) {
-    return;
-  }
-  switch (event.event_type) {
-    case ae::EventType::kRead:
-      OnReadEvent();
-      break;
-    case ae::EventType::kWrite:
-      OnWriteEvent();
-      break;
-    case ae::EventType::kError:
-      OnErrorEvent();
-      break;
+void UnixSocket::OnPollerEvent(EventType event) {
+  for (auto e : {EventType::kRead, EventType::kWrite, EventType::kWrite}) {
+    auto event_type = event & e;
+    switch (event_type) {
+      case EventType::kRead:
+        OnReadEvent();
+        break;
+      case EventType::kWrite:
+        OnWriteEvent();
+        break;
+      case EventType::kError:
+        OnErrorEvent();
+        break;
+      default:
+        break;
+    }
   }
 }
 
@@ -134,6 +139,8 @@ void UnixSocket::OnWriteEvent() {
   if (ready_to_write_cb_) {
     ready_to_write_cb_();
   }
+  // update poll event without write
+  Poll();
 }
 
 void UnixSocket::OnErrorEvent() {

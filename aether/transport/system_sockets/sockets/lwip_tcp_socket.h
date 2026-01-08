@@ -18,10 +18,10 @@
 #define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_LWIP_TCP_SOCKET_H_
 
 #include "aether/config.h"
-#include "aether/poller/poller.h"
 #include "aether/transport/system_sockets/sockets/lwip_socket.h"
 
 #if AE_SUPPORT_TCP && LWIP_SOCKET_ENABLED
+#  include "aether/poller/poller.h"
 
 namespace ae {
 class LwipTcpSocket final : public LwipSocket {
@@ -37,7 +37,7 @@ class LwipTcpSocket final : public LwipSocket {
  private:
   static int MakeSocket();
 
-  void OnPollerEvent(PollerEvent const& event) override;
+  void OnPollerEvent(EventType event);
   void OnConnectionEvent();
 
   ConnectionState connection_state_;
