@@ -51,7 +51,6 @@ class LwipCBTcpSocket : public ISocket {
   // LWIP RAW callbacks
   static err_t TcpClientRecv(void* arg, struct tcp_pcb* tpcb, struct pbuf* p,
                              err_t err);
-  static err_t TcpClientSent(void* arg, struct tcp_pcb* tpcb, u16_t len);
   static err_t TcpClientConnected(void* arg, struct tcp_pcb* tpcb, err_t err);
   static void TcpClientError(void* arg, err_t err);
 
@@ -59,7 +58,6 @@ class LwipCBTcpSocket : public ISocket {
   void OnErrorEvent();
   void OnConnectionEvent();
 
-  ReadyToWriteCb ready_to_write_cb_;
   RecvDataCb recv_data_cb_;
   ErrorCb error_cb_;
   ConnectedCb connected_cb_;
