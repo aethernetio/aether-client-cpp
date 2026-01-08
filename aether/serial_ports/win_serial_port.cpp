@@ -24,7 +24,7 @@
 namespace ae {
 
 WinSerialPort::ReadAction::ReadAction(ActionContext action_context,
-                                      WinSerialPort &serial_port)
+                                      WinSerialPort& serial_port)
     : Action{action_context},
       serial_port_{&serial_port},
       read_event_{},
@@ -33,21 +33,16 @@ WinSerialPort::ReadAction::ReadAction(ActionContext action_context,
   if (serial_port_->fd_ == INVALID_HANDLE_VALUE) {
     return;
   }
-  auto poller = serial_port_->poller_.Lock();
-  assert(poller);
-  poll_sub_ =
-      poller->Add({serial_port_->fd_})
-          .Subscribe(
-              MethodPtr<&WinSerialPort::ReadAction::ReadAction::PollEvent>{
-                  this});
 
-  overlapped_rd_.event_type = EventType::kRead;
+  serial_port_->poller_->Add(
+      {serial_port_->fd_},
+      MethodPtr<&WinSerialPort::ReadAction::ReadAction::PollEvent>{this});
   RequestRead();
 }
 
 UpdateStatus WinSerialPort::ReadAction::Update() {
   if (read_event_) {
-    for (auto const &b : buffers_) {
+    for (auto const& b : buffers_) {
       serial_port_->read_event_.Emit(b);
     }
     buffers_.clear();
@@ -56,19 +51,7 @@ UpdateStatus WinSerialPort::ReadAction::Update() {
   return {};
 }
 
-void WinSerialPort::ReadAction::PollEvent(PollerEvent event) {
-  // if (static_cast<HANDLE>(event.descriptor) != serial_port_->fd_)
-  if (event.descriptor != DescriptorType{serial_port_->fd_}) {
-    return;
-  }
-  switch (event.event_type) {
-    case EventType::kRead:
-      ReadData();
-      break;
-    default:
-      break;
-  }
-}
+void WinSerialPort::ReadAction::PollEvent(LPOVERLAPPED) { ReadData(); }
 
 void WinSerialPort::ReadAction::ReadData() {
   HandleRead();
@@ -77,7 +60,6 @@ void WinSerialPort::ReadAction::ReadData() {
 
 void WinSerialPort::ReadAction::RequestRead() {
   DWORD dwErr, dwRead, fRes;
-  OVERLAPPED *overlapped_rd = reinterpret_cast<OVERLAPPED *>(&overlapped_rd_);
 
   if (serial_port_->fd_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");
@@ -89,7 +71,7 @@ void WinSerialPort::ReadAction::RequestRead() {
   // Issue read operation.
   fRes = ::ReadFile(serial_port_->fd_, read_buffer_.data(),
                     static_cast<DWORD>(read_buffer_.size()), &dwRead,
-                    overlapped_rd);
+                    &overlapped_rd_);
   if (!fRes) {
     dwErr = GetLastError();
     // err should be ERROR_IO_PENDING
@@ -105,9 +87,8 @@ void WinSerialPort::ReadAction::RequestRead() {
 void WinSerialPort::ReadAction::HandleRead() {
   DWORD dwErr;
   DWORD dwRead;
-  OVERLAPPED *overlapped_rd = reinterpret_cast<OVERLAPPED *>(&overlapped_rd_);
 
-  if (!::GetOverlappedResult(serial_port_->fd_, overlapped_rd, &dwRead,
+  if (!::GetOverlappedResult(serial_port_->fd_, &overlapped_rd_, &dwRead,
                              FALSE)) {
     dwErr = GetLastError();
     AE_TELED_ERROR("GetOverlappedResult err {}", dwErr);
@@ -127,16 +108,16 @@ void WinSerialPort::ReadAction::HandleRead() {
 }
 
 WinSerialPort::WinSerialPort(ActionContext action_context,
-                             SerialInit serial_init, IPoller::ptr const &poller)
+                             SerialInit serial_init, IPoller::ptr const& poller)
     : action_context_{action_context},
       serial_init_{std::move(serial_init)},
-      poller_{poller},
+      poller_{static_cast<IoCpPoller*>(poller->Native())},
       fd_{OpenPort(serial_init_)},
       read_action_{action_context_, *this} {}
 
 WinSerialPort::~WinSerialPort() { Close(); }
 
-void WinSerialPort::Write(DataBuffer const &data) {
+void WinSerialPort::Write(DataBuffer const& data) {
   DWORD dwWrite, dwErr, dwRes;
   BOOL fSuccess{FALSE};
 
@@ -207,9 +188,9 @@ WinSerialPort::DataReadEvent::Subscriber WinSerialPort::read_event() {
 
 bool WinSerialPort::IsOpen() { return fd_ != INVALID_HANDLE_VALUE; }
 
-void *WinSerialPort::OpenPort(SerialInit const &serial_init) {
+void* WinSerialPort::OpenPort(SerialInit const& serial_init) {
   /* open the port */
-  void *fd;
+  void* fd;
   std::string full_name = "\\\\.\\" + serial_init.port_name;
 
   fd = CreateFileA(full_name.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL,
@@ -234,7 +215,7 @@ void *WinSerialPort::OpenPort(SerialInit const &serial_init) {
   return fd;
 }
 
-bool WinSerialPort::SetOptions(void *fd, SerialInit const &serial_init) {
+bool WinSerialPort::SetOptions(void* fd, SerialInit const& serial_init) {
   // void WINSerialPort::ConfigurePort(std::uint32_t baud_rate) {
   DCB dcb{};
   if (!GetCommState(fd, &dcb)) {
