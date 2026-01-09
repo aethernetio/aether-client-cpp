@@ -77,7 +77,13 @@ ActionPtr<SelectClientAction> Aether::SelectClient(
   if (client) {
     return MakeSelectClient(client);
   }
-// register new client
+  // try load client
+  client = std::make_shared<Client>(*this, client_id, domain_);
+  if (!client->uid().empty()) {
+    StoreClient(client);
+    return MakeSelectClient(client);
+  }
+  // register new client
 #if AE_SUPPORT_REGISTRATION
   auto registration = RegisterClient(parent_uid);
   return MakeSelectClient(std::move(registration), client_id);
