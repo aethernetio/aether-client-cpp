@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef AEHTER_MISC_HASH_H_
-#define AEHTER_MISC_HASH_H_
+#ifndef AETHER_MISC_HASH_H_
+#define AETHER_MISC_HASH_H_
 
+#include <string>
+#include <string_view>
 #include <type_traits>
 
 #include "aether/crc.h"
@@ -90,4 +92,4 @@ struct Hasher<char[S]> {
 
 }  // namespace ae
 
-#endif  // AEHTER_MISC_HASH_H_
+#endif  // AETHER_MISC_HASH_H_
