@@ -48,7 +48,7 @@ class FileWriter : public IDomainStorageWriter {
 
 class SpiFsSotorageWriter final : public FileWriter {
  public:
-  explicit SpiFsSotorageWriter(FILE* f, DomainQuiery q)
+  explicit SpiFsSotorageWriter(FILE* f, DomainQuery q)
       : FileWriter{f}, query{std::move(q)} {}
 
   ~SpiFsSotorageWriter() {
@@ -57,7 +57,7 @@ class SpiFsSotorageWriter final : public FileWriter {
         query.id.ToString(), query.class_id, static_cast<int>(query.version));
   }
 
-  DomainQuiery query;
+  DomainQuery query;
 };
 
 class SpiFsSotorageReader final : public IDomainStorageReader {
@@ -83,7 +83,7 @@ SpiFsDomainStorage::SpiFsDomainStorage() {
 SpiFsDomainStorage::~SpiFsDomainStorage() { DeInitFs(); }
 
 std::unique_ptr<IDomainStorageWriter> SpiFsDomainStorage::Store(
-    DomainQuiery const& query) {
+    DomainQuery const& query) {
   // open file
   auto file_path = Format("{}/{}/{}/{}", kBasePath, query.id.ToString(),
                           query.class_id, static_cast<int>(query.version));
@@ -117,8 +117,8 @@ ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
   return classes;
 }
 
-DomainLoad SpiFsDomainStorage::Load(DomainQuiery const& query) {
-  auto obj_map_it = object_map_.find(query.id.id());
+DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
+  auto obj_map_it = object_map_.find(query.id);
   if (obj_map_it == std::end(object_map_)) {
     AE_TELE_ERROR(kSpifsDsLoadObjIdNoFound,
                   "Unable to find object id={}, class id={}, version={}",
@@ -166,7 +166,7 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuiery const& query) {
 }
 
 void SpiFsDomainStorage::Remove(const ae::ObjId& obj_id) {
-  auto obj_map_it = object_map_.find(obj_id.id());
+  auto obj_map_it = object_map_.find(obj_id);
   if (obj_map_it == std::end(object_map_)) {
     object_map_.emplace(obj_id.id(), ClassMap{});
     return;

@@ -225,8 +225,8 @@ int AetherInit(AetherConfig const* config) {
             return std::make_unique<ae::FileSystemStdStorage>();
 #endif
 #if AE_SPIFS_DOMAIN_STORAGE_ENABLED
-          case AeDomainStorageVariant::kSpiffs:
-            return std::make_unique<ae::SpiffsDomainStorage>();
+          case AeDomainStorageVariant::kSpifs:
+            return std::make_unique<ae::SpiFsDomainStorage>();
 #endif
           default:
             assert(false);  // use only supported storage types
