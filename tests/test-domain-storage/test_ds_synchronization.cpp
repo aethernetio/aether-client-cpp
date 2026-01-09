@@ -91,7 +91,7 @@ void TestSyncDataStorage(std::unique_ptr<StaticDS> sds,
     writer_2_1->write(data_4.data(), data_4.size());
     writer_2_1.reset();
 
-    auto load_2_1 = data_storage.Load(2, 0);
+    auto load_2_1 = data_storage.Load(2, 1);
     TEST_ASSERT(load_2_1.result == DomainLoadResult::kLoaded);
     auto data_2_1 = DataGetter(load_2_1.reader);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(data_4.data(), data_2_1.data(),
