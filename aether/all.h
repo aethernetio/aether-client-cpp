@@ -42,10 +42,7 @@
 #include "aether/ptr/rc_ptr.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/obj/obj.h"
-#include "aether/obj/obj_id.h"
 #include "aether/obj/domain.h"
-#include "aether/obj/obj_ptr.h"
-#include "aether/obj/registry.h"
 
 #include "aether/tele/tele_init.h"
 

@@ -108,10 +108,10 @@ void WinSerialPort::ReadAction::HandleRead() {
 }
 
 WinSerialPort::WinSerialPort(ActionContext action_context,
-                             SerialInit serial_init, IPoller::ptr const& poller)
+                             SerialInit serial_init, IPoller& poller)
     : action_context_{action_context},
       serial_init_{std::move(serial_init)},
-      poller_{static_cast<IoCpPoller*>(poller->Native())},
+      poller_{static_cast<IoCpPoller*>(poller.Native())},
       fd_{OpenPort(serial_init_)},
       read_action_{action_context_, *this} {}
 

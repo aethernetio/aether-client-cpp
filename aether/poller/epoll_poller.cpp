@@ -195,8 +195,6 @@ void EpollImpl::Loop() {
   }
 }
 
-EpollPoller::EpollPoller() = default;
-
 EpollPoller::EpollPoller(Domain* domain) : IPoller(domain) {}
 
 NativePoller* EpollPoller::Native() {

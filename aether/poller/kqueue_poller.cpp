@@ -24,7 +24,6 @@
 
 #  include <map>
 #  include <array>
-#  include <mutex>
 #  include <thread>
 #  include <memory>
 #  include <atomic>
@@ -193,8 +192,6 @@ void KqueuePollerImpl::Loop() {
     }
   }
 }
-
-KqueuePoller::KqueuePoller() = default;
 
 KqueuePoller::KqueuePoller(Domain* domain) : IPoller(domain) {}
 

@@ -24,14 +24,8 @@ class NativePoller {};
 
 class IPoller : public Obj {
   AE_OBJECT(IPoller, Obj, 0)
-
- protected:
-  IPoller() = default;
-
  public:
   explicit IPoller(Domain* domain) : Obj{domain} {}
-
-  AE_OBJECT_REFLECT()
 
   /**
    * \brief Return native poller implementation.

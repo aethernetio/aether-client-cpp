@@ -29,20 +29,18 @@ namespace ae {
 namespace _internal {
 class ClientKeyProvider : public ISyncKeyProvider {
  public:
-  explicit ClientKeyProvider(Ptr<Client> const& client, ServerId server_id)
-      : client_{client}, server_id_{server_id} {}
+  explicit ClientKeyProvider(Client& client, ServerId server_id)
+      : client_{&client}, server_id_{server_id} {}
 
   CryptoNonce const& Nonce() const override {
-    auto client_ptr = client_.Lock();
-    assert(client_ptr);
-    auto* server_key = client_ptr->server_state(server_id_);
+    auto* server_key = client_->server_state(server_id_);
     assert(server_key);
     server_key->Next();
     return server_key->nonce();
   }
 
  protected:
-  PtrView<Client> client_;
+  Client* client_;
   ServerId server_id_;
 };
 
@@ -51,9 +49,7 @@ class ClientEncryptKeyProvider : public ClientKeyProvider {
   using ClientKeyProvider::ClientKeyProvider;
 
   Key GetKey() const override {
-    auto client_ptr = client_.Lock();
-    assert(client_ptr);
-    auto const* server_key = client_ptr->server_state(server_id_);
+    auto const* server_key = client_->server_state(server_id_);
     assert(server_key);
 
     return server_key->client_to_server();
@@ -65,9 +61,7 @@ class ClientDecryptKeyProvider : public ClientKeyProvider {
   using ClientKeyProvider::ClientKeyProvider;
 
   Key GetKey() const override {
-    auto client_ptr = client_.Lock();
-    assert(client_ptr);
-    auto const* server_key = client_ptr->server_state(server_id_);
+    auto const* server_key = client_->server_state(server_id_);
     assert(server_key);
 
     return server_key->server_to_client();
@@ -76,7 +70,7 @@ class ClientDecryptKeyProvider : public ClientKeyProvider {
 
 class ClientCryptoProvider final : public ICryptoProvider {
  public:
-  ClientCryptoProvider(Ptr<Client> const& client, ServerId server_id)
+  ClientCryptoProvider(Client& client, ServerId server_id)
       : encryptor_{std::make_unique<ClientEncryptKeyProvider>(client,
                                                               server_id)},
         decryptor_{
@@ -93,13 +87,12 @@ class ClientCryptoProvider final : public ICryptoProvider {
 }  // namespace _internal
 
 ClientServerConnection::ClientServerConnection(ActionContext action_context,
-                                               ObjPtr<Client> const& client,
-                                               Server::ptr const& server)
+                                               Client& client, Server& server)
     : action_context_{action_context},
-      server_{server},
-      ephemeral_uid_{client->ephemeral_uid()},
+      server_{&server},
+      ephemeral_uid_{client.ephemeral_uid()},
       crypto_provider_{std::make_unique<_internal::ClientCryptoProvider>(
-          client, server->server_id)},
+          client, server_->server_id)},
       client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
       login_api_{protocol_context_, action_context_,
                  *crypto_provider_->encryptor()},
@@ -107,20 +100,13 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
       channel_select_stream_{action_context_, channel_manager_},
       server_channel_{} {
   AE_TELED_DEBUG("Client server connection from {} to {}", ephemeral_uid_,
-                 server->server_id);
+                 server_->server_id);
 
   out_data_sub_ = channel_select_stream_.out_data_event().Subscribe(
       MethodPtr<&ClientServerConnection::OutData>{this});
 
   StreamUpdate();
   SubscribeToSelectChannel();
-}
-
-ClientServerConnection::~ClientServerConnection() {
-  auto server = server_.Lock();
-  assert(server);
-  AE_TELED_DEBUG("Destroy client server connection from {} to {}",
-                 ephemeral_uid_, server->server_id);
 }
 
 void ClientServerConnection::Restream() { channel_select_stream_.Restream(); }
@@ -159,10 +145,8 @@ void ClientServerConnection::SubscribeToSelectChannel() {
 void ClientServerConnection::StreamUpdate() {
   if (channel_select_stream_.stream_info().link_state ==
       LinkState::kLinkError) {
-    auto server = server_.Lock();
-    assert(server);
     AE_TELED_ERROR("ClientServerConnection connection error from {} to {}",
-                   ephemeral_uid_, server->server_id);
+                   ephemeral_uid_, server_->server_id);
   }
   if (channel_select_stream_.stream_info().link_state != LinkState::kLinked) {
     return;
@@ -176,8 +160,6 @@ void ClientServerConnection::StreamUpdate() {
   server_channel_ = channel;
 
   AE_TELED_DEBUG("Channel is linked, make new ping");
-  Server::ptr server = server_.Lock();
-  assert(server);
   // Create new ping if channel is updated
   // TODO: add ping interval config
   ping_ = OwnActionPtr<Ping>{action_context_, server_channel_->channel(), *this,

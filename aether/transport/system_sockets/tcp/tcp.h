@@ -80,7 +80,7 @@ class TcpTransport final : public ByteIStream {
   };
 
  public:
-  TcpTransport(ActionContext action_context, IPoller::ptr const& poller,
+  TcpTransport(ActionContext action_context, IPoller& poller,
                AddressPort endpoint);
   ~TcpTransport() override;
 

@@ -30,33 +30,32 @@ namespace ae {
 class Server : public Obj {
   AE_OBJECT(Server, Obj, 0)
 
-  Server() = default;
-
  public:
   using ChannelsChanged = Event<void()>;
 
-  explicit Server(ServerId server_id, std::vector<Endpoint> endpoints,
-                  AdapterRegistry::ptr adapter_registry, Domain* domain);
+  Server(ServerId server_id, std::shared_ptr<AdapterRegistry> adapter_registry,
+         Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(server_id, endpoints, adapter_registry_, channels))
+  Server(ServerId server_id, std::vector<Endpoint> endpoints,
+         std::shared_ptr<AdapterRegistry> adapter_registry, Domain* domain);
 
-  void Update(TimePoint current_time) override;
+  AE_REFLECT_MEMBERS(server_id, endpoints)
 
   ChannelsChanged::Subscriber channels_changed();
 
   ServerId server_id;
   std::vector<Endpoint> endpoints;
-  std::vector<Channel::ptr> channels;
+
+  std::vector<std::unique_ptr<Channel>> channels;
 
  private:
   void Register();
   void UpdateSubscription();
-  void AddChannels(AccessPoint::ptr const& access_point);
+  void AddChannels(AccessPoint& access_point);
 
-  AdapterRegistry::ptr adapter_registry_;
+  std::shared_ptr<AdapterRegistry> adapter_registry_;
   MultiSubscription access_point_added_;
   ChannelsChanged channels_changed_;
-  bool subscribed_;
 };
 }  // namespace ae
 #endif  // AETHER_SERVER_H_ */

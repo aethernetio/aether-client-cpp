@@ -30,18 +30,16 @@ class RegistrarDomainStorage : public IDomainStorage {
   explicit RegistrarDomainStorage(std::filesystem::path file_path);
   ~RegistrarDomainStorage() override;
 
-  std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuery const& query) override;
-  ClassList Enumerate(ObjId const& obj_id) override;
-  DomainLoad Load(DomainQuery const& query) override;
-  void Remove(const ae::ObjId& obj_id) override;
+  std::unique_ptr<IDomainStorageWriter> Store(DataKey key,
+                                              std::uint8_t version) override;
+  DomainLoad Load(DataKey key, std::uint8_t version) override;
+  void Remove(DataKey key) override;
   void CleanUp() override;
 
  private:
   void SaveState();
-  void PrintData(std::ofstream& file, std::vector<std::uint8_t> const& data);
-  template <typename K, typename T>
-  void PrintMapKeysAsData(std::ofstream& file, std::map<K, T> const& map);
+  static void PrintData(std::ofstream& file,
+                        std::vector<std::uint8_t> const& data);
 
   std::filesystem::path file_path_;
   RamDomainStorage ram_storage;

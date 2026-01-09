@@ -25,7 +25,7 @@ namespace ae::bench {
 int test_sender_bandwidth(Uid receiver_uid) {
   auto aether_app = ae::AetherApp::Construct(AetherAppContext{});
 
-  ae::Client::ptr client;
+  std::shared_ptr<Client> client;
 
   // select one client
   auto select_client = aether_app->aether()->SelectClient(

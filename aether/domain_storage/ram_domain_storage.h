@@ -28,23 +28,19 @@
 namespace ae {
 class RamDomainStorage : public IDomainStorage {
  public:
-  using Data = ObjectData;
-  using VersionData = std::map<std::uint8_t, Data>;
-  using ClassData = std::map<std::uint32_t, VersionData>;
-  using ObjClassData = std::map<ObjId, std::optional<ClassData>>;
+  using VersionData = std::map<std::uint8_t, DataValue>;
+  using ObjClassData = std::map<DataKey, std::optional<VersionData>>;
 
   RamDomainStorage();
   ~RamDomainStorage() override;
 
-  std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuery const& query) override;
-
-  ClassList Enumerate(ObjId const& obj_id) override;
-  DomainLoad Load(DomainQuery const& query) override;
-  void Remove(ObjId const& obj_id) override;
+  std::unique_ptr<IDomainStorageWriter> Store(DataKey key,
+                                              std::uint8_t version) override;
+  DomainLoad Load(DataKey key, std::uint8_t version) override;
+  void Remove(DataKey key) override;
   void CleanUp() override;
 
-  void SaveData(DomainQuery const& query, ObjectData&& data);
+  void SaveData(DataKey key, std::uint8_t version, DataValue&& data);
 
   ObjClassData state;
   bool write_lock = false;

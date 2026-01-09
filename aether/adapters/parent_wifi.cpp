@@ -18,24 +18,15 @@
 
 #include <utility>
 
-#include "aether/aether.h"
-#include "aether/poller/poller.h"
-#include "aether/dns/dns_resolve.h"
-
 namespace ae {
-
-#if defined AE_DISTILLATION
-ParentWifiAdapter::ParentWifiAdapter(ObjPtr<Aether> aether,
-                                     ObjPtr<IPoller> poller,
-                                     ObjPtr<DnsResolver> dns_resolver,
+ParentWifiAdapter::ParentWifiAdapter(Aether& aether, IPoller& poller,
+                                     DnsResolver& dns_resolver,
                                      std::string ssid, std::string pass,
                                      Domain* domain)
     : Adapter{domain},
-      aether_{std::move(aether)},
-      poller_{std::move(poller)},
-      dns_resolver_{std::move(dns_resolver)},
+      aether_{&aether},
+      poller_{&poller},
+      dns_resolver_{&dns_resolver},
       ssid_{std::move(ssid)},
       pass_{std::move(pass)} {}
-#endif  // AE_DISTILLATION
-
 } /* namespace ae */

@@ -35,8 +35,8 @@
 namespace ae::bench {
 class Sender {
  public:
-  Sender(ActionContext action_context, Client::ptr client, Uid destination_uid,
-         SafeStreamConfig safe_stream_config);
+  Sender(ActionContext action_context, std::shared_ptr<Client> client,
+         Uid destination_uid, SafeStreamConfig safe_stream_config);
 
   void ConnectP2pStream();
   void ConnectP2pSafeStream();
@@ -54,7 +54,7 @@ class Sender {
 
                                            Duration min_send_interval);
   ActionContext action_context_;
-  Client::ptr client_;
+  std::shared_ptr<Client> client_;
   Uid destination_uid_;
   SafeStreamConfig safe_stream_config_;
 

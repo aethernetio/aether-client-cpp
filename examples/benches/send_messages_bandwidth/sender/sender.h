@@ -17,12 +17,9 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_SENDER_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_SENDER_H_
 
-#include <optional>
-
 #include "aether/client.h"
 #include "aether/memory.h"
 #include "aether/events/events.h"
-#include "aether/stream_api/istream.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/repeatable_task.h"
 #include "aether/events/event_subscription.h"
@@ -36,7 +33,8 @@
 namespace ae::bench {
 class Sender {
  public:
-  Sender(ActionContext action_context, Client::ptr client, Uid destination);
+  Sender(ActionContext action_context, std::shared_ptr<Client> client,
+         Uid destination);
 
   EventSubscriber<void()> error_event();
 
@@ -54,7 +52,7 @@ class Sender {
   void OnRecvData(DataBuffer const& data);
 
   ActionContext action_context_;
-  Client::ptr client_;
+  std::shared_ptr<Client> client_;
   Uid destination_;
   ProtocolContext protocol_context_;
   BandwidthApi bandwidth_api_;

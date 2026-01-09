@@ -17,7 +17,6 @@
 #ifndef TESTS_TEST_OBJECT_SYSTEM_MAP_DOMAIN_STORAGE_H_
 #define TESTS_TEST_OBJECT_SYSTEM_MAP_DOMAIN_STORAGE_H_
 
-#include <vector>
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
@@ -28,20 +27,16 @@ namespace ae {
 
 class MapDomainStorage : public IDomainStorage {
  public:
-  using ObjKey = ObjId::Type;
-  using Data = std::optional<ObjectData>;
-  using VersionData = std::unordered_map<std::uint8_t, Data>;
-  using ClassData = std::unordered_map<std::uint32_t, VersionData>;
-  using ObjClassData = std::unordered_map<ObjKey, ClassData>;
+  using VersionData = std::unordered_map<std::uint8_t, DataValue>;
+  using ObjClassData = std::unordered_map<DataKey, std::optional<VersionData>>;
 
-  std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuery const& query) override;
-  ClassList Enumerate(ObjId const& obj_id) override;
-  DomainLoad Load(DomainQuery const& query) override;
-  void Remove(ObjId const& obj_id) override;
+  std::unique_ptr<IDomainStorageWriter> Store(DataKey key,
+                                              std::uint8_t version) override;
+  DomainLoad Load(DataKey key, std::uint8_t version) override;
+  void Remove(DataKey key) override;
   void CleanUp() override;
 
-  void SaveData(DomainQuery const& query, ObjectData&& data);
+  void SaveData(DataKey key, std::uint8_t version, DataValue&& data);
 
   ObjClassData map;
 };

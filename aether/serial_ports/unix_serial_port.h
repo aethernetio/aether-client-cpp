@@ -53,7 +53,7 @@ class UnixSerialPort final : public ISerialPort {
 
  public:
   explicit UnixSerialPort(ActionContext action_context, SerialInit serial_init,
-                          IPoller::ptr const& poller);
+                          IPoller& poller);
   ~UnixSerialPort() override;
 
   void Write(DataBuffer const& data) override;

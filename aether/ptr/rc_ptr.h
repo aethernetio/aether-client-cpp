@@ -288,15 +288,11 @@ template <typename T, typename Ib>
 imstream<Ib>& operator>>(imstream<Ib>& s, RcPtr<T>& v) {
   bool has_value{};
   s >> has_value;
-  if (!data_was_read(s)) {
-    return s;
-  }
+
   if (has_value) {
     auto temp = MakeRcPtr<T>();
     s >> *temp;
-    if (data_was_read(s)) {
-      v = std::move(temp);
-    }
+    v = std::move(temp);
   }
   return s;
 }

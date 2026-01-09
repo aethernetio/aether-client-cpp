@@ -86,22 +86,23 @@ std::pair<std::size_t, std::size_t> StreamDataPacketCollector::GetPacketSize(
                           ? sizeof(PacketSize::ValueType)
                           : size;
 
+  // TODO: it's possible that there is maybe less data than max PacketSize
   temp_data_buffer_.insert(temp_data_buffer_.end(), data, data + use_max_size);
+  if (temp_data_buffer_.size() < sizeof(PacketSize::ValueType)) {
+    return {0, 0};
+  }
 
   VectorReader<PacketSize> reader(temp_data_buffer_);
   auto is = imstream{reader};
 
   PacketSize packet_size;
   is >> packet_size;
-  if (!data_was_read(is)) {
-    return {0, size};
-  }
 
   temp_data_buffer_.clear();
 
-  assert((temp_buffer_size + size) >= reader.offset_);
+  assert((temp_buffer_size + size) >= reader.offset);
   return {static_cast<std::size_t>(packet_size),
-          reader.offset_ - temp_buffer_size};
+          reader.offset - temp_buffer_size};
 }
 
 std::size_t StreamDataPacketCollector::WriteToPacket(Packet& packet,

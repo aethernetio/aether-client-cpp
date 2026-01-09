@@ -37,16 +37,14 @@
 namespace ae {
 class Aether;
 
-class Client : public Obj {
+class Client final : public Obj {
   AE_OBJECT(Client, Obj, 0)
 
-  Client() = default;
-
  public:
-  // Internal
-#ifdef AE_DISTILLATION
-  Client(ObjPtr<Aether> aether, Domain* domain);
-#endif  // AE_DISTILLATION
+  Client(Aether& aether, std::string id, Domain* domain);
+
+  AE_REFLECT_MEMBERS(parent_uid_, uid_, ephemeral_uid_, master_key_,
+                     server_keys_)
 
   // Public API.
   std::string const& id() const;
@@ -54,50 +52,35 @@ class Client : public Obj {
   Uid const& uid() const;
   Uid const& ephemeral_uid() const;
   ServerKeys* server_state(ServerId server_id);
-  Cloud::ptr const& cloud() const;
-  ClientCloudManager::ptr const& cloud_manager() const;
+  Cloud& cloud();
+  ClientCloudManager& cloud_manager();
   ServerConnectionManager& server_connection_manager();
   ClientConnectionManager& connection_manager();
   CloudConnection& cloud_connection();
   P2pMessageStreamManager& message_stream_manager();
 
-  void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
-                 Uid ephemeral_uid, Key master_key, Cloud::ptr c);
-
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_id_, parent_uid_, uid_,
-                             ephemeral_uid_, master_key_, cloud_, server_keys_,
-                             client_cloud_manager_))
-
-  template <typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_);
-    dnv(aether_, uid_, ephemeral_uid_, master_key_, cloud_, server_keys_,
-        client_cloud_manager_);
-  }
-
-  template <typename Dnv>
-  void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(base_);
-    dnv(aether_, uid_, ephemeral_uid_, master_key_, cloud_, server_keys_,
-        client_cloud_manager_);
-  }
+  void SetConfig(Uid parent_uid, Uid uid, Uid ephemeral_uid, Key master_key,
+                 std::unique_ptr<Cloud> c);
 
   void SendTelemetry();
 
  private:
-  Obj::ptr aether_;
+  void Init(std::unique_ptr<Cloud> cloud);
+
+  Aether* aether_;
+  std::string id_;  //< User defined client id
   // configuration
   std::string client_id_;  // User-defined client id
   Uid parent_uid_;         // Parent aethernet client uid
   Uid uid_{};              // Aethernet client uid
   Uid ephemeral_uid_{};    // Used for server aethentication
   Key master_key_;
-  Cloud::ptr cloud_;
+  std::unique_ptr<Cloud> cloud_;
 
   // states
   std::map<ServerId, ServerKeys> server_keys_;
 
-  ClientCloudManager::ptr client_cloud_manager_;
+  std::unique_ptr<ClientCloudManager> client_cloud_manager_;
   std::unique_ptr<ServerConnectionManager> server_connection_manager_;
   std::unique_ptr<ClientConnectionManager> client_connection_manager_;
   std::unique_ptr<CloudConnection> cloud_connection_;

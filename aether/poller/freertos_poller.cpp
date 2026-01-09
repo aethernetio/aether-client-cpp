@@ -242,8 +242,6 @@ std::vector<pollfd> FreeRtosLwipPollerImpl::FillFdsVector() {
   return fds;
 }
 
-FreertosPoller::FreertosPoller() = default;
-
 FreertosPoller::FreertosPoller(Domain* domain) : IPoller(domain) {}
 
 NativePoller* FreertosPoller::Native() {

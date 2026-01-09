@@ -110,11 +110,11 @@ void UdpTransport::SendAction::Send() {
   state_ = State::kDone;
 }
 
-UdpTransport::UdpTransport(ActionContext action_context,
-                           IPoller::ptr const& poller, AddressPort endpoint)
+UdpTransport::UdpTransport(ActionContext action_context, IPoller& poller,
+                           AddressPort endpoint)
     : action_context_{std::move(action_context)},
       endpoint_{std::move(endpoint)},
-      socket_{UdpSocketFactory::Create(*poller)},
+      socket_{UdpSocketFactory::Create(poller)},
       send_queue_manager_{action_context_},
       read_action_{action_context_, *this},
       notify_error_action_{action_context_} {

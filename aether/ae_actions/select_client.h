@@ -17,11 +17,11 @@
 #ifndef AETHER_AE_ACTIONS_SELECT_CLIENT_H_
 #define AETHER_AE_ACTIONS_SELECT_CLIENT_H_
 
+#include <string>
 #include <cstdint>
 
 #include "aether/config.h"
 #include "aether/client.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
 #include "aether/events/event_subscription.h"
@@ -43,8 +43,8 @@ class SelectClientAction final : public Action<SelectClientAction> {
   /**
    * \brief Create with client already ready.
    */
-  SelectClientAction(ActionContext action_context, Client::ptr const& client);
-
+  SelectClientAction(ActionContext action_context,
+                     std::shared_ptr<Client> client);
 #if AE_SUPPORT_REGISTRATION
   /**
    * \brief Wait for client registration or error.
@@ -61,11 +61,11 @@ class SelectClientAction final : public Action<SelectClientAction> {
 
   UpdateStatus Update();
 
-  Client::ptr client() const;
+  std::shared_ptr<Client> client() const;
   State state() const;
 
  private:
-  PtrView<Client> client_;
+  std::shared_ptr<Client> client_;
   StateMachine<State> state_;
 
 #if AE_SUPPORT_REGISTRATION

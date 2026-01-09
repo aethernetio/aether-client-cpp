@@ -54,8 +54,8 @@ class Registration final : public Action<Registration> {
   };
 
  public:
-  Registration(ActionContext action_context, Aether& aether,
-               RegistrationCloud::ptr const& reg_cloud, Uid parent_uid);
+  Registration(ActionContext action_context, Aether& aether, Cloud& reg_cloud,
+               Uid parent_uid);
   ~Registration() override;
 
   UpdateStatus Update();
@@ -105,7 +105,6 @@ class Registration final : public Action<Registration> {
   Subscription raw_transport_send_action_subscription_;
   Subscription reg_server_write_subscription_;
   Subscription response_sub_;
-  Subscription state_change_subscription_;
 };
 }  // namespace ae
 

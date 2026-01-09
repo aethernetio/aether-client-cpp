@@ -77,7 +77,7 @@ class UdpTransport : public ByteIStream {
   using ErrorEventAction = NotifyAction;
 
  public:
-  UdpTransport(ActionContext action_context, IPoller::ptr const& poller,
+  UdpTransport(ActionContext action_context, IPoller& poller,
                AddressPort endpoint);
   ~UdpTransport() override;
 

@@ -110,7 +110,6 @@ void IoCpPoller::Loop() {
   }
 }
 
-WinPoller::WinPoller() = default;
 WinPoller::WinPoller(Domain* domain) : IPoller(domain) {}
 WinPoller::~WinPoller() = default;
 

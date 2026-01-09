@@ -42,9 +42,10 @@ constexpr auto checksum_from_literal(const char (&_str)[LEN]) -> std::uint32_t;
 
 // run-time versions
 
-auto from_string(char const* _str, result_t _curr = result_t()) -> result_t;
-auto from_buffer(const std::uint8_t* _buffer, size_t _cnt,
-                 result_t _curr = result_t()) -> result_t;
+constexpr auto from_string(char const* _str, result_t _curr = result_t())
+    -> result_t;
+constexpr auto from_buffer(const std::uint8_t* _buffer, size_t _cnt,
+                           result_t _curr = result_t()) -> result_t;
 
 // ==============
 // Implementation
@@ -167,7 +168,7 @@ constexpr auto checksum_from_literal(const char (&_str)[LEN]) -> std::uint32_t {
   return from_literal(_str).value ^ details::XOR_VALUE;
 }
 
-inline auto from_string(char const* _str, result_t _curr) -> result_t {
+constexpr auto from_string(char const* _str, result_t _curr) -> result_t {
   if (_str) {
     while (*_str != 0) {
       _curr.value =
@@ -179,8 +180,8 @@ inline auto from_string(char const* _str, result_t _curr) -> result_t {
   return _curr;
 }
 
-inline auto from_buffer(const std::uint8_t* _buff, size_t _cnt, result_t _curr)
-    -> result_t {
+constexpr auto from_buffer(const std::uint8_t* _buff, size_t _cnt,
+                           result_t _curr) -> result_t {
   if (_buff) {
     for (auto i = 0u; i < _cnt; ++i) {
       _curr.value =

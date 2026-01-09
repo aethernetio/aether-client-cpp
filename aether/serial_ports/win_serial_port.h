@@ -64,7 +64,7 @@ class WinSerialPort final : public ISerialPort {
 
  public:
   explicit WinSerialPort(ActionContext action_context, SerialInit serial_init,
-                         IPoller::ptr const& poller);
+                         IPoller& poller);
   ~WinSerialPort() override;
 
   void Write(DataBuffer const& data) override;

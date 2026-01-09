@@ -33,9 +33,7 @@ ApiParser::~ApiParser() { protocol_context_.PopParser(); }
 
 ProtocolContext& ApiParser::Context() { return protocol_context_; }
 
-void ApiParser::Cancel() {
-  buffer_reader_.offset_ = buffer_reader_.data_.size();
-}
+void ApiParser::Cancel() { buffer_reader_.offset = buffer_reader_.data.size(); }
 
 ApiPacker::ApiPacker(ProtocolContext& protocol_context_,
                      std::vector<std::uint8_t>& data)

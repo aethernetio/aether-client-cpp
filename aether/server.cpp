@@ -17,46 +17,49 @@
 #include "aether/server.h"
 
 #include <utility>
+#include <cassert>
+
+#include "aether/tele/tele.h"
 
 namespace ae {
-Server::Server(ServerId server_id, std::vector<Endpoint> endpoints,
-               AdapterRegistry::ptr adapter_registry, Domain* domain)
+Server::Server(ServerId server_id,
+               std::shared_ptr<AdapterRegistry> adapter_registry,
+               Domain* domain)
     : Obj{domain},
       server_id{server_id},
-      endpoints{std::move(endpoints)},
-      adapter_registry_{std::move(adapter_registry)},
-      subscribed_{} {
+      adapter_registry_{std::move(adapter_registry)} {
+  assert((server_id != 0) && "Server ID must be non-zero");
+  domain_->Load(*this, Hash(kTypeName, server_id));
+  AE_TELED_DEBUG("Loaded server id={}, endpoints=[{}]", server_id, endpoints);
   Register();
 }
 
-void Server::Update(TimePoint current_time) {
-  if (!subscribed_) {
-    subscribed_ = true;
-    UpdateSubscription();
-  }
-  update_time_ = current_time;
-}
-
-void Server::Register() {
-  UpdateSubscription();
-
-  for (auto const& adapter : adapter_registry_->adapters()) {
-    for (auto const& ap : adapter->access_points()) {
-      AddChannels(ap);
-    }
-  }
-  subscribed_ = true;
+Server::Server(ServerId server_id, std::vector<Endpoint> endpoints,
+               std::shared_ptr<AdapterRegistry> adapter_registry,
+               Domain* domain)
+    : Obj{domain},
+      server_id{server_id},
+      endpoints{std::move(endpoints)},
+      adapter_registry_{std::move(adapter_registry)} {
+  Register();
+  domain_->Save(*this, Hash(kTypeName, server_id));
 }
 
 Server::ChannelsChanged::Subscriber Server::channels_changed() {
   return EventSubscriber{channels_changed_};
 }
 
-void Server::UpdateSubscription() {
-  if (!adapter_registry_) {
-    domain_->LoadRoot(adapter_registry_);
+void Server::Register() {
+  UpdateSubscription();
+
+  for (auto const& adapter : adapter_registry_->adapters()) {
+    for (auto* ap : adapter->access_points()) {
+      AddChannels(*ap);
+    }
   }
-  assert(adapter_registry_);
+}
+
+void Server::UpdateSubscription() {
   for (auto const& adapter : adapter_registry_->adapters()) {
     access_point_added_ += adapter->new_access_point().Subscribe(
         MethodPtr<&Server::AddChannels>{this});
@@ -64,11 +67,12 @@ void Server::UpdateSubscription() {
   channels_changed_.Emit();
 }
 
-void Server::AddChannels(AccessPoint::ptr const& access_point) {
-  auto server_ptr = MakePtrFromThis(this);
-  auto new_channels = access_point->GenerateChannels(server_ptr);
-  channels.insert(std::end(channels), std::begin(new_channels),
-                  std::end(new_channels));
+void Server::AddChannels(AccessPoint& access_point) {
+  auto new_channels = access_point.GenerateChannels(*this);
+  channels.reserve(channels.size() + new_channels.size());
+  for (auto& ch : new_channels) {
+    channels.emplace_back(std::move(ch));
+  }
   channels_changed_.Emit();
 }
 

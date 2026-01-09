@@ -17,12 +17,11 @@
 #ifndef AETHER_SERVER_CONNECTIONS_SERVER_CHANNEL_H_
 #define AETHER_SERVER_CONNECTIONS_SERVER_CHANNEL_H_
 
+#include <memory>
 #include <cassert>
 
 #include "aether/common.h"
 #include "aether/memory.h"
-#include "aether/obj/obj_ptr.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/events/events.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/actions/timer_action.h"
@@ -39,7 +38,7 @@ class ServerChannel final {
   // Connected or not
   using ConnectionResult = Event<void(bool is_connected)>;
 
-  ServerChannel(ActionContext action_context, ObjPtr<Channel> const& channel);
+  ServerChannel(ActionContext action_context, Channel& channel);
 
   AE_CLASS_NO_COPY_MOVE(ServerChannel)
 
@@ -47,7 +46,7 @@ class ServerChannel final {
    * \brief Get the channel stream. May be null.
    */
   ByteIStream* stream();
-  ObjPtr<Channel> channel() const;
+  Channel& channel() const;
   ConnectionResult::Subscriber connection_result();
 
  private:
@@ -55,7 +54,7 @@ class ServerChannel final {
   void OnTransportCreateFailed();
 
   ActionContext action_context_;
-  PtrView<Channel> channel_;
+  Channel* channel_;
 
   std::unique_ptr<ByteIStream> transport_stream_;
 

@@ -28,7 +28,7 @@ namespace ae {
 class SerialPortFactory {
  public:
   static std::unique_ptr<ISerialPort> CreatePort(ActionContext action_context,
-                                                 IPoller::ptr const& poller,
+                                                 IPoller& poller,
                                                  SerialInit const& serial_init);
 };
 }  // namespace ae

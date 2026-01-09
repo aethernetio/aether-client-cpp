@@ -18,21 +18,27 @@
 #define AETHER_WORK_CLOUD_H_
 
 #include "aether/cloud.h"
-#include "aether/obj/obj.h"
 #include "aether/types/uid.h"
 
 namespace ae {
 class Aether;
-class WorkCloud : public Cloud {
+class WorkCloud final : public Cloud {
   AE_OBJECT(WorkCloud, Cloud, 0)
 
-  WorkCloud() = default;
-
  public:
-  WorkCloud(Uid client_uid, Domain* domain);
+  explicit WorkCloud(Aether& aether, Uid uid, Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(client_uid))
-  Uid client_uid;
+  AE_REFLECT_MEMBERS(cloud_)
+
+  void SetServers(std::vector<std::shared_ptr<Server>> servers);
+  std::vector<std::shared_ptr<Server>>& servers() override;
+
+ private:
+  Aether* aether_;
+  Uid uid_;
+
+  std::vector<ServerId> cloud_;
+  std::vector<std::shared_ptr<Server>> servers_;
 };
 }  // namespace ae
 #endif  // AETHER_WORK_CLOUD_H_

@@ -17,30 +17,24 @@
 #ifndef REGISTRATOR_REGISTER_WIFI_H_
 #define REGISTRATOR_REGISTER_WIFI_H_
 
-#include "aether/adapters/parent_wifi.h"
 #include "aether/adapters/ethernet.h"
+#include "aether/adapters/parent_wifi.h"
 
 namespace ae::reg {
 class RegisterWifiAdapter : public ParentWifiAdapter {
   AE_OBJECT(RegisterWifiAdapter, ParentWifiAdapter, 0)
 
-  RegisterWifiAdapter() = default;
-
  public:
-#ifdef AE_DISTILLATION
-  RegisterWifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                      DnsResolver::ptr dns_resolver, std::string ssid,
+  RegisterWifiAdapter(Aether& aether, IPoller& poller,
+                      DnsResolver& dns_resolver, std::string ssid,
                       std::string pass, Domain* domain);
-#endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(AE_MMBR(ethernet_adapter_))
-
-  std::vector<AccessPoint::ptr> access_points() override;
+  std::vector<AccessPoint*> access_points() override;
   NewAccessPoint::Subscriber new_access_point() override;
 
  private:
   // whose doing all job
-  EthernetAdapter::ptr ethernet_adapter_;
+  EthernetAdapter ethernet_adapter_;
 };
 }  // namespace ae::reg
 

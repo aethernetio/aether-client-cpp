@@ -23,6 +23,7 @@
 #include "aether/config.h"
 #include "aether/obj/obj.h"
 #include "aether/obj/dummy_obj.h"  // IWYU pragma: keep
+
 #if AE_SUPPORT_CLOUD_DNS
 #  include "aether/types/address.h"
 #  include "aether/actions/action.h"
@@ -52,20 +53,14 @@ class DnsResolver : public Obj {
   AE_OBJECT(DnsResolver, Obj, 0)
 
  protected:
-  DnsResolver() = default;
-
  public:
-#  if defined AE_DISTILLATION
-  explicit DnsResolver(Domain* domain) : Obj{domain} {}
-#  endif
+  explicit DnsResolver(Domain* domain);
   ~DnsResolver() override = default;
-
-  AE_OBJECT_REFLECT()
 
   // Make a host name resolve
   virtual ActionPtr<ResolveAction> Resolve(NamedAddr const& name_address,
                                            std::uint16_t port_hint,
-                                           Protocol protocol_hint);
+                                           Protocol protocol_hint) = 0;
 };
 }  // namespace ae
 #else

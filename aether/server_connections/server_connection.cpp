@@ -19,9 +19,9 @@
 #include "aether/server.h"
 
 namespace ae {
-ServerConnection::ServerConnection(ObjPtr<Server> const& server,
+ServerConnection::ServerConnection(std::shared_ptr<Server> server,
                                    IServerConnectionFactory& connection_factory)
-    : server_{server},
+    : server_{std::move(server)},
       connection_factory_{&connection_factory},
       priority_{},
       is_connection_{},
@@ -43,9 +43,8 @@ void ServerConnection::BeginConnection(std::size_t priority) {
   AE_TELED_DEBUG("Begin connection server_id={}, priority={}, is_connection={}",
                  server()->server_id, priority_, is_connection_);
   if (!is_connection_) {
-    // Make new connection
     client_connection_.Reset();
-    client_connection_ = connection_factory_->CreateConnection(server());
+    client_connection_ = connection_factory_->CreateConnection(server_);
   }
   is_connection_ = true;
 }
@@ -64,10 +63,6 @@ ClientServerConnection* ServerConnection::ClientConnection() {
   return nullptr;
 }
 
-ObjPtr<Server> ServerConnection::server() const {
-  Server::ptr server = server_.Lock();
-  assert(server);
-  return server;
-}
+std::shared_ptr<Server> ServerConnection::server() const { return server_; }
 
 }  // namespace ae

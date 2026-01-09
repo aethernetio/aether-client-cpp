@@ -18,37 +18,21 @@
 
 #include <utility>
 
-#include "aether/global_ids.h"
-#include "aether/obj/obj_ptr.h"
-
 #include "aether/work_cloud.h"
 
 #include "aether/aether_tele.h"
 
 namespace ae {
 
-#ifdef AE_DISTILLATION
 Aether::Aether(Domain* domain) : Obj{domain} {
-  auto self_ptr = MakePtrFromThis(this);
-
-  client_prefab = domain->CreateObj<Client>(GlobalId::kClientFactory, self_ptr);
-  client_prefab.SetFlags(ae::ObjFlags::kUnloadedByDefault);
-
-  tele_statistics =
-      domain->CreateObj<tele::TeleStatistics>(GlobalId::kTeleStatistics);
-
+  tele_statistics = std::make_shared<tele::TeleStatistics>(domain_);
   AE_TELE_DEBUG(AetherCreated);
 }
-#endif  // AE_DISTILLATION
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
-void Aether::Update(TimePoint current_time) {
-  update_time_ = action_processor->Update(current_time);
-}
-
-Client::ptr Aether::CreateClient(ClientConfig const& config,
-                                 std::string const& client_id) {
+std::shared_ptr<Client> Aether::CreateClient(ClientConfig const& config,
+                                             std::string const& client_id) {
   auto client = FindClient(client_id);
   if (client) {
     return client;
@@ -56,27 +40,25 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
   // create new client
   AE_TELED_DEBUG("Create new client {} with uid {}", client_id, config.uid);
 
-  client = domain_->LoadCopy(client_prefab);
-  client.SetFlags(ObjFlags::kUnloadedByDefault);
+  client = std::make_shared<Client>(*this, client_id, domain_);
 
   // make servers
-  std::vector<Server::ptr> servers;
+  std::vector<std::shared_ptr<Server>> servers;
   for (auto const& server_config : config.cloud) {
     if (auto cached = GetServer(server_config.id); cached) {
       servers.emplace_back(std::move(cached));
     } else {
-      auto new_server = domain_->CreateObj<Server>(
-          server_config.id, server_config.endpoints, adapter_registry);
+      auto new_server = std::make_shared<Server>(
+          server_config.id, server_config.endpoints, adapter_registry, domain_);
       StoreServer(new_server);
       servers.emplace_back(std::move(new_server));
     }
   }
 
-  auto client_cloud = domain_->CreateObj<WorkCloud>(config.uid);
+  auto client_cloud = std::make_unique<WorkCloud>(*this, config.uid, domain_);
   client_cloud->SetServers(std::move(servers));
-  client->SetConfig(client_id, config.parent_uid, config.uid,
-                    config.ephemeral_uid, config.master_key,
-                    std::move(client_cloud));
+  client->SetConfig(config.parent_uid, config.uid, config.ephemeral_uid,
+                    config.master_key, std::move(client_cloud));
 
   StoreClient(client);
   return client;
@@ -95,7 +77,13 @@ ActionPtr<SelectClientAction> Aether::SelectClient(
   if (client) {
     return MakeSelectClient(client);
   }
-// register new client
+  // try load client
+  client = std::make_shared<Client>(*this, client_id, domain_);
+  if (!client->uid().empty()) {
+    StoreClient(client);
+    return MakeSelectClient(client);
+  }
+  // register new client
 #if AE_SUPPORT_REGISTRATION
   auto registration = RegisterClient(parent_uid);
   return MakeSelectClient(std::move(registration), client_id);
@@ -104,33 +92,27 @@ ActionPtr<SelectClientAction> Aether::SelectClient(
 #endif
 }
 
-void Aether::StoreServer(Server::ptr s) {
+void Aether::StoreServer(std::shared_ptr<Server> s) {
   servers_.insert({s->server_id, std::move(s)});
 }
 
-Server::ptr Aether::GetServer(ServerId server_id) {
+std::shared_ptr<Server> Aether::GetServer(ServerId server_id) {
   auto it = servers_.find(server_id);
   if (it == std::end(servers_)) {
     return {};
   }
-  if (!it->second) {
-    domain_->LoadRoot(it->second);
-  }
   return it->second;
 }
 
-Client::ptr Aether::FindClient(std::string const& client_id) {
+std::shared_ptr<Client> Aether::FindClient(std::string const& client_id) {
   auto client_it = clients_.find(client_id);
   if (client_it == std::end(clients_)) {
     return {};
   }
-  if (!client_it->second) {
-    domain_->LoadRoot(client_it->second);
-  }
   return client_it->second;
 }
 
-void Aether::StoreClient(Client::ptr client) {
+void Aether::StoreClient(std::shared_ptr<Client> client) {
   assert(client && "Client is null");
   clients_[client->id()] = std::move(client);
 }
@@ -149,7 +131,7 @@ ActionPtr<SelectClientAction> Aether::MakeSelectClient() const {
 }
 
 ActionPtr<SelectClientAction> Aether::MakeSelectClient(
-    Client::ptr const& client) const {
+    std::shared_ptr<Client> const& client) const {
   return ActionPtr<SelectClientAction>{*action_processor, client};
 }
 
@@ -163,15 +145,10 @@ ActionPtr<SelectClientAction> Aether::MakeSelectClient(
 }
 
 ActionPtr<Registration> Aether::RegisterClient(Uid parent_uid) {
-  if (!registration_cloud) {
-    domain_->LoadRoot(registration_cloud);
-  }
-  assert(registration_cloud && "Registration cloud not loaded");
-
   // registration new client is long termed process
   // after registration done, add it to clients list
   // user also can get new client after
-  return ActionPtr<Registration>(*action_processor, *this, registration_cloud,
+  return ActionPtr<Registration>(*action_processor, *this, *registration_cloud,
                                  parent_uid);
 }
 #endif

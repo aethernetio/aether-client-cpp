@@ -84,9 +84,6 @@ list(APPEND dns_srcs
 list(APPEND obj_srcs
             "obj/obj.cpp"
             "obj/domain.cpp"
-            "obj/obj_id.cpp"
-            "obj/registry.cpp"
-            "obj/obj_ptr.cpp"
         )
 
 list(APPEND ptr_srcs

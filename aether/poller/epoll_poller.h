@@ -55,12 +55,8 @@ class EpollImpl final : public UnixPollerImpl {
 class EpollPoller : public IPoller {
   AE_OBJECT(EpollPoller, IPoller, 0)
 
-  EpollPoller();
-
  public:
   explicit EpollPoller(Domain* domain);
-
-  AE_OBJECT_REFLECT()
 
   NativePoller* Native() override;
 

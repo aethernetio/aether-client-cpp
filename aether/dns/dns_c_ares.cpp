@@ -187,21 +187,14 @@ class AresImpl {
   AE_MAY_UNUSED_MEMBER SocketInitializer socket_initializer_;
 };
 
-DnsResolverCares::DnsResolverCares() = default;
-
-#  if defined AE_DISTILLATION
-DnsResolverCares::DnsResolverCares(ObjPtr<Aether> aether, Domain* domain)
-    : DnsResolver(domain), aether_{std::move(aether)} {}
-#  endif
+DnsResolverCares::DnsResolverCares(Aether& aether, Domain* domain)
+    : DnsResolver(domain), ares_impl_{std::make_unique<AresImpl>(aether)} {}
 
 DnsResolverCares::~DnsResolverCares() = default;
 
 ActionPtr<ResolveAction> DnsResolverCares::Resolve(
     NamedAddr const& name_address, std::uint16_t port_hint,
     Protocol protocol_hint) {
-  if (!ares_impl_) {
-    ares_impl_ = std::make_unique<AresImpl>(*aether_.as<Aether>());
-  }
   return ares_impl_->Query(name_address, port_hint, protocol_hint);
 }
 

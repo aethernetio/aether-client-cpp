@@ -59,7 +59,7 @@ void AssertPacket(std::vector<std::uint8_t> const& data, Args const&... args) {
   ae::VectorReader<ae::PackedSize> ib{data};
   imstream_t is{ib};
   (AssertPacketEntry(is, args), ...);
-  TEST_ASSERT_EQUAL_MESSAGE(data.size(), ib.offset_, FUNCTION_NAME);
+  TEST_ASSERT_EQUAL_MESSAGE(data.size(), ib.offset, FUNCTION_NAME);
 
   UnitySetTestFile(old_file);
 }

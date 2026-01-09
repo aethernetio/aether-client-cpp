@@ -29,18 +29,10 @@
 #ifndef AETHER_OBJ_OBJ_H_
 #define AETHER_OBJ_OBJ_H_
 
-#include <array>
-
 #include "aether/config.h"
 
-#include "aether/common.h"
 #include "aether/crc.h"
-#include "aether/obj/obj_id.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/obj/domain.h"
-#include "aether/obj/registry.h"
-#include "aether/obj/registrar.h"
-#include "aether/reflect/reflect.h"
 
 namespace ae {
 /**
@@ -51,13 +43,11 @@ class Obj {
 
  public:
   using CurrentVersion = Version<0>;
-  using ptr = ObjPtr<Obj>;
 
   static constexpr std::uint32_t kClassId = crc32::from_literal("Obj").value;
   static constexpr std::uint32_t kBaseClassId =
       crc32::from_literal("Obj").value;
 
-  static constexpr std::uint32_t kVersion = 0;
   static constexpr CurrentVersion kCurrentVersion{};
 
   Obj();
@@ -65,35 +55,9 @@ class Obj {
   virtual ~Obj();
 
   virtual std::uint32_t GetClassId() const;
-  virtual void Update(TimePoint current_time);
-
-  ObjId GetId() const;
-
-  AE_REFLECT_MEMBERS(update_time_);
 
   Domain* domain_{};
-  TimePoint update_time_;
-
- protected:
-  ObjId id_;
-  ObjFlags flags_;
 };
-
-namespace reflect {
-template <typename T>
-struct ObjectIndex<T, std::enable_if_t<std::is_base_of_v<Obj, T>>> {
-  static std::size_t GetIndex(T const* obj) {
-    std::array<std::uint8_t, sizeof(std::uint32_t) + sizeof(ObjId::Type)>
-        buffer;
-    *reinterpret_cast<std::uint32_t*>(buffer.data()) = T::kClassId;
-    *reinterpret_cast<ObjId::Type*>(buffer.data() + sizeof(std::uint32_t)) =
-        obj->GetId().id();
-
-    return crc32::from_buffer(buffer.data(), buffer.size()).value;
-  }
-};
-}  // namespace reflect
-
 }  // namespace ae
 
 #define _AE_OBJECT_FIELDS(CLASS_ID, BASE_CLASS_ID, VERSION)    \
@@ -107,30 +71,16 @@ struct ObjectIndex<T, std::enable_if_t<std::is_base_of_v<Obj, T>>> {
  * \brief Use it inside each derived class to register it with the object system
  */
 #define AE_OBJECT(DERIVED, BASE, VERSION)                                \
- protected:                                                              \
-  friend class ae::Registrar<DERIVED>;                                   \
-  friend ae::Ptr<DERIVED> ae::MakePtr<DERIVED>();                        \
-                                                                         \
  public:                                                                 \
   _AE_OBJECT_FIELDS(crc32::from_literal(#DERIVED).value, BASE::kClassId, \
                     VERSION)                                             \
-  inline static auto registrar_ =                                        \
-      ae::Registrar<DERIVED>(kClassId, kBaseClassId);                    \
-                                                                         \
+  static constexpr auto kTypeName = ae::reflect::GetTypeName<DERIVED>(); \
   using Base = BASE;                                                     \
-  using ptr = ae::ObjPtr<DERIVED>;                                       \
-                                                                         \
   Base& base_{*this};                                                    \
                                                                          \
   std::uint32_t GetClassId() const override { return kClassId; }         \
                                                                          \
  private:                                                                \
   /* add rest class's staff after */
-
-/**
- * \brief Obj class reflection
- */
-#define AE_OBJECT_REFLECT(...) \
-  AE_REFLECT(AE_REF_BASE(std::decay_t<decltype(base_)>), __VA_ARGS__)
 
 #endif  // AETHER_OBJ_OBJ_H_

@@ -24,17 +24,18 @@
 
 namespace ae {
 
-#  ifdef AE_DISTILLATION
-RegistrationCloud::RegistrationCloud(ObjPtr<Aether> aether, Domain* domain)
-    : Cloud{domain}, aether_{std::move(aether)} {}
-#  endif
+RegistrationCloud::RegistrationCloud(Aether& aether, Domain* domain)
+    : Cloud{domain}, aether_{&aether} {}
 
 void RegistrationCloud::AddServerSettings(Endpoint address) {
   // don't care about server id for registration
-  auto server =
-      domain_->CreateObj<Server>(ServerId{0}, std::vector{std::move(address)},
-                                 aether_.as<Aether>()->adapter_registry);
-  AddServer(server);
+  servers_.emplace_back(
+      std::make_shared<Server>(ServerId{0}, std::vector{std::move(address)},
+                               aether_->adapter_registry, domain_));
+}
+
+std::vector<std::shared_ptr<Server>>& RegistrationCloud::servers() {
+  return servers_;
 }
 
 }  // namespace ae

@@ -50,26 +50,17 @@ std::vector<std::uint8_t> DataGetter(
   return res;
 }
 
-static constexpr auto classes_1 = std::array<std::uint32_t, 2>{100, 101};
-static constexpr auto classes_2 = std::array<std::uint32_t, 1>{200};
-static constexpr auto classes_3 = std::array<std::uint32_t, 2>{300, 302};
-
 static constexpr auto data_1 = std::array<std::uint8_t, 5>{4, 251, 12, 42, 11};
 static constexpr auto data_2 = std::array<std::uint8_t, 5>{4, 252, 13, 42, 11};
 static constexpr auto data_3 = std::array<std::uint8_t, 5>{4, 253, 14, 42, 11};
 static constexpr auto data_4 = std::array<std::uint8_t, 5>{4, 254, 15, 42, 11};
 
 static constexpr auto static_data = StaticDomainData{
-    // object map
-    StaticMap{{
-        std::pair{std::uint32_t{1}, Span{classes_1}},
-        std::pair{std::uint32_t{2}, Span{classes_2}},
-    }},
     // data map
     StaticMap{{
-        std::pair{ObjectPathKey{1, 100, 0}, Span{data_1}},
-        std::pair{ObjectPathKey{1, 101, 0}, Span{data_2}},
-        std::pair{ObjectPathKey{2, 200, 0}, Span{data_3}},
+        std::pair{ObjectPathKey{1, 0}, Span{data_1}},
+        std::pair{ObjectPathKey{2, 0}, Span{data_2}},
+        std::pair{ObjectPathKey{3, 0}, Span{data_3}},
     }},
 };
 
@@ -77,72 +68,59 @@ template <typename StaticDS, typename RWDS>
 void TestSyncDataStorage(std::unique_ptr<StaticDS> sds,
                          std::unique_ptr<RWDS> rwds) {
   auto data_storage = SyncDomainStorage{std::move(sds), std::move(rwds)};
-  // check enumeration
-  {
-    auto first = data_storage.Enumerate(ObjId{1});
-    TEST_ASSERT_EQUAL_UINT32_ARRAY(classes_1.data(), first.data(),
-                                   classes_1.size());
-    auto second = data_storage.Enumerate(ObjId{2});
-    TEST_ASSERT_EQUAL_UINT32_ARRAY(classes_2.data(), second.data(),
-                                   classes_2.size());
-    auto third = data_storage.Enumerate(ObjId{3});
-    TEST_ASSERT(third.empty());
-  }
   // get data
   {
-    auto load_1_100 = data_storage.Load({ObjId{1}, 100, 0});
-    TEST_ASSERT(load_1_100.result == DomainLoadResult::kLoaded);
-    auto data_1_100 = DataGetter(load_1_100.reader);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(data_1.data(), data_1_100.data(),
+    auto load_1_0 = data_storage.Load(1, 0);
+    TEST_ASSERT(load_1_0.result == DomainLoadResult::kLoaded);
+    auto data_1_0 = DataGetter(load_1_0.reader);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data_1.data(), data_1_0.data(),
                                   data_1.size());
 
-    auto load_2_200 = data_storage.Load({ObjId{2}, 200, 0});
-    TEST_ASSERT(load_2_200.result == DomainLoadResult::kLoaded);
-    auto data_2_200 = DataGetter(load_2_200.reader);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(data_3.data(), data_2_200.data(),
-                                  data_3.size());
+    auto load_2_0 = data_storage.Load(2, 0);
+    TEST_ASSERT(load_2_0.result == DomainLoadResult::kLoaded);
+    auto data_2_0 = DataGetter(load_2_0.reader);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data_2.data(), data_2_0.data(),
+                                  data_2.size());
 
-    auto load_2_201 = data_storage.Load({ObjId{2}, 201, 0});
-    TEST_ASSERT(load_2_201.result == DomainLoadResult::kEmpty);
+    auto load_2_1 = data_storage.Load(2, 1);
+    TEST_ASSERT(load_2_1.result == DomainLoadResult::kEmpty);
   }
   // add data and get after
   {
-    auto writer_2_201 = data_storage.Store({ObjId{2}, 201, 0});
-    writer_2_201->write(data_4.data(), data_4.size());
-    writer_2_201.reset();
+    auto writer_2_1 = data_storage.Store(2, 1);
+    writer_2_1->write(data_4.data(), data_4.size());
+    writer_2_1.reset();
 
-    auto load_2_201 = data_storage.Load({ObjId{2}, 201, 0});
-    TEST_ASSERT(load_2_201.result == DomainLoadResult::kLoaded);
-    auto data_2_201 = DataGetter(load_2_201.reader);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(data_4.data(), data_2_201.data(),
+    auto load_2_1 = data_storage.Load(2, 1);
+    TEST_ASSERT(load_2_1.result == DomainLoadResult::kLoaded);
+    auto data_2_1 = DataGetter(load_2_1.reader);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data_4.data(), data_2_1.data(),
                                   data_4.size());
   }
   // remove data and try to load
   {
-    data_storage.Remove(ObjId{1});
-    auto load_1_100 = data_storage.Load({ObjId{1}, 100, 0});
-    TEST_ASSERT(load_1_100.result == DomainLoadResult::kRemoved);
-    auto load_1_101 = data_storage.Load({ObjId{1}, 101, 0});
-    TEST_ASSERT(load_1_101.result == DomainLoadResult::kRemoved);
-    auto load_2_200 = data_storage.Load({ObjId{2}, 200, 0});
-    TEST_ASSERT(load_2_200.result == DomainLoadResult::kLoaded);
+    data_storage.Remove(1);
+    auto load_1_0 = data_storage.Load(1, 0);
+    TEST_ASSERT(load_1_0.result == DomainLoadResult::kRemoved);
+    auto load_2_0 = data_storage.Load(2, 0);
+    TEST_ASSERT(load_2_0.result == DomainLoadResult::kLoaded);
   }
   // add an object
   {
-    auto writer_3_300 = data_storage.Store({ObjId{3}, 300, 0});
-    writer_3_300->write(data_4.data(), data_4.size());
-    writer_3_300.reset();
+    auto writer_3_0 = data_storage.Store(3, 0);
+    writer_3_0->write(data_4.data(), data_4.size());
+    writer_3_0.reset();
 
-    auto load_3_300 = data_storage.Load({ObjId{3}, 300, 0});
-    TEST_ASSERT(load_3_300.result == DomainLoadResult::kLoaded);
-    auto data_3_300 = DataGetter(load_3_300.reader);
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(data_4.data(), data_3_300.data(),
+    auto load_3_0 = data_storage.Load(3, 0);
+    TEST_ASSERT(load_3_0.result == DomainLoadResult::kLoaded);
+    auto data_3_0 = DataGetter(load_3_0.reader);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data_4.data(), data_3_0.data(),
                                   data_4.size());
-    load_3_300.reader.reset();
+    load_3_0.reader.reset();
 
-    data_storage.Remove(ObjId{3});
-    auto load_3_300_r = data_storage.Load({ObjId{3}, 300, 0});
-    TEST_ASSERT(load_3_300_r.result == DomainLoadResult::kRemoved);
+    data_storage.Remove(3);
+    auto load_3_0_r = data_storage.Load(3, 0);
+    TEST_ASSERT(load_3_0_r.result == DomainLoadResult::kRemoved);
   }
 }
 

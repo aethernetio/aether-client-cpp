@@ -152,13 +152,13 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         }}});
   }
 
-  Aether::ptr aether_;
+  Aether* aether_;
   std::ostream& write_results_stream_;
-  Client::ptr client_sender_;
-  Client::ptr client_receiver_;
+  std::shared_ptr<Client> client_sender_;
+  std::shared_ptr<Client> client_receiver_;
   std::unique_ptr<SendMessageDelaysManager> send_message_delays_manager_;
 
-  CumulativeEvent<Client::ptr, 2> client_selected_event_;
+  CumulativeEvent<std::shared_ptr<Client>, 2> client_selected_event_;
   Subscription clients_selected_sub_;
   Subscription test_result_sub_;
   StateMachine<State> state_;

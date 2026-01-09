@@ -174,10 +174,10 @@ class ReadMessageGate {
 
 }  // namespace p2p_stream_internal
 
-P2pStream::P2pStream(ActionContext action_context, ObjPtr<Client> const& client,
+P2pStream::P2pStream(ActionContext action_context, Client& client,
                      Uid destination)
     : action_context_{action_context},
-      client_{client},
+      client_{&client},
       destination_{destination},
       // TODO: add buffer config
       buffer_stream_{action_context_, 100} {
@@ -213,9 +213,7 @@ P2pStream::OutDataEvent::Subscriber P2pStream::out_data_event() {
 
 void P2pStream::Restream() {
   AE_TELED_DEBUG("Restream message stream");
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
-  client_ptr->cloud_connection().Restream();
+  client_->cloud_connection().Restream();
 
   buffer_stream_.Restream();
 }
@@ -228,28 +226,23 @@ void P2pStream::WriteOut(DataBuffer const& data) {
 Uid P2pStream::destination() const { return destination_; }
 
 void P2pStream::ConnectReceive() {
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
   // TODO: config request policy
   read_message_gate_ = std::make_unique<p2p_stream_internal::ReadMessageGate>(
-      destination_, client_ptr->cloud_connection(),
-      RequestPolicy::Replica{client_ptr->cloud_connection().max_connections()});
+      destination_, client_->cloud_connection(),
+      RequestPolicy::Replica{client_->cloud_connection().max_connections()});
   // write out received data
   read_message_gate_->out_data_event().Subscribe(
       MethodPtr<&P2pStream::WriteOut>{this});
 }
 
 void P2pStream::ConnectSend() {
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
-
-  auto get_client_cloud = client_ptr->cloud_manager()->GetCloud(destination_);
+  auto get_client_cloud = client_->cloud_manager().GetCloud(destination_);
 
   get_client_cloud_sub_ =
       get_client_cloud->StatusEvent().Subscribe(ActionHandler{
           OnResult{[this](GetCloudAction& action) {
             auto cloud = action.cloud();
-            dest_conn_manager_ = MakeConnectionManager(cloud);
+            dest_conn_manager_ = MakeConnectionManager(*cloud);
             dest_cloud_conn_ = MakeDestinationCloudConn(*dest_conn_manager_);
             // TODO: add config for request policy
             message_send_stream_ =
@@ -266,12 +259,9 @@ void P2pStream::ConnectSend() {
 }
 
 std::unique_ptr<ClientConnectionManager> P2pStream::MakeConnectionManager(
-    ObjPtr<Cloud> const& cloud) {
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
+    Cloud& cloud) {
   return std::make_unique<ClientConnectionManager>(
-      cloud,
-      client_ptr->server_connection_manager().GetServerConnectionFactory());
+      cloud, client_->server_connection_manager().GetServerConnectionFactory());
 }
 
 std::unique_ptr<CloudConnection> P2pStream::MakeDestinationCloudConn(

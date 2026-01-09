@@ -23,10 +23,8 @@
 
 #include "aether/config.h"
 #include "aether/common.h"
-#include "aether/ptr/ptr.h"
 #include "aether/ptr/rc_ptr.h"
 #include "aether/obj/domain.h"
-#include "aether/global_ids.h"
 #include "aether/type_traits.h"
 #include "aether/types/small_function.h"
 
@@ -49,6 +47,7 @@
 namespace ae {
 class AetherAppContext : public ComponentContext<AetherAppContext> {
   friend class AetherApp;
+
   class TelemetryInit {
    public:
     TelemetryInit();
@@ -66,36 +65,27 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
                             TeleInit const& tele_init = TelemetryInit{})
       : init_tele_{tele_init},
         domain_storage_{facility_factory()},
-        domain_{make_unique<Domain>(Now(), *domain_storage_)} {
+        domain_{make_unique<Domain>(*domain_storage_)} {
     InitComponentContext();
-#if defined AE_DISTILLATION
+    // TODO: add cleanup condition
     // clean old state
-    domain_storage_->CleanUp();
+    // domain_storage_->CleanUp();
 
-    aether_ = domain_->CreateObj<Aether>(GlobalId::kAether);
-    assert(aether_);
-#else
-    aether_.SetId(GlobalId::kAether);
-    domain_->LoadRoot(aether_);
-    assert(aether_);
-#endif  //  defined AE_DISTILLATION
+    aether_ = std::make_unique<Aether>(domain_.get());
   }
 
-  AE_CLASS_MOVE_ONLY(AetherAppContext)
+  Domain* domain() const { return domain_.get(); }
+  Aether* aether() const { return aether_.get(); }
 
-  Domain& domain() const { return *domain_; }
-  Aether::ptr aether() const { return aether_; }
-
-#if defined AE_DISTILLATION
-  AdapterRegistry::ptr adapter_registry() const {
+  std::shared_ptr<AdapterRegistry> adapter_registry() const {
     return Resolve<AdapterRegistry>();
   }
-#  if AE_SUPPORT_REGISTRATION
-  Cloud::ptr registration_cloud() const { return Resolve<Cloud>(); }
-#  endif  // AE_SUPPORT_REGISTRATION
-  Crypto::ptr crypto() const { return Resolve<Crypto>(); }
-  IPoller::ptr poller() const { return Resolve<IPoller>(); }
-  DnsResolver::ptr dns_resolver() const { return Resolve<DnsResolver>(); }
+  std::shared_ptr<Cloud> registration_cloud() const { return Resolve<Cloud>(); }
+  std::shared_ptr<Crypto> crypto() const { return Resolve<Crypto>(); }
+  std::shared_ptr<IPoller> poller() const { return Resolve<IPoller>(); }
+  std::shared_ptr<DnsResolver> dns_resolver() const {
+    return Resolve<DnsResolver>();
+  }
 
   template <typename TFunc>
   AetherAppContext&& AdaptersFactory(TFunc&& func) && {
@@ -103,13 +93,13 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
     return std::move(*this);
   }
 
-#  if AE_SUPPORT_REGISTRATION
+#if AE_SUPPORT_REGISTRATION
   template <typename TFunc>
   AetherAppContext&& RegistrationCloudFactory(TFunc&& func) && {
     Factory<Cloud>(std::forward<TFunc>(func));
     return std::move(*this);
   }
-#  endif  // AE_SUPPORT_REGISTRATION
+#endif  // AE_SUPPORT_REGISTRATION
 
   template <typename TFunc>
   AetherAppContext&& CryptoFactory(TFunc&& func) && {
@@ -122,14 +112,14 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
     Factory<IPoller>(std::forward<TFunc>(func));
     return std::move(*this);
   }
-#  if AE_SUPPORT_CLOUD_DNS
+
+#if AE_SUPPORT_CLOUD_DNS
   template <typename TFunc>
   AetherAppContext&& DnsResolverFactory(TFunc&& func) && {
     Factory<DnsResolver>(std::forward<TFunc>(func));
     return std::move(*this);
   }
-#  endif
-#endif  //  defined AE_DISTILLATION
+#endif
 
  private:
   void InitComponentContext();
@@ -137,7 +127,7 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
   SmallFunction<void(AetherAppContext const&)> init_tele_;
   std::unique_ptr<IDomainStorage> domain_storage_;
   std::unique_ptr<Domain> domain_;
-  Aether::ptr aether_;
+  std::unique_ptr<Aether> aether_;
 };
 
 /**
@@ -168,7 +158,11 @@ class AetherApp {
    * \brief Run one iteration of application update loop.
    */
   TimePoint Update(TimePoint current_time) {
-    return domain_->Update(current_time);
+    auto next_time = aether_->action_processor->Update(current_time);
+    if (next_time == current_time) {
+      return current_time + std::chrono::hours{24 * 365};
+    }
+    return next_time;
   }
 
   /**
@@ -205,8 +199,8 @@ class AetherApp {
     }
   }
 
-  Domain& domain() const { return *domain_; }
-  Aether::ptr const& aether() const { return aether_; }
+  Domain* domain() const { return domain_.get(); }
+  Aether* aether() const { return aether_.get(); }
 
   // Action context protocol
   operator ActionContext() const { return ActionContext{*aether_}; }
@@ -214,7 +208,7 @@ class AetherApp {
  private:
   std::unique_ptr<IDomainStorage> domain_facility_;
   std::unique_ptr<Domain> domain_;
-  Aether::ptr aether_;
+  std::unique_ptr<Aether> aether_;
 
   std::optional<int> exit_code_;
 };

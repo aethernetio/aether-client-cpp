@@ -20,7 +20,6 @@
 #include "aether/common.h"
 
 #include "aether/types/uid.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/actions/action_context.h"
 
 #include "aether/stream_api/buffer_stream.h"
@@ -39,8 +38,7 @@ class ReadMessageGate;
 
 class P2pStream final : public ByteIStream {
  public:
-  P2pStream(ActionContext action_context, ObjPtr<Client> const& client,
-            Uid destination);
+  P2pStream(ActionContext action_context, Client& client, Uid destination);
 
   ~P2pStream() override;
 
@@ -65,13 +63,12 @@ class P2pStream final : public ByteIStream {
   void ConnectSend();
 
   void DataReceived(AeMessage const& data);
-  std::unique_ptr<ClientConnectionManager> MakeConnectionManager(
-      ObjPtr<Cloud> const& cloud);
+  std::unique_ptr<ClientConnectionManager> MakeConnectionManager(Cloud& cloud);
   std::unique_ptr<CloudConnection> MakeDestinationCloudConn(
       ClientConnectionManager& connection_manager);
 
   ActionContext action_context_;
-  PtrView<Client> client_;
+  Client* client_;
   Uid destination_;
 
   // connection manager to destination cloud

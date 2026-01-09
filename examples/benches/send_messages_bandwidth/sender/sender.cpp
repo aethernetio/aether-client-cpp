@@ -23,7 +23,7 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-Sender::Sender(ActionContext action_context, Client::ptr client,
+Sender::Sender(ActionContext action_context, std::shared_ptr<Client> client,
                Uid destination)
     : action_context_{action_context},
       client_{std::move(client)},

@@ -18,6 +18,7 @@
 #define AETHER_TELE_TELE_INIT_H_
 
 // IWYU pragma: begin_keeps
+#include <memory>
 #include "aether/tele/tele.h"
 #include "aether/tele/traps/tele_statistics.h"
 // IWYU pragma: end_keeps
@@ -25,7 +26,7 @@
 namespace ae::tele {
 struct TeleInit {
   static void Init();
-  static void Init(TeleStatistics::ptr const& tele_statistics);
+  static void Init(std::shared_ptr<TeleStatistics> const& tele_statistics);
 };
 }  // namespace ae::tele
 

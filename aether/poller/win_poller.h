@@ -64,13 +64,9 @@ class WinPoller : public IPoller {
 
   class IoCPPoller;
 
-  WinPoller();
-
  public:
   explicit WinPoller(Domain* domain);
   ~WinPoller() override;
-
-  AE_OBJECT_REFLECT()
 
   NativePoller* Native() override;
 

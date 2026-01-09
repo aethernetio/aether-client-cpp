@@ -49,7 +49,7 @@ class RegistratorAction : public Action<RegistratorAction> {
   std::vector<RegisteredClient> const& registered_clients() const;
 
  private:
-  void RegisterClients(ae::Aether::ptr const& aether,
+  void RegisterClients(ae::Aether& aether,
                        std::vector<reg::ClientConfig> const& client_configs);
 
   std::vector<RegisteredClient> registered_clients_;

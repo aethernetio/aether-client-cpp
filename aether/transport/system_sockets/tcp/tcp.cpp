@@ -102,12 +102,12 @@ void TcpTransport::ReadAction::DataReceived() {
   }
 }
 
-TcpTransport::TcpTransport(ActionContext action_context,
-                           IPoller::ptr const& poller, AddressPort endpoint)
+TcpTransport::TcpTransport(ActionContext action_context, IPoller& poller,
+                           AddressPort endpoint)
     : action_context_{action_context},
       endpoint_{std::move(endpoint)},
       stream_info_{},
-      socket_{TcpSocketsFactory::Create(*poller)},
+      socket_{TcpSocketsFactory::Create(poller)},
       send_queue_manager_{action_context_},
       read_action_{action_context_, *this},
       socket_connect_action_{action_context_},

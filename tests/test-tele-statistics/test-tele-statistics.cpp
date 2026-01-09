@@ -23,7 +23,6 @@
 #  include "aether/common.h"
 #  include "aether/tele/tele.h"
 #  include "aether/tele/sink.h"
-#  include "aether/ptr/rc_ptr.h"
 #  include "aether/tele/traps/statistics_trap.h"
 
 #  include "aether/tele/traps/tele_statistics.h"
@@ -50,27 +49,26 @@ namespace ae::tele::test {
 void test_StatisticsRotation() {
   auto ram_ds = RamDomainStorage{};
   ram_ds.CleanUp();
-  auto domain = ae::Domain{ae::ClockType::now(), ram_ds};
+  auto domain = ae::Domain{ram_ds};
 
-  TeleStatistics::ptr tele_statistics =
-      domain.CreateObj<TeleStatistics>(ObjId{1});
-  tele_statistics->trap()->MergeStatistics(*statistics_trap);
+  TeleStatistics tele_statistics = TeleStatistics{&domain};
+  tele_statistics.trap()->MergeStatistics(*statistics_trap);
   // set 100 byte
-  tele_statistics->trap()->statistics_store.SetSizeLimit(100);
+  tele_statistics.trap()->statistics_store.SetSizeLimit(100);
 
-  InitTeleSink(tele_statistics->trap());
+  InitTeleSink(tele_statistics.trap());
   {
     AE_TELED_DEBUG("12");
   }
   auto statistics_size =
       std::get<statistics::RuntimeLog>(
-          *tele_statistics->trap()->statistics_store.log_store())
+          *tele_statistics.trap()->statistics_store.log_store())
           .size;
   TEST_ASSERT_LESS_THAN(100, statistics_size);
-  tele_statistics->trap()->statistics_store.SetSizeLimit(1);
+  tele_statistics.trap()->statistics_store.SetSizeLimit(1);
   // rotation happened
   auto zero_size = std::get<statistics::RuntimeLog>(
-                       *tele_statistics->trap()->statistics_store.log_store())
+                       *tele_statistics.trap()->statistics_store.log_store())
                        .size;
   TEST_ASSERT_EQUAL(0, zero_size);
 }
@@ -78,45 +76,41 @@ void test_StatisticsRotation() {
 void test_SaveLoadTeleStatistics() {
   auto ram_ds = RamDomainStorage{};
   ram_ds.CleanUp();
-  auto domain = ae::Domain{ae::ClockType::now(), ram_ds};
+  auto domain = ae::Domain{ram_ds};
 
   AE_TELE_ENV();
 
-  TeleStatistics::ptr tele_statistics =
-      domain.CreateObj<TeleStatistics>(ObjId{1});
-  tele_statistics->trap()->MergeStatistics(*statistics_trap);
-  InitTeleSink(tele_statistics->trap());
+  TeleStatistics tele_statistics = TeleStatistics{&domain};
+  tele_statistics.trap()->MergeStatistics(*statistics_trap);
+  InitTeleSink(tele_statistics.trap());
   {
     AE_TELED_DEBUG("12");
   }
   auto statistics_size =
       std::get<statistics::RuntimeLog>(
-          *tele_statistics->trap()->statistics_store.log_store())
+          *tele_statistics.trap()->statistics_store.log_store())
           .size;
 
   // use new trap to prevent statistics change while save
   auto temp_trap = std::make_shared<ae::tele::statistics::StatisticsTrap>();
   InitTeleSink(temp_trap);
 
-  domain.SaveRoot(tele_statistics);
+  tele_statistics.Save();
 
   // load stored object in new instance
-  auto domain2 = ae::Domain{ae::ClockType::now(), ram_ds};
-  TeleStatistics::ptr tele_statistics2;
-  tele_statistics2.SetId(ObjId{1});
-  domain2.LoadRoot(tele_statistics2);
-  TEST_ASSERT(static_cast<bool>(tele_statistics2));
+  auto domain2 = ae::Domain{ram_ds};
+  TeleStatistics tele_statistics2{&domain2};
 
   auto statistics_size2 =
       std::get<statistics::RuntimeLog>(
-          *tele_statistics2->trap()->statistics_store.log_store())
+          *tele_statistics2.trap()->statistics_store.log_store())
           .size;
   TEST_ASSERT_EQUAL(statistics_size, statistics_size2);
 
   auto& metrics1 =
-      tele_statistics->trap()->statistics_store.metrics_store().metrics;
+      tele_statistics.trap()->statistics_store.metrics_store().metrics;
   auto& metrics2 =
-      tele_statistics2->trap()->statistics_store.metrics_store().metrics;
+      tele_statistics2.trap()->statistics_store.metrics_store().metrics;
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
 
   if constexpr (_AE_MODULE_CONFIG(MLog.id, AE_TELE_METRICS_MODULES) &&

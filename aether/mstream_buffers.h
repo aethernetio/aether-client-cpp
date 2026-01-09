@@ -19,8 +19,9 @@
 
 #include <vector>
 #include <cstdint>
+#include <cassert>
+#include <cstring>
 
-#include "aether/mstream.h"
 #include "aether/memory_buffer.h"
 
 namespace ae {
@@ -45,26 +46,19 @@ struct VectorWriter {
 template <typename SizeType = std::uint32_t>
 struct VectorReader {
   using size_type = SizeType;
-  std::vector<uint8_t> const& data_;
-  std::size_t offset_ = 0;
-  ReadResult result_{};
 
-  VectorReader(std::vector<uint8_t> const& data) : data_(data) {}
+  VectorReader(std::vector<uint8_t> const& d) : data{d} {}
   virtual ~VectorReader() = default;
 
-  size_t read(void* data, size_t size) {
-    if (offset_ + size > data_.size()) {
-      result_ = ReadResult::kNo;
-      return 0;
-    }
-    std::memcpy(data, data_.data() + offset_, size);
-    offset_ += size;
-    result_ = ReadResult::kYes;
+  size_t read(void* d, size_t size) {
+    assert(((offset + size) <= data.size()) && "Read overflow");
+    std::memcpy(d, data.data() + offset, size);
+    offset += size;
     return size;
   }
 
-  ReadResult result() const { return result_; }
-  void result(ReadResult result) { result_ = result; }
+  std::vector<uint8_t> const& data;
+  std::size_t offset = 0;
 };
 
 /**
@@ -98,33 +92,24 @@ template <typename SizeType = std::uint32_t>
 struct MemStreamReader {
   using size_type = SizeType;
 
-  MemStreamBuf<> buffer_;
-
-  ReadResult read_result_{};
-
   size_t add_data(uint8_t const* data, size_t size) {
     // expand buffer with new data
-    auto s = buffer_.sputn(reinterpret_cast<char const*>(data),
-                           static_cast<std::streamsize>(size));
+    auto s = buffer.sputn(reinterpret_cast<char const*>(data),
+                          static_cast<std::streamsize>(size));
     return static_cast<size_t>(s);
   }
 
-  void reset_read() { buffer_.pubseekpos(0, std::ios_base::in); }
-  void reset_write() { buffer_.pubseekpos(0, std::ios_base::out); }
+  void reset_read() { buffer.pubseekpos(0, std::ios_base::in); }
+  void reset_write() { buffer.pubseekpos(0, std::ios_base::out); }
 
   size_t read(void* dst, size_t size) {
-    auto s = buffer_.sgetn(static_cast<char*>(dst),
-                           static_cast<std::streamsize>(size));
-    if (s != size) {
-      read_result_ = ReadResult::kNo;
-    } else {
-      read_result_ = ReadResult::kYes;
-    }
+    auto s = buffer.sgetn(static_cast<char*>(dst),
+                          static_cast<std::streamsize>(size));
+    assert((s == size) && "Read overflow");
     return static_cast<size_t>(s);
   }
 
-  ReadResult result() const { return read_result_; }
-  void result(ReadResult result) { read_result_ = result; }
+  MemStreamBuf<> buffer;
 };
 
 template <typename SizeType = std::uint32_t>

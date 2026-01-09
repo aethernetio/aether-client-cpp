@@ -149,7 +149,6 @@ jobs:
           - {
               name: "Optimized",
               user_config: "./config/user_config_optimized.h",
-              fs_init: "./config/file_system_init.h",
             }
 
     steps:
@@ -167,8 +166,6 @@ jobs:
           command: idf.py build
             -DCOMPILE_EXAMPLE=${{ matrix.compile_example }}
             -DUSER_CONFIG=../../../../../${{ matrix.platforms.user_config }}
-            -DFS_INIT="../../../../../${{ matrix.platforms.fs_init }}"
-            -DAE_DISTILLATION=Off
 
       - name: Rename artifact
         run: |

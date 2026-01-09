@@ -54,12 +54,8 @@ class KqueuePollerImpl : public UnixPollerImpl {
 class KqueuePoller : public IPoller {
   AE_OBJECT(KqueuePoller, IPoller, 0)
 
-  KqueuePoller();
-
  public:
   KqueuePoller(Domain* domain);
-
-  AE_OBJECT_REFLECT()
 
   NativePoller* Native() override;
 

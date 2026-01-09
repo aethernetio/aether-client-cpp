@@ -27,22 +27,19 @@
 namespace ae {
 class Aether;
 
-class RegistrationCloud : public Cloud {
+class RegistrationCloud final : public Cloud {
   AE_OBJECT(RegistrationCloud, Cloud, 0)
 
-  RegistrationCloud() = default;
-
  public:
-#  ifdef AE_DISTILLATION
-  explicit RegistrationCloud(ObjPtr<Aether> aether, Domain* domain);
-#  endif
-
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_));
+  RegistrationCloud(Aether& aether, Domain* domain);
 
   void AddServerSettings(Endpoint address);
 
+  std::vector<std::shared_ptr<Server>>& servers() override;
+
  private:
-  Obj::ptr aether_;
+  Aether* aether_;
+  std::vector<std::shared_ptr<Server>> servers_;
 };
 }  // namespace ae
 #else

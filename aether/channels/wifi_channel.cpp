@@ -20,7 +20,6 @@
 #include <utility>
 #include <cstdint>
 
-#include "aether/ptr/ptr_view.h"
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
 #include "aether/events/event_subscription.h"
@@ -45,15 +44,14 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   };
 
   WifiTransportBuilderAction(ActionContext action_context, WifiChannel& channel,
-                             WifiAccessPoint::ptr const& access_point,
-                             IPoller::ptr const& poller,
-                             DnsResolver::ptr const& resolver, Endpoint address)
+                             WifiAccessPoint& access_point, IPoller& poller,
+                             DnsResolver& resolver, Endpoint address)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
         channel_{&channel},
-        access_point_{access_point},
-        poller_{poller},
-        resolver_{resolver},
+        access_point_{&access_point},
+        poller_{&poller},
+        resolver_{&resolver},
         address_{std::move(address)},
         state_{State::kWifiConnect} {}
 
@@ -86,9 +84,7 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
 
  private:
   void WifiConnect() {
-    auto access_point = access_point_.Lock();
-    assert(access_point);
-    auto connect_action = access_point->Connect();
+    auto connect_action = access_point_->Connect();
     wifi_connected_sub_ = connect_action->StatusEvent().Subscribe(ActionHandler{
         OnResult{[this]() {
           // build transport start after wifi is connected
@@ -111,13 +107,10 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
         address_.address);
   }
 
-  void DoResolverAddress([[maybe_unused]] NamedAddr const& name_address,
-                         [[maybe_unused]] std::uint16_t port,
-                         [[maybe_unused]] Protocol protocol) {
 #if AE_SUPPORT_CLOUD_DNS
-    auto dns_resolver = resolver_.Lock();
-    assert(dns_resolver);
-    auto resolve_action = dns_resolver->Resolve(name_address, port, protocol);
+  void DoResolverAddress(NamedAddr const& name_address, std::uint16_t port,
+                         Protocol protocol) {
+    auto resolve_action = resolver_->Resolve(name_address, port, protocol);
 
     address_resolve_sub_ = resolve_action->StatusEvent().Subscribe(
         ActionHandler{OnResult{[this](auto& action) {
@@ -133,9 +126,9 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
                         }
                       }});
 #else
-    AE_TELED_ERROR("Unable to resolve named address");
-    state_ = State::kFailed;
-    Action::Trigger();
+  AE_TELED_ERROR("Unable to resolve named address");
+  state_ = State::kFailed;
+  Action::Trigger();
 #endif
   }
 
@@ -157,11 +150,9 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
       return;
     }
 
-    IPoller::ptr poller = poller_.Lock();
-    assert(poller);
     auto& addr = *(it_++);
     transport_stream_ =
-        EthernetTransportFactory::Create(action_context_, poller, addr);
+        EthernetTransportFactory::Create(action_context_, *poller_, addr);
     if (!transport_stream_) {
       // try next address
       state_ = State::kTransportCreate;
@@ -198,9 +189,9 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
 
   ActionContext action_context_;
   WifiChannel* channel_;
-  PtrView<WifiAccessPoint> access_point_;
-  PtrView<IPoller> poller_;
-  PtrView<DnsResolver> resolver_;
+  WifiAccessPoint* access_point_;
+  IPoller* poller_;
+  DnsResolver* resolver_;
   Endpoint address_;
 
   std::vector<Endpoint> ip_addresses_;
@@ -214,16 +205,17 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
 };
 }  // namespace wifi_channel_internal
 
-WifiChannel::WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
-                         ObjPtr<DnsResolver> resolver,
-                         WifiAccessPoint::ptr access_point, Endpoint address,
+WifiChannel::WifiChannel(Aether& aether, IPoller& poller, DnsResolver& resolver,
+                         WifiAccessPoint& access_point, Endpoint address,
                          Domain* domain)
-    : Channel{domain},
+    : Channel{Hash(kTypeName, access_point.creds().ssid,
+                   access_point.creds().password),
+              domain},
       address{std::move(address)},
-      aether_(std::move(aether)),
-      poller_(std::move(poller)),
-      resolver_(std::move(resolver)),
-      access_point_(std::move(access_point)) {
+      aether_(&aether),
+      poller_(&poller),
+      resolver_(&resolver),
+      access_point_(&access_point) {
   // fill transport properties
   auto protocol = address.protocol;
 
@@ -251,29 +243,16 @@ WifiChannel::WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
 
 Duration WifiChannel::TransportBuildTimeout() const {
   if (access_point_->IsConnected()) {
-    return channel_statistics_->connection_time_statistics().percentile<99>();
+    return channel_statistics_.connection_time_statistics().percentile<99>();
   }
   // add time required for wifi connection
-  return channel_statistics_->connection_time_statistics().percentile<99>() +
+  return channel_statistics_.connection_time_statistics().percentile<99>() +
          std::chrono::milliseconds{AE_WIFI_CONNECTION_TIMEOUT_MS};
 }
 
 ActionPtr<TransportBuilderAction> WifiChannel::TransportBuilder() {
-  if (!resolver_) {
-    aether_->domain_->LoadRoot(resolver_);
-  }
-  if (!poller_) {
-    aether_->domain_->LoadRoot(poller_);
-  }
-  if (!access_point_) {
-    aether_->domain_->LoadRoot(access_point_);
-  }
-
-  IPoller::ptr poller = poller_;
-  DnsResolver::ptr resolver = resolver_;
-
   return ActionPtr<wifi_channel_internal::WifiTransportBuilderAction>{
-      *aether_.as<Aether>(), *this, access_point_, poller, resolver, address};
+      *aether_, *this, *access_point_, *poller_, *resolver_, address};
 }
 
 }  // namespace ae

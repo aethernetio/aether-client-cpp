@@ -23,7 +23,7 @@ RegistratorAction::RegistratorAction(
     : Action{action_context}, state_{State::kWait} {
   AE_TELED_INFO("RegistratorAction");
   state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
-  RegisterClients(aether_app->aether(), client_configs);
+  RegisterClients(*aether_app->aether(), client_configs);
 }
 
 UpdateStatus RegistratorAction::Update() {
@@ -50,20 +50,20 @@ std::vector<RegisteredClient> const& RegistratorAction::registered_clients()
  * We need a two clients for this test.
  */
 void RegistratorAction::RegisterClients(
-    ae::Aether::ptr const& aether,
-    std::vector<reg::ClientConfig> const& client_configs) {
+    ae::Aether& aether, std::vector<reg::ClientConfig> const& client_configs) {
   AE_TELED_INFO("Client registration");
 #if not AE_SUPPORT_REGISTRATION
   // registration should be supported for this tool
   assert(false);
 #else
+
   std::size_t clients_count = client_configs.size();
   assert(clients_count > 0 && "No client configurations provided");
 
   for (auto const& c : client_configs) {
     auto parent_uid = ae::Uid::FromString(c.parent_uid);
     assert(!parent_uid.empty());
-    auto reg_action = aether->RegisterClient(parent_uid);
+    auto reg_action = aether.RegisterClient(parent_uid);
     registration_sub_ += reg_action->StatusEvent().Subscribe(ActionHandler{
         OnResult{
             [this, clients_count, client_id{&c.client_id}](auto const& action) {

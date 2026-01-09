@@ -27,19 +27,14 @@ static constexpr std::string_view kWifiPass = "Test1234";
 
 RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
-      AetherAppContext{}
-#  if defined AE_DISTILLATION
-          .AdaptersFactory([](AetherAppContext const& context) {
-            auto adapter_registry =
-                context.domain().CreateObj<AdapterRegistry>();
-            adapter_registry->Add(context.domain().CreateObj<WifiAdapter>(
-                GlobalId::kWiFiAdapter, context.aether(), context.poller(),
-                context.dns_resolver(), std::string(kWifiSsid),
-                std::string(kWifiPass)));
-            return adapter_registry;
-          })
-#  endif
-  );
+      AetherAppContext{}.AdaptersFactory([](AetherAppContext const& context) {
+        auto adapter_registry =
+            std::make_shared<AdapterRegistry>(context.domain());
+        adapter_registry->Add(std::make_shared<WifiAdapter>(
+            *context.aether(), *context.poller(), *context.dns_resolver(),
+            std::string(kWifiSsid), std::string(kWifiPass), context.domain()));
+        return adapter_registry;
+      }));
 }
 
 }  // namespace ae::cloud_test

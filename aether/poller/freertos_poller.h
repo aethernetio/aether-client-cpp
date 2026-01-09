@@ -64,13 +64,10 @@ class FreeRtosLwipPollerImpl : public NativePoller {
 
 class FreertosPoller : public IPoller {
   AE_OBJECT(FreertosPoller, IPoller, 0)
-
-  FreertosPoller();
+  class PollWorker;
 
  public:
   explicit FreertosPoller(Domain* domain);
-
-  AE_OBJECT_REFLECT()
 
   NativePoller* Native() override;
 

@@ -34,8 +34,7 @@
 namespace ae {
 
 Registration::Registration(ActionContext action_context, Aether& aether,
-                           RegistrationCloud::ptr const& reg_cloud,
-                           Uid parent_uid)
+                           Cloud& reg_cloud, Uid parent_uid)
     : Action{action_context},
       action_context_{action_context},
       parent_uid_{std::move(parent_uid)},
@@ -57,8 +56,7 @@ Registration::Registration(ActionContext action_context, Aether& aether,
   assert(!parent_uid_.empty());
 
   // trigger action on state change
-  state_change_subscription_ =
-      state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
 }
 
 Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
@@ -328,9 +326,6 @@ void Registration::ResolveCloud() {
 void Registration::OnCloudResolved(
     std::vector<ServerDescriptor> const& servers) {
   AE_TELE_INFO(RegisterResolveCloudResponse);
-
-  std::vector<Server::ptr> server_objects;
-  server_objects.reserve(servers.size());
 
   for (const auto& description : servers) {
     std::vector<Endpoint> endpoints;

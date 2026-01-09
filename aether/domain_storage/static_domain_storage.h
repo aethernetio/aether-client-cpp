@@ -29,59 +29,42 @@ class StaticDomainStorageReader final : public IDomainStorageReader {
 
   void read(void* out, std::size_t size) override;
 
-  ReadResult result() const override;
-  void result(ReadResult) override;
-
  private:
   Span<std::uint8_t const> const* data;
   std::size_t offset;
 };
 
-template <std::size_t ObjectCount, std::size_t ClassDataCount>
+template <std::size_t ObjectCount>
 class StaticDomainStorage final : public IDomainStorage {
  public:
   constexpr explicit StaticDomainStorage(
-      StaticDomainData<ObjectCount, ClassDataCount> const& sdd)
+      StaticDomainData<ObjectCount> const& sdd)
       : static_domain_data_{&sdd} {}
 
   std::unique_ptr<IDomainStorageWriter> Store(
-      DomainQuery const& /*query*/) override {
+      DataKey /* key */, std::uint8_t /* version */) override {
     // does not supported
     return {};
   }
 
-  ClassList Enumerate(ObjId const& obj_id) override {
-    // object_map is defined in FS_INIT
-    auto const classes = static_domain_data_->object_map.find(obj_id.id());
-    if (classes == std::end(static_domain_data_->object_map)) {
-      AE_TELED_ERROR("Obj not found {}", obj_id.ToString());
-      return {};
-    }
-    AE_TELED_DEBUG("Enumerated for obj {} classes {}", obj_id.ToString(),
-                   classes->second);
-    return ClassList{std::begin(classes->second), std::end(classes->second)};
-  }
-
-  DomainLoad Load(DomainQuery const& query) override {
+  DomainLoad Load(DataKey key, std::uint8_t version) override {
     // state_map is defined in FS_INIT
-    auto obj_path = ObjectPathKey{query.id.id(), query.class_id, query.version};
+    auto obj_path = ObjectPathKey{key, version};
     auto const data = static_domain_data_->state_map.find(obj_path);
     if (data == std::end(static_domain_data_->state_map)) {
-      AE_TELED_ERROR("Unable to find object id={}, class id={}, version={}",
-                     query.id.ToString(), query.class_id,
-                     static_cast<int>(query.version));
+      AE_TELED_ERROR("Unable to find object key={}, version={}", key,
+                     static_cast<int>(version));
       return {DomainLoadResult::kEmpty, {}};
     }
-    AE_TELED_DEBUG("Loaded object id={}, class id={}, version={}, size={}",
-                   query.id.ToString(), query.class_id,
-                   static_cast<int>(query.version), data->second.size());
+    AE_TELED_DEBUG("Loaded object key={}, version={}, size={}", key,
+                   static_cast<int>(version), data->second.size());
 
     return DomainLoad{
         DomainLoadResult::kLoaded,
         std::make_unique<StaticDomainStorageReader>(data->second)};
   }
 
-  void Remove(ObjId const& /*obj_id*/) override {
+  void Remove(DataKey /* key */) override {
     // does not supported
   }
   void CleanUp() override {
@@ -89,12 +72,12 @@ class StaticDomainStorage final : public IDomainStorage {
   }
 
  private:
-  StaticDomainData<ObjectCount, ClassDataCount> const* static_domain_data_;
+  StaticDomainData<ObjectCount> const* static_domain_data_;
 };
 
-template <std::size_t ObjectCount, std::size_t ClassDataCount>
-StaticDomainStorage(StaticDomainData<ObjectCount, ClassDataCount> const&)
-    -> StaticDomainStorage<ObjectCount, ClassDataCount>;
+template <std::size_t ObjectCount>
+StaticDomainStorage(StaticDomainData<ObjectCount> const&)
+    -> StaticDomainStorage<ObjectCount>;
 
 }  // namespace ae
 

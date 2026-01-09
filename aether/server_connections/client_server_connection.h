@@ -42,10 +42,8 @@ class Channel;
  */
 class ClientServerConnection {
  public:
-  ClientServerConnection(ActionContext action_context,
-                         ObjPtr<Client> const& client,
-                         ObjPtr<Server> const& server);
-  ~ClientServerConnection();
+  explicit ClientServerConnection(ActionContext action_context, Client& client,
+                                  Server& server);
 
   AE_CLASS_NO_COPY_MOVE(ClientServerConnection)
 
@@ -63,7 +61,7 @@ class ClientServerConnection {
   void StreamUpdate();
 
   ActionContext action_context_;
-  PtrView<Server> server_;
+  Server* server_;
   Uid ephemeral_uid_;
 
   std::unique_ptr<ICryptoProvider> crypto_provider_;

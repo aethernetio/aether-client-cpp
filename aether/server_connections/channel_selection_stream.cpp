@@ -102,21 +102,20 @@ ChannelSelectStream::TopChannel() {
           return false;
         }
 
-        auto props_a = a->channel()->transport_properties();
-        auto props_b = b->channel()->transport_properties();
+        auto props_a = a->channel().transport_properties();
+        auto props_b = b->channel().transport_properties();
         // select the fastest connection type
         if (props_a.connection_type > props_b.connection_type) {
           return true;
         }
         if (props_a.connection_type == props_b.connection_type) {
           // select the lower connection time
-          if (a->channel()->TransportBuildTimeout() <
-              b->channel()->TransportBuildTimeout()) {
+          if (a->channel().TransportBuildTimeout() <
+              b->channel().TransportBuildTimeout()) {
             return true;
           }
           // select the lower ping time
-          if (a->channel()->ResponseTimeout() <
-              b->channel()->ResponseTimeout()) {
+          if (a->channel().ResponseTimeout() < b->channel().ResponseTimeout()) {
             return true;
           }
         }
@@ -147,7 +146,7 @@ void ChannelSelectStream::SelectChannel() {
 
   AE_TELED_DEBUG("New channel selected");
 
-  auto const& tp = server_channel_->channel()->transport_properties();
+  auto const& tp = server_channel_->channel().transport_properties();
   stream_info_.max_element_size = tp.max_packet_size;
   stream_info_.rec_element_size = tp.rec_packet_size;
   stream_info_.is_reliable = (tp.reliability == Reliability::kReliable);

@@ -44,7 +44,7 @@ static void TeleSinkInit() {
 
 template <typename SelectedSink>
 static void TeleSinkReInit(
-    [[maybe_unused]] TeleStatistics::ptr const& tele_statistics) {
+    [[maybe_unused]] std::shared_ptr<TeleStatistics> const& tele_statistics) {
 #if AE_TELE_ENABLED
 #  if AE_TELE_LOG_CONSOLE
   // statistics trap + print logs to iostream
@@ -68,7 +68,7 @@ static void TeleSinkReInit(
 }
 
 void TeleInit::Init() { TeleSinkInit<TELE_SINK>(); }
-void TeleInit::Init(TeleStatistics::ptr const& tele_statistics) {
+void TeleInit::Init(std::shared_ptr<TeleStatistics> const& tele_statistics) {
   TeleSinkReInit<TELE_SINK>(tele_statistics);
 }
 
