@@ -30,7 +30,7 @@ Server::Server(ServerId server_id,
       adapter_registry_{std::move(adapter_registry)} {
   assert((server_id != 0) && "Server ID must be non-zero");
   domain_->Load(*this, Hash(kTypeName, server_id));
-  AE_TELED_DEBUG("Loaded server id={}, endpoints={}", server_id, endpoints);
+  AE_TELED_DEBUG("Loaded server id={}, endpoints=[{}]", server_id, endpoints);
   Register();
 }
 
