@@ -244,6 +244,11 @@
 #  define AE_CLOUD_MAX_SERVER_CONNECTIONS 3
 #endif
 
+// Cloud server quarantine time
+#ifndef AE_CLOUD_SERVER_QUARANTINE_TIME_MS
+#  define AE_CLOUD_SERVER_QUARANTINE_TIME_MS 10000
+#endif
+
 // Telemetry configuration
 // Compilation info
 // Environment info
