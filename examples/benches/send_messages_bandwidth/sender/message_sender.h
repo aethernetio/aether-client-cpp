@@ -25,7 +25,7 @@
 #include "aether/types/state_machine.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/stream_api/stream_write_action.h"
+#include "aether/write_action/write_action.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
 
@@ -40,8 +40,7 @@ class MessageSender : public Action<MessageSender> {
   };
 
  public:
-  using SendProc =
-      std::function<ActionPtr<StreamWriteAction>(std::uint16_t id)>;
+  using SendProc = std::function<ActionPtr<WriteAction>(std::uint16_t id)>;
 
   MessageSender(ActionContext action_context, SendProc send_proc,
                 std::size_t send_count);
