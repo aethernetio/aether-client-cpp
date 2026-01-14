@@ -25,10 +25,10 @@
 #include "aether/actions/action_ptr.h"
 
 namespace ae {
-class MockStreamWriteAction : public StreamWriteAction {
+class MockStreamWriteAction : public WriteAction {
  public:
   explicit MockStreamWriteAction(ActionContext action_context)
-      : StreamWriteAction{action_context} {
+      : WriteAction{action_context} {
     state_.Set(State::kDone);
   }
 
@@ -42,7 +42,7 @@ class MockWriteStream : public ByteStream {
       : action_context_{action_context},
         stream_info_{max_data_size, max_data_size, {}, {}, {}} {}
 
-  ActionPtr<StreamWriteAction> Write(DataBuffer&& buffer) override {
+  ActionPtr<WriteAction> Write(DataBuffer&& buffer) override {
     on_write_.Emit(std::move(buffer));
     return ActionPtr<MockStreamWriteAction>{action_context_};
   }

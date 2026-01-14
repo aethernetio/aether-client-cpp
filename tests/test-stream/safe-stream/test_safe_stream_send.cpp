@@ -46,9 +46,9 @@ class MockSendDataPush final : public ISendDataPush {
     DataMessage data_message;
   };
 
-  class MockStreamWriteAction final : public StreamWriteAction {
+  class MockStreamWriteAction final : public WriteAction {
    public:
-    explicit MockStreamWriteAction(ActionContext ac) : StreamWriteAction{ac} {
+    explicit MockStreamWriteAction(ActionContext ac) : WriteAction{ac} {
       state_ = State::kDone;
     }
 
@@ -57,7 +57,7 @@ class MockSendDataPush final : public ISendDataPush {
 
   explicit MockSendDataPush(ActionContext ac) : action_context_{ac} {}
 
-  ActionPtr<StreamWriteAction> PushData(SSRingIndex begin,
+  ActionPtr<WriteAction> PushData(SSRingIndex begin,
                                         DataMessage &&data_message) override {
     send_data = SendData{begin, std::move(data_message)};
     return ActionPtr<MockStreamWriteAction>{action_context_};
