@@ -23,14 +23,13 @@
 #include "aether/ae_actions/ping.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/crypto/icrypto_provider.h"
-#include "aether/server_connections/server_channel.h"
-#include "aether/server_connections/channel_manager.h"
-#include "aether/server_connections/channel_selection_stream.h"
 
 #include "aether/work_cloud_api/work_server_api/login_api.h"
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
 #include "aether/work_cloud_api/client_api/client_api_unsafe.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
+
+#include "aether/server_connections/server_connection.h"
 
 namespace ae {
 class Client;
@@ -53,14 +52,14 @@ class ClientServerConnection {
   StreamInfo stream_info() const;
   ByteIStream::StreamUpdateEvent::Subscriber stream_update_event();
 
-  ActionPtr<StreamWriteAction> AuthorizedApiCall(
-      SubApi<AuthorizedApi> auth_api);
+  ActionPtr<WriteAction> AuthorizedApiCall(SubApi<AuthorizedApi> auth_api);
   ClientApiSafe& client_safe_api();
+
+  ServerConnection& server_connection();
 
  private:
   void OutData(DataBuffer const& data);
-  void SubscribeToSelectChannel();
-  void StreamUpdate();
+  void ChannelChanged();
 
   ActionContext action_context_;
   PtrView<Server> server_;
@@ -71,14 +70,9 @@ class ClientServerConnection {
   ClientApiUnsafe client_api_unsafe_;
   LoginApi login_api_;
 
-  ChannelManager channel_manager_;
-  ChannelSelectStream channel_select_stream_;
+  ServerConnection server_connection_;
   OwnActionPtr<Ping> ping_;
 
-  ServerChannel const* server_channel_;
-
-  Subscription out_data_sub_;
-  Subscription stream_update_sub_;
   Subscription ping_sub_;
 };
 }  // namespace ae

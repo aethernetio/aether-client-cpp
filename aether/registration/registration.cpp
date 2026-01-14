@@ -116,12 +116,9 @@ void Registration::InitConnection() {
     state_ = State::kInitConnection;
   });
 
-  root_server_select_stream_.stream_update_event().Subscribe([this]() {
-    if (root_server_select_stream_.stream_info().link_state ==
-        LinkState::kLinkError) {
-      AE_TELED_ERROR("Link Error, Registration failed");
-      state_ = State::kRegistrationFailed;
-    }
+  root_server_select_stream_.cloud_error_event().Subscribe([this]() {
+    AE_TELED_ERROR("Link Error, Registration failed");
+    state_ = State::kRegistrationFailed;
   });
 
   // Connect parser for out data

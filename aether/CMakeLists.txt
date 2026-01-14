@@ -120,8 +120,7 @@ list(APPEND registration_srcs
             "registration/proof_of_work.cpp"
             "registration/registration.cpp"
             "registration/registration_crypto_provider.cpp"
-            "registration/root_server_select_stream.cpp"
-            "registration/root_server_stream.cpp")
+            "registration/root_server_select_stream.cpp")
 
 
 list(APPEND adapters_srcs
@@ -246,13 +245,12 @@ list(APPEND work_cloud_api_srcs
 
 
 list(APPEND client_connections_srcs
-            "client_connections/cloud_connection.cpp")
+            "client_connections/cloud_connection.cpp"
+            "client_connections/cloud_server_connection.cpp"
+)
 
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
-            "server_connections/channel_selection_stream.cpp"
-            "server_connections/server_channel.cpp"
-            "server_connections/channel_manager.cpp"
             "server_connections/channel_connection.cpp"
             "server_connections/server_connection.cpp")
 

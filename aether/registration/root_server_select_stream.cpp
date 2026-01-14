@@ -27,12 +27,14 @@ RootServerSelectStream::RootServerSelectStream(
   SelectServer();
 }
 
-ActionPtr<StreamWriteAction> RootServerSelectStream::Write(DataBuffer&& data) {
-  assert(server_stream_);
-  return server_stream_->Write(std::move(data));
+ActionPtr<WriteAction> RootServerSelectStream::Write(DataBuffer&& data) {
+  assert(server_connection_);
+  return server_connection_->Write(std::move(data));
 }
 
-StreamInfo RootServerSelectStream::stream_info() const { return stream_info_; }
+StreamInfo RootServerSelectStream::stream_info() const {
+  return server_connection_ ? server_connection_->stream_info() : StreamInfo{};
+}
 
 RootServerSelectStream::StreamUpdateEvent::Subscriber
 RootServerSelectStream::stream_update_event() {
@@ -46,11 +48,11 @@ RootServerSelectStream::out_data_event() {
 
 void RootServerSelectStream::Restream() {
   AE_TELED_ERROR("Restream RootServerSelectStream");
-  if (server_stream_) {
-    server_stream_->Restream();
+  if (server_connection_) {
+    server_connection_->Restream();
     return;
   }
-  StreamUpdateError();
+  CloudError();
 }
 
 RootServerSelectStream::ServerChangedEvent::Subscriber
@@ -58,39 +60,35 @@ RootServerSelectStream::server_changed_event() {
   return server_changed_event_;
 }
 
+RootServerSelectStream::CloudErrorEvent::Subscriber
+RootServerSelectStream::cloud_error_event() {
+  return cloud_error_event_;
+}
+
 void RootServerSelectStream::SelectServer() {
   RegistrationCloud::ptr cloud_ptr = cloud_.Lock();
   assert(cloud_ptr);
 
   if (server_index_ >= cloud_ptr->servers().size()) {
-    StreamUpdateError();
+    CloudError();
     return;
   }
   auto chosen_server = cloud_ptr->servers()[server_index_++];
 
-  server_stream_.emplace(action_context_, chosen_server);
-  stream_update_sub_ = server_stream_->stream_update_event().Subscribe(
-      MethodPtr<&RootServerSelectStream::StreamUpdate>{this});
-  out_data_sub_ = server_stream_->out_data_event().Subscribe(out_data_event_);
+  server_connection_.emplace(action_context_, chosen_server);
 
-  StreamUpdate();
+  server_connection_->out_data_event().Subscribe(out_data_event_);
+  server_connection_->server_error_event().Subscribe(
+      MethodPtr<&RootServerSelectStream::ServerError>{this});
+
   server_changed_event_.Emit();
 }
 
-void RootServerSelectStream::StreamUpdate() {
-  assert(server_stream_);
-  stream_info_ = server_stream_->stream_info();
-  if (stream_info_.link_state == LinkState::kLinkError) {
-    SelectServer();
-    return;
-  }
-  stream_update_event_.Emit();
-}
+void RootServerSelectStream::ServerError() { SelectServer(); }
 
-void RootServerSelectStream::StreamUpdateError() {
+void RootServerSelectStream::CloudError() {
   AE_TELED_ERROR("Root server select stream error");
-  stream_info_.link_state = LinkState::kLinkError;
-  stream_update_event_.Emit();
+  cloud_error_event_.Emit();
 }
 
 }  // namespace ae

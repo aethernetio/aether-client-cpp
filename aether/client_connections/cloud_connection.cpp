@@ -19,19 +19,18 @@
 #include <algorithm>
 
 #include "aether/server.h"
-#include "aether/stream_api/stream_write_action.h"
+#include "aether/write_action/write_action.h"
 #include "aether/server_connections/server_connection.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae {
 namespace cloud_connection_internal {
-class ReplicaStreamWriteAction final : public StreamWriteAction {
+class ReplicaStreamWriteAction final : public WriteAction {
  public:
-  ReplicaStreamWriteAction(
-      ActionContext action_context,
-      std::vector<ActionPtr<StreamWriteAction>> replica_actions)
-      : StreamWriteAction(action_context),
+  ReplicaStreamWriteAction(ActionContext action_context,
+                           std::vector<ActionPtr<WriteAction>> replica_actions)
+      : WriteAction(action_context),
         replica_actions_(std::move(replica_actions)) {
     if (replica_actions_.empty()) {
       state_ = State::kFailed;
@@ -39,7 +38,7 @@ class ReplicaStreamWriteAction final : public StreamWriteAction {
     }
     for (auto& action : replica_actions_) {
       // get the state from replicas by OR
-      subs_ += action->state().changed_event().Subscribe([this](auto state) {
+      subs_ += action->state_changed().Subscribe([this](auto state) {
         if (state_ < state) {
           state_ = state;
         }
@@ -54,7 +53,7 @@ class ReplicaStreamWriteAction final : public StreamWriteAction {
   }
 
  private:
-  std::vector<ActionPtr<StreamWriteAction>> replica_actions_;
+  std::vector<ActionPtr<WriteAction>> replica_actions_;
   MultiSubscription subs_;
 };
 
@@ -101,7 +100,7 @@ void CloudConnection::ReplicaSubscription::ServersUpdate() {
   // clean old subscriptions and make new
   subscriptions_.Reset();
   cloud_connection_->VisitServers(
-      [&](ServerConnection* sc) {
+      [&](CloudServerConnection* sc) {
         if (auto* conn = sc->ClientConnection(); conn != nullptr) {
           subscriptions_ += subscriber_(conn->client_safe_api(), sc);
         }
@@ -123,12 +122,12 @@ CloudConnection::CloudConnection(ActionContext action_context,
   InitServers();
 }
 
-ActionPtr<StreamWriteAction> CloudConnection::AuthorizedApiCall(
+ActionPtr<WriteAction> CloudConnection::AuthorizedApiCall(
     AuthorizedApiCaller const& auth_api_caller, RequestPolicy::Variant policy) {
-  std::vector<ActionPtr<StreamWriteAction>> write_actions;
+  std::vector<ActionPtr<WriteAction>> write_actions;
 
   VisitServers(
-      [&](ServerConnection* sc) {
+      [&](CloudServerConnection* sc) {
         if (auto* conn = sc->ClientConnection(); conn != nullptr) {
           write_actions.push_back(conn->AuthorizedApiCall(SubApi<AuthorizedApi>{
               [&](auto& api) { auth_api_caller(api, sc); }}));
@@ -213,7 +212,7 @@ void CloudConnection::InitServers() {
 void CloudConnection::SelectServers() {
   server_state_subs_.Reset();
 
-  std::vector<ServerConnection*> servers;
+  std::vector<CloudServerConnection*> servers;
   servers.reserve(connection_manager_->server_connections().size());
   std::transform(std::begin(connection_manager_->server_connections()),
                  std::end(connection_manager_->server_connections()),
@@ -271,7 +270,7 @@ void CloudConnection::SelectServers() {
 }
 
 void CloudConnection::SubscribeToServerState(
-    ServerConnection* server_connection) {
+    CloudServerConnection* server_connection) {
   auto bad_server = [this, server_connection]() {
     // TODO: add the policy how to change the server priority on failure
     // put server in quarantine and make it the least prioritized
@@ -288,24 +287,17 @@ void CloudConnection::SubscribeToServerState(
     bad_server();
     return;
   }
-  // any link error leads to reselect the servers
-  if (conn->stream_info().link_state == LinkState::kLinkError) {
-    bad_server();
-    return;
-  }
 
-  server_state_subs_ += conn->stream_update_event().Subscribe(
-      [bad_server, conn, sid{server_connection->server()->server_id}]() {
-        AE_TELED_DEBUG("Server connection id {}, link state {}", sid,
-                       conn->stream_info().link_state);
-        // any link error leads to reselect the servers
-        if (conn->stream_info().link_state == LinkState::kLinkError) {
-          bad_server();
-        }
-      });
+  server_state_subs_ +=
+      conn->server_connection().server_error_event().Subscribe(
+          [bad_server, sid{server_connection->server()->server_id}]() {
+            AE_TELED_DEBUG("Server connection id {} ERROR!", sid);
+            // any link error leads to reselect the servers
+            bad_server();
+          });
 }
 
-void CloudConnection::UnselectServer(ServerConnection* server_connection) {
+void CloudConnection::UnselectServer(CloudServerConnection* server_connection) {
   auto it = std::find(std::begin(selected_servers_),
                       std::end(selected_servers_), server_connection);
   if (it == std::end(selected_servers_)) {
@@ -322,7 +314,8 @@ void CloudConnection::UnselectServer(ServerConnection* server_connection) {
                  selected_servers_.size());
 }
 
-void CloudConnection::QuarantineTimer(ServerConnection* server_connection) {
+void CloudConnection::QuarantineTimer(
+    CloudServerConnection* server_connection) {
   AE_TELED_DEBUG("Set server {} to qurantine",
                  server_connection->server()->server_id);
   if (!quarantine_timer_ || quarantine_timer_->IsFinished()) {

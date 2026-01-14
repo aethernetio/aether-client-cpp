@@ -23,47 +23,46 @@
 
 #  include <optional>
 
+#  include "aether/events/events.h"
 #  include "aether/registration_cloud.h"
 #  include "aether/stream_api/istream.h"
-#  include "aether/events/event_subscription.h"
 
-#  include "aether/registration/root_server_stream.h"
+#  include "aether/server_connections/server_connection.h"
 
 namespace ae {
 class Aether;
 class RootServerSelectStream final : public ByteIStream {
  public:
   using ServerChangedEvent = Event<void()>;
+  using CloudErrorEvent = Event<void()>;
 
   RootServerSelectStream(ActionContext action_context,
                          RegistrationCloud::ptr const& cloud);
 
-  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
+  ActionPtr<WriteAction> Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   OutDataEvent::Subscriber out_data_event() override;
   void Restream() override;
 
   ServerChangedEvent::Subscriber server_changed_event();
+  CloudErrorEvent::Subscriber cloud_error_event();
 
  private:
   void SelectServer();
-  void StreamUpdate();
-  void StreamUpdateError();
+  void ServerError();
+  void CloudError();
 
   ActionContext action_context_;
   PtrView<RegistrationCloud> cloud_;
 
   std::size_t server_index_;
-  std::optional<RootServerStream> server_stream_;
+  std::optional<ServerConnection> server_connection_;
 
-  StreamInfo stream_info_;
   StreamUpdateEvent stream_update_event_;
   OutDataEvent out_data_event_;
   ServerChangedEvent server_changed_event_;
-
-  Subscription stream_update_sub_;
-  Subscription out_data_sub_;
+  CloudErrorEvent cloud_error_event_;
 };
 }  // namespace ae
 

@@ -25,9 +25,10 @@
 #include "aether/actions/notify_action.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/multi_subscription.h"
+#include "aether/api_protocol/api_protocol.h"
+#include "aether/client_connections/cloud_server_connection.h"
 #include "aether/connection_manager/client_connection_manager.h"
 
-#include "aether/api_protocol/api_protocol.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 namespace ae {
@@ -53,12 +54,12 @@ class CloudConnection {
 
  public:
   using ServerVisitor =
-      SmallFunction<void(ServerConnection* server_connection)>;
+      SmallFunction<void(CloudServerConnection* server_connection)>;
   using AuthorizedApiCaller =
       SmallFunction<void(ApiContext<AuthorizedApi>& auth_api,
-                         ServerConnection* server_connection)>;
+                         CloudServerConnection* server_connection)>;
   using ClientApiSubscriber = SmallFunction<MultiSubscription::EventHandler(
-      ClientApiSafe& client_api, ServerConnection* server_connection)>;
+      ClientApiSafe& client_api, CloudServerConnection* server_connection)>;
 
   using ServersUpdate = Event<void()>;
 
@@ -100,7 +101,7 @@ class CloudConnection {
   /**
    * \brief Access to authorized api with policy.
    */
-  ActionPtr<StreamWriteAction> AuthorizedApiCall(
+  ActionPtr<WriteAction> AuthorizedApiCall(
       AuthorizedApiCaller const& auth_api_caller,
       RequestPolicy::Variant policy = RequestPolicy::MainServer{});
 
@@ -133,10 +134,10 @@ class CloudConnection {
 
   void InitServers();
   void SelectServers();
-  void SubscribeToServerState(ServerConnection* server_connection);
+  void SubscribeToServerState(CloudServerConnection* server_connection);
 
-  void UnselectServer(ServerConnection* server_connection);
-  void QuarantineTimer(ServerConnection* server_connection);
+  void UnselectServer(CloudServerConnection* server_connection);
+  void QuarantineTimer(CloudServerConnection* server_connection);
 
   ActionContext action_context_;
   ClientConnectionManager* connection_manager_;
@@ -145,7 +146,7 @@ class CloudConnection {
   OwnActionPtr<TimerAction> quarantine_timer_;
   OwnActionPtr<ReselectServers> reselect_servers_action_;
   // selected list of servers sorted by the priority
-  std::vector<ServerConnection*> selected_servers_;
+  std::vector<CloudServerConnection*> selected_servers_;
 
   ServersUpdate servers_update_event_;
 

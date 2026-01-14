@@ -37,7 +37,7 @@ Telemetry::Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
       state_{State::kWaitRequest} {
   AE_TELE_INFO(TelemetryCreated);
   telemetry_request_sub_ = cloud_connection_->ClientApiSubscription(
-      [&](ClientApiSafe& api, ServerConnection* sever_connect) {
+      [&](ClientApiSafe& api, auto* sever_connect) {
         return api.request_telemetry_event().Subscribe(
             [&]() { OnRequestTelemetry(sever_connect->priority()); });
       },
@@ -73,7 +73,7 @@ void Telemetry::SendTelemetry() {
 
   ClientServerConnection* con{};
   cloud_connection_->VisitServers(
-      [&](ServerConnection* sc) { con = sc->ClientConnection(); },
+      [&](auto* sc) { con = sc->ClientConnection(); },
       RequestPolicy::Priority{server_priority});
 
   if (con == nullptr) {

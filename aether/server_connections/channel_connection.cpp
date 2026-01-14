@@ -18,24 +18,45 @@
 
 #include "aether/channels/channel.h"
 
+#include "aether/tele/tele.h"
+
 namespace ae {
 ChannelConnection::ChannelConnection(ActionContext action_context,
-                                     Channel::ptr const& channel)
-    : connection_penalty{},
-      action_context_{action_context},
-      channel_{channel} {}
-
-ObjPtr<Channel> ChannelConnection::channel() const {
-  Channel::ptr channel = channel_.Lock();
-  return channel;
+                                     ObjPtr<Channel> const& channel)
+    : action_context_{action_context} {
+  BuildTransport(channel);
 }
 
-std::unique_ptr<ServerChannel> ChannelConnection::GetServerChannel() {
-  Channel::ptr channel = channel_.Lock();
-  assert(channel);
-  return std::make_unique<ServerChannel>(action_context_, channel);
+ByteIStream* ChannelConnection::stream() const {
+  return transport_stream_.get();
 }
 
-void ChannelConnection::Reset() { connection_penalty = 0; }
+ChannelConnection::ConnectionStateEvent::Subscriber
+ChannelConnection::connection_state_event() {
+  return EventSubscriber{connection_state_event_};
+}
+
+void ChannelConnection::BuildTransport(ObjPtr<Channel> const& channel) {
+  auto builder_action = channel->TransportBuilder();
+  transport_build_sub_ = builder_action->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[this](auto& builder) {
+        transport_stream_ = builder.transport_stream();
+        build_timer_->Stop();
+        connection_state_event_.Emit(true);
+      }},
+      OnError{[this]() {
+        AE_TELED_ERROR("Transport build failed");
+        build_timer_->Stop();
+        connection_state_event_.Emit(false);
+      }},
+  });
+
+  build_timer_ = OwnActionPtr<TimerAction>{action_context_,
+                                           channel->TransportBuildTimeout()};
+  build_timer_->StatusEvent().Subscribe(OnResult{[this]() {
+    AE_TELED_ERROR("Transport build timed out");
+    connection_state_event_.Emit(false);
+  }});
+}
 
 }  // namespace ae
