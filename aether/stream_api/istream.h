@@ -25,7 +25,7 @@
 
 #include "aether/events/events.h"
 #include "aether/types/data_buffer.h"
-#include "aether/stream_api/stream_write_action.h"
+#include "aether/write_action/write_action.h"
 
 namespace ae {
 namespace istream_internal {
@@ -85,7 +85,7 @@ class IStream {
    * \param in_data Data to write
    * \return Action to control write process or subscribe to result.
    */
-  virtual ActionPtr<StreamWriteAction> Write(TIn&& in_data) = 0;
+  virtual ActionPtr<WriteAction> Write(TIn&& in_data) = 0;
   /**
    * \brief Stream update event.
    */
@@ -173,7 +173,7 @@ class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
   ~Stream() override = default;
   AE_CLASS_MOVE_ONLY(Stream)
 
-  ActionPtr<StreamWriteAction> Write(TIn&& data) override {
+  ActionPtr<WriteAction> Write(TIn&& data) override {
     assert(out_);
     return out_->Write(std::move(data));
   }

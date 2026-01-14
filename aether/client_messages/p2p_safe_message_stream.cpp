@@ -33,7 +33,7 @@ P2pSafeStream::P2pSafeStream(ActionContext action_context,
   Tie(safe_stream_, *p2p_stream_);
 }
 
-ActionPtr<StreamWriteAction> P2pSafeStream::Write(DataBuffer&& data) {
+ActionPtr<WriteAction> P2pSafeStream::Write(DataBuffer&& data) {
   auto sized_data = sized_packet_gate_.WriteIn(std::move(data));
   return safe_stream_.Write(std::move(sized_data));
 }

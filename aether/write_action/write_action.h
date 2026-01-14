@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_STREAM_WRITE_ACTION_H_
-#define AETHER_STREAM_API_STREAM_WRITE_ACTION_H_
+#ifndef AETHER_WRITE_ACTION_WRITE_ACTION_H_
+#define AETHER_WRITE_ACTION_WRITE_ACTION_H_
 
+#include "aether/events/events.h"
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
 #include "aether/actions/action_context.h"
 
 namespace ae {
 /**
- * \brief Base type for stream write action.
+ * \brief Base type for write action.
  */
-class StreamWriteAction : public Action<StreamWriteAction> {
+class WriteAction : public Action<WriteAction> {
  public:
   enum class State : std::uint8_t {
     kQueued,
@@ -36,12 +37,11 @@ class StreamWriteAction : public Action<StreamWriteAction> {
     kFailed,   // failed to send
   };
 
-  explicit StreamWriteAction(ActionContext action_context);
-  StreamWriteAction(StreamWriteAction const& other) = delete;
-  StreamWriteAction(StreamWriteAction&& other) noexcept;
+  using StateChanged = Event<void(State)>;
 
-  StreamWriteAction& operator=(StreamWriteAction const& other) = delete;
-  StreamWriteAction& operator=(StreamWriteAction&& other) noexcept;
+  explicit WriteAction(ActionContext action_context);
+
+  AE_CLASS_NO_COPY_MOVE(WriteAction)
 
   virtual UpdateStatus Update();
 
@@ -50,23 +50,17 @@ class StreamWriteAction : public Action<StreamWriteAction> {
    */
   virtual void Stop();
 
-  StateMachine<State> const& state() const { return state_; }
+  State state() const { return state_; }
+  StateChanged::Subscriber state_changed() {
+    return EventSubscriber{state_changed_};
+  }
 
  protected:
   StateMachine<State> state_{State::kQueued};
+
+ private:
+  StateChanged state_changed_;
 };
 
-/**
- * \brief Immediate failed stream write action.
- */
-class FailedStreamWriteAction final : public StreamWriteAction {
- public:
-  using StreamWriteAction::StreamWriteAction;
-  explicit FailedStreamWriteAction(ActionContext action_context);
-
-  UpdateStatus Update() override;
-  void Stop() override;
-};
 }  // namespace ae
-
-#endif  // AETHER_STREAM_API_STREAM_WRITE_ACTION_H_
+#endif  // AETHER_WRITE_ACTION_WRITE_ACTION_H_

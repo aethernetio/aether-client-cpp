@@ -159,7 +159,7 @@ class GatesStream final
       : gates_{std::forward<TGates>(gates)...},
         out_data_event_subscription_{SubscribeToOutDataEvent()} {}
 
-  ActionPtr<StreamWriteAction> Write(typename Base::TypeIn&& in_data) override {
+  ActionPtr<WriteAction> Write(typename Base::TypeIn&& in_data) override {
     assert(Base::out_);
     return Base::out_->Write(std::apply(
         [&](auto&... gates) -> typename OutStream::TypeIn {

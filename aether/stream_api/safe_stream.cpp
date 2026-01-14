@@ -27,7 +27,7 @@ namespace ae {
 SafeStreamWriteAction::SafeStreamWriteAction(
     ActionContext action_context,
     ActionPtr<SendingDataAction> sending_data_action)
-    : StreamWriteAction(action_context),
+    : WriteAction(action_context),
       sending_data_action_{std::move(sending_data_action)} {
   subscriptions_.Push(
       sending_data_action_->StatusEvent().Subscribe([this](auto status) {
@@ -58,7 +58,7 @@ SafeStream::SafeStream(ActionContext action_context, SafeStreamConfig config)
       MethodPtr<&SafeStream::WriteOut>{this});
 }
 
-ActionPtr<StreamWriteAction> SafeStream::Write(DataBuffer&& data) {
+ActionPtr<WriteAction> SafeStream::Write(DataBuffer&& data) {
   return ActionPtr<SafeStreamWriteAction>{
       action_context_, send_action_->SendData(std::move(data))};
 }
@@ -120,7 +120,7 @@ void SafeStream::Send(SSRingIndex::type begin_offset,
   recv_acion_->PushData(received_offset, std::move(data_message));
 }
 
-ActionPtr<StreamWriteAction> SafeStream::PushData(SSRingIndex begin,
+ActionPtr<WriteAction> SafeStream::PushData(SSRingIndex begin,
                                                   DataMessage&& data_message) {
   assert(out_);
   auto api_adapter = ApiCallAdapter{ApiContext{safe_stream_api_}, *out_};

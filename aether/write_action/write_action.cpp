@@ -14,34 +14,34 @@
  * limitations under the License.
  */
 
-#include "aether/stream_api/buffer_stream.h"
+#include "aether/write_action/write_action.h"
 
 namespace ae {
-BufferedWriteAction::BufferedWriteAction(ActionContext action_context)
-    : StreamWriteAction(action_context) {}
 
-void BufferedWriteAction::Stop() {
-  if (swa_) {
-    swa_->Stop();
-  } else {
-    state_ = State::kStopped;
+WriteAction::WriteAction(ActionContext action_context)
+    : Action{action_context}, state_{State::kQueued} {
+  state_.changed_event().Subscribe([this](auto state) {
     Action::Trigger();
-  }
-}
-
-// set to the sent state
-void BufferedWriteAction::Sent(ActionPtr<StreamWriteAction> swa) {
-  swa_ = std::move(swa);
-  state_ = swa_->state().get();
-  swa_sub_ = swa_->state().changed_event().Subscribe([this](auto state) {
-    state_ = state;
-    Action::Trigger();
+    state_changed_.Emit(state);
   });
 }
 
-// drop the write action from the buffer
-void BufferedWriteAction::Drop() {
-  state_ = State::kFailed;
-  Action::Trigger();
+UpdateStatus WriteAction::Update() {
+  if (state_.changed()) {
+    switch (state_.Acquire()) {
+      case State::kDone:
+        return UpdateStatus::Result();
+      case State::kStopped:
+        return UpdateStatus::Stop();
+      case State::kFailed:
+        return UpdateStatus::Error();
+      default:
+        break;
+    }
+  }
+
+  return {};
 }
+
+void WriteAction::Stop() { state_ = State::kStopped; }
 }  // namespace ae

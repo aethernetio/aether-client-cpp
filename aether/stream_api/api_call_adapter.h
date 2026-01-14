@@ -35,7 +35,7 @@ class ApiCallAdapter {
 
   AE_CLASS_MOVE_ONLY(ApiCallAdapter)
 
-  ActionPtr<StreamWriteAction> Flush() {
+  ActionPtr<WriteAction> Flush() {
     return byte_stream_->Write(std::move(api_context_));
   }
 

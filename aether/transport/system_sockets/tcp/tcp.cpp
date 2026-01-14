@@ -153,7 +153,7 @@ TcpTransport::~TcpTransport() {
   Disconnect();
 }
 
-ActionPtr<StreamWriteAction> TcpTransport::Write(DataBuffer&& in_data) {
+ActionPtr<WriteAction> TcpTransport::Write(DataBuffer&& in_data) {
   AE_TELE_DEBUG(kTcpTransportSend, "Socket {} send data size {}", endpoint_,
                 in_data.size());
 

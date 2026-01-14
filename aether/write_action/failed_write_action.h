@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
-#define AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
+#ifndef AETHER_WRITE_ACTION_FAILED_WRITE_ACTION_H_
+#define AETHER_WRITE_ACTION_FAILED_WRITE_ACTION_H_
 
 #include "aether/write_action/write_action.h"
 
 namespace ae {
-class SocketPacketSendAction : public WriteAction {
+/**
+ * \brief Immediate failed write action.
+ */
+class FailedWriteAction final : public WriteAction {
  public:
-  using WriteAction::WriteAction;
-
-  UpdateStatus Update() override;
-
-  // Trigger event to send data
-  virtual void Send() = 0;
+  explicit FailedWriteAction(ActionContext action_context);
 };
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
+#endif  // AETHER_WRITE_ACTION_FAILED_WRITE_ACTION_H_

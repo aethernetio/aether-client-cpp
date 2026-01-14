@@ -75,14 +75,14 @@ class SocketPacketQueueManager
     }
 
     // call send on current active action
-    if (auto state = current_active_->state().get();
-        (state == StreamWriteAction::State::kQueued) ||
-        (state == StreamWriteAction::State::kInProgress)) {
+    if (auto state = current_active_->state();
+        (state == WriteAction::State::kQueued) ||
+        (state == WriteAction::State::kInProgress)) {
       current_active_->Send();
     }
     // if after send state is changed from progress to something else move to
     // the next action
-    if (current_active_->state() != StreamWriteAction::State::kInProgress) {
+    if (current_active_->state() != WriteAction::State::kInProgress) {
       current_active_.reset();
       BaseAction::Trigger();
     }

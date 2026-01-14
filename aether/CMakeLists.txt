@@ -199,9 +199,7 @@ list(APPEND transport_srcs
 )
 
 list(APPEND stream_api_src
-            "stream_api/stream_write_action.cpp"
             "stream_api/sized_packet_gate.cpp"
-            "stream_api/buffer_stream.cpp"
             "stream_api/stream_api.cpp"
 
             "stream_api/safe_stream.cpp"
@@ -212,6 +210,13 @@ list(APPEND stream_api_src
             "stream_api/safe_stream/receiving_chunk_list.cpp"
             "stream_api/safe_stream/safe_stream_send_action.cpp"
             "stream_api/safe_stream/safe_stream_recv_action.cpp"
+)
+
+list(APPEND write_action_srcs
+            "write_action/write_action.cpp"
+            "write_action/failed_write_action.cpp"
+            "write_action/done_write_action.cpp"
+            "write_action/buffer_write.cpp"
 )
 
 list(APPEND api_protocol_srcs
@@ -318,6 +323,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${actions_srcs}
                             ${transport_srcs}
                             ${stream_api_src}
+                            ${write_action_srcs}
                             ${adapters_srcs}
                             ${access_points_srcs}
                             ${modems_srcs}
@@ -377,6 +383,7 @@ else()
                             ${serial_ports_srcs}
                             ${transport_srcs}
                             ${stream_api_src}
+                            ${write_action_srcs}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
                             ${work_cloud_api_srcs}

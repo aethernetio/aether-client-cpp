@@ -31,7 +31,7 @@
 #include "aether/stream_api/istream.h"
 
 namespace ae {
-class SafeStreamWriteAction final : public StreamWriteAction {
+class SafeStreamWriteAction final : public WriteAction {
  public:
   explicit SafeStreamWriteAction(
       ActionContext action_context,
@@ -54,7 +54,7 @@ class SafeStream final : public ByteStream,
 
   AE_CLASS_NO_COPY_MOVE(SafeStream);
 
-  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
+  ActionPtr<WriteAction> Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
 
   void LinkOut(OutStream& out) override;
@@ -65,7 +65,7 @@ class SafeStream final : public ByteStream,
   void Send(SSRingIndex::type begin_offset, DataMessage data_message) override;
 
   // Implement ISendDataPush
-  ActionPtr<StreamWriteAction> PushData(SSRingIndex begin,
+  ActionPtr<WriteAction> PushData(SSRingIndex begin,
                                         DataMessage&& data_message) override;
 
   // Implement ISendConfirmRepeat

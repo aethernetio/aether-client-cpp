@@ -37,7 +37,7 @@ class GatewayTransport : public ByteIStream {
 
   AE_CLASS_NO_COPY_MOVE(GatewayTransport)
 
-  ActionPtr<StreamWriteAction> Write(DataBuffer&& in_data) override;
+  ActionPtr<WriteAction> Write(DataBuffer&& in_data) override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;
   OutDataEvent::Subscriber out_data_event() override;

@@ -191,7 +191,7 @@ UpdateStatus SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
   return UpdateStatus::Delay(wait_time);
 }
 
-ActionPtr<StreamWriteAction> SafeStreamSendAction::PushData(
+ActionPtr<WriteAction> SafeStreamSendAction::PushData(
     DataBuffer&& data_buffer, SSRingIndex::type delta,
     std::uint8_t repeat_count) {
   AE_TELED_DEBUG(

@@ -37,7 +37,7 @@ class P2pSafeStream final : public ByteIStream {
 
   AE_CLASS_NO_COPY_MOVE(P2pSafeStream)
 
-  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
+  ActionPtr<WriteAction> Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   OutDataEvent::Subscriber out_data_event() override;

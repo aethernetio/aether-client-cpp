@@ -42,7 +42,7 @@ GatewayTransport::GatewayTransport(ServerKind server_kind,
       });
 }
 
-ActionPtr<StreamWriteAction> GatewayTransport::Write(DataBuffer&& in_data) {
+ActionPtr<WriteAction> GatewayTransport::Write(DataBuffer&& in_data) {
   return std::visit(
       [this, &in_data](auto const& server) {
         return gateway_device_->ToServer(client_id_, server,
