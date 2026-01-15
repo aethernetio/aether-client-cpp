@@ -29,7 +29,7 @@
 namespace ae {
 class CloudRequest {
  public:
-  static ActionPtr<StreamWriteAction> CallApi(
+  static ActionPtr<WriteAction> CallApi(
       AuthApiCaller const& api_caller, CloudServerConnections& connection,
       RequestPolicy::Variant policy = RequestPolicy::MainServer{});
 };
@@ -77,12 +77,13 @@ class CloudRequestAction final : public Action<CloudRequestAction> {
  private:
   void MakeRequest(TimePoint current_time);
 
-  void MakeRequest(TimePoint current_time, ServerConnection* server_connection);
+  void MakeRequest(TimePoint current_time,
+                   CloudServerConnection* server_connection);
 
   void ServersUpdated();
 
-  ServerRequest* SaveRequest(ServerConnection* server_connection);
-  void RemoveRequest(ServerConnection* server_connection);
+  ServerRequest* SaveRequest(CloudServerConnection* server_connection);
+  void RemoveRequest(CloudServerConnection* server_connection);
 
   std::variant<AuthApiCaller, AuthApiRequest> request_;
   ClientResponseListener listener_;
@@ -94,7 +95,7 @@ class CloudRequestAction final : public Action<CloudRequestAction> {
   Subscription swa_sub_;
   Subscription server_changed_sub_;
 
-  std::map<ServerConnection*, ServerRequest> server_requests_;
+  std::map<CloudServerConnection*, ServerRequest> server_requests_;
 };
 
 }  // namespace ae

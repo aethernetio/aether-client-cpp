@@ -37,7 +37,8 @@ CloudServerConnections::servers_update_event() {
   return servers_update_event_;
 }
 
-std::vector<ServerConnection*> const& CloudServerConnections::servers() const {
+std::vector<CloudServerConnection*> const& CloudServerConnections::servers()
+    const {
   return selected_servers_;
 }
 
@@ -72,7 +73,7 @@ void CloudServerConnections::InitServers() {
 }
 
 void CloudServerConnections::SelectServers(
-    std::vector<ServerConnection*> const& servers) {
+    std::vector<CloudServerConnection*> const& servers) {
   auto select_count = std::min(servers.size(), max_connections_);
 
   auto get_ids = [&](auto const& ss) {
@@ -111,7 +112,7 @@ void CloudServerConnections::SelectServers(
 }
 
 void CloudServerConnections::SubscribeToServerState(
-    ServerConnection& server_connection) {
+    CloudServerConnection& server_connection) {
   auto bad_server = [this, sc{&server_connection}]() {
     // TODO: add the policy how to change the server priority on failure
     // put server in quarantine and make it the least prioritized
@@ -149,7 +150,7 @@ void CloudServerConnections::SubscribeToServerState(
 }
 
 void CloudServerConnections::UnselectServer(
-    ServerConnection& server_connection) {
+    CloudServerConnection& server_connection) {
   auto it = std::find(std::begin(selected_servers_),
                       std::end(selected_servers_), &server_connection);
   if (it == std::end(selected_servers_)) {
@@ -161,7 +162,7 @@ void CloudServerConnections::UnselectServer(
 }
 
 void CloudServerConnections::QuarantineTimer(
-    ServerConnection& server_connection) {
+    CloudServerConnection& server_connection) {
   AE_TELED_DEBUG("Set server {} to quarantine",
                  server_connection.server()->server_id);
   if (!quarantine_timer_ || quarantine_timer_->IsFinished()) {
@@ -183,8 +184,8 @@ void CloudServerConnections::QuarantineTimer(
       });
 }
 
-std::vector<ServerConnection*> CloudServerConnections::ServerCandidates() {
-  std::vector<ServerConnection*> servers;
+std::vector<CloudServerConnection*> CloudServerConnections::ServerCandidates() {
+  std::vector<CloudServerConnection*> servers;
   servers.reserve(connection_manager_->server_connections().size());
   for (auto& s : connection_manager_->server_connections()) {
     if (s.quarantine()) {

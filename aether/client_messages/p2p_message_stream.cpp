@@ -42,7 +42,7 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
     UpdateServers();
   }
 
-  ActionPtr<StreamWriteAction> Write(AeMessage&& message) override {
+  ActionPtr<WriteAction> Write(AeMessage&& message) override {
     return CloudRequest::CallApi(
         AuthApiCaller{[&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
           auth_api->send_message(std::move(message));

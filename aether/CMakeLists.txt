@@ -245,7 +245,7 @@ list(APPEND work_cloud_api_srcs
 
 
 list(APPEND cloud_connections_srcs
-            "client_connections/cloud_server_connection.cpp"
+            "cloud_connections/cloud_server_connection.cpp"
             "cloud_connections/cloud_server_connections.cpp"
             "cloud_connections/cloud_subscription.cpp"
             "cloud_connections/cloud_request.cpp")

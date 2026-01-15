@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "aether/client_connections/cloud_server_connection.h"
+#include "aether/cloud_connections/cloud_server_connection.h"
 
 #include "aether/server.h"
 
@@ -38,16 +38,18 @@ void CloudServerConnection::Restream() {
   }
 }
 
-void CloudServerConnection::BeginConnection(std::size_t priority) {
+bool CloudServerConnection::BeginConnection(std::size_t priority) {
   priority_ = priority;
   AE_TELED_DEBUG("Begin connection server_id={}, priority={}, is_connection={}",
                  server()->server_id, priority_, is_connection_);
   if (!is_connection_) {
+    is_connection_ = true;
     // Make new connection
     client_connection_.Reset();
     client_connection_ = connection_factory_->CreateConnection(server());
+    return true;
   }
-  is_connection_ = true;
+  return false;
 }
 
 void CloudServerConnection::EndConnection(std::size_t priority) {
@@ -57,7 +59,7 @@ void CloudServerConnection::EndConnection(std::size_t priority) {
   is_connection_ = false;
 }
 
-ClientServerConnection* CloudServerConnection::ClientConnection() {
+ClientServerConnection* CloudServerConnection::client_connection() {
   if (client_connection_) {
     return client_connection_.get();
   }

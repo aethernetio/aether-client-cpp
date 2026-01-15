@@ -25,29 +25,30 @@
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 namespace ae {
-class ServerConnection;
+class CloudServerConnection;
 class CloudServerConnections;
 class CloudRequestAction;
 
 // subscribe to client's api events
-struct ClientListener
-    : SmallFunction<EventHandlerDeleter(
-          ClientApiSafe& client_api, ServerConnection* server_connection)> {};
+struct ClientListener : SmallFunction<EventHandlerDeleter(
+                            ClientApiSafe& client_api,
+                            CloudServerConnection* server_connection)> {};
 
 // call authorized api
 struct AuthApiCaller
     : SmallFunction<void(ApiContext<AuthorizedApi>& auth_api,
-                         ServerConnection* server_connection)> {};
+                         CloudServerConnection* server_connection)> {};
 // make request to authorized api
-struct AuthApiRequest : SmallFunction<void(ApiContext<AuthorizedApi>& auth_api,
-                                           ServerConnection* server_connection,
-                                           CloudRequestAction* request)> {};
+struct AuthApiRequest
+    : SmallFunction<void(ApiContext<AuthorizedApi>& auth_api,
+                         CloudServerConnection* server_connection,
+                         CloudRequestAction* request)> {};
 
 // listen to client's api response
 struct ClientResponseListener
-    : SmallFunction<EventHandlerDeleter(ClientApiSafe& client_api,
-                                        ServerConnection* server_connection,
-                                        CloudRequestAction* request)> {};
+    : SmallFunction<EventHandlerDeleter(
+          ClientApiSafe& client_api, CloudServerConnection* server_connection,
+          CloudRequestAction* request)> {};
 
 }  // namespace ae
 

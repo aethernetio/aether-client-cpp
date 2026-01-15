@@ -23,7 +23,6 @@
 #include "aether/actions/timer_action.h"
 #include "aether/actions/notify_action.h"
 #include "aether/actions/action_context.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/connection_manager/client_connection_manager.h"
 
 namespace ae {
@@ -46,7 +45,7 @@ class CloudServerConnections {
   /**
    * \brief List of currently selected servers in priority order
    */
-  std::vector<ServerConnection*> const& servers() const;
+  std::vector<CloudServerConnection*> const& servers() const;
 
   std::size_t count_connections() const;
   std::size_t max_connections() const;
@@ -58,13 +57,13 @@ class CloudServerConnections {
 
  private:
   void InitServers();
-  void SelectServers(std::vector<ServerConnection*> const& servers);
-  void SubscribeToServerState(ServerConnection& server_connection);
+  void SelectServers(std::vector<CloudServerConnection*> const& servers);
+  void SubscribeToServerState(CloudServerConnection& server_connection);
 
-  void UnselectServer(ServerConnection& server_connection);
-  void QuarantineTimer(ServerConnection& server_connection);
+  void UnselectServer(CloudServerConnection& server_connection);
+  void QuarantineTimer(CloudServerConnection& server_connection);
 
-  std::vector<ServerConnection*> ServerCandidates();
+  std::vector<CloudServerConnection*> ServerCandidates();
 
   ActionContext action_context_;
   ClientConnectionManager* connection_manager_;
@@ -73,7 +72,7 @@ class CloudServerConnections {
   OwnActionPtr<TimerAction> quarantine_timer_;
   OwnActionPtr<ReselectServers> reselect_servers_action_;
   // selected list of servers sorted by the priority
-  std::vector<ServerConnection*> selected_servers_;
+  std::vector<CloudServerConnection*> selected_servers_;
 
   ServersUpdate servers_update_event_;
 

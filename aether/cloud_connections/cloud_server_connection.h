@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
-#define AETHER_CLIENT_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
+#ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
+#define AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
 
 #include "aether/ptr/rc_ptr.h"
 #include "aether/obj/obj_ptr.h"
@@ -80,4 +80,4 @@ class CloudServerConnection {
 };
 }  // namespace ae
 
-#endif  // AETHER_CLIENT_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
+#endif  // AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
