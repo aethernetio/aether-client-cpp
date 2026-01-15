@@ -193,21 +193,25 @@ void CloudRequestAction::MakeRequest([[maybe_unused]] TimePoint current_time,
       request_);
 
   sr->state_subs.Push(
+      // if server stream changed it's channel
+      conn->server_connection().channel_changed_event().Subscribe([this, sc]() {
+        AE_TELED_WARNING("Request server channel changed");
+        RemoveRequest(sc);
+        state_ = State::kMakeRequest;
+      }),
       // if server stream is disconnected
-      conn->stream_update_event().Subscribe([this, conn, server_connection]() {
-        if (conn->stream_info().link_state == LinkState::kLinkError) {
-          RemoveRequest(server_connection);
-          state_ = State::kMakeRequest;
-        }
+      conn->server_connection().server_error_event().Subscribe([this, sc]() {
+        AE_TELED_WARNING("Request server error");
+        RemoveRequest(sc);
+        state_ = State::kMakeRequest;
       }),
       // if request write failed
-      swa->StatusEvent().Subscribe(OnError{[this, server_connection]() {
+      swa->StatusEvent().Subscribe(OnError{[this, sc]() {
         AE_TELED_ERROR("Request write error");
-        RemoveRequest(server_connection);
+        RemoveRequest(sc);
         state_ = State::kMakeRequest;
-      }})
-      // TODO: add request server level timeout
-  );
+      }}));
+  // TODO: add request server level timeout
 }
 
 void CloudRequestAction::ServersUpdated() {
