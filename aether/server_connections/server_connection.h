@@ -17,66 +17,77 @@
 #ifndef AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 
-#include "aether/ptr/rc_ptr.h"
+#include <vector>
+
 #include "aether/obj/obj_ptr.h"
 #include "aether/ptr/ptr_view.h"
-#include "aether/server_connections/client_server_connection.h"
-#include "aether/server_connections/iserver_connection_factory.h"
+#include "aether/events/events.h"
+#include "aether/stream_api/istream.h"
+#include "aether/actions/notify_action.h"
+#include "aether/actions/action_context.h"
+#include "aether/write_action/buffer_write.h"
+#include "aether/server_connections/channel_connection.h"
 
 namespace ae {
 class Server;
-/**
- * \brief Represent the connection to the server.
- * It's not the actual transport but the all information about the server.
- */
-class ServerConnection {
+class Channel;
+
+class ServerConnection final : public ByteIStream {
+  struct ChannelEntry {
+    PtrView<Channel> channel;
+    bool failed = false;
+  };
+  using ChannelErrorAction = NotifyAction;
+
  public:
-  ServerConnection(ObjPtr<Server> const& server,
-                   IServerConnectionFactory& connection_factory);
+  using ServerErrorEvent = Event<void()>;
+  using ChannelChangedEvent = Event<void()>;
 
-  std::size_t priority() const;
+  ServerConnection(ActionContext action_context, ObjPtr<Server> const& server);
 
-  void Restream();
+  ActionPtr<WriteAction> Write(DataBuffer&& in_data) override;
+  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamInfo stream_info() const override;
+  OutDataEvent::Subscriber out_data_event() override;
+  void Restream() override;
 
-  /**
-   * \brief It's possible to put failed server to quarantine.
-   * Server in quarantine should not be used.
-   */
-  bool quarantine() const;
-  void quarantine(bool value);
+  ServerErrorEvent::Subscriber server_error_event();
+  ChannelChangedEvent::Subscriber channel_changed_event();
 
-  /**
-   * \brief Call to begin connection with specified priority.
-   * If connection already established, do nothing.
-   * If connection is not created, create it.
-   * \param priority the new priority value.
-   * Priority is used to sort connection in cloud for performing requests.
-   */
-  void BeginConnection(std::size_t priority);
-  /**
-   * \brief Call to end connection with specified priority.
-   * \param priority the new priority value.
-   * Priority is used to sort connection in cloud for selecting the most
-   * prioritized servers.
-   */
-  void EndConnection(std::size_t priority);
-
-  /**
-   * \brief The stream to write data for that server.
-   * Should be called after BeginConnection.
-   * \return The client-server connection object or nullptr.
-   */
-  ClientServerConnection* ClientConnection();
-
-  ObjPtr<Server> server() const;
+  ObjPtr<Channel> current_channel() const;
 
  private:
+  void InitChannels();
+  // return top not failed channel or null if nothing was selected
+  ChannelEntry* TopChannel();
+  void SelectChannel();
+  void ChannelUpdated();
+
+  void ServerError();
+  void DeferChannelError();
+  void ChannelError();
+
+  void OnRead(DataBuffer const& data);
+  ActionPtr<WriteAction> OnWrite(DataBuffer&& in_data);
+
+  ActionContext action_context_;
   PtrView<Server> server_;
-  IServerConnectionFactory* connection_factory_;
-  RcPtr<ClientServerConnection> client_connection_;
-  std::size_t priority_;
-  bool is_connection_;
-  bool is_quarantined_;
+
+  BufferWrite<DataBuffer> buffer_write_;
+
+  bool full_connected_;
+  ChannelEntry* top_channel_;
+  std::vector<ChannelEntry> channels_;
+  std::optional<ChannelConnection> channel_connection_;
+
+  StreamInfo stream_info_;
+  OutDataEvent out_data_event_;
+  StreamUpdateEvent stream_update_event_;
+  ServerErrorEvent server_error_;
+  ChannelChangedEvent channel_changed_;
+  OwnActionPtr<ChannelErrorAction> channel_error_action_;
+  Subscription channel_stream_update_sub_;
+  Subscription channel_stream_outd_data_sub_;
 };
 }  // namespace ae
 

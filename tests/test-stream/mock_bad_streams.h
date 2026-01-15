@@ -26,10 +26,10 @@
 
 namespace ae {
 namespace bad_streams_internal {
-class DoneStreamWriteAction : public StreamWriteAction {
+class DoneStreamWriteAction : public WriteAction {
  public:
   explicit DoneStreamWriteAction(ActionContext action_context);
-  using StreamWriteAction::StreamWriteAction;
+  using WriteAction::WriteAction;
 };
 }  // namespace bad_streams_internal
 
@@ -37,7 +37,7 @@ class LostPacketsStream : public ByteStream {
  public:
   LostPacketsStream(ActionContext action_context, float loss_rate);
 
-  ActionPtr<StreamWriteAction> Write(DataBuffer&& data_buffer) override;
+  ActionPtr<WriteAction> Write(DataBuffer&& data_buffer) override;
 
   void LinkOut(ByteIStream& out) override;
 
@@ -67,7 +67,7 @@ class PacketDelayStream : public ByteStream {
   PacketDelayStream(ActionContext action_context, float delay_rate,
                     Duration max_delay);
 
-  ActionPtr<StreamWriteAction> Write(DataBuffer&& data_buffer) override;
+  ActionPtr<WriteAction> Write(DataBuffer&& data_buffer) override;
 
   void LinkOut(ByteIStream& out) override;
 

@@ -106,7 +106,7 @@ ae::ActionPtr<ae::SelectClientAction> SelectClientImpl(
   return select_action;
 }
 
-ae::ActionPtr<ae::StreamWriteAction> WriteMessageImpl(AetherClient* client,
+ae::ActionPtr<ae::WriteAction> WriteMessageImpl(AetherClient* client,
                                                       ae::Uid destination,
                                                       ae::DataBuffer&& data,
                                                       ActionStatusCb status_cb,

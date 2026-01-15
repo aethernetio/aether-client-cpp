@@ -33,7 +33,7 @@ float RandomPercent() {
 bool IsHitTheRate(float hit_rate) { return RandomPercent() < hit_rate; }
 
 DoneStreamWriteAction::DoneStreamWriteAction(ActionContext action_context)
-    : StreamWriteAction{action_context} {
+    : WriteAction{action_context} {
   state_ = State::kDone;
 }
 
@@ -43,7 +43,7 @@ LostPacketsStream::LostPacketsStream(ActionContext action_context,
                                      float loss_rate)
     : action_context_{action_context}, loss_rate_{loss_rate} {}
 
-ActionPtr<StreamWriteAction> LostPacketsStream::Write(
+ActionPtr<WriteAction> LostPacketsStream::Write(
     DataBuffer&& data_buffer) {
   if (bad_streams_internal::IsHitTheRate(loss_rate_)) {
     AE_TELED_DEBUG("Packet loss!");
@@ -92,7 +92,7 @@ PacketDelayStream::PacketDelayStream(ActionContext action_context,
       delay_rate_{delay_rate},
       max_delay_{max_delay} {}
 
-ActionPtr<StreamWriteAction> PacketDelayStream::Write(
+ActionPtr<WriteAction> PacketDelayStream::Write(
     DataBuffer&& data_buffer) {
   assert(out_);
 

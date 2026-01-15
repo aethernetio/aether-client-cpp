@@ -85,9 +85,6 @@ class Aether : public Obj {
   void StoreServer(Server::ptr s);
   Server::ptr GetServer(ServerId server_id);
 
-  std::unique_ptr<ActionProcessor> action_processor =
-      make_unique<ActionProcessor>();
-
   RegistrationCloud::ptr registration_cloud;
 
   Crypto::ptr crypto;
@@ -97,6 +94,9 @@ class Aether : public Obj {
   AdapterRegistry::ptr adapter_registry;
 
   tele::TeleStatistics::ptr tele_statistics;
+
+  std::unique_ptr<ActionProcessor> action_processor =
+      make_unique<ActionProcessor>();
 
  private:
   Client::ptr FindClient(std::string const& client_id);

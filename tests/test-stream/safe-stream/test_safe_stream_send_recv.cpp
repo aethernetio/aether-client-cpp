@@ -94,14 +94,14 @@ class DelayPushDataImpl : public TestSafeStreamActionsTransport {
 };
 
 class MockSendDataPush : public ISendDataPush {
-  class DoneStreamWriteAction : public StreamWriteAction {
+  class DoneStreamWriteAction : public WriteAction {
    public:
     DoneStreamWriteAction(ActionContext action_context)
-        : StreamWriteAction{action_context} {
+        : WriteAction{action_context} {
       state_ = State::kDone;
     }
 
-    using StreamWriteAction::StreamWriteAction;
+    using WriteAction::WriteAction;
     void Stop() override { state_ = State::kStopped; }
   };
 
@@ -113,8 +113,8 @@ class MockSendDataPush : public ISendDataPush {
     transport_ = &transport;
   }
 
-  ActionPtr<StreamWriteAction> PushData(SSRingIndex begin,
-                                        DataMessage&& data_message) {
+  ActionPtr<WriteAction> PushData(SSRingIndex begin,
+                                  DataMessage&& data_message) {
     transport_->PushData(begin, std::move(data_message));
     return ActionPtr<DoneStreamWriteAction>{action_context_};
   }

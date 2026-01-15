@@ -19,8 +19,8 @@
 #if MODEM_TRANSPORT_ENABLED
 
 #  include "aether/mstream.h"
-#  include "aether/reflect/reflect.h"
 #  include "aether/mstream_buffers.h"
+#  include "aether/write_action/failed_write_action.h"
 
 #  include "aether/transport/transport_tele.h"
 
@@ -151,7 +151,7 @@ void ModemTransport::Restream() {
   Disconnect();
 }
 
-ActionPtr<StreamWriteAction> ModemTransport::Write(DataBuffer&& in_data) {
+ActionPtr<WriteAction> ModemTransport::Write(DataBuffer&& in_data) {
   AE_TELE_DEBUG(kModemTransportSend, "Send data size {}", in_data.size());
 
   if (protocol_ == Protocol::kTcp) {
@@ -181,7 +181,7 @@ ActionPtr<StreamWriteAction> ModemTransport::Write(DataBuffer&& in_data) {
     return send_action;
   }
 
-  return ActionPtr<FailedStreamWriteAction>{action_context_};
+  return ActionPtr<FailedWriteAction>{action_context_};
 }
 
 void ModemTransport::Connect() {

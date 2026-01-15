@@ -23,7 +23,7 @@
 #include "aether/ptr/ptr_view.h"
 #include "aether/actions/action_context.h"
 
-#include "aether/stream_api/buffer_stream.h"
+#include "aether/write_action/buffer_write.h"
 
 #include "aether/client_connections/cloud_connection.h"
 #include "aether/connection_manager/client_cloud_manager.h"
@@ -46,7 +46,7 @@ class P2pStream final : public ByteIStream {
 
   AE_CLASS_NO_COPY_MOVE(P2pStream);
 
-  ActionPtr<StreamWriteAction> Write(DataBuffer&& data) override;
+  ActionPtr<WriteAction> Write(DataBuffer&& data) override;
 
   StreamUpdateEvent::Subscriber stream_update_event() override;
 
@@ -64,11 +64,11 @@ class P2pStream final : public ByteIStream {
   void ConnectReceive();
   void ConnectSend();
 
-  void DataReceived(AeMessage const& data);
   std::unique_ptr<ClientConnectionManager> MakeConnectionManager(
       ObjPtr<Cloud> const& cloud);
   std::unique_ptr<CloudConnection> MakeDestinationCloudConn(
       ClientConnectionManager& connection_manager);
+  ActionPtr<WriteAction> OnWrite(AeMessage&& message);
 
   ActionContext action_context_;
   PtrView<Client> client_;
@@ -77,10 +77,12 @@ class P2pStream final : public ByteIStream {
   // connection manager to destination cloud
   std::unique_ptr<ClientConnectionManager> dest_conn_manager_;
   std::unique_ptr<CloudConnection> dest_cloud_conn_;
-  BufferStream<AeMessage> buffer_stream_;
+  BufferWrite<AeMessage> buffer_write_;
   std::unique_ptr<p2p_stream_internal::MessageSendStream> message_send_stream_;
   std::unique_ptr<p2p_stream_internal::ReadMessageGate> read_message_gate_;
+
   OutDataEvent out_data_event_;
+  StreamUpdateEvent stream_update_event_;
 
   Subscription get_client_cloud_sub_;
 };

@@ -23,7 +23,7 @@
 #include "aether/actions/action_context.h"
 #include "aether/types/statistic_counter.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/stream_api/stream_write_action.h"
+#include "aether/write_action/write_action.h"
 #include "aether/stream_api/safe_stream/send_data_buffer.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
@@ -33,8 +33,8 @@ namespace ae {
 class ISendDataPush {
  public:
   virtual ~ISendDataPush() = default;
-  virtual ActionPtr<StreamWriteAction> PushData(SSRingIndex begin,
-                                                DataMessage &&data_message) = 0;
+  virtual ActionPtr<WriteAction> PushData(SSRingIndex begin,
+                                          DataMessage&& data_message) = 0;
 };
 
 class SafeStreamSendAction : public Action<SafeStreamSendAction> {
@@ -43,8 +43,8 @@ class SafeStreamSendAction : public Action<SafeStreamSendAction> {
       StatisticsCounter<Duration, AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE>;
 
   SafeStreamSendAction(ActionContext action_context,
-                       ISendDataPush &send_data_push,
-                       SafeStreamConfig const &config);
+                       ISendDataPush& send_data_push,
+                       SafeStreamConfig const& config);
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamSendAction)
 
@@ -55,20 +55,20 @@ class SafeStreamSendAction : public Action<SafeStreamSendAction> {
 
   void SetMaxPayload(std::size_t max_payload_size);
 
-  ActionPtr<SendingDataAction> SendData(DataBuffer &&data);
+  ActionPtr<SendingDataAction> SendData(DataBuffer&& data);
 
  private:
   void SendChunk(TimePoint current_time);
-  void Send(std::uint16_t repeat_count, DataChunk &&data_chunk,
+  void Send(std::uint16_t repeat_count, DataChunk&& data_chunk,
             TimePoint current_time);
-  void RejectSend(SendingChunk &sending_chunk);
+  void RejectSend(SendingChunk& sending_chunk);
   UpdateStatus SendTimeouts(TimePoint current_time);
 
-  ActionPtr<StreamWriteAction> PushData(DataBuffer &&data_buffer,
-                                        SSRingIndex::type delta,
-                                        std::uint8_t repeat_count);
+  ActionPtr<WriteAction> PushData(DataBuffer&& data_buffer,
+                                  SSRingIndex::type delta,
+                                  std::uint8_t repeat_count);
 
-  ISendDataPush *send_data_push_;
+  ISendDataPush* send_data_push_;
 
   SSRingIndex begin_;       //< begin data offset
   SSRingIndex last_sent_;   //< last offset for last sent data

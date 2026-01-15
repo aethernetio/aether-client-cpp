@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2025 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
-#define AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
+#include "config/user_config_hydrogen.h"
 
-#include "aether/write_action/write_action.h"
-
-namespace ae {
-class SocketPacketSendAction : public WriteAction {
- public:
-  using WriteAction::WriteAction;
-
-  UpdateStatus Update() override;
-
-  // Trigger event to send data
-  virtual void Send() = 0;
-};
-}  // namespace ae
-
-#endif  // AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
+#define AE_SUPPORT_MODEMS 1
+#define AE_ENABLE_THINGY91X 1

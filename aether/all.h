@@ -73,9 +73,11 @@
 
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/safe_stream.h"
-#include "aether/stream_api/buffer_stream.h"
 #include "aether/stream_api/api_call_adapter.h"
-#include "aether/stream_api/stream_write_action.h"
+#include "aether/write_action/write_action.h"
+#include "aether/write_action/buffer_write.h"
+#include "aether/write_action/failed_write_action.h"
+#include "aether/write_action/done_write_action.h"
 
 #include "aether/serial_ports/iserial_port.h"
 #include "aether/serial_ports/serial_port_types.h"

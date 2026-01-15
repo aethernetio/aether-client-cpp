@@ -28,7 +28,8 @@ ClientConnectionManager::ClientConnectionManager(
   InitServerConnections();
 }
 
-std::vector<ServerConnection>& ClientConnectionManager::server_connections() {
+std::vector<CloudServerConnection>&
+ClientConnectionManager::server_connections() {
   return server_connections_;
 }
 

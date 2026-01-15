@@ -27,7 +27,7 @@
 #  include "aether/actions/action_ptr.h"
 #  include "aether/gateway_api/gateway_api.h"
 #  include "aether/gateway_api/server_endpoints.h"
-#  include "aether/stream_api/stream_write_action.h"
+#  include "aether/write_action/write_action.h"
 
 namespace ae {
 /**
@@ -43,13 +43,13 @@ class IGatewayDevice {
   /**
    * \brief Write data through gateway to server by id.
    */
-  virtual ActionPtr<StreamWriteAction> ToServer(ClientId client_id,
-                                                ServerId server_id,
-                                                DataBuffer&& data) = 0;
+  virtual ActionPtr<WriteAction> ToServer(ClientId client_id,
+                                          ServerId server_id,
+                                          DataBuffer&& data) = 0;
   /**
    * \brief Write data through gateway to server by endpoints.
    */
-  virtual ActionPtr<StreamWriteAction> ToServer(
+  virtual ActionPtr<WriteAction> ToServer(
       ClientId client_id, ServerEndpoints const& server_endpoints,
       DataBuffer&& data) = 0;
 

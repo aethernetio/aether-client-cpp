@@ -103,17 +103,15 @@ ClientServerConnection::ClientServerConnection(ActionContext action_context,
       client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
       login_api_{protocol_context_, action_context_,
                  *crypto_provider_->encryptor()},
-      channel_manager_{action_context_, server},
-      channel_select_stream_{action_context_, channel_manager_},
-      server_channel_{} {
+      server_connection_{action_context_, server} {
   AE_TELED_DEBUG("Client server connection from {} to {}", ephemeral_uid_,
                  server->server_id);
 
-  out_data_sub_ = channel_select_stream_.out_data_event().Subscribe(
+  server_connection_.out_data_event().Subscribe(
       MethodPtr<&ClientServerConnection::OutData>{this});
-
-  StreamUpdate();
-  SubscribeToSelectChannel();
+  server_connection_.channel_changed_event().Subscribe(
+      MethodPtr<&ClientServerConnection::ChannelChanged>{this});
+  ChannelChanged();
 }
 
 ClientServerConnection::~ClientServerConnection() {
@@ -123,21 +121,20 @@ ClientServerConnection::~ClientServerConnection() {
                  ephemeral_uid_, server->server_id);
 }
 
-void ClientServerConnection::Restream() { channel_select_stream_.Restream(); }
+void ClientServerConnection::Restream() { server_connection_.Restream(); }
 
 StreamInfo ClientServerConnection::stream_info() const {
-  return channel_select_stream_.stream_info();
+  return server_connection_.stream_info();
 }
 
 ByteIStream::StreamUpdateEvent::Subscriber
 ClientServerConnection::stream_update_event() {
-  return channel_select_stream_.stream_update_event();
+  return server_connection_.stream_update_event();
 }
 
-ActionPtr<StreamWriteAction> ClientServerConnection::AuthorizedApiCall(
+ActionPtr<WriteAction> ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
-  auto api_call =
-      ApiCallAdapter{ApiContext{login_api_}, channel_select_stream_};
+  auto api_call = ApiCallAdapter{ApiContext{login_api_}, server_connection_};
   api_call->login_by_alias(ephemeral_uid_, std::move(auth_api));
   return api_call.Flush();
 }
@@ -146,46 +143,28 @@ ClientApiSafe& ClientServerConnection::client_safe_api() {
   return client_api_unsafe_.client_api_safe();
 }
 
+ServerConnection& ClientServerConnection::server_connection() {
+  return server_connection_;
+}
+
 void ClientServerConnection::OutData(DataBuffer const& data) {
   auto parser = ApiParser{protocol_context_, data};
   parser.Parse(client_api_unsafe_);
 }
 
-void ClientServerConnection::SubscribeToSelectChannel() {
-  stream_update_sub_ = channel_select_stream_.stream_update_event().Subscribe(
-      MethodPtr<&ClientServerConnection::StreamUpdate>{this});
-}
-
-void ClientServerConnection::StreamUpdate() {
-  if (channel_select_stream_.stream_info().link_state ==
-      LinkState::kLinkError) {
-    auto server = server_.Lock();
-    assert(server);
-    AE_TELED_ERROR("ClientServerConnection connection error from {} to {}",
-                   ephemeral_uid_, server->server_id);
-  }
-  if (channel_select_stream_.stream_info().link_state != LinkState::kLinked) {
-    return;
-  }
-
-  auto const* channel = channel_select_stream_.server_channel();
-  // check if channel is updated
-  if (server_channel_ == channel) {
-    return;
-  }
-  server_channel_ = channel;
-
-  AE_TELED_DEBUG("Channel is linked, make new ping");
-  Server::ptr server = server_.Lock();
-  assert(server);
+void ClientServerConnection::ChannelChanged() {
+  AE_TELED_DEBUG("Channel is updated, make new ping");
+  auto channel = server_connection_.current_channel();
   // Create new ping if channel is updated
-  // TODO: add ping interval config
-  ping_ = OwnActionPtr<Ping>{action_context_, server_channel_->channel(), *this,
-                             std::chrono::seconds{5}};
+  static constexpr Duration kPingDefaultInterval =
+      std::chrono::milliseconds{AE_PING_INTERVAL_MS};
+  // TODO: make ping interval depend on server priority
+  ping_ =
+      OwnActionPtr<Ping>{action_context_, channel, *this, kPingDefaultInterval};
 
   ping_sub_ = ping_->StatusEvent().Subscribe(OnError{[this]() {
     AE_TELED_ERROR("Ping failed");
-    channel_select_stream_.Restream();
+    server_connection_.Restream();
   }});
 }
 

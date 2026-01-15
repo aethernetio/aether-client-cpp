@@ -100,7 +100,7 @@ class Registration final : public Action<Registration> {
 
   ClientConfig client_config_;
 
-  ActionPtr<StreamWriteAction> packet_write_action_;
+  ActionPtr<WriteAction> packet_write_action_;
   Subscription data_read_subscription_;
   Subscription raw_transport_send_action_subscription_;
   Subscription reg_server_write_subscription_;

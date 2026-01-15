@@ -14,30 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_SERVER_CONNECTIONS_CHANNEL_MANAGER_H_
-#define AETHER_SERVER_CONNECTIONS_CHANNEL_MANAGER_H_
-
-#include <vector>
-
-#include "aether/ptr/ptr_view.h"
-
-#include "aether/server_connections/channel_connection.h"
+#include "aether/write_action/buffer_write.h"
 
 namespace ae {
-class Server;
-class ChannelManager {
- public:
-  ChannelManager(ActionContext action_context, ObjPtr<Server> const& server);
+BufferedWriteAction::BufferedWriteAction(ActionContext action_context)
+    : WriteAction{action_context} {}
 
-  std::vector<ChannelConnection>& channels();
+void BufferedWriteAction::Stop() {
+  if (wa_) {
+    wa_->Stop();
+  } else {
+    state_ = State::kStopped;
+  }
+}
 
- private:
-  void InitChannels();
+// set to the sent state
+void BufferedWriteAction::Sent(ActionPtr<WriteAction> swa) {
+  wa_ = std::move(swa);
+  state_ = wa_->state();
+  wa_sub_ =
+      wa_->state_changed().Subscribe([this](auto state) { state_ = state; });
+}
 
-  ActionContext action_context_;
-  PtrView<Server> server_;
-  std::vector<ChannelConnection> channels_;
-};
+// drop the write action from the buffer
+void BufferedWriteAction::Drop() { state_ = State::kFailed; }
 }  // namespace ae
-
-#endif  // AETHER_SERVER_CONNECTIONS_CHANNEL_MANAGER_H_

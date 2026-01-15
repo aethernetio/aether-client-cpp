@@ -71,11 +71,6 @@ UdpTransport::SendAction::SendAction(ActionContext action_context,
       transport_{&transport},
       data_buffer_{std::move(data_buffer)} {}
 
-UdpTransport::SendAction::SendAction(SendAction&& other) noexcept
-    : SocketPacketSendAction{std::move(other)},
-      transport_{other.transport_},
-      data_buffer_{std::move(other.data_buffer_)} {}
-
 void UdpTransport::SendAction::Send() {
   state_ = State::kInProgress;
 
@@ -180,7 +175,7 @@ void UdpTransport::Restream() {
   Disconnect();
 }
 
-ActionPtr<StreamWriteAction> UdpTransport::Write(DataBuffer&& in_data) {
+ActionPtr<WriteAction> UdpTransport::Write(DataBuffer&& in_data) {
   AE_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}", endpoint_,
                 in_data.size());
   auto send_packet_action = send_queue_manager_->AddPacket(

@@ -120,8 +120,7 @@ list(APPEND registration_srcs
             "registration/proof_of_work.cpp"
             "registration/registration.cpp"
             "registration/registration_crypto_provider.cpp"
-            "registration/root_server_select_stream.cpp"
-            "registration/root_server_stream.cpp")
+            "registration/root_server_select_stream.cpp")
 
 
 list(APPEND adapters_srcs
@@ -199,9 +198,7 @@ list(APPEND transport_srcs
 )
 
 list(APPEND stream_api_src
-            "stream_api/stream_write_action.cpp"
             "stream_api/sized_packet_gate.cpp"
-            "stream_api/buffer_stream.cpp"
             "stream_api/stream_api.cpp"
 
             "stream_api/safe_stream.cpp"
@@ -212,6 +209,13 @@ list(APPEND stream_api_src
             "stream_api/safe_stream/receiving_chunk_list.cpp"
             "stream_api/safe_stream/safe_stream_send_action.cpp"
             "stream_api/safe_stream/safe_stream_recv_action.cpp"
+)
+
+list(APPEND write_action_srcs
+            "write_action/write_action.cpp"
+            "write_action/failed_write_action.cpp"
+            "write_action/done_write_action.cpp"
+            "write_action/buffer_write.cpp"
 )
 
 list(APPEND api_protocol_srcs
@@ -241,13 +245,12 @@ list(APPEND work_cloud_api_srcs
 
 
 list(APPEND client_connections_srcs
-            "client_connections/cloud_connection.cpp")
+            "client_connections/cloud_connection.cpp"
+            "client_connections/cloud_server_connection.cpp"
+)
 
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
-            "server_connections/channel_selection_stream.cpp"
-            "server_connections/server_channel.cpp"
-            "server_connections/channel_manager.cpp"
             "server_connections/channel_connection.cpp"
             "server_connections/server_connection.cpp")
 
@@ -318,6 +321,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${actions_srcs}
                             ${transport_srcs}
                             ${stream_api_src}
+                            ${write_action_srcs}
                             ${adapters_srcs}
                             ${access_points_srcs}
                             ${modems_srcs}
@@ -377,6 +381,7 @@ else()
                             ${serial_ports_srcs}
                             ${transport_srcs}
                             ${stream_api_src}
+                            ${write_action_srcs}
                             ${api_protocol_srcs}
                             ${crypto_srcs}
                             ${work_cloud_api_srcs}

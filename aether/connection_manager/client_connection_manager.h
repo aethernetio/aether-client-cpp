@@ -20,7 +20,7 @@
 #include "aether/obj/obj_ptr.h"
 #include "aether/ptr/ptr_view.h"
 
-#include "aether/server_connections/server_connection.h"
+#include "aether/client_connections/cloud_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {
@@ -35,14 +35,14 @@ class ClientConnectionManager {
       ObjPtr<Cloud> const& cloud,
       std::unique_ptr<IServerConnectionFactory>&& connection_factory);
 
-  std::vector<ServerConnection>& server_connections();
+  std::vector<CloudServerConnection>& server_connections();
 
  private:
   void InitServerConnections();
 
   PtrView<Cloud> cloud_;
   std::unique_ptr<IServerConnectionFactory> connection_factory_;
-  std::vector<ServerConnection> server_connections_;
+  std::vector<CloudServerConnection> server_connections_;
 };
 }  // namespace ae
 

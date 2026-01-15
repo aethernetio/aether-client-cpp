@@ -38,7 +38,7 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
     UpdateServers();
   }
 
-  ActionPtr<StreamWriteAction> Write(AeMessage&& message) override {
+  ActionPtr<WriteAction> Write(AeMessage&& message) override {
     return cloud_connection_->AuthorizedApiCall(
         [&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
           auth_api->send_message(std::move(message));
@@ -56,7 +56,7 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
  private:
   void UpdateServers() {
     cloud_connection_->VisitServers(
-        [this](ServerConnection* sc) {
+        [this](auto* sc) {
           if (auto* con = sc->ClientConnection(); con != nullptr) {
             streams_update_sub_.Push(con->stream_update_event().Subscribe(
                 MethodPtr<&MessageSendStream::UpdateStream>{this}));
@@ -69,7 +69,7 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
   void UpdateStream() {
     std::vector<StreamInfo> infos;
     cloud_connection_->VisitServers(
-        [&](ServerConnection* sc) {
+        [&](auto* sc) {
           if (auto* con = sc->ClientConnection(); con != nullptr) {
             infos.emplace_back(con->stream_info());
           }
@@ -122,8 +122,11 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
                          [](auto const& i) { return i.is_reliable; });
     });
 
-    AE_TELED_DEBUG("Message send stream link state {}",
-                   stream_info_.link_state);
+    AE_TELED_DEBUG(
+        "Message send stream link state {}, rec_write_size {}, max_write_size "
+        "{}",
+        stream_info_.link_state, stream_info_.rec_element_size,
+        stream_info_.max_element_size);
 
     stream_update_event_.Emit();
   }
@@ -180,7 +183,8 @@ P2pStream::P2pStream(ActionContext action_context, ObjPtr<Client> const& client,
       client_{client},
       destination_{destination},
       // TODO: add buffer config
-      buffer_stream_{action_context_, 100} {
+      buffer_write_{action_context_, MethodPtr<&P2pStream::OnWrite>{this},
+                    100} {
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
   // destination uid must not be empty
   assert(!destination_.empty());
@@ -191,20 +195,23 @@ P2pStream::P2pStream(ActionContext action_context, ObjPtr<Client> const& client,
 
 P2pStream::~P2pStream() = default;
 
-ActionPtr<StreamWriteAction> P2pStream::Write(DataBuffer&& data) {
+ActionPtr<WriteAction> P2pStream::Write(DataBuffer&& data) {
   AE_TELED_DEBUG("Write message for uid {} size:{} data:{}", destination_,
                  data.size(), data);
   AeMessage message_data{destination_, std::move(data)};
-  return buffer_stream_.Write(std::move(message_data));
+  return buffer_write_.Write(std::move(message_data));
 }
 
 P2pStream::StreamUpdateEvent::Subscriber P2pStream::stream_update_event() {
-  return buffer_stream_.stream_update_event();
+  return stream_update_event_;
 }
 
 StreamInfo P2pStream::stream_info() const {
   // TODO: Combine info for receive and send streams
-  return buffer_stream_.stream_info();
+  if (message_send_stream_) {
+    return message_send_stream_->stream_info();
+  }
+  return {};
 }
 
 P2pStream::OutDataEvent::Subscriber P2pStream::out_data_event() {
@@ -216,8 +223,9 @@ void P2pStream::Restream() {
   auto client_ptr = client_.Lock();
   assert(client_ptr);
   client_ptr->cloud_connection().Restream();
-
-  buffer_stream_.Restream();
+  if (message_send_stream_) {
+    message_send_stream_->Restream();
+  }
 }
 
 void P2pStream::WriteOut(DataBuffer const& data) {
@@ -255,12 +263,16 @@ void P2pStream::ConnectSend() {
             message_send_stream_ =
                 std::make_unique<p2p_stream_internal::MessageSendStream>(
                     *dest_cloud_conn_, RequestPolicy::MainServer{});
+            message_send_stream_->stream_update_event().Subscribe(
+                stream_update_event_);
             AE_TELED_DEBUG("Send connected");
-            Tie(buffer_stream_, *message_send_stream_);
+            buffer_write_.buffer_off();
+            stream_update_event_.Emit();
           }},
           OnError{[this]() {
             AE_TELED_ERROR("Send connection failed ");
-            buffer_stream_.DropLink();
+            buffer_write_.Drop();
+            buffer_write_.buffer_on();
           }},
       });
 }
@@ -279,4 +291,12 @@ std::unique_ptr<CloudConnection> P2pStream::MakeDestinationCloudConn(
   return std::make_unique<CloudConnection>(action_context_, connection_manager,
                                            AE_CLOUD_MAX_SERVER_CONNECTIONS);
 }
+
+ActionPtr<WriteAction> P2pStream::OnWrite(AeMessage&& message) {
+  if (!message_send_stream_) {
+    return {};
+  }
+  return message_send_stream_->Write(std::move(message));
+}
+
 }  // namespace ae
