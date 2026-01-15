@@ -19,7 +19,7 @@
 
 #include "aether/config.h"  // IWYU pragma: keep
 
-#if (defined(ESP_PLATFORM))
+#if (defined(ESP_PLATFORM)) && AE_SUPPORT_WIFIS && AE_ENABLE_ESP32_WIFI
 #  define ESP_WIFI_DRIVER_ENABLED 1
 #  include <memory>
 #  include <optional>

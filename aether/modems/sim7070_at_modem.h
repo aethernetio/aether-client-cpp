@@ -57,7 +57,7 @@ class Sim7070AtModem final : public IModemDriver {
   DataEvent::Subscriber data_event() override;
 
   ActionPtr<ModemOperation> SetPowerSaveParam(
-      PowerSaveParam const& psp) override;
+      ModemPowerSaveParam const& psp) override;
   ActionPtr<ModemOperation> PowerOff() override;
 
  private:

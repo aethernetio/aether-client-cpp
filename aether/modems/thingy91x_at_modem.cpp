@@ -436,7 +436,7 @@ Thingy91xAtModem::DataEvent::Subscriber Thingy91xAtModem::data_event() {
 }
 
 ActionPtr<Thingy91xAtModem::ModemOperation> Thingy91xAtModem::SetPowerSaveParam(
-    PowerSaveParam const& psp) {
+    ModemPowerSaveParam const& psp) {
   auto modem_operation = ActionPtr<ModemOperation>{action_context_};
 
   operation_queue_->Push(Stage([this, modem_operation, psp{psp}]() {

@@ -242,7 +242,7 @@ struct BandPower {
 };
 
 // ========================modem init========================================
-struct PowerSaveParam {
+struct ModemPowerSaveParam {
   AE_REFLECT_MEMBERS(psm_mode, tau, act, edrx_mode, act_type, edrx_val,
                      rai_mode, bands_mode, bands, modem_mode, power)
   std::uint8_t psm_mode;
@@ -258,7 +258,7 @@ struct PowerSaveParam {
   std::vector<BandPower> power;
 };
 
-struct BaseStation {
+struct ModemBaseStation {
   AE_REFLECT_MEMBERS(cell_identifier)
   std::uint32_t cell_identifier;
 };
@@ -268,8 +268,8 @@ struct ModemInit {
                      apn_name, apn_user, apn_pass, modem_mode, auth_type,
                      use_auth, auth_user, auth_pass, ssl_cert, use_ssl)
   SerialInit serial_init;
-  PowerSaveParam psp;
-  BaseStation bs;
+  ModemPowerSaveParam psp;
+  ModemBaseStation bs;
   std::uint16_t pin;
   bool use_pin;
   kModemMode modem_mode;

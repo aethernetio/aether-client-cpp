@@ -94,21 +94,34 @@
 #endif
 
 /**
+ * Is WiFi modules supported.
+ * Also choose one of the supported WiFi modules implementations.
+ */
+#ifndef AE_SUPPORT_WIFIS
+#  define AE_SUPPORT_WIFIS 1
+#endif
+
+// Esp32 WiFi module implementation is enabled.
+#ifndef AE_ENABLE_ESP32_WIFI
+#  define AE_ENABLE_ESP32_WIFI 1
+#endif
+
+/**
  * Is mobile modems supported.
  * Also choose one of the supported modem implementations.
  */
 #ifndef AE_SUPPORT_MODEMS
-#  define AE_SUPPORT_MODEMS 0
+#  define AE_SUPPORT_MODEMS 1
 #endif
 
 // Thingy91x modem implementation is enabled.
 #ifndef AE_ENABLE_THINGY91X
-#  define AE_ENABLE_THINGY91X 0
+#  define AE_ENABLE_THINGY91X 1
 #endif
 
 // SIM7070 modem implementation is enabled.
 #ifndef AE_ENABLE_SIM7070
-#  define AE_ENABLE_SIM7070 0
+#  define AE_ENABLE_SIM7070 1
 #endif
 
 // BG95 modem implementation is enabled.

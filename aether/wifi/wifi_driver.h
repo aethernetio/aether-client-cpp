@@ -20,15 +20,9 @@
 #include <string>
 
 #include "aether/reflect/reflect.h"
+#include "aether/wifi/wifi_driver_types.h"
 
 namespace ae {
-struct WifiCreds {
-  AE_REFLECT_MEMBERS(ssid, password)
-
-  std::string ssid;
-  std::string password;
-};
-
 /**
  * \brief A wifi driver interface.
  */

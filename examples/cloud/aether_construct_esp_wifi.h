@@ -22,8 +22,26 @@
 #if CLOUD_TEST_ESP_WIFI
 
 namespace ae::cloud_test {
-static constexpr std::string_view kWifiSsid = "Test1234";
-static constexpr std::string_view kWifiPass = "Test1234";
+static constexpr std::string kWifiSsid = "Test1234";
+static constexpr std::string kWifiPass = "Test1234";
+
+WifiCreds my_wifi{kWifiSsid, kWifiPass};
+
+std::vector<WifiCreds> wifi_creds{my_wifi};
+
+IpV4Addr my_static_ip{192, 168, 1, 100};
+
+static ae::WiFiInit const wifi_init{
+  wifi_creds,         // Wi-Fi credentials
+  {},                 // Power save parameters
+  {},                 // Base station
+  true,               // Use DHCP
+  {my_static_ip},     // ESP32 static IP
+  {},                 // IP Address of your network gateway (router)
+  {},                 // Subnet mask
+  {},                 // Primary DNS (optional)
+  {}                  // Secondary DNS (optional)
+};
 
 RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
