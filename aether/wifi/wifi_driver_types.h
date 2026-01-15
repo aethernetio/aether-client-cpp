@@ -28,7 +28,9 @@
 #  include "aether/types/address.h"
 #  include "aether/types/variant_type.h"
 
+#    if (defined(ESP_PLATFORM))
 #  include "esp_wifi_types_generic.h"
+#    endif
 
 namespace ae {
 // ========================WiFi init========================================
@@ -39,6 +41,7 @@ struct WifiCreds {
   std::string password;
 };
 
+#    if (defined(ESP_PLATFORM))
 struct WiFiPowerSaveParam {
   AE_REFLECT_MEMBERS(wifi_ps_type, protocol_bitmap, listen_interval,
                      beacon_interval)
@@ -47,6 +50,9 @@ struct WiFiPowerSaveParam {
   int16_t listen_interval;
   uint16_t beacon_interval;
 };
+#    else
+struct WiFiPowerSaveParam {};
+#    endif
 
 struct WiFiBaseStation {
   AE_REFLECT_MEMBERS(creds, channel)
