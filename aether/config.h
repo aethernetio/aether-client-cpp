@@ -167,11 +167,6 @@
 #  define AE_SIGNATURE AE_NONE
 #endif  // AE_SUPPORT_REGISTRATION == 1
 
-// Send ping interval, ms
-#ifndef AE_PING_INTERVAL_MS
-#  define AE_PING_INTERVAL_MS 5000
-#endif
-
 // Public key cryptography
 #ifndef AE_CRYPTO_ASYNC
 #  define AE_CRYPTO_ASYNC AE_SODIUM_BOX_SEAL
@@ -222,6 +217,11 @@
 // default value used for ping timeout, until statistics are available
 #ifndef AE_DEFAULT_RESPONSE_TIMEOUT_MS
 #  define AE_DEFAULT_RESPONSE_TIMEOUT_MS 10000
+#endif
+
+// Send ping interval, ms
+#ifndef AE_PING_INTERVAL_MS
+#  define AE_PING_INTERVAL_MS AE_DEFAULT_RESPONSE_TIMEOUT_MS + 1000
 #endif
 
 // window size for safe stream response time statistics
