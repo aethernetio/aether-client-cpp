@@ -32,7 +32,7 @@ class WifiAdapter final : public ParentWifiAdapter {
  public:
 #ifdef AE_DISTILLATION
   WifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-              DnsResolver::ptr dns_resolver, std::string ssid, std::string pass,
+              DnsResolver::ptr dns_resolver, WiFiInit wifi_init,
               Domain* domain);
 #endif  // AE_DISTILLATION
 

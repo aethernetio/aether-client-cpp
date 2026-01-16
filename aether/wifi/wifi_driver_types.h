@@ -28,9 +28,9 @@
 #  include "aether/types/address.h"
 #  include "aether/types/variant_type.h"
 
-#    if (defined(ESP_PLATFORM))
-#  include "esp_wifi_types_generic.h"
-#    endif
+#  if (defined(ESP_PLATFORM))
+#    include "esp_wifi_types_generic.h"
+#  endif
 
 namespace ae {
 // ========================WiFi init========================================
@@ -41,7 +41,7 @@ struct WifiCreds {
   std::string password;
 };
 
-#    if (defined(ESP_PLATFORM))
+#  if (defined(ESP_PLATFORM))
 struct WiFiPowerSaveParam {
   AE_REFLECT_MEMBERS(wifi_ps_type, protocol_bitmap, listen_interval,
                      beacon_interval)
@@ -50,9 +50,9 @@ struct WiFiPowerSaveParam {
   int16_t listen_interval;
   uint16_t beacon_interval;
 };
-#    else
+#  else
 struct WiFiPowerSaveParam {};
-#    endif
+#  endif
 
 struct WiFiBaseStation {
   AE_REFLECT_MEMBERS(creds, channel)
@@ -60,18 +60,23 @@ struct WiFiBaseStation {
   uint8_t channel;
 };
 
+struct WiFiIP {
+  AE_REFLECT_MEMBERS(use_dhcp, static_ip, gateway, netmask, primary_dns,
+                     secondary_dns)
+  bool use_dhcp{false};
+  Address static_ip{};      // ESP32 static IP
+  Address gateway{};        // IP Address of your network gateway (router)
+  Address netmask{};        // Netmask
+  Address primary_dns{};    // Primary DNS (optional)
+  Address secondary_dns{};  // Secondary DNS (optional)
+};
+
 struct WiFiInit {
-  AE_REFLECT_MEMBERS(wifi_creds, psp, bs, use_dhcp, static_ip, gateway, subnet,
-                     primary_dns, secondary_dns)
+  AE_REFLECT_MEMBERS(wifi_creds, psp, bs, wifi_ip)
   std::vector<WifiCreds> wifi_creds;
   WiFiPowerSaveParam psp;
   WiFiBaseStation bs;
-  bool use_dhcp{true};
-  Address static_ip{};      // ESP32 static IP
-  Address gateway{};        // IP Address of your network gateway (router)
-  Address subnet{};         // Subnet mask
-  Address primary_dns{};    // Primary DNS (optional)
-  Address secondary_dns{};  // Secondary DNS (optional)
+  WiFiIP wifi_ip;
 };
 
 }  // namespace ae

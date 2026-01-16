@@ -32,6 +32,7 @@
 
 #include "aether/client.h"
 #include "aether/aether_app.h"
+#include "aether/wifi/wifi_driver_types.h"
 
 // IWYU pragma: begin_keeps
 #include "aether/domain_storage/domain_storage_factory.h"
@@ -255,10 +256,33 @@ int AetherInit(AetherConfig const* config) {
                   case AeWifiAdapter: {
                     auto* wifi_conf =
                         reinterpret_cast<AeWifiAdapterConf*>(conf);
+                    static ae::WifiCreds my_wifi{wifi_conf->ssid,
+                                                 wifi_conf->password};
+
+                    static std::vector<ae::WifiCreds> wifi_creds{my_wifi};
+
+                    static ae::IpV4Addr my_static_ip{192, 168, 1, 100};
+                    static ae::IpV4Addr my_gateway_ip{192, 168, 1, 1};
+                    static ae::IpV4Addr my_netmask_ip{255, 255, 255, 0};
+                    static ae::IpV4Addr my_dns1_ip{8, 8, 8, 8};
+                    static ae::IpV4Addr my_dns2_ip{8, 8, 4, 4};
+
+                    static ae::WiFiInit const wifi_init{
+                        wifi_creds,       // Wi-Fi credentials
+                        {},               // Power save parameters
+                        {},               // Base station
+                        true,             // Use DHCP
+                        {my_static_ip},   // ESP32 static IP
+                        {my_gateway_ip},  // IP Address of your network gateway
+                                          // (router)
+                        {my_netmask_ip},  // Subnet mask
+                        {my_dns1_ip},     // Primary DNS (optional)
+                        {my_dns2_ip}      // Secondary DNS (optional)
+                    };
+
                     adapters->Add(context.domain().CreateObj<ae::WifiAdapter>(
                         context.aether(), context.poller(),
-                        context.dns_resolver(), wifi_conf->ssid,
-                        wifi_conf->password));
+                        context.dns_resolver(), wifi_init));
                     break;
                   }
                   default:

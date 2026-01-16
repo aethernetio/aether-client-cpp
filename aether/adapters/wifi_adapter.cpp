@@ -28,11 +28,10 @@
 namespace ae {
 #if defined AE_DISTILLATION
 WifiAdapter::WifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                         DnsResolver::ptr dns_resolver, std::string ssid,
-                         std::string pass, Domain* domain)
-    : ParentWifiAdapter{std::move(aether),       std::move(poller),
-                        std::move(dns_resolver), std::move(ssid),
-                        std::move(pass),         domain} {
+                         DnsResolver::ptr dns_resolver, WiFiInit wifi_init,
+                         Domain* domain)
+    : ParentWifiAdapter{std::move(aether), std::move(poller),
+                        std::move(dns_resolver), std::move(wifi_init), domain} {
   AE_TELED_DEBUG("Wifi instance created!");
 }
 #endif  // AE_DISTILLATION
@@ -44,7 +43,7 @@ std::vector<AccessPoint::ptr> WifiAdapter::access_points() {
     IPoller::ptr poller = poller_;
     WifiAdapter::ptr self_ptr = MakePtrFromThis(this);
     access_point_ = domain_->CreateObj<WifiAccessPoint>(
-        aether, self_ptr, poller, dns_resolver, WifiCreds{ssid_, pass_});
+        aether, self_ptr, poller, dns_resolver, wifi_init_);
   }
 
   return {access_point_};

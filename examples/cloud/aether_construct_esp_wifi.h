@@ -22,25 +22,41 @@
 #if CLOUD_TEST_ESP_WIFI
 
 namespace ae::cloud_test {
-static constexpr std::string kWifiSsid = "Test1234";
-static constexpr std::string kWifiPass = "Test1234";
+static constexpr std::string kWifiSsid = "Visuale";
+static constexpr std::string kWifiPass = "Ws63$yhJ";
 
-WifiCreds my_wifi{kWifiSsid, kWifiPass};
+static WifiCreds my_wifi{kWifiSsid, kWifiPass};
 
-std::vector<WifiCreds> wifi_creds{my_wifi};
+static std::vector<WifiCreds> wifi_creds{my_wifi};
 
-IpV4Addr my_static_ip{192, 168, 1, 100};
+static WiFiPowerSaveParam wifi_psp{
+    WIFI_PS_MAX_MODEM,  // Power save type
+    WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G |
+        WIFI_PROTOCOL_11N,  // Protocol bitmap
+    3,                      // Listen interval
+    500                     // Beacon interval
+};
 
-static ae::WiFiInit const wifi_init{
-  wifi_creds,         // Wi-Fi credentials
-  {},                 // Power save parameters
-  {},                 // Base station
-  true,               // Use DHCP
-  {my_static_ip},     // ESP32 static IP
-  {},                 // IP Address of your network gateway (router)
-  {},                 // Subnet mask
-  {},                 // Primary DNS (optional)
-  {}                  // Secondary DNS (optional)
+static IpV4Addr my_static_ip{192, 168, 1, 215};
+static IpV4Addr my_gateway_ip{192, 168, 1, 1};
+static IpV4Addr my_netmask_ip{255, 255, 255, 0};
+static IpV4Addr my_dns1_ip{8, 8, 8, 8};
+static IpV4Addr my_dns2_ip{8, 8, 4, 4};
+
+static WiFiIP wifi_ip{
+    false,            // Use DHCP
+    {my_static_ip},   // ESP32 static IP
+    {my_gateway_ip},  // IP Address of your network gateway (router)
+    {my_netmask_ip},  // Subnet mask
+    {my_dns1_ip},     // Primary DNS (optional)
+    {my_dns2_ip}      // Secondary DNS (optional)
+};
+
+static WiFiInit wifi_init{
+    wifi_creds,  // Wi-Fi credentials
+    wifi_psp,    // Power save parameters
+    {},          // Base station
+    wifi_ip      // IP address
 };
 
 RcPtr<AetherApp> construct_aether_app() {
@@ -52,8 +68,7 @@ RcPtr<AetherApp> construct_aether_app() {
                 context.domain().CreateObj<AdapterRegistry>();
             adapter_registry->Add(context.domain().CreateObj<WifiAdapter>(
                 GlobalId::kWiFiAdapter, context.aether(), context.poller(),
-                context.dns_resolver(), std::string(kWifiSsid),
-                std::string(kWifiPass)));
+                context.dns_resolver(), wifi_init));
             return adapter_registry;
           })
 #  endif

@@ -44,7 +44,7 @@ class WifiConnectAction final : public Action<WifiConnectAction> {
   };
 
   WifiConnectAction(ActionContext action_context, WifiDriver& driver,
-                    WifiCreds const& creds);
+                    WiFiInit const& wifi_init);
 
   UpdateStatus Update();
 
@@ -52,7 +52,7 @@ class WifiConnectAction final : public Action<WifiConnectAction> {
 
  private:
   WifiDriver* driver_;
-  WifiCreds const& creds_;
+  ae::WiFiInit wifi_init_;
   StateMachine<State> state_;
 };
 
@@ -63,10 +63,10 @@ class WifiAccessPoint final : public AccessPoint {
  public:
   WifiAccessPoint(ObjPtr<Aether> aether, ObjPtr<WifiAdapter> adapter,
                   ObjPtr<IPoller> poller, ObjPtr<DnsResolver> resolver,
-                  WifiCreds wifi_creds, Domain* domain);
+                  WiFiInit const& wifi_init, Domain* domain);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, adapter_, poller_, resolver_,
-                             wifi_creds_))
+                             wifi_init_))
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
       ObjPtr<Server> const& server) override;
@@ -83,7 +83,7 @@ class WifiAccessPoint final : public AccessPoint {
   Obj::ptr adapter_;
   Obj::ptr poller_;
   Obj::ptr resolver_;
-  WifiCreds wifi_creds_;
+  ae::WiFiInit wifi_init_;
   ActionPtr<WifiConnectAction> connect_action_;
   Subscription connect_sub_;
 };

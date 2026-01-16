@@ -21,6 +21,7 @@
 
 #include "aether/aether.h"
 #include "aether/adapters/adapter.h"
+#include "aether/wifi/wifi_driver_types.h"
 
 namespace ae {
 class Aether;
@@ -36,18 +37,17 @@ class ParentWifiAdapter : public Adapter {
  public:
 #ifdef AE_DISTILLATION
   ParentWifiAdapter(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
-                    ObjPtr<DnsResolver> dns_resolver, std::string ssid,
-                    std::string pass, Domain* domain);
+                    ObjPtr<DnsResolver> dns_resolver, WiFiInit wifi_init,
+                    Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, ssid_, pass_))
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, wifi_init_))
 
   Obj::ptr aether_;
   Obj::ptr poller_;
   Obj::ptr dns_resolver_;
 
-  std::string ssid_;
-  std::string pass_;
+  WiFiInit wifi_init_;
 };
 }  // namespace ae
 

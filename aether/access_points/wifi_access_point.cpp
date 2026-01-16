@@ -28,18 +28,21 @@
 namespace ae {
 
 WifiConnectAction::WifiConnectAction(ActionContext action_context,
-                                     WifiDriver& driver, WifiCreds const& creds)
+                                     WifiDriver& driver,
+                                     WiFiInit const& wifi_init)
     : Action{action_context},
       driver_{&driver},
-      creds_{creds},
-      state_{State::kCheckIsConnected} {}
+      wifi_init_{wifi_init},
+      state_{State::kCheckIsConnected} {
+  assert(wifi_init.wifi_creds.size() && "No WiFi credentials!");
+}
 
 UpdateStatus WifiConnectAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kCheckIsConnected: {
         auto connected_to = driver_->connected_to();
-        if (connected_to.ssid == creds_.ssid) {
+        if (connected_to.ssid == wifi_init_.wifi_creds.at(0).ssid) {
           state_ = State::kConnected;
         } else {
           state_ = State::kConnect;
@@ -48,7 +51,7 @@ UpdateStatus WifiConnectAction::Update() {
         break;
       }
       case State::kConnect: {
-        driver_->Connect(creds_);
+        driver_->Connect(wifi_init_);
         // TODO: Does connect should be async
         state_ = State::kConnected;
         Action::Trigger();
@@ -69,13 +72,13 @@ WifiAccessPoint::WifiAccessPoint(ObjPtr<Aether> aether,
                                  ObjPtr<WifiAdapter> adapter,
                                  ObjPtr<IPoller> poller,
                                  ObjPtr<DnsResolver> resolver,
-                                 WifiCreds wifi_creds, Domain* domain)
+                                 ae::WiFiInit const& wifi_init, Domain* domain)
     : AccessPoint{domain},
       aether_{std::move(aether)},
       adapter_{std::move(adapter)},
       poller_{std::move(poller)},
       resolver_{std::move(resolver)},
-      wifi_creds_{std::move(wifi_creds)} {}
+      wifi_init_{std::move(wifi_init)} {}
 
 std::vector<ObjPtr<Channel>> WifiAccessPoint::GenerateChannels(
     ObjPtr<Server> const& server) {
@@ -105,7 +108,7 @@ ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
   if (!connect_action_) {
     connect_action_ = ActionPtr<WifiConnectAction>{
         *aether_.as<Aether>(), adapter_.as<WifiAdapter>()->driver(),
-        wifi_creds_};
+        wifi_init_};
     connect_sub_ = connect_action_->FinishedEvent().Subscribe(
         [this]() { connect_action_.reset(); });
   }
@@ -115,7 +118,7 @@ ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
 bool WifiAccessPoint::IsConnected() {
   auto& driver = adapter_.as<WifiAdapter>()->driver();
   auto connected_to = driver.connected_to();
-  return connected_to.ssid == wifi_creds_.ssid;
+  return connected_to.ssid == wifi_init_.wifi_creds.at(0).ssid;
 }
 
 }  // namespace ae

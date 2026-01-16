@@ -26,13 +26,16 @@
 
 #  include "aether/wifi/wifi_driver.h"
 
+#  include "esp_err.h"
+#  include "esp_netif_types.h"
+
 namespace ae {
 class EspWifiDriver final : public WifiDriver {
  public:
   EspWifiDriver();
   ~EspWifiDriver() override;
 
-  void Connect(WifiCreds const& creds) override;
+  void Connect(WiFiInit const& wifi_init) override;
   WifiCreds connected_to() const override;
 
  private:
@@ -40,6 +43,7 @@ class EspWifiDriver final : public WifiDriver {
   void Init();
   void InitNvs();
   void Deinit();
+  esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config);
 
   static int initialized_;
   static void* espt_init_sta_;

@@ -86,7 +86,7 @@ EspWifiDriver::~EspWifiDriver() {
   Deinit();
 }
 
-void EspWifiDriver::Connect(WifiCreds const& creds) {
+void EspWifiDriver::Connect(WiFiInit const& wifi_init) {
   if (connected_to_) {
     Disconnect();
   }
@@ -111,21 +111,35 @@ void EspWifiDriver::Connect(WifiCreds const& creds) {
 
   wifi_config_t wifi_config{};
   wifi_config.sta.threshold = wifi_threshold;
+  wifi_config.sta.listen_interval = wifi_init.psp.listen_interval;
 
   // for debug purpose only, it's private data
-  AE_TELED_DEBUG("Connecting to ap SSID:{} PSWD:{}", creds.ssid,
-                 creds.password);
+  AE_TELED_DEBUG("Connecting to ap SSID:{} PSWD:{}",
+                 wifi_init.wifi_creds.at(0).ssid,
+                 wifi_init.wifi_creds.at(0).password);
 
-  strncpy(reinterpret_cast<char*>(wifi_config.sta.ssid), creds.ssid.data(),
-          sizeof(wifi_config.sta.ssid));
+  strncpy(reinterpret_cast<char*>(wifi_config.sta.ssid),
+          wifi_init.wifi_creds.at(0).ssid.data(), sizeof(wifi_config.sta.ssid));
   strncpy(reinterpret_cast<char*>(wifi_config.sta.password),
-          creds.password.data(), sizeof(wifi_config.sta.password));
+          wifi_init.wifi_creds.at(0).password.data(),
+          sizeof(wifi_config.sta.password));
+
+  // Setting up a static IP, if required
+  if (!wifi_init.wifi_ip.use_dhcp) {
+    esp_err_t err = SetStaticIp(static_cast<esp_netif_t*>(espt_init_sta_),
+                                wifi_init.wifi_ip);
+    if (err != ESP_OK) {
+      AE_TELED_ERROR("Failed to set static IP, falling back to DHCP");
+    }
+  } else {
+    AE_TELED_DEBUG("Using DHCP for IP configuration");
+  }
 
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-  ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
-  ESP_ERROR_CHECK(esp_wifi_set_protocol(
-      WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N));
+  ESP_ERROR_CHECK(esp_wifi_set_ps(wifi_init.psp.wifi_ps_type));
+  ESP_ERROR_CHECK(
+      esp_wifi_set_protocol(WIFI_IF_STA, wifi_init.psp.protocol_bitmap));
   ESP_ERROR_CHECK(esp_wifi_start());
 
   AE_TELED_DEBUG("WifiInitSta finished.");
@@ -141,7 +155,7 @@ void EspWifiDriver::Connect(WifiCreds const& creds) {
    * can test which event actually happened. */
   if (bits & WIFI_CONNECTED_BIT) {
     AE_TELED_DEBUG("Connected to AP");
-    connected_to_ = creds;
+    connected_to_ = wifi_init.wifi_creds.at(0);
   } else if (bits & WIFI_FAIL_BIT) {
     AE_TELED_DEBUG("Failed to connect to AP");
   } else {
@@ -195,5 +209,51 @@ void EspWifiDriver::Disconnect() {
   esp_wifi_disconnect();
   esp_wifi_stop();
 }
+
+esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
+  esp_err_t err = ESP_OK;
+  esp_netif_ip_info_t ip_info;
+  esp_netif_dns_info_t dns_info1, dns_info2;
+
+  // Conversion to IP addresses
+  memset(&ip_info, 0, sizeof(esp_netif_ip_info_t));
+  memset(&dns_info1, 0, sizeof(esp_netif_dns_info_t));
+  memset(&dns_info2, 0, sizeof(esp_netif_dns_info_t));
+
+  /*inet_pton(AF_INET, config.static_ip, &ip_info.ip);
+  inet_pton(AF_INET, config.gateway, &ip_info.gw);
+  inet_pton(AF_INET, config.netmask, &ip_info.netmask);
+  inet_pton(AF_INET, config.primary_dns, &dns_info1.ip.u_addr.ip4);
+  inet_pton(AF_INET, config.secondary_dns, &dns_info2.ip.u_addr.ip4);*/
+
+  // Stopping the DHCP client
+  err = esp_netif_dhcpc_stop(netif);
+  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+    AE_TELED_ERROR("Failed to stop DHCP client: {}", esp_err_to_name(err));
+    return err;
+  }
+
+  // Setting a static IP
+  err = esp_netif_set_ip_info(netif, &ip_info);
+  if (err != ESP_OK) {
+    AE_TELED_ERROR("Failed to set IP info: {}", esp_err_to_name(err));
+    return err;
+  }
+
+  // Installing DNS servers
+  err = esp_netif_set_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns_info1);
+  if (err != ESP_OK) {
+    AE_TELED_ERROR("Failed to set primary DNS: {}", esp_err_to_name(err));
+  }
+
+  err = esp_netif_set_dns_info(netif, ESP_NETIF_DNS_BACKUP, &dns_info2);
+  if (err != ESP_OK) {
+    AE_TELED_ERROR("Failed to set secondary DNS: {}", esp_err_to_name(err));
+  }
+
+  AE_TELED_DEBUG("Static IP configured: {}", config.static_ip);
+  return ESP_OK;
+}
+
 }  // namespace ae
 #endif

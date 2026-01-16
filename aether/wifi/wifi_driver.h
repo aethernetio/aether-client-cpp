@@ -33,7 +33,7 @@ class WifiDriver {
   /**
    * \brief Connect to an access point with creds.
    */
-  virtual void Connect(WifiCreds const& creds) = 0;
+  virtual void Connect(WiFiInit const& wifi_init) = 0;
   /**
    * \brief Get creds for currently connected access point.
    * \return if connected WifiCreds with filled at least ssid, otherwise empty.
