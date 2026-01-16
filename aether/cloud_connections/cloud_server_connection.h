@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLIENT_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
-#define AETHER_CLIENT_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
+#ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
+#define AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
 
 #include "aether/ptr/rc_ptr.h"
 #include "aether/obj/obj_ptr.h"
@@ -52,7 +52,7 @@ class CloudServerConnection {
    * \param priority the new priority value.
    * Priority is used to sort connection in cloud for performing requests.
    */
-  void BeginConnection(std::size_t priority);
+  bool BeginConnection(std::size_t priority);
   /**
    * \brief Call to end connection with specified priority.
    * \param priority the new priority value.
@@ -66,7 +66,7 @@ class CloudServerConnection {
    * Should be called after BeginConnection.
    * \return The client-server connection object or nullptr.
    */
-  ClientServerConnection* ClientConnection();
+  ClientServerConnection* client_connection();
 
   ObjPtr<Server> server() const;
 
@@ -80,4 +80,4 @@ class CloudServerConnection {
 };
 }  // namespace ae
 
-#endif  // AETHER_CLIENT_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
+#endif  // AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_

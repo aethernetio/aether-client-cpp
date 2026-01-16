@@ -24,24 +24,25 @@
 
 #  include "aether/mstream.h"
 #  include "aether/mstream_buffers.h"
-#  include "aether/client_connections/cloud_connection.h"
+#  include "aether/cloud_connections/cloud_request.h"
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
 Telemetry::Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
-                     CloudConnection& cloud_connection)
+                     CloudServerConnections& cloud_connection)
     : Action{action_context},
       aether_{aether},
       cloud_connection_{&cloud_connection},
+      telemetry_request_sub_{
+          ClientListener{[&](ClientApiSafe& api, auto* sever_connect) {
+            return api.request_telemetry_event().Subscribe(
+                [&]() { OnRequestTelemetry(sever_connect->priority()); });
+          }},
+          *cloud_connection_,
+          RequestPolicy::Replica{cloud_connection_->max_connections()}},
       state_{State::kWaitRequest} {
   AE_TELE_INFO(TelemetryCreated);
-  telemetry_request_sub_ = cloud_connection_->ClientApiSubscription(
-      [&](ClientApiSafe& api, auto* sever_connect) {
-        return api.request_telemetry_event().Subscribe(
-            [&]() { OnRequestTelemetry(sever_connect->priority()); });
-      },
-      RequestPolicy::Replica{cloud_connection_->max_connections()});
 }
 
 UpdateStatus Telemetry::Update() {
@@ -69,17 +70,17 @@ void Telemetry::SendTelemetry() {
   AE_TELE_DEBUG(TelemetrySending);
 
   state_ = State::kWaitRequest;
-  auto server_priority = request_for_priority_.value_or(0);
+  auto server_num = request_for_server_.value_or(0);
+  request_for_server_.reset();
 
-  ClientServerConnection* con{};
-  cloud_connection_->VisitServers(
-      [&](auto* sc) { con = sc->ClientConnection(); },
-      RequestPolicy::Priority{server_priority});
-
-  if (con == nullptr) {
-    AE_TELED_ERROR("Connection for requested telemetry is null");
+  if (cloud_connection_->servers().size() <= server_num) {
+    AE_TELED_ERROR("Requested server number is out of range");
     return;
   }
+
+  ClientServerConnection* con =
+      cloud_connection_->servers()[server_num]->client_connection();
+  assert((con != nullptr) && "ClientServerConnection is null");
 
   auto telemetry = CollectTelemetry(con->stream_info());
   if (!telemetry) {
@@ -87,18 +88,18 @@ void Telemetry::SendTelemetry() {
     return;
   }
 
-  cloud_connection_->AuthorizedApiCall(
-      [&](ApiContext<AuthorizedApi>& auth_api, auto*) {
+  CloudRequest::CallApi(
+      AuthApiCaller{[&](ApiContext<AuthorizedApi>& auth_api, auto*) {
         auth_api->send_telemetry(std::move(*telemetry));
-      },
-      RequestPolicy::Priority{server_priority});
+      }},
+      *cloud_connection_, RequestPolicy::Priority{server_num});
 
   AE_TELE_INFO(TelemetrySent);
 }
 
 void Telemetry::OnRequestTelemetry(std::size_t server_priority) {
   state_ = State::kSendTelemetry;
-  request_for_priority_ = server_priority;
+  request_for_server_ = server_priority;
   Action::Trigger();
 }
 

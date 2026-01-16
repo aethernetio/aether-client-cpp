@@ -167,11 +167,6 @@
 #  define AE_SIGNATURE AE_NONE
 #endif  // AE_SUPPORT_REGISTRATION == 1
 
-// Send ping interval, ms
-#ifndef AE_PING_INTERVAL_MS
-#  define AE_PING_INTERVAL_MS 5000
-#endif
-
 // Public key cryptography
 #ifndef AE_CRYPTO_ASYNC
 #  define AE_CRYPTO_ASYNC AE_SODIUM_BOX_SEAL
@@ -224,6 +219,11 @@
 #  define AE_DEFAULT_RESPONSE_TIMEOUT_MS 10000
 #endif
 
+// Send ping interval, ms
+#ifndef AE_PING_INTERVAL_MS
+#  define AE_PING_INTERVAL_MS AE_DEFAULT_RESPONSE_TIMEOUT_MS + 1000
+#endif
+
 // window size for safe stream response time statistics
 #ifndef AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE
 #  define AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE 100
@@ -242,6 +242,11 @@
 // Maximal number of server connections
 #ifndef AE_CLOUD_MAX_SERVER_CONNECTIONS
 #  define AE_CLOUD_MAX_SERVER_CONNECTIONS 3
+#endif
+
+// Cloud server quarantine time
+#ifndef AE_CLOUD_SERVER_QUARANTINE_TIME_MS
+#  define AE_CLOUD_SERVER_QUARANTINE_TIME_MS 10000
 #endif
 
 // Telemetry configuration

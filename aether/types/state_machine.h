@@ -29,7 +29,6 @@ class StateMachine {
   static_assert(std::is_enum_v<TEnum> || std::is_integral_v<TEnum>,
                 "Expected TEnum to be an enum or integral type");
 
-  StateMachine() : changed_{}, state_{} {}
   explicit StateMachine(TEnum val) : changed_{true}, state_(val) {}
 
   StateMachine(StateMachine const& other) = delete;

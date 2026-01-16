@@ -23,41 +23,49 @@
 namespace ae {
 GetServersAction::GetServersAction(ActionContext action_context,
                                    std::vector<ServerId> server_ids,
-                                   CloudConnection& cloud_connection,
+                                   CloudServerConnections& cloud_connection,
                                    RequestPolicy::Variant request_policy)
     : Action{action_context},
-      action_context_{action_context},
       server_ids_{std::move(server_ids)},
-      cloud_connection_{&cloud_connection},
-      request_policy_{request_policy},
-      state_{State::kMakeRequest} {
-  response_sub_ = cloud_connection_->ClientApiSubscription(
-      [this](ClientApiSafe& client_api, auto*) {
-        return client_api.send_server_descriptor_event().Subscribe(
-            MethodPtr<&GetServersAction::GetResponse>{this});
-      },
-      request_policy_);
-  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+      state_{State::kNone},
+      cloud_request_{
+          action_context,
+          AuthApiCaller{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
+            AE_TELED_DEBUG("Resolve servers {}", server_ids_);
+            auth_api->resolver_servers(server_ids_);
+          }},
+          ClientResponseListener{[this](ClientApiSafe& client_api, auto*,
+                                        auto* request) {
+            return client_api.send_server_descriptor_event().Subscribe(
+                [this, request](auto const& sd) { GetResponse(sd, request); });
+          }},
+          cloud_connection,
+          request_policy,
+      } {
+  request_sub_ = cloud_request_->StatusEvent().Subscribe(ActionHandler{
+      OnResult{[this]() {
+        state_ = State::kResult;
+        Action::Trigger();
+      }},
+      OnError{[this]() {
+        state_ = State::kFailed;
+        Action::Trigger();
+      }},
+  });
 }
 
-UpdateStatus GetServersAction::Update(TimePoint current_time) {
+UpdateStatus GetServersAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
-      case State::kMakeRequest:
-        MakeRequest();
-        break;
-      case State::kWait:
-        break;
       case State::kResult:
         return UpdateStatus::Result();
       case State::kFailed:
         return UpdateStatus::Error();
       case State::kStop:
         return UpdateStatus::Stop();
+      default:
+        break;
     }
-  }
-  if (state_ == State::kWait) {
-    return Wait(current_time);
   }
   return {};
 }
@@ -67,41 +75,13 @@ std::vector<ServerDescriptor> const& GetServersAction::servers() const {
 }
 
 void GetServersAction::Stop() {
-  repeatable_task_->Stop();
-  response_sub_.Reset();
+  cloud_request_->Stop();
   state_ = State::kStop;
+  Action::Trigger();
 }
 
-void GetServersAction::MakeRequest() {
-  // TODO: add config for repeat time and count
-  auto repeat_count = 5;
-
-  repeatable_task_ = OwnActionPtr<RepeatableTask>{
-      action_context_,
-      [this]() {
-        // TODO: add config for timeout
-        timeout_point_ = Now() + std::chrono::seconds{10};
-        cloud_connection_->AuthorizedApiCall(
-            [this](ApiContext<AuthorizedApi>& auth_api, auto*) {
-              AE_TELED_DEBUG("Resolve servers {}", server_ids_);
-              auth_api->resolver_servers(server_ids_);
-            },
-            request_policy_);
-      },
-      // TODO: add config for repeat time and count
-      std::chrono::milliseconds{10000},
-      repeat_count,
-  };
-
-  request_sub_ = repeatable_task_->StatusEvent().Subscribe(OnError{[this]() {
-    AE_TELED_ERROR("Server resolve request count exceeded");
-    state_ = State::kFailed;
-  }});
-
-  state_ = State::kWait;
-}
-
-void GetServersAction::GetResponse(ServerDescriptor const& server_descriptor) {
+void GetServersAction::GetResponse(ServerDescriptor const& server_descriptor,
+                                   CloudRequestAction* request) {
   // If got not requested server id ignore it.
   if (auto it = std::find_if(std::begin(server_ids_), std::end(server_ids_),
                              [sid{server_descriptor.server_id}](ServerId id) {
@@ -110,9 +90,6 @@ void GetServersAction::GetResponse(ServerDescriptor const& server_descriptor) {
       it == std::end(server_ids_)) {
     return;
   }
-  // stop send requests
-  repeatable_task_->Stop();
-  request_sub_.Reset();
 
   // insert if not inserted
   if (auto it = std::find_if(
@@ -125,17 +102,7 @@ void GetServersAction::GetResponse(ServerDescriptor const& server_descriptor) {
   }
   server_descriptors_.push_back(server_descriptor);
   if (server_descriptors_.size() == server_ids_.size()) {
-    state_ = State::kResult;
+    request->Succeeded();
   }
 }
-
-UpdateStatus GetServersAction::Wait(TimePoint current_time) {
-  if (timeout_point_ >= current_time) {
-    AE_TELED_ERROR("Server resolve timeout");
-    state_ = State::kFailed;
-    return {};
-  }
-  return UpdateStatus::Delay(timeout_point_);
-}
-
 }  // namespace ae

@@ -244,10 +244,11 @@ list(APPEND work_cloud_api_srcs
             "work_cloud_api/client_api/client_api_safe.cpp")
 
 
-list(APPEND client_connections_srcs
-            "client_connections/cloud_connection.cpp"
-            "client_connections/cloud_server_connection.cpp"
-)
+list(APPEND cloud_connections_srcs
+            "cloud_connections/cloud_server_connection.cpp"
+            "cloud_connections/cloud_server_connections.cpp"
+            "cloud_connections/cloud_subscription.cpp"
+            "cloud_connections/cloud_request.cpp")
 
 list(APPEND server_connections_srcs
             "server_connections/client_server_connection.cpp"
@@ -334,7 +335,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${work_cloud_api_srcs}
                             ${registration_srcs}
                             ${client_messages_srcs}
-                            ${client_connections_srcs}
+                            ${cloud_connections_srcs}
                             ${server_connections_srcs}
                             ${connection_manager_srcs}
                             ${domain_storage_srcs}
@@ -387,7 +388,7 @@ else()
                             ${work_cloud_api_srcs}
                             ${registration_srcs}
                             ${client_messages_srcs}
-                            ${client_connections_srcs}
+                            ${cloud_connections_srcs}
                             ${server_connections_srcs}
                             ${connection_manager_srcs}
                             ${domain_storage_srcs}
