@@ -55,9 +55,11 @@ struct WiFiPowerSaveParam {};
 #  endif
 
 struct WiFiBaseStation {
-  AE_REFLECT_MEMBERS(creds, channel)
+  AE_REFLECT_MEMBERS(creds, connected, target_bssid, target_channel)
   WifiCreds creds;
-  uint8_t channel;
+  bool connected{false};
+  uint8_t target_bssid[6];
+  uint8_t target_channel;
 };
 
 struct WiFiIP {

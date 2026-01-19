@@ -112,6 +112,16 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init) {
   wifi_threshold.authmode = WIFI_AUTH_WPA2_PSK;
 
   wifi_config_t wifi_config{};
+
+  // Restore saved Base Station
+  if (wifi_init.bs.connected) {
+    wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
+    wifi_config.sta.bssid_set = true;              // Enable BSSID binding
+    wifi_config.sta.channel = wifi_init.bs.target_channel;  // Set channel
+    // Copy the BSSID to the configuration
+    memcpy(wifi_config.sta.bssid, wifi_init.bs.target_bssid, 6);
+  }
+
   wifi_config.sta.threshold = wifi_threshold;
   wifi_config.sta.listen_interval = wifi_init.psp.listen_interval;
 
@@ -160,6 +170,13 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init) {
   if (bits & WIFI_CONNECTED_BIT) {
     AE_TELED_DEBUG("Connected to AP");
     connected_to_ = wifi_init.wifi_creds.at(0);
+    // Save Base Station
+    if (!wifi_init.bs.connected) {
+      wifi_init.bs.connected = true;
+      wifi_init.bs.target_channel = wifi_config.sta.channel;  // Set channel
+      // Copy the BSSID to the configuration
+      memcpy(wifi_init.bs.target_bssid, wifi_config.sta.bssid, 6);
+    }
   } else if (bits & WIFI_FAIL_BIT) {
     AE_TELED_DEBUG("Failed to connect to AP");
   } else {
@@ -215,12 +232,12 @@ void EspWifiDriver::Disconnect() {
 }
 
 esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP& config) {
-  esp_err_t err = ESP_OK;  
+  esp_err_t err = ESP_OK;
 
 #  if AE_SUPPORT_IPV4 == 1
   esp_netif_ip_info_t ip_info;
   esp_netif_dns_info_t dns_info1, dns_info2;
-  
+
   // Conversion to IP addresses
   memset(&ip_info, 0, sizeof(esp_netif_ip_info_t));
   memset(&dns_info1, 0, sizeof(esp_netif_dns_info_t));
@@ -246,18 +263,17 @@ esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP& config) {
 #  endif
 #  if AE_SUPPORT_IPV6 == 1
   esp_netif_ip6_info_t ip_info_v6;
-  
+
   memset(&ip_info_v6, 0, sizeof(esp_netif_ip6_info_t));
 
   if (config.use_ipv6) {
     std::array<std::uint32_t const*, 4> ip6_parts{};
     for (auto i = 0; i < 4; ++i) {
       ip6_parts[i] = reinterpret_cast<std::uint32_t const*>(
-      &config.static_ip_v6.ipv6_value[i * 4]);
+          &config.static_ip_v6.ipv6_value[i * 4]);
     }
-    IP6_ADDR(&ip_info_v6.ip, PP_HTONL(*ip6_parts[0]),
-             PP_HTONL(*ip6_parts[1]), PP_HTONL(*ip6_parts[2]),
-             PP_HTONL(*ip6_parts[3]));    
+    IP6_ADDR(&ip_info_v6.ip, PP_HTONL(*ip6_parts[0]), PP_HTONL(*ip6_parts[1]),
+             PP_HTONL(*ip6_parts[2]), PP_HTONL(*ip6_parts[3]));
   }
 #  endif
 
