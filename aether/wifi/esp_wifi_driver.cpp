@@ -33,6 +33,8 @@
 
 #  include "lwip/err.h"
 #  include "lwip/sys.h"
+#  include "lwip/ip4_addr.h"
+#  include "lwip/ip6_addr.h"
 
 #  include "aether/tele/tele.h"
 
@@ -86,7 +88,7 @@ EspWifiDriver::~EspWifiDriver() {
   Deinit();
 }
 
-void EspWifiDriver::Connect(WiFiInit const& wifi_init) {
+void EspWifiDriver::Connect(WiFiInit& wifi_init) {
   if (connected_to_) {
     Disconnect();
   }
@@ -130,6 +132,8 @@ void EspWifiDriver::Connect(WiFiInit const& wifi_init) {
                                 wifi_init.wifi_ip);
     if (err != ESP_OK) {
       AE_TELED_ERROR("Failed to set static IP, falling back to DHCP");
+      // If an error occurs, switch to DHCP
+      wifi_init.wifi_ip.use_dhcp = true;
     }
   } else {
     AE_TELED_DEBUG("Using DHCP for IP configuration");
@@ -210,21 +214,52 @@ void EspWifiDriver::Disconnect() {
   esp_wifi_stop();
 }
 
-esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
-  esp_err_t err = ESP_OK;
+esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP& config) {
+  esp_err_t err = ESP_OK;  
+
+#  if AE_SUPPORT_IPV4 == 1
   esp_netif_ip_info_t ip_info;
   esp_netif_dns_info_t dns_info1, dns_info2;
-
+  
   // Conversion to IP addresses
   memset(&ip_info, 0, sizeof(esp_netif_ip_info_t));
   memset(&dns_info1, 0, sizeof(esp_netif_dns_info_t));
   memset(&dns_info2, 0, sizeof(esp_netif_dns_info_t));
 
-  /*inet_pton(AF_INET, config.static_ip, &ip_info.ip);
-  inet_pton(AF_INET, config.gateway, &ip_info.gw);
-  inet_pton(AF_INET, config.netmask, &ip_info.netmask);
-  inet_pton(AF_INET, config.primary_dns, &dns_info1.ip.u_addr.ip4);
-  inet_pton(AF_INET, config.secondary_dns, &dns_info2.ip.u_addr.ip4);*/
+  auto static_ip = config.static_ip_v4.Get<IpV4Addr>();
+  IP4_ADDR(&ip_info.ip, static_ip.ipv4_value[0], static_ip.ipv4_value[1],
+           static_ip.ipv4_value[2], static_ip.ipv4_value[3]);
+  auto gateway = config.gateway_v4.Get<IpV4Addr>();
+  IP4_ADDR(&ip_info.gw, gateway.ipv4_value[0], gateway.ipv4_value[1],
+           gateway.ipv4_value[2], gateway.ipv4_value[3]);
+  auto netmask = config.netmask_v4.Get<IpV4Addr>();
+  IP4_ADDR(&ip_info.netmask, netmask.ipv4_value[0], netmask.ipv4_value[1],
+           netmask.ipv4_value[2], netmask.ipv4_value[3]);
+  auto primary_dns = config.primary_dns_v4.Get<IpV4Addr>();
+  IP4_ADDR(&dns_info1.ip.u_addr.ip4, primary_dns.ipv4_value[0],
+           primary_dns.ipv4_value[1], primary_dns.ipv4_value[2],
+           primary_dns.ipv4_value[3]);
+  auto secondary_dns = config.secondary_dns_v4.Get<IpV4Addr>();
+  IP4_ADDR(&dns_info2.ip.u_addr.ip4, secondary_dns.ipv4_value[0],
+           secondary_dns.ipv4_value[1], secondary_dns.ipv4_value[2],
+           secondary_dns.ipv4_value[3]);
+#  endif
+#  if AE_SUPPORT_IPV6 == 1
+  esp_netif_ip6_info_t ip_info_v6;
+  
+  memset(&ip_info_v6, 0, sizeof(esp_netif_ip6_info_t));
+
+  if (config.use_ipv6) {
+    std::array<std::uint32_t const*, 4> ip6_parts{};
+    for (auto i = 0; i < 4; ++i) {
+      ip6_parts[i] = reinterpret_cast<std::uint32_t const*>(
+      &config.static_ip_v6.ipv6_value[i * 4]);
+    }
+    IP6_ADDR(&ip_info_v6.ip, PP_HTONL(*ip6_parts[0]),
+             PP_HTONL(*ip6_parts[1]), PP_HTONL(*ip6_parts[2]),
+             PP_HTONL(*ip6_parts[3]));    
+  }
+#  endif
 
   // Stopping the DHCP client
   err = esp_netif_dhcpc_stop(netif);
@@ -233,6 +268,7 @@ esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
     return err;
   }
 
+#  if AE_SUPPORT_IPV4 == 1
   // Setting a static IP
   err = esp_netif_set_ip_info(netif, &ip_info);
   if (err != ESP_OK) {
@@ -251,7 +287,20 @@ esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
     AE_TELED_ERROR("Failed to set secondary DNS: {}", esp_err_to_name(err));
   }
 
-  AE_TELED_DEBUG("Static IP configured: {}", config.static_ip);
+  AE_TELED_DEBUG("Static IP V4 configured: {}", config.static_ip_v4);
+#  endif
+#  if AE_SUPPORT_IPV6 == 1
+  if (config.use_ipv6) {
+    err = esp_netif_set_ip6_global(netif, &ip_info_v6.ip);
+    if (err != ESP_OK) {
+      AE_TELED_ERROR("Failed to set IP V6 info: {}", esp_err_to_name(err));
+      return err;
+    }
+
+    AE_TELED_DEBUG("Static IP V6 configured: {}", config.static_ip_v6);
+  }
+#  endif
+
   return ESP_OK;
 }
 

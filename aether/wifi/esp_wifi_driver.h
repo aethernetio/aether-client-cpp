@@ -35,7 +35,7 @@ class EspWifiDriver final : public WifiDriver {
   EspWifiDriver();
   ~EspWifiDriver() override;
 
-  void Connect(WiFiInit const& wifi_init) override;
+  void Connect(WiFiInit& wifi_init) override;
   WifiCreds connected_to() const override;
 
  private:
@@ -43,7 +43,7 @@ class EspWifiDriver final : public WifiDriver {
   void Init();
   void InitNvs();
   void Deinit();
-  esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config);
+  esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP& config);
 
   static int initialized_;
   static void* espt_init_sta_;
