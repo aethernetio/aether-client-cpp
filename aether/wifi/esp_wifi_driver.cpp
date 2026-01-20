@@ -112,6 +112,7 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init) {
   wifi_threshold.authmode = WIFI_AUTH_WPA2_PSK;
 
   wifi_config_t wifi_config{};
+  wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
 
   // Restore saved Base Station
   if (wifi_init.bs.connected) {
@@ -120,6 +121,8 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init) {
     wifi_config.sta.channel = wifi_init.bs.target_channel;  // Set channel
     // Copy the BSSID to the configuration
     memcpy(wifi_config.sta.bssid, wifi_init.bs.target_bssid, 6);
+    ESP_ERROR_CHECK(esp_wifi_set_channel(wifi_init.bs.target_channel,
+                                         WIFI_SECOND_CHAN_NONE));
   }
 
   wifi_config.sta.threshold = wifi_threshold;
@@ -148,6 +151,12 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init) {
   } else {
     AE_TELED_DEBUG("Using DHCP for IP configuration");
   }
+
+  // We disable aggregation so that the packages go out one by one and quickly
+  wifi_init_config.ampdu_rx_enable = 0;
+  wifi_init_config.ampdu_tx_enable = 0;
+
+  ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
 
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
