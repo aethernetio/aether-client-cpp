@@ -47,7 +47,7 @@ class AtRequest final : public Action<AtRequest> {
     kError,
   };
 
-  //using CommandMaker = SmallFunction<ActionPtr<AtWriteAction>()>;
+  // using CommandMaker = SmallFunction<ActionPtr<AtWriteAction>()>;
   using CommandMaker = std::function<ActionPtr<AtWriteAction>()>;
 
   struct Command {
