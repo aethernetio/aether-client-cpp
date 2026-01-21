@@ -63,7 +63,7 @@ constexpr auto operator<<(MakeScopeExit, TCallable&& cb) {
 }
 }  // namespace ae
 
-#define defer_at MakeScopeExit{} <<
-#define defer auto AE_UNIQUE_NAME(SCOPE_GUARD) = defer_at
+#define ae_defer_at MakeScopeExit{} <<
+#define ae_defer auto AE_UNIQUE_NAME(SCOPE_GUARD) = ae_defer_at
 
 #endif  // AETHER_MISC_DEFER_H_

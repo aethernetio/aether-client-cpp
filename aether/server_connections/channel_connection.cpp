@@ -17,6 +17,7 @@
 #include "aether/server_connections/channel_connection.h"
 
 #include "aether/channels/channel.h"
+#include "aether/executors/wait_result.h"
 
 #include "aether/tele/tele.h"
 
@@ -37,19 +38,21 @@ ChannelConnection::connection_state_event() {
 }
 
 void ChannelConnection::BuildTransport(ObjPtr<Channel> const& channel) {
-  auto builder_action = channel->TransportBuilder();
-  transport_build_sub_ = builder_action->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this](auto& builder) {
-        transport_stream_ = builder.transport_stream();
-        build_timer_->Stop();
-        connection_state_event_.Emit(true);
-      }},
-      OnError{[this]() {
-        AE_TELED_ERROR("Transport build failed");
-        build_timer_->Stop();
-        connection_state_event_.Emit(false);
-      }},
-  });
+  transport_builder_ = channel->TransportBuilder();
+  transport_build_sub_ =
+      ex::WaitResult(action_context_, transport_builder_->CreateTransport())
+          ->StatusEvent()
+          .Subscribe(ActionHandler{OnResult{[this](auto& action) {
+                                     transport_stream_ =
+                                         std::move(action.result().value());
+                                     build_timer_->Stop();
+                                     connection_state_event_.Emit(true);
+                                   }},
+                                   OnError{[this]() {
+                                     AE_TELED_ERROR("Transport build failed");
+                                     build_timer_->Stop();
+                                     connection_state_event_.Emit(false);
+                                   }}});
 
   build_timer_ = OwnActionPtr<TimerAction>{action_context_,
                                            channel->TransportBuildTimeout()};

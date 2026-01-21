@@ -24,6 +24,7 @@
 #include "aether/actions/timer_action.h"
 #include "aether/actions/action_context.h"
 #include "aether/events/event_subscription.h"
+#include "aether/transport/transport_builder_action.h"
 
 namespace ae {
 class Channel;
@@ -44,6 +45,7 @@ class ChannelConnection {
 
   ActionContext action_context_;
   std::unique_ptr<ByteIStream> transport_stream_;
+  std::unique_ptr<ITransportBuilder> transport_builder_;
   Subscription transport_build_sub_;
   OwnActionPtr<TimerAction> build_timer_;
   ConnectionStateEvent connection_state_event_;

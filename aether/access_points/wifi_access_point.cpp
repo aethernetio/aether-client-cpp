@@ -22,7 +22,7 @@
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/adapters/wifi_adapter.h"
-#include "aether/channels/wifi_channel.h"
+// #include "aether/channels/wifi_channel.h"
 #include "aether/access_points/filter_endpoints.h"
 
 namespace ae {
@@ -78,25 +78,25 @@ WifiAccessPoint::WifiAccessPoint(ObjPtr<Aether> aether,
       wifi_creds_{std::move(wifi_creds)} {}
 
 std::vector<ObjPtr<Channel>> WifiAccessPoint::GenerateChannels(
-    ObjPtr<Server> const& server) {
+    ObjPtr<Server> const& /* server */) {
   Aether::ptr aether = aether_;
   IPoller::ptr poller = poller_;
   DnsResolver::ptr resolver = resolver_;
   WifiAccessPoint::ptr wifi_access_point = MakePtrFromThis(this);
 
   std::vector<ObjPtr<Channel>> channels;
-  channels.reserve(server->endpoints.size());
-  for (auto const& endpoint : server->endpoints) {
-    if (!FilterAddresses<AddrVersion::kIpV4, AddrVersion::kIpV6,
-                         AddrVersion::kNamed>(endpoint)) {
-      continue;
-    }
-    if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
-      continue;
-    }
-    channels.emplace_back(domain_->CreateObj<WifiChannel>(
-        aether, poller, resolver, wifi_access_point, endpoint));
-  }
+  // channels.reserve(server->endpoints.size());
+  // for (auto const& endpoint : server->endpoints) {
+  //   if (!FilterAddresses<AddrVersion::kIpV4, AddrVersion::kIpV6,
+  //                        AddrVersion::kNamed>(endpoint)) {
+  //     continue;
+  //   }
+  //   if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
+  //     continue;
+  //   }
+  //   channels.emplace_back(domain_->CreateObj<WifiChannel>(
+  //       aether, poller, resolver, wifi_access_point, endpoint));
+  // }
   return channels;
 }
 

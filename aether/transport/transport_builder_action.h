@@ -21,6 +21,7 @@
 
 #include "aether/actions/action.h"
 #include "aether/stream_api/istream.h"
+#include "aether/executors/executors.h"
 
 namespace ae {
 /**
@@ -35,6 +36,14 @@ class TransportBuilderAction : public Action<TransportBuilderAction> {
 
   virtual std::unique_ptr<ByteIStream> transport_stream() = 0;
 };
+
+class ITransportBuilder {
+ public:
+  virtual ~ITransportBuilder() = default;
+
+  virtual ex::any_sender_of<std::unique_ptr<ByteIStream>> CreateTransport() = 0;
+};
+
 }  // namespace ae
 
 #endif  // AETHER_TRANSPORT_TRANSPORT_BUILDER_ACTION_H_

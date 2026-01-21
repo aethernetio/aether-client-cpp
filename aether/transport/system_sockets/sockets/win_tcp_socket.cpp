@@ -57,7 +57,7 @@ WinTcpSocket::WinTcpSocket(IPoller& poller)
     return;
   }
   // close socket on error
-  defer[&] {
+  ae_defer[&] {
     if (!created) {
       ::closesocket(sock);
     }
@@ -91,7 +91,7 @@ ISocket& WinTcpSocket::Connect(AddressPort const& destination,
 
   connected_cb_ = std::move(connected_cb);
 
-  defer[&]() {
+  ae_defer[&]() {
     Poll();
     connected_cb_(connection_state_);
   };
@@ -160,7 +160,7 @@ WinTcpSocket::ConnectionState WinTcpSocket::TestConnectionState() {
 
 void WinTcpSocket::PollEvent(LPOVERLAPPED overlapped) {
   if (connection_state_ == ConnectionState::kConnecting) {
-    defer[&]() {
+    ae_defer[&]() {
       if (connected_cb_) {
         connected_cb_(connection_state_);
       }

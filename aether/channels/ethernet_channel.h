@@ -35,7 +35,7 @@ class EthernetChannel : public Channel {
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_, address))
 
-  ActionPtr<TransportBuilderAction> TransportBuilder() override;
+  std::unique_ptr<ITransportBuilder> TransportBuilder() override;
 
   Endpoint address;
 

@@ -60,3 +60,7 @@
 	path = third_party/gcem
 	url = https://github.com/aethernetio/gcem.git
 	branch = master
+[submodule "third_party/libunifex"]
+	path = third_party/libunifex
+	url = https://github.com/facebookexperimental/libunifex.git
+	branch = main

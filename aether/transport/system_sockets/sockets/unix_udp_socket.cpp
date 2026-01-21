@@ -46,7 +46,7 @@ int UnixUdpSocket::MakeSocket() {
   }
 
   // close socket on error
-  defer[&] {
+  ae_defer[&] {
     if (!created) {
       close(sock);
     }
@@ -66,7 +66,7 @@ ISocket& UnixUdpSocket::Connect(AddressPort const& destination,
   // UDP connection means binding socket to a destination address
   assert((socket_ != kInvalidSocket) && "Socket is not initialized");
   ConnectionState connection_state{ConnectionState::kNone};
-  defer[&]() {
+  ae_defer[&]() {
     Poll();
     connected_cb(connection_state);
   };

@@ -39,10 +39,13 @@ list(APPEND common_dependencies
     "../third_party/gcem"
     "../third_party/etl"
     "../third_party/aethernet-numeric"
+    "../third_party/libunifex"
 )
-
 # for etl
 set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
+#for unifex
+set(UNIFEX_NO_LIBURING ON)
+set(UNIFEX_NO_EPOLL ON)
 
 list(APPEND aether_srcs
             "aether_app.cpp"
@@ -77,7 +80,6 @@ list(APPEND poller_srcs
             "poller/win_poller.cpp")
 
 list(APPEND dns_srcs
-            "dns/dns_resolve.cpp"
             "dns/dns_c_ares.cpp"
             "dns/esp32_dns_resolve.cpp")
 
@@ -279,7 +281,7 @@ list(APPEND channels_srcs
             "channels/channel.cpp"
             "channels/ethernet_transport_factory.cpp"
             "channels/ethernet_channel.cpp"
-            "channels/wifi_channel.cpp"
+            # "channels/wifi_channel.cpp"
             "channels/lora_module_channel.cpp"
             "channels/modem_channel.cpp")
 
@@ -353,7 +355,8 @@ if(REGULAR_CMAKE_PROJECT)
                                         sodium
                                         hydrogen
                                         gcem
-                                        etl)
+                                        etl
+                                        unifex)
   target_link_libraries(${PROJECT_NAME} PRIVATE c-ares )
 
   set(TARGET_NAME "${PROJECT_NAME}")
@@ -409,7 +412,8 @@ else()
                                          sodium
                                          hydrogen
                                          gcem
-                                         etl)
+                                         etl
+                                         unifex)
   else()
     #ERROR
     message(SEND_ERROR "You must specify the CMAKE version!")
