@@ -142,13 +142,13 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init) {
           sizeof(wifi_config.sta.password));
 
   // Setting up a static IP, if required
-  if (!wifi_init.wifi_ip.use_dhcp) {
+  if (!wifi_init.wifi_creds.at(0).wifi_ip.use_dhcp) {
     esp_err_t err = SetStaticIp(static_cast<esp_netif_t*>(espt_init_sta_),
-                                wifi_init.wifi_ip);
+                                wifi_init.wifi_creds.at(0).wifi_ip);
     if (err != ESP_OK) {
       AE_TELED_ERROR("Failed to set static IP, falling back to DHCP");
       // If an error occurs, switch to DHCP
-      wifi_init.wifi_ip.use_dhcp = true;
+      wifi_init.wifi_creds.at(0).wifi_ip.use_dhcp = true;
     }
   } else {
     AE_TELED_DEBUG("Using DHCP for IP configuration");

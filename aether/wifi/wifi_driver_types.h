@@ -34,11 +34,25 @@
 
 namespace ae {
 // ========================WiFi init========================================
+struct WiFiIP {
+  AE_REFLECT_MEMBERS(use_dhcp, static_ip_v4, gateway_v4, netmask_v4,
+                     primary_dns_v4, secondary_dns_v4, use_ipv6, static_ip_v6)
+  bool use_dhcp{false};
+  Address static_ip_v4{};      // ESP32 static IP v4
+  Address gateway_v4{};        // IP Address of your network gateway (router)
+  Address netmask_v4{};        // Netmask
+  Address primary_dns_v4{};    // Primary DNS (optional)
+  Address secondary_dns_v4{};  // Secondary DNS (optional)
+  bool use_ipv6{false};        // Use IPV6
+  Address static_ip_v6{};      // ESP32 static IP v6
+};
+
 struct WifiCreds {
-  AE_REFLECT_MEMBERS(ssid, password)
+  AE_REFLECT_MEMBERS(ssid, password, wifi_ip)
 
   std::string ssid;
   std::string password;
+  WiFiIP wifi_ip;
 };
 
 #  if (defined(ESP_PLATFORM))
@@ -66,25 +80,11 @@ struct WiFiBaseStation {
   uint8_t target_channel;
 };
 
-struct WiFiIP {
-  AE_REFLECT_MEMBERS(use_dhcp, static_ip_v4, gateway_v4, netmask_v4,
-                     primary_dns_v4, secondary_dns_v4, use_ipv6, static_ip_v6)
-  bool use_dhcp{false};
-  Address static_ip_v4{};      // ESP32 static IP v4
-  Address gateway_v4{};        // IP Address of your network gateway (router)
-  Address netmask_v4{};        // Netmask
-  Address primary_dns_v4{};    // Primary DNS (optional)
-  Address secondary_dns_v4{};  // Secondary DNS (optional)
-  bool use_ipv6{false};        // Use IPV6
-  Address static_ip_v6{};      // ESP32 static IP v6
-};
-
 struct WiFiInit {
-  AE_REFLECT_MEMBERS(wifi_creds, psp, bs, wifi_ip)
+  AE_REFLECT_MEMBERS(wifi_creds, psp, bs)
   std::vector<WifiCreds> wifi_creds;
   WiFiPowerSaveParam psp;
-  WiFiBaseStation bs;
-  WiFiIP wifi_ip;
+  WiFiBaseStation bs;  
 };
 
 }  // namespace ae

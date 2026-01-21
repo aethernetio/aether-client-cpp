@@ -24,7 +24,7 @@ namespace ae::reg {
 RegisterWifiAdapter::RegisterWifiAdapter(ObjPtr<Aether> aether,
                                          IPoller::ptr poller,
                                          DnsResolver::ptr dns_resolver,
-                                         wifi_init, Domain* domain)
+                                         WiFiInit wifi_init, Domain* domain)
     : ParentWifiAdapter{std::move(aether),       std::move(poller),
                         std::move(dns_resolver), std::move(wifi_init),
                         domain},

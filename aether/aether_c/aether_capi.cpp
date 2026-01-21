@@ -256,22 +256,7 @@ int AetherInit(AetherConfig const* config) {
                   case AeWifiAdapter: {
                     auto* wifi_conf =
                         reinterpret_cast<AeWifiAdapterConf*>(conf);
-                    static ae::WifiCreds my_wifi{wifi_conf->ssid,
-                                                 wifi_conf->password};
 
-                    std::vector<ae::WifiCreds> wifi_creds{my_wifi};
-#  if (defined(ESP_PLATFORM))
-                    static ae::WiFiPowerSaveParam wifi_psp{
-                        true,
-                        WIFI_PS_MAX_MODEM,  // Power save type
-                        WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G |
-                            WIFI_PROTOCOL_11N,  // Protocol bitmap
-                        3,                      // Listen interval
-                        500                     // Beacon interval
-                    };
-#  else
-                    static ae::WiFiPowerSaveParam wifi_psp{};
-#  endif
                     static ae::IpV4Addr my_static_ip_v4{192, 168, 1, 100};
                     static ae::IpV4Addr my_gateway_ip_v4{192, 168, 1, 1};
                     static ae::IpV4Addr my_netmask_ip_v4{255, 255, 255, 0};
@@ -293,11 +278,28 @@ int AetherInit(AetherConfig const* config) {
                         {my_static_ip_v6}    // ESP32 static IP v6
                     };
 
+                    static ae::WifiCreds my_wifi{wifi_conf->ssid,
+                                                 wifi_conf->password,
+                                                 wifi_ip};
+
+                    std::vector<ae::WifiCreds> wifi_creds{my_wifi};
+#  if (defined(ESP_PLATFORM))
+                    static ae::WiFiPowerSaveParam wifi_psp{
+                        true,
+                        WIFI_PS_MAX_MODEM,  // Power save type
+                        WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G |
+                            WIFI_PROTOCOL_11N,  // Protocol bitmap
+                        3,                      // Listen interval
+                        500                     // Beacon interval
+                    };
+#  else
+                    static ae::WiFiPowerSaveParam wifi_psp{};
+#  endif
+
                     ae::WiFiInit wifi_init{
                         wifi_creds,  // Wi-Fi credentials
                         wifi_psp,    // Power save parameters
-                        {},          // Base station
-                        wifi_ip      // IP address
+                        {}           // Base station
                     };
 
                     adapters->Add(context.domain().CreateObj<ae::WifiAdapter>(

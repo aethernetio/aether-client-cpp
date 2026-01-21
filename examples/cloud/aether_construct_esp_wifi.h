@@ -25,7 +25,26 @@ namespace ae::cloud_test {
 static constexpr std::string kWifiSsid = "Test1234";
 static constexpr std::string kWifiPass = "Test1234";
 
-static WifiCreds my_wifi{kWifiSsid, kWifiPass};
+static IpV4Addr my_static_ip_v4{192, 168, 1, 215};
+static IpV4Addr my_gateway_ip_v4{192, 168, 1, 1};
+static IpV4Addr my_netmask_ip_v4{255, 255, 255, 0};
+static IpV4Addr my_dns1_ip_v4{8, 8, 8, 8};
+static IpV4Addr my_dns2_ip_v4{8, 8, 4, 4};
+static IpV6Addr my_static_ip_v6{0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00,
+                                0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34};
+
+WiFiIP wifi_ip{
+    true,                  // Use DHCP
+    {my_static_ip_v4},     // ESP32 static IP
+    {my_gateway_ip_v4},    // IP Address of your network gateway (router)
+    {my_netmask_ip_v4},    // Subnet mask
+    {my_dns1_ip_v4},       // Primary DNS (optional)
+    {my_dns2_ip_v4},       // Secondary DNS (optional)
+    false,                 // Use IPV6
+    {my_static_ip_v6}      // ESP32 static IP v6
+};
+
+static WifiCreds my_wifi{kWifiSsid, kWifiPass, wifi_ip};
 
 std::vector<WifiCreds> wifi_creds{my_wifi};
 
@@ -38,30 +57,10 @@ static WiFiPowerSaveParam wifi_psp{
     500                     // Beacon interval
 };
 
-static IpV4Addr my_static_ip_v4{192, 168, 1, 215};
-static IpV4Addr my_gateway_ip_v4{192, 168, 1, 1};
-static IpV4Addr my_netmask_ip_v4{255, 255, 255, 0};
-static IpV4Addr my_dns1_ip_v4{8, 8, 8, 8};
-static IpV4Addr my_dns2_ip_v4{8, 8, 4, 4};
-static IpV6Addr my_static_ip_v6{0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00,
-                                0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34};
-
-WiFiIP wifi_ip{
-    false,                 // Use DHCP
-    {my_static_ip_v4},     // ESP32 static IP
-    {my_gateway_ip_v4},    // IP Address of your network gateway (router)
-    {my_netmask_ip_v4},    // Subnet mask
-    {my_dns1_ip_v4},       // Primary DNS (optional)
-    {my_dns2_ip_v4},       // Secondary DNS (optional)
-    false,                 // Use IPV6
-    {my_static_ip_v6}      // ESP32 static IP v6
-};
-
 WiFiInit wifi_init{
     wifi_creds,  // Wi-Fi credentials
     wifi_psp,    // Power save parameters
     {},          // Base station
-    wifi_ip      // IP address
 };
 
 RcPtr<AetherApp> construct_aether_app() {
