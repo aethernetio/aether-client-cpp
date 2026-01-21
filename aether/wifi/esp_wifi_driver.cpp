@@ -126,7 +126,7 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init) {
   }
 
   wifi_config.sta.threshold = wifi_threshold;
-  if(wifi_init.psp.ps_enabled) {
+  if (wifi_init.psp.ps_enabled) {
     wifi_config.sta.listen_interval = wifi_init.psp.listen_interval;
   }
 

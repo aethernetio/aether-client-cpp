@@ -19,6 +19,7 @@
 
 #include "aether/adapters/parent_wifi.h"
 #include "aether/adapters/ethernet.h"
+#include "aether/wifi/wifi_driver_types.h"
 
 namespace ae::reg {
 class RegisterWifiAdapter : public ParentWifiAdapter {
@@ -29,8 +30,8 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
  public:
 #ifdef AE_DISTILLATION
   RegisterWifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                      DnsResolver::ptr dns_resolver, std::string ssid,
-                      std::string pass, Domain* domain);
+                      DnsResolver::ptr dns_resolver, WiFiInit wifi_init,
+                      Domain* domain);
 #endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBR(ethernet_adapter_))
