@@ -22,14 +22,15 @@
 #if CLOUD_TEST_ESP_WIFI
 
 namespace ae::cloud_test {
-static constexpr std::string kWifiSsid = "Visuale";
-static constexpr std::string kWifiPass = "Ws63$yhJ";
+static constexpr std::string kWifiSsid = "Test1234";
+static constexpr std::string kWifiPass = "Test1234";
 
 static WifiCreds my_wifi{kWifiSsid, kWifiPass};
 
 std::vector<WifiCreds> wifi_creds{my_wifi};
 
 static WiFiPowerSaveParam wifi_psp{
+    true,
     WIFI_PS_MAX_MODEM,  // Power save type
     WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G |
         WIFI_PROTOCOL_11N,  // Protocol bitmap

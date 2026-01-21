@@ -126,7 +126,9 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init) {
   }
 
   wifi_config.sta.threshold = wifi_threshold;
-  wifi_config.sta.listen_interval = wifi_init.psp.listen_interval;
+  if(wifi_init.psp.ps_enabled) {
+    wifi_config.sta.listen_interval = wifi_init.psp.listen_interval;
+  }
 
   // for debug purpose only, it's private data
   AE_TELED_DEBUG("Connecting to ap SSID:{} PSWD:{}",

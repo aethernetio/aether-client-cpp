@@ -43,15 +43,19 @@ struct WifiCreds {
 
 #  if (defined(ESP_PLATFORM))
 struct WiFiPowerSaveParam {
-  AE_REFLECT_MEMBERS(wifi_ps_type, protocol_bitmap, listen_interval,
-                     beacon_interval)
+  AE_REFLECT_MEMBERS(ps_enabled, wifi_ps_type, protocol_bitmap, listen_interval,
+                     beacon_interval);
+  bool ps_enabled{true};
   wifi_ps_type_t wifi_ps_type;
   uint8_t protocol_bitmap;
   int16_t listen_interval;
   uint16_t beacon_interval;
 };
 #  else
-struct WiFiPowerSaveParam {};
+struct WiFiPowerSaveParam {
+  AE_REFLECT_MEMBERS(ps_enabled)
+  bool ps_enabled{true};
+};
 #  endif
 
 struct WiFiBaseStation {
