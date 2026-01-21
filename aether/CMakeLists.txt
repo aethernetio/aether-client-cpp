@@ -39,10 +39,13 @@ list(APPEND common_dependencies
     "../third_party/gcem"
     "../third_party/etl"
     "../third_party/aethernet-numeric"
+    "../third_party/libunifex"
 )
-
 # for etl
 set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
+#for unifex
+set(UNIFEX_NO_LIBURING ON)
+set(UNIFEX_NO_EPOLL ON)
 
 list(APPEND aether_srcs
             "aether_app.cpp"
@@ -353,7 +356,8 @@ if(REGULAR_CMAKE_PROJECT)
                                         sodium
                                         hydrogen
                                         gcem
-                                        etl)
+                                        etl
+                                        unifex)
   target_link_libraries(${PROJECT_NAME} PRIVATE c-ares )
 
   set(TARGET_NAME "${PROJECT_NAME}")
@@ -409,7 +413,8 @@ else()
                                          sodium
                                          hydrogen
                                          gcem
-                                         etl)
+                                         etl
+                                         unifex)
   else()
     #ERROR
     message(SEND_ERROR "You must specify the CMAKE version!")
