@@ -28,100 +28,14 @@
 
 #  include "aether/aether.h"
 #  include "aether/socket_initializer.h"
-#  include "aether/actions/action_ptr.h"
-#  include "aether/actions/action_context.h"
+#  include "aether/executors/executors.h"
 
 #  include "aether/dns/dns_tele.h"
 
 namespace ae {
-class AresQueryAction : public Action<AresQueryAction> {
- public:
-  AresQueryAction(ActionContext action_context, NamedAddr name_address,
-                  std::uint16_t port, Protocol protocol)
-      : Action{action_context},
-        name_address_{std::move(name_address)},
-        port_{port},
-        protocol_{protocol} {}
-
-  UpdateStatus Update() {
-    if (is_result_) {
-      return UpdateStatus::Result();
-    }
-    if (is_failed_) {
-      return UpdateStatus::Error();
-    }
-    return {};
-  }
-
-  void ProcessResult(int status, int /* timeouts */,
-                     struct ares_addrinfo* result) {
-    if (status != ARES_SUCCESS) {
-      AE_TELE_ERROR(kAresDnsQueryError, "Ares query error {} {}", status,
-                    ares_strerror(status));
-      Failed();
-      return;
-    }
-    assert(result);
-
-    for (auto* node = result->nodes; node != nullptr; node = node->ai_next) {
-      auto addr_add = [this](auto const& ip) {
-        Endpoint addr{{ip, port_}, protocol_};
-        resolved_addresses_.emplace_back(std::move(addr));
-      };
-
-      if (node->ai_family == AF_INET) {
-#  if AE_SUPPORT_IPV4
-        IpV4Addr ipv4{};
-        auto* ip4_addr = reinterpret_cast<struct sockaddr_in*>(node->ai_addr);
-        std::memcpy(&ipv4.ipv4_value,
-                    reinterpret_cast<std::uint8_t*>(&ip4_addr->sin_addr.s_addr),
-                    sizeof(ipv4.ipv4_value));
-        addr_add(ipv4);
-#  endif
-      } else if (node->ai_family == AF_INET6) {
-#  if AE_SUPPORT_IPV6
-        IpV6Addr ipv6{};
-        auto* ip6_addr = reinterpret_cast<struct sockaddr_in6*>(node->ai_addr);
-        std::memcpy(
-            &ipv6.ipv6_value,
-            reinterpret_cast<std::uint8_t*>(&ip6_addr->sin6_addr.s6_addr),
-            sizeof(ipv6.ipv6_value));
-        addr_add(ipv6);
-#  endif
-      }
-    }
-
-    AE_TELE_DEBUG(kAresDnsQuerySuccess, "Got addresses {}",
-                  resolved_addresses_);
-    Result();
-  }
-
-  std::vector<Endpoint> const& resolved_addresses() const {
-    return resolved_addresses_;
-  }
-
- private:
-  void Result() {
-    is_result_ = true;
-    Action::Trigger();
-  }
-  void Failed() {
-    is_failed_ = true;
-    Action::Trigger();
-  }
-
-  NamedAddr name_address_;
-  std::uint16_t port_;
-  Protocol protocol_;
-  std::vector<Endpoint> resolved_addresses_;
-  std::atomic_bool is_result_{false};
-  std::atomic_bool is_failed_{false};
-};
-
 class AresImpl {
  public:
-  explicit AresImpl(ActionContext action_context)
-      : action_context_{action_context} {
+  explicit AresImpl() {
     ares_library_init(ARES_LIB_INIT_ALL);
 
     int optmask = ARES_OPT_EVENT_THREAD;
@@ -144,46 +58,70 @@ class AresImpl {
     ares_library_cleanup();
   }
 
-  ActionPtr<ResolveAction> Query(NamedAddr const& name_address,
-                                 std::uint16_t port_hint,
-                                 Protocol protocol_hint) {
-    AE_TELE_DEBUG(kAresDnsQueryHost, "Querying host: {}", name_address);
+  auto Query(NamedAddr const& name_address) {
+    return ex::create<std::vector<Address>>(
+        [this, name_address](auto& receiver) {
+          AE_TELE_DEBUG(kAresDnsQueryHost, "Querying host: {}", name_address);
+          ares_addrinfo_hints hints{};
+          // BOTH ipv4 and ipv6
+          hints.ai_family = AF_UNSPEC;
+          hints.ai_flags = ARES_AI_CANONNAME;
 
-    auto resolve_action = ActionPtr<ResolveAction>{action_context_};
-    auto query_action = ActionPtr<AresQueryAction>{
-        action_context_, name_address, port_hint, protocol_hint};
+          ares_getaddrinfo(
+              channel_, name_address.name.c_str(), nullptr, &hints,
+              [](void* arg, auto status, auto timeouts, auto result) {
+                auto& recv = *static_cast<decltype(&receiver)>(arg);
+                ae_defer[&] { ares_freeaddrinfo(result); };
 
-    // connect actions
-    multi_subscription_.Push(
-        query_action->StatusEvent().Subscribe(ActionHandler{
-            OnResult{[ra{resolve_action}](auto const& action) mutable {
-              ra->SetAddress(action.resolved_addresses());
-            }},
-            OnError{[ra{resolve_action}]() mutable { ra->Failed(); }},
-        }));
-
-    ares_addrinfo_hints hints{};
-    // BOTH ipv4 and ipv6
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_flags = ARES_AI_CANONNAME;
-
-    ares_getaddrinfo(
-        channel_, name_address.name.c_str(), nullptr, &hints,
-        [](void* arg, auto status, auto timeouts, auto result) {
-          auto& ares_query_action = *static_cast<AresQueryAction*>(arg);
-          ares_query_action.ProcessResult(status, timeouts, result);
-          ares_freeaddrinfo(result);
-        },
-        &*query_action);
-
-    return resolve_action;
+                if (status != ARES_SUCCESS) {
+                  AE_TELE_ERROR(kAresDnsQueryError, "Ares query error {} {}",
+                                status, ares_strerror(status));
+                  ex::set_error(std::move(recv), ex::make_error());
+                  return;
+                }
+                auto addresses = ProcessResult(status, timeouts, result);
+                ex::set_value(std::move(recv), std::move(addresses));
+              },
+              &receiver);
+        });
   }
 
  private:
-  ActionContext action_context_;
+  static std::vector<Address> ProcessResult(int /* status */,
+                                            int /* timeouts */,
+                                            struct ares_addrinfo* result) {
+    assert(result);
+
+    std::vector<Address> addresses;
+    for (auto* node = result->nodes; node != nullptr; node = node->ai_next) {
+      if (node->ai_family == AF_INET) {
+#  if AE_SUPPORT_IPV4
+        IpV4Addr ipv4{};
+        auto* ip4_addr = reinterpret_cast<struct sockaddr_in*>(node->ai_addr);
+        std::memcpy(&ipv4.ipv4_value,
+                    reinterpret_cast<std::uint8_t*>(&ip4_addr->sin_addr.s_addr),
+                    sizeof(ipv4.ipv4_value));
+        addresses.emplace_back(ipv4);
+#  endif
+      } else if (node->ai_family == AF_INET6) {
+#  if AE_SUPPORT_IPV6
+        IpV6Addr ipv6{};
+        auto* ip6_addr = reinterpret_cast<struct sockaddr_in6*>(node->ai_addr);
+        std::memcpy(
+            &ipv6.ipv6_value,
+            reinterpret_cast<std::uint8_t*>(&ip6_addr->sin6_addr.s6_addr),
+            sizeof(ipv6.ipv6_value));
+        addresses.emplace_back(ipv6);
+#  endif
+      }
+    }
+
+    AE_TELE_DEBUG(kAresDnsQuerySuccess, "Got addresses {}", addresses);
+    return addresses;
+  }
+
   ares_channel_t* channel_;
 
-  MultiSubscription multi_subscription_;
   AE_MAY_UNUSED_MEMBER SocketInitializer socket_initializer_;
 };
 
@@ -196,13 +134,22 @@ DnsResolverCares::DnsResolverCares(ObjPtr<Aether> aether, Domain* domain)
 
 DnsResolverCares::~DnsResolverCares() = default;
 
-ActionPtr<ResolveAction> DnsResolverCares::Resolve(
+ex::any_sender_of<std::vector<Endpoint>> DnsResolverCares::Resolve(
     NamedAddr const& name_address, std::uint16_t port_hint,
     Protocol protocol_hint) {
   if (!ares_impl_) {
-    ares_impl_ = std::make_unique<AresImpl>(*aether_.as<Aether>());
+    ares_impl_ = std::make_unique<AresImpl>();
   }
-  return ares_impl_->Query(name_address, port_hint, protocol_hint);
+  return ares_impl_->Query(name_address) |
+         ex::then([port_hint,
+                   protocol_hint](std::vector<Address> const& addresses) {
+           std::vector<Endpoint> endpoints;
+           endpoints.reserve(addresses.size());
+           for (auto const& addr : addresses) {
+             endpoints.emplace_back(Endpoint{{addr, port_hint}, protocol_hint});
+           }
+           return endpoints;
+         });
 }
 
 }  // namespace ae

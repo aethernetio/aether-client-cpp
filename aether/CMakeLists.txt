@@ -80,7 +80,6 @@ list(APPEND poller_srcs
             "poller/win_poller.cpp")
 
 list(APPEND dns_srcs
-            "dns/dns_resolve.cpp"
             "dns/dns_c_ares.cpp"
             "dns/esp32_dns_resolve.cpp")
 
@@ -282,7 +281,7 @@ list(APPEND channels_srcs
             "channels/channel.cpp"
             "channels/ethernet_transport_factory.cpp"
             "channels/ethernet_channel.cpp"
-            "channels/wifi_channel.cpp"
+            # "channels/wifi_channel.cpp"
             "channels/lora_module_channel.cpp"
             "channels/modem_channel.cpp")
 

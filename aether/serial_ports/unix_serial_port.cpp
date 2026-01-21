@@ -116,7 +116,7 @@ int UnixSerialPort::OpenPort(SerialInit const& serial_init) {
                    strerror(errno));
     return kInvalidPort;
   }
-  auto close_on_exit = defer_at[&] { close(fd); };
+  auto close_on_exit = ae_defer_at[&] { close(fd); };
 
   if (!SetOptions(fd, serial_init)) {
     return kInvalidPort;

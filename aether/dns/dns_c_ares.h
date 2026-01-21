@@ -47,9 +47,9 @@ class DnsResolverCares : public DnsResolver {
 
   AE_OBJECT_REFLECT(AE_MMBR(aether_))
 
-  ActionPtr<ResolveAction> Resolve(NamedAddr const& name_address,
-                                   std::uint16_t port_hint,
-                                   Protocol protocol_hint) override;
+  ex::any_sender_of<std::vector<Endpoint>> Resolve(
+      NamedAddr const& name_address, std::uint16_t port_hint,
+      Protocol protocol_hint) override;
 
  private:
   Obj::ptr aether_;

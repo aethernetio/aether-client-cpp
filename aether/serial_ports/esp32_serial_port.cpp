@@ -136,7 +136,7 @@ uart_port_t Esp32SerialPort::OpenPort(SerialInit const& serial_init) {
     return UART_NUM_MAX;
   }
 
-  auto close_on_exit = defer_at[&] { uart_driver_delete(uart_num); };
+  auto close_on_exit = ae_defer_at[&] { uart_driver_delete(uart_num); };
 
   if (!SetOptions(uart_num, serial_init)) {
     return UART_NUM_MAX;

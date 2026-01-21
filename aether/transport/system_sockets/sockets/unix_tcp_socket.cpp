@@ -90,7 +90,7 @@ int UnixTcpSocket::MakeSocket() {
   }
 
   // close the socket if it fails to setup
-  defer[&] {
+  ae_defer[&] {
     if (!created) {
       close(sock);
     }
@@ -114,7 +114,7 @@ ISocket& UnixTcpSocket::Connect(AddressPort const& destination,
   assert((socket_ != kInvalidSocket) && "Socket is not initialized");
   connected_cb_ = std::move(connected_cb);
 
-  defer[&]() {
+  ae_defer[&]() {
     // add poll for all events to detect connection
     poller_->Event(socket_,
                    EventType::kRead | EventType::kError | EventType::kWrite,
@@ -150,7 +150,7 @@ void UnixTcpSocket::OnPollerEvent(EventType event) {
 }
 
 void UnixTcpSocket::OnConnectionEvent() {
-  defer[&]() {
+  ae_defer[&]() {
     if (connected_cb_) {
       connected_cb_(connection_state_);
     }

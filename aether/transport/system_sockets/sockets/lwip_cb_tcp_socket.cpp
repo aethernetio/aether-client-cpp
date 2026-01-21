@@ -47,7 +47,7 @@ std::optional<std::size_t> LwipCBTcpSocket::Send(Span<std::uint8_t> data) {
   assert((pcb_ != nullptr) && "Not connected to the server");
 
   LOCK_TCPIP_CORE();
-  defer[&] { UNLOCK_TCPIP_CORE(); };
+  ae_defer[&] { UNLOCK_TCPIP_CORE(); };
 
   err_t err = tcp_write(pcb_, data.data(), static_cast<u16_t>(data.size()),
                         TCP_WRITE_FLAG_COPY);
@@ -85,10 +85,10 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
   connected_cb_ = std::move(connected_cb);
   connection_state_ = ConnectionState::kConnecting;
 
-  defer[&] { OnConnectionEvent(); };
+  ae_defer[&] { OnConnectionEvent(); };
 
   LOCK_TCPIP_CORE();
-  defer[] { UNLOCK_TCPIP_CORE(); };
+  ae_defer[] { UNLOCK_TCPIP_CORE(); };
 
   pcb_ = tcp_new();
   if (pcb_ == nullptr) {
@@ -97,7 +97,7 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
     return *this;
   }
 
-  auto on_failed = defer_at[&] {
+  auto on_failed = ae_defer_at[&] {
     tcp_close(pcb_);
     pcb_ = nullptr;
   };
@@ -145,7 +145,7 @@ err_t LwipCBTcpSocket::TcpClientRecv(void* arg, struct tcp_pcb* tpcb,
                                      struct pbuf* p, err_t err) {
   auto* self = static_cast<LwipCBTcpSocket*>(arg);
 
-  defer[&] {
+  ae_defer[&] {
     if (p != nullptr) {
       pbuf_free(p);
     }

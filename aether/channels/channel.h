@@ -36,7 +36,7 @@ class Channel : public Obj {
   /**
    * \brief Make transport from this channel.
    */
-  virtual ActionPtr<TransportBuilderAction> TransportBuilder() = 0;
+  virtual std::unique_ptr<ITransportBuilder> TransportBuilder() = 0;
 
   ChannelTransportProperties const& transport_properties() const;
   ChannelStatistics& channel_statistics();

@@ -37,7 +37,7 @@ WinUdpSocket::WinUdpSocket(IPoller& poller) : WinSocket{poller, 1200} {
     return;
   }
   // close socket on error
-  defer[&] {
+  ae_defer[&] {
     if (!created) {
       ::closesocket(sock);
     }
@@ -63,7 +63,7 @@ ISocket& WinUdpSocket::Connect(AddressPort const& destination,
 
   ConnectionState connection_state{ConnectionState::kNone};
 
-  defer[&]() {
+  ae_defer[&]() {
     Poll();
     connected_cb(connection_state);
   };

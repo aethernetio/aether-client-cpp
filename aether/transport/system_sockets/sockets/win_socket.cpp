@@ -114,7 +114,7 @@ void WinSocket::PollEvent(LPOVERLAPPED overlapped) {
 }
 
 void WinSocket::OnRead() {
-  defer[&]() {
+  ae_defer[&]() {
     // request new recv after all
     RequestRecv();
   };
