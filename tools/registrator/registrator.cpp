@@ -103,7 +103,7 @@ int AetherRegistrator(const std::string& ini_file,
                   
                   static ae::WifiCreds my_wifi{wifi->ssid, wifi->password, wifi_ip};
 
-                  std::vector<ae::WifiCreds> wifi_creds{};
+                  std::vector<ae::WifiCreds> wifi_creds{my_wifi};
 
                   static ae::WiFiPowerSaveParam wifi_psp{
                       true,
