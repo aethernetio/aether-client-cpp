@@ -283,18 +283,15 @@ int AetherInit(AetherConfig const* config) {
                                                  wifi_ip};
 
                     std::vector<ae::WifiCreds> wifi_creds{my_wifi};
-#  if (defined(ESP_PLATFORM))
+
                     static ae::WiFiPowerSaveParam wifi_psp{
                         true,
-                        WIFI_PS_MAX_MODEM,  // Power save type
-                        WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G |
-                            WIFI_PROTOCOL_11N,  // Protocol bitmap
-                        3,                      // Listen interval
-                        500                     // Beacon interval
+                        AE_WIFI_PS_MAX_MODEM,  // Power save type
+                        AE_WIFI_PROTOCOL_11B | AE_WIFI_PROTOCOL_11G |
+                            AE_WIFI_PROTOCOL_11N,  // Protocol bitmap
+                        3,                         // Listen interval
+                        500                        // Beacon interval
                     };
-#  else
-                    static ae::WiFiPowerSaveParam wifi_psp{};
-#  endif
 
                     ae::WiFiInit wifi_init{
                         wifi_creds,  // Wi-Fi credentials

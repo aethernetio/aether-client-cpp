@@ -28,10 +28,6 @@
 #  include "aether/types/address.h"
 #  include "aether/types/variant_type.h"
 
-#  if (defined(ESP_PLATFORM))
-#    include "esp_wifi_types_generic.h"
-#  endif
-
 namespace ae {
 // ========================WiFi init========================================
 struct WiFiIP {
@@ -55,22 +51,15 @@ struct WifiCreds {
   WiFiIP wifi_ip;
 };
 
-#  if (defined(ESP_PLATFORM))
 struct WiFiPowerSaveParam {
   AE_REFLECT_MEMBERS(ps_enabled, wifi_ps_type, protocol_bitmap, listen_interval,
                      beacon_interval);
   bool ps_enabled{true};
-  wifi_ps_type_t wifi_ps_type;
+  uint8_t wifi_ps_type;
   uint8_t protocol_bitmap;
   int16_t listen_interval;
   uint16_t beacon_interval;
 };
-#  else
-struct WiFiPowerSaveParam {
-  AE_REFLECT_MEMBERS(ps_enabled)
-  bool ps_enabled{true};
-};
-#  endif
 
 struct WiFiBaseStation {
   AE_REFLECT_MEMBERS(creds, connected, target_bssid, target_channel)

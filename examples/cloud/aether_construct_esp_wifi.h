@@ -50,11 +50,12 @@ std::vector<WifiCreds> wifi_creds{my_wifi};
 
 static WiFiPowerSaveParam wifi_psp{
     true,
-    WIFI_PS_MAX_MODEM,  // Power save type
-    WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G |
-        WIFI_PROTOCOL_11N,  // Protocol bitmap
-    3,                      // Listen interval
-    500                     // Beacon interval
+    AE_WIFI_PS_MAX_MODEM,  // Power save type
+    AE_WIFI_PROTOCOL_11B |
+    AE_WIFI_PROTOCOL_11G |
+    AE_WIFI_PROTOCOL_11N,  // Protocol bitmap
+    3,                     // Listen interval
+    500                    // Beacon interval
 };
 
 WiFiInit wifi_init{
