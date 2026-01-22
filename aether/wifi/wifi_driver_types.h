@@ -84,7 +84,7 @@ struct WiFiInit {
   AE_REFLECT_MEMBERS(wifi_creds, psp, bs)
   std::vector<WifiCreds> wifi_creds;
   WiFiPowerSaveParam psp;
-  WiFiBaseStation bs;  
+  WiFiBaseStation bs;
 };
 
 }  // namespace ae
