@@ -29,8 +29,6 @@
 #ifndef AETHER_OBJ_OBJ_H_
 #define AETHER_OBJ_OBJ_H_
 
-#include <array>
-
 #include "aether/config.h"
 
 #include "aether/common.h"
@@ -39,7 +37,7 @@
 #include "aether/obj/obj_ptr.h"
 #include "aether/obj/domain.h"
 #include "aether/obj/registry.h"
-#include "aether/obj/registrar.h"
+#include "aether/obj/registrar.h"  // IWYU pragma:  export
 #include "aether/reflect/reflect.h"
 
 namespace ae {
@@ -57,39 +55,30 @@ class Obj {
   static constexpr std::uint32_t kBaseClassId =
       crc32::from_literal("Obj").value;
 
-  static constexpr std::uint32_t kVersion = 0;
   static constexpr CurrentVersion kCurrentVersion{};
 
   Obj();
-  explicit Obj(Domain* domain);
+  explicit Obj(ObjProp prop);
   virtual ~Obj();
 
   virtual std::uint32_t GetClassId() const;
   virtual void Update(TimePoint current_time);
 
-  ObjId GetId() const;
+  // only update time should be reflected
+  AE_REFLECT_MEMBERS(update_time);
 
-  AE_REFLECT_MEMBERS(update_time_);
-
-  Domain* domain_{};
-  TimePoint update_time_;
-
- protected:
-  ObjId id_;
-  ObjFlags flags_;
+  Domain* domain{};
+  ObjId obj_id;
+  TimePoint update_time;
 };
 
 namespace reflect {
+extern std::size_t GetObjIndexImpl(Obj const* obj, std::uint32_t class_id);
+
 template <typename T>
 struct ObjectIndex<T, std::enable_if_t<std::is_base_of_v<Obj, T>>> {
-  static std::size_t GetIndex(T const* obj) {
-    std::array<std::uint8_t, sizeof(std::uint32_t) + sizeof(ObjId::Type)>
-        buffer;
-    *reinterpret_cast<std::uint32_t*>(buffer.data()) = T::kClassId;
-    *reinterpret_cast<ObjId::Type*>(buffer.data() + sizeof(std::uint32_t)) =
-        obj->GetId().id();
-
-    return crc32::from_buffer(buffer.data(), buffer.size()).value;
+  static std::size_t GetIndex(Obj const* obj) {
+    return GetObjIndexImpl(obj, T::kClassId);
   }
 };
 }  // namespace reflect

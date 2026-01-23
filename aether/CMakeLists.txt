@@ -86,7 +86,7 @@ list(APPEND obj_srcs
             "obj/domain.cpp"
             "obj/obj_id.cpp"
             "obj/registry.cpp"
-            "obj/obj_ptr.cpp"
+            "obj/obj_ptr_base.cpp"
         )
 
 list(APPEND ptr_srcs

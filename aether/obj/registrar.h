@@ -19,9 +19,9 @@
 
 #include <type_traits>
 
+#include "aether/ptr/ptr.h"
 #include "aether/obj/domain.h"
 #include "aether/obj/registry.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/reflect/type_index.h"
 
 namespace ae {
@@ -52,26 +52,25 @@ class Registrar {
   struct IsDefaultConstructible<U, std::void_t<decltype(U())>>
       : std::true_type {};
 
-  static ObjPtr<Obj> Create() {
+  static Ptr<Obj> Create() {
     if constexpr (std::is_abstract_v<T>) {
       assert(false && "Create called on abstract class");
       return {};
     } else {
       static_assert(IsDefaultConstructible<T>::value,
                     "AE_OBJECT class should be default constructible");
-      return ObjPtr(MakePtr<T>());
+      return MakePtr<T>();
     }
   }
 
-  static ObjPtr<Obj> Load(Domain* domain, ObjPtr<Obj> obj) {
-    auto self_ptr = ObjPtr<T>{std::move(obj)};
-    domain->Load(*self_ptr.get());
-    return self_ptr;
+  static void Load(DomainGraph* domain_graph, Ptr<Obj>& obj, ObjId obj_id) {
+    auto self_ptr = static_cast<T*>(obj.get());
+    domain_graph->Load(*self_ptr, obj_id);
   }
 
-  static void Save(Domain* domain, ObjPtr<Obj> const& obj) {
+  static void Save(DomainGraph* domain_graph, Ptr<Obj> const& obj, ObjId id) {
     auto self_ptr = static_cast<T*>(obj.get());
-    domain->Save(*self_ptr);
+    domain_graph->Save(*self_ptr, id);
   }
 };
 }  // namespace ae

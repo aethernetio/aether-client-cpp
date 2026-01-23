@@ -23,16 +23,19 @@
 #include <unordered_map>
 
 #include "aether/config.h"
-#include "aether/obj/obj_ptr.h"
+#include "aether/ptr/ptr.h"
+#include "aether/obj/obj_id.h"
 
 namespace ae {
 class Obj;
 class Domain;
+class DomainGraph;
 
 struct Factory {
-  using CreateFunc = ObjPtr<Obj> (*)();
-  using LoadFunc = ObjPtr<Obj> (*)(Domain* domain, ObjPtr<Obj> prefab);
-  using SaveFunc = void (*)(Domain* domain, ObjPtr<Obj> const& obj);
+  using CreateFunc = Ptr<Obj> (*)();
+  using LoadFunc = void (*)(DomainGraph* domain_graph, Ptr<Obj>& obj, ObjId id);
+  using SaveFunc = void (*)(DomainGraph* domain_graph, Ptr<Obj> const& obj,
+                            ObjId id);
 
   CreateFunc create;
   LoadFunc load;

@@ -32,7 +32,7 @@ class ObjId {
 
   ObjId() { Invalidate(); }
 
-  explicit constexpr ObjId(Type i) : id_{i} {}
+  constexpr ObjId(Type i) : id_{i} {}
 
   constexpr Type id() const { return id_; }
 
