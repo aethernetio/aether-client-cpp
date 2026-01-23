@@ -20,17 +20,14 @@
 
 namespace ae::reg {
 
-#ifdef AE_DISTILLATION
-RegisterWifiAdapter::RegisterWifiAdapter(ObjPtr<Aether> aether,
+RegisterWifiAdapter::RegisterWifiAdapter(ObjProp prop, ObjPtr<Aether> aether,
                                          IPoller::ptr poller,
                                          DnsResolver::ptr dns_resolver,
-                                         WiFiInit wifi_init, Domain* domain)
-    : ParentWifiAdapter{std::move(aether),       std::move(poller),
-                        std::move(dns_resolver), std::move(wifi_init),
-                        domain},
-      ethernet_adapter_{domain->CreateObj<EthernetAdapter>(aether_, poller_,
-                                                           dns_resolver_)} {}
-#endif  // AE_DISTILLATION
+                                         WiFiInit wifi_init)
+    : ParentWifiAdapter{prop, std::move(aether), std::move(poller),
+                        std::move(dns_resolver), std::move(wifi_init)},
+      ethernet_adapter_{EthernetAdapter::ptr::Create(domain, aether_, poller_,
+                                                     dns_resolver_)} {}
 
 std::vector<AccessPoint::ptr> RegisterWifiAdapter::access_points() {
   return ethernet_adapter_->access_points();

@@ -28,11 +28,8 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
   RegisterWifiAdapter() = default;
 
  public:
-#ifdef AE_DISTILLATION
-  RegisterWifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                      DnsResolver::ptr dns_resolver, WiFiInit wifi_init,
-                      Domain* domain);
-#endif  // AE_DISTILLATION
+  RegisterWifiAdapter(ObjProp prop, ObjPtr<Aether> aether, IPoller::ptr poller,
+                      DnsResolver::ptr dns_resolver, WiFiInit wifi_init);
 
   AE_OBJECT_REFLECT(AE_MMBR(ethernet_adapter_))
 

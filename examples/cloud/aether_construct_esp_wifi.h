@@ -50,7 +50,7 @@ static WifiCreds my_wifi2{kWifi2Ssid, kWifi2Pass};
 
 ae::WiFiAp wifi1_ap{my_wifi1, wifi_ip};
 ae::WiFiAp wifi2_ap{my_wifi2, wifi_ip};
-                    
+
 std::vector<ae::WiFiAp> wifi_ap_vec{wifi1_ap, wifi2_ap};
 
 static WiFiPowerSaveParam wifi_psp{
@@ -63,8 +63,8 @@ static WiFiPowerSaveParam wifi_psp{
 };
 
 WiFiInit wifi_init{
-    wifi_ap_vec, // Wi-Fi access points
-    wifi_psp,    // Power save parameters
+    wifi_ap_vec,  // Wi-Fi access points
+    wifi_psp,     // Power save parameters
 };
 
 RcPtr<AetherApp> construct_aether_app() {
@@ -73,10 +73,11 @@ RcPtr<AetherApp> construct_aether_app() {
 #  if defined AE_DISTILLATION
           .AdaptersFactory([](AetherAppContext const& context) {
             auto adapter_registry =
-                context.domain().CreateObj<AdapterRegistry>();
-            adapter_registry->Add(context.domain().CreateObj<WifiAdapter>(
-                GlobalId::kWiFiAdapter, context.aether(), context.poller(),
-                context.dns_resolver(), wifi_init));
+                AdapterRegistry::ptr::Create(context.domain());
+            adapter_registry->Add(WifiAdapter::ptr::Create(
+                CreateWith{context.domain()}.with_id(GlobalId::kWiFiAdapter),
+                context.aether(), context.poller(), context.dns_resolver(),
+                wifi_init));
             return adapter_registry;
           })
 #  endif
