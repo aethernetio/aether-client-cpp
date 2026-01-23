@@ -31,7 +31,7 @@ class Poopa : public Obj {
   Poopa() = default;
 
  public:
-  explicit Poopa(Domain* domain) : Obj{domain} {}
+  explicit Poopa(ObjProp prop) : Obj{prop} {}
   ~Poopa() override { DeleteCount++; }
 
   void SetLoopa(Obj::ptr loopa) { this->loopa = std::move(loopa); }
@@ -48,7 +48,7 @@ class Loopa : public Obj {
   Loopa() = default;
 
  public:
-  explicit Loopa(Domain* domain) : Obj{domain} {}
+  explicit Loopa(ObjProp prop) : Obj{prop} {}
   ~Loopa() override { DeleteCount++; }
 
   void AddPoopa(Obj::ptr poopa) { poopas.emplace_back(std::move(poopa)); }

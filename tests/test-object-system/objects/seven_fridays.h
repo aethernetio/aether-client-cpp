@@ -29,7 +29,7 @@ class Friday0 : public Obj {
   Friday0() = default;
 
  public:
-  explicit Friday0(Domain* domain) : Obj{domain} {}
+  explicit Friday0(ObjProp prop) : Obj{prop} {}
 
   AE_OBJECT_REFLECT()
 };
@@ -41,7 +41,7 @@ class Friday1 : public Obj {
   Friday1() = default;
 
  public:
-  explicit Friday1(Domain* domain) : Obj{domain} {}
+  explicit Friday1(ObjProp prop) : Obj{prop} {}
 
   AE_OBJECT_REFLECT(AE_MMBR(a), AE_MMBR(b))
 
@@ -78,7 +78,7 @@ class Friday2 : public Obj {
   Friday2() = default;
 
  public:
-  explicit Friday2(Domain* domain) : Obj{domain} {}
+  explicit Friday2(ObjProp prop) : Obj{prop} {}
 
   AE_OBJECT_REFLECT(AE_MMBR(a))
 
@@ -136,7 +136,7 @@ class Hoopa : public Obj {
   Hoopa() = default;
 
  public:
-  explicit Hoopa(Domain* domain) : Obj{domain} {}
+  explicit Hoopa(ObjProp prop) : Obj{prop} {}
 
   AE_OBJECT_REFLECT(AE_MMBR(x))
 
@@ -150,7 +150,7 @@ class Friday3 : public Hoopa {
   Friday3() = default;
 
  public:
-  explicit Friday3(Domain* domain) : Hoopa(domain) {}
+  explicit Friday3(ObjProp prop) : Hoopa{prop} {}
 
   AE_OBJECT_REFLECT(AE_MMBR(a))
 

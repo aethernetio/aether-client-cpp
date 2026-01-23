@@ -28,12 +28,12 @@ class Bob : public Obj {
   Bob() = default;
 
  public:
-  explicit Bob(Domain* domain) : Obj{domain} {
-    foo_prefab = domain->CreateObj<Foo>();
-    foo_prefab.SetFlags(ObjFlags::kUnloadedByDefault);
+  explicit Bob(ObjProp prop) : Obj{prop} {
+    foo_prefab = Foo::ptr::Create(
+        CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault));
   }
 
-  Foo::ptr CreateFoo() { return domain_->LoadCopy(foo_prefab); }
+  Foo::ptr CreateFoo() const { return foo_prefab.Clone(); }
 
   AE_OBJECT_REFLECT(AE_MMBR(foo_prefab))
 
@@ -46,12 +46,12 @@ class BobsMother : public Obj {
   BobsMother() = default;
 
  public:
-  explicit BobsMother(Domain* domain) : Obj{domain} {
-    bob_prefab = domain->CreateObj<Bob>();
-    bob_prefab.SetFlags(ObjFlags::kUnloadedByDefault);
+  explicit BobsMother(ObjProp prop) : Obj{prop} {
+    bob_prefab = Bob::ptr::Create(
+        CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault));
   }
 
-  Bob::ptr CreateBob() { return domain_->LoadCopy(bob_prefab); }
+  Bob::ptr CreateBob() const { return bob_prefab.Clone(); }
 
   AE_OBJECT_REFLECT(AE_MMBR(bob_prefab))
 
@@ -64,10 +64,10 @@ class BobsFather : public Obj {
   BobsFather() = default;
 
  public:
-  explicit BobsFather(Domain* domain) : Obj{domain} {}
+  explicit BobsFather(ObjProp prop) : Obj{prop} {}
 
   Bob::ptr const& GetBob() const { return bob_; }
-  void SetBob(Bob::ptr bob) { bob_ = bob; }
+  void SetBob(Bob::ptr bob) { bob_ = std::move(bob); }
 
   AE_OBJECT_REFLECT(AE_MMBR(bob_))
 

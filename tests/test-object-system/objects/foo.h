@@ -28,13 +28,13 @@ class Foo : public Obj {
   Foo() = default;
 
  public:
-  explicit Foo(Domain* domain) : Obj{domain} { bar = domain->CreateObj<Bar>(); }
+  explicit Foo(ObjProp prop) : Obj{prop} { bar = Bar::ptr::Create(domain); }
 
   AE_OBJECT_REFLECT(AE_MMBR(a), AE_MMBR(b), AE_MMBR(bar))
 
   int a{1};
   int b{2};
-  Bar::ptr bar{};
+  Bar::ptr bar;
 };
 }  // namespace ae
 

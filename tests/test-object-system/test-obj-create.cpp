@@ -36,33 +36,38 @@ void test_createFoo() {
   Domain domain{ae::ClockType::now(), facility};
   Domain domain2{ae::ClockType::now(), facility};
   {
-    Foo::ptr foo = domain.CreateObj<Foo>(ObjId{1});
+    Foo::ptr foo = Foo::ptr::Create(CreateWith{domain}.with_id(1));
 
-    TEST_ASSERT(foo);
-    TEST_ASSERT(foo->bar);
+    // p is a loaded object
+    foo.WithLoaded([](auto const& p) {
+      TEST_ASSERT(p);
+      p->bar.WithLoaded([](auto const& p_bar) { TEST_ASSERT(p_bar); });
+    });
 
-    domain.SaveRoot(foo);
-    TEST_ASSERT(facility.map.find(foo.GetId().id()) != facility.map.end());
-    TEST_ASSERT(facility.map.find(foo->bar.GetId().id()) != facility.map.end());
+    foo.Save();
+    TEST_ASSERT(facility.map.find(foo.id().id()) != facility.map.end());
+    TEST_ASSERT(facility.map.find(foo->bar.id().id()) != facility.map.end());
 
     // load object for already loaded list
-    Foo::ptr foo2;
-    foo2.SetId(ObjId{1});
-    domain.LoadRoot(foo2);
+    Foo::ptr foo2 = Foo::ptr::Declare(CreateWith{domain}.with_id(1));
+    TEST_ASSERT(foo2.is_valid());
+    TEST_ASSERT_FALSE(foo2.is_loaded());
 
+    foo2.Load();
     TEST_ASSERT(foo2);
     TEST_ASSERT(foo2->bar);
-    TEST_ASSERT_EQUAL(foo2.GetId().id(), foo.GetId().id());
+    TEST_ASSERT_EQUAL(foo2.id().id(), foo.id().id());
 
     // load object from new domain
-    Foo::ptr foo3;
-    foo3.SetId(ObjId{1});
-    domain2.LoadRoot(foo3);
+    Foo::ptr foo3 = Foo::ptr::Declare(CreateWith{domain2}.with_id(1));
+    TEST_ASSERT(foo3.is_valid());
+    TEST_ASSERT_FALSE(foo3.is_loaded());
 
-    TEST_ASSERT(foo3);
-    TEST_ASSERT(foo3->bar);
-
-    TEST_ASSERT_EQUAL(foo3.GetId().id(), foo.GetId().id());
+    foo3.WithLoaded([](auto const p3) {
+      TEST_ASSERT(p3);
+      TEST_ASSERT(p3->bar);
+    });
+    TEST_ASSERT_EQUAL(foo3.id().id(), foo.id().id());
   }
 }
 
@@ -71,33 +76,54 @@ void test_createBob() {
   Domain domain{ae::ClockType::now(), facility};
 
   {
-    Bob::ptr bob = domain.CreateObj<Bob>(ObjId{1});
+    Bob::ptr bob = Bob::ptr::Create(CreateWith{domain}.with_id(1));
     TEST_ASSERT(bob);
     TEST_ASSERT(bob->foo_prefab);
-    domain.SaveRoot(bob);
+    bob.Save();
   }
-  Bob::ptr bob{};
-  bob.SetId(ObjId{1});
-  domain.LoadRoot(bob);
+  Bob::ptr bob = Bob::ptr::Declare(CreateWith(domain).with_id(1));
+  bob.Load();
   TEST_ASSERT(bob);
-  TEST_ASSERT(!bob->foo_prefab);
-  TEST_ASSERT(bob->foo_prefab.GetId().IsValid());
+  TEST_ASSERT(bob->foo_prefab.is_valid());
+  TEST_ASSERT(!bob->foo_prefab.is_loaded());
   auto foo = bob->CreateFoo();
   TEST_ASSERT(foo);
   TEST_ASSERT(foo->bar);
   auto foo2 = bob->CreateFoo();
   TEST_ASSERT(foo2);
+  TEST_ASSERT(foo2->bar);
   // it's different copies
-  TEST_ASSERT(foo2->GetId() != foo->GetId());
-  TEST_ASSERT(foo2 != foo);
+  TEST_ASSERT(foo2.id() != foo.id());
+  TEST_ASSERT(foo2.Load() != foo.Load());
   // but internal the same
-  TEST_ASSERT(foo2->bar == foo->bar);
+  TEST_ASSERT(foo2->bar.Load() == foo->bar.Load());
   // foo is registered and same id loads same object
-  Foo::ptr foo3;
-  foo3.SetId(foo->GetId());
-  domain.LoadRoot(foo3);
+  Foo::ptr foo3 = Foo::ptr::Declare(CreateWith{domain}.with_id(foo.id()));
+  foo3.Load();
   TEST_ASSERT(foo3);
-  TEST_ASSERT(foo3 == foo);
+  TEST_ASSERT(foo3.Load() == foo.Load());
+}
+
+void test_cloneFoo() {
+  auto facility = MapDomainStorage{};
+  Domain domain{ae::ClockType::now(), facility};
+  auto foo_prefab = Foo::ptr::Create(CreateWith{domain}.with_id(100));
+  TEST_ASSERT(foo_prefab);
+  foo_prefab.Save();
+
+  auto foo1 = foo_prefab.Clone(1);
+  TEST_ASSERT(foo1);
+  TEST_ASSERT_EQUAL(1, foo1.id().id());
+  TEST_ASSERT(foo1.id() == foo1->obj_id);
+
+  foo_prefab.Reset();
+  TEST_ASSERT(foo_prefab.is_valid());
+  TEST_ASSERT(!foo_prefab.is_loaded());
+
+  auto foo2 = foo_prefab.Clone(2);
+  TEST_ASSERT(foo2);
+  TEST_ASSERT_EQUAL(2, foo2.id().id());
+  TEST_ASSERT(foo2.id() == foo2->obj_id);
 }
 
 void test_createBobsMother() {
@@ -105,20 +131,21 @@ void test_createBobsMother() {
   Domain domain{ae::ClockType::now(), facility};
 
   {
-    BobsMother::ptr bobs_mother = domain.CreateObj<BobsMother>(ObjId{1});
+    BobsMother::ptr bobs_mother =
+        BobsMother::ptr::Create(CreateWith{domain}.with_id(1));
     TEST_ASSERT(bobs_mother);
     TEST_ASSERT(bobs_mother->bob_prefab);
     TEST_ASSERT(bobs_mother->bob_prefab->foo_prefab);
-    domain.SaveRoot(bobs_mother);
+    bobs_mother.Save();
   }
-  BobsMother::ptr bobs_mother{};
-  bobs_mother.SetId(ObjId{1});
-  domain.LoadRoot(bobs_mother);
+  BobsMother::ptr bobs_mother =
+      BobsMother::ptr::Declare(CreateWith{domain}.with_id(1));
+  bobs_mother.Load();
   TEST_ASSERT(bobs_mother);
-  TEST_ASSERT(!bobs_mother->bob_prefab);
+  TEST_ASSERT(!bobs_mother->bob_prefab.is_loaded());
   auto bob = bobs_mother->CreateBob();
   TEST_ASSERT(bob);
-  TEST_ASSERT(!bob->foo_prefab);
+  TEST_ASSERT(!bob->foo_prefab.is_loaded());
   auto foo = bob->CreateFoo();
   TEST_ASSERT(foo);
 }
@@ -128,23 +155,24 @@ void test_createBobsFather() {
   Domain domain{ae::ClockType::now(), facility};
 
   {
-    BobsFather::ptr bobs_father = domain.CreateObj<BobsFather>(ObjId{1});
+    BobsFather::ptr bobs_father =
+        BobsFather::ptr::Create(CreateWith{domain}.with_id(1));
     TEST_ASSERT(bobs_father);
     TEST_ASSERT(!bobs_father->GetBob());
-    domain.SaveRoot(bobs_father);
+    bobs_father.Save();
   }
   {
-    BobsFather::ptr bobs_father{};
-    bobs_father.SetId(ObjId{1});
-    domain.LoadRoot(bobs_father);
+    BobsFather::ptr bobs_father =
+        BobsFather::ptr::Declare(CreateWith{domain}.with_id(1));
+    bobs_father.Load();
     TEST_ASSERT(bobs_father);
     TEST_ASSERT(!bobs_father->GetBob());
-    bobs_father->SetBob(domain.CreateObj<Bob>(ObjId{2}));
-    domain.SaveRoot(bobs_father);
+    bobs_father->SetBob(Bob::ptr::Create(CreateWith{domain}.with_id(2)));
+    bobs_father.Save();
   }
-  BobsFather::ptr bobs_father{};
-  bobs_father.SetId(ObjId{1});
-  domain.LoadRoot(bobs_father);
+  BobsFather::ptr bobs_father =
+      BobsFather::ptr::Declare(CreateWith{domain}.with_id(1));
+  bobs_father.Load();
   TEST_ASSERT(bobs_father);
   TEST_ASSERT(bobs_father->GetBob());
 }
@@ -153,18 +181,19 @@ void test_createCollector() {
   auto facility = MapDomainStorage{};
   Domain domain{ae::ClockType::now(), facility};
   {
-    Collector::ptr collector = domain.CreateObj<Collector>(ObjId{1});
+    Collector::ptr collector =
+        Collector::ptr::Create(CreateWith{domain}.with_id(1));
     TEST_ASSERT(collector);
-    domain.SaveRoot(collector);
+    collector.Save();
   }
-  Collector::ptr collector{};
-  collector.SetId(ObjId{1});
-  domain.LoadRoot(collector);
+  Collector::ptr collector =
+      Collector::ptr::Declare(CreateWith{domain}.with_id(1));
+  collector.Load();
   TEST_ASSERT(collector);
-  TEST_ASSERT(collector->vec_bars.size() == Collector::SIZE);
-  TEST_ASSERT(collector->list_bars.size() == Collector::SIZE);
-  TEST_ASSERT(collector->map_bars.size() == Collector::SIZE);
-  for (auto i = 0; i < Collector::SIZE; i++) {
+  TEST_ASSERT(collector->vec_bars.size() == Collector::kSize);
+  TEST_ASSERT(collector->list_bars.size() == Collector::kSize);
+  TEST_ASSERT(collector->map_bars.size() == Collector::kSize);
+  for (auto i = 0; i < Collector::kSize; i++) {
     TEST_ASSERT(collector->vec_bars[i]);
     TEST_ASSERT_EQUAL_FLOAT(3.2, collector->vec_bars[i]->y);
   }
@@ -174,7 +203,7 @@ void test_createCollector() {
   }
   for (auto& [i, bar] : collector->map_bars) {
     TEST_ASSERT(!bar);
-    domain.LoadRoot(bar);
+    bar.Load();
     TEST_ASSERT(bar);
     TEST_ASSERT_EQUAL_FLOAT(3.2, bar->y);
   }
@@ -187,8 +216,8 @@ void test_cyclePoopaLoopa() {
   Poopa::DeleteCount = 0;
   Loopa::DeleteCount = 0;
   {
-    Poopa::ptr poopa = domain.CreateObj<Poopa>(ObjId{1});
-    Loopa::ptr loopa = domain.CreateObj<Loopa>(ObjId{2});
+    Poopa::ptr poopa = Poopa::ptr::Create(CreateWith{domain}.with_id(1));
+    Loopa::ptr loopa = Loopa::ptr::Create(CreateWith{domain}.with_id(2));
     TEST_ASSERT(poopa);
     TEST_ASSERT(loopa);
 
@@ -196,27 +225,27 @@ void test_cyclePoopaLoopa() {
     loopa->AddPoopa(poopa);
     loopa->AddPoopa(poopa);
     loopa->AddPoopa(poopa);
-    domain.SaveRoot(poopa);
-    domain.SaveRoot(loopa);
+    poopa.Save();
+    loopa.Save();
     TEST_MESSAGE("Poopa and Loopa saved");
+    loopa.Reset();
+    poopa.Reset();
   }
   TEST_ASSERT_EQUAL(1, Poopa::DeleteCount);
   TEST_ASSERT_EQUAL(1, Loopa::DeleteCount);
-  Poopa::ptr poopa{};
-  poopa.SetId(ObjId{1});
-  domain.LoadRoot(poopa);
+  Poopa::ptr poopa = Poopa::ptr::Declare(CreateWith{domain}.with_id(1));
+  poopa.Load();
   TEST_ASSERT(poopa);
   TEST_ASSERT(poopa->loopa);
 
-  Loopa::ptr loopa{};
-  loopa.SetId(ObjId{2});
-  domain.LoadRoot(loopa);
+  Loopa::ptr loopa = Loopa::ptr::Declare(CreateWith{domain}.with_id(2));
+  loopa.Load();
   TEST_ASSERT(poopa);
   TEST_ASSERT(poopa->loopa);
 
-  TEST_ASSERT(poopa->loopa == loopa);
+  TEST_ASSERT(poopa->loopa.Load() == loopa.Load());
   for (auto& p : loopa->poopas) {
-    TEST_ASSERT(poopa == p);
+    TEST_ASSERT(poopa.Load() == p.Load());
   }
 }
 
@@ -227,8 +256,8 @@ void test_cyclePoopaLoopaReverse() {
   Poopa::DeleteCount = 0;
   Loopa::DeleteCount = 0;
   {
-    Loopa::ptr loopa = domain.CreateObj<Loopa>(ObjId{2});
-    Poopa::ptr poopa = domain.CreateObj<Poopa>(ObjId{1});
+    Loopa::ptr loopa = Loopa::ptr::Create(CreateWith{domain}.with_id(2));
+    Poopa::ptr poopa = Poopa::ptr::Create(CreateWith{domain}.with_id(1));
     TEST_ASSERT(loopa);
     TEST_ASSERT(poopa);
 
@@ -239,20 +268,19 @@ void test_cyclePoopaLoopaReverse() {
     poopa.Reset();
     TEST_ASSERT_EQUAL(0, Poopa::DeleteCount);
 
-    domain.SaveRoot(loopa);
+    loopa.Save();
     TEST_MESSAGE("Loopa saved");
   }
   TEST_ASSERT_EQUAL(1, Poopa::DeleteCount);
   TEST_ASSERT_EQUAL(1, Loopa::DeleteCount);
 
-  Loopa::ptr loopa{};
-  loopa.SetId(ObjId{2});
-  domain.LoadRoot(loopa);
+  Loopa::ptr loopa = Loopa::ptr::Declare(CreateWith{domain}.with_id(2));
+  loopa.Load();
 
   for (auto& p : loopa->poopas) {
     TEST_ASSERT(p);
     auto poopa = static_cast<ObjPtr<Poopa>>(p);
-    TEST_ASSERT(poopa->loopa == loopa);
+    TEST_ASSERT(poopa->loopa.Load() == loopa.Load());
   }
 }
 
@@ -261,12 +289,12 @@ void test_Family() {
   Domain domain{ae::ClockType::now(), facility};
   // create child and test is father and obj saved too
   {
-    Child::ptr child = domain.CreateObj<Child>(ObjId{1});
+    Child::ptr child = Child::ptr::Create(CreateWith{domain}.with_id(1));
     TEST_ASSERT(child);
-    domain.SaveRoot(child);
-    TEST_ASSERT(facility.map.find(child.GetId().id()) != facility.map.end());
+    child.Save();
+    TEST_ASSERT(facility.map.find(child.id().id()) != facility.map.end());
 
-    auto& classes = facility.map[child->GetId().id()];
+    auto& classes = facility.map[child.id().id()];
     TEST_ASSERT(classes.find(Child::kClassId) != classes.end());
     TEST_ASSERT_EQUAL(0, classes[Child::kClassId][0]->size());
     TEST_ASSERT(classes.find(Father::kClassId) != classes.end());
@@ -274,9 +302,8 @@ void test_Family() {
     TEST_ASSERT(classes.find(Obj::kClassId) != classes.end());
   }
   {
-    Child::ptr child;
-    child.SetId(ObjId{1});
-    domain.LoadRoot(child);
+    Child::ptr child = Child::ptr::Declare(CreateWith{domain}.with_id(1));
+    child.Load();
     TEST_ASSERT(child);
   }
 }
@@ -286,6 +313,7 @@ int run_test_object_create() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_obj_create::test_createFoo);
   RUN_TEST(ae::test_obj_create::test_createBob);
+  RUN_TEST(ae::test_obj_create::test_cloneFoo);
   RUN_TEST(ae::test_obj_create::test_createBobsMother);
   RUN_TEST(ae::test_obj_create::test_createBobsFather);
   RUN_TEST(ae::test_obj_create::test_createCollector);

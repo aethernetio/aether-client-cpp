@@ -53,7 +53,7 @@ void test_StatisticsRotation() {
   auto domain = ae::Domain{ae::ClockType::now(), ram_ds};
 
   TeleStatistics::ptr tele_statistics =
-      domain.CreateObj<TeleStatistics>(ObjId{1});
+      TeleStatistics::ptr::Create(CreateWith{domain}.with_id(1));
   tele_statistics->trap()->MergeStatistics(*statistics_trap);
   // set 100 byte
   tele_statistics->trap()->statistics_store.SetSizeLimit(100);
@@ -83,7 +83,7 @@ void test_SaveLoadTeleStatistics() {
   AE_TELE_ENV();
 
   TeleStatistics::ptr tele_statistics =
-      domain.CreateObj<TeleStatistics>(ObjId{1});
+      TeleStatistics::ptr::Create(CreateWith{domain}.with_id(1));
   tele_statistics->trap()->MergeStatistics(*statistics_trap);
   InitTeleSink(tele_statistics->trap());
   {
@@ -97,14 +97,13 @@ void test_SaveLoadTeleStatistics() {
   // use new trap to prevent statistics change while save
   auto temp_trap = std::make_shared<ae::tele::statistics::StatisticsTrap>();
   InitTeleSink(temp_trap);
-
-  domain.SaveRoot(tele_statistics);
+  tele_statistics.Save();
 
   // load stored object in new instance
   auto domain2 = ae::Domain{ae::ClockType::now(), ram_ds};
-  TeleStatistics::ptr tele_statistics2;
-  tele_statistics2.SetId(ObjId{1});
-  domain2.LoadRoot(tele_statistics2);
+  auto tele_statistics2 =
+      TeleStatistics::ptr::Declare(CreateWith{domain2}.with_id(1));
+  tele_statistics2.Load();
   TEST_ASSERT(static_cast<bool>(tele_statistics2));
 
   auto statistics_size2 =
