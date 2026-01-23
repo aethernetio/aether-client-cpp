@@ -343,7 +343,7 @@ esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP& config) {
   AE_TELED_DEBUG("Static IP V4 configured: {}", config.static_ip_v4);
 #  endif
 #  if AE_SUPPORT_IPV6 == 1
-  if (config.use_ipv6) {
+  if (config.static_ip_v6.has_value()) {
     err = esp_netif_set_ip6_global(netif, &ip_info_v6.ip);
     if (err != ESP_OK) {
       AE_TELED_ERROR("Failed to set IP V6 info: {}", esp_err_to_name(err));
