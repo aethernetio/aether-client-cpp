@@ -196,7 +196,7 @@ void KqueuePollerImpl::Loop() {
 
 KqueuePoller::KqueuePoller() = default;
 
-KqueuePoller::KqueuePoller(Domain* domain) : IPoller(domain) {}
+KqueuePoller::KqueuePoller(ObjProp prop) : IPoller{prop} {}
 
 NativePoller* KqueuePoller::Native() {
   if (!impl_) {

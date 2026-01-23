@@ -22,8 +22,8 @@
 
 namespace ae {
 
-Channel::Channel(Domain* domain)
-    : Obj{domain}, channel_statistics_{domain->CreateObj<ChannelStatistics>()} {
+Channel::Channel(ObjProp prop)
+    : Obj{prop}, channel_statistics_{ChannelStatistics::ptr::Create(domain)} {
   channel_statistics_->AddResponseTime(
       std::chrono::milliseconds{AE_DEFAULT_RESPONSE_TIMEOUT_MS});
   channel_statistics_->AddConnectionTime(

@@ -55,7 +55,7 @@ class Registration final : public Action<Registration> {
 
  public:
   Registration(ActionContext action_context, Aether& aether,
-               RegistrationCloud::ptr const& reg_cloud, Uid parent_uid);
+               Ptr<RegistrationCloud> const& reg_cloud, Uid parent_uid);
   ~Registration() override;
 
   UpdateStatus Update();

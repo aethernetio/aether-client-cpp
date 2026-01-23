@@ -29,7 +29,7 @@
 #  include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
-Telemetry::Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
+Telemetry::Telemetry(ActionContext action_context, Ptr<Aether> const& aether,
                      CloudServerConnections& cloud_connection)
     : Action{action_context},
       aether_{aether},

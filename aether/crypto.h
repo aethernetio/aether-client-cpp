@@ -32,7 +32,7 @@ class Crypto : public Obj {
 
  public:
 #ifdef AE_DISTILLATION
-  Crypto(Domain* domain) : Obj{domain} {}
+  Crypto(ObjProp prop) : Obj{prop} {}
 #endif  // AE_DISTILLATION
 
 #if AE_SIGNATURE != AE_NONE

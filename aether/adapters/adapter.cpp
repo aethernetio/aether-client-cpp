@@ -18,7 +18,7 @@
 
 namespace ae {
 #ifdef AE_DISTILLATION
-Adapter::Adapter(Domain* domain) : Obj{domain} {}
+Adapter::Adapter(ObjProp prop) : Obj{prop} {}
 #endif  // AE_DISTILLATION
 
 Adapter::NewAccessPoint::Subscriber Adapter::new_access_point() {

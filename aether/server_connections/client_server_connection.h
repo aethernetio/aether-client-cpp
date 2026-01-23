@@ -42,8 +42,7 @@ class Channel;
 class ClientServerConnection {
  public:
   ClientServerConnection(ActionContext action_context,
-                         ObjPtr<Client> const& client,
-                         ObjPtr<Server> const& server);
+                         Ptr<Client> const& client, Ptr<Server> const& server);
   ~ClientServerConnection();
 
   AE_CLASS_NO_COPY_MOVE(ClientServerConnection)

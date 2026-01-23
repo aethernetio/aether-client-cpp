@@ -32,8 +32,8 @@ class ModemChannel final : public Channel {
   ModemChannel() = default;
 
  public:
-  ModemChannel(ObjPtr<Aether> aether, ModemAccessPoint::ptr access_point,
-               Endpoint address, Domain* domain);
+  ModemChannel(ObjProp prop, ObjPtr<Aether> aether,
+               ModemAccessPoint::ptr access_point, Endpoint address);
 
   AE_OBJECT_REFLECT(AE_MMBRS(access_point_, address))
 

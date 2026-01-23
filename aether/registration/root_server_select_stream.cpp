@@ -22,7 +22,7 @@
 
 namespace ae {
 RootServerSelectStream::RootServerSelectStream(
-    ActionContext action_context, RegistrationCloud::ptr const& cloud)
+    ActionContext action_context, Ptr<RegistrationCloud> const& cloud)
     : action_context_{action_context}, cloud_{cloud}, server_index_{} {
   SelectServer();
 }
@@ -66,16 +66,16 @@ RootServerSelectStream::cloud_error_event() {
 }
 
 void RootServerSelectStream::SelectServer() {
-  RegistrationCloud::ptr cloud_ptr = cloud_.Lock();
+  auto cloud_ptr = cloud_.Lock();
   assert(cloud_ptr);
 
   if (server_index_ >= cloud_ptr->servers().size()) {
     CloudError();
     return;
   }
-  auto chosen_server = cloud_ptr->servers()[server_index_++];
+  auto& chosen_server = cloud_ptr->servers()[server_index_++];
 
-  server_connection_.emplace(action_context_, chosen_server);
+  server_connection_.emplace(action_context_, chosen_server.Load());
 
   server_connection_->out_data_event().Subscribe(out_data_event_);
   server_connection_->server_error_event().Subscribe(

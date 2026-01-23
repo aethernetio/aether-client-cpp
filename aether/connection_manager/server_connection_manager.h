@@ -19,8 +19,8 @@
 
 #include <map>
 
+#include "aether/ptr/ptr.h"
 #include "aether/ptr/rc_ptr.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/actions/action_context.h"
 #include "aether/server_connections/client_server_connection.h"
@@ -36,7 +36,7 @@ class ServerConnectionManager {
         ServerConnectionManager& server_connection_manager);
 
     RcPtr<ClientServerConnection> CreateConnection(
-        ObjPtr<Server> const& server) override;
+        Ptr<Server> const& server) override;
 
    private:
     ServerConnectionManager* server_connection_manager_;
@@ -44,11 +44,11 @@ class ServerConnectionManager {
 
  public:
   ServerConnectionManager(ActionContext action_context,
-                          ObjPtr<Client> const& client);
+                          Ptr<Client> const& client);
 
   std::unique_ptr<IServerConnectionFactory> GetServerConnectionFactory();
 
-  RcPtr<ClientServerConnection> CreateConnection(ObjPtr<Server> const& server);
+  RcPtr<ClientServerConnection> CreateConnection(Ptr<Server> const& server);
 
   RcPtr<ClientServerConnection> FindInCache(ServerId server_id) const;
 

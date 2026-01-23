@@ -40,8 +40,8 @@ class EthernetAdapter final : public Adapter {
 
  public:
 #ifdef AE_DISTILLATION
-  EthernetAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                  DnsResolver::ptr dns_resolver, Domain* domain);
+  EthernetAdapter(ObjProp prop, ObjPtr<Aether> aether, IPoller::ptr poller,
+                  DnsResolver::ptr dns_resolver);
 #endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(ethernet_access_point_))

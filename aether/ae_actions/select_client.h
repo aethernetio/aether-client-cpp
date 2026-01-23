@@ -43,7 +43,7 @@ class SelectClientAction final : public Action<SelectClientAction> {
   /**
    * \brief Create with client already ready.
    */
-  SelectClientAction(ActionContext action_context, Client::ptr const& client);
+  SelectClientAction(ActionContext action_context, Client::ptr client);
 
 #if AE_SUPPORT_REGISTRATION
   /**
@@ -65,7 +65,7 @@ class SelectClientAction final : public Action<SelectClientAction> {
   State state() const;
 
  private:
-  PtrView<Client> client_;
+  Client::ptr client_;
   StateMachine<State> state_;
 
 #if AE_SUPPORT_REGISTRATION

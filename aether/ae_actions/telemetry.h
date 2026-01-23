@@ -44,7 +44,7 @@ class Telemetry : public Action<Telemetry> {
   };
 
  public:
-  Telemetry(ActionContext action_context, ObjPtr<Aether> const& aether,
+  Telemetry(ActionContext action_context, Ptr<Aether> const& aether,
             CloudServerConnections& cloud_connection);
 
   AE_CLASS_NO_COPY_MOVE(Telemetry)

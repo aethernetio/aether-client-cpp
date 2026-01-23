@@ -21,7 +21,7 @@
 
 namespace ae {
 P2pMessageStreamManager::P2pMessageStreamManager(ActionContext action_context,
-                                                 ObjPtr<Client> const& client)
+                                                 Ptr<Client> const& client)
     : action_context_{action_context},
       client_{client},
       connection_manager_{&client->connection_manager()},
@@ -79,7 +79,7 @@ void P2pMessageStreamManager::CleanUpStreams() {
 }
 
 RcPtr<P2pStream> P2pMessageStreamManager::MakeStream(Uid destination) {
-  Client::ptr client_ptr = client_.Lock();
+  auto client_ptr = client_.Lock();
   assert(client_ptr);
   return MakeRcPtr<P2pStream>(action_context_, client_ptr, destination);
 }

@@ -37,7 +37,7 @@ class RootServerSelectStream final : public ByteIStream {
   using CloudErrorEvent = Event<void()>;
 
   RootServerSelectStream(ActionContext action_context,
-                         RegistrationCloud::ptr const& cloud);
+                         Ptr<RegistrationCloud> const& cloud);
 
   ActionPtr<WriteAction> Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;

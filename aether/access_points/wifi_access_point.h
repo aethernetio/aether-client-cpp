@@ -64,10 +64,10 @@ class WifiAccessPoint final : public AccessPoint {
   WifiAccessPoint() = default;
 
  public:
-  WifiAccessPoint(ObjPtr<Aether> aether, ObjPtr<WifiAdapter> adapter,
-                  ObjPtr<IPoller> poller, ObjPtr<DnsResolver> resolver,
-                  WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp,
-                  Domain* domain);
+  WifiAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
+                  ObjPtr<WifiAdapter> adapter, ObjPtr<IPoller> poller,
+                  ObjPtr<DnsResolver> resolver, WiFiAp wifi_ap,
+                  WiFiPowerSaveParam psp);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, adapter_, poller_, resolver_, wifi_ap_,
                              base_station_))

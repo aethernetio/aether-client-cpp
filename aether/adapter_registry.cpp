@@ -18,7 +18,7 @@
 
 namespace ae {
 #if AE_DISTILLATION
-AdapterRegistry::AdapterRegistry(Domain* domain) : Obj{domain} {}
+AdapterRegistry::AdapterRegistry(ObjProp prop) : Obj{prop} {}
 #endif
 
 void AdapterRegistry::Add(Adapter::ptr adapter) {

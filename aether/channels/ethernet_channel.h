@@ -30,8 +30,9 @@ class EthernetChannel : public Channel {
  public:
   EthernetChannel() = default;
 
-  EthernetChannel(ObjPtr<Aether> aether, ObjPtr<DnsResolver> dns_resolver,
-                  ObjPtr<IPoller> poller, Endpoint address, Domain* domain);
+  EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
+                  ObjPtr<DnsResolver> dns_resolver, ObjPtr<IPoller> poller,
+                  Endpoint address);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_, address))
 

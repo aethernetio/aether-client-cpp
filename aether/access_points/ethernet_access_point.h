@@ -33,8 +33,8 @@ class EthernetAccessPoint : public AccessPoint {
  public:
   EthernetAccessPoint() = default;
 
-  EthernetAccessPoint(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
-                      ObjPtr<DnsResolver> dns_resolver, Domain* domain);
+  EthernetAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
+                      ObjPtr<IPoller> poller, ObjPtr<DnsResolver> dns_resolver);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_))
 

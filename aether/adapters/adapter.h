@@ -39,7 +39,7 @@ class Adapter : public Obj {
   using NewAccessPoint = Event<void(AccessPoint::ptr const&)>;
 
 #ifdef AE_DISTILLATION
-  explicit Adapter(Domain* domain);
+  explicit Adapter(ObjProp prop);
 #endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT()

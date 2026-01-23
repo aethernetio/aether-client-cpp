@@ -25,7 +25,7 @@
 namespace ae::tele {
 struct TeleInit {
   static void Init();
-  static void Init(TeleStatistics::ptr const& tele_statistics);
+  static void Init(Ptr<TeleStatistics> const& tele_statistics);
 };
 }  // namespace ae::tele
 

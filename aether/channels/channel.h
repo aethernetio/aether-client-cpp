@@ -29,7 +29,7 @@ class Channel : public Obj {
  public:
   Channel() = default;
 
-  explicit Channel(Domain* domain);
+  explicit Channel(ObjProp prop);
 
   AE_OBJECT_REFLECT(AE_MMBRS(transport_properties_, channel_statistics_))
 

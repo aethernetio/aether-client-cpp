@@ -56,7 +56,7 @@ class DnsResolver : public Obj {
 
  public:
 #  if defined AE_DISTILLATION
-  explicit DnsResolver(Domain* domain) : Obj{domain} {}
+  explicit DnsResolver(ObjProp prop) : Obj{prop} {}
 #  endif
   ~DnsResolver() override = default;
 

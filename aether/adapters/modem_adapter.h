@@ -36,8 +36,8 @@ class ModemAdapter final : public ParentModemAdapter {
 
  public:
 #  ifdef AE_DISTILLATION
-  ModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller, ModemInit modem_init,
-               Domain* domain);
+  ModemAdapter(ObjProp prop, ObjPtr<Aether> aether, IPoller::ptr poller,
+               ModemInit modem_init);
 #  endif  // AE_DISTILLATION
 
   ~ModemAdapter() override;

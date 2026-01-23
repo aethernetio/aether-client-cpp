@@ -18,7 +18,7 @@
 
 namespace ae::tele {
 #ifdef AE_DISTILLATION
-TeleStatistics::TeleStatistics(Domain* domain) : Obj{domain} {}
+TeleStatistics::TeleStatistics(ObjProp prop) : Obj{prop} {}
 #endif
 
 #if AE_TELE_ENABLED

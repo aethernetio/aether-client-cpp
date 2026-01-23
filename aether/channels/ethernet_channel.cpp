@@ -45,8 +45,8 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
 
   EthernetTransportBuilderAction(ActionContext action_context,
                                  EthernetChannel& channel, Endpoint address,
-                                 DnsResolver::ptr const& dns_resolver,
-                                 IPoller::ptr const& poller)
+                                 Ptr<DnsResolver> const& dns_resolver,
+                                 Ptr<IPoller> const& poller)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
         ethernet_channel_{&channel},
@@ -134,7 +134,7 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
       Action::Trigger();
       return;
     }
-    IPoller::ptr poller = poller_.Lock();
+    auto poller = poller_.Lock();
     assert(poller);
     auto& addr = *(it_++);
     transport_stream_ =
@@ -192,11 +192,10 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
 };
 }  // namespace ethernet_access_point_internal
 
-EthernetChannel::EthernetChannel(ObjPtr<Aether> aether,
+EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
                                  ObjPtr<DnsResolver> dns_resolver,
-                                 ObjPtr<IPoller> poller, Endpoint address,
-                                 Domain* domain)
-    : Channel{domain},
+                                 ObjPtr<IPoller> poller, Endpoint address)
+    : Channel{prop},
       address{std::move(address)},
       aether_{std::move(aether)},
       poller_{std::move(poller)},
@@ -227,18 +226,15 @@ EthernetChannel::EthernetChannel(ObjPtr<Aether> aether,
 }
 
 ActionPtr<TransportBuilderAction> EthernetChannel::TransportBuilder() {
-  if (!dns_resolver_) {
-    aether_->domain_->LoadRoot(dns_resolver_);
-  }
-  if (!poller_) {
-    aether_->domain_->LoadRoot(poller_);
-  }
+  auto resolver = DnsResolver::ptr{dns_resolver_}.Load();
+  auto poller = IPoller::ptr{poller_}.Load();
 
-  DnsResolver::ptr dns_resolver = dns_resolver_;
-  IPoller::ptr poller = poller_;
+  assert(resolver && "Resolver is not loaded");
+  assert(poller && "Poller is not loaded");
+
   return ActionPtr<
       ethernet_access_point_internal::EthernetTransportBuilderAction>(
-      *aether_.as<Aether>(), *this, address, dns_resolver, poller);
+      *aether_.Load().as<Aether>(), *this, address, resolver, poller);
 }
 
 }  // namespace ae

@@ -68,10 +68,9 @@ void ModemConnectAction::Start() {
   });
 }
 
-ModemAccessPoint::ModemAccessPoint(ObjPtr<Aether> aether,
-                                   ModemAdapter::ptr modem_adapter,
-                                   Domain* domain)
-    : AccessPoint{domain},
+ModemAccessPoint::ModemAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
+                                   ModemAdapter::ptr modem_adapter)
+    : AccessPoint{prop},
       aether_{std::move(aether)},
       modem_adapter_{std::move(modem_adapter)} {}
 
@@ -81,7 +80,7 @@ ActionPtr<ModemConnectAction> ModemAccessPoint::Connect() {
   // reuse connect action if it's in progress
   if (!connect_action_) {
     connect_action_ = ActionPtr<ModemConnectAction>{
-        *aether_.as<Aether>(), modem_adapter_->modem_driver()};
+        *aether_.Load().as<Aether>(), modem_adapter_->modem_driver()};
     connect_sub_ = connect_action_->FinishedEvent().Subscribe(
         [this]() { connect_action_.reset(); });
   }
@@ -95,11 +94,13 @@ IModemDriver& ModemAccessPoint::modem_driver() {
 std::vector<ObjPtr<Channel>> ModemAccessPoint::GenerateChannels(
     ObjPtr<Server> const& server) {
   AE_TELED_DEBUG("Generate modem channels");
-  std::vector<ObjPtr<Channel>> channels;
-  channels.reserve(server->endpoints.size());
   Aether::ptr aether = aether_;
-  ModemAccessPoint::ptr self = MakePtrFromThis(this);
-  for (auto const& endpoint : server->endpoints) {
+  auto self = ModemAccessPoint::ptr::MakeFromThis(this);
+
+  auto const& s = server.Load();
+  std::vector<ObjPtr<Channel>> channels;
+  channels.reserve(s->endpoints.size());
+  for (auto const& endpoint : s->endpoints) {
     if (!FilterAddresses<AddrVersion::kIpV4, AddrVersion::kIpV6,
                          AddrVersion::kNamed>(endpoint)) {
       continue;
@@ -108,7 +109,7 @@ std::vector<ObjPtr<Channel>> ModemAccessPoint::GenerateChannels(
       continue;
     }
     channels.emplace_back(
-        domain_->CreateObj<ModemChannel>(aether, self, endpoint));
+        ModemChannel::ptr::Create(domain, aether, self, endpoint));
   }
   return channels;
 }

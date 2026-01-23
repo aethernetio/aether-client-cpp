@@ -41,7 +41,7 @@ class DnsResolverCares : public DnsResolver {
 
  public:
 #    if defined AE_DISTILLATION
-  DnsResolverCares(ObjPtr<Aether> aether, Domain* domain);
+  DnsResolverCares(ObjProp prop, ObjPtr<Aether> aether);
 #    endif
   ~DnsResolverCares() override;
 

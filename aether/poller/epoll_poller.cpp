@@ -197,7 +197,7 @@ void EpollImpl::Loop() {
 
 EpollPoller::EpollPoller() = default;
 
-EpollPoller::EpollPoller(Domain* domain) : IPoller(domain) {}
+EpollPoller::EpollPoller(ObjProp prop) : IPoller{prop} {}
 
 NativePoller* EpollPoller::Native() {
   if (!impl_) {

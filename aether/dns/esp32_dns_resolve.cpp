@@ -175,8 +175,8 @@ class GethostByNameDnsResolver {
 Esp32DnsResolver::Esp32DnsResolver() = default;
 
 #  ifdef AE_DISTILLATION
-Esp32DnsResolver::Esp32DnsResolver(ObjPtr<Aether> aether, Domain* domain)
-    : DnsResolver{domain}, aether_{std::move(aether)} {}
+Esp32DnsResolver::Esp32DnsResolver(ObjProp prop, ObjPtr<Aether> aether)
+    : DnsResolver{prop}, aether_{std::move(aether)} {}
 #  endif
 
 Esp32DnsResolver::~Esp32DnsResolver() = default;
@@ -185,8 +185,8 @@ ActionPtr<ResolveAction> Esp32DnsResolver::Resolve(
     NamedAddr const& name_address, std::uint16_t port_hint,
     Protocol protocol_hint) {
   if (!gethostbyname_dns_resolver_) {
-    gethostbyname_dns_resolver_ =
-        std::make_unique<GethostByNameDnsResolver>(*aether_.as<Aether>());
+    gethostbyname_dns_resolver_ = std::make_unique<GethostByNameDnsResolver>(
+        *aether_.Load().as<Aether>());
   }
   return gethostbyname_dns_resolver_->Query(name_address, port_hint,
                                             protocol_hint);

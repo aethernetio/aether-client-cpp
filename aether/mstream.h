@@ -39,6 +39,7 @@
 #include <cstdint>
 #include <cstring>
 #include <utility>
+#include <optional>
 #include <type_traits>
 #include <unordered_map>
 

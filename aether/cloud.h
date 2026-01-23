@@ -32,13 +32,12 @@ class Cloud : public Obj {
   Cloud() = default;
 
  public:
-  explicit Cloud(Domain* domain);
+  explicit Cloud(ObjProp prop);
 
   AE_OBJECT_REFLECT(AE_MMBRS(servers_))
 
   void AddServer(Server::ptr server);
   void SetServers(std::vector<Server::ptr> servers);
-  void LoadServer(Server::ptr& server);
 
   std::vector<Server::ptr>& servers();
   EventSubscriber<void()> cloud_updated();

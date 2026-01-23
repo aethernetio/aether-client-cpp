@@ -57,8 +57,8 @@ class ModemAccessPoint final : public AccessPoint {
   ModemAccessPoint() = default;
 
  public:
-  ModemAccessPoint(ObjPtr<Aether> aether, ModemAdapter::ptr modem_adapter,
-                   Domain* domain);
+  ModemAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
+                   ModemAdapter::ptr modem_adapter);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, modem_adapter_));
 

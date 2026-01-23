@@ -45,9 +45,9 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   };
 
   WifiTransportBuilderAction(ActionContext action_context, WifiChannel& channel,
-                             WifiAccessPoint::ptr const& access_point,
-                             IPoller::ptr const& poller,
-                             DnsResolver::ptr const& resolver, Endpoint address)
+                             Ptr<WifiAccessPoint> const& access_point,
+                             Ptr<IPoller> const& poller,
+                             Ptr<DnsResolver> const& resolver, Endpoint address)
       : TransportBuilderAction{action_context},
         action_context_{action_context},
         channel_{&channel},
@@ -157,7 +157,7 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
       return;
     }
 
-    IPoller::ptr poller = poller_.Lock();
+    auto poller = poller_.Lock();
     assert(poller);
     auto& addr = *(it_++);
     transport_stream_ =
@@ -214,11 +214,10 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
 };
 }  // namespace wifi_channel_internal
 
-WifiChannel::WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
-                         ObjPtr<DnsResolver> resolver,
-                         WifiAccessPoint::ptr access_point, Endpoint address,
-                         Domain* domain)
-    : Channel{domain},
+WifiChannel::WifiChannel(ObjProp prop, ObjPtr<Aether> aether,
+                         ObjPtr<IPoller> poller, ObjPtr<DnsResolver> resolver,
+                         WifiAccessPoint::ptr access_point, Endpoint address)
+    : Channel{prop},
       address{std::move(address)},
       aether_(std::move(aether)),
       poller_(std::move(poller)),
@@ -250,7 +249,9 @@ WifiChannel::WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
 }
 
 Duration WifiChannel::TransportBuildTimeout() const {
-  if (access_point_->IsConnected()) {
+  auto connected =
+      access_point_.WithLoaded([&](auto const& p) { return p->IsConnected(); });
+  if (connected.value_or(false)) {
     return channel_statistics_->connection_time_statistics().percentile<99>();
   }
   // add time required for wifi connection
@@ -259,21 +260,21 @@ Duration WifiChannel::TransportBuildTimeout() const {
 }
 
 ActionPtr<TransportBuilderAction> WifiChannel::TransportBuilder() {
-  if (!resolver_) {
-    aether_->domain_->LoadRoot(resolver_);
-  }
-  if (!poller_) {
-    aether_->domain_->LoadRoot(poller_);
-  }
-  if (!access_point_) {
-    aether_->domain_->LoadRoot(access_point_);
-  }
+  auto resolver = DnsResolver::ptr{resolver_}.Load();
+  auto poller = IPoller::ptr{poller_}.Load();
+  auto access_point = access_point_.Load();
 
-  IPoller::ptr poller = poller_;
-  DnsResolver::ptr resolver = resolver_;
+  assert(resolver && "Resolver is not loaded");
+  assert(poller && "Poller is not loaded");
+  assert(access_point && "Access point is not loaded");
 
   return ActionPtr<wifi_channel_internal::WifiTransportBuilderAction>{
-      *aether_.as<Aether>(), *this, access_point_, poller, resolver, address};
+      *aether_.Load().as<Aether>(),
+      *this,
+      access_point,
+      poller,
+      resolver,
+      address};
 }
 
 }  // namespace ae

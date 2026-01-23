@@ -27,7 +27,7 @@
 
 namespace ae {
 std::unique_ptr<ByteIStream> EthernetTransportFactory::Create(
-    ActionContext action_context, ObjPtr<IPoller> const& poller,
+    ActionContext action_context, Ptr<IPoller> const& poller,
     Endpoint address_port_protocol) {
   assert((address_port_protocol.address.Index() == AddrVersion::kIpV4 ||
           address_port_protocol.address.Index() == AddrVersion::kIpV6) &&
@@ -47,7 +47,7 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::Create(
 #if AE_SUPPORT_TCP
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
     [[maybe_unused]] ActionContext action_context,
-    [[maybe_unused]] ObjPtr<IPoller> const& poller,
+    [[maybe_unused]] Ptr<IPoller> const& poller,
     [[maybe_unused]] Endpoint address_port_protocol) {
 #  if defined COMMON_TCP_TRANSPORT_ENABLED
   return std::make_unique<TcpTransport>(action_context, poller,
@@ -59,7 +59,7 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
 #else
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
     [[maybe_unused]] ActionContext action_context,
-    [[maybe_unused]] ObjPtr<IPoller> const& poller,
+    [[maybe_unused]] Ptr<IPoller> const& poller,
     [[maybe_unused]] Endpoint address_port_protocol) {
   return nullptr;
 }
@@ -68,7 +68,7 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
 #if AE_SUPPORT_UDP
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
     [[maybe_unused]] ActionContext action_context,
-    [[maybe_unused]] ObjPtr<IPoller> const& poller,
+    [[maybe_unused]] Ptr<IPoller> const& poller,
     [[maybe_unused]] Endpoint address_port_protocol) {
 #  if defined SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED
   return std::make_unique<UdpTransport>(action_context, poller,
@@ -80,7 +80,7 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
 #else
 std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
     [[maybe_unused]] ActionContext action_context,
-    [[maybe_unused]] ObjPtr<IPoller> const& poller,
+    [[maybe_unused]] Ptr<IPoller> const& poller,
     [[maybe_unused]] Endpoint address_port_protocol) {
   return nullptr;
 }

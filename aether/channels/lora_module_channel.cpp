@@ -136,10 +136,10 @@ class LoraModuleTransportBuilderAction final : public TransportBuilderAction {
 
 }  // namespace lora_module_channel_internal
 
-LoraModuleChannel::LoraModuleChannel(ObjPtr<Aether> aether,
+LoraModuleChannel::LoraModuleChannel(ObjProp prop, ObjPtr<Aether> aether,
                                      LoraModuleAccessPoint::ptr access_point,
-                                     Endpoint address, Domain* domain)
-    : Channel{std::move(address), domain},
+                                     Endpoint address)
+    : Channel{prop, std::move(address)},
       aether_{std::move(aether)},
       access_point_{std::move(access_point)} {
   // fill transport properties

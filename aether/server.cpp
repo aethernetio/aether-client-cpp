@@ -19,9 +19,10 @@
 #include <utility>
 
 namespace ae {
-Server::Server(ServerId server_id, std::vector<Endpoint> endpoints,
-               AdapterRegistry::ptr adapter_registry, Domain* domain)
-    : Obj{domain},
+Server::Server(ObjProp prop, ServerId server_id,
+               std::vector<Endpoint> endpoints,
+               AdapterRegistry::ptr adapter_registry)
+    : Obj{prop},
       server_id{server_id},
       endpoints{std::move(endpoints)},
       adapter_registry_{std::move(adapter_registry)},
@@ -34,7 +35,7 @@ void Server::Update(TimePoint current_time) {
     subscribed_ = true;
     UpdateSubscription();
   }
-  update_time_ = current_time;
+  update_time = current_time;
 }
 
 void Server::Register() {
@@ -53,19 +54,18 @@ Server::ChannelsChanged::Subscriber Server::channels_changed() {
 }
 
 void Server::UpdateSubscription() {
-  if (!adapter_registry_) {
-    domain_->LoadRoot(adapter_registry_);
-  }
-  assert(adapter_registry_);
-  for (auto const& adapter : adapter_registry_->adapters()) {
-    access_point_added_ += adapter->new_access_point().Subscribe(
-        MethodPtr<&Server::AddChannels>{this});
-  }
+  assert(adapter_registry_.is_valid());
+  adapter_registry_.WithLoaded([&](auto const& ar) {
+    for (auto const& adapter : ar->adapters()) {
+      access_point_added_ += adapter->new_access_point().Subscribe(
+          MethodPtr<&Server::AddChannels>{this});
+    }
+  });
   channels_changed_.Emit();
 }
 
 void Server::AddChannels(AccessPoint::ptr const& access_point) {
-  auto server_ptr = MakePtrFromThis(this);
+  auto server_ptr = Server::ptr::MakeFromThis(this);
   auto new_channels = access_point->GenerateChannels(server_ptr);
   channels.insert(std::end(channels), std::begin(new_channels),
                   std::end(new_channels));

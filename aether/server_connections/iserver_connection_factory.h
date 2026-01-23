@@ -17,8 +17,8 @@
 #ifndef AETHER_SERVER_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
 #define AETHER_SERVER_CONNECTIONS_ISERVER_CONNECTION_FACTORY_H_
 
+#include "aether/ptr/ptr.h"
 #include "aether/ptr/rc_ptr.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/server_connections/client_server_connection.h"
 
 namespace ae {
@@ -28,7 +28,7 @@ class IServerConnectionFactory {
   virtual ~IServerConnectionFactory() = default;
 
   virtual RcPtr<ClientServerConnection> CreateConnection(
-      ObjPtr<Server> const& server) = 0;
+      Ptr<Server> const& server) = 0;
 };
 }  // namespace ae
 

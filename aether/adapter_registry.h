@@ -29,7 +29,7 @@ class AdapterRegistry final : public Obj {
 
  public:
 #if AE_DISTILLATION
-  explicit AdapterRegistry(Domain* domain);
+  explicit AdapterRegistry(ObjProp prop);
 #endif
 
   AE_OBJECT_REFLECT(AE_MMBRS(adapters_))

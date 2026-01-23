@@ -58,7 +58,7 @@ class EpollPoller : public IPoller {
   EpollPoller();
 
  public:
-  explicit EpollPoller(Domain* domain);
+  explicit EpollPoller(ObjProp prop);
 
   AE_OBJECT_REFLECT()
 

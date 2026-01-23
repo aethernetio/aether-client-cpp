@@ -26,12 +26,12 @@ ServerConnectionManager::ServerConnectionFactory::ServerConnectionFactory(
 
 RcPtr<ClientServerConnection>
 ServerConnectionManager::ServerConnectionFactory::CreateConnection(
-    ObjPtr<Server> const& server) {
+    Ptr<Server> const& server) {
   return server_connection_manager_->CreateConnection(server);
 }
 
 ServerConnectionManager::ServerConnectionManager(ActionContext action_context,
-                                                 ObjPtr<Client> const& client)
+                                                 Ptr<Client> const& client)
     : action_context_{action_context}, client_{client} {}
 
 std::unique_ptr<IServerConnectionFactory>
@@ -40,7 +40,7 @@ ServerConnectionManager::GetServerConnectionFactory() {
 }
 
 RcPtr<ClientServerConnection> ServerConnectionManager::CreateConnection(
-    Server::ptr const& server) {
+    Ptr<Server> const& server) {
   auto in_cache = FindInCache(server->server_id);
   if (in_cache) {
     return in_cache;

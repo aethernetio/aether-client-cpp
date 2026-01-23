@@ -16,13 +16,11 @@
 
 #include "aether/connection_manager/client_connection_manager.h"
 
-#include <algorithm>
-
 #include "aether/cloud.h"
 
 namespace ae {
 ClientConnectionManager::ClientConnectionManager(
-    ObjPtr<Cloud> const& cloud,
+    Ptr<Cloud> const& cloud,
     std::unique_ptr<IServerConnectionFactory>&& connection_factory)
     : cloud_{cloud}, connection_factory_{std::move(connection_factory)} {
   InitServerConnections();
@@ -34,15 +32,12 @@ ClientConnectionManager::server_connections() {
 }
 
 void ClientConnectionManager::InitServerConnections() {
-  Cloud::ptr cloud = cloud_.Lock();
+  auto cloud = cloud_.Lock();
   assert(cloud);
   server_connections_.reserve(cloud->servers().size());
   for (auto& server : cloud->servers()) {
-    if (!server) {
-      cloud->LoadServer(server);
-    }
-    assert(server);
-    server_connections_.emplace_back(server, *connection_factory_);
+    assert(server.is_valid());
+    server_connections_.emplace_back(server.Load(), *connection_factory_);
   }
 }
 

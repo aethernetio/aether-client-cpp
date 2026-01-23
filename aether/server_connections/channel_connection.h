@@ -18,7 +18,7 @@
 #define AETHER_SERVER_CONNECTIONS_CHANNEL_CONNECTION_H_
 
 #include "aether/common.h"
-#include "aether/obj/obj_ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/events/events.h"
 #include "aether/stream_api/istream.h"
 #include "aether/actions/timer_action.h"
@@ -31,8 +31,7 @@ class ChannelConnection {
  public:
   using ConnectionStateEvent = Event<void(bool connected)>;
 
-  ChannelConnection(ActionContext action_context,
-                    ObjPtr<Channel> const& channel);
+  ChannelConnection(ActionContext action_context, Ptr<Channel> const& channel);
 
   AE_CLASS_NO_COPY_MOVE(ChannelConnection)
 
@@ -40,7 +39,7 @@ class ChannelConnection {
   ConnectionStateEvent::Subscriber connection_state_event();
 
  private:
-  void BuildTransport(ObjPtr<Channel> const& channel);
+  void BuildTransport(Ptr<Channel> const& channel);
 
   ActionContext action_context_;
   std::unique_ptr<ByteIStream> transport_stream_;

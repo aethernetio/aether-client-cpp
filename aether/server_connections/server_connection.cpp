@@ -26,7 +26,7 @@ namespace ae {
 static constexpr std::size_t kBufferCapacity = 200;
 
 ServerConnection::ServerConnection(ActionContext action_context,
-                                   ObjPtr<Server> const& server)
+                                   Ptr<Server> const& server)
     : action_context_{action_context},
       server_{server},
       buffer_write_{action_context_,
@@ -67,7 +67,7 @@ ServerConnection::channel_changed_event() {
   return EventSubscriber{channel_changed_};
 }
 
-ObjPtr<Channel> ServerConnection::current_channel() const {
+Ptr<Channel> ServerConnection::current_channel() const {
   if (top_channel_ == nullptr) {
     return {};
   }
@@ -75,27 +75,23 @@ ObjPtr<Channel> ServerConnection::current_channel() const {
   assert(server && "Server is null");
 
   // ensure channel is loaded
-  ObjPtr<Channel> c = top_channel_->channel.Lock();
-  return c ? c : (server->domain_->LoadRoot(c), c);
+  return top_channel_->channel.Lock();
 }
 
 void ServerConnection::InitChannels() {
   auto server = server_.Lock();
   assert(server && "Server is null");
 
-  std::vector<ObjPtr<Channel>> channels;
+  std::vector<Ptr<Channel>> channels;
   channels.reserve(server->channels.size());
   for (auto c : server->channels) {
     // channel must be loaded before use
-    if (!c) {
-      server->domain_->LoadRoot(c);
-    }
-    assert(c && "Channel is not loaded");
-    channels.emplace_back(std::move(c));
+    assert(c.is_valid() && "Channel is not loaded");
+    channels.emplace_back(c.Load());
   }
   // sort channels by the fastest
   std::sort(std::begin(channels), std::end(channels),
-            [&](ObjPtr<Channel> const& left, ObjPtr<Channel> const& right) {
+            [&](Ptr<Channel> const& left, Ptr<Channel> const& right) {
               auto l_conn_type = left->transport_properties().connection_type;
               auto r_conn_type = right->transport_properties().connection_type;
               // select the fastest connection type
@@ -137,11 +133,7 @@ void ServerConnection::SelectChannel() {
 
   auto server = server_.Lock();
   assert(server && "Server is null");
-  // get channel and ensure it's loaded
-  auto channel = std::invoke([&]() {
-    ObjPtr<Channel> c = top_channel_->channel.Lock();
-    return c ? c : (server->domain_->LoadRoot(c), c);
-  });
+  auto channel = top_channel_->channel.Lock();
   if (!channel) {
     DeferChannelError();
     return;
