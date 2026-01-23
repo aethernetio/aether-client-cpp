@@ -29,12 +29,14 @@ namespace ae {
 
 WifiConnectAction::WifiConnectAction(ActionContext action_context,
                                      WifiDriver& driver,
-                                     WiFiInit const& wifi_init)
+                                     WiFiInit const& wifi_init,
+                                     WiFiBaseStation& base_station)
     : Action{action_context},
       driver_{&driver},
       wifi_init_{wifi_init},
+      base_station_{base_station},
       state_{State::kCheckIsConnected} {
-  assert(wifi_init.wifi_creds.size() && "No WiFi credentials!");
+  assert(wifi_init.wifi_ap.size() && "No WiFi access points!");
 }
 
 UpdateStatus WifiConnectAction::Update() {
@@ -42,7 +44,7 @@ UpdateStatus WifiConnectAction::Update() {
     switch (state_.Acquire()) {
       case State::kCheckIsConnected: {
         auto connected_to = driver_->connected_to();
-        if (connected_to.ssid == wifi_init_.wifi_creds.at(0).ssid) {
+        if (connected_to.ssid == wifi_init_.wifi_ap.at(driver_->ap_cnt()).creds.ssid) {
           state_ = State::kConnected;
         } else {
           state_ = State::kConnect;
@@ -51,7 +53,7 @@ UpdateStatus WifiConnectAction::Update() {
         break;
       }
       case State::kConnect: {
-        driver_->Connect(wifi_init_);
+        driver_->Connect(wifi_init_, base_station_);
         // TODO: Does connect should be async
         state_ = State::kConnected;
         Action::Trigger();
@@ -108,7 +110,7 @@ ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
   if (!connect_action_) {
     connect_action_ = ActionPtr<WifiConnectAction>{
         *aether_.as<Aether>(), adapter_.as<WifiAdapter>()->driver(),
-        wifi_init_};
+        wifi_init_, base_station_};
     connect_sub_ = connect_action_->FinishedEvent().Subscribe(
         [this]() { connect_action_.reset(); });
   }
@@ -118,7 +120,7 @@ ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
 bool WifiAccessPoint::IsConnected() {
   auto& driver = adapter_.as<WifiAdapter>()->driver();
   auto connected_to = driver.connected_to();
-  return connected_to.ssid == wifi_init_.wifi_creds.at(0).ssid;
+  return connected_to.ssid == wifi_init_.wifi_ap.at(driver.ap_cnt()).creds.ssid;
 }
 
 }  // namespace ae

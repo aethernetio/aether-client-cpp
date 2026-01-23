@@ -22,8 +22,11 @@
 #if CLOUD_TEST_ESP_WIFI
 
 namespace ae::cloud_test {
-static constexpr std::string kWifiSsid = "Test1234";
-static constexpr std::string kWifiPass = "Test1234";
+static constexpr std::string kWifi1Ssid = "Test1234";
+static constexpr std::string kWifi1Pass = "Test1234";
+
+static constexpr std::string kWifi2Ssid = "Test2345";
+static constexpr std::string kWifi2Pass = "Test2345";
 
 static IpV4Addr my_static_ip_v4{192, 168, 1, 215};
 static IpV4Addr my_gateway_ip_v4{192, 168, 1, 1};
@@ -34,34 +37,34 @@ static IpV6Addr my_static_ip_v6{0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00,
                                 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34};
 
 WiFiIP wifi_ip{
-    true,                  // Use DHCP
-    {my_static_ip_v4},     // ESP32 static IP
-    {my_gateway_ip_v4},    // IP Address of your network gateway (router)
-    {my_netmask_ip_v4},    // Subnet mask
-    {my_dns1_ip_v4},       // Primary DNS (optional)
-    {my_dns2_ip_v4},       // Secondary DNS (optional)
-    false,                 // Use IPV6
-    {my_static_ip_v6}      // ESP32 static IP v6
+    {my_static_ip_v4},   // ESP32 static IP
+    {my_gateway_ip_v4},  // IP Address of your network gateway (router)
+    {my_netmask_ip_v4},  // Subnet mask
+    {my_dns1_ip_v4},     // Primary DNS (optional)
+    {my_dns2_ip_v4},     // Secondary DNS (optional)
+    {my_static_ip_v6}    // ESP32 static IP v6
 };
 
-static WifiCreds my_wifi{kWifiSsid, kWifiPass, wifi_ip};
+static WifiCreds my_wifi1{kWifi1Ssid, kWifi1Pass};
+static WifiCreds my_wifi2{kWifi2Ssid, kWifi2Pass};
 
-std::vector<WifiCreds> wifi_creds{my_wifi};
+ae::WiFiAp wifi1_ap{my_wifi1, wifi_ip};
+ae::WiFiAp wifi2_ap{my_wifi2, wifi_ip};
+                    
+std::vector<ae::WiFiAp> wifi_ap_vec{wifi1_ap, wifi2_ap};
 
 static WiFiPowerSaveParam wifi_psp{
     true,
     AE_WIFI_PS_MAX_MODEM,  // Power save type
-    AE_WIFI_PROTOCOL_11B |
-    AE_WIFI_PROTOCOL_11G |
-    AE_WIFI_PROTOCOL_11N,  // Protocol bitmap
-    3,                     // Listen interval
-    500                    // Beacon interval
+    AE_WIFI_PROTOCOL_11B | AE_WIFI_PROTOCOL_11G |
+        AE_WIFI_PROTOCOL_11N,  // Protocol bitmap
+    3,                         // Listen interval
+    500                        // Beacon interval
 };
 
 WiFiInit wifi_init{
-    wifi_creds,  // Wi-Fi credentials
+    wifi_ap_vec, // Wi-Fi access points
     wifi_psp,    // Power save parameters
-    {},          // Base station
 };
 
 RcPtr<AetherApp> construct_aether_app() {

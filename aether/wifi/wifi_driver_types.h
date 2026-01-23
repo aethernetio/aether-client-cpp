@@ -31,24 +31,28 @@
 namespace ae {
 // ========================WiFi init========================================
 struct WiFiIP {
-  AE_REFLECT_MEMBERS(use_dhcp, static_ip_v4, gateway_v4, netmask_v4,
-                     primary_dns_v4, secondary_dns_v4, use_ipv6, static_ip_v6)
-  bool use_dhcp{false};
-  Address static_ip_v4{};      // ESP32 static IP v4
-  Address gateway_v4{};        // IP Address of your network gateway (router)
-  Address netmask_v4{};        // Netmask
-  Address primary_dns_v4{};    // Primary DNS (optional)
-  Address secondary_dns_v4{};  // Secondary DNS (optional)
-  bool use_ipv6{false};        // Use IPV6
-  Address static_ip_v6{};      // ESP32 static IP v6
+  AE_REFLECT_MEMBERS(static_ip_v4, gateway_v4, netmask_v4, primary_dns_v4,
+                     secondary_dns_v4, static_ip_v6)
+  IpV4Addr static_ip_v4{};  // ESP32 static IP v4
+  IpV4Addr gateway_v4{};    // IP Address of your network gateway (router)
+  IpV4Addr netmask_v4{};    // Netmask
+  std::optional<IpV4Addr> primary_dns_v4{};    // Primary DNS (optional)
+  std::optional<IpV4Addr> secondary_dns_v4{};  // Secondary DNS (optional)
+  std::optional<IpV6Addr> static_ip_v6{};      // ESP32 static IP v6
 };
 
 struct WifiCreds {
-  AE_REFLECT_MEMBERS(ssid, password, wifi_ip)
+  AE_REFLECT_MEMBERS(ssid, password)
 
   std::string ssid;
   std::string password;
-  WiFiIP wifi_ip;
+};
+
+struct WiFiAp {
+  AE_REFLECT_MEMBERS(creds, static_ip)
+  WifiCreds creds;
+  std::optional<WiFiIP>
+      static_ip;  // use static ip settings, otherwise use dynamic settings
 };
 
 struct WiFiPowerSaveParam {
@@ -62,18 +66,16 @@ struct WiFiPowerSaveParam {
 };
 
 struct WiFiBaseStation {
-  AE_REFLECT_MEMBERS(creds, connected, target_bssid, target_channel)
-  WifiCreds creds;
+  AE_REFLECT_MEMBERS(connected, target_bssid, target_channel)
   bool connected{false};
   uint8_t target_bssid[6];
   uint8_t target_channel;
 };
 
 struct WiFiInit {
-  AE_REFLECT_MEMBERS(wifi_creds, psp, bs)
-  std::vector<WifiCreds> wifi_creds;
+  AE_REFLECT_MEMBERS(wifi_ap, psp)
+  std::vector<WiFiAp> wifi_ap;
   WiFiPowerSaveParam psp;
-  WiFiBaseStation bs;
 };
 
 }  // namespace ae

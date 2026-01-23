@@ -493,6 +493,34 @@ imstream<Ib>& operator>>(imstream<Ib>& s, std::chrono::time_point<T...>& t) {
 }
 
 template <typename T, typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& s, std::optional<T> const& v) {
+  if (v) {
+    s << true;  // save has_value = true
+    s << v.value();
+  } else {
+    s << false;  // save has_value = false
+  }
+  return s;
+}
+
+template <typename T, typename Ib>
+imstream<Ib>& operator>>(imstream<Ib>& s, std::optional<T>& v) {
+  bool has_value{};
+  s >> has_value;
+  if (!data_was_read(s)) {
+    return s;
+  }
+  if (has_value) {
+    T temp{};
+    s >> temp;
+    if (data_was_read(s)) {
+      v.emplace(std::move(temp));
+    }
+  }
+  return s;
+}
+
+template <typename T, typename Ob>
 omstream<Ob>& operator<<(omstream<Ob>& s, const std::unique_ptr<T>& v) {
   if (v) {
     s << true;

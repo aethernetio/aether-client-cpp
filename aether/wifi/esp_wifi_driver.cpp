@@ -71,7 +71,7 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
 int EspWifiDriver::initialized_ = 0;
 void* EspWifiDriver::espt_init_sta_ = nullptr;
 
-EspWifiDriver::EspWifiDriver() {
+EspWifiDriver::EspWifiDriver() : ap_cnt_{0} {
   if (initialized_++ > 0) {
     return;
   }
@@ -88,7 +88,11 @@ EspWifiDriver::~EspWifiDriver() {
   Deinit();
 }
 
-void EspWifiDriver::Connect(WiFiInit& wifi_init) {
+void EspWifiDriver::Connect(WiFiInit& wifi_init,
+                            WiFiBaseStation& base_station_) {
+  auto ap_max_cnt = wifi_init.wifi_ap.size();
+  bool connected{false};
+
   if (connected_to_) {
     Disconnect();
   }
@@ -107,92 +111,103 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init) {
       IP_EVENT, IP_EVENT_STA_GOT_IP, esp_wifi_driver_internal::EventHandler,
       connection_state_.get(), &instance_got_ip));
 
-  wifi_scan_threshold_t wifi_threshold{};
-  wifi_threshold.rssi = 0;
-  wifi_threshold.authmode = WIFI_AUTH_WPA2_PSK;
+  while (!connected) {
+    wifi_scan_threshold_t wifi_threshold{};
+    wifi_threshold.rssi = 0;
+    wifi_threshold.authmode = WIFI_AUTH_WPA2_PSK;
 
-  wifi_config_t wifi_config{};
-  wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
+    wifi_config_t wifi_config{};
+    wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
 
-  // Restore saved Base Station
-  if (wifi_init.bs.connected) {
-    wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
-    wifi_config.sta.bssid_set = true;              // Enable BSSID binding
-    wifi_config.sta.channel = wifi_init.bs.target_channel;  // Set channel
-    // Copy the BSSID to the configuration
-    memcpy(wifi_config.sta.bssid, wifi_init.bs.target_bssid, 6);
-    ESP_ERROR_CHECK(esp_wifi_set_channel(wifi_init.bs.target_channel,
-                                         WIFI_SECOND_CHAN_NONE));
-  }
-
-  wifi_config.sta.threshold = wifi_threshold;
-  if (wifi_init.psp.ps_enabled) {
-    wifi_config.sta.listen_interval = wifi_init.psp.listen_interval;
-  }
-
-  // for debug purpose only, it's private data
-  AE_TELED_DEBUG("Connecting to ap SSID:{} PSWD:{}",
-                 wifi_init.wifi_creds.at(0).ssid,
-                 wifi_init.wifi_creds.at(0).password);
-
-  strncpy(reinterpret_cast<char*>(wifi_config.sta.ssid),
-          wifi_init.wifi_creds.at(0).ssid.data(), sizeof(wifi_config.sta.ssid));
-  strncpy(reinterpret_cast<char*>(wifi_config.sta.password),
-          wifi_init.wifi_creds.at(0).password.data(),
-          sizeof(wifi_config.sta.password));
-
-  // Setting up a static IP, if required
-  if (!wifi_init.wifi_creds.at(0).wifi_ip.use_dhcp) {
-    esp_err_t err = SetStaticIp(static_cast<esp_netif_t*>(espt_init_sta_),
-                                wifi_init.wifi_creds.at(0).wifi_ip);
-    if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set static IP, falling back to DHCP");
-      // If an error occurs, switch to DHCP
-      wifi_init.wifi_creds.at(0).wifi_ip.use_dhcp = true;
-    }
-  } else {
-    AE_TELED_DEBUG("Using DHCP for IP configuration");
-  }
-
-  // We disable aggregation so that the packages go out one by one and quickly
-  wifi_init_config.ampdu_rx_enable = 0;
-  wifi_init_config.ampdu_tx_enable = 0;
-
-  ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
-
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-  ESP_ERROR_CHECK(
-      esp_wifi_set_ps(static_cast<wifi_ps_type_t>(wifi_init.psp.wifi_ps_type)));
-  ESP_ERROR_CHECK(
-      esp_wifi_set_protocol(WIFI_IF_STA, wifi_init.psp.protocol_bitmap));
-  ESP_ERROR_CHECK(esp_wifi_start());
-
-  AE_TELED_DEBUG("WifiInitSta finished.");
-
-  /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or
-   * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT). The
-   * bits are set by EventHandler() (see above) */
-  EventBits_t bits = xEventGroupWaitBits(connection_state_->event_group,
-                                         WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                         pdFALSE, pdFALSE, portMAX_DELAY);
-
-  /* xEventGroupWaitBits() returns the bits before the call returned, hence we
-   * can test which event actually happened. */
-  if (bits & WIFI_CONNECTED_BIT) {
-    AE_TELED_DEBUG("Connected to AP");
-    connected_to_ = wifi_init.wifi_creds.at(0);
-    // Save Base Station
-    if (!wifi_init.bs.connected) {
-      wifi_init.bs.connected = true;
-      wifi_init.bs.target_channel = wifi_config.sta.channel;  // Set channel
+    // Restore saved Base Station
+    if (base_station_.connected) {
+      wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
+      wifi_config.sta.bssid_set = true;              // Enable BSSID binding
+      wifi_config.sta.channel = base_station_.target_channel;  // Set channel
       // Copy the BSSID to the configuration
-      memcpy(wifi_init.bs.target_bssid, wifi_config.sta.bssid, 6);
+      memcpy(wifi_config.sta.bssid, base_station_.target_bssid, 6);
+      ESP_ERROR_CHECK(esp_wifi_set_channel(base_station_.target_channel,
+                                           WIFI_SECOND_CHAN_NONE));
     }
-  } else if (bits & WIFI_FAIL_BIT) {
-    AE_TELED_DEBUG("Failed to connect to AP");
-  } else {
-    AE_TELED_DEBUG("UNEXPECTED EVENT {}", static_cast<int>(bits));
+
+    wifi_config.sta.threshold = wifi_threshold;
+    if (wifi_init.psp.ps_enabled) {
+      wifi_config.sta.listen_interval = wifi_init.psp.listen_interval;
+    }
+
+    // for debug purpose only, it's private data
+    AE_TELED_DEBUG("Connecting to ap SSID:{} PSWD:{}",
+                   wifi_init.wifi_ap.at(ap_cnt_).creds.ssid,
+                   wifi_init.wifi_ap.at(ap_cnt_).creds.password);
+
+    strncpy(reinterpret_cast<char*>(wifi_config.sta.ssid),
+            wifi_init.wifi_ap.at(ap_cnt_).creds.ssid.data(),
+            sizeof(wifi_config.sta.ssid));
+    strncpy(reinterpret_cast<char*>(wifi_config.sta.password),
+            wifi_init.wifi_ap.at(ap_cnt_).creds.password.data(),
+            sizeof(wifi_config.sta.password));
+
+    // Setting up a static IP, if required
+    if (wifi_init.wifi_ap.at(ap_cnt_).static_ip.has_value()) {
+      esp_err_t err =
+          SetStaticIp(static_cast<esp_netif_t*>(espt_init_sta_),
+                      wifi_init.wifi_ap.at(ap_cnt_).static_ip.value());
+      if (err != ESP_OK) {
+        AE_TELED_ERROR("Failed to set static IP, falling back to DHCP");
+        // If an error occurs, switch to DHCP
+      }
+    } else {
+      AE_TELED_DEBUG("Using DHCP for IP configuration");
+    }
+
+    // We disable aggregation so that the packages go out one by one and quickly
+    wifi_init_config.ampdu_rx_enable = 0;
+    wifi_init_config.ampdu_tx_enable = 0;
+
+    ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_set_ps(
+        static_cast<wifi_ps_type_t>(wifi_init.psp.wifi_ps_type)));
+    ESP_ERROR_CHECK(
+        esp_wifi_set_protocol(WIFI_IF_STA, wifi_init.psp.protocol_bitmap));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    AE_TELED_DEBUG("WifiInitSta finished.");
+
+    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT)
+     * or connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
+     * The bits are set by EventHandler() (see above) */
+    EventBits_t bits = xEventGroupWaitBits(connection_state_->event_group,
+                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                           pdFALSE, pdFALSE, portMAX_DELAY);
+
+    /* xEventGroupWaitBits() returns the bits before the call returned, hence we
+     * can test which event actually happened. */
+    if (bits & WIFI_CONNECTED_BIT) {
+      AE_TELED_DEBUG("Connected to AP");
+      connected_to_ = wifi_init.wifi_ap.at(ap_cnt_).creds;
+      // Save Base Station
+      base_station_.connected = true;
+      base_station_.target_channel = wifi_config.sta.channel;  // Set channel
+      // Copy the BSSID to the configuration
+      memcpy(base_station_.target_bssid, wifi_config.sta.bssid, 6);
+      connected = true;
+    } else if (bits & WIFI_FAIL_BIT) {
+      AE_TELED_DEBUG("Failed to connect to AP, trying next AP");
+      Disconnect();
+      ap_cnt_++;
+      if (ap_cnt_ >= ap_max_cnt) {
+        AE_TELED_DEBUG("End of the AP list!");
+        ap_cnt_ = 0;  // We were unable to connect to any of the networks on the
+                      // list. Let's start over
+      } else {
+        xEventGroupClearBits(connection_state_->event_group, WIFI_FAIL_BIT);
+      }
+    } else {
+      AE_TELED_DEBUG("UNEXPECTED EVENT {}", static_cast<int>(bits));
+    }
   }
 
   /* The event will not be processed after unregister */
@@ -210,6 +225,8 @@ WifiCreds EspWifiDriver::connected_to() const {
   }
   return *connected_to_;
 }
+
+size_t EspWifiDriver::ap_cnt() const { return ap_cnt_; }
 
 void EspWifiDriver::Init() {
   InitNvs();
@@ -255,34 +272,38 @@ esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP& config) {
   memset(&dns_info1, 0, sizeof(esp_netif_dns_info_t));
   memset(&dns_info2, 0, sizeof(esp_netif_dns_info_t));
 
-  auto static_ip = config.static_ip_v4.Get<IpV4Addr>();
+  auto static_ip = config.static_ip_v4;
   IP4_ADDR(&ip_info.ip, static_ip.ipv4_value[0], static_ip.ipv4_value[1],
            static_ip.ipv4_value[2], static_ip.ipv4_value[3]);
-  auto gateway = config.gateway_v4.Get<IpV4Addr>();
+  auto gateway = config.gateway_v4;
   IP4_ADDR(&ip_info.gw, gateway.ipv4_value[0], gateway.ipv4_value[1],
            gateway.ipv4_value[2], gateway.ipv4_value[3]);
-  auto netmask = config.netmask_v4.Get<IpV4Addr>();
+  auto netmask = config.netmask_v4;
   IP4_ADDR(&ip_info.netmask, netmask.ipv4_value[0], netmask.ipv4_value[1],
            netmask.ipv4_value[2], netmask.ipv4_value[3]);
-  auto primary_dns = config.primary_dns_v4.Get<IpV4Addr>();
-  IP4_ADDR(&dns_info1.ip.u_addr.ip4, primary_dns.ipv4_value[0],
-           primary_dns.ipv4_value[1], primary_dns.ipv4_value[2],
-           primary_dns.ipv4_value[3]);
-  auto secondary_dns = config.secondary_dns_v4.Get<IpV4Addr>();
-  IP4_ADDR(&dns_info2.ip.u_addr.ip4, secondary_dns.ipv4_value[0],
-           secondary_dns.ipv4_value[1], secondary_dns.ipv4_value[2],
-           secondary_dns.ipv4_value[3]);
+  if (config.primary_dns_v4.has_value()) {
+    auto primary_dns = config.primary_dns_v4.value();
+    IP4_ADDR(&dns_info1.ip.u_addr.ip4, primary_dns.ipv4_value[0],
+             primary_dns.ipv4_value[1], primary_dns.ipv4_value[2],
+             primary_dns.ipv4_value[3]);
+  }
+  if (config.secondary_dns_v4.has_value()) {
+    auto secondary_dns = config.secondary_dns_v4.value();
+    IP4_ADDR(&dns_info2.ip.u_addr.ip4, secondary_dns.ipv4_value[0],
+             secondary_dns.ipv4_value[1], secondary_dns.ipv4_value[2],
+             secondary_dns.ipv4_value[3]);
+  }
 #  endif
 #  if AE_SUPPORT_IPV6 == 1
-  esp_netif_ip6_info_t ip_info_v6;
+  if (config.static_ip_v6.has_value()) {
+    esp_netif_ip6_info_t ip_info_v6;
 
-  memset(&ip_info_v6, 0, sizeof(esp_netif_ip6_info_t));
+    memset(&ip_info_v6, 0, sizeof(esp_netif_ip6_info_t));
 
-  if (config.use_ipv6) {
     std::array<std::uint32_t const*, 4> ip6_parts{};
     for (auto i = 0; i < 4; ++i) {
       ip6_parts[i] = reinterpret_cast<std::uint32_t const*>(
-          &config.static_ip_v6.ipv6_value[i * 4]);
+          &config.static_ip_v6.value().ipv6_value[i * 4]);
     }
     IP6_ADDR(&ip_info_v6.ip, PP_HTONL(*ip6_parts[0]), PP_HTONL(*ip6_parts[1]),
              PP_HTONL(*ip6_parts[2]), PP_HTONL(*ip6_parts[3]));
@@ -305,14 +326,18 @@ esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP& config) {
   }
 
   // Installing DNS servers
-  err = esp_netif_set_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns_info1);
-  if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to set primary DNS: {}", esp_err_to_name(err));
+  if (config.primary_dns_v4.has_value()) {
+    err = esp_netif_set_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns_info1);
+    if (err != ESP_OK) {
+      AE_TELED_ERROR("Failed to set primary DNS: {}", esp_err_to_name(err));
+    }
   }
 
-  err = esp_netif_set_dns_info(netif, ESP_NETIF_DNS_BACKUP, &dns_info2);
-  if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to set secondary DNS: {}", esp_err_to_name(err));
+  if (config.secondary_dns_v4.has_value()) {
+    err = esp_netif_set_dns_info(netif, ESP_NETIF_DNS_BACKUP, &dns_info2);
+    if (err != ESP_OK) {
+      AE_TELED_ERROR("Failed to set secondary DNS: {}", esp_err_to_name(err));
+    }
   }
 
   AE_TELED_DEBUG("Static IP V4 configured: {}", config.static_ip_v4);

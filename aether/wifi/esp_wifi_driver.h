@@ -35,8 +35,9 @@ class EspWifiDriver final : public WifiDriver {
   EspWifiDriver();
   ~EspWifiDriver() override;
 
-  void Connect(WiFiInit& wifi_init) override;
+  void Connect(WiFiInit& wifi_init, WiFiBaseStation& base_station_) override;
   WifiCreds connected_to() const override;
+  size_t ap_cnt() const override;
 
  private:
   void Disconnect();
@@ -47,6 +48,7 @@ class EspWifiDriver final : public WifiDriver {
 
   static int initialized_;
   static void* espt_init_sta_;
+  size_t ap_cnt_;
 
   std::optional<WifiCreds> connected_to_;
   std::unique_ptr<struct ConnectionState> connection_state_;
