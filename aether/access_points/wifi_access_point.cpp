@@ -44,7 +44,8 @@ UpdateStatus WifiConnectAction::Update() {
     switch (state_.Acquire()) {
       case State::kCheckIsConnected: {
         auto connected_to = driver_->connected_to();
-        if (connected_to.ssid == wifi_init_.wifi_ap.at(driver_->ap_cnt()).creds.ssid) {
+        if (connected_to.ssid ==
+            wifi_init_.wifi_ap.at(driver_->ap_cnt()).creds.ssid) {
           state_ = State::kConnected;
         } else {
           state_ = State::kConnect;
@@ -109,8 +110,8 @@ ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
   // reuse connect action if it's in progress
   if (!connect_action_) {
     connect_action_ = ActionPtr<WifiConnectAction>{
-        *aether_.as<Aether>(), adapter_.as<WifiAdapter>()->driver(),
-        wifi_init_, base_station_};
+        *aether_.as<Aether>(), adapter_.as<WifiAdapter>()->driver(), wifi_init_,
+        base_station_};
     connect_sub_ = connect_action_->FinishedEvent().Subscribe(
         [this]() { connect_action_.reset(); });
   }

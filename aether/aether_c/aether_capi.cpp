@@ -280,7 +280,7 @@ int AetherInit(AetherConfig const* config) {
                                                  wifi_conf->password};
 
                     ae::WiFiAp wifi_ap{my_wifi, wifi_ip};
-                    
+
                     std::vector<ae::WiFiAp> wifi_ap_vec{wifi_ap};
 
                     static ae::WiFiPowerSaveParam wifi_psp{
@@ -293,8 +293,8 @@ int AetherInit(AetherConfig const* config) {
                     };
 
                     ae::WiFiInit wifi_init{
-                        wifi_ap_vec, // Wi-Fi access points
-                        wifi_psp,    // Power save parameters
+                        wifi_ap_vec,  // Wi-Fi access points
+                        wifi_psp,     // Power save parameters
                     };
 
                     adapters->Add(context.domain().CreateObj<ae::WifiAdapter>(
