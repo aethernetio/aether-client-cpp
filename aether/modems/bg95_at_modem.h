@@ -27,7 +27,7 @@
 #  include "aether/modems/imodem_driver.h"
 #  include "aether/adapters/modem_adapter.h"
 #  include "aether/serial_ports/iserial_port.h"
-#  include "aether/serial_ports/at_comm_support.h"
+#  include "aether/serial_ports/at_support/at_support.h"
 
 namespace ae {
 

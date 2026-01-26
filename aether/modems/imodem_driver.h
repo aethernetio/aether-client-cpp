@@ -54,7 +54,7 @@ class IModemDriver {
   virtual DataEvent::Subscriber data_event() = 0;
 
   virtual ActionPtr<ModemOperation> SetPowerSaveParam(
-      PowerSaveParam const& psp) = 0;
+      ModemPowerSaveParam const& psp) = 0;
   virtual ActionPtr<ModemOperation> PowerOff() = 0;
 };
 

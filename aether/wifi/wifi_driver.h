@@ -20,15 +20,9 @@
 #include <string>
 
 #include "aether/reflect/reflect.h"
+#include "aether/wifi/wifi_driver_types.h"
 
 namespace ae {
-struct WifiCreds {
-  AE_REFLECT_MEMBERS(ssid, password)
-
-  std::string ssid;
-  std::string password;
-};
-
 /**
  * \brief A wifi driver interface.
  */
@@ -39,7 +33,8 @@ class WifiDriver {
   /**
    * \brief Connect to an access point with creds.
    */
-  virtual void Connect(WifiCreds const& creds) = 0;
+  virtual void Connect(WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp,
+                       WiFiBaseStation& base_station_) = 0;
   /**
    * \brief Get creds for currently connected access point.
    * \return if connected WifiCreds with filled at least ssid, otherwise empty.

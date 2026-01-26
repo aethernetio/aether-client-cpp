@@ -24,11 +24,10 @@ namespace ae::reg {
 RegisterWifiAdapter::RegisterWifiAdapter(ObjPtr<Aether> aether,
                                          IPoller::ptr poller,
                                          DnsResolver::ptr dns_resolver,
-                                         std::string ssid, std::string pass,
-                                         Domain* domain)
+                                         WiFiInit wifi_init, Domain* domain)
     : ParentWifiAdapter{std::move(aether),       std::move(poller),
-                        std::move(dns_resolver), std::move(ssid),
-                        std::move(pass),         domain},
+                        std::move(dns_resolver), std::move(wifi_init),
+                        domain},
       ethernet_adapter_{domain->CreateObj<EthernetAdapter>(aether_, poller_,
                                                            dns_resolver_)} {}
 #endif  // AE_DISTILLATION

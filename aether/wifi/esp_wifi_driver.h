@@ -19,12 +19,15 @@
 
 #include "aether/config.h"  // IWYU pragma: keep
 
-#if (defined(ESP_PLATFORM))
+#if (defined(ESP_PLATFORM)) && AE_SUPPORT_WIFIS && AE_ENABLE_ESP32_WIFI
 #  define ESP_WIFI_DRIVER_ENABLED 1
 #  include <memory>
 #  include <optional>
 
 #  include "aether/wifi/wifi_driver.h"
+
+#  include "esp_err.h"
+#  include "esp_netif_types.h"
 
 namespace ae {
 class EspWifiDriver final : public WifiDriver {
@@ -32,7 +35,8 @@ class EspWifiDriver final : public WifiDriver {
   EspWifiDriver();
   ~EspWifiDriver() override;
 
-  void Connect(WifiCreds const& creds) override;
+  void Connect(WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp,
+               WiFiBaseStation& base_station_) override;
   WifiCreds connected_to() const override;
 
  private:
@@ -40,6 +44,7 @@ class EspWifiDriver final : public WifiDriver {
   void Init();
   void InitNvs();
   void Deinit();
+  esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config);
 
   static int initialized_;
   static void* espt_init_sta_;

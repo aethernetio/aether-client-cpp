@@ -56,4 +56,22 @@
 
 #define AE_LOG_MODULE 0xfffffffe
 
+// ESP32 WiFi power save constants
+#define AE_WIFI_PS_NONE 0  // No power save
+#define AE_WIFI_PS_MIN_MODEM \
+  1  // Minimum modem power saving. In this mode, station wakes up to receive
+     // beacon every DTIM period
+#define AE_WIFI_PS_MAX_MODEM \
+  2  // Maximum modem power saving. In this mode, interval to receive beacons
+     // is determined by the listen_interval parameter in wifi_sta_config_t
+
+// ESP32 WiFi protocol constants
+#define AE_WIFI_PROTOCOL_11B 0x1    // 802.11b protocol
+#define AE_WIFI_PROTOCOL_11G 0x2    // 802.11g protocol
+#define AE_WIFI_PROTOCOL_11N 0x4    // 802.11n protocol
+#define AE_WIFI_PROTOCOL_LR 0x8     // Low Rate protocol
+#define AE_WIFI_PROTOCOL_11A 0x10   // 802.11a protocol
+#define AE_WIFI_PROTOCOL_11AC 0x20  // 802.11ac protocol
+#define AE_WIFI_PROTOCOL_11AX 0x40  // 802.11ax protocol
+
 #endif  // AETHER_CONFIG_CONSTS_H_
