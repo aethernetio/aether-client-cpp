@@ -36,7 +36,7 @@ class WifiAdapter final : public ParentWifiAdapter {
               Domain* domain);
 #endif  // AE_DISTILLATION
 
-  AE_OBJECT_REFLECT(AE_MMBRS(access_point_))
+  AE_OBJECT_REFLECT(AE_MMBRS(access_points_))
 
   std::vector<AccessPoint::ptr> access_points() override;
 
@@ -44,7 +44,7 @@ class WifiAdapter final : public ParentWifiAdapter {
 
  private:
   std::unique_ptr<WifiDriver> wifi_driver_;
-  AccessPoint::ptr access_point_;
+  std::vector<AccessPoint::ptr> access_points_;
 };
 }  // namespace ae
 #endif  // AETHER_ADAPTERS_WIFI_ADAPTER_H_
