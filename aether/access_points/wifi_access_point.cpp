@@ -28,8 +28,7 @@
 namespace ae {
 
 WifiConnectAction::WifiConnectAction(ActionContext action_context,
-                                     WifiDriver& driver,
-                                     WiFiAp const& wifi_ap,
+                                     WifiDriver& driver, WiFiAp const& wifi_ap,
                                      WiFiPowerSaveParam const& psp,
                                      WiFiBaseStation& base_station)
     : Action{action_context},
@@ -37,16 +36,14 @@ WifiConnectAction::WifiConnectAction(ActionContext action_context,
       wifi_ap_{wifi_ap},
       psp_{psp},
       base_station_{base_station},
-      state_{State::kCheckIsConnected} {
-}
+      state_{State::kCheckIsConnected} {}
 
 UpdateStatus WifiConnectAction::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kCheckIsConnected: {
         auto connected_to = driver_->connected_to();
-        if (connected_to.ssid ==
-            wifi_ap_.creds.ssid) {
+        if (connected_to.ssid == wifi_ap_.creds.ssid) {
           state_ = State::kConnected;
         } else {
           state_ = State::kConnect;
@@ -76,7 +73,8 @@ WifiAccessPoint::WifiAccessPoint(ObjPtr<Aether> aether,
                                  ObjPtr<WifiAdapter> adapter,
                                  ObjPtr<IPoller> poller,
                                  ObjPtr<DnsResolver> resolver,
-                                 WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp, Domain* domain)
+                                 WiFiAp const& wifi_ap,
+                                 WiFiPowerSaveParam const& psp, Domain* domain)
     : AccessPoint{domain},
       aether_{std::move(aether)},
       adapter_{std::move(adapter)},
@@ -112,8 +110,8 @@ ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
   // reuse connect action if it's in progress
   if (!connect_action_) {
     connect_action_ = ActionPtr<WifiConnectAction>{
-        *aether_.as<Aether>(), adapter_.as<WifiAdapter>()->driver(), wifi_ap_, psp_,
-        base_station_};
+        *aether_.as<Aether>(), adapter_.as<WifiAdapter>()->driver(), wifi_ap_,
+        psp_, base_station_};
     connect_sub_ = connect_action_->FinishedEvent().Subscribe(
         [this]() { connect_action_.reset(); });
   }

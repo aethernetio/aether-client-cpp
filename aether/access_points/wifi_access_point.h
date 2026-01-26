@@ -44,7 +44,8 @@ class WifiConnectAction final : public Action<WifiConnectAction> {
   };
 
   WifiConnectAction(ActionContext action_context, WifiDriver& driver,
-                    WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp, WiFiBaseStation& base_station);
+                    WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp,
+                    WiFiBaseStation& base_station);
 
   UpdateStatus Update();
 
@@ -65,10 +66,11 @@ class WifiAccessPoint final : public AccessPoint {
  public:
   WifiAccessPoint(ObjPtr<Aether> aether, ObjPtr<WifiAdapter> adapter,
                   ObjPtr<IPoller> poller, ObjPtr<DnsResolver> resolver,
-                  WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp, Domain* domain);
+                  WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp,
+                  Domain* domain);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(aether_, adapter_, poller_, resolver_,
-                             wifi_ap_, base_station_))
+  AE_OBJECT_REFLECT(AE_MMBRS(aether_, adapter_, poller_, resolver_, wifi_ap_,
+                             base_station_))
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
       ObjPtr<Server> const& server) override;
