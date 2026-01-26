@@ -33,14 +33,13 @@ class WifiDriver {
   /**
    * \brief Connect to an access point with creds.
    */
-  virtual void Connect(WiFiInit& wifi_init, WiFiBaseStation& base_station_) = 0;
+  virtual void Connect(WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp,
+                       WiFiBaseStation& base_station_) = 0;
   /**
    * \brief Get creds for currently connected access point.
    * \return if connected WifiCreds with filled at least ssid, otherwise empty.
    */
   virtual WifiCreds connected_to() const = 0;
-
-  virtual uint16_t ap_cnt() const = 0;
 };
 }  // namespace ae
 

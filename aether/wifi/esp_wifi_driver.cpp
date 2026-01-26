@@ -71,7 +71,7 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
 int EspWifiDriver::initialized_ = 0;
 void* EspWifiDriver::espt_init_sta_ = nullptr;
 
-EspWifiDriver::EspWifiDriver() : ap_cnt_{0} {
+EspWifiDriver::EspWifiDriver() {
   if (initialized_++ > 0) {
     return;
   }
@@ -88,11 +88,9 @@ EspWifiDriver::~EspWifiDriver() {
   Deinit();
 }
 
-void EspWifiDriver::Connect(WiFiInit& wifi_init,
+void EspWifiDriver::Connect(WiFiAp const& wifi_ap,
+                            WiFiPowerSaveParam const& psp,
                             WiFiBaseStation& base_station_) {
-  auto ap_max_cnt = wifi_init.wifi_ap.size();
-  bool connected{false};
-
   if (connected_to_) {
     Disconnect();
   }
@@ -111,111 +109,87 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init,
       IP_EVENT, IP_EVENT_STA_GOT_IP, esp_wifi_driver_internal::EventHandler,
       connection_state_.get(), &instance_got_ip));
 
-  while (!connected) {
-    wifi_scan_threshold_t wifi_threshold{};
-    wifi_threshold.rssi = 0;
-    wifi_threshold.authmode = WIFI_AUTH_WPA2_PSK;
+  wifi_scan_threshold_t wifi_threshold{};
+  wifi_threshold.rssi = 0;
+  wifi_threshold.authmode = WIFI_AUTH_WPA2_PSK;
 
-    wifi_config_t wifi_config{};
-    wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
+  wifi_config_t wifi_config{};
+  wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
 
-    // Restore saved Base Station
-    if (base_station_.connected) {
-      if (base_station_.ap_cnt > ap_max_cnt) {
-        base_station_.connected = false;
-      }
+  // Restore saved Base Station
+  if (base_station_.connected) {
+    wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
+    wifi_config.sta.bssid_set = true;              // Enable BSSID binding
+    wifi_config.sta.channel = base_station_.target_channel;  // Set channel
+    // Copy the BSSID to the configuration
+    memcpy(wifi_config.sta.bssid, base_station_.target_bssid, 6);
+    ESP_ERROR_CHECK(esp_wifi_set_channel(base_station_.target_channel,
+                                         WIFI_SECOND_CHAN_NONE));
+  }
+
+  wifi_config.sta.threshold = wifi_threshold;
+  if (psp.ps_enabled) {
+    wifi_config.sta.listen_interval = psp.listen_interval;
+  }
+
+  // for debug purpose only, it's private data
+  AE_TELED_DEBUG("Connecting to ap SSID:{} PSWD:{}", wifi_ap.creds.ssid,
+                 wifi_ap.creds.password);
+
+  strncpy(reinterpret_cast<char*>(wifi_config.sta.ssid),
+          wifi_ap.creds.ssid.data(), sizeof(wifi_config.sta.ssid));
+  strncpy(reinterpret_cast<char*>(wifi_config.sta.password),
+          wifi_ap.creds.password.data(), sizeof(wifi_config.sta.password));
+
+  // Setting up a static IP, if required
+  if (wifi_ap.static_ip.has_value()) {
+    esp_err_t err = SetStaticIp(static_cast<esp_netif_t*>(espt_init_sta_),
+                                wifi_ap.static_ip.value());
+    if (err != ESP_OK) {
+      AE_TELED_ERROR("Failed to set static IP, falling back to DHCP");
+      // If an error occurs, switch to DHCP
     }
+  } else {
+    AE_TELED_DEBUG("Using DHCP for IP configuration");
+  }
 
-    if (base_station_.connected) {
-      ap_cnt_ = base_station_.ap_cnt;
-      wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
-      wifi_config.sta.bssid_set = true;              // Enable BSSID binding
-      wifi_config.sta.channel = base_station_.target_channel;  // Set channel
-      // Copy the BSSID to the configuration
-      memcpy(wifi_config.sta.bssid, base_station_.target_bssid, 6);
-      ESP_ERROR_CHECK(esp_wifi_set_channel(base_station_.target_channel,
-                                           WIFI_SECOND_CHAN_NONE));
-    }
+  // We disable aggregation so that the packages go out one by one and quickly
+  wifi_init_config.ampdu_rx_enable = 0;
+  wifi_init_config.ampdu_tx_enable = 0;
 
-    wifi_config.sta.threshold = wifi_threshold;
-    if (wifi_init.psp.ps_enabled) {
-      wifi_config.sta.listen_interval = wifi_init.psp.listen_interval;
-    }
+  ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
 
-    // for debug purpose only, it's private data
-    AE_TELED_DEBUG("Connecting to ap SSID:{} PSWD:{}",
-                   wifi_init.wifi_ap.at(ap_cnt_).creds.ssid,
-                   wifi_init.wifi_ap.at(ap_cnt_).creds.password);
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+  ESP_ERROR_CHECK(
+      esp_wifi_set_ps(static_cast<wifi_ps_type_t>(psp.wifi_ps_type)));
+  ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, psp.protocol_bitmap));
+  ESP_ERROR_CHECK(esp_wifi_start());
 
-    strncpy(reinterpret_cast<char*>(wifi_config.sta.ssid),
-            wifi_init.wifi_ap.at(ap_cnt_).creds.ssid.data(),
-            sizeof(wifi_config.sta.ssid));
-    strncpy(reinterpret_cast<char*>(wifi_config.sta.password),
-            wifi_init.wifi_ap.at(ap_cnt_).creds.password.data(),
-            sizeof(wifi_config.sta.password));
+  AE_TELED_DEBUG("WifiInitSta finished.");
 
-    // Setting up a static IP, if required
-    if (wifi_init.wifi_ap.at(ap_cnt_).static_ip.has_value()) {
-      esp_err_t err =
-          SetStaticIp(static_cast<esp_netif_t*>(espt_init_sta_),
-                      wifi_init.wifi_ap.at(ap_cnt_).static_ip.value());
-      if (err != ESP_OK) {
-        AE_TELED_ERROR("Failed to set static IP, falling back to DHCP");
-        // If an error occurs, switch to DHCP
-      }
-    } else {
-      AE_TELED_DEBUG("Using DHCP for IP configuration");
-    }
+  /* Waiting until either the connection is established (WIFI_CONNECTED_BIT)
+   * or connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
+   * The bits are set by EventHandler() (see above) */
+  EventBits_t bits = xEventGroupWaitBits(connection_state_->event_group,
+                                         WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                         pdFALSE, pdFALSE, portMAX_DELAY);
 
-    // We disable aggregation so that the packages go out one by one and quickly
-    wifi_init_config.ampdu_rx_enable = 0;
-    wifi_init_config.ampdu_tx_enable = 0;
-
-    ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_set_ps(
-        static_cast<wifi_ps_type_t>(wifi_init.psp.wifi_ps_type)));
-    ESP_ERROR_CHECK(
-        esp_wifi_set_protocol(WIFI_IF_STA, wifi_init.psp.protocol_bitmap));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-    AE_TELED_DEBUG("WifiInitSta finished.");
-
-    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT)
-     * or connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
-     * The bits are set by EventHandler() (see above) */
-    EventBits_t bits = xEventGroupWaitBits(connection_state_->event_group,
-                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                           pdFALSE, pdFALSE, portMAX_DELAY);
-
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we
-     * can test which event actually happened. */
-    if (bits & WIFI_CONNECTED_BIT) {
-      AE_TELED_DEBUG("Connected to AP");
-      connected_to_ = wifi_init.wifi_ap.at(ap_cnt_).creds;
-      // Save Base Station
-      base_station_.connected = true;
-      base_station_.ap_cnt = ap_cnt_;
-      base_station_.target_channel = wifi_config.sta.channel;  // Set channel
-      // Copy the BSSID to the configuration
-      memcpy(base_station_.target_bssid, wifi_config.sta.bssid, 6);
-      connected = true;
-    } else if (bits & WIFI_FAIL_BIT) {
-      AE_TELED_DEBUG("Failed to connect to AP, trying next AP");
-      Disconnect();
-      ap_cnt_++;
-      if (ap_cnt_ >= ap_max_cnt) {
-        AE_TELED_DEBUG("End of the AP list!");
-        ap_cnt_ = 0;  // We were unable to connect to any of the networks on the
-                      // list. Let's start over
-      } else {
-        xEventGroupClearBits(connection_state_->event_group, WIFI_FAIL_BIT);
-      }
-    } else {
-      AE_TELED_DEBUG("UNEXPECTED EVENT {}", static_cast<int>(bits));
-    }
+  /* xEventGroupWaitBits() returns the bits before the call returned, hence we
+   * can test which event actually happened. */
+  if (bits & WIFI_CONNECTED_BIT) {
+    AE_TELED_DEBUG("Connected to AP");
+    connected_to_ = wifi_ap.creds;
+    // Save Base Station
+    base_station_.connected = true;
+    base_station_.target_channel = wifi_config.sta.channel;  // Set channel
+    // Copy the BSSID to the configuration
+    memcpy(base_station_.target_bssid, wifi_config.sta.bssid, 6);
+  } else if (bits & WIFI_FAIL_BIT) {
+    AE_TELED_DEBUG("Failed to connect to AP, trying next AP");
+    Disconnect();
+  } else {
+    AE_TELED_DEBUG("UNEXPECTED EVENT {}", static_cast<int>(bits));
   }
 
   /* The event will not be processed after unregister */
@@ -233,8 +207,6 @@ WifiCreds EspWifiDriver::connected_to() const {
   }
   return *connected_to_;
 }
-
-uint16_t EspWifiDriver::ap_cnt() const { return ap_cnt_; }
 
 void EspWifiDriver::Init() {
   InitNvs();
@@ -268,7 +240,7 @@ void EspWifiDriver::Disconnect() {
   esp_wifi_stop();
 }
 
-esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP& config) {
+esp_err_t EspWifiDriver::SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
   esp_err_t err = ESP_OK;
 
 #  if AE_SUPPORT_IPV4 == 1

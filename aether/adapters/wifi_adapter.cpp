@@ -37,16 +37,22 @@ WifiAdapter::WifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
 #endif  // AE_DISTILLATION
 
 std::vector<AccessPoint::ptr> WifiAdapter::access_points() {
+  std::vector<AccessPoint::ptr> access_points;
+  
   if (!access_point_) {
     Aether::ptr aether = aether_;
     DnsResolver::ptr dns_resolver = dns_resolver_;
     IPoller::ptr poller = poller_;
     WifiAdapter::ptr self_ptr = MakePtrFromThis(this);
-    access_point_ = domain_->CreateObj<WifiAccessPoint>(
-        aether, self_ptr, poller, dns_resolver, wifi_init_);
+    for (const auto& ap : wifi_init_.wifi_ap){
+      access_point_ = domain_->CreateObj<WifiAccessPoint>(
+        aether, self_ptr, poller, dns_resolver, ap, wifi_init_.psp);
+      access_points.push_back(access_point_);
+    }
+    
   }
 
-  return {access_point_};
+  return access_points;
 }
 
 WifiDriver& WifiAdapter::driver() {

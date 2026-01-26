@@ -35,20 +35,19 @@ class EspWifiDriver final : public WifiDriver {
   EspWifiDriver();
   ~EspWifiDriver() override;
 
-  void Connect(WiFiInit& wifi_init, WiFiBaseStation& base_station_) override;
+  void Connect(WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp,
+               WiFiBaseStation& base_station_) override;
   WifiCreds connected_to() const override;
-  uint16_t ap_cnt() const override;
 
  private:
   void Disconnect();
   void Init();
   void InitNvs();
   void Deinit();
-  esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP& config);
+  esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config);
 
   static int initialized_;
   static void* espt_init_sta_;
-  uint16_t ap_cnt_;
 
   std::optional<WifiCreds> connected_to_;
   std::unique_ptr<struct ConnectionState> connection_state_;

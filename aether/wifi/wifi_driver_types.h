@@ -68,7 +68,6 @@ struct WiFiPowerSaveParam {
 struct WiFiBaseStation {
   AE_REFLECT_MEMBERS(connected, target_bssid, target_channel)
   bool connected{false};
-  uint16_t ap_cnt;
   uint8_t target_bssid[6];
   uint8_t target_channel;
 };
