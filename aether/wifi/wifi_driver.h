@@ -40,7 +40,7 @@ class WifiDriver {
    */
   virtual WifiCreds connected_to() const = 0;
 
-  virtual size_t ap_cnt() const = 0;
+  virtual uint16_t ap_cnt() const = 0;
 };
 }  // namespace ae
 

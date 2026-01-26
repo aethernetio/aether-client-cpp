@@ -121,6 +121,13 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init,
 
     // Restore saved Base Station
     if (base_station_.connected) {
+      if (base_station_.ap_cnt > ap_max_cnt) {
+        base_station_.connected = false;
+      }
+    }
+
+    if (base_station_.connected) {
+      ap_cnt_ = base_station_.ap_cnt;
       wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
       wifi_config.sta.bssid_set = true;              // Enable BSSID binding
       wifi_config.sta.channel = base_station_.target_channel;  // Set channel
@@ -190,6 +197,7 @@ void EspWifiDriver::Connect(WiFiInit& wifi_init,
       connected_to_ = wifi_init.wifi_ap.at(ap_cnt_).creds;
       // Save Base Station
       base_station_.connected = true;
+      base_station_.ap_cnt = ap_cnt_;
       base_station_.target_channel = wifi_config.sta.channel;  // Set channel
       // Copy the BSSID to the configuration
       memcpy(base_station_.target_bssid, wifi_config.sta.bssid, 6);
@@ -226,7 +234,7 @@ WifiCreds EspWifiDriver::connected_to() const {
   return *connected_to_;
 }
 
-size_t EspWifiDriver::ap_cnt() const { return ap_cnt_; }
+uint16_t EspWifiDriver::ap_cnt() const { return ap_cnt_; }
 
 void EspWifiDriver::Init() {
   InitNvs();
