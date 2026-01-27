@@ -38,8 +38,8 @@ class LoraModuleAdapter : public ParentLoraModuleAdapter {
 
  public:
 #  ifdef AE_DISTILLATION
-  LoraModuleAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                    LoraModuleInit lora_module_init, Domain* domain);
+  LoraModuleAdapter(ObjProp prop, ObjPtr<Aether> aether, IPoller::ptr poller,
+                    LoraModuleInit lora_module_init);
 #  endif  // AE_DISTILLATION
 
   ~LoraModuleAdapter() override;

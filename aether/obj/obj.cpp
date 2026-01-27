@@ -19,21 +19,29 @@
 namespace ae {
 Obj::Obj() = default;
 
-Obj::Obj(Domain* domain) : domain_(domain) {}
+Obj::Obj(ObjProp prop) : domain{prop.domain}, obj_id{prop.id} {}
 
 Obj::~Obj() {
-  if (domain_ != nullptr) {
-    domain_->RemoveObject(this);
+  if (domain != nullptr) {
+    domain->RemoveObject(this);
   }
 }
 
 uint32_t Obj::GetClassId() const { return kClassId; }
 
-ObjId Obj::GetId() const { return id_; }
-
 void Obj::Update(TimePoint current_time) {
   // FIXME: 365 * 24 ?
-  update_time_ = current_time + std::chrono::hours(365 * 24);
+  update_time = current_time + std::chrono::hours(365 * 24);
 }
 
+namespace reflect {
+std::size_t GetObjIndexImpl(Obj const* obj, std::uint32_t class_id) {
+  auto res = crc32::from_buffer(
+      reinterpret_cast<std::uint8_t const*>(&class_id), sizeof(class_id));
+  auto id = obj->obj_id.id();
+  res = crc32::from_buffer(reinterpret_cast<std::uint8_t const*>(&id),
+                           sizeof(id), res);
+  return res.value;
+}
+}  // namespace reflect
 }  // namespace ae

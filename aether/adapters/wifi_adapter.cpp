@@ -27,11 +27,11 @@
 
 namespace ae {
 #if defined AE_DISTILLATION
-WifiAdapter::WifiAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                         DnsResolver::ptr dns_resolver, WiFiInit wifi_init,
-                         Domain* domain)
-    : ParentWifiAdapter{std::move(aether), std::move(poller),
-                        std::move(dns_resolver), std::move(wifi_init), domain} {
+WifiAdapter::WifiAdapter(ObjProp prop, ObjPtr<Aether> aether,
+                         IPoller::ptr poller, DnsResolver::ptr dns_resolver,
+                         WiFiInit wifi_init)
+    : ParentWifiAdapter{prop, std::move(aether), std::move(poller),
+                        std::move(dns_resolver), std::move(wifi_init)} {
   AE_TELED_DEBUG("Wifi instance created!");
 }
 #endif  // AE_DISTILLATION
@@ -41,11 +41,12 @@ std::vector<AccessPoint::ptr> WifiAdapter::access_points() {
     Aether::ptr aether = aether_;
     DnsResolver::ptr dns_resolver = dns_resolver_;
     IPoller::ptr poller = poller_;
-    WifiAdapter::ptr self_ptr = MakePtrFromThis(this);
+    auto self_ptr = WifiAdapter::ptr::MakeFromThis(this);
+
     for (const auto& ap : wifi_init_.wifi_ap) {
-      auto access_point = domain_->CreateObj<WifiAccessPoint>(
-          aether, self_ptr, poller, dns_resolver, ap, wifi_init_.psp);
-      access_points_.push_back(access_point);
+      auto access_point = WifiAccessPoint::ptr::Create(
+          domain, aether, self_ptr, poller, dns_resolver, ap, wifi_init_.psp);
+      access_points_.emplace_back(std::move(access_point));
     }
   }
 

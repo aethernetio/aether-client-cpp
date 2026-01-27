@@ -26,7 +26,7 @@ class Bar : public Obj {
   Bar() = default;
 
  public:
-  explicit Bar(Domain* domain) : Obj{domain} {}
+  explicit Bar(ObjProp prop) : Obj{prop} {}
 
   AE_OBJECT_REFLECT(AE_MMBR(x), AE_MMBR(y))
 

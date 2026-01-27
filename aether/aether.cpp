@@ -27,36 +27,24 @@
 
 namespace ae {
 
-#ifdef AE_DISTILLATION
-Aether::Aether(Domain* domain) : Obj{domain} {
-  auto self_ptr = MakePtrFromThis(this);
-
-  client_prefab = domain->CreateObj<Client>(GlobalId::kClientFactory, self_ptr);
-  client_prefab.SetFlags(ae::ObjFlags::kUnloadedByDefault);
-
-  tele_statistics =
-      domain->CreateObj<tele::TeleStatistics>(GlobalId::kTeleStatistics);
-
-  AE_TELE_DEBUG(AetherCreated);
-}
-#endif  // AE_DISTILLATION
+Aether::Aether(ObjProp prop) : Obj{prop} { AE_TELE_DEBUG(AetherCreated); }
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
 void Aether::Update(TimePoint current_time) {
-  update_time_ = action_processor->Update(current_time);
+  update_time = action_processor->Update(current_time);
 }
 
 Client::ptr Aether::CreateClient(ClientConfig const& config,
                                  std::string const& client_id) {
   auto client = FindClient(client_id);
-  if (client) {
+  if (client.is_valid()) {
     return client;
   }
   // create new client
   AE_TELED_DEBUG("Create new client {} with uid {}", client_id, config.uid);
 
-  client = domain_->LoadCopy(client_prefab);
+  client = client_prefab.Clone();
   client.SetFlags(ObjFlags::kUnloadedByDefault);
 
   // make servers
@@ -65,18 +53,24 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
     if (auto cached = GetServer(server_config.id); cached) {
       servers.emplace_back(std::move(cached));
     } else {
-      auto new_server = domain_->CreateObj<Server>(
-          server_config.id, server_config.endpoints, adapter_registry);
+      auto new_server = Server::ptr::Create(
+          domain, server_config.id, server_config.endpoints, adapter_registry);
       StoreServer(new_server);
       servers.emplace_back(std::move(new_server));
     }
   }
 
-  auto client_cloud = domain_->CreateObj<WorkCloud>(config.uid);
-  client_cloud->SetServers(std::move(servers));
-  client->SetConfig(client_id, config.parent_uid, config.uid,
-                    config.ephemeral_uid, config.master_key,
-                    std::move(client_cloud));
+  auto client_cloud = WorkCloud::ptr::Create(domain, config.uid);
+  [[maybe_unused]] auto res =  // ~(^.^)~
+      client_cloud.WithLoaded([&](auto const& cloud) {
+        cloud->SetServers(std::move(servers));
+      }) &&  // ~(^.^)~
+      client.WithLoaded([&](auto const& client) {
+        client->SetConfig(client_id, config.parent_uid, config.uid,
+                          config.ephemeral_uid, config.master_key,
+                          std::move(client_cloud));
+      });
+  assert(res && "Failed to set client config");
 
   StoreClient(client);
   return client;
@@ -92,7 +86,7 @@ ActionPtr<SelectClientAction> Aether::SelectClient(
   }
 
   auto client = FindClient(client_id);
-  if (client) {
+  if (client.is_valid()) {
     return MakeSelectClient(client);
   }
 // register new client
@@ -113,9 +107,6 @@ Server::ptr Aether::GetServer(ServerId server_id) {
   if (it == std::end(servers_)) {
     return {};
   }
-  if (!it->second) {
-    domain_->LoadRoot(it->second);
-  }
   return it->second;
 }
 
@@ -124,15 +115,12 @@ Client::ptr Aether::FindClient(std::string const& client_id) {
   if (client_it == std::end(clients_)) {
     return {};
   }
-  if (!client_it->second) {
-    domain_->LoadRoot(client_it->second);
-  }
   return client_it->second;
 }
 
 void Aether::StoreClient(Client::ptr client) {
-  assert(client && "Client is null");
-  clients_[client->id()] = std::move(client);
+  assert(client.is_valid() && "Client is invalid");
+  clients_[client.Load()->id()] = std::move(client);
 }
 
 ActionPtr<SelectClientAction> Aether::FindSelectClientAction(
@@ -163,15 +151,13 @@ ActionPtr<SelectClientAction> Aether::MakeSelectClient(
 }
 
 ActionPtr<Registration> Aether::RegisterClient(Uid parent_uid) {
-  if (!registration_cloud) {
-    domain_->LoadRoot(registration_cloud);
-  }
-  assert(registration_cloud && "Registration cloud not loaded");
+  auto reg_cloud = registration_cloud.Load();
+  assert(reg_cloud && "Registration cloud not loaded");
 
   // registration new client is long termed process
   // after registration done, add it to clients list
   // user also can get new client after
-  return ActionPtr<Registration>(*action_processor, *this, registration_cloud,
+  return ActionPtr<Registration>(*action_processor, *this, reg_cloud,
                                  parent_uid);
 }
 #endif

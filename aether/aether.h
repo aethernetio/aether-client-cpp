@@ -47,9 +47,7 @@ class Aether : public Obj {
 
  public:
   // Internal.
-#ifdef AE_DISTILLATION
-  explicit Aether(Domain* domain);
-#endif  // AE_DISTILLATION
+  explicit Aether(ObjProp prop);
 
   ~Aether() override;
 
@@ -85,6 +83,7 @@ class Aether : public Obj {
   void StoreServer(Server::ptr s);
   Server::ptr GetServer(ServerId server_id);
 
+  Client::ptr client_prefab;
   RegistrationCloud::ptr registration_cloud;
 
   Crypto::ptr crypto;
@@ -116,9 +115,6 @@ class Aether : public Obj {
 
  private:
 #endif
-
-  Client::ptr client_prefab;
-
   std::map<std::string, Client::ptr> clients_;
   std::map<ServerId, Server::ptr> servers_;
 

@@ -29,7 +29,7 @@ class IPoller : public Obj {
   IPoller() = default;
 
  public:
-  explicit IPoller(Domain* domain) : Obj{domain} {}
+  explicit IPoller(ObjProp prop) : Obj{prop} {}
 
   AE_OBJECT_REFLECT()
 

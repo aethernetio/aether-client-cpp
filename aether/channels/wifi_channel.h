@@ -31,9 +31,9 @@ class WifiChannel final : public Channel {
   WifiChannel() = default;
 
  public:
-  WifiChannel(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
+  WifiChannel(ObjProp prop, ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
               ObjPtr<DnsResolver> resolver, WifiAccessPoint::ptr access_point,
-              Endpoint address, Domain* domain);
+              Endpoint address);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, resolver_, access_point_,
                              address))

@@ -68,7 +68,7 @@ class FreertosPoller : public IPoller {
   FreertosPoller();
 
  public:
-  explicit FreertosPoller(Domain* domain);
+  explicit FreertosPoller(ObjProp prop);
 
   AE_OBJECT_REFLECT()
 

@@ -20,7 +20,7 @@
 
 namespace ae {
 CloudServerConnection::CloudServerConnection(
-    ObjPtr<Server> const& server, IServerConnectionFactory& connection_factory)
+    Ptr<Server> const& server, IServerConnectionFactory& connection_factory)
     : server_{server},
       connection_factory_{&connection_factory},
       priority_{},
@@ -66,8 +66,8 @@ ClientServerConnection* CloudServerConnection::client_connection() {
   return nullptr;
 }
 
-ObjPtr<Server> CloudServerConnection::server() const {
-  Server::ptr server = server_.Lock();
+Ptr<Server> CloudServerConnection::server() const {
+  auto server = server_.Lock();
   assert(server);
   return server;
 }

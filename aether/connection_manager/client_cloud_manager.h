@@ -50,8 +50,8 @@ class ClientCloudManager : public Obj {
   ClientCloudManager() = default;
 
  public:
-  explicit ClientCloudManager(ObjPtr<Aether> aether, ObjPtr<Client> client,
-                              Domain* domain);
+  explicit ClientCloudManager(ObjProp prop, ObjPtr<Aether> aether,
+                              ObjPtr<Client> client);
 
   AE_CLASS_NO_COPY_MOVE(ClientCloudManager)
 

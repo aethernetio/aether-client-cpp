@@ -34,7 +34,7 @@
 namespace ae {
 
 Registration::Registration(ActionContext action_context, Aether& aether,
-                           RegistrationCloud::ptr const& reg_cloud,
+                           Ptr<RegistrationCloud> const& reg_cloud,
                            Uid parent_uid)
     : Action{action_context},
       action_context_{action_context},

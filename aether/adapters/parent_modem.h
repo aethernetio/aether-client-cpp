@@ -36,8 +36,8 @@ class ParentModemAdapter : public Adapter {
 
  public:
 #  ifdef AE_DISTILLATION
-  ParentModemAdapter(ObjPtr<Aether> aether, IPoller::ptr poller,
-                     ModemInit modem_init, Domain* domain);
+  ParentModemAdapter(ObjProp prop, ObjPtr<Aether> aether, IPoller::ptr poller,
+                     ModemInit modem_init);
 #  endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, modem_init_))

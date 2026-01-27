@@ -27,10 +27,11 @@ static RcPtr<AetherApp> construct_aether_app() {
 #  if defined AE_DISTILLATION
           .AdaptersFactory([](AetherAppContext const& context) {
             auto adapter_registry =
-                context.domain().CreateObj<AdapterRegistry>();
-            adapter_registry->Add(context.domain().CreateObj<EthernetAdapter>(
-                GlobalId::kEthernetAdapter, context.aether(), context.poller(),
-                context.dns_resolver()));
+                AdapterRegistry::ptr::Create(context.domain());
+            adapter_registry->Add(EthernetAdapter::ptr::Create(
+                CreateWith{context.domain()}.with_id(
+                    GlobalId::kEthernetAdapter),
+                context.aether(), context.poller(), context.dns_resolver()));
             return adapter_registry;
           })
 #  endif

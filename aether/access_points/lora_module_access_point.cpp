@@ -70,7 +70,7 @@ void LoraModuleConnectAction::Start() {
 LoraModuleAccessPoint::LoraModuleAccessPoint(
     ObjPtr<Aether> aether, LoraModuleAdapter::ptr lora_module_adapter,
     Domain* domain)
-    : AccessPoint{domain},
+    : AccessPoint{prop},
       aether_{std::move(aether)},
       lora_module_adapter_{std::move(lora_module_adapter)} {}
 

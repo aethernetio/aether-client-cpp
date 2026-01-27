@@ -32,7 +32,7 @@ class TeleStatistics : public Obj {
 
  public:
 #ifdef AE_DISTILLATION
-  explicit TeleStatistics(Domain* domain);
+  explicit TeleStatistics(ObjProp prop);
 #endif  // AE_DISTILLATION
 
 #if AE_TELE_ENABLED

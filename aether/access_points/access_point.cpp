@@ -17,6 +17,6 @@
 #include "aether/access_points/access_point.h"
 
 namespace ae {
-AccessPoint::AccessPoint(Domain* domain) : Obj{domain} {}
+AccessPoint::AccessPoint(ObjProp prop) : Obj{prop} {}
 
 }  // namespace ae

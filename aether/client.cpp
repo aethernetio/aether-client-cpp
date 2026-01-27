@@ -23,8 +23,8 @@
 namespace ae {
 
 #ifdef AE_DISTILLATION
-Client::Client(Aether::ptr aether, Domain* domain)
-    : Base(domain), aether_{std::move(aether)} {}
+Client::Client(ObjProp prop, Aether::ptr aether)
+    : Base{prop}, aether_{std::move(aether)} {}
 #endif  // AE_DISTILLATION
 
 std::string const& Client::id() const { return client_id_; }
@@ -59,7 +59,8 @@ ClientConnectionManager& Client::connection_manager() {
   if (!client_connection_manager_) {
     auto aether = Aether::ptr{aether_};
     client_connection_manager_ = std::make_unique<ClientConnectionManager>(
-        cloud_, server_connection_manager().GetServerConnectionFactory());
+        cloud_.Load(),
+        server_connection_manager().GetServerConnectionFactory());
   }
   return *client_connection_manager_;
 }
@@ -72,7 +73,8 @@ CloudServerConnections& Client::cloud_connection() {
 
 #if AE_TELE_ENABLED
     // also create telemetry
-    telemetry_ = ActionPtr<Telemetry>(*aether, aether, *cloud_connection_);
+    telemetry_ =
+        ActionPtr<Telemetry>(*aether, aether.Load(), *cloud_connection_);
 #endif
   }
 
@@ -101,8 +103,8 @@ void Client::SetConfig(std::string client_id, Uid parent_uid, Uid uid,
     server_keys_.emplace(s->server_id, ServerKeys{s->server_id, master_key_});
   }
 
-  client_cloud_manager_ = domain_->CreateObj<ClientCloudManager>(
-      ObjPtr<Aether>{aether_}, MakePtrFromThis(this));
+  client_cloud_manager_ = ClientCloudManager::ptr::Create(
+      domain, Aether::ptr{aether_}, Client::ptr::MakeFromThis(this));
 }
 
 void Client::SendTelemetry() {

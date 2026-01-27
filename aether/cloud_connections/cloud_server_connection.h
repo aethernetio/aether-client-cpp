@@ -31,7 +31,7 @@ class Server;
  */
 class CloudServerConnection {
  public:
-  CloudServerConnection(ObjPtr<Server> const& server,
+  CloudServerConnection(Ptr<Server> const& server,
                         IServerConnectionFactory& connection_factory);
 
   std::size_t priority() const;
@@ -68,7 +68,7 @@ class CloudServerConnection {
    */
   ClientServerConnection* client_connection();
 
-  ObjPtr<Server> server() const;
+  Ptr<Server> server() const;
 
  private:
   PtrView<Server> server_;

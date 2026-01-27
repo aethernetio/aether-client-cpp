@@ -27,11 +27,10 @@
 #include "aether/access_points/filter_endpoints.h"
 
 namespace ae {
-EthernetAccessPoint::EthernetAccessPoint(ObjPtr<Aether> aether,
+EthernetAccessPoint::EthernetAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
                                          ObjPtr<IPoller> poller,
-                                         ObjPtr<DnsResolver> dns_resolver,
-                                         Domain* domain)
-    : AccessPoint{domain},
+                                         ObjPtr<DnsResolver> dns_resolver)
+    : AccessPoint{prop},
       aether_{std::move(aether)},
       poller_{std::move(poller)},
       dns_resolver_{std::move(dns_resolver)} {}
@@ -42,9 +41,10 @@ std::vector<ObjPtr<Channel>> EthernetAccessPoint::GenerateChannels(
   DnsResolver::ptr resolver = dns_resolver_;
   IPoller::ptr poller = poller_;
 
+  auto const& s = server.Load();
   std::vector<ObjPtr<Channel>> channels;
-  channels.reserve(server->endpoints.size());
-  for (auto const& endpoint : server->endpoints) {
+  channels.reserve(s->endpoints.size());
+  for (auto const& endpoint : s->endpoints) {
     if (!FilterAddresses<AddrVersion::kIpV4, AddrVersion::kIpV6,
                          AddrVersion::kNamed>(endpoint)) {
       continue;
@@ -52,8 +52,8 @@ std::vector<ObjPtr<Channel>> EthernetAccessPoint::GenerateChannels(
     if (!FilterProtocol<Protocol::kTcp, Protocol::kUdp>(endpoint)) {
       continue;
     }
-    channels.emplace_back(domain_->CreateObj<EthernetChannel>(
-        aether, resolver, poller, endpoint));
+    channels.emplace_back(EthernetChannel::ptr::Create(domain, aether, resolver,
+                                                       poller, endpoint));
   }
   return channels;
 }

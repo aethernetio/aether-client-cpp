@@ -48,23 +48,28 @@ AetherAppContext::TelemetryInit::TelemetryInit() {
 
 void AetherAppContext::TelemetryInit::operator()(
     AetherAppContext const& context) const {
-  ae::tele::TeleInit::Init(context.aether()->tele_statistics);
+  [[maybe_unused]] auto res = context.aether().WithLoaded([&](auto const& a) {
+    return a->tele_statistics.WithLoaded(
+        [](auto const& ts) { ae::tele::TeleInit::Init(ts); });
+  });
+  assert(res.value_or(false) && "Failed to initialize telemetry");
 }
 
 void AetherAppContext::InitComponentContext() {
-#if defined AE_DISTILLATION
+#if AE_DISTILLATION
   Factory<AdapterRegistry>([](AetherAppContext const& context) {
-    auto adapter_registry = context.domain().CreateObj<AdapterRegistry>();
-    adapter_registry->Add(context.domain().CreateObj<EthernetAdapter>(
-        GlobalId::kEthernetAdapter, context.aether(), context.poller(),
-        context.dns_resolver()));
+    auto adapter_registry = AdapterRegistry::ptr::Create(context.domain());
+    adapter_registry->Add(EthernetAdapter::ptr::Create(
+        CreateWith{context.domain()}.with_id(GlobalId::kEthernetAdapter),
+        context.aether(), context.poller(), context.dns_resolver()));
     return adapter_registry;
   });
 
 #  if AE_SUPPORT_REGISTRATION
   Factory<Cloud>([](AetherAppContext const& context) {
-    auto reg_c = context.domain().CreateObj<RegistrationCloud>(
-        GlobalId::kRegistrationCloud, context.aether());
+    auto reg_c = RegistrationCloud::ptr::Create(
+        CreateWith{context.domain()}.with_id(GlobalId::kRegistrationCloud),
+        context.aether());
 #    if defined _AE_REG_CLOUD_IP
     reg_c->AddServerSettings(
         Endpoint{{AddressParser::StringToAddress(_AE_REG_CLOUD_IP), 9010},
@@ -85,7 +90,8 @@ void AetherAppContext::InitComponentContext() {
 #  endif  // AE_SUPPORT_REGISTRATION
 
   Factory<Crypto>([](AetherAppContext const& context) {
-    auto crypto = context.domain().CreateObj<Crypto>(GlobalId::kCrypto);
+    auto crypto = Crypto::ptr::Create(
+        CreateWith{context.domain()}.with_id(GlobalId::kCrypto));
 #  if AE_SIGNATURE == AE_ED25519
     crypto->signs_pk_[ae::SignatureMethod::kEd25519] = ae::SodiumSignPublicKey{
         MakeArray("4F202A94AB729FE9B381613AE77A8A7D89EDAB9299C33"
@@ -102,13 +108,17 @@ void AetherAppContext::InitComponentContext() {
   Factory<IPoller>([](AetherAppContext const& context) {
     auto poller =
 #  if defined EPOLL_POLLER_ENABLED
-        context.domain().CreateObj<EpollPoller>(GlobalId::kPoller);
+        EpollPoller::ptr::Create(
+            CreateWith{context.domain()}.with_id(GlobalId::kPoller));
 #  elif defined KQUEUE_POLLER_ENABLED
-        context.domain().CreateObj<KqueuePoller>(GlobalId::kPoller);
+        KqueuePoller::ptr::Create(
+            CreateWith{context.domain()}.with_id(GlobalId::kPoller));
 #  elif defined FREERTOS_POLLER_ENABLED
-        context.domain().CreateObj<FreertosPoller>(GlobalId::kPoller);
+        FreertosPoller::ptr::Create(
+            CreateWith{context.domain()}.with_id(GlobalId::kPoller));
 #  elif defined WIN_POLLER_ENABLED
-        context.domain().CreateObj<WinPoller>(GlobalId::kPoller);
+        WinPoller::ptr::Create(
+            CreateWith{context.domain()}.with_id(GlobalId::kPoller));
 #  endif
     return poller;
   });
@@ -117,26 +127,39 @@ void AetherAppContext::InitComponentContext() {
 #  if AE_SUPPORT_CLOUD_DNS
     auto dns_resolver =
 #    if defined DNS_RESOLVE_ARES_ENABLED
-        context.domain().CreateObj<DnsResolverCares>(GlobalId::kDnsResolver,
-                                                     context.aether());
+        DnsResolverCares::ptr::Create(
+            CreateWith{context.domain()}.with_id(GlobalId::kDnsResolver),
+            context.aether());
 #    elif defined ESP32_DNS_RESOLVER_ENABLED
-        context.domain().CreateObj<Esp32DnsResolver>(GlobalId::kDnsResolver,
-                                                     context.aether());
+        Esp32DnsResolver::ptr::Create(
+            CreateWith{context.domain()}.with_id(GlobalId::kDnsResolver),
+            context.aether());
 #    endif
     return dns_resolver;
 #  else
-    return context.domain().CreateObj<DnsResolver>(GlobalId::kDnsResolver);
+    return DnsResolver::ptr::Create(
+        CreateWith{context.domain()}.with_id(GlobalId::kDnsResolver));
 #  endif
   });
-#endif  //  defined AE_DISTILLATION
+#endif  //  AE_DISTILLATION
 }
 
 RcPtr<AetherApp> AetherApp::Construct(AetherAppContext context) {
   auto app = MakeRcPtr<AetherApp>();
   app->aether_ = context.aether();
+#if AE_DISTILLATION
+  app->aether_->tele_statistics = tele::TeleStatistics::ptr::Create(
+      CreateWith{context.domain()}.with_id(GlobalId::kTeleStatistics));
+#endif
   context.init_tele_(context);
 
-#if defined AE_DISTILLATION
+#if AE_DISTILLATION
+  app->aether_->client_prefab =
+      Client::ptr::Create(CreateWith{context.domain()}
+                              .with_id(GlobalId::kClientFactory)
+                              .with_flags(ObjFlags::kUnloadedByDefault),
+                          app->aether_);
+
   app->aether_->adapter_registry = context.adapter_registry();
 
 #  if AE_SUPPORT_REGISTRATION
@@ -152,8 +175,8 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext context) {
   app->aether_->dns_resolver.SetFlags(ObjFlags::kUnloadedByDefault);
 #  endif
 
-  context.domain().SaveRoot(app->aether_);
-#endif  // defined AE_DISTILLATION
+  app->aether_.Save();
+#endif  // AE_DISTILLATION
 
   app->domain_facility_ = std::move(std::move(context).domain_storage_);
   app->domain_ = std::move(std::move(context).domain_);
@@ -162,8 +185,8 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext context) {
 
 AetherApp::~AetherApp() {
   // save aether_ state on exit
-  if (domain_ && aether_) {
-    domain_->SaveRoot(aether_);
+  if (aether_) {
+    aether_.Save();
   }
 
   // reset telemetry before delete all objects

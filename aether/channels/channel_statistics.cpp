@@ -17,7 +17,7 @@
 #include "aether/channels/channel_statistics.h"
 
 namespace ae {
-ChannelStatistics::ChannelStatistics(Domain* domain) : Base{domain} {}
+ChannelStatistics::ChannelStatistics(ObjProp prop) : Base{prop} {}
 
 void ChannelStatistics::AddConnectionTime(Duration duration) {
   connection_time_statistics_.Add(std::move(duration));

@@ -27,7 +27,6 @@
 
 #    include <mutex>
 
-#    include "aether/ptr/ptr_view.h"
 #    include "aether/actions/action.h"
 #    include "aether/actions/action_ptr.h"
 #    include "aether/actions/notify_action.h"
@@ -77,7 +76,7 @@ class UdpTransport : public ByteIStream {
   using ErrorEventAction = NotifyAction;
 
  public:
-  UdpTransport(ActionContext action_context, IPoller::ptr const& poller,
+  UdpTransport(ActionContext action_context, Ptr<IPoller> const& poller,
                AddressPort endpoint);
   ~UdpTransport() override;
 

@@ -17,7 +17,7 @@
 #ifndef AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
 #define AETHER_CONNECTION_MANAGER_CLIENT_CONNECTION_MANAGER_H_
 
-#include "aether/obj/obj_ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/ptr/ptr_view.h"
 
 #include "aether/cloud_connections/cloud_server_connection.h"
@@ -32,7 +32,7 @@ class Cloud;
 class ClientConnectionManager {
  public:
   ClientConnectionManager(
-      ObjPtr<Cloud> const& cloud,
+      Ptr<Cloud> const& cloud,
       std::unique_ptr<IServerConnectionFactory>&& connection_factory);
 
   std::vector<CloudServerConnection>& server_connections();

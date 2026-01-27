@@ -39,7 +39,7 @@ class ChannelStatistics final : public Obj {
       StatisticsCounter<Duration, kResponseWindowSize>;
 
  public:
-  explicit ChannelStatistics(Domain* domain);
+  explicit ChannelStatistics(ObjProp prop);
 
   AE_OBJECT_REFLECT(AE_MMBRS(connection_time_statistics_,
                              response_time_statistics_))

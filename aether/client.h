@@ -45,7 +45,7 @@ class Client : public Obj {
  public:
   // Internal
 #ifdef AE_DISTILLATION
-  Client(ObjPtr<Aether> aether, Domain* domain);
+  Client(ObjProp prop, ObjPtr<Aether> aether);
 #endif  // AE_DISTILLATION
 
   // Public API.

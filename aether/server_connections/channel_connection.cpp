@@ -22,7 +22,7 @@
 
 namespace ae {
 ChannelConnection::ChannelConnection(ActionContext action_context,
-                                     ObjPtr<Channel> const& channel)
+                                     Ptr<Channel> const& channel)
     : action_context_{action_context} {
   BuildTransport(channel);
 }
@@ -36,7 +36,7 @@ ChannelConnection::connection_state_event() {
   return EventSubscriber{connection_state_event_};
 }
 
-void ChannelConnection::BuildTransport(ObjPtr<Channel> const& channel) {
+void ChannelConnection::BuildTransport(Ptr<Channel> const& channel) {
   auto builder_action = channel->TransportBuilder();
   transport_build_sub_ = builder_action->StatusEvent().Subscribe(ActionHandler{
       OnResult{[this](auto& builder) {

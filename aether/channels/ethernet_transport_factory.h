@@ -28,15 +28,15 @@ class IPoller;
 class EthernetTransportFactory {
  public:
   static std::unique_ptr<ByteIStream> Create(ActionContext action_context,
-                                             ObjPtr<IPoller> const& poller,
+                                             Ptr<IPoller> const& poller,
                                              Endpoint address_port_protocol);
 
  private:
   static std::unique_ptr<ByteIStream> BuildTcp(ActionContext action_context,
-                                               ObjPtr<IPoller> const& poller,
+                                               Ptr<IPoller> const& poller,
                                                Endpoint address_port_protocol);
   static std::unique_ptr<ByteIStream> BuildUdp(ActionContext action_context,
-                                               ObjPtr<IPoller> const& poller,
+                                               Ptr<IPoller> const& poller,
                                                Endpoint address_port_protocol);
 };
 }  // namespace ae

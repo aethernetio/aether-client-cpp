@@ -34,7 +34,7 @@ class RegistrationCloud : public Cloud {
 
  public:
 #  ifdef AE_DISTILLATION
-  explicit RegistrationCloud(ObjPtr<Aether> aether, Domain* domain);
+  explicit RegistrationCloud(ObjProp prop, ObjPtr<Aether> aether);
 #  endif
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_));

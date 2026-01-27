@@ -40,7 +40,7 @@ class Esp32DnsResolver : public DnsResolver {
 
  public:
 #    ifdef AE_DISTILLATION
-  Esp32DnsResolver(ObjPtr<Aether> aether, Domain* domain);
+  Esp32DnsResolver(ObjProp prop, ObjPtr<Aether> aether);
 #    endif
 
   ~Esp32DnsResolver() override;

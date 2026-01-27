@@ -67,7 +67,7 @@ class WinPoller : public IPoller {
   WinPoller();
 
  public:
-  explicit WinPoller(Domain* domain);
+  explicit WinPoller(ObjProp prop);
   ~WinPoller() override;
 
   AE_OBJECT_REFLECT()

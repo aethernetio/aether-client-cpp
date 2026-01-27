@@ -19,10 +19,10 @@
 
 #include <map>
 
+#include "aether/ptr/ptr.h"
 #include "aether/types/uid.h"
 #include "aether/ptr/rc_ptr.h"
 #include "aether/ptr/ptr_view.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/events/events.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
@@ -35,7 +35,7 @@ class P2pMessageStreamManager {
   using NewStreamEvent = Event<void(RcPtr<P2pStream>)>;
 
   P2pMessageStreamManager(ActionContext action_context,
-                          ObjPtr<Client> const& client);
+                          Ptr<Client> const& client);
 
   RcPtr<P2pStream> CreateStream(Uid destination);
   NewStreamEvent::Subscriber new_stream_event();

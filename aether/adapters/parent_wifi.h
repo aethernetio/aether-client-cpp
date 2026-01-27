@@ -36,9 +36,8 @@ class ParentWifiAdapter : public Adapter {
 
  public:
 #ifdef AE_DISTILLATION
-  ParentWifiAdapter(ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
-                    ObjPtr<DnsResolver> dns_resolver, WiFiInit wifi_init,
-                    Domain* domain);
+  ParentWifiAdapter(ObjProp prop, ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
+                    ObjPtr<DnsResolver> dns_resolver, WiFiInit wifi_init);
 #endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, wifi_init_))

@@ -137,10 +137,9 @@ class ModemTransportBuilderAction final : public TransportBuilderAction {
 
 }  // namespace modem_channel_internal
 
-ModemChannel::ModemChannel(ObjPtr<Aether> aether,
-                           ModemAccessPoint::ptr access_point, Endpoint address,
-                           Domain* domain)
-    : Channel{domain},
+ModemChannel::ModemChannel(ObjProp prop, ObjPtr<Aether> aether,
+                           ModemAccessPoint::ptr access_point, Endpoint address)
+    : Channel{prop},
       address{std::move(address)},
       aether_{std::move(aether)},
       access_point_{std::move(access_point)} {
@@ -165,11 +164,10 @@ ModemChannel::ModemChannel(ObjPtr<Aether> aether,
 }
 
 ActionPtr<TransportBuilderAction> ModemChannel::TransportBuilder() {
-  if (!access_point_) {
-    aether_->domain_->LoadRoot(access_point_);
-  }
+  auto ap = access_point_.Load();
+  assert(ap && "Access point is not loaded");
   return ActionPtr<modem_channel_internal::ModemTransportBuilderAction>{
-      *aether_.as<Aether>(), *this, *access_point_, address};
+      *aether_.Load().as<Aether>(), *this, *ap, address};
 }
 
 Duration ModemChannel::TransportBuildTimeout() const {

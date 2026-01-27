@@ -46,45 +46,45 @@ void test_increaseVersion() {
   Domain domain{ae::ClockType::now(), facility};
   // the oldest version
   {
-    Friday0::ptr friday = domain.CreateObj<Friday0>(ObjId{1});
-    domain.SaveRoot(friday);
+    Friday0::ptr friday = Friday0::ptr::Create(CreateWith{domain}.with_id(1));
+    friday.Save();
   }
 
   // load version 1 from version 0
   replace_class_id(facility, Friday0::kClassId, Friday1::kClassId);
   {
-    Friday1::ptr friday;
-    friday.SetId(ObjId{1});
-    domain.LoadRoot(friday);
-    TEST_ASSERT(friday);
-    TEST_ASSERT_EQUAL(22, friday->a);
-    TEST_ASSERT_EQUAL(23, friday->b);
-    friday->a = 123;
-    friday->b = 431;
-    domain.SaveRoot(friday);
+    Friday1::ptr friday = Friday1::ptr::Declare(CreateWith{domain}.with_id(1));
+    friday.WithLoaded([](auto const& p) {
+      TEST_ASSERT(p);
+      TEST_ASSERT_EQUAL(22, p->a);
+      TEST_ASSERT_EQUAL(23, p->b);
+      p->a = 123;
+      p->b = 431;
+    });
+    friday.Save();
   }
 
   // load version 2 from version 1
   replace_class_id(facility, Friday1::kClassId, Friday2::kClassId);
   {
-    Friday2::ptr friday;
-    friday.SetId(ObjId{1});
-    domain.LoadRoot(friday);
-    TEST_ASSERT(friday);
-    TEST_ASSERT_EQUAL_FLOAT(123.f, friday->a);
-    friday->a = 42.42f;
-    domain.SaveRoot(friday);
+    Friday2::ptr friday = Friday2::ptr::Declare(CreateWith{domain}.with_id(1));
+    friday.WithLoaded([](auto const& p) {
+      TEST_ASSERT(p);
+      TEST_ASSERT_EQUAL_FLOAT(123.f, p->a);
+      p->a = 42.42f;
+    });
+    friday.Save();
   }
 
   // load version 3 from version 2
   replace_class_id(facility, Friday2::kClassId, Friday3::kClassId);
   {
-    Friday3::ptr friday;
-    friday.SetId(ObjId{1});
-    domain.LoadRoot(friday);
-    TEST_ASSERT(friday);
-    TEST_ASSERT_EQUAL(42.42f, friday->a);
-    TEST_ASSERT_EQUAL_STRING("", friday->x.c_str());
+    Friday3::ptr friday = Friday3::ptr::Declare(CreateWith{domain}.with_id(1));
+    friday.WithLoaded([](auto const& p) {
+      TEST_ASSERT(p);
+      TEST_ASSERT_EQUAL(42.42f, p->a);
+      TEST_ASSERT_EQUAL_STRING("", p->x.c_str());
+    });
   }
 }
 
@@ -93,10 +93,12 @@ void test_decreaseVersion() {
   Domain domain{ae::ClockType::now(), facility};
   // the newest version
   {
-    Friday3::ptr friday = domain.CreateObj<Friday3>(ObjId{1});
-    friday->x = "hello";
-    friday->a = 123.123f;
-    domain.SaveRoot(friday);
+    Friday3::ptr friday = Friday3::ptr::Create(CreateWith{domain}.with_id(1));
+    friday.WithLoaded([](auto const& f) {
+      f->x = "hello";
+      f->a = 123.123f;
+    });
+    friday.Save();
   }
 
   // load version 2 from version 3
@@ -105,34 +107,32 @@ void test_decreaseVersion() {
   // registry
   remove_class_id(facility, Hoopa::kClassId);
   {
-    Friday2::ptr friday;
-    friday.SetId(ObjId{1});
-    domain.LoadRoot(friday);
-    TEST_ASSERT(friday);
-    TEST_ASSERT_EQUAL(123.123f, friday->a);
-    domain.SaveRoot(friday);
+    Friday2::ptr friday = Friday2::ptr::Declare(CreateWith{domain}.with_id(1));
+    friday.WithLoaded([](auto const& f) {
+      TEST_ASSERT(f);
+      TEST_ASSERT_EQUAL(123.123f, f->a);
+    });
+    friday.Save();
   }
 
   // load version 1 from version 2
   replace_class_id(facility, Friday2::kClassId, Friday1::kClassId);
   {
-    Friday1::ptr friday;
-    friday.SetId(ObjId{1});
-    domain.LoadRoot(friday);
-    TEST_ASSERT(friday);
-    TEST_ASSERT_EQUAL(123, friday->a);
-    TEST_ASSERT_EQUAL(0, friday->b);
-    friday->b = 23;
-    domain.SaveRoot(friday);
+    Friday1::ptr friday = Friday1::ptr::Declare(CreateWith{domain}.with_id(1));
+    friday.WithLoaded([](auto const& f) {
+      TEST_ASSERT(f);
+      TEST_ASSERT_EQUAL(123, f->a);
+      TEST_ASSERT_EQUAL(0, f->b);
+      f->b = 23;
+    });
+    friday.Save();
   }
 
   // load version 0 from version 1
   replace_class_id(facility, Friday1::kClassId, Friday0::kClassId);
   {
-    Friday0::ptr friday;
-    friday.SetId(ObjId{1});
-    domain.LoadRoot(friday);
-    TEST_ASSERT(friday);
+    Friday0::ptr friday = Friday0::ptr::Declare(CreateWith{domain}.with_id(1));
+    friday.WithLoaded([](auto const& f) { TEST_ASSERT(f); });
   }
 }
 }  // namespace ae::test_update_objects

@@ -23,7 +23,7 @@ namespace ae {
 ParentLoraModuleAdapter::ParentLoraModuleAdapter(
     ObjPtr<Aether> aether, IPoller::ptr poller, LoraModuleInit lora_module_init,
     Domain* domain)
-    : Adapter{domain},
+    : Adapter{prop},
       aether_{std::move(aether)},
       poller_{std::move(poller)},
       lora_module_init_{std::move(lora_module_init)} {}

@@ -27,7 +27,7 @@ class Father : public Obj {
   Father() = default;
 
  public:
-  explicit Father(Domain* domain) : Obj{domain} {}
+  explicit Father(ObjProp prop) : Obj{prop} {}
 
   AE_OBJECT_REFLECT()
 };
@@ -38,7 +38,7 @@ class Child : public Father {
   Child() = default;
 
  public:
-  explicit Child(Domain* domain) : Father(domain) {}
+  explicit Child(ObjProp prop) : Father{prop} {}
 
   AE_OBJECT_REFLECT()
 };

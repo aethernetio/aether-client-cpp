@@ -31,18 +31,18 @@ class Collector : public ae::Obj {
   Collector() = default;
 
  public:
-  explicit Collector(Domain* domain) : Obj(domain) {
-    for (auto i = 0; i < SIZE; i++) {
-      vec_bars.emplace_back(domain_->CreateObj<Bar>());
-      list_bars.emplace_back(domain_->CreateObj<Bar>());
-      map_bars[i] = domain_->CreateObj<Bar>();
-      map_bars[i].SetFlags(ObjFlags::kUnloadedByDefault);
+  explicit Collector(ObjProp prop) : Obj{prop} {
+    for (auto i = 0; i < kSize; i++) {
+      vec_bars.emplace_back(Bar::ptr::Create(domain));
+      list_bars.emplace_back(Bar::ptr::Create(domain));
+      map_bars[i] = Bar::ptr::Create(
+          CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault));
     }
   }
 
   AE_OBJECT_REFLECT(AE_MMBR(vec_bars), AE_MMBR(list_bars), AE_MMBR(map_bars))
 
-  static constexpr auto SIZE = 10;
+  static constexpr auto kSize = 10;
   std::vector<Bar::ptr> vec_bars;
   std::list<Bar::ptr> list_bars;
   std::map<int, Bar::ptr> map_bars;

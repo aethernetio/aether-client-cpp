@@ -43,7 +43,7 @@ class ServerConnection final : public ByteIStream {
   using ServerErrorEvent = Event<void()>;
   using ChannelChangedEvent = Event<void()>;
 
-  ServerConnection(ActionContext action_context, ObjPtr<Server> const& server);
+  ServerConnection(ActionContext action_context, Ptr<Server> const& server);
 
   ActionPtr<WriteAction> Write(DataBuffer&& in_data) override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
@@ -54,7 +54,7 @@ class ServerConnection final : public ByteIStream {
   ServerErrorEvent::Subscriber server_error_event();
   ChannelChangedEvent::Subscriber channel_changed_event();
 
-  ObjPtr<Channel> current_channel() const;
+  Ptr<Channel> current_channel() const;
 
  private:
   void InitChannels();

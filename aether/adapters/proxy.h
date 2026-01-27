@@ -29,7 +29,7 @@ class Proxy : public Obj {
 
  public:
 #ifdef AE_DISTILLATION
-  explicit Proxy(Domain* domain) : Obj{domain} {}
+  explicit Proxy(ObjProp prop) : Obj{prop} {}
 #endif  // AE_DISTILLATION
 
 #if AE_SUPPORT_PROXY == 1

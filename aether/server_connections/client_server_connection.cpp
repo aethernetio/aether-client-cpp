@@ -93,8 +93,8 @@ class ClientCryptoProvider final : public ICryptoProvider {
 }  // namespace _internal
 
 ClientServerConnection::ClientServerConnection(ActionContext action_context,
-                                               ObjPtr<Client> const& client,
-                                               Server::ptr const& server)
+                                               Ptr<Client> const& client,
+                                               Ptr<Server> const& server)
     : action_context_{action_context},
       server_{server},
       ephemeral_uid_{client->ephemeral_uid()},

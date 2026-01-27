@@ -68,17 +68,19 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
         domain_storage_{facility_factory()},
         domain_{make_unique<Domain>(Now(), *domain_storage_)} {
     InitComponentContext();
-#if defined AE_DISTILLATION
+#if AE_DISTILLATION
     // clean old state
     domain_storage_->CleanUp();
 
-    aether_ = domain_->CreateObj<Aether>(GlobalId::kAether);
+    aether_ =
+        Aether::ptr::Create(CreateWith{*domain_}.with_id(GlobalId::kAether));
     assert(aether_);
 #else
-    aether_.SetId(GlobalId::kAether);
-    domain_->LoadRoot(aether_);
+    aether_ =
+        Aether::ptr::Declare(CreateWith{*domain_}.with_id(GlobalId::kAether));
+    aether_.Load();
     assert(aether_);
-#endif  //  defined AE_DISTILLATION
+#endif  // AE_DISTILLATION
   }
 
   AE_CLASS_MOVE_ONLY(AetherAppContext)
@@ -86,7 +88,7 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
   Domain& domain() const { return *domain_; }
   Aether::ptr aether() const { return aether_; }
 
-#if defined AE_DISTILLATION
+#if AE_DISTILLATION
   AdapterRegistry::ptr adapter_registry() const {
     return Resolve<AdapterRegistry>();
   }
@@ -129,7 +131,7 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
     return std::move(*this);
   }
 #  endif
-#endif  //  defined AE_DISTILLATION
+#endif  // AE_DISTILLATION
 
  private:
   void InitComponentContext();

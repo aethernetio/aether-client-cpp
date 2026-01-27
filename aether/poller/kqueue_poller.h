@@ -57,7 +57,7 @@ class KqueuePoller : public IPoller {
   KqueuePoller();
 
  public:
-  KqueuePoller(Domain* domain);
+  KqueuePoller(ObjProp prop);
 
   AE_OBJECT_REFLECT()
 

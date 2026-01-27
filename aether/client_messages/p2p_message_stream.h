@@ -39,7 +39,7 @@ class ReadMessageGate;
 
 class P2pStream final : public ByteIStream {
  public:
-  P2pStream(ActionContext action_context, ObjPtr<Client> const& client,
+  P2pStream(ActionContext action_context, Ptr<Client> const& client,
             Uid destination);
 
   ~P2pStream() override;
@@ -65,7 +65,7 @@ class P2pStream final : public ByteIStream {
   void ConnectSend();
 
   std::unique_ptr<ClientConnectionManager> MakeConnectionManager(
-      ObjPtr<Cloud> const& cloud);
+      Ptr<Cloud> const& cloud);
   std::unique_ptr<CloudServerConnections> MakeDestinationCloudConn(
       ClientConnectionManager& connection_manager);
   ActionPtr<WriteAction> OnWrite(AeMessage&& message);

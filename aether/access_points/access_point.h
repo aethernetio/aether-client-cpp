@@ -39,7 +39,7 @@ class AccessPoint : public Obj {
  public:
   AccessPoint() = default;
 
-  explicit AccessPoint(Domain* domain);
+  explicit AccessPoint(ObjProp prop);
 
   AE_OBJECT_REFLECT()
 

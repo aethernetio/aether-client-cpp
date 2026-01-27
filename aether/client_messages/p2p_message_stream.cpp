@@ -176,7 +176,7 @@ class ReadMessageGate {
 
 }  // namespace p2p_stream_internal
 
-P2pStream::P2pStream(ActionContext action_context, ObjPtr<Client> const& client,
+P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
                      Uid destination)
     : action_context_{action_context},
       client_{client},
@@ -256,7 +256,7 @@ void P2pStream::ConnectSend() {
       get_client_cloud->StatusEvent().Subscribe(ActionHandler{
           OnResult{[this](GetCloudAction& action) {
             auto cloud = action.cloud();
-            dest_conn_manager_ = MakeConnectionManager(cloud);
+            dest_conn_manager_ = MakeConnectionManager(cloud.Load());
             dest_cloud_conn_ = MakeDestinationCloudConn(*dest_conn_manager_);
             // TODO: add config for request policy
             message_send_stream_ =
@@ -277,7 +277,7 @@ void P2pStream::ConnectSend() {
 }
 
 std::unique_ptr<ClientConnectionManager> P2pStream::MakeConnectionManager(
-    ObjPtr<Cloud> const& cloud) {
+    Ptr<Cloud> const& cloud) {
   auto client_ptr = client_.Lock();
   assert(client_ptr);
   return std::make_unique<ClientConnectionManager>(

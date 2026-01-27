@@ -277,8 +277,15 @@ template <typename T>
 struct NodeVisitor<ae::Ptr<T>> {
   using Policy = AnyPolicyMatch;
 
-  void Visit(ae::Ptr<T>& /* obj */, CycleDetector& /* cycle_detector */,
-             PtrRefDnv&& /* visitor */) const {}
+  void Visit(ae::Ptr<T>& obj, CycleDetector& cycle_detector,
+             PtrRefDnv&& visitor) const {
+    reflect::ApplyVisitor(obj, cycle_detector, std::move(visitor));
+  }
+
+  void Visit(ae::Ptr<T> const& obj, CycleDetector& cycle_detector,
+             PtrRefDnv&& visitor) const {
+    reflect::ApplyVisitor(obj, cycle_detector, std::move(visitor));
+  }
 
   template <typename Visitor>
   void Visit(ae::Ptr<T> const& obj, CycleDetector& cycle_detector,
