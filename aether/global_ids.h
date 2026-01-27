@@ -31,6 +31,7 @@ struct GlobalId {
   static constexpr ObjId kRegistrationCloud{2};
   static constexpr ObjId kTeleStatistics{3};
   static constexpr ObjId kAdapterRegistry{4};
+  static constexpr ObjId kUap{5};
   static constexpr ObjId kEthernetAdapter = kGlobalIdAdaptersOffset + 1;
   static constexpr ObjId kLanAdapter = kGlobalIdAdaptersOffset + 2;
   static constexpr ObjId kWiFiAdapter = kGlobalIdAdaptersOffset + 3;
