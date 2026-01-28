@@ -115,6 +115,8 @@ Client::ptr Aether::FindClient(std::string const& client_id) {
   if (client_it == std::end(clients_)) {
     return {};
   }
+  // keep client loaded
+  client_it->second.Load();
   return client_it->second;
 }
 

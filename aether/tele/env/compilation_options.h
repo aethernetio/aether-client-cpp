@@ -159,9 +159,14 @@ constexpr inline auto _compile_options_list = std::array{
     _OPTION(AE_TELE_LOG_BLOB_EXCLUDE),
     _OPTION(AE_TELE_LOG_CONSOLE),
 #if defined AE_DISTILLATION
-    _OPTION_VALUE(AE_DISTILLATION, 1),
+    _OPTION(AE_DISTILLATION),
 #else
     _OPTION_VALUE(AE_DISTILLATION, 0),
+#endif
+#if defined AE_FILTRATION
+    _OPTION(AE_FILTRATION),
+#else
+    _OPTION_VALUE(AE_FILTRATION, 0),
 #endif
 #if defined DEBUG
     _OPTION_VALUE(DEBUG, 1),

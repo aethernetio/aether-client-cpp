@@ -21,6 +21,7 @@ set(AE_PROJECT_VERSION "0.1.0")
 
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 option(AE_DISTILLATION "Build aether in distillation mode" On)
+option(AE_FILTRATION "Build aether in filtration mode" Off)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
@@ -459,6 +460,9 @@ endif()
 
 if (AE_DISTILLATION)
   target_compile_definitions(${TARGET_NAME} PUBLIC "AE_DISTILLATION=1")
+endif()
+if (AE_FILTRATION)
+  target_compile_definitions(${TARGET_NAME} PUBLIC "AE_FILTRATION=1")
 endif()
 
 # for debug purposes only, set registration server ip address
