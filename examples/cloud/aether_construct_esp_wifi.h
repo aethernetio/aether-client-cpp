@@ -22,11 +22,11 @@
 #if CLOUD_TEST_ESP_WIFI
 
 namespace ae::cloud_test {
-static constexpr std::string kWifi1Ssid = "Test1234";
-static constexpr std::string kWifi1Pass = "Test1234";
+static const std::string kWifi1Ssid = "Test1234";
+static const std::string kWifi1Pass = "Test1234";
 
-static constexpr std::string kWifi2Ssid = "Test2345";
-static constexpr std::string kWifi2Pass = "Test2345";
+static const std::string kWifi2Ssid = "Test2345";
+static const std::string kWifi2Pass = "Test2345";
 
 static IpV4Addr my_static_ip_v4{192, 168, 1, 215};
 static IpV4Addr my_gateway_ip_v4{192, 168, 1, 1};
@@ -71,14 +71,11 @@ RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
 #  if defined AE_DISTILLATION
-          .AdaptersFactory([](AetherAppContext const& context) {
-            auto adapter_registry =
-                AdapterRegistry::ptr::Create(context.domain());
-            adapter_registry->Add(WifiAdapter::ptr::Create(
+          .AddAdapterFactory([](AetherAppContext const& context) {
+            return WifiAdapter::ptr::Create(
                 CreateWith{context.domain()}.with_id(GlobalId::kWiFiAdapter),
                 context.aether(), context.poller(), context.dns_resolver(),
-                wifi_init));
-            return adapter_registry;
+                wifi_init);
           })
 #  endif
   );

@@ -24,15 +24,12 @@ namespace ae::cloud_test {
 static RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
-#  if defined AE_DISTILLATION
-          .AdaptersFactory([](AetherAppContext const& context) {
-            auto adapter_registry =
-                AdapterRegistry::ptr::Create(context.domain());
-            adapter_registry->Add(EthernetAdapter::ptr::Create(
+#  if AE_DISTILLATION
+          .AddAdapterFactory([](AetherAppContext const& context) {
+            return EthernetAdapter::ptr::Create(
                 CreateWith{context.domain()}.with_id(
                     GlobalId::kEthernetAdapter),
-                context.aether(), context.poller(), context.dns_resolver()));
-            return adapter_registry;
+                context.aether(), context.poller(), context.dns_resolver());
           })
 #  endif
   );
