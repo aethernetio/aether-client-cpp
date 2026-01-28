@@ -42,7 +42,7 @@ int AetherRegistrator(const std::string& ini_file,
   auto construct_context =
       ae::AetherAppContext{
           // make special domain storage to write all state into header file
-          [header_file]() {
+          [&header_file]() {
             return ae::make_unique<ae::RegistrarDomainStorage>(header_file);
           },
           // empty tele initializer
@@ -72,68 +72,6 @@ int AetherRegistrator(const std::string& ini_file,
 #  endif  // AE_SIGNATURE
             return crypto;
           })
-          .AdaptersFactory([&registrator_config](
-                               ae::AetherAppContext const& context)
-                               -> ae::AdapterRegistry::ptr {
-            auto adapter_registry =
-                ae::AdapterRegistry::ptr::Create(context.domain());
-
-            if (auto wifi = registrator_config.wifi_adapter(); wifi) {
-              AE_TELED_DEBUG("ae::reg::RegisterWifiAdapter");
-
-              static ae::IpV4Addr my_static_ip_v4{192, 168, 1, 215};
-              static ae::IpV4Addr my_gateway_ip_v4{192, 168, 1, 1};
-              static ae::IpV4Addr my_netmask_ip_v4{255, 255, 255, 0};
-              static ae::IpV4Addr my_dns1_ip_v4{8, 8, 8, 8};
-              static ae::IpV4Addr my_dns2_ip_v4{8, 8, 4, 4};
-              static ae::IpV6Addr my_static_ip_v6{
-                  0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00,
-                  0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34};
-
-              static ae::WiFiIP wifi_ip{
-                  {my_static_ip_v4},   // ESP32 static IP
-                  {my_gateway_ip_v4},  // IP Address of your network
-                                       // gateway (router)
-                  {my_netmask_ip_v4},  // Subnet mask
-                  {my_dns1_ip_v4},     // Primary DNS (optional)
-                  {my_dns2_ip_v4},     // Secondary DNS (optional)
-                  {my_static_ip_v6}    // ESP32 static IP v6
-              };
-
-              static ae::WifiCreds my_wifi{wifi->ssid, wifi->password};
-
-              ae::WiFiAp wifi_ap{my_wifi, wifi_ip};
-
-              std::vector<ae::WiFiAp> wifi_ap_vec{wifi_ap};
-
-              static ae::WiFiPowerSaveParam wifi_psp{
-                  true,
-                  AE_WIFI_PS_MAX_MODEM,  // Power save type
-                  AE_WIFI_PROTOCOL_11B | AE_WIFI_PROTOCOL_11G |
-                      AE_WIFI_PROTOCOL_11N,  // Protocol bitmap
-                  3,                         // Listen interval
-                  500                        // Beacon interval
-              };
-
-              ae::WiFiInit wifi_init{
-                  wifi_ap_vec,  // Wi-Fi access points
-                  wifi_psp,     // Power save parameters
-              };
-
-              adapter_registry->Add(ae::reg::RegisterWifiAdapter::ptr::Create(
-                  ae::CreateWith{context.domain()}.with_id(
-                      ae::GlobalId::kRegisterWifiAdapter),
-                  context.aether(), context.poller(), context.dns_resolver(),
-                  wifi_init));
-            } else {
-              AE_TELED_DEBUG("ae::EthernetAdapter");
-              adapter_registry->Add(ae::EthernetAdapter::ptr::Create(
-                  ae::CreateWith{context.domain()}.with_id(
-                      ae::GlobalId::kEthernetAdapter),
-                  context.aether(), context.poller(), context.dns_resolver()));
-            }
-            return adapter_registry;
-          })
           .RegistrationCloudFactory(
               [&registrator_config](ae::AetherAppContext const& context) {
                 auto registration_cloud = ae::RegistrationCloud::ptr::Create(
@@ -153,6 +91,70 @@ int AetherRegistrator(const std::string& ini_file,
                 }
                 return registration_cloud;
               });
+
+  if (auto const& wifi = registrator_config.wifi_adapter(); wifi) {
+    construct_context =
+        std::move(construct_context)
+            .AddAdapterFactory([&wifi](ae::AetherAppContext const& context) {
+              AE_TELED_DEBUG("ae::reg::RegisterWifiAdapter");
+
+              // TODO: why this values?
+              static ae::IpV4Addr my_static_ip_v4{192, 168, 1, 215};
+              static ae::IpV4Addr my_gateway_ip_v4{192, 168, 1, 1};
+              static ae::IpV4Addr my_netmask_ip_v4{255, 255, 255, 0};
+              static ae::IpV4Addr my_dns1_ip_v4{8, 8, 8, 8};
+              static ae::IpV4Addr my_dns2_ip_v4{8, 8, 4, 4};
+              static ae::IpV6Addr my_static_ip_v6{
+                  0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00,
+                  0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34};
+
+              static ae::WiFiIP wifi_ip{
+                  {my_static_ip_v4},   // ESP32 static IP
+                  {my_gateway_ip_v4},  // IP Address of your network
+                                       // gateway (router)
+                  {my_netmask_ip_v4},  // Subnet mask
+                  {my_dns1_ip_v4},     // Primary DNS (optional)
+                  {my_dns2_ip_v4},     // Secondary DNS (optional)
+                  {my_static_ip_v6}    // ESP32 static IP v6
+              };
+
+              ae::WifiCreds creds{wifi->ssid, wifi->password};
+
+              ae::WiFiAp wifi_ap{creds, wifi_ip};
+
+              std::vector<ae::WiFiAp> wifi_ap_vec{wifi_ap};
+
+              static ae::WiFiPowerSaveParam wifi_psp{
+                  true,
+                  AE_WIFI_PS_MAX_MODEM,  // Power save type
+                  AE_WIFI_PROTOCOL_11B | AE_WIFI_PROTOCOL_11G |
+                      AE_WIFI_PROTOCOL_11N,  // Protocol bitmap
+                  3,                         // Listen interval
+                  500                        // Beacon interval
+              };
+
+              ae::WiFiInit wifi_init{
+                  wifi_ap_vec,  // Wi-Fi access points
+                  wifi_psp,     // Power save parameters
+              };
+
+              return ae::reg::RegisterWifiAdapter::ptr::Create(
+                  ae::CreateWith{context.domain()}.with_id(
+                      ae::GlobalId::kRegisterWifiAdapter),
+                  context.aether(), context.poller(), context.dns_resolver(),
+                  wifi_init);
+            });
+  } else {
+    construct_context =
+        std::move(construct_context)
+            .AddAdapterFactory([](ae::AetherAppContext const& context) {
+              AE_TELED_DEBUG("ae::EthernetAdapter");
+              return ae::EthernetAdapter::ptr::Create(
+                  ae::CreateWith{context.domain()}.with_id(
+                      ae::GlobalId::kEthernetAdapter),
+                  context.aether(), context.poller(), context.dns_resolver());
+            });
+  }
 
   auto aether_app = ae::AetherApp::Construct(std::move(construct_context));
 
