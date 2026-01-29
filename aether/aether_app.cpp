@@ -67,16 +67,16 @@ static Aether::ptr AetherFactory(AetherAppContext const& context) {
   if (a.is_loaded()) {
     return a;
   }
-#  if !AE_FILTRATION  // pure production mode
-  assert(false && "Failed to load Aether");
-#  endif
 #endif
 #if AE_DISTILLATION || AE_FILTRATION
   // Create a new instance of Aether if it's not loaded
   return Aether::ptr::Create(
       CreateWith{context.domain()}.with_id(GlobalId::kAether));
 #endif
+#if !AE_FILTRATION  // pure production mode
+  assert(false && "Failed to load Aether");
   return Aether::ptr{};
+#endif
 }
 
 static tele::TeleStatistics::ptr TeleStatisticsFactory(
@@ -90,6 +90,7 @@ static tele::TeleStatistics::ptr TeleStatisticsFactory(
       CreateWith{context.domain()}.with_id(GlobalId::kTeleStatistics));
 #else
   assert(false && "Failed to load TeleStatistics");
+  return tele::TeleStatistics::ptr{};
 #endif
 }
 
@@ -102,7 +103,9 @@ static AdapterRegistry::ptr AdapterRegistryFactory(
   }
   // Create a new instance of AdapterRegistry if it's not loaded
   ap = AdapterRegistry::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kAdapterRegistry));
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kAdapterRegistry)
+          .with_flags(ObjFlags::kUnloadedByDefault));
   // add adapters
   auto adapters = context.adapters();
   assert(!adapters.empty() && "Adapter factories must not be empty");
@@ -114,7 +117,9 @@ static AdapterRegistry::ptr AdapterRegistryFactory(
 
 static Adapter::ptr DefaultAdapterFactory(AetherAppContext const& context) {
   return EthernetAdapter::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kEthernetAdapter),
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kEthernetAdapter)
+          .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether(), context.poller(), context.dns_resolver());
 }
 
@@ -125,7 +130,9 @@ static Cloud::ptr RegistrationCloudFactory(AetherAppContext const& context) {
     return reg_c;
   }
   reg_c = RegistrationCloud::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kRegistrationCloud),
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kRegistrationCloud)
+          .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether());
 #    if defined _AE_REG_CLOUD_IP
   reg_c->AddServerSettings(
@@ -147,8 +154,9 @@ static Crypto::ptr CryptoFactory(AetherAppContext const& context) {
   if (crypto.is_valid()) {
     return crypto;
   }
-  crypto = Crypto::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kCrypto));
+  crypto = Crypto::ptr::Create(CreateWith{context.domain()}
+                                   .with_id(GlobalId::kCrypto)
+                                   .with_flags(ObjFlags::kUnloadedByDefault));
 #  if AE_SIGNATURE == AE_ED25519
   crypto->signs_pk_[ae::SignatureMethod::kEd25519] = ae::SodiumSignPublicKey{
       MakeArray("4F202A94AB729FE9B381613AE77A8A7D89EDAB9299C33"
@@ -170,16 +178,23 @@ static IPoller::ptr PollerFactory(AetherAppContext const& context) {
 
 #  if defined EPOLL_POLLER_ENABLED
   return EpollPoller::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kPoller));
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kPoller)
+          .with_flags(ObjFlags::kUnloadedByDefault));
 #  elif defined KQUEUE_POLLER_ENABLED
   return KqueuePoller::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kPoller));
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kPoller)
+          .with_flags(ObjFlags::kUnloadedByDefault));
 #  elif defined FREERTOS_POLLER_ENABLED
   return FreertosPoller::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kPoller));
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kPoller)
+          .with_flags(ObjFlags::kUnloadedByDefault));
 #  elif defined WIN_POLLER_ENABLED
-  return WinPoller::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kPoller));
+  return WinPoller::ptr::Create(CreateWith{context.domain()}
+                                    .with_id(GlobalId::kPoller)
+                                    .with_flags(ObjFlags::kUnloadedByDefault));
 #  endif
 }
 
@@ -191,17 +206,23 @@ static DnsResolver::ptr DnsResolverFactory(AetherAppContext const& context) {
 #  if AE_SUPPORT_CLOUD_DNS
 #    if defined DNS_RESOLVE_ARES_ENABLED
   return DnsResolverCares::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kDnsResolver),
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kDnsResolver)
+          .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether());
 #    elif defined ESP32_DNS_RESOLVER_ENABLED
   return Esp32DnsResolver::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kDnsResolver),
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kDnsResolver)
+          .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether());
 #    endif
   return dns_resolver;
 #  else
   return DnsResolver::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kDnsResolver));
+      CreateWith{context.domain()}
+          .with_id(GlobalId::kDnsResolver)
+          .with_flags(ObjFlags::kUnloadedByDefault));
 #  endif
 }
 
@@ -210,9 +231,10 @@ static Client::ptr ClientPrefabFactory(AetherAppContext const& context) {
   if (client_prefab.is_valid()) {
     return client_prefab;
   }
-  return Client::ptr::Create(
-      CreateWith{context.domain()}.with_id(GlobalId::kClientFactory),
-      context.aether());
+  return Client::ptr::Create(CreateWith{context.domain()}
+                                 .with_id(GlobalId::kClientFactory)
+                                 .with_flags(ObjFlags::kUnloadedByDefault),
+                             context.aether());
 }
 #endif  //  AE_DISTILLATION
 
@@ -287,13 +309,10 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext context) {
 #  endif  // AE_SUPPORT_REGISTRATION
 
   app->aether_->crypto = context.crypto();
-  app->aether_->crypto.SetFlags(ObjFlags::kUnloadedByDefault);
   app->aether_->poller = context.poller();
-  app->aether_->poller.SetFlags(ObjFlags::kUnloadedByDefault);
 
 #  if AE_SUPPORT_CLOUD_DNS
   app->aether_->dns_resolver = context.dns_resolver();
-  app->aether_->dns_resolver.SetFlags(ObjFlags::kUnloadedByDefault);
 #  endif
 
   app->aether_.Save();
