@@ -17,11 +17,12 @@
 #ifndef AETHER_ADAPTERS_PARENT_WIFI_H_
 #define AETHER_ADAPTERS_PARENT_WIFI_H_
 
-#include <string>
+#include "aether/config.h"
 
-#include "aether/aether.h"
-#include "aether/adapters/adapter.h"
-#include "aether/wifi/wifi_driver_types.h"
+#if AE_SUPPORT_WIFIS
+
+#  include "aether/adapters/adapter.h"
+#  include "aether/wifi/wifi_driver_types.h"
 
 namespace ae {
 class Aether;
@@ -35,19 +36,20 @@ class ParentWifiAdapter : public Adapter {
   ParentWifiAdapter() = default;
 
  public:
-#ifdef AE_DISTILLATION
+#  ifdef AE_DISTILLATION
   ParentWifiAdapter(ObjProp prop, ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
                     ObjPtr<DnsResolver> dns_resolver, WiFiInit wifi_init);
-#endif  // AE_DISTILLATION
+#  endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, wifi_init_))
 
-  Obj::ptr aether_;
-  Obj::ptr poller_;
-  Obj::ptr dns_resolver_;
+  ObjPtr<Aether> aether_;
+  ObjPtr<IPoller> poller_;
+  ObjPtr<DnsResolver> dns_resolver_;
 
   WiFiInit wifi_init_;
 };
 }  // namespace ae
+#endif
 
 #endif  // AETHER_ADAPTERS_PARENT_WIFI_H_

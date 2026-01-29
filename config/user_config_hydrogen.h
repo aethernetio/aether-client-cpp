@@ -24,6 +24,10 @@
 #define AE_SIGNATURE AE_HYDRO_SIGNATURE
 #define AE_KDF AE_HYDRO_KDF
 
+#if !ESP_PLATFORM
+#  define AE_SUPPORT_WIFIS 0
+#endif
+
 // telemetry
 #define AE_TELE_ENABLED 1
 #define AE_TELE_LOG_CONSOLE 1

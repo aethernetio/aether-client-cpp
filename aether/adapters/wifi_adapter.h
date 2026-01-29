@@ -17,11 +17,15 @@
 #ifndef AETHER_ADAPTERS_WIFI_ADAPTER_H_
 #define AETHER_ADAPTERS_WIFI_ADAPTER_H_
 
-#include <string>
 #include <memory>
 
-#include "aether/wifi/wifi_driver.h"
-#include "aether/adapters/parent_wifi.h"
+#include "aether/config.h"
+
+#if AE_SUPPORT_WIFIS
+
+#  include "aether/wifi/wifi_driver.h"
+#  include "aether/adapters/parent_wifi.h"
+#  include "aether/access_points/wifi_access_point.h"
 
 namespace ae {
 
@@ -30,10 +34,10 @@ class WifiAdapter final : public ParentWifiAdapter {
   WifiAdapter() = default;
 
  public:
-#ifdef AE_DISTILLATION
-  WifiAdapter(ObjProp prop, ObjPtr<Aether> aether, IPoller::ptr poller,
-              DnsResolver::ptr dns_resolver, WiFiInit wifi_init);
-#endif  // AE_DISTILLATION
+#  ifdef AE_DISTILLATION
+  WifiAdapter(ObjProp prop, ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
+              ObjPtr<DnsResolver> dns_resolver, WiFiInit wifi_init);
+#  endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(access_points_))
 
@@ -46,4 +50,5 @@ class WifiAdapter final : public ParentWifiAdapter {
   std::vector<AccessPoint::ptr> access_points_;
 };
 }  // namespace ae
+#endif
 #endif  // AETHER_ADAPTERS_WIFI_ADAPTER_H_

@@ -26,6 +26,10 @@
 
 #define AE_SUPPORT_UDP 0
 
+#if !ESP_PLATFORM
+#  define AE_SUPPORT_WIFIS 0
+#endif
+
 // telemetry
 #define AE_TELE_ENABLED 0
 #define AE_TELE_LOG_CONSOLE 0

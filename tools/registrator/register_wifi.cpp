@@ -15,8 +15,8 @@
  */
 
 #include "registrator/register_wifi.h"
-
-#include "aether/aether.h"
+#if AE_SUPPORT_WIFIS
+#  include "aether/aether.h"
 
 namespace ae::reg {
 
@@ -39,3 +39,4 @@ RegisterWifiAdapter::new_access_point() {
 }
 
 }  // namespace ae::reg
+#endif

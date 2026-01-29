@@ -254,6 +254,7 @@ int AetherInit(AetherConfig const* config) {
                     break;
                   }
                   case AeWifiAdapter: {
+#  if AE_SUPPORT_WIFIS
                     auto* wifi_conf =
                         reinterpret_cast<AeWifiAdapterConf*>(conf);
 
@@ -300,6 +301,7 @@ int AetherInit(AetherConfig const* config) {
                     adapters->Add(ae::WifiAdapter::ptr::Create(
                         context.domain(), context.aether(), context.poller(),
                         context.dns_resolver(), wifi_init));
+#  endif
                     break;
                   }
                   default:

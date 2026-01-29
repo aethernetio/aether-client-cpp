@@ -17,8 +17,11 @@
 #ifndef AETHER_WIFI_WIFI_DRIVER_FACTORY_H_
 #define AETHER_WIFI_WIFI_DRIVER_FACTORY_H_
 
-#include <memory>
-#include "aether/wifi/wifi_driver.h"
+#include "aether/config.h"
+
+#if AE_SUPPORT_WIFIS
+#  include <memory>
+#  include "aether/wifi/wifi_driver.h"
 
 namespace ae {
 class WifiDriverFactory {
@@ -26,5 +29,5 @@ class WifiDriverFactory {
   static std::unique_ptr<WifiDriver> CreateWifiDriver();
 };
 }  // namespace ae
-
+#endif
 #endif  // AETHER_WIFI_WIFI_DRIVER_FACTORY_H_

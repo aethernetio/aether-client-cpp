@@ -19,14 +19,17 @@
 
 #include <cstdint>
 
-#include "aether/obj/obj_ptr.h"
-#include "aether/actions/action.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/types/state_machine.h"
-#include "aether/actions/action_context.h"
+#include "aether/config.h"
 
-#include "aether/wifi/wifi_driver.h"
-#include "aether/access_points/access_point.h"
+#if AE_SUPPORT_WIFIS
+#  include "aether/obj/obj_ptr.h"
+#  include "aether/actions/action.h"
+#  include "aether/actions/action_ptr.h"
+#  include "aether/types/state_machine.h"
+#  include "aether/actions/action_context.h"
+
+#  include "aether/wifi/wifi_driver.h"
+#  include "aether/access_points/access_point.h"
 
 namespace ae {
 class Aether;
@@ -44,7 +47,7 @@ class WifiConnectAction final : public Action<WifiConnectAction> {
   };
 
   WifiConnectAction(ActionContext action_context, WifiDriver& driver,
-                    WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp,
+                    WiFiAp wifi_ap, WiFiPowerSaveParam psp,
                     WiFiBaseStation& base_station);
 
   UpdateStatus Update();
@@ -61,7 +64,7 @@ class WifiConnectAction final : public Action<WifiConnectAction> {
 
 class WifiAccessPoint final : public AccessPoint {
   AE_OBJECT(WifiAccessPoint, AccessPoint, 0)
-  WifiAccessPoint() = default;
+  WifiAccessPoint();
 
  public:
   WifiAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
@@ -83,10 +86,10 @@ class WifiAccessPoint final : public AccessPoint {
   bool IsConnected();
 
  private:
-  Obj::ptr aether_;
+  ObjPtr<Aether> aether_;
   Obj::ptr adapter_;
-  Obj::ptr poller_;
-  Obj::ptr resolver_;
+  ObjPtr<IPoller> poller_;
+  ObjPtr<DnsResolver> resolver_;
   WiFiAp wifi_ap_;
   WiFiPowerSaveParam psp_;
   WiFiBaseStation base_station_;
@@ -94,5 +97,6 @@ class WifiAccessPoint final : public AccessPoint {
   Subscription connect_sub_;
 };
 }  // namespace ae
+#endif
 
 #endif  // AETHER_ACCESS_POINTS_WIFI_ACCESS_POINT_H_
