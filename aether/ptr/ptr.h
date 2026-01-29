@@ -114,7 +114,7 @@ class Ptr : public PtrBase {
   Ptr(Ptr const& other) noexcept
       : PtrBase{other.ptr_storage_}, ptr_{other.ptr_} {}
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   Ptr(Ptr<U> const& other) noexcept
       : PtrBase{other.ptr_storage_}, ptr_{static_cast<T*>(other.ptr_)} {}
 
@@ -126,7 +126,7 @@ class Ptr : public PtrBase {
     return *this;
   }
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   Ptr& operator=(Ptr<U> const& other) noexcept {
     PtrBase::operator=(other);
     ptr_ = static_cast<T*>(other.ptr_);
@@ -136,7 +136,7 @@ class Ptr : public PtrBase {
   // Moving
   Ptr(Ptr&& other) noexcept : PtrBase{std::move(other)}, ptr_{other.ptr_} {}
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   Ptr(Ptr<U>&& other) noexcept
       : PtrBase{std::move(other)}, ptr_{static_cast<T*>(other.ptr_)} {}
 
@@ -148,7 +148,7 @@ class Ptr : public PtrBase {
     return *this;
   }
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   Ptr& operator=(Ptr<U>&& other) noexcept {
     PtrBase::operator=(std::move(other));
     ptr_ = static_cast<T*>(other.ptr_);
@@ -178,13 +178,13 @@ class Ptr : public PtrBase {
     return *get();
   }
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   [[nodiscard]] U const* as() const noexcept {
     assert((ptr_storage_ != nullptr) && "Dereferencing uninitialized Ptr");
     return static_cast<U*>(get());
   }
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   [[nodiscard]] U* as() noexcept {
     assert((ptr_storage_ != nullptr) && "Dereferencing uninitialized Ptr");
     return static_cast<U*>(get());
