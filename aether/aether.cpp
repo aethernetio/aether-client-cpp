@@ -99,6 +99,7 @@ ActionPtr<SelectClientAction> Aether::SelectClient(
 }
 
 void Aether::StoreServer(Server::ptr s) {
+  s.SetFlags(ObjFlags::kUnloadedByDefault);
   servers_.insert({s->server_id, std::move(s)});
 }
 
