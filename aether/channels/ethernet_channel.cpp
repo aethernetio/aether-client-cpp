@@ -226,10 +226,11 @@ EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
 }
 
 ActionPtr<TransportBuilderAction> EthernetChannel::TransportBuilder() {
-  auto resolver = DnsResolver::ptr{dns_resolver_}.Load();
-  auto poller = IPoller::ptr{poller_}.Load();
-
+  auto resolver = dns_resolver_.Load();
+#if AE_SUPPORT_CLOUD_DNS
   assert(resolver && "Resolver is not loaded");
+#endif
+  auto poller = poller_.Load();
   assert(poller && "Poller is not loaded");
 
   return ActionPtr<
