@@ -103,8 +103,8 @@ std::unique_ptr<IDomainStorageWriter> SpiFsDomainStorage::Store(
 ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
   auto obj_it = object_map_.find(obj_id);
   if (obj_it == std::end(object_map_)) {
-    AE_TELE_ERROR(kSpifsDsEnumObjIdNotFound, "Obj not found {}",
-                  obj_id.ToString());
+    AE_TELE_INFO(kSpifsDsEnumObjIdNotFound, "Obj not found {}",
+                 obj_id.ToString());
     return {};
   }
 
@@ -120,10 +120,10 @@ ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
 DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
   auto obj_map_it = object_map_.find(query.id);
   if (obj_map_it == std::end(object_map_)) {
-    AE_TELE_ERROR(kSpifsDsLoadObjIdNoFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_INFO(kSpifsDsLoadObjIdNoFound,
+                 "Unable to find object id={}, class id={}, version={}",
+                 query.id.ToString(), query.class_id,
+                 static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   if (obj_map_it->second.empty()) {
@@ -132,19 +132,19 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
 
   auto class_map_it = obj_map_it->second.find(query.class_id);
   if (class_map_it == std::end(obj_map_it->second)) {
-    AE_TELE_ERROR(kSpifsDsLoadObjClassIdNotFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_INFO(kSpifsDsLoadObjClassIdNotFound,
+                 "Unable to find object id={}, class id={}, version={}",
+                 query.id.ToString(), query.class_id,
+                 static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   auto version_it = std::find(std::begin(class_map_it->second),
                               std::end(class_map_it->second), query.version);
   if (version_it == std::end(class_map_it->second)) {
-    AE_TELE_ERROR(kSpifsDsLoadObjVersionNotFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_INFO(kSpifsDsLoadObjVersionNotFound,
+                 "Unable to find object id={}, class id={}, version={}",
+                 query.id.ToString(), query.class_id,
+                 static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
 

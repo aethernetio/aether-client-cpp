@@ -100,8 +100,8 @@ ClassList FileSystemStdStorage::Enumerate(const ae::ObjId& obj_id) {
   AE_TELE_DEBUG(kFileSystemDsEnumerated, "Enumerated classes {}", classes);
 
   if (ec) {
-    AE_TELE_ERROR(kFileSystemDsEnumObjIdNotFound,
-                  "Unable to open directory with error {}", ec.message());
+    AE_TELE_INFO(kFileSystemDsEnumObjIdNotFound,
+                 "Unable to open directory with error {}", ec.message());
   }
 
   return ClassList{classes.begin(), classes.end()};
@@ -126,8 +126,8 @@ DomainLoad FileSystemStdStorage::Load(DomainQuery const& query) {
   auto version_data_path = class_dir / std::to_string(query.version);
   std::ifstream f(version_data_path, std::ios::in | std::ios::binary);
   if (!f.good()) {
-    AE_TELE_ERROR(kFileSystemDsLoadObjClassIdNotFound, "Unable to open file {}",
-                  version_data_path.string());
+    AE_TELE_INFO(kFileSystemDsLoadObjClassIdNotFound, "Unable to open file {}",
+                 version_data_path.string());
     return DomainLoad{DomainLoadResult::kEmpty, {}};
   }
 
