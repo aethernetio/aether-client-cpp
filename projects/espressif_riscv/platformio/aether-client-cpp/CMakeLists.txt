@@ -25,6 +25,10 @@ idf_build_set_property(CM_PLATFORM "ESP32")
 
 add_compile_definitions(CM_ESP32)
 
+if(NOT DEFINED AE_FILTRATION)
+  set(AE_FILTRATION On CACHE BOOL "" FORCE)
+endif()
+
 if (NOT USER_CONFIG)
   set(USER_CONFIG "${CMAKE_CURRENT_LIST_DIR}/../../../../config/user_config_optimized.h" CACHE PATH "")
 endif()

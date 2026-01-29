@@ -29,6 +29,11 @@ add_compile_definitions("UNITY_INCLUDE_DOUBLE")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
+if(NOT DEFINED AE_FILTRATION)
+  set(AE_FILTRATION On CACHE BOOL "" FORCE)
+endif()
+
+
 if (AE_ADDRESS_SANITIZE)
   add_compile_options(-fsanitize=address)
   add_link_options(-fsanitize=address)

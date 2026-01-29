@@ -421,4 +421,18 @@
 #ifndef NDEBUG
 #  define DEBUG 1
 #endif
+
+/**
+ * \brief Filtration is hybrid mode between distillation and production mode.
+ * It tries to load object from the saved state. And if there is no saved state,
+ * create a new object.
+ * It also defines AE_DISTILLATION so the object parts depending on that mode
+ * also would be compiled.
+ */
+#if AE_FILTRATION
+#  ifdef AE_DISTILLATION
+#    undef AE_DISTILLATION
+#  endif
+#  define AE_DISTILLATION 1
+#endif
 #endif  // AETHER_CONFIG_H_

@@ -42,12 +42,12 @@
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/adapter_registry.h"
-#include "aether/obj/component_context.h"
+#include "aether/obj/component_factory.h"
 
 #include "aether/domain_storage/domain_storage_factory.h"
 
 namespace ae {
-class AetherAppContext : public ComponentContext<AetherAppContext> {
+class AetherAppContext {
   friend class AetherApp;
   class TelemetryInit {
    public:
@@ -62,72 +62,73 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
   template <typename Func, typename TeleInit = TelemetryInit,
             AE_REQUIRERS((IsFunctor<Func, std::unique_ptr<IDomainStorage>()>)),
             AE_REQUIRERS((IsFunctor<TeleInit, void(AetherAppContext const&)>))>
-  explicit AetherAppContext(Func const& facility_factory,
+  explicit AetherAppContext(Func&& domain_storage_factory,
                             TeleInit const& tele_init = TelemetryInit{})
-      : init_tele_{tele_init},
-        domain_storage_{facility_factory()},
-        domain_{make_unique<Domain>(Now(), *domain_storage_)} {
-    InitComponentContext();
-#if AE_DISTILLATION
-    // clean old state
-    domain_storage_->CleanUp();
-
-    aether_ =
-        Aether::ptr::Create(CreateWith{*domain_}.with_id(GlobalId::kAether));
-    assert(aether_);
-#else
-    aether_ =
-        Aether::ptr::Declare(CreateWith{*domain_}.with_id(GlobalId::kAether));
-    aether_.Load();
-    assert(aether_);
-#endif  // AE_DISTILLATION
+      : init_tele_{tele_init} {
+    domain_storage_.Factory(std::forward<Func>(domain_storage_factory));
   }
 
   AE_CLASS_MOVE_ONLY(AetherAppContext)
 
-  Domain& domain() const { return *domain_; }
-  Aether::ptr aether() const { return aether_; }
+  Domain& domain() const { return *domain_.Resolve(*this); }
+  Aether::ptr& aether() const { return aether_.Resolve(*this); }
+
+  AdapterRegistry::ptr& adapter_registry() const {
+    return adapter_registry_.Resolve(*this);
+  }
+  std::vector<Adapter::ptr> adapters() const {
+    std::vector<Adapter::ptr> res;
+    res.reserve(adapters_.size());
+    for (auto const& a : adapters_) {
+      res.emplace_back(a.Resolve(*this));
+    }
+    return res;
+  }
+  Cloud::ptr& reg_cloud() const { return reg_cloud_.Resolve(*this); }
+  Crypto::ptr& crypto() const { return crypto_.Resolve(*this); }
+  IPoller::ptr& poller() const { return poller_.Resolve(*this); }
+  DnsResolver::ptr& dns_resolver() const {
+    return dns_resolver_.Resolve(*this);
+  }
 
 #if AE_DISTILLATION
-  AdapterRegistry::ptr adapter_registry() const {
-    return Resolve<AdapterRegistry>();
-  }
-#  if AE_SUPPORT_REGISTRATION
-  Cloud::ptr registration_cloud() const { return Resolve<Cloud>(); }
-#  endif  // AE_SUPPORT_REGISTRATION
-  Crypto::ptr crypto() const { return Resolve<Crypto>(); }
-  IPoller::ptr poller() const { return Resolve<IPoller>(); }
-  DnsResolver::ptr dns_resolver() const { return Resolve<DnsResolver>(); }
-
   template <typename TFunc>
   AetherAppContext&& AdaptersFactory(TFunc&& func) && {
-    Factory<AdapterRegistry>(std::forward<TFunc>(func));
+    adapter_registry_.Factory(std::forward<TFunc>(func));
+    return std::move(*this);
+  }
+
+  template <typename TFunc>
+  AetherAppContext&& AddAdapterFactory(TFunc&& func) && {
+    auto& back = adapters_.emplace_back();
+    back.Factory(std::forward<TFunc>(func));
     return std::move(*this);
   }
 
 #  if AE_SUPPORT_REGISTRATION
   template <typename TFunc>
   AetherAppContext&& RegistrationCloudFactory(TFunc&& func) && {
-    Factory<Cloud>(std::forward<TFunc>(func));
+    reg_cloud_.Factory(std::forward<TFunc>(func));
     return std::move(*this);
   }
 #  endif  // AE_SUPPORT_REGISTRATION
 
   template <typename TFunc>
   AetherAppContext&& CryptoFactory(TFunc&& func) && {
-    Factory<Crypto>(std::forward<TFunc>(func));
+    crypto_.Factory(std::forward<TFunc>(func));
     return std::move(*this);
   }
 
   template <typename TFunc>
   AetherAppContext&& PollerFactory(TFunc&& func) && {
-    Factory<IPoller>(std::forward<TFunc>(func));
+    poller_.Factory(std::forward<TFunc>(func));
     return std::move(*this);
   }
+
 #  if AE_SUPPORT_CLOUD_DNS
   template <typename TFunc>
   AetherAppContext&& DnsResolverFactory(TFunc&& func) && {
-    Factory<DnsResolver>(std::forward<TFunc>(func));
+    dns_resolver_.Factory(std::forward<TFunc>(func));
     return std::move(*this);
   }
 #  endif
@@ -136,20 +137,31 @@ class AetherAppContext : public ComponentContext<AetherAppContext> {
  private:
   void InitComponentContext();
 
+  ComponentFactory<std::unique_ptr<IDomainStorage>> domain_storage_;
+  ComponentFactory<AetherAppContext, std::unique_ptr<Domain>> domain_;
+  ComponentFactory<AetherAppContext, Aether::ptr> aether_;
+  ComponentFactory<AetherAppContext, AdapterRegistry::ptr> adapter_registry_;
+  std::vector<ComponentFactory<AetherAppContext, Adapter::ptr>> adapters_;
+  ComponentFactory<AetherAppContext, Cloud::ptr> reg_cloud_;
+  ComponentFactory<AetherAppContext, Crypto::ptr> crypto_;
+  ComponentFactory<AetherAppContext, IPoller::ptr> poller_;
+  ComponentFactory<AetherAppContext, DnsResolver::ptr> dns_resolver_;
+  ComponentFactory<AetherAppContext, Client::ptr> client_prefab_;
+  ComponentFactory<AetherAppContext, tele::TeleStatistics::ptr>
+      tele_statistics_;
+
   SmallFunction<void(AetherAppContext const&)> init_tele_;
-  std::unique_ptr<IDomainStorage> domain_storage_;
-  std::unique_ptr<Domain> domain_;
-  Aether::ptr aether_;
 };
 
 /**
  * \brief The enter point to the Aethernet application world
  */
 class AetherApp {
+  friend auto MakeRcPtr<AetherApp>() noexcept;
+
  public:
   static RcPtr<AetherApp> Construct(AetherAppContext context);
 
-  AetherApp() = default;
   ~AetherApp();
 
   /**
@@ -214,6 +226,8 @@ class AetherApp {
   operator ActionContext() const { return ActionContext{*aether_}; }
 
  private:
+  AetherApp() = default;
+
   std::unique_ptr<IDomainStorage> domain_facility_;
   std::unique_ptr<Domain> domain_;
   Aether::ptr aether_;
