@@ -28,11 +28,11 @@ UdpTransport::ReadAction::ReadAction(ActionContext action_context,
     : Action{action_context}, transport_{&transport} {}
 
 UpdateStatus UdpTransport::ReadAction::Update() {
-  if (read_event_.exchange(false)) {
-    ReadEvent();
-  }
   if (stop_event_) {
     return UpdateStatus::Stop();
+  }
+  if (read_event_.exchange(false)) {
+    ReadEvent();
   }
   return {};
 }
