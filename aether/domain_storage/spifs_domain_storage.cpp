@@ -37,7 +37,7 @@ class FileWriter : public IDomainStorageWriter {
  public:
   explicit FileWriter(FILE* f) : file{f} {}
 
-  virtual ~FileWriter() { fclose(file); }
+  ~FileWriter() override { fclose(file); }
 
   void write(void const* data, std::size_t size) override {
     fwrite(data, 1, size, file);
@@ -51,7 +51,7 @@ class SpiFsSotorageWriter final : public FileWriter {
   explicit SpiFsSotorageWriter(FILE* f, DomainQuery q)
       : FileWriter{f}, query{std::move(q)} {}
 
-  ~SpiFsSotorageWriter() {
+  ~SpiFsSotorageWriter() override {
     AE_TELE_DEBUG(
         kSpifsDsObjSaved, "Saved object id={}, class id={}, version={}",
         query.id.ToString(), query.class_id, static_cast<int>(query.version));
@@ -63,16 +63,23 @@ class SpiFsSotorageWriter final : public FileWriter {
 class SpiFsSotorageReader final : public IDomainStorageReader {
  public:
   explicit SpiFsSotorageReader(FILE* f) : file{f} {}
-  ~SpiFsSotorageReader() { fclose(file); }
+  ~SpiFsSotorageReader() override { fclose(file); }
 
   void read(void* data, std::size_t size) override {
-    fread(data, 1, size, file);
+    auto res = fread(data, 1, size, file);
+    if (res != size) {
+      printf("read error!\n");
+      read_result = ReadResult::kNo;
+      return;
+    }
+    read_result = ReadResult::kYes;
   }
 
-  ReadResult result() const override { return ReadResult::kYes; }
-  void result(ReadResult) override {}
+  ReadResult result() const override { return read_result; }
+  void result(ReadResult res) override { read_result = res; }
 
   FILE* file;
+  ReadResult read_result{ReadResult::kYes};
 };
 
 SpiFsDomainStorage::SpiFsDomainStorage() {
