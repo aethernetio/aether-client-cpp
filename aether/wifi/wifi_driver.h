@@ -17,10 +17,11 @@
 #ifndef AETHER_WIFI_WIFI_DRIVER_H_
 #define AETHER_WIFI_WIFI_DRIVER_H_
 
-#include <string>
+#include "aether/config.h"
 
-#include "aether/reflect/reflect.h"
-#include "aether/wifi/wifi_driver_types.h"
+#if AE_SUPPORT_WIFIS
+#  include "aether/reflect/reflect.h"
+#  include "aether/wifi/wifi_driver_types.h"
 
 namespace ae {
 /**
@@ -43,4 +44,5 @@ class WifiDriver {
 };
 }  // namespace ae
 
+#endif
 #endif  // AETHER_WIFI_WIFI_DRIVER_H_

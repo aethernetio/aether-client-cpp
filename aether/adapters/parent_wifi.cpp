@@ -16,15 +16,17 @@
 
 #include "aether/adapters/parent_wifi.h"
 
-#include <utility>
+#if AE_SUPPORT_WIFIS
 
-#include "aether/aether.h"
-#include "aether/poller/poller.h"
-#include "aether/dns/dns_resolve.h"
+#  include <utility>
+
+#  include "aether/aether.h"
+#  include "aether/poller/poller.h"
+#  include "aether/dns/dns_resolve.h"
 
 namespace ae {
 
-#if defined AE_DISTILLATION
+#  if defined AE_DISTILLATION
 ParentWifiAdapter::ParentWifiAdapter(ObjProp prop, ObjPtr<Aether> aether,
                                      ObjPtr<IPoller> poller,
                                      ObjPtr<DnsResolver> dns_resolver,
@@ -34,6 +36,7 @@ ParentWifiAdapter::ParentWifiAdapter(ObjProp prop, ObjPtr<Aether> aether,
       poller_{std::move(poller)},
       dns_resolver_{std::move(dns_resolver)},
       wifi_init_{std::move(wifi_init)} {}
-#endif  // AE_DISTILLATION
+#  endif  // AE_DISTILLATION
 
 } /* namespace ae */
+#endif

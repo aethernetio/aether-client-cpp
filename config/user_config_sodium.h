@@ -24,6 +24,10 @@
 #define AE_SIGNATURE AE_ED25519
 #define AE_KDF AE_SODIUM_KDF
 
+#if !ESP_PLATFORM
+#  define AE_SUPPORT_WIFIS 0
+#endif
+
 // telemetry
 #define AE_TELE_ENABLED 1
 #define AE_TELE_LOG_CONSOLE 1
@@ -48,7 +52,7 @@
 
 #define AE_STATISTICS_MAX_SIZE 1024
 
-#if defined AE_DISTILLATION
+#if AE_DISTILLATION || AE_FILTRATION
 #  define AE_SUPPORT_REGISTRATION 1
 #  define AE_SUPPORT_CLOUD_DNS 1
 #else

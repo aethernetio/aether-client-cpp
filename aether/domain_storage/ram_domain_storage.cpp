@@ -74,8 +74,8 @@ std::unique_ptr<IDomainStorageWriter> RamDomainStorage::Store(
 ClassList RamDomainStorage::Enumerate(ObjId const& obj_id) {
   auto obj_map_it = state.find(obj_id);
   if (obj_map_it == std::end(state)) {
-    AE_TELE_ERROR(kRamDsEnumObjIdNotFound, "Obj not found {}",
-                  obj_id.ToString());
+    AE_TELE_INFO(kRamDsEnumObjIdNotFound, "Obj not found {}",
+                 obj_id.ToString());
     return {};
   }
   if (!obj_map_it->second) {
@@ -95,10 +95,10 @@ ClassList RamDomainStorage::Enumerate(ObjId const& obj_id) {
 DomainLoad RamDomainStorage::Load(DomainQuery const& query) {
   auto obj_map_it = state.find(query.id);
   if (obj_map_it == std::end(state)) {
-    AE_TELE_ERROR(kRamDsLoadObjIdNoFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_INFO(kRamDsLoadObjIdNoFound,
+                 "Unable to find object id={}, class id={}, version={}",
+                 query.id.ToString(), query.class_id,
+                 static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   if (!obj_map_it->second) {
@@ -107,18 +107,18 @@ DomainLoad RamDomainStorage::Load(DomainQuery const& query) {
 
   auto class_map_it = obj_map_it->second->find(query.class_id);
   if (class_map_it == std::end(*obj_map_it->second)) {
-    AE_TELE_ERROR(kRamDsLoadObjClassIdNotFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_INFO(kRamDsLoadObjClassIdNotFound,
+                 "Unable to find object id={}, class id={}, version={}",
+                 query.id.ToString(), query.class_id,
+                 static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   auto version_it = class_map_it->second.find(query.version);
   if (version_it == std::end(class_map_it->second)) {
-    AE_TELE_ERROR(kRamDsLoadObjVersionNotFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_INFO(kRamDsLoadObjVersionNotFound,
+                 "Unable to find object id={}, class id={}, version={}",
+                 query.id.ToString(), query.class_id,
+                 static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
 

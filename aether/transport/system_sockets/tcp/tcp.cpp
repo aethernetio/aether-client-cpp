@@ -69,11 +69,11 @@ TcpTransport::ReadAction::ReadAction(ActionContext action_context,
     : Action{action_context}, transport_{&transport} {}
 
 UpdateStatus TcpTransport::ReadAction::Update() {
-  if (read_event_.exchange(false)) {
-    DataReceived();
-  }
   if (stop_event_) {
     return UpdateStatus::Stop();
+  }
+  if (read_event_.exchange(false)) {
+    DataReceived();
   }
 
   return {};

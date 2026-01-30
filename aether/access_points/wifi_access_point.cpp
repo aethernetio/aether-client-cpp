@@ -16,25 +16,26 @@
 
 #include "aether/access_points/wifi_access_point.h"
 
-#include <utility>
+#if AE_SUPPORT_WIFIS
+#  include <utility>
 
-#include "aether/aether.h"
-#include "aether/poller/poller.h"
-#include "aether/dns/dns_resolve.h"
-#include "aether/adapters/wifi_adapter.h"
-#include "aether/channels/wifi_channel.h"
-#include "aether/access_points/filter_endpoints.h"
+#  include "aether/aether.h"
+#  include "aether/poller/poller.h"
+#  include "aether/dns/dns_resolve.h"
+#  include "aether/adapters/wifi_adapter.h"
+#  include "aether/channels/wifi_channel.h"
+#  include "aether/access_points/filter_endpoints.h"
 
 namespace ae {
 
 WifiConnectAction::WifiConnectAction(ActionContext action_context,
-                                     WifiDriver& driver, WiFiAp const& wifi_ap,
-                                     WiFiPowerSaveParam const& psp,
+                                     WifiDriver& driver, WiFiAp wifi_ap,
+                                     WiFiPowerSaveParam psp,
                                      WiFiBaseStation& base_station)
     : Action{action_context},
       driver_{&driver},
-      wifi_ap_{wifi_ap},
-      psp_{psp},
+      wifi_ap_{std::move(wifi_ap)},
+      psp_{std::move(psp)},
       base_station_{base_station},
       state_{State::kCheckIsConnected} {}
 
@@ -68,6 +69,8 @@ UpdateStatus WifiConnectAction::Update() {
 }
 
 WifiConnectAction::State WifiConnectAction::state() const { return state_; }
+
+WifiAccessPoint::WifiAccessPoint() = default;
 
 WifiAccessPoint::WifiAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
                                  ObjPtr<WifiAdapter> adapter,
@@ -108,11 +111,13 @@ std::vector<ObjPtr<Channel>> WifiAccessPoint::GenerateChannels(
 
 ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
   // reuse connect action if it's in progress
-  auto adapter = WifiAdapter::ptr{adapter_}.Load();
   if (!connect_action_) {
-    connect_action_ = ActionPtr<WifiConnectAction>{*aether_.Load().as<Aether>(),
-                                                   adapter->driver(), wifi_ap_,
-                                                   psp_, base_station_};
+    auto driver = WifiAdapter::ptr{adapter_}.WithLoaded(
+        [](auto const& a) { return &a->driver(); });
+    assert(driver.has_value());
+
+    connect_action_ = ActionPtr<WifiConnectAction>{
+        *aether_.Load().as<Aether>(), **driver, wifi_ap_, psp_, base_station_};
     connect_sub_ = connect_action_->FinishedEvent().Subscribe(
         [this]() { connect_action_.reset(); });
   }
@@ -120,10 +125,14 @@ ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
 }
 
 bool WifiAccessPoint::IsConnected() {
-  auto adapter = WifiAdapter::ptr{adapter_}.Load();
-  auto& driver = adapter->driver();
-  auto connected_to = driver.connected_to();
-  return connected_to.ssid == wifi_ap_.creds.ssid;
+  return WifiAdapter::ptr{adapter_}
+      .WithLoaded([this](auto const& a) {
+        auto& driver = a->driver();
+        auto connected_to = driver.connected_to();
+        return connected_to.ssid == wifi_ap_.creds.ssid;
+      })
+      .value_or(false);
 }
 
 }  // namespace ae
+#endif

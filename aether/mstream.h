@@ -357,7 +357,7 @@ imstream<Ib>& operator>>(imstream<Ib>& s, std::map<T1, T2>& t) {
     return s;
   }
   t.clear();
-  for (uint32_t i = 0; i < static_cast<size_t>(size); i++) {
+  for (std::size_t i = 0; i < static_cast<std::size_t>(size); i++) {
     std::pair<T1, T2> kv;
     s >> kv;
     if (!data_was_read(s)) {

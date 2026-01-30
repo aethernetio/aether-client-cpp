@@ -93,6 +93,7 @@ int AetherRegistrator(const std::string& ini_file,
               });
 
   if (auto const& wifi = registrator_config.wifi_adapter(); wifi) {
+#  if AE_SUPPORT_WIFIS
     construct_context =
         std::move(construct_context)
             .AddAdapterFactory([&wifi](ae::AetherAppContext const& context) {
@@ -144,6 +145,7 @@ int AetherRegistrator(const std::string& ini_file,
                   context.aether(), context.poller(), context.dns_resolver(),
                   wifi_init);
             });
+#  endif
   } else {
     construct_context =
         std::move(construct_context)

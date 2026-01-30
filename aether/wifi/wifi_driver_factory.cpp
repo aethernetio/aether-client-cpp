@@ -15,18 +15,19 @@
  */
 
 #include "aether/wifi/wifi_driver_factory.h"
+#if AE_SUPPORT_WIFIS
 
 // IWYU pragma: begin_keeps
-#include "aether/wifi/esp_wifi_driver.h"
+#  include "aether/wifi/esp_wifi_driver.h"
 // IWYU pragma: end_keeps
 
 namespace ae {
 std::unique_ptr<WifiDriver> WifiDriverFactory::CreateWifiDriver() {
-#if defined ESP_WIFI_DRIVER_ENABLED
+#  if defined ESP_WIFI_DRIVER_ENABLED
   return std::make_unique<EspWifiDriver>();
-#else
+#  else
   return nullptr;
-#endif
+#  endif
 }
-
 }  // namespace ae
+#endif

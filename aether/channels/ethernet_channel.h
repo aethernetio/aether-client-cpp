@@ -41,9 +41,9 @@ class EthernetChannel : public Channel {
   Endpoint address;
 
  private:
-  Obj::ptr aether_;
-  Obj::ptr poller_;
-  Obj::ptr dns_resolver_;
+  ObjPtr<Aether> aether_;
+  ObjPtr<IPoller> poller_;
+  ObjPtr<DnsResolver> dns_resolver_;
 };
 }  // namespace ae
 

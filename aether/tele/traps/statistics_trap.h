@@ -102,7 +102,7 @@ imstream<Ib>& operator>>(imstream<Ib>& stream, LogStorage& log) {
  */
 struct MetricsStore {
   using PackedIndex = TieredInt<std::uint64_t, std::uint8_t, 250>;
-  using PackedValue = TieredInt<std::uint32_t, std::uint8_t, 250>;
+  using PackedValue = TieredInt<std::uint64_t, std::uint8_t, 250>;
   struct Metric {
     PackedValue invocations_count;
     PackedValue max_duration;

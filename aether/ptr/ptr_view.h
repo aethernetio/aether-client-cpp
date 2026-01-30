@@ -59,12 +59,12 @@ class PtrView : public PtrViewBase {
   ~PtrView() = default;
 
   // Creation
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   PtrView(Ptr<U> const& ptr) noexcept
       : PtrViewBase{static_cast<PtrBase const&>(ptr)},
         ptr_{static_cast<T*>(ptr.ptr_)} {}
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   PtrView& operator=(Ptr<U> const& ptr) noexcept {
     PtrViewBase::operator=(static_cast<PtrBase const&>(ptr));
     ptr_ = static_cast<T*>(ptr.ptr_);
@@ -75,7 +75,7 @@ class PtrView : public PtrViewBase {
   PtrView(PtrView const& other) noexcept
       : PtrViewBase{other}, ptr_{other.ptr_} {}
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   PtrView(PtrView<U> const& other) noexcept
       : PtrViewBase{other}, ptr_{static_cast<T*>(other.ptr_)} {}
 
@@ -88,7 +88,7 @@ class PtrView : public PtrViewBase {
     return *this;
   }
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   PtrView& operator=(PtrView<U> const& other) noexcept {
     if (this != &other) {
       PtrViewBase::operator=(other);
@@ -102,7 +102,7 @@ class PtrView : public PtrViewBase {
   PtrView(PtrView&& other) noexcept
       : PtrViewBase{std::move(other)}, ptr_{other.ptr_} {}
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   PtrView(PtrView<U>&& other) noexcept
       : PtrViewBase{std::move(other)}, ptr_{static_cast<T*>(other.ptr_)} {}
 
@@ -114,7 +114,7 @@ class PtrView : public PtrViewBase {
     return *this;
   }
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
   PtrView& operator=(PtrView<U>&& other) noexcept {
     PtrViewBase::operator=(std::move(other));
     ptr_ = static_cast<T*>(other.ptr_);

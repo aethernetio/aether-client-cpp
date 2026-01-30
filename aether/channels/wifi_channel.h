@@ -17,9 +17,13 @@
 #ifndef AETHER_CHANNELS_WIFI_CHANNEL_H_
 #define AETHER_CHANNELS_WIFI_CHANNEL_H_
 
-#include "aether/types/address.h"
-#include "aether/channels/channel.h"
-#include "aether/access_points/wifi_access_point.h"
+#include "aether/config.h"
+
+#if AE_SUPPORT_WIFIS
+
+#  include "aether/types/address.h"
+#  include "aether/channels/channel.h"
+#  include "aether/access_points/wifi_access_point.h"
 
 namespace ae {
 class Aether;
@@ -45,11 +49,12 @@ class WifiChannel final : public Channel {
   Endpoint address;
 
  private:
-  Obj::ptr aether_;
-  Obj::ptr poller_;
-  Obj::ptr resolver_;
+  ObjPtr<Aether> aether_;
+  ObjPtr<IPoller> poller_;
+  ObjPtr<DnsResolver> resolver_;
   WifiAccessPoint::ptr access_point_;
 };
 }  // namespace ae
 
+#endif
 #endif  // AETHER_CHANNELS_WIFI_CHANNEL_H_

@@ -15,21 +15,22 @@
  */
 
 #include "aether/channels/wifi_channel.h"
+#if AE_SUPPORT_WIFIS
 
-#include <limits>
-#include <utility>
-#include <cstdint>
+#  include <limits>
+#  include <utility>
+#  include <cstdint>
 
-#include "aether/ptr/ptr_view.h"
-#include "aether/actions/action.h"
-#include "aether/types/state_machine.h"
-#include "aether/events/event_subscription.h"
+#  include "aether/ptr/ptr_view.h"
+#  include "aether/actions/action.h"
+#  include "aether/types/state_machine.h"
+#  include "aether/events/event_subscription.h"
 
-#include "aether/aether.h"
-#include "aether/poller/poller.h"
-#include "aether/dns/dns_resolve.h"
+#  include "aether/aether.h"
+#  include "aether/poller/poller.h"
+#  include "aether/dns/dns_resolve.h"
 
-#include "aether/channels/ethernet_transport_factory.h"
+#  include "aether/channels/ethernet_transport_factory.h"
 
 namespace ae {
 namespace wifi_channel_internal {
@@ -114,7 +115,7 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   void DoResolverAddress([[maybe_unused]] NamedAddr const& name_address,
                          [[maybe_unused]] std::uint16_t port,
                          [[maybe_unused]] Protocol protocol) {
-#if AE_SUPPORT_CLOUD_DNS
+#  if AE_SUPPORT_CLOUD_DNS
     auto dns_resolver = resolver_.Lock();
     assert(dns_resolver);
     auto resolve_action = dns_resolver->Resolve(name_address, port, protocol);
@@ -132,11 +133,11 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
                           Action::Trigger();
                         }
                       }});
-#else
+#  else
     AE_TELED_ERROR("Unable to resolve named address");
     state_ = State::kFailed;
     Action::Trigger();
-#endif
+#  endif
   }
 
   template <typename TAddr>
@@ -260,11 +261,14 @@ Duration WifiChannel::TransportBuildTimeout() const {
 }
 
 ActionPtr<TransportBuilderAction> WifiChannel::TransportBuilder() {
-  auto resolver = DnsResolver::ptr{resolver_}.Load();
-  auto poller = IPoller::ptr{poller_}.Load();
+  auto resolver = resolver_.Load();
+#  if AE_SUPPORT_CLOUD_DNS
+  assert(resolver && "Resolver is not loaded");
+#  endif
+
+  auto poller = poller_.Load();
   auto access_point = access_point_.Load();
 
-  assert(resolver && "Resolver is not loaded");
   assert(poller && "Poller is not loaded");
   assert(access_point && "Access point is not loaded");
 
@@ -278,3 +282,4 @@ ActionPtr<TransportBuilderAction> WifiChannel::TransportBuilder() {
 }
 
 }  // namespace ae
+#endif

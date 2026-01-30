@@ -37,7 +37,7 @@ class FileWriter : public IDomainStorageWriter {
  public:
   explicit FileWriter(FILE* f) : file{f} {}
 
-  virtual ~FileWriter() { fclose(file); }
+  ~FileWriter() override { fclose(file); }
 
   void write(void const* data, std::size_t size) override {
     fwrite(data, 1, size, file);
@@ -51,7 +51,7 @@ class SpiFsSotorageWriter final : public FileWriter {
   explicit SpiFsSotorageWriter(FILE* f, DomainQuery q)
       : FileWriter{f}, query{std::move(q)} {}
 
-  ~SpiFsSotorageWriter() {
+  ~SpiFsSotorageWriter() override {
     AE_TELE_DEBUG(
         kSpifsDsObjSaved, "Saved object id={}, class id={}, version={}",
         query.id.ToString(), query.class_id, static_cast<int>(query.version));
@@ -63,16 +63,23 @@ class SpiFsSotorageWriter final : public FileWriter {
 class SpiFsSotorageReader final : public IDomainStorageReader {
  public:
   explicit SpiFsSotorageReader(FILE* f) : file{f} {}
-  ~SpiFsSotorageReader() { fclose(file); }
+  ~SpiFsSotorageReader() override { fclose(file); }
 
   void read(void* data, std::size_t size) override {
-    fread(data, 1, size, file);
+    auto res = fread(data, 1, size, file);
+    if (res != size) {
+      printf("read error!\n");
+      read_result = ReadResult::kNo;
+      return;
+    }
+    read_result = ReadResult::kYes;
   }
 
-  ReadResult result() const override { return ReadResult::kYes; }
-  void result(ReadResult) override {}
+  ReadResult result() const override { return read_result; }
+  void result(ReadResult res) override { read_result = res; }
 
   FILE* file;
+  ReadResult read_result{ReadResult::kYes};
 };
 
 SpiFsDomainStorage::SpiFsDomainStorage() {
@@ -103,8 +110,8 @@ std::unique_ptr<IDomainStorageWriter> SpiFsDomainStorage::Store(
 ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
   auto obj_it = object_map_.find(obj_id);
   if (obj_it == std::end(object_map_)) {
-    AE_TELE_ERROR(kSpifsDsEnumObjIdNotFound, "Obj not found {}",
-                  obj_id.ToString());
+    AE_TELE_INFO(kSpifsDsEnumObjIdNotFound, "Obj not found {}",
+                 obj_id.ToString());
     return {};
   }
 
@@ -120,10 +127,10 @@ ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
 DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
   auto obj_map_it = object_map_.find(query.id);
   if (obj_map_it == std::end(object_map_)) {
-    AE_TELE_ERROR(kSpifsDsLoadObjIdNoFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_INFO(kSpifsDsLoadObjIdNoFound,
+                 "Unable to find object id={}, class id={}, version={}",
+                 query.id.ToString(), query.class_id,
+                 static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   if (obj_map_it->second.empty()) {
@@ -132,19 +139,19 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
 
   auto class_map_it = obj_map_it->second.find(query.class_id);
   if (class_map_it == std::end(obj_map_it->second)) {
-    AE_TELE_ERROR(kSpifsDsLoadObjClassIdNotFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_INFO(kSpifsDsLoadObjClassIdNotFound,
+                 "Unable to find object id={}, class id={}, version={}",
+                 query.id.ToString(), query.class_id,
+                 static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   auto version_it = std::find(std::begin(class_map_it->second),
                               std::end(class_map_it->second), query.version);
   if (version_it == std::end(class_map_it->second)) {
-    AE_TELE_ERROR(kSpifsDsLoadObjVersionNotFound,
-                  "Unable to find object id={}, class id={}, version={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version));
+    AE_TELE_INFO(kSpifsDsLoadObjVersionNotFound,
+                 "Unable to find object id={}, class id={}, version={}",
+                 query.id.ToString(), query.class_id,
+                 static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
 

@@ -17,9 +17,12 @@
 #ifndef REGISTRATOR_REGISTER_WIFI_H_
 #define REGISTRATOR_REGISTER_WIFI_H_
 
-#include "aether/adapters/parent_wifi.h"
-#include "aether/adapters/ethernet.h"
-#include "aether/wifi/wifi_driver_types.h"
+#include "aether/config.h"
+#if AE_SUPPORT_WIFIS
+
+#  include "aether/adapters/parent_wifi.h"
+#  include "aether/adapters/ethernet.h"
+#  include "aether/wifi/wifi_driver_types.h"
 
 namespace ae::reg {
 class RegisterWifiAdapter : public ParentWifiAdapter {
@@ -41,5 +44,5 @@ class RegisterWifiAdapter : public ParentWifiAdapter {
   EthernetAdapter::ptr ethernet_adapter_;
 };
 }  // namespace ae::reg
-
+#endif
 #endif  // REGISTRATOR_REGISTER_WIFI_H_
