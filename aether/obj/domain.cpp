@@ -152,6 +152,17 @@ void Domain::RemoveObject(Obj* ptr) { id_objects_.erase(ptr->obj_id.id()); }
 
 Factory* Domain::GetMostRelatedFactory(ObjId id) {
   auto classes = storage_->Enumerate(id);
+#if DEBUG
+  auto class_names = std::vector<std::string_view>{};
+  class_names.reserve(classes.size());
+  for (auto cid : classes) {
+    class_names.emplace_back(registry_->ClassName(cid));
+  }
+
+  AE_TELED_DEBUG("For obj {} enumerated classes [{}]", id.id(), class_names);
+#else
+  AE_TELED_DEBUG("For obj {} enumerated classes [{}]", id.id(), classes);
+#endif
 
   // Remove all unsupported classes.
   classes.erase(
