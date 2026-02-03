@@ -120,7 +120,11 @@ class BufferWrite {
 
   ActionPtr<WriteAction> DirectWrite(T&& data) {
     AE_TELED_DEBUG("BufferWrite: direct write");
-    return direct_write_(std::move(data));
+    auto write_action = direct_write_(std::move(data));
+    if (!write_action) {
+      return ActionPtr<FailedWriteAction>{action_context_};
+    }
+    return write_action;
   }
 
   /**
@@ -134,7 +138,7 @@ class BufferWrite {
       if (buffer_on_) {
         break;
       }
-      auto wa = DirectWrite(std::move(it->data));
+      auto wa = direct_write_(std::move(it->data));
       // empty write action means no data has been written
       if (!wa) {
         break;
