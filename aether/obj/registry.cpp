@@ -100,6 +100,19 @@ Factory* Registry::FindFactory(std::uint32_t base_id) {
   return &it->second;
 }
 
+#ifdef DEBUG
+std::string_view Registry::ClassName(std::uint32_t class_id) {
+  if (class_id == crc32::from_literal("Obj").value) {
+    return "ae::Obj";
+  }
+  auto* f = FindFactory(class_id);
+  if (f == nullptr) {
+    return "Unknown";
+  }
+  return f->class_name;
+}
+#endif  // DEBUG
+
 void Registry::Log() {
 #ifdef DEBUG
   for (const auto& c : factories) {

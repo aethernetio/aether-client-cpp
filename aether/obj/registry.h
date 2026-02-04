@@ -68,6 +68,10 @@ class Registry {
 
   Factory* FindFactory(uint32_t base_id);
 
+#ifdef DEBUG
+  std::string_view ClassName(std::uint32_t class_id);
+#endif  // DEBUG
+
   Relations relations;
   Factories factories;
 };

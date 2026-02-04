@@ -95,8 +95,12 @@ class GetCloudFromAether : public GetCloudAction {
 
     get_client_cloud_sub_ = get_client_cloud_action_->StatusEvent().Subscribe(
         ActionHandler{OnResult{[this](auto const& action) {
-                        BuildServers(action.cloud());
-                        state_ = State::kDone;
+                        auto const& resolved = action.cloud();
+                        if (!resolved.empty()) {
+                          BuildServers(resolved);
+                        } else {
+                          state_ = State::kError;
+                        }
                       }},
                       OnError{[this]() { state_ = State::kError; }}});
   }
