@@ -35,6 +35,18 @@ void Aether::Update(TimePoint current_time) {
   update_time = action_processor->Update(current_time);
 }
 
+Uap::ptr Aether::MakeUap(Duration interval) {
+  if (!uap.is_valid()) {
+    auto self_ptr = Aether::ptr::MakeFromThis(this);
+    uap = Uap::ptr::Create(domain, self_ptr, interval);
+  } else {
+    auto p_uap = uap.Load();
+    assert(p_uap && "Uap must be loaded");
+    p_uap->ChangeInterval(interval);
+  }
+  return uap;
+}
+
 Client::ptr Aether::CreateClient(ClientConfig const& config,
                                  std::string const& client_id) {
   auto client = FindClient(client_id);

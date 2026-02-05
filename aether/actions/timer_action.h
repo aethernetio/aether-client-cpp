@@ -46,6 +46,7 @@ class TimerAction : public Action<TimerAction> {
   void Stop();
 
   Duration duration() const;
+  Duration elapsed(TimePoint current_time = Now()) const;
 
  private:
   Duration timer_duration_;

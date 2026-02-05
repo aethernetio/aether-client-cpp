@@ -123,6 +123,9 @@ list(APPEND registration_srcs
             "registration/registration_crypto_provider.cpp"
             "registration/root_server_select_stream.cpp")
 
+list(APPEND uap_srcs
+            "uap/uap.cpp"
+            )
 
 list(APPEND adapters_srcs
             "adapters/adapter.cpp"
@@ -324,6 +327,7 @@ if(REGULAR_CMAKE_PROJECT)
                             ${transport_srcs}
                             ${stream_api_src}
                             ${write_action_srcs}
+                            ${uap_srcs}
                             ${adapters_srcs}
                             ${access_points_srcs}
                             ${modems_srcs}
@@ -374,6 +378,7 @@ else()
                             ${obj_srcs}
                             ${ptr_srcs}
                             ${actions_srcs}
+                            ${uap_srcs}
                             ${adapters_srcs}
                             ${access_points_srcs}
                             ${modems_srcs}

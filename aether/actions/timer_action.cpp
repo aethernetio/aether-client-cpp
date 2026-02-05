@@ -73,4 +73,9 @@ void TimerAction::Stop() { state_ = State::kStopped; }
 
 Duration TimerAction::duration() const { return timer_duration_; }
 
+Duration TimerAction::elapsed(TimePoint current_time) const {
+  assert((start_time_ < current_time) && "Timer must be started");
+  return std::chrono::duration_cast<Duration>(current_time - start_time_);
+}
+
 }  // namespace ae
