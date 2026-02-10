@@ -34,6 +34,7 @@
 #include "aether/client.h"
 #include "aether/crypto.h"
 #include "aether/server.h"
+#include "aether/uap/uap.h"
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/adapter_registry.h"
@@ -53,21 +54,21 @@ class Aether : public Obj {
 
   AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, registration_cloud, crypto,
                              clients_, servers_, tele_statistics, poller,
-                             dns_resolver, adapter_registry,
+                             dns_resolver, adapter_registry, uap,
                              select_client_actions_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
     dnv(base_);
     dnv(client_prefab, registration_cloud, crypto, clients_, servers_,
-        tele_statistics, poller, dns_resolver, adapter_registry);
+        tele_statistics, poller, dns_resolver, adapter_registry, uap);
   }
 
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
     dnv(base_);
     dnv(client_prefab, registration_cloud, crypto, clients_, servers_,
-        tele_statistics, poller, dns_resolver, adapter_registry);
+        tele_statistics, poller, dns_resolver, adapter_registry, uap);
   }
 
   void Update(TimePoint current_time) override;
@@ -91,6 +92,7 @@ class Aether : public Obj {
   DnsResolver::ptr dns_resolver;
 
   AdapterRegistry::ptr adapter_registry;
+  Uap::ptr uap;
 
   tele::TeleStatistics::ptr tele_statistics;
 

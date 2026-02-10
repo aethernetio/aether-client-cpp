@@ -103,6 +103,7 @@
 #include "aether/modems/imodem_driver.h"
 #include "aether/modems/modem_factory.h"
 
+#include "aether/global_ids.h"
 #include "aether/aether.h"
 #include "aether/client.h"
 #include "aether/server.h"
@@ -111,6 +112,7 @@
 #include "aether/cloud.h"
 #include "aether/work_cloud.h"
 #include "aether/registration_cloud.h"
+#include "aether/uap/uap.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
