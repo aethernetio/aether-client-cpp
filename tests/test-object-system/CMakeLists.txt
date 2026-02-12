@@ -26,6 +26,7 @@ list(APPEND obj_srcs
     ${ROOT_DIR}/aether/obj/obj_ptr_base.cpp
     ${ROOT_DIR}/aether/obj/obj.cpp
     ${ROOT_DIR}/aether/obj/domain.cpp
+    ${ROOT_DIR}/aether/obj/domain_graph.cpp
     ${ROOT_DIR}/aether/obj/obj_id.cpp
     ${ROOT_DIR}/aether/obj/registry.cpp
 )

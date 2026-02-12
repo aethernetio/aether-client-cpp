@@ -19,6 +19,7 @@
 
 #include "aether/obj/obj_id.h"
 #include "aether/obj/domain.h"
+#include "aether/obj/domain_graph.h"
 
 namespace ae {
 
