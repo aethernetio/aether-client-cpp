@@ -28,8 +28,6 @@ class ObjId {
  public:
   using Type = std::uint32_t;
 
-  static ObjId GenerateUnique();
-
   ObjId() { Invalidate(); }
 
   constexpr ObjId(Type i) : id_{i} {}

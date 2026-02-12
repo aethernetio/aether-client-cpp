@@ -23,81 +23,19 @@
 
 namespace ae {
 
-DomainGraph::DomainGraph(Domain* domain) : domain(domain) { assert(domain); }
-
-Ptr<Obj> DomainGraph::LoadRootImpl(ObjId obj_id) {
-  if (!obj_id.IsValid()) {
-    return {};
-  }
-  // if already loaded
-  if (auto obj = domain->Find(obj_id); obj) {
-    return obj;
-  }
-
-  auto* factory = domain->GetMostRelatedFactory(obj_id);
-  if (factory == nullptr) {
-    return {};
-  }
-
-  auto ptr = domain->ConstructObj(*factory, obj_id);
-  factory->load(this, ptr, obj_id);
-  return ptr;
-}
-
-Ptr<Obj> DomainGraph::LoadCopyImpl(ObjId ref_id, ObjId copy_id) {
-  if (!ref_id.IsValid() || !copy_id.IsValid()) {
-    return {};
-  }
-  // if already loaded
-  if (auto obj = domain->Find(copy_id); obj) {
-    return obj;
-  }
-
-  auto* factory = domain->GetMostRelatedFactory(ref_id);
-  if (factory == nullptr) {
-    assert(false);
-    return {};
-  }
-
-  auto ptr = domain->ConstructObj(*factory, copy_id);
-  // load new object with ref_id
-  factory->load(this, ptr, ref_id);
-  return ptr;
-}
-
-void DomainGraph::SaveRootImpl(Ptr<Obj> const& ptr, ObjId obj_id) {
-  if (!ptr) {
-    return;
-  }
-  if (auto* factory = domain->FindClassFactory(ptr->GetClassId());
-      factory != nullptr) {
-    factory->save(this, ptr, obj_id);
-  }
-}
-
-std::unique_ptr<IDomainStorageReader> DomainGraph::GetReader(
-    DomainQuery const& query) {
-  auto load = domain->storage_->Load(query);
-  if ((load.result == DomainLoadResult::kEmpty) ||
-      (load.result == DomainLoadResult::kRemoved)) {
-    load.reader = std::make_unique<DomainStorageReaderEmpty>();
-  }
-
-  assert(load.reader && "Reader must be created!");
-  return std::move(load.reader);
-}
-
-std::unique_ptr<IDomainStorageWriter> DomainGraph::GetWriter(
-    DomainQuery const& query) {
-  auto writer = domain->storage_->Store(query);
-  assert(writer && "Writer must be created!");
-  return writer;
-}
-
-Domain::Domain(TimePoint p, IDomainStorage& storage)
+Domain::Domain(TimePoint p, IDomainStorage& storage, IObjMapper& obj_mapper)
     : update_time_{p},
-      storage_(&storage),
-      registry_{&Registry::GetRegistry()} {}
+      storage_{&storage},
+      obj_mapper_{&obj_mapper},
+      registry_{&Registry::GetRegistry()} {
+  auto objs = storage_->EnumerateObjects();
+  std::vector<ObjClassId> objects;
+  objects.reserve(objs.size());
+  for (auto& obj : objs) {
+    objects.emplace_back(ObjClassId{obj.id, std::move(obj.classes)});
+  }
+  obj_mapper_->ReserveIds(objects);
+}
 
 TimePoint Domain::Update(TimePoint current_time) {
   update_time_ = current_time;
@@ -119,6 +57,13 @@ TimePoint Domain::Update(TimePoint current_time) {
     }
   }
   return next_time;
+}
+
+ObjId Domain::MapObj(ClassIdentity const& class_identity) {
+  auto id = obj_mapper_->GenerateId(class_identity);
+  // TODO: add fallback generation or sane error handling for empty id
+  assert(id.has_value());
+  return id.value();
 }
 
 Ptr<Obj> Domain::ConstructObj(Factory const& factory, ObjId obj_id) {
@@ -148,7 +93,12 @@ void Domain::AddObject(ObjId id, Ptr<Obj> const& obj) {
   id_objects_[id.id()] = obj;
 }
 
-void Domain::RemoveObject(Obj* ptr) { id_objects_.erase(ptr->obj_id.id()); }
+void Domain::RemoveObject(Obj* obj) { id_objects_.erase(obj->obj_id.id()); }
+
+void Domain::EraseObject(Obj* obj) {
+  obj_mapper_->FreeId(obj->obj_id);
+  storage_->Remove(obj->obj_id);
+}
 
 Factory* Domain::GetMostRelatedFactory(ObjId id) {
   auto classes = storage_->Enumerate(id);

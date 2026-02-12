@@ -26,13 +26,17 @@
 namespace ae {
 
 enum class DomainLoadResult : std::uint8_t {
-  kEmpty,    //< There is not data for queury
+  kEmpty,    //< There is no data for query
   kRemoved,  //< Data for query was removed
   kLoaded,   //< Data loaded successfully
 };
 
 using ObjectData = std::vector<std::uint8_t>;
 using ClassList = std::vector<std::uint32_t>;
+struct ObjMeta {
+  ObjId id;
+  ClassList classes;
+};
 
 struct DomainQuery {
   ObjId id;
@@ -80,6 +84,10 @@ class IDomainStorage {
    * \brief Enumerate all classes for object.
    */
   virtual ClassList Enumerate(ObjId const& obj_id) = 0;
+  /**
+   * \brief Enumerate all objects
+   */
+  virtual std::vector<ObjMeta> EnumerateObjects() = 0;
   /**
    * \brief Load object data by query.
    */

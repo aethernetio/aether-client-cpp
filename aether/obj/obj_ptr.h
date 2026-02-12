@@ -26,6 +26,7 @@
 #include "aether/obj/obj_id.h"
 #include "aether/obj/domain.h"
 #include "aether/obj/registry.h"
+#include "aether/obj/domain_graph.h"
 #include "aether/obj/obj_ptr_base.h"
 #include "aether/reflect/domain_visitor.h"  // IWYU pragma: keep
 
@@ -168,7 +169,8 @@ ObjPtr<T> ObjPtr<T>::Create(CreateWith create_arg, TArgs&&... args) {
   static_assert(obj_ptr_internal::IsObjType<T>::value,
                 "T Must be an object type");
   auto* domain = create_arg.domain;
-  auto obj_id = create_arg.obj_id.value_or(ObjId::GenerateUnique());
+  auto obj_id =
+      create_arg.obj_id.value_or(domain->MapObj(MakeClassIdentity<T>()));
   auto flags = create_arg.flags.value_or(ObjFlags{});
   static_assert(
       std::is_constructible_v<T, ObjProp, TArgs...>,
@@ -184,7 +186,8 @@ ObjPtr<T> ObjPtr<T>::Declare(CreateWith create_arg) {
   static_assert(obj_ptr_internal::IsObjType<T>::value,
                 "T Must be an object type");
   auto* domain = create_arg.domain;
-  auto obj_id = create_arg.obj_id.value_or(ObjId::GenerateUnique());
+  auto obj_id =
+      create_arg.obj_id.value_or(domain->MapObj(MakeClassIdentity<T>()));
   auto flags = create_arg.flags.value_or(ObjFlags::kUnloaded);
   return ObjPtr<T>(domain, obj_id, flags);
 }
@@ -270,7 +273,7 @@ void ObjPtr<T>::Save() const {
 
 template <typename T>
 ObjPtr<T> ObjPtr<T>::Clone() const {
-  return Clone(ObjId::GenerateUnique());
+  return Clone(domain()->MapObj(MakeClassIdentity<T>()));
 }
 
 template <typename T>
