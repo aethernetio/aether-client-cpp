@@ -235,7 +235,7 @@ static Uap::ptr UapFactory(AetherAppContext const& context) {
   return Uap::ptr::Create(CreateWith{context.domain()}
                               .with_id(GlobalId::kUap)
                               .with_flags(ObjFlags::kUnloadedByDefault),
-                          context.aether());
+                          context.aether(), std::initializer_list<Interval>{});
 }
 
 static Client::ptr ClientPrefabFactory(AetherAppContext const& context) {
@@ -317,7 +317,7 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext context) {
 #if AE_DISTILLATION
   app->aether_->tele_statistics = context.tele_statistics_.Resolve(context);
   app->aether_->client_prefab = context.client_prefab_.Resolve(context);
-  app->aether_->uap = context.uap();
+  app->aether_->uap = context.uap_.Resolve(context);
 
   app->aether_->adapter_registry = context.adapter_registry();
 

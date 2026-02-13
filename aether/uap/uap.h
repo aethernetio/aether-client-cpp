@@ -18,13 +18,11 @@
 #define AETHER_UAP_UAP_H_
 
 #include <vector>
-#include <type_traits>
+#include <optional>
 
 #include "aether/common.h"
 #include "aether/obj/obj.h"
 #include "aether/events/events.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/actions/timer_action.h"
 
 namespace ae {
 class Aether;
@@ -55,29 +53,54 @@ enum class IntervalType : char {
  * and go to sleep for the time remaining from this 10 seconds.
  */
 struct Interval {
+  AE_REFLECT_MEMBERS(type, duration)
+
   IntervalType type;
   Duration duration;
 };
 
 class Uap final : public Obj {
   AE_OBJECT(Uap, Obj, 0)
-  Uap() = default;
+  Uap();
+
+  struct IntervalState {
+    Interval interval;
+    TimePoint start_time;
+
+    Duration remaining() const;
+    TimePoint until() const;
+  };
 
  public:
-  using SleepEvent = Event<void(TimePoint sleep_until)>;
+  class Timer {
+   public:
+    explicit Timer(Uap::ptr uap);
 
-  Uap(ObjProp prop, ObjPtr<Aether> aether);
+    /**
+     * \brief Get current interval offset.
+     * \param time_offset Offset from current time is needed if you want to get
+     * interval state in future.
+     */
+    Uap::IntervalState interval(Duration time_offset = {}) const;
+
+    Uap::ptr uap_;
+  };
+
+  using SleepEvent = Event<void(Timer uap_timer)>;
+
+  Uap(ObjProp prop, ObjPtr<Aether> aether,
+      std::initializer_list<Interval> const& interval_list);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_, aether_, current_interval_index_);
+    dnv(base_, aether_, current_interval_index_, intervals_);
   }
 
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(base_, aether_, next_interval_index_);
+    dnv(base_, aether_, next_interval_index_, intervals_);
   }
 
   /**
@@ -96,17 +119,26 @@ class Uap final : public Obj {
    */
   void SetIntervals(std::initializer_list<Interval> const& interval_list);
 
- private:
-  void UpdateTimer();
-  void GoToSleep();
+  /**
+   * \brief Get timer.
+   * Timer allows to get current active interval.
+   */
+  std::optional<Timer> timer();
 
-  Event<void(TimePoint sleep_until)> sleep_event_;
+ private:
+  void GoToSleep();
+  /**
+   * \brief Get updated interval state \see Timer
+   */
+  IntervalState UpdateInterval(Duration time_offset);
+
+  SleepEvent sleep_event_;
 
   ObjPtr<Aether> aether_;
   std::vector<Interval> intervals_;
   std::size_t current_interval_index_{};
   std::size_t next_interval_index_{};
-  TimePoint update_time_;
+  TimePoint start_time_;
 };
 }  // namespace ae
 
