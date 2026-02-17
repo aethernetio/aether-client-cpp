@@ -154,18 +154,34 @@ void ClientServerConnection::OutData(DataBuffer const& data) {
 
 void ClientServerConnection::ChannelChanged() {
   AE_TELED_DEBUG("Channel is updated, make new ping");
-  auto channel = server_connection_.current_channel();
-  // Create new ping if channel is updated
-  static constexpr Duration kPingDefaultInterval =
-      std::chrono::milliseconds{AE_PING_INTERVAL_MS};
-  // TODO: make ping interval depend on server priority
-  ping_ =
-      OwnActionPtr<Ping>{action_context_, channel, *this, kPingDefaultInterval};
 
-  ping_sub_ = ping_->StatusEvent().Subscribe(OnError{[this]() {
-    AE_TELED_ERROR("Ping failed");
-    server_connection_.Restream();
-  }});
+  auto make_ping = [&] {
+    auto channel = server_connection_.current_channel();
+    // Create new ping if channel is updated
+    static constexpr Duration kPingDefaultInterval =
+        std::chrono::milliseconds{AE_PING_INTERVAL_MS};
+    // TODO: make ping interval depend on server priority
+    ping_ = OwnActionPtr<Ping>{action_context_, channel, *this,
+                               kPingDefaultInterval};
+
+    ping_sub_ = ping_->StatusEvent().Subscribe(OnError{[this]() {
+      AE_TELED_ERROR("Ping failed");
+      server_connection_.Restream();
+    }});
+  };
+
+  if (server_connection_.stream_info().link_state == LinkState::kLinked) {
+    make_ping();
+    return;
+  }
+  wait_connection_sub_ =
+      server_connection_.stream_update_event().Subscribe([&, make_ping]() {
+        if (server_connection_.stream_info().link_state != LinkState::kLinked) {
+          return;
+        }
+        wait_connection_sub_.Reset();
+        make_ping();
+      });
 }
 
 }  // namespace ae
