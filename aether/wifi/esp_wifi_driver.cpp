@@ -161,9 +161,12 @@ void EspWifiDriver::Connect(WiFiAp const& wifi_ap,
 
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-  ESP_ERROR_CHECK(
-      esp_wifi_set_ps(static_cast<wifi_ps_type_t>(psp.wifi_ps_type)));
-  ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, psp.protocol_bitmap));
+  if (psp.ps_enabled) {
+    ESP_ERROR_CHECK(
+        esp_wifi_set_ps(static_cast<wifi_ps_type_t>(psp.wifi_ps_type)));
+    ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, psp.protocol_bitmap));
+  }
+
   ESP_ERROR_CHECK(esp_wifi_start());
 
   AE_TELED_DEBUG("WifiInitSta finished.");

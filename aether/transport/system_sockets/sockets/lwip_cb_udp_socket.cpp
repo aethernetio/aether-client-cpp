@@ -85,6 +85,7 @@ void LwipCBUdpSocket::Disconnect() {
     return;
   }
   LOCK_TCPIP_CORE();
+  udp_recv(pcb_, nullptr, nullptr);
   udp_remove(pcb_);
   pcb_ = nullptr;
   UNLOCK_TCPIP_CORE();

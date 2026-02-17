@@ -23,19 +23,22 @@
 #  define AE_SPIFS_DOMAIN_STORAGE_ENABLED 1
 
 #  include <map>
-#  include <vector>
+#  include <cstdint>
 #  include <string_view>
 
 #  include "aether/obj/idomain_storage.h"
 
 namespace ae {
 class SpiFsDomainStorage : public IDomainStorage {
+  friend class SpiFsSotorageWriter;
+
   static constexpr std::string_view kPartition = "storage";
   static constexpr std::string_view kBasePath = "/spiffs";
   static constexpr std::string_view kObjectMapPath = "/spiffs/object_map_dump";
 
-  using VersionList = std::vector<std::uint8_t>;
-  using ClassMap = std::map<std::uint32_t, VersionList>;
+  using DataCrc = std::uint32_t;
+  using VersionMap = std::map<std::uint8_t, DataCrc>;
+  using ClassMap = std::map<std::uint32_t, VersionMap>;
   using ObjectMap = std::map<ObjId, ClassMap>;
 
  public:
@@ -54,6 +57,9 @@ class SpiFsDomainStorage : public IDomainStorage {
   void DeInitFs();
   void InitState();
   void SyncState();
+
+  // update object crc and return should we save object or not
+  bool SaveObject(DomainQuery const& query, DataCrc crc);
 
   bool SpifsRead(std::string_view path, ObjectData& out);
   bool SpifsWrite(std::string_view path, ObjectData const& in);

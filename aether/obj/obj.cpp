@@ -30,8 +30,10 @@ Obj::~Obj() {
 uint32_t Obj::GetClassId() const { return kClassId; }
 
 void Obj::Update(TimePoint current_time) {
-  // FIXME: 365 * 24 ?
-  update_time = current_time + std::chrono::hours(365 * 24);
+  if (update_time < current_time) {
+    // almost never
+    update_time = current_time + std::chrono::hours(365 * 24);
+  }
 }
 
 namespace reflect {

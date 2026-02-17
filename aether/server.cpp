@@ -35,7 +35,10 @@ void Server::Update(TimePoint current_time) {
     subscribed_ = true;
     UpdateSubscription();
   }
-  update_time = current_time;
+  if (update_time < current_time) {
+    // almost never
+    update_time = current_time + std::chrono::hours(365 * 24);
+  }
 }
 
 void Server::Register() {

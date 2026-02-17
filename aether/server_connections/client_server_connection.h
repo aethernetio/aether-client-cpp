@@ -73,6 +73,7 @@ class ClientServerConnection {
   OwnActionPtr<Ping> ping_;
 
   Subscription ping_sub_;
+  Subscription wait_connection_sub_;
 };
 }  // namespace ae
 

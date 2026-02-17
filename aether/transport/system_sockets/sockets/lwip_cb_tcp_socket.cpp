@@ -73,6 +73,10 @@ void LwipCBTcpSocket::Disconnect() {
   }
 
   LOCK_TCPIP_CORE();
+  // set null so because we are not interested in events anymore
+  tcp_arg(pcb_, nullptr);
+  tcp_err(pcb_, nullptr);
+  tcp_recv(pcb_, nullptr);
   tcp_close(pcb_);
   UNLOCK_TCPIP_CORE();
   pcb_ = nullptr;
@@ -128,7 +132,6 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
   }
 
   on_failed.Reset();
-  connection_state_ = ConnectionState::kConnected;
   return *this;
 }
 
@@ -202,10 +205,9 @@ err_t LwipCBTcpSocket::TcpClientConnected(void* arg, struct tcp_pcb* tpcb,
 
   // Setting callbacks
   tcp_recv(tpcb, LwipCBTcpSocket::TcpClientRecv);
-  tcp_err(tpcb, LwipCBTcpSocket::TcpClientError);
 
   AE_TELED_DEBUG("Connected to the server");
-
+  self->connection_state_ = ConnectionState::kConnected;
   self->OnConnectionEvent();
   return ERR_OK;
 }

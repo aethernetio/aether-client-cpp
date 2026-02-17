@@ -17,6 +17,8 @@
 #ifndef AETHER_ACTIONS_NOTIFY_ACTION_H_
 #define AETHER_ACTIONS_NOTIFY_ACTION_H_
 
+#include <atomic>
+
 #include "aether/actions/action.h"
 
 namespace ae {
@@ -54,9 +56,9 @@ class NotifyAction : public Action<NotifyAction> {
   }
 
  private:
-  bool notify_success_{};
-  bool notify_failed_{};
-  bool notify_stopped_{};
+  std::atomic_bool notify_success_{};
+  std::atomic_bool notify_failed_{};
+  std::atomic_bool notify_stopped_{};
 };
 }  // namespace ae
 

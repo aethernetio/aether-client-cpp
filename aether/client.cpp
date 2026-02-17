@@ -67,14 +67,15 @@ ClientConnectionManager& Client::connection_manager() {
 
 CloudServerConnections& Client::cloud_connection() {
   if (!cloud_connection_) {
-    auto aether = Aether::ptr{aether_};
     cloud_connection_ = std::make_unique<CloudServerConnections>(
-        *aether, connection_manager(), AE_CLOUD_MAX_SERVER_CONNECTIONS);
+        *aether_.Load().as<Aether>(), connection_manager(),
+        AE_CLOUD_MAX_SERVER_CONNECTIONS);
 
 #if AE_TELE_ENABLED
     // also create telemetry
     telemetry_ =
-        ActionPtr<Telemetry>(*aether, aether.Load(), *cloud_connection_);
+        ActionPtr<Telemetry>(*aether_.Load().as<Aether>(),
+                             Aether::ptr{aether_}.Load(), *cloud_connection_);
 #endif
   }
 
@@ -83,9 +84,8 @@ CloudServerConnections& Client::cloud_connection() {
 
 P2pMessageStreamManager& Client::message_stream_manager() {
   if (!message_stream_manager_) {
-    auto aether = Aether::ptr{aether_};
     message_stream_manager_ = std::make_unique<P2pMessageStreamManager>(
-        *aether, MakePtrFromThis(this));
+        *aether_.Load().as<Aether>(), MakePtrFromThis(this));
   }
   return *message_stream_manager_;
 }
