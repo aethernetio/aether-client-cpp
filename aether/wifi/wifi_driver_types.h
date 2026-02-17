@@ -58,7 +58,7 @@ struct WiFiAp {
 struct WiFiPowerSaveParam {
   AE_REFLECT_MEMBERS(ps_enabled, wifi_ps_type, protocol_bitmap, listen_interval,
                      beacon_interval);
-  bool ps_enabled{true};
+  bool ps_enabled{false};
   uint8_t wifi_ps_type;
   uint8_t protocol_bitmap;
   int16_t listen_interval;
