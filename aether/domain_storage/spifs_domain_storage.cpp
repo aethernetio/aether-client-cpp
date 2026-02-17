@@ -18,14 +18,13 @@
 
 #if defined AE_SPIFS_DOMAIN_STORAGE_ENABLED
 
-#  include <algorithm>
-
 #  include "sys/stat.h"
 
 #  include "esp_err.h"
 #  include "esp_spiffs.h"
 #  include "spiffs_config.h"
 
+#  include "aether/crc.h"
 #  include "aether/mstream.h"
 #  include "aether/mstream_buffers.h"
 
@@ -46,18 +45,51 @@ class FileWriter : public IDomainStorageWriter {
   FILE* file;
 };
 
-class SpiFsSotorageWriter final : public FileWriter {
+class SpiFsSotorageWriter final : public IDomainStorageWriter {
  public:
-  explicit SpiFsSotorageWriter(FILE* f, DomainQuery q)
-      : FileWriter{f}, query{std::move(q)} {}
+  explicit SpiFsSotorageWriter(SpiFsDomainStorage& storage,
+                               std::string file_path, DomainQuery q)
+      : storage_{&storage},
+        file_path{std::move(file_path)},
+        query{std::move(q)} {}
 
   ~SpiFsSotorageWriter() override {
-    AE_TELE_DEBUG(
-        kSpifsDsObjSaved, "Saved object id={}, class id={}, version={}",
-        query.id.ToString(), query.class_id, static_cast<int>(query.version));
+    if (!storage_->SaveObject(query, CalcBufferCrc())) {
+      AE_TELED_DEBUG(
+          "For object id={}, class id={}, version={} crc is the same, not "
+          "update data",
+          query.id.id(), query.class_id, static_cast<int>(query.version));
+      return;
+    }
+    // save object data to file
+    FILE* file = fopen(file_path.c_str(), "w");
+    if (file == nullptr) {
+      AE_TELED_ERROR("Failed to open file {} for writing.", file_path);
+      return;
+    }
+    fwrite(buffer.data(), 1, buffer.size(), file);
+    fclose(file);
+
+    AE_TELE_DEBUG(kSpifsDsObjSaved,
+                  "Saved object id={}, class id={}, version={}, data size={}",
+                  query.id.id(), query.class_id,
+                  static_cast<int>(query.version), buffer.size());
   }
 
+  void write(void const* data, std::size_t size) override {
+    writer.write(data, size);
+  }
+
+ private:
+  std::uint32_t CalcBufferCrc() {
+    return crc32::from_buffer(buffer.data(), buffer.size()).value;
+  }
+
+  SpiFsDomainStorage* storage_;
+  std::string file_path;
   DomainQuery query;
+  std::vector<std::uint8_t> buffer;
+  VectorWriter<IDomainStorageWriter::size_type> writer{buffer};
 };
 
 class SpiFsSotorageReader final : public IDomainStorageReader {
@@ -94,17 +126,7 @@ std::unique_ptr<IDomainStorageWriter> SpiFsDomainStorage::Store(
   // open file
   auto file_path = Format("{}/{}/{}/{}", kBasePath, query.id.ToString(),
                           query.class_id, static_cast<int>(query.version));
-  FILE* file = fopen(file_path.c_str(), "w");
-  if (file == nullptr) {
-    AE_TELED_ERROR("Failed to open file {} for writing.", file_path);
-    return {};
-  }
-
-  // register query in object map
-  object_map_[query.id][query.class_id].emplace_back(query.version);
-  SyncState();
-
-  return std::make_unique<SpiFsSotorageWriter>(file, query);
+  return std::make_unique<SpiFsSotorageWriter>(*this, file_path, query);
 }
 
 ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
@@ -145,8 +167,7 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
                  static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
-  auto version_it = std::find(std::begin(class_map_it->second),
-                              std::end(class_map_it->second), query.version);
+  auto version_it = class_map_it->second.find(query.version);
   if (version_it == std::end(class_map_it->second)) {
     AE_TELE_INFO(kSpifsDsLoadObjVersionNotFound,
                  "Unable to find object id={}, class id={}, version={}",
@@ -183,7 +204,7 @@ void SpiFsDomainStorage::Remove(const ae::ObjId& obj_id) {
     for (auto version : class_data) {
       // remove the file
       auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id.ToString(),
-                              class_id, static_cast<int>(version));
+                              class_id, static_cast<int>(version.first));
       unlink(file_path.c_str());
     }
   }
@@ -198,7 +219,7 @@ void SpiFsDomainStorage::CleanUp() {
       for (auto version : class_data) {
         // remove the file
         auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id.ToString(),
-                                class_id, static_cast<int>(version));
+                                class_id, static_cast<int>(version.first));
         unlink(file_path.c_str());
       }
     }
@@ -270,6 +291,18 @@ void SpiFsDomainStorage::SyncState() {
   omstream os{file_writer};
   os << object_map_;
 }
+
+bool SpiFsDomainStorage::SaveObject(DomainQuery const& query, DataCrc crc) {
+  auto [ver_it, _] =
+      object_map_[query.id][query.class_id].emplace(query.version, DataCrc{});
+  if (ver_it->second != crc) {
+    ver_it->second = crc;
+    SyncState();
+    return true;
+  }
+  return false;
+}
+
 }  // namespace ae
 
 #endif  // AE_SPIFS_DOMAIN_STORAGE_ENABLED
