@@ -26,7 +26,7 @@
 #  include "esp_wifi.h"
 #  include "esp_event.h"
 #  include "esp_system.h"
-#  include "esp_private/wifi.h" 
+#  include "esp_private/wifi.h"
 
 #  include "freertos/task.h"
 #  include "freertos/FreeRTOS.h"
@@ -39,8 +39,11 @@
 
 #  include "aether/tele/tele.h"
 
-extern "C" esp_err_t esp_wifi_internal_set_retry_counter(uint8_t short_retry, uint8_t long_retry);
-extern "C" esp_err_t esp_wifi_internal_get_fix_rate(wifi_interface_t ifx, bool *is_fixed, wifi_phy_rate_t *rate);
+extern "C" esp_err_t esp_wifi_internal_set_retry_counter(uint8_t short_retry,
+                                                         uint8_t long_retry);
+extern "C" esp_err_t esp_wifi_internal_get_fix_rate(wifi_interface_t ifx,
+                                                    bool* is_fixed,
+                                                    wifi_phy_rate_t* rate);
 
 namespace ae {
 #  define WIFI_CONNECTED_BIT BIT0
@@ -96,7 +99,7 @@ void EspWifiDriver::Connect(WiFiAp const& wifi_ap,
                             WiFiPowerSaveParam const& psp,
                             WiFiBaseStation& base_station) {
   std::vector<std::uint8_t> bssid_vector;
-  
+
   if (connected_to_) {
     Disconnect();
   }
@@ -175,12 +178,17 @@ void EspWifiDriver::Connect(WiFiAp const& wifi_ap,
     ESP_ERROR_CHECK(
         esp_wifi_set_ps(static_cast<wifi_ps_type_t>(psp.wifi_ps_type)));
     ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, psp.protocol_bitmap));
-    ESP_ERROR_CHECK(esp_wifi_internal_set_fix_rate(WIFI_IF_STA, true, WIFI_PHY_RATE_1M_L));
-    ESP_ERROR_CHECK(esp_wifi_internal_set_retry_counter(1, 1));
-    ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(0));
   }
 
   ESP_ERROR_CHECK(esp_wifi_start());
+
+  if (psp.ps_enabled) {
+    ESP_ERROR_CHECK(esp_wifi_internal_set_fix_rate(
+        WIFI_IF_STA, true, static_cast<wifi_phy_rate_t>(psp.fix_rate)));
+    ESP_ERROR_CHECK(
+        esp_wifi_internal_set_retry_counter(psp.short_retry, psp.long_retry));
+    ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(psp.power));
+  }
 
   AE_TELED_DEBUG("WifiInitSta finished.");
 
@@ -213,8 +221,9 @@ void EspWifiDriver::Connect(WiFiAp const& wifi_ap,
       connected = true;
     } else if (bits & WIFI_FAIL_BIT) {
       Disconnect();
-      if(wifi_config.sta.bssid_set == true){ // Enable BSSID binding
-        AE_TELED_DEBUG("Failed to connect to the AP, trying to reset the BSSID");
+      if (wifi_config.sta.bssid_set == true) {  // Enable BSSID binding
+        AE_TELED_DEBUG(
+            "Failed to connect to the AP, trying to reset the BSSID");
         wifi_config.sta.bssid_set = false;
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
         ESP_ERROR_CHECK(esp_wifi_start());

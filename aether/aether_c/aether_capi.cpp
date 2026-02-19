@@ -290,7 +290,11 @@ int AetherInit(AetherConfig const* config) {
                         AE_WIFI_PROTOCOL_11B | AE_WIFI_PROTOCOL_11G |
                             AE_WIFI_PROTOCOL_11N,  // Protocol bitmap
                         3,                         // Listen interval
-                        500                        // Beacon interval
+                        500,                       // Beacon interval
+                        0,                         // Fix rate
+                        3,                         // Short retry
+                        3,                         // Long retry
+                        8                          // Power
                     };
 
                     ae::WiFiInit wifi_init{
