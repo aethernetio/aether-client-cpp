@@ -26,6 +26,7 @@
 #  include "esp_wifi.h"
 #  include "esp_event.h"
 #  include "esp_system.h"
+#  include "esp_private/wifi.h" 
 
 #  include "freertos/task.h"
 #  include "freertos/FreeRTOS.h"
@@ -37,6 +38,9 @@
 #  include "lwip/ip6_addr.h"
 
 #  include "aether/tele/tele.h"
+
+extern "C" esp_err_t esp_wifi_internal_set_retry_counter(uint8_t short_retry, uint8_t long_retry);
+extern "C" esp_err_t esp_wifi_internal_get_fix_rate(wifi_interface_t ifx, bool *is_fixed, wifi_phy_rate_t *rate);
 
 namespace ae {
 #  define WIFI_CONNECTED_BIT BIT0
@@ -90,7 +94,9 @@ EspWifiDriver::~EspWifiDriver() {
 
 void EspWifiDriver::Connect(WiFiAp const& wifi_ap,
                             WiFiPowerSaveParam const& psp,
-                            WiFiBaseStation& base_station_) {
+                            WiFiBaseStation& base_station) {
+  std::vector<std::uint8_t> bssid_vector;
+  
   if (connected_to_) {
     Disconnect();
   }
@@ -117,13 +123,17 @@ void EspWifiDriver::Connect(WiFiAp const& wifi_ap,
   wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
 
   // Restore saved Base Station
-  if (base_station_.connected) {
+  if (base_station.connected) {
+    bssid_vector.assign(std::begin(base_station.target_bssid),
+                        std::end(base_station.target_bssid));
+    AE_TELED_DEBUG("Restored from cash BSSID:{} CHN:{}", bssid_vector,
+                   static_cast<int>(base_station.target_channel));
     wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
     wifi_config.sta.bssid_set = true;              // Enable BSSID binding
-    wifi_config.sta.channel = base_station_.target_channel;  // Set channel
+    wifi_config.sta.channel = base_station.target_channel;  // Set channel
     // Copy the BSSID to the configuration
-    memcpy(wifi_config.sta.bssid, base_station_.target_bssid, 6);
-    ESP_ERROR_CHECK(esp_wifi_set_channel(base_station_.target_channel,
+    memcpy(wifi_config.sta.bssid, base_station.target_bssid, 6);
+    ESP_ERROR_CHECK(esp_wifi_set_channel(base_station.target_channel,
                                          WIFI_SECOND_CHAN_NONE));
   }
 
@@ -165,34 +175,58 @@ void EspWifiDriver::Connect(WiFiAp const& wifi_ap,
     ESP_ERROR_CHECK(
         esp_wifi_set_ps(static_cast<wifi_ps_type_t>(psp.wifi_ps_type)));
     ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, psp.protocol_bitmap));
+    ESP_ERROR_CHECK(esp_wifi_internal_set_fix_rate(WIFI_IF_STA, true, WIFI_PHY_RATE_1M_L));
+    ESP_ERROR_CHECK(esp_wifi_internal_set_retry_counter(1, 1));
+    ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(0));
   }
 
   ESP_ERROR_CHECK(esp_wifi_start());
 
   AE_TELED_DEBUG("WifiInitSta finished.");
 
-  /* Waiting until either the connection is established (WIFI_CONNECTED_BIT)
-   * or connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
-   * The bits are set by EventHandler() (see above) */
-  EventBits_t bits = xEventGroupWaitBits(connection_state_->event_group,
-                                         WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                         pdFALSE, pdFALSE, portMAX_DELAY);
+  bool connected = false;
+  while (!connected) {
+    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT)
+     * or connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
+     * The bits are set by EventHandler() (see above) */
+    EventBits_t bits = xEventGroupWaitBits(connection_state_->event_group,
+                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                           pdFALSE, pdFALSE, portMAX_DELAY);
 
-  /* xEventGroupWaitBits() returns the bits before the call returned, hence we
-   * can test which event actually happened. */
-  if (bits & WIFI_CONNECTED_BIT) {
-    AE_TELED_DEBUG("Connected to AP");
-    connected_to_ = wifi_ap.creds;
-    // Save Base Station
-    base_station_.connected = true;
-    base_station_.target_channel = wifi_config.sta.channel;  // Set channel
-    // Copy the BSSID to the configuration
-    memcpy(base_station_.target_bssid, wifi_config.sta.bssid, 6);
-  } else if (bits & WIFI_FAIL_BIT) {
-    AE_TELED_DEBUG("Failed to connect to AP, trying next AP");
-    Disconnect();
-  } else {
-    AE_TELED_DEBUG("UNEXPECTED EVENT {}", static_cast<int>(bits));
+    /* xEventGroupWaitBits() returns the bits before the call returned, hence we
+     * can test which event actually happened. */
+    if (bits & WIFI_CONNECTED_BIT) {
+      AE_TELED_DEBUG("Connected to AP");
+      connected_to_ = wifi_ap.creds;
+      // Save Base Station
+      wifi_ap_record_t ap_info{};
+      esp_wifi_sta_get_ap_info(&ap_info);
+
+      base_station.connected = true;
+      base_station.target_channel = ap_info.primary;  // Set channel
+      // Copy the BSSID to the configuration
+      memcpy(base_station.target_bssid, ap_info.bssid, 6);
+      bssid_vector.assign(std::begin(base_station.target_bssid),
+                          std::end(base_station.target_bssid));
+      AE_TELED_DEBUG("Storing to cash BSSID:{} CHN:{}", bssid_vector,
+                     static_cast<int>(base_station.target_channel));
+      connected = true;
+    } else if (bits & WIFI_FAIL_BIT) {
+      Disconnect();
+      if(wifi_config.sta.bssid_set == true){ // Enable BSSID binding
+        AE_TELED_DEBUG("Failed to connect to the AP, trying to reset the BSSID");
+        wifi_config.sta.bssid_set = false;
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+        ESP_ERROR_CHECK(esp_wifi_start());
+        AE_TELED_DEBUG("WifiInitSta restarted.");
+      } else {
+        AE_TELED_DEBUG("Failed to connect to the AP, trying the next AP");
+        connected = true;
+      }
+    } else {
+      AE_TELED_DEBUG("UNEXPECTED EVENT {}", static_cast<int>(bits));
+      connected = true;
+    }
   }
 
   /* The event will not be processed after unregister */
