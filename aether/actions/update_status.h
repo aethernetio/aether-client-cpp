@@ -20,7 +20,7 @@
 #include <cstdint>
 #include <algorithm>
 
-#include "aether/common.h"
+#include "aether/clock.h"
 
 namespace ae {
 enum class UpdateStatusType : std::uint8_t {

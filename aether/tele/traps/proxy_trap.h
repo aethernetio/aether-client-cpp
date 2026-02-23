@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#include "aether/common.h"
+#include "aether/clock.h"
 
 #include "aether/tele/itrap.h"
 

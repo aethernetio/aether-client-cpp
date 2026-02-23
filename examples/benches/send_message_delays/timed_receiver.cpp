@@ -33,7 +33,7 @@ UpdateStatus TimedReceiver::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kWaiting:
-        next_receive_time_ = kWaitTimeout + Now();
+        next_receive_time_ = Now() + kWaitTimeout;
         break;
       case State::kReceived:
         return UpdateStatus::Result();
@@ -58,7 +58,7 @@ void TimedReceiver::Receive(std::uint16_t id) {
     return;
   }
 
-  next_receive_time_ = kWaitTimeout + Now();
+  next_receive_time_ = Now() + kWaitTimeout;
   auto last = id >= wait_count_;
   received_event_.Emit(last);
 

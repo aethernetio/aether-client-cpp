@@ -50,7 +50,7 @@ namespace ae::tele::test {
 void test_StatisticsRotation() {
   auto ram_ds = RamDomainStorage{};
   ram_ds.CleanUp();
-  auto domain = ae::Domain{ae::ClockType::now(), ram_ds};
+  auto domain = ae::Domain{ae::Clock::now(), ram_ds};
 
   TeleStatistics::ptr tele_statistics =
       TeleStatistics::ptr::Create(CreateWith{domain}.with_id(1));
@@ -78,7 +78,7 @@ void test_StatisticsRotation() {
 void test_SaveLoadTeleStatistics() {
   auto ram_ds = RamDomainStorage{};
   ram_ds.CleanUp();
-  auto domain = ae::Domain{ae::ClockType::now(), ram_ds};
+  auto domain = ae::Domain{ae::Clock::now(), ram_ds};
 
   AE_TELE_ENV();
 
@@ -100,7 +100,7 @@ void test_SaveLoadTeleStatistics() {
   tele_statistics.Save();
 
   // load stored object in new instance
-  auto domain2 = ae::Domain{ae::ClockType::now(), ram_ds};
+  auto domain2 = ae::Domain{ae::Clock::now(), ram_ds};
   auto tele_statistics2 =
       TeleStatistics::ptr::Declare(CreateWith{domain2}.with_id(1));
   tele_statistics2.Load();

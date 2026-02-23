@@ -26,7 +26,7 @@ UpdateStatus MessageReceiver::Update() {
   if (state_.changed()) {
     switch (state_.Acquire()) {
       case State::kReceiving:
-        receive_message_timeout_ = kReceiveTimeout + Now();
+        receive_message_timeout_ = Now() + kReceiveTimeout;
         first_message_received_time_ = HighResTimePoint::clock::now();
         break;
       case State::kSuccess:
@@ -55,7 +55,7 @@ Duration MessageReceiver::receive_duration() const {
 void MessageReceiver::MessageReceived(std::uint16_t id) {
   AE_TELED_DEBUG("Message received {} count {}", id, message_received_count_);
   last_message_received_time_ = HighResTimePoint::clock::now();
-  receive_message_timeout_ = kReceiveTimeout + Now();
+  receive_message_timeout_ = Now() + kReceiveTimeout;
   ++message_received_count_;
   received_message_ids_.insert(id);
 }

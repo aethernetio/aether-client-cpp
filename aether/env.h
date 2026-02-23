@@ -21,6 +21,10 @@
 #include <cstdint>
 #include <array>
 
+#if ESP_PLATFORM
+#  include "esp_attr.h"
+#endif
+
 #include "aether/config.h"
 
 #ifdef __GNUC__
@@ -92,6 +96,12 @@ template <typename... Args>
 inline void Unused(Args&&...) {}
 
 #define AE_MSVC_BUG_FIX(x) x
+
+#if ESP_PLATFORM
+#  define RTC_STORAGE_ATTR RTC_DATA_ATTR
+#else
+#  define RTC_STORAGE_ATTR
+#endif
 
 }  // namespace ae
 

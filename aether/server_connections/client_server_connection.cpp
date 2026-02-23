@@ -132,6 +132,12 @@ ClientServerConnection::stream_update_event() {
   return server_connection_.stream_update_event();
 }
 
+ActionPtr<WriteAction> ClientServerConnection::LoginApiCall(
+    SubApi<LoginApi> login_api) {
+  auto packet = login_api(login_api_);
+  return server_connection_.Write(std::move(packet));
+}
+
 ActionPtr<WriteAction> ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
   auto api_call = ApiCallAdapter{ApiContext{login_api_}, server_connection_};

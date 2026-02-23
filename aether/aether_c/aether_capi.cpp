@@ -351,7 +351,7 @@ int AetherWait(uint64_t timeout) {
   assert(aether_app);
 
   auto duration = std::chrono::milliseconds{timeout};
-  auto new_time = std::chrono::time_point<std::chrono::system_clock>{duration};
+  auto new_time = ae::TimePoint{duration};
 
   aether_app->WaitUntil(new_time);
   return AE_OK;

@@ -71,7 +71,7 @@ void TimedSender::Send() {
 
   send_proc_(current_id_);
 
-  next_send_time_ = send_interval_ + Now();
+  next_send_time_ = Now() + send_interval_;
 
   ++current_id_;
   state_ = State::kWaitSync;

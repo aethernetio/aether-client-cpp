@@ -17,10 +17,10 @@
 #define AETHER_FORMAT_FORMAT_TIME_H_
 
 #include <chrono>
-#include <sstream>
 #include <string>
+#include <sstream>
 
-#include "aether/common.h"
+#include "aether/clock.h"
 #include "aether/format/formatter.h"
 
 #include "third_party/date/include/date/date.h"
@@ -30,11 +30,13 @@ namespace ae {
  * \brief Format TimePoint to string.
  * \see https://howardhinnant.github.io/date/date.html#to_stream_formatting
  */
-template <>
-struct Formatter<TimePoint> {
+template <typename C, typename D>
+struct Formatter<std::chrono::time_point<C, D>> {
   template <typename TStream>
-  void Format(TimePoint const& value, FormatContext<TStream>& ctx) const {
-    auto ymd = date::year_month_day{date::floor<date::days>(value)};
+  void Format(std::chrono::time_point<C, D> const& value,
+              FormatContext<TStream>& ctx) const {
+    auto ymd = date::year_month_day{
+        date::floor<date::days>(date::sys_time<D>{value.time_since_epoch()})};
 
     auto micro_time = std::chrono::duration_cast<std::chrono::microseconds>(
         value.time_since_epoch());
@@ -47,10 +49,11 @@ struct Formatter<TimePoint> {
   }
 };
 
-template <>
-struct Formatter<Duration> {
+template <typename Rep, typename Per>
+struct Formatter<std::chrono::duration<Rep, Per>> {
   template <typename TStream>
-  void Format(Duration const& value, FormatContext<TStream>& ctx) const {
+  void Format(std::chrono::duration<Rep, Per> const& value,
+              FormatContext<TStream>& ctx) const {
     auto fmt_str = std::string{ctx.options};
     date::to_stream(ctx.out().stream(), fmt_str.data(), value);
   }
