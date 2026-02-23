@@ -103,6 +103,7 @@ list(APPEND actions_srcs
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
             "ae_actions/select_client.cpp"
+            "ae_actions/time_sync.cpp"
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
             "actions/action_processor.cpp"

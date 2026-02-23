@@ -262,6 +262,16 @@
 #  define AE_CLOUD_SERVER_QUARANTINE_TIME_MS 10000
 #endif
 
+// Time synchronization enabled
+#ifndef AE_TIME_SYNC_ENABLED
+#  define AE_TIME_SYNC_ENABLED 1
+#endif
+
+// Time synchronization interval in seconds
+#ifndef AE_TIME_SYNC_INTERVAL_S
+#  define AE_TIME_SYNC_INTERVAL_S 4 * 60 * 60  // every 4 hours
+#endif
+
 // Telemetry configuration
 // Compilation info
 // Environment info

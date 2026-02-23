@@ -25,6 +25,7 @@
 #include "aether/obj/obj.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/types/client_config.h"
+#include "aether/ae_actions/time_sync.h"
 #include "aether/actions/action_context.h"
 #include "aether/actions/action_processor.h"
 #include "aether/ae_actions/select_client.h"
@@ -117,10 +118,16 @@ class Aether : public Obj {
 
  private:
 #endif
+
+  void MakeTimeSyncAction(Client::ptr const& client);
+
   std::map<std::string, Client::ptr> clients_;
   std::map<ServerId, Server::ptr> servers_;
 
   std::map<std::string, ActionPtr<SelectClientAction>> select_client_actions_;
+#if AE_TIME_SYNC_ENABLED
+  ActionPtr<TimeSyncAction> time_sync_action_;
+#endif
 };
 
 }  // namespace ae
