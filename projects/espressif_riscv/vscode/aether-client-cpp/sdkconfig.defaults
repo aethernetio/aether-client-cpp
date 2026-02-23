@@ -10,10 +10,6 @@ CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=64
 CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=40
 CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=60
 CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=40
-CONFIG_ESP_WIFI_AMPDU_TX_ENABLED=y
-CONFIG_ESP_WIFI_TX_BA_WIN=32
-CONFIG_ESP_WIFI_AMPDU_RX_ENABLED=y
-CONFIG_ESP_WIFI_RX_BA_WIN=32
 CONFIG_ESP_WIFI_NVS_ENABLED=n
 
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=51200
@@ -32,3 +28,101 @@ CONFIG_LWIP_EXTRA_IRAM_OPTIMIZATION=y
 
 CONFIG_LWIP_TCPIP_CORE_LOCKING=y
 CONFIG_LWIP_TCPIP_CORE_LOCKING_INPUT=y
+
+# 1. Compiler optimization (Critical for execution speed)
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE=y
+
+# 2. Bootloader acceleration (Bootloader)
+# Skip image verification when exiting Deep Sleep (saves ~100-150ms)
+CONFIG_BOOTLOADER_SKIP_VALIDATE_IN_DEEP_SLEEP=y
+CONFIG_BOOTLOADER_SKIP_VALIDATE_ON_POWER_ON=y
+CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y
+
+# 3. Disabling logs (UART is the main brake at startup)
+CONFIG_LOG_DEFAULT_LEVEL_NONE=y
+CONFIG_LOG_MAXIMUM_LEVEL_0=y
+
+# 4. Radio and Wi-Fi (No-NVS mode)
+# Moving PHY calibration to RTC RAM (removes Flash access)
+# CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE_IN_RTC=y
+# Completely disabling the Wi-Fi stack's dependence on NVS
+# CONFIG_ESP_WIFI_NVS_ENABLED=n
+
+#5. ESP32-C6 Quick Start Guide
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160=y
+CONFIG_ESP32C6_REV_MIN_0=y
+
+CONFIG_ESP_WIFI_AMPDU_TX_ENABLED=n
+CONFIG_ESP_WIFI_AMPDU_RX_ENABLED=n
+# Use partial calibration (takes data from NVS, does not measure again)
+CONFIG_ESP_PHY_RF_CAL_PARTIAL=y
+# Disable unnecessary PHY logs
+CONFIG_ESP_PHY_LOG_VERBOSE=n
+CONFIG_RTC_CLK_CAL_THRESHOLD=0
+CONFIG_ESP_PHY_ENABLE_USB_CONTROLLER=n
+
+# Forced power off of Flash in deep sleep
+CONFIG_ESP_SLEEP_POWER_DOWN_FLASH=y
+
+# Disabling the VDDSDIO (memory controller) power during sleep
+CONFIG_ESP_SLEEP_PD_DOMAIN_VDDSDIO=y
+
+# Using an internal RC oscillator (the most economical sleep clocking option)
+CONFIG_RTC_CLK_SRC_INT_RC=y
+
+# Disabling clocking of unused peripherals in the RTC domain
+CONFIG_RTC_CLK_CAL_THRESHOLD=0
+
+# Redirecting the console to UART0 or completely disabling it (None)
+# This frees up the resources of the built-in USB-JTAG
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+
+# Отключение тактирования USB-Serial-JTAG в режиме сна
+CONFIG_ESP_PHY_ENABLE_USB_CONTROLLER=n
+
+# Disabling USB-Serial-JTAG clocking in sleep mode
+CONFIG_ESP_BROWNOUT_DET=n
+CONFIG_ESP_BROWNOUT_DET_LVL_SEL_7=y
+
+
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160=y
+# CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_40=y
+
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+# CONFIG_ESPTOOLPY_FLASHFREQ_40M=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+CONFIG_PM_ENABLE=y
+# CONFIG_PM_DFS_INIT_FREQ_MAX_40=y
+
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+CONFIG_FREERTOS_IDLE_TASK_REPLICATION=n
+
+# Disabling IPv6 (removes Neighbor Discovery and Router Solicitation)
+CONFIG_LWIP_IPV6=n
+
+# Disabling IGMP (removes Membership Reports/Multicast announcements)
+CONFIG_LWIP_IGMP=n
+
+# Disabling DHCP (since you have a static IP, this will remove the server lookup attempts)
+CONFIG_LWIP_DHCP=n
+
+# Additional cleaning from multicast traffic
+CONFIG_LWIP_MULTICAST_PING=n
+
+# Disabling LwIP statistics (reduces CPU load)
+CONFIG_LWIP_STATS=n
+
+# Disabling automatic Gratuitous ARP sending when installing IP
+CONFIG_LWIP_ESP_GRATUITOUS_ARP=n
+
+# Optional: Disable IPv4 Link-Local (Auto-IP) if enabled
+CONFIG_LWIP_AUTOIP=n
+
+# Disabling MDNS (if enabled)
+CONFIG_LWIP_MDNS_COMMON=n
+
+# CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE_IN_RTC=y

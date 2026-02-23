@@ -58,7 +58,7 @@ class WifiConnectAction final : public Action<WifiConnectAction> {
   WifiDriver* driver_;
   WiFiAp wifi_ap_;
   WiFiPowerSaveParam psp_;
-  WiFiBaseStation base_station_;
+  WiFiBaseStation& base_station_;
   StateMachine<State> state_;
 };
 
