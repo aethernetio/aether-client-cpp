@@ -50,7 +50,11 @@ Uap::Uap(ObjProp prop, ObjPtr<Aether> aether,
 
 void Uap::SleepReady() {
   // TODO: add checks if all buffers are empty
-  GoToSleep();
+  if (!timer_before_sleep_) {
+    timer_before_sleep_ = OwnActionPtr<TimerAction>{*aether_.Load(), 5s};
+    timer_before_sleep_->StatusEvent().Subscribe(
+        OnResult{[this]() { GoToSleep(); }});
+  }
 }
 
 Uap::SleepEvent::Subscriber Uap::sleep_event() {
@@ -78,14 +82,35 @@ Uap::IntervalState Uap::UpdateInterval(Duration time_offset) {
   next_interval_index_ = (current_interval_index_ + 1) % intervals_.size();
   auto interval_duration = intervals_[current_interval_index_].duration;
   auto current_time = Now() + time_offset;
-  auto time_elapsed =
-      std::chrono::duration_cast<Duration>(current_time - start_time_);
+  auto time_elapsed = current_time - start_time_;
+  AE_TELED_DEBUG(
+      "Update interval\n start_time {:%Y-%m-%d %H:%M:%S}\n current_time "
+      "{:%Y-%m-%d %H:%M:%S}\n interval_duration {:%H:%M:%S}\n time_elapsed "
+      "{}",
+      start_time_, current_time, interval_duration, time_elapsed);
+
   if (time_elapsed > interval_duration) {
-    AE_TELED_WARNING("!More time elapsed than current interval {:%S} > {%S}",
-                     time_elapsed, interval_duration);
-    // find current interval index and new interval duration
+    AE_TELED_WARNING(
+        "!More time elapsed than current interval {} > "
+        "{:%H:%M:%S}",
+        time_elapsed, interval_duration);
+
     std::size_t index = next_interval_index_;
     auto interval_start = start_time_;
+
+    // test for bad case - if time_elapsed is more than several uap durations
+    // find current interval index and new interval duration
+    auto uap_duration = std::accumulate(
+        std::begin(intervals_), std::end(intervals_), Duration{},
+        [](auto v, auto const& i) { return v + i.duration; });
+    // count how many full uap durations have elapsed and remove it from
+    // time_elapsed
+    auto uap_count = static_cast<std::uint32_t>(time_elapsed / uap_duration);
+    time_elapsed -= uap_duration * uap_count;
+    interval_start += uap_duration * uap_count;
+    index = (index + uap_count * intervals_.size()) % intervals_.size();
+
+    // find the new interval
     while (time_elapsed > interval_duration) {
       // move all timers like it's new interval has started already
       interval_start += interval_duration;
@@ -98,7 +123,7 @@ Uap::IntervalState Uap::UpdateInterval(Duration time_offset) {
     next_interval_index_ = (index + 1) % intervals_.size();
   }
   AE_TELED_DEBUG(
-      "Current interval {}, next interval {}, start_time {:%H:%M:%S}",
+      "Current interval {}, next interval {}, start_time {:%Y-%m-%d %H:%M:%S}",
       current_interval_index_, next_interval_index_, start_time_);
   return IntervalState{intervals_[current_interval_index_], start_time_};
 }
