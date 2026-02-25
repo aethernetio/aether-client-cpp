@@ -19,13 +19,7 @@ cmake_minimum_required(VERSION 3.16)
 
 project(Aether LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 option(AE_ADDRESS_SANITIZE Off "Enable address sanitizer")
-
-# enable doubles in unity tests
-add_compile_definitions("UNITY_INCLUDE_DOUBLE")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -39,9 +33,11 @@ if (AE_ADDRESS_SANITIZE)
   add_link_options(-fsanitize=address)
 endif()
 
-# for unit tests
-enable_testing()
+if (AE_BUILD_TESTS)
+  enable_testing()
+endif()
 
+add_subdirectory("../../aether" "aether")
 add_subdirectory("../../examples/cloud" "cloud")
 add_subdirectory("../../examples/capi/oddity" "oddity")
 
@@ -49,5 +45,3 @@ add_subdirectory("../../examples/benches/send_message_delays" "send_message_dela
 add_subdirectory("../../examples/benches/send_messages_bandwidth" "send_messages_bandwidth")
 
 add_subdirectory("../../tools/registrator" "registrator")
-
-add_subdirectory("../../tests" "tests")

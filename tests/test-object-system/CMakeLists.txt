@@ -19,7 +19,7 @@ list(APPEND other_aether_srcs
     ${ROOT_DIR}/aether/tele/traps/statistics_trap.cpp
 )
 
-list(APPEND obj_srcs
+list(APPEND test_obj_srcs
     ${ROOT_DIR}/aether/ptr/ptr.cpp
     ${ROOT_DIR}/aether/ptr/ptr_view.cpp
     ${ROOT_DIR}/aether/ptr/ref_tree.cpp
@@ -46,7 +46,7 @@ if(NOT CM_PLATFORM)
   target_sources(${PROJECT_NAME}
                   PRIVATE
                   ${other_aether_srcs}
-                  ${obj_srcs}
+                  ${test_obj_srcs}
                   ${test_srcs}
    )
   # for aether

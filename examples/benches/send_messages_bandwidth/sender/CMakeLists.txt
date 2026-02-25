@@ -14,6 +14,10 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+
 list( APPEND src_list
   sender_main.cpp
   sender.cpp

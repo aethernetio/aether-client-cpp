@@ -22,7 +22,7 @@ if(NOT CM_PLATFORM)
   project(test-domain-storage LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME})
-  target_sources(${PROJECT_NAME} PRIVATE ${aether_srcs} ${test_srcs})
+  target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE aether unity)

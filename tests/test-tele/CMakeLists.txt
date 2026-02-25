@@ -14,13 +14,14 @@
 
 cmake_minimum_required( VERSION 3.16 )
 
-list(APPEND tele_srcs
+list(APPEND test_tele_srcs
   ${ROOT_DIR}/aether/tele/traps/io_stream_traps.cpp
   ${ROOT_DIR}/aether/tele/traps/statistics_trap.cpp
   ${ROOT_DIR}/aether/ptr/ptr.cpp
   ${ROOT_DIR}/aether/ptr/ptr_view.cpp
   ${ROOT_DIR}/aether/ptr/ref_tree.cpp
 )
+
 list(APPEND test_srcs
   test-tele.cpp
 )
@@ -29,7 +30,7 @@ if(NOT CM_PLATFORM)
   project(test-tele LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME})
-  target_sources(${PROJECT_NAME} PRIVATE ${tele_srcs} ${test_srcs})
+  target_sources(${PROJECT_NAME} PRIVATE ${test_tele_srcs} ${test_srcs})
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE unity)

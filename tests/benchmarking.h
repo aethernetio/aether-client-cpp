@@ -21,14 +21,13 @@
 #include <cstddef>
 #include <iomanip>
 #include <iostream>
-#include <string_view>
 
 namespace ae::tests {
 template <typename Func, typename... MessageArgs>
 void BenchmarkFunc(Func&& func, std::size_t count,
                    MessageArgs&&... message_args) {
   auto time_before = std::chrono::steady_clock::now();
-  for (volatile std::size_t i = 0; i < count; ++i) {
+  for (std::size_t i = 0; i < count; ++i) {
     func(i);
   }
   auto time_after = std::chrono::steady_clock::now();
