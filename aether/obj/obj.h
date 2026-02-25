@@ -31,8 +31,8 @@
 
 #include "aether/config.h"
 
-#include "aether/common.h"
 #include "aether/crc.h"
+#include "aether/clock.h"
 #include "aether/obj/obj_id.h"
 #include "aether/obj/obj_ptr.h"
 #include "aether/obj/domain.h"

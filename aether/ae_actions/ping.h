@@ -52,8 +52,8 @@ class Ping : public Action<Ping> {
   static constexpr std::uint8_t kMaxStorePingTimes = 10;
 
   struct PingRequest {
-    TimePoint start;
-    TimePoint expected_end;
+    SystemTimePoint start;
+    SystemTimePoint expected_end;
     RequestId request_id;
   };
 
@@ -69,8 +69,8 @@ class Ping : public Action<Ping> {
 
  private:
   void SendPing();
-  TimePoint WaitInterval();
-  TimePoint WaitResponse();
+  SystemTimePoint WaitInterval();
+  SystemTimePoint WaitResponse();
   void PingResponse(RequestId request_id);
 
   PtrView<Channel> channel_;

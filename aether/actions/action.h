@@ -17,7 +17,7 @@
 #ifndef AETHER_ACTIONS_ACTION_H_
 #define AETHER_ACTIONS_ACTION_H_
 
-#include "aether/common.h"
+#include "aether/clock.h"
 
 // IWYU pragma: begin_exports
 #include "aether/events/events.h"

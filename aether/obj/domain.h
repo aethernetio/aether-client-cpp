@@ -24,7 +24,7 @@
 #include <utility>
 #include <type_traits>
 
-#include "aether/common.h"
+#include "aether/clock.h"
 
 #include "aether/mstream.h"
 

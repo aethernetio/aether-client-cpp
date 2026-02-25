@@ -51,6 +51,7 @@ class ClientServerConnection {
   StreamInfo stream_info() const;
   ByteIStream::StreamUpdateEvent::Subscriber stream_update_event();
 
+  ActionPtr<WriteAction> LoginApiCall(SubApi<LoginApi> login_api);
   ActionPtr<WriteAction> AuthorizedApiCall(SubApi<AuthorizedApi> auth_api);
   ClientApiSafe& client_safe_api();
 

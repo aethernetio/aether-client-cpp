@@ -43,6 +43,7 @@
 #include <type_traits>
 #include <unordered_map>
 
+#include "aether/clock.h"
 #include "aether/reflect/reflect.h"
 #include "aether/types/nullable_type.h"
 #include "aether/reflect/domain_visitor.h"  // IWYU pragma: keep
@@ -478,7 +479,7 @@ omstream<Ob>& operator<<(omstream<Ob>& s,
                          std::chrono::time_point<T...> const& t) {
   auto d = std::chrono::duration_cast<std::chrono::microseconds>(
       t.time_since_epoch());
-  s << static_cast<uint64_t>(d.count());
+  s << static_cast<std::uint64_t>(d.count());
   return s;
 }
 

@@ -23,7 +23,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "aether/common.h"
+#include "aether/clock.h"
 
 namespace ae::bench {
 using HighResTimePoint =

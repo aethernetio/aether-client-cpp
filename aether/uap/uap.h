@@ -20,9 +20,11 @@
 #include <vector>
 #include <optional>
 
-#include "aether/common.h"
+#include "aether/clock.h"
 #include "aether/obj/obj.h"
 #include "aether/events/events.h"
+#include "aether/actions/action_ptr.h"
+#include "aether/actions/timer_action.h"
 
 namespace ae {
 class Aether;
@@ -139,6 +141,7 @@ class Uap final : public Obj {
   std::size_t current_interval_index_{};
   std::size_t next_interval_index_{};
   TimePoint start_time_;
+  OwnActionPtr<TimerAction> timer_before_sleep_;
 };
 }  // namespace ae
 

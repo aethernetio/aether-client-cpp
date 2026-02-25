@@ -49,12 +49,23 @@ struct IstextSpecified<T,
                        std::void_t<decltype(T::text(std::declval<T const&>()))>>
     : std::true_type {};
 
+template <typename T>
+struct IsTimePoint : std::false_type {};
+template <typename C, typename D>
+struct IsTimePoint<std::chrono::time_point<C, D>> : std::true_type {};
+
+template <typename T>
+struct IsDuration : std::false_type {};
+template <typename R, typename P>
+struct IsDuration<std::chrono::duration<R, P>> : std::true_type {};
+
 // for any with operator<< to std::ostream&
 template <typename T>
 struct Formatter<
     T, std::enable_if_t<IsStreamOutputSpecified<T>::value &&
                         !IstextSpecified<T>::value && !std::is_enum_v<T> &&
-                        !std::is_integral_v<T>>> {
+                        !std::is_integral_v<T> && !IsTimePoint<T>::value &&
+                        !IsDuration<T>::value>> {
   template <typename TStream>
   void Format(T const& value, FormatContext<TStream>& ctx) const {
     ctx.out().stream() << value;

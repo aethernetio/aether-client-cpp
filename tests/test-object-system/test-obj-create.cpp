@@ -33,8 +33,8 @@ namespace ae::test_obj_create {
 void test_createFoo() {
   // create objects
   auto facility = MapDomainStorage{};
-  Domain domain{ae::ClockType::now(), facility};
-  Domain domain2{ae::ClockType::now(), facility};
+  Domain domain{ae::Clock::now(), facility};
+  Domain domain2{ae::Clock::now(), facility};
   {
     Foo::ptr foo = Foo::ptr::Create(CreateWith{domain}.with_id(1));
 
@@ -73,7 +73,7 @@ void test_createFoo() {
 
 void test_createBob() {
   auto facility = MapDomainStorage{};
-  Domain domain{ae::ClockType::now(), facility};
+  Domain domain{ae::Clock::now(), facility};
 
   {
     Bob::ptr bob = Bob::ptr::Create(CreateWith{domain}.with_id(1));
@@ -106,7 +106,7 @@ void test_createBob() {
 
 void test_cloneFoo() {
   auto facility = MapDomainStorage{};
-  Domain domain{ae::ClockType::now(), facility};
+  Domain domain{ae::Clock::now(), facility};
   auto foo_prefab = Foo::ptr::Create(CreateWith{domain}.with_id(100));
   TEST_ASSERT(foo_prefab);
   foo_prefab.Save();
@@ -128,7 +128,7 @@ void test_cloneFoo() {
 
 void test_createBobsMother() {
   auto facility = MapDomainStorage{};
-  Domain domain{ae::ClockType::now(), facility};
+  Domain domain{ae::Clock::now(), facility};
 
   {
     BobsMother::ptr bobs_mother =
@@ -152,7 +152,7 @@ void test_createBobsMother() {
 
 void test_createBobsFather() {
   auto facility = MapDomainStorage{};
-  Domain domain{ae::ClockType::now(), facility};
+  Domain domain{ae::Clock::now(), facility};
 
   {
     BobsFather::ptr bobs_father =
@@ -179,7 +179,7 @@ void test_createBobsFather() {
 
 void test_createCollector() {
   auto facility = MapDomainStorage{};
-  Domain domain{ae::ClockType::now(), facility};
+  Domain domain{ae::Clock::now(), facility};
   {
     Collector::ptr collector =
         Collector::ptr::Create(CreateWith{domain}.with_id(1));
@@ -211,7 +211,7 @@ void test_createCollector() {
 
 void test_cyclePoopaLoopa() {
   auto facility = MapDomainStorage{};
-  Domain domain{ae::ClockType::now(), facility};
+  Domain domain{ae::Clock::now(), facility};
 
   Poopa::DeleteCount = 0;
   Loopa::DeleteCount = 0;
@@ -251,7 +251,7 @@ void test_cyclePoopaLoopa() {
 
 void test_cyclePoopaLoopaReverse() {
   auto facility = MapDomainStorage{};
-  Domain domain{ae::ClockType::now(), facility};
+  Domain domain{ae::Clock::now(), facility};
 
   Poopa::DeleteCount = 0;
   Loopa::DeleteCount = 0;
@@ -286,7 +286,7 @@ void test_cyclePoopaLoopaReverse() {
 
 void test_Family() {
   auto facility = MapDomainStorage{};
-  Domain domain{ae::ClockType::now(), facility};
+  Domain domain{ae::Clock::now(), facility};
   // create child and test is father and obj saved too
   {
     Child::ptr child = Child::ptr::Create(CreateWith{domain}.with_id(1));
