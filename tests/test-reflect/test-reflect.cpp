@@ -18,7 +18,7 @@
 
 #include <string>
 
-#include "aether/types/type_list.h"
+#include "aether/meta/arg_at.h"
 #include "aether/reflect/reflect.h"
 
 namespace ae::test_reflect {
@@ -78,9 +78,9 @@ void test_FooApply() {
   auto foo_reflect = reflect::Reflection{foo};
   bool applied = false;
   foo_reflect.Apply([&](auto const&... fields) {
-    TEST_ASSERT_EQUAL(1, ArgAt<0>(fields...));
-    TEST_ASSERT_EQUAL_FLOAT(12.42f, ArgAt<1>(fields...));
-    TEST_ASSERT_EQUAL_STRING("Hello", ArgAt<2>(fields...).c_str());
+    TEST_ASSERT_EQUAL(1, VarAt<0>(fields...));
+    TEST_ASSERT_EQUAL_FLOAT(12.42f, VarAt<1>(fields...));
+    TEST_ASSERT_EQUAL_STRING("Hello", VarAt<2>(fields...).c_str());
     applied = true;
   });
   TEST_ASSERT(applied);
@@ -94,12 +94,12 @@ void test_TwoLevelReflectable() {
   TEST_ASSERT_EQUAL(12, tlr_reflect.get<0>());
 
   tlr_reflect.Apply([](auto const&... fields) {
-    TEST_ASSERT_EQUAL(12, ArgAt<0>(fields...));
-    auto foo_refl = reflect::Reflection(ArgAt<1>(fields...));
+    TEST_ASSERT_EQUAL(12, VarAt<0>(fields...));
+    auto foo_refl = reflect::Reflection(VarAt<1>(fields...));
     foo_refl.Apply([](auto const&... foo_fields) {
-      TEST_ASSERT_EQUAL(42, ArgAt<0>(foo_fields...));
-      TEST_ASSERT_EQUAL_FLOAT(65.13F, ArgAt<1>(foo_fields...));
-      TEST_ASSERT_EQUAL_STRING("World", ArgAt<2>(foo_fields...).c_str());
+      TEST_ASSERT_EQUAL(42, VarAt<0>(foo_fields...));
+      TEST_ASSERT_EQUAL_FLOAT(65.13F, VarAt<1>(foo_fields...));
+      TEST_ASSERT_EQUAL_STRING("World", VarAt<2>(foo_fields...).c_str());
     });
   });
 }

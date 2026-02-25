@@ -24,7 +24,7 @@
 #include <functional>
 
 #include "aether/mstream.h"
-#include "aether/types/type_list.h"
+#include "aether/meta/type_list.h"
 
 namespace ae {
 template <auto I, typename T>
@@ -55,7 +55,7 @@ class VariantType : public std::variant<typename Variants::Type...> {
     (
         [&]() {
           if (order == Is) {
-            res = TypeAtT<Is, TypeList<Variants...>>::Index;
+            res = TypeAt_t<Is, TypeList<Variants...>>::Index;
           }
         }(),
         ...);
@@ -68,7 +68,7 @@ class VariantType : public std::variant<typename Variants::Type...> {
     std::size_t res{};
     (
         [&]() {
-          if (index == TypeAtT<Is, TypeList<Variants...>>::Index) {
+          if (index == TypeAt_t<Is, TypeList<Variants...>>::Index) {
             res = Is;
           }
         }(),
@@ -77,7 +77,7 @@ class VariantType : public std::variant<typename Variants::Type...> {
   }
 
   template <std::size_t I, typename Stream>
-  static bool LoadElement(Stream &stream, Variant &var) {
+  static bool LoadElement(Stream& stream, Variant& var) {
     using T = std::variant_alternative_t<I, Variant>;
     T t{};
     stream >> t;
@@ -86,8 +86,8 @@ class VariantType : public std::variant<typename Variants::Type...> {
   }
 
   template <typename Stream, std::size_t... Is>
-  static void Load(Stream &stream, std::size_t order, Variant &var,
-                   std::index_sequence<Is...> const &) {
+  static void Load(Stream& stream, std::size_t order, Variant& var,
+                   std::index_sequence<Is...> const&) {
     (std::invoke([&]() {
        if (order == Is) {
          LoadElement<Is>(stream, var);
@@ -97,8 +97,8 @@ class VariantType : public std::variant<typename Variants::Type...> {
   }
 
   template <typename Stream, std::size_t... Is>
-  static void Save(Stream &stream, std::size_t order, Variant const &var,
-                   std::index_sequence<Is...> const &) {
+  static void Save(Stream& stream, std::size_t order, Variant const& var,
+                   std::index_sequence<Is...> const&) {
     (std::invoke([&]() {
        if (order == Is) {
          stream << std::get<Is>(var);
@@ -108,7 +108,7 @@ class VariantType : public std::variant<typename Variants::Type...> {
   }
 
   template <typename Type, std::size_t I, std::size_t... Is>
-  constexpr auto const &GetImpl(std::index_sequence<I, Is...> const &) const {
+  constexpr auto const& GetImpl(std::index_sequence<I, Is...> const&) const {
     if constexpr (std::is_same_v<Type,
                                  std::variant_alternative_t<I, Variant>>) {
       return std::get<I>(*this);
@@ -125,14 +125,14 @@ class VariantType : public std::variant<typename Variants::Type...> {
   }
 
   template <typename Type>
-  constexpr auto const &Get() const {
+  constexpr auto const& Get() const {
     static_assert((std::is_same_v<Type, typename Variants::Type> || ...),
                   "Type not found");
     return GetImpl<Type>(std::make_index_sequence<sizeof...(Variants)>());
   }
 
   template <typename Ib>
-  friend imstream<Ib> operator>>(imstream<Ib> &is, VariantType &v) {
+  friend imstream<Ib> operator>>(imstream<Ib>& is, VariantType& v) {
     index_type index{};
     is >> index;
     auto order =
@@ -143,7 +143,7 @@ class VariantType : public std::variant<typename Variants::Type...> {
   }
 
   template <typename Ob>
-  friend omstream<Ob> operator<<(omstream<Ob> &os, VariantType const &v) {
+  friend omstream<Ob> operator<<(omstream<Ob>& os, VariantType const& v) {
     auto order = v.index();
     os << GetIndexByOrder(order,
                           std::make_index_sequence<sizeof...(Variants)>());

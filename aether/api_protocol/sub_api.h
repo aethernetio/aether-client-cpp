@@ -19,10 +19,10 @@
 
 #include <vector>
 
-#include "aether/type_traits.h"
-#include "aether/types/type_list.h"
+#include "aether/meta/type_list.h"
 #include "aether/reflect/reflect.h"
 #include "aether/types/small_function.h"
+#include "aether/meta/function_signature.h"
 #include "aether/api_protocol/api_context.h"
 #include "aether/api_protocol/api_pack_parser.h"
 
@@ -42,7 +42,8 @@ class SubApi {
  public:
   using Method = SmallFunction<void(ApiContext<TApi>& api)>;
 
-  template <typename TFunc, AE_REQUIRERS_NOT((std::is_same<SubApi, TFunc>))>
+  template <typename TFunc>
+    requires(!std::same_as<SubApi, std::decay_t<TFunc>>)
   explicit SubApi(TFunc&& caller) : caller_{std::forward<TFunc>(caller)} {}
   explicit SubApi(Method caller) : caller_{std::move(caller)} {}
 
@@ -58,7 +59,7 @@ class SubApi {
 
 template <typename TFunc>
 SubApi(TFunc&&) -> SubApi<typename sub_api_internal::ApiContextApiType<
-    std::decay_t<TypeAtT<0, typename FunctionSignature<TFunc>::Args>>>::type>;
+    std::decay_t<TypeAt_t<0, typename FunctionSignature<TFunc>::args>>>::type>;
 
 template <typename TApi>
 class SubApiImpl {

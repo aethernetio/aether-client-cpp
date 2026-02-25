@@ -19,7 +19,7 @@
 #include <cstdlib>
 #include <utility>
 
-#include "aether/types/type_list.h"
+#include "aether/meta/arg_at.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "send_message_delays/api/bench_delays_api.h"
@@ -86,7 +86,7 @@ ActionPtr<TimedReceiver> Receiver::CreateBenchAction(TEvent event,
   receiver_action_ = ActionPtr<TimedReceiver>{action_context_, count};
   event.Subscribe([ra{receiver_action_}](auto&&... args) mutable {
     if (ra) {
-      ra->Receive(ArgAt<0>(std::forward<decltype(args)>(args)...));
+      ra->Receive(VarAt<0>(std::forward<decltype(args)>(args)...));
     }
   });
   return receiver_action_;

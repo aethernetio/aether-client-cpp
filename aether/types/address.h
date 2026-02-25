@@ -77,6 +77,7 @@ omstream<Ob>& operator<<(omstream<Ob>& s, IpV6Addr const& ipv6) {
 
 struct NamedAddr {
   AE_REFLECT_MEMBERS(name)
+
   std::string name;
 };
 

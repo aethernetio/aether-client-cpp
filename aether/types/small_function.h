@@ -19,11 +19,11 @@
 
 #include <memory>
 #include <cstddef>
+#include <concepts>
 #include <type_traits>
 
-#include "aether/common.h"
-#include "aether/type_traits.h"
 #include "aether/types/aligned_storage.h"
+#include "aether/meta/function_signature.h"
 
 namespace ae {
 namespace small_function_internal {
@@ -151,15 +151,16 @@ class SmallFunction<TRet(TArgs...), Size, Alignment> {
     }
   }
 
-  template <
-      typename TFunctor,
-      AE_REQUIRERS((IsFunctor<std::decay_t<TFunctor>, TRet(TArgs...)>)),
-      AE_REQUIRERS_NOT((std::is_same<SmallFunction, std::decay_t<TFunctor>>))>
+  template <typename TFunctor>
+    requires(requires {
+      { std::invocable<TFunctor, TArgs...> };
+      { std::same_as<std::invoke_result_t<TFunctor, TArgs...>, TRet> };
+      { !std::same_as<std::decay_t<TFunctor>, SmallFunction> };
+    })
   SmallFunction(TFunctor&& functor) noexcept
       : vtable_{&small_function_internal::VTableForT<std::decay_t<TFunctor>,
                                                      TRet, TArgs...>} {
     using Type = std::decay_t<TFunctor>;
-    static_assert(sizeof(Type) > 0, "TFunctor must be a complete type");
     static_assert(sizeof(Type) <= Size, "TFunctor must fit into storage");
 
     new (storage_.data()) Type{std::forward<TFunctor>(functor)};
@@ -231,6 +232,7 @@ class SmallFunction<TRet(TArgs...), Size, Alignment> {
   void Destroy() noexcept {
     vtable_->manage(storage_.data(), nullptr, Operation::kDestroy);
   }
+
   void Move(Storage& src, Storage& dst) noexcept {
     vtable_->manage(src.data(), dst.data(), Operation::kMove);
   }

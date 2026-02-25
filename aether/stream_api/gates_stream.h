@@ -21,7 +21,7 @@
 #include <utility>
 #include <type_traits>
 
-#include "aether/types/type_list.h"
+#include "aether/meta/type_list.h"
 #include "aether/stream_api/istream.h"
 #include "aether/stream_api/gate_trait.h"
 #include "aether/stream_api/tied_gates.h"

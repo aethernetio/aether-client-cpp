@@ -22,7 +22,7 @@
 #include <type_traits>
 
 #include "aether/common.h"
-#include "aether/types/type_list.h"  // IWYU pragma: keep
+#include "aether/meta/type_list.h"  // IWYU pragma: keep
 
 namespace ae::reflect {
 namespace reflect_internal {
@@ -89,7 +89,7 @@ struct FieldList {
    */
   template <std::size_t I, typename U>
   static constexpr decltype(auto) get(U&& obj) {
-    return TypeAtT<I, FieldsTypeList>::get(std::forward<U>(obj));
+    return TypeAt_t<I, FieldsTypeList>::get(std::forward<U>(obj));
   }
 };
 
@@ -250,7 +250,7 @@ struct IsReflectable<T,
     static_assert(sizeof(SelfType) != 0);                                     \
     constexpr auto fields = ::ae::TypeList{__VA_ARGS__};                      \
     using TypeFieldTypeList =                                                 \
-        ::ae::JoinLists<::ae::TypeList<SelfType>, decltype(fields)>;          \
+        ::ae::JoinedTypeList_t<::ae::TypeList<SelfType>, decltype(fields)>;   \
     using FL = typename ::ae::TypeListToTemplate<                             \
         ::ae::reflect::reflect_internal::FieldList, TypeFieldTypeList>::type; \
     return FL{};                                                              \
@@ -267,7 +267,7 @@ struct IsReflectable<T,
     constexpr auto fields =                                                   \
         ::ae::TypeList{_AE_APPLY_MACRO(AE_MMBR, __VA_ARGS__)};                \
     using TypeFieldTypeList =                                                 \
-        ::ae::JoinLists<::ae::TypeList<SelfType>, decltype(fields)>;          \
+        ::ae::JoinedTypeList_t<::ae::TypeList<SelfType>, decltype(fields)>;   \
     using FL = typename ::ae::TypeListToTemplate<                             \
         ::ae::reflect::reflect_internal::FieldList, TypeFieldTypeList>::type; \
     return FL{};                                                              \
