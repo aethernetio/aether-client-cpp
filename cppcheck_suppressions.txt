@@ -1,0 +1,16 @@
+missingIncludeSystem
+preprocessorErrorDirective
+functionStatic
+unusedFunction
+
+missingInclude:esp-idf/**
+
+cstyleCast:tests/**/*         // c-style cast is heavily used in tests
+dangerousTypeCast:tests/**/*  // c-style cast is heavily used in tests
+unusedStructMember:tests/test-reflect/* // there is a lot of members that looks unused
+constParameterCallback:capi/**/*
+uninitMemberVar:aligned_storage.h
+unreadVariable:aligned_storage.h
+
+noExplicitConstructor:crc.h
+noExplicitConstructor:small_function.h
