@@ -22,7 +22,7 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-int test_sender_bandwidth(Uid receiver_uid) {
+int test_sender_bandwidth(Uid const& receiver_uid) {
   auto aether_app = ae::AetherApp::Construct(AetherAppContext{});
 
   ae::Client::ptr client;

@@ -83,14 +83,14 @@ class EventHandlersList {
       }
 
      private:
-      typename ListType::iterator it_;
+      typename ListType::iterator it_{};
       /**
        * index and size used to control the end of the list.
        * using end iterator is not appropriate here because it's grow with new
        * elements added.
        */
-      std::uint16_t index_;
-      std::uint16_t size_;
+      std::uint16_t index_{};
+      std::uint16_t size_{};
     };
 
     using iterator = Iterator;

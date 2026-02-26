@@ -196,6 +196,8 @@ static IPoller::ptr PollerFactory(AetherAppContext const& context) {
   return WinPoller::ptr::Create(CreateWith{context.domain()}
                                     .with_id(GlobalId::kPoller)
                                     .with_flags(ObjFlags::kUnloadedByDefault));
+#  else
+  return {};
 #  endif
 }
 

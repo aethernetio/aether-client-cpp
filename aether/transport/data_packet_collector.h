@@ -45,7 +45,7 @@ class StreamDataPacketCollector {
  public:
   // fill packets in queue with provided stream data_buffer
   void AddData(std::uint8_t const* data, std::size_t size);
-  void AddData(DataBuffer data_buffer);
+  void AddData(DataBuffer const& data_buffer);
   // pops a packet data if any, else return empty
   std::vector<std::uint8_t> PopPacket();
 

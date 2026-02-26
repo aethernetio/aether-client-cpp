@@ -28,7 +28,7 @@ class Foo : public Obj {
   Foo() = default;
 
  public:
-  explicit Foo(ObjProp prop) : Obj{prop} { bar = Bar::ptr::Create(domain); }
+  explicit Foo(ObjProp prop) : Obj{prop}, bar{Bar::ptr::Create(domain)} {}
 
   AE_OBJECT_REFLECT(AE_MMBR(a), AE_MMBR(b), AE_MMBR(bar))
 

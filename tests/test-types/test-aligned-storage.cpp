@@ -405,7 +405,7 @@ void test_ManagedStorageEdgeCases() {
         InPlace<OuterStorage>{}};
     auto* managed_inner_ptr =
         managed_outer.ptr<OuterStorage>()->ptr<InnerStorage>();
-    int* managed_value_ptr = managed_inner_ptr->ptr<int>();
+    int const* managed_value_ptr = managed_inner_ptr->ptr<int>();
     TEST_ASSERT_NOT_NULL(managed_value_ptr);
   }
 

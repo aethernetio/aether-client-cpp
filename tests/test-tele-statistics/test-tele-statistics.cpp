@@ -118,8 +118,24 @@ void test_SaveLoadTeleStatistics() {
       tele_statistics2->trap()->statistics_store.metrics_store().metrics;
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
 
-  if constexpr (_AE_MODULE_CONFIG(MLog.id, AE_TELE_METRICS_MODULES) &&
-                _AE_MODULE_CONFIG(MLog.id, AE_TELE_METRICS_DURATION)) {
+  // simple check with _AE_MODULE_CONFIG leads here to AST broken error for
+  // cppcheck
+  constexpr bool all_and_not_excluded_duration =
+      IsAll(AE_TELE_METRICS_DURATION) &&
+      !IsEnabled<MLog.id>(AE_TELE_METRICS_DURATION_EXCLUDE);
+
+  constexpr bool duration_enabled =
+      all_and_not_excluded_duration ||
+      IsEnabled<MLog.id>(AE_TELE_METRICS_DURATION);
+
+  constexpr bool all_and_not_excluded_metrics =
+      (IsAll(AE_TELE_METRICS_MODULES) &&
+       !IsEnabled<MLog.id>(AE_TELE_METRICS_MODULES_EXCLUDE));
+
+  constexpr bool metrics_enabled = all_and_not_excluded_metrics ||
+                                   IsEnabled<MLog.id>(AE_TELE_METRICS_MODULES);
+
+  if constexpr (duration_enabled && metrics_enabled) {
     auto log_index = kLog.offset;
     TEST_ASSERT_EQUAL(metrics1[log_index].invocations_count,
                       metrics2[log_index].invocations_count);

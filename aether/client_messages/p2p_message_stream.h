@@ -58,7 +58,7 @@ class P2pStream final : public ByteIStream {
 
   void WriteOut(DataBuffer const& data);
 
-  Uid destination() const;
+  Uid const& destination() const;
 
  private:
   void ConnectReceive();
@@ -72,7 +72,7 @@ class P2pStream final : public ByteIStream {
 
   ActionContext action_context_;
   PtrView<Client> client_;
-  Uid destination_;
+  Uid destination_{};
 
   // connection manager to destination cloud
   std::unique_ptr<ClientConnectionManager> dest_conn_manager_;

@@ -120,7 +120,7 @@ class MockSendDataPush : public ISendDataPush {
   }
 
   ActionContext action_context_;
-  TestSafeStreamActionsTransport* transport_;
+  TestSafeStreamActionsTransport* transport_{};
 };
 
 class MockSendAckRepeat : public ISendAckRepeat {
@@ -136,7 +136,7 @@ class MockSendAckRepeat : public ISendAckRepeat {
     transport_->SendRepeatRequest(offset);
   }
 
-  TestSafeStreamActionsTransport* transport_;
+  TestSafeStreamActionsTransport* transport_{};
 };
 
 static constexpr std::string_view test_data =

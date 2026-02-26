@@ -69,7 +69,7 @@ struct Uid {
    * \brief Get UID from string.
    * The https://www.ietf.org/rfc/rfc4122.txt format recognized only.
    */
-  static constexpr Uid FromString(UidString str) {
+  static constexpr Uid FromString(UidString const& str) {
     if (!str.valid) {
       return {};
     }

@@ -45,7 +45,7 @@ class Channel : public Obj {
   virtual Duration ResponseTimeout() const;
 
  protected:
-  ChannelTransportProperties transport_properties_;
+  ChannelTransportProperties transport_properties_{};
   ChannelStatistics::ptr channel_statistics_;
 };
 

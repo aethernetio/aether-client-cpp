@@ -84,7 +84,7 @@ void RegistratorConfig::ParseWifiAdapter(ini::Section const& wifi_adapter) {
 
 void RegistratorConfig::ParseRegServer(ini::Section const& reg_server,
                                        std::string const& name) {
-  RegServer server;
+  RegServer server{};
 
   // parse name and get id
   auto pos = name.find('_');

@@ -97,8 +97,8 @@ struct DataMessage {
     std::uint8_t repeat_count : 5;
     std::uint8_t reset : 1;
     std::uint8_t reserved : 2;
-  } control;                   // control flags related to message
-  std::uint16_t delta_offset;  // data offset form sender's buffer begin
+  } control{};                   // control flags related to message
+  std::uint16_t delta_offset{};  // data offset form sender's buffer begin
   DataBuffer data;
 };
 

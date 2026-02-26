@@ -53,7 +53,7 @@ void StreamDataPacketCollector::AddData(std::uint8_t const* data,
   }
 }
 
-void StreamDataPacketCollector::AddData(DataBuffer data_buffer) {
+void StreamDataPacketCollector::AddData(DataBuffer const& data_buffer) {
   AddData(data_buffer.data(), data_buffer.size());
 }
 

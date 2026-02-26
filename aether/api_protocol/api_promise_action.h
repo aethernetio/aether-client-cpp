@@ -40,7 +40,7 @@ class ApiPromiseAction : public Action<ApiPromiseAction<TValue>> {
 
   RequestId const& request_id() const { return request_id_; }
 
-  void SetValue(TValue value) { promise_.SetValue(value); }
+  void SetValue(TValue&& value) { promise_.SetValue(std::move(value)); }
 
   void Reject() { promise_.Reject(); }
 

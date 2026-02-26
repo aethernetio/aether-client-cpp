@@ -232,7 +232,7 @@ void P2pStream::WriteOut(DataBuffer const& data) {
   out_data_event_.Emit(data);
 }
 
-Uid P2pStream::destination() const { return destination_; }
+Uid const& P2pStream::destination() const { return destination_; }
 
 void P2pStream::ConnectReceive() {
   auto client_ptr = client_.Lock();

@@ -67,8 +67,8 @@ class Friday1 : public Obj {
     dnv(a, b);
   }
 
-  int a;
-  int b;
+  int a{};
+  int b{};
 };
 
 // change one field type and remove another
@@ -126,7 +126,7 @@ class Friday2 : public Obj {
   }
 
   // default value provided if there is no saved state to load data
-  float a;
+  float a{};
 };
 
 class Hoopa : public Obj {
@@ -207,7 +207,7 @@ class Friday3 : public Hoopa {
   void Save(Version<3>, Dnv& dnv) const {}
 
   // default value provided if there is no saved state to load data
-  float a;
+  float a{};
 };
 
 }  // namespace ae

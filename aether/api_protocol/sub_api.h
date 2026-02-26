@@ -49,7 +49,7 @@ class SubApi {
   std::vector<std::uint8_t> operator()(TApi& api) const {
     auto api_context = ApiContext{api};
     caller_(api_context);
-    return std::move(api_context);
+    return std::move(api_context).Pack();
   }
 
  private:

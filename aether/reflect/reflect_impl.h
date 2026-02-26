@@ -110,7 +110,7 @@ class ReflectionImpl {
     return FieldList::template get<I>(obj_);
   }
 
-  constexpr std::size_t size() const { return FieldList::kSize; }
+  static constexpr std::size_t size() { return FieldList::kSize; }
 
  private:
   T obj_;

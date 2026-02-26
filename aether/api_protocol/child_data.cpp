@@ -29,9 +29,8 @@ std::vector<std::uint8_t> ChildData::PackData(
   if (pack_data_.index() == 0) {
     return DataPackMessage(protocol_context,
                            std::move(*std::get<0>(pack_data_)));
-  } else {
-    return std::move(std::get<1>(pack_data_));
   }
+  return std::get<1>(pack_data_);
 }
 
 std::vector<std::uint8_t> const& ChildData::PackData() const {

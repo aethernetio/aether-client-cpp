@@ -183,7 +183,7 @@ class EthernetTransportBuilderAction final : public TransportBuilderAction {
   PtrView<IPoller> poller_;
   StateMachine<State> state_;
   std::vector<Endpoint> ip_addresses_;
-  std::vector<Endpoint>::iterator it_;
+  std::vector<Endpoint>::iterator it_{};
   std::unique_ptr<ByteIStream> transport_stream_;
   Subscription address_resolve_sub_;
   Subscription transport_stream_sub_;

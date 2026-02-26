@@ -143,7 +143,7 @@ ae::ActionPtr<ae::WriteAction> WriteMessageImpl(AetherClient* client,
   return action;
 }
 
-void WriteMessage(AetherClient* client, ae::Uid destination,
+void WriteMessage(AetherClient* client, ae::Uid const& destination,
                   ae::DataBuffer&& data, ActionStatusCb status_cb,
                   void* user_data) {
   assert(client);
@@ -151,10 +151,10 @@ void WriteMessage(AetherClient* client, ae::Uid destination,
   // if client still is not selected, add send message to queue
   if (!client->client) {
     client->actions_queue_->Push(
-        ae::Stage([client, destination, data{std::move(data)}, status_cb,
+        ae::Stage([client, destination, d{std::move(data)}, status_cb,
                    user_data]() mutable {
-          return WriteMessageImpl(client, destination, std::move(data),
-                                  status_cb, user_data);
+          return WriteMessageImpl(client, destination, std::move(d), status_cb,
+                                  user_data);
         }));
   } else {
     WriteMessageImpl(client, destination, std::move(data), status_cb,

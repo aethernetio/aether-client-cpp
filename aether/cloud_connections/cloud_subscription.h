@@ -41,7 +41,7 @@ class CloudSubscription {
  private:
   void ServersUpdate();
 
-  CloudServerConnections* cloud_connection_;
+  CloudServerConnections* cloud_connection_{};
   ClientListener subscriber_;
   RequestPolicy::Variant request_policy_;
   Subscription server_update_sub_;
