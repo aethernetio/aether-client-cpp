@@ -1,0 +1,70 @@
+name: CMake
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+  #Allows you to start workflow manually from the actions tab in the interface github.com
+  workflow_dispatch:
+
+jobs:
+#ESP32 Build
+  build-esp-idf-component:
+    name: ESP-IDF ${{ matrix.idf_ver }} for ${{ matrix.idf_target }} ${{ matrix.compile_example }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # The version names here correspond to the versions of espressif/idf Docker image.
+        # See https://hub.docker.com/r/espressif/idf/tags and
+        # https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/tools/idf-docker-image.html
+        # for details.
+        idf_ver: ["release-v5.5"]
+        idf_target: ["esp32"]
+        compile_example: ["cloud"]
+        platforms:
+          - {
+              name: "Optimized",
+              user_config: "./config/user_config_optimized.h",
+            }
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Build Application
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ matrix.idf_ver }}
+          target: ${{ matrix.idf_target }}
+          path: "projects/xtensa_lx6/vscode/aether-client-cpp"
+          command: idf.py
+            build
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            -DCOMPILE_EXAMPLE=${{ matrix.compile_example }}
+            -DUSER_CONFIG=../../../../../${{ matrix.platforms.user_config }}
+
+      - name: Rename artifact
+        run: |
+          ls -lah
+          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/bootloader/bootloader.bin bootloader-${{ matrix.idf_ver }}.bin
+          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/partition_table/partition-table.bin partition-table-${{ matrix.idf_ver }}.bin
+          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/Aether.bin Aether-${{ matrix.compile_example }}-${{ matrix.idf_ver }}.bin
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aether_${{ matrix.idf_target }}_${{ matrix.idf_ver }}_${{ matrix.compile_example }}
+          path: "*-${{ matrix.compile_example }}-${{ matrix.idf_ver }}.bin"
+
+  release:
+    needs: build-esp-idf-component
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Firmware Files
+        uses: actions/download-artifact@v4
+        with:
+          path: build

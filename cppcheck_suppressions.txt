@@ -1,16 +1,24 @@
 missingIncludeSystem
-preprocessorErrorDirective
 functionStatic
 unusedFunction
+duplInheritedMember
 
-missingInclude:esp-idf/**
 
-cstyleCast:tests/**/*         // c-style cast is heavily used in tests
-dangerousTypeCast:tests/**/*  // c-style cast is heavily used in tests
+*:third_party/*
+*:esp-idf/*
+
+useInitializationList:tests/*
+returnDanglingLifetime:tests/*
+accessMoved:tests/*        // sometimes it's specially checked if var is moved
+cstyleCast:tests/*         // c-style cast is heavily used in tests
+dangerousTypeCast:tests/*  // c-style cast is heavily used in tests
 unusedStructMember:tests/test-reflect/* // there is a lot of members that looks unused
-constParameterCallback:capi/**/*
+
+constParameterCallback:capi/*
 uninitMemberVar:aligned_storage.h
 unreadVariable:aligned_storage.h
+uninitMemberVar:ptr.h
+uninitMemberVar:ptr_view.h
 
 noExplicitConstructor:crc.h
 noExplicitConstructor:small_function.h
