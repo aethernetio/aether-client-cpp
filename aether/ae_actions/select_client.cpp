@@ -77,7 +77,7 @@ UpdateStatus SelectClientAction::Update() {
   return {};
 }
 
-Client::ptr SelectClientAction::client() const { return client_; }
+Client::ptr const& SelectClientAction::client() const { return client_; }
 
 SelectClientAction::State SelectClientAction::state() const { return state_; }
 

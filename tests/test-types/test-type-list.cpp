@@ -36,9 +36,7 @@ constexpr auto MakeIndexSequenceWithStep() {
 }
 
 template <std::size_t I>
-struct NType {
-  static constexpr std::size_t value = I;
-};
+struct NType {};
 
 template <std::size_t... Is>
 static constexpr auto MakeTypeListImpl(std::index_sequence<Is...>)

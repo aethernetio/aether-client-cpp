@@ -29,8 +29,8 @@ static constexpr std::size_t kBenchCount = 100'000'000;
 #endif
 
 struct Rabbit {
-  Rabbit(int y) { x = y * y; }
-  ~Rabbit() { x = x - x / 2; }
+  explicit Rabbit(int y) : x{y * y} {}
+  ~Rabbit() { x = x - (x / 2); }
   volatile int x{0};
 };
 
@@ -79,7 +79,7 @@ void test_shared_ptr_CopyingBench() {
   tests::BenchmarkFunc(
       [&](auto i) {
         auto copy_rabbits = rabbits3;
-        for (auto& r : copy_rabbits) {
+        for (auto const& r : copy_rabbits) {
           r->x += i % 100;
         }
       },

@@ -32,8 +32,8 @@ EventHandlersList::IteratorAdapter::Iterator::Iterator(
 }
 EventHandlersList::IteratorAdapter::Iterator&
 EventHandlersList::IteratorAdapter::Iterator::operator++() {
-  it_++;
-  index_++;
+  ++it_;
+  ++index_;
   if (index_ == size_) {
     return *this;
   }

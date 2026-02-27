@@ -17,6 +17,6 @@
 #include "aether/work_cloud.h"
 
 namespace ae {
-WorkCloud::WorkCloud(ObjProp prop, Uid client_uid)
+WorkCloud::WorkCloud(ObjProp prop, Uid const& client_uid)
     : Cloud{prop}, client_uid{client_uid} {}
 }  // namespace ae

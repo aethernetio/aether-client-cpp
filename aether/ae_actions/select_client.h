@@ -61,7 +61,7 @@ class SelectClientAction final : public Action<SelectClientAction> {
 
   UpdateStatus Update();
 
-  Client::ptr client() const;
+  Client::ptr const& client() const;
   State state() const;
 
  private:

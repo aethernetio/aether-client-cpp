@@ -38,8 +38,13 @@ class CumulativeEvent {
    public:
     explicit ValueSetter(CumulativeEvent* event) : event_(event) {}
 
-    ValueSetter& operator=(T value) {
+    ValueSetter& operator=(T const& value) {
       event_->values_[I] = value;
+      return *this;
+    }
+
+    ValueSetter& operator=(T&& value) {
+      event_->values_[I] = std::move(value);
       return *this;
     }
 
@@ -86,15 +91,14 @@ class CumulativeEvent {
                    EventSubscribers&&... event_subscribers) {
     ((subscriptions_[Is] =
           std::forward<EventSubscribers>(event_subscribers)
-              .Subscribe(
-                  [this, func{std::forward<TFunc>(func)}](auto&&... args) {
-                    set_map_[Is] = true;
-                    ValueSetter<Is> vs{this};
-                    func(vs, std::forward<decltype(args)>(args)...);
-                    if (IsFull()) {
-                      res_event_.Emit(*this);
-                    }
-                  })),
+              .Subscribe([this, f{std::forward<TFunc>(func)}](auto&&... args) {
+                set_map_[Is] = true;
+                ValueSetter<Is> vs{this};
+                f(vs, std::forward<decltype(args)>(args)...);
+                if (IsFull()) {
+                  res_event_.Emit(*this);
+                }
+              })),
      ...);
   }
 

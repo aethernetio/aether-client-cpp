@@ -104,25 +104,25 @@ void TimeSyncAction::SyncRequest() {
   CloudVisit::Visit(
       [this](CloudServerConnection* sc) {
         assert((sc != nullptr) && "Server connection is null!");
-        assert((sc->client_connection()->stream_info().link_state ==
-                LinkState::kLinked) &&
+
+        auto* cc = sc->client_connection();
+        assert((cc->stream_info().link_state == LinkState::kLinked) &&
                "Client connection is not linked!");
 
         write_action_sub_ =
-            sc->client_connection()
-                ->LoginApiCall(SubApi<LoginApi>{[this](auto& api) {
-                  AE_TELED_DEBUG("Make time sync request");
-                  ApiPromisePtr<uint64_t> promise = api->get_time_utc();
-                  response_sub_ = promise->StatusEvent().Subscribe(
-                      OnResult{[this, request_time{Clock::now()}](auto& p) {
-                        HandleResponse(
-                            std::chrono::milliseconds{
-                                static_cast<std::int64_t>(p.value())},
-                            request_time, Clock::now());
-                        // time synced, wait for next sync interval
-                        state_ = State::kWaitInterval;
-                      }});
-                }})
+            cc->LoginApiCall(SubApi<LoginApi>{[this](auto& api) {
+                AE_TELED_DEBUG("Make time sync request");
+                ApiPromisePtr<uint64_t> promise = api->get_time_utc();
+                response_sub_ = promise->StatusEvent().Subscribe(
+                    OnResult{[this, request_time{Clock::now()}](auto& p) {
+                      HandleResponse(
+                          std::chrono::milliseconds{
+                              static_cast<std::int64_t>(p.value())},
+                          request_time, Clock::now());
+                      // time synced, wait for next sync interval
+                      state_ = State::kWaitInterval;
+                    }});
+              }})
                 ->StatusEvent()
                 .Subscribe(OnError{[this]() {
                   AE_TELED_ERROR("Time sync write error, repeat");

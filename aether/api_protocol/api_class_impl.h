@@ -88,7 +88,7 @@ struct MethodInvoke<message_id, TApi, method_ptr,
                                      !IsSubContextImpl<First>::value>> {
  public:
   static constexpr auto kMessageCode = message_id;
-  using Message = GenericMessage<First, Args...>;
+  using Message = GenericMessage<std::decay_t<First>, std::decay_t<Args>...>;
 
   static void Invoke(TApi* obj, Message&& message, ApiParser&) {
     std::apply(
@@ -109,7 +109,7 @@ template <MessageId message_id, typename TApi, typename R, typename... Args,
 struct MethodInvoke<message_id, TApi, method_ptr> {
  public:
   static constexpr auto kMessageCode = message_id;
-  using Message = GenericMessage<PromiseResult<R>, Args...>;
+  using Message = GenericMessage<PromiseResult<R>, std::decay_t<Args>...>;
 
   static void Invoke(TApi* obj, Message&& message, ApiParser&) {
     std::apply(
@@ -130,7 +130,7 @@ template <MessageId message_id, typename TApi, typename TSubApi,
 struct MethodInvoke<message_id, TApi, method_ptr> {
  public:
   static constexpr auto kMessageCode = message_id;
-  using Message = GenericMessage<Args...>;
+  using Message = GenericMessage<std::decay_t<Args>...>;
 
   static void Invoke(TApi* obj, Message&& message, ApiParser& parser) {
     std::apply(

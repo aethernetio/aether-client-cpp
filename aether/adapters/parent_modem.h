@@ -45,7 +45,7 @@ class ParentModemAdapter : public Adapter {
   Obj::ptr aether_;
   IPoller::ptr poller_;
 
-  ModemInit modem_init_;
+  ModemInit modem_init_{};
 };
 }  // namespace ae
 

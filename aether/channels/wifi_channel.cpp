@@ -205,7 +205,7 @@ class WifiTransportBuilderAction final : public TransportBuilderAction {
   Endpoint address_;
 
   std::vector<Endpoint> ip_addresses_;
-  std::vector<Endpoint>::iterator it_;
+  std::vector<Endpoint>::iterator it_{};
   std::unique_ptr<ByteIStream> transport_stream_;
   Subscription wifi_connected_sub_;
   Subscription address_resolve_sub_;

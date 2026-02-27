@@ -47,7 +47,7 @@ class ParentWifiAdapter : public Adapter {
   ObjPtr<IPoller> poller_;
   ObjPtr<DnsResolver> dns_resolver_;
 
-  WiFiInit wifi_init_;
+  WiFiInit wifi_init_{};
 };
 }  // namespace ae
 #endif

@@ -108,6 +108,7 @@ jobs:
           cmake -B build
           -G "${{ matrix.config.generator }}"
           -A "${{ matrix.config.arch }}"
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }}
           -DCMAKE_C_COMPILER=${{ matrix.config.cc }}
           -DCMAKE_BUILD_TYPE=Release
@@ -119,6 +120,11 @@ jobs:
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
         run: cmake --build build --config Release --parallel
 
+      - name: Test
+        # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
+        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -126,60 +132,6 @@ jobs:
           path: "build/*"
           include-hidden-files: true
           overwrite: true
-
-      - name: Test
-        # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-        run: ctest --test-dir build --build-config Release --output-on-failure
-
-  #ESP32 Build
-  build-esp-idf-component:
-    name: ESP-IDF ${{ matrix.idf_ver }} for ${{ matrix.idf_target }} ${{ matrix.compile_example }}
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # The version names here correspond to the versions of espressif/idf Docker image.
-        # See https://hub.docker.com/r/espressif/idf/tags and
-        # https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/tools/idf-docker-image.html
-        # for details.
-        idf_ver: ["release-v5.5"]
-        idf_target: ["esp32"]
-        compile_example: ["cloud"]
-        platforms:
-          - {
-              name: "Optimized",
-              user_config: "./config/user_config_optimized.h",
-            }
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          submodules: "recursive"
-
-      - name: Build Application
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: ${{ matrix.idf_ver }}
-          target: ${{ matrix.idf_target }}
-          path: "projects/xtensa_lx6/vscode/aether-client-cpp"
-          command: idf.py build
-            -DCOMPILE_EXAMPLE=${{ matrix.compile_example }}
-            -DUSER_CONFIG=../../../../../${{ matrix.platforms.user_config }}
-            -DAE_DISTILLATION=Off
-
-      - name: Rename artifact
-        run: |
-          ls -lah
-          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/bootloader/bootloader.bin bootloader-${{ matrix.idf_ver }}.bin
-          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/partition_table/partition-table.bin partition-table-${{ matrix.idf_ver }}.bin
-          cp projects/xtensa_lx6/vscode/aether-client-cpp/build/Aether.bin Aether-${{ matrix.compile_example }}-${{ matrix.idf_ver }}.bin
-
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: Aether_${{ matrix.idf_target }}_${{ matrix.idf_ver }}_${{ matrix.compile_example }}
-          path: "*-${{ matrix.compile_example }}-${{ matrix.idf_ver }}.bin"
 
   release:
     needs: build

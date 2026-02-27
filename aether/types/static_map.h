@@ -20,6 +20,7 @@
 #include <array>
 #include <cstddef>
 #include <utility>
+#include <algorithm>
 
 namespace ae {
 template <typename K, typename T, std::size_t Size>
@@ -72,14 +73,12 @@ class StaticMap {
   constexpr size_type size() const { return Size; }
 
   [[nodiscard]] constexpr decltype(auto) find(key_type const& key) const {
-    for (std::size_t i = 0; i < Size; ++i) {
-      if (storage_[i].first == key) {
-        return std::next(
-            std::begin(storage_),
-            static_cast<typename storage_type::difference_type>(i));
-      }
+    auto it = std::find_if(std::begin(storage_), std::end(storage_),
+                           [&key](auto const& s) { return s.first == key; });
+    if (it == std::end(storage_)) {
+      return std::end(storage_);
     }
-    return std::end(storage_);
+    return it;
   }
 
  private:

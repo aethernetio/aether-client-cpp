@@ -32,12 +32,13 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
  public:
   explicit ClientApiSafe(ProtocolContext& protocol_context);
 
-  void SendMessages(std::vector<AeMessage> messages);
+  void SendMessages(std::vector<AeMessage> const& messages);
 
-  void SendServerDescriptor(ServerDescriptor server_descriptor);
-  void SendServerDescriptors(std::vector<ServerDescriptor> server_descriptors);
-  void SendCloud(Uid uid, CloudDescriptor cloud);
-  void SendClouds(std::vector<UidAndCloudDescriptor> clouds);
+  void SendServerDescriptor(ServerDescriptor const& server_descriptor);
+  void SendServerDescriptors(
+      std::vector<ServerDescriptor> const& server_descriptors);
+  void SendCloud(Uid const& uid, CloudDescriptor const& cloud);
+  void SendClouds(std::vector<UidAndCloudDescriptor> const& clouds);
 
   void RequestTelemetry();
 

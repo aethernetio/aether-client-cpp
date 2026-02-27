@@ -28,8 +28,11 @@ struct VersionAllowed<I, std::void_t<decltype(Version<I>{})>> : std::true_type {
 };
 
 void test_MaxVersion() {
-  Version<0> v;                      // ok!
-  Version<MAX_VERSION> max_version;  // ok!
+  // test if possible to create a Version objects
+  // cppcheck-suppress-begin unreadVariable
+  Version<0> v{};                      // ok!
+  Version<MAX_VERSION> max_version{};  // ok!
+  // cppcheck-suppress-end unreadVariable
   // Version<MAX_VERSION + 1> to_big_version;  // not ok!
 
   static_assert(VersionAllowed<0>::value, "Version<0> must be allowed");
@@ -149,7 +152,7 @@ void VersionIteratorLoadTestFunc(TFactory factory) {
   constexpr auto version_bounds = VersionedLoadMinMax<ObjectType>::value;
   IterateVersions<HasVersionedLoad, version_bounds.first,
                   version_bounds.second>(
-      obj, [&visit_count](auto version, auto& obj) { ++visit_count; });
+      obj, [&visit_count](auto, auto const&) { ++visit_count; });
 
   TEST_ASSERT_EQUAL(expected_count, visit_count);
 }
@@ -164,7 +167,7 @@ void VersionIteratorSaveTestFunc(TFactory factory) {
   constexpr auto version_bounds = VersionedSaveMinMax<ObjectType>::value;
   IterateVersions<HasVersionedSave, version_bounds.first,
                   version_bounds.second>(
-      obj, [&visit_count](auto version, auto& obj) { ++visit_count; });
+      obj, [&visit_count](auto, auto const&) { ++visit_count; });
 
   TEST_ASSERT_EQUAL(expected_count, visit_count);
 }

@@ -45,7 +45,7 @@ class Server : public Obj {
 
   ChannelsChanged::Subscriber channels_changed();
 
-  ServerId server_id;
+  ServerId server_id{};
   std::vector<Endpoint> endpoints;
   std::vector<Channel::ptr> channels;
 
@@ -57,7 +57,7 @@ class Server : public Obj {
   AdapterRegistry::ptr adapter_registry_;
   MultiSubscription access_point_added_;
   ChannelsChanged channels_changed_;
-  bool subscribed_;
+  bool subscribed_{false};
 };
 }  // namespace ae
 #endif  // AETHER_SERVER_H_ */

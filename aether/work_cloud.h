@@ -29,7 +29,7 @@ class WorkCloud : public Cloud {
   WorkCloud() = default;
 
  public:
-  WorkCloud(ObjProp prop, Uid client_uid);
+  WorkCloud(ObjProp prop, Uid const& client_uid);
 
   AE_OBJECT_REFLECT(AE_MMBRS(client_uid))
   Uid client_uid;

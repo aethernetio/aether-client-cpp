@@ -1,0 +1,87 @@
+name: cppcheck
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+  #Allows you to start workflow manually from the actions tab in the interface github.com
+  workflow_dispatch:
+
+jobs:
+  cppcheck:
+    runs-on: ubuntu-latest
+    steps:
+    - name: configure system
+      run: |
+         sudo apt-get update
+         sudo apt-get install -y make ninja-build
+
+    - uses: actions/checkout@v4
+      with:
+          submodules: recursive
+
+    - name: cache cppcheck
+      id: cache-cppcheck
+      uses: actions/cache@v4
+      with:
+        path: _cppcheck
+        key: ${{ runner.os }}-cppcheck-2.19.0
+        restore-keys: ${{ runner.os }}-cppcheck-2.19.0
+
+    - if: ${{ steps.cache-cppcheck.outputs.cache-hit != 'true' }}
+      name: download and build cppcheck
+      run: |
+          mkdir -p _cppcheck
+          wget -O _cppcheck/cppcheck.tar.gz https://github.com/danmar/cppcheck/archive/refs/tags/2.19.0.tar.gz
+          cd _cppcheck
+          tar -xzf cppcheck.tar.gz
+          cd cppcheck-2.19.0
+          make -j
+          pwd
+          ls ./cppcheck
+          ./cppcheck --version
+          cd ../..
+          _cppcheck/cppcheck-2.19.0/cppcheck --version
+
+    # we need configure cmake to get the compile_commands.json file
+    - name: cmake configure
+      run: >
+        cmake -B build
+        -G Ninja
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        -DCMAKE_BUILD_TYPE=Release
+        -C ".github/workflows/linux_initial_cache.txt"
+        -S projects/cmake
+
+    - name: cache cppcheck_build_dir
+      id: cache-cppcheck_build_dir
+      uses: actions/cache@v4
+      with:
+        path: _cppcheck_build_dir
+        key: ${{ runner.os }}-cppcheck_build_dir
+        restore-keys: ${{ runner.os }}-cppcheck_build_dir
+
+    # _cppcheck_build_dir is required to increase cppcheck check speed
+    - if: ${{ steps.cache-cppcheck_build_dir.outputs.cache-hit != 'true' }}
+      name: cppcheck_build_dir
+      run: mkdir -p _cppcheck_build_dir
+
+    - name: cppcheck
+      run: >
+        ./_cppcheck/cppcheck-2.19.0/cppcheck --project=build/compile_commands.json
+        -D__GNUC__=4
+        --safety
+        --error-exitcode=-1
+        -i "third_party/*"
+        --enable=warning,performance,portability,missingInclude
+        --suppressions-list=./cppcheck_suppressions.txt
+        --inline-suppr
+        --quiet
+        -j $(nproc)
+        --cppcheck-build-dir=./_cppcheck_build_dir
+        --checkers-report=./checkers.txt
+
+    - name: print checkers report
+      run: cat checkers.txt

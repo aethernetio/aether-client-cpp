@@ -138,7 +138,7 @@ void test_DestructableCallableInVector() {
       funcs.emplace_back(DestructableCallable{});
     }
 
-    for (auto& func : funcs) {
+    for (auto const& func : funcs) {
       func();
     }
   }
@@ -151,7 +151,7 @@ class Worker {
   static inline int invoke_count;
   static inline int const_invoke_count;
 
-  Worker(int expected) : expected(expected) {}
+  explicit Worker(int expected) : expected(expected) {}
 
   void Foo(int x) {
     invoke_count++;

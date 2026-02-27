@@ -171,8 +171,8 @@ class StatisticsStore {
   void Rotate();
 
   std::uint32_t statistics_size_limit_{kMaxSize};
-  EnvStore env_store_;
-  MetricsStore metrics_store_;
+  EnvStore env_store_{};
+  MetricsStore metrics_store_{};
   RcPtr<LogStorage> prev_logs_;
   RcPtr<LogStorage> logs_;
 };

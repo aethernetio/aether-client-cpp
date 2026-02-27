@@ -18,10 +18,10 @@
 #include <iostream>
 #include <filesystem>
 
-extern int AetherRegistrator(const std::string &ini_file,
-                             const std::string &header_file);
+extern int AetherRegistrator(const std::string& ini_file,
+                             const std::string& header_file);
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   std::string ini_file{};
   std::string header_file{};
 
@@ -30,9 +30,7 @@ int main(int argc, char *argv[]) {
     return -5;
   }
 
-  if (argc > 1) {
-    ini_file = std::string(argv[1]);
-  }
+  ini_file = std::string(argv[1]);
   if (!std::filesystem::exists(ini_file)) {
     std::cerr << "The configuration file was not found!\n";
     return -4;

@@ -90,9 +90,9 @@ class WifiAccessPoint final : public AccessPoint {
   Obj::ptr adapter_;
   ObjPtr<IPoller> poller_;
   ObjPtr<DnsResolver> resolver_;
-  WiFiAp wifi_ap_;
-  WiFiPowerSaveParam psp_;
-  WiFiBaseStation base_station_;
+  WiFiAp wifi_ap_{};
+  WiFiPowerSaveParam psp_{};
+  WiFiBaseStation base_station_{};
   ActionPtr<WifiConnectAction> connect_action_;
   Subscription connect_sub_;
 };

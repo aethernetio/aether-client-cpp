@@ -25,7 +25,7 @@ struct A {
   virtual ~A() { ++a_destroyed; }
 
   static inline int a_destroyed = 0;
-  int x;
+  int x{};
   AE_REFLECT_MEMBERS(x)
 };
 
@@ -34,7 +34,7 @@ struct B : public A {
   ~B() override { ++b_destroyed; }
 
   static inline int b_destroyed = 0;
-  int y;
+  int y{};
   AE_REFLECT_MEMBERS(y)
 };
 }  // namespace ae::test_ptr

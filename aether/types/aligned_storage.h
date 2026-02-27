@@ -128,7 +128,8 @@ class ManagedStorage {
   explicit ManagedStorage(T&& value) : vtable_{&MSVTableForT<std::decay_t<T>>} {
     static_assert(sizeof(T) <= Size, "T should fit into storage");
     static_assert(Align % alignof(T) == 0, "T should be aligned like Align");
-    new (storage_.data()) T{std::forward<T>(value)};
+    auto* p = storage_.data();
+    new (p) T{std::forward<T>(value)};
   }
 
   // Create instance of T with arguments in place
@@ -137,7 +138,8 @@ class ManagedStorage {
       : vtable_{&MSVTableForT<T>} {
     static_assert(sizeof(T) <= Size, "T should fit into storage");
     static_assert(Align % alignof(T) == 0, "T should be aligned like Align");
-    new (storage_.data()) T{std::forward<TArgs>(args)...};
+    auto* p = storage_.data();
+    new (p) T{std::forward<TArgs>(args)...};
   }
 
   // assign instance of T
