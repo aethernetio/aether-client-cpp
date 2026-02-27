@@ -118,12 +118,12 @@ jobs:
 
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --config Release
 
       - name: Test
         # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
         # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-        run: ctest --test-dir build --build-config Release --output-on-failure
+        run: ctest --test-dir build --build-config Release --output-on-failure --parallel
 
       - name: Upload
         uses: actions/upload-artifact@v4
