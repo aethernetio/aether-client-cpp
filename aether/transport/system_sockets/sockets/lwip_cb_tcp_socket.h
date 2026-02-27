@@ -65,7 +65,7 @@ class LwipCBTcpSocket : public ISocket {
   ConnectedCb connected_cb_;
 
   tcp_pcb* pcb_{nullptr};
-  ConnectionState connection_state_;
+  ConnectionState connection_state_{};
   DataBuffer recv_buffer_;
 };
 }  // namespace ae

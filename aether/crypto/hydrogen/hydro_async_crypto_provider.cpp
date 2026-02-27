@@ -59,7 +59,7 @@ inline std::vector<std::uint8_t> DecryptWithAsymmetric(
   assert(encrypted_data.size() >
          hydro_kx_N_PACKET1BYTES + sizeof(std::uint64_t));
 
-  hydro_kx_keypair kp;
+  hydro_kx_keypair kp{};
   std::copy(pk.key.begin(), pk.key.end(), std::begin(kp.pk));
   std::copy(secret_key.key.begin(), secret_key.key.end(), std::begin(kp.sk));
 
