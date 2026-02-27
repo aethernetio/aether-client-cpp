@@ -219,8 +219,9 @@ static DnsResolver::ptr DnsResolverFactory(AetherAppContext const& context) {
           .with_id(GlobalId::kDnsResolver)
           .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether());
+  #else
+  return {};
 #    endif
-  return dns_resolver;
 #  else
   return DnsResolver::ptr::Create(
       CreateWith{context.domain()}
