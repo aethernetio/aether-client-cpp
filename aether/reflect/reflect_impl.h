@@ -248,9 +248,10 @@ struct IsReflectable<T,
   constexpr auto FieldList() const {                                          \
     using SelfType = std::decay_t<decltype(*this)>;                           \
     static_assert(sizeof(SelfType) != 0);                                     \
-    constexpr auto fields = ::ae::TypeList{__VA_ARGS__};                      \
+    auto fields = ::ae::TypeListMaker{__VA_ARGS__};                           \
     using TypeFieldTypeList =                                                 \
-        ::ae::JoinedTypeList_t<::ae::TypeList<SelfType>, decltype(fields)>;   \
+        ::ae::JoinedTypeList_t<::ae::TypeList<SelfType>,                      \
+                               typename decltype(fields)::type>;              \
     using FL = typename ::ae::TypeListToTemplate<                             \
         ::ae::reflect::reflect_internal::FieldList, TypeFieldTypeList>::type; \
     return FL{};                                                              \
@@ -264,10 +265,10 @@ struct IsReflectable<T,
   constexpr auto FieldList() const {                                          \
     using SelfType = std::decay_t<decltype(*this)>;                           \
     static_assert(sizeof(SelfType) != 0);                                     \
-    constexpr auto fields =                                                   \
-        ::ae::TypeList{_AE_APPLY_MACRO(AE_MMBR, __VA_ARGS__)};                \
+    auto fields = ::ae::TypeListMaker{_AE_APPLY_MACRO(AE_MMBR, __VA_ARGS__)}; \
     using TypeFieldTypeList =                                                 \
-        ::ae::JoinedTypeList_t<::ae::TypeList<SelfType>, decltype(fields)>;   \
+        ::ae::JoinedTypeList_t<::ae::TypeList<SelfType>,                      \
+                               typename decltype(fields)::type>;              \
     using FL = typename ::ae::TypeListToTemplate<                             \
         ::ae::reflect::reflect_internal::FieldList, TypeFieldTypeList>::type; \
     return FL{};                                                              \
