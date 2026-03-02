@@ -21,6 +21,7 @@
 #  include "aether/aether.h"
 #  include "aether/format/format.h"
 #  include "aether/tele/traps/statistics_trap.h"
+#  include "aether/tele/traps/tele_statistics.h"
 
 #  include "aether/mstream.h"
 #  include "aether/mstream_buffers.h"
@@ -111,7 +112,9 @@ std::optional<Telemetric> Telemetry::CollectTelemetry(
     return std::nullopt;
   }
   auto& statistics_storage =
-      aether_ptr->tele_statistics->trap()->statistics_store;
+      tele::TeleStatistics::ptr{aether_ptr->tele_statistics}
+          ->trap()
+          ->statistics_store;
   auto& env_storage = statistics_storage.env_store();
   Telemetric res{};
   res.cpp.utm_id = env_storage.utm_id;

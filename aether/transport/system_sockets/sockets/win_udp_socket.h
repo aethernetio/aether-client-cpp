@@ -20,7 +20,7 @@
 #include "aether/config.h"
 #include "aether/transport/system_sockets/sockets/win_socket.h"  // IWYU pragma: keep
 
-#if AE_SUPPORT_UDP && defined WIN_SOCKET_ENABLED
+#if AE_SUPPORT_UDP && WIN_SOCKET_ENABLED
 
 namespace ae {
 class WinUdpSocket final : public WinSocket {

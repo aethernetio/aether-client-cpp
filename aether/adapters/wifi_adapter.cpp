@@ -26,6 +26,8 @@
 #  include "aether/dns/dns_resolve.h"
 #  include "aether/wifi/wifi_driver_factory.h"
 
+#  include "aether/tele/tele.h"
+
 namespace ae {
 #  if defined AE_DISTILLATION
 WifiAdapter::WifiAdapter(ObjProp prop, ObjPtr<Aether> aether,

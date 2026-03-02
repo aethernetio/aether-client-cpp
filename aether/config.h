@@ -111,7 +111,7 @@
  * Also choose one of the supported modem implementations.
  */
 #ifndef AE_SUPPORT_MODEMS
-#  define AE_SUPPORT_MODEMS 1
+#  define AE_SUPPORT_MODEMS 0
 #endif
 
 // Thingy91x modem implementation is enabled.

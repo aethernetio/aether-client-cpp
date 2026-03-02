@@ -20,6 +20,7 @@
 #  include <utility>
 
 #  include "aether/aether.h"
+#  include "aether/server.h"
 #  include "aether/poller/poller.h"
 #  include "aether/dns/dns_resolve.h"
 #  include "aether/adapters/wifi_adapter.h"

@@ -18,21 +18,36 @@
 
 #include <utility>
 
-#include "aether/global_ids.h"
 #include "aether/obj/obj_ptr.h"
+#include "aether/ae_actions/time_sync.h"
+#include "aether/actions/action_processor.h"
+
+#include "aether/client.h"
+#include "aether/server.h"
+#include "aether/registration_cloud.h"
 
 #include "aether/work_cloud.h"
+#include "aether/registration/registration.h"
 
 #include "aether/aether_tele.h"
 
 namespace ae {
 
-Aether::Aether(ObjProp prop) : Obj{prop} { AE_TELE_DEBUG(AetherCreated); }
+Aether::Aether() : action_processor{make_unique<ActionProcessor>()} {}
+
+Aether::Aether(ObjProp prop)
+    : Obj{prop}, action_processor{make_unique<ActionProcessor>()} {
+  AE_TELE_DEBUG(AetherCreated);
+}
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
 void Aether::Update(TimePoint current_time) {
   update_time = action_processor->Update(current_time);
+}
+
+Aether::operator ActionContext() const {
+  return ActionContext{*action_processor};
 }
 
 Client::ptr Aether::CreateClient(ClientConfig const& config,

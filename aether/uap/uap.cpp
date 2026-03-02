@@ -16,6 +16,9 @@
 
 #include "aether/uap/uap.h"
 
+#include <utility>
+#include <numeric>
+
 #include "aether/aether.h"
 
 #include "aether/tele/tele.h"

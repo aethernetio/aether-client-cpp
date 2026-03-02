@@ -32,6 +32,8 @@
 
 #  include "aether/channels/ethernet_transport_factory.h"
 
+#  include "aether/tele/tele.h"
+
 namespace ae {
 namespace wifi_channel_internal {
 class WifiTransportBuilderAction final : public TransportBuilderAction {

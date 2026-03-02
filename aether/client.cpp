@@ -18,6 +18,8 @@
 
 #include <utility>
 
+#include "aether/ae_actions/telemetry.h"
+
 #include "aether/aether.h"
 
 namespace ae {

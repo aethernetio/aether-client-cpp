@@ -30,6 +30,7 @@
 #  include "aether/socket_initializer.h"
 #  include "aether/actions/action_ptr.h"
 #  include "aether/actions/action_context.h"
+#  include "aether/events/multi_subscription.h"
 
 #  include "aether/dns/dns_tele.h"
 

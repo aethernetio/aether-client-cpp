@@ -19,6 +19,7 @@
 #include <cassert>
 
 #include "aether/aether.h"
+#include "aether/client.h"
 #include "aether/registration/registration.h"
 
 #include "aether/ae_actions/ae_actions_tele.h"
