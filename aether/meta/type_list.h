@@ -18,7 +18,10 @@
 #define AETHER_META_TYPE_LIST_H_
 
 #include <cstddef>
+#include <utility>
 #include <type_traits>
+
+#include "aether/meta/index_sequence.h"
 
 namespace ae {
 template <typename... T>
@@ -35,55 +38,43 @@ struct TypeListMaker {
 template <typename... T>
 TypeListMaker(T&&...) -> TypeListMaker<T...>;
 
-static inline constexpr std::size_t GetTypeAtChunkSize = 10;
+namespace type_list_internal {
+template <std::size_t I>
+using index_constant = std::integral_constant<std::size_t, I>;
 
-template <std::size_t I, typename T0, typename T1 = void, typename T2 = void,
-          typename T3 = void, typename T4 = void, typename T5 = void,
-          typename T6 = void, typename T7 = void, typename T8 = void,
-          typename T9 = void>
-static constexpr auto GetTypeAtChunk() {
-  static_assert(I < GetTypeAtChunkSize);
-  if constexpr (I == 0) {
-    return std::type_identity<T0>{};
-  } else if constexpr (I == 1) {
-    return std::type_identity<T1>{};
-  } else if constexpr (I == 2) {
-    return std::type_identity<T2>{};
-  } else if constexpr (I == 3) {
-    return std::type_identity<T3>{};
-  } else if constexpr (I == 4) {
-    return std::type_identity<T4>{};
-  } else if constexpr (I == 5) {
-    return std::type_identity<T5>{};
-  } else if constexpr (I == 6) {
-    return std::type_identity<T6>{};
-  } else if constexpr (I == 7) {
-    return std::type_identity<T7>{};
-  } else if constexpr (I == 8) {
-    return std::type_identity<T8>{};
-  } else if constexpr (I == 9) {
-    return std::type_identity<T9>{};
-  }
-}
+template <std::size_t I, typename U>
+struct NType {
+  static auto get(index_constant<I>) -> U;
+};
 
-template <std::size_t I, typename T0, typename T1 = void, typename T2 = void,
-          typename T3 = void, typename T4 = void, typename T5 = void,
-          typename T6 = void, typename T7 = void, typename T8 = void,
-          typename T9 = void, typename... Ts>
-static constexpr auto GetTypeAt() {
-  if constexpr (I < GetTypeAtChunkSize) {
-    return GetTypeAtChunk<I, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>();
-  } else {
-    return GetTypeAt<I - GetTypeAtChunkSize, Ts...>();
-  }
-}
+template <typename... Ts>
+struct NTypeSelector {
+  template <typename Indices>
+  struct Selector;
+
+  template <std::size_t... Is>
+  struct Selector<std::index_sequence<Is...>> : NType<Is, Ts>... {
+    using NType<Is, Ts>::get...;
+  };
+
+  template <std::size_t I>
+  static auto get()
+      -> decltype(Selector<decltype(std::index_sequence_for<Ts...>())>::get(
+          index_constant<I>{}));
+
+  template <std::size_t I>
+  using type = decltype(get<I>());
+};
+
+}  // namespace type_list_internal
 
 template <std::size_t I, typename TList>
 struct TypeAt;
 
 template <std::size_t I, typename... Ts>
 struct TypeAt<I, TypeList<Ts...>> {
-  using type = typename decltype(GetTypeAt<I, Ts...>())::type;
+  using type =
+      typename type_list_internal::NTypeSelector<Ts...>::template type<I>;
 };
 
 template <std::size_t I, typename TList>
@@ -132,10 +123,16 @@ struct TypeListToTemplate<T, TypeList<Ts...>> {
 template <typename T>
 struct ReversTypeList;
 
-template <typename T, typename... Ts>
-struct ReversTypeList<TypeList<T, Ts...>> {
-  using type = JoinedTypeList_t<typename ReversTypeList<TypeList<Ts...>>::type,
-                                TypeList<T>>;
+template <typename... Ts>
+struct ReversTypeList<TypeList<Ts...>> {
+  using n_type_selector = type_list_internal::NTypeSelector<Ts...>;
+
+  template <std::size_t... Is>
+  static auto ReselectTypes(std::index_sequence<Is...>)
+      -> TypeList<typename n_type_selector::template type<Is>...>;
+
+  using type = decltype(ReselectTypes(
+      reverse_sequence(std::index_sequence_for<Ts...>{})));
 };
 
 template <typename T>
