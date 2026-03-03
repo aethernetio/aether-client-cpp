@@ -23,44 +23,42 @@
 
 #  include "aether/env.h"
 #  include "aether/clock.h"
-#  include "aether/client.h"
 #  include "aether/ptr/ptr_view.h"
 #  include "aether/actions/action.h"
+#  include "aether/actions/action_ptr.h"
 #  include "aether/types/state_machine.h"
 #  include "aether/events/event_subscription.h"
 
 namespace ae {
+class Aether;
+class Client;
+namespace time_sync_internal {
+class TimeSyncRequest;
+}
+
 class TimeSyncAction : public Action<TimeSyncAction> {
   enum class State : char {
-    kEnsureConnected,
     kMakeRequest,
-    kWaitResponse,
     kWaitInterval,
     kFailed,
   };
 
-  static constexpr auto kRequestTimeout = 10s;
-
  public:
-  TimeSyncAction(ActionContext action_context, Ptr<Client> const& client,
-                 Duration sync_interval);
+  TimeSyncAction(ActionContext action_context, Ptr<Aether> const& aether,
+                 Ptr<Client> const& client, Duration sync_interval);
 
   UpdateStatus Update();
 
  private:
-  void EnsureConnected();
-  void SyncRequest();
-  static void HandleResponse(std::chrono::milliseconds server_epoch,
-                             TimePoint request_time, TimePoint response_time);
-  UpdateStatus WaitResponse();
+  void MakeRequest();
   UpdateStatus WaitInterval();
 
+  ActionContext action_context_;
+  PtrView<Aether> aether_;
   PtrView<Client> client_;
   Duration sync_interval_;
   StateMachine<State> state_;
-  Subscription link_state_sub_;
-  Subscription write_action_sub_;
-  Subscription response_sub_;
+  ActionPtr<time_sync_internal::TimeSyncRequest> time_sync_request_;
 
   static RTC_STORAGE_ATTR SystemTimePoint last_sync_time;
 };
