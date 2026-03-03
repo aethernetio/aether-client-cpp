@@ -17,7 +17,6 @@
 #ifndef AETHER_COMMON_H_
 #define AETHER_COMMON_H_
 
-#include <chrono>
 #include <cstdint>
 
 #include "aether/config.h"

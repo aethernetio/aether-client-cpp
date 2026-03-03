@@ -16,7 +16,8 @@
 
 #include <unity.h>
 
-#include "aether/types/type_list.h"
+#include <utility>
+#include "aether/meta/type_list.h"
 
 #if defined __GNUC__
 #  define AE_FUNC_NAME __PRETTY_FUNCTION__
@@ -67,7 +68,7 @@ struct Worker {
   void work() {
     auto const* old_test_name = Unity.CurrentTestName;
     Unity.CurrentTestName = AE_FUNC_NAME;
-    using type_at = TypeAtT<I, TL>;
+    using type_at = TypeAt_t<I, TL>;
     TEST_ASSERT_TRUE((std::is_same_v<NType<I>, type_at>));
 
     Unity.CurrentTestName = old_test_name;
@@ -80,8 +81,8 @@ struct WorkerReverse {
   void work() {
     auto const* old_test_name = Unity.CurrentTestName;
     Unity.CurrentTestName = AE_FUNC_NAME;
-    constexpr auto kLastN = TypeListSize<TL> - 1;
-    using type_at = TypeAtT<I, TL>;
+    constexpr auto kLastN = TypeListSize_v<TL> - 1;
+    using type_at = TypeAt_t<I, TL>;
     TEST_ASSERT_TRUE((std::is_same_v<NType<kLastN - I>, type_at>));
 
     Unity.CurrentTestName = old_test_name;
@@ -93,7 +94,7 @@ void TestNTypes() {
   auto type_list = MakeTypeList<N>();
   using TL = decltype(type_list);
 
-  TEST_ASSERT_EQUAL(N, TypeListSize<TL>);
+  TEST_ASSERT_EQUAL(N, TypeListSize_v<TL>);
   ForTypes<(N / 20) + 1>(Worker<TL>{}, type_list);
   Worker<TL>{}.template work<N - 1>();
 }
@@ -104,7 +105,7 @@ void TestNTypesReverse() {
   using TL = decltype(type_list);
   using RTL = typename ReversTypeList<TL>::type;
 
-  TEST_ASSERT_EQUAL(N, TypeListSize<RTL>);
+  TEST_ASSERT_EQUAL(N, TypeListSize_v<RTL>);
   ForTypes<(N / 20) + 1>(WorkerReverse<RTL>{}, type_list);
   Worker<TL>{}.template work<N - 1>();
 }
@@ -112,6 +113,7 @@ void TestNTypesReverse() {
 void test_Ntypes() {
   RUN_TEST(TestNTypes<1>);
   RUN_TEST(TestNTypes<10>);
+
   RUN_TEST(TestNTypes<100>);
   RUN_TEST(TestNTypes<450>);
 

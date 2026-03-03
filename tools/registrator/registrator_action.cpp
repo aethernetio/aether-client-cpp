@@ -16,6 +16,8 @@
 
 #include "registrator/registrator_action.h"
 
+#include "aether/registration/registration.h"
+
 namespace ae::reg {
 RegistratorAction::RegistratorAction(
     ActionContext action_context, RcPtr<AetherApp> const& aether_app,

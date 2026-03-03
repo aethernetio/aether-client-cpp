@@ -95,7 +95,7 @@ void ReceiveChunkList::Acknowledge(SSRingIndex from, SSRingIndex to) {
                                    return true;
                                  }
                                  if (range.IsBefore(to + 1)) {
-                                   c.data.clear();
+                                   return true;
                                  }
                                  return false;
                                }),
@@ -166,9 +166,10 @@ void ReceiveChunkList::FixChunkOverlapsEnd(ReceivingChunk& overlapped,
                                            SSRingIndex expected_end) {
   auto const distance = static_cast<std::ptrdiff_t>(
       expected_end.Distance(overlapped.offset_range().right));
-  overlapped.end = ((overlapped.end - overlapped.begin) > distance)
-                       ? overlapped.end - distance
-                       : overlapped.begin;
+  auto overlapped_size = (overlapped.end - overlapped.begin);
+  // shift overlapped.end left
+  overlapped.end = (overlapped_size > distance) ? overlapped.end - distance
+                                                : overlapped.begin;
 }
 
 void ReceiveChunkList::MergeChunkProperties(ReceivingChunk& chunk,

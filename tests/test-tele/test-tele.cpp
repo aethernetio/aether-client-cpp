@@ -43,7 +43,7 @@
 
 #define AETHER_TELE_TELE_H_
 
-#include "aether/types/type_list.h"
+#include "aether/meta/type_list.h"
 
 #include "aether/tele/sink.h"
 #include "aether/tele/tags.h"
@@ -162,24 +162,24 @@ template <bool Count = true, bool Time = true, bool Index = true,
 struct ConfigProvider {
   template <bool... args>
   struct TeleConfig {
-    static constexpr bool kCountMetrics = ArgAt<0>(args...);
-    static constexpr bool kTimeMetrics = ArgAt<1>(args...);
-    static constexpr bool kIndexLogs = ArgAt<2>(args...);
-    static constexpr bool kStartTimeLogs = ArgAt<3>(args...);
-    static constexpr bool kLevelModuleLogs = ArgAt<4>(args...);
-    static constexpr bool kLocationLogs = ArgAt<5>(args...);
-    static constexpr bool kNameLogs = ArgAt<6>(args...);
-    static constexpr bool kBlobLogs = ArgAt<7>(args...);
+    static constexpr bool kCountMetrics = ArgAt_v<0, args...>;
+    static constexpr bool kTimeMetrics = ArgAt_v<1, args...>;
+    static constexpr bool kIndexLogs = ArgAt_v<2, args...>;
+    static constexpr bool kStartTimeLogs = ArgAt_v<3, args...>;
+    static constexpr bool kLevelModuleLogs = ArgAt_v<4, args...>;
+    static constexpr bool kLocationLogs = ArgAt_v<5, args...>;
+    static constexpr bool kNameLogs = ArgAt_v<6, args...>;
+    static constexpr bool kBlobLogs = ArgAt_v<7, args...>;
   };
 
   template <bool... args>
   struct EnvConfig {
-    static constexpr bool kCompiler = ArgAt<0>(args...);
-    static constexpr bool kPlatformType = ArgAt<1>(args...);
-    static constexpr bool kCompilationOptions = ArgAt<2>(args...);
-    static constexpr bool kLibraryVersion = ArgAt<3>(args...);
-    static constexpr bool kApiVersion = ArgAt<4>(args...);
-    static constexpr bool kCpuType = ArgAt<5>(args...);
+    static constexpr bool kCompiler = ArgAt_v<0, args...>;
+    static constexpr bool kPlatformType = ArgAt_v<1, args...>;
+    static constexpr bool kCompilationOptions = ArgAt_v<2, args...>;
+    static constexpr bool kLibraryVersion = ArgAt_v<3, args...>;
+    static constexpr bool kApiVersion = ArgAt_v<4, args...>;
+    static constexpr bool kCpuType = ArgAt_v<5, args...>;
   };
 
   template <ae::tele::Level::underlined_t level, std::uint32_t module>

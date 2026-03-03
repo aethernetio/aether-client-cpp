@@ -39,7 +39,7 @@ struct EventType {
 
   explicit operator std::uint8_t() const { return value; }
 
-  std::uint8_t value;
+  std::uint8_t value{};
 };
 
 struct DescriptorType {

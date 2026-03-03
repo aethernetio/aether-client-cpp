@@ -26,7 +26,6 @@ extern int test_span();
 extern int test_static_map();
 extern int test_statistics_counter();
 extern int test_aligned_storage();
-extern int test_type_list();
 extern int test_uid();
 extern int test_small_function();
 extern int test_nullable_type();
@@ -41,7 +40,6 @@ int main() {
   res += test_static_map();
   res += test_statistics_counter();
   res += test_aligned_storage();
-  res += test_type_list();
   res += test_uid();
   res += test_small_function();
   res += test_nullable_type();

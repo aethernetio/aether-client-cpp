@@ -18,9 +18,6 @@ cmake_minimum_required(VERSION 3.16.0)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 idf_build_set_property(CM_PLATFORM "ESP32")
 
 add_compile_definitions(CM_ESP32)

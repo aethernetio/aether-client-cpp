@@ -24,6 +24,7 @@
 #include "aether/crypto/key.h"
 #include "aether/global_ids.h"
 #include "aether/adapters/ethernet.h"
+#include "aether/registration_cloud.h"
 #include "aether/adapters/wifi_adapter.h"
 #include "aether/poller/win_poller.h"
 #include "aether/poller/epoll_poller.h"
@@ -82,7 +83,8 @@ static Aether::ptr AetherFactory(AetherAppContext const& context) {
 
 static tele::TeleStatistics::ptr TeleStatisticsFactory(
     AetherAppContext const& context) {
-  auto tele_statistics = context.aether()->tele_statistics;
+  auto tele_statistics =
+      tele::TeleStatistics::ptr{context.aether()->tele_statistics};
   if (tele_statistics.is_valid()) {
     return tele_statistics;
   }
@@ -98,7 +100,7 @@ static tele::TeleStatistics::ptr TeleStatisticsFactory(
 #if AE_DISTILLATION
 static AdapterRegistry::ptr AdapterRegistryFactory(
     AetherAppContext const& context) {
-  auto ap = context.aether()->adapter_registry;
+  auto ap = AdapterRegistry::ptr{context.aether()->adapter_registry};
   if (ap.is_valid()) {
     return ap;
   }
@@ -126,11 +128,11 @@ static Adapter::ptr DefaultAdapterFactory(AetherAppContext const& context) {
 
 #  if AE_SUPPORT_REGISTRATION
 static Cloud::ptr RegistrationCloudFactory(AetherAppContext const& context) {
-  auto reg_c = context.aether()->registration_cloud;
-  if (reg_c.is_valid()) {
-    return reg_c;
+  auto cloud = Cloud::ptr{context.aether()->registration_cloud};
+  if (cloud.is_valid()) {
+    return cloud;
   }
-  reg_c = RegistrationCloud::ptr::Create(
+  auto reg_c = RegistrationCloud::ptr::Create(
       CreateWith{context.domain()}
           .with_id(GlobalId::kRegistrationCloud)
           .with_flags(ObjFlags::kUnloadedByDefault),
@@ -151,7 +153,7 @@ static Cloud::ptr RegistrationCloudFactory(AetherAppContext const& context) {
 #  endif  // AE_SUPPORT_REGISTRATION
 
 static Crypto::ptr CryptoFactory(AetherAppContext const& context) {
-  auto crypto = context.aether()->crypto;
+  auto crypto = Crypto::ptr{context.aether()->crypto};
   if (crypto.is_valid()) {
     return crypto;
   }
@@ -172,7 +174,7 @@ static Crypto::ptr CryptoFactory(AetherAppContext const& context) {
 }
 
 static IPoller::ptr PollerFactory(AetherAppContext const& context) {
-  auto poller = context.aether()->poller;
+  auto poller = IPoller::ptr{context.aether()->poller};
   if (poller.is_valid()) {
     return poller;
   }
@@ -202,7 +204,7 @@ static IPoller::ptr PollerFactory(AetherAppContext const& context) {
 }
 
 static DnsResolver::ptr DnsResolverFactory(AetherAppContext const& context) {
-  auto dns_resolver = context.aether()->dns_resolver;
+  auto dns_resolver = DnsResolver::ptr{context.aether()->dns_resolver};
   if (dns_resolver.is_valid()) {
     return dns_resolver;
   }
@@ -219,8 +221,9 @@ static DnsResolver::ptr DnsResolverFactory(AetherAppContext const& context) {
           .with_id(GlobalId::kDnsResolver)
           .with_flags(ObjFlags::kUnloadedByDefault),
       context.aether());
+#    else
+  return {};
 #    endif
-  return dns_resolver;
 #  else
   return DnsResolver::ptr::Create(
       CreateWith{context.domain()}

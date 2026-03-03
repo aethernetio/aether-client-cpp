@@ -32,7 +32,7 @@ static constexpr std::size_t kBenchCount = 100'000'000;
 struct Rabbit {
   Rabbit(int y) { x = y * y; }
   ~Rabbit() { x = x - x / 2; }
-  volatile int x{0};
+  int x{0};
 };
 
 void test_rc_ptr_CreationBench() {
@@ -48,7 +48,7 @@ void test_rc_ptr_CreationBench() {
   rabbits1.reserve(1000);
   tests::BenchmarkFunc(
       [&](auto i) {
-        for (volatile auto j = 0; j < rabbits1.capacity(); j++) {
+        for (auto j = 0; j < rabbits1.capacity(); j++) {
           rabbits1.push_back(MakeRcPtr<Rabbit>(static_cast<int>(i + j)));
           rabbits1.back()->x += static_cast<int>(i) % 100;
         }
@@ -73,7 +73,7 @@ void test_rc_ptr_CopyingBench() {
 
   std::vector<RcPtr<Rabbit>> rabbits3;
   rabbits3.reserve(1000);
-  for (volatile std::size_t j = 0; j < rabbits3.capacity(); j++) {
+  for (std::size_t j = 0; j < rabbits3.capacity(); j++) {
     rabbits3.push_back(MakeRcPtr<Rabbit>(static_cast<int>(j)));
   }
   tests::BenchmarkFunc(

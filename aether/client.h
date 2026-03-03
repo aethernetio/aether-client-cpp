@@ -27,7 +27,6 @@
 #include "aether/types/uid.h"
 #include "aether/server_keys.h"
 
-#include "aether/ae_actions/telemetry.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/connection_manager/client_cloud_manager.h"
 #include "aether/client_messages/p2p_message_stream_manager.h"
@@ -36,6 +35,7 @@
 
 namespace ae {
 class Aether;
+class Telemetry;
 
 class Client : public Obj {
   AE_OBJECT(Client, Obj, 0)
@@ -67,20 +67,6 @@ class Client : public Obj {
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_id_, parent_uid_, uid_,
                              ephemeral_uid_, master_key_, cloud_, server_keys_,
                              client_cloud_manager_))
-
-  template <typename Dnv>
-  void Load(CurrentVersion, Dnv& dnv) {
-    dnv(base_);
-    dnv(aether_, uid_, ephemeral_uid_, master_key_, cloud_, server_keys_,
-        client_cloud_manager_);
-  }
-
-  template <typename Dnv>
-  void Save(CurrentVersion, Dnv& dnv) const {
-    dnv(base_);
-    dnv(aether_, uid_, ephemeral_uid_, master_key_, cloud_, server_keys_,
-        client_cloud_manager_);
-  }
 
   void SendTelemetry();
 

@@ -21,6 +21,7 @@
 #  include <utility>
 
 #  include "aether/aether.h"
+#  include "aether/crypto.h"
 #  include "aether/crypto/sign.h"
 #  include "aether/api_protocol/api_context.h"
 #  include "aether/crypto/crypto_definitions.h"
@@ -50,7 +51,7 @@ Registration::Registration(ActionContext action_context, Aether& aether,
       state_{State::kInitConnection},
       // TODO: add configuration
       response_timeout_{std::chrono::seconds(20)},
-      sign_pk_{aether.crypto->signs_pk_[kDefaultSignatureMethod]} {
+      sign_pk_{Crypto::ptr{aether.crypto}->signs_pk_[kDefaultSignatureMethod]} {
   AE_TELE_INFO(RegisterStarted);
 
   // parent uid must not be empty

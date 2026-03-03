@@ -14,8 +14,14 @@
 
 cmake_minimum_required( VERSION 3.16 )
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/run)
 set(ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}/..")
+
+# enable doubles in unity tests
+add_compile_definitions("UNITY_INCLUDE_DOUBLE")
 
 #dependancies
 if (NOT TARGET aether)
@@ -37,10 +43,15 @@ if (NOT TARGET gcem)
   add_subdirectory("${ROOT_DIR}/third_party/gcem" "gcem")
 endif()
 
+include(inline_tests/inline_tests.cmake)
+add_subdirectory(inline_tests)
+generate_inline_tests(${CMAKE_CURRENT_LIST_DIR}/../aether aether)
+
 #tests
 add_subdirectory(test-tele)
 add_subdirectory(test-tele-statistics)
 add_subdirectory(test-types)
+add_subdirectory(test-meta)
 add_subdirectory(test-object-system)
 add_subdirectory(test-api-protocol)
 add_subdirectory(test-actions)

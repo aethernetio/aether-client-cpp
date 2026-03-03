@@ -281,7 +281,7 @@ class StageRunner<TFunc> {
 
  public:
   using type =
-      typename ActionType<typename FunctionSignature<TFunc>::Ret>::type;
+      typename ActionType<typename FunctionSignature<TFunc>::ret>::type;
 
   explicit StageRunner(TFunc&& factory) : factory_(std::move(factory)) {}
 

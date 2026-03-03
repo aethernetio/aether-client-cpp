@@ -14,7 +14,7 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(AE_PROJECT_VERSION "0.1.0")
@@ -22,6 +22,7 @@ set(AE_PROJECT_VERSION "0.1.0")
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 option(AE_DISTILLATION "Build aether in distillation mode" On)
 option(AE_FILTRATION "Build aether in filtration mode" Off)
+option(AE_BUILD_TESTS "Build tests" Off)
 
 set(UTM_ID "0" CACHE STRING "User Tracking Measurement ID, must be a uint32 value")
 set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
@@ -546,8 +547,17 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   target_compile_options(${TARGET_NAME} PUBLIC /Zc:preprocessor)
 endif()
 
-if(REGULAR_CMAKE_PROJECT)
+if(AE_BUILD_TESTS)
+  message(STATUS "Aether builds tests!")
+  # enable doubles in unity tests
+  add_compile_definitions("UNITY_INCLUDE_DOUBLE")
 
+  target_link_libraries(${TARGET_NAME} PRIVATE inline_tests)
+  add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../tests ${CMAKE_BINARY_DIR}/tests)
+endif()
+
+
+if(REGULAR_CMAKE_PROJECT AND NOT AE_BUILD_TESTS)
   ## Target installation
   install(TARGETS   ${TARGET_NAME}
         EXPORT        ${TARGET_NAME}Targets

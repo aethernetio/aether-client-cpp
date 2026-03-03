@@ -53,7 +53,7 @@ DataBuffer AtBuffer::GetCrate(std::size_t size, std::size_t offset,
                               iterator start) {
   DataBuffer res;
   auto copy_offset = offset;
-  auto remaining_size = size;
+  auto remaining_size = static_cast<std::ptrdiff_t>(size);
   for (auto it = start; it != std::end(data_lines_) && res.size() < size;
        it++) {
     if (copy_offset >= it->size()) {
@@ -61,13 +61,12 @@ DataBuffer AtBuffer::GetCrate(std::size_t size, std::size_t offset,
       continue;
     }
     auto first = it->begin() + static_cast<std::ptrdiff_t>(copy_offset);
-    auto last = first + static_cast<std::ptrdiff_t>(remaining_size);
-    if (last > it->end()) {
-      last = it->end();
-    }
+    auto bucket_size = it->end() - first;
+    auto last =
+        first + ((remaining_size < bucket_size) ? remaining_size : bucket_size);
 
     res.insert(std::end(res), first, last);
-    remaining_size -= static_cast<std::size_t>(last - first);
+    remaining_size -= last - first;
     copy_offset = 0;
   }
 

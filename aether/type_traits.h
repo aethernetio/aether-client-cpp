@@ -23,7 +23,8 @@
 #include <optional>
 #include <type_traits>
 
-#include "aether/types/type_list.h"
+#include "aether/meta/arg_at.h"
+#include "aether/meta/type_list.h"
 
 namespace ae {
 
@@ -44,7 +45,7 @@ template <typename TFunc, std::size_t... Indices, typename... TArgs>
 decltype(auto) ApplyByIndices(TFunc&& func, std::index_sequence<Indices...>,
                               TArgs&&... args) {
   return std::forward<TFunc>(func)(
-      ArgAt<Indices>(std::forward<TArgs>(args)...)...);
+      VarAt<Indices>(std::forward<TArgs>(args)...)...);
 }
 }  // namespace _internal
 
@@ -178,45 +179,6 @@ struct IsFunctionPtr<
     TFuncPtr, T,
     std::void_t<decltype(static_cast<TFuncPtr>(std::declval<T>()))>>
     : std::true_type {};
-
-template <typename TSignature>
-struct FunctionSignatureImpl;
-
-template <typename TRet, typename... TArgs>
-struct FunctionSignatureImpl<TRet(TArgs...)> {
-  using Args = TypeList<TArgs...>;
-  using Ret = TRet;
-  using Signature = TRet(TArgs...);
-  using FuncPtr = TRet (*)(TArgs...);
-};
-
-template <typename TRes, typename... TArgs>
-auto GetSignatureImpl(TRes (*)(TArgs...))
-    -> FunctionSignatureImpl<TRes(TArgs...)>;
-
-template <typename TClass, typename TRes, typename... TArgs>
-auto GetSignatureImpl(TRes (TClass::*)(TArgs...) const)
-    -> FunctionSignatureImpl<TRes(TArgs...)>;
-
-template <typename TClass, typename TRes, typename... TArgs>
-auto GetSignatureImpl(TRes (TClass::*)(TArgs...))
-    -> FunctionSignatureImpl<TRes(TArgs...)>;
-
-template <typename TCallable>
-auto GetSignatureImpl(TCallable)
-    -> decltype(GetSignatureImpl(&TCallable::operator()));
-
-/**
- * \brief Get a signature of functor object, or function pointer.
- */
-template <typename TFunc, typename FuncSignatureImp =
-                              decltype(GetSignatureImpl(std::declval<TFunc>()))>
-struct FunctionSignature {
-  using Args = typename FuncSignatureImp::Args;
-  using Ret = typename FuncSignatureImp::Ret;
-  using Signature = typename FuncSignatureImp::Signature;
-  using FuncPtr = typename FuncSignatureImp::FuncPtr;
-};
 
 template <typename Array>
 struct ArraySize;

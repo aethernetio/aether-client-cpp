@@ -16,7 +16,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 if(NOT CM_PLATFORM)
-  add_subdirectory("common")  
+  add_subdirectory("common")
   add_subdirectory("sender")
   add_subdirectory("receiver")
 else()

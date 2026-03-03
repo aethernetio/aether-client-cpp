@@ -20,14 +20,15 @@
 #include <cstdint>
 
 #include "aether/config.h"
-#include "aether/client.h"
-#include "aether/ptr/ptr_view.h"
+#include "aether/obj/obj_ptr.h"
 #include "aether/actions/action.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/types/state_machine.h"
 #include "aether/events/event_subscription.h"
 
 namespace ae {
 class Aether;
+class Client;
 class Registration;
 
 class SelectClientAction final : public Action<SelectClientAction> {
@@ -43,7 +44,7 @@ class SelectClientAction final : public Action<SelectClientAction> {
   /**
    * \brief Create with client already ready.
    */
-  SelectClientAction(ActionContext action_context, Client::ptr client);
+  SelectClientAction(ActionContext action_context, ObjPtr<Client> client);
 
 #if AE_SUPPORT_REGISTRATION
   /**
@@ -61,11 +62,11 @@ class SelectClientAction final : public Action<SelectClientAction> {
 
   UpdateStatus Update();
 
-  Client::ptr const& client() const;
+  ObjPtr<Client> const& client() const;
   State state() const;
 
  private:
-  Client::ptr client_;
+  ObjPtr<Client> client_;
   StateMachine<State> state_;
 
 #if AE_SUPPORT_REGISTRATION

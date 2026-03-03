@@ -25,27 +25,33 @@
 #include "aether/obj/obj.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/types/client_config.h"
-#include "aether/ae_actions/time_sync.h"
-#include "aether/actions/action_context.h"
-#include "aether/actions/action_processor.h"
-#include "aether/ae_actions/select_client.h"
-#include "aether/tele/traps/tele_statistics.h"
-#include "aether/registration/registration.h"  // IWYU pragma: keep
 
-#include "aether/client.h"
-#include "aether/crypto.h"
-#include "aether/server.h"
+#include "aether/actions/action_context.h"
+#include "aether/ae_actions/select_client.h"
+
 #include "aether/uap/uap.h"
-#include "aether/poller/poller.h"
-#include "aether/dns/dns_resolve.h"
-#include "aether/adapter_registry.h"
-#include "aether/registration_cloud.h"
 
 namespace ae {
+class Server;
+class Client;
+class Crypto;
+class IPoller;
+class DnsResolver;
+class Registration;
+class TimeSyncAction;
+class AdapterRegistry;
+class ActionProcessor;
+class RegistrationCloud;
+class RegistrationCloud;
+
+namespace tele {
+class TeleStatistics;
+}
+
 class Aether : public Obj {
   AE_OBJECT(Aether, Obj, 0)
 
-  Aether() = default;
+  Aether();
 
  public:
   // Internal.
@@ -75,40 +81,39 @@ class Aether : public Obj {
   void Update(TimePoint current_time) override;
 
   // User-facing API.
-  operator ActionContext() const { return ActionContext{*action_processor}; }
+  operator ActionContext() const;
 
-  Client::ptr CreateClient(ClientConfig const& config,
-                           std::string const& client_id);
+  ObjPtr<Client> CreateClient(ClientConfig const& config,
+                              std::string const& client_id);
   ActionPtr<SelectClientAction> SelectClient(Uid parent_uid,
                                              std::string const& client_id);
 
-  void StoreServer(Server::ptr s);
-  Server::ptr GetServer(ServerId server_id);
+  void StoreServer(ObjPtr<Server> s);
+  ObjPtr<Server> GetServer(ServerId server_id);
 
-  Client::ptr client_prefab;
-  RegistrationCloud::ptr registration_cloud;
+  Obj::ptr client_prefab;
+  Obj::ptr registration_cloud;
 
-  Crypto::ptr crypto;
-  IPoller::ptr poller;
-  DnsResolver::ptr dns_resolver;
+  Obj::ptr crypto;
+  Obj::ptr poller;
+  Obj::ptr dns_resolver;
 
-  AdapterRegistry::ptr adapter_registry;
+  Obj::ptr adapter_registry;
   Uap::ptr uap;
 
-  tele::TeleStatistics::ptr tele_statistics;
+  Obj::ptr tele_statistics;
 
-  std::unique_ptr<ActionProcessor> action_processor =
-      make_unique<ActionProcessor>();
+  std::unique_ptr<ActionProcessor> action_processor;
 
  private:
-  Client::ptr FindClient(std::string const& client_id);
-  void StoreClient(Client::ptr client);
+  ObjPtr<Client> FindClient(std::string const& client_id);
+  void StoreClient(ObjPtr<Client> client);
 
   ActionPtr<SelectClientAction> FindSelectClientAction(
       std::string const& client_id);
   ActionPtr<SelectClientAction> MakeSelectClient() const;
   ActionPtr<SelectClientAction> MakeSelectClient(
-      Client::ptr const& client) const;
+      ObjPtr<Client> const& client) const;
 #if AE_SUPPORT_REGISTRATION
   ActionPtr<SelectClientAction> MakeSelectClient(
       ActionPtr<Registration> registration, std::string const& client_id);
@@ -119,10 +124,10 @@ class Aether : public Obj {
  private:
 #endif
 
-  void MakeTimeSyncAction(Client::ptr const& client);
+  void MakeTimeSyncAction(ObjPtr<Client> const& client);
 
-  std::map<std::string, Client::ptr> clients_;
-  std::map<ServerId, Server::ptr> servers_;
+  std::map<std::string, Obj::ptr> clients_;
+  std::map<ServerId, Obj::ptr> servers_;
 
   std::map<std::string, ActionPtr<SelectClientAction>> select_client_actions_;
 #if AE_TIME_SYNC_ENABLED

@@ -38,10 +38,12 @@
 #include "aether/cloud.h"
 #include "aether/aether.h"
 #include "aether/crypto.h"
+#include "aether/client.h"
 #include "aether/uap/uap.h"
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/adapter_registry.h"
+#include "aether/tele/traps/tele_statistics.h"
 #include "aether/obj/component_factory.h"
 
 #include "aether/domain_storage/domain_storage_factory.h"
