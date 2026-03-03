@@ -106,12 +106,13 @@ class OwnActionPtr : public ActionPtr<TAction> {
   template <typename UAction>
   friend class OwnActionPtr;
 
-  static_assert(ActionStoppable<TAction>::value, "TAction must be stoppable");
   OwnActionPtr() = default;
 
   template <typename... TArgs>
   explicit OwnActionPtr(ActionContext action_context, TArgs&&... args)
-      : ActionPtr<TAction>{action_context, std::forward<TArgs>(args)...} {}
+      : ActionPtr<TAction>{action_context, std::forward<TArgs>(args)...} {
+    static_assert(ActionStoppable<TAction>::value, "TAction must be stoppable");
+  }
 
   OwnActionPtr(OwnActionPtr<TAction>&& other) noexcept
       : ActionPtr<TAction>{std::move(other)} {}
@@ -145,8 +146,8 @@ class OwnActionPtr : public ActionPtr<TAction> {
 
   void reset() {
     if (ActionPtr<TAction>::operator bool()) {
-      if (!ActionPtr<TAction>::operator->() -> IsFinished()) {
-        ActionPtr<TAction>::operator->() -> Stop();
+      if (!ActionPtr<TAction>::operator->()->IsFinished()) {
+        ActionPtr<TAction>::operator->()->Stop();
       }
     }
     ActionPtr<TAction>::reset();
