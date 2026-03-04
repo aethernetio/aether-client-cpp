@@ -61,7 +61,7 @@ constexpr auto make_range_sequence() {
 #  include "tests/inline.h"
 
 namespace tests::index_sequence_h {
-inline void test_ReverseSequence() {
+AE_TEST_INLINE(test_ReverseSequence) {
   constexpr auto rev_indices =
       ae::reverse_sequence(std::make_index_sequence<10>());
   static_assert(
@@ -75,9 +75,6 @@ inline void test_ReverseSequence() {
   TEST_PASS();
 }
 }  // namespace tests::index_sequence_h
-
-AE_TEST_INLINE { RUN_TEST(tests::index_sequence_h::test_ReverseSequence); }
-
 #endif
 
 #endif  // AETHER_META_INDEX_SEQUENCE_H_

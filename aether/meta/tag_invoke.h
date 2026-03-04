@@ -102,7 +102,7 @@ struct Bar {
   }
 };
 
-inline void test_TagInvoke() {
+AE_TEST_INLINE(test_TagInvoke) {
   using TestCpoType = ae::tag_t<test_cpo>;
   static_assert(std::is_same_v<TestCpo, TestCpoType>);
   using TestGetIntType = ae::tag_t<test_get_int>;
@@ -133,9 +133,6 @@ inline void test_TagInvoke() {
   TEST_ASSERT_EQUAL(42, value);
 }
 }  // namespace test::tag_invoke_h
-
-AE_TEST_INLINE { TEST(test::tag_invoke_h::test_TagInvoke); }
-
 #endif
 
 #endif  // AETHER_META_TAG_INVOKE_H_
