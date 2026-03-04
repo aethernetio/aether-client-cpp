@@ -23,8 +23,8 @@
 #include "aether/clock.h"
 #include "aether/obj/obj.h"
 #include "aether/events/events.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/actions/timer_action.h"
+#include "aether/actions/action.h"
+#include "aether/events/multi_subscription.h"
 
 namespace ae {
 class Aether;
@@ -92,14 +92,15 @@ class Uap final : public Obj {
 
   Uap(ObjProp prop, ObjPtr<Aether> aether,
       std::initializer_list<Interval> const& interval_list);
+  ~Uap() override;
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_))
 
+  // save next interval and load current interval on its place
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
     dnv(base_, aether_, current_interval_index_, intervals_);
   }
-
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
     dnv(base_, aether_, next_interval_index_, intervals_);
@@ -127,12 +128,20 @@ class Uap final : public Obj {
    */
   std::optional<Timer> timer();
 
+  /**
+   * \brief Register action which should be finished before sleep event.
+   */
+  void RegisterAction(IAction& action);
+
  private:
   void GoToSleep();
   /**
    * \brief Get updated interval state \see Timer
    */
   IntervalState UpdateInterval(Duration time_offset);
+
+  // called when all registered actions is finished
+  void AllActionsFinished();
 
   SleepEvent sleep_event_;
 
@@ -141,7 +150,9 @@ class Uap final : public Obj {
   std::size_t current_interval_index_{};
   std::size_t next_interval_index_{};
   TimePoint start_time_;
-  OwnActionPtr<TimerAction> timer_before_sleep_;
+  MultiSubscription wait_actions_subs_;
+  std::size_t wait_actions_cnt_{};
+  bool ready_to_sleep_{false};
 };
 }  // namespace ae
 

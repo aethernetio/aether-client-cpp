@@ -51,12 +51,13 @@ Uap::Uap(ObjProp prop, ObjPtr<Aether> aether,
   start_time_ = Now();
 }
 
+Uap::~Uap() = default;
+
 void Uap::SleepReady() {
-  // TODO: add checks if all buffers are empty
-  if (!timer_before_sleep_) {
-    timer_before_sleep_ = OwnActionPtr<TimerAction>{*aether_.Load(), 5s};
-    timer_before_sleep_->StatusEvent().Subscribe(
-        OnResult{[this]() { GoToSleep(); }});
+  ready_to_sleep_ = true;
+  // if all registered actions is finished else wait /see RegisterAction
+  if (wait_actions_cnt_ == 0) {
+    AllActionsFinished();
   }
 }
 
@@ -77,6 +78,24 @@ std::optional<Uap::Timer> Uap::timer() {
     return std::nullopt;
   }
   return Timer{Uap::ptr::MakeFromThis(this)};
+}
+
+void Uap::RegisterAction(IAction& action) {
+  wait_actions_cnt_++;
+  wait_actions_subs_ += action.FinishedEvent().Subscribe([this]() {
+    assert(wait_actions_cnt_ > 0);
+    wait_actions_cnt_--;
+    if (wait_actions_cnt_ == 0) {
+      AllActionsFinished();
+    }
+  });
+}
+
+void Uap::GoToSleep() {
+  if (intervals_.empty()) {
+    return;
+  }
+  sleep_event_.Emit(Timer{Uap::ptr::MakeFromThis(this)});
 }
 
 Uap::IntervalState Uap::UpdateInterval(Duration time_offset) {
@@ -131,10 +150,11 @@ Uap::IntervalState Uap::UpdateInterval(Duration time_offset) {
   return IntervalState{intervals_[current_interval_index_], start_time_};
 }
 
-void Uap::GoToSleep() {
-  if (intervals_.empty()) {
-    return;
+void Uap::AllActionsFinished() {
+  AE_TELED_DEBUG("All registered actions finished");
+  if (ready_to_sleep_) {
+    GoToSleep();
   }
-  sleep_event_.Emit(Timer{Uap::ptr::MakeFromThis(this)});
 }
+
 }  // namespace ae

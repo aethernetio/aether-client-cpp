@@ -192,8 +192,9 @@ void Aether::MakeTimeSyncAction([[maybe_unused]] Client::ptr const& client) {
   client.WithLoaded([this](auto const& c) {
     static constexpr auto kTimeSyncInterval =
         std::chrono::seconds{AE_TIME_SYNC_INTERVAL_S};
-    time_sync_action_ =
-        ActionPtr<TimeSyncAction>{*action_processor, c, kTimeSyncInterval};
+    time_sync_action_ = ActionPtr<TimeSyncAction>{
+        *action_processor, Aether::ptr::MakeFromThis(this).Load(), c,
+        kTimeSyncInterval};
   });
 #endif
 }
