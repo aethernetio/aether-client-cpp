@@ -20,6 +20,7 @@
 #include <numeric>
 
 #include "aether/aether.h"
+#include "aether/actions/timer_action.h"
 
 #include "aether/tele/tele.h"
 
@@ -41,7 +42,10 @@ Uap::IntervalState Uap::Timer::interval(Duration time_offset) const {
       .value_or(Uap::IntervalState{});
 }
 
-Uap::Uap() { start_time_ = Now(); }
+Uap::Uap() {
+  start_time_ = Now();
+  WindowWatcher();
+}
 
 Uap::Uap(ObjProp prop, ObjPtr<Aether> aether,
          std::initializer_list<Interval> const& interval_list)
@@ -49,6 +53,7 @@ Uap::Uap(ObjProp prop, ObjPtr<Aether> aether,
       aether_{std::move(aether)},
       intervals_{std::begin(interval_list), std::end(interval_list)} {
   start_time_ = Now();
+  WindowWatcher();
 }
 
 Uap::~Uap() = default;
@@ -148,6 +153,21 @@ Uap::IntervalState Uap::UpdateInterval(Duration time_offset) {
       "Current interval {}, next interval {}, start_time {:%Y-%m-%d %H:%M:%S}",
       current_interval_index_, next_interval_index_, start_time_);
   return IntervalState{intervals_[current_interval_index_], start_time_};
+}
+
+void Uap::WindowWatcher() {
+  if (intervals_.empty()) {
+    return;
+  }
+  auto& current = intervals_[current_interval_index_];
+  if (current.window == Duration::zero()) {
+    return;
+  }
+
+  aether_.WithLoaded([this, w{current.window}](auto const& a) {
+    auto timer_action = ActionPtr<TimerAction>{*a, w};
+    RegisterAction(*timer_action);
+  });
 }
 
 void Uap::AllActionsFinished() {

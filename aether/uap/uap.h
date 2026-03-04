@@ -36,29 +36,31 @@ enum class IntervalType : char {
    */
   kSendOnly,
   /**
+   * \brief Send and receive interval.
+   * This activation window might be used for both sending and receiving data.
+   */
+  kSendReceive,
+  /**
    * \brief Receive only interval.
    * All the network staff should be created only for receiving data at this
    * activation window.
    */
   kReceiveOnly,
-  /**
-   * \brief Send and receive interval.
-   * This activation window might be used for both sending and receiving data.
-   */
-  kSendReceive,
 };
 
 /**
  * \brief Basic interval type.
  * This shows the duration between two activation windows.
  * E.g. 10 seconds interval means the application should wake up, do its job,
+ * stay active at least for window duration,
  * and go to sleep for the time remaining from this 10 seconds.
  */
 struct Interval {
-  AE_REFLECT_MEMBERS(type, duration)
+  AE_REFLECT_MEMBERS(type, duration, window)
 
   IntervalType type;
   Duration duration;
+  Duration window = Duration::zero();  //< by default the window size is 0
 };
 
 class Uap final : public Obj {
@@ -140,6 +142,8 @@ class Uap final : public Obj {
    */
   IntervalState UpdateInterval(Duration time_offset);
 
+  // starts a special watcher to block GoToSleep on window duration
+  void WindowWatcher();
   // called when all registered actions is finished
   void AllActionsFinished();
 
