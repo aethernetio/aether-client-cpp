@@ -69,7 +69,7 @@ class Uap final : public Obj {
 
   struct IntervalState {
     Interval interval;
-    SyncTimePoint start_time;
+    SyncTimePoint end_time;
 
     Duration remaining() const;
     SyncTimePoint until() const;
@@ -102,6 +102,7 @@ class Uap final : public Obj {
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
     dnv(base_, aether_, current_interval_index_, intervals_);
+    Loaded();
   }
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
@@ -136,6 +137,8 @@ class Uap final : public Obj {
   void RegisterAction(IAction& action);
 
  private:
+  void Loaded();
+
   void GoToSleep();
   /**
    * \brief Get updated interval state \see Timer
