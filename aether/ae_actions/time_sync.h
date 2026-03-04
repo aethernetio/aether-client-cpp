@@ -27,7 +27,6 @@
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
 #  include "aether/types/state_machine.h"
-#  include "aether/events/event_subscription.h"
 
 namespace ae {
 class Aether;
