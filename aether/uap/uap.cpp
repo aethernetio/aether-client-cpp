@@ -26,10 +26,10 @@
 
 namespace ae {
 Duration Uap::IntervalState::remaining() const {
-  return std::chrono::duration_cast<Duration>(until() - Now());
+  return std::chrono::duration_cast<Duration>(until() - SyncTimePoint());
 }
 
-TimePoint Uap::IntervalState::until() const {
+SyncTimePoint Uap::IntervalState::until() const {
   return start_time + interval.duration;
 }
 
@@ -43,7 +43,7 @@ Uap::IntervalState Uap::Timer::interval(Duration time_offset) const {
 }
 
 Uap::Uap() {
-  start_time_ = Now();
+  start_time_ = SyncTime();
   WindowWatcher();
 }
 
@@ -52,7 +52,7 @@ Uap::Uap(ObjProp prop, ObjPtr<Aether> aether,
     : Obj{prop},
       aether_{std::move(aether)},
       intervals_{std::begin(interval_list), std::end(interval_list)} {
-  start_time_ = Now();
+  start_time_ = SyncTime();
   WindowWatcher();
 }
 
@@ -108,7 +108,7 @@ Uap::IntervalState Uap::UpdateInterval(Duration time_offset) {
 
   next_interval_index_ = (current_interval_index_ + 1) % intervals_.size();
   auto interval_duration = intervals_[current_interval_index_].duration;
-  auto current_time = Now() + time_offset;
+  auto current_time = SyncTime() + time_offset;
   auto time_elapsed = current_time - start_time_;
   AE_TELED_DEBUG(
       "Update interval\n start_time {:%Y-%m-%d %H:%M:%S}\n current_time "

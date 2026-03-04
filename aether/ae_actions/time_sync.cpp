@@ -145,11 +145,11 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
                 AE_TELED_DEBUG("Make time sync request");
                 ApiPromisePtr<std::uint64_t> promise = api->get_time_utc();
                 response_sub_ = promise->StatusEvent().Subscribe(
-                    OnResult{[this, request_time{Clock::now()}](auto& p) {
+                    OnResult{[this, request_time{Now()}](auto& p) {
                       HandleResponse(
                           std::chrono::milliseconds{
                               static_cast<std::int64_t>(p.value())},
-                          request_time, Clock::now());
+                          request_time, Now());
                       // time synced
                       state_ = State::kResult;
                     }});
@@ -163,19 +163,19 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
         client_ptr->cloud_connection(), RequestPolicy::MainServer{});
 
     // use raw time to avoid sync jumps
-    request_time_ = SystemTime();
+    request_time_ = Now();
     state_ = State::kWaitResponse;
   }
 
   UpdateStatus WaitResponse() {
-    auto current_time = SystemTime();
+    auto current_time = Now();
     auto timeout = request_time_ + kRequestTimeout;
     if (current_time > timeout) {
       AE_TELED_ERROR("Time sync response timeout");
       state_ = State::kFailed;
       return {};
     }
-    return UpdateStatus::Delay(ToSyncTime(timeout));
+    return UpdateStatus::Delay(timeout);
   }
 
   static void HandleResponse(std::chrono::milliseconds server_epoch,
@@ -194,14 +194,15 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
         std::chrono::duration_cast<std::chrono::milliseconds>(diff_time)
             .count());
     // update diff time
-    Clock::SyncTimeDiff +=
-        std::chrono::duration_cast<decltype(Clock::SyncTimeDiff)>(diff_time);
+    SyncClock::SyncTimeDiff +=
+        std::chrono::duration_cast<decltype(SyncClock::SyncTimeDiff)>(
+            diff_time);
     AE_TELED_DEBUG("Current time {:%Y-%m-%d %H:%M:%S}", Now());
   }
 
   PtrView<Client> client_;
   StateMachine<State> state_;
-  SystemTimePoint request_time_;
+  TimePoint request_time_;
   int tries_{};
   Subscription link_state_sub_;
   Subscription response_sub_;
@@ -210,7 +211,7 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
 }  // namespace time_sync_internal
 
 // set end of time - this means last_sync_time is not set
-SystemTimePoint TimeSyncAction::last_sync_time = SystemTimePoint::max();
+TimePoint TimeSyncAction::last_sync_time = TimePoint::max();
 
 TimeSyncAction::TimeSyncAction(ActionContext action_context,
                                Ptr<Aether> const& aether,
@@ -273,24 +274,24 @@ void TimeSyncAction::MakeRequest() {
   uap->RegisterAction(*time_sync_request_);
 
   // use raw time to avoid sync jumps
-  last_sync_time = SystemTime();
+  last_sync_time = Now();
   state_ = State::kWaitInterval;
 }
 
 UpdateStatus TimeSyncAction::WaitInterval() {
   // the end of time!
-  if (last_sync_time == SystemTimePoint::max()) {
+  if (last_sync_time == TimePoint::max()) {
     state_ = State::kMakeRequest;
     return {};
   }
-  auto current_time = SystemTime();
+  auto current_time = Now();
   auto timeout = last_sync_time + sync_interval_;
   if (current_time > timeout) {
     AE_TELED_INFO("Time sync interval timeout, make new request");
     state_ = State::kMakeRequest;
     return {};
   }
-  return UpdateStatus::Delay(ToSyncTime(timeout));
+  return UpdateStatus::Delay(timeout);
 }
 
 }  // namespace ae

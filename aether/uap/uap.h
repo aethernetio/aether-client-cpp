@@ -69,10 +69,10 @@ class Uap final : public Obj {
 
   struct IntervalState {
     Interval interval;
-    TimePoint start_time;
+    SyncTimePoint start_time;
 
     Duration remaining() const;
-    TimePoint until() const;
+    SyncTimePoint until() const;
   };
 
  public:
@@ -153,7 +153,7 @@ class Uap final : public Obj {
   std::vector<Interval> intervals_;
   std::size_t current_interval_index_{};
   std::size_t next_interval_index_{};
-  TimePoint start_time_;
+  SyncTimePoint start_time_;
   MultiSubscription wait_actions_subs_;
   std::size_t wait_actions_cnt_{};
   bool ready_to_sleep_{false};

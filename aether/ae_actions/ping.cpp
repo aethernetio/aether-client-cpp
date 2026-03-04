@@ -55,10 +55,10 @@ UpdateStatus Ping::Update() {
   }
 
   if (state_.get() == State::kWaitResponse) {
-    return UpdateStatus::Delay(ToSyncTime(WaitResponse()));
+    return UpdateStatus::Delay(WaitResponse());
   }
   if (state_.get() == State::kWaitInterval) {
-    return UpdateStatus::Delay(ToSyncTime(WaitInterval()));
+    return UpdateStatus::Delay(WaitInterval());
   }
 
   return {};
@@ -76,7 +76,7 @@ void Ping::SendPing() {
                 ping_interval_)
                 .count()));
         // save the ping request
-        auto current_time = SystemTime();
+        auto current_time = Now();
         auto channel_ptr = channel_.Lock();
         assert(channel_ptr);
         auto expected_ping_time = channel_ptr->ResponseTimeout();
@@ -100,8 +100,8 @@ void Ping::SendPing() {
   state_ = State::kWaitResponse;
 }
 
-SystemTimePoint Ping::WaitInterval() {
-  auto current_time = SystemTime();
+TimePoint Ping::WaitInterval() {
+  auto current_time = Now();
   auto const& ping_time = ping_requests_.back().start;
   if ((ping_time + ping_interval_) > current_time) {
     return ping_time + ping_interval_;
@@ -110,8 +110,8 @@ SystemTimePoint Ping::WaitInterval() {
   return current_time;
 }
 
-SystemTimePoint Ping::WaitResponse() {
-  auto current_time = SystemTime();
+TimePoint Ping::WaitResponse() {
+  auto current_time = Now();
 
   auto const& expected_ping_time = ping_requests_.back().expected_end;
   if (expected_ping_time > current_time) {
@@ -125,7 +125,7 @@ SystemTimePoint Ping::WaitResponse() {
 }
 
 void Ping::PingResponse(RequestId request_id) {
-  auto request_time = std::invoke([&]() -> std::optional<SystemTimePoint> {
+  auto request_time = std::invoke([&]() -> std::optional<TimePoint> {
     for (auto const& [time, _, req_id] : ping_requests_) {
       if (req_id == request_id) {
         return time;
@@ -139,7 +139,7 @@ void Ping::PingResponse(RequestId request_id) {
     return;
   }
 
-  auto current_time = SystemTime();
+  auto current_time = Now();
   auto ping_duration =
       std::chrono::duration_cast<Duration>(current_time - *request_time);
 
