@@ -23,6 +23,8 @@
 #include <functional>
 #include <type_traits>
 
+#include "aether/meta/as_type.h"
+
 namespace ae {
 template <typename T, typename E>
 class Result;
@@ -192,7 +194,7 @@ using ae::Result;
 struct G {};
 struct E {};
 
-inline void test_Result() {
+AE_TEST_INLINE(test_Result) {
   auto res = Result<G, E>{G{}};
   // check if concept works
   static_assert(ae::ResultType<decltype(res), G, E>);
@@ -202,7 +204,7 @@ inline void test_Result() {
   TEST_ASSERT_TRUE(res_e.IsErr());
 }
 
-inline void test_Monadic() {
+AE_TEST_INLINE(test_Monadic) {
   auto ret_good = []() -> Result<G, E> { return Ok{G{}}; };
   auto ret_bad = []() -> Result<G, E> { return Error{E{}}; };
 
@@ -228,7 +230,7 @@ inline void test_Monadic() {
   TEST_ASSERT_TRUE(res_ce2.IsOk());
 }
 
-inline void test_Macros() {
+AE_TEST_INLINE(test_Macros) {
   auto try_value = [](int v, int n) -> Result<G, E> {
     if (v > n) {
       return Ok{G{}};
@@ -262,12 +264,6 @@ inline void test_Macros() {
 }
 
 }  // namespace test::result_h_
-
-AE_TEST_INLINE {
-  TEST(test::result_h_::test_Result);
-  TEST(test::result_h_::test_Monadic);
-  TEST(test::result_h_::test_Macros);
-}
 
 #endif
 #endif  // AETHER_TYPES_RESULT_H_

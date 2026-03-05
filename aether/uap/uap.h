@@ -36,29 +36,31 @@ enum class IntervalType : char {
    */
   kSendOnly,
   /**
+   * \brief Send and receive interval.
+   * This activation window might be used for both sending and receiving data.
+   */
+  kSendReceive,
+  /**
    * \brief Receive only interval.
    * All the network staff should be created only for receiving data at this
    * activation window.
    */
   kReceiveOnly,
-  /**
-   * \brief Send and receive interval.
-   * This activation window might be used for both sending and receiving data.
-   */
-  kSendReceive,
 };
 
 /**
  * \brief Basic interval type.
  * This shows the duration between two activation windows.
  * E.g. 10 seconds interval means the application should wake up, do its job,
+ * stay active at least for window duration,
  * and go to sleep for the time remaining from this 10 seconds.
  */
 struct Interval {
-  AE_REFLECT_MEMBERS(type, duration)
+  AE_REFLECT_MEMBERS(type, duration, window)
 
   IntervalType type;
   Duration duration;
+  Duration window = Duration::zero();  //< by default the window size is 0
 };
 
 class Uap final : public Obj {
@@ -67,10 +69,10 @@ class Uap final : public Obj {
 
   struct IntervalState {
     Interval interval;
-    TimePoint start_time;
+    SyncTimePoint end_time;
 
     Duration remaining() const;
-    TimePoint until() const;
+    SyncTimePoint until() const;
   };
 
  public:
@@ -100,6 +102,7 @@ class Uap final : public Obj {
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
     dnv(base_, aether_, current_interval_index_, intervals_);
+    Loaded();
   }
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
@@ -134,12 +137,16 @@ class Uap final : public Obj {
   void RegisterAction(IAction& action);
 
  private:
+  void Loaded();
+
   void GoToSleep();
   /**
    * \brief Get updated interval state \see Timer
    */
   IntervalState UpdateInterval(Duration time_offset);
 
+  // starts a special watcher to block GoToSleep on window duration
+  void WindowWatcher();
   // called when all registered actions is finished
   void AllActionsFinished();
 
@@ -149,7 +156,7 @@ class Uap final : public Obj {
   std::vector<Interval> intervals_;
   std::size_t current_interval_index_{};
   std::size_t next_interval_index_{};
-  TimePoint start_time_;
+  SyncTimePoint start_time_;
   MultiSubscription wait_actions_subs_;
   std::size_t wait_actions_cnt_{};
   bool ready_to_sleep_{false};

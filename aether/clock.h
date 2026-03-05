@@ -28,7 +28,7 @@ using std::chrono::duration_cast;
 using std::chrono::system_clock;
 
 template <typename ChronoClock>
-class Clock {
+class SyncClock {
  public:
   static RTC_STORAGE_ATTR system_clock::duration SyncTimeDiff;
 
@@ -37,7 +37,7 @@ class Clock {
   using period = typename ChronoClock::period;
   using duration = typename ChronoClock::duration;
 
-  using time_point = std::chrono::time_point<Clock, duration>;
+  using time_point = std::chrono::time_point<SyncClock, duration>;
 
   static constexpr bool is_steady = ChronoClock::is_steady;
 
@@ -52,15 +52,16 @@ class Clock {
    * \brief Return sync time
    */
   template <typename C, typename D>
-  static std::enable_if_t<
-      std::is_same_v<Clock, C> || std::is_same_v<internal_clock, C>, time_point>
+  static std::enable_if_t<std::is_same_v<SyncClock, C> ||
+                              std::is_same_v<internal_clock, C>,
+                          time_point>
   sync_time(std::chrono::time_point<C, D> const& tp) {
     return time_point{tp.time_since_epoch() + SyncTimeDiff};
   }
 };
 
 template <typename ChronoClock>
-std::chrono::system_clock::duration Clock<ChronoClock>::SyncTimeDiff =
+std::chrono::system_clock::duration SyncClock<ChronoClock>::SyncTimeDiff =
     std::chrono::milliseconds{0};
 }  // namespace ae::clock_internal
 
@@ -76,19 +77,14 @@ using std::chrono_literals::operator""ns;
  */
 using Duration = std::chrono::duration<std::uint32_t, std::micro>;
 using SystemClock = std::chrono::system_clock;
-using Clock = clock_internal::Clock<SystemClock>;
-using TimePoint = typename Clock::time_point;
-using SystemTimePoint = typename Clock::internal_clock::time_point;
+using SyncClock = clock_internal::SyncClock<SystemClock>;
+using TimePoint = typename SystemClock::time_point;
+using SyncTimePoint = typename SyncClock::time_point;
 
-// synchronised time
-inline auto Now() { return Clock::now(); }
 // current system clock time, without synchorinization
-inline auto SystemTime() { return Clock::internal_clock::now(); }
-// make non sync time point sync with current time
-template <typename C, typename D>
-inline auto ToSyncTime(std::chrono::time_point<C, D> tp) {
-  return Clock::sync_time(tp);
-}
+inline auto Now() { return SystemClock::now(); }
+// synchronised time
+inline auto SyncTime() { return SyncClock::now(); }
 }  // namespace ae
 
 #endif  // AETHER_CLOCK_H_

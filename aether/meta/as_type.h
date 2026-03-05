@@ -52,7 +52,7 @@ using ae::as_type;
 struct Base {};
 struct Derived : Base {};
 
-inline void test_AsType() {
+AE_TEST_INLINE(test_AsType) {
   Derived d;
   decltype(auto) b1 = as_type<Base>(d);
   static_assert(std::is_same_v<Base&, decltype(b1)>);
@@ -64,10 +64,7 @@ inline void test_AsType() {
   static_assert(std::is_same_v<Base&&, decltype(b3)>);
 
   TEST_PASS();
-}
+};
 }  // namespace test::as_type_h
-
-AE_TEST_INLINE { TEST(test::as_type_h::test_AsType); }
-
 #endif
 #endif  // AETHER_META_AS_TYPE_H_

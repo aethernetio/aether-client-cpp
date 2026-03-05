@@ -43,7 +43,7 @@ void remove_class_id(MapDomainStorage& facility, std::uint32_t class_id) {
 
 void test_increaseVersion() {
   auto facility = MapDomainStorage{};
-  Domain domain{ae::Clock::now(), facility};
+  Domain domain{ae::Now(), facility};
   // the oldest version
   {
     Friday0::ptr friday = Friday0::ptr::Create(CreateWith{domain}.with_id(1));
@@ -90,7 +90,7 @@ void test_increaseVersion() {
 
 void test_decreaseVersion() {
   auto facility = MapDomainStorage{};
-  Domain domain{ae::Clock::now(), facility};
+  Domain domain{ae::Now(), facility};
   // the newest version
   {
     Friday3::ptr friday = Friday3::ptr::Create(CreateWith{domain}.with_id(1));

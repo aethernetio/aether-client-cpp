@@ -29,12 +29,18 @@
 inline constexpr auto kFileId =
     inline_tests::crc32::checksum_from_literal(TEST_FILE);
 
-void setUp() { setup_inline_test_function<kFileId>(); }
-void tearDown() { teardown_inline_test_function<kFileId>(); }
+void setUp() {}
+void tearDown() {}
 
 int main() {
-  UNITY_BEGIN();
+  UnityBegin(TEST_FILE);
   TEST_MESSAGE("Run inline test for " TEST_FILE);
-  run_inline_test_function<kFileId>();
-  return UNITY_END();
+  using inline_tests ::test_registry;
+  printf("test count %zu\n", test_registry.next);
+  for (std::size_t i = 0; i < test_registry.next; ++i) {
+    UnityDefaultTestRun(test_registry.test_functions[i].test_func,
+                        test_registry.test_functions[i].func_name.data(),
+                        test_registry.test_functions[i].file_line);
+  }
+  return UnityEnd();
 }

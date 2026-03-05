@@ -27,7 +27,6 @@
 #  include "aether/actions/action.h"
 #  include "aether/actions/action_ptr.h"
 #  include "aether/types/state_machine.h"
-#  include "aether/events/event_subscription.h"
 
 namespace ae {
 class Aether;
@@ -60,7 +59,7 @@ class TimeSyncAction : public Action<TimeSyncAction> {
   StateMachine<State> state_;
   ActionPtr<time_sync_internal::TimeSyncRequest> time_sync_request_;
 
-  static RTC_STORAGE_ATTR SystemTimePoint last_sync_time;
+  static RTC_STORAGE_ATTR TimePoint last_sync_time;
 };
 }  // namespace ae
 #endif

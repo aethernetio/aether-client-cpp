@@ -20,17 +20,24 @@
 #include <numeric>
 
 #include "aether/aether.h"
+#include "aether/actions/timer_action.h"
 
 #include "aether/tele/tele.h"
 
 namespace ae {
 Duration Uap::IntervalState::remaining() const {
-  return std::chrono::duration_cast<Duration>(until() - Now());
+  auto interval_end = until();
+  auto current_time = SyncTime();
+  auto diff = interval_end - current_time;
+  AE_TELED_DEBUG(
+      "Calculate remaining end {:%Y-%m-%d %H:%M:%S} current {:%Y-%m-%d "
+      "%H:%M:%S} diff {:%S}",
+      interval_end, current_time, diff);
+
+  return std::chrono::duration_cast<Duration>(diff);
 }
 
-TimePoint Uap::IntervalState::until() const {
-  return start_time + interval.duration;
-}
+SyncTimePoint Uap::IntervalState::until() const { return end_time; }
 
 Uap::Timer::Timer(Uap::ptr uap) : uap_{std::move(uap)} {}
 
@@ -41,14 +48,15 @@ Uap::IntervalState Uap::Timer::interval(Duration time_offset) const {
       .value_or(Uap::IntervalState{});
 }
 
-Uap::Uap() { start_time_ = Now(); }
+Uap::Uap() { start_time_ = SyncTime(); }
 
 Uap::Uap(ObjProp prop, ObjPtr<Aether> aether,
          std::initializer_list<Interval> const& interval_list)
     : Obj{prop},
       aether_{std::move(aether)},
       intervals_{std::begin(interval_list), std::end(interval_list)} {
-  start_time_ = Now();
+  start_time_ = SyncTime();
+  WindowWatcher();
 }
 
 Uap::~Uap() = default;
@@ -91,6 +99,8 @@ void Uap::RegisterAction(IAction& action) {
   });
 }
 
+void Uap::Loaded() { WindowWatcher(); }
+
 void Uap::GoToSleep() {
   if (intervals_.empty()) {
     return;
@@ -103,7 +113,7 @@ Uap::IntervalState Uap::UpdateInterval(Duration time_offset) {
 
   next_interval_index_ = (current_interval_index_ + 1) % intervals_.size();
   auto interval_duration = intervals_[current_interval_index_].duration;
-  auto current_time = Now() + time_offset;
+  auto current_time = SyncTime() + time_offset;
   auto time_elapsed = current_time - start_time_;
   AE_TELED_DEBUG(
       "Update interval\n start_time {:%Y-%m-%d %H:%M:%S}\n current_time "
@@ -145,9 +155,28 @@ Uap::IntervalState Uap::UpdateInterval(Duration time_offset) {
     next_interval_index_ = (index + 1) % intervals_.size();
   }
   AE_TELED_DEBUG(
-      "Current interval {}, next interval {}, start_time {:%Y-%m-%d %H:%M:%S}",
-      current_interval_index_, next_interval_index_, start_time_);
-  return IntervalState{intervals_[current_interval_index_], start_time_};
+      "Current interval {}, next interval {}, start_time {:%Y-%m-%d %H:%M:%S} "
+      "current_time {:%Y-%m-%d %H:%M:%S}",
+      current_interval_index_, next_interval_index_, start_time_, current_time);
+  return IntervalState{
+      .interval = intervals_[current_interval_index_],
+      .end_time = start_time_ + intervals_[current_interval_index_].duration,
+  };
+}
+
+void Uap::WindowWatcher() {
+  if (intervals_.empty()) {
+    return;
+  }
+  auto& current = intervals_[current_interval_index_];
+  if (current.window == Duration::zero()) {
+    return;
+  }
+
+  aether_.WithLoaded([this, w{current.window}](auto const& a) {
+    auto timer_action = ActionPtr<TimerAction>{*a, w};
+    RegisterAction(*timer_action);
+  });
 }
 
 void Uap::AllActionsFinished() {
