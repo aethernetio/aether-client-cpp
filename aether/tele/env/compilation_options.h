@@ -78,6 +78,9 @@ static_assert(str_to_ui64("042") == 34);
 static_assert(str_to_ui64("b110") == 6);
 
 constexpr inline auto _compile_options_list = std::array{
+    _OPTION(AE_TASK_MAX_COUNT),
+    _OPTION(AE_TASK_MAX_SIZE),
+    _OPTION(AE_TASK_ALIGN),
     _OPTION(AE_SUPPORT_IPV4),
     _OPTION(AE_SUPPORT_IPV6),
     _OPTION(AE_SUPPORT_UDP),

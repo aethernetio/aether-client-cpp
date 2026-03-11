@@ -40,6 +40,7 @@
 #include "aether/crypto.h"
 #include "aether/client.h"
 #include "aether/uap/uap.h"
+#include "aether/ae_context.h"
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/adapter_registry.h"
@@ -233,6 +234,7 @@ class AetherApp {
 
   // Action context protocol
   operator ActionContext() const { return ActionContext{*aether_}; }
+  AeCtx ToAeContext() { return aether_->ToAeContext(); }
 
  private:
   AetherApp() = default;
