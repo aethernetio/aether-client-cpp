@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,31 +14,12 @@
  * limitations under the License.
  */
 
-#include "aether/actions/task_queue.h"
+#ifndef AETHER_TASKS_MANUAL_TASK_SCHEDULER_H_
+#define AETHER_TASKS_MANUAL_TASK_SCHEDULER_H_
+// IWYU pragma: begin_exports
+#include "aether/tasks/details/task.h"
+#include "aether/tasks/details/task_manager.h"
+#include "aether/tasks/details/manual_task_scheduler.h"
+// IWYU pragma: end_exports
 
-#include <utility>
-
-namespace ae {
-
-UpdateStatus TaskQueue::Update() {
-  if (tasks_.empty()) {
-    return {};
-  }
-  std::vector<Task> tasks_invoke;
-  {
-    // steal tasks under the mutex
-    auto lock = std::lock_guard{sync_queue_};
-    tasks_invoke = std::move(tasks_);
-  }
-  for (auto& t : tasks_invoke) {
-    t();
-  }
-  return {};
-}
-
-void TaskQueue::Enqueue(Task&& task) {
-  auto lock = std::lock_guard{sync_queue_};
-  tasks_.emplace_back(std::move(task));
-}
-
-}  // namespace ae
+#endif  // AETHER_TASKS_MANUAL_TASK_SCHEDULER_H_

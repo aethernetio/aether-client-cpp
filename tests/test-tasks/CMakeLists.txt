@@ -1,4 +1,4 @@
-# Copyright 2024 Aethernet Inc.
+# Copyright 2026 Aethernet Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,39 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required( VERSION 3.18 )
-
-list(APPEND action_srcs
-  ${ROOT_DIR}/aether/actions/action_processor.cpp
-  ${ROOT_DIR}/aether/actions/action_registry.cpp
-  ${ROOT_DIR}/aether/actions/action_trigger.cpp
-  ${ROOT_DIR}/aether/actions/repeatable_task.cpp
-  ${ROOT_DIR}/aether/actions/timer_action.cpp
-  ${ROOT_DIR}/aether/events/event_list.cpp
-  ${ROOT_DIR}/aether/events/event_deleter.cpp
-  ${ROOT_DIR}/aether/events/event_subscription.cpp
-  ${ROOT_DIR}/aether/events/multi_subscription.cpp
-)
+cmake_minimum_required( VERSION 3.16 )
 
 list(APPEND test_srcs
-  main.cpp
-  test-action-registry.cpp
-  test-action-processor.cpp
-  test-action-status-event.cpp
-  test-action.cpp
-  test-pipeline.cpp
-  test-actions-queue.cpp
+   main.cpp
+   test-task-queues.cpp
+   test-task-manager.cpp
+   test-manual-task-scheduler.cpp
 )
 
 if(NOT CM_PLATFORM)
-
-  project(test-actions LANGUAGES CXX)
+  project(test-tasks LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME})
-  target_sources(${PROJECT_NAME} PRIVATE ${action_srcs} ${test_srcs})
+  target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE unity)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(${PROJECT_NAME} PUBLIC /Zc:preprocessor)
+  endif()
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()

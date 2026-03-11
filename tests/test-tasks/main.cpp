@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,29 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ACTIONS_TASK_QUEUE_H_
-#define AETHER_ACTIONS_TASK_QUEUE_H_
+#include <unity.h>
 
-#include <mutex>
-#include <vector>
+void setUp() {}
+void tearDown() {}
 
-#include "aether/actions/action.h"
-#include "aether/types/small_function.h"
+extern int test_task_queues();
+extern int test_task_manager();
+extern int test_manual_task_scheduler();
 
-namespace ae {
-class TaskQueue : public Action<TaskQueue> {
- public:
-  using Task = SmallFunction<void()>;
-
-  using Action::Action;
-
-  UpdateStatus Update();
-  void Enqueue(Task&& task);
-
- private:
-  std::mutex sync_queue_;
-  std::vector<Task> tasks_;
-};
-};  // namespace ae
-
-#endif  // AETHER_ACTIONS_TASK_QUEUE_H_
+int main() {
+  int res{};
+  res += test_task_queues();
+  res += test_task_manager();
+  res += test_manual_task_scheduler();
+  return res;
+}
