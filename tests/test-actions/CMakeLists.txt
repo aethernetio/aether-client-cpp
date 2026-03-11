@@ -19,7 +19,6 @@ list(APPEND action_srcs
   ${ROOT_DIR}/aether/actions/action_registry.cpp
   ${ROOT_DIR}/aether/actions/action_trigger.cpp
   ${ROOT_DIR}/aether/actions/repeatable_task.cpp
-  ${ROOT_DIR}/aether/actions/task_queue.cpp
   ${ROOT_DIR}/aether/actions/timer_action.cpp
   ${ROOT_DIR}/aether/events/event_list.cpp
   ${ROOT_DIR}/aether/events/event_deleter.cpp
