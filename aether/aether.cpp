@@ -33,10 +33,14 @@
 
 namespace ae {
 
-Aether::Aether() : action_processor{make_unique<ActionProcessor>()} {}
+Aether::Aether()
+    : action_processor{make_unique<ActionProcessor>()},
+      task_scheduler{make_unique<TaskScheduler>()} {}
 
 Aether::Aether(ObjProp prop)
-    : Obj{prop}, action_processor{make_unique<ActionProcessor>()} {
+    : Obj{prop},
+      action_processor{make_unique<ActionProcessor>()},
+      task_scheduler{make_unique<TaskScheduler>()} {
   AE_TELE_DEBUG(AetherCreated);
 }
 
@@ -48,6 +52,16 @@ void Aether::Update(TimePoint current_time) {
 
 Aether::operator ActionContext() const {
   return ActionContext{*action_processor};
+}
+
+AeCtx Aether::ToAeContext() {
+  static constexpr AeCtxTable ae_table{
+      [](void* obj) -> Aether& { return *static_cast<Aether*>(obj); },
+      [](void* obj) -> TaskScheduler& {
+        return *static_cast<Aether*>(obj)->task_scheduler;
+      },
+  };
+  return AeCtx{this, &ae_table};
 }
 
 Client::ptr Aether::CreateClient(ClientConfig const& config,

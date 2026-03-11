@@ -27,6 +27,20 @@
 #endif
 // IWYU pragma: end_exports
 
+// task queue buffer size \see aether/tasks
+#ifndef AE_TASK_MAX_COUNT
+#  define AE_TASK_MAX_COUNT 128
+#endif
+
+// task max size, this should be more than 16 bytes
+#ifndef AE_TASK_MAX_SIZE
+#  define AE_TASK_MAX_SIZE 8 * sizeof(void*)
+#endif
+// task alignment
+#ifndef AE_TASK_ALIGN
+#  define AE_TASK_ALIGN alignof(std::max_align_t)
+#endif
+
 #ifndef AE_SUPPORT_IPV4
 #  define AE_SUPPORT_IPV4 1
 #endif  // AE_SUPPORT_IPV4

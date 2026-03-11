@@ -26,8 +26,11 @@
 #include "aether/actions/action_ptr.h"
 #include "aether/types/client_config.h"
 
+#include "aether/ae_context.h"
 #include "aether/actions/action_context.h"
 #include "aether/ae_actions/select_client.h"
+
+#include "aether/tasks/manual_task_scheduler.h"
 
 #include "aether/uap/uap.h"
 
@@ -82,6 +85,7 @@ class Aether : public Obj {
 
   // User-facing API.
   operator ActionContext() const;
+  AeCtx ToAeContext();
 
   ObjPtr<Client> CreateClient(ClientConfig const& config,
                               std::string const& client_id);
@@ -104,6 +108,7 @@ class Aether : public Obj {
   Obj::ptr tele_statistics;
 
   std::unique_ptr<ActionProcessor> action_processor;
+  std::unique_ptr<TaskScheduler> task_scheduler;
 
  private:
   ObjPtr<Client> FindClient(std::string const& client_id);
