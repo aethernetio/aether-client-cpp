@@ -32,7 +32,6 @@
 #  define IGNORE_WNAN_INFINITY_DISABLED()
 
 #  define IGNORE_DEPRECATED() IGNORE_WARNING(4996)
-
 #endif
 
 #if defined __GNUC__ || defined __clang__
