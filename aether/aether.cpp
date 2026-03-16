@@ -54,14 +54,14 @@ Aether::operator ActionContext() const {
   return ActionContext{*action_processor};
 }
 
-AeCtx Aether::ToAeContext() {
+AeCtx Aether::ToAeContext() const {
   static constexpr AeCtxTable ae_table{
       [](void* obj) -> Aether& { return *static_cast<Aether*>(obj); },
       [](void* obj) -> TaskScheduler& {
         return *static_cast<Aether*>(obj)->task_scheduler;
       },
   };
-  return AeCtx{this, &ae_table};
+  return AeCtx{const_cast<Aether*>(this), &ae_table};  // NOLINT(*const-cast)
 }
 
 Client::ptr Aether::CreateClient(ClientConfig const& config,
