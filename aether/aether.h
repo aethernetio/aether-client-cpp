@@ -85,7 +85,7 @@ class Aether : public Obj {
 
   // User-facing API.
   operator ActionContext() const;
-  AeCtx ToAeContext();
+  AeCtx ToAeContext() const;
 
   ObjPtr<Client> CreateClient(ClientConfig const& config,
                               std::string const& client_id);

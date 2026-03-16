@@ -34,25 +34,29 @@ struct AeCtxTable {
 };
 
 struct AeCtx {
+  bool operator<=>(AeCtx const&) const = default;
+
   void* obj;
   AeCtxTable const* vtable;
 };
 
 template <typename T>
-concept AeContextual = requires(T& t) {
+concept AeContextual = requires(T const& t) {
   { t.ToAeContext() } -> std::same_as<AeCtx>;
 };
 
 class AeContext {
  public:
   template <AeContextual T>
-  constexpr AeContext(T& obj)  // NOLINT(*explicit-constructor)
+  constexpr AeContext(T const& obj)  // NOLINT(*explicit-constructor)
       : ctx_{obj.ToAeContext()} {}
 
   Aether& aether() const { return ctx_.vtable->aether_getter(ctx_.obj); }
   TaskScheduler& scheduler() const {
     return ctx_.vtable->scheduler_getter(ctx_.obj);
   }
+
+  bool operator<=>(AeContext const&) const = default;
 
  private:
   AeCtx ctx_;
