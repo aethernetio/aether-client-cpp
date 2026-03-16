@@ -44,7 +44,7 @@ class WifiChannel final : public Channel {
 
   Duration TransportBuildTimeout() const override;
 
-  ActionPtr<TransportBuilderAction> TransportBuilder() override;
+  TransportBuildSender TransportBuilder() override;
 
   Endpoint address;
 

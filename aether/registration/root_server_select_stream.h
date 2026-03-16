@@ -23,6 +23,7 @@
 
 #  include <optional>
 
+#  include "aether/ae_context.h"
 #  include "aether/events/events.h"
 #  include "aether/registration_cloud.h"
 #  include "aether/stream_api/istream.h"
@@ -36,7 +37,7 @@ class RootServerSelectStream final : public ByteIStream {
   using ServerChangedEvent = Event<void()>;
   using CloudErrorEvent = Event<void()>;
 
-  RootServerSelectStream(ActionContext action_context,
+  RootServerSelectStream(AeContext const& ae_context,
                          Ptr<RegistrationCloud> const& cloud);
 
   ActionPtr<WriteAction> Write(DataBuffer&& data) override;
@@ -53,7 +54,7 @@ class RootServerSelectStream final : public ByteIStream {
   void ServerError();
   void CloudError();
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   PtrView<RegistrationCloud> cloud_;
 
   std::size_t server_index_;

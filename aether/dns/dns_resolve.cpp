@@ -19,37 +19,5 @@
 #if AE_SUPPORT_CLOUD_DNS
 #  include <utility>
 
-namespace ae {
-
-UpdateStatus ResolveAction::Update() const {
-  if (is_resolved) {
-    return UpdateStatus::Result();
-  }
-  if (is_failed) {
-    return UpdateStatus::Error();
-  }
-  return {};
-}
-
-void ResolveAction::SetAddress(std::vector<Endpoint> addr) {
-  addresses = std::move(addr);
-  is_resolved = true;
-  this->Trigger();
-}
-
-void ResolveAction::Failed() {
-  is_failed = true;
-  is_resolved = false;
-  this->Trigger();
-}
-
-ActionPtr<ResolveAction> DnsResolver::Resolve(
-    NamedAddr const& /* name_address */, std::uint16_t /* port_hint */,
-    Protocol /* protocol_hint */) {
-  // must be overridden
-  assert(false);
-  return {};
-}
-
-}  // namespace ae
+namespace ae {}  // namespace ae
 #endif

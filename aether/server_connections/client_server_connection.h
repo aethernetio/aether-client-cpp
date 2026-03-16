@@ -20,6 +20,7 @@
 #include "aether/actions/action_context.h"
 
 #include "aether/common.h"
+#include "aether/ae_context.h"
 #include "aether/ae_actions/ping.h"
 #include "aether/actions/action_ptr.h"
 #include "aether/crypto/icrypto_provider.h"
@@ -41,8 +42,8 @@ class Channel;
  */
 class ClientServerConnection {
  public:
-  ClientServerConnection(ActionContext action_context,
-                         Ptr<Client> const& client, Ptr<Server> const& server);
+  ClientServerConnection(AeContext const& ae_context, Ptr<Client> const& client,
+                         Ptr<Server> const& server);
   ~ClientServerConnection();
 
   AE_CLASS_NO_COPY_MOVE(ClientServerConnection)
@@ -61,7 +62,7 @@ class ClientServerConnection {
   void OutData(DataBuffer const& data);
   void ChannelChanged();
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   PtrView<Server> server_;
   Uid ephemeral_uid_;
 

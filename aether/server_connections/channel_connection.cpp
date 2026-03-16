@@ -16,14 +16,12 @@
 
 #include "aether/server_connections/channel_connection.h"
 
-#include "aether/channels/channel.h"
-
 #include "aether/tele/tele.h"
 
 namespace ae {
-ChannelConnection::ChannelConnection(ActionContext action_context,
+ChannelConnection::ChannelConnection(AeContext ae_context,
                                      Ptr<Channel> const& channel)
-    : action_context_{action_context} {
+    : ae_context_{ae_context} {
   BuildTransport(channel);
 }
 
@@ -37,26 +35,41 @@ ChannelConnection::connection_state_event() {
 }
 
 void ChannelConnection::BuildTransport(Ptr<Channel> const& channel) {
-  auto builder_action = channel->TransportBuilder();
-  transport_build_sub_ = builder_action->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this](auto& builder) {
-        transport_stream_ = builder.transport_stream();
-        build_timer_->Stop();
-        connection_state_event_.Emit(true);
-      }},
-      OnError{[this]() {
-        AE_TELED_ERROR("Transport build failed");
-        build_timer_->Stop();
-        connection_state_event_.Emit(false);
-      }},
-  });
+  transport_build_start_ = Now();
+  auto sender = channel->TransportBuilder();
+  transport_waiter_.emplace(
+      ae_context_, std::move(sender),
+      [&, c{PtrView<Channel>{channel}}](auto&& result) {
+        assert(!!result);
+        build_timer_active_ = false;
+        if (result->IsOk()) {
+          auto channel = c.Lock();
+          assert(channel && "Channel not loaded");
+          auto build_time = std::chrono::duration_cast<Duration>(
+              Now() - transport_build_start_);
+          AE_TELED_ERROR("Transport built for {:%S}", build_time);
+          channel->channel_statistics().AddConnectionTime(build_time);
 
-  build_timer_ = OwnActionPtr<TimerAction>{action_context_,
-                                           channel->TransportBuildTimeout()};
-  build_timer_->StatusEvent().Subscribe(OnResult{[this]() {
-    AE_TELED_ERROR("Transport build timed out");
-    connection_state_event_.Emit(false);
-  }});
+          transport_stream_ = std::move(result->value());
+          assert(transport_stream_ && "Transport should be created");
+          connection_state_event_.Emit(true);
+        } else {
+          AE_TELED_ERROR("Transport build failed");
+          connection_state_event_.Emit(false);
+        }
+        transport_waiter_.reset();
+      });
+
+  // setup timeout for transport build
+  ae_context_.scheduler().DelayedTask(
+      [&]() {
+        if (!build_timer_active_) {
+          return;
+        }
+        AE_TELED_ERROR("Transport build timed out");
+        connection_state_event_.Emit(false);
+      },
+      channel->TransportBuildTimeout());
 }
 
 }  // namespace ae
