@@ -91,6 +91,15 @@ AetherClient* SelectClient(ClientConfig const* config);
 void FreeClient(AetherClient* client);
 
 /**
+ * \brief Read client's uid.
+ * This should be called on fully loaded client's only.
+ * \param client to read uid from.
+ * \param uid the pointer to read uid to.
+ * \return if 0, operation success, !0 something get wrong.
+ */
+int GetClientUid(AetherClient* client, CUid* uid);
+
+/**
  * \brief Send a message from selected client to destination client.
  * \param client The client to send the message from.
  * \param destination The destination client to send the message to.

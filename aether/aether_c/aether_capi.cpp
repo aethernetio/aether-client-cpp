@@ -394,6 +394,15 @@ void FreeClient(AetherClient* client) {
   delete client;
 }
 
+int GetClientUid(AetherClient* client, CUid* uid) {
+  if (!client->client) {
+    return -1;
+  }
+  auto client_uid = client->client->uid();
+  *uid = CUidFromBytes(client_uid.value.data(), client_uid.value.size());
+  return 0;
+}
+
 void Send(CUid destination, void const* data, size_t size,
           ActionStatusCb status_cb, void* user_data) {
   assert(default_client);
