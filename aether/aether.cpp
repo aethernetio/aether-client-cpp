@@ -47,7 +47,9 @@ Aether::Aether(ObjProp prop)
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
 void Aether::Update(TimePoint current_time) {
-  update_time = action_processor->Update(current_time);
+  task_scheduler->Update(current_time);
+  action_processor->Update(current_time);
+  update_time = current_time + 100ms;
 }
 
 Aether::operator ActionContext() const {
