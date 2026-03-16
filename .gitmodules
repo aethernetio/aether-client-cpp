@@ -60,3 +60,7 @@
 	path = third_party/gcem
 	url = https://github.com/aethernetio/gcem.git
 	branch = master
+[submodule "third_party/stdexec"]
+	path = third_party/stdexec
+	url = https://github.com/aethernetio/stdexec.git
+	branch = main
