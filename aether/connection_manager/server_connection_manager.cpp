@@ -30,9 +30,9 @@ ServerConnectionManager::ServerConnectionFactory::CreateConnection(
   return server_connection_manager_->CreateConnection(server);
 }
 
-ServerConnectionManager::ServerConnectionManager(ActionContext action_context,
+ServerConnectionManager::ServerConnectionManager(AeContext const& ae_context,
                                                  Ptr<Client> const& client)
-    : action_context_{action_context}, client_{client} {}
+    : ae_context_{ae_context}, client_{client} {}
 
 std::unique_ptr<IServerConnectionFactory>
 ServerConnectionManager::GetServerConnectionFactory() {
@@ -51,7 +51,7 @@ RcPtr<ClientServerConnection> ServerConnectionManager::CreateConnection(
   assert(client);
 
   auto connection =
-      MakeRcPtr<ClientServerConnection>(action_context_, client, server);
+      MakeRcPtr<ClientServerConnection>(ae_context_, client, server);
 
   // check updates
   server_update_subs_ += connection->stream_update_event().Subscribe(

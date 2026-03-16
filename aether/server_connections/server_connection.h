@@ -19,12 +19,12 @@
 
 #include <vector>
 
+#include "aether/ae_context.h"
 #include "aether/obj/obj_ptr.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/events/events.h"
 #include "aether/stream_api/istream.h"
 #include "aether/actions/notify_action.h"
-#include "aether/actions/action_context.h"
 #include "aether/write_action/buffer_write.h"
 #include "aether/server_connections/channel_connection.h"
 
@@ -43,7 +43,7 @@ class ServerConnection final : public ByteIStream {
   using ServerErrorEvent = Event<void()>;
   using ChannelChangedEvent = Event<void()>;
 
-  ServerConnection(ActionContext action_context, Ptr<Server> const& server);
+  ServerConnection(AeContext const& ae_context, Ptr<Server> const& server);
 
   ActionPtr<WriteAction> Write(DataBuffer&& in_data) override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
@@ -70,7 +70,7 @@ class ServerConnection final : public ByteIStream {
   void OnRead(DataBuffer const& data);
   ActionPtr<WriteAction> OnWrite(DataBuffer&& in_data);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   PtrView<Server> server_;
 
   BufferWrite<DataBuffer> buffer_write_;
