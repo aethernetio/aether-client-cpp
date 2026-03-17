@@ -81,11 +81,14 @@ void ClientSelected(AetherClient* client, void* user_data) {
   printf("<<<\n");
 }
 
-void MessageSentCb(ActionStatus status, void* user_data) { AetherExit(0); }
+void MessageSentCb(ActionStatus status, void* user_data) {
+  // close app
+  AetherExit(0);
+}
 
 void MessageReceived(AetherClient* client, CUid sender, void const* data,
                      size_t size, void* user_data) {
-  printf(">>> Received message size: %zu test: %s\n", size, (char const*)data);
+  printf(">>> Received message size: %zu text: %s\n", size, (char const*)data);
   // send message and wait till it sent
   SendStr(sender, message, MessageSentCb, NULL);
 }

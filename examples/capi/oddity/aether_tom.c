@@ -63,7 +63,7 @@ char const* message = "Major Tom to ground control";
 
 void MessageReceived(AetherClient* client, CUid sender, void const* data,
                      size_t size, void* user_data) {
-  printf(">>> Received message size: %zu test: %s\n", size, (char const*)data);
+  printf(">>> Received message size: %zu text: %s\n", size, (char const*)data);
   AetherExit(0);
 }
 
