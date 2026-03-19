@@ -34,7 +34,7 @@ struct AeCtxTable {
 };
 
 struct AeCtx {
-  bool operator<=>(AeCtx const&) const = default;
+  bool operator==(AeCtx const&) const = default;
 
   void* obj;
   AeCtxTable const* vtable;
@@ -56,7 +56,7 @@ class AeContext {
     return ctx_.vtable->scheduler_getter(ctx_.obj);
   }
 
-  bool operator<=>(AeContext const&) const = default;
+  bool operator==(AeContext const&) const = default;
 
  private:
   AeCtx ctx_;
