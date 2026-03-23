@@ -143,16 +143,16 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
           auto write_action =
               cc->LoginApiCall(SubApi<LoginApi>{[this](auto& api) {
                 AE_TELED_DEBUG("Make time sync request");
-                ApiPromisePtr<std::uint64_t> promise = api->get_time_utc();
-                response_sub_ = promise->StatusEvent().Subscribe(
-                    OnResult{[this, request_time{Now()}](auto& p) {
+                response_sub_ = api->get_time_utc().Subscribe(
+                    [this, request_time{Now()}](auto const& p) {
+                      assert(p.IsOk());
                       HandleResponse(
                           std::chrono::milliseconds{
                               static_cast<std::int64_t>(p.value())},
                           request_time, Now());
                       // time synced
                       state_ = State::kResult;
-                    }});
+                    });
               }});
           write_action_sub_ =
               write_action->StatusEvent().Subscribe(OnError{[this]() {

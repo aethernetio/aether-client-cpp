@@ -41,10 +41,9 @@ class LoginApi : public ApiClass {
 
  public:
   explicit LoginApi(ProtocolContext& protocol_context,
-                    ActionContext action_context,
                     IEncryptProvider& encrypt_provider);
 
-  Method<3, ApiPromisePtr<std::uint64_t>()> get_time_utc;
+  Method<3, ApiPromise<std::uint64_t>()> get_time_utc;
   Method<4, void(Uid uid, SubApi<AuthorizedApi> sub_api), LoginProc>
       login_by_uid;
   Method<5, void(Uid alias, SubApi<AuthorizedApi> sub_api), LoginProc>

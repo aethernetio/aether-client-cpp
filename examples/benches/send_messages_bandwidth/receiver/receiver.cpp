@@ -25,7 +25,7 @@ namespace ae::bench {
 Receiver::Receiver(ActionContext action_context, Client::ptr client)
     : action_context_{action_context},
       client_{std::move(client)},
-      bandwidth_api_{action_context, protocol_context_} {}
+      bandwidth_api_{protocol_context_} {}
 
 EventSubscriber<void()> Receiver::error_event() { return error_event_; }
 
