@@ -16,6 +16,7 @@
 
 #include "aether/server_connections/client_server_connection.h"
 
+#include "aether/aether.h"
 #include "aether/server.h"
 #include "aether/client.h"
 #include "aether/crypto/ikey_provider.h"
@@ -92,18 +93,18 @@ class ClientCryptoProvider final : public ICryptoProvider {
 
 }  // namespace _internal
 
-ClientServerConnection::ClientServerConnection(ActionContext action_context,
+ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
                                                Ptr<Client> const& client,
                                                Ptr<Server> const& server)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       server_{server},
       ephemeral_uid_{client->ephemeral_uid()},
       crypto_provider_{std::make_unique<_internal::ClientCryptoProvider>(
           client, server->server_id)},
       client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
-      login_api_{protocol_context_, action_context_,
+      login_api_{protocol_context_, ae_context_.aether(),
                  *crypto_provider_->encryptor()},
-      server_connection_{action_context_, server} {
+      server_connection_{ae_context_, server} {
   AE_TELED_DEBUG("Client server connection from {} to {}", ephemeral_uid_,
                  server->server_id);
 
@@ -167,7 +168,7 @@ void ClientServerConnection::ChannelChanged() {
     static constexpr Duration kPingDefaultInterval =
         std::chrono::milliseconds{AE_PING_INTERVAL_MS};
     // TODO: make ping interval depend on server priority
-    ping_ = OwnActionPtr<Ping>{action_context_, channel, *this,
+    ping_ = OwnActionPtr<Ping>{ae_context_.aether(), channel, *this,
                                kPingDefaultInterval};
 
     ping_sub_ = ping_->StatusEvent().Subscribe(OnError{[this]() {

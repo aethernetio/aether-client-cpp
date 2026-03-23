@@ -41,7 +41,9 @@ list(APPEND common_dependencies
     "../third_party/gcem"
     "../third_party/etl"
     "../third_party/aethernet-numeric"
+    "../third_party/stdexec"
 )
+set(STDEXEC_BUILD_EXAMPLES Off)
 
 # for etl
 set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
@@ -359,7 +361,8 @@ if(REGULAR_CMAKE_PROJECT)
                                         sodium
                                         hydrogen
                                         gcem
-                                        etl)
+                                        etl
+                                        stdexec)
   target_link_libraries(${PROJECT_NAME} PRIVATE c-ares )
 
   set(TARGET_NAME "${PROJECT_NAME}")
@@ -416,7 +419,8 @@ else()
                                          sodium
                                          hydrogen
                                          gcem
-                                         etl)
+                                         etl
+                                         stdexec)
   else()
     #ERROR
     message(SEND_ERROR "You must specify the CMAKE version!")
@@ -538,10 +542,12 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         PRIVATE
             /W4
             /WX
+            /w15262 #implisitfallthrough
             /wd4388 #Wno-sign-compare
             /wd4389 #Wno-sign-compare
-            /wd4244
-            /w15262 #implisitfallthrough
+        PUBLIC
+            /wd4100 /wd4101 /wd4127 /wd4244 /wd4324
+            /wd4456 /wd4459 /wd4714
             )
   target_compile_options(${TARGET_NAME} PUBLIC /Zc:preprocessor)
 endif()
@@ -558,15 +564,15 @@ endif()
 
 if(REGULAR_CMAKE_PROJECT AND NOT AE_BUILD_TESTS)
   ## Target installation
-  install(TARGETS   ${TARGET_NAME}
-        EXPORT        ${TARGET_NAME}Targets
-        ARCHIVE       DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY       DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}
-        COMPONENT     library)
+  # install(TARGETS   ${TARGET_NAME}
+  #       EXPORT        ${TARGET_NAME}Targets
+  #      ARCHIVE       DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  #     LIBRARY       DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  #    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}
+  #   COMPONENT     library)
 
   ## Target's cmake files: targets export
-  install(EXPORT  ${TARGET_NAME}Targets
-        NAMESPACE   ${TARGET_NAME}::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME})
+  #install(EXPORT  ${TARGET_NAME}Targets
+  #     NAMESPACE   ${TARGET_NAME}::
+  #    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME})
 endif()

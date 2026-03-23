@@ -47,21 +47,23 @@ Aether::Aether(ObjProp prop)
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
 void Aether::Update(TimePoint current_time) {
-  update_time = action_processor->Update(current_time);
+  task_scheduler->Update(current_time);
+  action_processor->Update(current_time);
+  update_time = current_time + 100ms;
 }
 
 Aether::operator ActionContext() const {
   return ActionContext{*action_processor};
 }
 
-AeCtx Aether::ToAeContext() {
+AeCtx Aether::ToAeContext() const {
   static constexpr AeCtxTable ae_table{
       [](void* obj) -> Aether& { return *static_cast<Aether*>(obj); },
       [](void* obj) -> TaskScheduler& {
         return *static_cast<Aether*>(obj)->task_scheduler;
       },
   };
-  return AeCtx{this, &ae_table};
+  return AeCtx{const_cast<Aether*>(this), &ae_table};  // NOLINT(*const-cast)
 }
 
 Client::ptr Aether::CreateClient(ClientConfig const& config,

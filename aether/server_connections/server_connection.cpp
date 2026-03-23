@@ -19,17 +19,18 @@
 #include <cassert>
 #include <algorithm>
 
+#include "aether/aether.h"
 #include "aether/server.h"
 #include "aether/channels/channel.h"
 
 namespace ae {
 static constexpr std::size_t kBufferCapacity = 200;
 
-ServerConnection::ServerConnection(ActionContext action_context,
+ServerConnection::ServerConnection(AeContext const& ae_context,
                                    Ptr<Server> const& server)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       server_{server},
-      buffer_write_{action_context_,
+      buffer_write_{ae_context_.aether(),
                     MethodPtr<&ServerConnection::OnWrite>{this},
                     kBufferCapacity},
       full_connected_{false} {
@@ -147,7 +148,7 @@ void ServerConnection::SelectChannel() {
   stream_info_.max_element_size = channel_props.max_packet_size;
   stream_info_.is_writable = true;
 
-  channel_connection_.emplace(action_context_, channel);
+  channel_connection_.emplace(ae_context_, channel);
   channel_connection_->connection_state_event().Subscribe(
       [this](bool connected) {
         if (connected) {
@@ -204,7 +205,8 @@ void ServerConnection::ServerError() {
 void ServerConnection::DeferChannelError() {
   // Action is used to break SelectChannel recursion
   if (!channel_error_action_ || channel_error_action_->IsFinished()) {
-    channel_error_action_ = OwnActionPtr<ChannelErrorAction>{action_context_};
+    channel_error_action_ =
+        OwnActionPtr<ChannelErrorAction>{ae_context_.aether()};
     channel_error_action_->StatusEvent().Subscribe(
         OnResult{[this]() { ChannelError(); }});
   }

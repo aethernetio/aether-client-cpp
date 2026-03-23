@@ -117,6 +117,9 @@ struct TypeListToTemplate<T, TypeList<Ts...>> {
   using type = T<Ts...>;
 };
 
+template <template <typename...> typename T, typename TList>
+using TypeListToTemplate_t = typename TypeListToTemplate<T, TList>::type;
+
 /**
  * \brief Revers type list
  */

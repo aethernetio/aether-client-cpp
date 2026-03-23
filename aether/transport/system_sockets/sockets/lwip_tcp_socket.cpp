@@ -91,7 +91,7 @@ int LwipTcpSocket::MakeSocket() {
   }
 
   // close the socket if not created
-  defer[&] {
+  ae_defer[&] {
     if (!created) {
       close(sock);
     }
@@ -122,7 +122,7 @@ ISocket& LwipTcpSocket::Connect(AddressPort const& destination,
   assert((socket_ != kInvalidSocket) && "Socket is not initialized");
   connected_cb_ = std::move(connected_cb);
 
-  defer[&]() {
+  ae_defer[&]() {
     // wait for all events to detect connection
     poller_->Event(socket_,
                    EventType::kRead | EventType::kWrite | EventType::kError,
@@ -160,7 +160,7 @@ void LwipTcpSocket::OnPollerEvent(EventType event) {
 }
 
 void LwipTcpSocket::OnConnectionEvent() {
-  defer[&]() {
+  ae_defer[&]() {
     if (connected_cb_) {
       AE_TELED_DEBUG("LwIp TCP socket connectioin event {}", connection_state_);
       connected_cb_(connection_state_);

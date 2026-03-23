@@ -21,178 +21,107 @@
 
 #include "aether/memory.h"
 #include "aether/actions/action.h"
-#include "aether/types/state_machine.h"
 #include "aether/events/event_subscription.h"
 
 #include "aether/aether.h"
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
+#include "aether/executors/executors.h"
 
 #include "aether/channels/ethernet_transport_factory.h"
 
-#include "aether/tele/tele.h"
-
 namespace ae {
 namespace ethernet_access_point_internal {
+using ResolveSender =
+    ex::AnySender<ex::set_value_t(std::vector<Endpoint>), ex::set_error_t(int)>;
 
-class EthernetTransportBuilderAction final : public TransportBuilderAction {
- public:
-  enum class State : std::uint8_t {
-    kAddressResolve,
-    kTransportCreate,
-    kWaitTransportConnected,
-    kTransportConnected,
-    kFailed
-  };
-
-  EthernetTransportBuilderAction(ActionContext action_context,
-                                 EthernetChannel& channel, Endpoint address,
-                                 Ptr<DnsResolver> const& dns_resolver,
-                                 Ptr<IPoller> const& poller)
-      : TransportBuilderAction{action_context},
-        action_context_{action_context},
-        ethernet_channel_{&channel},
-        address_{std::move(address)},
-        resolver_{dns_resolver},
-        poller_{poller},
-        state_{State::kAddressResolve},
-        start_time_{Now()} {}
-
-  UpdateStatus Update() override {
-    if (state_.changed()) {
-      switch (state_.Acquire()) {
-        case State::kAddressResolve:
-          ResolveAddress();
-          break;
-        case State::kTransportCreate:
-          CreateTransport();
-          break;
-        case State::kWaitTransportConnected:
-          break;
-        case State::kTransportConnected:
-          return UpdateStatus::Result();
-        case State::kFailed:
-          return UpdateStatus::Error();
-      }
-    }
-    return {};
-  }
-
-  std::unique_ptr<ByteIStream> transport_stream() override {
-    return std::move(transport_stream_);
-  }
-
- private:
-  void ResolveAddress() {
-    std::visit(
-        [this](auto const& addr) {
-          DoResolverAddress(addr, address_.port, address_.protocol);
-        },
-        address_.address);
-  }
-
-  void DoResolverAddress([[maybe_unused]] NamedAddr const& name_address,
-                         [[maybe_unused]] std::uint16_t port,
-                         [[maybe_unused]] Protocol protocol) {
+ResolveSender ResolveAddress(Ptr<DnsResolver> const& resolver,
+                             NamedAddr const& addr, std::uint16_t port,
+                             Protocol protocol) {
 #if AE_SUPPORT_CLOUD_DNS
-    auto dns_resolver = resolver_.Lock();
-    assert(dns_resolver);
-    auto resolve_action = dns_resolver->Resolve(name_address, port, protocol);
-
-    address_resolve_sub_ = resolve_action->StatusEvent().Subscribe(
-        ActionHandler{OnResult{[this](auto& action) {
-                        ip_addresses_ = std::move(action.addresses);
-                        it_ = std::begin(ip_addresses_);
-                        state_ = State::kTransportCreate;
-                        Action::Trigger();
-                      }},
-                      OnError {
-                        [this]() {
-                          state_ = State::kFailed;
-                          Action::Trigger();
-                        }
-                      }});
+  return resolver->Resolve(addr, port, protocol);
 #else
-    AE_TELED_ERROR("Unable to resolve named address");
-    state_ = State::kFailed;
-    Action::Trigger();
+  // named address doesn't supported
+  return ex::just_error(1);
 #endif
-  }
+}
 
-  template <typename TAddr>
-  void DoResolverAddress(TAddr const& ip_address, std::uint16_t port,
-                         Protocol protocol) {
-    ip_addresses_.push_back(Endpoint{{{ip_address}, port}, protocol});
-    it_ = std::begin(ip_addresses_);
-    state_ = State::kTransportCreate;
-    Action::Trigger();
-  }
+ResolveSender ResolveAddress(Ptr<DnsResolver> const&, auto const& addr,
+                             std::uint16_t port, Protocol protocol) {
+  return ex::just(std::vector<Endpoint>{Endpoint{addr, port, protocol}});
+}
 
-  void CreateTransport() {
-    state_ = State::kWaitTransportConnected;
+auto CreateTransport(AeContext const& context, PtrView<IPoller> const& poller,
+                     Endpoint const& e) {
+  auto poller_ptr = poller.Lock();
+  assert(poller_ptr);
+  return EthernetTransportFactory::Create(context.aether(), poller_ptr, e);
+}
 
-    if (it_ == std::end(ip_addresses_)) {
-      state_ = State::kFailed;
-      Action::Trigger();
-      return;
-    }
-    auto poller = poller_.Lock();
-    assert(poller);
-    auto& addr = *(it_++);
-    transport_stream_ =
-        EthernetTransportFactory::Create(action_context_, poller, addr);
-
-    if (!transport_stream_) {
-      // try next address
-      state_ = State::kTransportCreate;
-      Action::Trigger();
-      return;
-    }
-
-    if (transport_stream_->stream_info().link_state == LinkState::kLinked) {
-      Connected();
-      return;
-    }
-
-    transport_stream_sub_ =
-        transport_stream_->stream_update_event().Subscribe([this]() {
-          if (transport_stream_->stream_info().link_state ==
-              LinkState::kLinked) {
-            // transport stream is connected
-            Connected();
-          } else if (transport_stream_->stream_info().link_state ==
-                     LinkState::kLinkError) {
-            // connection failed, try next address
-            state_ = State::kTransportCreate;
-            Action::Trigger();
+ex::sender auto TransportConnect(std::unique_ptr<ByteIStream>&& stream) {
+  return ex::make_sender<ex::set_value_t(std::unique_ptr<ByteIStream>),
+                         ex::set_error_t(int)>(
+      [&, s{std::move(stream)}, link_sub{Subscription{}}](auto&& recv) mutable {
+        // if already linked return stream
+        switch (s->stream_info().link_state) {
+          case LinkState::kLinked: {
+            ex::set_value(std::forward<decltype(recv)>(recv), std::move(s));
+            return;
           }
-        });
-  }
+          case LinkState::kLinkError: {
+            ex::set_error(std::forward<decltype(recv)>(recv), 1);
+            return;
+          }
+          default:
+            break;
+        }
+        // wait till linked
+        link_sub = s->stream_update_event().Subscribe(
+            [&, r{std::forward<decltype(recv)>(recv)}]() mutable noexcept {
+              link_sub.Reset();
+              if (s->stream_info().link_state == LinkState::kLinked) {
+                ex::set_value(std::move(r), std::move(s));
+              } else {
+                ex::set_error(std::move(r), 2);
+              }
+            });
+      });
+}
 
-  void Connected() {
-    transport_stream_sub_.Reset();
-    auto built_time = std::chrono::duration_cast<Duration>(Now() - start_time_);
-    AE_TELED_DEBUG("Transport built by {:%S}", built_time);
-    ethernet_channel_->channel_statistics().AddConnectionTime(built_time);
-    state_ = State::kTransportConnected;
-    Action::Trigger();
-  }
-
-  ActionContext action_context_;
-  EthernetChannel* ethernet_channel_;
-  Endpoint address_;
-  PtrView<DnsResolver> resolver_;
-  PtrView<IPoller> poller_;
-  StateMachine<State> state_;
-  std::vector<Endpoint> ip_addresses_;
-  std::vector<Endpoint>::iterator it_{};
-  std::unique_ptr<ByteIStream> transport_stream_;
-  Subscription address_resolve_sub_;
-  Subscription transport_stream_sub_;
-
-  TimePoint start_time_;
-};
+ex::sender auto MakeTransportBuilder(AeContext ae_context,
+                                     Ptr<DnsResolver> const& dns_resolver,
+                                     Ptr<IPoller> const& poller,
+                                     Endpoint address) noexcept {
+  // resolve named address to ip address
+  return std::visit(
+             [&](auto const& addr) noexcept {
+               return ResolveAddress(dns_resolver, addr, address.port,
+                                     address.protocol);
+             },
+             address.address) |
+         // create transport and wait till it connected
+         ex::let_value([c{ae_context}, p{PtrView<IPoller>{poller}}](
+                           auto const& endpoints) noexcept {
+           return ex::for_range(
+                      Iter{endpoints.begin(), endpoints.end()},
+                      [c, p](auto const& e) noexcept {
+                        return ex::just(e) |
+                               ex::then([&](auto const& e) noexcept {
+                                 return CreateTransport(c, p, e);
+                               }) |
+                               ex::let_value([](auto& s) noexcept {
+                                 return TransportConnect(std::move(s));
+                               }) |
+                               ex::upon_error([](auto&&...) noexcept {
+                                 return ex::for_continue;
+                               });
+                      }) |
+                  ex::let_stopped([]() noexcept { return ex::just_error(1); });
+         });
+}
 }  // namespace ethernet_access_point_internal
+
+EthernetChannel::EthernetChannel() = default;
 
 EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
                                  ObjPtr<DnsResolver> dns_resolver,
@@ -227,7 +156,9 @@ EthernetChannel::EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
   }
 }
 
-ActionPtr<TransportBuilderAction> EthernetChannel::TransportBuilder() {
+EthernetChannel::~EthernetChannel() = default;
+
+TransportBuildSender EthernetChannel::TransportBuilder() {
   auto resolver = dns_resolver_.Load();
 #if AE_SUPPORT_CLOUD_DNS
   assert(resolver && "Resolver is not loaded");
@@ -235,9 +166,8 @@ ActionPtr<TransportBuilderAction> EthernetChannel::TransportBuilder() {
   auto poller = poller_.Load();
   assert(poller && "Poller is not loaded");
 
-  return ActionPtr<
-      ethernet_access_point_internal::EthernetTransportBuilderAction>(
-      *aether_.Load().as<Aether>(), *this, address, resolver, poller);
+  return ethernet_access_point_internal::MakeTransportBuilder(
+      AeContext{*aether_.Load().as<Aether>()}, resolver, poller, address);
 }
 
 }  // namespace ae
