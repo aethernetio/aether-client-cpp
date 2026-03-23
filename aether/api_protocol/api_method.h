@@ -17,12 +17,11 @@
 #ifndef AETHER_API_PROTOCOL_API_METHOD_H_
 #define AETHER_API_PROTOCOL_API_METHOD_H_
 
-#include "aether/actions/action_context.h"
 #include "aether/api_protocol/api_message.h"
 #include "aether/api_protocol/api_context.h"
 #include "aether/api_protocol/api_pack_parser.h"
 #include "aether/api_protocol/protocol_context.h"
-#include "aether/api_protocol/api_promise_action.h"
+#include "aether/api_protocol/api_promise.h"
 
 namespace ae {
 class DefaultArgProc {
@@ -74,39 +73,40 @@ struct Method<MessageCode, void(Args...), ArgProc> {
  * return PromiseView<R> for waiting the result or error.
  */
 template <MessageId MessageCode, typename R, typename... Args, typename ArgProc>
-struct Method<MessageCode, ApiPromisePtr<R>(Args...), ArgProc> {
-  explicit Method(ProtocolContext& protocol_context,
-                  ActionContext action_context, ArgProc arg_proc = {})
-      : protocol_context_{&protocol_context},
-        action_context_{std::move(action_context)},
-        arg_proc_{std::move(arg_proc)} {}
+struct Method<MessageCode, ApiPromise<R>(Args...), ArgProc> {
+  explicit Method(ProtocolContext& protocol_context, ArgProc arg_proc = {})
+      : protocol_context_{&protocol_context}, arg_proc_{std::move(arg_proc)} {}
 
-  ApiPromisePtr<R> operator()(Args... args) {
+  ApiPromise<R>& operator()(Args... args) {
     auto request_id = RequestId::GenRequestId();
     auto* packet_stack = protocol_context_->packet_stack();
     assert(packet_stack);
     packet_stack->Push(*this,
                        arg_proc_(request_id, std::forward<Args>(args)...));
-
-    auto promise_ptr = ApiPromisePtr<R>{action_context_, request_id};
+    api_promise_.emplace(request_id);
 
     if constexpr (!std::is_same_v<void, R>) {
-      protocol_context_->AddSendResultCallback(
-          request_id,
-          [p_ptr{promise_ptr}, context{protocol_context_}]() mutable {
-            p_ptr->SetValue(context->parser()->template Extract<R>());
-          });
+      protocol_context_->AddSendResultCallback(request_id, [this]() {
+        assert(api_promise_);
+        api_promise_->SetValue(
+            protocol_context_->parser()->template Extract<R>());
+        api_promise_.reset();
+      });
     } else {
-      protocol_context_->AddSendResultCallback(
-          request_id, [p_ptr{promise_ptr}]() mutable { p_ptr->SetValue(); });
+      protocol_context_->AddSendResultCallback(request_id, [this]() {
+        assert(api_promise_);
+        api_promise_->SetValue();
+        api_promise_.reset();
+      });
     }
     protocol_context_->AddSendErrorCallback(
-        request_id, [p_ptr{promise_ptr}](auto, auto) mutable {
-          assert(p_ptr);
-          p_ptr->Reject();
+        request_id, [this](auto, std::uint32_t err) {
+          assert(api_promise_);
+          api_promise_->SetError(std::move(err));
+          api_promise_.reset();
         });
 
-    return promise_ptr;
+    return *api_promise_;
   }
 
   template <typename... Ts>
@@ -116,7 +116,7 @@ struct Method<MessageCode, ApiPromisePtr<R>(Args...), ArgProc> {
 
  private:
   ProtocolContext* protocol_context_;
-  ActionContext action_context_;
+  std::optional<ApiPromise<R>> api_promise_;
   ArgProc arg_proc_;
 };
 
