@@ -23,8 +23,6 @@
 #include <functional>
 #include <type_traits>
 
-#include "aether/meta/as_type.h"
-
 namespace ae {
 template <typename T, typename E>
 class Result;
@@ -70,14 +68,17 @@ class Result {
   explicit Result(EU&& error) : storage_{std::forward<EU>(error)} {}
 
   // made implicit intentionally
-  Result(Ok<T>&& ok) : storage_{std::move(ok.value)} {}
+  constexpr Result(Ok<T>&& ok)  // NOLINT(*explicit-constructor)
+      : storage_{std::move(ok).value} {}
   // made implicit intentionally
-  Result(Error<E>&& error) : storage_{std::move(error.error)} {}
+  constexpr Result(Error<E>&& error)  // NOLINT(*explicit-constructor)
+      : storage_{std::move(error).error} {}
 
-  // TODO: add monadic operations
-
-  bool IsOk() const noexcept { return storage_.index() == 0; }
-  bool IsErr() const noexcept { return storage_.index() == 1; }
+  constexpr bool IsOk() const noexcept { return storage_.index() == 0; }
+  constexpr bool IsErr() const noexcept { return storage_.index() == 1; }
+  constexpr explicit operator bool() const noexcept {
+    return storage_.index() == 0;
+  }
 
   auto& value() & noexcept {
     assert(IsOk());
@@ -159,9 +160,9 @@ class Result {
 
  private:
   value_type* get_value() & { return std::get_if<0>(&storage_); }
-  value_type* get_value() const& { return std::get_if<0>(&storage_); }
+  value_type const* get_value() const& { return std::get_if<0>(&storage_); }
   error_type* get_error() & { return std::get_if<1>(&storage_); }
-  error_type* get_error() const& { return std::get_if<1>(&storage_); }
+  error_type const* get_error() const& { return std::get_if<1>(&storage_); }
 
   std::variant<value_type, error_type> storage_;
 };
