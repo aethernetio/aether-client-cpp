@@ -30,19 +30,17 @@ CheckAccessForSendMessage::CheckAccessForSendMessage(
           action_context,
           AuthApiRequest{[this](ApiContext<AuthorizedApi>& auth_api, auto*,
                                 auto* request) {
-            auto check_promise =
-                auth_api->check_access_for_send_message(destination_);
             wait_check_sub_ =
-                check_promise->StatusEvent().Subscribe(ActionHandler{
-                    OnResult{[&]() {
-                      ResponseReceived();
-                      request->Succeeded();
-                    }},
-                    OnError{[&]() {
-                      ErrorReceived();
-                      request->Failed();
-                    }},
-                });
+                auth_api->check_access_for_send_message(destination_)
+                    .Subscribe([&](auto const& res) {
+                      if (res) {
+                        ResponseReceived();
+                        request->Succeeded();
+                      } else {
+                        ErrorReceived();
+                        request->Failed();
+                      }
+                    });
           }},
           cloud_connection,
           request_policy,

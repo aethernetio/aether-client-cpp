@@ -44,7 +44,7 @@ Registration::Registration(ActionContext action_context, Aether& aether,
       global_crypto_provider_{std::make_unique<RegistrationCryptoProvider>()},
       client_root_api_{protocol_context_, *root_crypto_provider_->decryptor(),
                        *global_crypto_provider_->decryptor()},
-      server_reg_root_api_{protocol_context_, action_context_,
+      server_reg_root_api_{protocol_context_,
                            *root_crypto_provider_->encryptor(),
                            *global_crypto_provider_->encryptor()},
       root_server_select_stream_{aether, reg_cloud},
@@ -144,24 +144,25 @@ void Registration::GetKeys() {
   auto api_call = ApiCallAdapter{ApiContext{server_reg_root_api_},
                                  root_server_select_stream_};
 
-  auto get_key_promise =
+  auto& get_key_promise =
       api_call->get_asymmetric_public_key(kDefaultCryptoLibProfile);
 
-  response_sub_ = get_key_promise->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[&](auto& promise) {
-        auto& signed_key = promise.value();
-        auto r = CryptoSignVerify(signed_key.sign, signed_key.key, sign_pk_);
-        if (!r) {
-          AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
-                        "Sign verification failed");
-          state_ = State::kRegistrationFailed;
-          return;
-        }
+  response_sub_ = get_key_promise.Subscribe([&](auto res) {
+    if (res.IsOk()) {
+      auto& signed_key = res.value();
+      auto r = CryptoSignVerify(signed_key.sign, signed_key.key, sign_pk_);
+      if (!r) {
+        AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
+                      "Sign verification failed");
+        state_ = State::kRegistrationFailed;
+        return;
+      }
 
-        server_pub_key_ = std::move(signed_key.key);
-        state_ = State::kGetPowParams;
-      }},
-      OnError{[&]() { state_ = State::kRegistrationFailed; }},
+      server_pub_key_ = std::move(signed_key.key);
+      state_ = State::kGetPowParams;
+    } else {
+      state_ = State::kRegistrationFailed;
+    }
   });
 
   packet_write_action_ = api_call.Flush();
@@ -199,33 +200,36 @@ void Registration::RequestPowParams() {
       kDefaultCryptoLibProfile,
       SubApi{[this, &ret_key](ApiContext<ServerRegistrationApi>& server_api) {
         server_api->set_return_key(std::move(ret_key));
-        auto pow_params_promise = server_api->request_proof_of_work_data(
-            parent_uid_, PowMethod::kBCryptCrc32);
         response_sub_ =
-            pow_params_promise->StatusEvent().Subscribe(ActionHandler{
-                OnResult{[&](auto& promise) {
-                  auto& pow_params = promise.value();
-                  [[maybe_unused]] auto res =
-                      CryptoSignVerify(pow_params.global_key.sign,
-                                       pow_params.global_key.key, sign_pk_);
-                  if (!res) {
-                    AE_TELE_ERROR(
-                        RegisterPowParamsVerificationFailed,
-                        "Proof of work params sign verification failed");
+            server_api
+                ->request_proof_of_work_data(parent_uid_,
+                                             PowMethod::kBCryptCrc32)
+                .Subscribe([&](auto&& res) {
+                  if (res.IsOk()) {
+                    auto& pow_params = res.value();
+                    [[maybe_unused]] auto res =
+                        CryptoSignVerify(pow_params.global_key.sign,
+                                         pow_params.global_key.key, sign_pk_);
+                    if (!res) {
+                      AE_TELE_ERROR(
+                          RegisterPowParamsVerificationFailed,
+                          "Proof of work params sign verification failed");
+                      state_ = State::kRegistrationFailed;
+                      return;
+                    }
+
+                    aether_global_key_ = pow_params.global_key.key;
+
+                    pow_params_.salt = pow_params.salt;
+                    pow_params_.max_hash_value = pow_params.max_hash_value;
+                    pow_params_.password_suffix = pow_params.password_suffix;
+                    pow_params_.pool_size = pow_params.pool_size;
+
+                    state_ = State::kMakeRegistration;
+                  } else {
                     state_ = State::kRegistrationFailed;
-                    return;
                   }
-
-                  aether_global_key_ = pow_params.global_key.key;
-
-                  pow_params_.salt = pow_params.salt;
-                  pow_params_.max_hash_value = pow_params.max_hash_value;
-                  pow_params_.password_suffix = pow_params.password_suffix;
-                  pow_params_.pool_size = pow_params.pool_size;
-
-                  state_ = State::kMakeRegistration;
-                }},
-                OnError{[&]() { state_ = State::kRegistrationFailed; }}});
+                });
       }});
 
   packet_write_action_ = api_call.Flush();
@@ -265,27 +269,25 @@ void Registration::MakeRegistration() {
             SubApi{[this](ApiContext<GlobalRegServerApi>& global_api) {
               // set master key and wait for confirmation
               global_api->set_master_key(client_config_.master_key);
-              auto confirm_promise = global_api->finish();
+              response_sub_ = global_api->finish().Subscribe([&](auto res) {
+                if (res.IsOk()) {
+                  auto& reg_response = res.value();
+                  AE_TELE_INFO(RegisterRegistrationConfirmed,
+                               "Registration confirmed");
 
-              response_sub_ =
-                  confirm_promise->StatusEvent().Subscribe(ActionHandler{
-                      OnResult{[&](auto& promise) {
-                        auto& reg_response = promise.value();
-                        AE_TELE_INFO(RegisterRegistrationConfirmed,
-                                     "Registration confirmed");
+                  client_config_.uid = reg_response.uid;
+                  client_config_.ephemeral_uid = reg_response.ephemeral_uid;
+                  client_config_.parent_uid = parent_uid_;
 
-                        client_config_.uid = reg_response.uid;
-                        client_config_.ephemeral_uid =
-                            reg_response.ephemeral_uid;
-                        client_config_.parent_uid = parent_uid_;
-
-                        // use client cloud_ for cloud resolve request
-                        client_cloud_ = reg_response.cloud;
-                        assert((client_cloud_.size() > 0) &&
-                               "Client's cloud is empty");
-                        state_ = State::kRequestCloudResolving;
-                      }},
-                      OnError{[&]() { state_ = State::kRegistrationFailed; }}});
+                  // use client cloud_ for cloud resolve request
+                  client_cloud_ = reg_response.cloud;
+                  assert((client_cloud_.size() > 0) &&
+                         "Client's cloud is empty");
+                  state_ = State::kRequestCloudResolving;
+                } else {
+                  state_ = State::kRegistrationFailed;
+                }
+              });
             }});
       }});
 
@@ -303,16 +305,17 @@ void Registration::ResolveCloud() {
 
   auto api_call = ApiCallAdapter{ApiContext{server_reg_root_api_},
                                  root_server_select_stream_};
-  api_call->enter(
-      kDefaultCryptoLibProfile,
-      SubApi{[this](ApiContext<ServerRegistrationApi>& server_api) {
-        auto resolve_cloud_promise = server_api->resolve_servers(client_cloud_);
-        response_sub_ =
-            resolve_cloud_promise->StatusEvent().Subscribe(ActionHandler{
-                OnResult{
-                    [&](auto& promise) { OnCloudResolved(promise.value()); }},
-                OnError{[&]() { state_ = State::kRegistrationFailed; }}});
-      }});
+  api_call->enter(kDefaultCryptoLibProfile,
+                  SubApi{[this](ApiContext<ServerRegistrationApi>& server_api) {
+                    response_sub_ = server_api->resolve_servers(client_cloud_)
+                                        .Subscribe([&](auto&& res) {
+                                          if (res.IsOk()) {
+                                            OnCloudResolved(res.value());
+                                          } else {
+                                            state_ = State::kRegistrationFailed;
+                                          }
+                                        });
+                  }});
 
   packet_write_action_ = api_call.Flush();
 

@@ -28,7 +28,7 @@ Sender::Sender(ActionContext action_context, Client::ptr client,
     : action_context_{action_context},
       client_{std::move(client)},
       destination_{destination},
-      bandwidth_api_{action_context_, protocol_context_} {}
+      bandwidth_api_{protocol_context_} {}
 
 EventSubscriber<void()> Sender::error_event() { return error_event_; }
 
@@ -45,18 +45,17 @@ void Sender::Disconnect() { message_stream_.Reset(); }
 EventSubscriber<void()> Sender::Handshake() {
   auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
 
-  auto res = api->handshake();
-  handshake_sub_ =
-      res->StatusEvent().Subscribe(OnResult{[this](auto const& promise) {
-        AE_TELED_DEBUG("Handshake received");
-        if (promise.value()) {
-          handshake_made_.Emit();
-        } else {
-          error_event_.Emit();
-        }
-      }});
+  auto& res = api->handshake();
+  handshake_sub_ = res.Subscribe([this](auto const& res) {
+    AE_TELED_DEBUG("Handshake received");
+    if (res && res.value()) {
+      handshake_made_.Emit();
+    } else {
+      error_event_.Emit();
+    }
+  });
 
-  AE_TELED_DEBUG("Sending handshake request {}", res->request_id());
+  AE_TELED_DEBUG("Sending handshake request {}", res.request_id());
   api.Flush();
 
   return handshake_made_;
@@ -103,11 +102,12 @@ EventSubscriber<void()> Sender::StartTest() {
         AE_TELED_DEBUG("Sending start test request");
         auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
 
-        auto res = api->start_test();
-        sync_subs_.Push(res->StatusEvent().Subscribe(OnResult{[this]() {
-          start_test_action_->Stop();
-          test_started_event_.Emit();
-        }}));
+        sync_subs_ += api->start_test().Subscribe([this](auto const& res) {
+          if (res.IsOk()) {
+            start_test_action_->Stop();
+            test_started_event_.Emit();
+          }
+        });
         api.Flush();
       },
       std::chrono::seconds{1}, 5};
@@ -125,11 +125,12 @@ EventSubscriber<void()> Sender::StopTest() {
         AE_TELED_DEBUG("Sending stop test request");
         auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
 
-        auto res = api->stop_test();
-        sync_subs_.Push(res->StatusEvent().Subscribe(OnResult{[this]() {
-          stop_test_action_->Stop();
-          test_stopped_event_.Emit();
-        }}));
+        sync_subs_ += api->stop_test().Subscribe([this](auto const& res) {
+          if (res.IsOk()) {
+            stop_test_action_->Stop();
+            test_stopped_event_.Emit();
+          }
+        });
         api.Flush();
       },
       std::chrono::seconds{1}, 5};

@@ -49,11 +49,10 @@ class RegistrationRootApi : public ApiClass {
 
  public:
   RegistrationRootApi(ProtocolContext& protocol_context,
-                      ActionContext action_context,
                       IEncryptProvider& root_encrypt,
                       IEncryptProvider& global_encrypt);
 
-  Method<03, ApiPromisePtr<SignedKey>(CryptoLib crypto_lib)>
+  Method<03, ApiPromise<SignedKey>(CryptoLib crypto_lib)>
       get_asymmetric_public_key;
   Method<04, void(CryptoLib crypto_lib, SubApi<ServerRegistrationApi> sub_api),
          EnterProc>

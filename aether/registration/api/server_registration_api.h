@@ -70,7 +70,6 @@ class ServerRegistrationApi : public ApiClass {
 
  public:
   ServerRegistrationApi(ProtocolContext& protocol_context,
-                        ActionContext action_context,
                         IEncryptProvider& encrypt_provider);
 
   Method<3,
@@ -80,10 +79,10 @@ class ServerRegistrationApi : public ApiClass {
          RegistrationProc>
       registration;
 
-  Method<4, ApiPromisePtr<PowParams>(Uid parent_id, PowMethod pow_method)>
+  Method<4, ApiPromise<PowParams>(Uid parent_id, PowMethod pow_method)>
       request_proof_of_work_data;
 
-  Method<5, ApiPromisePtr<std::vector<ServerDescriptor>>(
+  Method<5, ApiPromise<std::vector<ServerDescriptor>>(
                 std::vector<ServerId> servers)>
       resolve_servers;
 

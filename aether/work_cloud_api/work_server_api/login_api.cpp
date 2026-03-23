@@ -20,14 +20,13 @@
 
 namespace ae {
 LoginApi::LoginApi(ProtocolContext& protocol_context,
-                   ActionContext action_context,
                    IEncryptProvider& encrypt_provider)
     : ApiClass{protocol_context},
-      get_time_utc{protocol_context, action_context},
+      get_time_utc{protocol_context},
       login_by_uid{protocol_context, LoginProc{*this}},
       login_by_alias{protocol_context, LoginProc{*this}},
       encrypt_provider_{&encrypt_provider},
-      auth_api_{protocol_context, action_context} {}
+      auth_api_{protocol_context} {}
 
 DataBuffer LoginApi::Encrypt(DataBuffer const& data) {
   AE_TELED_DEBUG("Login api data {}", data);
