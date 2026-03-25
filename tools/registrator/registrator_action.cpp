@@ -65,23 +65,23 @@ void RegistratorAction::RegisterClients(
   for (auto const& c : client_configs) {
     auto parent_uid = ae::Uid::FromString(c.parent_uid);
     assert(!parent_uid.empty());
-    auto reg_action = aether->RegisterClient(parent_uid);
-    registration_sub_ += reg_action->StatusEvent().Subscribe(ActionHandler{
-        OnResult{
-            [this, clients_count, client_id{&c.client_id}](auto const& action) {
-              registered_clients_.emplace_back(RegisteredClient{
-                  action.client_config(),
-                  *client_id,
-              });
-              if (registered_clients_.size() == clients_count) {
-                state_ = State::kResult;
+
+    registration_sub_ +=
+        aether->RegisterClient(c.client_id, parent_uid)
+            .registration()
+            .Subscribe([this, clients_count,
+                        client_id{&c.client_id}](auto const& res) {
+              if (res) {
+                registered_clients_.emplace_back(
+                    RegisteredClient{res.value(), *client_id});
+                if (registered_clients_.size() == clients_count) {
+                  state_ = State::kResult;
+                }
+              } else {
+                AE_TELED_ERROR("Registration error");
+                state_ = State::kError;
               }
-            }},
-        OnError{[this]() {
-          AE_TELED_ERROR("Registration error");
-          state_ = State::kError;
-        }},
-    });
+            });
   }
 #endif
 }

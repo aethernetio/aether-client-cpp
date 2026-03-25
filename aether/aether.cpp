@@ -125,8 +125,7 @@ ActionPtr<SelectClientAction> Aether::SelectClient(
   }
 // register new client
 #if AE_SUPPORT_REGISTRATION
-  auto registration = RegisterClient(parent_uid);
-  return MakeSelectClient(std::move(registration), client_id);
+  return MakeSelectClient(RegisterClient(client_id, parent_uid), client_id);
 #else
   return MakeSelectClient();
 #endif
@@ -180,22 +179,21 @@ ActionPtr<SelectClientAction> Aether::MakeSelectClient(
 
 #if AE_SUPPORT_REGISTRATION
 ActionPtr<SelectClientAction> Aether::MakeSelectClient(
-    ActionPtr<Registration> registration, std::string const& client_id) {
-  auto select_action = ActionPtr<SelectClientAction>{
-      *action_processor, *this, std::move(registration), client_id};
+    Registration& registration, std::string const& client_id) {
+  auto select_action = ActionPtr<SelectClientAction>{*action_processor, *this,
+                                                     registration, client_id};
   select_client_actions_[client_id] = select_action;
   return select_action;
 }
 
-ActionPtr<Registration> Aether::RegisterClient(Uid parent_uid) {
+Registration& Aether::RegisterClient(std::string const& client_id,
+                                     Uid parent_uid) {
   auto reg_cloud = registration_cloud.Load();
   assert(reg_cloud && "Registration cloud not loaded");
 
-  // registration new client is long termed process
-  // after registration done, add it to clients list
-  // user also can get new client after
-  return ActionPtr<Registration>(*action_processor, *this, reg_cloud,
-                                 parent_uid);
+  auto& reg = registrations_[client_id] =
+      std::make_unique<Registration>(AeContext{*this}, reg_cloud, parent_uid);
+  return *reg;
 }
 #endif
 
