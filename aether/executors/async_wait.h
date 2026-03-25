@@ -26,6 +26,7 @@
 #include <type_traits>
 
 #include "aether/types/result.h"
+#include "aether/meta/ignore_t.h"
 #include "aether/meta/type_list.h"
 #include "aether/executors/scheduler_on_tasks.h"
 
@@ -34,6 +35,8 @@
 namespace ae::ex {
 
 namespace async_wait_internal {
+namespace {
+
 template <template <typename> typename Filter, typename T>
 struct FilterList;
 
@@ -49,32 +52,66 @@ struct FilterList<Filter, TypeList<>> {
   using type = TypeList<>;
 };
 
-template <stdexec::sender Sender, typename Env>
+template <typename T>
+struct FilterExceptionPtr {
+  static constexpr bool value =
+      std::is_same_v<std::decay_t<T>, std::exception_ptr>;
+};
+
+/**
+ * Expand value list.
+ * It may be a variant of values
+ * Values may be a tuples or single values
+ * Or it may be a single value or void
+ */
+template <typename>
+struct ExpandTuple;
+template <>
+struct ExpandTuple<TypeList<>> {
+  using type = Ignore;
+};
+template <typename T>
+struct ExpandTuple<TypeList<T>> {
+  using type = T;
+};
+template <typename... T>
+struct ExpandTuple<TypeList<T...>> {
+  using type = std::tuple<T...>;
+};
+
+template <typename>
+struct ExpandVariant;
+template <>
+struct ExpandVariant<TypeList<>> {
+  using type = Ignore;
+};
+template <typename T>
+struct ExpandVariant<TypeList<T>> {
+  using type = ExpandTuple<T>::type;
+};
+template <typename... T>
+struct ExpandVariant<TypeList<T...>> {
+  using type = TypeListToTemplate_t<
+      std::variant,
+      typename FilterList<IsIgnore,
+                          TypeList<typename ExpandTuple<T>::type...>>::type>;
+};
+}  // namespace
+
+template <stdexec::sender Sender, typename... Env>
 struct SenderTraits {
-  static constexpr auto cs = stdexec::get_completion_signatures<Sender, Env>();
+  static constexpr auto cs =
+      stdexec::get_completion_signatures<Sender, Env...>();
   using ValueList =
       stdexec::__value_types_t<decltype(cs), stdexec::__q<TypeList>,
-                               stdexec::__q<stdexec::__msingle>>;
+                               stdexec::__q<TypeList>>;
   using ErrorList =
       stdexec::__error_types_t<decltype(cs), stdexec::__q<TypeList>,
                                stdexec::__q<stdexec::__msingle>>;
 
-  static_assert((TypeListSize_v<ValueList> > 0),
-                "Value list must not be empty");
+  using ValueType = ExpandVariant<ValueList>::type;
 
-  using ValueType =
-      std::conditional_t<(TypeListSize_v<ValueList> > 1),
-                         TypeListToTemplate_t<std::tuple, ValueList>,
-                         TypeAt_t<0, ValueList>>;
-
-  template <typename T>
-  struct FilterExceptionPtr {
-    static constexpr bool value =
-        std::is_same_v<std::decay_t<T>, std::exception_ptr>;
-  };
-
-  using FilteredErrorList =
-      typename FilterList<FilterExceptionPtr, ErrorList>::type;
+  using FilteredErrorList = FilterList<FilterExceptionPtr, ErrorList>::type;
 
   using ErrorType =
       std::conditional_t<(TypeListSize_v<FilteredErrorList> > 1),
@@ -183,7 +220,7 @@ class AsyncWaiter : async_wait_internal::WaiterBase {
 
  public:
   explicit constexpr AsyncWaiter(AeContext const& context, Sender&& sender,
-                                 Callback&& cb)
+                                 Callback&& cb) noexcept
       : async_wait_internal::WaiterBase{context},
         state_{.wait_result = {}, .cb = std::move(cb), .env = {this}},
         op_{stdexec::connect(std::move(sender), Receiver{state_})} {
@@ -203,4 +240,79 @@ auto MakeAsyncWaiter(AeContext const& context, Sender&& sender,
 }
 }  // namespace ae::ex
 
+#if AE_TESTS
+
+#  include "tests/inline.h"
+
+namespace tests::async_wait_h {
+
+template <typename... Sigs>
+struct NotSender {
+  using sender_concept = stdexec::sender_t;
+
+  template <typename...>
+  static consteval auto get_completion_signatures() {
+    return stdexec::completion_signatures<Sigs...>{};
+  }
+};
+
+using namespace ae::ex::async_wait_internal;  // NOLINT
+using namespace ae;                           // NOLINT
+
+AE_TEST_INLINE(test_SenderTraits) {
+  using sender1 =
+      NotSender<stdexec::set_value_t(int), stdexec::set_error_t(int)>;
+
+  using traits1 = SenderTraits<sender1, Env>;
+
+  static_assert(std::is_same_v<TypeList<TypeList<int>>, traits1::ValueList>);
+  static_assert(std::is_same_v<int, traits1::ValueType>);
+  static_assert(std::is_same_v<int, traits1::ErrorType>);
+
+  using sender2 =
+      NotSender<stdexec::set_value_t(int, float), stdexec::set_error_t(int)>;
+  using traits2 = SenderTraits<sender2, Env>;
+  static_assert(
+      std::is_same_v<TypeList<TypeList<int, float>>, traits2::ValueList>);
+  static_assert(std::is_same_v<std::tuple<int, float>, traits2::ValueType>);
+  static_assert(std::is_same_v<int, traits2::ErrorType>);
+
+  using sender3 = NotSender<stdexec::set_value_t(), stdexec::set_error_t(int)>;
+  using traits3 = SenderTraits<sender3, Env>;
+  static_assert(std::is_same_v<TypeList<TypeList<>>, traits3::ValueList>);
+  static_assert(std::is_same_v<Ignore, traits3::ValueType>);
+  static_assert(std::is_same_v<int, traits3::ErrorType>);
+
+  using sender4 =
+      NotSender<stdexec::set_value_t(int), stdexec::set_value_t(float),
+                stdexec::set_error_t(int)>;
+  using traits4 = SenderTraits<sender4, Env>;
+  static_assert(std::is_same_v<TypeList<TypeList<int>, TypeList<float>>,
+                               traits4::ValueList>);
+  static_assert(std::is_same_v<std::variant<int, float>, traits4::ValueType>);
+  static_assert(std::is_same_v<int, traits4::ErrorType>);
+
+  using sender5 =
+      NotSender<stdexec::set_value_t(), stdexec::set_value_t(int, float),
+                stdexec::set_value_t(bool), stdexec::set_error_t(int),
+                stdexec::set_error_t(std::exception_ptr)>;
+  using traits5 = SenderTraits<sender5, Env>;
+  static_assert(
+      std::is_same_v<TypeList<TypeList<>, TypeList<int, float>, TypeList<bool>>,
+                     traits5::ValueList>);
+  static_assert(std::is_same_v<std::variant<std::tuple<int, float>, bool>,
+                               traits5::ValueType>);
+  static_assert(std::is_same_v<int, traits5::ErrorType>);
+
+  using sender6 = NotSender<stdexec::set_error_t(int),
+                            stdexec::set_error_t(std::exception_ptr)>;
+  using traits6 = SenderTraits<sender6, Env>;
+  static_assert(std::is_same_v<TypeList<>, traits6::ValueList>);
+  static_assert(std::is_same_v<Ignore, traits6::ValueType>);
+  static_assert(std::is_same_v<int, traits6::ErrorType>);
+
+  TEST_PASS();
+}
+}  // namespace tests::async_wait_h
+#endif  // AE_TESTS
 #endif  // AETHER_EXECUTORS_ASYNC_WAIT_H_
