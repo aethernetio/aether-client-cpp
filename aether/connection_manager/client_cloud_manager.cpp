@@ -205,7 +205,7 @@ ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
   if (cached != cloud_cache_.end()) {
     assert(cached->second.is_valid());
     return ActionPtr<client_cloud_manager_internal::GetCloudFromCache>{
-        *aether, cached->second};
+        ActionContext{*aether}, cached->second};
   }
   // get from aethernet
 
@@ -213,7 +213,7 @@ ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
   assert(client);
 
   return ActionPtr<client_cloud_manager_internal::GetCloudFromAether>{
-      *aether, *aether, *this, client->cloud_connection(), client_uid};
+      ActionContext{*aether}, *aether, *this, client->cloud_connection(), client_uid};
 }
 
 Cloud::ptr ClientCloudManager::RegisterCloud(Uid uid,
