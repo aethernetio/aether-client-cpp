@@ -118,7 +118,7 @@ ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
     assert(driver.has_value());
 
     connect_action_ = ActionPtr<WifiConnectAction>{
-        *aether_.Load().as<Aether>(), **driver, wifi_ap_, psp_, base_station_};
+        ActionContext{*aether_.Load().as<Aether>()}, **driver, wifi_ap_, psp_, base_station_};
     connect_sub_ = connect_action_->FinishedEvent().Subscribe(
         [this]() { connect_action_.reset(); });
   }

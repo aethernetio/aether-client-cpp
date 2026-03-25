@@ -76,7 +76,7 @@ CloudServerConnections& Client::cloud_connection() {
 #if AE_TELE_ENABLED
     // also create telemetry
     telemetry_ =
-        ActionPtr<Telemetry>(*aether_.Load().as<Aether>(),
+        ActionPtr<Telemetry>(ActionContext{*aether_.Load().as<Aether>()},
                              Aether::ptr{aether_}.Load(), *cloud_connection_);
 #endif
   }

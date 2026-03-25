@@ -174,7 +174,7 @@ void Uap::WindowWatcher() {
   }
 
   aether_.WithLoaded([this, w{current.window}](auto const& a) {
-    auto timer_action = ActionPtr<TimerAction>{*a, w};
+    auto timer_action = ActionPtr<TimerAction>{ActionContext{*a}, w};
     RegisterAction(*timer_action);
   });
 }
