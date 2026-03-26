@@ -22,6 +22,7 @@
 #include <type_traits>
 
 #include "aether/common.h"
+#include "aether/ae_context.h"
 #include "aether/actions/action_context.h"
 
 namespace ae {
@@ -48,6 +49,12 @@ class ActionPtr {
       : ptr_{std::make_shared<TAction>(action_context,
                                        std::forward<TArgs>(args)...)} {
     action_context.get_registry().PushBack(ptr_);
+  }
+
+  template <typename... TArgs>
+  explicit ActionPtr(AeContext ae_context, TArgs&&... args)
+      : ptr_{std::make_shared<TAction>(ae_context,
+                                       std::forward<TArgs>(args)...)} {
   }
 
   template <typename UAction, AE_REQUIRERS((std::is_base_of<TAction, UAction>))>

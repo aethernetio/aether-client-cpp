@@ -22,90 +22,73 @@
 #if AE_SUPPORT_REGISTRATION
 
 #  include <vector>
+#  include <optional>
 
-#  include "aether/common.h"
-#  include "aether/memory.h"
 #  include "aether/types/uid.h"
-#  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
-#  include "aether/types/state_machine.h"
+#  include "aether/crypto/key.h"
+#  include "aether/events/events.h"
+#  include "aether/types/server_id.h"
 #  include "aether/types/client_config.h"
+#  include "aether/executors/executors.h"
+#  include "aether/types/small_function.h"
 
 #  include "aether/registration_cloud.h"
 #  include "aether/registration/api/client_reg_api_unsafe.h"
 #  include "aether/registration/api/registration_root_api.h"
 #  include "aether/registration/root_server_select_stream.h"
+#  include "aether/registration/registration_crypto_provider.h"
 
 namespace ae {
-
-class Aether;
-
-class Registration final : public Action<Registration> {
-  enum class State : std::uint8_t {
-    kInitConnection,
-    kRestreamConnection,
-    kGetKeys,
-    kWaitKeys,
-    kGetPowParams,
-    kMakeRegistration,
-    kRequestCloudResolving,
-    kRegistered,
-    kRegistrationFailed,
-  };
-
+class Registration {
  public:
-  Registration(ActionContext action_context, Aether& aether,
+  using RegistrationEvent = Event<void(Result<ClientConfig, int>)>;
+  using FinishedEvent = Event<void()>;
+
+  Registration(AeContext const& ae_context,
                Ptr<RegistrationCloud> const& reg_cloud, Uid parent_uid);
-  ~Registration() override;
+  ~Registration();
 
-  UpdateStatus Update();
-
-  ClientConfig const& client_config() const;
+  RegistrationEvent::Subscriber registration();
+  FinishedEvent::Subscriber IsFinished();
 
  private:
   void InitConnection();
   void Restream();
-  void GetKeys();
-  TimePoint WaitKeys();
-  void RequestPowParams();
-  void MakeRegistration();
-  void ResolveCloud();
-  void OnCloudResolved(std::vector<ServerDescriptor> const& servers);
+  void Run();
+  auto GetKeys();
+  auto RequestPowParams();
+  auto MakeRegistration();
+  auto ResolveCloud();
+  ClientConfig OnCloudResolved(std::vector<ServerDescriptor> const& servers);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   Uid parent_uid_;
 
   ProtocolContext protocol_context_;
-
-  std::unique_ptr<class RegistrationCryptoProvider> root_crypto_provider_;
-  std::unique_ptr<class RegistrationCryptoProvider> global_crypto_provider_;
-
+  RegistrationCryptoProvider root_crypto_provider_;
+  RegistrationCryptoProvider global_crypto_provider_;
   ClientRegRootApi client_root_api_;
   RegistrationRootApi server_reg_root_api_;
-
   RootServerSelectStream root_server_select_stream_;
 
-  StateMachine<State> state_;
-
   Duration response_timeout_;
-  TimePoint last_request_time_;
 
   Key server_pub_key_;
-  Uid uid_;
-  Uid ephemeral_uid_;
   Key sign_pk_;
   PowParams pow_params_;
   Key aether_global_key_;
   std::vector<ServerId> client_cloud_;
+  Key master_key_;
+  Uid client_uid_;
+  Uid ephemeral_uid_;
 
-  ClientConfig client_config_;
-
-  ActionPtr<WriteAction> packet_write_action_;
-  Subscription data_read_subscription_;
-  Subscription raw_transport_send_action_subscription_;
-  Subscription reg_server_write_subscription_;
-  Subscription response_sub_;
-  Subscription state_change_subscription_;
+  std::optional<ex::AsyncWaiter<
+      ex::AnySender<ex::set_value_t(ClientConfig), ex::set_error_t(int),
+                    ex::set_stopped_t()>,
+      SmallFunction<void(std::optional<Result<ClientConfig, int>>&&)>>>
+      async_waiter_;
+  RegistrationEvent registration_event_;
+  FinishedEvent finished_event_;
 };
 }  // namespace ae
 

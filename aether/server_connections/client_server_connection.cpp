@@ -102,8 +102,7 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
       crypto_provider_{std::make_unique<_internal::ClientCryptoProvider>(
           client, server->server_id)},
       client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
-      login_api_{protocol_context_, ae_context_.aether(),
-                 *crypto_provider_->encryptor()},
+      login_api_{protocol_context_, *crypto_provider_->encryptor()},
       server_connection_{ae_context_, server} {
   AE_TELED_DEBUG("Client server connection from {} to {}", ephemeral_uid_,
                  server->server_id);

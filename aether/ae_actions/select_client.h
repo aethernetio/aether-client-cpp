@@ -51,8 +51,7 @@ class SelectClientAction final : public Action<SelectClientAction> {
    * \brief Wait for client registration or error.
    */
   SelectClientAction(ActionContext action_context, Aether& aether,
-                     ActionPtr<Registration> registration,
-                     std::string client_id);
+                     Registration& registration, std::string client_id);
 #endif
 
   /**

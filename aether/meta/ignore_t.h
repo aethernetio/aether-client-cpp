@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,24 @@
  * limitations under the License.
  */
 
-#include "aether/work_cloud_api/work_server_api/authorized_api.h"
+#ifndef AETHER_META_IGNORE_T_H_
+#define AETHER_META_IGNORE_T_H_
+
+#include <type_traits>
 
 namespace ae {
-AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context)
-    : ApiClass{protocol_context},
-      ping{protocol_context},
-      send_message{protocol_context},
-      send_messages{protocol_context},
-      check_access_for_send_message{protocol_context},
-      resolver_servers{protocol_context},
-      resolver_clouds{protocol_context},
-      send_telemetry{protocol_context} {}
+struct Ignore {
+  template <typename... Us>
+  constexpr explicit Ignore(Us&&...) noexcept {}
+};
+
+template <typename T>
+struct IsIgnore : std::false_type {};
+
+template <>
+struct IsIgnore<Ignore> : std::true_type {};
+template <typename T>
+static constexpr inline bool IsIgnore_v = IsIgnore<T>::value;
 }  // namespace ae
+
+#endif  // AETHER_META_IGNORE_T_H_

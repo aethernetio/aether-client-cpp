@@ -71,7 +71,7 @@ void Ping::SendPing() {
 
   auto write_action = client_server_connection_->AuthorizedApiCall(
       SubApi{[this](ApiContext<AuthorizedApi>& auth_api) {
-        auto pong_promise = auth_api->ping(static_cast<std::uint64_t>(
+        auto& pong_promise = auth_api->ping(static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 ping_interval_)
                 .count()));
@@ -85,11 +85,12 @@ void Ping::SendPing() {
         ping_requests_.push(PingRequest{
             current_time,
             current_time + expected_ping_time,
-            pong_promise->request_id(),
+            pong_promise.request_id(),
         });
         // Wait for response
-        wait_responses_.Push(pong_promise->StatusEvent().Subscribe(OnResult{
-            [&](auto const& promise) { PingResponse(promise.request_id()); }}));
+        wait_responses_.Push(
+            pong_promise.Subscribe([&, req_id{pong_promise.request_id()}](
+                                       auto&&) { PingResponse(req_id); }));
       }});
 
   write_subscription_ = write_action->StatusEvent().Subscribe(OnError{[this]() {

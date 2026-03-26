@@ -37,20 +37,21 @@ SelectClientAction::SelectClientAction(ActionContext action_context,
 #if AE_SUPPORT_REGISTRATION  // only if registration is supported
 SelectClientAction::SelectClientAction(ActionContext action_context,
                                        Aether& aether,
-                                       ActionPtr<Registration> registration,
+                                       Registration& registration,
                                        std::string client_id)
     : Action{action_context},
       state_{State::kWaitRegistration},
-      client_id_{std::move(client_id)},
-      registration_{std::move(registration)} {
+      client_id_{std::move(client_id)} {
   AE_TELED_DEBUG("Waiting for client registration");
-  registration_sub_ = registration_->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this, aeth{&aether}](auto& action) {
-        client_ = aeth->CreateClient(action.client_config(), client_id_);
-        state_ = State::kClientRegistered;
-      }},
-      OnError{[this]() { state_ = State::kClientRegistrationError; }},
-  });
+  registration_sub_ = registration.registration().Subscribe(
+      [this, aeth{&aether}](auto const& res) {
+        if (res) {
+          client_ = aeth->CreateClient(res.value(), client_id_);
+          state_ = State::kClientRegistered;
+        } else {
+          state_ = State::kClientRegistrationError;
+        }
+      });
 
   state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
 }

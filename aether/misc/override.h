@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,24 @@
  * limitations under the License.
  */
 
-#include "aether/work_cloud_api/work_server_api/authorized_api.h"
+#ifndef AETHER_MISC_OVERRIDE_H_
+#define AETHER_MISC_OVERRIDE_H_
+
+#include <utility>
 
 namespace ae {
-AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context)
-    : ApiClass{protocol_context},
-      ping{protocol_context},
-      send_message{protocol_context},
-      send_messages{protocol_context},
-      check_access_for_send_message{protocol_context},
-      resolver_servers{protocol_context},
-      resolver_clouds{protocol_context},
-      send_telemetry{protocol_context} {}
+/**
+ * \brief Functor overridable with many other functors.
+ * Has a cumulative operator() of all Fs functors.
+ */
+template <typename... Fs>
+struct Override : Fs... {
+  explicit Override(Fs... funcs) : Fs{std::forward<Fs>(funcs)}... {}
+
+  using Fs::operator()...;
+};
+template <typename... U>
+Override(U&&...) -> Override<U...>;
 }  // namespace ae
+
+#endif  // AETHER_MISC_OVERRIDE_H_

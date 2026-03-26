@@ -120,13 +120,14 @@ class Aether : public Obj {
   ActionPtr<SelectClientAction> MakeSelectClient(
       ObjPtr<Client> const& client) const;
 #if AE_SUPPORT_REGISTRATION
-  ActionPtr<SelectClientAction> MakeSelectClient(
-      ActionPtr<Registration> registration, std::string const& client_id);
+  ActionPtr<SelectClientAction> MakeSelectClient(Registration& registration,
+                                                 std::string const& client_id);
 
  public:
-  ActionPtr<Registration> RegisterClient(Uid parent_uid);
+  Registration& RegisterClient(std::string const& client_id, Uid parent_uid);
 
  private:
+  std::map<std::string, std::unique_ptr<Registration>> registrations_;
 #endif
 
   void MakeTimeSyncAction(ObjPtr<Client> const& client);

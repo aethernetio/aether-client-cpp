@@ -20,15 +20,14 @@
 
 namespace ae {
 ServerRegistrationApi::ServerRegistrationApi(ProtocolContext& protocol_context,
-                                             ActionContext action_context,
                                              IEncryptProvider& encrypt_provider)
     : ApiClass{protocol_context},
       registration{protocol_context, RegistrationProc{*this}},
-      request_proof_of_work_data{protocol_context, action_context},
-      resolve_servers{protocol_context, action_context},
+      request_proof_of_work_data{protocol_context},
+      resolve_servers{protocol_context},
       set_return_key{protocol_context},
       encrypt_provider_{&encrypt_provider},
-      global_reg_server_api_{protocol_context, action_context} {}
+      global_reg_server_api_{protocol_context} {}
 
 DataBuffer ServerRegistrationApi::Encrypt(DataBuffer const& data) const {
   return encrypt_provider_->Encrypt(data);

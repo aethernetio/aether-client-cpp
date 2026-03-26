@@ -24,6 +24,7 @@
 #include "third_party/stdexec/include/stdexec/execution.hpp"
 
 #include "aether/types/iterator.h"
+#include "aether/meta/type_list.h"
 
 namespace ae::ex {
 namespace for_range_internal {
@@ -53,13 +54,17 @@ template <typename R>
 struct Receiver {
   using receiver_concept = stdexec::receiver_t;
 
-  template <typename U>
-  constexpr void set_value(U&& val) && noexcept {
-    using value_type = std::decay_t<U>;
-    if constexpr (IsContinue_v<value_type>) {
-      operation->Repeat();
+  template <typename... U>
+  constexpr void set_value(U&&... val) && noexcept {
+    if constexpr (sizeof...(val) == 1) {
+      using value_type = std::decay_t<TypeAt_t<0, TypeList<U...>>>;
+      if constexpr (IsContinue_v<value_type>) {
+        operation->Repeat();
+      } else {
+        stdexec::set_value(std::move(operation->recv), std::forward<U>(val)...);
+      }
     } else {
-      stdexec::set_value(std::move(operation->recv), std::forward<U>(val));
+      stdexec::set_value(std::move(operation->recv), std::forward<U>(val)...);
     }
   }
 

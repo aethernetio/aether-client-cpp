@@ -28,14 +28,14 @@ class BandwidthApi : public ApiClassImpl<BandwidthApi> {
  public:
   using PayloadData = DataBuffer;
 
-  BandwidthApi(ActionContext action_context, ProtocolContext& protocol_context);
+  explicit BandwidthApi(ProtocolContext& protocol_context);
 
   // sender sends handshake until receiver doesn't answers true
-  Method<0x03, ApiPromisePtr<bool>()> handshake;
+  Method<0x03, ApiPromise<bool>()> handshake;
   // sender sends start or stop test and wait for receiver's response true to
   // continue/stop tests
-  Method<0x04, ApiPromisePtr<bool>()> start_test;
-  Method<0x05, ApiPromisePtr<bool>()> stop_test;
+  Method<0x04, ApiPromise<bool>()> start_test;
+  Method<0x05, ApiPromise<bool>()> stop_test;
 
   Method<0x06, void(std::uint16_t id, PayloadData data)> message;
 
