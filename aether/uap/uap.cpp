@@ -27,17 +27,12 @@
 namespace ae {
 Duration Uap::IntervalState::remaining() const {
   auto interval_end = until();
-  auto current_time = SyncTime();
+  auto current_time = Now();
   auto diff = interval_end - current_time;
-  AE_TELED_DEBUG(
-      "Calculate remaining end {:%Y-%m-%d %H:%M:%S} current {:%Y-%m-%d "
-      "%H:%M:%S} diff {:%S}",
-      interval_end, current_time, diff);
-
   return std::chrono::duration_cast<Duration>(diff);
 }
 
-SyncTimePoint Uap::IntervalState::until() const { return end_time; }
+TimePoint Uap::IntervalState::until() const { return end_time; }
 
 Uap::Timer::Timer(Uap::ptr uap) : uap_{std::move(uap)} {}
 
@@ -118,7 +113,7 @@ Uap::IntervalState Uap::UpdateInterval(Duration time_offset) {
   AE_TELED_DEBUG(
       "Update interval\n start_time {:%Y-%m-%d %H:%M:%S}\n current_time "
       "{:%Y-%m-%d %H:%M:%S}\n interval_duration {:%H:%M:%S}\n time_elapsed "
-      "{}",
+      "{:%H:%M:%S}",
       start_time_, current_time, interval_duration, time_elapsed);
 
   if (time_elapsed > interval_duration) {
@@ -160,7 +155,8 @@ Uap::IntervalState Uap::UpdateInterval(Duration time_offset) {
       current_interval_index_, next_interval_index_, start_time_, current_time);
   return IntervalState{
       .interval = intervals_[current_interval_index_],
-      .end_time = start_time_ + intervals_[current_interval_index_].duration,
+      .end_time =
+          ToRawTime(start_time_ + intervals_[current_interval_index_].duration),
   };
 }
 
