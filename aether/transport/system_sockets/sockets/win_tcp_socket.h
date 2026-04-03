@@ -27,7 +27,7 @@
 namespace ae {
 class WinTcpSocket final : public WinSocket {
  public:
-  explicit WinTcpSocket(IPoller& poller);
+  explicit WinTcpSocket(Ptr<IPoller> const& poller);
   ~WinTcpSocket() override;
 
   ISocket& Connect(AddressPort const& destination,

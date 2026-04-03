@@ -24,7 +24,7 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-LwipCBUdpSocket::LwipCBUdpSocket() = default;
+LwipCBUdpSocket::LwipCBUdpSocket(Ptr<IPoller> const&) {}
 
 LwipCBUdpSocket::~LwipCBUdpSocket() { Disconnect(); }
 

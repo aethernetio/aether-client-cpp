@@ -25,7 +25,7 @@
 namespace ae {
 class UnixUdpSocket final : public UnixSocket {
  public:
-  explicit UnixUdpSocket(IPoller& poller);
+  explicit UnixUdpSocket(Ptr<IPoller> const& poller);
 
   ISocket& Connect(AddressPort const& destination,
                    ConnectedCb connected_cb) override;

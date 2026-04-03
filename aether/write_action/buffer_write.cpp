@@ -16,26 +16,31 @@
 
 #include "aether/write_action/buffer_write.h"
 
-namespace ae {
-BufferedWriteAction::BufferedWriteAction(ActionContext action_context)
-    : WriteAction{action_context} {}
+#include <cassert>
 
-void BufferedWriteAction::Stop() {
-  if (wa_) {
+namespace ae {
+BufferedWriteAction::BufferedWriteAction() noexcept = default;
+
+void BufferedWriteAction::Stop() noexcept {
+  if (wa_sub_) {  // wa_sub_ is used as alive indicator
+    assert(wa_ != nullptr && "Child write action is null");
+    // send stop request and wait for status event
     wa_->Stop();
   } else {
-    state_ = State::kStopped;
+    SetStatus(ae::WriteAction::Status::kStop);
   }
 }
 
 // set to the sent state
-void BufferedWriteAction::Sent(ActionPtr<WriteAction> swa) {
-  wa_ = std::move(swa);
-  state_ = wa_->state();
+void BufferedWriteAction::Sent(WriteAction& swa) {
+  wa_ = &swa;
   wa_sub_ =
-      wa_->state_changed().Subscribe([this](auto state) { state_ = state; });
+      wa_->status_event().Subscribe([this](auto status) { SetStatus(status); });
 }
 
 // drop the write action from the buffer
-void BufferedWriteAction::Drop() { state_ = State::kFailed; }
+void BufferedWriteAction::Drop() {
+  wa_sub_.Reset();
+  SetStatus(WriteAction::Status::kFail);
+}
 }  // namespace ae

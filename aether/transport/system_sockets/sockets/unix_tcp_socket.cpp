@@ -72,9 +72,8 @@ inline bool SetNonblocking(int sock) {
   return true;
 }
 }  // namespace unix_tcp_socket_internal
-
-UnixTcpSocket::UnixTcpSocket(IPoller& poller)
-    : UnixSocket(poller, MakeSocket()),
+UnixTcpSocket::UnixTcpSocket(Ptr<IPoller> const& poller)
+    : UnixSocket(*poller, MakeSocket()),
       connection_state_{ConnectionState::kNone} {
   // 1500 is our default MTU for TCP
   recv_buffer_.resize(1500);

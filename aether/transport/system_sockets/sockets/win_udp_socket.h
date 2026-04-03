@@ -25,7 +25,7 @@
 namespace ae {
 class WinUdpSocket final : public WinSocket {
  public:
-  explicit WinUdpSocket(IPoller& poller);
+  explicit WinUdpSocket(Ptr<IPoller> const& poller);
   ~WinUdpSocket() override;
 
   ISocket& Connect(AddressPort const& destination,

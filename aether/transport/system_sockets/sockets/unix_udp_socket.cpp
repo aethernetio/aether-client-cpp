@@ -31,8 +31,8 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-UnixUdpSocket::UnixUdpSocket(IPoller& poller)
-    : UnixSocket{poller, MakeSocket()} {
+UnixUdpSocket::UnixUdpSocket(Ptr<IPoller> const& poller)
+    : UnixSocket{*poller, MakeSocket()} {
   // 1200 is our default MTU for UDP
   recv_buffer_.resize(1200);
 }
