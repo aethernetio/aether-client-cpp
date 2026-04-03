@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
-#define AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
+#ifndef AETHER_TRANSPORT_PACKET_SEND_ACTION_H_
+#define AETHER_TRANSPORT_PACKET_SEND_ACTION_H_
 
 #include "aether/write_action/write_action.h"
 
 namespace ae {
-class SocketPacketSendAction : public WriteAction {
+class PacketSendAction : public WriteAction {
  public:
-  using WriteAction::WriteAction;
-
-  UpdateStatus Update() override;
-
+  PacketSendAction() = default;
+  AE_CLASS_MOVE_ONLY(PacketSendAction)
   // Trigger event to send data
   virtual void Send() = 0;
+  virtual bool is_done() const = 0;
+  virtual bool re_enqueue() const = 0;
 };
 }  // namespace ae
 
-#endif  // AETHER_TRANSPORT_SOCKET_PACKET_SEND_ACTION_H_
+#endif  // AETHER_TRANSPORT_PACKET_SEND_ACTION_H_

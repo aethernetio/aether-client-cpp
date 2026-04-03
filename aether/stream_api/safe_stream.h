@@ -38,7 +38,7 @@ class SafeStreamWriteAction final : public WriteAction {
       ActionPtr<SendingDataAction> sending_data_action);
 
   // TODO: add tests for stop
-  void Stop() override;
+  void Stop() noexcept override;
 
  private:
   ActionPtr<SendingDataAction> sending_data_action_;
@@ -54,7 +54,7 @@ class SafeStream final : public ByteStream,
 
   AE_CLASS_NO_COPY_MOVE(SafeStream);
 
-  ActionPtr<WriteAction> Write(DataBuffer&& data) override;
+  WriteAction& Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
 
   void LinkOut(OutStream& out) override;
@@ -65,8 +65,7 @@ class SafeStream final : public ByteStream,
   void Send(SSRingIndex::type begin_offset, DataMessage data_message) override;
 
   // Implement ISendDataPush
-  ActionPtr<WriteAction> PushData(SSRingIndex begin,
-                                        DataMessage&& data_message) override;
+  WriteAction& PushData(SSRingIndex begin, DataMessage&& data_message) override;
 
   // Implement ISendConfirmRepeat
   void SendAck(SSRingIndex offset) override;

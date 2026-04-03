@@ -187,8 +187,6 @@ list(APPEND transport_srcs
             "transport/system_sockets/sockets/lwip_socket.cpp"
             "transport/system_sockets/sockets/lwip_tcp_socket.cpp"
             "transport/system_sockets/sockets/lwip_udp_socket.cpp"
-            "transport/system_sockets/sockets/tcp_sockets_factory.cpp"
-            "transport/system_sockets/sockets/udp_sockets_factory.cpp"
             "transport/system_sockets/sockets/unix_socket.cpp"
             "transport/system_sockets/sockets/unix_tcp_socket.cpp"
             "transport/system_sockets/sockets/unix_udp_socket.cpp"
@@ -196,7 +194,6 @@ list(APPEND transport_srcs
             "transport/system_sockets/sockets/win_tcp_socket.cpp"
             "transport/system_sockets/sockets/win_udp_socket.cpp"
             "transport/modems/modem_transport.cpp"
-            "transport/socket_packet_send_action.cpp"
             "transport/data_packet_collector.cpp"
             "transport/system_sockets/tcp/tcp.cpp"
             "transport/system_sockets/udp/udp.cpp"
@@ -219,9 +216,6 @@ list(APPEND stream_api_src
 )
 
 list(APPEND write_action_srcs
-            "write_action/write_action.cpp"
-            "write_action/failed_write_action.cpp"
-            "write_action/done_write_action.cpp"
             "write_action/buffer_write.cpp"
 )
 

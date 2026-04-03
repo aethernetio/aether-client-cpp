@@ -26,7 +26,7 @@
 namespace ae {
 class LwipUdpSocket final : public LwipSocket {
  public:
-  explicit LwipUdpSocket(IPoller& poller);
+  explicit LwipUdpSocket(Ptr<IPoller> const& poller);
 
   ISocket& Connect(AddressPort const& destination,
                    ConnectedCb connected_cb) override;

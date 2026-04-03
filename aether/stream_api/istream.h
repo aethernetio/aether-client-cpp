@@ -21,7 +21,6 @@
 #include <type_traits>
 
 #include "aether/common.h"
-#include "aether/actions/action_ptr.h"
 
 #include "aether/events/events.h"
 #include "aether/types/data_buffer.h"
@@ -75,8 +74,7 @@ class IStream {
   using TypeOut = TOut;
 
   using StreamUpdateEvent = Event<void()>;
-  using OutDataEvent =
-      typename istream_internal::SelectOutDataEvent<TOut>::type;
+  using OutDataEvent = istream_internal::SelectOutDataEvent<TOut>::type;
 
   virtual ~IStream() = default;
 
@@ -85,11 +83,11 @@ class IStream {
    * \param in_data Data to write
    * \return Action to control write process or subscribe to result.
    */
-  virtual ActionPtr<WriteAction> Write(TIn&& in_data) = 0;
+  virtual WriteAction& Write(TIn&& in_data) = 0;
   /**
    * \brief Stream update event.
    */
-  virtual typename StreamUpdateEvent::Subscriber stream_update_event() = 0;
+  virtual StreamUpdateEvent::Subscriber stream_update_event() = 0;
   /**
    * \brief Stream info
    */
@@ -97,7 +95,7 @@ class IStream {
   /**
    * \brief New data received event.
    */
-  virtual typename OutDataEvent::Subscriber out_data_event() = 0;
+  virtual OutDataEvent::Subscriber out_data_event() = 0;
 
   /**
    * \brief Reconfigure the stream in case on user request.
@@ -111,8 +109,8 @@ template <typename TIn, typename TOut, typename TInOut, typename TOutIn>
 class Stream : public IStream<TIn, TOut> {
  public:
   using Base = IStream<TIn, TOut>;
-  using OutDataEvent = typename Base::OutDataEvent;
-  using StreamUpdateEvent = typename Base::StreamUpdateEvent;
+  using OutDataEvent = Base::OutDataEvent;
+  using StreamUpdateEvent = Base::StreamUpdateEvent;
 
   using OutStream = IStream<TInOut, TOutIn>;
 
@@ -128,11 +126,11 @@ class Stream : public IStream<TIn, TOut> {
     return out_->stream_info();
   }
 
-  typename StreamUpdateEvent::Subscriber stream_update_event() override {
+  StreamUpdateEvent::Subscriber stream_update_event() override {
     return EventSubscriber{stream_update_event_};
   }
 
-  typename OutDataEvent::Subscriber out_data_event() override {
+  OutDataEvent::Subscriber out_data_event() override {
     return EventSubscriber{out_data_event_};
   }
 
@@ -164,8 +162,8 @@ template <typename TIn, typename TOut>
 class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
  public:
   using Base = IStream<TIn, TOut>;
-  using OutDataEvent = typename Base::OutDataEvent;
-  using StreamUpdateEvent = typename Base::StreamUpdateEvent;
+  using OutDataEvent = Base::OutDataEvent;
+  using StreamUpdateEvent = Base::StreamUpdateEvent;
 
   using OutStream = IStream<TIn, TOut>;
 
@@ -173,7 +171,7 @@ class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
   ~Stream() override = default;
   AE_CLASS_MOVE_ONLY(Stream)
 
-  ActionPtr<WriteAction> Write(TIn&& data) override {
+  WriteAction& Write(TIn&& data) override {
     assert(out_);
     return out_->Write(std::move(data));
   }
@@ -185,11 +183,11 @@ class Stream<TIn, TOut, TIn, TOut> : public IStream<TIn, TOut> {
     return out_->stream_info();
   }
 
-  typename StreamUpdateEvent::Subscriber stream_update_event() override {
+  StreamUpdateEvent::Subscriber stream_update_event() override {
     return EventSubscriber{stream_update_event_};
   }
 
-  typename OutDataEvent::Subscriber out_data_event() override {
+  OutDataEvent::Subscriber out_data_event() override {
     return EventSubscriber{out_data_event_};
   }
 

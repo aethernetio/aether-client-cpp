@@ -33,8 +33,8 @@ namespace ae {
 class ISendDataPush {
  public:
   virtual ~ISendDataPush() = default;
-  virtual ActionPtr<WriteAction> PushData(SSRingIndex begin,
-                                          DataMessage&& data_message) = 0;
+  virtual WriteAction& PushData(SSRingIndex begin,
+                                DataMessage&& data_message) = 0;
 };
 
 class SafeStreamSendAction : public Action<SafeStreamSendAction> {
