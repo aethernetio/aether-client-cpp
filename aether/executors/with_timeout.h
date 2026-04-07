@@ -101,7 +101,7 @@ class Operation final : OpBase<R> {
   }
 
   void Reset() noexcept override { is_reset_ = true; }
-  bool is_reset() noexcept override { return false; }
+  bool is_reset() noexcept override { return is_reset_; }
 
  private:
   Child child_;
