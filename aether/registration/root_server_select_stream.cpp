@@ -27,7 +27,7 @@ RootServerSelectStream::RootServerSelectStream(
   SelectServer();
 }
 
-ActionPtr<WriteAction> RootServerSelectStream::Write(DataBuffer&& data) {
+WriteAction& RootServerSelectStream::Write(DataBuffer&& data) {
   assert(server_connection_);
   return server_connection_->Write(std::move(data));
 }

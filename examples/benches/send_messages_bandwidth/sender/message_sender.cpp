@@ -73,21 +73,23 @@ Duration MessageSender::send_duration() const {
 void MessageSender::Send() {
   AE_TELED_DEBUG("Sending {}", message_send_count_);
 
-  auto write_action = send_proc_(message_send_count_);
-  message_send_.Push(  //
-      write_action->StatusEvent().Subscribe(
-          ActionHandler{OnResult{[this](auto const&) {
-                          message_send_confirm_count_++;
-                          last_send_time_ = HighResTimePoint::clock::now();
-                          if (state_.get() == State::kWaitbuffer) {
-                            Action::Trigger();
-                          }
-                        }},
-                        OnError{[this](auto const&) {
-                          AE_TELED_ERROR("Error sending message");
-                          state_ = State::kError;
-                          Action::Trigger();
-                        }}}));
+  auto& write_action = send_proc_(message_send_count_);
+  message_send_ += write_action.status_event().Subscribe([&](auto status) {
+    switch (status) {
+      case WriteAction::Status::kSuccess: {
+        message_send_confirm_count_++;
+        last_send_time_ = HighResTimePoint::clock::now();
+        break;
+      }
+      case WriteAction::Status::kFail: {
+        AE_TELED_ERROR("Error sending message");
+        state_ = State::kError;
+        break;
+      }
+      default:
+        break;
+    }
+  });
 
   ++message_send_count_;
   if (message_send_count_ == send_count_) {

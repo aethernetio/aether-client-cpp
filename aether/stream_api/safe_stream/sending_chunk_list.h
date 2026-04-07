@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include "aether/common.h"
+#include "aether/clock.h"
 
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 

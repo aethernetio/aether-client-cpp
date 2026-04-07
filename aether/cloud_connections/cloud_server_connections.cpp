@@ -24,9 +24,9 @@
 namespace ae {
 
 CloudServerConnections::CloudServerConnections(
-    ActionContext action_context, ClientConnectionManager& connection_manager,
+    AeContext const& ae_context, ClientConnectionManager& connection_manager,
     std::size_t max_connections)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       connection_manager_{&connection_manager},
       max_connections_{max_connections} {
   InitServers();
@@ -59,10 +59,6 @@ void CloudServerConnections::Restream() {
 
 void CloudServerConnections::InitServers() {
   AE_TELED_DEBUG("Init servers");
-  reselect_servers_action_ = OwnActionPtr<ReselectServers>{action_context_};
-  reselect_servers_action_->StatusEvent().Subscribe(
-      OnResult{[this]() { InitServers(); }});
-
   auto server_candidates = ServerCandidates();
   // reselect servers if required
   if (selected_servers_.size() >=
@@ -121,7 +117,7 @@ void CloudServerConnections::SubscribeToServerState(
     sc->EndConnection(new_priority);
     QuarantineTimer(*sc);
     UnselectServer(*sc);
-    reselect_servers_action_->Notify();
+    ReselectServers();
   };
 
   auto* conn = server_connection.client_connection();
@@ -149,6 +145,11 @@ void CloudServerConnections::SubscribeToServerState(
       conn->stream_update_event().Subscribe(if_bad_connection);
 }
 
+void CloudServerConnections::ReselectServers() {
+  // reselct servers on next cycle
+  ae_context_.scheduler().Task([&]() { InitServers(); });
+}
+
 void CloudServerConnections::UnselectServer(
     CloudServerConnection& server_connection) {
   auto it = std::find(std::begin(selected_servers_),
@@ -165,23 +166,18 @@ void CloudServerConnections::QuarantineTimer(
     CloudServerConnection& server_connection) {
   AE_TELED_DEBUG("Set server {} to quarantine",
                  server_connection.server()->server_id);
-  if (!quarantine_timer_ || quarantine_timer_->IsFinished()) {
-    static constexpr Duration kQuarantineDuration =
-        std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS};
-    quarantine_timer_ =
-        OwnActionPtr<TimerAction>{action_context_, kQuarantineDuration};
-  }
+  static constexpr Duration kQuarantineDuration =
+      std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS};
+  ae_context_.scheduler().DelayedTask(
+      [this, sc{&server_connection}]() {
+        AE_TELED_DEBUG("Release from quarantine server {}",
+                       sc->server()->server_id);
+        sc->quarantine(false);
+        // update selected servers
+        ReselectServers();
+      },
+      kQuarantineDuration);
   server_connection.quarantine(true);
-  quarantine_timer_->StatusEvent().Subscribe(  // ~(^.^)~
-      OnResult{
-          [this, sc{&server_connection}]() {
-            AE_TELED_DEBUG("Release from quarantine server {}",
-                           sc->server()->server_id);
-            sc->quarantine(false);
-            // update selected servers
-            reselect_servers_action_->Notify();
-          },
-      });
 }
 
 std::vector<CloudServerConnection*> CloudServerConnections::ServerCandidates() {

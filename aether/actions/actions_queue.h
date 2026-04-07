@@ -22,6 +22,7 @@
 #include <functional>
 
 #include "aether/actions/action.h"
+#include "aether/actions/action2_.h"
 #include "aether/actions/pipeline.h"  // IWYU pragma: export
 #include "aether/actions/action_ptr.h"
 #include "aether/events/event_subscription.h"
@@ -65,8 +66,17 @@ class ActionsQueue final : public Action<ActionsQueue> {
                   return Subscription{};
                 }
                 auto* a = static_cast<ActionType*>(obj);
-                return a->FinishedEvent().Subscribe(
-                    [on_finished{std::move(on_finished)}]() { on_finished(); });
+                if constexpr (std::is_base_of_v<a2::Action, ActionType>) {
+                  return a->finished_event().Subscribe(
+                      [on_finished{std::move(on_finished)}]() {
+                        on_finished();
+                      });
+                } else {
+                  return a->FinishedEvent().Subscribe(
+                      [on_finished{std::move(on_finished)}]() {
+                        on_finished();
+                      });
+                }
               };
               return vt;
             }();

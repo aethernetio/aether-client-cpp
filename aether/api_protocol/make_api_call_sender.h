@@ -20,10 +20,10 @@
 #include <utility>
 #include <cassert>
 
-#include "aether/actions/action.h"
 #include "aether/executors/executors.h"
 #include "aether/api_protocol/api_context.h"
 #include "aether/events/event_subscription.h"
+#include "aether/write_action/write_action.h"
 
 namespace ae {
 struct WriteFailed {};
@@ -98,21 +98,23 @@ class Operation final : public OpBase<R> {
       std::invoke(fn_, api_context, recv_.value());
     }
     // write the result to the stream
-    auto stream_action = stream_->Write(std::move(api_context).Pack());
+    auto& stream_action = stream_->Write(std::move(api_context).Pack());
     // if stream is failed, the api call is also failed
-    sub_ = stream_action->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[]() noexcept {
-          /* do nothing */
-        }},
-        OnError{[&]() noexcept {
-          Reset();
-          ex::set_error(std::move(OpBase<R>::recv), WriteFailed{});
-        }},
-        OnStop{[&]() noexcept {
-          Reset();
-          ex::set_stopped(std::move(OpBase<R>::recv));
-        }},
-    });
+    sub_ = stream_action.status_event().Subscribe(
+        [&](WriteAction::Status status) noexcept {
+          switch (status) {
+            case WriteAction::Status::kFail:
+              Reset();
+              ex::set_error(std::move(OpBase<R>::recv), WriteFailed{});
+              break;
+            case WriteAction::Status::kStop:
+              Reset();
+              ex::set_stopped(std::move(OpBase<R>::recv));
+              break;
+            default:
+              break;
+          }
+        });
   }
 
   void Reset() noexcept override { sub_.Reset(); }

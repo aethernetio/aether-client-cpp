@@ -40,7 +40,7 @@ class MessageSender : public Action<MessageSender> {
   };
 
  public:
-  using SendProc = std::function<ActionPtr<WriteAction>(std::uint16_t id)>;
+  using SendProc = std::function<WriteAction&(std::uint16_t id)>;
 
   MessageSender(ActionContext action_context, SendProc send_proc,
                 std::size_t send_count);

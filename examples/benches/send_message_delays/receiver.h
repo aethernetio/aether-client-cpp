@@ -19,7 +19,7 @@
 
 #include "aether/memory.h"
 #include "aether/client.h"
-#include "aether/actions/action_context.h"
+#include "aether/ae_context.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/client_messages/p2p_message_stream.h"
@@ -32,7 +32,7 @@
 namespace ae::bench {
 class Receiver {
  public:
-  Receiver(ActionContext action_context, Client::ptr client,
+  Receiver(AeContext const& ae_context, Client::ptr client,
            SafeStreamConfig safe_stream_config);
 
   void Connect();
@@ -50,7 +50,7 @@ class Receiver {
 
   void OnRecvData(DataBuffer const& data);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   Client::ptr client_;
   SafeStreamConfig safe_stream_config_;
 

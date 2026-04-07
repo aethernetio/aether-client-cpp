@@ -17,64 +17,35 @@
 #include "aether/actions/repeatable_task.h"
 
 namespace ae {
-RepeatableTask::RepeatableTask(ActionContext action_context, Task&& task,
+RepeatableTask::RepeatableTask(AeContext const& ae_context, Task&& task,
                                Duration interval, int max_repeat_count)
-    : Action{action_context},
+    : ae_context_{ae_context},
       task_{std::move(task)},
       interval_{interval},
       max_repeat_count_{max_repeat_count},
-      state_{State::kRun},
-      current_repeat_{} {}
-
-UpdateStatus RepeatableTask::Update(TimePoint current_time) {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kRun:
-        Run(current_time);
-        break;
-      case State::kWait:
-        break;
-      case State::kStop:
-        return UpdateStatus::Stop();
-      case State::kRepeatCountExceeded:
-        return UpdateStatus::Error();
-    }
-  }
-
-  if (state_ == State::kWait) {
-    return CheckInterval(current_time);
-  }
-  return {};
+      current_repeat_{} {
+  Run();
 }
 
-void RepeatableTask::Stop() {
-  state_ = State::kStop;
-  Action::Trigger();
-}
+void RepeatableTask::Stop() { stopped_ = true; }
 
-void RepeatableTask::Run(TimePoint current_time) {
+void RepeatableTask::Run() {
   if ((max_repeat_count_ != kRepeatCountInfinite) &&
       (current_repeat_ >= max_repeat_count_)) {
-    state_ = State::kRepeatCountExceeded;
-    Action::Trigger();
+    repeat_count_exceeded_event_.Emit();
     return;
   }
   current_repeat_++;
-  next_execution_time_ = current_time + interval_;
-  // execute task
-  task_();
-  state_ = State::kWait;
-  Action::Trigger();
+  ae_context_.scheduler().DelayedTask(
+      [&]() {
+        if (stopped_) {
+          return;
+        }
+        // execute task
+        task_();
+        // reschedule
+        Run();
+      },
+      interval_);
 }
-
-UpdateStatus RepeatableTask::CheckInterval(TimePoint current_time) {
-  if (next_execution_time_ <= current_time) {
-    // repeat run
-    state_ = State::kRun;
-    Action::Trigger();
-    return {};
-  }
-  return UpdateStatus::Delay(next_execution_time_);
-}
-
 }  // namespace ae

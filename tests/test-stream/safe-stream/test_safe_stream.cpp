@@ -18,13 +18,13 @@
 
 #include "aether/api_protocol/api_message.h"
 
-#include "aether/actions/action_context.h"
-#include "aether/actions/action_processor.h"
+#include "aether/ae_context.h"
 #include "aether/api_protocol/protocol_context.h"
 
 #include "aether/stream_api/safe_stream.h"
 
 #include "tests/test-stream/to_data_buffer.h"
+#include "tests/test-stream/stream-test-ctx.h"
 #include "tests/test-stream/mock_read_stream.h"
 #include "tests/test-stream/mock_write_stream.h"
 
@@ -51,14 +51,14 @@ constexpr char _200_bytes_data[] =
 void test_SafeStreamWriteFewData() {
   auto epoch = TimePoint::clock::now();
 
-  auto ap = ActionProcessor{};
+  TestContext ctx;
 
   auto received_packet = DataBuffer{};
 
   auto read_stream = MockReadStream{};
-  auto write_stream = MockWriteStream{ap, std::size_t{120}};
+  auto write_stream = MockWriteStream{ctx, std::size_t{120}};
 
-  auto safe_stream = SafeStream{ap, config};
+  auto safe_stream = SafeStream{ctx, config};
 
   Tie(read_stream, safe_stream, write_stream);
 
@@ -73,7 +73,7 @@ void test_SafeStreamWriteFewData() {
   safe_stream.Write(ToDataBuffer(_100_bytes_data));
 
   for (auto i = 0; (i < 10) && received_packet.empty(); ++i) {
-    ap.Update(epoch += std::chrono::milliseconds{1});
+    ctx.Update(epoch += std::chrono::milliseconds{1});
   }
 
   TEST_ASSERT_EQUAL(sizeof(_100_bytes_data), received_packet.size());
@@ -84,7 +84,7 @@ void test_SafeStreamWriteFewData() {
 
   for (auto i = 0;
        (i < 10) && (received_packet.size() < sizeof(_200_bytes_data)); ++i) {
-    ap.Update(epoch += std::chrono::milliseconds{1});
+    ctx.Update(epoch += std::chrono::milliseconds{1});
   }
   TEST_ASSERT_EQUAL(sizeof(_200_bytes_data), received_packet.size());
 }
@@ -92,15 +92,16 @@ void test_SafeStreamWriteFewData() {
 void test_SafeStreamPacketLoss() {
   auto epoch = TimePoint::clock::now();
 
-  auto ap = ActionProcessor{};
+  TestContext ctx;
+
   auto pc = ProtocolContext{};
 
   auto received_packet = DataBuffer{};
 
   auto read_stream = MockReadStream{};
-  auto write_stream = MockWriteStream{ap, std::size_t{120}};
+  auto write_stream = MockWriteStream{ctx, std::size_t{120}};
 
-  auto safe_stream = SafeStream{ap, config};
+  auto safe_stream = SafeStream{ctx, config};
   Tie(read_stream, safe_stream, write_stream);
 
   // loop data to itself
@@ -122,7 +123,7 @@ void test_SafeStreamPacketLoss() {
   safe_stream.Write(ToDataBuffer(_100_bytes_data));
 
   for (auto i = 0; (i < 10) && received_packet.empty(); ++i) {
-    ap.Update(epoch += std::chrono::milliseconds{10});
+    ctx.Update(epoch += std::chrono::milliseconds{10});
   }
 
   TEST_ASSERT_EQUAL(sizeof(_100_bytes_data), received_packet.size());
@@ -133,7 +134,7 @@ void test_SafeStreamPacketLoss() {
 
   for (auto i = 0;
        (i < 10) && (received_packet.size() < sizeof(_200_bytes_data)); ++i) {
-    ap.Update(epoch += std::chrono::milliseconds{10});
+    ctx.Update(epoch += std::chrono::milliseconds{10});
   }
   TEST_ASSERT_EQUAL(sizeof(_200_bytes_data), received_packet.size());
 }

@@ -18,6 +18,7 @@
 
 #include <utility>
 
+#include "aether/actions/action_context.h"
 #include "aether/api_protocol/api_context.h"
 #include "aether/stream_api/api_call_adapter.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
@@ -27,9 +28,9 @@
 #include "send_message_delays/api/bench_delays_api.h"
 
 namespace ae::bench {
-Sender::Sender(ActionContext action_context, Client::ptr client,
+Sender::Sender(AeContext const& ae_context, Client::ptr client,
                Uid destination_uid, SafeStreamConfig safe_stream_config)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       client_{std::move(client)},
       destination_uid_{destination_uid},
       safe_stream_config_{safe_stream_config},
@@ -45,7 +46,7 @@ void Sender::ConnectP2pStream() {
 void Sender::ConnectP2pSafeStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pSafeStream()");
   send_message_safe_stream_ = make_unique<P2pSafeStream>(
-      action_context_, safe_stream_config_,
+      ae_context_, safe_stream_config_,
       client_->message_stream_manager().CreateStream(destination_uid_));
 }
 
@@ -82,7 +83,7 @@ template <typename Func>
 ActionPtr<TimedSender> Sender::CreateBenchAction(Func&& func,
                                                  Duration min_send_interval) {
   sender_action_ = ActionPtr<TimedSender>{
-      action_context_,
+      FromAeContext(ae_context_),
       [&, f{std::forward<Func>(func)}](std::uint16_t id) {
         auto api_context = ApiCallAdapter{ApiContext{bench_delays_api_},
                                           *send_message_stream_};

@@ -16,19 +16,20 @@
 
 #include "aether/ae_actions/get_client_cloud.h"
 
+#include "aether/aether.h"
 #include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
 
 GetClientCloudAction::GetClientCloudAction(
-    ActionContext action_context, Uid client_uid,
+    AeContext const& ae_context, Uid client_uid,
     CloudServerConnections& cloud_connection,
     RequestPolicy::Variant request_policy)
-    : Action(action_context),
+    : Action(ae_context.aether()),
       client_uid_{client_uid},
       state_{State::kNone},
       cloud_request_{
-          action_context,
+          ae_context,
           AuthApiCaller{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
             AE_TELED_DEBUG("Resolve cloud for {}", client_uid_);
             auth_api->resolver_clouds({client_uid_});

@@ -40,7 +40,7 @@ class RootServerSelectStream final : public ByteIStream {
   RootServerSelectStream(AeContext const& ae_context,
                          Ptr<RegistrationCloud> const& cloud);
 
-  ActionPtr<WriteAction> Write(DataBuffer&& data) override;
+  WriteAction& Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   OutDataEvent::Subscriber out_data_event() override;

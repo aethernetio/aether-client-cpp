@@ -20,11 +20,10 @@
 #include <vector>
 
 #include "aether/ae_context.h"
-#include "aether/obj/obj_ptr.h"
+#include "aether/ptr/ptr.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/events/events.h"
 #include "aether/stream_api/istream.h"
-#include "aether/actions/notify_action.h"
 #include "aether/write_action/buffer_write.h"
 #include "aether/server_connections/channel_connection.h"
 
@@ -37,15 +36,16 @@ class ServerConnection final : public ByteIStream {
     PtrView<Channel> channel;
     bool failed = false;
   };
-  using ChannelErrorAction = NotifyAction;
 
  public:
+  static constexpr std::size_t kBufferCapacity = 200;
+
   using ServerErrorEvent = Event<void()>;
   using ChannelChangedEvent = Event<void()>;
 
   ServerConnection(AeContext const& ae_context, Ptr<Server> const& server);
 
-  ActionPtr<WriteAction> Write(DataBuffer&& in_data) override;
+  WriteAction& Write(DataBuffer&& in_data) override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;
   OutDataEvent::Subscriber out_data_event() override;
@@ -68,12 +68,12 @@ class ServerConnection final : public ByteIStream {
   void ChannelError();
 
   void OnRead(DataBuffer const& data);
-  ActionPtr<WriteAction> OnWrite(DataBuffer&& in_data);
+  WriteAction* OnWrite(DataBuffer&& in_data);
 
   AeContext ae_context_;
   PtrView<Server> server_;
 
-  BufferWrite<DataBuffer> buffer_write_;
+  BufferWrite<DataBuffer, kBufferCapacity> buffer_write_;
 
   bool full_connected_;
   ChannelEntry* top_channel_;
@@ -85,7 +85,6 @@ class ServerConnection final : public ByteIStream {
   StreamUpdateEvent stream_update_event_;
   ServerErrorEvent server_error_;
   ChannelChangedEvent channel_changed_;
-  OwnActionPtr<ChannelErrorAction> channel_error_action_;
   Subscription channel_stream_update_sub_;
   Subscription channel_stream_outd_data_sub_;
 };

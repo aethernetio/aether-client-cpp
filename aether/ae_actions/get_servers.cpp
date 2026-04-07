@@ -18,18 +18,19 @@
 
 #include <algorithm>
 
+#include "aether/aether.h"
 #include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
-GetServersAction::GetServersAction(ActionContext action_context,
+GetServersAction::GetServersAction(AeContext const& ae_context,
                                    std::vector<ServerId> server_ids,
                                    CloudServerConnections& cloud_connection,
                                    RequestPolicy::Variant request_policy)
-    : Action{action_context},
+    : Action{ae_context.aether()},
       server_ids_{std::move(server_ids)},
       state_{State::kNone},
       cloud_request_{
-          action_context,
+          ae_context,
           AuthApiCaller{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
             AE_TELED_DEBUG("Resolve servers {}", server_ids_);
             auth_api->resolver_servers(server_ids_);

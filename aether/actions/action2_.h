@@ -17,6 +17,7 @@
 #ifndef AETHER_ACTIONS_ACTION2_H_
 #define AETHER_ACTIONS_ACTION2_H_
 
+#include "aether/common.h"
 #include "aether/events/events.h"
 
 namespace ae::a2 {
@@ -27,7 +28,12 @@ class Action {
   Action() noexcept = default;
   virtual ~Action() noexcept = default;
 
-  void Finish() noexcept { finished_event_.Emit(); }
+  AE_CLASS_MOVE_ONLY(Action)
+
+  void Finish() noexcept {
+    is_finished_ = true;
+    finished_event_.Emit();
+  }
 
   FinishedEvent::Subscriber finished_event() noexcept {
     return EventSubscriber{finished_event_};
