@@ -117,14 +117,15 @@ class Operation final : public OpBase<R> {
         });
   }
 
-  void Reset() noexcept override { sub_.Reset(); }
-  bool is_reset() const noexcept override { return !!sub_; }
+  void Reset() noexcept override { sub_.Reset(); is_reset_ = true; }
+  bool is_reset() const noexcept override { return is_reset_; }
 
  private:
   Api* api_;
   Stream* stream_;
   Fn fn_;
   Subscription sub_;
+  bool is_reset_ = false;
   std::optional<receiver> recv_;
 };
 
