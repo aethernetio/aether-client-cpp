@@ -33,8 +33,8 @@ namespace ae {
 namespace client_cloud_manager_internal {
 class GetCloudFromCache final : public GetCloudAction {
  public:
-  GetCloudFromCache(ActionContext action_context, Cloud::ptr cloud)
-      : GetCloudAction{action_context}, cloud_{std::move(cloud)} {}
+  GetCloudFromCache(AeContext const& ae_context, Cloud::ptr cloud)
+      : GetCloudAction{ae_context.aether()}, cloud_{std::move(cloud)} {}
 
   UpdateStatus Update() override { return UpdateStatus::Result(); }
   Cloud::ptr cloud() override { return std::move(cloud_); }
@@ -53,12 +53,12 @@ class GetCloudFromAether : public GetCloudAction {
     kStopped,
   };
 
-  explicit GetCloudFromAether(ActionContext action_context, Aether& aether,
+  explicit GetCloudFromAether(AeContext const& ae_context, Aether& aether,
                               ClientCloudManager& client_cloud_manager,
                               CloudServerConnections& cloud_connection,
                               Uid client_uid)
-      : GetCloudAction{action_context},
-        action_context_{action_context},
+      : GetCloudAction{ae_context.aether()},
+        ae_context_{ae_context},
         aether_{&aether},
         client_cloud_manager_{&client_cloud_manager},
         cloud_connection_{&cloud_connection},
@@ -90,7 +90,7 @@ class GetCloudFromAether : public GetCloudAction {
  private:
   void RequestCloud() {
     get_client_cloud_action_ = OwnActionPtr<GetClientCloudAction>(
-        action_context_, client_uid_, *cloud_connection_,
+        ae_context_, client_uid_, *cloud_connection_,
         RequestPolicy::Replica{cloud_connection_->count_connections()});
 
     get_client_cloud_sub_ = get_client_cloud_action_->StatusEvent().Subscribe(
@@ -120,7 +120,7 @@ class GetCloudFromAether : public GetCloudAction {
     if (!missing_servers.empty()) {
       // If there are missing servers, resolve them from the cloud
       get_servers_action_ = OwnActionPtr<GetServersAction>{
-          action_context_, missing_servers, *cloud_connection_,
+          ae_context_, missing_servers, *cloud_connection_,
           RequestPolicy::Replica{cloud_connection_->count_connections()}};
       get_servers_sub_ =
           get_servers_action_->StatusEvent().Subscribe(ActionHandler{
@@ -176,7 +176,7 @@ class GetCloudFromAether : public GetCloudAction {
         client_cloud_manager_->RegisterCloud(client_uid_, std::move(servers));
   }
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   Aether* aether_;
   ClientCloudManager* client_cloud_manager_;
   CloudServerConnections* cloud_connection_;
@@ -205,7 +205,7 @@ ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
   if (cached != cloud_cache_.end()) {
     assert(cached->second.is_valid());
     return ActionPtr<client_cloud_manager_internal::GetCloudFromCache>{
-        ActionContext{*aether}, cached->second};
+        AeContext{*aether}, cached->second};
   }
   // get from aethernet
 
@@ -213,7 +213,8 @@ ActionPtr<GetCloudAction> ClientCloudManager::GetCloud(Uid client_uid) {
   assert(client);
 
   return ActionPtr<client_cloud_manager_internal::GetCloudFromAether>{
-      ActionContext{*aether}, *aether, *this, client->cloud_connection(), client_uid};
+      AeContext{*aether}, *aether, *this, client->cloud_connection(),
+      client_uid};
 }
 
 Cloud::ptr ClientCloudManager::RegisterCloud(Uid uid,

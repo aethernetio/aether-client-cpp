@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "aether/meta/arg_at.h"
+#include "aether/actions/action_context.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "send_message_delays/api/bench_delays_api.h"
@@ -27,9 +28,9 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-Receiver::Receiver(ActionContext action_context, Client::ptr client,
+Receiver::Receiver(AeContext const& ae_context, Client::ptr client,
                    SafeStreamConfig safe_stream_config)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       client_{std::move(client)},
       safe_stream_config_{safe_stream_config},
       bench_delays_api_{protocol_context_} {}
@@ -47,8 +48,7 @@ void Receiver::Connect() {
                       MethodPtr<&Receiver::OnRecvData>{this});
             } else {
               receive_message_safe_stream_ = make_unique<P2pSafeStream>(
-                  action_context_, safe_stream_config_,
-                  std::move(message_stream));
+                  ae_context_, safe_stream_config_, std::move(message_stream));
               recv_data_sub_ =
                   receive_message_stream_->out_data_event().Subscribe(
                       MethodPtr<&Receiver::OnRecvData>{this});
@@ -83,7 +83,8 @@ ActionPtr<TimedReceiver> Receiver::Receive1000Bytes(std::size_t message_count) {
 template <typename TEvent>
 ActionPtr<TimedReceiver> Receiver::CreateBenchAction(TEvent event,
                                                      std::size_t count) {
-  receiver_action_ = ActionPtr<TimedReceiver>{action_context_, count};
+  receiver_action_ =
+      ActionPtr<TimedReceiver>{FromAeContext(ae_context_), count};
   event.Subscribe([ra{receiver_action_}](auto&&... args) mutable {
     if (ra) {
       ra->Receive(VarAt<0>(std::forward<decltype(args)>(args)...));

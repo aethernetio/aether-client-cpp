@@ -72,8 +72,8 @@ inline bool SetReciveTimeouts(int sock, int tv_sec, int tv_usec) {
 }
 }  // namespace lwip_tcp_socket_internal
 
-LwipTcpSocket::LwipTcpSocket(IPoller& poller)
-    : LwipSocket(poller, MakeSocket()),
+LwipTcpSocket::LwipTcpSocket(Ptr<IPoller> const& poller)
+    : LwipSocket(*poller, MakeSocket()),
       connection_state_{ConnectionState::kNone} {
   // 1500 is our default MTU for TCP
   recv_buffer_.resize(1500);

@@ -20,7 +20,7 @@
 
 #  include "aether/aether.h"
 #  include "aether/format/format.h"
-#  include "aether/tele/traps/statistics_trap.h"
+#  include "aether/tele/tele.h"
 #  include "aether/tele/traps/tele_statistics.h"
 
 #  include "aether/mstream.h"
@@ -30,11 +30,12 @@
 #  include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
-Telemetry::Telemetry(ActionContext action_context, Ptr<Aether> const& aether,
+Telemetry::Telemetry(AeContext const& ae_context,
                      CloudServerConnections& cloud_connection)
-    : Action{action_context},
-      aether_{aether},
+    : Action{ae_context.aether()},
+      ae_context_{ae_context},
       cloud_connection_{&cloud_connection},
+      call_request_{ae_context_, *cloud_connection_},
       telemetry_request_sub_{
           ClientListener{[&](ClientApiSafe& api, auto* sever_connect) {
             return api.request_telemetry_event().Subscribe(
@@ -89,11 +90,11 @@ void Telemetry::SendTelemetry() {
     return;
   }
 
-  CloudRequest::CallApi(
+  call_request_.CallApi(
       AuthApiCaller{[&](ApiContext<AuthorizedApi>& auth_api, auto*) {
         auth_api->send_telemetry(std::move(*telemetry));
       }},
-      *cloud_connection_, RequestPolicy::Priority{server_num});
+      RequestPolicy::Priority{server_num});
 
   AE_TELE_INFO(TelemetrySent);
 }
@@ -106,13 +107,8 @@ void Telemetry::OnRequestTelemetry(std::size_t server_priority) {
 
 std::optional<Telemetric> Telemetry::CollectTelemetry(
     StreamInfo const& stream_info) {
-  auto aether_ptr = aether_.Lock();
-  if (!aether_ptr) {
-    assert(false);
-    return std::nullopt;
-  }
   auto& statistics_storage =
-      tele::TeleStatistics::ptr{aether_ptr->tele_statistics}
+      tele::TeleStatistics::ptr{ae_context_.aether().tele_statistics}
           ->trap()
           ->statistics_store;
   auto& env_storage = statistics_storage.env_store();

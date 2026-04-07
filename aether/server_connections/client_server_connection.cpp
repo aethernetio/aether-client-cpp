@@ -78,8 +78,8 @@ class ClientDecryptKeyProvider : public ClientKeyProvider {
 class ClientCryptoProvider final : public ICryptoProvider {
  public:
   ClientCryptoProvider(Ptr<Client> const& client, ServerId server_id)
-      : encryptor_{std::make_unique<ClientEncryptKeyProvider>(client,
-                                                              server_id)},
+      : encryptor_{
+            std::make_unique<ClientEncryptKeyProvider>(client, server_id)},
         decryptor_{
             std::make_unique<ClientDecryptKeyProvider>(client, server_id)} {}
 
@@ -132,13 +132,12 @@ ClientServerConnection::stream_update_event() {
   return server_connection_.stream_update_event();
 }
 
-ActionPtr<WriteAction> ClientServerConnection::LoginApiCall(
-    SubApi<LoginApi> login_api) {
+WriteAction& ClientServerConnection::LoginApiCall(SubApi<LoginApi> login_api) {
   auto packet = login_api(login_api_);
   return server_connection_.Write(std::move(packet));
 }
 
-ActionPtr<WriteAction> ClientServerConnection::AuthorizedApiCall(
+WriteAction& ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
   auto api_call = ApiCallAdapter{ApiContext{login_api_}, server_connection_};
   api_call->login_by_alias(ephemeral_uid_, std::move(auth_api));
@@ -167,8 +166,8 @@ void ClientServerConnection::ChannelChanged() {
     static constexpr Duration kPingDefaultInterval =
         std::chrono::milliseconds{AE_PING_INTERVAL_MS};
     // TODO: make ping interval depend on server priority
-    ping_ = OwnActionPtr<Ping>{ae_context_.aether(), channel, *this,
-                               kPingDefaultInterval};
+    ping_ =
+        OwnActionPtr<Ping>{ae_context_, channel, *this, kPingDefaultInterval};
 
     ping_sub_ = ping_->StatusEvent().Subscribe(OnError{[this]() {
       AE_TELED_ERROR("Ping failed");

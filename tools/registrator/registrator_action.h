@@ -42,7 +42,7 @@ class RegistratorAction : public Action<RegistratorAction> {
 
  public:
   explicit RegistratorAction(
-      ae::ActionContext action_context, RcPtr<ae::AetherApp> const& aether_app,
+      ae::AeContext const& ae_context, RcPtr<ae::AetherApp> const& aether_app,
       std::vector<reg::ClientConfig> const& client_configs);
   UpdateStatus Update();
 

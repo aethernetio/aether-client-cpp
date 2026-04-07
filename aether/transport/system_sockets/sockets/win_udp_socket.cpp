@@ -27,7 +27,8 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-WinUdpSocket::WinUdpSocket(IPoller& poller) : WinSocket{poller, 1200} {
+WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
+    : WinSocket{*poller, 1200} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp

@@ -32,10 +32,10 @@ SSRingIndex RandomOffset() {
 }
 }  // namespace safe_stream_send_action_internal
 
-SafeStreamSendAction::SafeStreamSendAction(ActionContext action_context,
+SafeStreamSendAction::SafeStreamSendAction(AeContext const& ae_context,
                                            ISendDataPush& send_data_push,
                                            SafeStreamConfig const& config)
-    : Action{action_context},
+    : Action{FromAeContext(ae_context)},
       send_data_push_{&send_data_push},
       begin_{safe_stream_send_action_internal::RandomOffset()},
       last_sent_{begin_},
@@ -44,7 +44,7 @@ SafeStreamSendAction::SafeStreamSendAction(ActionContext action_context,
       max_repeat_count_{config.max_repeat_count},
       max_payload_size_{0},
       window_size_{config.window_size},
-      send_data_buffer_{action_context} {
+      send_data_buffer_{FromAeContext(ae_context)} {
   // add wait ack timeout as base value for response statistics
   response_statistics_.Add(config.wait_ack_timeout);
 }
@@ -144,17 +144,24 @@ void SafeStreamSendAction::SendChunk(TimePoint current_time) {
   auto end_offset = data_chunk.offset +
                     static_cast<SSRingIndex::type>(data_chunk.data.size());
 
-  auto write_action = PushData(std::move(data_chunk.data), delta, repeat_count);
+  auto& write_action =
+      PushData(std::move(data_chunk.data), delta, repeat_count);
 
-  send_subs_.Push(write_action->StatusEvent().Subscribe(
-      ActionHandler{OnError{[this, end_offset]() {
-                      sending_chunks_.RemoveUpTo(end_offset);
-                      send_data_buffer_.Reject(end_offset);
-                    }},
-                    OnStop{[this, end_offset](auto const&) {
-                      sending_chunks_.RemoveUpTo(end_offset);
-                      send_data_buffer_.Stop(end_offset);
-                    }}}));
+  send_subs_.Push(
+      write_action.status_event().Subscribe([this, end_offset](auto status) {
+        switch (status) {
+          case WriteAction::Status::kSuccess:
+            break;
+          case WriteAction::Status::kFail:
+            sending_chunks_.RemoveUpTo(end_offset);
+            send_data_buffer_.Reject(end_offset);
+            break;
+          case WriteAction::Status::kStop:
+            sending_chunks_.RemoveUpTo(end_offset);
+            send_data_buffer_.Stop(end_offset);
+            break;
+        }
+      }));
 }
 
 void SafeStreamSendAction::RejectSend(SendingChunk& sending_chunk) {
@@ -191,9 +198,9 @@ UpdateStatus SafeStreamSendAction::SendTimeouts(TimePoint current_time) {
   return UpdateStatus::Delay(wait_time);
 }
 
-ActionPtr<WriteAction> SafeStreamSendAction::PushData(
-    DataBuffer&& data_buffer, SSRingIndex::type delta,
-    std::uint8_t repeat_count) {
+WriteAction& SafeStreamSendAction::PushData(DataBuffer&& data_buffer,
+                                            SSRingIndex::type delta,
+                                            std::uint8_t repeat_count) {
   AE_TELED_DEBUG(
       "Send data message begin offset {} delta {} repeat count {} reset {} "
       "data size {}",

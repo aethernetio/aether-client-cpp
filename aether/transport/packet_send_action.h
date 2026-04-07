@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2024 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_UDP_SOCKETS_FACTORY_H_
-#define AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_UDP_SOCKETS_FACTORY_H_
+#ifndef AETHER_TRANSPORT_PACKET_SEND_ACTION_H_
+#define AETHER_TRANSPORT_PACKET_SEND_ACTION_H_
 
-#include "aether/config.h"
-
-#if AE_SUPPORT_UDP
-
-#  include "aether/poller/poller.h"
-#  include "aether/transport/system_sockets/sockets/isocket.h"
+#include "aether/write_action/write_action.h"
 
 namespace ae {
-class UdpSocketFactory {
+class PacketSendAction : public WriteAction {
  public:
-  static std::unique_ptr<ISocket> Create(IPoller& poller);
+  PacketSendAction() = default;
+  AE_CLASS_MOVE_ONLY(PacketSendAction)
+  // Trigger event to send data
+  virtual void Send() = 0;
+  virtual bool is_done() const = 0;
+  virtual bool re_enqueue() const = 0;
 };
 }  // namespace ae
-#endif
-#endif  // AETHER_TRANSPORT_SYSTEM_SOCKETS_SOCKETS_UDP_SOCKETS_FACTORY_H_
+
+#endif  // AETHER_TRANSPORT_PACKET_SEND_ACTION_H_

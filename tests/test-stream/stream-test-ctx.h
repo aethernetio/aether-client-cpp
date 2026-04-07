@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,23 +14,31 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_WRITE_ACTION_DONE_WRITE_ACTION_H_
-#define AETHER_WRITE_ACTION_DONE_WRITE_ACTION_H_
+#ifndef TESTS_TEST_STREAM_STREAM_TEST_CTX_H
+#define TESTS_TEST_STREAM_STREAM_TEST_CTX_H
 
 #include "aether/ae_context.h"
-#include "aether/write_action/write_action.h"
 
 namespace ae {
-/**
- * \brief Immediate succeseed write action.
- */
-class DoneWriteAction final : public WriteAction {
- public:
-  explicit DoneWriteAction(AeContext const& context) {
-    context.scheduler().Task(
-        [&]() { SetStatus(WriteAction::Status::kSuccess); });
+struct TestContext {
+  AeCtx ToAeContext() const {
+    static constexpr auto table =
+        AeCtxTable{nullptr, [](void* obj) -> TaskScheduler& {
+                     return static_cast<TestContext*>(obj)->sched;
+                   }};
+    return AeCtx{
+        const_cast<TestContext*>(this),  // NOLINT
+        &table,
+    };
   }
+
+  template <typename... A>
+  decltype(auto) Update(A&&... a) {
+    return sched.Update(std::forward<A>(a)...);
+  }
+
+  TaskScheduler sched;
 };
 }  // namespace ae
 
-#endif  // AETHER_WRITE_ACTION_DONE_WRITE_ACTION_H_
+#endif  // TESTS_TEST_STREAM_STREAM_TEST_CTX_H

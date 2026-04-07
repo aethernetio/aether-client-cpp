@@ -19,7 +19,7 @@
 #include <map>
 
 #include "aether/common.h"
-#include "aether/actions/action.h"
+#include "aether/ae_context.h"
 #include "aether/types/state_machine.h"
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_callbacks.h"
@@ -28,10 +28,42 @@
 
 namespace ae {
 class CloudRequest {
+  class EmptyConnectionsWA final : public WriteAction {
+   public:
+    explicit EmptyConnectionsWA(AeContext const& ae_context) {
+      ae_context.scheduler().Task(
+          [&]() { WriteAction::SetStatus(WriteAction::Status::kFail); });
+    }
+  };
+
+  class ReplicaWA final : public WriteAction {
+   public:
+    explicit ReplicaWA(std::vector<WriteAction*>&& swas) noexcept;
+
+    void Stop() noexcept override;
+
+   private:
+    std::vector<WriteAction*> swas_;
+    std::size_t failed_actions_{};
+    std::size_t stopped_actions_{};
+    MultiSubscription subs_;
+  };
+
  public:
-  static ActionPtr<WriteAction> CallApi(
-      AuthApiCaller const& api_caller, CloudServerConnections& connection,
+  CloudRequest(AeContext const& ae_context, CloudServerConnections& connection);
+
+  WriteAction& CallApi(
+      AuthApiCaller const& api_caller,
       RequestPolicy::Variant policy = RequestPolicy::MainServer{});
+
+ private:
+  WriteAction& EmptyWriteAction();
+  WriteAction& ReplicaWriteAction(std::vector<WriteAction*>&& swas);
+
+  AeContext ae_context_;
+  CloudServerConnections* connection_;
+  std::optional<EmptyConnectionsWA> empty_wa_;
+  std::vector<ReplicaWA> replica_was_;
 };
 
 /**
@@ -57,12 +89,12 @@ class CloudRequestAction final : public Action<CloudRequestAction> {
   };
 
  public:
-  CloudRequestAction(ActionContext action_context, AuthApiCaller&& api_caller,
+  CloudRequestAction(AeContext const& ae_context, AuthApiCaller&& api_caller,
                      ClientResponseListener&& listener,
                      CloudServerConnections& cloud_server_connections,
                      RequestPolicy::Variant policy);
 
-  CloudRequestAction(ActionContext action_context, AuthApiRequest&& api_request,
+  CloudRequestAction(AeContext const& ae_context, AuthApiRequest&& api_request,
                      CloudServerConnections& cloud_server_connections,
                      RequestPolicy::Variant policy);
 

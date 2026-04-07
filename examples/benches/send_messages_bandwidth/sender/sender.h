@@ -20,10 +20,8 @@
 #include <optional>
 
 #include "aether/client.h"
-#include "aether/memory.h"
+#include "aether/ae_context.h"
 #include "aether/events/events.h"
-#include "aether/stream_api/istream.h"
-#include "aether/actions/action_context.h"
 #include "aether/actions/repeatable_task.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
@@ -36,7 +34,7 @@
 namespace ae::bench {
 class Sender {
  public:
-  Sender(ActionContext action_context, Client::ptr client, Uid destination);
+  Sender(AeContext const& ae_context, Client::ptr client, Uid destination);
 
   EventSubscriber<void()> error_event();
 
@@ -53,7 +51,7 @@ class Sender {
 
   void OnRecvData(DataBuffer const& data);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   Client::ptr client_;
   Uid destination_;
   ProtocolContext protocol_context_;
@@ -67,8 +65,8 @@ class Sender {
 
   RcPtr<P2pStream> message_stream_;
 
-  OwnActionPtr<RepeatableTask> start_test_action_;
-  OwnActionPtr<RepeatableTask> stop_test_action_;
+  std::optional<RepeatableTask> start_test_action_;
+  std::optional<RepeatableTask> stop_test_action_;
   OwnActionPtr<MessageSender> message_sender_;
 
   Subscription on_recv_data_sub_;

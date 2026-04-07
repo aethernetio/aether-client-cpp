@@ -17,54 +17,65 @@
 #ifndef AETHER_WRITE_ACTION_BUFFER_WRITE_H_
 #define AETHER_WRITE_ACTION_BUFFER_WRITE_H_
 
-#include "aether/events/events.h"
-#include "aether/actions/action_ptr.h"
+#include "aether/warning_disable.h"
+
+DISABLE_WARNING_PUSH()
+IGNORE_IMPLICIT_CONVERSION()
+#include "third_party/etl/include/etl/circular_buffer.h"
+DISABLE_WARNING_POP()
+
+#include "aether/ae_context.h"
 #include "aether/types/small_function.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/write_action/write_action.h"
 #include "aether/write_action/failed_write_action.h"
 
-#include "aether/tele/tele.h"
+#if DEBUG  // include tele only in debug mode
+#  include "aether/tele/tele.h"
+#endif
 
 namespace ae {
+#if DEBUG
+#  define BW_LOG_DEBUG(...) AE_TELED_DEBUG(__VA_ARGS__)
+#  define BW_LOG_WARNING(...) AE_TELED_WARNING(__VA_ARGS__)
+#else
+#  define BW_LOG_DEBUG(...)
+#  define BW_LOG_WARNING(...)
+#endif
+
 class BufferedWriteAction final : public WriteAction {
  public:
-  explicit BufferedWriteAction(ActionContext action_context);
+  BufferedWriteAction() noexcept;
 
-  AE_CLASS_NO_COPY_MOVE(BufferedWriteAction)
+  AE_CLASS_MOVE_ONLY(BufferedWriteAction);
 
-  void Stop() override;
+  void Stop() noexcept override;
   // set to the sent state
-  void Sent(ActionPtr<WriteAction> wa);
+  void Sent(WriteAction& wa);
   // drop the write action from the buffer
   void Drop();
 
  private:
-  ActionPtr<WriteAction> wa_;
+  WriteAction* wa_{};
   Subscription wa_sub_;
 };
 
 /**
  * \brief Buffers write requests until gate is not ready to accept them.
  */
-template <typename T>
+template <typename T, std::size_t MaxSize = 10>
 class BufferWrite {
   struct BufferEntry {
-    ActionPtr<BufferedWriteAction> bwa;
+    BufferedWriteAction wa;
     T data;
   };
 
  public:
-  using DirectWriteFunc = SmallFunction<ActionPtr<WriteAction>(T&& data)>;
-  using BufferDrainEvent = Event<void()>;
+  using DirectWriteFunc = SmallFunction<WriteAction*(T&& data), sizeof(void*)>;
 
-  explicit BufferWrite(ActionContext action_context,
-                       DirectWriteFunc direct_write,
-                       std::size_t buffer_max = static_cast<std::size_t>(100))
-      : action_context_{action_context},
-        direct_write_{std::move(direct_write)},
-        buffer_max_{buffer_max},
-        buffer_on_{true} {}
+  explicit BufferWrite(AeContext const& ae_context,
+                       DirectWriteFunc&& direct_write)
+      : ae_context_{ae_context}, direct_write_{std::move(direct_write)} {}
 
   AE_CLASS_NO_COPY_MOVE(BufferWrite)
 
@@ -81,7 +92,7 @@ class BufferWrite {
   /**
    * \brief Write data to or through buffer.
    */
-  ActionPtr<WriteAction> Write(T&& data) {
+  WriteAction& Write(T&& data) {
     auto should_be_buffered = buffer_on_ || !buffer_.empty();
     if (should_be_buffered) {
       return WriteToBuffer(std::move(data));
@@ -95,65 +106,77 @@ class BufferWrite {
   void Drop() {
     // drop the buffer
     for (auto& b : buffer_) {
-      b.bwa->Drop();
+      b.wa.Drop();
     }
     buffer_.clear();
   }
 
  private:
-  ActionPtr<WriteAction> WriteToBuffer(T&& data) {
-    if (buffer_.size() >= buffer_max_) {
-      AE_TELED_WARNING("Buffer is full");
-      return ActionPtr<FailedWriteAction>{action_context_};
+  WriteAction& WriteToBuffer(T&& data) {
+    if (buffer_.full()) {
+      BW_LOG_WARNING("Buffer is full");
+      return FailedWrite();
     }
-    auto& buff_entry = buffer_.emplace_back(BufferEntry{
-        ActionPtr<BufferedWriteAction>{action_context_},
+    buffer_.push(BufferEntry{
+        BufferedWriteAction{},
         std::move(data),
     });
-    AE_TELED_DEBUG("BufferWrite: buffer write, capacity: {}",
-                   buffer_max_ - buffer_.size());
+    auto& buff_entry = buffer_.back();
+    BW_LOG_DEBUG("BufferWrite: buffer write, capacity: {}",
+                 buffer_.capacity() - buffer_.size());
     // Drain the buffer when the action is finished
     bwa_finished_sub_ +=
-        buff_entry.bwa->FinishedEvent().Subscribe([this]() { DrainBuffer(); });
-    return buff_entry.bwa;
+        buff_entry.wa.finished_event().Subscribe([this]() { DrainBuffer(); });
+    return buff_entry.wa;
   }
 
-  ActionPtr<WriteAction> DirectWrite(T&& data) {
-    AE_TELED_DEBUG("BufferWrite: direct write");
-    auto write_action = direct_write_(std::move(data));
-    if (!write_action) {
-      return ActionPtr<FailedWriteAction>{action_context_};
+  WriteAction& DirectWrite(T&& data) {
+    BW_LOG_DEBUG("BufferWrite: direct write");
+    auto* write_action = direct_write_(std::move(data));
+    if (write_action == nullptr) {
+      return FailedWrite();
     }
-    return write_action;
+    return *write_action;
   }
 
   /**
    * Write all buffered data in FIFO order.
    */
   void DrainBuffer() {
-    AE_TELED_DEBUG("BufferWrite: drain the buffer, size {}", buffer_.size());
-    auto it = std::begin(buffer_);
-    for (; it != std::end(buffer_); ++it) {
-      // buffer state might change dursing direct write
+    BW_LOG_DEBUG("BufferWrite: drain the buffer, size {}", buffer_.size());
+    // try send as many as possible
+    for (auto& be : buffer_) {
+      if (be.wa.is_finished()) {
+        // notice! circular buffer pop is just incrementing the out pointer it
+        // does not invalidate the iterators
+        buffer_.pop();
+        continue;
+      }
+      // buffer state might change during direct write
       if (buffer_on_) {
         break;
       }
-      auto wa = direct_write_(std::move(it->data));
+      auto* dwa = direct_write_(std::move(be.data));
       // empty write action means no data has been written
-      if (!wa) {
+      if (dwa == nullptr) {
         break;
       }
-      it->bwa->Sent(std::move(wa));
+      be.wa.Sent(*dwa);
     }
-    // erase sent buffered actions
-    buffer_.erase(std::begin(buffer_), it);
   }
 
-  ActionContext action_context_;
+  FailedWriteAction& FailedWrite() noexcept {
+    if (failed_write_ && !failed_write_->is_finished()) {
+      return *failed_write_;
+    }
+    return failed_write_.emplace(ae_context_);
+  }
+
+  AeContext ae_context_;
   DirectWriteFunc direct_write_;
-  std::size_t buffer_max_;
-  bool buffer_on_;
-  std::deque<BufferEntry> buffer_;
+  bool buffer_on_{true};
+  etl::circular_buffer<BufferEntry, MaxSize> buffer_;
+  std::optional<FailedWriteAction> failed_write_;
   MultiSubscription bwa_finished_sub_;
 };
 

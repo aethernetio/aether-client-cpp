@@ -16,14 +16,11 @@
 
 #include "unity.h"
 
-#include "aether/memory.h"
-#include "aether/actions/action_processor.h"
-#include "aether/actions/action_context.h"
-
 #include "aether/stream_api/gates_stream.h"
 
-#include "tests/test-stream/mock_write_stream.h"
 #include "tests/test-stream/to_data_buffer.h"
+#include "tests/test-stream/stream-test-ctx.h"
+#include "tests/test-stream/mock_write_stream.h"
 
 namespace ae::tes_templated_streams {
 
@@ -47,15 +44,14 @@ class StringIntGate {
 };
 
 void test_IntToBytesGate() {
-  ActionProcessor ap;
-  ActionContext ac{ap};
+  TestContext ctx;
 
   DataBuffer written_data;
   int read_data;
 
   auto stream = GatesStream{IntToBytesGate{}};
 
-  auto write_gate = MockWriteStream{ac, 1000};
+  auto write_gate = MockWriteStream{ctx, 1000};
 
   Tie(stream, write_gate);
 
@@ -75,13 +71,12 @@ void test_IntToBytesGate() {
 }
 
 void test_StringIntGate() {
-  ActionProcessor ap;
-  ActionContext ac{ap};
+  TestContext ctx;
 
   DataBuffer written_data;
   int read_data;
 
-  auto write_gate = MockWriteStream{ac, static_cast<std::size_t>(1000)};
+  auto write_gate = MockWriteStream{ctx, static_cast<std::size_t>(1000)};
   auto _0 = write_gate.on_write_event().Subscribe(
       [&](auto data) { written_data = std::move(data); });
 

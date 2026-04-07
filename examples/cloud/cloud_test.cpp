@@ -106,12 +106,14 @@ int AetherCloudExample() {
           AE_TELED_DEBUG("Received a message [{}]", str_msg);
           received_count++;
           auto confirm_msg = std::string{"confirmed "} + str_msg;
-          auto response_action = receiver_stream->Write(
+          auto& response_action = receiver_stream->Write(
               {confirm_msg.data(), confirm_msg.data() + confirm_msg.size()});
-          response_action->StatusEvent().Subscribe(ae::OnError{[&]() {
-            AE_TELED_ERROR("Send response failed");
-            aether_app->Exit(1);
-          }});
+          response_action.status_event().Subscribe([&](auto status) {
+            if (status == ae::WriteAction::Status::kFail) {
+              AE_TELED_ERROR("Send response failed");
+              aether_app->Exit(1);
+            }
+          });
         });
       });
 
@@ -145,12 +147,14 @@ int AetherCloudExample() {
       "I've forgotten how it felt before the world fell at our feet"};
 
   for (auto const& msg : messages) {
-    auto send_action =
+    auto& send_action =
         sender_stream->Write(ae::DataBuffer{std::begin(msg), std::end(msg)});
-    send_action->StatusEvent().Subscribe(ae::OnError{[&](auto const&) {
-      AE_TELED_ERROR("Send message failed");
-      aether_app->Exit(1);
-    }});
+    send_action.status_event().Subscribe([&](auto status) {
+      if (status == ae::WriteAction::Status::kFail) {
+        AE_TELED_ERROR("Send message failed");
+        aether_app->Exit(1);
+      }
+    });
   }
 
   /**

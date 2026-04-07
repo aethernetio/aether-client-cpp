@@ -23,22 +23,21 @@
 #include "aether/server.h"
 #include "aether/channels/channel.h"
 
-namespace ae {
-static constexpr std::size_t kBufferCapacity = 200;
+#include "aether/tele/tele.h"
 
+namespace ae {
 ServerConnection::ServerConnection(AeContext const& ae_context,
                                    Ptr<Server> const& server)
     : ae_context_{ae_context},
       server_{server},
       buffer_write_{ae_context_.aether(),
-                    MethodPtr<&ServerConnection::OnWrite>{this},
-                    kBufferCapacity},
+                    MethodPtr<&ServerConnection::OnWrite>{this}},
       full_connected_{false} {
   InitChannels();
   SelectChannel();
 }
 
-ActionPtr<WriteAction> ServerConnection::Write(DataBuffer&& in_data) {
+WriteAction& ServerConnection::Write(DataBuffer&& in_data) {
   return buffer_write_.Write(std::move(in_data));
 }
 
@@ -203,14 +202,7 @@ void ServerConnection::ServerError() {
 }
 
 void ServerConnection::DeferChannelError() {
-  // Action is used to break SelectChannel recursion
-  if (!channel_error_action_ || channel_error_action_->IsFinished()) {
-    channel_error_action_ =
-        OwnActionPtr<ChannelErrorAction>{ae_context_.aether()};
-    channel_error_action_->StatusEvent().Subscribe(
-        OnResult{[this]() { ChannelError(); }});
-  }
-  channel_error_action_->Notify();
+  ae_context_.scheduler().Task([&]() { ChannelError(); });
 }
 
 void ServerConnection::ChannelError() {
@@ -234,7 +226,7 @@ void ServerConnection::OnRead(DataBuffer const& data) {
   out_data_event_.Emit(data);
 }
 
-ActionPtr<WriteAction> ServerConnection::OnWrite(DataBuffer&& in_data) {
+WriteAction* ServerConnection::OnWrite(DataBuffer&& in_data) {
   if (!channel_connection_) {
     return {};
   }
@@ -242,7 +234,7 @@ ActionPtr<WriteAction> ServerConnection::OnWrite(DataBuffer&& in_data) {
   if (stream == nullptr) {
     return {};
   }
-  return stream->Write(std::move(in_data));
+  return &stream->Write(std::move(in_data));
 }
 
 }  // namespace ae

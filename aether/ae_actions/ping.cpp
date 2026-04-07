@@ -18,6 +18,7 @@
 
 #include <optional>
 
+#include "aether/aether.h"
 #include "aether/channels/channel.h"
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
@@ -25,10 +26,10 @@
 #include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
-Ping::Ping(ActionContext action_context, Ptr<Channel> const& channel,
+Ping::Ping(AeContext const& ae_context, Ptr<Channel> const& channel,
            ClientServerConnection& client_server_connection,
            Duration ping_interval)
-    : Action{action_context},
+    : Action{ae_context.aether()},
       channel_{channel},
       client_server_connection_{&client_server_connection},
       ping_interval_{ping_interval},
@@ -69,7 +70,7 @@ void Ping::Stop() { state_ = State::kStopped; }
 void Ping::SendPing() {
   AE_TELE_DEBUG(kPingSend, "Send ping");
 
-  auto write_action = client_server_connection_->AuthorizedApiCall(
+  auto& write_action = client_server_connection_->AuthorizedApiCall(
       SubApi{[this](ApiContext<AuthorizedApi>& auth_api) {
         auto& pong_promise = auth_api->ping(static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -93,10 +94,13 @@ void Ping::SendPing() {
                                        auto&&) { PingResponse(req_id); }));
       }});
 
-  write_subscription_ = write_action->StatusEvent().Subscribe(OnError{[this]() {
-    AE_TELE_ERROR(kPingWriteError, "Ping write error");
-    state_ = State::kError;
-  }});
+  write_subscription_ =
+      write_action.status_event().Subscribe([this](auto status) {
+        if (status == WriteAction::Status::kFail) {
+          AE_TELE_ERROR(kPingWriteError, "Ping write error");
+          state_ = State::kError;
+        }
+      });
 
   state_ = State::kWaitResponse;
 }

@@ -26,8 +26,8 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-LwipUdpSocket::LwipUdpSocket(IPoller& poller)
-    : LwipSocket(poller, MakeSocket()),
+LwipUdpSocket::LwipUdpSocket(Ptr<IPoller> const& poller)
+    : LwipSocket(*poller, MakeSocket()),
       connection_state_{ConnectionState::kNone} {
   // 1200 is our default MTU for UDP
   recv_buffer_.resize(1200);

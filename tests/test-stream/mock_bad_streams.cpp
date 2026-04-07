@@ -32,25 +32,25 @@ float RandomPercent() {
 
 bool IsHitTheRate(float hit_rate) { return RandomPercent() < hit_rate; }
 
-DoneStreamWriteAction::DoneStreamWriteAction(ActionContext action_context)
-    : WriteAction{action_context} {
-  state_ = State::kDone;
+DoneStreamWriteAction::DoneStreamWriteAction(AeContext const& ae_context) {
+  ae_context.scheduler().Task([&]() { SetStatus(Status::kSuccess); });
 }
 
 }  // namespace bad_streams_internal
 
-LostPacketsStream::LostPacketsStream(ActionContext action_context,
+LostPacketsStream::LostPacketsStream(AeContext const& ae_context,
                                      float loss_rate)
-    : action_context_{action_context}, loss_rate_{loss_rate} {}
+    : ae_context_{ae_context}, loss_rate_{loss_rate} {}
 
-ActionPtr<WriteAction> LostPacketsStream::Write(
-    DataBuffer&& data_buffer) {
+WriteAction& LostPacketsStream::Write(DataBuffer&& data_buffer) {
   if (bad_streams_internal::IsHitTheRate(loss_rate_)) {
     AE_TELED_DEBUG("Packet loss!");
     // drop the packet
     // return data sent is done
-    return ActionPtr<bad_streams_internal::DoneStreamWriteAction>{
-        action_context_};
+    if (!dsw_ || dsw_->is_finished()) {
+      dsw_.emplace(ae_context_);
+    }
+    return *dsw_;
   }
   assert(out_);
   return out_->Write(std::move(data_buffer));
@@ -62,50 +62,29 @@ void LostPacketsStream::LinkOut(ByteIStream& out) {
   stream_update_event_.Emit();
 }
 
-PacketDelayStream::PacketDelayAction::PacketDelayAction(
-    ActionContext action_context, ByteIStream& out, DataBuffer&& data_buffer,
-    Duration duration)
-    : Action{action_context},
-      out_{&out},
-      data_buffer_{std::move(data_buffer)},
-      timeout_{duration} {}
-
-UpdateStatus PacketDelayStream::PacketDelayAction::Update(
-    TimePoint current_time) {
-  if (!send_time_) {
-    send_time_ = current_time + timeout_;
-  }
-  // wait time
-  if (*send_time_ > current_time) {
-    return UpdateStatus::Delay(*send_time_);
-  }
-
-  // send data
-  AE_TELED_DEBUG("Delayed packet send!");
-  out_->Write(std::move(data_buffer_));
-  return UpdateStatus::Result();
-}
-
-PacketDelayStream::PacketDelayStream(ActionContext action_context,
+PacketDelayStream::PacketDelayStream(AeContext const& ae_context,
                                      float delay_rate, Duration max_delay)
-    : action_context_{action_context},
-      delay_rate_{delay_rate},
-      max_delay_{max_delay} {}
+    : ae_context_{ae_context}, delay_rate_{delay_rate}, max_delay_{max_delay} {}
 
-ActionPtr<WriteAction> PacketDelayStream::Write(
-    DataBuffer&& data_buffer) {
+WriteAction& PacketDelayStream::Write(DataBuffer&& data_buffer) {
   assert(out_);
 
   if (bad_streams_internal::IsHitTheRate(delay_rate_)) {
     AE_TELED_DEBUG("Packet delay!");
     // delay send data by packet delay action
-    auto packet_delay_action = ActionPtr<PacketDelayAction>{
-        action_context_, *out_, std::move(data_buffer),
+    ae_context_.scheduler().DelayedTask(
+        [this, d{std::move(data_buffer)}]() mutable {
+          AE_TELED_DEBUG("Delayed packet send!");
+          out_->Write(std::move(d));
+        },
         std::chrono::duration_cast<Duration>(
-            bad_streams_internal::RandomPercent() * max_delay_)};
+            bad_streams_internal::RandomPercent() * max_delay_));
+
     // return data sent is done
-    return ActionPtr<bad_streams_internal::DoneStreamWriteAction>{
-        action_context_};
+    if (!dsw_ || dsw_->is_finished()) {
+      dsw_.emplace(ae_context_);
+    }
+    return *dsw_;
   }
 
   return out_->Write(std::move(data_buffer));

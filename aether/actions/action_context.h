@@ -21,6 +21,7 @@
 #include "aether/actions/action_trigger.h"
 
 namespace ae {
+class AeContext;
 namespace action_internal {
 template <typename T, typename Enab = void>
 struct ActionContextConcept : std::false_type {};
@@ -46,6 +47,9 @@ class ActionContext {
   ActionTrigger* trigger_;
   ActionRegistry* registry_;
 };
+
+ActionContext FromAeContext(AeContext const& ctx);
+
 }  // namespace ae
 
 #endif  // AETHER_ACTIONS_ACTION_CONTEXT_H_

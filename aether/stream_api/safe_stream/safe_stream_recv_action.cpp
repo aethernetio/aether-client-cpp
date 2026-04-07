@@ -22,10 +22,10 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-SafeStreamRecvAction::SafeStreamRecvAction(ActionContext action_context,
+SafeStreamRecvAction::SafeStreamRecvAction(AeContext const& ae_context,
                                            ISendAckRepeat& send_confirm_repeat,
                                            SafeStreamConfig const& config)
-    : Action{action_context},
+    : Action{FromAeContext(ae_context)},
       send_confirm_repeat_{&send_confirm_repeat},
       send_ack_timeout_{config.send_ack_timeout},
       send_repeat_timeout_{config.send_repeat_timeout},

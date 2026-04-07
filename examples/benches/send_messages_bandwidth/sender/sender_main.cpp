@@ -41,11 +41,10 @@ int test_sender_bandwidth(Uid const& receiver_uid) {
     return -1;
   }
 
-  auto action_context = ActionContext{*aether_app};
-  auto sender = Sender{action_context, client, receiver_uid};
+  auto sender = Sender{*aether_app, client, receiver_uid};
 
-  auto test_action =
-      ActionPtr<TestAction<Sender>>{action_context, sender, std::size_t{10000}};
+  auto test_action = ActionPtr<TestAction<Sender>>{ActionContext{*aether_app},
+                                                   sender, std::size_t{10000}};
 
   test_action->StatusEvent().Subscribe(ActionHandler{
       OnResult{[&](auto const& action) {
