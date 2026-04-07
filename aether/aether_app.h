@@ -234,7 +234,7 @@ class AetherApp {
 
   // Action context protocol
   operator ActionContext() const { return ActionContext{*aether_}; }
-  AeCtx ToAeContext() { return aether_->ToAeContext(); }
+  AeCtx ToAeContext() const { return aether_->ToAeContext(); }
 
  private:
   AetherApp() = default;
