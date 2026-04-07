@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "aether/ae_context.h"
 #include "aether/actions/action.h"
 #include "aether/types/server_id.h"
 #include "aether/types/state_machine.h"
@@ -35,7 +36,7 @@ class GetServersAction : public Action<GetServersAction> {
   };
 
  public:
-  GetServersAction(ActionContext action_context,
+  GetServersAction(AeContext const& ae_context,
                    std::vector<ServerId> server_ids,
                    CloudServerConnections& cloud_connection,
                    RequestPolicy::Variant request_policy);

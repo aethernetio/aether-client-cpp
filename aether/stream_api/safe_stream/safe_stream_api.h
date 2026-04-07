@@ -21,7 +21,6 @@
 
 #include "aether/api_protocol/api_method.h"
 #include "aether/api_protocol/api_class_impl.h"
-#include "aether/api_protocol/return_result_api.h"
 #include "aether/stream_api/safe_stream/safe_stream_types.h"
 
 namespace ae {

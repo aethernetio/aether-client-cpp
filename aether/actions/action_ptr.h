@@ -52,9 +52,10 @@ class ActionPtr {
   }
 
   template <typename... TArgs>
-  explicit ActionPtr(AeContext ae_context, TArgs&&... args)
+  explicit ActionPtr(AeContext const& ae_context, TArgs&&... args)
       : ptr_{std::make_shared<TAction>(ae_context,
                                        std::forward<TArgs>(args)...)} {
+    FromAeContext(ae_context).get_registry().PushBack(ptr_);
   }
 
   template <typename UAction, AE_REQUIRERS((std::is_base_of<TAction, UAction>))>
@@ -118,6 +119,12 @@ class OwnActionPtr : public ActionPtr<TAction> {
   template <typename... TArgs>
   explicit OwnActionPtr(ActionContext action_context, TArgs&&... args)
       : ActionPtr<TAction>{action_context, std::forward<TArgs>(args)...} {
+    static_assert(ActionStoppable<TAction>::value, "TAction must be stoppable");
+  }
+
+  template <typename... TArgs>
+  explicit OwnActionPtr(AeContext const& ae_context, TArgs&&... args)
+      : ActionPtr<TAction>{ae_context, std::forward<TArgs>(args)...} {
     static_assert(ActionStoppable<TAction>::value, "TAction must be stoppable");
   }
 

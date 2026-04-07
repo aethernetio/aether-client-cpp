@@ -28,6 +28,7 @@
 #include "aether/tele/tele.h"
 
 #include "tests/test-stream/to_data_buffer.h"
+#include "tests/test-stream/stream-test-ctx.h"
 #include "tests/test-stream/mock_bad_streams.h"
 #include "tests/test-stream/mock_write_stream.h"
 
@@ -45,29 +46,25 @@ constexpr auto config = SafeStreamConfig{
 static constexpr std::string_view test_data =
     "If I was in World War Two, they'd call me \"Spitfire\"";
 
-TimePoint WaitUntil(TimePoint epoch, TimePoint till_time,
-                    ActionTrigger& trigger) {
-  if (!trigger.IsTriggered()) {
-    epoch = till_time;
-  }
+TimePoint WaitUntil(TimePoint epoch, TimePoint till_time) {
+  epoch = till_time;
   return epoch;
 }
 
-void TestSendPackets(ActionProcessor& ap, SafeStream& sender,
-                     SafeStream& receiver, int wait_messages) {
-  auto ac = ActionContext{ap};
-
+void TestSendPackets(TestContext& ctx, SafeStream& sender, SafeStream& receiver,
+                     int wait_messages) {
   int sent_messages = 0;
   std::size_t received_size = 0;
 
   // send messages periodically
-  auto task = ActionPtr<RepeatableTask>{
-      ac,
+  auto task = RepeatableTask{
+      ctx,
       [&]() {
-        auto sent_action = sender.Write(ToDataBuffer(test_data));
-        sent_action->StatusEvent().Subscribe(
-            ActionHandler{OnResult{[&]() { wait_messages--; }},
-                          OnError{[&]() { TEST_FAIL(); }}});
+        auto& sent_action = sender.Write(ToDataBuffer(test_data));
+        sent_action.status_event().Subscribe([&](auto status) {
+          TEST_ASSERT_NOT_EQUAL(WriteAction::Status::kFail, status);
+          wait_messages--;
+        });
         sent_messages++;
       },
       std::chrono::milliseconds{50}, wait_messages};
@@ -82,8 +79,8 @@ void TestSendPackets(ActionProcessor& ap, SafeStream& sender,
   auto tick = std::chrono::milliseconds{1};
 
   while ((wait_messages > 0)) {
-    auto new_time = ap.Update(epoch);
-    epoch = WaitUntil(epoch, new_time, ap.get_trigger()) + tick;
+    auto new_time = ctx.Update(epoch);
+    epoch = WaitUntil(epoch, new_time) + tick;
   }
 
   TEST_ASSERT_EQUAL(0, wait_messages);
@@ -92,86 +89,83 @@ void TestSendPackets(ActionProcessor& ap, SafeStream& sender,
 }
 
 void test_SafeStreamLostPackets() {
-  auto ap = ActionProcessor{};
-  auto ac = ActionContext{ap};
+  TestContext ctx;
 
   // 20% packet loss
-  auto s_packet_loss = LostPacketsStream{ac, 0.2};
-  auto r_packet_loss = LostPacketsStream{ac, 0.2};
-  auto s_mock_stream = MockWriteStream{ac, 1024};
-  auto r_mock_stream = MockWriteStream{ac, 1024};
+  auto s_packet_loss = LostPacketsStream{ctx, 0.2};
+  auto r_packet_loss = LostPacketsStream{ctx, 0.2};
+  auto s_mock_stream = MockWriteStream{ctx, 1024};
+  auto r_mock_stream = MockWriteStream{ctx, 1024};
 
   s_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { r_mock_stream.WriteOut(data); });
   r_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { s_mock_stream.WriteOut(data); });
 
-  auto sender = SafeStream{ac, config};
-  auto receiver = SafeStream{ac, config};
+  auto sender = SafeStream{ctx, config};
+  auto receiver = SafeStream{ctx, config};
 
   // Tie streams forward and back
   Tie(sender, s_packet_loss, s_mock_stream);
   Tie(receiver, r_packet_loss, r_mock_stream);
 
-  TestSendPackets(ap, sender, receiver, 100);
+  TestSendPackets(ctx, sender, receiver, 100);
 }
 
 void test_SafeStreamPacketsReordered() {
-  auto ap = ActionProcessor{};
-  auto ac = ActionContext{ap};
+  TestContext ctx;
 
   // 20% packet loss
   auto s_packet_delay =
-      PacketDelayStream{ac, 0.2, std::chrono::milliseconds{50}};
+      PacketDelayStream{ctx, 0.2, std::chrono::milliseconds{50}};
   auto r_packet_delay =
-      PacketDelayStream{ac, 0.2, std::chrono::milliseconds{50}};
-  auto s_mock_stream = MockWriteStream{ac, 1024};
-  auto r_mock_stream = MockWriteStream{ac, 1024};
+      PacketDelayStream{ctx, 0.2, std::chrono::milliseconds{50}};
+  auto s_mock_stream = MockWriteStream{ctx, 1024};
+  auto r_mock_stream = MockWriteStream{ctx, 1024};
 
   s_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { r_mock_stream.WriteOut(data); });
   r_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { s_mock_stream.WriteOut(data); });
 
-  auto sender = SafeStream{ac, config};
-  auto receiver = SafeStream{ac, config};
+  auto sender = SafeStream{ctx, config};
+  auto receiver = SafeStream{ctx, config};
 
   // Tie streams forward and back
   Tie(sender, s_packet_delay, s_mock_stream);
   Tie(receiver, r_packet_delay, r_mock_stream);
 
-  TestSendPackets(ap, sender, receiver, 100);
+  TestSendPackets(ctx, sender, receiver, 100);
 }
 
 void test_SafeStreamPacketsLostAndReordered() {
-  auto ap = ActionProcessor{};
-  auto ac = ActionContext{ap};
+  TestContext ctx;
 
   // 20% packet reordered
   auto s_packet_delay =
-      PacketDelayStream{ac, 0.1, std::chrono::milliseconds{50}};
+      PacketDelayStream{ctx, 0.1, std::chrono::milliseconds{50}};
   auto r_packet_delay =
-      PacketDelayStream{ac, 0.1, std::chrono::milliseconds{50}};
+      PacketDelayStream{ctx, 0.1, std::chrono::milliseconds{50}};
   // 20% packet loss
-  auto s_packet_loss = LostPacketsStream{ac, 0.1};
-  auto r_packet_loss = LostPacketsStream{ac, 0.1};
+  auto s_packet_loss = LostPacketsStream{ctx, 0.1};
+  auto r_packet_loss = LostPacketsStream{ctx, 0.1};
 
-  auto s_mock_stream = MockWriteStream{ac, 1024};
-  auto r_mock_stream = MockWriteStream{ac, 1024};
+  auto s_mock_stream = MockWriteStream{ctx, 1024};
+  auto r_mock_stream = MockWriteStream{ctx, 1024};
 
   s_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { r_mock_stream.WriteOut(data); });
   r_mock_stream.on_write_event().Subscribe(
       [&](auto&& data) { s_mock_stream.WriteOut(data); });
 
-  auto sender = SafeStream{ac, config};
-  auto receiver = SafeStream{ac, config};
+  auto sender = SafeStream{ctx, config};
+  auto receiver = SafeStream{ctx, config};
 
   // Tie streams forward and back
   Tie(sender, s_packet_loss, s_packet_delay, s_mock_stream);
   Tie(receiver, r_packet_loss, r_packet_delay, r_mock_stream);
 
-  TestSendPackets(ap, sender, receiver, 100);
+  TestSendPackets(ctx, sender, receiver, 100);
 }
 
 }  // namespace ae::test_safe_stream_reliability

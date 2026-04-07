@@ -35,10 +35,10 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
   };
 
  public:
-  TestSendMessageDelaysAction(ActionContext action_context,
+  TestSendMessageDelaysAction(AeContext const& ae_context,
                               RcPtr<AetherApp> aether_app,
                               std::ostream& write_results_stream)
-      : Action{action_context},
+      : Action{FromAeContext(ae_context)},
         aether_{aether_app->aether()},
         write_results_stream_{write_results_stream},
         state_{State::kRegisterClients},
@@ -103,11 +103,10 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
         std::chrono::milliseconds{200},
     };
 
-    auto sender =
-        make_unique<Sender>(ActionContext{*aether_}, client_sender_,
-                            client_receiver_->uid(), safe_stream_config);
-    auto receiver = make_unique<Receiver>(ActionContext{*aether_},
-                                          client_receiver_, safe_stream_config);
+    auto sender = make_unique<Sender>(
+        *aether_, client_sender_, client_receiver_->uid(), safe_stream_config);
+    auto receiver =
+        make_unique<Receiver>(*aether_, client_receiver_, safe_stream_config);
 
     send_message_delays_manager_ = make_unique<SendMessageDelaysManager>(
         ActionContext{*aether_}, std::move(sender), std::move(receiver));
@@ -169,7 +168,7 @@ int test_send_message_delays(std::ostream& result_stream) {
   auto aether_app = AetherApp::Construct(AetherAppContext{});
 
   auto test_action = ActionPtr<TestSendMessageDelaysAction>{
-      *aether_app, aether_app, result_stream};
+      AeContext{*aether_app}, aether_app, result_stream};
   test_action->StatusEvent().Subscribe(
       ActionHandler{OnResult{[&]() { aether_app->Exit(0); }},
                     OnError{[&]() { aether_app->Exit(1); }}});

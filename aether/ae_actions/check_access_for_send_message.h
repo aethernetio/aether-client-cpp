@@ -40,7 +40,7 @@ class CheckAccessForSendMessage final
   };
 
  public:
-  CheckAccessForSendMessage(ActionContext action_context, Uid destination,
+  CheckAccessForSendMessage(AeContext const& ae_context, Uid destination,
                             CloudServerConnections& cloud_connection,
                             RequestPolicy::Variant request_policy);
 

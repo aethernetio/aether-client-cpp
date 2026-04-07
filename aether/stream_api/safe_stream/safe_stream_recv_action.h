@@ -40,7 +40,7 @@ class SafeStreamRecvAction : public Action<SafeStreamRecvAction> {
  public:
   using ReceiveEvent = Event<void(DataBuffer&& data)>;
 
-  SafeStreamRecvAction(ActionContext action_context,
+  SafeStreamRecvAction(AeContext const& ae_context,
                        ISendAckRepeat& send_confirm_repeat,
                        SafeStreamConfig const& config);
 

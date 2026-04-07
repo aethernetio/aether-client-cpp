@@ -16,6 +16,7 @@
 
 #include "send_messages_bandwidth/sender/sender.h"
 
+#include "aether/actions/action_context.h"
 #include "aether/api_protocol/api_context.h"
 #include "aether/stream_api/api_call_adapter.h"
 #include "aether/client_messages/p2p_message_stream.h"
@@ -23,9 +24,8 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-Sender::Sender(ActionContext action_context, Client::ptr client,
-               Uid destination)
-    : action_context_{action_context},
+Sender::Sender(AeContext const& ae_context, Client::ptr client, Uid destination)
+    : ae_context_{ae_context},
       client_{std::move(client)},
       destination_{destination},
       bandwidth_api_{protocol_context_} {}
@@ -71,8 +71,8 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
         // test started
         auto payload_size = message_size > 2 ? message_size - 2 : 0;
         message_sender_ = OwnActionPtr<MessageSender>{
-            action_context_,
-            [this, payload_size](std::uint16_t id) {
+            FromAeContext(ae_context_),
+            [this, payload_size](std::uint16_t id) -> decltype(auto) {
               auto api =
                   ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
               api->message(id, DataBuffer(payload_size));
@@ -96,8 +96,8 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
 }
 
 EventSubscriber<void()> Sender::StartTest() {
-  start_test_action_ = OwnActionPtr<RepeatableTask>{
-      action_context_,
+  start_test_action_.emplace(
+      ae_context_,
       [this]() {
         AE_TELED_DEBUG("Sending start test request");
         auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
@@ -110,17 +110,18 @@ EventSubscriber<void()> Sender::StartTest() {
         });
         api.Flush();
       },
-      std::chrono::seconds{1}, 5};
+      std::chrono::seconds{1}, 5);
 
-  sync_action_failed_sub_ = start_test_action_->StatusEvent().Subscribe(
-      OnError{[this](auto const&) { error_event_.Emit(); }});
+  sync_action_failed_sub_ =
+      start_test_action_->repeat_count_exceeded().Subscribe(
+          [this]() { error_event_.Emit(); });
 
   return test_started_event_;
 }
 
 EventSubscriber<void()> Sender::StopTest() {
-  stop_test_action_ = OwnActionPtr<RepeatableTask>{
-      action_context_,
+  stop_test_action_.emplace(
+      ae_context_,
       [this]() {
         AE_TELED_DEBUG("Sending stop test request");
         auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
@@ -133,7 +134,7 @@ EventSubscriber<void()> Sender::StopTest() {
         });
         api.Flush();
       },
-      std::chrono::seconds{1}, 5};
+      std::chrono::seconds{1}, 5);
 
   return test_stopped_event_;
 }

@@ -25,42 +25,39 @@
 namespace ae {
 
 SafeStreamWriteAction::SafeStreamWriteAction(
-    ActionContext action_context,
     ActionPtr<SendingDataAction> sending_data_action)
-    : WriteAction(action_context),
-      sending_data_action_{std::move(sending_data_action)} {
+    : sending_data_action_{std::move(sending_data_action)} {
   subscriptions_.Push(
       sending_data_action_->StatusEvent().Subscribe([this](auto status) {
-        status.OnResult([&]() { state_ = State::kDone; })
-            .OnError([&]() { state_ = State::kFailed; })
-            .OnStop([&]() { state_ = State::kStopped; });
-        state_.Acquire();
-        Action::Status(*this, status.result());
+        status.OnResult([&]() { SetStatus(WriteAction::Status::kSuccess); })
+            .OnError([&]() { SetStatus(WriteAction::Status::kFail); })
+            .OnStop([&]() { SetStatus(WriteAction::Status::kStop); });
       }));
 }
 
 // TODO: add tests for stop
-void SafeStreamWriteAction::Stop() {
+void SafeStreamWriteAction::Stop() noexcept {
   if (sending_data_action_) {
     sending_data_action_->Stop();
   }
 }
 
-SafeStream::SafeStream(ActionContext action_context, SafeStreamConfig config)
-    : action_context_{action_context},
-      config_{config},
+SafeStream::SafeStream(AeContext const& ae_context, SafeStreamConfig config)
+    : config_{config},
       safe_stream_api_{protocol_context_, *this},
-      send_action_{action_context_, *this, config_},
-      recv_acion_{action_context_, *this, config_},
+      send_action_{ae_context, *this, config_},
+      recv_acion_{ae_context, *this, config_},
       stream_info_{config_.max_packet_size, config_.max_packet_size, false,
                    LinkState::kUnlinked, false} {
   recv_acion_->receive_event().Subscribe(
       MethodPtr<&SafeStream::WriteOut>{this});
 }
 
-ActionPtr<WriteAction> SafeStream::Write(DataBuffer&& data) {
-  return ActionPtr<SafeStreamWriteAction>{
-      action_context_, send_action_->SendData(std::move(data))};
+WriteAction& SafeStream::Write(DataBuffer&& data) {
+  sswas_.emplace_back(std::make_unique<SafeStreamWriteAction>(
+      send_action_->SendData(std::move(data))));
+  // TODO: cleanup finished actions
+  return *sswas_.back();
 }
 
 StreamInfo SafeStream::stream_info() const { return stream_info_; }
@@ -120,13 +117,15 @@ void SafeStream::Send(SSRingIndex::type begin_offset,
   recv_acion_->PushData(received_offset, std::move(data_message));
 }
 
-ActionPtr<WriteAction> SafeStream::PushData(SSRingIndex begin,
-                                                  DataMessage&& data_message) {
+WriteAction& SafeStream::PushData(SSRingIndex begin,
+                                  DataMessage&& data_message) {
   assert(out_);
   auto api_adapter = ApiCallAdapter{ApiContext{safe_stream_api_}, *out_};
   api_adapter->send(static_cast<SSRingIndex::type>(begin),
                     std::move(data_message));
 
+  // cppcheck reports false positive
+  // cppcheck-suppress returnReference
   return api_adapter.Flush();
 }
 

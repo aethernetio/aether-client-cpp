@@ -21,11 +21,11 @@
 #include "aether/stream_api/tied_gates.h"
 
 namespace ae {
-P2pSafeStream::P2pSafeStream(ActionContext action_context,
+P2pSafeStream::P2pSafeStream(AeContext const& ae_context,
                              SafeStreamConfig const& config,
                              RcPtr<P2pStream> p2p_stream)
     : sized_packet_gate_{},
-      safe_stream_{action_context, config},
+      safe_stream_{ae_context, config},
       p2p_stream_{std::move(p2p_stream)},
       out_data_sub_{TiedEventOutData(
           [this](auto const& data) { out_data_event_.Emit(data); },
@@ -33,7 +33,7 @@ P2pSafeStream::P2pSafeStream(ActionContext action_context,
   Tie(safe_stream_, *p2p_stream_);
 }
 
-ActionPtr<WriteAction> P2pSafeStream::Write(DataBuffer&& data) {
+WriteAction& P2pSafeStream::Write(DataBuffer&& data) {
   auto sized_data = sized_packet_gate_.WriteIn(std::move(data));
   return safe_stream_.Write(std::move(sized_data));
 }

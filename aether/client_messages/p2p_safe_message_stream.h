@@ -32,12 +32,12 @@ namespace ae {
 
 class P2pSafeStream final : public ByteIStream {
  public:
-  P2pSafeStream(ActionContext action_context, SafeStreamConfig const& config,
+  P2pSafeStream(AeContext const& ae_context, SafeStreamConfig const& config,
                 RcPtr<P2pStream> p2p_stream);
 
   AE_CLASS_NO_COPY_MOVE(P2pSafeStream)
 
-  ActionPtr<WriteAction> Write(DataBuffer&& data) override;
+  WriteAction& Write(DataBuffer&& data) override;
   StreamInfo stream_info() const override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   OutDataEvent::Subscriber out_data_event() override;

@@ -34,7 +34,6 @@ namespace ae {
 class SafeStreamWriteAction final : public WriteAction {
  public:
   explicit SafeStreamWriteAction(
-      ActionContext action_context,
       ActionPtr<SendingDataAction> sending_data_action);
 
   // TODO: add tests for stop
@@ -50,7 +49,7 @@ class SafeStream final : public ByteStream,
                          public ISendDataPush,
                          public ISendAckRepeat {
  public:
-  SafeStream(ActionContext action_context, SafeStreamConfig config);
+  SafeStream(AeContext const& ae_context, SafeStreamConfig config);
 
   AE_CLASS_NO_COPY_MOVE(SafeStream);
 
@@ -76,12 +75,13 @@ class SafeStream final : public ByteStream,
   void OnStreamUpdate();
   void OnOutData(DataBuffer const& data);
 
-  ActionContext action_context_;
   SafeStreamConfig config_;
   ProtocolContext protocol_context_;
   SafeStreamApi safe_stream_api_;
   ActionPtr<SafeStreamSendAction> send_action_;
   ActionPtr<SafeStreamRecvAction> recv_acion_;
+
+  std::vector<std::unique_ptr<SafeStreamWriteAction>> sswas_;
 
   StreamInfo stream_info_;
 };

@@ -42,7 +42,7 @@ class SafeStreamSendAction : public Action<SafeStreamSendAction> {
   using ResponseStatistics =
       StatisticsCounter<Duration, AE_STATISTICS_SAFE_STREAM_WINDOW_SIZE>;
 
-  SafeStreamSendAction(ActionContext action_context,
+  SafeStreamSendAction(AeContext const& ae_context,
                        ISendDataPush& send_data_push,
                        SafeStreamConfig const& config);
 
@@ -64,9 +64,8 @@ class SafeStreamSendAction : public Action<SafeStreamSendAction> {
   void RejectSend(SendingChunk& sending_chunk);
   UpdateStatus SendTimeouts(TimePoint current_time);
 
-  ActionPtr<WriteAction> PushData(DataBuffer&& data_buffer,
-                                  SSRingIndex::type delta,
-                                  std::uint8_t repeat_count);
+  WriteAction& PushData(DataBuffer&& data_buffer, SSRingIndex::type delta,
+                        std::uint8_t repeat_count);
 
   ISendDataPush* send_data_push_;
 

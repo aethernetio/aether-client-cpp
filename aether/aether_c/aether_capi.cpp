@@ -49,6 +49,29 @@
 #include "aether/client_messages/p2p_message_stream_manager.h"
 // IWYU pragma: end_keeps
 
+namespace ae {
+template <typename TFunc>
+  requires(std::is_same_v<WriteAction&, std::invoke_result_t<TFunc>>)
+struct WriteActionStageRunner {
+ public:
+  explicit WriteActionStageRunner(TFunc&& f) : func_{std::move(f)} {}
+
+  void Run() { action_ = &std::invoke(func_); }
+
+  WriteAction* action() { return action_; }
+
+ private:
+  TFunc func_;
+  WriteAction* action_{};
+};
+
+template <typename TFunc>
+  requires(std::is_same_v<WriteAction&, std::invoke_result_t<TFunc>>)
+auto Stage(TFunc&& func) {
+  return WriteActionStageRunner{std::forward<TFunc>(func)};
+}
+}  // namespace ae
+
 static ae::RcPtr<ae::AetherApp> aether_app;
 
 struct AetherClient {
@@ -107,11 +130,9 @@ ae::ActionPtr<ae::SelectClientAction> SelectClientImpl(
   return select_action;
 }
 
-ae::ActionPtr<ae::WriteAction> WriteMessageImpl(AetherClient* client,
-                                                ae::Uid destination,
-                                                ae::DataBuffer&& data,
-                                                ActionStatusCb status_cb,
-                                                void* user_data) {
+ae::WriteAction& WriteMessageImpl(AetherClient* client, ae::Uid destination,
+                                  ae::DataBuffer&& data,
+                                  ActionStatusCb status_cb, void* user_data) {
   assert(client->client);
   auto it = client->streams.find(destination);
   if (it == std::end(client->streams)) {
@@ -124,19 +145,22 @@ ae::ActionPtr<ae::WriteAction> WriteMessageImpl(AetherClient* client,
 
     std::tie(it, std::ignore) = client->streams.emplace(destination, stream);
   }
-  auto action = it->second->Write(std::move(data));
+
+  auto& action = it->second->Write(std::move(data));
 
   if (status_cb != nullptr) {
-    action->StatusEvent().Subscribe(ae::ActionHandler{
-        ae::OnResult{[status_cb, user_data]() {
+    action.status_event().Subscribe([&](auto status) {
+      switch (status) {
+        case ae::WriteAction::Status::kSuccess:
           status_cb(ActionStatus::kSuccess, user_data);
-        }},
-        ae::OnError{[status_cb, user_data]() {
+          break;
+        case ae::WriteAction::Status::kFail:
           status_cb(ActionStatus::kFailure, user_data);
-        }},
-        ae::OnStop{[status_cb, user_data]() {
+          break;
+        case ae::WriteAction::Status::kStop:
           status_cb(ActionStatus::kStopped, user_data);
-        }},
+          break;
+      }
     });
   }
 
@@ -152,7 +176,7 @@ void WriteMessage(AetherClient* client, ae::Uid const& destination,
   if (!client->client) {
     client->actions_queue_->Push(
         ae::Stage([client, destination, d{std::move(data)}, status_cb,
-                   user_data]() mutable {
+                   user_data]() mutable -> decltype(auto) {
           return WriteMessageImpl(client, destination, std::move(d), status_cb,
                                   user_data);
         }));
@@ -344,7 +368,8 @@ AetherClient* SelectClient(ClientConfig const* config) {
 
   auto* ret_client = new AetherClient{};
   ret_client->config = *config;
-  ret_client->actions_queue_ = ae::OwnActionPtr<ae::ActionsQueue>{*aether_app};
+  ret_client->actions_queue_ =
+      ae::OwnActionPtr<ae::ActionsQueue>{ae::ActionContext{*aether_app}};
 
   ret_client->actions_queue_->Push(ae::Stage(
       [ret_client, config]() { return SelectClientImpl(ret_client, config); }));

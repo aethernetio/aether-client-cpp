@@ -28,10 +28,10 @@ DISABLE_WARNING_POP()
 
 #include "aether/common.h"
 #include "aether/ptr/ptr.h"
+#include "aether/ae_context.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/actions/action.h"
 #include "aether/types/state_machine.h"
-#include "aether/actions/action_context.h"
 #include "aether/api_protocol/request_id.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
@@ -58,7 +58,7 @@ class Ping : public Action<Ping> {
   };
 
  public:
-  Ping(ActionContext action_context, Ptr<Channel> const& channel,
+  Ping(AeContext const& ae_context, Ptr<Channel> const& channel,
        ClientServerConnection& client_server_connection,
        Duration ping_interval);
 

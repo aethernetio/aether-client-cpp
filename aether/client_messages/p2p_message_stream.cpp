@@ -33,21 +33,23 @@ namespace ae {
 namespace p2p_stream_internal {
 class MessageSendStream final : public IStream<AeMessage, AeMessage> {
  public:
-  explicit MessageSendStream(CloudServerConnections& cloud_connection,
+  explicit MessageSendStream(AeContext const& ae_context,
+                             CloudServerConnections& cloud_connection,
                              RequestPolicy::Variant request_policy)
-      : cloud_connection_{&cloud_connection},
+      : cloud_request_{ae_context, cloud_connection},
+        cloud_connection_{&cloud_connection},
         request_policy_{request_policy},
         servers_update_sub_{cloud_connection_->servers_update_event().Subscribe(
             MethodPtr<&MessageSendStream::UpdateServers>{this})} {
     UpdateServers();
   }
 
-  ActionPtr<WriteAction> Write(AeMessage&& message) override {
-    return CloudRequest::CallApi(
+  WriteAction& Write(AeMessage&& message) override {
+    return cloud_request_.CallApi(
         AuthApiCaller{[&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
           auth_api->send_message(std::move(message));
         }},
-        *cloud_connection_, request_policy_);
+        request_policy_);
   }
   StreamInfo stream_info() const override { return stream_info_; }
   OutDataEvent::Subscriber out_data_event() override { return out_data_event_; }
@@ -135,6 +137,7 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
     stream_update_event_.Emit();
   }
 
+  CloudRequest cloud_request_;
   CloudServerConnections* cloud_connection_;
   RequestPolicy::Variant request_policy_;
 
@@ -176,14 +179,12 @@ class ReadMessageGate {
 
 }  // namespace p2p_stream_internal
 
-P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
+P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
                      Uid destination)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       client_{client},
       destination_{destination},
-      // TODO: add buffer config
-      buffer_write_{action_context_, MethodPtr<&P2pStream::OnWrite>{this},
-                    100} {
+      buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}} {
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
   // destination uid must not be empty
   assert(!destination_.empty());
@@ -194,7 +195,7 @@ P2pStream::P2pStream(ActionContext action_context, Ptr<Client> const& client,
 
 P2pStream::~P2pStream() = default;
 
-ActionPtr<WriteAction> P2pStream::Write(DataBuffer&& data) {
+WriteAction& P2pStream::Write(DataBuffer&& data) {
   AE_TELED_DEBUG("Write message for uid {} size:{} data:{}", destination_,
                  data.size(), data);
   AeMessage message_data{destination_, std::move(data)};
@@ -261,7 +262,8 @@ void P2pStream::ConnectSend() {
             // TODO: add config for request policy
             message_send_stream_ =
                 std::make_unique<p2p_stream_internal::MessageSendStream>(
-                    *dest_cloud_conn_, RequestPolicy::MainServer{});
+                    ae_context_, *dest_cloud_conn_,
+                    RequestPolicy::MainServer{});
             message_send_stream_->stream_update_event().Subscribe(
                 stream_update_event_);
             AE_TELED_DEBUG("Send connected");
@@ -288,14 +290,14 @@ std::unique_ptr<ClientConnectionManager> P2pStream::MakeConnectionManager(
 std::unique_ptr<CloudServerConnections> P2pStream::MakeDestinationCloudConn(
     ClientConnectionManager& connection_manager) {
   return std::make_unique<CloudServerConnections>(
-      action_context_, connection_manager, AE_CLOUD_MAX_SERVER_CONNECTIONS);
+      ae_context_, connection_manager, AE_CLOUD_MAX_SERVER_CONNECTIONS);
 }
 
-ActionPtr<WriteAction> P2pStream::OnWrite(AeMessage&& message) {
+WriteAction* P2pStream::OnWrite(AeMessage&& message) {
   if (!message_send_stream_) {
     return {};
   }
-  return message_send_stream_->Write(std::move(message));
+  return &message_send_stream_->Write(std::move(message));
 }
 
 }  // namespace ae

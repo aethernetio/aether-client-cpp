@@ -22,9 +22,9 @@
 #include "aether/memory.h"
 #include "aether/client.h"
 #include "aether/types/uid.h"
+#include "aether/ae_context.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/actions/action_ptr.h"
-#include "aether/actions/action_context.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 #include "aether/stream_api/safe_stream/safe_stream_config.h"
@@ -35,7 +35,7 @@
 namespace ae::bench {
 class Sender {
  public:
-  Sender(ActionContext action_context, Client::ptr client, Uid destination_uid,
+  Sender(AeContext const& ae_context, Client::ptr client, Uid destination_uid,
          SafeStreamConfig safe_stream_config);
 
   void ConnectP2pStream();
@@ -53,7 +53,7 @@ class Sender {
   ActionPtr<TimedSender> CreateBenchAction(Func&& func,
 
                                            Duration min_send_interval);
-  ActionContext action_context_;
+  AeContext ae_context_;
   Client::ptr client_;
   Uid destination_uid_;
   SafeStreamConfig safe_stream_config_;

@@ -112,6 +112,7 @@ list(APPEND actions_srcs
             "actions/action_processor.cpp"
             "actions/timer_action.cpp"
             "actions/repeatable_task.cpp"
+            "actions/action_context.cpp"
             )
 
 list(APPEND registration_srcs

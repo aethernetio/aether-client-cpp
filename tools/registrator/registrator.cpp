@@ -166,7 +166,7 @@ int AetherRegistrator(const std::string& ini_file,
   }
 
   auto registrator_action = ae::ActionPtr<ae::reg::RegistratorAction>{
-      *aether_app, aether_app, registrator_config.clients()};
+      ae::AeContext{*aether_app}, aether_app, registrator_config.clients()};
 
   registrator_action->StatusEvent().Subscribe(ae::ActionHandler{
       ae::OnResult{[&](auto const& action) {

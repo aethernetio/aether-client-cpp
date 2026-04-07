@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "aether/types/uid.h"
+#include "aether/ae_context.h"
 #include "aether/actions/action.h"
 #include "aether/types/server_id.h"
 #include "aether/actions/action_ptr.h"
@@ -38,7 +39,7 @@ class GetClientCloudAction final : public Action<GetClientCloudAction> {
   };
 
  public:
-  GetClientCloudAction(ActionContext action_context, Uid client_uid,
+  GetClientCloudAction(AeContext const& ae_context, Uid client_uid,
                        CloudServerConnections& cloud_connection,
                        RequestPolicy::Variant request_policy);
 

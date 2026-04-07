@@ -140,7 +140,7 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
                   (cc->stream_info().link_state == LinkState::kLinked)) &&
                  "Client connection is not linked!");
 
-          auto write_action =
+          auto& write_action =
               cc->LoginApiCall(SubApi<LoginApi>{[this](auto& api) {
                 AE_TELED_DEBUG("Make time sync request");
                 response_sub_ = api->get_time_utc().Subscribe(
@@ -155,10 +155,12 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
                     });
               }});
           write_action_sub_ =
-              write_action->StatusEvent().Subscribe(OnError{[this]() {
-                AE_TELED_ERROR("Time sync write error, retry");
-                state_ = State::kRetry;
-              }});
+              write_action.status_event().Subscribe([this](auto status) {
+                if (status == WriteAction::Status::kFail) {
+                  AE_TELED_ERROR("Time sync write error, retry");
+                  state_ = State::kRetry;
+                }
+              });
         },
         client_ptr->cloud_connection(), RequestPolicy::MainServer{});
 

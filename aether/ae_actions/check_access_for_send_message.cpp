@@ -16,18 +16,19 @@
 
 #include "aether/ae_actions/check_access_for_send_message.h"
 
+#include "aether/aether.h"
 #include "aether/ae_actions/ae_actions_tele.h"  // IWYU pragma: keep
 
 namespace ae {
 CheckAccessForSendMessage::CheckAccessForSendMessage(
-    ActionContext action_context, Uid destination,
+    AeContext const& ae_context, Uid destination,
     CloudServerConnections& cloud_connection,
     RequestPolicy::Variant request_policy)
-    : Action{action_context},
+    : Action{ae_context.aether()},
       destination_{destination},
       state_{State::kNone},
       cloud_request_{
-          action_context,
+          ae_context,
           AuthApiRequest{[this](ApiContext<AuthorizedApi>& auth_api, auto*,
                                 auto* request) {
             wait_check_sub_ =

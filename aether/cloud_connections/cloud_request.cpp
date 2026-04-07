@@ -16,91 +16,94 @@
 
 #include "aether/cloud_connections/cloud_request.h"
 
+#include <vector>
 #include <utility>
 
 #include "aether/server.h"
+#include "aether/aether.h"
 #include "aether/reflect/reflect.h"
 #include "aether/write_action/write_action.h"
 #include "aether/cloud_connections/cloud_visit.h"
 
+#include "aether/cloud_connections/cloud_connections_tele.h"
+
 namespace ae {
-namespace cloud_request_internal {
-class EmptyConnectionsWA final : public WriteAction {
- public:
-  explicit EmptyConnectionsWA(ActionContext action_context)
-      : WriteAction(action_context) {
-    state_ = State::kFailed;
-  }
-};
-
-class ReplicaWA final : public WriteAction {
- public:
-  ReplicaWA(ActionContext action_context,
-            std::vector<ActionPtr<WriteAction>> swas)
-      : WriteAction(action_context), swas_(std::move(swas)) {
-    assert(!swas_.empty());
-    for (auto& action : swas_) {
-      // get the state from replicas by OR
-      // any success or all ether failed
-      subs_ += action->StatusEvent().Subscribe(
-          [this](ActionEventStatus<WriteAction> const& status) {
-            if (status.result().type == UpdateStatusType::kResult) {
-              Status(*this, UpdateStatus::Result());
-            } else {
+CloudRequest::ReplicaWA::ReplicaWA(std::vector<WriteAction*>&& swas) noexcept
+    : swas_{std::move(swas)} {
+  assert(!swas_.empty());
+  for (auto* action : swas_) {
+    // get the state from replicas by OR
+    // any success or all ether failed
+    subs_ +=
+        action->status_event().Subscribe([this](WriteAction::Status status) {
+          switch (status) {
+            case WriteAction::Status::kSuccess:
+              SetStatus(status);
+              return;
+            case WriteAction::Status::kFail:
               failed_actions_++;
-              last_status_ = status.result();
-              if (failed_actions_ == swas_.size()) {
-                Status(*this, last_status_);
-              }
-            }
-          });
-    }
+              break;
+            case WriteAction::Status::kStop:
+              stopped_actions_++;
+              break;
+          }
+          if ((failed_actions_ + stopped_actions_) >= swas_.size()) {
+            SetStatus(status);
+          }
+        });
   }
+}
 
-  void Stop() override {
-    for (auto& action : swas_) {
-      action->Stop();
-    }
+void CloudRequest::ReplicaWA::Stop() noexcept {
+  for (auto* action : swas_) {
+    action->Stop();
   }
+}
 
- private:
-  std::vector<ActionPtr<WriteAction>> swas_;
-  std::size_t failed_actions_{};
-  UpdateStatus last_status_;
-  MultiSubscription subs_;
-};
-}  // namespace cloud_request_internal
+CloudRequest::CloudRequest(AeContext const& ae_context,
+                           CloudServerConnections& connection)
+    : ae_context_{ae_context}, connection_{&connection} {}
 
-ActionPtr<WriteAction> CloudRequest::CallApi(AuthApiCaller const& api_caller,
-                                             CloudServerConnections& connection,
-                                             RequestPolicy::Variant policy) {
-  std::vector<ActionPtr<WriteAction>> swas;
+WriteAction& CloudRequest::CallApi(AuthApiCaller const& api_caller,
+                                   RequestPolicy::Variant policy) {
+  std::vector<WriteAction*> swas;
   CloudVisit::Visit(
       [&](CloudServerConnection* sc) {
         auto* conn = sc->client_connection();
         assert((conn != nullptr) && "Client connection is null");
-        swas.emplace_back(conn->AuthorizedApiCall(
+        swas.emplace_back(&conn->AuthorizedApiCall(
             SubApi<AuthorizedApi>{[&](auto& api) { api_caller(api, sc); }}));
       },
-      connection, policy);
+      *connection_, policy);
 
   if (swas.empty()) {
-    return ActionPtr<cloud_request_internal::EmptyConnectionsWA>{
-        connection.action_context_};
+    return EmptyWriteAction();
   }
   if (swas.size() == 1) {
-    return swas.front();
+    return *swas.front();
   }
-  return ActionPtr<cloud_request_internal::ReplicaWA>{
-      connection.action_context_, std::move(swas)};
+  return ReplicaWriteAction(std::move(swas));
+}
+
+WriteAction& CloudRequest::EmptyWriteAction() {
+  if (!empty_wa_ || empty_wa_->is_finished()) {
+    empty_wa_.emplace(ae_context_);
+  }
+  return *empty_wa_;
+}
+
+WriteAction& CloudRequest::ReplicaWriteAction(
+    std::vector<WriteAction*>&& swas) {
+  // TODO: replace vector to something static
+  return replica_was_.emplace_back(std::move(swas));
 }
 
 CloudRequestAction::CloudRequestAction(
-    ActionContext action_context, AuthApiCaller&& api_caller,
+    AeContext const& ae_context, AuthApiCaller&& api_caller,
     ClientResponseListener&& listener,
     CloudServerConnections& cloud_server_connections,
     RequestPolicy::Variant policy)
-    : Action{action_context},
+    : Action{ae_context.aether()},
       request_{std::move(api_caller)},
       listener_{std::move(listener)},
       cloud_sc_{&cloud_server_connections},
@@ -119,10 +122,10 @@ CloudRequestAction::CloudRequestAction(
 }
 
 CloudRequestAction::CloudRequestAction(
-    ActionContext action_context, AuthApiRequest&& api_request,
+    AeContext const& ae_context, AuthApiRequest&& api_request,
     CloudServerConnections& cloud_server_connections,
     RequestPolicy::Variant policy)
-    : Action{action_context},
+    : Action{ae_context.aether()},
       request_{std::move(api_request)},
       cloud_sc_{&cloud_server_connections},
       policy_{policy},
@@ -175,15 +178,15 @@ void CloudRequestAction::MakeRequest([[maybe_unused]] TimePoint current_time,
   AE_TELED_DEBUG("Make request to server {}", sc->server()->server_id);
 
   // make request depends on saved request kind
-  auto swa = std::visit(  // ~(^.^)~
+  auto& swa = std::visit(  // ~(^.^)~
       reflect::OverrideFunc{
           // Plain AuthApiCaller with ClientResponseListener
-          [&](AuthApiCaller& api_caller) {
+          [&](AuthApiCaller& api_caller) -> decltype(auto) {
             return conn->AuthorizedApiCall(SubApi{
                 [&](ApiContext<AuthorizedApi>& api) { api_caller(api, sc); }});
           },
           // AuthApiRequest
-          [&](AuthApiRequest& api_request) {
+          [&](AuthApiRequest& api_request) -> decltype(auto) {
             return conn->AuthorizedApiCall(
                 SubApi{[&](ApiContext<AuthorizedApi>& api) {
                   api_request(api, sc, this);
@@ -206,11 +209,13 @@ void CloudRequestAction::MakeRequest([[maybe_unused]] TimePoint current_time,
         state_ = State::kMakeRequest;
       }),
       // if request write failed
-      swa->StatusEvent().Subscribe(OnError{[this, sc]() {
-        AE_TELED_ERROR("Request write error");
-        RemoveRequest(sc);
-        state_ = State::kMakeRequest;
-      }}));
+      swa.status_event().Subscribe([this, sc](auto status) {
+        if (status == WriteAction::Status::kFail) {
+          AE_TELED_ERROR("Request write error");
+          RemoveRequest(sc);
+          state_ = State::kMakeRequest;
+        }
+      }));
   // TODO: add request server level timeout
 }
 

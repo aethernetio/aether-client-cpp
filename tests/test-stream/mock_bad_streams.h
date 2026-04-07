@@ -19,62 +19,46 @@
 
 #include <optional>
 
-#include "aether/common.h"
+#include "aether/ae_context.h"
 #include "aether/stream_api/istream.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/actions/action_context.h"
 
 namespace ae {
 namespace bad_streams_internal {
 class DoneStreamWriteAction : public WriteAction {
  public:
-  explicit DoneStreamWriteAction(ActionContext action_context);
+  explicit DoneStreamWriteAction(AeContext const& ae_context);
   using WriteAction::WriteAction;
 };
 }  // namespace bad_streams_internal
 
 class LostPacketsStream : public ByteStream {
  public:
-  LostPacketsStream(ActionContext action_context, float loss_rate);
+  LostPacketsStream(AeContext const& ae_context, float loss_rate);
 
-  ActionPtr<WriteAction> Write(DataBuffer&& data_buffer) override;
+  WriteAction& Write(DataBuffer&& data_buffer) override;
 
   void LinkOut(ByteIStream& out) override;
 
  private:
-  ActionContext action_context_;
+  AeContext ae_context_;
   float loss_rate_;
+  std::optional<bad_streams_internal::DoneStreamWriteAction> dsw_;
 };
 
 class PacketDelayStream : public ByteStream {
-  class PacketDelayAction : public Action<PacketDelayAction> {
-   public:
-    PacketDelayAction(ActionContext action_context, ByteIStream& out,
-                      DataBuffer&& data_buffer, Duration duration);
-
-    using Action::Action;
-
-    UpdateStatus Update(TimePoint current_time);
-
-   private:
-    ByteIStream* out_;
-    DataBuffer data_buffer_;
-    Duration timeout_;
-    std::optional<TimePoint> send_time_;
-  };
-
  public:
-  PacketDelayStream(ActionContext action_context, float delay_rate,
+  PacketDelayStream(AeContext const& ae_context, float delay_rate,
                     Duration max_delay);
 
-  ActionPtr<WriteAction> Write(DataBuffer&& data_buffer) override;
+  WriteAction& Write(DataBuffer&& data_buffer) override;
 
   void LinkOut(ByteIStream& out) override;
 
  private:
-  ActionContext action_context_;
+  AeContext ae_context_;
   float delay_rate_;
   Duration max_delay_;
+  std::optional<bad_streams_internal::DoneStreamWriteAction> dsw_;
 };
 }  // namespace ae
 
