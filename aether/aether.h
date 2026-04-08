@@ -137,7 +137,7 @@ class Aether : public Obj {
 
   std::map<std::string, ActionPtr<SelectClientAction>> select_client_actions_;
 #if AE_TIME_SYNC_ENABLED
-  ActionPtr<TimeSyncAction> time_sync_action_;
+  std::unique_ptr<TimeSyncAction> time_sync_action_;
 #endif
 };
 

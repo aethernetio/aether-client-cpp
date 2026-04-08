@@ -21,21 +21,45 @@
 
 #if AE_TIME_SYNC_ENABLED
 
+#  include <optional>
 #  include "aether/env.h"
 #  include "aether/clock.h"
+#  include "aether/ae_context.h"
 #  include "aether/ptr/ptr_view.h"
-#  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
-#  include "aether/types/state_machine.h"
+#  include "aether/actions/action2_.h"
+#  include "aether/executors/executors.h"
 
 namespace ae {
-class Aether;
 class Client;
-namespace time_sync_internal {
-class TimeSyncRequest;
-}
 
-class TimeSyncAction : public Action<TimeSyncAction> {
+namespace time_sync_internal {
+struct Success {};
+struct Failed {};
+struct Retry {};
+
+class TimeSyncRequest : public a2::Action {
+ public:
+  TimeSyncRequest(AeContext const& ae_context, Ptr<Client> const& client);
+
+ private:
+  auto EnsureConnected();
+  auto SyncRequest();
+  static void HandleResponse(std::chrono::milliseconds server_epoch,
+                             TimePoint request_time, TimePoint response_time);
+
+  AeContext ae_context_;
+  PtrView<Client> client_;
+  TimePoint request_time_;
+  Subscription link_state_sub_;
+  Subscription response_sub_;
+  Subscription write_action_sub_;
+  std::optional<
+      ex::AnyWaiter<ex::set_value_t(Success), ex::set_error_t(Failed)>>
+      waiter_;
+};
+}  // namespace time_sync_internal
+
+class TimeSyncAction {
   enum class State : char {
     kMakeRequest,
     kWaitInterval,
@@ -43,21 +67,17 @@ class TimeSyncAction : public Action<TimeSyncAction> {
   };
 
  public:
-  TimeSyncAction(ActionContext action_context, Ptr<Aether> const& aether,
-                 Ptr<Client> const& client, Duration sync_interval);
-
-  UpdateStatus Update();
+  TimeSyncAction(AeContext const& ae_context, Ptr<Client> const& client,
+                 Duration sync_interval);
 
  private:
   void MakeRequest();
-  UpdateStatus WaitInterval();
+  void ScheduleNextSync();
 
-  ActionContext action_context_;
-  PtrView<Aether> aether_;
+  AeContext ae_context_;
   PtrView<Client> client_;
   Duration sync_interval_;
-  StateMachine<State> state_;
-  ActionPtr<time_sync_internal::TimeSyncRequest> time_sync_request_;
+  std::optional<time_sync_internal::TimeSyncRequest> time_sync_request_;
 
   static RTC_STORAGE_ATTR TimePoint last_sync_time;
 };
