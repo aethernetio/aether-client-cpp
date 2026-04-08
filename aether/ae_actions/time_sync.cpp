@@ -21,79 +21,32 @@
 #  include "aether/client.h"
 #  include "aether/aether.h"
 #  include "aether/uap/uap.h"
+#  include "aether/misc/override.h"
+#  include "aether/types/iterator.h"
+#  include "aether/executors/executors.h"
 #  include "aether/cloud_connections/cloud_visit.h"
 #  include "aether/cloud_connections/cloud_server_connection.h"
+
+#  include "third_party/stdexec/include/exec/create.hpp"
 
 #  include "aether/tele/tele.h"
 
 namespace ae {
 namespace time_sync_internal {
-class TimeSyncRequest : public Action<TimeSyncRequest> {
-  enum class State : char {
-    kEnsureConnected,
-    kMakeRequest,
-    kWaitResponse,
-    kRetry,
-    kResult,
-    kFailed
-  };
+static constexpr auto kRequestTimeout = 10s;
+static constexpr auto kMaxTries = 5;
 
-  static constexpr auto kRequestTimeout = 10s;
-  static constexpr auto kMaxTries = 5;
-
- public:
-  TimeSyncRequest(ActionContext action_context, Ptr<Client> const& client)
-      : Action{action_context},
-        client_{client},
-        state_{State::kEnsureConnected} {
-    state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
-  }
-
-  UpdateStatus Update() {
-    if (state_.changed()) {
-      switch (state_.Acquire()) {
-        case State::kEnsureConnected:
-          EnsureConnected();
-          break;
-        case State::kMakeRequest:
-          SyncRequest();
-          break;
-        case State::kRetry: {
-          tries_++;
-          if (tries_ >= kMaxTries) {
-            state_ = State::kFailed;
-          } else {
-            state_ = State::kEnsureConnected;
-          }
-          break;
-        }
-        case State::kWaitResponse:
-          break;
-        case State::kResult:
-          return UpdateStatus::Result();
-        case State::kFailed:
-          return UpdateStatus::Error();
-      }
-    }
-
-    if (state_ == State::kWaitResponse) {
-      return WaitResponse();
-    }
-
-    return {};
-  }
-
- private:
-  void EnsureConnected() {
+auto TimeSyncRequest::EnsureConnected() {
+  return ex::create<ex::set_value_t(Success), ex::set_error_t(Failed),
+                    ex::set_error_t(Retry)>([&](auto& ctx) noexcept {
     auto client_ptr = client_.Lock();
     if (!client_ptr) {
-      state_ = State::kFailed;
-      return;
+      return ex::set_error(std::move(ctx.receiver), Failed{});
     }
 
     // check or subscribe for connection state to main server
     CloudVisit::Visit(
-        [this](CloudServerConnection* sc) {
+        [&](CloudServerConnection* sc) {
           assert((sc != nullptr) && "Server connection is null!");
 
           auto* cc = sc->client_connection();
@@ -101,18 +54,17 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
 
           // if already connected
           if (cc->stream_info().link_state == LinkState::kLinked) {
-            state_ = State::kMakeRequest;
-            return;
+            return ex::set_value(std::move(ctx.receiver), Success{});
           }
 
           // wait till connected
-          link_state_sub_ = cc->stream_update_event().Subscribe([this, cc]() {
+          link_state_sub_ = cc->stream_update_event().Subscribe([&, cc]() {
             switch (cc->stream_info().link_state) {
               case LinkState::kLinked:
-                state_ = State::kMakeRequest;
+                return ex::set_value(std::move(ctx.receiver), Success{});
                 break;
               case LinkState::kLinkError:
-                state_ = State::kRetry;
+                return ex::set_error(std::move(ctx.receiver), Retry{});
                 break;
               default:
                 break;
@@ -120,19 +72,21 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
           });
         },
         client_ptr->cloud_connection(), RequestPolicy::MainServer{});
-  }
+  });
+}
 
-  void SyncRequest() {
+auto TimeSyncRequest::SyncRequest() {
+  return ex::create<ex::set_value_t(Success), ex::set_error_t(Failed),
+                    ex::set_error_t(Retry)>([&](auto& ctx) noexcept {
     auto client_ptr = client_.Lock();
     if (!client_ptr) {
-      state_ = State::kFailed;
-      return;
+      return ex::set_error(std::move(ctx.receiver), Failed{});
     }
 
     // send get_time_utc request to main server
     // get_time_utc return server utc time point in microseconds
     CloudVisit::Visit(
-        [this](CloudServerConnection* sc) {
+        [&](CloudServerConnection* sc) {
           assert((sc != nullptr) && "Server connection is null!");
 
           auto* cc = sc->client_connection();
@@ -141,24 +95,26 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
                  "Client connection is not linked!");
 
           auto& write_action =
-              cc->LoginApiCall(SubApi<LoginApi>{[this](auto& api) {
+              cc->LoginApiCall(SubApi<LoginApi>{[&](auto& api) {
                 AE_TELED_DEBUG("Make time sync request");
                 response_sub_ = api->get_time_utc().Subscribe(
-                    [this, request_time{Now()}](auto const& p) {
-                      assert(p.IsOk());
+                    [&, request_time{Now()}](auto const& p) {
+                      if (!p) {
+                        return ex::set_error(std::move(ctx.receiver), Retry{});
+                      }
                       HandleResponse(
                           std::chrono::milliseconds{
                               static_cast<std::int64_t>(p.value())},
                           request_time, Now());
                       // time synced
-                      state_ = State::kResult;
+                      return ex::set_value(std::move(ctx.receiver), Success{});
                     });
               }});
           write_action_sub_ =
-              write_action.status_event().Subscribe([this](auto status) {
+              write_action.status_event().Subscribe([&](auto status) {
                 if (status == WriteAction::Status::kFail) {
                   AE_TELED_ERROR("Time sync write error, retry");
-                  state_ = State::kRetry;
+                  return ex::set_error(std::move(ctx.receiver), Retry{});
                 }
               });
         },
@@ -166,94 +122,92 @@ class TimeSyncRequest : public Action<TimeSyncRequest> {
 
     // use raw time to avoid sync jumps
     request_time_ = Now();
-    state_ = State::kWaitResponse;
-  }
+  });
+}
 
-  UpdateStatus WaitResponse() {
-    auto current_time = Now();
-    auto timeout = request_time_ + kRequestTimeout;
-    if (current_time > timeout) {
-      AE_TELED_ERROR("Time sync response timeout");
-      state_ = State::kFailed;
-      return {};
-    }
-    return UpdateStatus::Delay(timeout);
-  }
+TimeSyncRequest::TimeSyncRequest(AeContext const& ae_context,
+                                 Ptr<Client> const& client)
+    : ae_context_{ae_context}, client_{client} {
+  auto s =
+      ex::for_range(Range{1, kMaxTries},
+                    [&](auto) {
+                      return EnsureConnected() |
+                             ex::let_value([&](Success) noexcept {
+                               return SyncRequest();
+                             }) |
+                             ex::with_timeout(ae_context_, kRequestTimeout) |
+                             ex::let_error(Override{
+                                 [](Retry) noexcept {
+                                   AE_TELED_ERROR("Time sync retry");
+                                   return ex::just(ex::for_continue);
+                                 },
+                                 [](ex::TimeoutError) noexcept {
+                                   AE_TELED_ERROR("Time sync response timeout");
+                                   return ex::just(ex::for_continue);
+                                 },
+                                 [](auto&&...) noexcept {
+                                   AE_TELED_ERROR("Time sync failed");
+                                   return ex::just_error(Failed{});
+                                 },
+                             });
+                    }) |
+      ex::let_stopped([]() noexcept { return ex::just_error(Failed{}); });
 
-  static void HandleResponse(std::chrono::milliseconds server_epoch,
-                             TimePoint request_time, TimePoint response_time) {
-    auto server_time = TimePoint{server_epoch};
-    auto round_trip = response_time - request_time;
-    AE_TELED_DEBUG(
-        "Time sync roundtrip {:%S} request_time {:%Y-%m-%d %H:%M:%S}, "
-        "response_time {:%Y-%m-%d %H:%M:%S} server_time {:%Y-%m-%d %H:%M:%S}",
-        std::chrono::duration_cast<Duration>(round_trip), request_time,
-        response_time, server_time);
+  waiter_.emplace(
+      ae_context_, std::move(s),
+      [&](std::optional<Result<Success, Failed>> const& res) noexcept {
+        if (!res || !*res) {
+          AE_TELED_ERROR("Time sync failed");
+        }
+        if (res && *res) {
+          AE_TELED_ERROR("Time sync succeeded");
+        }
+        Finish();
+      });
+}
 
-    auto diff_time = server_time - request_time - round_trip / 2;
-    AE_TELED_INFO(
-        "Time sync diff_time is {} ms",
-        std::chrono::duration_cast<std::chrono::milliseconds>(diff_time)
-            .count());
-    // update diff time
-    SyncClock::SyncTimeDiff +=
-        std::chrono::duration_cast<decltype(SyncClock::SyncTimeDiff)>(
-            diff_time);
-    AE_TELED_DEBUG("Current time {:%Y-%m-%d %H:%M:%S}", Now());
-  }
+void TimeSyncRequest::HandleResponse(std::chrono::milliseconds server_epoch,
+                                     TimePoint request_time,
+                                     TimePoint response_time) {
+  auto server_time = TimePoint{server_epoch};
+  auto round_trip = response_time - request_time;
+  AE_TELED_DEBUG(
+      "Time sync roundtrip {:%S} request_time {:%Y-%m-%d %H:%M:%S}, "
+      "response_time {:%Y-%m-%d %H:%M:%S} server_time {:%Y-%m-%d %H:%M:%S}",
+      std::chrono::duration_cast<Duration>(round_trip), request_time,
+      response_time, server_time);
 
-  PtrView<Client> client_;
-  StateMachine<State> state_;
-  TimePoint request_time_;
-  int tries_{};
-  Subscription link_state_sub_;
-  Subscription response_sub_;
-  Subscription write_action_sub_;
-};
+  auto diff_time = server_time - request_time - round_trip / 2;
+  AE_TELED_INFO(
+      "Time sync diff_time is {} ms",
+      std::chrono::duration_cast<std::chrono::milliseconds>(diff_time).count());
+  // update diff time
+  SyncClock::SyncTimeDiff +=
+      std::chrono::duration_cast<decltype(SyncClock::SyncTimeDiff)>(diff_time);
+  AE_TELED_DEBUG("Current time {:%Y-%m-%d %H:%M:%S}", Now());
+}
+
 }  // namespace time_sync_internal
 
 // set end of time - this means last_sync_time is not set
 TimePoint TimeSyncAction::last_sync_time = TimePoint::max();
 
-TimeSyncAction::TimeSyncAction(ActionContext action_context,
-                               Ptr<Aether> const& aether,
+TimeSyncAction::TimeSyncAction(AeContext const& ae_context,
                                Ptr<Client> const& client,
                                Duration sync_interval)
-    : Action{action_context},
-      action_context_{action_context},
-      aether_{aether},
-      client_{client},
-      sync_interval_{sync_interval},
-      state_{State::kWaitInterval} {
-  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+    : ae_context_{ae_context}, client_{client}, sync_interval_{sync_interval} {
   AE_TELED_INFO("Time sync created");
-}
-
-UpdateStatus TimeSyncAction::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kMakeRequest:
-        MakeRequest();
-        break;
-      case State::kWaitInterval:
-        break;
-      case State::kFailed:
-        return UpdateStatus::Error();
-    }
+  // the end of time! It means never synced before
+  if (last_sync_time == TimePoint::max()) {
+    MakeRequest();
+  } else {
+    ScheduleNextSync();
   }
-  if (state_ == State::kWaitInterval) {
-    return WaitInterval();
-  }
-  return {};
 }
 
 void TimeSyncAction::MakeRequest() {
-  auto aether_ptr = aether_.Lock();
-  assert(aether_ptr);
-
-  auto uap = aether_ptr->uap.Load();
+  auto uap = ae_context_.aether().uap.Load();
   if (!uap) {
-    state_ = State::kFailed;
     return;
   }
 
@@ -261,40 +215,32 @@ void TimeSyncAction::MakeRequest() {
   if (auto timer = uap->timer();
       timer.has_value() &&
       timer->interval().interval.type != IntervalType::kSendReceive) {
-    state_ = State::kWaitInterval;
+    ScheduleNextSync();
     return;
   }
 
   auto client_ptr = client_.Lock();
   if (!client_ptr) {
-    state_ = State::kFailed;
     return;
   }
 
-  time_sync_request_ = ActionPtr<time_sync_internal::TimeSyncRequest>{
-      action_context_, client_ptr};
-  uap->RegisterAction(*time_sync_request_);
+  time_sync_request_.emplace(ae_context_, client_ptr);
+  uap->RegisterStart();
+  time_sync_request_->finished_event().Subscribe(
+      [uap]() { uap->RegisterEnd(); });
 
   // use raw time to avoid sync jumps
   last_sync_time = Now();
-  state_ = State::kWaitInterval;
+  ScheduleNextSync();
 }
 
-UpdateStatus TimeSyncAction::WaitInterval() {
-  // the end of time!
-  if (last_sync_time == TimePoint::max()) {
-    state_ = State::kMakeRequest;
-    return {};
-  }
-  auto current_time = Now();
-  auto timeout = last_sync_time + sync_interval_;
-  if (current_time > timeout) {
-    AE_TELED_INFO("Time sync interval timeout, make new request");
-    state_ = State::kMakeRequest;
-    return {};
-  }
-  return UpdateStatus::Delay(timeout);
-}
+void TimeSyncAction::ScheduleNextSync() {
+  TimePoint next_time =
+      ((last_sync_time == TimePoint::max()) ? Now() : last_sync_time) +
+      sync_interval_;
 
+  // TODO: add alive check for this
+  ae_context_.scheduler().DelayedTask([this]() { MakeRequest(); }, next_time);
+}
 }  // namespace ae
 #endif

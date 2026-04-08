@@ -199,16 +199,15 @@ Registration& Aether::RegisterClient(std::string const& client_id,
 
 void Aether::MakeTimeSyncAction([[maybe_unused]] Client::ptr const& client) {
 #if AE_TIME_SYNC_ENABLED
-  if (time_sync_action_ && !time_sync_action_->IsFinished()) {
+  if (time_sync_action_) {
     return;
   }
 
   client.WithLoaded([this](auto const& c) {
     static constexpr auto kTimeSyncInterval =
         std::chrono::seconds{AE_TIME_SYNC_INTERVAL_S};
-    time_sync_action_ = ActionPtr<TimeSyncAction>{
-        *action_processor, Aether::ptr::MakeFromThis(this).Load(), c,
-        kTimeSyncInterval};
+    time_sync_action_ =
+        std::make_unique<TimeSyncAction>(*this, c, kTimeSyncInterval);
   });
 #endif
 }
