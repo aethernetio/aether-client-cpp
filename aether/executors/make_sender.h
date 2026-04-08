@@ -19,6 +19,7 @@
 
 #include <functional>
 
+#include "third_party/stdexec/include/exec/create.hpp"
 #include "third_party/stdexec/include/stdexec/execution.hpp"
 
 namespace ae::ex {
@@ -28,7 +29,14 @@ class GenSender {
  public:
   template <typename R>
   struct Operation {
-    void start() & noexcept { std::invoke(f_, std::move(r_)); }
+    void start() & noexcept {
+      if constexpr (std::invocable<Func, R&&>) {
+        std::invoke(f_, std::move(r_));
+      } else {
+        std::invoke(f_, r_);
+      }
+    }
+
     R r_;
     Func f_;
   };
@@ -44,7 +52,7 @@ class GenSender {
   explicit constexpr GenSender(Func&& f) noexcept : f_{std::move(f)} {}
 
   template <stdexec::receiver R>
-    requires(std::invocable<Func, R &&>)
+    requires(std::invocable<Func, R &&> || std::invocable<Func, R&>)
   constexpr auto connect(R&& r) && noexcept {
     return Operation{.r_ = std::forward<R>(r), .f_ = std::move(f_)};
   }
@@ -66,6 +74,7 @@ template <typename... Sigs>
 static constexpr inline auto make_sender =
     make_sender_internal::MakeSender<Sigs...>{};
 
+using experimental::execution::create;
 }  // namespace ae::ex
 
 #endif  // AETHER_EXECUTORS_MAKE_SENDER_H_
