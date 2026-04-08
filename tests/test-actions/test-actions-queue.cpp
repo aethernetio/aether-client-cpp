@@ -17,7 +17,6 @@
 #include <unity.h>
 
 #include "aether/actions/action.h"
-#include "aether/actions/timer_action.h"
 #include "aether/actions/actions_queue.h"
 #include "aether/actions/action_processor.h"
 #include "aether/actions/pipeline.h"
@@ -510,94 +509,94 @@ void test_SinglePushStopCycle() {
   TEST_ASSERT_FALSE(stage_executed);
 }
 
-void test_TimerExpirationSequence() {
-  auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<ActionsQueue>(ap);
+// void test_TimerExpirationSequence() {
+//   auto ap = ActionProcessor{};
+//   auto queue = MakeActionPtr<ActionsQueue>(ap);
 
-  int completed_timers = 0;
-  bool stop_triggered = false;
+//   int completed_timers = 0;
+//   bool stop_triggered = false;
 
-  // Subscribe to stop event
-  queue->StatusEvent().Subscribe(OnStop{[&]() { stop_triggered = true; }});
+//   // Subscribe to stop event
+//   queue->StatusEvent().Subscribe(OnStop{[&]() { stop_triggered = true; }});
 
-  // Use factory functions to create timers and subscribe to their completion
-  // events
-  auto create_timer = [&](std::chrono::milliseconds duration,
-                          int expected_order) {
-    return Stage([&, duration, expected_order]() {
-      auto timer = ActionPtr<TimerAction>(ap, duration);
-      timer->StatusEvent().Subscribe(
-          OnResult{[&, expected_order]() { completed_timers++; }});
-      return timer;
-    });
-  };
+//   // Use factory functions to create timers and subscribe to their completion
+//   // events
+//   auto create_timer = [&](std::chrono::milliseconds duration,
+//                           int expected_order) {
+//     return Stage([&, duration, expected_order]() {
+//       auto timer = ActionPtr<TimerAction>(ap, duration);
+//       timer->StatusEvent().Subscribe(
+//           OnResult{[&, expected_order]() { completed_timers++; }});
+//       return timer;
+//     });
+//   };
 
-  // Push TimerAction stages with different durations to verify FIFO order
-  queue->Push(create_timer(std::chrono::milliseconds(10), 1));
-  queue->Push(create_timer(std::chrono::milliseconds(20), 2));
-  queue->Push(create_timer(std::chrono::milliseconds(30), 3));
+//   // Push TimerAction stages with different durations to verify FIFO order
+//   queue->Push(create_timer(std::chrono::milliseconds(10), 1));
+//   queue->Push(create_timer(std::chrono::milliseconds(20), 2));
+//   queue->Push(create_timer(std::chrono::milliseconds(30), 3));
 
-  // Run updates until all timers complete
-  int update_count = 0;
-  auto current_time = Now();
-  while (completed_timers < 3 && update_count < 100) {
-    current_time += std::chrono::milliseconds(1);
-    ap.Update(current_time);
-    update_count++;
-  }
+//   // Run updates until all timers complete
+//   int update_count = 0;
+//   auto current_time = Now();
+//   while (completed_timers < 3 && update_count < 100) {
+//     current_time += std::chrono::milliseconds(1);
+//     ap.Update(current_time);
+//     update_count++;
+//   }
 
-  // Verify all timers completed in FIFO order
-  TEST_ASSERT_EQUAL(3, completed_timers);
-  // Verify no stop event was triggered (queue should complete normally)
-  TEST_ASSERT_FALSE(stop_triggered);
-}
+//   // Verify all timers completed in FIFO order
+//   TEST_ASSERT_EQUAL(3, completed_timers);
+//   // Verify no stop event was triggered (queue should complete normally)
+//   TEST_ASSERT_FALSE(stop_triggered);
+// }
 
-void test_StopBeforeTimerExpiration() {
-  auto ap = ActionProcessor{};
-  auto queue = MakeActionPtr<ActionsQueue>(ap);
+// void test_StopBeforeTimerExpiration() {
+//   auto ap = ActionProcessor{};
+//   auto queue = MakeActionPtr<ActionsQueue>(ap);
 
-  int expired_timers = 0;
-  bool stop_triggered = false;
+//   int expired_timers = 0;
+//   bool stop_triggered = false;
 
-  // Subscribe to stop event
-  queue->StatusEvent().Subscribe(OnStop{[&]() { stop_triggered = true; }});
+//   // Subscribe to stop event
+//   queue->StatusEvent().Subscribe(OnStop{[&]() { stop_triggered = true; }});
 
-  // Use factory functions to create timers and subscribe to their completion
-  // events
-  auto create_timer = [&](std::chrono::milliseconds duration) {
-    return Stage([&, duration]() {
-      auto timer = ActionPtr<TimerAction>(ap, duration);
-      timer->StatusEvent().Subscribe(OnResult{[&]() { expired_timers++; }});
-      return timer;
-    });
-  };
+//   // Use factory functions to create timers and subscribe to their completion
+//   // events
+//   auto create_timer = [&](std::chrono::milliseconds duration) {
+//     return Stage([&, duration]() {
+//       auto timer = ActionPtr<TimerAction>(ap, duration);
+//       timer->StatusEvent().Subscribe(OnResult{[&]() { expired_timers++; }});
+//       return timer;
+//     });
+//   };
 
-  // Push TimerAction stages with long durations
-  queue->Push(create_timer(std::chrono::milliseconds(100)));
-  queue->Push(create_timer(std::chrono::milliseconds(100)));
-  queue->Push(create_timer(std::chrono::milliseconds(100)));
+//   // Push TimerAction stages with long durations
+//   queue->Push(create_timer(std::chrono::milliseconds(100)));
+//   queue->Push(create_timer(std::chrono::milliseconds(100)));
+//   queue->Push(create_timer(std::chrono::milliseconds(100)));
 
-  // Run a few updates to let timers start
-  auto current_time = Now();
-  for (int i = 0; i < 5; i++) {
-    current_time += std::chrono::milliseconds(1);
-    ap.Update(current_time);
-  }
+//   // Run a few updates to let timers start
+//   auto current_time = Now();
+//   for (int i = 0; i < 5; i++) {
+//     current_time += std::chrono::milliseconds(1);
+//     ap.Update(current_time);
+//   }
 
-  // Stop the queue before any timers expire
-  queue->Stop();
+//   // Stop the queue before any timers expire
+//   queue->Stop();
 
-  // Run updates to process the stop
-  for (int i = 0; i < 10; i++) {
-    current_time += std::chrono::milliseconds(1);
-    ap.Update(current_time);
-  }
+//   // Run updates to process the stop
+//   for (int i = 0; i < 10; i++) {
+//     current_time += std::chrono::milliseconds(1);
+//     ap.Update(current_time);
+//   }
 
-  // Verify queue was stopped
-  TEST_ASSERT_TRUE(stop_triggered);
-  // Verify no timers expired (all were stopped before completion)
-  TEST_ASSERT_EQUAL(0, expired_timers);
-}
+//   // Verify queue was stopped
+//   TEST_ASSERT_TRUE(stop_triggered);
+//   // Verify no timers expired (all were stopped before completion)
+//   TEST_ASSERT_EQUAL(0, expired_timers);
+// }
 
 }  // namespace ae::test_actions_queue
 
@@ -614,8 +613,8 @@ int test_actions_queue() {
   RUN_TEST(ae::test_actions_queue::test_StopAfterStageCompletion);
   RUN_TEST(ae::test_actions_queue::test_DynamicStageAddition);
   RUN_TEST(ae::test_actions_queue::test_SinglePushStopCycle);
-  RUN_TEST(ae::test_actions_queue::test_TimerExpirationSequence);
-  RUN_TEST(ae::test_actions_queue::test_StopBeforeTimerExpiration);
+  // RUN_TEST(ae::test_actions_queue::test_TimerExpirationSequence);
+  // RUN_TEST(ae::test_actions_queue::test_StopBeforeTimerExpiration);
 
   return UNITY_END();
 }

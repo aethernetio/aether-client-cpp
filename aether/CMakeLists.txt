@@ -110,7 +110,6 @@ list(APPEND actions_srcs
             "actions/action_trigger.cpp"
             "actions/action_registry.cpp"
             "actions/action_processor.cpp"
-            "actions/timer_action.cpp"
             "actions/repeatable_task.cpp"
             "actions/action_context.cpp"
             )

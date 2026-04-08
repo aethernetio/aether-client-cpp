@@ -135,6 +135,8 @@ class Uap final : public Obj {
    * \brief Register action which should be finished before sleep event.
    */
   void RegisterAction(IAction& action);
+  void RegisterStart();
+  void RegisterEnd();
 
  private:
   void Loaded();
