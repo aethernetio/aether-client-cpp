@@ -35,12 +35,14 @@ namespace ae {
 
 Aether::Aether()
     : action_processor{make_unique<ActionProcessor>()},
-      task_scheduler{make_unique<TaskScheduler>()} {}
+      task_scheduler{make_unique<TaskScheduler>()},
+      index_registry{make_unique<IndexRegistry>()} {}
 
 Aether::Aether(ObjProp prop)
     : Obj{prop},
       action_processor{make_unique<ActionProcessor>()},
-      task_scheduler{make_unique<TaskScheduler>()} {
+      task_scheduler{make_unique<TaskScheduler>()},
+      index_registry{make_unique<IndexRegistry>()} {
   AE_TELE_DEBUG(AetherCreated);
 }
 
@@ -61,6 +63,9 @@ AeCtx Aether::ToAeContext() const {
       [](void* obj) -> Aether& { return *static_cast<Aether*>(obj); },
       [](void* obj) -> TaskScheduler& {
         return *static_cast<Aether*>(obj)->task_scheduler;
+      },
+      [](void* obj) -> IndexRegistry& {
+        return *static_cast<Aether*>(obj)->index_registry;
       },
   };
   return AeCtx{const_cast<Aether*>(this), &ae_table};  // NOLINT(*const-cast)
