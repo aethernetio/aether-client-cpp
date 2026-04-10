@@ -18,6 +18,7 @@
 
 #include <utility>
 #include <cassert>
+#include <optional>
 
 #include "aether/aether.h"
 #include "aether/client.h"
@@ -89,20 +90,23 @@ class GetCloudFromAether : public GetCloudAction {
 
  private:
   void RequestCloud() {
-    get_client_cloud_action_ = OwnActionPtr<GetClientCloudAction>(
+    get_client_cloud_action_.emplace(
         ae_context_, client_uid_, *cloud_connection_,
         RequestPolicy::Replica{cloud_connection_->count_connections()});
 
-    get_client_cloud_sub_ = get_client_cloud_action_->StatusEvent().Subscribe(
-        ActionHandler{OnResult{[this](auto const& action) {
-                        auto const& resolved = action.cloud();
-                        if (!resolved.empty()) {
-                          BuildServers(resolved);
-                        } else {
-                          state_ = State::kError;
-                        }
-                      }},
-                      OnError{[this]() { state_ = State::kError; }}});
+    get_client_cloud_sub_ = get_client_cloud_action_->result_event().Subscribe(
+        [this](auto const& res) {
+          if (res) {
+            auto const& resolved = res.value();
+            if (!resolved.empty()) {
+              BuildServers(resolved);
+            } else {
+              state_ = State::kError;
+            }
+          } else {
+            state_ = State::kError;
+          }
+        });
   }
 
   void BuildServers(std::vector<ServerId> cloud) {
@@ -119,32 +123,33 @@ class GetCloudFromAether : public GetCloudAction {
     }
     if (!missing_servers.empty()) {
       // If there are missing servers, resolve them from the cloud
-      get_servers_action_ = OwnActionPtr<GetServersAction>{
+      get_servers_action_.emplace(
           ae_context_, missing_servers, *cloud_connection_,
-          RequestPolicy::Replica{cloud_connection_->count_connections()}};
-      get_servers_sub_ =
-          get_servers_action_->StatusEvent().Subscribe(ActionHandler{
-              OnResult{[this](auto const& action) mutable {
-                auto new_servers = BuildNewServers(action.servers());
-                // extend the existing servers with the new ones
-                servers_.insert(std::end(servers_), std::begin(new_servers),
-                                std::end(new_servers));
-                // sort servers by cloud order
-                std::sort(std::begin(servers_), std::end(servers_),
-                          [&](auto const& left, auto const& right) {
-                            auto left_order = std::find(std::begin(cloud_sids_),
-                                                        std::end(cloud_sids_),
-                                                        left.Load()->server_id);
-                            auto right_order = std::find(
-                                std::begin(cloud_sids_), std::end(cloud_sids_),
-                                right.Load()->server_id);
-                            return left_order < right_order;
-                          });
+          RequestPolicy::Replica{cloud_connection_->count_connections()});
+      get_servers_sub_ = get_servers_action_->result_event().Subscribe(
+          [this](auto const& result) mutable {
+            if (result) {
+              auto new_servers = BuildNewServers(result.value());
+              // extend the existing servers with the new ones
+              servers_.insert(std::end(servers_), std::begin(new_servers),
+                              std::end(new_servers));
+              // sort servers by cloud order
+              std::sort(std::begin(servers_), std::end(servers_),
+                        [&](auto const& left, auto const& right) {
+                          auto left_order = std::find(std::begin(cloud_sids_),
+                                                      std::end(cloud_sids_),
+                                                      left.Load()->server_id);
+                          auto right_order = std::find(std::begin(cloud_sids_),
+                                                       std::end(cloud_sids_),
+                                                       right.Load()->server_id);
+                          return left_order < right_order;
+                        });
 
-                RegisterCloud(std::move(servers_));
-                state_ = State::kDone;
-              }},
-              OnError{[this]() { state_ = State::kError; }},
+              RegisterCloud(std::move(servers_));
+              state_ = State::kDone;
+            } else {
+              state_ = State::kError;
+            }
           });
     } else {
       // all servers already known to aether, just build a new cloud
@@ -182,9 +187,9 @@ class GetCloudFromAether : public GetCloudAction {
   CloudServerConnections* cloud_connection_;
   Uid client_uid_;
   StateMachine<State> state_;
-  OwnActionPtr<GetClientCloudAction> get_client_cloud_action_;
+  std::optional<GetClientCloudAction> get_client_cloud_action_;
   Subscription get_client_cloud_sub_;
-  OwnActionPtr<GetServersAction> get_servers_action_;
+  std::optional<GetServersAction> get_servers_action_;
   Subscription get_servers_sub_;
   std::vector<ServerId> cloud_sids_;
   std::vector<Server::ptr> servers_;

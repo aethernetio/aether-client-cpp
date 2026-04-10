@@ -22,7 +22,6 @@
 #include "aether/common.h"
 #include "aether/ae_context.h"
 #include "aether/ae_actions/ping.h"
-#include "aether/actions/action_ptr.h"
 #include "aether/crypto/icrypto_provider.h"
 
 #include "aether/work_cloud_api/work_server_api/login_api.h"
@@ -72,7 +71,7 @@ class ClientServerConnection {
   LoginApi login_api_;
 
   ServerConnection server_connection_;
-  OwnActionPtr<Ping> ping_;
+  std::optional<Ping> ping_;
 
   Subscription ping_sub_;
   Subscription wait_connection_sub_;

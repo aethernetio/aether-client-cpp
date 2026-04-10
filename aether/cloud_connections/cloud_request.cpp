@@ -103,82 +103,72 @@ CloudRequestAction::CloudRequestAction(
     ClientResponseListener&& listener,
     CloudServerConnections& cloud_server_connections,
     RequestPolicy::Variant policy)
-    : Action{ae_context.aether()},
+    : ae_context_{ae_context},
       request_{std::move(api_caller)},
       listener_{std::move(listener)},
       cloud_sc_{&cloud_server_connections},
       policy_{policy},
-      cloud_sub_{
-          ClientListener{
-              [this](auto& api, auto* sc) { return listener_(api, sc, this); },
-          },
-          *cloud_sc_,
-          policy_,
-      },
-      state_{State::kMakeRequest} {
-  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
-  server_changed_sub_ = cloud_sc_->servers_update_event().Subscribe(
-      MethodPtr<&CloudRequestAction::ServersUpdated>{this});
+      alive_ctx_{std::in_place, ae_context_, this},
+      server_changed_sub_{cloud_sc_->servers_update_event().Subscribe(
+          MethodPtr<&CloudRequestAction::ServersUpdated>{this})} {
+  EnqueueMakeRequest();
 }
 
 CloudRequestAction::CloudRequestAction(
     AeContext const& ae_context, AuthApiRequest&& api_request,
     CloudServerConnections& cloud_server_connections,
     RequestPolicy::Variant policy)
-    : Action{ae_context.aether()},
+    : ae_context_{ae_context},
       request_{std::move(api_request)},
       cloud_sc_{&cloud_server_connections},
       policy_{policy},
-      state_{State::kMakeRequest} {
-  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
-  server_changed_sub_ = cloud_sc_->servers_update_event().Subscribe(
-      MethodPtr<&CloudRequestAction::ServersUpdated>{this});
+      alive_ctx_{std::in_place, ae_context_, this},
+      server_changed_sub_{cloud_sc_->servers_update_event().Subscribe(
+          MethodPtr<&CloudRequestAction::ServersUpdated>{this})} {
+  EnqueueMakeRequest();
 }
 
-UpdateStatus CloudRequestAction::Update(TimePoint current_time) {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kMakeRequest:
-        MakeRequest(current_time);
-        break;
-      case State::kWait:
-        break;
-      case State::kResult:
-        return UpdateStatus::Result();
-      case State::kFailed:
-        return UpdateStatus::Error();
-      case State::kStopped:
-        return UpdateStatus::Stop();
-    }
-  }
-  return {};
+void CloudRequestAction::Succeeded() {
+  Finish();
+  success_event_.Emit();
 }
 
-void CloudRequestAction::Stop() { state_ = State::kStopped; }
-void CloudRequestAction::Succeeded() { state_ = State::kResult; }
-void CloudRequestAction::Failed() { state_ = State::kFailed; }
-
-void CloudRequestAction::MakeRequest(TimePoint current_time) {
-  CloudVisit::Visit([&](auto* sc) { MakeRequest(current_time, sc); },
-                    *cloud_sc_, policy_);
-  state_ = State::kWait;
+void CloudRequestAction::Failed() {
+  Finish();
+  success_event_.Emit();
 }
 
-void CloudRequestAction::MakeRequest([[maybe_unused]] TimePoint current_time,
-                                     CloudServerConnection* sc) {
+CloudRequestAction::SuccessEvent::Subscriber
+CloudRequestAction::success_event() {
+  return EventSubscriber{success_event_};
+}
+
+CloudRequestAction::FailureEvent::Subscriber
+CloudRequestAction::failure_event() {
+  return EventSubscriber{failure_event_};
+}
+
+void CloudRequestAction::MakeRequest() {
+  CloudVisit::Visit(
+      [&](auto& sc) {
+        auto [it, ok] = server_requests_.emplace(sc, ServerRequest{});
+        if (!ok) {
+          return;
+        }
+        MakeServerRequest(it->first, it->second);
+      },
+      *cloud_sc_, policy_);
+}
+
+void CloudRequestAction::MakeServerRequest(CloudServerConnection* sc,
+                                           ServerRequest& sr) {
   auto* conn = sc->client_connection();
   assert((conn != nullptr) && "Client connection is null");
-
-  auto* sr = SaveRequest(sc);
-  // if new request was not created skip server
-  if (sr == nullptr) {
-    return;
-  }
 
   AE_TELED_DEBUG("Make request to server {}", sc->server()->server_id);
 
   // make request depends on saved request kind
-  auto& swa = std::visit(  // ~(^.^)~
+  auto& swa = std::visit(  // ~['_']~
       reflect::OverrideFunc{
           // Plain AuthApiCaller with ClientResponseListener
           [&](AuthApiCaller& api_caller) -> decltype(auto) {
@@ -195,59 +185,61 @@ void CloudRequestAction::MakeRequest([[maybe_unused]] TimePoint current_time,
       },
       request_);
 
-  sr->state_subs.Push(
-      // if server stream changed it's channel
+  sr.state_subs.Push(
+      // if server stream changed its channel
       conn->server_connection().channel_changed_event().Subscribe([this, sc]() {
         AE_TELED_WARNING("Request server channel changed");
         RemoveRequest(sc);
-        state_ = State::kMakeRequest;
+        EnqueueMakeRequest();
       }),
       // if server stream is disconnected
       conn->server_connection().server_error_event().Subscribe([this, sc]() {
         AE_TELED_WARNING("Request server error");
         RemoveRequest(sc);
-        state_ = State::kMakeRequest;
+        EnqueueMakeRequest();
       }),
       // if request write failed
       swa.status_event().Subscribe([this, sc](auto status) {
         if (status == WriteAction::Status::kFail) {
           AE_TELED_ERROR("Request write error");
           RemoveRequest(sc);
-          state_ = State::kMakeRequest;
+          EnqueueMakeRequest();
         }
       }));
   // TODO: add request server level timeout
+  if (listener_) {
+    // update listener in case if servers changed
+    sr.state_subs += listener_(conn->client_safe_api(), sc, this);
+  }
 }
 
-void CloudRequestAction::ServersUpdated() {
-  if ((state_ != State::kMakeRequest) && state_ != State::kWait) {
-    return;
-  }
-  // reset all requests
-  for (auto& [_, sr] : server_requests_) {
-    sr.is_active = false;
-    sr.state_subs.Reset();
-  }
-  state_ = State::kMakeRequest;
-}
-
-CloudRequestAction::ServerRequest* CloudRequestAction::SaveRequest(
-    CloudServerConnection* server_connection) {
-  auto& sr = server_requests_[server_connection];
-  // request is already active
-  if (sr.is_active) {
-    return nullptr;
-  }
-  // activate request
-  sr.is_active = true;
-  return &sr;
-}
+void CloudRequestAction::ServersUpdated() { EnqueueMakeRequest(); }
 
 void CloudRequestAction::RemoveRequest(
     CloudServerConnection* server_connection) {
-  auto& sr = server_requests_[server_connection];
-  sr.is_active = false;
-  sr.state_subs.Reset();
+  server_requests_.erase(server_connection);
+}
+
+void CloudRequestAction::EnqueueMakeRequest() {
+  // enqueue only once at a time
+  if (enqueued_) {
+    return;
+  }
+  enqueued_ = true;
+  ae_context_.scheduler().Task([imalive{alive_ctx_->View()}]() {
+    if (imalive) {
+      imalive->enqueued_ = false;
+      imalive->MakeRequest();
+    }
+  });
+}
+
+void CloudRequestAction::Finish() {
+  swa_sub_.Reset();
+  server_changed_sub_.Reset();
+  alive_ctx_.reset();
+
+  a2::Action::Finish();
 }
 
 }  // namespace ae

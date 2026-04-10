@@ -20,11 +20,10 @@
 
 #include "aether/common.h"
 #include "aether/ae_context.h"
-#include "aether/types/state_machine.h"
+#include "aether/actions/action2_.h"
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_callbacks.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
-#include "aether/cloud_connections/cloud_subscription.h"
 
 namespace ae {
 class CloudRequest {
@@ -69,26 +68,21 @@ class CloudRequest {
 /**
  * \brief Makes request according to the request policy.
  * If request fails or times out, it will restream the cloud connection and
- * retire until max_attempts is reached.
+ * retrie until max_attempts is reached.
  * ResponseListener listener must subscribe to client_api and handle the
  * response. On success, listener must call CloudRequestAction::Succeeded(). On
  * failure, listener must call CloudRequestAction::Failed().
  */
-class CloudRequestAction final : public Action<CloudRequestAction> {
-  enum class State : std::uint8_t {
-    kMakeRequest,
-    kWait,
-    kResult,
-    kFailed,
-    kStopped,
-  };
-
+class CloudRequestAction final : public a2::Action {
   struct ServerRequest {
     MultiSubscription state_subs;
     bool is_active{false};
   };
 
  public:
+  using SuccessEvent = Event<void()>;
+  using FailureEvent = Event<void()>;
+
   CloudRequestAction(AeContext const& ae_context, AuthApiCaller&& api_caller,
                      ClientResponseListener&& listener,
                      CloudServerConnections& cloud_server_connections,
@@ -100,32 +94,35 @@ class CloudRequestAction final : public Action<CloudRequestAction> {
 
   AE_CLASS_NO_COPY_MOVE(CloudRequestAction)
 
-  UpdateStatus Update(TimePoint current_time);
-  void Stop();
-
   void Succeeded();
   void Failed();
 
- private:
-  void MakeRequest(TimePoint current_time);
+  SuccessEvent::Subscriber success_event();
+  FailureEvent::Subscriber failure_event();
 
-  void MakeRequest(TimePoint current_time,
-                   CloudServerConnection* server_connection);
+ private:
+  void MakeRequest();
+  void MakeServerRequest(CloudServerConnection* sc, ServerRequest& sr);
 
   void ServersUpdated();
 
-  ServerRequest* SaveRequest(CloudServerConnection* server_connection);
   void RemoveRequest(CloudServerConnection* server_connection);
+  void EnqueueMakeRequest();
 
+  void Finish();
+
+  AeContext ae_context_;
   std::variant<AuthApiCaller, AuthApiRequest> request_;
   ClientResponseListener listener_;
   CloudServerConnections* cloud_sc_;
   RequestPolicy::Variant policy_;
+  std::optional<IndexCtx<CloudRequestAction>> alive_ctx_;
+  bool enqueued_{false};
 
-  CloudSubscription cloud_sub_;
-  StateMachine<State> state_;
   Subscription swa_sub_;
   Subscription server_changed_sub_;
+  SuccessEvent success_event_;
+  FailureEvent failure_event_;
 
   std::map<CloudServerConnection*, ServerRequest> server_requests_;
 };

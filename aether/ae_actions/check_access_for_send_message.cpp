@@ -16,7 +16,6 @@
 
 #include "aether/ae_actions/check_access_for_send_message.h"
 
-#include "aether/aether.h"
 #include "aether/ae_actions/ae_actions_tele.h"  // IWYU pragma: keep
 
 namespace ae {
@@ -24,9 +23,7 @@ CheckAccessForSendMessage::CheckAccessForSendMessage(
     AeContext const& ae_context, Uid destination,
     CloudServerConnections& cloud_connection,
     RequestPolicy::Variant request_policy)
-    : Action{ae_context.aether()},
-      destination_{destination},
-      state_{State::kNone},
+    : destination_{destination},
       cloud_request_{
           ae_context,
           AuthApiRequest{[this](ApiContext<AuthorizedApi>& auth_api, auto*,
@@ -45,35 +42,23 @@ CheckAccessForSendMessage::CheckAccessForSendMessage(
           }},
           cloud_connection,
           request_policy,
-      } {
-  state_.changed_event().Subscribe([&](auto const&) { Action::Trigger(); });
-  request_sub_ = cloud_request_->StatusEvent().Subscribe(
-      OnError{[this]() { state_ = State::kSendError; }});
-}
+      } {}
 
-UpdateStatus CheckAccessForSendMessage::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kReceivedSuccess:
-        return UpdateStatus::Result();
-      case State::kReceivedError:
-      case State::kSendError:
-        return UpdateStatus::Error();
-      default:
-        break;
-    }
-  }
-  return {};
+CheckAccessForSendMessage::ResultEvent::Subscriber
+CheckAccessForSendMessage::result_event() noexcept {
+  return EventSubscriber{result_event_};
 }
 
 void CheckAccessForSendMessage::ResponseReceived() {
   AE_TELED_DEBUG("CheckAccessForSendMessage received response - success");
-  state_ = State::kReceivedSuccess;
+  result_event_.Emit(Ok{Success{}});
+  Finish();
 }
 
 void CheckAccessForSendMessage::ErrorReceived() {
   AE_TELED_DEBUG("CheckAccessForSendMessage received error");
-  state_ = State::kReceivedError;
+  result_event_.Emit(Error{1});
+  Finish();
 }
 
 }  // namespace ae

@@ -32,8 +32,7 @@
 namespace ae {
 Telemetry::Telemetry(AeContext const& ae_context,
                      CloudServerConnections& cloud_connection)
-    : Action{ae_context.aether()},
-      ae_context_{ae_context},
+    : ae_context_{ae_context},
       cloud_connection_{&cloud_connection},
       call_request_{ae_context_, *cloud_connection_},
       telemetry_request_sub_{
@@ -42,46 +41,23 @@ Telemetry::Telemetry(AeContext const& ae_context,
                 [&]() { OnRequestTelemetry(sever_connect->priority()); });
           }},
           *cloud_connection_,
-          RequestPolicy::Replica{cloud_connection_->max_connections()}},
-      state_{State::kWaitRequest} {
+          RequestPolicy::Replica{cloud_connection_->max_connections()}} {
   AE_TELE_INFO(TelemetryCreated);
-}
-
-UpdateStatus Telemetry::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kWaitRequest:
-        break;
-      case State::kSendTelemetry:
-        SendTelemetry();
-        break;
-      case State::kStopped:
-        return UpdateStatus::Stop();
-    }
-  }
-
-  return {};
-}
-
-void Telemetry::Stop() {
-  state_ = State::kStopped;
-  Action::Trigger();
 }
 
 void Telemetry::SendTelemetry() {
   AE_TELE_DEBUG(TelemetrySending);
 
-  state_ = State::kWaitRequest;
   auto server_num = request_for_server_.value_or(0);
   request_for_server_.reset();
 
-  if (cloud_connection_->servers().size() <= server_num) {
+  if (server_num >= cloud_connection_->servers().size()) {
     AE_TELED_ERROR("Requested server number is out of range");
     return;
   }
 
   ClientServerConnection* con =
-      cloud_connection_->servers()[server_num]->client_connection();
+      cloud_connection_->servers().at(server_num)->client_connection();
   assert((con != nullptr) && "ClientServerConnection is null");
 
   auto telemetry = CollectTelemetry(con->stream_info());
@@ -100,9 +76,8 @@ void Telemetry::SendTelemetry() {
 }
 
 void Telemetry::OnRequestTelemetry(std::size_t server_priority) {
-  state_ = State::kSendTelemetry;
   request_for_server_ = server_priority;
-  Action::Trigger();
+  SendTelemetry();
 }
 
 std::optional<Telemetric> Telemetry::CollectTelemetry(
