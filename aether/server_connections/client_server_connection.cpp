@@ -166,13 +166,11 @@ void ClientServerConnection::ChannelChanged() {
     static constexpr Duration kPingDefaultInterval =
         std::chrono::milliseconds{AE_PING_INTERVAL_MS};
     // TODO: make ping interval depend on server priority
-    ping_ =
-        OwnActionPtr<Ping>{ae_context_, channel, *this, kPingDefaultInterval};
-
-    ping_sub_ = ping_->StatusEvent().Subscribe(OnError{[this]() {
+    ping_.emplace(ae_context_, channel, *this, kPingDefaultInterval);
+    ping_sub_ = ping_->ping_failed().Subscribe([this]() {
       AE_TELED_ERROR("Ping failed");
       server_connection_.Restream();
-    }});
+    });
   };
 
   if (server_connection_.stream_info().link_state == LinkState::kLinked) {

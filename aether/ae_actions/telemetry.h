@@ -24,9 +24,7 @@
 #  include <optional>
 
 #  include "aether/ae_context.h"
-#  include "aether/actions/action.h"
 #  include "aether/stream_api/istream.h"
-#  include "aether/types/state_machine.h"
 #  include "aether/cloud_connections/cloud_request.h"
 #  include "aether/cloud_connections/cloud_subscription.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
@@ -36,22 +34,12 @@
 namespace ae {
 class Aether;
 
-class Telemetry : public Action<Telemetry> {
-  enum class State : std::uint8_t {
-    kWaitRequest,
-    kSendTelemetry,
-    kStopped,
-  };
-
+class Telemetry {
  public:
   Telemetry(AeContext const& ae_context,
             CloudServerConnections& cloud_connection);
 
   AE_CLASS_NO_COPY_MOVE(Telemetry)
-
-  UpdateStatus Update();
-
-  void Stop();
 
   void SendTelemetry();
 
@@ -64,7 +52,6 @@ class Telemetry : public Action<Telemetry> {
   CloudRequest call_request_;
 
   CloudSubscription telemetry_request_sub_;
-  StateMachine<State> state_;
   std::optional<std::size_t> request_for_server_;
 };
 }  // namespace ae

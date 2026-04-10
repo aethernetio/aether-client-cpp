@@ -18,6 +18,8 @@
 
 #if AE_TIME_SYNC_ENABLED
 
+#  include <cassert>
+
 #  include "aether/client.h"
 #  include "aether/aether.h"
 #  include "aether/uap/uap.h"
@@ -195,7 +197,10 @@ TimePoint TimeSyncAction::last_sync_time = TimePoint::max();
 TimeSyncAction::TimeSyncAction(AeContext const& ae_context,
                                Ptr<Client> const& client,
                                Duration sync_interval)
-    : ae_context_{ae_context}, client_{client}, sync_interval_{sync_interval} {
+    : ae_context_{ae_context},
+      client_{client},
+      sync_interval_{sync_interval},
+      alive_ctx_{ae_context_, this} {
   AE_TELED_INFO("Time sync created");
   // the end of time! It means never synced before
   if (last_sync_time == TimePoint::max()) {
@@ -224,6 +229,8 @@ void TimeSyncAction::MakeRequest() {
     return;
   }
 
+  assert((!time_sync_request_ || time_sync_request_->is_finished()) &&
+         "Time sync request already in progress");
   time_sync_request_.emplace(ae_context_, client_ptr);
   uap->RegisterStart();
   time_sync_request_->finished_event().Subscribe(
@@ -240,7 +247,13 @@ void TimeSyncAction::ScheduleNextSync() {
       sync_interval_;
 
   // TODO: add alive check for this
-  ae_context_.scheduler().DelayedTask([this]() { MakeRequest(); }, next_time);
+  ae_context_.scheduler().DelayedTask(
+      [imalive{alive_ctx_.View()}]() {
+        if (imalive) {
+          imalive->MakeRequest();
+        }
+      },
+      next_time);
 }
 }  // namespace ae
 #endif
