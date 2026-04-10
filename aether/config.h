@@ -41,6 +41,10 @@
 #  define AE_TASK_ALIGN alignof(std::max_align_t)
 #endif
 
+#ifndef AE_INDEX_REGISTRY_CAPACITY
+#  define AE_INDEX_REGISTRY_CAPACITY 128
+#endif
+
 #ifndef AE_SUPPORT_IPV4
 #  define AE_SUPPORT_IPV4 1
 #endif  // AE_SUPPORT_IPV4

@@ -21,22 +21,27 @@
 
 #include "aether/config.h"
 
+// IWYU pragma: begin_exports
 #include "aether/tasks/manual_task_scheduler.h"
+#include "aether/index_registry/index_registry.h"
+// IWYU pragma: end_exports
 
 namespace ae {
 class Aether;
 using TaskScheduler = ManualTaskScheduler<
     TaskManagerConf<AE_TASK_MAX_COUNT, AE_TASK_MAX_SIZE, AE_TASK_ALIGN>>;
+using IndexRegistry = ae::IndexRegistryList<AE_INDEX_REGISTRY_CAPACITY>;
 
 struct AeCtxTable {
   Aether& (*aether_getter)(void* obj);
   TaskScheduler& (*scheduler_getter)(void* obj);
+  IndexRegistry& (*index_registry_getter)(void* obj);
 };
 
 struct AeCtx {
   bool operator==(AeCtx const&) const = default;
 
-  void* obj;
+  void const* obj;
   AeCtxTable const* vtable;
 };
 
@@ -51,9 +56,17 @@ class AeContext {
   constexpr AeContext(T const& obj)  // NOLINT(*explicit-constructor)
       : ctx_{obj.ToAeContext()} {}
 
-  Aether& aether() const { return ctx_.vtable->aether_getter(ctx_.obj); }
+  Aether& aether() const {
+    return ctx_.vtable->aether_getter(
+        const_cast<void*>(ctx_.obj));  // NOLINT(*const-cast)
+  }
   TaskScheduler& scheduler() const {
-    return ctx_.vtable->scheduler_getter(ctx_.obj);
+    return ctx_.vtable->scheduler_getter(
+        const_cast<void*>(ctx_.obj));  // NOLINT(*const-cast)
+  }
+  IndexRegistry& index_registry() const {
+    return ctx_.vtable->index_registry_getter(
+        const_cast<void*>(ctx_.obj));  // NOLINT(*const-cast)
   }
 
   bool operator==(AeContext const&) const = default;
