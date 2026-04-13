@@ -82,10 +82,8 @@ class Registration {
   Uid client_uid_;
   Uid ephemeral_uid_;
 
-  std::optional<ex::AsyncWaiter<
-      ex::AnySender<ex::set_value_t(ClientConfig), ex::set_error_t(int),
-                    ex::set_stopped_t()>,
-      SmallFunction<void(std::optional<Result<ClientConfig, int>>&&)>>>
+  std::optional<ex::AnyWaiter<ex::set_value_t(ClientConfig),
+                              ex::set_error_t(int), ex::set_stopped_t()>>
       async_waiter_;
   RegistrationEvent registration_event_;
   FinishedEvent finished_event_;

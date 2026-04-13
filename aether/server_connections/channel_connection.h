@@ -31,7 +31,7 @@ class ChannelConnection {
  public:
   using ConnectionStateEvent = Event<void(bool connected)>;
 
-  ChannelConnection(AeContext ae_context, Ptr<Channel> const& channel);
+  ChannelConnection(AeContext const& ae_context, Ptr<Channel> const& channel);
 
   AE_CLASS_NO_COPY_MOVE(ChannelConnection)
 
@@ -42,10 +42,8 @@ class ChannelConnection {
   void BuildTransport(Ptr<Channel> const& channel);
 
   AeContext ae_context_;
-  std::optional<ex::AsyncWaiter<
-      TransportBuildSender,
-      SmallFunction<void(
-          std::optional<Result<std::unique_ptr<ByteIStream>, int>>)>>>
+  std::optional<ex::AnyWaiter<ex::set_value_t(std::unique_ptr<ByteIStream>),
+                              ex::set_error_t(int)>>
       transport_waiter_;
   TimePoint transport_build_start_;
   std::unique_ptr<ByteIStream> transport_stream_;

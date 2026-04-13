@@ -27,9 +27,9 @@ class CloudVisit {
   static void Visit(
       TFunc&& func, CloudServerConnections& cloud_connection,
       RequestPolicy::Variant policy = RequestPolicy::MainServer{}) {
-    return std::visit(
+    std::visit(
         [&](auto p) {
-          return VisitImpl(std::forward<TFunc>(func), cloud_connection, p);
+          VisitImpl(std::forward<TFunc>(func), cloud_connection, p);
         },
         policy);
   }
@@ -48,10 +48,10 @@ class CloudVisit {
   template <typename TFunc>
   static void VisitImpl(TFunc&& func, CloudServerConnections& cloud_connection,
                         RequestPolicy::Priority priority) {
-    if (cloud_connection.servers().size() <= priority.priority) {
+    if (priority.priority >= cloud_connection.servers().size()) {
       return;
     }
-    auto* sc = cloud_connection.servers()[priority.priority];
+    auto* sc = cloud_connection.servers().at(priority.priority);
     std::invoke(std::forward<TFunc>(func), sc);
   }
 
@@ -61,7 +61,7 @@ class CloudVisit {
     auto visit_count =
         std::min(cloud_connection.servers().size(), replica.count);
     for (std::size_t i = 0; i < visit_count; ++i) {
-      auto* sc = cloud_connection.servers()[i];
+      auto* sc = cloud_connection.servers().at(i);
       std::invoke(std::forward<TFunc>(func), sc);
     }
   }

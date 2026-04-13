@@ -35,12 +35,14 @@ namespace ae {
 
 Aether::Aether()
     : action_processor{make_unique<ActionProcessor>()},
-      task_scheduler{make_unique<TaskScheduler>()} {}
+      task_scheduler{make_unique<TaskScheduler>()},
+      index_registry{make_unique<IndexRegistry>()} {}
 
 Aether::Aether(ObjProp prop)
     : Obj{prop},
       action_processor{make_unique<ActionProcessor>()},
-      task_scheduler{make_unique<TaskScheduler>()} {
+      task_scheduler{make_unique<TaskScheduler>()},
+      index_registry{make_unique<IndexRegistry>()} {
   AE_TELE_DEBUG(AetherCreated);
 }
 
@@ -61,6 +63,9 @@ AeCtx Aether::ToAeContext() const {
       [](void* obj) -> Aether& { return *static_cast<Aether*>(obj); },
       [](void* obj) -> TaskScheduler& {
         return *static_cast<Aether*>(obj)->task_scheduler;
+      },
+      [](void* obj) -> IndexRegistry& {
+        return *static_cast<Aether*>(obj)->index_registry;
       },
   };
   return AeCtx{const_cast<Aether*>(this), &ae_table};  // NOLINT(*const-cast)
@@ -199,16 +204,15 @@ Registration& Aether::RegisterClient(std::string const& client_id,
 
 void Aether::MakeTimeSyncAction([[maybe_unused]] Client::ptr const& client) {
 #if AE_TIME_SYNC_ENABLED
-  if (time_sync_action_ && !time_sync_action_->IsFinished()) {
+  if (time_sync_action_) {
     return;
   }
 
   client.WithLoaded([this](auto const& c) {
     static constexpr auto kTimeSyncInterval =
         std::chrono::seconds{AE_TIME_SYNC_INTERVAL_S};
-    time_sync_action_ = ActionPtr<TimeSyncAction>{
-        *action_processor, Aether::ptr::MakeFromThis(this).Load(), c,
-        kTimeSyncInterval};
+    time_sync_action_ =
+        std::make_unique<TimeSyncAction>(*this, c, kTimeSyncInterval);
   });
 #endif
 }

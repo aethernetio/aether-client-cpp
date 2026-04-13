@@ -81,6 +81,7 @@ constexpr inline auto _compile_options_list = std::array{
     _OPTION(AE_TASK_MAX_COUNT),
     _OPTION(AE_TASK_MAX_SIZE),
     _OPTION(AE_TASK_ALIGN),
+    _OPTION(AE_INDEX_REGISTRY_CAPACITY),
     _OPTION(AE_SUPPORT_IPV4),
     _OPTION(AE_SUPPORT_IPV6),
     _OPTION(AE_SUPPORT_UDP),

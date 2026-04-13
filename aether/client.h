@@ -40,13 +40,14 @@ class Telemetry;
 class Client : public Obj {
   AE_OBJECT(Client, Obj, 0)
 
-  Client() = default;
+  Client();
 
  public:
   // Internal
 #ifdef AE_DISTILLATION
   Client(ObjProp prop, ObjPtr<Aether> aether);
 #endif  // AE_DISTILLATION
+  ~Client() override;
 
   // Public API.
   std::string const& id() const;
@@ -90,7 +91,7 @@ class Client : public Obj {
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
 
 #if AE_TELE_ENABLED
-  ActionPtr<Telemetry> telemetry_;
+  std::unique_ptr<Telemetry> telemetry_;
 #endif
 };
 }  // namespace ae

@@ -19,7 +19,7 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-ChannelConnection::ChannelConnection(AeContext ae_context,
+ChannelConnection::ChannelConnection(AeContext const& ae_context,
                                      Ptr<Channel> const& channel)
     : ae_context_{ae_context} {
   BuildTransport(channel);

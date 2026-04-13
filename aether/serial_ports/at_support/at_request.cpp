@@ -19,7 +19,7 @@
 #include <chrono>
 #include <algorithm>
 
-#include "aether/reflect/override_func.h"
+#include "aether/misc/override.h"
 #include "aether/serial_ports/at_support/at_support.h"
 
 #include "aether/tele/tele.h"
@@ -98,12 +98,12 @@ UpdateStatus AtRequest::Update(TimePoint current_time) {
 }
 
 ActionPtr<AtWriteAction> AtRequest::CallCommand() {
-  return std::visit(ae::reflect::OverrideFunc{
-                        [this](std::string const& str) {
-                          return at_support_->SendATCommand(str);
-                        },
-                        [](CommandMaker& command) { return command(); }},
-                    at_command_.command);
+  return std::visit(
+      ae::Override{[this](std::string const& str) {
+                     return at_support_->SendATCommand(str);
+                   },
+                   [](CommandMaker& command) { return command(); }},
+      at_command_.command);
 }
 
 void AtRequest::MakeRequest() {
