@@ -251,30 +251,28 @@ void P2pStream::ConnectSend() {
   auto client_ptr = client_.Lock();
   assert(client_ptr);
 
-  auto get_client_cloud = client_ptr->cloud_manager()->GetCloud(destination_);
+  auto& get_client_cloud = client_ptr->cloud_manager()->GetCloud(destination_);
 
-  get_client_cloud_sub_ =
-      get_client_cloud->StatusEvent().Subscribe(ActionHandler{
-          OnResult{[this](GetCloudAction& action) {
-            auto cloud = action.cloud();
-            dest_conn_manager_ = MakeConnectionManager(cloud.Load());
-            dest_cloud_conn_ = MakeDestinationCloudConn(*dest_conn_manager_);
-            // TODO: add config for request policy
-            message_send_stream_ =
-                std::make_unique<p2p_stream_internal::MessageSendStream>(
-                    ae_context_, *dest_cloud_conn_,
-                    RequestPolicy::MainServer{});
-            message_send_stream_->stream_update_event().Subscribe(
-                stream_update_event_);
-            AE_TELED_DEBUG("Send connected");
-            buffer_write_.buffer_off();
-            stream_update_event_.Emit();
-          }},
-          OnError{[this]() {
-            AE_TELED_ERROR("Send connection failed ");
-            buffer_write_.Drop();
-            buffer_write_.buffer_on();
-          }},
+  get_client_cloud_sub_ = get_client_cloud.result_event().Subscribe(
+      [this](Result<Cloud::ptr, int>&& result) {
+        if (result) {
+          auto cloud = std::move(result).value();
+          dest_conn_manager_ = MakeConnectionManager(cloud.Load());
+          dest_cloud_conn_ = MakeDestinationCloudConn(*dest_conn_manager_);
+          // TODO: add config for request policy
+          message_send_stream_ =
+              std::make_unique<p2p_stream_internal::MessageSendStream>(
+                  ae_context_, *dest_cloud_conn_, RequestPolicy::MainServer{});
+          message_send_stream_->stream_update_event().Subscribe(
+              stream_update_event_);
+          AE_TELED_DEBUG("Send connected");
+          buffer_write_.buffer_off();
+          stream_update_event_.Emit();
+        } else {
+          AE_TELED_ERROR("Send connection failed ");
+          buffer_write_.Drop();
+          buffer_write_.buffer_on();
+        }
       });
 }
 
