@@ -74,8 +74,7 @@ static Aether::ptr AetherFactory(AetherAppContext const& context) {
   // Create a new instance of Aether if it's not loaded
   return Aether::ptr::Create(
       CreateWith{context.domain()}.with_id(GlobalId::kAether));
-#endif
-#if !AE_FILTRATION  // pure production mode
+#else  // pure production mode
   assert(false && "Failed to load Aether");
   return Aether::ptr{};
 #endif
