@@ -16,17 +16,17 @@
 
 #include <unity.h>
 
-#include "aether/actions/action_ptr.h"
-#include "aether/stream_api/safe_stream/safe_stream_config.h"
-#include "aether/stream_api/safe_stream/safe_stream_recv_action.h"
-#include "aether/stream_api/safe_stream/safe_stream_send_action.h"
+#include <optional>
+
+#include "aether/safe_stream/safe_stream_config.h"
+#include "aether/safe_stream/details/safe_stream_recv_action.h"
+#include "aether/safe_stream/details/safe_stream_send_action.h"
 
 #include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-stream/stream-test-ctx.h"
 
 namespace ae::test_safe_stream_send_recv {
 constexpr auto config = SafeStreamConfig{
-    20 * 1024,
     10 * 1024,
     100,
     3,
@@ -34,51 +34,56 @@ constexpr auto config = SafeStreamConfig{
     std::chrono::milliseconds{25},
     std::chrono::milliseconds{80},
 };
-
+constexpr auto kCapacity = 20 * 1024;
 constexpr auto kTick = std::chrono::milliseconds{1};
+
+using Sender = SafeStreamSendAction<kCapacity>;
+using Receiver = SafeStreamRecvAction<kCapacity>;
+using IndexType = RingIndex<kCapacity>;
+using IndexRangeType = RingIndexRange<IndexType>;
 
 class TestSafeStreamActionsTransport {
  public:
-  explicit TestSafeStreamActionsTransport(SafeStreamSendAction& send_action,
-                                          SafeStreamRecvAction& recv_action)
-      : send_action_{&send_action}, recv_action_{&recv_action} {}
+  explicit TestSafeStreamActionsTransport(Sender& send_action,
+                                          Receiver& recv_action)
+      : sender_{&send_action}, recveiver_{&recv_action} {}
 
   virtual ~TestSafeStreamActionsTransport() = default;
 
-  virtual void PushData(SSRingIndex begin, DataMessage data_message) {
+  virtual void PushData(std::uint16_t begin, DataMessage data_message) {
     MakePushData(begin, std::move(data_message));
   }
 
-  virtual void SendAck(SSRingIndex offset) { MakeSendAck(offset); }
+  virtual void SendAck(std::uint16_t offset) { MakeSendAck(offset); }
 
-  virtual void SendRepeatRequest(SSRingIndex offset) {
+  virtual void SendRepeatRequest(std::uint16_t offset) {
     MakeSendRepeatRequest(offset);
   }
 
-  void MakePushData(SSRingIndex begin, DataMessage data_message) {
-    recv_action_->PushData(begin, std::move(data_message));
+  void MakePushData(std::uint16_t begin, DataMessage data_message) {
+    recveiver_->PushData(begin, std::move(data_message));
   }
 
-  void MakeSendAck(SSRingIndex offset) { send_action_->Acknowledge(offset); }
+  void MakeSendAck(std::uint16_t offset) { sender_->Acknowledge(offset); }
 
-  void MakeSendRepeatRequest(SSRingIndex offset) {
-    send_action_->RequestRepeat(offset);
+  void MakeSendRepeatRequest(std::uint16_t offset) {
+    sender_->RequestRepeat(offset);
   }
 
-  SafeStreamSendAction* send_action_;
-  SafeStreamRecvAction* recv_action_;
+  Sender* sender_;
+  Receiver* recveiver_;
 };
 
 class DelayPushDataImpl : public TestSafeStreamActionsTransport {
  public:
   struct PushMessageT {
-    SSRingIndex begin;
+    std::uint16_t begin;
     DataMessage message;
   };
 
   using TestSafeStreamActionsTransport::TestSafeStreamActionsTransport;
 
-  void PushData(SSRingIndex begin, DataMessage data_message) override {
+  void PushData(std::uint16_t begin, DataMessage data_message) override {
     push_message = PushMessageT{begin, std::move(data_message)};
   }
 
@@ -107,7 +112,7 @@ class MockSendDataPush : public ISendDataPush {
     transport_ = &transport;
   }
 
-  WriteAction& PushData(SSRingIndex begin,
+  WriteAction& PushData(std::uint16_t begin,
                         DataMessage&& data_message) override {
     transport_->PushData(begin, std::move(data_message));
     if (!dswa_ || dswa_->is_finished()) {
@@ -129,8 +134,8 @@ class MockSendAckRepeat : public ISendAckRepeat {
     transport_ = &transport;
   }
 
-  void SendAck(SSRingIndex offset) override { transport_->SendAck(offset); }
-  void SendRepeatRequest(SSRingIndex offset) override {
+  void SendAck(std::uint16_t offset) override { transport_->SendAck(offset); }
+  void SendRepeatRequest(std::uint16_t offset) override {
     transport_->SendRepeatRequest(offset);
   }
 
@@ -152,25 +157,31 @@ void test_SafeStreamInitHandshake() {
 
   bool acked{};
   DataBuffer received{};
+  IndexRangeType expected_range{};
 
   auto send_transport = MockSendDataPush{ctx};
   auto recv_transport = MockSendAckRepeat{};
 
-  auto sender = ActionPtr<SafeStreamSendAction>{ctx, send_transport, config};
-  sender->SetMaxPayload(config.max_packet_size);
-  auto receiver = ActionPtr<SafeStreamRecvAction>{ctx, recv_transport, config};
+  auto sender = Sender{ctx, send_transport, config};
+  sender.acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+    if (IndexComparable{expected_range.right, buffer_begin} <= end) {
+      acked = true;
+    }
+  });
 
-  auto sender_to_receiver = TestSafeStreamActionsTransport{*sender, *receiver};
+  sender.SetMaxPayload(config.max_packet_size);
+  auto receiver = Receiver{ctx, recv_transport, config};
+
+  auto sender_to_receiver = TestSafeStreamActionsTransport{sender, receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
-  receiver->receive_event().Subscribe(
+  receiver.receive_event().Subscribe(
       [&](auto const& data) { received = data; });
 
-  auto send_data = sender->SendData(ToDataBuffer(test_data));
-
-  send_data->StatusEvent().Subscribe(
-      OnResult{[&](auto const&) { acked = true; }});
+  auto send_data = sender.SendData(ToSpan(test_data));
+  TEST_ASSERT_TRUE(send_data.IsOk());
+  expected_range = send_data.value();
 
   ctx.Update(epoch);
   ctx.Update(epoch += config.send_ack_timeout + kTick);
@@ -187,34 +198,41 @@ void test_SafeStreamInitHandshake() {
  * data to SafeStreamRecvAction.
  */
 void test_SafeStreamReInitSender() {
-  auto epoch = Now();
   TestContext ctx;
 
   bool acked{};
   DataBuffer received{};
+  IndexRangeType expected_range;
 
   auto send_transport = MockSendDataPush{ctx};
   auto recv_transport = MockSendAckRepeat{};
 
   // sender is optional and will be replaced
-  auto sender = ActionPtr<SafeStreamSendAction>{ctx, send_transport, config};
+  auto sender =
+      std::optional<Sender>{std::in_place, ctx, send_transport, config};
+  sender->acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+    if (IndexComparable{expected_range.right, buffer_begin} <= end) {
+      acked = true;
+    }
+  });
   sender->SetMaxPayload(config.max_packet_size);
-  auto receiver = ActionPtr<SafeStreamRecvAction>{ctx, recv_transport, config};
+  auto receiver = Receiver{ctx, recv_transport, config};
 
-  auto sender_to_receiver = TestSafeStreamActionsTransport{*sender, *receiver};
+  auto sender_to_receiver = TestSafeStreamActionsTransport{*sender, receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
-  receiver->receive_event().Subscribe(
+  receiver.receive_event().Subscribe(
       [&](auto const& data) { received = data; });
 
-  auto send_action1 = sender->SendData(ToDataBuffer(test_data));
-  send_action1->StatusEvent().Subscribe(
-      OnResult{[&](auto const&) { acked = true; }});
+  auto send_data1 = sender->SendData(ToSpan(test_data));
+  TEST_ASSERT_TRUE(send_data1.IsOk());
+  expected_range = send_data1.value();
 
+  auto epoch = Now();
   ctx.Update(epoch);
   ctx.Update(epoch += kTick);
-  ctx.Update(epoch += config.send_ack_timeout + kTick);
+  ctx.Update(epoch += (config.send_ack_timeout + kTick));
 
   // test received data
   TEST_ASSERT_TRUE(acked);
@@ -226,16 +244,21 @@ void test_SafeStreamReInitSender() {
   received.clear();
 
   // create new sender
-  sender = ActionPtr<SafeStreamSendAction>{ctx, send_transport, config};
+  sender.emplace(ctx, send_transport, config);
+  sender->acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+    if (IndexComparable{expected_range.right, buffer_begin} <= end) {
+      acked = true;
+    }
+  });
   sender->SetMaxPayload(config.max_packet_size);
 
-  sender_to_receiver = TestSafeStreamActionsTransport{*sender, *receiver};
+  sender_to_receiver = TestSafeStreamActionsTransport{*sender, receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
-  auto send_action2 = sender->SendData(ToDataBuffer(test_data));
-  send_action2->StatusEvent().Subscribe(
-      OnResult{[&](auto const&) { acked = true; }});
+  auto send_data2 = sender->SendData(ToSpan(test_data));
+  TEST_ASSERT_TRUE(send_data2.IsOk());
+  expected_range = send_data2.value();
 
   ctx.Update(epoch);
   ctx.Update(epoch += kTick);
@@ -257,25 +280,32 @@ void test_SafeStreamReInitReceiver() {
 
   bool acked{};
   DataBuffer received{};
+  IndexRangeType expected_range{};
 
   auto send_transport = MockSendDataPush{ctx};
   auto recv_transport = MockSendAckRepeat{};
 
   // sender is optional and will be replaced
-  auto sender = ActionPtr<SafeStreamSendAction>{ctx, send_transport, config};
-  sender->SetMaxPayload(config.max_packet_size);
-  auto receiver = ActionPtr<SafeStreamRecvAction>{ctx, recv_transport, config};
+  auto sender = Sender{ctx, send_transport, config};
+  sender.acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+    if (IndexComparable{expected_range.right, buffer_begin} <= end) {
+      acked = true;
+    }
+  });
+  sender.SetMaxPayload(config.max_packet_size);
+  auto receiver =
+      std::optional<Receiver>{std::in_place, ctx, recv_transport, config};
 
-  auto sender_to_receiver = TestSafeStreamActionsTransport{*sender, *receiver};
+  auto sender_to_receiver = TestSafeStreamActionsTransport{sender, *receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
 
   receiver->receive_event().Subscribe(
       [&](auto const& data) { received = data; });
 
-  auto send_action1 = sender->SendData(ToDataBuffer(test_data));
-  send_action1->StatusEvent().Subscribe(
-      OnResult{[&](auto const&) { acked = true; }});
+  auto send_data1 = sender.SendData(ToSpan(test_data));
+  TEST_ASSERT_TRUE(send_data1.IsOk());
+  expected_range = send_data1.value();
 
   ctx.Update(epoch);
   ctx.Update(epoch += config.send_ack_timeout + kTick);
@@ -289,18 +319,18 @@ void test_SafeStreamReInitReceiver() {
   acked = false;
   received.clear();
 
-  // create new sender
-  receiver = ActionPtr<SafeStreamRecvAction>{ctx, recv_transport, config};
+  // create new receiver
+  receiver.emplace(ctx, recv_transport, config);
 
-  sender_to_receiver = TestSafeStreamActionsTransport{*sender, *receiver};
+  sender_to_receiver = TestSafeStreamActionsTransport{sender, *receiver};
   send_transport.Link(sender_to_receiver);
   recv_transport.Link(sender_to_receiver);
   receiver->receive_event().Subscribe(
       [&](auto const& data) { received = data; });
 
-  auto send_action2 = sender->SendData(ToDataBuffer(test_data));
-  send_action2->StatusEvent().Subscribe(
-      OnResult{[&](auto const&) { acked = true; }});
+  auto send_data2 = sender.SendData(ToSpan(test_data));
+  TEST_ASSERT_TRUE(send_data2.IsOk());
+  expected_range = send_data2.value();
 
   ctx.Update(epoch);
   ctx.Update(epoch += config.send_ack_timeout + kTick);

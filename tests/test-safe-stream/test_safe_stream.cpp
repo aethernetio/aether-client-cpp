@@ -21,7 +21,7 @@
 #include "aether/ae_context.h"
 #include "aether/api_protocol/protocol_context.h"
 
-#include "aether/stream_api/safe_stream.h"
+#include "aether/safe_stream/safe_stream.h"
 
 #include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-stream/stream-test-ctx.h"
@@ -30,7 +30,6 @@
 
 namespace ae::test_safe_stream {
 constexpr auto config = SafeStreamConfig{
-    20 * 1024,
     10 * 1024,
     200,
     3,
@@ -58,7 +57,7 @@ void test_SafeStreamWriteFewData() {
   auto read_stream = MockReadStream{};
   auto write_stream = MockWriteStream{ctx, std::size_t{120}};
 
-  auto safe_stream = SafeStream{ctx, config};
+  auto safe_stream = SafeStream<1024>{ctx, config};
 
   Tie(read_stream, safe_stream, write_stream);
 
@@ -101,7 +100,7 @@ void test_SafeStreamPacketLoss() {
   auto read_stream = MockReadStream{};
   auto write_stream = MockWriteStream{ctx, std::size_t{120}};
 
-  auto safe_stream = SafeStream{ctx, config};
+  auto safe_stream = SafeStream<1024>{ctx, config};
   Tie(read_stream, safe_stream, write_stream);
 
   // loop data to itself

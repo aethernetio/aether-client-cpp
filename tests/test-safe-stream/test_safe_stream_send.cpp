@@ -19,10 +19,9 @@
 #include <optional>
 
 #include "aether/config.h"
-#include "aether/actions/action_context.h"
-#include "aether/actions/action_processor.h"
-#include "aether/stream_api/safe_stream/safe_stream_config.h"
-#include "aether/stream_api/safe_stream/safe_stream_send_action.h"
+#include "aether/ae_context.h"
+#include "aether/safe_stream/safe_stream_config.h"
+#include "aether/safe_stream/details/safe_stream_send_action.h"
 
 #include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-stream/stream-test-ctx.h"
@@ -31,7 +30,6 @@ namespace ae::test_safe_stream_send {
 constexpr auto kTick = std::chrono::milliseconds{1};
 
 constexpr auto config = SafeStreamConfig{
-    20 * 1024,
     1056,
     200,
     3,
@@ -40,10 +38,15 @@ constexpr auto config = SafeStreamConfig{
     std::chrono::milliseconds{80},
 };
 
+static constexpr std::size_t kCapacity = 20 * 1024;
+using Sender = SafeStreamSendAction<kCapacity>;
+using IndexType = RingIndex<kCapacity>;
+using IndexRangeType = RingIndexRange<IndexType>;
+
 class MockSendDataPush final : public ISendDataPush {
  public:
   struct SendData {
-    SSRingIndex begin;
+    std::uint16_t index;
     DataMessage data_message;
   };
 
@@ -57,9 +60,9 @@ class MockSendDataPush final : public ISendDataPush {
 
   explicit MockSendDataPush(AeContext const& context) : context_{context} {}
 
-  WriteAction& PushData(SSRingIndex begin,
+  WriteAction& PushData(std::uint16_t index,
                         DataMessage&& data_message) override {
-    send_data = SendData{begin, std::move(data_message)};
+    send_data = SendData{index, std::move(data_message)};
     if (!wa_ || wa_->is_finished()) {
       wa_.emplace(context_);
     }
@@ -117,17 +120,26 @@ void test_SendActionCreateAndSend() {
 
   auto send_data_push = MockSendDataPush{ctx};
 
-  auto send_action =
-      ActionPtr<SafeStreamSendAction>{ctx, send_data_push, config};
-  send_action->SetMaxPayload(config.max_packet_size);
-
-  auto data_action = send_action->SendData(ToDataBuffer(packet_poetry));
-
   bool is_sent = false;
   bool is_error = false;
-  data_action->StatusEvent().Subscribe(
-      ActionHandler{OnResult{[&]() { is_sent = true; }},
-                    OnError{[&]() { is_error = true; }}});
+  IndexRangeType expected_range{};
+
+  auto sender = Sender{ctx, send_data_push, config};
+  sender.acknowledged_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      is_sent = true;
+    }
+  });
+  sender.send_failed_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      is_error = true;
+    }
+  });
+  sender.SetMaxPayload(config.max_packet_size);
+
+  auto send_data = sender.SendData(ToSpan(packet_poetry));
+  TEST_ASSERT_TRUE(send_data.IsOk());
+  expected_range = send_data.value();
 
   // Verify initial state before update
   TEST_ASSERT_FALSE(send_data_push.send_data.has_value());
@@ -137,22 +149,22 @@ void test_SendActionCreateAndSend() {
   ctx.Update(Now());
 
   // Verify data was sent with correct content and offset
-  TEST_ASSERT(send_data_push.send_data.has_value());
+  TEST_ASSERT_TRUE(send_data_push.send_data.has_value());
   TEST_ASSERT_EQUAL_STRING_LEN(
       packet_poetry.data(), send_data_push.send_data->data_message.data.data(),
       packet_poetry.size());
   TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.delta_offset);
-  TEST_ASSERT_EQUAL(true, send_data_push.send_data->data_message.reset());
+  TEST_ASSERT_EQUAL(true, send_data_push.send_data->data_message.reset);
 
   // Verify intermediate state: data sent but not yet confirmed
   TEST_ASSERT_FALSE(is_sent);
   TEST_ASSERT_FALSE(is_error);
-  TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.repeat_count());
+  TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.repeat_count);
 
-  send_action->Acknowledge(
-      send_data_push.send_data->begin +
-      send_data_push.send_data->data_message.delta_offset +
-      static_cast<SSRingIndex::type>(packet_poetry.size()));
+  // acknowledge up to last byte in the packet size() - 1;
+  sender.Acknowledge(send_data_push.send_data->index +
+                     send_data_push.send_data->data_message.delta_offset +
+                     static_cast<std::uint16_t>(packet_poetry.size()) - 1);
   ctx.Update(Now());
 
   // Verify final state after confirmation
@@ -165,24 +177,33 @@ void test_SendActionRepeatOnTimeout() {
 
   auto send_data_push = MockSendDataPush{ctx};
 
-  auto send_action =
-      ActionPtr<SafeStreamSendAction>{ctx, send_data_push, config};
-  send_action->SetMaxPayload(config.max_packet_size);
-
-  auto data_action = send_action->SendData(ToDataBuffer(retry_humor));
-
   bool is_sent = false;
   bool is_error = false;
-  data_action->StatusEvent().Subscribe(
-      ActionHandler{OnResult{[&]() { is_sent = true; }},
-                    OnError{[&]() { is_error = true; }}});
+  IndexRangeType expected_range{};
+
+  auto sender = Sender{ctx, send_data_push, config};
+  sender.acknowledged_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      is_sent = true;
+    }
+  });
+  sender.send_failed_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      is_error = true;
+    }
+  });
+  sender.SetMaxPayload(config.max_packet_size);
+
+  auto send_data = sender.SendData(ToSpan(retry_humor));
+  TEST_ASSERT_TRUE(send_data.IsOk());
+  expected_range = send_data.value();
 
   auto start_time = Now();
 
   // Initial send
   ctx.Update(start_time);
   TEST_ASSERT(send_data_push.send_data.has_value());
-  TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.repeat_count());
+  TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.repeat_count);
   send_data_push.send_data.reset();
 
   // Wait for timeout and trigger repeat - need two updates: one to detect
@@ -193,16 +214,16 @@ void test_SendActionRepeatOnTimeout() {
 
   // Check that repeat was triggered
   TEST_ASSERT(send_data_push.send_data.has_value());
-  TEST_ASSERT_EQUAL(1, send_data_push.send_data->data_message.repeat_count());
+  TEST_ASSERT_EQUAL(1, send_data_push.send_data->data_message.repeat_count);
   TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.delta_offset);
   TEST_ASSERT_EQUAL_STRING_LEN(
       retry_humor.data(), send_data_push.send_data->data_message.data.data(),
       retry_humor.size());
 
   // Confirm after first repeat
-  send_action->Acknowledge(send_data_push.send_data->begin +
-                           send_data_push.send_data->data_message.delta_offset +
-                           +static_cast<SSRingIndex::type>(retry_humor.size()));
+  sender.Acknowledge(send_data_push.send_data->index +
+                     send_data_push.send_data->data_message.delta_offset +
+                     +static_cast<std::uint16_t>(retry_humor.size() - 1));
   ctx.Update(timeout_time + kTick + kTick);
 
   TEST_ASSERT(is_sent);
@@ -214,24 +235,33 @@ void test_SendActionErrorOnMaxRepeatExceeded() {
 
   auto send_data_push = MockSendDataPush{ctx};
 
-  auto send_action =
-      ActionPtr<SafeStreamSendAction>{ctx, send_data_push, config};
-  send_action->SetMaxPayload(config.max_packet_size);
-
-  auto data_action = send_action->SendData(ToDataBuffer(confirmation_comedy));
-
   bool is_sent = false;
   bool is_error = false;
-  data_action->StatusEvent().Subscribe(
-      ActionHandler{OnResult{[&]() { is_sent = true; }},
-                    OnError{[&]() { is_error = true; }}});
+  IndexRangeType expected_range{};
+
+  auto sender = Sender{ctx, send_data_push, config};
+  sender.acknowledged_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      is_sent = true;
+    }
+  });
+  sender.send_failed_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      is_error = true;
+    }
+  });
+  sender.SetMaxPayload(config.max_packet_size);
+
+  auto send_data = sender.SendData(ToSpan(confirmation_comedy));
+  TEST_ASSERT_TRUE(send_data.IsOk());
+  expected_range = send_data.value();
 
   auto current_time = Now();
 
   // Initial send (repeat_count = 0)
   ctx.Update(current_time);
   TEST_ASSERT(send_data_push.send_data.has_value());
-  TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.repeat_count());
+  TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.repeat_count);
   send_data_push.send_data.reset();
 
   // Helper lambda for timeout calculation with exponential backoff
@@ -249,7 +279,7 @@ void test_SendActionErrorOnMaxRepeatExceeded() {
   ctx.Update(current_time);
   ctx.Update(current_time + kTick);
   TEST_ASSERT(send_data_push.send_data.has_value());
-  TEST_ASSERT_EQUAL(1, send_data_push.send_data->data_message.repeat_count());
+  TEST_ASSERT_EQUAL(1, send_data_push.send_data->data_message.repeat_count);
   send_data_push.send_data.reset();
 
   // Second repeat (repeat_count = 2)
@@ -257,11 +287,12 @@ void test_SendActionErrorOnMaxRepeatExceeded() {
   ctx.Update(current_time);
   ctx.Update(current_time + kTick);
   TEST_ASSERT(send_data_push.send_data.has_value());
-  TEST_ASSERT_EQUAL(2, send_data_push.send_data->data_message.repeat_count());
+  TEST_ASSERT_EQUAL(2, send_data_push.send_data->data_message.repeat_count);
   send_data_push.send_data.reset();
 
-  // Third repeat attempt should exceed max_repeat_count (3) and trigger error
-  // repeat_count = 3, then incremented to 4, which exceeds max_repeat_count (3)
+  // Third repeat attempt should exceed max_repeat_count (3) and trigger
+  // error
+  // repeat_count = 3, then incremented to 4, which exceeds max_repeat_count(3)
   current_time += wait_confirm_timeout(2) + kTick;
   ctx.Update(current_time);
   ctx.Update(current_time + kTick);
@@ -269,7 +300,7 @@ void test_SendActionErrorOnMaxRepeatExceeded() {
   // Should not send anymore and trigger error
   TEST_ASSERT_FALSE(send_data_push.send_data.has_value());
   TEST_ASSERT_FALSE(is_sent);
-  TEST_ASSERT(is_error);
+  TEST_ASSERT_TRUE(is_error);
 }
 
 void test_SendActionRequestRepeat() {
@@ -277,13 +308,12 @@ void test_SendActionRequestRepeat() {
 
   auto send_data_push = MockSendDataPush{ctx};
 
-  auto send_action =
-      ActionPtr<SafeStreamSendAction>{ctx, send_data_push, config};
-  send_action->SetMaxPayload(config.max_packet_size);
+  auto sender = Sender{ctx, send_data_push, config};
+  sender.SetMaxPayload(config.max_packet_size);
 
-  auto data_action1 = send_action->SendData(ToDataBuffer(network_philosophy));
+  auto send_data1 = sender.SendData(ToSpan(network_philosophy));
 
-  SSRingIndex begin_offset;
+  std::uint16_t begin_offset{};
 
   // Initial send
   ctx.Update(Now());
@@ -292,22 +322,22 @@ void test_SendActionRequestRepeat() {
   send_data_push.send_data.reset();
 
   // Add second data and let it send
-  auto data_action2 = send_action->SendData(ToDataBuffer(buffer_ballad));
+  auto send_data2 = sender.SendData(ToSpan(buffer_ballad));
   ctx.Update(Now());
   TEST_ASSERT(send_data_push.send_data.has_value());
   TEST_ASSERT_EQUAL(network_philosophy.size(),
                     send_data_push.send_data->data_message.delta_offset);
-  begin_offset = send_data_push.send_data->begin;
+  begin_offset = send_data_push.send_data->index;
   send_data_push.send_data.reset();
 
   // Request repeat of first chunk
-  send_action->RequestRepeat(begin_offset);
+  sender.RequestRepeat(begin_offset);
   ctx.Update(Now());
 
   // Should resend from the requested offset
   TEST_ASSERT(send_data_push.send_data.has_value());
   TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.delta_offset);
-  TEST_ASSERT_EQUAL(1, send_data_push.send_data->data_message.repeat_count());
+  TEST_ASSERT_EQUAL(1, send_data_push.send_data->data_message.repeat_count);
 }
 
 void test_SendActionWindowSizeLimit() {
@@ -317,19 +347,18 @@ void test_SendActionWindowSizeLimit() {
 
   // Use larger packet size for cleaner window size testing
   constexpr std::size_t large_packet_size = 352;
-  auto send_action =
-      ActionPtr<SafeStreamSendAction>{ctx, send_data_push, config};
-  send_action->SetMaxPayload(large_packet_size);
+  auto sender = Sender{ctx, send_data_push, config};
+  sender.SetMaxPayload(large_packet_size);
 
   // Window check is: begin_.Distance(last_sent_ + max_packet_size_) >
   // window_size_ window_size = 1056, max_packet_size = 352 We can send 3
   // packets (1056 bytes) The 4th packet would exceed window
   auto packet_data = CreateTestData(large_packet_size);
-  SSRingIndex begin_offset;
+  std::uint16_t begin_offset{};
 
   // Send 3 packets to fill window exactly (3 * 352 = 1056 bytes)
   for (int i = 0; i < 3; ++i) {
-    send_action->SendData(DataBuffer{packet_data});
+    sender.SendData(DataBuffer{packet_data});
     ctx.Update(Now());
 
     // Should send successfully
@@ -337,7 +366,7 @@ void test_SendActionWindowSizeLimit() {
     auto expected_delta = i * large_packet_size;
     TEST_ASSERT_EQUAL(expected_delta,
                       send_data_push.send_data->data_message.delta_offset);
-    begin_offset = send_data_push.send_data->begin;
+    begin_offset = send_data_push.send_data->index;
     send_data_push.send_data.reset();
   }
 
@@ -345,7 +374,7 @@ void test_SendActionWindowSizeLimit() {
   // last_sent_ is now at begin_ + 1056, adding max_packet_size (352) = begin_
   // + 1408 begin_.Distance(begin_ + 1408) = 1408 > 1056 (window_size), so
   // should be blocked
-  send_action->SendData(DataBuffer{packet_data});
+  sender.SendData(packet_data);
   ctx.Update(Now());
 
   // This should NOT send because it would exceed window size
@@ -354,8 +383,8 @@ void test_SendActionWindowSizeLimit() {
   // Confirm some data to free up window space
   // Confirm first packet (352 bytes)
   auto confirm_offset =
-      begin_offset + static_cast<SSRingIndex::type>(large_packet_size);
-  send_action->Acknowledge(confirm_offset);
+      begin_offset + static_cast<std::uint16_t>(large_packet_size - 1);
+  sender.Acknowledge(confirm_offset);
   ctx.Update(Now());
 
   // Now the blocked data should send
@@ -374,26 +403,25 @@ void test_SendActionWindowSizeWithMultipleWaitingPackets() {
 
   // Use larger packet size for cleaner testing
   constexpr std::size_t large_packet_size = 352;
-  auto send_action =
-      ActionPtr<SafeStreamSendAction>{ctx, send_data_push, config};
-  send_action->SetMaxPayload(large_packet_size);
+  auto sender = Sender{ctx, send_data_push, config};
+  sender.SetMaxPayload(large_packet_size);
 
   // Fill the window to its limit
   // window_size = 1056, max_packet_size = 352
   // Send 3 packets to reach exactly 1056 bytes
   auto packet_data = CreateTestData(large_packet_size);
-  SSRingIndex begin_offset;
+  std::uint16_t begin_offset{};
 
   // Send 3 packets of 352 bytes = 1056 bytes (full window)
   for (int i = 0; i < 3; ++i) {
-    send_action->SendData(DataBuffer{packet_data});
+    sender.SendData(packet_data);
     ctx.Update(Now());
 
     TEST_ASSERT(send_data_push.send_data.has_value());
     auto expected_delta = i * large_packet_size;
     TEST_ASSERT_EQUAL(expected_delta,
                       send_data_push.send_data->data_message.delta_offset);
-    begin_offset = send_data_push.send_data->begin;
+    begin_offset = send_data_push.send_data->index;
     send_data_push.send_data.reset();
   }
 
@@ -401,7 +429,7 @@ void test_SendActionWindowSizeWithMultipleWaitingPackets() {
   // Each attempt to send would make last_sent_ + max_packet_size > begin_ +
   // window_size
   for (int i = 0; i < 2; ++i) {
-    send_action->SendData(DataBuffer{packet_data});
+    sender.SendData(DataBuffer{packet_data});
     ctx.Update(Now());
 
     // None of these should send
@@ -410,13 +438,13 @@ void test_SendActionWindowSizeWithMultipleWaitingPackets() {
 
   // Confirm some data to free up space (confirm first packet = 352 bytes)
   auto confirm_offset =
-      begin_offset + static_cast<SSRingIndex::type>(large_packet_size);
-  send_action->Acknowledge(confirm_offset);
+      begin_offset + static_cast<std::uint16_t>(large_packet_size - 1);
+  sender.Acknowledge(confirm_offset);
   ctx.Update(Now());
 
   // Now first waiting packet should send
-  // begin moved forward by 352, so the next packet delta should be 1056 - 352 =
-  // 704
+  // begin moved forward by 352, so the next packet delta should be 1056 -
+  // 352 = 704
   TEST_ASSERT(send_data_push.send_data.has_value());
   auto expected_delta = 2 * large_packet_size;
   TEST_ASSERT_EQUAL(expected_delta,
@@ -424,7 +452,8 @@ void test_SendActionWindowSizeWithMultipleWaitingPackets() {
   send_data_push.send_data.reset();
 
   // Second waiting packet should not send (window limit reached again)
-  // Window now has 2 packets (704 bytes) + new packet (352) = 1056 bytes (full)
+  // Window now has 2 packets (704 bytes) + new packet (352) = 1056 bytes
+  // (full)
   ctx.Update(Now());
   TEST_ASSERT_FALSE(send_data_push.send_data.has_value());
 }
@@ -434,31 +463,49 @@ void test_SendActionMultipleDataQueueing() {
 
   auto send_data_push = MockSendDataPush{ctx};
 
-  auto send_action =
-      ActionPtr<SafeStreamSendAction>{ctx, send_data_push, config};
-  send_action->SetMaxPayload(config.max_packet_size);
-
-  // Send multiple data chunks rapidly
-  auto data_action1 = send_action->SendData(ToDataBuffer(packet_poetry));
-  auto data_action2 = send_action->SendData(ToDataBuffer(window_wisdom));
-
-  SSRingIndex begin_offset;
+  std::uint16_t begin_offset{};
   bool sent1 = false;
   bool error1 = false;
+  IndexRangeType expected_range1{};
   bool sent2 = false;
   bool error2 = false;
+  IndexRangeType expected_range2{};
 
-  data_action1->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[&]() { sent1 = true; }}, OnError{[&]() { error1 = true; }}});
+  auto sender = Sender{ctx, send_data_push, config};
+  sender.acknowledged_event().Subscribe([&](auto buffer_begin, auto index) {
+    if (IndexComparable{expected_range1.right, buffer_begin} <= index) {
+      sent1 = true;
+    }
+    if (IndexComparable{expected_range2.right, buffer_begin} <= index) {
+      sent2 = true;
+    }
+  });
+  sender.send_failed_event().Subscribe([&](auto buffer_begin, auto index) {
+    if (IndexComparable{expected_range1.right, buffer_begin} <= index) {
+      error1 = true;
+    }
+    if (IndexComparable{expected_range2.right, buffer_begin} <= index) {
+      error2 = true;
+    }
+  });
+  sender.SetMaxPayload(config.max_packet_size);
 
-  data_action2->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[&]() { sent2 = true; }}, OnError{[&]() { error2 = true; }}});
+  // Send multiple data chunks rapidly
+  auto send_data1 = sender.SendData(ToSpan(packet_poetry));
+  auto send_data2 = sender.SendData(ToSpan(window_wisdom));
+
+  TEST_ASSERT_TRUE(send_data1.IsOk());
+  TEST_ASSERT_TRUE(send_data2.IsOk());
+  expected_range1 = send_data1.value();
+  expected_range2 = send_data2.value();
 
   // Process queued data
   ctx.Update(Now());
   TEST_ASSERT(send_data_push.send_data.has_value());
   TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.delta_offset);
-  begin_offset = send_data_push.send_data->begin;
+  TEST_ASSERT_EQUAL(config.max_packet_size,
+                    send_data_push.send_data->data_message.data.size());
+  begin_offset = send_data_push.send_data->index;
   send_data_push.send_data.reset();
 
   ctx.Update(Now());
@@ -467,12 +514,13 @@ void test_SendActionMultipleDataQueueing() {
   send_data_push.send_data.reset();
 
   // Verify proper sequencing (begin_offset should be less than second_offset)
-  TEST_ASSERT_GREATER_THAN(0, static_cast<SSRingIndex::type>(second_delta));
+  TEST_ASSERT_GREATER_THAN(0, static_cast<std::uint16_t>(second_delta));
 
   // Confirm all data to complete actions
-  auto final_offset = begin_offset + second_delta +
-                      static_cast<SSRingIndex::type>(window_wisdom.size());
-  send_action->Acknowledge(final_offset);
+  auto final_offset = begin_offset +
+                      static_cast<std::uint16_t>(packet_poetry.size()) +
+                      static_cast<std::uint16_t>(window_wisdom.size()) - 1;
+  sender.Acknowledge(final_offset);
   ctx.Update(Now());
 
   // Verify actions completed successfully
@@ -488,20 +536,29 @@ void test_SendDataBiggerThanMaxPacketSize() {
   constexpr std::uint16_t max_packet_size = 60;
   auto send_data_push = MockSendDataPush{ctx};
 
-  auto send_action =
-      ActionPtr<SafeStreamSendAction>{ctx, send_data_push, config};
-  send_action->SetMaxPayload(max_packet_size);
-
-  // Send data bigger than max packet size
-  auto data_action = send_action->SendData(ToDataBuffer(packet_poetry));
-  constexpr auto packets_count = packet_poetry.size() / max_packet_size + 1;
   bool sent = false;
   bool error = false;
+  IndexRangeType expected_range{};
 
-  data_action->StatusEvent().Subscribe(
-      ActionHandler{OnResult{[&]() { sent = true; }},
-                    OnError{[&](auto const&) { error = true; }}});
+  auto sender = Sender{ctx, send_data_push, config};
+  sender.acknowledged_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      sent = true;
+    }
+  });
+  sender.send_failed_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      error = true;
+    }
+  });
+  sender.SetMaxPayload(max_packet_size);
 
+  // Send data bigger than max packet size
+  auto send_data = sender.SendData(ToSpan(packet_poetry));
+  TEST_ASSERT_TRUE(send_data.IsOk());
+  expected_range = send_data.value();
+
+  constexpr auto packets_count = (packet_poetry.size() / max_packet_size) + 1;
   // Process packets
   for (std::uint16_t i = 0; i < packets_count - 1; ++i) {
     auto expected_packet =
@@ -546,8 +603,8 @@ void test_SendDataBiggerThanMaxPacketSize() {
 
   // Confirm all data to complete actions
   auto final_offset =
-      send_data_push.send_data->begin + expected_offset + expected_size;
-  send_action->Acknowledge(final_offset);
+      send_data_push.send_data->index + expected_offset + expected_size - 1;
+  sender.Acknowledge(final_offset);
   ctx.Update(Now());
 
   // Verify actions completed successfully
@@ -555,18 +612,91 @@ void test_SendDataBiggerThanMaxPacketSize() {
   TEST_ASSERT_FALSE(error);
 }
 
+void test_SendDataAndStop() {
+  TestContext ctx;
+
+  constexpr std::uint16_t max_packet_size = 450;
+  auto send_data_push = MockSendDataPush{ctx};
+
+  bool sent = false;
+  bool error = false;
+  bool stopped = false;
+  IndexRangeType expected_range{};
+
+  auto sender = Sender{ctx, send_data_push, config};
+  sender.acknowledged_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      sent = true;
+    }
+  });
+  sender.send_failed_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      error = true;
+    }
+  });
+  sender.stopped_event().Subscribe([&](auto, auto index) {
+    if (expected_range.right == index) {
+      stopped = true;
+    }
+  });
+  sender.SetMaxPayload(max_packet_size);
+
+  auto send_range0 = sender.SendData(ToSpan(packet_poetry));
+  TEST_ASSERT(send_range0.IsOk());
+  expected_range = send_range0.value();
+
+  // stop sending till send
+  sender.Stop(send_range0.value());
+
+  ctx.Update(Now());
+  TEST_ASSERT_FALSE(sent);
+  TEST_ASSERT_FALSE(error);
+  TEST_ASSERT_TRUE(stopped);
+  TEST_ASSERT_FALSE(send_data_push.send_data.has_value());
+
+  stopped = false;
+
+  // send more data
+  auto send_range1 = sender.SendData(ToSpan(packet_poetry));
+  TEST_ASSERT(send_range1.IsOk());
+  expected_range = send_range1.value();
+
+  ctx.Update(Now());
+
+  TEST_ASSERT_FALSE(sent);
+  TEST_ASSERT_FALSE(error);
+  TEST_ASSERT_FALSE(stopped);
+  TEST_ASSERT_TRUE(send_data_push.send_data.has_value());
+  TEST_ASSERT_EQUAL(expected_range.left, send_data_push.send_data->index);
+  send_data_push.send_data.reset();
+
+  // stop sending after send should have no effect
+  sender.Stop(send_range1.value());
+  ctx.Update(Now());
+  // no new data
+  TEST_ASSERT_FALSE(sent);
+  TEST_ASSERT_FALSE(error);
+  TEST_ASSERT_FALSE(stopped);
+  TEST_ASSERT_FALSE(send_data_push.send_data.has_value());
+
+  sender.Acknowledge(static_cast<std::uint16_t>(send_range1.value().right));
+  ctx.Update(Now());
+  TEST_ASSERT_TRUE(sent);
+}
+
 }  // namespace ae::test_safe_stream_send
 
 int test_safe_stream_send() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_safe_stream_send::test_SendActionCreateAndSend);
-  RUN_TEST(ae::test_safe_stream_send::test_SendActionMultipleDataQueueing);
-  RUN_TEST(ae::test_safe_stream_send::test_SendActionRepeatOnTimeout);
-  RUN_TEST(ae::test_safe_stream_send::test_SendActionErrorOnMaxRepeatExceeded);
-  RUN_TEST(ae::test_safe_stream_send::test_SendActionRequestRepeat);
-  RUN_TEST(ae::test_safe_stream_send::test_SendActionWindowSizeLimit);
   RUN_TEST(ae::test_safe_stream_send::
                test_SendActionWindowSizeWithMultipleWaitingPackets);
+  RUN_TEST(ae::test_safe_stream_send::test_SendActionRepeatOnTimeout);
+  RUN_TEST(ae::test_safe_stream_send::test_SendActionErrorOnMaxRepeatExceeded);
+  RUN_TEST(ae::test_safe_stream_send::test_SendActionWindowSizeLimit);
+  RUN_TEST(ae::test_safe_stream_send::test_SendActionRequestRepeat);
+  RUN_TEST(ae::test_safe_stream_send::test_SendActionMultipleDataQueueing);
   RUN_TEST(ae::test_safe_stream_send::test_SendDataBiggerThanMaxPacketSize);
+  RUN_TEST(ae::test_safe_stream_send::test_SendDataAndStop);
   return UNITY_END();
 }
