@@ -71,7 +71,6 @@
 #include "aether/types/address_parser.h"
 
 #include "aether/stream_api/istream.h"
-#include "aether/stream_api/safe_stream.h"
 #include "aether/stream_api/api_call_adapter.h"
 #include "aether/write_action/write_action.h"
 #include "aether/write_action/buffer_write.h"
