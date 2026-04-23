@@ -27,7 +27,6 @@
 #include "aether/actions/action_ptr.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
-#include "aether/stream_api/safe_stream/safe_stream_config.h"
 
 #include "send_message_delays/timed_sender.h"
 #include "send_message_delays/api/bench_delays_api.h"

@@ -14,25 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_STREAM_API_SAFE_STREAM_SAFE_STREAM_CONFIG_H_
-#define AETHER_STREAM_API_SAFE_STREAM_SAFE_STREAM_CONFIG_H_
+#ifndef AETHER_SAFE_STREAM_SAFE_STREAM_CONFIG_H_
+#define AETHER_SAFE_STREAM_SAFE_STREAM_CONFIG_H_
 
 #include <cstdint>
 
-#include "aether/common.h"
-#include "aether/stream_api/safe_stream/safe_stream_types.h"
+#include "aether/clock.h"
 
 namespace ae {
 struct SafeStreamConfig {
-  SSRingIndex::type buffer_capacity;  //< sending buffer capacity
-  SSRingIndex::type window_size;      //< size of sending window
-  SSRingIndex::type max_packet_size;  //< max size of sending data
-  std::uint8_t max_repeat_count;      //< max repeat count for sending packet
-  Duration wait_ack_timeout;          //< Timeout for waiting ack
-  Duration send_ack_timeout;          //< max time to wait before send ack
+  std::size_t window_size;        //< size of sending window
+  std::size_t max_packet_size;    //< max size of sending data
+  std::uint8_t max_repeat_count;  //< max repeat count for sending packet
+  Duration wait_ack_timeout;      //< Timeout for waiting ack
+  Duration send_ack_timeout;      //< max time to wait before send ack
   Duration send_repeat_timeout;  //< max time to wait before send repeat request
 };
 
 }  // namespace ae
 
-#endif  // AETHER_STREAM_API_SAFE_STREAM_SAFE_STREAM_CONFIG_H_
+#endif  // AETHER_SAFE_STREAM_SAFE_STREAM_CONFIG_H_

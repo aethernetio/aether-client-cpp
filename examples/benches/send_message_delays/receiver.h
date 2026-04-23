@@ -20,11 +20,11 @@
 #include "aether/memory.h"
 #include "aether/client.h"
 #include "aether/ae_context.h"
+#include "aether/actions/action_ptr.h"
 #include "aether/events/event_subscription.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
-#include "aether/stream_api/safe_stream/safe_stream_config.h"
 
 #include "send_message_delays/timed_receiver.h"
 #include "send_message_delays/api/bench_delays_api.h"
