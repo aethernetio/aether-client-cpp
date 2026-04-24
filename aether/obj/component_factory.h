@@ -18,9 +18,8 @@
 #define AETHER_OBJ_COMPONENT_FACTORY_H_
 
 #include <optional>
+#include <type_traits>
 
-#include "aether/common.h"
-#include "aether/type_traits.h"
 #include "aether/types/small_function.h"
 
 namespace ae {
@@ -37,7 +36,8 @@ class ComponentFactory<T> {
   /**
    * \brief Set the object factory to create the object on resolve.
    */
-  template <typename F, AE_REQUIRERS((IsFunctor<F, T()>))>
+  template <typename F>
+    requires(std::is_invocable_r_v<T, F>)
   void Factory(F&& factory) {
     factory_.emplace(std::forward<F>(factory));
   }
@@ -79,8 +79,8 @@ class ComponentFactory<TContext, T> {
   /**
    * \brief Set the object factory to create the object on resolve.
    */
-  template <typename F,
-            AE_REQUIRERS((IsFunctor<F, T(TContext const& context)>))>
+  template <typename F>
+    requires(std::is_invocable_r_v<T, F, TContext const&>)
   void Factory(F&& factory) {
     factory_.emplace(std::forward<F>(factory));
   }
