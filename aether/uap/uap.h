@@ -69,10 +69,10 @@ class Uap final : public Obj {
 
   struct IntervalState {
     Interval interval;
-    SyncTimePoint end_time;
+    TimePoint end_time;
 
     Duration remaining() const;
-    SyncTimePoint until() const;
+    TimePoint until() const;
   };
 
  public:

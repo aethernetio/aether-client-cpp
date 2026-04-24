@@ -48,15 +48,9 @@ class SyncClock {
     return time_point{ChronoClock::now().time_since_epoch() + SyncTimeDiff};
   }
 
-  /**
-   * \brief Return sync time
-   */
-  template <typename C, typename D>
-  static std::enable_if_t<std::is_same_v<SyncClock, C> ||
-                              std::is_same_v<internal_clock, C>,
-                          time_point>
-  sync_time(std::chrono::time_point<C, D> const& tp) {
-    return time_point{tp.time_since_epoch() + SyncTimeDiff};
+  static auto ToRawTime(time_point tp) {
+    return
+        typename ChronoClock::time_point{tp.time_since_epoch() - SyncTimeDiff};
   }
 };
 
@@ -85,6 +79,9 @@ using SyncTimePoint = typename SyncClock::time_point;
 inline auto Now() { return SystemClock::now(); }
 // synchronised time
 inline auto SyncTime() { return SyncClock::now(); }
+
+inline auto ToRawTime(SyncTimePoint tp) { return SyncClock::ToRawTime(tp); }
+
 }  // namespace ae
 
 #endif  // AETHER_CLOCK_H_
