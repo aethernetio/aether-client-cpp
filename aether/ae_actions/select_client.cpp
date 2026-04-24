@@ -25,62 +25,59 @@
 #include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
-SelectClientAction::SelectClientAction(ActionContext action_context,
+SelectClientAction::SelectClientAction(AeContext const& ae_context,
                                        Client::ptr client)
-    : Action{action_context},
-      client_{std::move(client)},
-      state_{State::kClientReady} {
+    : ae_context_{ae_context}, alive_ctx_{ae_context_, this} {
   AE_TELED_DEBUG("Select loaded client");
-  Action::Trigger();
+  ae_context_.scheduler().Task(
+      [imalive{alive_ctx_.View()}, c{std::move(client)}]() {
+        if (imalive) {
+          imalive->client_selected_event_.Emit(c);
+          imalive->Finish();
+        }
+      });
 }
 
 #if AE_SUPPORT_REGISTRATION  // only if registration is supported
-SelectClientAction::SelectClientAction(ActionContext action_context,
+SelectClientAction::SelectClientAction(AeContext const& ae_context,
                                        Aether& aether,
                                        Registration& registration,
                                        std::string client_id)
-    : Action{action_context},
-      state_{State::kWaitRegistration},
+    : ae_context_{ae_context},
+      alive_ctx_{ae_context_, this},
       client_id_{std::move(client_id)} {
   AE_TELED_DEBUG("Waiting for client registration");
   registration_sub_ = registration.registration().Subscribe(
       [this, aeth{&aether}](auto const& res) {
         if (res) {
-          client_ = aeth->CreateClient(res.value(), client_id_);
-          state_ = State::kClientRegistered;
+          auto client = aeth->CreateClient(res.value(), client_id_);
+          client_selected_event_.Emit(client);
         } else {
-          state_ = State::kClientRegistrationError;
+          selection_failed_event_.Emit();
         }
+        Finish();
       });
-
-  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
 }
 #endif
 
-SelectClientAction::SelectClientAction(ActionContext action_context)
-    : Action{action_context}, state_{State::kNoClientToSelect} {
+SelectClientAction::SelectClientAction(AeContext const& ae_context)
+    : ae_context_{ae_context}, alive_ctx_{ae_context_, this} {
   AE_TELED_DEBUG("No clients to select");
-  Action::Trigger();
-}
-
-UpdateStatus SelectClientAction::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kWaitRegistration:
-        break;
-      case State::kClientRegistrationError:
-      case State::kNoClientToSelect:
-        return UpdateStatus::Error();
-      case State::kClientReady:
-      case State::kClientRegistered:
-        return UpdateStatus::Result();
+  ae_context_.scheduler().Task([imalive{alive_ctx_.View()}]() {
+    if (imalive) {
+      imalive->selection_failed_event_.Emit();
+      imalive->Finish();
     }
-  }
-  return {};
+  });
 }
 
-Client::ptr const& SelectClientAction::client() const { return client_; }
-
-SelectClientAction::State SelectClientAction::state() const { return state_; }
+SelectClientAction::ClientSelectedEvent::Subscriber
+SelectClientAction::client_selected() {
+  return EventSubscriber{client_selected_event_};
+}
+SelectClientAction::SelectionFailedEvent::Subscriber
+SelectClientAction::selection_failed() {
+  return EventSubscriber{selection_failed_event_};
+}
 
 }  // namespace ae

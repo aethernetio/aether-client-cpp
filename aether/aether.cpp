@@ -114,13 +114,13 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
   return client;
 }
 
-ActionPtr<SelectClientAction> Aether::SelectClient(
-    [[maybe_unused]] Uid parent_uid, std::string const& client_id) {
+SelectClientAction& Aether::SelectClient([[maybe_unused]] Uid parent_uid,
+                                         std::string const& client_id) {
   AE_TELED_DEBUG("Select client {} with parent uid {}", client_id, parent_uid);
 
-  auto select_action = FindSelectClientAction(client_id);
-  if (select_action) {
-    return select_action;
+  auto* select_action = FindSelectClientAction(client_id);
+  if (select_action != nullptr) {
+    return *select_action;
   }
 
   auto client = FindClient(client_id);
@@ -164,31 +164,45 @@ void Aether::StoreClient(Client::ptr client) {
   clients_[client.Load()->id()] = std::move(client);
 }
 
-ActionPtr<SelectClientAction> Aether::FindSelectClientAction(
+SelectClientAction* Aether::FindSelectClientAction(
     std::string const& client_id) {
   auto select_act_it = select_client_actions_.find(client_id);
   if (select_act_it != std::end(select_client_actions_)) {
-    return ActionPtr{select_act_it->second};
+    return select_act_it->second.get();
   }
   return {};
 }
 
-ActionPtr<SelectClientAction> Aether::MakeSelectClient() const {
-  return ActionPtr<SelectClientAction>{*action_processor};
+SelectClientAction& Aether::MakeSelectClient() {
+  // use tag "not_found" for failed client selections
+  if (auto it = select_client_actions_.find("not_found");
+      it != std::end(select_client_actions_)) {
+    if (it->second->is_finished()) {
+      it->second = std::make_unique<SelectClientAction>(*this);
+    }
+    return *it->second;
+  }
+
+  auto [it, _] = select_client_actions_.emplace(
+      "not_found", std::make_unique<SelectClientAction>(*this));
+  return *it->second;
 }
 
-ActionPtr<SelectClientAction> Aether::MakeSelectClient(
-    Client::ptr const& client) const {
-  return ActionPtr<SelectClientAction>{*action_processor, client};
+SelectClientAction& Aether::MakeSelectClient(Client::ptr const& client) {
+  auto [it, ok] = select_client_actions_.emplace(
+      client->id(), std::make_unique<SelectClientAction>(*this, client));
+  assert(ok);
+  return *it->second;
 }
 
 #if AE_SUPPORT_REGISTRATION
-ActionPtr<SelectClientAction> Aether::MakeSelectClient(
-    Registration& registration, std::string const& client_id) {
-  auto select_action = ActionPtr<SelectClientAction>{*action_processor, *this,
-                                                     registration, client_id};
-  select_client_actions_[client_id] = select_action;
-  return select_action;
+SelectClientAction& Aether::MakeSelectClient(Registration& registration,
+                                             std::string const& client_id) {
+  auto [it, ok] = select_client_actions_.emplace(
+      client_id, std::make_unique<SelectClientAction>(AeContext{*this}, *this,
+                                                      registration, client_id));
+  assert(ok);
+  return *it->second;
 }
 
 Registration& Aether::RegisterClient(std::string const& client_id,
