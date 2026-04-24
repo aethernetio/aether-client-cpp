@@ -14,17 +14,23 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#ifndef AETHER_SAFE_STREAM_DETAILS_SAFE_STREAM_DATA_MESSAGE_H_
+#define AETHER_SAFE_STREAM_DETAILS_SAFE_STREAM_DATA_MESSAGE_H_
 
-void setUp() {}
-void tearDown() {}
+#include <cstdint>
 
-extern int test_templated_streams();
-extern int test_tied_gates();
+#include "aether/types/data_buffer.h"
 
-int main() {
-  int res = 0;
-  res += test_templated_streams();
-  res += test_tied_gates();
-  return res;
-}
+namespace ae {
+/**
+ * \brief The data message used for sending data by Safe Stream Api.
+ */
+struct DataMessage {
+  bool reset;
+  std::uint8_t repeat_count;
+  std::uint16_t delta_offset;  // data offset form sender's buffer begin
+  DataBuffer data;
+};
+}  // namespace ae
+
+#endif  // AETHER_SAFE_STREAM_DETAILS_SAFE_STREAM_DATA_MESSAGE_H_

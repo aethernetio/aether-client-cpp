@@ -94,7 +94,6 @@ class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
   void MakeTest() {
     AE_TELED_INFO("Make a test");
     SafeStreamConfig safe_stream_config{
-        std::numeric_limits<std::uint16_t>::max(),
         (std::numeric_limits<std::uint16_t>::max() / 2) - 1,
         (std::numeric_limits<std::uint16_t>::max() / 2) - 1,
         10,

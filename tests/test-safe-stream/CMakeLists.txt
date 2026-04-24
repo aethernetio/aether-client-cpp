@@ -16,14 +16,21 @@ cmake_minimum_required( VERSION 3.18 )
 
 list(APPEND test_srcs
   main.cpp
-  templated-streams/test_templated_streams.cpp
-  test-tied-gates.cpp
-  # ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp
+  mock_bad_streams.cpp
+  test_circular_buffer.cpp
+  test_sending_chunk_list.cpp
+  test_receiving_chunks.cpp
+  test_safe_stream_send.cpp
+  test_safe_stream_recv.cpp
+  test_safe_stream_send_recv.cpp
+  test_safe_stream.cpp
+  test_safe_stream_reliability.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp
 )
 
 if(NOT CM_PLATFORM)
 
-  project(test-stream LANGUAGES CXX)
+  project(test-safe-stream LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME})
   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})

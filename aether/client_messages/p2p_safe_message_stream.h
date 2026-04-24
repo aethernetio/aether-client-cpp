@@ -22,18 +22,20 @@
 #include "aether/actions/action_context.h"
 
 #include "aether/stream_api/istream.h"
-#include "aether/stream_api/safe_stream.h"
 #include "aether/stream_api/sized_packet_gate.h"
-#include "aether/stream_api/safe_stream/safe_stream_config.h"
+#include "aether/safe_stream/safe_stream_config.h"
 
 #include "aether/client_messages/p2p_message_stream.h"
 
 namespace ae {
+template <std::size_t Capacity>
+class SafeStream;
 
 class P2pSafeStream final : public ByteIStream {
  public:
   P2pSafeStream(AeContext const& ae_context, SafeStreamConfig const& config,
                 RcPtr<P2pStream> p2p_stream);
+  ~P2pSafeStream() override;
 
   AE_CLASS_NO_COPY_MOVE(P2pSafeStream)
 
@@ -45,7 +47,8 @@ class P2pSafeStream final : public ByteIStream {
 
  private:
   SizedPacketGate sized_packet_gate_;
-  SafeStream safe_stream_;
+  // TODO: add config
+  std::unique_ptr<SafeStream<12000>> safe_stream_;
   RcPtr<P2pStream> p2p_stream_;
   OutDataEvent out_data_event_;
   std::array<Subscription, 2> out_data_sub_;

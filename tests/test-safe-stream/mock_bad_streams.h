@@ -17,6 +17,7 @@
 #ifndef TESTS_TEST_STREAM_MOCK_BAD_STREAMS_H_
 #define TESTS_TEST_STREAM_MOCK_BAD_STREAMS_H_
 
+#include <queue>
 #include <optional>
 
 #include "aether/ae_context.h"
@@ -58,6 +59,7 @@ class PacketDelayStream : public ByteStream {
   AeContext ae_context_;
   float delay_rate_;
   Duration max_delay_;
+  std::queue<DataBuffer> data_queue_;
   std::optional<bad_streams_internal::DoneStreamWriteAction> dsw_;
 };
 }  // namespace ae

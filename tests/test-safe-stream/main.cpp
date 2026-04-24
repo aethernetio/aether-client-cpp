@@ -16,15 +16,29 @@
 
 #include <unity.h>
 
-void setUp() {}
+#include "aether/tele/tele_init.h"
+
+void setUp() { ae::tele::TeleInit::Init(); }
 void tearDown() {}
 
-extern int test_templated_streams();
-extern int test_tied_gates();
+extern int test_circular_buffer();
+extern int test_sending_chunk_list();
+extern int test_receiving_chunks();
+extern int test_safe_stream_send();
+extern int test_safe_stream_recv();
+extern int test_safe_stream_send_recv();
+extern int test_safe_stream();
+extern int test_safe_stream_reliability();
 
 int main() {
   int res = 0;
-  res += test_templated_streams();
-  res += test_tied_gates();
+  res += test_circular_buffer();
+  res += test_sending_chunk_list();
+  res += test_receiving_chunks();
+  res += test_safe_stream_send();
+  res += test_safe_stream_recv();
+  res += test_safe_stream_send_recv();
+  res += test_safe_stream();
+  res += test_safe_stream_reliability();
   return res;
 }

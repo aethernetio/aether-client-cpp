@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "test-stream/mock_bad_streams.h"
+#include "mock_bad_streams.h"
 
 #include <random>
 
@@ -72,9 +72,12 @@ WriteAction& PacketDelayStream::Write(DataBuffer&& data_buffer) {
   if (bad_streams_internal::IsHitTheRate(delay_rate_)) {
     AE_TELED_DEBUG("Packet delay!");
     // delay send data by packet delay action
+    data_queue_.push(std::move(data_buffer));
     ae_context_.scheduler().DelayedTask(
-        [this, d{std::move(data_buffer)}]() mutable {
+        [this]() mutable {
           AE_TELED_DEBUG("Delayed packet send!");
+          auto d = std::move(data_queue_.front());
+          data_queue_.pop();
           out_->Write(std::move(d));
         },
         std::chrono::duration_cast<Duration>(
