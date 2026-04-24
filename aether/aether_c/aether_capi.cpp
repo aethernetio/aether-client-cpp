@@ -16,7 +16,7 @@
 
 #include "aether/aether_c/aether_capi.h"
 
-#include <assert.h>
+#include <cassert>
 
 #include <string_view>
 
@@ -26,15 +26,16 @@
 #include "aether/memory.h"
 #include "aether/ptr/ptr.h"
 #include "aether/obj/obj_ptr.h"
-#include "aether/actions/action.h"
+#include "aether/actions/action2_.h"
 #include "aether/actions/pipeline.h"
 #include "aether/actions/actions_queue.h"
 
 #include "aether/client.h"
 #include "aether/aether_app.h"
-#include "aether/wifi/wifi_driver_types.h"
 
 // IWYU pragma: begin_keeps
+#include "aether/wifi/wifi_driver_types.h"
+
 #include "aether/domain_storage/domain_storage_factory.h"
 #include "aether/domain_storage/ram_domain_storage.h"
 #include "aether/domain_storage/spifs_domain_storage.h"
@@ -70,6 +71,27 @@ template <typename TFunc>
 auto Stage(TFunc&& func) {
   return WriteActionStageRunner{std::forward<TFunc>(func)};
 }
+
+template <typename TFunc>
+  requires(std::is_same_v<SelectClientAction&, std::invoke_result_t<TFunc>>)
+struct SelectClientActionStageRunner {
+ public:
+  explicit SelectClientActionStageRunner(TFunc&& f) : func_{std::move(f)} {}
+
+  void Run() { action_ = &std::invoke(func_); }
+
+  SelectClientAction* action() { return action_; }
+
+ private:
+  TFunc func_;
+  SelectClientAction* action_{};
+};
+
+template <typename TFunc>
+  requires(std::is_same_v<SelectClientAction&, std::invoke_result_t<TFunc>>)
+auto Stage(TFunc&& func) {
+  return SelectClientActionStageRunner{std::forward<TFunc>(func)};
+}
 }  // namespace ae
 
 static ae::RcPtr<ae::AetherApp> aether_app;
@@ -89,10 +111,10 @@ void Listen(AetherClient* client, void* user_data);
 void ListenStream(AetherClient* client, void* user_data, CUid const& c_dest,
                   ae::RcPtr<ae::P2pStream> const& stream);
 
-ae::ActionPtr<ae::SelectClientAction> SelectClientImpl(
-    AetherClient* client, ClientConfig const* config) {
+ae::SelectClientAction& SelectClientImpl(AetherClient* client,
+                                         ClientConfig const* config) {
   auto parent_uid = ae::Uid{config->parent_uid.value};
-  auto select_action =
+  auto& select_action =
       aether_app->aether()->SelectClient(parent_uid, config->id);
 
   struct SelectContext {
@@ -106,10 +128,10 @@ ae::ActionPtr<ae::SelectClientAction> SelectClientImpl(
       SelectContext{client, config->client_selected_cb,
                     config->message_received_cb, config->user_data});
 
-  select_action->StatusEvent().Subscribe(ae::ActionHandler{
-      ae::OnResult{[context{select_context}](auto const& action) {
+  select_action.client_selected().Subscribe(
+      [context{select_context}](auto const& c) {
         // save the client
-        context->client->client = action.client();
+        context->client->client = c;
         // subscribe to messages
         if (context->message_recv_cb != nullptr) {
           Listen(context->client, context->user_data);
@@ -118,13 +140,12 @@ ae::ActionPtr<ae::SelectClientAction> SelectClientImpl(
         if (context->client_selected_cb != nullptr) {
           context->client_selected_cb(context->client, context->user_data);
         }
-      }},
-      ae::OnError{[context{select_context}]() {
-        if (!context->client_selected_cb) {
-          return;
-        }
-        context->client_selected_cb(nullptr, context->user_data);
-      }},
+      });
+  select_action.selection_failed().Subscribe([context{select_context}]() {
+    if (!context->client_selected_cb) {
+      return;
+    }
+    context->client_selected_cb(nullptr, context->user_data);
   });
 
   return select_action;
@@ -368,11 +389,13 @@ AetherClient* SelectClient(ClientConfig const* config) {
 
   auto* ret_client = new AetherClient{};
   ret_client->config = *config;
-  ret_client->actions_queue_ =
-      ae::OwnActionPtr<ae::ActionsQueue>{ae::ActionContext{*aether_app}};
+  ret_client->actions_queue_ = ae::OwnActionPtr<ae::ActionsQueue>{
+      ae::ActionContext{*aether_app->aether()}};
 
-  ret_client->actions_queue_->Push(ae::Stage(
-      [ret_client, config]() { return SelectClientImpl(ret_client, config); }));
+  ret_client->actions_queue_->Push(
+      ae::Stage([ret_client, config]() -> decltype(auto) {
+        return SelectClientImpl(ret_client, config);
+      }));
 
   return ret_client;
 }
