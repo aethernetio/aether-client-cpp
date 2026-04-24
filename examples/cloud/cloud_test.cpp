@@ -65,17 +65,17 @@ int AetherCloudExample() {
   ae::Client::ptr client_a;
   ae::Client::ptr client_b;
 
-  auto select_client_a = aether_app->aether()->SelectClient(
+  auto& select_client_a = aether_app->aether()->SelectClient(
       ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "A");
-  select_client_a->StatusEvent().Subscribe(ae::ActionHandler{
-      ae::OnResult{[&](auto const& action) { client_a = action.client(); }},
-      ae::OnError{[&]() { aether_app->Exit(1); }}});
+  select_client_a.client_selected().Subscribe(
+      [&](auto const& c) { client_a = c; });
+  select_client_a.selection_failed().Subscribe([&]() { aether_app->Exit(1); });
 
-  auto select_client_b = aether_app->aether()->SelectClient(
+  auto& select_client_b = aether_app->aether()->SelectClient(
       ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "B");
-  select_client_b->StatusEvent().Subscribe(ae::ActionHandler{
-      ae::OnResult{[&](auto const& action) { client_b = action.client(); }},
-      ae::OnError{[&]() { aether_app->Exit(1); }}});
+  select_client_b.client_selected().Subscribe(
+      [&](auto const& c) { client_b = c; });
+  select_client_b.selection_failed().Subscribe([&]() { aether_app->Exit(1); });
 
   aether_app->WaitActions(select_client_a, select_client_b);
 

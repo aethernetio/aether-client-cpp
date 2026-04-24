@@ -165,21 +165,18 @@ int AetherRegistrator(const std::string& ini_file,
     return 0;
   }
 
-  auto registrator_action = ae::ActionPtr<ae::reg::RegistratorAction>{
+  auto registrator_action = ae::reg::RegistratorAction{
       ae::AeContext{*aether_app}, aether_app, registrator_config.clients()};
 
-  registrator_action->StatusEvent().Subscribe(ae::ActionHandler{
-      ae::OnResult{[&](auto const& action) {
-        auto const& clients = action.registered_clients();
-        for (auto const& c_conf : clients) {
-          std::cout << ae::Format("\nclient={},\n{}\n", c_conf.client_id,
-                                  c_conf.config);
-          aether_app->aether()->CreateClient(c_conf.config, c_conf.client_id);
-        }
-        aether_app->Exit(0);
-      }},
-      ae::OnError{[&]() { aether_app->Exit(1); }},
+  registrator_action.registered_event().Subscribe([&](auto const& clients) {
+    for (auto const& c_conf : clients) {
+      std::cout << ae::Format("\nclient={},\n{}\n", c_conf.client_id,
+                              c_conf.config);
+      aether_app->aether()->CreateClient(c_conf.config, c_conf.client_id);
+    }
+    aether_app->Exit(0);
   });
+  registrator_action.failed_event().Subscribe([&]() { aether_app->Exit(1); });
 
   while (!aether_app->IsExited()) {
     auto current_time = ae::Now();
