@@ -20,13 +20,13 @@
 #include <array>
 #include <cassert>
 #include <optional>
+#include <type_traits>
 
 #include "aether/config.h"
 #include "aether/common.h"
 #include "aether/ptr/ptr.h"
 #include "aether/ptr/rc_ptr.h"
 #include "aether/obj/domain.h"
-#include "aether/type_traits.h"
 #include "aether/types/small_function.h"
 
 #include "aether/events/events.h"   // IWYU pragma: keep
@@ -44,8 +44,8 @@
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/adapter_registry.h"
-#include "aether/tele/traps/tele_statistics.h"
 #include "aether/obj/component_factory.h"
+#include "aether/tele/traps/tele_statistics.h"
 
 #include "aether/domain_storage/domain_storage_factory.h"
 
@@ -62,9 +62,9 @@ class AetherAppContext {
   explicit AetherAppContext()
       : AetherAppContext(DomainStorageFactory::Create, TelemetryInit{}) {}
 
-  template <typename Func, typename TeleInit = TelemetryInit,
-            AE_REQUIRERS((IsFunctor<Func, std::unique_ptr<IDomainStorage>()>)),
-            AE_REQUIRERS((IsFunctor<TeleInit, void(AetherAppContext const&)>))>
+  template <typename Func, typename TeleInit = TelemetryInit>
+    requires(std::is_invocable_r_v<std::unique_ptr<IDomainStorage>, Func> &&
+             std::is_invocable_r_v<void, TeleInit, AetherAppContext const&>)
   explicit AetherAppContext(Func&& domain_storage_factory,
                             TeleInit const& tele_init = TelemetryInit{})
       : init_tele_{tele_init} {
