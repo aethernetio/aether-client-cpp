@@ -29,11 +29,8 @@
 #include "aether/obj/domain.h"
 #include "aether/types/small_function.h"
 
-#include "aether/events/events.h"   // IWYU pragma: keep
-#include "aether/actions/action.h"  // IWYU pragma: keep
-#include "aether/actions/action_ptr.h"
-#include "aether/actions/action_trigger.h"
-#include "aether/actions/action_processor.h"
+#include "aether/events/events.h"     // IWYU pragma: keep
+#include "aether/actions/action2_.h"  // IWYU pragma: keep
 
 #include "aether/cloud.h"
 #include "aether/aether.h"
@@ -179,7 +176,8 @@ class AetherApp {
    */
   void Exit(int code = 0) {
     exit_code_ = code;
-    aether_->action_processor->get_trigger().Trigger();
+    // wake up the task thread
+    aether_->task_scheduler->Task([]() {});
   }
 
   bool IsExited() const { return exit_code_.has_value(); }
@@ -200,7 +198,7 @@ class AetherApp {
    */
   void WaitUntil(TimePoint wakeup_time) {
     if (!IsExited()) {
-      aether_->action_processor->get_trigger().WaitUntil(wakeup_time);
+      aether_->task_scheduler->WaitUntil(wakeup_time);
     }
   }
 
@@ -208,8 +206,9 @@ class AetherApp {
    * \brief Wait until all actions are excited.
    */
   template <typename... TAction>
-  void WaitActions(ActionPtr<TAction>&... actions) {
-    WaitEvents(actions->StatusEvent()...);
+    requires(std::is_base_of_v<a2::Action, TAction> && ...)
+  void WaitActions(TAction&... actions) {
+    WaitEvents(actions.finished_event()...);
   }
 
   /**
@@ -232,8 +231,7 @@ class AetherApp {
   Domain& domain() const { return *domain_; }
   Aether::ptr const& aether() const { return aether_; }
 
-  // Action context protocol
-  operator ActionContext() const { return ActionContext{*aether_}; }
+  // AeContext protocol
   AeCtx ToAeContext() const { return aether_->ToAeContext(); }
 
  private:
