@@ -22,17 +22,18 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
+static constexpr auto kTestUid =
+    Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4");
+
 int test_sender_bandwidth(Uid const& receiver_uid) {
   auto aether_app = ae::AetherApp::Construct(AetherAppContext{});
 
   ae::Client::ptr client;
 
   // select one client
-  auto select_client = aether_app->aether()->SelectClient(
-      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "sender");
+  auto& select_client = aether_app->aether()->SelectClient(kTestUid, "sender");
 
-  select_client->StatusEvent().Subscribe(
-      OnResult{[&](auto const& reg) { client = reg.client(); }});
+  select_client.client_selected().Subscribe([&](auto const& c) { client = c; });
 
   aether_app->WaitActions(select_client);
 
@@ -43,8 +44,8 @@ int test_sender_bandwidth(Uid const& receiver_uid) {
 
   auto sender = Sender{*aether_app, client, receiver_uid};
 
-  auto test_action = ActionPtr<TestAction<Sender>>{ActionContext{*aether_app},
-                                                   sender, std::size_t{10000}};
+  auto test_action = ActionPtr<TestAction<Sender>>{
+      ActionContext{*aether_app->aether()}, sender, std::size_t{10000}};
 
   test_action->StatusEvent().Subscribe(ActionHandler{
       OnResult{[&](auto const& action) {

@@ -23,7 +23,9 @@
 
 #include "aether/aether.h"
 #include "aether/aether_app.h"
-#include "aether/actions/action.h"
+#include "aether/events/events.h"
+#include "aether/events/multi_subscription.h"
+#include "aether/actions/action2_.h"
 
 #include "registrator/registrator_config.h"
 
@@ -33,29 +35,29 @@ struct RegisteredClient {
   std::string client_id;
 };
 
-class RegistratorAction : public Action<RegistratorAction> {
-  enum class State : std::uint8_t {
-    kWait,
-    kResult,
-    kError,
-  };
-
+class RegistratorAction : public a2::Action {
  public:
+  using RegisteredEvent = Event<void(std::vector<RegisteredClient>)>;
+  using FailedEvent = Event<void()>;
+
   explicit RegistratorAction(
       ae::AeContext const& ae_context, RcPtr<ae::AetherApp> const& aether_app,
       std::vector<reg::ClientConfig> const& client_configs);
-  UpdateStatus Update();
 
-  std::vector<RegisteredClient> const& registered_clients() const;
+  RegisteredEvent::Subscriber registered_event();
+  FailedEvent::Subscriber failed_event();
 
  private:
   void RegisterClients(ae::Aether::ptr const& aether,
                        std::vector<reg::ClientConfig> const& client_configs);
 
+  AeContext ae_context_;
   std::vector<RegisteredClient> registered_clients_;
 
+  RegisteredEvent registered_event_;
+  FailedEvent failed_event_;
+
   MultiSubscription registration_sub_;
-  StateMachine<State> state_;
 };
 
 }  // namespace ae::reg

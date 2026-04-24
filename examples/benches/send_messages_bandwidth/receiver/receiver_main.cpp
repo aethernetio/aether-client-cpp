@@ -23,17 +23,18 @@
 
 namespace ae::bench {
 
+static constexpr auto kTestUid =
+    Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4");
+
 int test_receiver_bandwidth() {
   auto aether_app = ae::AetherApp::Construct(AetherAppContext{});
 
   ae::Client::ptr client;
 
   // get one client
-  auto get_client = aether_app->aether()->SelectClient(
-      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "receiver");
+  auto& get_client = aether_app->aether()->SelectClient(kTestUid, "receiver");
 
-  get_client->StatusEvent().Subscribe(
-      OnResult{[&](auto const& reg) { client = reg.client(); }});
+  get_client.client_selected().Subscribe([&](auto const& c) { client = c; });
 
   aether_app->WaitActions(get_client);
 
@@ -42,7 +43,7 @@ int test_receiver_bandwidth() {
     return -1;
   }
 
-  auto action_context = ActionContext{*aether_app};
+  auto action_context = ActionContext{*aether_app->aether()};
   auto receiver = Receiver{action_context, client};
 
   auto test_action = ActionPtr<TestAction<Receiver>>(action_context, receiver,
