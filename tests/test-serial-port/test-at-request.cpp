@@ -16,645 +16,423 @@
 
 #include <unity.h>
 
-#include "aether/actions/action_processor.h"
-#include "aether/serial_ports/at_support/at_request.h"
+#include <string>
+#include <iterator>
+#include <algorithm>
+
+#include "aether/executors/executors.h"
+#include "aether/tasks/manual_task_scheduler.h"
+
 #include "aether/serial_ports/at_support/at_support.h"
+#include "aether/serial_ports/at_support/at_request.h"
 
 #include "tests/test-serial-port/mock-serial-port.h"
 
 namespace ae::test_at_request {
 
-void ProcessActions(ActionProcessor& ap, std::size_t count = 10,
-                    Duration step = {}) {
-  auto current_time = Now();
-  for (int i = 0; i < count; i++) {
-    ap.Update(current_time += step);
-  }
-}
+using TaskScheduler = ManualTaskScheduler<TaskManagerConf<10>>;
+struct TestContext {
+  auto& scheduler() const noexcept { return *sched; }
+  TaskScheduler* sched;
+};
 
 void test_AtRequestStringCommand0WaitsSuccess() {
-  auto ap = ActionProcessor{};
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
-  // Create AtRequest with string command and 0 waits
-  auto at_request = at_support.MakeRequest("AT");
-
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
-
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
+  DataBuffer received;
+  mock_serial.write_event().Subscribe([&](auto data) {
+    std::copy(std::begin(data), std::end(data), std::back_inserter(received));
   });
 
-  // Process the action multiple times to ensure completion
-  ProcessActions(ap);
+  // Create AtRequest with string command and 0 waits
+  auto at_request = at::MakeRequest(ex::just(), at_support, std::string{"AT"});
 
-  // Verify success result
-  TEST_ASSERT_TRUE(result_triggered);
-  TEST_ASSERT_FALSE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  auto res = ex::SyncWait(std::move(at_request));
+
+  TEST_ASSERT_EQUAL_STRING_LEN("AT\r\n", received.data(), 5);
 }
 
 void test_AtRequestStringCommand0WaitsError() {
-  auto ap = ActionProcessor{};
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
+
+  DataBuffer received;
+  mock_serial.write_event().Subscribe([&](auto data) {
+    std::copy(std::begin(data), std::end(data), std::back_inserter(received));
+  });
 
   // Create AtRequest with string command and 0 waits
-  auto at_request = at_support.MakeRequest("AT");
-
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
-
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
+  auto at_request = at::MakeRequest(ex::just(), at_support, std::string{"AT"});
 
   // Close serial port to simulate error condition
   mock_serial.close();
 
-  // Process the action multiple times to ensure completion
-  ProcessActions(ap);
+  auto res = ex::SyncWait(std::move(at_request));
 
-  // Verify error result (command executes but ERROR response received)
-  TEST_ASSERT_FALSE(result_triggered);
-  TEST_ASSERT_TRUE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  TEST_ASSERT_TRUE(res.has_value());
+  TEST_ASSERT_TRUE(res->IsErr());
+  TEST_ASSERT_EQUAL(-1, res->error());
 }
 
 void test_AtRequestStringCommand1WaitSuccess() {
-  auto ap = ActionProcessor{};
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
   // Create AtRequest with string command and 1 wait for "OK"
-  auto at_request = at_support.MakeRequest(
-      "AT", AtRequest::Wait{"OK", std::chrono::seconds(5)});
+  auto at_request = at::MakeRequest(ex::just(), at_support, std::string{"AT"},
+                                    at::Wait{"OK"});
 
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
-
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
+  mock_serial.write_event().Subscribe([&](auto data) {
+    TEST_ASSERT_EQUAL_STRING_LEN("AT\r\n", data.data(), 5);
+    // Add expected response "OK" to trigger wait observer
+    std::string_view ok_line{"OK\r\n"};
+    mock_serial.WriteOut(std::span<std::uint8_t const>{
+        reinterpret_cast<std::uint8_t const*>(ok_line.data()), ok_line.size()});
   });
 
-  // Process the action to start command execution
-  ap.Update(Now());
+  auto res = ex::SyncWait(std::move(at_request));
 
-  // Add expected response "OK" to trigger wait observer
-  ae::DataBuffer data;
-  std::string_view ok_line{"OK\r\n"};
-  data.insert(data.end(), ok_line.begin(), ok_line.end());
-  mock_serial.WriteOut(data);
-
-  // Process the action multiple times to ensure completion
-  ProcessActions(ap);
-
-  // Verify success result
-  TEST_ASSERT_TRUE(result_triggered);
-  TEST_ASSERT_FALSE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  TEST_ASSERT_TRUE(res.has_value());
+  TEST_ASSERT_TRUE(res->IsOk());
 }
 
+struct AtReceiveState {
+  bool res{false};
+  bool error{false};
+  bool timeout{false};
+};
+
+struct AtReceiver {
+  using receiver_concept = ex::receiver_t;
+
+  void set_value(auto&&...) && noexcept { state->res = true; }
+  void set_error(ex::TimeoutError&&) && noexcept { state->timeout = true; }
+  void set_error(auto&&...) && noexcept { state->error = true; }
+  void set_stopped(auto&&...) && noexcept {}
+
+  AtReceiveState* state;
+};
+
 void test_AtRequestStringCommand1WaitErrorTimeout() {
-  auto ap = ActionProcessor{};
+  TaskScheduler scheduler;
+
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
-  // Create AtRequest with string command and 1 wait with short timeout
-  auto at_request = at_support.MakeRequest(
-      "AT", AtRequest::Wait{"OK", std::chrono::milliseconds(100)});
-
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
-
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
+  DataBuffer received;
+  mock_serial.write_event().Subscribe([&](auto data) {
+    TEST_ASSERT_EQUAL_STRING_LEN("AT\r\n", data.data(), 5);
+    std::copy(std::begin(data), std::end(data), std::back_inserter(received));
   });
 
-  // Process the action to start command execution
-  ap.Update(Now());
+  // Create AtRequest with string command and 1 wait with short timeout
+  auto at_request =
+      at::MakeRequest(ex::just(), at_support, "AT", at::Wait{"OK"}) |
+      ex::with_timeout(TestContext{&scheduler}, 100ms);
 
-  // Don't send expected response - let it timeout
-  // Process with time advancing beyond timeout
-  ProcessActions(ap, 10, std::chrono::milliseconds(200));
+  AtReceiveState s;
+  auto op = ex::connect(std::move(at_request), AtReceiver{&s});
+  // start request
+  ex::start(op);
 
-  // Verify timeout error result
-  TEST_ASSERT_FALSE(result_triggered);
-  TEST_ASSERT_TRUE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  // no result
+  TEST_ASSERT_FALSE(s.res);
+  TEST_ASSERT_FALSE(s.error);
+  TEST_ASSERT_FALSE(s.timeout);
+
+  scheduler.Update();
+  scheduler.Update(Now() + 100ms);
+
+  // expected error
+  TEST_ASSERT_FALSE(s.res);
+  TEST_ASSERT_FALSE(s.error);
+  TEST_ASSERT_TRUE(s.timeout);
 }
 
 void test_AtRequestStringCommand1WaitErrorResponse() {
-  auto ap = ActionProcessor{};
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
   // Create AtRequest with string command and 1 wait
-  auto at_request = at_support.MakeRequest(
-      "AT", AtRequest::Wait{"OK", std::chrono::seconds(5)});
+  auto at_request =
+      ex::just() | at::MakeRequest(at_support, "AT", at::Wait{"OK"});
 
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
+  AtReceiveState s;
+  auto op = ex::connect(std::move(at_request), AtReceiver{&s});
+  // start request
+  ex::start(op);
 
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
-
-  // Process the action to start command execution
-  ap.Update(Now());
-
-  // Add ERROR response to trigger error observer
-  ae::DataBuffer data;
   std::string_view error_line{"ERROR\r\n"};
-  data.insert(data.end(), error_line.begin(), error_line.end());
-  mock_serial.WriteOut(data);
+  mock_serial.WriteOut(
+      std::span{reinterpret_cast<std::uint8_t const*>(error_line.data()),
+                error_line.size()});
 
-  // Process the action multiple times to ensure completion
-  ProcessActions(ap);
-
-  // Verify error result
-  TEST_ASSERT_FALSE(result_triggered);
-  TEST_ASSERT_TRUE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  // expected error
+  TEST_ASSERT_FALSE(s.res);
+  TEST_ASSERT_TRUE(s.error);
+  TEST_ASSERT_FALSE(s.timeout);
 }
 
 void test_AtRequestStringCommand2WaitsSuccess() {
-  auto ap = ActionProcessor{};
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
   // Create AtRequest with string command and 2 waits
-  auto at_request = at_support.MakeRequest(
-      "AT", AtRequest::Wait{"OK", std::chrono::seconds(5)},
-      AtRequest::Wait{"READY", std::chrono::seconds(5)});
+  auto at_request =
+      ex::just() |
+      at::MakeRequest(at_support, "AT", at::Wait{"OK"}, at::Wait{"READY"});
 
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
-
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
-
-  // Process the action to start command execution
-  ap.Update(Now());
+  AtReceiveState s;
+  auto op = ex::connect(std::move(at_request), AtReceiver{&s});
+  // start request
+  ex::start(op);
 
   // Add first expected response "OK"
-  ae::DataBuffer data1;
   std::string_view ok_line{"OK\r\n"};
-  data1.insert(data1.end(), ok_line.begin(), ok_line.end());
-  mock_serial.WriteOut(data1);
+  mock_serial.WriteOut(std::span{
+      reinterpret_cast<std::uint8_t const*>(ok_line.data()), ok_line.size()});
 
-  // Process to handle first response
-  ap.Update(Now());
+  // no res yet
+  TEST_ASSERT_FALSE(s.res);
 
-  // Add second expected response "READY"
-  ae::DataBuffer data2;
   std::string_view ready_line{"READY\r\n"};
-  data2.insert(data2.end(), ready_line.begin(), ready_line.end());
-  mock_serial.WriteOut(data2);
+  mock_serial.WriteOut(
+      std::span{reinterpret_cast<std::uint8_t const*>(ready_line.data()),
+                ready_line.size()});
 
-  // Process the action multiple times to ensure completion
-  ProcessActions(ap);
-
-  // Verify success result
-  TEST_ASSERT_TRUE(result_triggered);
-  TEST_ASSERT_FALSE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  // got result
+  TEST_ASSERT_TRUE(s.res);
+  TEST_ASSERT_FALSE(s.error);
+  TEST_ASSERT_FALSE(s.timeout);
 }
 
 void test_AtRequestStringCommand2WaitsErrorPartial() {
-  auto ap = ActionProcessor{};
+  TaskScheduler scheduler;
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
   // Create AtRequest with string command and 2 waits with short timeout
-  auto at_request = at_support.MakeRequest(
-      "AT", AtRequest::Wait{"OK", std::chrono::milliseconds(100)},
-      AtRequest::Wait{"READY", std::chrono::milliseconds(100)});
+  auto at_request = at::MakeRequest(ex::just(), at_support, "AT",
+                                    at::Wait{"OK"}, at::Wait{"READY"}) |
+                    ex::with_timeout(TestContext{&scheduler}, 200ms);
 
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
-
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
-
-  // Process the action to start command execution
-  ap.Update(Now());
+  AtReceiveState s;
+  auto op = ex::connect(std::move(at_request), AtReceiver{&s});
+  // start request
+  ex::start(op);
+  scheduler.Update(Now());
 
   // Add only first expected response "OK"
   ae::DataBuffer data;
   std::string_view ok_line{"OK\r\n"};
-  data.insert(data.end(), ok_line.begin(), ok_line.end());
-  mock_serial.WriteOut(data);
+  mock_serial.WriteOut(std::span{
+      reinterpret_cast<std::uint8_t const*>(ok_line.data()), ok_line.size()});
 
-  // Process with time advancing beyond timeout for second wait
-  ProcessActions(ap, 10, std::chrono::milliseconds{200});
+  // no res yet
+  TEST_ASSERT_FALSE(s.res);
 
-  // Verify timeout error result (only one response received)
-  TEST_ASSERT_FALSE(result_triggered);
-  TEST_ASSERT_TRUE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
-}
-
-void test_AtRequestStringCommand3WaitsSuccess() {
-  auto ap = ActionProcessor{};
-  tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
-
-  // Create AtRequest with string command and 3 waits
-  auto at_request = at_support.MakeRequest(
-      "AT", AtRequest::Wait{"OK", std::chrono::seconds(5)},
-      AtRequest::Wait{"READY", std::chrono::seconds(5)},
-      AtRequest::Wait{"DONE", std::chrono::seconds(5)});
-
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
-
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
-
-  // Process the action to start command execution
-  ap.Update(Now());
-
-  // Add all expected responses
-  ae::DataBuffer data1;
-  std::string_view ok_line{"OK\r\n"};
-  data1.insert(data1.end(), ok_line.begin(), ok_line.end());
-  mock_serial.WriteOut(data1);
-
-  ae::DataBuffer data2;
-  std::string_view ready_line{"READY\r\n"};
-  data2.insert(data2.end(), ready_line.begin(), ready_line.end());
-  mock_serial.WriteOut(data2);
-
-  ae::DataBuffer data3;
-  std::string_view done_line{"DONE\r\n"};
-  data3.insert(data3.end(), done_line.begin(), done_line.end());
-  mock_serial.WriteOut(data3);
-
-  // Process the action multiple times to ensure completion
-  ProcessActions(ap);
-
-  // Verify success result
-  TEST_ASSERT_TRUE(result_triggered);
-  TEST_ASSERT_FALSE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  scheduler.Update(Now() + 200ms);
+  // expected timeout
+  TEST_ASSERT_FALSE(s.res);
+  TEST_ASSERT_FALSE(s.error);
+  TEST_ASSERT_TRUE(s.timeout);
 }
 
 void test_AtRequestStringCommand5WaitsSuccess() {
-  auto ap = ActionProcessor{};
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
   // Create AtRequest with string command and 5 waits
-  auto at_request = at_support.MakeRequest(
-      "AT", AtRequest::Wait{"RESP1", std::chrono::seconds(5)},
-      AtRequest::Wait{"RESP2", std::chrono::seconds(5)},
-      AtRequest::Wait{"RESP3", std::chrono::seconds(5)},
-      AtRequest::Wait{"RESP4", std::chrono::seconds(5)},
-      AtRequest::Wait{"RESP5", std::chrono::seconds(5)});
+  auto at_request =
+      ex::just() | at::MakeRequest(at_support, "AT", at::Wait{"RESP1"},
+                                   at::Wait{"RESP2"}, at::Wait{"RESP3"},
+                                   at::Wait{"RESP4"}, at::Wait{"RESP5"});
 
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
-
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
-
-  // Process the action to start command execution
-  ap.Update(Now());
+  AtReceiveState s;
+  auto op = ex::connect(std::move(at_request), AtReceiver{&s});
+  // start request
+  ex::start(op);
 
   // Add all expected responses
-  const char* responses[] = {"RESP1", "RESP2", "RESP3", "RESP4", "RESP5"};
-  for (const char* resp : responses) {
-    ae::DataBuffer data;
-    std::string line_str = std::string(resp) + "\r\n";
-    std::string_view line = line_str;
-    data.insert(data.end(), line.begin(), line.end());
-    mock_serial.WriteOut(data);
-    ap.Update(Now());
+
+  std::string_view responses[] =  // NOLINT
+      {"RESP1\r\n", "RESP2\r\n", "RESP3\r\n", "RESP4\r\n", "RESP5\r\n"};
+  for (auto const& resp : responses) {
+    mock_serial.WriteOut(std::span{
+        reinterpret_cast<std::uint8_t const*>(resp.data()), resp.size()});
   }
-
-  // Process the action multiple times to ensure completion
-  ProcessActions(ap);
-
-  // Verify success result
-  TEST_ASSERT_TRUE(result_triggered);
-  TEST_ASSERT_FALSE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  // got result
+  TEST_ASSERT_TRUE(s.res);
+  TEST_ASSERT_FALSE(s.error);
+  TEST_ASSERT_FALSE(s.timeout);
 }
 
 void test_AtRequestStringCommand5WaitsErrorTimeout() {
-  auto ap = ActionProcessor{};
+  TaskScheduler scheduler;
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
   // Create AtRequest with string command and 5 waits with short timeout
-  auto at_request = at_support.MakeRequest(
-      "AT", AtRequest::Wait{"RESP1", std::chrono::milliseconds(100)},
-      AtRequest::Wait{"RESP2", std::chrono::milliseconds(100)},
-      AtRequest::Wait{"RESP3", std::chrono::milliseconds(100)},
-      AtRequest::Wait{"RESP4", std::chrono::milliseconds(100)},
-      AtRequest::Wait{"RESP5", std::chrono::milliseconds(100)});
+  auto at_request =
+      ex::just() |
+      at::MakeRequest(at_support, "AT", at::Wait{"RESP1"}, at::Wait{"RESP2"},
+                      at::Wait{"RESP3"}, at::Wait{"RESP4"}, at::Wait{"RESP5"}) |
+      ex::with_timeout(TestContext{&scheduler}, 200ms);
 
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
-
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
-
-  // Process the action to start command execution
-  ap.Update(Now());
+  AtReceiveState s;
+  auto op = ex::connect(std::move(at_request), AtReceiver{&s});
+  // start request
+  ex::start(op);
+  scheduler.Update(Now());
 
   // Add only first 3 responses (incomplete)
-  const char* responses[] = {"RESP1", "RESP2", "RESP3"};
-  for (const char* resp : responses) {
-    ae::DataBuffer data;
-    std::string line_str = std::string(resp) + "\r\n";
-    std::string_view line = line_str;
-    data.insert(data.end(), line.begin(), line.end());
-    mock_serial.WriteOut(data);
-    ap.Update(Now());
+  std::string_view responses[] =  // NOLINT
+      {"RESP1\r\n", "RESP2\r\n", "RESP3\r\n"};
+  for (auto const& resp : responses) {
+    mock_serial.WriteOut(std::span{
+        reinterpret_cast<std::uint8_t const*>(resp.data()), resp.size()});
   }
+  // no result yet
+  TEST_ASSERT_FALSE(s.res);
+  TEST_ASSERT_FALSE(s.error);
+  TEST_ASSERT_FALSE(s.timeout);
 
-  // Process with time advancing beyond timeout for remaining waits
-  ProcessActions(ap, 10, std::chrono::milliseconds{200});
+  scheduler.Update(Now() + 200ms);
 
-  // Verify timeout error result (incomplete responses)
-  TEST_ASSERT_FALSE(result_triggered);
-  TEST_ASSERT_TRUE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  // expecting timeout
+  TEST_ASSERT_FALSE(s.res);
+  TEST_ASSERT_FALSE(s.error);
+  TEST_ASSERT_TRUE(s.timeout);
 }
 
 void test_AtRequestCommandMaker0WaitsSuccess() {
-  auto ap = ActionProcessor{};
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
   // Create AtRequest with command maker function and 0 waits
-  auto at_request =
-      at_support.MakeRequest([&]() { return at_support.SendATCommand("AT"); });
+  auto at_request = at::MakeRequest(
+      ex::just(), at_support, [&]() { return at_support.SendATCommand("AT"); });
 
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
+  auto res = ex::SyncWait(std::move(at_request));
 
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
-
-  // Process the action multiple times to ensure completion
-  ProcessActions(ap);
-
-  // Verify success result
-  TEST_ASSERT_TRUE(result_triggered);
-  TEST_ASSERT_FALSE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  TEST_ASSERT_TRUE(res.has_value());
+  TEST_ASSERT_TRUE(res->IsOk());
 }
 
 void test_AtRequestCommandMaker0WaitsError() {
-  auto ap = ActionProcessor{};
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
+
+  // Create AtRequest with command maker function and 0 waits
+  auto at_request = at::MakeRequest(
+      ex::just(), at_support, [&]() { return at_support.SendATCommand("AT"); });
 
   // Close serial port to simulate error condition
   mock_serial.close();
 
-  // Create AtRequest with command maker - should return null due to closed port
-  auto at_request = at_support.MakeRequest("AT");
+  auto res = ex::SyncWait(std::move(at_request));
 
-  // Closed serial port should result in null request
-  TEST_ASSERT_FALSE(static_cast<bool>(at_request));
+  TEST_ASSERT_TRUE(res.has_value());
+  TEST_ASSERT_TRUE(res->IsErr());
 }
 
 void test_AtRequestCommandMaker2WaitsSuccess() {
-  auto ap = ActionProcessor{};
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
   // Create AtRequest with command maker and 2 waits
-  auto at_request =
-      at_support.MakeRequest([&]() { return at_support.SendATCommand("AT"); },
-                             AtRequest::Wait{"OK", std::chrono::seconds(5)},
-                             AtRequest::Wait{"READY", std::chrono::seconds(5)});
+  auto at_request = at::MakeRequest(
+      ex::just(), at_support, [&]() { return at_support.SendATCommand("AT"); },
+      at::Wait{"OK"}, at::Wait{"READY"});
 
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
+  AtReceiveState s;
+  auto op = ex::connect(std::move(at_request), AtReceiver{&s});
+  // start request
+  ex::start(op);
 
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
-
-  // Process the action to start command execution
-  ap.Update(Now());
-
-  // Add expected responses
-  ae::DataBuffer data1;
+  // Add first expected response "OK"
   std::string_view ok_line{"OK\r\n"};
-  data1.insert(data1.end(), ok_line.begin(), ok_line.end());
-  mock_serial.WriteOut(data1);
+  mock_serial.WriteOut(std::span{
+      reinterpret_cast<std::uint8_t const*>(ok_line.data()), ok_line.size()});
 
-  ae::DataBuffer data2;
+  // no res yet
+  TEST_ASSERT_FALSE(s.res);
+
   std::string_view ready_line{"READY\r\n"};
-  data2.insert(data2.end(), ready_line.begin(), ready_line.end());
-  mock_serial.WriteOut(data2);
+  mock_serial.WriteOut(
+      std::span{reinterpret_cast<std::uint8_t const*>(ready_line.data()),
+                ready_line.size()});
 
-  // Process the action multiple times to ensure completion
-  ProcessActions(ap);
-
-  // Verify success result
-  TEST_ASSERT_TRUE(result_triggered);
-  TEST_ASSERT_FALSE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  // got result
+  TEST_ASSERT_TRUE(s.res);
+  TEST_ASSERT_FALSE(s.error);
+  TEST_ASSERT_FALSE(s.timeout);
 }
 
-void test_AtRequestCommandMaker3WaitsError() {
-  auto ap = ActionProcessor{};
+void test_AtRequestWithWaitHandler() {
   tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
+  auto at_support = AtSupport{mock_serial};
 
-  // Create AtRequest with command maker and 3 waits with short timeout
-  auto at_request = at_support.MakeRequest(
-      [&]() { return at_support.SendATCommand("AT"); },
-      AtRequest::Wait{"RESP1", std::chrono::milliseconds(100)},
-      AtRequest::Wait{"RESP2", std::chrono::milliseconds(100)},
-      AtRequest::Wait{"RESP3", std::chrono::milliseconds(100)});
+  // Create AtRequest with command maker and 2 waits
+  auto at_request = at::MakeRequest(
+      ex::just(), at_support, "AT",
+      at::Wait{"OK", [&](auto& buffer, auto pos) -> bool {
+                 std::string_view expected = "OK!";
+                 auto resp = buffer.GetCrate(expected.size(), 0, pos);
+                 if (resp.size() != expected.size()) {
+                   return false;
+                 }
+                 auto resp_str = std::string_view{
+                     reinterpret_cast<char const*>(resp.data()), resp.size()};
+                 return resp_str == expected;
+               }});
 
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
+  AtReceiveState s;
+  auto op = ex::connect(std::move(at_request), AtReceiver{&s});
+  // start request
+  ex::start(op);
 
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
+  // Add expected response "OK" but it's wrong
+  std::string_view ok_line_wrong{"OK\r\n"};
+  mock_serial.WriteOut(
+      std::span{reinterpret_cast<std::uint8_t const*>(ok_line_wrong.data()),
+                ok_line_wrong.size()});
 
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
+  // still wait
+  TEST_ASSERT_FALSE(s.res);
+  TEST_ASSERT_FALSE(s.error);
+  TEST_ASSERT_FALSE(s.timeout);
 
-  // Process the action to start command execution
-  ap.Update(Now());
+  // Add the proper response
+  std::string_view ok_line{"OK!\r\n"};
+  mock_serial.WriteOut(std::span{
+      reinterpret_cast<std::uint8_t const*>(ok_line.data()), ok_line.size()});
 
-  // Add only first response
-  ae::DataBuffer data;
-  std::string_view resp1_line{"RESP1\r\n"};
-  data.insert(data.end(), resp1_line.begin(), resp1_line.end());
-  mock_serial.WriteOut(data);
-
-  // Process with time advancing beyond timeout
-  ProcessActions(ap, 10, std::chrono::milliseconds{200});
-
-  // Verify timeout error result
-  TEST_ASSERT_FALSE(result_triggered);
-  TEST_ASSERT_TRUE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
-}
-
-void test_AtRequestCommandMaker5WaitsSuccess() {
-  auto ap = ActionProcessor{};
-  tests::MockSerialPort mock_serial{};
-  AtSupport at_support{ap, mock_serial};
-
-  // Create AtRequest with command maker and 5 waits
-  auto at_request =
-      at_support.MakeRequest([&]() { return at_support.SendATCommand("AT"); },
-                             AtRequest::Wait{"STEP1", std::chrono::seconds(5)},
-                             AtRequest::Wait{"STEP2", std::chrono::seconds(5)},
-                             AtRequest::Wait{"STEP3", std::chrono::seconds(5)},
-                             AtRequest::Wait{"STEP4", std::chrono::seconds(5)},
-                             AtRequest::Wait{"STEP5", std::chrono::seconds(5)});
-
-  TEST_ASSERT_TRUE(static_cast<bool>(at_request));
-
-  // Subscribe to status events
-  bool result_triggered = false;
-  bool error_triggered = false;
-  bool stop_triggered = false;
-
-  at_request->StatusEvent().Subscribe([&](auto status) {
-    status.OnResult([&]() { result_triggered = true; })
-        .OnError([&]() { error_triggered = true; })
-        .OnStop([&]() { stop_triggered = true; });
-  });
-
-  // Process the action to start command execution
-  ap.Update(Now());
-
-  // Add all expected responses
-  const char* responses[] = {"STEP1", "STEP2", "STEP3", "STEP4", "STEP5"};
-  for (const char* resp : responses) {
-    ae::DataBuffer data;
-    std::string line_str = std::string(resp) + "\r\n";
-    std::string_view line = line_str;
-    data.insert(data.end(), line.begin(), line.end());
-    mock_serial.WriteOut(data);
-    ap.Update(Now());
-  }
-
-  // Process the action multiple times to ensure completion
-  ProcessActions(ap);
-
-  // Verify success result
-  TEST_ASSERT_TRUE(result_triggered);
-  TEST_ASSERT_FALSE(error_triggered);
-  TEST_ASSERT_FALSE(stop_triggered);
+  // got result
+  TEST_ASSERT_TRUE(s.res);
+  TEST_ASSERT_FALSE(s.error);
+  TEST_ASSERT_FALSE(s.timeout);
 }
 
 }  // namespace ae::test_at_request
 
 int test_at_request() {
   UNITY_BEGIN();
-  RUN_TEST(ae::test_at_request::test_AtRequestStringCommand0WaitsSuccess);
-  RUN_TEST(ae::test_at_request::test_AtRequestStringCommand0WaitsError);
-  RUN_TEST(ae::test_at_request::test_AtRequestStringCommand1WaitSuccess);
-  RUN_TEST(ae::test_at_request::test_AtRequestStringCommand1WaitErrorTimeout);
-  RUN_TEST(ae::test_at_request::test_AtRequestStringCommand1WaitErrorResponse);
-  RUN_TEST(ae::test_at_request::test_AtRequestStringCommand2WaitsSuccess);
-  RUN_TEST(ae::test_at_request::test_AtRequestStringCommand2WaitsErrorPartial);
-  RUN_TEST(ae::test_at_request::test_AtRequestStringCommand3WaitsSuccess);
-  RUN_TEST(ae::test_at_request::test_AtRequestStringCommand5WaitsSuccess);
-  RUN_TEST(ae::test_at_request::test_AtRequestStringCommand5WaitsErrorTimeout);
-  RUN_TEST(ae::test_at_request::test_AtRequestCommandMaker0WaitsSuccess);
-  RUN_TEST(ae::test_at_request::test_AtRequestCommandMaker0WaitsError);
-  RUN_TEST(ae::test_at_request::test_AtRequestCommandMaker2WaitsSuccess);
-  RUN_TEST(ae::test_at_request::test_AtRequestCommandMaker3WaitsError);
-  RUN_TEST(ae::test_at_request::test_AtRequestCommandMaker5WaitsSuccess);
+  using namespace ae::test_at_request;  // NOLINT
+
+  RUN_TEST(test_AtRequestStringCommand0WaitsSuccess);
+  RUN_TEST(test_AtRequestStringCommand0WaitsError);
+  RUN_TEST(test_AtRequestStringCommand1WaitSuccess);
+  RUN_TEST(test_AtRequestStringCommand1WaitErrorTimeout);
+  RUN_TEST(test_AtRequestStringCommand1WaitErrorResponse);
+  RUN_TEST(test_AtRequestStringCommand2WaitsSuccess);
+  RUN_TEST(test_AtRequestStringCommand2WaitsErrorPartial);
+  RUN_TEST(test_AtRequestStringCommand5WaitsSuccess);
+  RUN_TEST(test_AtRequestStringCommand5WaitsErrorTimeout);
+  RUN_TEST(test_AtRequestCommandMaker0WaitsSuccess);
+  RUN_TEST(test_AtRequestCommandMaker0WaitsError);
+  RUN_TEST(test_AtRequestCommandMaker2WaitsSuccess);
+  RUN_TEST(test_AtRequestWithWaitHandler);
   return UNITY_END();
 }

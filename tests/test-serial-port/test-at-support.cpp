@@ -25,7 +25,7 @@ void test_ParseAtResponse() {
       reinterpret_cast<std::uint8_t const*>(str.data()),
       reinterpret_cast<std::uint8_t const*>(str.data() + str.size())};
   std::size_t size;
-  auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size);
+  auto parse_end = at_support::ParseResponse(buffer, "#XRECV", size);
   TEST_ASSERT_TRUE(parse_end.has_value());
   TEST_ASSERT_EQUAL(str.size(), *parse_end);
   TEST_ASSERT_EQUAL(104, size);
@@ -38,7 +38,7 @@ void test_ParseAtResponseTwoValues() {
       reinterpret_cast<std::uint8_t const*>(str.data() + str.size())};
   std::size_t size;
   std::size_t count;
-  auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size, count);
+  auto parse_end = at_support::ParseResponse(buffer, "#XRECV", size, count);
   TEST_ASSERT_TRUE(parse_end.has_value());
   TEST_ASSERT_EQUAL(str.size(), *parse_end);
   TEST_ASSERT_EQUAL(104, size);
@@ -51,7 +51,7 @@ void test_ParseAtNoValue() {
       reinterpret_cast<std::uint8_t const*>(str.data()),
       reinterpret_cast<std::uint8_t const*>(str.data() + str.size())};
   std::size_t size{22};
-  auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size);
+  auto parse_end = at_support::ParseResponse(buffer, "#XRECV", size);
   TEST_ASSERT_FALSE(parse_end.has_value());
   TEST_ASSERT_EQUAL(22, size);
 }
@@ -63,7 +63,7 @@ void test_ParseAtResponseTwoNoValue() {
       reinterpret_cast<std::uint8_t const*>(str.data() + str.size())};
   std::size_t size{22};
   std::size_t count{10};
-  auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size, count);
+  auto parse_end = at_support::ParseResponse(buffer, "#XRECV", size, count);
   TEST_ASSERT_FALSE(parse_end.has_value());
   TEST_ASSERT_EQUAL(12, size);
   TEST_ASSERT_EQUAL(10, count);
@@ -76,7 +76,7 @@ void test_ParseAtBigValue() {
       reinterpret_cast<std::uint8_t const*>(str.data()),
       reinterpret_cast<std::uint8_t const*>(str.data() + str.size())};
   std::size_t size{22};
-  auto parse_end = AtSupport::ParseResponse(buffer, "#XRECV", size);
+  auto parse_end = at_support::ParseResponse(buffer, "#XRECV", size);
   TEST_ASSERT_TRUE(parse_end.has_value());
   TEST_ASSERT_EQUAL(11, *parse_end);
   TEST_ASSERT_EQUAL(104, size);
