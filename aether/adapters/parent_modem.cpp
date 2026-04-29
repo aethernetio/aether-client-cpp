@@ -18,11 +18,14 @@
 
 #if AE_SUPPORT_MODEMS
 
+#  include "aether/aether.h"
+#  include "aether/poller/poller.h"
+
 namespace ae {
 
-#  if defined AE_DISTILLATION
+#  if AE_DISTILLATION
 ParentModemAdapter::ParentModemAdapter(ObjProp prop, ObjPtr<Aether> aether,
-                                       IPoller::ptr poller,
+                                       ObjPtr<IPoller> poller,
                                        ModemInit modem_init)
     : Adapter{prop},
       aether_{std::move(aether)},
