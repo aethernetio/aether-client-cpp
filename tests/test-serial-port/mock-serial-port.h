@@ -17,7 +17,8 @@
 #ifndef TESTS_TEST_SERIAL_PORT_MOCK_SERIAL_PORT_H_
 #define TESTS_TEST_SERIAL_PORT_MOCK_SERIAL_PORT_H_
 
-#include "aether/types/data_buffer.h"
+#include <span>
+
 #include "aether/events/events.h"
 
 #include "aether/serial_ports/iserial_port.h"
@@ -29,16 +30,18 @@ class MockSerialPort final : public ISerialPort {
 
   bool IsOpen() override { return is_open_; }
 
-  void Write(DataBuffer const& data) override { write_event_.Emit(data); }
+  void Write(std::span<std::uint8_t const> data) override {
+    write_event_.Emit(data);
+  }
 
   DataReadEvent::Subscriber read_event() override {
     return EventSubscriber{read_event_};
   }
 
   // calls read_event
-  void WriteOut(DataBuffer const& data) { read_event_.Emit(data); }
+  void WriteOut(std::span<std::uint8_t const> data) { read_event_.Emit(data); }
 
-  Event<void(DataBuffer const& data)>::Subscriber write_event() {
+  Event<void(std::span<std::uint8_t const> data)>::Subscriber write_event() {
     return EventSubscriber{write_event_};
   }
 
@@ -46,7 +49,7 @@ class MockSerialPort final : public ISerialPort {
 
  private:
   DataReadEvent read_event_;
-  Event<void(DataBuffer const& data)> write_event_;
+  Event<void(std::span<std::uint8_t const> data)> write_event_;
   bool is_open_{true};
 };
 }  // namespace ae::tests

@@ -26,6 +26,7 @@ extern int test_at_buffer();
 extern int test_at_dispatcher();
 extern int test_at_listener();
 extern int test_at_request();
+extern int test_at_stages();
 
 int main() {
   int res = 0;
@@ -34,5 +35,6 @@ int main() {
   res += test_at_dispatcher();
   res += test_at_listener();
   res += test_at_request();
+  res += test_at_stages();
   return res;
 }
