@@ -212,7 +212,7 @@ ResolveSender DnsResolverCares::Resolve(NamedAddr const& name_address,
   }
 
   return ares_impl_->Query(name_address, port_hint, protocol_hint) |
-         ex::continues_on(ex::SchedulerOnTasks{*aether_.Load().as<Aether>()});
+         ex::continues_on(ex::SchedulerOnTasks{AeContext{*aether_.Load().as<Aether>()}});
 }
 
 }  // namespace ae
