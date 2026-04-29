@@ -66,12 +66,9 @@ struct IsContainer<
     T, std::conditional_t<
            false,
            std::void_t<typename T::value_type, typename T::size_type,
-                       typename T::iterator, typename T::const_iterator,
-                       decltype(std::declval<T>().size()),
+                       typename T::iterator, decltype(std::declval<T>().size()),
                        decltype(std::declval<T>().begin()),
-                       decltype(std::declval<T>().end()),
-                       decltype(std::declval<T>().cbegin()),
-                       decltype(std::declval<T>().cend())>,
+                       decltype(std::declval<T>().end())>,
            void>> : public std::true_type {};
 
 template <typename T, typename _ = void>
