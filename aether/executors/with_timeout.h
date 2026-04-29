@@ -23,7 +23,7 @@
 #include "third_party/stdexec/include/stdexec/execution.hpp"
 
 #include "aether/clock.h"
-#include "aether/ae_context.h"
+#include "aether/executors/async_context.h"
 
 namespace ae::ex {
 struct TimeoutError {};
@@ -72,23 +72,22 @@ struct Receiver {
   OpBase<R>* op;
 };
 
-template <stdexec::sender Child, stdexec::receiver R>
+template <stdexec::sender Child, AsyncContext AC, stdexec::receiver R>
 class Operation final : OpBase<R> {
  public:
   using receiver = Receiver<R>;
   using op_state = stdexec::connect_result_t<Child, receiver>;
 
-  constexpr Operation(Child&& child, AeContext ae_context, Duration duration,
-                      R&& recv)
+  constexpr Operation(Child&& child, AC const& ac, Duration duration, R&& recv)
       : OpBase<R>{std::move(recv)},
-        child_(std::move(child)),
-        ae_context_(std::move(ae_context)),
-        duration_(std::move(duration)) {}
+        child_{std::move(child)},
+        ac_{ac},
+        duration_{std::move(duration)} {}
 
   constexpr void start() noexcept {
     op_.__emplace_from(stdexec::connect, std::move(child_),
                        Receiver{.op = this});
-    ae_context_.scheduler().DelayedTask(
+    ac_.scheduler().DelayedTask(
         [&]() noexcept {
           if (!is_reset()) {
             stdexec::set_error(std::move(OpBase<R>::recv), TimeoutError{});
@@ -105,13 +104,13 @@ class Operation final : OpBase<R> {
 
  private:
   Child child_;
-  AeContext ae_context_;
+  AC ac_;
   Duration duration_;
   stdexec::__optional<op_state> op_;
   bool is_reset_{false};
 };
 
-template <stdexec::sender Child>
+template <stdexec::sender Child, AsyncContext AC>
 class Sender {
  public:
   using sender_concept = stdexec::sender_t;
@@ -128,33 +127,33 @@ class Sender {
         stdexec::completion_signatures<stdexec::set_error_t(TimeoutError)>{});
   }
 
-  constexpr Sender(Child&& child, AeContext const& context,
-                   Duration duration) noexcept
-      : child_{std::move(child)}, ae_context_{context}, duration_{duration} {}
+  constexpr Sender(Child&& child, AC const& ac, Duration duration) noexcept
+      : child_{std::move(child)}, ac_{ac}, duration_{duration} {}
 
-  constexpr auto connect(stdexec::receiver auto&& recv) && noexcept {
-    return Operation<Child, std::decay_t<decltype(recv)>>{
+  template <stdexec::receiver R>
+  constexpr auto connect(R&& recv) && noexcept {
+    return Operation<Child, AC, R>{
         std::move(child_),
-        std::move(ae_context_),
+        ac_,
         duration_,
-        std::forward<decltype(recv)>(recv),
+        std::forward<R>(recv),
     };
   }
 
  private:
   Child child_;
-  AeContext ae_context_;
+  AC ac_;
   Duration duration_;
 };
 
 struct WithAsyncTimeout {
   constexpr auto operator()(stdexec::sender auto&& sender,
-                            AeContext const& context,
+                            AsyncContext auto const& context,
                             Duration duration) const noexcept {
     return Sender{std::forward<decltype(sender)>(sender), context, duration};
   };
 
-  constexpr auto operator()(AeContext const& context,
+  constexpr auto operator()(AsyncContext auto const& context,
                             Duration duration) const noexcept {
     return stdexec::__closure{*this, context, duration};
   };
