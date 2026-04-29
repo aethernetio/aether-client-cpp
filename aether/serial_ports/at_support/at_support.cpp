@@ -14,50 +14,62 @@
  * limitations under the License.
  */
 
-#include <vector>
-#include <string_view>
-
 #include "aether/serial_ports/at_support/at_support.h"
 
 #include "aether/serial_ports/serial_ports_tele.h"
 
 namespace ae {
-AtSupport::AtSupport(ActionContext action_context, ISerialPort& serial)
-    : action_context_{action_context},
-      serial_{&serial},
-      at_buffer_{serial},
-      dispatcher_{at_buffer_} {};
-
-ActionPtr<AtWriteAction> AtSupport::SendATCommand(std::string const& command) {
-  auto at_action = ActionPtr<AtWriteAction>{action_context_};
-  if (!serial_->IsOpen()) {
-    at_action->Failed();
-    return at_action;
-  }
-
-  AE_TELED_DEBUG("AT command: {}", command);
-  std::vector<uint8_t> data(command.size() + 2);
-  std::copy(command.begin(), command.end(), data.begin());
-  data[command.size()] = '\r';
-  data[command.size() + 1] = '\n';
-  serial_->Write(data);
-  at_action->Notify();
-
-  return at_action;
-}
-
-std::unique_ptr<AtListener> AtSupport::ListenForResponse(
-    std::string expected, AtListener::Handler handler) {
-  return std::make_unique<AtListener>(dispatcher_, std::move(expected),
-                                      std::move(handler));
-}
-
-std::string AtSupport::PinToString(std::uint16_t pin) {
+namespace at_support {
+std::string PinToString(std::uint16_t pin) {
   static constexpr std::uint16_t kFourNine = 9999;
   if (pin > kFourNine) {
     return "";
   }
   return std::to_string(pin);
 }
+
+bool ParseArg(std::string_view arg, std::string& value) {
+  // string value should be in ""
+  auto start = arg.find_first_of('"');
+  auto end = arg.find_last_of('"');
+  if (start == std::string_view::npos || end == std::string_view::npos) {
+    return false;
+  }
+  value = std::string{arg.substr(start + 1, end - start - 1)};
+  return true;
+}
+
+}  // namespace at_support
+
+AtSupport::AtSupport(ISerialPort& serial) noexcept
+    : serial_{&serial}, at_buffer_{serial}, dispatcher_{at_buffer_} {};
+
+Result<std::size_t, int> AtSupport::SendATCommand(std::string_view command) {
+  if (!serial_->IsOpen()) {
+    return Error{-1};
+  }
+
+  AE_TELED_DEBUG("AT command: {}", command);
+
+  static std::array<std::uint8_t, 1024> buffer;
+  assert(command.size() + 2 < buffer.size());
+
+  std::copy(command.begin(), command.end(), buffer.begin());
+  buffer[command.size()] = '\r';
+  buffer[command.size() + 1] = '\n';
+
+  // TODO: add serial error
+  serial_->Write(buffer);
+
+  return Ok{command.size()};
+}
+
+AtListener AtSupport::ListenForResponse(std::string expected,
+                                        AtListener::Handler handler) {
+  return {dispatcher_, std::move(expected), std::move(handler)};
+}
+
+AtBuffer& AtSupport::at_buffer() { return at_buffer_; }
+AtDispatcher& AtSupport::dispatcher() { return dispatcher_; }
 
 }  // namespace ae
