@@ -28,68 +28,18 @@
 namespace ae {
 static constexpr int kInvalidPort = -1;
 
-UnixSerialPort::ReadAction::ReadAction(ActionContext action_context,
-                                       UnixSerialPort& serial_port)
-    : Action{action_context}, serial_port_{&serial_port}, read_event_{} {
-  if (serial_port_->fd_ == kInvalidPort) {
-    return;
-  }
-  serial_port_->poller_->Event(
-      serial_port_->fd_, EventType::kRead,
-      MethodPtr<&UnixSerialPort::ReadAction::ReadAction::PollEvent>{this});
-}
-
-UpdateStatus UnixSerialPort::ReadAction::Update() {
-  if (read_event_) {
-    auto lock = std::scoped_lock{serial_port_->fd_lock_};
-    for (auto const& b : buffers_) {
-      serial_port_->read_event_.Emit(b);
-    }
-    buffers_.clear();
-    read_event_ = false;
-  }
-  return {};
-}
-
-void UnixSerialPort::ReadAction::PollEvent(EventType event) {
-  auto event_type = event & EventType::kRead;
-  switch (event_type) {
-    case EventType::kRead:
-      ReadData();
-      break;
-    default:
-      break;
-  }
-}
-
-void UnixSerialPort::ReadAction::ReadData() {
-  auto lock = std::scoped_lock{serial_port_->fd_lock_};
-
-  static std::uint8_t buffer[1024];
-  ssize_t bytes_read = read(serial_port_->fd_, buffer, sizeof(buffer));
-  if (bytes_read < 0) {
-    AE_TELED_ERROR("Read serial port error {}", strerror(errno));
-    return;
-  }
-  DataBuffer data(static_cast<std::size_t>(bytes_read));
-  std::copy(buffer, buffer + bytes_read, data.begin());
-  buffers_.emplace_back(std::move(data));
-  read_event_ = true;
-  Action::Trigger();
-}
-
-UnixSerialPort::UnixSerialPort(ActionContext action_context,
+UnixSerialPort::UnixSerialPort(AeContext const& ae_context,
                                SerialInit serial_init,
                                IPoller::ptr const& poller)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
+      alive_ctx_{ae_context_, this},
       serial_init_{std::move(serial_init)},
       poller_{static_cast<UnixPollerImpl*>(poller->Native())},
-      fd_{OpenPort(serial_init_)},
-      read_action_{action_context_, *this} {}
+      fd_{OpenPort(serial_init_)} {}
 
 UnixSerialPort::~UnixSerialPort() { Close(); }
 
-void UnixSerialPort::Write(DataBuffer const& data) {
+void UnixSerialPort::Write(std::span<std::uint8_t const> data) {
   auto bytes_written = write(fd_, data.data(), data.size());
   if (bytes_written < 0) {
     AE_TELE_ERROR(kAdapterSerialWriteFailed, "Write serial port error {}",
@@ -155,6 +105,49 @@ bool UnixSerialPort::SetOptions(int fd, SerialInit const& serial_init) {
   }
 
   return true;
+}
+
+void UnixSerialPort::PolleEvent(EventType event) {
+  auto event_type = event & EventType::kRead;
+  switch (event_type) {
+    case EventType::kRead:
+      ReadData();
+      break;
+    default:
+      break;
+  }
+}
+
+void UnixSerialPort::ReadData() {
+  auto lock = std::scoped_lock{fd_lock_};
+
+  static std::uint8_t buffer[1024];
+  ssize_t bytes_read = read(fd_, buffer, sizeof(buffer));
+  if (bytes_read < 0) {
+    AE_TELED_ERROR("Read serial port error {}", strerror(errno));
+    return;
+  }
+  DataBuffer data(static_cast<std::size_t>(bytes_read));
+  std::copy(buffer, buffer + bytes_read, data.begin());
+
+  buffers_.emplace_back(std::move(data));
+
+  if (!read_flag_.exchange(true)) {
+    ae_context_.scheduler().Task([imalive{alive_ctx_.View()}]() noexcept {
+      if (imalive) {
+        auto lock = std::scoped_lock{imalive->fd_lock_};
+        imalive->EmitData();
+        imalive->read_flag_ = false;
+      }
+    });
+  }
+}
+
+void UnixSerialPort::EmitData() {
+  for (auto const& b : buffers_) {
+    read_event_.Emit(b);
+  }
+  buffers_.clear();
 }
 
 void UnixSerialPort::Close() {
