@@ -85,7 +85,7 @@ AtBuffer::iterator AtBuffer::erase(iterator first, iterator last) {
   return data_lines_.erase(first, last);
 }
 
-void AtBuffer::DataRead(DataBuffer const& data) {
+void AtBuffer::DataRead(std::span<std::uint8_t const> data) {
   AE_TELED_DEBUG("AtBuffer receives packet {}", data);
   auto data_str =
       std::string_view{reinterpret_cast<const char*>(data.data()), data.size()};

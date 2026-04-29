@@ -18,6 +18,7 @@
 #define AETHER_SERIAL_PORTS_AT_SUPPORT_AT_BUFFER_H_
 
 #include <list>
+#include <span>
 #include <cstddef>
 #include <string_view>
 
@@ -50,7 +51,7 @@ class AtBuffer {
   iterator erase(iterator first, iterator last);
 
  private:
-  void DataRead(DataBuffer const& data);
+  void DataRead(std::span<std::uint8_t const> data);
 
   std::list<DataBuffer> data_lines_;
   UpdateEvent update_event_;
