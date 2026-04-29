@@ -29,47 +29,40 @@
 
 namespace ae {
 
-WifiConnectAction::WifiConnectAction(ActionContext action_context,
+WifiConnectAction::WifiConnectAction(AeContext const& ae_context,
                                      WifiDriver& driver, WiFiAp wifi_ap,
                                      WiFiPowerSaveParam psp,
                                      WiFiBaseStation& base_station)
-    : Action{action_context},
+    : ae_context_{ae_context},
+      alive_ctx_{ae_context, this},
       driver_{&driver},
       wifi_ap_{std::move(wifi_ap)},
       psp_{std::move(psp)},
-      base_station_{base_station},
-      state_{State::kCheckIsConnected} {}
-
-UpdateStatus WifiConnectAction::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kCheckIsConnected: {
-        auto connected_to = driver_->connected_to();
-        if (connected_to.ssid == wifi_ap_.creds.ssid) {
-          state_ = State::kConnected;
-        } else {
-          state_ = State::kConnect;
-        }
-        Action::Trigger();
-        break;
-      }
-      case State::kConnect: {
-        driver_->Connect(wifi_ap_, psp_, base_station_);
-        // TODO: Does connect should be async
-        state_ = State::kConnected;
-        Action::Trigger();
-        break;
-      }
-      case State::kConnected:
-        return UpdateStatus::Result();
-      case State::kFailed:
-        return UpdateStatus::Error();
+      base_station_{base_station} {
+  ae_context_.scheduler().Task([imalive{alive_ctx_.View()}]() {
+    if (imalive) {
+      imalive->EnsureConnected();
     }
-  }
-  return {};
+  });
 }
 
-WifiConnectAction::State WifiConnectAction::state() const { return state_; }
+WifiConnectAction::ConnectionEvent::Subscriber
+WifiConnectAction::connection_event() {
+  return EventSubscriber{connection_event_};
+}
+
+void WifiConnectAction::EnsureConnected() {
+  auto connected_to = driver_->connected_to();
+  if (connected_to.ssid != wifi_ap_.creds.ssid) {
+    driver_->Connect(wifi_ap_, psp_, base_station_);
+  }
+  SetConnected(true);
+}
+
+void WifiConnectAction::SetConnected(bool is_connected) {
+  connection_event_.Emit(is_connected);
+  Finish();
+}
 
 WifiAccessPoint::WifiAccessPoint() = default;
 
@@ -110,19 +103,17 @@ std::vector<ObjPtr<Channel>> WifiAccessPoint::GenerateChannels(
   return channels;
 }
 
-ActionPtr<WifiConnectAction> WifiAccessPoint::Connect() {
+WifiConnectAction& WifiAccessPoint::Connect() {
   // reuse connect action if it's in progress
-  if (!connect_action_) {
+  if (!connect_action_ || connect_action_->is_finished()) {
     auto driver = WifiAdapter::ptr{adapter_}.WithLoaded(
         [](auto const& a) { return &a->driver(); });
     assert(driver.has_value());
 
-    connect_action_ = ActionPtr<WifiConnectAction>{
-        ActionContext{*aether_.Load().as<Aether>()}, **driver, wifi_ap_, psp_, base_station_};
-    connect_sub_ = connect_action_->FinishedEvent().Subscribe(
-        [this]() { connect_action_.reset(); });
+    connect_action_.emplace(*aether_.Load().as<Aether>(), **driver, wifi_ap_,
+                            psp_, base_station_);
   }
-  return connect_action_;
+  return *connect_action_;
 }
 
 bool WifiAccessPoint::IsConnected() {
@@ -134,6 +125,5 @@ bool WifiAccessPoint::IsConnected() {
       })
       .value_or(false);
 }
-
 }  // namespace ae
 #endif
