@@ -18,16 +18,14 @@
 
 #include <vector>
 
-#include "aether/common.h"
-#include "aether/types/state_machine.h"
-#include "aether/actions/action.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/actions/action_context.h"
-#include "aether/events/multi_subscription.h"
+#include "aether/clock.h"
+#include "aether/types/result.h"
+#include "aether/executors/executors.h"
 #include "aether/events/cumulative_event.h"
+#include "aether/events/multi_subscription.h"
 
-#include "send_message_delays/receiver.h"
 #include "send_message_delays/sender.h"
+#include "send_message_delays/receiver.h"
 #include "send_message_delays/delay_statistics.h"
 
 namespace ae::bench {
@@ -35,82 +33,65 @@ namespace ae::bench {
 struct SendMessageDelaysManagerConfig {
   std::size_t warm_up_message_count;
   std::size_t test_message_count;
-  Duration min_send_interval;
 };
 
 class SendMessageDelaysManager {
-  class TestAction : public Action<TestAction> {
-    enum class State : std::uint8_t {
-      kWarmUp,
-      kTest2Bytes,
-      kTest10Bytes,
-      kTest100Bytes,
-      kTest1000Bytes,
-      kSwitchToSafeStream,
-      kSsWarmUp,
-      kSsTest2Bytes,
-      kSsTest10Bytes,
-      kSsTest100Bytes,
-      kSsTest1000Bytes,
-      kDone,
-      kError,
-      kStop,
-    };
-
+  class TestAction {
    public:
-    TestAction(ActionContext action_context, Sender& sender, Receiver& receiver,
+    using ResultEvent =
+        Event<void(Result<std::vector<DurationStatistics> const&, int>)>;
+
+    TestAction(AeContext const& ae_context, Sender& sender, Receiver& receiver,
                SendMessageDelaysManagerConfig config);
 
-    UpdateStatus Update();
-
-    void Stop();
-
-    std::vector<DurationStatistics> const& result_table() const;
+    ResultEvent::Subscriber result_event();
 
    private:
-    void WarmUp();
-    void SwitchToSafeStream();
-    void SafeStreamWarmUp();
-    void Test2Bytes();
-    void Test10Bytes();
-    void Test100Bytes();
-    void Test1000Bytes();
+    auto ConnectPeers();
+    auto SafeConnectPeers();
+    auto WarmUp();
+    auto SwitchToSafeStream();
+    auto SafeStreamWarmUp();
+    auto Test2Bytes();
+    auto Test10Bytes();
+    auto Test100Bytes();
+    auto Test1000Bytes();
 
-    void SubscribeToTest(ActionPtr<TimedSender> sender_action,
-                         ActionPtr<TimedReceiver> receiver_action,
-                         State next_state);
+    auto SubscribeToTest(TimedSender& sender_action,
+                         TimedReceiver& receiver_action);
 
     void TestResult(TimeTable const& sent_table,
                     TimeTable const& received_table);
 
+    void TestPipeline();
+
+    AeContext ae_context_;
     Sender* sender_;
     Receiver* receiver_;
     SendMessageDelaysManagerConfig config_;
 
     std::unique_ptr<CumulativeEvent<TimeTable, 2>> res_event_;
-    StateMachine<State> state_;
-    Subscription state_changed_subscription_;
-    MultiSubscription error_subscriptions_;
     MultiSubscription test_subscriptions_;
-    Subscription connection_subscriptions_;
+    std::unique_ptr<ex::AnyWaiter<ex::set_value_t(), ex::set_error_t(int)>>
+        test_pipeline_;
 
     std::vector<DurationStatistics> result_table_;
+    ResultEvent result_event_;
   };
 
  public:
-  SendMessageDelaysManager(ActionContext action_context,
+  SendMessageDelaysManager(AeContext const& ae_context,
                            std::unique_ptr<Sender> sender,
                            std::unique_ptr<Receiver> receiver);
 
-  ActionPtr<TestAction> Test(SendMessageDelaysManagerConfig config);
+  TestAction& Test(SendMessageDelaysManagerConfig config);
 
  private:
-  ActionContext action_context_;
+  AeContext ae_context_;
   std::unique_ptr<Sender> sender_;
   std::unique_ptr<Receiver> receiver_;
 
-  ActionPtr<TestAction> test_action_;
-  MultiSubscription test_action_subscription_;
+  std::unique_ptr<TestAction> test_action_;
 };
 }  // namespace ae::bench
 

@@ -43,36 +43,37 @@ int test_receiver_bandwidth() {
     return -1;
   }
 
-  auto action_context = ActionContext{*aether_app->aether()};
-  auto receiver = Receiver{action_context, client};
+  auto ae_context = AeContext{*aether_app->aether()};
+  auto receiver = Receiver{ae_context, client};
 
-  auto test_action = ActionPtr<TestAction<Receiver>>(action_context, receiver,
-                                                     std::size_t{10000});
+  auto test_action =
+      TestAction<Receiver>(ae_context, receiver, std::size_t{10000});
 
-  test_action->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[&](auto const& action) {
-        auto res_name_table = std::array{
-            std::string_view{"1 Byte"},
-            std::string_view{"10 Bytes"},
-            std::string_view{"100 Bytes"},
-            std::string_view{"1000 Bytes"},
-        };
-        auto const& results = action.result_table();
+  test_action.result_event().Subscribe([&](auto const& res) {
+    if (res) {
+      auto res_name_table = std::array{
+          std::string_view{"1 Byte"},
+          std::string_view{"10 Bytes"},
+          std::string_view{"100 Bytes"},
+          std::string_view{"1000 Bytes"},
+      };
+      auto const& results = res.value();
 
-        auto res_string = std::string{};
-        for (auto i = 0; i < res_name_table.size(); ++i) {
-          res_string += Format("{}:{}\n", res_name_table[i], results[i]);
-        }
-        std::cout << "Test results: \n" << res_string << std::endl;
+      auto res_string = std::string{};
+      for (auto i = 0; i < res_name_table.size(); ++i) {
+        res_string += Format("{}:{}\n", res_name_table[i], results[i]);
+      }
+      std::cout << "Test results: \n" << res_string << std::endl;
 
-        aether_app->Exit(0);
-      }},
-      OnError{[&]() {
-        AE_TELED_ERROR("Test failed");
-        aether_app->Exit(1);
-      }}});
+      aether_app->Exit(0);
+    } else {
+      AE_TELED_ERROR("Test failed");
+      aether_app->Exit(1);
+    }
+  });
 
-  Format(std::cout, "Receiver prepared for test with uid {}\n", client->uid());
+  Format(std::cout, "\n\n\n>>> Receiver prepared for test with uid {}\n\n\n",
+         client->uid());
 
   while (!aether_app->IsExited()) {
     auto time = ae::TimePoint::clock::now();

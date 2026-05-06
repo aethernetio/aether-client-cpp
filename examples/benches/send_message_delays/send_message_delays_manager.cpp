@@ -22,228 +22,168 @@
 
 namespace ae::bench {
 SendMessageDelaysManager::TestAction::TestAction(
-    ActionContext action_context, Sender& sender, Receiver& receiver,
+    AeContext const& ae_context, Sender& sender, Receiver& receiver,
     SendMessageDelaysManagerConfig config)
-    : Action{action_context},
+    : ae_context_{ae_context},
       sender_{&sender},
       receiver_{&receiver},
-      config_{config},
-      state_{State::kWarmUp} {
-  state_changed_subscription_ =
-      state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+      config_{config} {
+  TestPipeline();
 }
 
-UpdateStatus SendMessageDelaysManager::TestAction::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kWarmUp:
-        WarmUp();
-        break;
-      case State::kTest2Bytes:
-      case State::kSsTest2Bytes:
-        Test2Bytes();
-        break;
-      case State::kTest10Bytes:
-      case State::kSsTest10Bytes:
-        Test10Bytes();
-        break;
-      case State::kTest100Bytes:
-      case State::kSsTest100Bytes:
-        Test100Bytes();
-        break;
-      case State::kTest1000Bytes:
-      case State::kSsTest1000Bytes:
-        Test1000Bytes();
-        break;
-      case State::kSwitchToSafeStream:
-        SwitchToSafeStream();
-        break;
-      case State::kSsWarmUp:
-        SafeStreamWarmUp();
-        break;
-      case State::kDone:
-        return UpdateStatus::Result();
-        break;
-      case State::kError:
-        return UpdateStatus::Error();
-        break;
-      case State::kStop:
-        return UpdateStatus::Stop();
-        break;
-    }
-  }
-
-  return {};
+SendMessageDelaysManager::TestAction::ResultEvent::Subscriber
+SendMessageDelaysManager::TestAction::result_event() {
+  return EventSubscriber{result_event_};
 }
 
-void SendMessageDelaysManager::TestAction::Stop() { state_.Set(State::kStop); }
-
-std::vector<DurationStatistics> const&
-SendMessageDelaysManager::TestAction::result_table() const {
-  return result_table_;
+auto SendMessageDelaysManager::TestAction::ConnectPeers() {
+  return ex::then([&]() noexcept {
+    sender_->ConnectP2pStream();
+    receiver_->ConnectP2pStream();
+  });
 }
 
-void SendMessageDelaysManager::TestAction::WarmUp() {
-  AE_TELED_INFO("WarmUp p2p stream");
-  res_event_ = make_unique<CumulativeEvent<TimeTable, 2>>();
+auto SendMessageDelaysManager::TestAction::SafeConnectPeers() {
+  return ex::then([&]() noexcept {
+    sender_->Disconnect();
+    receiver_->Disconnect();
 
-  sender_->ConnectP2pStream();
-  receiver_->Connect();
+    AE_TELED_INFO("Switch to safe stream");
+    sender_->ConnectP2pSafeStream();
+    receiver_->ConnectP2pSafeStream();
+  });
+}
 
-  auto sender_warm_up = sender_->WarmUp(config_.min_send_interval);
-  auto receiver_warm_up = receiver_->WarmUp(config_.warm_up_message_count);
+auto SendMessageDelaysManager::TestAction::WarmUp() {
+  return ex::let_value([&]() noexcept {
+    return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
+        [&](auto& ctx) noexcept {
+          AE_TELED_INFO("WarmUp");
+          res_event_ = make_unique<CumulativeEvent<TimeTable, 2>>();
 
-  res_event_->Connect(
-      [&](auto, auto status) {
-        status.OnError([&]() {
-          AE_TELED_ERROR("Warm up error");
-          state_ = State::kError;
+          auto& sender_warm_up = sender_->WarmUp();
+          auto& receiver_warm_up =
+              receiver_->WarmUp(config_.warm_up_message_count);
+
+          res_event_->Connect([&](auto, auto const&) {},
+                              sender_warm_up.message_times_event(),
+                              receiver_warm_up.message_times_event());
+
+          test_subscriptions_.Push(  //
+              receiver_warm_up.on_timeout().Subscribe([&]() {
+                AE_TELED_ERROR("Warm up error");
+                ex::set_error(std::move(ctx.receiver), 1);
+              }),
+              receiver_warm_up.on_received().Subscribe(
+                  [&sender_warm_up](bool last) mutable {
+                    if (last) {
+                      sender_warm_up.Stop();
+                    } else {
+                      sender_warm_up.Sync();
+                    }
+                  }),
+              // on success go to tests
+              res_event_->Subscribe([&](auto const&) {
+                AE_TELED_INFO("WarmUp p2p stream finished");
+                ex::set_value(std::move(ctx.receiver));
+              }));
         });
-      },
-      sender_warm_up->StatusEvent(), receiver_warm_up->StatusEvent());
+  });
+}
 
-  test_subscriptions_.Push(  //
-      receiver_warm_up->OnReceived().Subscribe(
-          [sender_warm_up](bool last) mutable {
-            if (sender_warm_up) {
-              if (last) {
-                sender_warm_up->Stop();
+auto SendMessageDelaysManager::TestAction::SubscribeToTest(
+    TimedSender& sender_action, TimedReceiver& receiver_action) {
+  return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
+      [&](auto& ctx) noexcept {
+        test_subscriptions_.Reset();
+        res_event_ = make_unique<CumulativeEvent<TimeTable, 2>>();
+        res_event_->Connect(
+            [&](auto times_setter, auto const& message_times) {
+              times_setter = message_times;
+            },
+            sender_action.message_times_event(),
+            receiver_action.message_times_event());
+
+        test_subscriptions_.Push(
+            receiver_action.on_received().Subscribe([&](bool last) mutable {
+              if (!last) {
+                sender_action.Sync();
               } else {
-                sender_warm_up->Sync();
+                sender_action.Stop();
               }
-            }
-          }),
-      // on success go to tests
-      res_event_->Subscribe([this](auto const&) {
-        if (state_ != State::kError) {
-          AE_TELED_INFO("WarmUp p2p stream finished");
-          state_.Set(State::kTest2Bytes);
-        }
-      }));
-}
-
-void SendMessageDelaysManager::TestAction::SwitchToSafeStream() {
-  sender_->Disconnect();
-  receiver_->Disconnect();
-  state_ = State::kSsWarmUp;
-}
-
-void SendMessageDelaysManager::TestAction::SafeStreamWarmUp() {
-  AE_TELED_INFO("WarmUp p2p safe stream");
-  res_event_ = make_unique<CumulativeEvent<TimeTable, 2>>();
-
-  sender_->ConnectP2pSafeStream();
-  receiver_->Connect();
-
-  auto sender_warm_up = sender_->WarmUp(config_.min_send_interval);
-  auto receiver_warm_up = receiver_->WarmUp(config_.warm_up_message_count);
-
-  res_event_->Connect(
-      [&](auto, auto status) {
-        status.OnError([&]() {
-          AE_TELED_ERROR("Warm up error");
-          state_ = State::kError;
-        });
-      },
-      sender_warm_up->StatusEvent(), receiver_warm_up->StatusEvent());
-
-  test_subscriptions_.Push(  //
-      receiver_warm_up->OnReceived().Subscribe(
-          [sender_warm_up](bool last) mutable {
-            if (sender_warm_up) {
-              if (last) {
-                sender_warm_up->Stop();
-              } else {
-                sender_warm_up->Sync();
-              }
-            }
-          }),
-      // on success go to tests
-      res_event_->Subscribe([this](auto const&) {
-        if (state_ != State::kError) {
-          AE_TELED_INFO("WarmUp p2p safe stream finished");
-          state_.Set(State::kSsTest2Bytes);
-        }
-      }));
-}
-
-void SendMessageDelaysManager::TestAction::Test2Bytes() {
-  AE_TELED_INFO("Test2Bytes");
-
-  auto sender_event = sender_->Send2Bytes(config_.min_send_interval);
-  auto receiver_event = receiver_->Receive2Bytes(config_.test_message_count);
-  SubscribeToTest(sender_event, receiver_event,
-                  state_.get() == State::kTest2Bytes ? State::kTest10Bytes
-                                                     : State::kSsTest10Bytes);
-}
-
-void SendMessageDelaysManager::TestAction::Test10Bytes() {
-  AE_TELED_INFO("Test10Bytes");
-
-  auto sender_event = sender_->Send10Bytes(config_.min_send_interval);
-  auto receiver_event = receiver_->Receive10Bytes(config_.test_message_count);
-  SubscribeToTest(sender_event, receiver_event,
-                  state_.get() == State::kTest10Bytes ? State::kTest100Bytes
-                                                      : State::kSsTest100Bytes);
-}
-
-void SendMessageDelaysManager::TestAction::Test100Bytes() {
-  AE_TELED_INFO("Test100Bytes");
-
-  auto sender_event = sender_->Send100Bytes(config_.min_send_interval);
-  auto receiver_event = receiver_->Receive100Bytes(config_.test_message_count);
-  SubscribeToTest(sender_event, receiver_event,
-                  state_.get() == State::kTest100Bytes
-                      ? State::kTest1000Bytes
-                      : State::kSsTest1000Bytes);
-}
-
-void SendMessageDelaysManager::TestAction::Test1000Bytes() {
-  AE_TELED_INFO("Test1000Bytes");
-
-  auto sender_event = sender_->Send1000Bytes(config_.min_send_interval);
-  auto receiver_event = receiver_->Receive1000Bytes(config_.test_message_count);
-  SubscribeToTest(sender_event, receiver_event,
-                  state_.get() == State::kTest1000Bytes
-                      ? State::kSwitchToSafeStream
-                      : State::kDone);
-}
-
-void SendMessageDelaysManager::TestAction::SubscribeToTest(
-    ActionPtr<TimedSender> sender_action,
-    ActionPtr<TimedReceiver> receiver_action, State next_state) {
-  test_subscriptions_.Reset();
-  res_event_ = make_unique<CumulativeEvent<TimeTable, 2>>();
-  res_event_->Connect(
-      [&](auto times_setter, auto result) {
-        result
-            .OnResult(
-                [&](auto& action) { times_setter = action.message_times(); })
-            .OnError([&] {
+            }),
+            receiver_action.on_timeout().Subscribe([&]() {
               AE_TELED_ERROR("Test error");
-              state_ = State::kError;
-            });
-      },
-      sender_action->StatusEvent(), receiver_action->StatusEvent());
+              ex::set_error(std::move(ctx.receiver), 2);
+            }),
+            res_event_->Subscribe([&](auto const& res_event) {
+              AE_TELED_INFO("Test finished");
+              TestResult(res_event[0], res_event[1]);
+              ex::set_value(std::move(ctx.receiver));
+            }));
+      });
+}
 
-  test_subscriptions_.Push(
-      receiver_action->OnReceived().Subscribe(
-          [sender_action](bool last) mutable {
-            if (sender_action) {
-              if (last) {
-                sender_action->Stop();
-              } else {
-                sender_action->Sync();
-              }
+auto SendMessageDelaysManager::TestAction::Test2Bytes() {
+  return ex::let_value([&]() noexcept {
+    AE_TELED_INFO("Test2Bytes");
+    auto& sender_action = sender_->Send2Bytes();
+    auto& receiver_action =
+        receiver_->Receive2Bytes(config_.test_message_count);
+    return SubscribeToTest(sender_action, receiver_action);
+  });
+}
+
+auto SendMessageDelaysManager::TestAction::Test10Bytes() {
+  return ex::let_value([&]() noexcept {
+    AE_TELED_INFO("Test10Bytes");
+    auto& sender_action = sender_->Send10Bytes();
+    auto& receiver_action =
+        receiver_->Receive10Bytes(config_.test_message_count);
+    return SubscribeToTest(sender_action, receiver_action);
+  });
+}
+
+auto SendMessageDelaysManager::TestAction::Test100Bytes() {
+  return ex::let_value([&]() noexcept {
+    AE_TELED_INFO("Test100Bytes");
+
+    auto& sender_action = sender_->Send100Bytes();
+    auto& receiver_action =
+        receiver_->Receive100Bytes(config_.test_message_count);
+    return SubscribeToTest(sender_action, receiver_action);
+  });
+}
+
+auto SendMessageDelaysManager::TestAction::Test1000Bytes() {
+  return ex::let_value([&]() noexcept {
+    AE_TELED_INFO("Test1000Bytes");
+
+    auto& sender_action = sender_->Send1000Bytes();
+    auto& receiver_action =
+        receiver_->Receive1000Bytes(config_.test_message_count);
+    return SubscribeToTest(sender_action, receiver_action);
+  });
+}
+
+void SendMessageDelaysManager::TestAction::TestPipeline() {
+  auto test_send_bytes = WarmUp() | Test2Bytes() | Test10Bytes() |
+                         Test100Bytes() | Test1000Bytes();
+
+  auto pipeline = ex::just() | ConnectPeers() | test_send_bytes |
+                  SafeConnectPeers() | test_send_bytes;
+
+  test_pipeline_ =
+      std::make_unique<ex::AnyWaiter<ex::set_value_t(), ex::set_error_t(int)>>(
+          ae_context_, std::move(pipeline),
+          [&](std::optional<Result<Ignore, int>> res) {
+            if (res && res->IsOk()) {
+              result_event_.Emit(
+                  Ok<std::vector<DurationStatistics> const&>{result_table_});
+            } else {
+              result_event_.Emit(Error{-1});
             }
-          }),
-      res_event_->Subscribe([this, next_state](auto const& res_event) {
-        if (state_ != State::kError) {
-          AE_TELED_INFO("Test finished");
-          TestResult(res_event[0], res_event[1]);
-          state_ = next_state;
-        }
-      }));
+          });
 }
 
 void SendMessageDelaysManager::TestAction::TestResult(
@@ -264,23 +204,19 @@ void SendMessageDelaysManager::TestAction::TestResult(
 }
 
 SendMessageDelaysManager::SendMessageDelaysManager(
-    ActionContext action_context, std::unique_ptr<Sender> sender,
+    AeContext const& ae_context, std::unique_ptr<Sender> sender,
     std::unique_ptr<Receiver> receiver)
-    : action_context_{std::move(action_context)},
+    : ae_context_{ae_context},
       sender_{std::move(sender)},
       receiver_{std::move(receiver)} {}
 
-ActionPtr<SendMessageDelaysManager::TestAction> SendMessageDelaysManager::Test(
+SendMessageDelaysManager::TestAction& SendMessageDelaysManager::Test(
     SendMessageDelaysManagerConfig config) {
   AE_TELED_INFO("Test started");
-  if (test_action_) {
-    test_action_->Stop();
-  }
-
   test_action_ =
-      ActionPtr<TestAction>{action_context_, *sender_, *receiver_, config};
+      std::make_unique<TestAction>(ae_context_, *sender_, *receiver_, config);
 
-  return test_action_;
+  return *test_action_;
 }
 
 }  // namespace ae::bench
