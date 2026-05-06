@@ -23,11 +23,9 @@
 #include "aether/clock.h"
 #include "aether/memory.h"
 #include "aether/obj/obj.h"
-#include "aether/actions/action_ptr.h"
 #include "aether/types/client_config.h"
 
 #include "aether/ae_context.h"
-#include "aether/actions/action_context.h"
 #include "aether/ae_actions/select_client.h"
 
 #include "aether/uap/uap.h"
@@ -81,8 +79,7 @@ class Aether : public Obj {
 
   void Update(TimePoint current_time) override;
 
-  // User-facing API.
-  operator ActionContext() const;
+  // AeContext protocol
   AeCtx ToAeContext() const;
 
   ObjPtr<Client> CreateClient(ClientConfig const& config,
@@ -105,9 +102,7 @@ class Aether : public Obj {
 
   Obj::ptr tele_statistics;
 
-  std::unique_ptr<ActionProcessor> action_processor;
   std::unique_ptr<TaskScheduler> task_scheduler;
-  std::unique_ptr<IndexRegistry> index_registry;
 
  private:
   ObjPtr<Client> FindClient(std::string const& client_id);

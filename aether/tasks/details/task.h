@@ -17,25 +17,48 @@
 #ifndef AETHER_TASKS_DETAILS_TASK_H_
 #define AETHER_TASKS_DETAILS_TASK_H_
 
-#include "aether/clock.h"
+#include <cstdint>
 
 namespace ae {
+class ITaskSubscription {
+ public:
+  virtual void Unlink() noexcept = 0;
+
+ protected:
+  ~ITaskSubscription() = default;
+};
+
+class IActive {
+ public:
+  static constexpr std::uintptr_t kMagic = 0xda;
+
+  virtual ~IActive() noexcept {
+    if ((active != kMagic) && (active != 0)) {
+      reinterpret_cast<ITaskSubscription*>(active)  // NOLINT(*no-int-to-ptr)
+          ->Unlink();
+    }
+  }
+
+  std::uintptr_t active{kMagic};
+};
 /**
  * \brief A general task what can only invoke.
  */
-class ITask {
+class ITask : public IActive {
  public:
-  virtual ~ITask() = default;
+  ~ITask() override = default;
 
-  virtual void Invoke() = 0;
+  virtual void Invoke() && noexcept = 0;
 };
 
 /**
  * \brief A delayed task invocable only once.
  */
+template <typename TimePoint>
 class IDelayedTask : public ITask {
  public:
-  explicit IDelayedTask(TimePoint exp_at) : expire_at{exp_at} {}
+  explicit IDelayedTask(TimePoint exp_at) noexcept : expire_at{exp_at} {}
+  ~IDelayedTask() override = default;
 
   TimePoint expire_at;
 };

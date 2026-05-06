@@ -27,6 +27,7 @@
 
 #include "aether/type_traits.h"
 #include "aether/format/formatter.h"
+#include "aether/meta/time_traits.h"
 #include "aether/format/format_impl.h"
 
 namespace ae {
@@ -48,16 +49,6 @@ template <typename T>
 struct IstextSpecified<T,
                        std::void_t<decltype(T::text(std::declval<T const&>()))>>
     : std::true_type {};
-
-template <typename T>
-struct IsTimePoint : std::false_type {};
-template <typename C, typename D>
-struct IsTimePoint<std::chrono::time_point<C, D>> : std::true_type {};
-
-template <typename T>
-struct IsDuration : std::false_type {};
-template <typename R, typename P>
-struct IsDuration<std::chrono::duration<R, P>> : std::true_type {};
 
 // for any with operator<< to std::ostream&
 template <typename T>

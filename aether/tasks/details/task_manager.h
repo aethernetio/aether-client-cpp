@@ -17,10 +17,11 @@
 #ifndef AETHER_TASKS_DETAILS_TASK_MANAGER_H_
 #define AETHER_TASKS_DETAILS_TASK_MANAGER_H_
 
-#include <concepts>
+#include <chrono>
 #include <utility>
+#include <concepts>
 
-#include "aether/clock.h"
+#include "aether/meta/time_traits.h"
 #include "aether/tasks/details/task_queues.h"
 #include "aether/tasks/details/generic_task.h"
 
@@ -28,10 +29,12 @@
 
 namespace ae {
 namespace task_manager_internal {
+using DefTpType = std::chrono::system_clock::time_point;
 static constexpr std::size_t kDefaultTaskSize =
-    (6 * sizeof(void*)) + std::max(sizeof(ITask), sizeof(IDelayedTask));
+    (6 * sizeof(void*)) +
+    std::max(sizeof(ITask), sizeof(IDelayedTask<DefTpType>));
 static constexpr std::size_t kDefaultTaskAlign =
-    std::max(alignof(ITask), alignof(IDelayedTask));
+    std::max(alignof(ITask), alignof(IDelayedTask<DefTpType>));
 }  // namespace task_manager_internal
 
 template <std::size_t Capacity,
@@ -43,7 +46,8 @@ struct TaskManagerConf {
   static constexpr std::size_t element_align = ElementAlign;
 };
 
-template <typename TaskManagerConf>
+template <typename TaskManagerConf,
+          typename TimePointType = task_manager_internal::DefTpType>
 class TaskManager {
   static constexpr std::size_t capacity = TaskManagerConf::capacity;
   static constexpr std::size_t element_size = TaskManagerConf::element_size;
@@ -51,7 +55,7 @@ class TaskManager {
 
   using task_pool = etl::generic_pool<element_size, element_align, capacity>;
   using regular_task_list = TaskQueue<capacity, task_pool>;
-  using delayd_task_list = DelayedTaskQueue<capacity, task_pool>;
+  using delayd_task_list = DelayedTaskQueue<capacity, TimePointType, task_pool>;
 
  public:
   TaskManager()
@@ -62,7 +66,7 @@ class TaskManager {
    */
   template <typename F>
     requires(std::invocable<F>)
-  bool Task(F&& f) {
+  IActive* Task(F&& f) {
     return Emplace<GenericTask<std::decay_t<F>>>(regular_task_list_,
                                                  std::forward<F>(f));
   }
@@ -70,17 +74,18 @@ class TaskManager {
   /**
    * \brief Add delayed task
    */
-  template <typename F>
-    requires(std::invocable<F>)
-  bool DelayedTask(F&& f, Duration dur) {
-    return Emplace<GenericDelayedTask<std::decay_t<F>>>(
-        delayd_task_list_, std::forward<F>(f), ae::Now() + dur);
+  template <typename F, typename Dur>
+    requires(std::invocable<F> && IsDuration_v<Dur>)
+  IActive* DelayedTask(F&& f, Dur dur) {
+    return Emplace<GenericDelayedTask<std::decay_t<F>, TimePointType>>(
+        delayd_task_list_, std::forward<F>(f),
+        TimePointType::clock::now() + dur);
   }
   template <typename F>
     requires(std::invocable<F>)
-  bool DelayedTask(F&& f, TimePoint tp) {
-    return Emplace<GenericDelayedTask<std::decay_t<F>>>(delayd_task_list_,
-                                                        std::forward<F>(f), tp);
+  IActive* DelayedTask(F&& f, TimePointType tp) {
+    return Emplace<GenericDelayedTask<std::decay_t<F>, TimePointType>>(
+        delayd_task_list_, std::forward<F>(f), tp);
   }
 
   regular_task_list& regular() { return regular_task_list_; }
@@ -88,13 +93,17 @@ class TaskManager {
 
  private:
   template <typename T, typename List, typename... Args>
-  bool Emplace(List& list, Args&&... args) {
+  IActive* Emplace(List& list, Args&&... args) {
     if (task_pool_.available() == 0) {
-      return false;
+      return nullptr;
     }
     auto* p = task_pool_.template create<T>(std::forward<Args>(args)...);
     assert(p != nullptr);
-    return list.Add(p);
+    if (!list.Add(p)) {
+      task_pool_.destroy(p);
+      return nullptr;
+    }
+    return static_cast<IActive*>(p);
   }
 
   task_pool task_pool_;

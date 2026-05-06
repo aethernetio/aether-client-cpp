@@ -20,7 +20,6 @@
 
 #include "aether/obj/obj_ptr.h"
 #include "aether/ae_actions/time_sync.h"
-#include "aether/actions/action_processor.h"
 
 #include "aether/client.h"
 #include "aether/server.h"
@@ -33,29 +32,17 @@
 
 namespace ae {
 
-Aether::Aether()
-    : action_processor{make_unique<ActionProcessor>()},
-      task_scheduler{make_unique<TaskScheduler>()},
-      index_registry{make_unique<IndexRegistry>()} {}
+Aether::Aether() : task_scheduler{make_unique<TaskScheduler>()} {}
 
 Aether::Aether(ObjProp prop)
-    : Obj{prop},
-      action_processor{make_unique<ActionProcessor>()},
-      task_scheduler{make_unique<TaskScheduler>()},
-      index_registry{make_unique<IndexRegistry>()} {
+    : Obj{prop}, task_scheduler{make_unique<TaskScheduler>()} {
   AE_TELE_DEBUG(AetherCreated);
 }
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
 void Aether::Update(TimePoint current_time) {
-  task_scheduler->Update(current_time);
-  action_processor->Update(current_time);
-  update_time = current_time + 100ms;
-}
-
-Aether::operator ActionContext() const {
-  return ActionContext{*action_processor};
+  update_time = task_scheduler->Update(current_time);
 }
 
 AeCtx Aether::ToAeContext() const {
@@ -63,11 +50,7 @@ AeCtx Aether::ToAeContext() const {
       [](void* obj) -> Aether& { return *static_cast<Aether*>(obj); },
       [](void* obj) -> TaskScheduler& {
         return *static_cast<Aether*>(obj)->task_scheduler;
-      },
-      [](void* obj) -> IndexRegistry& {
-        return *static_cast<Aether*>(obj)->index_registry;
-      },
-  };
+      }};
   return AeCtx{const_cast<Aether*>(this), &ae_table};  // NOLINT(*const-cast)
 }
 

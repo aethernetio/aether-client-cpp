@@ -19,39 +19,34 @@
 
 #include <mutex>
 #include <atomic>
+#include <chrono>
 #include <cassert>
 #include <iostream>
 #include <condition_variable>
 
-#include "aether/clock.h"
-
 #include "aether/tasks/details/task_manager.h"
 
 namespace ae {
-template <typename TaskManagerConf>
+template <typename TaskManagerConf,
+          typename TimePointType = std::chrono::system_clock::time_point>
 class ManualTaskScheduler {
   using task_manager = TaskManager<TaskManagerConf>;
-  using regular_list_t = typename std::decay_t<
-      decltype(std::declval<task_manager>().regular())>::list;
-  using delayed_list_t = typename std::decay_t<
-      decltype(std::declval<task_manager>().delayed())>::list;
+  using regular_list_t =
+      std::decay_t<decltype(std::declval<task_manager>().regular())>::list;
+  using delayed_list_t =
+      std::decay_t<decltype(std::declval<task_manager>().delayed())>::list;
 
  public:
   ManualTaskScheduler() = default;
 
   template <typename F>
-  void Task(F&& f) {
-    AddSafe([&]() { return task_manager_.Task(std::forward<F>(f)); });
+  auto Task(F&& f) {
+    return AddSafe([&]() { return task_manager_.Task(std::forward<F>(f)); });
   }
 
-  template <typename F>
-  void DelayedTask(F&& f, Duration dur) {
-    AddSafe(
-        [&]() { return task_manager_.DelayedTask(std::forward<F>(f), dur); });
-  }
-  template <typename F>
-  void DelayedTask(F&& f, TimePoint tp) {
-    AddSafe(
+  template <typename F, typename TP>
+  auto DelayedTask(F&& f, TP tp) {
+    return AddSafe(
         [&]() { return task_manager_.DelayedTask(std::forward<F>(f), tp); });
   }
 
@@ -61,7 +56,8 @@ class ManualTaskScheduler {
    * expired
    * \return the recommended time point for next update call.
    */
-  TimePoint Update(TimePoint current_time = Now()) {
+  TimePointType Update(
+      TimePointType current_time = TimePointType::clock::now()) {
     auto lock = std::unique_lock{lock_};
     trigger_ = false;
     CheckOverflows();
@@ -78,7 +74,7 @@ class ManualTaskScheduler {
     if (task_manager_.delayed().size() != 0) {
       return task_manager_.delayed().back()->expire_at;
     }
-    return TimePoint::max();
+    return TimePointType::max();
   }
 
   /**
@@ -86,7 +82,7 @@ class ManualTaskScheduler {
    * The Update method should be called after WaitUntil returns.
    * \param wake_up_time - maximum time to wait.
    */
-  void WaitUntil(TimePoint wake_up_time) {
+  void WaitUntil(TimePointType wake_up_time) {
     auto lock = std::unique_lock{lock_};
     if (trigger_.exchange(false)) {
       return;
@@ -99,13 +95,15 @@ class ManualTaskScheduler {
 
  private:
   template <typename F>
-  void AddSafe(F&& f) {
+  IActive* AddSafe(F&& f) {
     auto lock = std::scoped_lock{lock_};
-    if (!std::invoke(std::forward<F>(f))) {
+    auto* p = std::invoke(std::forward<F>(f));
+    if (p == nullptr) {
       overflow_counter_++;
     }
     trigger_ = true;
     cv_.notify_one();
+    return p;
   }
 
   template <typename List, typename StealList>
@@ -113,7 +111,10 @@ class ManualTaskScheduler {
                    List& list) {
     lock.unlock();
     for (auto* t : tasks) {
-      t->Invoke();
+      if (t->active != 0) {
+        // each task invoked only once
+        std::move(*t).Invoke();
+      }
     }
     lock.lock();
     list.Free(tasks);
