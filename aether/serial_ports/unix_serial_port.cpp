@@ -32,7 +32,6 @@ UnixSerialPort::UnixSerialPort(AeContext const& ae_context,
                                SerialInit serial_init,
                                IPoller::ptr const& poller)
     : ae_context_{ae_context},
-      alive_ctx_{ae_context_, this},
       serial_init_{std::move(serial_init)},
       poller_{static_cast<UnixPollerImpl*>(poller->Native())},
       fd_{OpenPort(serial_init_)} {}
@@ -133,12 +132,10 @@ void UnixSerialPort::ReadData() {
   buffers_.emplace_back(std::move(data));
 
   if (!read_flag_.exchange(true)) {
-    ae_context_.scheduler().Task([imalive{alive_ctx_.View()}]() noexcept {
-      if (imalive) {
-        auto lock = std::scoped_lock{imalive->fd_lock_};
-        imalive->EmitData();
-        imalive->read_flag_ = false;
-      }
+    scheduler_sub_ = ae_context_.scheduler().Task([this]() noexcept {
+      auto lock = std::scoped_lock{fd_lock_};
+      EmitData();
+      read_flag_ = false;
     });
   }
 }

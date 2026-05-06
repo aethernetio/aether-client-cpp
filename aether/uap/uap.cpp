@@ -87,12 +87,6 @@ std::optional<Uap::Timer> Uap::timer() {
   return Timer{Uap::ptr::MakeFromThis(this)};
 }
 
-void Uap::RegisterAction(IAction& action) {
-  RegisterStart();
-  wait_actions_subs_ +=
-      action.FinishedEvent().Subscribe(MethodPtr<&Uap::RegisterEnd>{this});
-}
-
 void Uap::RegisterStart() { wait_actions_cnt_++; }
 void Uap::RegisterEnd() {
   assert(wait_actions_cnt_ > 0);

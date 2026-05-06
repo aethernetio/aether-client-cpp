@@ -22,7 +22,6 @@
 #  include <cstdint>
 
 #  include "aether/ptr/ptr_view.h"
-#  include "aether/actions/action.h"
 #  include "aether/executors/executors.h"
 #  include "aether/events/event_subscription.h"
 

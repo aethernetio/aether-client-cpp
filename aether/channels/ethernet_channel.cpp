@@ -20,7 +20,6 @@
 #include <utility>
 
 #include "aether/memory.h"
-#include "aether/actions/action.h"
 #include "aether/events/event_subscription.h"
 
 #include "aether/aether.h"

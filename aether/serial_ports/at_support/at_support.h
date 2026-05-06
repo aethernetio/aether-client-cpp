@@ -31,7 +31,6 @@
 #include "aether/serial_ports/at_support/at_buffer.h"
 #include "aether/serial_ports/at_support/at_listener.h"
 #include "aether/serial_ports/at_support/at_dispatcher.h"
-#include "aether/serial_ports/at_support/at_write_action.h"
 // IWYU pragma: end_exports
 
 namespace ae {

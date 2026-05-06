@@ -134,7 +134,7 @@ class UdpBase : public ByteIStream {
 
 }  // namespace upd_internal
 
-template <typename Socket>
+template <typename Socket, std::size_t QueueSize>
 class UdpTransport final : public upd_internal::UdpBase {
  public:
   using SendAction = upd_internal::SendAction<Socket, std::mutex>;
@@ -164,6 +164,7 @@ class UdpTransport final : public upd_internal::UdpBase {
     auto* send_action = send_queue_manager_.AddPacket(
         SendAction{ae_context_, socket_, socket_mutex_, std::move(in_data)});
     if (send_action == nullptr) {
+      AE_TELED_ERROR("Queue manager is full");
       return FailedWrite();
     }
 
@@ -194,7 +195,7 @@ class UdpTransport final : public upd_internal::UdpBase {
 
  private:
   Socket socket_;
-  PacketQueueManager<SendAction> send_queue_manager_;
+  PacketQueueManager<SendAction, QueueSize> send_queue_manager_;
   MultiSubscription send_action_error_subs_;
 };
 }  // namespace ae

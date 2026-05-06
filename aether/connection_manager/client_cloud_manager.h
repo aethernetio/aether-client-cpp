@@ -118,6 +118,7 @@ class ClientCloudManager : public Obj {
   Obj::ptr client_;
   std::map<Uid, Cloud::ptr> cloud_cache_;
   std::optional<ActionPool<
+      AeContext,
       std::variant<client_cloud_manager_internal::GetCloudFromCache,
                    client_cloud_manager_internal::GetCloudFromAether>,
       5>>

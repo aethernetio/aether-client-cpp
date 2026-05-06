@@ -26,8 +26,7 @@
 #include "aether/memory.h"
 #include "aether/ptr/ptr.h"
 #include "aether/obj/obj_ptr.h"
-#include "aether/actions/action2_.h"
-#include "aether/actions/pipeline.h"
+#include "aether/types/data_buffer.h"
 #include "aether/actions/actions_queue.h"
 
 #include "aether/client.h"
@@ -50,57 +49,13 @@
 #include "aether/client_messages/p2p_message_stream_manager.h"
 // IWYU pragma: end_keeps
 
-namespace ae {
-template <typename TFunc>
-  requires(std::is_same_v<WriteAction&, std::invoke_result_t<TFunc>>)
-struct WriteActionStageRunner {
- public:
-  explicit WriteActionStageRunner(TFunc&& f) : func_{std::move(f)} {}
-
-  void Run() { action_ = &std::invoke(func_); }
-
-  WriteAction* action() { return action_; }
-
- private:
-  TFunc func_;
-  WriteAction* action_{};
-};
-
-template <typename TFunc>
-  requires(std::is_same_v<WriteAction&, std::invoke_result_t<TFunc>>)
-auto Stage(TFunc&& func) {
-  return WriteActionStageRunner{std::forward<TFunc>(func)};
-}
-
-template <typename TFunc>
-  requires(std::is_same_v<SelectClientAction&, std::invoke_result_t<TFunc>>)
-struct SelectClientActionStageRunner {
- public:
-  explicit SelectClientActionStageRunner(TFunc&& f) : func_{std::move(f)} {}
-
-  void Run() { action_ = &std::invoke(func_); }
-
-  SelectClientAction* action() { return action_; }
-
- private:
-  TFunc func_;
-  SelectClientAction* action_{};
-};
-
-template <typename TFunc>
-  requires(std::is_same_v<SelectClientAction&, std::invoke_result_t<TFunc>>)
-auto Stage(TFunc&& func) {
-  return SelectClientActionStageRunner{std::forward<TFunc>(func)};
-}
-}  // namespace ae
-
 static ae::RcPtr<ae::AetherApp> aether_app;
 
 struct AetherClient {
   ClientConfig config;
   ae::Client::ptr client;
   std::map<ae::Uid, ae::RcPtr<ae::P2pStream>> streams;
-  ae::OwnActionPtr<ae::ActionsQueue> actions_queue_;
+  std::unique_ptr<ae::ActionsQueue> actions_queue_;
 };
 
 std::unique_ptr<AetherClient, void (*)(AetherClient*)> default_client{
@@ -424,8 +379,7 @@ AetherClient* SelectClient(ClientConfig const* config) {
 
   auto* ret_client = new AetherClient{};
   ret_client->config = *config;
-  ret_client->actions_queue_ = ae::OwnActionPtr<ae::ActionsQueue>{
-      ae::ActionContext{*aether_app->aether()}};
+  ret_client->actions_queue_ = std::make_unique<ae::ActionsQueue>();
 
   ret_client->actions_queue_->Push(
       ae::Stage([ret_client, config]() -> decltype(auto) {
