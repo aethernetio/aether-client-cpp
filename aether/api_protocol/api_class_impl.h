@@ -245,7 +245,7 @@ class ApiClassImpl : public ApiClass {
   void LoadFactory(MessageId message_id, ApiParser& parser) {
     auto res = LoadFactoryImpl(static_cast<Api*>(this), message_id, parser);
     if (!res) {
-      assert(res);
+      assert(false && "Implementation not found");
     }
   }
 };
