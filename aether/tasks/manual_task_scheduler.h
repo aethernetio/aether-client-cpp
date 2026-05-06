@@ -19,6 +19,7 @@
 // IWYU pragma: begin_exports
 #include "aether/tasks/details/task.h"
 #include "aether/tasks/details/task_manager.h"
+#include "aether/tasks/details/task_subsctiption.h"
 #include "aether/tasks/details/manual_task_scheduler.h"
 // IWYU pragma: end_exports
 
