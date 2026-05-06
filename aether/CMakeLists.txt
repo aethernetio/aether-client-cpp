@@ -107,11 +107,6 @@ list(APPEND actions_srcs
             "ae_actions/telemetry.cpp"
             "ae_actions/select_client.cpp"
             "ae_actions/time_sync.cpp"
-            "actions/action_trigger.cpp"
-            "actions/action_registry.cpp"
-            "actions/action_processor.cpp"
-            "actions/repeatable_task.cpp"
-            "actions/action_context.cpp"
             )
 
 list(APPEND registration_srcs

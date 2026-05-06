@@ -17,43 +17,73 @@
 #ifndef AETHER_ACTIONS_REPEATABLE_TASK_H_
 #define AETHER_ACTIONS_REPEATABLE_TASK_H_
 
-#include "aether/common.h"
-#include "aether/ae_context.h"
+#include <chrono>
+#include <functional>
+
 #include "aether/actions/action2_.h"
+#include "aether/meta/time_traits.h"
 #include "aether/types/small_function.h"
+#include "aether/actions/action_context.h"
 
 namespace ae {
 /**
  * \brief Runs Task periodically with interval_ until repeat count is exceeded
  * or stopped.
  */
-
+template <ActionContext AC, typename Task = SmallFunction<void()>>
 class RepeatableTask : public a2::Action {
  public:
-  using Task = SmallFunction<void()>;
   static constexpr auto kRepeatCountInfinite = -1;
 
-  RepeatableTask(AeContext const& ae_context, Task&& task, Duration interval,
-                 int max_repeat_count = kRepeatCountInfinite);
+  template <typename D>
+    requires(IsDuration_v<D>)
+  RepeatableTask(AC const& ac, Task&& task, D interval,
+                 int max_repeat_count = kRepeatCountInfinite)
+      : ac_{ac},
+        task_{std::move(task)},
+        interval_{
+            std::chrono::duration_cast<std::chrono::milliseconds>(interval)},
+        max_repeat_count_{max_repeat_count} {
+    Run();
+  }
 
   AE_CLASS_MOVE_ONLY(RepeatableTask)
 
-  void Stop();
+  void Stop() { stopped_ = true; }
 
   Event<void()>::Subscriber repeat_count_exceeded() noexcept {
     return EventSubscriber{repeat_count_exceeded_event_};
   }
 
  private:
-  void Run();
+  void Run() {
+    if ((max_repeat_count_ != kRepeatCountInfinite) &&
+        (current_repeat_ >= max_repeat_count_)) {
+      repeat_count_exceeded_event_.Emit();
+      return;
+    }
+    current_repeat_++;
+    scheduler_sub_ = ac_.scheduler().DelayedTask(
+        [&]() {
+          if (stopped_) {
+            return;
+          }
+          // execute task
+          std::invoke(task_);
+          // reschedule
+          Run();
+        },
+        interval_);
+  }
 
-  AeContext ae_context_;
+  AC ac_;
   Task task_;
-  Duration interval_;
-  int max_repeat_count_;
-  int current_repeat_;
+  std::chrono::milliseconds interval_{};
+  int max_repeat_count_{};
+  int current_repeat_{};
   bool stopped_{false};
   Event<void()> repeat_count_exceeded_event_;
+  TaskSubscription scheduler_sub_;
 };
 }  // namespace ae
 
