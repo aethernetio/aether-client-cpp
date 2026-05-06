@@ -19,6 +19,7 @@ list(APPEND test_srcs
    test-task-queues.cpp
    test-task-manager.cpp
    test-manual-task-scheduler.cpp
+   test-task-subscriptions.cpp
 )
 
 if(NOT CM_PLATFORM)
