@@ -16,7 +16,6 @@
 
 #include "send_messages_bandwidth/sender/sender.h"
 
-#include "aether/actions/action_context.h"
 #include "aether/api_protocol/api_context.h"
 #include "aether/stream_api/api_call_adapter.h"
 #include "aether/client_messages/p2p_message_stream.h"
@@ -66,31 +65,33 @@ EventSubscriber<void(Bandwidth const&)> Sender::TestMessages(
   // Start test
   // Make test
   // Stop test
-  start_test_sub_ =
-      StartTest().Subscribe([this, message_size, message_count]() {
-        // test started
-        auto payload_size = message_size > 2 ? message_size - 2 : 0;
-        message_sender_ = OwnActionPtr<MessageSender>{
-            FromAeContext(ae_context_),
-            [this, payload_size](std::uint16_t id) -> decltype(auto) {
-              auto api =
-                  ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
-              api->message(id, DataBuffer(payload_size));
-              return api.Flush();
-            },
-            message_count};
+  StartTest().Subscribe([this, message_size, message_count]() {
+    // test started
+    auto payload_size = message_size > 2 ? message_size - 2 : 0;
+    message_sender_ = std::make_unique<MessageSender>(
+        ae_context_,
+        [this, payload_size](std::uint16_t id) -> decltype(auto) {
+          auto api =
+              ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
+          api->message(id, DataBuffer(payload_size));
+          return api.Flush();
+        },
+        message_count);
 
-        test_res_sub_ = message_sender_->StatusEvent().Subscribe(ActionHandler{
-            OnResult{[this, message_size](auto const& result) {
-              stop_test_sub_ = StopTest().Subscribe(
-                  [this, bandwidth = Bandwidth{result.send_duration(),
-                                               result.message_send_count(),
-                                               message_size}]() {
-                    test_finished_event_.Emit(bandwidth);
-                  });
-            }},
-            OnError{[this]() { error_event_.Emit(); }}});
-      });
+    test_res_sub_ = message_sender_->result_event().Subscribe(
+        [this, message_size](auto const& result) {
+          if (result) {
+            StopTest().Subscribe(
+                [this,
+                 bandwidth = Bandwidth{result.value().duration,
+                                       result.value().count, message_size}]() {
+                  test_finished_event_.Emit(bandwidth);
+                });
+          } else {
+            error_event_.Emit();
+          }
+        });
+  });
 
   return test_finished_event_;
 }
@@ -135,6 +136,10 @@ EventSubscriber<void()> Sender::StopTest() {
         api.Flush();
       },
       std::chrono::seconds{1}, 5);
+
+  sync_action_failed_sub_ =
+      stop_test_action_->repeat_count_exceeded().Subscribe(
+          [this]() { error_event_.Emit(); });
 
   return test_stopped_event_;
 }

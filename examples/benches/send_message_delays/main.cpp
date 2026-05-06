@@ -55,9 +55,7 @@ class TestSendMessageDelays {
               ex::set_value(std::move(ctx.receiver));
             }
           };
-          auto failed = [&]() {
-            ex::set_error(std::move(ctx.receiver), 1);
-          };
+          auto failed = [&]() { ex::set_error(std::move(ctx.receiver), 1); };
 
           auto& get_sender = aether_->SelectClient(kTestUid, "sender");
           get_sender.client_selected().Subscribe([&, selected](auto const& c) {
@@ -77,66 +75,66 @@ class TestSendMessageDelays {
   }
 
   auto MakeTest() {
-    return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
-        [&](auto& ctx) noexcept {
-          AE_TELED_INFO("Make a test");
-          SafeStreamConfig safe_stream_config{
-              (std::numeric_limits<std::uint16_t>::max() / 2) - 1,
-              (std::numeric_limits<std::uint16_t>::max() / 2) - 1,
-              10,
-              std::chrono::milliseconds{1500},
-              std::chrono::milliseconds{0},
-              std::chrono::milliseconds{200},
-          };
+    return ex::create<ex::set_value_t(),
+                      ex::set_error_t(int)>([&](auto& ctx) noexcept {
+      AE_TELED_INFO("Make a test");
+      SafeStreamConfig safe_stream_config{
+          .window_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
+          .max_packet_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
+          .max_repeat_count = 10,
+          .wait_ack_timeout = std::chrono::milliseconds{1500},
+          .send_ack_timeout = std::chrono::milliseconds{0},
+          .send_repeat_timeout = std::chrono::milliseconds{200},
+      };
 
-          auto sender =
-              make_unique<Sender>(*aether_, client_sender_,
-                                  client_receiver_->uid(), safe_stream_config);
-          auto receiver = make_unique<Receiver>(*aether_, client_receiver_,
-                                                safe_stream_config);
+      auto sender =
+          make_unique<Sender>(ae_context_, client_sender_,
+                              client_receiver_->uid(), safe_stream_config);
+      auto receiver = make_unique<Receiver>(ae_context_, client_receiver_,
+                                            safe_stream_config);
 
-          send_message_delays_manager_ = make_unique<SendMessageDelaysManager>(
-              ActionContext{*aether_}, std::move(sender), std::move(receiver));
+      send_message_delays_manager_ = make_unique<SendMessageDelaysManager>(
+          ae_context_, std::move(sender), std::move(receiver));
 
-          static constexpr auto test_message_count = 100;
-          auto test_action = send_message_delays_manager_->Test({
-              /* WarUp message count */ 10,
-              /* test message count */ test_message_count,
-              /* min send interval */ std::chrono::milliseconds{1000},
+      static constexpr auto test_message_count = 100;
+      auto& test_action = send_message_delays_manager_->Test({
+          /* WarUp message count */ 10,
+          /* test message count */ test_message_count,
+      });
+
+      test_action.result_event().Subscribe(
+          [&](Result<std::vector<DurationStatistics> const&, int> const& res) {
+            if (res) {
+              auto res_name_table = std::array{
+                  std::string_view{"p2p 2 Bytes"},
+                  std::string_view{"p2p 10 Bytes"},
+                  std::string_view{"p2p 100 Bytes"},
+                  std::string_view{"p2p 1000 Bytes"},
+                  std::string_view{"p2pss 2 Bytes"},
+                  std::string_view{"p2pss 10 Bytes"},
+                  std::string_view{"p2pss 100 Bytes"},
+                  std::string_view{"p2pss 1000 Bytes"},
+              };
+              auto const& results = res.value();
+
+              std::vector<std::pair<std::string, DurationStatistics>>
+                  statistics_write_list;
+              statistics_write_list.reserve(res_name_table.size());
+              for (std::size_t i = 0; i < res_name_table.size(); ++i) {
+                statistics_write_list.emplace_back(
+                    std::string{res_name_table[i]}, std::move(results[i]));
+              }
+              Format(write_results_stream_, "{}",
+                     StatisticsWriteCsv{std::move(statistics_write_list),
+                                        test_message_count});
+
+              ex::set_value(std::move(ctx.receiver));
+            } else {
+              AE_TELED_ERROR("Test failed");
+              ex::set_error(std::move(ctx.receiver), 2);
+            }
           });
-
-          test_action->StatusEvent().Subscribe(ActionHandler{
-              OnResult{[&](auto const& action) mutable {
-                auto res_name_table = std::array{
-                    std::string_view{"p2p 2 Bytes"},
-                    std::string_view{"p2p 10 Bytes"},
-                    std::string_view{"p2p 100 Bytes"},
-                    std::string_view{"p2p 1000 Bytes"},
-                    std::string_view{"p2pss 2 Bytes"},
-                    std::string_view{"p2pss 10 Bytes"},
-                    std::string_view{"p2pss 100 Bytes"},
-                    std::string_view{"p2pss 1000 Bytes"},
-                };
-                auto const& results = action.result_table();
-
-                std::vector<std::pair<std::string, DurationStatistics>>
-                    statistics_write_list;
-                statistics_write_list.reserve(res_name_table.size());
-                for (std::size_t i = 0; i < res_name_table.size(); ++i) {
-                  statistics_write_list.emplace_back(
-                      std::string{res_name_table[i]}, std::move(results[i]));
-                }
-                Format(write_results_stream_, "{}",
-                       StatisticsWriteCsv{std::move(statistics_write_list),
-                                          test_message_count});
-
-                ex::set_value(std::move(ctx.receiver));
-              }},
-              OnError{[&]() mutable {
-                AE_TELED_ERROR("Test failed");
-                ex::set_error(std::move(ctx.receiver), 2);
-              }}});
-        });
+    });
   }
 
   void TestPipeline() {

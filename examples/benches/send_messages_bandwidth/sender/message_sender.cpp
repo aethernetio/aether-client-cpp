@@ -20,54 +20,26 @@
 
 namespace ae::bench {
 
-MessageSender::MessageSender(ActionContext action_context, SendProc send_proc,
+MessageSender::MessageSender(AeContext const& ae_context, SendProc send_proc,
                              std::size_t send_count)
-    : Action{action_context},
+    : ae_context_{ae_context},
       send_proc_{std::move(send_proc)},
-      send_count_{send_count},
-      state_{State::kSending} {
+      send_count_{send_count} {
   AE_TELED_INFO("MessageSender created");
+  send_sub_ = ae_context_.scheduler().Task([this]() {
+    first_send_time_ = HighResTimePoint::clock::now();
+    Send();
+  });
 }
 
-UpdateStatus MessageSender::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kSending:
-        first_send_time_ = HighResTimePoint::clock::now();
-        break;
-      case State::kWaitbuffer:
-        break;
-      case State::kSuccess:
-        return UpdateStatus::Result();
-      case State::kStopped:
-        return UpdateStatus::Stop();
-      case State::kError:
-        return UpdateStatus::Error();
-    }
-  }
-  if (state_.get() == State::kSending) {
-    Send();
-  }
-  if (state_.get() == State::kWaitbuffer) {
-    WaitBuffer();
-  }
-
-  return {};
+MessageSender::ResultEvent::Subscriber MessageSender::result_event() {
+  return EventSubscriber{result_event_};
 }
 
 void MessageSender::Stop() {
   AE_TELED_DEBUG("MessageSender Stop");
-  state_ = State::kStopped;
-  Action::Trigger();
-}
-
-std::size_t MessageSender::message_send_count() const {
-  return message_send_count_;
-}
-
-Duration MessageSender::send_duration() const {
-  return std::chrono::duration_cast<Duration>(last_send_time_ -
-                                              first_send_time_);
+  send_sub_.Reset();
+  result_event_.Emit(Error(0));
 }
 
 void MessageSender::Send() {
@@ -78,12 +50,16 @@ void MessageSender::Send() {
     switch (status) {
       case WriteAction::Status::kSuccess: {
         message_send_confirm_count_++;
-        last_send_time_ = HighResTimePoint::clock::now();
+        // if all messages are sent, emit result
+        if (message_send_confirm_count_ == message_send_count_) {
+          EmitResult();
+        }
         break;
       }
       case WriteAction::Status::kFail: {
         AE_TELED_ERROR("Error sending message");
-        state_ = State::kError;
+        send_sub_.Reset();
+        result_event_.Emit(Error(12));
         break;
       }
       default:
@@ -92,18 +68,20 @@ void MessageSender::Send() {
   });
 
   ++message_send_count_;
-  if (message_send_count_ == send_count_) {
-    state_ = State::kWaitbuffer;
-  }
-  Action::Trigger();
-}
-
-void MessageSender::WaitBuffer() {
-  if (message_send_confirm_count_ == message_send_count_) {
-    AE_TELED_DEBUG("Buffer is sent");
-    state_ = State::kSuccess;
-    Action::Trigger();
+  if (message_send_count_ != send_count_) {
+    // reschedule next send
+    send_sub_ = ae_context_.scheduler().Task([this]() { Send(); });
   }
 }
 
+void MessageSender::EmitResult() {
+  auto last_send_time = HighResTimePoint::clock::now();
+
+  result_event_.Emit(Ok{
+      SendResult{
+          .count = message_send_count_,
+          .duration = last_send_time - first_send_time_,
+      },
+  });
+}
 }  // namespace ae::bench

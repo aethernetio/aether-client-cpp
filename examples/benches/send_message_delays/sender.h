@@ -17,14 +17,11 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_SENDER_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_SENDER_H_
 
-#include <optional>
-
 #include "aether/memory.h"
 #include "aether/client.h"
 #include "aether/types/uid.h"
 #include "aether/ae_context.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/actions/action_ptr.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
@@ -41,17 +38,16 @@ class Sender {
   void ConnectP2pSafeStream();
   void Disconnect();
 
-  ActionPtr<TimedSender> WarmUp(Duration min_send_interval);
-  ActionPtr<TimedSender> Send2Bytes(Duration min_send_interval);
-  ActionPtr<TimedSender> Send10Bytes(Duration min_send_interval);
-  ActionPtr<TimedSender> Send100Bytes(Duration min_send_interval);
-  ActionPtr<TimedSender> Send1000Bytes(Duration min_send_interval);
+  TimedSender& WarmUp();
+  TimedSender& Send2Bytes();
+  TimedSender& Send10Bytes();
+  TimedSender& Send100Bytes();
+  TimedSender& Send1000Bytes();
 
  private:
   template <typename Func>
-  ActionPtr<TimedSender> CreateBenchAction(Func&& func,
+  TimedSender& CreateBenchAction(Func&& func);
 
-                                           Duration min_send_interval);
   AeContext ae_context_;
   Client::ptr client_;
   Uid destination_uid_;
@@ -59,10 +55,11 @@ class Sender {
 
   RcPtr<P2pStream> send_message_stream_;
   std::unique_ptr<P2pSafeStream> send_message_safe_stream_;
+  ByteIStream* connected_stream_;
   ProtocolContext protocol_context_;
   BenchDelaysApi bench_delays_api_;
 
-  ActionPtr<TimedSender> sender_action_;
+  std::unique_ptr<TimedSender> sender_action_;
 
   MultiSubscription action_subscriptions_;
 };

@@ -19,10 +19,8 @@
 
 #include <cstddef>
 
+#include "aether/ae_context.h"
 #include "aether/events/events.h"
-#include "aether/actions/action.h"
-#include "aether/types/state_machine.h"
-#include "aether/actions/action_context.h"
 
 #include "send_message_delays/time_table.h"
 
@@ -32,39 +30,35 @@ namespace ae::bench {
  * Must receive a wait_count messages during wait_timeout or emit an error
  * On success receive message_times to compare it with sent times
  */
-class TimedReceiver : public Action<TimedReceiver> {
-  enum class State : std::uint8_t {
-    kWaiting,
-    kReceived,
-    kTimeOut,
-  };
-
+class TimedReceiver {
   static constexpr auto kWaitTimeout = std::chrono::seconds{30};
 
  public:
-  TimedReceiver(ActionContext action_context, std::size_t wait_count);
+  using ResultTimesEvent = Event<void(TimeTable const& message_times)>;
+  using ReceivedEvent = Event<void(bool last)>;
+  using TimeoutEvent = Event<void()>;
 
-  UpdateStatus Update();
+  TimedReceiver(AeContext const& ae_context, std::size_t wait_count);
 
-  TimeTable const& message_times() const { return message_times_; }
+  ResultTimesEvent::Subscriber message_times_event();
+  ReceivedEvent::Subscriber on_received();
+  TimeoutEvent::Subscriber on_timeout();
 
   void Receive(std::uint16_t id);
 
-  EventSubscriber<void(bool last)> OnReceived() {
-    return EventSubscriber{received_event_};
-  }
-
  private:
-  UpdateStatus CheckTimeout(TimePoint current_time);
+  void ScheduleTimeout();
 
+  AeContext ae_context_;
   std::size_t wait_count_;
 
-  TimePoint next_receive_time_;
   TimeTable message_times_;
+  TimePoint last_message_time_;
 
-  Event<void(bool last)> received_event_;
-  StateMachine<State> state_;
-  Subscription state_subscription_;
+  ResultTimesEvent result_event_;
+  ReceivedEvent received_event_;
+  TimeoutEvent timeout_event_;
+  TaskSubscription scheduler_sub_;
 };
 }  // namespace ae::bench
 
