@@ -77,7 +77,8 @@ class Ping {
   PingFailed ping_failed_;
   Subscription write_subscription_;
   MultiSubscription wait_responses_;
-  IndexCtx<Ping> alive_ctx_;
+  TaskSubscription schedule_sub_;
+  TaskSubscription timeout_sub_;
 };
 }  // namespace ae
 

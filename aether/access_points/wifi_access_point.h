@@ -51,12 +51,12 @@ class WifiConnectAction final : public a2::Action {
   void SetConnected(bool is_connected);
 
   AeContext ae_context_;
-  IndexCtx<WifiConnectAction> alive_ctx_;
   WifiDriver* driver_;
   WiFiAp wifi_ap_;
   WiFiPowerSaveParam psp_;
   WiFiBaseStation& base_station_;
   ConnectionEvent connection_event_;
+  TaskSubscription scheduler_sub_;
 };
 
 class WifiAccessPoint final : public AccessPoint {

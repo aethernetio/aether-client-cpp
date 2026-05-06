@@ -34,17 +34,12 @@ WifiConnectAction::WifiConnectAction(AeContext const& ae_context,
                                      WiFiPowerSaveParam psp,
                                      WiFiBaseStation& base_station)
     : ae_context_{ae_context},
-      alive_ctx_{ae_context, this},
       driver_{&driver},
       wifi_ap_{std::move(wifi_ap)},
       psp_{std::move(psp)},
-      base_station_{base_station} {
-  ae_context_.scheduler().Task([imalive{alive_ctx_.View()}]() {
-    if (imalive) {
-      imalive->EnsureConnected();
-    }
-  });
-}
+      base_station_{base_station},
+      scheduler_sub_{
+          ae_context_.scheduler().Task([this]() { EnsureConnected(); })} {}
 
 WifiConnectAction::ConnectionEvent::Subscriber
 WifiConnectAction::connection_event() {

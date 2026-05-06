@@ -29,7 +29,7 @@
 namespace ae {
 ModemConnectAction::ModemConnectAction(AeContext const& ae_context,
                                        IModemDriver& driver)
-    : alive_ctx_{ae_context, this}, driver_{&driver} {
+    : driver_{&driver} {
   AE_TELED_DEBUG("ModemConnectAction created");
   Start();
 }
@@ -70,8 +70,7 @@ ModemConnectAction& ModemAccessPoint::Connect() {
 
   // reuse connect action if it's in progress
   if (!connect_action_ || connect_action_->is_finished()) {
-    connect_action_.emplace(*aether_.Load().as<Aether>(),
-                            modem_adapter_->modem_driver());
+    connect_action_.emplace(modem_adapter_->modem_driver());
   }
   return *connect_action_;
 }

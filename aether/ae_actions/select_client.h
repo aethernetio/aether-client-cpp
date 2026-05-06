@@ -57,7 +57,7 @@ class SelectClientAction final : public a2::Action {
 
  private:
   AeContext ae_context_;
-  IndexCtx<SelectClientAction> alive_ctx_;
+  TaskSubscription task_sub_;
   ClientSelectedEvent client_selected_event_;
   SelectionFailedEvent selection_failed_event_;
 

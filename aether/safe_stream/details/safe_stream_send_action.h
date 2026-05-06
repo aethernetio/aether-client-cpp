@@ -78,13 +78,14 @@ class SafeStreamSendAction {
                        SafeStreamConfig const& config)
       : ae_context_{ae_context},
         send_data_push_{&send_data_push},
-        alive_ctx_{ae_context_, this},
         max_repeat_count_{config.max_repeat_count},
         window_size_{config.window_size},
         sending_buffer_{
             safe_stream_send_action_internal::RandomOffset<std::size_t>()},
         sending_chunks_{sending_buffer_.begin()},
         last_sent_{sending_buffer_.begin()} {
+    assert((window_size_ < Capacity / 2) &&
+           "Window size should be less than half of capacity");
     // set first response timeout
     response_statistics_.Add(config.wait_ack_timeout);
   }
@@ -92,6 +93,7 @@ class SafeStreamSendAction {
   AE_CLASS_NO_COPY_MOVE(SafeStreamSendAction)
 
   Result<IndexRangeType, int> SendData(std::span<std::uint8_t const> data) {
+    AE_TELED_DEBUG("Send data size {}", data.size());
     auto res = sending_buffer_.Push(data);
     if (!res) {
       AE_TELED_ERROR("Got circular buffer error {}", res.error());
@@ -183,17 +185,13 @@ class SafeStreamSendAction {
     if (send_enqueued_) {
       return;
     }
-    send_enqueued_ = true;
-    ae_context_.scheduler().Task([imalive{alive_ctx_.View()}]() {
-      if (imalive) {
-        imalive->send_enqueued_ = false;
-        imalive->SendChunk(Now());
-      }
+    send_enqueued_ = ae_context_.scheduler().Task([this]() {
+      send_enqueued_.Reset();
+      SendChunk(Now());
     });
   }
 
   void EnqueueRepeatTimeout() {
-    // TODO: add way to re-enqueue ack timeout
     if (repeat_timer_ && !repeat_timer_->is_finished()) {
       return;
     }
@@ -220,11 +218,8 @@ class SafeStreamSendAction {
         [this, range{selected_sch.range}]() {
           ProcessRepeat(range);
           // enqueue repeat timeout for the next chunk
-          ae_context_.scheduler().Task([imalive{alive_ctx_.View()}]() {
-            if (imalive) {
-              imalive->EnqueueRepeatTimeout();
-            }
-          });
+          reenque_sched_sub_ = ae_context_.scheduler().Task(
+              [this]() { EnqueueRepeatTimeout(); });
         },
         wait_time);
   }
@@ -314,7 +309,6 @@ class SafeStreamSendAction {
         // reject to send all chunks before the failed one
         RejectSend(last_sent_ - 1);
       }
-      AE_TELED_DEBUG("Chunk didn't sent!");
       return;
     }
 
@@ -388,7 +382,6 @@ class SafeStreamSendAction {
 
   AeContext ae_context_;
   ISendDataPush* send_data_push_;
-  IndexCtx<SafeStreamSendAction> alive_ctx_;
 
   std::uint8_t max_repeat_count_{};
   std::size_t window_size_{};
@@ -402,11 +395,12 @@ class SafeStreamSendAction {
   MultiSubscription sending_data_subs_;
   MultiSubscription send_subs_;
   ResponseStatistics response_statistics_;
-  bool send_enqueued_{false};
-  std::optional<Timer> repeat_timer_;
+  std::optional<Timer<AeContext>> repeat_timer_;
   AcknowledgedEvent acknowledged_event_;
   StoppedEvent stopped_event_;
   SendFailedEvent send_failed_event_;
+  TaskSubscription send_enqueued_;
+  TaskSubscription reenque_sched_sub_;
 };
 }  // namespace ae
 
