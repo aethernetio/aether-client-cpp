@@ -40,12 +40,10 @@ struct Env {
   constexpr auto query(stdexec::get_scheduler_t) const noexcept {
     return SchedulerOnTasks{ac};
   }
-
   [[nodiscard]]
   constexpr auto query(stdexec::get_delegation_scheduler_t) const noexcept {
     return SchedulerOnTasks{ac};
   }
-
   [[nodiscard]]
   constexpr auto query(stdexec::__root_t) const noexcept {
     return true;
@@ -84,12 +82,11 @@ struct Receiver {
       static_assert(std::is_constructible_v<value_type, U...>,
                     "Must be constractible from argument list");
       state->wait_result.emplace(value_type{std::forward<U>(u)...});
-      state->Finish();
     } else {
       static_assert((sizeof...(u) == 0), "Zero arguments are expected");
       state->wait_result.emplace(value_type{});
-      state->Finish();
     }
+    Finish();
   }
 
   constexpr void set_error(std::exception_ptr&& e) && noexcept {
@@ -104,17 +101,18 @@ struct Receiver {
       static_assert(std::is_constructible_v<error_type, E...>,
                     "Error must be constructible from argument list");
       state->wait_result.emplace(error_type{std::forward<E>(e)...});
-      state->Finish();
     } else {
       static_assert((sizeof...(e) == 0), "Zero arguments are expected");
       state->wait_result.emplace(error_type{});
-      state->Finish();
     }
+    Finish();
   }
 
   constexpr void set_stopped() && noexcept { state->Finish(); }
 
   decltype(auto) get_env() const noexcept { return Env{.ac = state->ac}; }
+
+  constexpr void Finish() noexcept { state->Finish(); }
 
   State* state;
 };
