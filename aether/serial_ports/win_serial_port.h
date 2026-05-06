@@ -25,8 +25,6 @@
 #  include <atomic>
 
 #  include "aether/ptr/ptr_view.h"
-#  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
 #  include "aether/actions/action_context.h"
 
 #  include "aether/poller/poller.h"

@@ -26,7 +26,7 @@ P2pSafeStream::P2pSafeStream(AeContext const& ae_context,
                              SafeStreamConfig const& config,
                              RcPtr<P2pStream> p2p_stream)
     : sized_packet_gate_{},
-      safe_stream_{std::make_unique<SafeStream<12000>>(ae_context, config)},
+      safe_stream_{std::make_unique<SafeStreamImpl>(ae_context, config)},
       p2p_stream_{std::move(p2p_stream)},
       out_data_sub_{TiedEventOutData(
           [this](auto const& data) { out_data_event_.Emit(data); },

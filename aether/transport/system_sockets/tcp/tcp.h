@@ -138,9 +138,7 @@ class TcpBase : public ByteIStream {
 };
 }  // namespace tcp_internal
 
-static constexpr std::size_t kTcpSendQueueSize = 10;
-
-template <typename Socket>
+template <typename Socket, std::size_t QueueSize>
 class TcpTransport final : public tcp_internal::TcpBase {
  public:
   using SendAction = tcp_internal::SendAction<Socket, std::mutex>;
@@ -184,6 +182,7 @@ class TcpTransport final : public tcp_internal::TcpBase {
     auto* send_action = queue_manager_.AddPacket(
         SendAction{ae_context_, socket_, lock_, std::move(packet_data)});
     if (send_action == nullptr) {
+      AE_TELED_ERROR("Queue manager is full");
       return FailedWrite();
     }
 
@@ -213,7 +212,7 @@ class TcpTransport final : public tcp_internal::TcpBase {
   void OnReadyToWrite() { queue_manager_.Send(); }
 
   Socket socket_;
-  PacketQueueManager<SendAction, kTcpSendQueueSize> queue_manager_;
+  PacketQueueManager<SendAction, QueueSize> queue_manager_;
 };
 
 }  // namespace ae

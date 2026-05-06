@@ -18,6 +18,7 @@
 
 #include <cassert>
 
+#include "aether/config.h"
 #include "aether/poller/poller.h"
 
 // IWYU pragma: begin_keeps
@@ -60,17 +61,17 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildTcp(
     [[maybe_unused]] Endpoint address_port_protocol) {
 #  ifdef SYSTEM_SOCKET_TCP_TRANSPORT_ENABLED
 #    if LWIP_CB_TCP_SOCKET_ENABLED
-  using Transport = TcpTransport<LwipCBTcpSocket>;
+  using SocketType = LwipCBTcpSocket;
 #    elif LWIP_TCP_SOCKET_ENABLED
-  using Transport = TcpTransport<LwipTcpSocket>;
+  using SocketType = LwipTcpSocket;
 #    elif UNIX_SOCKET_ENABLED
-  using Transport = TcpTransport<UnixTcpSocket>;
+  using SocketType = UnixTcpSocket;
 #    elif WIN_SOCKET_ENABLED
-  using Transport = TcpTransport<WinTcpSocket>;
+  using SocketType = WinTcpSocket;
 #    endif
 
-  return std::make_unique<Transport>(ae_context, poller,
-                                     std::move(address_port_protocol));
+  return std::make_unique<TcpTransport<SocketType, AE_TCP_PACKET_QUEUE_SIZE>>(
+      ae_context, poller, std::move(address_port_protocol));
 #  else
   static_assert(false, "No transport enabled");
 #  endif
@@ -91,16 +92,16 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
     [[maybe_unused]] Endpoint address_port_protocol) {
 #  ifdef SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED
 #    if LWIP_CB_TCP_SOCKET_ENABLED
-  using Transport = UdpTransport<LwipCBUdpSocket>;
+  using SocketType = LwipCBUdpSocket;
 #    elif LWIP_TCP_SOCKET_ENABLED
-  using Transport = UdpTransport<LwipUdpSocket>;
+  using SocketType = LwipUdpSocket;
 #    elif UNIX_SOCKET_ENABLED
-  using Transport = UdpTransport<UnixUdpSocket>;
+  using SocketType = UnixUdpSocket;
 #    elif WIN_SOCKET_ENABLED
-  using Transport = UdpTransport<WinUdpSocket>;
+  using SocketType = WinUdpSocket;
 #    endif
-  return std::make_unique<Transport>(ae_context, poller,
-                                     std::move(address_port_protocol));
+  return std::make_unique<UdpTransport<SocketType, AE_UDP_PACKET_QUEUE_SIZE>>(
+      ae_context, poller, std::move(address_port_protocol));
 #  else
   static_assert(false, "No transport enabled");
 #  endif

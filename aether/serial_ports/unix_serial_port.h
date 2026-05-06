@@ -57,7 +57,6 @@ class UnixSerialPort final : public ISerialPort {
   void Close();
 
   AeContext ae_context_;
-  IndexCtx<UnixSerialPort> alive_ctx_;
   SerialInit serial_init_;
   UnixPollerImpl* poller_;
 
@@ -67,6 +66,7 @@ class UnixSerialPort final : public ISerialPort {
 
   std::list<DataBuffer> buffers_;
   std::atomic_bool read_flag_;
+  TaskSubscription scheduler_sub_;
 };
 }  // namespace ae
 

@@ -23,8 +23,6 @@
 #include "aether/clock.h"
 #include "aether/obj/obj.h"
 #include "aether/events/events.h"
-#include "aether/actions/action.h"
-#include "aether/events/multi_subscription.h"
 
 namespace ae {
 class Aether;
@@ -134,7 +132,6 @@ class Uap final : public Obj {
   /**
    * \brief Register action which should be finished before sleep event.
    */
-  void RegisterAction(IAction& action);
   void RegisterStart();
   void RegisterEnd();
 
@@ -159,7 +156,6 @@ class Uap final : public Obj {
   std::size_t current_interval_index_{};
   std::size_t next_interval_index_{};
   SyncTimePoint start_time_;
-  MultiSubscription wait_actions_subs_;
   std::size_t wait_actions_cnt_{};
   bool ready_to_sleep_{false};
 };

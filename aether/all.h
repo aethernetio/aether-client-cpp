@@ -25,10 +25,8 @@
 #include "aether/aether_app.h"
 
 #include "aether/executors/executors.h"
-#include "aether/actions/action.h"
-#include "aether/actions/action_ptr.h"
+#include "aether/actions/timer.h"
 #include "aether/actions/action_context.h"
-#include "aether/actions/action_processor.h"
 #include "aether/actions/repeatable_task.h"
 #include "aether/events/events.h"
 #include "aether/events/cumulative_event.h"

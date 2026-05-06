@@ -204,11 +204,12 @@ struct RequestMaker {
                             Ws&&... ws) const noexcept {
     return ex::let_value(
         std::forward<S>(s),
-        [&as_{at_support}, c_{std::forward<TCommand>(c)},
+        [&at_support, c_{std::forward<TCommand>(c)},
          ws_{std::tuple{std::forward<Ws>(ws)...}}]() mutable noexcept {
           return std::apply(
               [&](auto&&... args) noexcept -> decltype(auto) {
-                return AtRequestSender{as_, std::move(c_), std::move(args)...};
+                return AtRequestSender{at_support, std::move(c_),
+                                       std::move(args)...};
               },
               std::move(ws_));
         });
