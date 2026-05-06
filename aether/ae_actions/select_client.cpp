@@ -27,15 +27,12 @@
 namespace ae {
 SelectClientAction::SelectClientAction(AeContext const& ae_context,
                                        Client::ptr client)
-    : ae_context_{ae_context}, alive_ctx_{ae_context_, this} {
+    : ae_context_{ae_context} {
   AE_TELED_DEBUG("Select loaded client");
-  ae_context_.scheduler().Task(
-      [imalive{alive_ctx_.View()}, c{std::move(client)}]() {
-        if (imalive) {
-          imalive->client_selected_event_.Emit(c);
-          imalive->Finish();
-        }
-      });
+  task_sub_ = ae_context_.scheduler().Task([this, c{std::move(client)}]() {
+    client_selected_event_.Emit(c);
+    Finish();
+  });
 }
 
 #if AE_SUPPORT_REGISTRATION  // only if registration is supported
@@ -43,9 +40,7 @@ SelectClientAction::SelectClientAction(AeContext const& ae_context,
                                        Aether& aether,
                                        Registration& registration,
                                        std::string client_id)
-    : ae_context_{ae_context},
-      alive_ctx_{ae_context_, this},
-      client_id_{std::move(client_id)} {
+    : ae_context_{ae_context}, client_id_{std::move(client_id)} {
   AE_TELED_DEBUG("Waiting for client registration");
   registration_sub_ = registration.registration().Subscribe(
       [this, aeth{&aether}](auto const& res) {
@@ -61,13 +56,11 @@ SelectClientAction::SelectClientAction(AeContext const& ae_context,
 #endif
 
 SelectClientAction::SelectClientAction(AeContext const& ae_context)
-    : ae_context_{ae_context}, alive_ctx_{ae_context_, this} {
+    : ae_context_{ae_context} {
   AE_TELED_DEBUG("No clients to select");
-  ae_context_.scheduler().Task([imalive{alive_ctx_.View()}]() {
-    if (imalive) {
-      imalive->selection_failed_event_.Emit();
-      imalive->Finish();
-    }
+  task_sub_ = ae_context_.scheduler().Task([this]() {
+    selection_failed_event_.Emit();
+    Finish();
   });
 }
 

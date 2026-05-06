@@ -78,7 +78,7 @@ class TimeSyncAction {
   PtrView<Client> client_;
   Duration sync_interval_;
   std::optional<time_sync_internal::TimeSyncRequest> time_sync_request_;
-  IndexCtx<TimeSyncAction> alive_ctx_;
+  TaskSubscription task_sub_;
 
   static RTC_STORAGE_ATTR TimePoint last_sync_time;
 };

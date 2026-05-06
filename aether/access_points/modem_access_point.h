@@ -35,14 +35,13 @@ class ModemConnectAction final : public a2::Action {
  public:
   using ConnectionEvent = Event<void(bool)>;
 
-  ModemConnectAction(AeContext const& ae_context, IModemDriver& driver);
+  explicit ModemConnectAction(IModemDriver& driver);
 
   ConnectionEvent::Subscriber connection_event();
 
  private:
   void Start();
 
-  IndexCtx<ModemConnectAction> alive_ctx_;
   IModemDriver* driver_;
   ConnectionEvent connection_event_;
   Subscription start_sub_;

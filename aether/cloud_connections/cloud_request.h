@@ -116,8 +116,7 @@ class CloudRequestAction final : public a2::Action {
   ClientResponseListener listener_;
   CloudServerConnections* cloud_sc_;
   RequestPolicy::Variant policy_;
-  std::optional<IndexCtx<CloudRequestAction>> alive_ctx_;
-  bool enqueued_{false};
+  std::optional<TaskSubscription> task_sub_;
 
   Subscription swa_sub_;
   Subscription server_changed_sub_;

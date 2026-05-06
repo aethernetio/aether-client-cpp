@@ -89,10 +89,16 @@ class PacketQueueManager {
 
  private:
   void Enqueue() {
-    ae_context_.scheduler().Task([&]() { Send(); });
+    if (!enqueue_sub_) {
+      enqueue_sub_ = ae_context_.scheduler().Task([&]() {
+        enqueue_sub_.Reset();
+        Send();
+      });
+    }
   }
 
   AeContext ae_context_;
+  TaskSubscription enqueue_sub_;
   mutable std::mutex queue_lock_;
   etl::circular_buffer<T, kMaxSize> queue_;
   std::size_t index_ = 0;

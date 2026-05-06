@@ -31,11 +31,10 @@ Ping::Ping(AeContext const& ae_context, Ptr<Channel> const& channel,
     : ae_context_{ae_context},
       channel_{channel},
       client_server_connection_{&client_server_connection},
-      ping_interval_{ping_interval},
-      alive_ctx_{ae_context_, this} {
+      ping_interval_{ping_interval} {
   AE_TELE_INFO(kPing, "Ping action created, interval {:%S}s", ping_interval);
   // send ping on the next tick
-  ae_context_.scheduler().Task([&]() { SendPing(); });
+  schedule_sub_ = ae_context_.scheduler().Task([&]() { SendPing(); });
 }
 
 Ping::PingFailed::Subscriber Ping::ping_failed() {
@@ -73,14 +72,9 @@ void Ping::SendPing() {
             [&, req_id](auto&&...) { PingResponse(req_id); });
 
         // setup response timeout
-        ae_context_.scheduler().DelayedTask(
-            [imalive{alive_ctx_.View()}, req_id]() {
-              if (!imalive) {
-                return;
-              }
-              imalive->PingResponseTimeout(req_id);
-            },
-            end_time);
+        // FIXME multi sub
+        timeout_sub_ = ae_context_.scheduler().DelayedTask(
+            [this, req_id]() { PingResponseTimeout(req_id); }, end_time);
       }});
 
   write_subscription_ = write_action.status_event().Subscribe([&](auto status) {
@@ -91,13 +85,8 @@ void Ping::SendPing() {
   });
 
   // setup ping interval
-  ae_context_.scheduler().DelayedTask(
-      [imalive{alive_ctx_.View()}]() {
-        if (imalive) {
-          imalive->SendPing();
-        }
-      },
-      ping_interval_);
+  schedule_sub_ = ae_context_.scheduler().DelayedTask([this]() { SendPing(); },
+                                                      ping_interval_);
 }
 
 void Ping::PingResponse(RequestId request_id) {

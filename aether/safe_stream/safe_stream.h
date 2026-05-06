@@ -170,7 +170,7 @@ class SafeStream final : public ByteStream,  // NOLINT
   void OnStreamUpdate() {
     AE_TELED_DEBUG("Safe stream update");
     static constexpr std::size_t kSendOverhead =
-        1 + sizeof(std::uint16_t) + 1 + 1 + 2;
+        1 + sizeof(std::uint16_t) + sizeof(std::uint16_t) + 1 + 2;
 
     auto out_info = out_->stream_info();
     stream_info_.link_state = out_info.link_state;
