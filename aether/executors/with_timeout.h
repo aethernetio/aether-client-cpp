@@ -22,24 +22,26 @@
 
 #include "third_party/stdexec/include/stdexec/execution.hpp"
 
-#include "aether/clock.h"
 #include "aether/executors/async_context.h"
+#include "aether/tasks/details/task_subsctiption.h"
 
 namespace ae::ex {
 struct TimeoutError {};
 
 namespace async_timeout_internal {
 template <typename R>
-class OpBase {
- public:
+struct OpBase {
   constexpr explicit OpBase(R&& recv) noexcept : recv{std::move(recv)} {}
-  virtual void Reset() noexcept {}
-  virtual bool is_reset() noexcept { return false; }
+
+  void Reset() noexcept {
+    reset_flag = true;
+    task_sub.Reset();
+  }
+  bool is_reset() const noexcept { return reset_flag; }
 
   R recv;
-
- protected:
-  ~OpBase() = default;
+  bool reset_flag{false};
+  TaskSubscription task_sub;
 };
 
 template <typename R>
@@ -72,42 +74,38 @@ struct Receiver {
   OpBase<R>* op;
 };
 
-template <stdexec::sender Child, AsyncContext AC, stdexec::receiver R>
-class Operation final : OpBase<R> {
+template <AsyncContext AC, stdexec::sender Child, stdexec::receiver R>
+class Operation {
  public:
-  using receiver = Receiver<R>;
-  using op_state = stdexec::connect_result_t<Child, receiver>;
+  using local_receiver = Receiver<R>;
+  using op_state = stdexec::connect_result_t<Child, local_receiver>;
 
-  constexpr Operation(Child&& child, AC const& ac, Duration duration, R&& recv)
-      : OpBase<R>{std::move(recv)},
-        child_{std::move(child)},
-        ac_{ac},
-        duration_{std::move(duration)} {}
+  constexpr Operation(AC const& ac, Child&& child,
+                      std::chrono::milliseconds duration, R&& recv)
+      : ac_{ac},
+        op_base_{std::move(recv)},
+        duration_{duration},
+        op_{stdexec::connect(std::move(child),
+                             local_receiver{.op = &op_base_})} {}
 
   constexpr void start() noexcept {
-    op_.__emplace_from(stdexec::connect, std::move(child_),
-                       Receiver{.op = this});
-    ac_.scheduler().DelayedTask(
+    // if delayed task executed set timeout error
+    // task_sub controls if task reset or no
+    op_base_.task_sub = ac_.scheduler().DelayedTask(
         [&]() noexcept {
-          if (!is_reset()) {
-            stdexec::set_error(std::move(OpBase<R>::recv), TimeoutError{});
-            Reset();
-          }
+          stdexec::set_error(std::move(op_base_.recv), TimeoutError{});
+          op_base_.Reset();
         },
         duration_);
 
-    op_->start();
+    op_.start();
   }
 
-  void Reset() noexcept override { is_reset_ = true; }
-  bool is_reset() noexcept override { return is_reset_; }
-
  private:
-  Child child_;
   AC ac_;
-  Duration duration_;
-  stdexec::__optional<op_state> op_;
-  bool is_reset_{false};
+  OpBase<R> op_base_;
+  std::chrono::milliseconds duration_;
+  op_state op_;
 };
 
 template <stdexec::sender Child, AsyncContext AC>
@@ -127,14 +125,18 @@ class Sender {
         stdexec::completion_signatures<stdexec::set_error_t(TimeoutError)>{});
   }
 
+  template <typename Duration>
   constexpr Sender(Child&& child, AC const& ac, Duration duration) noexcept
-      : child_{std::move(child)}, ac_{ac}, duration_{duration} {}
+      : child_{std::move(child)},
+        ac_{ac},
+        duration_{
+            std::chrono::duration_cast<std::chrono::milliseconds>(duration)} {}
 
   template <stdexec::receiver R>
   constexpr auto connect(R&& recv) && noexcept {
-    return Operation<Child, AC, R>{
-        std::move(child_),
+    return Operation<AC, Child, R>{
         ac_,
+        std::move(child_),
         duration_,
         std::forward<R>(recv),
     };
@@ -143,20 +145,20 @@ class Sender {
  private:
   Child child_;
   AC ac_;
-  Duration duration_;
+  std::chrono::milliseconds duration_;
 };
 
 struct WithAsyncTimeout {
   constexpr auto operator()(stdexec::sender auto&& sender,
                             AsyncContext auto const& context,
-                            Duration duration) const noexcept {
+                            auto duration) const noexcept {
     return Sender{std::forward<decltype(sender)>(sender), context, duration};
-  };
+  }
 
   constexpr auto operator()(AsyncContext auto const& context,
-                            Duration duration) const noexcept {
+                            auto duration) const noexcept {
     return stdexec::__closure{*this, context, duration};
-  };
+  }
 };
 
 }  // namespace async_timeout_internal

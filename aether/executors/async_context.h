@@ -17,17 +17,20 @@
 #ifndef AETHER_EXECUTORS_ASYNC_CONTEXT_H_
 #define AETHER_EXECUTORS_ASYNC_CONTEXT_H_
 
+#include <chrono>
 #include <utility>
 #include <type_traits>
 
-#include "aether/clock.h"
+#include "aether/tasks/details/task_subsctiption.h"
 
 namespace ae::ex {
 template <typename T>
 concept AsyncScheduler = requires(T t) {
-  t.Task([]() {});
-  t.DelayedTask([]() {}, std::declval<ae::TimePoint>());
-  t.DelayedTask([]() {}, std::declval<ae::Duration>());
+  TaskSubscription{t.Task([]() {})};
+  TaskSubscription{t.DelayedTask(
+      []() {}, std::declval<std::chrono::system_clock::time_point>())};
+  TaskSubscription{
+      t.DelayedTask([]() {}, std::declval<std::chrono::milliseconds>())};
 };
 
 /**
