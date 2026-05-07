@@ -15,10 +15,6 @@
 cmake_minimum_required( VERSION 3.18 )
 
 list(APPEND action_srcs
-  ${ROOT_DIR}/aether/actions/action_processor.cpp
-  ${ROOT_DIR}/aether/actions/action_registry.cpp
-  ${ROOT_DIR}/aether/actions/action_trigger.cpp
-  ${ROOT_DIR}/aether/actions/repeatable_task.cpp
   ${ROOT_DIR}/aether/events/event_list.cpp
   ${ROOT_DIR}/aether/events/event_deleter.cpp
   ${ROOT_DIR}/aether/events/event_subscription.cpp
@@ -27,11 +23,6 @@ list(APPEND action_srcs
 
 list(APPEND test_srcs
   main.cpp
-  test-action-registry.cpp
-  test-action-processor.cpp
-  test-action-status-event.cpp
-  test-action.cpp
-  test-pipeline.cpp
   test-actions-queue.cpp
 )
 

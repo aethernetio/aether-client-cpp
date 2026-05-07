@@ -24,7 +24,7 @@
 #include "aether/safe_stream/details/safe_stream_send_action.h"
 
 #include "tests/test-stream/to_data_buffer.h"
-#include "tests/test-stream/stream-test-ctx.h"
+#include "tests/test-safe-stream/stream-test-ctx.h"
 
 namespace ae::test_safe_stream_send {
 constexpr auto kTick = std::chrono::milliseconds{1};

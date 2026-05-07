@@ -23,12 +23,8 @@ namespace ae {
 struct TestContext {
   AeCtx ToAeContext() const {
     static constexpr auto table =
-        AeCtxTable{nullptr,
-                   [](void* obj) -> TaskScheduler& {
+        AeCtxTable{nullptr, [](void* obj) -> TaskScheduler& {
                      return static_cast<TestContext*>(obj)->sched;
-                   },
-                   [](void* obj) -> IndexRegistry& {
-                     return static_cast<TestContext*>(obj)->registry;
                    }};
     return AeCtx{
         const_cast<TestContext*>(this),  // NOLINT
@@ -42,7 +38,6 @@ struct TestContext {
   }
 
   TaskScheduler sched;
-  IndexRegistry registry;
 };
 }  // namespace ae
 
