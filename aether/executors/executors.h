@@ -30,6 +30,7 @@ DISABLE_WARNING_POP()
 #include "aether/executors/any_waiter.h"
 #include "aether/executors/make_sender.h"
 #include "aether/executors/sync_waiter.h"
+#include "aether/executors/async_waiter.h"
 #include "aether/executors/with_timeout.h"
 #include "aether/executors/scheduler_on_tasks.h"
 // IWYU pragma: end_exports
