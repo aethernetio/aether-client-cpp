@@ -59,7 +59,7 @@ void TestSendPackets(TestContext& ctx, SafeStream<kCapacity>& sender,
 
   // send messages periodically
   auto task = RepeatableTask{
-      ctx,
+      AeContext{ctx},
       [&]() {
         auto& sent_action = sender.Write(ToDataBuffer(test_data));
         sent_action.status_event().Subscribe([&](auto status) {

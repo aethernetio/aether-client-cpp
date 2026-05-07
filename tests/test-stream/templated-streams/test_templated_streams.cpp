@@ -19,7 +19,7 @@
 #include "aether/stream_api/gates_stream.h"
 
 #include "tests/test-stream/to_data_buffer.h"
-#include "tests/test-stream/stream-test-ctx.h"
+#include "tests/test-safe-stream/stream-test-ctx.h"
 #include "tests/test-stream/mock_write_stream.h"
 
 namespace ae::tes_templated_streams {

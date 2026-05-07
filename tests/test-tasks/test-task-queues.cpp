@@ -15,6 +15,8 @@
  */
 
 #include <unity.h>
+
+#include <chrono>
 #include <utility>
 
 #include "aether/tasks/details/task_queues.h"
@@ -22,11 +24,14 @@
 #include "third_party/etl/include/etl/generic_pool.h"
 
 namespace ae::test_task_queues {
+using namespace std::chrono_literals;
+using TimePoint = std::chrono::system_clock::time_point;
+
 struct RegTask : public ITask {
   static inline std::size_t delete_count = 0;
   explicit RegTask(int id) : task_id{id} {}
   ~RegTask() override { delete_count++; }
-  void Invoke() override {}
+  void Invoke() && noexcept override {}
   int task_id;
 };
 
@@ -85,11 +90,11 @@ void test_StealRegularTasks() {
   TEST_ASSERT_EQUAL(kCount, RegTask::delete_count);
 }
 
-struct DelayedTask : public IDelayedTask {
+struct DelayedTask : public IDelayedTask<TimePoint> {
   static inline auto delete_count = 0;
   explicit DelayedTask(int id, TimePoint et) : IDelayedTask{et}, task_id{id} {}
   ~DelayedTask() override { delete_count++; }
-  void Invoke() override {}
+  void Invoke() && noexcept override {}
   int task_id;
 };
 
@@ -98,12 +103,13 @@ void test_AddDelayedTask() {
 
   auto pool =
       etl::generic_pool<sizeof(DelayedTask), alignof(DelayedTask), kCount>{};
-  auto delayed_task_queue = DelayedTaskQueue<kCount, decltype(pool)>{pool};
+  auto delayed_task_queue =
+      DelayedTaskQueue<kCount, TimePoint, decltype(pool)>{pool};
 
   auto* r0 = pool.create<DelayedTask>(0, TimePoint{});
   auto res = delayed_task_queue.Add(r0);
   TEST_ASSERT_TRUE(res);
-  auto epoch = ae::Now();
+  auto epoch = TimePoint::clock::now();
   // add tasks but in reverse order
   for (int i = 1; i < kCount; ++i) {
     auto* ri = pool.create<DelayedTask>(i, epoch -= std::chrono::seconds{1});
@@ -122,9 +128,10 @@ void test_StealDelayedTask() {
 
   auto pool =
       etl::generic_pool<sizeof(DelayedTask), alignof(DelayedTask), kCount>{};
-  auto delayed_task_queue = DelayedTaskQueue<kCount, decltype(pool)>{pool};
+  auto delayed_task_queue =
+      DelayedTaskQueue<kCount, TimePoint, decltype(pool)>{pool};
 
-  auto epoch = ae::Now();
+  auto epoch = TimePoint::clock::now();
   // add tasks but in reverse order
   for (int i = 0; i < kCount; ++i) {
     auto* ri = pool.create<DelayedTask>(i, epoch -= std::chrono::seconds{1});
