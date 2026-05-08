@@ -30,7 +30,6 @@ static constexpr auto kMaxPacketSize = 1024;
 ModemTransport::ModemSend::ModemSend(AeContext const& ae_context,
                                      ModemTransport& transport, DataBuffer data)
     : ae_context_{ae_context},
-      alive_ctx_{ae_context_, this},
       transport_{&transport},
       data_{std::move(data)},
       is_done_{false},
@@ -41,11 +40,8 @@ bool ModemTransport::ModemSend::re_enqueue() const { return false; }
 
 void ModemTransport::ModemSend::SetStatus(Status status) noexcept {
   is_done_ = true;
-  ae_context_.scheduler().Task([imalive{alive_ctx_.View()}, status]() {
-    if (imalive) {
-      imalive->WriteAction::SetStatus(status);
-    }
-  });
+  task_sub_ = ae_context_.scheduler().Task(
+      [this, status]() { WriteAction::SetStatus(status); });
 }
 
 ModemTransport::SendTcpAction::SendTcpAction(AeContext const& ae_context,
