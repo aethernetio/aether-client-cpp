@@ -20,9 +20,9 @@
 
 namespace ae::bench {
 MessageReceiver::MessageReceiver(AeContext const& ae_context)
-    : ae_context_{ae_context} {
-  first_message_received_time_ = HighResTimePoint::clock::now();
-  received_message_time_ = Now();
+    : ae_context_{ae_context},
+      first_message_received_time_{HighResTimePoint::clock::now()},
+      received_message_time_{Now()} {
   SchedulerReceiveTimeout();
 }
 
