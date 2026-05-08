@@ -42,10 +42,12 @@ class AtDispatcher {
 
  private:
   void BufferUpdate(AtBuffer::iterator pos);
+  void CleanupObservers();
 
   AtBuffer* buffer_;
   std::map<std::string, IAtObserver*> observers_;
   Subscription buffer_sub_;
+  bool remove_guard_ = false;
 };
 }  // namespace ae
 
