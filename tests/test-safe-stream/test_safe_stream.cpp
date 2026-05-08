@@ -24,13 +24,13 @@
 #include "aether/safe_stream/safe_stream.h"
 
 #include "tests/test-stream/to_data_buffer.h"
-#include "tests/test-stream/stream-test-ctx.h"
+#include "tests/test-safe-stream/stream-test-ctx.h"
 #include "tests/test-stream/mock_read_stream.h"
 #include "tests/test-stream/mock_write_stream.h"
 
 namespace ae::test_safe_stream {
 constexpr auto config = SafeStreamConfig{
-    10 * 1024,
+    1024,
     200,
     3,
     std::chrono::milliseconds{50},
@@ -47,6 +47,8 @@ constexpr char _200_bytes_data[] =
     "purposes. It contains random words and phrases to fill up space. The goal "
     "is to reach exactly two hundred bytes without using lore";
 
+static constexpr std::size_t kCapacity = 3 * 1024;
+
 void test_SafeStreamWriteFewData() {
   auto epoch = TimePoint::clock::now();
 
@@ -57,7 +59,7 @@ void test_SafeStreamWriteFewData() {
   auto read_stream = MockReadStream{};
   auto write_stream = MockWriteStream{ctx, std::size_t{120}};
 
-  auto safe_stream = SafeStream<1024>{ctx, config};
+  auto safe_stream = SafeStream<kCapacity>{ctx, config};
 
   Tie(read_stream, safe_stream, write_stream);
 
@@ -100,7 +102,7 @@ void test_SafeStreamPacketLoss() {
   auto read_stream = MockReadStream{};
   auto write_stream = MockWriteStream{ctx, std::size_t{120}};
 
-  auto safe_stream = SafeStream<1024>{ctx, config};
+  auto safe_stream = SafeStream<kCapacity>{ctx, config};
   Tie(read_stream, safe_stream, write_stream);
 
   // loop data to itself

@@ -57,9 +57,17 @@
 #  define AE_SUPPORT_UDP 1
 #endif  // AE_SUPPORT_UDP
 
+#ifndef AE_UDP_PACKET_QUEUE_SIZE
+#  define AE_UDP_PACKET_QUEUE_SIZE 100
+#endif  // AE_TCP_PACKET_QUEUE_SIZE
+
 #ifndef AE_SUPPORT_TCP
 #  define AE_SUPPORT_TCP 1
 #endif  // AE_SUPPORT_TCP
+
+#ifndef AE_TCP_PACKET_QUEUE_SIZE
+#  define AE_TCP_PACKET_QUEUE_SIZE 100
+#endif  // AE_TCP_PACKET_QUEUE_SIZE
 
 #ifndef AE_SUPPORT_WEBSOCKET
 #  define AE_SUPPORT_WEBSOCKET 1
@@ -139,7 +147,7 @@
 
 // SIM7070 modem implementation is enabled.
 #ifndef AE_ENABLE_SIM7070
-#  define AE_ENABLE_SIM7070 1
+#  define AE_ENABLE_SIM7070 0
 #endif
 
 // BG95 modem implementation is enabled.
@@ -225,6 +233,11 @@
 #ifndef AE_SUPPORT_SPIFS_FS
 #  define AE_SUPPORT_SPIFS_FS 0
 #endif  // AE_SUPPORT_SPIFS_FS
+
+// safe stream buffer capacity
+#ifndef AE_SAFE_STREAM_CAPACITY
+#  define AE_SAFE_STREAM_CAPACITY 20 * 1024
+#endif
 
 // safe stream sender repeat timeout grow factor
 #ifndef AE_SAFE_STREAM_RTO_GROW_FACTOR

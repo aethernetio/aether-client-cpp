@@ -22,11 +22,13 @@ void tearDown() {}
 extern int test_task_queues();
 extern int test_task_manager();
 extern int test_manual_task_scheduler();
+extern int test_task_subscriptions();
 
 int main() {
   int res{};
   res += test_task_queues();
   res += test_task_manager();
   res += test_manual_task_scheduler();
+  res += test_task_subscriptions();
   return res;
 }

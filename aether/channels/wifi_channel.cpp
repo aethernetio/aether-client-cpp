@@ -22,7 +22,6 @@
 #  include <cstdint>
 
 #  include "aether/ptr/ptr_view.h"
-#  include "aether/actions/action.h"
 #  include "aether/executors/executors.h"
 #  include "aether/events/event_subscription.h"
 
@@ -37,16 +36,18 @@
 namespace ae {
 namespace wifi_channel_internal {
 ex::sender auto WifiConnect(Ptr<WifiAccessPoint> const& access_point) {
-  return ex::make_sender<ex::set_value_t(), ex::set_error_t(int)>(
+  return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
       [ap{PtrView<WifiAccessPoint>{access_point}},
-       connect_sub{Subscription{}}](auto&& recv) mutable noexcept {
+       connect_sub{Subscription{}}](auto& ctx) mutable noexcept {
         auto access_point = ap.Lock();
         assert(access_point && "Wifi access point is not loaded");
-        connect_sub = access_point->Connect()->StatusEvent().Subscribe(
-            [r{std::forward<decltype(recv)>(recv)}](
-                ActionEventStatus<WifiConnectAction> aes) mutable noexcept {
-              aes.OnResult([&]() { ex::set_value(std::move(r)); })  // ~['_']~
-                  .OnError([&]() { ex::set_error(std::move(r), 1); });
+        connect_sub = access_point->Connect().connection_event().Subscribe(
+            [&](bool is_connected) mutable noexcept {
+              if (is_connected) {
+                ex::set_value(std::move(ctx.receiver));
+              } else {
+                ex::set_error(std::move(ctx.receiver), 1);
+              }
             });
       });
 }
@@ -80,33 +81,32 @@ auto CreateTransport(AeContext const& context, PtrView<IPoller> const& poller,
 }
 
 ex::sender auto TransportConnect(std::unique_ptr<ByteIStream>&& stream) {
-  return ex::make_sender<ex::set_value_t(std::unique_ptr<ByteIStream>),
-                         ex::set_error_t(int)>(
+  return ex::create<ex::set_value_t(std::unique_ptr<ByteIStream>),
+                    ex::set_error_t(int)>(
       [s{std::move(stream)},
-       link_sub{Subscription{}}](auto&& recv) mutable noexcept {
+       link_sub{Subscription{}}](auto& ctx) mutable noexcept {
         // if already linked return stream
         switch (s->stream_info().link_state) {
           case LinkState::kLinked: {
-            ex::set_value(std::forward<decltype(recv)>(recv), std::move(s));
+            ex::set_value(std::move(ctx.receiver), std::move(s));
             return;
           }
           case LinkState::kLinkError: {
-            ex::set_error(std::forward<decltype(recv)>(recv), 1);
+            ex::set_error(std::move(ctx.receiver), 1);
             return;
           }
           default:
             break;
         }
         // wait till linked
-        link_sub = s->stream_update_event().Subscribe(
-            [&, r{std::forward<decltype(recv)>(recv)}]() mutable noexcept {
-              link_sub.Reset();
-              if (s->stream_info().link_state == LinkState::kLinked) {
-                ex::set_value(std::move(r), std::move(s));
-              } else {
-                ex::set_error(std::move(r), 2);
-              }
-            });
+        link_sub = s->stream_update_event().Subscribe([&]() mutable noexcept {
+          link_sub.Reset();
+          if (s->stream_info().link_state == LinkState::kLinked) {
+            ex::set_value(std::move(ctx.receiver), std::move(s));
+          } else {
+            ex::set_error(std::move(ctx.receiver), 2);
+          }
+        });
       });
 }
 

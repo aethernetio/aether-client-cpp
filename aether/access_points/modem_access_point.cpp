@@ -24,47 +24,38 @@
 #  include "aether/channels/modem_channel.h"
 #  include "aether/access_points/filter_endpoints.h"
 
+#  include "aether/tele/tele.h"
+
 namespace ae {
-ModemConnectAction::ModemConnectAction(ActionContext action_context,
-                                       [[maybe_unused]] IModemDriver& driver)
-    : Action{action_context}, driver_{&driver}, state_{State::kStart} {
+ModemConnectAction::ModemConnectAction(AeContext const& ae_context,
+                                       IModemDriver& driver)
+    : driver_{&driver} {
   AE_TELED_DEBUG("ModemConnectAction created");
+  Start();
 }
 
-UpdateStatus ModemConnectAction::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kStart:
-        Start();
-        break;
-      case State::kSuccess:
-        return UpdateStatus::Result();
-      case State::kFailed:
-        return UpdateStatus::Error();
-    }
-  }
-  return {};
+ModemConnectAction::ConnectionEvent::Subscriber
+ModemConnectAction::connection_event() {
+  return EventSubscriber{connection_event_};
 }
 
 void ModemConnectAction::Start() {
   AE_TELED_DEBUG("ModemConnectAction start");
-  auto action = driver_->Start();
-  if (!action) {
-    state_ = State::kFailed;
-    Action::Trigger();
+  auto* op = driver_->Start();
+  if (op == nullptr) {
+    connection_event_.Emit(false);
+    Finish();
     return;
   }
-  action->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this]() {
-        AE_TELED_INFO("Modem access point start success");
-        state_ = State::kSuccess;
-        Action::Trigger();
-      }},
-      OnError{[this]() {
-        AE_TELED_ERROR("Modem access point start failed");
-        state_ = State::kFailed;
-        Action::Trigger();
-      }},
+  start_sub_ = op->result_event().Subscribe([this](auto const& res) {
+    if (res) {
+      AE_TELED_INFO("Modem access point start success");
+      connection_event_.Emit(true);
+    } else {
+      AE_TELED_ERROR("Modem access point start failed, error {}", res.error());
+      connection_event_.Emit(false);
+    }
+    Finish();
   });
 }
 
@@ -74,17 +65,14 @@ ModemAccessPoint::ModemAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
       aether_{std::move(aether)},
       modem_adapter_{std::move(modem_adapter)} {}
 
-ActionPtr<ModemConnectAction> ModemAccessPoint::Connect() {
+ModemConnectAction& ModemAccessPoint::Connect() {
   AE_TELED_DEBUG("Make modem access point connection");
 
   // reuse connect action if it's in progress
-  if (!connect_action_) {
-    connect_action_ = ActionPtr<ModemConnectAction>{
-        *aether_.Load().as<Aether>(), modem_adapter_->modem_driver()};
-    connect_sub_ = connect_action_->FinishedEvent().Subscribe(
-        [this]() { connect_action_.reset(); });
+  if (!connect_action_ || connect_action_->is_finished()) {
+    connect_action_.emplace(modem_adapter_->modem_driver());
   }
-  return connect_action_;
+  return *connect_action_;
 }
 
 IModemDriver& ModemAccessPoint::modem_driver() {

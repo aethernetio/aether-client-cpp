@@ -17,47 +17,45 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_RECEIVER_MESSAGE_RECEIVER_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_RECEIVER_MESSAGE_RECEIVER_H_
 
-#include <set>
-
-#include "aether/common.h"
-#include "aether/actions/action.h"
-#include "aether/types/state_machine.h"
-#include "aether/actions/action_context.h"
+#include "aether/clock.h"
+#include "aether/ae_context.h"
+#include "aether/types/result.h"
+#include "aether/events/events.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
 
 namespace ae::bench {
-class MessageReceiver : public Action<MessageReceiver> {
+class MessageReceiver {
   static constexpr Duration kReceiveTimeout = std::chrono::seconds(5);
 
-  enum class State : std::uint8_t {
-    kReceiving,
-    kSuccess,
-    kStopped,
-    kError,
+ public:
+  struct RecvResult {
+    std::size_t count;
+    HighDuration duration;
   };
 
- public:
-  explicit MessageReceiver(ActionContext action_context);
-  UpdateStatus Update();
+  using ResultEvent = Event<void(Result<RecvResult, int>)>;
 
-  std::size_t message_received_count() const;
-  Duration receive_duration() const;
+  explicit MessageReceiver(AeContext const& ae_context);
+
+  ResultEvent::Subscriber result_event();
 
   void MessageReceived(std::uint16_t id);
   void StopTest();
   void Stop();
 
  private:
-  UpdateStatus CheckReceiveTimeout(TimePoint current_time);
+  void SchedulerReceiveTimeout();
+  void EmitResult();
 
-  StateMachine<State> state_;
+  AeContext ae_context_;
 
   std::size_t message_received_count_ = 0;
-  std::set<std::uint16_t> received_message_ids_;
-  TimePoint receive_message_timeout_;
+  TimePoint received_message_time_;
   HighResTimePoint first_message_received_time_;
   HighResTimePoint last_message_received_time_;
+  ResultEvent result_event_;
+  TaskSubscription wait_sub_;
 };
 }  // namespace ae::bench
 

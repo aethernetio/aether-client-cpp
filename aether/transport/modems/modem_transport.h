@@ -21,43 +21,59 @@
 
 #if AE_SUPPORT_MODEMS
 #  define MODEM_TRANSPORT_ENABLED 1
+#  include <variant>
+#  include <optional>
 
-#  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
+#  include "aether/ae_context.h"
 #  include "aether/events/multi_subscription.h"
 
 #  include "aether/stream_api/istream.h"
 #  include "aether/modems/imodem_driver.h"
+#  include "aether/transport/packet_send_action.h"
+#  include "aether/transport/packet_queue_manager.h"
 #  include "aether/transport/data_packet_collector.h"
-#  include "aether/transport/socket_packet_send_action.h"
-#  include "aether/transport/socket_packet_queue_manager.h"
+#  include "aether/write_action/failed_write_action.h"
 
 namespace ae {
+
+// TODO: add config
+static constexpr std::size_t kTcpSendQueueSize = 10;
+
 class ModemTransport final : public ByteIStream {
-  class ModemSend : public SocketPacketSendAction {
+  class ModemSend : public PacketSendAction {
    public:
-    ModemSend(ActionContext action_context, ModemTransport& transport,
+    ModemSend(AeContext const& ae_context, ModemTransport& transport,
               DataBuffer data);
 
+    bool is_done() const override;
+    bool re_enqueue() const override;
+
    protected:
+    void SetStatus(Status status) noexcept override;
+
+    AeContext ae_context_;
+    TaskSubscription task_sub_;
     ModemTransport* transport_;
     DataBuffer data_;
+    bool is_done_;
+    bool in_progress_;
   };
 
   class SendTcpAction final : public ModemSend {
    public:
-    SendTcpAction(ActionContext action_context, ModemTransport& transport,
+    SendTcpAction(AeContext const& ae_context, ModemTransport& transport,
                   DataBuffer data);
     void Send() override;
 
    private:
     void SendPacket(DataBuffer const& data);
     MultiSubscription send_subs_;
+    std::size_t packets_on_the_go_;
   };
 
   class SendUdpAction final : public ModemSend {
    public:
-    SendUdpAction(ActionContext action_context, ModemTransport& transport,
+    SendUdpAction(AeContext const& ae_context, ModemTransport& transport,
                   DataBuffer data);
 
     void Send() override;
@@ -66,12 +82,16 @@ class ModemTransport final : public ByteIStream {
     Subscription send_sub_;
   };
 
+  using PacketQueueManagerVar =
+      std::variant<PacketQueueManager<SendTcpAction, kTcpSendQueueSize>,
+                   PacketQueueManager<SendUdpAction, kTcpSendQueueSize>>;
+
  public:
-  ModemTransport(ActionContext action_context, IModemDriver& modem_driver,
+  ModemTransport(AeContext const& ae_context, IModemDriver& modem_driver,
                  Endpoint address);
   ~ModemTransport() override;
 
-  ActionPtr<WriteAction> Write(DataBuffer&& in_data) override;
+  WriteAction& Write(DataBuffer&& in_data) override;
   StreamUpdateEvent::Subscriber stream_update_event() override;
   StreamInfo stream_info() const override;
   OutDataEvent::Subscriber out_data_event() override;
@@ -87,7 +107,14 @@ class ModemTransport final : public ByteIStream {
   void DataReceivedTcp(DataBuffer const& data_in);
   void DataReceivedUdp(DataBuffer const& data_in);
 
-  ActionContext action_context_;
+  WriteAction& WriteTcp(DataBuffer&& in_data);
+  WriteAction& WriteUdp(DataBuffer&& in_data);
+  WriteAction& FailedWrite();
+
+  static PacketQueueManagerVar MakePacketQueueManager(
+      AeContext const& ae_context, Endpoint const& endpoint);
+
+  AeContext ae_context_;
   IModemDriver* modem_driver_;
   Endpoint address_;
   Protocol protocol_;
@@ -95,7 +122,10 @@ class ModemTransport final : public ByteIStream {
   StreamInfo stream_info_;
 
   ConnectionIndex connection_ = kInvalidConnectionIndex;
-  OwnActionPtr<SocketPacketQueueManager<ModemSend>> send_action_queue_manager_;
+
+  PacketQueueManagerVar packet_queue_manager_;
+  std::optional<FailedWriteAction> failed_write_;
+
   StreamDataPacketCollector data_packet_collector_;
 
   OutDataEvent out_data_event_;

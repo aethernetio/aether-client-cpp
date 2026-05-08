@@ -40,6 +40,7 @@ class Sender {
 
   void Connect();
   void Disconnect();
+
   EventSubscriber<void()> Handshake();
 
   EventSubscriber<void(Bandwidth const&)> TestMessages(
@@ -65,17 +66,15 @@ class Sender {
 
   RcPtr<P2pStream> message_stream_;
 
-  std::optional<RepeatableTask> start_test_action_;
-  std::optional<RepeatableTask> stop_test_action_;
-  OwnActionPtr<MessageSender> message_sender_;
+  std::optional<RepeatableTask<AeContext>> start_test_action_;
+  std::optional<RepeatableTask<AeContext>> stop_test_action_;
+  std::unique_ptr<MessageSender> message_sender_;
 
   Subscription on_recv_data_sub_;
   Subscription handshake_sub_;
   MultiSubscription sync_subs_;
   Subscription sync_action_failed_sub_;
   Subscription test_res_sub_;
-  Subscription start_test_sub_;
-  Subscription stop_test_sub_;
 };
 }  // namespace ae::bench
 

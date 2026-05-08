@@ -107,11 +107,6 @@ list(APPEND actions_srcs
             "ae_actions/telemetry.cpp"
             "ae_actions/select_client.cpp"
             "ae_actions/time_sync.cpp"
-            "actions/action_trigger.cpp"
-            "actions/action_registry.cpp"
-            "actions/action_processor.cpp"
-            "actions/repeatable_task.cpp"
-            "actions/action_context.cpp"
             )
 
 list(APPEND registration_srcs
@@ -170,7 +165,6 @@ list(APPEND wifi_srcs
 list(APPEND serial_ports_srcs
             "serial_ports/at_support/at_buffer.cpp"
             "serial_ports/at_support/at_dispatcher.cpp"
-            "serial_ports/at_support/at_request.cpp"
             "serial_ports/at_support/at_listener.cpp"
             "serial_ports/at_support/at_support.cpp"
             "serial_ports/serial_port_factory.cpp"

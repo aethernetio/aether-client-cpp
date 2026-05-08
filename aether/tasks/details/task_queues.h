@@ -66,8 +66,8 @@ class TaskQueue : TaskQueueBase<ITask, Capacity, Pool> {
   using base = TaskQueueBase<ITask, Capacity, Pool>;
   static constexpr std::size_t kCapacity = base::kCapacity;
   template <std::size_t max_size>
-  using list_container = typename base::template list_container<max_size>;
-  using list = typename base::list;
+  using list_container = base::template list_container<max_size>;
+  using list = base::list;
 
   using base::base;
 
@@ -99,14 +99,14 @@ class TaskQueue : TaskQueueBase<ITask, Capacity, Pool> {
   }
 };
 
-template <std::size_t Capacity, typename Pool>
-class DelayedTaskQueue : TaskQueueBase<IDelayedTask, Capacity, Pool> {
+template <std::size_t Capacity, typename TP, typename Pool>
+class DelayedTaskQueue : TaskQueueBase<IDelayedTask<TP>, Capacity, Pool> {
  public:
-  using base = TaskQueueBase<IDelayedTask, Capacity, Pool>;
+  using base = TaskQueueBase<IDelayedTask<TP>, Capacity, Pool>;
   static constexpr std::size_t kCapacity = base::kCapacity;
   template <std::size_t max_size>
-  using list_container = typename base::template list_container<max_size>;
-  using list = typename base::list;
+  using list_container = base::template list_container<max_size>;
+  using list = base::list;
 
   using base::base;
 
@@ -116,14 +116,14 @@ class DelayedTaskQueue : TaskQueueBase<IDelayedTask, Capacity, Pool> {
 
   using base::Free;
 
-  bool Add(IDelayedTask* p) {
+  bool Add(IDelayedTask<TP>* p) {
     if (base::list_.size() == base::list_.max_size()) {
       return false;
     }
     // keep list sorted by expire_at
     auto it = std::find_if(
         std::rbegin(base::list_), std::rend(base::list_),
-        [&](IDelayedTask const* e) { return p->expire_at < e->expire_at; });
+        [&](IDelayedTask<TP> const* e) { return p->expire_at < e->expire_at; });
 
     base::list_.emplace(it.base(), p);
     return true;
@@ -134,7 +134,7 @@ class DelayedTaskQueue : TaskQueueBase<IDelayedTask, Capacity, Pool> {
    * Stealled elements should be freed with Free function \see Free
    */
   template <std::size_t max_count>
-  void StealTasks(TimePoint expiration_time, list_container<max_count>& to) {
+  void StealTasks(TP expiration_time, list_container<max_count>& to) {
     auto it = std::rbegin(base::list_);
     std::size_t count = 0;
     for (; it != std::rend(base::list_); ++it) {

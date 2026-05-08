@@ -19,22 +19,23 @@
 
 #include "third_party/stdexec/include/stdexec/execution.hpp"
 
-#include "aether/ae_context.h"
+#include "aether/executors/async_context.h"
 
 namespace ae::ex {
 namespace scheduler_on_tasks_internal {
 
-template <typename R>
+template <AsyncContext AC, typename R>
 struct Operation {
   void start() noexcept {
     // just run new task and set value to receiver there
-    ae_context.scheduler().Task([&]() { stdexec::set_value(std::move(recv)); });
+    ac.scheduler().Task([&]() { stdexec::set_value(std::move(recv)); });
   }
 
   R recv;
-  AeContext ae_context;
+  AC ac;
 };
 
+template <AsyncContext AC>
 struct Sender {
   using sender_concept = stdexec::sender_t;
 
@@ -45,29 +46,28 @@ struct Sender {
 
   template <typename R>
   constexpr auto connect(R&& recv) && noexcept {
-    return Operation<R>{.recv = std::forward<R>(recv),
-                        .ae_context = std::move(ae_context)};
+    return Operation<AC, R>{.recv = std::forward<R>(recv), .ac = ac};
   }
 
-  AeContext ae_context;
+  AC ac;
 };
 }  // namespace scheduler_on_tasks_internal
 
+template <AsyncContext AC>
 class SchedulerOnTasks {
  public:
   using scheduler_concept = stdexec::scheduler_t;
 
-  constexpr explicit SchedulerOnTasks(AeContext const& context) noexcept
-      : ae_context_{context} {}
+  constexpr explicit SchedulerOnTasks(AC const& ac) noexcept : ac_{ac} {}
 
   constexpr auto schedule() const noexcept {
-    return scheduler_on_tasks_internal::Sender{.ae_context = ae_context_};
+    return scheduler_on_tasks_internal::Sender{.ac = ac_};
   }
 
   bool operator==(SchedulerOnTasks const&) const = default;
 
  private:
-  AeContext ae_context_;
+  AC ac_;
 };
 }  // namespace ae::ex
 

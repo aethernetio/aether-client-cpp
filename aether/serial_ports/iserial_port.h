@@ -17,8 +17,10 @@
 #ifndef AETHER_SERIAL_PORTS_ISERIAL_PORT_H_
 #define AETHER_SERIAL_PORTS_ISERIAL_PORT_H_
 
+#include <span>
+#include <cstdint>
+
 #include "aether/events/events.h"
-#include "aether/types/data_buffer.h"
 
 namespace ae {
 /**
@@ -26,7 +28,7 @@ namespace ae {
  */
 class ISerialPort {
  public:
-  using DataReadEvent = Event<void(DataBuffer const&)>;
+  using DataReadEvent = Event<void(std::span<std::uint8_t const>)>;
 
   virtual ~ISerialPort() = default;
 
@@ -37,7 +39,7 @@ class ISerialPort {
   /**
    * \brief Write amount of data.
    */
-  virtual void Write(DataBuffer const& data) = 0;
+  virtual void Write(std::span<std::uint8_t const> data) = 0;
   /**
    * \brief Read data event.
    */

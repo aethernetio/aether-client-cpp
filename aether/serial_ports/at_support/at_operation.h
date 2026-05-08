@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ACTIONS_GEN_ACTION_H_
-#define AETHER_ACTIONS_GEN_ACTION_H_
+#ifndef AETHER_SERIAL_PORTS_AT_OPERATION_H_
+#define AETHER_SERIAL_PORTS_AT_OPERATION_H_
 
-#include "aether/actions/action.h"
+#include "aether/ae_context.h"
+#include "aether/actions/action2_.h"
+#include "aether/executors/executors.h"
+#include "aether/actions/actions_queue.h"
 
 namespace ae {
-template <typename TBody>
-class GenAction final : public Action<GenAction<TBody>> {
+template <typename S>
+class SenderOperation final : public a2::Action {
  public:
-  using BaseAction = Action<GenAction<TBody>>;
-  GenAction(ActionContext action_context, TBody&& body)
-      : BaseAction{action_context}, body_{std::move(body)} {}
-
-  UpdateStatus Update() { return body_(); }
+  explicit SenderOperation(AeContext const& ae_context, S&& s) {}
 
  private:
-  TBody body_;
 };
 }  // namespace ae
 
-#endif  // AETHER_ACTIONS_GEN_ACTION_H_
+#endif  // AETHER_SERIAL_PORTS_AT_OPERATION_H_

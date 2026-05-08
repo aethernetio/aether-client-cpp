@@ -19,7 +19,6 @@
 #include <string>
 
 #include "aether/events/events.h"
-#include "aether/actions/action_processor.h"
 #include "aether/api_protocol/api_protocol.h"
 
 #include "aether/types/data_buffer.h"
@@ -99,7 +98,6 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
 };
 
 void test_ApiMethodInvoke() {
-  ActionProcessor ap;
   ProtocolContext pc;
 
   auto api_level0 = ApiLevel0{pc};
@@ -127,14 +125,11 @@ void test_ApiMethodInvoke() {
   auto parser = ApiParser{pc, packet};
   parser.Parse(api_level0);
 
-  ap.Update(Now());
-
   TEST_ASSERT(level0_method3_called);
   TEST_ASSERT(level1_method3_called);
 }
 
 void test_ReturnResult() {
-  ActionProcessor ap;
   ProtocolContext pc;
 
   bool promise_get_value = false;
@@ -174,14 +169,11 @@ void test_ReturnResult() {
   auto parser = ApiParser{pc, packet};
   parser.Parse(api_level0);
 
-  ap.Update(Now());
-
   TEST_ASSERT(level0_method4_called);
   TEST_ASSERT(promise_get_value);
 }
 
 void test_MethodWithSubApi() {
-  ActionProcessor ap;
   ProtocolContext pc;
 
   auto api_level0 = ApiLevel0{pc};

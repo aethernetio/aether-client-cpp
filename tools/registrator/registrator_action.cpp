@@ -24,29 +24,17 @@ namespace ae::reg {
 RegistratorAction::RegistratorAction(
     ae::AeContext const& ae_context, RcPtr<AetherApp> const& aether_app,
     std::vector<reg::ClientConfig> const& client_configs)
-    : Action{FromAeContext(ae_context)}, state_{State::kWait} {
+    : ae_context_{ae_context} {
   AE_TELED_INFO("RegistratorAction");
-  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
   RegisterClients(aether_app->aether(), client_configs);
 }
 
-UpdateStatus RegistratorAction::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kWait:
-        break;
-      case State::kResult:
-        return UpdateStatus::Result();
-      case State::kError:
-        return UpdateStatus::Error();
-    }
-  }
-  return {};
+RegistratorAction::RegisteredEvent::Subscriber
+RegistratorAction::registered_event() {
+  return EventSubscriber{registered_event_};
 }
-
-std::vector<RegisteredClient> const& RegistratorAction::registered_clients()
-    const {
-  return registered_clients_;
+RegistratorAction::FailedEvent::Subscriber RegistratorAction::failed_event() {
+  return EventSubscriber{failed_event_};
 }
 
 /**
@@ -77,11 +65,11 @@ void RegistratorAction::RegisterClients(
                 registered_clients_.emplace_back(
                     RegisteredClient{res.value(), *client_id});
                 if (registered_clients_.size() == clients_count) {
-                  state_ = State::kResult;
+                  registered_event_.Emit(std::move(registered_clients_));
                 }
               } else {
                 AE_TELED_ERROR("Registration error");
-                state_ = State::kError;
+                failed_event_.Emit();
               }
             });
   }

@@ -30,20 +30,20 @@ class GenericTask : public ITask {
  public:
   explicit constexpr GenericTask(F&& f) : f_{std::move(f)} {}
 
-  void Invoke() override { std::invoke(f_); }
+  void Invoke() && noexcept override { std::invoke(std::move(f_)); }
 
  private:
   F f_;
 };
 
-template <typename F>
+template <typename F, typename TP>
   requires(std::invocable<F>)
-class GenericDelayedTask : public IDelayedTask {
+class GenericDelayedTask : public IDelayedTask<TP> {
  public:
-  explicit constexpr GenericDelayedTask(F&& f, TimePoint tp)
-      : IDelayedTask{tp}, f_{std::move(f)} {}
+  explicit constexpr GenericDelayedTask(F&& f, TP tp)
+      : IDelayedTask<TP>{tp}, f_{std::move(f)} {}
 
-  void Invoke() override { std::invoke(f_); }
+  void Invoke() && noexcept override { std::invoke(std::move(f_)); }
 
  private:
   F f_;

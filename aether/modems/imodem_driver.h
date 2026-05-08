@@ -20,42 +20,65 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_MODEMS
+#  include <span>
 #  include <string>
 #  include <cstdint>
 
-#  include "aether/types/address.h"
+#  include "aether/types/result.h"
 #  include "aether/events/events.h"
-#  include "aether/actions/action.h"
+#  include "aether/types/address.h"
+#  include "aether/meta/ignore_t.h"
+#  include "aether/actions/action2_.h"
 #  include "aether/types/data_buffer.h"
-#  include "aether/actions/action_ptr.h"
-#  include "aether/actions/notify_action.h"
-#  include "aether/actions/promise_action.h"
 #  include "aether/modems/modem_driver_types.h"
 
 namespace ae {
+enum class ModemError : int {};
+
+class OpenNetworkOperation : a2::Action {
+ public:
+  // return either connection index or error
+  using ResultEvent = Event<void(Result<ConnectionIndex, ModemError>)>;
+
+  virtual ResultEvent::Subscriber result_event() = 0;
+};
+
+class WriteOperation : a2::Action {
+ public:
+  // return size of bytes written, or error code
+  using ResultEvent = Event<void(Result<std::size_t, ModemError>)>;
+
+  virtual ResultEvent::Subscriber result_event() = 0;
+};
+
+class ModemOperation : a2::Action {
+ public:
+  using ResultEvent = Event<void(Result<Ignore, ModemError>)>;
+
+  virtual ResultEvent::Subscriber result_event() = 0;
+};
+
 class IModemDriver {
  public:
-  using ModemOperation = NotifyAction;
-  using WriteOperation = NotifyAction;
-  using OpenNetworkOperation = PromiseAction<ConnectionIndex>;
   using DataEvent = Event<void(ConnectionIndex, DataBuffer const& data)>;
 
   virtual ~IModemDriver() = default;
 
-  virtual ActionPtr<ModemOperation> Start() = 0;
-  virtual ActionPtr<ModemOperation> Stop() = 0;
-  virtual ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
-                                                      std::string const& host,
-                                                      std::uint16_t port) = 0;
-  virtual ActionPtr<ModemOperation> CloseNetwork(
-      ConnectionIndex connect_index) = 0;
-  virtual ActionPtr<WriteOperation> WritePacket(ConnectionIndex connect_index,
-                                                DataBuffer const& data) = 0;
+  virtual ModemOperation* Start() = 0;
+  virtual ModemOperation* Stop() = 0;
+
+  virtual OpenNetworkOperation* OpenNetwork(Protocol protocol,
+                                            std::string const& host,
+                                            std::uint16_t port) = 0;
+
+  virtual ModemOperation* CloseNetwork(ConnectionIndex connect_index) = 0;
+
+  virtual WriteOperation* WritePacket(ConnectionIndex connect_index,
+                                      std::span<std::uint8_t const> data) = 0;
   virtual DataEvent::Subscriber data_event() = 0;
 
-  virtual ActionPtr<ModemOperation> SetPowerSaveParam(
-      ModemPowerSaveParam const& psp) = 0;
-  virtual ActionPtr<ModemOperation> PowerOff() = 0;
+  virtual ModemOperation* SetPowerSaveParam(ModemPowerSaveParam const& psp) = 0;
+  virtual ModemOperation* PowerOff() = 0;
 };
 
 } /* namespace ae */

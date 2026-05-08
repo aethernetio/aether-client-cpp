@@ -197,10 +197,7 @@ TimePoint TimeSyncAction::last_sync_time = TimePoint::max();
 TimeSyncAction::TimeSyncAction(AeContext const& ae_context,
                                Ptr<Client> const& client,
                                Duration sync_interval)
-    : ae_context_{ae_context},
-      client_{client},
-      sync_interval_{sync_interval},
-      alive_ctx_{ae_context_, this} {
+    : ae_context_{ae_context}, client_{client}, sync_interval_{sync_interval} {
   AE_TELED_INFO("Time sync created");
   // the end of time! It means never synced before
   if (last_sync_time == TimePoint::max()) {
@@ -246,14 +243,8 @@ void TimeSyncAction::ScheduleNextSync() {
       ((last_sync_time == TimePoint::max()) ? Now() : last_sync_time) +
       sync_interval_;
 
-  // TODO: add alive check for this
-  ae_context_.scheduler().DelayedTask(
-      [imalive{alive_ctx_.View()}]() {
-        if (imalive) {
-          imalive->MakeRequest();
-        }
-      },
-      next_time);
+  task_sub_ = ae_context_.scheduler().DelayedTask([this]() { MakeRequest(); },
+                                                  next_time);
 }
 }  // namespace ae
 #endif

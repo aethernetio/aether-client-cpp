@@ -14,23 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_INDEX_REGISTRY_INDEX_REGISTRY_H_
-#define AETHER_INDEX_REGISTRY_INDEX_REGISTRY_H_
+#ifndef AETHER_META_TIME_TRAITS_H_
+#define AETHER_META_TIME_TRAITS_H_
 
-#include "aether/index_registry/details/indexed_context.h"
-#include "aether/index_registry/details/index_registry_list.h"
+#include <chrono>
+#include <type_traits>
 
 namespace ae {
-template <std::size_t Capacity>
-using IndexRegistryList = index_registry::IndexRegistryList<Capacity>;
 template <typename T>
-using IndexCtx = index_registry::IndexCtx<T>;
+struct IsDuration : std::false_type {};
+template <typename Rep, typename Period>
+struct IsDuration<std::chrono::duration<Rep, Period>> : std::true_type {};
 template <typename T>
-using IndexCtxView = index_registry::IndexCtxView<T>;
+static constexpr inline auto IsDuration_v = IsDuration<T>::value;
 
-using AliveContext = index_registry::IndexCtx<void>;
-using AliveContextView = index_registry::IndexCtxView<void>;
+template <typename T>
+struct IsTimePoint : std::false_type {};
+template <typename Clock, typename Duration>
+struct IsTimePoint<std::chrono::time_point<Clock, Duration>> : std::true_type {
+};
+template <typename T>
+static constexpr inline auto IsTimePoint_v = IsTimePoint<T>::value;
 
 }  // namespace ae
 
-#endif  // AETHER_INDEX_REGISTRY_INDEX_REGISTRY_H_
+#endif  // AETHER_META_TIME_TRAITS_H_

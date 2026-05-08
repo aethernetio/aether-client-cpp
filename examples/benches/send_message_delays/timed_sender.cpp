@@ -19,49 +19,26 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-TimedSender::TimedSender(ActionContext action_context,
-                         std::function<void(std::uint16_t id)> send_proc,
-                         Duration send_interval)
-    : Action{action_context},
-      send_proc_{std::move(send_proc)},
-      send_interval_{send_interval},
-      state_{State::kSend},
-      state_changed_subscription_{state_.changed_event().Subscribe(
-          [this](auto) { Action::Trigger(); })} {
-  AE_TELED_DEBUG("TimedSender with min send interval {} us",
-                 send_interval_.count());
+TimedSender::TimedSender(AeContext const& ae_context,
+                         std::function<void(std::uint16_t id)> send_proc)
+    : ae_context_{ae_context}, send_proc_{std::move(send_proc)} {
+  AE_TELED_DEBUG("TimedSender");
+  // send on next scheduler update
+  scheduler_sub_ = ae_context_.scheduler().Task([this]() { Send(); });
 }
 
-UpdateStatus TimedSender::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kSend:
-        Send();
-        break;
-      case State::kFinished:
-        return UpdateStatus::Result();
-      case State::kError:
-        return UpdateStatus::Error();
-      default:
-        break;
-    }
-  }
-
-  if (state_.get() == State::kWaitSync) {
-    return CheckSyncTimeout(Now());
-  }
-
-  return {};
+TimedSender::ResultTimesEvent::Subscriber TimedSender::message_times_event() {
+  return EventSubscriber{result_time_event_};
 }
 
 void TimedSender::Stop() {
   AE_TELED_DEBUG("Stop sending");
-  state_.Set(State::kFinished);
+  result_time_event_.Emit(message_times_);
 }
 
 void TimedSender::Sync() {
   AE_TELED_DEBUG("Sync");
-  state_.Set(State::kSend);
+  Send();
 }
 
 void TimedSender::Send() {
@@ -70,18 +47,7 @@ void TimedSender::Send() {
   message_times_.emplace(current_id_, HighResTimePoint::clock::now());
 
   send_proc_(current_id_);
-
-  next_send_time_ = Now() + send_interval_;
-
   ++current_id_;
-  state_ = State::kWaitSync;
 }
 
-UpdateStatus TimedSender::CheckSyncTimeout(TimePoint current_time) {
-  if (next_send_time_ > current_time) {
-    return UpdateStatus::Delay(next_send_time_);
-  }
-  state_.Set(State::kSend);
-  return {};
-}
 }  // namespace ae::bench

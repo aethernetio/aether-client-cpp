@@ -20,6 +20,9 @@
 #include "aether/tasks/details/task_manager.h"
 
 namespace ae::test_task_manager {
+using namespace std::chrono_literals;
+using TimePoint = std::chrono::system_clock::time_point;
+static auto Now() { return TimePoint::clock::now(); }
 
 void test_TaskManagerAddRegular() {
   static constexpr auto kCount = 10;
@@ -38,7 +41,7 @@ void test_TaskManagerAddRegular() {
   task_manager.regular().StealTasks(tasks);
   TEST_ASSERT_EQUAL(kCount, tasks.size());
   for (auto* t : tasks) {
-    t->Invoke();
+    std::move(*t).Invoke();
   }
   for (auto i : invoked) {
     TEST_ASSERT_TRUE(i);
@@ -64,7 +67,7 @@ void test_TaskManagerAddDelayed() {
   task_manager.delayed().StealTasks(epoch + 4s, tasks);
   TEST_ASSERT_EQUAL(5, tasks.size());
   for (auto* t : tasks) {
-    t->Invoke();
+    std::move(*t).Invoke();
   }
   for (std::size_t i = 0; i < tasks.size(); i++) {
     TEST_ASSERT_TRUE(invoked[i]);
@@ -79,7 +82,7 @@ void test_TaskManagerAddDelayed() {
   task_manager.delayed().StealTasks(epoch + 10s, tasks_rest);
   TEST_ASSERT_EQUAL(6, tasks_rest.size());
   for (auto* t : tasks_rest) {
-    t->Invoke();
+    std::move(*t).Invoke();
   }
   TEST_ASSERT_FALSE(invoked[0]);
 

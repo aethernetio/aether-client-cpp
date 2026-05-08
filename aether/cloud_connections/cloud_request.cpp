@@ -108,7 +108,6 @@ CloudRequestAction::CloudRequestAction(
       listener_{std::move(listener)},
       cloud_sc_{&cloud_server_connections},
       policy_{policy},
-      alive_ctx_{std::in_place, ae_context_, this},
       server_changed_sub_{cloud_sc_->servers_update_event().Subscribe(
           MethodPtr<&CloudRequestAction::ServersUpdated>{this})} {
   EnqueueMakeRequest();
@@ -122,7 +121,6 @@ CloudRequestAction::CloudRequestAction(
       request_{std::move(api_request)},
       cloud_sc_{&cloud_server_connections},
       policy_{policy},
-      alive_ctx_{std::in_place, ae_context_, this},
       server_changed_sub_{cloud_sc_->servers_update_event().Subscribe(
           MethodPtr<&CloudRequestAction::ServersUpdated>{this})} {
   EnqueueMakeRequest();
@@ -222,22 +220,19 @@ void CloudRequestAction::RemoveRequest(
 
 void CloudRequestAction::EnqueueMakeRequest() {
   // enqueue only once at a time
-  if (enqueued_) {
+  if (task_sub_) {
     return;
   }
-  enqueued_ = true;
-  ae_context_.scheduler().Task([imalive{alive_ctx_->View()}]() {
-    if (imalive) {
-      imalive->enqueued_ = false;
-      imalive->MakeRequest();
-    }
-  });
+  task_sub_.emplace(ae_context_.scheduler().Task([this]() {
+    task_sub_.reset();
+    MakeRequest();
+  }));
 }
 
 void CloudRequestAction::Finish() {
   swa_sub_.Reset();
   server_changed_sub_.Reset();
-  alive_ctx_.reset();
+  task_sub_.reset();
 
   a2::Action::Finish();
 }

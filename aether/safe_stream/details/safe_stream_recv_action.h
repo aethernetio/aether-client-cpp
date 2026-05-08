@@ -23,7 +23,6 @@
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
 #include "aether/actions/timer.h"
-#include "aether/index_registry/index_registry.h"
 #include "aether/safe_stream/safe_stream_config.h"
 #include "aether/safe_stream/details/circular_buffer.h"
 #include "aether/safe_stream/details/receiving_chunk_list.h"
@@ -55,11 +54,13 @@ class SafeStreamRecvAction {
                        ISendAckRepeat& send_ack_repeat,
                        SafeStreamConfig const& config)
       : ae_context_{ae_context},
-        alive_ctx_{ae_context_, this},
         send_ack_repeat_{&send_ack_repeat},
         send_ack_timeout_{config.send_ack_timeout},
         send_repeat_timeout_{config.send_repeat_timeout},
-        window_size_{config.window_size} {}
+        window_size_{config.window_size} {
+    assert((window_size_ < Capacity / 2) &&
+           "Window size should be less than half of capacity");
+  }
 
   AE_CLASS_NO_COPY_MOVE(SafeStreamRecvAction)
 
@@ -152,12 +153,9 @@ class SafeStreamRecvAction {
     if (recv_enqueued_) {
       return;
     }
-    recv_enqueued_ = true;
-    ae_context_.scheduler().Task([imalive{alive_ctx_.View()}]() {
-      if (imalive) {
-        imalive->recv_enqueued_ = false;
-        imalive->HandleCompletedChains();
-      }
+    recv_enqueued_ = ae_context_.scheduler().Task([this]() {
+      recv_enqueued_.Reset();
+      HandleCompletedChains();
     });
   }
 
@@ -240,7 +238,6 @@ class SafeStreamRecvAction {
   }
 
   AeContext ae_context_;
-  IndexCtx<SafeStreamRecvAction> alive_ctx_;
   ISendAckRepeat* send_ack_repeat_;
 
   Duration send_ack_timeout_;
@@ -252,9 +249,9 @@ class SafeStreamRecvAction {
   std::size_t session_offset{};  //< current session start offset
   IndexType last_emitted_{};
 
-  bool recv_enqueued_{false};
-  std::optional<Timer> ack_timer_;
-  std::optional<Timer> missing_timer_;
+  TaskSubscription recv_enqueued_;
+  std::optional<Timer<AeContext>> ack_timer_;
+  std::optional<Timer<AeContext>> missing_timer_;
 
   ReceiveEvent receive_event_;
 };

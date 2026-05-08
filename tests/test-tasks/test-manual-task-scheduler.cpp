@@ -21,6 +21,10 @@
 #include "aether/tasks/details/manual_task_scheduler.h"
 
 namespace ae::test_manual_task_scheduler {
+using namespace std::chrono_literals;
+using TimePoint = std::chrono::system_clock::time_point;
+static auto Now() { return TimePoint::clock::now(); }
+
 void test_ManualScheduler() {
   static constexpr auto kCount = 10;
   auto task_sched = ManualTaskScheduler<TaskManagerConf<kCount>>{};

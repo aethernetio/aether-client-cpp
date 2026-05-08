@@ -36,13 +36,13 @@
 // IWYU pragma: end_keeps
 
 namespace ae::cloud_test {
-constexpr ae::SafeStreamConfig kSafeStreamConfig{
-    (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
-    (std::numeric_limits<std::uint16_t>::max() / 2) - 1 - 1,  // max_data_size
-    10,                              // max_repeat_count
-    std::chrono::milliseconds{600},  // wait_confirm_timeout
-    {},                              // send_confirm_timeout
-    std::chrono::milliseconds{400},  // send_repeat_timeout
+constexpr SafeStreamConfig kSafeStreamConfig{
+    .window_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
+    .max_packet_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
+    .max_repeat_count = 10,
+    .wait_ack_timeout = std::chrono::milliseconds{1500},
+    .send_ack_timeout = std::chrono::milliseconds{0},
+    .send_repeat_timeout = std::chrono::milliseconds{200},
 };
 }  // namespace ae::cloud_test
 
@@ -65,17 +65,17 @@ int AetherCloudExample() {
   ae::Client::ptr client_a;
   ae::Client::ptr client_b;
 
-  auto select_client_a = aether_app->aether()->SelectClient(
+  auto& select_client_a = aether_app->aether()->SelectClient(
       ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "A");
-  select_client_a->StatusEvent().Subscribe(ae::ActionHandler{
-      ae::OnResult{[&](auto const& action) { client_a = action.client(); }},
-      ae::OnError{[&]() { aether_app->Exit(1); }}});
+  select_client_a.client_selected().Subscribe(
+      [&](auto const& c) { client_a = c; });
+  select_client_a.selection_failed().Subscribe([&]() { aether_app->Exit(1); });
 
-  auto select_client_b = aether_app->aether()->SelectClient(
+  auto& select_client_b = aether_app->aether()->SelectClient(
       ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "B");
-  select_client_b->StatusEvent().Subscribe(ae::ActionHandler{
-      ae::OnResult{[&](auto const& action) { client_b = action.client(); }},
-      ae::OnError{[&]() { aether_app->Exit(1); }}});
+  select_client_b.client_selected().Subscribe(
+      [&](auto const& c) { client_b = c; });
+  select_client_b.selection_failed().Subscribe([&]() { aether_app->Exit(1); });
 
   aether_app->WaitActions(select_client_a, select_client_b);
 

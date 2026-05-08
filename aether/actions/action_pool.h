@@ -28,11 +28,11 @@ IGNORE_IMPLICIT_CONVERSION()
 #include "third_party/etl/include/etl/variant_pool.h"
 DISABLE_WARNING_POP()
 
-#include "aether/ae_context.h"
 #include "aether/actions/action2_.h"
+#include "aether/actions/action_context.h"
 
 namespace ae {
-template <typename T, std::size_t Capacity>
+template <ActionContext AC, typename T, std::size_t Capacity>
 class ActionPool : public etl::pool<T, Capacity> {
  public:
   static_assert(std::is_base_of_v<a2::Action, T>,
@@ -40,8 +40,7 @@ class ActionPool : public etl::pool<T, Capacity> {
 
   using base_t = etl::pool<T, Capacity>;
 
-  constexpr explicit ActionPool(AeContext const& ae_context) noexcept
-      : ae_context_{ae_context} {}
+  constexpr explicit ActionPool(AC const& ac) noexcept : ac_{ac} {}
 
   template <typename... Args>
   T* Create(Args&&... args) {
@@ -56,22 +55,21 @@ class ActionPool : public etl::pool<T, Capacity> {
 
  private:
   void Destroy(T* p) {
-    ae_context_.scheduler().Task([&, p]() { base_t::template destroy<T>(p); });
+    ac_.scheduler().Task([&, p]() { base_t::template destroy<T>(p); });
   }
 
-  AeContext ae_context_;
+  AC ac_;
 };
 
-template <typename... T, std::size_t Capacity>
-class ActionPool<std::variant<T...>, Capacity>
+template <ActionContext AC, typename... T, std::size_t Capacity>
+class ActionPool<AC, std::variant<T...>, Capacity>
     : public etl::variant_pool<Capacity, T...> {
  public:
   static_assert((std::is_base_of_v<a2::Action, T> && ...),
                 "T must be a subclass of a2::Action");
   using base_t = etl::variant_pool<Capacity, T...>;
 
-  constexpr explicit ActionPool(AeContext const& ae_context) noexcept
-      : ae_context_{ae_context} {}
+  constexpr explicit ActionPool(AC const& ac) noexcept : ac_{ac} {}
 
   template <typename U, typename... Args>
     requires(std::is_same_v<U, T> || ...)
@@ -88,10 +86,10 @@ class ActionPool<std::variant<T...>, Capacity>
  private:
   template <typename U>
   void Destroy(U* p) {
-    ae_context_.scheduler().Task([&, p]() { base_t::template destroy<U>(p); });
+    ac_.scheduler().Task([&, p]() { base_t::template destroy<U>(p); });
   }
 
-  AeContext ae_context_;
+  AC ac_;
 };
 }  // namespace ae
 

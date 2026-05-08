@@ -17,13 +17,11 @@
 #ifndef AETHER_AE_ACTIONS_SELECT_CLIENT_H_
 #define AETHER_AE_ACTIONS_SELECT_CLIENT_H_
 
-#include <cstdint>
-
 #include "aether/config.h"
+#include "aether/ae_context.h"
 #include "aether/obj/obj_ptr.h"
-#include "aether/actions/action.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/types/state_machine.h"
+#include "aether/events/events.h"
+#include "aether/actions/action2_.h"
 #include "aether/events/event_subscription.h"
 
 namespace ae {
@@ -31,46 +29,40 @@ class Aether;
 class Client;
 class Registration;
 
-class SelectClientAction final : public Action<SelectClientAction> {
+class SelectClientAction final : public a2::Action {
  public:
-  enum class State : std::uint8_t {
-    kClientReady,
-    kWaitRegistration,
-    kClientRegistered,
-    kClientRegistrationError,
-    kNoClientToSelect,
-  };
+  using ClientSelectedEvent = Event<void(ObjPtr<Client> const& client)>;
+  using SelectionFailedEvent = Event<void()>;
 
   /**
    * \brief Create with client already ready.
    */
-  SelectClientAction(ActionContext action_context, ObjPtr<Client> client);
+  SelectClientAction(AeContext const& ae_context, ObjPtr<Client> client);
 
 #if AE_SUPPORT_REGISTRATION
   /**
    * \brief Wait for client registration or error.
    */
-  SelectClientAction(ActionContext action_context, Aether& aether,
+  SelectClientAction(AeContext const& ae_context, Aether& aether,
                      Registration& registration, std::string client_id);
 #endif
 
   /**
    * \brief There is not client to select, throw error.
    */
-  explicit SelectClientAction(ActionContext action_context);
+  explicit SelectClientAction(AeContext const& ae_context);
 
-  UpdateStatus Update();
-
-  ObjPtr<Client> const& client() const;
-  State state() const;
+  ClientSelectedEvent::Subscriber client_selected();
+  SelectionFailedEvent::Subscriber selection_failed();
 
  private:
-  ObjPtr<Client> client_;
-  StateMachine<State> state_;
+  AeContext ae_context_;
+  TaskSubscription task_sub_;
+  ClientSelectedEvent client_selected_event_;
+  SelectionFailedEvent selection_failed_event_;
 
 #if AE_SUPPORT_REGISTRATION
   std::string client_id_;
-  ActionPtr<Registration> registration_;
   Subscription registration_sub_;
 #endif
 };
