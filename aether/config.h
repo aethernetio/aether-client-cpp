@@ -453,7 +453,7 @@
 #endif
 
 #ifndef AE_EVENT_HANDLER_MAX_SIZE
-#  define AE_EVENT_HANDLER_MAX_SIZE (sizeof(void*) * 6)
+#  define AE_EVENT_HANDLER_MAX_SIZE 48
 #endif
 #ifndef AE_EVENT_HANDLER_ALIGN
 #  define AE_EVENT_HANDLER_ALIGN (alignof(void*))
