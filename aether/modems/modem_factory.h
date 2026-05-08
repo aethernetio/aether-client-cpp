@@ -22,14 +22,14 @@
 #if AE_SUPPORT_MODEMS
 #  include <memory>
 
+#  include "aether/ae_context.h"
 #  include "aether/poller/poller.h"
-#  include "aether/actions/action_context.h"
 #  include "aether/modems/imodem_driver.h"
 
 namespace ae {
 class ModemDriverFactory {
  public:
-  static std::unique_ptr<IModemDriver> CreateModem(ActionContext action_context,
+  static std::unique_ptr<IModemDriver> CreateModem(AeContext const& ae_context,
                                                    IPoller::ptr const& poller,
                                                    ModemInit modem_init);
 };

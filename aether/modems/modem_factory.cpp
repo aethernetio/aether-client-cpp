@@ -26,16 +26,16 @@
 namespace ae {
 
 std::unique_ptr<IModemDriver> ModemDriverFactory::CreateModem(
-    ActionContext action_context, IPoller::ptr const& poller,
+    AeContext const& ae_context, IPoller::ptr const& poller,
     ModemInit modem_init) {
 #  if AE_ENABLE_BG95
-  return std::make_unique<Bg95AtModem>(action_context, poller,
+  return std::make_unique<Bg95AtModem>(ae_context, poller,
                                        std::move(modem_init));
 #  elif AE_ENABLE_SIM7070
-  return std::make_unique<Sim7070AtModem>(action_context, poller,
+  return std::make_unique<Sim7070AtModem>(ae_context, poller,
                                           std::move(modem_init));
 #  elif AE_ENABLE_THINGY91X
-  return std::make_unique<Thingy91xAtModem>(action_context, poller,
+  return std::make_unique<Thingy91xAtModem>(ae_context, poller,
                                             std::move(modem_init));
 #  else
 #    error "No modem implementation is enabled"

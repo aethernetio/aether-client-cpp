@@ -52,7 +52,7 @@ class ModemTransport final : public ByteIStream {
     void SetStatus(Status status) noexcept override;
 
     AeContext ae_context_;
-    IndexCtx<ModemSend> alive_ctx_;
+    TaskSubscription task_sub_;
     ModemTransport* transport_;
     DataBuffer data_;
     bool is_done_;
