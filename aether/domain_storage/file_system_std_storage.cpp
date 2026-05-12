@@ -32,23 +32,26 @@ namespace ae {
 class FstreamStorageWriter final : public IDomainStorageWriter {
  public:
   FstreamStorageWriter(DomainQuery q, std::ofstream&& f)
-      : query{std::move(q)}, file{std::move(f)} {}
+      : query{std::move(q)}, file{std::move(f)}, written_size{0} {}
 
   ~FstreamStorageWriter() override {
     file.close();
-    AE_TELE_DEBUG(
-        kFileSystemDsObjSaved, "Saved object id={}, class id={}, version={}",
-        query.id.ToString(), query.class_id, static_cast<int>(query.version));
+    AE_TELE_DEBUG(kFileSystemDsObjSaved,
+                  "Saved object id={}, class id={}, version={}, size={}",
+                  query.id.ToString(), query.class_id,
+                  static_cast<int>(query.version), written_size);
   }
 
   void write(void const* data, std::size_t size) override {
     file.write(reinterpret_cast<std::ofstream::char_type const*>(data),
                static_cast<std::streamsize>(size));
+    written_size += size;
   }
 
  private:
   DomainQuery query;
   std::ofstream file;
+  std::size_t written_size;
 };
 
 class FstreamStorageReader final : public IDomainStorageReader {
