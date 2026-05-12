@@ -23,6 +23,8 @@
 DISABLE_WARNING_PUSH()
 IGNORE_IMPLICIT_CONVERSION()
 #include "third_party/stdexec/include/stdexec/execution.hpp"
+
+#include "third_party/stdexec/include/exec/variant_sender.hpp"
 DISABLE_WARNING_POP()
 
 #include "aether/executors/for_range.h"
