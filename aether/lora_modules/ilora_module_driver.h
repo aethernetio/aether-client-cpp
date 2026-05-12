@@ -26,9 +26,8 @@
 
 #  include "aether/types/address.h"
 #  include "aether/events/events.h"
-#  include "aether/actions/action.h"
 #  include "aether/types/data_buffer.h"
-#  include "aether/actions/action_ptr.h"
+
 #  include "aether/actions/notify_action.h"
 #  include "aether/actions/promise_action.h"
 #  include "aether/lora_modules/lora_module_driver_types.h"
