@@ -57,23 +57,43 @@ struct Env {
   AC const& ac;
 };
 
-template <AsyncContext AC, typename ValueType, typename ErrorType, typename Cb>
+template <AsyncContext AC, typename ResultType, typename Cb>
 struct State {
-  using value_type = ValueType;
-  using error_type = ErrorType;
+  using result_type = ResultType;
 
   void Finish() { std::invoke(cb, std::move(wait_result)); }
 
   AC ac;
-  std::optional<Result<value_type, error_type>> wait_result;
+  std::optional<result_type> wait_result;
   Cb cb;
 };
 
 template <typename State>
 struct Receiver {
   using receiver_concept = stdexec::receiver_t;
-  using value_type = State::value_type;
-  using error_type = State::error_type;
+
+  template <typename T>
+  struct ValueTypeSelector {
+    using type = T;
+  };
+
+  template <typename T1, typename T2>
+  struct ValueTypeSelector<Result<T1, T2>> {
+    using type = T1;
+  };
+
+  template <typename T>
+  struct ErrorTypeSelector {
+    using type = Ignore;
+  };
+
+  template <typename T1, typename T2>
+  struct ErrorTypeSelector<Result<T1, T2>> {
+    using type = T2;
+  };
+
+  using value_type = ValueTypeSelector<typename State::result_type>::type;
+  using error_type = ErrorTypeSelector<typename State::result_type>::type;
 
   template <typename... U>
   constexpr void set_value(U&&... u) && noexcept {
@@ -95,14 +115,14 @@ struct Receiver {
   }
 
   template <typename... E>
-  constexpr void set_error(E&&... e) && noexcept {
+  constexpr void set_error([[maybe_unused]] E&&... e) && noexcept {
     if constexpr (!IsIgnore_v<error_type>) {
       static_assert(std::is_constructible_v<error_type, E...>,
                     "Error must be constructible from argument list");
       state->wait_result.emplace(error_type{std::forward<E>(e)...});
     } else {
-      static_assert((sizeof...(e) == 0), "Zero arguments are expected");
-      state->wait_result.emplace(error_type{});
+      // ignore error does not supported
+      std::abort();
     }
     Finish();
   }
@@ -123,11 +143,12 @@ class AsyncWaiter {
   using CompletionsTraits = CompletionsTraitsImpl<Completions>;
   using ValueType = CompletionsTraits::ValueType;
   using ErrorType = CompletionsTraits::ErrorType;
-  using HandlerCb =
-      SmallFunction<void(std::optional<Result<ValueType, ErrorType>>)>;
+  using ResultType = std::conditional_t<
+      !std::is_same_v<Ignore, typename CompletionsTraits::ErrorType>,
+      Result<ValueType, ErrorType>, ValueType>;
 
-  using StateType = State<AC, ValueType, ErrorType, HandlerCb>;
-
+  using HandlerCb = SmallFunction<void(std::optional<ResultType>)>;
+  using StateType = State<AC, ResultType, HandlerCb>;
   using OpState = stdexec::connect_result_t<S, Receiver<StateType>>;
 
  public:
