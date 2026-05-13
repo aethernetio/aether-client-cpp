@@ -52,7 +52,8 @@ class AtStageActionRunner {
   using ActionType = AtStageAction<SenderType>;
 
   AtStageActionRunner(AeContext const& ae_context, Gen&& generator)
-      : storage_{Generator{ae_context, std::move(generator)}} {}
+      : storage_{std::in_place_type_t<Generator>{}, ae_context,
+                 std::move(generator)} {}
 
   AtStageActionRunner(AtStageActionRunner const&) = delete;
 
