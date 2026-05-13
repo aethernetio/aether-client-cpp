@@ -52,29 +52,43 @@ struct Env {
   AC const& ac;
 };
 
-template <AsyncContext AC, typename ValueType, typename ErrorType, typename Cb>
+template <AsyncContext AC, typename ResultType, typename Cb>
 struct State {
-  using value_type = ValueType;
-  using error_type = ErrorType;
+  using result_type = ResultType;
 
-  void Finish() {
-    if constexpr (std::is_invocable_v<Cb, decltype(wait_result)&&>) {
-      std::invoke(cb, std::move(wait_result));
-    } else {
-      std::invoke(cb, wait_result);
-    }
-  }
+  void Finish() { std::invoke(cb, std::move(wait_result)); }
 
   AC ac;
-  std::optional<Result<value_type, error_type>> wait_result;
+  std::optional<result_type> wait_result;
   Cb cb;
 };
 
 template <typename State>
 struct Receiver {
   using receiver_concept = stdexec::receiver_t;
-  using value_type = State::value_type;
-  using error_type = State::error_type;
+
+  template <typename T>
+  struct ValueTypeSelector {
+    using type = T;
+  };
+
+  template <typename T1, typename T2>
+  struct ValueTypeSelector<Result<T1, T2>> {
+    using type = T1;
+  };
+
+  template <typename T>
+  struct ErrorTypeSelector {
+    using type = Ignore;
+  };
+
+  template <typename T1, typename T2>
+  struct ErrorTypeSelector<Result<T1, T2>> {
+    using type = T2;
+  };
+
+  using value_type = ValueTypeSelector<typename State::result_type>::type;
+  using error_type = ErrorTypeSelector<typename State::result_type>::type;
 
   template <typename... U>
   constexpr void set_value(U&&... u) && noexcept {
@@ -96,19 +110,19 @@ struct Receiver {
   }
 
   template <typename... E>
-  constexpr void set_error(E&&... e) && noexcept {
+  constexpr void set_error([[maybe_unused]] E&&... e) && noexcept {
     if constexpr (!IsIgnore_v<error_type>) {
       static_assert(std::is_constructible_v<error_type, E...>,
                     "Error must be constructible from argument list");
       state->wait_result.emplace(error_type{std::forward<E>(e)...});
     } else {
-      static_assert((sizeof...(e) == 0), "Zero arguments are expected");
-      state->wait_result.emplace(error_type{});
+      // ignore error does not supported
+      std::abort();
     }
     Finish();
   }
 
-  constexpr void set_stopped() && noexcept { state->Finish(); }
+  constexpr void set_stopped() && noexcept { Finish(); }
 
   decltype(auto) get_env() const noexcept { return Env{.ac = state->ac}; }
 
@@ -123,11 +137,10 @@ class OpStateBase {
   virtual void start() = 0;
 };
 
-template <AsyncContext AC, typename ValueType, typename ErrorType,
-          typename Sender, typename Cb>
+template <AsyncContext AC, typename ResultType, typename Sender, typename Cb>
 class AnyOpState final : public OpStateBase {
  public:
-  using state = State<AC, ValueType, ErrorType, Cb>;
+  using state = State<AC, ResultType, Cb>;
   using receiver = Receiver<state>;
   using op_state = stdexec::connect_result_t<Sender, receiver>;
 
@@ -147,17 +160,19 @@ class AnyOpState final : public OpStateBase {
 template <typename... Sigs>
 class AnyWaiter {
  public:
-  using completions_traits = CompletionsTraits<Sigs...>;
-  using value_type = completions_traits::ValueType;
-  using error_type = completions_traits::ErrorType;
-  using result_type = std::optional<Result<value_type, error_type>>;
+  using CompletionsTraitsImpl = CompletionsTraits<Sigs...>;
+  using ValueType = CompletionsTraitsImpl::ValueType;
+  using ErrorType = CompletionsTraitsImpl::ErrorType;
+  using ResultType = std::conditional_t<
+      !std::is_same_v<Ignore, typename CompletionsTraitsImpl::ErrorType>,
+      Result<ValueType, ErrorType>, ValueType>;
 
   template <AsyncContext AC, stdexec::sender Sender, typename Cb>
-    requires(std::invocable<Cb, result_type &&> ||
-             std::invocable<Cb, result_type&>)
+    requires(std::invocable<Cb, std::optional<ResultType> &&> ||
+             std::invocable<Cb, std::optional<ResultType>&>)
   AnyWaiter(AC const& ac, Sender&& sender, Cb&& cb)
-      : op_state_{std::make_unique<any_waiter_internal::AnyOpState<
-            AC, value_type, error_type, Sender, Cb>>(
+      : op_state_{std::make_unique<
+            any_waiter_internal::AnyOpState<AC, ResultType, Sender, Cb>>(
             ac, std::forward<Sender>(sender), std::forward<Cb>(cb))} {
     op_state_->start();
   }
@@ -183,25 +198,22 @@ AE_TEST_INLINE(test_Callables) {
   AeContext* ae_context{};
   using any_waiter = AnyWaiter<stdexec::set_value_t(int)>;
   // test if value callback is accepted
-  using w_val = decltype(any_waiter{
-      *ae_context, stdexec::just(1),
-      [](std::optional<Result<int, Ignore>> r) { (void)r; }});
+  using w_val = decltype(any_waiter{*ae_context, stdexec::just(1),
+                                    [](std::optional<int> r) { (void)r; }});
   static_assert(std::is_same_v<w_val, any_waiter>);
   // test if const ref callback is accepted
-  using w_cons_ref = decltype(any_waiter{
-      *ae_context, stdexec::just(1),
-      [](std::optional<Result<int, Ignore>> const& r) { (void)r; }});
+  using w_cons_ref =
+      decltype(any_waiter{*ae_context, stdexec::just(1),
+                          [](std::optional<int> const& r) { (void)r; }});
   static_assert(std::is_same_v<w_cons_ref, any_waiter>);
   // test if ref callback is accepted
-  using w_ref = decltype(any_waiter{
-      *ae_context, stdexec::just(1),
-      [](std::optional<Result<int, Ignore>>& r) { (void)r; }});
+  using w_ref = decltype(any_waiter{*ae_context, stdexec::just(1),
+                                    [](std::optional<int>& r) { (void)r; }});
   static_assert(std::is_same_v<w_ref, any_waiter>);
 
   // test if rvalue callback is accepted
-  using w_rval = decltype(any_waiter{
-      *ae_context, stdexec::just(1),
-      [](std::optional<Result<int, Ignore>>&& r) { (void)r; }});
+  using w_rval = decltype(any_waiter{*ae_context, stdexec::just(1),
+                                     [](std::optional<int>&& r) { (void)r; }});
   static_assert(std::is_same_v<w_rval, any_waiter>);
 
   TEST_PASS();

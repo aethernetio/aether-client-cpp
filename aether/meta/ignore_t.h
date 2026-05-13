@@ -23,7 +23,10 @@ namespace ae {
 struct Ignore {
   template <typename... Us>
   constexpr explicit Ignore(Us&&...) noexcept {}
+  constexpr Ignore(Ignore const&) noexcept = default;
 };
+
+static constexpr inline auto kIgnore = Ignore{};
 
 template <typename T>
 struct IsIgnore : std::false_type {};
@@ -32,6 +35,7 @@ template <>
 struct IsIgnore<Ignore> : std::true_type {};
 template <typename T>
 static constexpr inline bool IsIgnore_v = IsIgnore<T>::value;
+
 }  // namespace ae
 
 #endif  // AETHER_META_IGNORE_T_H_

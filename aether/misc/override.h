@@ -26,7 +26,7 @@ namespace ae {
  */
 template <typename... Fs>
 struct Override : Fs... {
-  explicit Override(Fs... funcs) : Fs{std::forward<Fs>(funcs)}... {}
+  explicit Override(Fs... funcs) noexcept : Fs{std::forward<Fs>(funcs)}... {}
 
   using Fs::operator()...;
 };
