@@ -125,8 +125,11 @@ class BufferWrite {
     BW_LOG_DEBUG("BufferWrite: buffer write, capacity: {}",
                  buffer_.capacity() - buffer_.size());
     // Drain the buffer when the action is finished
-    bwa_finished_sub_ +=
-        buff_entry.wa.finished_event().Subscribe([this]() { DrainBuffer(); });
+    bwa_finished_sub_ += buff_entry.wa.finished_event().Subscribe([this]() {
+      if (!buffer_on_) {
+        DrainBuffer();
+      }
+    });
     return buff_entry.wa;
   }
 
