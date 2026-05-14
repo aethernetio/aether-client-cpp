@@ -44,7 +44,7 @@ class ActionPool : public etl::pool<T, Capacity> {
 
   template <typename... Args>
   T* Create(Args&&... args) {
-    auto* p = base_t::template create<T, Args...>(std::forward<Args>(args)...);
+    auto* p = base_t::create(std::forward<Args>(args)...);
     if (p != nullptr) {
       // destroy on finish
       static_cast<a2::Action*>(p)->finished_event().Subscribe(
