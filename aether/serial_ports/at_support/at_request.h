@@ -71,7 +71,7 @@ class AtRequestOp {
       std::tuple_size_v<decltype(std::declval<StateType>().waits)>;
 
   explicit AtRequestOp(StateType&& state, R&& r) noexcept
-      : state_{std::move(state)}, receiver_{std::move(r)} {}
+      : receiver_{std::move(r)}, state_{std::move(state)} {}
 
   void start() noexcept {
     // setup waiters
