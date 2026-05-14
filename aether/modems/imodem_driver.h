@@ -23,6 +23,7 @@
 #  include <span>
 #  include <string>
 #  include <cstdint>
+#  include <optional>
 
 #  include "aether/types/result.h"
 #  include "aether/events/events.h"
@@ -35,27 +36,69 @@
 namespace ae {
 enum class ModemError : int {};
 
-class OpenNetworkOperation : a2::Action {
+class OpenNetworkOperation : public a2::Action {
  public:
   // return either connection index or error
-  using ResultEvent = Event<void(Result<ConnectionIndex, ModemError>)>;
+  using ResultType = Result<ConnectionIndex, ModemError>;
+  using ResultEvent = Event<void(ResultType)>;
+  ResultEvent::Subscriber result_event() {
+    return EventSubscriber{result_event_};
+  }
+  std::optional<ResultType> const& result() const { return result_; }
 
-  virtual ResultEvent::Subscriber result_event() = 0;
+ protected:
+  void SetResult(ResultType&& res) {
+    result_.emplace(std::move(res));
+    result_event_.Emit(result_.value());
+    Finish();
+  }
+
+ private:
+  std::optional<ResultType> result_;
+  ResultEvent result_event_;
 };
 
-class WriteOperation : a2::Action {
+class WriteOperation : public a2::Action {
  public:
   // return size of bytes written, or error code
-  using ResultEvent = Event<void(Result<std::size_t, ModemError>)>;
+  using ResultType = Result<std::size_t, ModemError>;
+  using ResultEvent = Event<void(ResultType)>;
+  ResultEvent::Subscriber result_event() {
+    return EventSubscriber{result_event_};
+  }
+  std::optional<ResultType> const& result() const { return result_; }
 
-  virtual ResultEvent::Subscriber result_event() = 0;
+ protected:
+  void SetResult(ResultType&& res) {
+    result_.emplace(std::move(res));
+    result_event_.Emit(result_.value());
+    Finish();
+  }
+
+ private:
+  std::optional<ResultType> result_;
+  ResultEvent result_event_;
 };
 
-class ModemOperation : a2::Action {
+class ModemOperation : public a2::Action {
  public:
-  using ResultEvent = Event<void(Result<Ignore, ModemError>)>;
+  using ResultType = Result<Ignore, ModemError>;
+  using ResultEvent = Event<void(ResultType)>;
+  ResultEvent::Subscriber result_event() {
+    return EventSubscriber{result_event_};
+  }
+  std::optional<ResultType> const& result() const { return result_; }
 
-  virtual ResultEvent::Subscriber result_event() = 0;
+ protected:
+  void SetResult(ResultType&& res) {
+    result_.emplace(std::move(res));
+    result_event_.Emit(result_.value());
+    Finish();
+  }
+
+ private:
+  std::optional<ResultType> result_;
+  ResultEvent result_event_;
 };
 
 class IModemDriver {
