@@ -91,9 +91,6 @@ class AtSupport {
 
   Result<std::size_t, int> SendATCommand(std::string_view command);
 
-  AtListener ListenForResponse(std::string expected,
-                               AtListener::Handler handler);
-
   AtBuffer& at_buffer();
   AtDispatcher& dispatcher();
 

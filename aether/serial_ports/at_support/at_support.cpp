@@ -64,11 +64,6 @@ Result<std::size_t, int> AtSupport::SendATCommand(std::string_view command) {
   return Ok{command.size()};
 }
 
-AtListener AtSupport::ListenForResponse(std::string expected,
-                                        AtListener::Handler handler) {
-  return {dispatcher_, std::move(expected), std::move(handler)};
-}
-
 AtBuffer& AtSupport::at_buffer() { return at_buffer_; }
 AtDispatcher& AtSupport::dispatcher() { return dispatcher_; }
 
