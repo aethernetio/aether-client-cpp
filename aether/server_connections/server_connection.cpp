@@ -125,6 +125,7 @@ ServerConnection::ChannelEntry* ServerConnection::TopChannel() {
 }
 
 void ServerConnection::SelectChannel() {
+  AE_TELED_DEBUG("Select channel");
   top_channel_ = TopChannel();
   if (top_channel_ == nullptr) {
     ServerError();
@@ -192,6 +193,7 @@ void ServerConnection::ChannelUpdated() {
 }
 
 void ServerConnection::ServerError() {
+  AE_TELED_ERROR("Server error");
   buffer_write_.buffer_on();
   buffer_write_.Drop();
   channel_stream_update_sub_.Reset();
@@ -211,7 +213,9 @@ void ServerConnection::ChannelError() {
   channel_stream_update_sub_.Reset();
   channel_stream_outd_data_sub_.Reset();
   channel_connection_.reset();
-  top_channel_->failed = true;
+  if (top_channel_ != nullptr) {
+    top_channel_->failed = true;
+  }
 
   // if full_connected_ it wasn't channel error but server error
   if (full_connected_) {
