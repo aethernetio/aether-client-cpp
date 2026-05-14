@@ -71,9 +71,9 @@ void ModemTransport::SendTcpAction::Send() {
       SetStatus(Status::kFail);
       return;
     }
-
     packets_on_the_go_++;
-    send_subs_ += write_op->result_event().Subscribe([this](auto const& res) {
+
+    auto result_handler = [&](auto const& res) noexcept {
       if (res) {
         AE_TELED_DEBUG("Modem tcp {} bytes written", res.value());
         if ((--packets_on_the_go_) == 0) {
@@ -84,7 +84,15 @@ void ModemTransport::SendTcpAction::Send() {
                        static_cast<int>(res.error()));
         SetStatus(Status::kFail);
       }
-    });
+    };
+
+    // check immediate result
+    if (auto const& res = write_op->result(); res) {
+      result_handler(*res);
+      return;
+    }
+
+    send_subs_ += write_op->result_event().Subscribe(result_handler);
   }
 }
 
@@ -106,7 +114,8 @@ void ModemTransport::SendUdpAction::Send() {
     SetStatus(Status::kFail);
     return;
   }
-  send_sub_ = write_op->result_event().Subscribe([&](auto const& res) {
+
+  auto result_handler = [&](auto const& res) noexcept {
     if (res) {
       AE_TELED_DEBUG("Modem udp {} bytes written", res.value());
       SetStatus(Status::kSuccess);
@@ -115,7 +124,15 @@ void ModemTransport::SendUdpAction::Send() {
                      static_cast<int>(res.error()));
       SetStatus(Status::kFail);
     }
-  });
+  };
+
+  // check immediate result
+  if (auto const& res = write_op->result(); res) {
+    result_handler(*res);
+    return;
+  }
+
+  send_sub_ = write_op->result_event().Subscribe(result_handler);
 }
 
 ModemTransport::ModemTransport(AeContext const& ae_context,
@@ -233,14 +250,21 @@ void ModemTransport::Connect() {
     return;
   }
 
-  connection_sub_ =
-      connection_op->result_event().Subscribe([this](auto const& res) {
-        if (res) {
-          OnConnected(res.value());
-        } else {
-          OnConnectionFailed();
-        }
-      });
+  auto result_handler = [this](auto const& res) noexcept {
+    if (res) {
+      OnConnected(res.value());
+    } else {
+      OnConnectionFailed();
+    }
+  };
+
+  // check immediate result
+  if (auto const& res = connection_op->result(); res) {
+    result_handler(*res);
+    return;
+  }
+
+  connection_sub_ = connection_op->result_event().Subscribe(result_handler);
 }
 
 void ModemTransport::OnConnected(ConnectionIndex connection_index) {

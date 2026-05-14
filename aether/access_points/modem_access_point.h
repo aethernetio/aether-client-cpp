@@ -35,7 +35,8 @@ class ModemConnectAction final : public a2::Action {
  public:
   using ConnectionEvent = Event<void(bool)>;
 
-  explicit ModemConnectAction(IModemDriver& driver);
+  explicit ModemConnectAction(AeContext const& ae_context,
+                              IModemDriver& driver);
 
   ConnectionEvent::Subscriber connection_event();
 
@@ -45,6 +46,7 @@ class ModemConnectAction final : public a2::Action {
   IModemDriver* driver_;
   ConnectionEvent connection_event_;
   Subscription start_sub_;
+  TaskSubscription task_sub_;
 };
 
 class ModemAccessPoint final : public AccessPoint {

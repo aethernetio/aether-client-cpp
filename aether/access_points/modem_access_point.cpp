@@ -29,9 +29,9 @@
 namespace ae {
 ModemConnectAction::ModemConnectAction(AeContext const& ae_context,
                                        IModemDriver& driver)
-    : driver_{&driver} {
+    : driver_{&driver},
+      task_sub_{ae_context.scheduler().Task([&]() noexcept { Start(); })} {
   AE_TELED_DEBUG("ModemConnectAction created");
-  Start();
 }
 
 ModemConnectAction::ConnectionEvent::Subscriber
@@ -47,12 +47,27 @@ void ModemConnectAction::Start() {
     Finish();
     return;
   }
+  // check immediate result
+  if (auto const& res = op->result(); res) {
+    if (res->IsOk()) {
+      AE_TELED_INFO("Modem access point start success");
+      connection_event_.Emit(true);
+    } else {
+      AE_TELED_ERROR("Modem access point start failed, error {}",
+                     static_cast<int>(res->error()));
+      connection_event_.Emit(false);
+    }
+    Finish();
+    return;
+  }
+
   start_sub_ = op->result_event().Subscribe([this](auto const& res) {
     if (res) {
       AE_TELED_INFO("Modem access point start success");
       connection_event_.Emit(true);
     } else {
-      AE_TELED_ERROR("Modem access point start failed, error {}", res.error());
+      AE_TELED_ERROR("Modem access point start failed, error {}",
+                     static_cast<int>(res.error()));
       connection_event_.Emit(false);
     }
     Finish();
@@ -70,7 +85,8 @@ ModemConnectAction& ModemAccessPoint::Connect() {
 
   // reuse connect action if it's in progress
   if (!connect_action_ || connect_action_->is_finished()) {
-    connect_action_.emplace(modem_adapter_->modem_driver());
+    connect_action_.emplace(*aether_.Load().as<Aether>(),
+                            modem_adapter_->modem_driver());
   }
   return *connect_action_;
 }
