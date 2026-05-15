@@ -19,294 +19,191 @@
 
 #  include <string_view>
 
-#  include "aether/misc/defer.h"
-
-#  include "aether/actions/pipeline.h"
-#  include "aether/actions/gen_action.h"
+#  include "aether/misc/override.h"
+#  include "aether/executors/executors.h"
+#  include "aether/serial_ports/at_support/at_stage.h"
+#  include "aether/serial_ports/at_support/at_request.h"
 #  include "aether/serial_ports/serial_port_factory.h"
 
 #  include "aether/modems/modems_tele.h"
 
 namespace ae {
-static constexpr Duration kOneSecond = std::chrono::milliseconds{1000};
-static constexpr Duration kTenSeconds = std::chrono::milliseconds{10000};
-static constexpr Duration kTwoMinutes = std::chrono::milliseconds{120000};
-static const AtRequest::Wait kWaitOk{"OK", kOneSecond};
-static const AtRequest::Wait kWaitOkTenSeconds{"OK", kTenSeconds};
+static constexpr auto kWaitOk = at::Wait{"OK"};
 
-Sim7070AtModem::Sim7070AtModem(ActionContext action_context,
-                               IPoller::ptr const& poller, ModemInit modem_init)
-    : action_context_{action_context},
-      modem_init_{std::move(modem_init)},
-      serial_{SerialPortFactory::CreatePort(action_context_, poller,
-                                            modem_init_.serial_init)},
-      at_support_{action_context_, *serial_},
-      operation_queue_{action_context_},
-      initiated_{false},
-      started_{false} {
-  AE_TELED_DEBUG("Sim7070AtModem init");
-  Init();
+namespace sim7070_modem_internal {
+OpenNetworkOperationImpl::OpenNetworkOperationImpl(AeContext const& ae_context,
+                                                   Sim7070AtModem& self,
+                                                   Protocol protocol,
+                                                   std::string host,
+                                                   std::uint16_t port)
+    : ae_context_{ae_context},
+      self_{&self},
+      at_support_{self.at_support_},
+      protocol_{protocol},
+      host_{std::move(host)},
+      port_{port} {
+  AE_TELED_DEBUG("Open {} connection for {}:{}",
+                 protocol == Protocol::kTcp ? "tcp" : "udp", host_, port_);
+  RunPipeline();
 }
 
-void Sim7070AtModem::Init() {
-  operation_queue_->Push(Stage([this]() {
-    auto init_pipeline = MakeActionPtr<Pipeline>(
-        action_context_,
-        Stage([this]() { return at_support_.MakeRequest("AT", kWaitOk); }),
-        Stage([this]() { return at_support_.MakeRequest("ATE0", kWaitOk); }),
-        Stage(
-            [this]() { return at_support_.MakeRequest("AT+CMEE=1", kWaitOk); }),
-        Stage<GenAction>(action_context_, [this]() {
-          initiated_ = true;
-          return UpdateStatus::Result();
-        }));
-
-    init_pipeline->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[]() { AE_TELED_INFO("Sim7070AtModem init success"); }},
-        OnError{[]() { AE_TELED_ERROR("Sim7070AtModem init failed"); }},
-    });
-
-    return init_pipeline;
-  }));
-}
-
-ActionPtr<Sim7070AtModem::ModemOperation> Sim7070AtModem::Start() {
-  auto modem_operation = ActionPtr<ModemOperation>{action_context_};
-  operation_queue_->Push(Stage([this,
-                                modem_operation]() -> ActionPtr<IPipeline> {
-    // if already started, notify of success and return
-    if (started_) {
-      return MakeActionPtr<Pipeline>(
-          action_context_,
-          Stage<GenAction>(action_context_, [modem_operation]() {
-            modem_operation->Notify();
-            return UpdateStatus::Result();
-          }));
+auto OpenNetworkOperationImpl::Pipeline() {
+  // AT+CAOPEN=<cid>,<pdp_index>,<conn_type>,<server>,<port>[,<recv_mode>]
+  auto handle = self_->next_connection_index_++;
+  auto protocol_str = [&]() -> std::string_view {
+    if (protocol_ == Protocol::kTcp) {
+      return "TCP";
     }
+    if (protocol_ == Protocol::kUdp) {
+      return "UDP";
+    }
+    return "UNKNOWN";
+  }();
 
-    auto pipeline = MakeActionPtr<Pipeline>(
-        action_context_,
-        Stage<GenAction>(action_context_,
-                         [this]() {
-                           if (!initiated_) {
-                             return UpdateStatus::Error();
-                           }
-                           return UpdateStatus::Result();
-                         }),
-        Stage([this]() { return CheckSimStatus(); }),
-        Stage([this]() -> ActionPtr<IPipeline> {
-          if (modem_init_.use_pin) {
-            return SetupSim(modem_init_.pin);
-          }
-          // ignore setup sim
-          return MakeActionPtr<Pipeline>(
-              action_context_, Stage<GenAction>(action_context_, []() {
-                return UpdateStatus::Result();
-              }));
-        }),
-        // Enabling full functionality
-        Stage([this]() {
-          return at_support_.MakeRequest("AT+CFUN=1,0", kWaitOk);
-        }),
-        Stage([this]() {
-          return SetBaudRate(modem_init_.serial_init.baud_rate);
-        }),
-        Stage([this]() { return SetNetMode(modem_init_.modem_mode); }),
-        Stage([this]() {
-          return SetupNetwork(modem_init_.operator_name,
-                              modem_init_.operator_code, modem_init_.apn_name,
-                              modem_init_.apn_user, modem_init_.apn_pass,
-                              modem_init_.modem_mode, modem_init_.auth_type);
-        }),
-        // save it's started
-        Stage<GenAction>(action_context_, [this]() {
-          started_ = true;
-          SetupPoll();
-          return UpdateStatus::Result();
-        }));
+  return ex::just() |
+         at::MakeRequest(at_support_,
+                         Format(R"(AT+CAOPEN={},0,"{}","{}",{})", handle,
+                                protocol_str, host_, port_),
+                         at::Wait{Format("+CAOPEN: {},0", handle),
+                                  [handle](AtBuffer&, auto pos) {
+                                    std::int32_t result_code{};
+                                    int expected_handle =
+                                        static_cast<int>(handle);
+                                    if (at_support::ParseResponse(
+                                            *pos, "+CAOPEN", result_code,
+                                            expected_handle)) {
+                                      return result_code == 0;
+                                    }
+                                    return false;
+                                  }}) |
+         ex::with_timeout(ae_context_, 10s);
+}
 
-    pipeline->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[modem_operation]() { modem_operation->Notify(); }},
-        OnError{[modem_operation]() { modem_operation->Failed(); }},
-        OnStop{[modem_operation]() { modem_operation->Stop(); }}});
-
-    return pipeline;
+void OpenNetworkOperationImpl::RunPipeline() {
+  self_->operation_queue_.Push(at::Stage(ae_context_, [this]() {
+    return Pipeline() | ex::then([this]() noexcept {
+             AE_TELED_DEBUG("Opened connection {}", handle_);
+             self_->connections_.emplace(static_cast<ConnectionIndex>(handle_));
+             SetResult(Ok{static_cast<ConnectionIndex>(handle_)});
+           }) |
+           ex::upon_error(Override{
+               [&](ex::TimeoutError) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-2)});
+               },
+               [&](std::exception_ptr) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-3)});
+               },
+               [&](auto err) noexcept {
+                 SetResult(Error{static_cast<ModemError>(err)});
+               },
+           });
   }));
-
-  return modem_operation;
 }
 
-ActionPtr<Sim7070AtModem::ModemOperation> Sim7070AtModem::Stop() {
-  auto modem_operation = ActionPtr<ModemOperation>{action_context_};
+CloseNetworkOperationImpl::CloseNetworkOperationImpl(
+    AeContext const& ae_context, Sim7070AtModem& self,
+    ConnectionIndex connect_index)
+    : ae_context_{ae_context},
+      self_{&self},
+      at_support_{self.at_support_},
+      connect_index_{connect_index} {
+  AE_TELED_DEBUG("Close network connection {}", connect_index_);
+  RunPipeline();
+}
 
-  operation_queue_->Push(Stage([this, modem_operation]() {
-    auto pipeline = MakeActionPtr<Pipeline>(
-        action_context_,
-        // AT+CNACT=<pdpidx>,<action> // Deactivate the PDP context
-        Stage([this]() {
-          return at_support_.MakeRequest("AT+CNACT=0,0", kWaitOk);
-        }),
-        Stage([this]() {
-          return at_support_.MakeRequest(
-              "AT", AtRequest::Wait{"+APP PDP: 0,DEACTIVE", kTenSeconds});
-        }),
-        // Reset modem settings correctly
-        Stage([this]() { return at_support_.MakeRequest("ATZ", kWaitOk); }),
-        // Disabling full functionality
-        Stage(
-            [this]() { return at_support_.MakeRequest("AT+CFUN=0", kWaitOk); }),
-        Stage<GenAction>(action_context_, [this]() {
-          started_ = false;
-          return UpdateStatus::Result();
-        }));
+auto CloseNetworkOperationImpl::Pipeline() {
+  // AT+CACLOSE=<cid> // Close TCP/UDP socket
+  return ex::just() |
+         at::MakeRequest(
+             at_support_,
+             "AT+CACLOSE=" +
+                 std::to_string(static_cast<std::int32_t>(connect_index_)),
+             kWaitOk) |
+         ex::with_timeout(ae_context_, 10s);
+}
 
-    pipeline->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[modem_operation]() { modem_operation->Notify(); }},
-        OnError{[modem_operation]() { modem_operation->Failed(); }},
-        OnStop{[modem_operation]() { modem_operation->Stop(); }}});
-
-    return pipeline;
+void CloseNetworkOperationImpl::RunPipeline() {
+  self_->operation_queue_.Push(at::Stage(ae_context_, [this]() {
+    return Pipeline() | ex::then([this]() noexcept {
+             self_->connections_.erase(connect_index_);
+             SetResult(Ok{kIgnore});
+           }) |
+           ex::upon_error(Override{
+               [&](ex::TimeoutError) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-2)});
+               },
+               [&](std::exception_ptr const&) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-3)});
+               },
+               [&](auto err) noexcept {
+                 SetResult(Error{static_cast<ModemError>(err)});
+               },
+           });
   }));
-
-  return modem_operation;
 }
 
-ActionPtr<Sim7070AtModem::OpenNetworkOperation> Sim7070AtModem::OpenNetwork(
-    Protocol protocol, std::string const& host, std::uint16_t port) {
-  auto open_network_operation =
-      ActionPtr<OpenNetworkOperation>{action_context_};
+WriteOperationImpl::WriteOperationImpl(AeContext const& ae_context,
+                                       Sim7070AtModem& self,
+                                       ConnectionIndex connect_index,
+                                       std::span<std::uint8_t const> data)
+    : ae_context_{ae_context},
+      self_{&self},
+      at_support_{self.at_support_},
+      connect_index_{connect_index},
+      data_{data} {
+  AE_TELED_DEBUG("Write to connection {} ({} bytes)", connect_index_,
+                 data_.size());
+  RunPipeline();
+}
 
-  operation_queue_->Push(Stage([this, open_network_operation, protocol,
-                                host{host}, port]() -> ActionPtr<IPipeline> {
-    return OpenConnection(open_network_operation, protocol, host, port);
+auto WriteOperationImpl::Pipeline() {
+  auto handle = static_cast<std::int32_t>(connect_index_);
+
+  // AT+CASEND=<cid>,<datalen>[,<inputtime>]
+  return ex::just() |
+         at::MakeRequest(at_support_,
+                         "AT+CASEND=" + std::to_string(handle) + "," +
+                             std::to_string(data_.size()),
+                         at::Wait{">"}) |
+         at::MakeRequest(
+             at_support_,
+             [this]() noexcept -> Result<std::size_t, int> {
+               self_->serial_->Write(data_);
+               return Ok{data_.size()};
+             },
+             kWaitOk) |
+         ex::with_timeout(ae_context_, 10s);
+}
+
+void WriteOperationImpl::RunPipeline() {
+  self_->operation_queue_.Push(at::Stage(ae_context_, [this]() {
+    return Pipeline() |
+           ex::then([this]() noexcept { SetResult(Ok{data_.size()}); }) |
+           ex::upon_error(Override{
+               [&](ex::TimeoutError) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-2)});
+               },
+               [&](std::exception_ptr const&) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-3)});
+               },
+               [&](auto err) noexcept {
+                 SetResult(Error{static_cast<ModemError>(err)});
+               },
+           });
   }));
-
-  return open_network_operation;
 }
 
-ActionPtr<Sim7070AtModem::ModemOperation> Sim7070AtModem::CloseNetwork(
-    ConnectionIndex connect_index) {
-  auto modem_operation = ActionPtr<ModemOperation>{action_context_};
-
-  operation_queue_->Push(Stage([this, modem_operation, connect_index]() {
-    auto pipeline = MakeActionPtr<Pipeline>(
-        action_context_,
-        // AT+CACLOSE=<cid> // Close TCP/UDP socket
-        Stage([this, connect_index]() {
-          return at_support_.MakeRequest(
-              "AT+CACLOSE=" + std::to_string(connect_index), kWaitOk);
-        }),
-        Stage<GenAction>(action_context_, [this, connect_index]() {
-          connections_.erase(connect_index);
-          return UpdateStatus::Result();
-        }));
-
-    pipeline->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[modem_operation]() { modem_operation->Notify(); }},
-        OnError{[modem_operation]() { modem_operation->Failed(); }},
-        OnStop{[modem_operation]() { modem_operation->Stop(); }}});
-
-    return pipeline;
-  }));
-
-  return modem_operation;
+ModemStartOperation::ModemStartOperation(AeContext const& ae_context,
+                                         Sim7070AtModem& self)
+    : ae_context_{ae_context},
+      self_{&self},
+      modem_init_{self.modem_init_},
+      at_support_{self.at_support_} {
+  RunPipeline();
 }
 
-ActionPtr<Sim7070AtModem::WriteOperation> Sim7070AtModem::WritePacket(
-    ConnectionIndex connect_index, DataBuffer const& data) {
-  if (data.size() > kModemMTU) {
-    assert(false);
-    return {};
-  }
-
-  auto write_notify = ActionPtr<WriteOperation>{action_context_};
-
-  AE_TELED_DEBUG("Queue write packet for data size {}", data.size());
-
-  operation_queue_->Push(
-      Stage([this, write_notify, connect_index, data{data}]() {
-        auto write_pipeline = SendData(connect_index, data);
-        write_pipeline->StatusEvent().Subscribe(ActionHandler{
-            OnResult{[write_notify]() { write_notify->Notify(); }},
-            OnError{[write_notify]() { write_notify->Failed(); }},
-            OnStop{[write_notify]() { write_notify->Stop(); }},
-        });
-        return write_pipeline;
-      }));
-
-  return write_notify;
-}
-
-Sim7070AtModem::DataEvent::Subscriber Sim7070AtModem::data_event() {
-  return EventSubscriber{data_event_};
-}
-
-ActionPtr<Sim7070AtModem::ModemOperation> Sim7070AtModem::SetPowerSaveParam(
-    ModemPowerSaveParam const& psp) {
-  auto modem_operation = ActionPtr<ModemOperation>{action_context_};
-
-  operation_queue_->Push(Stage([this, modem_operation, psp{psp}]() {
-    // TODO: Implement SIM7070 specific power save parameters
-    auto pipeline = MakeActionPtr<Pipeline>(
-        action_context_, Stage<GenAction>(action_context_, []() {
-          return UpdateStatus::Result();
-        }));
-
-    pipeline->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[modem_operation]() { modem_operation->Notify(); }},
-        OnError{[modem_operation]() { modem_operation->Failed(); }},
-        OnStop{[modem_operation]() { modem_operation->Stop(); }}});
-
-    return pipeline;
-  }));
-
-  return modem_operation;
-}
-
-ActionPtr<Sim7070AtModem::ModemOperation> Sim7070AtModem::PowerOff() {
-  auto modem_operation = ActionPtr<ModemOperation>{action_context_};
-
-  operation_queue_->Push(Stage([this, modem_operation]() {
-    auto pipeline = MakeActionPtr<Pipeline>(action_context_,
-                                            // Disabling full functionality
-                                            Stage([this]() {
-                                              return at_support_.MakeRequest(
-                                                  "AT+CPOWD=1", kWaitOk);
-                                            }));
-
-    pipeline->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[modem_operation]() { modem_operation->Notify(); }},
-        OnError{[modem_operation]() { modem_operation->Failed(); }},
-        OnStop{[modem_operation]() { modem_operation->Stop(); }}});
-
-    return pipeline;
-  }));
-
-  return modem_operation;
-}
-
-// ============================private members=============================== //
-ActionPtr<IPipeline> Sim7070AtModem::CheckSimStatus() {
-  return MakeActionPtr<Pipeline>(
-      action_context_,
-      Stage([this]() { return at_support_.MakeRequest("AT+CPIN?", kWaitOk); }));
-}
-
-ActionPtr<IPipeline> Sim7070AtModem::SetupSim(std::uint16_t pin) {
-  return MakeActionPtr<Pipeline>(
-      action_context_, Stage([this, pin]() -> ActionPtr<AtRequest> {
-        auto pin_string = AtSupport::PinToString(pin);
-
-        if (pin_string.empty()) {
-          AE_TELED_ERROR("Pin wrong!");
-          return {};
-        }
-        // Check SIM card status
-        return at_support_.MakeRequest("AT+CPIN=" + pin_string, kWaitOk);
-      }));
-}
-
-ActionPtr<IPipeline> Sim7070AtModem::SetBaudRate(kBaudRate const rate) {
+auto ModemStartOperation::SetBaudRate(kBaudRate const rate) {
+  // TODO: maybe use flat map instead
   static const std::map<kBaudRate, std::string_view>
       baud_rate_commands_sim7070 = {
           {kBaudRate::kBaudRate0, "AT+IPR=0"},
@@ -329,17 +226,25 @@ ActionPtr<IPipeline> Sim7070AtModem::SetBaudRate(kBaudRate const rate) {
           {kBaudRate::kBaudRate3684000, "AT+IPR=3684000"},
           {kBaudRate::kBaudRate4000000, "AT+IPR=4000000"}};
 
-  return MakeActionPtr<Pipeline>(
-      action_context_, Stage([this, rate]() -> ActionPtr<AtRequest> {
-        auto it = baud_rate_commands_sim7070.find(rate);
-        if (it == baud_rate_commands_sim7070.end()) {
-          return {};
-        }
-        return at_support_.MakeRequest(std::string{it->second}, kWaitOk);
-      }));
+  return ex::let_value([&, rate]() noexcept {
+    auto make_request = [&](std::string&& cmd) noexcept {
+      return at::MakeRequest(ex::just(), at_support_, std::move(cmd), kWaitOk) |
+             ex::with_timeout(ae_context_, 1s);
+    };
+
+    using res = ex::variant_sender<
+        std::invoke_result_t<ex::just_error_t, int>,
+        std::invoke_result_t<decltype(make_request), std::string&&>>;
+
+    auto it = baud_rate_commands_sim7070.find(rate);
+    if (it == baud_rate_commands_sim7070.end()) {
+      return res{ex::just_error(1)};
+    }
+    return res{make_request(std::string{it->second})};
+  });
 }
 
-ActionPtr<IPipeline> Sim7070AtModem::SetNetMode(kModemMode const modem_mode) {
+auto ModemStartOperation::SetNetMode(kModemMode const modem_mode) {
   static const std::map<kModemMode, std::string_view>
       net_mode_commands_sim7070 = {
           {kModemMode::kModeAuto, "AT+CNMP=2"},      // Set modem mode Auto
@@ -352,17 +257,25 @@ ActionPtr<IPipeline> Sim7070AtModem::SetNetMode(kModemMode const modem_mode) {
            "AT+CMNB=3"},  // Set modem mode CatMNbIot
       };
 
-  return MakeActionPtr<Pipeline>(
-      action_context_, Stage([this, modem_mode]() -> ActionPtr<AtRequest> {
-        auto it = net_mode_commands_sim7070.find(modem_mode);
-        if (it == net_mode_commands_sim7070.end()) {
-          return {};
-        }
-        return at_support_.MakeRequest(std::string{it->second}, kWaitOk);
-      }));
+  return ex::let_value([&, modem_mode]() noexcept {
+    auto make_request = [&](std::string&& cmd) noexcept {
+      return at::MakeRequest(ex::just(), at_support_, std::move(cmd), kWaitOk) |
+             ex::with_timeout(ae_context_, 1s);
+    };
+
+    using res = ex::variant_sender<
+        std::invoke_result_t<ex::just_error_t, int>,
+        std::invoke_result_t<decltype(make_request), std::string&&>>;
+
+    auto it = net_mode_commands_sim7070.find(modem_mode);
+    if (it == net_mode_commands_sim7070.end()) {
+      return res{ex::just_error(2)};
+    }
+    return res{make_request(std::string{it->second})};
+  });
 }
 
-ActionPtr<IPipeline> Sim7070AtModem::SetupNetwork(
+auto ModemStartOperation::SetupNetwork(
     std::string const& operator_name, std::string const& operator_code,
     std::string const& apn_name, std::string const& apn_user,
     std::string const& apn_pass, kModemMode modem_mode, kAuthType auth_type) {
@@ -391,175 +304,411 @@ ActionPtr<IPipeline> Sim7070AtModem::SetupNetwork(
     type = "3";
   }
 
-  return MakeActionPtr<Pipeline>(
-      action_context_,
-      // Connect to the network
-      Stage([this, operator_name, mode, operator_code]() {
-        std::string cmd;
-        if (!operator_name.empty()) {
-          // Operator long name
-          cmd = "AT+COPS=1,0,\"" + operator_name + "\"," + mode;
-        } else if (!operator_code.empty()) {
-          // Operator code
-          cmd = "AT+COPS=1,2,\"" + operator_code + "\"," + mode;
-        } else {
-          // Auto
-          cmd = "AT+COPS=0";
-        }
-        return at_support_.MakeRequest(cmd, AtRequest::Wait{"OK", kTwoMinutes});
-      }),
-      Stage([this, apn_name]() {
-        return at_support_.MakeRequest(
-            R"(AT+CGDCONT=1,"IP",")" + apn_name + "\"", kWaitOk);
-      }),
-      // AT+CNCFG=<pdpidx>,<ip_type>,[<APN>,[<usename>,<password>,[<authentication>]]]
-      Stage([this, apn_name, apn_user, apn_pass, type]() {
-        return at_support_.MakeRequest("AT+CNCFG=0,0,\"" + apn_name + "\",\"" +
-                                           apn_user + "\",\"" + apn_pass +
-                                           "\"," + type,
-                                       kWaitOk);
-      }),
-      Stage([this]() {
-        return at_support_.MakeRequest("AT+CREG=1;+CGREG=1;+CEREG=1", kWaitOk);
-      }),
-      // AT+CNACT=<pdpidx>,<action> // Activate the PDP context
-      Stage([this]() {
-        return at_support_.MakeRequest("AT+CNACT=0,1", kWaitOk);
-      }));
-}
-
-ActionPtr<IPipeline> Sim7070AtModem::SetupProtoPar() {
-  // TODO: Implement protocol parameters setup
-  return MakeActionPtr<Pipeline>(action_context_,
-                                 Stage<GenAction>(action_context_, []() {
-                                   return UpdateStatus::Result();
-                                 }));
-}
-
-ActionPtr<IPipeline> Sim7070AtModem::OpenConnection(
-    ActionPtr<OpenNetworkOperation> const& open_network_operation,
-    Protocol protocol, std::string const& host, std::uint16_t port) {
-  auto handle = next_connection_index_++;
-  auto open_operation = MakeActionPtr<Pipeline>(
-      action_context_,
-      // AT+CAOPEN=<cid>,<pdp_index>,<conn_type>,<server>,<port>[,<recv_mode>]
-      Stage([this, handle, protocol, host, port]() {
-        auto protocol_str = std::invoke([&]() -> std::string_view {
-          if (protocol == Protocol::kTcp) {
-            return "TCP";
-          }
-          if (protocol == Protocol::kUdp) {
-            return "UDP";
-          }
-          return "UNKNOWN";
-        });
-        return at_support_.MakeRequest(
-            Format(R"(AT+CAOPEN={},0,"{}","{}",{})",
-                   static_cast<std::int32_t>(handle), protocol_str, host, port),
-            AtRequest::Wait{
-                Format("+CAOPEN: {},0", static_cast<std::int32_t>(handle)),
-                kTenSeconds});
-      }),
-      Stage<GenAction>(action_context_, [this, handle]() {
-        connections_.emplace(static_cast<ConnectionIndex>(handle));
-        return UpdateStatus::Result();
-      }));
-
-  open_operation->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[open_network_operation, handle]() {
-        open_network_operation->SetValue(handle);
-      }},
-      OnError{[open_network_operation]() { open_network_operation->Reject(); }},
+  auto cmd = std::invoke([&]() noexcept -> std::string {
+    if (!operator_name.empty()) {
+      // Operator long name
+      return "AT+COPS=1,0,\"" + operator_name + "\"," + mode;
+    }
+    if (!operator_code.empty()) {
+      return "AT+COPS=1,2,\"" + operator_code + "\"," + mode;  // Operator code
+    }
+    return "AT+COPS=0";  // Auto
   });
 
-  return open_operation;
+  return at::MakeRequest(at_support_, std::move(cmd), at::Wait{"OK"}) |
+         ex::with_timeout(ae_context_, 120s) |
+         at::MakeRequest(at_support_,
+                         R"(AT+CGDCONT=1,"IP",")" + apn_name + "\"", kWaitOk) |
+         ex::with_timeout(ae_context_, 1s) |
+         at::MakeRequest(at_support_,
+                         "AT+CNCFG=0,0,\"" + apn_name + "\",\"" + apn_user +
+                             "\",\"" + apn_pass + "\"," + type,
+                         kWaitOk) |
+         ex::with_timeout(ae_context_, 1s) |
+         at::MakeRequest(at_support_, "AT+CREG=1;+CGREG=1;+CEREG=1", kWaitOk) |
+         ex::with_timeout(ae_context_, 1s) |
+         at::MakeRequest(at_support_,
+                         "AT+CNACT=0,1",  // Activate the PDP context
+                         kWaitOk) |
+         ex::with_timeout(ae_context_, 30s);
 }
 
-ActionPtr<IPipeline> Sim7070AtModem::SendData(ConnectionIndex connection,
-                                              DataBuffer const& data) {
-  return MakeActionPtr<Pipeline>(
-      action_context_,
-      // AT+CASEND=<cid>,<datalen>[,<inputtime>]
-      Stage([this, connection, size{data.size()}]() {
-        return at_support_.MakeRequest(
-            "AT+CASEND=" + std::to_string(connection) + "," +
-                std::to_string(size),
-            AtRequest::Wait{">", kOneSecond});
-      }),
-      Stage([this, data{data}]() mutable {
-        return at_support_.MakeRequest(
-            [this, data{std::move(data)}]() {
-              auto write_action = ActionPtr<AtWriteAction>{action_context_};
-              serial_->Write(data);
-              write_action->Notify();
-              return write_action;
-            },
-            kWaitOk);
-      }));
+auto ModemStartOperation::CheckSimStatus() {
+  return at::MakeRequest(at_support_, "AT+CPIN?", kWaitOk) |
+         ex::with_timeout(ae_context_, 1s);
 }
 
-ActionPtr<IPipeline> Sim7070AtModem::ReadPacket(ConnectionIndex connection) {
-  return MakeActionPtr<Pipeline>(
-      action_context_,
-      // AT+CARECV=<cid>,<readlen>
-      Stage([this, connection]() {
-        return at_support_.MakeRequest(
-            "AT+CARECV=" + std::to_string(connection) + ",1024", kWaitOk,
-            AtRequest::Wait{
-                "+CARECV: ", kOneSecond,
-                [this, connection](auto& at_buffer, auto pos) {
-                  // Parse the response format: +CARECV: [<remote IP>,<remote
-                  // port>,]<recvlen>,...data
-                  std::size_t size{};
+auto ModemStartOperation::SetupSim(std::uint16_t pin) {
+  return ex::let_value([&, pin]() noexcept {
+    auto pin_string = at_support::PinToString(pin);
 
-                  auto parse_res =
-                      AtSupport::ParseResponse(*pos, "+CARECV", size);
-                  if (!parse_res) {
-                    AE_TELED_ERROR("Failed to parse CARECV response");
-                    return false;
-                  }
-                  AE_TELED_DEBUG("Received data size {} connection {}", size,
-                                 static_cast<std::int32_t>(connection));
+    auto make_request = [&]() noexcept {
+      return at::MakeRequest(ex::just(), at_support_, "AT+CPIN=" + pin_string,
+                             kWaitOk) |
+             ex::with_timeout(ae_context_, 1s);
+    };
 
-                  // Extract the actual data
-                  auto recv_data =
-                      at_buffer.GetCrate(size, *parse_res + 1, pos);
-                  AE_TELED_DEBUG("Received size {} bytes \ndata{}",
-                                 recv_data.size(), recv_data);
+    using res =
+        ex::variant_sender<std::invoke_result_t<decltype(ex::just_error), int>,
+                           std::invoke_result_t<decltype(make_request)>>;
 
-                  if (recv_data.size() != size) {
-                    AE_TELED_ERROR("Received {} bytes, expected {}",
-                                   recv_data.size(), size);
-                    return false;
-                  }
-
-                  // Emit the received data
-                  data_event_.Emit(connection, recv_data);
-                  return true;
-                }});
-      }));
+    if (pin_string.empty()) {
+      AE_TELED_ERROR("Pin wrong!");
+      return res{ex::just_error(3)};
+    }
+    return res{make_request()};
+  });
 }
 
+auto ModemStartOperation::Pipeline() {
+  return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
+             [&](auto& ctx) noexcept {
+               if (self_->initiated_) {
+                 ex::set_value(std::move(ctx.receiver));
+               } else {
+                 AE_TELED_ERROR("Modem not initiated");
+                 ex::set_error(std::move(ctx.receiver), -1);
+               }
+             }) |
+         CheckSimStatus() | ex::let_value([&]() noexcept {
+           auto setup_sim = [this]() noexcept {
+             return ex::just() | SetupSim(modem_init_.use_pin);
+           };
+           using res =
+               ex::variant_sender<std::invoke_result_t<decltype(ex::just)>,
+                                  std::invoke_result_t<decltype(setup_sim)>>;
+
+           if (modem_init_.use_pin) {
+             return res{setup_sim()};
+           }
+           return res{ex::just()};
+         }) |
+         at::MakeRequest(at_support_, "AT+CFUN=1,0", kWaitOk) |
+         ex::with_timeout(ae_context_, 1s) |
+         SetBaudRate(modem_init_.serial_init.baud_rate) |
+         SetNetMode(modem_init_.modem_mode) |
+         SetupNetwork(modem_init_.operator_name, modem_init_.operator_code,
+                      modem_init_.apn_name, modem_init_.apn_user,
+                      modem_init_.apn_pass, modem_init_.modem_mode,
+                      modem_init_.auth_type);
+}
+
+void ModemStartOperation::RunPipeline() {
+  // all AT operations must be in operation_queue_
+  self_->operation_queue_.Push(at::Stage(ae_context_, [this]() noexcept {
+    return Pipeline() | ex::then([&]() noexcept {
+             self_->started_ = true;
+             self_->SetupPoll();
+             SetResult(Ok{kIgnore});
+           }) |
+           ex::upon_error(Override{
+               [&](ex::TimeoutError) noexcept {
+                 AE_TELED_ERROR("ModemStartOperation timeout");
+                 SetResult(Error{static_cast<ModemError>(-2)});
+               },
+               [&](std::exception_ptr const&) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-3)});
+               },
+               [&](auto err) noexcept {
+                 AE_TELED_ERROR("ModemStartOperation error: {}", err);
+                 SetResult(Error{static_cast<ModemError>(err)});
+               },
+           });
+  }));
+}
+
+ModemStopOperation::ModemStopOperation(AeContext const& ae_context,
+                                       Sim7070AtModem& self)
+    : ae_context_{ae_context}, self_{&self}, at_support_{self.at_support_} {
+  RunPipeline();
+}
+
+auto ModemStopOperation::Pipeline() {
+  return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
+             [&](auto& ctx) noexcept {
+               if (!self_->started_) {
+                 ex::set_error(std::move(ctx.receiver), -1);
+                 return;
+               }
+               ex::set_value(std::move(ctx.receiver));
+             }) |
+         at::MakeRequest(at_support_, "AT+CNACT=0,0", kWaitOk) |
+         ex::with_timeout(ae_context_, 10s) |
+         at::MakeRequest(at_support_, "", at::Wait{"+APP PDP: 0,DEACTIVE"},
+                         kWaitOk) |
+         ex::with_timeout(ae_context_, 10s) |
+         at::MakeRequest(at_support_, "ATZ", kWaitOk) |
+         ex::with_timeout(ae_context_, 1s) |
+         at::MakeRequest(at_support_, "AT+CFUN=0", kWaitOk) |
+         ex::with_timeout(ae_context_, 1s);
+}
+
+void ModemStopOperation::RunPipeline() {
+  self_->operation_queue_.Push(at::Stage(ae_context_, [this]() {
+    return Pipeline() | ex::then([&]() noexcept {
+             self_->started_ = false;
+             SetResult(Ok{kIgnore});
+           }) |
+           ex::upon_error(Override{
+               [&](ex::TimeoutError) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-2)});
+               },
+               [&](std::exception_ptr const&) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-3)});
+               },
+               [&](auto err) noexcept {
+                 SetResult(Error{static_cast<ModemError>(err)});
+               },
+           });
+  }));
+}
+
+ModemSetPowerSaveParamOperation::ModemSetPowerSaveParamOperation(
+    AeContext const& ae_context, Sim7070AtModem& self, ModemPowerSaveParam psp)
+    : ae_context_{ae_context}, self_{&self}, psp_{std::move(psp)} {
+  RunPipeline();
+}
+
+auto ModemSetPowerSaveParamOperation::Pipeline() {
+  return ex::just() | ex::with_timeout(ae_context_, 1s);
+}
+
+void ModemSetPowerSaveParamOperation::RunPipeline() {
+  self_->operation_queue_.Push(at::Stage(ae_context_, [this]() noexcept {
+    return Pipeline() | ex::then([&]() noexcept { SetResult(Ok{kIgnore}); }) |
+           ex::upon_error(Override{
+               [&](ex::TimeoutError) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-2)});
+               },
+               [&](std::exception_ptr const&) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-3)});
+               },
+               [&](auto err) noexcept {
+                 SetResult(Error{static_cast<ModemError>(err)});
+               },
+           });
+  }));
+}
+
+ModemPowerOffOperation::ModemPowerOffOperation(AeContext const& ae_context,
+                                               Sim7070AtModem& self)
+    : ae_context_{ae_context}, self_{&self}, at_support_{self.at_support_} {
+  RunPipeline();
+}
+
+auto ModemPowerOffOperation::Pipeline() {
+  return ex::just() | at::MakeRequest(at_support_, "AT+CFUN=1", kWaitOk) |
+         ex::with_timeout(ae_context_, 1s) |
+         at::MakeRequest(at_support_, "AT+CPOWD=1", kWaitOk) |
+         ex::with_timeout(ae_context_, 5s);
+}
+
+void ModemPowerOffOperation::RunPipeline() {
+  self_->operation_queue_.Push(at::Stage(ae_context_, [this]() {
+    return Pipeline() | ex::then([&]() noexcept { SetResult(Ok{kIgnore}); }) |
+           ex::upon_error(Override{
+               [&](ex::TimeoutError) noexcept {
+                 SetResult(Error{static_cast<ModemError>(-2)});
+               },
+               [&](auto error) noexcept {
+                 SetResult(Error{static_cast<ModemError>(error)});
+               },
+           });
+  }));
+}
+}  // namespace sim7070_modem_internal
+
+Sim7070AtModem::Sim7070AtModem(AeContext const& ae_context,
+                               IPoller::ptr const& poller, ModemInit modem_init)
+    : ae_context_{ae_context},
+      modem_init_{std::move(modem_init)},
+      serial_{SerialPortFactory::CreatePort(ae_context_, poller,
+                                            modem_init_.serial_init)},
+      at_support_{*serial_},
+      operation_queue_{},
+      open_network_pool_{ae_context_},
+      close_network_pool_{ae_context_},
+      write_pool_{ae_context_},
+      initiated_{false},
+      started_{false} {
+  AE_TELED_DEBUG("Sim7070AtModem init");
+  Init();
+}
+
+void Sim7070AtModem::Init() {
+  operation_queue_.Push(at::Stage(ae_context_, [this]() {
+    return at::MakeRequest(ex::just(), at_support_, "AT", kWaitOk) |
+           at::MakeRequest(at_support_, "ATE0", kWaitOk) |
+           at::MakeRequest(at_support_, "AT+CMEE=1", kWaitOk) |
+           ex::with_timeout(ae_context_, 1s) | ex::then([&]() noexcept {
+             AE_TELED_INFO("Sim7070AtModem init success");
+             initiated_ = true;
+           }) |
+           ex::upon_error(Override{
+               [](ex::TimeoutError) {
+                 AE_TELED_ERROR("Sim7070AtModem init failed, with timeout");
+               },
+               [](int error) {
+                 AE_TELED_ERROR("Sim7070AtModem init failed, with error {}",
+                                error);
+               },
+           });
+  }));
+}
+
+ModemOperation* Sim7070AtModem::Start() {
+  if (!modem_start_operation_ || modem_start_operation_->is_finished()) {
+    if (started_) {
+      modem_start_operation_ = std::make_unique<
+          sim7070_modem_internal::ModemStartedAlreadyOperation>();
+    } else {
+      modem_start_operation_ =
+          std::make_unique<sim7070_modem_internal::ModemStartOperation>(
+              ae_context_, *this);
+    }
+  }
+
+  return modem_start_operation_.get();
+}
+
+ModemOperation* Sim7070AtModem::Stop() {
+  if (!modem_stop_operation_ || modem_stop_operation_->is_finished()) {
+    if (!started_) {
+      modem_stop_operation_ = std::make_unique<
+          sim7070_modem_internal::ModemStoppedAlreadyOperation>();
+    } else {
+      modem_stop_operation_ =
+          std::make_unique<sim7070_modem_internal::ModemStopOperation>(
+              ae_context_, *this);
+    }
+  }
+
+  return modem_stop_operation_.get();
+}
+
+OpenNetworkOperation* Sim7070AtModem::OpenNetwork(Protocol protocol,
+                                                  std::string const& host,
+                                                  std::uint16_t port) {
+  // setup polling on demand
+  if (!poll_listener_) {
+    SetupPoll();
+  }
+
+  auto* op =
+      open_network_pool_.Create(ae_context_, *this, protocol, host, port);
+  return op;
+}
+
+ModemOperation* Sim7070AtModem::CloseNetwork(ConnectionIndex connect_index) {
+  auto* op = close_network_pool_.Create(ae_context_, *this, connect_index);
+  return op;
+}
+
+WriteOperation* Sim7070AtModem::WritePacket(
+    ConnectionIndex connect_index, std::span<std::uint8_t const> data) {
+  if (data.size() > kModemMTU) {
+    assert(false);
+    return nullptr;
+  }
+
+  auto* op = write_pool_.Create(ae_context_, *this, connect_index, data);
+  return op;
+}
+
+Sim7070AtModem::DataEvent::Subscriber Sim7070AtModem::data_event() {
+  return EventSubscriber{data_event_};
+}
+
+ModemOperation* Sim7070AtModem::SetPowerSaveParam(
+    ModemPowerSaveParam const& psp) {
+  if (!modem_set_psp_operation_ || modem_set_psp_operation_->is_finished()) {
+    modem_set_psp_operation_ = std::make_unique<
+        sim7070_modem_internal::ModemSetPowerSaveParamOperation>(ae_context_,
+                                                                 *this, psp);
+  }
+
+  return modem_set_psp_operation_.get();
+}
+
+ModemOperation* Sim7070AtModem::PowerOff() {
+  if (!modem_poweroff_operation_ || modem_poweroff_operation_->is_finished()) {
+    modem_poweroff_operation_ =
+        std::make_unique<sim7070_modem_internal::ModemPowerOffOperation>(
+            ae_context_, *this);
+  }
+  return modem_poweroff_operation_.get();
+}
+
+// ============================private members=============================== //
 void Sim7070AtModem::SetupPoll() {
-  poll_listener_ =
-      at_support_.ListenForResponse("+CADATAIND: ", [this](auto&, auto pos) {
-        std::int32_t cid{};
-        AtSupport::ParseResponse(*pos, "+CADATAIND", cid);
-        PollEvent(cid);
-      });
+  poll_listener_.emplace(at_support_.dispatcher(),
+                         "+CADATAIND: ", [this](auto&, auto pos) {
+                           std::int32_t cid{};
+                           at_support::ParseResponse(*pos, "+CADATAIND", cid);
+                           PollEvent(cid);
+                         });
 }
 
 void Sim7070AtModem::PollEvent(std::int32_t handle) {
-  // get connection index
   auto it = connections_.find(static_cast<ConnectionIndex>(handle));
   if (it == std::end(connections_)) {
     AE_TELED_ERROR("Poll unknown handle {}", handle);
     return;
   }
 
-  AE_TELED_DEBUG("Data available for connection {}", handle);
-  operation_queue_->Push(
-      Stage([this, connection{*it}]() { return ReadPacket(connection); }));
+  if (recv_in_queue_ > 0) {
+    return;
+  }
+  recv_in_queue_++;
+  auto finally = [this]() noexcept {
+    return ex::then([this]() noexcept { recv_in_queue_--; }) |
+           ex::upon_error([this]() noexcept { recv_in_queue_--; });
+  };
+
+  operation_queue_.Push(at::Stage(ae_context_, [this, connection{*it},
+                                                finally]() {
+    auto conn = static_cast<std::int32_t>(connection);
+    return ex::just() |
+           at::MakeRequest(
+               at_support_, "AT+CARECV=" + std::to_string(conn) + ",1024",
+               at::Wait{
+                   "+CARECV: ",
+                   [this, connection](auto& at_buffer, auto pos) {
+                     std::size_t size{};
+                     auto parse_res =
+                         at_support::ParseResponse(*pos, "+CARECV", size);
+                     if (!parse_res) {
+                       AE_TELED_ERROR("Failed to parse CARECV response");
+                       return false;
+                     }
+                     AE_TELED_DEBUG("Received data size {} connection {}", size,
+                                    static_cast<std::int32_t>(connection));
+
+                     auto recv_data =
+                         at_buffer.GetCrate(size, *parse_res + 1, pos);
+                     AE_TELED_DEBUG("Received size {} bytes", recv_data.size());
+
+                     if (recv_data.size() != size) {
+                       AE_TELED_ERROR("Received {} bytes, expected {}",
+                                      recv_data.size(), size);
+                       return false;
+                     }
+
+                     data_event_.Emit(connection, recv_data);
+                     return true;
+                   }}) |
+           ex::with_timeout(ae_context_, 15s) |
+           ex::upon_error(Override{
+               [&](ex::TimeoutError) noexcept {
+                 AE_TELED_ERROR("Recv timeout");
+               },
+               [&](std::exception_ptr const&) noexcept {
+                 AE_TELED_ERROR("Recv exception");
+               },
+               [&](auto err) noexcept { AE_TELED_ERROR("Recv error {}", err); },
+           }) |
+           finally();
+  }));
 }
 
 } /* namespace ae */
