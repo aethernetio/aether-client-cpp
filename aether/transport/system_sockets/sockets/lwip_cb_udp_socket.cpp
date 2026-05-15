@@ -58,7 +58,7 @@ std::optional<std::size_t> LwipCBUdpSocket::Send(Span<std::uint8_t> data) {
     }
   };
 
-  p = pbuf_alloc(PBUF_TRANSPORT, data.size(), PBUF_RAM);
+  p = pbuf_alloc(PBUF_TRANSPORT, static_cast<u16_t>(data.size()), PBUF_RAM);
   if (!p) {
     AE_TELED_ERROR("Failed to allocate pbuf");
     OnError();

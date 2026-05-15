@@ -32,7 +32,7 @@ class Subscription {
 
   Subscription() = default;
 
-  Subscription(EventHandlerDeleter&& event_handler_deleter);
+  Subscription(EventHandlerDeleter&& event_handler_deleter);  // NOLINT
   Subscription(Subscription const&) = delete;
   Subscription(Subscription&& other) noexcept;
   ~Subscription();

@@ -96,7 +96,8 @@ bool WinSerialPort::IsOpen() { return fd_ != INVALID_HANDLE_VALUE; }
 void WinSerialPort::PollEvent(LPOVERLAPPED) { HandleRead(); }
 
 void WinSerialPort::RequestRead() {
-  DWORD dwErr, dwRead, fRes;
+  DWORD dwErr, dwRead;
+  BOOL fRes;
 
   if (fd_ == INVALID_HANDLE_VALUE) {
     AE_TELE_ERROR(kAdapterSerialNotOpen, "Port is not open");

@@ -19,7 +19,7 @@
 namespace ae {
 EventHandlerDeleter::EventHandlerDeleter(
     RcPtr<EventHandlersList> const& event_handlers,
-    typename EventHandlersList::Index index)
+    EventHandlersList::Index index)
     : event_handlers_{event_handlers}, index_{index} {}
 
 void EventHandlerDeleter::Delete() {

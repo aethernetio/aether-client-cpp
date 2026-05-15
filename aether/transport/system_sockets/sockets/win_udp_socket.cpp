@@ -46,7 +46,7 @@ WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
 
   // make socket non-blocking
   u_long nonblocking = 1;
-  if (auto res = ::ioctlsocket(sock, FIONBIO, &nonblocking);
+  if (auto res = ::ioctlsocket(sock, static_cast<long>(FIONBIO), &nonblocking);
       res == SOCKET_ERROR) {
     AE_TELED_ERROR("Socket make non-blocking error {}", WSAGetLastError());
     return;

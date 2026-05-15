@@ -73,7 +73,7 @@ WinTcpSocket::WinTcpSocket(Ptr<IPoller> const& poller)
 
   // make socket non-blocking
   u_long nonblocking = 1;
-  auto res2 = ::ioctlsocket(sock, FIONBIO, &nonblocking);
+  auto res2 = ::ioctlsocket(sock, static_cast<long>(FIONBIO), &nonblocking);
   if (res2 == SOCKET_ERROR) {
     AE_TELED_ERROR("Socket make non-blocking error {}", WSAGetLastError());
     return;
