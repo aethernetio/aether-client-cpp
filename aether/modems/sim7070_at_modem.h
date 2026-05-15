@@ -23,80 +23,207 @@
 #  include <set>
 #  include <memory>
 
+#  include "aether/ae_context.h"
 #  include "aether/poller/poller.h"
-#  include "aether/actions/pipeline.h"
+#  include "aether/actions/action_pool.h"
 #  include "aether/actions/actions_queue.h"
+#  include "aether/actions/repeatable_task.h"
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/at_support/at_support.h"
 
 #  include "aether/modems/imodem_driver.h"
 
 namespace ae {
-class Sim7070TcpOpenNetwork;
-class Sim7070UdpOpenNetwork;
+class Sim7070AtModem;
+
+namespace sim7070_modem_internal {
+class OpenNetworkOperationImpl final : public OpenNetworkOperation {
+ public:
+  explicit OpenNetworkOperationImpl(AeContext const& ae_context,
+                                    Sim7070AtModem& self, Protocol protocol,
+                                    std::string host, std::uint16_t port);
+
+ private:
+  auto Pipeline();
+  void RunPipeline();
+
+  AeContext ae_context_;
+  Sim7070AtModem* self_;
+  AtSupport& at_support_;
+  Protocol protocol_;
+  std::string host_;
+  std::uint16_t port_;
+  std::int32_t handle_{-1};
+};
+
+class CloseNetworkOperationImpl final : public ModemOperation {
+ public:
+  explicit CloseNetworkOperationImpl(AeContext const& ae_context,
+                                     Sim7070AtModem& self,
+                                     ConnectionIndex connect_index);
+
+ private:
+  auto Pipeline();
+  void RunPipeline();
+
+  AeContext ae_context_;
+  Sim7070AtModem* self_;
+  AtSupport& at_support_;
+  ConnectionIndex connect_index_;
+};
+
+class WriteOperationImpl final : public WriteOperation {
+ public:
+  explicit WriteOperationImpl(AeContext const& ae_context, Sim7070AtModem& self,
+                              ConnectionIndex connect_index,
+                              std::span<std::uint8_t const> data);
+
+ private:
+  auto Pipeline();
+  void RunPipeline();
+
+  AeContext ae_context_;
+  Sim7070AtModem* self_;
+  AtSupport& at_support_;
+  ConnectionIndex connect_index_;
+  std::span<std::uint8_t const> data_;
+};
+
+class ModemStartedAlreadyOperation final : public ModemOperation {
+ public:
+  explicit ModemStartedAlreadyOperation() { SetResult(Ok{kIgnore}); };
+};
+
+class ModemStartOperation final : public ModemOperation {
+ public:
+  explicit ModemStartOperation(AeContext const& ae_context,
+                               Sim7070AtModem& self);
+
+ private:
+  auto SetBaudRate(kBaudRate const rate);
+  auto SetNetMode(kModemMode const modem_mode);
+  auto SetupNetwork(std::string const& operator_name,
+                    std::string const& operator_code,
+                    std::string const& apn_name, std::string const& apn_user,
+                    std::string const& apn_pass, kModemMode modem_mode,
+                    kAuthType auth_type);
+  auto CheckSimStatus();
+  auto SetupSim(std::uint16_t pin);
+  auto SetupProtoPar();
+  auto Pipeline();
+
+  void RunPipeline();
+
+  AeContext ae_context_;
+  Sim7070AtModem* self_;
+  ModemInit modem_init_;
+  AtSupport& at_support_;
+};
+
+class ModemStoppedAlreadyOperation final : public ModemOperation {
+ public:
+  explicit ModemStoppedAlreadyOperation() { SetResult(Ok{kIgnore}); };
+};
+
+class ModemStopOperation final : public ModemOperation {
+ public:
+  explicit ModemStopOperation(AeContext const& ae_context,
+                              Sim7070AtModem& self);
+
+ private:
+  auto Pipeline();
+  void RunPipeline();
+
+  AeContext ae_context_;
+  Sim7070AtModem* self_;
+  AtSupport& at_support_;
+};
+
+class ModemSetPowerSaveParamOperation final : public ModemOperation {
+ public:
+  explicit ModemSetPowerSaveParamOperation(AeContext const& ae_context,
+                                           Sim7070AtModem& self,
+                                           ModemPowerSaveParam psp);
+
+ private:
+  auto Pipeline();
+  void RunPipeline();
+
+  AeContext ae_context_;
+  Sim7070AtModem* self_;
+  ModemPowerSaveParam psp_;
+};
+
+class ModemPowerOffOperation final : public ModemOperation {
+ public:
+  explicit ModemPowerOffOperation(AeContext const& ae_context,
+                                  Sim7070AtModem& self);
+
+ private:
+  auto Pipeline();
+  void RunPipeline();
+
+  AeContext ae_context_;
+  Sim7070AtModem* self_;
+  AtSupport& at_support_;
+};
+}  // namespace sim7070_modem_internal
 
 class Sim7070AtModem final : public IModemDriver {
-  friend class Sim7070TcpOpenNetwork;
-  friend class Sim7070UdpOpenNetwork;
+  friend class sim7070_modem_internal::OpenNetworkOperationImpl;
+  friend class sim7070_modem_internal::CloseNetworkOperationImpl;
+  friend class sim7070_modem_internal::WriteOperationImpl;
+  friend class sim7070_modem_internal::ModemStartOperation;
+  friend class sim7070_modem_internal::ModemStopOperation;
+  friend class sim7070_modem_internal::ModemSetPowerSaveParamOperation;
+  friend class sim7070_modem_internal::ModemPowerOffOperation;
   static constexpr std::uint16_t kModemMTU{1520};
 
  public:
-  explicit Sim7070AtModem(ActionContext action_context,
+  explicit Sim7070AtModem(AeContext const& ae_context,
                           IPoller::ptr const& poller, ModemInit modem_init);
 
-  ActionPtr<ModemOperation> Start() override;
-  ActionPtr<ModemOperation> Stop() override;
-  ActionPtr<OpenNetworkOperation> OpenNetwork(Protocol protocol,
-                                              std::string const& host,
-                                              std::uint16_t port) override;
-  ActionPtr<ModemOperation> CloseNetwork(
-      ConnectionIndex connect_index) override;
-  ActionPtr<WriteOperation> WritePacket(ConnectionIndex connect_index,
-                                        DataBuffer const& data) override;
-
+  ModemOperation* Start() override;
+  ModemOperation* Stop() override;
+  OpenNetworkOperation* OpenNetwork(Protocol protocol, std::string const& host,
+                                    std::uint16_t port) override;
+  ModemOperation* CloseNetwork(ConnectionIndex connect_index) override;
+  WriteOperation* WritePacket(ConnectionIndex connect_index,
+                              std::span<std::uint8_t const> data) override;
   DataEvent::Subscriber data_event() override;
 
-  ActionPtr<ModemOperation> SetPowerSaveParam(
-      ModemPowerSaveParam const& psp) override;
-  ActionPtr<ModemOperation> PowerOff() override;
+  ModemOperation* SetPowerSaveParam(ModemPowerSaveParam const& psp) override;
+  ModemOperation* PowerOff() override;
 
  private:
   void Init();
-
-  ActionPtr<IPipeline> CheckSimStatus();
-  ActionPtr<IPipeline> SetupSim(std::uint16_t pin);
-  ActionPtr<IPipeline> SetBaudRate(kBaudRate rate);
-  ActionPtr<IPipeline> SetNetMode(kModemMode modem_mode);
-  ActionPtr<IPipeline> SetupNetwork(std::string const& operator_name,
-                                    std::string const& operator_code,
-                                    std::string const& apn_name,
-                                    std::string const& apn_user,
-                                    std::string const& apn_pass,
-                                    kModemMode modem_mode, kAuthType auth_type);
-  ActionPtr<IPipeline> SetupProtoPar();
-
-  ActionPtr<IPipeline> OpenConnection(
-      ActionPtr<OpenNetworkOperation> const& open_network_operation,
-      Protocol protocol, std::string const& host, std::uint16_t port);
-
-  ActionPtr<IPipeline> SendData(ConnectionIndex connection,
-                                DataBuffer const& data);
-  ActionPtr<IPipeline> ReadPacket(ConnectionIndex connection);
-
   void SetupPoll();
   void PollEvent(std::int32_t handle);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   ModemInit modem_init_;
   std::unique_ptr<ISerialPort> serial_;
   AtSupport at_support_;
+  ActionsQueue operation_queue_;
   std::set<ConnectionIndex> connections_;
   ConnectionIndex next_connection_index_{0};
   DataEvent data_event_;
-  std::unique_ptr<AtListener> poll_listener_;
-  OwnActionPtr<ActionsQueue> operation_queue_;
+  std::optional<AtListener> poll_listener_;
+
+  std::unique_ptr<ModemOperation> modem_start_operation_;
+  std::unique_ptr<ModemOperation> modem_stop_operation_;
+  std::unique_ptr<ModemOperation> modem_set_psp_operation_;
+  std::unique_ptr<ModemOperation> modem_poweroff_operation_;
+  ActionPool<AeContext, sim7070_modem_internal::OpenNetworkOperationImpl, 10>
+      open_network_pool_;
+  ActionPool<AeContext, sim7070_modem_internal::CloseNetworkOperationImpl, 10>
+      close_network_pool_;
+  ActionPool<AeContext, sim7070_modem_internal::WriteOperationImpl, 10>
+      write_pool_;
+
   bool initiated_;
   bool started_;
+  int recv_in_queue_ = 0;
 };
 
 } /* namespace ae */
