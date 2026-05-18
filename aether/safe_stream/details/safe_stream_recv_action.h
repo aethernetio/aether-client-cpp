@@ -22,7 +22,6 @@
 #include "aether/common.h"
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
-#include "aether/actions/timer.h"
 #include "aether/safe_stream/safe_stream_config.h"
 #include "aether/safe_stream/details/circular_buffer.h"
 #include "aether/safe_stream/details/receiving_chunk_list.h"
@@ -160,19 +159,19 @@ class SafeStreamRecvAction {
   }
 
   void EnqueueAck() {
-    if (ack_timer_ && !ack_timer_->is_finished()) {
+    if (ack_timer_) {
       return;
     }
-    ack_timer_.emplace(
-        ae_context_, [this]() { HandleAcknowledgement(); }, send_ack_timeout_);
+    ack_timer_ = ae_context_.scheduler().DelayedTask(
+        [this]() { HandleAcknowledgement(); }, send_ack_timeout_);
   }
 
   void EnqueueMissing() {
-    if (missing_timer_ && !missing_timer_->is_finished()) {
+    if (missing_timer_) {
       return;
     }
-    missing_timer_.emplace(
-        ae_context_, [this]() { HandleMissing(); }, send_repeat_timeout_);
+    missing_timer_ = ae_context_.scheduler().DelayedTask(
+        [this]() { HandleMissing(); }, send_repeat_timeout_);
   }
 
   void HandleCompletedChains() {
@@ -233,6 +232,7 @@ class SafeStreamRecvAction {
       send_ack_repeat_->SendRepeatRequest(
           static_cast<std::uint16_t>(request_offset));
       // enqueue again
+      missing_timer_.Reset();
       EnqueueMissing();
     }
   }
@@ -250,8 +250,8 @@ class SafeStreamRecvAction {
   IndexType last_emitted_{};
 
   TaskSubscription recv_enqueued_;
-  std::optional<Timer<AeContext>> ack_timer_;
-  std::optional<Timer<AeContext>> missing_timer_;
+  TaskSubscription ack_timer_;
+  TaskSubscription missing_timer_;
 
   ReceiveEvent receive_event_;
 };

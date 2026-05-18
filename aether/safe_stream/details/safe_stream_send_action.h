@@ -23,7 +23,6 @@
 #include "aether/config.h"
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
-#include "aether/actions/timer.h"
 #include "aether/types/statistic_counter.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/write_action/write_action.h"
@@ -146,7 +145,7 @@ class SafeStreamSendAction {
     // enqueue to send new chunks, because data on the go size reduced
     EnqueueSend();
     // re-enqueu repeat timer for next waiting chunks
-    repeat_timer_.reset();
+    repeat_timer_.Reset();
     EnqueueRepeatTimeout();
     return true;
   }
@@ -192,7 +191,7 @@ class SafeStreamSendAction {
   }
 
   void EnqueueRepeatTimeout() {
-    if (repeat_timer_ && !repeat_timer_->is_finished()) {
+    if (repeat_timer_) {
       return;
     }
 
@@ -213,13 +212,12 @@ class SafeStreamSendAction {
         static_cast<Duration::rep>(wait_ack_timeout * increase_factor)};
     auto wait_time = selected_sch.send_time + wait_timeout;
 
-    repeat_timer_.emplace(
-        ae_context_,
+    repeat_timer_ = ae_context_.scheduler().DelayedTask(
         [this, range{selected_sch.range}]() {
+          repeat_timer_.Reset();
           ProcessRepeat(range);
           // enqueue repeat timeout for the next chunk
-          reenque_sched_sub_ = ae_context_.scheduler().Task(
-              [this]() { EnqueueRepeatTimeout(); });
+          EnqueueRepeatTimeout();
         },
         wait_time);
   }
@@ -395,12 +393,11 @@ class SafeStreamSendAction {
   MultiSubscription sending_data_subs_;
   MultiSubscription send_subs_;
   ResponseStatistics response_statistics_;
-  std::optional<Timer<AeContext>> repeat_timer_;
   AcknowledgedEvent acknowledged_event_;
   StoppedEvent stopped_event_;
   SendFailedEvent send_failed_event_;
+  TaskSubscription repeat_timer_;
   TaskSubscription send_enqueued_;
-  TaskSubscription reenque_sched_sub_;
 };
 }  // namespace ae
 
