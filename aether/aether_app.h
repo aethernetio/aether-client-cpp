@@ -30,7 +30,7 @@
 #include "aether/types/small_function.h"
 
 #include "aether/events/events.h"     // IWYU pragma: keep
-#include "aether/actions/action2_.h"  // IWYU pragma: keep
+#include "aether/actions/action.h"  // IWYU pragma: keep
 
 #include "aether/cloud.h"
 #include "aether/aether.h"
@@ -206,7 +206,7 @@ class AetherApp {
    * \brief Wait until all actions are excited.
    */
   template <typename... TAction>
-    requires(std::is_base_of_v<a2::Action, TAction> && ...)
+    requires(std::is_base_of_v<Action, TAction> && ...)
   void WaitActions(TAction&... actions) {
     WaitEvents(actions.finished_event()...);
   }

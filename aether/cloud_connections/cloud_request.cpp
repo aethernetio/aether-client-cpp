@@ -234,7 +234,7 @@ void CloudRequestAction::Finish() {
   server_changed_sub_.Reset();
   task_sub_.reset();
 
-  a2::Action::Finish();
+  Action::Finish();
 }
 
 }  // namespace ae

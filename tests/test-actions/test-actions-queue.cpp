@@ -19,7 +19,7 @@
 #include <utility>
 #include <variant>
 
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 #include "aether/actions/actions_queue.h"
 #include "aether/actions/action_context.h"
 #include "aether/tasks/manual_task_scheduler.h"
@@ -33,7 +33,7 @@ struct TestContext {
 };
 
 template <typename TBody>
-class TestSyncGenAction final : public a2::Action {
+class TestSyncGenAction final : public Action {
  public:
   TestSyncGenAction(ActionContext auto const&, TBody&& body) {
     std::invoke(std::move(body));
@@ -42,7 +42,7 @@ class TestSyncGenAction final : public a2::Action {
 };
 
 template <typename TBody>
-class TestAsyncGenAction final : public a2::Action {
+class TestAsyncGenAction final : public Action {
  public:
   TestAsyncGenAction(ActionContext auto const& context, TBody&& body)
       : body_{std::move(body)} {
@@ -146,7 +146,7 @@ void test_NullStageHandling() {
   // Push stages including a null stage
   queue.Push(Stage<TestAsyncGenAction>(context, [&]() { success_counter++; }));
   // Push a null stage (return null action)
-  queue.Push(ae::Stage([]() -> a2::Action* { return {}; }));
+  queue.Push(ae::Stage([]() -> Action* { return {}; }));
 
   queue.Push(Stage<TestAsyncGenAction>(context, [&]() { success_counter++; }));
 

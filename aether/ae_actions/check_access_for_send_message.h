@@ -21,14 +21,14 @@
 #include "aether/types/uid.h"
 #include "aether/types/result.h"
 #include "aether/events/events.h"
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
 class CloudServerConnections;
-class CheckAccessForSendMessage final : public a2::Action {
+class CheckAccessForSendMessage final : public Action {
  public:
   struct Success {};
   using ResultEvent = Event<void(Result<Success, int>)>;

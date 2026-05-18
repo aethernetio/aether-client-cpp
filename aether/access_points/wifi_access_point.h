@@ -25,7 +25,7 @@
 #  include "aether/ae_context.h"
 #  include "aether/obj/obj_ptr.h"
 #  include "aether/events/events.h"
-#  include "aether/actions/action2_.h"
+#  include "aether/actions/action.h"
 
 #  include "aether/wifi/wifi_driver.h"
 #  include "aether/access_points/access_point.h"
@@ -36,7 +36,7 @@ class WifiAdapter;
 class IPoller;
 class DnsResolver;
 
-class WifiConnectAction final : public a2::Action {
+class WifiConnectAction final : public Action {
  public:
   using ConnectionEvent = Event<void(bool)>;
 

@@ -23,14 +23,14 @@
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
 #include "aether/types/server_id.h"
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
-class GetClientCloudAction final : public a2::Action {
+class GetClientCloudAction final : public Action {
  public:
   using ResultEvent = Event<void(Result<std::vector<ServerId> const&, int>)>;
 

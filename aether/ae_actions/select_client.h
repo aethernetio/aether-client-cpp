@@ -22,7 +22,7 @@
 #include "aether/obj/obj_ptr.h"
 #include "aether/types/result.h"
 #include "aether/events/events.h"
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 #include "aether/events/event_subscription.h"
 
 namespace ae {
@@ -30,7 +30,7 @@ class Aether;
 class Client;
 class Registration;
 
-class SelectClientAction final : public a2::Action {
+class SelectClientAction final : public Action {
  public:
   using ResultEvent = Event<void(Result<ObjPtr<Client>, int>)>;
 

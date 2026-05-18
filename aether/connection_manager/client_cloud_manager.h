@@ -23,7 +23,7 @@
 
 #include "aether/obj/obj.h"
 #include "aether/ptr/ptr.h"
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 #include "aether/actions/action_pool.h"
 
 #include "aether/cloud.h"
@@ -44,7 +44,7 @@ struct ServerDescriptor;
 /**
  * \brief Action to get a cloud.
  */
-class GetCloudAction : public a2::Action {
+class GetCloudAction : public Action {
  public:
   using ResultEvent = Event<void(Result<Cloud::ptr, int>)>;
 

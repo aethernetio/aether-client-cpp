@@ -20,7 +20,7 @@
 
 #include "aether/common.h"
 #include "aether/ae_context.h"
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_callbacks.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
@@ -73,7 +73,7 @@ class CloudRequest {
  * response. On success, listener must call CloudRequestAction::Succeeded(). On
  * failure, listener must call CloudRequestAction::Failed().
  */
-class CloudRequestAction final : public a2::Action {
+class CloudRequestAction final : public Action {
   struct ServerRequest {
     MultiSubscription state_subs;
     bool is_active{false};

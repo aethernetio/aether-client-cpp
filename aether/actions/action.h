@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_ACTIONS_ACTION2_H_
-#define AETHER_ACTIONS_ACTION2_H_
+#ifndef AETHER_ACTIONS_ACTION_H_
+#define AETHER_ACTIONS_ACTION_H_
 
 #include "aether/common.h"
 #include "aether/events/events.h"
 
-namespace ae::a2 {
+namespace ae {
 class Action {
  public:
   using FinishedEvent = Event<void()>;
@@ -45,6 +45,6 @@ class Action {
   bool is_finished_ = false;
   FinishedEvent finished_event_;
 };
-}  // namespace ae::a2
+}  // namespace ae
 
-#endif  // AETHER_ACTIONS_ACTION2_H_
+#endif  // AETHER_ACTIONS_ACTION_H_

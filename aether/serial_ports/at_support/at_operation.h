@@ -18,13 +18,13 @@
 #define AETHER_SERIAL_PORTS_AT_OPERATION_H_
 
 #include "aether/ae_context.h"
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 #include "aether/executors/executors.h"
 #include "aether/actions/actions_queue.h"
 
 namespace ae {
 template <typename S>
-class SenderOperation final : public a2::Action {
+class SenderOperation final : public Action {
  public:
   explicit SenderOperation(AeContext const& ae_context, S&& s) {}
 

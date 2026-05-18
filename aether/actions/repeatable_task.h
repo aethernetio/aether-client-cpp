@@ -20,7 +20,7 @@
 #include <chrono>
 #include <functional>
 
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 #include "aether/meta/time_traits.h"
 #include "aether/types/small_function.h"
 #include "aether/actions/action_context.h"
@@ -31,7 +31,7 @@ namespace ae {
  * or stopped.
  */
 template <ActionContext AC, typename Task = SmallFunction<void()>>
-class RepeatableTask : public a2::Action {
+class RepeatableTask : public Action {
  public:
   static constexpr auto kRepeatCountInfinite = -1;
 

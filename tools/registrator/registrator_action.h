@@ -25,7 +25,7 @@
 #include "aether/aether_app.h"
 #include "aether/events/events.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 
 #include "registrator/registrator_config.h"
 
@@ -35,7 +35,7 @@ struct RegisteredClient {
   std::string client_id;
 };
 
-class RegistratorAction : public a2::Action {
+class RegistratorAction : public Action {
  public:
   using RegisteredEvent = Event<void(std::vector<RegisteredClient>)>;
   using FailedEvent = Event<void()>;

@@ -18,13 +18,13 @@
 #define AETHER_WRITE_ACTION_WRITE_ACTION_H_
 
 #include "aether/events/events.h"
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 
 namespace ae {
 /**
  * \brief Base type for write action.
  */
-class WriteAction : public a2::Action {
+class WriteAction : public Action {
  public:
   enum class Status : unsigned char {
     kSuccess,

@@ -23,12 +23,12 @@
 #include <type_traits>
 
 #include "aether/ae_context.h"
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 #include "aether/executors/executors.h"
 
 namespace ae::at_stage_internal {
 template <ex::sender RequestSender>
-class AtStageAction final : public a2::Action {
+class AtStageAction final : public Action {
  public:
   AtStageAction(AeContext const& ae_context, RequestSender&& sender)
       : waiter_{ae_context, std::move(sender),

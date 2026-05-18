@@ -29,14 +29,14 @@
 #  include "aether/events/events.h"
 #  include "aether/types/address.h"
 #  include "aether/meta/ignore_t.h"
-#  include "aether/actions/action2_.h"
+#  include "aether/actions/action.h"
 #  include "aether/types/data_buffer.h"
 #  include "aether/modems/modem_driver_types.h"
 
 namespace ae {
 enum class ModemError : int {};
 
-class OpenNetworkOperation : public a2::Action {
+class OpenNetworkOperation : public Action {
  public:
   // return either connection index or error
   using ResultType = Result<ConnectionIndex, ModemError>;
@@ -58,7 +58,7 @@ class OpenNetworkOperation : public a2::Action {
   ResultEvent result_event_;
 };
 
-class WriteOperation : public a2::Action {
+class WriteOperation : public Action {
  public:
   // return size of bytes written, or error code
   using ResultType = Result<std::size_t, ModemError>;
@@ -80,7 +80,7 @@ class WriteOperation : public a2::Action {
   ResultEvent result_event_;
 };
 
-class ModemOperation : public a2::Action {
+class ModemOperation : public Action {
  public:
   using ResultType = Result<Ignore, ModemError>;
   using ResultEvent = Event<void(ResultType)>;

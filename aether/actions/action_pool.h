@@ -28,15 +28,15 @@ IGNORE_IMPLICIT_CONVERSION()
 #include "third_party/etl/include/etl/variant_pool.h"
 DISABLE_WARNING_POP()
 
-#include "aether/actions/action2_.h"
+#include "aether/actions/action.h"
 #include "aether/actions/action_context.h"
 
 namespace ae {
 template <ActionContext AC, typename T, std::size_t Capacity>
 class ActionPool : public etl::pool<T, Capacity> {
  public:
-  static_assert(std::is_base_of_v<a2::Action, T>,
-                "T must be a subclass of a2::Action");
+  static_assert(std::is_base_of_v<Action, T>,
+                "T must be a subclass of Action");
 
   using base_t = etl::pool<T, Capacity>;
 
@@ -47,7 +47,7 @@ class ActionPool : public etl::pool<T, Capacity> {
     auto* p = base_t::create(std::forward<Args>(args)...);
     if (p != nullptr) {
       // destroy on finish
-      static_cast<a2::Action*>(p)->finished_event().Subscribe(
+      static_cast<Action*>(p)->finished_event().Subscribe(
           [this, p]() { Destroy(p); });
     }
     return p;
@@ -65,8 +65,8 @@ template <ActionContext AC, typename... T, std::size_t Capacity>
 class ActionPool<AC, std::variant<T...>, Capacity>
     : public etl::variant_pool<Capacity, T...> {
  public:
-  static_assert((std::is_base_of_v<a2::Action, T> && ...),
-                "T must be a subclass of a2::Action");
+  static_assert((std::is_base_of_v<Action, T> && ...),
+                "T must be a subclass of Action");
   using base_t = etl::variant_pool<Capacity, T...>;
 
   constexpr explicit ActionPool(AC const& ac) noexcept : ac_{ac} {}
@@ -77,7 +77,7 @@ class ActionPool<AC, std::variant<T...>, Capacity>
     auto* p = base_t::template create<U, Args...>(std::forward<Args>(args)...);
     if (p != nullptr) {
       // destroy on finish
-      static_cast<a2::Action*>(p)->finished_event().Subscribe(
+      static_cast<Action*>(p)->finished_event().Subscribe(
           [this, p]() { Destroy<U>(p); });
     }
     return p;

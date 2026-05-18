@@ -26,7 +26,7 @@
 #  include "aether/clock.h"
 #  include "aether/ae_context.h"
 #  include "aether/ptr/ptr_view.h"
-#  include "aether/actions/action2_.h"
+#  include "aether/actions/action.h"
 #  include "aether/executors/executors.h"
 
 namespace ae {
@@ -37,7 +37,7 @@ struct Success {};
 struct Failed {};
 struct Retry {};
 
-class TimeSyncRequest : public a2::Action {
+class TimeSyncRequest : public Action {
  public:
   TimeSyncRequest(AeContext const& ae_context, Ptr<Client> const& client);
 

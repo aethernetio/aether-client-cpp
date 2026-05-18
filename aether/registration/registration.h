@@ -39,7 +39,7 @@
 #  include "aether/registration/registration_crypto_provider.h"
 
 namespace ae {
-class Registration : a2::Action {
+class Registration : Action {
  public:
   using RegistrationEvent = Event<void(Result<ClientConfig, int>)>;
 
