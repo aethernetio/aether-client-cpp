@@ -58,19 +58,24 @@ class TestSendMessageDelays {
           auto failed = [&]() { ex::set_error(std::move(ctx.receiver), 1); };
 
           auto& get_sender = aether_->SelectClient(kTestUid, "sender");
-          get_sender.client_selected().Subscribe([&, selected](auto const& c) {
-            client_sender_ = c;
-            selected();
+          get_sender.result_event().Subscribe([&, selected](auto const& res) {
+            if (res) {
+              client_sender_ = res.value();
+              selected();
+            } else {
+              failed();
+            }
           });
-          get_sender.selection_failed().Subscribe(failed);
 
           auto& get_receiver = aether_->SelectClient(kTestUid, "receiver");
-          get_receiver.client_selected().Subscribe(
-              [&, selected](auto const& c) {
-                client_receiver_ = c;
-                selected();
-              });
-          get_receiver.selection_failed().Subscribe(failed);
+          get_receiver.result_event().Subscribe([&, selected](auto const& res) {
+            if (res) {
+              client_receiver_ = res.value();
+              selected();
+            } else {
+              failed();
+            }
+          });
         });
   }
 

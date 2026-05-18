@@ -34,7 +34,8 @@ int test_receiver_bandwidth() {
   // get one client
   auto& get_client = aether_app->aether()->SelectClient(kTestUid, "receiver");
 
-  get_client.client_selected().Subscribe([&](auto const& c) { client = c; });
+  get_client.result_event().Subscribe(
+      [&](auto const& res) { client = res.value(); });
 
   aether_app->WaitActions(get_client);
 
