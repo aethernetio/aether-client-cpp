@@ -39,17 +39,15 @@
 #  include "aether/registration/registration_crypto_provider.h"
 
 namespace ae {
-class Registration {
+class Registration : a2::Action {
  public:
   using RegistrationEvent = Event<void(Result<ClientConfig, int>)>;
-  using FinishedEvent = Event<void()>;
 
   Registration(AeContext const& ae_context,
                Ptr<RegistrationCloud> const& reg_cloud, Uid parent_uid);
-  ~Registration();
+  ~Registration() override;
 
   RegistrationEvent::Subscriber registration();
-  FinishedEvent::Subscriber IsFinished();
 
  private:
   void InitConnection();
@@ -84,9 +82,8 @@ class Registration {
 
   std::optional<ex::AnyWaiter<ex::set_value_t(ClientConfig),
                               ex::set_error_t(int), ex::set_stopped_t()>>
-      async_waiter_;
+      waiter_;
   RegistrationEvent registration_event_;
-  FinishedEvent finished_event_;
 };
 }  // namespace ae
 

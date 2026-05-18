@@ -22,7 +22,7 @@
 #include "aether/client.h"
 #include "aether/registration/registration.h"
 
-#include "aether/ae_actions/ae_actions_tele.h"
+#include "aether/ae_actions/ae_actions_tele.h"  // IWYU pragma: keep
 
 namespace ae {
 SelectClientAction::SelectClientAction(AeContext const& ae_context,
@@ -30,7 +30,7 @@ SelectClientAction::SelectClientAction(AeContext const& ae_context,
     : ae_context_{ae_context} {
   AE_TELED_DEBUG("Select loaded client");
   task_sub_ = ae_context_.scheduler().Task([this, c{std::move(client)}]() {
-    client_selected_event_.Emit(c);
+    result_event_.Emit(Ok{c});
     Finish();
   });
 }
@@ -46,9 +46,9 @@ SelectClientAction::SelectClientAction(AeContext const& ae_context,
       [this, aeth{&aether}](auto const& res) {
         if (res) {
           auto client = aeth->CreateClient(res.value(), client_id_);
-          client_selected_event_.Emit(client);
+          result_event_.Emit(Ok{client});
         } else {
-          selection_failed_event_.Emit();
+          result_event_.Emit(Error{1});
         }
         Finish();
       });
@@ -59,18 +59,12 @@ SelectClientAction::SelectClientAction(AeContext const& ae_context)
     : ae_context_{ae_context} {
   AE_TELED_DEBUG("No clients to select");
   task_sub_ = ae_context_.scheduler().Task([this]() {
-    selection_failed_event_.Emit();
+    result_event_.Emit(Error{2});
     Finish();
   });
 }
 
-SelectClientAction::ClientSelectedEvent::Subscriber
-SelectClientAction::client_selected() {
-  return EventSubscriber{client_selected_event_};
+SelectClientAction::ResultEvent::Subscriber SelectClientAction::result_event() {
+  return EventSubscriber{result_event_};
 }
-SelectClientAction::SelectionFailedEvent::Subscriber
-SelectClientAction::selection_failed() {
-  return EventSubscriber{selection_failed_event_};
-}
-
 }  // namespace ae

@@ -67,9 +67,6 @@ Registration::~Registration() { AE_TELED_DEBUG("~Registration"); }
 Registration::RegistrationEvent::Subscriber Registration::registration() {
   return EventSubscriber{registration_event_};
 }
-Registration::FinishedEvent::Subscriber Registration::IsFinished() {
-  return EventSubscriber{finished_event_};
-}
 
 void Registration::InitConnection() {
   AE_TELED_DEBUG("Registration::InitConnection");
@@ -330,12 +327,12 @@ void Registration::Run() {
             return ex::just_error(-1);
           }});
 
-  async_waiter_.emplace(
+  waiter_.emplace(
       ae_context_, std::move(s),
       [&](std::optional<Result<ClientConfig, int>>&& res) noexcept {
         assert(res);
         registration_event_.Emit(std::move(res).value());
-        finished_event_.Emit();
+        Finish();
       });
 }
 }  // namespace ae

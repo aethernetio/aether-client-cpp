@@ -83,26 +83,26 @@ ae::SelectClientAction& SelectClientImpl(AetherClient* client,
       SelectContext{client, config->client_selected_cb,
                     config->message_received_cb, config->user_data});
 
-  select_action.client_selected().Subscribe(
-      [context{select_context}](auto const& c) {
-        // save the client
-        context->client->client = c;
-        // subscribe to messages
-        if (context->message_recv_cb != nullptr) {
-          Listen(context->client, context->user_data);
-        }
-        // notify client was selected
-        if (context->client_selected_cb != nullptr) {
-          context->client_selected_cb(context->client, context->user_data);
+  select_action.result_event().Subscribe(
+      [context{select_context}](ae::Result<ae::ObjPtr<ae::Client>, int>&& res) {
+        if (res) {
+          // save the client
+          context->client->client = std::move(res).value();
+          // subscribe to messages
+          if (context->message_recv_cb != nullptr) {
+            Listen(context->client, context->user_data);
+          }
+          // notify client was selected
+          if (context->client_selected_cb != nullptr) {
+            context->client_selected_cb(context->client, context->user_data);
+          }
+        } else {
+          if (!context->client_selected_cb) {
+            return;
+          }
+          context->client_selected_cb(nullptr, context->user_data);
         }
       });
-  select_action.selection_failed().Subscribe([context{select_context}]() {
-    if (!context->client_selected_cb) {
-      return;
-    }
-    context->client_selected_cb(nullptr, context->user_data);
-  });
-
   return select_action;
 }
 
