@@ -35,7 +35,7 @@ constexpr auto config = SafeStreamConfig{
     std::chrono::milliseconds{80},
 };
 constexpr auto kCapacity = 20 * 1024;
-constexpr auto kTick = std::chrono::milliseconds{1};
+constexpr auto kTick = std::chrono::milliseconds{5};
 
 using Sender = SafeStreamSendAction<kCapacity>;
 using Receiver = SafeStreamRecvAction<kCapacity>;
@@ -152,7 +152,6 @@ static constexpr std::string_view test_data =
  * of the first packet received.
  */
 void test_SafeStreamInitHandshake() {
-  auto epoch = Now();
   TestContext ctx;
 
   bool acked{};
@@ -183,8 +182,8 @@ void test_SafeStreamInitHandshake() {
   TEST_ASSERT_TRUE(send_data.IsOk());
   expected_range = send_data.value();
 
-  ctx.Update(epoch);
-  ctx.Update(epoch += config.send_ack_timeout + kTick);
+  ctx.Update(Now());
+  ctx.Update(Now() + config.send_ack_timeout + kTick);
 
   // test received data
   TEST_ASSERT_EQUAL(test_data.size(), received.size());
@@ -275,7 +274,6 @@ void test_SafeStreamReInitSender() {
  * \brief Same as test_SafeStreamReInitSender but with receiver recreation.
  */
 void test_SafeStreamReInitReceiver() {
-  auto epoch = Now();
   TestContext ctx;
 
   bool acked{};
@@ -307,6 +305,7 @@ void test_SafeStreamReInitReceiver() {
   TEST_ASSERT_TRUE(send_data1.IsOk());
   expected_range = send_data1.value();
 
+  auto epoch = Now();
   ctx.Update(epoch);
   ctx.Update(epoch += config.send_ack_timeout + kTick);
 

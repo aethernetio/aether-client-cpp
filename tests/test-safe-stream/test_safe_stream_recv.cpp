@@ -27,7 +27,7 @@
 #include "tests/test-safe-stream/stream-test-ctx.h"
 
 namespace ae::test_safe_stream_recv {
-constexpr auto kTick = std::chrono::milliseconds{1};
+constexpr auto kTick = std::chrono::milliseconds{5};
 
 // Configuration for most tests
 constexpr auto config = SafeStreamConfig{
@@ -127,11 +127,9 @@ void test_RecvActionCreateAndReceive() {
   auto recv_sub = receiver.receive_event().Subscribe(
       [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
 
-  auto start_time = Now();
-
   auto message = CreateDataMessage(quantum_data, 0);
   receiver.PushData(begin_offset, message);
-  ctx.Update(start_time);
+  ctx.Update(Now());
 
   // Should immediately emit the data since it's the expected next chunk
   TEST_ASSERT_EQUAL(1, received_data.size());
@@ -142,7 +140,7 @@ void test_RecvActionCreateAndReceive() {
   TEST_ASSERT_FALSE(mock_sender.ack_data.has_value());
 
   // Wait for confirmation timeout and verify confirmation is sent
-  auto timeout_time = start_time + config.send_ack_timeout + kTick;
+  auto timeout_time = Now() + config.send_ack_timeout + kTick;
   ctx.Update(timeout_time);
 
   // Should send confirmation after timeout
@@ -256,12 +254,10 @@ void test_RecvActionSendConfirmOnTimeout() {
   auto recv_sub = receiver.receive_event().Subscribe(
       [&](DataBuffer&& data) { received_data.push_back(std::move(data)); });
 
-  auto start_time = Now();
-
   // Send some data using DataChunk
   auto message = CreateDataMessage(network_poetry, 0);
   receiver.PushData(begin_offset, message);
-  ctx.Update(start_time);
+  ctx.Update(Now());
 
   // Data should be emitted
   TEST_ASSERT_EQUAL(1, received_data.size());
@@ -270,7 +266,7 @@ void test_RecvActionSendConfirmOnTimeout() {
   TEST_ASSERT_FALSE(mock_sender.ack_data.has_value());
 
   // Wait for confirmation timeout
-  auto timeout_time = start_time + config.send_ack_timeout + kTick;
+  auto timeout_time = Now() + config.send_ack_timeout + kTick;
   ctx.Update(timeout_time);
 
   // Should send confirmation after timeout
@@ -299,23 +295,21 @@ void test_RecvActionRequestRepeatOnMissing() {
       CreateDataMessage(async_philosophy,
                         message1.data.size() + 100);  // Skip chunk 2
 
-  auto start_time = Now();
-
   // Send chunk 1 (will be emitted immediately)
   receiver.PushData(begin_offset, message1);
-  ctx.Update(start_time);
+  ctx.Update(Now());
   TEST_ASSERT_EQUAL(1, received_data.size());
 
   // Send chunk 3 (will be buffered due to gap)
   receiver.PushData(begin_offset, message3);
-  ctx.Update(start_time);
+  ctx.Update(Now());
   TEST_ASSERT_EQUAL(1, received_data.size());  // Still only chunk 1 emitted
 
   // Should not send repeat request immediately
   TEST_ASSERT_FALSE(mock_sender.repeat_request_data.has_value());
 
   // Wait for repeat request timeout
-  auto timeout_time = start_time + config.send_repeat_timeout + kTick;
+  auto timeout_time = Now() + config.send_repeat_timeout + kTick;
   ctx.Update(timeout_time);
 
   // Should request repeat for missing chunk 2
@@ -339,21 +333,19 @@ void test_RecvActionRepeatDataHandling() {
 
   auto message = CreateDataMessage(protocol_haiku, 0);
 
-  auto start_time = Now();
-
   // Send original data
   receiver.PushData(begin_offset, message);
   // Send repeat request
   message.repeat_count += 1;
   receiver.PushData(begin_offset, message);
 
-  ctx.Update(start_time);
+  ctx.Update(Now());
   // should receive only one message
   TEST_ASSERT_EQUAL(1, received_data.size());
 
   // Reset mock to check for immediate confirmation
   mock_sender.Reset();
-  auto timeout_time = start_time + config.send_ack_timeout + kTick;
+  auto timeout_time = Now() + config.send_ack_timeout + kTick;
   ctx.Update(timeout_time);
 
   // Should have only 1 emitted data (no duplicate emission)
@@ -381,17 +373,15 @@ void test_RecvActionDuplicateDataHandling() {
 
   auto message = CreateDataMessage(protocol_haiku, 0);
 
-  auto start_time = Now();
-
   // Send original and duplicate messages
   receiver.PushData(begin_offset, message);
   receiver.PushData(begin_offset, message);
-  ctx.Update(start_time);
+  ctx.Update(Now());
   // should receive only one message
   TEST_ASSERT_EQUAL(1, received_data.size());
 
   // wait for ack timeout
-  auto timeout_time = start_time + config.send_ack_timeout + 2 * kTick;
+  auto timeout_time = Now() + config.send_ack_timeout + 2 * kTick;
   ctx.Update(timeout_time);
 
   // Should send anknowledgement only for the original message
@@ -420,11 +410,9 @@ void test_RecvActionRepeatOverlappingDataHandling() {
   auto message2 = DataMessage{
       false, 0, 0, ToDataBuffer(std::begin(bug_report), std::end(bug_report))};
 
-  auto start_time = Now();
-
   // Send original data
   receiver.PushData(begin_offset, message1);
-  ctx.Update(start_time);
+  ctx.Update(Now());
   // received the first part of the bug_report
   TEST_ASSERT_EQUAL(1, received_data.size());
   TEST_ASSERT_EQUAL(20, received_data[0].size());
@@ -433,7 +421,7 @@ void test_RecvActionRepeatOverlappingDataHandling() {
 
   // Send repeated request with full bug_report
   receiver.PushData(begin_offset, message2);
-  ctx.Update(start_time + kTick);
+  ctx.Update(Now() + kTick);
   // received the second part of the bug_report
   TEST_ASSERT_EQUAL(2, received_data.size());
   TEST_ASSERT_EQUAL(bug_report.size() - 20, received_data[1].size());

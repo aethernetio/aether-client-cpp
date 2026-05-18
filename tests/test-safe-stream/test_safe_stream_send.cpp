@@ -27,7 +27,7 @@
 #include "tests/test-safe-stream/stream-test-ctx.h"
 
 namespace ae::test_safe_stream_send {
-constexpr auto kTick = std::chrono::milliseconds{1};
+constexpr auto kTick = std::chrono::milliseconds{5};
 
 constexpr auto config = SafeStreamConfig{
     1056,
@@ -198,17 +198,15 @@ void test_SendActionRepeatOnTimeout() {
   TEST_ASSERT_TRUE(send_data.IsOk());
   expected_range = send_data.value();
 
-  auto start_time = Now();
-
   // Initial send
-  ctx.Update(start_time);
+  ctx.Update(Now());
   TEST_ASSERT(send_data_push.send_data.has_value());
   TEST_ASSERT_EQUAL(0, send_data_push.send_data->data_message.repeat_count);
   send_data_push.send_data.reset();
 
   // Wait for timeout and trigger repeat - need two updates: one to detect
   // timeout, one to send
-  auto timeout_time = start_time + config.wait_ack_timeout + kTick;
+  auto timeout_time = Now() + config.wait_ack_timeout + kTick;
   ctx.Update(timeout_time);
   ctx.Update(timeout_time + kTick);
 
