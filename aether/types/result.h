@@ -47,6 +47,12 @@ struct Ok {
   [[no_unique_address]] T value;
 };
 
+template <typename T>
+struct Ok<T&> {
+  explicit Ok(T& v) : value{v} {}
+  [[no_unique_address]] T& value;
+};
+
 template <typename E>
 struct Error {
   explicit Error(E v) : error{std::move(v)} {}
