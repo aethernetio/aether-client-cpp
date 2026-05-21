@@ -237,35 +237,33 @@ class SafeStreamSendAction {
     EnqueueSend();
   }
 
-  auto GetNextChunk() {
+  Result<typename CircularBufferImpl::DSpan, int> GetNextChunk() {
     auto on_the_go_data_size = Distance(sending_buffer_.begin(), last_sent_);
     auto payload_size =
         std::min(max_payload_size_, window_size_ - on_the_go_data_size);
+    if (payload_size == 0) {
+      AE_TELED_WARNING(
+          "Window size exceeded: begin: {} last_sent: {} on the go data "
+          "size: {}, window size: {}",
+          sending_buffer_.begin(), last_sent_, on_the_go_data_size,
+          window_size_);
+      // return empty span
+      return Ok{typename CircularBufferImpl::DSpan{}};
+    }
 
     // read payload_size
-    return sending_buffer_.Read(last_sent_, payload_size)
-        .Else([&](CircularBufferError err)
-                  -> Result<typename CircularBufferImpl::DSpan, int> {
-          if (err == CircularBufferError::kEmptyBuffer) {
-            AE_TELED_DEBUG("Send buffer is empty");
-            // no data to send
-            return Error{0};
-          }
-          AE_TELED_ERROR("Read from buffer error: {}", static_cast<int>(err));
-          return Error{1};
-        })
-        .Then([&](auto const& dspan)
-                  -> Result<typename CircularBufferImpl::DSpan, int> {
-          // the read result is a pair of spans
-          if (dspan.size() == 0) {
-            AE_TELED_WARNING(
-                "Window size exceeded: begin: {} last_sent: {} on the go data "
-                "size: {}, window size: {}",
-                sending_buffer_.begin(), last_sent_, on_the_go_data_size,
-                window_size_);
-          }
-          return Ok{dspan};
-        });
+    auto read_res = sending_buffer_.Read(last_sent_, payload_size);
+    if (read_res) {
+      return Ok{read_res.value()};
+    }
+    if (read_res.error() == CircularBufferError::kEmptyBuffer) {
+      AE_TELED_DEBUG("Send buffer is empty");
+      // no data to send
+      return Error{0};
+    }
+    AE_TELED_ERROR("Read from buffer error: {}",
+                   static_cast<int>(read_res.error()));
+    return Error{1};
   }
 
   Result<std::pair<typename CircularBufferImpl::DSpan,
@@ -291,6 +289,9 @@ class SafeStreamSendAction {
      - push the data to send_data_push_ and wait either for timeout or result
    */
   void SendChunk(TimePoint current_time) {
+    if (max_payload_size_ == 0) {
+      return;
+    }
     auto res = GetNextChunk().Then([&](CircularBufferImpl::DSpan const& dspan) {
       auto chunk_index_range = IndexRangeType{
           .left = last_sent_,
