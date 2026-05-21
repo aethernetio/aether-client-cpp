@@ -75,7 +75,7 @@ class Ping {
       ping_requests_;
 
   PingFailed ping_failed_;
-  Subscription write_subscription_;
+  MultiSubscription write_subs_;
   MultiSubscription wait_responses_;
   TaskSubscription schedule_sub_;
   TaskSubscription timeout_sub_;

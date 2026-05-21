@@ -54,7 +54,6 @@ void Ping::SendPing() {
         auto req_id = pong_promise.request_id();
 
         // save the ping request
-
         auto channel_ptr = channel_.Lock();
         assert(channel_ptr);
         auto expected_ping_time = channel_ptr->ResponseTimeout();
@@ -77,7 +76,7 @@ void Ping::SendPing() {
             [this, req_id]() { PingResponseTimeout(req_id); }, end_time);
       }});
 
-  write_subscription_ = write_action.status_event().Subscribe([&](auto status) {
+  write_subs_ += write_action.status_event().Subscribe([&](auto status) {
     if (status == WriteAction::Status::kFail) {
       AE_TELE_ERROR(kPingWriteError, "Ping write error");
       ping_failed_.Emit();
