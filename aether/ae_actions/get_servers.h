@@ -19,42 +19,38 @@
 
 #include <vector>
 
-#include "aether/actions/action.h"
+#include "aether/ae_context.h"
+#include "aether/types/result.h"
+#include "aether/events/events.h"
 #include "aether/types/server_id.h"
-#include "aether/types/state_machine.h"
+#include "aether/actions/action.h"
+#include "aether/events/multi_subscription.h"
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
-class GetServersAction : public Action<GetServersAction> {
-  enum class State : std::uint8_t {
-    kNone,
-    kResult,
-    kFailed,
-    kStop,
-  };
-
+class GetServersAction : public Action {
  public:
-  GetServersAction(ActionContext action_context,
+  using ResultEvent =
+      Event<void(Result<std::vector<ServerDescriptor> const&, int>)>;
+
+  GetServersAction(AeContext const& ae_context,
                    std::vector<ServerId> server_ids,
                    CloudServerConnections& cloud_connection,
                    RequestPolicy::Variant request_policy);
 
-  UpdateStatus Update();
-
-  std::vector<ServerDescriptor> const& servers() const;
-  void Stop();
+  ResultEvent::Subscriber result_event();
 
  private:
   void GetResponse(ServerDescriptor const& server_descriptor,
                    CloudRequestAction* request);
 
   std::vector<ServerId> server_ids_;
-  StateMachine<State> state_;
   TimePoint timeout_point_;
+  ResultEvent result_event_;
 
-  OwnActionPtr<CloudRequestAction> cloud_request_;
-  Subscription request_sub_;
+  CloudRequestAction cloud_request_;
+  MultiSubscription request_subs_;
 
   std::vector<ServerDescriptor> server_descriptors_;
 };

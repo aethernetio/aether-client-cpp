@@ -23,10 +23,9 @@
 #include "aether/clock.h"
 #include "aether/memory.h"
 #include "aether/obj/obj.h"
-#include "aether/actions/action_ptr.h"
 #include "aether/types/client_config.h"
 
-#include "aether/actions/action_context.h"
+#include "aether/ae_context.h"
 #include "aether/ae_actions/select_client.h"
 
 #include "aether/uap/uap.h"
@@ -80,13 +79,13 @@ class Aether : public Obj {
 
   void Update(TimePoint current_time) override;
 
-  // User-facing API.
-  operator ActionContext() const;
+  // AeContext protocol
+  AeCtx ToAeContext() const;
 
   ObjPtr<Client> CreateClient(ClientConfig const& config,
                               std::string const& client_id);
-  ActionPtr<SelectClientAction> SelectClient(Uid parent_uid,
-                                             std::string const& client_id);
+  SelectClientAction& SelectClient(Uid parent_uid,
+                                   std::string const& client_id);
 
   void StoreServer(ObjPtr<Server> s);
   ObjPtr<Server> GetServer(ServerId server_id);
@@ -103,25 +102,24 @@ class Aether : public Obj {
 
   Obj::ptr tele_statistics;
 
-  std::unique_ptr<ActionProcessor> action_processor;
+  std::unique_ptr<TaskScheduler> task_scheduler;
 
  private:
   ObjPtr<Client> FindClient(std::string const& client_id);
   void StoreClient(ObjPtr<Client> client);
 
-  ActionPtr<SelectClientAction> FindSelectClientAction(
-      std::string const& client_id);
-  ActionPtr<SelectClientAction> MakeSelectClient() const;
-  ActionPtr<SelectClientAction> MakeSelectClient(
-      ObjPtr<Client> const& client) const;
+  SelectClientAction* FindSelectClientAction(std::string const& client_id);
+  SelectClientAction& MakeSelectClient();
+  SelectClientAction& MakeSelectClient(ObjPtr<Client> const& client);
 #if AE_SUPPORT_REGISTRATION
-  ActionPtr<SelectClientAction> MakeSelectClient(
-      ActionPtr<Registration> registration, std::string const& client_id);
+  SelectClientAction& MakeSelectClient(Registration& registration,
+                                       std::string const& client_id);
 
  public:
-  ActionPtr<Registration> RegisterClient(Uid parent_uid);
+  Registration& RegisterClient(std::string const& client_id, Uid parent_uid);
 
  private:
+  std::map<std::string, std::unique_ptr<Registration>> registrations_;
 #endif
 
   void MakeTimeSyncAction(ObjPtr<Client> const& client);
@@ -129,9 +127,10 @@ class Aether : public Obj {
   std::map<std::string, Obj::ptr> clients_;
   std::map<ServerId, Obj::ptr> servers_;
 
-  std::map<std::string, ActionPtr<SelectClientAction>> select_client_actions_;
+  std::map<std::string, std::unique_ptr<SelectClientAction>>
+      select_client_actions_;
 #if AE_TIME_SYNC_ENABLED
-  ActionPtr<TimeSyncAction> time_sync_action_;
+  std::unique_ptr<TimeSyncAction> time_sync_action_;
 #endif
 };
 

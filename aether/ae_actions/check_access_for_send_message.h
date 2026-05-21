@@ -17,49 +17,38 @@
 #ifndef AETHER_AE_ACTIONS_CHECK_ACCESS_FOR_SEND_MESSAGE_H_
 #define AETHER_AE_ACTIONS_CHECK_ACCESS_FOR_SEND_MESSAGE_H_
 
-#include <cstdint>
-
 #include "aether/common.h"
 #include "aether/types/uid.h"
+#include "aether/types/result.h"
+#include "aether/events/events.h"
 #include "aether/actions/action.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/types/state_machine.h"
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
 class CloudServerConnections;
-class CheckAccessForSendMessage final
-    : public Action<CheckAccessForSendMessage> {
-  enum class State : std::uint8_t {
-    kNone,
-    kReceivedSuccess,
-    kReceivedError,
-    kSendError,
-  };
-
+class CheckAccessForSendMessage final : public Action {
  public:
-  CheckAccessForSendMessage(ActionContext action_context, Uid destination,
+  struct Success {};
+  using ResultEvent = Event<void(Result<Success, int>)>;
+
+  CheckAccessForSendMessage(AeContext const& ae_context, Uid destination,
                             CloudServerConnections& cloud_connection,
                             RequestPolicy::Variant request_policy);
 
   AE_CLASS_NO_COPY_MOVE(CheckAccessForSendMessage)
 
-  UpdateStatus Update();
-
-  State state() const { return state_.get(); }
+  ResultEvent::Subscriber result_event() noexcept;
 
  private:
   void ResponseReceived();
   void ErrorReceived();
 
   Uid destination_;
-
-  StateMachine<State> state_;
-  OwnActionPtr<CloudRequestAction> cloud_request_;
+  CloudRequestAction cloud_request_;
+  ResultEvent result_event_;
   Subscription wait_check_sub_;
-  Subscription request_sub_;
 };
 }  // namespace ae
 

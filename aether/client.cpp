@@ -24,10 +24,14 @@
 
 namespace ae {
 
+Client::Client() = default;
+
 #ifdef AE_DISTILLATION
 Client::Client(ObjProp prop, Aether::ptr aether)
     : Base{prop}, aether_{std::move(aether)} {}
 #endif  // AE_DISTILLATION
+
+Client::~Client() = default;
 
 std::string const& Client::id() const { return client_id_; }
 Uid const& Client::parent_uid() const { return parent_uid_; }
@@ -75,9 +79,8 @@ CloudServerConnections& Client::cloud_connection() {
 
 #if AE_TELE_ENABLED
     // also create telemetry
-    telemetry_ =
-        ActionPtr<Telemetry>(*aether_.Load().as<Aether>(),
-                             Aether::ptr{aether_}.Load(), *cloud_connection_);
+    telemetry_ = std::make_unique<Telemetry>(
+        AeContext{*aether_.Load().as<Aether>()}, *cloud_connection_);
 #endif
   }
 

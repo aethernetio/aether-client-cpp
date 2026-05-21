@@ -18,7 +18,8 @@
 
 #include <memory>
 
-#include "aether/obj/obj_ptr.h"
+#include "aether/ptr/ptr.h"
+#include "aether/ae_context.h"
 #include "aether/types/address.h"
 #include "aether/stream_api/istream.h"
 
@@ -27,15 +28,15 @@ class IPoller;
 
 class EthernetTransportFactory {
  public:
-  static std::unique_ptr<ByteIStream> Create(ActionContext action_context,
+  static std::unique_ptr<ByteIStream> Create(AeContext const& ae_context,
                                              Ptr<IPoller> const& poller,
                                              Endpoint address_port_protocol);
 
  private:
-  static std::unique_ptr<ByteIStream> BuildTcp(ActionContext action_context,
+  static std::unique_ptr<ByteIStream> BuildTcp(AeContext const& ae_context,
                                                Ptr<IPoller> const& poller,
                                                Endpoint address_port_protocol);
-  static std::unique_ptr<ByteIStream> BuildUdp(ActionContext action_context,
+  static std::unique_ptr<ByteIStream> BuildUdp(AeContext const& ae_context,
                                                Ptr<IPoller> const& poller,
                                                Endpoint address_port_protocol);
 };

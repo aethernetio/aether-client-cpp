@@ -26,11 +26,11 @@
 namespace ae {
 class IAtObserver {
  public:
-  // never own the pointer to IAtObserver
-  // virtual ~IAtObserver() = default;
-
   // The dispatcher found the required command in buffer
   virtual void Observe(AtBuffer& buffer, AtBuffer::iterator pos) = 0;
+
+ protected:
+  ~IAtObserver() = default;
 };
 
 class AtDispatcher {
@@ -42,10 +42,12 @@ class AtDispatcher {
 
  private:
   void BufferUpdate(AtBuffer::iterator pos);
+  void CleanupObservers();
 
   AtBuffer* buffer_;
   std::map<std::string, IAtObserver*> observers_;
   Subscription buffer_sub_;
+  bool remove_guard_ = false;
 };
 }  // namespace ae
 

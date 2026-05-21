@@ -19,47 +19,43 @@
 
 #include "aether/events/events.h"
 #include "aether/actions/action.h"
-#include "aether/types/state_machine.h"
-#include "aether/actions/action_context.h"
 
 namespace ae {
 /**
  * \brief Base type for write action.
  */
-class WriteAction : public Action<WriteAction> {
+class WriteAction : public Action {
  public:
-  enum class State : std::uint8_t {
-    kQueued,
-    kInProgress,
-    kDone,
-    kTimeout,  // write timeout
-    kStopped,  // stopped by user
-    kFailed,   // failed to send
+  enum class Status : unsigned char {
+    kSuccess,
+    kFail,
+    kStop,
   };
+  using StatusEvent = Event<void(Status)>;
 
-  using StateChanged = Event<void(State)>;
+  WriteAction() noexcept = default;
+  ~WriteAction() noexcept override = default;
 
-  explicit WriteAction(ActionContext action_context);
-
-  AE_CLASS_NO_COPY_MOVE(WriteAction)
-
-  virtual UpdateStatus Update();
+  AE_CLASS_MOVE_ONLY(WriteAction)
 
   /**
    * \brief Stop the writing action
    */
-  virtual void Stop();
+  virtual void Stop() noexcept {}
 
-  State state() const { return state_; }
-  StateChanged::Subscriber state_changed() {
-    return EventSubscriber{state_changed_};
+  /**
+   * \brief Subscribe to status event of this action.
+   */
+  virtual StatusEvent::Subscriber status_event() noexcept {
+    return EventSubscriber{status_event_};
   }
 
  protected:
-  StateMachine<State> state_{State::kQueued};
-
- private:
-  StateChanged state_changed_;
+  virtual void SetStatus(Status status) noexcept {
+    status_event_.Emit(status);
+    Finish();
+  }
+  StatusEvent status_event_;
 };
 
 }  // namespace ae

@@ -17,7 +17,7 @@
 #include "send_messages_bandwidth/common/bandwidth.h"
 
 namespace ae::bench {
-Bandwidth::Bandwidth(Duration duration, std::size_t message_count,
+Bandwidth::Bandwidth(HighDuration duration, std::size_t message_count,
                      std::size_t message_size)
     : duration{duration}, message_count{message_count} {
   using SecDuration = std::chrono::duration<double>;

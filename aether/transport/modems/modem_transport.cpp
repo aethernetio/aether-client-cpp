@@ -27,102 +27,122 @@
 namespace ae {
 static constexpr auto kMaxPacketSize = 1024;
 
-ModemTransport::ModemSend::ModemSend(ActionContext action_context,
+ModemTransport::ModemSend::ModemSend(AeContext const& ae_context,
                                      ModemTransport& transport, DataBuffer data)
-    : SocketPacketSendAction{action_context},
+    : ae_context_{ae_context},
       transport_{&transport},
-      data_{std::move(data)} {}
+      data_{std::move(data)},
+      is_done_{false},
+      in_progress_{false} {}
 
-ModemTransport::SendTcpAction::SendTcpAction(ActionContext action_context,
+bool ModemTransport::ModemSend::is_done() const { return is_done_; }
+bool ModemTransport::ModemSend::re_enqueue() const { return false; }
+
+void ModemTransport::ModemSend::SetStatus(Status status) noexcept {
+  is_done_ = true;
+  task_sub_ = ae_context_.scheduler().Task(
+      [this, status]() { WriteAction::SetStatus(status); });
+}
+
+ModemTransport::SendTcpAction::SendTcpAction(AeContext const& ae_context,
                                              ModemTransport& transport,
                                              DataBuffer data)
-    : ModemSend{action_context, transport, std::move(data)} {}
+    : ModemSend{ae_context, transport, std::move(data)}, packets_on_the_go_{} {}
 
 void ModemTransport::SendTcpAction::Send() {
-  if (state_ == State::kInProgress) {
+  if (in_progress_) {
     return;
   }
-  state_ = State::kInProgress;
+  in_progress_ = true;
 
   // split data to chunks and write them to modem
-  for (std::size_t sent_offset = 0; sent_offset < data_.size();) {
-    auto remain_to_send = data_.size() - sent_offset;
+  auto data_span = std::span<std::uint8_t const>{data_.data(), data_.size()};
+  while (!data_span.empty()) {
+    auto remain_to_send = data_span.size();
     auto size_to_send =
         remain_to_send > kMaxPacketSize ? kMaxPacketSize : remain_to_send;
 
-    auto write_action = transport_->modem_driver_->WritePacket(
-        transport_->connection_,
-        DataBuffer{data_.data() + sent_offset,
-                   data_.data() + sent_offset + size_to_send});
+    auto chunk = data_span.subspan(0, size_to_send);
+    data_span = data_span.subspan(size_to_send);
+    auto* write_op =
+        transport_->modem_driver_->WritePacket(transport_->connection_, chunk);
+    if (write_op == nullptr) {
+      AE_TELED_ERROR("Modem tcp write op error");
+      SetStatus(Status::kFail);
+      return;
+    }
+    packets_on_the_go_++;
 
-    if (!write_action) {
-      state_ = State::kFailed;
-      Action::Trigger();
+    auto result_handler = [&](auto const& res) noexcept {
+      if (res) {
+        AE_TELED_DEBUG("Modem tcp {} bytes written", res.value());
+        if ((--packets_on_the_go_) == 0) {
+          SetStatus(Status::kSuccess);
+        }
+      } else {
+        AE_TELED_ERROR("Modem tcp write failed with error {}",
+                       static_cast<int>(res.error()));
+        SetStatus(Status::kFail);
+      }
+    };
+
+    // check immediate result
+    if (auto const& res = write_op->result(); res) {
+      result_handler(*res);
       return;
     }
 
-    send_subs_.Push(write_action->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[this]() {
-          state_ = State::kDone;
-          Action::Trigger();
-        }},
-        OnError{[this]() {
-          state_ = State::kFailed;
-          Action::Trigger();
-        }},
-        OnStop{[this]() {
-          state_ = State::kStopped;
-          Action::Trigger();
-        }},
-    }));
-    sent_offset += size_to_send;
+    send_subs_ += write_op->result_event().Subscribe(result_handler);
   }
 }
 
-ModemTransport::SendUdpAction::SendUdpAction(ActionContext action_context,
+ModemTransport::SendUdpAction::SendUdpAction(AeContext const& ae_context,
                                              ModemTransport& transport,
                                              DataBuffer data)
-    : ModemSend{action_context, transport, std::move(data)} {}
+    : ModemSend{ae_context, transport, std::move(data)} {}
 
 void ModemTransport::SendUdpAction::Send() {
-  if (state_ == State::kInProgress) {
+  if (in_progress_) {
     return;
   }
-  state_ = State::kInProgress;
+  in_progress_ = true;
 
-  auto write_action =
+  auto* write_op =
       transport_->modem_driver_->WritePacket(transport_->connection_, data_);
-
-  if (!write_action) {
-    state_ = State::kFailed;
-    Action::Trigger();
+  if (write_op == nullptr) {
+    AE_TELED_ERROR("Modem udp write op error");
+    SetStatus(Status::kFail);
     return;
   }
 
-  send_sub_ = write_action->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this]() {
-        state_ = State::kDone;
-        Action::Trigger();
-      }},
-      OnError{[this]() {
-        state_ = State::kFailed;
-        Action::Trigger();
-      }},
-      OnStop{[this]() {
-        state_ = State::kStopped;
-        Action::Trigger();
-      }},
-  });
+  auto result_handler = [&](auto const& res) noexcept {
+    if (res) {
+      AE_TELED_DEBUG("Modem udp {} bytes written", res.value());
+      SetStatus(Status::kSuccess);
+    } else {
+      AE_TELED_ERROR("Modem udp write failed with error {}",
+                     static_cast<int>(res.error()));
+      SetStatus(Status::kFail);
+    }
+  };
+
+  // check immediate result
+  if (auto const& res = write_op->result(); res) {
+    result_handler(*res);
+    return;
+  }
+
+  send_sub_ = write_op->result_event().Subscribe(result_handler);
 }
 
-ModemTransport::ModemTransport(ActionContext action_context,
+ModemTransport::ModemTransport(AeContext const& ae_context,
                                IModemDriver& modem_driver, Endpoint address)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       modem_driver_{&modem_driver},
       address_{std::move(address)},
       protocol_{address_.protocol},
       stream_info_{},
-      send_action_queue_manager_{action_context_} {
+      packet_queue_manager_{MakePacketQueueManager(ae_context_, address_)} {
   AE_TELE_INFO(kModemTransport, "Modem transport created for {}", address_);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = (protocol_ == Protocol::kTcp);
@@ -151,53 +171,100 @@ void ModemTransport::Restream() {
   Disconnect();
 }
 
-ActionPtr<WriteAction> ModemTransport::Write(DataBuffer&& in_data) {
+WriteAction& ModemTransport::Write(DataBuffer&& in_data) {
   AE_TELE_DEBUG(kModemTransportSend, "Send data size {}", in_data.size());
 
   if (protocol_ == Protocol::kTcp) {
-    auto packet_data = std::vector<std::uint8_t>{};
-    VectorWriter<PacketSize> vw{packet_data};
-    auto os = omstream{vw};
-    // copy data with size
-    os << in_data;
-    auto send_action =
-        send_action_queue_manager_->AddPacket(ActionPtr<SendTcpAction>{
-            action_context_, *this, std::move(packet_data)});
-    send_action_subs_.Push(
-        send_action->StatusEvent().Subscribe(OnError{[this]() {
-          AE_TELED_ERROR("Send error, disconnect!");
-          OnConnectionFailed();
-        }}));
-    return send_action;
+    return WriteTcp(std::move(in_data));
   }
   if (protocol_ == Protocol::kUdp) {
-    auto send_action = send_action_queue_manager_->AddPacket(
-        ActionPtr<SendUdpAction>{action_context_, *this, std::move(in_data)});
-    send_action_subs_.Push(
-        send_action->StatusEvent().Subscribe(OnError{[this]() {
-          AE_TELED_ERROR("Send error, disconnect!");
-          OnConnectionFailed();
-        }}));
-    return send_action;
+    return WriteUdp(std::move(in_data));
   }
 
-  return ActionPtr<FailedWriteAction>{action_context_};
+  return FailedWrite();
+}
+
+WriteAction& ModemTransport::WriteTcp(DataBuffer&& in_data) {
+  auto& send_queue_manager =
+      std::get<PacketQueueManager<SendTcpAction, kTcpSendQueueSize>>(
+          packet_queue_manager_);
+
+  // Make TCP packet with its size at the beginning
+  auto packet_data = std::vector<std::uint8_t>{};
+  packet_data.reserve(in_data.size() + 4);
+  VectorWriter<PacketSize> vw{packet_data};
+  auto os = omstream{vw};
+  // copy data with size
+  os << std::move(in_data);  // NOLINT
+
+  auto* send_action =
+      send_queue_manager.AddPacket(ae_context_, *this, std::move(packet_data));
+  if (send_action == nullptr) {
+    return FailedWrite();
+  }
+
+  send_action_subs_ +=
+      send_action->status_event().Subscribe([this](auto status) {
+        if (status == WriteAction::Status::kFail) {
+          AE_TELED_ERROR("Send error, disconnect!");
+          OnConnectionFailed();
+        }
+      });
+  return *send_action;
+}
+WriteAction& ModemTransport::WriteUdp(DataBuffer&& in_data) {
+  auto& send_queue_manager =
+      std::get<PacketQueueManager<SendUdpAction, kTcpSendQueueSize>>(
+          packet_queue_manager_);
+
+  auto* send_action =
+      send_queue_manager.AddPacket(ae_context_, *this, std::move(in_data));
+  if (send_action == nullptr) {
+    return FailedWrite();
+  }
+
+  send_action_subs_ +=
+      send_action->status_event().Subscribe([this](auto status) {
+        if (status == WriteAction::Status::kFail) {
+          AE_TELED_ERROR("Send error, disconnect!");
+          OnConnectionFailed();
+        }
+      });
+  return *send_action;
+}
+
+WriteAction& ModemTransport::FailedWrite() {
+  if (!failed_write_ || failed_write_->is_finished()) {
+    failed_write_.emplace(ae_context_);
+  }
+  return *failed_write_;
 }
 
 void ModemTransport::Connect() {
   // open network depend on address type
-  auto connection_operation = modem_driver_->OpenNetwork(
+  auto* connection_op = modem_driver_->OpenNetwork(
       address_.protocol, Format("{}", address_.address), address_.port);
 
-  if (!connection_operation) {
+  if (connection_op == nullptr) {
     OnConnectionFailed();
     return;
   }
 
-  connection_sub_ = connection_operation->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this](auto const& action) { OnConnected(action.value()); }},
-      OnError{[this]() { OnConnectionFailed(); }},
-  });
+  auto result_handler = [this](auto const& res) noexcept {
+    if (res) {
+      OnConnected(res.value());
+    } else {
+      OnConnectionFailed();
+    }
+  };
+
+  // check immediate result
+  if (auto const& res = connection_op->result(); res) {
+    result_handler(*res);
+    return;
+  }
+
+  connection_sub_ = connection_op->result_event().Subscribe(result_handler);
 }
 
 void ModemTransport::OnConnected(ConnectionIndex connection_index) {
@@ -250,6 +317,24 @@ void ModemTransport::DataReceivedTcp(DataBuffer const& data_in) {
 
 void ModemTransport::DataReceivedUdp(DataBuffer const& data_in) {
   out_data_event_.Emit(data_in);
+}
+
+ModemTransport::PacketQueueManagerVar ModemTransport::MakePacketQueueManager(
+    AeContext const& ae_context, Endpoint const& endpoint) {
+  switch (endpoint.protocol) {
+    case Protocol::kTcp: {
+      return PacketQueueManagerVar{
+          std::in_place_type_t<
+              PacketQueueManager<SendTcpAction, kTcpSendQueueSize>>{},
+          ae_context};
+    }
+    default: {
+      return PacketQueueManagerVar{
+          std::in_place_type_t<
+              PacketQueueManager<SendUdpAction, kTcpSendQueueSize>>{},
+          ae_context};
+    }
+  }
 }
 
 }  // namespace ae

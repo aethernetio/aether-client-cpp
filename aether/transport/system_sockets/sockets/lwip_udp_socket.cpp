@@ -26,8 +26,8 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-LwipUdpSocket::LwipUdpSocket(IPoller& poller)
-    : LwipSocket(poller, MakeSocket()),
+LwipUdpSocket::LwipUdpSocket(Ptr<IPoller> const& poller)
+    : LwipSocket(*poller, MakeSocket()),
       connection_state_{ConnectionState::kNone} {
   // 1200 is our default MTU for UDP
   recv_buffer_.resize(1200);
@@ -42,7 +42,7 @@ int LwipUdpSocket::MakeSocket() {
   }
 
   // close the socket if not created
-  defer[&] {
+  ae_defer[&] {
     if (!created) {
       close(sock);
     }
@@ -65,7 +65,7 @@ ISocket& LwipUdpSocket::Connect(AddressPort const& destination,
   // UDP connection means binding socket to a destination address
   assert((socket_ != kInvalidSocket) && "Socket is not initialized");
 
-  defer[&]() {
+  ae_defer[&]() {
     Poll();
     AE_TELED_DEBUG("LwIp UDP socket connectioin event {}", connection_state_);
     connected_cb(connection_state_);

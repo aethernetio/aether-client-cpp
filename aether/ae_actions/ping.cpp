@@ -25,130 +25,103 @@
 #include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
-Ping::Ping(ActionContext action_context, Ptr<Channel> const& channel,
+Ping::Ping(AeContext const& ae_context, Ptr<Channel> const& channel,
            ClientServerConnection& client_server_connection,
            Duration ping_interval)
-    : Action{action_context},
+    : ae_context_{ae_context},
       channel_{channel},
       client_server_connection_{&client_server_connection},
-      ping_interval_{ping_interval},
-      state_{State::kSendPing} {
+      ping_interval_{ping_interval} {
   AE_TELE_INFO(kPing, "Ping action created, interval {:%S}s", ping_interval);
-
-  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
+  // send ping on the next tick
+  schedule_sub_ = ae_context_.scheduler().Task([&]() { SendPing(); });
 }
 
-UpdateStatus Ping::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kSendPing:
-        SendPing();
-        break;
-      case State::kWaitResponse:
-      case State::kWaitInterval:
-        break;
-      case State::kStopped:
-        return UpdateStatus::Stop();
-      case State::kError:
-        return UpdateStatus::Error();
-    }
-  }
-
-  if (state_.get() == State::kWaitResponse) {
-    return UpdateStatus::Delay(WaitResponse());
-  }
-  if (state_.get() == State::kWaitInterval) {
-    return UpdateStatus::Delay(WaitInterval());
-  }
-
-  return {};
+Ping::PingFailed::Subscriber Ping::ping_failed() {
+  return EventSubscriber{ping_failed_};
 }
-
-void Ping::Stop() { state_ = State::kStopped; }
 
 void Ping::SendPing() {
   AE_TELE_DEBUG(kPingSend, "Send ping");
 
-  auto write_action = client_server_connection_->AuthorizedApiCall(
+  auto& write_action = client_server_connection_->AuthorizedApiCall(
       SubApi{[this](ApiContext<AuthorizedApi>& auth_api) {
-        auto pong_promise = auth_api->ping(static_cast<std::uint64_t>(
+        auto ping_interval_u64 = static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 ping_interval_)
-                .count()));
+                .count());
+        auto& pong_promise = auth_api->ping(ping_interval_u64);
+        auto req_id = pong_promise.request_id();
+
         // save the ping request
-        auto current_time = Now();
         auto channel_ptr = channel_.Lock();
         assert(channel_ptr);
         auto expected_ping_time = channel_ptr->ResponseTimeout();
+        auto current_time = Now();
+        auto end_time = current_time + expected_ping_time;
         AE_TELED_DEBUG("Ping request expected time {:%S}s", expected_ping_time);
 
         ping_requests_.push(PingRequest{
             current_time,
-            current_time + expected_ping_time,
-            pong_promise->request_id(),
+            req_id,
         });
+
         // Wait for response
-        wait_responses_.Push(pong_promise->StatusEvent().Subscribe(OnResult{
-            [&](auto const& promise) { PingResponse(promise.request_id()); }}));
+        wait_responses_ += pong_promise.Subscribe(
+            [&, req_id](auto&&...) { PingResponse(req_id); });
+
+        // setup response timeout
+        // FIXME multi sub
+        timeout_sub_ = ae_context_.scheduler().DelayedTask(
+            [this, req_id]() { PingResponseTimeout(req_id); }, end_time);
       }});
 
-  write_subscription_ = write_action->StatusEvent().Subscribe(OnError{[this]() {
-    AE_TELE_ERROR(kPingWriteError, "Ping write error");
-    state_ = State::kError;
-  }});
+  write_subs_ += write_action.status_event().Subscribe([&](auto status) {
+    if (status == WriteAction::Status::kFail) {
+      AE_TELE_ERROR(kPingWriteError, "Ping write error");
+      ping_failed_.Emit();
+    }
+  });
 
-  state_ = State::kWaitResponse;
-}
-
-TimePoint Ping::WaitInterval() {
-  auto current_time = Now();
-  auto const& ping_time = ping_requests_.back().start;
-  if ((ping_time + ping_interval_) > current_time) {
-    return ping_time + ping_interval_;
-  }
-  state_ = State::kSendPing;
-  return current_time;
-}
-
-TimePoint Ping::WaitResponse() {
-  auto current_time = Now();
-
-  auto const& expected_ping_time = ping_requests_.back().expected_end;
-  if (expected_ping_time > current_time) {
-    return expected_ping_time;
-  }
-  // timeout
-  AE_TELE_ERROR(kPingTimeout, "Ping timeout");
-  state_ = State::kError;
-
-  return current_time;
+  // setup ping interval
+  schedule_sub_ = ae_context_.scheduler().DelayedTask([this]() { SendPing(); },
+                                                      ping_interval_);
 }
 
 void Ping::PingResponse(RequestId request_id) {
-  auto request_time = std::invoke([&]() -> std::optional<TimePoint> {
-    for (auto const& [time, _, req_id] : ping_requests_) {
-      if (req_id == request_id) {
-        return time;
-      }
-    }
-    return std::nullopt;
-  });
+  auto request_it = std::find_if(
+      std::begin(ping_requests_), std::end(ping_requests_),
+      [&](auto const& p) { return p && (p->request_id == request_id); });
 
-  if (!request_time) {
+  if (request_it == std::end(ping_requests_)) {
     AE_TELED_DEBUG("Got lost, or not our pong response");
     return;
   }
 
+  auto& request = *request_it;
+
   auto current_time = Now();
   auto ping_duration =
-      std::chrono::duration_cast<Duration>(current_time - *request_time);
+      std::chrono::duration_cast<Duration>(current_time - request->start);
 
   AE_TELED_DEBUG("Ping received by {:%S} s", ping_duration);
   auto channel_ptr = channel_.Lock();
   assert(channel_ptr);
   channel_ptr->channel_statistics().AddResponseTime(ping_duration);
 
-  state_ = State::kWaitInterval;
+  // reset request as finished
+  request.reset();
+}
+
+void Ping::PingResponseTimeout(RequestId request_id) {
+  for (auto& p : ping_requests_) {
+    if (p && (p->request_id == request_id)) {
+      p.reset();
+      // timeout
+      AE_TELE_ERROR(kPingTimeout, "Ping timeout");
+      ping_failed_.Emit();
+    }
+  }
 }
 
 }  // namespace ae

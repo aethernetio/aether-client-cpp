@@ -26,9 +26,12 @@
 #  include "lwip/udp.h"
 #  include "lwip/ip_addr.h"
 
+#  include "aether/ptr/ptr.h"
 #  include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
+class IPoller;
+
 /**
  * \brief Base implementation of LWIP socket.
  */
@@ -36,7 +39,7 @@ class LwipCBUdpSocket : public ISocket {
  public:
   static constexpr int kInvalidSocket = -1;
 
-  explicit LwipCBUdpSocket();
+  explicit LwipCBUdpSocket(Ptr<IPoller> const& poller);
   ~LwipCBUdpSocket() override;
 
   ISocket& ReadyToWrite(ReadyToWriteCb ready_to_write_cb) override;

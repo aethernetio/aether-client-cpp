@@ -17,6 +17,7 @@
 #ifndef AETHER_CHANNELS_ETHERNET_CHANNEL_H_
 #define AETHER_CHANNELS_ETHERNET_CHANNEL_H_
 
+#include "aether/memory.h"
 #include "aether/types/address.h"
 #include "aether/channels/channel.h"
 
@@ -25,18 +26,23 @@ class Aether;
 class IPoller;
 class DnsResolver;
 
+namespace ethernet_access_point_internal {
+class EthernetChannelTransportBuilder;
+}
+
 class EthernetChannel : public Channel {
   AE_OBJECT(EthernetChannel, Channel, 0)
  public:
-  EthernetChannel() = default;
+  EthernetChannel();
 
   EthernetChannel(ObjProp prop, ObjPtr<Aether> aether,
                   ObjPtr<DnsResolver> dns_resolver, ObjPtr<IPoller> poller,
                   Endpoint address);
+  ~EthernetChannel() override;
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, dns_resolver_, address))
 
-  ActionPtr<TransportBuilderAction> TransportBuilder() override;
+  TransportBuildSender TransportBuilder() override;
 
   Endpoint address;
 

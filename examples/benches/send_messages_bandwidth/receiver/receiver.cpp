@@ -22,36 +22,34 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-Receiver::Receiver(ActionContext action_context, Client::ptr client)
-    : action_context_{action_context},
+Receiver::Receiver(AeContext const& ae_context, Client::ptr client)
+    : ae_context_{ae_context},
       client_{std::move(client)},
-      bandwidth_api_{action_context, protocol_context_} {}
+      bandwidth_api_{protocol_context_} {}
 
 EventSubscriber<void()> Receiver::error_event() { return error_event_; }
 
 void Receiver::Connect() {
-  message_stream_received_ =
-      client_->message_stream_manager().new_stream_event().Subscribe(
-          [this](RcPtr<P2pStream> stream) {
-            AE_TELED_DEBUG("Received message stream from {}",
-                           stream->destination());
-            message_stream_ = std::move(stream);
-            recv_data_sub_ = message_stream_->out_data_event().Subscribe(
-                MethodPtr<&Receiver::OnRecvData>{this});
-          });
+  client_->message_stream_manager().new_stream_event().Subscribe(
+      [this](RcPtr<P2pStream> stream) {
+        AE_TELED_DEBUG("Received message stream from {}",
+                       stream->destination());
+        message_stream_ = std::move(stream);
+        message_stream_->out_data_event().Subscribe(
+            MethodPtr<&Receiver::OnRecvData>{this});
+      });
 }
 
 void Receiver::Disconnect() { message_stream_.Reset(); }
 
 EventSubscriber<void()> Receiver::Handshake() {
-  handshake_received_ =
-      bandwidth_api_.handshake_event().Subscribe([this](RequestId req_id) {
-        AE_TELED_DEBUG("Received handshake request {}", req_id);
-        auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
-        api->return_result.SendResult(req_id, true);
-        api.Flush();
-        handshake_made_event_.Emit();
-      });
+  bandwidth_api_.handshake_event().Subscribe([this](RequestId req_id) {
+    AE_TELED_DEBUG("Received handshake request {}", req_id);
+    auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
+    api->return_result.SendResult(req_id, true);
+    api.Flush();
+    handshake_made_event_.Emit();
+  });
 
   return handshake_made_event_;
 }
@@ -79,21 +77,21 @@ EventSubscriber<void(Bandwidth const&)> Receiver::TestMessages(
         api.Flush();
       });
 
-  message_receiver_ = OwnActionPtr<MessageReceiver>{action_context_};
+  message_receiver_ = std::make_unique<MessageReceiver>(ae_context_);
 
-  test_res_sub_ = message_receiver_->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this, message_size](MessageReceiver const& action) {
-        test_finished_event_.Emit({action.receive_duration(),
-                                   action.message_received_count(),
-                                   message_size});
-      }},
-      OnError{[this, message_count, message_size]() {
-        AE_TELED_ERROR("Test messages count {}, size {}, failed", message_count,
-                       message_size);
-        error_event_.Emit();
-      }}});
+  message_receiver_->result_event().Subscribe(
+      [this, message_count, message_size](auto const& result) {
+        if (result) {
+          test_finished_event_.Emit(
+              {result.value().duration, result.value().count, message_size});
+        } else {
+          AE_TELED_ERROR("Test messages count {}, size {}, failed",
+                         message_count, message_size);
+          error_event_.Emit();
+        }
+      });
 
-  message_received_sub_ =
+  message_recv_sub_ =
       bandwidth_api_.message_event().Subscribe([this](auto id, auto&&) {
         test_start_sub_.Reset();
         message_receiver_->MessageReceived(id);

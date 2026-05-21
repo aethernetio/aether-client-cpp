@@ -20,8 +20,8 @@
 #include "aether/common.h"
 
 #include "aether/types/uid.h"
+#include "aether/ae_context.h"
 #include "aether/ptr/ptr_view.h"
-#include "aether/actions/action_context.h"
 
 #include "aether/write_action/buffer_write.h"
 
@@ -39,14 +39,14 @@ class ReadMessageGate;
 
 class P2pStream final : public ByteIStream {
  public:
-  P2pStream(ActionContext action_context, Ptr<Client> const& client,
+  P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
             Uid destination);
 
   ~P2pStream() override;
 
   AE_CLASS_NO_COPY_MOVE(P2pStream);
 
-  ActionPtr<WriteAction> Write(DataBuffer&& data) override;
+  WriteAction& Write(DataBuffer&& data) override;
 
   StreamUpdateEvent::Subscriber stream_update_event() override;
 
@@ -68,16 +68,16 @@ class P2pStream final : public ByteIStream {
       Ptr<Cloud> const& cloud);
   std::unique_ptr<CloudServerConnections> MakeDestinationCloudConn(
       ClientConnectionManager& connection_manager);
-  ActionPtr<WriteAction> OnWrite(AeMessage&& message);
+  WriteAction* OnWrite(AeMessage&& message);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   PtrView<Client> client_;
   Uid destination_{};
 
   // connection manager to destination cloud
   std::unique_ptr<ClientConnectionManager> dest_conn_manager_;
   std::unique_ptr<CloudServerConnections> dest_cloud_conn_;
-  BufferWrite<AeMessage> buffer_write_;
+  BufferWrite<AeMessage, 100> buffer_write_;
   std::unique_ptr<p2p_stream_internal::MessageSendStream> message_send_stream_;
   std::unique_ptr<p2p_stream_internal::ReadMessageGate> read_message_gate_;
 

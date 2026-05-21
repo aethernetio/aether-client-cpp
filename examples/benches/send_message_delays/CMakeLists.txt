@@ -45,6 +45,8 @@ if(NOT CM_PLATFORM)
 
   if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang.*")
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Werror)
+    # gcc has a bug related to maybe-unitialized related to use std::optional
+    target_compile_options(${PROJECT_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-Wno-maybe-uninitialized>)
   elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
   endif()

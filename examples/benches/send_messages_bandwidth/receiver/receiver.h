@@ -19,9 +19,8 @@
 
 #include "aether/client.h"
 #include "aether/memory.h"
+#include "aether/ae_context.h"
 #include "aether/events/events.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/actions/action_context.h"
 #include "aether/events/event_subscription.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
@@ -31,7 +30,7 @@
 namespace ae::bench {
 class Receiver {
  public:
-  Receiver(ActionContext action_context, Client::ptr client);
+  Receiver(AeContext const& ae_context, Client::ptr client);
 
   EventSubscriber<void()> error_event();
 
@@ -47,14 +46,14 @@ class Receiver {
 
   void OnRecvData(DataBuffer const& data);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   Client::ptr client_;
   ProtocolContext protocol_context_;
   BandwidthApi bandwidth_api_;
 
   RcPtr<P2pStream> message_stream_;
 
-  OwnActionPtr<MessageReceiver> message_receiver_;
+  std::unique_ptr<MessageReceiver> message_receiver_;
 
   Event<void(Bandwidth const&)> test_finished_event_;
   Event<void()> handshake_made_event_;
@@ -63,14 +62,9 @@ class Receiver {
 
   bool test_stopped_{true};
 
-  Subscription message_stream_received_;
-  Subscription message_received_sub_;
-  Subscription handshake_received_;
   Subscription test_start_sub_;
   Subscription test_stop_sub_;
-  Subscription recv_data_sub_;
-  Subscription test_res_sub_;
-  Subscription test_error_sub_;
+  Subscription message_recv_sub_;
 };
 }  // namespace ae::bench
 

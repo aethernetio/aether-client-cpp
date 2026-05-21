@@ -20,7 +20,7 @@ void setUp() {}
 void tearDown() {}
 
 extern int test_literal_array();
-extern int test_ring_buffer();
+extern int test_ring_index();
 extern int test_concat_arrays();
 extern int test_span();
 extern int test_static_map();
@@ -34,7 +34,7 @@ extern int test_address_parser();
 int main() {
   int res = 0;
   res += test_literal_array();
-  res += test_ring_buffer();
+  res += test_ring_index();
   res += test_concat_arrays();
   res += test_span();
   res += test_static_map();

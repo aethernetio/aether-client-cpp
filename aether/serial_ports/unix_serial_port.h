@@ -22,41 +22,25 @@
 
 #  define UNIX_SERIAL_PORT_ENABLED 1
 
+#  include <list>
 #  include <mutex>
 #  include <atomic>
 
-#  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
-#  include "aether/actions/action_context.h"
-
+#  include "aether/ae_context.h"
 #  include "aether/poller/poller.h"
+#  include "aether/types/data_buffer.h"
 #  include "aether/poller/unix_poller.h"
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
 
 namespace ae {
 class UnixSerialPort final : public ISerialPort {
-  class ReadAction final : public Action<ReadAction> {
-   public:
-    ReadAction(ActionContext action_context, UnixSerialPort& serial_port);
-
-    UpdateStatus Update();
-
-   private:
-    void PollEvent(EventType event);
-    void ReadData();
-
-    UnixSerialPort* serial_port_;
-    std::list<DataBuffer> buffers_;
-    std::atomic_bool read_event_;
-  };
-
  public:
-  explicit UnixSerialPort(ActionContext action_context, SerialInit serial_init,
+  explicit UnixSerialPort(AeContext const& ae_context, SerialInit serial_init,
                           IPoller::ptr const& poller);
   ~UnixSerialPort() override;
 
-  void Write(DataBuffer const& data) override;
+  void Write(std::span<std::uint8_t const> data) override;
 
   DataReadEvent::Subscriber read_event() override;
 
@@ -66,9 +50,13 @@ class UnixSerialPort final : public ISerialPort {
   static int OpenPort(SerialInit const& serial_init);
   static bool SetOptions(int fd, SerialInit const& serial_init);
 
+  void PolleEvent(EventType event);
+  void ReadData();
+  void EmitData();
+
   void Close();
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   SerialInit serial_init_;
   UnixPollerImpl* poller_;
 
@@ -76,7 +64,9 @@ class UnixSerialPort final : public ISerialPort {
   int fd_;
   DataReadEvent read_event_;
 
-  ActionPtr<ReadAction> read_action_;
+  std::list<DataBuffer> buffers_;
+  std::atomic_bool read_flag_;
+  TaskSubscription scheduler_sub_;
 };
 }  // namespace ae
 

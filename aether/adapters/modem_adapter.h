@@ -17,26 +17,23 @@
 #ifndef AETHER_ADAPTERS_MODEM_ADAPTER_H_
 #define AETHER_ADAPTERS_MODEM_ADAPTER_H_
 
-#include <cstdint>
-
 #include "aether/config.h"
 
 #if AE_SUPPORT_MODEMS
-#  include "aether/events/events.h"
-
-#  include "aether/modems/imodem_driver.h"
 #  include "aether/adapters/parent_modem.h"
 #  include "aether/access_points/access_point.h"
 
 namespace ae {
+class IModemDriver;
+
 class ModemAdapter final : public ParentModemAdapter {
   AE_OBJECT(ModemAdapter, ParentModemAdapter, 0)
 
-  ModemAdapter() = default;
+  ModemAdapter();
 
  public:
 #  ifdef AE_DISTILLATION
-  ModemAdapter(ObjProp prop, ObjPtr<Aether> aether, IPoller::ptr poller,
+  ModemAdapter(ObjProp prop, ObjPtr<Aether> aether, ObjPtr<IPoller> poller,
                ModemInit modem_init);
 #  endif  // AE_DISTILLATION
 

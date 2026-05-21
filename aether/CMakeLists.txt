@@ -41,7 +41,9 @@ list(APPEND common_dependencies
     "../third_party/gcem"
     "../third_party/etl"
     "../third_party/aethernet-numeric"
+    "../third_party/stdexec"
 )
+set(STDEXEC_BUILD_EXAMPLES Off)
 
 # for etl
 set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
@@ -105,12 +107,6 @@ list(APPEND actions_srcs
             "ae_actions/telemetry.cpp"
             "ae_actions/select_client.cpp"
             "ae_actions/time_sync.cpp"
-            "actions/action_trigger.cpp"
-            "actions/action_registry.cpp"
-            "actions/action_processor.cpp"
-            "actions/timer_action.cpp"
-            "actions/task_queue.cpp"
-            "actions/repeatable_task.cpp"
             )
 
 list(APPEND registration_srcs
@@ -169,7 +165,6 @@ list(APPEND wifi_srcs
 list(APPEND serial_ports_srcs
             "serial_ports/at_support/at_buffer.cpp"
             "serial_ports/at_support/at_dispatcher.cpp"
-            "serial_ports/at_support/at_request.cpp"
             "serial_ports/at_support/at_listener.cpp"
             "serial_ports/at_support/at_support.cpp"
             "serial_ports/serial_port_factory.cpp"
@@ -186,8 +181,6 @@ list(APPEND transport_srcs
             "transport/system_sockets/sockets/lwip_socket.cpp"
             "transport/system_sockets/sockets/lwip_tcp_socket.cpp"
             "transport/system_sockets/sockets/lwip_udp_socket.cpp"
-            "transport/system_sockets/sockets/tcp_sockets_factory.cpp"
-            "transport/system_sockets/sockets/udp_sockets_factory.cpp"
             "transport/system_sockets/sockets/unix_socket.cpp"
             "transport/system_sockets/sockets/unix_tcp_socket.cpp"
             "transport/system_sockets/sockets/unix_udp_socket.cpp"
@@ -195,7 +188,6 @@ list(APPEND transport_srcs
             "transport/system_sockets/sockets/win_tcp_socket.cpp"
             "transport/system_sockets/sockets/win_udp_socket.cpp"
             "transport/modems/modem_transport.cpp"
-            "transport/socket_packet_send_action.cpp"
             "transport/data_packet_collector.cpp"
             "transport/system_sockets/tcp/tcp.cpp"
             "transport/system_sockets/udp/udp.cpp"
@@ -206,21 +198,9 @@ list(APPEND transport_srcs
 list(APPEND stream_api_src
             "stream_api/sized_packet_gate.cpp"
             "stream_api/stream_api.cpp"
-
-            "stream_api/safe_stream.cpp"
-            "stream_api/safe_stream/safe_stream_api.cpp"
-            "stream_api/safe_stream/sending_data_action.cpp"
-            "stream_api/safe_stream/send_data_buffer.cpp"
-            "stream_api/safe_stream/sending_chunk_list.cpp"
-            "stream_api/safe_stream/receiving_chunk_list.cpp"
-            "stream_api/safe_stream/safe_stream_send_action.cpp"
-            "stream_api/safe_stream/safe_stream_recv_action.cpp"
 )
 
 list(APPEND write_action_srcs
-            "write_action/write_action.cpp"
-            "write_action/failed_write_action.cpp"
-            "write_action/done_write_action.cpp"
             "write_action/buffer_write.cpp"
 )
 
@@ -360,7 +340,8 @@ if(REGULAR_CMAKE_PROJECT)
                                         sodium
                                         hydrogen
                                         gcem
-                                        etl)
+                                        etl
+                                        stdexec)
   target_link_libraries(${PROJECT_NAME} PRIVATE c-ares )
 
   set(TARGET_NAME "${PROJECT_NAME}")
@@ -417,7 +398,8 @@ else()
                                          sodium
                                          hydrogen
                                          gcem
-                                         etl)
+                                         etl
+                                         stdexec)
   else()
     #ERROR
     message(SEND_ERROR "You must specify the CMAKE version!")
@@ -477,7 +459,8 @@ if(NOT "${_AE_REG_CLOUD_IP}" STREQUAL "")
   target_compile_definitions(${TARGET_NAME} PUBLIC "_AE_REG_CLOUD_IP=\"${_AE_REG_CLOUD_IP}\"")
 endif()
 
-# match GCC abd either Clang or AppleClang
+# setup warnings an Werror
+# match GCC and either Clang or AppleClang
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang.*")
   target_compile_options(${TARGET_NAME} PRIVATE
                          -Werror
@@ -489,11 +472,32 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Cla
                          -Wno-ignored-attributes
                          -Wno-cpp)
   # gcc before 10.0 has bagous Wconversion check
-  if (GCC_VERSION VERSION_GREATER 10.0 OR CMAKE_CXX_COMPILER_ID MATCHES ".*Clang.*")
-    target_compile_options(${TARGET_NAME} PRIVATE -Wconversion)
-  endif()
+  target_compile_options(${TARGET_NAME} PRIVATE $<$<OR:$<VERSION_GREATER:$<CXX_COMPILER_VERSION>,10.0>,$<CXX_COMPILER_ID:Clang>>:-Wconversion>)
+  # gcc has a bug related to maybe-unitialized related to use std::optional
+  target_compile_options(${TARGET_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-Wno-maybe-uninitialized>)
+  # gcc often reports false positive, especialy on release builds
+  target_compile_options(${TARGET_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-Wno-stringop-overflow>)
 
-  if (CMAKE_BUILD_TYPE STREQUAL "Release")
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  target_compile_options(${TARGET_NAME}
+          PRIVATE
+              /W4
+              /WX
+              /w15262 #implisitfallthrough
+              /wd4388 #Wno-sign-compare
+              /wd4389 #Wno-sign-compare
+          PUBLIC
+              /wd4100 /wd4101 /wd4127 /wd4244 /wd4324
+              /wd4456 /wd4459 /wd4714
+              )
+  target_compile_options(${TARGET_NAME} PUBLIC /Zc:preprocessor)
+endif()
+
+# setup release build options
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+  if (NOT MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+      OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+
     target_compile_options(${TARGET_NAME} PUBLIC
                            -ffast-math
                            -fno-math-errno
@@ -503,7 +507,6 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Cla
                            -ffinite-math-only
                            -fno-signed-zeros
                            -fno-trapping-math)
-
     # clang does not support this
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
       target_compile_options(${TARGET_NAME} PUBLIC
@@ -511,40 +514,28 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES ".*Cla
                             -fno-fp-int-builtin-inexact)
     endif()
 
+    # TODO: make this options configurable from user side
+    target_compile_options(${TARGET_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>)
+    target_compile_options(${TARGET_NAME} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
+
+
     if (GCC_VERSION VERSION_GREATER 12.1 OR GCC_VERSION VERSION_EQUAL 12.1)
       target_compile_options(${TARGET_NAME} PUBLIC -Oz -DNDEBUG)
     else()
       target_compile_options(${TARGET_NAME} PUBLIC -Os -DNDEBUG)
     endif()
 
-    target_compile_options(${TARGET_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>)
-    target_compile_options(${TARGET_NAME} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
+    # size optimizations
+    target_compile_options(${TARGET_NAME} PUBLIC -fdata-sections -ffunction-sections)
+    target_link_options(${TARGET_NAME} PUBLIC -fdata-sections -ffunction-sections)
+    target_compile_options(${TARGET_NAME} PUBLIC -flto=auto -ffat-lto-objects)
+    target_link_options(${TARGET_NAME} PUBLIC -flto=auto)
 
-    # macos's ld does not support --gc-sections,--strip-all
-    if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-      target_compile_options(${TARGET_NAME} PUBLIC -fdata-sections -ffunction-sections)
-      target_link_options(${TARGET_NAME} PUBLIC -fdata-sections -ffunction-sections)
-      if(NOT AE_NO_STRIP_ALL )
-        target_link_options(${TARGET_NAME} PUBLIC -Wl,--gc-sections,--strip-all)
-      endif()
-      if (NOT MINGW)
-        target_compile_options(${TARGET_NAME} PUBLIC -flto=auto -ffat-lto-objects)
-        target_link_options(${TARGET_NAME} PUBLIC -flto=auto)
-      endif()
+    if(NOT AE_NO_STRIP_ALL )
+      target_link_options(${TARGET_NAME} PUBLIC -Wl,--gc-sections,--strip-all)
     endif()
-  endif()
 
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  target_compile_options(${TARGET_NAME}
-        PRIVATE
-            /W4
-            /WX
-            /wd4388 #Wno-sign-compare
-            /wd4389 #Wno-sign-compare
-            /wd4244
-            /w15262 #implisitfallthrough
-            )
-  target_compile_options(${TARGET_NAME} PUBLIC /Zc:preprocessor)
+  endif()
 endif()
 
 if(AE_BUILD_TESTS)
@@ -559,15 +550,15 @@ endif()
 
 if(REGULAR_CMAKE_PROJECT AND NOT AE_BUILD_TESTS)
   ## Target installation
-  install(TARGETS   ${TARGET_NAME}
-        EXPORT        ${TARGET_NAME}Targets
-        ARCHIVE       DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY       DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}
-        COMPONENT     library)
+  # install(TARGETS   ${TARGET_NAME}
+  #       EXPORT        ${TARGET_NAME}Targets
+  #      ARCHIVE       DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  #     LIBRARY       DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  #    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}
+  #   COMPONENT     library)
 
   ## Target's cmake files: targets export
-  install(EXPORT  ${TARGET_NAME}Targets
-        NAMESPACE   ${TARGET_NAME}::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME})
+  #install(EXPORT  ${TARGET_NAME}Targets
+  #     NAMESPACE   ${TARGET_NAME}::
+  #    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME})
 endif()

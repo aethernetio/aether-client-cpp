@@ -39,11 +39,10 @@ struct RegistrationResponse {
 
 class GlobalRegServerApi : public ApiClass {
  public:
-  GlobalRegServerApi(ProtocolContext& protocol_context,
-                     ActionContext action_context);
+  explicit GlobalRegServerApi(ProtocolContext& protocol_context);
 
   Method<03, void(Key key)> set_master_key;
-  Method<04, ApiPromisePtr<RegistrationResponse>()> finish;
+  Method<04, ApiPromise<RegistrationResponse>()> finish;
 };
 
 }  // namespace ae

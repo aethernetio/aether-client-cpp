@@ -36,14 +36,13 @@
 // IWYU pragma: end_keeps
 
 namespace ae::cloud_test {
-constexpr ae::SafeStreamConfig kSafeStreamConfig{
-    std::numeric_limits<std::uint16_t>::max(),                // buffer_capacity
-    (std::numeric_limits<std::uint16_t>::max() / 2) - 1,      // window_size
-    (std::numeric_limits<std::uint16_t>::max() / 2) - 1 - 1,  // max_data_size
-    10,                              // max_repeat_count
-    std::chrono::milliseconds{600},  // wait_confirm_timeout
-    {},                              // send_confirm_timeout
-    std::chrono::milliseconds{400},  // send_repeat_timeout
+constexpr SafeStreamConfig kSafeStreamConfig{
+    .window_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
+    .max_packet_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
+    .max_repeat_count = 10,
+    .wait_ack_timeout = std::chrono::milliseconds{1500},
+    .send_ack_timeout = std::chrono::milliseconds{0},
+    .send_repeat_timeout = std::chrono::milliseconds{200},
 };
 }  // namespace ae::cloud_test
 
@@ -66,17 +65,25 @@ int AetherCloudExample() {
   ae::Client::ptr client_a;
   ae::Client::ptr client_b;
 
-  auto select_client_a = aether_app->aether()->SelectClient(
+  auto& select_client_a = aether_app->aether()->SelectClient(
       ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "A");
-  select_client_a->StatusEvent().Subscribe(ae::ActionHandler{
-      ae::OnResult{[&](auto const& action) { client_a = action.client(); }},
-      ae::OnError{[&]() { aether_app->Exit(1); }}});
+  select_client_a.result_event().Subscribe([&](auto const& res) {
+    if (res) {
+      client_a = res.value();
+    } else {
+      aether_app->Exit(1);
+    }
+  });
 
-  auto select_client_b = aether_app->aether()->SelectClient(
+  auto& select_client_b = aether_app->aether()->SelectClient(
       ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "B");
-  select_client_b->StatusEvent().Subscribe(ae::ActionHandler{
-      ae::OnResult{[&](auto const& action) { client_b = action.client(); }},
-      ae::OnError{[&]() { aether_app->Exit(1); }}});
+  select_client_b.result_event().Subscribe([&](auto const& res) {
+    if (res) {
+      client_b = res.value();
+    } else {
+      aether_app->Exit(1);
+    }
+  });
 
   aether_app->WaitActions(select_client_a, select_client_b);
 
@@ -106,12 +113,14 @@ int AetherCloudExample() {
           AE_TELED_DEBUG("Received a message [{}]", str_msg);
           received_count++;
           auto confirm_msg = std::string{"confirmed "} + str_msg;
-          auto response_action = receiver_stream->Write(
+          auto& response_action = receiver_stream->Write(
               {confirm_msg.data(), confirm_msg.data() + confirm_msg.size()});
-          response_action->StatusEvent().Subscribe(ae::OnError{[&]() {
-            AE_TELED_ERROR("Send response failed");
-            aether_app->Exit(1);
-          }});
+          response_action.status_event().Subscribe([&](auto status) {
+            if (status == ae::WriteAction::Status::kFail) {
+              AE_TELED_ERROR("Send response failed");
+              aether_app->Exit(1);
+            }
+          });
         });
       });
 
@@ -145,12 +154,14 @@ int AetherCloudExample() {
       "I've forgotten how it felt before the world fell at our feet"};
 
   for (auto const& msg : messages) {
-    auto send_action =
+    auto& send_action =
         sender_stream->Write(ae::DataBuffer{std::begin(msg), std::end(msg)});
-    send_action->StatusEvent().Subscribe(ae::OnError{[&](auto const&) {
-      AE_TELED_ERROR("Send message failed");
-      aether_app->Exit(1);
-    }});
+    send_action.status_event().Subscribe([&](auto status) {
+      if (status == ae::WriteAction::Status::kFail) {
+        AE_TELED_ERROR("Send message failed");
+        aether_app->Exit(1);
+      }
+    });
   }
 
   /**

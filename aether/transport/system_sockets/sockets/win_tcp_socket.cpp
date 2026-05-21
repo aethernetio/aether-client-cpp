@@ -46,8 +46,8 @@ LPFN_CONNECTEX GetConnectEx(SOCKET socket) {
 
 }  // namespace win_socket_internal
 
-WinTcpSocket::WinTcpSocket(IPoller& poller)
-    : WinSocket{poller, 1500}, conn_overlapped_{} {
+WinTcpSocket::WinTcpSocket(Ptr<IPoller> const& poller)
+    : WinSocket{*poller, 1500}, conn_overlapped_{} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
@@ -57,7 +57,7 @@ WinTcpSocket::WinTcpSocket(IPoller& poller)
     return;
   }
   // close socket on error
-  defer[&] {
+  ae_defer[&] {
     if (!created) {
       ::closesocket(sock);
     }
@@ -73,7 +73,7 @@ WinTcpSocket::WinTcpSocket(IPoller& poller)
 
   // make socket non-blocking
   u_long nonblocking = 1;
-  auto res2 = ::ioctlsocket(sock, FIONBIO, &nonblocking);
+  auto res2 = ::ioctlsocket(sock, static_cast<long>(FIONBIO), &nonblocking);
   if (res2 == SOCKET_ERROR) {
     AE_TELED_ERROR("Socket make non-blocking error {}", WSAGetLastError());
     return;
@@ -91,7 +91,7 @@ ISocket& WinTcpSocket::Connect(AddressPort const& destination,
 
   connected_cb_ = std::move(connected_cb);
 
-  defer[&]() {
+  ae_defer[&]() {
     Poll();
     connected_cb_(connection_state_);
   };
@@ -160,7 +160,7 @@ WinTcpSocket::ConnectionState WinTcpSocket::TestConnectionState() {
 
 void WinTcpSocket::PollEvent(LPOVERLAPPED overlapped) {
   if (connection_state_ == ConnectionState::kConnecting) {
-    defer[&]() {
+    ae_defer[&]() {
       if (connected_cb_) {
         connected_cb_(connection_state_);
       }

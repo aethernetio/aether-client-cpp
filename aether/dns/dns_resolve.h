@@ -25,25 +25,12 @@
 #if AE_SUPPORT_CLOUD_DNS
 #  include "aether/obj/obj.h"
 #  include "aether/types/address.h"
-#  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
+#  include "aether/executors/executors.h"
 
 namespace ae {
-// Action to get host name resolve
-class ResolveAction : public Action<ResolveAction> {
- public:
-  using Action::Action;
 
-  UpdateStatus Update() const;
-
-  // Set ip addresses after resolve query finished
-  void SetAddress(std::vector<Endpoint> addr);
-  void Failed();
-
-  bool is_resolved{false};
-  bool is_failed{false};
-  std::vector<Endpoint> addresses;
-};
+using ResolveSender =
+    ex::AnySender<ex::set_value_t(std::vector<Endpoint>), ex::set_error_t(int)>;
 
 /**
  * \brief Base class of DNS resolver
@@ -55,17 +42,15 @@ class DnsResolver : public Obj {
   DnsResolver() = default;
 
  public:
-#  if defined AE_DISTILLATION
   explicit DnsResolver(ObjProp prop) : Obj{prop} {}
-#  endif
   ~DnsResolver() override = default;
 
   AE_OBJECT_REFLECT()
 
   // Make a host name resolve
-  virtual ActionPtr<ResolveAction> Resolve(NamedAddr const& name_address,
-                                           std::uint16_t port_hint,
-                                           Protocol protocol_hint);
+  virtual ResolveSender Resolve(NamedAddr const& name_address,
+                                std::uint16_t port_hint,
+                                Protocol protocol_hint) = 0;
 };
 }  // namespace ae
 #else

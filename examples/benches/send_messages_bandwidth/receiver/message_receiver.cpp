@@ -19,65 +19,59 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-MessageReceiver::MessageReceiver(ActionContext action_context)
-    : Action{action_context}, state_{State::kReceiving} {}
-
-UpdateStatus MessageReceiver::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kReceiving:
-        receive_message_timeout_ = Now() + kReceiveTimeout;
-        first_message_received_time_ = HighResTimePoint::clock::now();
-        break;
-      case State::kSuccess:
-        return UpdateStatus::Result();
-      case State::kError:
-        return UpdateStatus::Error();
-      case State::kStopped:
-        return UpdateStatus::Stop();
-    }
-  }
-  if (state_.get() == State::kReceiving) {
-    return CheckReceiveTimeout(Now());
-  }
-  return {};
+MessageReceiver::MessageReceiver(AeContext const& ae_context)
+    : ae_context_{ae_context},
+      first_message_received_time_{HighResTimePoint::clock::now()},
+      received_message_time_{Now()} {
+  SchedulerReceiveTimeout();
 }
 
-std::size_t MessageReceiver::message_received_count() const {
-  return message_received_count_;
-}
-
-Duration MessageReceiver::receive_duration() const {
-  return std::chrono::duration_cast<Duration>(last_message_received_time_ -
-                                              first_message_received_time_);
+MessageReceiver::ResultEvent::Subscriber MessageReceiver::result_event() {
+  return EventSubscriber{result_event_};
 }
 
 void MessageReceiver::MessageReceived(std::uint16_t id) {
   AE_TELED_DEBUG("Message received {} count {}", id, message_received_count_);
-  last_message_received_time_ = HighResTimePoint::clock::now();
-  receive_message_timeout_ = Now() + kReceiveTimeout;
   ++message_received_count_;
-  received_message_ids_.insert(id);
+  received_message_time_ = Now();
 }
 
 void MessageReceiver::StopTest() {
-  state_ = State::kSuccess;
-  Action::Trigger();
+  wait_sub_.Reset();
+  EmitResult();
 }
 
 void MessageReceiver::Stop() {
-  state_ = State::kStopped;
-  Action::Trigger();
+  wait_sub_.Reset();
+  result_event_.Emit(Error{1});
 }
 
-UpdateStatus MessageReceiver::CheckReceiveTimeout(TimePoint current_time) {
-  if (receive_message_timeout_ > current_time) {
-    return UpdateStatus::Delay(receive_message_timeout_);
+void MessageReceiver::SchedulerReceiveTimeout() {
+  if (!wait_sub_) {
+    wait_sub_ = ae_context_.scheduler().DelayedTask(
+        [&]() {
+          auto diff = Now() - received_message_time_;
+          if (diff >= kReceiveTimeout) {
+            AE_TELED_ERROR("Message receive timeout");
+            result_event_.Emit(Error{12});
+          } else {
+            wait_sub_.Reset();
+            SchedulerReceiveTimeout();
+          }
+        },
+        kReceiveTimeout);
   }
-  AE_TELED_ERROR("Message receive timeout");
-  state_ = State::kError;
-  Action::Trigger();
-  return {};
+}
+
+void MessageReceiver::EmitResult() {
+  auto last_message_received_time = HighResTimePoint::clock::now();
+  result_event_.Emit(Ok{
+      RecvResult{
+          .count = message_received_count_,
+          .duration =
+              (last_message_received_time - first_message_received_time_),
+      },
+  });
 }
 
 }  // namespace ae::bench

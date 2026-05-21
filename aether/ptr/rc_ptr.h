@@ -53,8 +53,8 @@ class RcPtr {
   friend class RcPtrView;
 
  public:
-  RcPtr() noexcept : rc_storage_{nullptr} {}
-  RcPtr(std::nullptr_t) noexcept : rc_storage_{nullptr} {}
+  RcPtr() noexcept = default;
+  RcPtr(std::nullptr_t) noexcept : RcPtr() {}  // NOLINT
   explicit RcPtr(RcStorage<T>* rc_storage) noexcept : rc_storage_{rc_storage} {
     Increment();
   }
@@ -150,7 +150,7 @@ class RcPtr {
     alloc.deallocate(rc_storage_, std::size_t{1});
   }
 
-  RcStorage<T>* rc_storage_;
+  RcStorage<T>* rc_storage_{nullptr};
 };
 
 /**
@@ -183,10 +183,10 @@ class RcPtrView {
   using OurRcPtr = RcPtr<T>;
 
  public:
-  RcPtrView() noexcept : rc_storage_{nullptr} {}
+  RcPtrView() noexcept = default;
   ~RcPtrView() noexcept { Reset(); }
 
-  RcPtrView(OurRcPtr const& rpc_ptr) noexcept
+  RcPtrView(OurRcPtr const& rpc_ptr) noexcept  // NOLINT
       : RcPtrView{rpc_ptr.rc_storage_} {}
 
   // Copying
@@ -270,7 +270,7 @@ class RcPtrView {
     alloc.deallocate(rc_storage_, std::size_t{1});
   }
 
-  RcStorage<T>* rc_storage_;
+  RcStorage<T>* rc_storage_{nullptr};
 };
 
 template <typename T, typename Ob>

@@ -26,153 +26,153 @@
 #include "send_message_delays/send_message_delays_manager.h"
 
 namespace ae::bench {
-class TestSendMessageDelaysAction : public Action<TestSendMessageDelaysAction> {
-  enum class State : std::uint8_t {
-    kRegisterClients,
-    kMakeTest,
-    kResult,
-    kError,
-  };
+static constexpr auto kTestUid =
+    Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4");
 
+class TestSendMessageDelays {
  public:
-  TestSendMessageDelaysAction(ActionContext action_context,
-                              RcPtr<AetherApp> aether_app,
-                              std::ostream& write_results_stream)
-      : Action{action_context},
-        aether_{aether_app->aether()},
-        write_results_stream_{write_results_stream},
-        state_{State::kRegisterClients},
-        state_changed_{state_.changed_event().Subscribe(
-            [this](auto) { Action::Trigger(); })} {}
+  using TestFinishedEvent = Event<void(std::optional<Result<Ignore, int>>)>;
 
-  UpdateStatus Update() {
-    if (state_.changed()) {
-      switch (state_.Acquire()) {
-        case State::kRegisterClients:
-          GetClients();
-          break;
-        case State::kMakeTest:
-          MakeTest();
-          break;
-        case State::kResult:
-          return UpdateStatus::Result();
-        case State::kError:
-          return UpdateStatus::Error();
-      }
-    }
-    return {};
+  TestSendMessageDelays(RcPtr<AetherApp> const& aether_app,
+                        std::ostream& write_results_stream)
+      : ae_context_{*aether_app},
+        aether_{aether_app->aether()},
+        write_results_stream_{write_results_stream} {
+    TestPipeline();
+  }
+
+  TestFinishedEvent::Subscriber test_finished() {
+    return EventSubscriber{test_finished_event_};
   }
 
  private:
-  void GetClients() {
-    auto get_sender = aether_->SelectClient(
-        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "sender");
-    auto get_receiver = aether_->SelectClient(
-        Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "receiver");
+  auto GetClients() {
+    return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
+        [&](auto& ctx) noexcept {
+          auto selected = [&]() {
+            if (client_sender_ && client_receiver_) {
+              AE_TELED_INFO("All clients acquired");
+              ex::set_value(std::move(ctx.receiver));
+            }
+          };
+          auto failed = [&]() { ex::set_error(std::move(ctx.receiver), 1); };
 
-    client_selected_event_.Connect(
-        [&](auto client_setter, auto result) {
-          result
-              .OnResult(
-                  [&](auto const& action) { client_setter = action.client(); })
-              .OnError([&]() {
-                // leave client empty
-                state_ = State::kError;
-              });
-        },
-        get_sender->StatusEvent(), get_receiver->StatusEvent());
+          auto& get_sender = aether_->SelectClient(kTestUid, "sender");
+          get_sender.result_event().Subscribe([&, selected](auto const& res) {
+            if (res) {
+              client_sender_ = res.value();
+              selected();
+            } else {
+              failed();
+            }
+          });
 
-    clients_selected_sub_ =
-        client_selected_event_.Subscribe([this](auto const& event) {
-          AE_TELED_INFO("All clients acquired");
-          client_sender_ = event[0];
-          client_receiver_ = event[1];
-          state_ = State::kMakeTest;
+          auto& get_receiver = aether_->SelectClient(kTestUid, "receiver");
+          get_receiver.result_event().Subscribe([&, selected](auto const& res) {
+            if (res) {
+              client_receiver_ = res.value();
+              selected();
+            } else {
+              failed();
+            }
+          });
         });
   }
 
-  void MakeTest() {
-    AE_TELED_INFO("Make a test");
-    SafeStreamConfig safe_stream_config{
-        std::numeric_limits<std::uint16_t>::max(),
-        (std::numeric_limits<std::uint16_t>::max() / 2) - 1,
-        (std::numeric_limits<std::uint16_t>::max() / 2) - 1,
-        10,
-        std::chrono::milliseconds{1500},
-        std::chrono::milliseconds{0},
-        std::chrono::milliseconds{200},
-    };
+  auto MakeTest() {
+    return ex::create<ex::set_value_t(),
+                      ex::set_error_t(int)>([&](auto& ctx) noexcept {
+      AE_TELED_INFO("Make a test");
+      SafeStreamConfig safe_stream_config{
+          .window_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
+          .max_packet_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
+          .max_repeat_count = 10,
+          .wait_ack_timeout = std::chrono::milliseconds{1500},
+          .send_ack_timeout = std::chrono::milliseconds{0},
+          .send_repeat_timeout = std::chrono::milliseconds{200},
+      };
 
-    auto sender =
-        make_unique<Sender>(ActionContext{*aether_}, client_sender_,
-                            client_receiver_->uid(), safe_stream_config);
-    auto receiver = make_unique<Receiver>(ActionContext{*aether_},
-                                          client_receiver_, safe_stream_config);
+      auto sender =
+          make_unique<Sender>(ae_context_, client_sender_,
+                              client_receiver_->uid(), safe_stream_config);
+      auto receiver = make_unique<Receiver>(ae_context_, client_receiver_,
+                                            safe_stream_config);
 
-    send_message_delays_manager_ = make_unique<SendMessageDelaysManager>(
-        ActionContext{*aether_}, std::move(sender), std::move(receiver));
+      send_message_delays_manager_ = make_unique<SendMessageDelaysManager>(
+          ae_context_, std::move(sender), std::move(receiver));
 
-    static constexpr auto test_message_count = 100;
-    auto test_action = send_message_delays_manager_->Test({
-        /* WarUp message count */ 10,
-        /* test message count */ test_message_count,
-        /* min send interval */ std::chrono::milliseconds{1000},
+      static constexpr auto test_message_count = 100;
+      auto& test_action = send_message_delays_manager_->Test({
+          /* WarUp message count */ 10,
+          /* test message count */ test_message_count,
+      });
+
+      test_action.result_event().Subscribe(
+          [&](Result<std::vector<DurationStatistics> const&, int> const& res) {
+            if (res) {
+              auto res_name_table = std::array{
+                  std::string_view{"p2p 2 Bytes"},
+                  std::string_view{"p2p 10 Bytes"},
+                  std::string_view{"p2p 100 Bytes"},
+                  std::string_view{"p2p 1000 Bytes"},
+                  std::string_view{"p2pss 2 Bytes"},
+                  std::string_view{"p2pss 10 Bytes"},
+                  std::string_view{"p2pss 100 Bytes"},
+                  std::string_view{"p2pss 1000 Bytes"},
+              };
+              auto const& results = res.value();
+
+              std::vector<std::pair<std::string, DurationStatistics>>
+                  statistics_write_list;
+              statistics_write_list.reserve(res_name_table.size());
+              for (std::size_t i = 0; i < res_name_table.size(); ++i) {
+                statistics_write_list.emplace_back(
+                    std::string{res_name_table[i]}, std::move(results[i]));
+              }
+              Format(write_results_stream_, "{}",
+                     StatisticsWriteCsv{std::move(statistics_write_list),
+                                        test_message_count});
+
+              ex::set_value(std::move(ctx.receiver));
+            } else {
+              AE_TELED_ERROR("Test failed");
+              ex::set_error(std::move(ctx.receiver), 2);
+            }
+          });
     });
-
-    test_result_sub_ = test_action->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[&](auto const& action) {
-          auto res_name_table = std::array{
-              std::string_view{"p2p 2 Bytes"},
-              std::string_view{"p2p 10 Bytes"},
-              std::string_view{"p2p 100 Bytes"},
-              std::string_view{"p2p 1000 Bytes"},
-              std::string_view{"p2pss 2 Bytes"},
-              std::string_view{"p2pss 10 Bytes"},
-              std::string_view{"p2pss 100 Bytes"},
-              std::string_view{"p2pss 1000 Bytes"},
-          };
-          auto const& results = action.result_table();
-
-          std::vector<std::pair<std::string, DurationStatistics>>
-              statistics_write_list;
-          statistics_write_list.reserve(res_name_table.size());
-          for (std::size_t i = 0; i < res_name_table.size(); ++i) {
-            statistics_write_list.emplace_back(std::string{res_name_table[i]},
-                                               std::move(results[i]));
-          }
-          Format(write_results_stream_, "{}",
-                 StatisticsWriteCsv{std::move(statistics_write_list),
-                                    test_message_count});
-
-          state_ = State::kResult;
-        }},
-        OnError{[&]() {
-          AE_TELED_ERROR("Test failed");
-          state_ = State::kError;
-        }}});
   }
 
+  void TestPipeline() {
+    waiter_.emplace(
+        ae_context_,
+        GetClients() | ex::let_value([&]() noexcept { return MakeTest(); }),
+        [&](auto&& res) {
+          test_finished_event_.Emit(std::forward<decltype(res)>(res));
+        });
+  }
+
+  AeContext ae_context_;
   Aether::ptr aether_;
   std::ostream& write_results_stream_;
   Client::ptr client_sender_;
   Client::ptr client_receiver_;
   std::unique_ptr<SendMessageDelaysManager> send_message_delays_manager_;
 
-  CumulativeEvent<Client::ptr, 2> client_selected_event_;
-  Subscription clients_selected_sub_;
-  Subscription test_result_sub_;
-  StateMachine<State> state_;
-  Subscription state_changed_;
+  std::optional<ex::AnyWaiter<ex::set_value_t(), ex::set_error_t(int)>> waiter_;
+  TestFinishedEvent test_finished_event_;
 };
 
 int test_send_message_delays(std::ostream& result_stream) {
   auto aether_app = AetherApp::Construct(AetherAppContext{});
 
-  auto test_action = ActionPtr<TestSendMessageDelaysAction>{
-      *aether_app, aether_app, result_stream};
-  test_action->StatusEvent().Subscribe(
-      ActionHandler{OnResult{[&]() { aether_app->Exit(0); }},
-                    OnError{[&]() { aether_app->Exit(1); }}});
+  auto test = TestSendMessageDelays{aether_app, result_stream};
+  test.test_finished().Subscribe([&](auto res) {
+    if (res && res->IsOk()) {
+      aether_app->Exit(0);
+    } else {
+      aether_app->Exit(1);
+    }
+  });
 
   while (!aether_app->IsExited()) {
     auto time = Now();

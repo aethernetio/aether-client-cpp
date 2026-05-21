@@ -21,12 +21,12 @@
 
 #if AE_SUPPORT_MODEMS
 
-#  include "aether/aether.h"
 #  include "aether/adapters/adapter.h"
 #  include "aether/modems/modem_driver_types.h"
 
 namespace ae {
 class Aether;
+class IPoller;
 
 class ParentModemAdapter : public Adapter {
   AE_OBJECT(ParentModemAdapter, Adapter, 0)
@@ -36,14 +36,14 @@ class ParentModemAdapter : public Adapter {
 
  public:
 #  ifdef AE_DISTILLATION
-  ParentModemAdapter(ObjProp prop, ObjPtr<Aether> aether, IPoller::ptr poller,
-                     ModemInit modem_init);
+  ParentModemAdapter(ObjProp prop, ObjPtr<Aether> aether,
+                     ObjPtr<IPoller> poller, ModemInit modem_init);
 #  endif  // AE_DISTILLATION
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, modem_init_))
 
   Obj::ptr aether_;
-  IPoller::ptr poller_;
+  Obj::ptr poller_;
 
   ModemInit modem_init_{};
 };

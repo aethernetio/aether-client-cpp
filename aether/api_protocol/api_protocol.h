@@ -27,7 +27,7 @@
 #include "aether/api_protocol/api_class_impl.h"
 #include "aether/api_protocol/api_pack_parser.h"
 #include "aether/api_protocol/protocol_context.h"
-#include "aether/api_protocol/api_promise_action.h"
+#include "aether/api_protocol/api_promise.h"
 #include "aether/api_protocol/return_result_api.h"
 // IWYU pragma: end_exports
 

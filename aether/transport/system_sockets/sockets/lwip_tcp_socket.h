@@ -29,7 +29,7 @@ class LwipTcpSocket final : public LwipSocket {
   static constexpr int kRcvTimeoutUsec = 10000;
 
  public:
-  explicit LwipTcpSocket(IPoller& poller);
+  explicit LwipTcpSocket(Ptr<IPoller> const& poller);
 
   ISocket& Connect(AddressPort const& destination,
                    ConnectedCb connected_cb) override;

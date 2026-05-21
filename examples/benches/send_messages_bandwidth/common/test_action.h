@@ -20,9 +20,10 @@
 #include <vector>
 #include <cstdint>
 
-#include "aether/actions/action.h"
-#include "aether/types/state_machine.h"
-#include "aether/actions/action_context.h"
+#include "aether/ae_context.h"
+#include "aether/types/result.h"
+#include "aether/events/events.h"
+#include "aether/executors/executors.h"
 #include "aether/events/event_subscription.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
@@ -31,141 +32,97 @@
 
 namespace ae::bench {
 template <typename TAgent>
-class TestAction : public Action<TestAction<TAgent>> {
-  using SelfAction = Action<TestAction<TAgent>>;
-
-  enum class State : std::uint8_t {
-    kConnect,
-    kHandshake,
-    kWarmup,
-    kOneByte,
-    kTenBytes,
-    kHundredBytes,
-    kThousandBytes,
-    kDone,
-    kError,
-  };
-
+class TestAction {
  public:
-  TestAction(ActionContext action_context, TAgent& agent,
-             std::size_t test_message_count)
-      : SelfAction{action_context},
-        agent_{&agent},
-        test_message_count_{test_message_count},
-        state_{State::kConnect},
-        state_changed_{state_.changed_event().Subscribe(
-            [this](auto) { SelfAction::Trigger(); })},
-        error_subscription_{agent_->error_event().Subscribe(
-            [this]() { state_ = State::kError; })} {}
+  using ResultEvent = Event<void(Result<std::vector<Bandwidth> const&, int>)>;
 
-  UpdateStatus Update() {
-    if (state_.changed()) {
-      switch (state_.Acquire()) {
-        case State::kConnect:
-          Connect();
-          break;
-        case State::kHandshake:
-          Handshake();
-          break;
-        case State::kWarmup:
-          WarmUp();
-          break;
-        case State::kOneByte:
-          OneByte();
-          break;
-        case State::kTenBytes:
-          TenBytes();
-          break;
-        case State::kHundredBytes:
-          HundredBytes();
-          break;
-        case State::kThousandBytes:
-          ThousandBytes();
-          break;
-        case State::kDone:
-          return UpdateStatus::Result();
-        case State::kError:
-          return UpdateStatus::Error();
-      }
-    }
-    return {};
+  TestAction(AeContext const& ae_context, TAgent& agent,
+             std::size_t test_message_count)
+      : ae_context_{ae_context},
+        agent_{&agent},
+        test_message_count_{test_message_count} {
+    TestPipeline();
   }
 
-  std::vector<Bandwidth> const& result_table() const { return result_table_; }
+  ResultEvent::Subscriber result_event() {
+    return EventSubscriber{result_event_};
+  }
 
  private:
-  void Connect() {
+  auto Connect() {
     agent_->Connect();
-    state_ = State::kHandshake;
+    return ex::just();
   }
-  void Handshake() {
-    AE_TELED_DEBUG("Handshake");
-    handshake_subscription_ =
-        agent_->Handshake().Subscribe([this]() { state_ = State::kWarmup; });
-  }
-
-  void WarmUp() {
-    AE_TELED_DEBUG("WarmUp");
-    test_result_subscription_ = agent_->TestMessages(100, 1).Subscribe(
-        [this](auto const&) { state_ = State::kOneByte; });
-  }
-
-  void OneByte() {
-    AE_TELED_DEBUG("OneByte");
-    test_result_subscription_ =
-        agent_->TestMessages(test_message_count_, 1)
-            .Subscribe([this](auto const& bandwidth) {
-              AE_TELED_DEBUG("OneByte res: {}", bandwidth);
-              result_table_.push_back(bandwidth);
-              state_ = State::kTenBytes;
-            });
+  auto Handshake() {
+    return ex::let_value([&]() noexcept {
+      AE_TELED_DEBUG("Handshake");
+      return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
+          [&](auto& ctx) noexcept {
+            res_sub_ = agent_->Handshake().Subscribe(
+                [&]() { ex::set_value(std::move(ctx.receiver)); });
+            error_sub_ = agent_->error_event().Subscribe(
+                [&]() { ex::set_error(std::move(ctx.receiver), 1); });
+          });
+    });
   }
 
-  void TenBytes() {
-    AE_TELED_DEBUG("TenBytes");
-    test_result_subscription_ =
-        agent_->TestMessages(test_message_count_, 10)
-            .Subscribe([this](auto const& bandwidth) {
-              AE_TELED_DEBUG("TenBytes res: {}", bandwidth);
-              result_table_.push_back(bandwidth);
-              state_ = State::kHundredBytes;
-            });
+  auto WarmUp() {
+    return ex::let_value([&]() noexcept {
+      AE_TELED_DEBUG("WarmUp");
+      return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
+          [&](auto& ctx) noexcept {
+            res_sub_ = agent_->TestMessages(100, 1).Subscribe(
+                [&](auto const&) { ex::set_value(std::move(ctx.receiver)); });
+            error_sub_ = agent_->error_event().Subscribe(
+                [&]() { ex::set_error(std::move(ctx.receiver), 1); });
+          });
+    });
   }
 
-  void HundredBytes() {
-    AE_TELED_DEBUG("HundredBytes");
+  template <std::size_t Count>
+  auto TestSendBytes() {
+    return ex::let_value([&]() noexcept {
+      AE_TELED_DEBUG("Test send bytes {}", Count);
 
-    test_result_subscription_ =
-        agent_->TestMessages(test_message_count_, 100)
-            .Subscribe([this](auto const& bandwidth) {
-              AE_TELED_DEBUG("HundredBytes res: {}", bandwidth);
-              result_table_.push_back(bandwidth);
-              state_ = State::kThousandBytes;
-            });
+      return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
+          [&](auto& ctx) noexcept {
+            res_sub_ =
+                agent_->TestMessages(test_message_count_, Count)
+                    .Subscribe([&](auto const& bandwidth) {
+                      AE_TELED_DEBUG("Test {} res: {}", Count, bandwidth);
+                      result_table_.push_back(bandwidth);
+                      ex::set_value(std::move(ctx.receiver));
+                    });
+            error_sub_ = agent_->error_event().Subscribe(
+                [&]() { ex::set_error(std::move(ctx.receiver), 1); });
+          });
+    });
   }
 
-  void ThousandBytes() {
-    AE_TELED_DEBUG("ThousandBytes");
-    test_result_subscription_ =
-        agent_->TestMessages(test_message_count_, 1000)
-            .Subscribe([this](auto const& bandwidth) {
-              AE_TELED_DEBUG("ThousandBytes res: {}", bandwidth);
-              result_table_.push_back(bandwidth);
-              state_ = State::kDone;
-            });
+  void TestPipeline() {
+    auto s = Connect() | Handshake() | WarmUp() | TestSendBytes<1>() |
+             TestSendBytes<10>() | TestSendBytes<100>() | TestSendBytes<1000>();
+
+    test_pipeline_.emplace(ae_context_, std::move(s), [this](auto const& res) {
+      if (res && res->IsOk()) {
+        result_event_.Emit(Ok<std::vector<Bandwidth> const&>(result_table_));
+      } else {
+        result_event_.Emit(Error{res.value_or(Error{-1}).error()});
+      }
+    });
   }
 
+  AeContext ae_context_;
   TAgent* agent_;
   std::size_t test_message_count_;
-  StateMachine<State> state_;
+  std::optional<ex::AnyWaiter<ex::set_value_t(), ex::set_error_t(int)>>
+      test_pipeline_;
 
   std::vector<Bandwidth> result_table_;
+  ResultEvent result_event_;
 
-  Subscription state_changed_;
-  Subscription error_subscription_;
-  Subscription sync_subscription_;
-  Subscription handshake_subscription_;
-  Subscription test_result_subscription_;
+  Subscription res_sub_;
+  Subscription error_sub_;
 };
 }  // namespace ae::bench
 

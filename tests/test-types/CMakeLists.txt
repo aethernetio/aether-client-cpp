@@ -17,7 +17,7 @@ cmake_minimum_required( VERSION 3.16 )
 list(APPEND test_srcs
     main.cpp
     test-literal-array.cpp
-    test-ring-buffer.cpp
+    test-ring-index.cpp
     test-concat-arrays.cpp
     test-span.cpp
     test-static-map.cpp

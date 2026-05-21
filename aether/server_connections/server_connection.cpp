@@ -19,26 +19,28 @@
 #include <cassert>
 #include <algorithm>
 
+#include "aether/aether.h"
 #include "aether/server.h"
 #include "aether/channels/channel.h"
 
-namespace ae {
-static constexpr std::size_t kBufferCapacity = 200;
+#include "aether/tele/tele.h"
 
-ServerConnection::ServerConnection(ActionContext action_context,
+namespace ae {
+ServerConnection::ServerConnection(AeContext const& ae_context,
                                    Ptr<Server> const& server)
-    : action_context_{action_context},
-      server_{server},
-      buffer_write_{action_context_,
-                    MethodPtr<&ServerConnection::OnWrite>{this},
-                    kBufferCapacity},
-      full_connected_{false} {
+    : ae_context_{ae_context}, server_{server}, full_connected_{false} {
   InitChannels();
   SelectChannel();
 }
 
-ActionPtr<WriteAction> ServerConnection::Write(DataBuffer&& in_data) {
-  return buffer_write_.Write(std::move(in_data));
+WriteAction& ServerConnection::Write(DataBuffer&& in_data) {
+  assert(channel_connection_.has_value() &&
+         "channel connection is not available");
+
+  auto* stream = channel_connection_->stream();
+  assert((stream != nullptr) && "channel stream is not available");
+
+  return stream->Write(std::move(in_data));
 }
 
 ServerConnection::StreamUpdateEvent::Subscriber
@@ -53,7 +55,7 @@ ServerConnection::OutDataEvent::Subscriber ServerConnection::out_data_event() {
 }
 
 void ServerConnection::Restream() {
-  // restream means current channel has error
+  // restream means something wrong with current channel
   ChannelError();
 }
 
@@ -71,7 +73,7 @@ Ptr<Channel> ServerConnection::current_channel() const {
   if (top_channel_ == nullptr) {
     return {};
   }
-  auto server = server_.Lock();
+  [[maybe_unused]] auto server = server_.Lock();
   assert(server && "Server is null");
 
   // ensure channel is loaded
@@ -125,9 +127,10 @@ ServerConnection::ChannelEntry* ServerConnection::TopChannel() {
 }
 
 void ServerConnection::SelectChannel() {
+  AE_TELED_DEBUG("Select channel");
   top_channel_ = TopChannel();
   if (top_channel_ == nullptr) {
-    ServerError();
+    DeferServerError();
     return;
   }
 
@@ -140,84 +143,68 @@ void ServerConnection::SelectChannel() {
   }
 
   auto channel_props = channel->transport_properties();
-  stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable =
-      channel_props.reliability == Reliability::kReliable;
+      (channel_props.reliability == Reliability::kReliable);
   stream_info_.rec_element_size = channel_props.rec_packet_size;
   stream_info_.max_element_size = channel_props.max_packet_size;
-  stream_info_.is_writable = true;
+  stream_info_.link_state = LinkState::kUnlinked;
+  stream_info_.is_writable = false;
 
-  channel_connection_.emplace(action_context_, channel);
-  channel_connection_->connection_state_event().Subscribe(
-      [this](bool connected) {
-        if (connected) {
-          ChannelUpdated();
-        } else {
-          ChannelError();
-        }
-      });
+  channel_connection_.emplace(ae_context_, channel, [this](auto&& res) {
+    if (res) {
+      ChannelUpdated(res.value());
+    } else {
+      ChannelError();
+    }
+  });
 
   AE_TELED_DEBUG("New channel selected");
   channel_changed_.Emit();
+  stream_update_event_.Emit();
 }
 
-void ServerConnection::ChannelUpdated() {
+void ServerConnection::ChannelUpdated(ByteIStream& stream) {
   AE_TELED_DEBUG("Channel updated");
-  assert(channel_connection_ && "No channel connection was created");
-
-  auto test_channel = [this]() {
-    auto* stream = channel_connection_->stream();
-    assert(stream != nullptr && "Channel is not connected");
-    auto info = stream->stream_info();
-    if (info.link_state == LinkState::kLinkError) {
-      ChannelError();
-      return false;
-    }
-    stream_update_event_.Emit();
-    return true;
-  };
-
-  auto* stream = channel_connection_->stream();
-  assert(stream != nullptr && "Channel is not connected");
   channel_stream_update_sub_ =
-      stream->stream_update_event().Subscribe(test_channel);
+      stream.stream_update_event().Subscribe([this, s_ = &stream]() {
+        auto info = s_->stream_info();
+        if (info.link_state == LinkState::kLinkError) {
+          ChannelError();
+        } else {
+          stream_update_event_.Emit();
+        }
+      });
 
-  channel_stream_outd_data_sub_ = stream->out_data_event().Subscribe(
+  channel_stream_out_data_sub_ = stream.out_data_event().Subscribe(
       MethodPtr<&ServerConnection::OnRead>{this});
 
   stream_info_.link_state = LinkState::kLinked;
-  buffer_write_.buffer_off();
-  // channel_changed_.Emit();
+  stream_info_.is_writable = true;
   stream_update_event_.Emit();
 }
 
 void ServerConnection::ServerError() {
-  buffer_write_.buffer_on();
-  buffer_write_.Drop();
+  AE_TELED_ERROR("Server error");
   channel_stream_update_sub_.Reset();
-  channel_stream_outd_data_sub_.Reset();
+  channel_stream_out_data_sub_.Reset();
   channel_connection_.reset();
-  stream_info_.link_state = LinkState::kLinkError;
-  server_error_.Emit();
-}
 
-void ServerConnection::DeferChannelError() {
-  // Action is used to break SelectChannel recursion
-  if (!channel_error_action_ || channel_error_action_->IsFinished()) {
-    channel_error_action_ = OwnActionPtr<ChannelErrorAction>{action_context_};
-    channel_error_action_->StatusEvent().Subscribe(
-        OnResult{[this]() { ChannelError(); }});
-  }
-  channel_error_action_->Notify();
+  stream_info_.link_state = LinkState::kLinkError;
+  stream_info_.is_writable = false;
+
+  server_error_.Emit();
+  stream_update_event_.Emit();
 }
 
 void ServerConnection::ChannelError() {
   AE_TELED_ERROR("Channel error");
-  buffer_write_.buffer_on();
   channel_stream_update_sub_.Reset();
-  channel_stream_outd_data_sub_.Reset();
-  channel_connection_.reset();
-  top_channel_->failed = true;
+  channel_stream_out_data_sub_.Reset();
+  stream_info_.is_writable = false;
+
+  if (top_channel_ != nullptr) {
+    top_channel_->failed = true;
+  }
 
   // if full_connected_ it wasn't channel error but server error
   if (full_connected_) {
@@ -227,20 +214,19 @@ void ServerConnection::ChannelError() {
   }
 }
 
+void ServerConnection::DeferServerError() {
+  stream_info_.is_writable = false;
+  defer_sub_ = ae_context_.scheduler().Task([&]() { ServerError(); });
+}
+
+void ServerConnection::DeferChannelError() {
+  stream_info_.is_writable = false;
+  defer_sub_ = ae_context_.scheduler().Task([&]() { ChannelError(); });
+}
+
 void ServerConnection::OnRead(DataBuffer const& data) {
   full_connected_ = true;
   out_data_event_.Emit(data);
-}
-
-ActionPtr<WriteAction> ServerConnection::OnWrite(DataBuffer&& in_data) {
-  if (!channel_connection_) {
-    return {};
-  }
-  auto* stream = channel_connection_->stream();
-  if (stream == nullptr) {
-    return {};
-  }
-  return stream->Write(std::move(in_data));
 }
 
 }  // namespace ae

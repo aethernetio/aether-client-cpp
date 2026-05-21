@@ -17,16 +17,15 @@
 #ifndef AETHER_ACCESS_POINTS_WIFI_ACCESS_POINT_H_
 #define AETHER_ACCESS_POINTS_WIFI_ACCESS_POINT_H_
 
-#include <cstdint>
+#include <optional>
 
 #include "aether/config.h"
 
 #if AE_SUPPORT_WIFIS
+#  include "aether/ae_context.h"
 #  include "aether/obj/obj_ptr.h"
+#  include "aether/events/events.h"
 #  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
-#  include "aether/types/state_machine.h"
-#  include "aether/actions/action_context.h"
 
 #  include "aether/wifi/wifi_driver.h"
 #  include "aether/access_points/access_point.h"
@@ -37,29 +36,27 @@ class WifiAdapter;
 class IPoller;
 class DnsResolver;
 
-class WifiConnectAction final : public Action<WifiConnectAction> {
+class WifiConnectAction final : public Action {
  public:
-  enum class State : std::uint8_t {
-    kCheckIsConnected,
-    kConnect,
-    kConnected,
-    kFailed,
-  };
+  using ConnectionEvent = Event<void(bool)>;
 
-  WifiConnectAction(ActionContext action_context, WifiDriver& driver,
+  WifiConnectAction(AeContext const& ae_context, WifiDriver& driver,
                     WiFiAp wifi_ap, WiFiPowerSaveParam psp,
                     WiFiBaseStation& base_station);
 
-  UpdateStatus Update();
-
-  State state() const;
+  ConnectionEvent::Subscriber connection_event();
 
  private:
+  void EnsureConnected();
+  void SetConnected(bool is_connected);
+
+  AeContext ae_context_;
   WifiDriver* driver_;
   WiFiAp wifi_ap_;
   WiFiPowerSaveParam psp_;
   WiFiBaseStation& base_station_;
-  StateMachine<State> state_;
+  ConnectionEvent connection_event_;
+  TaskSubscription scheduler_sub_;
 };
 
 class WifiAccessPoint final : public AccessPoint {
@@ -81,7 +78,7 @@ class WifiAccessPoint final : public AccessPoint {
   /**
    * \brief Connect or ensure it's connected to current access point.
    */
-  ActionPtr<WifiConnectAction> Connect();
+  WifiConnectAction& Connect();
 
   bool IsConnected();
 
@@ -93,8 +90,7 @@ class WifiAccessPoint final : public AccessPoint {
   WiFiAp wifi_ap_{};
   WiFiPowerSaveParam psp_{};
   WiFiBaseStation base_station_{};
-  ActionPtr<WifiConnectAction> connect_action_;
-  Subscription connect_sub_;
+  std::optional<WifiConnectAction> connect_action_;
 };
 }  // namespace ae
 #endif

@@ -19,10 +19,12 @@
 #include "aether/client.h"
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
 
+#include "aether/client_messages/client_messages_tele.h"
+
 namespace ae {
-P2pMessageStreamManager::P2pMessageStreamManager(ActionContext action_context,
+P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
                                                  Ptr<Client> const& client)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       client_{client},
       connection_manager_{&client->connection_manager()},
       cloud_connection_{&client->cloud_connection()},
@@ -81,7 +83,7 @@ void P2pMessageStreamManager::CleanUpStreams() {
 RcPtr<P2pStream> P2pMessageStreamManager::MakeStream(Uid destination) {
   auto client_ptr = client_.Lock();
   assert(client_ptr);
-  return MakeRcPtr<P2pStream>(action_context_, client_ptr, destination);
+  return MakeRcPtr<P2pStream>(ae_context_, client_ptr, destination);
 }
 
 void P2pMessageStreamManager::OnStreamUpdated(Uid destination) {

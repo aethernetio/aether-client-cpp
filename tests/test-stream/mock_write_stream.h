@@ -20,31 +20,30 @@
 #include <cstddef>
 #include <utility>
 
+#include "aether/ae_context.h"
 #include "aether/events/events.h"
 #include "aether/stream_api/istream.h"
-#include "aether/actions/action_ptr.h"
 
 namespace ae {
 class MockStreamWriteAction : public WriteAction {
  public:
-  explicit MockStreamWriteAction(ActionContext action_context)
-      : WriteAction{action_context} {
-    state_.Set(State::kDone);
+  explicit MockStreamWriteAction(AeContext const& context) {
+    context.scheduler().Task(
+        [&]() { WriteAction::SetStatus(Status::kSuccess); });
   }
 
-  void Stop() override { state_.Set(State::kStopped); }
+  void Stop() noexcept override { WriteAction::SetStatus(Status::kStop); }
 };
 
 class MockWriteStream : public ByteStream {
  public:
-  explicit MockWriteStream(ActionContext action_context,
-                           std::size_t max_data_size)
-      : action_context_{action_context},
+  explicit MockWriteStream(AeContext const& context, std::size_t max_data_size)
+      : context_{context},
         stream_info_{max_data_size, max_data_size, {}, {}, {}} {}
 
-  ActionPtr<WriteAction> Write(DataBuffer&& buffer) override {
+  WriteAction& Write(DataBuffer&& buffer) override {
     on_write_.Emit(std::move(buffer));
-    return ActionPtr<MockStreamWriteAction>{action_context_};
+    return last_action_.emplace(context_);
   }
 
   StreamInfo stream_info() const override { return stream_info_; }
@@ -60,11 +59,12 @@ class MockWriteStream : public ByteStream {
   void WriteOut(DataBuffer const& buffer) { out_data_event_.Emit(buffer); }
 
  private:
-  ActionContext action_context_;
+  AeContext context_;
   StreamInfo stream_info_;
   Event<void(DataBuffer&&)> on_write_;
   OutDataEvent out_data_event_;
   StreamUpdateEvent stream_update_event_;
+  std::optional<MockStreamWriteAction> last_action_;
 };
 }  // namespace ae
 

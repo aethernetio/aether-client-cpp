@@ -17,6 +17,7 @@
 #ifndef AETHER_WRITE_ACTION_FAILED_WRITE_ACTION_H_
 #define AETHER_WRITE_ACTION_FAILED_WRITE_ACTION_H_
 
+#include "aether/ae_context.h"
 #include "aether/write_action/write_action.h"
 
 namespace ae {
@@ -25,7 +26,9 @@ namespace ae {
  */
 class FailedWriteAction final : public WriteAction {
  public:
-  explicit FailedWriteAction(ActionContext action_context);
+  explicit FailedWriteAction(AeContext const& context) {
+    context.scheduler().Task([&]() { SetStatus(WriteAction::Status::kFail); });
+  }
 };
 }  // namespace ae
 

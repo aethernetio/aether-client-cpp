@@ -37,7 +37,7 @@ class ModemChannel final : public Channel {
 
   AE_OBJECT_REFLECT(AE_MMBRS(access_point_, address))
 
-  ActionPtr<TransportBuilderAction> TransportBuilder() override;
+  TransportBuildSender TransportBuilder() override;
 
   Duration TransportBuildTimeout() const override;
 

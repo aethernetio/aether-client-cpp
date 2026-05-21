@@ -27,9 +27,9 @@
 #include "send_message_delays/api/bench_delays_api.h"
 
 namespace ae::bench {
-Sender::Sender(ActionContext action_context, Client::ptr client,
+Sender::Sender(AeContext const& ae_context, Client::ptr client,
                Uid destination_uid, SafeStreamConfig safe_stream_config)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       client_{std::move(client)},
       destination_uid_{destination_uid},
       safe_stream_config_{safe_stream_config},
@@ -40,58 +40,56 @@ void Sender::ConnectP2pStream() {
 
   send_message_stream_ =
       client_->message_stream_manager().CreateStream(destination_uid_);
+  connected_stream_ = send_message_stream_.get();
 }
 
 void Sender::ConnectP2pSafeStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pSafeStream()");
   send_message_safe_stream_ = make_unique<P2pSafeStream>(
-      action_context_, safe_stream_config_,
+      ae_context_, safe_stream_config_,
       client_->message_stream_manager().CreateStream(destination_uid_));
+  connected_stream_ = send_message_safe_stream_.get();
 }
 
-void Sender::Disconnect() { AE_TELED_DEBUG("Sender::Disconnect()"); }
-
-ActionPtr<TimedSender> Sender::WarmUp(Duration min_send_interval) {
-  return CreateBenchAction([](auto& api, auto id) { api->warm_up(id, {}); },
-                           min_send_interval);
+void Sender::Disconnect() {
+  AE_TELED_DEBUG("Sender::Disconnect()");
+  send_message_stream_.Reset();
+  send_message_safe_stream_.reset();
 }
 
-ActionPtr<TimedSender> Sender::Send2Bytes(Duration min_send_interval) {
-  return CreateBenchAction([](auto& api, auto id) { api->two_bytes(id); },
-                           min_send_interval);
+TimedSender& Sender::WarmUp() {
+  return CreateBenchAction([](auto& api, auto id) { api->warm_up(id, {}); });
 }
 
-ActionPtr<TimedSender> Sender::Send10Bytes(Duration min_send_interval) {
-  return CreateBenchAction([](auto& api, auto id) { api->ten_bytes(id, {}); },
-                           min_send_interval);
+TimedSender& Sender::Send2Bytes() {
+  return CreateBenchAction([](auto& api, auto id) { api->two_bytes(id); });
 }
 
-ActionPtr<TimedSender> Sender::Send100Bytes(Duration min_send_interval) {
+TimedSender& Sender::Send10Bytes() {
+  return CreateBenchAction([](auto& api, auto id) { api->ten_bytes(id, {}); });
+}
+
+TimedSender& Sender::Send100Bytes() {
   return CreateBenchAction(
-      [](auto& api, auto id) { api->hundred_bytes(id, {}); },
-      min_send_interval);
+      [](auto& api, auto id) { api->hundred_bytes(id, {}); });
 }
 
-ActionPtr<TimedSender> Sender::Send1000Bytes(Duration min_send_interval) {
+TimedSender& Sender::Send1000Bytes() {
   return CreateBenchAction(
-      [](auto& api, auto id) { api->thousand_bytes(id, {}); },
-      min_send_interval);
+      [](auto& api, auto id) { api->thousand_bytes(id, {}); });
 }
 
 template <typename Func>
-ActionPtr<TimedSender> Sender::CreateBenchAction(Func&& func,
-                                                 Duration min_send_interval) {
-  sender_action_ = ActionPtr<TimedSender>{
-      action_context_,
-      [&, f{std::forward<Func>(func)}](std::uint16_t id) {
-        auto api_context = ApiCallAdapter{ApiContext{bench_delays_api_},
-                                          *send_message_stream_};
+TimedSender& Sender::CreateBenchAction(Func&& func) {
+  sender_action_ = std::make_unique<TimedSender>(
+      ae_context_, [&, f{std::forward<Func>(func)}](std::uint16_t id) {
+        auto api_context =
+            ApiCallAdapter{ApiContext{bench_delays_api_}, *connected_stream_};
         f(api_context, id);
         api_context.Flush();
-      },
-      min_send_interval};
+      });
 
-  return sender_action_;
+  return *sender_action_;
 }
 
 }  // namespace ae::bench

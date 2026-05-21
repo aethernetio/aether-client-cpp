@@ -16,35 +16,25 @@
 
 #include "registrator/registrator_action.h"
 
+#include "aether/actions/action_context.h"
+
 #include "aether/registration/registration.h"
 
 namespace ae::reg {
 RegistratorAction::RegistratorAction(
-    ActionContext action_context, RcPtr<AetherApp> const& aether_app,
+    ae::AeContext const& ae_context, RcPtr<AetherApp> const& aether_app,
     std::vector<reg::ClientConfig> const& client_configs)
-    : Action{action_context}, state_{State::kWait} {
+    : ae_context_{ae_context} {
   AE_TELED_INFO("RegistratorAction");
-  state_.changed_event().Subscribe([this](auto) { Action::Trigger(); });
   RegisterClients(aether_app->aether(), client_configs);
 }
 
-UpdateStatus RegistratorAction::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kWait:
-        break;
-      case State::kResult:
-        return UpdateStatus::Result();
-      case State::kError:
-        return UpdateStatus::Error();
-    }
-  }
-  return {};
+RegistratorAction::RegisteredEvent::Subscriber
+RegistratorAction::registered_event() {
+  return EventSubscriber{registered_event_};
 }
-
-std::vector<RegisteredClient> const& RegistratorAction::registered_clients()
-    const {
-  return registered_clients_;
+RegistratorAction::FailedEvent::Subscriber RegistratorAction::failed_event() {
+  return EventSubscriber{failed_event_};
 }
 
 /**
@@ -65,23 +55,23 @@ void RegistratorAction::RegisterClients(
   for (auto const& c : client_configs) {
     auto parent_uid = ae::Uid::FromString(c.parent_uid);
     assert(!parent_uid.empty());
-    auto reg_action = aether->RegisterClient(parent_uid);
-    registration_sub_ += reg_action->StatusEvent().Subscribe(ActionHandler{
-        OnResult{
-            [this, clients_count, client_id{&c.client_id}](auto const& action) {
-              registered_clients_.emplace_back(RegisteredClient{
-                  action.client_config(),
-                  *client_id,
-              });
-              if (registered_clients_.size() == clients_count) {
-                state_ = State::kResult;
+
+    registration_sub_ +=
+        aether->RegisterClient(c.client_id, parent_uid)
+            .registration()
+            .Subscribe([this, clients_count,
+                        client_id{&c.client_id}](auto const& res) {
+              if (res) {
+                registered_clients_.emplace_back(
+                    RegisteredClient{res.value(), *client_id});
+                if (registered_clients_.size() == clients_count) {
+                  registered_event_.Emit(std::move(registered_clients_));
+                }
+              } else {
+                AE_TELED_ERROR("Registration error");
+                failed_event_.Emit();
               }
-            }},
-        OnError{[this]() {
-          AE_TELED_ERROR("Registration error");
-          state_ = State::kError;
-        }},
-    });
+            });
   }
 #endif
 }

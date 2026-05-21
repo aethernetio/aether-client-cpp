@@ -16,6 +16,7 @@
 
 #include "aether/server_connections/client_server_connection.h"
 
+#include "aether/aether.h"
 #include "aether/server.h"
 #include "aether/client.h"
 #include "aether/crypto/ikey_provider.h"
@@ -26,7 +27,7 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-namespace _internal {
+namespace client_server_connection_internal {
 class ClientKeyProvider : public ISyncKeyProvider {
  public:
   explicit ClientKeyProvider(Ptr<Client> const& client, ServerId server_id)
@@ -77,8 +78,8 @@ class ClientDecryptKeyProvider : public ClientKeyProvider {
 class ClientCryptoProvider final : public ICryptoProvider {
  public:
   ClientCryptoProvider(Ptr<Client> const& client, ServerId server_id)
-      : encryptor_{std::make_unique<ClientEncryptKeyProvider>(client,
-                                                              server_id)},
+      : encryptor_{
+            std::make_unique<ClientEncryptKeyProvider>(client, server_id)},
         decryptor_{
             std::make_unique<ClientDecryptKeyProvider>(client, server_id)} {}
 
@@ -90,26 +91,72 @@ class ClientCryptoProvider final : public ICryptoProvider {
   SyncDecryptProvider decryptor_;
 };
 
-}  // namespace _internal
+BufferedServerConnection::BufferedServerConnection(AeContext const& ae_context,
+                                                   Ptr<Server> const& server)
+    : buffer_write{ae_context,
+                   [&](DataBuffer&& in_data) -> WriteAction* {
+                     if (server_connection.stream_info().is_writable) {
+                       return &server_connection.Write(std::move(in_data));
+                     }
+                     return nullptr;
+                   }},
+      server_connection{ae_context, server} {
+  if (server_connection.stream_info().is_writable) {
+    buffer_write.buffer_off();
+  }
+  server_connection.stream_update_event().Subscribe([&]() {
+    if (server_connection.stream_info().is_writable) {
+      if (buffer_write.is_buffer_on()) {
+        buffer_write.buffer_off();
+      }
+    } else {
+      if (!buffer_write.is_buffer_on()) {
+        buffer_write.buffer_on();
+      }
+    }
+  });
+}
 
-ClientServerConnection::ClientServerConnection(ActionContext action_context,
+WriteAction& BufferedServerConnection::Write(DataBuffer&& in_data) {
+  return buffer_write.Write(std::move(in_data));
+}
+
+BufferedServerConnection::StreamUpdateEvent::Subscriber
+BufferedServerConnection::stream_update_event() {
+  return server_connection.stream_update_event();
+}
+
+StreamInfo BufferedServerConnection::stream_info() const {
+  return server_connection.stream_info();
+}
+
+BufferedServerConnection::OutDataEvent::Subscriber
+BufferedServerConnection::out_data_event() {
+  return server_connection.out_data_event();
+}
+void BufferedServerConnection::Restream() { server_connection.Restream(); }
+
+}  // namespace client_server_connection_internal
+
+ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
                                                Ptr<Client> const& client,
                                                Ptr<Server> const& server)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       server_{server},
       ephemeral_uid_{client->ephemeral_uid()},
-      crypto_provider_{std::make_unique<_internal::ClientCryptoProvider>(
+      crypto_provider_{std::make_unique<
+          client_server_connection_internal::ClientCryptoProvider>(
           client, server->server_id)},
       client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
-      login_api_{protocol_context_, action_context_,
-                 *crypto_provider_->encryptor()},
-      server_connection_{action_context_, server} {
+      login_api_{protocol_context_, *crypto_provider_->encryptor()},
+      server_connection_{ae_context_, server} {
   AE_TELED_DEBUG("Client server connection from {} to {}", ephemeral_uid_,
                  server->server_id);
 
   server_connection_.out_data_event().Subscribe(
       MethodPtr<&ClientServerConnection::OutData>{this});
-  server_connection_.channel_changed_event().Subscribe(
+
+  server_connection_.server_connection.channel_changed_event().Subscribe(
       MethodPtr<&ClientServerConnection::ChannelChanged>{this});
   ChannelChanged();
 }
@@ -132,13 +179,12 @@ ClientServerConnection::stream_update_event() {
   return server_connection_.stream_update_event();
 }
 
-ActionPtr<WriteAction> ClientServerConnection::LoginApiCall(
-    SubApi<LoginApi> login_api) {
+WriteAction& ClientServerConnection::LoginApiCall(SubApi<LoginApi> login_api) {
   auto packet = login_api(login_api_);
   return server_connection_.Write(std::move(packet));
 }
 
-ActionPtr<WriteAction> ClientServerConnection::AuthorizedApiCall(
+WriteAction& ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
   auto api_call = ApiCallAdapter{ApiContext{login_api_}, server_connection_};
   api_call->login_by_alias(ephemeral_uid_, std::move(auth_api));
@@ -150,7 +196,7 @@ ClientApiSafe& ClientServerConnection::client_safe_api() {
 }
 
 ServerConnection& ClientServerConnection::server_connection() {
-  return server_connection_;
+  return server_connection_.server_connection;
 }
 
 void ClientServerConnection::OutData(DataBuffer const& data) {
@@ -162,18 +208,17 @@ void ClientServerConnection::ChannelChanged() {
   AE_TELED_DEBUG("Channel is updated, make new ping");
 
   auto make_ping = [&] {
-    auto channel = server_connection_.current_channel();
+    auto& server_conn = server_connection_.server_connection;
+    auto channel = server_conn.current_channel();
     // Create new ping if channel is updated
     static constexpr Duration kPingDefaultInterval =
         std::chrono::milliseconds{AE_PING_INTERVAL_MS};
     // TODO: make ping interval depend on server priority
-    ping_ = OwnActionPtr<Ping>{action_context_, channel, *this,
-                               kPingDefaultInterval};
-
-    ping_sub_ = ping_->StatusEvent().Subscribe(OnError{[this]() {
+    ping_.emplace(ae_context_, channel, *this, kPingDefaultInterval);
+    ping_sub_ = ping_->ping_failed().Subscribe([this]() {
       AE_TELED_ERROR("Ping failed");
       server_connection_.Restream();
-    }});
+    });
   };
 
   if (server_connection_.stream_info().link_state == LinkState::kLinked) {

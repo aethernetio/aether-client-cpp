@@ -23,8 +23,6 @@
 #include <functional>
 #include <type_traits>
 
-#include "aether/meta/as_type.h"
-
 namespace ae {
 template <typename T, typename E>
 class Result;
@@ -49,6 +47,12 @@ struct Ok {
   [[no_unique_address]] T value;
 };
 
+template <typename T>
+struct Ok<T&> {
+  explicit Ok(T& v) : value{v} {}
+  [[no_unique_address]] T& value;
+};
+
 template <typename E>
 struct Error {
   explicit Error(E v) : error{std::move(v)} {}
@@ -61,6 +65,13 @@ class Result {
   using value_type = T;
   using error_type = E;
 
+  using store_value_type =
+      std::conditional_t<std::is_reference_v<T>,
+                         std::reference_wrapper<std::remove_reference_t<T>>, T>;
+  using store_error_type =
+      std::conditional_t<std::is_reference_v<E>,
+                         std::reference_wrapper<std::remove_reference_t<E>>, E>;
+
   template <typename U>
     requires(std::is_same_v<T, U>)
   explicit Result(U&& value) : storage_{std::forward<U>(value)} {}
@@ -70,39 +81,42 @@ class Result {
   explicit Result(EU&& error) : storage_{std::forward<EU>(error)} {}
 
   // made implicit intentionally
-  Result(Ok<T>&& ok) : storage_{std::move(ok.value)} {}
+  constexpr Result(Ok<T>&& ok)  // NOLINT(*explicit-constructor)
+      : storage_{std::move(ok).value} {}
   // made implicit intentionally
-  Result(Error<E>&& error) : storage_{std::move(error.error)} {}
+  constexpr Result(Error<E>&& error)  // NOLINT(*explicit-constructor)
+      : storage_{std::move(error).error} {}
 
-  // TODO: add monadic operations
-
-  bool IsOk() const noexcept { return storage_.index() == 0; }
-  bool IsErr() const noexcept { return storage_.index() == 1; }
+  constexpr bool IsOk() const noexcept { return storage_.index() == 0; }
+  constexpr bool IsErr() const noexcept { return storage_.index() == 1; }
+  constexpr explicit operator bool() const noexcept {
+    return storage_.index() == 0;
+  }
 
   auto& value() & noexcept {
     assert(IsOk());
-    return *get_value();
+    return static_cast<value_type&>(*get_value());
   }
   auto const& value() const& noexcept {
     assert(IsOk());
-    return *get_value();
+    return static_cast<value_type const&>(*get_value());
   }
   auto&& value() && noexcept {
     assert(IsOk());
-    return std::move(*get_value());
+    return std::move(static_cast<value_type&>(*get_value()));
   }
 
   auto& error() & noexcept {
     assert(IsErr());
-    return *get_error();
+    return static_cast<error_type&>(*get_error());
   }
   auto const& error() const& noexcept {
     assert(IsErr());
-    return *get_error();
+    return static_cast<error_type const&>(*get_error());
   }
   auto&& error() && noexcept {
     assert(IsErr());
-    return std::move(*get_error());
+    return std::move(static_cast<error_type&>(*get_error()));
   }
 
   template <typename F, typename R = std::invoke_result_t<F, value_type&&>>
@@ -111,11 +125,11 @@ class Result {
       { IsResultType_v<R> };
       { ResultType<R, typename R::value_type, error_type> };
     })
-  auto Then(F&& f) && -> typename std::invoke_result_t<F, value_type&&> {
+  auto Then(F&& f) && -> std::invoke_result_t<F, value_type&&> {
     if (IsOk()) {
-      return std::invoke(std::forward<F>(f), std::move(*get_value()));
+      return std::invoke(std::forward<F>(f), std::move(*this).value());
     }
-    return Error{std::move(*get_error())};
+    return Error{std::move(*this).error()};
   }
 
   template <typename F, typename R = std::invoke_result_t<F>>
@@ -128,7 +142,7 @@ class Result {
     if (IsOk()) {
       return std::invoke(std::forward<F>(f));
     }
-    return Error{std::move(*get_error())};
+    return Error{std::move(*this).error()};
   }
 
   template <typename FE, typename R = std::invoke_result_t<FE, error_type&&>>
@@ -137,11 +151,11 @@ class Result {
       { IsResultType_v<R> };
       { ResultType<R, value_type, typename R::error_type> };
     })
-  auto Else(FE&& f) && -> typename std::invoke_result_t<FE, error_type&&> {
+  auto Else(FE&& f) && -> std::invoke_result_t<FE, error_type&&> {
     if (IsErr()) {
-      return std::invoke(std::forward<FE>(f), std::move(*get_error()));
+      return std::invoke(std::forward<FE>(f), std::move(*this).error());
     }
-    return Ok{std::move(*get_value())};
+    return Ok{std::move(*this).value()};
   }
 
   template <typename FE, typename R = std::invoke_result_t<FE>>
@@ -150,20 +164,25 @@ class Result {
       { IsResultType_v<R> };
       { ResultType<R, value_type, typename R::error_type> };
     })
-  auto Else(FE&& f) && -> typename std::invoke_result_t<FE> {
+  auto Else(FE&& f) && -> std::invoke_result_t<FE> {
     if (IsErr()) {
       return std::invoke(std::forward<FE>(f));
     }
-    return Ok{std::move(*get_value())};
+    return Ok{std::move(*this).value()};
   }
 
  private:
-  value_type* get_value() & { return std::get_if<0>(&storage_); }
-  value_type* get_value() const& { return std::get_if<0>(&storage_); }
-  error_type* get_error() & { return std::get_if<1>(&storage_); }
-  error_type* get_error() const& { return std::get_if<1>(&storage_); }
+  // dereference and take address to get value from reference wrapper
+  store_value_type* get_value() & { return std::get_if<0>(&storage_); }
+  store_value_type const* get_value() const& {
+    return std::get_if<0>(&storage_);
+  }
+  store_error_type* get_error() & { return std::get_if<1>(&storage_); }
+  store_error_type const* get_error() const& {
+    return std::get_if<1>(&storage_);
+  }
 
-  std::variant<value_type, error_type> storage_;
+  std::variant<store_value_type, store_error_type> storage_;
 };
 }  // namespace ae
 
