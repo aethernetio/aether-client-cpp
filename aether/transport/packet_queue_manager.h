@@ -25,6 +25,8 @@
 #include "aether/ae_context.h"
 #include "aether/transport/packet_send_action.h"
 
+#include "aether/transport/transport_tele.h"
+
 namespace ae {
 template <typename T, std::size_t MaxSize = 10>
   requires(std::is_base_of_v<PacketSendAction, T>)
@@ -35,15 +37,18 @@ class PacketQueueManager {
   explicit PacketQueueManager(AeContext const& ae_context) noexcept
       : ae_context_{ae_context} {}
 
+  ~PacketQueueManager() { AE_TELED_DEBUG("Packet queue manager remove"); }
+
   AE_CLASS_NO_COPY_MOVE(PacketQueueManager)
 
-  PacketSendAction* AddPacket(T&& packet_sender) {
+  template <typename... Args>
+  T* AddPacket(Args&&... args) {
     auto lock = std::scoped_lock{queue_lock_};
     if (queue_.size() == kMaxSize) {
       // queue is full, drop the packet
       return nullptr;
     }
-    queue_.push(std::move(packet_sender));
+    queue_.push(T{std::forward<Args>(args)...});
     Enqueue();
     return &queue_.back();
   }

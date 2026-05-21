@@ -82,6 +82,7 @@ class SendAction final : public PacketSendAction {
 
   void Stop() noexcept override {
     is_done_ = true;
+    set_status_.Reset();
     WriteAction::SetStatus(WriteAction::Status::kStop);
   }
 
@@ -91,7 +92,7 @@ class SendAction final : public PacketSendAction {
  protected:
   void SetStatus(WriteAction::Status status) noexcept override {
     is_done_ = true;
-    ae_context_.scheduler().Task(
+    set_status_ = ae_context_.scheduler().Task(
         [&, status]() { WriteAction::SetStatus(status); });
   }
 
@@ -102,6 +103,7 @@ class SendAction final : public PacketSendAction {
   DataBuffer data_;
   bool reenque_ = false;
   bool is_done_ = false;
+  TaskSubscription set_status_;
 };
 
 class UdpBase : public ByteIStream {
@@ -162,7 +164,7 @@ class UdpTransport final : public upd_internal::UdpBase {
     AE_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}", endpoint_,
                   in_data.size());
     auto* send_action = send_queue_manager_.AddPacket(
-        SendAction{ae_context_, socket_, socket_mutex_, std::move(in_data)});
+        ae_context_, socket_, socket_mutex_, std::move(in_data));
     if (send_action == nullptr) {
       AE_TELED_ERROR("Queue manager is full");
       return FailedWrite();
@@ -171,9 +173,7 @@ class UdpTransport final : public upd_internal::UdpBase {
     send_action_error_subs_ +=
         send_action->status_event().Subscribe([this](auto status) {
           if (status == WriteAction::Status::kFail) {
-            AE_TELED_ERROR("Send error, disconnect!");
-            stream_info_.link_state = LinkState::kLinkError;
-            Disconnect();
+            DeferSendErrorDisconnect();
           }
         });
 
@@ -182,6 +182,14 @@ class UdpTransport final : public upd_internal::UdpBase {
 
  protected:
   void OnReadyToWrite() { send_queue_manager_.Send(); }
+
+  void DeferSendErrorDisconnect() {
+    defer_task_sub_ = ae_context_.scheduler().Task([&]() noexcept {
+      AE_TELED_ERROR("Send error, disconnect!");
+      stream_info_.link_state = LinkState::kLinkError;
+      Disconnect();
+    });
+  }
 
   void Disconnect() override {
     AE_TELE_INFO(kUdpTransportDisconnect, "Disconnect from {}", endpoint_);
@@ -197,6 +205,7 @@ class UdpTransport final : public upd_internal::UdpBase {
   Socket socket_;
   PacketQueueManager<SendAction, QueueSize> send_queue_manager_;
   MultiSubscription send_action_error_subs_;
+  TaskSubscription defer_task_sub_;
 };
 }  // namespace ae
 

@@ -197,8 +197,8 @@ WriteAction& ModemTransport::WriteTcp(DataBuffer&& in_data) {
   // copy data with size
   os << std::move(in_data);  // NOLINT
 
-  auto* send_action = send_queue_manager.AddPacket(
-      SendTcpAction{ae_context_, *this, std::move(packet_data)});
+  auto* send_action =
+      send_queue_manager.AddPacket(ae_context_, *this, std::move(packet_data));
   if (send_action == nullptr) {
     return FailedWrite();
   }
@@ -217,8 +217,8 @@ WriteAction& ModemTransport::WriteUdp(DataBuffer&& in_data) {
       std::get<PacketQueueManager<SendUdpAction, kTcpSendQueueSize>>(
           packet_queue_manager_);
 
-  auto* send_action = send_queue_manager.AddPacket(
-      SendUdpAction{ae_context_, *this, std::move(in_data)});
+  auto* send_action =
+      send_queue_manager.AddPacket(ae_context_, *this, std::move(in_data));
   if (send_action == nullptr) {
     return FailedWrite();
   }

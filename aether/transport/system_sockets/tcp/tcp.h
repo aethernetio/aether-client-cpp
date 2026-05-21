@@ -84,6 +84,7 @@ class SendAction final : public PacketSendAction {
 
   void Stop() noexcept override {
     is_done_ = true;
+    set_status_.Reset();
     WriteAction::SetStatus(WriteAction::Status::kStop);
   }
 
@@ -93,7 +94,7 @@ class SendAction final : public PacketSendAction {
  protected:
   void SetStatus(WriteAction::Status status) noexcept override {
     is_done_ = true;
-    ae_context_.scheduler().Task(
+    set_status_ = ae_context_.scheduler().Task(
         [&, status]() { WriteAction::SetStatus(status); });
   }
 
@@ -105,6 +106,7 @@ class SendAction final : public PacketSendAction {
   std::size_t sent_offset_ = 0;
   bool is_done_ = false;
   bool reenqueue_ = false;
+  TaskSubscription set_status_;
 };
 
 class TcpBase : public ByteIStream {
@@ -179,8 +181,8 @@ class TcpTransport final : public tcp_internal::TcpBase {
     // copy data with size
     os << std::move(in_data);  // NOLINT
 
-    auto* send_action = queue_manager_.AddPacket(
-        SendAction{ae_context_, socket_, lock_, std::move(packet_data)});
+    auto* send_action = queue_manager_.AddPacket(ae_context_, socket_, lock_,
+                                                 std::move(packet_data));
     if (send_action == nullptr) {
       AE_TELED_ERROR("Queue manager is full");
       return FailedWrite();
