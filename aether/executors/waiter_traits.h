@@ -59,8 +59,10 @@ struct FilterExceptionPtr {
  * Values may be a tuples or single values
  * Or it may be a single value or void
  */
-template <typename>
-struct ExpandTuple;
+template <typename T>
+struct ExpandTuple {
+  using type = T;
+};
 template <>
 struct ExpandTuple<TypeList<>> {
   using type = Ignore;
@@ -104,7 +106,7 @@ struct CompletionsTraitsImpl {
   using FilteredErrorList = FilterList<FilterExceptionPtr, ErrorList>::type;
 
   using ValueType = ExpandVariant<ValueList>::type;
-  using ErrorType = ExpandTuple<FilteredErrorList>::type;
+  using ErrorType = ExpandVariant<FilteredErrorList>::type;
 };
 
 template <typename... Sigs>
