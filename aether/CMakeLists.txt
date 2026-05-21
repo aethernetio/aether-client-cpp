@@ -29,24 +29,50 @@ set(USER_CONFIG "" CACHE PATH "Path to user provided configuration header file")
 set(FS_INIT "" CACHE PATH "Path to user provided saved state header file")
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/../cmake)
-include(repo_init)
+# include(repo_init)
 
-ae_update_dependencies()
+# ae_update_dependencies()
 
-# list a common dependencies
-list(APPEND common_dependencies
-    "../third_party/libbcrypt"
-    "../third_party/libhydrogen"
-    "../third_party/libsodium"
-    "../third_party/gcem"
-    "../third_party/etl"
-    "../third_party/aethernet-numeric"
-    "../third_party/stdexec"
+include(CPM)
+
+# For using CPM.cmake projects with external package managers, such as conan or vcpkg,
+# setting the variable CPM_USE_LOCAL_PACKAGES will make CPM.cmake try to add a package through
+# find_package first, and add it from source if it doesn't succeed.
+# To avoid extra downloads it is recommend to set the CPM_SOURCE_CACHE environmental variable
+# It is possible to override the consumer's dependency with the version by supplying
+# the CMake option CPM_<dependency name>_SOURCE set to the absolute path of the local library.
+
+CPMAddPackage("https://github.com/rg3/libbcrypt.git#master")
+CPMAddPackage("https://github.com/jedisct1/libhydrogen.git#master")
+CPMAddPackage("https://github.com/jedisct1/libsodium.git#master")
+CPMAddPackage("https://github.com/aethernetio/gcem.git#master")
+CPMAddPackage("https://github.com/aethernetio/aethernet-numeric.git#main")
+CPMAddPackage(
+  URI "https://github.com/ETLCPP/etl.git"
+  GIT_TAG "20.44.2"
+  OPTIONS "GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR"
 )
-set(STDEXEC_BUILD_EXAMPLES Off)
+CPMAddPackage(
+  URI "https://github.com/aethernetio/stdexec.git#main"
+  OPTIONS "STDEXEC_BUILD_EXAMPLES OFF"
+)
+
+
+
+# # list a common dependencies
+# list(APPEND common_dependencies
+#     "../third_party/libbcrypt"
+#     "../third_party/libhydrogen"
+#     "../third_party/libsodium"
+#     "../third_party/gcem"
+#     "../third_party/etl"
+#     "../third_party/aethernet-numeric"
+#     "../third_party/stdexec"
+# )
+# set(STDEXEC_BUILD_EXAMPLES Off)
 
 # for etl
-set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
+# set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
 
 list(APPEND aether_srcs
             "aether_app.cpp"
@@ -287,10 +313,16 @@ endif()
 if(REGULAR_CMAKE_PROJECT)
   project(aether VERSION ${AE_PROJECT_VERSION} LANGUAGES CXX C)
 
-  set(CARES_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
-  set(CARES_STATIC ON CACHE BOOL "" FORCE)
-  set(CARES_SHARED OFF CACHE BOOL "" FORCE)
-  list(APPEND common_dependencies "../third_party/c-ares")
+  CPMAddPackage(
+    URI "https://github.com/c-ares/c-ares.git#main"
+    OPTIONS "CARES_BUILD_TOOLS OFF"
+            "CARES_STATIC ON"
+            "CARES_SHARED OFF"
+  )
+  # set(CARES_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+  # set(CARES_STATIC ON CACHE BOOL "" FORCE)
+  # set(CARES_SHARED OFF CACHE BOOL "" FORCE)
+  # list(APPEND common_dependencies "../third_party/c-ares")
 
   foreach(dep ${common_dependencies})
     get_filename_component(DEP_NAME ${dep} NAME)
