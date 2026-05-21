@@ -104,6 +104,7 @@ class BufferWrite {
    * \brief Drop all buffered writes.
    */
   void Drop() {
+    BW_LOG_WARNING("BufferWrite: drop all buffered writes");
     // drop the buffer
     for (auto& b : buffer_) {
       b.wa.Drop();
