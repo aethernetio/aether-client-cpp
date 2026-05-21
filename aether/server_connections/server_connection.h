@@ -24,7 +24,6 @@
 #include "aether/ptr/ptr_view.h"
 #include "aether/events/events.h"
 #include "aether/stream_api/istream.h"
-#include "aether/write_action/buffer_write.h"
 #include "aether/server_connections/channel_connection.h"
 
 namespace ae {
@@ -38,8 +37,6 @@ class ServerConnection final : public ByteIStream {
   };
 
  public:
-  static constexpr std::size_t kBufferCapacity = 200;
-
   using ServerErrorEvent = Event<void()>;
   using ChannelChangedEvent = Event<void()>;
 
@@ -61,19 +58,17 @@ class ServerConnection final : public ByteIStream {
   // return top not failed channel or null if nothing was selected
   ChannelEntry* TopChannel();
   void SelectChannel();
-  void ChannelUpdated();
+  void ChannelUpdated(ByteIStream& stream);
 
   void ServerError();
-  void DeferChannelError();
   void ChannelError();
+  void DeferServerError();
+  void DeferChannelError();
 
   void OnRead(DataBuffer const& data);
-  WriteAction* OnWrite(DataBuffer&& in_data);
 
   AeContext ae_context_;
   PtrView<Server> server_;
-
-  BufferWrite<DataBuffer, kBufferCapacity> buffer_write_;
 
   bool full_connected_;
   ChannelEntry* top_channel_;
@@ -86,7 +81,8 @@ class ServerConnection final : public ByteIStream {
   ServerErrorEvent server_error_;
   ChannelChangedEvent channel_changed_;
   Subscription channel_stream_update_sub_;
-  Subscription channel_stream_outd_data_sub_;
+  Subscription channel_stream_out_data_sub_;
+  TaskSubscription defer_sub_;
 };
 }  // namespace ae
 

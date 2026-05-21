@@ -17,12 +17,11 @@
 #ifndef AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 
-#include "aether/actions/action_context.h"
-
 #include "aether/common.h"
 #include "aether/ae_context.h"
 #include "aether/ae_actions/ping.h"
 #include "aether/crypto/icrypto_provider.h"
+#include "aether/write_action/buffer_write.h"
 
 #include "aether/work_cloud_api/work_server_api/login_api.h"
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
@@ -35,6 +34,25 @@ namespace ae {
 class Client;
 class Server;
 class Channel;
+
+namespace client_server_connection_internal {
+class BufferedServerConnection : public ByteIStream {
+ public:
+  static constexpr std::size_t kBufferCapacity = 200;
+
+  BufferedServerConnection(AeContext const& ae_context,
+                           Ptr<Server> const& server);
+
+  WriteAction& Write(DataBuffer&& in_data) override;
+  StreamUpdateEvent::Subscriber stream_update_event() override;
+  StreamInfo stream_info() const override;
+  OutDataEvent::Subscriber out_data_event() override;
+  void Restream() override;
+
+  BufferWrite<DataBuffer, kBufferCapacity> buffer_write;
+  ServerConnection server_connection;
+};
+}  // namespace client_server_connection_internal
 
 /**
  * \brief Client's connection to a server for messages send.
@@ -70,7 +88,9 @@ class ClientServerConnection {
   ClientApiUnsafe client_api_unsafe_;
   LoginApi login_api_;
 
-  ServerConnection server_connection_;
+  client_server_connection_internal ::BufferedServerConnection
+      server_connection_;
+
   std::optional<Ping> ping_;
 
   Subscription ping_sub_;

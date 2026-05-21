@@ -27,6 +27,7 @@
 #  include "aether/events/events.h"
 #  include "aether/registration_cloud.h"
 #  include "aether/stream_api/istream.h"
+#  include "aether/write_action/buffer_write.h"
 
 #  include "aether/server_connections/server_connection.h"
 
@@ -34,6 +35,7 @@ namespace ae {
 class Aether;
 class RootServerSelectStream final : public ByteIStream {
  public:
+  static constexpr std::size_t kBufferCapacity = 200;
   using ServerChangedEvent = Event<void()>;
   using CloudErrorEvent = Event<void()>;
 
@@ -50,6 +52,8 @@ class RootServerSelectStream final : public ByteIStream {
   CloudErrorEvent::Subscriber cloud_error_event();
 
  private:
+  WriteAction* OnWrite(DataBuffer&& data);
+
   void SelectServer();
   void ServerError();
   void CloudError();
@@ -57,6 +61,7 @@ class RootServerSelectStream final : public ByteIStream {
   AeContext ae_context_;
   PtrView<RegistrationCloud> cloud_;
 
+  BufferWrite<DataBuffer, kBufferCapacity> buffer_write_;
   std::size_t server_index_;
   std::optional<ServerConnection> server_connection_;
 

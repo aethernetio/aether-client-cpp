@@ -27,7 +27,7 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-namespace _internal {
+namespace client_server_connection_internal {
 class ClientKeyProvider : public ISyncKeyProvider {
  public:
   explicit ClientKeyProvider(Ptr<Client> const& client, ServerId server_id)
@@ -91,7 +91,52 @@ class ClientCryptoProvider final : public ICryptoProvider {
   SyncDecryptProvider decryptor_;
 };
 
-}  // namespace _internal
+BufferedServerConnection::BufferedServerConnection(AeContext const& ae_context,
+                                                   Ptr<Server> const& server)
+    : buffer_write{ae_context,
+                   [&](DataBuffer&& in_data) -> WriteAction* {
+                     if (server_connection.stream_info().is_writable) {
+                       return &server_connection.Write(std::move(in_data));
+                     }
+                     return nullptr;
+                   }},
+      server_connection{ae_context, server} {
+  if (server_connection.stream_info().is_writable) {
+    buffer_write.buffer_off();
+  }
+  server_connection.stream_update_event().Subscribe([&]() {
+    if (server_connection.stream_info().is_writable) {
+      if (buffer_write.is_buffer_on()) {
+        buffer_write.buffer_off();
+      }
+    } else {
+      if (!buffer_write.is_buffer_on()) {
+        buffer_write.buffer_on();
+      }
+    }
+  });
+}
+
+WriteAction& BufferedServerConnection::Write(DataBuffer&& in_data) {
+  return buffer_write.Write(std::move(in_data));
+}
+
+BufferedServerConnection::StreamUpdateEvent::Subscriber
+BufferedServerConnection::stream_update_event() {
+  return server_connection.stream_update_event();
+}
+
+StreamInfo BufferedServerConnection::stream_info() const {
+  return server_connection.stream_info();
+}
+
+BufferedServerConnection::OutDataEvent::Subscriber
+BufferedServerConnection::out_data_event() {
+  return server_connection.out_data_event();
+}
+void BufferedServerConnection::Restream() { server_connection.Restream(); }
+
+}  // namespace client_server_connection_internal
 
 ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
                                                Ptr<Client> const& client,
@@ -99,7 +144,8 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
     : ae_context_{ae_context},
       server_{server},
       ephemeral_uid_{client->ephemeral_uid()},
-      crypto_provider_{std::make_unique<_internal::ClientCryptoProvider>(
+      crypto_provider_{std::make_unique<
+          client_server_connection_internal::ClientCryptoProvider>(
           client, server->server_id)},
       client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
       login_api_{protocol_context_, *crypto_provider_->encryptor()},
@@ -109,7 +155,8 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
 
   server_connection_.out_data_event().Subscribe(
       MethodPtr<&ClientServerConnection::OutData>{this});
-  server_connection_.channel_changed_event().Subscribe(
+
+  server_connection_.server_connection.channel_changed_event().Subscribe(
       MethodPtr<&ClientServerConnection::ChannelChanged>{this});
   ChannelChanged();
 }
@@ -149,7 +196,7 @@ ClientApiSafe& ClientServerConnection::client_safe_api() {
 }
 
 ServerConnection& ClientServerConnection::server_connection() {
-  return server_connection_;
+  return server_connection_.server_connection;
 }
 
 void ClientServerConnection::OutData(DataBuffer const& data) {
@@ -161,7 +208,8 @@ void ClientServerConnection::ChannelChanged() {
   AE_TELED_DEBUG("Channel is updated, make new ping");
 
   auto make_ping = [&] {
-    auto channel = server_connection_.current_channel();
+    auto& server_conn = server_connection_.server_connection;
+    auto channel = server_conn.current_channel();
     // Create new ping if channel is updated
     static constexpr Duration kPingDefaultInterval =
         std::chrono::milliseconds{AE_PING_INTERVAL_MS};

@@ -23,13 +23,16 @@
 namespace ae {
 RootServerSelectStream::RootServerSelectStream(
     AeContext const& ae_context, Ptr<RegistrationCloud> const& cloud)
-    : ae_context_{ae_context}, cloud_{cloud}, server_index_{} {
+    : ae_context_{ae_context},
+      cloud_{cloud},
+      buffer_write_{ae_context,
+                    MethodPtr<&RootServerSelectStream::OnWrite>{this}},
+      server_index_{} {
   SelectServer();
 }
 
 WriteAction& RootServerSelectStream::Write(DataBuffer&& data) {
-  assert(server_connection_);
-  return server_connection_->Write(std::move(data));
+  return buffer_write_.Write(std::move(data));
 }
 
 StreamInfo RootServerSelectStream::stream_info() const {
@@ -65,7 +68,19 @@ RootServerSelectStream::cloud_error_event() {
   return cloud_error_event_;
 }
 
+WriteAction* RootServerSelectStream::OnWrite(DataBuffer&& data) {
+  if (!server_connection_) {
+    return nullptr;
+  }
+  if (!server_connection_->stream_info().is_writable) {
+    return nullptr;
+  }
+  return &server_connection_->Write(std::move(data));
+}
+
 void RootServerSelectStream::SelectServer() {
+  buffer_write_.buffer_on();
+
   auto cloud_ptr = cloud_.Lock();
   assert(cloud_ptr);
 
@@ -80,6 +95,23 @@ void RootServerSelectStream::SelectServer() {
   server_connection_->out_data_event().Subscribe(out_data_event_);
   server_connection_->server_error_event().Subscribe(
       MethodPtr<&RootServerSelectStream::ServerError>{this});
+
+  if (server_connection_->stream_info().is_writable) {
+    buffer_write_.buffer_off();
+  }
+
+  // toggle buffer based on stream info
+  server_connection_->stream_update_event().Subscribe([this]() {
+    if (server_connection_->stream_info().is_writable) {
+      if (buffer_write_.is_buffer_on()) {
+        buffer_write_.buffer_off();
+      }
+    } else {
+      if (!buffer_write_.is_buffer_on()) {
+        buffer_write_.buffer_on();
+      }
+    }
+  });
 
   server_changed_event_.Emit();
 }
