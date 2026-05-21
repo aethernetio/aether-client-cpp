@@ -35,12 +35,16 @@ namespace ae {
 template <ActionContext AC, typename T, std::size_t Capacity>
 class ActionPool : public etl::pool<T, Capacity> {
  public:
-  static_assert(std::is_base_of_v<Action, T>,
-                "T must be a subclass of Action");
+  static_assert(std::is_base_of_v<Action, T>, "T must be a subclass of Action");
 
   using base_t = etl::pool<T, Capacity>;
 
   constexpr explicit ActionPool(AC const& ac) noexcept : ac_{ac} {}
+  ~ActionPool() noexcept {
+    for (auto i = base_t::begin(); i != base_t::end(); ++i) {
+      base_t::destroy(&i.template get<T>());
+    }
+  }
 
   template <typename... Args>
   T* Create(Args&&... args) {
