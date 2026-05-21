@@ -28,7 +28,9 @@ class TaskSubscription final : public ITaskSubscription {
   TaskSubscription(IActive* p)  // NOLINT(*explicit-constructor)
       noexcept
       : ptr_{p} {
-    ptr_->active = reinterpret_cast<std::uintptr_t>(this);
+    if (ptr_ != nullptr) {
+      ptr_->active = reinterpret_cast<std::uintptr_t>(this);
+    }
   }
 
   ~TaskSubscription() noexcept { Reset(); }

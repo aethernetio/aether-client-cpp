@@ -21,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <cassert>
+#include <format>
 #include <iostream>
 #include <condition_variable>
 
@@ -124,8 +125,8 @@ class ManualTaskScheduler {
   void CheckOverflows() {
 #ifndef NDEBUG
     if (overflow_counter_ != 0) {
-      std::cerr << "ManualTaskScheduler: got overflow: " << overflow_counter_
-                << '\n';
+      std::cerr << std::format("!!!!!> ManualTaskScheduler: got overflow: {}\n",
+                               overflow_counter_);
       overflow_counter_ = 0;
     }
 #endif
