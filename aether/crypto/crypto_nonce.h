@@ -24,9 +24,8 @@
 #include "aether/reflect/reflect.h"
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-// too long include string
-#  include "third_party/libsodium/src/libsodium/include/sodium/\
-crypto_aead_chacha20poly1305.h"  // " this helps ide to parse following quotes
+
+#  include <sodium/crypto_aead_chacha20poly1305.h>
 
 #endif
 

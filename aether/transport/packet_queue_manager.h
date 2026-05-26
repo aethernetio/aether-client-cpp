@@ -20,7 +20,7 @@
 #include <mutex>
 #include <type_traits>
 
-#include <third_party/etl/include/etl/circular_buffer.h>
+#include <etl/circular_buffer.h>
 
 #include "aether/ae_context.h"
 #include "aether/transport/packet_send_action.h"

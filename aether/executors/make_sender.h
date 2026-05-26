@@ -19,8 +19,8 @@
 
 #include <functional>
 
-#include "third_party/stdexec/include/exec/create.hpp"
-#include "third_party/stdexec/include/stdexec/execution.hpp"
+#include <exec/create.hpp>
+#include <stdexec/execution.hpp>
 
 namespace ae::ex {
 namespace make_sender_internal {

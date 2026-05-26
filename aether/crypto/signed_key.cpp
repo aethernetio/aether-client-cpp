@@ -19,11 +19,11 @@
 #include "aether/crypto/crypto_definitions.h"
 
 #if AE_SIGNATURE == AE_ED25519
-#  include "third_party/libsodium/src/libsodium/include/sodium/crypto_sign.h"
+#  include <sodium/crypto_sign.h>
 #endif
 
 #if AE_SIGNATURE == AE_HYDRO_SIGNATURE
-#  include "third_party/libhydrogen/hydrogen.h"
+#  include <hydrogen.h>
 #endif
 
 namespace ae {

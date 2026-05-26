@@ -24,8 +24,8 @@
 
 DISABLE_WARNING_PUSH()
 IGNORE_IMPLICIT_CONVERSION()
-#include "third_party/etl/include/etl/pool.h"
-#include "third_party/etl/include/etl/variant_pool.h"
+#include <etl/pool.h>
+#include <etl/variant_pool.h>
 DISABLE_WARNING_POP()
 
 #include "aether/actions/action.h"

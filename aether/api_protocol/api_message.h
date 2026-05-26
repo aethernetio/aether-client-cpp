@@ -21,7 +21,7 @@
 #include <vector>
 #include <cstdint>
 
-#include "third_party/aethernet-numeric/numeric/tiered_int.h"
+#include <numeric/tiered_int.h>
 
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"

@@ -21,7 +21,7 @@
 #include <optional>
 #include <type_traits>
 
-#include "third_party/stdexec/include/stdexec/execution.hpp"
+#include <stdexec/execution.hpp>
 
 #include "aether/types/iterator.h"
 #include "aether/meta/type_list.h"

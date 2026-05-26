@@ -18,21 +18,21 @@
 
 #include <exception>
 
-#include "third_party/stdexec/include/exec/any_sender_of.hpp"
+#include <exec/any_sender_of.hpp>
 
 namespace ae::ex {
 // provide the list of signatures in form
 // set_value_t(type...), set_error_t(type)
 // !Note set_error_t must take one type, while set_value_t may not have any
 template <typename... Signs>
-using AnySender = typename experimental::execution::any_receiver_ref<
-    stdexec::completion_signatures<Signs...,
-                                   // add std::exception_ptr by default, because
-                                   // it's to easy to add it while building
-                                   // senders chain
-                                   stdexec::set_error_t(std::exception_ptr)>
-    // ~['_']~
-    >::template any_sender<>;
+using AnySender = experimental::execution::any_sender<
+    experimental::execution::any_receiver<stdexec::completion_signatures<
+        Signs...,
+        // add std::exception_ptr by default, because
+        // it's to easy to add it while building
+        // senders chain
+        stdexec::set_error_t(std::exception_ptr)>>>;
+// ~['_']~
 }  // namespace ae::ex
 
 #endif  // AETHER_EXECUTORS_ANY_SENDER_H_

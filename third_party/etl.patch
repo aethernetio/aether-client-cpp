@@ -1,21 +1,16 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index cbe4564d..45ba8cae 100644
+index cbe4564d..2fa1b994 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -39,8 +39,6 @@ target_include_directories(${PROJECT_NAME} ${INCLUDE_SPECIFIER} INTERFACE
+@@ -39,8 +39,10 @@ target_include_directories(${PROJECT_NAME} ${INCLUDE_SPECIFIER} INTERFACE
  
  target_link_libraries(${PROJECT_NAME} INTERFACE)
  
--# only install if top level project
++option(ENABLE_INSTALL "Enable installation" ON)
++
+ # only install if top level project
 -if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
++if(ENABLE_INSTALL)
      # Steps here based on excellent guide: https://dominikberner.ch/cmake-interface-lib/
      # Which also details all steps
      include(CMakePackageConfigHelpers)
-@@ -87,7 +85,6 @@ if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
-         DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/cmake)
-     install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/etl DESTINATION include)
- 
--endif()
- 
- if (BUILD_TESTS)
-     enable_testing()

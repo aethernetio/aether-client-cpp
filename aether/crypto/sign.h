@@ -28,9 +28,9 @@
 #  include <string>
 
 #  if AE_SIGNATURE == AE_ED25519
-#    include "third_party/libsodium/src/libsodium/include/sodium/crypto_sign.h"
+#    include <sodium/crypto_sign.h>
 #  elif AE_SIGNATURE == AE_HYDRO_SIGNATURE
-#    include "third_party/libhydrogen/hydrogen.h"
+#    include <hydrogen.h>
 #  endif
 
 #  include "aether/reflect/reflect.h"

@@ -24,7 +24,7 @@
 // IWYU pragma: begin_exports
 DISABLE_WARNING_PUSH()
 IGNORE_IMPLICIT_CONVERSION()
-#include "third_party/stdexec/include/stdexec/execution.hpp"
+#include <stdexec/execution.hpp>
 DISABLE_WARNING_POP()
 
 #include "aether/types/result.h"

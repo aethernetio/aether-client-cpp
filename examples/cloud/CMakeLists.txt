@@ -28,12 +28,6 @@ if(NOT CM_PLATFORM)
   add_executable(${PROJECT_NAME} ${src_list})
   target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE aether)
-
-  include(GNUInstallDirs)
-  install(TARGETS ${PROJECT_NAME}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
 else()
   idf_build_get_property(CM_PLATFORM CM_PLATFORM)
   if(CM_PLATFORM STREQUAL "ESP32")

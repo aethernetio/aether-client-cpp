@@ -19,9 +19,9 @@
 #include <chrono>
 #include <utility>
 
-#include "aether/tasks/details/task_queues.h"
+#include <etl/generic_pool.h>
 
-#include "third_party/etl/include/etl/generic_pool.h"
+#include "aether/tasks/details/task_queues.h"
 
 namespace ae::test_task_queues {
 using namespace std::chrono_literals;

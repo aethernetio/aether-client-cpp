@@ -37,7 +37,7 @@ if(NOT CM_PLATFORM)
   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-  target_link_libraries(${PROJECT_NAME} PRIVATE unity gcem)
+  target_link_libraries(${PROJECT_NAME} PRIVATE unity gcem etl date numeric)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     target_compile_options(${PROJECT_NAME} PUBLIC /Zc:preprocessor)
   endif()

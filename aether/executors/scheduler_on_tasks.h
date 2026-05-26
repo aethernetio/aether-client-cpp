@@ -17,7 +17,7 @@
 #ifndef AETHER_EXECUTORS_SCHEDULER_ON_TASKS_H_
 #define AETHER_EXECUTORS_SCHEDULER_ON_TASKS_H_
 
-#include "third_party/stdexec/include/stdexec/execution.hpp"
+#include <stdexec/execution.hpp>
 
 #include "aether/executors/async_context.h"
 
