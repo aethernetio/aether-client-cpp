@@ -37,18 +37,13 @@ class ActionsQueue final : public Action<ActionsQueue> {
                          on_finished);  // subscribe to the action finished
     };
 
-    using Factory = std::function<std::pair<VTable*, void*>()>;
+    using Factory = std::function<std::pair<VTable const*, void*>()>;
 
-    template <typename TStageRunner>
-    explicit StageFactory(TStageRunner runner)
-        : factory_([runner{std::move(runner)}]() mutable {
-            runner.Run();
-            auto action = runner.action();
-
-            using ActionType = std::decay_t<decltype(*action)>;
-            static VTable vtable = [&]() {
-              VTable vt;
-              vt.stop = [](void* obj) {
+    template <typename ActionType>
+    static VTable const* MakeVTable() {
+      static constexpr VTable vtable{
+          .stop =
+              [](void* obj) {
                 if (obj == nullptr) {
                   return;
                 }
@@ -56,22 +51,33 @@ class ActionsQueue final : public Action<ActionsQueue> {
                   auto* a = static_cast<ActionType*>(obj);
                   a->Stop();
                 }
-              };
-              vt.finished_event =
-                  [](void* obj,
-                     SmallFunction<void(), sizeof(void*)> on_finished)
-                  -> Subscription {
-                if (obj == nullptr) {
-                  return Subscription{};
-                }
-                auto* a = static_cast<ActionType*>(obj);
-                return a->FinishedEvent().Subscribe(
-                    [on_finished{std::move(on_finished)}]() { on_finished(); });
-              };
-              return vt;
-            }();
+              },
+          .finished_event =
+              [](void* obj,
+                 [[maybe_unused]] SmallFunction<void(), sizeof(void*)>
+                     on_finished) -> Subscription {
+            if (obj == nullptr) {
+              return Subscription{};
+            }
 
-            return std::make_pair(&vtable, action ? &*action : nullptr);
+            auto* a = static_cast<ActionType*>(obj);  // 70
+
+            return a->FinishedEvent().Subscribe(  // 72
+                [on_finished{std::move(on_finished)}]() { on_finished(); });
+          },
+      };
+      return &vtable;
+    }
+
+    template <typename TStageRunner>
+    explicit StageFactory(TStageRunner runner)
+        : factory_([runner{std::move(runner)}]() mutable {
+            runner.Run();
+            auto action = runner.action();
+            using TypeOfAction = std::decay_t<decltype(*action)>;
+
+            return std::make_pair(MakeVTable<TypeOfAction>(),
+                                  action ? &*action : nullptr);
           }) {}
 
     template <typename TFunc>
@@ -90,7 +96,7 @@ class ActionsQueue final : public Action<ActionsQueue> {
 
    private:
     Factory factory_;
-    VTable* vtable_{};
+    VTable const* vtable_{};
     void* action_obj_{};
   };
 
