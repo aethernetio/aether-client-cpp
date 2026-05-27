@@ -89,7 +89,7 @@ struct ObjectIndex<T, std::enable_if_t<std::is_base_of_v<Obj, T>>> {
   static constexpr std::uint32_t kClassId = CLASS_ID;          \
   static constexpr std::uint32_t kBaseClassId = BASE_CLASS_ID; \
   static constexpr std::uint32_t kVersion = VERSION;           \
-  using CurrentVersion = Version<kVersion>;                    \
+  using CurrentVersion = ae::Version<kVersion>;                    \
   static constexpr CurrentVersion kCurrentVersion{};
 
 /**
