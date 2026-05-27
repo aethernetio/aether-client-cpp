@@ -59,10 +59,11 @@ class ActionPool : public etl::pool<T, Capacity> {
 
  private:
   void Destroy(T* p) {
-    ac_.scheduler().Task([&, p]() { base_t::template destroy<T>(p); });
+    ts_ = ac_.scheduler().Task([&, p]() { base_t::template destroy<T>(p); });
   }
 
   AC ac_;
+  TaskSubscription ts_;
 };
 
 template <ActionContext AC, typename... T, std::size_t Capacity>
@@ -74,6 +75,12 @@ class ActionPool<AC, std::variant<T...>, Capacity>
   using base_t = etl::variant_pool<Capacity, T...>;
 
   constexpr explicit ActionPool(AC const& ac) noexcept : ac_{ac} {}
+  ~ActionPool() noexcept {
+    for (auto i = base_t::begin(); i != base_t::end(); ++i) {
+      // destroy each element as an Action
+      base_t::destroy(&i.template get<Action>());
+    }
+  }
 
   template <typename U, typename... Args>
     requires(std::is_same_v<U, T> || ...)
@@ -82,18 +89,18 @@ class ActionPool<AC, std::variant<T...>, Capacity>
     if (p != nullptr) {
       // destroy on finish
       static_cast<Action*>(p)->finished_event().Subscribe(
-          [this, p]() { Destroy<U>(p); });
+          [this, p_ = static_cast<Action*>(p)]() { Destroy(p_); });
     }
     return p;
   }
 
  private:
-  template <typename U>
-  void Destroy(U* p) {
-    ac_.scheduler().Task([&, p]() { base_t::template destroy<U>(p); });
+  void Destroy(Action* p) {
+    ts_ = ac_.scheduler().Task([&, p]() { base_t::destroy(p); });
   }
 
   AC ac_;
+  TaskSubscription ts_;
 };
 }  // namespace ae
 
