@@ -69,7 +69,7 @@ void TcpBase::OnRecvData(Span<std::uint8_t> data) {
 
   // emit new data though scheduler stream
   if (!read_event_.exchange(true)) {
-    ae_context_.scheduler().Task([&]() {
+    read_event_sub_ = ae_context_.scheduler().Task([&]() {
       auto sl = std::scoped_lock{lock_};
       read_event_ = false;
       for (auto data = data_packet_collector_.PopPacket(); !data.empty();

@@ -136,6 +136,7 @@ class TcpBase : public ByteIStream {
   StreamUpdateEvent stream_update_event_;
   StreamDataPacketCollector data_packet_collector_;
   std::atomic_bool read_event_{false};
+  TaskSubscription read_event_sub_;
   std::optional<FailedWriteAction> failed_write_;
 };
 }  // namespace tcp_internal
