@@ -131,6 +131,7 @@ class UdpBase : public ByteIStream {
   StreamUpdateEvent stream_update_event_;
   std::vector<DataBuffer> read_buffers_;
   std::atomic_bool read_event_{false};
+  TaskSubscription read_event_sub_;
   std::optional<FailedWriteAction> failed_write_;
 };
 

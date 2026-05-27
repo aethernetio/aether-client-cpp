@@ -69,10 +69,14 @@ void UdpBase::OnRecvData(Span<std::uint8_t> data) {
   read_buffers_.emplace_back(std::begin(data), std::end(data));
   // if not scheduled schedule a task to emit the data
   if (!read_event_.exchange(true)) {
-    ae_context_.scheduler().Task([&]() {
-      auto lock = std::scoped_lock{socket_mutex_};
-      read_event_ = false;
-      for (auto const& d : read_buffers_) {
+    read_event_sub_ = ae_context_.scheduler().Task([&]() {
+      auto buffers = std::invoke([&]() {
+        auto lock = std::scoped_lock{socket_mutex_};
+        read_event_ = false;
+        return std::move(read_buffers_);
+      });
+
+      for (auto const& d : buffers) {
         out_data_event_.Emit(d);
       }
     });
