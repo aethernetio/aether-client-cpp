@@ -34,7 +34,16 @@ else()
     #ESP32 CMake
     idf_component_register(SRCS ${src_list}
       INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
-      PRIV_REQUIRES aether)
+      REQUIRES
+              esp_wifi
+              esp_netif
+              nvs_flash
+              spiffs
+              esp_driver_uart
+      )
+
+    add_subdirectory("../../aether" aether)
+    target_link_libraries(${COMPONENT_LIB} PRIVATE aether)
   else()
     #Other platforms
     message(FATAL_ERROR "Platform ${CM_PLATFORM} is not supported")
