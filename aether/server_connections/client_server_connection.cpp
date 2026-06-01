@@ -188,6 +188,8 @@ WriteAction& ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
   auto api_call = ApiCallAdapter{ApiContext{login_api_}, server_connection_};
   api_call->login_by_alias(ephemeral_uid_, std::move(auth_api));
+  // cppcheck reports false positive
+  // cppcheck-suppress returnReference
   return api_call.Flush();
 }
 

@@ -68,7 +68,7 @@ class GetCloudFromAether final : public GetCloudAction {
   explicit GetCloudFromAether(AeContext const& ae_context, Aether& aether,
                               ClientCloudManager& client_cloud_manager,
                               CloudServerConnections& cloud_connection,
-                              Uid client_uid);
+                              Uid const& client_uid);
 
   ResultEvent::Subscriber result_event() noexcept override;
 
