@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "unity.h"
+#include <unity.h>
 
 #include "aether/stream_api/gates_stream.h"
 

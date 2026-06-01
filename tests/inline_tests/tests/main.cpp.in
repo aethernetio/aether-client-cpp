@@ -19,7 +19,7 @@
  * \see tests/inline_tests/CMakeLists.txt
  */
 
-#include "unity.h"
+#include <unity.h>
 
 #define TEST_FILE "@TEST_FILE@"
 

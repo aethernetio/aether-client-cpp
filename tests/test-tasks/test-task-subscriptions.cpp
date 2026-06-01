@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "unity.h"
+#include <unity.h>
 
 #include "aether/tasks/details/task.h"
 #include "aether/tasks/details/generic_task.h"
