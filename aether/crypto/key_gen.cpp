@@ -24,22 +24,21 @@
 #include "aether/crypto/crypto_definitions.h"
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-#  include "third_party/libsodium/src/libsodium/include/sodium/\
-crypto_aead_chacha20poly1305.h"  //"
+#  include <sodium/crypto_aead_chacha20poly1305.h>
 #endif
 
 #if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
-#  include "third_party/libsodium/src/libsodium/include/sodium/crypto_box.h"
+#  include <sodium/crypto_box.h>
 #endif
 
 #if AE_KDF == AE_SODIUM_KDF
-#  include "third_party/libsodium/src/libsodium/include/sodium/crypto_kdf.h"
+#  include <sodium/crypto_kdf.h>
 #endif
 
 #if AE_SIGNATURE == AE_HYDRO_SIGNATURE ||   \
     AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK || \
     AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK || AE_KDF == AE_HYDRO_KDF
-#  include "third_party/libhydrogen/hydrogen.h"
+#  include <hydrogen.h>
 #endif
 
 namespace ae {

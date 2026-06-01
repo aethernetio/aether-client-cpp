@@ -1,3 +1,73 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+new file mode 100644
+index 0000000..5d324ea
+--- /dev/null
++++ b/CMakeLists.txt
+@@ -0,0 +1,64 @@
++cmake_minimum_required(VERSION 3.16.0)
++
++include(CMakePackageConfigHelpers)
++include(GNUInstallDirs)
++
++list(APPEND libbcryp_srcs
++            bcrypt.c)
++
++list(APPEND crypt_blowfish_srcs
++            crypt_blowfish/crypt_blowfish.c
++            crypt_blowfish/crypt_gensalt.c
++            crypt_blowfish/wrapper.c)
++
++project(bcrypt VERSION 1.0.0 LANGUAGES CXX)
++
++add_library(${PROJECT_NAME} STATIC ${libbcryp_srcs}
++                        ${crypt_blowfish_srcs})
++
++if (CMAKE_SYSTEM_NAME MATCHES ".*BSD.*" )
++  target_compile_definitions(${PROJECT_NAME} PRIVATE "__SKIP_GNU")
++endif()
++
++set_target_properties(${PROJECT_NAME}
++    PROPERTIES
++        C_STANDARD          17
++        C_STANDARD_REQUIRED ON
++        PUBLIC_HEADER       "${${PROJECT_NAME}_PUBLIC_HEADERS}"
++        EXPORT_NAME         framework
++)
++
++target_compile_options(${PROJECT_NAME}
++    PRIVATE
++        # GCC
++        $<$<C_COMPILER_ID:GNU>:
++            -Wno-cpp
++        >
++)
++
++target_include_directories(${PROJECT_NAME}
++    PUBLIC
++        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
++        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}>
++)
++
++
++option(ENABLE_INSTALL "Enable installation of the library" Off)
++
++if (ENABLE_INSTALL)
++  ## Target installation
++  install(TARGETS   ${PROJECT_NAME}
++      EXPORT        ${PROJECT_NAME}Targets
++      ARCHIVE       DESTINATION ${CMAKE_INSTALL_LIBDIR}
++      LIBRARY       DESTINATION ${CMAKE_INSTALL_LIBDIR}
++      PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
++  )
++
++  install(FILES bcrypt.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
++
++  ## Target's cmake files: targets export
++  install(EXPORT  ${PROJECT_NAME}Targets
++      NAMESPACE   ${PROJECT_NAME}::
++      DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
++  )
++endif()
 diff --git a/bcrypt.c b/bcrypt.c
 index bd8722b..ac051c5 100644
 --- a/bcrypt.c
@@ -78,13 +148,17 @@ index bd8722b..ac051c5 100644
  	workf = (factor < 4 || factor > 31)?12:factor;
  	aux = crypt_gensalt_rn("$2a$", workf, input, RANDBYTES,
 diff --git a/crypt_blowfish/ow-crypt.h b/crypt_blowfish/ow-crypt.h
-index 2e48794..fbd9de0 100644
+index 2e48794..dccf47b 100644
 --- a/crypt_blowfish/ow-crypt.h
 +++ b/crypt_blowfish/ow-crypt.h
-@@ -22,6 +22,10 @@
+@@ -22,6 +22,14 @@
  #define __const const
  #endif
  
++#ifndef __const
++#define __const const
++#endif
++
 +#ifndef __const
 +#define __const const
 +#endif

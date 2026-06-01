@@ -21,7 +21,7 @@
 
 DISABLE_WARNING_PUSH()
 IGNORE_IMPLICIT_CONVERSION()
-#include "third_party/etl/include/etl/pool.h"
+#include <etl/pool.h>
 DISABLE_WARNING_POP()
 
 #include "aether/api_protocol/api_message.h"

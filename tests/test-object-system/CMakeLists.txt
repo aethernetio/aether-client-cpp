@@ -52,7 +52,7 @@ if(NOT CM_PLATFORM)
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
   target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-  target_link_libraries(${PROJECT_NAME} PRIVATE unity )
+  target_link_libraries(${PROJECT_NAME} PRIVATE unity date etl numeric)
   target_compile_definitions(${PROJECT_NAME} PRIVATE "AE_DISTILLATION=1")
   target_compile_definitions(${PROJECT_NAME} PRIVATE "AE_PROJECT_VERSION=\"0.0.0\"")
 

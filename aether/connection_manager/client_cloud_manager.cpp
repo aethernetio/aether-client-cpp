@@ -47,7 +47,7 @@ GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
                                        Aether& aether,
                                        ClientCloudManager& client_cloud_manager,
                                        CloudServerConnections& cloud_connection,
-                                       Uid client_uid)
+                                       Uid const& client_uid)
     : ae_context_{ae_context},
       aether_{&aether},
       client_cloud_manager_{&client_cloud_manager},

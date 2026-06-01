@@ -25,7 +25,7 @@
 #include <utility>
 #include <variant>
 
-#include "third_party/aethernet-numeric/numeric/tiered_int.h"
+#include <numeric/tiered_int.h>
 
 #include "aether/clock.h"
 #include "aether/config.h"

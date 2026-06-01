@@ -16,7 +16,7 @@
 
 #include "registrator/registrator_config.h"
 
-#include "third_party/ini.h/ini.h"
+#include <ini.h>
 
 #include <charconv>
 #include <string_view>

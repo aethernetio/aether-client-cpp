@@ -3,12 +3,13 @@ functionStatic
 unusedFunction
 duplInheritedMember
 
-
-*:third_party/*
+*:cpm.cache/*
+*:_deps/*
 *:esp-idf/*
 
 useInitializationList:tests/*
 returnDanglingLifetime:tests/*
+danglingTemporaryLifetime:tests/*
 accessMoved:tests/*        // sometimes it's specially checked if var is moved
 cstyleCast:tests/*         // c-style cast is heavily used in tests
 dangerousTypeCast:tests/*  // c-style cast is heavily used in tests

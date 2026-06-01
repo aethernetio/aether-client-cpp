@@ -30,21 +30,20 @@
 #  include <iomanip>
 
 #  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
-#    include "third_party/libsodium/src/libsodium/include/sodium/crypto_box.h"
+#    include <sodium/crypto_box.h>
 #  endif
 #  if AE_SIGNATURE == AE_ED25519
-#    include "third_party/libsodium/src/libsodium/include/sodium/crypto_sign.h"
+#    include <sodium/crypto_sign.h>
 #  endif
 
 #  if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-#    include "third_party/libsodium/src/libsodium/include/sodium/\
-crypto_aead_chacha20poly1305.h"  //"
+#    include <sodium/crypto_aead_chacha20poly1305.h>
 #  endif
 
 #  if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK ||  \
       AE_CRYPTO_ASYNC == AE_HYDRO_CRYPTO_PK || \
       AE_SIGNATURE == AE_HYDRO_SIGNATURE
-#    include "third_party/libhydrogen/hydrogen.h"
+#    include <hydrogen.h>
 #  endif
 
 #  include "aether/reflect/reflect.h"

@@ -33,6 +33,7 @@ Sender::Sender(AeContext const& ae_context, Client::ptr client,
       client_{std::move(client)},
       destination_uid_{destination_uid},
       safe_stream_config_{safe_stream_config},
+      connected_stream_{},
       bench_delays_api_{protocol_context_} {}
 
 void Sender::ConnectP2pStream() {

@@ -25,7 +25,7 @@
 #include "aether/tasks/details/task_queues.h"
 #include "aether/tasks/details/generic_task.h"
 
-#include "third_party/etl/include/etl/generic_pool.h"
+#include <etl/generic_pool.h>
 
 namespace ae {
 namespace task_manager_internal {

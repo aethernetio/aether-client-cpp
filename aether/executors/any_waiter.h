@@ -23,7 +23,7 @@
 #include <concepts>
 #include <type_traits>
 
-#include "third_party/stdexec/include/stdexec/execution.hpp"
+#include <stdexec/execution.hpp>
 
 #include "aether/types/result.h"
 #include "aether/meta/ignore_t.h"

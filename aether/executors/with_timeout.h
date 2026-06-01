@@ -20,7 +20,7 @@
 #include <utility>
 #include <cassert>
 
-#include "third_party/stdexec/include/stdexec/execution.hpp"
+#include <stdexec/execution.hpp>
 
 #include "aether/executors/async_context.h"
 #include "aether/tasks/details/task_subsctiption.h"

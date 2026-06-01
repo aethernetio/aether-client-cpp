@@ -26,7 +26,7 @@
 #include "aether/warning_disable.h"
 DISABLE_WARNING_PUSH()
 IGNORE_IMPLICIT_CONVERSION()
-#include "third_party/etl/include/etl/vector.h"
+#include <etl/vector.h>
 DISABLE_WARNING_POP()
 
 namespace ae {

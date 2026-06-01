@@ -21,7 +21,7 @@
 #  include <array>
 #  include <limits>
 
-#  include "third_party/libbcrypt/bcrypt.h"
+#  include <bcrypt.h>
 
 #  include "aether/crc.h"
 

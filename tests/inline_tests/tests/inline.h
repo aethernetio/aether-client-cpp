@@ -22,7 +22,7 @@
 #include <source_location>
 #include <string_view>
 
-#include "unity.h"
+#include <unity.h>
 
 #include "tests/crc.h"
 
