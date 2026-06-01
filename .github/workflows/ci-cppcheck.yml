@@ -70,17 +70,18 @@ jobs:
 
       - name: cppcheck
         run: >
-          ./_cppcheck/cppcheck-2.19.0/cppcheck --project=build/compile_commands.json
+          cd build &&
+          ../_cppcheck/cppcheck-2.19.0/cppcheck --project=compile_commands.json
           -D__GNUC__=4
           --safety
           --error-exitcode=-1
           --enable=warning,performance,portability,missingInclude
-          --suppressions-list=./cppcheck_suppressions.txt
+          --suppressions-list=../cppcheck_suppressions.txt
           --inline-suppr
           --quiet
           -j $(nproc)
-          --cppcheck-build-dir=./_cppcheck_build_dir
-          --checkers-report=./checkers.txt
+          --cppcheck-build-dir=../_cppcheck_build_dir
+          --checkers-report=../checkers.txt
 
       - name: print checkers report
         run: cat checkers.txt
