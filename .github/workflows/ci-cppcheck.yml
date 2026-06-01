@@ -53,7 +53,7 @@ jobs:
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           -DCMAKE_BUILD_TYPE=Release
           -C ".github/workflows/linux_initial_cache.txt"
-          -S projects/cmake
+          -S ./
 
       - name: cache cppcheck_build_dir
         id: cache-cppcheck_build_dir

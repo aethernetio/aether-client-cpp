@@ -17,19 +17,24 @@ cmake_minimum_required(VERSION 3.16)
 project(inline_tests)
 
 add_library(inline_tests INTERFACE)
-target_include_directories(inline_tests INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(inline_tests INTERFACE unity)
+target_include_directories(inline_tests INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+
 target_compile_definitions(inline_tests INTERFACE "-DAE_TESTS=1")
+target_link_libraries(inline_tests INTERFACE unity)
 
-# Target installation
-install(TARGETS inline_tests
-        EXPORT inline_tests_Targets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}
-        COMPONENT library)
+if(AE_INSTALL)
+  # Target installation
+  install(TARGETS inline_tests
+          EXPORT inline_tests_Targets
+          ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${TARGET_NAME}
+          COMPONENT library)
 
-# Target's cmake files: targets export
-install(EXPORT inline_tests_Targets
-        NAMESPACE inline_tests::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/inline_tests)
+  # Target's cmake files: targets export
+  install(EXPORT inline_tests_Targets
+          NAMESPACE inline_tests::
+          DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/inline_tests)
+endif()

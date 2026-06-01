@@ -42,7 +42,7 @@ else()
               esp_driver_uart
       )
 
-    add_subdirectory("../../aether" aether)
+    add_subdirectory("../../" aether)
     target_link_libraries(${COMPONENT_LIB} PRIVATE aether)
   else()
     #Other platforms
