@@ -30,14 +30,23 @@
 
 namespace ae {
 class KqueuePollerImpl : public UnixPollerImpl {
+  struct EventHandler {
+    EventCb cb;
+    EventType events;
+  };
+
  public:
   KqueuePollerImpl();
   ~KqueuePollerImpl() override;
 
-  void Event(DescriptorType fd, EventType event, EventCb cb) override;
+ private:
+  void lock() override;
+  void unlock() override;
+
+  void Callback(DescriptorType fd, EventCb cb) override;
+  void Event(DescriptorType fd, EventType events) override;
   void Remove(DescriptorType descriptor) override;
 
- private:
   static int InitKqueue();
   void Loop();
 
@@ -46,7 +55,7 @@ class KqueuePollerImpl : public UnixPollerImpl {
   int kqueue_fd_;
 
   std::recursive_mutex poller_mutex_;
-  std::map<DescriptorType, EventCb> event_map_;
+  std::map<DescriptorType, EventHandler> event_map_;
   std::atomic_bool stop_requested_{false};
   std::thread thread_;
 };
@@ -61,10 +70,10 @@ class KqueuePoller : public IPoller {
 
   AE_OBJECT_REFLECT()
 
-  NativePoller* Native() override;
+  std::shared_ptr<NativePoller> Native() override;
 
  private:
-  std::optional<KqueuePollerImpl> impl_;
+  std::shared_ptr<KqueuePollerImpl> impl_;
 };
 }  // namespace ae
 

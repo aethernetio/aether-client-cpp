@@ -37,8 +37,6 @@ class IPoller;
  */
 class LwipCBTcpSocket : public ISocket {
  public:
-  static constexpr int kInvalidSocket = -1;
-
   explicit LwipCBTcpSocket(Ptr<IPoller> const& poller);
   ~LwipCBTcpSocket() override;
 

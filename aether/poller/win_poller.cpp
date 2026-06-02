@@ -114,11 +114,11 @@ WinPoller::WinPoller() = default;
 WinPoller::WinPoller(ObjProp prop) : IPoller{prop} {}
 WinPoller::~WinPoller() = default;
 
-NativePoller* WinPoller::Native() {
+std::shared_ptr<NativePoller> WinPoller::Native() {
   if (!impl_) {
-    impl_.emplace();
+    impl_ = std::make_shared<IoCpPoller>();
   }
-  return static_cast<NativePoller*>(&*impl_);
+  return impl_;
 }
 }  // namespace ae
 #endif

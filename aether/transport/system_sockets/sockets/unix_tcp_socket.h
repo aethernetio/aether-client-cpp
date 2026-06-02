@@ -31,11 +31,13 @@ class UnixTcpSocket final : public UnixSocket {
   ISocket& Connect(AddressPort const& destination,
                    ConnectedCb connected_cb) override;
 
+ protected:
+  void OnPollerEvent(DescriptorType fd, EventType event) override;
+
  private:
   static int MakeSocket();
 
-  void OnPollerEvent(EventType event) override;
-  void OnConnectionEvent();
+  void OnConnectionEvent(DescriptorType fd);
 
   ConnectionState connection_state_;
   ConnectedCb connected_cb_;

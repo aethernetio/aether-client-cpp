@@ -27,7 +27,7 @@ WinSerialPort::WinSerialPort(AeContext const& ae_context,
                              SerialInit serial_init, IPoller::ptr const& poller)
     : ae_context_{ae_context},
       serial_init_{std::move(serial_init)},
-      poller_{static_cast<IoCpPoller*>(poller->Native())},
+      poller_{std::static_pointer_cast<IoCpPoller>(poller->Native())},
       fd_{OpenPort(serial_init_)},
       read_buffer_(kReadBufSize) {
   if (fd_ != INVALID_HANDLE_VALUE) {

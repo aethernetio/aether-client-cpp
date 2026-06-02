@@ -23,6 +23,8 @@
 #if AE_SUPPORT_UDP && LWIP_SOCKET_ENABLED
 #  include "aether/poller/poller.h"
 
+#  define LWIP_UDP_SOCKET_ENABLED 1
+
 namespace ae {
 class LwipUdpSocket final : public LwipSocket {
  public:

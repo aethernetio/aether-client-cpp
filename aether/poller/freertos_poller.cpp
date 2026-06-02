@@ -136,9 +136,12 @@ FreeRtosLwipPollerImpl::~FreeRtosLwipPollerImpl() {
   AE_TELE_DEBUG(kFreertosWorkerDestroyed, "Poll worker has been destroyed");
 }
 
+void FreeRtosLwipPollerImpl::lock() { ctl_mutex_.lock(); }
+
+void FreeRtosLwipPollerImpl::unlock() { ctl_mutex_.unlock(); }
+
 void FreeRtosLwipPollerImpl::Event(DescriptorType fd, EventType event_type,
                                    EventCb cb) {
-  auto lock = std::scoped_lock{ctl_mutex_};
   AE_TELE_DEBUG(kFreertosAddDescriptor, "Added descriptor {} event {}", fd,
                 event_type);
   event_map_.insert_or_assign(fd, PollEvent{event_type, std::move(cb)});
@@ -147,7 +150,6 @@ void FreeRtosLwipPollerImpl::Event(DescriptorType fd, EventType event_type,
 }
 
 void FreeRtosLwipPollerImpl::Remove(DescriptorType fd) {
-  auto lock = std::scoped_lock{ctl_mutex_};
   event_map_.erase(fd);
   freertos_poller_internal::WritePipe(wake_up_pipe_);
   AE_TELE_DEBUG(kFreertosRemoveDescriptor, "Removed descriptor {}", fd);
@@ -190,7 +192,7 @@ void FreeRtosLwipPollerImpl::Loop() {
         continue;
       }
       poll_event->second.cb(
-          freertos_poller_internal::FromEpollEvent(v.revents));
+          v.fd, freertos_poller_internal::FromEpollEvent(v.revents));
     }
   }
 }
@@ -242,15 +244,46 @@ std::vector<pollfd> FreeRtosLwipPollerImpl::FillFdsVector() {
   return fds;
 }
 
+FreeRtosPolledFd::FreeRtosPolledFd(DescriptorType fd,
+                                   std::shared_ptr<NativePoller> const& poller)
+    : fd_{fd},
+      poller_{std::static_pointer_cast<FreeRtosLwipPollerImpl>(poller)} {}
+
+FreeRtosPolledFd::~FreeRtosPolledFd() {
+  if (fd_ != kInvalidDescriptor) {
+    auto lock = std::scoped_lock(*poller_);
+    poller_->Remove(fd_);
+  }
+}
+
+void FreeRtosPolledFd::Event(EventType event_type,
+                             FreeRtosLwipPollerImpl::EventCb event_cb) {
+  auto lock = std::scoped_lock(*poller_);
+  poller_->Event(fd_, event_type, std::move(event_cb));
+}
+
+FreeRtosPolledFd::Fd FreeRtosPolledFd::fd() const noexcept {
+  return Fd{std::unique_lock{*poller_}, fd_};
+}
+
+FreeRtosPolledFd::Fd FreeRtosPolledFd::Remove() noexcept {
+  auto fd = Fd{std::unique_lock{*poller_}, fd_};
+  if (fd_ != kInvalidDescriptor) {
+    poller_->Remove(fd_);
+    fd_ = kInvalidDescriptor;
+  }
+  return fd;
+}
+
 FreertosPoller::FreertosPoller() = default;
 
 FreertosPoller::FreertosPoller(ObjProp prop) : IPoller{prop} {}
 
-NativePoller* FreertosPoller::Native() {
+std::shared_ptr<NativePoller> FreertosPoller::Native() {
   if (!impl_) {
-    impl_.emplace();
+    impl_ = std::make_shared<FreeRtosLwipPollerImpl>();
   }
-  return static_cast<NativePoller*>(&*impl_);
+  return impl_;
 }
 
 }  // namespace ae

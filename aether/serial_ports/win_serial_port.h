@@ -60,7 +60,7 @@ class WinSerialPort final : public ISerialPort {
 
   AeContext ae_context_;
   SerialInit serial_init_;
-  IoCpPoller* poller_;
+  std::shared_ptr<IoCpPoller> poller_;
 
   std::mutex fd_lock_;
   void* fd_;

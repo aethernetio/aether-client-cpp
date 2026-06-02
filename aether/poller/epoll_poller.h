@@ -23,21 +23,30 @@
 #  include <mutex>
 #  include <thread>
 #  include <atomic>
-#  include <optional>
+#  include <memory>
 
 #  include "aether/poller/poller.h"
 #  include "aether/poller/unix_poller.h"
 
 namespace ae {
 class EpollImpl final : public UnixPollerImpl {
+  struct EventHandler {
+    EventCb cb;
+    EventType events;
+  };
+
  public:
   EpollImpl();
   ~EpollImpl() override;
 
-  void Event(DescriptorType fd, EventType event, EventCb cb) override;
+ private:
+  void lock() override;
+  void unlock() override;
+
+  void Callback(DescriptorType fd, EventCb cb) override;
+  void Event(DescriptorType fd, EventType events) override;
   void Remove(DescriptorType fd) override;
 
- private:
   static int InitEpoll();
   static int MakeEventFd();
   void EmptyWakeUpPipe(EventType event);
@@ -46,7 +55,7 @@ class EpollImpl final : public UnixPollerImpl {
   int epoll_fd_;
   int event_fd_;
   std::recursive_mutex poller_mutex_;
-  std::map<DescriptorType, EventCb> event_map_;
+  std::map<DescriptorType, EventHandler> event_map_;
 
   std::atomic_bool stop_requested_{false};
   std::thread thread_;
@@ -62,10 +71,10 @@ class EpollPoller : public IPoller {
 
   AE_OBJECT_REFLECT()
 
-  NativePoller* Native() override;
+  std::shared_ptr<NativePoller> Native() override;
 
  private:
-  std::optional<EpollImpl> impl_;
+  std::shared_ptr<EpollImpl> impl_;
 };
 
 }  // namespace ae

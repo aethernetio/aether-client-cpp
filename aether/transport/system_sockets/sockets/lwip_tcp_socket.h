@@ -23,6 +23,8 @@
 #if AE_SUPPORT_TCP && LWIP_SOCKET_ENABLED
 #  include "aether/poller/poller.h"
 
+#  define LWIP_TCP_SOCKET_ENABLED 1
+
 namespace ae {
 class LwipTcpSocket final : public LwipSocket {
   static constexpr int kRcvTimeoutSec = 0;
@@ -34,11 +36,13 @@ class LwipTcpSocket final : public LwipSocket {
   ISocket& Connect(AddressPort const& destination,
                    ConnectedCb connected_cb) override;
 
+ protected:
+  void OnPollerEvent(DescriptorType fd, EventType event) override;
+
  private:
   static int MakeSocket();
 
-  void OnPollerEvent(EventType event);
-  void OnConnectionEvent();
+  void OnConnectionEvent(DescriptorType fd);
 
   ConnectionState connection_state_;
   ConnectedCb connected_cb_;
