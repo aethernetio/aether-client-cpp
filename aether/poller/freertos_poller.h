@@ -27,7 +27,7 @@
 #  include <map>
 #  include <mutex>
 #  include <atomic>
-#  include <optional>
+#  include <memory>
 
 #  include "aether/poller/poller.h"
 #  include "aether/poller/poller_types.h"
@@ -38,7 +38,7 @@ class FreeRtosLwipPollerImpl : public NativePoller {
   friend void vTaskFunction(void* pvParameters);
 
  public:
-  using EventCb = SmallFunction<void(EventType event)>;
+  using EventCb = SmallFunction<void(DescriptorType fd, EventType event)>;
 
   struct PollEvent {
     EventType event_type;
@@ -46,9 +46,12 @@ class FreeRtosLwipPollerImpl : public NativePoller {
   };
 
   FreeRtosLwipPollerImpl();
-  ~FreeRtosLwipPollerImpl();
+  ~FreeRtosLwipPollerImpl() override;
 
-  void Event(DescriptorType fd, EventType event_type, EventCb cb);
+  void lock();
+  void unlock();
+
+  void Event(DescriptorType fd, EventType event_type, EventCb event_cb);
   void Remove(DescriptorType fd);
 
  private:
@@ -62,6 +65,35 @@ class FreeRtosLwipPollerImpl : public NativePoller {
   std::recursive_mutex ctl_mutex_;
 };
 
+class FreeRtosPolledFd {
+ public:
+  class Fd {
+   public:
+    Fd(std::unique_lock<FreeRtosLwipPollerImpl>&& lock,
+       DescriptorType fd) noexcept
+        : lock_{std::move(lock)}, fd_{fd} {}
+
+    DescriptorType operator*() const noexcept { return fd_; }
+
+   private:
+    std::unique_lock<FreeRtosLwipPollerImpl> lock_;
+    DescriptorType fd_;
+  };
+
+  FreeRtosPolledFd(DescriptorType fd,
+                   std::shared_ptr<NativePoller> const& poller);
+
+  ~FreeRtosPolledFd();
+
+  void Event(EventType event_type, FreeRtosLwipPollerImpl::EventCb event_cb);
+  Fd fd() const noexcept;
+  Fd Remove() noexcept;
+
+ private:
+  DescriptorType fd_;
+  mutable std::shared_ptr<FreeRtosLwipPollerImpl> poller_;
+};
+
 class FreertosPoller : public IPoller {
   AE_OBJECT(FreertosPoller, IPoller, 0)
 
@@ -72,10 +104,10 @@ class FreertosPoller : public IPoller {
 
   AE_OBJECT_REFLECT()
 
-  NativePoller* Native() override;
+  std::shared_ptr<NativePoller> Native() override;
 
  private:
-  std::optional<FreeRtosLwipPollerImpl> impl_;
+  std::shared_ptr<FreeRtosLwipPollerImpl> impl_;
 };
 
 }  // namespace ae

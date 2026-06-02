@@ -26,20 +26,25 @@
 #  include "aether/serial_ports/serial_ports_tele.h"
 
 namespace ae {
-static constexpr int kInvalidPort = -1;
-
 UnixSerialPort::UnixSerialPort(AeContext const& ae_context,
                                SerialInit serial_init,
                                IPoller::ptr const& poller)
     : ae_context_{ae_context},
       serial_init_{std::move(serial_init)},
-      poller_{static_cast<UnixPollerImpl*>(poller->Native())},
-      fd_{OpenPort(serial_init_)} {}
+      poller_fd_{OpenPort(serial_init_), poller->Native(),
+                 MethodPtr<&UnixSerialPort::PolleEvent>{this}} {
+  poller_fd_.Events(EventType::kRead | EventType::kError);
+}
 
-UnixSerialPort::~UnixSerialPort() { Close(); }
+UnixSerialPort::~UnixSerialPort() {
+  auto fd = poller_fd_.Remove();
+  if (*fd != kInvalidDescriptor) {
+    close(*fd);
+  }
+}
 
 void UnixSerialPort::Write(std::span<std::uint8_t const> data) {
-  auto bytes_written = write(fd_, data.data(), data.size());
+  auto bytes_written = write(*poller_fd_.fd(), data.data(), data.size());
   if (bytes_written < 0) {
     AE_TELE_ERROR(kAdapterSerialWriteFailed, "Write serial port error {}",
                   strerror(errno));
@@ -55,7 +60,7 @@ UnixSerialPort::DataReadEvent::Subscriber UnixSerialPort::read_event() {
   return EventSubscriber{read_event_};
 }
 
-bool UnixSerialPort::IsOpen() { return fd_ != kInvalidPort; }
+bool UnixSerialPort::IsOpen() { return *poller_fd_.fd() != kInvalidDescriptor; }
 
 int UnixSerialPort::OpenPort(SerialInit const& serial_init) {
   /* open the port */
@@ -63,12 +68,12 @@ int UnixSerialPort::OpenPort(SerialInit const& serial_init) {
   if (fd < 0) {
     AE_TELED_ERROR("Open serial port at {} error {}", serial_init.port_name,
                    strerror(errno));
-    return kInvalidPort;
+    return kInvalidDescriptor;
   }
   auto close_on_exit = ae_defer_at[&] { close(fd); };
 
   if (!SetOptions(fd, serial_init)) {
-    return kInvalidPort;
+    return kInvalidDescriptor;
   }
   close_on_exit.Reset();
   return fd;
@@ -106,22 +111,20 @@ bool UnixSerialPort::SetOptions(int fd, SerialInit const& serial_init) {
   return true;
 }
 
-void UnixSerialPort::PolleEvent(EventType event) {
+void UnixSerialPort::PolleEvent(DescriptorType fd, EventType event) {
   auto event_type = event & EventType::kRead;
   switch (event_type) {
     case EventType::kRead:
-      ReadData();
+      ReadData(fd);
       break;
     default:
       break;
   }
 }
 
-void UnixSerialPort::ReadData() {
-  auto lock = std::scoped_lock{fd_lock_};
-
-  static std::uint8_t buffer[1024];
-  ssize_t bytes_read = read(fd_, buffer, sizeof(buffer));
+void UnixSerialPort::ReadData(DescriptorType fd) {
+  static std::uint8_t buffer[1024];  // NOLINT(*avoid-c-arrays, *magic-numbers)
+  ssize_t bytes_read = read(fd, buffer, sizeof(buffer));
   if (bytes_read < 0) {
     AE_TELED_ERROR("Read serial port error {}", strerror(errno));
     return;
@@ -129,11 +132,12 @@ void UnixSerialPort::ReadData() {
   DataBuffer data(static_cast<std::size_t>(bytes_read));
   std::copy(buffer, buffer + bytes_read, data.begin());
 
+  auto lock = std::scoped_lock{buffers_lock_};
   buffers_.emplace_back(std::move(data));
 
   if (!read_flag_.exchange(true)) {
     scheduler_sub_ = ae_context_.scheduler().Task([this]() noexcept {
-      auto lock = std::scoped_lock{fd_lock_};
+      auto lock = std::scoped_lock{buffers_lock_};
       EmitData();
       read_flag_ = false;
     });
@@ -146,14 +150,6 @@ void UnixSerialPort::EmitData() {
   }
   buffers_.clear();
 }
-
-void UnixSerialPort::Close() {
-  if (fd_ != kInvalidPort) {
-    close(fd_);
-    fd_ = kInvalidPort;
-  }
-}
-
 }  // namespace ae
 
 #endif

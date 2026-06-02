@@ -83,9 +83,9 @@ int UnixTcpSocket::MakeSocket() {
   bool created = false;
   // TCP socket
   int sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock == kInvalidSocket) {
+  if (sock == kInvalidDescriptor) {
     AE_TELED_DEBUG("Socket creation error {} {}", errno, strerror(errno));
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
 
   // close the socket if it fails to setup
@@ -96,13 +96,13 @@ int UnixTcpSocket::MakeSocket() {
   };
 
   if (!unix_tcp_socket_internal::SetNonblocking(sock)) {
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
   if (!unix_tcp_socket_internal::SetTcpNoDelay(sock)) {
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
   if (!unix_tcp_socket_internal::SetNoSigpipe(sock)) {
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
   created = true;
   return sock;
@@ -110,21 +110,18 @@ int UnixTcpSocket::MakeSocket() {
 
 ISocket& UnixTcpSocket::Connect(AddressPort const& destination,
                                 ConnectedCb connected_cb) {
-  assert((socket_ != kInvalidSocket) && "Socket is not initialized");
+  assert(socket_.has_value() && "Socket is not initialized");
   connected_cb_ = std::move(connected_cb);
 
   ae_defer[&]() {
     // add poll for all events to detect connection
-    poller_->Event(socket_,
-                   EventType::kRead | EventType::kError | EventType::kWrite,
-                   MethodPtr<&UnixTcpSocket::OnPollerEvent>{this});
+    socket_->Events(EventType::kRead | EventType::kError | EventType::kWrite);
     connected_cb_(connection_state_);
   };
 
-  auto lock = std::scoped_lock{socket_lock_};
-
   auto addr = GetSockAddr(destination);
-  auto res = connect(socket_, addr.addr(), static_cast<socklen_t>(addr.size));
+  auto res =
+      connect(*socket_->fd(), addr.addr(), static_cast<socklen_t>(addr.size));
   if (res == -1) {
     if ((errno == EAGAIN) || (errno == EINPROGRESS)) {
       AE_TELED_DEBUG("Wait connection");
@@ -140,15 +137,15 @@ ISocket& UnixTcpSocket::Connect(AddressPort const& destination,
   return *this;
 }
 
-void UnixTcpSocket::OnPollerEvent(EventType event) {
+void UnixTcpSocket::OnPollerEvent(DescriptorType fd, EventType event) {
   if (connection_state_ == ConnectionState::kConnecting) {
-    OnConnectionEvent();
+    OnConnectionEvent(fd);
     return;
   }
-  UnixSocket::OnPollerEvent(event);
+  UnixSocket::OnPollerEvent(fd, event);
 }
 
-void UnixTcpSocket::OnConnectionEvent() {
+void UnixTcpSocket::OnConnectionEvent(DescriptorType fd) {
   ae_defer[&]() {
     if (connected_cb_) {
       connected_cb_(connection_state_);
@@ -156,7 +153,7 @@ void UnixTcpSocket::OnConnectionEvent() {
   };
 
   // check socket status
-  auto sock_err = GetSocketError();
+  auto sock_err = GetSocketError(fd);
   if (!sock_err || (sock_err.value() != 0)) {
     AE_TELED_ERROR("Connect error {}, {}", sock_err,
                    strerror(sock_err.value_or(0)));

@@ -91,9 +91,9 @@ std::unique_ptr<ByteIStream> EthernetTransportFactory::BuildUdp(
     [[maybe_unused]] Ptr<IPoller> const& poller,
     [[maybe_unused]] Endpoint address_port_protocol) {
 #  ifdef SYSTEM_SOCKET_UDP_TRANSPORT_ENABLED
-#    if LWIP_CB_TCP_SOCKET_ENABLED
+#    if LWIP_CB_UDP_SOCKET_ENABLED
   using SocketType = LwipCBUdpSocket;
-#    elif LWIP_TCP_SOCKET_ENABLED
+#    elif LWIP_UDP_SOCKET_ENABLED
   using SocketType = LwipUdpSocket;
 #    elif UNIX_SOCKET_ENABLED
   using SocketType = UnixUdpSocket;

@@ -31,7 +31,7 @@
 #  include <mutex>
 #  include <thread>
 #  include <atomic>
-#  include <optional>
+#  include <memory>
 
 #  include "aether/poller/poller.h"
 #  include "aether/poller/poller_types.h"
@@ -72,10 +72,10 @@ class WinPoller : public IPoller {
 
   AE_OBJECT_REFLECT()
 
-  NativePoller* Native() override;
+  std::shared_ptr<NativePoller> Native() override;
 
  private:
-  std::optional<IoCpPoller> impl_;
+  std::shared_ptr<IoCpPoller> impl_;
 };
 }  // namespace ae
 #endif

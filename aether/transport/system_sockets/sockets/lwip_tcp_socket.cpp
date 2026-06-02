@@ -87,7 +87,7 @@ int LwipTcpSocket::MakeSocket() {
   if (sock < 0) {
     AE_TELED_ERROR("LwIp TCP socket creation error {} {}", errno,
                    strerror(errno));
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
 
   // close the socket if not created
@@ -98,18 +98,18 @@ int LwipTcpSocket::MakeSocket() {
   };
 
   if (!lwip_tcp_socket_internal::SetNonblocking(sock)) {
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
   if (!lwip_tcp_socket_internal::SetTcpNoDelay(sock, on)) {
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
   if (!lwip_tcp_socket_internal::SetReuseAddress(sock, on)) {
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
 
   if (!lwip_tcp_socket_internal::SetReciveTimeouts(sock, kRcvTimeoutSec,
                                                    kRcvTimeoutUsec)) {
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
 
   AE_TELED_DEBUG("LwIp TCP socket created");
@@ -119,21 +119,19 @@ int LwipTcpSocket::MakeSocket() {
 
 ISocket& LwipTcpSocket::Connect(AddressPort const& destination,
                                 ConnectedCb connected_cb) {
-  assert((socket_ != kInvalidSocket) && "Socket is not initialized");
+  assert(socket_ && "Socket is not initialized");
   connected_cb_ = std::move(connected_cb);
 
   ae_defer[&]() {
     // wait for all events to detect connection
-    poller_->Event(socket_,
-                   EventType::kRead | EventType::kWrite | EventType::kError,
+    socket_->Event(EventType::kRead | EventType::kWrite | EventType::kError,
                    MethodPtr<&LwipTcpSocket::OnPollerEvent>{this});
     connected_cb_(connection_state_);
   };
 
-  auto lock = std::scoped_lock{socket_lock_};
-
   auto addr = GetSockAddr(destination);
-  auto res = connect(socket_, addr.addr(), static_cast<socklen_t>(addr.size));
+  auto res =
+      connect(*socket_->fd(), addr.addr(), static_cast<socklen_t>(addr.size));
   if (res == -1) {
     if ((errno == EAGAIN) || (errno == EINPROGRESS)) {
       AE_TELED_DEBUG("Wait connection");
@@ -151,15 +149,15 @@ ISocket& LwipTcpSocket::Connect(AddressPort const& destination,
   return *this;
 }
 
-void LwipTcpSocket::OnPollerEvent(EventType event) {
+void LwipTcpSocket::OnPollerEvent(DescriptorType fd, EventType event) {
   if (connection_state_ == ConnectionState::kConnecting) {
-    OnConnectionEvent();
+    OnConnectionEvent(fd);
     return;
   }
-  LwipSocket::OnPollerEvent(event);
+  LwipSocket::OnPollerEvent(fd, event);
 }
 
-void LwipTcpSocket::OnConnectionEvent() {
+void LwipTcpSocket::OnConnectionEvent(DescriptorType fd) {
   ae_defer[&]() {
     if (connected_cb_) {
       AE_TELED_DEBUG("LwIp TCP socket connectioin event {}", connection_state_);
@@ -168,7 +166,7 @@ void LwipTcpSocket::OnConnectionEvent() {
   };
 
   // check socket status
-  auto sock_err = GetSocketError();
+  auto sock_err = GetSocketError(fd);
   if (!sock_err || (sock_err.value() != 0)) {
     AE_TELED_ERROR("Connect error {}, {}", sock_err,
                    strerror(sock_err.value_or(0)));

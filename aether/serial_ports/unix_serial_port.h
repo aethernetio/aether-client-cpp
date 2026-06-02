@@ -50,20 +50,19 @@ class UnixSerialPort final : public ISerialPort {
   static int OpenPort(SerialInit const& serial_init);
   static bool SetOptions(int fd, SerialInit const& serial_init);
 
-  void PolleEvent(EventType event);
-  void ReadData();
+  void PolleEvent(DescriptorType fd, EventType event);
+  void ReadData(DescriptorType fd);
   void EmitData();
 
   void Close();
 
   AeContext ae_context_;
   SerialInit serial_init_;
-  UnixPollerImpl* poller_;
+  UnixPolledFd poller_fd_;
 
-  std::mutex fd_lock_;
-  int fd_;
   DataReadEvent read_event_;
 
+  std::mutex buffers_lock_;
   std::list<DataBuffer> buffers_;
   std::atomic_bool read_flag_;
   TaskSubscription scheduler_sub_;

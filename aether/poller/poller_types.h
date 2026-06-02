@@ -28,7 +28,7 @@ struct EventType {
   static constexpr std::uint8_t kError = 0x4;
 
   EventType() = default;
-  EventType(std::uint8_t v) : value{v} {}
+  EventType(std::uint8_t v) : value{v} {}  // NOLINT(*explicit-constructor)
 
   std::uint8_t operator&(std::uint8_t other) const { return value & other; }
   std::uint8_t operator|(std::uint8_t other) const { return value | other; }
@@ -44,9 +44,9 @@ struct EventType {
 
 struct DescriptorType {
   // Add our own defines to prevent windows.h in public header
-#if defined _WIN32
+#ifdef _WIN32
   using Handle = void*;
-#  if defined _WIN64
+#  ifdef _WIN64
   using Socket = std::uint64_t;
 #  else
   using Socket = std::uint32_t;
@@ -74,13 +74,20 @@ struct DescriptorType {
 
   Handle descriptor;
 #else
-  DescriptorType(int des) : descriptor{des} {}
+  DescriptorType(int des) : descriptor{des} {}  // NOLINT(*explicit-constructor)
 
-  operator int() const { return descriptor; }
+  operator int() const { return descriptor; }  // NOLINT(*explicit-constructor)
 
   int descriptor;
 #endif
 };
+
+#ifdef _WIN32
+static constexpr auto kInvalidDescriptor =
+    static_cast<DescriptorType::Socket>(~0);
+#else
+static constexpr auto kInvalidDescriptor = -1;
+#endif
 
 template <>
 struct Formatter<EventType> {

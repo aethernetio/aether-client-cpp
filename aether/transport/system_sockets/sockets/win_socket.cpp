@@ -28,7 +28,7 @@
 
 namespace ae {
 WinSocket::WinSocket(IPoller& poller, std::size_t max_packet_size)
-    : poller_{static_cast<IoCpPoller*>(poller.Native())},
+    : poller_{std::static_pointer_cast<IoCpPoller>(poller.Native())},
       recv_overlapped_{},
       send_overlapped_{},
       recv_buffer_(max_packet_size) {}

@@ -67,9 +67,11 @@ EpollImpl::EpollImpl()
       thread_(&EpollImpl::Loop, this) {
   AE_TELE_INFO(kEpollWorkerCreate);
 
+  auto lock = std::scoped_lock{poller_mutex_};
   // add wake up fd to epoll
   if (event_fd_ != -1) {
-    Event(DescriptorType{event_fd_}, EventType::kRead, [](auto) {});
+    Callback(DescriptorType{event_fd_}, [](auto, auto) {});
+    Event(DescriptorType{event_fd_}, EventType::kRead | EventType::kError);
   }
 }
 
@@ -101,40 +103,62 @@ EpollImpl::~EpollImpl() {
   AE_TELE_INFO(kEpollWorkerDestroyed);
 }
 
-void EpollImpl::Event(DescriptorType fd, EventType event, EventCb cb) {
-  AE_TELE_DEBUG(kEpollAddDescriptor, "Poller event fd:{} event:{}", fd, event);
+void EpollImpl::lock() { poller_mutex_.lock(); }
+void EpollImpl::unlock() { poller_mutex_.unlock(); }
+
+void EpollImpl::Callback(DescriptorType fd, EventCb cb) {
+  AE_TELE_DEBUG(kEpollAddDescriptor, "Poller callback for fd:{}", fd);
+  event_map_.emplace(fd, EventHandler{.cb = std::move(cb), .events = {}});
+}
+
+void EpollImpl::Event(DescriptorType fd, EventType events) {
+  AE_TELED_DEBUG("Poller event for fd:{} events: {}", fd,
+                 static_cast<std::uint8_t>(events));
+  auto it = event_map_.find(fd);
+  if (it == event_map_.end()) {
+    assert(false && "Callback should setup first");
+    return;
+  }
+
   struct epoll_event epoll_event;
-  epoll_event.events = epoll_poller_internal::PollerEventsToEpol(event);
+  epoll_event.events = epoll_poller_internal::PollerEventsToEpol(events);
   // watch only edge triggered events
   epoll_event.events |= EPOLLET;
   epoll_event.data.fd = fd;
 
-  auto lock = std::scoped_lock{poller_mutex_};
-  auto [_, new_event] = event_map_.insert_or_assign(fd, std::move(cb));
-  int op = new_event ? EPOLL_CTL_ADD : EPOLL_CTL_MOD;
+  int op = (it->second.events == EventType{}) ? EPOLL_CTL_ADD : EPOLL_CTL_MOD;
   auto res = epoll_ctl(epoll_fd_, op, fd, &epoll_event);
   if (res < 0) {
     AE_TELE_ERROR(kEpollAddFailed, "Failed to add to epoll {} {}", errno,
                   strerror(errno));
     assert(false);
   }
+  it->second.events = events;
 }
 
 void EpollImpl::Remove(DescriptorType fd) {
   AE_TELE_DEBUG(kEpollRemoveDescriptor, "Remove poller event {}", fd);
 
-  auto lock = std::scoped_lock{poller_mutex_};
-  event_map_.erase(fd);
+  auto it = event_map_.find(fd);
+  if (it == event_map_.end()) {
+    // nothing to remove
+    return;
+  }
 
-  struct epoll_event epoll_event{};
-  auto res = epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &epoll_event);
-  if (res < 0) {
-    if (errno != ENOENT) {
-      AE_TELE_ERROR(kEpollRemoveFailed, "Failed to remove from epoll {} {}",
-                    errno, strerror(errno));
-      assert(false);
+  if (it->second.events != EventType{}) {
+    // if events not empty, remove from epol_ctl also
+    struct epoll_event epoll_event{};
+    auto res = epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &epoll_event);
+    if (res < 0) {
+      if (errno != ENOENT) {
+        AE_TELE_ERROR(kEpollRemoveFailed, "Failed to remove from epoll {} {}",
+                      errno, strerror(errno));
+        assert(false);
+      }
     }
   }
+
+  event_map_.erase(fd);
 }
 
 int EpollImpl::MakeEventFd() {
@@ -161,7 +185,7 @@ int EpollImpl::InitEpoll() {
 }
 
 void EpollImpl::Loop() {
-  static constexpr auto kMaxEvents = 10;
+  static constexpr std::size_t kMaxEvents = 10;
   std::array<struct epoll_event, kMaxEvents> events;
 
   while (!stop_requested_) {
@@ -190,7 +214,7 @@ void EpollImpl::Loop() {
         continue;
       }
       auto ev_type = epoll_poller_internal::EpollEventToEventType(event.events);
-      poller_event->second(ev_type);
+      poller_event->second.cb(fd, ev_type);
     }
   }
 }
@@ -199,11 +223,11 @@ EpollPoller::EpollPoller() = default;
 
 EpollPoller::EpollPoller(ObjProp prop) : IPoller{prop} {}
 
-NativePoller* EpollPoller::Native() {
+std::shared_ptr<NativePoller> EpollPoller::Native() {
   if (!impl_) {
-    impl_.emplace();
+    impl_ = std::make_shared<EpollImpl>();
   }
-  return static_cast<NativePoller*>(&*impl_);
+  return impl_;
 }
 
 }  // namespace ae

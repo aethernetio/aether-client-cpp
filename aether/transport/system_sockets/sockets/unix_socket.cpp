@@ -36,7 +36,8 @@
 
 namespace ae {
 UnixSocket::UnixSocket(IPoller& poller, int socket)
-    : poller_{static_cast<UnixPollerImpl*>(poller.Native())}, socket_{socket} {}
+    : socket_{std::in_place, socket, poller.Native(),
+              MethodPtr<&UnixSocket::OnPollerEvent>{this}} {}
 
 UnixSocket::~UnixSocket() { Disconnect(); }
 
@@ -56,16 +57,17 @@ ISocket& UnixSocket::Error(ErrorCb error_cb) {
 }
 
 std::optional<std::size_t> UnixSocket::Send(Span<std::uint8_t> data) {
-  auto lock = std::scoped_lock{socket_lock_};
+  if (!socket_) {
+    return std::nullopt;
+  }
   auto size_to_send = data.size();
   // add nosignal to prevent throw SIGPIPE and handle it manually
   int flags = MSG_NOSIGNAL;
-  auto res = send(socket_, data.data(), size_to_send, flags);
+  auto res = send(*socket_->fd(), data.data(), size_to_send, flags);
   if (res == -1) {
     if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-      poller_->Event(socket_,
-                     EventType::kRead | EventType::kError | EventType::kWrite,
-                     MethodPtr<&UnixSocket::OnPollerEvent>{this});
+      // poll read and write
+      socket_->Events(EventType::kRead | EventType::kError | EventType::kWrite);
     } else {
       AE_TELED_ERROR("Send to socket error {} {}", errno, strerror(errno));
       return std::nullopt;
@@ -76,31 +78,32 @@ std::optional<std::size_t> UnixSocket::Send(Span<std::uint8_t> data) {
 }
 
 void UnixSocket::Disconnect() {
-  auto lock = std::scoped_lock{socket_lock_};
-  if (socket_ == kInvalidSocket) {
+  if (!socket_) {
     return;
   }
-  auto s = socket_;
-  socket_ = kInvalidSocket;
-
-  poller_->Remove(s);
-  shutdown(s, SHUT_RDWR);
-  if (close(s) != 0) {
-    return;
+  {
+    auto s = socket_->Remove();
+    shutdown(*s, SHUT_RDWR);
+    if (close(*s) != 0) {
+      return;
+    }
   }
+  socket_.reset();
 }
 
 void UnixSocket::Poll() {
-  poller_->Event(socket_, EventType::kRead | EventType::kError,
-                 MethodPtr<&UnixSocket::OnPollerEvent>{this});
+  if (socket_) {
+    // normally poll without write
+    socket_->Events(EventType::kRead | EventType::kError);
+  }
 }
 
-void UnixSocket::OnPollerEvent(EventType event) {
+void UnixSocket::OnPollerEvent(DescriptorType fd, EventType event) {
   for (auto e : {EventType::kRead, EventType::kWrite, EventType::kWrite}) {
     auto event_type = event & e;
     switch (event_type) {
       case EventType::kRead:
-        OnReadEvent();
+        OnReadEvent(fd);
         break;
       case EventType::kWrite:
         OnWriteEvent();
@@ -114,12 +117,11 @@ void UnixSocket::OnPollerEvent(EventType event) {
   }
 }
 
-void UnixSocket::OnReadEvent() {
+void UnixSocket::OnReadEvent(DescriptorType fd) {
   // read all data
-  auto lock = std::scoped_lock{socket_lock_};
   while (true) {
     auto buffer = Span{recv_buffer_.data(), recv_buffer_.size()};
-    auto res = Receive(buffer);
+    auto res = Receive(fd, buffer);
     if (!res) {
       OnErrorEvent();
       return;
@@ -150,8 +152,9 @@ void UnixSocket::OnErrorEvent() {
 }
 
 // call on locked socket
-std::optional<std::size_t> UnixSocket::Receive(Span<std::uint8_t> buffer) {
-  auto res = recv(socket_, buffer.data(), buffer.size(), 0);
+std::optional<std::size_t> UnixSocket::Receive(DescriptorType fd,
+                                               Span<std::uint8_t> buffer) {
+  auto res = recv(fd, buffer.data(), buffer.size(), 0);
   if (res < 0) {
     // No data
     if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
@@ -168,12 +171,11 @@ std::optional<std::size_t> UnixSocket::Receive(Span<std::uint8_t> buffer) {
   return static_cast<std::size_t>(res);
 }
 
-std::optional<int> UnixSocket::GetSocketError() {
-  auto lock = std::scoped_lock{socket_lock_};
+std::optional<int> UnixSocket::GetSocketError(DescriptorType fd) {
   int err{};
   socklen_t len = sizeof(len);
-  if (getsockopt(socket_, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err),
-                 &len) != 0) {
+  if (getsockopt(fd, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err), &len) !=
+      0) {
     AE_TELED_ERROR("Getsockopt error {}, {}", errno, strerror(errno));
     return std::nullopt;
   }
