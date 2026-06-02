@@ -72,8 +72,10 @@ void UdpBase::OnRecvData(Span<std::uint8_t> data) {
     read_event_sub_ = ae_context_.scheduler().Task([&]() {
       auto buffers = std::invoke([&]() {
         auto lock = std::scoped_lock{socket_mutex_};
+        auto rb = std::vector<DataBuffer>();
+        std::swap(rb, read_buffers_);
         read_event_ = false;
-        return std::move(read_buffers_);
+        return rb;
       });
 
       for (auto const& d : buffers) {
