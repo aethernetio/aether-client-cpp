@@ -23,7 +23,7 @@
 #include <queue>
 #include <utility>
 
-#include "third_party/aethernet-numeric/numeric/tiered_int.h"
+#include <numeric/tiered_int.h>
 
 #include "aether/memory_buffer.h"
 #include "aether/types/data_buffer.h"

@@ -20,7 +20,6 @@
 
 #include "aether/obj/obj_ptr.h"
 #include "aether/ae_actions/time_sync.h"
-#include "aether/actions/action_processor.h"
 
 #include "aether/client.h"
 #include "aether/server.h"
@@ -33,21 +32,26 @@
 
 namespace ae {
 
-Aether::Aether() : action_processor{make_unique<ActionProcessor>()} {}
+Aether::Aether() : task_scheduler{make_unique<TaskScheduler>()} {}
 
 Aether::Aether(ObjProp prop)
-    : Obj{prop}, action_processor{make_unique<ActionProcessor>()} {
+    : Obj{prop}, task_scheduler{make_unique<TaskScheduler>()} {
   AE_TELE_DEBUG(AetherCreated);
 }
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
 void Aether::Update(TimePoint current_time) {
-  update_time = action_processor->Update(current_time);
+  update_time = task_scheduler->Update(current_time);
 }
 
-Aether::operator ActionContext() const {
-  return ActionContext{*action_processor};
+AeCtx Aether::ToAeContext() const {
+  static constexpr AeCtxTable ae_table{
+      [](void* obj) -> Aether& { return *static_cast<Aether*>(obj); },
+      [](void* obj) -> TaskScheduler& {
+        return *static_cast<Aether*>(obj)->task_scheduler;
+      }};
+  return AeCtx{const_cast<Aether*>(this), &ae_table};  // NOLINT(*const-cast)
 }
 
 Client::ptr Aether::CreateClient(ClientConfig const& config,
@@ -93,13 +97,13 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
   return client;
 }
 
-ActionPtr<SelectClientAction> Aether::SelectClient(
-    [[maybe_unused]] Uid parent_uid, std::string const& client_id) {
+SelectClientAction& Aether::SelectClient([[maybe_unused]] Uid parent_uid,
+                                         std::string const& client_id) {
   AE_TELED_DEBUG("Select client {} with parent uid {}", client_id, parent_uid);
 
-  auto select_action = FindSelectClientAction(client_id);
-  if (select_action) {
-    return select_action;
+  auto* select_action = FindSelectClientAction(client_id);
+  if (select_action != nullptr) {
+    return *select_action;
   }
 
   auto client = FindClient(client_id);
@@ -109,8 +113,7 @@ ActionPtr<SelectClientAction> Aether::SelectClient(
   }
 // register new client
 #if AE_SUPPORT_REGISTRATION
-  auto registration = RegisterClient(parent_uid);
-  return MakeSelectClient(std::move(registration), client_id);
+  return MakeSelectClient(RegisterClient(client_id, parent_uid), client_id);
 #else
   return MakeSelectClient();
 #endif
@@ -144,57 +147,69 @@ void Aether::StoreClient(Client::ptr client) {
   clients_[client.Load()->id()] = std::move(client);
 }
 
-ActionPtr<SelectClientAction> Aether::FindSelectClientAction(
+SelectClientAction* Aether::FindSelectClientAction(
     std::string const& client_id) {
   auto select_act_it = select_client_actions_.find(client_id);
   if (select_act_it != std::end(select_client_actions_)) {
-    return ActionPtr{select_act_it->second};
+    return select_act_it->second.get();
   }
   return {};
 }
 
-ActionPtr<SelectClientAction> Aether::MakeSelectClient() const {
-  return ActionPtr<SelectClientAction>{*action_processor};
+SelectClientAction& Aether::MakeSelectClient() {
+  // use tag "not_found" for failed client selections
+  if (auto it = select_client_actions_.find("not_found");
+      it != std::end(select_client_actions_)) {
+    if (it->second->is_finished()) {
+      it->second = std::make_unique<SelectClientAction>(*this);
+    }
+    return *it->second;
+  }
+
+  auto [it, _] = select_client_actions_.emplace(
+      "not_found", std::make_unique<SelectClientAction>(*this));
+  return *it->second;
 }
 
-ActionPtr<SelectClientAction> Aether::MakeSelectClient(
-    Client::ptr const& client) const {
-  return ActionPtr<SelectClientAction>{*action_processor, client};
+SelectClientAction& Aether::MakeSelectClient(Client::ptr const& client) {
+  auto [it, ok] = select_client_actions_.emplace(
+      client->id(), std::make_unique<SelectClientAction>(*this, client));
+  assert(ok);
+  return *it->second;
 }
 
 #if AE_SUPPORT_REGISTRATION
-ActionPtr<SelectClientAction> Aether::MakeSelectClient(
-    ActionPtr<Registration> registration, std::string const& client_id) {
-  auto select_action = ActionPtr<SelectClientAction>{
-      *action_processor, *this, std::move(registration), client_id};
-  select_client_actions_[client_id] = select_action;
-  return select_action;
+SelectClientAction& Aether::MakeSelectClient(Registration& registration,
+                                             std::string const& client_id) {
+  auto [it, ok] = select_client_actions_.emplace(
+      client_id, std::make_unique<SelectClientAction>(AeContext{*this}, *this,
+                                                      registration, client_id));
+  assert(ok);
+  return *it->second;
 }
 
-ActionPtr<Registration> Aether::RegisterClient(Uid parent_uid) {
+Registration& Aether::RegisterClient(std::string const& client_id,
+                                     Uid parent_uid) {
   auto reg_cloud = registration_cloud.Load();
   assert(reg_cloud && "Registration cloud not loaded");
 
-  // registration new client is long termed process
-  // after registration done, add it to clients list
-  // user also can get new client after
-  return ActionPtr<Registration>(*action_processor, *this, reg_cloud,
-                                 parent_uid);
+  auto& reg = registrations_[client_id] =
+      std::make_unique<Registration>(AeContext{*this}, reg_cloud, parent_uid);
+  return *reg;
 }
 #endif
 
 void Aether::MakeTimeSyncAction([[maybe_unused]] Client::ptr const& client) {
 #if AE_TIME_SYNC_ENABLED
-  if (time_sync_action_ && !time_sync_action_->IsFinished()) {
+  if (time_sync_action_) {
     return;
   }
 
   client.WithLoaded([this](auto const& c) {
     static constexpr auto kTimeSyncInterval =
         std::chrono::seconds{AE_TIME_SYNC_INTERVAL_S};
-    time_sync_action_ = ActionPtr<TimeSyncAction>{
-        *action_processor, Aether::ptr::MakeFromThis(this).Load(), c,
-        kTimeSyncInterval};
+    time_sync_action_ =
+        std::make_unique<TimeSyncAction>(*this, c, kTimeSyncInterval);
   });
 #endif
 }

@@ -19,12 +19,10 @@
 
 #include "aether/memory.h"
 #include "aether/client.h"
-#include "aether/actions/action_context.h"
+#include "aether/ae_context.h"
 #include "aether/events/event_subscription.h"
-#include "aether/events/multi_subscription.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
-#include "aether/stream_api/safe_stream/safe_stream_config.h"
 
 #include "send_message_delays/timed_receiver.h"
 #include "send_message_delays/api/bench_delays_api.h"
@@ -32,25 +30,26 @@
 namespace ae::bench {
 class Receiver {
  public:
-  Receiver(ActionContext action_context, Client::ptr client,
+  Receiver(AeContext const& ae_context, Client::ptr client,
            SafeStreamConfig safe_stream_config);
 
-  void Connect();
+  void ConnectP2pStream();
+  void ConnectP2pSafeStream();
   void Disconnect();
 
-  ActionPtr<TimedReceiver> WarmUp(std::size_t message_count);
-  ActionPtr<TimedReceiver> Receive2Bytes(std::size_t message_count);
-  ActionPtr<TimedReceiver> Receive10Bytes(std::size_t message_count);
-  ActionPtr<TimedReceiver> Receive100Bytes(std::size_t message_count);
-  ActionPtr<TimedReceiver> Receive1000Bytes(std::size_t message_count);
+  TimedReceiver& WarmUp(std::size_t message_count);
+  TimedReceiver& Receive2Bytes(std::size_t message_count);
+  TimedReceiver& Receive10Bytes(std::size_t message_count);
+  TimedReceiver& Receive100Bytes(std::size_t message_count);
+  TimedReceiver& Receive1000Bytes(std::size_t message_count);
 
  private:
   template <typename TEvent>
-  ActionPtr<TimedReceiver> CreateBenchAction(TEvent event, std::size_t count);
+  TimedReceiver& CreateBenchAction(TEvent event, std::size_t count);
 
   void OnRecvData(DataBuffer const& data);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   Client::ptr client_;
   SafeStreamConfig safe_stream_config_;
 
@@ -59,11 +58,11 @@ class Receiver {
 
   RcPtr<P2pStream> receive_message_stream_;
   std::unique_ptr<P2pSafeStream> receive_message_safe_stream_;
-  ActionPtr<TimedReceiver> receiver_action_;
+  std::unique_ptr<TimedReceiver> receiver_action_;
 
   Subscription message_stream_subscription_;
   Subscription recv_data_sub_;
-  MultiSubscription action_subscriptions_;
+  Subscription api_recv_sub_;
 };
 }  // namespace ae::bench
 

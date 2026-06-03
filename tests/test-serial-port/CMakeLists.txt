@@ -21,6 +21,7 @@ list(APPEND test_srcs
   test-at-dispatcher.cpp
   test-at-listener.cpp
   test-at-request.cpp
+  test-at-stages.cpp
 )
 
 if(NOT CM_PLATFORM)

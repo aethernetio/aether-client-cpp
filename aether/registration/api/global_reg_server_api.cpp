@@ -18,10 +18,9 @@
 
 #if AE_SUPPORT_REGISTRATION
 namespace ae {
-GlobalRegServerApi::GlobalRegServerApi(ProtocolContext& protocol_context,
-                                       ActionContext action_context)
+GlobalRegServerApi::GlobalRegServerApi(ProtocolContext& protocol_context)
     : ApiClass{protocol_context},
       set_master_key{protocol_context},
-      finish{protocol_context, action_context} {}
+      finish{protocol_context} {}
 }  // namespace ae
 #endif

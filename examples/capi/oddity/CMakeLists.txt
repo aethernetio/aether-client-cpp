@@ -38,9 +38,17 @@ else()
 
       idf_component_register(SRCS aether_tom.c
         INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
-        PRIV_REQUIRES aether)
+        REQUIRES
+                esp_wifi
+                esp_netif
+                nvs_flash
+                spiffs
+                esp_driver_uart
+      )
+      add_subdirectory("../../../" aether)
+      target_link_libraries(${COMPONENT_LIB} PRIVATE aether)
       if (NOT DEST_UID STREQUAL "")
-         target_compile_definitions(${COMPONENT_LIB} PRIVATE "DEST_UID=\"${DEST_UID}\"" )
+        target_compile_definitions(${COMPONENT_LIB} PRIVATE "DEST_UID=\"${DEST_UID}\"" )
       endif()
     endif()
     target_compile_definitions(${COMPONENT_LIB} PRIVATE  ${WIFI_SSID} "WIFI_SSID=\"${WIFI_SSID}\"" )

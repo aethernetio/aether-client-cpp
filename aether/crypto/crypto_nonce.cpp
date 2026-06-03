@@ -17,10 +17,10 @@
 #include "aether/crypto/crypto_nonce.h"
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
-#  include "third_party/libsodium/src/libsodium/include/sodium/randombytes.h"
+#  include <sodium/randombytes.h>
 #endif
 #if AE_CRYPTO_SYNC == AE_HYDRO_CRYPTO_SK
-#  include "third_party/libhydrogen/hydrogen.h"
+#  include <hydrogen.h>
 #endif
 
 namespace ae {

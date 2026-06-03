@@ -1,0 +1,351 @@
+/*
+ * Copyright 2025 Aethernet Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <unity.h>
+
+#include <optional>
+
+#include "aether/safe_stream/safe_stream_config.h"
+#include "aether/safe_stream/details/safe_stream_recv_action.h"
+#include "aether/safe_stream/details/safe_stream_send_action.h"
+
+#include "tests/test-stream/to_data_buffer.h"
+#include "tests/test-safe-stream/stream-test-ctx.h"
+
+namespace ae::test_safe_stream_send_recv {
+constexpr auto config = SafeStreamConfig{
+    4096,
+    100,
+    3,
+    std::chrono::milliseconds{50},
+    std::chrono::milliseconds{25},
+    std::chrono::milliseconds{80},
+};
+constexpr auto kCapacity = 20 * 1024;
+constexpr auto kTick = std::chrono::milliseconds{5};
+
+using Sender = SafeStreamSendAction<kCapacity>;
+using Receiver = SafeStreamRecvAction<kCapacity>;
+using IndexType = RingIndex<kCapacity>;
+using IndexRangeType = RingIndexRange<IndexType>;
+
+class TestSafeStreamActionsTransport {
+ public:
+  explicit TestSafeStreamActionsTransport(Sender& send_action,
+                                          Receiver& recv_action)
+      : sender_{&send_action}, recveiver_{&recv_action} {}
+
+  virtual ~TestSafeStreamActionsTransport() = default;
+
+  virtual void PushData(std::uint16_t begin, DataMessage data_message) {
+    MakePushData(begin, std::move(data_message));
+  }
+
+  virtual void SendAck(std::uint16_t offset) { MakeSendAck(offset); }
+
+  virtual void SendRepeatRequest(std::uint16_t offset) {
+    MakeSendRepeatRequest(offset);
+  }
+
+  void MakePushData(std::uint16_t begin, DataMessage data_message) {
+    recveiver_->PushData(begin, std::move(data_message));
+  }
+
+  void MakeSendAck(std::uint16_t offset) { sender_->Acknowledge(offset); }
+
+  void MakeSendRepeatRequest(std::uint16_t offset) {
+    sender_->RequestRepeat(offset);
+  }
+
+  Sender* sender_;
+  Receiver* recveiver_;
+};
+
+class DelayPushDataImpl : public TestSafeStreamActionsTransport {
+ public:
+  struct PushMessageT {
+    std::uint16_t begin;
+    DataMessage message;
+  };
+
+  using TestSafeStreamActionsTransport::TestSafeStreamActionsTransport;
+
+  void PushData(std::uint16_t begin, DataMessage data_message) override {
+    push_message = PushMessageT{begin, std::move(data_message)};
+  }
+
+  void MakePushData() {
+    TEST_ASSERT_TRUE(push_message.has_value());
+    auto msg = *push_message;
+    TestSafeStreamActionsTransport::MakePushData(msg.begin,
+                                                 std::move(msg.message));
+  }
+
+  std::optional<PushMessageT> push_message;
+};
+
+class MockSendDataPush : public ISendDataPush {
+  class DoneStreamWriteAction : public WriteAction {
+   public:
+    explicit DoneStreamWriteAction(AeContext const& context) {
+      context.scheduler().Task([&]() { SetStatus(Status::kSuccess); });
+    }
+  };
+
+ public:
+  explicit MockSendDataPush(AeContext const& context) : context_{context} {}
+
+  void Link(TestSafeStreamActionsTransport& transport) {
+    transport_ = &transport;
+  }
+
+  WriteAction& PushData(std::uint16_t begin,
+                        DataMessage&& data_message) override {
+    transport_->PushData(begin, std::move(data_message));
+    if (!dswa_ || dswa_->is_finished()) {
+      dswa_.emplace(context_);
+    }
+    return *dswa_;
+  }
+
+  AeContext context_;
+  TestSafeStreamActionsTransport* transport_{};
+  std::optional<DoneStreamWriteAction> dswa_;
+};
+
+class MockSendAckRepeat : public ISendAckRepeat {
+ public:
+  MockSendAckRepeat() = default;
+
+  void Link(TestSafeStreamActionsTransport& transport) {
+    transport_ = &transport;
+  }
+
+  void SendAck(std::uint16_t offset) override { transport_->SendAck(offset); }
+  void SendRepeatRequest(std::uint16_t offset) override {
+    transport_->SendRepeatRequest(offset);
+  }
+
+  TestSafeStreamActionsTransport* transport_{};
+};
+
+static constexpr std::string_view test_data =
+    "If it works, it works! If it doesn't, it doesn't!";
+
+/**
+ * \brief Test SafeStreamSendAction could send a packet to SafeStreamRecvAction.
+ * SafeStreamSendAction starts sending with a random offset and reset flag set
+ * to 1. SafeStreamRecvAction starts with unknown offset and set it to the value
+ * of the first packet received.
+ */
+void test_SafeStreamInitHandshake() {
+  TestContext ctx;
+
+  bool acked{};
+  DataBuffer received{};
+  IndexRangeType expected_range{};
+
+  auto send_transport = MockSendDataPush{ctx};
+  auto recv_transport = MockSendAckRepeat{};
+
+  auto sender = Sender{ctx, send_transport, config};
+  sender.acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+    if (IndexComparable{expected_range.right, buffer_begin} <= end) {
+      acked = true;
+    }
+  });
+
+  sender.SetMaxPayload(config.max_packet_size);
+  auto receiver = Receiver{ctx, recv_transport, config};
+
+  auto sender_to_receiver = TestSafeStreamActionsTransport{sender, receiver};
+  send_transport.Link(sender_to_receiver);
+  recv_transport.Link(sender_to_receiver);
+
+  receiver.receive_event().Subscribe(
+      [&](auto const& data) { received = data; });
+
+  auto send_data = sender.SendData(ToSpan(test_data));
+  TEST_ASSERT_TRUE(send_data.IsOk());
+  expected_range = send_data.value();
+
+  ctx.Update(Now());
+  ctx.Update(Now() + config.send_ack_timeout + kTick);
+
+  // test received data
+  TEST_ASSERT_EQUAL(test_data.size(), received.size());
+  TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), received.data(),
+                               test_data.size());
+  TEST_ASSERT_TRUE(acked);
+}
+
+/**
+ * \brief Test SafeStreamSendAction could be recreated and still be able to send
+ * data to SafeStreamRecvAction.
+ */
+void test_SafeStreamReInitSender() {
+  TestContext ctx;
+
+  bool acked{};
+  DataBuffer received{};
+  IndexRangeType expected_range;
+
+  auto send_transport = MockSendDataPush{ctx};
+  auto recv_transport = MockSendAckRepeat{};
+
+  // sender is optional and will be replaced
+  auto sender =
+      std::optional<Sender>{std::in_place, ctx, send_transport, config};
+  sender->acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+    if (IndexComparable{expected_range.right, buffer_begin} <= end) {
+      acked = true;
+    }
+  });
+  sender->SetMaxPayload(config.max_packet_size);
+  auto receiver = Receiver{ctx, recv_transport, config};
+
+  auto sender_to_receiver = TestSafeStreamActionsTransport{*sender, receiver};
+  send_transport.Link(sender_to_receiver);
+  recv_transport.Link(sender_to_receiver);
+
+  receiver.receive_event().Subscribe(
+      [&](auto const& data) { received = data; });
+
+  auto send_data1 = sender->SendData(ToSpan(test_data));
+  TEST_ASSERT_TRUE(send_data1.IsOk());
+  expected_range = send_data1.value();
+
+  auto epoch = Now();
+  ctx.Update(epoch);
+  ctx.Update(epoch += kTick);
+  ctx.Update(epoch += (config.send_ack_timeout + kTick));
+
+  // test received data
+  TEST_ASSERT_TRUE(acked);
+  TEST_ASSERT_EQUAL(test_data.size(), received.size());
+  TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), received.data(),
+                               test_data.size());
+
+  acked = false;
+  received.clear();
+
+  // create new sender
+  sender.emplace(ctx, send_transport, config);
+  sender->acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+    if (IndexComparable{expected_range.right, buffer_begin} <= end) {
+      acked = true;
+    }
+  });
+  sender->SetMaxPayload(config.max_packet_size);
+
+  sender_to_receiver = TestSafeStreamActionsTransport{*sender, receiver};
+  send_transport.Link(sender_to_receiver);
+  recv_transport.Link(sender_to_receiver);
+
+  auto send_data2 = sender->SendData(ToSpan(test_data));
+  TEST_ASSERT_TRUE(send_data2.IsOk());
+  expected_range = send_data2.value();
+
+  ctx.Update(epoch);
+  ctx.Update(epoch += kTick);
+  ctx.Update(epoch += config.send_ack_timeout + kTick);
+
+  // test received data
+  TEST_ASSERT_TRUE(acked);
+  TEST_ASSERT_EQUAL(test_data.size(), received.size());
+  TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), received.data(),
+                               test_data.size());
+}
+
+/**
+ * \brief Same as test_SafeStreamReInitSender but with receiver recreation.
+ */
+void test_SafeStreamReInitReceiver() {
+  TestContext ctx;
+
+  bool acked{};
+  DataBuffer received{};
+  IndexRangeType expected_range{};
+
+  auto send_transport = MockSendDataPush{ctx};
+  auto recv_transport = MockSendAckRepeat{};
+
+  // sender is optional and will be replaced
+  auto sender = Sender{ctx, send_transport, config};
+  sender.acknowledged_event().Subscribe([&](auto buffer_begin, auto end) {
+    if (IndexComparable{expected_range.right, buffer_begin} <= end) {
+      acked = true;
+    }
+  });
+  sender.SetMaxPayload(config.max_packet_size);
+  auto receiver =
+      std::optional<Receiver>{std::in_place, ctx, recv_transport, config};
+
+  auto sender_to_receiver = TestSafeStreamActionsTransport{sender, *receiver};
+  send_transport.Link(sender_to_receiver);
+  recv_transport.Link(sender_to_receiver);
+
+  receiver->receive_event().Subscribe(
+      [&](auto const& data) { received = data; });
+
+  auto send_data1 = sender.SendData(ToSpan(test_data));
+  TEST_ASSERT_TRUE(send_data1.IsOk());
+  expected_range = send_data1.value();
+
+  auto epoch = Now();
+  ctx.Update(epoch);
+  ctx.Update(epoch += config.send_ack_timeout + kTick);
+
+  // test received data
+  TEST_ASSERT_TRUE(acked);
+  TEST_ASSERT_EQUAL(test_data.size(), received.size());
+  TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), received.data(),
+                               test_data.size());
+
+  acked = false;
+  received.clear();
+
+  // create new receiver
+  receiver.emplace(ctx, recv_transport, config);
+
+  sender_to_receiver = TestSafeStreamActionsTransport{sender, *receiver};
+  send_transport.Link(sender_to_receiver);
+  recv_transport.Link(sender_to_receiver);
+  receiver->receive_event().Subscribe(
+      [&](auto const& data) { received = data; });
+
+  auto send_data2 = sender.SendData(ToSpan(test_data));
+  TEST_ASSERT_TRUE(send_data2.IsOk());
+  expected_range = send_data2.value();
+
+  ctx.Update(epoch);
+  ctx.Update(epoch += config.send_ack_timeout + kTick);
+
+  // test received data
+  TEST_ASSERT_TRUE(acked);
+  TEST_ASSERT_EQUAL(test_data.size(), received.size());
+  TEST_ASSERT_EQUAL_STRING_LEN(test_data.data(), received.data(),
+                               test_data.size());
+}
+}  // namespace ae::test_safe_stream_send_recv
+
+int test_safe_stream_send_recv() {
+  UNITY_BEGIN();
+  RUN_TEST(ae::test_safe_stream_send_recv::test_SafeStreamInitHandshake);
+  RUN_TEST(ae::test_safe_stream_send_recv::test_SafeStreamReInitSender);
+  RUN_TEST(ae::test_safe_stream_send_recv::test_SafeStreamReInitReceiver);
+  return UNITY_END();
+}

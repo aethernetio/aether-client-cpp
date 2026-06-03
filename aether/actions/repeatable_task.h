@@ -17,9 +17,11 @@
 #ifndef AETHER_ACTIONS_REPEATABLE_TASK_H_
 #define AETHER_ACTIONS_REPEATABLE_TASK_H_
 
-#include "aether/common.h"
+#include <chrono>
+#include <functional>
+
 #include "aether/actions/action.h"
-#include "aether/types/state_machine.h"
+#include "aether/meta/time_traits.h"
 #include "aether/types/small_function.h"
 #include "aether/actions/action_context.h"
 
@@ -28,39 +30,60 @@ namespace ae {
  * \brief Runs Task periodically with interval_ until repeat count is exceeded
  * or stopped.
  */
-
-class RepeatableTask : public Action<RepeatableTask> {
+template <ActionContext AC, typename Task = SmallFunction<void()>>
+class RepeatableTask : public Action {
  public:
-  enum class State : std::uint8_t {
-    kRun,
-    kWait,
-    kStop,
-    kRepeatCountExceeded,
-  };
-
-  using Task = SmallFunction<void()>;
   static constexpr auto kRepeatCountInfinite = -1;
 
-  RepeatableTask(ActionContext action_context, Task&& task, Duration interval,
-                 int max_repeat_count = kRepeatCountInfinite);
+  template <typename D>
+    requires(IsDuration_v<D>)
+  RepeatableTask(AC const& ac, Task&& task, D interval,
+                 int max_repeat_count = kRepeatCountInfinite)
+      : ac_{ac},
+        task_{std::move(task)},
+        interval_{
+            std::chrono::duration_cast<std::chrono::milliseconds>(interval)},
+        max_repeat_count_{max_repeat_count} {
+    Run();
+  }
 
   AE_CLASS_MOVE_ONLY(RepeatableTask)
 
-  UpdateStatus Update(TimePoint current_time);
+  void Stop() { stopped_ = true; }
 
-  void Stop();
+  Event<void()>::Subscriber repeat_count_exceeded() noexcept {
+    return EventSubscriber{repeat_count_exceeded_event_};
+  }
 
  private:
-  void Run(TimePoint current_time);
-  UpdateStatus CheckInterval(TimePoint current_time);
+  void Run() {
+    if ((max_repeat_count_ != kRepeatCountInfinite) &&
+        (current_repeat_ >= max_repeat_count_)) {
+      repeat_count_exceeded_event_.Emit();
+      return;
+    }
+    current_repeat_++;
+    scheduler_sub_ = ac_.scheduler().DelayedTask(
+        [&]() {
+          if (stopped_) {
+            return;
+          }
+          // execute task
+          std::invoke(task_);
+          // reschedule
+          Run();
+        },
+        interval_);
+  }
 
+  AC ac_;
   Task task_;
-  Duration interval_;
-  int max_repeat_count_;
-
-  StateMachine<State> state_;
-  TimePoint next_execution_time_;
-  int current_repeat_;
+  std::chrono::milliseconds interval_{};
+  int max_repeat_count_{};
+  int current_repeat_{};
+  bool stopped_{false};
+  Event<void()> repeat_count_exceeded_event_;
+  TaskSubscription scheduler_sub_;
 };
 }  // namespace ae
 

@@ -24,8 +24,6 @@
 #  if (defined(ESP_PLATFORM))
 #    define ESP32_DNS_RESOLVER_ENABLED 1
 
-#    include <memory>
-
 #    include "aether/obj/obj.h"
 #    include "aether/dns/dns_resolve.h"
 
@@ -36,24 +34,18 @@ class GethostByNameDnsResolver;
 class Esp32DnsResolver : public DnsResolver {
   AE_OBJECT(Esp32DnsResolver, DnsResolver, 0)
 
-  Esp32DnsResolver();
+  Esp32DnsResolver() = default;
 
  public:
-#    ifdef AE_DISTILLATION
   Esp32DnsResolver(ObjProp prop, ObjPtr<Aether> aether);
-#    endif
-
-  ~Esp32DnsResolver() override;
 
   AE_OBJECT_REFLECT(AE_MMBR(aether_))
 
-  ActionPtr<ResolveAction> Resolve(NamedAddr const& name_address,
-                                   std::uint16_t port_hint,
-                                   Protocol protocol_hint) override;
+  ResolveSender Resolve(NamedAddr const& name_address, std::uint16_t port_hint,
+                        Protocol protocol_hint) override;
 
  private:
   Obj::ptr aether_;
-  std::unique_ptr<GethostByNameDnsResolver> gethostbyname_dns_resolver_;
 };
 }  // namespace ae
 

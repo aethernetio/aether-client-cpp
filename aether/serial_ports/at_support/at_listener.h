@@ -17,6 +17,8 @@
 #ifndef AETHER_SERIAL_PORTS_AT_SUPPORT_AT_LISTENER_H_
 #define AETHER_SERIAL_PORTS_AT_SUPPORT_AT_LISTENER_H_
 
+#include "aether/common.h"
+
 #include "aether/types/small_function.h"
 #include "aether/serial_ports/at_support/at_buffer.h"
 #include "aether/serial_ports/at_support/at_dispatcher.h"
@@ -28,6 +30,8 @@ class AtListener final : public IAtObserver {
 
   AtListener(AtDispatcher& dispatcher, std::string expected, Handler handler);
   ~AtListener();
+
+  AE_CLASS_NO_COPY_MOVE(AtListener)
 
   void Observe(AtBuffer& buffer, AtBuffer::iterator pos) override;
 

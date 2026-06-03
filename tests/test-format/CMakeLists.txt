@@ -28,7 +28,7 @@ if(NOT CM_PLATFORM)
   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-  target_link_libraries(${PROJECT_NAME} PRIVATE unity)
+  target_link_libraries(${PROJECT_NAME} PRIVATE unity date)
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()

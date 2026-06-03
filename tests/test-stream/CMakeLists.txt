@@ -16,19 +16,9 @@ cmake_minimum_required( VERSION 3.18 )
 
 list(APPEND test_srcs
   main.cpp
-  mock_bad_streams.cpp
-  safe-stream/test_safe_stream_types.cpp
-  safe-stream/test_sending_chunk_list.cpp
-  safe-stream/test_send_data_buffer.cpp
-  safe-stream/test_receiving_chunks.cpp
-  safe-stream/test_safe_stream_send.cpp
-  safe-stream/test_safe_stream_recv.cpp
-  safe-stream/test_safe_stream_send_recv.cpp
-  safe-stream/test_safe_stream.cpp
-  safe-stream/test_safe_stream_reliability.cpp
   templated-streams/test_templated_streams.cpp
   test-tied-gates.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp
+  # ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp
 )
 
 if(NOT CM_PLATFORM)

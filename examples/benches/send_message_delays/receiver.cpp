@@ -27,69 +27,85 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
-Receiver::Receiver(ActionContext action_context, Client::ptr client,
+Receiver::Receiver(AeContext const& ae_context, Client::ptr client,
                    SafeStreamConfig safe_stream_config)
-    : action_context_{action_context},
+    : ae_context_{ae_context},
       client_{std::move(client)},
       safe_stream_config_{safe_stream_config},
       bench_delays_api_{protocol_context_} {}
 
-void Receiver::Connect() {
-  AE_TELED_DEBUG("Receiver::Connect()");
+void Receiver::ConnectP2pStream() {
+  AE_TELED_DEBUG("Receiver::ConnectP2pStream()");
 
   message_stream_subscription_ =
       client_->message_stream_manager().new_stream_event().Subscribe(
           [this](RcPtr<P2pStream> message_stream) {
-            if (!receive_message_stream_) {
-              receive_message_stream_ = std::move(message_stream);
-              recv_data_sub_ =
-                  receive_message_stream_->out_data_event().Subscribe(
-                      MethodPtr<&Receiver::OnRecvData>{this});
-            } else {
-              receive_message_safe_stream_ = make_unique<P2pSafeStream>(
-                  action_context_, safe_stream_config_,
-                  std::move(message_stream));
-              recv_data_sub_ =
-                  receive_message_stream_->out_data_event().Subscribe(
-                      MethodPtr<&Receiver::OnRecvData>{this});
-            }
+            AE_TELED_DEBUG("Receive new connection");
+            receive_message_stream_ = std::move(message_stream);
+            recv_data_sub_ =
+                receive_message_stream_->out_data_event().Subscribe(
+                    MethodPtr<&Receiver::OnRecvData>{this});
           });
+}
+
+void Receiver::ConnectP2pSafeStream() {
+  AE_TELED_DEBUG("Receiver::Connect()");
+
+  if (receive_message_stream_) {
+    message_stream_subscription_.Reset();
+
+    receive_message_safe_stream_ = make_unique<P2pSafeStream>(
+        ae_context_, safe_stream_config_, receive_message_stream_);
+    recv_data_sub_ = receive_message_safe_stream_->out_data_event().Subscribe(
+        MethodPtr<&Receiver::OnRecvData>{this});
+  } else {
+    message_stream_subscription_ =
+        client_->message_stream_manager().new_stream_event().Subscribe(
+            [this](RcPtr<P2pStream> message_stream) {
+              AE_TELED_DEBUG("Receive new safe stream connection");
+              receive_message_safe_stream_ = make_unique<P2pSafeStream>(
+                  ae_context_, safe_stream_config_, std::move(message_stream));
+              recv_data_sub_ =
+                  receive_message_safe_stream_->out_data_event().Subscribe(
+                      MethodPtr<&Receiver::OnRecvData>{this});
+            });
+  }
 }
 
 void Receiver::Disconnect() { AE_TELED_DEBUG("Receiver::Disconnect()"); }
 
-ActionPtr<TimedReceiver> Receiver::WarmUp(std::size_t message_count) {
+TimedReceiver& Receiver::WarmUp(std::size_t message_count) {
   return CreateBenchAction(bench_delays_api_.warm_up_event(), message_count);
 }
 
-ActionPtr<TimedReceiver> Receiver::Receive2Bytes(std::size_t message_count) {
+TimedReceiver& Receiver::Receive2Bytes(std::size_t message_count) {
   return CreateBenchAction(bench_delays_api_.two_bytes_event(), message_count);
 }
 
-ActionPtr<TimedReceiver> Receiver::Receive10Bytes(std::size_t message_count) {
+TimedReceiver& Receiver::Receive10Bytes(std::size_t message_count) {
   return CreateBenchAction(bench_delays_api_.ten_bytes_event(), message_count);
 }
 
-ActionPtr<TimedReceiver> Receiver::Receive100Bytes(std::size_t message_count) {
+TimedReceiver& Receiver::Receive100Bytes(std::size_t message_count) {
   return CreateBenchAction(bench_delays_api_.hundred_bytes_event(),
                            message_count);
 }
 
-ActionPtr<TimedReceiver> Receiver::Receive1000Bytes(std::size_t message_count) {
+TimedReceiver& Receiver::Receive1000Bytes(std::size_t message_count) {
   return CreateBenchAction(bench_delays_api_.thousand_bytes_event(),
                            message_count);
 }
 
 template <typename TEvent>
-ActionPtr<TimedReceiver> Receiver::CreateBenchAction(TEvent event,
-                                                     std::size_t count) {
-  receiver_action_ = ActionPtr<TimedReceiver>{action_context_, count};
-  event.Subscribe([ra{receiver_action_}](auto&&... args) mutable {
-    if (ra) {
-      ra->Receive(VarAt<0>(std::forward<decltype(args)>(args)...));
+TimedReceiver& Receiver::CreateBenchAction(TEvent event, std::size_t count) {
+  receiver_action_ = std::make_unique<TimedReceiver>(ae_context_, count);
+  api_recv_sub_ = event.Subscribe([this](auto&&... args) mutable {
+    if (receiver_action_) {
+      receiver_action_->Receive(
+          VarAt<0>(std::forward<decltype(args)>(args)...));
     }
   });
-  return receiver_action_;
+  return *receiver_action_;
 }
 
 void Receiver::OnRecvData(DataBuffer const& data) {

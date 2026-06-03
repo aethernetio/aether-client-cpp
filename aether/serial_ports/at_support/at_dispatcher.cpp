@@ -31,17 +31,24 @@ void AtDispatcher::Listen(std::string command, IAtObserver* observer) {
 }
 
 void AtDispatcher::Remove(IAtObserver* observer) {
-  for (auto it = std::begin(observers_); it != std::end(observers_);) {
-    if (it->second == observer) {
-      it = observers_.erase(it);
-    } else {
-      ++it;
+  for (auto& [_, o] : observers_) {
+    if (o == observer) {
+      o = nullptr;
     }
+  }
+  // remove_guard used to prevent observers_ modification during
+  // BufferUpdate(
+  if (!remove_guard_) {
+    CleanupObservers();
   }
 }
 
 void AtDispatcher::BufferUpdate(AtBuffer::iterator pos) {
+  remove_guard_ = true;
   for (auto const& [command, observer] : observers_) {
+    if (observer == nullptr) {
+      continue;
+    }
     auto search = pos;
     while (search != buffer_->end()) {
       auto res = buffer_->FindPattern(command, search);
@@ -54,6 +61,13 @@ void AtDispatcher::BufferUpdate(AtBuffer::iterator pos) {
   }
   // clean the buffer
   buffer_->erase(buffer_->begin(), pos);
+  CleanupObservers();
+}
+
+void AtDispatcher::CleanupObservers() {
+  remove_guard_ = false;
+  std::erase_if(observers_,
+                [](auto const& co) { return co.second == nullptr; });
 }
 
 }  // namespace ae

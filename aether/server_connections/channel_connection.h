@@ -19,33 +19,39 @@
 
 #include "aether/common.h"
 #include "aether/ptr/ptr.h"
-#include "aether/events/events.h"
+#include "aether/ae_context.h"
+#include "aether/channels/channel.h"
 #include "aether/stream_api/istream.h"
-#include "aether/actions/timer_action.h"
-#include "aether/actions/action_context.h"
-#include "aether/events/event_subscription.h"
+#include "aether/executors/executors.h"
+#include "aether/types/small_function.h"
 
 namespace ae {
 class Channel;
 class ChannelConnection {
  public:
-  using ConnectionStateEvent = Event<void(bool connected)>;
+  using ConnectionStateCb =
+      SmallFunction<void(Result<ByteIStream&, int> result)>;
 
-  ChannelConnection(ActionContext action_context, Ptr<Channel> const& channel);
+  ChannelConnection(AeContext const& ae_context, Ptr<Channel> const& channel,
+                    ConnectionStateCb&& connection_state_cb);
 
   AE_CLASS_NO_COPY_MOVE(ChannelConnection)
 
   ByteIStream* stream() const;
-  ConnectionStateEvent::Subscriber connection_state_event();
 
  private:
   void BuildTransport(Ptr<Channel> const& channel);
+  void UpdateTransportBuildTime(PtrView<Channel> const& c);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
+  ConnectionStateCb connection_state_cb_;
+
+  std::optional<
+      ex::AnyWaiter<ex::set_value_t(std::unique_ptr<ByteIStream>),
+                    ex::set_error_t(int), ex::set_error_t(ex::TimeoutError)>>
+      transport_waiter_;
+  TimePoint transport_build_start_;
   std::unique_ptr<ByteIStream> transport_stream_;
-  Subscription transport_build_sub_;
-  OwnActionPtr<TimerAction> build_timer_;
-  ConnectionStateEvent connection_state_event_;
 };
 }  // namespace ae
 

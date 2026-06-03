@@ -17,12 +17,18 @@
 #ifndef AETHER_API_PROTOCOL_API_METHOD_H_
 #define AETHER_API_PROTOCOL_API_METHOD_H_
 
-#include "aether/actions/action_context.h"
+#include "aether/warning_disable.h"
+
+DISABLE_WARNING_PUSH()
+IGNORE_IMPLICIT_CONVERSION()
+#include <etl/pool.h>
+DISABLE_WARNING_POP()
+
 #include "aether/api_protocol/api_message.h"
 #include "aether/api_protocol/api_context.h"
+#include "aether/api_protocol/api_promise.h"
 #include "aether/api_protocol/api_pack_parser.h"
 #include "aether/api_protocol/protocol_context.h"
-#include "aether/api_protocol/api_promise_action.h"
 
 namespace ae {
 class DefaultArgProc {
@@ -74,39 +80,24 @@ struct Method<MessageCode, void(Args...), ArgProc> {
  * return PromiseView<R> for waiting the result or error.
  */
 template <MessageId MessageCode, typename R, typename... Args, typename ArgProc>
-struct Method<MessageCode, ApiPromisePtr<R>(Args...), ArgProc> {
-  explicit Method(ProtocolContext& protocol_context,
-                  ActionContext action_context, ArgProc arg_proc = {})
-      : protocol_context_{&protocol_context},
-        action_context_{std::move(action_context)},
-        arg_proc_{std::move(arg_proc)} {}
+struct Method<MessageCode, ApiPromise<R>(Args...), ArgProc> {
+  explicit Method(ProtocolContext& protocol_context, ArgProc arg_proc = {})
+      : protocol_context_{&protocol_context}, arg_proc_{std::move(arg_proc)} {}
 
-  ApiPromisePtr<R> operator()(Args... args) {
+  ~Method() noexcept {
+    for (auto i = api_promise_pool_.begin(); i != api_promise_pool_.end();
+         ++i) {
+      api_promise_pool_.destroy(&i.template get<ApiPromise<R>>());
+    }
+  }
+
+  ApiPromise<R>& operator()(Args... args) {
     auto request_id = RequestId::GenRequestId();
     auto* packet_stack = protocol_context_->packet_stack();
     assert(packet_stack);
     packet_stack->Push(*this,
                        arg_proc_(request_id, std::forward<Args>(args)...));
-
-    auto promise_ptr = ApiPromisePtr<R>{action_context_, request_id};
-
-    if constexpr (!std::is_same_v<void, R>) {
-      protocol_context_->AddSendResultCallback(
-          request_id,
-          [p_ptr{promise_ptr}, context{protocol_context_}]() mutable {
-            p_ptr->SetValue(context->parser()->template Extract<R>());
-          });
-    } else {
-      protocol_context_->AddSendResultCallback(
-          request_id, [p_ptr{promise_ptr}]() mutable { p_ptr->SetValue(); });
-    }
-    protocol_context_->AddSendErrorCallback(
-        request_id, [p_ptr{promise_ptr}](auto, auto) mutable {
-          assert(p_ptr);
-          p_ptr->Reject();
-        });
-
-    return promise_ptr;
+    return UpdateRequestCb(request_id);
   }
 
   template <typename... Ts>
@@ -115,8 +106,37 @@ struct Method<MessageCode, ApiPromisePtr<R>(Args...), ArgProc> {
   }
 
  private:
+  ApiPromise<R>& UpdateRequestCb(RequestId request_id) {
+    auto* api_promise = api_promise_pool_.create(request_id);
+    assert(api_promise != nullptr);
+
+    if constexpr (!std::is_same_v<void, R>) {
+      protocol_context_->AddSendResultCallback(
+          request_id, [this, api_promise]() {
+            api_promise->SetValue(
+                protocol_context_->parser()->template Extract<R>());
+
+            api_promise_pool_.destroy(api_promise);
+          });
+    } else {
+      protocol_context_->AddSendResultCallback(
+          request_id, [this, api_promise]() {
+            api_promise->SetValue();
+            api_promise_pool_.destroy(api_promise);
+          });
+    }
+    protocol_context_->AddSendErrorCallback(
+        request_id, [this, api_promise](auto, std::uint32_t err) {
+          api_promise->SetError(std::move(err));
+          api_promise_pool_.destroy(api_promise);
+        });
+
+    return *api_promise;
+  }
+
   ProtocolContext* protocol_context_;
-  ActionContext action_context_;
+  // TODO: configure pool size
+  etl::pool<ApiPromise<R>, 10> api_promise_pool_;
   ArgProc arg_proc_;
 };
 

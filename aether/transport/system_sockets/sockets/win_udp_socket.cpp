@@ -27,7 +27,8 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-WinUdpSocket::WinUdpSocket(IPoller& poller) : WinSocket{poller, 1200} {
+WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
+    : WinSocket{*poller, 1200} {
   bool created = false;
 
   // ::socket() sets WSA_FLAG_OVERLAPPED by default that allows us to use iocp
@@ -37,7 +38,7 @@ WinUdpSocket::WinUdpSocket(IPoller& poller) : WinSocket{poller, 1200} {
     return;
   }
   // close socket on error
-  defer[&] {
+  ae_defer[&] {
     if (!created) {
       ::closesocket(sock);
     }
@@ -45,7 +46,7 @@ WinUdpSocket::WinUdpSocket(IPoller& poller) : WinSocket{poller, 1200} {
 
   // make socket non-blocking
   u_long nonblocking = 1;
-  if (auto res = ::ioctlsocket(sock, FIONBIO, &nonblocking);
+  if (auto res = ::ioctlsocket(sock, static_cast<long>(FIONBIO), &nonblocking);
       res == SOCKET_ERROR) {
     AE_TELED_ERROR("Socket make non-blocking error {}", WSAGetLastError());
     return;
@@ -63,7 +64,7 @@ ISocket& WinUdpSocket::Connect(AddressPort const& destination,
 
   ConnectionState connection_state{ConnectionState::kNone};
 
-  defer[&]() {
+  ae_defer[&]() {
     Poll();
     connected_cb(connection_state);
   };

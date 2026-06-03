@@ -138,11 +138,11 @@ class SmallFunction;
 template <typename TRet, typename... TArgs, std::size_t Size,
           std::size_t Alignment>
 class SmallFunction<TRet(TArgs...), Size, Alignment> {
+ public:
   using Storage = AlignedStorage<Size, Alignment>;
   using VTable = small_function_internal::VTable<TRet, TArgs...>;
   using Operation = small_function_internal::Operation;
 
- public:
   SmallFunction() = default;
 
   ~SmallFunction() noexcept {

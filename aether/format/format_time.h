@@ -23,7 +23,7 @@
 #include "aether/clock.h"
 #include "aether/format/formatter.h"
 
-#include "third_party/date/include/date/date.h"
+#include <date/date.h>
 
 namespace ae {
 /**

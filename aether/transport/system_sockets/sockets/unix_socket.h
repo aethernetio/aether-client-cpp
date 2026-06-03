@@ -22,12 +22,11 @@
 
 #  define UNIX_SOCKET_ENABLED 1
 
-#  include <mutex>
+#  include <optional>
 
 #  include "aether/poller/poller.h"
-#  include "aether/poller/unix_poller.h"
 #  include "aether/types/data_buffer.h"
-#  include "aether/events/event_subscription.h"
+#  include "aether/poller/unix_poller.h"
 #  include "aether/transport/system_sockets/sockets/isocket.h"
 
 namespace ae {
@@ -36,8 +35,6 @@ namespace ae {
  */
 class UnixSocket : public ISocket {
  public:
-  static constexpr int kInvalidSocket = -1;
-
   explicit UnixSocket(IPoller& poller, int socket);
   ~UnixSocket() override;
 
@@ -50,19 +47,18 @@ class UnixSocket : public ISocket {
 
  protected:
   void Poll();
-  virtual void OnPollerEvent(EventType event);
+  virtual void OnPollerEvent(DescriptorType fd, EventType event);
 
-  void OnReadEvent();
+  void OnReadEvent(DescriptorType fd);
   void OnWriteEvent();
   void OnErrorEvent();
 
-  std::optional<std::size_t> Receive(Span<std::uint8_t> buffer);
+  std::optional<std::size_t> Receive(DescriptorType fd,
+                                     Span<std::uint8_t> buffer);
 
-  std::optional<int> GetSocketError();
+  std::optional<int> GetSocketError(DescriptorType fd);
 
-  UnixPollerImpl* poller_;
-  int socket_;
-  std::mutex socket_lock_;
+  std::optional<UnixPolledFd> socket_;
 
   ReadyToWriteCb ready_to_write_cb_;
   RecvDataCb recv_data_cb_;

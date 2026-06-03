@@ -19,14 +19,14 @@
 #include "aether/serial_ports/at_support/at_buffer.h"
 #include "tests/test-serial-port/mock-serial-port.h"
 
-namespace ae::tests {}  // namespace ae::tests
+namespace ae::test_at_buffer {
 
 void test_AtBufferSingleCompleteLine() {
-  ae::tests::MockSerialPort mock_serial{};
-  ae::AtBuffer buffer{mock_serial};
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
 
   // Send a single complete line with \r\n
-  ae::DataBuffer data;
+  DataBuffer data;
   std::string_view line{"AT\r\n"};
   data.insert(data.end(), line.begin(), line.end());
   mock_serial.WriteOut(data);
@@ -41,11 +41,11 @@ void test_AtBufferSingleCompleteLine() {
 }
 
 void test_AtBufferMultipleCompleteLines() {
-  ae::tests::MockSerialPort mock_serial{};
-  ae::AtBuffer buffer{mock_serial};
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
 
   // Send multiple complete lines with \r\n
-  ae::DataBuffer data;
+  DataBuffer data;
   std::string_view lines{"AT\r\nOK\r\nERROR\r\n"};
   data.insert(data.end(), lines.begin(), lines.end());
   mock_serial.WriteOut(data);
@@ -70,11 +70,11 @@ void test_AtBufferMultipleCompleteLines() {
 }
 
 void test_AtBufferIncompleteLine() {
-  ae::tests::MockSerialPort mock_serial{};
-  ae::AtBuffer buffer{mock_serial};
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
 
   // Send incomplete line without \r\n
-  ae::DataBuffer data;
+  DataBuffer data;
   std::string_view line{"AT"};
   data.insert(data.end(), line.begin(), line.end());
   mock_serial.WriteOut(data);
@@ -90,11 +90,11 @@ void test_AtBufferIncompleteLine() {
 }
 
 void test_AtBufferFindPatternBasic() {
-  ae::tests::MockSerialPort mock_serial{};
-  ae::AtBuffer buffer{mock_serial};
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
 
   // Add some data to the buffer
-  ae::DataBuffer data;
+  DataBuffer data;
   std::string_view lines{"AT\r\nOK\r\nERROR\r\n"};
   data.insert(data.end(), lines.begin(), lines.end());
   mock_serial.WriteOut(data);
@@ -114,11 +114,11 @@ void test_AtBufferFindPatternBasic() {
 }
 
 void test_AtBufferFindPatternWithStartIterator() {
-  ae::tests::MockSerialPort mock_serial{};
-  ae::AtBuffer buffer{mock_serial};
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
 
   // Add some data to the buffer
-  ae::DataBuffer data;
+  DataBuffer data;
   std::string_view lines{"AT\r\nOK\r\nERROR\r\n"};
   data.insert(data.end(), lines.begin(), lines.end());
   mock_serial.WriteOut(data);
@@ -142,11 +142,11 @@ void test_AtBufferFindPatternWithStartIterator() {
 }
 
 void test_AtBufferGetCrateBasic() {
-  ae::tests::MockSerialPort mock_serial{};
-  ae::AtBuffer buffer{mock_serial};
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
 
   // Add some data to the buffer
-  ae::DataBuffer data;
+  DataBuffer data;
   std::string_view lines{"AT\r\nOK\r\nERROR\r\n"};
   data.insert(data.end(), lines.begin(), lines.end());
   mock_serial.WriteOut(data);
@@ -161,11 +161,11 @@ void test_AtBufferGetCrateBasic() {
 }
 
 void test_AtBufferGetCrateWithOffset() {
-  ae::tests::MockSerialPort mock_serial{};
-  ae::AtBuffer buffer{mock_serial};
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
 
   // Add some data to the buffer
-  ae::DataBuffer data;
+  DataBuffer data;
   std::string_view lines{"AT\r\nOK\r\nERROR\r\n"};
   data.insert(data.end(), lines.begin(), lines.end());
   mock_serial.WriteOut(data);
@@ -181,11 +181,11 @@ void test_AtBufferGetCrateWithOffset() {
 }
 
 void test_AtBufferGetCrateWithStartIterator() {
-  ae::tests::MockSerialPort mock_serial{};
-  ae::AtBuffer buffer{mock_serial};
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
 
   // Add some data to the buffer
-  ae::DataBuffer data;
+  DataBuffer data;
   std::string_view lines{"AT\r\nOK\r\nERROR\r\n"};
   data.insert(data.end(), lines.begin(), lines.end());
   mock_serial.WriteOut(data);
@@ -204,11 +204,11 @@ void test_AtBufferGetCrateWithStartIterator() {
 }
 
 void test_AtBufferGetCrateWithStartIteratorAndOffset() {
-  ae::tests::MockSerialPort mock_serial{};
-  ae::AtBuffer buffer{mock_serial};
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
 
   // Add some data to the buffer
-  ae::DataBuffer data;
+  DataBuffer data;
   std::string_view lines{"AT\r\nOK\r\nERROR\r\n"};
   data.insert(data.end(), lines.begin(), lines.end());
   mock_serial.WriteOut(data);
@@ -226,11 +226,11 @@ void test_AtBufferGetCrateWithStartIteratorAndOffset() {
 }
 
 void test_AtBufferGetCrateWithStartIteratorAndOffsetBiggerThanLine() {
-  ae::tests::MockSerialPort mock_serial{};
-  ae::AtBuffer buffer{mock_serial};
+  tests::MockSerialPort mock_serial{};
+  AtBuffer buffer{mock_serial};
 
   // Add some data to the buffer
-  ae::DataBuffer data;
+  DataBuffer data;
   std::string_view lines{"AT\r\nOK\r\nERROR\r\n"};
   data.insert(data.end(), lines.begin(), lines.end());
   mock_serial.WriteOut(data);
@@ -247,9 +247,12 @@ void test_AtBufferGetCrateWithStartIteratorAndOffsetBiggerThanLine() {
   TEST_ASSERT_EQUAL_STRING_LEN("ERRO", crate_content.data(),
                                crate_content.size());
 }
+}  // namespace ae::test_at_buffer
 
 int test_at_buffer() {
   UNITY_BEGIN();
+
+  using namespace ae::test_at_buffer;  // NOLINT
 
   RUN_TEST(test_AtBufferSingleCompleteLine);
   RUN_TEST(test_AtBufferMultipleCompleteLines);

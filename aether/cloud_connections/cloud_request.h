@@ -19,81 +19,109 @@
 #include <map>
 
 #include "aether/common.h"
+#include "aether/ae_context.h"
 #include "aether/actions/action.h"
-#include "aether/types/state_machine.h"
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_callbacks.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
-#include "aether/cloud_connections/cloud_subscription.h"
 
 namespace ae {
 class CloudRequest {
+  class EmptyConnectionsWA final : public WriteAction {
+   public:
+    explicit EmptyConnectionsWA(AeContext const& ae_context) {
+      ae_context.scheduler().Task(
+          [&]() { WriteAction::SetStatus(WriteAction::Status::kFail); });
+    }
+  };
+
+  class ReplicaWA final : public WriteAction {
+   public:
+    explicit ReplicaWA(std::vector<WriteAction*>&& swas) noexcept;
+
+    void Stop() noexcept override;
+
+   private:
+    std::vector<WriteAction*> swas_;
+    std::size_t failed_actions_{};
+    std::size_t stopped_actions_{};
+    MultiSubscription subs_;
+  };
+
  public:
-  static ActionPtr<WriteAction> CallApi(
-      AuthApiCaller const& api_caller, CloudServerConnections& connection,
+  CloudRequest(AeContext const& ae_context, CloudServerConnections& connection);
+
+  WriteAction& CallApi(
+      AuthApiCaller const& api_caller,
       RequestPolicy::Variant policy = RequestPolicy::MainServer{});
+
+ private:
+  WriteAction& EmptyWriteAction();
+  WriteAction& ReplicaWriteAction(std::vector<WriteAction*>&& swas);
+
+  AeContext ae_context_;
+  CloudServerConnections* connection_;
+  std::optional<EmptyConnectionsWA> empty_wa_;
+  std::vector<ReplicaWA> replica_was_;
 };
 
 /**
  * \brief Makes request according to the request policy.
  * If request fails or times out, it will restream the cloud connection and
- * retire until max_attempts is reached.
+ * retrie until max_attempts is reached.
  * ResponseListener listener must subscribe to client_api and handle the
  * response. On success, listener must call CloudRequestAction::Succeeded(). On
  * failure, listener must call CloudRequestAction::Failed().
  */
-class CloudRequestAction final : public Action<CloudRequestAction> {
-  enum class State : std::uint8_t {
-    kMakeRequest,
-    kWait,
-    kResult,
-    kFailed,
-    kStopped,
-  };
-
+class CloudRequestAction final : public Action {
   struct ServerRequest {
     MultiSubscription state_subs;
     bool is_active{false};
   };
 
  public:
-  CloudRequestAction(ActionContext action_context, AuthApiCaller&& api_caller,
+  using SuccessEvent = Event<void()>;
+  using FailureEvent = Event<void()>;
+
+  CloudRequestAction(AeContext const& ae_context, AuthApiCaller&& api_caller,
                      ClientResponseListener&& listener,
                      CloudServerConnections& cloud_server_connections,
                      RequestPolicy::Variant policy);
 
-  CloudRequestAction(ActionContext action_context, AuthApiRequest&& api_request,
+  CloudRequestAction(AeContext const& ae_context, AuthApiRequest&& api_request,
                      CloudServerConnections& cloud_server_connections,
                      RequestPolicy::Variant policy);
 
   AE_CLASS_NO_COPY_MOVE(CloudRequestAction)
 
-  UpdateStatus Update(TimePoint current_time);
-  void Stop();
-
   void Succeeded();
   void Failed();
 
- private:
-  void MakeRequest(TimePoint current_time);
+  SuccessEvent::Subscriber success_event();
+  FailureEvent::Subscriber failure_event();
 
-  void MakeRequest(TimePoint current_time,
-                   CloudServerConnection* server_connection);
+ private:
+  void MakeRequest();
+  void MakeServerRequest(CloudServerConnection* sc, ServerRequest& sr);
 
   void ServersUpdated();
 
-  ServerRequest* SaveRequest(CloudServerConnection* server_connection);
   void RemoveRequest(CloudServerConnection* server_connection);
+  void EnqueueMakeRequest();
 
+  void Finish();
+
+  AeContext ae_context_;
   std::variant<AuthApiCaller, AuthApiRequest> request_;
   ClientResponseListener listener_;
   CloudServerConnections* cloud_sc_;
   RequestPolicy::Variant policy_;
+  std::optional<TaskSubscription> task_sub_;
 
-  CloudSubscription cloud_sub_;
-  StateMachine<State> state_;
   Subscription swa_sub_;
   Subscription server_changed_sub_;
+  SuccessEvent success_event_;
+  FailureEvent failure_event_;
 
   std::map<CloudServerConnection*, ServerRequest> server_requests_;
 };

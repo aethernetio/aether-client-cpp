@@ -21,15 +21,13 @@
 
 #  define WIN_SERIAL_PORT_ENABLED 1
 
+#  include <list>
 #  include <mutex>
 #  include <atomic>
 
-#  include "aether/ptr/ptr_view.h"
-#  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
-#  include "aether/actions/action_context.h"
-
+#  include "aether/ae_context.h"
 #  include "aether/poller/poller.h"
+#  include "aether/types/data_buffer.h"
 #  include "aether/poller/win_poller.h"
 #  include "aether/serial_ports/iserial_port.h"
 #  include "aether/serial_ports/serial_port_types.h"
@@ -38,36 +36,12 @@
 
 namespace ae {
 class WinSerialPort final : public ISerialPort {
-  class ReadAction final : public Action<ReadAction> {
-   public:
-    ReadAction(ActionContext action_context, WinSerialPort& serial_port);
-
-    UpdateStatus Update();
-
-   private:
-    void PollEvent(LPOVERLAPPED overlapped);
-    void ReadData();
-
-    void RequestRead();
-    void HandleRead();
-
-    WinSerialPort* serial_port_;
-    std::list<DataBuffer> buffers_;
-    std::atomic_bool read_event_;
-
-    DataBuffer read_buffer_;
-    OVERLAPPED overlapped_rd_{};
-
-    static constexpr int kReadBufSize{4096};
-    static constexpr int kReadTimeOutMSec{250};
-  };
-
  public:
-  explicit WinSerialPort(ActionContext action_context, SerialInit serial_init,
+  explicit WinSerialPort(AeContext const& ae_context, SerialInit serial_init,
                          IPoller::ptr const& poller);
   ~WinSerialPort() override;
 
-  void Write(DataBuffer const& data) override;
+  void Write(std::span<std::uint8_t const> data) override;
 
   DataReadEvent::Subscriber read_event() override;
 
@@ -77,23 +51,30 @@ class WinSerialPort final : public ISerialPort {
   static void* OpenPort(SerialInit const& serial_init);
   static bool SetOptions(void* fd, SerialInit const& serial_init);
 
+  void PollEvent(LPOVERLAPPED overlapped);
+  void RequestRead();
+  void HandleRead();
+  void EmitData();
+
   void Close();
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   SerialInit serial_init_;
-  IoCpPoller* poller_;
+  std::shared_ptr<IoCpPoller> poller_;
 
   std::mutex fd_lock_;
   void* fd_;
   DataReadEvent read_event_;
 
-  OVERLAPPED overlapped_wr_{};
-  DWORD signal_;
+  std::list<DataBuffer> buffers_;
+  std::atomic_bool read_flag_;
+  TaskSubscription scheduler_sub_;
 
-  ActionPtr<ReadAction> read_action_;
+  DataBuffer read_buffer_;
+  OVERLAPPED overlapped_rd_{};
+  OVERLAPPED overlapped_wr_{};
 
   static constexpr int kReadBufSize{4096};
-  static constexpr int kReadTimeOutMSec{250};
 };
 } /* namespace ae */
 

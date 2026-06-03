@@ -24,8 +24,7 @@
 
 namespace ae {
 LwipSocket::LwipSocket(IPoller& poller, int socket)
-    : poller_{static_cast<FreeRtosLwipPollerImpl*>(poller.Native())},
-      socket_{socket} {}
+    : socket_{std::in_place, socket, poller.Native()} {}
 
 LwipSocket::~LwipSocket() { Disconnect(); }
 
@@ -45,16 +44,17 @@ ISocket& LwipSocket::Error(ErrorCb error_cb) {
 }
 
 std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
-  auto lock = std::scoped_lock{socket_lock_};
+  if (!socket_) {
+    return std::nullopt;
+  }
   auto size_to_send = data.size();
   // add nosignal to prevent throw SIGPIPE and handle it manually
   int flags = MSG_NOSIGNAL;
-  auto res = send(socket_, data.data(), size_to_send, flags);
+  auto res = send(*socket_->fd(), data.data(), size_to_send, flags);
   if (res == -1) {
     if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
       // add wait for kWrite
-      poller_->Event(socket_,
-                     EventType::kRead | EventType::kWrite | EventType::kError,
+      socket_->Event(EventType::kRead | EventType::kWrite | EventType::kError,
                      MethodPtr<&LwipSocket::OnPollerEvent>{this});
     }
 
@@ -69,34 +69,35 @@ std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
 }
 
 void LwipSocket::Disconnect() {
-  auto lock = std::scoped_lock{socket_lock_};
-  if (socket_ == kInvalidSocket) {
+  if (!socket_) {
     return;
   }
-  auto s = socket_;
-  socket_ = kInvalidSocket;
-
-  poller_->Remove(s);
-  shutdown(s, SHUT_RDWR);
-  if (close(s) != 0) {
-    return;
+  {
+    auto s = socket_->Remove();
+    shutdown(*s, SHUT_RDWR);
+    if (close(*s) != 0) {
+      return;
+    }
   }
+  socket_.reset();
 }
 
 void LwipSocket::Poll() {
-  poller_->Event(socket_, EventType::kRead | EventType::kError,
-                 MethodPtr<&LwipSocket::OnPollerEvent>{this});
+  if (socket_) {
+    socket_->Event(EventType::kRead | EventType::kError,
+                   MethodPtr<&LwipSocket::OnPollerEvent>{this});
+  }
 }
 
-void LwipSocket::OnPollerEvent(EventType event) {
-  AE_TELED_DEBUG("Poll event desc={},event={}", socket_, event);
+void LwipSocket::OnPollerEvent(DescriptorType fd, EventType event) {
+  AE_TELED_DEBUG("Poll event desc={}, event={}", fd, event);
   for (auto e : {EventType::kRead, EventType::kWrite, EventType::kError}) {
     if ((event & e) == 0) {
       continue;
     }
     switch (e) {
       case ae::EventType::kRead:
-        OnReadEvent();
+        OnReadEvent(fd);
         break;
       case ae::EventType::kWrite:
         OnWriteEvent();
@@ -110,11 +111,11 @@ void LwipSocket::OnPollerEvent(EventType event) {
   }
 }
 
-void LwipSocket::OnReadEvent() {
+void LwipSocket::OnReadEvent(DescriptorType fd) {
   // read all data
   while (true) {
     auto buffer = Span{recv_buffer_.data(), recv_buffer_.size()};
-    auto res = Receive(buffer);
+    auto res = Receive(fd, buffer);
     if (!res) {
       OnErrorEvent();
       return;
@@ -126,6 +127,9 @@ void LwipSocket::OnReadEvent() {
     buffer = buffer.sub(0, *res);
     if (recv_data_cb_) {
       recv_data_cb_(buffer);
+    } else {
+      printf("fd %d, Received bytes=%zu but no callback set\n",
+             static_cast<int>(fd), *res);
     }
     return;
   }
@@ -145,10 +149,9 @@ void LwipSocket::OnErrorEvent() {
   }
 }
 
-std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> buffer) {
-  auto lock = std::scoped_lock{socket_lock_};
-
-  auto res = recv(socket_, buffer.data(), buffer.size(), 0);
+std::optional<std::size_t> LwipSocket::Receive(DescriptorType fd,
+                                               Span<std::uint8_t> buffer) {
+  auto res = recv(fd, buffer.data(), buffer.size(), 0);
   if (res < 0) {
     // No data
     if ((errno == EWOULDBLOCK) || (errno == EAGAIN)) {
@@ -166,13 +169,12 @@ std::optional<std::size_t> LwipSocket::Receive(Span<std::uint8_t> buffer) {
   return static_cast<std::size_t>(res);
 }
 
-std::optional<int> LwipSocket::GetSocketError() {
-  auto lock = std::scoped_lock{socket_lock_};
+std::optional<int> LwipSocket::GetSocketError(DescriptorType fd) {
   int err{};
 
   socklen_t len = sizeof(len);
-  if (getsockopt(socket_, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err),
-                 &len) != 0) {
+  if (getsockopt(fd, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err), &len) !=
+      0) {
     AE_TELED_ERROR("Getsockopt error: {}, {}", static_cast<int>(errno),
                    strerror(errno));
     return std::nullopt;

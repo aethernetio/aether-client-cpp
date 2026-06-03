@@ -21,15 +21,13 @@
 #include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
-GetServersAction::GetServersAction(ActionContext action_context,
+GetServersAction::GetServersAction(AeContext const& ae_context,
                                    std::vector<ServerId> server_ids,
                                    CloudServerConnections& cloud_connection,
                                    RequestPolicy::Variant request_policy)
-    : Action{action_context},
-      server_ids_{std::move(server_ids)},
-      state_{State::kNone},
+    : server_ids_{std::move(server_ids)},
       cloud_request_{
-          action_context,
+          ae_context,
           AuthApiCaller{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
             AE_TELED_DEBUG("Resolve servers {}", server_ids_);
             auth_api->resolver_servers(server_ids_);
@@ -42,51 +40,28 @@ GetServersAction::GetServersAction(ActionContext action_context,
           cloud_connection,
           request_policy,
       } {
-  request_sub_ = cloud_request_->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this]() {
-        state_ = State::kResult;
-        Action::Trigger();
-      }},
-      OnError{[this]() {
-        state_ = State::kFailed;
-        Action::Trigger();
-      }},
+  request_subs_ += cloud_request_.success_event().Subscribe([this]() {
+    AE_TELED_INFO("GetServersAction succeeded");
+    result_event_.Emit(
+        Ok<std::vector<ServerDescriptor> const&>{server_descriptors_});
+    Finish();
+  });
+  request_subs_ += cloud_request_.failure_event().Subscribe([this]() {
+    AE_TELED_ERROR("GetServersAction failed");
+    result_event_.Emit(Error{1});
+    Finish();
   });
 }
 
-UpdateStatus GetServersAction::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kResult:
-        return UpdateStatus::Result();
-      case State::kFailed:
-        return UpdateStatus::Error();
-      case State::kStop:
-        return UpdateStatus::Stop();
-      default:
-        break;
-    }
-  }
-  return {};
-}
-
-std::vector<ServerDescriptor> const& GetServersAction::servers() const {
-  return server_descriptors_;
-}
-
-void GetServersAction::Stop() {
-  cloud_request_->Stop();
-  state_ = State::kStop;
-  Action::Trigger();
+GetServersAction::ResultEvent::Subscriber GetServersAction::result_event() {
+  return EventSubscriber{result_event_};
 }
 
 void GetServersAction::GetResponse(ServerDescriptor const& server_descriptor,
                                    CloudRequestAction* request) {
   // If got not requested server id ignore it.
-  if (auto it = std::find_if(std::begin(server_ids_), std::end(server_ids_),
-                             [sid{server_descriptor.server_id}](ServerId id) {
-                               return id == sid;
-                             });
+  if (auto it = std::find(std::begin(server_ids_), std::end(server_ids_),
+                          server_descriptor.server_id);
       it == std::end(server_ids_)) {
     return;
   }

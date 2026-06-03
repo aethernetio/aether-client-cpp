@@ -34,9 +34,6 @@
 namespace ae {
 class WinSocket : public ISocket {
  public:
-  static constexpr auto kInvalidSocketValue =
-      static_cast<DescriptorType::Socket>(~0);
-
   WinSocket(IPoller& poller, std::size_t max_packet_size);
   ~WinSocket() override;
 
@@ -58,9 +55,9 @@ class WinSocket : public ISocket {
   bool RequestRecv();
   std::optional<std::size_t> HandleRecv();
 
-  IoCpPoller* poller_;
+  std::shared_ptr<IoCpPoller> poller_;
   SocketInitializer socket_initializer_;
-  DescriptorType::Socket socket_ = kInvalidSocketValue;
+  DescriptorType::Socket socket_ = kInvalidDescriptor;
   std::mutex socket_lock_;
 
   ReadyToWriteCb ready_to_write_cb_;

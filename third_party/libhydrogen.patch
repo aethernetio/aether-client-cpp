@@ -1,5 +1,147 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b2a60a1..d084388 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-cmake_minimum_required(VERSION 3.1)
++cmake_minimum_required(VERSION 3.16)
+ 
+ project(hydrogen LANGUAGES C)
+ 
+@@ -101,73 +101,78 @@ target_include_directories("${PROJECT_NAME}"
+ target_compile_options("${PROJECT_NAME}" PRIVATE ${compile_options})
+ 
+ # Installation
++option(ENABLE_INSTALL "Enable installation" ON)
++if(ENABLE_INSTALL)
++  set(targets_export_name "${PROJECT_NAME}-targets")
+ 
+-set(targets_export_name "${PROJECT_NAME}-targets")
++  install(TARGETS "${PROJECT_NAME}"
++          EXPORT "${targets_export_name}"
++          LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
++          ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+ 
+-install(TARGETS "${PROJECT_NAME}"
+-        EXPORT "${targets_export_name}"
+-        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+-        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
++  install(FILES ${header_files} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+ 
+-install(FILES ${header_files} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
++  # CMake find_package() support
+ 
+-# CMake find_package() support
++  set(install_config_dir "${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}")
+ 
+-set(install_config_dir "${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}")
++  set(targets_export_file_name "${targets_export_name}.cmake")
++  set(targets_export_file "${PROJECT_BINARY_DIR}/${targets_export_file_name}")
+ 
+-set(targets_export_file_name "${targets_export_name}.cmake")
+-set(targets_export_file "${PROJECT_BINARY_DIR}/${targets_export_file_name}")
++  install(EXPORT "${targets_export_name}"
++          FILE "${targets_export_file_name}"
++          NAMESPACE "${PROJECT_NAME}::"
++          DESTINATION "${install_config_dir}")
+ 
+-install(EXPORT "${targets_export_name}"
+-        FILE "${targets_export_file_name}"
+-        NAMESPACE "${PROJECT_NAME}::"
+-        DESTINATION "${install_config_dir}")
++  set(config_file_name "${PROJECT_NAME}-config.cmake")
++  set(config_template_file "${PROJECT_SOURCE_DIR}/cmake/${config_file_name}.in")
++  set(config_file "${PROJECT_BINARY_DIR}/${config_file_name}")
+ 
+-set(config_file_name "${PROJECT_NAME}-config.cmake")
+-set(config_template_file "${PROJECT_SOURCE_DIR}/cmake/${config_file_name}.in")
+-set(config_file "${PROJECT_BINARY_DIR}/${config_file_name}")
++  configure_package_config_file("${config_template_file}" "${config_file}"
++                                INSTALL_DESTINATION "${install_config_dir}")
+ 
+-configure_package_config_file("${config_template_file}" "${config_file}"
+-                              INSTALL_DESTINATION "${install_config_dir}")
++  install(FILES "${config_file}" DESTINATION "${install_config_dir}")
+ 
+-install(FILES "${config_file}" DESTINATION "${install_config_dir}")
++  export(EXPORT "${targets_export_name}" FILE "${targets_export_file}" NAMESPACE "${PROJECT_NAME}::")
+ 
+-export(EXPORT "${targets_export_name}" FILE "${targets_export_file}" NAMESPACE "${PROJECT_NAME}::")
++  export(PACKAGE "${PROJECT_NAME}")
++endif()
+ 
+-export(PACKAGE "${PROJECT_NAME}")
+ 
+ # Tests
+-
+-set(tests_executable "${PROJECT_NAME}-tests")
+-set(tests_run_target "${PROJECT_NAME}-run-tests")
+-set(tests_run_file "${PROJECT_BINARY_DIR}/${tests_run_target}.done")
+-
+-enable_testing()
+-add_executable("${tests_executable}" ${test_files})
+-target_compile_options("${tests_executable}" PRIVATE ${compile_options})
+-target_link_libraries("${tests_executable}" "${PROJECT_NAME}")
+-add_test(NAME "${tests_executable}" COMMAND "${tests_executable}")
+-
+-if(CMAKE_CROSSCOMPILING)
+-  # Disable tests executable by default when cross-compiling (as it will fail to build when, e.g.,
+-  # cross-compiling for Arduino/AVR).
+-  set_target_properties("${tests_executable}"
+-                        PROPERTIES
+-                        EXCLUDE_FROM_ALL 1
+-                        EXCLUDE_FROM_DEFAULT_BUILD 1)
+-else()
+-  # Otherwise, auto-run the tests on build.
+-  add_custom_command(OUTPUT "${tests_run_file}"
+-                     DEPENDS "${tests_executable}"
+-                     COMMAND "${CMAKE_COMMAND}"
+-                     ARGS -E remove "${tests_run_file}"
+-                     COMMAND "${CMAKE_CTEST_COMMAND}"
+-                     ARGS -C $<CONFIGURATION> --output-on-failure
+-                     COMMAND "${CMAKE_COMMAND}"
+-                     ARGS -E touch "${tests_run_file}"
+-                     WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
+-                     VERBATIM)
+-  add_custom_target("${tests_run_target}" ALL DEPENDS "${tests_run_file}" VERBATIM)
++option(ENABLE_TESTS "Enable tests" OFF)
++if(ENABLE_TESTS)
++  set(tests_executable "${PROJECT_NAME}-tests")
++  set(tests_run_target "${PROJECT_NAME}-run-tests")
++  set(tests_run_file "${PROJECT_BINARY_DIR}/${tests_run_target}.done")
++
++  enable_testing()
++  add_executable("${tests_executable}" ${test_files})
++  target_compile_options("${tests_executable}" PRIVATE ${compile_options})
++  target_link_libraries("${tests_executable}" "${PROJECT_NAME}")
++  add_test(NAME "${tests_executable}" COMMAND "${tests_executable}")
++
++  if(CMAKE_CROSSCOMPILING)
++    # Disable tests executable by default when cross-compiling (as it will fail to build when, e.g.,
++    # cross-compiling for Arduino/AVR).
++    set_target_properties("${tests_executable}"
++                          PROPERTIES
++                          EXCLUDE_FROM_ALL 1
++                          EXCLUDE_FROM_DEFAULT_BUILD 1)
++  else()
++    # Otherwise, auto-run the tests on build.
++    add_custom_command(OUTPUT "${tests_run_file}"
++                      DEPENDS "${tests_executable}"
++                      COMMAND "${CMAKE_COMMAND}"
++                      ARGS -E remove "${tests_run_file}"
++                      COMMAND "${CMAKE_CTEST_COMMAND}"
++                      ARGS -C $<CONFIGURATION> --output-on-failure
++                      COMMAND "${CMAKE_COMMAND}"
++                      ARGS -E touch "${tests_run_file}"
++                      WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
++                      VERBATIM)
++    add_custom_target("${tests_run_target}" ALL DEPENDS "${tests_run_file}" VERBATIM)
++  endif()
+ endif()
+ 
+ # Generate Arduino package
 diff --git a/impl/random.h b/impl/random.h
-index b85a4a1..acd24eb 100644
+index bb18c5c..62c53b1 100644
 --- a/impl/random.h
 +++ b/impl/random.h
 @@ -7,7 +7,16 @@ static TLS struct {

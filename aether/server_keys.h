@@ -20,7 +20,7 @@
 #include <cstdint>
 #include <cassert>
 
-#include "third_party/aethernet-numeric/numeric/tiered_int.h"
+#include <numeric/tiered_int.h>
 
 #include "aether/crypto/key.h"
 #include "aether/types/server_id.h"

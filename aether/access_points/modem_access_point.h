@@ -21,10 +21,9 @@
 #if AE_SUPPORT_MODEMS
 
 #  include "aether/obj/obj.h"
+#  include "aether/ae_context.h"
+#  include "aether/events/events.h"
 #  include "aether/actions/action.h"
-#  include "aether/actions/action_ptr.h"
-#  include "aether/types/state_machine.h"
-#  include "aether/modems/imodem_driver.h"
 #  include "aether/adapters/modem_adapter.h"
 #  include "aether/events/event_subscription.h"
 #  include "aether/access_points/access_point.h"
@@ -32,24 +31,22 @@
 namespace ae {
 class Aether;
 
-class ModemConnectAction final : public Action<ModemConnectAction> {
+class ModemConnectAction final : public Action {
  public:
-  enum class State : std::uint8_t {
-    kStart,
-    kSuccess,
-    kFailed,
-  };
+  using ConnectionEvent = Event<void(bool)>;
 
-  ModemConnectAction(ActionContext action_context, IModemDriver& driver);
+  explicit ModemConnectAction(AeContext const& ae_context,
+                              IModemDriver& driver);
 
-  UpdateStatus Update();
+  ConnectionEvent::Subscriber connection_event();
 
  private:
   void Start();
 
   IModemDriver* driver_;
+  ConnectionEvent connection_event_;
   Subscription start_sub_;
-  StateMachine<State> state_;
+  TaskSubscription task_sub_;
 };
 
 class ModemAccessPoint final : public AccessPoint {
@@ -62,7 +59,7 @@ class ModemAccessPoint final : public AccessPoint {
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, modem_adapter_));
 
-  ActionPtr<ModemConnectAction> Connect();
+  ModemConnectAction& Connect();
   IModemDriver& modem_driver();
 
   std::vector<ObjPtr<Channel>> GenerateChannels(
@@ -71,7 +68,7 @@ class ModemAccessPoint final : public AccessPoint {
  private:
   Obj::ptr aether_;
   ModemAdapter::ptr modem_adapter_;
-  ActionPtr<ModemConnectAction> connect_action_;
+  std::optional<ModemConnectAction> connect_action_;
   Subscription connect_sub_;
 };
 }  // namespace ae

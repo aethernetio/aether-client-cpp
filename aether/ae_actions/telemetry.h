@@ -23,35 +23,23 @@
 
 #  include <optional>
 
-#  include "aether/obj/obj_ptr.h"
-#  include "aether/ptr/ptr_view.h"
-#  include "aether/actions/action.h"
+#  include "aether/ae_context.h"
 #  include "aether/stream_api/istream.h"
-#  include "aether/types/state_machine.h"
-#  include "aether/cloud_connections/cloud_server_connections.h"
+#  include "aether/cloud_connections/cloud_request.h"
 #  include "aether/cloud_connections/cloud_subscription.h"
+#  include "aether/cloud_connections/cloud_server_connections.h"
 
 #  include "aether/work_cloud_api/telemetric.h"
 
 namespace ae {
 class Aether;
 
-class Telemetry : public Action<Telemetry> {
-  enum class State : std::uint8_t {
-    kWaitRequest,
-    kSendTelemetry,
-    kStopped,
-  };
-
+class Telemetry {
  public:
-  Telemetry(ActionContext action_context, Ptr<Aether> const& aether,
+  Telemetry(AeContext const& ae_context,
             CloudServerConnections& cloud_connection);
 
   AE_CLASS_NO_COPY_MOVE(Telemetry)
-
-  UpdateStatus Update();
-
-  void Stop();
 
   void SendTelemetry();
 
@@ -59,11 +47,11 @@ class Telemetry : public Action<Telemetry> {
   void OnRequestTelemetry(std::size_t server_priority);
   std::optional<Telemetric> CollectTelemetry(StreamInfo const& stream_info);
 
-  PtrView<Aether> aether_;
+  AeContext ae_context_;
   CloudServerConnections* cloud_connection_;
+  CloudRequest call_request_;
 
   CloudSubscription telemetry_request_sub_;
-  StateMachine<State> state_;
   std::optional<std::size_t> request_for_server_;
 };
 }  // namespace ae

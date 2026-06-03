@@ -20,39 +20,31 @@
 #include <vector>
 
 #include "aether/types/uid.h"
-#include "aether/actions/action.h"
+#include "aether/ae_context.h"
+#include "aether/events/events.h"
 #include "aether/types/server_id.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/events/event_subscription.h"
+#include "aether/actions/action.h"
+#include "aether/events/multi_subscription.h"
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/request_policy.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
-class GetClientCloudAction final : public Action<GetClientCloudAction> {
-  enum class State : std::uint8_t {
-    kNone,
-    kResult,
-    kFailed,
-    kStopped,
-  };
-
+class GetClientCloudAction final : public Action {
  public:
-  GetClientCloudAction(ActionContext action_context, Uid client_uid,
+  using ResultEvent = Event<void(Result<std::vector<ServerId> const&, int>)>;
+
+  GetClientCloudAction(AeContext const& ae_context, Uid client_uid,
                        CloudServerConnections& cloud_connection,
                        RequestPolicy::Variant request_policy);
 
-  UpdateStatus Update();
-
-  void Stop();
-
-  std::vector<ServerId> const& cloud() const;
+  ResultEvent::Subscriber result_event();
 
  private:
   Uid client_uid_;
-  StateMachine<State> state_;
-  OwnActionPtr<CloudRequestAction> cloud_request_;
-  Subscription cloud_request_sub_;
+  CloudRequestAction cloud_request_;
+  ResultEvent result_event_;
+  MultiSubscription cloud_request_subs_;
 
   std::vector<ServerId> cloud_;
 };

@@ -18,6 +18,8 @@
 
 #include "aether/server.h"
 
+#include "aether/cloud_connections/cloud_connections_tele.h"
+
 namespace ae {
 CloudServerConnection::CloudServerConnection(
     Ptr<Server> const& server, IServerConnectionFactory& connection_factory)

@@ -21,14 +21,12 @@
 namespace ae {
 
 GetClientCloudAction::GetClientCloudAction(
-    ActionContext action_context, Uid client_uid,
+    AeContext const& ae_context, Uid client_uid,
     CloudServerConnections& cloud_connection,
     RequestPolicy::Variant request_policy)
-    : Action(action_context),
-      client_uid_{client_uid},
-      state_{State::kNone},
+    : client_uid_{client_uid},
       cloud_request_{
-          action_context,
+          ae_context,
           AuthApiCaller{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
             AE_TELED_DEBUG("Resolve cloud for {}", client_uid_);
             auth_api->resolver_clouds({client_uid_});
@@ -47,44 +45,21 @@ GetClientCloudAction::GetClientCloudAction(
           request_policy,
       } {
   AE_TELE_INFO(kGetClientCloud, "GetClientCloudAction created");
-  cloud_request_sub_ = cloud_request_->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[this]() {
-        AE_TELED_DEBUG("Cloud resolved as [{}]", cloud_);
-        state_ = State::kResult;
-        Action::Trigger();
-      }},
-      OnError{[this]() {
-        AE_TELED_ERROR("Cloud resolution failed");
-        state_ = State::kFailed;
-        Action::Trigger();
-      }},
+  cloud_request_subs_ += cloud_request_.success_event().Subscribe([this]() {
+    AE_TELED_DEBUG("Cloud resolved as [{}]", cloud_);
+    result_event_.Emit(Ok<std::vector<ServerId> const&>{cloud_});
+    Finish();
+  });
+  cloud_request_subs_ += cloud_request_.failure_event().Subscribe([this]() {
+    AE_TELED_ERROR("Cloud resolution failed");
+    result_event_.Emit(Error{1});
+    Finish();
   });
 }
 
-UpdateStatus GetClientCloudAction::Update() {
-  if (state_.changed()) {
-    switch (state_.Acquire()) {
-      case State::kResult:
-        return UpdateStatus::Result();
-      case State::kFailed:
-        return UpdateStatus::Error();
-      case State::kStopped:
-        return UpdateStatus::Stop();
-      default:
-        break;
-    }
-  }
-  return {};
-}
-
-void GetClientCloudAction::Stop() {
-  cloud_request_->Stop();
-  state_ = State::kStopped;
-  Action::Trigger();
-}
-
-std::vector<ServerId> const& GetClientCloudAction::cloud() const {
-  return cloud_;
+GetClientCloudAction::ResultEvent::Subscriber
+GetClientCloudAction::result_event() {
+  return EventSubscriber{result_event_};
 }
 
 }  // namespace ae

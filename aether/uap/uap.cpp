@@ -20,7 +20,6 @@
 #include <numeric>
 
 #include "aether/aether.h"
-#include "aether/actions/timer_action.h"
 
 #include "aether/tele/tele.h"
 
@@ -83,15 +82,13 @@ std::optional<Uap::Timer> Uap::timer() {
   return Timer{Uap::ptr::MakeFromThis(this)};
 }
 
-void Uap::RegisterAction(IAction& action) {
-  wait_actions_cnt_++;
-  wait_actions_subs_ += action.FinishedEvent().Subscribe([this]() {
-    assert(wait_actions_cnt_ > 0);
-    wait_actions_cnt_--;
-    if (wait_actions_cnt_ == 0) {
-      AllActionsFinished();
-    }
-  });
+void Uap::RegisterStart() { wait_actions_cnt_++; }
+void Uap::RegisterEnd() {
+  assert(wait_actions_cnt_ > 0);
+  wait_actions_cnt_--;
+  if (wait_actions_cnt_ == 0) {
+    AllActionsFinished();
+  }
 }
 
 void Uap::Loaded() { WindowWatcher(); }
@@ -170,8 +167,16 @@ void Uap::WindowWatcher() {
   }
 
   aether_.WithLoaded([this, w{current.window}](auto const& a) {
-    auto timer_action = ActionPtr<TimerAction>{*a, w};
-    RegisterAction(*timer_action);
+    wait_actions_cnt_++;
+    AeContext{*a}.scheduler().DelayedTask(
+        [&]() {
+          assert(wait_actions_cnt_ > 0);
+          wait_actions_cnt_--;
+          if (wait_actions_cnt_ == 0) {
+            AllActionsFinished();
+          }
+        },
+        w);
   });
 }
 

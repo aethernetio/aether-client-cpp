@@ -18,6 +18,8 @@
 #if AE_SUPPORT_MODEMS
 
 #  include "aether/aether.h"
+#  include "aether/poller/poller.h"
+#  include "aether/modems/imodem_driver.h"
 #  include "aether/modems/modem_factory.h"
 #  include "aether/access_points/modem_access_point.h"
 
@@ -25,7 +27,9 @@
 
 namespace ae {
 
-#  if defined AE_DISTILLATION
+ModemAdapter::ModemAdapter() = default;
+
+#  if AE_DISTILLATION
 ModemAdapter::ModemAdapter(ObjProp prop, ObjPtr<Aether> aether,
                            IPoller::ptr poller, ModemInit modem_init)
     : ParentModemAdapter{prop, std::move(aether), std::move(poller),

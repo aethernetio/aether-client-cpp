@@ -55,7 +55,7 @@ static RcPtr<AetherApp> construct_aether_app() {
       AetherAppContext{}
 #    if defined AE_DISTILLATION
           .AddAdapterFactory([](AetherAppContext const& context) {
-            return ModemAdapter::ptr::Create(context.domain()).with_id(
+            return ModemAdapter::ptr::Create(CreateWith{context.domain()}.with_id(
                 ae::GlobalId::kModemAdapter), context.aether(), context.poller(),
                 modem_init);
           })

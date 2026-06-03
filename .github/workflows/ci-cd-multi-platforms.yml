@@ -109,14 +109,12 @@ jobs:
           cmake -B build
           -G "${{ matrix.config.generator }}"
           -A "${{ matrix.config.arch }}"
-          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }}
           -DCMAKE_C_COMPILER=${{ matrix.config.cc }}
           -DCMAKE_BUILD_TYPE=Release
           -DUSER_CONFIG="${{ matrix.platforms.user_config }}"
-          -DAE_BUILD_TESTS=On
           -C "${{ matrix.config.initial_cache }}"
-          -S projects/cmake
+          -S ./
 
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).

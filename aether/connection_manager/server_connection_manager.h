@@ -21,8 +21,8 @@
 
 #include "aether/ptr/ptr.h"
 #include "aether/ptr/rc_ptr.h"
+#include "aether/ae_context.h"
 #include "aether/ptr/ptr_view.h"
-#include "aether/actions/action_context.h"
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
 
@@ -43,7 +43,7 @@ class ServerConnectionManager {
   };
 
  public:
-  ServerConnectionManager(ActionContext action_context,
+  ServerConnectionManager(AeContext const& ae_context,
                           Ptr<Client> const& client);
 
   std::unique_ptr<IServerConnectionFactory> GetServerConnectionFactory();
@@ -55,7 +55,7 @@ class ServerConnectionManager {
  private:
   void ServerUpdate(ServerId server_id);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   PtrView<Client> client_;
   std::map<ServerId, RcPtrView<ClientServerConnection>> cached_connections_;
   MultiSubscription server_update_subs_;

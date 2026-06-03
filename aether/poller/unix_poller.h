@@ -20,6 +20,9 @@
 #if defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
     defined(__FreeBSD__)
 
+#  include <mutex>
+#  include <utility>
+
 #  include "aether/poller/poller.h"
 #  include "aether/poller/poller_types.h"
 #  include "aether/types/small_function.h"
@@ -30,23 +33,84 @@ namespace ae {
  */
 class UnixPollerImpl : public NativePoller {
  public:
-  using EventCb = SmallFunction<void(EventType event)>;
+  using EventCb = SmallFunction<void(DescriptorType fd, EventType event)>;
 
-  virtual ~UnixPollerImpl() = default;
+ private:
+  friend class UnixPolledFd;
+  friend class std::scoped_lock<UnixPollerImpl>;
+  friend class std::unique_lock<UnixPollerImpl>;
+
+  virtual void lock() = 0;
+  virtual void unlock() = 0;
 
   /**
-   * \brief Add or change file descriptor to the poller.
-   * fd - file descriptor to add or change.
-   * event - event to set. It contains file descriptor and ORed event list to
-   * wait for.
+   * \brief Add file descriptor to the poller with event callback.
+   * fd - file descriptor to add.
    * cb - callback to call when event occurs.
    */
-  virtual void Event(DescriptorType fd, EventType event, EventCb cb) = 0;
+  virtual void Callback(DescriptorType fd, EventCb cb) = 0;
+  /**
+   * \brief Setup event poller for file descriptor
+   */
+  virtual void Event(DescriptorType fd, EventType events) = 0;
   /**
    * \brief Remove file descriptor from the poller.
    */
   virtual void Remove(DescriptorType descriptor) = 0;
 };
+
+class UnixPolledFd {
+ public:
+  class Fd {
+   public:
+    Fd(std::unique_lock<UnixPollerImpl>&& lock, DescriptorType fd) noexcept
+        : lock_{std::move(lock)}, fd_{fd} {}
+
+    DescriptorType operator*() const noexcept { return fd_; }
+
+   private:
+    std::unique_lock<UnixPollerImpl> lock_;
+    DescriptorType fd_;
+  };
+
+  UnixPolledFd(DescriptorType fd, std::shared_ptr<NativePoller> const& poller,
+               UnixPollerImpl::EventCb cb)
+      : fd_{fd}, poller_{std::static_pointer_cast<UnixPollerImpl>(poller)} {
+    auto lock = std::scoped_lock{*poller_};
+    poller_->Callback(fd_, std::move(cb));
+  }
+
+  ~UnixPolledFd() {
+    auto lock = std::scoped_lock{*poller_};
+    if (fd_ != kInvalidDescriptor) {
+      poller_->Remove(fd_);
+    }
+  }
+
+  void Events(EventType events) {
+    auto lock = std::scoped_lock{*poller_};
+    poller_->Event(fd_, events);
+  }
+
+  auto fd() const noexcept { return Fd{std::unique_lock{*poller_}, fd_}; }
+
+  /**
+   * \brief Use Remove to remove fd from the poller and return the descriptor
+   */
+  auto Remove() noexcept {
+    auto fd = Fd{std::unique_lock{*poller_}, fd_};
+    if (fd_ != kInvalidDescriptor) {
+      poller_->Remove(fd_);
+      fd_ = kInvalidDescriptor;
+    }
+    return fd;
+  }
+
+ private:
+  DescriptorType fd_;
+  mutable std::shared_ptr<UnixPollerImpl> poller_;
+};
+
 }  // namespace ae
 
 #endif

@@ -73,8 +73,8 @@ class AddressParser {
       if (!IsDigit(addr[i])) {
         return std::nullopt;
       }
-      a.ipv4_value[triplets_i] = a.ipv4_value[triplets_i] * 10 +
-                                 static_cast<std::uint8_t>(addr[i] - '0');
+      a.ipv4_value[triplets_i] = static_cast<std::uint8_t>(
+          (a.ipv4_value[triplets_i] * 10) + (addr[i] - '0'));
     }
     return a;
   }
@@ -154,7 +154,8 @@ class AddressParser {
     // make IpV6Addr
     IpV6Addr a{};
     for (std::size_t i = 0; i < 16; i++) {
-      a.ipv6_value[i] = segments.data()[i / 2] >> ((1 - i % 2) * 8) & 0xFF;
+      a.ipv6_value[i] = static_cast<std::uint8_t>(
+          (segments.data()[i / 2] >> ((1 - i % 2) * 8)) & 0xFF);
     }
     return a;
   }

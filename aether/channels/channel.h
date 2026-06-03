@@ -17,12 +17,18 @@
 #ifndef AETHER_CHANNELS_CHANNEL_H_
 #define AETHER_CHANNELS_CHANNEL_H_
 
+#include "aether/memory.h"
 #include "aether/obj/obj.h"
+#include "aether/executors/executors.h"
+#include "aether/stream_api/istream.h"
 #include "aether/channels/channels_types.h"
 #include "aether/channels/channel_statistics.h"
-#include "aether/transport/transport_builder_action.h"
 
 namespace ae {
+using TransportBuildSender =
+    ex::AnySender<ex::set_value_t(std::unique_ptr<ByteIStream>),
+                  ex::set_error_t(int)>;
+
 class Channel : public Obj {
   AE_OBJECT(Channel, Obj, 0)
 
@@ -36,7 +42,7 @@ class Channel : public Obj {
   /**
    * \brief Make transport from this channel.
    */
-  virtual ActionPtr<TransportBuilderAction> TransportBuilder() = 0;
+  virtual TransportBuildSender TransportBuilder() = 0;
 
   ChannelTransportProperties const& transport_properties() const;
   ChannelStatistics& channel_statistics();

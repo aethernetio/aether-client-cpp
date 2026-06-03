@@ -22,17 +22,19 @@
 #include "aether/tele/tele.h"
 
 namespace ae::bench {
+static constexpr auto kTestUid =
+    Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4");
+
 int test_sender_bandwidth(Uid const& receiver_uid) {
   auto aether_app = ae::AetherApp::Construct(AetherAppContext{});
 
   ae::Client::ptr client;
 
   // select one client
-  auto select_client = aether_app->aether()->SelectClient(
-      Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "sender");
+  auto& select_client = aether_app->aether()->SelectClient(kTestUid, "sender");
 
-  select_client->StatusEvent().Subscribe(
-      OnResult{[&](auto const& reg) { client = reg.client(); }});
+  select_client.result_event().Subscribe(
+      [&](auto const& res) { client = res.value(); });
 
   aether_app->WaitActions(select_client);
 
@@ -41,33 +43,32 @@ int test_sender_bandwidth(Uid const& receiver_uid) {
     return -1;
   }
 
-  auto action_context = ActionContext{*aether_app};
-  auto sender = Sender{action_context, client, receiver_uid};
+  auto ae_context = AeContext{*aether_app->aether()};
+  auto sender = Sender{ae_context, client, receiver_uid};
 
-  auto test_action =
-      ActionPtr<TestAction<Sender>>{action_context, sender, std::size_t{10000}};
+  auto test_action = TestAction<Sender>{ae_context, sender, std::size_t{10000}};
 
-  test_action->StatusEvent().Subscribe(ActionHandler{
-      OnResult{[&](auto const& action) {
-        auto res_name_table = std::array{
-            std::string_view{"1 Byte"},
-            std::string_view{"10 Bytes"},
-            std::string_view{"100 Bytes"},
-            std::string_view{"1000 Bytes"},
-        };
-        auto const& results = action.result_table();
+  test_action.result_event().Subscribe([&](auto const& res) {
+    if (res) {
+      auto res_name_table = std::array{
+          std::string_view{"1 Byte"},
+          std::string_view{"10 Bytes"},
+          std::string_view{"100 Bytes"},
+          std::string_view{"1000 Bytes"},
+      };
+      auto const& results = res.value();
 
-        auto res_string = std::string{};
-        for (auto i = 0; i < res_name_table.size(); ++i) {
-          res_string += Format("{}:{}\n", res_name_table[i], results[i]);
-        }
-        std::cout << "Test results: \n" << res_string << std::endl;
-        aether_app->Exit(0);
-      }},
-      OnError{[&]() {
-        AE_TELED_ERROR("Test failed");
-        aether_app->Exit(1);
-      }}});
+      auto res_string = std::string{};
+      for (auto i = 0; i < res_name_table.size(); ++i) {
+        res_string += Format("{}:{}\n", res_name_table[i], results[i]);
+      }
+      std::cout << "Test results: \n" << res_string << std::endl;
+      aether_app->Exit(0);
+    } else {
+      AE_TELED_ERROR("Test failed");
+      aether_app->Exit(1);
+    }
+  });
 
   while (!aether_app->IsExited()) {
     auto time = ae::TimePoint::clock::now();

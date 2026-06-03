@@ -19,55 +19,47 @@
 
 #include <functional>
 
-#include "aether/common.h"
-#include "aether/actions/action.h"
-#include "aether/actions/action_ptr.h"
-#include "aether/types/state_machine.h"
-#include "aether/actions/action_context.h"
+#include "aether/clock.h"
+#include "aether/ae_context.h"
+#include "aether/types/result.h"
+#include "aether/events/events.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/write_action/write_action.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
 
 namespace ae::bench {
-class MessageSender : public Action<MessageSender> {
-  enum class State : std::uint8_t {
-    kSending,
-    kSuccess,
-    kWaitbuffer,
-    kStopped,
-    kError,
-  };
-
+class MessageSender {
  public:
-  using SendProc = std::function<ActionPtr<WriteAction>(std::uint16_t id)>;
+  struct SendResult {
+    std::size_t count;
+    HighDuration duration;
+  };
+  using SendProc = std::function<WriteAction&(std::uint16_t id)>;
+  using ResultEvent = Event<void(Result<SendResult, int>)>;
 
-  MessageSender(ActionContext action_context, SendProc send_proc,
+  MessageSender(AeContext const& ae_context, SendProc send_proc,
                 std::size_t send_count);
 
-  UpdateStatus Update();
-
+  ResultEvent::Subscriber result_event();
   void Stop();
-
-  std::size_t message_send_count() const;
-  Duration send_duration() const;
 
  private:
   void Send();
+  void EmitResult();
 
-  void WaitBuffer();
-
+  AeContext ae_context_;
   SendProc send_proc_;
   std::size_t send_count_;
   Duration send_duration_;
 
   HighResTimePoint first_send_time_;
-  HighResTimePoint last_send_time_;
-  StateMachine<State> state_;
   std::uint16_t message_send_count_ = 0;
   std::size_t message_send_confirm_count_ = 0;
 
   MultiSubscription message_send_;
+  ResultEvent result_event_;
+  TaskSubscription send_sub_;
 };
 }  // namespace ae::bench
 

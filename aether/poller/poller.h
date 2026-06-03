@@ -17,10 +17,18 @@
 #ifndef AETHER_POLLER_POLLER_H_
 #define AETHER_POLLER_POLLER_H_
 
+#include <memory>
+
 #include "aether/obj/obj.h"
 
 namespace ae {
-class NativePoller {};
+/**
+ * \brief Base pointer for platform native poller implementation
+ */
+class NativePoller {
+ public:
+  virtual ~NativePoller() = default;
+};
 
 class IPoller : public Obj {
   AE_OBJECT(IPoller, Obj, 0)
@@ -36,7 +44,7 @@ class IPoller : public Obj {
   /**
    * \brief Return native poller implementation.
    */
-  virtual NativePoller* Native() = 0;
+  virtual std::shared_ptr<NativePoller> Native() = 0;
 };
 }  // namespace ae
 

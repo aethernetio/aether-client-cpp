@@ -19,28 +19,31 @@
 #include <utility>
 
 #include "aether/stream_api/tied_gates.h"
+#include "aether/safe_stream/safe_stream.h"
 
 namespace ae {
-P2pSafeStream::P2pSafeStream(ActionContext action_context,
+P2pSafeStream::P2pSafeStream(AeContext const& ae_context,
                              SafeStreamConfig const& config,
                              RcPtr<P2pStream> p2p_stream)
     : sized_packet_gate_{},
-      safe_stream_{action_context, config},
+      safe_stream_{std::make_unique<SafeStreamImpl>(ae_context, config)},
       p2p_stream_{std::move(p2p_stream)},
       out_data_sub_{TiedEventOutData(
           [this](auto const& data) { out_data_event_.Emit(data); },
-          sized_packet_gate_, safe_stream_)} {
-  Tie(safe_stream_, *p2p_stream_);
+          sized_packet_gate_, *safe_stream_)} {
+  Tie(*safe_stream_, *p2p_stream_);
 }
 
-ActionPtr<WriteAction> P2pSafeStream::Write(DataBuffer&& data) {
+P2pSafeStream::~P2pSafeStream() = default;
+
+WriteAction& P2pSafeStream::Write(DataBuffer&& data) {
   auto sized_data = sized_packet_gate_.WriteIn(std::move(data));
-  return safe_stream_.Write(std::move(sized_data));
+  return safe_stream_->Write(std::move(sized_data));
 }
 
 StreamInfo P2pSafeStream::stream_info() const {
   auto overhead = sized_packet_gate_.Overhead();
-  auto info = safe_stream_.stream_info();
+  auto info = safe_stream_->stream_info();
   if (info.max_element_size < overhead) {
     info.max_element_size = 0;
   } else {
@@ -51,13 +54,13 @@ StreamInfo P2pSafeStream::stream_info() const {
 
 P2pSafeStream::StreamUpdateEvent::Subscriber
 P2pSafeStream::stream_update_event() {
-  return safe_stream_.stream_update_event();
+  return safe_stream_->stream_update_event();
 }
 
 P2pSafeStream::OutDataEvent::Subscriber P2pSafeStream::out_data_event() {
   return EventSubscriber{out_data_event_};
 }
 
-void P2pSafeStream::Restream() { safe_stream_.Restream(); }
+void P2pSafeStream::Restream() { safe_stream_->Restream(); }
 
 }  // namespace ae

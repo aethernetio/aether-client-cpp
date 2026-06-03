@@ -28,7 +28,7 @@ namespace ae {
 template <class T>
 class Registrar {
  public:
-  Registrar(std::uint32_t cls_id, std::uint32_t base_id) {
+  Registrar(std::uint32_t cls_id, std::uint32_t base_id) noexcept {
     Registry::GetRegistry().RegisterClass(
         cls_id, base_id,
         {

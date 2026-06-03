@@ -17,24 +17,24 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_BANDWIDTH_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_BANDWIDTH_H_
 
-#include <cstddef>
 #include <chrono>
+#include <cstddef>
 
-#include "aether/common.h"
 #include "aether/format/format.h"
 
 namespace ae::bench {
 using HighResTimePoint =
     std::chrono::time_point<std::chrono::high_resolution_clock>;
+using HighDuration = std::chrono::nanoseconds;
 
 class Bandwidth {
  public:
-  Bandwidth(Duration duration, std::size_t message_count,
+  Bandwidth(HighDuration duration, std::size_t message_count,
             std::size_t message_size);
 
   double bandwidth;  //< bytes per second
   std::size_t message_count;
-  Duration duration;
+  HighDuration duration;
 };
 }  // namespace ae::bench
 
@@ -44,7 +44,7 @@ struct Formatter<bench::Bandwidth> {
   template <typename TStream>
   void Format(bench::Bandwidth const& b, FormatContext<TStream>& ctx) const {
     ae::Format(ctx.out(),
-               "Bandwidth: {} bits/s Message count: {} Duration: {} us",
+               "Bandwidth: {} bits/s Message count: {} Duration: {} ns",
                b.bandwidth, b.message_count, b.duration.count());
   }
 };

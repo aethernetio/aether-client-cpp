@@ -33,6 +33,9 @@ namespace ae {
 template <std::size_t Size, std::size_t Align>
 class AlignedStorage {
  public:
+  static constexpr auto kSize = Size;
+  static constexpr auto kAlign = Align;
+
   AlignedStorage() noexcept = default;
 
   template <typename T>

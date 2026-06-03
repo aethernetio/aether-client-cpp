@@ -17,12 +17,11 @@
 #include "send_messages_bandwidth/common/bandwidth_api.h"
 
 namespace ae::bench {
-BandwidthApi::BandwidthApi(ActionContext action_context,
-                           ProtocolContext& protocol_context)
+BandwidthApi::BandwidthApi(ProtocolContext& protocol_context)
     : ApiClassImpl{protocol_context},
-      handshake{protocol_context, action_context},
-      start_test{protocol_context, action_context},
-      stop_test{protocol_context, action_context},
+      handshake{protocol_context},
+      start_test{protocol_context},
+      stop_test{protocol_context},
       message{protocol_context},
       return_result{protocol_context} {}
 

@@ -22,8 +22,7 @@
 #  include <cstdint>
 
 #  include "aether/ptr/ptr_view.h"
-#  include "aether/actions/action.h"
-#  include "aether/types/state_machine.h"
+#  include "aether/executors/executors.h"
 #  include "aether/events/event_subscription.h"
 
 #  include "aether/aether.h"
@@ -36,185 +35,117 @@
 
 namespace ae {
 namespace wifi_channel_internal {
-class WifiTransportBuilderAction final : public TransportBuilderAction {
- public:
-  enum class State : std::uint8_t {
-    kWifiConnect,
-    kAddressResolve,
-    kTransportCreate,
-    kWaitTransportConnect,
-    kTransportConnected,
-    kFailed,
-  };
+ex::sender auto WifiConnect(Ptr<WifiAccessPoint> const& access_point) {
+  return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
+      [ap{PtrView<WifiAccessPoint>{access_point}},
+       connect_sub{Subscription{}}](auto& ctx) mutable noexcept {
+        auto access_point = ap.Lock();
+        assert(access_point && "Wifi access point is not loaded");
+        connect_sub = access_point->Connect().connection_event().Subscribe(
+            [&](bool is_connected) mutable noexcept {
+              if (is_connected) {
+                ex::set_value(std::move(ctx.receiver));
+              } else {
+                ex::set_error(std::move(ctx.receiver), 1);
+              }
+            });
+      });
+}
 
-  WifiTransportBuilderAction(ActionContext action_context, WifiChannel& channel,
-                             Ptr<WifiAccessPoint> const& access_point,
-                             Ptr<IPoller> const& poller,
-                             Ptr<DnsResolver> const& resolver, Endpoint address)
-      : TransportBuilderAction{action_context},
-        action_context_{action_context},
-        channel_{&channel},
-        access_point_{access_point},
-        poller_{poller},
-        resolver_{resolver},
-        address_{std::move(address)},
-        state_{State::kWifiConnect} {}
+using ResolveSender =
+    ex::AnySender<ex::set_value_t(std::vector<Endpoint>), ex::set_error_t(int)>;
 
-  UpdateStatus Update() override {
-    if (state_.changed()) {
-      switch (state_.Acquire()) {
-        case State::kWifiConnect:
-          WifiConnect();
-          break;
-        case State::kAddressResolve:
-          ResolveAddress();
-          break;
-        case State::kTransportCreate:
-          CreateTransport();
-          break;
-        case State::kWaitTransportConnect:
-          break;
-        case State::kTransportConnected:
-          return UpdateStatus::Result();
-        case State::kFailed:
-          return UpdateStatus::Error();
-      }
-    }
-    return {};
-  }
-
-  std::unique_ptr<ByteIStream> transport_stream() override {
-    return std::move(transport_stream_);
-  }
-
- private:
-  void WifiConnect() {
-    auto access_point = access_point_.Lock();
-    assert(access_point);
-    auto connect_action = access_point->Connect();
-    wifi_connected_sub_ = connect_action->StatusEvent().Subscribe(ActionHandler{
-        OnResult{[this]() {
-          // build transport start after wifi is connected
-          start_time_ = Now();
-          state_ = State::kAddressResolve;
-          Action::Trigger();
-        }},
-        OnError{[this]() {
-          state_ = State::kFailed;
-          Action::Trigger();
-        }},
-    });
-  }
-
-  void ResolveAddress() {
-    std::visit(
-        [this](auto const& addr) {
-          DoResolverAddress(addr, address_.port, address_.protocol);
-        },
-        address_.address);
-  }
-
-  void DoResolverAddress([[maybe_unused]] NamedAddr const& name_address,
-                         [[maybe_unused]] std::uint16_t port,
-                         [[maybe_unused]] Protocol protocol) {
+ResolveSender ResolveAddress(PtrView<DnsResolver> const& resolver,
+                             NamedAddr const& addr, std::uint16_t port,
+                             Protocol protocol) {
 #  if AE_SUPPORT_CLOUD_DNS
-    auto dns_resolver = resolver_.Lock();
-    assert(dns_resolver);
-    auto resolve_action = dns_resolver->Resolve(name_address, port, protocol);
-
-    address_resolve_sub_ = resolve_action->StatusEvent().Subscribe(
-        ActionHandler{OnResult{[this](auto& action) {
-                        ip_addresses_ = std::move(action.addresses);
-                        it_ = std::begin(ip_addresses_);
-                        state_ = State::kTransportCreate;
-                        Action::Trigger();
-                      }},
-                      OnError {
-                        [this]() {
-                          state_ = State::kFailed;
-                          Action::Trigger();
-                        }
-                      }});
+  auto resolver_ptr = resolver.Lock();
+  assert(resolver_ptr && "Dns resolver is not loaded");
+  return resolver_ptr->Resolve(addr, port, protocol);
 #  else
-    AE_TELED_ERROR("Unable to resolve named address");
-    state_ = State::kFailed;
-    Action::Trigger();
+  // named address doesn't supported
+  return ex::just_error(1);
 #  endif
-  }
+}
 
-  template <typename TAddr>
-  void DoResolverAddress(TAddr const& addr, std::uint16_t port,
-                         Protocol protocol) {
-    ip_addresses_.push_back(Endpoint{{addr, port}, protocol});
-    it_ = std::begin(ip_addresses_);
-    state_ = State::kTransportCreate;
-    Action::Trigger();
-  }
+ResolveSender ResolveAddress(PtrView<DnsResolver> const&, auto const& addr,
+                             std::uint16_t port, Protocol protocol) {
+  return ex::just(std::vector<Endpoint>{Endpoint{addr, port, protocol}});
+}
 
-  void CreateTransport() {
-    state_ = State::kWaitTransportConnect;
+auto CreateTransport(AeContext const& context, PtrView<IPoller> const& poller,
+                     Endpoint const& e) {
+  auto poller_ptr = poller.Lock();
+  assert(poller_ptr);
+  return EthernetTransportFactory::Create(context.aether(), poller_ptr, e);
+}
 
-    if (it_ == std::end(ip_addresses_)) {
-      state_ = State::kFailed;
-      Action::Trigger();
-      return;
-    }
-
-    auto poller = poller_.Lock();
-    assert(poller);
-    auto& addr = *(it_++);
-    transport_stream_ =
-        EthernetTransportFactory::Create(action_context_, poller, addr);
-    if (!transport_stream_) {
-      // try next address
-      state_ = State::kTransportCreate;
-      Action::Trigger();
-      return;
-    }
-    if (transport_stream_->stream_info().link_state == LinkState::kLinked) {
-      Connected();
-      return;
-    }
-    transport_sub_ =
-        transport_stream_->stream_update_event().Subscribe([this]() {
-          if (transport_stream_->stream_info().link_state ==
-              LinkState::kLinked) {
-            // transport connected
-            Connected();
-          } else if (transport_stream_->stream_info().link_state ==
-                     LinkState::kLinkError) {
-            // try next address
-            state_ = State::kTransportCreate;
-            Action::Trigger();
+ex::sender auto TransportConnect(std::unique_ptr<ByteIStream>&& stream) {
+  return ex::create<ex::set_value_t(std::unique_ptr<ByteIStream>),
+                    ex::set_error_t(int)>(
+      [s{std::move(stream)},
+       link_sub{Subscription{}}](auto& ctx) mutable noexcept {
+        // if already linked return stream
+        switch (s->stream_info().link_state) {
+          case LinkState::kLinked: {
+            ex::set_value(std::move(ctx.receiver), std::move(s));
+            return;
+          }
+          case LinkState::kLinkError: {
+            ex::set_error(std::move(ctx.receiver), 1);
+            return;
+          }
+          default:
+            break;
+        }
+        // wait till linked
+        link_sub = s->stream_update_event().Subscribe([&]() mutable noexcept {
+          link_sub.Reset();
+          if (s->stream_info().link_state == LinkState::kLinked) {
+            ex::set_value(std::move(ctx.receiver), std::move(s));
+          } else {
+            ex::set_error(std::move(ctx.receiver), 2);
           }
         });
-  }
+      });
+}
 
-  void Connected() {
-    transport_sub_.Reset();
-    auto built_time = std::chrono::duration_cast<Duration>(Now() - start_time_);
-    AE_TELED_DEBUG("Transport built by {:%S}", built_time);
-    channel_->channel_statistics().AddConnectionTime(built_time);
-    state_ = State::kTransportConnected;
-    Action::Trigger();
-  }
-
-  ActionContext action_context_;
-  WifiChannel* channel_;
-  PtrView<WifiAccessPoint> access_point_;
-  PtrView<IPoller> poller_;
-  PtrView<DnsResolver> resolver_;
-  Endpoint address_;
-
-  std::vector<Endpoint> ip_addresses_;
-  std::vector<Endpoint>::iterator it_{};
-  std::unique_ptr<ByteIStream> transport_stream_;
-  Subscription wifi_connected_sub_;
-  Subscription address_resolve_sub_;
-  Subscription transport_sub_;
-  StateMachine<State> state_;
-  TimePoint start_time_;
-};
+ex::sender auto MakeTransportBuilder(AeContext ae_context,
+                                     Ptr<DnsResolver> const& dns_resolver,
+                                     Ptr<IPoller> const& poller,
+                                     Ptr<WifiAccessPoint> const& access_point,
+                                     Endpoint address) noexcept {
+  return  // connect to wifi first
+      WifiConnect(access_point)
+      // resolve named address to ip address
+      | ex::let_value([a{std::move(address)},
+                       r{PtrView<DnsResolver>{dns_resolver}}]() noexcept {
+          return std::visit(
+              [&](auto const& addr) noexcept {
+                return ResolveAddress(r, addr, a.port, a.protocol);
+              },
+              a.address);
+        })
+      // create transport and wait till it connected
+      // TODO: add selection for endpoint to connect
+      | ex::let_value([c{ae_context}, p{PtrView<IPoller>{poller}}](
+                          std::vector<Endpoint> const& endpoints) noexcept {
+          return ex::for_range(Iter{endpoints.begin(), endpoints.end()},
+                               [c, p](auto const& e) noexcept {
+                                 return ex::just(e) |
+                                        ex::then([&](auto const& e) noexcept {
+                                          return CreateTransport(c, p, e);
+                                        }) |
+                                        ex::let_value([](auto& s) noexcept {
+                                          return TransportConnect(std::move(s));
+                                        }) |
+                                        ex::upon_error([](auto&&...) noexcept {
+                                          return ex::for_continue;
+                                        });
+                               }) |
+                 ex::let_stopped([]() noexcept { return ex::just_error(1); });
+        });
+}
 }  // namespace wifi_channel_internal
 
 WifiChannel::WifiChannel(ObjProp prop, ObjPtr<Aether> aether,
@@ -262,7 +193,7 @@ Duration WifiChannel::TransportBuildTimeout() const {
          std::chrono::milliseconds{AE_WIFI_CONNECTION_TIMEOUT_MS};
 }
 
-ActionPtr<TransportBuilderAction> WifiChannel::TransportBuilder() {
+TransportBuildSender WifiChannel::TransportBuilder() {
   auto resolver = resolver_.Load();
 #  if AE_SUPPORT_CLOUD_DNS
   assert(resolver && "Resolver is not loaded");
@@ -274,13 +205,8 @@ ActionPtr<TransportBuilderAction> WifiChannel::TransportBuilder() {
   assert(poller && "Poller is not loaded");
   assert(access_point && "Access point is not loaded");
 
-  return ActionPtr<wifi_channel_internal::WifiTransportBuilderAction>{
-      *aether_.Load().as<Aether>(),
-      *this,
-      access_point,
-      poller,
-      resolver,
-      address};
+  return wifi_channel_internal::MakeTransportBuilder(
+      *aether_.Load().as<Aether>(), resolver, poller, access_point, address);
 }
 
 }  // namespace ae

@@ -31,8 +31,8 @@
 #  include "aether/tele/tele.h"
 
 namespace ae {
-UnixUdpSocket::UnixUdpSocket(IPoller& poller)
-    : UnixSocket{poller, MakeSocket()} {
+UnixUdpSocket::UnixUdpSocket(Ptr<IPoller> const& poller)
+    : UnixSocket{*poller, MakeSocket()} {
   // 1200 is our default MTU for UDP
   recv_buffer_.resize(1200);
 }
@@ -40,13 +40,13 @@ UnixUdpSocket::UnixUdpSocket(IPoller& poller)
 int UnixUdpSocket::MakeSocket() {
   bool created = false;
   auto sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (sock == kInvalidSocket) {
+  if (sock == kInvalidDescriptor) {
     AE_TELED_ERROR("Socket creation error {} {}", errno, strerror(errno));
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
 
   // close socket on error
-  defer[&] {
+  ae_defer[&] {
     if (!created) {
       close(sock);
     }
@@ -55,7 +55,7 @@ int UnixUdpSocket::MakeSocket() {
   // make socket non-blocking
   if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
     AE_TELED_ERROR("Socket set O_NONBLOCK error {} {}", errno, strerror(errno));
-    return kInvalidSocket;
+    return kInvalidDescriptor;
   }
   created = true;
   return sock;
@@ -64,17 +64,16 @@ int UnixUdpSocket::MakeSocket() {
 ISocket& UnixUdpSocket::Connect(AddressPort const& destination,
                                 ConnectedCb connected_cb) {
   // UDP connection means binding socket to a destination address
-  assert((socket_ != kInvalidSocket) && "Socket is not initialized");
+  assert(socket_.has_value() && "Socket is not initialized");
   ConnectionState connection_state{ConnectionState::kNone};
-  defer[&]() {
+  ae_defer[&]() {
     Poll();
     connected_cb(connection_state);
   };
 
-  auto lock = std::scoped_lock{socket_lock_};
-
   auto addr = GetSockAddr(destination);
-  auto res = connect(socket_, addr.addr(), static_cast<socklen_t>(addr.size));
+  auto res =
+      connect(*socket_->fd(), addr.addr(), static_cast<socklen_t>(addr.size));
   if (res == -1) {
     AE_TELED_ERROR("Not connected {} {}", errno, strerror(errno));
     connection_state = ConnectionState::kConnectionFailed;

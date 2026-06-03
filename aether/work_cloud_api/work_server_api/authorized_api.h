@@ -30,13 +30,12 @@ namespace ae {
 
 class AuthorizedApi : public ApiClass {
  public:
-  AuthorizedApi(ProtocolContext& protocol_context,
-                ActionContext action_context);
+  explicit AuthorizedApi(ProtocolContext& protocol_context);
 
-  Method<4, ApiPromisePtr<void>(std::uint64_t next_connect_ms_duration)> ping;
+  Method<4, ApiPromise<void>(std::uint64_t next_connect_ms_duration)> ping;
   Method<6, void(AeMessage message)> send_message;
   Method<7, void(std::vector<AeMessage> messages)> send_messages;
-  Method<11, ApiPromisePtr<void>(Uid uid)> check_access_for_send_message;
+  Method<11, ApiPromise<void>(Uid uid)> check_access_for_send_message;
   Method<12, void(std::vector<ServerId> sids)> resolver_servers;
   Method<13, void(std::vector<Uid> uids)> resolver_clouds;
 

@@ -17,6 +17,7 @@
 #ifndef TESTS_TEST_STREAM_TO_DATA_BUFFER_H_
 #define TESTS_TEST_STREAM_TO_DATA_BUFFER_H_
 
+#include <span>
 #include <vector>
 #include <cstdint>
 #include <cstddef>
@@ -41,6 +42,11 @@ static auto ToDataBuffer(std::string_view str) {
 template <typename Iterator>
 static auto ToDataBuffer(Iterator begin, Iterator end) {
   return ToVector<std::uint8_t>(begin, end);
+}
+
+static auto ToSpan(std::string_view str) {
+  return std::span<std::uint8_t const>(
+      reinterpret_cast<std::uint8_t const*>(str.data()), str.size());
 }
 
 }  // namespace ae

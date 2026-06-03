@@ -21,6 +21,7 @@
 
 #include "aether/ptr/ptr.h"
 #include "aether/types/uid.h"
+#include "aether/ae_context.h"
 #include "aether/ptr/rc_ptr.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/events/events.h"
@@ -34,7 +35,7 @@ class P2pMessageStreamManager {
  public:
   using NewStreamEvent = Event<void(RcPtr<P2pStream>)>;
 
-  P2pMessageStreamManager(ActionContext action_context,
+  P2pMessageStreamManager(AeContext const& ae_context,
                           Ptr<Client> const& client);
 
   RcPtr<P2pStream> CreateStream(Uid destination);
@@ -47,7 +48,7 @@ class P2pMessageStreamManager {
 
   void OnStreamUpdated(Uid destination);
 
-  ActionContext action_context_;
+  AeContext ae_context_;
   PtrView<Client> client_;
   ClientConnectionManager* connection_manager_;
   CloudServerConnections* cloud_connection_;

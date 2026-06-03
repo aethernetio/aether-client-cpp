@@ -26,16 +26,18 @@
 namespace ae {
 class UnixTcpSocket final : public UnixSocket {
  public:
-  explicit UnixTcpSocket(IPoller& poller);
+  explicit UnixTcpSocket(Ptr<IPoller> const& poller);
 
   ISocket& Connect(AddressPort const& destination,
                    ConnectedCb connected_cb) override;
 
+ protected:
+  void OnPollerEvent(DescriptorType fd, EventType event) override;
+
  private:
   static int MakeSocket();
 
-  void OnPollerEvent(EventType event) override;
-  void OnConnectionEvent();
+  void OnConnectionEvent(DescriptorType fd);
 
   ConnectionState connection_state_;
   ConnectedCb connected_cb_;

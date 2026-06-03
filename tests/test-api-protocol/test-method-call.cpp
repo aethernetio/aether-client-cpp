@@ -19,7 +19,6 @@
 #include <string>
 
 #include "aether/events/events.h"
-#include "aether/actions/action_processor.h"
 #include "aether/api_protocol/api_protocol.h"
 
 #include "aether/types/data_buffer.h"
@@ -56,11 +55,11 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
   };
 
  public:
-  ApiLevel0(ProtocolContext& protocol_context, ActionContext action_context)
+  explicit ApiLevel0(ProtocolContext& protocol_context)
       : ApiClassImpl{protocol_context},
         api_level1{protocol_context},
         method_3{protocol_context},
-        method_4{protocol_context, action_context},
+        method_4{protocol_context},
         method_5{protocol_context, api_level1},
         method_6{protocol_context, Method6Proc{api_level1}},
         return_result_api{protocol_context} {}
@@ -87,7 +86,7 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
 
   // call methods to make packet
   Method<03, void(int a, std::string b)> method_3;
-  Method<04, ApiPromisePtr<int>(int a)> method_4;
+  Method<04, ApiPromise<int>(int a)> method_4;
   Method<05, SubContext<ApiLevel1>(int a)> method_5;
   Method<06, void(int a, SubApi<ApiLevel1> sub), Method6Proc> method_6;
 
@@ -99,10 +98,9 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
 };
 
 void test_ApiMethodInvoke() {
-  ActionProcessor ap;
   ProtocolContext pc;
 
-  auto api_level0 = ApiLevel0{pc, ActionContext{ap}};
+  auto api_level0 = ApiLevel0{pc};
   auto call_context = ApiContext{api_level0};
 
   call_context->method_3(12, "asd");
@@ -127,29 +125,28 @@ void test_ApiMethodInvoke() {
   auto parser = ApiParser{pc, packet};
   parser.Parse(api_level0);
 
-  ap.Update(Now());
-
   TEST_ASSERT(level0_method3_called);
   TEST_ASSERT(level1_method3_called);
 }
 
 void test_ReturnResult() {
-  ActionProcessor ap;
   ProtocolContext pc;
 
   bool promise_get_value = false;
 
-  auto api_level0 = ApiLevel0{pc, ActionContext{ap}};
+  auto api_level0 = ApiLevel0{pc};
   auto call_context = ApiContext{api_level0};
 
-  auto promise = call_context->method_4(42);
-  promise->StatusEvent().Subscribe(
-      ActionHandler{OnResult{[&](auto const& promise) {
-                      auto value = promise.value();
-                      TEST_ASSERT_EQUAL(78, value);
-                      promise_get_value = true;
-                    }},
-                    OnError{[]() { TEST_FAIL(); }}});
+  auto& promise = call_context->method_4(42);
+  promise.Subscribe([&](auto const& res) {
+    if (res.IsOk()) {
+      auto value = res.value();
+      TEST_ASSERT_EQUAL(78, value);
+      promise_get_value = true;
+    } else {
+      TEST_FAIL();
+    }
+  });
 
   DataBuffer packet = std::move(call_context);
 
@@ -172,17 +169,14 @@ void test_ReturnResult() {
   auto parser = ApiParser{pc, packet};
   parser.Parse(api_level0);
 
-  ap.Update(Now());
-
   TEST_ASSERT(level0_method4_called);
   TEST_ASSERT(promise_get_value);
 }
 
 void test_MethodWithSubApi() {
-  ActionProcessor ap;
   ProtocolContext pc;
 
-  auto api_level0 = ApiLevel0{pc, ActionContext{ap}};
+  auto api_level0 = ApiLevel0{pc};
   auto call_context = ApiContext{api_level0};
 
   call_context->method_6(

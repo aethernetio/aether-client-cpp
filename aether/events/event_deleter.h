@@ -29,7 +29,7 @@ namespace ae {
 class EventHandlerDeleter {
  public:
   EventHandlerDeleter(RcPtr<EventHandlersList> const& event_handlers,
-                      typename EventHandlersList::Index index);
+                      EventHandlersList::Index index);
   AE_CLASS_COPY_MOVE(EventHandlerDeleter)
 
   void Delete();
