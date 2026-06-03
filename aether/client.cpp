@@ -40,7 +40,8 @@ Uid const& Client::ephemeral_uid() const { return ephemeral_uid_; }
 ServerKeys* Client::server_state(ServerId server_id) {
   auto ss_it = server_keys_.find(server_id);
   if (ss_it == server_keys_.end()) {
-    return nullptr;
+    auto [it, _] = server_keys_.emplace(server_id, ServerKeys{server_id, master_key_});
+    ss_it = it;
   }
   return &ss_it->second;
 }
