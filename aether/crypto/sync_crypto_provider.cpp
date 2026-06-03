@@ -29,14 +29,14 @@ namespace _sync_internal {
 template <typename KeyType>
 std::unique_ptr<IEncryptProvider> CreateEncryptImpl(
     KeyType const&, std::unique_ptr<ISyncKeyProvider> /* key_provider */) {
-  assert(false);
+  assert(false && "Unsupported key type");
   return {};
 }
 
 template <typename KeyType>
 std::unique_ptr<IDecryptProvider> CreateDecryptImpl(
     KeyType const&, std::unique_ptr<ISyncKeyProvider> /* key_provider */) {
-  assert(false);
+  assert(false && "Unsupported key type");
   return {};
 }
 
