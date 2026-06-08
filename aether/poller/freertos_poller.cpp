@@ -122,7 +122,7 @@ FreeRtosLwipPollerImpl::FreeRtosLwipPollerImpl()
   assert(wake_up_pipe_[1] != -1);
 
   xTaskCreate(static_cast<void (*)(void*)>(&vTaskFunction), "Poller loop", 4096,
-              static_cast<void*>(this), tskIDLE_PRIORITY, &myTaskHandle_);
+              static_cast<void*>(this), tskIDLE_PRIORITY + 1, &myTaskHandle_);
   AE_TELE_DEBUG(kFreertosWorkerCreate, "Poll worker was created");
 }
 
