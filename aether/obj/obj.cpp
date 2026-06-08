@@ -29,13 +29,6 @@ Obj::~Obj() {
 
 uint32_t Obj::GetClassId() const { return kClassId; }
 
-void Obj::Update(TimePoint current_time) {
-  if (update_time < current_time) {
-    // almost never
-    update_time = current_time + std::chrono::hours(365 * 24);
-  }
-}
-
 namespace reflect {
 std::size_t GetObjIndexImpl(Obj const* obj, std::uint32_t class_id) {
   auto res = crc32::from_buffer(

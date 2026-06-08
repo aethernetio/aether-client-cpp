@@ -41,10 +41,6 @@ Aether::Aether(ObjProp prop)
 
 Aether::~Aether() { AE_TELE_DEBUG(AetherDestroyed); }
 
-void Aether::Update(TimePoint current_time) {
-  update_time = task_scheduler->Update(current_time);
-}
-
 AeCtx Aether::ToAeContext() const {
   static constexpr AeCtxTable ae_table{
       [](void* obj) -> Aether& { return *static_cast<Aether*>(obj); },

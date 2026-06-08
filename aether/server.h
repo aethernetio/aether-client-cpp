@@ -41,7 +41,16 @@ class Server : public Obj {
 
   AE_OBJECT_REFLECT(AE_MMBRS(server_id, endpoints, adapter_registry_, channels))
 
-  void Update(TimePoint current_time) override;
+  template<typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv){
+    dnv(base_);
+    dnv(server_id, endpoints, adapter_registry_, channels);
+    if (!subscribed_) {
+      subscribed_ = true;
+      UpdateSubscription();
+    }
+  }
+
 
   ChannelsChanged::Subscriber channels_changed();
 

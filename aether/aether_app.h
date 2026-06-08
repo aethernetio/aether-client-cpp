@@ -29,7 +29,7 @@
 #include "aether/obj/domain.h"
 #include "aether/types/small_function.h"
 
-#include "aether/events/events.h"     // IWYU pragma: keep
+#include "aether/events/events.h"   // IWYU pragma: keep
 #include "aether/actions/action.h"  // IWYU pragma: keep
 
 #include "aether/cloud.h"
@@ -190,7 +190,7 @@ class AetherApp {
    * \brief Run one iteration of application update loop.
    */
   TimePoint Update(TimePoint current_time) {
-    return domain_->Update(current_time);
+    return aether_->task_scheduler->Update(current_time);
   }
 
   /**

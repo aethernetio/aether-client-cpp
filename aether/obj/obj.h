@@ -32,7 +32,6 @@
 #include "aether/config.h"
 
 #include "aether/crc.h"
-#include "aether/clock.h"
 #include "aether/obj/obj_id.h"
 #include "aether/obj/obj_ptr.h"
 #include "aether/obj/domain.h"
@@ -62,14 +61,11 @@ class Obj {
   virtual ~Obj();
 
   virtual std::uint32_t GetClassId() const;
-  virtual void Update(TimePoint current_time);
 
-  // only update time should be reflected
-  AE_REFLECT_MEMBERS(update_time);
+  AE_REFLECT();
 
   Domain* domain{};
   ObjId obj_id;
-  TimePoint update_time;
 };
 
 namespace reflect {
@@ -89,7 +85,7 @@ struct ObjectIndex<T, std::enable_if_t<std::is_base_of_v<Obj, T>>> {
   static constexpr std::uint32_t kClassId = CLASS_ID;          \
   static constexpr std::uint32_t kBaseClassId = BASE_CLASS_ID; \
   static constexpr std::uint32_t kVersion = VERSION;           \
-  using CurrentVersion = ae::Version<kVersion>;                    \
+  using CurrentVersion = ::ae::Version<kVersion>;              \
   static constexpr CurrentVersion kCurrentVersion{};
 
 /**
@@ -97,17 +93,17 @@ struct ObjectIndex<T, std::enable_if_t<std::is_base_of_v<Obj, T>>> {
  */
 #define AE_OBJECT(DERIVED, BASE, VERSION)                                \
  protected:                                                              \
-  friend class ae::Registrar<DERIVED>;                                   \
+  friend class ::ae::Registrar<DERIVED>;                                 \
   friend ae::Ptr<DERIVED> ae::MakePtr<DERIVED>();                        \
                                                                          \
  public:                                                                 \
   _AE_OBJECT_FIELDS(crc32::from_literal(#DERIVED).value, BASE::kClassId, \
                     VERSION)                                             \
   inline static auto registrar_ =                                        \
-      ae::Registrar<DERIVED>(kClassId, kBaseClassId);                    \
+      ::ae::Registrar<DERIVED>(kClassId, kBaseClassId);                  \
                                                                          \
   using Base = BASE;                                                     \
-  using ptr = ae::ObjPtr<DERIVED>;                                       \
+  using ptr = ::ae::ObjPtr<DERIVED>;                                     \
                                                                          \
   Base& base_{*this};                                                    \
                                                                          \
