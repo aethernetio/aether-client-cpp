@@ -48,22 +48,20 @@ std::optional<std::size_t> LwipSocket::Send(Span<std::uint8_t> data) {
     return std::nullopt;
   }
   auto size_to_send = data.size();
-  // add nosignal to prevent throw SIGPIPE and handle it manually
-  int flags = MSG_NOSIGNAL;
+  int flags = 0;
   auto res = send(*socket_->fd(), data.data(), size_to_send, flags);
   if (res == -1) {
     if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
       // add wait for kWrite
+      // kWrite will be removed on the next Poll call
       socket_->Event(EventType::kRead | EventType::kWrite | EventType::kError,
                      MethodPtr<&LwipSocket::OnPollerEvent>{this});
-    }
-
-    if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
+      return 0;
+    } else {
       AE_TELED_ERROR("Send to socket error: {}, {}", static_cast<int>(errno),
                      strerror(errno));
       return std::nullopt;
     }
-    return 0;
   }
   return static_cast<std::size_t>(res);
 }
@@ -168,7 +166,7 @@ std::optional<std::size_t> LwipSocket::Receive(DescriptorType fd,
 std::optional<int> LwipSocket::GetSocketError(DescriptorType fd) {
   int err{};
 
-  socklen_t len = sizeof(len);
+  socklen_t len = sizeof(err);
   if (getsockopt(fd, SOL_SOCKET, SO_ERROR, static_cast<void*>(&err), &len) !=
       0) {
     AE_TELED_ERROR("Getsockopt error: {}, {}", static_cast<int>(errno),

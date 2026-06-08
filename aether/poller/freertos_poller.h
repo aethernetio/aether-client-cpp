@@ -29,13 +29,14 @@
 #  include <atomic>
 #  include <memory>
 
+#  include "aether/config.h"
 #  include "aether/poller/poller.h"
 #  include "aether/poller/poller_types.h"
 #  include "aether/types/small_function.h"
 
 namespace ae {
 class FreeRtosLwipPollerImpl : public NativePoller {
-  friend void vTaskFunction(void* pvParameters);
+  static constexpr std::size_t kStackSize = AE_FREERTOS_POLLER_STACK_SIZE;
 
  public:
   using EventCb = SmallFunction<void(DescriptorType fd, EventType event)>;
@@ -48,6 +49,7 @@ class FreeRtosLwipPollerImpl : public NativePoller {
   FreeRtosLwipPollerImpl();
   ~FreeRtosLwipPollerImpl() override;
 
+  // implementation for BasicLockable
   void lock();
   void unlock();
 
@@ -56,9 +58,10 @@ class FreeRtosLwipPollerImpl : public NativePoller {
 
  private:
   void Loop();
-  std::vector<pollfd> FillFdsVector();
+  void FillFdsVector(std::vector<pollfd>& fds);
 
-  TaskHandle_t myTaskHandle_ = nullptr;
+  TaskHandle_t worker_task_handle_ = nullptr;
+  TaskHandle_t my_task_handle_ = nullptr;
   std::array<int, 2> wake_up_pipe_;
   std::atomic_bool stop_requested_;
   std::map<DescriptorType, PollEvent> event_map_;
@@ -113,4 +116,4 @@ class FreertosPoller : public IPoller {
 }  // namespace ae
 
 #endif
-#endif  // AETHER_POLLER_FREERTOS_POLLER_H_ */
+#endif  // AETHER_POLLER_FREERTOS_POLLER_H_

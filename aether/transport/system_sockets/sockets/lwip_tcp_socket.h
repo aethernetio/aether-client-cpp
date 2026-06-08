@@ -27,9 +27,6 @@
 
 namespace ae {
 class LwipTcpSocket final : public LwipSocket {
-  static constexpr int kRcvTimeoutSec = 0;
-  static constexpr int kRcvTimeoutUsec = 10000;
-
  public:
   explicit LwipTcpSocket(Ptr<IPoller> const& poller);
 
@@ -40,7 +37,7 @@ class LwipTcpSocket final : public LwipSocket {
   void OnPollerEvent(DescriptorType fd, EventType event) override;
 
  private:
-  static int MakeSocket();
+  static int MakeSocket() noexcept;
 
   void OnConnectionEvent(DescriptorType fd);
 

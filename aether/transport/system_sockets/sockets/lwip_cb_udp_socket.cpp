@@ -28,8 +28,8 @@ LwipCBUdpSocket::LwipCBUdpSocket(Ptr<IPoller> const&) {}
 
 LwipCBUdpSocket::~LwipCBUdpSocket() { Disconnect(); }
 
-ISocket& LwipCBUdpSocket::ReadyToWrite(ReadyToWriteCb ready_to_write_cb) {
-  ready_to_write_cb_ = std::move(ready_to_write_cb);
+ISocket& LwipCBUdpSocket::ReadyToWrite(
+    [[maybe_unused]] ReadyToWriteCb ready_to_write_cb) {
   return *this;
 }
 
@@ -75,7 +75,7 @@ std::optional<std::size_t> LwipCBUdpSocket::Send(Span<std::uint8_t> data) {
     return std::nullopt;
   }
 
-  AE_TELED_ERROR("Sent {} bytes", data.size());
+  AE_TELED_DEBUG("Sent {} bytes", data.size());
 
   return data.size();
 }
@@ -85,10 +85,11 @@ void LwipCBUdpSocket::Disconnect() {
     return;
   }
   LOCK_TCPIP_CORE();
+  ae_defer[]() { UNLOCK_TCPIP_CORE(); };
+
   udp_recv(pcb_, nullptr, nullptr);
   udp_remove(pcb_);
   pcb_ = nullptr;
-  UNLOCK_TCPIP_CORE();
 }
 
 ISocket& LwipCBUdpSocket::Connect(AddressPort const& destination,
@@ -158,8 +159,10 @@ void LwipCBUdpSocket::UdpClientRecv(void* arg, struct udp_pcb* upcb,
   }
 
   // Our server address?
-  if (!ip_addr_cmp(&self->server_ipaddr_, addr)) {
-    AE_TELED_ERROR("Received from unexpected IP:{}", ipaddr_ntoa(addr));
+  if (!ip_addr_cmp(&self->server_ipaddr_, addr) ||
+      (self->server_port_ != port)) {
+    AE_TELED_ERROR("Received from unexpected IP:{}:{}", ipaddr_ntoa(addr),
+                   port);
     self->OnError();
     return;
   }

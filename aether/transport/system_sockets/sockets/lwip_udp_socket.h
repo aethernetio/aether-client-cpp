@@ -34,7 +34,7 @@ class LwipUdpSocket final : public LwipSocket {
                    ConnectedCb connected_cb) override;
 
  private:
-  static int MakeSocket();
+  static int MakeSocket() noexcept;
 
   ConnectionState connection_state_;
   ConnectedCb connected_cb_;

@@ -57,7 +57,6 @@ class LwipCBUdpSocket : public ISocket {
  protected:
   void OnError();
 
-  ReadyToWriteCb ready_to_write_cb_;
   RecvDataCb recv_data_cb_;
   ErrorCb error_cb_;
 

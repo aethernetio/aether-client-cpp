@@ -27,17 +27,18 @@
 
 namespace ae {
 namespace freertos_poller_internal {
-inline struct sockaddr_in MakeLoopbackAddr() {
+inline struct sockaddr_in MakeLoopbackAddr(std::uint16_t port) noexcept {
   constexpr char kLoopbackIp[] = "127.0.0.1";
   struct sockaddr_in loopback_addr;
   memset(&loopback_addr, 0, sizeof(loopback_addr));
   loopback_addr.sin_family = AF_INET;
   loopback_addr.sin_addr.s_addr = inet_addr(kLoopbackIp);
-  loopback_addr.sin_port = htons(66);
+  loopback_addr.sin_port = htons(port);
   return loopback_addr;
 }
 
-inline int MakeListenPart() {
+inline int MakeLoopbackSocket(std::uint16_t port_listen,
+                              std::uint16_t port_connect) noexcept {
   int l_socket = socket(AF_INET, SOCK_DGRAM, 0);
   if (l_socket == -1) {
     AE_TELED_ERROR("Create listen socket failed with {}", errno);
@@ -45,17 +46,18 @@ inline int MakeListenPart() {
     return -1;
   }
   fcntl(l_socket, F_SETFL, O_NONBLOCK);
-  auto const addr = MakeLoopbackAddr();
-  if (bind(l_socket, reinterpret_cast<sockaddr const*>(&addr), sizeof(addr)) !=
-      0) {
-    AE_TELED_ERROR("Bind listen socket failed with {}", errno);
+  auto const bind_addr = MakeLoopbackAddr(port_listen);
+  if (bind(l_socket, reinterpret_cast<sockaddr const*>(&bind_addr),
+           sizeof(bind_addr)) != 0) {
+    AE_TELED_ERROR("Bind socket failed with {}", errno);
     close(l_socket);
     assert(false);
     return -1;
   }
-  if (connect(l_socket, reinterpret_cast<sockaddr const*>(&addr),
-              sizeof(addr)) != 0) {
-    AE_TELED_ERROR("Create  socket failed with {}", errno);
+  auto const conn_addr = MakeLoopbackAddr(port_connect);
+  if (connect(l_socket, reinterpret_cast<sockaddr const*>(&conn_addr),
+              sizeof(conn_addr)) != 0) {
+    AE_TELED_ERROR("Connect socket failed with {}", errno);
     close(l_socket);
     assert(false);
     return -1;
@@ -63,18 +65,22 @@ inline int MakeListenPart() {
   return l_socket;
 }
 
-inline std::array<int, 2> MakePipe() {
+inline int MakeListenPart() noexcept { return MakeLoopbackSocket(66, 67); }
+inline int MakeWritePart() noexcept { return MakeLoopbackSocket(67, 66); }
+
+inline std::array<int, 2> MakePipe() noexcept {
   auto sock = MakeListenPart();
-  return {sock, sock};
+  auto write_sock = MakeWritePart();
+  return {sock, write_sock};
 }
 
-inline void WritePipe(std::array<int, 2> const& pipe) {
+inline void WritePipe(std::array<int, 2> const& pipe) noexcept {
   if (pipe[1] != -1) {
     send(pipe[1], "1", 1, 0);
   }
 }
 
-inline void ReadPipe(std::array<int, 2> const& pipe) {
+inline void ReadPipe(std::array<int, 2> const& pipe) noexcept {
   if (pipe[0] != -1) {
     std::uint8_t buff[16];
     auto n = recv(pipe[0], &buff, sizeof(buff), 0);
@@ -82,7 +88,7 @@ inline void ReadPipe(std::array<int, 2> const& pipe) {
   }
 }
 
-inline void ClosePipe(std::array<int, 2>& pipe) {
+inline void ClosePipe(std::array<int, 2>& pipe) noexcept {
   if (pipe[1] != -1) {
     close(pipe[1]);
     pipe[1] = -1;
@@ -93,7 +99,7 @@ inline void ClosePipe(std::array<int, 2>& pipe) {
   }
 }
 
-EventType FromEpollEvent(std::uint32_t events) {
+EventType FromPollEvent(std::uint32_t events) {
   EventType event_type{0};
 
   if ((events & POLLIN) != 0) {
@@ -110,29 +116,42 @@ EventType FromEpollEvent(std::uint32_t events) {
 
 }  // namespace freertos_poller_internal
 
-void vTaskFunction(void* pvParameters) {
-  auto* poller = static_cast<FreeRtosLwipPollerImpl*>(pvParameters);
-  poller->Loop();
-}
-
 FreeRtosLwipPollerImpl::FreeRtosLwipPollerImpl()
     : wake_up_pipe_{freertos_poller_internal::MakePipe()},
       stop_requested_{false} {
   assert(wake_up_pipe_[0] != -1);
   assert(wake_up_pipe_[1] != -1);
 
-  xTaskCreate(static_cast<void (*)(void*)>(&vTaskFunction), "Poller loop", 4096,
-              static_cast<void*>(this), tskIDLE_PRIORITY + 1, &myTaskHandle_);
-  AE_TELE_DEBUG(kFreertosWorkerCreate, "Poll worker was created");
+  my_task_handle_ = xTaskGetCurrentTaskHandle();
+
+  auto res = xTaskCreate(
+      [](void* arg) noexcept {
+        auto* poller = static_cast<FreeRtosLwipPollerImpl*>(arg);
+        poller->Loop();
+        // notify - the task is finished
+        xTaskNotifyGive(poller->my_task_handle_);
+        // delete the task
+        vTaskDelete(nullptr);
+      },
+      "FreeRTOS lwip poller loop", kStackSize, static_cast<void*>(this),
+      tskIDLE_PRIORITY + 1, &worker_task_handle_);
+  if (res != pdPASS) {
+    AE_TELED_ERROR("Failed to create poll worker task: {}", res);
+  } else {
+    AE_TELE_DEBUG(kFreertosWorkerCreate, "Poll worker was created");
+  }
 }
 
 FreeRtosLwipPollerImpl::~FreeRtosLwipPollerImpl() {
-  stop_requested_ = true;
+  stop_requested_.store(true, std::memory_order::release);
   freertos_poller_internal::WritePipe(wake_up_pipe_);
-  if (myTaskHandle_ != nullptr) {
-    vTaskDelete(myTaskHandle_);
+  // if task was created
+  if (worker_task_handle_ != nullptr) {
+    // wait for the task to stop (join)
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
   freertos_poller_internal::ClosePipe(wake_up_pipe_);
+
   AE_TELE_DEBUG(kFreertosWorkerDestroyed, "Poll worker has been destroyed");
 }
 
@@ -157,11 +176,11 @@ void FreeRtosLwipPollerImpl::Remove(DescriptorType fd) {
 
 void FreeRtosLwipPollerImpl::Loop() {
   static constexpr int kPollingTimeout = 16000;
-  while (!stop_requested_) {
-    std::vector<pollfd> fds_vector;
+  std::vector<pollfd> fds_vector;
+  while (!stop_requested_.load(std::memory_order::acquire)) {
     {
       auto lock = std::scoped_lock{ctl_mutex_};
-      fds_vector = FillFdsVector();
+      FillFdsVector(fds_vector);
     }
     auto res = lwip_poll(fds_vector.data(), fds_vector.size(), kPollingTimeout);
     if (res == -1) {
@@ -191,14 +210,14 @@ void FreeRtosLwipPollerImpl::Loop() {
       if (poll_event == event_map_.end()) {
         continue;
       }
-      poll_event->second.cb(
-          v.fd, freertos_poller_internal::FromEpollEvent(v.revents));
+      poll_event->second.cb(v.fd,
+                            freertos_poller_internal::FromPollEvent(v.revents));
     }
   }
 }
 
-std::vector<pollfd> FreeRtosLwipPollerImpl::FillFdsVector() {
-  std::vector<pollfd> fds;
+void FreeRtosLwipPollerImpl::FillFdsVector(std::vector<pollfd>& fds) {
+  fds.clear();
   // all events and wake up pipe
   fds.reserve(event_map_.size() + 1);
   {
@@ -240,8 +259,6 @@ std::vector<pollfd> FreeRtosLwipPollerImpl::FillFdsVector() {
     pfd.revents = 0;
     fds.push_back(pfd);
   }
-
-  return fds;
 }
 
 FreeRtosPolledFd::FreeRtosPolledFd(DescriptorType fd,

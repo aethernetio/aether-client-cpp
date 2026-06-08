@@ -119,6 +119,10 @@
 #  define AE_LWIP_SOCKET_TYPES LWIP_CB_SOCKETS
 #endif
 
+#ifndef AE_FREERTOS_POLLER_STACK_SIZE
+#  define AE_FREERTOS_POLLER_STACK_SIZE 4096
+#endif
+
 /**
  * Is WiFi modules supported.
  * Also choose one of the supported WiFi modules implementations.
