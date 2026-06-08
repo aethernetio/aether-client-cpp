@@ -27,6 +27,8 @@
 #include "aether/work_cloud_api/server_descriptor.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 
+#include "aether/tele/tele.h"
+
 namespace ae {
 namespace client_cloud_manager_internal {
 GetCloudFromCache::GetCloudFromCache(AeContext const& ae_context,
@@ -62,6 +64,8 @@ GetCloudFromAether::result_event() noexcept {
 }
 
 void GetCloudFromAether::RequestCloud() {
+  AE_TELED_DEBUG("RequestCloud");
+
   get_client_cloud_action_.emplace(
       ae_context_, client_uid_, *cloud_connection_,
       RequestPolicy::Replica{cloud_connection_->count_connections()});
