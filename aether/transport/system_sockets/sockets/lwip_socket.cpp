@@ -127,11 +127,7 @@ void LwipSocket::OnReadEvent(DescriptorType fd) {
     buffer = buffer.sub(0, *res);
     if (recv_data_cb_) {
       recv_data_cb_(buffer);
-    } else {
-      printf("fd %d, Received bytes=%zu but no callback set\n",
-             static_cast<int>(fd), *res);
     }
-    return;
   }
 }
 
