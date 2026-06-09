@@ -99,28 +99,6 @@ Domain::Domain(TimePoint p, IDomainStorage& storage)
       storage_(&storage),
       registry_{&Registry::GetRegistry()} {}
 
-TimePoint Domain::Update(TimePoint current_time) {
-  update_time_ = current_time;
-  auto next_time = current_time + std::chrono::hours(365);
-  for (auto& [_, ptr_view] : id_objects_) {
-    auto ptr = ptr_view.Lock();
-    if (!ptr) {
-      continue;
-    }
-    // TODO: do not call update for someone who is not want it
-    ptr->Update(current_time);
-    if (ptr->update_time > current_time) {
-      next_time = std::min(next_time, ptr->update_time);
-    } else if (ptr->update_time < current_time) {
-#ifdef DEBUG
-      AE_TELE_ERROR(ObjectDomainUpdatePastTime,
-                    "Update returned next time point in the past");
-#endif  // DEBUG_
-    }
-  }
-  return next_time;
-}
-
 Ptr<Obj> Domain::ConstructObj(Factory const& factory, ObjId obj_id) {
   Ptr<Obj> o = factory.create();
   AddObject(obj_id, o);

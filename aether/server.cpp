@@ -30,17 +30,6 @@ Server::Server(ObjProp prop, ServerId server_id,
   Register();
 }
 
-void Server::Update(TimePoint current_time) {
-  if (!subscribed_) {
-    subscribed_ = true;
-    UpdateSubscription();
-  }
-  if (update_time < current_time) {
-    // almost never
-    update_time = current_time + std::chrono::hours(365 * 24);
-  }
-}
-
 void Server::Register() {
   UpdateSubscription();
 

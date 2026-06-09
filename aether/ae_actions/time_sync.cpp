@@ -76,52 +76,56 @@ auto TimeSyncRequest::EnsureConnected() {
 }
 
 auto TimeSyncRequest::SyncRequest() {
-  return ex::create<ex::set_value_t(Success), ex::set_error_t(Failed),
-                    ex::set_error_t(Retry)>([&](auto& ctx) noexcept {
-    auto client_ptr = client_.Lock();
-    if (!client_ptr) {
-      return ex::set_error(std::move(ctx.receiver), Failed{});
-    }
+  return ex::let_value([&](Success) noexcept {
+    return ex::create<ex::set_value_t(Success), ex::set_error_t(Failed),
+                      ex::set_error_t(Retry)>([&](auto& ctx) noexcept {
+      auto client_ptr = client_.Lock();
+      if (!client_ptr) {
+        return ex::set_error(std::move(ctx.receiver), Failed{});
+      }
 
-    // send get_time_utc request to main server
-    // get_time_utc return server utc time point in microseconds
-    CloudVisit::Visit(
-        [&](CloudServerConnection* sc) {
-          assert((sc != nullptr) && "Server connection is null!");
+      // send get_time_utc request to main server
+      // get_time_utc return server utc time point in microseconds
+      CloudVisit::Visit(
+          [&](CloudServerConnection* sc) {
+            assert((sc != nullptr) && "Server connection is null!");
 
-          auto* cc = sc->client_connection();
-          assert(((cc != nullptr) &&
-                  (cc->stream_info().link_state == LinkState::kLinked)) &&
-                 "Client connection is not linked!");
+            auto* cc = sc->client_connection();
+            assert(((cc != nullptr) &&
+                    (cc->stream_info().link_state == LinkState::kLinked)) &&
+                   "Client connection is not linked!");
 
-          auto& write_action =
-              cc->LoginApiCall(SubApi<LoginApi>{[&](auto& api) {
-                AE_TELED_DEBUG("Make time sync request");
-                response_sub_ = api->get_time_utc().Subscribe(
-                    [&, request_time{Now()}](auto const& p) {
-                      if (!p) {
-                        return ex::set_error(std::move(ctx.receiver), Retry{});
-                      }
-                      HandleResponse(
-                          std::chrono::milliseconds{
-                              static_cast<std::int64_t>(p.value())},
-                          request_time, Now());
-                      // time synced
-                      return ex::set_value(std::move(ctx.receiver), Success{});
-                    });
-              }});
-          write_action_sub_ =
-              write_action.status_event().Subscribe([&](auto status) {
-                if (status == WriteAction::Status::kFail) {
-                  AE_TELED_ERROR("Time sync write error, retry");
-                  return ex::set_error(std::move(ctx.receiver), Retry{});
-                }
-              });
-        },
-        client_ptr->cloud_connection(), RequestPolicy::MainServer{});
+            auto& write_action =
+                cc->LoginApiCall(SubApi<LoginApi>{[&](auto& api) {
+                  AE_TELED_DEBUG("Make time sync request");
+                  response_sub_ = api->get_time_utc().Subscribe(
+                      [&, request_time{Now()}](auto const& p) {
+                        if (!p) {
+                          return ex::set_error(std::move(ctx.receiver),
+                                               Retry{});
+                        }
+                        HandleResponse(
+                            std::chrono::milliseconds{
+                                static_cast<std::int64_t>(p.value())},
+                            request_time, Now());
+                        // time synced
+                        return ex::set_value(std::move(ctx.receiver),
+                                             Success{});
+                      });
+                }});
+            write_action_sub_ =
+                write_action.status_event().Subscribe([&](auto status) {
+                  if (status == WriteAction::Status::kFail) {
+                    AE_TELED_ERROR("Time sync write error, retry");
+                    return ex::set_error(std::move(ctx.receiver), Retry{});
+                  }
+                });
+          },
+          client_ptr->cloud_connection(), RequestPolicy::MainServer{});
 
-    // use raw time to avoid sync jumps
-    request_time_ = Now();
+      // use raw time to avoid sync jumps
+      request_time_ = Now();
+    });
   });
 }
 
@@ -131,10 +135,7 @@ TimeSyncRequest::TimeSyncRequest(AeContext const& ae_context,
   auto s =
       ex::for_range(Range{1, kMaxTries},
                     [&](auto) {
-                      return EnsureConnected() |
-                             ex::let_value([&](Success) noexcept {
-                               return SyncRequest();
-                             }) |
+                      return EnsureConnected() | SyncRequest() |
                              ex::with_timeout(ae_context_, kRequestTimeout) |
                              ex::let_error(Override{
                                  [](Retry) noexcept {
@@ -184,7 +185,7 @@ void TimeSyncRequest::HandleResponse(std::chrono::milliseconds server_epoch,
   // update diff time
   SyncClock::SyncTimeDiff +=
       std::chrono::duration_cast<decltype(SyncClock::SyncTimeDiff)>(diff_time);
-  AE_TELED_DEBUG("Current time {:%Y-%m-%d %H:%M:%S}", Now());
+  AE_TELED_DEBUG("Current time {:%Y-%m-%d %H:%M:%S}", SyncClock::now());
 }
 
 }  // namespace time_sync_internal

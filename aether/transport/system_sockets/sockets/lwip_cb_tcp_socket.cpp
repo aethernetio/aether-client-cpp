@@ -28,8 +28,8 @@ LwipCBTcpSocket::LwipCBTcpSocket(Ptr<IPoller> const&) {}
 
 LwipCBTcpSocket::~LwipCBTcpSocket() { Disconnect(); }
 
-ISocket& LwipCBTcpSocket::ReadyToWrite(
-    [[maybe_unused]] ReadyToWriteCb ready_to_write_cb) {
+ISocket& LwipCBTcpSocket::ReadyToWrite(ReadyToWriteCb ready_to_write_cb) {
+  ready_to_write_cb_ = std::move(ready_to_write_cb);
   return *this;
 }
 
@@ -136,11 +136,19 @@ ISocket& LwipCBTcpSocket::Connect(AddressPort const& destination,
 }
 
 void LwipCBTcpSocket::OnConnectionEvent() {
-  AE_TELED_DEBUG("LwIp CB TCP socket connectioin event {}", connection_state_);
+  AE_TELED_DEBUG("LwIp CB TCP socket connection event {}", connection_state_);
 
   if (connected_cb_) {
     connected_cb_(connection_state_);
   }
+}
+// Callback client data sent
+err_t LwipCBTcpSocket::TcpClientSent(void* arg, struct tcp_pcb*, u16_t) {
+  auto* self = static_cast<LwipCBTcpSocket*>(arg);
+  if (self->ready_to_write_cb_) {
+    self->ready_to_write_cb_();
+  }
+  return ERR_OK;
 }
 
 // Callback client data received
@@ -174,7 +182,9 @@ err_t LwipCBTcpSocket::TcpClientRecv(void* arg, struct tcp_pcb* tpcb,
         static_cast<std::uint8_t*>(packet->payload),
         static_cast<std::size_t>(packet->len),
     };
-    self->recv_data_cb_(payload_span);
+    if (self->recv_data_cb_) {
+      self->recv_data_cb_(payload_span);
+    }
   }
 
   // Ack
@@ -205,6 +215,7 @@ err_t LwipCBTcpSocket::TcpClientConnected(void* arg, struct tcp_pcb* tpcb,
 
   // Setting callbacks
   tcp_recv(tpcb, LwipCBTcpSocket::TcpClientRecv);
+  tcp_sent(tpcb, LwipCBTcpSocket::TcpClientSent);
 
   AE_TELED_DEBUG("Connected to the server");
   self->connection_state_ = ConnectionState::kConnected;

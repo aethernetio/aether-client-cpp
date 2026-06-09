@@ -33,8 +33,7 @@ LwipUdpSocket::LwipUdpSocket(Ptr<IPoller> const& poller)
   recv_buffer_.resize(1200);
 }
 
-int LwipUdpSocket::MakeSocket() {
-  bool created = false;
+int LwipUdpSocket::MakeSocket() noexcept {
   auto sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (sock < 0) {
     AE_TELED_ERROR("LwIp UDP socket not created {}", strerror(errno));
@@ -42,21 +41,17 @@ int LwipUdpSocket::MakeSocket() {
   }
 
   // close the socket if not created
-  ae_defer[&] {
-    if (!created) {
-      close(sock);
-    }
-  };
+  auto on_failure = ae_defer_at[&] { close(sock); };
 
   // make socket nonblocking
-  if (lwip_fcntl(sock, F_SETFL, O_NONBLOCK) != ESP_OK) {
+  if (lwip_fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
     AE_TELED_ERROR("lwip_fcntl set nonblocking mode error {} {}", errno,
                    strerror(errno));
     return kInvalidDescriptor;
   }
 
   AE_TELED_DEBUG("LwIp UDP socket created");
-  created = true;
+  on_failure.Reset();
   return sock;
 }
 
@@ -66,8 +61,7 @@ ISocket& LwipUdpSocket::Connect(AddressPort const& destination,
   assert(socket_ && "Socket is not initialized");
 
   ae_defer[&]() {
-    Poll();
-    AE_TELED_DEBUG("LwIp UDP socket connectioin event {}", connection_state_);
+    AE_TELED_DEBUG("LwIp UDP socket connection event {}", connection_state_);
     connected_cb(connection_state_);
   };
 
@@ -81,6 +75,7 @@ ISocket& LwipUdpSocket::Connect(AddressPort const& destination,
   }
 
   connection_state_ = ConnectionState::kConnected;
+  Poll();
   return *this;
 }
 }  // namespace ae

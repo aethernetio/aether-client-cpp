@@ -138,8 +138,6 @@ class Domain {
  public:
   Domain(TimePoint p, IDomainStorage& storage);
 
-  TimePoint Update(TimePoint current_time);
-
   // Search for the object by obj_id.
   Ptr<Obj> Find(ObjId obj_id) const;
 

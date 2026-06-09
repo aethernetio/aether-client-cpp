@@ -21,8 +21,8 @@
 #include <atomic>
 #include <chrono>
 #include <cassert>
-#include <format>
-#include <iostream>
+#include <format>    // IWYU pragma: keeps
+#include <iostream>  // IWYU pragma: keeps
 #include <condition_variable>
 
 #include "aether/tasks/details/task_manager.h"
@@ -60,7 +60,7 @@ class ManualTaskScheduler {
   TimePointType Update(
       TimePointType current_time = TimePointType::clock::now()) {
     auto lock = std::unique_lock{lock_};
-    trigger_ = false;
+    trigger_.store(false, std::memory_order::release);
     CheckOverflows();
 
     // run regular tasks
@@ -84,12 +84,15 @@ class ManualTaskScheduler {
    * \param wake_up_time - maximum time to wait.
    */
   void WaitUntil(TimePointType wake_up_time) {
-    auto lock = std::unique_lock{lock_};
-    if (trigger_.exchange(false)) {
+    // fast check without mutex locking
+    if (trigger_.load(std::memory_order::acquire)) {
       return;
     }
-    cv_.wait_until(lock, wake_up_time, [this]() { return trigger_.load(); });
-    trigger_ = false;
+
+    auto lock = std::unique_lock{lock_};
+    cv_.wait_until(lock, wake_up_time, [this]() noexcept {
+      return trigger_.load(std::memory_order::acquire);
+    });
   }
 
   std::size_t overflow_counter() const { return overflow_counter_; }
@@ -102,7 +105,7 @@ class ManualTaskScheduler {
     if (p == nullptr) {
       overflow_counter_++;
     }
-    trigger_ = true;
+    trigger_.store(true, std::memory_order::release);
     cv_.notify_one();
     return p;
   }

@@ -77,8 +77,6 @@ class Aether : public Obj {
         tele_statistics, poller, dns_resolver, adapter_registry, uap);
   }
 
-  void Update(TimePoint current_time) override;
-
   // AeContext protocol
   AeCtx ToAeContext() const;
 
