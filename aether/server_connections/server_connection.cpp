@@ -34,10 +34,9 @@ ServerConnection::ServerConnection(AeContext const& ae_context,
 }
 
 WriteAction& ServerConnection::Write(DataBuffer&& in_data) {
-  assert(channel_connection_.has_value() &&
-         "channel connection is not available");
+  assert((top_channel_ != nullptr) && "channel connection is not available");
 
-  auto* stream = channel_connection_->stream();
+  auto* stream = top_channel_->connection.stream();
   assert((stream != nullptr) && "channel stream is not available");
 
   return stream->Write(std::move(in_data));
@@ -112,18 +111,17 @@ void ServerConnection::InitChannels() {
 
   channels_.reserve(channels.size());
   for (auto const& c : channels) {
-    channels_.emplace_back(ChannelEntry{c, false});
+    channels_.emplace_back(std::make_unique<ChannelEntry>(ae_context_, c));
   }
 }
 
 ServerConnection::ChannelEntry* ServerConnection::TopChannel() {
-  auto it =
-      std::find_if(std::begin(channels_), std::end(channels_),
-                   [](ChannelEntry const& entry) { return !entry.failed; });
+  auto it = std::find_if(std::begin(channels_), std::end(channels_),
+                         [](auto const& entry) { return !entry->failed; });
   if (it == std::end(channels_)) {
     return nullptr;
   }
-  return &(*it);
+  return it->get();
 }
 
 void ServerConnection::SelectChannel() {
@@ -150,7 +148,7 @@ void ServerConnection::SelectChannel() {
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_writable = false;
 
-  channel_connection_.emplace(ae_context_, channel, [this](auto&& res) {
+  top_channel_->connection.BuildTransport(channel, [this](auto&& res) {
     if (res) {
       ChannelUpdated(res.value());
     } else {
@@ -187,7 +185,7 @@ void ServerConnection::ServerError() {
   AE_TELED_ERROR("Server error");
   channel_stream_update_sub_.Reset();
   channel_stream_out_data_sub_.Reset();
-  channel_connection_.reset();
+  // TODO: should we also reset connection.stream()
 
   stream_info_.link_state = LinkState::kLinkError;
   stream_info_.is_writable = false;

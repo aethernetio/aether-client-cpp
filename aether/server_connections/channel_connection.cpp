@@ -24,44 +24,43 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
-ChannelConnection::ChannelConnection(AeContext const& ae_context,
-                                     Ptr<Channel> const& channel,
-                                     ConnectionStateCb&& connection_state_cb)
-    : ae_context_{ae_context},
-      connection_state_cb_{std::move(connection_state_cb)} {
-  BuildTransport(channel);
-}
+ChannelConnection::ChannelConnection(AeContext const& ae_context)
+    : ae_context_{ae_context} {}
 
 ByteIStream* ChannelConnection::stream() const {
   return transport_stream_.get();
 }
 
-void ChannelConnection::BuildTransport(Ptr<Channel> const& channel) {
+void ChannelConnection::BuildTransport(
+    Ptr<Channel> const& channel, ConnectionStateCb&& connection_state_cb) {
   transport_build_start_ = Now();
   auto sender = channel->TransportBuilder();
   transport_waiter_.emplace(
       ae_context_,
       std::move(sender) |
           ex::with_timeout(ae_context_, channel->TransportBuildTimeout()),
-      [&, c_ = PtrView<Channel>{channel}](auto&& result) {
-        assert(!!result);
+      [&, c_ = PtrView<Channel>{channel},
+       cb_ = std::move(connection_state_cb)](auto&& result) {
+        // the result must exists
+        assert(!!result && "The result must exists");
         if (result->IsOk()) {
           UpdateTransportBuildTime(c_);
           transport_stream_ = std::move(result->value());
           assert(transport_stream_ && "Transport should be created");
-          connection_state_cb_(Ok<ByteIStream&>{*transport_stream_});
+          cb_(Ok<ByteIStream&>{*transport_stream_});
         } else {
-          std::visit(
-              Override{[&](ex::TimeoutError) {
-                         AE_TELED_ERROR("Transport build timeout");
-                         connection_state_cb_(Error{-1});
-                       },
-                       [&](int e) {
-                         AE_TELED_ERROR(
-                             "Transport build failed with error code: {}", e);
-                         connection_state_cb_(Error{e});
-                       }},
-              result->error());
+          std::visit(Override{
+                         [&](ex::TimeoutError) {
+                           AE_TELED_ERROR("Transport build timeout");
+                           cb_(Error{-1});
+                         },
+                         [&](int e) {
+                           AE_TELED_ERROR(
+                               "Transport build failed with error code: {}", e);
+                           cb_(Error{e});
+                         },
+                     },
+                     result->error());
         }
         transport_waiter_.reset();
       });
