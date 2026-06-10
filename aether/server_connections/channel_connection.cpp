@@ -72,7 +72,7 @@ void ChannelConnection::UpdateTransportBuildTime(PtrView<Channel> const& c) {
   assert(channel && "Channel not loaded");
   auto build_time =
       std::chrono::duration_cast<Duration>(Now() - transport_build_start_);
-  AE_TELED_ERROR("Transport built for {:%S}", build_time);
+  AE_TELED_INFO("Transport built for {:%S}", build_time);
   channel->channel_statistics().AddConnectionTime(build_time);
 }
 

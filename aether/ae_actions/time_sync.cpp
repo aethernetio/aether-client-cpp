@@ -161,7 +161,7 @@ TimeSyncRequest::TimeSyncRequest(AeContext const& ae_context,
           AE_TELED_ERROR("Time sync failed");
         }
         if (res && *res) {
-          AE_TELED_ERROR("Time sync succeeded");
+          AE_TELED_INFO("Time sync succeeded");
         }
         Finish();
       });
