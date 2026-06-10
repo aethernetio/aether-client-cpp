@@ -46,25 +46,19 @@
 
 namespace ae {
 namespace tcp_internal {
-template <typename Sock, typename Lock>
+template <typename Sock>
 class SendAction final : public PacketSendAction {
  public:
-  SendAction(AeContext const& ae_context, Sock& socket, Lock& lock,
+  SendAction(AeContext const& ae_context, Sock& socket,
              DataBuffer&& data_buffer)
       : ae_context_{ae_context},
         socket_{&socket},
-        lock_{&lock},
         data_{std::move(data_buffer)} {}
 
   AE_CLASS_MOVE_ONLY(SendAction)
 
   void Send() override {
     reenqueue_ = false;
-    if (!lock_->try_lock()) {
-      reenqueue_ = true;
-      return;
-    }
-    auto sl = std::scoped_lock{std::adopt_lock, *lock_};
 
     auto size_to_send = data_.size() - sent_offset_;
     auto res = socket_->Send(Span{data_.data() + sent_offset_, size_to_send});
@@ -101,7 +95,6 @@ class SendAction final : public PacketSendAction {
  private:
   AeContext ae_context_;
   Sock* socket_;
-  Lock* lock_;
   DataBuffer data_;
   std::size_t sent_offset_ = 0;
   bool is_done_ = false;
@@ -128,12 +121,13 @@ class TcpBase : public ByteIStream {
 
   AeContext ae_context_;
   AddressPort endpoint_;
-  std::mutex lock_;
   MultiSubscription send_action_subs_;
 
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;
   StreamUpdateEvent stream_update_event_;
+
+  std::mutex buffer_lock_;
   StreamDataPacketCollector data_packet_collector_;
   std::atomic_bool read_event_{false};
   TaskSubscription read_event_sub_;
@@ -145,7 +139,7 @@ class TcpBase : public ByteIStream {
 template <typename Socket, std::size_t QueueSize>
 class TcpTransport final : public tcp_internal::TcpBase {
  public:
-  using SendAction = tcp_internal::SendAction<Socket, std::mutex>;
+  using SendAction = tcp_internal::SendAction<Socket>;
 
   TcpTransport(AeContext const& ae_context, Ptr<IPoller> const& poller,
                AddressPort endpoint)
@@ -179,8 +173,8 @@ class TcpTransport final : public tcp_internal::TcpBase {
     // copy data with size
     os << std::move(in_data);  // NOLINT
 
-    auto* send_action = queue_manager_.AddPacket(ae_context_, socket_, lock_,
-                                                 std::move(packet_data));
+    auto* send_action =
+        queue_manager_.AddPacket(ae_context_, socket_, std::move(packet_data));
     if (send_action == nullptr) {
       AE_TELED_ERROR("Queue manager is full");
       return FailedWrite();
@@ -201,10 +195,7 @@ class TcpTransport final : public tcp_internal::TcpBase {
   void Disconnect() override {
     AE_TELE_INFO(kTcpTransportDisconnect, "Disconnect from {}", endpoint_);
     stream_info_.is_writable = false;
-    {
-      auto lock = std::scoped_lock{lock_};
-      socket_.Disconnect();
-    }
+    socket_.Disconnect();
     stream_update_event_.Emit();
   }
 

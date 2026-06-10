@@ -70,14 +70,14 @@ void TcpBase::OnConnection(ISocket::ConnectionState connection_state) {
 }
 
 void TcpBase::OnRecvData(Span<std::uint8_t> data) {
-  auto sl = std::scoped_lock{lock_};
+  auto sl = std::scoped_lock{buffer_lock_};
   AE_TELED_DEBUG("Received data {}", data.size());
   data_packet_collector_.AddData(data.data(), data.size());
 
   // emit new data though scheduler stream
   if (!read_event_.exchange(true)) {
     read_event_sub_ = ae_context_.scheduler().Task([&]() {
-      auto sl = std::scoped_lock{lock_};
+      auto sl = std::scoped_lock{buffer_lock_};
       read_event_ = false;
       for (auto data = data_packet_collector_.PopPacket(); !data.empty();
            data = data_packet_collector_.PopPacket()) {

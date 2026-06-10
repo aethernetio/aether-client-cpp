@@ -65,14 +65,14 @@ void UdpBase::OnConnected(ISocket::ConnectionState connection_state) {
 }
 
 void UdpBase::OnRecvData(Span<std::uint8_t> data) {
-  auto lock = std::scoped_lock{socket_mutex_};
+  auto lock = std::scoped_lock{buffer_mutex_};
   // put data into read buffers
   read_buffers_.emplace_back(std::begin(data), std::end(data));
   // if not scheduled schedule a task to emit the data
   if (!read_event_.exchange(true)) {
     read_event_sub_ = ae_context_.scheduler().Task([&]() {
       auto buffers = std::invoke([&]() {
-        auto lock = std::scoped_lock{socket_mutex_};
+        auto lock = std::scoped_lock{buffer_mutex_};
         auto rb = std::vector<DataBuffer>();
         std::swap(rb, read_buffers_);
         read_event_ = false;
