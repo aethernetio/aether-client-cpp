@@ -210,6 +210,7 @@ void ClientServerConnection::ChannelChanged() {
   AE_TELED_DEBUG("Channel is updated, make new ping");
 
   auto make_ping = [&] {
+#if AE_ENABLE_PING
     auto& server_conn = server_connection_.server_connection;
     auto channel = server_conn.current_channel();
     // Create new ping if channel is updated
@@ -221,6 +222,7 @@ void ClientServerConnection::ChannelChanged() {
       AE_TELED_ERROR("Ping failed");
       server_connection_.Restream();
     });
+#endif
   };
 
   if (server_connection_.stream_info().link_state == LinkState::kLinked) {

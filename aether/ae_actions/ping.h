@@ -17,24 +17,26 @@
 #ifndef AETHER_AE_ACTIONS_PING_H_
 #define AETHER_AE_ACTIONS_PING_H_
 
-#include <cstdint>
-#include <optional>
+#include "aether/config.h"
 
-#include "aether/warning_disable.h"
+#if AE_ENABLE_PING
+
+#  include <cstdint>
+#  include <optional>
+
+#  include "aether/warning_disable.h"
 
 DISABLE_WARNING_PUSH()
 IGNORE_IMPLICIT_CONVERSION()
-#include <etl/circular_buffer.h>
+#  include <etl/circular_buffer.h>
 DISABLE_WARNING_POP()
 
-#include "aether/common.h"
-#include "aether/ptr/ptr.h"
-#include "aether/ae_context.h"
-#include "aether/ptr/ptr_view.h"
-#include "aether/events/events.h"
-#include "aether/api_protocol/request_id.h"
-#include "aether/events/event_subscription.h"
-#include "aether/events/multi_subscription.h"
+#  include "aether/ptr/ptr.h"
+#  include "aether/ae_context.h"
+#  include "aether/ptr/ptr_view.h"
+#  include "aether/events/events.h"
+#  include "aether/api_protocol/request_id.h"
+#  include "aether/events/multi_subscription.h"
 
 namespace ae {
 class Channel;
@@ -81,5 +83,5 @@ class Ping {
   TaskSubscription timeout_sub_;
 };
 }  // namespace ae
-
+#endif  // AE_ENABLE_PING
 #endif  // AETHER_AE_ACTIONS_PING_H_
