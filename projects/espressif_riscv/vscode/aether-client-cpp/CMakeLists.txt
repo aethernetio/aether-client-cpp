@@ -34,7 +34,7 @@ endif()
 add_compile_definitions("CONFIG_UNITY_ENABLE_DOUBLE")
 
 list(APPEND EXTRA_COMPONENT_DIRS "../../../../examples/cloud"
-                                 "../../../../examples/c_api"
+                                 "../../../../examples/capi/oddity"
                                  "../../../../examples/benches/send_message_delays"
 )
 
