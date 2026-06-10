@@ -137,6 +137,7 @@ class TcpBase : public ByteIStream {
   StreamDataPacketCollector data_packet_collector_;
   std::atomic_bool read_event_{false};
   TaskSubscription read_event_sub_;
+  TaskSubscription conn_state_sub_;
   std::optional<FailedWriteAction> failed_write_;
 };
 }  // namespace tcp_internal
@@ -154,16 +155,12 @@ class TcpTransport final : public tcp_internal::TcpBase {
   {
     AE_TELE_INFO(kTcpTransport);
     AE_TELE_INFO(kTcpTransportConnect, "Tcp connect to endpoint {}", endpoint_);
+
     // Make connection
     socket_.RecvData(MethodPtr<&TcpTransport::OnRecvData>{this})
         .ReadyToWrite(MethodPtr<&TcpTransport::OnReadyToWrite>{this})
         .Error(MethodPtr<&TcpTransport::OnSocketError>{this})
         .Connect(endpoint_, MethodPtr<&TcpTransport::OnConnection>{this});
-
-    stream_info_.link_state = LinkState::kUnlinked;
-    stream_info_.is_reliable = true;
-    // TODO: find a better value for max element size
-    stream_info_.max_element_size = std::numeric_limits<std::uint32_t>::max();
   }
 
   ~TcpTransport() override {

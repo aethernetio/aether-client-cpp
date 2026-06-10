@@ -25,6 +25,7 @@ UdpBase::UdpBase(AeContext const& ae_context, AddressPort endpoint)
   AE_TELE_INFO(kUdpTransport);
   stream_info_.link_state = LinkState::kUnlinked;
   stream_info_.is_reliable = false;
+  stream_info_.max_element_size = std::numeric_limits<std::uint32_t>::max();
 }
 
 UdpBase::StreamUpdateEvent::Subscriber UdpBase::stream_update_event() {
@@ -88,7 +89,7 @@ void UdpBase::OnRecvData(Span<std::uint8_t> data) {
 }
 
 void UdpBase::OnSocketError() {
-  ae_context_.scheduler().Task([&]() {
+  conn_state_sub_ = ae_context_.scheduler().Task([&]() {
     AE_TELED_ERROR("Socket error, disconnect!");
     stream_info_.link_state = LinkState::kLinkError;
     Disconnect();

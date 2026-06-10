@@ -26,7 +26,12 @@
 namespace ae {
 namespace tcp_internal {
 TcpBase::TcpBase(AeContext const& ae_context, AddressPort endpoint) noexcept
-    : ae_context_{ae_context}, endpoint_{std::move(endpoint)} {}
+    : ae_context_{ae_context}, endpoint_{std::move(endpoint)} {
+  stream_info_.link_state = LinkState::kUnlinked;
+  stream_info_.is_reliable = true;
+  // TODO: find a better value for max element size
+  stream_info_.max_element_size = std::numeric_limits<std::uint32_t>::max();
+}
 
 TcpBase::StreamUpdateEvent::Subscriber TcpBase::stream_update_event() {
   return EventSubscriber{stream_update_event_};
@@ -50,13 +55,15 @@ void TcpBase::OnConnection(ISocket::ConnectionState connection_state) {
     case ISocket::ConnectionState::kConnectionFailed:
     case ISocket::ConnectionState::kDisconnected: {
       stream_info_.link_state = LinkState::kLinkError;
-      ae_context_.scheduler().Task([&]() { stream_update_event_.Emit(); });
+      conn_state_sub_ =
+          ae_context_.scheduler().Task([&]() { stream_update_event_.Emit(); });
       break;
     }
     case ISocket::ConnectionState::kConnected: {
       stream_info_.is_writable = true;
       stream_info_.link_state = LinkState::kLinked;
-      ae_context_.scheduler().Task([&]() { stream_update_event_.Emit(); });
+      conn_state_sub_ =
+          ae_context_.scheduler().Task([&]() { stream_update_event_.Emit(); });
       break;
     }
   }
@@ -83,9 +90,11 @@ void TcpBase::OnRecvData(Span<std::uint8_t> data) {
 }
 void TcpBase::OnReadyToWrite() {}
 void TcpBase::OnSocketError() {
-  AE_TELED_ERROR("Socket error, disconnect!");
-  stream_info_.link_state = LinkState::kLinkError;
-  Disconnect();
+  conn_state_sub_ = ae_context_.scheduler().Task([&]() {
+    AE_TELED_ERROR("Socket error, disconnect!");
+    stream_info_.link_state = LinkState::kLinkError;
+    Disconnect();
+  });
 }
 
 FailedWriteAction& TcpBase::FailedWrite() {
