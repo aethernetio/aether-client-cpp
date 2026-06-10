@@ -73,12 +73,13 @@ void LwipCBTcpSocket::Disconnect() {
   }
 
   LOCK_TCPIP_CORE();
+  ae_defer[]() { UNLOCK_TCPIP_CORE(); };
   // set null so because we are not interested in events anymore
   tcp_arg(pcb_, nullptr);
   tcp_err(pcb_, nullptr);
   tcp_recv(pcb_, nullptr);
+
   tcp_close(pcb_);
-  UNLOCK_TCPIP_CORE();
   pcb_ = nullptr;
 }
 
