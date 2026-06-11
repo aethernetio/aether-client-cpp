@@ -91,7 +91,9 @@ class ClientServerConnection {
   client_server_connection_internal ::BufferedServerConnection
       server_connection_;
 
+#if AE_ENABLE_PING
   std::optional<Ping> ping_;
+#endif
 
   Subscription ping_sub_;
   Subscription wait_connection_sub_;

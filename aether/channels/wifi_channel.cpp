@@ -85,28 +85,29 @@ ex::sender auto TransportConnect(std::unique_ptr<ByteIStream>&& stream) {
                     ex::set_error_t(int)>(
       [s{std::move(stream)},
        link_sub{Subscription{}}](auto& ctx) mutable noexcept {
+        auto handle_link_state = [&]() noexcept {
+          link_sub.Reset();  // ensure subscribed only to one event
+          auto link_state = s->stream_info().link_state;
+          switch (link_state) {
+            case LinkState::kLinked: {
+              ex::set_value(std::move(ctx.receiver), std::move(s));
+              return true;
+            }
+            case LinkState::kLinkError: {
+              ex::set_error(std::move(ctx.receiver), 1);
+              return true;
+            }
+            default:
+              return false;
+          }
+        };
+
         // if already linked return stream
-        switch (s->stream_info().link_state) {
-          case LinkState::kLinked: {
-            ex::set_value(std::move(ctx.receiver), std::move(s));
-            return;
-          }
-          case LinkState::kLinkError: {
-            ex::set_error(std::move(ctx.receiver), 1);
-            return;
-          }
-          default:
-            break;
+        if (handle_link_state()) {
+          return;
         }
         // wait till linked
-        link_sub = s->stream_update_event().Subscribe([&]() mutable noexcept {
-          link_sub.Reset();
-          if (s->stream_info().link_state == LinkState::kLinked) {
-            ex::set_value(std::move(ctx.receiver), std::move(s));
-          } else {
-            ex::set_error(std::move(ctx.receiver), 2);
-          }
-        });
+        link_sub = s->stream_update_event().Subscribe(handle_link_state);
       });
 }
 

@@ -41,25 +41,18 @@
 
 namespace ae {
 namespace upd_internal {
-template <typename Socket, typename Lock>
+template <typename Socket>
 class SendAction final : public PacketSendAction {
  public:
-  SendAction(AeContext const& ae_context, Socket& socket, Lock& lock,
+  SendAction(AeContext const& ae_context, Socket& socket,
              DataBuffer&& data_buffer)
       : ae_context_{ae_context},
         socket_{&socket},
-        lock_{&lock},
         data_{std::move(data_buffer)} {}
 
   AE_CLASS_MOVE_ONLY(SendAction)
 
   void Send() override {
-    if (!lock_->try_lock()) {
-      reenque_ = true;
-      return;
-    }
-    auto sl = std::scoped_lock{std::adopt_lock, *lock_};
-
     auto res = socket_->Send(Span{data_.data(), data_.size()});
     if (!res) {
       AE_TELED_ERROR("Data has not been written");
@@ -99,7 +92,6 @@ class SendAction final : public PacketSendAction {
  private:
   AeContext ae_context_;
   Socket* socket_;
-  Lock* lock_;
   DataBuffer data_;
   bool reenque_ = false;
   bool is_done_ = false;
@@ -125,13 +117,14 @@ class UdpBase : public ByteIStream {
   AeContext ae_context_;
   AddressPort endpoint_;
 
-  std::mutex socket_mutex_;
+  std::mutex buffer_mutex_;
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;
   StreamUpdateEvent stream_update_event_;
   std::vector<DataBuffer> read_buffers_;
   std::atomic_bool read_event_{false};
   TaskSubscription read_event_sub_;
+  TaskSubscription conn_state_sub_;
   std::optional<FailedWriteAction> failed_write_;
 };
 
@@ -140,7 +133,7 @@ class UdpBase : public ByteIStream {
 template <typename Socket, std::size_t QueueSize>
 class UdpTransport final : public upd_internal::UdpBase {
  public:
-  using SendAction = upd_internal::SendAction<Socket, std::mutex>;
+  using SendAction = upd_internal::SendAction<Socket>;
 
   UdpTransport(AeContext const& ae_context, Ptr<IPoller> const& poller,
                AddressPort endpoint)
@@ -164,8 +157,8 @@ class UdpTransport final : public upd_internal::UdpBase {
   WriteAction& Write(DataBuffer&& in_data) override {
     AE_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}", endpoint_,
                   in_data.size());
-    auto* send_action = send_queue_manager_.AddPacket(
-        ae_context_, socket_, socket_mutex_, std::move(in_data));
+    auto* send_action =
+        send_queue_manager_.AddPacket(ae_context_, socket_, std::move(in_data));
     if (send_action == nullptr) {
       AE_TELED_ERROR("Queue manager is full");
       return FailedWrite();
@@ -195,10 +188,7 @@ class UdpTransport final : public upd_internal::UdpBase {
   void Disconnect() override {
     AE_TELE_INFO(kUdpTransportDisconnect, "Disconnect from {}", endpoint_);
     stream_info_.is_writable = false;
-    {
-      auto lock = std::scoped_lock{socket_mutex_};
-      socket_.Disconnect();
-    }
+    socket_.Disconnect();
     stream_update_event_.Emit();
   }
 

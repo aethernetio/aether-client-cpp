@@ -15,14 +15,15 @@
  */
 
 #include "aether/ae_actions/ping.h"
+#if AE_ENABLE_PING
 
-#include <optional>
+#  include <optional>
 
-#include "aether/channels/channel.h"
-#include "aether/server_connections/client_server_connection.h"
-#include "aether/work_cloud_api/work_server_api/authorized_api.h"
+#  include "aether/channels/channel.h"
+#  include "aether/server_connections/client_server_connection.h"
+#  include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
-#include "aether/ae_actions/ae_actions_tele.h"
+#  include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
 Ping::Ping(AeContext const& ae_context, Ptr<Channel> const& channel,
@@ -125,3 +126,4 @@ void Ping::PingResponseTimeout(RequestId request_id) {
 }
 
 }  // namespace ae
+#endif  // AE_ENABLE_PING

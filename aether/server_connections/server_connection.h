@@ -32,7 +32,10 @@ class Channel;
 
 class ServerConnection final : public ByteIStream {
   struct ChannelEntry {
+    ChannelEntry(AeContext const& ae_context, PtrView<Channel> const& c): channel{c}, connection{ae_context} {}
+
     PtrView<Channel> channel;
+    ChannelConnection connection;
     bool failed = false;
   };
 
@@ -72,8 +75,7 @@ class ServerConnection final : public ByteIStream {
 
   bool full_connected_;
   ChannelEntry* top_channel_;
-  std::vector<ChannelEntry> channels_;
-  std::optional<ChannelConnection> channel_connection_;
+  std::vector<std::unique_ptr<ChannelEntry>> channels_;
 
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;

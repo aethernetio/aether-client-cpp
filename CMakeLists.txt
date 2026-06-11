@@ -303,8 +303,9 @@ target_compile_options(${TARGET_NAME} PUBLIC
 
 # setup release build options
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
-  if (NOT MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
-      OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  if (NOT MINGW AND
+    (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
+    CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
 
     target_compile_options(${TARGET_NAME} PUBLIC
                            -ffast-math

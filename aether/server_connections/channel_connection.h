@@ -32,19 +32,18 @@ class ChannelConnection {
   using ConnectionStateCb =
       SmallFunction<void(Result<ByteIStream&, int> result)>;
 
-  ChannelConnection(AeContext const& ae_context, Ptr<Channel> const& channel,
-                    ConnectionStateCb&& connection_state_cb);
+  explicit ChannelConnection(AeContext const& ae_context);
 
   AE_CLASS_NO_COPY_MOVE(ChannelConnection)
 
+  void BuildTransport(Ptr<Channel> const& channel,
+                      ConnectionStateCb&& connection_state_cb);
   ByteIStream* stream() const;
 
  private:
-  void BuildTransport(Ptr<Channel> const& channel);
   void UpdateTransportBuildTime(PtrView<Channel> const& c);
 
   AeContext ae_context_;
-  ConnectionStateCb connection_state_cb_;
 
   std::optional<
       ex::AnyWaiter<ex::set_value_t(std::unique_ptr<ByteIStream>),

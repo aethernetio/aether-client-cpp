@@ -267,6 +267,11 @@
 #  define AE_DEFAULT_RESPONSE_TIMEOUT_MS 10000
 #endif
 
+// Is periodic ping messages enabled
+#ifndef AE_ENABLE_PING
+#  define AE_ENABLE_PING 1
+#endif
+
 // Send ping interval, ms
 #ifndef AE_PING_INTERVAL_MS
 #  define AE_PING_INTERVAL_MS AE_DEFAULT_RESPONSE_TIMEOUT_MS + 1000
