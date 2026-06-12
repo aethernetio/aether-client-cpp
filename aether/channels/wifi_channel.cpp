@@ -38,10 +38,10 @@ namespace wifi_channel_internal {
 ex::sender auto WifiConnect(Ptr<WifiAccessPoint> const& access_point) {
   return ex::create<ex::set_value_t(), ex::set_error_t(int)>(
       [ap{PtrView<WifiAccessPoint>{access_point}},
-       connect_sub{Subscription{}}](auto& ctx) mutable noexcept {
+       connect_sub_ = Subscription{}](auto& ctx) mutable noexcept {
         auto access_point = ap.Lock();
         assert(access_point && "Wifi access point is not loaded");
-        connect_sub = access_point->Connect().connection_event().Subscribe(
+        connect_sub_ = access_point->Connect().connection_event().Subscribe(
             [&](bool is_connected) mutable noexcept {
               if (is_connected) {
                 ex::set_value(std::move(ctx.receiver));

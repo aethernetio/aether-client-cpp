@@ -35,28 +35,33 @@ class Aether;
 class WifiAdapter;
 class IPoller;
 class DnsResolver;
+class WifiAccessPoint;
 
 class WifiConnectAction final : public Action {
  public:
   using ConnectionEvent = Event<void(bool)>;
 
-  WifiConnectAction(AeContext const& ae_context, WifiDriver& driver,
-                    WiFiAp wifi_ap, WiFiPowerSaveParam psp,
-                    WiFiBaseStation& base_station);
+  WifiConnectAction(AeContext const& ae_context, WifiAccessPoint& access_point,
+                    WifiDriver& driver, WiFiAp wifi_ap,
+                    std::optional<WiFiPowerSaveParam> psp,
+                    std::optional<WiFiBaseStation> base_station);
 
   ConnectionEvent::Subscriber connection_event();
 
  private:
   void EnsureConnected();
+  void Connect();
   void SetConnected(bool is_connected);
 
   AeContext ae_context_;
+  WifiAccessPoint* access_point_;
   WifiDriver* driver_;
   WiFiAp wifi_ap_;
-  WiFiPowerSaveParam psp_;
-  WiFiBaseStation& base_station_;
+  std::optional<WiFiPowerSaveParam> psp_;
+  std::optional<WiFiBaseStation> base_station_;
   ConnectionEvent connection_event_;
   TaskSubscription scheduler_sub_;
+  Subscription connect_sub_;
 };
 
 class WifiAccessPoint final : public AccessPoint {
@@ -67,7 +72,7 @@ class WifiAccessPoint final : public AccessPoint {
   WifiAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
                   ObjPtr<WifiAdapter> adapter, ObjPtr<IPoller> poller,
                   ObjPtr<DnsResolver> resolver, WiFiAp wifi_ap,
-                  WiFiPowerSaveParam psp);
+                  std::optional<WiFiPowerSaveParam> psp);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, adapter_, poller_, resolver_, wifi_ap_,
                              base_station_))
@@ -82,14 +87,16 @@ class WifiAccessPoint final : public AccessPoint {
 
   bool IsConnected();
 
+  void SetWifiBaseStation(WiFiBaseStation&& wifi_base_station);
+
  private:
   ObjPtr<Aether> aether_;
   Obj::ptr adapter_;
   ObjPtr<IPoller> poller_;
   ObjPtr<DnsResolver> resolver_;
   WiFiAp wifi_ap_{};
-  WiFiPowerSaveParam psp_{};
-  WiFiBaseStation base_station_{};
+  std::optional<WiFiPowerSaveParam> psp_;
+  std::optional<WiFiBaseStation> base_station_;
   std::optional<WifiConnectAction> connect_action_;
 };
 }  // namespace ae

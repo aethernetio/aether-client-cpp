@@ -21,12 +21,13 @@
 
 #if AE_SUPPORT_WIFIS
 #  include <memory>
+#  include "aether/ae_context.h"
 #  include "aether/wifi/wifi_driver.h"
 
 namespace ae {
 class WifiDriverFactory {
  public:
-  static std::unique_ptr<WifiDriver> CreateWifiDriver();
+  static std::unique_ptr<WifiDriver> CreateWifiDriver(AeContext const& ae_context);
 };
 }  // namespace ae
 #endif

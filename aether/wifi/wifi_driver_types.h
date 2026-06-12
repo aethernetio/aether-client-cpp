@@ -56,9 +56,8 @@ struct WiFiAp {
 };
 
 struct WiFiPowerSaveParam {
-  AE_REFLECT_MEMBERS(ps_enabled, wifi_ps_type, protocol_bitmap, listen_interval,
+  AE_REFLECT_MEMBERS(wifi_ps_type, protocol_bitmap, listen_interval,
                      beacon_interval, fix_rate, short_retry, long_retry, power);
-  bool ps_enabled{false};
   uint8_t wifi_ps_type;
   uint8_t protocol_bitmap;
   int16_t listen_interval;
@@ -70,8 +69,7 @@ struct WiFiPowerSaveParam {
 };
 
 struct WiFiBaseStation {
-  AE_REFLECT_MEMBERS(connected, target_bssid, target_channel)
-  bool connected{false};
+  AE_REFLECT_MEMBERS(target_bssid, target_channel)
   uint8_t target_bssid[6];
   uint8_t target_channel;
 };
@@ -79,7 +77,7 @@ struct WiFiBaseStation {
 struct WiFiInit {
   AE_REFLECT_MEMBERS(wifi_ap, psp)
   std::vector<WiFiAp> wifi_ap;
-  WiFiPowerSaveParam psp;
+  std::optional<WiFiPowerSaveParam> psp;
 };
 
 }  // namespace ae
