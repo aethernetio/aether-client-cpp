@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index b2a60a1..d084388 100644
+index b2a60a1..54f3814 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -1,4 +1,4 @@
@@ -8,7 +8,15 @@ index b2a60a1..d084388 100644
  
  project(hydrogen LANGUAGES C)
  
-@@ -101,73 +101,78 @@ target_include_directories("${PROJECT_NAME}"
+@@ -70,6 +70,7 @@ set(compile_options
+     -Wstrict-prototypes
+     -Wswitch-enum
+     -Wno-type-limits
++    -Wno-error
+     >
+     # --- MSVC ---
+     $<$<C_COMPILER_ID:MSVC>:
+@@ -101,73 +102,78 @@ target_include_directories("${PROJECT_NAME}"
  target_compile_options("${PROJECT_NAME}" PRIVATE ${compile_options})
  
  # Installation
