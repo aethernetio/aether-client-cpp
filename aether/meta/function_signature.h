@@ -26,8 +26,8 @@ template <typename Ret, typename... Args>
 struct FunctionSignatureImpl {
   using ret = Ret;
   using args = TypeList<Args...>;
-  using signature = ret(args...);
-  using func_ptr = ret (*)(args...);
+  using signature = ret(args, ...);
+  using func_ptr = ret (*)(args, ...);
 };
 
 template <typename R, typename... Args>
