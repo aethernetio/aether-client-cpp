@@ -56,7 +56,7 @@ std::vector<AccessPoint::ptr> WifiAdapter::access_points() {
 
 WifiDriver& WifiAdapter::driver() {
   if (!wifi_driver_) {
-    wifi_driver_ = WifiDriverFactory::CreateWifiDriver();
+    wifi_driver_ = WifiDriverFactory::CreateWifiDriver(*aether_);
   }
   return *wifi_driver_;
 }

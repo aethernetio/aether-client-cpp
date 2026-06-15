@@ -28,8 +28,8 @@ static const std::string kWifi1Pass = "Test1234";
 static const std::string kWifi2Ssid = "Test2345";
 static const std::string kWifi2Pass = "Test2345";
 
-static IpV4Addr my_static_ip_v4{192, 168, 1, 215};
-static IpV4Addr my_gateway_ip_v4{192, 168, 1, 1};
+static IpV4Addr my_static_ip_v4{192, 168, 0, 215};
+static IpV4Addr my_gateway_ip_v4{192, 168, 0, 1};
 static IpV4Addr my_netmask_ip_v4{255, 255, 255, 0};
 static IpV4Addr my_dns1_ip_v4{8, 8, 8, 8};
 static IpV4Addr my_dns2_ip_v4{8, 8, 4, 4};
@@ -54,7 +54,6 @@ ae::WiFiAp wifi2_ap{my_wifi2, wifi_ip};
 std::vector<ae::WiFiAp> wifi_ap_vec{wifi1_ap, wifi2_ap};
 
 static WiFiPowerSaveParam wifi_psp{
-    true,
     AE_WIFI_PS_MAX_MODEM,  // Power save type
     AE_WIFI_PROTOCOL_11B | AE_WIFI_PROTOCOL_11G |
         AE_WIFI_PROTOCOL_11N,  // Protocol bitmap

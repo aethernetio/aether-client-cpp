@@ -26,6 +26,9 @@
 
 #define AE_SUPPORT_UDP 0
 
+#if ESP_PLATFORM
+#  define AE_SAFE_STREAM_CAPACITY 2 * 1024
+#endif
 #if !ESP_PLATFORM
 #  define AE_SUPPORT_WIFIS 0
 #endif

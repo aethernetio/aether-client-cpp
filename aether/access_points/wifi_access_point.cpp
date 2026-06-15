@@ -27,19 +27,24 @@
 #  include "aether/channels/wifi_channel.h"
 #  include "aether/access_points/filter_endpoints.h"
 
+#  include "aether/tele/tele.h"
+
 namespace ae {
 
-WifiConnectAction::WifiConnectAction(AeContext const& ae_context,
-                                     WifiDriver& driver, WiFiAp wifi_ap,
-                                     WiFiPowerSaveParam psp,
-                                     WiFiBaseStation& base_station)
+WifiConnectAction::WifiConnectAction(
+    AeContext const& ae_context, WifiAccessPoint& access_point,
+    WifiDriver& driver, WiFiAp wifi_ap, std::optional<WiFiPowerSaveParam> psp,
+    std::optional<WiFiBaseStation> base_station)
     : ae_context_{ae_context},
+      access_point_{&access_point},
       driver_{&driver},
       wifi_ap_{std::move(wifi_ap)},
       psp_{std::move(psp)},
-      base_station_{base_station},
+      base_station_{std::move(base_station)},
       scheduler_sub_{
-          ae_context_.scheduler().Task([this]() { EnsureConnected(); })} {}
+          ae_context_.scheduler().Task([this]() { EnsureConnected(); })} {
+  AE_TELED_DEBUG("WifiConnectAction created");
+}
 
 WifiConnectAction::ConnectionEvent::Subscriber
 WifiConnectAction::connection_event() {
@@ -48,10 +53,37 @@ WifiConnectAction::connection_event() {
 
 void WifiConnectAction::EnsureConnected() {
   auto connected_to = driver_->connected_to();
-  if (connected_to.ssid != wifi_ap_.creds.ssid) {
-    driver_->Connect(wifi_ap_, psp_, base_station_);
+  AE_TELED_DEBUG("Driver connected to {}", connected_to.value_or("NOT CONNECTED"));
+  // if already connected
+  if (connected_to && (*connected_to == wifi_ap_.creds.ssid)) {
+    SetConnected(true);
+    return;
   }
-  SetConnected(true);
+  Connect();
+}
+
+void WifiConnectAction::Connect() {
+  connect_sub_ = driver_->connect_res_event().Subscribe(
+      [&](Result<WiFiBaseStation, int>&& res) {
+        connect_sub_.Reset();
+        if (res) {
+          AE_TELED_INFO("Wifi connected");
+          // save base station to access point
+          access_point_->SetWifiBaseStation(std::move(res).value());
+          SetConnected(true);
+        } else {
+          // retry without base station
+          if (base_station_) {
+            base_station_.reset();
+            scheduler_sub_ = ae_context_.scheduler().Task([&]() { Connect(); });
+            return;
+          }
+          AE_TELED_ERROR("Wifi did not connected with error {}", res.error());
+          SetConnected(false);
+        }
+      });
+
+  driver_->Connect(wifi_ap_, psp_, base_station_);
 }
 
 void WifiConnectAction::SetConnected(bool is_connected) {
@@ -65,7 +97,7 @@ WifiAccessPoint::WifiAccessPoint(ObjProp prop, ObjPtr<Aether> aether,
                                  ObjPtr<WifiAdapter> adapter,
                                  ObjPtr<IPoller> poller,
                                  ObjPtr<DnsResolver> resolver, WiFiAp wifi_ap,
-                                 WiFiPowerSaveParam psp)
+                                 std::optional<WiFiPowerSaveParam> psp)
     : AccessPoint{prop},
       aether_{std::move(aether)},
       adapter_{std::move(adapter)},
@@ -105,8 +137,8 @@ WifiConnectAction& WifiAccessPoint::Connect() {
         [](auto const& a) { return &a->driver(); });
     assert(driver.has_value());
 
-    connect_action_.emplace(*aether_.Load().as<Aether>(), **driver, wifi_ap_,
-                            psp_, base_station_);
+    connect_action_.emplace(*aether_.Load().as<Aether>(), *this, **driver,
+                            wifi_ap_, psp_, base_station_);
   }
   return *connect_action_;
 }
@@ -116,9 +148,13 @@ bool WifiAccessPoint::IsConnected() {
       .WithLoaded([this](auto const& a) {
         auto& driver = a->driver();
         auto connected_to = driver.connected_to();
-        return connected_to.ssid == wifi_ap_.creds.ssid;
+        return connected_to && (*connected_to == wifi_ap_.creds.ssid);
       })
       .value_or(false);
+}
+
+void WifiAccessPoint::SetWifiBaseStation(WiFiBaseStation&& wifi_base_station) {
+  base_station_.emplace(std::move(wifi_base_station));
 }
 }  // namespace ae
 #endif

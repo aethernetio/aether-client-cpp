@@ -20,7 +20,8 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_WIFIS
-#  include "aether/reflect/reflect.h"
+#  include "aether/types/result.h"
+#  include "aether/events/events.h"
 #  include "aether/wifi/wifi_driver_types.h"
 
 namespace ae {
@@ -29,18 +30,29 @@ namespace ae {
  */
 class WifiDriver {
  public:
+  /**
+   * \brief Wifi connection result.
+   * \param res - AP parameters or error code
+   */
+  using ConnectResEvent = Event<void(Result<WiFiBaseStation, int>&& res)>;
+
   virtual ~WifiDriver() = default;
 
   /**
    * \brief Connect to an access point with creds.
    */
-  virtual void Connect(WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp,
-                       WiFiBaseStation& base_station_) = 0;
+  virtual void Connect(WiFiAp const& wifi_ap,
+                       std::optional<WiFiPowerSaveParam> const& psp,
+                       std::optional<WiFiBaseStation> const& base_station) = 0;
+
+  virtual ConnectResEvent::Subscriber connect_res_event() = 0;
+
   /**
-   * \brief Get creds for currently connected access point.
-   * \return if connected WifiCreds with filled at least ssid, otherwise empty.
+   * \brief Get the AP ssid if connected
    */
-  virtual WifiCreds connected_to() const = 0;
+  virtual std::optional<std::string> connected_to() const = 0;
+
+  // TODO: add disconnected event
 };
 }  // namespace ae
 

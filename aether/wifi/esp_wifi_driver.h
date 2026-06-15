@@ -21,36 +21,80 @@
 
 #if (defined(ESP_PLATFORM)) && AE_SUPPORT_WIFIS && AE_ENABLE_ESP32_WIFI
 #  define ESP_WIFI_DRIVER_ENABLED 1
-#  include <memory>
 #  include <optional>
 
-#  include "aether/wifi/wifi_driver.h"
+#  include "freertos/FreeRTOS.h"
+
+#  include "freertos/task.h"
+#  include "freertos/event_groups.h"
 
 #  include "esp_err.h"
 #  include "esp_netif_types.h"
 
+#  include "aether/ae_context.h"
+#  include "aether/wifi/wifi_driver.h"
+
 namespace ae {
+namespace esp_wifi_driver_internal {
+void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
+                  void* event_data);
+}
+
 class EspWifiDriver final : public WifiDriver {
+  // friend with wifi event handler
+  friend void esp_wifi_driver_internal::EventHandler(
+      void* arg, esp_event_base_t event_base, int32_t event_id,
+      void* event_data);
+
  public:
-  EspWifiDriver();
+  enum class State : char {
+    kDisconnected,
+    kDisconnecring,
+    kConnecting,
+    kConnected,
+  };
+
+  struct ConnectionState {
+    State state;
+    std::size_t retry_count{};
+  };
+
+  explicit EspWifiDriver(AeContext const& ae_context);
   ~EspWifiDriver() override;
 
-  void Connect(WiFiAp const& wifi_ap, WiFiPowerSaveParam const& psp,
-               WiFiBaseStation& base_station_) override;
-  WifiCreds connected_to() const override;
+  void Connect(WiFiAp const& wifi_ap,
+               std::optional<WiFiPowerSaveParam> const& psp,
+               std::optional<WiFiBaseStation> const& base_station_) override;
+
+  ConnectResEvent::Subscriber connect_res_event() override;
+
+  std::optional<std::string> connected_to() const override;
 
  private:
-  void Disconnect();
   void Init();
-  void InitNvs();
+  static void InitNvs();
   void Deinit();
-  esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config);
 
-  static int initialized_;
-  static void* espt_init_sta_;
+  void Disconnect();
 
-  std::optional<WifiCreds> connected_to_;
-  std::unique_ptr<struct ConnectionState> connection_state_;
+  void ConnectingEventHandler(esp_event_base_t event_base, int32_t event_id,
+                              void* event_data);
+  void ConnectedEventHandler(esp_event_base_t event_base, int32_t event_id,
+                             void* event_data);
+  void DisconnectingEventHandler(esp_event_base_t event_base, int32_t event_id,
+                                 void* event_data);
+  void DisconnectedEventHandler(esp_event_base_t event_base, int32_t event_id,
+                                void* event_data);
+
+  AeContext ae_context_;
+  ConnectResEvent connect_res_event_;
+
+  ConnectionState connection_state_;
+  std::optional<std::string> connected_to_;
+  TaskSubscription event_task_sub_;
+
+  // driver could be initialized only once
+  void* espt_init_sta_ = nullptr;
 };
 }  // namespace ae
 #endif

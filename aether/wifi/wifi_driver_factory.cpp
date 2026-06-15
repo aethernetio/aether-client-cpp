@@ -22,9 +22,10 @@
 // IWYU pragma: end_keeps
 
 namespace ae {
-std::unique_ptr<WifiDriver> WifiDriverFactory::CreateWifiDriver() {
-#  if defined ESP_WIFI_DRIVER_ENABLED
-  return std::make_unique<EspWifiDriver>();
+std::unique_ptr<WifiDriver> WifiDriverFactory::CreateWifiDriver(
+    [[maybe_unused]] AeContext const& ae_context) {
+#  if ESP_WIFI_DRIVER_ENABLED
+  return std::make_unique<EspWifiDriver>(ae_context);
 #  else
   return nullptr;
 #  endif

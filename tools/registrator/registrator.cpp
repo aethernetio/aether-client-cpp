@@ -126,7 +126,6 @@ int AetherRegistrator(const std::string& ini_file,
               std::vector<ae::WiFiAp> wifi_ap_vec{wifi_ap};
 
               static ae::WiFiPowerSaveParam wifi_psp{
-                  true,
                   AE_WIFI_PS_MAX_MODEM,  // Power save type
                   AE_WIFI_PROTOCOL_11B | AE_WIFI_PROTOCOL_11G |
                       AE_WIFI_PROTOCOL_11N,  // Protocol bitmap
