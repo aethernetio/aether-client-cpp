@@ -49,7 +49,7 @@ class EspWifiDriver final : public WifiDriver {
  public:
   enum class State : char {
     kDisconnected,
-    kDisconnecring,
+    kDisconnecting,
     kConnecting,
     kConnected,
   };
