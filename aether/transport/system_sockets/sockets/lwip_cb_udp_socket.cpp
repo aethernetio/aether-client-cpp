@@ -69,8 +69,13 @@ std::optional<std::size_t> LwipCBUdpSocket::Send(Span<std::uint8_t> data) {
   memcpy(p->payload, data.data(), data.size());
 
   err = udp_send(pcb_, p);
+
   if (err != ERR_OK) {
-    AE_TELED_ERROR("Send failed: {}", err);
+    if (err == ERR_MEM) {
+      // internal buffer is full
+      return 0;
+    }
+    AE_TELED_ERROR("Send failed: {}", static_cast<int>(err));
     OnError();
     return std::nullopt;
   }
