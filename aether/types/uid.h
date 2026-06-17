@@ -17,6 +17,7 @@
 #ifndef AETHER_TYPES_UID_H_
 #define AETHER_TYPES_UID_H_
 
+#include <span>
 #include <array>
 #include <string>
 #include <cstdint>
@@ -25,7 +26,6 @@
 #include <string_view>
 
 #include "aether/type_traits.h"
-#include "aether/types/span.h"
 #include "aether/format/format.h"
 #include "aether/reflect/reflect.h"
 #include "aether/types/literal_array.h"
@@ -102,9 +102,12 @@ template <>
 struct Formatter<Uid> {
   template <typename TStream>
   void Format(Uid const& uid, FormatContext<TStream>& ctx) const {
-    ae::Format(ctx.out(), "{}-{}-{}-{}-{}", Span{uid.value.data(), 4},
-               Span{uid.value.data() + 4, 2}, Span{uid.value.data() + 6, 2},
-               Span{uid.value.data() + 8, 2}, Span{uid.value.data() + 10, 6});
+    ae::Format(ctx.out(), "{}-{}-{}-{}-{}",
+               std::span<std::uint8_t const>{uid.value.data(), 4},
+               std::span<std::uint8_t const>{uid.value.data() + 4, 2},
+               std::span<std::uint8_t const>{uid.value.data() + 6, 2},
+               std::span<std::uint8_t const>{uid.value.data() + 8, 2},
+               std::span<std::uint8_t const>{uid.value.data() + 10, 6});
   }
 };
 
