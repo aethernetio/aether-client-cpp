@@ -27,11 +27,27 @@
 #include "aether/work_cloud_api/server_descriptor.h"
 
 namespace ae {
+struct AccessGroup {
+  AE_REFLECT_MEMBERS(owner, id, data);
+  Uid owner;
+  std::uint64_t id;
+  DataBuffer data;
+};
+
+struct AccessCheckResult {
+  AE_REFLECT_MEMBERS(source_uid, target_uid, has_access);
+  Uid source_uid;
+  Uid target_uid;
+  bool has_access;
+};
 
 class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
  public:
   explicit ClientApiSafe(ProtocolContext& protocol_context);
 
+  void ChangeParent(Uid const& uid);
+  void ChangeAlias(Uid const& uid);
+  void NewChildren(std::vector<Uid> const& uids);
   void SendMessages(std::vector<AeMessage> const& messages);
 
   void SendServerDescriptor(ServerDescriptor const& server_descriptor);
@@ -42,14 +58,41 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
 
   void RequestTelemetry();
 
+  void SendAccessGroups(std::vector<AccessGroup> const& access_group);
+  void SendAccessGroupForClient(Uid const& uid,
+                                std::vector<std::uint64_t> const& groups);
+  void AddItemsToAccessGroup(std::uint64_t id, std::vector<Uid> const& groups);
+  void RemoveItemsFromAccessGroup(std::uint64_t id,
+                                  std::vector<Uid> const& groups);
+  void AddAccessGroupsToClient(Uid const& uid,
+                               std::vector<std::uint64_t> const& groups);
+  void RemoveAccessGroupsFromClient(Uid const& uid,
+                                    std::vector<std::uint64_t> const& groups);
+  void SendAllAccessedClients(Uid const& uid,
+                              std::vector<Uid> const& accessed_clients);
+  void SendAccessCheckResults(std::vector<AccessCheckResult> const& results);
+  void SendMessage(AeMessage const& message);
+
   ReturnResultApi return_result;
 
-  AE_METHODS(RegMethod<6, &ClientApiSafe::SendMessages>,
+  AE_METHODS(RegMethod<3, &ClientApiSafe::ChangeParent>,
+             RegMethod<4, &ClientApiSafe::ChangeAlias>,
+             RegMethod<5, &ClientApiSafe::NewChildren>,
+             RegMethod<6, &ClientApiSafe::SendMessages>,
              RegMethod<7, &ClientApiSafe::SendServerDescriptor>,
              RegMethod<8, &ClientApiSafe::SendServerDescriptors>,
              RegMethod<9, &ClientApiSafe::SendCloud>,
              RegMethod<10, &ClientApiSafe::SendClouds>,
              RegMethod<11, &ClientApiSafe::RequestTelemetry>,
+             RegMethod<12, &ClientApiSafe::SendAccessGroups>,
+             RegMethod<13, &ClientApiSafe::SendAccessGroupForClient>,
+             RegMethod<14, &ClientApiSafe::AddItemsToAccessGroup>,
+             RegMethod<15, &ClientApiSafe::RemoveItemsFromAccessGroup>,
+             RegMethod<16, &ClientApiSafe::AddAccessGroupsToClient>,
+             RegMethod<17, &ClientApiSafe::RemoveAccessGroupsFromClient>,
+             RegMethod<18, &ClientApiSafe::SendAllAccessedClients>,
+             RegMethod<19, &ClientApiSafe::SendAccessCheckResults>,
+             RegMethod<20, &ClientApiSafe::SendMessage>,
              ExtApi<&ClientApiSafe::return_result>);
 
   auto send_message_event() { return EventSubscriber{send_message_event_}; }
