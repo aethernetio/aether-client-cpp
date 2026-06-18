@@ -67,11 +67,12 @@ jobs:
             }
           - {
               name: "macOS Clang",
-              os: [self-hosted, macOS, ARM64],
+              os: macos-latest,
               shell: "bash",
               generator: "Unix Makefiles",
               cc: "clang",
               cxx: "clang++",
+              jobs_count: 4,
               initial_cache: ".github/workflows/macos_initial_cache.txt",
             }
 
