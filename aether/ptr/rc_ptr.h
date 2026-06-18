@@ -24,7 +24,7 @@
 #include <atomic>
 
 #include "aether/mstream.h"
-#include "aether/types/aligned_storage.h"
+#include "aether-miscpp/types/aligned_storage.h"
 
 namespace ae {
 // for most cases 2*uint8_t should be more than enough

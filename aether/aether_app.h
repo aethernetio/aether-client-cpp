@@ -27,7 +27,7 @@
 #include "aether/ptr/ptr.h"
 #include "aether/ptr/rc_ptr.h"
 #include "aether/obj/domain.h"
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 
 #include "aether/events/events.h"   // IWYU pragma: keep
 #include "aether/actions/action.h"  // IWYU pragma: keep

@@ -25,10 +25,10 @@
 #  include <cstdint>
 #  include <optional>
 
-#  include "aether/types/result.h"
+#  include "aether-miscpp/types/result.h"
 #  include "aether/events/events.h"
 #  include "aether/types/address.h"
-#  include "aether/meta/ignore_t.h"
+#  include "aether-miscpp/meta/ignore_t.h"
 #  include "aether/actions/action.h"
 #  include "aether/types/data_buffer.h"
 #  include "aether/modems/modem_driver_types.h"

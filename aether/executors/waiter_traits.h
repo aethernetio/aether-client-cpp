@@ -29,8 +29,8 @@ IGNORE_IMPLICIT_CONVERSION()
 #include <stdexec/execution.hpp>
 DISABLE_WARNING_POP()
 
-#include "aether/meta/ignore_t.h"
-#include "aether/meta/type_list.h"
+#include "aether-miscpp/meta/ignore_t.h"
+#include "aether-miscpp/meta/type_list.h"
 
 namespace ae::ex {
 template <template <typename> typename Filter, typename T>

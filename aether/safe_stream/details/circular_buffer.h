@@ -22,7 +22,7 @@
 #include <cstddef>
 #include <algorithm>
 
-#include "aether/types/result.h"
+#include "aether-miscpp/types/result.h"
 #include "aether/types/ring_index.h"
 
 namespace ae {

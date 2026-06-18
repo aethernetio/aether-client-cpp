@@ -20,7 +20,7 @@
 #include <optional>
 #include <type_traits>
 
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 
 namespace ae {
 template <typename... T>

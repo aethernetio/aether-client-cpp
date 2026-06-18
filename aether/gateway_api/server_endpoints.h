@@ -20,11 +20,11 @@
 #include <vector>
 #include <functional>
 
-#include "aether/crc.h"
+#include "aether-miscpp/crc.h"
 #include "aether/mstream.h"
 #include "aether/types/address.h"
 #include "aether/mstream_buffers.h"
-#include "aether/reflect/reflect.h"
+#include "aether-miscpp/reflect/reflect.h"
 
 namespace ae {
 struct ServerEndpoints {

@@ -17,6 +17,7 @@
 #ifndef AETHER_SAFE_STREAM_DETAILS_RECEIVING_CHUNK_LIST_H_
 #define AETHER_SAFE_STREAM_DETAILS_RECEIVING_CHUNK_LIST_H_
 
+#include <map>
 #include <vector>
 #include <optional>
 #include <algorithm>

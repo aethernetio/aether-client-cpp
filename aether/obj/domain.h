@@ -29,8 +29,8 @@
 #include "aether/mstream.h"
 
 #include "aether/ptr/ptr_view.h"
-#include "aether/reflect/reflect.h"
-#include "aether/reflect/domain_visitor.h"
+#include "aether-miscpp/reflect/reflect.h"
+#include "aether-miscpp/reflect/domain_visitor.h"
 
 #include "aether/obj/obj_id.h"
 #include "aether/obj/registry.h"

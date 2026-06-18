@@ -33,7 +33,7 @@ if(NOT CM_PLATFORM)
   target_sources(${PROJECT_NAME} PRIVATE ${test_tele_srcs} ${test_srcs})
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-  target_link_libraries(${PROJECT_NAME} PRIVATE unity date numeric)
+  target_link_libraries(${PROJECT_NAME} PRIVATE unity numeric aether::miscpp)
   target_compile_definitions(${PROJECT_NAME} PRIVATE AE_PROJECT_VERSION="0.0.0")
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)

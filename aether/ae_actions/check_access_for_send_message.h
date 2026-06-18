@@ -19,7 +19,7 @@
 
 #include "aether/common.h"
 #include "aether/types/uid.h"
-#include "aether/types/result.h"
+#include "aether-miscpp/types/result.h"
 #include "aether/events/events.h"
 #include "aether/actions/action.h"
 #include "aether/cloud_connections/cloud_request.h"

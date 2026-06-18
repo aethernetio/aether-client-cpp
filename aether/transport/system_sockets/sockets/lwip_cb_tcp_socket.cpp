@@ -19,6 +19,8 @@
 #if LWIP_CB_TCP_SOCKET_ENABLED
 #  include "lwip/tcpip.h"
 
+#  include "aether-miscpp/misc/defer.h"
+
 #  include "aether/transport/system_sockets/sockets/lwip_get_addr.h"
 
 #  include "aether/tele/tele.h"

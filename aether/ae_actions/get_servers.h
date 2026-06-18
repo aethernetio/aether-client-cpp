@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "aether/ae_context.h"
-#include "aether/types/result.h"
+#include "aether-miscpp/types/result.h"
 #include "aether/events/events.h"
 #include "aether/types/server_id.h"
 #include "aether/actions/action.h"

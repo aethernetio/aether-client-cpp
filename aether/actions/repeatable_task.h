@@ -21,8 +21,8 @@
 #include <functional>
 
 #include "aether/actions/action.h"
-#include "aether/meta/time_traits.h"
-#include "aether/types/small_function.h"
+#include "aether-miscpp/meta/time_traits.h"
+#include "aether-miscpp/types/small_function.h"
 #include "aether/actions/action_context.h"
 
 namespace ae {

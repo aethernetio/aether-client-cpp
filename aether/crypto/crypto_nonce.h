@@ -21,7 +21,7 @@
 #include <cstdint>
 
 #include "aether/config.h"
-#include "aether/reflect/reflect.h"
+#include "aether-miscpp/reflect/reflect.h"
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 

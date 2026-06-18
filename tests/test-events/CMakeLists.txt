@@ -31,7 +31,7 @@ if(NOT CM_PLATFORM)
   add_executable(${PROJECT_NAME})
   target_sources(${PROJECT_NAME} PRIVATE ${test_events_srcs})
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
-  target_link_libraries(${PROJECT_NAME} PRIVATE unity etl)
+  target_link_libraries(${PROJECT_NAME} PRIVATE unity etl aether::miscpp)
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)
 else()

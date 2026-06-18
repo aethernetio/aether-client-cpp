@@ -25,7 +25,7 @@
 #include <utility>
 #include <string_view>
 
-#include "aether/crc.h"
+#include "aether-miscpp/crc.h"
 #include "aether/tele/modules.h"
 
 namespace ae::tele {

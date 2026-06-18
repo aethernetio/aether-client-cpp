@@ -19,10 +19,10 @@
 
 #include <vector>
 
-#include "aether/meta/type_list.h"
-#include "aether/reflect/reflect.h"
-#include "aether/types/small_function.h"
-#include "aether/meta/function_signature.h"
+#include "aether-miscpp/meta/type_list.h"
+#include "aether-miscpp/reflect/reflect.h"
+#include "aether-miscpp/types/small_function.h"
+#include "aether-miscpp/meta/function_signature.h"
 #include "aether/api_protocol/api_context.h"
 #include "aether/api_protocol/api_pack_parser.h"
 

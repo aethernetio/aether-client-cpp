@@ -19,7 +19,7 @@
 
 #include "aether/clock.h"
 #include "aether/ae_context.h"
-#include "aether/types/result.h"
+#include "aether-miscpp/types/result.h"
 #include "aether/events/events.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"

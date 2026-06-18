@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "aether/clock.h"
-#include "aether/types/result.h"
+#include "aether-miscpp/types/result.h"
 #include "aether/executors/executors.h"
 #include "aether/events/cumulative_event.h"
 #include "aether/events/multi_subscription.h"

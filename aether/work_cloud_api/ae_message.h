@@ -18,7 +18,7 @@
 #define AETHER_WORK_CLOUD_API_AE_MESSAGE_H_
 
 #include "aether/types/uid.h"
-#include "aether/reflect/reflect.h"
+#include "aether-miscpp/reflect/reflect.h"
 #include "aether/types/data_buffer.h"
 
 namespace ae {

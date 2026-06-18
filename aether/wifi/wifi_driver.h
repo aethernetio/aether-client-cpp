@@ -20,7 +20,7 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_WIFIS
-#  include "aether/types/result.h"
+#  include "aether-miscpp/types/result.h"
 #  include "aether/events/events.h"
 #  include "aether/wifi/wifi_driver_types.h"
 

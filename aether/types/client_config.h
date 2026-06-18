@@ -21,8 +21,8 @@
 
 #include "aether/types/uid.h"
 #include "aether/crypto/key.h"
-#include "aether/format/format.h"
-#include "aether/reflect/reflect.h"
+#include "aether-miscpp/format/format.h"
+#include "aether-miscpp/reflect/reflect.h"
 #include "aether/types/server_config.h"
 
 namespace ae {

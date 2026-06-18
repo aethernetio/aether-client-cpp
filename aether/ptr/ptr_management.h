@@ -21,8 +21,8 @@
 #include <cassert>
 #include <type_traits>
 
-#include "aether/types/aligned_storage.h"
-#include "aether/reflect/domain_visitor.h"
+#include "aether-miscpp/types/aligned_storage.h"
+#include "aether-miscpp/reflect/domain_visitor.h"
 
 namespace ae {
 struct PtrRefcounters {

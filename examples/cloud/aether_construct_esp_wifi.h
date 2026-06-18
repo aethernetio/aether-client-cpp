@@ -22,8 +22,8 @@
 #if CLOUD_TEST_ESP_WIFI
 
 namespace ae::cloud_test {
-static const std::string kWifi1Ssid = "Test1234";
-static const std::string kWifi1Pass = "Test1234";
+static const std::string kWifi1Ssid = "noname_5G";
+static const std::string kWifi1Pass = "Grubiy321";
 
 static const std::string kWifi2Ssid = "Test2345";
 static const std::string kWifi2Pass = "Test2345";
@@ -48,8 +48,8 @@ WiFiIP wifi_ip{
 static WifiCreds my_wifi1{kWifi1Ssid, kWifi1Pass};
 static WifiCreds my_wifi2{kWifi2Ssid, kWifi2Pass};
 
-ae::WiFiAp wifi1_ap{my_wifi1, wifi_ip};
-ae::WiFiAp wifi2_ap{my_wifi2, wifi_ip};
+ae::WiFiAp wifi1_ap{my_wifi1, {} /*wifi_ip*/};
+ae::WiFiAp wifi2_ap{my_wifi2, {} /*wifi_ip*/};
 
 std::vector<ae::WiFiAp> wifi_ap_vec{wifi1_ap, wifi2_ap};
 
@@ -67,7 +67,8 @@ static WiFiPowerSaveParam wifi_psp{
 
 WiFiInit wifi_init{
     wifi_ap_vec,  // Wi-Fi access points
-    wifi_psp,     // Power save parameters
+    {}
+    // wifi_psp,     // Power save parameters
 };
 
 RcPtr<AetherApp> construct_aether_app() {

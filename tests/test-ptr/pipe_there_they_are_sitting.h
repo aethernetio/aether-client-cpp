@@ -17,7 +17,7 @@
 #ifndef TESTS_TEST_PTR_PIPE_THERE_THEY_ARE_SITTING_H_
 #define TESTS_TEST_PTR_PIPE_THERE_THEY_ARE_SITTING_H_
 
-#include "aether/reflect/reflect.h"
+#include "aether-miscpp/reflect/reflect.h"
 
 namespace ae::test_ptr {
 struct A {

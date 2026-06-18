@@ -21,10 +21,10 @@
 #include <string>
 
 #include "aether/config.h"
-#include "aether/reflect/reflect.h"
+#include "aether-miscpp/reflect/reflect.h"
 #include "aether/types/variant_type.h"
 
-#include "aether/format/format.h"
+#include "aether-miscpp/format/format.h"
 
 namespace ae {
 

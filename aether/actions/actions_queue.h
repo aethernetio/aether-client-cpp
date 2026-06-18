@@ -22,7 +22,7 @@
 #include <utility>
 #include <functional>
 
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 #include "aether/events/event_subscription.h"
 
 namespace ae {

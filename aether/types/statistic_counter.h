@@ -32,7 +32,7 @@ DISABLE_WARNING_POP()
 
 #include "aether/common.h"
 #include "aether/mstream.h"
-#include "aether/format/format.h"
+#include "aether-miscpp/format/format.h"
 
 namespace ae {
 template <typename TValue, std::size_t Capacity,
