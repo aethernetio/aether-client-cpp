@@ -67,7 +67,7 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
     case EspWifiDriver::State::kDisconnected:
       driver->DisconnectedEventHandler(event_base, event_id, event_data);
       break;
-    case EspWifiDriver::State::kDisconnecring:
+    case EspWifiDriver::State::kDisconnecting:
       driver->DisconnectingEventHandler(event_base, event_id, event_data);
       break;
     case EspWifiDriver::State::kConnecting:
@@ -236,13 +236,6 @@ void StartWifiConnection(esp_netif_t* espt_init_sta, WiFiAp const& wifi_ap,
     AE_TELED_DEBUG("Using DHCP for IP configuration");
   }
 
-  wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
-  // We disable aggregation so that the packages go out one by one and quickly
-  wifi_init_config.ampdu_rx_enable = 0;
-  wifi_init_config.ampdu_tx_enable = 0;
-
-  ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
-
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
   if (psp) {
@@ -310,8 +303,12 @@ void EspWifiDriver::Init() {
 
   espt_init_sta_ = esp_netif_create_default_wifi_sta();
 
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+  wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
+  // We disable aggregation so that the packages go out one by one and quickly
+  wifi_init_config.ampdu_rx_enable = 0;
+  wifi_init_config.ampdu_tx_enable = 0;
+
+  ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
 
   esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
                              esp_wifi_driver_internal::EventHandler, this);
@@ -342,7 +339,7 @@ void EspWifiDriver::Deinit() {
 }
 
 void EspWifiDriver::Disconnect() {
-  connection_state_.state = State::kDisconnecring;
+  connection_state_.state = State::kDisconnecting;
   connected_to_.reset();
   esp_wifi_disconnect();
   esp_wifi_stop();

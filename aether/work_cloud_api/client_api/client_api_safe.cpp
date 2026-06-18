@@ -23,8 +23,21 @@
 #include "aether/tele/tele.h"
 
 namespace ae {
+
 ClientApiSafe::ClientApiSafe(ProtocolContext& protocol_context)
     : ApiClassImpl{protocol_context}, return_result{protocol_context} {}
+
+void ClientApiSafe::ChangeParent([[maybe_unused]] Uid const& uid) {
+  AE_TELED_DEBUG("ChangeParent");
+}
+
+void ClientApiSafe::ChangeAlias([[maybe_unused]] Uid const& uid) {
+  AE_TELED_DEBUG("ChangeAlias");
+}
+
+void ClientApiSafe::NewChildren([[maybe_unused]] std::vector<Uid> const& uids) {
+  AE_TELED_DEBUG("NewChildren");
+}
 
 void ClientApiSafe::SendMessages(std::vector<AeMessage> const& messages) {
   for (auto const& msg : messages) {
@@ -57,5 +70,49 @@ void ClientApiSafe::SendClouds(
 }
 
 void ClientApiSafe::RequestTelemetry() { request_telemetry_event_.Emit(); }
+
+void ClientApiSafe::SendAccessGroups(
+    [[maybe_unused]] std::vector<AccessGroup> const& access_group) {
+  AE_TELED_DEBUG("SendAccessGroups");
+}
+void ClientApiSafe::SendAccessGroupForClient(
+    [[maybe_unused]] Uid const& uid,
+    [[maybe_unused]] std::vector<std::uint64_t> const& groups) {
+  AE_TELED_DEBUG("SendAccessGroupForClient");
+}
+void ClientApiSafe::AddItemsToAccessGroup(
+    [[maybe_unused]] std::uint64_t id,
+    [[maybe_unused]] std::vector<Uid> const& groups) {
+  AE_TELED_DEBUG("AddItemsToAccessGroup");
+}
+void ClientApiSafe::RemoveItemsFromAccessGroup(
+    [[maybe_unused]] std::uint64_t id,
+    [[maybe_unused]] std::vector<Uid> const& groups) {
+  AE_TELED_DEBUG("RemoveItemsFromAccessGroup");
+}
+void ClientApiSafe::AddAccessGroupsToClient(
+    [[maybe_unused]] Uid const& uid,
+    [[maybe_unused]] std::vector<std::uint64_t> const& groups) {
+  AE_TELED_DEBUG("AddAccessGroupsToClient");
+}
+void ClientApiSafe::RemoveAccessGroupsFromClient(
+    [[maybe_unused]] Uid const& uid,
+    [[maybe_unused]] std::vector<std::uint64_t> const& groups) {
+  AE_TELED_DEBUG("RemoveAccessGroupsFromClient");
+}
+void ClientApiSafe::SendAllAccessedClients(
+    [[maybe_unused]] Uid const& uid,
+    [[maybe_unused]] std::vector<Uid> const& accessed_clients) {
+  AE_TELED_DEBUG("SendAllAccessedClients");
+}
+void ClientApiSafe::SendAccessCheckResults(
+    [[maybe_unused]] std::vector<AccessCheckResult> const& results) {
+  AE_TELED_DEBUG("SendAccessCheckResults");
+}
+
+void ClientApiSafe::SendMessage(AeMessage const& msg) {
+  AE_TELED_DEBUG("Received message uid:{}", msg.uid);
+  send_message_event_.Emit(msg);
+}
 
 }  // namespace ae

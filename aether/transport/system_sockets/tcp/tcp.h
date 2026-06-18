@@ -67,6 +67,11 @@ class SendAction final : public PacketSendAction {
       SetStatus(WriteAction::Status::kFail);
       return;
     }
+    if (*res == 0) {
+      reenqueue_ = true;
+      return;
+    }
+
     AE_TELED_DEBUG("Data has been written size {} data {}", *res, data_);
     sent_offset_ += *res;
 

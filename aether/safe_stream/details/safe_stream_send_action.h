@@ -216,8 +216,6 @@ class SafeStreamSendAction {
         [this, range{selected_sch.range}]() {
           repeat_timer_.Reset();
           ProcessRepeat(range);
-          // enqueue repeat timeout for the next chunk
-          EnqueueRepeatTimeout();
         },
         wait_time);
   }
@@ -302,6 +300,7 @@ class SafeStreamSendAction {
       return RegisterChunk(dspan, chunk_index_range, current_time);
     });
     if (!res) {
+      AE_TELED_DEBUG("Send chunk error {}", res.error());
       // If any error over empty buffer
       if (res.error() != 0) {
         AE_TELED_ERROR("Chunk send error!");

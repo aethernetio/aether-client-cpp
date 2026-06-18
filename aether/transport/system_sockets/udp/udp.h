@@ -53,6 +53,7 @@ class SendAction final : public PacketSendAction {
   AE_CLASS_MOVE_ONLY(SendAction)
 
   void Send() override {
+    reenqueue_ = false;
     auto res = socket_->Send(Span{data_.data(), data_.size()});
     if (!res) {
       AE_TELED_ERROR("Data has not been written");
@@ -62,6 +63,7 @@ class SendAction final : public PacketSendAction {
     AE_TELED_DEBUG("Data has been written size {}", data_.size());
 
     if (*res == 0) {
+      reenqueue_ = true;
       // Not sent yet
       return;
     }
@@ -80,7 +82,7 @@ class SendAction final : public PacketSendAction {
   }
 
   bool is_done() const override { return is_done_; }
-  bool re_enqueue() const override { return reenque_; }
+  bool re_enqueue() const override { return reenqueue_; }
 
  protected:
   void SetStatus(WriteAction::Status status) noexcept override {
@@ -93,7 +95,7 @@ class SendAction final : public PacketSendAction {
   AeContext ae_context_;
   Socket* socket_;
   DataBuffer data_;
-  bool reenque_ = false;
+  bool reenqueue_ = false;
   bool is_done_ = false;
   TaskSubscription set_status_;
 };

@@ -22,10 +22,10 @@
 #include <cstdint>
 #include <cstddef>
 #include <cassert>
+#include <charconv>
 #include <string_view>
 
 #include "aether/type_traits.h"
-#include "aether/types/span.h"
 #include "aether/format/format.h"
 #include "aether/reflect/reflect.h"
 #include "aether/types/literal_array.h"
@@ -102,9 +102,35 @@ template <>
 struct Formatter<Uid> {
   template <typename TStream>
   void Format(Uid const& uid, FormatContext<TStream>& ctx) const {
-    ae::Format(ctx.out(), "{}-{}-{}-{}-{}", Span{uid.value.data(), 4},
-               Span{uid.value.data() + 4, 2}, Span{uid.value.data() + 6, 2},
-               Span{uid.value.data() + 8, 2}, Span{uid.value.data() + 10, 6});
+    constexpr std::uint8_t kMinTwoCharsValue = 0x10;
+    constexpr int kPrintBase = 16;
+    // each hex value takes 2 chars + 4 '-'
+    std::array<char, (Uid::kSize * 2) + 4> buff;
+    std::size_t wp = 0;
+
+    for (std::size_t i = 0; i < Uid::kSize; i++) {
+      switch (i) {
+        case 4:
+        case 6:
+        case 8:
+        case 10:
+          buff[wp++] = '-';
+          break;
+        default:
+          break;
+      }
+      auto v = uid.value[i];
+      // convert value with leading 0
+      if (v < kMinTwoCharsValue) {
+        *(buff.data() + wp) = '0';
+        std::to_chars(buff.data() + wp + 1, buff.data() + wp + 2, v,
+                      kPrintBase);
+      } else {
+        std::to_chars(buff.data() + wp, buff.data() + wp + 2, v, kPrintBase);
+      }
+      wp += 2;
+    }
+    ctx.out().stream().write(buff.data(), buff.size());
   }
 };
 

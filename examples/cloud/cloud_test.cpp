@@ -40,9 +40,9 @@ constexpr SafeStreamConfig kSafeStreamConfig{
     .window_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
     .max_packet_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
     .max_repeat_count = 10,
-    .wait_ack_timeout = std::chrono::milliseconds{1500},
-    .send_ack_timeout = std::chrono::milliseconds{0},
-    .send_repeat_timeout = std::chrono::milliseconds{200},
+    .wait_ack_timeout = std::chrono::seconds{5},
+    .send_ack_timeout = std::chrono::seconds{0},
+    .send_repeat_timeout = std::chrono::seconds{2},
 };
 }  // namespace ae::cloud_test
 

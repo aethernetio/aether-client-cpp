@@ -112,8 +112,7 @@ void EpollImpl::Callback(DescriptorType fd, EventCb cb) {
 }
 
 void EpollImpl::Event(DescriptorType fd, EventType events) {
-  AE_TELED_DEBUG("Poller event for fd:{} events: {}", fd,
-                 static_cast<std::uint8_t>(events));
+  AE_TELED_DEBUG("Poller event for fd:{} events: {}", fd, events);
   auto it = event_map_.find(fd);
   if (it == event_map_.end()) {
     assert(false && "Callback should setup first");

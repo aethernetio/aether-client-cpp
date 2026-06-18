@@ -17,11 +17,12 @@
 #ifndef AETHER_FORMAT_DEFAULT_FORMATTERS_H_
 #define AETHER_FORMAT_DEFAULT_FORMATTERS_H_
 
-#include <iomanip>
+#include <memory>
 #include <cassert>
 #include <cstdint>
 #include <optional>
 #include <iostream>
+#include <charconv>
 #include <type_traits>
 #include <string_view>
 
@@ -55,17 +56,7 @@ template <typename T>
 struct Formatter<
     T, std::enable_if_t<IsStreamOutputSpecified<T>::value &&
                         !IstextSpecified<T>::value && !std::is_enum_v<T> &&
-                        !std::is_integral_v<T> && !IsTimePoint<T>::value &&
-                        !IsDuration<T>::value>> {
-  template <typename TStream>
-  void Format(T const& value, FormatContext<TStream>& ctx) const {
-    ctx.out().stream() << value;
-  }
-};
-
-// for any integral type
-template <typename T>
-struct Formatter<T, std::enable_if_t<std::is_integral_v<T>>> {
+                        !IsTimePoint<T>::value && !IsDuration<T>::value>> {
   template <typename TStream>
   void Format(T const& value, FormatContext<TStream>& ctx) const {
     ctx.out().stream() << value;
@@ -131,16 +122,38 @@ struct Formatter<T, std::enable_if_t<!(IsString<std::decay_t<T>>::value ||
 
   template <typename TStream>
   void FormatBuffer(T const& value, FormatContext<TStream>& ctx) const {
-    ctx.out().stream() << std::setfill('0');
-    for (auto it = std::begin(value); it != std::end(value); ++it) {
-      ctx.out().stream() << std::setw(2) << std::hex;
-      if constexpr (std::is_unsigned_v<typename T::value_type>) {
-        ctx.out().stream() << std::uint64_t{*it};
-      } else {
-        ctx.out().stream() << std::int64_t{*it};
-      }
+    static_assert(sizeof(typename T::value_type) == 1,
+                  "Print buffer only for one byte size values");
+
+    constexpr std::size_t kLocalBuffSize = 128;
+    constexpr std::size_t kTwoMinCharValue = 0x10;
+    constexpr int kPrintBase = 16;
+    std::size_t v_size = 2;  // 2 chars on byte
+    std::size_t buff_size = v_size * value.size();
+
+    std::array<char, kLocalBuffSize> local_buff;
+    std::unique_ptr<char[]> alloc_buff;  // NOLINT(*avoid-c-arrays)
+
+    char* buff;  // NOLINT(*init-variables)
+    if (buff_size > local_buff.size()) {
+      alloc_buff =
+          std::make_unique<char[]>(buff_size);  // NOLINT(*avoid-c-arrays)
+      buff = alloc_buff.get();
+    } else {
+      buff = local_buff.data();
     }
-    ctx.out().stream() << std::setfill(' ') << std::setw(0) << std::dec;
+    std::size_t wp = 0;
+    for (auto const& v : value) {
+      // convert value with leading 0
+      if (v < kTwoMinCharValue) {
+        *(buff + wp) = '0';
+        std::to_chars(buff + wp + 1, buff + wp + v_size, v, kPrintBase);
+      } else {
+        std::to_chars(buff + wp, buff + wp + v_size, v, kPrintBase);
+      }
+      wp += v_size;
+    }
+    ctx.out().stream().write(buff, static_cast<std::streamsize>(wp));
   }
 };
 
