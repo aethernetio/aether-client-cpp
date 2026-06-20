@@ -24,7 +24,7 @@
 #include <algorithm>
 
 #include "aether/events/event_handler.h"
-#include "aether/types/aligned_storage.h"
+#include "aether-miscpp/types/aligned_storage.h"
 
 namespace ae {
 class EventHandlersList {

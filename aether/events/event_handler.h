@@ -21,7 +21,7 @@
 
 #include "aether/config.h"
 #include "aether/common.h"
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 
 namespace ae {
 

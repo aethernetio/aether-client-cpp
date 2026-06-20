@@ -25,7 +25,7 @@
 
 #  include "aether/poller/poller.h"
 #  include "aether/poller/poller_types.h"
-#  include "aether/types/small_function.h"
+#  include "aether-miscpp/types/small_function.h"
 
 namespace ae {
 /**

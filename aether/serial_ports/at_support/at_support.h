@@ -22,8 +22,8 @@
 #include <optional>
 #include <string_view>
 
-#include "aether/types/result.h"
-#include "aether/misc/from_chars.h"
+#include "aether-miscpp/types/result.h"
+#include "aether-miscpp/misc/from_chars.h"
 
 #include "aether/serial_ports/iserial_port.h"
 

@@ -21,7 +21,7 @@
 #include <utility>
 #include <concepts>
 
-#include "aether/meta/time_traits.h"
+#include "aether-miscpp/meta/time_traits.h"
 #include "aether/tasks/details/task_queues.h"
 #include "aether/tasks/details/generic_task.h"
 

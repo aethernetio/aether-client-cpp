@@ -43,7 +43,7 @@
 
 #define AETHER_TELE_TELE_H_
 
-#include "aether/meta/type_list.h"
+#include "aether-miscpp/meta/type_list.h"
 
 #include "aether/tele/sink.h"
 #include "aether/tele/tags.h"

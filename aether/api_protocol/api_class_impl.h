@@ -17,7 +17,7 @@
 #ifndef AETHER_API_PROTOCOL_API_CLASS_IMPL_H_
 #define AETHER_API_PROTOCOL_API_CLASS_IMPL_H_
 
-#include "aether/reflect/reflect.h"
+#include "aether-miscpp/reflect/reflect.h"
 #include "aether/api_protocol/api_class.h"
 #include "aether/api_protocol/api_pack_parser.h"
 

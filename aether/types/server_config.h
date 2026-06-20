@@ -19,10 +19,10 @@
 
 #include <vector>
 
-#include "aether/format/format.h"
+#include "aether-miscpp/format/format.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
-#include "aether/reflect/reflect.h"
+#include "aether-miscpp/reflect/reflect.h"
 
 namespace ae {
 struct ServerConfig {

@@ -31,13 +31,13 @@
 
 #include "aether/config.h"
 
-#include "aether/crc.h"
+#include "aether-miscpp/crc.h"
 #include "aether/obj/obj_id.h"
 #include "aether/obj/obj_ptr.h"
 #include "aether/obj/domain.h"
 #include "aether/obj/registry.h"
 #include "aether/obj/registrar.h"  // IWYU pragma:  export
-#include "aether/reflect/reflect.h"
+#include "aether-miscpp/reflect/reflect.h"
 
 namespace ae {
 /**

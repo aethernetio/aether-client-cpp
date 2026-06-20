@@ -27,7 +27,7 @@
 #include "aether/obj/domain.h"
 #include "aether/obj/registry.h"
 #include "aether/obj/obj_ptr_base.h"
-#include "aether/reflect/domain_visitor.h"  // IWYU pragma: keep
+#include "aether-miscpp/reflect/domain_visitor.h"  // IWYU pragma: keep
 
 namespace ae {
 

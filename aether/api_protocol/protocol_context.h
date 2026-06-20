@@ -21,7 +21,7 @@
 #include <stack>
 #include <cstdint>
 
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 #include "aether/api_protocol/request_id.h"
 
 namespace ae {

@@ -44,9 +44,9 @@
 #include <unordered_map>
 
 #include "aether/clock.h"
-#include "aether/reflect/reflect.h"
+#include "aether-miscpp/reflect/reflect.h"
 #include "aether/types/nullable_type.h"
-#include "aether/reflect/domain_visitor.h"  // IWYU pragma: keep
+#include "aether-miscpp/reflect/domain_visitor.h"  // IWYU pragma: keep
 
 namespace ae {
 

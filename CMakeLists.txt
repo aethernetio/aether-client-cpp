@@ -105,17 +105,18 @@ CPMAddPackage(
   GIT_TAG "master"
   EXCLUDE_FROM_ALL FALSE
 )
-# TODO: remove date
-CPMAddPackage(
-  URI "https://github.com/HowardHinnant/date.git#master"
-  OPTIONS "ENABLE_DATE_INSTALL ${AE_INSTALL}"
-  EXCLUDE_FROM_ALL FALSE
-)
 CPMAddPackage(
   NAME numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
   GIT_TAG "main"
   OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}"
+  EXCLUDE_FROM_ALL FALSE
+)
+CPMAddPackage(
+  NAME aether-miscpp
+  GIT_REPOSITORY "https://github.com/aethernetio/aether-miscpp.git"
+  GIT_TAG "main"
+  OPTIONS "AE_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
@@ -152,7 +153,7 @@ target_link_libraries(${TARGET_NAME} PUBLIC
                                       etl
                                       stdexec
                                       numeric
-                                      date)
+                                      aether::miscpp)
 
 message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux"

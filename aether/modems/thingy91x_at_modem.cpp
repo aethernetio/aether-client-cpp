@@ -20,8 +20,8 @@
 #  include <bitset>
 #  include <string_view>
 
-#  include "aether/misc/override.h"
-#  include "aether/misc/from_chars.h"
+#  include "aether-miscpp/misc/override.h"
+#  include "aether-miscpp/misc/from_chars.h"
 #  include "aether/executors/executors.h"
 #  include "aether/serial_ports/at_support/at_stage.h"
 #  include "aether/serial_ports/serial_port_factory.h"

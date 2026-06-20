@@ -22,7 +22,7 @@
 
 #include "aether/types/span.h"
 #include "aether/types/address.h"
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 
 namespace ae {
 /**

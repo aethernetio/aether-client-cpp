@@ -24,10 +24,12 @@
 
 #  include "ares.h"
 
+#  include "aether-miscpp/misc/defer.h"
+#  include "aether-miscpp/types/result.h"
+
 #  include "aether/warning_disable.h"
 
 #  include "aether/aether.h"
-#  include "aether/types/result.h"
 #  include "aether/socket_initializer.h"
 #  include "aether/events/multi_subscription.h"
 
@@ -212,7 +214,8 @@ ResolveSender DnsResolverCares::Resolve(NamedAddr const& name_address,
   }
 
   return ares_impl_->Query(name_address, port_hint, protocol_hint) |
-         ex::continues_on(ex::SchedulerOnTasks{AeContext{*aether_.Load().as<Aether>()}});
+         ex::continues_on(
+             ex::SchedulerOnTasks{AeContext{*aether_.Load().as<Aether>()}});
 }
 
 }  // namespace ae

@@ -19,7 +19,7 @@
 
 #include "aether/common.h"
 
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 #include "aether/serial_ports/at_support/at_buffer.h"
 #include "aether/serial_ports/at_support/at_dispatcher.h"
 

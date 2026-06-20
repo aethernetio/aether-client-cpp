@@ -19,7 +19,7 @@
 #if defined TELEMETRY_ENABLED
 
 #  include "aether/aether.h"
-#  include "aether/format/format.h"
+#  include "aether-miscpp/format/format.h"
 #  include "aether/tele/tele.h"
 #  include "aether/tele/traps/tele_statistics.h"
 

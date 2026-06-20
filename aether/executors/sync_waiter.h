@@ -27,7 +27,7 @@ IGNORE_IMPLICIT_CONVERSION()
 #include <stdexec/execution.hpp>
 DISABLE_WARNING_POP()
 
-#include "aether/types/result.h"
+#include "aether-miscpp/types/result.h"
 #include "aether/executors/waiter_traits.h"
 
 namespace ae::ex {

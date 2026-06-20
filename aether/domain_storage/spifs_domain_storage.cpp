@@ -24,7 +24,7 @@
 #  include "esp_spiffs.h"
 #  include "spiffs_config.h"
 
-#  include "aether/crc.h"
+#  include "aether-miscpp/crc.h"
 #  include "aether/mstream.h"
 #  include "aether/mstream_buffers.h"
 

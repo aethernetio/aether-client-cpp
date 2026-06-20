@@ -18,7 +18,7 @@
 
 #include <utility>
 
-#include "aether/crc.h"
+#include "aether-miscpp/crc.h"
 #include "aether/obj/obj_tele.h"
 
 namespace ae {

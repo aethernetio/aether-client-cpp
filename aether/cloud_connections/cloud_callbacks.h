@@ -17,7 +17,7 @@
 #ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_CALLBACKS_H_
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_CALLBACKS_H_
 
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 
 #include "aether/events/event_deleter.h"
 #include "aether/api_protocol/api_protocol.h"

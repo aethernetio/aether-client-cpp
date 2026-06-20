@@ -29,8 +29,8 @@ IGNORE_IMPLICIT_CONVERSION()
 #include <stdexec/execution.hpp>
 DISABLE_WARNING_POP()
 
-#include "aether/types/result.h"
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/result.h"
+#include "aether-miscpp/types/small_function.h"
 
 #include "aether/executors/waiter_traits.h"
 #include "aether/executors/async_context.h"

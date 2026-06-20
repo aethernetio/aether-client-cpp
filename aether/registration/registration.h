@@ -30,7 +30,7 @@
 #  include "aether/types/server_id.h"
 #  include "aether/types/client_config.h"
 #  include "aether/executors/executors.h"
-#  include "aether/types/small_function.h"
+#  include "aether-miscpp/types/small_function.h"
 
 #  include "aether/registration_cloud.h"
 #  include "aether/registration/api/client_reg_api_unsafe.h"

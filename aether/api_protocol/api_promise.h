@@ -19,7 +19,7 @@
 
 #include <cstdint>
 
-#include "aether/types/result.h"
+#include "aether-miscpp/types/result.h"
 #include "aether/events/events.h"
 #include "aether/api_protocol/request_id.h"
 

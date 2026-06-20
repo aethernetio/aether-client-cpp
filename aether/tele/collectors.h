@@ -25,11 +25,11 @@
 #include <chrono>
 #include <cstdint>
 #include <utility>
+#include <functional>
 #include <type_traits>
 
 #include "aether/clock.h"
-#include "aether/misc/defer.h"
-#include "aether/format/format.h"
+#include "aether-miscpp/format/format.h"
 
 #include "aether/tele/tags.h"
 #include "aether/tele/itrap.h"

@@ -23,9 +23,9 @@
 #include <optional>
 #include <type_traits>
 
-#include "aether/meta/arg_at.h"
-#include "aether/meta/type_list.h"
-#include "aether/meta/index_sequence.h"
+#include "aether-miscpp/meta/arg_at.h"
+#include "aether-miscpp/meta/type_list.h"
+#include "aether-miscpp/meta/index_sequence.h"
 
 namespace ae {
 
@@ -45,48 +45,6 @@ decltype(auto) ApplyRerverse(TFunc&& func, T&&... args) {
       reverse_sequence(std::make_index_sequence<sizeof...(T)>()),
       std::forward<T>(args)...);
 }
-
-template <typename T>
-struct IsString : std::false_type {};
-
-template <>
-struct IsString<std::string> : std::true_type {};
-
-template <typename T>
-struct IsStringView : std::false_type {};
-
-template <>
-struct IsStringView<std::string_view> : std::true_type {};
-
-template <typename T, typename _ = void>
-struct IsContainer : std::false_type {};
-
-template <typename T>
-struct IsContainer<
-    T, std::conditional_t<
-           false,
-           std::void_t<typename T::value_type, typename T::size_type,
-                       typename T::iterator, decltype(std::declval<T>().size()),
-                       decltype(std::declval<T>().begin()),
-                       decltype(std::declval<T>().end())>,
-           void>> : public std::true_type {};
-
-template <typename T, typename _ = void>
-struct IsAssociatedContainer : std::false_type {};
-
-template <typename T>
-struct IsAssociatedContainer<
-    T, std::conditional_t<
-           false,
-           std::void_t<typename T::key_type, typename T::mapped_type,
-                       typename T::value_type, typename T::size_type,
-                       typename T::iterator, typename T::const_iterator,
-                       decltype(std::declval<T>().size()),
-                       decltype(std::declval<T>().begin()),
-                       decltype(std::declval<T>().end()),
-                       decltype(std::declval<T>().cbegin()),
-                       decltype(std::declval<T>().cend())>,
-           void>> : public std::true_type {};
 
 template <typename T1, typename T2>
 struct IsAbleToCast {

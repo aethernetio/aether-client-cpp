@@ -27,7 +27,7 @@
 #include "aether/ptr/rc_ptr.h"
 #include "aether/ptr/ref_tree.h"
 #include "aether/ptr/ptr_management.h"
-#include "aether/reflect/domain_visitor.h"
+#include "aether-miscpp/reflect/domain_visitor.h"
 // IWYU pragma: end_keeps
 
 namespace ae {

@@ -23,7 +23,7 @@
 #include "aether/channels/channel.h"
 #include "aether/stream_api/istream.h"
 #include "aether/executors/executors.h"
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 
 namespace ae {
 class Channel;

@@ -23,7 +23,7 @@
 
 #  include <bcrypt.h>
 
-#  include "aether/crc.h"
+#  include "aether-miscpp/crc.h"
 
 namespace ae {
 

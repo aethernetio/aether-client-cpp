@@ -26,7 +26,7 @@
 #include "aether/events/event_list.h"
 #include "aether/events/event_handler.h"
 #include "aether/events/event_deleter.h"
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 #include "aether/events/event_subscription.h"
 
 namespace ae {

@@ -22,7 +22,7 @@
 #include "aether/ptr/ptr.h"
 #include "aether/obj/domain.h"
 #include "aether/obj/registry.h"
-#include "aether/reflect/type_index.h"
+#include "aether-miscpp/reflect/type_index.h"
 
 namespace ae {
 template <class T>

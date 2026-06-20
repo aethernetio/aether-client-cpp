@@ -25,7 +25,7 @@ IGNORE_IMPLICIT_CONVERSION()
 DISABLE_WARNING_POP()
 
 #include "aether/ae_context.h"
-#include "aether/types/small_function.h"
+#include "aether-miscpp/types/small_function.h"
 #include "aether/events/multi_subscription.h"
 #include "aether/write_action/write_action.h"
 #include "aether/write_action/failed_write_action.h"
