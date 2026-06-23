@@ -23,7 +23,7 @@
 #include "aether/api_protocol/api_protocol.h"
 
 #include "aether/work_cloud_api/ae_message.h"
-#include "aether/work_cloud_api/uid_and_cloud.h"
+#include "aether/work_cloud_api/cloud_configs.h"
 #include "aether/work_cloud_api/server_descriptor.h"
 
 namespace ae {
@@ -73,6 +73,8 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
   void SendAccessCheckResults(std::vector<AccessCheckResult> const& results);
   void SendMessage(AeMessage const& message);
 
+  void SendCLoudConfig(std::vector<CloudConfig> const& configs);
+
   ReturnResultApi return_result;
 
   AE_METHODS(RegMethod<3, &ClientApiSafe::ChangeParent>,
@@ -93,6 +95,7 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
              RegMethod<18, &ClientApiSafe::SendAllAccessedClients>,
              RegMethod<19, &ClientApiSafe::SendAccessCheckResults>,
              RegMethod<20, &ClientApiSafe::SendMessage>,
+             RegMethod<21, &ClientApiSafe::SendCLoudConfig>,
              ExtApi<&ClientApiSafe::return_result>);
 
   auto send_message_event() { return EventSubscriber{send_message_event_}; }
@@ -103,6 +106,7 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
   auto request_telemetry_event() {
     return EventSubscriber{request_telemetry_event_};
   }
+  auto send_cloud_configs() { return EventSubscriber{send_cloud_configs_}; }
 
  private:
   Event<void(AeMessage const& message)> send_message_event_;
@@ -110,6 +114,7 @@ class ClientApiSafe : public ApiClassImpl<ClientApiSafe> {
       send_server_descriptor_event_;
   Event<void(Uid const& uid, CloudDescriptor const& cloud)> send_cloud_event_;
   Event<void()> request_telemetry_event_;
+  Event<void(std::vector<CloudConfig> const& configs)> send_cloud_configs_;
 };
 }  // namespace ae
 

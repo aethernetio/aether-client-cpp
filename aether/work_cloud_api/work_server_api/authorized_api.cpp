@@ -25,5 +25,6 @@ AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context)
       check_access_for_send_message{protocol_context},
       resolver_servers{protocol_context},
       resolver_clouds{protocol_context},
-      send_telemetry{protocol_context} {}
+      send_telemetry{protocol_context},
+      report_applied_config{protocol_context} {}
 }  // namespace ae
