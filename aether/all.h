@@ -92,7 +92,6 @@
 #include "aether/ae_actions/telemetry.h"
 #include "aether/ae_actions/get_servers.h"
 #include "aether/ae_actions/select_client.h"
-#include "aether/ae_actions/get_client_cloud.h"
 #include "aether/ae_actions/check_access_for_send_message.h"
 
 #include "aether/modems/imodem_driver.h"
