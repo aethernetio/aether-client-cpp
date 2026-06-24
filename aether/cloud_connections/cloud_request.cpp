@@ -133,7 +133,7 @@ void CloudRequestAction::Succeeded() {
 
 void CloudRequestAction::Failed() {
   Finish();
-  success_event_.Emit();
+  failure_event_.Emit();
 }
 
 CloudRequestAction::SuccessEvent::Subscriber
