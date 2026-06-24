@@ -147,7 +147,7 @@ void CloudServerConnections::SubscribeToServerState(
 
 void CloudServerConnections::ReselectServers() {
   // reselct servers on next cycle
-  ae_context_.scheduler().Task([&]() { InitServers(); });
+  defer_sub_ = ae_context_.scheduler().Task([&]() { InitServers(); });
 }
 
 void CloudServerConnections::UnselectServer(
@@ -168,6 +168,7 @@ void CloudServerConnections::QuarantineTimer(
                  server_connection.server()->server_id);
   static constexpr Duration kQuarantineDuration =
       std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS};
+  // TODO: add task subscription here
   ae_context_.scheduler().DelayedTask(
       [this, sc{&server_connection}]() {
         AE_TELED_DEBUG("Release from quarantine server {}",
