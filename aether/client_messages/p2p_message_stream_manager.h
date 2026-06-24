@@ -50,7 +50,6 @@ class P2pMessageStreamManager {
 
   AeContext ae_context_;
   PtrView<Client> client_;
-  ClientConnectionManager* connection_manager_;
   CloudServerConnections* cloud_connection_;
   std::map<Uid, RcPtrView<P2pStream>> streams_;
   NewStreamEvent new_stream_event_;

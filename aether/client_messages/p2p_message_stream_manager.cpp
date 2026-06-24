@@ -26,7 +26,6 @@ P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
                                                  Ptr<Client> const& client)
     : ae_context_{ae_context},
       client_{client},
-      connection_manager_{&client->connection_manager()},
       cloud_connection_{&client->cloud_connection()},
       on_message_received_sub_{CloudSubscription{
           ClientListener{[this](ClientApiSafe& client_api, auto*) {

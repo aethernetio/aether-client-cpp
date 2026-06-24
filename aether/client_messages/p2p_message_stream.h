@@ -27,7 +27,6 @@
 
 #include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/connection_manager/client_cloud_manager.h"
-#include "aether/connection_manager/client_connection_manager.h"
 
 namespace ae {
 class Client;
@@ -64,18 +63,16 @@ class P2pStream final : public ByteIStream {
   void ConnectReceive();
   void ConnectSend();
 
-  std::unique_ptr<ClientConnectionManager> MakeConnectionManager(
-      Ptr<Cloud> const& cloud);
   std::unique_ptr<CloudServerConnections> MakeDestinationCloudConn(
-      ClientConnectionManager& connection_manager);
+      Ptr<Cloud> const& cloud,
+      std::unique_ptr<IServerConnectionFactory> factory);
   WriteAction* OnWrite(AeMessage&& message);
 
   AeContext ae_context_;
   PtrView<Client> client_;
   Uid destination_{};
 
-  // connection manager to destination cloud
-  std::unique_ptr<ClientConnectionManager> dest_conn_manager_;
+  // connection to destination cloud
   std::unique_ptr<CloudServerConnections> dest_cloud_conn_;
   BufferWrite<AeMessage, 100> buffer_write_;
   std::unique_ptr<p2p_stream_internal::MessageSendStream> message_send_stream_;

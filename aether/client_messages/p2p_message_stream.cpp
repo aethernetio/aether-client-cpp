@@ -254,11 +254,12 @@ void P2pStream::ConnectSend() {
   auto& get_client_cloud = client_ptr->cloud_manager()->GetCloud(destination_);
 
   get_client_cloud_sub_ = get_client_cloud.result_event().Subscribe(
-      [this](Result<Cloud::ptr, int>&& result) {
+      [this, client_ptr](Result<Cloud::ptr, int>&& result) {
         if (result) {
           auto cloud = std::move(result).value();
-          dest_conn_manager_ = MakeConnectionManager(cloud.Load());
-          dest_cloud_conn_ = MakeDestinationCloudConn(*dest_conn_manager_);
+          dest_cloud_conn_ = MakeDestinationCloudConn(
+              cloud.Load(), client_ptr->server_connection_manager()
+                                .GetServerConnectionFactory());
           // TODO: add config for request policy
           message_send_stream_ =
               std::make_unique<p2p_stream_internal::MessageSendStream>(
@@ -276,19 +277,11 @@ void P2pStream::ConnectSend() {
       });
 }
 
-std::unique_ptr<ClientConnectionManager> P2pStream::MakeConnectionManager(
-    Ptr<Cloud> const& cloud) {
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
-  return std::make_unique<ClientConnectionManager>(
-      cloud,
-      client_ptr->server_connection_manager().GetServerConnectionFactory());
-}
-
 std::unique_ptr<CloudServerConnections> P2pStream::MakeDestinationCloudConn(
-    ClientConnectionManager& connection_manager) {
+    Ptr<Cloud> const& cloud,
+    std::unique_ptr<IServerConnectionFactory> factory) {
   return std::make_unique<CloudServerConnections>(
-      ae_context_, connection_manager, AE_CLOUD_MAX_SERVER_CONNECTIONS);
+      ae_context_, cloud, std::move(factory), AE_CLOUD_MAX_SERVER_CONNECTIONS);
 }
 
 WriteAction* P2pStream::OnWrite(AeMessage&& message) {

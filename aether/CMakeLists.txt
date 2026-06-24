@@ -206,7 +206,6 @@ list(APPEND aether_srcs
             "server_connections/server_connection.cpp")
 
 list(APPEND aether_srcs
-            "connection_manager/client_connection_manager.cpp"
             "connection_manager/get_cloud_aether.cpp"
             "connection_manager/client_cloud_manager.cpp"
             "connection_manager/server_connection_manager.cpp")
