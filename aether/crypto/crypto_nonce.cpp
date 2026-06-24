@@ -28,7 +28,7 @@ namespace ae {
 void CryptoNonceChacha20Poly1305::Next() {
   static_assert(kNonceSize >= sizeof(std::uint64_t));
   auto& v = *reinterpret_cast<std::uint64_t*>(value.data());
-  v = +1;
+  v += 1;
 }
 void CryptoNonceChacha20Poly1305::Init() {
   randombytes_buf(value.data(), value.size());

@@ -25,6 +25,7 @@
 
 #include "aether/work_cloud_api/ae_message.h"
 #include "aether/work_cloud_api/telemetric.h"
+#include "aether/work_cloud_api/cloud_configs.h"
 
 namespace ae {
 
@@ -40,6 +41,8 @@ class AuthorizedApi : public ApiClass {
   Method<13, void(std::vector<Uid> uids)> resolver_clouds;
 
   Method<18, void(Telemetric telemetric)> send_telemetry;
+
+  Method<38, void(std::vector<AppliedConfig> configs)> report_applied_config;
 };
 }  // namespace ae
 

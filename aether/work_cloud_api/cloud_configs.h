@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_WORK_CLOUD_API_UID_AND_CLOUD_H_
-#define AETHER_WORK_CLOUD_API_UID_AND_CLOUD_H_
+#ifndef AETHER_WORK_CLOUD_API_CLOUD_CONFIGS_H_
+#define AETHER_WORK_CLOUD_API_CLOUD_CONFIGS_H_
 
-#include <vector>
+#include <cstdint>
+
+#include "aether-miscpp/reflect/reflect.h"
 
 #include "aether/types/uid.h"
 #include "aether/types/server_id.h"
@@ -34,6 +36,22 @@ struct UidAndCloudDescriptor {
   Uid uid;
   CloudDescriptor cloud;
 };
+
+struct CloudConfig {
+  AE_REFLECT_MEMBERS(subject_uid, config_version, cloud)
+
+  Uid subject_uid;
+  std::int64_t config_version;
+  CloudDescriptor cloud;
+};
+
+struct AppliedConfig {
+  AE_REFLECT_MEMBERS(subject_uid, config_version)
+
+  Uid subject_uid;
+  std::int64_t config_version;
+};
+
 }  // namespace ae
 
-#endif  // AETHER_WORK_CLOUD_API_UID_AND_CLOUD_H_
+#endif  // AETHER_WORK_CLOUD_API_CLOUD_CONFIGS_H_

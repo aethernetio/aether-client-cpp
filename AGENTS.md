@@ -41,7 +41,7 @@
 - There is a `ManualTaskScheduler` with methods to define a single `Task` and `DelayedTask` with duration after which the task will be executed.
 - To access this scheduler use `ae_context.scheduler()` method.
 - Tasks should be lightweight as possible because it stored in fixed-size object pool.
-- To control task lifetime use `TaskSubscription` a RAII object which automatically resets task if subscribers die.
+- To control task lifetime use `TaskSubscription` a RAII object which automatically resets task if subscribers die. This guarantees task would not be invoked if subscription dead.
 - In rare cases class can guarantee its lifetime, subscription may be omitted.
 
 ### Stdexec

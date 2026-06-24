@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,26 @@
  * limitations under the License.
  */
 
-#include "aether/work_cloud_api/work_server_api/authorized_api.h"
+#ifndef AETHER_CONNECTION_MANAGER_H_
+#define AETHER_CONNECTION_MANAGER_H_
+
+#include "aether-miscpp/types/result.h"
+
+#include "aether/events/events.h"
+#include "aether/actions/action.h"
+
+#include "aether/cloud.h"
 
 namespace ae {
-AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context)
-    : ApiClass{protocol_context},
-      ping{protocol_context},
-      send_message{protocol_context},
-      send_messages{protocol_context},
-      check_access_for_send_message{protocol_context},
-      resolver_servers{protocol_context},
-      resolver_clouds{protocol_context},
-      send_telemetry{protocol_context},
-      report_applied_config{protocol_context} {}
+/**
+ * \brief Action to get a cloud.
+ */
+class GetCloudAction : public Action {
+ public:
+  using ResultEvent = Event<void(Result<Cloud::ptr, int>)>;
+
+  virtual ResultEvent::Subscriber result_event() noexcept = 0;
+};
 }  // namespace ae
+
+#endif  // AETHER_CONNECTION_MANAGER_H_

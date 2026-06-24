@@ -72,6 +72,7 @@ class CloudServerConnections {
   ServersUpdate servers_update_event_;
 
   std::map<std::uintptr_t, Subscription> server_state_subs_;
+  TaskSubscription defer_sub_;
 };
 }  // namespace ae
 

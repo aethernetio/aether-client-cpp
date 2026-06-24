@@ -18,21 +18,21 @@
 #define AETHER_CONNECTION_MANAGER_CLIENT_CLOUD_MANAGER_H_
 
 #include <map>
-#include <array>
 #include <optional>
 
+#include "aether/cloud.h"
 #include "aether/obj/obj.h"
 #include "aether/ptr/ptr.h"
-#include "aether/actions/action.h"
-#include "aether/actions/action_pool.h"
-
-#include "aether/cloud.h"
 #include "aether/types/uid.h"
-#include "aether-miscpp/types/result.h"
 #include "aether/events/events.h"
+#include "aether/actions/action_pool.h"
+#include "aether/executors/executors.h"
 
 #include "aether/ae_actions/get_servers.h"
-#include "aether/ae_actions/get_client_cloud.h"
+#include "aether/cloud_connections/cloud_subscription.h"
+
+#include "aether/connection_manager/get_cloud_action.h"
+#include "aether/connection_manager/get_cloud_aether.h"
 
 namespace ae {
 class Aether;
@@ -41,17 +41,19 @@ class ClientCloudManager;
 class CloudServerConnections;
 struct ServerDescriptor;
 
-/**
- * \brief Action to get a cloud.
- */
-class GetCloudAction : public Action {
- public:
-  using ResultEvent = Event<void(Result<Cloud::ptr, int>)>;
+namespace client_cloud_manager_internal {
+struct CloudCache {
+  AE_REFLECT_MEMBERS(subject_uid, version, version_confirmed, cloud);
 
-  virtual ResultEvent::Subscriber result_event() noexcept = 0;
+  bool version_confirmed = false;
+  Uid subject_uid;
+  std::int64_t version = -1;
+  Cloud::ptr cloud;
+
+  // runtime info, do not serialize
+  bool finalizing = false;
 };
 
-namespace client_cloud_manager_internal {
 class GetCloudFromCache final : public GetCloudAction {
  public:
   GetCloudFromCache(AeContext const& ae_context, Cloud::ptr cloud);
@@ -62,38 +64,6 @@ class GetCloudFromCache final : public GetCloudAction {
   Cloud::ptr cloud_;
   ResultEvent result_event_;
 };
-
-class GetCloudFromAether final : public GetCloudAction {
- public:
-  explicit GetCloudFromAether(AeContext const& ae_context, Aether& aether,
-                              ClientCloudManager& client_cloud_manager,
-                              CloudServerConnections& cloud_connection,
-                              Uid const& client_uid);
-
-  ResultEvent::Subscriber result_event() noexcept override;
-
- private:
-  void RequestCloud();
-  void BuildServers(std::vector<ServerId> cloud);
-  std::vector<Server::ptr> BuildNewServers(
-      std::vector<ServerDescriptor> const& descriptors);
-  void RegisterCloud(std::vector<Server::ptr> servers);
-  void Failed();
-
-  AeContext ae_context_;
-  Aether* aether_;
-  ClientCloudManager* client_cloud_manager_;
-  CloudServerConnections* cloud_connection_;
-  Uid client_uid_;
-  ResultEvent result_event_;
-  std::optional<GetClientCloudAction> get_client_cloud_action_;
-  Subscription get_client_cloud_sub_;
-  std::optional<GetServersAction> get_servers_action_;
-  Subscription get_servers_sub_;
-  std::vector<ServerId> cloud_sids_;
-  std::vector<Server::ptr> servers_;
-};
-
 }  // namespace client_cloud_manager_internal
 
 class ClientCloudManager : public Obj {
@@ -102,27 +72,53 @@ class ClientCloudManager : public Obj {
   ClientCloudManager() = default;
 
  public:
+  using CloudUpdateEvent =
+      Event<void(Uid const& uid, Result<Cloud::ptr const&, int>)>;
+
+  using GetCloudActionPool =
+      ActionPool<AeContext,
+                 std::variant<client_cloud_manager_internal::GetCloudFromCache,
+                              GetCloudFromAether>,
+                 5>;
+  using GetServersPool = ActionPool<AeContext, GetServersAction, 5>;
+
   explicit ClientCloudManager(ObjProp prop, ObjPtr<Aether> aether,
                               ObjPtr<Client> client);
 
   AE_CLASS_NO_COPY_MOVE(ClientCloudManager)
 
+  CloudUpdateEvent::Subscriber cloud_update_event();
+
   GetCloudAction& GetCloud(Uid client_uid);
 
-  Cloud::ptr RegisterCloud(Uid uid, std::vector<Server::ptr> servers);
-
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_))
+  template <typename Dnv>
+  void Load(CurrentVersion, Dnv& dnv) {
+    dnv(base_, aether_, client_, cloud_cache_);
+    Init();
+  }
 
  private:
+  void Init();
+  void ListenForCloudUpdate();
+  void CloudConfigs(std::vector<CloudConfig> const& configs);
+  void FinalizeCloudConfig(CloudConfig const& conf);
+  auto MakeServersSender(std::vector<ServerId> const& sids);
+  Cloud::ptr RegisterCloud(Uid uid, std::vector<Server::ptr> servers);
+
+  GetCloudActionPool& get_cloud_action_pool();
+
   Obj::ptr aether_;
   Obj::ptr client_;
-  std::map<Uid, Cloud::ptr> cloud_cache_;
-  std::optional<ActionPool<
-      AeContext,
-      std::variant<client_cloud_manager_internal::GetCloudFromCache,
-                   client_cloud_manager_internal::GetCloudFromAether>,
-      5>>
-      cloud_actions_;
+  std::map<Uid, client_cloud_manager_internal::CloudCache> cloud_cache_;
+
+  CloudUpdateEvent cloud_update_event_;
+  CloudSubscription cloud_update_sub_;
+  std::optional<GetCloudActionPool> cloud_actions_;
+  std::optional<GetServersPool> get_servers_pool_;
+  std::vector<std::unique_ptr<ex::AnyWaiter<
+      ex::set_value_t(std::vector<Server::ptr>), ex::set_error_t(int)>>>
+      make_servers_;
 };
 }  // namespace ae
 

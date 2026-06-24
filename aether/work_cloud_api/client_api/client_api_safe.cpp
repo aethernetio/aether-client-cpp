@@ -115,4 +115,9 @@ void ClientApiSafe::SendMessage(AeMessage const& msg) {
   send_message_event_.Emit(msg);
 }
 
+void ClientApiSafe::SendCLoudConfig(std::vector<CloudConfig> const& configs) {
+  AE_TELED_DEBUG("Received cloud configs count {}", configs.size());
+  send_cloud_configs_.Emit(configs);
+}
+
 }  // namespace ae
