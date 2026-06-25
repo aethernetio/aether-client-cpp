@@ -24,11 +24,14 @@
 namespace ae {
 
 CloudServerConnections::CloudServerConnections(
-    AeContext const& ae_context, ClientConnectionManager& connection_manager,
+    AeContext const& ae_context, Ptr<Cloud> const& cloud,
+    std::unique_ptr<IServerConnectionFactory> connection_factory,
     std::size_t max_connections)
     : ae_context_{ae_context},
-      connection_manager_{&connection_manager},
+      cloud_{cloud},
+      connection_factory_{std::move(connection_factory)},
       max_connections_{max_connections} {
+  InitServerConnections();
   InitServers();
 }
 
@@ -54,6 +57,13 @@ void CloudServerConnections::Restream() {
   // restream all servers
   for (auto const& server : selected_servers_) {
     server->Restream();
+  }
+}
+
+void CloudServerConnections::InitServerConnections() {
+  server_connections_.clear();
+  for (auto& server : cloud_->servers()) {
+    server_connections_.emplace_back(server.Load(), *connection_factory_);
   }
 }
 
@@ -112,8 +122,7 @@ void CloudServerConnections::SubscribeToServerState(
   auto bad_server = [this, sc{&server_connection}]() {
     // TODO: add the policy how to change the server priority on failure
     // put server in quarantine and make it the least prioritized
-    auto new_priority =
-        sc->priority() + connection_manager_->server_connections().size();
+    auto new_priority = sc->priority() + server_connections_.size();
     sc->EndConnection(new_priority);
     QuarantineTimer(*sc);
     UnselectServer(*sc);
@@ -183,8 +192,8 @@ void CloudServerConnections::QuarantineTimer(
 
 std::vector<CloudServerConnection*> CloudServerConnections::ServerCandidates() {
   std::vector<CloudServerConnection*> servers;
-  servers.reserve(connection_manager_->server_connections().size());
-  for (auto& s : connection_manager_->server_connections()) {
+  servers.reserve(server_connections_.size());
+  for (auto& s : server_connections_) {
     if (s.quarantine()) {
       continue;
     }

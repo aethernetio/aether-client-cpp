@@ -17,10 +17,14 @@
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTIONS_H_
 
 #include <vector>
+#include <memory>
 
+#include "aether/cloud.h"
+#include "aether/ptr/ptr.h"
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
-#include "aether/connection_manager/client_connection_manager.h"
+#include "aether/cloud_connections/cloud_server_connection.h"
+#include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {
 
@@ -30,9 +34,10 @@ class CloudServerConnections {
  public:
   using ServersUpdate = Event<void()>;
 
-  CloudServerConnections(AeContext const& ae_context,
-                         ClientConnectionManager& connection_manager,
-                         std::size_t max_connections);
+  CloudServerConnections(
+      AeContext const& ae_context, Ptr<Cloud> const& cloud,
+      std::unique_ptr<IServerConnectionFactory> connection_factory,
+      std::size_t max_connections);
 
   /**
    * \brief The event then top list of the servers were updated.
@@ -52,6 +57,7 @@ class CloudServerConnections {
   void Restream();
 
  private:
+  void InitServerConnections();
   void InitServers();
   void SelectServers(std::vector<CloudServerConnection*> const& servers);
   void SubscribeToServerState(CloudServerConnection& server_connection);
@@ -63,8 +69,10 @@ class CloudServerConnections {
   std::vector<CloudServerConnection*> ServerCandidates();
 
   AeContext ae_context_;
-  ClientConnectionManager* connection_manager_;
+  Ptr<Cloud> cloud_;
+  std::unique_ptr<IServerConnectionFactory> connection_factory_;
   std::size_t max_connections_;
+  std::vector<CloudServerConnection> server_connections_;
 
   // selected list of servers sorted by the priority
   std::vector<CloudServerConnection*> selected_servers_;

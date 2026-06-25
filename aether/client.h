@@ -31,7 +31,6 @@
 #include "aether/connection_manager/client_cloud_manager.h"
 #include "aether/client_messages/p2p_message_stream_manager.h"
 #include "aether/connection_manager/server_connection_manager.h"
-#include "aether/connection_manager/client_connection_manager.h"
 
 namespace ae {
 class Aether;
@@ -58,7 +57,6 @@ class Client : public Obj {
   Cloud::ptr const& cloud() const;
   ClientCloudManager::ptr const& cloud_manager() const;
   ServerConnectionManager& server_connection_manager();
-  ClientConnectionManager& connection_manager();
   CloudServerConnections& cloud_connection();
   P2pMessageStreamManager& message_stream_manager();
 
@@ -86,7 +84,6 @@ class Client : public Obj {
 
   ClientCloudManager::ptr client_cloud_manager_;
   std::unique_ptr<ServerConnectionManager> server_connection_manager_;
-  std::unique_ptr<ClientConnectionManager> client_connection_manager_;
   std::unique_ptr<CloudServerConnections> cloud_connection_;
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
 

@@ -40,7 +40,8 @@ Uid const& Client::ephemeral_uid() const { return ephemeral_uid_; }
 ServerKeys* Client::server_state(ServerId server_id) {
   auto ss_it = server_keys_.find(server_id);
   if (ss_it == server_keys_.end()) {
-    auto [it, _] = server_keys_.emplace(server_id, ServerKeys{server_id, master_key_});
+    auto [it, _] =
+        server_keys_.emplace(server_id, ServerKeys{server_id, master_key_});
     ss_it = it;
   }
   return &ss_it->second;
@@ -62,20 +63,11 @@ ServerConnectionManager& Client::server_connection_manager() {
   return *server_connection_manager_;
 }
 
-ClientConnectionManager& Client::connection_manager() {
-  if (!client_connection_manager_) {
-    auto aether = Aether::ptr{aether_};
-    client_connection_manager_ = std::make_unique<ClientConnectionManager>(
-        cloud_.Load(),
-        server_connection_manager().GetServerConnectionFactory());
-  }
-  return *client_connection_manager_;
-}
-
 CloudServerConnections& Client::cloud_connection() {
   if (!cloud_connection_) {
     cloud_connection_ = std::make_unique<CloudServerConnections>(
-        *aether_.Load().as<Aether>(), connection_manager(),
+        *aether_.Load().as<Aether>(), cloud_.Load(),
+        server_connection_manager().GetServerConnectionFactory(),
         AE_CLOUD_MAX_SERVER_CONNECTIONS);
 
 #if AE_TELE_ENABLED

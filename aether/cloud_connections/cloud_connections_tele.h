@@ -28,10 +28,4 @@ AE_TAG(CloudClientNewStream, kCloudClientConnection)
 AE_TELE_MODULE(kClientServerStream, 61, 113, 113);
 AE_TAG(ClientServerStreamCreate, kClientServerStream)
 
-AE_TELE_MODULE(kClientConnectionManager, 62, 114, 116);
-AE_TAG(ClientConnectionManagerSelfCloudConnection, kClientConnectionManager)
-AE_TAG(ClientConnectionManagerUidCloudConnection, kClientConnectionManager)
-AE_TAG(ClientConnectionManagerUnableCreateClientServerConnection,
-       kClientConnectionManager)
-
 #endif  // AETHER_CLOUD_CONNECTIONS_CLOUD_CONNECTIONS_TELE_H_
