@@ -31,7 +31,7 @@
 #include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/connection_manager/client_cloud_manager.h"
 #include "aether/connection_manager/client_connection_manager.h"
-#include "aether/prepared_packet/packet_encoder.h"
+#include "aether/prepared_packet/prepared_send_message.h"
 
 namespace ae {
 class Client;

@@ -32,7 +32,7 @@
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 #include "aether/server_connections/server_connection.h"
-#include "aether/prepared_packet/packet_encoder.h"
+#include "aether/prepared_packet/prepared_send_message.h"
 
 namespace ae {
 class Client;
