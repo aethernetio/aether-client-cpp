@@ -26,6 +26,7 @@
 #include "aether/cloud_connections/cloud_visit.h"
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/cloud_subscription.h"
+#include "aether/cloud_connections/cloud_server_connection.h"
 
 #include "aether/client_messages/client_messages_tele.h"
 
@@ -50,6 +51,29 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
           auth_api->send_message(std::move(message));
         }},
         request_policy_);
+  }
+
+  std::optional<prepared_packet::PreparedSendMessageBlock>
+  ExportPreparedSendMessageBlock(Uid target_uid,
+                                 std::uint32_t reserve_nonce_count) {
+    for (auto* sc : cloud_connection_->servers()) {
+      if (sc == nullptr) {
+        continue;
+      }
+
+      auto* conn = sc->client_connection();
+      if (conn == nullptr) {
+        continue;
+      }
+
+      auto block = conn->ExportPreparedSendMessageBlock(target_uid,
+                                                        reserve_nonce_count);
+      if (block) {
+        return block;
+      }
+    }
+
+    return std::nullopt;
   }
   StreamInfo stream_info() const override { return stream_info_; }
   OutDataEvent::Subscriber out_data_event() override { return out_data_event_; }
@@ -234,6 +258,17 @@ void P2pStream::WriteOut(DataBuffer const& data) {
 }
 
 Uid const& P2pStream::destination() const { return destination_; }
+
+std::optional<prepared_packet::PreparedSendMessageBlock>
+P2pStream::ExportPreparedSendMessageBlock(std::uint32_t reserve_nonce_count) {
+  if (!message_send_stream_) {
+    return std::nullopt;
+  }
+
+  return message_send_stream_->ExportPreparedSendMessageBlock(
+      destination_, reserve_nonce_count);
+}
+
 
 void P2pStream::ConnectReceive() {
   auto client_ptr = client_.Lock();

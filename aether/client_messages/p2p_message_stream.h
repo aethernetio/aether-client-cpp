@@ -17,6 +17,9 @@
 #ifndef AETHER_CLIENT_MESSAGES_P2P_MESSAGE_STREAM_H_
 #define AETHER_CLIENT_MESSAGES_P2P_MESSAGE_STREAM_H_
 
+#include <optional>
+#include <cstdint>
+
 #include "aether/common.h"
 
 #include "aether/types/uid.h"
@@ -28,6 +31,7 @@
 #include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/connection_manager/client_cloud_manager.h"
 #include "aether/connection_manager/client_connection_manager.h"
+#include "aether/prepared_packet/packet_encoder.h"
 
 namespace ae {
 class Client;
@@ -59,6 +63,9 @@ class P2pStream final : public ByteIStream {
   void WriteOut(DataBuffer const& data);
 
   Uid const& destination() const;
+
+  std::optional<prepared_packet::PreparedSendMessageBlock>
+  ExportPreparedSendMessageBlock(std::uint32_t reserve_nonce_count);
 
  private:
   void ConnectReceive();
