@@ -22,6 +22,7 @@
 #include "aether/events/events.h"
 
 #include "aether/connection_manager/get_cloud_action.h"
+#include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
@@ -38,13 +39,13 @@ class GetCloudFromAether final : public GetCloudAction {
   ResultEvent::Subscriber result_event() noexcept override;
 
  private:
-  void RequestCloud();
   void CloudUpdate(Uid const& uid, Result<Cloud::ptr const&, int> const& res);
 
   AeContext ae_context_;
   Uid client_uid_;
   CloudServerConnections& cloud_connection_;
-
+  CloudRequest cloud_request_;
+  Subscription cloud_request_result_sub_;
   Subscription cloud_update_sub_;
   ResultEvent result_event_;
 };
