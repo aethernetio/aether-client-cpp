@@ -215,14 +215,15 @@ ClientServerConnection::ExportPreparedSendMessageBlock(
     return std::nullopt;
   }
 
-  std::optional<prepared_packet::PreparedUdpEndpoint> prepared_endpoint;
+  std::optional<prepared_packet::PreparedEndpoint> prepared_endpoint;
 
   for (auto const& e : server->endpoints) {
     if (e.protocol != Protocol::kUdp) {
       continue;
     }
 
-    prepared_packet::PreparedUdpEndpoint candidate;
+    prepared_packet::PreparedEndpoint candidate;
+    candidate.protocol = e.protocol;
     candidate.port = e.port;
 
     bool is_ip = false;
@@ -272,7 +273,6 @@ ClientServerConnection::ExportPreparedSendMessageBlock(
   // matching existing ClientKeyProvider behavior.
   block.next_nonce = server_key->nonce();
   block.nonce_left = reserve_nonce_count;
-  block.nonce_index = 0;
 
   // Burn/reserve the same nonce range in the full client,
   // so the normal Aether path cannot reuse it later.
