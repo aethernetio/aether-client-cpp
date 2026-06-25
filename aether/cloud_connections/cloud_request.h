@@ -26,85 +26,58 @@
 #include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
-class CloudRequest {
-  class EmptyConnectionsWA final : public WriteAction {
-   public:
-    explicit EmptyConnectionsWA(AeContext const& ae_context) {
-      ae_context.scheduler().Task(
-          [&]() { WriteAction::SetStatus(WriteAction::Status::kFail); });
-    }
-  };
-
-  class ReplicaWA final : public WriteAction {
-   public:
-    explicit ReplicaWA(std::vector<WriteAction*>&& swas) noexcept;
-
-    void Stop() noexcept override;
-
-   private:
-    std::vector<WriteAction*> swas_;
-    std::size_t failed_actions_{};
-    std::size_t stopped_actions_{};
-    MultiSubscription subs_;
-  };
-
- public:
-  CloudRequest(AeContext const& ae_context, CloudServerConnections& connection);
-
-  WriteAction& CallApi(
-      AuthApiCaller const& api_caller,
-      RequestPolicy::Variant policy = RequestPolicy::MainServer{});
-
- private:
-  WriteAction& EmptyWriteAction();
-  WriteAction& ReplicaWriteAction(std::vector<WriteAction*>&& swas);
-
-  AeContext ae_context_;
-  CloudServerConnections* connection_;
-  std::optional<EmptyConnectionsWA> empty_wa_;
-  std::vector<ReplicaWA> replica_was_;
-};
-
 /**
  * \brief Makes request according to the request policy.
  * If request fails or times out, it will restream the cloud connection and
- * retrie until max_attempts is reached.
- * ResponseListener listener must subscribe to client_api and handle the
- * response. On success, listener must call CloudRequestAction::Succeeded(). On
- * failure, listener must call CloudRequestAction::Failed().
+ * retry on different channels. When a server exhausts its retry budget,
+ * it moves on to the next server in the list.
+ * ResponseSubscriber must subscribe to client_api and handle the
+ * response. On success, listener must call CloudRequest::Succeeded(). On
+ * failure, listener must call CloudRequest::Failed().
  */
-class CloudRequestAction final : public Action {
+class CloudRequest final : public Action {
   struct ServerRequest {
     MultiSubscription state_subs;
-    bool is_active{false};
+    TaskSubscription timeout_sub;
+    std::size_t retry_count{0};
+    bool exhausted{false};
   };
 
  public:
-  using SuccessEvent = Event<void()>;
-  using FailureEvent = Event<void()>;
+  static constexpr std::size_t kDefaultMaxRetries = 5;
+  static constexpr Duration kDefaultRequestTimeout =
+      std::chrono::milliseconds{AE_CLOUD_REQUEST_TIMEOUT_MS};
 
-  CloudRequestAction(AeContext const& ae_context, AuthApiCaller&& api_caller,
-                     ClientResponseListener&& listener,
-                     CloudServerConnections& cloud_server_connections,
-                     RequestPolicy::Variant policy);
+  using ResultEvent = Event<void(bool)>;
 
-  CloudRequestAction(AeContext const& ae_context, AuthApiRequest&& api_request,
-                     CloudServerConnections& cloud_server_connections,
-                     RequestPolicy::Variant policy);
+  CloudRequest(AeContext const& ae_context, ApiCallWithListener&& api_call,
+               CloudServerConnections& cloud_server_connections,
+               RequestPolicy::Variant policy,
+               std::size_t max_retries = kDefaultMaxRetries,
+               Duration request_timeout = kDefaultRequestTimeout);
 
-  AE_CLASS_NO_COPY_MOVE(CloudRequestAction)
+  CloudRequest(AeContext const& ae_context, ApiRequestHandler&& api_request,
+               CloudServerConnections& cloud_server_connections,
+               RequestPolicy::Variant policy,
+               std::size_t max_retries = kDefaultMaxRetries,
+               Duration request_timeout = kDefaultRequestTimeout);
+
+  AE_CLASS_NO_COPY_MOVE(CloudRequest)
 
   void Succeeded();
   void Failed();
 
-  SuccessEvent::Subscriber success_event();
-  FailureEvent::Subscriber failure_event();
+  ResultEvent::Subscriber result_event();
 
  private:
   void MakeRequest();
   void MakeServerRequest(CloudServerConnection* sc, ServerRequest& sr);
+  void PrefillServerRequests();
 
   void ServersUpdated();
+  void OnChannelChanged(CloudServerConnection* sc);
+  void OnServerRequestTimeout(CloudServerConnection* sc);
+  void OnWriteFailed(CloudServerConnection* sc);
 
   void RemoveRequest(CloudServerConnection* server_connection);
   void EnqueueMakeRequest();
@@ -112,16 +85,16 @@ class CloudRequestAction final : public Action {
   void Finish();
 
   AeContext ae_context_;
-  std::variant<AuthApiCaller, AuthApiRequest> request_;
-  ClientResponseListener listener_;
-  CloudServerConnections* cloud_sc_;
+  std::variant<ApiCallWithListener, ApiRequestHandler> request_;
+  CloudServerConnections* cloud_scs_;
   RequestPolicy::Variant policy_;
-  std::optional<TaskSubscription> task_sub_;
+  std::size_t max_retries_;
+  Duration request_timeout_;
+  TaskSubscription task_sub_;
 
   Subscription swa_sub_;
   Subscription server_changed_sub_;
-  SuccessEvent success_event_;
-  FailureEvent failure_event_;
+  ResultEvent result_event_;
 
   std::map<CloudServerConnection*, ServerRequest> server_requests_;
 };

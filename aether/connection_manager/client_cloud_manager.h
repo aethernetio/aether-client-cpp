@@ -113,7 +113,7 @@ class ClientCloudManager : public Obj {
   std::map<Uid, client_cloud_manager_internal::CloudCache> cloud_cache_;
 
   CloudUpdateEvent cloud_update_event_;
-  CloudSubscription cloud_update_sub_;
+  CloudEventListener cloud_update_sub_;
   std::optional<GetCloudActionPool> cloud_actions_;
   std::optional<GetServersPool> get_servers_pool_;
   std::vector<std::unique_ptr<ex::AnyWaiter<

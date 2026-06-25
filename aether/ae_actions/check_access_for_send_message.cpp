@@ -26,7 +26,7 @@ CheckAccessForSendMessage::CheckAccessForSendMessage(
     : destination_{destination},
       cloud_request_{
           ae_context,
-          AuthApiRequest{[this](ApiContext<AuthorizedApi>& auth_api, auto*,
+          ApiRequestHandler{[this](ApiContext<AuthorizedApi>& auth_api, auto*,
                                 auto* request) {
             wait_check_sub_ =
                 auth_api->check_access_for_send_message(destination_)

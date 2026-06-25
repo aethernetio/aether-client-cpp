@@ -27,8 +27,8 @@ P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
     : ae_context_{ae_context},
       client_{client},
       cloud_connection_{&client->cloud_connection()},
-      on_message_received_sub_{CloudSubscription{
-          ClientListener{[this](ClientApiSafe& client_api, auto*) {
+      on_message_received_sub_{CloudEventListener{
+          ApiEventSubscriber{[this](ClientApiSafe& client_api, auto*) {
             return client_api.send_message_event().Subscribe(
                 MethodPtr<&P2pMessageStreamManager::NewMessageReceived>{this});
           }},

@@ -27,9 +27,9 @@ GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
                                        Uid const& client_uid)
     : ae_context_{ae_context},
       client_uid_{client_uid},
+      cloud_connection_{cloud_connection},
       cloud_update_sub_{client_cloud_manager.cloud_update_event().Subscribe(
-          MethodPtr<&GetCloudFromAether::CloudUpdate>{this})},
-      cloud_request_{ae_context_, cloud_connection} {
+          MethodPtr<&GetCloudFromAether::CloudUpdate>{this})} {
   RequestCloud();
 }
 
@@ -41,19 +41,18 @@ GetCloudFromAether::result_event() noexcept {
 void GetCloudFromAether::RequestCloud() {
   AE_TELED_DEBUG("RequestCloud");
 
-  cloud_request_.CallApi(
-      AuthApiCaller{[&](ApiContext<AuthorizedApi>& auth_api,
+  cloud_connection_.CallApi(
+      ApiCall{[&](ApiContext<AuthorizedApi>& auth_api,
                         CloudServerConnection* server_connection) {
         AE_TELED_DEBUG("Send cloud request for uid:{} at server:{}",
                        client_uid_, server_connection->server()->server_id);
 
         auth_api->report_applied_config(std::vector{AppliedConfig{
             .subject_uid = client_uid_,
-            .config_version = -1,  // -1 means request config
+            .config_version = -1,
         }});
       }},
       RequestPolicy::All{});
-  // response shall be received through CloudUpdate by matching with uid
 }
 
 void GetCloudFromAether::CloudUpdate(

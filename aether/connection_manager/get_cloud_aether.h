@@ -21,7 +21,6 @@
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
 
-#include "aether/cloud_connections/cloud_request.h"
 #include "aether/connection_manager/get_cloud_action.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 
@@ -44,9 +43,9 @@ class GetCloudFromAether final : public GetCloudAction {
 
   AeContext ae_context_;
   Uid client_uid_;
+  CloudServerConnections& cloud_connection_;
 
   Subscription cloud_update_sub_;
-  CloudRequest cloud_request_;
   ResultEvent result_event_;
 };
 }  // namespace ae

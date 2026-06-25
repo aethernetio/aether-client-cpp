@@ -23,7 +23,6 @@
 #include "aether/cloud.h"
 #include "aether/client.h"
 
-#include "aether/cloud_connections/cloud_visit.h"
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/cloud_subscription.h"
 
@@ -33,11 +32,9 @@ namespace ae {
 namespace p2p_stream_internal {
 class MessageSendStream final : public IStream<AeMessage, AeMessage> {
  public:
-  explicit MessageSendStream(AeContext const& ae_context,
-                             CloudServerConnections& cloud_connection,
+  explicit MessageSendStream(CloudServerConnections& cloud_connection,
                              RequestPolicy::Variant request_policy)
-      : cloud_request_{ae_context, cloud_connection},
-        cloud_connection_{&cloud_connection},
+      : cloud_connection_{&cloud_connection},
         request_policy_{request_policy},
         servers_update_sub_{cloud_connection_->servers_update_event().Subscribe(
             MethodPtr<&MessageSendStream::UpdateServers>{this})} {
@@ -45,8 +42,8 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
   }
 
   WriteAction& Write(AeMessage&& message) override {
-    return cloud_request_.CallApi(
-        AuthApiCaller{[&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
+    return cloud_connection_->CallApi(
+        ApiCall{[&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
           auth_api->send_message(std::move(message));
         }},
         request_policy_);
@@ -61,26 +58,26 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
 
  private:
   void UpdateServers() {
-    CloudVisit::Visit(
+    cloud_connection_->ForServers(
         [this](auto* sc) {
           if (auto* con = sc->client_connection(); con != nullptr) {
             streams_update_sub_ += con->stream_update_event().Subscribe(
                 MethodPtr<&MessageSendStream::UpdateStream>{this});
           }
         },
-        *cloud_connection_, request_policy_);
+        request_policy_);
     UpdateStream();
   }
 
   void UpdateStream() {
     std::vector<StreamInfo> infos;
-    CloudVisit::Visit(
+    cloud_connection_->ForServers(
         [&](auto* sc) {
           if (auto* con = sc->client_connection(); con != nullptr) {
             infos.emplace_back(con->stream_info());
           }
         },
-        *cloud_connection_, request_policy_);
+        request_policy_);
 
     if (infos.empty()) {
       stream_info_ = {};
@@ -137,7 +134,6 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
     stream_update_event_.Emit();
   }
 
-  CloudRequest cloud_request_;
   CloudServerConnections* cloud_connection_;
   RequestPolicy::Variant request_policy_;
 
@@ -157,7 +153,7 @@ class ReadMessageGate {
                   RequestPolicy::Variant request_policy)
       : uid_{uid},
         message_event_sub_{
-            ClientListener{[this](ClientApiSafe& client_api, auto*) {
+            ApiEventSubscriber{[this](ClientApiSafe& client_api, auto*) {
               return client_api.send_message_event().Subscribe(
                   [this](auto const& message) {
                     if (message.uid == uid_) {
@@ -173,7 +169,7 @@ class ReadMessageGate {
 
  private:
   Uid uid_;
-  CloudSubscription message_event_sub_;
+  CloudEventListener message_event_sub_;
   OutDataEvent out_data_event_;
 };
 
@@ -263,7 +259,7 @@ void P2pStream::ConnectSend() {
           // TODO: add config for request policy
           message_send_stream_ =
               std::make_unique<p2p_stream_internal::MessageSendStream>(
-                  ae_context_, *dest_cloud_conn_, RequestPolicy::MainServer{});
+                  *dest_cloud_conn_, RequestPolicy::MainServer{});
           message_send_stream_->stream_update_event().Subscribe(
               stream_update_event_);
           AE_TELED_DEBUG("Send connected");

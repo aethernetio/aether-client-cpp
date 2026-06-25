@@ -28,27 +28,30 @@ GetServersAction::GetServersAction(AeContext const& ae_context,
     : server_ids_{std::move(server_ids)},
       cloud_request_{
           ae_context,
-          AuthApiCaller{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
-            AE_TELED_DEBUG("Resolve servers {}", server_ids_);
-            auth_api->resolver_servers(server_ids_);
-          }},
-          ClientResponseListener{[this](ClientApiSafe& client_api, auto*,
+          ApiCallWithListener{
+              ApiCall{[this](ApiContext<AuthorizedApi>& auth_api, auto*) {
+                AE_TELED_DEBUG("Resolve servers {}", server_ids_);
+                auth_api->resolver_servers(server_ids_);
+              }},
+              ResponseSubscriber{[this](ClientApiSafe& client_api, auto*,
                                         auto* request) {
-            return client_api.send_server_descriptor_event().Subscribe(
-                [this, request](auto const& sd) { GetResponse(sd, request); });
-          }},
+                return client_api.send_server_descriptor_event().Subscribe(
+                    [this, request](auto const& sd) {
+                      GetResponse(sd, request);
+                    });
+              }}},
           cloud_connection,
           request_policy,
       } {
-  request_subs_ += cloud_request_.success_event().Subscribe([this]() {
-    AE_TELED_INFO("GetServersAction succeeded");
-    result_event_.Emit(
-        Ok<std::vector<ServerDescriptor> const&>{server_descriptors_});
-    Finish();
-  });
-  request_subs_ += cloud_request_.failure_event().Subscribe([this]() {
-    AE_TELED_ERROR("GetServersAction failed");
-    result_event_.Emit(Error{1});
+  request_subs_ += cloud_request_.result_event().Subscribe([this](bool success) {
+    if (success) {
+      AE_TELED_INFO("GetServersAction succeeded");
+      result_event_.Emit(
+          Ok<std::vector<ServerDescriptor> const&>{server_descriptors_});
+    } else {
+      AE_TELED_ERROR("GetServersAction failed");
+      result_event_.Emit(Error{1});
+    }
     Finish();
   });
 }
@@ -58,7 +61,7 @@ GetServersAction::ResultEvent::Subscriber GetServersAction::result_event() {
 }
 
 void GetServersAction::GetResponse(ServerDescriptor const& server_descriptor,
-                                   CloudRequestAction* request) {
+                                   CloudRequest* request) {
   // If got not requested server id ignore it.
   if (auto it = std::find(std::begin(server_ids_), std::end(server_ids_),
                           server_descriptor.server_id);

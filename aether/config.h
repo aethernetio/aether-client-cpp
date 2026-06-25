@@ -302,6 +302,11 @@
 #  define AE_CLOUD_SERVER_QUARANTINE_TIME_MS 10000
 #endif
 
+// Cloud request per-server timeout in milliseconds
+#ifndef AE_CLOUD_REQUEST_TIMEOUT_MS
+#  define AE_CLOUD_REQUEST_TIMEOUT_MS 5000
+#endif
+
 // Time synchronization enabled
 #ifndef AE_TIME_SYNC_ENABLED
 #  define AE_TIME_SYNC_ENABLED 1
