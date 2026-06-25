@@ -16,6 +16,7 @@
 
 #include "aether/types/uid.h"
 #include "aether/types/data_buffer.h"
+#include "aether/types/address.h"
 
 #include "aether/crypto/key.h"
 #include "aether/crypto/crypto_nonce.h"
@@ -36,8 +37,9 @@ enum class PreparedIpVersion : std::uint8_t {
   kIpV6 = 6,
 };
 
-struct PreparedUdpEndpoint {
+struct PreparedEndpoint {
   PreparedIpVersion version = PreparedIpVersion::kIpV4;
+  Protocol protocol = Protocol::kUdp;
   std::uint16_t port = 0;
 
   // IPv4 uses first 4 bytes.
@@ -68,7 +70,6 @@ struct EncodePacketResult {
   std::size_t bytes_written = 0;
 
   // Debug counter inside prepared block. This is not the cryptographic nonce value.
-  std::uint64_t nonce_index = 0;
 
   explicit operator bool() const {
     return error == EncodePacketError::kNone;
@@ -81,7 +82,7 @@ struct EncodePacketResult {
 struct PreparedSendMessageBlock {
   // Used by external sender after EncodePacket().
   // EncodePacket() itself does not use endpoint.
-  PreparedUdpEndpoint endpoint;
+  PreparedEndpoint endpoint;
 
   // Used for login_by_alias(...)
   Uid sender_ephemeral_uid;
@@ -97,7 +98,6 @@ struct PreparedSendMessageBlock {
   std::uint32_t nonce_left = 0;
 
   // Debug only.
-  std::uint64_t nonce_index = 0;
 };
 
 class PreparedSendMessageKeyProvider final : public ISyncKeyProvider {
@@ -122,17 +122,13 @@ inline EncodePacketResult EncodePacket(PreparedSendMessageBlock& block,
                                        DataBuffer& out) {
   if (block.nonce_left == 0) {
     out.clear();
-    return EncodePacketResult{EncodePacketError::kNonceExhausted, 0,
-                              block.nonce_index};
+    return EncodePacketResult{EncodePacketError::kNonceExhausted, 0};
   }
 
   // Match existing ClientKeyProvider semantics:
   // consume next nonce before encryption.
   block.next_nonce.Next();
   --block.nonce_left;
-
-  auto nonce_index = block.nonce_index;
-  ++block.nonce_index;
 
   auto key_provider =
       std::make_unique<PreparedSendMessageKeyProvider>(block);
@@ -153,7 +149,7 @@ inline EncodePacketResult EncodePacket(PreparedSendMessageBlock& block,
 
   out = std::move(api_context).Pack();
 
-  return EncodePacketResult{EncodePacketError::kNone, out.size(), nonce_index};
+  return EncodePacketResult{EncodePacketError::kNone, out.size()};
 }
 
 // Existing internal seam. Keep normal Aether path working.
@@ -163,14 +159,11 @@ struct PreparedPacketContext {
 
   EncodePacketResult TakeNonce(std::size_t bytes_written) {
     if (next_nonce == nonce_limit) {
-      return EncodePacketResult{EncodePacketError::kNonceExhausted, 0,
-                                next_nonce};
+      return EncodePacketResult{EncodePacketError::kNonceExhausted, 0};
     }
+++next_nonce;
 
-    auto nonce = next_nonce;
-    ++next_nonce;
-
-    return EncodePacketResult{EncodePacketError::kNone, bytes_written, nonce};
+    return EncodePacketResult{EncodePacketError::kNone, bytes_written};
   }
 };
 
