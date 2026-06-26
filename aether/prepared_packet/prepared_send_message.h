@@ -52,7 +52,6 @@ struct PreparedSendMessageBlock {
 enum class EncodePacketError {
   kNone = 0,
   kNonceExhausted,
-  kEncodeFailed,
 };
 
 inline char const* ToString(EncodePacketError error) {
@@ -61,8 +60,6 @@ inline char const* ToString(EncodePacketError error) {
       return "none";
     case EncodePacketError::kNonceExhausted:
       return "nonce_exhausted";
-    case EncodePacketError::kEncodeFailed:
-      return "encode_failed";
   }
   return "unknown";
 }
