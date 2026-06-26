@@ -11,6 +11,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "aether/types/address.h"
 #include "aether/types/data_buffer.h"
@@ -74,6 +75,9 @@ struct EncodePacketResult {
     return error == EncodePacketError::kNone;
   }
 };
+
+
+std::optional<PreparedEndpoint> MakePreparedEndpoint(Endpoint const& endpoint);
 
 }  // namespace ae::prepared_packet
 
