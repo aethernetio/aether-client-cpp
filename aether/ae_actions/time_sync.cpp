@@ -26,7 +26,6 @@
 #  include "aether-miscpp/misc/override.h"
 #  include "aether/types/iterator.h"
 #  include "aether/executors/executors.h"
-#  include "aether/cloud_connections/cloud_visit.h"
 #  include "aether/cloud_connections/cloud_server_connection.h"
 
 #  include "aether/tele/tele.h"
@@ -45,7 +44,7 @@ auto TimeSyncRequest::EnsureConnected() {
     }
 
     // check or subscribe for connection state to main server
-    CloudVisit::Visit(
+    client_ptr->cloud_connection().ForServers(
         [&](CloudServerConnection* sc) {
           assert((sc != nullptr) && "Server connection is null!");
 
@@ -70,8 +69,7 @@ auto TimeSyncRequest::EnsureConnected() {
                 break;
             }
           });
-        },
-        client_ptr->cloud_connection(), RequestPolicy::MainServer{});
+        });
   });
 }
 
@@ -86,7 +84,7 @@ auto TimeSyncRequest::SyncRequest() {
 
       // send get_time_utc request to main server
       // get_time_utc return server utc time point in microseconds
-      CloudVisit::Visit(
+      client_ptr->cloud_connection().ForServers(
           [&](CloudServerConnection* sc) {
             assert((sc != nullptr) && "Server connection is null!");
 
@@ -120,8 +118,7 @@ auto TimeSyncRequest::SyncRequest() {
                     return ex::set_error(std::move(ctx.receiver), Retry{});
                   }
                 });
-          },
-          client_ptr->cloud_connection(), RequestPolicy::MainServer{});
+          });
 
       // use raw time to avoid sync jumps
       request_time_ = Now();

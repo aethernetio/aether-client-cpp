@@ -169,6 +169,8 @@ class TcpTransport final : public tcp_internal::TcpBase {
   }
 
   WriteAction& Write(DataBuffer&& in_data) override {
+    assert(in_data.size() != 0);
+
     AE_TELE_DEBUG(kTcpTransportSend, "Socket {} send data size {}", endpoint_,
                   in_data.size());
 

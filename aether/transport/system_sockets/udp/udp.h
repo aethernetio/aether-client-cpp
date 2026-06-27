@@ -157,6 +157,7 @@ class UdpTransport final : public upd_internal::UdpBase {
   }
 
   WriteAction& Write(DataBuffer&& in_data) override {
+    assert(in_data.size() != 0);
     AE_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}", endpoint_,
                   in_data.size());
     auto* send_action =

@@ -27,33 +27,40 @@ GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
                                        Uid const& client_uid)
     : ae_context_{ae_context},
       client_uid_{client_uid},
+      cloud_connection_{cloud_connection},
+      cloud_request_{
+          ae_context,
+          ApiCallWithListener{
+              ApiCall{[this](ApiContext<AuthorizedApi>& auth_api,
+                             CloudServerConnection* server_connection) {
+                AE_TELED_DEBUG("Send cloud request for uid:{} at server:{}",
+                               client_uid_,
+                               server_connection->server()->server_id);
+                auth_api->report_applied_config(std::vector{AppliedConfig{
+                    .subject_uid = client_uid_,
+                    .config_version = -1,
+                }});
+              }},
+              // listen on CloudUpdate
+              ResponseSubscriber{}},
+          cloud_connection_,
+          RequestPolicy::All{},
+      },
       cloud_update_sub_{client_cloud_manager.cloud_update_event().Subscribe(
-          MethodPtr<&GetCloudFromAether::CloudUpdate>{this})},
-      cloud_request_{ae_context_, cloud_connection} {
-  RequestCloud();
+          MethodPtr<&GetCloudFromAether::CloudUpdate>{this})} {
+  cloud_request_result_sub_ = cloud_request_.result_event().Subscribe(
+      [this](bool success) {
+        if (!success) {
+          AE_TELED_ERROR("CloudRequest failed for uid:{}", client_uid_);
+          result_event_.Emit(Error{-1});
+          Finish();
+        }
+      });
 }
 
 GetCloudFromAether::ResultEvent::Subscriber
 GetCloudFromAether::result_event() noexcept {
   return EventSubscriber{result_event_};
-}
-
-void GetCloudFromAether::RequestCloud() {
-  AE_TELED_DEBUG("RequestCloud");
-
-  cloud_request_.CallApi(
-      AuthApiCaller{[&](ApiContext<AuthorizedApi>& auth_api,
-                        CloudServerConnection* server_connection) {
-        AE_TELED_DEBUG("Send cloud request for uid:{} at server:{}",
-                       client_uid_, server_connection->server()->server_id);
-
-        auth_api->report_applied_config(std::vector{AppliedConfig{
-            .subject_uid = client_uid_,
-            .config_version = -1,  // -1 means request config
-        }});
-      }},
-      RequestPolicy::All{});
-  // response shall be received through CloudUpdate by matching with uid
 }
 
 void GetCloudFromAether::CloudUpdate(
@@ -67,6 +74,7 @@ void GetCloudFromAether::CloudUpdate(
   } else {
     result_event_.Emit(Error{res.error()});
   }
+  cloud_request_.Succeeded();
 }
 
 }  // namespace ae

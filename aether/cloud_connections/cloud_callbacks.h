@@ -27,28 +27,35 @@
 namespace ae {
 class CloudServerConnection;
 class CloudServerConnections;
-class CloudRequestAction;
+class CloudRequest;
 
 // subscribe to client's api events
-struct ClientListener : SmallFunction<EventHandlerDeleter(
-                            ClientApiSafe& client_api,
-                            CloudServerConnection* server_connection)> {};
+struct ApiEventSubscriber : SmallFunction<EventHandlerDeleter(
+                             ClientApiSafe& client_api,
+                             CloudServerConnection* server_connection)> {};
 
 // call authorized api
-struct AuthApiCaller
+struct ApiCall
     : SmallFunction<void(ApiContext<AuthorizedApi>& auth_api,
                          CloudServerConnection* server_connection)> {};
-// make request to authorized api
-struct AuthApiRequest
-    : SmallFunction<void(ApiContext<AuthorizedApi>& auth_api,
-                         CloudServerConnection* server_connection,
-                         CloudRequestAction* request)> {};
 
 // listen to client's api response
-struct ClientResponseListener
+struct ResponseSubscriber
     : SmallFunction<EventHandlerDeleter(
           ClientApiSafe& client_api, CloudServerConnection* server_connection,
-          CloudRequestAction* request)> {};
+          CloudRequest* request)> {};
+
+// ApiCall combined with its ResponseSubscriber
+struct ApiCallWithListener {
+  ApiCall call;
+  ResponseSubscriber listener;
+};
+
+// make request to authorized api (handles its own response)
+struct ApiRequestHandler
+    : SmallFunction<void(ApiContext<AuthorizedApi>& auth_api,
+                         CloudServerConnection* server_connection,
+                         CloudRequest* request)> {};
 
 }  // namespace ae
 

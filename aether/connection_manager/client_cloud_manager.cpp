@@ -210,8 +210,8 @@ void ClientCloudManager::ListenForCloudUpdate() {
   auto client = Client::ptr{client_}.Load();
   assert(client != nullptr && "Client does not loaded");
 
-  cloud_update_sub_ = CloudSubscription{
-      ClientListener{[this](ClientApiSafe& client_api,
+  cloud_update_sub_ = CloudEventListener{
+      ApiEventSubscriber{[this](ClientApiSafe& client_api,
                             CloudServerConnection* /*server_connection*/) {
         return client_api.send_cloud_configs().Subscribe(
             MethodPtr<&ClientCloudManager::CloudConfigs>{this});

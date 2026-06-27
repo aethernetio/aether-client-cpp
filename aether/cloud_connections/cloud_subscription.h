@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_SUBSCRIPTION_H_
-#define AETHER_CLOUD_CONNECTIONS_CLOUD_SUBSCRIPTION_H_
+#ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_EVENT_LISTENER_H_
+#define AETHER_CLOUD_CONNECTIONS_CLOUD_EVENT_LISTENER_H_
 
 #include "aether/common.h"
 
@@ -24,17 +24,17 @@
 #include "aether/cloud_connections/cloud_server_connections.h"
 
 namespace ae {
-class CloudSubscription {
+class CloudEventListener {
  public:
-  CloudSubscription() = default;
-  CloudSubscription(
-      ClientListener subscriber, CloudServerConnections& cloud_connection,
+  CloudEventListener() = default;
+  CloudEventListener(
+      ApiEventSubscriber subscriber, CloudServerConnections& cloud_connection,
       RequestPolicy::Variant request_policy = RequestPolicy::MainServer{});
 
-  CloudSubscription(CloudSubscription&& other) noexcept;
-  CloudSubscription& operator=(CloudSubscription&& other) noexcept;
+  CloudEventListener(CloudEventListener&& other) noexcept;
+  CloudEventListener& operator=(CloudEventListener&& other) noexcept;
 
-  AE_CLASS_NO_COPY(CloudSubscription)
+  AE_CLASS_NO_COPY(CloudEventListener)
 
   void Reset();
 
@@ -42,11 +42,11 @@ class CloudSubscription {
   void ServersUpdate();
 
   CloudServerConnections* cloud_connection_{};
-  ClientListener subscriber_;
+  ApiEventSubscriber subscriber_;
   RequestPolicy::Variant request_policy_;
   Subscription server_update_sub_;
   MultiSubscription subscriptions_;
 };
 }  // namespace ae
 
-#endif  // AETHER_CLOUD_CONNECTIONS_CLOUD_SUBSCRIPTION_H_
+#endif  // AETHER_CLOUD_CONNECTIONS_CLOUD_EVENT_LISTENER_H_

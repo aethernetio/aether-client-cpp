@@ -43,13 +43,13 @@ class GetServersAction : public Action {
 
  private:
   void GetResponse(ServerDescriptor const& server_descriptor,
-                   CloudRequestAction* request);
+                   CloudRequest* request);
 
   std::vector<ServerId> server_ids_;
   TimePoint timeout_point_;
   ResultEvent result_event_;
 
-  CloudRequestAction cloud_request_;
+  CloudRequest cloud_request_;
   MultiSubscription request_subs_;
 
   std::vector<ServerDescriptor> server_descriptors_;
