@@ -17,6 +17,7 @@
 #include "aether/aether_c/aether_capi.h"
 
 #include <cassert>
+#include <memory>
 
 #include <string_view>
 
@@ -54,7 +55,7 @@ static ae::RcPtr<ae::AetherApp> aether_app;
 struct AetherClient {
   ClientConfig config;
   ae::Client::ptr client;
-  std::map<ae::Uid, ae::RcPtr<ae::P2pStream>> streams;
+  std::map<ae::Uid, std::shared_ptr<ae::ByteIStream>> message_streams;
   std::unique_ptr<ae::ActionsQueue> actions_queue_;
 };
 
@@ -63,8 +64,8 @@ std::unique_ptr<AetherClient, void (*)(AetherClient*)> default_client{
 
 void Listen(AetherClient* client, void* user_data);
 
-void ListenStream(AetherClient* client, void* user_data, CUid const& c_dest,
-                  ae::RcPtr<ae::P2pStream> const& stream);
+void ListenMessageStream(AetherClient* client, void* user_data, CUid const& c_dest,
+                  std::shared_ptr<ae::ByteIStream> const& stream);
 
 ae::SelectClientAction& SelectClientImpl(AetherClient* client,
                                          ClientConfig const* config) {
@@ -110,16 +111,16 @@ ae::WriteAction& WriteMessageImpl(AetherClient* client, ae::Uid destination,
                                   ae::DataBuffer&& data,
                                   ActionStatusCb status_cb, void* user_data) {
   assert(client->client);
-  auto it = client->streams.find(destination);
-  if (it == std::end(client->streams)) {
+  auto it = client->message_streams.find(destination);
+  if (it == std::end(client->message_streams)) {
     // create new stream
     auto stream =
         client->client->message_stream_manager().CreateStream(destination);
     auto c_dest =
         CUidFromBytes(destination.value.data(), destination.value.size());
-    ListenStream(client, user_data, c_dest, stream);
+    ListenMessageStream(client, user_data, c_dest, stream);
 
-    std::tie(it, std::ignore) = client->streams.emplace(destination, stream);
+    std::tie(it, std::ignore) = client->message_streams.emplace(destination, stream);
   }
 
   auto& action = it->second->Write(std::move(data));
@@ -170,20 +171,21 @@ void Listen(AetherClient* client, void* user_data) {
   }
 
   client->client->message_stream_manager().new_stream_event().Subscribe(
-      [client, user_data](ae::RcPtr<ae::P2pStream> stream) {
-        auto dest = stream->destination();
+      [client, user_data](std::shared_ptr<ae::ByteIStream> stream) {
+        auto p2p_stream = std::dynamic_pointer_cast<ae::P2pStream>(stream);
+        auto dest = p2p_stream->destination();
         // store the stream for future use
-        client->streams.emplace(dest, stream);
+        client->message_streams.emplace(dest, stream);
 
         // create cuid for callback
         auto c_dest = CUidFromBytes(dest.value.data(), dest.value.size());
         // listen for incoming messages
-        ListenStream(client, user_data, c_dest, stream);
+        ListenMessageStream(client, user_data, c_dest, stream);
       });
 }
 
-void ListenStream(AetherClient* client, void* user_data, CUid const& c_dest,
-                  ae::RcPtr<ae::P2pStream> const& stream) {
+void ListenMessageStream(AetherClient* client, void* user_data, CUid const& c_dest,
+                  std::shared_ptr<ae::ByteIStream> const& stream) {
   // special context saved in heap
   struct ListenContext {
     void* user_data;

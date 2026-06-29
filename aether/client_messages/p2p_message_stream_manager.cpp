@@ -35,20 +35,22 @@ P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
           *cloud_connection_,
           RequestPolicy::Replica{cloud_connection_->count_connections()}}} {}
 
-RcPtr<P2pStream> P2pMessageStreamManager::CreateStream(Uid destination) {
+std::shared_ptr<ByteIStream> P2pMessageStreamManager::CreateStream(
+    Uid destination) {
   CleanUpStreams();
   auto it = streams_.find(destination);
   if (it != std::end(streams_)) {
     // after cleanup only used streams should stay
-    assert(it->second);
+    assert(!it->second.expired());
     return it->second.lock();
   }
   // create new stream
   auto stream = MakeStream(destination);
-  streams_.emplace(destination, stream);
+  auto byte_stream = std::shared_ptr<ByteIStream>{stream};
+  streams_.emplace(destination, byte_stream);
   message_stream_update_subs_ += stream->stream_update_event().Subscribe(
       [this, dest{destination}]() { OnStreamUpdated(dest); });
-  return stream;
+  return byte_stream;
 }
 
 P2pMessageStreamManager::NewStreamEvent::Subscriber
@@ -60,18 +62,22 @@ void P2pMessageStreamManager::NewMessageReceived(AeMessage const& message) {
   AE_TELED_DEBUG("New message received {}", message.uid);
   auto it = streams_.find(message.uid);
   // if there is no stream or stream was closed
-  if ((it == std::end(streams_)) || !it->second) {
-    auto stream = CreateStream(message.uid);
-    new_stream_event_.Emit(stream);
+  if ((it == std::end(streams_)) || it->second.expired()) {
+    auto p2p_stream = MakeStream(message.uid);
+    auto byte_stream = std::shared_ptr<ByteIStream>{p2p_stream};
+    streams_.emplace(message.uid, byte_stream);
+    message_stream_update_subs_ += p2p_stream->stream_update_event().Subscribe(
+        [this, dest{message.uid}]() { OnStreamUpdated(dest); });
+    new_stream_event_.Emit(byte_stream);
     // write out first data
-    stream->WriteOut(message.data);
+    p2p_stream->WriteOut(message.data);
   }
 }
 
 void P2pMessageStreamManager::CleanUpStreams() {
   // remove unused streams
   for (auto it = streams_.begin(); it != streams_.end();) {
-    if (!it->second) {
+    if (it->second.expired()) {
       it = streams_.erase(it);
     } else {
       ++it;
@@ -79,10 +85,11 @@ void P2pMessageStreamManager::CleanUpStreams() {
   }
 }
 
-RcPtr<P2pStream> P2pMessageStreamManager::MakeStream(Uid destination) {
+std::shared_ptr<P2pStream> P2pMessageStreamManager::MakeStream(
+    Uid destination) {
   auto client_ptr = client_.Lock();
   assert(client_ptr);
-  return MakeRcPtr<P2pStream>(ae_context_, client_ptr, destination);
+  return std::make_shared<P2pStream>(ae_context_, client_ptr, destination);
 }
 
 void P2pMessageStreamManager::OnStreamUpdated(Uid destination) {

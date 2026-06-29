@@ -17,6 +17,8 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_RECEIVER_RECEIVER_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_RECEIVER_RECEIVER_H_
 
+#include <memory>
+
 #include "aether/client.h"
 #include "aether/memory.h"
 #include "aether/ae_context.h"
@@ -51,7 +53,7 @@ class Receiver {
   ProtocolContext protocol_context_;
   BandwidthApi bandwidth_api_;
 
-  RcPtr<P2pStream> message_stream_;
+  std::shared_ptr<ae::ByteIStream> message_stream_;
 
   std::unique_ptr<MessageReceiver> message_receiver_;
 

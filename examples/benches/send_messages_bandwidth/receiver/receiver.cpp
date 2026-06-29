@@ -31,16 +31,17 @@ EventSubscriber<void()> Receiver::error_event() { return error_event_; }
 
 void Receiver::Connect() {
   client_->message_stream_manager().new_stream_event().Subscribe(
-      [this](RcPtr<P2pStream> stream) {
+      [this](std::shared_ptr<ae::ByteIStream> stream) {
+        auto p2p_stream = std::dynamic_pointer_cast<ae::P2pStream>(stream);
         AE_TELED_DEBUG("Received message stream from {}",
-                       stream->destination());
+                       p2p_stream->destination());
         message_stream_ = std::move(stream);
         message_stream_->out_data_event().Subscribe(
             MethodPtr<&Receiver::OnRecvData>{this});
       });
 }
 
-void Receiver::Disconnect() { message_stream_.Reset(); }
+void Receiver::Disconnect() { message_stream_.reset(); }
 
 EventSubscriber<void()> Receiver::Handshake() {
   bandwidth_api_.handshake_event().Subscribe([this](RequestId req_id) {

@@ -18,11 +18,11 @@
 #define AETHER_CLIENT_MESSAGES_P2P_MESSAGE_STREAM_MANAGER_H_
 
 #include <map>
+#include <memory>
 
 #include "aether/ptr/ptr.h"
 #include "aether/types/uid.h"
 #include "aether/ae_context.h"
-#include "aether/ptr/rc_ptr.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/events/events.h"
 #include "aether/client_messages/p2p_message_stream.h"
@@ -33,25 +33,25 @@ namespace ae {
 class Client;
 class P2pMessageStreamManager {
  public:
-  using NewStreamEvent = Event<void(RcPtr<P2pStream>)>;
+  using NewStreamEvent = Event<void(std::shared_ptr<ByteIStream>)>;
 
   P2pMessageStreamManager(AeContext const& ae_context,
                           Ptr<Client> const& client);
 
-  RcPtr<P2pStream> CreateStream(Uid destination);
+  std::shared_ptr<ByteIStream> CreateStream(Uid destination);
   NewStreamEvent::Subscriber new_stream_event();
 
  private:
   void NewMessageReceived(AeMessage const& message);
   void CleanUpStreams();
-  RcPtr<P2pStream> MakeStream(Uid destination);
+  std::shared_ptr<P2pStream> MakeStream(Uid destination);
 
   void OnStreamUpdated(Uid destination);
 
   AeContext ae_context_;
   PtrView<Client> client_;
   CloudServerConnections* cloud_connection_;
-  std::map<Uid, RcPtrView<P2pStream>> streams_;
+  std::map<Uid, std::weak_ptr<ByteIStream>> streams_;
   NewStreamEvent new_stream_event_;
   CloudEventListener on_message_received_sub_;
   MultiSubscription message_stream_update_subs_;

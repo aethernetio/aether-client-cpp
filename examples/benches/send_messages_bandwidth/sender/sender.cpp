@@ -39,7 +39,7 @@ void Sender::Connect() {
       MethodPtr<&Sender::OnRecvData>{this});
 }
 
-void Sender::Disconnect() { message_stream_.Reset(); }
+void Sender::Disconnect() { message_stream_.reset(); }
 
 EventSubscriber<void()> Sender::Handshake() {
   auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};

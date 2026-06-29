@@ -17,6 +17,8 @@
 #ifndef EXAMPLES_BENCHES_RECEIVER_H_
 #define EXAMPLES_BENCHES_RECEIVER_H_
 
+#include <memory>
+
 #include "aether/memory.h"
 #include "aether/client.h"
 #include "aether/ae_context.h"
@@ -56,7 +58,7 @@ class Receiver {
   ProtocolContext protocol_context_;
   BenchDelaysApi bench_delays_api_;
 
-  RcPtr<P2pStream> receive_message_stream_;
+  std::shared_ptr<ae::ByteIStream> receive_message_stream_;
   std::unique_ptr<P2pSafeStream> receive_message_safe_stream_;
   std::unique_ptr<TimedReceiver> receiver_action_;
 

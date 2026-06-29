@@ -54,7 +54,7 @@ void Sender::ConnectP2pSafeStream() {
 
 void Sender::Disconnect() {
   AE_TELED_DEBUG("Sender::Disconnect()");
-  send_message_stream_.Reset();
+  send_message_stream_.reset();
   send_message_safe_stream_.reset();
 }
 

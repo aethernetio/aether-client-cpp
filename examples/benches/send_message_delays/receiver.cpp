@@ -39,7 +39,7 @@ void Receiver::ConnectP2pStream() {
 
   message_stream_subscription_ =
       client_->message_stream_manager().new_stream_event().Subscribe(
-          [this](RcPtr<P2pStream> message_stream) {
+          [this](std::shared_ptr<ae::ByteIStream> message_stream) {
             AE_TELED_DEBUG("Receive new connection");
             receive_message_stream_ = std::move(message_stream);
             recv_data_sub_ =
@@ -61,7 +61,7 @@ void Receiver::ConnectP2pSafeStream() {
   } else {
     message_stream_subscription_ =
         client_->message_stream_manager().new_stream_event().Subscribe(
-            [this](RcPtr<P2pStream> message_stream) {
+            [this](std::shared_ptr<ae::ByteIStream> message_stream) {
               AE_TELED_DEBUG("Receive new safe stream connection");
               receive_message_safe_stream_ = make_unique<P2pSafeStream>(
                   ae_context_, safe_stream_config_, std::move(message_stream));
