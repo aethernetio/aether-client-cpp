@@ -24,7 +24,6 @@
 #include "aether/types/uid.h"
 #include "aether/ae_context.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "send_message_delays/timed_sender.h"

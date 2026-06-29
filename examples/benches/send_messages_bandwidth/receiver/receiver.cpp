@@ -30,15 +30,16 @@ Receiver::Receiver(AeContext const& ae_context, Client::ptr client)
 EventSubscriber<void()> Receiver::error_event() { return error_event_; }
 
 void Receiver::Connect() {
-  client_->message_stream_manager().new_stream_event().Subscribe(
-      [this](std::shared_ptr<ae::ByteIStream> stream) {
-        auto p2p_stream = std::dynamic_pointer_cast<ae::P2pStream>(stream);
-        AE_TELED_DEBUG("Received message stream from {}",
-                       p2p_stream->destination());
-        message_stream_ = std::move(stream);
-        message_stream_->out_data_event().Subscribe(
-            MethodPtr<&Receiver::OnRecvData>{this});
-      });
+  message_stream_subscription_ =
+      client_->message_stream_manager().new_port_event().Subscribe(
+          [this](ae::P2pPortHandle handle) {
+            auto dest = handle.destination();
+            AE_TELED_DEBUG("Received message stream from {}", dest);
+            message_stream_ = std::make_shared<P2pStream>(
+                ae_context_, client_.Load(), dest, std::move(handle));
+            message_stream_->out_data_event().Subscribe(
+                MethodPtr<&Receiver::OnRecvData>{this});
+          });
 }
 
 void Receiver::Disconnect() { message_stream_.reset(); }

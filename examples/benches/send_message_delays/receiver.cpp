@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "aether-miscpp/meta/arg_at.h"
+#include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "send_message_delays/api/bench_delays_api.h"
@@ -38,10 +39,12 @@ void Receiver::ConnectP2pStream() {
   AE_TELED_DEBUG("Receiver::ConnectP2pStream()");
 
   message_stream_subscription_ =
-      client_->message_stream_manager().new_stream_event().Subscribe(
-          [this](std::shared_ptr<ae::ByteIStream> message_stream) {
+      client_->message_stream_manager().new_port_event().Subscribe(
+          [this](ae::P2pPortHandle handle) {
             AE_TELED_DEBUG("Receive new connection");
-            receive_message_stream_ = std::move(message_stream);
+            auto dest = handle.destination();
+            receive_message_stream_ = std::make_shared<P2pStream>(
+                ae_context_, client_.Load(), dest, std::move(handle));
             recv_data_sub_ =
                 receive_message_stream_->out_data_event().Subscribe(
                     MethodPtr<&Receiver::OnRecvData>{this});
@@ -60,11 +63,14 @@ void Receiver::ConnectP2pSafeStream() {
         MethodPtr<&Receiver::OnRecvData>{this});
   } else {
     message_stream_subscription_ =
-        client_->message_stream_manager().new_stream_event().Subscribe(
-            [this](std::shared_ptr<ae::ByteIStream> message_stream) {
+        client_->message_stream_manager().new_port_event().Subscribe(
+            [this](ae::P2pPortHandle handle) {
               AE_TELED_DEBUG("Receive new safe stream connection");
+              auto dest = handle.destination();
+              auto p2p_stream = std::make_shared<P2pStream>(
+                  ae_context_, client_.Load(), dest, std::move(handle));
               receive_message_safe_stream_ = make_unique<P2pSafeStream>(
-                  ae_context_, safe_stream_config_, std::move(message_stream));
+                  ae_context_, safe_stream_config_, std::move(p2p_stream));
               recv_data_sub_ =
                   receive_message_safe_stream_->out_data_event().Subscribe(
                       MethodPtr<&Receiver::OnRecvData>{this});

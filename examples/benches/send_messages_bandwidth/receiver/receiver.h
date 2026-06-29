@@ -67,6 +67,7 @@ class Receiver {
   Subscription test_start_sub_;
   Subscription test_stop_sub_;
   Subscription message_recv_sub_;
+  Subscription message_stream_subscription_;
 };
 }  // namespace ae::bench
 
