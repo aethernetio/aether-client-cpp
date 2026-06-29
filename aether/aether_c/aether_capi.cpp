@@ -53,7 +53,7 @@
 static ae::RcPtr<ae::AetherApp> aether_app;
 
 struct AetherClient {
-  ClientConfig config;
+  ClientConfig config{};
   ae::Client::ptr client;
   std::map<ae::Uid, std::shared_ptr<ae::ByteIStream>> message_streams;
   std::unique_ptr<ae::ActionsQueue> actions_queue_;
@@ -64,8 +64,9 @@ std::unique_ptr<AetherClient, void (*)(AetherClient*)> default_client{
 
 void Listen(AetherClient* client, void* user_data);
 
-void ListenMessageStream(AetherClient* client, void* user_data, CUid const& c_dest,
-                  std::shared_ptr<ae::ByteIStream> const& stream);
+void ListenMessageStream(AetherClient* client, void* user_data,
+                         CUid const& c_dest,
+                         std::shared_ptr<ae::ByteIStream> const& stream);
 
 ae::SelectClientAction& SelectClientImpl(AetherClient* client,
                                          ClientConfig const* config) {
@@ -114,13 +115,17 @@ ae::WriteAction& WriteMessageImpl(AetherClient* client, ae::Uid destination,
   auto it = client->message_streams.find(destination);
   if (it == std::end(client->message_streams)) {
     // create new stream
-    auto stream =
-        client->client->message_stream_manager().CreateStream(destination);
+    auto handle =
+        client->client->message_stream_manager().CreatePort(destination);
+    auto stream = std::make_shared<ae::P2pStream>(
+        ae::AeContext{*aether_app}, client->client.Load(), destination,
+        std::move(handle));
     auto c_dest =
         CUidFromBytes(destination.value.data(), destination.value.size());
     ListenMessageStream(client, user_data, c_dest, stream);
 
-    std::tie(it, std::ignore) = client->message_streams.emplace(destination, stream);
+    std::tie(it, std::ignore) =
+        client->message_streams.emplace(destination, stream);
   }
 
   auto& action = it->second->Write(std::move(data));
@@ -170,22 +175,22 @@ void Listen(AetherClient* client, void* user_data) {
     return;
   }
 
-  client->client->message_stream_manager().new_stream_event().Subscribe(
-      [client, user_data](std::shared_ptr<ae::ByteIStream> stream) {
-        auto p2p_stream = std::dynamic_pointer_cast<ae::P2pStream>(stream);
-        auto dest = p2p_stream->destination();
+  client->client->message_stream_manager().new_port_event().Subscribe(
+      [client, user_data](ae::P2pPortHandle handle) {
+        auto dest = handle.destination();
+        auto stream = std::make_shared<ae::P2pStream>(
+            ae::AeContext{*aether_app}, client->client.Load(), dest,
+            std::move(handle));
         // store the stream for future use
         client->message_streams.emplace(dest, stream);
-
-        // create cuid for callback
         auto c_dest = CUidFromBytes(dest.value.data(), dest.value.size());
-        // listen for incoming messages
         ListenMessageStream(client, user_data, c_dest, stream);
       });
 }
 
-void ListenMessageStream(AetherClient* client, void* user_data, CUid const& c_dest,
-                  std::shared_ptr<ae::ByteIStream> const& stream) {
+void ListenMessageStream(AetherClient* client, void* user_data,
+                         CUid const& c_dest,
+                         std::shared_ptr<ae::ByteIStream> const& stream) {
   // special context saved in heap
   struct ListenContext {
     void* user_data;

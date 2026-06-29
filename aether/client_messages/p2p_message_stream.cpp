@@ -144,45 +144,16 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
   Subscription servers_update_sub_;
   MultiSubscription streams_update_sub_;
 };
-
-class ReadMessageGate {
- public:
-  using OutDataEvent = Event<void(DataBuffer const& data)>;
-
-  ReadMessageGate(Uid uid, CloudServerConnections& cloud_connection,
-                  RequestPolicy::Variant request_policy)
-      : uid_{uid},
-        message_event_sub_{
-            ApiEventSubscriber{[this](ClientApiSafe& client_api, auto*) {
-              return client_api.send_message_event().Subscribe(
-                  [this](auto const& message) {
-                    if (message.uid == uid_) {
-                      out_data_event_.Emit(message.data);
-                    }
-                  });
-            }},
-            cloud_connection,
-            request_policy,
-        } {}
-
-  OutDataEvent::Subscriber out_data_event() { return out_data_event_; }
-
- private:
-  Uid uid_;
-  CloudEventListener message_event_sub_;
-  OutDataEvent out_data_event_;
-};
-
 }  // namespace p2p_stream_internal
 
 P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
-                     Uid destination)
+                     Uid destination, P2pPortHandle handle)
     : ae_context_{ae_context},
       client_{client},
-      destination_{destination},
+      destination_{std::move(destination)},
+      handle_{std::move(handle)},
       buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}} {
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
-  // destination uid must not be empty
   assert(!destination_.empty());
 
   ConnectReceive();
@@ -203,7 +174,6 @@ P2pStream::StreamUpdateEvent::Subscriber P2pStream::stream_update_event() {
 }
 
 StreamInfo P2pStream::stream_info() const {
-  // TODO: Combine info for receive and send streams
   if (message_send_stream_) {
     return message_send_stream_->stream_info();
   }
@@ -232,14 +202,7 @@ void P2pStream::WriteOut(DataBuffer const& data) {
 Uid const& P2pStream::destination() const { return destination_; }
 
 void P2pStream::ConnectReceive() {
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
-  // TODO: config request policy
-  read_message_gate_ = std::make_unique<p2p_stream_internal::ReadMessageGate>(
-      destination_, client_ptr->cloud_connection(),
-      RequestPolicy::Replica{client_ptr->cloud_connection().max_connections()});
-  // write out received data
-  read_message_gate_->out_data_event().Subscribe(
+  out_data_sub_ = handle_.out_data_event().Subscribe(
       MethodPtr<&P2pStream::WriteOut>{this});
 }
 
@@ -256,7 +219,6 @@ void P2pStream::ConnectSend() {
           dest_cloud_conn_ = MakeDestinationCloudConn(
               cloud.Load(), client_ptr->server_connection_manager()
                                 .GetServerConnectionFactory());
-          // TODO: add config for request policy
           message_send_stream_ =
               std::make_unique<p2p_stream_internal::MessageSendStream>(
                   *dest_cloud_conn_, RequestPolicy::MainServer{});
