@@ -33,7 +33,9 @@ class AuthorizedApi : public ApiClass {
  public:
   explicit AuthorizedApi(ProtocolContext& protocol_context);
 
-  Method<4, ApiPromise<void>(std::uint64_t next_connect_ms_duration)> ping;
+  Method<4, ApiPromise<void>(std::uint64_t next_connect_ms_duration,
+                             std::uint64_t rx_window_ms)>
+      ping;
   Method<6, void(AeMessage message)> send_message;
   Method<7, void(std::vector<AeMessage> messages)> send_messages;
   Method<11, ApiPromise<void>(Uid uid)> check_access_for_send_message;

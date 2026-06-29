@@ -51,7 +51,9 @@ void Ping::SendPing() {
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 ping_interval_)
                 .count());
-        auto& pong_promise = auth_api->ping(ping_interval_u64);
+        // FIXME: for rx_window send interval value
+        auto& pong_promise =
+            auth_api->ping(ping_interval_u64, ping_interval_u64);
         auto req_id = pong_promise.request_id();
 
         // save the ping request
