@@ -1,9 +1,9 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 new file mode 100644
-index 0000000..bf05fcd
+index 0000000..3d1ce59
 --- /dev/null
 +++ b/CMakeLists.txt
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,62 @@
 +cmake_minimum_required(VERSION 3.16.0)
 +
 +include(CMakePackageConfigHelpers)
@@ -43,8 +43,7 @@ index 0000000..bf05fcd
 +target_compile_definitions(${PROJECT_NAME} PUBLIC SODIUM_STATIC)
 +
 +target_compile_options(${PROJECT_NAME} PRIVATE
-+  $<$<C_COMPILER_ID:Clang>:-Wno-error>
-+  $<$<C_COMPILER_ID:GNU>:-Wno-error>
++  $<$<C_COMPILER_ID:GNU,Clang>: -Wno-error -Wno-error=array-parameter  -Wno-error=unknown-pragmas>
 +)
 +
 +option(ENABLE_INSTALL "Enable installation" ON)
