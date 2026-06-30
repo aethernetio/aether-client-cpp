@@ -18,6 +18,7 @@
 #include <cstdint>
 
 #include "aether/all.h"
+#include "aether/client_messages/p2p_message_stream.h"
 
 #define CLOUD_TEST_LORA_MODULE 0
 #define CLOUD_TEST_MODEM 0
@@ -101,8 +102,11 @@ int AetherCloudExample() {
    * Send confirmation to received message.
    */
   std::unique_ptr<ae::ByteIStream> receiver_stream;
-  client_a->message_stream_manager().new_stream_event().Subscribe(
-      [&](auto p2p_stream) {
+  client_a->message_stream_manager().new_port_event().Subscribe(
+      [&](ae::P2pPortHandle handle) {
+        auto dest = handle.destination();
+        auto p2p_stream = std::make_shared<ae::P2pStream>(
+            *aether_app, client_a.Load(), dest, std::move(handle));
         receiver_stream = ae::make_unique<ae::P2pSafeStream>(
             *aether_app, ae::cloud_test::kSafeStreamConfig,
             std::move(p2p_stream));
@@ -129,9 +133,12 @@ int AetherCloudExample() {
    * Create a sender to receiver stream.
    * Subscribe to receiving message event for confirmations.
    */
+  auto handle = client_b->message_stream_manager().CreatePort(client_a->uid());
+  auto p2p_stream = std::make_shared<ae::P2pStream>(
+      *aether_app, client_b.Load(), client_a->uid(), std::move(handle));
   auto sender_stream = ae::make_unique<ae::P2pSafeStream>(
       *aether_app, ae::cloud_test::kSafeStreamConfig,
-      client_b->message_stream_manager().CreateStream(client_a->uid()));
+      std::move(p2p_stream));
 
   sender_stream->out_data_event().Subscribe([&](auto const& data) {
     auto str_response =

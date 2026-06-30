@@ -17,12 +17,13 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_SENDER_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGE_DELAYS_SENDER_H_
 
+#include <memory>
+
 #include "aether/memory.h"
 #include "aether/client.h"
 #include "aether/types/uid.h"
 #include "aether/ae_context.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "send_message_delays/timed_sender.h"
@@ -53,7 +54,7 @@ class Sender {
   Uid destination_uid_;
   SafeStreamConfig safe_stream_config_;
 
-  RcPtr<P2pStream> send_message_stream_;
+  std::shared_ptr<ae::ByteIStream> send_message_stream_;
   std::unique_ptr<P2pSafeStream> send_message_safe_stream_;
   ByteIStream* connected_stream_;
   ProtocolContext protocol_context_;

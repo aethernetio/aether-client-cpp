@@ -16,12 +16,15 @@
 
 #include "aether/client_messages/p2p_message_stream_manager.h"
 
+#include <cassert>
+#include <utility>
+
 #include "aether/client.h"
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
-
 #include "aether/client_messages/client_messages_tele.h"
 
 namespace ae {
+
 P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
                                                  Ptr<Client> const& client)
     : ae_context_{ae_context},
@@ -35,70 +38,46 @@ P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
           *cloud_connection_,
           RequestPolicy::Replica{cloud_connection_->count_connections()}}} {}
 
-RcPtr<P2pStream> P2pMessageStreamManager::CreateStream(Uid destination) {
-  CleanUpStreams();
-  auto it = streams_.find(destination);
-  if (it != std::end(streams_)) {
-    // after cleanup only used streams should stay
-    assert(it->second);
-    return it->second.lock();
-  }
-  // create new stream
-  auto stream = MakeStream(destination);
-  streams_.emplace(destination, stream);
-  message_stream_update_subs_ += stream->stream_update_event().Subscribe(
-      [this, dest{destination}]() { OnStreamUpdated(dest); });
-  return stream;
+P2pPortHandle P2pMessageStreamManager::CreatePort(Uid const& destination) {
+  auto [port, is_new] = GetOrCreatePort(destination);
+  return P2pPortHandle{std::move(port)};
 }
 
-P2pMessageStreamManager::NewStreamEvent::Subscriber
-P2pMessageStreamManager::new_stream_event() {
-  return EventSubscriber{new_stream_event_};
+P2pMessageStreamManager::NewPortEvent::Subscriber
+P2pMessageStreamManager::new_port_event() {
+  return EventSubscriber{new_port_event_};
+}
+
+std::pair<std::shared_ptr<p2p_stream_internal::P2pReceivePort>, bool>
+P2pMessageStreamManager::GetOrCreatePort(Uid const& destination) {
+  CleanUpPorts();
+  auto it = ports_.find(destination);
+  if (it != std::end(ports_)) {
+    if (auto existing = it->second.lock()) {
+      return {std::move(existing), false};
+    }
+  }
+  auto port =
+      std::make_shared<p2p_stream_internal::P2pReceivePort>(destination);
+  ports_[destination] = port;
+  return {port, true};
 }
 
 void P2pMessageStreamManager::NewMessageReceived(AeMessage const& message) {
   AE_TELED_DEBUG("New message received {}", message.uid);
-  auto it = streams_.find(message.uid);
-  // if there is no stream or stream was closed
-  if ((it == std::end(streams_)) || !it->second) {
-    auto stream = CreateStream(message.uid);
-    new_stream_event_.Emit(stream);
-    // write out first data
-    stream->WriteOut(message.data);
+
+  auto [port, is_new] = GetOrCreatePort(message.uid);
+  assert(port != nullptr);
+
+  if (is_new) {
+    new_port_event_.Emit(P2pPortHandle{port});
   }
+
+  port->Deliver(message.data);
 }
 
-void P2pMessageStreamManager::CleanUpStreams() {
-  // remove unused streams
-  for (auto it = streams_.begin(); it != streams_.end();) {
-    if (!it->second) {
-      it = streams_.erase(it);
-    } else {
-      ++it;
-    }
-  }
-}
-
-RcPtr<P2pStream> P2pMessageStreamManager::MakeStream(Uid destination) {
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
-  return MakeRcPtr<P2pStream>(ae_context_, client_ptr, destination);
-}
-
-void P2pMessageStreamManager::OnStreamUpdated(Uid destination) {
-  auto it = streams_.find(destination);
-  if (it == std::end(streams_)) {
-    return;
-  }
-  auto stream = it->second.lock();
-  if (!stream) {
-    return;
-  }
-  auto info = stream->stream_info();
-  // remove failed streams
-  if (info.link_state == LinkState::kLinkError) {
-    streams_.erase(it);
-  }
+void P2pMessageStreamManager::CleanUpPorts() {
+  std::erase_if(ports_, [](auto const& p) { return p.second.expired(); });
 }
 
 }  // namespace ae

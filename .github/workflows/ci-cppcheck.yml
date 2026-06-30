@@ -27,23 +27,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: _cppcheck
-          key: ${{ runner.os }}-cppcheck-2.19.0
-          restore-keys: ${{ runner.os }}-cppcheck-2.19.0
+          key: ${{ runner.os }}-cppcheck-2.21.0
+          restore-keys: ${{ runner.os }}-cppcheck-2.21.0
 
       - if: ${{ steps.cache-cppcheck.outputs.cache-hit != 'true' }}
         name: download and build cppcheck
         run: |
           mkdir -p _cppcheck
-          wget -O _cppcheck/cppcheck.tar.gz https://github.com/danmar/cppcheck/archive/refs/tags/2.19.0.tar.gz
+          wget -O _cppcheck/cppcheck.tar.gz https://github.com/danmar/cppcheck/archive/refs/tags/2.21.0.tar.gz
           cd _cppcheck
           tar -xzf cppcheck.tar.gz
-          cd cppcheck-2.19.0
+          cd cppcheck-2.21.0
           make -j
           pwd
           ls ./cppcheck
           ./cppcheck --version
           cd ../..
-          _cppcheck/cppcheck-2.19.0/cppcheck --version
+          _cppcheck/cppcheck-2.21.0/cppcheck --version
 
       # we need configure cmake to get the compile_commands.json file
       - name: cmake configure
@@ -71,7 +71,7 @@ jobs:
       - name: cppcheck
         run: >
           cd build &&
-          ../_cppcheck/cppcheck-2.19.0/cppcheck --project=compile_commands.json
+          ../_cppcheck/cppcheck-2.21.0/cppcheck --project=compile_commands.json
           -D__GNUC__=4
           --safety
           --error-exitcode=-1

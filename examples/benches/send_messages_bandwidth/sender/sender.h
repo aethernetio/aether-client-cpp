@@ -17,6 +17,7 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_SENDER_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_SENDER_H_
 
+#include <memory>
 #include <optional>
 
 #include "aether/client.h"
@@ -64,7 +65,7 @@ class Sender {
   Event<void()> test_stopped_event_;
   Event<void()> error_event_;
 
-  RcPtr<P2pStream> message_stream_;
+  std::shared_ptr<ae::ByteIStream> message_stream_;
 
   std::optional<RepeatableTask<AeContext>> start_test_action_;
   std::optional<RepeatableTask<AeContext>> stop_test_action_;

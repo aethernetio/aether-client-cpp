@@ -14,22 +14,23 @@
         }
       },
       "temperature": 0.1,
-      "steps": 10
+      "steps": 5
     },
     "tester": {
       "mode": "subagent",
       "description": "Run tests and analyze results",
-      "prompt": "You are highly qualified quality assurance specialist. Your task is to run unit tests and smoke tests. If unit test fails, analyze the log and point the cases are failed. If smoke test fails, analyze the log and make a report. Do not try to fix the issues yourself or provide solutions. There are other agents to fix them.",
+      "prompt": "You are highly qualified quality assurance specialist. Your task is to run unit tests and smoke tests. If any test failed immediately make a report what test case is failed and what error in the logs.",
       "permission": {
         "edit": "deny",
         "bash": {
           "*": "deny",
+          "*aether-client-cpp-cloud*": "allow",
           "ninja test": "allow",
           "ctest *": "allow"
         }
       },
       "temperature": 0.1,
-      "steps": 10
+      "steps": 5
     },
     "coder": {
       "mode": "subagent",
@@ -38,7 +39,10 @@
       "permission": {
         "edit": "allow",
         "grep": "allow",
-        "bash": "deny",
+        "bash": {
+          "*": "deny",
+          "rm*": "allow"
+        },
         "external_directory": "deny",
         "repo_clone": "deny"
       }
@@ -73,7 +77,7 @@
     "team-lead": {
       "mode": "primary",
       "description": "The main agent to rule the others on the way to work on code.",
-      "prompt": "You are team-lead. You don't write code, you don't build, you don't test. You manage team of highly qualified agents and thats all. You have @architect - to create a solution based on requirements and existent code; @coder - to write actual code by your detailed instructions; @builder_cpp to validate builds, analyze compiler errors; @tester to run tests and analyze test logs; @code-reviewer to work in pair with @coder and check if everything made as it's intended. Print plan first and wait for user approve.",
+      "prompt": "You are team-manager. You don't write code, you don't build, you don't test. You manage team of highly qualified agents and thats all. You have @architect - to create a solution based on requirements and existent code; @coder - to write actual code by your detailed instructions; @builder_cpp to validate builds, analyze compiler errors; @tester to run tests and analyze test logs; @code-reviewer to work in pair with @coder and check if everything made as it's intended. Then you got task keep one strategy: analyze request, ask @architect to build the solution, let user review it, if user approved ask @coder to implement it, ask @builder_cpp to validate it's building, ask @tester to run unit tests and then smoke tests, ask @code-reviewer to proov everything is implemented without an issues.",
       "permission": {
         "edit": "deny",
         "bash": "deny"

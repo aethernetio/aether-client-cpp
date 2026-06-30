@@ -32,14 +32,16 @@ Sender::Sender(AeContext const& ae_context, Client::ptr client, Uid destination)
 EventSubscriber<void()> Sender::error_event() { return error_event_; }
 
 void Sender::Connect() {
-  message_stream_ =
-      client_->message_stream_manager().CreateStream(destination_);
+  auto handle =
+      client_->message_stream_manager().CreatePort(destination_);
+  message_stream_ = std::make_shared<P2pStream>(
+      ae_context_, client_.Load(), destination_, std::move(handle));
 
   on_recv_data_sub_ = message_stream_->out_data_event().Subscribe(
       MethodPtr<&Sender::OnRecvData>{this});
 }
 
-void Sender::Disconnect() { message_stream_.Reset(); }
+void Sender::Disconnect() { message_stream_.reset(); }
 
 EventSubscriber<void()> Sender::Handshake() {
   auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
