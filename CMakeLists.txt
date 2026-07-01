@@ -19,6 +19,27 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(AE_PROJECT_VERSION "0.1.0")
 
+find_program(GIT_COMMAND git)
+if ( GIT_COMMAND )
+  # get current git version
+  execute_process(
+        COMMAND ${GIT_COMMAND} -C ${CMAKE_CURRENT_SOURCE_DIR} rev-parse --verify HEAD
+        OUTPUT_VARIABLE GIT_VERSION
+    )
+  if ( NOT GIT_VERSION )
+    message(WARNING "Not a git repo")
+  else()
+    string(STRIP ${GIT_VERSION} GIT_VERSION)
+    message(STATUS "Get aether git version ${GIT_VERSION}")
+    # also show current commit message
+    execute_process(
+          COMMAND ${GIT_COMMAND} -C ${CMAKE_CURRENT_SOURCE_DIR} show -s --format=%h:%D:%s
+          OUTPUT_VARIABLE GIT_DESCRIBE
+      )
+    message(STATUS "Aether head on\n\t${GIT_DESCRIBE}")
+  endif()
+endif()
+
 project(aether VERSION ${AE_PROJECT_VERSION} LANGUAGES CXX C)
 
 set(TARGET_NAME "${PROJECT_NAME}")
@@ -208,21 +229,6 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
                 WIN32_LEAN_AND_MEAN
     )
   target_link_libraries(${TARGET_NAME} PRIVATE ws2_32)
-endif()
-
-find_program(GIT_COMMAND git)
-if ( GIT_COMMAND )
-  # get current git version
-  execute_process(
-        COMMAND ${GIT_COMMAND} -C ${CMAKE_CURRENT_SOURCE_DIR} rev-parse --verify HEAD
-        OUTPUT_VARIABLE GIT_VERSION
-    )
-  if ( NOT GIT_VERSION )
-    message(WARNING "Not a git repo")
-  else()
-    string(STRIP ${GIT_VERSION} GIT_VERSION)
-    message(STATUS "get aether git version ${GIT_VERSION}")
-  endif()
 endif()
 
 if (GIT_VERSION)

@@ -27,10 +27,13 @@
 #include "aether/types/uid.h"
 #include "aether/server_keys.h"
 
+#include "aether/cloud_connections/ping_cloud_servers.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
+
 #include "aether/connection_manager/client_cloud_manager.h"
-#include "aether/client_messages/p2p_message_stream_manager.h"
 #include "aether/connection_manager/server_connection_manager.h"
+
+#include "aether/client_messages/p2p_message_stream_manager.h"
 
 namespace ae {
 class Aether;
@@ -87,6 +90,9 @@ class Client : public Obj {
   std::unique_ptr<CloudServerConnections> cloud_connection_;
   std::unique_ptr<P2pMessageStreamManager> message_stream_manager_;
 
+#if AE_ENABLE_PING
+  std::unique_ptr<PingCloudServers> ping_cloud_servers_;
+#endif
 #if AE_TELE_ENABLED
   std::unique_ptr<Telemetry> telemetry_;
 #endif

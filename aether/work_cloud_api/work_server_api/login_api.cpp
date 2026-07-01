@@ -25,6 +25,7 @@ LoginApi::LoginApi(ProtocolContext& protocol_context,
       get_time_utc{protocol_context},
       login_by_uid{protocol_context, LoginProc{*this}},
       login_by_alias{protocol_context, LoginProc{*this}},
+      get_my_ip{protocol_context},
       encrypt_provider_{&encrypt_provider},
       auth_api_{protocol_context} {}
 

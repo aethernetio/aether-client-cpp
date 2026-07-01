@@ -117,6 +117,20 @@ auto Registration::GetKeys() {
                   AE_TELED_INFO("Key received");
                   ex::set_value(std::move(r), Ignore{});
                 });
+
+#  if DEBUG
+        // For debug, call also for get my ip method to print our public ip
+        // visible to registration server
+        api_call->get_my_ip().Subscribe([](auto&& res) {
+          if (res) {
+            auto& iip = res.value();
+            AE_TELED_INFO("Registration our public ip: {}:{}, coords: {},{}",
+                          iip.ip, iip.port, iip.latitude, iip.longitude);
+          } else {
+            AE_TELED_ERROR("Get my ip failed");
+          }
+        });
+#  endif
       });
 }
 
@@ -327,13 +341,12 @@ void Registration::Run() {
             return ex::just_error(-1);
           }});
 
-  waiter_.emplace(
-      ae_context_, std::move(s),
-      [&](std::optional<Result<ClientConfig, int>>&& res) noexcept {
-        assert(res);
-        registration_event_.Emit(std::move(res).value());
-        Finish();
-      });
+  waiter_.emplace(ae_context_, std::move(s),
+                  [&](std::optional<Result<ClientConfig, int>>&& res) noexcept {
+                    assert(res);
+                    registration_event_.Emit(std::move(res).value());
+                    Finish();
+                  });
 }
 }  // namespace ae
 #endif
