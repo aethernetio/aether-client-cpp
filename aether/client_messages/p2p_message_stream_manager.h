@@ -18,45 +18,51 @@
 #define AETHER_CLIENT_MESSAGES_P2P_MESSAGE_STREAM_MANAGER_H_
 
 #include <map>
+#include <memory>
 
 #include "aether/ptr/ptr.h"
+#include "aether/ptr/ptr_view.h"
 #include "aether/types/uid.h"
 #include "aether/ae_context.h"
-#include "aether/ptr/rc_ptr.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/events/events.h"
-#include "aether/client_messages/p2p_message_stream.h"
-#include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/cloud_connections/cloud_subscription.h"
+#include "aether/client_messages/p2p_port_handle.h"
 
 namespace ae {
+
 class Client;
+
+namespace p2p_stream_internal {
+class P2pReceivePort;
+}  // namespace p2p_stream_internal
+
 class P2pMessageStreamManager {
  public:
-  using NewStreamEvent = Event<void(RcPtr<P2pStream>)>;
+  using NewPortEvent = Event<void(P2pPortHandle)>;
 
   P2pMessageStreamManager(AeContext const& ae_context,
                           Ptr<Client> const& client);
 
-  RcPtr<P2pStream> CreateStream(Uid destination);
-  NewStreamEvent::Subscriber new_stream_event();
+  P2pPortHandle CreatePort(Uid const& destination);
+  NewPortEvent::Subscriber new_port_event();
 
  private:
   void NewMessageReceived(AeMessage const& message);
-  void CleanUpStreams();
-  RcPtr<P2pStream> MakeStream(Uid destination);
+  void CleanUpPorts();
 
-  void OnStreamUpdated(Uid destination);
+  using PortsMap =
+      std::map<Uid, std::weak_ptr<p2p_stream_internal::P2pReceivePort>>;
+  std::pair<std::shared_ptr<p2p_stream_internal::P2pReceivePort>, bool>
+  GetOrCreatePort(Uid const& destination);
 
   AeContext ae_context_;
   PtrView<Client> client_;
-  ClientConnectionManager* connection_manager_;
   CloudServerConnections* cloud_connection_;
-  std::map<Uid, RcPtrView<P2pStream>> streams_;
-  NewStreamEvent new_stream_event_;
-  CloudSubscription on_message_received_sub_;
-  MultiSubscription message_stream_update_subs_;
+  PortsMap ports_;
+  NewPortEvent new_port_event_;
+  CloudEventListener on_message_received_sub_;
 };
+
 }  // namespace ae
 
 #endif  // AETHER_CLIENT_MESSAGES_P2P_MESSAGE_STREAM_MANAGER_H_

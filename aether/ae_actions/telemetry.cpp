@@ -25,7 +25,6 @@
 
 #  include "aether/mstream.h"
 #  include "aether/mstream_buffers.h"
-#  include "aether/cloud_connections/cloud_request.h"
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 
@@ -34,14 +33,12 @@ Telemetry::Telemetry(AeContext const& ae_context,
                      CloudServerConnections& cloud_connection)
     : ae_context_{ae_context},
       cloud_connection_{&cloud_connection},
-      call_request_{ae_context_, *cloud_connection_},
       telemetry_request_sub_{
-          ClientListener{[&](ClientApiSafe& api, auto* sever_connect) {
+          ApiEventSubscriber{[&](ClientApiSafe& api, auto* sever_connect) {
             return api.request_telemetry_event().Subscribe(
                 [&]() { OnRequestTelemetry(sever_connect->priority()); });
           }},
-          *cloud_connection_,
-          RequestPolicy::Replica{cloud_connection_->max_connections()}} {
+          *cloud_connection_, RequestPolicy::All{}} {
   AE_TELE_INFO(TelemetryCreated);
 }
 
@@ -51,13 +48,13 @@ void Telemetry::SendTelemetry() {
   auto server_num = request_for_server_.value_or(0);
   request_for_server_.reset();
 
-  if (server_num >= cloud_connection_->servers().size()) {
+  if (server_num >= cloud_connection_->selected_servers().size()) {
     AE_TELED_ERROR("Requested server number is out of range");
     return;
   }
 
   ClientServerConnection* con =
-      cloud_connection_->servers().at(server_num)->client_connection();
+      cloud_connection_->selected_servers().at(server_num)->client_connection();
   assert((con != nullptr) && "ClientServerConnection is null");
 
   auto telemetry = CollectTelemetry(con->stream_info());
@@ -66,8 +63,8 @@ void Telemetry::SendTelemetry() {
     return;
   }
 
-  call_request_.CallApi(
-      AuthApiCaller{[&](ApiContext<AuthorizedApi>& auth_api, auto*) {
+  cloud_connection_->CallApi(
+      ApiCall{[&](ApiContext<AuthorizedApi>& auth_api, auto*) {
         auth_api->send_telemetry(std::move(*telemetry));
       }},
       RequestPolicy::Priority{server_num});

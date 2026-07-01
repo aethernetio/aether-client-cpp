@@ -24,6 +24,7 @@ RegistrationRootApi::RegistrationRootApi(ProtocolContext& protocol_context,
     : ApiClass{protocol_context},
       get_asymmetric_public_key{protocol_context},
       enter{protocol_context, EnterProc{*this}},
+      get_my_ip{protocol_context},
       enc_provider_{&root_encrypt},
       server_registration_api_{protocol_context, global_encrypt} {}
 

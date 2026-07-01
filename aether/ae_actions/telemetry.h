@@ -25,7 +25,6 @@
 
 #  include "aether/ae_context.h"
 #  include "aether/stream_api/istream.h"
-#  include "aether/cloud_connections/cloud_request.h"
 #  include "aether/cloud_connections/cloud_subscription.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
 
@@ -49,9 +48,8 @@ class Telemetry {
 
   AeContext ae_context_;
   CloudServerConnections* cloud_connection_;
-  CloudRequest call_request_;
 
-  CloudSubscription telemetry_request_sub_;
+  CloudEventListener telemetry_request_sub_;
   std::optional<std::size_t> request_for_server_;
 };
 }  // namespace ae

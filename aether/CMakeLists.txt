@@ -197,6 +197,7 @@ list(APPEND aether_srcs
 list(APPEND aether_srcs
             "cloud_connections/cloud_server_connection.cpp"
             "cloud_connections/cloud_server_connections.cpp"
+            "cloud_connections/ping_cloud_servers.cpp"
             "cloud_connections/cloud_subscription.cpp"
             "cloud_connections/cloud_request.cpp")
 
@@ -209,7 +210,6 @@ list(APPEND aether_srcs
             "server_connections/server_connection.cpp")
 
 list(APPEND aether_srcs
-            "connection_manager/client_connection_manager.cpp"
             "connection_manager/get_cloud_aether.cpp"
             "connection_manager/client_cloud_manager.cpp"
             "connection_manager/server_connection_manager.cpp")
@@ -217,7 +217,8 @@ list(APPEND aether_srcs
 list(APPEND aether_srcs
             "client_messages/p2p_message_stream.cpp"
             "client_messages/p2p_message_stream_manager.cpp"
-            "client_messages/p2p_safe_message_stream.cpp")
+            "client_messages/p2p_safe_message_stream.cpp"
+            "client_messages/p2p_port_handle.cpp")
 
 list(APPEND aether_srcs
             "domain_storage/domain_storage_factory.cpp"

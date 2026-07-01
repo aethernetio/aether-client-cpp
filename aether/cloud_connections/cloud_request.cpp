@@ -16,223 +16,239 @@
 
 #include "aether/cloud_connections/cloud_request.h"
 
-#include <vector>
 #include <utility>
 
-#include "aether/server.h"
 #include "aether/aether.h"
-#include "aether-miscpp/reflect/reflect.h"
+#include "aether/server.h"
+#include "aether-miscpp/misc/override.h"
 #include "aether/write_action/write_action.h"
-#include "aether/cloud_connections/cloud_visit.h"
 
 #include "aether/cloud_connections/cloud_connections_tele.h"
 
 namespace ae {
-CloudRequest::ReplicaWA::ReplicaWA(std::vector<WriteAction*>&& swas) noexcept
-    : swas_{std::move(swas)} {
-  assert(!swas_.empty());
-  for (auto* action : swas_) {
-    // get the state from replicas by OR
-    // any success or all ether failed
-    subs_ +=
-        action->status_event().Subscribe([this](WriteAction::Status status) {
-          switch (status) {
-            case WriteAction::Status::kSuccess:
-              SetStatus(status);
-              return;
-            case WriteAction::Status::kFail:
-              failed_actions_++;
-              break;
-            case WriteAction::Status::kStop:
-              stopped_actions_++;
-              break;
-          }
-          if ((failed_actions_ + stopped_actions_) >= swas_.size()) {
-            SetStatus(status);
-          }
-        });
-  }
-}
 
-void CloudRequest::ReplicaWA::Stop() noexcept {
-  for (auto* action : swas_) {
-    action->Stop();
-  }
+CloudRequest::CloudRequest(AeContext const& ae_context,
+                           ApiCallWithListener&& api_call,
+                           CloudServerConnections& cloud_server_connections,
+                           RequestPolicy::Variant policy,
+                           std::size_t max_retries, Duration request_timeout)
+    : ae_context_{ae_context},
+      request_{std::move(api_call)},
+      cloud_scs_{&cloud_server_connections},
+      policy_{policy},
+      max_retries_{max_retries},
+      request_timeout_{request_timeout},
+      server_changed_sub_{cloud_scs_->servers_update_event().Subscribe(
+          MethodPtr<&CloudRequest::ServersUpdated>{this})} {
+  PrefillServerRequests();
+  EnqueueMakeRequest();
 }
 
 CloudRequest::CloudRequest(AeContext const& ae_context,
-                           CloudServerConnections& connection)
-    : ae_context_{ae_context}, connection_{&connection} {}
-
-WriteAction& CloudRequest::CallApi(AuthApiCaller const& api_caller,
-                                   RequestPolicy::Variant policy) {
-  std::vector<WriteAction*> swas;
-  CloudVisit::Visit(
-      [&](CloudServerConnection* sc) {
-        auto* conn = sc->client_connection();
-        assert((conn != nullptr) && "Client connection is null");
-        swas.emplace_back(&conn->AuthorizedApiCall(
-            SubApi<AuthorizedApi>{[&](auto& api) { api_caller(api, sc); }}));
-      },
-      *connection_, policy);
-
-  if (swas.empty()) {
-    return EmptyWriteAction();
-  }
-  if (swas.size() == 1) {
-    return *swas.front();
-  }
-  return ReplicaWriteAction(std::move(swas));
-}
-
-WriteAction& CloudRequest::EmptyWriteAction() {
-  if (!empty_wa_ || empty_wa_->is_finished()) {
-    empty_wa_.emplace(ae_context_);
-  }
-  return *empty_wa_;
-}
-
-WriteAction& CloudRequest::ReplicaWriteAction(
-    std::vector<WriteAction*>&& swas) {
-  // TODO: replace vector to something static
-  return replica_was_.emplace_back(std::move(swas));
-}
-
-CloudRequestAction::CloudRequestAction(
-    AeContext const& ae_context, AuthApiCaller&& api_caller,
-    ClientResponseListener&& listener,
-    CloudServerConnections& cloud_server_connections,
-    RequestPolicy::Variant policy)
-    : ae_context_{ae_context},
-      request_{std::move(api_caller)},
-      listener_{std::move(listener)},
-      cloud_sc_{&cloud_server_connections},
-      policy_{policy},
-      server_changed_sub_{cloud_sc_->servers_update_event().Subscribe(
-          MethodPtr<&CloudRequestAction::ServersUpdated>{this})} {
-  EnqueueMakeRequest();
-}
-
-CloudRequestAction::CloudRequestAction(
-    AeContext const& ae_context, AuthApiRequest&& api_request,
-    CloudServerConnections& cloud_server_connections,
-    RequestPolicy::Variant policy)
+                           ApiRequestHandler&& api_request,
+                           CloudServerConnections& cloud_server_connections,
+                           RequestPolicy::Variant policy,
+                           std::size_t max_retries, Duration request_timeout)
     : ae_context_{ae_context},
       request_{std::move(api_request)},
-      cloud_sc_{&cloud_server_connections},
+      cloud_scs_{&cloud_server_connections},
       policy_{policy},
-      server_changed_sub_{cloud_sc_->servers_update_event().Subscribe(
-          MethodPtr<&CloudRequestAction::ServersUpdated>{this})} {
+      max_retries_{max_retries},
+      request_timeout_{request_timeout},
+      server_changed_sub_{cloud_scs_->servers_update_event().Subscribe(
+          MethodPtr<&CloudRequest::ServersUpdated>{this})} {
+  PrefillServerRequests();
   EnqueueMakeRequest();
 }
 
-void CloudRequestAction::Succeeded() {
+void CloudRequest::Succeeded() {
   Finish();
-  success_event_.Emit();
+  result_event_.Emit(true);
 }
 
-void CloudRequestAction::Failed() {
+void CloudRequest::Failed() {
   Finish();
-  failure_event_.Emit();
+  result_event_.Emit(false);
 }
 
-CloudRequestAction::SuccessEvent::Subscriber
-CloudRequestAction::success_event() {
-  return EventSubscriber{success_event_};
+CloudRequest::ResultEvent::Subscriber CloudRequest::result_event() {
+  return EventSubscriber{result_event_};
 }
 
-CloudRequestAction::FailureEvent::Subscriber
-CloudRequestAction::failure_event() {
-  return EventSubscriber{failure_event_};
+void CloudRequest::PrefillServerRequests() {
+  for (auto* sc : cloud_scs_->servers()) {
+    server_requests_.emplace(sc, ServerRequest{});
+  }
 }
 
-void CloudRequestAction::MakeRequest() {
-  CloudVisit::Visit(
+void CloudRequest::MakeRequest() {
+  cloud_scs_->ForServers(
       [&](auto& sc) {
-        auto [it, ok] = server_requests_.emplace(sc, ServerRequest{});
-        if (!ok) {
-          return;
+        auto it = server_requests_.find(sc);
+        ServerRequest* sr;
+        if (it == server_requests_.end()) {
+          // New server added to cloud after construction
+          auto [new_it, ok] = server_requests_.emplace(sc, ServerRequest{});
+          sr = &new_it->second;
+        } else {
+          sr = &it->second;
+          if (sr->exhausted) {
+            return;
+          }
         }
-        MakeServerRequest(it->first, it->second);
+        MakeServerRequest(sc, *sr);
       },
-      *cloud_sc_, policy_);
+      policy_);
+
+  // Check if all server requests are exhausted
+  bool all_exhausted = !server_requests_.empty();
+  for (auto const& [sc, sr] : server_requests_) {
+    if (!sr.exhausted) {
+      all_exhausted = false;
+      break;
+    }
+  }
+  if (all_exhausted) {
+    AE_TELED_ERROR("All server requests exhausted, failing");
+    Failed();
+  }
 }
 
-void CloudRequestAction::MakeServerRequest(CloudServerConnection* sc,
-                                           ServerRequest& sr) {
+void CloudRequest::MakeServerRequest(CloudServerConnection* sc,
+                                     ServerRequest& sr) {
+  AE_TELED_DEBUG("Make request to server {}", sc->server()->server_id);
+
+  // Clear previous subscriptions and timeout
+  sr.state_subs.Reset();
+  sr.timeout_sub.Reset();
+
   auto* conn = sc->client_connection();
   assert((conn != nullptr) && "Client connection is null");
 
-  AE_TELED_DEBUG("Make request to server {}", sc->server()->server_id);
-
   // make request depends on saved request kind
-  auto& swa = std::visit(  // ~['_']~
-      reflect::OverrideFunc{
-          // Plain AuthApiCaller with ClientResponseListener
-          [&](AuthApiCaller& api_caller) -> decltype(auto) {
-            return conn->AuthorizedApiCall(SubApi{
-                [&](ApiContext<AuthorizedApi>& api) { api_caller(api, sc); }});
-          },
-          // AuthApiRequest
-          [&](AuthApiRequest& api_request) -> decltype(auto) {
-            return conn->AuthorizedApiCall(
-                SubApi{[&](ApiContext<AuthorizedApi>& api) {
-                  api_request(api, sc, this);
-                }});
-          },
-      },
-      request_);
+  auto& swa =
+      std::visit(Override{
+                     // ApiCallWithListener
+                     [&](ApiCallWithListener& api_call) -> decltype(auto) {
+                       return conn->AuthorizedApiCall(
+                           SubApi{[&](ApiContext<AuthorizedApi>& api) {
+                             api_call.call(api, sc);
+                           }});
+                     },
+                     // ApiRequestHandler
+                     [&](ApiRequestHandler& api_request) -> decltype(auto) {
+                       return conn->AuthorizedApiCall(
+                           SubApi{[&](ApiContext<AuthorizedApi>& api) {
+                             api_request(api, sc, this);
+                           }});
+                     },
+                 },
+                 request_);
 
-  sr.state_subs.Push(
-      // if server stream changed its channel
+  // if request write failed
+  sr.state_subs += swa.status_event().Subscribe([this, sc](auto status) {
+    if (status == WriteAction::Status::kFail) {
+      AE_TELED_WARNING("Request write error");
+      OnWriteFailed(sc);
+    }
+  });
+  // if server stream changed its channel, retry on new channel
+  sr.state_subs +=
       conn->server_connection().channel_changed_event().Subscribe([this, sc]() {
         AE_TELED_WARNING("Request server channel changed");
-        RemoveRequest(sc);
-        EnqueueMakeRequest();
-      }),
-      // if server stream is disconnected
-      conn->server_connection().server_error_event().Subscribe([this, sc]() {
-        AE_TELED_WARNING("Request server error");
-        RemoveRequest(sc);
-        EnqueueMakeRequest();
-      }),
-      // if request write failed
-      swa.status_event().Subscribe([this, sc](auto status) {
-        if (status == WriteAction::Status::kFail) {
-          AE_TELED_ERROR("Request write error");
-          RemoveRequest(sc);
-          EnqueueMakeRequest();
-        }
-      }));
-  // TODO: add request server level timeout
-  if (listener_) {
-    // update listener in case if servers changed
-    sr.state_subs += listener_(conn->client_safe_api(), sc, this);
+        OnChannelChanged(sc);
+      });
+
+  // Set per-server request timeout
+  sr.timeout_sub = ae_context_.scheduler().DelayedTask(
+      [this, sc]() {
+        AE_TELED_WARNING("Request timeout for server {}",
+                         sc->server()->server_id);
+        OnServerRequestTimeout(sc);
+      },
+      request_timeout_);
+
+  if (std::holds_alternative<ApiCallWithListener>(request_)) {
+    auto& listener = std::get<ApiCallWithListener>(request_).listener;
+    if (listener) {
+      sr.state_subs += listener(conn->client_safe_api(), sc, this);
+    }
   }
 }
 
-void CloudRequestAction::ServersUpdated() { EnqueueMakeRequest(); }
+void CloudRequest::OnChannelChanged(CloudServerConnection* sc) {
+  auto it = server_requests_.find(sc);
+  if (it == server_requests_.end()) {
+    return;
+  }
+  auto& sr = it->second;
+  if (sr.retry_count >= max_retries_) {
+    AE_TELED_WARNING("Server {} retry budget exhausted",
+                     sc->server()->server_id);
+    sr.exhausted = true;
+    EnqueueMakeRequest();
+    return;
+  }
+  // Channel already changed, just re-send.
+  EnqueueMakeRequest();
+}
 
-void CloudRequestAction::RemoveRequest(
-    CloudServerConnection* server_connection) {
+void CloudRequest::OnWriteFailed(CloudServerConnection* sc) {
+  auto it = server_requests_.find(sc);
+  if (it == server_requests_.end()) {
+    return;
+  }
+  auto& sr = it->second;
+  sr.retry_count++;
+  if (sr.retry_count >= max_retries_) {
+    AE_TELED_WARNING("Server {} retry budget exhausted on write failure",
+                     sc->server()->server_id);
+    sr.exhausted = true;
+  }
+  EnqueueMakeRequest();
+}
+
+void CloudRequest::OnServerRequestTimeout(CloudServerConnection* sc) {
+  auto it = server_requests_.find(sc);
+  if (it == server_requests_.end()) {
+    return;
+  }
+  auto& sr = it->second;
+  if (sr.retry_count >= max_retries_) {
+    AE_TELED_WARNING("Server {} retry budget exhausted on timeout",
+                     sc->server()->server_id);
+    sr.exhausted = true;
+    EnqueueMakeRequest();
+    return;
+  }
+  sr.retry_count++;
+  // Timeout means something is wrong with the stream.
+  // Restream to switch channels; channel_changed_event will trigger re-send.
+  sc->Restream();
+}
+
+void CloudRequest::ServersUpdated() { EnqueueMakeRequest(); }
+
+void CloudRequest::RemoveRequest(CloudServerConnection* server_connection) {
   server_requests_.erase(server_connection);
 }
 
-void CloudRequestAction::EnqueueMakeRequest() {
+void CloudRequest::EnqueueMakeRequest() {
   // enqueue only once at a time
   if (task_sub_) {
     return;
   }
-  task_sub_.emplace(ae_context_.scheduler().Task([this]() {
-    task_sub_.reset();
+  task_sub_ = ae_context_.scheduler().Task([this]() {
+    task_sub_.Reset();
     MakeRequest();
-  }));
+  });
 }
 
-void CloudRequestAction::Finish() {
+void CloudRequest::Finish() {
   swa_sub_.Reset();
   server_changed_sub_.Reset();
-  task_sub_.reset();
+  task_sub_.Reset();
+  server_requests_.clear();
 
   Action::Finish();
 }

@@ -23,7 +23,6 @@
 #include "aether/cloud.h"
 #include "aether/client.h"
 
-#include "aether/cloud_connections/cloud_visit.h"
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/cloud_subscription.h"
 #include "aether/cloud_connections/cloud_server_connection.h"
@@ -34,11 +33,9 @@ namespace ae {
 namespace p2p_stream_internal {
 class MessageSendStream final : public IStream<AeMessage, AeMessage> {
  public:
-  explicit MessageSendStream(AeContext const& ae_context,
-                             CloudServerConnections& cloud_connection,
+  explicit MessageSendStream(CloudServerConnections& cloud_connection,
                              RequestPolicy::Variant request_policy)
-      : cloud_request_{ae_context, cloud_connection},
-        cloud_connection_{&cloud_connection},
+      : cloud_connection_{&cloud_connection},
         request_policy_{request_policy},
         servers_update_sub_{cloud_connection_->servers_update_event().Subscribe(
             MethodPtr<&MessageSendStream::UpdateServers>{this})} {
@@ -46,8 +43,8 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
   }
 
   WriteAction& Write(AeMessage&& message) override {
-    return cloud_request_.CallApi(
-        AuthApiCaller{[&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
+    return cloud_connection_->CallApi(
+        ApiCall{[&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
           auth_api->send_message(std::move(message));
         }},
         request_policy_);
@@ -85,26 +82,26 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
 
  private:
   void UpdateServers() {
-    CloudVisit::Visit(
+    cloud_connection_->ForServers(
         [this](auto* sc) {
           if (auto* con = sc->client_connection(); con != nullptr) {
             streams_update_sub_ += con->stream_update_event().Subscribe(
                 MethodPtr<&MessageSendStream::UpdateStream>{this});
           }
         },
-        *cloud_connection_, request_policy_);
+        request_policy_);
     UpdateStream();
   }
 
   void UpdateStream() {
     std::vector<StreamInfo> infos;
-    CloudVisit::Visit(
+    cloud_connection_->ForServers(
         [&](auto* sc) {
           if (auto* con = sc->client_connection(); con != nullptr) {
             infos.emplace_back(con->stream_info());
           }
         },
-        *cloud_connection_, request_policy_);
+        request_policy_);
 
     if (infos.empty()) {
       stream_info_ = {};
@@ -161,7 +158,6 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
     stream_update_event_.Emit();
   }
 
-  CloudRequest cloud_request_;
   CloudServerConnections* cloud_connection_;
   RequestPolicy::Variant request_policy_;
 
@@ -172,45 +168,16 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
   Subscription servers_update_sub_;
   MultiSubscription streams_update_sub_;
 };
-
-class ReadMessageGate {
- public:
-  using OutDataEvent = Event<void(DataBuffer const& data)>;
-
-  ReadMessageGate(Uid uid, CloudServerConnections& cloud_connection,
-                  RequestPolicy::Variant request_policy)
-      : uid_{uid},
-        message_event_sub_{
-            ClientListener{[this](ClientApiSafe& client_api, auto*) {
-              return client_api.send_message_event().Subscribe(
-                  [this](auto const& message) {
-                    if (message.uid == uid_) {
-                      out_data_event_.Emit(message.data);
-                    }
-                  });
-            }},
-            cloud_connection,
-            request_policy,
-        } {}
-
-  OutDataEvent::Subscriber out_data_event() { return out_data_event_; }
-
- private:
-  Uid uid_;
-  CloudSubscription message_event_sub_;
-  OutDataEvent out_data_event_;
-};
-
 }  // namespace p2p_stream_internal
 
 P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
-                     Uid destination)
+                     Uid destination, P2pPortHandle handle)
     : ae_context_{ae_context},
       client_{client},
-      destination_{destination},
+      destination_{std::move(destination)},
+      handle_{std::move(handle)},
       buffer_write_{ae_context_, MethodPtr<&P2pStream::OnWrite>{this}} {
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
-  // destination uid must not be empty
   assert(!destination_.empty());
 
   ConnectReceive();
@@ -231,7 +198,6 @@ P2pStream::StreamUpdateEvent::Subscriber P2pStream::stream_update_event() {
 }
 
 StreamInfo P2pStream::stream_info() const {
-  // TODO: Combine info for receive and send streams
   if (message_send_stream_) {
     return message_send_stream_->stream_info();
   }
@@ -271,14 +237,7 @@ P2pStream::ExportPreparedSendMessageBlock(std::uint32_t reserve_nonce_count) {
 
 
 void P2pStream::ConnectReceive() {
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
-  // TODO: config request policy
-  read_message_gate_ = std::make_unique<p2p_stream_internal::ReadMessageGate>(
-      destination_, client_ptr->cloud_connection(),
-      RequestPolicy::Replica{client_ptr->cloud_connection().max_connections()});
-  // write out received data
-  read_message_gate_->out_data_event().Subscribe(
+  out_data_sub_ = handle_.out_data_event().Subscribe(
       MethodPtr<&P2pStream::WriteOut>{this});
 }
 
@@ -289,15 +248,15 @@ void P2pStream::ConnectSend() {
   auto& get_client_cloud = client_ptr->cloud_manager()->GetCloud(destination_);
 
   get_client_cloud_sub_ = get_client_cloud.result_event().Subscribe(
-      [this](Result<Cloud::ptr, int>&& result) {
+      [this, client_ptr](Result<Cloud::ptr, int>&& result) {
         if (result) {
           auto cloud = std::move(result).value();
-          dest_conn_manager_ = MakeConnectionManager(cloud.Load());
-          dest_cloud_conn_ = MakeDestinationCloudConn(*dest_conn_manager_);
-          // TODO: add config for request policy
+          dest_cloud_conn_ = MakeDestinationCloudConn(
+              cloud.Load(), client_ptr->server_connection_manager()
+                                .GetServerConnectionFactory());
           message_send_stream_ =
               std::make_unique<p2p_stream_internal::MessageSendStream>(
-                  ae_context_, *dest_cloud_conn_, RequestPolicy::MainServer{});
+                  *dest_cloud_conn_, RequestPolicy::MainServer{});
           message_send_stream_->stream_update_event().Subscribe(
               stream_update_event_);
           AE_TELED_DEBUG("Send connected");
@@ -311,19 +270,11 @@ void P2pStream::ConnectSend() {
       });
 }
 
-std::unique_ptr<ClientConnectionManager> P2pStream::MakeConnectionManager(
-    Ptr<Cloud> const& cloud) {
-  auto client_ptr = client_.Lock();
-  assert(client_ptr);
-  return std::make_unique<ClientConnectionManager>(
-      cloud,
-      client_ptr->server_connection_manager().GetServerConnectionFactory());
-}
-
 std::unique_ptr<CloudServerConnections> P2pStream::MakeDestinationCloudConn(
-    ClientConnectionManager& connection_manager) {
+    Ptr<Cloud> const& cloud,
+    std::unique_ptr<IServerConnectionFactory> factory) {
   return std::make_unique<CloudServerConnections>(
-      ae_context_, connection_manager, AE_CLOUD_MAX_SERVER_CONNECTIONS);
+      ae_context_, cloud, std::move(factory), AE_CLOUD_MAX_SERVER_CONNECTIONS);
 }
 
 WriteAction* P2pStream::OnWrite(AeMessage&& message) {

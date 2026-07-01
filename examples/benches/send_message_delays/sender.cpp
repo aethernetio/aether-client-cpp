@@ -20,6 +20,7 @@
 
 #include "aether/api_protocol/api_context.h"
 #include "aether/stream_api/api_call_adapter.h"
+#include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
 #include "aether/tele/tele.h"
@@ -39,22 +40,27 @@ Sender::Sender(AeContext const& ae_context, Client::ptr client,
 void Sender::ConnectP2pStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pStream()");
 
-  send_message_stream_ =
-      client_->message_stream_manager().CreateStream(destination_uid_);
+  auto handle =
+      client_->message_stream_manager().CreatePort(destination_uid_);
+  send_message_stream_ = std::make_shared<P2pStream>(
+      ae_context_, client_.Load(), destination_uid_, std::move(handle));
   connected_stream_ = send_message_stream_.get();
 }
 
 void Sender::ConnectP2pSafeStream() {
   AE_TELED_DEBUG("Sender::ConnectP2pSafeStream()");
+  auto handle =
+      client_->message_stream_manager().CreatePort(destination_uid_);
+  auto p2p_stream = std::make_shared<P2pStream>(
+      ae_context_, client_.Load(), destination_uid_, std::move(handle));
   send_message_safe_stream_ = make_unique<P2pSafeStream>(
-      ae_context_, safe_stream_config_,
-      client_->message_stream_manager().CreateStream(destination_uid_));
+      ae_context_, safe_stream_config_, std::move(p2p_stream));
   connected_stream_ = send_message_safe_stream_.get();
 }
 
 void Sender::Disconnect() {
   AE_TELED_DEBUG("Sender::Disconnect()");
-  send_message_stream_.Reset();
+  send_message_stream_.reset();
   send_message_safe_stream_.reset();
 }
 

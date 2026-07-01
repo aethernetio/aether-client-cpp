@@ -22,7 +22,6 @@
 
 #include "aether/common.h"
 #include "aether/ae_context.h"
-#include "aether/ae_actions/ping.h"
 #include "aether/crypto/icrypto_provider.h"
 #include "aether/write_action/buffer_write.h"
 
@@ -85,7 +84,6 @@ class ClientServerConnection {
 
  private:
   void OutData(DataBuffer const& data);
-  void ChannelChanged();
 
   AeContext ae_context_;
   PtrView<Client> client_;
@@ -99,13 +97,6 @@ class ClientServerConnection {
 
   client_server_connection_internal ::BufferedServerConnection
       server_connection_;
-
-#if AE_ENABLE_PING
-  std::optional<Ping> ping_;
-#endif
-
-  Subscription ping_sub_;
-  Subscription wait_connection_sub_;
 };
 }  // namespace ae
 

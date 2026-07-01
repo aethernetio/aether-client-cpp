@@ -23,8 +23,8 @@
 #include "aether/server.h"
 #include "aether/client.h"
 #include "aether/crypto/ikey_provider.h"
-#include "aether/stream_api/api_call_adapter.h"
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/stream_api/api_call_adapter.h"
 #include "aether/crypto/sync_crypto_provider.h"
 
 #include "aether/tele/tele.h"
@@ -81,8 +81,8 @@ class ClientDecryptKeyProvider : public ClientKeyProvider {
 class ClientCryptoProvider final : public ICryptoProvider {
  public:
   ClientCryptoProvider(Ptr<Client> const& client, ServerId server_id)
-      : encryptor_{
-            std::make_unique<ClientEncryptKeyProvider>(client, server_id)},
+      : encryptor_{std::make_unique<ClientEncryptKeyProvider>(client,
+                                                              server_id)},
         decryptor_{
             std::make_unique<ClientDecryptKeyProvider>(client, server_id)} {}
 
@@ -159,10 +159,6 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
 
   server_connection_.out_data_event().Subscribe(
       MethodPtr<&ClientServerConnection::OutData>{this});
-
-  server_connection_.server_connection.channel_changed_event().Subscribe(
-      MethodPtr<&ClientServerConnection::ChannelChanged>{this});
-  ChannelChanged();
 }
 
 ClientServerConnection::~ClientServerConnection() {
@@ -263,39 +259,6 @@ ClientServerConnection::ExportPreparedSendMessageBlock(
 void ClientServerConnection::OutData(DataBuffer const& data) {
   auto parser = ApiParser{protocol_context_, data};
   parser.Parse(client_api_unsafe_);
-}
-
-void ClientServerConnection::ChannelChanged() {
-  AE_TELED_DEBUG("Channel is updated, make new ping");
-
-  auto make_ping = [&] {
-#if AE_ENABLE_PING
-    auto& server_conn = server_connection_.server_connection;
-    auto channel = server_conn.current_channel();
-    // Create new ping if channel is updated
-    static constexpr Duration kPingDefaultInterval =
-        std::chrono::milliseconds{AE_PING_INTERVAL_MS};
-    // TODO: make ping interval depend on server priority
-    ping_.emplace(ae_context_, channel, *this, kPingDefaultInterval);
-    ping_sub_ = ping_->ping_failed().Subscribe([this]() {
-      AE_TELED_ERROR("Ping failed");
-      server_connection_.Restream();
-    });
-#endif
-  };
-
-  if (server_connection_.stream_info().link_state == LinkState::kLinked) {
-    make_ping();
-    return;
-  }
-  wait_connection_sub_ =
-      server_connection_.stream_update_event().Subscribe([&, make_ping]() {
-        if (server_connection_.stream_info().link_state != LinkState::kLinked) {
-          return;
-        }
-        wait_connection_sub_.Reset();
-        make_ping();
-      });
 }
 
 }  // namespace ae

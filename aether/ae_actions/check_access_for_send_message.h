@@ -46,7 +46,7 @@ class CheckAccessForSendMessage final : public Action {
   void ErrorReceived();
 
   Uid destination_;
-  CloudRequestAction cloud_request_;
+  CloudRequest cloud_request_;
   ResultEvent result_event_;
   Subscription wait_check_sub_;
 };

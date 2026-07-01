@@ -16,33 +16,31 @@
 
 #include "aether/cloud_connections/cloud_subscription.h"
 
-#include "aether/cloud_connections/cloud_visit.h"
-
 namespace ae {
-CloudSubscription::CloudSubscription(ClientListener subscriber,
-                                     CloudServerConnections& cloud_connection,
-                                     RequestPolicy::Variant request_policy)
+CloudEventListener::CloudEventListener(ApiEventSubscriber subscriber,
+                                       CloudServerConnections& cloud_connection,
+                                       RequestPolicy::Variant request_policy)
     : cloud_connection_{&cloud_connection},
       subscriber_{std::move(subscriber)},
       request_policy_{request_policy} {
   server_update_sub_ = cloud_connection_->servers_update_event().Subscribe(
-      MethodPtr<&CloudSubscription::ServersUpdate>{this});
+      MethodPtr<&CloudEventListener::ServersUpdate>{this});
   ServersUpdate();
 }
 
-CloudSubscription::CloudSubscription(CloudSubscription&& other) noexcept
+CloudEventListener::CloudEventListener(CloudEventListener&& other) noexcept
     : cloud_connection_{other.cloud_connection_},
       subscriber_{std::move(other.subscriber_)},
       request_policy_{other.request_policy_},
       subscriptions_{std::move(other.subscriptions_)} {
   if (cloud_connection_ != nullptr) {
     server_update_sub_ = cloud_connection_->servers_update_event().Subscribe(
-        MethodPtr<&CloudSubscription::ServersUpdate>{this});
+        MethodPtr<&CloudEventListener::ServersUpdate>{this});
   }
 }
 
-CloudSubscription& CloudSubscription::operator=(
-    CloudSubscription&& other) noexcept {
+CloudEventListener& CloudEventListener::operator=(
+    CloudEventListener&& other) noexcept {
   if (this != &other) {
     cloud_connection_ = other.cloud_connection_;
     subscriber_ = std::move(other.subscriber_);
@@ -50,25 +48,25 @@ CloudSubscription& CloudSubscription::operator=(
     subscriptions_ = std::move(other.subscriptions_);
     if (cloud_connection_ != nullptr) {
       server_update_sub_ = cloud_connection_->servers_update_event().Subscribe(
-          MethodPtr<&CloudSubscription::ServersUpdate>{this});
+          MethodPtr<&CloudEventListener::ServersUpdate>{this});
     }
   }
   return *this;
 }
 
-void CloudSubscription::ServersUpdate() {
+void CloudEventListener::ServersUpdate() {
   // clean old subscriptions and make new
   subscriptions_.Reset();
-  CloudVisit::Visit(
+  cloud_connection_->ForServers(
       [&](auto* sc) {
         auto* conn = sc->client_connection();
         assert((conn != nullptr) && "ClientConnection is null");
         subscriptions_ += subscriber_(conn->client_safe_api(), sc);
       },
-      *cloud_connection_, request_policy_);
+      request_policy_);
 }
 
-void CloudSubscription::Reset() {
+void CloudEventListener::Reset() {
   server_update_sub_.Reset();
   subscriptions_.Reset();
 }

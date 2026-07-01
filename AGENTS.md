@@ -93,7 +93,13 @@
  To run tests, go into `<build-dir>` and run `ctest . --progress -j -E "((sodium)|(hydro)|(bcrypt)).*" --output-on-failure`.
  Or run specific test by name from `<build-dir>/tests/run/<test-name>`.
 
- To run smoke test, run `<build-dir>/aether-client-cpp-cloud`.
+### Smoke test
+
+ The first smoke test is a `<build-dir>/aether-client-cpp-cloud`.
+ To run it simply `cd <build-dir>` and ran the `./aether-client-cpp-cloud` binary. 
+ Notice! Run `aether-client-cpp-cloud` generates `state` dir there object state is saved. 
+ Remove this `state` dir before run to make clean run. Keep it to run with previous state.
 
 ## Operational Rules
+
 - Do not analyze logs until everything is working fine.
