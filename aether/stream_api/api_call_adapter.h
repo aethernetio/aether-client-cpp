@@ -31,7 +31,6 @@
 
 namespace ae {
 
-// FASTTX_STEP3_ENCODE_PACKET_API
 namespace fast_tx_internal {
 
 enum class EncodePacketError {
