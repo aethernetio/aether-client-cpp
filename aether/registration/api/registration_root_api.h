@@ -27,6 +27,8 @@
 #  include "aether/crypto/icrypto_provider.h"
 #  include "aether/api_protocol/api_protocol.h"
 
+#  include "aether/work_cloud_api/info_ip.h"
+
 #  include "aether/registration/api/server_registration_api.h"
 
 namespace ae {
@@ -57,6 +59,8 @@ class RegistrationRootApi : public ApiClass {
   Method<04, void(CryptoLib crypto_lib, SubApi<ServerRegistrationApi> sub_api),
          EnterProc>
       enter;
+
+  Method<6, ApiPromise<InfoIp>()> get_my_ip;
 
  private:
   DataBuffer Encrypt(DataBuffer const& data) const;

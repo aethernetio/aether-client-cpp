@@ -121,6 +121,24 @@ void Ping::SendPing() {
     }
   });
 
+#  if DEBUG
+  // For debug, call also for get my ip method to print our public ip
+  // visible to work server
+  cloud_server_connection_->client_connection()->LoginApiCall(
+      SubApi{[&](ApiContext<LoginApi>& login_api) {
+        login_api->get_my_ip().Subscribe([sid_ =
+                                              server_id_](auto&& res) noexcept {
+          if (res) {
+            auto& iip = res.value();
+            AE_TELED_DEBUG("Server id: {}, our public ip: {}:{}, coords: {},{}",
+                           sid_, iip.ip, iip.port, iip.latitude, iip.longitude);
+          } else {
+            AE_TELED_ERROR("Get my ip failed!");
+          }
+        });
+      }});
+#  endif
+
   // setup next ping interval
   schedule_sub_ = ae_context_.scheduler().DelayedTask([this]() { SendPing(); },
                                                       ping_interval_);

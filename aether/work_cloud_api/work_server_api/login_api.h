@@ -22,6 +22,7 @@
 #include "aether/crypto/icrypto_provider.h"
 #include "aether/api_protocol/api_protocol.h"
 
+#include "aether/work_cloud_api/info_ip.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 namespace ae {
@@ -48,6 +49,8 @@ class LoginApi : public ApiClass {
       login_by_uid;
   Method<5, void(Uid alias, SubApi<AuthorizedApi> sub_api), LoginProc>
       login_by_alias;
+
+  Method<6, ApiPromise<InfoIp>()> get_my_ip;
 
   AuthorizedApi& authorized_api() { return auth_api_; }
 
