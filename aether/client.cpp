@@ -70,10 +70,15 @@ CloudServerConnections& Client::cloud_connection() {
         server_connection_manager().GetServerConnectionFactory(),
         AE_CLOUD_MAX_SERVER_CONNECTIONS);
 
+#if AE_ENABLE_PING
+    ping_cloud_servers_ = std::make_unique<PingCloudServers>(
+        *aether_.Load().as<Aether>(), *cloud_connection_);
+#endif
+
 #if AE_TELE_ENABLED
     // also create telemetry
-    telemetry_ = std::make_unique<Telemetry>(
-        AeContext{*aether_.Load().as<Aether>()}, *cloud_connection_);
+    telemetry_ = std::make_unique<Telemetry>(*aether_.Load().as<Aether>(),
+                                             *cloud_connection_);
 #endif
   }
 
