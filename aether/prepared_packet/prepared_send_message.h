@@ -21,6 +21,19 @@
 #include "aether/crypto/crypto_nonce.h"
 
 namespace ae::prepared_packet {
+static constexpr std::uint32_t kMagic = 0x50534456;  // "PSDV"
+static constexpr std::uint32_t kVersion = 1;
+// Serialized PreparedSendMessageBlock is a few hundred bytes. Keep the RTC
+// footprint small enough for ESP32 RTC slow memory (8 KiB on ESP32-C6).
+static constexpr std::size_t kMaxPreparedBlockBytes = 512;
+
+struct RetainedPreparedBlock {
+  std::uint32_t magic;
+  std::uint32_t version;
+  std::uint32_t size;
+  std::uint32_t checksum;
+  std::array<std::uint8_t, kMaxPreparedBlockBytes> bytes;
+};
 
 enum class PreparedIpVersion : std::uint8_t {
   kIpV4 = 4,
@@ -28,6 +41,7 @@ enum class PreparedIpVersion : std::uint8_t {
 };
 
 struct PreparedEndpoint {
+  AE_REFLECT_MEMBERS(version, protocol, port, ip)
   PreparedIpVersion version = PreparedIpVersion::kIpV4;
   Protocol protocol = Protocol::kUdp;
   std::uint16_t port = 0;
@@ -38,6 +52,8 @@ struct PreparedEndpoint {
 };
 
 struct PreparedSendMessageBlock {
+  AE_REFLECT_MEMBERS(endpoint, sender_ephemeral_uid, target_uid,
+                     client_to_server_key, next_nonce, nonce_left)
   PreparedEndpoint endpoint;
 
   Uid sender_ephemeral_uid;
@@ -68,11 +84,8 @@ struct EncodePacketResult {
   EncodePacketError error = EncodePacketError::kNone;
   std::size_t bytes_written = 0;
 
-  explicit operator bool() const {
-    return error == EncodePacketError::kNone;
-  }
+  explicit operator bool() const { return error == EncodePacketError::kNone; }
 };
-
 
 std::optional<PreparedEndpoint> MakePreparedEndpoint(Endpoint const& endpoint);
 
