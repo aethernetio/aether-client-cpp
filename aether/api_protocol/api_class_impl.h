@@ -20,6 +20,7 @@
 #include "aether-miscpp/reflect/reflect.h"
 #include "aether/api_protocol/api_class.h"
 #include "aether/api_protocol/api_pack_parser.h"
+#include "aether/tele/tele.h"
 
 namespace ae {
 /**
@@ -245,7 +246,10 @@ class ApiClassImpl : public ApiClass {
   void LoadFactory(MessageId message_id, ApiParser& parser) {
     auto res = LoadFactoryImpl(static_cast<Api*>(this), message_id, parser);
     if (!res) {
-      assert(false && "Implementation not found");
+      AE_TELED_WARNING("Dropped packet: unknown API message id {}",
+                       static_cast<std::uint32_t>(message_id));
+      parser.Cancel();
+      return;
     }
   }
 };

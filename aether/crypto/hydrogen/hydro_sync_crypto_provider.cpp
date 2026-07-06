@@ -24,6 +24,7 @@
 #  include <vector>
 
 #  include "aether/crypto/crypto_definitions.h"
+#  include "aether/tele/tele.h"
 
 namespace ae {
 namespace _internal {
@@ -49,6 +50,11 @@ inline std::vector<std::uint8_t> EncryptWithSymmetric(
 inline std::vector<std::uint8_t> DecryptWithSymmetric(
     HydrogenSecretBoxKey const& secret_key,
     std::vector<std::uint8_t> const& encrypted_data) {
+  if (encrypted_data.size() <=
+      sizeof(std::uint64_t) + hydro_secretbox_HEADERBYTES) {
+    return {};
+  }
+
   auto const* msg_id_ptr = encrypted_data.data();
   auto msg_id = *reinterpret_cast<std::uint64_t const*>(msg_id_ptr);
 
@@ -57,11 +63,13 @@ inline std::vector<std::uint8_t> DecryptWithSymmetric(
 
   auto const* encrypted_ptr = msg_id_ptr + sizeof(msg_id);
 
-  [[maybe_unused]] auto r =
-      hydro_secretbox_decrypt(decrypted_data.data(), encrypted_ptr,
-                              encrypted_data.size() - sizeof(msg_id), msg_id,
-                              HYDRO_CONTEXT, secret_key.key.data());
-  assert(r == 0);
+  auto r = hydro_secretbox_decrypt(
+      decrypted_data.data(), encrypted_ptr,
+      encrypted_data.size() - sizeof(msg_id), msg_id, HYDRO_CONTEXT,
+      secret_key.key.data());
+  if (r != 0) {
+    return {};
+  }
 
   return decrypted_data;
 }
@@ -93,7 +101,12 @@ DataBuffer HydroSyncDecryptProvider::Decrypt(DataBuffer const& data) {
   auto key = key_provider_->GetKey();
   assert(key.Index() == CryptoKeyType::kHydrogenSecretBox);
 
-  return _internal::DecryptWithSymmetric(key.Get<HydrogenSecretBoxKey>(), data);
+  auto decrypted =
+      _internal::DecryptWithSymmetric(key.Get<HydrogenSecretBoxKey>(), data);
+  if (decrypted.empty()) {
+    AE_TELED_WARNING("Dropped packet: sync decrypt failed");
+  }
+  return decrypted;
 }
 
 }  // namespace ae
