@@ -100,6 +100,7 @@
 #include "aether/global_ids.h"
 #include "aether/aether.h"
 #include "aether/client.h"
+#include "aether/client_connectivity_policy.h"
 #include "aether/server.h"
 #include "aether/channels/channel.h"
 #include "aether/crypto.h"

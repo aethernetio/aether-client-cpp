@@ -18,6 +18,7 @@ list(APPEND aether_srcs
             "aether_app.cpp"
             "aether.cpp"
             "adapter_registry.cpp"
+            "client_connectivity_policy.cpp"
             "client.cpp"
             "cloud.cpp"
             "registration_cloud.cpp"
