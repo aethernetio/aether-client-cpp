@@ -21,73 +21,54 @@
 
 #if AE_ENABLE_PING
 
-#  include <cstdint>
-#  include <optional>
-
-#  include "aether/warning_disable.h"
-
-DISABLE_WARNING_PUSH()
-IGNORE_IMPLICIT_CONVERSION()
-#  include <etl/circular_buffer.h>
-DISABLE_WARNING_POP()
-
 #  include "aether-miscpp/types/result.h"
 
 #  include "aether/ae_context.h"
-#  include "aether/events/events.h"
-#  include "aether/types/server_id.h"
 #  include "aether/api_protocol/request_id.h"
 #  include "aether/events/event_subscription.h"
+#  include "aether/events/events.h"
+#  include "aether/tasks/details/task_subsctiption.h"
+#  include "aether/types/server_id.h"
 
 namespace ae {
 class Channel;
 class CloudServerConnection;
 
 class Ping {
-  static constexpr std::uint8_t kMaxStorePingTimes = 10;
-
-  struct PingRequest {
-    TimePoint start;
-    RequestId request_id;
-    Subscription wait_result_sub;
-    TaskSubscription timeout_sub;
-    Subscription write_sub;
-  };
-
  public:
   using ResultEvent = Event<void(Result<Duration, int>)>;
 
   Ping(AeContext const& ae_context,
-       CloudServerConnection& cloud_server_connection, Duration ping_interval,
+       CloudServerConnection& cloud_server_connection, Duration next_ping_hint,
        Duration rx_window, Duration timeout);
 
   AE_CLASS_NO_COPY_MOVE(Ping);
 
   ResultEvent::Subscriber result_event();
 
-  void SetTimeout(Duration timeout);
+  void Start(TimePoint current_time);
 
  private:
-  void ScheduleFirstPing();
-  void SendPing();
-  TimePoint WaitInterval();
-  TimePoint WaitResponse();
   void PingResponse(RequestId request_id);
   void PingResponseTimeout(RequestId request_id);
+  void ResetRequestSubscriptions();
+  bool HasActiveRequest() const noexcept;
 
   AeContext ae_context_;
   CloudServerConnection* cloud_server_connection_;
-  Duration ping_interval_;
+  Duration next_ping_hint_;
   Duration rx_window_;
   Duration timeout_;
   ServerId server_id_;
 
-  etl::circular_buffer<std::optional<PingRequest>, kMaxStorePingTimes>
-      ping_requests_;
+  TimePoint request_start_{};
+  RequestId request_id_{};
+  Subscription wait_result_sub_;
+  TaskSubscription timeout_sub_;
+  Subscription write_sub_;
 
   ResultEvent result_event_;
-  Subscription link_state_sub_;
-  TaskSubscription schedule_sub_;
+  bool started_{};
 };
 }  // namespace ae
 #endif  // AE_ENABLE_PING
