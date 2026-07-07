@@ -70,9 +70,7 @@ list(APPEND aether_srcs
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
-            "ae_actions/select_client.cpp"
-            "ae_actions/time_sync.cpp"
-            )
+            "ae_actions/select_client.cpp")
 
 list(APPEND aether_srcs
             "registration/api/client_reg_api_safe.cpp"
@@ -85,10 +83,6 @@ list(APPEND aether_srcs
             "registration/registration.cpp"
             "registration/registration_crypto_provider.cpp"
             "registration/root_server_select_stream.cpp")
-
-list(APPEND aether_srcs
-            "uap/uap.cpp"
-            )
 
 list(APPEND aether_srcs
             "adapters/adapter.cpp"

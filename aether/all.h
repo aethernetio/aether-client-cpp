@@ -107,7 +107,6 @@
 #include "aether/cloud.h"
 #include "aether/work_cloud.h"
 #include "aether/registration_cloud.h"
-#include "aether/uap/uap.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_safe_message_stream.h"
 
