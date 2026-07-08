@@ -19,15 +19,15 @@
 
 #include "aether/common.h"
 
-#include "aether/types/uid.h"
 #include "aether/ae_context.h"
 #include "aether/ptr/ptr_view.h"
+#include "aether/types/uid.h"
 
 #include "aether/write_action/buffer_write.h"
 
 #include "aether/client_messages/p2p_port_handle.h"
-#include "aether/connection_manager/client_cloud_manager.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
+#include "aether/connection_manager/client_cloud_manager.h"
 
 namespace ae {
 class Client;
