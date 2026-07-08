@@ -125,8 +125,8 @@ class ClientConnectivityPolicy : public Obj {
       const noexcept {
     return rx_timings_;
   }
-  Event<void()>* suspend_allowed_event() noexcept {
-    return &suspend_allowed_event_;
+  Event<void()>::Subscriber suspend_allowed_event() noexcept {
+    return EventSubscriber{suspend_allowed_event_};
   }
 
   ConnectivityStatus GetStatus() const noexcept;
