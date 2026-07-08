@@ -30,10 +30,10 @@
 #endif
 
 // IWYU pragma: begin_keeps
+#include "aether_construct_esp_wifi.h"
+#include "aether_construct_ethernet.h"
 #include "aether_construct_lora_module.h"
 #include "aether_construct_modem.h"
-#include "aether_construct_ethernet.h"
-#include "aether_construct_esp_wifi.h"
 // IWYU pragma: end_keeps
 
 namespace ae::cloud_test {
@@ -91,6 +91,29 @@ int AetherCloudExample() {
   // clients must be selected
   assert(client_a && client_b);
 
+  // setup connectivity timings
+  using namespace std::chrono_literals;
+  client_a->connectivity_policy()->ResetRxTimings();
+  client_b->connectivity_policy()->ResetRxTimings();
+
+  client_a->connectivity_policy()
+      ->ConfigureRxTimings(ae::RequestPolicy::All{})
+      .ForPriority<0>(ae::RxTimingConf::Every(5s))
+#if AE_CLOUD_MAX_SERVER_CONNECTIONS >= 3
+      .ForPriority<1>(ae::RxTimingConf::Every(10s))
+      .ForPriority<2>(ae::RxTimingConf::Every(20s))
+#endif
+      ;
+
+  client_b->connectivity_policy()
+      ->ConfigureRxTimings(ae::RequestPolicy::All{})
+      .ForPriority<0>(ae::RxTimingConf::Every(5s))
+#if AE_CLOUD_MAX_SERVER_CONNECTIONS >= 3
+      .ForPriority<1>(ae::RxTimingConf::Every(10s))
+      .ForPriority<2>(ae::RxTimingConf::Every(20s))
+#endif
+      ;
+
   // Make clients messages exchange.
   int received_count = 0;
   int confirmed_count = 0;
@@ -137,8 +160,7 @@ int AetherCloudExample() {
   auto p2p_stream = std::make_shared<ae::P2pStream>(
       *aether_app, client_b.Load(), client_a->uid(), std::move(handle));
   auto sender_stream = ae::make_unique<ae::P2pSafeStream>(
-      *aether_app, ae::cloud_test::kSafeStreamConfig,
-      std::move(p2p_stream));
+      *aether_app, ae::cloud_test::kSafeStreamConfig, std::move(p2p_stream));
 
   sender_stream->out_data_event().Subscribe([&](auto const& data) {
     auto str_response =

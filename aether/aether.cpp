@@ -19,8 +19,6 @@
 #include <utility>
 
 #include "aether/obj/obj_ptr.h"
-#include "aether/ae_actions/time_sync.h"
-
 #include "aether/client.h"
 #include "aether/server.h"
 #include "aether/registration_cloud.h"
@@ -54,7 +52,6 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
                                  std::string const& client_id) {
   auto client = FindClient(client_id);
   if (client.is_valid()) {
-    MakeTimeSyncAction(client);
     return client;
   }
   // create new client
@@ -88,7 +85,6 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
       });
   assert(res && "Failed to set client config");
 
-  MakeTimeSyncAction(client);
   StoreClient(client);
   return client;
 }
@@ -104,7 +100,6 @@ SelectClientAction& Aether::SelectClient([[maybe_unused]] Uid parent_uid,
 
   auto client = FindClient(client_id);
   if (client.is_valid()) {
-    MakeTimeSyncAction(client);
     return MakeSelectClient(client);
   }
 // register new client
@@ -194,20 +189,5 @@ Registration& Aether::RegisterClient(std::string const& client_id,
   return *reg;
 }
 #endif
-
-void Aether::MakeTimeSyncAction([[maybe_unused]] Client::ptr const& client) {
-#if AE_TIME_SYNC_ENABLED
-  if (time_sync_action_) {
-    return;
-  }
-
-  client.WithLoaded([this](auto const& c) {
-    static constexpr auto kTimeSyncInterval =
-        std::chrono::seconds{AE_TIME_SYNC_INTERVAL_S};
-    time_sync_action_ =
-        std::make_unique<TimeSyncAction>(*this, c, kTimeSyncInterval);
-  });
-#endif
-}
 
 }  // namespace ae

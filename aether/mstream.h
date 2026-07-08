@@ -29,24 +29,27 @@
 #ifndef AETHER_MSTREAM_H_
 #define AETHER_MSTREAM_H_
 
-#include <map>
-#include <list>
-#include <deque>
-#include <string>
-#include <vector>
 #include <chrono>
-#include <memory>
+#include <functional>
 #include <cstdint>
 #include <cstring>
-#include <utility>
+#include <deque>
+#include <list>
+#include <map>
+#include <memory>
+#include <limits>
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
+#include <variant>
+#include <vector>
 
-#include "aether/clock.h"
-#include "aether-miscpp/reflect/reflect.h"
-#include "aether/types/nullable_type.h"
 #include "aether-miscpp/reflect/domain_visitor.h"  // IWYU pragma: keep
+#include "aether-miscpp/reflect/reflect.h"
+#include "aether/clock.h"
+#include "aether/types/nullable_type.h"
 
 namespace ae {
 
@@ -518,6 +521,66 @@ imstream<Ib>& operator>>(imstream<Ib>& s, std::optional<T>& v) {
     if (data_was_read(s)) {
       v.emplace(std::move(temp));
     }
+  }
+  return s;
+}
+
+template <typename... Ts, typename Ob>
+omstream<Ob>& operator<<(omstream<Ob>& s, std::variant<Ts...> const& v) {
+  static_assert(sizeof...(Ts) <= std::numeric_limits<std::uint8_t>::max(),
+                "std::variant mstream serialization supports at most 255 alternatives (indices 0..254; tag 255 is reserved as the valueless sentinel)");
+  if (v.valueless_by_exception()) {
+    auto const tag = std::numeric_limits<std::uint8_t>::max();
+    s << tag;
+    return s;
+  }
+  auto const tag = static_cast<std::uint8_t>(v.index());
+  s << tag;
+  std::visit([&s](auto const& value) { s << value; }, v);
+  return s;
+}
+
+template <typename... Ts, typename Ib>
+imstream<Ib>& operator>>(imstream<Ib>& s, std::variant<Ts...>& v) {
+  static_assert(sizeof...(Ts) <= std::numeric_limits<std::uint8_t>::max(),
+                "std::variant mstream serialization supports at most 255 alternatives (indices 0..254; tag 255 is reserved as the valueless sentinel)");
+  std::uint8_t tag{};
+  s >> tag;
+  if (!data_was_read(s)) {
+    return s;
+  }
+
+  if (tag == std::numeric_limits<std::uint8_t>::max()) {
+    // Explicit valueless-by-exception sentinel; no payload follows.
+    return s;
+  }
+
+  if (tag >= sizeof...(Ts)) {
+    s.result(ReadResult::kNo);
+    return s;
+  }
+
+  auto handled = std::invoke(
+      [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        return (std::invoke(
+                    [&]<std::size_t I>(std::integral_constant<std::size_t, I>) {
+                      if (tag == static_cast<std::uint8_t>(I)) {
+                        auto& alternative = v.template emplace<I>();
+                        s >> alternative;
+                        return true;
+                      }
+                      return false;
+                    },
+                    std::integral_constant<std::size_t, Is>{}) ||
+                ...);
+      },
+      std::make_index_sequence<sizeof...(Ts)>());
+  if (!handled) {
+    s.result(ReadResult::kNo);
+    return s;
+  }
+  if (!data_was_read(s)) {
+    s.result(ReadResult::kNo);
   }
   return s;
 }

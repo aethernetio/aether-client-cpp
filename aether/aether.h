@@ -28,8 +28,6 @@
 #include "aether/ae_context.h"
 #include "aether/ae_actions/select_client.h"
 
-#include "aether/uap/uap.h"
-
 namespace ae {
 class Server;
 class Client;
@@ -37,7 +35,6 @@ class Crypto;
 class IPoller;
 class DnsResolver;
 class Registration;
-class TimeSyncAction;
 class AdapterRegistry;
 class ActionProcessor;
 class RegistrationCloud;
@@ -59,22 +56,22 @@ class Aether : public Obj {
   ~Aether() override;
 
   AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, registration_cloud, crypto,
-                             clients_, servers_, tele_statistics, poller,
-                             dns_resolver, adapter_registry, uap,
-                             select_client_actions_))
+                              clients_, servers_, tele_statistics, poller,
+                              dns_resolver, adapter_registry,
+                              select_client_actions_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
     dnv(base_);
     dnv(client_prefab, registration_cloud, crypto, clients_, servers_,
-        tele_statistics, poller, dns_resolver, adapter_registry, uap);
+        tele_statistics, poller, dns_resolver, adapter_registry);
   }
 
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
     dnv(base_);
     dnv(client_prefab, registration_cloud, crypto, clients_, servers_,
-        tele_statistics, poller, dns_resolver, adapter_registry, uap);
+        tele_statistics, poller, dns_resolver, adapter_registry);
   }
 
   // AeContext protocol
@@ -96,7 +93,6 @@ class Aether : public Obj {
   Obj::ptr dns_resolver;
 
   Obj::ptr adapter_registry;
-  Uap::ptr uap;
 
   Obj::ptr tele_statistics;
 
@@ -120,16 +116,11 @@ class Aether : public Obj {
   std::map<std::string, std::unique_ptr<Registration>> registrations_;
 #endif
 
-  void MakeTimeSyncAction(ObjPtr<Client> const& client);
-
   std::map<std::string, Obj::ptr> clients_;
   std::map<ServerId, Obj::ptr> servers_;
 
   std::map<std::string, std::unique_ptr<SelectClientAction>>
       select_client_actions_;
-#if AE_TIME_SYNC_ENABLED
-  std::unique_ptr<TimeSyncAction> time_sync_action_;
-#endif
 };
 
 }  // namespace ae

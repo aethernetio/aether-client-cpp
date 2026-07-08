@@ -27,6 +27,7 @@ extern int test_static_map();
 extern int test_statistics_counter();
 extern int test_uid();
 extern int test_nullable_type();
+extern int test_variant_type();
 extern int test_address_parser();
 
 int main() {
@@ -39,6 +40,7 @@ int main() {
   res += test_statistics_counter();
   res += test_uid();
   res += test_nullable_type();
+  res += test_variant_type();
   res += test_address_parser();
   return res;
 }

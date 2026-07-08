@@ -36,7 +36,6 @@
 #include "aether/aether.h"
 #include "aether/crypto.h"
 #include "aether/client.h"
-#include "aether/uap/uap.h"
 #include "aether/ae_context.h"
 #include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
@@ -90,8 +89,6 @@ class AetherAppContext {
   DnsResolver::ptr& dns_resolver() const {
     return dns_resolver_.Resolve(*this);
   }
-  Uap::ptr& uap() const { return uap_.Resolve(*this); }
-
 #if AE_DISTILLATION
   template <typename TFunc>
   AetherAppContext&& AdaptersFactory(TFunc&& func) && {
@@ -133,11 +130,6 @@ class AetherAppContext {
     return std::move(*this);
   }
 #  endif
-  template <typename TFunc>
-  AetherAppContext&& UapFactory(TFunc&& func) && {
-    uap_.Factory(std::forward<TFunc>(func));
-    return std::move(*this);
-  }
 #endif  // AE_DISTILLATION
 
  private:
@@ -152,7 +144,6 @@ class AetherAppContext {
   ComponentFactory<AetherAppContext, Crypto::ptr> crypto_;
   ComponentFactory<AetherAppContext, IPoller::ptr> poller_;
   ComponentFactory<AetherAppContext, DnsResolver::ptr> dns_resolver_;
-  ComponentFactory<AetherAppContext, Uap::ptr> uap_;
   ComponentFactory<AetherAppContext, Client::ptr> client_prefab_;
   ComponentFactory<AetherAppContext, tele::TeleStatistics::ptr>
       tele_statistics_;

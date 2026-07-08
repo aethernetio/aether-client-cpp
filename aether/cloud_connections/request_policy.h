@@ -20,23 +20,31 @@
 #include <cstddef>
 #include <variant>
 
+#include "aether-miscpp/reflect/reflect.h"
+
 namespace ae {
 struct RequestPolicy {
   // Make request only to the main server (the highest priority).
-  struct MainServer {};
+  struct MainServer {
+    AE_REFLECT()
+  };
 
   // Make request only to the server with provided priority.
   struct Priority {
-    std::size_t priority;  //< The less, the higher priority
+    std::size_t priority{};  //< The less, the higher priority
+    AE_REFLECT_MEMBERS(priority)
   };
 
   // Make count of request replicas to the servers.
   struct Replica {
-    std::size_t count;
+    std::size_t count{};
+    AE_REFLECT_MEMBERS(count)
   };
 
   // Make request to all servers.
-  struct All {};
+  struct All {
+    AE_REFLECT()
+  };
 
   using Variant = std::variant<MainServer, Priority, Replica, All>;
 };

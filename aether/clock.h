@@ -20,45 +20,6 @@
 #include <chrono>
 #include <cstdint>
 
-#include "aether/env.h"
-
-namespace ae::clock_internal {
-using std::chrono::duration;
-using std::chrono::duration_cast;
-using std::chrono::system_clock;
-
-template <typename ChronoClock>
-class SyncClock {
- public:
-  static RTC_STORAGE_ATTR system_clock::duration SyncTimeDiff;
-
-  using internal_clock = ChronoClock;
-  using rep = typename ChronoClock::rep;
-  using period = typename ChronoClock::period;
-  using duration = typename ChronoClock::duration;
-
-  using time_point = std::chrono::time_point<SyncClock, duration>;
-
-  static constexpr bool is_steady = ChronoClock::is_steady;
-
-  /**
-   * \brief Get the current time with SyncTimeDiff
-   */
-  static time_point now() {
-    return time_point{ChronoClock::now().time_since_epoch() + SyncTimeDiff};
-  }
-
-  static auto ToRawTime(time_point tp) {
-    return
-        typename ChronoClock::time_point{tp.time_since_epoch() - SyncTimeDiff};
-  }
-};
-
-template <typename ChronoClock>
-std::chrono::system_clock::duration SyncClock<ChronoClock>::SyncTimeDiff =
-    std::chrono::milliseconds{0};
-}  // namespace ae::clock_internal
-
 namespace ae {
 using std::chrono_literals::operator""h;
 using std::chrono_literals::operator""min;
@@ -71,16 +32,10 @@ using std::chrono_literals::operator""ns;
  */
 using Duration = std::chrono::duration<std::uint32_t, std::micro>;
 using SystemClock = std::chrono::system_clock;
-using SyncClock = clock_internal::SyncClock<SystemClock>;
 using TimePoint = typename SystemClock::time_point;
-using SyncTimePoint = typename SyncClock::time_point;
 
 // current system clock time, without synchorinization
 inline auto Now() { return SystemClock::now(); }
-// synchronised time
-inline auto SyncTime() { return SyncClock::now(); }
-
-inline auto ToRawTime(SyncTimePoint tp) { return SyncClock::ToRawTime(tp); }
 
 }  // namespace ae
 
