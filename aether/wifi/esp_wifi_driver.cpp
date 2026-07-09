@@ -22,12 +22,11 @@
 
 #  include "esp_event.h"
 #  include "esp_log.h"
+#  include "esp_mac.h"
 #  include "esp_private/wifi.h"
 #  include "esp_system.h"
 #  include "esp_wifi.h"
 #  include "nvs_flash.h"
-#  include "esp_mac.h"
-#  include "esp_event.h"
 
 #  include "lwip/err.h"
 #  include "lwip/ip4_addr.h"
@@ -82,9 +81,11 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
 
 esp_err_t SetupBssid(wifi_config_t& wifi_config,
                      WiFiBaseStation const& base_station) {
-  ESP_LOGD(kTag, "Restored from cache BSSID:" MACSTR " CHN:%u",
-           MAC2STR(base_station.target_bssid),
-           static_cast<unsigned>(base_station.target_channel));
+  std::array<uint8_t, sizeof(base_station.target_bssid)> debug_bssid;
+  memcpy(debug_bssid.data(), base_station.target_bssid,
+         sizeof(base_station.target_bssid));
+  AE_TELED_DEBUG("Restored from cash BSSID:{} CHN:{}", debug_bssid,
+                 static_cast<int>(base_station.target_channel));
 
   wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
   wifi_config.sta.bssid_set = true;              // Enable BSSID binding
@@ -232,9 +233,8 @@ esp_err_t StartWifiConnection(
     // Restore saved Base Station
     auto err = esp_wifi_driver_internal::SetupBssid(wifi_config, *base_station);
     if (err != ESP_OK) {
-      ESP_LOGE(kTag, "Failed to set BSSID.");
+      AE_TELED_ERROR("Failed to set BSSID");
       // If an error occurs, exit
-      return err;
     }
   }
 

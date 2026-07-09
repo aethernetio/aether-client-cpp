@@ -28,6 +28,7 @@
 #include "aether/api_protocol/api_context.h"
 #include "aether/prepared_packet/packet_encoder.h"
 #include "aether/types/data_buffer.h"
+#include "aether/tele/tele.h"
 
 namespace ae {
 
@@ -110,7 +111,10 @@ EncodePacketResult EncodePacket(PreparedPacketEncoder& prepared,
     return EncodePacketResult{report, nullptr};
   }
 
-  auto& action = out.Write(std::move(data));
+  auto packet = std::move(data).Pack();
+  AE_TELED_ERROR("[CALL-CHAIN] ApiCallAdapter::EncodePacket packet_size={}",
+                 packet.size());
+  auto& action = out.Write(std::move(packet));
 
   return EncodePacketResult{report, &action};
 }
