@@ -151,8 +151,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME stdexec
   GIT_REPOSITORY "https://github.com/aethernetio/stdexec.git"
-# TODO: switch to main
-  GIT_TAG "2091-compilation-failed-with-fno-exception"
+  GIT_TAG "main"
   OPTIONS "STDEXEC_BUILD_EXAMPLES OFF" "STDEXEC_INSTALL ${AE_INSTALL}"
   EXCLUDE_FROM_ALL FALSE
 )
