@@ -68,7 +68,19 @@ class BufferWrite {
   struct BufferEntry {
     BufferedWriteAction wa;
     T data;
+    bool sent = false;
   };
+
+  template <typename TValue>
+  static std::size_t DebugPayloadSize(TValue const& value) {
+    if constexpr (requires { value.size(); }) {
+      return value.size();
+    } else if constexpr (requires { value.data.size(); }) {
+      return value.data.size();
+    } else {
+      return 0;
+    }
+  }
 
  public:
   using DirectWriteFunc = SmallFunction<WriteAction*(T&& data), sizeof(void*)>;
@@ -82,8 +94,14 @@ class BufferWrite {
   /**
    * \brief Control buffering.
    */
-  void buffer_on() { buffer_on_ = true; }
+  void buffer_on() {
+    BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::buffer_on buffered={}",
+                   buffer_.size());
+    buffer_on_ = true;
+  }
   void buffer_off() {
+    BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::buffer_off buffered={}",
+                   buffer_.size());
     buffer_on_ = false;
     DrainBuffer();
   }
@@ -93,6 +111,9 @@ class BufferWrite {
    * \brief Write data to or through buffer.
    */
   WriteAction& Write(T&& data) {
+    BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::Write payload_size={} "
+                   "buffer_on={} buffered={}",
+                   DebugPayloadSize(data), buffer_on_, buffer_.size());
     auto should_be_buffered = buffer_on_ || !buffer_.empty();
     if (should_be_buffered) {
       return WriteToBuffer(std::move(data));
@@ -114,6 +135,9 @@ class BufferWrite {
 
  private:
   WriteAction& WriteToBuffer(T&& data) {
+    BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::WriteToBuffer payload_size={} "
+                   "buffer_on={} buffered={}",
+                   DebugPayloadSize(data), buffer_on_, buffer_.size());
     if (buffer_.full()) {
       BW_LOG_WARNING("Buffer is full");
       return FailedWrite();
@@ -135,8 +159,13 @@ class BufferWrite {
   }
 
   WriteAction& DirectWrite(T&& data) {
+    BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::DirectWrite payload_size={} "
+                   "buffered={}",
+                   DebugPayloadSize(data), buffer_.size());
     BW_LOG_DEBUG("BufferWrite: direct write");
     auto* write_action = direct_write_(std::move(data));
+    BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::DirectWrite result={}",
+                   write_action != nullptr);
     if (write_action == nullptr) {
       return FailedWrite();
     }
@@ -147,24 +176,44 @@ class BufferWrite {
    * Write all buffered data in FIFO order.
    */
   void DrainBuffer() {
+    BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::DrainBuffer begin buffer_on={} "
+                   "buffered={}",
+                   buffer_on_, buffer_.size());
     BW_LOG_DEBUG("BufferWrite: drain the buffer, size {}", buffer_.size());
     // try send as many as possible
     for (auto& be : buffer_) {
+      BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::DrainBuffer entry finished={} "
+                     "sent={} payload_size={}",
+                     be.wa.is_finished(), be.sent, DebugPayloadSize(be.data));
       if (be.wa.is_finished()) {
         // notice! circular buffer pop is just incrementing the out pointer it
         // does not invalidate the iterators
         buffer_.pop();
         continue;
       }
+      if (be.sent) {
+        BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::DrainBuffer skip in-flight "
+                       "payload_size={}",
+                       DebugPayloadSize(be.data));
+        continue;
+      }
       // buffer state might change during direct write
       if (buffer_on_) {
+        BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::DrainBuffer stop buffer_on");
         break;
       }
+      BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::DrainBuffer direct before_move "
+                     "payload_size={}",
+                     DebugPayloadSize(be.data));
       auto* dwa = direct_write_(std::move(be.data));
+      BW_LOG_WARNING("[CALL-CHAIN] BufferWrite::DrainBuffer direct result={} "
+                     "after_move_payload_size={}",
+                     dwa != nullptr, DebugPayloadSize(be.data));
       // empty write action means no data has been written
       if (dwa == nullptr) {
         break;
       }
+      be.sent = true;
       be.wa.Sent(*dwa);
     }
   }

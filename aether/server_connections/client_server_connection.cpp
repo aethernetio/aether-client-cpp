@@ -95,6 +95,11 @@ BufferedServerConnection::BufferedServerConnection(AeContext const& ae_context,
                                                    Ptr<Server> const& server)
     : buffer_write{ae_context,
                    [&](DataBuffer&& in_data) -> WriteAction* {
+                     AE_TELED_ERROR(
+                         "[CALL-CHAIN] BufferedServerConnection::direct "
+                         "data_size={} writable={}",
+                         in_data.size(),
+                         server_connection.stream_info().is_writable);
                      if (server_connection.stream_info().is_writable) {
                        return &server_connection.Write(std::move(in_data));
                      }
@@ -118,6 +123,8 @@ BufferedServerConnection::BufferedServerConnection(AeContext const& ae_context,
 }
 
 WriteAction& BufferedServerConnection::Write(DataBuffer&& in_data) {
+  AE_TELED_ERROR("[CALL-CHAIN] BufferedServerConnection::Write data_size={}",
+                 in_data.size());
   return buffer_write.Write(std::move(in_data));
 }
 
@@ -182,8 +189,10 @@ WriteAction& ClientServerConnection::LoginApiCall(SubApi<LoginApi> login_api) {
 
 WriteAction& ClientServerConnection::AuthorizedApiCall(
     SubApi<AuthorizedApi> auth_api) {
+  AE_TELED_ERROR("[CALL-CHAIN] ClientServerConnection::AuthorizedApiCall begin");
   auto api_call = ApiCallAdapter{ApiContext{login_api_}, server_connection_};
   api_call->login_by_alias(ephemeral_uid_, std::move(auth_api));
+  AE_TELED_ERROR("[CALL-CHAIN] ClientServerConnection::AuthorizedApiCall flush");
   // cppcheck reports false positive
   // cppcheck-suppress returnReference
   return api_call.Flush();
