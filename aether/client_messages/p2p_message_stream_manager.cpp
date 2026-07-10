@@ -20,8 +20,8 @@
 #include <utility>
 
 #include "aether/client.h"
-#include "aether/work_cloud_api/client_api/client_api_safe.h"
 #include "aether/client_messages/client_messages_tele.h"
+#include "aether/work_cloud_api/client_api/client_api_safe.h"
 
 namespace ae {
 
@@ -57,9 +57,12 @@ P2pMessageStreamManager::GetOrCreatePort(Uid const& destination) {
       return {std::move(existing), false};
     }
   }
-  auto port =
-      std::make_shared<p2p_stream_internal::P2pReceivePort>(destination);
-  ports_[destination] = port;
+  // Do not use std::make_shared here. GCC 16/libstdc++ emits a false
+  // -Warray-bounds warning while destroying P2pReceivePort from
+  // _Sp_counted_ptr_inplace because P2pReceivePort owns Event/RcPtr storage.
+  auto port = std::shared_ptr<p2p_stream_internal::P2pReceivePort>{
+      std::make_unique<p2p_stream_internal::P2pReceivePort>(destination)};
+  ports_.emplace(destination, port);
   return {port, true};
 }
 
