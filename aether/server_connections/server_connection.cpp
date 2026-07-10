@@ -34,14 +34,9 @@ ServerConnection::ServerConnection(AeContext const& ae_context,
 }
 
 WriteAction& ServerConnection::Write(DataBuffer&& in_data) {
-  AE_TELED_ERROR("[CALL-CHAIN] ServerConnection::Write data_size={} "
-                 "top_channel={}",
-                 in_data.size(), top_channel_ != nullptr);
   assert((top_channel_ != nullptr) && "channel connection is not available");
 
   auto* stream = top_channel_->connection.stream();
-  AE_TELED_ERROR("[CALL-CHAIN] ServerConnection::Write stream={}",
-                 stream != nullptr);
   assert((stream != nullptr) && "channel stream is not available");
 
   return stream->Write(std::move(in_data));

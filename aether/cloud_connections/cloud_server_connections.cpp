@@ -80,8 +80,8 @@ CloudServerConnections::servers_update_event() {
   return servers_update_event_;
 }
 
-std::vector<CloudServerConnection*> const& CloudServerConnections::selected_servers()
-    const {
+std::vector<CloudServerConnection*> const&
+CloudServerConnections::selected_servers() const {
   return selected_servers_;
 }
 
@@ -275,21 +275,15 @@ std::vector<CloudServerConnection*> CloudServerConnections::ServerCandidates() {
 
 WriteAction& CloudServerConnections::CallApi(ApiCall const& api_caller,
                                              RequestPolicy::Variant policy) {
-  AE_TELED_ERROR("[CALL-CHAIN] CloudServerConnections::CallApi selected={}",
-                 selected_servers_.size());
   std::vector<WriteAction*> swas;
   ForServers(
       [&](CloudServerConnection* sc) {
         auto* conn = sc->client_connection();
         assert((conn != nullptr) && "Client connection is null");
-        AE_TELED_ERROR("[CALL-CHAIN] CloudServerConnections::CallApi server={}",
-                       sc->server()->server_id);
         swas.emplace_back(&conn->AuthorizedApiCall(
             SubApi<AuthorizedApi>{[&](auto& api) { api_caller(api, sc); }}));
       },
       policy);
-  AE_TELED_ERROR("[CALL-CHAIN] CloudServerConnections::CallApi writes={}",
-                 swas.size());
 
   if (swas.empty()) {
     return EmptyWriteAction();
