@@ -87,19 +87,6 @@ int main() {
     if (bob_res) {
       bob =
           ae::make_unique<Bob>(*aether_app, bob_res.value(), time_synchronizer);
-      /* auto& alice_select =
-          aether_app->aether()->SelectClient(kParentUid, "Alice");
-      alice_select.result_event().Subscribe(
-          [&, uid = bob_res.value()->uid()](auto const& alice_res) {
-            if (alice_res) {
-              alice = ae::make_unique<Alice>(*aether_app, alice_res.value(),
-                                             time_synchronizer, uid);
-              // Save the current aether state
-              aether_app->aether().Save();
-            } else {
-              aether_app->Exit(1);
-            }
-          });*/
     } else {
       aether_app->Exit(1);
     }
@@ -125,39 +112,6 @@ ae::Duration TimeSynchronizer::GetPongDuration() const {
   return std::chrono::duration_cast<ae::Duration>(ae::Now() - pong_sent_time_);
 }
 
-/* Alice::Alice(ae::AetherApp& aether_app, ae::Client::ptr client_alice,
-             TimeSynchronizer& time_synchronizer, ae::Uid bobs_uid)
-    : aether_app_{&aether_app},
-      client_alice_{std::move(client_alice)},
-      time_synchronizer_{&time_synchronizer},
-      p2pstream_{*aether_app_, client_alice_.Load(), bobs_uid,
-                 client_alice_->message_stream_manager().CreatePort(bobs_uid)},
-      interval_sender_{*aether_app_, [this]() { SendMessage(); },
-                       std::chrono::seconds{5}},
-      receive_data_sub_{p2pstream_.out_data_event().Subscribe(
-          ae::MethodPtr<&Alice::ResponseReceived>{this})} {}
-
-void Alice::SendMessage() {
-  auto current_time = ae::Now();
-  constexpr std::string_view ping_message = "ping";
-
-  time_synchronizer_->SetPingSentTime(current_time);
-
-  std::cout << ae::Format("[{:%H:%M:%S}] Alice sends \"ping\"'\n", ae::Now());
-  p2pstream_.Write({std::begin(ping_message), std::end(ping_message)});
-}
-
-void Alice::ResponseReceived(ae::DataBuffer const& data_buffer) {
-  auto pong_message = std::string_view{
-      reinterpret_cast<char const*>(data_buffer.data()), data_buffer.size()};
-  std::cout << ae::Format(
-      "[{:%H:%M:%S}] Alice received \"{}\" within time {} ms\n", ae::Now(),
-      pong_message,
-      std::chrono::duration_cast<std::chrono::milliseconds>(
-          time_synchronizer_->GetPongDuration())
-          .count());
-}*/
-
 Bob::Bob(ae::AetherApp& aether_app, ae::Client::ptr client_bob,
          TimeSynchronizer& time_synchronizer)
     : aether_app_{&aether_app},
@@ -179,7 +133,7 @@ void Bob::OnMessageReceived(ae::DataBuffer const& data_buffer) {
   auto ping_message = std::string_view{
       reinterpret_cast<char const*>(data_buffer.data()), data_buffer.size()};
   std::cout << ae::Format(
-      "[{:%H:%M:%S}] Bob received \"{}\" within time {} ms\n", ae::Now(),
+      ">>>\n>>>\n>>>\n[{:%H:%M:%S}] Bob received \"{}\" within time {} ms\n>>>\n>>>\n>>>\n", ae::Now(),
       ping_message,
       std::chrono::duration_cast<std::chrono::milliseconds>(
           time_synchronizer_->GetPingDuration())
@@ -187,6 +141,4 @@ void Bob::OnMessageReceived(ae::DataBuffer const& data_buffer) {
   std::cout << ae::Format("Hex string [{}]\n", data_buffer);
   time_synchronizer_->SetPongSentTime(ae::Now());
   constexpr std::string_view pong_message = "pong";
-  //std::cout << ae::Format("[{:%H:%M:%S}] Bob sends \"pong\"\n", ae::Now());
-  //p2pstream_->Write({std::begin(pong_message), std::end(pong_message)});
 }
