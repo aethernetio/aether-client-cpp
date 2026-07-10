@@ -17,19 +17,19 @@
 #include "aether/aether_app.h"
 
 // IWYU pragma: begin_keeps
-#include "aether/types/literal_array.h"
 #include "aether/types/address_parser.h"
+#include "aether/types/literal_array.h"
 
+#include "aether/adapters/ethernet.h"
+#include "aether/adapters/wifi_adapter.h"
 #include "aether/crypto.h"
 #include "aether/crypto/key.h"
 #include "aether/global_ids.h"
-#include "aether/adapters/ethernet.h"
-#include "aether/registration_cloud.h"
-#include "aether/adapters/wifi_adapter.h"
-#include "aether/poller/win_poller.h"
 #include "aether/poller/epoll_poller.h"
-#include "aether/poller/kqueue_poller.h"
 #include "aether/poller/freertos_poller.h"
+#include "aether/poller/kqueue_poller.h"
+#include "aether/poller/win_poller.h"
+#include "aether/registration_cloud.h"
 
 #include "aether/dns/dns_c_ares.h"
 #include "aether/dns/esp32_dns_resolve.h"
@@ -299,6 +299,7 @@ void AetherAppContext::InitComponentContext() {
 RcPtr<AetherApp> AetherApp::Construct(AetherAppContext context) {
   // init all the components in context
   context.InitComponentContext();
+
   context.init_tele_(context);
 
   auto app = MakeRcPtr<AetherApp>();

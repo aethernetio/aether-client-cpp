@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "aether-miscpp/format/format.h"
 #include "aether-miscpp/reflect/reflect.h"
 
 namespace ae {
@@ -39,6 +40,14 @@ struct RequestId {
 
   AE_REFLECT_MEMBERS(id)
   std::uint32_t id{};
+};
+
+template <>
+struct Formatter<RequestId> {
+  template <typename Writer>
+  void Format(RequestId const& value, FormatContext<Writer>& ctx) const {
+    Formatter<std::uint32_t>{}.Format(value.id, ctx);
+  }
 };
 }  // namespace ae
 

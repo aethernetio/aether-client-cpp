@@ -40,11 +40,12 @@ template <>
 struct Formatter<ClientConfig> {
   template <typename TStream>
   void Format(ClientConfig const& value, FormatContext<TStream>& ctx) const {
-    ae::Format(ctx.out(),
-               "parent_uid={},\nuid={},\nephemeral_uid={}\nmaster_key={}:{},"
-               "\ncloud=[\n{}\n]",
-               value.parent_uid, value.uid, value.ephemeral_uid,
-               value.master_key.Index(), value.master_key, value.cloud);
+    FormatTo(ctx.out(),
+             FormatScheme{
+                 "parent_uid={},\nuid={},\nephemeral_uid={}\nmaster_key={}:{},"
+                 "\ncloud=[\n{}\n]"},
+             value.parent_uid, value.uid, value.ephemeral_uid,
+             value.master_key.Index(), value.master_key, value.cloud);
   }
 };
 }  // namespace ae

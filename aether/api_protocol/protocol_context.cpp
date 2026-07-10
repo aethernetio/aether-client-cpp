@@ -17,6 +17,7 @@
 #include "aether/api_protocol/protocol_context.h"
 
 #include <cassert>
+#include <iostream>
 
 #include "aether/api_protocol/api_protocol.h"
 

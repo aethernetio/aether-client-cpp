@@ -18,14 +18,12 @@
 
 #include "aether/tele/traps/io_stream_traps.h"
 
-#include <ios>
 #include <iomanip>
 #include <algorithm>
 
 #include "aether-miscpp/format/format.h"
 
 namespace ae::tele {
-
 IoStreamTrap::IoStreamTrap(std::ostream& stream) : stream_{stream} {}
 
 IoStreamTrap::~IoStreamTrap() {
@@ -63,18 +61,17 @@ void IoStreamTrap::OpenLogLine(Tag const& tag) {
 }
 
 void IoStreamTrap::InvokeTime(TimePoint time) {
-  delimiter();
-  Format(stream_, "[{:%H:%M:%S}]", time);
+  Format(stream_, ":[{:time}]", time);
 }
 
 void IoStreamTrap::WriteLevel(Level level) {
   delimiter();
-  Format(stream_, "{}", level);
+  stream_ << Level::text(level.value_);
 }
 
 void IoStreamTrap::WriteModule(Module const& module) {
   delimiter();
-  Format(stream_, "{}", module);
+  stream_ << module.name;
 }
 
 void IoStreamTrap::Location(std::string_view file, std::uint32_t line) {
