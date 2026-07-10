@@ -168,7 +168,6 @@ WriteAction& P2pStream::Write(DataBuffer&& data) {
   AE_TELED_DEBUG("Write message for uid {} size:{} data:{}", destination_,
                  data.size(), data);
   AeMessage message_data{destination_, std::move(data)};
-
   return buffer_write_.Write(std::move(message_data));
 }
 

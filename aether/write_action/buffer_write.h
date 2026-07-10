@@ -71,17 +71,6 @@ class BufferWrite {
     bool sent = false;
   };
 
-  template <typename TValue>
-  static std::size_t DebugPayloadSize(TValue const& value) {
-    if constexpr (requires { value.size(); }) {
-      return value.size();
-    } else if constexpr (requires { value.data.size(); }) {
-      return value.data.size();
-    } else {
-      return 0;
-    }
-  }
-
  public:
   using DirectWriteFunc = SmallFunction<WriteAction*(T&& data), sizeof(void*)>;
 
@@ -94,9 +83,7 @@ class BufferWrite {
   /**
    * \brief Control buffering.
    */
-  void buffer_on() {
-    buffer_on_ = true;
-  }
+  void buffer_on() { buffer_on_ = true; }
   void buffer_off() {
     buffer_on_ = false;
     DrainBuffer();
