@@ -59,7 +59,9 @@ class TaskSubscription final : public ITaskSubscription {
   TaskSubscription& operator=(IActive* p) noexcept {
     Reset();
     ptr_ = p;
-    ptr_->active = reinterpret_cast<std::uintptr_t>(this);
+    if (ptr_ != nullptr) {
+      ptr_->active = reinterpret_cast<std::uintptr_t>(this);
+    }
     return *this;
   }
 

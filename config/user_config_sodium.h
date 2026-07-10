@@ -33,8 +33,6 @@
 #  define AE_SUPPORT_WIFIS 0
 #endif
 
-#define AE_TIME_SYNC_ENABLED 1
-
 // telemetry
 #define AE_TELE_ENABLED 1
 #define AE_TELE_LOG_CONSOLE 1

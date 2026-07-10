@@ -17,18 +17,19 @@
 #ifndef AETHER_CLIENT_H_
 #define AETHER_CLIENT_H_
 
+#include <cassert>
 #include <map>
 #include <string>
-#include <cassert>
 
-#include "aether/memory.h"
+#include "aether/client_connectivity_policy.h"
 #include "aether/cloud.h"
+#include "aether/memory.h"
 #include "aether/obj/obj.h"
-#include "aether/types/uid.h"
 #include "aether/server_keys.h"
+#include "aether/types/uid.h"
 
-#include "aether/cloud_connections/ping_cloud_servers.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
+#include "aether/cloud_connections/ping_cloud_servers.h"
 
 #include "aether/connection_manager/client_cloud_manager.h"
 #include "aether/connection_manager/server_connection_manager.h"
@@ -61,6 +62,7 @@ class Client : public Obj {
   ClientCloudManager::ptr const& cloud_manager() const;
   ServerConnectionManager& server_connection_manager();
   CloudServerConnections& cloud_connection();
+  ClientConnectivityPolicy::ptr const& connectivity_policy();
   P2pMessageStreamManager& message_stream_manager();
 
   void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
@@ -68,8 +70,7 @@ class Client : public Obj {
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_id_, parent_uid_, uid_,
                              ephemeral_uid_, master_key_, cloud_, server_keys_,
-                             client_cloud_manager_))
-
+                             connectivity_policy_, client_cloud_manager_))
   void SendTelemetry();
 
  private:
@@ -85,6 +86,7 @@ class Client : public Obj {
   // states
   std::map<ServerId, ServerKeys> server_keys_;
 
+  ClientConnectivityPolicy::ptr connectivity_policy_;
   ClientCloudManager::ptr client_cloud_manager_;
   std::unique_ptr<ServerConnectionManager> server_connection_manager_;
   std::unique_ptr<CloudServerConnections> cloud_connection_;

@@ -18,12 +18,13 @@
 
 #if AE_CRYPTO_SYNC == AE_CHACHA20_POLY1305
 
-#  include <vector>
+#  include <algorithm>
 #  include <cassert>
 #  include <utility>
-#  include <algorithm>
+#  include <vector>
 
 #  include "aether/crypto/crypto_nonce.h"
+#  include "aether/tele/tele.h"
 
 namespace ae {
 
@@ -57,7 +58,10 @@ inline DataBuffer EncryptWithSymmetric(
 inline DataBuffer DecryptWithSymmetric(
     SodiumChacha20Poly1305Key const& secret_key,
     DataBuffer const& encrypted_data) {
-  assert(encrypted_data.size() > kNonceSize);
+  if (encrypted_data.size() <=
+      kNonceSize + crypto_aead_chacha20poly1305_ABYTES) {
+    return {};
+  }
 
   auto nonce = CryptoNonce{};
   auto encrypted_data_size = encrypted_data.size() - nonce.value.size();
@@ -69,15 +73,18 @@ inline DataBuffer DecryptWithSymmetric(
 
   auto decrypted_data = std::vector<uint8_t>(
       encrypted_data_size - crypto_aead_chacha20poly1305_ABYTES);
-  unsigned long long decrypted_len;
+  unsigned long long decrypted_len{0};
 
-  [[maybe_unused]] auto r = crypto_aead_chacha20poly1305_decrypt(
+  auto r = crypto_aead_chacha20poly1305_decrypt(
       decrypted_data.data(), &decrypted_len, nullptr, encrypted_data.data(),
       encrypted_data_size, nullptr, 0, nonce.value.data(),
       secret_key.key.data());
 
-  assert(r == 0);
+  if (r != 0) {
+    return {};
+  }
 
+  decrypted_data.resize(static_cast<std::size_t>(decrypted_len));
   return decrypted_data;
 }
 }  // namespace _internal
@@ -106,8 +113,12 @@ DataBuffer SodiumSyncDecryptProvider::Decrypt(DataBuffer const& data) {
   auto key = key_provider_->GetKey();
   assert(key.Index() == CryptoKeyType::kSodiumChacha20Poly1305);
 
-  return _internal::DecryptWithSymmetric(key.Get<SodiumChacha20Poly1305Key>(),
-                                         data);
+  auto decrypted = _internal::DecryptWithSymmetric(
+      key.Get<SodiumChacha20Poly1305Key>(), data);
+  if (decrypted.empty()) {
+    AE_TELED_WARNING("Dropped packet: sync decrypt failed");
+  }
+  return decrypted;
 }
 
 }  // namespace ae

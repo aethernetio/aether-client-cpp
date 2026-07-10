@@ -29,6 +29,10 @@ ClientApiUnsafe::ClientApiUnsafe(ProtocolContext& protocol_context,
 void ClientApiUnsafe::SendSafeApiData(SubApiImpl<ClientApiSafe> sub_api) {
   sub_api.Parse(client_safe_api_, [this](auto const& data) {
     auto decrypted = Decrypt(data);
+    if (decrypted.empty()) {
+      AE_TELED_WARNING("Dropped packet: client safe api decrypt failed");
+      return decrypted;
+    }
     AE_TELED_DEBUG("Client api unsafe data {}", decrypted);
     return decrypted;
   });

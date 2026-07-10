@@ -50,7 +50,7 @@ ServerKeys* Client::server_state(ServerId server_id) {
 Cloud::ptr const& Client::cloud() const { return cloud_; }
 
 ClientCloudManager::ptr const& Client::cloud_manager() const {
-  assert(client_cloud_manager_);
+  assert(client_cloud_manager_.is_valid());
   return client_cloud_manager_;
 }
 
@@ -72,7 +72,8 @@ CloudServerConnections& Client::cloud_connection() {
 
 #if AE_ENABLE_PING
     ping_cloud_servers_ = std::make_unique<PingCloudServers>(
-        *aether_.Load().as<Aether>(), *cloud_connection_);
+        *aether_.Load().as<Aether>(), *cloud_connection_,
+        *connectivity_policy().Load());
 #endif
 
 #if AE_TELE_ENABLED
@@ -83,6 +84,11 @@ CloudServerConnections& Client::cloud_connection() {
   }
 
   return *cloud_connection_;
+}
+
+ClientConnectivityPolicy::ptr const& Client::connectivity_policy() {
+  assert(connectivity_policy_.is_valid());
+  return connectivity_policy_;
 }
 
 P2pMessageStreamManager& Client::message_stream_manager() {
@@ -106,8 +112,12 @@ void Client::SetConfig(std::string client_id, Uid parent_uid, Uid uid,
     server_keys_.emplace(s->server_id, ServerKeys{s->server_id, master_key_});
   }
 
+  connectivity_policy_ = ClientConnectivityPolicy::ptr::Create(
+      CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault));
+
   client_cloud_manager_ = ClientCloudManager::ptr::Create(
-      domain, Aether::ptr{aether_}, Client::ptr::MakeFromThis(this));
+      CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault),
+      Aether::ptr{aether_}, Client::ptr::MakeFromThis(this));
 }
 
 void Client::SendTelemetry() {

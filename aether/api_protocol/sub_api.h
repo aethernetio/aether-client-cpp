@@ -76,6 +76,9 @@ class SubApiImpl {
   template <typename TFunc = PassThrough>
   void Parse(TApi& api, TFunc pre_parse = {}) {
     auto&& mod_data = pre_parse(data_);
+    if (mod_data.empty()) {
+      return;
+    }
     ApiParser parser{api.protocol_context(), mod_data};
     parser.Parse(api);
   }

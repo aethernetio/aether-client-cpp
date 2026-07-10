@@ -18,8 +18,8 @@
 #define AETHER_CONFIG_H_
 
 // IWYU pragma: begin_exports
-#include <limits>
 #include <cstdint>
+#include <limits>
 
 #include "aether/config_consts.h"
 #if defined USER_CONFIG
@@ -264,7 +264,7 @@
 
 // default value used for ping timeout, until statistics are available
 #ifndef AE_DEFAULT_RESPONSE_TIMEOUT_MS
-#  define AE_DEFAULT_RESPONSE_TIMEOUT_MS 10000
+#  define AE_DEFAULT_RESPONSE_TIMEOUT_MS 5000
 #endif
 
 // Is periodic ping messages enabled
@@ -305,16 +305,6 @@
 // Cloud request per-server timeout in milliseconds
 #ifndef AE_CLOUD_REQUEST_TIMEOUT_MS
 #  define AE_CLOUD_REQUEST_TIMEOUT_MS 5000
-#endif
-
-// Time synchronization enabled
-#ifndef AE_TIME_SYNC_ENABLED
-#  define AE_TIME_SYNC_ENABLED 1
-#endif
-
-// Time synchronization interval in seconds
-#ifndef AE_TIME_SYNC_INTERVAL_S
-#  define AE_TIME_SYNC_INTERVAL_S 4 * 60 * 60  // every 4 hours
 #endif
 
 // Telemetry configuration

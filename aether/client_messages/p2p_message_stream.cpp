@@ -20,8 +20,8 @@
 
 #include "aether/config.h"
 
-#include "aether/cloud.h"
 #include "aether/client.h"
+#include "aether/cloud.h"
 
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/cloud_subscription.h"
@@ -180,7 +180,9 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
   AE_TELE_DEBUG(kP2pMessageStreamNew, "P2pStream created for {}", destination_);
   assert(!destination_.empty());
 
-  ConnectReceive();
+  if (handle_) {
+    ConnectReceive();
+  }
   ConnectSend();
 }
 
@@ -237,8 +239,8 @@ P2pStream::ExportPreparedSendMessageBlock(std::uint32_t reserve_nonce_count) {
 
 
 void P2pStream::ConnectReceive() {
-  out_data_sub_ = handle_.out_data_event().Subscribe(
-      MethodPtr<&P2pStream::WriteOut>{this});
+  out_data_sub_ =
+      handle_.out_data_event().Subscribe(MethodPtr<&P2pStream::WriteOut>{this});
 }
 
 void P2pStream::ConnectSend() {

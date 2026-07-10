@@ -231,17 +231,6 @@ static DnsResolver::ptr DnsResolverFactory(AetherAppContext const& context) {
 #  endif
 }
 
-static Uap::ptr UapFactory(AetherAppContext const& context) {
-  auto uap = context.aether()->uap;
-  if (uap.is_valid()) {
-    return uap;
-  }
-  return Uap::ptr::Create(CreateWith{context.domain()}
-                              .with_id(GlobalId::kUap)
-                              .with_flags(ObjFlags::kUnloadedByDefault),
-                          context.aether(), std::initializer_list<Interval>{});
-}
-
 static Client::ptr ClientPrefabFactory(AetherAppContext const& context) {
   auto client_prefab = context.aether()->client_prefab;
   if (client_prefab.is_valid()) {
@@ -301,10 +290,6 @@ void AetherAppContext::InitComponentContext() {
     dns_resolver_.Factory(::ae::DnsResolverFactory);
   }
 
-  if (!uap_) {
-    uap_.Factory(::ae::UapFactory);
-  }
-
   if (!client_prefab_) {
     client_prefab_.Factory(::ae::ClientPrefabFactory);
   }
@@ -321,7 +306,6 @@ RcPtr<AetherApp> AetherApp::Construct(AetherAppContext context) {
 #if AE_DISTILLATION
   app->aether_->tele_statistics = context.tele_statistics_.Resolve(context);
   app->aether_->client_prefab = context.client_prefab_.Resolve(context);
-  app->aether_->uap = context.uap_.Resolve(context);
 
   app->aether_->adapter_registry = context.adapter_registry();
 
