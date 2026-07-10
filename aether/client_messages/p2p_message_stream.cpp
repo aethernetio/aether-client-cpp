@@ -43,8 +43,15 @@ class MessageSendStream final : public IStream<AeMessage, AeMessage> {
   }
 
   WriteAction& Write(AeMessage&& message) override {
+    AE_TELED_ERROR("[CALL-CHAIN] MessageSendStream::Write data_size={} "
+                   "cloud_connections={}",
+                   message.data.size(), cloud_connection_->count_connections());
     return cloud_connection_->CallApi(
         ApiCall{[&message](ApiContext<AuthorizedApi>& auth_api, auto*) {
+          AE_TELED_ERROR(
+              "[CALL-CHAIN] MessageSendStream::ApiCall send_message "
+              "data_size={}",
+              message.data.size());
           auth_api->send_message(std::move(message));
         }},
         request_policy_);
@@ -189,9 +196,12 @@ P2pStream::P2pStream(AeContext const& ae_context, Ptr<Client> const& client,
 P2pStream::~P2pStream() = default;
 
 WriteAction& P2pStream::Write(DataBuffer&& data) {
+  AE_TELED_ERROR("[CALL-CHAIN] P2pStream::Write input_size={}", data.size());
   AE_TELED_DEBUG("Write message for uid {} size:{} data:{}", destination_,
                  data.size(), data);
   AeMessage message_data{destination_, std::move(data)};
+  AE_TELED_ERROR("[CALL-CHAIN] P2pStream::Write message_data_size={}",
+                 message_data.data.size());
   return buffer_write_.Write(std::move(message_data));
 }
 
@@ -280,6 +290,8 @@ std::unique_ptr<CloudServerConnections> P2pStream::MakeDestinationCloudConn(
 }
 
 WriteAction* P2pStream::OnWrite(AeMessage&& message) {
+  AE_TELED_ERROR("[CALL-CHAIN] P2pStream::OnWrite data_size={} connected={}",
+                 message.data.size(), message_send_stream_ != nullptr);
   if (!message_send_stream_) {
     return {};
   }

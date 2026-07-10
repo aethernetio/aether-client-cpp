@@ -79,7 +79,7 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
   }
 }
 
-void SetupBssid(wifi_config_t& wifi_config,
+esp_err_t SetupBssid(wifi_config_t& wifi_config,
                 WiFiBaseStation const& base_station) {
   std::array<uint8_t, sizeof(base_station.target_bssid)> debug_bssid;
   memcpy(debug_bssid.data(), base_station.target_bssid,
@@ -93,8 +93,9 @@ void SetupBssid(wifi_config_t& wifi_config,
   // Copy the BSSID to the configuration
   memcpy(wifi_config.sta.bssid, base_station.target_bssid,
          sizeof(base_station.target_bssid));
-  ESP_ERROR_CHECK(
-      esp_wifi_set_channel(base_station.target_channel, WIFI_SECOND_CHAN_NONE));
+  auto err = esp_wifi_set_channel(base_station.target_channel, WIFI_SECOND_CHAN_NONE);
+  
+  return err;
 }
 
 void SetupCredentials(wifi_config_t& wifi_config, WifiCreds const& creds) {
@@ -210,7 +211,11 @@ void StartWifiConnection(esp_netif_t* espt_init_sta, WiFiAp const& wifi_ap,
   wifi_config_t wifi_config{};
   if (base_station) {
     // Restore saved Base Station
-    esp_wifi_driver_internal::SetupBssid(wifi_config, *base_station);
+    auto err = esp_wifi_driver_internal::SetupBssid(wifi_config, *base_station);
+    if (err != ESP_OK) {
+      AE_TELED_ERROR("Failed to set BSSID");
+      // If an error occurs, exit
+    }
   }
 
   wifi_scan_threshold_t wifi_threshold{};
