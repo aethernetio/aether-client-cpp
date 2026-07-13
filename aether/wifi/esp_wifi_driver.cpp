@@ -305,6 +305,8 @@ esp_err_t StartWifiConnection(
   }
 
   AE_TELED_DEBUG("WifiInitSta finished.");
+  
+  return err;
 }
 
 }  // namespace esp_wifi_driver_internal
