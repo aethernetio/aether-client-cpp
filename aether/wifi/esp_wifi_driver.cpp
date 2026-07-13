@@ -80,7 +80,7 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
 }
 
 esp_err_t SetupBssid(wifi_config_t& wifi_config,
-                WiFiBaseStation const& base_station) {
+                     WiFiBaseStation const& base_station) {
   std::array<uint8_t, sizeof(base_station.target_bssid)> debug_bssid;
   memcpy(debug_bssid.data(), base_station.target_bssid,
          sizeof(base_station.target_bssid));
@@ -93,8 +93,9 @@ esp_err_t SetupBssid(wifi_config_t& wifi_config,
   // Copy the BSSID to the configuration
   memcpy(wifi_config.sta.bssid, base_station.target_bssid,
          sizeof(base_station.target_bssid));
-  auto err = esp_wifi_set_channel(base_station.target_channel, WIFI_SECOND_CHAN_NONE);
-  
+  auto err =
+      esp_wifi_set_channel(base_station.target_channel, WIFI_SECOND_CHAN_NONE);
+
   return err;
 }
 
@@ -205,11 +206,12 @@ esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
   return ESP_OK;
 }
 
-esp_err_t StartWifiConnection(esp_netif_t* espt_init_sta, WiFiAp const& wifi_ap,
-                         std::optional<WiFiPowerSaveParam> const& psp,
-                         std::optional<WiFiBaseStation> const& base_station) {
+esp_err_t StartWifiConnection(
+    esp_netif_t* espt_init_sta, WiFiAp const& wifi_ap,
+    std::optional<WiFiPowerSaveParam> const& psp,
+    std::optional<WiFiBaseStation> const& base_station) {
   esp_err_t err = ESP_OK;
-  
+
   wifi_config_t wifi_config{};
   if (base_station) {
     // Restore saved Base Station
@@ -235,7 +237,7 @@ esp_err_t StartWifiConnection(esp_netif_t* espt_init_sta, WiFiAp const& wifi_ap,
   // Setting up a static IP, if required
   if (wifi_ap.static_ip.has_value()) {
     err = esp_wifi_driver_internal::SetStaticIp(espt_init_sta,
-                                                     wifi_ap.static_ip.value());
+                                                wifi_ap.static_ip.value());
     if (err != ESP_OK) {
       AE_TELED_ERROR("Failed to set static IP, falling back to DHCP.");
       // If an error occurs, switch to DHCP
@@ -247,16 +249,16 @@ esp_err_t StartWifiConnection(esp_netif_t* espt_init_sta, WiFiAp const& wifi_ap,
 
   err = esp_wifi_set_mode(WIFI_MODE_STA);
   if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set mode.");
-      // If an error occurs, exit
-      return err;
-    }
+    AE_TELED_ERROR("Failed to set mode.");
+    // If an error occurs, exit
+    return err;
+  }
   err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
   if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set config.");
-      // If an error occurs, exit
-      return err;
-    }
+    AE_TELED_ERROR("Failed to set config.");
+    // If an error occurs, exit
+    return err;
+  }
   if (psp) {
     err = esp_wifi_set_ps(static_cast<wifi_ps_type_t>(psp->wifi_ps_type)));
     if (err != ESP_OK) {
@@ -274,19 +276,21 @@ esp_err_t StartWifiConnection(esp_netif_t* espt_init_sta, WiFiAp const& wifi_ap,
 
   err = esp_wifi_start();
   if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to start WiFi!");
-      // If an error occurs, exit
-      return err;
-    }
+    AE_TELED_ERROR("Failed to start WiFi!");
+    // If an error occurs, exit
+    return err;
+  }
 
   if (psp) {
-    err = esp_wifi_internal_set_fix_rate(WIFI_IF_STA, true, static_cast<wifi_phy_rate_t>(psp->fix_rate));
+    err = esp_wifi_internal_set_fix_rate(
+        WIFI_IF_STA, true, static_cast<wifi_phy_rate_t>(psp->fix_rate));
     if (err != ESP_OK) {
       AE_TELED_ERROR("Failed to set fix rate.");
       // If an error occurs, exit
       return err;
     }
-    err = esp_wifi_internal_set_retry_counter(psp->short_retry, psp->long_retry);
+    err =
+        esp_wifi_internal_set_retry_counter(psp->short_retry, psp->long_retry);
     if (err != ESP_OK) {
       AE_TELED_ERROR("Failed to set retry counter.");
       // If an error occurs, exit
@@ -331,9 +335,9 @@ void EspWifiDriver::Connect(
   auto err = esp_wifi_driver_internal::StartWifiConnection(
       static_cast<esp_netif_t*>(espt_init_sta_), wifi_ap, psp, base_station);
   // the connection result will be handled in ConnectingEventHandler
-  if(err != ESP_OK){
+  if (err != ESP_OK) {
     // Emitting the error, 2 for example.
-    connect_res_event_.Emit(Error(2)); 
+    connect_res_event_.Emit(Error(2));
   }
 }
 
@@ -347,21 +351,21 @@ std::optional<std::string> EspWifiDriver::connected_to() const {
 
 void EspWifiDriver::Init() {
   esp_err_t err = ESP_OK;
-  
+
   InitNvs();
 
   err = esp_netif_init();
   if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to netif init.");
-      // If an error occurs, exit
-      return;
-    }
+    AE_TELED_ERROR("Failed to netif init.");
+    // If an error occurs, exit
+    return;
+  }
   err = esp_event_loop_create_default();
   if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to create event loop.");
-      // If an error occurs, exit
-      return;
-    }
+    AE_TELED_ERROR("Failed to create event loop.");
+    // If an error occurs, exit
+    return;
+  }
 
   espt_init_sta_ = esp_netif_create_default_wifi_sta();
 
@@ -372,10 +376,10 @@ void EspWifiDriver::Init() {
 
   err = esp_wifi_init(&wifi_init_config);
   if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to wifi init.");
-      // If an error occurs, exit
-      return;
-    }
+    AE_TELED_ERROR("Failed to wifi init.");
+    // If an error occurs, exit
+    return;
+  }
 
   esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
                              esp_wifi_driver_internal::EventHandler, this);
