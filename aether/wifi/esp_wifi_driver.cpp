@@ -260,7 +260,7 @@ esp_err_t StartWifiConnection(
     return err;
   }
   if (psp) {
-    err = esp_wifi_set_ps(static_cast<wifi_ps_type_t>(psp->wifi_ps_type)));
+    err = esp_wifi_set_ps(static_cast<wifi_ps_type_t>(psp->wifi_ps_type));
     if (err != ESP_OK) {
       AE_TELED_ERROR("Failed to set ps.");
       // If an error occurs, exit
