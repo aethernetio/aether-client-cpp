@@ -20,7 +20,7 @@
 #include "aether/all.h"
 
 static constexpr auto kParentUid =
-    ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4");
+    ae::Uid::FromString("B1AC52C8-8D94-BD39-4C01-A631AC594165");
 
 class TimeSynchronizer {
  public:
