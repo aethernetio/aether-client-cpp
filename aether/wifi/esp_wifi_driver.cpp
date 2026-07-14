@@ -392,11 +392,19 @@ void EspWifiDriver::Init() {
 }
 
 void EspWifiDriver::InitNvs() {
-  esp_err_t ret = nvs_flash_init();
-  if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
-      ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-    nvs_flash_erase();
-    nvs_flash_init();
+  esp_err_t err = nvs_flash_init();
+  if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
+      err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    err = nvs_flash_erase();
+    if (err != ESP_OK) {
+      AE_TELED_ERROR("Failed to flash erase.");
+      return;
+    }
+    err = nvs_flash_init();
+    if (err != ESP_OK) {
+      AE_TELED_ERROR("Failed to flash init.");
+      return;
+    }
   }
 }
 
