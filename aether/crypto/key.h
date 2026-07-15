@@ -23,11 +23,9 @@
     AE_SIGNATURE != AE_NONE
 
 #  include <array>
-#  include <string>
+#  include <span>
 #  include <cstdint>
 #  include <cassert>
-#  include <sstream>
-#  include <iomanip>
 
 #  if AE_CRYPTO_ASYNC == AE_SODIUM_BOX_SEAL
 #    include <sodium/crypto_box.h>
@@ -47,6 +45,7 @@
 #  endif
 
 #  include "aether-miscpp/reflect/reflect.h"
+#  include "aether-miscpp/format/format.h"
 #  include "aether/types/variant_type.h"
 
 namespace ae {
@@ -176,19 +175,16 @@ class Key
                       static_cast<typename VariantType::variant const&>(*this));
   }
 
-  static std::string text(Key const& v) {
-    std::stringstream ss;
-    ss << "[";
-    std::visit(
-        [&ss](auto const& k) {
-          for (auto s : k.key) {
-            ss << std::hex << std::setw(2) << std::setfill('0')
-               << static_cast<std::uint32_t>(s);
-          }
-        },
-        static_cast<typename VariantType::variant const&>(v));
-    ss << "]";
-    return ss.str();
+};
+
+template <>
+struct Formatter<Key> {
+  template <typename TStream>
+  void Format(Key const& value, FormatContext<TStream>& ctx) const {
+    auto data = std::span<std::uint8_t const>{value.Data(), value.Size()};
+    ctx.out().write('[');
+    Formatter<decltype(data)>{}.Format(data, ctx);
+    ctx.out().write(']');
   }
 };
 

@@ -51,10 +51,9 @@ int AetherCloudExample() {
   /**
    * Construct a main aether application class.
    * It's include a Domain and Aether instances accessible by getter methods.
-   * It has Update, WaitUntil, Exit, IsExit, ExitCode methods to integrate it in
-   * your update loop.
-   * Also it has action context protocol implementation \see Action.
-   * To configure its creation \see AetherAppContext.
+   * It has Update, WaitUntil, Exit, IsExit, ExitCode methods to integrate it
+   * in your update loop. Also it has action context protocol implementation
+   * \see Action. To configure its creation \see AetherAppContext.
    */
   auto aether_app = ae::cloud_test::construct_aether_app();
 

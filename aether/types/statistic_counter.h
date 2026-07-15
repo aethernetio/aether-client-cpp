@@ -132,11 +132,12 @@ class StatisticsCounter final {
 template <typename T, std::size_t Capacity, typename Comparator>
 struct Formatter<StatisticsCounter<T, Capacity, Comparator>>
     : public Formatter<etl::circular_buffer<T, Capacity>> {
+  using Base = Formatter<etl::circular_buffer<T, Capacity>>;
+
   template <typename TStream>
   void Format(StatisticsCounter<T, Capacity, Comparator> const& value,
               FormatContext<TStream>& ctx) const {
-    Formatter<etl::circular_buffer<T, Capacity>>{}.Format(value.value_buffer_,
-                                                          ctx);
+    static_cast<Base const&>(*this).Format(value.value_buffer_, ctx);
   }
 };
 

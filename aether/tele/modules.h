@@ -27,10 +27,6 @@
 
 namespace ae::tele {
 struct Module {
-  static std::string text(Module const& value) {
-    return std::string{value.name};
-  }
-
   std::uint32_t id;
   std::uint32_t index_start;
   std::uint32_t index_end;

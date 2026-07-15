@@ -17,8 +17,12 @@
 #ifndef AETHER_TYPES_ADDRESS_H_
 #define AETHER_TYPES_ADDRESS_H_
 
+#include <charconv>
+#include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <type_traits>
 
 #include "aether/config.h"
 #include "aether-miscpp/reflect/reflect.h"
@@ -131,10 +135,13 @@ struct Formatter<IpV4Addr> {
   void Format([[maybe_unused]] IpV4Addr const& value,
               [[maybe_unused]] FormatContext<TStream>& ctx) const {
 #if AE_SUPPORT_IPV4 == 1
-    ae::Format(ctx.out(), "{}.{}.{}.{}", static_cast<int>(value.ipv4_value[0]),
-               static_cast<int>(value.ipv4_value[1]),
-               static_cast<int>(value.ipv4_value[2]),
-               static_cast<int>(value.ipv4_value[3]));
+    Formatter<int>{}.Format(static_cast<int>(value.ipv4_value[0]), ctx);
+    ctx.out().write('.');
+    Formatter<int>{}.Format(static_cast<int>(value.ipv4_value[1]), ctx);
+    ctx.out().write('.');
+    Formatter<int>{}.Format(static_cast<int>(value.ipv4_value[2]), ctx);
+    ctx.out().write('.');
+    Formatter<int>{}.Format(static_cast<int>(value.ipv4_value[3]), ctx);
 #endif
   }
 };
@@ -145,14 +152,17 @@ struct Formatter<IpV6Addr> {
   void Format([[maybe_unused]] IpV6Addr const& value,
               [[maybe_unused]] FormatContext<TStream>& ctx) const {
 #if AE_SUPPORT_IPV6 == 1
-    ctx.out().stream() << std::hex;
+    char buffer[2]{};
     for (std::size_t i = 0; i < 16; i++) {
-      ctx.out().stream() << static_cast<int>(value.ipv6_value[i]);
+      auto result = std::to_chars(buffer, buffer + 2,
+                                  static_cast<unsigned int>(value.ipv6_value[i]),
+                                  16);
+      ctx.out().write(std::string_view{
+          buffer, static_cast<std::size_t>(result.ptr - buffer)});
       if (i < 15) {
-        ctx.out().stream() << ':';
+        ctx.out().write(':');
       }
     }
-    ctx.out().stream() << std::dec;
 #endif
   }
 };
@@ -163,7 +173,7 @@ struct Formatter<NamedAddr> {
   void Format([[maybe_unused]] NamedAddr const& value,
               [[maybe_unused]] FormatContext<TStream>& ctx) const {
 #if AE_SUPPORT_CLOUD_DNS == 1
-    ctx.out().stream() << value.name;
+    Formatter<std::string>{}.Format(value.name, ctx);
 #endif
   }
 };
@@ -172,8 +182,12 @@ template <>
 struct Formatter<Address> {
   template <typename TStream>
   void Format(Address const& value, FormatContext<TStream>& ctx) const {
-    std::visit([&](auto const& addr) { ae::Format(ctx.out(), "{}", addr); },
-               value);
+    std::visit(
+        [&](auto const& addr) {
+          using Addr = std::decay_t<decltype(addr)>;
+          Formatter<Addr>{}.Format(addr, ctx);
+        },
+        value);
   }
 };
 
@@ -181,7 +195,9 @@ template <>
 struct Formatter<AddressPort> {
   template <typename TStream>
   void Format(AddressPort const& value, FormatContext<TStream>& ctx) const {
-    ae::Format(ctx.out(), "{}:{}", value.address, value.port);
+    Formatter<Address>{}.Format(value.address, ctx);
+    ctx.out().write(':');
+    Formatter<std::uint16_t>{}.Format(value.port, ctx);
   }
 };
 
@@ -189,8 +205,11 @@ template <>
 struct Formatter<Endpoint> {
   template <typename TStream>
   void Format(Endpoint const& value, FormatContext<TStream>& ctx) const {
-    ae::Format(ctx.out(), "{}:{} protocol:{}", value.address, value.port,
-               static_cast<int>(value.protocol));
+    Formatter<Address>{}.Format(value.address, ctx);
+    ctx.out().write(':');
+    Formatter<std::uint16_t>{}.Format(value.port, ctx);
+    ctx.out().write(" protocol:");
+    Formatter<int>{}.Format(static_cast<int>(value.protocol), ctx);
   }
 };
 }  // namespace ae

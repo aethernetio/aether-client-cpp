@@ -30,16 +30,16 @@
  * \author Aether authors
  */
 
-#include <iostream>
-
 #include "aether/config.h"
 #include "aether/tele/tele.h"
 #include "aether/tele/tele_init.h"
 
 #if (defined(CM_ESP32))
-#  include <freertos/FreeRTOS.h>
+#  include <iostream>
+
 #  include <esp_log.h>
 #  include <esp_task_wdt.h>
+#  include <freertos/FreeRTOS.h>
 #endif
 
 extern "C" void app_main();
