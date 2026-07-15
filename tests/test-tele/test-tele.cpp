@@ -18,13 +18,13 @@
 
 #include <cctype>
 #include <chrono>
+#include <iostream>
 #include <list>
 #include <map>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
-#include <iostream>
 
 #include "aether/config.h"
 
@@ -468,21 +468,42 @@ void test_MergeStatisticsTrap() {
 #define TELE_SINK SinkType
 }
 
-void test_IoStreamTrapTimestampShape() {
+void test_IoStreamTrapFullOutput() {
   auto stream = std::ostringstream{};
   auto trap = IoStreamTrap{stream};
   auto const fixed_time = TimePoint{std::chrono::hours{3} +
                                     std::chrono::minutes{4} +
                                     std::chrono::seconds{5} +
                                     std::chrono::microseconds{123456}};
+  auto const tag = Tag{11, TestObj, "Test"};
 
-  trap.OpenLogLine(Test1);
+  trap.OpenLogLine(tag);
   trap.InvokeTime(fixed_time);
-  trap.CloseLogLine(Test1);
+  trap.WriteLevel(Level{Level::kDebug});
+  trap.WriteModule(TestObj);
+  trap.Location("src/test-tele.cpp", 42);
+  trap.TagName(tag.name);
+  trap.Blob(reinterpret_cast<std::uint8_t const*>("message 12"), 10);
+  trap.CloseLogLine(tag);
 
   auto const output = stream.str();
-  TEST_ASSERT_NOT_EQUAL(std::string::npos,
-                        output.find(":[03:04:05.123456]"));
+  TEST_ASSERT_EQUAL_STRING(
+      " 12:[03:04:05.123456]:kDebug:TestObj:test-tele.cpp:42:Test:message "
+      "12\n",
+      output.c_str());
+}
+
+void test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile() {
+  auto stream = std::ostringstream{};
+  auto trap = IoStreamTrap{stream};
+  auto const tag = Tag{11, TestObj, "Test"};
+
+  trap.OpenLogLine(tag);
+  trap.Location("test-tele.cpp", 42);
+  trap.CloseLogLine(tag);
+
+  auto const output = stream.str();
+  TEST_ASSERT_EQUAL_STRING(" 12:UNKNOWN FILE:42\n", output.c_str());
 }
 void test_EnvTele() { AE_TELE_ENV(); }
 }  // namespace ae::tele::test_tele
@@ -495,7 +516,8 @@ int main() {
   RUN_TEST(ae::tele::test_tele::test_TeleConfigurations);
   RUN_TEST(ae::tele::test_tele::test_TeleProxyTrap);
   RUN_TEST(ae::tele::test_tele::test_MergeStatisticsTrap);
-  RUN_TEST(ae::tele::test_tele::test_IoStreamTrapTimestampShape);
+  RUN_TEST(ae::tele::test_tele::test_IoStreamTrapFullOutput);
+  RUN_TEST(ae::tele::test_tele::test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile);
   RUN_TEST(ae::tele::test_tele::test_EnvTele);
 
   return UNITY_END();

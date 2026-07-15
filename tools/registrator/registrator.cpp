@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <iostream>
 #include <string>
 
 #include "aether/all.h"
@@ -168,9 +169,9 @@ int AetherRegistrator(const std::string& ini_file,
       ae::AeContext{*aether_app}, aether_app, registrator_config.clients()};
 
   registrator_action.registered_event().Subscribe([&](auto const& clients) {
+    constexpr auto format_client = ae::FormatScheme{"\nclient={},\n{}\n"};
     for (auto const& c_conf : clients) {
-      std::cout << ae::Format("\nclient={},\n{}\n", c_conf.client_id,
-                              c_conf.config);
+      ae::Format(std::cout, format_client, c_conf.client_id, c_conf.config);
       aether_app->aether()->CreateClient(c_conf.config, c_conf.client_id);
     }
     aether_app->Exit(0);

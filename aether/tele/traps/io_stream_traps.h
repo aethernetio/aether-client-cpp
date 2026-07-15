@@ -17,8 +17,9 @@
 #ifndef AETHER_TELE_TRAPS_IO_STREAM_TRAPS_H_
 #define AETHER_TELE_TRAPS_IO_STREAM_TRAPS_H_
 
-#include <mutex>
+#include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <ostream>
 #include <string_view>
 #include <unordered_map>
@@ -58,7 +59,7 @@ class IoStreamTrap final : public ITrap {
   }
 
  private:
-  void delimiter();
+  void WritePaddedIndex(std::uint32_t index);
 
   std::mutex sync_lock_;
   std::ostream& stream_;
