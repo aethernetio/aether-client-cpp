@@ -23,6 +23,7 @@
 #  include "nvs_flash.h"
 
 #  include "esp_log.h"
+#  include "esp_mac.h"
 #  include "esp_wifi.h"
 #  include "esp_event.h"
 #  include "esp_system.h"
@@ -32,8 +33,6 @@
 #  include "lwip/sys.h"
 #  include "lwip/ip4_addr.h"
 #  include "lwip/ip6_addr.h"
-
-#  include "aether/tele/tele.h"
 
 extern "C" esp_err_t esp_wifi_internal_set_retry_counter(uint8_t short_retry,
                                                          uint8_t long_retry);
@@ -46,7 +45,9 @@ namespace ae {
 #  define WIFI_FAIL_BIT BIT1
 
 namespace esp_wifi_driver_internal {
+static constexpr char kTag[] = "EspWifiDriver";
 static constexpr int kMaxRetry = 10;
+
 void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
                   [[maybe_unused]] void* event_data) {
   auto base_type = [](esp_event_base_t event_base) {
@@ -59,7 +60,7 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
     return "UNKNOWN_EVENT";
   };
 
-  ESP_LOGI("EspWiFiEventHandler", "Event handler event_base %s event_id %d",
+  ESP_LOGI(kTag, "Event handler event_base %s event_id %d",
            base_type(event_base), event_id);
 
   auto* driver = static_cast<EspWifiDriver*>(arg);
@@ -81,11 +82,9 @@ void EventHandler(void* arg, esp_event_base_t event_base, int32_t event_id,
 
 esp_err_t SetupBssid(wifi_config_t& wifi_config,
                      WiFiBaseStation const& base_station) {
-  std::array<uint8_t, sizeof(base_station.target_bssid)> debug_bssid;
-  memcpy(debug_bssid.data(), base_station.target_bssid,
-         sizeof(base_station.target_bssid));
-  AE_TELED_DEBUG("Restored from cash BSSID:{} CHN:{}", debug_bssid,
-                 static_cast<int>(base_station.target_channel));
+  ESP_LOGD(kTag, "Restored from cache BSSID:" MACSTR " CHN:%u",
+           MAC2STR(base_station.target_bssid),
+           static_cast<unsigned>(base_station.target_channel));
 
   wifi_config.sta.scan_method = WIFI_FAST_SCAN;  // Fast scan
   wifi_config.sta.bssid_set = true;              // Enable BSSID binding
@@ -102,8 +101,8 @@ esp_err_t SetupBssid(wifi_config_t& wifi_config,
 void SetupCredentials(wifi_config_t& wifi_config, WifiCreds const& creds) {
 #  ifdef DEBUG
   // for debug purpose only, it's private data
-  AE_TELED_DEBUG("Connecting to ap SSID:{} PSWD:{}", creds.ssid,
-                 creds.password);
+  ESP_LOGD(kTag, "Connecting to ap SSID:%s PSWD:%s", creds.ssid.c_str(),
+           creds.password.c_str());
 #  endif  // DEBUG
 
   strncpy(reinterpret_cast<char*>(wifi_config.sta.ssid), creds.ssid.data(),
@@ -160,7 +159,7 @@ esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
   // Stopping the DHCP client
   err = esp_netif_dhcpc_stop(netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-    AE_TELED_ERROR("Failed to stop DHCP client: {}", esp_err_to_name(err));
+    ESP_LOGE(kTag, "Failed to stop DHCP client: %s", esp_err_to_name(err));
     return err;
   }
 
@@ -168,7 +167,7 @@ esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
   // Setting a static IP
   err = esp_netif_set_ip_info(netif, &ip_info);
   if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to set IP info: {}", esp_err_to_name(err));
+    ESP_LOGE(kTag, "Failed to set IP info: %s", esp_err_to_name(err));
     return err;
   }
 
@@ -176,7 +175,7 @@ esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
   if (config.primary_dns_v4) {
     err = esp_netif_set_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns_info1);
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set primary DNS: {}", esp_err_to_name(err));
+      ESP_LOGE(kTag, "Failed to set primary DNS: %s", esp_err_to_name(err));
       return err;
     }
   }
@@ -184,22 +183,38 @@ esp_err_t SetStaticIp(esp_netif_t* netif, WiFiIP const& config) {
   if (config.secondary_dns_v4) {
     err = esp_netif_set_dns_info(netif, ESP_NETIF_DNS_BACKUP, &dns_info2);
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set secondary DNS: {}", esp_err_to_name(err));
+      ESP_LOGE(kTag, "Failed to set secondary DNS: %s", esp_err_to_name(err));
       return err;
     }
   }
 
-  AE_TELED_DEBUG("Static IP V4 configured: {}", config.static_ip_v4);
+  ESP_LOGD(kTag, "Static IP V4 configured: %u.%u.%u.%u",
+           static_cast<unsigned>(config.static_ip_v4.ipv4_value[0]),
+           static_cast<unsigned>(config.static_ip_v4.ipv4_value[1]),
+           static_cast<unsigned>(config.static_ip_v4.ipv4_value[2]),
+           static_cast<unsigned>(config.static_ip_v4.ipv4_value[3]));
 #  endif
 #  if AE_SUPPORT_IPV6 == 1
   if (config.static_ip_v6.has_value()) {
     err = esp_netif_set_ip6_global(netif, &ip_info_v6.ip);
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set IP V6 info: {}", esp_err_to_name(err));
+      ESP_LOGE(kTag, "Failed to set IP V6 info: %s", esp_err_to_name(err));
       return err;
     }
 
-    AE_TELED_DEBUG("Static IP V6 configured: {}", config.static_ip_v6);
+    auto const& ip = config.static_ip_v6->ipv6_value;
+    ESP_LOGD(kTag,
+             "Static IP V6 configured: "
+             "%02x%02x:%02x%02x:%02x%02x:%02x%02x:"
+             "%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+             static_cast<unsigned>(ip[0]), static_cast<unsigned>(ip[1]),
+             static_cast<unsigned>(ip[2]), static_cast<unsigned>(ip[3]),
+             static_cast<unsigned>(ip[4]), static_cast<unsigned>(ip[5]),
+             static_cast<unsigned>(ip[6]), static_cast<unsigned>(ip[7]),
+             static_cast<unsigned>(ip[8]), static_cast<unsigned>(ip[9]),
+             static_cast<unsigned>(ip[10]), static_cast<unsigned>(ip[11]),
+             static_cast<unsigned>(ip[12]), static_cast<unsigned>(ip[13]),
+             static_cast<unsigned>(ip[14]), static_cast<unsigned>(ip[15]));
   }
 #  endif
 
@@ -217,7 +232,7 @@ esp_err_t StartWifiConnection(
     // Restore saved Base Station
     auto err = esp_wifi_driver_internal::SetupBssid(wifi_config, *base_station);
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set BSSID.");
+      ESP_LOGE(kTag, "Failed to set BSSID.");
       // If an error occurs, exit
       return err;
     }
@@ -239,36 +254,36 @@ esp_err_t StartWifiConnection(
     err = esp_wifi_driver_internal::SetStaticIp(espt_init_sta,
                                                 wifi_ap.static_ip.value());
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set static IP, falling back to DHCP.");
+      ESP_LOGE(kTag, "Failed to set static IP, falling back to DHCP.");
       // If an error occurs, switch to DHCP
       return err;
     }
   } else {
-    AE_TELED_DEBUG("Using DHCP for IP configuration");
+    ESP_LOGD(kTag, "Using DHCP for IP configuration");
   }
 
   err = esp_wifi_set_mode(WIFI_MODE_STA);
   if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to set mode.");
+    ESP_LOGE(kTag, "Failed to set mode.");
     // If an error occurs, exit
     return err;
   }
   err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
   if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to set config.");
+    ESP_LOGE(kTag, "Failed to set config.");
     // If an error occurs, exit
     return err;
   }
   if (psp) {
     err = esp_wifi_set_ps(static_cast<wifi_ps_type_t>(psp->wifi_ps_type));
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set ps.");
+      ESP_LOGE(kTag, "Failed to set ps.");
       // If an error occurs, exit
       return err;
     }
     err = esp_wifi_set_protocol(WIFI_IF_STA, psp->protocol_bitmap);
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set protocol.");
+      ESP_LOGE(kTag, "Failed to set protocol.");
       // If an error occurs, exit
       return err;
     }
@@ -276,7 +291,7 @@ esp_err_t StartWifiConnection(
 
   err = esp_wifi_start();
   if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to start WiFi!");
+    ESP_LOGE(kTag, "Failed to start WiFi!");
     // If an error occurs, exit
     return err;
   }
@@ -285,27 +300,27 @@ esp_err_t StartWifiConnection(
     err = esp_wifi_internal_set_fix_rate(
         WIFI_IF_STA, true, static_cast<wifi_phy_rate_t>(psp->fix_rate));
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set fix rate.");
+      ESP_LOGE(kTag, "Failed to set fix rate.");
       // If an error occurs, exit
       return err;
     }
     err =
         esp_wifi_internal_set_retry_counter(psp->short_retry, psp->long_retry);
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set retry counter.");
+      ESP_LOGE(kTag, "Failed to set retry counter.");
       // If an error occurs, exit
       return err;
     }
     err = esp_wifi_set_max_tx_power(psp->power);
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to set tx power.");
+      ESP_LOGE(kTag, "Failed to set tx power.");
       // If an error occurs, exit
       return err;
     }
   }
 
-  AE_TELED_DEBUG("WifiInitSta finished.");
-  
+  ESP_LOGD(kTag, "WifiInitSta finished.");
+
   return err;
 }
 
@@ -313,6 +328,7 @@ esp_err_t StartWifiConnection(
 
 EspWifiDriver::EspWifiDriver(AeContext const& ae_context)
     : ae_context_{ae_context} {
+  esp_log_level_set(esp_wifi_driver_internal::kTag, ESP_LOG_DEBUG);
   Init();
 }
 
@@ -358,13 +374,13 @@ void EspWifiDriver::Init() {
 
   err = esp_netif_init();
   if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to netif init.");
+    ESP_LOGE(esp_wifi_driver_internal::kTag, "Failed to netif init.");
     // If an error occurs, exit
     return;
   }
   err = esp_event_loop_create_default();
   if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to create event loop.");
+    ESP_LOGE(esp_wifi_driver_internal::kTag, "Failed to create event loop.");
     // If an error occurs, exit
     return;
   }
@@ -378,7 +394,7 @@ void EspWifiDriver::Init() {
 
   err = esp_wifi_init(&wifi_init_config);
   if (err != ESP_OK) {
-    AE_TELED_ERROR("Failed to wifi init.");
+    ESP_LOGE(esp_wifi_driver_internal::kTag, "Failed to wifi init.");
     // If an error occurs, exit
     return;
   }
@@ -397,12 +413,12 @@ void EspWifiDriver::InitNvs() {
       err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
     err = nvs_flash_erase();
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to flash erase.");
+      ESP_LOGE(esp_wifi_driver_internal::kTag, "Failed to flash erase.");
       return;
     }
     err = nvs_flash_init();
     if (err != ESP_OK) {
-      AE_TELED_ERROR("Failed to flash init.");
+      ESP_LOGE(esp_wifi_driver_internal::kTag, "Failed to flash init.");
       return;
     }
   }
@@ -435,8 +451,9 @@ void EspWifiDriver::ConnectingEventHandler(esp_event_base_t event_base,
         break;
       case WIFI_EVENT_STA_DISCONNECTED: {
         auto* event = static_cast<wifi_event_sta_disconnected_t*>(event_data);
-        AE_TELED_DEBUG("Wifi event disconnected, reasone {}",
-                       static_cast<int>(event->reason));
+        ESP_LOGD(esp_wifi_driver_internal::kTag,
+                 "Wifi event disconnected, reason %d",
+                 static_cast<int>(event->reason));
         if (connection_state_.retry_count <
             esp_wifi_driver_internal::kMaxRetry) {
           esp_wifi_connect();
@@ -463,18 +480,18 @@ void EspWifiDriver::ConnectingEventHandler(esp_event_base_t event_base,
         esp_wifi_sta_get_ap_info(&ap_info);
         // save real SSID
         connected_to_ = std::string(reinterpret_cast<char*>(ap_info.ssid));
-        AE_TELED_DEBUG("Connected to AP {}", *connected_to_);
+        ESP_LOGD(esp_wifi_driver_internal::kTag, "Connected to AP %s",
+                 connected_to_->c_str());
 
         WiFiBaseStation base_station{};
         base_station.target_channel = ap_info.primary;  // Set channel
         // Copy the BSSID to the configuration
         memcpy(base_station.target_bssid, ap_info.bssid,
                sizeof(base_station.target_bssid));
-        std::array<uint8_t, sizeof(base_station.target_bssid)> debug_bssid;
-        memcpy(debug_bssid.data(), base_station.target_bssid,
-               sizeof(base_station.target_bssid));
-        AE_TELED_DEBUG("Storing to cash BSSID:{} CHN:{}", debug_bssid,
-                       static_cast<int>(base_station.target_channel));
+        ESP_LOGD(esp_wifi_driver_internal::kTag,
+                 "Storing to cache BSSID:" MACSTR " CHN:%u",
+                 MAC2STR(base_station.target_bssid),
+                 static_cast<unsigned>(base_station.target_channel));
 
         connection_state_.state = State::kConnected;
         event_task_sub_ = ae_context_.scheduler().Task(
@@ -488,13 +505,14 @@ void EspWifiDriver::ConnectingEventHandler(esp_event_base_t event_base,
 }
 void EspWifiDriver::ConnectedEventHandler(esp_event_base_t event_base,
                                           int32_t event_id, void* event_data) {
-  AE_TELED_DEBUG("Wifi event on Connected");
+  ESP_LOGD(esp_wifi_driver_internal::kTag, "Wifi event on Connected");
   if (event_base == WIFI_EVENT) {
     switch (event_id) {
       case WIFI_EVENT_STA_DISCONNECTED: {
         auto* event = static_cast<wifi_event_sta_disconnected_t*>(event_data);
-        AE_TELED_DEBUG("Wifi event disconnected, reasone {}",
-                       static_cast<int>(event->reason));
+        ESP_LOGD(esp_wifi_driver_internal::kTag,
+                 "Wifi event disconnected, reason %d",
+                 static_cast<int>(event->reason));
         break;
       }
       default:
@@ -507,14 +525,14 @@ void EspWifiDriver::ConnectedEventHandler(esp_event_base_t event_base,
 void EspWifiDriver::DisconnectingEventHandler(esp_event_base_t /* event_base */,
                                               int32_t /* event_id */,
                                               void* /* event_data */) {
-  AE_TELED_DEBUG("Wifi event on Disconnecting");
+  ESP_LOGD(esp_wifi_driver_internal::kTag, "Wifi event on Disconnecting");
   // TODO:
 }
 
 void EspWifiDriver::DisconnectedEventHandler(esp_event_base_t /* event_base */,
                                              int32_t /* event_id */,
                                              void* /* event_data */) {
-  AE_TELED_DEBUG("Wifi event on Disconnected");
+  ESP_LOGD(esp_wifi_driver_internal::kTag, "Wifi event on Disconnected");
   // TODO:
 }
 
