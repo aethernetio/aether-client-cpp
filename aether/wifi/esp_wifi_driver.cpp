@@ -20,19 +20,19 @@
 
 #  include <string.h>
 
-#  include "nvs_flash.h"
-
-#  include "esp_log.h"
-#  include "esp_mac.h"
-#  include "esp_wifi.h"
 #  include "esp_event.h"
-#  include "esp_system.h"
+#  include "esp_log.h"
 #  include "esp_private/wifi.h"
+#  include "esp_system.h"
+#  include "esp_wifi.h"
+#  include "nvs_flash.h"
+#  include "esp_mac.h"
+#  include "esp_event.h"
 
 #  include "lwip/err.h"
-#  include "lwip/sys.h"
 #  include "lwip/ip4_addr.h"
 #  include "lwip/ip6_addr.h"
+#  include "lwip/sys.h"
 
 extern "C" esp_err_t esp_wifi_internal_set_retry_counter(uint8_t short_retry,
                                                          uint8_t long_retry);

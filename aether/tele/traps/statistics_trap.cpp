@@ -17,11 +17,10 @@
 
 #include "aether/tele/traps/statistics_trap.h"
 
-#include <sstream>
-#include <cassert>
-#include <utility>
-#include <iterator>
 #include <algorithm>
+#include <cassert>
+#include <iterator>
+#include <utility>
 
 #include "aether/mstream.h"
 #include "aether/mstream_buffers.h"
@@ -30,7 +29,6 @@ namespace ae::tele::statistics {
 
 RuntimeLog::RuntimeLog(SavedLog&& saved) : size{saved.data.size()} {
   logs.push_back(std::move(std::move(saved).data));
-  auto ss = std::ostringstream{};
 }
 
 void RuntimeLog::Append(RuntimeLog&& newer) {

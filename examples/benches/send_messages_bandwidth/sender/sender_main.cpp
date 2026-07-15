@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <iostream>
+
 #include "aether/all.h"
 
 #include "send_messages_bandwidth/sender/sender.h"

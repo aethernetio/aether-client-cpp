@@ -120,9 +120,11 @@ struct RingIndex {
 
 template <std::size_t M>
 struct Formatter<RingIndex<M>> : Formatter<std::size_t> {
+  using Base = Formatter<std::size_t>;
+
   template <typename TStream>
   void Format(RingIndex<M> const& index, FormatContext<TStream>& ctx) const {
-    Formatter<std::size_t>::Format(static_cast<std::size_t>(index), ctx);
+    static_cast<Base const&>(*this).Format(static_cast<std::size_t>(index), ctx);
   }
 };
 

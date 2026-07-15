@@ -17,13 +17,12 @@
 #ifndef AETHER_TASKS_DETAILS_MANUAL_TASK_SCHEDULER_H_
 #define AETHER_TASKS_DETAILS_MANUAL_TASK_SCHEDULER_H_
 
-#include <mutex>
 #include <atomic>
-#include <chrono>
 #include <cassert>
-#include <format>    // IWYU pragma: keeps
-#include <iostream>  // IWYU pragma: keeps
+#include <chrono>
 #include <condition_variable>
+#include <cstdio>  // // IWYU pragma: keep
+#include <mutex>
 
 #include "aether/tasks/details/task_manager.h"
 
@@ -128,8 +127,8 @@ class ManualTaskScheduler {
   void CheckOverflows() {
 #ifndef NDEBUG
     if (overflow_counter_ != 0) {
-      std::cerr << std::format("!!!!!> ManualTaskScheduler: got overflow: {}\n",
-                               overflow_counter_);
+      fprintf(stderr, "!!!!!> ManualTaskScheduler: got overflow: %zu\n",
+              overflow_counter_);
       overflow_counter_ = 0;
     }
 #endif

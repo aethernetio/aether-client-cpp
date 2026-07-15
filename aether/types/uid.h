@@ -130,7 +130,7 @@ struct Formatter<Uid> {
       }
       wp += 2;
     }
-    ctx.out().stream().write(buff.data(), buff.size());
+    ctx.out().write(std::string_view{buff.data(), buff.size()});
   }
 };
 

@@ -24,8 +24,7 @@
 #  include <array>
 #  include <cassert>
 #  include <cstdint>
-#  include <sstream>
-#  include <string>
+#  include <span>
 
 #  if AE_SIGNATURE == AE_ED25519
 #    include <sodium/crypto_sign.h>
@@ -34,6 +33,7 @@
 #  endif
 
 #  include "aether-miscpp/reflect/reflect.h"
+#  include "aether-miscpp/format/format.h"
 #  include "aether/types/variant_type.h"
 
 namespace ae {
@@ -86,18 +86,16 @@ struct Sign : public VariantType<SignatureMethod,
                       static_cast<VariantType::variant const&>(*this));
   }
 
-  static std::string text(Sign const& v) {
-    std::stringstream ss;
-    ss << "[";
-    std::visit(
-        [&ss](auto const& k) {
-          for (auto s : k.signature) {
-            ss << std::hex << static_cast<std::uint32_t>(s);
-          }
-        },
-        static_cast<VariantType::variant const&>(v));
-    ss << "]";
-    return ss.str();
+};
+
+template <>
+struct Formatter<Sign> {
+  template <typename TStream>
+  void Format(Sign const& value, FormatContext<TStream>& ctx) const {
+    auto data = std::span<std::uint8_t const>{value.Data(), value.Size()};
+    ctx.out().write('[');
+    Formatter<decltype(data)>{}.Format(data, ctx);
+    ctx.out().write(']');
   }
 };
 }  // namespace ae

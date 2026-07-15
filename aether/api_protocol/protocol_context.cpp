@@ -17,6 +17,7 @@
 #include "aether/api_protocol/protocol_context.h"
 
 #include <cassert>
+#include <cstdio>
 
 #include "aether/api_protocol/api_protocol.h"
 
@@ -58,9 +59,9 @@ void ProtocolContext::SetSendErrorResponse(RequestId req_id,
     send_error_events_.erase(it);
   } else {
     AE_TELED_DEBUG("No callback for error with request id {}", req_id);
-    std::cerr << "SendError: id " << req_id
-              << " type: " << static_cast<int>(error_type)
-              << " error code: " << error_code << std::endl;
+    fprintf(stderr, "SendError: id %zu, type: %d, error_code %zu\n",
+            static_cast<std::size_t>(req_id.id), static_cast<int>(error_type),
+            static_cast<std::size_t>(error_code));
     parser()->Cancel();
   }
   send_result_events_.erase(req_id);
