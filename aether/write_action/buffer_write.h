@@ -75,6 +75,7 @@ class BufferWrite {
   struct BufferEntry {
     BufferedWriteAction wa;
     T data;
+    bool sent = false;
   };
 
  public:
@@ -163,6 +164,9 @@ class BufferWrite {
         buffer_.pop();
         continue;
       }
+      if (be.sent) {
+        continue;
+      }
       // buffer state might change during direct write
       if (buffer_on_) {
         break;
@@ -172,6 +176,7 @@ class BufferWrite {
       if (dwa == nullptr) {
         break;
       }
+      be.sent = true;
       be.wa.Sent(*dwa);
     }
   }

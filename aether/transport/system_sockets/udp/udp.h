@@ -60,8 +60,7 @@ class SendAction final : public PacketSendAction {
       SetStatus(WriteAction::Status::kFail);
       return;
     }
-    AE_TELED_DEBUG("Data has been written size {}", data_.size());
-
+    AE_TELED_DEBUG("Data has been written size {}", *res);
     if (*res == 0) {
       reenqueue_ = true;
       // Not sent yet
@@ -71,7 +70,7 @@ class SendAction final : public PacketSendAction {
       AE_TELED_ERROR("Send error, sent size isn't same as packet size");
       SetStatus(WriteAction::Status::kFail);
       return;
-    }
+    }    
     SetStatus(WriteAction::Status::kSuccess);
   }
 
