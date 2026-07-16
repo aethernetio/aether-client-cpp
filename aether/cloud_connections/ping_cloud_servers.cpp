@@ -134,7 +134,7 @@ auto PingCloudServers::ServerPing::MakePing() {
           policy_->ReportNextServiceTime(priority_, next_ping_time_);
           AE_TELED_DEBUG(
               "Next ping time for priority {} at {:%H:%M:%S} after {:%S}",
-              next_ping_time_, timing_conf_.interval);
+              priority_, next_ping_time_, timing_conf_.interval);
 
           return ex::set_value(std::move(ctx.receiver));
         });
@@ -143,16 +143,18 @@ auto PingCloudServers::ServerPing::MakePing() {
 
 void PingCloudServers::ServerPing::Start() {
   waiter_.emplace(
-      ae_context_, EnsureLinked() |
-                       ex::let_value([&]() noexcept
-                                         -> ex::variant_sender<decltype(ex::just()),
-                                                               decltype(ex::just_stopped())> {
-                         if (stop_) {
-                           return ex::just_stopped();
-                         }
-                         return ex::just();
-                       }) |
-                       MakePing() |
+      ae_context_,
+      EnsureLinked() |
+          ex::let_value(
+              [&]() noexcept
+                  -> ex::variant_sender<decltype(ex::just()),
+                                        decltype(ex::just_stopped())> {
+                if (stop_) {
+                  return ex::just_stopped();
+                }
+                return ex::just();
+              }) |
+          MakePing() |
           // track Stop command
           ex::let_value(
               [&]() noexcept

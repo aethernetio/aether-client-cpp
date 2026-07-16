@@ -20,14 +20,14 @@
 
 #  include <utility>
 
-#  include "aether/aether.h"
-#  include "aether/crypto.h"
-#  include "aether/crypto/sign.h"
 #  include "aether-miscpp/misc/override.h"
-#  include "aether/executors/executors.h"
+#  include "aether/aether.h"
 #  include "aether/api_protocol/api_context.h"
-#  include "aether/crypto/crypto_definitions.h"
 #  include "aether/api_protocol/make_api_call_sender.h"
+#  include "aether/crypto.h"
+#  include "aether/crypto/crypto_definitions.h"
+#  include "aether/crypto/sign.h"
+#  include "aether/executors/executors.h"
 
 #  include "aether/registration/proof_of_work.h"
 #  include "aether/registration/registration_crypto_provider.h"
@@ -93,7 +93,7 @@ void Registration::InitConnection() {
 void Registration::Restream() { root_server_select_stream_.Restream(); }
 
 auto Registration::GetKeys() {
-  return make_api_call<ex::set_value_t(Ignore), ex::set_error_t(std::uint32_t)>(
+  return make_api_call<ex::set_value_t(Ignore), ex::set_error_t(std::int32_t)>(
       server_reg_root_api_, root_server_select_stream_,
       [&, s{Subscription{}}](ApiContext<RegistrationRootApi>& api_call,
                              auto& r) mutable noexcept {
@@ -101,10 +101,10 @@ auto Registration::GetKeys() {
         s = api_call->get_asymmetric_public_key(kDefaultCryptoLibProfile)
                 .Subscribe([&](auto&& res) mutable noexcept {
                   if (!res) {
-                    ex::set_error(std::move(r), std::move(res).error());
+                    ex::set_error(std::move(r), res.error());
                     return;
                   }
-                  auto signed_key = std::move(res).value();
+                  auto signed_key = std::forward<decltype(res)>(res).value();
                   if (!CryptoSignVerify(signed_key.sign, signed_key.key,
                                         sign_pk_)) {
                     AE_TELE_ERROR(RegisterGetKeysVerificationFailed,
@@ -135,7 +135,7 @@ auto Registration::GetKeys() {
 }
 
 auto Registration::RequestPowParams() {
-  return make_api_call<ex::set_value_t(Ignore), ex::set_error_t(std::uint32_t)>(
+  return make_api_call<ex::set_value_t(Ignore), ex::set_error_t(std::int32_t)>(
       server_reg_root_api_, root_server_select_stream_,
       [&, s{Subscription{}}](ApiContext<RegistrationRootApi>& api_call,
                              auto& r) mutable noexcept {
@@ -150,11 +150,12 @@ auto Registration::RequestPowParams() {
                                                    PowMethod::kBCryptCrc32)
                       .Subscribe([&](auto&& res) mutable noexcept {
                         if (!res) {
-                          ex::set_error(std::move(r), std::move(res).error());
+                          ex::set_error(std::move(r), res.error());
                           return;
                         }
 
-                        auto pow_params = std::move(res).value();
+                        auto pow_params =
+                            std::forward<decltype(res)>(res).value();
                         if (!CryptoSignVerify(pow_params.global_key.sign,
                                               pow_params.global_key.key,
                                               sign_pk_)) {
@@ -184,7 +185,7 @@ auto Registration::RequestPowParams() {
 }
 
 auto Registration::MakeRegistration() {
-  return make_api_call<ex::set_value_t(Ignore), ex::set_error_t(std::uint32_t)>(
+  return make_api_call<ex::set_value_t(Ignore), ex::set_error_t(std::int32_t)>(
       server_reg_root_api_, root_server_select_stream_,
       [&, s{Subscription{}}](ApiContext<RegistrationRootApi>& api_call,
                              auto& r) mutable noexcept {
@@ -213,15 +214,17 @@ auto Registration::MakeRegistration() {
                         [&, r{std::forward<decltype(r)>(r)}](
                             auto&& res) mutable noexcept {
                           if (!res) {
-                            ex::set_error(std::move(r), std::move(res).error());
+                            ex::set_error(std::move(r), res.error());
                             return;
                           }
                           AE_TELE_INFO(RegisterRegistrationConfirmed,
                                        "Registration confirmed");
-                          client_uid_ = res.value().uid;
-                          ephemeral_uid_ = res.value().ephemeral_uid;
+                          auto reg_info =
+                              std::forward<decltype(res)>(res).value();
+                          client_uid_ = reg_info.uid;
+                          ephemeral_uid_ = reg_info.ephemeral_uid;
                           // use client cloud_ for cloud resolve request
-                          client_cloud_ = res.value().cloud;
+                          client_cloud_ = std::move(reg_info.cloud);
                           assert((client_cloud_.size() > 0) &&
                                  "Client's cloud is empty");
                           ex::set_value(std::move(r), Ignore{});
@@ -233,7 +236,7 @@ auto Registration::MakeRegistration() {
 
 auto Registration::ResolveCloud() {
   return make_api_call<ex::set_value_t(ClientConfig),
-                       ex::set_error_t(std::uint32_t)>(
+                       ex::set_error_t(std::int32_t)>(
       server_reg_root_api_, root_server_select_stream_,
       [&, s{Subscription{}}](ApiContext<RegistrationRootApi>& api_call,
                              auto& r) mutable noexcept {
@@ -249,9 +252,10 @@ auto Registration::ResolveCloud() {
                         if (res) {
                           ex::set_value(
                               std::move(r),
-                              OnCloudResolved(std::move(res).value()));
+                              OnCloudResolved(
+                                  std::forward<decltype(res)>(res).value()));
                         } else {
-                          ex::set_error(std::move(r), std::move(res).error());
+                          ex::set_error(std::move(r), res.error());
                         }
                       });
             }});

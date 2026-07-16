@@ -18,6 +18,9 @@
 #if AE_ENABLE_PING
 
 #  include <cassert>
+#  include <cstdint>
+#  include <limits>
+#  include <utility>
 
 #  include "aether/server.h"
 
@@ -27,6 +30,35 @@
 #  include "aether/ae_actions/ae_actions_tele.h"
 
 namespace ae {
+namespace {
+
+constexpr int kPingPromiseEvictedError{-1};
+
+constexpr int PromiseErrorCodeToPingErrorCode(
+    std::uint32_t error_code) noexcept {
+  if (error_code == std::numeric_limits<std::uint32_t>::max()) {
+    return kPingPromiseEvictedError;
+  }
+  if (error_code <=
+      static_cast<std::uint32_t>(std::numeric_limits<int>::max())) {
+    return static_cast<int>(error_code);
+  }
+  return kPingPromiseEvictedError;
+}
+
+static_assert(PromiseErrorCodeToPingErrorCode(
+                  std::numeric_limits<std::uint32_t>::max()) ==
+              kPingPromiseEvictedError);
+static_assert(PromiseErrorCodeToPingErrorCode(0) == 0);
+static_assert(PromiseErrorCodeToPingErrorCode(static_cast<std::uint32_t>(
+                  std::numeric_limits<int>::max())) ==
+              std::numeric_limits<int>::max());
+static_assert(PromiseErrorCodeToPingErrorCode(
+                  static_cast<std::uint32_t>(std::numeric_limits<int>::max()) +
+                  1U) == kPingPromiseEvictedError);
+
+}  // namespace
+
 Ping::Ping(AeContext const& ae_context,
            CloudServerConnection& cloud_server_connection,
            Duration next_ping_hint, Duration rx_window, Duration timeout)
@@ -56,8 +88,6 @@ void Ping::Start(TimePoint current_time) {
   }
   started_ = true;
 
-  AE_TELE_DEBUG(kPingSend, "Send ping");
-
   auto& write_action = cc->AuthorizedApiCall(
       SubApi{[this, current_time](ApiContext<AuthorizedApi>& auth_api) {
         auto next_ping_hint_ms = static_cast<std::uint64_t>(
@@ -68,23 +98,28 @@ void Ping::Start(TimePoint current_time) {
             std::chrono::duration_cast<std::chrono::milliseconds>(rx_window_)
                 .count());
 
-        auto& pong_promise = auth_api->ping(next_ping_hint_ms, rx_window_ms);
+        auto pong_promise = auth_api->ping(next_ping_hint_ms, rx_window_ms);
         auto req_id = pong_promise.request_id();
 
-        AE_TELED_DEBUG("Ping server id {}, request {} expected time {:%S}s",
-                       server_id_, req_id, timeout_);
+        AE_TELE_DEBUG(kPingSend,
+                      "Ping server id {}, request {} expected time {}",
+                      server_id_, req_id, timeout_);
 
         request_start_ = current_time;
-        request_id_ = req_id;
 
-        auto wait_result_sub = pong_promise.Subscribe(
-            [this, req_id](auto&&...) { PingResponse(req_id); });
+        auto wait_result_sub =
+            pong_promise.Subscribe([this, req_id](auto&& res) {
+              if (res) {
+                PingResponse(req_id);
+              } else {
+                PingResponseError(req_id, res.error());
+              }
+            });
         wait_result_sub_ = std::move(wait_result_sub);
 
-        auto timeout_sub = ae_context_.scheduler().DelayedTask(
+        timeout_sub_ = ae_context_.scheduler().DelayedTask(
             [this, req_id]() { PingResponseTimeout(req_id); },
             current_time + timeout_);
-        timeout_sub_ = std::move(timeout_sub);
       }});
 
   write_sub_ = write_action.status_event().Subscribe([this](auto status) {
@@ -112,28 +147,29 @@ void Ping::Start(TimePoint current_time) {
 }
 
 void Ping::PingResponse(RequestId request_id) {
-  if (!HasActiveRequest() || request_id_ != request_id) {
-    AE_TELED_WARNING("Got lost, or not our pong response");
-    return;
-  }
-
   auto current_time = Now();
   auto ping_duration =
       std::chrono::duration_cast<Duration>(current_time - request_start_);
 
-  AE_TELED_DEBUG("Ping server id {} request {} received by {:%S} s", server_id_,
+  AE_TELED_DEBUG("Ping server id {} request {} received by {}", server_id_,
                  request_id, ping_duration);
   ResetRequestSubscriptions();
   result_event_.Emit(Ok{ping_duration});
 }
 
-void Ping::PingResponseTimeout(RequestId request_id) {
-  if (!HasActiveRequest() || request_id_ != request_id) {
-    AE_TELED_WARNING("Timeout for lost, or not our pong response");
-    return;
+void Ping::PingResponseError(RequestId request_id, std::int32_t error_code) {
+  AE_TELE_ERROR(kPingResponseError, "Ping server id {} request {} error {}",
+                server_id_, request_id, error_code);
+  ResetRequestSubscriptions();
+  if (error_code == -1) {
+    result_event_.Emit(Error{4});
+  } else {
+    result_event_.Emit(Error{3});
   }
+}
 
-  AE_TELE_ERROR(kPingTimeout, "Ping server id {} request {} timeout",
+void Ping::PingResponseTimeout(RequestId request_id) {
+  AE_TELE_ERROR(kPingTimeoutError, "Ping server id {} request {} timeout",
                 server_id_, request_id);
   ResetRequestSubscriptions();
   result_event_.Emit(Error{2});
@@ -143,10 +179,6 @@ void Ping::ResetRequestSubscriptions() {
   wait_result_sub_.Reset();
   timeout_sub_.Reset();
   write_sub_.Reset();
-}
-
-bool Ping::HasActiveRequest() const noexcept {
-  return static_cast<bool>(wait_result_sub_);
 }
 
 }  // namespace ae
