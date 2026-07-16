@@ -22,8 +22,8 @@
 #if CLOUD_TEST_ESP_WIFI
 
 namespace ae::cloud_test {
-static const std::string kWifi1Ssid = "Visuale";
-static const std::string kWifi1Pass = "Ws63$yhJ";
+static const std::string kWifi1Ssid = "Test1234";
+static const std::string kWifi1Pass = "Test1234";
 
 static const std::string kWifi2Ssid = "Test2345";
 static const std::string kWifi2Pass = "Test2345";
