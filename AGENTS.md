@@ -103,3 +103,29 @@
 ## Operational Rules
 
 - Do not analyze logs until everything is working fine.
+
+## Cursor Cloud specific instructions
+
+These notes complement the `Build & Testing` and `Smoke test` sections above; they capture non-obvious, environment-specific gotchas for the Cursor Cloud VM. Standard build/test/smoke commands are already documented above.
+
+### Toolchain
+
+- The concrete `<build-dir>` used in the cloud VM is `build-clang`, built with `clang++` + Ninja.
+- `clang` selects the gcc-14 toolchain for its C++ runtime, so `libstdc++-14-dev` must be installed (the update script installs it together with `ninja-build`). Without it, even the CMake compiler check fails with `cannot find -lstdc++`. `cmake`, `clang-18`, and `g++-13` are already present in the base image.
+- Configure command that works here (the `-C .github/workflows/linux_initial_cache.txt` seed pre-answers c-ares feature probes):
+  `cmake -B build-clang -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -C .github/workflows/linux_initial_cache.txt -S .`
+
+### Dependencies (CPM)
+
+- There is no vendored dependency tree: all third-party libs (libsodium, libhydrogen, libbcrypt, c-ares, etl, stdexec, numeric, aether-miscpp, gcem, ini.h) are fetched from GitHub at **cmake configure time** by CPM. Configuring therefore needs network + git.
+- Export `CPM_SOURCE_CACHE=$HOME/.cache/CPM` before configuring so re-configures reuse the download cache instead of re-cloning into the build dir. This is optional but much faster.
+
+### Lint
+
+- The library builds with `-Werror -Wall -Wextra -Wconversion`, so a clean build is the primary lint gate.
+- The additional static-analysis lint is cppcheck 2.21.0, run exactly as in `.github/workflows/ci-cppcheck.yml` (build cppcheck from source, configure with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`, then run cppcheck against `compile_commands.json`). Any findings live only in third-party CPM sources; the project's own `aether/`, `examples/`, and `tools/` code is clean.
+
+### Smoke test caveat (important)
+
+- `aether-client-cpp-cloud` reliably completes the **registration** phase from the cloud VM: both clients A and B register with the registration cloud (`Registration confirmed` / `Client registered`) and a persistent `state/` dir is written.
+- The subsequent **peer-to-peer messaging** phase does not complete here: the assigned work-cloud relay servers (e.g. `34.60.244.148:9021`) accept TCP but never answer the UDP ping/relay traffic, so `received_count` stays `0`. The binary then crashes on that connection-failure path. This is an external work-cloud reachability limitation (not a build/env problem), so treat successful registration + `state/` creation as the working end-to-end signal in this environment rather than a clean exit 0.
