@@ -142,6 +142,7 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
                                                Ptr<Client> const& client,
                                                Ptr<Server> const& server)
     : ae_context_{ae_context},
+      client_{client},
       server_{server},
       ephemeral_uid_{client->ephemeral_uid()},
       crypto_provider_{std::make_unique<
@@ -195,6 +196,60 @@ ClientApiSafe& ClientServerConnection::client_safe_api() {
 
 ServerConnection& ClientServerConnection::server_connection() {
   return server_connection_.server_connection;
+}
+
+std::optional<prepared_packet::PreparedSendMessageBlock>
+ClientServerConnection::ExportPreparedSendMessageBlock(
+    Uid target_uid, std::uint32_t reserve_nonce_count) {
+  auto client = client_.Lock();
+  auto server = server_.Lock();
+
+  if ((client == nullptr) || (server == nullptr) ||
+      (reserve_nonce_count == 0)) {
+    return std::nullopt;
+  }
+
+  std::optional<prepared_packet::PreparedEndpoint> prepared_endpoint;
+
+  for (auto const& e : server->endpoints) {
+    if (e.protocol != Protocol::kUdp) {
+      continue;
+    }
+
+    auto endpoint = prepared_packet::MakePreparedEndpoint(e);
+    if (endpoint) {
+      prepared_endpoint = *endpoint;
+      break;
+    }
+  }
+
+  if (!prepared_endpoint) {
+    return std::nullopt;
+  }
+
+  auto* server_key = client->server_state(server->server_id);
+  if (server_key == nullptr) {
+    return std::nullopt;
+  }
+
+  prepared_packet::PreparedSendMessageBlock block;
+  block.endpoint = *prepared_endpoint;
+  block.sender_ephemeral_uid = ephemeral_uid_;
+  block.target_uid = target_uid;
+  block.client_to_server_key = server_key->client_to_server();
+
+  // Store current nonce. EncodePacket() will call Next() before encryption,
+  // matching existing ClientKeyProvider behavior.
+  block.next_nonce = server_key->nonce();
+  block.nonce_left = reserve_nonce_count;
+
+  // Burn/reserve the same nonce range in the full client,
+  // so the normal Aether path cannot reuse it later.
+  for (std::uint32_t i = 0; i < reserve_nonce_count; ++i) {
+    server_key->Next();
+  }
+
+  return block;
 }
 
 void ClientServerConnection::OutData(DataBuffer const& data) {
