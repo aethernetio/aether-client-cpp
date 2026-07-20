@@ -67,8 +67,8 @@ class Package final : public WriteAction {
   PreparedEndpoint endpoint_;
   DataBuffer data_;
   SendFunc send_;
-  bool started_ = false;
-  bool done_ = false;
+  bool started_{false};
+  bool done_{false};
   TaskSubscription retry_sub_;
 };
 
