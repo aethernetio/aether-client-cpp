@@ -37,6 +37,10 @@
 // IWYU pragma: end_keeps
 
 namespace ae::cloud_test {
+
+static constexpr inline auto kParentUid =
+    ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4");
+
 constexpr SafeStreamConfig kSafeStreamConfig{
     .window_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
     .max_packet_size = AE_SAFE_STREAM_CAPACITY / 2 - 1,
@@ -51,10 +55,9 @@ int AetherCloudExample() {
   /**
    * Construct a main aether application class.
    * It's include a Domain and Aether instances accessible by getter methods.
-   * It has Update, WaitUntil, Exit, IsExit, ExitCode methods to integrate it in
-   * your update loop.
-   * Also it has action context protocol implementation \see Action.
-   * To configure its creation \see AetherAppContext.
+   * It has Update, WaitUntil, Exit, IsExit, ExitCode methods to integrate it
+   * in your update loop. Also it has action context protocol implementation
+   * \see Action. To configure its creation \see AetherAppContext.
    */
   auto aether_app = ae::cloud_test::construct_aether_app();
 
@@ -66,8 +69,8 @@ int AetherCloudExample() {
   ae::Client::ptr client_a;
   ae::Client::ptr client_b;
 
-  auto& select_client_a = aether_app->aether()->SelectClient(
-      ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "A");
+  auto& select_client_a =
+      aether_app->aether()->SelectClient(ae::cloud_test::kParentUid, "A");
   select_client_a.result_event().Subscribe([&](auto const& res) {
     if (res) {
       client_a = res.value();
@@ -76,8 +79,8 @@ int AetherCloudExample() {
     }
   });
 
-  auto& select_client_b = aether_app->aether()->SelectClient(
-      ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4"), "B");
+  auto& select_client_b =
+      aether_app->aether()->SelectClient(ae::cloud_test::kParentUid, "B");
   select_client_b.result_event().Subscribe([&](auto const& res) {
     if (res) {
       client_b = res.value();

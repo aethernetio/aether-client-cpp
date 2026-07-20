@@ -17,14 +17,19 @@
 #ifndef AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 
+#include <optional>
 #include <vector>
 
+#include "aether-miscpp/types/result.h"
+
+#include "aether/actions/action.h"
 #include "aether/ae_context.h"
+#include "aether/events/events.h"
 #include "aether/ptr/ptr.h"
 #include "aether/ptr/ptr_view.h"
-#include "aether/events/events.h"
-#include "aether/stream_api/istream.h"
+
 #include "aether/server_connections/channel_connection.h"
+#include "aether/stream_api/istream.h"
 
 namespace ae {
 class Server;
@@ -32,11 +37,31 @@ class Channel;
 
 class ServerConnection final : public ByteIStream {
   struct ChannelEntry {
-    ChannelEntry(AeContext const& ae_context, PtrView<Channel> const& c): channel{c}, connection{ae_context} {}
+    ChannelEntry(AeContext const& ae_context, PtrView<Channel> const& c)
+        : channel{c}, connection{ae_context} {}
 
     PtrView<Channel> channel;
     ChannelConnection connection;
     bool failed = false;
+  };
+
+  class ChannelSelectAction final : public Action {
+   public:
+    using ResultEvent = Event<void(Result<ChannelEntry&, int>)>;
+
+    ChannelSelectAction(AeContext const& ae_context,
+                        ChannelEntry& top_channel) noexcept;
+
+    ResultEvent::Subscriber result_event() noexcept;
+
+   private:
+    void ChannelSelected();
+    void ChannelFailed();
+
+    AeContext ae_context_;
+    ChannelEntry* top_channel_;
+    TaskSubscription task_sub_;
+    ResultEvent result_event_;
   };
 
  public:
@@ -61,7 +86,7 @@ class ServerConnection final : public ByteIStream {
   // return top not failed channel or null if nothing was selected
   ChannelEntry* TopChannel();
   void SelectChannel();
-  void ChannelUpdated(ByteIStream& stream);
+  void ChannelUpdated(ChannelEntry& new_channel);
 
   void ServerError();
   void ChannelError();
@@ -76,6 +101,7 @@ class ServerConnection final : public ByteIStream {
   bool full_connected_;
   ChannelEntry* top_channel_;
   std::vector<std::unique_ptr<ChannelEntry>> channels_;
+  std::optional<ChannelSelectAction> channel_select_action_;
 
   StreamInfo stream_info_;
   OutDataEvent out_data_event_;

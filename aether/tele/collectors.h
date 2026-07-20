@@ -21,20 +21,20 @@
 #  error "Include tele.h instead"
 #endif
 
-#include <memory>
 #include <chrono>
 #include <cstdint>
-#include <utility>
 #include <functional>
+#include <memory>
 #include <type_traits>
+#include <utility>
 
-#include "aether/clock.h"
 #include "aether-miscpp/format/format.h"
+#include "aether/clock.h"
 
-#include "aether/tele/tags.h"
 #include "aether/tele/itrap.h"
 #include "aether/tele/levels.h"
 #include "aether/tele/modules.h"
+#include "aether/tele/tags.h"
 
 namespace ae::tele {
 struct Timer {
@@ -145,7 +145,8 @@ struct TeleLogCollector<TSinkConfig,
   }
 
   template <typename... TArgs>
-  void Blob(std::string_view format, TArgs&&... args) {
+  void Blob([[maybe_unused]] FormatScheme const& format,
+            [[maybe_unused]] TArgs&&... args) {
     if constexpr (TSinkConfig::kBlobLogs) {
       if (trap_ == nullptr) {
         return;

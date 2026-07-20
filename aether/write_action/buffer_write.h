@@ -24,11 +24,12 @@ IGNORE_IMPLICIT_CONVERSION()
 #include <etl/circular_buffer.h>
 DISABLE_WARNING_POP()
 
-#include "aether/ae_context.h"
 #include "aether-miscpp/types/small_function.h"
+
+#include "aether/ae_context.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/write_action/write_action.h"
 #include "aether/write_action/failed_write_action.h"
+#include "aether/write_action/write_action.h"
 
 #if DEBUG  // include tele only in debug mode
 #  include "aether/tele/tele.h"
@@ -36,8 +37,14 @@ DISABLE_WARNING_POP()
 
 namespace ae {
 #if DEBUG
-#  define BW_LOG_DEBUG(...) AE_TELED_DEBUG(__VA_ARGS__)
-#  define BW_LOG_WARNING(...) AE_TELED_WARNING(__VA_ARGS__)
+#  define BW_LOG_DEBUG(...)        \
+    do {                           \
+      AE_TELED_DEBUG(__VA_ARGS__); \
+    } while (false)
+#  define BW_LOG_WARNING(...)        \
+    do {                             \
+      AE_TELED_WARNING(__VA_ARGS__); \
+    } while (false)
 #else
 #  define BW_LOG_DEBUG(...)
 #  define BW_LOG_WARNING(...)

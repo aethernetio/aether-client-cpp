@@ -49,38 +49,38 @@ struct Formatter<bench::StatisticsWriteCsv> {
     ctx.out().write(
         std::string_view{"test name,max us,99% us,50% us,min us\n"});
     for (auto const& [name, statistics] : value.statistics_) {
-      ae::Format(ctx.out(), "{},{},{},{},{}\n", name,
-                 statistics.max_value().count(),
-                 statistics.get_99th_percentile().count(),
-                 statistics.get_50th_percentile().count(),
-                 statistics.min_value().count());
+      FormatTo(ctx.out(), FormatScheme{"{},{},{},{},{}\n"}, name,
+               statistics.max_value().count(),
+               statistics.get_99th_percentile().count(),
+               statistics.get_50th_percentile().count(),
+               statistics.min_value().count());
     }
 
     // print legend
     ctx.out().write(std::string_view{"raw results\nmessage num"});
     for (auto [name, _] : value.statistics_) {
-      ae::Format(ctx.out(), ",{}", name);
+      FormatTo(ctx.out(), FormatScheme{",{}"}, name);
     }
     ctx.out().write(std::string_view{"\n"});
     // print data
 
     for (std::size_t i = 0; i < value.test_msg_count_; ++i) {
-      ctx.out().stream() << i;
+      Formatter<std::size_t>{}.Format(i, ctx);
       for (auto const& [_, statistics] : value.statistics_) {
         auto const& i_data = std::find_if(
             std::begin(statistics.raw_data()), std::end(statistics.raw_data()),
             [i](auto const& data) { return data.first == i; });
         if (i_data == std::end(statistics.raw_data())) {
-          ctx.out().stream() << ",NA";
+          ctx.out().write(std::string_view{",NA"});
         } else if (!i_data->second) {
-          ctx.out().stream() << ",missed";
+          ctx.out().write(std::string_view{",missed"});
         } else {
-          ctx.out().stream() << ',' << i_data->second->count();
+          FormatTo(ctx.out(), FormatScheme{",{}"}, i_data->second->count());
         }
       }
-      ctx.out().stream() << '\n';
+      ctx.out().write('\n');
     }
-    ctx.out().stream() << '\n';
+    ctx.out().write('\n');
   }
 };
 }  // namespace ae

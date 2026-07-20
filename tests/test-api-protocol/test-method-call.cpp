@@ -17,15 +17,22 @@
 #include <unity.h>
 
 #include <string>
+#include <utility>
+#include <vector>
 
-#include "aether/events/events.h"
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/events/events.h"
 
 #include "aether/types/data_buffer.h"
 
 #include "assert_packet.h"
 
 namespace ae::test_method_call {
+
+struct Number {
+  AE_REFLECT_MEMBERS(value)
+  int value;
+};
 
 class ApiLevel1 : public ApiClassImpl<ApiLevel1> {
  public:
@@ -66,7 +73,7 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
 
   // methods invoked then packet received
   void Method3Impl(int a, std::string b) { method_3_event.Emit(a, b); }
-  void Method4Impl(PromiseResult<int> promise, int a) {
+  void Method4Impl(PromiseResult<Number> promise, int a) {
     method_4_event.Emit(promise.request_id, a);
   }
   void Method5Impl(SubContextImpl<ApiLevel1> sub_api, int a) {
@@ -86,7 +93,7 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
 
   // call methods to make packet
   Method<03, void(int a, std::string b)> method_3;
-  Method<04, ApiPromise<int>(int a)> method_4;
+  Method<04, ApiPromise<Number>(int a)> method_4;
   Method<05, SubContext<ApiLevel1>(int a)> method_5;
   Method<06, void(int a, SubApi<ApiLevel1> sub), Method6Proc> method_6;
 
@@ -137,10 +144,10 @@ void test_ReturnResult() {
   auto api_level0 = ApiLevel0{pc};
   auto call_context = ApiContext{api_level0};
 
-  auto& promise = call_context->method_4(42);
+  auto promise = call_context->method_4(42);
   promise.Subscribe([&](auto const& res) {
     if (res.IsOk()) {
-      auto value = res.value();
+      auto value = res.value().value;
       TEST_ASSERT_EQUAL(78, value);
       promise_get_value = true;
     } else {
@@ -158,7 +165,7 @@ void test_ReturnResult() {
       [&](RequestId req_id, int) {
         level0_method4_called = true;
         auto response_context = ApiContext{api_level0};
-        response_context->return_result_api.SendResult(req_id, 78);
+        response_context->return_result_api.SendResult(req_id, Number{78});
         auto data = std::move(response_context).Pack();
         auto parser = ApiParser{pc, data};
         // send/receive
@@ -197,6 +204,212 @@ void test_MethodWithSubApi() {
   TEST_ASSERT_TRUE(level1_method3_called);
 }
 
+void test_ProtocolContextStackAccess() {
+  ProtocolContext pc;
+
+  TEST_ASSERT_NULL(pc.packet_stack());
+  TEST_ASSERT_NULL(pc.parser());
+  TEST_ASSERT_NULL(pc.packer());
+
+  auto packet_stack0 = PacketStack{};
+  auto packet_stack1 = PacketStack{};
+  pc.PushPacketStack(packet_stack0);
+  TEST_ASSERT_EQUAL_PTR(&packet_stack0, pc.packet_stack());
+  pc.PushPacketStack(packet_stack1);
+  TEST_ASSERT_EQUAL_PTR(&packet_stack1, pc.packet_stack());
+  pc.PopPacketStack();
+  TEST_ASSERT_EQUAL_PTR(&packet_stack0, pc.packet_stack());
+  pc.PopPacketStack();
+  TEST_ASSERT_NULL(pc.packet_stack());
+
+  auto data0 = std::vector<std::uint8_t>{};
+  auto data1 = std::vector<std::uint8_t>{};
+  {
+    auto parser0 = ApiParser{pc, data0};
+    TEST_ASSERT_EQUAL_PTR(&parser0, pc.parser());
+    {
+      auto parser1 = ApiParser{pc, data1};
+      TEST_ASSERT_EQUAL_PTR(&parser1, pc.parser());
+    }
+    TEST_ASSERT_EQUAL_PTR(&parser0, pc.parser());
+  }
+  TEST_ASSERT_NULL(pc.parser());
+
+  {
+    auto packer0 = ApiPacker{pc, data0};
+    TEST_ASSERT_EQUAL_PTR(&packer0, pc.packer());
+    {
+      auto packer1 = ApiPacker{pc, data1};
+      TEST_ASSERT_EQUAL_PTR(&packer1, pc.packer());
+    }
+    TEST_ASSERT_EQUAL_PTR(&packer0, pc.packer());
+  }
+  TEST_ASSERT_NULL(pc.packer());
+}
+
+void test_PendingResponseCapacityEvictsOldest() {
+  ProtocolContext pc;
+
+  bool first_promise_evicted = false;
+
+  auto api_level0 = ApiLevel0{pc};
+  auto call_context = ApiContext{api_level0};
+  auto subscriptions = std::vector<Subscription>{};
+  subscriptions.reserve(AE_API_PROTOCOL_MAX_PENDING_RESPONSES + 1);
+
+  for (auto i = 0U; i < AE_API_PROTOCOL_MAX_PENDING_RESPONSES + 1; ++i) {
+    auto promise = call_context->method_4(static_cast<int>(i));
+    auto subscription = promise.Subscribe([&, i](auto const& res) {
+      if (i == 0U) {
+        TEST_ASSERT_FALSE(res.IsOk());
+        TEST_ASSERT_EQUAL(-1, res.error());
+        first_promise_evicted = true;
+      }
+    });
+    subscriptions.emplace_back(std::move(subscription));
+  }
+
+  TEST_ASSERT_TRUE(first_promise_evicted);
+}
+
+void test_PendingResponseDuplicateRequestIdReplacesOld() {
+  ProtocolContext pc;
+
+  auto request_id = RequestId{42};
+  auto first_promise = ApiPromise<short>{pc, request_id};
+  auto first_evicted = false;
+  auto first_subscription = first_promise.Subscribe([&](auto const& res) {
+    TEST_ASSERT_FALSE(res.IsOk());
+    TEST_ASSERT_EQUAL(-1, res.error());
+    first_evicted = true;
+  });
+
+  auto second_promise = ApiPromise<float>{pc, request_id};
+  auto second_subscription = second_promise.Subscribe([](auto const&) {});
+
+  static_cast<void>(first_subscription);
+  static_cast<void>(second_subscription);
+  TEST_ASSERT_TRUE(first_evicted);
+}
+
+void test_PendingResponseFreshSameTypeReplacesOld() {
+  ProtocolContext pc;
+
+  auto request_id = RequestId{42};
+  auto first_promise = ApiPromise<short>{pc, request_id};
+  auto first_evicted = false;
+  auto first_subscription = first_promise.Subscribe([&](auto const& res) {
+    TEST_ASSERT_FALSE(res.IsOk());
+    TEST_ASSERT_EQUAL(-1, res.error());
+    first_evicted = true;
+  });
+
+  auto second_promise = ApiPromise<short>{pc, request_id};
+  auto second_subscription = second_promise.Subscribe([](auto const&) {});
+
+  static_cast<void>(first_subscription);
+  static_cast<void>(second_subscription);
+  TEST_ASSERT_TRUE(first_evicted);
+}
+
+void test_PendingResponseCompletionFreesPoolSlot() {
+  ProtocolContext pc;
+
+  auto second_promise_evicted = false;
+  auto subscriptions = std::vector<Subscription>{};
+  subscriptions.reserve(AE_API_PROTOCOL_MAX_PENDING_RESPONSES + 1);
+
+  for (auto i = 0U; i < AE_API_PROTOCOL_MAX_PENDING_RESPONSES; ++i) {
+    auto promise = ApiPromise<short>{pc, RequestId{i + 1}};
+    auto subscription = promise.Subscribe([&, i](auto const& res) {
+      if (i == 1U) {
+        TEST_ASSERT_FALSE(res.IsOk());
+        TEST_ASSERT_EQUAL(static_cast<std::uint32_t>(-1), res.error());
+        second_promise_evicted = true;
+      }
+    });
+    subscriptions.emplace_back(std::move(subscription));
+  }
+
+  pc.SetSendErrorResponse(RequestId{1}, 0, 7);
+
+  auto extra_promise = ApiPromise<short>{pc, RequestId{1000}};
+  subscriptions.emplace_back(extra_promise.Subscribe([](auto const&) {}));
+
+  TEST_ASSERT_FALSE(second_promise_evicted);
+}
+
+void test_PendingResponseFifoAfterMiddleRemoval() {
+  ProtocolContext pc;
+
+  auto first_evicted = false;
+  auto second_evicted = false;
+  auto subscriptions = std::vector<Subscription>{};
+  subscriptions.reserve(AE_API_PROTOCOL_MAX_PENDING_RESPONSES + 2);
+
+  for (auto i = 0U; i < AE_API_PROTOCOL_MAX_PENDING_RESPONSES; ++i) {
+    auto id = i + 1U;
+    auto promise = ApiPromise<short>{pc, RequestId{id}};
+    auto subscription = promise.Subscribe([&, id](auto const& res) {
+      if (!res.IsOk() && (res.error() == static_cast<std::uint32_t>(-1))) {
+        if (id == 1U) {
+          first_evicted = true;
+        } else if (id == 2U) {
+          second_evicted = true;
+        }
+      }
+    });
+    subscriptions.emplace_back(std::move(subscription));
+  }
+
+  pc.SetSendErrorResponse(RequestId{3}, 0, 7);
+
+  auto fill_promise = ApiPromise<short>{pc, RequestId{1000}};
+  subscriptions.emplace_back(fill_promise.Subscribe([](auto const&) {}));
+  auto overflow_promise = ApiPromise<short>{pc, RequestId{1001}};
+  subscriptions.emplace_back(overflow_promise.Subscribe([](auto const&) {}));
+
+  TEST_ASSERT_TRUE(first_evicted);
+  TEST_ASSERT_FALSE(second_evicted);
+}
+
+void test_PendingResponseDuplicateReplacementPreservesFifo() {
+  ProtocolContext pc;
+
+  auto first_evicted = false;
+  auto second_evicted = false;
+  auto third_evicted = false;
+  auto subscriptions = std::vector<Subscription>{};
+  subscriptions.reserve(AE_API_PROTOCOL_MAX_PENDING_RESPONSES + 2);
+
+  for (auto i = 0U; i < AE_API_PROTOCOL_MAX_PENDING_RESPONSES; ++i) {
+    auto id = i + 1U;
+    auto promise = ApiPromise<short>{pc, RequestId{id}};
+    auto subscription = promise.Subscribe([&, id](auto const& res) {
+      if (!res.IsOk() && (res.error() == static_cast<std::uint32_t>(-1))) {
+        if (id == 1U) {
+          first_evicted = true;
+        } else if (id == 2U) {
+          second_evicted = true;
+        } else if (id == 3U) {
+          third_evicted = true;
+        }
+      }
+    });
+    subscriptions.emplace_back(std::move(subscription));
+  }
+
+  auto replacement_promise = ApiPromise<short>{pc, RequestId{3}};
+  subscriptions.emplace_back(replacement_promise.Subscribe([](auto const&) {}));
+  TEST_ASSERT_TRUE(third_evicted);
+
+  auto overflow_promise = ApiPromise<short>{pc, RequestId{1000}};
+  subscriptions.emplace_back(overflow_promise.Subscribe([](auto const&) {}));
+
+  TEST_ASSERT_TRUE(first_evicted);
+  TEST_ASSERT_FALSE(second_evicted);
+}
+
 }  // namespace ae::test_method_call
 
 int test_method_call() {
@@ -204,5 +417,14 @@ int test_method_call() {
   RUN_TEST(ae::test_method_call::test_ApiMethodInvoke);
   RUN_TEST(ae::test_method_call::test_ReturnResult);
   RUN_TEST(ae::test_method_call::test_MethodWithSubApi);
+  RUN_TEST(ae::test_method_call::test_ProtocolContextStackAccess);
+  RUN_TEST(ae::test_method_call::test_PendingResponseCapacityEvictsOldest);
+  RUN_TEST(
+      ae::test_method_call::test_PendingResponseDuplicateRequestIdReplacesOld);
+  RUN_TEST(ae::test_method_call::test_PendingResponseFreshSameTypeReplacesOld);
+  RUN_TEST(ae::test_method_call::test_PendingResponseCompletionFreesPoolSlot);
+  RUN_TEST(ae::test_method_call::test_PendingResponseFifoAfterMiddleRemoval);
+  RUN_TEST(ae::test_method_call::
+               test_PendingResponseDuplicateReplacementPreservesFifo);
   return UNITY_END();
 }

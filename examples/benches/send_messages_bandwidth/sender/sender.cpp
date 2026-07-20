@@ -46,7 +46,7 @@ void Sender::Disconnect() { message_stream_.reset(); }
 EventSubscriber<void()> Sender::Handshake() {
   auto api = ApiCallAdapter{ApiContext{bandwidth_api_}, *message_stream_};
 
-  auto& res = api->handshake();
+  auto res = api->handshake();
   handshake_sub_ = res.Subscribe([this](auto const& res) {
     AE_TELED_DEBUG("Handshake received");
     if (res && res.value()) {

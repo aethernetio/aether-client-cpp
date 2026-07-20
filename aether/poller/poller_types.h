@@ -90,6 +90,19 @@ static constexpr auto kInvalidDescriptor = -1;
 #endif
 
 template <>
+struct Formatter<DescriptorType> {
+  template <typename TStream>
+  void Format(DescriptorType const& value, FormatContext<TStream>& ctx) const {
+#ifdef _WIN32
+    Formatter<DescriptorType::Socket>{}.Format(
+        static_cast<DescriptorType::Socket>(value), ctx);
+#else
+    Formatter<int>{}.Format(value.descriptor, ctx);
+#endif
+  }
+};
+
+template <>
 struct Formatter<EventType> {
   template <typename TStream>
   void Format(EventType const& value, FormatContext<TStream>& ctx) {

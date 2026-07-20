@@ -80,8 +80,8 @@ CloudServerConnections::servers_update_event() {
   return servers_update_event_;
 }
 
-std::vector<CloudServerConnection*> const& CloudServerConnections::selected_servers()
-    const {
+std::vector<CloudServerConnection*> const&
+CloudServerConnections::selected_servers() const {
   return selected_servers_;
 }
 

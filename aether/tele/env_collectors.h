@@ -26,13 +26,13 @@
 #include <utility>
 
 #include "aether/env.h"
-#include "aether/tele/itrap.h"
-#include "aether/tele/env/compiler.h"
 #include "aether/tele/compile_option.h"
-#include "aether/tele/env/platform_type.h"
-#include "aether/tele/env/library_version.h"
-#include "aether/tele/env/cpu_architecture.h"
 #include "aether/tele/env/compilation_options.h"
+#include "aether/tele/env/compiler.h"
+#include "aether/tele/env/cpu_architecture.h"
+#include "aether/tele/env/library_version.h"
+#include "aether/tele/env/platform_type.h"
+#include "aether/tele/itrap.h"
 
 namespace ae::tele {
 /**

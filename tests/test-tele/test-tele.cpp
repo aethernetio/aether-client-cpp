@@ -16,12 +16,15 @@
 
 #include <unity.h>
 
+#include <cctype>
 #include <chrono>
+#include <iostream>
 #include <list>
 #include <map>
+#include <sstream>
+#include <string>
 #include <thread>
 #include <vector>
-#include <iostream>
 
 #include "aether/config.h"
 
@@ -86,6 +89,23 @@ AE_TAG(Test2, TestObj)
 AE_TAG(Test3, TestObj)
 
 namespace ae::tele::test_tele {
+namespace {
+
+void AssertTimestampShape(std::string const& timestamp) {
+  TEST_ASSERT_EQUAL(15U, timestamp.size());
+  TEST_ASSERT_EQUAL(':', timestamp[2]);
+  TEST_ASSERT_EQUAL(':', timestamp[5]);
+  TEST_ASSERT_EQUAL('.', timestamp[8]);
+  for (auto i = std::size_t{}; i < timestamp.size(); ++i) {
+    if ((i == 2) || (i == 5) || (i == 8)) {
+      continue;
+    }
+    TEST_ASSERT(std::isdigit(static_cast<unsigned char>(timestamp[i])) != 0);
+  }
+}
+
+}  // namespace
+
 void test_Register() {
   TEST_ASSERT_EQUAL(1, One.offset);
   TEST_ASSERT_EQUAL(2, Two.offset);
@@ -126,13 +146,13 @@ struct TeleTrap final : public ITrap {
     log_lines_.front().emplace_back(std::to_string(tag.index()));
   }
   void InvokeTime(TimePoint time) override {
-    log_lines_.front().emplace_back(Format("{:%H:%M:%S}", time));
+    log_lines_.front().emplace_back(Format("{:time}", time));
   }
   void WriteLevel(Level level) override {
-    log_lines_.front().emplace_back(Format("{}", level));
+    log_lines_.front().emplace_back(Level::text(level.value_));
   }
   void WriteModule(Module const& module) override {
-    log_lines_.front().emplace_back(Format("{}", module));
+    log_lines_.front().emplace_back(module.name);
   }
   void Location(std::string_view file, std::uint32_t line) override {
     auto pos = file.find_last_of("/\\");
@@ -220,6 +240,7 @@ void test_TeleConfigurations() {
     auto& log_line = tele_trap->log_lines_.front();
     TEST_ASSERT_EQUAL(7, log_line.size());
     TEST_ASSERT_EQUAL_STRING("12", log_line[0].c_str());
+    AssertTimestampShape(log_line[1]);
     TEST_ASSERT_EQUAL_STRING("kDebug", log_line[2].c_str());
     TEST_ASSERT_EQUAL_STRING("TestObj", log_line[3].c_str());
     TEST_ASSERT_EQUAL_STRING(Format("test-tele.cpp:{}", remember_line).c_str(),
@@ -446,6 +467,44 @@ void test_MergeStatisticsTrap() {
 #undef TELE_SINK
 #define TELE_SINK SinkType
 }
+
+void test_IoStreamTrapFullOutput() {
+  auto stream = std::ostringstream{};
+  auto trap = IoStreamTrap{stream};
+  auto const fixed_time = TimePoint{std::chrono::hours{3} +
+                                    std::chrono::minutes{4} +
+                                    std::chrono::seconds{5} +
+                                    std::chrono::microseconds{123456}};
+  auto const tag = Tag{11, TestObj, "Test"};
+
+  trap.OpenLogLine(tag);
+  trap.InvokeTime(fixed_time);
+  trap.WriteLevel(Level{Level::kDebug});
+  trap.WriteModule(TestObj);
+  trap.Location("src/test-tele.cpp", 42);
+  trap.TagName(tag.name);
+  trap.Blob(reinterpret_cast<std::uint8_t const*>("message 12"), 10);
+  trap.CloseLogLine(tag);
+
+  auto const output = stream.str();
+  TEST_ASSERT_EQUAL_STRING(
+      " 12:[03:04:05.123456]:kDebug:TestObj:test-tele.cpp:42:Test:message "
+      "12\n",
+      output.c_str());
+}
+
+void test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile() {
+  auto stream = std::ostringstream{};
+  auto trap = IoStreamTrap{stream};
+  auto const tag = Tag{11, TestObj, "Test"};
+
+  trap.OpenLogLine(tag);
+  trap.Location("test-tele.cpp", 42);
+  trap.CloseLogLine(tag);
+
+  auto const output = stream.str();
+  TEST_ASSERT_EQUAL_STRING(" 12:UNKNOWN FILE:42\n", output.c_str());
+}
 void test_EnvTele() { AE_TELE_ENV(); }
 }  // namespace ae::tele::test_tele
 
@@ -457,6 +516,8 @@ int main() {
   RUN_TEST(ae::tele::test_tele::test_TeleConfigurations);
   RUN_TEST(ae::tele::test_tele::test_TeleProxyTrap);
   RUN_TEST(ae::tele::test_tele::test_MergeStatisticsTrap);
+  RUN_TEST(ae::tele::test_tele::test_IoStreamTrapFullOutput);
+  RUN_TEST(ae::tele::test_tele::test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile);
   RUN_TEST(ae::tele::test_tele::test_EnvTele);
 
   return UNITY_END();

@@ -17,17 +17,17 @@
 #include "aether/channels/wifi_channel.h"
 #if AE_SUPPORT_WIFIS
 
+#  include <cstdint>
 #  include <limits>
 #  include <utility>
-#  include <cstdint>
 
-#  include "aether/ptr/ptr_view.h"
-#  include "aether/executors/executors.h"
 #  include "aether/events/event_subscription.h"
+#  include "aether/executors/executors.h"
+#  include "aether/ptr/ptr_view.h"
 
 #  include "aether/aether.h"
-#  include "aether/poller/poller.h"
 #  include "aether/dns/dns_resolve.h"
+#  include "aether/poller/poller.h"
 
 #  include "aether/channels/ethernet_transport_factory.h"
 
@@ -205,6 +205,8 @@ TransportBuildSender WifiChannel::TransportBuilder() {
 
   assert(poller && "Poller is not loaded");
   assert(access_point && "Access point is not loaded");
+
+  AE_TELED_DEBUG("Make transport builder for {}", address);
 
   return wifi_channel_internal::MakeTransportBuilder(
       *aether_.Load().as<Aether>(), resolver, poller, access_point, address);

@@ -18,74 +18,67 @@
 #define AETHER_API_PROTOCOL_API_PROMISE_H_
 
 #include <cstdint>
+#include <type_traits>
+#include <utility>
 
+#include "aether-miscpp/meta/ignore_t.h"
 #include "aether-miscpp/types/result.h"
-#include "aether/events/events.h"
+#include "aether/api_protocol/api_pack_parser.h"
+#include "aether/api_protocol/protocol_context.h"
 #include "aether/api_protocol/request_id.h"
+#include "aether/events/events.h"
 
 namespace ae {
-namespace api_promise_action_internal {
-struct Empty {};
-};  // namespace api_promise_action_internal
+namespace api_promise_internal {
+template <typename Value, typename Error>
+class PendingResponseEntry final : public ProtocolContext::PendingResponse {
+ public:
+  using value_type = std::conditional_t<std::is_void_v<Value>, Ignore, Value>;
+  using result_type = Result<value_type, Error>;
 
-template <typename Value, typename Error = std::uint32_t>
+  void OnResult(ApiParser& parser) override {
+    if constexpr (std::is_void_v<Value>) {
+      event.Emit(result_type{Ok{kIgnore}});
+    } else {
+      event.Emit(result_type{Ok{parser.template Extract<Value>()}});
+    }
+  }
+
+  void OnError(std::uint8_t, std::int32_t error_code) override {
+    event.Emit(result_type{Error{static_cast<Error>(error_code)}});
+  }
+
+  void OnEvicted() override {
+    event.Emit(result_type{Error{static_cast<Error>(-1)}});
+  }
+
+  Event<void(result_type&& res)> event;
+};
+}  // namespace api_promise_internal
+
+template <typename Value, typename Error = std::int32_t>
 class ApiPromise {
  public:
-  using value_type = Value;
   using error_type = Error;
+  using value_type = std::conditional_t<std::is_void_v<Value>, Ignore, Value>;
   using result_type = Result<value_type, error_type>;
 
-  constexpr explicit ApiPromise(RequestId req_id) noexcept
-      : request_id_{req_id} {}
-
-  constexpr void SetValue(value_type&& val) noexcept {
-    event_.Emit(result_type{Ok{std::move(val)}});
-  }
-
-  constexpr void SetError(error_type&& err) noexcept {
-    event_.Emit(result_type{Error{std::move(err)}});
-  }
+  ApiPromise(ProtocolContext& protocol_context, RequestId req_id) noexcept
+      : protocol_context_{&protocol_context}, request_id_{req_id} {}
 
   constexpr RequestId request_id() const { return request_id_; }
 
   template <typename Fn>
-  constexpr decltype(auto) Subscribe(Fn&& fn) noexcept {
-    return EventSubscriber{event_}.Subscribe(std::forward<Fn>(fn));
+  constexpr decltype(auto) Subscribe(Fn&& fn) {
+    using Entry = api_promise_internal::PendingResponseEntry<Value, Error>;
+    auto& entry =
+        protocol_context_->template CreatePendingResponse<Entry>(request_id_);
+    return EventSubscriber{entry.event}.Subscribe(std::forward<Fn>(fn));
   }
 
  private:
+  ProtocolContext* protocol_context_;
   RequestId request_id_;
-  Event<void(result_type&& res)> event_;
-};
-
-template <typename Error>
-class ApiPromise<void, Error> {
- public:
-  using value_type = api_promise_action_internal::Empty;
-  using error_type = Error;
-  using result_type = Result<value_type, error_type>;
-
-  constexpr explicit ApiPromise(RequestId req_id) noexcept
-      : request_id_{req_id} {}
-
-  constexpr void SetValue() noexcept {
-    event_.Emit(result_type{api_promise_action_internal::Empty{}});
-  }
-
-  constexpr void SetError(error_type&& err) noexcept {
-    event_.Emit(result_type{Error{std::move(err)}});
-  }
-
-  constexpr RequestId request_id() const { return request_id_; }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr decltype(auto) Subscribe(Fn&& fn) noexcept {
-    return EventSubscriber{event_}.Subscribe(std::forward<Fn>(fn));
-  }
-
- private:
-  RequestId request_id_;
-  Event<void(result_type&& res)> event_;
 };
 
 }  // namespace ae
