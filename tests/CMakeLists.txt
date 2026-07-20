@@ -45,5 +45,6 @@ add_subdirectory(test-ptr)
 add_subdirectory(test-domain-storage)
 add_subdirectory(test-serial-port)
 add_subdirectory(test-tasks)
+add_subdirectory(test-prepared-packet)
 
 add_subdirectory(third_party_tests)
