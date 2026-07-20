@@ -56,7 +56,7 @@ AE_TAG(kGetClientCloudConnectionServerListIsOver, kAeActions)
 AE_TAG(kPing, kAeActions)
 AE_TAG(kPingSend, kAeActions)
 AE_TAG(kPingWriteError, kAeActions)
-AE_TAG(kPingTimeout, kAeActions)
+AE_TAG(kPingResponseError, kAeActions)
 AE_TAG(kPingTimeoutError, kAeActions)
 
 AE_TAG(TelemetryCreated, kAeActions)

@@ -19,15 +19,17 @@
 #include <limits>
 #include <utility>
 
-#include "aether/memory.h"
 #include "aether/events/event_subscription.h"
+#include "aether/memory.h"
 
 #include "aether/aether.h"
-#include "aether/poller/poller.h"
 #include "aether/dns/dns_resolve.h"
 #include "aether/executors/executors.h"
+#include "aether/poller/poller.h"
 
 #include "aether/channels/ethernet_transport_factory.h"
+
+#include "aether/tele/tele.h"
 
 namespace ae {
 namespace ethernet_access_point_internal {
@@ -164,6 +166,8 @@ TransportBuildSender EthernetChannel::TransportBuilder() {
 #endif
   auto poller = poller_.Load();
   assert(poller && "Poller is not loaded");
+
+  AE_TELED_DEBUG("Make transport builder for {}", address);
 
   return ethernet_access_point_internal::MakeTransportBuilder(
       AeContext{*aether_.Load().as<Aether>()}, resolver, poller, address);

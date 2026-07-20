@@ -18,13 +18,13 @@
 #define AETHER_TELE_ENV_COMPILATION_OPTIONS_H_
 
 #include <array>
-#include <cstdlib>
 #include <cstdint>
-#include <utility>
+#include <cstdlib>
 #include <string_view>
+#include <utility>
 
-#include "aether/config.h"
 #include "aether/common.h"
+#include "aether/config.h"
 
 #define _OPTION_VALUE(option, value)                           \
   std::pair {                                                  \
@@ -81,7 +81,11 @@ constexpr inline auto _compile_options_list = std::array{
     _OPTION(AE_TASK_MAX_COUNT),
     _OPTION(AE_TASK_MAX_SIZE),
     _OPTION(AE_TASK_ALIGN),
-    _OPTION(AE_INDEX_REGISTRY_CAPACITY),
+    _OPTION(AE_API_PROTOCOL_MAX_PENDING_RESPONSES),
+    _OPTION(AE_API_PROTOCOL_MAX_PACKET_STACK_DEPTH),
+    _OPTION(AE_API_PROTOCOL_MAX_PARSER_PACKER_DEPTH),
+    _OPTION(AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE),
+    _OPTION(AE_API_PROTOCOL_PENDING_RESPONSE_ALIGN),
     _OPTION(AE_SUPPORT_IPV4),
     _OPTION(AE_SUPPORT_IPV6),
     _OPTION(AE_SUPPORT_UDP),

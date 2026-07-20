@@ -18,6 +18,7 @@
 #define AETHER_CONFIG_H_
 
 // IWYU pragma: begin_exports
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 
@@ -41,8 +42,25 @@
 #  define AE_TASK_ALIGN alignof(std::max_align_t)
 #endif
 
-#ifndef AE_INDEX_REGISTRY_CAPACITY
-#  define AE_INDEX_REGISTRY_CAPACITY 128
+#ifndef AE_API_PROTOCOL_MAX_PENDING_RESPONSES
+#  define AE_API_PROTOCOL_MAX_PENDING_RESPONSES 10
+#endif
+
+#ifndef AE_API_PROTOCOL_MAX_PACKET_STACK_DEPTH
+#  define AE_API_PROTOCOL_MAX_PACKET_STACK_DEPTH 4
+#endif
+
+#ifndef AE_API_PROTOCOL_MAX_PARSER_PACKER_DEPTH
+#  define AE_API_PROTOCOL_MAX_PARSER_PACKER_DEPTH 4
+#endif
+
+// Maximum size in bytes for a single pending response pool element.
+#ifndef AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE
+#  define AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE 2 * sizeof(void*)
+#endif
+
+#ifndef AE_API_PROTOCOL_PENDING_RESPONSE_ALIGN
+#  define AE_API_PROTOCOL_PENDING_RESPONSE_ALIGN alignof(std::max_align_t)
 #endif
 
 #ifndef AE_SUPPORT_IPV4

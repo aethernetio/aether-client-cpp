@@ -93,6 +93,22 @@
  To run tests, go into `<build-dir>` and run `ctest . --progress -j -E "((sodium)|(hydro)|(bcrypt)).*" --output-on-failure`.
  Or run specific test by name from `<build-dir>/tests/run/<test-name>`.
 
+## Dependencies
+
+- Dependencies are managed by CMake through `cmake/CPM.cmake` and `CPMAddPackage` calls in the root `CMakeLists.txt`.
+- Do not add conan, vcpkg, git submodules, or vendored dependency copies unless explicitly requested.
+- The root dependency list is the source of truth. Test-only dependencies live in `tests/CMakeLists.txt`; tool-only dependencies may live in the tool's own `CMakeLists.txt`.
+- CPM downloads dependencies during CMake configure. If `CPM_SOURCE_CACHE` is not set, the project uses `${CMAKE_CURRENT_BINARY_DIR}/cpm.cache`.
+- Prefer setting the `CPM_SOURCE_CACHE` environment variable for repeated local builds to avoid re-downloading dependencies.
+- To use locally checked-out dependencies, pass `-DCPM_<dependency name>_SOURCE=/absolute/path`.
+- `CPM_USE_LOCAL_PACKAGES` may be used to let CPM try `find_package` before downloading from source.
+- Several dependencies require local patches from `third_party/*.patch`. Keep patch files in sync when changing dependency versions or repositories.
+- Root dependencies should use `EXCLUDE_FROM_ALL FALSE` so they can be installed together with `aether`.
+- Install options are propagated through dependency-specific CMake options such as `ENABLE_INSTALL`, `AE_INSTALL`, `AE_NUMERIC_INSTALL`, and `STDEXEC_INSTALL`.
+- Do not casually update dependency tags pinned to branches such as `master` or `main`; check patches, build behavior, and compatibility first. In particular, `libhydrogen` is pinned to `bbca575` because newer versions are noted as incompatible with the Aether server.
+- Desktop builds additionally fetch and link `c-ares`.
+- ESP-IDF builds do not fetch ESP components through CPM; required IDF targets must already exist: `idf::esp_wifi`, `idf::esp_netif`, `idf::nvs_flash`, `idf::spiffs`, and `idf::esp_driver_uart`.
+
 ### Smoke test
 
  The first smoke test is a `<build-dir>/aether-client-cpp-cloud`.

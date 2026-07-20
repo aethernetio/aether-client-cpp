@@ -17,7 +17,8 @@
 #include "aether/api_protocol/protocol_context.h"
 
 #include <cassert>
-#include <cstdio>
+#include <cstddef>
+#include <cstdint>
 
 #include "aether/api_protocol/api_protocol.h"
 
@@ -25,81 +26,159 @@
 
 namespace ae {
 ProtocolContext::ProtocolContext() = default;
-ProtocolContext::~ProtocolContext() = default;
-
-void ProtocolContext::AddSendResultCallback(RequestId request_id,
-                                            SendResultCb callback) {
-  send_result_events_.emplace(request_id, std::move(callback));
-}
-
-void ProtocolContext::AddSendErrorCallback(RequestId request_id,
-                                           SendErrorCb callback) {
-  send_error_events_.emplace(request_id, std::move(callback));
+ProtocolContext::~ProtocolContext() {
+  while (!pending_responses_.empty()) {
+    auto entry = TakeOldestPending();
+    DestroyPending(entry);
+  }
 }
 
 void ProtocolContext::SetSendResultResponse(RequestId request_id) {
-  auto it = send_result_events_.find(request_id);
-  if (it != send_result_events_.end()) {
-    it->second();
-    send_result_events_.erase(it);
-  } else {
+  auto entry = TakePending(request_id);
+  if (entry.response == nullptr) {
     AE_TELED_DEBUG("No callback for request id {} cancel parse", request_id);
     parser()->Cancel();
   }
 
-  send_error_events_.erase(request_id);
+  auto* p = parser();
+  assert(p != nullptr && "Parser shouldn't be null");
+  entry.response->OnResult(*p);
+  DestroyPending(entry);
 }
 
 void ProtocolContext::SetSendErrorResponse(RequestId req_id,
                                            std::uint8_t error_type,
                                            std::uint32_t error_code) {
-  auto it = send_error_events_.find(req_id);
-  if (it != std::end(send_error_events_)) {
-    it->second(error_type, error_code);
-    send_error_events_.erase(it);
-  } else {
+  auto entry = TakePending(req_id);
+  if (entry.response == nullptr) {
     AE_TELED_DEBUG("No callback for error with request id {}", req_id);
-    fprintf(stderr, "SendError: id %zu, type: %d, error_code %zu\n",
-            static_cast<std::size_t>(req_id.id), static_cast<int>(error_type),
-            static_cast<std::size_t>(error_code));
     parser()->Cancel();
   }
-  send_result_events_.erase(req_id);
+
+  entry.response->OnError(error_type, static_cast<std::int32_t>(error_code));
+  DestroyPending(entry);
 }
 
-void ProtocolContext::PushPacketStack(class PacketStack& packet_stack) {
+void ProtocolContext::EvictPending(PendingEntry const& entry) {
+  assert(entry.response != nullptr &&
+         "EvictPending requires a pending response entry");
+  entry.response->OnEvicted();
+  DestroyPending(entry);
+}
+
+void ProtocolContext::DestroyPending(PendingEntry const& entry) {
+  assert(entry.response != nullptr &&
+         "DestroyPending requires a pending response entry");
+  pending_response_pool_.destroy(entry.response);
+}
+
+void ProtocolContext::PreparePendingResponseSlot(RequestId request_id) {
+  // ensure there is one pending response for request_id
+  auto existing_entry = TakePending(request_id);
+  if (existing_entry.response != nullptr) {
+    EvictPending(existing_entry);
+    return;
+  }
+
+  // ensure there is enough in pool for new pending response
+  // oldest pending should be evicted
+  if (pending_responses_.full()) {
+    auto oldest_entry = TakeOldestPending();
+    EvictPending(oldest_entry);
+  }
+
+  assert(!pending_responses_.full() &&
+         "Pending response registry must have a free slot");
+  assert(pending_response_pool_.available() != 0U &&
+         "Pending response pool must have a free slot");
+}
+
+ProtocolContext::PendingEntry ProtocolContext::TakePending(
+    RequestId request_id) {
+  auto* it =
+      std::find_if(std::begin(pending_responses_), std::end(pending_responses_),
+                   [request_id](auto const& pe) noexcept {
+                     return pe.request_id == request_id;
+                   });
+  if (it == std::end(pending_responses_)) {
+    return PendingEntry{RequestId{}, nullptr};
+  }
+
+  auto found = *it;
+  pending_responses_.erase(it);
+  return found;
+}
+
+ProtocolContext::PendingEntry ProtocolContext::TakeOldestPending() {
+  assert(!pending_responses_.empty() &&
+         "TakeOldestPending requires a pending response");
+
+  // oldest is the first
+  auto* it = pending_responses_.begin();
+  auto found = *it;
+  pending_responses_.erase(it);
+
+  return found;
+}
+
+void ProtocolContext::PushPacketStack(PacketStack& packet_stack) {
+  assert(!packet_stacks_.full() &&
+         "AE_API_PROTOCOL_MAX_PACKET_STACK_DEPTH exceeded");
   packet_stacks_.push(&packet_stack);
 }
 
-void ProtocolContext::PopPacketStack() { packet_stacks_.pop(); }
+void ProtocolContext::PopPacketStack() {
+  assert(!packet_stacks_.empty() && "Packet stack context is empty");
+  packet_stacks_.pop();
+}
 
-class PacketStack* ProtocolContext::packet_stack() {
+PacketStack* ProtocolContext::packet_stack() {
   if (packet_stacks_.empty()) {
     return nullptr;
   }
-  return packet_stacks_.top();
+  auto* packet_stack = packet_stacks_.top();
+  assert(packet_stack != nullptr && "Packet stack context contains nullptr");
+  return packet_stack;
 }
 
-void ProtocolContext::PushParser(ApiParser& parser) { parsers_.push(&parser); }
+void ProtocolContext::PushParser(ApiParser& parser) {
+  assert(!parsers_.full() &&
+         "AE_API_PROTOCOL_MAX_PARSER_PACKER_DEPTH exceeded for parser");
+  parsers_.push(&parser);
+}
 
-void ProtocolContext::PopParser() { parsers_.pop(); }
+void ProtocolContext::PopParser() {
+  assert(!parsers_.empty() && "Parser context is empty");
+  parsers_.pop();
+}
 
 ApiParser* ProtocolContext::parser() {
   if (parsers_.empty()) {
     return nullptr;
   }
-  return parsers_.top();
+  auto* parser = parsers_.top();
+  assert(parser != nullptr && "Parser context contains nullptr");
+  return parser;
 }
 
-void ProtocolContext::PushPacker(ApiPacker& packer) { packers_.push(&packer); }
+void ProtocolContext::PushPacker(ApiPacker& packer) {
+  assert(!packers_.full() &&
+         "AE_API_PROTOCOL_MAX_PARSER_PACKER_DEPTH exceeded for packer");
+  packers_.push(&packer);
+}
 
-void ProtocolContext::PopPacker() { packers_.pop(); }
+void ProtocolContext::PopPacker() {
+  assert(!packers_.empty() && "Packer context is empty");
+  packers_.pop();
+}
 
 ApiPacker* ProtocolContext::packer() {
   if (packers_.empty()) {
     return nullptr;
   }
-  return packers_.top();
+  auto* packer = packers_.top();
+  assert(packer != nullptr && "Packer context contains nullptr");
+  return packer;
 }
 
 }  // namespace ae

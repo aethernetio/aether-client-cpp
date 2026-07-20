@@ -50,9 +50,9 @@ class Ping {
 
  private:
   void PingResponse(RequestId request_id);
+  void PingResponseError(RequestId request_id, std::int32_t error_code);
   void PingResponseTimeout(RequestId request_id);
   void ResetRequestSubscriptions();
-  bool HasActiveRequest() const noexcept;
 
   AeContext ae_context_;
   CloudServerConnection* cloud_server_connection_;
@@ -61,8 +61,7 @@ class Ping {
   Duration timeout_;
   ServerId server_id_;
 
-  TimePoint request_start_{};
-  RequestId request_id_{};
+  TimePoint request_start_;
   Subscription wait_result_sub_;
   TaskSubscription timeout_sub_;
   Subscription write_sub_;
