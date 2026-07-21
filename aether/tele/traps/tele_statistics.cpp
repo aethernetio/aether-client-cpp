@@ -22,8 +22,6 @@ TeleStatistics::TeleStatistics(ObjProp prop) : Obj{prop} {}
 #endif
 
 #if AE_TELE_ENABLED
-std::shared_ptr<statistics::StatisticsTrap> const& TeleStatistics::trap() {
-  return trap_;
-}
+auto TeleStatistics::trap() -> std::shared_ptr<Trap> const& { return trap_; }
 #endif
 }  // namespace ae::tele

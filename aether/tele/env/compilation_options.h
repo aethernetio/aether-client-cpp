@@ -35,47 +35,47 @@
   std::pair { std::string_view{#option}, std::string_view{VA_STR(option)}, }
 
 namespace ae {
-template <std::size_t N>
-constexpr auto str_to_ui64(char const (&str)[N]) {
-  std::uint64_t result = 0;
-  std::uint64_t base = 10;
-  std::size_t i = 0;
+// template <std::size_t N>
+// constexpr auto str_to_ui64(char const (&str)[N]) {
+//   std::uint64_t result = 0;
+//   std::uint64_t base = 10;
+//   std::size_t i = 0;
 
-  if constexpr (N > 2) {
-    if (N > 3 && str[0] == '0' && str[1] == 'x') {
-      base = 16;
-      i = 2;
-    } else if (str[0] == '0') {
-      base = 8;
-      i = 1;
-    } else if (str[0] == 'b') {
-      base = 2;
-      i = 1;
-    }
-  }
+//   if constexpr (N > 2) {
+//     if (N > 3 && str[0] == '0' && str[1] == 'x') {
+//       base = 16;
+//       i = 2;
+//     } else if (str[0] == '0') {
+//       base = 8;
+//       i = 1;
+//     } else if (str[0] == 'b') {
+//       base = 2;
+//       i = 1;
+//     }
+//   }
 
-  for (; i < N; ++i) {
-    if ((str[i] >= '0') && (str[i] <= '9')) {
-      result = result * base + static_cast<uint64_t>(str[i] - '0');
-    }
-    if ((base > 10) && (str[i] >= 'a') && (str[i] <= 'f')) {
-      result = result * base + static_cast<uint64_t>(str[i] - 'a' + 10);
-    }
-    if ((base > 10) && (str[i] >= 'A') && (str[i] <= 'F')) {
-      result = result * base + static_cast<uint64_t>(str[i] - 'A' + 10);
-    }
-  }
-  return result;
-}
+//   for (; i < N; ++i) {
+//     if ((str[i] >= '0') && (str[i] <= '9')) {
+//       result = result * base + static_cast<uint64_t>(str[i] - '0');
+//     }
+//     if ((base > 10) && (str[i] >= 'a') && (str[i] <= 'f')) {
+//       result = result * base + static_cast<uint64_t>(str[i] - 'a' + 10);
+//     }
+//     if ((base > 10) && (str[i] >= 'A') && (str[i] <= 'F')) {
+//       result = result * base + static_cast<uint64_t>(str[i] - 'A' + 10);
+//     }
+//   }
+//   return result;
+// }
 
-// some tests
-static_assert(str_to_ui64("0") == 0);
-static_assert(str_to_ui64("1") == 1);
-static_assert(str_to_ui64("112") == 112);
-static_assert(str_to_ui64("0xffff") == 65535);
-static_assert(str_to_ui64("0xAaCb") == 0xaacb);
-static_assert(str_to_ui64("042") == 34);
-static_assert(str_to_ui64("b110") == 6);
+// // some tests
+// static_assert(str_to_ui64("0") == 0);
+// static_assert(str_to_ui64("1") == 1);
+// static_assert(str_to_ui64("112") == 112);
+// static_assert(str_to_ui64("0xffff") == 65535);
+// static_assert(str_to_ui64("0xAaCb") == 0xaacb);
+// static_assert(str_to_ui64("042") == 34);
+// static_assert(str_to_ui64("b110") == 6);
 
 constexpr inline auto _compile_options_list = std::array{
     _OPTION(AE_TASK_MAX_COUNT),

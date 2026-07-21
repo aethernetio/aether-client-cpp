@@ -17,97 +17,35 @@
 #ifndef AETHER_TELE_TRAPS_STATISTICS_TRAP_H_
 #define AETHER_TELE_TRAPS_STATISTICS_TRAP_H_
 
-#include <list>
+#include <algorithm>
+#include <array>
+#include <cassert>
+#include <cstddef>
+#include <cstring>
 #include <map>
 #include <mutex>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
-#include <numeric/tiered_int.h>
-
 #include "aether-miscpp/reflect/reflect.h"
-#include "aether/clock.h"
-#include "aether/config.h"
-#include "aether/mstream.h"
-#include "aether/mstream_buffers.h"
-#include "aether/ptr/rc_ptr.h"
+#include "numeric/tiered_int.h"
+
 #include "aether/tele/itrap.h"
 
 namespace ae::tele {
 namespace statistics {
 /**
- * \brief Storage for old saved logs
- */
-struct SavedLog {
-  AE_REFLECT_MEMBERS(data)
-
-  std::vector<std::uint8_t> data;
-};
-
-/**
- * \brief Stores serialized lines of logs in bunch of buffers
- */
-struct RuntimeLog {
-  using log_entry = std::vector<std::uint8_t>;
-  using list_type = std::list<log_entry>;
-  using size_type = list_type::size_type;
-
-  RuntimeLog() = default;
-  explicit RuntimeLog(SavedLog&& saved);
-  void Append(RuntimeLog&& newer);
-
-  std::size_t size{};
-  list_type logs;
-};
-
-// Convert RuntimeLog to SavedLog and write
-template <typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& stream, RuntimeLog const& log) {
-  auto saved = SavedLog{};
-  saved.data.reserve(log.size);
-  for (auto const& e : log.logs) {
-    saved.data.insert(saved.data.end(), e.begin(), e.end());
-  }
-  stream << saved;
-  return stream;
-}
-
-/**
- * \brief Storage for logs
- */
-using LogStorage = std::variant<SavedLog, RuntimeLog>;
-
-/**
- * \brief Save and load LogStorage.
- * It always saved as SavedLog.
- */
-template <typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& stream, LogStorage const& log) {
-  // all variants saved as SavedLog
-  std::visit([&](auto const& v) { stream << v; }, log);
-  return stream;
-}
-template <typename Ib>
-imstream<Ib>& operator>>(imstream<Ib>& stream, LogStorage& log) {
-  // all variants saved as SavedLog
-  log = SavedLog{};
-  stream >> std::get<SavedLog>(log);
-  return stream;
-}
-
-/**
  * \brief Map of telemetry metrics.
  */
 struct MetricsStore {
   using PackedIndex = TieredInt<std::uint64_t, std::uint8_t, 250>;
-  using PackedValue = TieredInt<std::uint64_t, std::uint8_t, 250>;
+  using PackedCount = TieredInt<std::uint64_t, std::uint8_t, 250>;
   struct Metric {
-    PackedValue invocations_count;
-    PackedValue max_duration;
-    PackedValue sum_duration;
-    PackedValue min_duration;
+    PackedCount invocations_count;
+    std::uint32_t max_duration;
+    std::uint32_t sum_duration;
+    std::uint32_t min_duration;
 
     AE_REFLECT_MEMBERS(invocations_count, max_duration, sum_duration,
                        min_duration)
@@ -141,56 +79,80 @@ struct EnvStore {
                      api_version, cpu_arch, endianness, utm_id, compile_options)
 };
 
-/**
- * \brief Storage for telemetry statistics with rotation
- */
-class StatisticsStore {
-  static constexpr std::size_t kMaxSize = AE_STATISTICS_MAX_SIZE / 2;
+class ILogStorage {
+ protected:
+  ~ILogStorage() = default;
 
  public:
-  StatisticsStore();
-  ~StatisticsStore();
-
-  EnvStore& env_store();
-  MetricsStore& metrics_store();
-  RcPtr<LogStorage> log_store();
-
-  /**
-   * \brief Merge storage into this
-   * \param[in] newer - another storage with newer data
-   */
-  void Merge(StatisticsStore const& newer);
-
-  void SetSizeLimit(std::size_t limit);
-
-  AE_REFLECT_MEMBERS(statistics_size_limit_, env_store_, metrics_store_,
-                     prev_logs_, logs_)
-
- private:
-  bool IsCurrentFull() const;
-  void Rotate();
-
-  std::uint32_t statistics_size_limit_{kMaxSize};
-  EnvStore env_store_{};
-  MetricsStore metrics_store_{};
-  RcPtr<LogStorage> prev_logs_;
-  RcPtr<LogStorage> logs_;
+  virtual void Write(std::uint8_t const* data, std::size_t size) = 0;
 };
 
-/**
- * \brief Access to statistics storage through telemetry trap
- */
-class StatisticsTrap final : public ITrap {
- public:
-  using PackedSize = TieredInt<std::uint64_t, std::uint8_t, 250>;
-  using PackedIndex = TieredInt<std::uint64_t, std::uint8_t, 250>;
-  using PackedLine = TieredInt<std::uint64_t, std::uint8_t, 250>;
+// LogStorage with circular buffer and fixed capacity
+template <std::size_t LogCapacity>
+struct LogStorage final : public ILogStorage {
+  void Write(std::uint8_t const* data, std::size_t count) override {
+    count = std::min(count, LogCapacity - 1);
 
+    if (count > LogCapacity - 1 - size()) {
+      auto overwrite = count - (LogCapacity - 1 - size());
+      start = (start + overwrite) % LogCapacity;
+    }
+
+    while (count > 0) {
+      auto n = (LogCapacity - pos) > count ? count : LogCapacity - pos;
+      std::memcpy(buffer.data() + pos, data, n);
+      pos = (pos + n) % LogCapacity;
+      data += n;
+      count -= n;
+    }
+  }
+
+  std::size_t size() const {
+    if (pos >= start) {
+      return pos - start;
+    }
+    return LogCapacity - start + pos;
+  }
+
+  // read from stream
+  template <typename TStream>
+  friend TStream& operator>>(TStream& in, LogStorage& v) {
+    std::uint32_t size;  // NOLINT(*init-variables)
+    in >> size;
+    assert(size < LogCapacity && "Saved buffer bigger than capacity");
+    v.start = 0;
+    v.pos = static_cast<std::size_t>(size);
+    in.read(v.buffer.data(), static_cast<std::size_t>(size));
+
+    return in;
+  }
+
+  // write to stream
+  template <typename TStream>
+  friend TStream& operator<<(TStream& out, LogStorage const& v) {
+    auto size = v.size();
+    out << static_cast<std::uint32_t>(size);
+    auto s = v.start;
+    while (size > 0) {
+      auto to_write = (LogCapacity - s) > size ? size : LogCapacity - s;
+      out.write(v.buffer.data() + s, to_write);
+      s = (s + to_write) % LogCapacity;
+      size = size - to_write;
+    }
+
+    return out;
+  }
+
+  std::size_t start{};
+  std::size_t pos{};
+  std::array<std::uint8_t, LogCapacity> buffer;
+};
+
+class StatisticsTrapBasic : public ITrap {
+ public:
   class LogLineWriter final : public ILogLine {
    public:
-    LogLineWriter(Tag const& tag, RcPtr<LogStorage> log,
-                  std::vector<std::uint8_t>& d);
-    ~LogLineWriter();
+    LogLineWriter(Tag const& tag, ILogStorage& log_storage);
 
     void InvokeTime(TimePoint time) override;
     void WriteLevel(Level level) override;
@@ -200,30 +162,67 @@ class StatisticsTrap final : public ITrap {
     void Blob(std::span<std::uint8_t const> blob) override;
 
    private:
-    RcPtr<LogStorage> log_storage;
-    VectorWriter<PackedSize> vector_writer;
-    omstream<VectorWriter<PackedSize>> log_writer;
+    ILogStorage& log_storage_;
   };
 
-  StatisticsTrap();
-  ~StatisticsTrap() override;
+  StatisticsTrapBasic();
+  ~StatisticsTrapBasic() override;
 
   void AddInvoke(Tag const& tag, std::uint32_t count) override;
   void AddInvokeDuration(Tag const& tag, Duration duration) override;
-  void LogLine(Tag const& tag, ILogCollector& log_collector) override;
+  // LogLine implemented not here
+
   void WriteEnvData(EnvData const& env_data) override;
+
+  void MergeStatistics(StatisticsTrapBasic const& newer);
+
+  EnvStore const& env_store() const;
+  MetricsStore const& metrics_store() const;
+
+  AE_REFLECT_MEMBERS(metrics_store_, env_store_)
+
+ protected:
+  std::mutex sync_lock_;
+  MetricsStore metrics_store_{};
+  EnvStore env_store_{};
+};
+
+/**
+ * \brief Access to statistics storage through telemetry trap
+ */
+template <std::size_t LogCapacity>
+class StatisticsTrap final : public StatisticsTrapBasic {
+ public:
+  StatisticsTrap() = default;
+
+  void LogLine(Tag const& tag, ILogCollector& log_collector) override {
+    auto lock = std::scoped_lock{sync_lock_};
+    auto log_writer = StatisticsTrapBasic ::LogLineWriter{tag, log_storage_};
+    log_collector.WriteLine(log_writer);
+  }
 
   /**
    * \brief Merge newer statistics storage into this
    */
-  void MergeStatistics(StatisticsTrap const& newer);
+  void MergeStatistics(StatisticsTrap const& newer) {
+    StatisticsTrapBasic::MergeStatistics(newer);
+    // write newer logs on top of current
+    auto size = newer.log_storage_.size();
+    auto s = newer.log_storage_.start;
+    while (size > 0) {
+      auto to_write = (LogCapacity - s) > size ? size : LogCapacity - s;
+      log_storage_.Write(newer.log_storage_.buffer.data() + s, to_write);
+      s = (s + to_write) % LogCapacity;
+      size = size - to_write;
+    }
+  }
 
-  AE_REFLECT_MEMBERS(statistics_store)
+  LogStorage<LogCapacity> const& log_storage() const { return log_storage_; }
 
-  StatisticsStore statistics_store;
+  AE_REFLECT(AE_REF_BASE(StatisticsTrapBasic), AE_MMBRS(log_storage_))
 
  private:
-  std::mutex sync_lock_;
+  LogStorage<LogCapacity> log_storage_;
 };
 }  // namespace statistics
 }  // namespace ae::tele

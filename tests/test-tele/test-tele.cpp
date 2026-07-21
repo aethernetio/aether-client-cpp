@@ -26,6 +26,8 @@
 #include <thread>
 #include <vector>
 
+#include "aether-miscpp/meta/arg_at.h"
+
 #include "aether/config.h"
 
 // force to enable telemetry for this test
@@ -386,7 +388,8 @@ void test_MergeStatisticsTrap() {
                                                   false, false, false, false>>;
 #undef TELE_SINK
 #define TELE_SINK Sink
-  auto statistics_trap1 = std::make_shared<statistics::StatisticsTrap>();
+  using Trap = statistics::StatisticsTrap<1024>;
+  auto statistics_trap1 = std::make_shared<Trap>();
 
   Sink::Instance().SetTrap(statistics_trap1);
   {
@@ -398,26 +401,19 @@ void test_MergeStatisticsTrap() {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  auto logs1 = std::get<statistics::RuntimeLog>(
-                   *statistics_trap1->statistics_store.log_store())
-                   .logs;
+  auto const& logs1 = statistics_trap1->log_storage();
 
-  auto statistics_trap2 = std::make_shared<statistics::StatisticsTrap>();
+  auto statistics_trap2 = std::make_shared<Trap>();
   statistics_trap2->MergeStatistics(*statistics_trap1);
 
-  auto& logs2 = std::get<statistics::RuntimeLog>(
-                    *statistics_trap2->statistics_store.log_store())
-                    .logs;
+  auto const& logs2 = statistics_trap2->log_storage();
 
   TEST_ASSERT_EQUAL(logs1.size(), logs2.size());
-  auto it1 = std::begin(logs1);
-  auto it2 = std::begin(logs2);
-  for (; it1 != std::end(logs1); ++it1, ++it2) {
-    TEST_ASSERT_EQUAL_CHAR_ARRAY(it1->data(), it2->data(), it1->size());
-  }
+  TEST_ASSERT_EQUAL_CHAR_ARRAY(logs1.buffer.data(), logs2.buffer.data(),
+                               logs2.buffer.size());
 
-  auto& metrics1 = statistics_trap1->statistics_store.metrics_store().metrics;
-  auto& metrics2 = statistics_trap2->statistics_store.metrics_store().metrics;
+  auto const& metrics1 = statistics_trap1->metrics_store().metrics;
+  auto const& metrics2 = statistics_trap2->metrics_store().metrics;
 
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
   auto mit1 = std::begin(metrics1);
@@ -453,6 +449,80 @@ void test_MergeStatisticsTrap() {
 
 #undef TELE_SINK
 #define TELE_SINK SinkType
+}
+
+void test_StatisticsRotation() {
+  using Trap = ae::tele::statistics::StatisticsTrap<1024>;
+
+  auto ts = std::make_shared<Trap>();
+  SinkType::Instance().SetTrap(ts);
+  // check if ts is empty
+  TEST_ASSERT_EQUAL(0, ts->log_storage().size());
+  // add some logs
+  {
+    AE_TELE_DEBUG(Test1, "12");
+  }
+  // something was added
+  TEST_ASSERT_GREATER_THAN(0, ts->log_storage().size());
+
+  // write too many
+  std::array<std::uint8_t, 800> garbage{};
+  {
+    AE_TELE_DEBUG(Test1, "13 {}", garbage);
+  }
+  TEST_ASSERT_EQUAL(1023, ts->log_storage().size());
+}
+
+void test_SaveLoadTeleStatistics() {
+  using Trap = ae::tele::statistics::StatisticsTrap<1024>;
+
+  auto ts_0 = std::make_shared<Trap>();
+  auto ts_1 = std::make_shared<Trap>();
+
+  // first set ts_0 and write some logs
+  SinkType::Instance().SetTrap(ts_0);
+  {
+    AE_TELE_DEBUG(Test1, "12");
+  }
+  auto size_before = ts_0->log_storage().size();
+
+  // merge 1 and 0
+  ts_1->MergeStatistics(*ts_0);
+  auto size_after_merge = ts_1->log_storage().size();
+  TEST_ASSERT_EQUAL(size_before, size_after_merge);
+
+  auto const& metrics1 = ts_0->metrics_store().metrics;
+  auto const& metrics2 = ts_1->metrics_store().metrics;
+  TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
+
+  auto log_index = ae::tele::statistics::MetricsStore::PackedIndex{
+      TestObj.index_start + Test1.offset};
+  // simple check with _AE_MODULE_CONFIG leads here to AST broken error for
+  // cppcheck
+  constexpr bool time_metrics_enabled =
+      TELE_SINK::ConfigProviderType::StaticTeleConfig<Level::kDebug,
+                                                      MLog.id>::kTimeMetrics;
+  if constexpr (time_metrics_enabled) {
+    TEST_ASSERT_EQUAL(metrics1.at(log_index).sum_duration,
+                      metrics2.at(log_index).sum_duration);
+  }
+
+  constexpr bool count_metrics_enabled =
+      TELE_SINK::ConfigProviderType::StaticTeleConfig<Level::kDebug,
+                                                      MLog.id>::kCountMetrics;
+
+  if constexpr (count_metrics_enabled) {
+    TEST_ASSERT_EQUAL(metrics1.at(log_index).invocations_count,
+                      metrics2.at(log_index).invocations_count);
+  }
+
+  SinkType::Instance().SetTrap(ts_1);
+  {
+    AE_TELE_DEBUG(Test1, "13");
+  }
+
+  // check if new log added
+  TEST_ASSERT_GREATER_THAN(size_before, ts_1->log_storage().size());
 }
 
 template <typename WriteFn>
@@ -503,6 +573,7 @@ void test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile() {
   TEST_ASSERT_EQUAL_STRING("  12:UNKNOWN FILE:42\n", output.c_str());
 }
 void test_EnvTele() { AE_TELE_ENV(); }
+
 }  // namespace ae::tele::test_tele
 
 int main() {
@@ -513,9 +584,13 @@ int main() {
   RUN_TEST(ae::tele::test_tele::test_TeleConfigurations);
   RUN_TEST(ae::tele::test_tele::test_TeleProxyTrap);
   RUN_TEST(ae::tele::test_tele::test_MergeStatisticsTrap);
+  RUN_TEST(ae::tele::test_tele::test_StatisticsRotation);
+  RUN_TEST(ae::tele::test_tele::test_SaveLoadTeleStatistics);
   RUN_TEST(ae::tele::test_tele::test_IoStreamTrapFullOutput);
   RUN_TEST(ae::tele::test_tele::
                test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile);
+  RUN_TEST(ae::tele::test_tele::test_EnvTele);
+  RUN_TEST(ae::tele::test_tele::test_EnvTele);
   RUN_TEST(ae::tele::test_tele::test_EnvTele);
 
   return UNITY_END();

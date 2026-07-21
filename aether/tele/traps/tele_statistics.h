@@ -17,9 +17,10 @@
 #ifndef AETHER_TELE_TRAPS_TELE_STATISTICS_H_
 #define AETHER_TELE_TRAPS_TELE_STATISTICS_H_
 
+#include "aether-miscpp/reflect/reflect.h"
+#include "aether/config.h"
 #include "aether/obj/obj.h"
 #include "aether/ptr/rc_ptr.h"
-#include "aether-miscpp/reflect/reflect.h"
 
 #include "aether/tele/tele.h"
 #include "aether/tele/traps/statistics_trap.h"
@@ -31,6 +32,8 @@ class TeleStatistics : public Obj {
   TeleStatistics() = default;
 
  public:
+  using Trap = statistics::StatisticsTrap<AE_STATISTICS_MAX_SIZE>;
+
 #ifdef AE_DISTILLATION
   explicit TeleStatistics(ObjProp prop);
 #endif  // AE_DISTILLATION
@@ -51,11 +54,10 @@ class TeleStatistics : public Obj {
 #endif
 
 #if AE_TELE_ENABLED
-  std::shared_ptr<statistics::StatisticsTrap> const& trap();
+  std::shared_ptr<Trap> const& trap();
 
  private:
-  std::shared_ptr<statistics::StatisticsTrap> trap_ =
-      std::make_shared<statistics::StatisticsTrap>();
+  std::shared_ptr<Trap> trap_ = std::make_shared<Trap>();
 #endif
 };
 }  // namespace ae::tele

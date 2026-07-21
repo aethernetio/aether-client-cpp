@@ -29,15 +29,14 @@ static void TeleSinkInit() {
 #  if AE_TELE_LOG_CONSOLE
   // create statistics and console traps and combine them into one by proxy trap
   auto console_trap = std::make_shared<IoStreamTrap>(std::cout);
-  auto statistics_trap = std::make_shared<statistics::StatisticsTrap>();
+  auto statistics_trap = std::make_shared<TeleStatistics::Trap>();
 
   SelectedSink::Instance().SetTrap(
-      std::make_shared<ProxyTrap<IoStreamTrap, statistics::StatisticsTrap>>(
+      std::make_shared<ProxyTrap<IoStreamTrap, TeleStatistics::Trap>>(
           std::move(console_trap), std::move(statistics_trap)));
 #  else
   // use just statistics trap
-  SelectedSink::Instance().SetTrap(
-      std::make_shared<statistics::StatisticsTrap>());
+  SelectedSink::Instance().SetTrap(std::make_shared<TeleStatistics::Trap>());
 #  endif
 #endif
 }
@@ -48,16 +47,16 @@ static void TeleSinkReInit(
 #if AE_TELE_ENABLED
 #  if AE_TELE_LOG_CONSOLE
   // statistics trap + print logs to iostream
-  auto proxy_trap = std::static_pointer_cast<
-      ProxyTrap<IoStreamTrap, statistics::StatisticsTrap>>(
-      SelectedSink::Instance().trap());
+  auto proxy_trap =
+      std::static_pointer_cast<ProxyTrap<IoStreamTrap, TeleStatistics::Trap>>(
+          SelectedSink::Instance().trap());
   auto new_tele_trap = tele_statistics->trap();
   new_tele_trap->MergeStatistics(*proxy_trap->second);
   proxy_trap->second = new_tele_trap;
   SelectedSink::Instance().SetTrap(std::move(proxy_trap));
 #  else
   // just statistics trap
-  auto old_trap = std::static_pointer_cast<statistics::StatisticsTrap>(
+  auto old_trap = std::static_pointer_cast<TeleStatistics::Trap>(
       SelectedSink::Instance().trap());
   auto new_tele_trap = tele_statistics->trap();
   new_tele_trap->MergeStatistics(*old_trap);
