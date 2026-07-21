@@ -17,23 +17,23 @@
 #ifndef AETHER_TELE_TRAPS_STATISTICS_TRAP_H_
 #define AETHER_TELE_TRAPS_STATISTICS_TRAP_H_
 
-#include <map>
 #include <list>
+#include <map>
 #include <mutex>
 #include <string>
-#include <vector>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include <numeric/tiered_int.h>
 
+#include "aether-miscpp/reflect/reflect.h"
 #include "aether/clock.h"
 #include "aether/config.h"
 #include "aether/mstream.h"
+#include "aether/mstream_buffers.h"
 #include "aether/ptr/rc_ptr.h"
 #include "aether/tele/itrap.h"
-#include "aether/mstream_buffers.h"
-#include "aether-miscpp/reflect/reflect.h"
 
 namespace ae::tele {
 namespace statistics {
@@ -186,12 +186,20 @@ class StatisticsTrap final : public ITrap {
   using PackedIndex = TieredInt<std::uint64_t, std::uint8_t, 250>;
   using PackedLine = TieredInt<std::uint64_t, std::uint8_t, 250>;
 
-  struct LogLine {
-    LogLine(std::unique_lock<std::mutex> l, RcPtr<LogStorage> log,
-            std::vector<std::uint8_t>& d);
-    ~LogLine();
+  class LogLineWriter final : public ILogLine {
+   public:
+    LogLineWriter(Tag const& tag, RcPtr<LogStorage> log,
+                  std::vector<std::uint8_t>& d);
+    ~LogLineWriter();
 
-    std::unique_lock<std::mutex> lock;
+    void InvokeTime(TimePoint time) override;
+    void WriteLevel(Level level) override;
+    void WriteModule(Module const& module) override;
+    void Location(std::string_view file, std::uint32_t line) override;
+    void TagName(std::string_view name) override;
+    void Blob(std::span<std::uint8_t const> blob) override;
+
+   private:
     RcPtr<LogStorage> log_storage;
     VectorWriter<PackedSize> vector_writer;
     omstream<VectorWriter<PackedSize>> log_writer;
@@ -202,14 +210,7 @@ class StatisticsTrap final : public ITrap {
 
   void AddInvoke(Tag const& tag, std::uint32_t count) override;
   void AddInvokeDuration(Tag const& tag, Duration duration) override;
-  void OpenLogLine(Tag const& tag) override;
-  void InvokeTime(TimePoint time) override;
-  void WriteLevel(Level level) override;
-  void WriteModule(Module const& module) override;
-  void Location(std::string_view file, std::uint32_t line) override;
-  void TagName(std::string_view name) override;
-  void Blob(std::uint8_t const* data, std::size_t size) override;
-  void CloseLogLine(Tag const& tag) override;
+  void LogLine(Tag const& tag, ILogCollector& log_collector) override;
   void WriteEnvData(EnvData const& env_data) override;
 
   /**
@@ -223,7 +224,6 @@ class StatisticsTrap final : public ITrap {
 
  private:
   std::mutex sync_lock_;
-  std::optional<LogLine> log_line_;
 };
 }  // namespace statistics
 }  // namespace ae::tele

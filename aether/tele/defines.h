@@ -19,14 +19,10 @@
 
 #include "aether/common.h"
 
-#include "aether/tele/tags.h"
-#include "aether/tele/modules.h"
 #include "aether/tele/collectors.h"
 #include "aether/tele/env_collectors.h"
-
-#ifndef AETHER_TELE_TELE_H_
-#  error "Include tele.h instead"
-#endif
+#include "aether/tele/modules.h"
+#include "aether/tele/tags.h"
 
 #ifndef UTM_ID
 #  define UTM_ID 0
@@ -42,18 +38,12 @@ using ae::tele::Tele;
 AE_TELE_MODULE(MLog, AE_LOG_MODULE, AE_LOG_MODULE, AE_LOG_MODULE);
 AE_TAG(kLog, MLog)
 
-#define AE_TELE_(TAG_NAME, TAG, LEVEL, ...)                                   \
-  [[maybe_unused]] auto TAG_NAME =                                            \
-      ::ae::tele::Tele<TELE_SINK,                                             \
-                       typename TELE_SINK::TeleConfig<LEVEL, TAG.module.id>>{ \
-          TELE_SINK::Instance(), TAG};                                        \
-  {                                                                           \
-    auto log_collector = TAG_NAME.LogCollector();                             \
-    log_collector.InvokeTime();                                               \
-    log_collector.LevelModule(::ae::tele::Level{LEVEL});                      \
-    log_collector.Location(__FILE__, __LINE__);                               \
-    log_collector.TagName(TAG.name);                                          \
-    log_collector.Blob(__VA_ARGS__);                                          \
+#define AE_TELE_(TAG_NAME, TAG, LEVEL, ...)                                    \
+  [[maybe_unused]] auto TAG_NAME =                                             \
+      ::ae::tele::Tele<TELE_SINK,                                              \
+                       typename TELE_SINK::TeleConfig<LEVEL, TAG.module.id>> { \
+    TELE_SINK::Instance(), TAG, ::ae::tele::Level{LEVEL}, __FILE__, __LINE__,  \
+        __VA_ARGS__                                                            \
   }
 
 #define AE_TELE_DEBUG(TAG, ...) \

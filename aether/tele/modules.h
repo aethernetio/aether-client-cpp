@@ -17,12 +17,7 @@
 #ifndef AETHER_TELE_MODULES_H_
 #define AETHER_TELE_MODULES_H_
 
-#ifndef AETHER_TELE_TELE_H_
-#  error "Include tele.h instead"
-#endif
-
 #include <cstdint>
-#include <string>
 #include <string_view>
 
 namespace ae::tele {

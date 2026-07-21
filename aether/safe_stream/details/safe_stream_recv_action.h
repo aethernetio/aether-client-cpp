@@ -19,13 +19,13 @@
 
 #include <optional>
 
-#include "aether/common.h"
 #include "aether/ae_context.h"
+#include "aether/common.h"
 #include "aether/events/events.h"
-#include "aether/safe_stream/safe_stream_config.h"
 #include "aether/safe_stream/details/circular_buffer.h"
 #include "aether/safe_stream/details/receiving_chunk_list.h"
 #include "aether/safe_stream/details/safe_stream_data_message.h"
+#include "aether/safe_stream/safe_stream_config.h"
 
 #include "aether/tele/tele.h"
 
@@ -141,7 +141,7 @@ class SafeStreamRecvAction {
         }
         AE_TELED_DEBUG("Received packet index: {}, size: {}, repeat_count: {}",
                        received_range.left, data_span.size(),
-                       static_cast<int>(repeat_count))
+                       static_cast<int>(repeat_count));
         EnqueueRecv();
         break;
       }

@@ -48,17 +48,17 @@
 
 #include "aether-miscpp/meta/type_list.h"
 
+#include "aether/tele/collectors.h"
+#include "aether/tele/defines.h"
+#include "aether/tele/env_collectors.h"
+#include "aether/tele/modules.h"
 #include "aether/tele/sink.h"
 #include "aether/tele/tags.h"
-#include "aether/tele/modules.h"
-#include "aether/tele/defines.h"
-#include "aether/tele/collectors.h"
-#include "aether/tele/env_collectors.h"
 
 #include "aether/tele/configs/config_provider.h"
 
-#include "aether/tele/traps/proxy_trap.h"
 #include "aether/tele/traps/io_stream_traps.h"
+#include "aether/tele/traps/proxy_trap.h"
 #include "aether/tele/traps/statistics_trap.h"
 
 using SinkType = ae::tele::TeleSink<ae::tele::ConfigProvider>;
@@ -134,6 +134,49 @@ struct TeleTrap final : public ITrap {
     std::uint32_t duration_{};
   };
 
+  class LogLineWriter final : public ILogLine {
+   public:
+    explicit LogLineWriter(std::vector<std::string>& line) : log_line{line} {}
+    /**
+     * \brief Telemetry invoke time.
+     */
+    void InvokeTime(TimePoint time) override {
+      log_line.emplace_back(Format("{:time}", time));
+    };
+    /**
+     * \brief Telemetry tag level
+     */
+    void WriteLevel(Level level) override {
+      log_line.emplace_back(level.Text());
+    };
+    /**
+     * \brief Tag module
+     */
+    void WriteModule(Module const& module) override {
+      log_line.emplace_back(module.name);
+    };
+    /**
+     * \brief Tag location
+     */
+    void Location(std::string_view file, std::uint32_t line) override {
+      log_line.emplace_back(Format("{file}:{line}", file, line));
+    };
+    /**
+     * \brief Tag name
+     */
+    void TagName(std::string_view name) override {
+      log_line.emplace_back(name);
+    };
+    /**
+     * \brief Get stream to write telemetry blob data.
+     */
+    void Blob(std::span<std::uint8_t const> blob) override {
+      log_line.emplace_back(reinterpret_cast<char const*>(blob.data()),
+                            blob.size());
+    };
+    std::vector<std::string>& log_line;
+  };
+
   void AddInvoke(Tag const& tag, std::uint32_t count) override {
     metric_data_[tag.index()].count_ += count;
   }
@@ -141,35 +184,13 @@ struct TeleTrap final : public ITrap {
     metric_data_[tag.index()].duration_ +=
         static_cast<std::uint32_t>(duration.count());
   }
-  void OpenLogLine(Tag const& tag) override {
-    log_lines_.emplace_back();
-    log_lines_.front().emplace_back(std::to_string(tag.index()));
+  void LogLine(Tag const& tag, ILogCollector& log_collector) override {
+    auto& line = log_lines_.emplace_back();
+    line.emplace_back(std::to_string(tag.index()));
+    auto writer = LogLineWriter{line};
+    log_collector.WriteLine(writer);
   }
-  void InvokeTime(TimePoint time) override {
-    log_lines_.front().emplace_back(Format("{:time}", time));
-  }
-  void WriteLevel(Level level) override {
-    log_lines_.front().emplace_back(Level::text(level.value_));
-  }
-  void WriteModule(Module const& module) override {
-    log_lines_.front().emplace_back(module.name);
-  }
-  void Location(std::string_view file, std::uint32_t line) override {
-    auto pos = file.find_last_of("/\\");
-    if (pos == std::string_view::npos) {
-      file = "UNKNOWN FILE";
-    }
-    file = file.substr(pos + 1, file.size() - pos);
-    log_lines_.front().emplace_back(Format("{file}:{line}", file, line));
-  }
-  void TagName(std::string_view name) override {
-    log_lines_.front().emplace_back(name);
-  }
-  void Blob(std::uint8_t const* data, std::size_t size) override {
-    log_lines_.front().emplace_back(
-        std::string(reinterpret_cast<char const*>(data), size));
-  }
-  void CloseLogLine(Tag const& /*tag*/) override {}
+
   void WriteEnvData(EnvData const& /*env_data*/) override {}
 
   std::list<std::vector<std::string>> log_lines_;
@@ -218,18 +239,11 @@ void test_TeleConfigurations() {
     auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
 
     Sink::Instance().SetTrap(tele_trap);
-    int remember_line = __LINE__ + 8;
     {
       auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag};
-      {
-        auto lc = t.LogCollector();
-        lc.InvokeTime();
-        lc.LevelModule(Level{Level::kDebug});
-        lc.Location(__FILE__, __LINE__);
-        lc.TagName(TestTag.name);
-        lc.Blob("message {}", 12);
-      }
+          Sink::Instance(), TestTag, Level{Level::kDebug}, "test-tele.cpp", 8,
+          "message {}",     12,
+      };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -243,8 +257,7 @@ void test_TeleConfigurations() {
     AssertTimestampShape(log_line[1]);
     TEST_ASSERT_EQUAL_STRING("kDebug", log_line[2].c_str());
     TEST_ASSERT_EQUAL_STRING("TestObj", log_line[3].c_str());
-    TEST_ASSERT_EQUAL_STRING(Format("test-tele.cpp:{}", remember_line).c_str(),
-                             log_line[4].c_str());
+    TEST_ASSERT_EQUAL_STRING("test-tele.cpp:8", log_line[4].c_str());
     TEST_ASSERT_EQUAL_STRING("Test", log_line[5].c_str());
     TEST_ASSERT_EQUAL_STRING("message 12", log_line[6].c_str());
   }
@@ -258,15 +271,9 @@ void test_TeleConfigurations() {
     Sink::Instance().SetTrap(tele_trap);
     {
       auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag};
-      {
-        auto lc = t.LogCollector();
-        lc.InvokeTime();
-        lc.LevelModule(Level{Level::kDebug});
-        lc.Location(__FILE__, __LINE__);
-        lc.TagName(TestTag.name);
-        lc.Blob("message {}", 12);
-      }
+          Sink::Instance(), TestTag, Level{Level::kDebug}, "test-tele.cpp", 8,
+          "message {}",     12,
+      };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -283,15 +290,9 @@ void test_TeleConfigurations() {
     Sink::Instance().SetTrap(tele_trap);
     {
       auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag};
-      {
-        auto lc = t.LogCollector();
-        lc.InvokeTime();
-        lc.LevelModule(Level{Level::kDebug});
-        lc.Location(__FILE__, __LINE__);
-        lc.TagName(TestTag.name);
-        lc.Blob("message {}", 12);
-      }
+          Sink::Instance(), TestTag, Level{Level::kDebug}, "test-tele.cpp", 8,
+          "message {}",     12,
+      };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -317,16 +318,9 @@ void test_TeleConfigurations() {
     Sink::Instance().SetTrap(tele_trap);
     {
       auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag};
-      {
-        auto lc = t.LogCollector();
-        lc.InvokeTime();
-        lc.LevelModule(Level{Level::kDebug});
-        lc.Location(__FILE__, __LINE__);
-        lc.TagName(TestTag.name);
-        lc.Blob("message {}", 12);
-      }
-
+          Sink::Instance(), TestTag, Level{Level::kDebug}, "test-tele.cpp", 8,
+          "message {}",     12,
+      };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT(tele_trap->metric_data_.empty());
@@ -342,16 +336,9 @@ void test_TeleConfigurations() {
     Sink::Instance().SetTrap(tele_trap);
     {
       auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag};
-      {
-        auto lc = t.LogCollector();
-        lc.InvokeTime();
-        lc.LevelModule(Level{Level::kDebug});
-        lc.Location(__FILE__, __LINE__);
-        lc.TagName(TestTag.name);
-        lc.Blob("message {}", 12);
-      }
-
+          Sink::Instance(), TestTag, Level{Level::kDebug}, "test-tele.cpp", 8,
+          "message {}",     12,
+      };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
@@ -468,27 +455,36 @@ void test_MergeStatisticsTrap() {
 #define TELE_SINK SinkType
 }
 
+template <typename WriteFn>
+struct LambdaLogCollector final : public ILogCollector {
+  explicit LambdaLogCollector(WriteFn&& wf) : write_fn{std::move(wf)} {}
+  void WriteLine(ILogLine& log_line) override { write_fn(log_line); }
+  WriteFn write_fn;
+};
+
 void test_IoStreamTrapFullOutput() {
   auto stream = std::ostringstream{};
   auto trap = IoStreamTrap{stream};
-  auto const fixed_time = TimePoint{std::chrono::hours{3} +
-                                    std::chrono::minutes{4} +
-                                    std::chrono::seconds{5} +
-                                    std::chrono::microseconds{123456}};
+  auto const fixed_time =
+      TimePoint{std::chrono::hours{3} + std::chrono::minutes{4} +
+                std::chrono::seconds{5} + std::chrono::microseconds{123456}};
   auto const tag = Tag{11, TestObj, "Test"};
 
-  trap.OpenLogLine(tag);
-  trap.InvokeTime(fixed_time);
-  trap.WriteLevel(Level{Level::kDebug});
-  trap.WriteModule(TestObj);
-  trap.Location("src/test-tele.cpp", 42);
-  trap.TagName(tag.name);
-  trap.Blob(reinterpret_cast<std::uint8_t const*>("message 12"), 10);
-  trap.CloseLogLine(tag);
+  auto log_collector = LambdaLogCollector{[&](ILogLine& log_line) {
+    log_line.InvokeTime(fixed_time);
+    log_line.WriteLevel(Level{Level::kDebug});
+    log_line.WriteModule(TestObj);
+    log_line.Location("src/test-tele.cpp", 42);
+    log_line.TagName(tag.name);
+    log_line.Blob(
+        std::span{reinterpret_cast<std::uint8_t const*>("message 12"), 10});
+  }};
+
+  trap.LogLine(tag, log_collector);
 
   auto const output = stream.str();
   TEST_ASSERT_EQUAL_STRING(
-      " 12:[03:04:05.123456]:kDebug:TestObj:test-tele.cpp:42:Test:message "
+      "  12:[03:04:05.123456]:kDebug:TestObj:test-tele.cpp:42:Test:message "
       "12\n",
       output.c_str());
 }
@@ -498,12 +494,13 @@ void test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile() {
   auto trap = IoStreamTrap{stream};
   auto const tag = Tag{11, TestObj, "Test"};
 
-  trap.OpenLogLine(tag);
-  trap.Location("test-tele.cpp", 42);
-  trap.CloseLogLine(tag);
+  auto log_collector = LambdaLogCollector{
+      [&](ILogLine& log_line) { log_line.Location("test-tele.cpp", 42); }};
+
+  trap.LogLine(tag, log_collector);
 
   auto const output = stream.str();
-  TEST_ASSERT_EQUAL_STRING(" 12:UNKNOWN FILE:42\n", output.c_str());
+  TEST_ASSERT_EQUAL_STRING("  12:UNKNOWN FILE:42\n", output.c_str());
 }
 void test_EnvTele() { AE_TELE_ENV(); }
 }  // namespace ae::tele::test_tele
@@ -517,7 +514,8 @@ int main() {
   RUN_TEST(ae::tele::test_tele::test_TeleProxyTrap);
   RUN_TEST(ae::tele::test_tele::test_MergeStatisticsTrap);
   RUN_TEST(ae::tele::test_tele::test_IoStreamTrapFullOutput);
-  RUN_TEST(ae::tele::test_tele::test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile);
+  RUN_TEST(ae::tele::test_tele::
+               test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile);
   RUN_TEST(ae::tele::test_tele::test_EnvTele);
 
   return UNITY_END();

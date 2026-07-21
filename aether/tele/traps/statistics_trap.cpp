@@ -100,27 +100,49 @@ void StatisticsStore::SetSizeLimit(std::size_t limit) {
 StatisticsTrap::StatisticsTrap() = default;
 StatisticsTrap::~StatisticsTrap() = default;
 
-StatisticsTrap::LogLine::LogLine(std::unique_lock<std::mutex> l,
-                                 RcPtr<LogStorage> log,
-                                 std::vector<std::uint8_t>& d)
-    : lock{std::move(l)},
-      log_storage{std::move(log)},
-      vector_writer{d},
-      log_writer{vector_writer} {}
+StatisticsTrap::LogLineWriter::LogLineWriter(Tag const& tag,
+                                             RcPtr<LogStorage> log,
+                                             std::vector<std::uint8_t>& d)
+    : log_storage{std::move(log)}, vector_writer{d}, log_writer{vector_writer} {
+  log_writer << PackedIndex{tag.index()};
+}
 
-StatisticsTrap::LogLine::~LogLine() {
+StatisticsTrap::LogLineWriter::~LogLineWriter() {
   // update log size
   std::get<RuntimeLog>(*log_storage).size += vector_writer.data_.size();
 }
 
+void StatisticsTrap::LogLineWriter::InvokeTime(TimePoint time) {
+  log_writer << time;
+}
+void StatisticsTrap::LogLineWriter::WriteLevel(Level level) {
+  log_writer << level.value_;
+}
+void StatisticsTrap::LogLineWriter::WriteModule(Module const& module) {
+  log_writer << module.id;
+}
+void StatisticsTrap::LogLineWriter::Location(std::string_view file,
+                                             std::uint32_t line) {
+  log_writer << file << line;
+}
+void StatisticsTrap::LogLineWriter::TagName(std::string_view name) {
+  log_writer << name;
+}
+void StatisticsTrap::LogLineWriter::Blob(std::span<std::uint8_t const> blob) {
+  if (blob.empty()) {
+    return;
+  }
+  log_writer.write(static_cast<void const*>(blob.data()), blob.size());
+}
+
 void StatisticsTrap::AddInvoke(Tag const& tag, std::uint32_t count) {
-  auto lock = std::lock_guard(sync_lock_);
+  auto lock = std::scoped_lock(sync_lock_);
   statistics_store.metrics_store().metrics[tag.index()].invocations_count +=
       count;
 }
 
 void StatisticsTrap::AddInvokeDuration(Tag const& tag, Duration duration) {
-  auto lock = std::lock_guard(sync_lock_);
+  auto lock = std::scoped_lock(sync_lock_);
   auto& metr = statistics_store.metrics_store().metrics[tag.index()];
 
   metr.sum_duration += static_cast<std::uint32_t>(duration.count());
@@ -135,51 +157,14 @@ void StatisticsTrap::AddInvokeDuration(Tag const& tag, Duration duration) {
   }
 }
 
-void StatisticsTrap::OpenLogLine(Tag const& tag) {
-  auto lock = std::unique_lock{sync_lock_};
+void StatisticsTrap::LogLine(Tag const& tag, ILogCollector& log_collector) {
+  auto lock = std::scoped_lock{sync_lock_};
   auto log_store = statistics_store.log_store();
   auto& runtime_log = std::get<RuntimeLog>(*log_store);
   auto& data = runtime_log.logs.emplace_back();
 
-  log_line_.emplace(std::move(lock), log_store, data);
-  // always write an index
-  log_line_->log_writer << PackedIndex{tag.index()};
-}
-
-void StatisticsTrap::InvokeTime(TimePoint time) {
-  assert(log_line_);
-  log_line_->log_writer << time;
-}
-
-void StatisticsTrap::WriteLevel(Level level) {
-  assert(log_line_);
-  log_line_->log_writer << level.value_;
-}
-
-void StatisticsTrap::WriteModule(Module const& module) {
-  assert(log_line_);
-  log_line_->log_writer << module.id;
-}
-
-void StatisticsTrap::Location(std::string_view file, std::uint32_t line) {
-  assert(log_line_);
-  log_line_->log_writer << file << line;
-}
-
-void StatisticsTrap::TagName(std::string_view name) {
-  assert(log_line_);
-  log_line_->log_writer << name;
-}
-
-void StatisticsTrap::Blob(std::uint8_t const* data, std::size_t size) {
-  assert(log_line_);
-  log_line_->log_writer.write(static_cast<void const*>(data), size);
-}
-
-void StatisticsTrap::CloseLogLine(Tag const& /*tag*/) {
-  assert(log_line_);
-  auto lock = std::move(log_line_->lock);
-  log_line_.reset();
+  auto log_line = LogLineWriter{tag, log_store, data};
+  log_collector.WriteLine(log_line);
 }
 
 void StatisticsTrap::WriteEnvData(EnvData const& env_data) {
@@ -190,7 +175,7 @@ void StatisticsTrap::WriteEnvData(EnvData const& env_data) {
   env_store.library_version = env_data.library_version;
   env_store.api_version = env_data.api_version;
   env_store.cpu_arch = env_data.cpu_arch;
-  env_store.endianness = env_data.endianness;
+  env_store.endianness = static_cast<std::uint8_t>(env_data.endianness);
   env_store.utm_id = env_data.utm_id;
   for (auto const& opt : env_data.compile_options) {
     env_store.compile_options.emplace_back(PackedIndex{opt.index},

@@ -18,12 +18,12 @@
 #define AETHER_TELE_LEVELS_H_
 
 #include <cstdint>
-#include <string>
+#include <string_view>
 
 namespace ae::tele {
 struct Level {
   using underlined_t = std::uint8_t;
-  enum _ : std::uint8_t {
+  enum LevelVariant : std::uint8_t {  // NOLINT(*use-enum-class*)
     kInfo = 1 << 0,
     kWarning = 1 << 1,
     kError = 1 << 2,
@@ -31,8 +31,8 @@ struct Level {
     kAll = 0xFF,
   };
 
-  static std::string text(underlined_t v) {
-    switch (v) {
+  std::string_view Text() const {
+    switch (value_) {
       case kInfo:
         return "kInfo";
       case kWarning:
@@ -41,11 +41,15 @@ struct Level {
         return "kError";
       case kDebug:
         return "kDebug";
+      default:
+        break;
     }
     return "";
   }
 
-  operator underlined_t() const noexcept { return value_; }
+  operator underlined_t() const noexcept {  // NOLINT(*explicit*)
+    return value_;
+  }
 
   underlined_t value_;
 };

@@ -17,10 +17,6 @@
 #ifndef AETHER_TELE_ENV_COLLECTORS_H_
 #define AETHER_TELE_ENV_COLLECTORS_H_
 
-#ifndef AETHER_TELE_TELE_H_
-#  error "Include tele.h instead"
-#endif
-
 #include <array>
 #include <cstdint>
 #include <utility>
@@ -88,7 +84,9 @@ constexpr auto ApiVersion() {
   return "0.0.0";
 }
 
-constexpr auto PlatformEndianness() { return AE_ENDIANNESS; }
+constexpr Endianness PlatformEndianness() {
+  return static_cast<Endianness>(AE_ENDIANNESS);
+}
 constexpr auto CpuType() { return AE_CPU_TYPE; }
 
 template <typename TSink,
@@ -101,6 +99,8 @@ struct EnvTele {
   explicit EnvTele(
       Sink& sink, [[maybe_unused]] std::uint32_t utm_id,
       [[maybe_unused]] std::pair<std::string_view, TValues>&&... args) {
+    std::vector<CompileOption> compile_options;
+    std::vector<CustomOption> custom_options;
     auto env_data = EnvData{};
     if constexpr (SinkConfig::kPlatformType) {
       env_data.platform_type = PlatformType();
@@ -111,8 +111,9 @@ struct EnvTele {
     }
     if constexpr (SinkConfig::kCompilationOptions) {
       auto opts = CompilationOptions();
-      env_data.compile_options.insert(std::end(env_data.compile_options),
-                                      std::begin(opts), std::end(opts));
+      compile_options.insert(std::end(compile_options), std::begin(opts),
+                             std::end(opts));
+      env_data.compile_options = std::span{compile_options};
     }
     if constexpr (SinkConfig::kLibraryVersion) {
       env_data.library_version = LibraryVersion();
@@ -122,13 +123,14 @@ struct EnvTele {
     }
     if constexpr (SinkConfig::kCpuType) {
       env_data.cpu_arch = CpuType();
-      env_data.endianness = static_cast<std::uint8_t>(PlatformEndianness());
+      env_data.endianness = PlatformEndianness();
     }
     if constexpr (SinkConfig::kUtmId) {
       env_data.utm_id = utm_id;
     }
     if constexpr (SinkConfig::kCustomData) {
-      env_data.custom_options = {CustomOption{args.first, args.second}...};
+      custom_options = {CustomOption{args.first, args.second}...};
+      env_data.custom_options = std::span{custom_options};
     }
     auto& trap = sink.trap();
     if (!trap) {
