@@ -19,9 +19,9 @@
 
 #include <utility>
 
-#include "aether/config.h"
-#include "aether/common.h"
 #include "aether-miscpp/types/small_function.h"
+#include "aether/common.h"
+#include "aether/config.h"
 
 namespace ae {
 
@@ -39,9 +39,8 @@ class EventHandler<void(TArgs...)> final {
  public:
   using Fun = SmallFunction<void(TArgs...), kFunctionSize, kFunctionAlign>;
 
-  template <
-      typename TFunc,
-      AE_REQUIRERS_NOT((std::is_same<EventHandler<void(TArgs...)>, TFunc>))>
+  template <typename TFunc>
+    requires(!std::is_same_v<EventHandler<void(TArgs...)>, TFunc>)
   constexpr explicit EventHandler(TFunc&& func)
       : callback_{std::forward<TFunc>(func)} {}
 

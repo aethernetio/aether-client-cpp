@@ -17,17 +17,17 @@
 #ifndef AETHER_OBJ_OBJ_PTR_H_
 #define AETHER_OBJ_OBJ_PTR_H_
 
-#include <utility>
 #include <cassert>
 #include <optional>
 #include <type_traits>
+#include <utility>
 
-#include "aether/ptr/ptr.h"
-#include "aether/obj/obj_id.h"
-#include "aether/obj/domain.h"
-#include "aether/obj/registry.h"
-#include "aether/obj/obj_ptr_base.h"
 #include "aether-miscpp/reflect/domain_visitor.h"  // IWYU pragma: keep
+#include "aether/obj/domain.h"
+#include "aether/obj/obj_id.h"
+#include "aether/obj/obj_ptr_base.h"
+#include "aether/obj/registry.h"
+#include "aether/ptr/ptr.h"
 
 namespace ae {
 
@@ -109,7 +109,8 @@ class ObjPtr : public ObjectPtrBase {
   ObjPtr(ObjPtr const& ptr) noexcept = default;
   ObjPtr(ObjPtr&& ptr) noexcept = default;
 
-  template <typename U, AE_REQUIRERS((IsAbleToCast<T, U>))>
+  template <typename U>
+    requires(IsAbleToCast<T, U>::value)
   ObjPtr(ObjPtr<U> ptr) noexcept
       : ObjectPtrBase{static_cast<ObjectPtrBase const&>(ptr)},
         ptr_{std::move(ptr.ptr_)} {}

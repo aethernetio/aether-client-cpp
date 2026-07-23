@@ -76,15 +76,4 @@ enum class CompressionMethod : std::uint8_t {
 #define AE_CLASS_NO_COPY_MOVE(class_name) \
   AE_CLASS_COPY_(class_name, delete)      \
   AE_CLASS_MOVE_(class_name, delete)
-
-// concepts
-#define AE_REQUIRERS(Condition) \
-  std::enable_if_t<AE_DEPAREN(Condition)::value, int> = 0
-
-#define AE_REQUIRERS_NOT(Condition) \
-  std::enable_if_t<!AE_DEPAREN(Condition)::value, int> = 0
-
-#define AE_REQUIRERS_BOOL(Condition) \
-  std::enable_if_t<AE_DEPAREN(Condition), int> = 0
-
 #endif  // AETHER_COMMON_H_

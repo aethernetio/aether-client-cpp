@@ -17,10 +17,10 @@
 #ifndef AETHER_TYPES_STATISTIC_COUNTER_H_
 #define AETHER_TYPES_STATISTIC_COUNTER_H_
 
+#include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
-#include <cassert>
-#include <algorithm>
 #include <type_traits>
 
 #include "aether/warning_disable.h"
@@ -30,9 +30,9 @@ IGNORE_IMPLICIT_CONVERSION()
 #include <etl/circular_buffer.h>
 DISABLE_WARNING_POP()
 
+#include "aether-miscpp/format/format.h"
 #include "aether/common.h"
 #include "aether/mstream.h"
-#include "aether-miscpp/format/format.h"
 
 namespace ae {
 template <typename TValue, std::size_t Capacity,
@@ -45,15 +45,15 @@ class StatisticsCounter final {
 
   AE_CLASS_COPY_MOVE(StatisticsCounter)
 
-  template <typename TIterator,
-            AE_REQUIRERS((std::is_same<
-                          TValue,
-                          std::decay_t<decltype(*std::declval<TIterator>())>>))>
+  template <typename TIterator>
+    requires(std::is_same_v<TValue,
+                            std::decay_t<decltype(*std::declval<TIterator>())>>)
   void Insert(TIterator const& begin, TIterator const& end) {
     value_buffer_.push(begin, end);
   }
 
-  template <typename U, AE_REQUIRERS((std::is_same<TValue, std::decay_t<U>>))>
+  template <typename U>
+    requires(std::is_same_v<TValue, std::decay_t<U>>)
   void Add(U&& value) {
     value_buffer_.push(std::forward<U>(value));
   }
