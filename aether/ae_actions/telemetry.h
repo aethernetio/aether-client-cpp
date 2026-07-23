@@ -18,15 +18,15 @@
 #define AETHER_AE_ACTIONS_TELEMETRY_H_
 
 #include "aether/config.h"
-#if AE_TELE_ENABLED
+#if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
 #  define TELEMETRY_ENABLED 1
 
 #  include <optional>
 
 #  include "aether/ae_context.h"
-#  include "aether/stream_api/istream.h"
-#  include "aether/cloud_connections/cloud_subscription.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
+#  include "aether/cloud_connections/cloud_subscription.h"
+#  include "aether/stream_api/istream.h"
 
 #  include "aether/work_cloud_api/telemetric.h"
 

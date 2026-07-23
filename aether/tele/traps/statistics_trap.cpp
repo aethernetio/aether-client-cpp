@@ -22,7 +22,7 @@
 #include <iterator>
 #include <utility>
 
-namespace ae::tele::statistics {
+namespace ae::tele {
 
 // print any integral to LogStorage
 template <typename T>
@@ -155,4 +155,4 @@ MetricsStore const& StatisticsTrapBasic::metrics_store() const {
   return metrics_store_;
 }
 
-}  // namespace ae::tele::statistics
+}  // namespace ae::tele

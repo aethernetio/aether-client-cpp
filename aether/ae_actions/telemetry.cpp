@@ -20,8 +20,7 @@
 
 #  include "aether-miscpp/format/format.h"
 #  include "aether/aether.h"
-#  include "aether/tele.h"
-#  include "aether/tele/traps/tele_statistics.h"
+#  include "aether/tele_statistics.h"
 
 #  include "aether/mstream.h"
 #  include "aether/mstream_buffers.h"
@@ -79,9 +78,9 @@ void Telemetry::OnRequestTelemetry(std::size_t server_priority) {
 
 std::optional<Telemetric> Telemetry::CollectTelemetry(
     StreamInfo const& stream_info) {
-  auto& statistics_trap =
-      *tele::TeleStatistics::ptr{ae_context_.aether().tele_statistics}->trap();
-  auto const& env_storage = statistics_trap.env_store();
+  auto const& statistics_trap =
+      TeleStatistics::ptr{ae_context_.aether().tele_statistics}->trap();
+  auto const& env_storage = statistics_trap->env_store();
   Telemetric res{};
   res.cpp.utm_id = env_storage.utm_id;
   res.cpp.lib_version = env_storage.library_version;
@@ -97,7 +96,7 @@ std::optional<Telemetric> Telemetry::CollectTelemetry(
   auto vector_writer =
       LimitVectorWriter<>{res.cpp.blob, res.cpp.blob.capacity()};
   auto os = omstream{vector_writer};
-  os << statistics_trap;
+  os << *statistics_trap;
   // TODO: should we reset stored statistics?
 
   return res;

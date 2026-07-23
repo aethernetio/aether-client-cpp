@@ -367,7 +367,7 @@ void test_MergeStatisticsTrap() {
                                                   false, false, false, false>>;
 #undef TELE_SINK
 #define TELE_SINK Sink
-  using Trap = statistics::StatisticsTrap<1024>;
+  using Trap = StatisticsTrap<1024>;
   auto statistics_trap1 = std::make_shared<Trap>();
 
   Sink::Instance().SetTrap(statistics_trap1);
@@ -431,7 +431,7 @@ void test_MergeStatisticsTrap() {
 }
 
 void test_StatisticsRotation() {
-  using Trap = ae::tele::statistics::StatisticsTrap<1024>;
+  using Trap = ae::tele::StatisticsTrap<1024>;
 
   auto ts = std::make_shared<Trap>();
   SinkType::Instance().SetTrap(ts);
@@ -453,7 +453,7 @@ void test_StatisticsRotation() {
 }
 
 void test_SaveLoadTeleStatistics() {
-  using Trap = ae::tele::statistics::StatisticsTrap<1024>;
+  using Trap = ae::tele::StatisticsTrap<1024>;
 
   auto ts_0 = std::make_shared<Trap>();
   auto ts_1 = std::make_shared<Trap>();
@@ -474,8 +474,8 @@ void test_SaveLoadTeleStatistics() {
   auto const& metrics2 = ts_1->metrics_store().metrics;
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
 
-  auto log_index = ae::tele::statistics::MetricsStore::PackedIndex{
-      TestObj.index_start + Test1.offset};
+  auto log_index =
+      ae::tele::MetricsStore::PackedIndex{TestObj.index_start + Test1.offset};
   // simple check with _AE_MODULE_CONFIG leads here to AST broken error for
   // cppcheck
   constexpr bool time_metrics_enabled =

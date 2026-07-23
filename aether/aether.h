@@ -25,8 +25,8 @@
 #include "aether/obj/obj.h"
 #include "aether/types/client_config.h"
 
-#include "aether/ae_context.h"
 #include "aether/ae_actions/select_client.h"
+#include "aether/ae_context.h"
 
 namespace ae {
 class Server;
@@ -39,10 +39,7 @@ class AdapterRegistry;
 class ActionProcessor;
 class RegistrationCloud;
 class RegistrationCloud;
-
-namespace tele {
 class TeleStatistics;
-}
 
 class Aether : public Obj {
   AE_OBJECT(Aether, Obj, 0)
@@ -56,9 +53,9 @@ class Aether : public Obj {
   ~Aether() override;
 
   AE_OBJECT_REFLECT(AE_MMBRS(client_prefab, registration_cloud, crypto,
-                              clients_, servers_, tele_statistics, poller,
-                              dns_resolver, adapter_registry,
-                              select_client_actions_))
+                             clients_, servers_, tele_statistics, poller,
+                             dns_resolver, adapter_registry,
+                             select_client_actions_))
 
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {

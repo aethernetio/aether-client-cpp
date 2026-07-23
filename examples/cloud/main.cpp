@@ -32,7 +32,6 @@
 
 #include "aether/config.h"
 #include "aether/tele.h"
-#include "aether/tele/tele_init.h"
 
 #if (defined(CM_ESP32))
 #  include <iostream>

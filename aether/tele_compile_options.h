@@ -127,6 +127,8 @@ constexpr inline auto _compile_options_list = std::array{
     _OPTION(AE_TELE_LOG_BLOB),
     _OPTION(AE_TELE_LOG_BLOB_EXCLUDE),
     _OPTION(AE_TELE_LOG_CONSOLE),
+    _OPTION(AE_TELE_LOG_TO_STATISTICS),
+    _OPTION(AE_STATISTICS_MAX_SIZE),
 #if defined AE_DISTILLATION
     _OPTION(AE_DISTILLATION),
 #else
@@ -147,16 +149,21 @@ constexpr inline auto _compile_options_list = std::array{
 #endif
 };
 
-constexpr auto MakeCompileOptions() {
-  return []<std::size_t... Is>(std::index_sequence<Is...>) noexcept {
-    return std::array{::ae::tele::CompileOption{
-        .index = Is,
-        .name = _compile_options_list[Is].first,
-        .value = _compile_options_list[Is].second}...};
-  }(std::make_index_sequence<_compile_options_list.size()>());
+template <std::size_t... Is>
+consteval auto MakeCompileOptionsImpl(std::index_sequence<Is...>) {
+  return std::array{
+      ::ae::tele::CompileOption{.index = Is,
+                                .name = _compile_options_list[Is].first,
+                                .value = _compile_options_list[Is].second}...};
 }
 
-static constexpr inline auto kCompileOptions = MakeCompileOptions();
+consteval auto CompileOptions() noexcept {
+  return MakeCompileOptionsImpl(
+      std::make_index_sequence<_compile_options_list.size()>());
+}
+
+// static constexpr inline auto kCompileOptions = MakeCompileOptions(
+//     std::make_index_sequence<_compile_options_list.size()>());
 
 }  // namespace ae
 

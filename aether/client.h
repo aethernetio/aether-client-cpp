@@ -95,7 +95,7 @@ class Client : public Obj {
 #if AE_ENABLE_PING
   std::unique_ptr<PingCloudServers> ping_cloud_servers_;
 #endif
-#if AE_TELE_ENABLED
+#if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
   std::unique_ptr<Telemetry> telemetry_;
 #endif
 };

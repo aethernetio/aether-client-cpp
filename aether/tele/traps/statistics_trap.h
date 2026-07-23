@@ -34,7 +34,6 @@
 #include "aether/tele/itrap.h"
 
 namespace ae::tele {
-namespace statistics {
 /**
  * \brief Map of telemetry metrics.
  */
@@ -223,7 +222,6 @@ class StatisticsTrap final : public StatisticsTrapBasic {
  private:
   LogStorage<LogCapacity> log_storage_;
 };
-}  // namespace statistics
 }  // namespace ae::tele
 
 #endif  // AETHER_TELE_TRAPS_STATISTICS_TRAP_H_

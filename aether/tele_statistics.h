@@ -17,49 +17,48 @@
 #ifndef AETHER_TELE_TRAPS_TELE_STATISTICS_H_
 #define AETHER_TELE_TRAPS_TELE_STATISTICS_H_
 
-#include "aether-miscpp/reflect/reflect.h"
-#include "aether/config.h"
-#include "aether/obj/obj.h"
-#include "aether/ptr/rc_ptr.h"
+#include <memory>
 
-#include "aether/tele.h"
 #include "aether/tele/traps/statistics_trap.h"
 
-namespace ae::tele {
+#include "aether/config.h"
+#include "aether/obj/obj.h"
+
+namespace ae {
 class TeleStatistics : public Obj {
   AE_OBJECT(TeleStatistics, Obj, 0)
 
   TeleStatistics() = default;
 
  public:
-  using Trap = statistics::StatisticsTrap<AE_STATISTICS_MAX_SIZE>;
-
 #ifdef AE_DISTILLATION
   explicit TeleStatistics(ObjProp prop);
 #endif  // AE_DISTILLATION
 
-#if AE_TELE_ENABLED
-  AE_OBJECT_REFLECT(AE_MMBR(trap_))
+  AE_OBJECT_REFLECT()
 
+#if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
     dnv(base_, *trap_);
+    OnLoaded();
   }
   template <typename Dnv>
   void Save(CurrentVersion, Dnv& dnv) const {
     dnv(base_, *trap_);
   }
-#else
-  AE_OBJECT_REFLECT()
 #endif
 
-#if AE_TELE_ENABLED
+#if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
+  using Trap = tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>;
+
   std::shared_ptr<Trap> const& trap();
 
  private:
+  void OnLoaded();
   std::shared_ptr<Trap> trap_ = std::make_shared<Trap>();
 #endif
 };
-}  // namespace ae::tele
+}  // namespace ae
 
 #endif  // AETHER_TELE_TRAPS_TELE_STATISTICS_H_

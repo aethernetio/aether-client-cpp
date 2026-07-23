@@ -76,7 +76,7 @@ CloudServerConnections& Client::cloud_connection() {
         *connectivity_policy().Load());
 #endif
 
-#if AE_TELE_ENABLED
+#if TELEMETRY_ENABLED
     // also create telemetry
     telemetry_ = std::make_unique<Telemetry>(*aether_.Load().as<Aether>(),
                                              *cloud_connection_);
@@ -121,7 +121,7 @@ void Client::SetConfig(std::string client_id, Uid parent_uid, Uid uid,
 }
 
 void Client::SendTelemetry() {
-#if AE_TELE_ENABLED
+#if TELEMETRY_ENABLED
   telemetry_->SendTelemetry();
 #endif
 }
