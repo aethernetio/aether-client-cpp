@@ -17,6 +17,7 @@
 #ifndef AETHER_TELE_SINK_H_
 #define AETHER_TELE_SINK_H_
 
+#include <concepts>
 #include <memory>
 
 #include "aether/tele/itrap.h"
@@ -24,15 +25,43 @@
 #include "aether/tele/modules.h"  // IWYU pragma: keep
 
 namespace ae::tele {
-template <typename ConfigProvider>
+struct TeleConfig {
+  bool count_metrics = true;
+  bool time_metrics = true;
+
+  bool logs_enabled = true;
+  bool start_time_logs = true;
+  bool level_module_logs = true;
+  bool location_logs = true;
+  bool name_logs = true;
+  bool blob_logs = true;
+};
+
+struct EnvConfig {
+  bool static_info = true;
+  bool runtime_info = true;
+};
+
+template <typename T>
+concept ConfigProvider = requires() {
+  {
+    T::template GetTeleConfig<ae::tele::Level::kDebug, 12>()
+  } -> std::same_as<TeleConfig>;
+  { T::GetEnvConfig() } -> std::same_as<EnvConfig>;
+};
+
+template <ConfigProvider CP>
 class TeleSink {
  public:
-  using ConfigProviderType = ConfigProvider;
+  using ConfigProviderType = CP;
 
   template <Level::underlined_t l, std::uint32_t m>
-  using TeleConfig = typename ConfigProviderType::template TeleConfig<l, m>;
-
-  using EnvConfig = typename ConfigProviderType::EnvConfig;
+  static consteval auto GetTeleConfig() {
+    return ConfigProviderType::template GetTeleConfig<l, m>();
+  }
+  static consteval auto GetEnvConfig() {
+    return ConfigProviderType::GetEnvConfig();
+  }
 
   static TeleSink& Instance() {
     static TeleSink sink;

@@ -29,6 +29,7 @@
 #include "aether/tele/itrap.h"
 #include "aether/tele/levels.h"
 #include "aether/tele/modules.h"  // IWYU pragma: keep
+#include "aether/tele/sink.h"
 #include "aether/tele/tags.h"
 
 namespace ae::tele {
@@ -65,24 +66,24 @@ struct TimedTele {
   std::shared_ptr<ITrap> trap;
 };
 
-template <typename TConfig>
-static constexpr inline bool kIsAnyLogs = TConfig::kLogsEnabled;
+template <TeleConfig Config>
+static constexpr inline bool kIsAnyLogs = Config.logs_enabled;
 
-template <typename TConfig>
+template <TeleConfig Config>
 static constexpr inline bool kIsAnyMetrics =
-    TConfig::kCountMetrics || TConfig::kTimeMetrics;
+    Config.count_metrics || Config.time_metrics;
 
-template <typename TConfig>
+template <TeleConfig Config>
 static constexpr inline bool kIsAnyTele =
-    kIsAnyLogs<TConfig> || kIsAnyMetrics<TConfig>;
+    kIsAnyLogs<Config> || kIsAnyMetrics<Config>;
 
-template <typename TSinkConfig, typename Enabled = void>
+template <TeleConfig Config, typename Enabled = void>
 struct TeleLogCollector;
 
 // Specialization for disabled Logs
-template <typename TSinkConfig>
-struct TeleLogCollector<TSinkConfig, std::enable_if_t<!kIsAnyLogs<TSinkConfig>>>
-    final : public ILogCollector {
+template <TeleConfig Config>
+struct TeleLogCollector<Config, std::enable_if_t<!kIsAnyLogs<Config>>> final
+    : public ILogCollector {
   template <typename... TArgs>
   constexpr explicit TeleLogCollector(TArgs&&...) noexcept {}
 
@@ -90,10 +91,10 @@ struct TeleLogCollector<TSinkConfig, std::enable_if_t<!kIsAnyLogs<TSinkConfig>>>
 };
 
 // Specialization for enabled Logs
-template <typename TSinkConfig>
-struct TeleLogCollector<TSinkConfig, std::enable_if_t<kIsAnyLogs<TSinkConfig>>>
-    final : public ILogCollector {
-  using SinkConfig = TSinkConfig;
+template <TeleConfig Config>
+struct TeleLogCollector<Config, std::enable_if_t<kIsAnyLogs<Config>>> final
+    : public ILogCollector {
+  static constexpr auto SinkConfig = Config;
 
   template <typename... Args>
   constexpr explicit TeleLogCollector(Tag const& t, Level l, std::string_view f,
@@ -102,48 +103,47 @@ struct TeleLogCollector<TSinkConfig, std::enable_if_t<kIsAnyLogs<TSinkConfig>>>
       : tag{t}, level{l}, file{f}, line{f_l}, blob{b} {}
 
   void WriteLine([[maybe_unused]] ILogLine& log_line) override {
-    if constexpr (SinkConfig::kStartTimeLogs) {
+    if constexpr (SinkConfig.start_time_logs) {
       log_line.InvokeTime(TimePoint::clock::now());
     }
-    if constexpr (SinkConfig::kLevelModuleLogs) {
+    if constexpr (SinkConfig.level_module_logs) {
       log_line.WriteLevel(level);
       log_line.WriteModule(tag.module);
     }
-    if constexpr (SinkConfig::kLocationLogs) {
+    if constexpr (SinkConfig.location_logs) {
       log_line.Location(file, line);
     }
-    if constexpr (SinkConfig::kNameLogs) {
+    if constexpr (SinkConfig.name_logs) {
       log_line.TagName(tag.name);
     }
-    if constexpr (SinkConfig::kBlobLogs) {
+    if constexpr (SinkConfig.blob_logs) {
       log_line.Blob(blob);
     }
   }
 
   [[no_unique_address]] OrEmpty_t<
-      SinkConfig::kLevelModuleLogs || SinkConfig::kNameLogs, Tag const&> tag;
-  [[no_unique_address]] OrEmpty_t<SinkConfig::kLevelModuleLogs, Level> level;
-  [[no_unique_address]] OrEmpty_t<SinkConfig::kLocationLogs, std::string_view>
+      SinkConfig.level_module_logs || SinkConfig.name_logs, Tag const&> tag;
+  [[no_unique_address]] OrEmpty_t<SinkConfig.level_module_logs, Level> level;
+  [[no_unique_address]] OrEmpty_t<SinkConfig.location_logs, std::string_view>
       file;
-  [[no_unique_address]] OrEmpty_t<SinkConfig::kLocationLogs, std::uint32_t>
-      line;
-  [[no_unique_address]] OrEmpty_t<SinkConfig::kBlobLogs,
+  [[no_unique_address]] OrEmpty_t<SinkConfig.location_logs, std::uint32_t> line;
+  [[no_unique_address]] OrEmpty_t<SinkConfig.blob_logs,
                                   std::span<std::uint8_t const>> blob;
 };
 
 // Dummy Tele if telemetry is disabled
-template <typename TSink, typename TSinkConfig, typename _ = void>
+template <typename TSink, TeleConfig Config, typename _ = void>
 struct Tele {
   template <typename... TArgs>
   constexpr explicit Tele(TArgs&&... /* args */) {}
 };
 
 // Tele for enabled telemetry
-template <typename TSink, typename TSinkConfig>
-struct Tele<TSink, TSinkConfig, std::enable_if_t<kIsAnyTele<TSinkConfig>>> {
+template <typename TSink, TeleConfig Config>
+struct Tele<TSink, Config, std::enable_if_t<kIsAnyTele<Config>>> {
   using Sink = TSink;
-  using SinkConfig = TSinkConfig;
-  using TimedTele = OrEmpty_t<SinkConfig::kTimeMetrics, ae::tele::TimedTele>;
+  static constexpr auto SinkConfig = Config;
+  using TimedTele = OrEmpty_t<SinkConfig.time_metrics, ae::tele::TimedTele>;
 
   template <typename... BlobArgs>
   constexpr Tele(Sink& sink, Tag const& tag, [[maybe_unused]] Level level,
@@ -153,7 +153,7 @@ struct Tele<TSink, TSinkConfig, std::enable_if_t<kIsAnyTele<TSinkConfig>>> {
                      collectors_internal::kEmptyFormat,
                  [[maybe_unused]] BlobArgs&&... args) noexcept
       : timed_tele_{std::invoke([&]() -> TimedTele {
-          if constexpr (SinkConfig::kTimeMetrics) {
+          if constexpr (SinkConfig.time_metrics) {
             return TimedTele{.timer = {}, .tag = tag, .trap = sink.trap()};
           } else {
             return TimedTele{};
@@ -163,7 +163,7 @@ struct Tele<TSink, TSinkConfig, std::enable_if_t<kIsAnyTele<TSinkConfig>>> {
     if (!trap) {
       return;
     }
-    if constexpr (SinkConfig::kCountMetrics) {
+    if constexpr (SinkConfig.count_metrics) {
       trap->AddInvoke(tag, 1);
     }
 
@@ -171,7 +171,7 @@ struct Tele<TSink, TSinkConfig, std::enable_if_t<kIsAnyTele<TSinkConfig>>> {
       // TODO: more effective way to make blob
       std::string blob_str;
       std::span<std::uint8_t const> blob{};
-      if constexpr (SinkConfig::kBlobLogs) {
+      if constexpr (SinkConfig.blob_logs) {
         if (format.source != collectors_internal::kEmptyFormat.source) {
           FormatTo(blob_str, format, std::forward<BlobArgs>(args)...);
           blob = {reinterpret_cast<std::uint8_t const*>(blob_str.data()),
@@ -185,7 +185,7 @@ struct Tele<TSink, TSinkConfig, std::enable_if_t<kIsAnyTele<TSinkConfig>>> {
   }
 
   ~Tele() {
-    if constexpr (SinkConfig::kTimeMetrics) {
+    if constexpr (SinkConfig.time_metrics) {
       if (!timed_tele_.trap) {
         return;
       }

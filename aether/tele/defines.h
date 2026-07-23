@@ -42,12 +42,11 @@
 AE_TELE_MODULE(MLog, AE_LOG_MODULE, AE_LOG_MODULE, AE_LOG_MODULE);
 AE_TAG(kLog, MLog)
 
-#define AE_TELE_(TAG_NAME, TAG, LEVEL, ...)                                    \
-  [[maybe_unused]] auto TAG_NAME =                                             \
-      ::ae::tele::Tele<TELE_SINK,                                              \
-                       typename TELE_SINK::TeleConfig<LEVEL, TAG.module.id>> { \
-    TELE_SINK::Instance(), TAG, ::ae::tele::Level{LEVEL}, __FILE__, __LINE__,  \
-        __VA_ARGS__                                                            \
+#define AE_TELE_(TAG_NAME, TAG, LEVEL, ...)                                   \
+  [[maybe_unused]] auto TAG_NAME = ::ae::tele::Tele<                          \
+      TELE_SINK, TELE_SINK::template GetTeleConfig<LEVEL, TAG.module.id>()> { \
+    TELE_SINK::Instance(), TAG, ::ae::tele::Level{LEVEL}, __FILE__, __LINE__, \
+        __VA_ARGS__                                                           \
   }
 
 #define AE_TELE_DEBUG(TAG, ...) \
@@ -74,10 +73,10 @@ AE_TAG(kLog, MLog)
            __VA_ARGS__)
 
 // Log environment data
-#define AE_TELE_ENV(...)                              \
-  [[maybe_unused]] auto AETE_UNIQUE_NAME(TELE_ENV_) = \
-      ::ae::tele::EnvTele<TELE_SINK> {                \
-    TELE_SINK::Instance(), UTM_ID, __VA_ARGS__        \
+#define AE_TELE_ENV(...)                                          \
+  [[maybe_unused]] auto AETE_UNIQUE_NAME(TELE_ENV_) =             \
+      ::ae::tele::EnvTele<TELE_SINK, TELE_SINK::GetEnvConfig()> { \
+    TELE_SINK::Instance(), UTM_ID, __VA_ARGS__                    \
   }
 
 #endif  // AETHER_TELE_DEFINES_H_ */

@@ -20,25 +20,29 @@
 #include <cstdint>
 
 #include "aether/tele/levels.h"
+#include "aether/tele/sink.h"
 
 namespace ae::tele {
 struct AllEnabledConfig {
   template <Level::underlined_t, std::uint32_t>
-  struct TeleConfig {
-    static constexpr bool kCountMetrics = true;
-    static constexpr bool kTimeMetrics = true;
-    static constexpr bool kLogsEnabled = true;
-    static constexpr bool kStartTimeLogs = true;
-    static constexpr bool kLevelModuleLogs = true;
-    static constexpr bool kLocationLogs = true;
-    static constexpr bool kNameLogs = true;
-    static constexpr bool kBlobLogs = true;
-  };
-
-  struct EnvConfig {
-    static constexpr bool kStaticInfo = true;
-    static constexpr bool kRuntimeInfo = true;
-  };
+  static consteval auto GetTeleConfig() {
+    return TeleConfig{
+        .count_metrics = true,
+        .time_metrics = true,
+        .logs_enabled = true,
+        .start_time_logs = true,
+        .level_module_logs = true,
+        .location_logs = true,
+        .name_logs = true,
+        .blob_logs = true,
+    };
+  }
+  static consteval auto GetEnvConfig() {
+    return EnvConfig{
+        .static_info = true,
+        .runtime_info = true,
+    };
+  }
 };
 }  // namespace ae::tele
 

@@ -28,6 +28,7 @@
 #include "aether/tele/env/library_version.h"
 #include "aether/tele/env/platform_type.h"
 #include "aether/tele/itrap.h"
+#include "aether/tele/sink.h"
 
 namespace ae::tele {
 /**
@@ -55,17 +56,17 @@ constexpr Endianness PlatformEndianness() {
 }
 constexpr auto CpuType() { return AE_CPU_TYPE; }
 
-template <typename TSink, typename Enabled = void>
+template <typename TSink, EnvConfig Config, typename Enabled = void>
 struct EnvTele {
   template <typename... TArgs>
   constexpr explicit EnvTele(TArgs&&... /* args */) {}
 };
 
-template <typename TSink>
-struct EnvTele<TSink, std::enable_if_t<TSink::EnvConfig::kStaticInfo ||
-                                       TSink::EnvConfig::kRuntimeInfo>> {
+template <typename TSink, EnvConfig Config>
+struct EnvTele<TSink, Config,
+               std::enable_if_t<Config.static_info || Config.runtime_info>> {
   using Sink = TSink;
-  using SinkConfig = typename Sink::EnvConfig;
+  static constexpr auto SinkConfig = Config;
 
   template <std::size_t CompileConfigs = 0, std::size_t CustomOptions = 0>
   explicit EnvTele(
@@ -76,7 +77,7 @@ struct EnvTele<TSink, std::enable_if_t<TSink::EnvConfig::kStaticInfo ||
           custom_options = {}) {
     auto env_data = EnvData{};
 
-    if constexpr (SinkConfig::kStaticInfo) {
+    if constexpr (SinkConfig.static_info) {
       env_data.platform_type = PlatformType();
       env_data.compiler = CompilerName();
       env_data.compiler_version = CompilerVersion();
@@ -86,7 +87,7 @@ struct EnvTele<TSink, std::enable_if_t<TSink::EnvConfig::kStaticInfo ||
       env_data.utm_id = utm_id;
       env_data.compile_options = std::span{compile_options};
     }
-    if constexpr (SinkConfig::kRuntimeInfo) {
+    if constexpr (SinkConfig.runtime_info) {
       env_data.custom_options = std::span{custom_options};
     }
     auto& trap = sink.trap();

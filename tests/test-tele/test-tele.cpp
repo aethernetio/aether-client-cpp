@@ -202,21 +202,22 @@ template <bool Count = true, bool Time = true, bool LogsEnabled = true,
           bool TagName = true, bool Blob = true>
 struct ConfigProvider {
   template <Level::underlined_t, std::uint32_t>
-  struct TeleConfig {
-    static constexpr bool kCountMetrics = Count;
-    static constexpr bool kTimeMetrics = Time;
-    static constexpr bool kLogsEnabled = LogsEnabled;
-    static constexpr bool kStartTimeLogs = StartTime;
-    static constexpr bool kLevelModuleLogs = LevelModule;
-    static constexpr bool kLocationLogs = Location;
-    static constexpr bool kNameLogs = TagName;
-    static constexpr bool kBlobLogs = Blob;
+  static consteval auto GetTeleConfig() {
+    return TeleConfig{
+        .count_metrics = Count,
+        .time_metrics = Time,
+        .logs_enabled = LogsEnabled,
+        .start_time_logs = StartTime,
+        .level_module_logs = LevelModule,
+        .location_logs = Location,
+        .name_logs = TagName,
+        .blob_logs = Blob,
+    };
   };
 
-  struct EnvConfig {
-    static constexpr bool kStaticInfo = true;
-    static constexpr bool kRuntimeInfo = true;
-  };
+  static consteval auto GetEnvConfig() {
+    return EnvConfig{.static_info = true, .runtime_info = true};
+  }
 };
 }  // namespace tele_configuration
 
@@ -229,10 +230,16 @@ void test_TeleConfigurations() {
 
     Sink::Instance().SetTrap(tele_trap);
     {
-      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag, Level{Level::kDebug}, "test-tele.cpp", 8,
-          "message {}",     12,
-      };
+      auto t =
+          Tele<Sink, Sink::GetTeleConfig<Level::kDebug, TestTag.module.id>()>{
+              Sink::Instance(),
+              TestTag,
+              Level{Level::kDebug},
+              "test-tele.cpp",
+              8,
+              "message {}",
+              12,
+          };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -259,10 +266,16 @@ void test_TeleConfigurations() {
 
     Sink::Instance().SetTrap(tele_trap);
     {
-      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag, Level{Level::kDebug}, "test-tele.cpp", 8,
-          "message {}",     12,
-      };
+      auto t =
+          Tele<Sink, Sink::GetTeleConfig<Level::kDebug, TestTag.module.id>()>{
+              Sink::Instance(),
+              TestTag,
+              Level{Level::kDebug},
+              "test-tele.cpp",
+              8,
+              "message {}",
+              12,
+          };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -278,10 +291,16 @@ void test_TeleConfigurations() {
     auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
     Sink::Instance().SetTrap(tele_trap);
     {
-      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag, Level{Level::kDebug}, "test-tele.cpp", 8,
-          "message {}",     12,
-      };
+      auto t =
+          Tele<Sink, Sink::GetTeleConfig<Level::kDebug, TestTag.module.id>()>{
+              Sink::Instance(),
+              TestTag,
+              Level{Level::kDebug},
+              "test-tele.cpp",
+              8,
+              "message {}",
+              12,
+          };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -298,10 +317,16 @@ void test_TeleConfigurations() {
 
     Sink::Instance().SetTrap(tele_trap);
     {
-      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag, Level{Level::kDebug}, "test-tele.cpp", 8,
-          "message {}",     12,
-      };
+      auto t =
+          Tele<Sink, Sink::GetTeleConfig<Level::kDebug, TestTag.module.id>()>{
+              Sink::Instance(),
+              TestTag,
+              Level{Level::kDebug},
+              "test-tele.cpp",
+              8,
+              "message {}",
+              12,
+          };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT(tele_trap->metric_data_.empty());
@@ -316,10 +341,16 @@ void test_TeleConfigurations() {
 
     Sink::Instance().SetTrap(tele_trap);
     {
-      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag, Level{Level::kDebug}, "test-tele.cpp", 8,
-          "message {}",     12,
-      };
+      auto t =
+          Tele<Sink, Sink::GetTeleConfig<Level::kDebug, TestTag.module.id>()>{
+              Sink::Instance(),
+              TestTag,
+              Level{Level::kDebug},
+              "test-tele.cpp",
+              8,
+              "message {}",
+              12,
+          };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
@@ -478,19 +509,14 @@ void test_SaveLoadTeleStatistics() {
       ae::tele::MetricsStore::PackedIndex{TestObj.index_start + Test1.offset};
   // simple check with _AE_MODULE_CONFIG leads here to AST broken error for
   // cppcheck
-  constexpr bool time_metrics_enabled =
-      TELE_SINK::ConfigProviderType::TeleConfig<Level::kDebug,
-                                                MLog.id>::kTimeMetrics;
-  if constexpr (time_metrics_enabled) {
+  if constexpr (TELE_SINK::GetTeleConfig<Level::kDebug, MLog.id>()
+                    .time_metrics) {
     TEST_ASSERT_EQUAL(metrics1.at(log_index).sum_duration,
                       metrics2.at(log_index).sum_duration);
   }
 
-  constexpr bool count_metrics_enabled =
-      TELE_SINK::ConfigProviderType::TeleConfig<Level::kDebug,
-                                                MLog.id>::kCountMetrics;
-
-  if constexpr (count_metrics_enabled) {
+  if constexpr (TELE_SINK::GetTeleConfig<Level::kDebug, MLog.id>()
+                    .count_metrics) {
     TEST_ASSERT_EQUAL(metrics1.at(log_index).invocations_count,
                       metrics2.at(log_index).invocations_count);
   }
