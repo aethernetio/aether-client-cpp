@@ -17,10 +17,10 @@
 #ifndef AETHER_DOMAIN_STORAGE_STATIC_DOMAIN_STORAGE_H_
 #define AETHER_DOMAIN_STORAGE_STATIC_DOMAIN_STORAGE_H_
 
-#include "aether/obj/idomain_storage.h"
 #include "aether/domain_storage/static_object_types.h"
+#include "aether/obj/idomain_storage.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 class StaticDomainStorageReader final : public IDomainStorageReader {

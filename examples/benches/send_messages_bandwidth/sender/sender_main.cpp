@@ -18,10 +18,10 @@
 
 #include "aether/all.h"
 
-#include "send_messages_bandwidth/sender/sender.h"
 #include "send_messages_bandwidth/common/test_action.h"
+#include "send_messages_bandwidth/sender/sender.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae::bench {
 static constexpr auto kTestUid =

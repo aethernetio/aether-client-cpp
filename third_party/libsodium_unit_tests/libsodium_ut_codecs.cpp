@@ -1,7 +1,7 @@
 #include "libsodium_ut_codecs.h"
 
 #include "unity.h"
-//#include "aether/tele/tele.h"
+//#include "aether/tele.h"
 
 namespace codecs
 {
@@ -17,14 +17,14 @@ namespace codecs
 
     static const char *TAG = "SODIUM UNITY";
 
-    #if DEBUG_OUT==1    
+    #if DEBUG_OUT==1
         #define DebugPrint(format, ...) LOG(TAG, format, ##__VA_ARGS__)
     #elif DEBUG_OUT==2
         #define DebugPrint(format, ...) AE_TELED_DEBUG(TAG, format, ##__VA_ARGS__)
     #elif DEBUG_OUT==3
         #define DebugPrint(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
     #endif
-    
+
     int
     test(void)
     {
@@ -273,7 +273,7 @@ namespace codecs
         }
         return 0;
     }
-    
+
     void _libsodium_ut_codecs()
     {
         test();

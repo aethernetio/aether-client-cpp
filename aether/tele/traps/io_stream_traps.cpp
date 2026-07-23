@@ -134,15 +134,14 @@ void IoStreamTrap::LogLine(Tag const& tag, ILogCollector& log_collector) {
 
 void IoStreamTrap::WriteEnvData(EnvData const& env_data) {
   auto lock = std::scoped_lock{sync_lock_};
-  Format(
-      stream_,
-      "Platform:{}\nCompiler:{}\nCompiler version:{}\nLibrary version:{}\nApi "
-      "version:{}\nCPU arch:{}\nEndianness:{}\nUTMid:{}\n",
-      env_data.platform_type, env_data.compiler, env_data.compiler_version,
-      env_data.library_version, env_data.api_version, env_data.cpu_arch,
-      (env_data.endianness == Endianness::Little ? "LittleEndian"
-                                                 : "BigEndian"),
-      env_data.utm_id);
+  Format(stream_,
+         "Platform:{}\nCompiler:{}\nCompiler version:{}\nLibrary "
+         "version:{}\nCPU arch:{}\nEndianness:{}\nUTMid:{}\n",
+         env_data.platform_type, env_data.compiler, env_data.compiler_version,
+         env_data.library_version, env_data.cpu_arch,
+         (env_data.endianness == Endianness::Little ? "LittleEndian"
+                                                    : "BigEndian"),
+         env_data.utm_id);
   constexpr auto option_format = FormatScheme{"{}:{}\n"};
   for (auto const& opt : env_data.compile_options) {
     Format(stream_, option_format, opt.name, opt.value);

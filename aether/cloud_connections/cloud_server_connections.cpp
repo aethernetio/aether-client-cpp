@@ -18,11 +18,11 @@
 
 #include <algorithm>
 
-#include "aether/server.h"
 #include "aether/api_protocol/api_protocol.h"
+#include "aether/server.h"
 #include "aether/server_connections/server_connection.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 

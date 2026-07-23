@@ -18,13 +18,13 @@
 #if AE_SUPPORT_MODEMS
 
 #  include "aether/aether.h"
-#  include "aether/server.h"
 #  include "aether/modems/imodem_driver.h"
+#  include "aether/server.h"
 
-#  include "aether/channels/modem_channel.h"
 #  include "aether/access_points/filter_endpoints.h"
+#  include "aether/channels/modem_channel.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 
 namespace ae {
 ModemConnectAction::ModemConnectAction(AeContext const& ae_context,

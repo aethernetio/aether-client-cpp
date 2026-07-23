@@ -37,13 +37,14 @@
 
 #include "aether/tele/tele_init.h"
 
-#include "aether/aether_tele.h"
+#include "aether/tele.h"
+#include "aether/tele_compile_options.h"
 
 namespace ae {
 
 AetherAppContext::TelemetryInit::TelemetryInit() {
   tele::TeleInit::Init();
-  AE_TELE_ENV();
+  AE_TELE_ENV(kCompileOptions);
   AE_TELE_INFO(AetherStarted);
   Registry::GetRegistry().Log();
 }

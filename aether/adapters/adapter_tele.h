@@ -17,7 +17,7 @@
 #ifndef AETHER_ADAPTERS_ADAPTER_TELE_H_
 #define AETHER_ADAPTERS_ADAPTER_TELE_H_
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 AE_TELE_MODULE(kAdapter, 5, 101, 121);
 AE_TAG(kEthernetAdapterCreate, kAdapter)

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_CONNECTIONS_TELE_H_
-#define AETHER_CLOUD_CONNECTIONS_CLOUD_CONNECTIONS_TELE_H_
+#ifndef AETHER_TELE_H_
+#define AETHER_TELE_H_
 
-#include "aether/tele.h"
+// IWYU pragma: begin_keeps
+#include "aether/aether_tele.h"
 
-AE_TELE_MODULE(kCloudClientConnection, 30, 110, 112);
+#ifdef TELE_SINK
+#  undef TELE_SINK
+#endif
+#define TELE_SINK ::ae::tele::TeleSink<::ae::AetherTeleConfig>
 
-AE_TAG(CloudClientConnStreamCreate, kCloudClientConnection)
-AE_TAG(CloudClientConnStreamClose, kCloudClientConnection)
-AE_TAG(CloudClientNewStream, kCloudClientConnection)
+#include "aether/tele/tele.h"
+// IWYU pragma: end_keeps
 
-AE_TELE_MODULE(kClientServerStream, 61, 113, 113);
-AE_TAG(ClientServerStreamCreate, kClientServerStream)
-
-#endif  // AETHER_CLOUD_CONNECTIONS_CLOUD_CONNECTIONS_TELE_H_
+#endif  // AETHER_TELE_H_

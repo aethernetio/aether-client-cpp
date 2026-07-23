@@ -20,7 +20,7 @@
 
 #  include "lwip/sockets.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 
 namespace ae {
 LwipSocket::LwipSocket(IPoller& poller, int socket)

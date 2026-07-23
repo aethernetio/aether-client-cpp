@@ -21,7 +21,7 @@
 
 #include "aether-miscpp/misc/override.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 ChannelConnection::ChannelConnection(AeContext const& ae_context)

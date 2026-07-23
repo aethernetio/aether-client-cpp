@@ -17,18 +17,18 @@
 #include "aether/transport/system_sockets/sockets/unix_udp_socket.h"
 
 #if AE_SUPPORT_UDP && UNIX_SOCKET_ENABLED
-#  include <fcntl.h>
-#  include <unistd.h>
-#  include <sys/ioctl.h>
 #  include <arpa/inet.h>
-#  include <sys/socket.h>
+#  include <fcntl.h>
 #  include <netinet/in.h>
 #  include <netinet/udp.h>
+#  include <sys/ioctl.h>
+#  include <sys/socket.h>
+#  include <unistd.h>
 
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 
 namespace ae {
 UnixUdpSocket::UnixUdpSocket(Ptr<IPoller> const& poller)

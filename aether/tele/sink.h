@@ -17,25 +17,22 @@
 #ifndef AETHER_TELE_SINK_H_
 #define AETHER_TELE_SINK_H_
 
-#include <cassert>
 #include <memory>
 
 #include "aether/tele/itrap.h"
 #include "aether/tele/levels.h"
-#include "aether/tele/modules.h"
+#include "aether/tele/modules.h"  // IWYU pragma: keep
 
 namespace ae::tele {
-
 template <typename ConfigProvider>
 class TeleSink {
  public:
   using ConfigProviderType = ConfigProvider;
 
   template <Level::underlined_t l, std::uint32_t m>
-  using TeleConfig =
-      typename ConfigProviderType::template StaticTeleConfig<l, m>;
+  using TeleConfig = typename ConfigProviderType::template TeleConfig<l, m>;
 
-  using EnvConfig = typename ConfigProviderType::StaticEnvConfig;
+  using EnvConfig = typename ConfigProviderType::EnvConfig;
 
   static TeleSink& Instance() {
     static TeleSink sink;

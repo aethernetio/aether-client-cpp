@@ -17,14 +17,16 @@
 #ifndef AETHER_TELE_ENV_COMPILER_H_
 #define AETHER_TELE_ENV_COMPILER_H_
 
-#define _STR(x) _QUOTE(x)
+#define AETE_QUOTE(x) #x
 
-#define _AE_CONCAT_0(A, B, ...) A##B
-#define _AE_CONCAT_1(A, ...) _AE_CONCAT_0(A##__VA_ARGS__)
-#define _AE_CONCAT_2(A, ...) _AE_CONCAT_1(A##__VA_ARGS__)
-#define _AE_CONCAT_3(A, ...) _AE_CONCAT_2(A##__VA_ARGS__)
-#define _AE_CONCAT_N(_3, _2, _1, _0, X, ...) _AE_CONCAT##X(_3, _2, _1, _0)
-#define AETE_CONCAT(...) _AE_CONCAT_N(__VA_ARGS__, _2, _1, _0)
+#define AETE_STR(x) AETE_QUOTE(x)
+
+#define _AETE_CONCAT_0(A, B, ...) A##B
+#define _AETE_CONCAT_1(A, ...) __CONCAT_0(A##__VA_ARGS__)
+#define _AETE_CONCAT_2(A, ...) _AETE_CONCAT_1(A##__VA_ARGS__)
+#define _AETE_CONCAT_3(A, ...) _AETE_CONCAT_2(A##__VA_ARGS__)
+#define _AETE_CONCAT_N(_3, _2, _1, _0, X, ...) _AETE_CONCAT##X(_3, _2, _1, _0)
+#define AETE_CONCAT(...) _AETE_CONCAT_N(__VA_ARGS__, _2, _1, _0)
 
 #if defined __clang__
 #  if defined __MINGW32__
@@ -32,9 +34,9 @@
 #  else
 #    define COMPILER "clang"
 #  endif
-#  define COMPILER_VERSION \
-    _STR(__clang_major__)  \
-    "." _STR(__clang_minor__) "." _STR(__clang_patchlevel__)
+#  define COMPILER_VERSION    \
+    AETE_STR(__clang_major__) \
+    "." AETE_STR(__clang_minor__) "." AETE_STR(__clang_patchlevel__)
 #  define COMPILER_VERSION_NUM \
     AE_CONCAT(__clang_major__, __clang_minor__, __clang_patchlevel__)
 #elif defined __GNUC__
@@ -44,12 +46,13 @@
 #    define COMPILER "gcc"
 #  endif
 #  define COMPILER_VERSION \
-    _STR(__GNUC__) "." _STR(__GNUC_MINOR__) "." _STR(__GNUC_PATCHLEVEL__)
+    AETE_STR(__GNUC__)     \
+    "." AETE_STR(__GNUC_MINOR__) "." AETE_STR(__GNUC_PATCHLEVEL__)
 #  define COMPILER_VERSION_NUM \
     AE_CONCAT(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__)
 #elif defined _MSC_VER
 #  define COMPILER "msvc"
-#  define COMPILER_VERSION _STR(_MSC_FULL_VER)
+#  define COMPILER_VERSION AETE_STR(_MSC_FULL_VER)
 #  define COMPILER_VERSION_NUM _MSC_FULL_VER
 #else
 #  warning "unknown compiler"

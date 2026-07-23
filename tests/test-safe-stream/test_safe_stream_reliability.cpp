@@ -23,13 +23,13 @@
 
 #include "aether/safe_stream/safe_stream.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
-#include "tests/test-stream/to_data_buffer.h"
 #include "tests/test-stream/mock_write_stream.h"
+#include "tests/test-stream/to_data_buffer.h"
 
-#include "stream-test-ctx.h"
 #include "mock_bad_streams.h"
+#include "stream-test-ctx.h"
 
 namespace ae::test_safe_stream_reliability {
 constexpr auto config = SafeStreamConfig{

@@ -16,7 +16,7 @@
 
 #include "aether/work_cloud_api/work_server_api/login_api.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 LoginApi::LoginApi(ProtocolContext& protocol_context,

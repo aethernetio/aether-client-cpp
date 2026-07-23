@@ -17,7 +17,7 @@
 #ifndef AETHER_CLIENT_MESSAGES_CLIENT_MESSAGES_TELE_H_
 #define AETHER_CLIENT_MESSAGES_CLIENT_MESSAGES_TELE_H_
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 AE_TELE_MODULE(kClientMessages, 8, 166, 170);
 

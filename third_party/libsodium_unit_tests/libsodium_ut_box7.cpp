@@ -1,7 +1,7 @@
 #include "libsodium_ut_box7.h"
 
 #include "unity.h"
-//#include "aether/tele/tele.h"
+//#include "aether/tele.h"
 
 namespace box7
 {
@@ -17,7 +17,7 @@ namespace box7
 
     static const char *TAG = "SODIUM UNITY";
 
-    #if DEBUG_OUT==1    
+    #if DEBUG_OUT==1
         #define DebugPrint(format, ...) LOG(TAG, format, ##__VA_ARGS__)
     #elif DEBUG_OUT==2
         #define DebugPrint(format, ...) AE_TELED_DEBUG(TAG, format, ##__VA_ARGS__)
@@ -65,7 +65,7 @@ test(void)
 
     return 0;
 }
-   
+
 void _libsodium_ut_box7()
     {
         test();

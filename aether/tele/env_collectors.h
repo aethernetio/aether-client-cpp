@@ -23,7 +23,6 @@
 
 #include "aether/env.h"
 #include "aether/tele/compile_option.h"
-#include "aether/tele/env/compilation_options.h"
 #include "aether/tele/env/compiler.h"
 #include "aether/tele/env/cpu_architecture.h"
 #include "aether/tele/env/library_version.h"
@@ -46,90 +45,48 @@ namespace ae::tele {
  *     - architecture
  */
 
-template <typename TEnvConfig>
-constexpr bool IsCompilation() {
-  return TEnvConfig::kCompiler || TEnvConfig::kCompilationOptions ||
-         TEnvConfig::kLibraryVersion || TEnvConfig::kApiVersion;
-}
-
-template <typename TEnvConfig>
-constexpr bool IsRuntime() {
-  return false;
-}
-
-template <typename TEnvConfig>
-constexpr bool IsAnyEnvCollection() {
-  return IsCompilation<TEnvConfig>() || IsRuntime<TEnvConfig>() ||
-         TEnvConfig::kCustomData;
-}
-
 constexpr auto PlatformType() { return AE_PLATFORM_TYPE; }
 constexpr auto CompilerName() { return COMPILER; }
 constexpr auto CompilerVersion() { return COMPILER_VERSION; }
-
-template <typename OptsArr, size_t... Is>
-constexpr auto CompilationOptionsImpl(OptsArr const& arr,
-                                      std::index_sequence<Is...>) {
-  return std::array<CompileOption, sizeof...(Is)>{
-      CompileOption{Is, arr[Is].first, arr[Is].second}...};
-}
-constexpr auto CompilationOptions() {
-  return CompilationOptionsImpl(
-      _compile_options_list,
-      std::make_index_sequence<_compile_options_list.size()>{});
-}
 constexpr auto LibraryVersion() { return LIBRARY_VERSION; }
-constexpr auto ApiVersion() {
-  // TODO: add collect api version
-  return "0.0.0";
-}
 
 constexpr Endianness PlatformEndianness() {
   return static_cast<Endianness>(AE_ENDIANNESS);
 }
 constexpr auto CpuType() { return AE_CPU_TYPE; }
 
-template <typename TSink,
-          auto Enabled = IsAnyEnvCollection<typename TSink::EnvConfig>()>
+template <typename TSink, typename Enabled = void>
 struct EnvTele {
+  template <typename... TArgs>
+  constexpr explicit EnvTele(TArgs&&... /* args */) {}
+};
+
+template <typename TSink>
+struct EnvTele<TSink, std::enable_if_t<TSink::EnvConfig::kStaticInfo ||
+                                       TSink::EnvConfig::kRuntimeInfo>> {
   using Sink = TSink;
   using SinkConfig = typename Sink::EnvConfig;
 
-  template <typename... TValues>
+  template <std::size_t CompileConfigs = 0, std::size_t CustomOptions = 0>
   explicit EnvTele(
       Sink& sink, [[maybe_unused]] std::uint32_t utm_id,
-      [[maybe_unused]] std::pair<std::string_view, TValues>&&... args) {
-    std::vector<CompileOption> compile_options;
-    std::vector<CustomOption> custom_options;
+      [[maybe_unused]] std::array<CompileOption, CompileConfigs> const&
+          compile_options = {},
+      [[maybe_unused]] std::array<CustomOption, CustomOptions> const&
+          custom_options = {}) {
     auto env_data = EnvData{};
-    if constexpr (SinkConfig::kPlatformType) {
+
+    if constexpr (SinkConfig::kStaticInfo) {
       env_data.platform_type = PlatformType();
-    }
-    if constexpr (SinkConfig::kCompiler) {
       env_data.compiler = CompilerName();
       env_data.compiler_version = CompilerVersion();
-    }
-    if constexpr (SinkConfig::kCompilationOptions) {
-      auto opts = CompilationOptions();
-      compile_options.insert(std::end(compile_options), std::begin(opts),
-                             std::end(opts));
-      env_data.compile_options = std::span{compile_options};
-    }
-    if constexpr (SinkConfig::kLibraryVersion) {
       env_data.library_version = LibraryVersion();
-    }
-    if constexpr (SinkConfig::kApiVersion) {
-      env_data.api_version = ApiVersion();
-    }
-    if constexpr (SinkConfig::kCpuType) {
       env_data.cpu_arch = CpuType();
       env_data.endianness = PlatformEndianness();
-    }
-    if constexpr (SinkConfig::kUtmId) {
       env_data.utm_id = utm_id;
+      env_data.compile_options = std::span{compile_options};
     }
-    if constexpr (SinkConfig::kCustomData) {
-      custom_options = {CustomOption{args.first, args.second}...};
+    if constexpr (SinkConfig::kRuntimeInfo) {
       env_data.custom_options = std::span{custom_options};
     }
     auto& trap = sink.trap();
@@ -140,11 +97,6 @@ struct EnvTele {
   }
 };
 
-template <typename TSink>
-struct EnvTele<TSink, false> {
-  template <typename... TArgs>
-  constexpr explicit EnvTele(TArgs&&... /* args */) {}
-};
 }  // namespace ae::tele
 
 #endif  // AETHER_TELE_ENV_COLLECTORS_H_ */

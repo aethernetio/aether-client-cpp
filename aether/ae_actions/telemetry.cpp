@@ -20,7 +20,7 @@
 
 #  include "aether-miscpp/format/format.h"
 #  include "aether/aether.h"
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 #  include "aether/tele/traps/tele_statistics.h"
 
 #  include "aether/mstream.h"

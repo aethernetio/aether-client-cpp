@@ -27,7 +27,7 @@
 #include "aether/safe_stream/details/safe_stream_data_message.h"
 #include "aether/safe_stream/safe_stream_config.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 class ISendAckRepeat {

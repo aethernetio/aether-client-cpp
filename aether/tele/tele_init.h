@@ -18,7 +18,7 @@
 #define AETHER_TELE_TELE_INIT_H_
 
 // IWYU pragma: begin_keeps
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 #include "aether/tele/traps/tele_statistics.h"
 // IWYU pragma: end_keeps
 

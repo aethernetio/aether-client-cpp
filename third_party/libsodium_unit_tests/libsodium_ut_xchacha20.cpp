@@ -1,7 +1,7 @@
 #include "libsodium_ut_xchacha20.h"
 
 #include "unity.h"
-//#include "aether/tele/tele.h"
+//#include "aether/tele.h"
 
 namespace xchacha20
 {
@@ -17,14 +17,14 @@ namespace xchacha20
 
     static const char *TAG = "SODIUM UNITY";
 
-    #if DEBUG_OUT==1    
+    #if DEBUG_OUT==1
         #define DebugPrint(format, ...) LOG(TAG, format, ##__VA_ARGS__)
     #elif DEBUG_OUT==2
         #define DebugPrint(format, ...) AE_TELED_DEBUG(TAG, format, ##__VA_ARGS__)
     #elif DEBUG_OUT==3
         #define DebugPrint(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
     #endif
-    
+
     static void
     tv_hchacha20(void)
     {

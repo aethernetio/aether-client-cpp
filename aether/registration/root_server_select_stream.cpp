@@ -18,7 +18,7 @@
 
 #if AE_SUPPORT_REGISTRATION
 
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 
 namespace ae {
 RootServerSelectStream::RootServerSelectStream(

@@ -39,7 +39,6 @@ struct EnvData {
   std::string_view compiler;
   std::string_view compiler_version;
   std::string_view library_version;
-  std::string_view api_version;
   std::string_view cpu_arch;
   Endianness endianness;
   std::uint32_t utm_id;

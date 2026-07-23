@@ -17,7 +17,7 @@
 #ifndef AETHER_POLLER_POLLER_TELE_H_
 #define AETHER_POLLER_POLLER_TELE_H_
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 AE_TELE_MODULE(kPoller, 6, 121, 155);
 

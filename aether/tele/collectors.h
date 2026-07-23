@@ -66,10 +66,7 @@ struct TimedTele {
 };
 
 template <typename TConfig>
-static constexpr inline bool kIsAnyLogs =
-    TConfig::kIndexLogs || TConfig::kStartTimeLogs ||
-    TConfig::kLevelModuleLogs || TConfig::kLocationLogs || TConfig::kNameLogs ||
-    TConfig::kBlobLogs;
+static constexpr inline bool kIsAnyLogs = TConfig::kLogsEnabled;
 
 template <typename TConfig>
 static constexpr inline bool kIsAnyMetrics =

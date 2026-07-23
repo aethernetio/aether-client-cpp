@@ -19,15 +19,15 @@
 #if AE_SUPPORT_WIFIS
 #  include <utility>
 
-#  include "aether/aether.h"
-#  include "aether/server.h"
-#  include "aether/poller/poller.h"
-#  include "aether/dns/dns_resolve.h"
-#  include "aether/adapters/wifi_adapter.h"
-#  include "aether/channels/wifi_channel.h"
 #  include "aether/access_points/filter_endpoints.h"
+#  include "aether/adapters/wifi_adapter.h"
+#  include "aether/aether.h"
+#  include "aether/channels/wifi_channel.h"
+#  include "aether/dns/dns_resolve.h"
+#  include "aether/poller/poller.h"
+#  include "aether/server.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 
 namespace ae {
 
@@ -53,7 +53,8 @@ WifiConnectAction::connection_event() {
 
 void WifiConnectAction::EnsureConnected() {
   auto connected_to = driver_->connected_to();
-  AE_TELED_DEBUG("Driver connected to {}", connected_to.value_or("NOT CONNECTED"));
+  AE_TELED_DEBUG("Driver connected to {}",
+                 connected_to.value_or("NOT CONNECTED"));
   // if already connected
   if (connected_to && (*connected_to == wifi_ap_.creds.ssid)) {
     SetConnected(true);

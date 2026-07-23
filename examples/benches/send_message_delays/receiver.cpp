@@ -25,7 +25,7 @@
 
 #include "send_message_delays/api/bench_delays_api.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae::bench {
 Receiver::Receiver(AeContext const& ae_context, Client::ptr client,

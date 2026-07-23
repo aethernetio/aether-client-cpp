@@ -121,7 +121,6 @@ void StatisticsTrapBasic::WriteEnvData(EnvData const& env_data) {
   env_store_.compiler = env_data.compiler;
   env_store_.compiler_version = env_data.compiler_version;
   env_store_.library_version = env_data.library_version;
-  env_store_.api_version = env_data.api_version;
   env_store_.cpu_arch = env_data.cpu_arch;
   env_store_.endianness = static_cast<std::uint8_t>(env_data.endianness);
   env_store_.utm_id = env_data.utm_id;

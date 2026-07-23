@@ -18,7 +18,7 @@
 
 #include <utility>
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae::bench {
 SendMessageDelaysManager::TestAction::TestAction(

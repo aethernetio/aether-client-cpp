@@ -1,7 +1,7 @@
 #include "libsodium_ut_auth5.h"
 
 #include "unity.h"
-//#include "aether/tele/tele.h"
+//#include "aether/tele.h"
 
 namespace auth5
 {
@@ -17,7 +17,7 @@ namespace auth5
 
     static const char *TAG = "SODIUM UNITY";
 
-    #if DEBUG_OUT==1    
+    #if DEBUG_OUT==1
         #define DebugPrint(format, ...) LOG(TAG, format, ##__VA_ARGS__)
     #elif DEBUG_OUT==2
         #define DebugPrint(format, ...) AE_TELED_DEBUG(TAG, format, ##__VA_ARGS__)

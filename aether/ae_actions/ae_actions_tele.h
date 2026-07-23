@@ -17,7 +17,7 @@
 #ifndef AETHER_AE_ACTIONS_AE_ACTIONS_TELE_H_
 #define AETHER_AE_ACTIONS_AE_ACTIONS_TELE_H_
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 #if AE_SUPPORT_REGISTRATION
 AE_TELE_MODULE(kRegister, 1000, 1000, 1050);

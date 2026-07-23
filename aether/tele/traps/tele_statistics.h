@@ -22,7 +22,7 @@
 #include "aether/obj/obj.h"
 #include "aether/ptr/rc_ptr.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 #include "aether/tele/traps/statistics_trap.h"
 
 namespace ae::tele {

@@ -18,7 +18,7 @@
 
 #include "aether/connection_manager/client_cloud_manager.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
@@ -48,8 +48,8 @@ GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
       },
       cloud_update_sub_{client_cloud_manager.cloud_update_event().Subscribe(
           MethodPtr<&GetCloudFromAether::CloudUpdate>{this})} {
-  cloud_request_result_sub_ = cloud_request_.result_event().Subscribe(
-      [this](bool success) {
+  cloud_request_result_sub_ =
+      cloud_request_.result_event().Subscribe([this](bool success) {
         if (!success) {
           AE_TELED_ERROR("CloudRequest failed for uid:{}", client_uid_);
           result_event_.Emit(Error{-1});

@@ -48,8 +48,6 @@
 
 #define AETHER_TELE_TELE_H_
 
-#include "aether-miscpp/meta/type_list.h"
-
 #include "aether/tele/collectors.h"
 #include "aether/tele/defines.h"
 #include "aether/tele/env_collectors.h"
@@ -57,13 +55,13 @@
 #include "aether/tele/sink.h"
 #include "aether/tele/tags.h"
 
-#include "aether/tele/configs/config_provider.h"
+#include "aether/tele/configs/all_enabled.h"
 
 #include "aether/tele/traps/io_stream_traps.h"
 #include "aether/tele/traps/proxy_trap.h"
 #include "aether/tele/traps/statistics_trap.h"
 
-using SinkType = ae::tele::TeleSink<ae::tele::ConfigProvider>;
+using SinkType = ae::tele::TeleSink<ae::tele::AllEnabledConfig>;
 
 #define TELE_SINK SinkType
 static std::shared_ptr<ae::tele::IoStreamTrap> trap;
@@ -199,37 +197,26 @@ struct TeleTrap final : public ITrap {
   std::map<std::size_t, MetricData> metric_data_;
 };
 
-template <bool Count = true, bool Time = true, bool Index = true,
+template <bool Count = true, bool Time = true, bool LogsEnabled = true,
           bool StartTime = true, bool LevelModule = true, bool Location = true,
-          bool Text = true, bool Blob = true>
+          bool TagName = true, bool Blob = true>
 struct ConfigProvider {
-  template <bool... args>
+  template <Level::underlined_t, std::uint32_t>
   struct TeleConfig {
-    static constexpr bool kCountMetrics = ArgAt_v<0, args...>;
-    static constexpr bool kTimeMetrics = ArgAt_v<1, args...>;
-    static constexpr bool kIndexLogs = ArgAt_v<2, args...>;
-    static constexpr bool kStartTimeLogs = ArgAt_v<3, args...>;
-    static constexpr bool kLevelModuleLogs = ArgAt_v<4, args...>;
-    static constexpr bool kLocationLogs = ArgAt_v<5, args...>;
-    static constexpr bool kNameLogs = ArgAt_v<6, args...>;
-    static constexpr bool kBlobLogs = ArgAt_v<7, args...>;
+    static constexpr bool kCountMetrics = Count;
+    static constexpr bool kTimeMetrics = Time;
+    static constexpr bool kLogsEnabled = LogsEnabled;
+    static constexpr bool kStartTimeLogs = StartTime;
+    static constexpr bool kLevelModuleLogs = LevelModule;
+    static constexpr bool kLocationLogs = Location;
+    static constexpr bool kNameLogs = TagName;
+    static constexpr bool kBlobLogs = Blob;
   };
 
-  template <bool... args>
   struct EnvConfig {
-    static constexpr bool kCompiler = ArgAt_v<0, args...>;
-    static constexpr bool kPlatformType = ArgAt_v<1, args...>;
-    static constexpr bool kCompilationOptions = ArgAt_v<2, args...>;
-    static constexpr bool kLibraryVersion = ArgAt_v<3, args...>;
-    static constexpr bool kApiVersion = ArgAt_v<4, args...>;
-    static constexpr bool kCpuType = ArgAt_v<5, args...>;
+    static constexpr bool kStaticInfo = true;
+    static constexpr bool kRuntimeInfo = true;
   };
-
-  template <ae::tele::Level::underlined_t level, std::uint32_t module>
-  using StaticTeleConfig = TeleConfig<Count, Time, Index, StartTime,
-                                      LevelModule, Location, Text, Blob>;
-
-  using StaticEnvConfig = EnvConfig<true, true, true, true, true>;
 };
 }  // namespace tele_configuration
 
@@ -300,14 +287,6 @@ void test_TeleConfigurations() {
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_[12].count_);
     TEST_ASSERT_EQUAL(0, tele_trap->metric_data_[12].duration_);
-
-    TEST_ASSERT(tele_trap->log_lines_.empty());
-  }
-  {
-    // nothing
-    using Sink = TeleSink<tele_configuration::ConfigProvider<
-        false, false, false, false, false, false, false, false>>;
-    auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
 
     TEST_ASSERT(tele_trap->log_lines_.empty());
   }
@@ -500,16 +479,16 @@ void test_SaveLoadTeleStatistics() {
   // simple check with _AE_MODULE_CONFIG leads here to AST broken error for
   // cppcheck
   constexpr bool time_metrics_enabled =
-      TELE_SINK::ConfigProviderType::StaticTeleConfig<Level::kDebug,
-                                                      MLog.id>::kTimeMetrics;
+      TELE_SINK::ConfigProviderType::TeleConfig<Level::kDebug,
+                                                MLog.id>::kTimeMetrics;
   if constexpr (time_metrics_enabled) {
     TEST_ASSERT_EQUAL(metrics1.at(log_index).sum_duration,
                       metrics2.at(log_index).sum_duration);
   }
 
   constexpr bool count_metrics_enabled =
-      TELE_SINK::ConfigProviderType::StaticTeleConfig<Level::kDebug,
-                                                      MLog.id>::kCountMetrics;
+      TELE_SINK::ConfigProviderType::TeleConfig<Level::kDebug,
+                                                MLog.id>::kCountMetrics;
 
   if constexpr (count_metrics_enabled) {
     TEST_ASSERT_EQUAL(metrics1.at(log_index).invocations_count,

@@ -17,21 +17,25 @@
 #ifndef AETHER_TELE_DEFINES_H_
 #define AETHER_TELE_DEFINES_H_
 
-#include "aether/common.h"
-
+// IWYU pragma: begin_keeps
 #include "aether/tele/collectors.h"
 #include "aether/tele/env_collectors.h"
 #include "aether/tele/modules.h"
 #include "aether/tele/tags.h"
+// IWYU pragma: end_keeps
+
+#define AETE_CAT_(A, B) A##B
+#define AETE_CAT(A, B) AETE_CAT_(A, B)
+#define AETE_UNIQUE_NAME(P) AETE_CAT(P, AETE_CAT(__LINE__, __COUNTER__))
 
 #ifndef UTM_ID
 #  define UTM_ID 0
 #endif
 
-namespace ae::tele {
-using ae::tele::EnvTele;
-using ae::tele::Tele;
-}  // namespace ae::tele
+// namespace ae::tele {
+// using ae::tele::EnvTele;
+// using ae::tele::Tele;
+// }  // namespace ae::tele
 
 // A special tag for telemetry debug debug
 
@@ -47,29 +51,33 @@ AE_TAG(kLog, MLog)
   }
 
 #define AE_TELE_DEBUG(TAG, ...) \
-  AE_TELE_(AE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kDebug, __VA_ARGS__)
+  AE_TELE_(AETE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kDebug, __VA_ARGS__)
 #define AE_TELE_INFO(TAG, ...) \
-  AE_TELE_(AE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kInfo, __VA_ARGS__)
-#define AE_TELE_WARNING(TAG, ...) \
-  AE_TELE_(AE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kWarning, __VA_ARGS__)
+  AE_TELE_(AETE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kInfo, __VA_ARGS__)
+#define AE_TELE_WARNING(TAG, ...)                                     \
+  AE_TELE_(AETE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kWarning, \
+           __VA_ARGS__)
 #define AE_TELE_ERROR(TAG, ...) \
-  AE_TELE_(AE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kError, __VA_ARGS__)
+  AE_TELE_(AETE_UNIQUE_NAME(TELE_), TAG, ::ae::tele::Level::kError, __VA_ARGS__)
 
 // For simple logging
-#define AE_TELED_DEBUG(...) \
-  AE_TELE_(AE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kDebug, __VA_ARGS__)
-#define AE_TELED_INFO(...) \
-  AE_TELE_(AE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kInfo, __VA_ARGS__)
-#define AE_TELED_WARNING(...)                                        \
-  AE_TELE_(AE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kWarning, \
+#define AE_TELED_DEBUG(...)                                          \
+  AE_TELE_(AETE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kDebug, \
            __VA_ARGS__)
-#define AE_TELED_ERROR(...) \
-  AE_TELE_(AE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kError, __VA_ARGS__)
+#define AE_TELED_INFO(...) \
+  AE_TELE_(AETE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kInfo, __VA_ARGS__)
+#define AE_TELED_WARNING(...)                                          \
+  AE_TELE_(AETE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kWarning, \
+           __VA_ARGS__)
+#define AE_TELED_ERROR(...)                                          \
+  AE_TELE_(AETE_UNIQUE_NAME(TELE_), kLog, ::ae::tele::Level::kError, \
+           __VA_ARGS__)
 
 // Log environment data
-#define AE_TELE_ENV(...)                                                      \
-  [[maybe_unused]] ::ae::tele::EnvTele<TELE_SINK> AE_UNIQUE_NAME(TELE_ENV_) { \
-    TELE_SINK::Instance(), UTM_ID __VA_ARGS__                                 \
+#define AE_TELE_ENV(...)                              \
+  [[maybe_unused]] auto AETE_UNIQUE_NAME(TELE_ENV_) = \
+      ::ae::tele::EnvTele<TELE_SINK> {                \
+    TELE_SINK::Instance(), UTM_ID, __VA_ARGS__        \
   }
 
 #endif  // AETHER_TELE_DEFINES_H_ */

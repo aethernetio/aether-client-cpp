@@ -29,7 +29,7 @@
 
 #include "aether/channels/ethernet_transport_factory.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 namespace ethernet_access_point_internal {
