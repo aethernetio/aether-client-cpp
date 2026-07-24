@@ -17,14 +17,11 @@
 #ifndef AETHER_TELE_TRAPS_IO_STREAM_TRAPS_H_
 #define AETHER_TELE_TRAPS_IO_STREAM_TRAPS_H_
 
-#include <cstddef>
 #include <cstdint>
 #include <mutex>
 #include <ostream>
 #include <string_view>
 #include <unordered_map>
-
-#include "aether/common.h"
 
 #include "aether/tele/itrap.h"
 
@@ -39,19 +36,29 @@ struct Metric {
 
 class IoStreamTrap final : public ITrap {
  public:
+  class LogLineWriter final : public ILogLine {
+   public:
+    LogLineWriter(std::ostream& s, Tag const& tag);
+
+    void InvokeTime(TimePoint time) override;
+    void WriteLevel(Level level) override;
+    void WriteModule(Module const& module) override;
+    void Location(std::string_view file, std::uint32_t line) override;
+    void TagName(std::string_view name) override;
+    void Blob(std::span<std::uint8_t const>) override;
+
+   private:
+    std::ostream& stream_;
+  };
+
   explicit IoStreamTrap(std::ostream& stream);
   ~IoStreamTrap() override;
 
   void AddInvoke(Tag const& tag, std::uint32_t count) override;
   void AddInvokeDuration(Tag const& tag, Duration duration) override;
-  void OpenLogLine(Tag const& tag) override;
-  void InvokeTime(TimePoint time) override;
-  void WriteLevel(Level level) override;
-  void WriteModule(Module const& module) override;
-  void Location(std::string_view file, std::uint32_t line) override;
-  void TagName(std::string_view name) override;
-  void Blob(std::uint8_t const* data, std::size_t size) override;
-  void CloseLogLine(Tag const& tag) override;
+
+  void LogLine(Tag const& tag, ILogCollector& log_collector) override;
+
   void WriteEnvData(EnvData const& env_data) override;
 
   std::unordered_map<std::uint32_t, Metric> const& metrics() const {
@@ -59,8 +66,6 @@ class IoStreamTrap final : public ITrap {
   }
 
  private:
-  void WritePaddedIndex(std::uint32_t index);
-
   std::mutex sync_lock_;
   std::ostream& stream_;
   std::unordered_map<std::uint32_t, Metric> metrics_;

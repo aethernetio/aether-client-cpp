@@ -25,7 +25,8 @@ list(APPEND aether_srcs
             "work_cloud.cpp"
             "server.cpp"
             "server_keys.cpp"
-            "socket_initializer.cpp")
+            "socket_initializer.cpp"
+            "tele_statistics.cpp")
 
 list(APPEND aether_srcs
             "aether_c/c_uid.cpp"
@@ -231,9 +232,7 @@ list(APPEND aether_srcs
             "channels/modem_channel.cpp")
 
 list(APPEND aether_srcs
-            "tele/tele_init.cpp"
             "tele/traps/io_stream_traps.cpp"
-            "tele/traps/statistics_trap.cpp"
-            "tele/traps/tele_statistics.cpp")
+            "tele/traps/statistics_trap.cpp")
 
 target_sources(${TARGET_NAME} PRIVATE ${aether_srcs})

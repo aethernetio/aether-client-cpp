@@ -17,7 +17,7 @@
 #ifndef AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_TELE_H_
 #define AETHER_DOMAIN_STORAGE_DOMAIN_STORAGE_TELE_H_
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 AE_TELE_MODULE(kDomainStorage, 9, 171, 185);
 AE_TELE_MODULE(kDomainStorageDebug, 109, 300, 320);

@@ -19,8 +19,6 @@
 
 #include <memory>
 
-#include "aether/clock.h"
-
 #include "aether/tele/itrap.h"
 
 namespace ae::tele {
@@ -44,44 +42,9 @@ class ProxyTrap final : public ITrap {
     second->AddInvokeDuration(tag, duration);
   }
 
-  void OpenLogLine(Tag const& tag) override {
-    first->OpenLogLine(tag);
-    second->OpenLogLine(tag);
-  }
-
-  void InvokeTime(TimePoint time) override {
-    first->InvokeTime(time);
-    second->InvokeTime(time);
-  }
-
-  void WriteLevel(Level level) override {
-    first->WriteLevel(level);
-    second->WriteLevel(level);
-  }
-
-  void WriteModule(Module const& module) override {
-    first->WriteModule(module);
-    second->WriteModule(module);
-  }
-
-  void Location(std::string_view file, std::uint32_t line) override {
-    first->Location(file, line);
-    second->Location(file, line);
-  }
-
-  void TagName(std::string_view name) override {
-    first->TagName(name);
-    second->TagName(name);
-  }
-
-  void Blob(std::uint8_t const* data, std::size_t size) override {
-    first->Blob(data, size);
-    second->Blob(data, size);
-  }
-
-  void CloseLogLine(Tag const& tag) override {
-    first->CloseLogLine(tag);
-    second->CloseLogLine(tag);
+  void LogLine(Tag const& tag, ILogCollector& log_collector) override {
+    first->LogLine(tag, log_collector);
+    second->LogLine(tag, log_collector);
   }
 
   void WriteEnvData(EnvData const& env_data) override {

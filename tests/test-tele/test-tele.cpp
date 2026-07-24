@@ -26,6 +26,8 @@
 #include <thread>
 #include <vector>
 
+#include "aether-miscpp/meta/arg_at.h"
+
 #include "aether/config.h"
 
 // force to enable telemetry for this test
@@ -46,22 +48,20 @@
 
 #define AETHER_TELE_TELE_H_
 
-#include "aether-miscpp/meta/type_list.h"
-
+#include "aether/tele/collectors.h"
+#include "aether/tele/defines.h"
+#include "aether/tele/env_collectors.h"
+#include "aether/tele/modules.h"
 #include "aether/tele/sink.h"
 #include "aether/tele/tags.h"
-#include "aether/tele/modules.h"
-#include "aether/tele/defines.h"
-#include "aether/tele/collectors.h"
-#include "aether/tele/env_collectors.h"
 
-#include "aether/tele/configs/config_provider.h"
+#include "aether/tele/configs/all_enabled.h"
 
-#include "aether/tele/traps/proxy_trap.h"
 #include "aether/tele/traps/io_stream_traps.h"
+#include "aether/tele/traps/proxy_trap.h"
 #include "aether/tele/traps/statistics_trap.h"
 
-using SinkType = ae::tele::TeleSink<ae::tele::ConfigProvider>;
+using SinkType = ae::tele::TeleSink<ae::tele::AllEnabledConfig>;
 
 #define TELE_SINK SinkType
 static std::shared_ptr<ae::tele::IoStreamTrap> trap;
@@ -134,6 +134,49 @@ struct TeleTrap final : public ITrap {
     std::uint32_t duration_{};
   };
 
+  class LogLineWriter final : public ILogLine {
+   public:
+    explicit LogLineWriter(std::vector<std::string>& line) : log_line{line} {}
+    /**
+     * \brief Telemetry invoke time.
+     */
+    void InvokeTime(TimePoint time) override {
+      log_line.emplace_back(Format("{:time}", time));
+    };
+    /**
+     * \brief Telemetry tag level
+     */
+    void WriteLevel(Level level) override {
+      log_line.emplace_back(level.Text());
+    };
+    /**
+     * \brief Tag module
+     */
+    void WriteModule(Module const& module) override {
+      log_line.emplace_back(module.name);
+    };
+    /**
+     * \brief Tag location
+     */
+    void Location(std::string_view file, std::uint32_t line) override {
+      log_line.emplace_back(Format("{file}:{line}", file, line));
+    };
+    /**
+     * \brief Tag name
+     */
+    void TagName(std::string_view name) override {
+      log_line.emplace_back(name);
+    };
+    /**
+     * \brief Get stream to write telemetry blob data.
+     */
+    void Blob(std::span<std::uint8_t const> blob) override {
+      log_line.emplace_back(reinterpret_cast<char const*>(blob.data()),
+                            blob.size());
+    };
+    std::vector<std::string>& log_line;
+  };
+
   void AddInvoke(Tag const& tag, std::uint32_t count) override {
     metric_data_[tag.index()].count_ += count;
   }
@@ -141,72 +184,40 @@ struct TeleTrap final : public ITrap {
     metric_data_[tag.index()].duration_ +=
         static_cast<std::uint32_t>(duration.count());
   }
-  void OpenLogLine(Tag const& tag) override {
-    log_lines_.emplace_back();
-    log_lines_.front().emplace_back(std::to_string(tag.index()));
+  void LogLine(Tag const& tag, ILogCollector& log_collector) override {
+    auto& line = log_lines_.emplace_back();
+    line.emplace_back(std::to_string(tag.index()));
+    auto writer = LogLineWriter{line};
+    log_collector.WriteLine(writer);
   }
-  void InvokeTime(TimePoint time) override {
-    log_lines_.front().emplace_back(Format("{:time}", time));
-  }
-  void WriteLevel(Level level) override {
-    log_lines_.front().emplace_back(Level::text(level.value_));
-  }
-  void WriteModule(Module const& module) override {
-    log_lines_.front().emplace_back(module.name);
-  }
-  void Location(std::string_view file, std::uint32_t line) override {
-    auto pos = file.find_last_of("/\\");
-    if (pos == std::string_view::npos) {
-      file = "UNKNOWN FILE";
-    }
-    file = file.substr(pos + 1, file.size() - pos);
-    log_lines_.front().emplace_back(Format("{file}:{line}", file, line));
-  }
-  void TagName(std::string_view name) override {
-    log_lines_.front().emplace_back(name);
-  }
-  void Blob(std::uint8_t const* data, std::size_t size) override {
-    log_lines_.front().emplace_back(
-        std::string(reinterpret_cast<char const*>(data), size));
-  }
-  void CloseLogLine(Tag const& /*tag*/) override {}
+
   void WriteEnvData(EnvData const& /*env_data*/) override {}
 
   std::list<std::vector<std::string>> log_lines_;
   std::map<std::size_t, MetricData> metric_data_;
 };
 
-template <bool Count = true, bool Time = true, bool Index = true,
+template <bool Count = true, bool Time = true, bool LogsEnabled = true,
           bool StartTime = true, bool LevelModule = true, bool Location = true,
-          bool Text = true, bool Blob = true>
+          bool TagName = true, bool Blob = true>
 struct ConfigProvider {
-  template <bool... args>
-  struct TeleConfig {
-    static constexpr bool kCountMetrics = ArgAt_v<0, args...>;
-    static constexpr bool kTimeMetrics = ArgAt_v<1, args...>;
-    static constexpr bool kIndexLogs = ArgAt_v<2, args...>;
-    static constexpr bool kStartTimeLogs = ArgAt_v<3, args...>;
-    static constexpr bool kLevelModuleLogs = ArgAt_v<4, args...>;
-    static constexpr bool kLocationLogs = ArgAt_v<5, args...>;
-    static constexpr bool kNameLogs = ArgAt_v<6, args...>;
-    static constexpr bool kBlobLogs = ArgAt_v<7, args...>;
+  template <Level::underlined_t, std::uint32_t>
+  static consteval auto GetTeleConfig() {
+    return TeleConfig{
+        .count_metrics = Count,
+        .time_metrics = Time,
+        .logs_enabled = LogsEnabled,
+        .start_time_logs = StartTime,
+        .level_module_logs = LevelModule,
+        .location_logs = Location,
+        .name_logs = TagName,
+        .blob_logs = Blob,
+    };
   };
 
-  template <bool... args>
-  struct EnvConfig {
-    static constexpr bool kCompiler = ArgAt_v<0, args...>;
-    static constexpr bool kPlatformType = ArgAt_v<1, args...>;
-    static constexpr bool kCompilationOptions = ArgAt_v<2, args...>;
-    static constexpr bool kLibraryVersion = ArgAt_v<3, args...>;
-    static constexpr bool kApiVersion = ArgAt_v<4, args...>;
-    static constexpr bool kCpuType = ArgAt_v<5, args...>;
-  };
-
-  template <ae::tele::Level::underlined_t level, std::uint32_t module>
-  using StaticTeleConfig = TeleConfig<Count, Time, Index, StartTime,
-                                      LevelModule, Location, Text, Blob>;
-
-  using StaticEnvConfig = EnvConfig<true, true, true, true, true>;
+  static consteval auto GetEnvConfig() {
+    return EnvConfig{.static_info = true, .runtime_info = true};
+  }
 };
 }  // namespace tele_configuration
 
@@ -218,18 +229,17 @@ void test_TeleConfigurations() {
     auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
 
     Sink::Instance().SetTrap(tele_trap);
-    int remember_line = __LINE__ + 8;
     {
-      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag};
-      {
-        auto lc = t.LogCollector();
-        lc.InvokeTime();
-        lc.LevelModule(Level{Level::kDebug});
-        lc.Location(__FILE__, __LINE__);
-        lc.TagName(TestTag.name);
-        lc.Blob("message {}", 12);
-      }
+      auto t =
+          Tele<Sink, Sink::GetTeleConfig<Level::kDebug, TestTag.module.id>()>{
+              Sink::Instance(),
+              TestTag,
+              Level{Level::kDebug},
+              "test-tele.cpp",
+              8,
+              "message {}",
+              12,
+          };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -243,8 +253,7 @@ void test_TeleConfigurations() {
     AssertTimestampShape(log_line[1]);
     TEST_ASSERT_EQUAL_STRING("kDebug", log_line[2].c_str());
     TEST_ASSERT_EQUAL_STRING("TestObj", log_line[3].c_str());
-    TEST_ASSERT_EQUAL_STRING(Format("test-tele.cpp:{}", remember_line).c_str(),
-                             log_line[4].c_str());
+    TEST_ASSERT_EQUAL_STRING("test-tele.cpp:8", log_line[4].c_str());
     TEST_ASSERT_EQUAL_STRING("Test", log_line[5].c_str());
     TEST_ASSERT_EQUAL_STRING("message 12", log_line[6].c_str());
   }
@@ -257,16 +266,16 @@ void test_TeleConfigurations() {
 
     Sink::Instance().SetTrap(tele_trap);
     {
-      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag};
-      {
-        auto lc = t.LogCollector();
-        lc.InvokeTime();
-        lc.LevelModule(Level{Level::kDebug});
-        lc.Location(__FILE__, __LINE__);
-        lc.TagName(TestTag.name);
-        lc.Blob("message {}", 12);
-      }
+      auto t =
+          Tele<Sink, Sink::GetTeleConfig<Level::kDebug, TestTag.module.id>()>{
+              Sink::Instance(),
+              TestTag,
+              Level{Level::kDebug},
+              "test-tele.cpp",
+              8,
+              "message {}",
+              12,
+          };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -282,16 +291,16 @@ void test_TeleConfigurations() {
     auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
     Sink::Instance().SetTrap(tele_trap);
     {
-      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag};
-      {
-        auto lc = t.LogCollector();
-        lc.InvokeTime();
-        lc.LevelModule(Level{Level::kDebug});
-        lc.Location(__FILE__, __LINE__);
-        lc.TagName(TestTag.name);
-        lc.Blob("message {}", 12);
-      }
+      auto t =
+          Tele<Sink, Sink::GetTeleConfig<Level::kDebug, TestTag.module.id>()>{
+              Sink::Instance(),
+              TestTag,
+              Level{Level::kDebug},
+              "test-tele.cpp",
+              8,
+              "message {}",
+              12,
+          };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT_EQUAL(1, tele_trap->metric_data_.size());
@@ -306,27 +315,18 @@ void test_TeleConfigurations() {
         false, false, false, false, false, false, false, false>>;
     auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
 
-    TEST_ASSERT(tele_trap->log_lines_.empty());
-  }
-  {
-    // nothing
-    using Sink = TeleSink<tele_configuration::ConfigProvider<
-        false, false, false, false, false, false, false, false>>;
-    auto tele_trap = std::make_shared<tele_configuration::TeleTrap>();
-
     Sink::Instance().SetTrap(tele_trap);
     {
-      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag};
-      {
-        auto lc = t.LogCollector();
-        lc.InvokeTime();
-        lc.LevelModule(Level{Level::kDebug});
-        lc.Location(__FILE__, __LINE__);
-        lc.TagName(TestTag.name);
-        lc.Blob("message {}", 12);
-      }
-
+      auto t =
+          Tele<Sink, Sink::GetTeleConfig<Level::kDebug, TestTag.module.id>()>{
+              Sink::Instance(),
+              TestTag,
+              Level{Level::kDebug},
+              "test-tele.cpp",
+              8,
+              "message {}",
+              12,
+          };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     TEST_ASSERT(tele_trap->metric_data_.empty());
@@ -341,17 +341,16 @@ void test_TeleConfigurations() {
 
     Sink::Instance().SetTrap(tele_trap);
     {
-      auto t = Tele<Sink, Sink::TeleConfig<Level::kDebug, TestTag.module.id>>{
-          Sink::Instance(), TestTag};
-      {
-        auto lc = t.LogCollector();
-        lc.InvokeTime();
-        lc.LevelModule(Level{Level::kDebug});
-        lc.Location(__FILE__, __LINE__);
-        lc.TagName(TestTag.name);
-        lc.Blob("message {}", 12);
-      }
-
+      auto t =
+          Tele<Sink, Sink::GetTeleConfig<Level::kDebug, TestTag.module.id>()>{
+              Sink::Instance(),
+              TestTag,
+              Level{Level::kDebug},
+              "test-tele.cpp",
+              8,
+              "message {}",
+              12,
+          };
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
@@ -399,7 +398,8 @@ void test_MergeStatisticsTrap() {
                                                   false, false, false, false>>;
 #undef TELE_SINK
 #define TELE_SINK Sink
-  auto statistics_trap1 = std::make_shared<statistics::StatisticsTrap>();
+  using Trap = StatisticsTrap<1024>;
+  auto statistics_trap1 = std::make_shared<Trap>();
 
   Sink::Instance().SetTrap(statistics_trap1);
   {
@@ -411,26 +411,19 @@ void test_MergeStatisticsTrap() {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  auto logs1 = std::get<statistics::RuntimeLog>(
-                   *statistics_trap1->statistics_store.log_store())
-                   .logs;
+  auto const& logs1 = statistics_trap1->log_storage();
 
-  auto statistics_trap2 = std::make_shared<statistics::StatisticsTrap>();
+  auto statistics_trap2 = std::make_shared<Trap>();
   statistics_trap2->MergeStatistics(*statistics_trap1);
 
-  auto& logs2 = std::get<statistics::RuntimeLog>(
-                    *statistics_trap2->statistics_store.log_store())
-                    .logs;
+  auto const& logs2 = statistics_trap2->log_storage();
 
   TEST_ASSERT_EQUAL(logs1.size(), logs2.size());
-  auto it1 = std::begin(logs1);
-  auto it2 = std::begin(logs2);
-  for (; it1 != std::end(logs1); ++it1, ++it2) {
-    TEST_ASSERT_EQUAL_CHAR_ARRAY(it1->data(), it2->data(), it1->size());
-  }
+  TEST_ASSERT_EQUAL_CHAR_ARRAY(logs1.buffer.data(), logs2.buffer.data(),
+                               logs2.buffer.size());
 
-  auto& metrics1 = statistics_trap1->statistics_store.metrics_store().metrics;
-  auto& metrics2 = statistics_trap2->statistics_store.metrics_store().metrics;
+  auto const& metrics1 = statistics_trap1->metrics_store().metrics;
+  auto const& metrics2 = statistics_trap2->metrics_store().metrics;
 
   TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
   auto mit1 = std::begin(metrics1);
@@ -468,27 +461,105 @@ void test_MergeStatisticsTrap() {
 #define TELE_SINK SinkType
 }
 
+void test_StatisticsRotation() {
+  using Trap = ae::tele::StatisticsTrap<1024>;
+
+  auto ts = std::make_shared<Trap>();
+  SinkType::Instance().SetTrap(ts);
+  // check if ts is empty
+  TEST_ASSERT_EQUAL(0, ts->log_storage().size());
+  // add some logs
+  {
+    AE_TELE_DEBUG(Test1, "12");
+  }
+  // something was added
+  TEST_ASSERT_GREATER_THAN(0, ts->log_storage().size());
+
+  // write too many
+  std::array<std::uint8_t, 800> garbage{};
+  {
+    AE_TELE_DEBUG(Test1, "13 {}", garbage);
+  }
+  TEST_ASSERT_EQUAL(1023, ts->log_storage().size());
+}
+
+void test_SaveLoadTeleStatistics() {
+  using Trap = ae::tele::StatisticsTrap<1024>;
+
+  auto ts_0 = std::make_shared<Trap>();
+  auto ts_1 = std::make_shared<Trap>();
+
+  // first set ts_0 and write some logs
+  SinkType::Instance().SetTrap(ts_0);
+  {
+    AE_TELE_DEBUG(Test1, "12");
+  }
+  auto size_before = ts_0->log_storage().size();
+
+  // merge 1 and 0
+  ts_1->MergeStatistics(*ts_0);
+  auto size_after_merge = ts_1->log_storage().size();
+  TEST_ASSERT_EQUAL(size_before, size_after_merge);
+
+  auto const& metrics1 = ts_0->metrics_store().metrics;
+  auto const& metrics2 = ts_1->metrics_store().metrics;
+  TEST_ASSERT_EQUAL(metrics1.size(), metrics2.size());
+
+  auto log_index =
+      ae::tele::MetricsStore::PackedIndex{TestObj.index_start + Test1.offset};
+  // simple check with _AE_MODULE_CONFIG leads here to AST broken error for
+  // cppcheck
+  if constexpr (TELE_SINK::GetTeleConfig<Level::kDebug, MLog.id>()
+                    .time_metrics) {
+    TEST_ASSERT_EQUAL(metrics1.at(log_index).sum_duration,
+                      metrics2.at(log_index).sum_duration);
+  }
+
+  if constexpr (TELE_SINK::GetTeleConfig<Level::kDebug, MLog.id>()
+                    .count_metrics) {
+    TEST_ASSERT_EQUAL(metrics1.at(log_index).invocations_count,
+                      metrics2.at(log_index).invocations_count);
+  }
+
+  SinkType::Instance().SetTrap(ts_1);
+  {
+    AE_TELE_DEBUG(Test1, "13");
+  }
+
+  // check if new log added
+  TEST_ASSERT_GREATER_THAN(size_before, ts_1->log_storage().size());
+}
+
+template <typename WriteFn>
+struct LambdaLogCollector final : public ILogCollector {
+  explicit LambdaLogCollector(WriteFn&& wf) : write_fn{std::move(wf)} {}
+  void WriteLine(ILogLine& log_line) override { write_fn(log_line); }
+  WriteFn write_fn;
+};
+
 void test_IoStreamTrapFullOutput() {
   auto stream = std::ostringstream{};
   auto trap = IoStreamTrap{stream};
-  auto const fixed_time = TimePoint{std::chrono::hours{3} +
-                                    std::chrono::minutes{4} +
-                                    std::chrono::seconds{5} +
-                                    std::chrono::microseconds{123456}};
+  auto const fixed_time =
+      TimePoint{std::chrono::hours{3} + std::chrono::minutes{4} +
+                std::chrono::seconds{5} + std::chrono::microseconds{123456}};
   auto const tag = Tag{11, TestObj, "Test"};
 
-  trap.OpenLogLine(tag);
-  trap.InvokeTime(fixed_time);
-  trap.WriteLevel(Level{Level::kDebug});
-  trap.WriteModule(TestObj);
-  trap.Location("src/test-tele.cpp", 42);
-  trap.TagName(tag.name);
-  trap.Blob(reinterpret_cast<std::uint8_t const*>("message 12"), 10);
-  trap.CloseLogLine(tag);
+  auto log_collector = LambdaLogCollector{[&](ILogLine& log_line) {
+    log_line.InvokeTime(fixed_time);
+    log_line.WriteLevel(Level{Level::kDebug});
+    log_line.WriteModule(TestObj);
+    log_line.Location("src/test-tele.cpp", 42);
+    log_line.TagName(tag.name);
+    log_line.Blob(
+        std::span{reinterpret_cast<std::uint8_t const*>("message 12"), 10});
+  }};
+
+  trap.LogLine(tag, log_collector);
 
   auto const output = stream.str();
   TEST_ASSERT_EQUAL_STRING(
-      " 12:[03:04:05.123456]:kDebug:TestObj:test-tele.cpp:42:Test:message "
+      "  12:[03:04:05.123456]:kDebug:TestObj:test-tele.cpp:42:Test:message "
       "12\n",
       output.c_str());
 }
@@ -498,14 +569,16 @@ void test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile() {
   auto trap = IoStreamTrap{stream};
   auto const tag = Tag{11, TestObj, "Test"};
 
-  trap.OpenLogLine(tag);
-  trap.Location("test-tele.cpp", 42);
-  trap.CloseLogLine(tag);
+  auto log_collector = LambdaLogCollector{
+      [&](ILogLine& log_line) { log_line.Location("test-tele.cpp", 42); }};
+
+  trap.LogLine(tag, log_collector);
 
   auto const output = stream.str();
-  TEST_ASSERT_EQUAL_STRING(" 12:UNKNOWN FILE:42\n", output.c_str());
+  TEST_ASSERT_EQUAL_STRING("  12:UNKNOWN FILE:42\n", output.c_str());
 }
 void test_EnvTele() { AE_TELE_ENV(); }
+
 }  // namespace ae::tele::test_tele
 
 int main() {
@@ -516,8 +589,13 @@ int main() {
   RUN_TEST(ae::tele::test_tele::test_TeleConfigurations);
   RUN_TEST(ae::tele::test_tele::test_TeleProxyTrap);
   RUN_TEST(ae::tele::test_tele::test_MergeStatisticsTrap);
+  RUN_TEST(ae::tele::test_tele::test_StatisticsRotation);
+  RUN_TEST(ae::tele::test_tele::test_SaveLoadTeleStatistics);
   RUN_TEST(ae::tele::test_tele::test_IoStreamTrapFullOutput);
-  RUN_TEST(ae::tele::test_tele::test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile);
+  RUN_TEST(ae::tele::test_tele::
+               test_IoStreamTrapLocationWithoutSeparatorUsesUnknownFile);
+  RUN_TEST(ae::tele::test_tele::test_EnvTele);
+  RUN_TEST(ae::tele::test_tele::test_EnvTele);
   RUN_TEST(ae::tele::test_tele::test_EnvTele);
 
   return UNITY_END();

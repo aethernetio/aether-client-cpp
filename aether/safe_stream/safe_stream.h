@@ -17,20 +17,20 @@
 #ifndef AETHER_STREAM_API_SAFE_STREAM_H_
 #define AETHER_STREAM_API_SAFE_STREAM_H_
 
-#include "aether/common.h"
 #include "aether/actions/action_context.h"
+#include "aether/common.h"
 #include "aether/write_action/failed_write_action.h"
 
-#include "aether/stream_api/api_call_adapter.h"
-#include "aether/safe_stream/safe_stream_config.h"
 #include "aether/safe_stream/details/safe_stream_api.h"
+#include "aether/safe_stream/details/safe_stream_data_message.h"
 #include "aether/safe_stream/details/safe_stream_recv_action.h"
 #include "aether/safe_stream/details/safe_stream_send_action.h"
-#include "aether/safe_stream/details/safe_stream_data_message.h"
+#include "aether/safe_stream/safe_stream_config.h"
+#include "aether/stream_api/api_call_adapter.h"
 
 #include "aether/stream_api/istream.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 template <std::size_t Capacity>

@@ -17,10 +17,10 @@
 #include "send_messages_bandwidth/sender/sender.h"
 
 #include "aether/api_protocol/api_context.h"
-#include "aether/stream_api/api_call_adapter.h"
 #include "aether/client_messages/p2p_message_stream.h"
+#include "aether/stream_api/api_call_adapter.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae::bench {
 Sender::Sender(AeContext const& ae_context, Client::ptr client, Uid destination)
@@ -32,8 +32,7 @@ Sender::Sender(AeContext const& ae_context, Client::ptr client, Uid destination)
 EventSubscriber<void()> Sender::error_event() { return error_event_; }
 
 void Sender::Connect() {
-  auto handle =
-      client_->message_stream_manager().CreatePort(destination_);
+  auto handle = client_->message_stream_manager().CreatePort(destination_);
   message_stream_ = std::make_shared<P2pStream>(
       ae_context_, client_.Load(), destination_, std::move(handle));
 

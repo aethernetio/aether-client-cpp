@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TELE_TELE_INIT_H_
-#define AETHER_TELE_TELE_INIT_H_
+#ifndef AETHER_TELE_H_
+#define AETHER_TELE_H_
 
 // IWYU pragma: begin_keeps
+#include "aether/aether_tele.h"
+
+#ifdef TELE_SINK
+#  undef TELE_SINK
+#endif
+#define TELE_SINK ::ae::tele::TeleSink<::ae::AetherTeleConfig>
+
 #include "aether/tele/tele.h"
-#include "aether/tele/traps/tele_statistics.h"
 // IWYU pragma: end_keeps
 
-namespace ae::tele {
-struct TeleInit {
-  static void Init();
-  static void Init(Ptr<TeleStatistics> const& tele_statistics);
-};
-}  // namespace ae::tele
-
-#endif  // AETHER_TELE_TELE_INIT_H_
+#endif  // AETHER_TELE_H_

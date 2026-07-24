@@ -469,6 +469,11 @@
 #  define AE_TELE_LOG_CONSOLE 1
 #endif  // AE_TELE_LOG_CONSOLE
 
+// enable to log telemetry to statistics
+#ifndef AE_TELE_LOG_TO_STATISTICS
+#  define AE_TELE_LOG_TO_STATISTICS 1
+#endif  // AE_TELE_LOG_TO_STATISTICS
+
 // the maximum size of the telemetry statistics buffer
 #ifndef AE_STATISTICS_MAX_SIZE
 #  define AE_STATISTICS_MAX_SIZE (10 * 1024)  // 10 KB

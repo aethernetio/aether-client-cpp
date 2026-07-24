@@ -15,10 +15,14 @@
  */
 
 #include <unity.h>
+#include <iostream>
 
-#include "aether/tele/tele_init.h"
+#include "aether/tele.h"
 
-void setUp() { ae::tele::TeleInit::Init(); }
+void setUp() {
+  TELE_SINK::Instance().SetTrap(
+      std::make_shared<ae::tele::IoStreamTrap>(std::cout));
+}
 void tearDown() {}
 
 extern int test_at_support();

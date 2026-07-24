@@ -16,15 +16,15 @@
 
 #include "aether/connection_manager/client_cloud_manager.h"
 
-#include <utility>
 #include <cassert>
 #include <optional>
+#include <utility>
 
 #include "aether/aether.h"
 #include "aether/client.h"
 #include "aether/work_cloud.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 namespace client_cloud_manager_internal {
@@ -212,7 +212,7 @@ void ClientCloudManager::ListenForCloudUpdate() {
 
   cloud_update_sub_ = CloudEventListener{
       ApiEventSubscriber{[this](ClientApiSafe& client_api,
-                            CloudServerConnection* /*server_connection*/) {
+                                CloudServerConnection* /*server_connection*/) {
         return client_api.send_cloud_configs().Subscribe(
             MethodPtr<&ClientCloudManager::CloudConfigs>{this});
       }},

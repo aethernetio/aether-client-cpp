@@ -19,7 +19,7 @@
 #if defined WIN32
 #  include <winsock2.h>
 
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 #endif
 
 namespace ae {

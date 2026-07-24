@@ -20,7 +20,7 @@
 #include "aether-miscpp/reflect/reflect.h"
 #include "aether/api_protocol/api_class.h"
 #include "aether/api_protocol/api_pack_parser.h"
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 /**

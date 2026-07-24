@@ -2,7 +2,7 @@
 /* "Test Case AUTH256-4" from RFC 4868 */
 
 #include "unity.h"
-//#include "aether/tele/tele.h"
+//#include "aether/tele.h"
 
 namespace auth2
 {
@@ -18,7 +18,7 @@ namespace auth2
 
     static const char *TAG = "SODIUM UNITY";
 
-    #if DEBUG_OUT==1    
+    #if DEBUG_OUT==1
         #define DebugPrint(format, ...) LOG(TAG, format, ##__VA_ARGS__)
     #elif DEBUG_OUT==2
         #define DebugPrint(format, ...) AE_TELED_DEBUG(TAG, format, ##__VA_ARGS__)

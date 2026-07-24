@@ -17,7 +17,7 @@
 #define AETHER_MODEMS_MODEMS_TELE_H_
 
 // IWYU pragma: begin_exports
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 // IWYU pragma: end_exports
 
 #endif  // AETHER_MODEMS_MODEMS_TELE_H_

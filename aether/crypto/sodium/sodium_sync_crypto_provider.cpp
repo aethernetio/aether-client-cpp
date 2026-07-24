@@ -24,7 +24,7 @@
 #  include <vector>
 
 #  include "aether/crypto/crypto_nonce.h"
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 
 namespace ae {
 

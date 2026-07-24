@@ -17,7 +17,7 @@
 #ifndef AETHER_DNS_DNS_TELE_H_
 #define AETHER_DNS_DNS_TELE_H_
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 AE_TELE_MODULE(kDns, 7, 156, 165);
 

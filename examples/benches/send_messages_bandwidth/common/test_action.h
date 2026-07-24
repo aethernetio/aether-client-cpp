@@ -17,18 +17,18 @@
 #ifndef EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_TEST_ACTION_H_
 #define EXAMPLES_BENCHES_SEND_MESSAGES_BANDWIDTH_COMMON_TEST_ACTION_H_
 
-#include <vector>
 #include <cstdint>
+#include <vector>
 
-#include "aether/ae_context.h"
 #include "aether-miscpp/types/result.h"
+#include "aether/ae_context.h"
+#include "aether/events/event_subscription.h"
 #include "aether/events/events.h"
 #include "aether/executors/executors.h"
-#include "aether/events/event_subscription.h"
 
 #include "send_messages_bandwidth/common/bandwidth.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae::bench {
 template <typename TAgent>

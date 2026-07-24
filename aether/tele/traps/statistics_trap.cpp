@@ -22,60 +22,117 @@
 #include <iterator>
 #include <utility>
 
-#include "aether/mstream.h"
-#include "aether/mstream_buffers.h"
+namespace ae::tele {
 
-namespace ae::tele::statistics {
-
-RuntimeLog::RuntimeLog(SavedLog&& saved) : size{saved.data.size()} {
-  logs.push_back(std::move(std::move(saved).data));
+// print any integral to LogStorage
+template <typename T>
+  requires(std::is_integral_v<T>)
+ILogStorage& operator<<(ILogStorage& out, T v) {
+  out.Write(reinterpret_cast<std::uint8_t const*>(&v), sizeof(T));
+  return out;
 }
 
-void RuntimeLog::Append(RuntimeLog&& newer) {
-  size += newer.size;
-  logs.splice(std::end(logs), std::move(std::move(newer).logs));
-}
+template <typename T>
+concept IndexSerializable = requires(ILogStorage& log_storage, T const t) {
+  { t.Serialize(log_storage) };
+};
 
-StatisticsStore::StatisticsStore()
-    : logs_{MakeRcPtr<LogStorage>(RuntimeLog{})} {};
-StatisticsStore::~StatisticsStore() = default;
+template <typename T>
+concept IndexBuffSerializable = requires(std::uint8_t* buf, T const t) {
+  { t.Serialize(buf) } -> std::same_as<std::size_t>;
+};
 
-EnvStore& StatisticsStore::env_store() { return env_store_; }
-
-MetricsStore& StatisticsStore::metrics_store() { return metrics_store_; }
-
-RcPtr<LogStorage> StatisticsStore::log_store() {
-  // current log must be a RuntimeLog
-  if (logs_->index() != 1) {
-    // in case current logs is not a RuntimeLog
-    logs_ = MakeRcPtr<LogStorage>(
-        RuntimeLog{std::move(std::get<SavedLog>(*logs_))});
+template <typename T>
+  requires(IndexSerializable<T> || IndexBuffSerializable<T>)
+void WriteIndex(ILogStorage& log_storage, T const& v) {
+  if constexpr (IndexSerializable<T>) {
+    v.Serialize(log_storage);
+  } else {
+    std::array<std::uint8_t, sizeof(std::uint64_t)> buff;
+    auto s = v.Serialize(buff.data());
+    log_storage.Write(buff.data(), s);
   }
-  // make rotation
-  auto r_logs = std::get<RuntimeLog>(*logs_);
-  if (r_logs.size >= statistics_size_limit_) {
-    prev_logs_ = std::move(logs_);
-    logs_ = MakeRcPtr<LogStorage>(RuntimeLog{});
-  }
-
-  return logs_;
 }
 
-void StatisticsStore::Merge(StatisticsStore const& newer) {
+StatisticsTrapBasic::LogLineWriter::LogLineWriter(Tag const& tag,
+                                                  ILogStorage& log_storage)
+    : log_storage_{log_storage} {
+  auto tag_index = MetricsStore::PackedIndex{tag.index()};
+  WriteIndex(log_storage_, tag_index);
+}
+
+void StatisticsTrapBasic::LogLineWriter::InvokeTime(TimePoint time) {
+  auto epoch_ms = static_cast<std::uint32_t>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          time.time_since_epoch())
+          .count());
+  log_storage_ << epoch_ms;
+}
+void StatisticsTrapBasic::LogLineWriter::WriteLevel(Level level) {
+  log_storage_ << level.value_;
+}
+void StatisticsTrapBasic::LogLineWriter::WriteModule(Module const& module) {
+  log_storage_ << module.id;
+}
+void StatisticsTrapBasic::LogLineWriter::Location(std::string_view file,
+                                                  std::uint32_t line) {
+  log_storage_.Write(reinterpret_cast<std::uint8_t const*>(file.data()),
+                     file.size());
+  log_storage_ << line;
+}
+void StatisticsTrapBasic::LogLineWriter::TagName(std::string_view name) {
+  log_storage_.Write(reinterpret_cast<std::uint8_t const*>(name.data()),
+                     name.size());
+}
+void StatisticsTrapBasic::LogLineWriter::Blob(
+    std::span<std::uint8_t const> blob) {
+  if (blob.empty()) {
+    return;
+  }
+  log_storage_.Write(blob.data(), blob.size());
+}
+
+StatisticsTrapBasic::StatisticsTrapBasic() = default;
+StatisticsTrapBasic::~StatisticsTrapBasic() = default;
+
+void StatisticsTrapBasic::AddInvoke(Tag const& tag, std::uint32_t count) {
+  auto lock = std::scoped_lock(sync_lock_);
+  metrics_store_.metrics[tag.index()].invocations_count += count;
+}
+
+void StatisticsTrapBasic::AddInvokeDuration(Tag const& tag, Duration duration) {
+  auto lock = std::scoped_lock(sync_lock_);
+  auto& metr = metrics_store_.metrics[tag.index()];
+
+  metr.sum_duration += static_cast<std::uint32_t>(duration.count());
+  metr.max_duration = std::max(static_cast<std::uint32_t>(metr.max_duration),
+                               static_cast<std::uint32_t>(duration.count()));
+
+  if (metr.min_duration == 0) {
+    metr.min_duration = static_cast<std::uint32_t>(duration.count());
+  } else {
+    metr.min_duration = std::min(static_cast<std::uint32_t>(metr.min_duration),
+                                 static_cast<std::uint32_t>(duration.count()));
+  }
+}
+
+void StatisticsTrapBasic::WriteEnvData(EnvData const& env_data) {
+  env_store_.platform = env_data.platform_type;
+  env_store_.compiler = env_data.compiler;
+  env_store_.compiler_version = env_data.compiler_version;
+  env_store_.library_version = env_data.library_version;
+  env_store_.cpu_arch = env_data.cpu_arch;
+  env_store_.endianness = static_cast<std::uint8_t>(env_data.endianness);
+  env_store_.utm_id = env_data.utm_id;
+  for (auto const& opt : env_data.compile_options) {
+    env_store_.compile_options.emplace_back(EnvStore::PackedIndex{opt.index},
+                                            std::string{opt.value});
+  }
+}
+
+void StatisticsTrapBasic::MergeStatistics(StatisticsTrapBasic const& newer) {
   // just steal env_store_
   env_store_ = newer.env_store_;
-
-  // merge logs
-  // logs_ always should be
-  assert(newer.logs_);
-  // access through log_store, to make rotation if needed
-  auto current = log_store();
-  std::get<RuntimeLog>(*current).Append(
-      std::move(std::get<RuntimeLog>(*newer.logs_)));
-
-  if (newer.prev_logs_) {
-    prev_logs_ = newer.prev_logs_;
-  }
 
   // merge metrics
   for (auto const& [index, metric] : newer.metrics_store_.metrics) {
@@ -93,113 +150,9 @@ void StatisticsStore::Merge(StatisticsStore const& newer) {
   }
 }
 
-void StatisticsStore::SetSizeLimit(std::size_t limit) {
-  statistics_size_limit_ = static_cast<std::uint32_t>(limit);
+EnvStore const& StatisticsTrapBasic::env_store() const { return env_store_; }
+MetricsStore const& StatisticsTrapBasic::metrics_store() const {
+  return metrics_store_;
 }
 
-StatisticsTrap::StatisticsTrap() = default;
-StatisticsTrap::~StatisticsTrap() = default;
-
-StatisticsTrap::LogLine::LogLine(std::unique_lock<std::mutex> l,
-                                 RcPtr<LogStorage> log,
-                                 std::vector<std::uint8_t>& d)
-    : lock{std::move(l)},
-      log_storage{std::move(log)},
-      vector_writer{d},
-      log_writer{vector_writer} {}
-
-StatisticsTrap::LogLine::~LogLine() {
-  // update log size
-  std::get<RuntimeLog>(*log_storage).size += vector_writer.data_.size();
-}
-
-void StatisticsTrap::AddInvoke(Tag const& tag, std::uint32_t count) {
-  auto lock = std::lock_guard(sync_lock_);
-  statistics_store.metrics_store().metrics[tag.index()].invocations_count +=
-      count;
-}
-
-void StatisticsTrap::AddInvokeDuration(Tag const& tag, Duration duration) {
-  auto lock = std::lock_guard(sync_lock_);
-  auto& metr = statistics_store.metrics_store().metrics[tag.index()];
-
-  metr.sum_duration += static_cast<std::uint32_t>(duration.count());
-  metr.max_duration = std::max(static_cast<std::uint32_t>(metr.max_duration),
-                               static_cast<std::uint32_t>(duration.count()));
-
-  if (metr.min_duration == 0) {
-    metr.min_duration = static_cast<std::uint32_t>(duration.count());
-  } else {
-    metr.min_duration = std::min(static_cast<std::uint32_t>(metr.min_duration),
-                                 static_cast<std::uint32_t>(duration.count()));
-  }
-}
-
-void StatisticsTrap::OpenLogLine(Tag const& tag) {
-  auto lock = std::unique_lock{sync_lock_};
-  auto log_store = statistics_store.log_store();
-  auto& runtime_log = std::get<RuntimeLog>(*log_store);
-  auto& data = runtime_log.logs.emplace_back();
-
-  log_line_.emplace(std::move(lock), log_store, data);
-  // always write an index
-  log_line_->log_writer << PackedIndex{tag.index()};
-}
-
-void StatisticsTrap::InvokeTime(TimePoint time) {
-  assert(log_line_);
-  log_line_->log_writer << time;
-}
-
-void StatisticsTrap::WriteLevel(Level level) {
-  assert(log_line_);
-  log_line_->log_writer << level.value_;
-}
-
-void StatisticsTrap::WriteModule(Module const& module) {
-  assert(log_line_);
-  log_line_->log_writer << module.id;
-}
-
-void StatisticsTrap::Location(std::string_view file, std::uint32_t line) {
-  assert(log_line_);
-  log_line_->log_writer << file << line;
-}
-
-void StatisticsTrap::TagName(std::string_view name) {
-  assert(log_line_);
-  log_line_->log_writer << name;
-}
-
-void StatisticsTrap::Blob(std::uint8_t const* data, std::size_t size) {
-  assert(log_line_);
-  log_line_->log_writer.write(static_cast<void const*>(data), size);
-}
-
-void StatisticsTrap::CloseLogLine(Tag const& /*tag*/) {
-  assert(log_line_);
-  auto lock = std::move(log_line_->lock);
-  log_line_.reset();
-}
-
-void StatisticsTrap::WriteEnvData(EnvData const& env_data) {
-  auto& env_store = statistics_store.env_store();
-  env_store.platform = env_data.platform_type;
-  env_store.compiler = env_data.compiler;
-  env_store.compiler_version = env_data.compiler_version;
-  env_store.library_version = env_data.library_version;
-  env_store.api_version = env_data.api_version;
-  env_store.cpu_arch = env_data.cpu_arch;
-  env_store.endianness = env_data.endianness;
-  env_store.utm_id = env_data.utm_id;
-  for (auto const& opt : env_data.compile_options) {
-    env_store.compile_options.emplace_back(PackedIndex{opt.index},
-                                           std::string{opt.value});
-  }
-}
-
-void StatisticsTrap::MergeStatistics(StatisticsTrap const& newer) {
-  statistics_store.Merge(newer.statistics_store);
-}
-
-}  // namespace ae::tele::statistics
+}  // namespace ae::tele

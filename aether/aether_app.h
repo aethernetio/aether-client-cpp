@@ -22,48 +22,41 @@
 #include <optional>
 #include <type_traits>
 
-#include "aether/config.h"
 #include "aether/common.h"
+#include "aether/config.h"
+#include "aether/obj/domain.h"
 #include "aether/ptr/ptr.h"
 #include "aether/ptr/rc_ptr.h"
-#include "aether/obj/domain.h"
-#include "aether-miscpp/types/small_function.h"
 
-#include "aether/events/events.h"   // IWYU pragma: keep
 #include "aether/actions/action.h"  // IWYU pragma: keep
+#include "aether/events/events.h"   // IWYU pragma: keep
 
-#include "aether/cloud.h"
-#include "aether/aether.h"
-#include "aether/crypto.h"
-#include "aether/client.h"
-#include "aether/ae_context.h"
-#include "aether/poller/poller.h"
-#include "aether/dns/dns_resolve.h"
 #include "aether/adapter_registry.h"
+#include "aether/ae_context.h"
+#include "aether/aether.h"
+#include "aether/client.h"
+#include "aether/cloud.h"
+#include "aether/crypto.h"
+#include "aether/dns/dns_resolve.h"
 #include "aether/obj/component_factory.h"
-#include "aether/tele/traps/tele_statistics.h"
+#include "aether/poller/poller.h"
+#include "aether/tele_statistics.h"
 
 #include "aether/domain_storage/domain_storage_factory.h"
 
 namespace ae {
 class AetherAppContext {
   friend class AetherApp;
-  class TelemetryInit {
-   public:
-    TelemetryInit();
-    void operator()(AetherAppContext const& context) const;
-  };
+  static void TelemetryInit();
 
  public:
   explicit AetherAppContext()
-      : AetherAppContext(DomainStorageFactory::Create, TelemetryInit{}) {}
+      : AetherAppContext(DomainStorageFactory::Create) {}
 
-  template <typename Func, typename TeleInit = TelemetryInit>
-    requires(std::is_invocable_r_v<std::unique_ptr<IDomainStorage>, Func> &&
-             std::is_invocable_r_v<void, TeleInit, AetherAppContext const&>)
-  explicit AetherAppContext(Func&& domain_storage_factory,
-                            TeleInit const& tele_init = TelemetryInit{})
-      : init_tele_{tele_init} {
+  template <typename Func>
+    requires(std::is_invocable_r_v<std::unique_ptr<IDomainStorage>, Func>)
+  explicit AetherAppContext(Func&& domain_storage_factory) {
+    TelemetryInit();
     domain_storage_.Factory(std::forward<Func>(domain_storage_factory));
   }
 
@@ -145,10 +138,7 @@ class AetherAppContext {
   ComponentFactory<AetherAppContext, IPoller::ptr> poller_;
   ComponentFactory<AetherAppContext, DnsResolver::ptr> dns_resolver_;
   ComponentFactory<AetherAppContext, Client::ptr> client_prefab_;
-  ComponentFactory<AetherAppContext, tele::TeleStatistics::ptr>
-      tele_statistics_;
-
-  SmallFunction<void(AetherAppContext const&)> init_tele_;
+  ComponentFactory<AetherAppContext, TeleStatistics::ptr> tele_statistics_;
 };
 
 /**

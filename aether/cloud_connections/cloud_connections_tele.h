@@ -17,7 +17,7 @@
 #ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_CONNECTIONS_TELE_H_
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_CONNECTIONS_TELE_H_
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 AE_TELE_MODULE(kCloudClientConnection, 30, 110, 112);
 

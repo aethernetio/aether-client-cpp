@@ -19,19 +19,19 @@
 
 #include <cstdlib>
 
+#include "aether/ae_context.h"
 #include "aether/common.h"
 #include "aether/config.h"
-#include "aether/ae_context.h"
 #include "aether/events/events.h"
-#include "aether/types/statistic_counter.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/write_action/write_action.h"
-#include "aether/safe_stream/safe_stream_config.h"
 #include "aether/safe_stream/details/circular_buffer.h"
-#include "aether/safe_stream/details/sending_chunk_list.h"
 #include "aether/safe_stream/details/safe_stream_data_message.h"
+#include "aether/safe_stream/details/sending_chunk_list.h"
+#include "aether/safe_stream/safe_stream_config.h"
+#include "aether/types/statistic_counter.h"
+#include "aether/write_action/write_action.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 

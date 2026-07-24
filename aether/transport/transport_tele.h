@@ -17,7 +17,7 @@
 #ifndef AETHER_TRANSPORT_TRANSPORT_TELE_H_
 #define AETHER_TRANSPORT_TRANSPORT_TELE_H_
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 AE_TELE_MODULE(kTransport, 4, 51, 100);
 AE_TELE_MODULE(kTransportDebug, 104, 400, 445);

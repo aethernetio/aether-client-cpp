@@ -17,14 +17,14 @@
 #include "aether/server_connections/client_server_connection.h"
 
 #include "aether/aether.h"
-#include "aether/server.h"
+#include "aether/api_protocol/api_protocol.h"
 #include "aether/client.h"
 #include "aether/crypto/ikey_provider.h"
-#include "aether/api_protocol/api_protocol.h"
-#include "aether/stream_api/api_call_adapter.h"
 #include "aether/crypto/sync_crypto_provider.h"
+#include "aether/server.h"
+#include "aether/stream_api/api_call_adapter.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 namespace client_server_connection_internal {

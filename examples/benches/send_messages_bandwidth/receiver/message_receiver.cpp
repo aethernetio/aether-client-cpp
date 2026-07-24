@@ -16,7 +16,7 @@
 
 #include "send_messages_bandwidth/receiver/message_receiver.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae::bench {
 MessageReceiver::MessageReceiver(AeContext const& ae_context)

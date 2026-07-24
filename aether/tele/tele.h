@@ -18,21 +18,21 @@
 #define AETHER_TELE_TELE_H_
 
 // IWYU pragma: begin_exports
-#include "aether/tele/tags.h"
-#include "aether/tele/sink.h"
+#include "aether/tele/configs/all_enabled.h"
 #include "aether/tele/defines.h"
 #include "aether/tele/modules.h"
+#include "aether/tele/sink.h"
+#include "aether/tele/tags.h"
+#include "aether/tele/traps/io_stream_traps.h"
 #include "aether/tele/traps/proxy_trap.h"
 #include "aether/tele/traps/statistics_trap.h"
-#include "aether/tele/traps/io_stream_traps.h"
-#include "aether/tele/configs/config_provider.h"
 // IWYU pragma: end_exports
 
-#define SELECTED_SINK ::ae::tele::TeleSink<::ae::tele::ConfigProvider>
+#define DEFAULT_SINK ::ae::tele::TeleSink<::ae::tele::AllEnabledConfigProvider>
 
 // redefine this macro to use your own sink
 #ifndef TELE_SINK
-#  define TELE_SINK SELECTED_SINK
+#  define TELE_SINK DEFAULT_SINK
 #endif
 
 #endif  // AETHER_TELE_TELE_H_

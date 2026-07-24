@@ -24,7 +24,7 @@
 #  include <vector>
 
 #  include "aether/crypto/crypto_definitions.h"
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 
 namespace ae {
 namespace _internal {
@@ -63,10 +63,10 @@ inline std::vector<std::uint8_t> DecryptWithSymmetric(
 
   auto const* encrypted_ptr = msg_id_ptr + sizeof(msg_id);
 
-  auto r = hydro_secretbox_decrypt(
-      decrypted_data.data(), encrypted_ptr,
-      encrypted_data.size() - sizeof(msg_id), msg_id, HYDRO_CONTEXT,
-      secret_key.key.data());
+  auto r =
+      hydro_secretbox_decrypt(decrypted_data.data(), encrypted_ptr,
+                              encrypted_data.size() - sizeof(msg_id), msg_id,
+                              HYDRO_CONTEXT, secret_key.key.data());
   if (r != 0) {
     return {};
   }

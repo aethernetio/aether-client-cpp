@@ -17,15 +17,10 @@
 #ifndef AETHER_TELE_TAGS_H_
 #define AETHER_TELE_TAGS_H_
 
-#ifndef AETHER_TELE_TELE_H_
-#  error "Include tele.h instead"
-#endif
-
 #include <cstdint>
-#include <utility>
 #include <string_view>
 
-#include "aether-miscpp/crc.h"
+#include "aether-miscpp/crc.h"  // IWYU pragma: keep
 #include "aether/tele/modules.h"
 
 namespace ae::tele {
@@ -48,6 +43,7 @@ struct Tag {
 };
 }  // namespace ae::tele
 
+// NOLINTBEGIN
 #define _AE_CRC(LITERAL) ::crc32::checksum_from_literal(LITERAL)
 
 #define _AE_FILE_TAG(MODULE) _AE_CRC(__FILE__ #MODULE)
@@ -70,6 +66,8 @@ struct Tag {
   _AE_TAG_INDEX_WRITE(MODULE, (NAME).offset)                                  \
   static_assert(((MODULE).index_start + (NAME).offset) <= (MODULE).index_end, \
                 "Tag index out of range");
+
+// NOLINTEND
 
 /**
  * \brief Register Tag with index automatically incremented from previous

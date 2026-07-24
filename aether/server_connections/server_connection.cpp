@@ -23,7 +23,7 @@
 #include "aether/channels/channel.h"
 #include "aether/server.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 ServerConnection::ChannelSelectAction::ChannelSelectAction(

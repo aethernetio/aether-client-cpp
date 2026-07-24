@@ -18,15 +18,15 @@
 
 #if AE_SUPPORT_TCP && defined WIN_SOCKET_ENABLED
 
+#  include <mswsock.h>
 #  include <winsock2.h>
 #  include <ws2def.h>
 #  include <ws2ipdef.h>
-#  include <mswsock.h>
 
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 
 namespace ae {
 namespace win_socket_internal {

@@ -32,7 +32,7 @@ DISABLE_WARNING_POP()
 #include "aether/write_action/write_action.h"
 
 #if DEBUG  // include tele only in debug mode
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 #endif
 
 namespace ae {

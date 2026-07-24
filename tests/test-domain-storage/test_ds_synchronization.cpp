@@ -18,16 +18,17 @@
 
 #include <array>
 #include <cstdint>
+#include <iostream>
 
 #include "aether/memory.h"
-#include "aether/tele/tele_init.h"
+#include "aether/tele.h"
 
 // IWYU pragma: begin_exports
+#include "aether/domain_storage/file_system_std_storage.h"
 #include "aether/domain_storage/ram_domain_storage.h"
-#include "aether/domain_storage/sync_domain_storage.h"
 #include "aether/domain_storage/spifs_domain_storage.h"
 #include "aether/domain_storage/static_domain_storage.h"
-#include "aether/domain_storage/file_system_std_storage.h"
+#include "aether/domain_storage/sync_domain_storage.h"
 // IWYU pragma: end_exports
 
 namespace ae::test_ds_synchronization {
@@ -162,7 +163,9 @@ void test_SyncWithFSStorage() {
 }  // namespace ae::test_ds_synchronization
 
 int test_ds_synchronization() {
-  ae::tele::TeleInit::Init();
+  TELE_SINK::Instance().SetTrap(
+      std::make_shared<ae::tele::IoStreamTrap>(std::cout));
+
   UNITY_BEGIN();
   RUN_TEST(ae::test_ds_synchronization::test_SyncWithRamStorage);
   RUN_TEST(ae::test_ds_synchronization::test_SyncWithFSStorage);

@@ -16,7 +16,7 @@
 
 #include "libsodium_unit_tests.h"
 
-//#include "aether/tele/tele.h"
+//#include "aether/tele.h"
 #include "libsodium_ut_aead_aegis128l.h"
 #include "libsodium_ut_aead_aegis256.h"
 #include "libsodium_ut_aead_aes256gcm.h"
@@ -114,7 +114,7 @@
 
 static const char *TAG = "HYDROGEN UNITY";
 
-#if DEBUG_OUT==1    
+#if DEBUG_OUT==1
     #define DebugPrint(format, ...) LOG(TAG, format, ##__VA_ARGS__)
 #elif DEBUG_OUT==2
     #define DebugPrint(format, ...) AE_TELED_DEBUG(TAG, format, ##__VA_ARGS__)
@@ -132,7 +132,7 @@ int libsodium_unit_tests_runner()
 	UNITY_BEGIN();
 
     DebugPrint("Starting libsodium unit tests.");
-    
+
 	RUN_TEST(aead_aegis128l::_libsodium_ut_aead_aegis128l);
     RUN_TEST(aead_aegis256::_libsodium_ut_aead_aegis256);
     RUN_TEST(aead_aes256gcm::_libsodium_ut_aead_aes256gcm);

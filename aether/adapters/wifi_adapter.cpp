@@ -18,15 +18,15 @@
 
 #if AE_SUPPORT_WIFIS
 
-#  include <utility>
 #  include <cassert>
+#  include <utility>
 
 #  include "aether/aether.h"
-#  include "aether/poller/poller.h"
 #  include "aether/dns/dns_resolve.h"
+#  include "aether/poller/poller.h"
 #  include "aether/wifi/wifi_driver_factory.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 
 namespace ae {
 #  if defined AE_DISTILLATION

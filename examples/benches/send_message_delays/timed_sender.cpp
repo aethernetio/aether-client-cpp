@@ -16,7 +16,7 @@
 
 #include "send_message_delays/timed_sender.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae::bench {
 TimedSender::TimedSender(AeContext const& ae_context,

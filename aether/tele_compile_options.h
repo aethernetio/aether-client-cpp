@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,69 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef AETHER_TELE_ENV_COMPILATION_OPTIONS_H_
-#define AETHER_TELE_ENV_COMPILATION_OPTIONS_H_
+#ifndef AETHER_TELE_COMPILE_OPTIONS_H_
+#define AETHER_TELE_COMPILE_OPTIONS_H_
 
 #include <array>
-#include <cstdint>
-#include <cstdlib>
 #include <string_view>
 #include <utility>
+
+#include "aether/tele/compile_option.h"
 
 #include "aether/common.h"
 #include "aether/config.h"
 
-#define _OPTION_VALUE(option, value)                           \
-  std::pair {                                                  \
-    std::string_view{#option}, std::string_view { STR(value) } \
-  }
+#define _OPTION_VALUE(option, value) \
+  std::pair { std::string_view{#option}, std::string_view{STR(value)}, }
 
 #define _OPTION(option) \
   std::pair { std::string_view{#option}, std::string_view{VA_STR(option)}, }
 
 namespace ae {
-template <std::size_t N>
-constexpr auto str_to_ui64(char const (&str)[N]) {
-  std::uint64_t result = 0;
-  std::uint64_t base = 10;
-  std::size_t i = 0;
-
-  if constexpr (N > 2) {
-    if (N > 3 && str[0] == '0' && str[1] == 'x') {
-      base = 16;
-      i = 2;
-    } else if (str[0] == '0') {
-      base = 8;
-      i = 1;
-    } else if (str[0] == 'b') {
-      base = 2;
-      i = 1;
-    }
-  }
-
-  for (; i < N; ++i) {
-    if ((str[i] >= '0') && (str[i] <= '9')) {
-      result = result * base + static_cast<uint64_t>(str[i] - '0');
-    }
-    if ((base > 10) && (str[i] >= 'a') && (str[i] <= 'f')) {
-      result = result * base + static_cast<uint64_t>(str[i] - 'a' + 10);
-    }
-    if ((base > 10) && (str[i] >= 'A') && (str[i] <= 'F')) {
-      result = result * base + static_cast<uint64_t>(str[i] - 'A' + 10);
-    }
-  }
-  return result;
-}
-
-// some tests
-static_assert(str_to_ui64("0") == 0);
-static_assert(str_to_ui64("1") == 1);
-static_assert(str_to_ui64("112") == 112);
-static_assert(str_to_ui64("0xffff") == 65535);
-static_assert(str_to_ui64("0xAaCb") == 0xaacb);
-static_assert(str_to_ui64("042") == 34);
-static_assert(str_to_ui64("b110") == 6);
-
 constexpr inline auto _compile_options_list = std::array{
     _OPTION(AE_TASK_MAX_COUNT),
     _OPTION(AE_TASK_MAX_SIZE),
@@ -171,6 +127,8 @@ constexpr inline auto _compile_options_list = std::array{
     _OPTION(AE_TELE_LOG_BLOB),
     _OPTION(AE_TELE_LOG_BLOB_EXCLUDE),
     _OPTION(AE_TELE_LOG_CONSOLE),
+    _OPTION(AE_TELE_LOG_TO_STATISTICS),
+    _OPTION(AE_STATISTICS_MAX_SIZE),
 #if defined AE_DISTILLATION
     _OPTION(AE_DISTILLATION),
 #else
@@ -190,5 +148,23 @@ constexpr inline auto _compile_options_list = std::array{
     _OPTION(_AE_REG_CLOUD_IP),
 #endif
 };
+
+template <std::size_t... Is>
+consteval auto MakeCompileOptionsImpl(std::index_sequence<Is...>) {
+  return std::array{
+      ::ae::tele::CompileOption{.index = Is,
+                                .name = _compile_options_list[Is].first,
+                                .value = _compile_options_list[Is].second}...};
+}
+
+consteval auto CompileOptions() noexcept {
+  return MakeCompileOptionsImpl(
+      std::make_index_sequence<_compile_options_list.size()>());
+}
+
+// static constexpr inline auto kCompileOptions = MakeCompileOptions(
+//     std::make_index_sequence<_compile_options_list.size()>());
+
 }  // namespace ae
-#endif  // AETHER_TELE_ENV_COMPILATION_OPTIONS_H_ */
+
+#endif  // AETHER_TELE_COMPILE_OPTIONS_H_

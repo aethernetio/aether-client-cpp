@@ -17,7 +17,7 @@
 #ifndef AETHER_OBJ_OBJ_TELE_H_
 #define AETHER_OBJ_OBJ_TELE_H_
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 AE_TELE_MODULE(kObj, 1, 1, 2);
 AE_TAG(ObjectDomainUpdatePastTime, kObj);

@@ -17,7 +17,7 @@
 #ifndef AETHER_SERIAL_PORTS_SERIAL_PORTS_TELE_H_
 #define AETHER_SERIAL_PORTS_SERIAL_PORTS_TELE_H_
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 AE_TELE_MODULE(kSerialPorts, 200, 500, 550);
 

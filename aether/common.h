@@ -31,13 +31,6 @@ namespace ae {
 #define AE_CAT(A, B) AE_CAT_(A, B)
 #define AE_UNIQUE_NAME(P) AE_CAT(P, AE_CAT(__LINE__, __COUNTER__))
 
-#define _AE_CONCAT_0(A, B, ...) A##B
-#define _AE_CONCAT_1(A, ...) _AE_CONCAT_0(A##__VA_ARGS__)
-#define _AE_CONCAT_2(A, ...) _AE_CONCAT_1(A##__VA_ARGS__)
-#define _AE_CONCAT_3(A, ...) _AE_CONCAT_2(A##__VA_ARGS__)
-#define _AE_CONCAT_N(_3, _2, _1, _0, X, ...) _AE_CONCAT##X(_3, _2, _1, _0)
-#define AE_CONCAT(...) _AE_CONCAT_N(__VA_ARGS__, _2, _1, _0)
-
 // remove () around X
 #define AE_DEPAREN(X) AE_ESC(AE_ISH X)
 #define AE_ISH(...) AE_ISH __VA_ARGS__
@@ -83,15 +76,4 @@ enum class CompressionMethod : std::uint8_t {
 #define AE_CLASS_NO_COPY_MOVE(class_name) \
   AE_CLASS_COPY_(class_name, delete)      \
   AE_CLASS_MOVE_(class_name, delete)
-
-// concepts
-#define AE_REQUIRERS(Condition) \
-  std::enable_if_t<AE_DEPAREN(Condition)::value, int> = 0
-
-#define AE_REQUIRERS_NOT(Condition) \
-  std::enable_if_t<!AE_DEPAREN(Condition)::value, int> = 0
-
-#define AE_REQUIRERS_BOOL(Condition) \
-  std::enable_if_t<AE_DEPAREN(Condition), int> = 0
-
 #endif  // AETHER_COMMON_H_

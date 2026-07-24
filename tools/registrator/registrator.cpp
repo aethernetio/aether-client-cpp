@@ -45,10 +45,7 @@ int AetherRegistrator(const std::string& ini_file,
           // make special domain storage to write all state into header file
           [&header_file]() {
             return ae::make_unique<ae::RegistrarDomainStorage>(header_file);
-          },
-          // empty tele initializer
-          [](auto const&) {},
-      }
+          }}
           .CryptoFactory([&registrator_config](
                              ae::AetherAppContext const& context) {
             auto crypto = ae::Crypto::ptr::Create(

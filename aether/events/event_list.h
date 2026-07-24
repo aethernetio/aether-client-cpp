@@ -17,14 +17,14 @@
 #ifndef AETHER_EVENTS_EVENT_LIST_H_
 #define AETHER_EVENTS_EVENT_LIST_H_
 
-#include <list>
-#include <mutex>
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
-#include <algorithm>
+#include <list>
+#include <mutex>
 
-#include "aether/events/event_handler.h"
 #include "aether-miscpp/types/aligned_storage.h"
+#include "aether/events/event_handler.h"
 
 namespace ae {
 class EventHandlersList {
@@ -34,8 +34,8 @@ class EventHandlersList {
   static constexpr std::size_t kElementAlign = alignof(TemplateHandler);
   using ValueType = ManagedStorage<kElementSize, kElementAlign>;
   struct StoreType {
-    template <typename U,
-              AE_REQUIRERS_NOT((std::is_same<StoreType, std::decay_t<U>>))>
+    template <typename U>
+      requires(!std::is_same_v<StoreType, std::decay_t<U>>)
     explicit StoreType(U&& value) : value{std::forward<U>(value)} {}
 
     ValueType value;

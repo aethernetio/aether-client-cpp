@@ -16,6 +16,9 @@
 
 #include "aether/aether_app.h"
 
+#include <cstdlib>
+#include <iostream>
+
 // IWYU pragma: begin_keeps
 #include "aether/types/address_parser.h"
 #include "aether/types/literal_array.h"
@@ -33,27 +36,52 @@
 
 #include "aether/dns/dns_c_ares.h"
 #include "aether/dns/esp32_dns_resolve.h"
+
+#include "aether/tele.h"
+#include "aether/tele_compile_options.h"
 // IWYU pragma: end_keeps
-
-#include "aether/tele/tele_init.h"
-
-#include "aether/aether_tele.h"
 
 namespace ae {
 
-AetherAppContext::TelemetryInit::TelemetryInit() {
-  tele::TeleInit::Init();
-  AE_TELE_ENV();
+void AetherAppContext::TelemetryInit() {
+#if AE_TELE_ENABLED
+  // Init telemetry sink
+  if (!TELE_SINK::Instance().trap()) {
+#  if AE_TELE_LOG_CONSOLE && AE_TELE_LOG_TO_STATISTICS
+    // telemetry to both console and statistics
+    auto trap = std::make_shared<
+        ae::tele::ProxyTrap<ae::tele::IoStreamTrap,
+                            ae::tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>>>(
+        std::make_shared<ae::tele::IoStreamTrap>(std::cout),
+        std::make_shared<ae::tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>>());
+#  elif AE_TELE_LOG_CONSOLE
+    // telemetry to console only
+    auto trap = std::make_shared<ae::tele::IoStreamTrap>(std::cout);
+#  elif AE_TELE_LOG_TO_STATISTICS
+    // telemetry to statistics only
+    auto trap =
+        std::make_shared<ae::tele::StatisticsTrap<AE_STATISTICS_MAX_SIZE>>();
+#  else
+    // NONE trap is enabled
+    return;
+#  endif
+    TELE_SINK::Instance().SetTrap(trap);
+  }
+#  if AE_TELE_LOG_TO_STATISTICS
+  else {
+    // TODO: is it possible to fix?
+    // IF AE_TELE_LOG_TO_STATISTICS is defined user are not allowed to set
+    // custom trap, because it's static_casts in TeleStatistics object
+    std::cerr
+        << "Custom trap are not allowed with AE_TELE_LOG_TO_STATISTICS==1\n";
+    std::abort();
+  }
+#  endif
+
+  AE_TELE_ENV(CompileOptions());
   AE_TELE_INFO(AetherStarted);
   Registry::GetRegistry().Log();
-}
-
-void AetherAppContext::TelemetryInit::operator()(
-    AetherAppContext const& context) const {
-  [[maybe_unused]] auto res =
-      context.tele_statistics_.Resolve(context).WithLoaded(
-          [](auto const& ts) { ae::tele::TeleInit::Init(ts); });
-  assert(res && "Failed to initialize telemetry");
+#endif
 }
 
 static Aether::ptr AetherFactory(AetherAppContext const& context) {
@@ -80,15 +108,14 @@ static Aether::ptr AetherFactory(AetherAppContext const& context) {
 #endif
 }
 
-static tele::TeleStatistics::ptr TeleStatisticsFactory(
+static TeleStatistics::ptr TeleStatisticsFactory(
     AetherAppContext const& context) {
-  auto tele_statistics =
-      tele::TeleStatistics::ptr{context.aether()->tele_statistics};
+  auto tele_statistics = TeleStatistics::ptr{context.aether()->tele_statistics};
   if (tele_statistics.is_valid()) {
     return tele_statistics;
   }
 #if AE_DISTILLATION || AE_FILTRATION
-  return tele::TeleStatistics::ptr::Create(
+  return TeleStatistics::ptr::Create(
       CreateWith{context.domain()}.with_id(GlobalId::kTeleStatistics));
 #else
   assert(false && "Failed to load TeleStatistics");
@@ -299,8 +326,6 @@ void AetherAppContext::InitComponentContext() {
 RcPtr<AetherApp> AetherApp::Construct(AetherAppContext context) {
   // init all the components in context
   context.InitComponentContext();
-
-  context.init_tele_(context);
 
   auto app = MakeRcPtr<AetherApp>();
   app->aether_ = context.aether();

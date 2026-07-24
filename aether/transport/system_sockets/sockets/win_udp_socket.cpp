@@ -24,7 +24,7 @@
 #  include "aether-miscpp/misc/defer.h"
 #  include "aether/transport/system_sockets/sockets/get_sock_addr.h"
 
-#  include "aether/tele/tele.h"
+#  include "aether/tele.h"
 
 namespace ae {
 WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)

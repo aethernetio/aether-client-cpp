@@ -16,7 +16,7 @@
 
 #include "aether/serial_ports/at_support/at_buffer.h"
 
-#include "aether/tele/tele.h"
+#include "aether/tele.h"
 
 namespace ae {
 AtBuffer::AtBuffer(ISerialPort& serial_port)
