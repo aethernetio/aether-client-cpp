@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#include "aether/tele/traps/statistics_trap.h"
+#include "aether-tele/traps/statistics_trap.h"
 
 #include "aether/config.h"
 #include "aether/obj/obj.h"

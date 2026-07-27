@@ -231,8 +231,4 @@ list(APPEND aether_srcs
             "channels/lora_module_channel.cpp"
             "channels/modem_channel.cpp")
 
-list(APPEND aether_srcs
-            "tele/traps/io_stream_traps.cpp"
-            "tele/traps/statistics_trap.cpp")
-
 target_sources(${TARGET_NAME} PRIVATE ${aether_srcs})
