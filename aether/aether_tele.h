@@ -19,10 +19,10 @@
 
 #include <cstdint>
 
+#include "aether-tele/levels.h"
+#include "aether-tele/sink.h"
+#include "aether-tele/tags.h"
 #include "aether/config.h"
-#include "aether/tele/levels.h"
-#include "aether/tele/sink.h"
-#include "aether/tele/tags.h"
 
 namespace ae {
 namespace aether_tele_internal {

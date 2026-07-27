@@ -9,9 +9,9 @@
 - Always wrap `if` and `for` bodies in `{}` even if it's short one-line statement.
 - Initialize variables and objects using `{}` to distinguish from function call.
   - *Exception vector initialization*: In case vector must be created with size use `()` initialization to distinguish from initializer_list constructor.
-- Always there is possible use `auto` for variables with respect for references `auto&` and pointers `auto*`.
+- Use `auto` whenever possible for variables with respect for references `auto&` and pointers `auto*`.
 - Check if pointer is null by comparing it to `nullptr` instead of using implicit conversion to `bool`.
-- If function arguments is not used, there are two options. If it's never used, just ommit the argument name. If it's used on some configurations use `[[maybe_unused]]` attribute.
+- If a function argument is not used, there are two options. If it's never used, just ommit the argument name. If it's used on some configurations use `[[maybe_unused]]` attribute.
 - Immediate lambda call pattern should be implemented by using `std::invoke`.
 
 ## Architecture & Object System
@@ -31,7 +31,7 @@
 - Events uses SmallFunction as a callback storage.
 - Prefer setup SmallFunction by MethodPtr<&Class::method>{this} instead of lambda.
 - Event subscriptions should be stored in Subscription or MultiSubscriptions class members to control subscription lifetime.
-- If the class makes subscription controls lifetime of the object with event, subscription objects maybe ommited.
+- If the class makes subscription controls lifetime of the object with event, subscription objects maybe omitted.
 
 ## Asynchrony & Tasks
 
@@ -53,13 +53,13 @@
 - constructors are `ex::just()`, `ex::create()` or some custom senders created for specific logic.
 - adapters are `ex::then()`, `ex::let_value()`, `ex::let_error()`, `ex::upon_error()` and others that transform or combine senders.
 - consumers are `ex::sync_wait`, but preferred to use `ex::AnyWaiter` or `ex:AsyncWaiter`.
-- se `ex::create` to create a sender from a functor to integrate c-style callbacks or other non sender logic into the executor.
+- use `ex::create` to create a sender from a functor to integrate c-style callbacks or other non sender logic into the executor.
 - use `ex::create` if logic must test the value and set either error or value during runtime
-- use `ex::variant_sender` to conditionally return either on or another sender based on some value.
+- use `ex::variant_sender` to conditionally return either one sender or another based on some value.
 - use `ex::then` `ex::upon_error` to transform from one value to another or from error to value.
 - use `ex::let_value` to run new sender in chain in case of set_value.
 - use `ex::let_error` to run new sender in chain in case of set_error.
-- `ex::for_range` to iterate over a range of values. Internal sender must return a value, an error or stopped to end loop. To cont
+- `ex::for_range` to iterate over a range of values. Internal sender must return a value, an error or stopped to end loop.
 - `ex::with_timeout` to add timeout to a sender chain.
 - senders and adapters chained together by `|` operator.
 
@@ -69,7 +69,7 @@
 - The `Action` maybe inherited from `Action` class which adds `is_finished()` and `finished_event()` methods.
 - Each action should provide events to notify about operation progress and completion. Usually just `result_event()`.
 - Actions may use senders inside to define their logic or just subscribe to another action's events.
-- Actions should be managed by the class that creates them and returned by reference or pointers in case of possible null.
+- Actions should be managed by the class that creates them and returned by reference or pointers when null is possible.
 - If action `is_finished()` or after `finished_event()` is emitted non should have access to the action except the owner.
 - Actions may be created as class members with optional or `ActionPool` or `std::unique_ptr`. But prefer to avoid allocations.
 
@@ -114,7 +114,7 @@
  The first smoke test is a `<build-dir>/aether-client-cpp-cloud`.
  To run it simply `cd <build-dir>` and ran the `./aether-client-cpp-cloud` binary. 
  Notice! Run `aether-client-cpp-cloud` generates `state` dir there object state is saved. 
- Remove this `state` dir before run to make clean run. Keep it to run with previous state.
+ Remove this `state` dir before run to make clean run. Keep it to run with previous saved state.
 
 ## Operational Rules
 

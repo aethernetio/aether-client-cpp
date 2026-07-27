@@ -25,7 +25,7 @@
 #endif
 #define TELE_SINK ::ae::tele::TeleSink<::ae::AetherTeleConfig>
 
-#include "aether/tele/tele.h"
+#include "aether-tele/tele.h"
 // IWYU pragma: end_keeps
 
 #endif  // AETHER_TELE_H_

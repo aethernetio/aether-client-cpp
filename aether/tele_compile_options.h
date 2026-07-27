@@ -21,7 +21,7 @@
 #include <string_view>
 #include <utility>
 
-#include "aether/tele/compile_option.h"
+#include "aether-tele/compile_option.h"
 
 #include "aether/common.h"
 #include "aether/config.h"

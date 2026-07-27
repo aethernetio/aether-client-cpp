@@ -31,7 +31,6 @@ add_subdirectory(inline_tests)
 generate_inline_tests(${CMAKE_CURRENT_LIST_DIR}/../aether aether)
 
 #tests
-add_subdirectory(test-tele)
 add_subdirectory(test-types)
 add_subdirectory(test-object-system)
 add_subdirectory(test-api-protocol)

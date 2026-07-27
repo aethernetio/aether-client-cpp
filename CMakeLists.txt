@@ -130,7 +130,7 @@ CPMAddPackage(
   NAME numeric
   GIT_REPOSITORY "https://github.com/aethernetio/aethernet-numeric.git"
   GIT_TAG "main"
-  OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}"
+  OPTIONS "AE_NUMERIC_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
@@ -138,6 +138,14 @@ CPMAddPackage(
   GIT_REPOSITORY "https://github.com/aethernetio/aether-miscpp.git"
   GIT_TAG "main"
   OPTIONS "AE_INSTALL ${AE_INSTALL}" "AE_BUILD_TESTS ${AE_BUILD_TESTS}"
+  EXCLUDE_FROM_ALL FALSE
+)
+CPMAddPackage(
+  NAME aether-tele
+  GIT_REPOSITORY "https://github.com/aethernetio/aether-tele.git"
+  GIT_TAG "main"
+  OPTIONS "AE_TELE_INSTALL ${AE_INSTALL}"
+          "AE_TELE_BUILD_TESTS ${AE_BUILD_TESTS}"
   EXCLUDE_FROM_ALL FALSE
 )
 CPMAddPackage(
@@ -166,6 +174,7 @@ target_include_directories(${TARGET_NAME} PUBLIC
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_link_libraries(${TARGET_NAME} PUBLIC
+                                      aether-tele
                                       bcrypt
                                       sodium
                                       hydrogen
