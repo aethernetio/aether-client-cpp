@@ -50,6 +50,7 @@ class PingCloudServers {
     TimePoint next_service_time() const noexcept { return next_ping_time_; }
     std::size_t priority() const noexcept { return priority_; }
     RxTimingConf const& timing() const noexcept { return timing_conf_; }
+    bool stopped() const noexcept { return stop_; }
 
    private:
     void Start();
@@ -60,7 +61,7 @@ class PingCloudServers {
     auto EnsureLinked();
     auto MakePing();
 
-    void OnPingResult(Result<Duration, int> const& res);
+    void OnPingResult(Ping::PingResult const& res);
     void OpenRxWindow(TimePoint sent_time);
     void ScheduleRestream();
 
@@ -95,12 +96,16 @@ class PingCloudServers {
   void DispatchToServers();
   void ReconcileServer(Ptr<Server> const& server,
                        CloudServerConnection& cloud_sc);
+  void ServerQuarantined(CloudServerConnection* cloud_sc);
+  void ServerQuarantineReleased(CloudServerConnection* cloud_sc);
 
   AeContext ae_context_;
   CloudServerConnections* cloud_server_connections_;
   ClientConnectivityPolicy* policy_;
 
   Subscription servers_update_;
+  Subscription server_quarantined_sub_;
+  Subscription server_quarantine_released_sub_;
   TaskSubscription task_sub_;
 
   std::map<ServerId, std::unique_ptr<ServerPing>> server_pings_;

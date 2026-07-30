@@ -82,11 +82,12 @@ void Ping::Start(TimePoint current_time) {
   assert(cc != nullptr && "Ping::Start requires a client connection");
   assert(cc->stream_info().link_state == LinkState::kLinked &&
          "Ping::Start requires linked connection");
-  assert(!started_ && "Ping::Start must be called only once");
-  if (started_) {
+  assert(state_ == RequestState::kCreated &&
+         "Ping::Start must be called only once");
+  if (state_ != RequestState::kCreated) {
     return;
   }
-  started_ = true;
+  state_ = RequestState::kPending;
 
   auto& write_action = cc->AuthorizedApiCall(
       SubApi{[this, current_time](ApiContext<AuthorizedApi>& auth_api) {
@@ -120,15 +121,30 @@ void Ping::Start(TimePoint current_time) {
         timeout_sub_ = ae_context_.scheduler().DelayedTask(
             [this, req_id]() { PingResponseTimeout(req_id); },
             current_time + timeout_);
+        if (state_ == RequestState::kPending && !timeout_sub_) {
+          AE_TELE_ERROR(kPingTimeoutError,
+                        "Ping timeout task allocation failed server id {} request {}",
+                        server_id_, req_id);
+          state_ = RequestState::kFinished;
+          ResetRequestSubscriptions();
+          result_event_.Emit(PingResult{Error{5}});
+        }
       }});
 
   write_sub_ = write_action.status_event().Subscribe([this](auto status) {
     if (status == WriteAction::Status::kFail) {
+      if (state_ != RequestState::kPending) {
+        return;
+      }
       AE_TELE_ERROR(kPingWriteError, "Ping write error");
+      state_ = RequestState::kFinished;
       ResetRequestSubscriptions();
-      result_event_.Emit(Error{1});
+      result_event_.Emit(PingResult{Error{1}});
     }
   });
+  if (state_ != RequestState::kPending) {
+    write_sub_.Reset();
+  }
 
 #  if DEBUG
   cc->LoginApiCall(SubApi{[&](ApiContext<LoginApi>& api_call) {
@@ -151,28 +167,47 @@ void Ping::PingResponse(RequestId request_id) {
   auto ping_duration =
       std::chrono::duration_cast<Duration>(current_time - request_start_);
 
-  AE_TELED_DEBUG("Ping server id {} request {} received by {}", server_id_,
-                 request_id, ping_duration);
-  ResetRequestSubscriptions();
-  result_event_.Emit(Ok{ping_duration});
+  AE_TELED_DEBUG("Ping received server id {} request {} duration {}",
+                 server_id_, request_id, ping_duration);
+  if (state_ == RequestState::kPending) {
+    state_ = RequestState::kFinished;
+    ResetRequestSubscriptions();
+    result_event_.Emit(PingResult{Ok{ping_duration}});
+  } else if (state_ == RequestState::kTimedOut) {
+    wait_result_sub_.Reset();
+    state_ = RequestState::kFinished;
+    result_event_.Emit(PingResult{LateDuration{ping_duration}});
+  }
 }
 
 void Ping::PingResponseError(RequestId request_id, std::int32_t error_code) {
-  AE_TELE_ERROR(kPingResponseError, "Ping server id {} request {} error {}",
-                server_id_, request_id, error_code);
-  ResetRequestSubscriptions();
-  if (error_code == -1) {
-    result_event_.Emit(Error{4});
-  } else {
-    result_event_.Emit(Error{3});
+  AE_TELE_ERROR(kPingResponseError,
+                "Ping error server id {} request {} code {}", server_id_,
+                request_id, error_code);
+  if (state_ == RequestState::kPending) {
+    state_ = RequestState::kFinished;
+    ResetRequestSubscriptions();
+    if (error_code == -1) {
+      result_event_.Emit(PingResult{Error{4}});
+    } else {
+      result_event_.Emit(PingResult{Error{3}});
+    }
+  } else if (state_ == RequestState::kTimedOut) {
+    wait_result_sub_.Reset();
+    state_ = RequestState::kFinished;
   }
 }
 
 void Ping::PingResponseTimeout(RequestId request_id) {
-  AE_TELE_ERROR(kPingTimeoutError, "Ping server id {} request {} timeout",
+  if (state_ != RequestState::kPending) {
+    return;
+  }
+  AE_TELE_ERROR(kPingTimeoutError, "Ping timeout server id {} request {}",
                 server_id_, request_id);
-  ResetRequestSubscriptions();
-  result_event_.Emit(Error{2});
+  state_ = RequestState::kTimedOut;
+  timeout_sub_.Reset();
+  write_sub_.Reset();
+  result_event_.Emit(PingResult{Error{2}});
 }
 
 void Ping::ResetRequestSubscriptions() {

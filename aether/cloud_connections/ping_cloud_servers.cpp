@@ -17,7 +17,8 @@
 #include "aether/cloud_connections/ping_cloud_servers.h"
 
 #include <cassert>
-#include <set>
+#include <type_traits>
+#include <variant>
 
 #if AE_ENABLE_PING
 
@@ -46,7 +47,7 @@ PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
   // if it's to early for next rx wait a bit
   if ((timings.next_rx_point != TimePoint{}) &&
       (Now() < timings.next_rx_point)) {
-    AE_TELED_DEBUG("Wait a bit for next rx point till {:%H:%M:%S}",
+    AE_TELED_DEBUG("Wait a bit for next rx point till {}",
                    timings.next_rx_point);
     start_sub_ = ae_context_.scheduler().DelayedTask([&]() { Start(); },
                                                      timings.next_rx_point);
@@ -62,9 +63,11 @@ PingCloudServers::ServerPing::~ServerPing() = default;
 void PingCloudServers::ServerPing::Stop() {
   stop_ = true;
 
+  waiter_.reset();
   start_sub_.Reset();
   rx_window_sub_.Reset();
   restream_sub_.Reset();
+  link_state_sub_.Reset();
 
   ping_blocker_.Reset();
   rx_window_blocker_.Reset();
@@ -121,10 +124,11 @@ auto PingCloudServers::ServerPing::MakePing() {
                         timing_conf_.rx_window, c->ResponseTimeout());
 
           ping_blocker_ = policy_->AcquireSuspendBlock();
-          ping_->result_event().Subscribe([this](auto const& res) noexcept {
-            OnPingResult(res);
-            ping_blocker_.Reset();
-          });
+          ping_->result_event().Subscribe(
+              [this](Ping::PingResult const& res) noexcept {
+                OnPingResult(res);
+                ping_blocker_.Reset();
+              });
 
           // run ping request and open rx window
           auto const current_time = Now();
@@ -132,9 +136,8 @@ auto PingCloudServers::ServerPing::MakePing() {
           OpenRxWindow(current_time);
           next_ping_time_ = current_time + timing_conf_.interval;
           policy_->ReportNextServiceTime(priority_, next_ping_time_);
-          AE_TELED_DEBUG(
-              "Next ping time for priority {} at {:%H:%M:%S} after {:%S}",
-              priority_, next_ping_time_, timing_conf_.interval);
+          AE_TELED_DEBUG("Next ping time for priority {} at {} after {}",
+                         priority_, next_ping_time_, timing_conf_.interval);
 
           return ex::set_value(std::move(ctx.receiver));
         });
@@ -142,6 +145,9 @@ auto PingCloudServers::ServerPing::MakePing() {
 }
 
 void PingCloudServers::ServerPing::Start() {
+  if (stop_) {
+    return;
+  }
   waiter_.emplace(
       ae_context_,
       EnsureLinked() |
@@ -179,25 +185,33 @@ void PingCloudServers::ServerPing::Start() {
       });
 }
 
-void PingCloudServers::ServerPing::OnPingResult(
-    Result<Duration, int> const& res) {
+void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
   auto* cc = cloud_sc_->client_connection();
   if (cc == nullptr) {
     AE_TELED_ERROR("Client connection is null");
     return;
   }
 
-  if (res) {
-    auto c = cc->server_connection().current_channel();
-    if (!c) {
-      AE_TELED_ERROR("Ping's channel value invalid");
-    } else {
-      c->channel_statistics().AddResponseTime(res.value());
-    }
-  } else {
-    AE_TELED_ERROR("Ping error!");
-    ScheduleRestream();
+  auto c = cc->server_connection().current_channel();
+  if (!c) {
+    AE_TELED_ERROR("Connection channel is null");
+    return;
   }
+
+  std::visit(
+      [this, c](auto const& value) {
+        using T = std::decay_t<decltype(value)>;
+        if constexpr (std::is_same_v<T, Ok<Duration>>) {
+          c->channel_statistics().AddResponseTime(value.value);
+        } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
+          AE_TELED_DEBUG("Got late ping duration");
+          c->channel_statistics().AddResponseTime(value.duration);
+        } else {
+          AE_TELED_ERROR("Ping error!");
+          ScheduleRestream();
+        }
+      },
+      res);
 }
 
 void PingCloudServers::ServerPing::OpenRxWindow(TimePoint sent_time) {
@@ -235,6 +249,12 @@ PingCloudServers::PingCloudServers(
           cloud_server_connections_->servers_update_event().Subscribe(
               MethodPtr<&PingCloudServers::ServersUpdate>{this})} {
   AE_TELED_INFO("PingCloudServers created");
+  server_quarantined_sub_ =
+      cloud_server_connections_->server_quarantined_event().Subscribe(
+          MethodPtr<&PingCloudServers::ServerQuarantined>{this});
+  server_quarantine_released_sub_ =
+      cloud_server_connections_->server_quarantine_release_event().Subscribe(
+          MethodPtr<&PingCloudServers::ServerQuarantineReleased>{this});
   ServersUpdate();
 }
 
@@ -243,37 +263,28 @@ PingCloudServers::~PingCloudServers() { task_sub_.Reset(); }
 void PingCloudServers::ServersUpdate() {
   AE_TELED_DEBUG("Servers update");
   if (!task_sub_) {
-    AE_TELED_DEBUG("Enqueue dispatch servers");
     auto blocker = policy_->AcquireSuspendBlock();
     task_sub_ = ae_context_.scheduler().Task(
         [this, blocker = std::move(blocker)]() mutable {
+          task_sub_.Reset();
           DispatchToServers();
         });
   }
 }
 
 void PingCloudServers::DispatchToServers() {
-  std::set<ServerId> visited_ids;
   cloud_server_connections_->ForServers(
-      [this, &visited_ids](CloudServerConnection* cloud_sc) {
+      [this](CloudServerConnection* cloud_sc) {
         if (cloud_sc == nullptr) {
           AE_TELED_ERROR("Visit empty cloud server connection!");
           return;
         }
         auto server = cloud_sc->server();
         if (server) {
-          visited_ids.insert(server->server_id);
           ReconcileServer(server, *cloud_sc);
         }
       },
       policy_->rx_targets());
-
-  // stop pings for servers not in connection anymore
-  for (auto& [sid, sp] : server_pings_) {
-    if (!visited_ids.contains(sid)) {
-      sp->Stop();
-    }
-  }
 }
 
 void PingCloudServers::ReconcileServer(Ptr<Server> const& server,
@@ -282,11 +293,44 @@ void PingCloudServers::ReconcileServer(Ptr<Server> const& server,
   auto const priority = cloud_sc.priority();
 
   auto it = server_pings_.find(server_id);
-  if ((it == server_pings_.end()) || (it->second->priority() != priority)) {
+  if ((it == server_pings_.end()) || (it->second->priority() != priority) ||
+      it->second->stopped()) {
+    if (it != server_pings_.end()) {
+      it->second.reset();
+    }
     server_pings_.insert_or_assign(
         server_id, std::make_unique<ServerPing>(ae_context_, *policy_, cloud_sc,
                                                 priority));
     return;
+  }
+}
+
+void PingCloudServers::ServerQuarantined(CloudServerConnection* cloud_sc) {
+  if (cloud_sc == nullptr) {
+    return;
+  }
+  auto server = cloud_sc->server();
+  if (server == nullptr) {
+    return;
+  }
+  auto it = server_pings_.find(server->server_id);
+  if (it != server_pings_.end()) {
+    it->second->Stop();
+  }
+}
+
+void PingCloudServers::ServerQuarantineReleased(
+    CloudServerConnection* cloud_sc) {
+  if (cloud_sc == nullptr) {
+    return;
+  }
+  auto server = cloud_sc->server();
+  if (server == nullptr) {
+    return;
+  }
+  auto it = server_pings_.find(server->server_id);
+  if (it != server_pings_.end()) {
+    server_pings_.erase(it);
   }
 }
 }  // namespace ae
