@@ -41,7 +41,6 @@ void ClientApiSafe::NewChildren([[maybe_unused]] std::vector<Uid> const& uids) {
 
 void ClientApiSafe::SendMessages(std::vector<AeMessage> const& messages) {
   for (auto const& msg : messages) {
-    AE_TELED_DEBUG("Received message uid:{}", msg.uid);
     send_message_event_.Emit(msg);
   }
 }
@@ -111,7 +110,6 @@ void ClientApiSafe::SendAccessCheckResults(
 }
 
 void ClientApiSafe::SendMessage(AeMessage const& msg) {
-  AE_TELED_DEBUG("Received message uid:{}", msg.uid);
   send_message_event_.Emit(msg);
 }
 

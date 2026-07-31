@@ -17,10 +17,12 @@
 #include "aether/client_messages/p2p_message_stream_manager.h"
 
 #include <cassert>
+#include <cstdint>
 #include <utility>
 
 #include "aether/client.h"
 #include "aether/client_messages/client_messages_tele.h"
+#include "aether/cloud_connections/cloud_server_connection.h"
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
 
 namespace ae {
@@ -31,12 +33,13 @@ P2pMessageStreamManager::P2pMessageStreamManager(AeContext const& ae_context,
       client_{client},
       cloud_connection_{&client->cloud_connection()},
       on_message_received_sub_{CloudEventListener{
-          ApiEventSubscriber{[this](ClientApiSafe& client_api, auto*) {
+          ApiEventSubscriber{[this](ClientApiSafe& client_api,
+                                    [[maybe_unused]] CloudServerConnection* server_connection)
+                                 -> EventHandlerDeleter {
             return client_api.send_message_event().Subscribe(
                 MethodPtr<&P2pMessageStreamManager::NewMessageReceived>{this});
           }},
-          *cloud_connection_,
-          RequestPolicy::Replica{cloud_connection_->count_connections()}}} {}
+          *cloud_connection_, RequestPolicy::All{}}} {}
 
 P2pPortHandle P2pMessageStreamManager::CreatePort(Uid const& destination) {
   auto [port, is_new] = GetOrCreatePort(destination);
@@ -68,7 +71,6 @@ P2pMessageStreamManager::GetOrCreatePort(Uid const& destination) {
 
 void P2pMessageStreamManager::NewMessageReceived(AeMessage const& message) {
   AE_TELED_DEBUG("New message received {}", message.uid);
-
   auto [port, is_new] = GetOrCreatePort(message.uid);
   assert(port != nullptr);
 

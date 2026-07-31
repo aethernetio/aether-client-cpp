@@ -18,51 +18,41 @@
 
 #include "aether/server.h"
 
-#include "aether/cloud_connections/cloud_connections_tele.h"
-
 namespace ae {
+
 CloudServerConnection::CloudServerConnection(
     Ptr<Server> const& server, IServerConnectionFactory& connection_factory)
     : server_{server},
       connection_factory_{&connection_factory},
       priority_{},
-      is_connection_{},
       is_quarantined_{} {}
 
 std::size_t CloudServerConnection::priority() const { return priority_; }
-
-bool CloudServerConnection::quarantine() const { return is_quarantined_; }
-void CloudServerConnection::quarantine(bool value) { is_quarantined_ = value; }
+void CloudServerConnection::SetPriority(std::size_t priority) {
+  priority_ = priority;
+}
 
 void CloudServerConnection::Restream() {
-  if (client_connection_) {
+  if (client_connection_.get() != nullptr) {
     client_connection_->Restream();
   }
 }
 
-bool CloudServerConnection::BeginConnection(std::size_t priority) {
-  priority_ = priority;
-  AE_TELED_DEBUG("Begin connection server_id={}, priority={}, is_connection={}",
-                 server()->server_id, priority_, is_connection_);
-  if (!is_connection_) {
-    is_connection_ = true;
-    // Make new connection
-    client_connection_.Reset();
-    client_connection_ = connection_factory_->CreateConnection(server());
-    return true;
-  }
-  return false;
+bool CloudServerConnection::quarantine() const { return is_quarantined_; }
+void CloudServerConnection::SetQuarantine(bool value) {
+  is_quarantined_ = value;
 }
 
-void CloudServerConnection::EndConnection(std::size_t priority) {
-  priority_ = priority;
-  AE_TELED_DEBUG("End connection server_id={}, priority={}, is_connection={}",
-                 server()->server_id, priority_, is_connection_);
-  is_connection_ = false;
+bool CloudServerConnection::Connect() {
+  client_connection_.Reset();
+  client_connection_ = connection_factory_->CreateConnection(server());
+  return client_connection_.get() != nullptr;
 }
+
+void CloudServerConnection::Disconnect() { client_connection_.Reset(); }
 
 ClientServerConnection* CloudServerConnection::client_connection() {
-  if (client_connection_) {
+  if (client_connection_.get() != nullptr) {
     return client_connection_.get();
   }
   return nullptr;
@@ -70,7 +60,7 @@ ClientServerConnection* CloudServerConnection::client_connection() {
 
 Ptr<Server> CloudServerConnection::server() const {
   auto server = server_.Lock();
-  assert(server);
+  assert(server.get() != nullptr);
   return server;
 }
 

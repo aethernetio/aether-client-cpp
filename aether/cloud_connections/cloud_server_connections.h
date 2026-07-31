@@ -17,20 +17,21 @@
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTIONS_H_
 
 #include <map>
-#include <vector>
 #include <memory>
 #include <optional>
+#include <vector>
 
-#include "aether/cloud.h"
-#include "aether/ptr/ptr.h"
-#include "aether/ptr/ptr_view.h"
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
 #include "aether/events/multi_subscription.h"
+#include "aether/ptr/ptr.h"
+#include "aether/ptr/ptr_view.h"
 #include "aether/write_action/write_action.h"
-#include "aether/cloud_connections/request_policy.h"
+
+#include "aether/cloud.h"
 #include "aether/cloud_connections/cloud_callbacks.h"
 #include "aether/cloud_connections/cloud_server_connection.h"
+#include "aether/cloud_connections/request_policy.h"
 #include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {
@@ -57,6 +58,7 @@ class ReplicaWA final : public WriteAction {
 class CloudServerConnections {
  public:
   using ServersUpdate = Event<void()>;
+  using ServerQuarantineEvent = Event<void(CloudServerConnection*)>;
 
   CloudServerConnections(
       AeContext const& ae_context, Ptr<Cloud> const& cloud,
@@ -67,6 +69,8 @@ class CloudServerConnections {
    * \brief The event then top list of the servers were updated.
    */
   ServersUpdate::Subscriber servers_update_event();
+  ServerQuarantineEvent::Subscriber server_quarantined_event();
+  ServerQuarantineEvent::Subscriber server_quarantine_release_event();
   /**
    * \brief List of currently selected servers in priority order
    */
@@ -140,15 +144,24 @@ class CloudServerConnections {
   WriteAction& ReplicaWriteAction(std::vector<WriteAction*>&& swas);
 
   void InitServerConnections();
-  void InitServers();
-  void SelectServers(std::vector<CloudServerConnection*> const& servers);
+  // Caller must unsubscribe before re-subscribing the same server.
   void SubscribeToServerState(CloudServerConnection& server_connection);
-  void ReselectServers();
+  void UnsubscribeFromServerState(CloudServerConnection& server_connection);
+  void QuarantineServer(CloudServerConnection& server_connection);
+  void ReleaseQuarantinedServer(CloudServerConnection& server_connection,
+                                std::uintptr_t key);
+  void ScheduleReconcileServers();
+  void ReconcileServers();
 
-  void UnselectServer(CloudServerConnection& server_connection);
-  void QuarantineTimer(CloudServerConnection& server_connection);
+  bool IsSelected(CloudServerConnection* sc) const;
+  void UpdateSelectedPriorities();
+  std::vector<CloudServerConnection*> ReplacementCandidates();
 
-  std::vector<CloudServerConnection*> ServerCandidates();
+  struct ServerSubscriptions {
+    Subscription state_sub;
+    Subscription error_sub;
+    TaskSubscription quarantine_sub;
+  };
 
   AeContext ae_context_;
   PtrView<Cloud> cloud_;
@@ -161,8 +174,10 @@ class CloudServerConnections {
   std::vector<CloudServerConnection*> selected_servers_;
 
   ServersUpdate servers_update_event_;
+  ServerQuarantineEvent server_quarantined_event_;
+  ServerQuarantineEvent server_quarantine_release_event_;
 
-  std::map<std::uintptr_t, Subscription> server_state_subs_;
+  std::map<std::uintptr_t, ServerSubscriptions> server_subs_;
   TaskSubscription defer_sub_;
 
   std::optional<cloud_server_connections_internal::EmptyConnectionsWA>

@@ -17,55 +17,31 @@
 #ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
 
-#include "aether/ptr/rc_ptr.h"
-#include "aether/obj/obj_ptr.h"
 #include "aether/ptr/ptr_view.h"
+#include "aether/ptr/rc_ptr.h"
+
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {
 class Server;
-/**
- * \brief Represent the connection to the server.
- * It's not the actual transport but the all information about the server.
- */
+
 class CloudServerConnection {
  public:
   CloudServerConnection(Ptr<Server> const& server,
                         IServerConnectionFactory& connection_factory);
 
   std::size_t priority() const;
+  void SetPriority(std::size_t priority);
 
   void Restream();
 
-  /**
-   * \brief It's possible to put failed server to quarantine.
-   * Server in quarantine should not be used.
-   */
   bool quarantine() const;
-  void quarantine(bool value);
+  void SetQuarantine(bool value);
 
-  /**
-   * \brief Call to begin connection with specified priority.
-   * If connection already established, do nothing.
-   * If connection is not created, create it.
-   * \param priority the new priority value.
-   * Priority is used to sort connection in cloud for performing requests.
-   */
-  bool BeginConnection(std::size_t priority);
-  /**
-   * \brief Call to end connection with specified priority.
-   * \param priority the new priority value.
-   * Priority is used to sort connection in cloud for selecting the most
-   * prioritized servers.
-   */
-  void EndConnection(std::size_t priority);
+  bool Connect();
+  void Disconnect();
 
-  /**
-   * \brief The stream to write data for that server.
-   * Should be called after BeginConnection.
-   * \return The client-server connection object or nullptr.
-   */
   ClientServerConnection* client_connection();
 
   Ptr<Server> server() const;
@@ -75,7 +51,6 @@ class CloudServerConnection {
   IServerConnectionFactory* connection_factory_;
   RcPtr<ClientServerConnection> client_connection_;
   std::size_t priority_;
-  bool is_connection_;
   bool is_quarantined_;
 };
 }  // namespace ae

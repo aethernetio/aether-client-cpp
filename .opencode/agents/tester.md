@@ -10,6 +10,7 @@ permission:
   glob: allow
   bash:
     "*": deny
+    "timeout *aether-client-cpp-cloud*": allow
     "rm -rf *state": allow
     "*aether-client-cpp-cloud*": allow
     "ninja test": allow

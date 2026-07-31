@@ -21,6 +21,8 @@
 
 #if AE_ENABLE_PING
 
+#  include <variant>
+
 #  include "aether-miscpp/types/result.h"
 
 #  include "aether/ae_context.h"
@@ -36,7 +38,11 @@ class CloudServerConnection;
 
 class Ping {
  public:
-  using ResultEvent = Event<void(Result<Duration, int>)>;
+  struct LateDuration {
+    Duration duration;
+  };
+  using PingResult = std::variant<Ok<Duration>, LateDuration, Error<int>>;
+  using ResultEvent = Event<void(PingResult const&)>;
 
   Ping(AeContext const& ae_context,
        CloudServerConnection& cloud_server_connection, Duration next_ping_hint,
@@ -54,6 +60,13 @@ class Ping {
   void PingResponseTimeout(RequestId request_id);
   void ResetRequestSubscriptions();
 
+  enum class RequestState : char {
+    kCreated,
+    kPending,
+    kTimedOut,
+    kFinished,
+  };
+
   AeContext ae_context_;
   CloudServerConnection* cloud_server_connection_;
   Duration next_ping_hint_;
@@ -67,7 +80,7 @@ class Ping {
   Subscription write_sub_;
 
   ResultEvent result_event_;
-  bool started_{};
+  RequestState state_{RequestState::kCreated};
 };
 }  // namespace ae
 #endif  // AE_ENABLE_PING
