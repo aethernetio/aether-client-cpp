@@ -17,9 +17,9 @@
 #ifndef AETHER_EXECUTORS_ASYNC_WAITER_H_
 #define AETHER_EXECUTORS_ASYNC_WAITER_H_
 
-#include <utility>
-#include <optional>
 #include <functional>
+#include <optional>
+#include <utility>
 
 #include "aether/warning_disable.h"
 
@@ -32,9 +32,9 @@ DISABLE_WARNING_POP()
 #include "aether-miscpp/types/result.h"
 #include "aether-miscpp/types/small_function.h"
 
-#include "aether/executors/waiter_traits.h"
 #include "aether/executors/async_context.h"
 #include "aether/executors/scheduler_on_tasks.h"
+#include "aether/executors/waiter_traits.h"
 
 namespace ae::ex {
 namespace async_waiter_internal {
@@ -143,9 +143,9 @@ class AsyncWaiter {
   using CompletionsTraits = CompletionsTraitsImpl<Completions>;
   using ValueType = CompletionsTraits::ValueType;
   using ErrorType = CompletionsTraits::ErrorType;
-  using ResultType = std::conditional_t<
-      !std::is_same_v<Ignore, typename CompletionsTraits::ErrorType>,
-      Result<ValueType, ErrorType>, ValueType>;
+  using ResultType =
+      std::conditional_t<!std::is_same_v<Ignore, ErrorType>,
+                         Result<ValueType, ErrorType>, ValueType>;
 
   using HandlerCb = SmallFunction<void(std::optional<ResultType>)>;
   using StateType = State<AC, ResultType, HandlerCb>;
@@ -153,8 +153,9 @@ class AsyncWaiter {
 
  public:
   AsyncWaiter(AC const& ac, S&& s, HandlerCb&& handler_cb)
-      : state_{
-            .ac = ac, .wait_result = std::nullopt, .cb = std::move(handler_cb)},
+      : state_{.ac = ac,
+               .wait_result = std::nullopt,
+               .cb = std::move(handler_cb)},
         op_state_{stdexec::connect(std::move(s), Receiver{&state_})} {
     // run operation and wait for result asynchronously
     stdexec::start(op_state_);
