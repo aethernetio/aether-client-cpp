@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef CLOUD_AETHER_CONSTRUCT_ETHERNET_H_
-#define CLOUD_AETHER_CONSTRUCT_ETHERNET_H_
+#ifndef EXAMPLES_COMMON_AETHER_CONSTRUCT_ETHERNET_H_
+#define EXAMPLES_COMMON_AETHER_CONSTRUCT_ETHERNET_H_
 
 #include "aether_construct.h"
 
-#if CLOUD_TEST_ETHERNET
-namespace ae::cloud_test {
+#if AE_EXAMPLE_ETHERNET
+namespace ae::examples {
 static RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
@@ -34,6 +34,7 @@ static RcPtr<AetherApp> construct_aether_app() {
 #  endif
   );
 }
-}  // namespace ae::cloud_test
+}  // namespace ae::examples
 #endif
-#endif  // CLOUD_AETHER_CONSTRUCT_ETHERNET_H_
+
+#endif  // EXAMPLES_COMMON_AETHER_CONSTRUCT_ETHERNET_H_

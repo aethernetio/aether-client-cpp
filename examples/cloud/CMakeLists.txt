@@ -27,13 +27,13 @@ if(NOT CM_PLATFORM)
 
   add_executable(${PROJECT_NAME} ${src_list})
   target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-  target_link_libraries(${PROJECT_NAME} PRIVATE aether)
+  target_link_libraries(${PROJECT_NAME} PRIVATE aether_examples_common)
 else()
   idf_build_get_property(CM_PLATFORM CM_PLATFORM)
   if(CM_PLATFORM STREQUAL "ESP32")
     #ESP32 CMake
     idf_component_register(SRCS ${src_list}
-      INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+      INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ../common
       REQUIRES
               esp_wifi
               esp_netif

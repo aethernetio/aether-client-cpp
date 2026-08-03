@@ -372,7 +372,9 @@ if(AE_BUILD_EXAMPLES)
 
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
+  add_subdirectory(examples/common)
   add_subdirectory(examples/cloud)
+  add_subdirectory(examples/a_b_message_exchange)
   add_subdirectory(examples/capi/oddity)
   add_subdirectory(examples/benches/send_message_delays)
   add_subdirectory(examples/benches/send_messages_bandwidth)
