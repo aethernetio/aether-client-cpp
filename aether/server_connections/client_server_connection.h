@@ -17,15 +17,15 @@
 #ifndef AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_CLIENT_SERVER_CONNECTION_H_
 
-#include "aether/common.h"
 #include "aether/ae_context.h"
+#include "aether/common.h"
 #include "aether/crypto/icrypto_provider.h"
 #include "aether/write_action/buffer_write.h"
 
-#include "aether/work_cloud_api/work_server_api/login_api.h"
 #include "aether/work_cloud_api/client_api/client_api_safe.h"
 #include "aether/work_cloud_api/client_api/client_api_unsafe.h"
 #include "aether/work_cloud_api/work_server_api/authorized_api.h"
+#include "aether/work_cloud_api/work_server_api/login_api.h"
 
 #include "aether/server_connections/server_connection.h"
 
@@ -79,6 +79,7 @@ class ClientServerConnection {
 
   AeContext ae_context_;
   PtrView<Server> server_;
+  Uid uid_;
   Uid ephemeral_uid_;
 
   std::unique_ptr<ICryptoProvider> crypto_provider_;
