@@ -30,7 +30,6 @@ IGNORE_IMPLICIT_CONVERSION()
 DISABLE_WARNING_POP()
 
 #include "aether-miscpp/types/result.h"
-#include "aether-miscpp/types/small_function.h"
 
 #include "aether/executors/async_context.h"
 #include "aether/executors/scheduler_on_tasks.h"
@@ -136,7 +135,7 @@ struct Receiver {
   State* state;
 };
 
-template <AsyncContext AC, stdexec::sender S>
+template <AsyncContext AC, stdexec::sender S, typename Cb>
 class AsyncWaiter {
   using Completions =
       decltype(stdexec::get_completion_signatures<S, Env<AC>>());
@@ -147,12 +146,14 @@ class AsyncWaiter {
       std::conditional_t<!std::is_same_v<Ignore, ErrorType>,
                          Result<ValueType, ErrorType>, ValueType>;
 
-  using HandlerCb = SmallFunction<void(std::optional<ResultType>)>;
-  using StateType = State<AC, ResultType, HandlerCb>;
+  static_assert(std::is_invocable_v<Cb, std::optional<ResultType>&&>,
+                "Callback should handle result");
+
+  using StateType = State<AC, ResultType, Cb>;
   using OpState = stdexec::connect_result_t<S, Receiver<StateType>>;
 
  public:
-  AsyncWaiter(AC const& ac, S&& s, HandlerCb&& handler_cb)
+  AsyncWaiter(AC const& ac, S&& s, Cb&& handler_cb)
       : state_{.ac = ac,
                .wait_result = std::nullopt,
                .cb = std::move(handler_cb)},
@@ -165,6 +166,10 @@ class AsyncWaiter {
   StateType state_;
   OpState op_state_;
 };
+
+template <typename AC, typename S, typename Cb>
+AsyncWaiter(AC const&, S&&, Cb&&) -> AsyncWaiter<AC, S, Cb>;
+
 }  // namespace async_waiter_internal
 
 using async_waiter_internal::AsyncWaiter;

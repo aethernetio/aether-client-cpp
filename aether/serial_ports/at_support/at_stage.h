@@ -17,27 +17,30 @@
 #ifndef AETHER_SERIAL_PORTS_AT_SUPPORT_H_
 #define AETHER_SERIAL_PORTS_AT_SUPPORT_H_
 
-#include <utility>
-#include <variant>
 #include <functional>
 #include <type_traits>
+#include <utility>
+#include <variant>
 
-#include "aether/ae_context.h"
 #include "aether/actions/action.h"
+#include "aether/ae_context.h"
 #include "aether/executors/executors.h"
 
 namespace ae::at_stage_internal {
+struct ActionFinishCb {
+  void operator()(auto&&...) const noexcept { self->Finish(); }
+  Action* self;
+};
 template <ex::sender RequestSender>
 class AtStageAction final : public Action {
  public:
   AtStageAction(AeContext const& ae_context, RequestSender&& sender)
-      : waiter_{ae_context, std::move(sender),
-                [&](auto const&...) noexcept { Finish(); }} {}
+      : waiter_{ae_context, std::move(sender), ActionFinishCb{.self = this}} {}
 
   AE_CLASS_MOVE_ONLY(AtStageAction)
 
  private:
-  ex::AsyncWaiter<AeContext, RequestSender> waiter_;
+  ex::AsyncWaiter<AeContext, RequestSender, ActionFinishCb> waiter_;
 };
 
 template <typename Gen>
