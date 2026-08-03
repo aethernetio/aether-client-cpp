@@ -14,6 +14,7 @@ permission:
     "rm *.h": allow
     "rm *.hpp": allow
     "rm *.cmake": allow
+    "clang-format *": allow
   external_directory: deny
   repo_clone: deny
 ---
