@@ -16,10 +16,11 @@
 
 #include <unity.h>
 
-#include "aether/ae_context.h"
 #include "aether/actions/actions_queue.h"
-#include "aether/serial_ports/at_support/at_stage.h"
+#include "aether/ae_context.h"
+#include "aether/clock.h"
 #include "aether/serial_ports/at_support/at_request.h"
+#include "aether/serial_ports/at_support/at_stage.h"
 #include "aether/serial_ports/at_support/at_support.h"
 
 #include "tests/test-serial-port/mock-serial-port.h"
@@ -148,7 +149,6 @@ void test_RunMultipleStagesWithWait() {
   // waiting for OK
   TEST_ASSERT_FALSE(executed1);
   TEST_ASSERT_FALSE(pre_executed2);
-
 
   std::string_view ok_line{"OK\r\n"};
   mock_serial.WriteOut(std::span<std::uint8_t const>{

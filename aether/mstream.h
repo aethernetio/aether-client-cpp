@@ -30,14 +30,14 @@
 #define AETHER_MSTREAM_H_
 
 #include <chrono>
-#include <functional>
 #include <cstdint>
 #include <cstring>
 #include <deque>
+#include <functional>
+#include <limits>
 #include <list>
 #include <map>
 #include <memory>
-#include <limits>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -48,7 +48,6 @@
 
 #include "aether-miscpp/reflect/domain_visitor.h"  // IWYU pragma: keep
 #include "aether-miscpp/reflect/reflect.h"
-#include "aether/clock.h"
 #include "aether/types/nullable_type.h"
 
 namespace ae {
@@ -75,7 +74,7 @@ class omstream : public ostream {
   void write(const void* data, size_t size) { ob_.write(data, size); }
 };
 
-enum class ReadResult {
+enum class ReadResult : char {
   kNo,
   kYes,
 };
@@ -527,8 +526,10 @@ imstream<Ib>& operator>>(imstream<Ib>& s, std::optional<T>& v) {
 
 template <typename... Ts, typename Ob>
 omstream<Ob>& operator<<(omstream<Ob>& s, std::variant<Ts...> const& v) {
-  static_assert(sizeof...(Ts) <= std::numeric_limits<std::uint8_t>::max(),
-                "std::variant mstream serialization supports at most 255 alternatives (indices 0..254; tag 255 is reserved as the valueless sentinel)");
+  static_assert(
+      sizeof...(Ts) <= std::numeric_limits<std::uint8_t>::max(),
+      "std::variant mstream serialization supports at most 255 alternatives "
+      "(indices 0..254; tag 255 is reserved as the valueless sentinel)");
   if (v.valueless_by_exception()) {
     auto const tag = std::numeric_limits<std::uint8_t>::max();
     s << tag;
@@ -542,8 +543,10 @@ omstream<Ob>& operator<<(omstream<Ob>& s, std::variant<Ts...> const& v) {
 
 template <typename... Ts, typename Ib>
 imstream<Ib>& operator>>(imstream<Ib>& s, std::variant<Ts...>& v) {
-  static_assert(sizeof...(Ts) <= std::numeric_limits<std::uint8_t>::max(),
-                "std::variant mstream serialization supports at most 255 alternatives (indices 0..254; tag 255 is reserved as the valueless sentinel)");
+  static_assert(
+      sizeof...(Ts) <= std::numeric_limits<std::uint8_t>::max(),
+      "std::variant mstream serialization supports at most 255 alternatives "
+      "(indices 0..254; tag 255 is reserved as the valueless sentinel)");
   std::uint8_t tag{};
   s >> tag;
   if (!data_was_read(s)) {
