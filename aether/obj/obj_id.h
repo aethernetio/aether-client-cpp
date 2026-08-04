@@ -18,9 +18,9 @@
 #define AETHER_OBJ_OBJ_ID_H_
 
 #include <cstdint>
-#include <string>
 
-#include "aether/mstream.h"
+#include "aether-miscpp/format/format.h"
+#include "aether-miscpp/reflect/reflect.h"
 
 namespace ae {
 
@@ -30,64 +30,80 @@ class ObjId {
 
   static ObjId GenerateUnique();
 
-  ObjId() { Invalidate(); }
+  constexpr ObjId() noexcept = default;
+  // NOLINTNEXTLINE(*explicit*)
+  constexpr ObjId(Type i) noexcept : id_{i} {}
 
-  constexpr ObjId(Type i) : id_{i} {}
+  AE_REFLECT_MEMBERS(id_)
 
-  constexpr Type id() const { return id_; }
+  constexpr Type id() const noexcept { return id_; }
+  constexpr bool is_valid() const noexcept { return id_ != 0; }
 
-  void Invalidate() { id_ = 0; }
-  constexpr bool IsValid() const { return id_ != 0; }
-  constexpr bool operator<(const ObjId& i) const { return id_ < i.id_; }
-  constexpr bool operator!=(const ObjId& i) const { return id_ != i.id_; }
-  constexpr bool operator==(const ObjId& i) const { return id_ == i.id_; }
+  constexpr bool operator<(ObjId const& i) const noexcept {
+    return id_ < i.id_;
+  }
+  constexpr bool operator!=(ObjId const& i) const noexcept {
+    return id_ != i.id_;
+  }
+  constexpr bool operator==(ObjId const& i) const noexcept {
+    return id_ == i.id_;
+  }
 
-  ObjId& operator+=(Type i) {
+  constexpr ObjId& operator+=(Type i) noexcept {
     id_ += i;
     return *this;
   }
-  constexpr ObjId operator+(Type i) const { return ObjId{id_ + i}; }
+  constexpr ObjId operator+(Type i) const noexcept { return ObjId{id_ + i}; }
 
-  template <typename Ob>
-  friend omstream<Ob>& operator<<(omstream<Ob>& s, const ObjId& i) {
-    return s << i.id_;
+ private:
+  Type id_{0};
+};
+
+template <>
+struct Formatter<ObjId> : public Formatter<typename ObjId::Type> {
+  template <typename TStream>
+  void Format(ObjId value, FormatContext<TStream>& ctx) const {
+    Formatter<typename ObjId::Type>::Format(value.id(), ctx);
   }
-  template <typename Ib>
-  friend imstream<Ib>& operator>>(imstream<Ib>& s, ObjId& i) {
-    return s >> i.id_;
-  }
-
-  std::string ToString() const { return std::to_string(id_); }
-
- protected:
-  Type id_;
 };
 
 class ObjFlags {
  public:
-  enum {
-    // The object is not loaded with deserialization. Load method must be
-    // used for loading.
-    kUnloadedByDefault = 1,
-    kUnloaded = 2,
-  };
+  using Type = std::uint8_t;
+  // defines for flag values
+  // none value
+  static constexpr Type kNone = 0x0;
+  // The object is not loaded with deserialization. Load method must be
+  // used for loading.
+  static constexpr Type kUnloadedByDefault = 0x1;
+  // current state the object is unloaded
+  static constexpr Type kUnloaded = 0x2;
 
-  ObjFlags(uint8_t v) : value_(v) {}
-  ObjFlags() = default;
+  constexpr ObjFlags() noexcept = default;
+  // NOLINTNEXTLINE(*explicit*)
+  constexpr ObjFlags(Type v) noexcept : value_(v) {}
 
-  operator std::uint8_t&() { return value_; }
+  AE_REFLECT_MEMBERS(value_)
 
-  template <typename Ob>
-  friend omstream<Ob>& operator<<(omstream<Ob>& s, const ObjFlags& i) {
-    return s << i.value_;
+  ObjFlags& operator=(Type v) noexcept {
+    value_ = v;
+    return *this;
   }
-  template <typename Ib>
-  friend imstream<Ib>& operator>>(imstream<Ib>& s, ObjFlags& i) {
-    return s >> i.value_;
-  }
+
+  // NOLINTNEXTLINE(*explicit*)
+  constexpr operator Type() const noexcept { return value_; }
 
  private:
-  std::uint8_t value_ = 0;
+  Type value_ = kNone;
+};
+
+template <>
+struct Formatter<ObjFlags> : public Formatter<typename ObjFlags::Type> {
+  template <typename TStream>
+  void Format(ObjFlags value, FormatContext<TStream>& ctx) const {
+    Formatter<typename ObjFlags::Type>::Format(
+        static_cast<typename ObjFlags::Type>(value), ctx);
+  }
 };
 
 }  // namespace ae

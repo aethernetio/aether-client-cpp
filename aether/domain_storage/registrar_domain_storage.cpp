@@ -83,7 +83,7 @@ void RegistrarDomainStorage::SaveState() {
     Format(file,
            "static constexpr auto class_array_{} = "
            "std::array<std::uint32_t, {}>{",
-           obj_id.ToString(), obj_data->size());
+           obj_id, obj_data->size());
     PrintMapKeysAsData(file, *obj_data);
     file << "};\n";
   }
@@ -99,8 +99,7 @@ void RegistrarDomainStorage::SaveState() {
         Format(file,
                "static constexpr auto data_array_{}_{}_{} = "
                "std::array<std::uint8_t, {}>{",
-               obj_id.ToString(), class_id, static_cast<int>(version),
-               data.size());
+               obj_id, class_id, static_cast<int>(version), data.size());
         PrintData(file, data);
         file << "};\n";
       }
@@ -113,8 +112,8 @@ void RegistrarDomainStorage::SaveState() {
   // write object map
   file << "  ae::StaticMap{{\n";
   for (auto const& [obj_id, obj_data] : ram_storage.state) {
-    file << "    std::pair{ std::uint32_t{ " << obj_id.ToString()
-         << " } , ae::Span{ class_array_" << obj_id.ToString() << " }},\n";
+    file << "    std::pair{ std::uint32_t{ " << obj_id.id()
+         << " } , ae::Span{ class_array_" << obj_id.id() << " }},\n";
   }
   file << "  }},\n";
 
@@ -128,10 +127,9 @@ void RegistrarDomainStorage::SaveState() {
     for (auto const& [class_id, class_data] : *obj_data) {
       for (auto const& [version, _] : class_data) {
         file << "    std::pair{ ae::ObjectPathKey{ ";
-        Format(file, "{}, {}, {}", obj_id.ToString(), class_id,
-               static_cast<int>(version));
+        Format(file, "{}, {}, {}", obj_id, class_id, static_cast<int>(version));
         file << " }, ae::Span{ ";
-        Format(file, "data_array_{}_{}_{}", obj_id.ToString(), class_id,
+        Format(file, "data_array_{}_{}_{}", obj_id, class_id,
                static_cast<int>(version));
         file << " }},\n";
       }

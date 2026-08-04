@@ -29,7 +29,7 @@ Registry& Registry::GetRegistry() {
 
 void Registry::RegisterClass(uint32_t cls_id, std::uint32_t base_id,
                              Factory&& factory) {
-#ifdef DEBUG
+#if DEBUG
   // Fixme: Commented out to fix the build crash in MinGW
   /*std::cout << "Registering class " << factory.class_name << " id " << cls_id
             << " with base " << base_id << std::endl;*/
@@ -100,7 +100,7 @@ Factory* Registry::FindFactory(std::uint32_t base_id) {
   return &it->second;
 }
 
-#ifdef DEBUG
+#if DEBUG
 std::string_view Registry::ClassName(std::uint32_t class_id) {
   if (class_id == crc32::from_literal("Obj").value) {
     return "ae::Obj";
@@ -114,7 +114,7 @@ std::string_view Registry::ClassName(std::uint32_t class_id) {
 #endif  // DEBUG
 
 void Registry::Log() {
-#ifdef DEBUG
+#if DEBUG
   for (const auto& c : factories) {
     AE_TELE_DEBUG(ObjectRegistryLog, "name {}, id {}, base_id {}",
                   c.second.class_name, c.second.cls_id, c.second.base_id);

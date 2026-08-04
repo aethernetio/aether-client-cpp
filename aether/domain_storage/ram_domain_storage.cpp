@@ -20,8 +20,8 @@
 
 #  include <cassert>
 
-#  include "aether/mstream_buffers.h"
 #  include "aether/domain_storage/domain_storage_tele.h"
+#  include "aether/mstream_buffers.h"
 
 namespace ae {
 class RamDomainStorageWriter final : public IDomainStorageWriter {
@@ -74,8 +74,7 @@ std::unique_ptr<IDomainStorageWriter> RamDomainStorage::Store(
 ClassList RamDomainStorage::Enumerate(ObjId const& obj_id) {
   auto obj_map_it = state.find(obj_id);
   if (obj_map_it == std::end(state)) {
-    AE_TELE_INFO(kRamDsEnumObjIdNotFound, "Obj not found {}",
-                 obj_id.ToString());
+    AE_TELE_INFO(kRamDsEnumObjIdNotFound, "Obj not found {}", obj_id);
     return {};
   }
   if (!obj_map_it->second) {
@@ -87,8 +86,8 @@ ClassList RamDomainStorage::Enumerate(ObjId const& obj_id) {
   for (auto& [cls, _] : *obj_map_it->second) {
     classes.emplace_back(cls);
   }
-  AE_TELE_DEBUG(kRamDsEnumerated, "Enumerated for obj {} classes {}",
-                obj_id.ToString(), classes);
+  AE_TELE_DEBUG(kRamDsEnumerated, "Enumerated for obj {} classes {}", obj_id,
+                classes);
   return classes;
 }
 
@@ -97,8 +96,7 @@ DomainLoad RamDomainStorage::Load(DomainQuery const& query) {
   if (obj_map_it == std::end(state)) {
     AE_TELE_INFO(kRamDsLoadObjIdNoFound,
                  "Unable to find object id={}, class id={}, version={}",
-                 query.id.ToString(), query.class_id,
-                 static_cast<int>(query.version));
+                 query.id, query.class_id, static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   if (!obj_map_it->second) {
@@ -109,23 +107,21 @@ DomainLoad RamDomainStorage::Load(DomainQuery const& query) {
   if (class_map_it == std::end(*obj_map_it->second)) {
     AE_TELE_INFO(kRamDsLoadObjClassIdNotFound,
                  "Unable to find object id={}, class id={}, version={}",
-                 query.id.ToString(), query.class_id,
-                 static_cast<int>(query.version));
+                 query.id, query.class_id, static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   auto version_it = class_map_it->second.find(query.version);
   if (version_it == std::end(class_map_it->second)) {
     AE_TELE_INFO(kRamDsLoadObjVersionNotFound,
                  "Unable to find object id={}, class id={}, version={}",
-                 query.id.ToString(), query.class_id,
-                 static_cast<int>(query.version));
+                 query.id, query.class_id, static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
 
   AE_TELE_DEBUG(kRamDsObjLoaded,
                 "Loaded object id={}, class id={}, version={}, size={}",
-                query.id.ToString(), query.class_id,
-                static_cast<int>(query.version), version_it->second.size());
+                query.id, query.class_id, static_cast<int>(query.version),
+                version_it->second.size());
 
   return {DomainLoadResult::kLoaded,
           std::make_unique<RamDomainStorageReader>(version_it->second, *this)};
@@ -139,7 +135,7 @@ void RamDomainStorage::Remove(ObjId const& obj_id) {
   }
 
   obj_map_it->second.reset();
-  AE_TELE_DEBUG(kRamDsObjRemoved, "Removed object {}", obj_id.ToString());
+  AE_TELE_DEBUG(kRamDsObjRemoved, "Removed object {}", obj_id);
 }
 
 void RamDomainStorage::CleanUp() { state.clear(); }
@@ -151,10 +147,9 @@ void RamDomainStorage::SaveData(DomainQuery const& query, ObjectData&& data) {
   }
   auto& saved = (*objcect_classes)[query.class_id][query.version];
   saved = std::move(data);
-  AE_TELE_DEBUG(kRamDsObjSaved,
-                "Saved object id={}, class id={}, version={}, size={}",
-                query.id.ToString(), query.class_id,
-                std::to_string(query.version), saved.size());
+  AE_TELE_DEBUG(
+      kRamDsObjSaved, "Saved object id={}, class id={}, version={}, size={}",
+      query.id, query.class_id, std::to_string(query.version), saved.size());
 }
 
 }  // namespace ae

@@ -19,10 +19,11 @@
 
 #include <type_traits>
 
+#include "aether-miscpp/reflect/type_index.h"
+
 #include "aether/ptr/ptr.h"
 #include "aether/obj/domain.h"
 #include "aether/obj/registry.h"
-#include "aether-miscpp/reflect/type_index.h"
 
 namespace ae {
 template <class T>
@@ -64,12 +65,12 @@ class Registrar {
   }
 
   static void Load(DomainGraph* domain_graph, Ptr<Obj>& obj, ObjId obj_id) {
-    auto self_ptr = static_cast<T*>(obj.get());
+    auto* self_ptr = static_cast<T*>(obj.get());
     domain_graph->Load(*self_ptr, obj_id);
   }
 
   static void Save(DomainGraph* domain_graph, Ptr<Obj> const& obj, ObjId id) {
-    auto self_ptr = static_cast<T*>(obj.get());
+    auto const* self_ptr = static_cast<T const*>(obj.get());
     domain_graph->Save(*self_ptr, id);
   }
 };

@@ -17,10 +17,11 @@
 #ifndef AETHER_OBJ_IDOMAIN_STORAGE_H_
 #define AETHER_OBJ_IDOMAIN_STORAGE_H_
 
-#include <vector>
-#include <memory>
 #include <cstdint>
+#include <memory>
+#include <vector>
 
+#include "aether/mstream.h"
 #include "aether/obj/obj_id.h"
 
 namespace ae {

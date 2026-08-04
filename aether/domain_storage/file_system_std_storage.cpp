@@ -18,11 +18,11 @@
 
 #if defined AE_FILE_SYSTEM_STD_ENABLED
 
+#  include <filesystem>
+#  include <fstream>
 #  include <ios>
 #  include <set>
 #  include <string>
-#  include <fstream>
-#  include <filesystem>
 #  include <system_error>
 
 #  include "aether/domain_storage/domain_storage_tele.h"
@@ -38,8 +38,8 @@ class FstreamStorageWriter final : public IDomainStorageWriter {
     file.close();
     AE_TELE_DEBUG(kFileSystemDsObjSaved,
                   "Saved object id={}, class id={}, version={}, size={}",
-                  query.id.ToString(), query.class_id,
-                  static_cast<int>(query.version), written_size);
+                  query.id, query.class_id, static_cast<int>(query.version),
+                  written_size);
   }
 
   void write(void const* data, std::size_t size) override {
@@ -77,7 +77,8 @@ FileSystemStdStorage::~FileSystemStdStorage() = default;
 
 std::unique_ptr<IDomainStorageWriter> FileSystemStdStorage::Store(
     DomainQuery const& query) {
-  auto class_dir = std::filesystem::path("state") / query.id.ToString() /
+  auto class_dir = std::filesystem::path("state") /
+                   std::to_string(query.id.id()) /
                    std::to_string(query.class_id);
 
   std::filesystem::create_directories(class_dir);
@@ -94,7 +95,7 @@ ClassList FileSystemStdStorage::Enumerate(const ae::ObjId& obj_id) {
 
   auto state_dir = std::filesystem::path{"state"};
   auto ec = std::error_code{};
-  auto obj_dir = state_dir / obj_id.ToString();
+  auto obj_dir = state_dir / std::to_string(obj_id.id());
   for (auto const& class_dir :
        std::filesystem::directory_iterator(obj_dir, ec)) {
     auto file_name = class_dir.path().filename().string();
@@ -111,7 +112,8 @@ ClassList FileSystemStdStorage::Enumerate(const ae::ObjId& obj_id) {
 }
 
 DomainLoad FileSystemStdStorage::Load(DomainQuery const& query) {
-  auto object_dir = std::filesystem::path("state") / query.id.ToString();
+  auto object_dir =
+      std::filesystem::path("state") / std::to_string(query.id.id());
   auto ec = std::error_code{};
   if (!std::filesystem::exists(object_dir, ec)) {
     return {DomainLoadResult::kEmpty, {}};
@@ -134,16 +136,17 @@ DomainLoad FileSystemStdStorage::Load(DomainQuery const& query) {
     return DomainLoad{DomainLoadResult::kEmpty, {}};
   }
 
-  AE_TELE_DEBUG(
-      kFileSystemDsObjLoaded, "Loaded object id={}, class id={}, version={}",
-      query.id.ToString(), query.class_id, static_cast<int>(query.version));
+  AE_TELE_DEBUG(kFileSystemDsObjLoaded,
+                "Loaded object id={}, class id={}, version={}", query.id,
+                query.class_id, static_cast<int>(query.version));
 
   return {DomainLoadResult::kLoaded,
           std::make_unique<FstreamStorageReader>(std::move(f))};
 }
 
 void FileSystemStdStorage::Remove(ae::ObjId const& obj_id) {
-  auto object_dir = std::filesystem::path("state") / obj_id.ToString();
+  auto object_dir =
+      std::filesystem::path("state") / std::to_string(obj_id.id());
   auto ec = std::error_code{};
   if (!std::filesystem::exists(object_dir, ec)) {
     std::filesystem::create_directory(object_dir);
@@ -164,8 +167,7 @@ void FileSystemStdStorage::Remove(ae::ObjId const& obj_id) {
                      class_dir.path().string(), ec2.message());
       continue;
     }
-    AE_TELE_DEBUG(kFileSystemDsObjRemoved, "Object removed {}",
-                  obj_id.ToString());
+    AE_TELE_DEBUG(kFileSystemDsObjRemoved, "Object removed {}", obj_id);
   }
   if (ec) {
     AE_TELE_ERROR(kFileSystemDsRemoveObjError,
