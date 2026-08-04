@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef CLOUD_AETHER_CONSTRUCT_ESP_WIFI_H_
-#define CLOUD_AETHER_CONSTRUCT_ESP_WIFI_H_
+#ifndef EXAMPLES_COMMON_AETHER_CONSTRUCT_ESP_WIFI_H_
+#define EXAMPLES_COMMON_AETHER_CONSTRUCT_ESP_WIFI_H_
 
 #include "aether_construct.h"
 
-#if CLOUD_TEST_ESP_WIFI
+#if AE_EXAMPLE_ESP_WIFI
 
-namespace ae::cloud_test {
+namespace ae::examples {
 static const std::string kWifi1Ssid = "Test1234";
 static const std::string kWifi1Pass = "Test1234";
 
@@ -36,14 +36,8 @@ static IpV4Addr my_dns2_ip_v4{8, 8, 4, 4};
 static IpV6Addr my_static_ip_v6{0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00,
                                 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34};
 
-WiFiIP wifi_ip{
-    {my_static_ip_v4},   // ESP32 static IP
-    {my_gateway_ip_v4},  // IP Address of your network gateway (router)
-    {my_netmask_ip_v4},  // Subnet mask
-    {my_dns1_ip_v4},     // Primary DNS (optional)
-    {my_dns2_ip_v4},     // Secondary DNS (optional)
-    {my_static_ip_v6}    // ESP32 static IP v6
-};
+WiFiIP wifi_ip{{my_static_ip_v4}, {my_gateway_ip_v4}, {my_netmask_ip_v4},
+               {my_dns1_ip_v4}, {my_dns2_ip_v4}, {my_static_ip_v6}};
 
 static WifiCreds my_wifi1{kWifi1Ssid, kWifi1Pass};
 static WifiCreds my_wifi2{kWifi2Ssid, kWifi2Pass};
@@ -53,23 +47,13 @@ ae::WiFiAp wifi2_ap{my_wifi2, {} /*wifi_ip*/};
 
 std::vector<ae::WiFiAp> wifi_ap_vec{wifi1_ap, wifi2_ap};
 
-static WiFiPowerSaveParam wifi_psp{
-    AE_WIFI_PS_MAX_MODEM,  // Power save type
-    AE_WIFI_PROTOCOL_11B | AE_WIFI_PROTOCOL_11G |
-        AE_WIFI_PROTOCOL_11N,  // Protocol bitmap
-    3,                         // Listen interval
-    500,                       // Beacon interval
-    0,                         // Fix rate
-    3,                         // Short retry
-    3,                         // Long retry
-    8                          // Power
-};
+static WiFiPowerSaveParam wifi_psp{AE_WIFI_PS_MAX_MODEM,
+                                   AE_WIFI_PROTOCOL_11B |
+                                       AE_WIFI_PROTOCOL_11G |
+                                       AE_WIFI_PROTOCOL_11N,
+                                   3, 500, 0, 3, 3, 8};
 
-WiFiInit wifi_init{
-    wifi_ap_vec,  // Wi-Fi access points
-    {}
-    // wifi_psp,     // Power save parameters
-};
+WiFiInit wifi_init{wifi_ap_vec, {}};
 
 RcPtr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
@@ -85,7 +69,7 @@ RcPtr<AetherApp> construct_aether_app() {
   );
 }
 
-}  // namespace ae::cloud_test
+}  // namespace ae::examples
 
 #endif
-#endif  // CLOUD_AETHER_CONSTRUCT_ESP_WIFI_H_
+#endif  // EXAMPLES_COMMON_AETHER_CONSTRUCT_ESP_WIFI_H_

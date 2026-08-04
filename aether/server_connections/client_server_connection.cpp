@@ -143,6 +143,7 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
                                                Ptr<Server> const& server)
     : ae_context_{ae_context},
       server_{server},
+      uid_{client->uid()},
       ephemeral_uid_{client->ephemeral_uid()},
       crypto_provider_{std::make_unique<
           client_server_connection_internal::ClientCryptoProvider>(
@@ -150,8 +151,8 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
       client_api_unsafe_{protocol_context_, *crypto_provider_->decryptor()},
       login_api_{protocol_context_, *crypto_provider_->encryptor()},
       server_connection_{ae_context_, server} {
-  AE_TELED_DEBUG("Client server connection from {} to {}", ephemeral_uid_,
-                 server->server_id);
+  AE_TELED_DEBUG("Client server connection from {}:e-{} to {}", uid_,
+                 ephemeral_uid_, server->server_id);
 
   server_connection_.out_data_event().Subscribe(
       MethodPtr<&ClientServerConnection::OutData>{this});
@@ -160,7 +161,7 @@ ClientServerConnection::ClientServerConnection(AeContext const& ae_context,
 ClientServerConnection::~ClientServerConnection() {
   auto server = server_.Lock();
   assert(server);
-  AE_TELED_DEBUG("Destroy client server connection from {} to {}",
+  AE_TELED_DEBUG("Destroy client server connection from {}:e-{} to {}", uid_,
                  ephemeral_uid_, server->server_id);
 }
 

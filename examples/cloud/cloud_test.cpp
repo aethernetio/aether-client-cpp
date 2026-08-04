@@ -20,23 +20,23 @@
 #include "aether/all.h"
 #include "aether/client_messages/p2p_message_stream.h"
 
-#define CLOUD_TEST_LORA_MODULE 0
-#define CLOUD_TEST_MODEM 0
+#define AE_EXAMPLE_LORA_MODULE 0
+#define AE_EXAMPLE_MODEM 0
 
 #if defined ESP_PLATFORM
-#  define CLOUD_TEST_ESP_WIFI 1
+#  define AE_EXAMPLE_ESP_WIFI 1
 #else
-#  define CLOUD_TEST_ETHERNET 1
+#  define AE_EXAMPLE_ETHERNET 1
 #endif
 
 // IWYU pragma: begin_keeps
-#include "aether_construct_esp_wifi.h"
-#include "aether_construct_ethernet.h"
-#include "aether_construct_lora_module.h"
-#include "aether_construct_modem.h"
+#include "../common/aether_construct_esp_wifi.h"
+#include "../common/aether_construct_ethernet.h"
+#include "../common/aether_construct_lora_module.h"
+#include "../common/aether_construct_modem.h"
 // IWYU pragma: end_keeps
 
-namespace ae::cloud_test {
+namespace ae::examples {
 
 static constexpr inline auto kParentUid =
     ae::Uid::FromString("3ac93165-3d37-4970-87a6-fa4ee27744e4");
@@ -49,7 +49,7 @@ constexpr SafeStreamConfig kSafeStreamConfig{
     .send_ack_timeout = std::chrono::seconds{0},
     .send_repeat_timeout = std::chrono::seconds{2},
 };
-}  // namespace ae::cloud_test
+}  // namespace ae::examples
 
 int AetherCloudExample() {
   /**
@@ -59,7 +59,7 @@ int AetherCloudExample() {
    * in your update loop. Also it has action context protocol implementation
    * \see Action. To configure its creation \see AetherAppContext.
    */
-  auto aether_app = ae::cloud_test::construct_aether_app();
+  auto aether_app = ae::examples::construct_aether_app();
 
   /**
    * Start clients selection or registration.
@@ -70,7 +70,7 @@ int AetherCloudExample() {
   ae::Client::ptr client_b;
 
   auto& select_client_a =
-      aether_app->aether()->SelectClient(ae::cloud_test::kParentUid, "A");
+      aether_app->aether()->SelectClient(ae::examples::kParentUid, "A");
   select_client_a.result_event().Subscribe([&](auto const& res) {
     if (res) {
       client_a = res.value();
@@ -80,7 +80,7 @@ int AetherCloudExample() {
   });
 
   auto& select_client_b =
-      aether_app->aether()->SelectClient(ae::cloud_test::kParentUid, "B");
+      aether_app->aether()->SelectClient(ae::examples::kParentUid, "B");
   select_client_b.result_event().Subscribe([&](auto const& res) {
     if (res) {
       client_b = res.value();
@@ -134,7 +134,7 @@ int AetherCloudExample() {
         auto p2p_stream = std::make_shared<ae::P2pStream>(
             *aether_app, client_a.Load(), dest, std::move(handle));
         receiver_stream = ae::make_unique<ae::P2pSafeStream>(
-            *aether_app, ae::cloud_test::kSafeStreamConfig,
+            *aether_app, ae::examples::kSafeStreamConfig,
             std::move(p2p_stream));
 
         receiver_stream->out_data_event().Subscribe([&](auto const& data) {
@@ -163,7 +163,7 @@ int AetherCloudExample() {
   auto p2p_stream = std::make_shared<ae::P2pStream>(
       *aether_app, client_b.Load(), client_a->uid(), std::move(handle));
   auto sender_stream = ae::make_unique<ae::P2pSafeStream>(
-      *aether_app, ae::cloud_test::kSafeStreamConfig, std::move(p2p_stream));
+      *aether_app, ae::examples::kSafeStreamConfig, std::move(p2p_stream));
 
   sender_stream->out_data_event().Subscribe([&](auto const& data) {
     auto str_response =

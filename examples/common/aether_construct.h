@@ -14,13 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef CLOUD_AETHER_CONSTRUCT_H_
-#define CLOUD_AETHER_CONSTRUCT_H_
+#ifndef EXAMPLES_COMMON_AETHER_CONSTRUCT_H_
+#define EXAMPLES_COMMON_AETHER_CONSTRUCT_H_
+
+#ifndef AE_EXAMPLE_ETHERNET
+#  define AE_EXAMPLE_ETHERNET 0
+#endif
+#ifndef AE_EXAMPLE_ESP_WIFI
+#  define AE_EXAMPLE_ESP_WIFI 0
+#endif
+#ifndef AE_EXAMPLE_LORA_MODULE
+#  define AE_EXAMPLE_LORA_MODULE 0
+#endif
+#ifndef AE_EXAMPLE_MODEM
+#  define AE_EXAMPLE_MODEM 0
+#endif
 
 #include "aether/all.h"
 
-namespace ae::cloud_test {
+namespace ae::examples {
 static RcPtr<AetherApp> construct_aether_app();
 }
 
-#endif  // CLOUD_AETHER_CONSTRUCT_H_
+#endif  // EXAMPLES_COMMON_AETHER_CONSTRUCT_H_
