@@ -17,15 +17,14 @@
 #ifndef TOOLS_REGISTRATOR_REGISTRATOR_ACTION_H_
 #define TOOLS_REGISTRATOR_REGISTRATOR_ACTION_H_
 
-#include <vector>
 #include <string>
-#include <cstdint>
+#include <vector>
 
+#include "aether/actions/action.h"
 #include "aether/aether.h"
 #include "aether/aether_app.h"
 #include "aether/events/events.h"
 #include "aether/events/multi_subscription.h"
-#include "aether/actions/action.h"
 
 #include "registrator/registrator_config.h"
 
@@ -41,7 +40,7 @@ class RegistratorAction : public Action {
   using FailedEvent = Event<void()>;
 
   explicit RegistratorAction(
-      ae::AeContext const& ae_context, RcPtr<ae::AetherApp> const& aether_app,
+      ae::AeContext const& ae_context, ae::AetherApp& aether_app,
       std::vector<reg::ClientConfig> const& client_configs);
 
   RegisteredEvent::Subscriber registered_event();

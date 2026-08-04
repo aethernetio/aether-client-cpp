@@ -21,36 +21,36 @@
 
 #include <string_view>
 
-#include "aether/aether_c/extern_c.h"
 #include "aether/aether_c/c_errors.h"
+#include "aether/aether_c/extern_c.h"
 
-#include "aether/memory.h"
-#include "aether/ptr/ptr.h"
-#include "aether/obj/obj_ptr.h"
-#include "aether/types/data_buffer.h"
 #include "aether/actions/actions_queue.h"
+#include "aether/memory.h"
+#include "aether/obj/obj_ptr.h"
+#include "aether/ptr/ptr.h"
+#include "aether/types/data_buffer.h"
 
-#include "aether/client.h"
 #include "aether/aether_app.h"
+#include "aether/client.h"
 
 // IWYU pragma: begin_keeps
 #include "aether/wifi/wifi_driver_types.h"
 
 #include "aether/domain_storage/domain_storage_factory.h"
+#include "aether/domain_storage/file_system_std_storage.h"
 #include "aether/domain_storage/ram_domain_storage.h"
 #include "aether/domain_storage/spifs_domain_storage.h"
-#include "aether/domain_storage/file_system_std_storage.h"
 
 #include "aether/adapter_registry.h"
 #include "aether/adapters/ethernet.h"
-#include "aether/adapters/wifi_adapter.h"
 #include "aether/adapters/modem_adapter.h"
+#include "aether/adapters/wifi_adapter.h"
 
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/client_messages/p2p_message_stream_manager.h"
 // IWYU pragma: end_keeps
 
-static ae::RcPtr<ae::AetherApp> aether_app;
+static std::shared_ptr<ae::AetherApp> aether_app;
 
 struct AetherClient {
   ClientConfig config{};
@@ -81,7 +81,7 @@ ae::SelectClientAction& SelectClientImpl(AetherClient* client,
     void* user_data;
   };
 
-  auto select_context = ae::MakeRcPtr<SelectContext>(
+  auto select_context = std::make_shared<SelectContext>(
       SelectContext{client, config->client_selected_cb,
                     config->message_received_cb, config->user_data});
 
@@ -310,7 +310,7 @@ int AetherEnd() {
     default_client.reset();
   }
   int exit_code = aether_app->IsExited() ? aether_app->ExitCode() : 0;
-  aether_app.Reset();
+  aether_app.reset();
   return exit_code;
 }
 

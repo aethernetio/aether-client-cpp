@@ -29,19 +29,32 @@ static constexpr std::string_view kSerialPortModem = "COM1";
 SerialInit serial_init_modem = {std::string(kSerialPortModem),
                                 kBaudRate::kBaudRate115200};
 
-static ae::ModemInit const modem_init{serial_init_modem, {}, {}, 1111, false,
-                                      ae::kModemMode::kModeNbIot, "00001", "",
-                                      "internet", "user", "password",
-                                      ae::kAuthType::kAuthTypeNone, false, "", "",
-                                      "", false};
+static ae::ModemInit const modem_init{serial_init_modem,
+                                      {},
+                                      {},
+                                      1111,
+                                      false,
+                                      ae::kModemMode::kModeNbIot,
+                                      "00001",
+                                      "",
+                                      "internet",
+                                      "user",
+                                      "password",
+                                      ae::kAuthType::kAuthTypeNone,
+                                      false,
+                                      "",
+                                      "",
+                                      "",
+                                      false};
 
-static RcPtr<AetherApp> construct_aether_app() {
+static std::unique_ptr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
 #    if defined AE_DISTILLATION
           .AddAdapterFactory([](AetherAppContext const& context) {
             return ModemAdapter::ptr::Create(
-                CreateWith{context.domain()}.with_id(ae::GlobalId::kModemAdapter),
+                CreateWith{context.domain()}.with_id(
+                    ae::GlobalId::kModemAdapter),
                 context.aether(), context.poller(), modem_init);
           })
 #    endif

@@ -323,11 +323,11 @@ void AetherAppContext::InitComponentContext() {
 #endif  //  AE_DISTILLATION
 }
 
-RcPtr<AetherApp> AetherApp::Construct(AetherAppContext context) {
+std::unique_ptr<AetherApp> AetherApp::Construct(AetherAppContext context) {
   // init all the components in context
   context.InitComponentContext();
 
-  auto app = MakeRcPtr<AetherApp>();
+  auto app = std::unique_ptr<AetherApp>{new AetherApp()};
   app->aether_ = context.aether();
 #if AE_DISTILLATION
   app->aether_->tele_statistics = context.tele_statistics_.Resolve(context);

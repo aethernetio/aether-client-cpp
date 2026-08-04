@@ -33,7 +33,7 @@ void CloudServerConnection::SetPriority(std::size_t priority) {
 }
 
 void CloudServerConnection::Restream() {
-  if (client_connection_.get() != nullptr) {
+  if (client_connection_) {
     client_connection_->Restream();
   }
 }
@@ -44,15 +44,15 @@ void CloudServerConnection::SetQuarantine(bool value) {
 }
 
 bool CloudServerConnection::Connect() {
-  client_connection_.Reset();
+  client_connection_.reset();
   client_connection_ = connection_factory_->CreateConnection(server());
-  return client_connection_.get() != nullptr;
+  return static_cast<bool>(client_connection_);
 }
 
-void CloudServerConnection::Disconnect() { client_connection_.Reset(); }
+void CloudServerConnection::Disconnect() { client_connection_.reset(); }
 
 ClientServerConnection* CloudServerConnection::client_connection() {
-  if (client_connection_.get() != nullptr) {
+  if (client_connection_) {
     return client_connection_.get();
   }
   return nullptr;

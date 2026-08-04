@@ -24,9 +24,8 @@ ServerConnectionManager::ServerConnectionFactory::ServerConnectionFactory(
     ServerConnectionManager& server_connection_manager)
     : server_connection_manager_{&server_connection_manager} {}
 
-RcPtr<ClientServerConnection>
-ServerConnectionManager::ServerConnectionFactory::CreateConnection(
-    Ptr<Server> const& server) {
+auto ServerConnectionManager::ServerConnectionFactory::CreateConnection(
+    Ptr<Server> const& server) -> std::shared_ptr<ClientServerConnection> {
   return server_connection_manager_->CreateConnection(server);
 }
 
@@ -39,8 +38,8 @@ ServerConnectionManager::GetServerConnectionFactory() {
   return std::make_unique<ServerConnectionFactory>(*this);
 }
 
-RcPtr<ClientServerConnection> ServerConnectionManager::CreateConnection(
-    Ptr<Server> const& server) {
+auto ServerConnectionManager::CreateConnection(Ptr<Server> const& server)
+    -> std::shared_ptr<ClientServerConnection> {
   auto in_cache = FindInCache(server->server_id);
   if (in_cache) {
     return in_cache;
@@ -51,7 +50,7 @@ RcPtr<ClientServerConnection> ServerConnectionManager::CreateConnection(
   assert(client);
 
   auto connection =
-      MakeRcPtr<ClientServerConnection>(ae_context_, client, server);
+      std::make_shared<ClientServerConnection>(ae_context_, client, server);
 
   // check updates
   server_update_subs_ += connection->stream_update_event().Subscribe(
@@ -62,7 +61,7 @@ RcPtr<ClientServerConnection> ServerConnectionManager::CreateConnection(
   return connection;
 }
 
-RcPtr<ClientServerConnection> ServerConnectionManager::FindInCache(
+std::shared_ptr<ClientServerConnection> ServerConnectionManager::FindInCache(
     ServerId server_id) const {
   auto it = cached_connections_.find(server_id);
   if (it != cached_connections_.end()) {

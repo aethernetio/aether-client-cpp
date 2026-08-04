@@ -17,16 +17,16 @@
 #ifndef AETHER_EVENTS_EVENTS_H_
 #define AETHER_EVENTS_EVENTS_H_
 
-#include <utility>
-#include <cassert>
 #include <algorithm>
+#include <cassert>
+#include <memory>
 #include <type_traits>
+#include <utility>
 
-#include "aether/ptr/rc_ptr.h"
-#include "aether/events/event_list.h"
-#include "aether/events/event_handler.h"
-#include "aether/events/event_deleter.h"
 #include "aether-miscpp/types/small_function.h"
+#include "aether/events/event_deleter.h"
+#include "aether/events/event_handler.h"
+#include "aether/events/event_list.h"
 #include "aether/events/event_subscription.h"
 
 namespace ae {
@@ -46,7 +46,7 @@ class Event<void(TArgs...)> {
   using Subscriber = EventSubscriber<CallbackSignature>;
   using List = EventHandlersList;
 
-  explicit Event() : events_list_{MakeRcPtr<List>()} {}
+  explicit Event() : events_list_{std::make_shared<List>()} {}
 
   ~Event() = default;
 
@@ -58,7 +58,8 @@ class Event<void(TArgs...)> {
    * subscriptions.
    */
   void Emit(TArgs... args) {
-    EmitImpl(events_list_, std::forward<TArgs>(args)...);
+    std::shared_ptr<List> list_life_extander = events_list_;
+    EmitImpl(list_life_extander, std::forward<TArgs>(args)...);
   }
 
   /**
@@ -77,7 +78,8 @@ class Event<void(TArgs...)> {
    * Separate static emitter is used to handle self destruction while handler
    * invoking.
    */
-  static void EmitImpl(RcPtr<List> events_list, TArgs&&... args) {
+  static void EmitImpl(std::shared_ptr<List> const& events_list,
+                       TArgs&&... args) {
     auto iterate_list = events_list->Iterator();
     for (auto it = std::begin(iterate_list); it != std::end(iterate_list);
          ++it) {
@@ -87,7 +89,7 @@ class Event<void(TArgs...)> {
     }
   }
 
-  RcPtr<List> events_list_;
+  std::shared_ptr<List> events_list_;
 };
 
 /**

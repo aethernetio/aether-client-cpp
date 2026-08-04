@@ -37,7 +37,7 @@ static IpV6Addr my_static_ip_v6{0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00,
                                 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70, 0x73, 0x34};
 
 WiFiIP wifi_ip{{my_static_ip_v4}, {my_gateway_ip_v4}, {my_netmask_ip_v4},
-               {my_dns1_ip_v4}, {my_dns2_ip_v4}, {my_static_ip_v6}};
+               {my_dns1_ip_v4},   {my_dns2_ip_v4},    {my_static_ip_v6}};
 
 static WifiCreds my_wifi1{kWifi1Ssid, kWifi1Pass};
 static WifiCreds my_wifi2{kWifi2Ssid, kWifi2Pass};
@@ -47,15 +47,19 @@ ae::WiFiAp wifi2_ap{my_wifi2, {} /*wifi_ip*/};
 
 std::vector<ae::WiFiAp> wifi_ap_vec{wifi1_ap, wifi2_ap};
 
-static WiFiPowerSaveParam wifi_psp{AE_WIFI_PS_MAX_MODEM,
-                                   AE_WIFI_PROTOCOL_11B |
-                                       AE_WIFI_PROTOCOL_11G |
-                                       AE_WIFI_PROTOCOL_11N,
-                                   3, 500, 0, 3, 3, 8};
+static WiFiPowerSaveParam wifi_psp{
+    AE_WIFI_PS_MAX_MODEM,
+    AE_WIFI_PROTOCOL_11B | AE_WIFI_PROTOCOL_11G | AE_WIFI_PROTOCOL_11N,
+    3,
+    500,
+    0,
+    3,
+    3,
+    8};
 
 WiFiInit wifi_init{wifi_ap_vec, {}};
 
-RcPtr<AetherApp> construct_aether_app() {
+std::unique_ptr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
 #  if defined AE_DISTILLATION

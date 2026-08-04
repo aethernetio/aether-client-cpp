@@ -56,7 +56,7 @@
 
 // Maximum size in bytes for a single pending response pool element.
 #ifndef AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE
-#  define AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE 2 * sizeof(void*)
+#  define AE_API_PROTOCOL_PENDING_RESPONSE_MAX_SIZE 4 * sizeof(void*)
 #endif
 
 #ifndef AE_API_PROTOCOL_PENDING_RESPONSE_ALIGN

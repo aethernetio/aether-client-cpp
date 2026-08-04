@@ -18,7 +18,7 @@
 
 namespace ae {
 EventHandlerDeleter::EventHandlerDeleter(
-    RcPtr<EventHandlersList> const& event_handlers,
+    std::shared_ptr<EventHandlersList> const& event_handlers,
     EventHandlersList::Index index)
     : event_handlers_{event_handlers}, index_{index} {}
 

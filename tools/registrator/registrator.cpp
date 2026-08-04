@@ -163,7 +163,7 @@ int AetherRegistrator(const std::string& ini_file,
   }
 
   auto registrator_action = ae::reg::RegistratorAction{
-      ae::AeContext{*aether_app}, aether_app, registrator_config.clients()};
+      ae::AeContext{*aether_app}, *aether_app, registrator_config.clients()};
 
   registrator_action.registered_event().Subscribe([&](auto const& clients) {
     constexpr auto format_client = ae::FormatScheme{"\nclient={},\n{}\n"};

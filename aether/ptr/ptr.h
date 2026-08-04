@@ -21,13 +21,11 @@
 #include <utility>
 
 // IWYU pragma: begin_keeps
-#include "aether/common.h"
 #include "aether/type_traits.h"
 
-#include "aether/ptr/rc_ptr.h"
-#include "aether/ptr/ref_tree.h"
-#include "aether/ptr/ptr_management.h"
 #include "aether-miscpp/reflect/domain_visitor.h"
+#include "aether/ptr/ptr_management.h"
+#include "aether/ptr/ref_tree.h"
 // IWYU pragma: end_keeps
 
 namespace ae {

@@ -50,7 +50,7 @@ static std::string_view ToString(ae::DataBuffer const& data) {
 }
 
 struct State {
-  explicit State(ae::RcPtr<ae::AetherApp> const& app) : aether{app->aether()} {}
+  explicit State(ae::AetherApp& app) : aether{app.aether()} {}
 
   ae::Aether::ptr aether;
   ae::Client::ptr client_a;
@@ -177,7 +177,7 @@ int AetherABMessageExchangeExample() {
   auto aether_app = ae::examples::construct_aether_app();
   Log("app.create.done");
 
-  State state{aether_app};
+  State state{*aether_app};
 
   auto pipeline = ae::ex::just() |
                   SelectClientSender(&state, "A", &State::client_a) |
