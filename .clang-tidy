@@ -22,6 +22,7 @@ Checks:
   - -misc-non-private-member-variables-in-classes
   - -misc-use-internal-linkage
   - -misc-use-anonymous-namespace
+  - -misc-include-cleaner
   - -cppcoreguidelines-pro-type-vararg
   - -cppcoreguidelines-non-private-member-variables-in-classes
   - -cppcoreguidelines-special-member-functions
