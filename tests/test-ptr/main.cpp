@@ -23,10 +23,12 @@ extern int run_test_ptr();
 extern int test_ptr_cycles();
 extern int test_ptr_view();
 extern int test_ptr_inheritance();
+extern int test_ref_tree();
 
 int main() {
   int res = 0;
 
+  res += test_ref_tree();
   res += run_test_ptr();
   res += test_ptr_cycles();
   res += test_ptr_view();

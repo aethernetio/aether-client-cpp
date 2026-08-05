@@ -187,6 +187,10 @@ void test_ptrCompare() {
     TEST_ASSERT(!a);
     Ptr<A> a1 = a;
     TEST_ASSERT(!a1);
+    TEST_ASSERT(a == nullptr);
+    TEST_ASSERT(nullptr == a);
+    TEST_ASSERT(!(a != nullptr));
+    TEST_ASSERT(!(nullptr != a));
   }
 
   {
@@ -201,6 +205,29 @@ void test_ptrCompare() {
     TEST_ASSERT(a);
     Ptr<B> b{MakePtr<B>()};
     TEST_ASSERT(a != b);
+  }
+
+  {
+    Ptr<A> a{MakePtr<A>()};
+    TEST_ASSERT(a);
+    TEST_ASSERT(a != nullptr);
+    TEST_ASSERT(nullptr != a);
+    TEST_ASSERT(!(a == nullptr));
+    TEST_ASSERT(!(nullptr == a));
+  }
+
+  {
+    Ptr<A> a{MakePtr<A>()};
+    Ptr<A> moved{std::move(a)};
+    TEST_ASSERT(!a);
+    TEST_ASSERT(a == nullptr);
+    TEST_ASSERT(nullptr == a);
+    TEST_ASSERT(!(a != nullptr));
+    TEST_ASSERT(!(nullptr != a));
+    TEST_ASSERT(moved != nullptr);
+    TEST_ASSERT(nullptr != moved);
+    TEST_ASSERT(!(moved == nullptr));
+    TEST_ASSERT(!(nullptr == moved));
   }
 }
 
