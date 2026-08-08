@@ -1,0 +1,88 @@
+name: Temporary ESP32 thermometer lower-bound v2
+
+on:
+  push:
+    branches:
+      - "tmp/report-static-esp32-size"
+    paths:
+      - ".github/workflows/tmp-esp32-thermometer-lower-bound-v2.yml"
+  workflow_dispatch:
+
+jobs:
+  measure:
+    name: ${{ matrix.target }} / TX-only / no automatic registrars
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [esp32, esp32c6]
+        include:
+          - target: esp32
+            project_path: projects/xtensa_lx6/vscode/aether-client-cpp
+          - target: esp32c6
+            project_path: projects/espressif_riscv/vscode/aether-client-cpp
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Apply thermometer footprint patch
+        shell: bash
+        run: |
+          python3 .github/scripts/tmp_thermometer_patch.py "${{ matrix.project_path }}"
+          cat > .github/tmp-thermometer-build.sh <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          idf.py --version > build-idf-version.txt
+          idf.py build \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCOMPILE_EXAMPLE=cloud \
+            -DUSER_CONFIG=../../../../../config/user_config_thermometer.h \
+            -DAE_DISTILLATION=OFF \
+            -DAE_FILTRATION=OFF
+          idf.py size > build/size-summary.txt
+          idf.py size-components > build/size-components.txt
+          idf.py size-files > build/size-files.txt
+          cp build-idf-version.txt build/idf-version.txt
+          if command -v xtensa-esp32-elf-nm >/dev/null 2>&1; then
+            NM=xtensa-esp32-elf-nm
+          else
+            NM=riscv32-esp-elf-nm
+          fi
+          "$NM" -S --size-sort --radix=d -C build/Aether.elf | tail -n 500 > build/nm-largest.txt
+          EOF
+          chmod +x .github/tmp-thermometer-build.sh
+
+      - name: Build and collect ESP-IDF reports
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: latest
+          target: ${{ matrix.target }}
+          path: ${{ matrix.project_path }}
+          command: bash ../../../../.github/tmp-thermometer-build.sh
+
+      - name: Collect artifact
+        shell: bash
+        run: |
+          base="${{ matrix.project_path }}/build"
+          mkdir -p report
+          cp "$base/Aether.bin" report/
+          cp "$base/Aether.elf" report/
+          cp "$base/Aether.map" report/
+          cp "$base/size-summary.txt" report/
+          cp "$base/size-components.txt" report/
+          cp "$base/size-files.txt" report/
+          cp "$base/nm-largest.txt" report/
+          cp "$base/idf-version.txt" report/
+          cp "${{ matrix.project_path }}/sdkconfig" report/sdkconfig
+          stat -c '%n %s' report/Aether.bin report/Aether.elf report/Aether.map > report/file-sizes.txt
+          printf 'target=%s\nvariant=thermometer_tx_only_no_automatic_registrars\n' '${{ matrix.target }}' > report/profile.txt
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-thermometer-lower-bound-v2-${{ matrix.target }}
+          path: report/*
+          compression-level: 9
+          overwrite: true
