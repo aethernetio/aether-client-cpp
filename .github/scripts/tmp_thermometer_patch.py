@@ -220,27 +220,29 @@ path.write_text(
     )
 )
 
-# Lower bound for a generated static registry: remove all per-class global
-# Registrar objects. A real generated profile will add only required entries.
-path = Path("aether/obj/obj.h")
-lines = path.read_text().splitlines(keepends=True)
-out: list[str] = []
-removed = 0
-i = 0
-while i < len(lines):
-    if "inline static auto registrar_" in lines[i]:
-        out.append(
-            "  inline static constexpr bool registrar_disabled_ = true;                \\\n"
-        )
-        i += 1
-        if i < len(lines) and "Registrar<DERIVED>" in lines[i]:
-            i += 1
-        removed += 1
-        continue
-    out.append(lines[i])
-    i += 1
-assert removed == 1
-path.write_text("".join(out))
+# Lower bound for a generated minimal registry. Disable every per-class
+# Registrar constructor; the real profile will generate only required entries.
+path = Path("aether/obj/registrar.h")
+text = path.read_text()
+old = '''  Registrar(std::uint32_t cls_id, std::uint32_t base_id) noexcept {
+    Registry::GetRegistry().RegisterClass(
+        cls_id, base_id,
+        {
+            Factory::CreateFunc(&Create),
+            Factory::LoadFunc(&Load),
+            Factory::SaveFunc(&Save),
+#ifdef DEBUG
+            std::string{reflect::GetTypeName<T>()},
+            cls_id,
+            base_id,
+#endif  // DEBUG
+        });
+  }
+'''
+new = '''  Registrar(std::uint32_t, std::uint32_t) noexcept {}
+'''
+assert text.count(old) == 1
+path.write_text(text.replace(old, new, 1))
 
 # Avoid std::random_device and mt19937.
 Path("aether/obj/obj_id.cpp").write_text(
