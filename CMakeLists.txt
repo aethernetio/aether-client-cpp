@@ -44,6 +44,11 @@ project(aether VERSION ${AE_PROJECT_VERSION} LANGUAGES CXX C)
 
 set(TARGET_NAME "${PROJECT_NAME}")
 
+# Android shared-library consumers require PIC for static archives.
+if(ANDROID)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
+
 if("${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
   set(AE_ROOT_PORJECT On)
 else()
@@ -188,8 +193,9 @@ message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
   OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"
   OR CMAKE_SYSTEM_NAME MATCHES ".*BSD.*"
-  OR CMAKE_SYSTEM_NAME STREQUAL "Windows" )
-  # for desktop projects add c-ares
+  OR CMAKE_SYSTEM_NAME STREQUAL "Windows"
+  OR CMAKE_SYSTEM_NAME STREQUAL "Android" )
+  # for desktop and Android projects add c-ares
   CPMAddPackage(
     NAME c-ares
     GIT_REPOSITORY "https://github.com/c-ares/c-ares.git"
