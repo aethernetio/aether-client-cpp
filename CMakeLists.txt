@@ -61,6 +61,7 @@ option(AE_INSTALL "Install aether" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TOOLS "Build tools" ${AE_ROOT_PORJECT})
 option(AE_BUILD_EXAMPLES "Build examples" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TESTS "Build tests" ${AE_ROOT_PORJECT})
+option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 
@@ -77,6 +78,7 @@ message(STATUS "Aether build options:
    AE_BUILD_TOOLS=${AE_BUILD_TOOLS}
    AE_BUILD_EXAMPLES=${AE_BUILD_EXAMPLES}
    AE_BUILD_TESTS=${AE_BUILD_TESTS}
+   AE_BUILD_ANDROID_SMOKE=${AE_BUILD_ANDROID_SMOKE}
    AE_ADDRESS_SANITIZE=${AE_ADDRESS_SANITIZE}
    AE_NO_STRIP_ALL=${AE_NO_STRIP_ALL}
    UTM_ID=${UTM_ID}
@@ -392,6 +394,17 @@ if(AE_BUILD_TESTS)
 
   target_link_libraries(${TARGET_NAME} PRIVATE inline_tests)
   add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/tests ${CMAKE_BINARY_DIR}/tests)
+endif()
+
+if(ANDROID AND AE_BUILD_ANDROID_SMOKE)
+  message(STATUS "Aether builds Android NDK smoke targets!")
+  # Shared-library consumers require PIC for aether and static dependencies.
+  set_property(TARGET ${TARGET_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
+  if(TARGET c-ares)
+    set_property(TARGET c-ares PROPERTY POSITION_INDEPENDENT_CODE ON)
+  endif()
+  add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/tests/android_ndk_smoke
+                   ${CMAKE_BINARY_DIR}/android_ndk_smoke)
 endif()
 
 if(AE_INSTALL)
