@@ -1,0 +1,21 @@
+# ninja log v5
+1	111	8080207114267452	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-mkdir	5cf640770eb41af2
+1	111	8080207114267452	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_hydrogen/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-mkdir	5cf640770eb41af2
+112	1879	8080207131823401	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-download	1cfb6e005e126980
+112	1879	8080207131823401	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_hydrogen/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-download	1cfb6e005e126980
+1879	3649	0	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-update	b93eb8ee8704e41c
+1879	3649	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_hydrogen/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-update	b93eb8ee8704e41c
+3649	3731	8080207150439593	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-patch	941e0ef6cfb85da7
+3649	3731	8080207150439593	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_hydrogen/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-patch	941e0ef6cfb85da7
+3731	3814	8080207151103602	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-configure	d59207a43b7e660e
+3731	3814	8080207151103602	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_hydrogen/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-configure	d59207a43b7e660e
+3814	3877	8080207151927624	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-build	94c3db7375d61a7d
+3814	3877	8080207151927624	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_hydrogen/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-build	94c3db7375d61a7d
+3877	3949	8080207152603244	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-install	2cb65ed2ea20c620
+3877	3949	8080207152603244	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_hydrogen/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-install	2cb65ed2ea20c620
+3949	4021	8080207153272937	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-test	81432916b82212d0
+3949	4021	8080207153272937	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_hydrogen/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-test	81432916b82212d0
+4022	4117	8080207154319064	CMakeFiles/numeric-populate-complete	a9d396e3341315dc
+4022	4117	8080207154319064	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-done	a9d396e3341315dc
+4022	4117	8080207154319064	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_hydrogen/_deps/numeric-subbuild/CMakeFiles/numeric-populate-complete	a9d396e3341315dc
+4022	4117	8080207154319064	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_hydrogen/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-done	a9d396e3341315dc

@@ -16,12 +16,28 @@ param(
 
   [string]$AndroidStl = "c++_static",
 
+  [string]$CMakeVersion = "",
+
+  [string]$NdkVersion = "",
+
   [switch]$BuildSmoke,
 
   [switch]$Clean
 )
 
 $ErrorActionPreference = "Stop"
+
+function Test-StableVersionLabel([string]$Label) {
+  return $Label -notmatch "(?i)(rc|beta|alpha|preview)"
+}
+
+function Get-CMakeVersionString([string]$CMakeExe) {
+  $text = & $CMakeExe --version 2>&1 | Out-String
+  if ($text -match "cmake version\s+(\S+)") {
+    return $Matches[1]
+  }
+  throw "Unable to parse CMake version from $CMakeExe"
+}
 
 function Resolve-RepoRoot {
   $script_dir = Split-Path -Parent $PSCommandPath
@@ -42,14 +58,24 @@ function Resolve-AndroidSdk {
   throw "Android SDK not found. Set ANDROID_SDK_ROOT or install Android Studio SDK."
 }
 
-function Resolve-Ndk([string]$SdkRoot) {
+function Resolve-Ndk([string]$SdkRoot, [string]$RequestedVersion) {
   $ndk_root = Join-Path $SdkRoot "ndk"
   if (-not (Test-Path $ndk_root)) {
     throw "No side-by-side NDK under $ndk_root"
   }
+
+  if ($RequestedVersion) {
+    $exact = Join-Path $ndk_root $RequestedVersion
+    $toolchain = Join-Path $exact "build\cmake\android.toolchain.cmake"
+    if (-not (Test-Path $toolchain)) {
+      throw "Requested NDK version '$RequestedVersion' not found or incomplete under $ndk_root"
+    }
+    return $exact
+  }
+
   $versions = Get-ChildItem $ndk_root -Directory |
-    Where-Object { $_.Name -notmatch "(?i)(rc|beta|preview)" } |
-    Sort-Object { [version]($_.Name -replace '[^\d.].*$','') } -Descending
+    Where-Object { Test-StableVersionLabel $_.Name } |
+    Sort-Object { [version]($_.Name -replace '[^\d.].*$', '') } -Descending
   if (-not $versions) {
     throw "No stable NDK version found under $ndk_root"
   }
@@ -62,32 +88,111 @@ function Resolve-Ndk([string]$SdkRoot) {
   throw "No fully installed stable NDK with android.toolchain.cmake found."
 }
 
-function Resolve-CMake {
-  $candidates = @(
-    (Get-Command cmake -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source),
-    "C:\Program Files\CMake\bin\cmake.exe"
-  ) | Where-Object { $_ -and (Test-Path $_) }
-  if (-not $candidates) {
-    throw "CMake not found on PATH or in Program Files."
+function Resolve-SdkCMakePackage([string]$SdkRoot, [string]$RequestedVersion) {
+  $cmake_root = Join-Path $SdkRoot "cmake"
+  if (-not (Test-Path $cmake_root)) {
+    return $null
   }
-  return $candidates[0]
-}
 
-function Resolve-Ninja([string]$SdkRoot) {
-  $from_path = Get-Command ninja -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
-  if ($from_path) {
-    return $from_path
-  }
-  $sdk_cmake = Join-Path $SdkRoot "cmake"
-  if (Test-Path $sdk_cmake) {
-    $ninja = Get-ChildItem $sdk_cmake -Recurse -Filter ninja.exe -ErrorAction SilentlyContinue |
-      Sort-Object FullName -Descending |
-      Select-Object -First 1
-    if ($ninja) {
-      return $ninja.FullName
+  if ($RequestedVersion) {
+    $exact_dir = Join-Path $cmake_root $RequestedVersion
+    $exact_cmake = Join-Path $exact_dir "bin\cmake.exe"
+    if (-not (Test-Path $exact_cmake)) {
+      throw "Requested CMake version '$RequestedVersion' not found under $cmake_root"
+    }
+    if (-not (Test-StableVersionLabel $RequestedVersion)) {
+      throw "Requested CMake version '$RequestedVersion' is not a stable release label"
+    }
+    $ninja = Join-Path $exact_dir "bin\ninja.exe"
+    return [pscustomobject]@{
+      CMake = $exact_cmake
+      Ninja = $(if (Test-Path $ninja) { $ninja } else { $null })
+      VersionLabel = $RequestedVersion
+      Source = "Android SDK"
     }
   }
-  throw "Ninja not found on PATH or under Android SDK cmake packages."
+
+  $packages = Get-ChildItem $cmake_root -Directory |
+    Where-Object {
+      (Test-StableVersionLabel $_.Name) -and
+      (Test-Path (Join-Path $_.FullName "bin\cmake.exe"))
+    } |
+    Sort-Object { [version]($_.Name -replace '[^\d.].*$', '') } -Descending
+
+  if (-not $packages) {
+    return $null
+  }
+
+  $best = $packages[0]
+  $cmake = Join-Path $best.FullName "bin\cmake.exe"
+  $ninja = Join-Path $best.FullName "bin\ninja.exe"
+  return [pscustomobject]@{
+    CMake = $cmake
+    Ninja = $(if (Test-Path $ninja) { $ninja } else { $null })
+    VersionLabel = $best.Name
+    Source = "Android SDK"
+  }
+}
+
+function Resolve-CMakeAndNinja([string]$SdkRoot, [string]$RequestedCMakeVersion) {
+  $sdk_pkg = Resolve-SdkCMakePackage $SdkRoot $RequestedCMakeVersion
+  if ($sdk_pkg) {
+    $version = Get-CMakeVersionString $sdk_pkg.CMake
+    if (-not (Test-StableVersionLabel $version)) {
+      throw "Selected SDK CMake reports non-stable version '$version'"
+    }
+    if (-not $sdk_pkg.Ninja) {
+      throw "Ninja.exe missing next to selected SDK CMake $($sdk_pkg.CMake)"
+    }
+    return [pscustomobject]@{
+      CMake = $sdk_pkg.CMake
+      Ninja = $sdk_pkg.Ninja
+      CMakeVersion = $version
+      Source = $sdk_pkg.Source
+    }
+  }
+
+  if ($RequestedCMakeVersion) {
+    throw "Requested CMake version '$RequestedCMakeVersion' was not found in Android SDK cmake packages"
+  }
+
+  $path_cmake = Get-Command cmake -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+  if ($path_cmake -and (Test-Path $path_cmake)) {
+    $version = Get-CMakeVersionString $path_cmake
+    if (Test-StableVersionLabel $version) {
+      $path_ninja = Get-Command ninja -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+      if (-not $path_ninja) {
+        throw "Stable CMake found on PATH ($path_cmake) but Ninja was not found on PATH"
+      }
+      return [pscustomobject]@{
+        CMake = $path_cmake
+        Ninja = $path_ninja
+        CMakeVersion = $version
+        Source = "PATH"
+      }
+    }
+    Write-Host "Ignoring non-stable CMake on PATH: $path_cmake ($version)"
+  }
+
+  $pf_cmake = "C:\Program Files\CMake\bin\cmake.exe"
+  if (Test-Path $pf_cmake) {
+    $version = Get-CMakeVersionString $pf_cmake
+    if (Test-StableVersionLabel $version) {
+      $path_ninja = Get-Command ninja -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+      if (-not $path_ninja) {
+        throw "Stable CMake found in Program Files but Ninja was not found on PATH"
+      }
+      return [pscustomobject]@{
+        CMake = $pf_cmake
+        Ninja = $path_ninja
+        CMakeVersion = $version
+        Source = "Program Files"
+      }
+    }
+    Write-Host "Ignoring non-stable CMake in Program Files: $pf_cmake ($version)"
+  }
+
+  throw "No stable CMake found in Android SDK, PATH, or Program Files."
 }
 
 function Get-BuildDirName([string]$Abi, [string]$Config, [string]$UserConfig) {
@@ -97,25 +202,29 @@ function Get-BuildDirName([string]$Abi, [string]$Config, [string]$UserConfig) {
 
 $repo_root = Resolve-RepoRoot
 $sdk = Resolve-AndroidSdk
-$ndk = Resolve-Ndk $sdk
-$cmake = Resolve-CMake
-$ninja = Resolve-Ninja $sdk
+$ndk = Resolve-Ndk $sdk $NdkVersion
+$tools = Resolve-CMakeAndNinja $sdk $CMakeVersion
+$cmake = $tools.CMake
+$ninja = $tools.Ninja
 $toolchain = Join-Path $ndk "build\cmake\android.toolchain.cmake"
 $build_dir = Join-Path $repo_root (Get-BuildDirName $Abi $Config $UserConfig)
 
-Write-Host "Repository root : $repo_root"
-Write-Host "Android SDK     : $sdk"
-Write-Host "Android NDK     : $ndk"
-Write-Host "CMake           : $cmake"
-Write-Host "Ninja           : $ninja"
-Write-Host "ABI             : $Abi"
-Write-Host "Config          : $Config"
-Write-Host "USER_CONFIG     : $UserConfig"
-Write-Host "Build directory : $build_dir"
-Write-Host "Build smoke     : $BuildSmoke"
+Write-Host "Selected Android SDK : $sdk"
+Write-Host "Selected NDK         : $ndk"
+Write-Host "Selected CMake       : $cmake"
+Write-Host "Selected Ninja       : $ninja"
+Write-Host "CMake version        : $($tools.CMakeVersion)"
+Write-Host "CMake source         : $($tools.Source)"
+Write-Host "Repository root      : $repo_root"
+Write-Host "ABI                  : $Abi"
+Write-Host "Config               : $Config"
+Write-Host "USER_CONFIG          : $UserConfig"
+Write-Host "Build directory      : $build_dir"
+Write-Host "Build smoke          : $BuildSmoke"
 
 & $cmake --version
-& $ninja --version
+$ninja_version = & $ninja --version
+Write-Host "Ninja version        : $ninja_version"
 
 if ($Clean -and (Test-Path $build_dir)) {
   Write-Host "Cleaning $build_dir"

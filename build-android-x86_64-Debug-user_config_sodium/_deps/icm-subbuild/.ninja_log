@@ -1,0 +1,21 @@
+# ninja log v5
+1	177	8080210759265740	icm-populate-prefix/src/icm-populate-stamp/icm-populate-mkdir	79d527dbe3cd2e54
+1	177	8080210759265740	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-mkdir	79d527dbe3cd2e54
+179	2651	8080210784132708	icm-populate-prefix/src/icm-populate-stamp/icm-populate-download	27dec3c3f67d8af1
+179	2651	8080210784132708	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-download	27dec3c3f67d8af1
+2651	2976	0	icm-populate-prefix/src/icm-populate-stamp/icm-populate-update	a34ec7505714c57b
+2651	2976	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-update	a34ec7505714c57b
+2976	3202	8080210789604778	icm-populate-prefix/src/icm-populate-stamp/icm-populate-patch	1cf13b761a974849
+2976	3202	8080210789604778	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-patch	1cf13b761a974849
+3202	3353	8080210790954550	icm-populate-prefix/src/icm-populate-stamp/icm-populate-configure	6d9b22ddbd0f9d47
+3202	3353	8080210790954550	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-configure	6d9b22ddbd0f9d47
+3353	3502	8080210792555331	icm-populate-prefix/src/icm-populate-stamp/icm-populate-build	2ea0603115024710
+3353	3502	8080210792555331	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-build	2ea0603115024710
+3502	3649	8080210794086332	icm-populate-prefix/src/icm-populate-stamp/icm-populate-install	bb4d2ade3f4d7125
+3502	3649	8080210794086332	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-install	bb4d2ade3f4d7125
+3649	3795	8080210795503705	icm-populate-prefix/src/icm-populate-stamp/icm-populate-test	6f92ab4a12bce879
+3649	3795	8080210795503705	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-test	6f92ab4a12bce879
+3796	4084	8080210798207778	CMakeFiles/icm-populate-complete	400c171c3cd92cbc
+3796	4084	8080210798207778	icm-populate-prefix/src/icm-populate-stamp/icm-populate-done	400c171c3cd92cbc
+3796	4084	8080210798207778	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/icm-subbuild/CMakeFiles/icm-populate-complete	400c171c3cd92cbc
+3796	4084	8080210798207778	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-done	400c171c3cd92cbc

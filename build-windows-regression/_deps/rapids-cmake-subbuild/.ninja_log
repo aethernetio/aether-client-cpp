@@ -1,0 +1,21 @@
+# ninja log v5
+0	89	8080226926888107	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-mkdir	c44cc779265f9940
+0	89	8080226926888107	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-mkdir	c44cc779265f9940
+90	1458	8080226940594685	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-download	acbba23e3422544b
+90	1458	8080226940594685	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-download	acbba23e3422544b
+1458	1537	8080226941397118	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-update	951373107eab07b9
+1458	1537	8080226941397118	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-update	951373107eab07b9
+1537	1608	8080226942025785	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-patch	96812958d62a6cb8
+1537	1608	8080226942025785	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-patch	96812958d62a6cb8
+1608	1663	8080226942667882	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-configure	f2c310135536b5e8
+1608	1663	8080226942667882	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-configure	f2c310135536b5e8
+1663	1733	8080226943368691	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-build	471e14b87f4a780b
+1663	1733	8080226943368691	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-build	471e14b87f4a780b
+1733	1810	8080226944009164	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-install	ddfbbd30e4886455
+1733	1810	8080226944009164	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-install	ddfbbd30e4886455
+1810	1870	8080226944733278	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-test	6cae5c3a29ed81e8
+1810	1870	8080226944733278	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-test	6cae5c3a29ed81e8
+1870	1963	8080226945639536	CMakeFiles/rapids-cmake-populate-complete	cd47062aa9fa88e0
+1870	1963	8080226945639536	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-done	cd47062aa9fa88e0
+1870	1963	8080226945639536	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/rapids-cmake-subbuild/CMakeFiles/rapids-cmake-populate-complete	cd47062aa9fa88e0
+1870	1963	8080226945639536	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-done	cd47062aa9fa88e0

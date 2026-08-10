@@ -1,0 +1,21 @@
+# ninja log v5
+1	82	8080219831345206	aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-mkdir	b2296afd21e30ba3
+1	82	8080219831345206	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/aether-miscpp-subbuild/aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-mkdir	b2296afd21e30ba3
+82	1774	8080219848322009	aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-download	7075c3f310b2c335
+82	1774	8080219848322009	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/aether-miscpp-subbuild/aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-download	7075c3f310b2c335
+1775	3295	0	aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-update	f7c3102bbd34dc23
+1775	3295	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/aether-miscpp-subbuild/aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-update	f7c3102bbd34dc23
+3295	3369	8080219864153380	aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-patch	bacf9d4046feba9
+3295	3369	8080219864153380	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/aether-miscpp-subbuild/aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-patch	bacf9d4046feba9
+3369	3471	8080219865261940	aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-configure	bcb7efd34e3b7b8
+3369	3471	8080219865261940	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/aether-miscpp-subbuild/aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-configure	bcb7efd34e3b7b8
+3471	3574	8080219866321630	aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-build	bed2568510838b57
+3471	3574	8080219866321630	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/aether-miscpp-subbuild/aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-build	bed2568510838b57
+3575	3696	8080219867486065	aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-install	4f5a7c87c2155da4
+3575	3696	8080219867486065	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/aether-miscpp-subbuild/aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-install	4f5a7c87c2155da4
+3696	3807	8080219868645860	aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-test	37cf5a44f620cbdc
+3696	3807	8080219868645860	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/aether-miscpp-subbuild/aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-test	37cf5a44f620cbdc
+3807	3957	8080219870171683	CMakeFiles/aether-miscpp-populate-complete	340d991dabb83c7
+3807	3957	8080219870171683	aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-done	340d991dabb83c7
+3807	3957	8080219870171683	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/aether-miscpp-subbuild/CMakeFiles/aether-miscpp-populate-complete	340d991dabb83c7
+3807	3957	8080219870171683	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/aether-miscpp-subbuild/aether-miscpp-populate-prefix/src/aether-miscpp-populate-stamp/aether-miscpp-populate-done	340d991dabb83c7

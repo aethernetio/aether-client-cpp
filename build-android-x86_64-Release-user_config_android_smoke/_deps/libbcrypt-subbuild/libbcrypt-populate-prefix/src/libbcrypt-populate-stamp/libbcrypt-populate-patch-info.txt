@@ -1,0 +1,6 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The update step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+command=C:/Program Files/Git/usr/bin/patch.exe;-p1;<;C:/Users/nickc/Projects/aether-client-cpp/third_party/libbcrypt.patch
+work_dir=C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/cpm.cache/libbcrypt/e05a

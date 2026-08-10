@@ -1,0 +1,21 @@
+# ninja log v5
+0	100	8080226742619039	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-mkdir	d656337d27fb998a
+0	100	8080226742619039	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-mkdir	d656337d27fb998a
+101	1878	8080226760412977	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-download	592ee9e1326a28d6
+101	1878	8080226760412977	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-download	592ee9e1326a28d6
+1879	3519	0	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-update	10c2e70fa83983a
+1879	3519	0	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-update	10c2e70fa83983a
+3519	3591	8080226777520734	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-patch	fe8a9a08ba5503d3
+3519	3591	8080226777520734	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-patch	fe8a9a08ba5503d3
+3591	3669	8080226778322449	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-configure	3137f718ee59f873
+3591	3669	8080226778322449	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-configure	3137f718ee59f873
+3669	3749	8080226778974494	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-build	4de95775b5e9dcd2
+3669	3749	8080226778974494	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-build	4de95775b5e9dcd2
+3749	3816	8080226779782234	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-install	b86805d1fad2ad6b
+3749	3816	8080226779782234	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-install	b86805d1fad2ad6b
+3816	3876	8080226780383298	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-test	39b42d0aed346d74
+3816	3876	8080226780383298	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-test	39b42d0aed346d74
+3876	3977	8080226781398955	CMakeFiles/aether-tele-populate-complete	524bc282504da1ba
+3876	3977	8080226781398955	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-done	524bc282504da1ba
+3876	3977	8080226781398955	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/aether-tele-subbuild/CMakeFiles/aether-tele-populate-complete	524bc282504da1ba
+3876	3977	8080226781398955	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-done	524bc282504da1ba

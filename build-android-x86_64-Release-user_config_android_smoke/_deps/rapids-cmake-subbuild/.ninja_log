@@ -1,0 +1,21 @@
+# ninja log v6
+2	84	8080256619977474	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-mkdir	71f4a3670e84e6ba
+2	84	8080256619977474	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-mkdir	71f4a3670e84e6ba
+1473	1537	8080256634491698	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-patch	ecdd69ec94e8ac64
+85	1408	8080256633134590	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-download	fa73d8f6254d0176
+1408	1473	8080256633860296	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-update	c7fc6fc43be0bb70
+85	1408	8080256633134590	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-download	fa73d8f6254d0176
+1810	1885	8080256637975905	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-done	8f43495abe24be28
+1408	1473	8080256633860296	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-update	c7fc6fc43be0bb70
+1473	1537	8080256634491698	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-patch	ecdd69ec94e8ac64
+1537	1604	8080256635157622	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-configure	f3f43c92f54bcbe9
+1537	1604	8080256635157622	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-configure	f3f43c92f54bcbe9
+1604	1670	8080256635822426	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-build	f3499f47d09155ef
+1604	1670	8080256635822426	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-build	f3499f47d09155ef
+1743	1810	8080256637212473	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-test	6d718f817b6946fa
+1671	1743	8080256636559996	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-install	73882702b16df50a
+1671	1743	8080256636559996	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-install	73882702b16df50a
+1743	1810	8080256637212473	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/rapids-cmake-subbuild/rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-test	6d718f817b6946fa
+1810	1885	8080256637975905	CMakeFiles/rapids-cmake-populate-complete	8f43495abe24be28
+1810	1885	8080256637975905	rapids-cmake-populate-prefix/src/rapids-cmake-populate-stamp/rapids-cmake-populate-done	8f43495abe24be28
+1810	1885	8080256637975905	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/rapids-cmake-subbuild/CMakeFiles/rapids-cmake-populate-complete	8f43495abe24be28

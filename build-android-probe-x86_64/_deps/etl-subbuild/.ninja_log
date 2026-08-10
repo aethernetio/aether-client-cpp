@@ -1,0 +1,21 @@
+# ninja log v5
+1	96	8080199908722319	etl-populate-prefix/src/etl-populate-stamp/etl-populate-mkdir	cf397c2c207096ea
+1	96	8080199908722319	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/etl-subbuild/etl-populate-prefix/src/etl-populate-stamp/etl-populate-mkdir	cf397c2c207096ea
+97	6073	8080199968496138	etl-populate-prefix/src/etl-populate-stamp/etl-populate-download	496faa842eff613a
+97	6073	8080199968496138	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/etl-subbuild/etl-populate-prefix/src/etl-populate-stamp/etl-populate-download	496faa842eff613a
+6073	6227	0	etl-populate-prefix/src/etl-populate-stamp/etl-populate-update	ae4f836fe577f44e
+6073	6227	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/etl-subbuild/etl-populate-prefix/src/etl-populate-stamp/etl-populate-update	ae4f836fe577f44e
+6227	6374	8080199971429740	etl-populate-prefix/src/etl-populate-stamp/etl-populate-patch	ed3103f742782e23
+6227	6374	8080199971429740	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/etl-subbuild/etl-populate-prefix/src/etl-populate-stamp/etl-populate-patch	ed3103f742782e23
+6374	6456	8080199972259139	etl-populate-prefix/src/etl-populate-stamp/etl-populate-configure	f83dbc726ca36b85
+6374	6456	8080199972259139	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/etl-subbuild/etl-populate-prefix/src/etl-populate-stamp/etl-populate-configure	f83dbc726ca36b85
+6456	6536	8080199972936638	etl-populate-prefix/src/etl-populate-stamp/etl-populate-build	74b64bf5a63c9e93
+6456	6536	8080199972936638	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/etl-subbuild/etl-populate-prefix/src/etl-populate-stamp/etl-populate-build	74b64bf5a63c9e93
+6537	6606	8080199973759671	etl-populate-prefix/src/etl-populate-stamp/etl-populate-install	957d05417a73a7cf
+6537	6606	8080199973759671	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/etl-subbuild/etl-populate-prefix/src/etl-populate-stamp/etl-populate-install	957d05417a73a7cf
+6606	6675	8080199974524155	etl-populate-prefix/src/etl-populate-stamp/etl-populate-test	882702d90d3a8ddc
+6606	6675	8080199974524155	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/etl-subbuild/etl-populate-prefix/src/etl-populate-stamp/etl-populate-test	882702d90d3a8ddc
+6675	6777	8080199975519165	CMakeFiles/etl-populate-complete	badd773c0722f0eb
+6675	6777	8080199975519165	etl-populate-prefix/src/etl-populate-stamp/etl-populate-done	badd773c0722f0eb
+6675	6777	8080199975519165	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/etl-subbuild/CMakeFiles/etl-populate-complete	badd773c0722f0eb
+6675	6777	8080199975519165	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/etl-subbuild/etl-populate-prefix/src/etl-populate-stamp/etl-populate-done	badd773c0722f0eb

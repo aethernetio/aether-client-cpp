@@ -1,0 +1,6 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The update step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+command=git;restore;--;.;&&;git;apply;C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/cpm.cache/stdexec/ff1b/cmake/cpm/patches/icm/regex-build-error.diff
+work_dir=C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/cpm.cache/icm/3106

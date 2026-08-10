@@ -4,6 +4,10 @@
 
 [CmdletBinding()]
 param(
+  [string]$CMakeVersion = "",
+
+  [string]$NdkVersion = "",
+
   [switch]$Clean
 )
 
@@ -26,19 +30,25 @@ foreach ($entry in $matrix) {
   Write-Host ("Matrix: {0} {1} {2}" -f $entry.Abi, $entry.Config, $entry.UserConfig)
   Write-Host "============================================================"
 
-  $args = @{
+  $invoke_args = @{
     Abi = $entry.Abi
     Config = $entry.Config
     UserConfig = $entry.UserConfig
   }
   if ($entry.Smoke) {
-    $args.BuildSmoke = $true
+    $invoke_args.BuildSmoke = $true
   }
   if ($Clean) {
-    $args.Clean = $true
+    $invoke_args.Clean = $true
+  }
+  if ($CMakeVersion) {
+    $invoke_args.CMakeVersion = $CMakeVersion
+  }
+  if ($NdkVersion) {
+    $invoke_args.NdkVersion = $NdkVersion
   }
 
-  & $build_script @args
+  & $build_script @invoke_args
   if ($LASTEXITCODE -ne 0) {
     throw "Matrix entry failed: $($entry.Abi) $($entry.Config) $($entry.UserConfig)"
   }

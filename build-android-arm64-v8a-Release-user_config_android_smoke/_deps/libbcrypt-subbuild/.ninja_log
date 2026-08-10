@@ -1,0 +1,21 @@
+# ninja log v5
+0	98	8080219601129288	libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-mkdir	54d624700fb5cc35
+0	98	8080219601129288	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/libbcrypt-subbuild/libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-mkdir	54d624700fb5cc35
+99	1924	8080219619359037	libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-download	eb1e6dbcb03ed707
+99	1924	8080219619359037	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/libbcrypt-subbuild/libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-download	eb1e6dbcb03ed707
+1924	3496	0	libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-update	678b86799bcb7ed4
+1924	3496	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/libbcrypt-subbuild/libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-update	678b86799bcb7ed4
+3496	3827	8080219638411023	libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-patch	a7826955af91471d
+3496	3827	8080219638411023	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/libbcrypt-subbuild/libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-patch	a7826955af91471d
+3827	3905	8080219639182068	libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-configure	b1234f580dc7e6d8
+3827	3905	8080219639182068	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/libbcrypt-subbuild/libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-configure	b1234f580dc7e6d8
+3906	3979	8080219639939456	libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-build	c06a15745a6a44d4
+3906	3979	8080219639939456	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/libbcrypt-subbuild/libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-build	c06a15745a6a44d4
+3979	4051	8080219640519411	libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-install	b8996b6d56964f9a
+3979	4051	8080219640519411	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/libbcrypt-subbuild/libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-install	b8996b6d56964f9a
+4051	4119	8080219641346485	libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-test	21b342cd26bb6b85
+4051	4119	8080219641346485	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/libbcrypt-subbuild/libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-test	21b342cd26bb6b85
+4119	4212	8080219642190119	CMakeFiles/libbcrypt-populate-complete	b0ca1034a5de2acc
+4119	4212	8080219642190119	libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-done	b0ca1034a5de2acc
+4119	4212	8080219642190119	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/libbcrypt-subbuild/CMakeFiles/libbcrypt-populate-complete	b0ca1034a5de2acc
+4119	4212	8080219642190119	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/libbcrypt-subbuild/libbcrypt-populate-prefix/src/libbcrypt-populate-stamp/libbcrypt-populate-done	b0ca1034a5de2acc

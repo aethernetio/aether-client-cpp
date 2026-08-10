@@ -1,0 +1,21 @@
+# ninja log v5
+1	121	8080213436384027	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-mkdir	b7c64f50a18198cd
+1	121	8080213436384027	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-mkdir	b7c64f50a18198cd
+122	2464	8080213459784962	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-download	b6178e396ccc4670
+122	2464	8080213459784962	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-download	b6178e396ccc4670
+2465	5660	0	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-update	f26c9a9114240e5b
+2465	5660	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-update	f26c9a9114240e5b
+5660	5820	8080213493319013	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-patch	224f195c9c67388
+5660	5820	8080213493319013	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-patch	224f195c9c67388
+5820	5995	8080213494978872	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-configure	a9f463925334719c
+5820	5995	8080213494978872	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-configure	a9f463925334719c
+5996	6164	8080213496711155	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-build	ee58f24d7ca2fd0
+5996	6164	8080213496711155	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-build	ee58f24d7ca2fd0
+6165	6303	8080213498151525	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-install	d219f99bdbabb59d
+6165	6303	8080213498151525	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-install	d219f99bdbabb59d
+6303	6448	8080213499644690	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-test	d2fb6464888d1c5c
+6303	6448	8080213499644690	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-test	d2fb6464888d1c5c
+6448	6651	8080213501541418	CMakeFiles/aether-tele-populate-complete	dbbc4176d0b01361
+6448	6651	8080213501541418	aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-done	dbbc4176d0b01361
+6448	6651	8080213501541418	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/aether-tele-subbuild/CMakeFiles/aether-tele-populate-complete	dbbc4176d0b01361
+6448	6651	8080213501541418	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/aether-tele-subbuild/aether-tele-populate-prefix/src/aether-tele-populate-stamp/aether-tele-populate-done	dbbc4176d0b01361

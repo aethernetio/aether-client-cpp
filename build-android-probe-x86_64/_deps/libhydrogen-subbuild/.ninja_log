@@ -1,0 +1,21 @@
+# ninja log v5
+1	93	8080199620916385	libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-mkdir	7235343bf43767ad
+1	93	8080199620916385	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/libhydrogen-subbuild/libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-mkdir	7235343bf43767ad
+93	2106	8080199640986658	libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-download	41f02d3c4eafb2f9
+93	2106	8080199640986658	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/libhydrogen-subbuild/libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-download	41f02d3c4eafb2f9
+2106	2279	0	libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-update	377c43f4f75c18dc
+2106	2279	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/libhydrogen-subbuild/libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-update	377c43f4f75c18dc
+2279	2496	8080199644918151	libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-patch	724773556fa0348e
+2279	2496	8080199644918151	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/libhydrogen-subbuild/libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-patch	724773556fa0348e
+2496	2572	8080199645580225	libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-configure	b8d7a0f70d2bd921
+2496	2572	8080199645580225	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/libhydrogen-subbuild/libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-configure	b8d7a0f70d2bd921
+2572	2635	8080199646320359	libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-build	25ab61afc51f4ea5
+2572	2635	8080199646320359	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/libhydrogen-subbuild/libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-build	25ab61afc51f4ea5
+2635	2698	8080199646984767	libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-install	5f2048119f0b215
+2635	2698	8080199646984767	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/libhydrogen-subbuild/libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-install	5f2048119f0b215
+2698	2774	8080199647495015	libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-test	d1e1807b29277da0
+2698	2774	8080199647495015	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/libhydrogen-subbuild/libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-test	d1e1807b29277da0
+2775	2880	8080199648661737	CMakeFiles/libhydrogen-populate-complete	d6e2d451aa40a028
+2775	2880	8080199648661737	libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-done	d6e2d451aa40a028
+2775	2880	8080199648661737	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/libhydrogen-subbuild/CMakeFiles/libhydrogen-populate-complete	d6e2d451aa40a028
+2775	2880	8080199648661737	C:/Users/nickc/Projects/aether-client-cpp/build-android-probe-x86_64/_deps/libhydrogen-subbuild/libhydrogen-populate-prefix/src/libhydrogen-populate-stamp/libhydrogen-populate-done	d6e2d451aa40a028

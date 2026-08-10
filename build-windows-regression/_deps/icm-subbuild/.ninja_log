@@ -1,0 +1,21 @@
+# ninja log v5
+1	85	8080226962053761	icm-populate-prefix/src/icm-populate-stamp/icm-populate-mkdir	dfb2289a319a3cfe
+1	85	8080226962053761	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-mkdir	dfb2289a319a3cfe
+85	2023	8080226981415602	icm-populate-prefix/src/icm-populate-stamp/icm-populate-download	6aa4950bc4c8213d
+85	2023	8080226981415602	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-download	6aa4950bc4c8213d
+2023	2234	0	icm-populate-prefix/src/icm-populate-stamp/icm-populate-update	fa7ae94377f0a107
+2023	2234	0	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-update	fa7ae94377f0a107
+2236	2361	8080226984808319	icm-populate-prefix/src/icm-populate-stamp/icm-populate-patch	66bc63da9bf6fcb7
+2236	2361	8080226984808319	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-patch	66bc63da9bf6fcb7
+2361	2420	8080226985397376	icm-populate-prefix/src/icm-populate-stamp/icm-populate-configure	cbcfc21500e62f28
+2361	2420	8080226985397376	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-configure	cbcfc21500e62f28
+2421	2490	8080226986092508	icm-populate-prefix/src/icm-populate-stamp/icm-populate-build	1d964f9021ccb5f
+2421	2490	8080226986092508	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-build	1d964f9021ccb5f
+2490	2553	8080226986731475	icm-populate-prefix/src/icm-populate-stamp/icm-populate-install	23794301d27ca379
+2490	2553	8080226986731475	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-install	23794301d27ca379
+2553	2620	8080226987379071	icm-populate-prefix/src/icm-populate-stamp/icm-populate-test	e1351354e5e0b8
+2553	2620	8080226987379071	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-test	e1351354e5e0b8
+2620	2699	8080226988185903	CMakeFiles/icm-populate-complete	41a87588eb93bfa2
+2620	2699	8080226988185903	icm-populate-prefix/src/icm-populate-stamp/icm-populate-done	41a87588eb93bfa2
+2620	2699	8080226988185903	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/icm-subbuild/CMakeFiles/icm-populate-complete	41a87588eb93bfa2
+2620	2699	8080226988185903	C:/Users/nickc/Projects/aether-client-cpp/build-windows-regression/_deps/icm-subbuild/icm-populate-prefix/src/icm-populate-stamp/icm-populate-done	41a87588eb93bfa2

@@ -1,0 +1,21 @@
+# ninja log v5
+0	95	8080216625769223	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-mkdir	86f5f8901f025ce1
+0	95	8080216625769223	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-mkdir	86f5f8901f025ce1
+96	3707	8080216661945468	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-download	835eefc743986f36
+96	3707	8080216661945468	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-download	835eefc743986f36
+3709	6041	0	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-update	d47916afc41b5dba
+3709	6041	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-update	d47916afc41b5dba
+6041	6142	8080216686264967	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-patch	e7c91c9b39ba2dd1
+6041	6142	8080216686264967	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-patch	e7c91c9b39ba2dd1
+6142	6253	8080216687358664	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-configure	e8e440a6f8ad71bd
+6142	6253	8080216687358664	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-configure	e8e440a6f8ad71bd
+6253	6377	8080216688637590	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-build	55200612f8b5c576
+6253	6377	8080216688637590	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-build	55200612f8b5c576
+6377	6507	8080216689932555	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-install	22282362050a35e1
+6377	6507	8080216689932555	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-install	22282362050a35e1
+6507	6631	8080216691164940	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-test	9b18aa952b735365
+6507	6631	8080216691164940	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-test	9b18aa952b735365
+6631	6794	8080216692801376	CMakeFiles/c-ares-populate-complete	741726d039d8a7d9
+6631	6794	8080216692801376	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-done	741726d039d8a7d9
+6631	6794	8080216692801376	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/c-ares-subbuild/CMakeFiles/c-ares-populate-complete	741726d039d8a7d9
+6631	6794	8080216692801376	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-done	741726d039d8a7d9

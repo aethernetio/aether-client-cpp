@@ -1,0 +1,21 @@
+# ninja log v5
+0	133	8080210623284640	stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-mkdir	a0b0f3c65bb10a25
+0	133	8080210623284640	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/stdexec-subbuild/stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-mkdir	a0b0f3c65bb10a25
+134	4121	8080210663228151	stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-download	6cb0f1c201cadab4
+134	4121	8080210663228151	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/stdexec-subbuild/stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-download	6cb0f1c201cadab4
+4121	7194	0	stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-update	129c3215f0dc878a
+4121	7194	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/stdexec-subbuild/stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-update	129c3215f0dc878a
+7194	7336	8080210695406103	stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-patch	c081baece0f37ef
+7194	7336	8080210695406103	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/stdexec-subbuild/stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-patch	c081baece0f37ef
+7336	7453	8080210696587609	stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-configure	a0068f7b6e8c8ad
+7336	7453	8080210696587609	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/stdexec-subbuild/stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-configure	a0068f7b6e8c8ad
+7454	7595	8080210697942615	stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-build	820af459db1581c
+7454	7595	8080210697942615	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/stdexec-subbuild/stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-build	820af459db1581c
+7595	7735	8080210699361490	stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-install	5e5117340e54e37d
+7595	7735	8080210699361490	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/stdexec-subbuild/stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-install	5e5117340e54e37d
+7735	7928	8080210701161427	stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-test	5301991f29ece650
+7735	7928	8080210701161427	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/stdexec-subbuild/stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-test	5301991f29ece650
+7928	8152	8080210703533026	CMakeFiles/stdexec-populate-complete	f591fbd43422322
+7928	8152	8080210703533026	stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-done	f591fbd43422322
+7928	8152	8080210703533026	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/stdexec-subbuild/CMakeFiles/stdexec-populate-complete	f591fbd43422322
+7928	8152	8080210703533026	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Debug-user_config_sodium/_deps/stdexec-subbuild/stdexec-populate-prefix/src/stdexec-populate-stamp/stdexec-populate-done	f591fbd43422322

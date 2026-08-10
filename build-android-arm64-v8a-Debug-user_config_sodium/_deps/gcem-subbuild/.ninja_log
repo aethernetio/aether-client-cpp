@@ -1,0 +1,21 @@
+# ninja log v5
+1	74	8080216145429938	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-mkdir	b95536d69e40e166
+1	74	8080216145429938	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-mkdir	b95536d69e40e166
+75	2600	8080216170706814	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-download	5232a445bef820bd
+75	2600	8080216170706814	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-download	5232a445bef820bd
+2600	4282	0	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-update	ce1765bdaf9d0eaa
+2600	4282	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-update	ce1765bdaf9d0eaa
+4282	4385	8080216188508074	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-patch	dcc7f40ac5126dea
+4282	4385	8080216188508074	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-patch	dcc7f40ac5126dea
+4385	4470	8080216189335244	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-configure	345b2e96412d2c4a
+4385	4470	8080216189335244	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-configure	345b2e96412d2c4a
+4470	4558	8080216190166178	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-build	6c3e0318b0c21bce
+4470	4558	8080216190166178	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-build	6c3e0318b0c21bce
+4558	4627	8080216190989789	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-install	51755bcb34818758
+4558	4627	8080216190989789	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-install	51755bcb34818758
+4627	4693	8080216191592333	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-test	54e3ca700f304760
+4627	4693	8080216191592333	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-test	54e3ca700f304760
+4693	4779	8080216192499721	CMakeFiles/gcem-populate-complete	ab45af8d68159893
+4693	4779	8080216192499721	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-done	ab45af8d68159893
+4693	4779	8080216192499721	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/gcem-subbuild/CMakeFiles/gcem-populate-complete	ab45af8d68159893
+4693	4779	8080216192499721	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_sodium/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-done	ab45af8d68159893

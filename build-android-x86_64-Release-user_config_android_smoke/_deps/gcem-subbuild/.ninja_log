@@ -1,0 +1,21 @@
+# ninja log v5
+1	171	8080203611880619	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-mkdir	5b053fea6cfa2d82
+1	171	8080203611880619	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-mkdir	5b053fea6cfa2d82
+172	3115	8080203641356656	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-download	c1dd3353fff4257
+172	3115	8080203641356656	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-download	c1dd3353fff4257
+3116	4903	0	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-update	1ff42707861b6313
+3116	4903	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-update	1ff42707861b6313
+4903	4977	8080203660012075	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-patch	9738c208b1e74e52
+4903	4977	8080203660012075	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-patch	9738c208b1e74e52
+4977	5055	8080203660750477	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-configure	9ca884858df8f0fe
+4977	5055	8080203660750477	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-configure	9ca884858df8f0fe
+5055	5134	8080203661578700	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-build	367bd4376a03869e
+5055	5134	8080203661578700	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-build	367bd4376a03869e
+5134	5211	8080203662338394	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-install	262fd5599872cd26
+5134	5211	8080203662338394	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-install	262fd5599872cd26
+5212	5283	8080203663079114	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-test	25cc6880e319b807
+5212	5283	8080203663079114	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-test	25cc6880e319b807
+5283	5375	8080203664007297	CMakeFiles/gcem-populate-complete	cb0938cf028206fd
+5283	5375	8080203664007297	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-done	cb0938cf028206fd
+5283	5375	8080203664007297	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/gcem-subbuild/CMakeFiles/gcem-populate-complete	cb0938cf028206fd
+5283	5375	8080203664007297	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-done	cb0938cf028206fd

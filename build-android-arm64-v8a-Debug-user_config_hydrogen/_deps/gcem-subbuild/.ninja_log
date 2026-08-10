@@ -1,0 +1,21 @@
+# ninja log v5
+1	92	8080213230694705	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-mkdir	36b688da04eb787
+1	92	8080213230694705	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-mkdir	36b688da04eb787
+92	2618	8080213255928045	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-download	2eecd471add6a3d5
+92	2618	8080213255928045	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-download	2eecd471add6a3d5
+2618	5038	0	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-update	a17209767c9bc243
+2618	5038	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-update	a17209767c9bc243
+5038	5164	8080213281237292	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-patch	c73c392e9b0d09cd
+5038	5164	8080213281237292	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-patch	c73c392e9b0d09cd
+5164	5281	8080213282597595	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-configure	199f22e55855e85f
+5164	5281	8080213282597595	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-configure	199f22e55855e85f
+5282	5394	8080213283728657	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-build	3aecf59c80b345c0
+5282	5394	8080213283728657	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-build	3aecf59c80b345c0
+5394	5530	8080213285066620	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-install	fe11aa979d7f7824
+5394	5530	8080213285066620	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-install	fe11aa979d7f7824
+5530	5661	8080213286348440	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-test	d56196a7982e3d0
+5530	5661	8080213286348440	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-test	d56196a7982e3d0
+5661	5852	8080213288298530	CMakeFiles/gcem-populate-complete	37a08343bbeb28b9
+5661	5852	8080213288298530	gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-done	37a08343bbeb28b9
+5661	5852	8080213288298530	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/gcem-subbuild/CMakeFiles/gcem-populate-complete	37a08343bbeb28b9
+5661	5852	8080213288298530	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/gcem-subbuild/gcem-populate-prefix/src/gcem-populate-stamp/gcem-populate-done	37a08343bbeb28b9

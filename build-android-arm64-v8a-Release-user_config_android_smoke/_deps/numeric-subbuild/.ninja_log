@@ -1,0 +1,21 @@
+# ninja log v5
+1	73	8080219784827469	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-mkdir	78cf876e738b3f11
+1	73	8080219784827469	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-mkdir	78cf876e738b3f11
+74	1791	8080219801994775	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-download	306b5cfe72f710c4
+74	1791	8080219801994775	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-download	306b5cfe72f710c4
+1791	3561	0	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-update	24dbc4059f2d7eb9
+1791	3561	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-update	24dbc4059f2d7eb9
+3561	3633	8080219820437146	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-patch	bb25b49dfd81d153
+3561	3633	8080219820437146	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-patch	bb25b49dfd81d153
+3633	3705	8080219821004814	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-configure	32bfdfecbf121610
+3633	3705	8080219821004814	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-configure	32bfdfecbf121610
+3705	3774	8080219821838321	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-build	d8fafbddff394830
+3705	3774	8080219821838321	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-build	d8fafbddff394830
+3775	3835	8080219822431869	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-install	ff8f97617c413fdb
+3775	3835	8080219822431869	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-install	ff8f97617c413fdb
+3835	3903	8080219823097859	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-test	b300f5c8b5f43c3d
+3835	3903	8080219823097859	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-test	b300f5c8b5f43c3d
+3903	3988	8080219823982460	CMakeFiles/numeric-populate-complete	af4ff297c37eb08e
+3903	3988	8080219823982460	numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-done	af4ff297c37eb08e
+3903	3988	8080219823982460	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/numeric-subbuild/CMakeFiles/numeric-populate-complete	af4ff297c37eb08e
+3903	3988	8080219823982460	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Release-user_config_android_smoke/_deps/numeric-subbuild/numeric-populate-prefix/src/numeric-populate-stamp/numeric-populate-done	af4ff297c37eb08e

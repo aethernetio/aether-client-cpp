@@ -1,0 +1,21 @@
+# ninja log v5
+0	72	8080203540940873	libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-mkdir	743b7d086739135b
+0	72	8080203540940873	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/libsodium-subbuild/libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-mkdir	743b7d086739135b
+73	3351	8080203573759357	libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-download	cfb318c67828efd2
+73	3351	8080203573759357	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/libsodium-subbuild/libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-download	cfb318c67828efd2
+3351	5597	0	libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-update	ad1530ea16c926a
+3351	5597	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/libsodium-subbuild/libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-update	ad1530ea16c926a
+5598	5881	8080203598924329	libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-patch	8e66b1a235c2d149
+5598	5881	8080203598924329	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/libsodium-subbuild/libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-patch	8e66b1a235c2d149
+5882	5980	8080203600056944	libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-configure	b14d7b5910bf1b80
+5882	5980	8080203600056944	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/libsodium-subbuild/libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-configure	b14d7b5910bf1b80
+5980	6067	8080203600923246	libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-build	68ed4a8738872cd7
+5980	6067	8080203600923246	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/libsodium-subbuild/libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-build	68ed4a8738872cd7
+6068	6197	8080203602081041	libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-install	a7fbc12a67c941c7
+6068	6197	8080203602081041	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/libsodium-subbuild/libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-install	a7fbc12a67c941c7
+6198	6297	8080203603091048	libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-test	92a381ca02e4cd87
+6198	6297	8080203603091048	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/libsodium-subbuild/libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-test	92a381ca02e4cd87
+6297	6429	8080203604524243	CMakeFiles/libsodium-populate-complete	23423c43fd26eb19
+6297	6429	8080203604524243	libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-done	23423c43fd26eb19
+6297	6429	8080203604524243	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/libsodium-subbuild/CMakeFiles/libsodium-populate-complete	23423c43fd26eb19
+6297	6429	8080203604524243	C:/Users/nickc/Projects/aether-client-cpp/build-android-x86_64-Release-user_config_android_smoke/_deps/libsodium-subbuild/libsodium-populate-prefix/src/libsodium-populate-stamp/libsodium-populate-done	23423c43fd26eb19

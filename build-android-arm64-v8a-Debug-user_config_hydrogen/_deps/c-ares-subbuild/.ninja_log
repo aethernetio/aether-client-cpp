@@ -1,0 +1,21 @@
+# ninja log v5
+1	146	8080213862587173	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-mkdir	1779fe8384bec85e
+1	146	8080213862587173	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-mkdir	1779fe8384bec85e
+147	4215	8080213903288372	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-download	744a9b26ebba0877
+147	4215	8080213903288372	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-download	744a9b26ebba0877
+4216	6799	0	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-update	a4d0d51378505c9
+4216	6799	0	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-update	a4d0d51378505c9
+6799	6943	8080213930437816	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-patch	26b40b03cd39d268
+6799	6943	8080213930437816	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-patch	26b40b03cd39d268
+6943	7087	8080213931982557	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-configure	164899f4b72dbd93
+6943	7087	8080213931982557	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-configure	164899f4b72dbd93
+7087	7191	8080213932981845	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-build	bff8247ceae344c
+7087	7191	8080213932981845	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-build	bff8247ceae344c
+7191	7344	8080213934419628	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-install	537589a5b0cfdf2d
+7191	7344	8080213934419628	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-install	537589a5b0cfdf2d
+7344	7478	8080213935815752	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-test	ddcb4e41820d552
+7344	7478	8080213935815752	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-test	ddcb4e41820d552
+7478	7665	8080213937766041	CMakeFiles/c-ares-populate-complete	446f549f67356c3f
+7478	7665	8080213937766041	c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-done	446f549f67356c3f
+7478	7665	8080213937766041	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/c-ares-subbuild/CMakeFiles/c-ares-populate-complete	446f549f67356c3f
+7478	7665	8080213937766041	C:/Users/nickc/Projects/aether-client-cpp/build-android-arm64-v8a-Debug-user_config_hydrogen/_deps/c-ares-subbuild/c-ares-populate-prefix/src/c-ares-populate-stamp/c-ares-populate-done	446f549f67356c3f
