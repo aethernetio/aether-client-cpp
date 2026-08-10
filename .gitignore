@@ -60,3 +60,9 @@ projects/intel_x86/linux/gcc/aether-client-cpp
 *.vs
 
 .updated
+
+# Local Android / desktop probe builds
+/build-android*/
+/build-windows*/
+*.log
+
