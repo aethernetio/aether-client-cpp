@@ -22,13 +22,11 @@ list(APPEND test_srcs
     ${ROOT_DIR}/aether/ptr/ref_tree.cpp
 
     main.cpp
-    test-rc-ptr.cpp
-    test-rc-ptr-bench.cpp
-    test-shared-ptr-bench.cpp
     test-ptr.cpp
     test-ptr-inheritance.cpp
     test-ptr-view.cpp
     test-ptr-cycles.cpp
+    test-ref-tree.cpp
 )
 
 if(NOT CM_PLATFORM)

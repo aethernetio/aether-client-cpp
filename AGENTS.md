@@ -10,9 +10,11 @@
 - Initialize variables and objects using `{}` to distinguish from function call.
   - *Exception vector initialization*: In case vector must be created with size use `()` initialization to distinguish from initializer_list constructor.
 - Use `auto` whenever possible for variables with respect for references `auto&` and pointers `auto*`.
-- Check if pointer is null by comparing it to `nullptr` instead of using implicit conversion to `bool`.
+- Check if raw pointer is null by comparing it to `nullptr` instead of using implicit conversion to `bool`. Smart pointers could be check with implicit bool conversion.
 - If a function argument is not used, there are two options. If it's never used, just ommit the argument name. If it's used on some configurations use `[[maybe_unused]]` attribute.
 - Immediate lambda call pattern should be implemented by using `std::invoke`.
+- For each assert add comment like `assert(condition && "Comment")`.
+- For *internal* namespaces use `file_name_internal` format.
 
 ## Architecture & Object System
 
@@ -89,6 +91,13 @@
  Project uses cmake, tests run with `ctest`.
  Project build configured in `build-clang` (`<build-dir>`) with ninja.
  To build the project go into `<build-dir>/` and run `cmake --build . --parallel` or `ninja`.
+
+ ### Clang-tidy
+
+ - Use `build-clang/compile_commands.json` for `clang-tidy`.
+ - If `build-clang` exists but `compile_commands.json` is missing, report `clang-tidy` skipped because the compile database is missing, not because the build directory is missing.
+ - Do not claim the build directory is missing when `build-clang` exists.
+ - `compile_commands.json` may require configuring with `CMAKE_EXPORT_COMPILE_COMMANDS=ON`.
 
  To run tests, go into `<build-dir>` and run `ctest . --progress -j -E "((sodium)|(hydro)|(bcrypt)).*" --output-on-failure`.
  Or run specific test by name from `<build-dir>/tests/run/<test-name>`.

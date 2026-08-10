@@ -124,16 +124,15 @@ SpiFsDomainStorage::~SpiFsDomainStorage() { DeInitFs(); }
 std::unique_ptr<IDomainStorageWriter> SpiFsDomainStorage::Store(
     DomainQuery const& query) {
   // open file
-  auto file_path = Format("{}/{}/{}/{}", kBasePath, query.id.ToString(),
-                          query.class_id, static_cast<int>(query.version));
+  auto file_path = Format("{}/{}/{}/{}", kBasePath, query.id, query.class_id,
+                          static_cast<int>(query.version));
   return std::make_unique<SpiFsSotorageWriter>(*this, file_path, query);
 }
 
 ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
   auto obj_it = object_map_.find(obj_id);
   if (obj_it == std::end(object_map_)) {
-    AE_TELE_INFO(kSpifsDsEnumObjIdNotFound, "Obj not found {}",
-                 obj_id.ToString());
+    AE_TELE_INFO(kSpifsDsEnumObjIdNotFound, "Obj not found {}", obj_id);
     return {};
   }
 
@@ -141,8 +140,8 @@ ClassList SpiFsDomainStorage::Enumerate(ObjId const& obj_id) {
   for (auto const& [class_id, _] : obj_it->second) {
     classes.emplace_back(class_id);
   }
-  AE_TELE_DEBUG(kSpifsDsEnumerated, "Enumerated for obj {} classes {}",
-                obj_id.ToString(), classes);
+  AE_TELE_DEBUG(kSpifsDsEnumerated, "Enumerated for obj {} classes {}", obj_id,
+                classes);
   return classes;
 }
 
@@ -151,8 +150,7 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
   if (obj_map_it == std::end(object_map_)) {
     AE_TELE_INFO(kSpifsDsLoadObjIdNoFound,
                  "Unable to find object id={}, class id={}, version={}",
-                 query.id.ToString(), query.class_id,
-                 static_cast<int>(query.version));
+                 query.id, query.class_id, static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   if (obj_map_it->second.empty()) {
@@ -163,31 +161,29 @@ DomainLoad SpiFsDomainStorage::Load(DomainQuery const& query) {
   if (class_map_it == std::end(obj_map_it->second)) {
     AE_TELE_INFO(kSpifsDsLoadObjClassIdNotFound,
                  "Unable to find object id={}, class id={}, version={}",
-                 query.id.ToString(), query.class_id,
-                 static_cast<int>(query.version));
+                 query.id, query.class_id, static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
   auto version_it = class_map_it->second.find(query.version);
   if (version_it == std::end(class_map_it->second)) {
     AE_TELE_INFO(kSpifsDsLoadObjVersionNotFound,
                  "Unable to find object id={}, class id={}, version={}",
-                 query.id.ToString(), query.class_id,
-                 static_cast<int>(query.version));
+                 query.id, query.class_id, static_cast<int>(query.version));
     return {DomainLoadResult::kEmpty, {}};
   }
 
   // open file
-  auto file_path = Format("{}/{}/{}/{}", kBasePath, query.id.ToString(),
-                          query.class_id, static_cast<int>(query.version));
+  auto file_path = Format("{}/{}/{}/{}", kBasePath, query.id, query.class_id,
+                          static_cast<int>(query.version));
   FILE* file = fopen(file_path.c_str(), "r");
   if (file == nullptr) {
     AE_TELED_ERROR("Failed to open file {} for reading.", file_path);
     return {};
   }
 
-  AE_TELE_DEBUG(
-      kSpifsDsObjLoaded, "Loaded object id={}, class id={}, version={}",
-      query.id.ToString(), query.class_id, static_cast<int>(query.version));
+  AE_TELE_DEBUG(kSpifsDsObjLoaded,
+                "Loaded object id={}, class id={}, version={}", query.id,
+                query.class_id, static_cast<int>(query.version));
 
   return {DomainLoadResult::kLoaded,
           std::make_unique<SpiFsSotorageReader>(file)};
@@ -203,13 +199,13 @@ void SpiFsDomainStorage::Remove(const ae::ObjId& obj_id) {
   for (auto& [class_id, class_data] : obj_map_it->second) {
     for (auto version : class_data) {
       // remove the file
-      auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id.ToString(),
-                              class_id, static_cast<int>(version.first));
+      auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id, class_id,
+                              static_cast<int>(version.first));
       unlink(file_path.c_str());
     }
   }
   obj_map_it->second.clear();
-  AE_TELE_DEBUG(kSpifsDsObjRemoved, "Removed object {}", obj_id.ToString());
+  AE_TELE_DEBUG(kSpifsDsObjRemoved, "Removed object {}", obj_id);
   SyncState();
 }
 
@@ -218,8 +214,8 @@ void SpiFsDomainStorage::CleanUp() {
     for (auto const& [class_id, class_data] : obj_map_data) {
       for (auto version : class_data) {
         // remove the file
-        auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id.ToString(),
-                                class_id, static_cast<int>(version.first));
+        auto file_path = Format("{}/{}/{}/{}", kBasePath, obj_id, class_id,
+                                static_cast<int>(version.first));
         unlink(file_path.c_str());
       }
     }

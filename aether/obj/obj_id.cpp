@@ -16,8 +16,8 @@
 
 #include "aether/obj/obj_id.h"
 
-#include <random>
 #include <limits>
+#include <random>
 
 namespace ae {
 ObjId ObjId::GenerateUnique() {

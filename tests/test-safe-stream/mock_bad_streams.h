@@ -17,10 +17,11 @@
 #ifndef TESTS_TEST_STREAM_MOCK_BAD_STREAMS_H_
 #define TESTS_TEST_STREAM_MOCK_BAD_STREAMS_H_
 
-#include <queue>
 #include <optional>
+#include <queue>
 
 #include "aether/ae_context.h"
+#include "aether/clock.h"
 #include "aether/stream_api/istream.h"
 
 namespace ae {

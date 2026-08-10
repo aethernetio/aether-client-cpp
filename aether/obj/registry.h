@@ -40,7 +40,7 @@ struct Factory {
   CreateFunc create;
   LoadFunc load;
   SaveFunc save;
-#ifdef DEBUG
+#if DEBUG
   std::string class_name{};
   std::uint32_t cls_id{};
   std::uint32_t base_id{};
@@ -49,14 +49,14 @@ struct Factory {
 
 class Registry {
  public:
-  using Relations = std::unordered_map<uint32_t, std::vector<uint32_t>>;
-  using Factories = std::unordered_map<uint32_t, Factory>;
+  using Relations = std::unordered_map<std::uint32_t, std::vector<uint32_t>>;
+  using Factories = std::unordered_map<std::uint32_t, Factory>;
 
   static Registry& GetRegistry();
 
-  void RegisterClass(uint32_t cls_id, std::uint32_t base_id, Factory&& factory);
+  void RegisterClass(std::uint32_t cls_id, std::uint32_t base_id, Factory&& factory);
   void Log();
-  bool IsExisting(uint32_t class_id);
+  bool IsExisting(std::uint32_t class_id);
 
   int GenerationDistanceInternal(std::uint32_t base_id,
                                  std::uint32_t derived_id);
@@ -66,9 +66,9 @@ class Registry {
   //  class doesn't exist.
   int GenerationDistance(std::uint32_t base_id, std::uint32_t derived_id);
 
-  Factory* FindFactory(uint32_t base_id);
+  Factory* FindFactory(std::uint32_t base_id);
 
-#ifdef DEBUG
+#if DEBUG
   std::string_view ClassName(std::uint32_t class_id);
 #endif  // DEBUG
 

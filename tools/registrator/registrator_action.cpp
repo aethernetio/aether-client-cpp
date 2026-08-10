@@ -16,17 +16,15 @@
 
 #include "registrator/registrator_action.h"
 
-#include "aether/actions/action_context.h"
-
 #include "aether/registration/registration.h"
 
 namespace ae::reg {
 RegistratorAction::RegistratorAction(
-    ae::AeContext const& ae_context, RcPtr<AetherApp> const& aether_app,
+    ae::AeContext const& ae_context, ae::AetherApp& aether_app,
     std::vector<reg::ClientConfig> const& client_configs)
     : ae_context_{ae_context} {
   AE_TELED_INFO("RegistratorAction");
-  RegisterClients(aether_app->aether(), client_configs);
+  RegisterClients(aether_app.aether(), client_configs);
 }
 
 RegistratorAction::RegisteredEvent::Subscriber

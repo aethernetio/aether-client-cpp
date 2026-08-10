@@ -17,24 +17,24 @@
 #ifndef AETHER_OBJ_DOMAIN_H_
 #define AETHER_OBJ_DOMAIN_H_
 
+#include <cassert>
+#include <cstdint>
 #include <map>
 #include <set>
-#include <cstdint>
-#include <cassert>
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 #include "aether/clock.h"
 
 #include "aether/mstream.h"
 
-#include "aether/ptr/ptr_view.h"
-#include "aether-miscpp/reflect/reflect.h"
 #include "aether-miscpp/reflect/domain_visitor.h"
+#include "aether-miscpp/reflect/reflect.h"
+#include "aether/ptr/ptr_view.h"
 
+#include "aether/obj/idomain_storage.h"
 #include "aether/obj/obj_id.h"
 #include "aether/obj/registry.h"
-#include "aether/obj/idomain_storage.h"
 #include "aether/obj/version_iterator.h"
 
 namespace ae {
@@ -183,9 +183,7 @@ void DomainGraph::Load(T& obj, ObjId obj_id) {
   }
 
   if constexpr (HasAnyVersionedLoad<T>::value) {
-    constexpr auto version_bounds = VersionedLoadMinMax<T>::value;
-    IterateVersions<HasVersionedLoad, version_bounds.first,
-                    version_bounds.second>(
+    version_iterator<VersionLoadTrait>(
         obj, [this, obj_id](auto version, auto& obj) {
           this->LoadVersion(version, obj, obj_id);
         });
@@ -222,9 +220,7 @@ void DomainGraph::Save(T const& obj, ObjId obj_id) {
   }
 
   if constexpr (HasAnyVersionedSave<T>::value) {
-    constexpr auto version_bounds = VersionedSaveMinMax<T>::value;
-    IterateVersions<HasVersionedSave, version_bounds.second,
-                    version_bounds.first>(
+    version_iterator<VersionSaveTrait>(
         obj, [this, obj_id](auto version, auto& obj) {
           this->SaveVersion(version, obj, obj_id);
         });

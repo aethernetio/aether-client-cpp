@@ -17,17 +17,18 @@
 #ifndef AETHER_PTR_PTR_MANAGEMENT_H_
 #define AETHER_PTR_PTR_MANAGEMENT_H_
 
-#include <cstdint>
 #include <cassert>
+#include <cstdint>
+#include <functional>
 #include <type_traits>
 
-#include "aether-miscpp/types/aligned_storage.h"
 #include "aether-miscpp/reflect/domain_visitor.h"
+#include "aether-miscpp/types/aligned_storage.h"
 
 namespace ae {
 struct PtrRefcounters {
-  std::uint8_t main_refs = 0;
-  std::uint8_t weak_refs = 0;
+  std::uint16_t main_refs = 0;
+  std::uint16_t weak_refs = 0;
 };
 
 class PtrBase;
@@ -35,14 +36,15 @@ class PtrBase;
 // function table for managing Ptr<T> from PtrBase
 struct ManageTable {
   void (*destroy)(PtrBase* self);
-  std::vector<PtrBase const*> (*child_ptrs)(PtrBase const* self);
+  void (*visit_children)(PtrBase const* self, void* arg,
+                         void (*cb)(void* arg, PtrBase const* child));
 };
 
 // PtrStorageBase* is used in general case, but PtrStorage<T>* in case there T
 // is known
 struct PtrStorageBase {
   PtrRefcounters ref_counters;
-  std::uint16_t alloc_size;
+  std::size_t alloc_size;
   ManageTable const* manage_table;
 };
 
@@ -53,7 +55,7 @@ class PtrStorage {
   [[nodiscard]] auto* ptr() const noexcept { return storage.ptr(); }
 
   PtrRefcounters ref_counters;
-  std::uint16_t alloc_size;
+  std::size_t alloc_size;
   ManageTable const* manage_table;
   Storage<T> storage;
 };
@@ -70,28 +72,30 @@ struct IsPtr<UPtr<T>, std::enable_if_t<std::is_base_of_v<Ptr<T>, UPtr<T>>>>
     : std::true_type {};
 }  // namespace ptr_management_internal
 
+template <typename T>
+static constexpr inline auto IsPtr_v = ptr_management_internal::IsPtr<T>::value;
+
 struct RefVisitor {
   template <typename U>
-  std::enable_if_t<ptr_management_internal::IsPtr<U>::value, bool> operator()(
-      U const& obj) {
+    requires(IsPtr_v<U>)
+  bool operator()(U const& obj) {
+    // always return false to prevent go into the obj itself
+
     auto const* obj_ptr = static_cast<void const*>(obj.get());
-    if (!obj_ptr) {
-      return false;
-    }
-    auto const& refs = obj.ptr_storage_->ref_counters;
-    if (refs.main_refs == 0) {
+    if (obj_ptr == nullptr) {
       return false;
     }
 
-    children.push_back(&obj);
+    std::invoke(cb, arg, &obj);
     return false;
   }
 
   template <typename U>
-  std::enable_if_t<!ptr_management_internal::IsPtr<U>::value> operator()(
-      U const& /* obj */) {}
+    requires(!IsPtr_v<U>)
+  void operator()(U const& /* obj */) {}
 
-  std::vector<PtrBase const*> children;
+  void* arg;
+  void (*cb)(void* arg, PtrBase const* child);
 };
 
 using PtrRefDnv =

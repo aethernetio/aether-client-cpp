@@ -18,10 +18,10 @@
 #define AETHER_CONNECTION_MANAGER_SERVER_CONNECTION_MANAGER_H_
 
 #include <map>
+#include <memory>
 
-#include "aether/ptr/ptr.h"
-#include "aether/ptr/rc_ptr.h"
 #include "aether/ae_context.h"
+#include "aether/ptr/ptr.h"
 #include "aether/ptr/ptr_view.h"
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
@@ -35,7 +35,7 @@ class ServerConnectionManager {
     explicit ServerConnectionFactory(
         ServerConnectionManager& server_connection_manager);
 
-    RcPtr<ClientServerConnection> CreateConnection(
+    std::shared_ptr<ClientServerConnection> CreateConnection(
         Ptr<Server> const& server) override;
 
    private:
@@ -48,16 +48,17 @@ class ServerConnectionManager {
 
   std::unique_ptr<IServerConnectionFactory> GetServerConnectionFactory();
 
-  RcPtr<ClientServerConnection> CreateConnection(Ptr<Server> const& server);
+  std::shared_ptr<ClientServerConnection> CreateConnection(
+      Ptr<Server> const& server);
 
-  RcPtr<ClientServerConnection> FindInCache(ServerId server_id) const;
+  std::shared_ptr<ClientServerConnection> FindInCache(ServerId server_id) const;
 
  private:
   void ServerUpdate(ServerId server_id);
 
   AeContext ae_context_;
   PtrView<Client> client_;
-  std::map<ServerId, RcPtrView<ClientServerConnection>> cached_connections_;
+  std::map<ServerId, std::weak_ptr<ClientServerConnection>> cached_connections_;
   MultiSubscription server_update_subs_;
 };
 }  // namespace ae

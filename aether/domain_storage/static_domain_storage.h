@@ -54,11 +54,10 @@ class StaticDomainStorage final : public IDomainStorage {
     // object_map is defined in FS_INIT
     auto const classes = static_domain_data_->object_map.find(obj_id.id());
     if (classes == std::end(static_domain_data_->object_map)) {
-      AE_TELED_ERROR("Obj not found {}", obj_id.ToString());
+      AE_TELED_ERROR("Obj not found {}", obj_id);
       return {};
     }
-    AE_TELED_DEBUG("Enumerated for obj {} classes {}", obj_id.ToString(),
-                   classes->second);
+    AE_TELED_DEBUG("Enumerated for obj {} classes {}", obj_id, classes->second);
     return ClassList{std::begin(classes->second), std::end(classes->second)};
   }
 
@@ -68,13 +67,12 @@ class StaticDomainStorage final : public IDomainStorage {
     auto const data = static_domain_data_->state_map.find(obj_path);
     if (data == std::end(static_domain_data_->state_map)) {
       AE_TELED_ERROR("Unable to find object id={}, class id={}, version={}",
-                     query.id.ToString(), query.class_id,
-                     static_cast<int>(query.version));
+                     query.id, query.class_id, static_cast<int>(query.version));
       return {DomainLoadResult::kEmpty, {}};
     }
     AE_TELED_DEBUG("Loaded object id={}, class id={}, version={}, size={}",
-                   query.id.ToString(), query.class_id,
-                   static_cast<int>(query.version), data->second.size());
+                   query.id, query.class_id, static_cast<int>(query.version),
+                   data->second.size());
 
     return DomainLoad{
         DomainLoadResult::kLoaded,

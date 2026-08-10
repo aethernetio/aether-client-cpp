@@ -16,15 +16,16 @@
 
 #include <unity.h>
 
-#include <string>
-#include <iterator>
 #include <algorithm>
+#include <iterator>
+#include <string>
 
+#include "aether/clock.h"
 #include "aether/executors/executors.h"
 #include "aether/tasks/manual_task_scheduler.h"
 
-#include "aether/serial_ports/at_support/at_support.h"
 #include "aether/serial_ports/at_support/at_request.h"
+#include "aether/serial_ports/at_support/at_support.h"
 
 #include "tests/test-serial-port/mock-serial-port.h"
 

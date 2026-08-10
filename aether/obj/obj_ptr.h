@@ -196,7 +196,7 @@ ObjPtr<T> ObjPtr<T>::MakeFromThis(T* self) {
                 "T Must be an object type");
   auto id = self->obj_id;
   auto* domain = self->domain;
-  assert(id.IsValid() && (domain != nullptr) && "Object must be in domain");
+  assert(id.is_valid() && (domain != nullptr) && "Object must be in domain");
   auto ptr = MakePtrFromThis(self);
   assert(ptr && "Object must be valid");
   return ObjPtr<T>(domain, id, {}, std::move(ptr));
@@ -232,7 +232,7 @@ T const& ObjPtr<T>::operator*() const {
 
 template <typename T>
 bool ObjPtr<T>::is_valid() const {
-  return id().IsValid();
+  return id().is_valid();
 }
 template <typename T>
 bool ObjPtr<T>::is_loaded() const {
@@ -277,7 +277,7 @@ ObjPtr<T> ObjPtr<T>::Clone() const {
 template <typename T>
 ObjPtr<T> ObjPtr<T>::Clone(ObjId obj_id) const {
   assert(is_valid() && "Invalid clone ptr");
-  assert(obj_id.IsValid() && "Invalid object ID");
+  assert(obj_id.is_valid() && "Invalid object ID");
   auto ptr = DomainGraph{domain()}.template LoadCopy<T>(id(), obj_id);
   return ObjPtr<T>{domain(), obj_id,
                    static_cast<std::uint8_t>(flags() & ~ObjFlags::kUnloaded),

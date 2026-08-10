@@ -17,8 +17,9 @@
 #ifndef AETHER_EVENTS_EVENT_DELETER_H_
 #define AETHER_EVENTS_EVENT_DELETER_H_
 
+#include <memory>
+
 #include "aether/common.h"
-#include "aether/ptr/rc_ptr.h"
 #include "aether/events/event_list.h"
 
 namespace ae {
@@ -28,7 +29,7 @@ namespace ae {
  */
 class EventHandlerDeleter {
  public:
-  EventHandlerDeleter(RcPtr<EventHandlersList> const& event_handlers,
+  EventHandlerDeleter(std::shared_ptr<EventHandlersList> const& event_handlers,
                       EventHandlersList::Index index);
   AE_CLASS_COPY_MOVE(EventHandlerDeleter)
 
@@ -37,7 +38,7 @@ class EventHandlerDeleter {
   bool alive() const;
 
  private:
-  RcPtrView<EventHandlersList> event_handlers_;
+  std::weak_ptr<EventHandlersList> event_handlers_;
   typename EventHandlersList::Index index_;
 };
 

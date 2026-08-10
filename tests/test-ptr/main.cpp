@@ -19,27 +19,19 @@
 void setUp() {}
 void tearDown() {}
 
-extern int test_rc_ptr();
-extern int test_rc_ptr_bench();
-extern int test_shared_ptr_bench();
-
 extern int run_test_ptr();
 extern int test_ptr_cycles();
 extern int test_ptr_view();
 extern int test_ptr_inheritance();
+extern int test_ref_tree();
 
 int main() {
   int res = 0;
 
-  res += test_rc_ptr();
+  res += test_ref_tree();
   res += run_test_ptr();
   res += test_ptr_cycles();
   res += test_ptr_view();
   res += test_ptr_inheritance();
-
-#if defined AE_RC_PTR_BENCH
-  res += test_rc_ptr_bench();
-  res += test_shared_ptr_bench();
-#endif
   return res;
 }

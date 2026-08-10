@@ -21,7 +21,7 @@
 
 #if AE_EXAMPLE_ETHERNET
 namespace ae::examples {
-static RcPtr<AetherApp> construct_aether_app() {
+static std::unique_ptr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
 #  if AE_DISTILLATION

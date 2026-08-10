@@ -76,6 +76,12 @@ void PtrBase::Increment() {
   if (ptr_storage_ == nullptr) {
     return;
   }
+  assert((ptr_storage_->ref_counters.main_refs <
+          std::numeric_limits<std::uint16_t>::max()) &&
+         "Increment would overflow main_refs");
+  assert((ptr_storage_->ref_counters.weak_refs <
+          std::numeric_limits<std::uint16_t>::max()) &&
+         "Increment would overflow weak_refs");
   ptr_storage_->ref_counters.main_refs += 1;
   ptr_storage_->ref_counters.weak_refs += 1;
 }
@@ -92,21 +98,30 @@ void PtrBase::Decrement() {
   }
 }
 
-void PtrBase::DecrementRef(std::uint8_t count) {
+void PtrBase::DecrementRef(std::uint16_t count) {
+  assert((ptr_storage_ != nullptr) && "DecrementRef but ptr_storage_ is null");
+  assert((count <= ptr_storage_->ref_counters.main_refs) &&
+         "DecrementRef main_refs underflow");
+  assert((count <= ptr_storage_->ref_counters.weak_refs) &&
+         "DecrementRef weak_refs underflow");
   ptr_storage_->ref_counters.main_refs -= count;
   ptr_storage_->ref_counters.weak_refs -= count;
 }
 
-std::uint8_t PtrBase::DecrementGraphCount() {
+std::uint16_t PtrBase::DecrementGraphCount() {
   assert((ptr_storage_ != nullptr) &&
          "DecrementGraphCount but ptr_storage_ is nullptr");
 
-  auto ref_tree = BuildDecrementGraph();
+  RefTree ref_tree{};
+  BuildDecrementGraph(ref_tree);
 
   // Check if current obj has no external references
   // External references may be direct or by children objects
 
   auto& self_node = ref_tree.get(0);
+  assert((self_node.value.reachable_ref_count <
+          std::numeric_limits<std::uint16_t>::max()) &&
+         "reachable_ref_count overflow");
   // there is direct external references
   if (self_node.value.ref_count != self_node.value.reachable_ref_count) {
     // is not safe to delete completely
@@ -116,7 +131,7 @@ std::uint8_t PtrBase::DecrementGraphCount() {
   bool safe_to_delete = true;
   self_node.ForEach([&safe_to_delete](RefTree::Node& node) {
     // that node has external references
-    // check if head not is reachable
+    // check if head is not reachable
     if (node.value.ref_count != node.value.reachable_ref_count) {
       if (node.IsReachable(0)) {
         safe_to_delete = false;
@@ -132,55 +147,64 @@ std::uint8_t PtrBase::DecrementGraphCount() {
   return 1;
 }
 
-RefTree PtrBase::BuildDecrementGraph() {
-  RefTree tree;
-  auto& node = tree.Emplace(reinterpret_cast<std::uintptr_t>(ptr_storage_),
-                            ptr_storage_->ref_counters.main_refs);
-  node.value.reachable_ref_count++;
-  std::set<std::uintptr_t> visited;
-  visited.insert(reinterpret_cast<std::uintptr_t>(ptr_storage_));
-  BuildDecrementGraphImpl(tree, node.index, Children(), visited);
-  return tree;
+void PtrBase::BuildDecrementGraph(RefTree& ref_tree) {
+  auto& root = ref_tree.Emplace(reinterpret_cast<std::uintptr_t>(ptr_storage_),
+                                ptr_storage_->ref_counters.main_refs);
+  assert((root.value.reachable_ref_count <
+          std::numeric_limits<std::uint16_t>::max()) &&
+         "reachable_ref_count overflow");
+  root.value.reachable_ref_count++;
+  auto const root_index = root.index;
+  BuildDecrementGraphImpl(this, ref_tree, root_index);
 }
 
-void PtrBase::BuildDecrementGraphImpl(
-    RefTree& tree, RefTree::Index head_index,
-    std::vector<PtrBase const*> const& children,
-    std::set<std::uintptr_t>& visited) {
-  for (auto const* child : children) {
-    auto& node =
-        tree.Emplace(reinterpret_cast<std::uintptr_t>(child->ptr_storage_),
-                     child->ptr_storage_->ref_counters.main_refs);
+void PtrBase::BuildDecrementGraphImpl(PtrBase const* ptr, RefTree& tree,
+                                      RefTree::Index head_index) {
+  auto& head = tree.get(head_index);
+  if (head.children_expanded) {
+    return;
+  }
+  head.children_expanded = true;
+
+  struct Arg {
+    RefTree& tree;
+    RefTree::Index head_index;
+  };
+
+  auto visit_children = [](void* arg, PtrBase const* child) {
+    auto [tree, head_index] = *static_cast<Arg*>(arg);
+    auto const pointer = reinterpret_cast<std::uintptr_t>(child->ptr_storage_);
+    auto const ref_count = child->ptr_storage_->ref_counters.main_refs;
+    auto& node = tree.Emplace(pointer, ref_count);
+    assert((node.value.reachable_ref_count <
+            std::numeric_limits<std::uint16_t>::max()) &&
+           "reachable_ref_count overflow");
     node.value.reachable_ref_count++;
-    tree.get(head_index).children_indices.push_back(node.index);
-
-    // cycle detection
-    auto [_, not_visited] =
-        visited.emplace(reinterpret_cast<std::uintptr_t>(child->ptr_storage_));
-    if (not_visited) {
-      BuildDecrementGraphImpl(tree, node.index, child->Children(), visited);
+    auto const child_index = node.index;
+    tree.get(head_index).PushChild(child_index);
+    if (!node.children_expanded) {
+      BuildDecrementGraphImpl(child, tree, child_index);
     }
-  }
-}
+  };
 
-std::vector<PtrBase const*> PtrBase::Children() const {
-  if (ptr_storage_ == nullptr) {
-    return {};
-  }
-  if (ptr_storage_->ref_counters.main_refs == 0) {
-    return {};
-  }
-  return ptr_storage_->manage_table->child_ptrs(this);
+  auto arg = Arg{tree, head_index};
+
+  ptr->ptr_storage_->manage_table->visit_children(ptr, &arg, visit_children);
 }
 
 void PtrBase::Destroy() {
   assert((ptr_storage_ != nullptr) && "Destroy but ptr_storage_ is nullptr");
   // prevent cycled ptrviews delete ptr_storage
+  assert((ptr_storage_->ref_counters.weak_refs <
+          std::numeric_limits<std::uint16_t>::max()) &&
+         "Destroy would overflow weak_refs");
   ptr_storage_->ref_counters.weak_refs += 1;
   // call the destructor on pointer
   // Note if T is derived from Base, Base must have virtual ~Base to prevent
   // memory leaks
   ptr_storage_->manage_table->destroy(this);
+  assert((ptr_storage_->ref_counters.weak_refs > 0) &&
+         "Destroy would underflow weak_refs");
   ptr_storage_->ref_counters.weak_refs -= 1;
 }
 

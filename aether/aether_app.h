@@ -24,9 +24,9 @@
 
 #include "aether/common.h"
 #include "aether/config.h"
+#include "aether/memory.h"
 #include "aether/obj/domain.h"
 #include "aether/ptr/ptr.h"
-#include "aether/ptr/rc_ptr.h"
 
 #include "aether/actions/action.h"  // IWYU pragma: keep
 #include "aether/events/events.h"   // IWYU pragma: keep
@@ -145,10 +145,8 @@ class AetherAppContext {
  * \brief The enter point to the Aethernet application world
  */
 class AetherApp {
-  friend auto MakeRcPtr<AetherApp>() noexcept;
-
  public:
-  static RcPtr<AetherApp> Construct(AetherAppContext context);
+  static std::unique_ptr<AetherApp> Construct(AetherAppContext context);
 
   ~AetherApp();
 

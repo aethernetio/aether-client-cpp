@@ -17,8 +17,9 @@
 #ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
 
+#include <memory>
+
 #include "aether/ptr/ptr_view.h"
-#include "aether/ptr/rc_ptr.h"
 
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
@@ -49,7 +50,7 @@ class CloudServerConnection {
  private:
   PtrView<Server> server_;
   IServerConnectionFactory* connection_factory_;
-  RcPtr<ClientServerConnection> client_connection_;
+  std::shared_ptr<ClientServerConnection> client_connection_;
   std::size_t priority_;
   bool is_quarantined_;
 };

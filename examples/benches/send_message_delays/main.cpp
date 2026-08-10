@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <filesystem>
 
 #include "aether/all.h"
 
 #include "send_message_delays/receiver.h"
+#include "send_message_delays/send_message_delays_manager.h"
 #include "send_message_delays/sender.h"
 #include "send_message_delays/statistics_write.h"
-#include "send_message_delays/send_message_delays_manager.h"
 
 namespace ae::bench {
 static constexpr auto kTestUid =
@@ -33,10 +33,10 @@ class TestSendMessageDelays {
  public:
   using TestFinishedEvent = Event<void(std::optional<Result<Ignore, int>>)>;
 
-  TestSendMessageDelays(RcPtr<AetherApp> const& aether_app,
+  TestSendMessageDelays(AetherApp& aether_app,
                         std::ostream& write_results_stream)
-      : ae_context_{*aether_app},
-        aether_{aether_app->aether()},
+      : ae_context_{aether_app},
+        aether_{aether_app.aether()},
         write_results_stream_{write_results_stream} {
     TestPipeline();
   }
@@ -165,7 +165,7 @@ class TestSendMessageDelays {
 int test_send_message_delays(std::ostream& result_stream) {
   auto aether_app = AetherApp::Construct(AetherAppContext{});
 
-  auto test = TestSendMessageDelays{aether_app, result_stream};
+  auto test = TestSendMessageDelays{*aether_app, result_stream};
   test.test_finished().Subscribe([&](auto res) {
     if (res && res->IsOk()) {
       aether_app->Exit(0);

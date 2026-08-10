@@ -17,8 +17,8 @@
 #ifndef EXAMPLES_COMMON_AETHER_CONSTRUCT_LORA_MODULE_H_
 #define EXAMPLES_COMMON_AETHER_CONSTRUCT_LORA_MODULE_H_
 
-#include "aether_construct.h"
 #include "aether/config.h"
+#include "aether_construct.h"
 
 #if AE_EXAMPLE_LORA_MODULE
 #  if !AE_SUPPORT_LORA
@@ -31,24 +31,29 @@ SerialInit serial_init_lora_module = {std::string(kSerialPortLoraModule),
                                       kBaudRate::kBaudRate9600};
 
 LoraPowerSaveParam psp{kLoraModuleMode::kTransparentTransmission,
-                       kLoraModuleLevel::kLevel0, kLoraModulePower::kPower22,
+                       kLoraModuleLevel::kLevel0,
+                       kLoraModulePower::kPower22,
                        kLoraModuleBandWidth::kBandWidth125K,
                        kLoraModuleCodingRate::kCR4_6,
                        kLoraModuleSpreadingFactor::kSF12};
 
-ae::LoraModuleInit const lora_module_init{serial_init_lora_module, psp,
+ae::LoraModuleInit const lora_module_init{serial_init_lora_module,
+                                          psp,
                                           kLoraModuleFreqRange::kFREUndef,
-                                          0, 0, 0,
+                                          0,
+                                          0,
+                                          0,
                                           kLoraModuleCRCCheck::kCRCOff,
                                           kLoraModuleIQSignalInversion::kIQoff};
 
-static RcPtr<AetherApp> construct_aether_app() {
+static std::unique_ptr<AetherApp> construct_aether_app() {
   return AetherApp::Construct(
       AetherAppContext{}
 #    if defined AE_DISTILLATION
           .AddAdapterFactory([](AetherAppContext const& context) {
             return LoraModuleAdapter::ptr::Create(
-                CreateWith{context.domain()}.with_id(ae::GlobalId::kLoraModuleAdapter),
+                CreateWith{context.domain()}.with_id(
+                    ae::GlobalId::kLoraModuleAdapter),
                 context.aether(), context.poller(), lora_module_init);
           })
 #    endif

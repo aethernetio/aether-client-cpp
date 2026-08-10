@@ -31,14 +31,14 @@ void test_MaxVersion() {
   // test if possible to create a Version objects
   // cppcheck-suppress-begin unreadVariable
   Version<0> v{};                      // ok!
-  Version<MAX_VERSION> max_version{};  // ok!
+  Version<kMaxVersion> max_version{};  // ok!
   // cppcheck-suppress-end unreadVariable
   // Version<MAX_VERSION + 1> to_big_version;  // not ok!
 
   static_assert(VersionAllowed<0>::value, "Version<0> must be allowed");
-  static_assert(VersionAllowed<MAX_VERSION>::value,
+  static_assert(VersionAllowed<kMaxVersion>::value,
                 "Version<MAX_VERSION> must be allowed");
-  static_assert(!VersionAllowed<MAX_VERSION + 1>::value,
+  static_assert(!VersionAllowed<kMaxVersion + 1>::value,
                 "Version<MAX_VERSION + 1> must not be allowed");
 }
 
@@ -61,17 +61,17 @@ struct TestObject {
 
   // saves
   template <typename Dnv>
-  void Save(Version<0> v, Dnv& dnv) {
+  void Save(Version<0> v, Dnv& dnv) const {
     dnv(v);
   }
 
   template <typename Dnv>
-  void Save(Version<1> v, Dnv& dnv) {
+  void Save(Version<1> v, Dnv& dnv) const {
     dnv(v);
   }
 
   template <typename Dnv>
-  void Save(Version<2> v, Dnv& dnv) {
+  void Save(Version<2> v, Dnv& dnv) const {
     dnv(v);
   }
 };
@@ -79,67 +79,71 @@ struct TestObject {
 struct TestObject2 {
   // loads
   template <typename Dnv>
-  void Load(Version<MAX_VERSION - 3> v, Dnv& dnv) {
+  void Load(Version<kMaxVersion - 3> v, Dnv& dnv) {
     dnv(v);
   }
 
   template <typename Dnv>
-  void Load(Version<MAX_VERSION - 2> v, Dnv& dnv) {
+  void Load(Version<kMaxVersion - 2> v, Dnv& dnv) {
     dnv(v);
   }
 
   template <typename Dnv>
-  void Load(Version<MAX_VERSION - 1> v, Dnv& dnv) {
+  void Load(Version<kMaxVersion - 1> v, Dnv& dnv) {
     dnv(v);
   }
 
   // saves
   template <typename Dnv>
-  void Save(Version<MAX_VERSION - 2> v, Dnv& dnv) {
+  void Save(Version<kMaxVersion - 2> v, Dnv& dnv) const {
     dnv(v);
   }
 
   template <typename Dnv>
-  void Save(Version<MAX_VERSION - 1> v, Dnv& dnv) {
+  void Save(Version<kMaxVersion - 1> v, Dnv& dnv) const {
     dnv(v);
   }
 
   template <typename Dnv>
-  void Save(Version<MAX_VERSION> v, Dnv& dnv) {
+  void Save(Version<kMaxVersion> v, Dnv& dnv) const {
     dnv(v);
   }
 };
 
 void test_HasVersionedTraits() {
   static_assert(HasAnyVersionedLoad<TestObject>::value, "Load(Version)");
-  static_assert(HasVersionedLoad<TestObject, 0>::value, "Load(Version<0>)");
-  static_assert(HasVersionedLoad<TestObject, 1>::value, "Load(Version<1>)");
-  static_assert(HasVersionedLoad<TestObject, 2>::value, "Load(Version<2>)");
-  static_assert(!HasVersionedLoad<TestObject, 3>::value, "!Load(Version<3>)");
+  static_assert(VersionLoadTrait<TestObject, 0>::value, "Load(Version<0>)");
+  static_assert(VersionLoadTrait<TestObject, 1>::value, "Load(Version<1>)");
+  static_assert(VersionLoadTrait<TestObject, 2>::value, "Load(Version<2>)");
+  static_assert(!VersionLoadTrait<TestObject, 3>::value, "!Load(Version<3>)");
 
   static_assert(HasAnyVersionedSave<TestObject>::value, "Save(Version)");
-  static_assert(HasVersionedSave<TestObject, 0>::value, "Save(Version<0>)");
-  static_assert(HasVersionedSave<TestObject, 1>::value, "Save(Version<1>)");
-  static_assert(HasVersionedSave<TestObject, 2>::value, "Save(Version<2>)");
-  static_assert(!HasVersionedSave<TestObject, 3>::value, "!Save(Version<3>)");
+  static_assert(VersionSaveTrait<TestObject, 0>::value, "Save(Version<0>)");
+  static_assert(VersionSaveTrait<TestObject, 1>::value, "Save(Version<1>)");
+  static_assert(VersionSaveTrait<TestObject, 2>::value, "Save(Version<2>)");
+  static_assert(!VersionSaveTrait<TestObject, 3>::value, "!Save(Version<3>)");
 }
 
 void test_ObjectVersionBounds() {
-  constexpr auto object1_load_bounds = VersionedLoadMinMax<TestObject>::value;
+  constexpr auto object1_load_bounds =
+      VersionBounds<TestObject, VersionLoadTrait>::value;
   static_assert(0 == object1_load_bounds.first);
   static_assert(2 == object1_load_bounds.second);
 
-  constexpr auto object1_save_bounds = VersionedSaveMinMax<TestObject>::value;
+  constexpr auto object1_save_bounds =
+      VersionBounds<TestObject, VersionSaveTrait>::value;
   static_assert(0 == object1_save_bounds.first);
   static_assert(2 == object1_save_bounds.second);
 
-  constexpr auto object2_load_bounds = VersionedLoadMinMax<TestObject2>::value;
-  static_assert(MAX_VERSION - 3 == object2_load_bounds.first);
-  static_assert(MAX_VERSION - 1 == object2_load_bounds.second);
+  constexpr auto object2_load_bounds =
+      VersionBounds<TestObject2, VersionLoadTrait>::value;
+  static_assert(kMaxVersion - 3 == object2_load_bounds.first);
+  static_assert(kMaxVersion - 1 == object2_load_bounds.second);
 
-  constexpr auto object2_save_bounds = VersionedSaveMinMax<TestObject2>::value;
-  static_assert(MAX_VERSION - 2 == object2_save_bounds.first);
-  static_assert(MAX_VERSION == object2_save_bounds.second);
+  constexpr auto object2_save_bounds =
+      VersionBounds<TestObject2, VersionSaveTrait>::value;
+  static_assert(kMaxVersion - 2 == object2_save_bounds.first);
+  static_assert(kMaxVersion == object2_save_bounds.second);
 }
 
 template <typename TFactory>
@@ -149,9 +153,7 @@ void VersionIteratorLoadTestFunc(TFactory factory) {
   using ObjectType = std::decay_t<decltype(obj)>;
 
   int visit_count = 0;
-  constexpr auto version_bounds = VersionedLoadMinMax<ObjectType>::value;
-  IterateVersions<HasVersionedLoad, version_bounds.first,
-                  version_bounds.second>(
+  version_iterator<VersionLoadTrait>(
       obj, [&visit_count](auto, auto const&) { ++visit_count; });
 
   TEST_ASSERT_EQUAL(expected_count, visit_count);
@@ -164,9 +166,7 @@ void VersionIteratorSaveTestFunc(TFactory factory) {
   using ObjectType = std::decay_t<decltype(obj)>;
 
   int visit_count = 0;
-  constexpr auto version_bounds = VersionedSaveMinMax<ObjectType>::value;
-  IterateVersions<HasVersionedSave, version_bounds.first,
-                  version_bounds.second>(
+  version_iterator<VersionSaveTrait>(
       obj, [&visit_count](auto, auto const&) { ++visit_count; });
 
   TEST_ASSERT_EQUAL(expected_count, visit_count);

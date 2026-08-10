@@ -30,10 +30,12 @@
 #  define AE_EXAMPLE_MODEM 0
 #endif
 
+#include <memory>
+
 #include "aether/all.h"
 
 namespace ae::examples {
-static RcPtr<AetherApp> construct_aether_app();
+static std::unique_ptr<AetherApp> construct_aether_app();
 }
 
 #endif  // EXAMPLES_COMMON_AETHER_CONSTRUCT_H_

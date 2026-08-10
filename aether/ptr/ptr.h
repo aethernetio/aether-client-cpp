@@ -18,16 +18,19 @@
 #define AETHER_PTR_PTR_H_
 
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <memory>
+#include <new>
 #include <utility>
 
 // IWYU pragma: begin_keeps
-#include "aether/common.h"
 #include "aether/type_traits.h"
 
-#include "aether/ptr/rc_ptr.h"
-#include "aether/ptr/ref_tree.h"
-#include "aether/ptr/ptr_management.h"
 #include "aether-miscpp/reflect/domain_visitor.h"
+#include "aether/ptr/ptr_management.h"
+#include "aether/ptr/ref_tree.h"
 // IWYU pragma: end_keeps
 
 namespace ae {
@@ -44,7 +47,7 @@ class PtrBase {
   PtrBase();
   PtrBase(PtrBase const& other);
   PtrBase(PtrBase&& other) noexcept;
-  PtrBase(PtrStorageBase* ptr_storage);
+  explicit PtrBase(PtrStorageBase* ptr_storage);
   PtrBase(MoveTag, PtrStorageBase* ptr_storage);
 
   PtrBase& operator=(PtrBase const& other);
@@ -57,13 +60,11 @@ class PtrBase {
 
   void Increment();
   void Decrement();
-  void DecrementRef(std::uint8_t count = 1);
-  std::uint8_t DecrementGraphCount();
-  RefTree BuildDecrementGraph();
-  void BuildDecrementGraphImpl(RefTree& tree, RefTree::Index head_index,
-                               std::vector<PtrBase const*> const& children,
-                               std::set<std::uintptr_t>& visited);
-  std::vector<PtrBase const*> Children() const;
+  void DecrementRef(std::uint16_t count = 1);
+  std::uint16_t DecrementGraphCount();
+  void BuildDecrementGraph(RefTree& ref_tree);
+  static void BuildDecrementGraphImpl(PtrBase const* ptr, RefTree& tree,
+                                      RefTree::Index head_index);
   void Destroy();
   void Free();
 
@@ -75,8 +76,6 @@ bool operator!=(PtrBase const& left, PtrBase const& right);
 
 template <typename T>
 static void PtrDestroy(PtrBase*);
-template <typename T>
-std::vector<PtrBase const*> PtrChildren(PtrBase*);
 
 /**
  * \brief Pointer - like shared pointer but with ability to create object
@@ -92,7 +91,6 @@ class Ptr : public PtrBase {
   friend class ObjPtr;
 
   friend void PtrDestroy<T>(PtrBase*);
-  friend std::vector<PtrBase const*> PtrChildren<T>(PtrBase*);
 
  public:
   Ptr() noexcept : PtrBase() {}
@@ -106,16 +104,17 @@ class Ptr : public PtrBase {
         ptr_{ptr_storage->ptr()} {}
 
   // construction of Ptr \see MakePtr
-  explicit Ptr(MoveTag, PtrStorage<T>* ptr_sotorage) noexcept
-      : PtrBase{MoveTag{}, reinterpret_cast<PtrStorageBase*>(ptr_sotorage)},
-        ptr_{ptr_sotorage->ptr()} {}
+  explicit Ptr(MoveTag, PtrStorage<T>* ptr_storage) noexcept
+      : PtrBase{MoveTag{}, reinterpret_cast<PtrStorageBase*>(ptr_storage)},
+        ptr_{ptr_storage->ptr()} {}
 
   // Copying
   Ptr(Ptr const& other) noexcept
       : PtrBase{other.ptr_storage_}, ptr_{other.ptr_} {}
 
   template <typename U>
-  Ptr(Ptr<U> const& other) noexcept
+  Ptr(Ptr<U> const& other) noexcept  // NOLINT(google-explicit-constructor)
+                                     // intentional implicit pointer-like upcast
       : PtrBase{other.ptr_storage_}, ptr_{static_cast<T*>(other.ptr_)} {}
 
   Ptr& operator=(Ptr const& other) noexcept {
@@ -137,7 +136,8 @@ class Ptr : public PtrBase {
   Ptr(Ptr&& other) noexcept : PtrBase{std::move(other)}, ptr_{other.ptr_} {}
 
   template <typename U>
-  Ptr(Ptr<U>&& other) noexcept
+  Ptr(Ptr<U>&& other) noexcept  // NOLINT(google-explicit-constructor)
+                                // intentional implicit pointer-like upcast
       : PtrBase{std::move(other)}, ptr_{static_cast<T*>(other.ptr_)} {}
 
   Ptr& operator=(Ptr&& other) noexcept {
@@ -159,7 +159,7 @@ class Ptr : public PtrBase {
   using PtrBase::operator bool;
 
   [[nodiscard]] T* get() const {
-    if (ptr_storage_ == nullptr) {
+    if (!operator bool()) {
       return nullptr;
     }
     assert((ptr_ != nullptr) && "Ptr is not initialized");
@@ -202,27 +202,47 @@ class Ptr : public PtrBase {
 };
 
 template <typename T>
+bool operator==(Ptr<T> const& ptr, std::nullptr_t) noexcept {
+  return !ptr;
+}
+
+template <typename T>
+bool operator==(std::nullptr_t, Ptr<T> const& ptr) noexcept {
+  return !ptr;
+}
+
+template <typename T>
+bool operator!=(Ptr<T> const& ptr, std::nullptr_t) noexcept {
+  return static_cast<bool>(ptr);
+}
+
+template <typename T>
+bool operator!=(std::nullptr_t, Ptr<T> const& ptr) noexcept {
+  return static_cast<bool>(ptr);
+}
+
+template <typename T>
 static void PtrDestroy(PtrBase* self) {
   auto* _this = reinterpret_cast<Ptr<T>*>(self);
-  auto* obj = _this->get();
+  auto* obj = _this->ptr_;
   obj->~T();
 }
 
 template <typename T>
-std::vector<PtrBase const*> PtrChildren(PtrBase const* self) {
+void PtrVisitChildren(PtrBase const* self, void* arg,
+                      void (*cb)(void* arg, PtrBase const* child)) {
   auto const* _this = reinterpret_cast<Ptr<T> const*>(self);
   auto const* obj = _this->get();
   assert(obj != nullptr && "Ptr is not initialized");
 
-  auto ref_visitor = RefVisitor{};
+  auto ref_visitor = RefVisitor{.arg = arg, .cb = cb};
   reflect::DomainVisit(*obj, PtrRefDnv{ref_visitor});
-  return ref_visitor.children;
 }
 
 template <typename T>
 static constexpr auto kManageTableForT = ManageTable{
     PtrDestroy<T>,
-    PtrChildren<T>,
+    PtrVisitChildren<T>,
 };
 
 /**
@@ -261,7 +281,7 @@ Ptr<T> MakePtr(TArgs&&... args) {
   [[maybe_unused]] auto* ptr =
       new (storage->ptr()) T(std::forward<TArgs>(args)...);
   assert((ptr != nullptr) && "Construction failed!");
-  return Ptr<T>{typename PtrBase::MoveTag{}, storage};
+  return Ptr<T>{PtrBase::MoveTag{}, storage};
 }
 
 template <template <typename...> typename T, typename... TArgs>

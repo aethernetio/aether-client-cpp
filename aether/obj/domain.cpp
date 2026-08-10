@@ -26,7 +26,7 @@ namespace ae {
 DomainGraph::DomainGraph(Domain* domain) : domain(domain) { assert(domain); }
 
 Ptr<Obj> DomainGraph::LoadRootImpl(ObjId obj_id) {
-  if (!obj_id.IsValid()) {
+  if (!obj_id.is_valid()) {
     return {};
   }
   // if already loaded
@@ -45,7 +45,7 @@ Ptr<Obj> DomainGraph::LoadRootImpl(ObjId obj_id) {
 }
 
 Ptr<Obj> DomainGraph::LoadCopyImpl(ObjId ref_id, ObjId copy_id) {
-  if (!ref_id.IsValid() || !copy_id.IsValid()) {
+  if (!ref_id.is_valid() || !copy_id.is_valid()) {
     return {};
   }
   // if already loaded

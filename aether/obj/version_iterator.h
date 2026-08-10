@@ -17,147 +17,127 @@
 #ifndef AETHER_OBJ_VERSION_ITERATOR_H_
 #define AETHER_OBJ_VERSION_ITERATOR_H_
 
-#include <type_traits>
-#include <cstdint>
-#include <utility>
 #include <array>
+#include <cstdint>
+#include <type_traits>
+#include <utility>
 
-#include "aether/type_traits.h"
+#include "aether-miscpp/meta/index_sequence.h"
 
 namespace ae {
+using VersionValueType = std::uint8_t;
+
 // use max version for compilation time optimization
 // increase max version count if required
-#if defined(MAX_OBJECT_VERSION)
-inline constexpr std::uint8_t MAX_VERSION = MAX_OBJECT_VERSION;
+#ifdef MAX_OBJECT_VERSION
+inline constexpr VersionValueType kMaxVersion = MAX_OBJECT_VERSION;
 #else
-inline constexpr std::uint8_t MAX_VERSION = 24;
+inline constexpr VersionValueType kMaxVersion = 24;
 #endif
 
 // Helper version tag for versioned function overloading
-template <std::uint8_t V, typename T = void>
-struct Version;
-
-template <std::uint8_t V>
-struct Version<V, std::enable_if_t<(V <= MAX_VERSION)>> {
-  static constexpr std::uint8_t value = V;
-};
+template <VersionValueType V>
+  requires(V <= kMaxVersion)
+struct Version : public std::integral_constant<VersionValueType, V> {};
 
 // Traits for check supported versioned functionality
 
 struct Dnv;
 
-template <typename T, std::uint8_t V, typename _ = void>
-struct HasVersionedLoad : std::false_type {};
+template <typename T, VersionValueType V>
+struct VersionLoadTrait {
+  template <typename U, typename _ = void>
+  struct Has : std::false_type {};
+  template <typename U>
+  struct Has<U, std::void_t<decltype(std::declval<U&>().Load(
+                    Version<V>{}, std::declval<Dnv&>()))>> : std::true_type {};
 
-template <typename T, std::uint8_t V>
-struct HasVersionedLoad<T, V,
-                        std::void_t<decltype(std::declval<T>().Load(
-                            Version<V>{}, std::declval<Dnv&>()))>>
-    : std::true_type {};
+  static constexpr bool value = Has<T>::value;
+};
 
-template <typename T, std::uint8_t V, typename _ = void>
-struct HasVersionedSave : std::false_type {};
+template <typename T, VersionValueType V>
+struct VersionSaveTrait {
+  template <typename U, typename _ = void>
+  struct Has : std::false_type {};
+  template <typename U>
+  struct Has<U, std::void_t<decltype(std::declval<U const&>().Save(
+                    Version<V>{}, std::declval<Dnv&>()))>> : std::true_type {};
 
-template <typename T, std::uint8_t V>
-struct HasVersionedSave<T, V,
-                        std::void_t<decltype(std::declval<T>().Save(
-                            Version<V>{}, std::declval<Dnv&>()))>>
-    : std::true_type {};
+  static constexpr bool value = Has<T>::value;
+};
 
 /**
  * \brief Calculate min and max version supported by T and tested with
  * VersionTrait
  */
 template <typename T,
-          template <typename, std::uint8_t, typename...> typename VersionTrait>
+          template <typename, VersionValueType> typename VersionTrait>
 struct VersionBounds {
-  template <std::uint8_t... Vs>
-  static constexpr std::pair<std::uint8_t, std::uint8_t> CalcVersionBounds(
-      std::integer_sequence<std::uint8_t, Vs...> const&) {
+  template <VersionValueType... Vs>
+  using i_seq = std::integer_sequence<VersionValueType, Vs...>;
+
+  template <VersionValueType... Vs>
+  static consteval auto CalcVersionBounds(i_seq<Vs...>)
+      -> std::pair<VersionValueType, VersionValueType> {
     constexpr auto arr = std::array{VersionTrait<T, Vs>::value...};
-    std::uint8_t min{};
-    std::uint8_t max{};
+    VersionValueType min{};
+    VersionValueType max{};
     std::size_t i = 0;
     for (; i < arr.size(); ++i) {
       if (arr[i]) {
         break;
       }
     }
-    min = static_cast<std::uint8_t>(i);
+    if (i == arr.size()) {
+      return {0, 0};
+    }
+
+    min = static_cast<VersionValueType>(i);
 
     for (; i < arr.size(); ++i) {
       if (!arr[i]) {
         break;
       }
     }
-    max = static_cast<std::uint8_t>(i - 1);
+    max = static_cast<VersionValueType>(i - 1);
     return {min, max};
   }
 
   static constexpr auto value = CalcVersionBounds(
-      std::make_integer_sequence<std::uint8_t, MAX_VERSION + 1>());
+      std::make_integer_sequence<VersionValueType, kMaxVersion + 1>());
 };
 
-/**
- * \brief Min and max versions supported by T to Load
- */
-template <typename T>
-using VersionedLoadMinMax = VersionBounds<T, HasVersionedLoad>;
-
-/**
- * \brief Min and max versions supported by T to Save
- */
-template <typename T>
-using VersionedSaveMinMax = VersionBounds<T, HasVersionedSave>;
-
-template <typename T>
-struct HasAnyVersionedLoad {
-  template <uint8_t... Vs>
-  static constexpr bool TestAny(std::integer_sequence<uint8_t, Vs...> const&) {
-    return (HasVersionedLoad<T, Vs>::value || ...);
+template <typename T,
+          template <typename, VersionValueType> typename VersionTrait>
+struct HasAnyVersioned {
+  template <VersionValueType... Vs>
+  static consteval bool TestAny(
+      std::integer_sequence<VersionValueType, Vs...> const&) {
+    return (VersionTrait<T, Vs>::value || ...);
   }
 
-  static constexpr auto version_bounds = VersionedLoadMinMax<T>::value;
+  static constexpr auto version_bounds = VersionBounds<T, VersionTrait>::value;
   static constexpr bool value =
       TestAny(make_range_sequence<std::uint8_t, version_bounds.first,
                                   version_bounds.second>());
 };
 
 template <typename T>
-struct HasAnyVersionedSave {
-  template <uint8_t... Vs>
-  static constexpr bool TestAny(std::integer_sequence<uint8_t, Vs...> const&) {
-    return (HasVersionedSave<T, Vs>::value || ...);
-  }
+struct HasAnyVersionedLoad : public HasAnyVersioned<T, VersionLoadTrait> {};
+template <typename T>
+static constexpr inline bool HasAnyVersionedLoad_v =
+    HasAnyVersionedLoad<T>::value;
 
-  static constexpr auto version_bounds = VersionedSaveMinMax<T>::value;
-  static constexpr bool value =
-      TestAny(make_range_sequence<std::uint8_t, version_bounds.first,
-                                  version_bounds.second>());
-};
-
-template <template <typename, std::uint8_t, typename...> typename VersionTrait,
-          std::uint8_t Vs, typename T, typename TFunc>
-constexpr void IterateVersionsImplApply(T& t, TFunc&& func) {
-  if constexpr (VersionTrait<std::decay_t<T>, Vs>::value) {
-    func(Version<Vs>{}, t);
-  }
-}
-
-template <template <typename, std::uint8_t, typename...> typename VersionTrait,
-          typename T, typename TFunc, std::uint8_t... Vs>
-constexpr void IterateVersionsImpl(
-    T& t, TFunc&& func, std::integer_sequence<std::uint8_t, Vs...> const&) {
-  (IterateVersionsImplApply<VersionTrait, Vs>(t, std::forward<TFunc>(func)),
-   ...);
-}
+template <typename T>
+struct HasAnyVersionedSave : public HasAnyVersioned<T, VersionSaveTrait> {};
+template <typename T>
+static constexpr inline bool HasAnyVersionedSave_v =
+    HasAnyVersionedSave<T>::value;
 
 /**
  * \brief Iterate for each version of the object for that VersionTrait returns
  * true
  * \tparam VersionTrait Trait to check if version is supported
- * \tparam version_min Minimum version to iterate from
- * \tparam version_max Maximum version to iterate to
  * \tparam T Object type
  * \tparam TFunc Function to call for each version with signature
  * void(Version<V>, T&)
@@ -173,10 +153,38 @@ constexpr void IterateVersions(T& t, TFunc&& func) {
       make_range_sequence<std::uint8_t, version_min, version_max>());
 }
 
+template <template <typename, VersionValueType> typename VersionTrait>
+struct VersionIterator {
+ private:
+  template <typename T, typename TFunc, VersionValueType V>
+  static void ImplApply(T& t, TFunc&& func, Version<V> v) {
+    if constexpr (VersionTrait<T, V>::value) {
+      std::forward<TFunc>(func)(v, t);
+    }
+  }
+
+  template <typename T, typename TFunc, VersionValueType... Vs>
+  static void Impl(T& t, TFunc&& func,
+                   std::integer_sequence<VersionValueType, Vs...>) {
+    (ImplApply(t, std::forward<TFunc>(func), Version<Vs>{}), ...);
+  }
+
+ public:
+  template <typename T, typename TFunc>
+  constexpr void operator()(T& t, TFunc&& func) const {
+    constexpr auto bounds = VersionBounds<T, VersionTrait>::value;
+    Impl(t, std::forward<TFunc>(func),
+         make_range_sequence<VersionValueType, bounds.first, bounds.second>());
+  }
+};
+
+template <template <typename, VersionValueType> typename VersionTrait>
+static constexpr inline auto version_iterator = VersionIterator<VersionTrait>{};
+
 template <typename Visitor>
 struct VersionNodeVisitor {
-  constexpr explicit VersionNodeVisitor(Visitor vis)
-      : visitor{std::forward<Visitor>(vis)} {}
+  constexpr explicit VersionNodeVisitor(Visitor&& vis)
+      : visitor{std::move(vis)} {}
 
   template <typename... U>
   void operator()(U&&... vals) {
@@ -185,6 +193,9 @@ struct VersionNodeVisitor {
 
   Visitor visitor;
 };
+
+template <typename V>
+VersionNodeVisitor(V&&) -> VersionNodeVisitor<V>;
 
 }  // namespace ae
 #endif  // AETHER_OBJ_VERSION_ITERATOR_H_

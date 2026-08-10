@@ -41,7 +41,6 @@
 #include "aether/obj/registry.h"
 #include "aether/ptr/ptr.h"
 #include "aether/ptr/ptr_view.h"
-#include "aether/ptr/rc_ptr.h"
 
 #include "aether/domain_storage/domain_storage_factory.h"
 #include "aether/domain_storage/file_system_std_storage.h"
