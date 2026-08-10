@@ -19,7 +19,7 @@
 
 #include <type_traits>
 
-#include "aether-miscpp/reflect/type_index.h"
+#include "aether-miscpp/meta/type_index.h"
 
 #include "aether/ptr/ptr.h"
 #include "aether/obj/domain.h"
@@ -37,7 +37,7 @@ class Registrar {
             Factory::LoadFunc(&Load),
             Factory::SaveFunc(&Save),
 #ifdef DEBUG
-            std::string{reflect::GetTypeName<T>()},
+            std::string{GetTypeName<T>()},
             cls_id,
             base_id,
 #endif  // DEBUG

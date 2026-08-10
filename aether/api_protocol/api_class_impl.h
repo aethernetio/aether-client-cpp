@@ -167,7 +167,9 @@ struct ExtApi;
 template <typename T, typename M, M T::* ptr>
 struct ExtApi<ptr> {
   using type = T;
-  using Field = reflect::reflect_internal::FieldPtr<T, ptr>;
+  using Field = reflect::MetaMember<T, M>;
+
+  static constexpr auto field = Field{"ext", ptr};
 };
 
 /**
@@ -214,8 +216,8 @@ struct LoadSelector<Api, RegMethod<Id, method>> {
 template <typename Api, auto ptr>
 struct LoadSelector<Api, ExtApi<ptr>> {
   static bool Load(Api* api, MessageId message_id, ApiParser& parser) {
-    using Field = typename ExtApi<ptr>::Field;
-    auto&& ext_api = Field::get(*api);
+    using ExtApi = ExtApi<ptr>;
+    auto&& ext_api = ExtApi::field.get(*api);
     return LoadFactoryImpl(&ext_api, message_id, parser);
   }
 };

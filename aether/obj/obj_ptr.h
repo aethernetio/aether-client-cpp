@@ -22,7 +22,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "aether-miscpp/reflect/domain_visitor.h"  // IWYU pragma: keep
+#include "aether-miscpp/domain_visitor/domain_visitor.h"  // IWYU pragma: keep
 #include "aether/obj/domain.h"
 #include "aether/obj/obj_id.h"
 #include "aether/obj/obj_ptr_base.h"
@@ -343,7 +343,7 @@ omstream<DomainBufferWriter>& operator<<(omstream<DomainBufferWriter>& os,
 }
 }  // namespace ae
 
-namespace ae::reflect {
+namespace ae::domain_visitor {
 template <typename T>
 struct NodeVisitor<ae::ObjPtr<T>> : NodeVisitor<ae::Ptr<T>> {
   using Policy = AnyPolicyMatch;
@@ -367,6 +367,6 @@ struct NodeVisitor<ae::ObjPtr<T>> : NodeVisitor<ae::Ptr<T>> {
     }
   }
 };
-}  // namespace ae::reflect
+}  // namespace ae::domain_visitor
 
 #endif  // AETHER_OBJ_OBJ_PTR_H_

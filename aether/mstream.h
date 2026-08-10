@@ -46,7 +46,7 @@
 #include <variant>
 #include <vector>
 
-#include "aether-miscpp/reflect/domain_visitor.h"  // IWYU pragma: keep
+#include "aether-miscpp/domain_visitor/domain_visitor.h"  // IWYU pragma: keep
 #include "aether-miscpp/reflect/reflect.h"
 #include "aether/types/nullable_type.h"
 
@@ -663,24 +663,24 @@ imstream_enable_if_t<has_imstream<T, Ib>::value, Ib> operator>>(imstream<Ib>& s,
 }
 
 template <typename T, typename Ib>
-std::enable_if_t<reflect::IsReflectable<T>::value, imstream<Ib>&> operator>>(
+std::enable_if_t<reflect::Reflectable<T>, imstream<Ib>&> operator>>(
     imstream<Ib>& s, T& t) {
   if constexpr (std::is_base_of_v<NullableType<T>, T>) {
     t.Load(s);
   } else {
-    auto reflection = reflect::Reflection{t};
+    auto reflection = reflect::make_reflection(t);
     reflection.Apply([&s](auto&... val) { ((s >> val), ...); });
   }
   return s;
 }
 
 template <typename T, typename Ob>
-std::enable_if_t<reflect::IsReflectable<T>::value, omstream<Ob>&> operator<<(
+std::enable_if_t<reflect::Reflectable<T>, omstream<Ob>&> operator<<(
     omstream<Ob>& s, T const& t) {
   if constexpr (std::is_base_of_v<NullableType<T>, T>) {
     t.Save(s);
   } else {
-    auto reflection = reflect::Reflection{t};
+    auto reflection = reflect::make_reflection(t);
     reflection.Apply([&s](auto const&... val) { ((s << val), ...); });
   }
   return s;

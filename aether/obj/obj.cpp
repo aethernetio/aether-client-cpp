@@ -29,7 +29,7 @@ Obj::~Obj() {
 
 uint32_t Obj::GetClassId() const { return kClassId; }
 
-namespace reflect {
+namespace domain_visitor {
 std::size_t GetObjIndexImpl(Obj const* obj, std::uint32_t class_id) {
   auto res = crc32::from_buffer(
       reinterpret_cast<std::uint8_t const*>(&class_id), sizeof(class_id));
@@ -38,5 +38,5 @@ std::size_t GetObjIndexImpl(Obj const* obj, std::uint32_t class_id) {
                            sizeof(id), res);
   return res.value;
 }
-}  // namespace reflect
+}  // namespace domain_visitor
 }  // namespace ae

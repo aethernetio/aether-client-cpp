@@ -28,7 +28,8 @@
 // IWYU pragma: begin_keeps
 #include "aether/type_traits.h"
 
-#include "aether-miscpp/reflect/domain_visitor.h"
+#include "aether-miscpp/domain_visitor/domain_visitor.h"
+
 #include "aether/ptr/ptr_management.h"
 #include "aether/ptr/ref_tree.h"
 // IWYU pragma: end_keeps
@@ -236,7 +237,7 @@ void PtrVisitChildren(PtrBase const* self, void* arg,
   assert(obj != nullptr && "Ptr is not initialized");
 
   auto ref_visitor = RefVisitor{.arg = arg, .cb = cb};
-  reflect::DomainVisit(*obj, PtrRefDnv{ref_visitor});
+  domain_visitor::DomainVisit(*obj, PtrRefDnv{ref_visitor});
 }
 
 template <typename T>
@@ -266,7 +267,7 @@ template <typename T, typename... TArgs>
 Ptr<T> MakePtr(TArgs&&... args) {
   constexpr auto size = sizeof(PtrStorage<T>);
   static_assert(size < std::numeric_limits<std::uint16_t>::max());
-  static_assert(reflect::HasNodeVisitor<T>::value,
+  static_assert(domain_visitor::HasNodeVisitor<T>::value,
                 "Type must be reflectable to be used in Ptr");
 
   auto alloc = std::allocator<std::uint8_t>{};
@@ -292,19 +293,19 @@ auto MakePtr(TArgs&&... args) {
 
 }  // namespace ae
 
-namespace ae::reflect {
+namespace ae::domain_visitor {
 template <typename T>
 struct NodeVisitor<ae::Ptr<T>> {
   using Policy = AnyPolicyMatch;
 
   void Visit(ae::Ptr<T>& obj, CycleDetector& cycle_detector,
              PtrRefDnv&& visitor) const {
-    reflect::ApplyVisitor(obj, cycle_detector, std::move(visitor));
+    domain_visitor::ApplyVisitor(obj, cycle_detector, std::move(visitor));
   }
 
   void Visit(ae::Ptr<T> const& obj, CycleDetector& cycle_detector,
              PtrRefDnv&& visitor) const {
-    reflect::ApplyVisitor(obj, cycle_detector, std::move(visitor));
+    domain_visitor::ApplyVisitor(obj, cycle_detector, std::move(visitor));
   }
 
   template <typename Visitor>
@@ -326,10 +327,10 @@ struct NodeVisitor<ae::Ptr<T>> {
   template <typename U, typename Visitor>
   void ApplyVisit(U&& obj, CycleDetector& cycle_detector,
                   Visitor&& visitor) const {
-    reflect::ApplyVisitor(std::forward<U>(obj), cycle_detector,
-                          std::forward<Visitor>(visitor));
+    domain_visitor::ApplyVisitor(std::forward<U>(obj), cycle_detector,
+                                 std::forward<Visitor>(visitor));
   }
 };
-}  // namespace ae::reflect
+}  // namespace ae::domain_visitor
 
 #endif  // AETHER_PTR_PTR_H_

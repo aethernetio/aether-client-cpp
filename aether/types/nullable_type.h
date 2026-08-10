@@ -17,14 +17,14 @@
 #ifndef AETHER_TYPES_NULLABLE_TYPE_H_
 #define AETHER_TYPES_NULLABLE_TYPE_H_
 
-#include <tuple>
 #include <bitset>
 #include <cstdint>
-#include <type_traits>
 #include <functional>
+#include <tuple>
+#include <type_traits>
 
-#include "aether/type_traits.h"
 #include "aether-miscpp/reflect/reflect.h"
+#include "aether/type_traits.h"
 
 namespace ae {
 template <typename... TArgs>
@@ -160,15 +160,14 @@ class NullableType {
 
   template <typename U>
   static auto BuildArgList(U& obj) {
-    auto refl = reflect::Reflection{obj};
+    auto refl = reflect::make_reflection(obj);
     return refl.Apply(
         [](auto&... fields) { return BuildArgListImpl<U>(fields...); });
   }
 
   template <typename TSelf>
   static auto BuildNullableValues(TSelf& self) {
-    static_assert(reflect::IsReflectable<T>::value,
-                  "T must be reflecatable type");
+    static_assert(reflect::Reflectable<T>, "T must be reflecatable type");
     auto args_list = BuildArgList(static_cast<T&>(self));
     return std::apply([](auto&... args) { return NullableValues{args...}; },
                       args_list);

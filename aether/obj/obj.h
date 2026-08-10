@@ -68,7 +68,7 @@ class Obj {
   ObjId obj_id;
 };
 
-namespace reflect {
+namespace domain_visitor {
 extern std::size_t GetObjIndexImpl(Obj const* obj, std::uint32_t class_id);
 
 template <typename T>
@@ -77,8 +77,7 @@ struct ObjectIndex<T, std::enable_if_t<std::is_base_of_v<Obj, T>>> {
     return GetObjIndexImpl(obj, T::kClassId);
   }
 };
-}  // namespace reflect
-
+}  // namespace domain_visitor
 }  // namespace ae
 
 #define _AE_OBJECT_FIELDS(CLASS_ID, BASE_CLASS_ID, VERSION)    \

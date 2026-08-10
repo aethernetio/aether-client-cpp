@@ -28,7 +28,7 @@
 
 #include "aether/mstream.h"
 
-#include "aether-miscpp/reflect/domain_visitor.h"
+#include "aether-miscpp/domain_visitor/domain_visitor.h"
 #include "aether-miscpp/reflect/reflect.h"
 #include "aether/ptr/ptr_view.h"
 
@@ -209,7 +209,7 @@ void DomainGraph::LoadVersion(Version<V> version, T& obj, ObjId obj_id) {
     obj.Load(version, visitor);
   } else {
     // load or deserialize object
-    reflect::DomainVisit(obj, std::move(visitor_func));
+    domain_visitor::DomainVisit(obj, std::move(visitor_func));
   }
 }
 
@@ -245,7 +245,7 @@ void DomainGraph::SaveVersion(Version<V> version, T const& obj, ObjId obj_id) {
     obj.Save(version, visitor);
   } else {
     // load or deserialize object
-    reflect::DomainVisit(obj, std::move(visitor_func));
+    domain_visitor::DomainVisit(obj, std::move(visitor_func));
   }
 }
 
