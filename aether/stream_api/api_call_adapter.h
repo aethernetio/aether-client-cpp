@@ -92,7 +92,8 @@ struct PreparedPacketEncoder {
 //                                   Span<const std::uint8_t> payload,
 //                                   DataBuffer& out);
 //
-// Current internal step keeps old Aether path alive by using ByteIStream as out.
+// Current internal step keeps old Aether path alive by using ByteIStream as
+// out.
 struct EncodePacketResult {
   EncodePacketReport report;
   WriteAction* action = nullptr;
@@ -104,16 +105,13 @@ struct EncodePacketResult {
 
 template <typename TApi>
 EncodePacketResult EncodePacket(PreparedPacketEncoder& prepared,
-                                ApiContext<TApi>&& data,
-                                ByteIStream& out) {
+                                ApiContext<TApi>&& data, ByteIStream& out) {
   auto report = prepared.TakeNonce();
   if (!report) {
     return EncodePacketResult{report, nullptr};
   }
 
   auto packet = std::move(data).Pack();
-  AE_TELED_ERROR("[CALL-CHAIN] ApiCallAdapter::EncodePacket packet_size={}",
-                 packet.size());
   auto& action = out.Write(std::move(packet));
 
   return EncodePacketResult{report, &action};
@@ -141,8 +139,7 @@ class ApiCallAdapter {
 
     if (!result) {
       std::cerr << "FastTx EncodePacket failed: "
-                << fast_tx_internal::ToString(result.report.error)
-                << "\n";
+                << fast_tx_internal::ToString(result.report.error) << "\n";
       assert(false);
     }
 

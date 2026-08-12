@@ -70,7 +70,7 @@ class SendAction final : public PacketSendAction {
       AE_TELED_ERROR("Send error, sent size isn't same as packet size");
       SetStatus(WriteAction::Status::kFail);
       return;
-    }    
+    }
     SetStatus(WriteAction::Status::kSuccess);
   }
 
@@ -156,8 +156,6 @@ class UdpTransport final : public upd_internal::UdpBase {
   }
 
   WriteAction& Write(DataBuffer&& in_data) override {
-    AE_TELED_ERROR("[CALL-CHAIN] UdpTransport::Write endpoint={} data_size={}",
-                   endpoint_, in_data.size());
     assert(in_data.size() != 0);
     AE_TELE_DEBUG(kUdpTransportSend, "Socket {} send data size:{}", endpoint_,
                   in_data.size());
