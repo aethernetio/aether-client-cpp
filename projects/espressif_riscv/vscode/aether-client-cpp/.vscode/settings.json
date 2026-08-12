@@ -2,7 +2,7 @@
   "idf.cmakeCompilerArgs": [
     "-G",
     "Ninja",
-    "-DCMAKE_BUILD_TYPE=Debug",
+    "-DCMAKE_BUILD_TYPE=Release",
     "-DUSER_CONFIG=../../../../../config/user_config_hydrogen.h"
   ],
   "C_Cpp.intelliSenseEngine": "Tag Parser",
@@ -120,6 +120,5 @@
     "filesystem": "cpp"
   },
   "idf.flashType": "UART",
-  "idf.portWin": "COM9",
-  "idf.currentSetup": "G:\\dev\\esp32\\v6.0.2\\esp-idf"
+  "idf.portWin": "COM9"
 }
