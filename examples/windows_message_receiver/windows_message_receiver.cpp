@@ -37,25 +37,6 @@ class TimeSynchronizer {
   ae::TimePoint pong_sent_time_;
 };
 
-// Alice sends "ping"s to Bob
-/* class Alice {
- public:
-  explicit Alice(ae::AetherApp& aether_app, ae::Client::ptr client_alice,
-                 TimeSynchronizer& time_synchronizer, ae::Uid bobs_uid);
-
- private:
-  void SendMessage();
-  void ResponseReceived(ae::DataBuffer const& data_buffer);
-
-  ae::AetherApp* aether_app_;
-  ae::Client::ptr client_alice_;
-  TimeSynchronizer* time_synchronizer_;
-  ae::P2pStream p2pstream_;
-  ae::RepeatableTask<ae::AeContext> interval_sender_;
-  ae::Subscription receive_data_sub_;
-  ae::MultiSubscription send_subs_;
-};*/
-
 // Bob answers "pong" to each "ping"
 class Bob {
  public:
@@ -77,7 +58,7 @@ class Bob {
 int main() {
   auto aether_app = ae::AetherApp::Construct(ae::AetherAppContext{});
 
-  //std::unique_ptr<Alice> alice;
+  // std::unique_ptr<Alice> alice;
   std::unique_ptr<Bob> bob;
   TimeSynchronizer time_synchronizer;
 
@@ -133,8 +114,9 @@ void Bob::OnMessageReceived(ae::DataBuffer const& data_buffer) {
   auto ping_message = std::string_view{
       reinterpret_cast<char const*>(data_buffer.data()), data_buffer.size()};
   std::cout << ae::Format(
-      ">>>\n>>>\n>>>\n[{:%H:%M:%S}] Bob received \"{}\" within time {} ms\n>>>\n>>>\n>>>\n", ae::Now(),
-      ping_message,
+      ">>>\n>>>\n>>>\n[{:%H:%M:%S}] Bob received \"{}\" within time {} "
+      "ms\n>>>\n>>>\n>>>\n",
+      ae::Now(), ping_message,
       std::chrono::duration_cast<std::chrono::milliseconds>(
           time_synchronizer_->GetPingDuration())
           .count());
