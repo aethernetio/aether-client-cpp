@@ -67,7 +67,6 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
         api_level1{protocol_context},
         method_3{protocol_context},
         method_4{protocol_context},
-        method_5{protocol_context, api_level1},
         method_6{protocol_context, Method6Proc{api_level1}},
         return_result_api{protocol_context} {}
 
@@ -75,9 +74,6 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
   void Method3Impl(int a, std::string b) { method_3_event.Emit(a, b); }
   void Method4Impl(PromiseResult<Number> promise, int a) {
     method_4_event.Emit(promise.request_id, a);
-  }
-  void Method5Impl(SubContextImpl<ApiLevel1> sub_api, int a) {
-    sub_api.Parse(api_level1);
   }
   void Method6Impl(int a, SubApiImpl<ApiLevel1> sub_api) {
     sub_api.Parse(api_level1);
@@ -87,14 +83,12 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
 
   AE_METHODS(RegMethod<03, &ApiLevel0::Method3Impl>,
              RegMethod<04, &ApiLevel0::Method4Impl>,
-             RegMethod<05, &ApiLevel0::Method5Impl>,
              RegMethod<06, &ApiLevel0::Method6Impl>,
              ExtApi<&ApiLevel0::return_result_api>);
 
   // call methods to make packet
   Method<03, void(int a, std::string b)> method_3;
   Method<04, ApiPromise<Number>(int a)> method_4;
-  Method<05, SubContext<ApiLevel1>(int a)> method_5;
   Method<06, void(int a, SubApi<ApiLevel1> sub), Method6Proc> method_6;
 
   // to signal method impl is called
@@ -103,38 +97,6 @@ class ApiLevel0 : public ApiClassImpl<ApiLevel0> {
 
   ApiLevel1 api_level1;
 };
-
-void test_ApiMethodInvoke() {
-  ProtocolContext pc;
-
-  auto api_level0 = ApiLevel0{pc};
-  auto call_context = ApiContext{api_level0};
-
-  call_context->method_3(12, "asd");
-
-  call_context->method_5(54)->method_3(451.F);
-
-  DataBuffer packet = std::move(call_context);
-
-  AssertPacket(packet, MessageId{3}, int{12}, std::string{"asd"}, MessageId{5},
-               int{54}, Skip<PackedSize>{}, MessageId{3}, float{451.F});
-
-  bool level0_method3_called = false;
-  bool level1_method3_called = false;
-
-  EventSubscriber{api_level0.method_3_event}.Subscribe(
-      [&](int, std::string const&) { level0_method3_called = true; });
-
-  EventSubscriber{api_level0.api_level1.method_3_event}.Subscribe(
-      [&](int) { level1_method3_called = true; });
-
-  // send/receive
-  auto parser = ApiParser{pc, packet};
-  parser.Parse(api_level0);
-
-  TEST_ASSERT(level0_method3_called);
-  TEST_ASSERT(level1_method3_called);
-}
 
 void test_ReturnResult() {
   ProtocolContext pc;
@@ -414,7 +376,6 @@ void test_PendingResponseDuplicateReplacementPreservesFifo() {
 
 int test_method_call() {
   UNITY_BEGIN();
-  RUN_TEST(ae::test_method_call::test_ApiMethodInvoke);
   RUN_TEST(ae::test_method_call::test_ReturnResult);
   RUN_TEST(ae::test_method_call::test_MethodWithSubApi);
   RUN_TEST(ae::test_method_call::test_ProtocolContextStackAccess);

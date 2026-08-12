@@ -183,12 +183,14 @@ static constexpr inline auto version_iterator = VersionIterator<VersionTrait>{};
 
 template <typename Visitor>
 struct VersionNodeVisitor {
-  constexpr explicit VersionNodeVisitor(Visitor&& vis)
-      : visitor{std::move(vis)} {}
+  template <typename U>
+    requires(!std::is_same_v<std::decay_t<U>, VersionNodeVisitor>)
+  constexpr explicit VersionNodeVisitor(U&& vis)
+      : visitor{std::forward<U>(vis)} {}
 
   template <typename... U>
   void operator()(U&&... vals) {
-    (std::forward<Visitor>(visitor)(std::forward<U>(vals)), ...);
+    (visitor(std::forward<U>(vals)), ...);
   }
 
   Visitor visitor;

@@ -19,8 +19,8 @@
 
 #define AE_FILE_SYSTEM_RAM_ENABLED 0
 
-#include <map>
 #include <cstdint>
+#include <map>
 #include <optional>
 
 #include "aether/obj/idomain_storage.h"

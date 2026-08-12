@@ -18,8 +18,7 @@
 
 #if MODEM_TRANSPORT_ENABLED
 
-#  include "aether/mstream.h"
-#  include "aether/mstream_buffers.h"
+#  include "aether/vector_buffer.h"
 #  include "aether/write_action/failed_write_action.h"
 
 #  include "aether/transport/transport_tele.h"
@@ -191,11 +190,10 @@ WriteAction& ModemTransport::WriteTcp(DataBuffer&& in_data) {
 
   // Make TCP packet with its size at the beginning
   auto packet_data = std::vector<std::uint8_t>{};
-  packet_data.reserve(in_data.size() + 4);
-  VectorWriter<PacketSize> vw{packet_data};
-  auto os = omstream{vw};
-  // copy data with size
-  os << std::move(in_data);  // NOLINT
+  VectorBuffer<PacketSize> vw{packet_data};
+  vw.Write(seri::SizeWriteTag(in_data.size()));
+  vw.Write(
+      seri::DataWriteTag{std::move(in_data).data(), std::move(in_data).size()});
 
   auto* send_action =
       send_queue_manager.AddPacket(ae_context_, *this, std::move(packet_data));

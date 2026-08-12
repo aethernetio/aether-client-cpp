@@ -26,11 +26,12 @@
 
 #include "aether/clock.h"
 
-#include "aether/mstream.h"
-
 #include "aether-miscpp/domain_visitor/domain_visitor.h"
 #include "aether-miscpp/reflect/reflect.h"
+#include "aether-miscpp/serialization/binary_archive.h"
+#include "aether-miscpp/serialization/serialization.h"
 #include "aether/ptr/ptr_view.h"
+#include "aether/tiered_int_serializer.h"
 
 #include "aether/obj/idomain_storage.h"
 #include "aether/obj/obj_id.h"
@@ -63,33 +64,38 @@ struct DomainCycleDetector {
   std::set<Node> visited_nodes;
 };
 
-class DomainStorageReaderEmpty final : public IDomainStorageReader {
- public:
-  void read(void*, std::size_t) override {}
-  ReadResult result() const override { return ReadResult::kNo; }
-  void result(ReadResult) override {}
-};
+struct DomainBuffer {
+  seri::SeriResult Write(seri::SizeWriteTag data) const {
+    if (writer == nullptr) {
+      return Error{seri::write_eof};
+    }
+    return writer->Write(data);
+  }
 
-struct DomainBufferWriter {
-  using size_type = IDomainStorageReader::size_type;
+  seri::SeriResult Write(seri::DataWriteTag data) const {
+    if (writer == nullptr) {
+      return Error{seri::write_eof};
+    }
+    return writer->Write(data);
+  }
 
-  void write(void const* data, std::size_t size) { writer->write(data, size); }
+  seri::SeriResult Read(seri::SizeReadTag data) const {
+    if (reader == nullptr) {
+      return Error{seri::read_eof};
+    }
+    return reader->Read(data);
+  }
+  seri::SeriResult Read(seri::DataReadTag data) const {
+    if (reader == nullptr) {
+      return Error{seri::read_eof};
+    }
+    return reader->Read(data);
+  }
 
   ObjId id;
   DomainGraph* domain_graph{};
-  IDomainStorageWriter* writer;
-};
-
-struct DomainBufferReader {
-  using size_type = IDomainStorageReader::size_type;
-
-  void read(void* data, std::size_t size) { reader->read(data, size); }
-  ReadResult result() const { return reader->result(); }
-  void result(ReadResult result) { reader->result(result); }
-
-  ObjId id;
-  DomainGraph* domain_graph{};
-  IDomainStorageReader* reader;
+  IDomainStorageWriter* writer{nullptr};
+  IDomainStorageReader* reader{nullptr};
 };
 
 /**
@@ -115,20 +121,20 @@ class DomainGraph {
   void SaveRootImpl(Ptr<Obj> const& ptr, ObjId obj_id);
 
   template <typename T>
-  void Load(T& obj, ObjId obj_id);
+  seri::SeriResult Load(T& obj, ObjId obj_id);
   template <typename T, auto V>
-  void LoadVersion(Version<V> version, T& obj, ObjId obj_id);
+  seri::SeriResult LoadVersion(Version<V> version, T& obj, ObjId obj_id);
 
   template <typename T>
-  void Save(T const& obj, ObjId obj_id);
+  seri::SeriResult Save(T const& obj, ObjId obj_id);
   template <typename T, auto V>
-  void SaveVersion(Version<V> version, T const& obj, ObjId obj_id);
+  seri::SeriResult SaveVersion(Version<V> version, T const& obj, ObjId obj_id);
 
   Domain* domain{};
   DomainCycleDetector cycle_detector{};
 
  private:
-  std::unique_ptr<IDomainStorageReader> GetReader(DomainQuery const& query);
+  DomainLoad GetReader(DomainQuery const& query);
   std::unique_ptr<IDomainStorageWriter> GetWriter(DomainQuery const& query);
 };
 
@@ -177,92 +183,153 @@ Ptr<T> DomainGraph::LoadCopy(ObjId ref_id, ObjId copy_id) {
 }
 
 template <typename T>
-void DomainGraph::Load(T& obj, ObjId obj_id) {
+seri::SeriResult DomainGraph::Load(T& obj, ObjId obj_id) {
   if (!cycle_detector.Add(T::kClassId, obj_id)) {
-    return;
+    return Ok{seri::good};
   }
 
   if constexpr (HasAnyVersionedLoad<T>::value) {
+    auto result = seri::SeriResult{Ok{seri::good}};
     version_iterator<VersionLoadTrait>(
-        obj, [this, obj_id](auto version, auto& obj) {
-          this->LoadVersion(version, obj, obj_id);
+        obj, [this, obj_id, &result](auto version, auto& obj) {
+          if (result.IsErr()) {
+            return;
+          }
+          result = this->LoadVersion(version, obj, obj_id);
         });
+    return result;
   } else {
-    LoadVersion(T::kCurrentVersion, obj, obj_id);
+    return LoadVersion(T::kCurrentVersion, obj, obj_id);
   }
 }
 
-template <typename T, auto V>
-void DomainGraph::LoadVersion(Version<V> version, T& obj, ObjId obj_id) {
-  auto storage_reader = GetReader({obj_id, T::kClassId, V});
-  DomainBufferReader reader{obj_id, this, storage_reader.get()};
-  imstream is(reader);
+struct LoadVisitor {
+  void operator()(auto& v) {
+    if (res) {
+      res = bin_archive.Load(v);
+    }
+  }
 
-  auto visitor_func = [&is](auto& value) {
-    is >> value;
-    return false;
-  };
+  seri::BinaryArchive<DomainBuffer>& bin_archive;
+  seri::SeriResult res{Ok{seri::good}};
+};
+
+template <typename T, auto V>
+seri::SeriResult DomainGraph::LoadVersion(Version<V> version, T& obj,
+                                          ObjId obj_id) {
+  auto load = GetReader({obj_id, T::kClassId, V});
+  if (load.result != DomainLoadResult::kLoaded) {
+    return Ok{seri::good};
+  }
+
+  auto bin_archive =
+      seri::BinaryArchive{DomainBuffer{.id = obj_id,
+                                       .domain_graph = this,
+                                       .writer = {},
+                                       .reader = load.reader.get()}};
+
+  auto load_visitor = LoadVisitor{bin_archive};
 
   // if T has any versioned, it also must have Load for this version
   if constexpr (HasAnyVersionedLoad<T>::value) {
-    VersionNodeVisitor visitor{std::move(visitor_func)};
+    auto visitor = VersionNodeVisitor{load_visitor};
     obj.Load(version, visitor);
   } else {
     // load or deserialize object
-    domain_visitor::DomainVisit(obj, std::move(visitor_func));
+    domain_visitor::DomainVisit(obj, load_visitor);
   }
+  return load_visitor.res;
 }
 
 template <typename T>
-void DomainGraph::Save(T const& obj, ObjId obj_id) {
+seri::SeriResult DomainGraph::Save(T const& obj, ObjId obj_id) {
   if (!cycle_detector.Add(T::kClassId, obj_id)) {
-    return;
+    return Ok{seri::good};
   }
 
   if constexpr (HasAnyVersionedSave<T>::value) {
+    auto result = seri::SeriResult{Ok{seri::good}};
     version_iterator<VersionSaveTrait>(
-        obj, [this, obj_id](auto version, auto& obj) {
-          this->SaveVersion(version, obj, obj_id);
+        obj, [this, obj_id, &result](auto version, auto& obj) {
+          if (result.IsErr()) {
+            return;
+          }
+          result = this->SaveVersion(version, obj, obj_id);
         });
+    return result;
   } else {
-    SaveVersion(T::kCurrentVersion, obj, obj_id);
+    return SaveVersion(T::kCurrentVersion, obj, obj_id);
   }
 }
 
-template <typename T, auto V>
-void DomainGraph::SaveVersion(Version<V> version, T const& obj, ObjId obj_id) {
-  auto storage_writer = GetWriter({obj_id, T::kClassId, V});
-  DomainBufferWriter writer{obj_id, this, storage_writer.get()};
-  omstream os(writer);
+struct SaveVisitor {
+  void operator()(auto const& v) {
+    if (res) {
+      res = bin_archive.Save(v);
+    }
+  }
 
-  auto visitor_func = [&os](auto const& value) {
-    os << value;
-    return false;
-  };
+  seri::BinaryArchive<DomainBuffer>& bin_archive;
+  seri::SeriResult res{Ok{seri::good}};
+};
+
+template <typename T, auto V>
+seri::SeriResult DomainGraph::SaveVersion(Version<V> version, T const& obj,
+                                          ObjId obj_id) {
+  auto storage_writer = GetWriter({obj_id, T::kClassId, V});
+
+  auto bin_archive =
+      seri::BinaryArchive{DomainBuffer{.id = obj_id,
+                                       .domain_graph = this,
+                                       .writer = storage_writer.get(),
+                                       .reader = {}}};
+
+  auto save_visitor = SaveVisitor{bin_archive};
 
   if constexpr (HasAnyVersionedSave<T>::value) {
-    VersionNodeVisitor visitor{std::move(visitor_func)};
+    auto visitor = VersionNodeVisitor{save_visitor};
     obj.Save(version, visitor);
   } else {
     // load or deserialize object
-    domain_visitor::DomainVisit(obj, std::move(visitor_func));
+    domain_visitor::DomainVisit(
+        obj, save_visitor,
+        domain_visitor::PolicyConst<domain_visitor::VisitPolicy::kShallow>{});
   }
+  return save_visitor.res;
 }
 
+namespace seri {
 template <typename T>
-std::enable_if_t<std::is_base_of_v<Obj, T>, imstream<DomainBufferReader>&>
-operator>>(imstream<DomainBufferReader>& is, T& obj) {
-  is.ib_.domain_graph->Load(obj, is.ib_.id);
-  return is;
-}
+  requires(std::is_base_of_v<Obj, T>)
+struct Serializer<BinaryArchive<DomainBuffer>, T> {
+  using Archive = BinaryArchive<DomainBuffer>;
 
-template <typename T>
-std::enable_if_t<std::is_base_of_v<Obj, T>, omstream<DomainBufferWriter>&>
-operator<<(omstream<DomainBufferWriter>& os, T const& obj) {
-  os.ob_.domain_graph->Save(obj, os.ob_.id);
-  return os;
-}
+  SeriResult Seri(Archive& arch, Meta<T const> meta_val) const {
+    return arch.buffer().domain_graph->Save(meta_val.value, arch.buffer().id);
+  }
 
+  SeriResult Deseri(Archive& arch, Meta<T> meta_val) const {
+    return arch.buffer().domain_graph->Load(meta_val.value, arch.buffer().id);
+  }
+};
+
+template <>
+struct Serializer<BinaryArchive<DomainBuffer>, std::string> {
+  SeriResult Deseri(BinaryArchive<DomainBuffer>& archive,
+                    Meta<std::string> val) const;
+  SeriResult Seri(BinaryArchive<DomainBuffer>& archive,
+                  Meta<std::string const> val) const;
+};
+
+template <>
+struct Serializer<BinaryArchive<DomainBuffer>, std::vector<std::uint8_t>> {
+  SeriResult Deseri(BinaryArchive<DomainBuffer>& archive,
+                    Meta<std::vector<std::uint8_t>> val) const;
+  SeriResult Seri(BinaryArchive<DomainBuffer>& archive,
+                  Meta<std::vector<std::uint8_t> const> val) const;
+};
+
+}  // namespace seri
 }  // namespace ae
 
 #endif  // AETHER_OBJ_DOMAIN_H_

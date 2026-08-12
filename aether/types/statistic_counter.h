@@ -31,13 +31,16 @@ IGNORE_IMPLICIT_CONVERSION()
 DISABLE_WARNING_POP()
 
 #include "aether-miscpp/format/format.h"
+#include "aether-miscpp/serialization/binary_archive.h"
+
 #include "aether/common.h"
-#include "aether/mstream.h"
 
 namespace ae {
 template <typename TValue, std::size_t Capacity,
           typename Comparator = std::less<TValue>>
 class StatisticsCounter final {
+  template <typename A, typename T, typename>
+  friend struct seri::Serializer;
   friend struct Formatter<StatisticsCounter<TValue, Capacity, Comparator>>;
 
  public:
@@ -98,33 +101,38 @@ class StatisticsCounter final {
   std::size_t size() const { return value_buffer_.size(); }
   bool empty() const { return value_buffer_.empty(); }
 
-  template <typename Ib>
-  friend imstream<Ib>& operator>>(imstream<Ib>& is, StatisticsCounter& value) {
-    typename Ib::size_type size;
-    is >> size;
-    for (std::size_t i = 0; (i < static_cast<std::size_t>(size)) &&
-                            (i < value.value_buffer_.max_size());
-         ++i) {
-      TValue temp;
-      is >> temp;
-      value.value_buffer_.push(std::move(temp));
-    }
-    return is;
-  }
-
-  template <typename Ob>
-  friend omstream<Ob>& operator<<(omstream<Ob>& os,
-                                  StatisticsCounter const& value) {
-    os << static_cast<typename Ob::size_type>(value.value_buffer_.size());
-    for (auto const& v : value.value_buffer_) {
-      os << v;
-    }
-    return os;
-  }
-
  private:
   etl::circular_buffer<TValue, Capacity> value_buffer_;
 };
+
+namespace seri {
+template <BinaryBuffer B, typename T, std::size_t Capacity, typename Comparator>
+struct Serializer<BinaryArchive<B>,
+                  StatisticsCounter<T, Capacity, Comparator>> {
+  using SCounter = StatisticsCounter<T, Capacity, Comparator>;
+
+  SeriResult Seri(BinaryArchive<B>& archive, Meta<SCounter const> meta) const {
+    TRY_RESULT(archive.buffer().Write(SizeTag{
+        static_cast<std::size_t const>(meta.value.value_buffer_.size())}));
+    for (auto const& v : meta.value.value_buffer_) {
+      TRY_RESULT(archive.Save(Meta{v}));
+    }
+    return Ok{seri::good};
+  }
+
+  SeriResult Deseri(BinaryArchive<B>& archive, Meta<SCounter> meta) const {
+    std::size_t size{};
+    TRY_RESULT(archive.buffer().Read(SizeTag{size}));
+    for (std::size_t i = 0;
+         (i < size) && (i < meta.value.value_buffer_.max_size()); ++i) {
+      T temp;
+      TRY_RESULT(archive.Load(Meta{temp}));
+      meta.value.value_buffer_.push(std::move(temp));
+    }
+    return Ok{seri::good};
+  }
+};
+}  // namespace seri
 
 /**
  * \brief Formatter implementation.

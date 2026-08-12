@@ -167,7 +167,6 @@ list(APPEND aether_srcs
 list(APPEND aether_srcs
             "api_protocol/protocol_context.cpp"
             "api_protocol/api_pack_parser.cpp"
-            "api_protocol/child_data.cpp"
             "api_protocol/return_result_api.cpp"
             )
 

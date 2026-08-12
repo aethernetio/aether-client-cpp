@@ -17,7 +17,7 @@
 #ifndef AETHER_DOMAIN_STORAGE_FILE_SYSTEM_STD_STORAGE_H_
 #define AETHER_DOMAIN_STORAGE_FILE_SYSTEM_STD_STORAGE_H_
 
-#include <vector>
+#include <memory>
 
 #if (defined(__linux__) || defined(__unix__) || defined(__APPLE__) || \
      defined(__FreeBSD__) || defined(_WIN64) || defined(_WIN32))

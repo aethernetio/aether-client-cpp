@@ -100,7 +100,7 @@ struct RefVisitor {
 
 using PtrRefDnv =
     domain_visitor::DomainNodeVisitor<RefVisitor&,
-                                      domain_visitor::VisitPolicy::kDeep>;
+                                      domain_visitor::VisitPolicy::kAny>;
 }  // namespace ae
 
 #endif  // AETHER_PTR_PTR_MANAGEMENT_H_

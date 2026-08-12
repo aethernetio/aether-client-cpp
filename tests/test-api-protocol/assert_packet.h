@@ -19,12 +19,13 @@
 
 #include <unity.h>
 
-#include <vector>
 #include <cstdint>
+#include <vector>
 
-#include "aether/mstream.h"
-#include "aether/mstream_buffers.h"
+#include "aether-miscpp/serialization/binary_archive.h"
+
 #include "aether/api_protocol/api_message.h"
+#include "aether/tiered_int_serializer.h"  // IWYU pragma: export
 
 #if defined(__clang__) || defined(__GNUC__)
 #  define FUNCTION_NAME __PRETTY_FUNCTION__
@@ -37,29 +38,32 @@
 template <typename T>
 struct Skip {};
 
-using imstream_t = ae::imstream<ae::VectorReader<ae::PackedSize>>;
-
-template <typename T>
-void AssertPacketEntry(imstream_t& is, T const& t) {
+template <ae::seri::Archive A, typename T>
+void AssertPacketEntry(A& a, T const& t) {
   T temp;
-  is >> temp;
+  a.Load(temp);
   TEST_ASSERT_MESSAGE(t == temp, FUNCTION_NAME);
 }
 
-template <typename T>
-void AssertPacketEntry(imstream_t& is, Skip<T> const&) {
+template <ae::seri::Archive A, typename T>
+void AssertPacketEntry(A& a, Skip<T> const&) {
   T temp;
-  is >> temp;
+  a.Load(temp);
 }
 
 template <typename... Args>
 void AssertPacket(std::vector<std::uint8_t> const& data, Args const&... args) {
   auto const* old_file = Unity.TestFile;
   UnitySetTestFile(__FILE__);
-  ae::VectorReader<ae::PackedSize> ib{data};
-  imstream_t is{ib};
-  (AssertPacketEntry(is, args), ...);
-  TEST_ASSERT_EQUAL_MESSAGE(data.size(), ib.offset_, FUNCTION_NAME);
+
+  auto archive = ae::seri::BinaryArchive{
+      ae::VectorBuffer<ae::PackedSize>{
+          const_cast<std::vector<std::uint8_t>&>(data)},  // NOLINT
+  };
+
+  (AssertPacketEntry(archive, args), ...);
+  TEST_ASSERT_EQUAL_MESSAGE(data.size(), archive.buffer().read_offset,
+                            FUNCTION_NAME);
 
   UnitySetTestFile(old_file);
 }

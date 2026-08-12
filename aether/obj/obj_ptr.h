@@ -23,6 +23,9 @@
 #include <utility>
 
 #include "aether-miscpp/domain_visitor/domain_visitor.h"  // IWYU pragma: keep
+#include "aether-miscpp/serialization/binary_archive.h"
+#include "aether-miscpp/serialization/serialization.h"
+
 #include "aether/obj/domain.h"
 #include "aether/obj/obj_id.h"
 #include "aether/obj/obj_ptr_base.h"
@@ -45,8 +48,10 @@ struct ObjProp {
 };
 
 struct CreateWith {
-  CreateWith(Domain* d) : domain{d} { assert(d != nullptr); }
-  CreateWith(Domain& d) : domain{&d} {}
+  CreateWith(Domain* d) : domain{d} {  // NOLINT(*explicit*)
+    assert(d != nullptr);
+  }
+  CreateWith(Domain& d) : domain{&d} {}  // NOLINT(*explicit*)
 
   CreateWith&& with_id(ObjId id) && {
     obj_id = id;
@@ -68,12 +73,7 @@ class ObjPtr : public ObjectPtrBase {
   template <typename U>
   friend class ObjPtr;
 
-  template <typename U>
-  friend imstream<DomainBufferReader>& operator>>(
-      imstream<DomainBufferReader>& is, ObjPtr<U>& ptr);
-  template <typename U>
-  friend omstream<DomainBufferWriter>& operator<<(
-      omstream<DomainBufferWriter>& os, ObjPtr<U> const& ptr);
+  friend struct seri::Serializer<seri::BinaryArchive<DomainBuffer>, ObjPtr>;
 
  public:
   /**
@@ -111,7 +111,7 @@ class ObjPtr : public ObjectPtrBase {
 
   template <typename U>
     requires(IsAbleToCast<T, U>::value)
-  ObjPtr(ObjPtr<U> ptr) noexcept
+  ObjPtr(ObjPtr<U> ptr) noexcept  // NOLINT(*explicit*)
       : ObjectPtrBase{static_cast<ObjectPtrBase const&>(ptr)},
         ptr_{std::move(ptr.ptr_)} {}
 
@@ -258,7 +258,7 @@ Ptr<T> const& ObjPtr<T>::Load() {
 
 template <typename T>
 Ptr<T> const& ObjPtr<T>::Load() const {
-  return const_cast<ObjPtr<T>*>(this)->Load();
+  return const_cast<ObjPtr<T>*>(this)->Load();  // NOLINT(*const-cast)
 }
 
 template <typename T>
@@ -320,33 +320,39 @@ void ObjPtr<T>::Reset() {
   flags_ = flags() & ObjFlags::kUnloaded;
 }
 
-template <typename T>
-imstream<DomainBufferReader>& operator>>(imstream<DomainBufferReader>& is,
-                                         ObjPtr<T>& ptr) {
-  is >> static_cast<ObjectPtrBase&>(ptr);
-  if (!(ptr.flags() & ObjFlags::kUnloadedByDefault) &&
-      !(ptr.flags() & ObjFlags::kUnloaded)) {
-    // Load the object only if it's valid and unloaded flag is not set
-    ptr.ptr_ = is.ib_.domain_graph->LoadPtr<T>(ptr.id());
-  }
-  return is;
-}
-
-template <typename T>
-omstream<DomainBufferWriter>& operator<<(omstream<DomainBufferWriter>& os,
-                                         ObjPtr<T> const& ptr) {
-  os << static_cast<ObjectPtrBase const&>(ptr);
-  if (ptr.ptr_) {
-    os.ob_.domain_graph->SavePtr(ptr.ptr_, ptr.id());
-  }
-  return os;
-}
 }  // namespace ae
+
+namespace ae::seri {
+template <typename T>
+struct Serializer<BinaryArchive<DomainBuffer>, ObjPtr<T>> {
+  using Archive = BinaryArchive<DomainBuffer>;
+
+  SeriResult Seri(Archive& archive, Meta<ObjPtr<T> const> meta) const {
+    TRY_RESULT((archive.Save(static_cast<ObjectPtrBase const&>(meta.value))));
+    if (meta.value.ptr_) {
+      archive.buffer().domain_graph->SavePtr(meta.value.ptr_, meta.value.id());
+    }
+    return Ok{seri::good};
+  }
+
+  SeriResult Deseri(Archive& archive, Meta<ObjPtr<T>> meta) const {
+    TRY_RESULT((archive.Load(static_cast<ObjectPtrBase&>(meta.value))));
+
+    if (!(meta.value.flags() & ObjFlags::kUnloadedByDefault) &&
+        !(meta.value.flags() & ObjFlags::kUnloaded)) {
+      // Load the object only if it's valid and unloaded flag is not set
+      meta.value.ptr_ =
+          archive.buffer().domain_graph->LoadPtr<T>(meta.value.id());
+    }
+    return Ok{seri::good};
+  }
+};
+}  // namespace ae::seri
 
 namespace ae::domain_visitor {
 template <typename T>
 struct NodeVisitor<ae::ObjPtr<T>> : NodeVisitor<ae::Ptr<T>> {
-  using Policy = AnyPolicyMatch;
+  using Policy = PolicyMatch<VisitPolicy::kPointers>;
   using Base = NodeVisitor<ae::Ptr<T>>;
 
   template <typename Visitor>

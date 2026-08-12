@@ -17,17 +17,16 @@
 #ifndef AETHER_OBJ_OBJ_PTR_BASE_H_
 #define AETHER_OBJ_OBJ_PTR_BASE_H_
 
-#include "aether/obj/obj_id.h"
+#include "aether-miscpp/serialization/serialization.h"
+
 #include "aether/obj/domain.h"
+#include "aether/obj/obj_id.h"
 
 namespace ae {
 
 class ObjectPtrBase {
-  friend imstream<DomainBufferReader>& operator>>(
-      imstream<DomainBufferReader>& is, ObjectPtrBase& ptr);
-
-  friend omstream<DomainBufferWriter>& operator<<(
-      omstream<DomainBufferWriter>& os, ObjectPtrBase const& ptr);
+  friend struct seri::Serializer<seri::BinaryArchive<DomainBuffer>,
+                                 ObjectPtrBase>;
 
  public:
   ObjectPtrBase();
@@ -48,11 +47,16 @@ class ObjectPtrBase {
   ObjFlags flags_;
 };
 
-imstream<DomainBufferReader>& operator>>(imstream<DomainBufferReader>& is,
-                                         ObjectPtrBase& ptr);
+namespace seri {
+template <>
+struct Serializer<BinaryArchive<DomainBuffer>, ObjectPtrBase> {
+  using Archive = BinaryArchive<DomainBuffer>;
 
-omstream<DomainBufferWriter>& operator<<(omstream<DomainBufferWriter>& os,
-                                         ObjectPtrBase const& ptr);
+  SeriResult Seri(Archive& archive, Meta<ObjectPtrBase const> meta) const;
+
+  SeriResult Deseri(Archive& archive, Meta<ObjectPtrBase> meta) const;
+};
+}  // namespace seri
 }  // namespace ae
 
 #endif  // AETHER_OBJ_OBJ_PTR_BASE_H_

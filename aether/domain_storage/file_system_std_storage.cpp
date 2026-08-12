@@ -32,7 +32,7 @@ namespace ae {
 class FstreamStorageWriter final : public IDomainStorageWriter {
  public:
   FstreamStorageWriter(DomainQuery q, std::ofstream&& f)
-      : query{std::move(q)}, file{std::move(f)}, written_size{0} {}
+      : query{std::move(q)}, file{std::move(f)} {}
 
   ~FstreamStorageWriter() override {
     file.close();
@@ -42,16 +42,25 @@ class FstreamStorageWriter final : public IDomainStorageWriter {
                   written_size);
   }
 
-  void write(void const* data, std::size_t size) override {
-    file.write(reinterpret_cast<std::ofstream::char_type const*>(data),
-               static_cast<std::streamsize>(size));
-    written_size += size;
+  seri::SeriResult Write(seri::SizeWriteTag data) override {
+    auto const u_size = static_cast<std::uint32_t>(data.size);
+    return Write(seri::DataTag{u_size});
+  }
+
+  seri::SeriResult Write(seri::DataWriteTag data) override {
+    file.write(reinterpret_cast<std::ofstream::char_type const*>(data.data),
+               static_cast<std::streamsize>(data.size));
+    if (file.fail()) {
+      return Error{seri::write_error};
+    }
+    written_size += data.size;
+    return Ok{seri::good};
   }
 
  private:
   DomainQuery query;
   std::ofstream file;
-  std::size_t written_size;
+  std::size_t written_size{};
 };
 
 class FstreamStorageReader final : public IDomainStorageReader {
@@ -59,13 +68,28 @@ class FstreamStorageReader final : public IDomainStorageReader {
   explicit FstreamStorageReader(std::ifstream&& f) : file{std::move(f)} {}
   ~FstreamStorageReader() override { file.close(); }
 
-  void read(void* data, std::size_t size) override {
-    file.read(reinterpret_cast<std::ofstream::char_type*>(data),
-              static_cast<std::streamsize>(size));
+  seri::SeriResult Read(seri::SizeReadTag data) override {
+    std::uint32_t u_size{};
+    TRY_RESULT(Read(seri::DataTag{u_size}));
+    data.size = static_cast<std::size_t>(u_size);
+    return Ok{seri::good};
   }
 
-  ReadResult result() const override { return ReadResult::kYes; }
-  void result(ReadResult) override {}
+  seri::SeriResult Read(seri::DataReadTag data) override {
+    if (file.eof()) {
+      return Error{seri::read_eof};
+    }
+
+    file.read(reinterpret_cast<std::ofstream::char_type*>(data.data),
+              static_cast<std::streamsize>(data.size));
+    if (file.bad()) {
+      return Error{seri::read_error};
+    }
+    if (file.gcount() != static_cast<std::streamsize>(data.size)) {
+      return Error{file.eof() ? seri::read_eof : seri::read_error};
+    }
+    return Ok{seri::good};
+  }
 
  private:
   std::ifstream file;

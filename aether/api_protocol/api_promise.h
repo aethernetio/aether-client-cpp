@@ -23,10 +23,12 @@
 
 #include "aether-miscpp/meta/ignore_t.h"
 #include "aether-miscpp/types/result.h"
+
+#include "aether/events/events.h"
+
 #include "aether/api_protocol/api_pack_parser.h"
 #include "aether/api_protocol/protocol_context.h"
 #include "aether/api_protocol/request_id.h"
-#include "aether/events/events.h"
 
 namespace ae {
 namespace api_promise_internal {

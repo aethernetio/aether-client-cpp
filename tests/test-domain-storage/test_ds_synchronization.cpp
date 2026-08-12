@@ -42,12 +42,10 @@ auto GetFsDomainStorage() {
 
 std::vector<std::uint8_t> DataGetter(
     std::unique_ptr<IDomainStorageReader>& reader) {
-  std::uint8_t size;
-  reader->read(&size, sizeof(size));
-  std::vector<std::uint8_t> res;
-  res.resize(size + 1);
-  res[0] = size;
-  reader->read(res.data() + 1, res.size() - 1);
+  std::size_t size{};
+  TEST_ASSERT(reader->Read(ae::seri::SizeReadTag{size}));
+  auto res = std::vector<std::uint8_t>(size);
+  TEST_ASSERT(reader->Read(ae::seri::DataReadTag{res.data(), res.size()}));
   return res;
 }
 
@@ -55,10 +53,17 @@ static constexpr auto classes_1 = std::array<std::uint32_t, 2>{100, 101};
 static constexpr auto classes_2 = std::array<std::uint32_t, 1>{200};
 static constexpr auto classes_3 = std::array<std::uint32_t, 2>{300, 302};
 
-static constexpr auto data_1 = std::array<std::uint8_t, 5>{4, 251, 12, 42, 11};
-static constexpr auto data_2 = std::array<std::uint8_t, 5>{4, 252, 13, 42, 11};
-static constexpr auto data_3 = std::array<std::uint8_t, 5>{4, 253, 14, 42, 11};
-static constexpr auto data_4 = std::array<std::uint8_t, 5>{4, 254, 15, 42, 11};
+static constexpr auto data_1 = std::array<std::uint8_t, 4>{251, 12, 42, 11};
+static constexpr auto data_2 = std::array<std::uint8_t, 4>{252, 13, 42, 11};
+static constexpr auto data_3 = std::array<std::uint8_t, 4>{253, 14, 42, 11};
+static constexpr auto data_4 = std::array<std::uint8_t, 4>{254, 15, 42, 11};
+
+static constexpr auto storage_data_1 =
+    std::array<std::uint8_t, 8>{4, 0, 0, 0, 251, 12, 42, 11};
+static constexpr auto storage_data_2 =
+    std::array<std::uint8_t, 8>{4, 0, 0, 0, 252, 13, 42, 11};
+static constexpr auto storage_data_3 =
+    std::array<std::uint8_t, 8>{4, 0, 0, 0, 253, 14, 42, 11};
 
 static constexpr auto static_data = StaticDomainData{
     // object map
@@ -68,9 +73,9 @@ static constexpr auto static_data = StaticDomainData{
     }},
     // data map
     StaticMap{{
-        std::pair{ObjectPathKey{1, 100, 0}, Span{data_1}},
-        std::pair{ObjectPathKey{1, 101, 0}, Span{data_2}},
-        std::pair{ObjectPathKey{2, 200, 0}, Span{data_3}},
+        std::pair{ObjectPathKey{1, 100, 0}, Span{storage_data_1}},
+        std::pair{ObjectPathKey{1, 101, 0}, Span{storage_data_2}},
+        std::pair{ObjectPathKey{2, 200, 0}, Span{storage_data_3}},
     }},
 };
 
@@ -109,7 +114,9 @@ void TestSyncDataStorage(std::unique_ptr<StaticDS> sds,
   // add data and get after
   {
     auto writer_2_201 = data_storage.Store({ObjId{2}, 201, 0});
-    writer_2_201->write(data_4.data(), data_4.size());
+    TEST_ASSERT(writer_2_201->Write(ae::seri::SizeWriteTag{data_4.size()}));
+    TEST_ASSERT(writer_2_201->Write(
+        ae::seri::DataWriteTag{data_4.data(), data_4.size()}));
     writer_2_201.reset();
 
     auto load_2_201 = data_storage.Load({ObjId{2}, 201, 0});
@@ -131,7 +138,9 @@ void TestSyncDataStorage(std::unique_ptr<StaticDS> sds,
   // add an object
   {
     auto writer_3_300 = data_storage.Store({ObjId{3}, 300, 0});
-    writer_3_300->write(data_4.data(), data_4.size());
+    TEST_ASSERT(writer_3_300->Write(ae::seri::SizeWriteTag{data_4.size()}));
+    TEST_ASSERT(writer_3_300->Write(
+        ae::seri::DataWriteTag{data_4.data(), data_4.size()}));
     writer_3_300.reset();
 
     auto load_3_300 = data_storage.Load({ObjId{3}, 300, 0});

@@ -17,14 +17,16 @@
 #ifndef AETHER_API_PROTOCOL_API_MESSAGE_H_
 #define AETHER_API_PROTOCOL_API_MESSAGE_H_
 
+#include <cassert>
+#include <cstdint>
 #include <tuple>
 #include <vector>
-#include <cstdint>
 
 #include <numeric/tiered_int.h>
 
-#include "aether/mstream.h"
-#include "aether/mstream_buffers.h"
+#include "aether-miscpp/serialization/serialization.h"
+
+#include "aether/vector_buffer.h"
 
 namespace ae {
 
@@ -35,71 +37,58 @@ using PackedSize = TieredInt<std::uint64_t, std::uint8_t, 250>;
 class ApiParser;
 class ApiPacker;
 
-struct MessageBufferWriter : VectorWriter<PackedSize> {
-  MessageBufferWriter(std::vector<uint8_t>& data, ApiPacker& p)
-      : VectorWriter(data), packer{p} {}
-
-  ApiPacker& packer;
-};
-struct MessageBufferReader : VectorReader<PackedSize> {
-  MessageBufferReader(std::vector<uint8_t> const& data, ApiParser& p)
-      : VectorReader(data), parser{p} {}
-  ApiParser& parser;
-};
-
-using message_ostream = ae::omstream<MessageBufferWriter>;
-using message_istream = ae::imstream<MessageBufferReader>;
-
-// Base for all messages
-template <typename T>
-struct Message {
-  Message() = default;
-  Message(Message const&) = default;
-  void Load(message_istream& ms) { ms >> static_cast<T&>(*this); }
-  void Save(message_ostream& ms) const { ms << static_cast<T const&>(*this); }
-};
+using MessageBuffer = VectorBuffer<PackedSize>;
 
 /**
  * \brief A message formed from template parameters
  */
 template <typename... Ts>
-struct GenericMessage : Message<GenericMessage<Ts...>> {
+struct GenericMessage {
   explicit GenericMessage() = default;
   explicit GenericMessage(Ts... args) : fields{std::forward<Ts>(args)...} {}
 
-  template <typename Ib>
-  friend imstream<Ib>& operator>>(imstream<Ib>& is, GenericMessage& mesassge) {
-    std::apply([&](auto&... args) { ((is >> args), ...); }, mesassge.fields);
-    return is;
-  }
-
-  template <typename Ob>
-  friend omstream<Ob>& operator<<(omstream<Ob>& os,
-                                  GenericMessage const& mesassge) {
-    std::apply([&](auto const&... args) { ((os << args), ...); },
-               mesassge.fields);
-    return os;
-  }
-
-  std::tuple<Ts...> fields;
+  [[no_unique_address]] std::tuple<Ts...> fields;
 };
 
 template <>
-struct GenericMessage<> : Message<GenericMessage<>> {
+struct GenericMessage<> {
   explicit GenericMessage() = default;
+};
 
-  template <typename Ib>
-  friend imstream<Ib>& operator>>(imstream<Ib>& is,
-                                  GenericMessage& /* mesassge */) {
-    return is;
+namespace seri {
+template <Archive A, typename... Ts>
+struct Serializer<A, GenericMessage<Ts...>> {
+  SeriResult Seri(A& archive, Meta<GenericMessage<Ts...> const> meta) const {
+    if constexpr (sizeof...(Ts) > 0) {
+      return std::apply(
+          [&](auto&... args) {
+            auto res = SeriResult{Ok{good}};
+            auto b = ((res = archive.Save(Meta{.value = args, .name = "field"}),
+                       !!res) &&
+                      ...);
+            (void)b;
+            return res;
+          },
+          meta.value.fields);
+    }
+    return Ok{seri::good};
   }
 
-  template <typename Ob>
-  friend omstream<Ob>& operator<<(omstream<Ob>& os,
-                                  GenericMessage const& /* mesassge */) {
-    return os;
+  SeriResult Deseri(A& archive, Meta<GenericMessage<Ts...>> meta) const {
+    if constexpr (sizeof...(Ts) > 0) {
+      return std::apply(
+          [&](auto&... args) {
+            auto res = SeriResult{Ok{good}};
+            auto b = ((res = archive.Load(Meta{args}), !!res) && ...);
+            (void)b;
+            return res;
+          },
+          meta.value.fields);
+    }
+    return Ok{seri::good};
   }
 };
+}  // namespace seri
 
 }  // namespace ae
 

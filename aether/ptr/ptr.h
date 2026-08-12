@@ -296,19 +296,20 @@ auto MakePtr(TArgs&&... args) {
 namespace ae::domain_visitor {
 template <typename T>
 struct NodeVisitor<ae::Ptr<T>> {
-  using Policy = AnyPolicyMatch;
+  using Policy = PolicyMatch<VisitPolicy::kPointers>;
 
   void Visit(ae::Ptr<T>& obj, CycleDetector& cycle_detector,
-             PtrRefDnv&& visitor) const {
-    domain_visitor::ApplyVisitor(obj, cycle_detector, std::move(visitor));
+             PtrRefDnv const& visitor) const {
+    domain_visitor::ApplyVisitor(obj, cycle_detector, visitor);
   }
 
   void Visit(ae::Ptr<T> const& obj, CycleDetector& cycle_detector,
-             PtrRefDnv&& visitor) const {
-    domain_visitor::ApplyVisitor(obj, cycle_detector, std::move(visitor));
+             PtrRefDnv const& visitor) const {
+    domain_visitor::ApplyVisitor(obj, cycle_detector, visitor);
   }
 
   template <typename Visitor>
+    requires(!std::is_same_v<PtrRefDnv, std::decay_t<Visitor>>)
   void Visit(ae::Ptr<T> const& obj, CycleDetector& cycle_detector,
              Visitor&& visitor) const {
     if (obj) {
@@ -317,6 +318,7 @@ struct NodeVisitor<ae::Ptr<T>> {
   }
 
   template <typename Visitor>
+    requires(!std::is_same_v<PtrRefDnv, std::decay_t<Visitor>>)
   void Visit(ae::Ptr<T>& obj, CycleDetector& cycle_detector,
              Visitor&& visitor) const {
     if (obj) {

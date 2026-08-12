@@ -17,14 +17,14 @@
 #ifndef AETHER_SERVER_KEYS_H_
 #define AETHER_SERVER_KEYS_H_
 
-#include <cstdint>
 #include <cassert>
+#include <cstdint>
 
 #include <numeric/tiered_int.h>
 
+#include "aether/crypto/crypto_nonce.h"
 #include "aether/crypto/key.h"
 #include "aether/types/server_id.h"
-#include "aether/crypto/crypto_nonce.h"
 
 namespace ae {
 class ServerKeys {
@@ -47,7 +47,7 @@ class ServerKeys {
 
   ServerId server_id_{};
   Key master_key_;
-  TieredInt<std::uint32_t, std::uint8_t, 250> key_number_{};
+  std::uint32_t key_number_{};
   CryptoNonce nonce_;
   Key client_to_server_key_;
   Key server_to_client_key_;

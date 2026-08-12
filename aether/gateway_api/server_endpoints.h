@@ -17,14 +17,14 @@
 #ifndef AETHER_GATEWAY_API_SERVER_ENDPOINTS_H_
 #define AETHER_GATEWAY_API_SERVER_ENDPOINTS_H_
 
-#include <vector>
 #include <functional>
+#include <vector>
 
 #include "aether-miscpp/crc.h"
-#include "aether/mstream.h"
-#include "aether/types/address.h"
-#include "aether/mstream_buffers.h"
 #include "aether-miscpp/reflect/reflect.h"
+#include "aether-miscpp/serialization/binary_archive.h"
+
+#include "aether/types/address.h"
 
 namespace ae {
 struct ServerEndpoints {
@@ -38,9 +38,11 @@ template <>
 struct hash<ae::ServerEndpoints> {
   std::size_t operator()(ae::ServerEndpoints const& endpoints) const {
     std::vector<std::uint8_t> data;
-    auto writer = ae::VectorWriter<>{data};
-    auto os = ae::omstream{writer};
-    os << endpoints;
+    auto archive = ae::seri::BinaryArchive{
+        ae::seri::BinaryVectorBuffer<>{data},
+    };
+    archive.Save(endpoints);
+
     return static_cast<std::size_t>(
         crc32::from_buffer(data.data(), data.size()).value);
   }
