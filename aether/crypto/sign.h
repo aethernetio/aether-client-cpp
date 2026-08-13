@@ -32,15 +32,15 @@
 #    include <hydrogen.h>
 #  endif
 
-#  include "aether-miscpp/reflect/reflect.h"
 #  include "aether-miscpp/format/format.h"
+#  include "aether-miscpp/reflect/reflect.h"
 #  include "aether/types/variant_type.h"
 
 namespace ae {
 
 enum class SignatureMethod : std::uint8_t {
-  kEd25519 = 0,
-  kHydroSignature,
+  kEd25519 = 1,
+  kHydroSignature = 2,
 };
 
 #  if AE_SIGNATURE == AE_ED25519
@@ -85,7 +85,6 @@ struct Sign : public VariantType<SignatureMethod,
     return std::visit([](auto const& v) { return v.signature.size(); },
                       static_cast<VariantType::variant const&>(*this));
   }
-
 };
 
 template <>
