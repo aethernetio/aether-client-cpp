@@ -182,7 +182,7 @@ void CloudServerConnections::QuarantineServer(
   if (server_connection.quarantine()) {
     return;
   }
-  AE_TELED_DEBUG("Quarantine server server_id={} priority={}",
+  AE_TELED_DEBUG("CLOUD_SERVER_QUARANTINED server_id={} priority={}",
                  server_connection.server()->server_id,
                  server_connection.priority());
   UnsubscribeFromServerState(server_connection);
@@ -209,7 +209,7 @@ void CloudServerConnections::ReleaseQuarantinedServer(
   if (!server_connection.quarantine()) {
     return;
   }
-  AE_TELED_DEBUG("Release quarantined server server_id={} priority={}",
+  AE_TELED_DEBUG("CLOUD_SERVER_RELEASED server_id={} priority={}",
                  server_connection.server()->server_id,
                  server_connection.priority());
   server_quarantine_release_event_.Emit(&server_connection);
@@ -252,6 +252,8 @@ void CloudServerConnections::ReconcileServers() {
       break;
     }
     candidate->SetPriority(selected_servers_.size());
+    AE_TELED_DEBUG("CLOUD_SERVER_RECONNECT_ATTEMPT server_id={} priority={}",
+                   candidate->server()->server_id, candidate->priority());
     candidate->Connect();
     auto* conn = candidate->client_connection();
     if (conn == nullptr ||
@@ -264,6 +266,10 @@ void CloudServerConnections::ReconcileServers() {
     }
     selected_servers_.emplace_back(candidate);
     SubscribeToServerState(*candidate);
+    if (conn->stream_info().link_state == LinkState::kLinked) {
+      AE_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
+                     candidate->server()->server_id, candidate->priority());
+    }
     emplaced = true;
   }
   if (emplaced) {

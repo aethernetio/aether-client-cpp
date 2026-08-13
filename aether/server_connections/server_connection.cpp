@@ -27,12 +27,12 @@
 
 namespace ae {
 ServerConnection::ChannelSelectAction::ChannelSelectAction(
-    AeContext const& ae_context, ChannelEntry& top_channel) noexcept
-    : ae_context_{ae_context}, top_channel_{&top_channel} {
-  auto channel = top_channel_->channel.Lock();
+    AeContext const& ae_context, ChannelEntry& attempted_channel) noexcept
+    : ae_context_{ae_context}, attempted_channel_{&attempted_channel} {
+  auto channel = attempted_channel_->channel.Lock();
   assert(channel && "Channel is null");
 
-  top_channel_->connection.BuildTransport(channel, [this](auto&& res) {
+  attempted_channel_->connection.BuildTransport(channel, [this](auto&& res) {
     if (res) {
       ChannelSelected();
     } else {
@@ -46,9 +46,15 @@ auto ServerConnection::ChannelSelectAction::result_event() noexcept
   return EventSubscriber{result_event_};
 }
 
+ServerConnection::ChannelEntry&
+ServerConnection::ChannelSelectAction::attempted_channel() noexcept {
+  assert(attempted_channel_ != nullptr);
+  return *attempted_channel_;
+}
+
 void ServerConnection::ChannelSelectAction::ChannelSelected() {
   task_sub_ = ae_context_.scheduler().Task([&]() noexcept {
-    result_event_.Emit(Ok<ChannelEntry&>{*top_channel_});
+    result_event_.Emit(Ok<ChannelEntry&>{*attempted_channel_});
     Finish();
   });
 }
@@ -62,7 +68,10 @@ void ServerConnection::ChannelSelectAction::ChannelFailed() {
 
 ServerConnection::ServerConnection(AeContext const& ae_context,
                                    Ptr<Server> const& server)
-    : ae_context_{ae_context}, server_{server}, full_connected_{false} {
+    : ae_context_{ae_context},
+      server_{server},
+      full_connected_{false},
+      top_channel_{nullptr} {
   InitChannels();
   SelectChannel();
 }
@@ -184,13 +193,25 @@ void ServerConnection::SelectChannel() {
     if (res) {
       ChannelUpdated(res.value());
     } else {
-      ChannelError();
+      // Mark the channel that was actually being built. top_channel_ is only
+      // set after a successful build and must not be used here.
+      ChannelBuildFailed(channel_select_action_->attempted_channel());
     }
   });
 
   AE_TELED_DEBUG("New channel selected");
   channel_changed_.Emit();
   stream_update_event_.Emit();
+}
+
+void ServerConnection::DeferSelectChannel() {
+  // Must not call SelectChannel() from inside ChannelSelectAction::result
+  // callback: the action is still not finished there, so SelectChannel would
+  // return early and never schedule another attempt.
+  defer_sub_ = ae_context_.scheduler().Task([this]() {
+    AE_TELED_DEBUG("SERVER_CHANNEL_RESELECT_SCHEDULED");
+    SelectChannel();
+  });
 }
 
 void ServerConnection::ChannelUpdated(ChannelEntry& new_channel) {
@@ -227,8 +248,22 @@ void ServerConnection::ChannelUpdated(ChannelEntry& new_channel) {
   stream_update_event_.Emit();
 }
 
+void ServerConnection::ChannelBuildFailed(ChannelEntry& attempted_channel) {
+  AE_TELED_ERROR("SERVER_CHANNEL_BUILD_FAILED");
+  channel_stream_update_sub_.Reset();
+  channel_stream_out_data_sub_.Reset();
+  stream_info_.is_writable = false;
+  attempted_channel.failed = true;
+
+  if (full_connected_) {
+    ServerError();
+  } else {
+    DeferSelectChannel();
+  }
+}
+
 void ServerConnection::ServerError() {
-  AE_TELED_ERROR("Server error");
+  AE_TELED_ERROR("SERVER_CONNECTION_ERROR");
   channel_stream_update_sub_.Reset();
   channel_stream_out_data_sub_.Reset();
   // TODO: should we also reset connection.stream()
@@ -254,7 +289,7 @@ void ServerConnection::ChannelError() {
   if (full_connected_) {
     ServerError();
   } else {
-    SelectChannel();
+    DeferSelectChannel();
   }
 }
 

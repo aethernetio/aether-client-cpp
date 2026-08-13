@@ -50,16 +50,17 @@ class ServerConnection final : public ByteIStream {
     using ResultEvent = Event<void(Result<ChannelEntry&, int>)>;
 
     ChannelSelectAction(AeContext const& ae_context,
-                        ChannelEntry& top_channel) noexcept;
+                        ChannelEntry& attempted_channel) noexcept;
 
     ResultEvent::Subscriber result_event() noexcept;
+    ChannelEntry& attempted_channel() noexcept;
 
    private:
     void ChannelSelected();
     void ChannelFailed();
 
     AeContext ae_context_;
-    ChannelEntry* top_channel_;
+    ChannelEntry* attempted_channel_;
     TaskSubscription task_sub_;
     ResultEvent result_event_;
   };
@@ -82,11 +83,15 @@ class ServerConnection final : public ByteIStream {
   Ptr<Channel> current_channel() const;
 
  private:
+  friend struct ServerConnectionTestAccess;
+
   void InitChannels();
   // return top not failed channel or null if nothing was selected
   ChannelEntry* TopChannel();
   void SelectChannel();
+  void DeferSelectChannel();
   void ChannelUpdated(ChannelEntry& new_channel);
+  void ChannelBuildFailed(ChannelEntry& attempted_channel);
 
   void ServerError();
   void ChannelError();
