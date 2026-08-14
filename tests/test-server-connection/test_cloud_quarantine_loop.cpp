@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include <unity.h>
@@ -36,6 +37,9 @@
 
 namespace ae {
 namespace {
+
+static_assert(AE_CLOUD_SERVER_QUARANTINE_TIME_MS == 100,
+              "recovery latency test assumes default quarantine is 100ms");
 
 struct TestContext {
   AeCtx ToAeContext() const {
@@ -111,11 +115,18 @@ void test_cloud_quarantine_does_not_busy_loop() {
   TEST_ASSERT_EQUAL_UINT(0, f.connections->count_connections());
   auto attempts_after_first = f.factory_raw->attempts;
 
+  // Same simulated time: no fresh attempt before quarantine expires.
   f.ctx.PumpAt(t0, 128);
+  TEST_ASSERT_EQUAL_INT(attempts_after_first, f.factory_raw->attempts);
+
+  // Just before quarantine: still no release.
+  auto t_before =
+      t0 + std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS - 1};
+  f.ctx.PumpAt(t_before, 8);
   TEST_ASSERT_EQUAL_INT(attempts_after_first, f.factory_raw->attempts);
 }
 
-void test_cloud_quarantine_release_schedules_reconnect() {
+void test_cloud_quarantine_release_after_100ms() {
   CloudFixture f;
 
   int releases = 0;
@@ -127,14 +138,43 @@ void test_cloud_quarantine_release_schedules_reconnect() {
   TEST_ASSERT_TRUE(f.AnyQuarantined());
   auto attempts_after_first = f.factory_raw->attempts;
 
-  auto t_release = t0 + std::chrono::milliseconds{15000};
+  auto t_release =
+      t0 + std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS + 1};
   f.ctx.PumpAt(t_release, 2);
   TEST_ASSERT_TRUE_MESSAGE(releases >= 1, "expected quarantine release");
   TEST_ASSERT_TRUE_MESSAGE(f.factory_raw->attempts > attempts_after_first,
                            "expected reconnect attempt after release");
+  // One release wave must stay bounded (DelayedTask uses wall clock; a far
+  // simulated now can re-fire within the same pump).
   TEST_ASSERT_TRUE_MESSAGE(
       f.factory_raw->attempts <= attempts_after_first + 4,
       "too many attempts in one release wave");
+}
+
+void test_cloud_quarantine_attempts_bounded_over_one_second() {
+  CloudFixture f;
+
+  auto t_start = std::chrono::system_clock::now();
+  f.ctx.PumpAt(t_start, 8);
+  auto attempts_after_first = f.factory_raw->attempts;
+  TEST_ASSERT_TRUE(attempts_after_first >= 1);
+
+  // DelayedTask expire is wall-clock based. Advance real time across ~1s while
+  // pumping with near-wall now so each quarantine period fires once.
+  auto const deadline = t_start + std::chrono::milliseconds{1100};
+  while (std::chrono::system_clock::now() < deadline) {
+    f.ctx.PumpAt(std::chrono::system_clock::now(), 2);
+    std::this_thread::sleep_for(std::chrono::milliseconds{5});
+  }
+
+  constexpr int kExpectedPeriods = 11;  // ~1100ms / 100ms
+  auto const max_attempts = attempts_after_first + kExpectedPeriods + 3;
+  TEST_ASSERT_TRUE_MESSAGE(
+      f.factory_raw->attempts <= max_attempts,
+      "too many attempts across one second of quarantine periods");
+  TEST_ASSERT_TRUE_MESSAGE(
+      f.factory_raw->attempts > attempts_after_first,
+      "expected further attempts after quarantine periods");
 }
 
 }  // namespace
@@ -143,6 +183,7 @@ void test_cloud_quarantine_release_schedules_reconnect() {
 int run_test_cloud_quarantine_loop() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_cloud_quarantine_does_not_busy_loop);
-  RUN_TEST(ae::test_cloud_quarantine_release_schedules_reconnect);
+  RUN_TEST(ae::test_cloud_quarantine_release_after_100ms);
+  RUN_TEST(ae::test_cloud_quarantine_attempts_bounded_over_one_second);
   return UNITY_END();
 }
