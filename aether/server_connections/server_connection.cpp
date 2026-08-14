@@ -28,7 +28,9 @@
 namespace ae {
 ServerConnection::ChannelSelectAction::ChannelSelectAction(
     AeContext const& ae_context, ChannelEntry& attempted_channel) noexcept
-    : ae_context_{ae_context}, attempted_channel_{&attempted_channel} {
+    : ae_context_{ae_context}, attempted_channel_{&attempted_channel} {}
+
+void ServerConnection::ChannelSelectAction::Start() {
   auto channel = attempted_channel_->channel.Lock();
   assert(channel && "Channel is null");
 
@@ -53,17 +55,15 @@ ServerConnection::ChannelSelectAction::attempted_channel() noexcept {
 }
 
 void ServerConnection::ChannelSelectAction::ChannelSelected() {
-  task_sub_ = ae_context_.scheduler().Task([&]() noexcept {
-    result_event_.Emit(Ok<ChannelEntry&>{*attempted_channel_});
-    Finish();
-  });
+  // Finish before Emit so result subscribers observe a completed action and
+  // SelectChannel is not blocked as "still active".
+  Finish();
+  result_event_.Emit(Ok<ChannelEntry&>{*attempted_channel_});
 }
 
 void ServerConnection::ChannelSelectAction::ChannelFailed() {
-  task_sub_ = ae_context_.scheduler().Task([&]() noexcept {
-    result_event_.Emit(Error{1});
-    Finish();
-  });
+  Finish();
+  result_event_.Emit(Error{1});
 }
 
 ServerConnection::ServerConnection(AeContext const& ae_context,
@@ -198,6 +198,9 @@ void ServerConnection::SelectChannel() {
       ChannelBuildFailed(channel_select_action_->attempted_channel());
     }
   });
+  // Subscribe before Start so a synchronous TransportBuilder result is not
+  // lost.
+  channel_select_action_->Start();
 
   AE_TELED_DEBUG("New channel selected");
   channel_changed_.Emit();
@@ -206,15 +209,13 @@ void ServerConnection::SelectChannel() {
 
 void ServerConnection::DeferSelectChannel() {
   // Must not call SelectChannel() from inside ChannelSelectAction::result
-  // callback: the action is still not finished there, so SelectChannel would
-  // return early and never schedule another attempt.
+  // callback: recreating transport_waiter on that stack is unsafe even though
+  // the action is already finished.
   defer_sub_ = ae_context_.scheduler().Task([this]() {
     AE_TELED_DEBUG("SERVER_CHANNEL_RESELECT_SCHEDULED");
     SelectChannel();
   });
   if (!defer_sub_) {
-    // Task pool exhausted: escalate so cloud quarantine can reclaim the
-    // connection instead of stalling forever in kUnlinked.
     AE_TELED_ERROR(
         "DeferSelectChannel schedule failed; escalating to ServerError");
     ServerError();
@@ -307,11 +308,6 @@ void ServerConnection::DeferServerError() {
     AE_TELED_ERROR("DeferServerError schedule failed; invoking ServerError");
     ServerError();
   }
-}
-
-void ServerConnection::DeferChannelError() {
-  stream_info_.is_writable = false;
-  defer_sub_ = ae_context_.scheduler().Task([&]() { ChannelError(); });
 }
 
 void ServerConnection::OnRead(DataBuffer const& data) {

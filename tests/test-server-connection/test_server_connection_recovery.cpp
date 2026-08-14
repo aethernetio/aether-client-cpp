@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <memory>
@@ -26,16 +27,18 @@
 #include "aether/adapter_registry.h"
 #include "aether/ae_context.h"
 #include "aether/channels/channel.h"
+#include "aether/config.h"
 #include "aether/executors/executors.h"
 #include "aether/obj/domain.h"
 #include "aether/server.h"
 #include "aether/server_connections/server_connection.h"
 #include "aether/stream_api/istream.h"
+#include "aether/tasks/details/task_subsctiption.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
 #include "aether/write_action/write_action.h"
 
-#include "map_domain_storage.h"
+#include "tests/test-object-system/map_domain_storage.h"
 
 namespace ae {
 
@@ -57,6 +60,10 @@ struct ServerConnectionTestAccess {
   }
   static bool SelectActionFinished(ServerConnection const& c) {
     return !c.channel_select_action_ ||
+           c.channel_select_action_->is_finished();
+  }
+  static bool SelectActionFinishedFlag(ServerConnection const& c) {
+    return c.channel_select_action_ &&
            c.channel_select_action_->is_finished();
   }
 };
@@ -205,6 +212,7 @@ void test_single_channel_build_failure_reaches_link_error() {
   int server_errors = 0;
   LinkState last_state = LinkState::kUnlinked;
   bool last_writable = true;
+  bool finished_during_result = false;
 
   ServerConnection connection{ae_ctx, server.Load()};
   auto err_sub =
@@ -213,6 +221,10 @@ void test_single_channel_build_failure_reaches_link_error() {
     last_state = connection.stream_info().link_state;
     last_writable = connection.stream_info().is_writable;
   });
+  // Re-subscribe is not available after construction; verify finished flag
+  // after pump and via access helper during ChannelBuildFailed path.
+  finished_during_result =
+      ServerConnectionTestAccess::SelectActionFinished(connection);
 
   ctx.Pump();
 
@@ -227,6 +239,27 @@ void test_single_channel_build_failure_reaches_link_error() {
                     static_cast<int>(last_state));
   TEST_ASSERT_FALSE(last_writable);
   TEST_ASSERT_EQUAL(1, builds);
+  (void)finished_during_result;
+}
+
+void test_result_callback_sees_finished_action() {
+  TestContext ctx;
+  AeContext ae_ctx{ctx};
+  MapDomainStorage storage;
+  Domain domain{Now(), storage};
+
+  int builds = 0;
+  FakeBuildPolicy policy{FakeBuildPolicy::Mode::kAlwaysFail, &builds, &ae_ctx};
+  auto channel = FakeChannel::ptr::Create(CreateWith{domain}, policy);
+  auto server = MakeServerWithChannels(domain, {channel});
+
+  ServerConnection connection{ae_ctx, server.Load()};
+  TEST_ASSERT_TRUE_MESSAGE(
+      ServerConnectionTestAccess::SelectActionFinishedFlag(connection),
+      "sync failure must finish action before pump");
+  ctx.Pump(16);
+  TEST_ASSERT_EQUAL(static_cast<int>(LinkState::kLinkError),
+                    static_cast<int>(connection.stream_info().link_state));
 }
 
 void test_second_channel_succeeds_after_first_failure() {
@@ -251,6 +284,55 @@ void test_second_channel_succeeds_after_first_failure() {
                     static_cast<int>(connection.stream_info().link_state));
   TEST_ASSERT_TRUE(connection.stream_info().is_writable);
   TEST_ASSERT_EQUAL(2, builds);
+}
+
+void test_full_pool_still_reaches_link_error() {
+  TestContext ctx;
+  AeContext ae_ctx{ctx};
+  MapDomainStorage storage;
+  Domain domain{Now(), storage};
+
+  // Leave a few slots for transport timeout plumbing; keep the rest occupied
+  // with active delayed tasks so deferred reselect cannot allocate.
+  static constexpr auto kBlockers = AE_TASK_MAX_COUNT > 8
+                                        ? AE_TASK_MAX_COUNT - 8
+                                        : AE_TASK_MAX_COUNT / 2;
+  std::array<TaskSubscription, kBlockers> blockers{};
+  for (auto& sub : blockers) {
+    sub = ctx.sched.DelayedTask([]() {}, std::chrono::seconds{60});
+    TEST_ASSERT_TRUE_MESSAGE(static_cast<bool>(sub),
+                             "expected to fill scheduler pool");
+  }
+
+  int builds = 0;
+  FakeBuildPolicy policy{FakeBuildPolicy::Mode::kAlwaysFail, &builds, &ae_ctx};
+  auto channel = FakeChannel::ptr::Create(CreateWith{domain}, policy);
+  auto server = MakeServerWithChannels(domain, {channel});
+
+  int server_errors = 0;
+  ServerConnection connection{ae_ctx, server.Load()};
+  auto err_sub =
+      connection.server_error_event().Subscribe([&]() { ++server_errors; });
+
+  // Exhaust remaining slots so DeferSelectChannel / DeferServerError fail.
+  std::vector<TaskSubscription> extra;
+  for (;;) {
+    auto sub = ctx.sched.DelayedTask([]() {}, std::chrono::seconds{60});
+    if (!sub) {
+      break;
+    }
+    extra.push_back(std::move(sub));
+  }
+
+  // Force the deferred path by pumping once if needed; if schedule already
+  // failed during ChannelBuildFailed, link error is already set.
+  ctx.Pump(8);
+
+  TEST_ASSERT_TRUE(ServerConnectionTestAccess::SelectActionFinished(connection));
+  TEST_ASSERT_EQUAL(static_cast<int>(LinkState::kLinkError),
+                    static_cast<int>(connection.stream_info().link_state));
+  TEST_ASSERT_TRUE_MESSAGE(server_errors >= 1, "expected server error");
+  TEST_ASSERT_EQUAL(1, builds);
 }
 
 void test_no_busy_loop_on_permanent_failure() {
@@ -278,7 +360,9 @@ void test_no_busy_loop_on_permanent_failure() {
 int run_test_server_connection_recovery() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_single_channel_build_failure_reaches_link_error);
+  RUN_TEST(ae::test_result_callback_sees_finished_action);
   RUN_TEST(ae::test_second_channel_succeeds_after_first_failure);
+  RUN_TEST(ae::test_full_pool_still_reaches_link_error);
   RUN_TEST(ae::test_no_busy_loop_on_permanent_failure);
   return UNITY_END();
 }

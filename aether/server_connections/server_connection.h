@@ -52,6 +52,7 @@ class ServerConnection final : public ByteIStream {
     ChannelSelectAction(AeContext const& ae_context,
                         ChannelEntry& attempted_channel) noexcept;
 
+    void Start();
     ResultEvent::Subscriber result_event() noexcept;
     ChannelEntry& attempted_channel() noexcept;
 
@@ -61,7 +62,6 @@ class ServerConnection final : public ByteIStream {
 
     AeContext ae_context_;
     ChannelEntry* attempted_channel_;
-    TaskSubscription task_sub_;
     ResultEvent result_event_;
   };
 
@@ -96,7 +96,6 @@ class ServerConnection final : public ByteIStream {
   void ServerError();
   void ChannelError();
   void DeferServerError();
-  void DeferChannelError();
 
   void OnRead(DataBuffer const& data);
 
