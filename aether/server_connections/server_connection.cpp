@@ -212,6 +212,13 @@ void ServerConnection::DeferSelectChannel() {
     AE_TELED_DEBUG("SERVER_CHANNEL_RESELECT_SCHEDULED");
     SelectChannel();
   });
+  if (!defer_sub_) {
+    // Task pool exhausted: escalate so cloud quarantine can reclaim the
+    // connection instead of stalling forever in kUnlinked.
+    AE_TELED_ERROR(
+        "DeferSelectChannel schedule failed; escalating to ServerError");
+    ServerError();
+  }
 }
 
 void ServerConnection::ChannelUpdated(ChannelEntry& new_channel) {
@@ -296,6 +303,10 @@ void ServerConnection::ChannelError() {
 void ServerConnection::DeferServerError() {
   stream_info_.is_writable = false;
   defer_sub_ = ae_context_.scheduler().Task([&]() { ServerError(); });
+  if (!defer_sub_) {
+    AE_TELED_ERROR("DeferServerError schedule failed; invoking ServerError");
+    ServerError();
+  }
 }
 
 void ServerConnection::DeferChannelError() {

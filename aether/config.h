@@ -29,8 +29,11 @@
 // IWYU pragma: end_exports
 
 // task queue buffer size \see aether/tasks
+// Sized for cloud reconnect under a short quarantine window: failed channel
+// builds schedule deferred reselect/error tasks; keeping live connections during
+// quarantine used to exhaust a 128-slot pool and drop release DelayedTasks.
 #ifndef AE_TASK_MAX_COUNT
-#  define AE_TASK_MAX_COUNT 128
+#  define AE_TASK_MAX_COUNT 512
 #endif
 
 // task max size, this should be more than 16 bytes

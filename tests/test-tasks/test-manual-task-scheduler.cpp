@@ -19,6 +19,7 @@
 #include <thread>
 
 #include "aether/tasks/details/manual_task_scheduler.h"
+#include "aether/tasks/details/task_subsctiption.h"
 
 namespace ae::test_manual_task_scheduler {
 using namespace std::chrono_literals;
@@ -138,6 +139,32 @@ void test_DelayedTiming() {
   TEST_ASSERT_TRUE(invoked);
 }
 
+void test_CancelledDelayedTasksFreePoolSlots() {
+  static constexpr auto kCount = 8;
+  auto task_sched = ManualTaskScheduler<TaskManagerConf<kCount>>{};
+
+  // Fill the pool with long-lived delayed tasks, then cancel them all.
+  std::array<TaskSubscription, kCount> subs{};
+  for (auto i = 0; i < kCount; ++i) {
+    subs[i] = task_sched.DelayedTask([]() {}, 60s);
+    TEST_ASSERT_TRUE_MESSAGE(static_cast<bool>(subs[i]),
+                             "expected delayed task allocation");
+  }
+  TEST_ASSERT_TRUE_MESSAGE(
+      task_sched.DelayedTask([]() {}, 60s) == nullptr,
+      "pool should be full before reclaim");
+
+  for (auto& sub : subs) {
+    sub.Reset();
+  }
+
+  // Next Update must reclaim inactive delayed tasks and free pool slots.
+  (void)task_sched.Update(Now());
+  auto again = task_sched.DelayedTask([]() {}, 60s);
+  TEST_ASSERT_TRUE_MESSAGE(static_cast<bool>(again),
+                           "cancelled delayed tasks must free pool slots");
+}
+
 }  // namespace ae::test_manual_task_scheduler
 
 int test_manual_task_scheduler() {
@@ -145,5 +172,7 @@ int test_manual_task_scheduler() {
   RUN_TEST(ae::test_manual_task_scheduler::test_ManualScheduler);
   RUN_TEST(ae::test_manual_task_scheduler::test_Multithread);
   RUN_TEST(ae::test_manual_task_scheduler::test_DelayedTiming);
+  RUN_TEST(
+      ae::test_manual_task_scheduler::test_CancelledDelayedTasksFreePoolSlots);
   return UNITY_END();
 }

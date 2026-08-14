@@ -171,7 +171,7 @@ void CloudServerConnections::UnsubscribeFromServerState(
   }
   it->second.state_sub.Reset();
   it->second.error_sub.Reset();
-  if (!it->second.quarantine_sub) {
+  if (!it->second.quarantine_sub && !it->second.disconnect_sub) {
     server_subs_.erase(it);
   }
 }
@@ -193,13 +193,39 @@ void CloudServerConnections::QuarantineServer(
   server_connection.SetPriority(server_connections_.size());
   server_connection.SetQuarantine(true);
   server_quarantined_event_.Emit(&server_connection);
-  server_subs_[key].quarantine_sub = ae_context_.scheduler().DelayedTask(
-      [this, sc{&server_connection}, key]() {
-        ReleaseQuarantinedServer(*sc, key);
-      },
-      kCloudServerQuarantineTime);
-  if (!server_subs_[key].quarantine_sub) {
-    assert(false && "Failed to schedule quarantine release task");
+  // Defer teardown: QuarantineServer runs from connection error callbacks, so
+  // Disconnect() here would destroy the emitter still on the stack. Stopping
+  // the connection on the next tick also cuts channel-reselect task churn for
+  // the rest of the quarantine window.
+  server_subs_[key].disconnect_sub = ae_context_.scheduler().Task(
+      [sc{&server_connection}]() { sc->Disconnect(); });
+  auto schedule_release = [this, sc{&server_connection}, key]() {
+    server_subs_[key].quarantine_sub = ae_context_.scheduler().DelayedTask(
+        [this, sc, key]() { ReleaseQuarantinedServer(*sc, key); },
+        kCloudServerQuarantineTime);
+    return static_cast<bool>(server_subs_[key].quarantine_sub);
+  };
+  if (!schedule_release()) {
+    AE_TELED_ERROR(
+        "Failed to schedule quarantine release DelayedTask; retrying");
+    // One Update cycle later the pool may have drained enough to schedule.
+    server_subs_[key].quarantine_sub = ae_context_.scheduler().Task(
+        [this, schedule_release, sc{&server_connection}, key]() {
+          if (!schedule_release()) {
+            AE_TELED_ERROR(
+                "Quarantine release schedule failed; force release");
+            ReleaseQuarantinedServer(*sc, key);
+          }
+        });
+    if (!server_subs_[key].quarantine_sub) {
+      // Pool still exhausted after retry Task allocation failed. Keep the
+      // quarantine flag so we do not busy-reconnect; the next successful
+      // DelayedTask (after inactive-task purge) must come from a later
+      // QuarantineServer / Release path. Arm another ScheduleReconcile so a
+      // subsequent Update can observe vacancies once releases resume.
+      AE_TELED_ERROR(
+          "Failed to schedule quarantine recovery; leaving quarantined");
+    }
   }
   ScheduleReconcileServers();
 }
@@ -217,6 +243,7 @@ void CloudServerConnections::ReleaseQuarantinedServer(
   server_connection.SetQuarantine(false);
   auto it = server_subs_.find(key);
   if (it != server_subs_.end()) {
+    it->second.disconnect_sub.Reset();
     it->second.quarantine_sub.Reset();
     if (!it->second.state_sub && !it->second.error_sub) {
       server_subs_.erase(it);

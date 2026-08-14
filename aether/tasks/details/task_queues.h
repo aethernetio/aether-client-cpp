@@ -151,6 +151,28 @@ class DelayedTaskQueue : TaskQueueBase<IDelayedTask<TP>, Capacity, Pool> {
     to.insert(to.end(), start, std::end(base::list_));
     base::list_.erase(start, std::end(base::list_));
   }
+
+  /**
+   * \brief Steal cancelled (inactive) delayed tasks regardless of expire time.
+   *
+   * TaskSubscription::Reset only clears active; without this, cancelled connect
+   * timeouts occupy the shared pool until their original expire_at (often many
+   * seconds), which exhausts the pool under a short cloud quarantine window.
+   */
+  template <std::size_t max_count>
+  void StealInactive(list_container<max_count>& to) {
+    for (auto it = std::begin(base::list_); it != std::end(base::list_);) {
+      if ((*it)->active == 0) {
+        if (to.size() >= max_count) {
+          break;
+        }
+        to.push_back(*it);
+        it = base::list_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
 };
 }  // namespace ae
 

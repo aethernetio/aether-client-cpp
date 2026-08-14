@@ -62,6 +62,10 @@ class ManualTaskScheduler {
     trigger_.store(false, std::memory_order::release);
     CheckOverflows();
 
+    // Drop cancelled delayed tasks before and after work so Reset()'d connect
+    // timeouts do not pin pool slots until their original expire_at.
+    PurgeInactiveDelayed(lock);
+
     // run regular tasks
     task_manager_.regular().StealTasks(reg_list_);
     UpdateTasks(lock, reg_list_, task_manager_.regular());
@@ -69,6 +73,8 @@ class ManualTaskScheduler {
     // run delaed tasks
     task_manager_.delayed().StealTasks(current_time, delay_list_);
     UpdateTasks(lock, delay_list_, task_manager_.delayed());
+
+    PurgeInactiveDelayed(lock);
 
     // return amount of time for next update
     if (task_manager_.delayed().size() != 0) {
@@ -122,6 +128,17 @@ class ManualTaskScheduler {
     lock.lock();
     list.Free(tasks);
     tasks.clear();
+  }
+
+  void PurgeInactiveDelayed(std::unique_lock<std::mutex>& lock) {
+    task_manager_.delayed().StealInactive(delay_list_);
+    if (delay_list_.empty()) {
+      return;
+    }
+    lock.unlock();
+    task_manager_.delayed().Free(delay_list_);
+    delay_list_.clear();
+    lock.lock();
   }
 
   void CheckOverflows() {

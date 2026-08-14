@@ -160,6 +160,9 @@ class CloudServerConnections {
   struct ServerSubscriptions {
     Subscription state_sub;
     Subscription error_sub;
+    // Tears down the live connection on the next scheduler tick so quarantine
+    // can be entered from error callbacks without destroying the emitter.
+    TaskSubscription disconnect_sub;
     TaskSubscription quarantine_sub;
   };
 
