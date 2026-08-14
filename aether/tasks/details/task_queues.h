@@ -153,25 +153,25 @@ class DelayedTaskQueue : TaskQueueBase<IDelayedTask<TP>, Capacity, Pool> {
   }
 
   /**
-   * \brief Steal cancelled (inactive) delayed tasks regardless of expire time.
+   * \brief Destroy cancelled (inactive) delayed tasks under the caller's lock.
    *
-   * TaskSubscription::Reset only clears active; without this, cancelled connect
-   * timeouts occupy the shared pool until their original expire_at (often many
-   * seconds), which exhausts the pool under a short cloud quarantine window.
+   * TaskSubscription::Reset only clears active; without reclaim, cancelled
+   * connect timeouts occupy the shared pool until their original expire_at.
+   * Destroy must happen while the scheduler mutex is held so create() cannot
+   * race against destroy() on the shared ETL pool.
    */
-  template <std::size_t max_count>
-  void StealInactive(list_container<max_count>& to) {
+  std::size_t ReclaimInactive() {
+    std::size_t count = 0;
     for (auto it = std::begin(base::list_); it != std::end(base::list_);) {
       if ((*it)->active == 0) {
-        if (to.size() >= max_count) {
-          break;
-        }
-        to.push_back(*it);
+        base::pool_->template destroy<IDelayedTask<TP>>(*it);
         it = base::list_.erase(it);
+        ++count;
       } else {
         ++it;
       }
     }
+    return count;
   }
 };
 }  // namespace ae

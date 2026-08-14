@@ -62,19 +62,19 @@ class ManualTaskScheduler {
     trigger_.store(false, std::memory_order::release);
     CheckOverflows();
 
-    // Drop cancelled delayed tasks before and after work so Reset()'d connect
-    // timeouts do not pin pool slots until their original expire_at.
-    PurgeInactiveDelayed(lock);
+    // Reclaim cancelled delayed tasks before work and after Free so create/
+    // destroy on the shared pool always happen under lock_.
+    task_manager_.delayed().ReclaimInactive();
 
     // run regular tasks
     task_manager_.regular().StealTasks(reg_list_);
     UpdateTasks(lock, reg_list_, task_manager_.regular());
+    task_manager_.delayed().ReclaimInactive();
 
-    // run delaed tasks
+    // run delayed tasks
     task_manager_.delayed().StealTasks(current_time, delay_list_);
     UpdateTasks(lock, delay_list_, task_manager_.delayed());
-
-    PurgeInactiveDelayed(lock);
+    task_manager_.delayed().ReclaimInactive();
 
     // return amount of time for next update
     if (task_manager_.delayed().size() != 0) {
@@ -106,6 +106,9 @@ class ManualTaskScheduler {
   template <typename F>
   IActive* AddSafe(F&& f) {
     auto lock = std::scoped_lock{lock_};
+    // Critical recovery tasks must reclaim cancelled delayed slots before
+    // allocation, without waiting for the next Update().
+    task_manager_.delayed().ReclaimInactive();
     auto* p = std::invoke(std::forward<F>(f));
     if (p == nullptr) {
       overflow_counter_++;
@@ -128,17 +131,6 @@ class ManualTaskScheduler {
     lock.lock();
     list.Free(tasks);
     tasks.clear();
-  }
-
-  void PurgeInactiveDelayed(std::unique_lock<std::mutex>& lock) {
-    task_manager_.delayed().StealInactive(delay_list_);
-    if (delay_list_.empty()) {
-      return;
-    }
-    lock.unlock();
-    task_manager_.delayed().Free(delay_list_);
-    delay_list_.clear();
-    lock.lock();
   }
 
   void CheckOverflows() {
