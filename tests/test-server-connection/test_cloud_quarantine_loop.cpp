@@ -16,7 +16,7 @@
 
 #include <chrono>
 #include <memory>
-#include <thread>
+#include <utility>
 #include <vector>
 
 #include <unity.h>
@@ -33,13 +33,14 @@
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
 
-#include "map_domain_storage.h"
+#include "tests/test-object-system/map_domain_storage.h"
 
 namespace ae {
 namespace {
 
-static_assert(AE_CLOUD_SERVER_QUARANTINE_TIME_MS == 100,
-              "recovery latency test assumes default quarantine is 100ms");
+static_assert(AE_CLOUD_SERVER_QUARANTINE_TIME_MS == 500 ||
+                  AE_CLOUD_SERVER_QUARANTINE_TIME_MS == 250,
+              "quarantine must be the bounded 500/250 ms recovery window");
 
 struct TestContext {
   AeCtx ToAeContext() const {
@@ -69,17 +70,28 @@ class CountingNullFactory final : public IServerConnectionFactory {
   int attempts{0};
 };
 
+class SwitchableNullFactory final : public IServerConnectionFactory {
+ public:
+  RcPtr<ClientServerConnection> CreateConnection(
+      Ptr<Server> const& /*server*/) override {
+    ++attempts;
+    return {};
+  }
+  bool available{false};
+  int attempts{0};
+};
+
 struct CloudFixture {
-  CloudFixture()
+  CloudFixture(std::unique_ptr<IServerConnectionFactory> factory,
+               IServerConnectionFactory* raw)
       : ae_ctx{ctx},
         domain{Now(), storage},
         registry{AdapterRegistry::ptr::Create(CreateWith{domain})},
         server{Server::ptr::Create(CreateWith{domain}, ServerId{7},
                                    std::vector<Endpoint>{}, registry)},
-        cloud{Cloud::ptr::Create(CreateWith{domain})} {
+        cloud{Cloud::ptr::Create(CreateWith{domain})},
+        factory_raw{raw} {
     cloud->AddServer(server);
-    auto factory = std::make_unique<CountingNullFactory>();
-    factory_raw = factory.get();
     connections = std::make_unique<CloudServerConnections>(
         ae_ctx, cloud.Load(), std::move(factory), /*max*/ 1);
   }
@@ -100,34 +112,36 @@ struct CloudFixture {
   AdapterRegistry::ptr registry;
   Server::ptr server;
   Cloud::ptr cloud;
-  CountingNullFactory* factory_raw{nullptr};
+  IServerConnectionFactory* factory_raw{nullptr};
   std::unique_ptr<CloudServerConnections> connections;
 };
 
 void test_cloud_quarantine_does_not_busy_loop() {
-  CloudFixture f;
+  auto factory = std::make_unique<CountingNullFactory>();
+  auto* factory_raw = factory.get();
+  CloudFixture f{std::move(factory), factory_raw};
 
   auto t0 = std::chrono::system_clock::now();
   f.ctx.PumpAt(t0, 16);
-  TEST_ASSERT_TRUE_MESSAGE(f.factory_raw->attempts >= 1,
+  TEST_ASSERT_TRUE_MESSAGE(factory_raw->attempts >= 1,
                            "expected first attempt");
   TEST_ASSERT_TRUE_MESSAGE(f.AnyQuarantined(), "expected quarantine");
   TEST_ASSERT_EQUAL_UINT(0, f.connections->count_connections());
-  auto attempts_after_first = f.factory_raw->attempts;
+  auto attempts_after_first = factory_raw->attempts;
 
-  // Same simulated time: no fresh attempt before quarantine expires.
   f.ctx.PumpAt(t0, 128);
-  TEST_ASSERT_EQUAL_INT(attempts_after_first, f.factory_raw->attempts);
+  TEST_ASSERT_EQUAL_INT(attempts_after_first, factory_raw->attempts);
 
-  // Just before quarantine: still no release.
   auto t_before =
       t0 + std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS - 1};
   f.ctx.PumpAt(t_before, 8);
-  TEST_ASSERT_EQUAL_INT(attempts_after_first, f.factory_raw->attempts);
+  TEST_ASSERT_EQUAL_INT(attempts_after_first, factory_raw->attempts);
 }
 
-void test_cloud_quarantine_release_after_100ms() {
-  CloudFixture f;
+void test_cloud_quarantine_release_after_expiry() {
+  auto factory = std::make_unique<CountingNullFactory>();
+  auto* factory_raw = factory.get();
+  CloudFixture f{std::move(factory), factory_raw};
 
   int releases = 0;
   auto r_sub = f.connections->server_quarantine_release_event().Subscribe(
@@ -136,45 +150,77 @@ void test_cloud_quarantine_release_after_100ms() {
   auto t0 = std::chrono::system_clock::now();
   f.ctx.PumpAt(t0, 16);
   TEST_ASSERT_TRUE(f.AnyQuarantined());
-  auto attempts_after_first = f.factory_raw->attempts;
+  auto attempts_after_first = factory_raw->attempts;
 
   auto t_release =
       t0 + std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS + 1};
-  f.ctx.PumpAt(t_release, 2);
+  f.ctx.PumpAt(t_release, 4);
   TEST_ASSERT_TRUE_MESSAGE(releases >= 1, "expected quarantine release");
-  TEST_ASSERT_TRUE_MESSAGE(f.factory_raw->attempts > attempts_after_first,
+  TEST_ASSERT_TRUE_MESSAGE(factory_raw->attempts > attempts_after_first,
                            "expected reconnect attempt after release");
-  // One release wave must stay bounded (DelayedTask uses wall clock; a far
-  // simulated now can re-fire within the same pump).
   TEST_ASSERT_TRUE_MESSAGE(
-      f.factory_raw->attempts <= attempts_after_first + 4,
+      factory_raw->attempts <= attempts_after_first + 4,
       "too many attempts in one release wave");
 }
 
-void test_cloud_quarantine_attempts_bounded_over_one_second() {
-  CloudFixture f;
+void test_cloud_quarantine_no_recursive_loop_same_timestamp() {
+  auto factory = std::make_unique<CountingNullFactory>();
+  auto* factory_raw = factory.get();
+  CloudFixture f{std::move(factory), factory_raw};
 
-  auto t_start = std::chrono::system_clock::now();
-  f.ctx.PumpAt(t_start, 8);
-  auto attempts_after_first = f.factory_raw->attempts;
+  auto t0 = std::chrono::system_clock::now();
+  f.ctx.PumpAt(t0, 4);
+  auto attempts = factory_raw->attempts;
+  f.ctx.PumpAt(t0, 64);
+  TEST_ASSERT_EQUAL_INT(attempts, factory_raw->attempts);
+}
+
+void test_cloud_quarantine_attempts_bounded_over_simulated_second() {
+  auto factory = std::make_unique<CountingNullFactory>();
+  auto* factory_raw = factory.get();
+  CloudFixture f{std::move(factory), factory_raw};
+
+  auto t0 = std::chrono::system_clock::now();
+  f.ctx.PumpAt(t0, 8);
+  auto attempts_after_first = factory_raw->attempts;
   TEST_ASSERT_TRUE(attempts_after_first >= 1);
 
-  // DelayedTask expire is wall-clock based. Advance real time across ~1s while
-  // pumping with near-wall now so each quarantine period fires once.
-  auto const deadline = t_start + std::chrono::milliseconds{1100};
-  while (std::chrono::system_clock::now() < deadline) {
-    f.ctx.PumpAt(std::chrono::system_clock::now(), 2);
-    std::this_thread::sleep_for(std::chrono::milliseconds{5});
+  // Advance one quarantine period at a time using a fresh wall-clock base so
+  // newly scheduled DelayedTasks are not immediately due under a far-future
+  // Update timestamp (no wall-clock sleep).
+  constexpr auto kWindowMs = 1000;
+  auto const period = AE_CLOUD_SERVER_QUARANTINE_TIME_MS;
+  auto const periods = (kWindowMs / period) + 1;
+  for (int i = 0; i < periods; ++i) {
+    auto now = std::chrono::system_clock::now();
+    f.ctx.PumpAt(now + std::chrono::milliseconds{period + 1}, 2);
   }
 
-  constexpr int kExpectedPeriods = 11;  // ~1100ms / 100ms
-  auto const max_attempts = attempts_after_first + kExpectedPeriods + 3;
+  auto const max_attempts = attempts_after_first + periods * 2 + 2;
   TEST_ASSERT_TRUE_MESSAGE(
-      f.factory_raw->attempts <= max_attempts,
-      "too many attempts across one second of quarantine periods");
+      factory_raw->attempts <= max_attempts,
+      "too many attempts across simulated quarantine periods");
   TEST_ASSERT_TRUE_MESSAGE(
-      f.factory_raw->attempts > attempts_after_first,
+      factory_raw->attempts > attempts_after_first,
       "expected further attempts after quarantine periods");
+}
+
+void test_cloud_factory_becomes_available_after_failures() {
+  auto factory = std::make_unique<SwitchableNullFactory>();
+  auto* factory_raw = factory.get();
+  CloudFixture f{std::move(factory), factory_raw};
+
+  auto t0 = std::chrono::system_clock::now();
+  f.ctx.PumpAt(t0, 8);
+  TEST_ASSERT_TRUE(f.AnyQuarantined());
+  auto attempts_before = factory_raw->attempts;
+
+  factory_raw->available = true;
+  auto t_release =
+      t0 + std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS + 1};
+  f.ctx.PumpAt(t_release, 4);
+  TEST_ASSERT_TRUE_MESSAGE(factory_raw->attempts > attempts_before,
+                           "release must attempt reconnect after available");
 }
 
 }  // namespace
@@ -183,7 +229,9 @@ void test_cloud_quarantine_attempts_bounded_over_one_second() {
 int run_test_cloud_quarantine_loop() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_cloud_quarantine_does_not_busy_loop);
-  RUN_TEST(ae::test_cloud_quarantine_release_after_100ms);
-  RUN_TEST(ae::test_cloud_quarantine_attempts_bounded_over_one_second);
+  RUN_TEST(ae::test_cloud_quarantine_release_after_expiry);
+  RUN_TEST(ae::test_cloud_quarantine_no_recursive_loop_same_timestamp);
+  RUN_TEST(ae::test_cloud_quarantine_attempts_bounded_over_simulated_second);
+  RUN_TEST(ae::test_cloud_factory_becomes_available_after_failures);
   return UNITY_END();
 }

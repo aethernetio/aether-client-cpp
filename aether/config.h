@@ -317,7 +317,7 @@
 
 // Cloud server quarantine time
 #ifndef AE_CLOUD_SERVER_QUARANTINE_TIME_MS
-#  define AE_CLOUD_SERVER_QUARANTINE_TIME_MS 100
+#  define AE_CLOUD_SERVER_QUARANTINE_TIME_MS 500
 #endif
 
 // Cloud request per-server timeout in milliseconds

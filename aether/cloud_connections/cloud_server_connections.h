@@ -160,9 +160,6 @@ class CloudServerConnections {
   struct ServerSubscriptions {
     Subscription state_sub;
     Subscription error_sub;
-    // Tears down the live connection on the next scheduler tick so quarantine
-    // can be entered from error callbacks without destroying the emitter.
-    TaskSubscription disconnect_sub;
     TaskSubscription quarantine_sub;
   };
 
@@ -182,6 +179,7 @@ class CloudServerConnections {
 
   std::map<std::uintptr_t, ServerSubscriptions> server_subs_;
   TaskSubscription defer_sub_;
+  bool pending_reconcile_{false};
 
   std::optional<cloud_server_connections_internal::EmptyConnectionsWA>
       empty_wa_;

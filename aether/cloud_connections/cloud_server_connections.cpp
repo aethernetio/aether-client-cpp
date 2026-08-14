@@ -171,7 +171,7 @@ void CloudServerConnections::UnsubscribeFromServerState(
   }
   it->second.state_sub.Reset();
   it->second.error_sub.Reset();
-  if (!it->second.quarantine_sub && !it->second.disconnect_sub) {
+  if (!it->second.quarantine_sub) {
     server_subs_.erase(it);
   }
 }
@@ -193,38 +193,25 @@ void CloudServerConnections::QuarantineServer(
   server_connection.SetPriority(server_connections_.size());
   server_connection.SetQuarantine(true);
   server_quarantined_event_.Emit(&server_connection);
-  // Defer teardown: QuarantineServer runs from connection error callbacks, so
-  // Disconnect() here would destroy the emitter still on the stack. Stopping
-  // the connection on the next tick also cuts channel-reselect task churn for
-  // the rest of the quarantine window.
-  server_subs_[key].disconnect_sub = ae_context_.scheduler().Task(
-      [sc{&server_connection}]() { sc->Disconnect(); });
-  auto schedule_release = [this, sc{&server_connection}, key]() {
-    server_subs_[key].quarantine_sub = ae_context_.scheduler().DelayedTask(
-        [this, sc, key]() { ReleaseQuarantinedServer(*sc, key); },
-        kCloudServerQuarantineTime);
-    return static_cast<bool>(server_subs_[key].quarantine_sub);
-  };
-  if (!schedule_release()) {
+
+  // One delayed release: Disconnect + clear quarantine + reconcile. Do not
+  // Disconnect on the error-callback stack.
+  auto& quarantine_sub = server_subs_[key].quarantine_sub;
+  quarantine_sub = ae_context_.scheduler().DelayedTask(
+      [this, sc{&server_connection}, key]() {
+        ReleaseQuarantinedServer(*sc, key);
+      },
+      kCloudServerQuarantineTime);
+  if (!quarantine_sub) {
     AE_TELED_ERROR(
-        "Failed to schedule quarantine release DelayedTask; retrying");
-    // One Update cycle later the pool may have drained enough to schedule.
-    server_subs_[key].quarantine_sub = ae_context_.scheduler().Task(
-        [this, schedule_release, sc{&server_connection}, key]() {
-          if (!schedule_release()) {
-            AE_TELED_ERROR(
-                "Quarantine release schedule failed; force release");
-            ReleaseQuarantinedServer(*sc, key);
-          }
+        "CLOUD_QUARANTINE_RELEASE_DELAYED_ALLOC_FAILED; using next-tick Task");
+    quarantine_sub = ae_context_.scheduler().Task(
+        [this, sc{&server_connection}, key]() {
+          ReleaseQuarantinedServer(*sc, key);
         });
-    if (!server_subs_[key].quarantine_sub) {
-      // Pool still exhausted after retry Task allocation failed. Keep the
-      // quarantine flag so we do not busy-reconnect; the next successful
-      // DelayedTask (after inactive-task purge) must come from a later
-      // QuarantineServer / Release path. Arm another ScheduleReconcile so a
-      // subsequent Update can observe vacancies once releases resume.
-      AE_TELED_ERROR(
-          "Failed to schedule quarantine recovery; leaving quarantined");
+    if (!quarantine_sub) {
+      AE_TELED_ERROR("CLOUD_QUARANTINE_RELEASE_ALLOC_FAILED");
+      assert(false && "failed to schedule quarantine release");
     }
   }
   ScheduleReconcileServers();
@@ -243,13 +230,17 @@ void CloudServerConnections::ReleaseQuarantinedServer(
   server_connection.SetQuarantine(false);
   auto it = server_subs_.find(key);
   if (it != server_subs_.end()) {
-    it->second.disconnect_sub.Reset();
     it->second.quarantine_sub.Reset();
     if (!it->second.state_sub && !it->second.error_sub) {
       server_subs_.erase(it);
     }
   }
-  ScheduleReconcileServers();
+  if (pending_reconcile_) {
+    pending_reconcile_ = false;
+    ReconcileServers();
+  } else {
+    ScheduleReconcileServers();
+  }
 }
 
 void CloudServerConnections::ScheduleReconcileServers() {
@@ -258,8 +249,14 @@ void CloudServerConnections::ScheduleReconcileServers() {
   }
   defer_sub_ = ae_context_.scheduler().Task([this]() {
     defer_sub_.Reset();
+    pending_reconcile_ = false;
     ReconcileServers();
   });
+  if (!defer_sub_) {
+    AE_TELED_ERROR(
+        "CLOUD_SCHEDULE_RECONCILE_ALLOC_FAILED; pending until release");
+    pending_reconcile_ = true;
+  }
 }
 
 void CloudServerConnections::ReconcileServers() {

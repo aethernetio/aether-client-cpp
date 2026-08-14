@@ -18,7 +18,7 @@ list(APPEND test_srcs
   main.cpp
   test_server_connection_recovery.cpp
   test_cloud_quarantine_loop.cpp
-  map_domain_storage.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp
 )
 
 if(NOT CM_PLATFORM)
