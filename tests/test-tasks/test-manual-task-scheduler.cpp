@@ -296,7 +296,7 @@ int test_manual_task_scheduler() {
   RUN_TEST(
       ae::test_manual_task_scheduler::test_ActiveDelayedTasksBlockAllocation);
   RUN_TEST(ae::test_manual_task_scheduler::test_ResetUpdateRestoresAllSlots);
-  RUN_TEST(
-      ae::test_manual_task_scheduler::test_MultithreadCancelledDelayedVsRegular);
+  RUN_TEST(ae::test_manual_task_scheduler::
+               test_MultithreadCancelledDelayedVsRegular);
   return UNITY_END();
 }

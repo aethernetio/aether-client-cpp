@@ -18,12 +18,12 @@
 #define AETHER_TASKS_DETAILS_TASK_MANAGER_H_
 
 #include <chrono>
-#include <utility>
 #include <concepts>
+#include <utility>
 
 #include "aether-miscpp/meta/time_traits.h"
-#include "aether/tasks/details/task_queues.h"
 #include "aether/tasks/details/generic_task.h"
+#include "aether/tasks/details/task_queues.h"
 
 #include <etl/generic_pool.h>
 
@@ -86,6 +86,14 @@ class TaskManager {
   IActive* DelayedTask(F&& f, TimePointType tp) {
     return Emplace<GenericDelayedTask<std::decay_t<F>, TimePointType>>(
         delayd_task_list_, std::forward<F>(f), tp);
+  }
+
+  void ReclaimInactive() {
+    // clean up inactive task from the list
+    // this free space from tasks that
+    // still in pool and list, but never will be executed
+    regular_task_list_.ReclaimInactive();
+    delayd_task_list_.ReclaimInactive();
   }
 
   regular_task_list& regular() { return regular_task_list_; }

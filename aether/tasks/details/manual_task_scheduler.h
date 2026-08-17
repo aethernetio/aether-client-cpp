@@ -21,7 +21,7 @@
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
-#include <cstdio>  // // IWYU pragma: keep
+#include <cstdio>  //IWYU pragma: keep
 #include <mutex>
 
 #include "aether/tasks/details/task_manager.h"
@@ -62,19 +62,13 @@ class ManualTaskScheduler {
     trigger_.store(false, std::memory_order::release);
     CheckOverflows();
 
-    // Reclaim cancelled delayed tasks before work and after Free so create/
-    // destroy on the shared pool always happen under lock_.
-    task_manager_.delayed().ReclaimInactive();
-
     // run regular tasks
     task_manager_.regular().StealTasks(reg_list_);
     UpdateTasks(lock, reg_list_, task_manager_.regular());
-    task_manager_.delayed().ReclaimInactive();
 
     // run delayed tasks
     task_manager_.delayed().StealTasks(current_time, delay_list_);
     UpdateTasks(lock, delay_list_, task_manager_.delayed());
-    task_manager_.delayed().ReclaimInactive();
 
     // return amount of time for next update
     if (task_manager_.delayed().size() != 0) {
@@ -106,9 +100,9 @@ class ManualTaskScheduler {
   template <typename F>
   IActive* AddSafe(F&& f) {
     auto lock = std::scoped_lock{lock_};
-    // Critical recovery tasks must reclaim cancelled delayed slots before
-    // allocation, without waiting for the next Update().
-    task_manager_.delayed().ReclaimInactive();
+
+    task_manager_.ReclaimInactive();
+
     auto* p = std::invoke(std::forward<F>(f));
     if (p == nullptr) {
       overflow_counter_++;
