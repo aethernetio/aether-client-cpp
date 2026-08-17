@@ -19,12 +19,20 @@
 
 #include <cstdint>
 
-#include "aether/api_protocol/api_method.h"
-#include "aether/api_protocol/send_result.h"
+#include "aether-miscpp/reflect/reflect.h"
+
 #include "aether/api_protocol/api_class_impl.h"
+#include "aether/api_protocol/api_method.h"
 
 namespace ae {
 class ReturnResultApi : public ApiClass {
+  template <typename T>
+  struct SendResultMessage {
+    AE_REFLECT_MEMBERS(req_id, data);
+    RequestId req_id;
+    T data;
+  };
+
  public:
   static constexpr MessageId kSendResult = 0;
   static constexpr MessageId kSendError = 1;
@@ -40,7 +48,7 @@ class ReturnResultApi : public ApiClass {
   void SendResult(RequestId req_id, T&& data) {
     auto* packet_stack = protocol_context().packet_stack();
     assert(packet_stack);
-    packet_stack->Push(*this, ::ae::SendResult{req_id, std::forward<T>(data)});
+    packet_stack->Push(*this, SendResultMessage{req_id, std::forward<T>(data)});
   }
 
   void SendError(RequestId req_id, std::uint8_t error_type,
@@ -51,7 +59,10 @@ class ReturnResultApi : public ApiClass {
   AE_METHODS(RegMethod<kSendResult, &ReturnResultApi::SendResultImpl>,
              RegMethod<kSendError, &ReturnResultApi::SendErrorImpl>);
 
-  void Pack(ae::SendResult&& result, ApiPacker& packer);
+  template <typename T>
+  void Pack(SendResultMessage<T>&& result, ApiPacker& packer) const {
+    packer.Pack(kSendResult, std::move(result));
+  }
 
  private:
   Method<kSendError, void(RequestId req_id, std::uint8_t error_type,

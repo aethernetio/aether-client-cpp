@@ -16,22 +16,22 @@
 
 #include "aether/transport/data_packet_collector.h"
 
-#include <ios>
-#include <algorithm>
 #include <cassert>
+#include <cstring>
 
-#include "aether/mstream_buffers.h"
-#include "aether/mstream.h"
+#include "aether/vector_buffer.h"
 
 namespace ae {
 
 Packet::Packet(std::size_t expected_size)
-    : mem_buffer{static_cast<std::streamsize>(expected_size)},
-      expected_packet_size{expected_size} {}
+    : mem_buffer{std::make_unique<std::uint8_t[]>(expected_size)},
+      expected_packet_size{expected_size},
+      pos{} {}
 
 Packet::Packet(Packet&& other) noexcept
     : mem_buffer{std::move(other.mem_buffer)},
-      expected_packet_size{other.expected_packet_size} {}
+      expected_packet_size{other.expected_packet_size},
+      pos{other.pos} {}
 
 void StreamDataPacketCollector::AddData(std::uint8_t const* data,
                                         std::size_t size) {
@@ -53,28 +53,21 @@ void StreamDataPacketCollector::AddData(std::uint8_t const* data,
   }
 }
 
-void StreamDataPacketCollector::AddData(DataBuffer const& data_buffer) {
-  AddData(data_buffer.data(), data_buffer.size());
-}
-
 std::vector<std::uint8_t> StreamDataPacketCollector::PopPacket() {
   // no completed packet, return empty
   if (packets_.empty() || !IsPacketComplete(packets_.front())) {
     return {};
   }
   auto& packet = packets_.front();
-  std::vector<std::uint8_t> data_packet(packet.expected_packet_size);
-  std::copy(packet.mem_buffer.Data(),
-            packet.mem_buffer.Data() + packet.mem_buffer.Size(),
-            std::begin(data_packet));
+  std::vector<std::uint8_t> data_packet(packet.mem_buffer.get(),
+                                        packet.mem_buffer.get() + packet.pos);
 
   packets_.pop();
   return data_packet;
 }
 
 bool StreamDataPacketCollector::IsPacketComplete(Packet const& packet) {
-  return packet.mem_buffer.Size() ==
-         static_cast<std::streamsize>(packet.expected_packet_size);
+  return packet.pos == packet.expected_packet_size;
 }
 
 std::pair<std::size_t, std::size_t> StreamDataPacketCollector::GetPacketSize(
@@ -88,33 +81,29 @@ std::pair<std::size_t, std::size_t> StreamDataPacketCollector::GetPacketSize(
 
   temp_data_buffer_.insert(temp_data_buffer_.end(), data, data + use_max_size);
 
-  VectorReader<PacketSize> reader(temp_data_buffer_);
-  auto is = imstream{reader};
+  VectorBuffer<PacketSize> vec_buffer(temp_data_buffer_);
+  std::size_t packet_size{};
 
-  PacketSize packet_size;
-  is >> packet_size;
-  if (!data_was_read(is)) {
+  if (!vec_buffer.Read(seri::SizeReadTag{packet_size})) {
     return {0, size};
   }
 
   temp_data_buffer_.clear();
 
-  assert((temp_buffer_size + size) >= reader.offset_);
-  return {static_cast<std::size_t>(packet_size),
-          reader.offset_ - temp_buffer_size};
+  assert((temp_buffer_size + size) >= vec_buffer.read_offset);
+  return {packet_size, vec_buffer.read_offset - temp_buffer_size};
 }
 
 std::size_t StreamDataPacketCollector::WriteToPacket(Packet& packet,
                                                      std::uint8_t const* data,
                                                      std::size_t size) {
-  auto avail_cap = packet.mem_buffer.AvailableCapacity();
-  auto write_size = avail_cap > static_cast<std::streamsize>(size)
-                        ? static_cast<std::streamsize>(size)
-                        : avail_cap;
+  auto avail_cap = packet.expected_packet_size - packet.pos;
+  auto write_size = avail_cap > size ? size : avail_cap;
 
-  packet.mem_buffer.sputn(reinterpret_cast<char const*>(data), write_size);
+  std::memcpy(packet.mem_buffer.get() + packet.pos, data, write_size);
+  packet.pos += write_size;
 
-  return static_cast<std::size_t>(write_size);
+  return write_size;
 }
 
 }  // namespace ae

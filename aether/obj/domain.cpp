@@ -75,16 +75,8 @@ void DomainGraph::SaveRootImpl(Ptr<Obj> const& ptr, ObjId obj_id) {
   }
 }
 
-std::unique_ptr<IDomainStorageReader> DomainGraph::GetReader(
-    DomainQuery const& query) {
-  auto load = domain->storage_->Load(query);
-  if ((load.result == DomainLoadResult::kEmpty) ||
-      (load.result == DomainLoadResult::kRemoved)) {
-    load.reader = std::make_unique<DomainStorageReaderEmpty>();
-  }
-
-  assert(load.reader && "Reader must be created!");
-  return std::move(load.reader);
+DomainLoad DomainGraph::GetReader(DomainQuery const& query) {
+  return domain->storage_->Load(query);
 }
 
 std::unique_ptr<IDomainStorageWriter> DomainGraph::GetWriter(
@@ -184,4 +176,52 @@ Factory* Domain::GetMostRelatedFactory(ObjId id) {
 Factory* Domain::FindClassFactory(std::uint32_t class_id) {
   return registry_->FindFactory(class_id);
 }
+
+namespace seri {
+SeriResult Serializer<BinaryArchive<DomainBuffer>, std::string>::Deseri(
+    BinaryArchive<DomainBuffer>& archive, Meta<std::string> val) const {
+  std::size_t size{};
+  TRY_RESULT(archive.buffer().Read(SizeTag{size}));
+  if (size > archive.max_container_load_size()) {
+    return Error{container_too_large};
+  }
+  val.value.resize(size);
+  auto* data = reinterpret_cast<std::uint8_t*>(val.value.data());
+  return archive.buffer().Read(DataReadTag{data, size});
+}
+
+SeriResult Serializer<BinaryArchive<DomainBuffer>, std::string>::Seri(
+    BinaryArchive<DomainBuffer>& archive, Meta<std::string const> val) const {
+  auto const size = val.value.size();
+  TRY_RESULT(archive.buffer().Write(SizeTag{size}));
+  auto const* data = reinterpret_cast<std::uint8_t const*>(val.value.data());
+  TRY_RESULT(archive.buffer().Write(DataWriteTag{data, size}));
+  return Ok{good};
+}
+
+SeriResult
+Serializer<BinaryArchive<DomainBuffer>, std::vector<std::uint8_t>>::Deseri(
+    BinaryArchive<DomainBuffer>& archive,
+    Meta<std::vector<std::uint8_t>> val) const {
+  std::size_t size{};
+  TRY_RESULT(archive.buffer().Read(SizeTag{size}));
+  if (size > archive.max_container_load_size()) {
+    return Error{container_too_large};
+  }
+  val.value.resize(size);
+  auto* data = reinterpret_cast<std::uint8_t*>(val.value.data());
+  return archive.buffer().Read(DataReadTag{data, size});
+}
+
+SeriResult
+Serializer<BinaryArchive<DomainBuffer>, std::vector<std::uint8_t>>::Seri(
+    BinaryArchive<DomainBuffer>& archive,
+    Meta<std::vector<std::uint8_t> const> val) const {
+  auto const size = val.value.size();
+  TRY_RESULT(archive.buffer().Write(SizeTag{size}));
+  auto const* data = reinterpret_cast<std::uint8_t const*>(val.value.data());
+  TRY_RESULT(archive.buffer().Write(DataWriteTag{data, size}));
+  return Ok{good};
+}
+}  // namespace seri
 }  // namespace ae

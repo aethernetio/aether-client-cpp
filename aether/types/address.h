@@ -24,8 +24,12 @@
 #include <string_view>
 #include <type_traits>
 
-#include "aether/config.h"
 #include "aether-miscpp/reflect/reflect.h"
+#include "aether-miscpp/serialization/binary_archive.h"
+#include "aether-miscpp/serialization/serialization.h"
+
+#include "aether/config.h"
+#include "aether/obj/domain.h"
 #include "aether/types/variant_type.h"
 
 #include "aether-miscpp/format/format.h"
@@ -47,17 +51,18 @@ bool operator==(IpV4Addr const& left, IpV4Addr const& right);
 bool operator!=(IpV4Addr const& left, IpV4Addr const& right);
 bool operator<(IpV4Addr const& left, IpV4Addr const& right);
 
-template <typename Ib>
-imstream<Ib>& operator>>(imstream<Ib>& s, IpV4Addr& ipv4) {
-  s >> ipv4.ipv4_value;
-  return s;
-}
-
-template <typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& s, IpV4Addr const& ipv4) {
-  s << ipv4.ipv4_value;
-  return s;
-}
+namespace seri {
+template <Archive A>
+struct Serializer<A, IpV4Addr> {
+  SeriResult Seri(A& archive, Meta<IpV4Addr const> meta) const {
+    return archive.Save(
+        Meta<std::uint8_t const[4]>{meta.value.ipv4_value, "value"});
+  }
+  SeriResult Deseri(A& archive, Meta<IpV4Addr> meta) const {
+    return archive.Load(Meta<std::uint8_t[4]>{meta.value.ipv4_value, "value"});
+  }
+};
+}  // namespace seri
 
 struct IpV6Addr {
   std::uint8_t ipv6_value[16];
@@ -67,17 +72,18 @@ bool operator==(IpV6Addr const& left, IpV6Addr const& right);
 bool operator!=(IpV6Addr const& left, IpV6Addr const& right);
 bool operator<(IpV6Addr const& left, IpV6Addr const& right);
 
-template <typename Ib>
-imstream<Ib>& operator>>(imstream<Ib>& s, IpV6Addr& ipv6) {
-  s >> ipv6.ipv6_value;
-  return s;
-}
-
-template <typename Ob>
-omstream<Ob>& operator<<(omstream<Ob>& s, IpV6Addr const& ipv6) {
-  s << ipv6.ipv6_value;
-  return s;
-}
+namespace seri {
+template <Archive A>
+struct Serializer<A, IpV6Addr> {
+  SeriResult Seri(A& archive, Meta<IpV6Addr const> meta) const {
+    return archive.Save(
+        Meta<std::uint8_t const[16]>{meta.value.ipv6_value, "value"});
+  }
+  SeriResult Deseri(A& archive, Meta<IpV6Addr> meta) const {
+    return archive.Load(Meta<std::uint8_t[16]>{meta.value.ipv6_value, "value"});
+  }
+};
+}  // namespace seri
 
 struct NamedAddr {
   AE_REFLECT_MEMBERS(name)
@@ -154,9 +160,9 @@ struct Formatter<IpV6Addr> {
 #if AE_SUPPORT_IPV6 == 1
     char buffer[2]{};
     for (std::size_t i = 0; i < 16; i++) {
-      auto result = std::to_chars(buffer, buffer + 2,
-                                  static_cast<unsigned int>(value.ipv6_value[i]),
-                                  16);
+      auto result =
+          std::to_chars(buffer, buffer + 2,
+                        static_cast<unsigned int>(value.ipv6_value[i]), 16);
       ctx.out().write(std::string_view{
           buffer, static_cast<std::size_t>(result.ptr - buffer)});
       if (i < 15) {

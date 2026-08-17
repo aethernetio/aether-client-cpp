@@ -20,14 +20,15 @@
 
 #  include <cstring>
 
+#  include "aether-miscpp/misc/override.h"
+
 #  include "aether/env.h"
-#  include "aether-miscpp/reflect/override_func.h"
 
 namespace ae {
 
 SockAddr GetSockAddr(AddressPort const& ip_address_port) {
   SockAddr sock_addr{};
-  std::visit(reflect::OverrideFunc{
+  std::visit(Override{
 #  if AE_SUPPORT_IPV4 == 1
                  [&](IpV4Addr const& ipv4) {
                    sock_addr.size = sizeof(sock_addr.data.ipv4);

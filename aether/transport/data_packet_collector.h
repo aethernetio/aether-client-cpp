@@ -19,13 +19,13 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <vector>
+#include <memory>
 #include <queue>
 #include <utility>
+#include <vector>
 
 #include <numeric/tiered_int.h>
 
-#include "aether/memory_buffer.h"
 #include "aether/types/data_buffer.h"
 
 namespace ae {
@@ -37,15 +37,15 @@ struct Packet {
   Packet(Packet const&) = delete;
   Packet(Packet&& other) noexcept;
 
-  MemStreamBuf<> mem_buffer;
+  std::unique_ptr<std::uint8_t[]> mem_buffer;
   std::size_t expected_packet_size;
+  std::size_t pos;
 };
 
 class StreamDataPacketCollector {
  public:
   // fill packets in queue with provided stream data_buffer
   void AddData(std::uint8_t const* data, std::size_t size);
-  void AddData(DataBuffer const& data_buffer);
   // pops a packet data if any, else return empty
   std::vector<std::uint8_t> PopPacket();
 
@@ -55,8 +55,8 @@ class StreamDataPacketCollector {
   std::pair<std::size_t, std::size_t> GetPacketSize(std::uint8_t const* data,
                                                     std::size_t size);
   // return data offset
-  std::size_t WriteToPacket(Packet& packet, std::uint8_t const* data,
-                            std::size_t size);
+  static std::size_t WriteToPacket(Packet& packet, std::uint8_t const* data,
+                                   std::size_t size);
 
   std::queue<Packet> packets_;
   // used if packet is not complete to get packet size

@@ -16,8 +16,8 @@
 
 #include "aether/obj/obj_ptr_base.h"
 
-#include "aether/obj/obj_id.h"
 #include "aether/obj/domain.h"
+#include "aether/obj/obj_id.h"
 
 namespace ae {
 
@@ -38,17 +38,21 @@ void ObjectPtrBase::SetFlags(ObjFlags flags) { flags_ = flags; }
 ObjectPtrBase& ObjectPtrBase::operator=(ObjectPtrBase const& ptr) noexcept =
     default;
 
-imstream<DomainBufferReader>& operator>>(imstream<DomainBufferReader>& is,
-                                         ObjectPtrBase& ptr) {
-  ptr.domain_ = is.ib_.domain_graph->domain;
-  is >> ptr.id_ >> ptr.flags_;
-  return is;
+namespace seri {
+using ObjPtrBaseSerializer =
+    Serializer<BinaryArchive<DomainBuffer>, ObjectPtrBase>;
+
+SeriResult ObjPtrBaseSerializer::Seri(Archive& archive,
+                                      Meta<ObjectPtrBase const> meta) const {
+  TRY_RESULT((archive.buffer().Write(DataTag{meta.value.id_})));
+  return archive.buffer().Write(DataTag{meta.value.flags_});
 }
 
-omstream<DomainBufferWriter>& operator<<(omstream<DomainBufferWriter>& os,
-                                         ObjectPtrBase const& ptr) {
-  os << ptr.id_ << ptr.flags_;
-  return os;
+SeriResult ObjPtrBaseSerializer::Deseri(Archive& archive,
+                                        Meta<ObjectPtrBase> meta) const {
+  meta.value.domain_ = archive.buffer().domain_graph->domain;
+  TRY_RESULT((archive.buffer().Read(DataTag{meta.value.id_})));
+  return archive.buffer().Read(DataTag{meta.value.flags_});
 }
-
+}  // namespace seri
 }  // namespace ae

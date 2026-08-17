@@ -17,14 +17,18 @@
 #ifndef AETHER_TYPES_NULLABLE_TYPE_H_
 #define AETHER_TYPES_NULLABLE_TYPE_H_
 
-#include <tuple>
 #include <bitset>
 #include <cstdint>
-#include <type_traits>
 #include <functional>
+#include <limits>
+#include <optional>
+#include <tuple>
+#include <type_traits>
+#include <utility>
 
-#include "aether/type_traits.h"
 #include "aether-miscpp/reflect/reflect.h"
+#include "aether-miscpp/serialization/serialization.h"
+#include "aether/type_traits.h"
 
 namespace ae {
 template <typename... TArgs>
@@ -40,35 +44,33 @@ class NullableValues {
 
  public:
   static constexpr std::size_t kBitsCount = sizeof...(TArgs);
-  using ValueType =
+  using MaskType =
       decltype(SelectValueType<kBitsCount, std::uint8_t, std::uint16_t,
                                std::uint32_t, std::uint64_t>());
 
   explicit NullableValues(TArgs&... args) : arg_refs_{args...} {}
 
-  template <typename Stream>
-  void Load(Stream& is) {
-    ValueType mask_value{};
-    is >> mask_value;
-    LoadValue(is, std::bitset<kBitsCount>{mask_value},
-              std::make_index_sequence<kBitsCount>());
+  seri::SeriResult Seri(seri::Archive auto& archive) const {
+    TRY_RESULT(archive.Save(BuildMask()));
+    return SeriValues(archive, std::make_index_sequence<kBitsCount>{});
   }
 
-  template <typename Stream>
-  void Save(Stream& os) const {
-    auto value = BuildMask();
-    os << value;
-    SaveValues(os, std::make_index_sequence<kBitsCount>());
+  seri::SeriResult Deseri(seri::Archive auto& archive) {
+    MaskType mask_value{};
+    TRY_RESULT(archive.Load(seri::Meta{mask_value}));
+    return DeseriValues(archive, std::bitset<kBitsCount>{mask_value},
+                        std::make_index_sequence<kBitsCount>{});
   }
 
  private:
-  ValueType BuildMask() const {
+  MaskType BuildMask() const {
     return BuildMaskImpl(std::make_index_sequence<kBitsCount>());
   }
 
   template <std::size_t... Is>
-  ValueType BuildMaskImpl(std::index_sequence<Is...>) const {
+  constexpr MaskType BuildMaskImpl(std::index_sequence<Is...>) const {
     std::bitset<kBitsCount> mask;
+
     (std::invoke([&]() {
        auto& v = std::get<Is>(arg_refs_);
        if constexpr (IsOptional<std::decay_t<decltype(v)>>::value) {
@@ -76,42 +78,56 @@ class NullableValues {
        }
      }),
      ...);
-    return static_cast<ValueType>(mask.to_ulong());
+    return static_cast<MaskType>(mask.to_ulong());
   }
 
-  template <typename Stream, std::size_t... Is>
-  void SaveValues(Stream& os, std::index_sequence<Is...>) const {
-    (std::invoke([&]() {
-       auto& v = std::get<Is>(arg_refs_);
-       if constexpr (IsOptional<std::decay_t<decltype(v)>>::value) {
-         if (v.has_value()) {
-           os << v.value();
-         }
-       } else {
-         os << v;
-       }
-     }),
-     ...);
+  template <std::size_t I>
+  seri::SeriResult SeriValue(seri::Archive auto& archive) const {
+    auto const& value = std::get<I>(arg_refs_);
+    if constexpr (IsOptional<std::decay_t<decltype(value)>>::value) {
+      if (value.has_value()) {
+        return archive.Save(value.value());
+      }
+      return Ok{seri::good};
+    } else {
+      return archive.Save(value);
+    }
   }
 
-  template <typename Stream, std::size_t... Is>
-  void LoadValue(Stream& is, std::bitset<kBitsCount> mask,
-                 std::index_sequence<Is...>) {
-    (std::invoke([&]() {
-       auto& v = std::get<Is>(arg_refs_);
-       using VType = std::decay_t<decltype(v)>;
-       if constexpr (IsOptional<VType>::value) {
-         // if not it's not nullable
-         if (!mask[Is]) {
-           typename VType::value_type value;
-           is >> value;
-           v = value;
-         }
-       } else {
-         is >> v;
-       }
-     }),
-     ...);
+  template <std::size_t... Is>
+  seri::SeriResult SeriValues(seri::Archive auto& archive,
+                              std::index_sequence<Is...>) const {
+    seri::SeriResult result{Ok{seri::good}};
+    ((result.IsOk() ? result = SeriValue<Is>(archive) : result), ...);
+    return result;
+  }
+
+  template <std::size_t I>
+  seri::SeriResult DeseriValue(seri::Archive auto& archive,
+                               std::bitset<kBitsCount> const& mask) {
+    auto& value = std::get<I>(arg_refs_);
+    using ValueType = std::decay_t<decltype(value)>;
+    if constexpr (IsOptional<ValueType>::value) {
+      if (!mask[I]) {
+        typename ValueType::value_type loaded_value{};
+        TRY_RESULT(archive.Load(loaded_value));
+        value = std::move(loaded_value);
+      } else {
+        value = std::nullopt;
+      }
+      return Ok{seri::good};
+    } else {
+      return archive.Load(value);
+    }
+  }
+
+  template <std::size_t... Is>
+  seri::SeriResult DeseriValues(seri::Archive auto& archive,
+                                std::bitset<kBitsCount> const& mask,
+                                std::index_sequence<Is...>) {
+    seri::SeriResult result{Ok{seri::good}};
+    ((result.IsOk() ? result = DeseriValue<Is>(archive, mask) : result), ...);
+    return result;
   }
 
   std::tuple<TArgs&...> arg_refs_;
@@ -129,16 +145,14 @@ class NullableValues {
 template <typename T>
 class NullableType {
  public:
-  template <typename Stream>
-  void Load(Stream& is) {
+  seri::SeriResult Seri(seri::Archive auto& archive) const {
     auto values = BuildNullableValues(*this);
-    values.Load(is);
+    return values.Seri(archive);
   }
 
-  template <typename Stream>
-  void Save(Stream& os) const {
-    auto values = BuildNullableValues(const_cast<NullableType&>(*this));
-    values.Save(os);
+  seri::SeriResult Deseri(seri::Archive auto& archive) {
+    auto values = BuildNullableValues(*this);
+    return values.Deseri(archive);
   }
 
  private:
@@ -160,16 +174,17 @@ class NullableType {
 
   template <typename U>
   static auto BuildArgList(U& obj) {
-    auto refl = reflect::Reflection{obj};
+    auto refl = reflect::make_reflection(obj);
     return refl.Apply(
         [](auto&... fields) { return BuildArgListImpl<U>(fields...); });
   }
 
   template <typename TSelf>
   static auto BuildNullableValues(TSelf& self) {
-    static_assert(reflect::IsReflectable<T>::value,
-                  "T must be reflecatable type");
-    auto args_list = BuildArgList(static_cast<T&>(self));
+    static_assert(reflect::Reflectable<T>, "T must be reflecatable type");
+    using ReflectedType =
+        std::conditional_t<std::is_const_v<TSelf>, T const, T>;
+    auto args_list = BuildArgList(static_cast<ReflectedType&>(self));
     return std::apply([](auto&... args) { return NullableValues{args...}; },
                       args_list);
   }

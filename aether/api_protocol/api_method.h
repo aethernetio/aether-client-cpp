@@ -17,10 +17,10 @@
 #ifndef AETHER_API_PROTOCOL_API_METHOD_H_
 #define AETHER_API_PROTOCOL_API_METHOD_H_
 
-#include "aether/api_protocol/api_message.h"
 #include "aether/api_protocol/api_context.h"
-#include "aether/api_protocol/api_promise.h"
+#include "aether/api_protocol/api_message.h"
 #include "aether/api_protocol/api_pack_parser.h"
+#include "aether/api_protocol/api_promise.h"
 #include "aether/api_protocol/protocol_context.h"
 
 namespace ae {
@@ -97,44 +97,6 @@ struct Method<MessageCode, ApiPromise<R>(Args...), ArgProc> {
   ProtocolContext* protocol_context_;
   ArgProc arg_proc_;
 };
-
-/**
- * \brief Specialization for method call with sub api.
- * A GenericMessage generated directly from list of args and subapi method call.
- * returns SubContext<Api> with access to Api class.
- */
-template <MessageId MessageCode, typename Api, typename... Args,
-          typename ArgProc>
-struct Method<MessageCode, SubContext<Api>(Args...), ArgProc> {
-  explicit Method(ProtocolContext& protocol_context, Api& api,
-                  ArgProc arg_proc = {})
-      : protocol_context_{&protocol_context},
-        api_{&api},
-        arg_proc_{std::move(arg_proc)} {}
-
-  SubContext<Api> operator()(Args... args) {
-    auto child_stack = ChildPacketStack{};
-    SubContext context{*api_, *child_stack};
-
-    auto* packet_stack = protocol_context_->packet_stack();
-    assert(packet_stack != nullptr &&
-           "Method::operator() requires active ApiContext");
-    packet_stack->Push(
-        *this, arg_proc_(std::forward<Args>(args)..., std::move(child_stack)));
-    return context;
-  }
-
-  template <typename... Ts>
-  void Pack(GenericMessage<Ts...>&& message, ApiPacker& packer) {
-    packer.Pack(MessageCode, std::move(message));
-  }
-
- private:
-  ProtocolContext* protocol_context_;
-  Api* api_;
-  ArgProc arg_proc_;
-};
-
 }  // namespace ae
 
 #endif  // AETHER_API_PROTOCOL_API_METHOD_H_

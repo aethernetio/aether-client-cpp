@@ -21,7 +21,8 @@
 #include <memory>
 #include <vector>
 
-#include "aether/mstream.h"
+#include "aether-miscpp/serialization/binary_archive.h"
+
 #include "aether/obj/obj_id.h"
 
 namespace ae {
@@ -41,24 +42,22 @@ struct DomainQuery {
   std::uint8_t version;
 };
 
+// BinaryBuffer implementation for storage writer
 class IDomainStorageWriter {
  public:
-  using size_type = std::uint32_t;
-
   virtual ~IDomainStorageWriter() = default;
 
-  virtual void write(void const* data, std::size_t size) = 0;
+  virtual seri::SeriResult Write(seri::SizeWriteTag data) = 0;
+  virtual seri::SeriResult Write(seri::DataWriteTag data) = 0;
 };
 
+// BinaryBuffer implementation for storage reader
 class IDomainStorageReader {
  public:
-  using size_type = std::uint32_t;
-
   virtual ~IDomainStorageReader() = default;
 
-  virtual void read(void* data, std::size_t size) = 0;
-  virtual ReadResult result() const = 0;
-  virtual void result(ReadResult result) = 0;
+  virtual seri::SeriResult Read(seri::SizeReadTag data) = 0;
+  virtual seri::SeriResult Read(seri::DataReadTag data) = 0;
 };
 
 struct DomainLoad {

@@ -18,8 +18,9 @@
 
 #include <vector>
 
-#include "aether/mstream.h"
-#include "aether/mstream_buffers.h"
+#include "aether-miscpp/reflect/reflect.h"
+#include "aether-miscpp/serialization/binary_archive.h"
+
 #include "aether/types/nullable_type.h"
 
 #include "tests/test-api-protocol/assert_packet.h"
@@ -49,6 +50,16 @@ struct BasedOnNoOption : Base, NullableType<BasedOnNoOption> {
   bool d;
 };
 
+struct Bar {
+  AE_REFLECT_MEMBERS(value, enabled);
+  std::optional<int> value;
+  bool enabled;
+};
+
+struct Foo : Bar, NullableType<Foo> {
+  AE_REFLECT(AE_BASE(Bar));
+};
+
 void test_SaveLoadNullableType() {
   std::vector<std::uint8_t> buffer;
   NoOptionalData data;
@@ -57,19 +68,15 @@ void test_SaveLoadNullableType() {
 
   // save
   {
-    auto buffer_writer = VectorWriter<>{buffer};
-    auto stream = omstream{buffer_writer};
-
-    stream << data;
+    auto archive = seri::BinaryArchive{VectorBuffer<PackedSize>{buffer}};
+    TEST_ASSERT(data.Seri(archive));
   }
 
   AssertPacket(buffer, std::uint8_t{}, int{42}, bool{true});
   NoOptionalData load_data{};
   {
-    auto buffer_reader = VectorReader<>{buffer};
-    auto stream = imstream{buffer_reader};
-
-    stream >> load_data;
+    auto archive = seri::BinaryArchive{VectorBuffer<PackedSize>{buffer}};
+    TEST_ASSERT(load_data.Deseri(archive));
   }
   TEST_ASSERT(load_data.a == data.a);
   TEST_ASSERT(load_data.c == data.c);
@@ -86,10 +93,9 @@ void test_OptionalData() {
 
   // save
   {
-    auto buffer_writer = VectorWriter<>{buffer};
-    auto stream = omstream{buffer_writer};
-
-    stream << data_has_value << data_no_has_value;
+    auto archive = seri::BinaryArchive{VectorBuffer<PackedSize>{buffer}};
+    TEST_ASSERT(data_has_value.Seri(archive));
+    TEST_ASSERT(data_no_has_value.Seri(archive));
   }
 
   AssertPacket(buffer, std::uint8_t{}, int{42}, bool{true}, std::uint8_t{0x1},
@@ -98,10 +104,9 @@ void test_OptionalData() {
   WithOptionalData load_data_has_value{};
   WithOptionalData load_data_no_has_value{};
   {
-    auto buffer_reader = VectorReader<>{buffer};
-    auto stream = imstream{buffer_reader};
-
-    stream >> load_data_has_value >> load_data_no_has_value;
+    auto archive = seri::BinaryArchive{VectorBuffer<PackedSize>{buffer}};
+    TEST_ASSERT(load_data_has_value.Deseri(archive));
+    TEST_ASSERT(load_data_no_has_value.Deseri(archive));
   }
   TEST_ASSERT(load_data_has_value.b.has_value());
   TEST_ASSERT(load_data_has_value.b == data_has_value.b);
@@ -109,6 +114,25 @@ void test_OptionalData() {
 
   TEST_ASSERT(!load_data_no_has_value.b.has_value());
   TEST_ASSERT(load_data_no_has_value.c == data_no_has_value.c);
+}
+
+void test_OptionalDataAbsentClearsPrepopulatedValue() {
+  std::vector<std::uint8_t> buffer;
+  WithOptionalData data{};
+  data.c = true;
+  {
+    auto archive = seri::BinaryArchive{VectorBuffer<PackedSize>{buffer}};
+    TEST_ASSERT(data.Seri(archive));
+  }
+
+  WithOptionalData load_data{};
+  load_data.b = 42;
+  {
+    auto archive = seri::BinaryArchive{VectorBuffer<PackedSize>{buffer}};
+    TEST_ASSERT(load_data.Deseri(archive));
+  }
+  TEST_ASSERT(!load_data.b.has_value());
+  TEST_ASSERT(load_data.c == data.c);
 }
 
 void test_WithDerived() {
@@ -126,10 +150,9 @@ void test_WithDerived() {
 
   // save
   {
-    auto buffer_writer = VectorWriter<>{buffer};
-    auto stream = omstream{buffer_writer};
-
-    stream << data << data_opt_value;
+    auto archive = seri::BinaryArchive{VectorBuffer<PackedSize>{buffer}};
+    TEST_ASSERT(data.Seri(archive));
+    TEST_ASSERT(data_opt_value.Seri(archive));
   }
 
   AssertPacket(buffer, std::uint8_t{0x4}, int{42}, bool{true}, bool{true},
@@ -137,10 +160,9 @@ void test_WithDerived() {
   BasedOnNoOption load_data{};
   BasedOnNoOption load_data_opt_value{};
   {
-    auto buffer_reader = VectorReader<>{buffer};
-    auto stream = imstream{buffer_reader};
-
-    stream >> load_data >> load_data_opt_value;
+    auto archive = seri::BinaryArchive{VectorBuffer<PackedSize>{buffer}};
+    TEST_ASSERT(load_data.Deseri(archive));
+    TEST_ASSERT(load_data_opt_value.Deseri(archive));
   }
   TEST_ASSERT(load_data.a == data.a);
   TEST_ASSERT(!load_data.b.has_value());
@@ -153,12 +175,47 @@ void test_WithDerived() {
   TEST_ASSERT(load_data_opt_value.d == data_opt_value.d);
 }
 
+void test_InheritedOptionalWithBaseReflection() {
+  std::vector<std::uint8_t> buffer;
+  Foo without_value{};
+  without_value.enabled = true;
+  Foo with_value{};
+  with_value.value = 42;
+  with_value.enabled = true;
+
+  {
+    auto archive = seri::BinaryArchive{VectorBuffer<PackedSize>{buffer}};
+    TEST_ASSERT(without_value.Seri(archive));
+    TEST_ASSERT(with_value.Seri(archive));
+  }
+
+  AssertPacket(buffer, std::uint8_t{0x1}, bool{true}, std::uint8_t{}, int{42},
+               bool{true});
+
+  Foo loaded_without_value{};
+  loaded_without_value.value = 7;
+  Foo loaded_with_value{};
+  {
+    auto archive = seri::BinaryArchive{VectorBuffer<PackedSize>{buffer}};
+    TEST_ASSERT(loaded_without_value.Deseri(archive));
+    TEST_ASSERT(loaded_with_value.Deseri(archive));
+  }
+
+  TEST_ASSERT(!loaded_without_value.value.has_value());
+  TEST_ASSERT(loaded_without_value.enabled == without_value.enabled);
+  TEST_ASSERT(loaded_with_value.value == with_value.value);
+  TEST_ASSERT(loaded_with_value.enabled == with_value.enabled);
+}
+
 }  // namespace ae::test_nullable_type
 
 int test_nullable_type() {
   UNITY_BEGIN();
   RUN_TEST(ae::test_nullable_type::test_SaveLoadNullableType);
   RUN_TEST(ae::test_nullable_type::test_OptionalData);
+  RUN_TEST(
+      ae::test_nullable_type::test_OptionalDataAbsentClearsPrepopulatedValue);
   RUN_TEST(ae::test_nullable_type::test_WithDerived);
+  RUN_TEST(ae::test_nullable_type::test_InheritedOptionalWithBaseReflection);
   return UNITY_END();
 }

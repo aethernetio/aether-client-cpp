@@ -17,14 +17,13 @@
 #ifndef AETHER_TYPES_VARIANT_TYPE_H_
 #define AETHER_TYPES_VARIANT_TYPE_H_
 
-#include <cstddef>
 #include <cassert>
+#include <cstddef>
 #include <utility>
 #include <variant>
-#include <functional>
 
-#include "aether/mstream.h"
 #include "aether-miscpp/meta/type_list.h"
+#include "aether-miscpp/serialization/serialization.h"
 
 namespace ae {
 template <auto I, typename T>
@@ -42,82 +41,12 @@ class VariantType : public std::variant<typename Variants::Type...> {
  public:
   using index_type = IndexType;
   using Variant = std::variant<typename Variants::Type...>;
+  static constexpr std::size_t kSize = sizeof...(Variants);
 
   // use all variant constructors
   using Variant::Variant;
   using Variant::operator=;
 
- private:
-  template <std::size_t... Is>
-  static constexpr index_type GetIndexByOrder(std::size_t order,
-                                              std::index_sequence<Is...>) {
-    index_type res{};
-    (
-        [&]() {
-          if (order == Is) {
-            res = TypeAt_t<Is, TypeList<Variants...>>::Index;
-          }
-        }(),
-        ...);
-    return res;
-  }
-
-  template <std::size_t... Is>
-  static constexpr std::size_t GetOrderByIndex(index_type index,
-                                               std::index_sequence<Is...>) {
-    std::size_t res{};
-    (
-        [&]() {
-          if (index == TypeAt_t<Is, TypeList<Variants...>>::Index) {
-            res = Is;
-          }
-        }(),
-        ...);
-    return res;
-  }
-
-  template <std::size_t I, typename Stream>
-  static bool LoadElement(Stream& stream, Variant& var) {
-    using T = std::variant_alternative_t<I, Variant>;
-    T t{};
-    stream >> t;
-    var = std::move(t);
-    return true;
-  }
-
-  template <typename Stream, std::size_t... Is>
-  static void Load(Stream& stream, std::size_t order, Variant& var,
-                   std::index_sequence<Is...> const&) {
-    (std::invoke([&]() {
-       if (order == Is) {
-         LoadElement<Is>(stream, var);
-       }
-     }),
-     ...);
-  }
-
-  template <typename Stream, std::size_t... Is>
-  static void Save(Stream& stream, std::size_t order, Variant const& var,
-                   std::index_sequence<Is...> const&) {
-    (std::invoke([&]() {
-       if (order == Is) {
-         stream << std::get<Is>(var);
-       }
-     }),
-     ...);
-  }
-
-  template <typename Type, std::size_t I, std::size_t... Is>
-  constexpr auto const& GetImpl(std::index_sequence<I, Is...> const&) const {
-    if constexpr (std::is_same_v<Type,
-                                 std::variant_alternative_t<I, Variant>>) {
-      return std::get<I>(*this);
-    } else {
-      return GetImpl<Type>(std::index_sequence<Is...>{});
-    }
-  }
-
- public:
   // Get currently stored variant index
   constexpr auto Index() const {
     return GetIndexByOrder(this->index(),
@@ -131,24 +60,82 @@ class VariantType : public std::variant<typename Variants::Type...> {
     return GetImpl<Type>(std::make_index_sequence<sizeof...(Variants)>());
   }
 
-  template <typename Ib>
-  friend imstream<Ib> operator>>(imstream<Ib>& is, VariantType& v) {
-    index_type index{};
-    is >> index;
-    auto order =
-        GetOrderByIndex(index, std::make_index_sequence<sizeof...(Variants)>());
-    assert(order < sizeof...(Variants));
-    Load(is, order, v, std::make_index_sequence<sizeof...(Variants)>());
-    return is;
+  template <std::size_t... Is>
+  static constexpr IndexType GetIndexByOrder(std::size_t order,
+                                             std::index_sequence<Is...>) {
+    constexpr auto index_arr =
+        std::array{TypeAt_t<Is, TypeList<Variants...>>::Index...};
+    return index_arr[order];
   }
 
-  template <typename Ob>
-  friend omstream<Ob> operator<<(omstream<Ob>& os, VariantType const& v) {
-    auto order = v.index();
-    os << GetIndexByOrder(order,
-                          std::make_index_sequence<sizeof...(Variants)>());
-    Save(os, order, v, std::make_index_sequence<sizeof...(Variants)>());
-    return os;
+  template <std::size_t... Is>
+  static constexpr std::size_t GetOrderByIndex(IndexType index,
+                                               std::index_sequence<Is...>) {
+    std::size_t res{};
+    bool found = (((TypeAt_t<Is, TypeList<Variants...>>::Index == index)
+                       ? (res = Is, true)
+                       : false) ||
+                  ...);
+    if (found) {
+      return res;
+    }
+    return kSize;
+  }
+
+  template <typename Type, std::size_t I, std::size_t... Is>
+  constexpr auto const& GetImpl(std::index_sequence<I, Is...> const&) const {
+    if constexpr (std::is_same_v<Type,
+                                 std::variant_alternative_t<I, Variant>>) {
+      return std::get<I>(*this);
+    } else {
+      return GetImpl<Type>(std::index_sequence<Is...>{});
+    }
+  }
+
+  // serialization
+  template <std::size_t I = 0>
+  static seri::SeriResult Load(seri::Archive auto& archive, std::size_t order,
+                               Variant& val) {
+    if constexpr (I >= kSize) {
+      return Error{seri::invalid_variant_index};
+    } else {
+      if (I == order) {
+        auto& ref = val.template emplace<I>();
+        TRY_RESULT(archive.Load(ref));
+        return Ok{seri::good};
+      }
+      return Load<I + 1>(archive, order, val);
+    }
+  }
+
+  template <std::size_t I = 0>
+  static seri::SeriResult Save(seri::Archive auto& archive, std::size_t order,
+                               Variant const& val) {
+    if constexpr (I >= kSize) {
+      return Error{seri::invalid_variant_index};
+    } else {
+      if (I == order) {
+        return archive.Save(std::get<I>(val));
+      }
+      return Save<I + 1>(archive, order, val);
+    }
+  }
+
+  seri::SeriResult Seri(seri::Archive auto& archive) const {
+    auto order = this->index();
+    TRY_RESULT((archive.Save(
+        GetIndexByOrder(order, std::make_index_sequence<kSize>()))));
+
+    return Save(archive, order, *this);
+  }
+
+  seri::SeriResult Deseri(seri::Archive auto& archive) {
+    IndexType index{};
+    TRY_RESULT((archive.Load(seri::Meta{index})));
+
+    auto order = GetOrderByIndex(index, std::make_index_sequence<kSize>());
+
+    return Load(archive, order, *this);
   }
 };
 }  // namespace ae

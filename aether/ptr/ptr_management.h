@@ -22,7 +22,7 @@
 #include <functional>
 #include <type_traits>
 
-#include "aether-miscpp/reflect/domain_visitor.h"
+#include "aether-miscpp/domain_visitor/domain_visitor.h"
 #include "aether-miscpp/types/aligned_storage.h"
 
 namespace ae {
@@ -99,7 +99,8 @@ struct RefVisitor {
 };
 
 using PtrRefDnv =
-    reflect::DomainNodeVisitor<RefVisitor&, reflect::VisitPolicy::kDeep>;
+    domain_visitor::DomainNodeVisitor<RefVisitor&,
+                                      domain_visitor::VisitPolicy::kAny>;
 }  // namespace ae
 
 #endif  // AETHER_PTR_PTR_MANAGEMENT_H_

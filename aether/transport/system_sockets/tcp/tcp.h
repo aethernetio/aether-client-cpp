@@ -28,19 +28,18 @@
 #    include <mutex>
 #    include <optional>
 
-#    include "aether/common.h"
 #    include "aether/ae_context.h"
-#    include "aether/poller/poller.h"
+#    include "aether/common.h"
 #    include "aether/events/multi_subscription.h"
+#    include "aether/poller/poller.h"
+#    include "aether/vector_buffer.h"
 
-#    include "aether/mstream.h"
-#    include "aether/mstream_buffers.h"
 #    include "aether/stream_api/istream.h"
-#    include "aether/transport/packet_send_action.h"
-#    include "aether/transport/packet_queue_manager.h"
 #    include "aether/transport/data_packet_collector.h"
-#    include "aether/write_action/failed_write_action.h"
+#    include "aether/transport/packet_queue_manager.h"
+#    include "aether/transport/packet_send_action.h"
 #    include "aether/transport/system_sockets/sockets/isocket.h"
+#    include "aether/write_action/failed_write_action.h"
 
 #    include "aether/transport/transport_tele.h"
 
@@ -175,10 +174,10 @@ class TcpTransport final : public tcp_internal::TcpBase {
                   in_data.size());
 
     auto packet_data = std::vector<std::uint8_t>{};
-    VectorWriter<PacketSize> vw{packet_data};
-    auto os = omstream{vw};
-    // copy data with size
-    os << std::move(in_data);  // NOLINT
+    VectorBuffer<PacketSize> vw{packet_data};
+    vw.Write(seri::SizeWriteTag(in_data.size()));
+    vw.Write(seri::DataWriteTag{std::move(in_data).data(),
+                                std::move(in_data).size()});
 
     auto* send_action =
         queue_manager_.AddPacket(ae_context_, socket_, std::move(packet_data));

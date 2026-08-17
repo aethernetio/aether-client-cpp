@@ -17,18 +17,18 @@
 #ifndef AETHER_API_PROTOCOL_API_PACK_PARSER_H_
 #define AETHER_API_PROTOCOL_API_PACK_PARSER_H_
 
-#include <vector>
-#include <limits>
-#include <utility>
 #include <cassert>
 #include <cstdint>
+#include <limits>
+#include <utility>
+#include <vector>
+
+#include "aether-miscpp/serialization/binary_archive.h"
 
 #include "aether/api_protocol/api_message.h"
 #include "aether/api_protocol/protocol_context.h"
 
 namespace ae {
-class ChildData;
-
 class ApiParser;
 class ApiPacker;
 
@@ -37,14 +37,17 @@ class ApiParser {
  public:
   ApiParser(ProtocolContext& protocol_context_,
             std::vector<std::uint8_t> const& data);
-  ApiParser(ProtocolContext& protocol_context_, ChildData const& child_data);
   ~ApiParser();
 
   template <typename TApiClass>
   void Parse(TApiClass& api_class) {
-    while (buffer_reader_.offset_ < buffer_reader_.data_.size()) {
+    while (archive.buffer().read_offset < archive.buffer().buff.size()) {
       MessageId message_id{std::numeric_limits<MessageId>::max()};
-      istream_ >> message_id;
+      if (auto res = archive.Load(message_id); res.IsErr()) {
+        // message_id didn't loaded
+        assert(false && "message_id didn't loaded");
+        return;
+      }
       api_class.LoadFactory(message_id, *this);
     }
   }
@@ -52,14 +55,21 @@ class ApiParser {
   template <typename Message, typename TApiClass>
   void Load(TApiClass& api_class) {
     Message msg{};
-    msg.Load(istream_);
+    if (auto res = archive.Load(msg); res.IsErr()) {
+      // message_id didn't loaded
+      assert(false && "Message didn't loaded");
+      return;
+    }
     api_class.Execute(std::move(msg), *this);
   }
 
   template <typename T>
   T Extract() {
     T result{};
-    istream_ >> result;
+    if (auto res = archive.Load(result); res.IsErr()) {
+      // message_id didn't loaded
+      assert(false && "result didn't extracted");
+    }
     return result;
   }
 
@@ -69,8 +79,7 @@ class ApiParser {
 
  private:
   ProtocolContext& protocol_context_;
-  MessageBufferReader buffer_reader_;
-  message_istream istream_{buffer_reader_};
+  seri::BinaryArchive<MessageBuffer> archive;
 };
 
 // Packing API messages to raw data buffer
@@ -81,19 +90,24 @@ class ApiPacker {
   ~ApiPacker();
 
   template <typename Message>
-  void Pack(MessageId message_id, Message&& msg) {
-    ostream_ << message_id;
-    std::forward<Message>(msg).Save(ostream_);
+  void Pack(MessageId message_id, Message const& msg) {
+    auto res = archive.Save(message_id);
+    if (!res) {
+      assert(false && "Message id didn't saved");
+      return;
+    }
+    res = archive.Save(msg);
+    if (!res) {
+      assert(false && "Message didn't saved");
+      return;
+    }
   }
-
-  MessageBufferWriter& Buffer();
 
   ProtocolContext& Context();
 
  private:
   ProtocolContext& protocol_context_;
-  MessageBufferWriter buffer_writer_;
-  message_ostream ostream_{buffer_writer_};
+  seri::BinaryArchive<MessageBuffer> archive;
 };
 
 }  // namespace ae

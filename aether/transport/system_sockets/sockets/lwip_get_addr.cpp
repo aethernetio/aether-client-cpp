@@ -18,15 +18,16 @@
 
 #if (defined(ESP_PLATFORM))
 
-#  include <variant>
 #  include <cassert>
+#  include <variant>
 
+#  include "aether-miscpp/misc/override.h"
 #  include "aether-miscpp/reflect/reflect.h"
 
 namespace ae {
 std::optional<ip_addr_t> LwipGetAddr(const AddressPort& addr_port) {
   return std::visit(
-      reflect::OverrideFunc{
+      Override{
 #  if AE_SUPPORT_IPV4
           [&](IpV4Addr const& ipv4) -> std::optional<ip_addr_t> {
             ip_addr_t lwip_addr;

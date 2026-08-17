@@ -19,6 +19,7 @@
 
 #include <memory>
 
+#include "aether-miscpp/serialization/binary_archive.h"
 #include "aether-tele/traps/statistics_trap.h"
 
 #include "aether/config.h"
@@ -59,6 +60,42 @@ class TeleStatistics : public Obj {
   std::shared_ptr<Trap> trap_ = std::make_shared<Trap>();
 #endif
 };
+
+#if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
+namespace seri {
+template <BinaryBuffer B, std::size_t Capacity>
+struct Serializer<BinaryArchive<B>, tele::LogStorage<Capacity>> {
+  SeriResult Seri(BinaryArchive<B>& archive,
+                  Meta<tele::LogStorage<Capacity> const> meta) const {
+    auto size = meta.value.size();
+    TRY_RESULT(archive.buffer().Write(SizeTag{std::as_const(size)}));
+
+    auto s = meta.value.start;
+    while (size > 0) {
+      auto to_write = (Capacity - s) > size ? size : Capacity - s;
+
+      TRY_RESULT(archive.buffer().Write(
+          DataWriteTag{meta.value.buffer.data() + s, to_write}));
+
+      s = (s + to_write) % Capacity;
+      size = size - to_write;
+    }
+    return Ok{seri::good};
+  }
+
+  SeriResult Deseri(BinaryArchive<B>& archive,
+                    Meta<tele::LogStorage<Capacity>> meta) const {
+    std::size_t size;  // NOLINT(*init-variables)
+    TRY_RESULT(archive.buffer().Read(SizeTag{size}));
+    assert(size < Capacity && "Saved buffer bigger than capacity");
+    meta.value.start = 0;
+    meta.value.pos = size;
+
+    return archive.buffer().Read(DataReadTag{meta.value.buffer.data(), size});
+  }
+};
+}  // namespace seri
+#endif
 }  // namespace ae
 
 #endif  // AETHER_TELE_TRAPS_TELE_STATISTICS_H_

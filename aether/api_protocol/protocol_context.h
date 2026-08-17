@@ -18,7 +18,6 @@
 #define AETHER_API_PROTOCOL_PROTOCOL_CONTEXT_H_
 
 #include <cassert>
-#include <cstddef>
 #include <cstdint>
 
 #include <etl/generic_pool.h>

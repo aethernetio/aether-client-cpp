@@ -17,15 +17,44 @@
 #ifndef AETHER_API_PROTOCOL_API_CONTEXT_H_
 #define AETHER_API_PROTOCOL_API_CONTEXT_H_
 
-#include <vector>
 #include <utility>
+#include <vector>
 
-#include "aether/memory.h"
 #include "aether/common.h"
-#include "aether/api_protocol/packet_builder.h"
+#include "aether/memory.h"
+
 #include "aether/api_protocol/api_pack_parser.h"
 
 namespace ae {
+class IPackMessage {
+ public:
+  virtual ~IPackMessage() = default;
+
+  virtual void Pack(ApiPacker& packer) && = 0;
+};
+
+template <typename TApiClass, typename TApiMessage>
+class PackMessage final : public IPackMessage {
+ public:
+  template <typename UApiClass, typename U>
+    explicit PackMessage(UApiClass&& api_class, U&& api_message)
+        : api_class_{
+              std::forward<UApiClass>(api_class),
+          }, api_message_{std::forward<U>(api_message)} {}
+
+  void Pack(ApiPacker& packer) && override {
+    api_class_.Pack(std::move(api_message_), packer);
+  }
+
+ private:
+  TApiClass api_class_;
+  TApiMessage api_message_;
+};
+
+template <typename TApiClass, typename... TApiMessages>
+PackMessage(TApiClass&& api_class, TApiMessages&&... api_messages)
+    -> PackMessage<TApiClass, std::decay_t<TApiMessages>...>;
+
 /**
  * \brief Stack of packed messages to generate one packet
  */
@@ -50,31 +79,6 @@ class PacketStack {
 
  private:
   std::vector<std::unique_ptr<IPackMessage>> packets_;
-};
-
-/**
- * \brief Used as a child data for sub api packet.
- * Provide it's own specialization for operator<< to message_ostream.
- */
-class ChildPacketStack {
- public:
-  ChildPacketStack() : packet_stack_{make_unique<PacketStack>()} {}
-
-  AE_CLASS_MOVE_ONLY(ChildPacketStack)
-
-  PacketStack& operator*() { return *packet_stack_; }
-
-  friend message_ostream& operator<<(
-      message_ostream& os, ChildPacketStack const& child_packet_stack) {
-    auto data = std::vector<std::uint8_t>{};
-    auto packer = ApiPacker{os.ob_.packer.Context(), data};
-    std::move(*child_packet_stack.packet_stack_).Pack(packer);
-    os << data;
-    return os;
-  }
-
- private:
-  std::unique_ptr<PacketStack> packet_stack_;
 };
 
 /**

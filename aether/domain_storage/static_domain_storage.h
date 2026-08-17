@@ -17,24 +17,23 @@
 #ifndef AETHER_DOMAIN_STORAGE_STATIC_DOMAIN_STORAGE_H_
 #define AETHER_DOMAIN_STORAGE_STATIC_DOMAIN_STORAGE_H_
 
+#include <span>
+
 #include "aether/domain_storage/static_object_types.h"
 #include "aether/obj/idomain_storage.h"
 
-#include "aether/tele.h"
+#include "aether/tele.h"  // IWYU pragma: keep
 
 namespace ae {
 class StaticDomainStorageReader final : public IDomainStorageReader {
  public:
   explicit StaticDomainStorageReader(Span<std::uint8_t const> const& d);
 
-  void read(void* out, std::size_t size) override;
-
-  ReadResult result() const override;
-  void result(ReadResult) override;
+  seri::SeriResult Read(seri::SizeReadTag data) override;
+  seri::SeriResult Read(seri::DataReadTag data) override;
 
  private:
-  Span<std::uint8_t const> const* data;
-  std::size_t offset;
+  std::span<std::uint8_t const> data_buffer;
 };
 
 template <std::size_t ObjectCount, std::size_t ClassDataCount>

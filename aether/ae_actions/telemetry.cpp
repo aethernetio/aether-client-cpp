@@ -19,11 +19,12 @@
 #if defined TELEMETRY_ENABLED
 
 #  include "aether-miscpp/format/format.h"
+#  include "aether-miscpp/serialization/binary_archive.h"
+#  include "aether-tele/traps/statistics_trap.h"
+
 #  include "aether/aether.h"
 #  include "aether/tele_statistics.h"
-
-#  include "aether/mstream.h"
-#  include "aether/mstream_buffers.h"
+#  include "aether/tiered_int_serializer.h"  // IWYU pragma: keep
 
 #  include "aether/ae_actions/ae_actions_tele.h"
 
@@ -93,10 +94,10 @@ std::optional<Telemetric> Telemetry::CollectTelemetry(
                        (11 + res.cpp.lib_version.size() + res.cpp.os.size() +
                         res.cpp.compiler.size());
   res.cpp.blob.reserve(blob_max_size);
-  auto vector_writer =
-      LimitVectorWriter<>{res.cpp.blob, res.cpp.blob.capacity()};
-  auto os = omstream{vector_writer};
-  os << *statistics_trap;
+
+  auto archive = seri::BinaryArchive{seri::LimitedVectorBuffer<>{res.cpp.blob}};
+  archive.Save(*statistics_trap);
+
   // TODO: should we reset stored statistics?
 
   return res;

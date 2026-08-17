@@ -19,12 +19,12 @@
 #include "aether/obj/domain.h"
 #include "aether/obj/obj_ptr.h"
 #include "aether/obj/registry.h"
-#include "objects/foo.h"
-#include "objects/bob.h"
 #include "objects/bar.h"
-#include "objects/poopa_loopa.h"
+#include "objects/bob.h"
 #include "objects/collector.h"
 #include "objects/family.h"
+#include "objects/foo.h"
+#include "objects/poopa_loopa.h"
 
 #include "map_domain_storage.h"
 

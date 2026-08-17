@@ -17,24 +17,27 @@
 #include "aether/domain_storage/static_domain_storage.h"
 
 #include <cassert>
-#include <iterator>
-#include <algorithm>
+#include <cstddef>
+#include <cstring>
 
 namespace ae {
 StaticDomainStorageReader::StaticDomainStorageReader(
     Span<std::uint8_t const> const& d)
-    : data{&d}, offset{} {}
+    : data_buffer(d.data(), d.size()) {}
 
-void StaticDomainStorageReader::read(void* out, std::size_t size) {
-  assert((offset + size) <= data->size());
-  std::copy(std::begin(*data) + offset, std::begin(*data) + offset + size,
-            reinterpret_cast<std::uint8_t*>(out));
-  offset += size;
+seri::SeriResult StaticDomainStorageReader::Read(seri::SizeReadTag data) {
+  std::uint32_t u_size{};
+  TRY_RESULT(Read(seri::DataTag{u_size}));
+  data.size = static_cast<std::size_t>(u_size);
+  return Ok{seri::good};
 }
 
-ReadResult StaticDomainStorageReader::result() const {
-  return ReadResult::kYes;
+seri::SeriResult StaticDomainStorageReader::Read(seri::DataReadTag data) {
+  if (data_buffer.size() < data.size) {
+    return Error{seri::read_eof};
+  }
+  std::memcpy(data.data, data_buffer.data(), data.size);
+  data_buffer = data_buffer.subspan(data.size);
+  return Ok{seri::good};
 }
-
-void StaticDomainStorageReader::result(ReadResult) {}
 }  // namespace ae

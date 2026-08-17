@@ -16,39 +16,57 @@
 
 #include "tests/test-object-system/map_domain_storage.h"
 
-#include "aether/mstream_buffers.h"
+#include <cstring>
+#include <span>
 
 namespace ae {
 class MapDomainStorageWriter final : public IDomainStorageWriter {
  public:
   MapDomainStorageWriter(DomainQuery q, MapDomainStorage& s)
-      : query{std::move(q)}, storage{&s}, vector_writer{data} {}
+      : query{std::move(q)}, storage{&s} {}
   ~MapDomainStorageWriter() override {
-    storage->SaveData(query, std::move(data));
+    storage->SaveData(query, std::move(data_buffer));
   }
 
-  void write(void const* data, std::size_t size) override {
-    vector_writer.write(data, size);
+  seri::SeriResult Write(seri::SizeWriteTag data) override {
+    auto const u_size = static_cast<std::uint32_t>(data.size);
+    return Write(seri::DataTag{u_size});
+  }
+
+  seri::SeriResult Write(seri::DataWriteTag data) override {
+    data_buffer.insert(
+        std::end(data_buffer), reinterpret_cast<std::uint8_t const*>(data.data),
+        reinterpret_cast<std::uint8_t const*>(data.data) + data.size);
+    return Ok{seri::good};
   }
 
   DomainQuery query;
   MapDomainStorage* storage;
-  ObjectData data;
-  VectorWriter<IDomainStorageWriter::size_type> vector_writer;
+  ObjectData data_buffer;
 };
 
 class MapDomainStorageReader final : public IDomainStorageReader {
  public:
   explicit MapDomainStorageReader(ObjectData const& d)
-      : data{&d}, reader{*data} {}
+      : data_buffer{d.data(), d.size()} {}
 
-  void read(void* data, std::size_t size) override { reader.read(data, size); }
+  seri::SeriResult Read(seri::SizeReadTag data) override {
+    std::uint32_t u_size{};
+    TRY_RESULT(Read(seri::DataTag{u_size}));
+    data.size = static_cast<std::size_t>(u_size);
+    return Ok{seri::good};
+  }
 
-  ReadResult result() const override { return ReadResult::kYes; }
-  void result(ReadResult) override {}
+  seri::SeriResult Read(seri::DataReadTag data) override {
+    if (data_buffer.size() < data.size) {
+      return Error{seri::read_eof};
+    }
+    std::memcpy(data.data, data_buffer.data(), data.size);
+    data_buffer = data_buffer.subspan(data.size);
+    return Ok{seri::good};
+  }
 
-  ObjectData const* data;
-  VectorReader<IDomainStorageReader::size_type> reader;
+  std::span<std::uint8_t const> data_buffer;
 };
 
 std::unique_ptr<IDomainStorageWriter> MapDomainStorage::Store(

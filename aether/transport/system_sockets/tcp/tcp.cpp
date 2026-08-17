@@ -18,8 +18,8 @@
 
 #if defined SYSTEM_SOCKET_TCP_TRANSPORT_ENABLED
 
-#  include <vector>
 #  include <utility>
+#  include <vector>
 
 #  include "aether/transport/transport_tele.h"
 
@@ -81,8 +81,9 @@ void TcpBase::OnRecvData(Span<std::uint8_t> data) {
       read_event_ = false;
       for (auto data = data_packet_collector_.PopPacket(); !data.empty();
            data = data_packet_collector_.PopPacket()) {
-        AE_TELE_DEBUG(kTcpTransportReceive, "Socket {} received data size {}",
-                      endpoint_, data.size());
+        AE_TELE_DEBUG(kTcpTransportReceive,
+                      "Socket {} received data size {} \ndata{}", endpoint_,
+                      data.size(), data);
         out_data_event_.Emit(data);
       }
     });

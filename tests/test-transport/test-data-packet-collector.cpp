@@ -20,9 +20,10 @@
 #include <string>
 #include <vector>
 
-#include "aether/mstream.h"
-#include "aether/mstream_buffers.h"
+#include "aether-miscpp/serialization/binary_archive.h"
+
 #include "aether/transport/data_packet_collector.h"
+#include "aether/vector_buffer.h"
 
 namespace ae::test_data_pc {
 void test_DataPacketCollectorEmpty() {
@@ -33,9 +34,8 @@ void test_DataPacketCollectorEmpty() {
 
 std::vector<std::uint8_t> MakeStreamPacket(std::vector<std::uint8_t> data) {
   std::vector<std::uint8_t> packet_size_data;
-  VectorWriter<PacketSize> writer(packet_size_data);
-  omstream os{writer};
-  os << PacketSize{data.size()};
+  auto buffer = VectorBuffer<PacketSize>{packet_size_data};
+  TEST_ASSERT(buffer.Write(seri::SizeWriteTag{data.size()}));
 
   data.insert(data.begin(), packet_size_data.begin(), packet_size_data.end());
 
@@ -44,24 +44,25 @@ std::vector<std::uint8_t> MakeStreamPacket(std::vector<std::uint8_t> data) {
 
 std::vector<std::uint8_t> TestPacket() {
   std::vector<std::uint8_t> packet;
-  VectorWriter<PacketSize> writer(packet);
-  omstream os{writer};
-
-  os << std::string{"Hello"};
-  os << int{12};
-  os << float{12.42};
+  auto archive = seri::BinaryArchive{seri::BinaryVectorBuffer<>{packet}};
+  TEST_ASSERT(archive.Save(std::string{"Hello"}));
+  TEST_ASSERT(archive.Save(int{12}));
+  TEST_ASSERT(archive.Save(float{12.42}));
 
   return MakeStreamPacket(std::move(packet));
 }
 
 inline void AssertPacket(std::vector<std::uint8_t> const& data_packet) {
-  VectorReader<PacketSize> reader(data_packet);
-  imstream is{reader};
+  auto archive = seri::BinaryArchive{
+      seri::BinaryVectorBuffer<>{
+          const_cast<std::vector<std::uint8_t>&>(data_packet)},  // NOLINT
+  };
   std::string str;
-  int i;
-  float f;
-  is >> str >> i >> f;
-  TEST_ASSERT(data_was_read(is));
+  int i{};
+  float f{};
+  TEST_ASSERT(archive.Load(str));
+  TEST_ASSERT(archive.Load(i));
+  TEST_ASSERT(archive.Load(f));
   TEST_ASSERT_EQUAL_STRING("Hello", str.c_str());
   TEST_ASSERT_EQUAL(12, i);
   TEST_ASSERT_EQUAL(12.42, f);
@@ -71,7 +72,7 @@ void test_AddOnePacket() {
   StreamDataPacketCollector collector;
   auto packet = TestPacket();
 
-  collector.AddData(packet);
+  collector.AddData(packet.data(), packet.size());
   auto data_packet = collector.PopPacket();
 
   TEST_ASSERT(!data_packet.empty());
@@ -85,7 +86,7 @@ void test_AddFewPackets() {
   StreamDataPacketCollector collector;
   for (auto i = 0; i < 2; ++i) {
     auto packet = TestPacket();
-    collector.AddData(std::move(packet));
+    collector.AddData(packet.data(), packet.size());
   }
   for (auto i = 0; i < 2; ++i) {
     auto data_packet = collector.PopPacket();
@@ -101,7 +102,7 @@ void test_AddFewPackets() {
 void test_AddBigPacket() {
   StreamDataPacketCollector collector;
   auto garbage = MakeStreamPacket(std::vector<std::uint8_t>(1200));
-  collector.AddData(garbage);
+  collector.AddData(garbage.data(), garbage.size());
 
   auto data_packet = collector.PopPacket();
   TEST_ASSERT_EQUAL(1200, data_packet.size());
@@ -117,7 +118,7 @@ void test_AddFewPacketInOne() {
                              std::end(packet));
   }
 
-  collector.AddData(std::move(cumulative_packet));
+  collector.AddData(cumulative_packet.data(), cumulative_packet.size());
 
   for (auto i = 0; i < 2; ++i) {
     auto data_packet = collector.PopPacket();
@@ -133,18 +134,18 @@ void test_BigPacketPartially() {
   StreamDataPacketCollector collector;
   auto garbage = MakeStreamPacket(std::vector<std::uint8_t>(1200));
   // add 1 byte
-  collector.AddData({garbage[0]});
+  collector.AddData(garbage.data(), 1);
   {
     auto p = collector.PopPacket();
     TEST_ASSERT(p.empty());
   }
-  collector.AddData({garbage[1]});
+  collector.AddData(garbage.data() + 1, 1);
   {
     auto p = collector.PopPacket();
     TEST_ASSERT(p.empty());
   }
   // add rest of data
-  collector.AddData({std::next(std::begin(garbage), 2), std::end(garbage)});
+  collector.AddData(garbage.data() + 2, garbage.size() - 2);
   {
     // packet complete
     auto p = collector.PopPacket();

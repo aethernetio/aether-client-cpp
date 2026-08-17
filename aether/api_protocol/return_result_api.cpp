@@ -29,9 +29,4 @@ void ReturnResultApi::SendErrorImpl(RequestId request_id,
                                     std::uint32_t error_code) {
   protocol_context().SetSendErrorResponse(request_id, error_type, error_code);
 }
-
-void ReturnResultApi::Pack(ae::SendResult&& result, ApiPacker& packer) {
-  packer.Pack(kSendResult, std::move(result));
-}
-
 }  // namespace ae

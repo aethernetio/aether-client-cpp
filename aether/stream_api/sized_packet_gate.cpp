@@ -16,8 +16,9 @@
 
 #include "aether/stream_api/sized_packet_gate.h"
 
-#include "aether/mstream.h"
-#include "aether/mstream_buffers.h"
+#include <utility>
+
+#include "aether/vector_buffer.h"
 
 namespace ae {
 
@@ -27,10 +28,10 @@ static constexpr std::size_t kSizedPacketOverhead =
 DataBuffer SizedPacketGate::WriteIn(DataBuffer&& buffer) {
   DataBuffer write_buffer;
   write_buffer.reserve(buffer.size() + kSizedPacketOverhead);
-
-  auto buffer_writer = VectorWriter<PacketSize>(write_buffer);
-  auto os = omstream{buffer_writer};
-  os << buffer;
+  auto vec_buff = VectorBuffer<PacketSize>{write_buffer};
+  vec_buff.Write(seri::SizeWriteTag{buffer.size()});
+  vec_buff.Write(
+      seri::DataWriteTag{std::move(buffer).data(), std::move(buffer).size()});
 
   return write_buffer;
 }

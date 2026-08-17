@@ -23,7 +23,7 @@ ServerKeys::ServerKeys(ServerId server_id, const Key& master_key)
     : server_id_{server_id}, master_key_{master_key} {
   nonce_.Init();
   nonce_.Next();
-  Derive(server_id, master_key, key_number_);
+  Derive(server_id_, master_key, key_number_);
 }
 
 CryptoNonce const& ServerKeys::nonce() const { return nonce_; }
