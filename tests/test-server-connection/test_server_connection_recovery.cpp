@@ -47,28 +47,26 @@ struct ServerConnectionTestAccess {
     return c.channels_.size();
   }
   static bool ChannelFailed(ServerConnection const& c, std::size_t index) {
-    return c.channels_.at(index)->failed;
+    return c.channels_.at(index).failed;
   }
   static std::size_t FailedCount(ServerConnection const& c) {
     std::size_t n = 0;
     for (auto const& entry : c.channels_) {
-      if (entry->failed) {
+      if (entry.failed) {
         ++n;
       }
     }
     return n;
   }
   static bool SelectActionFinished(ServerConnection const& c) {
-    return !c.channel_select_action_ ||
-           c.channel_select_action_->is_finished();
+    return !c.channel_select_action_ || c.channel_select_action_->is_finished();
   }
   static bool SelectActionFinishedFlag(ServerConnection const& c) {
-    return c.channel_select_action_ &&
-           c.channel_select_action_->is_finished();
+    return c.channel_select_action_ && c.channel_select_action_->is_finished();
   }
 };
 
-namespace {
+namespace test_server_connection_recovery {
 
 struct TestContext {
   AeCtx ToAeContext() const {
@@ -127,7 +125,11 @@ class LinkedMockStream final : public ByteIStream {
 };
 
 struct FakeBuildPolicy {
-  enum class Mode : std::uint8_t { kAlwaysFail, kAlwaysSucceed, kFailThenSucceed };
+  enum class Mode : std::uint8_t {
+    kAlwaysFail,
+    kAlwaysSucceed,
+    kFailThenSucceed
+  };
   Mode mode{Mode::kAlwaysFail};
   int* builds{nullptr};
   AeContext const* context{nullptr};
@@ -198,7 +200,7 @@ Server::ptr MakeServerWithChannels(Domain& domain,
   return server;
 }
 
-void test_single_channel_build_failure_reaches_link_error() {
+void test_SingleChannelBuildFailureReachesLinkError() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
   MapDomainStorage storage;
@@ -228,8 +230,10 @@ void test_single_channel_build_failure_reaches_link_error() {
 
   ctx.Pump();
 
-  TEST_ASSERT_TRUE(ServerConnectionTestAccess::SelectActionFinished(connection));
-  TEST_ASSERT_EQUAL_UINT(1, ServerConnectionTestAccess::FailedCount(connection));
+  TEST_ASSERT_TRUE(
+      ServerConnectionTestAccess::SelectActionFinished(connection));
+  TEST_ASSERT_EQUAL_UINT(1,
+                         ServerConnectionTestAccess::FailedCount(connection));
   TEST_ASSERT_TRUE(ServerConnectionTestAccess::ChannelFailed(connection, 0));
   TEST_ASSERT_EQUAL(static_cast<int>(LinkState::kLinkError),
                     static_cast<int>(connection.stream_info().link_state));
@@ -242,7 +246,7 @@ void test_single_channel_build_failure_reaches_link_error() {
   (void)finished_during_result;
 }
 
-void test_result_callback_sees_finished_action() {
+void test_ResultCallbackSeesFinishedAction() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
   MapDomainStorage storage;
@@ -262,7 +266,7 @@ void test_result_callback_sees_finished_action() {
                     static_cast<int>(connection.stream_info().link_state));
 }
 
-void test_second_channel_succeeds_after_first_failure() {
+void test_SecondChannelSucceedsAfterFirstFailure() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
   MapDomainStorage storage;
@@ -278,15 +282,17 @@ void test_second_channel_succeeds_after_first_failure() {
   ServerConnection connection{ae_ctx, server.Load()};
   ctx.Pump();
 
-  TEST_ASSERT_TRUE(ServerConnectionTestAccess::SelectActionFinished(connection));
-  TEST_ASSERT_EQUAL_UINT(1, ServerConnectionTestAccess::FailedCount(connection));
+  TEST_ASSERT_TRUE(
+      ServerConnectionTestAccess::SelectActionFinished(connection));
+  TEST_ASSERT_EQUAL_UINT(1,
+                         ServerConnectionTestAccess::FailedCount(connection));
   TEST_ASSERT_EQUAL(static_cast<int>(LinkState::kLinked),
                     static_cast<int>(connection.stream_info().link_state));
   TEST_ASSERT_TRUE(connection.stream_info().is_writable);
   TEST_ASSERT_EQUAL(2, builds);
 }
 
-void test_full_pool_still_reaches_link_error() {
+void test_FullPoolStillReachesLinkError() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
   MapDomainStorage storage;
@@ -294,9 +300,8 @@ void test_full_pool_still_reaches_link_error() {
 
   // Leave a few slots for transport timeout plumbing; keep the rest occupied
   // with active delayed tasks so deferred reselect cannot allocate.
-  static constexpr auto kBlockers = AE_TASK_MAX_COUNT > 8
-                                        ? AE_TASK_MAX_COUNT - 8
-                                        : AE_TASK_MAX_COUNT / 2;
+  static constexpr auto kBlockers =
+      AE_TASK_MAX_COUNT > 8 ? AE_TASK_MAX_COUNT - 8 : AE_TASK_MAX_COUNT / 2;
   std::array<TaskSubscription, kBlockers> blockers{};
   for (auto& sub : blockers) {
     sub = ctx.sched.DelayedTask([]() {}, std::chrono::seconds{60});
@@ -328,14 +333,15 @@ void test_full_pool_still_reaches_link_error() {
   // failed during ChannelBuildFailed, link error is already set.
   ctx.Pump(8);
 
-  TEST_ASSERT_TRUE(ServerConnectionTestAccess::SelectActionFinished(connection));
+  TEST_ASSERT_TRUE(
+      ServerConnectionTestAccess::SelectActionFinished(connection));
   TEST_ASSERT_EQUAL(static_cast<int>(LinkState::kLinkError),
                     static_cast<int>(connection.stream_info().link_state));
   TEST_ASSERT_TRUE_MESSAGE(server_errors >= 1, "expected server error");
   TEST_ASSERT_EQUAL(1, builds);
 }
 
-void test_no_busy_loop_on_permanent_failure() {
+void test_NoBusyLoopOnPermanentFailure() {
   TestContext ctx;
   AeContext ae_ctx{ctx};
   MapDomainStorage storage;
@@ -354,15 +360,16 @@ void test_no_busy_loop_on_permanent_failure() {
                     static_cast<int>(connection.stream_info().link_state));
 }
 
-}  // namespace
+}  // namespace test_server_connection_recovery
 }  // namespace ae
 
 int run_test_server_connection_recovery() {
+  using namespace ae::test_server_connection_recovery;  // NOLINT
   UNITY_BEGIN();
-  RUN_TEST(ae::test_single_channel_build_failure_reaches_link_error);
-  RUN_TEST(ae::test_result_callback_sees_finished_action);
-  RUN_TEST(ae::test_second_channel_succeeds_after_first_failure);
-  RUN_TEST(ae::test_full_pool_still_reaches_link_error);
-  RUN_TEST(ae::test_no_busy_loop_on_permanent_failure);
+  RUN_TEST(test_SingleChannelBuildFailureReachesLinkError);
+  RUN_TEST(test_ResultCallbackSeesFinishedAction);
+  RUN_TEST(test_SecondChannelSucceedsAfterFirstFailure);
+  RUN_TEST(test_FullPoolStillReachesLinkError);
+  RUN_TEST(test_NoBusyLoopOnPermanentFailure);
   return UNITY_END();
 }
