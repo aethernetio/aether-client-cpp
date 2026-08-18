@@ -25,7 +25,7 @@
 #include "aether/server.h"
 #include "aether/server_connections/server_connection.h"
 
-#include "aether/cloud_connections/cloud_connections_tele.h"
+#include "aether/cloud_connections/cloud_connections_tele.h"  // IWYU pragma: keep
 
 namespace ae {
 
@@ -149,15 +149,23 @@ void CloudServerConnections::SubscribeToServerState(
   if (conn == nullptr) {
     return;
   }
+
+  if (conn->stream_info().link_state == LinkState::kLinked) {
+    AE_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
+                   server_connection.server()->server_id,
+                   server_connection.priority());
+  }
+
   auto const key = reinterpret_cast<std::uintptr_t>(&server_connection);
   auto& subs = server_subs_[key] = {};
   subs.state_sub = conn->stream_update_event().Subscribe(
       [this, sc{&server_connection}, conn]() {
         if (conn->stream_info().link_state == LinkState::kLinkError) {
           QuarantineServer(*sc);
-          return true;
+        } else if (conn->stream_info().link_state == LinkState::kLinked) {
+          AE_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
+                         sc->server()->server_id, sc->priority());
         }
-        return false;
       });
   subs.error_sub = conn->server_connection().server_error_event().Subscribe(
       [this, sc{&server_connection}]() { QuarantineServer(*sc); });
@@ -202,18 +210,12 @@ void CloudServerConnections::QuarantineServer(
         ReleaseQuarantinedServer(*sc, key);
       },
       kCloudServerQuarantineTime);
+
   if (!quarantine_sub) {
-    AE_TELED_ERROR(
-        "CLOUD_QUARANTINE_RELEASE_DELAYED_ALLOC_FAILED; using next-tick Task");
-    quarantine_sub = ae_context_.scheduler().Task(
-        [this, sc{&server_connection}, key]() {
-          ReleaseQuarantinedServer(*sc, key);
-        });
-    if (!quarantine_sub) {
-      AE_TELED_ERROR("CLOUD_QUARANTINE_RELEASE_ALLOC_FAILED");
-      assert(false && "failed to schedule quarantine release");
-    }
+    AE_TELED_ERROR("CLOUD_QUARANTINE_RELEASE_ALLOC_FAILED");
+    assert(false && "failed to schedule quarantine release");
   }
+
   ScheduleReconcileServers();
 }
 
@@ -235,12 +237,8 @@ void CloudServerConnections::ReleaseQuarantinedServer(
       server_subs_.erase(it);
     }
   }
-  if (pending_reconcile_) {
-    pending_reconcile_ = false;
-    ReconcileServers();
-  } else {
-    ScheduleReconcileServers();
-  }
+
+  ScheduleReconcileServers();
 }
 
 void CloudServerConnections::ScheduleReconcileServers() {
@@ -249,13 +247,12 @@ void CloudServerConnections::ScheduleReconcileServers() {
   }
   defer_sub_ = ae_context_.scheduler().Task([this]() {
     defer_sub_.Reset();
-    pending_reconcile_ = false;
     ReconcileServers();
   });
   if (!defer_sub_) {
     AE_TELED_ERROR(
         "CLOUD_SCHEDULE_RECONCILE_ALLOC_FAILED; pending until release");
-    pending_reconcile_ = true;
+    assert(false && "failed to schedule reconcile servers");
   }
 }
 
@@ -290,10 +287,6 @@ void CloudServerConnections::ReconcileServers() {
     }
     selected_servers_.emplace_back(candidate);
     SubscribeToServerState(*candidate);
-    if (conn->stream_info().link_state == LinkState::kLinked) {
-      AE_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
-                     candidate->server()->server_id, candidate->priority());
-    }
     emplaced = true;
   }
   if (emplaced) {
@@ -314,8 +307,8 @@ void CloudServerConnections::UpdateSelectedPriorities() {
   }
 }
 
-std::vector<CloudServerConnection*>
-CloudServerConnections::ReplacementCandidates() {
+auto CloudServerConnections::ReplacementCandidates()
+    -> std::vector<CloudServerConnection*> {
   std::vector<CloudServerConnection*> servers;
   servers.reserve(server_connections_.size());
   for (auto& s : server_connections_) {

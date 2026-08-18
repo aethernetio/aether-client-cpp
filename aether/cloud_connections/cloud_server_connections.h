@@ -179,7 +179,6 @@ class CloudServerConnections {
 
   std::map<std::uintptr_t, ServerSubscriptions> server_subs_;
   TaskSubscription defer_sub_;
-  bool pending_reconcile_{false};
 
   std::optional<cloud_server_connections_internal::EmptyConnectionsWA>
       empty_wa_;
