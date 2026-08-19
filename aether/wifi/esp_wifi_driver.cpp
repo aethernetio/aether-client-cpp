@@ -33,6 +33,8 @@
 #  include "lwip/ip6_addr.h"
 #  include "lwip/sys.h"
 
+#  include "aether/tele.h"
+
 extern "C" esp_err_t esp_wifi_internal_set_retry_counter(uint8_t short_retry,
                                                          uint8_t long_retry);
 extern "C" esp_err_t esp_wifi_internal_get_fix_rate(wifi_interface_t ifx,

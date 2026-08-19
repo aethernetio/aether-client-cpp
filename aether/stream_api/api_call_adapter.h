@@ -17,18 +17,19 @@
 #ifndef AETHER_STREAM_API_API_CALL_ADAPTER_H_
 #define AETHER_STREAM_API_API_CALL_ADAPTER_H_
 
-#include <utility>
-#include <limits>
-#include <iostream>
-#include <cstdint>
-#include <cstddef>
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <iostream>
+#include <limits>
+#include <utility>
 
-#include "aether/stream_api/istream.h"
 #include "aether/api_protocol/api_context.h"
 #include "aether/prepared_packet/packet_encoder.h"
+#include "aether/stream_api/istream.h"
 #include "aether/types/data_buffer.h"
-#include "aether/tele/tele.h"
+
+#include "aether/tele.h"
 
 namespace ae {
 
