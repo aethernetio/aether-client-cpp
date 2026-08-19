@@ -44,6 +44,11 @@ project(aether VERSION ${AE_PROJECT_VERSION} LANGUAGES CXX C)
 
 set(TARGET_NAME "${PROJECT_NAME}")
 
+# Android shared-library consumers require PIC for static archives.
+if(ANDROID)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
+
 if("${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
   set(AE_ROOT_PORJECT On)
 else()
@@ -56,6 +61,7 @@ option(AE_INSTALL "Install aether" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TOOLS "Build tools" ${AE_ROOT_PORJECT})
 option(AE_BUILD_EXAMPLES "Build examples" ${AE_ROOT_PORJECT})
 option(AE_BUILD_TESTS "Build tests" ${AE_ROOT_PORJECT})
+option(AE_BUILD_ANDROID_SMOKE "Build Android NDK smoke shared library and runner" Off)
 option(AE_ADDRESS_SANITIZE "Enable address sanitizer" Off)
 option(AE_NO_STRIP_ALL "Do not apply --strip_all, useful for bloaty and similar tools " Off)
 
@@ -72,6 +78,7 @@ message(STATUS "Aether build options:
    AE_BUILD_TOOLS=${AE_BUILD_TOOLS}
    AE_BUILD_EXAMPLES=${AE_BUILD_EXAMPLES}
    AE_BUILD_TESTS=${AE_BUILD_TESTS}
+   AE_BUILD_ANDROID_SMOKE=${AE_BUILD_ANDROID_SMOKE}
    AE_ADDRESS_SANITIZE=${AE_ADDRESS_SANITIZE}
    AE_NO_STRIP_ALL=${AE_NO_STRIP_ALL}
    UTM_ID=${UTM_ID}
@@ -188,8 +195,9 @@ message(STATUS "Aether build for CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux"
   OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"
   OR CMAKE_SYSTEM_NAME MATCHES ".*BSD.*"
-  OR CMAKE_SYSTEM_NAME STREQUAL "Windows" )
-  # for desktop projects add c-ares
+  OR CMAKE_SYSTEM_NAME STREQUAL "Windows"
+  OR CMAKE_SYSTEM_NAME STREQUAL "Android" )
+  # for desktop and Android projects add c-ares
   CPMAddPackage(
     NAME c-ares
     GIT_REPOSITORY "https://github.com/c-ares/c-ares.git"
@@ -386,6 +394,17 @@ if(AE_BUILD_TESTS)
 
   target_link_libraries(${TARGET_NAME} PRIVATE inline_tests)
   add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/tests ${CMAKE_BINARY_DIR}/tests)
+endif()
+
+if(ANDROID AND AE_BUILD_ANDROID_SMOKE)
+  message(STATUS "Aether builds Android NDK smoke targets!")
+  # Shared-library consumers require PIC for aether and static dependencies.
+  set_property(TARGET ${TARGET_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
+  if(TARGET c-ares)
+    set_property(TARGET c-ares PROPERTY POSITION_INDEPENDENT_CODE ON)
+  endif()
+  add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/tests/android_ndk_smoke
+                   ${CMAKE_BINARY_DIR}/android_ndk_smoke)
 endif()
 
 if(AE_INSTALL)

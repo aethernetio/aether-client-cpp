@@ -21,7 +21,7 @@
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
-#include <cstdio>  // // IWYU pragma: keep
+#include <cstdio>  //IWYU pragma: keep
 #include <mutex>
 
 #include "aether/tasks/details/task_manager.h"
@@ -66,7 +66,7 @@ class ManualTaskScheduler {
     task_manager_.regular().StealTasks(reg_list_);
     UpdateTasks(lock, reg_list_, task_manager_.regular());
 
-    // run delaed tasks
+    // run delayed tasks
     task_manager_.delayed().StealTasks(current_time, delay_list_);
     UpdateTasks(lock, delay_list_, task_manager_.delayed());
 
@@ -100,6 +100,9 @@ class ManualTaskScheduler {
   template <typename F>
   IActive* AddSafe(F&& f) {
     auto lock = std::scoped_lock{lock_};
+
+    task_manager_.ReclaimInactive();
+
     auto* p = std::invoke(std::forward<F>(f));
     if (p == nullptr) {
       overflow_counter_++;

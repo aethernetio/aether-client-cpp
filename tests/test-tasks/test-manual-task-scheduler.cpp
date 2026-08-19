@@ -16,9 +16,13 @@
 
 #include <unity.h>
 #include <array>
+#include <atomic>
+#include <mutex>
 #include <thread>
+#include <vector>
 
 #include "aether/tasks/details/manual_task_scheduler.h"
+#include "aether/tasks/details/task_subsctiption.h"
 
 namespace ae::test_manual_task_scheduler {
 using namespace std::chrono_literals;
@@ -138,6 +142,148 @@ void test_DelayedTiming() {
   TEST_ASSERT_TRUE(invoked);
 }
 
+void test_ReclaimInactiveOnTaskWithoutUpdate() {
+  static constexpr auto kCount = 8;
+  auto task_sched = ManualTaskScheduler<TaskManagerConf<kCount>>{};
+
+  std::array<TaskSubscription, kCount> subs{};
+  for (auto i = 0; i < kCount; ++i) {
+    subs[i] = task_sched.DelayedTask([]() {}, 60s);
+    TEST_ASSERT_TRUE_MESSAGE(static_cast<bool>(subs[i]),
+                             "expected delayed task allocation");
+  }
+  TEST_ASSERT_TRUE_MESSAGE(task_sched.Task([]() {}) == nullptr,
+                           "pool should be full before reclaim");
+
+  for (auto& sub : subs) {
+    sub.Reset();
+  }
+
+  // Next Task() must reclaim cancelled delayed tasks without calling Update().
+  auto again = task_sched.Task([]() {});
+  TEST_ASSERT_TRUE_MESSAGE(static_cast<bool>(again),
+                           "Task() must reclaim cancelled delayed slots");
+  (void)task_sched.Update(Now());
+}
+
+void test_ActiveDelayedTasksBlockAllocation() {
+  static constexpr auto kCount = 8;
+  auto task_sched = ManualTaskScheduler<TaskManagerConf<kCount>>{};
+
+  std::array<TaskSubscription, kCount> subs{};
+  for (auto i = 0; i < kCount; ++i) {
+    subs[i] = task_sched.DelayedTask([]() {}, 60s);
+    TEST_ASSERT_TRUE_MESSAGE(static_cast<bool>(subs[i]),
+                             "expected delayed task allocation");
+  }
+
+  TEST_ASSERT_TRUE_MESSAGE(task_sched.Task([]() {}) == nullptr,
+                           "active delayed tasks must keep pool full");
+  TEST_ASSERT_TRUE_MESSAGE(task_sched.DelayedTask([]() {}, 60s) == nullptr,
+                           "active delayed tasks must keep pool full");
+
+  for (auto& sub : subs) {
+    TEST_ASSERT_TRUE_MESSAGE(static_cast<bool>(sub),
+                             "existing delayed subscriptions must stay valid");
+  }
+}
+
+void test_ResetUpdateRestoresAllSlots() {
+  static constexpr auto kCount = 8;
+  auto task_sched = ManualTaskScheduler<TaskManagerConf<kCount>>{};
+
+  std::array<TaskSubscription, kCount> subs{};
+  for (auto i = 0; i < kCount; ++i) {
+    subs[i] = task_sched.DelayedTask([]() {}, 60s);
+    TEST_ASSERT_TRUE(static_cast<bool>(subs[i]));
+  }
+  for (auto& sub : subs) {
+    sub.Reset();
+  }
+  (void)task_sched.Update(Now());
+
+  std::array<TaskSubscription, kCount> again{};
+  for (auto i = 0; i < kCount; ++i) {
+    again[i] = task_sched.Task([]() {});
+    TEST_ASSERT_TRUE_MESSAGE(static_cast<bool>(again[i]),
+                             "all slots must be available after Reset+Update");
+  }
+  (void)task_sched.Update(Now());
+}
+
+void test_MultithreadCancelledDelayedVsRegular() {
+  static constexpr auto kPool = 32;
+  static constexpr auto kIterations = 200;
+  auto task_sched = ManualTaskScheduler<TaskManagerConf<kPool>>{};
+
+  std::atomic_bool start{false};
+  std::atomic_bool stop{false};
+  std::atomic_bool consumer_done{false};
+  std::atomic_int accepted_regular{0};
+  std::atomic_int executed_regular{0};
+  std::mutex regular_subs_mu;
+  std::vector<TaskSubscription> regular_subs;
+  regular_subs.reserve(kIterations + kPool);
+
+  auto producer = std::thread{[&]() {
+    while (!start.load(std::memory_order::acquire)) {
+    }
+    for (int i = 0; i < kIterations; ++i) {
+      TaskSubscription sub = task_sched.DelayedTask([]() {}, 60s);
+      if (sub) {
+        sub.Reset();
+      }
+    }
+    stop.store(true, std::memory_order::release);
+  }};
+
+  auto consumer = std::thread{[&]() {
+    while (!start.load(std::memory_order::acquire)) {
+    }
+    while (!stop.load(std::memory_order::acquire)) {
+      TaskSubscription sub =
+          task_sched.Task([&]() { executed_regular.fetch_add(1); });
+      if (sub) {
+        accepted_regular.fetch_add(1);
+        std::scoped_lock lock{regular_subs_mu};
+        regular_subs.push_back(std::move(sub));
+      }
+    }
+    for (int i = 0; i < kPool; ++i) {
+      TaskSubscription sub =
+          task_sched.Task([&]() { executed_regular.fetch_add(1); });
+      if (sub) {
+        accepted_regular.fetch_add(1);
+        std::scoped_lock lock{regular_subs_mu};
+        regular_subs.push_back(std::move(sub));
+      }
+    }
+    consumer_done.store(true, std::memory_order::release);
+  }};
+
+  auto updater = std::thread{[&]() {
+    while (!start.load(std::memory_order::acquire)) {
+    }
+    while (!consumer_done.load(std::memory_order::acquire) ||
+           executed_regular.load() < accepted_regular.load()) {
+      (void)task_sched.Update(Now());
+    }
+    (void)task_sched.Update(Now());
+  }};
+
+  start.store(true, std::memory_order::release);
+  producer.join();
+  consumer.join();
+  updater.join();
+
+  TEST_ASSERT_EQUAL_MESSAGE(accepted_regular.load(), executed_regular.load(),
+                            "every accepted regular task must execute");
+  TaskSubscription probe = task_sched.Task([]() {});
+  TEST_ASSERT_TRUE_MESSAGE(static_cast<bool>(probe),
+                           "pool must not stay exhausted by cancelled delayed");
+  (void)task_sched.Update(Now());
+}
+
 }  // namespace ae::test_manual_task_scheduler
 
 int test_manual_task_scheduler() {
@@ -145,5 +291,12 @@ int test_manual_task_scheduler() {
   RUN_TEST(ae::test_manual_task_scheduler::test_ManualScheduler);
   RUN_TEST(ae::test_manual_task_scheduler::test_Multithread);
   RUN_TEST(ae::test_manual_task_scheduler::test_DelayedTiming);
+  RUN_TEST(
+      ae::test_manual_task_scheduler::test_ReclaimInactiveOnTaskWithoutUpdate);
+  RUN_TEST(
+      ae::test_manual_task_scheduler::test_ActiveDelayedTasksBlockAllocation);
+  RUN_TEST(ae::test_manual_task_scheduler::test_ResetUpdateRestoresAllSlots);
+  RUN_TEST(ae::test_manual_task_scheduler::
+               test_MultithreadCancelledDelayedVsRegular);
   return UNITY_END();
 }

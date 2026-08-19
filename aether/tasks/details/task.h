@@ -30,7 +30,7 @@ class ITaskSubscription {
 
 class IActive {
  public:
-  static constexpr std::uintptr_t kMagic = 0xda;
+  static constexpr std::uintptr_t kMagic = 0xda11;
 
   virtual ~IActive() noexcept {
     if ((active != kMagic) && (active != 0)) {

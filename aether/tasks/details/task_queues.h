@@ -17,9 +17,10 @@
 #ifndef AETHER_TASKS_DETAILS_TASK_QUEUE_H_
 #define AETHER_TASKS_DETAILS_TASK_QUEUE_H_
 
+#include <algorithm>
+#include <concepts>
 #include <cstddef>
 #include <iterator>
-#include <algorithm>
 
 #include "aether/tasks/details/task.h"
 
@@ -31,6 +32,7 @@ DISABLE_WARNING_POP()
 
 namespace ae {
 template <typename Interface, std::size_t Capacity, typename Pool>
+  requires(std::derived_from<Interface, ITask>)
 class TaskQueueBase {
  public:
   static constexpr std::size_t kCapacity = Capacity;
@@ -49,6 +51,24 @@ class TaskQueueBase {
     for (auto* e : elements) {
       pool_->template destroy<Interface>(e);
     }
+  }
+
+  /**
+   * \brief Destroy cancelled (inactive) tasks.
+   */
+  std::size_t ReclaimInactive() {
+    auto size_before = list_.size();
+    list_.erase(std::remove_if(std::begin(list_), std::end(list_),
+                               [&](auto const* e) {
+                                 if (e->active == 0) {
+                                   pool_->template destroy<Interface>(e);
+                                   return true;
+                                 }
+                                 return false;
+                               }),
+                std::end(list_));
+
+    return size_before - list_.size();
   }
 
   std::size_t size() const { return list_.size(); }
@@ -76,6 +96,7 @@ class TaskQueue : TaskQueueBase<ITask, Capacity, Pool> {
   using base::size;
 
   using base::Free;
+  using base::ReclaimInactive;
 
   bool Add(ITask* p) {
     if (base::list_.size() == base::list_.max_size()) {
@@ -115,17 +136,20 @@ class DelayedTaskQueue : TaskQueueBase<IDelayedTask<TP>, Capacity, Pool> {
   using base::size;
 
   using base::Free;
+  using base::ReclaimInactive;
 
   bool Add(IDelayedTask<TP>* p) {
     if (base::list_.size() == base::list_.max_size()) {
       return false;
     }
     // keep list sorted by expire_at
-    auto it = std::find_if(
-        std::rbegin(base::list_), std::rend(base::list_),
-        [&](IDelayedTask<TP> const* e) { return p->expire_at < e->expire_at; });
+    auto pos =
+        std::lower_bound(std::begin(base::list_), std::end(base::list_), p,
+                         [](auto const* left, auto const* right) noexcept {
+                           return left->expire_at > right->expire_at;
+                         });
 
-    base::list_.emplace(it.base(), p);
+    base::list_.emplace(pos, p);
     return true;
   }
 

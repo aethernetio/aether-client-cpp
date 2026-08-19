@@ -198,7 +198,7 @@ list(APPEND aether_srcs
 
 list(APPEND aether_srcs
             "server_connections/client_server_connection.cpp"
-            "server_connections/channel_connection.cpp"
+            "server_connections/channel_select_action.cpp"
             "server_connections/server_connection.cpp")
 
 list(APPEND aether_srcs

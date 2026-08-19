@@ -26,43 +26,13 @@
 #include "aether/tele.h"
 
 namespace ae {
-ServerConnection::ChannelSelectAction::ChannelSelectAction(
-    AeContext const& ae_context, ChannelEntry& top_channel) noexcept
-    : ae_context_{ae_context}, top_channel_{&top_channel} {
-  auto channel = top_channel_->channel.Lock();
-  assert(channel && "Channel is null");
-
-  top_channel_->connection.BuildTransport(channel, [this](auto&& res) {
-    if (res) {
-      ChannelSelected();
-    } else {
-      ChannelFailed();
-    }
-  });
-}
-
-auto ServerConnection::ChannelSelectAction::result_event() noexcept
-    -> ResultEvent::Subscriber {
-  return EventSubscriber{result_event_};
-}
-
-void ServerConnection::ChannelSelectAction::ChannelSelected() {
-  task_sub_ = ae_context_.scheduler().Task([&]() noexcept {
-    result_event_.Emit(Ok<ChannelEntry&>{*top_channel_});
-    Finish();
-  });
-}
-
-void ServerConnection::ChannelSelectAction::ChannelFailed() {
-  task_sub_ = ae_context_.scheduler().Task([&]() noexcept {
-    result_event_.Emit(Error{1});
-    Finish();
-  });
-}
 
 ServerConnection::ServerConnection(AeContext const& ae_context,
                                    Ptr<Server> const& server)
-    : ae_context_{ae_context}, server_{server}, full_connected_{false} {
+    : ae_context_{ae_context},
+      server_{server},
+      full_connected_{false},
+      top_channel_{nullptr} {
   InitChannels();
   SelectChannel();
 }
@@ -72,10 +42,9 @@ WriteAction& ServerConnection::Write(DataBuffer&& in_data) {
   assert(stream_info_.is_writable && "Channel is not writable");
   assert((top_channel_ != nullptr) && "channel connection is not available");
 
-  auto* stream = top_channel_->connection.stream();
-  assert((stream != nullptr) && "channel stream is not available");
+  assert(!!stream_ && "channel stream is not available");
 
-  return stream->Write(std::move(in_data));
+  return stream_->Write(std::move(in_data));
 }
 
 ServerConnection::StreamUpdateEvent::Subscriber
@@ -148,17 +117,17 @@ void ServerConnection::InitChannels() {
 
   channels_.reserve(channels.size());
   for (auto const& c : channels) {
-    channels_.emplace_back(std::make_unique<ChannelEntry>(ae_context_, c));
+    channels_.emplace_back(c);
   }
 }
 
-ServerConnection::ChannelEntry* ServerConnection::TopChannel() {
+ChannelEntry* ServerConnection::TopChannel() {
   auto it = std::find_if(std::begin(channels_), std::end(channels_),
-                         [](auto const& entry) { return !entry->failed; });
+                         [](auto const& entry) { return !entry.failed; });
   if (it == std::end(channels_)) {
     return nullptr;
   }
-  return it->get();
+  return &*it;
 }
 
 void ServerConnection::SelectChannel() {
@@ -182,34 +151,52 @@ void ServerConnection::SelectChannel() {
   channel_select_action_.emplace(ae_context_, *top);
   channel_select_action_->result_event().Subscribe([this](auto&& res) noexcept {
     if (res) {
-      ChannelUpdated(res.value());
+      ChannelUpdated(channel_select_action_->attempted_channel(),
+                     std::forward<decltype(res)>(res).value());
     } else {
-      ChannelError();
+      // Mark the channel that was actually being built. top_channel_ is only
+      // set after a successful build and must not be used here.
+      ChannelBuildFailed(channel_select_action_->attempted_channel());
     }
   });
+  // Subscribe before Start so a synchronous TransportBuilder result is not
+  // lost.
+  channel_select_action_->Start();
 
   AE_TELED_DEBUG("New channel selected");
   channel_changed_.Emit();
   stream_update_event_.Emit();
 }
 
-void ServerConnection::ChannelUpdated(ChannelEntry& new_channel) {
+void ServerConnection::DeferSelectChannel() {
+  // Must not call SelectChannel() from inside ChannelSelectAction::result
+  // callback: recreating transport_waiter on that stack is unsafe even though
+  // the action is already finished.
+  defer_sub_ = ae_context_.scheduler().Task([this]() {
+    AE_TELED_DEBUG("SERVER_CHANNEL_RESELECT_SCHEDULED");
+    SelectChannel();
+  });
+  assert(!!defer_sub_);
+}
+
+void ServerConnection::ChannelUpdated(ChannelEntry& new_channel,
+                                      std::unique_ptr<ByteIStream>&& stream) {
   AE_TELED_DEBUG("Channel updated");
   top_channel_ = &new_channel;
-  auto& stream = *top_channel_->connection.stream();
-  assert(stream.stream_info().link_state == LinkState::kLinked &&
+  stream_ = std::move(stream);
+  assert(stream_->stream_info().link_state == LinkState::kLinked &&
          "New channel should be linked");
 
-  // track channel stream link error
+  // track channel stream_ link error
   channel_stream_update_sub_ =
-      stream.stream_update_event().Subscribe([this, s_ = &stream]() {
+      stream_->stream_update_event().Subscribe([this, s_ = stream_.get()]() {
         auto info = s_->stream_info();
         if (info.link_state == LinkState::kLinkError) {
           ChannelError();
         }
       });
 
-  channel_stream_out_data_sub_ = stream.out_data_event().Subscribe(
+  channel_stream_out_data_sub_ = stream_->out_data_event().Subscribe(
       MethodPtr<&ServerConnection::OnRead>{this});
 
   auto channel = top_channel_->channel.Lock();
@@ -221,14 +208,28 @@ void ServerConnection::ChannelUpdated(ChannelEntry& new_channel) {
   stream_info_.rec_element_size = channel_props.rec_packet_size;
   stream_info_.max_element_size = channel_props.max_packet_size;
 
-  // now it's safe to write to server stream
+  // now it's safe to write to server stream_
   stream_info_.link_state = LinkState::kLinked;
   stream_info_.is_writable = true;
   stream_update_event_.Emit();
 }
 
+void ServerConnection::ChannelBuildFailed(ChannelEntry& attempted_channel) {
+  AE_TELED_ERROR("SERVER_CHANNEL_BUILD_FAILED");
+  channel_stream_update_sub_.Reset();
+  channel_stream_out_data_sub_.Reset();
+  stream_info_.is_writable = false;
+  attempted_channel.failed = true;
+
+  if (full_connected_) {
+    ServerError();
+  } else {
+    DeferSelectChannel();
+  }
+}
+
 void ServerConnection::ServerError() {
-  AE_TELED_ERROR("Server error");
+  AE_TELED_ERROR("SERVER_CONNECTION_ERROR");
   channel_stream_update_sub_.Reset();
   channel_stream_out_data_sub_.Reset();
   // TODO: should we also reset connection.stream()
@@ -254,18 +255,17 @@ void ServerConnection::ChannelError() {
   if (full_connected_) {
     ServerError();
   } else {
-    SelectChannel();
+    DeferSelectChannel();
   }
 }
 
 void ServerConnection::DeferServerError() {
   stream_info_.is_writable = false;
   defer_sub_ = ae_context_.scheduler().Task([&]() { ServerError(); });
-}
-
-void ServerConnection::DeferChannelError() {
-  stream_info_.is_writable = false;
-  defer_sub_ = ae_context_.scheduler().Task([&]() { ChannelError(); });
+  if (!defer_sub_) {
+    AE_TELED_ERROR("DeferServerError schedule failed; invoking ServerError");
+    ServerError();
+  }
 }
 
 void ServerConnection::OnRead(DataBuffer const& data) {

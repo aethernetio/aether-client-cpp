@@ -17,53 +17,28 @@
 #ifndef AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 #define AETHER_SERVER_CONNECTIONS_SERVER_CONNECTION_H_
 
+#include <memory>
 #include <optional>
 #include <vector>
 
-#include "aether-miscpp/types/result.h"
-
-#include "aether/actions/action.h"
 #include "aether/ae_context.h"
 #include "aether/events/events.h"
 #include "aether/ptr/ptr.h"
 #include "aether/ptr/ptr_view.h"
 
-#include "aether/server_connections/channel_connection.h"
+#include "aether/server_connections/channel_select_action.h"
 #include "aether/stream_api/istream.h"
 
 namespace ae {
 class Server;
 class Channel;
 
+struct ChannelEntry {
+  PtrView<Channel> channel;
+  bool failed = false;
+};
+
 class ServerConnection final : public ByteIStream {
-  struct ChannelEntry {
-    ChannelEntry(AeContext const& ae_context, PtrView<Channel> const& c)
-        : channel{c}, connection{ae_context} {}
-
-    PtrView<Channel> channel;
-    ChannelConnection connection;
-    bool failed = false;
-  };
-
-  class ChannelSelectAction final : public Action {
-   public:
-    using ResultEvent = Event<void(Result<ChannelEntry&, int>)>;
-
-    ChannelSelectAction(AeContext const& ae_context,
-                        ChannelEntry& top_channel) noexcept;
-
-    ResultEvent::Subscriber result_event() noexcept;
-
-   private:
-    void ChannelSelected();
-    void ChannelFailed();
-
-    AeContext ae_context_;
-    ChannelEntry* top_channel_;
-    TaskSubscription task_sub_;
-    ResultEvent result_event_;
-  };
-
  public:
   using ServerErrorEvent = Event<void()>;
   using ChannelChangedEvent = Event<void()>;
@@ -82,16 +57,20 @@ class ServerConnection final : public ByteIStream {
   Ptr<Channel> current_channel() const;
 
  private:
+  friend struct ServerConnectionTestAccess;
+
   void InitChannels();
   // return top not failed channel or null if nothing was selected
   ChannelEntry* TopChannel();
   void SelectChannel();
-  void ChannelUpdated(ChannelEntry& new_channel);
+  void DeferSelectChannel();
+  void ChannelUpdated(ChannelEntry& new_channel,
+                      std::unique_ptr<ByteIStream>&& stream);
+  void ChannelBuildFailed(ChannelEntry& attempted_channel);
 
   void ServerError();
   void ChannelError();
   void DeferServerError();
-  void DeferChannelError();
 
   void OnRead(DataBuffer const& data);
 
@@ -100,7 +79,8 @@ class ServerConnection final : public ByteIStream {
 
   bool full_connected_;
   ChannelEntry* top_channel_;
-  std::vector<std::unique_ptr<ChannelEntry>> channels_;
+  std::unique_ptr<ByteIStream> stream_;
+  std::vector<ChannelEntry> channels_;
   std::optional<ChannelSelectAction> channel_select_action_;
 
   StreamInfo stream_info_;
