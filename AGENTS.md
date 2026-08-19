@@ -1,130 +1,312 @@
-# Aethernet Agent Rules
+# Aether Client C++ Guide
 
-## Coding Style
+## Modes and Persistence
 
-- Follow **Google C++ Style Guide**.
-- **Exception to IWYU:** 
-    - If `foo.cpp` implements `foo.h`, and `foo.h` already includes a header, do NOT re-include it in `foo.cpp`.
-    - If `base.h` includes a header, `derived.h` should NOT re-include it.
-- Always wrap `if` and `for` bodies in `{}` even if it's short one-line statement.
-- Initialize variables and objects using `{}` to distinguish from function call.
-  - *Exception vector initialization*: In case vector must be created with size use `()` initialization to distinguish from initializer_list constructor.
-- Use `auto` whenever possible for variables with respect for references `auto&` and pointers `auto*`.
-- Check if raw pointer is null by comparing it to `nullptr` instead of using implicit conversion to `bool`. Smart pointers could be check with implicit bool conversion.
-- If a function argument is not used, there are two options. If it's never used, just ommit the argument name. If it's used on some configurations use `[[maybe_unused]]` attribute.
-- Immediate lambda call pattern should be implemented by using `std::invoke`.
-- For each assert add comment like `assert(condition && "Comment")`.
-- For *internal* namespaces use `file_name_internal` format.
+`aether` has three persistence behaviors:
 
-## Architecture & Object System
+- **Distillation** (`AE_DISTILLATION=On`): create every object from scratch,
+  even when persistent state already exists. Use it during development and as
+  preparation for production.
+- **Filtration** (`AE_FILTRATION=On`): load an object when state exists and
+  create it when it does not. Filtration also enables the distillation code
+  paths at compile time. It is useful when applications should tolerate both
+  existing and missing state.
+- **Production**: both `AE_DISTILLATION` and `AE_FILTRATION` are disabled or
+  undefined. Main persistent objects, such as `Aether`, adapters, clients, and
+  clouds, must already exist. Some argument-taking constructors are disabled;
+  objects must be loaded from the domain or copied from prefab objects.
 
-- **Core Objects (`Obj`):** Main entities (`Aether`, `Client`, `Server`, `Channel`) must inherit from `ae::Obj` and use the `AE_OBJECT` macro.
-- **Smart Pointers:** Use `ae::ObjPtr<T>` for `Obj`-based classes. Use `ae::PtrView<T>` or raw pointers for weak references from runtime logic to `Obj` instances.
-- **Persistence:** Use `Load`/`Save` methods and `AE_OBJECT_REFLECT` for persistent state in `Obj` classes.
-- **Business Logic:** Async logic, streams, and drivers must NOT be `Obj`-based. They are "runtime" classes.
+Production is descriptive terminology, not a separate build option.
 
-## Events and Callbacks
+`FS_INIT` may provide generated or static persisted-state maps. Persistence is
+not implied by mutation; use the established application save path when state
+must survive shutdown.
 
-- Use events and callbacks to notify external code about state changes.
-- If possible use callbacks set up by the constructor. If not, use event-based notifications.
-- Try to pass callbacks as template parameters for better optimization.
-- If not possible use SmallFunction.
-- If not possible use std::function. Notice std::function makes heap allocation we trying to avoid.
-- Events uses SmallFunction as a callback storage.
-- Prefer setup SmallFunction by MethodPtr<&Class::method>{this} instead of lambda.
-- Event subscriptions should be stored in Subscription or MultiSubscriptions class members to control subscription lifetime.
-- If the class makes subscription controls lifetime of the object with event, subscription objects maybe omitted.
+## Project Model
 
-## Asynchrony & Tasks
+`aether` is a C++20 static library for persistent state, asynchronous actions
+and tasks, transport, streams, protocol APIs, cloud/server connections,
+cryptography, and platform adapters.
 
-### Task System
+Persistent objects represent durable identity, configuration, and state. Runtime
+objects perform transient asynchronous work, connection management, stream
+processing, and transport operations. Keeping this distinction prevents runtime
+state from entering the persisted object graph and prevents durable objects from
+being managed as temporary operations.
 
-- Use task system to run tasks asynchronously.
-- There is a `ManualTaskScheduler` with methods to define a single `Task` and `DelayedTask` with duration after which the task will be executed.
-- To access this scheduler use `ae_context.scheduler()` method.
-- Tasks should be lightweight as possible because it stored in fixed-size object pool.
-- To control task lifetime use `TaskSubscription` a RAII object which automatically resets task if subscribers die. This guarantees task would not be invoked if subscription dead.
-- In rare cases class can guarantee its lifetime, subscription may be omitted.
+Actions, streams, and connection/transport logic are runtime objects, not
+persistent `Obj` types.
 
-### Stdexec
+## Persistent Objects and Ownership
 
-- `stdexec` library is used for chaining low-level async operations.
-- whole library connected through one header `aether/executors/executors.h` and defines ex namespace alias.
-- all senders should be scheduled on our Task System though ex::SchedulerOnTasks if required.
-- there is three types of objects in stdexec: constructors, adapters and consumers.
-- constructors are `ex::just()`, `ex::create()` or some custom senders created for specific logic.
-- adapters are `ex::then()`, `ex::let_value()`, `ex::let_error()`, `ex::upon_error()` and others that transform or combine senders.
-- consumers are `ex::sync_wait`, but preferred to use `ex::AnyWaiter` or `ex:AsyncWaiter`.
-- use `ex::create` to create a sender from a functor to integrate c-style callbacks or other non sender logic into the executor.
-- use `ex::create` if logic must test the value and set either error or value during runtime
-- use `ex::variant_sender` to conditionally return either one sender or another based on some value.
-- use `ex::then` `ex::upon_error` to transform from one value to another or from error to value.
-- use `ex::let_value` to run new sender in chain in case of set_value.
-- use `ex::let_error` to run new sender in chain in case of set_error.
-- `ex::for_range` to iterate over a range of values. Internal sender must return a value, an error or stopped to end loop.
-- `ex::with_timeout` to add timeout to a sender chain.
-- senders and adapters chained together by `|` operator.
+- Persistent entities derive from `ae::Obj`, use `AE_OBJECT` and reflection,
+  and implement the established `Load`/`Save` patterns.
+- Use `ae::ObjPtr<T>` for strong references to persistent objects.
+- Use `ae::Ptr<T>` for shared ownership of non-`Obj` objects.
+- `ae::PtrView<T>` is a weak, nullable view. Lock/load it before retaining or
+  dereferencing the object.
+- A valid `ObjPtr` may still refer to an unloaded object. Load it before use
+  and retain the loaded pointer while using it.
 
-### Actions
+## Runtime Context
 
-- Use actions to encapsulate high-level async operations.
-- The `Action` maybe inherited from `Action` class which adds `is_finished()` and `finished_event()` methods.
-- Each action should provide events to notify about operation progress and completion. Usually just `result_event()`.
-- Actions may use senders inside to define their logic or just subscribe to another action's events.
-- Actions should be managed by the class that creates them and returned by reference or pointers when null is possible.
-- If action `is_finished()` or after `finished_event()` is emitted non should have access to the action except the owner.
-- Actions may be created as class members with optional or `ActionPool` or `std::unique_ptr`. But prefer to avoid allocations.
+`ae::AeContext` is a non-owning view of `Aether` and its task scheduler. Runtime
+components use `ae_context.scheduler()` to schedule work. The context does not
+extend the lifetime of `Aether`, the scheduler, or objects captured by callbacks.
 
+Accept a context or operation inputs in a constructor only when the operation
+requires them. Follow the surrounding component pattern for constructor-started
+work versus an explicit `Start()` method.
 
-## Specific modules implementation
+## Events and Subscriptions
 
-### AT Commands
+`Event` owns its handlers. `EventSubscriber` is a non-owning façade used to
+subscribe and emit through an owning object.
 
-- `at::MakeRequest(at_support, cmd, waits)` returns a pipeable adaptor — use mid-chain.
-- `at::MakeRequest(ex::just(), at_support, cmd, waits)` returns a sender — use as first element or inside `ex::let_value`.
-- `at::Wait("<expected>")` — build waits for the string.
-- `at::Wait("<trigger>", [](auto& buffer, auto pos) { Handlers for response, must return bool })` — build waits for the string and custom handler.
-- Timeouts should be implemented using `ex::with_timeout`.
+`Subscribe()` returns `EventHandlerDeleter`. It is lightweight and is **not** an
+RAII object: destroying or discarding it does not unsubscribe the handler. Call
+Use `Subscription` to control the handler lifetime; do not manage the returned
+deleter directly.
 
-## Build & Testing
+Use RAII lifetime control when a callback should have an owner lifetime:
 
- Project uses cmake, tests run with `ctest`.
- Project build configured in `build-clang` (`<build-dir>`) with ninja.
- To build the project go into `<build-dir>/` and run `cmake --build . --parallel` or `ninja`.
+- `Subscription` owns one `EventHandlerDeleter`; destruction/reset unsubscribes.
+- `MultiSubscription` owns several deleters and unsubscribes them together.
+- A temporary `Subscription` unsubscribes at the end of its scope.
+- Retain the subscription for as long as its callback may run.
 
- ### Clang-tidy
+Define events with a private `Event<void(...)>` member and expose a subscriber:
 
- - Use `build-clang/compile_commands.json` for `clang-tidy`.
- - If `build-clang` exists but `compile_commands.json` is missing, report `clang-tidy` skipped because the compile database is missing, not because the build directory is missing.
- - Do not claim the build directory is missing when `build-clang` exists.
- - `compile_commands.json` may require configuring with `CMAKE_EXPORT_COMPILE_COMMANDS=ON`.
+```cpp
+using ChangedEvent = Event<void(Value const&)>;
+ChangedEvent::Subscriber changed_event();
 
- To run tests, go into `<build-dir>` and run `ctest . --progress -j -E "((sodium)|(hydro)|(bcrypt)).*" --output-on-failure`.
- Or run specific test by name from `<build-dir>/tests/run/<test-name>`.
+private:
+ChangedEvent changed_event_;
+```
 
-## Dependencies
+Return `EventSubscriber{changed_event_}` from the accessor and emit from the
+owner with `changed_event_.Emit(value)`.
 
-- Dependencies are managed by CMake through `cmake/CPM.cmake` and `CPMAddPackage` calls in the root `CMakeLists.txt`.
-- Do not add conan, vcpkg, git submodules, or vendored dependency copies unless explicitly requested.
-- The root dependency list is the source of truth. Test-only dependencies live in `tests/CMakeLists.txt`; tool-only dependencies may live in the tool's own `CMakeLists.txt`.
-- CPM downloads dependencies during CMake configure. If `CPM_SOURCE_CACHE` is not set, the project uses `${CMAKE_CURRENT_BINARY_DIR}/cpm.cache`.
-- Prefer setting the `CPM_SOURCE_CACHE` environment variable for repeated local builds to avoid re-downloading dependencies.
-- To use locally checked-out dependencies, pass `-DCPM_<dependency name>_SOURCE=/absolute/path`.
-- `CPM_USE_LOCAL_PACKAGES` may be used to let CPM try `find_package` before downloading from source.
-- Several dependencies require local patches from `third_party/*.patch`. Keep patch files in sync when changing dependency versions or repositories.
-- Root dependencies should use `EXCLUDE_FROM_ALL FALSE` so they can be installed together with `aether`.
-- Install options are propagated through dependency-specific CMake options such as `ENABLE_INSTALL`, `AE_INSTALL`, `AE_NUMERIC_INSTALL`, and `STDEXEC_INSTALL`.
-- Do not casually update dependency tags pinned to branches such as `master` or `main`; check patches, build behavior, and compatibility first. In particular, `libhydrogen` is pinned to `bbca575` because newer versions are noted as incompatible with the Aether server.
-- Desktop builds additionally fetch and link `c-ares`.
-- ESP-IDF builds do not fetch ESP components through CPM; required IDF targets must already exist: `idf::esp_wifi`, `idf::esp_netif`, `idf::nvs_flash`, `idf::spiffs`, and `idf::esp_driver_uart`.
+## Actions
 
-### Smoke test
+`Action` is a move-only runtime operation with completion state and
+`finished_event()`. Define a concrete action by deriving from `Action`, adding
+only the context, inputs, events, and subscriptions it needs, and following the
+existing constructor or `Start()` pattern.
 
- The first smoke test is a `<build-dir>/aether-client-cpp-cloud`.
- To run it simply `cd <build-dir>` and ran the `./aether-client-cpp-cloud` binary. 
- Notice! Run `aether-client-cpp-cloud` generates `state` dir there object state is saved. 
- Remove this `state` dir before run to make clean run. Keep it to run with previous saved state.
+Expose typed result or progress events where callers need them. Always emit the
+terminal result before calling `Finish()`:
 
-## Operational Rules
+```cpp
+result_event_.Emit(result);
+Finish();
+```
 
-- Do not analyze logs until everything is working fine.
+`Finish()` marks the action finished and emits `finished_event()`. An action may
+be deleted after `Finish()`, so do not access it or perform action-dependent work
+after that call.
+
+The action owner keeps the action alive until `action.is_finished()` is true.
+Share an action by reference when it is guaranteed to exist, or by raw pointer
+when it may be absent. Shared action access is non-owning: do not use smart
+pointers or wrapper types to share actions with callers.
+
+## ActionPool and ActionsQueue
+
+`ActionPool` provides fixed-capacity storage for actions that must survive the
+initiating call. `Create()` returns a non-owning raw pointer and may return
+`nullptr` when capacity is exhausted. The pool observes `finished_event()` and
+schedules destruction.
+
+`ActionsQueue` sequences operations. It runs stages in
+FIFO order, starts the next stage after the current action finishes, observes
+`finished_event()`, supports stopping the current action when it provides
+`Stop()`, and allows stages to be added dynamically.
+
+## Tasks and Executors
+
+`ManualTaskScheduler` is driven by the application loop: call `Update()`, then
+`WaitUntil()` with the returned wake-up time. Tasks must be lightweight and
+non-blocking; use delayed tasks for time-based work.
+
+`TaskSubscription` is move-only RAII control for a task. Retain it while its
+callback may run. Resetting or destroying it cancels the task; a temporary
+subscription therefore cancels work immediately. After execution, the task
+invalidates its subscription.
+
+Task storage has static capacity shared by the task queues. Allocation or queue
+exhaustion is an exceptional fixed-resource failure, generally not recoverable.
+Code may check the returned subscription when that distinction matters; if the
+failure is detected, log it and use `assert(false && "Task allocation failed")`.
+
+Include `aether/executors/executors.h` for the stdexec and project executor API.
+Use `SchedulerOnTasks` to run sender work on the task scheduler, compose work
+with the provided senders and adapters, and complete it through `AsyncWaiter`,
+`SyncWaiter`, or `AnyWaiter` as appropriate. Use `WithTimeout` for bounded
+operations. The first completion wins; retain the waiter, operation, and
+captured state until completion or timeout, and handle timeout separately from
+ordinary errors.
+
+## API
+
+- API protocol and server APIs operate over runtime streams.
+- API classes derive from `ApiClass` and receive a `ProtocolContext`.
+- Client-side API methods are data members of type
+  `Method<MessageId, Signature>`. Use `void(Args...)` for fire-and-forget
+  methods and `ApiPromise<Result>(Args...)` for methods that return a value or
+  an error.
+- A return-value method generates a request ID, sends the packed request, and
+  returns `ApiPromise<Result>`; callers must use the normal promise/sender/
+  waiter path to observe its result or error.
+- Define an API class with explicit method IDs and signatures, then initialize
+  its methods with the class `ProtocolContext`. Keep message IDs stable and
+  unique within the API.
+- For server-side dispatch, derive from `ApiClassImpl<ConcreteApi>`, implement
+  methods with matching signatures, and register them with `AE_METHODS`:
+
+  ```cpp
+  class ExampleApi : public ApiClassImpl<ExampleApi> {
+   public:
+    explicit ExampleApi(ProtocolContext& protocol_context);
+
+    void Handle(DataBuffer data);
+    AE_METHODS(RegMethod<3, &ExampleApi::Handle>);
+  };
+  ```
+
+- Use `SubApi<T>` and the existing API context/parser patterns for nested API
+  calls instead of inventing a separate packet format.
+
+## Streams
+
+- Streams publish state and data through events; writes return actions.
+- Use `stream_info()` instead of assuming writability, reliability, link state,
+  or supported element sizes.
+- Keep linked stream objects alive while links and subscriptions are active;
+  unlink them before destruction.
+
+## Cloud and Server Connections
+
+- Cloud connections coordinate server connections and connection policies.
+- Server connections manage channels and failover. Determine health from
+  connection/stream state, not object existence alone.
+- Subscribe to asynchronous result/error events before starting an operation
+  and handle both request failures and result-level errors.
+
+## Tele
+
+Tele is the public telemetry facility from the `aether-tele` dependency,
+configured through `aether/tele.h`.
+
+- Use regular logs such as `AE_TELED_DEBUG`, `AE_TELED_INFO`, and
+  `AE_TELED_ERROR`.
+- Register a module tag when tagged logging is needed.
+- Use registered tags with `AE_TELE_<LEVEL>(kTag, ...)`.
+
+## C++ Coding Rules
+
+- Follow the Google C++ Style Guide.
+- Raw pointers are not an anti-pattern in this project. Use them to express a
+  nullable value or a non-owning reference.
+- A nullable raw pointer may be checked against `nullptr` before use.
+- When a class requires a non-owning reference, accept it as a reference in the
+  constructor and store its address as a raw pointer. This expresses the
+  non-null requirement in the constructor contract; the referenced object must
+  outlive the class that stores the pointer.
+- Raw pointers never express ownership. Do not retain them across asynchronous
+  boundaries unless the owning lifetime is explicitly guaranteed.
+- Make single-argument constructors `explicit` unless implicit conversion is
+  intentional, documented, and accompanied by an explanatory `NOLINT`.
+- Brace `if` and `for` bodies. Prefer brace initialization; use parentheses for
+  a vector size constructor when that is the intended form.
+- Prefer `auto` when it preserves the required value, reference, or pointer
+  type. Compare raw pointers with `nullptr`.
+- Omit permanently unused parameter names; use `[[maybe_unused]]` when usage
+  depends on configuration.
+- Use `std::invoke` for immediately invoked lambdas.
+- Give assertions explanatory messages, for example
+  `assert(condition && "reason")`.
+- Name internal namespaces `<file_name>_internal`.
+- Follow IWYU. Preserve intentional public umbrella/transitive includes with
+  an IWYU `keep` pragma or exported include block.
+
+## Tests
+
+- Use Unity and organize tests by subsystem under `tests/`.
+- Put tests in `ae::test_<feature>` namespaces, normally matching the test
+  file name.
+- Name individual tests `test_<PascalCase>`.
+- Define the module suite entry in the global namespace as
+  `int test_<suite>()`; group entries dispatch suite entries.
+- A `using namespace` directive is forbidden except where needed in a suite
+  entry, where it requires an explanatory `// NOLINT`.
+- Avoid Unity assertions specialized for `uint64_t`/`int64_t` and `double`;
+  those types or assertion macros are not portable across all targets. Prefer
+  portable values and assertions.
+- Configure and run the corresponding CTest/Unity tests; a successful CMake
+  configure is not test validation.
+
+## Examples and Smoke Tests
+
+Organize examples by feature. Put shared construction and platform helpers under
+`examples/common`. The cloud and A/B message-exchange examples are smoke tests;
+benchmarks are not unit tests.
+
+Run smoke tests from the build directory in this order:
+
+1. Remove persisted state: `rm -rf ./state`.
+2. Run `./ab-message-exchange`; require exit code `0`.
+3. Wait at least six seconds so the server forgets previous connections.
+4. Run `./ab-message-exchange` again with the preserved state; require exit code
+   `0`.
+5. Remove `./state` again.
+6. Run `./aether-client-cpp-cloud`; require exit code `0`.
+7. Wait at least six seconds.
+8. Run `./aether-client-cpp-cloud` again with the preserved state; require exit
+   code `0`.
+
+Do not read or analyze logs until these runs succeed unless log analysis is
+explicitly requested to prove specific behavior.
+
+## Build and Configuration
+
+Use the regular root CMake project, enable the required `AE_BUILD_*` options,
+build the requested targets, and run their tests from the same build directory.
+Run clang-tidy on changed C++ files using that build's matching
+`compile_commands.json`; regenerate it when configuration flags change.
+
+`USER_CONFIG` selects the compile-time user-configuration header. The prescribed
+operational default is `./config/user_config_hydrogen.h`.
+
+For ESP-IDF, use the covered project at
+`projects/xtensa_lx6/vscode/aether-client-cpp`. Select the appropriate ESP32
+target and select the component through `COMPILE_EXAMPLE`. Preserve the required
+component names `cloud`, `oddity`, and `send_message_delays`; do not rename
+them. The Aether component requires the IDF targets `idf::esp_wifi`,
+`idf::esp_netif`, `idf::nvs_flash`, `idf::spiffs`, and
+`idf::esp_driver_uart`.
+
+## Dependencies and Change Boundaries
+
+- Manage dependencies through CPM in the root `CMakeLists.txt`.
+- Do not add Conan, vcpkg, submodules, or vendored dependency copies unless
+  explicitly requested.
+- Use `CPM_SOURCE_CACHE` for repeated downloads and
+  `CPM_<dependency name>_SOURCE` or `CPM_USE_LOCAL_PACKAGES` for local
+  development; do not edit or copy dependency sources.
+- Preserve dependency pins and required patches. Update a patch only when the
+  dependency revision requires it.
+- Keep CPM dependencies `EXCLUDE_FROM_ALL FALSE` and propagate install options
+  so installation remains complete with `AE_INSTALL`.
+- Unity is test-only, c-ares is desktop-only, and ESP-IDF dependencies are
+  supplied by IDF rather than CPM.
+
+## Optional AT Commands
+
+- Build AT operations with `at::MakeRequest` and provide an `at::Wait` trigger
+  for every expected response.
+- Start requests through the normal sender/consumer/waiter path; do not send a
+  command separately.
+- Bound every request with `WithTimeout`.
+- Handle modem `ERROR` and timeout before issuing dependent commands.
