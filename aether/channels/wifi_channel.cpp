@@ -208,8 +208,8 @@ TransportBuildSender WifiChannel::TransportBuilder() {
 
   AE_TELED_DEBUG("Make transport builder for {}", address);
 
-  return wifi_channel_internal::MakeTransportBuilder(
-      *aether_.Load().as<Aether>(), resolver, poller, access_point, address);
+  return wifi_channel_internal::MakeTransportBuilder(*aether_, resolver, poller,
+                                                     access_point, address);
 }
 
 }  // namespace ae

@@ -19,8 +19,8 @@
 #if defined DNS_RESOLVE_ARES_ENABLED
 
 #  include <memory>
-#  include <vector>
 #  include <utility>
+#  include <vector>
 
 #  include "ares.h"
 
@@ -30,8 +30,8 @@
 #  include "aether/warning_disable.h"
 
 #  include "aether/aether.h"
-#  include "aether/socket_initializer.h"
 #  include "aether/events/multi_subscription.h"
+#  include "aether/socket_initializer.h"
 
 #  include "aether/executors/executors.h"
 
@@ -214,8 +214,7 @@ ResolveSender DnsResolverCares::Resolve(NamedAddr const& name_address,
   }
 
   return ares_impl_->Query(name_address, port_hint, protocol_hint) |
-         ex::continues_on(
-             ex::SchedulerOnTasks{AeContext{*aether_.Load().as<Aether>()}});
+         ex::continues_on(ex::SchedulerOnTasks{AeContext{*aether_.Load()}});
 }
 
 }  // namespace ae

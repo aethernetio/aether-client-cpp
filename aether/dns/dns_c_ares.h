@@ -51,7 +51,7 @@ class DnsResolverCares : public DnsResolver {
                         Protocol protocol_hint) override;
 
  private:
-  Obj::ptr aether_;
+  ObjPtr<Aether> aether_;
   std::unique_ptr<AresImpl> ares_impl_;
 };
 }  // namespace ae

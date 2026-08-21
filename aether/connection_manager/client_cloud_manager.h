@@ -108,8 +108,8 @@ class ClientCloudManager : public Obj {
 
   GetCloudActionPool& get_cloud_action_pool();
 
-  Obj::ptr aether_;
-  Obj::ptr client_;
+  ObjPtr<Aether> aether_;
+  ObjPtr<Client> client_;
   std::map<Uid, client_cloud_manager_internal::CloudCache> cloud_cache_;
 
   CloudUpdateEvent cloud_update_event_;

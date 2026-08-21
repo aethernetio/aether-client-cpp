@@ -74,7 +74,7 @@ class Client : public Obj {
   void SendTelemetry();
 
  private:
-  Obj::ptr aether_;
+  ObjPtr<Aether> aether_;
   // configuration
   std::string client_id_;  // User-defined client id
   Uid parent_uid_;         // Parent aethernet client uid

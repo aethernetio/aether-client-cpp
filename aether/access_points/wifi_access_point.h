@@ -22,13 +22,13 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_WIFIS
-#  include "aether/ae_context.h"
-#  include "aether/obj/obj_ptr.h"
-#  include "aether/events/events.h"
 #  include "aether/actions/action.h"
+#  include "aether/ae_context.h"
+#  include "aether/events/events.h"
+#  include "aether/obj/obj_ptr.h"
 
-#  include "aether/wifi/wifi_driver.h"
 #  include "aether/access_points/access_point.h"
+#  include "aether/wifi/wifi_driver.h"
 
 namespace ae {
 class Aether;
@@ -91,7 +91,7 @@ class WifiAccessPoint final : public AccessPoint {
 
  private:
   ObjPtr<Aether> aether_;
-  Obj::ptr adapter_;
+  ObjPtr<WifiAdapter> adapter_;
   ObjPtr<IPoller> poller_;
   ObjPtr<DnsResolver> resolver_;
   WiFiAp wifi_ap_{};

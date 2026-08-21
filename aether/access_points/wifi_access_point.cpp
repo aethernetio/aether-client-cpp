@@ -138,8 +138,8 @@ WifiConnectAction& WifiAccessPoint::Connect() {
         [](auto const& a) { return &a->driver(); });
     assert(driver.has_value());
 
-    connect_action_.emplace(*aether_.Load().as<Aether>(), *this, **driver,
-                            wifi_ap_, psp_, base_station_);
+    connect_action_.emplace(*aether_, *this, **driver, wifi_ap_, psp_,
+                            base_station_);
   }
   return *connect_action_;
 }

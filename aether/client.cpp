@@ -66,20 +66,18 @@ ServerConnectionManager& Client::server_connection_manager() {
 CloudServerConnections& Client::cloud_connection() {
   if (!cloud_connection_) {
     cloud_connection_ = std::make_unique<CloudServerConnections>(
-        *aether_.Load().as<Aether>(), cloud_.Load(),
+        *aether_, cloud_.Load(),
         server_connection_manager().GetServerConnectionFactory(),
         AE_CLOUD_MAX_SERVER_CONNECTIONS);
 
 #if AE_ENABLE_PING
     ping_cloud_servers_ = std::make_unique<PingCloudServers>(
-        *aether_.Load().as<Aether>(), *cloud_connection_,
-        *connectivity_policy().Load());
+        *aether_, *cloud_connection_, *connectivity_policy().Load());
 #endif
 
 #if TELEMETRY_ENABLED
     // also create telemetry
-    telemetry_ = std::make_unique<Telemetry>(*aether_.Load().as<Aether>(),
-                                             *cloud_connection_);
+    telemetry_ = std::make_unique<Telemetry>(*aether_, *cloud_connection_);
 #endif
   }
 
@@ -94,7 +92,7 @@ ClientConnectivityPolicy::ptr const& Client::connectivity_policy() {
 P2pMessageStreamManager& Client::message_stream_manager() {
   if (!message_stream_manager_) {
     message_stream_manager_ = std::make_unique<P2pMessageStreamManager>(
-        *aether_.Load().as<Aether>(), MakePtrFromThis(this));
+        *aether_, MakePtrFromThis(this));
   }
   return *message_stream_manager_;
 }

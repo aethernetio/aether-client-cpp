@@ -20,8 +20,8 @@
 #include "aether/config.h"
 
 #if AE_SUPPORT_LORA
-#  include "aether/aether.h"
 #  include "aether/adapters/adapter.h"
+#  include "aether/aether.h"
 #  include "aether/lora_modules/lora_module_driver_types.h"
 
 namespace ae {
@@ -41,7 +41,7 @@ class ParentLoraModuleAdapter : public Adapter {
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, poller_, lora_module_init_))
 
-  Obj::ptr aether_;
+  ObjPtr<Aether> aether_;
   IPoller::ptr poller_;
 
   LoraModuleInit lora_module_init_;

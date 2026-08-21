@@ -19,8 +19,8 @@
 #if AE_SUPPORT_REGISTRATION
 #  include <utility>
 
-#  include "aether/server.h"
 #  include "aether/aether.h"
+#  include "aether/server.h"
 
 namespace ae {
 
@@ -31,10 +31,13 @@ RegistrationCloud::RegistrationCloud(ObjProp prop, ObjPtr<Aether> aether)
 
 void RegistrationCloud::AddServerSettings(Endpoint address) {
   // don't care about server id for registration
-  auto server =
-      Server::ptr::Create(domain, ServerId{0}, std::vector{std::move(address)},
-                          aether_.Load().as<Aether>()->adapter_registry);
-  AddServer(server);
+  auto server = aether_.WithLoaded([&](auto const& aether) {
+    return Server::ptr::Create(domain, ServerId{0},
+                               std::vector{std::move(address)},
+                               aether->adapter_registry);
+  });
+  assert(server.has_value() && "Server must be created");
+  AddServer(server.value());
 }
 
 }  // namespace ae

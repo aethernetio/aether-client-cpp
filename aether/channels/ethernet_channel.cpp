@@ -36,11 +36,10 @@ namespace ethernet_access_point_internal {
 using ResolveSender =
     ex::AnySender<ex::set_value_t(std::vector<Endpoint>), ex::set_error_t(int)>;
 
-ResolveSender ResolveAddress(
-    [[maybe_unused]] Ptr<DnsResolver> const& resolver,
-    [[maybe_unused]] NamedAddr const& addr,
-    [[maybe_unused]] std::uint16_t port,
-    [[maybe_unused]] Protocol protocol) {
+ResolveSender ResolveAddress([[maybe_unused]] Ptr<DnsResolver> const& resolver,
+                             [[maybe_unused]] NamedAddr const& addr,
+                             [[maybe_unused]] std::uint16_t port,
+                             [[maybe_unused]] Protocol protocol) {
 #if AE_SUPPORT_CLOUD_DNS
   return resolver->Resolve(addr, port, protocol);
 #else
@@ -172,7 +171,7 @@ TransportBuildSender EthernetChannel::TransportBuilder() {
   AE_TELED_DEBUG("Make transport builder for {}", address);
 
   return ethernet_access_point_internal::MakeTransportBuilder(
-      AeContext{*aether_.Load().as<Aether>()}, resolver, poller, address);
+      AeContext{*aether_}, resolver, poller, address);
 }
 
 }  // namespace ae

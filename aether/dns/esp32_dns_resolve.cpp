@@ -25,8 +25,8 @@
 // #  include "freertos/task.h"
 // #  include "freertos/event_groups.h"
 
-#  include "lwip/err.h"
 #  include "lwip/dns.h"
+#  include "lwip/err.h"
 #  include "lwip/tcpip.h"
 
 #  include "aether/aether.h"
@@ -156,7 +156,7 @@ ResolveSender Esp32DnsResolver::Resolve(NamedAddr const& name_address,
                                         std::uint16_t port_hint,
                                         Protocol protocol_hint) {
   return GHbyNameResolveSender{name_address, port_hint, protocol_hint} |
-         ex::continues_on(ex::SchedulerOnTasks{AeContext{*aether_.Load().as<Aether>()}});
+         ex::continues_on(ex::SchedulerOnTasks{AeContext{*aether_.Load()}});
 }
 
 }  // namespace ae

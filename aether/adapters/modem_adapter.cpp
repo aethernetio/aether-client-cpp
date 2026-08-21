@@ -17,11 +17,11 @@
 #include "aether/adapters/modem_adapter.h"
 #if AE_SUPPORT_MODEMS
 
+#  include "aether/access_points/modem_access_point.h"
 #  include "aether/aether.h"
-#  include "aether/poller/poller.h"
 #  include "aether/modems/imodem_driver.h"
 #  include "aether/modems/modem_factory.h"
-#  include "aether/access_points/modem_access_point.h"
+#  include "aether/poller/poller.h"
 
 #  include "aether/adapters/adapter_tele.h"
 
@@ -58,8 +58,8 @@ std::vector<AccessPoint::ptr> ModemAdapter::access_points() {
 
 IModemDriver& ModemAdapter::modem_driver() {
   if (!modem_driver_) {
-    modem_driver_ = ModemDriverFactory::CreateModem(
-        *aether_.Load().as<Aether>(), poller_, modem_init_);
+    modem_driver_ =
+        ModemDriverFactory::CreateModem(*aether_, poller_, modem_init_);
   }
   return *modem_driver_;
 }

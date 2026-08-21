@@ -82,16 +82,16 @@ class Aether : public Obj {
   void StoreServer(ObjPtr<Server> s);
   ObjPtr<Server> GetServer(ServerId server_id);
 
-  Obj::ptr client_prefab;
-  Obj::ptr registration_cloud;
+  ObjPtr<Client> client_prefab;
+  ObjPtr<RegistrationCloud> registration_cloud;
 
-  Obj::ptr crypto;
-  Obj::ptr poller;
-  Obj::ptr dns_resolver;
+  ObjPtr<Crypto> crypto;
+  ObjPtr<IPoller> poller;
+  ObjPtr<DnsResolver> dns_resolver;
 
-  Obj::ptr adapter_registry;
+  ObjPtr<AdapterRegistry> adapter_registry;
 
-  Obj::ptr tele_statistics;
+  ObjPtr<TeleStatistics> tele_statistics;
 
   std::unique_ptr<TaskScheduler> task_scheduler;
 
@@ -113,8 +113,8 @@ class Aether : public Obj {
   std::map<std::string, std::unique_ptr<Registration>> registrations_;
 #endif
 
-  std::map<std::string, Obj::ptr> clients_;
-  std::map<ServerId, Obj::ptr> servers_;
+  std::map<std::string, ObjPtr<Client>> clients_;
+  std::map<ServerId, ObjPtr<Server>> servers_;
 
   std::map<std::string, std::unique_ptr<SelectClientAction>>
       select_client_actions_;

@@ -19,10 +19,10 @@
 
 #  include <utility>
 
-#  include "aether/config.h"
-#  include "aether/memory.h"
 #  include "aether/aether.h"
+#  include "aether/config.h"
 #  include "aether/executors/executors.h"
+#  include "aether/memory.h"
 #  include "aether/transport/modems/modem_transport.h"
 
 namespace ae {
@@ -112,8 +112,8 @@ ModemChannel::ModemChannel(ObjProp prop, ObjPtr<Aether> aether,
 TransportBuildSender ModemChannel::TransportBuilder() {
   auto ap = access_point_.Load();
   assert(ap && "Access point is not loaded");
-  return modem_channel_internal::MakeTransportBuilderSender(
-      *aether_.Load().as<Aether>(), *ap, address);
+  return modem_channel_internal::MakeTransportBuilderSender(*aether_, *ap,
+                                                            address);
 }
 
 Duration ModemChannel::TransportBuildTimeout() const {
