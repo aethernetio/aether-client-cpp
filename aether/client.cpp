@@ -108,8 +108,9 @@ void Client::SetConfig(std::string client_id, Uid parent_uid, Uid uid,
   master_key_ = std::move(master_key);
   cloud_ = std::move(cloud);
 
-  for (auto& s : cloud_->servers()) {
-    server_keys_.emplace(s->server_id, ServerKeys{s->server_id, master_key_});
+  for (auto const& server_entry : cloud_->servers()) {
+    auto const server_id = server_entry.first;
+    server_keys_.emplace(server_id, ServerKeys{server_id, master_key_});
   }
 
   connectivity_policy_ = ClientConnectivityPolicy::ptr::Create(

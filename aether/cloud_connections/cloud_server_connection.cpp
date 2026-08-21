@@ -16,21 +16,20 @@
 
 #include "aether/cloud_connections/cloud_server_connection.h"
 
+#include <cassert>
+#include <cstdint>
+#include <limits>
+
 #include "aether/server.h"
 
 namespace ae {
 
 CloudServerConnection::CloudServerConnection(
-    Ptr<Server> const& server, IServerConnectionFactory& connection_factory)
-    : server_{server},
-      connection_factory_{&connection_factory},
-      priority_{},
-      is_quarantined_{} {}
-
-std::size_t CloudServerConnection::priority() const { return priority_; }
-void CloudServerConnection::SetPriority(std::size_t priority) {
-  priority_ = priority;
-}
+    Ptr<Cloud> const& cloud, ServerId server_id,
+    IServerConnectionFactory& connection_factory)
+    : cloud_{cloud},
+      server_id_{server_id},
+      connection_factory_{&connection_factory} {}
 
 void CloudServerConnection::Restream() {
   if (client_connection_) {
@@ -45,7 +44,7 @@ void CloudServerConnection::SetQuarantine(bool value) {
 
 bool CloudServerConnection::Connect() {
   client_connection_.reset();
-  client_connection_ = connection_factory_->CreateConnection(server());
+  client_connection_ = connection_factory_->CreateConnection(server().Load());
   return static_cast<bool>(client_connection_);
 }
 
@@ -58,10 +57,27 @@ ClientServerConnection* CloudServerConnection::client_connection() {
   return nullptr;
 }
 
-Ptr<Server> CloudServerConnection::server() const {
-  auto server = server_.Lock();
-  assert(server.get() != nullptr);
-  return server;
+Server::ptr const& CloudServerConnection::server() const {
+  return cloud_server().server;
+}
+
+std::size_t CloudServerConnection::priority() const {
+  return cloud_server().priority;
+}
+
+void CloudServerConnection::SetPriority(std::size_t priority) {
+  assert(priority <= std::numeric_limits<std::uint16_t>::max() &&
+         "cloud server priority exceeds persisted capacity");
+  cloud_server().priority = static_cast<std::uint16_t>(priority);
+}
+
+CloudServer& CloudServerConnection::cloud_server() const {
+  auto cloud = cloud_.Lock();
+  assert(cloud && "cloud must outlive its connections");
+  auto it = cloud->servers().find(server_id_);
+  assert(it != cloud->servers().end() &&
+         "cloud server connection must have a persistent server entry");
+  return it->second;
 }
 
 }  // namespace ae

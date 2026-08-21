@@ -28,6 +28,8 @@
 
 namespace ae {
 namespace client_cloud_manager_internal {
+constexpr int kGetServersRequestError = 1;
+
 GetCloudFromCache::GetCloudFromCache(AeContext const& ae_context,
                                      Cloud::ptr cloud)
     : cloud_{std::move(cloud)} {
@@ -121,7 +123,7 @@ auto LoadMissing(Aether::ptr const& aether, Client::ptr const& client,
           BuildNewServers(aether, servers, res.value());
           ex::set_value(std::move(ctx.receiver), std::move(servers));
         } else {
-          ex::set_error(std::move(ctx.receiver), 1);
+          ex::set_error(std::move(ctx.receiver), kGetServersRequestError);
         }
       });
     });
@@ -149,14 +151,18 @@ ClientCloudManager::ClientCloudManager(ObjProp prop, ObjPtr<Aether> aether,
                                        ObjPtr<Client> client)
     : Obj{prop}, aether_{std::move(aether)}, client_{std::move(client)} {
   // save cloud cache for current client
-  Client::ptr{client}.WithLoaded([&](auto const& c) {
-    cloud_cache_.emplace(c->uid(), client_cloud_manager_internal::CloudCache{
-                                       .version_confirmed = true,
-                                       .subject_uid = c->uid(),
-                                       .version = 0,
-                                       .cloud = c->cloud(),
-                                   });
-  });
+  [[maybe_unused]] auto const cache_initialized =
+      client_.WithLoaded([&](auto const& obj) {
+        auto* c = obj.template as<Client>();
+        cloud_cache_.emplace(c->uid(),
+                             client_cloud_manager_internal::CloudCache{
+                                 .version_confirmed = true,
+                                 .subject_uid = c->uid(),
+                                 .version = 0,
+                                 .cloud = c->cloud(),
+                             });
+      });
+  assert(cache_initialized && "Client did not load");
 
   // init the rest
   Init();
@@ -253,7 +259,7 @@ void ClientCloudManager::CloudConfigs(std::vector<CloudConfig> const& configs) {
       FinalizeCloudConfig(conf);
     } else if (!it->second.finalizing &&
                (it->second.version < conf.config_version)) {
-      it->second.version_confirmed = false,
+      it->second.version_confirmed = false;
       it->second.subject_uid = conf.subject_uid;
       it->second.version = conf.config_version;
       it->second.finalizing = true;
@@ -294,8 +300,8 @@ void ClientCloudManager::FinalizeCloudConfig(CloudConfig const& conf) {
           }));
 }
 
-Cloud::ptr ClientCloudManager::RegisterCloud(Uid uid,
-                                             std::vector<Server::ptr> servers) {
+Cloud::ptr ClientCloudManager::RegisterCloud(
+    Uid uid, std::vector<Server::ptr> const& servers) {
   auto it = cloud_cache_.find(uid);
   assert((it != cloud_cache_.end()) &&
          "Cloud should be in cache before register");
@@ -304,7 +310,7 @@ Cloud::ptr ClientCloudManager::RegisterCloud(Uid uid,
   if (!it->second.cloud.is_valid()) {
     it->second.cloud = WorkCloud::ptr::Create(domain, uid);
   }
-  it->second.cloud.Load()->SetServers(std::move(servers));
+  it->second.cloud.Load()->SetServers(servers);
   return it->second.cloud;
 }
 

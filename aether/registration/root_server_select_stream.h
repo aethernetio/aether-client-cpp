@@ -21,6 +21,7 @@
 
 #if AE_SUPPORT_REGISTRATION
 
+#  include <cstdint>
 #  include <optional>
 
 #  include "aether/ae_context.h"
@@ -33,6 +34,7 @@
 
 namespace ae {
 class Aether;
+struct RootServerSelectStreamTestAccess;
 class RootServerSelectStream final : public ByteIStream {
  public:
   static constexpr std::size_t kBufferCapacity = 200;
@@ -52,6 +54,8 @@ class RootServerSelectStream final : public ByteIStream {
   CloudErrorEvent::Subscriber cloud_error_event();
 
  private:
+  friend struct RootServerSelectStreamTestAccess;
+
   WriteAction* OnWrite(DataBuffer&& data);
 
   void SelectServer();
@@ -62,7 +66,11 @@ class RootServerSelectStream final : public ByteIStream {
   PtrView<RegistrationCloud> cloud_;
 
   BufferWrite<DataBuffer, kBufferCapacity> buffer_write_;
-  std::size_t server_index_;
+  // The next server priority to select. Registration server priorities must be
+  // contiguous starting at zero; gaps are UB. This invariant and Cloud's
+  // strict server collection capacity bound ensure this value never increments
+  // past the representable range. Overflow is unsupported and UB.
+  std::uint16_t server_priority_{0};
   std::optional<ServerConnection> server_connection_;
 
   StreamUpdateEvent stream_update_event_;

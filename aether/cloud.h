@@ -17,14 +17,23 @@
 #ifndef AETHER_CLOUD_H_
 #define AETHER_CLOUD_H_
 
+#include <cstdint>
+#include <map>
 #include <vector>
 
 #include "aether/events/events.h"
 
-#include "aether/server.h"
 #include "aether/obj/obj.h"
+#include "aether/server.h"
 
 namespace ae {
+struct CloudServer {
+  AE_REFLECT_MEMBERS(priority, server)
+
+  std::uint16_t priority{};
+  Server::ptr server;
+};
+
 class Cloud : public Obj {
   AE_OBJECT(Cloud, Obj, 0)
 
@@ -34,16 +43,19 @@ class Cloud : public Obj {
  public:
   explicit Cloud(ObjProp prop);
 
-  AE_OBJECT_REFLECT(AE_MMBRS(servers_))
+  AE_OBJECT_REFLECT(AE_MMBR(servers_))
 
+  // Requires no existing server priority is uint16_t's maximum; overflow is UB.
   void AddServer(Server::ptr server);
-  void SetServers(std::vector<Server::ptr> servers);
+  // Requires unique server IDs; duplicates are UB and debug-asserted.
+  void SetServers(std::vector<Server::ptr> const& servers);
 
-  std::vector<Server::ptr>& servers();
+  std::map<ServerId, CloudServer>& servers();
+  std::map<ServerId, CloudServer> const& servers() const;
   EventSubscriber<void()> cloud_updated();
 
  private:
-  std::vector<Server::ptr> servers_;
+  std::map<ServerId, CloudServer> servers_;
   Event<void()> cloud_updated_;
 };
 

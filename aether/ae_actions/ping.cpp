@@ -67,7 +67,7 @@ Ping::Ping(AeContext const& ae_context,
       next_ping_hint_{next_ping_hint},
       rx_window_{rx_window},
       timeout_{timeout},
-      server_id_{cloud_server_connection_->server()->server_id} {
+      server_id_{cloud_server_connection_->server_id()} {
   AE_TELE_INFO(
       kPing,
       "Ping action created to server id: {}, interval: {:%S}s, rx_window: "
@@ -122,9 +122,10 @@ void Ping::Start(TimePoint current_time) {
             [this, req_id]() { PingResponseTimeout(req_id); },
             current_time + timeout_);
         if (state_ == RequestState::kPending && !timeout_sub_) {
-          AE_TELE_ERROR(kPingTimeoutError,
-                        "Ping timeout task allocation failed server id {} request {}",
-                        server_id_, req_id);
+          AE_TELE_ERROR(
+              kPingTimeoutError,
+              "Ping timeout task allocation failed server id {} request {}",
+              server_id_, req_id);
           state_ = RequestState::kFinished;
           ResetRequestSubscriptions();
           result_event_.Emit(PingResult{Error{5}});

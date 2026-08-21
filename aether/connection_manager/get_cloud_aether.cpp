@@ -34,8 +34,7 @@ GetCloudFromAether::GetCloudFromAether(AeContext const& ae_context,
               ApiCall{[this](ApiContext<AuthorizedApi>& auth_api,
                              CloudServerConnection* server_connection) {
                 AE_TELED_DEBUG("Send cloud request for uid:{} at server:{}",
-                               client_uid_,
-                               server_connection->server()->server_id);
+                               client_uid_, server_connection->server_id());
                 auth_api->report_applied_config(std::vector{AppliedConfig{
                     .subject_uid = client_uid_,
                     .config_version = -1,

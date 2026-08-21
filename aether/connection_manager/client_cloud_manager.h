@@ -20,13 +20,13 @@
 #include <map>
 #include <optional>
 
+#include "aether/actions/action_pool.h"
 #include "aether/cloud.h"
+#include "aether/events/events.h"
+#include "aether/executors/executors.h"
 #include "aether/obj/obj.h"
 #include "aether/ptr/ptr.h"
 #include "aether/types/uid.h"
-#include "aether/events/events.h"
-#include "aether/actions/action_pool.h"
-#include "aether/executors/executors.h"
 
 #include "aether/ae_actions/get_servers.h"
 #include "aether/cloud_connections/cloud_subscription.h"
@@ -104,7 +104,7 @@ class ClientCloudManager : public Obj {
   void CloudConfigs(std::vector<CloudConfig> const& configs);
   void FinalizeCloudConfig(CloudConfig const& conf);
   auto MakeServersSender(std::vector<ServerId> const& sids);
-  Cloud::ptr RegisterCloud(Uid uid, std::vector<Server::ptr> servers);
+  Cloud::ptr RegisterCloud(Uid uid, std::vector<Server::ptr> const& servers);
 
   GetCloudActionPool& get_cloud_action_pool();
 

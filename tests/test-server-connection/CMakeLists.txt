@@ -18,6 +18,8 @@ list(APPEND test_srcs
   main.cpp
   test_server_connection_recovery.cpp
   test_cloud_quarantine_loop.cpp
+  test_cloud_persistence.cpp
+  test_registration_root_server_select.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../test-object-system/map_domain_storage.cpp
 )
 
