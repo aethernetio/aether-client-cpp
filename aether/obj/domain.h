@@ -106,19 +106,15 @@ class DomainGraph {
  public:
   explicit DomainGraph(Domain* domain);
 
-  // Load saved state of object
-  template <typename T>
-  Ptr<T> LoadPtr(ObjId obj_id);
-  // Save state of object
-  template <typename T>
-  void SavePtr(Ptr<T> const& ptr, ObjId obj_id);
+  // Load saved state of object.
+  Ptr<Obj> LoadRoot(ObjId obj_id);
+  // Save state of object.
+  void SaveRoot(Ptr<Obj> const& ptr, ObjId obj_id);
   // Load a copy of object
   template <typename T>
   Ptr<T> LoadCopy(ObjId ref_id, ObjId copy_id);
 
-  Ptr<Obj> LoadRootImpl(ObjId obj_id);
   Ptr<Obj> LoadCopyImpl(ObjId ref_id, ObjId copy_id);
-  void SaveRootImpl(Ptr<Obj> const& ptr, ObjId obj_id);
 
   template <typename T>
   seri::SeriResult Load(T& obj, ObjId obj_id);
@@ -165,17 +161,6 @@ class Domain {
 
   std::map<ObjId::Type, PtrView<Obj>> id_objects_;
 };
-
-template <typename T>
-Ptr<T> DomainGraph::LoadPtr(ObjId obj_id) {
-  Ptr<T> ptr = LoadRootImpl(obj_id);
-  return ptr;
-}
-
-template <typename T>
-void DomainGraph::SavePtr(Ptr<T> const& ptr, ObjId obj_id) {
-  SaveRootImpl(ptr, obj_id);
-}
 
 template <typename T>
 Ptr<T> DomainGraph::LoadCopy(ObjId ref_id, ObjId copy_id) {
