@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -32,10 +34,38 @@
 #include "aether/server_connections/iserver_connection_factory.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
+#include "aether/work_cloud.h"
 
 #include "tests/test-object-system/map_domain_storage.h"
 
 namespace ae {
+struct CloudServerConnectionsTestAccess {
+  static bool Quarantine(CloudServerConnections& connections,
+                         CloudServerConnection& server) {
+    return connections.QuarantineServer(server);
+  }
+
+  static void Release(CloudServerConnections& connections,
+                      CloudServerConnection& server) {
+    connections.ReleaseQuarantinedServer(server);
+  }
+
+  static bool HasStateSubscription(CloudServerConnections& connections,
+                                   CloudServerConnection& server) {
+    return static_cast<bool>(connections.ServerEntryFor(server).state_sub);
+  }
+
+  static bool HasErrorSubscription(CloudServerConnections& connections,
+                                   CloudServerConnection& server) {
+    return static_cast<bool>(connections.ServerEntryFor(server).error_sub);
+  }
+
+  static bool HasQuarantineTask(CloudServerConnections& connections,
+                                CloudServerConnection& server) {
+    return static_cast<bool>(connections.ServerEntryFor(server).quarantine_sub);
+  }
+};
+
 namespace test_cloud_quarantine_loop {
 struct TestContext {
   AeCtx ToAeContext() const {
@@ -78,7 +108,9 @@ class SwitchableNullFactory final : public IServerConnectionFactory {
 
 struct CloudFixture {
   CloudFixture(std::unique_ptr<IServerConnectionFactory> factory,
-               IServerConnectionFactory* raw)
+               IServerConnectionFactory* raw,
+               std::vector<ServerId> additional_server_ids = {},
+               std::size_t max_connections = 1)
       : ae_ctx{ctx},
         domain{Now(), storage},
         registry{AdapterRegistry::ptr::Create(CreateWith{domain})},
@@ -87,8 +119,12 @@ struct CloudFixture {
         cloud{Cloud::ptr::Create(CreateWith{domain})},
         factory_raw{raw} {
     cloud->AddServer(server);
+    for (auto server_id : additional_server_ids) {
+      cloud->AddServer(Server::ptr::Create(CreateWith{domain}, server_id,
+                                           std::vector<Endpoint>{}, registry));
+    }
     connections = std::make_unique<CloudServerConnections>(
-        ae_ctx, cloud.Load(), std::move(factory), /*max*/ 1);
+        ae_ctx, cloud.Load(), std::move(factory), max_connections);
   }
 
   bool AnyQuarantined() const {
@@ -111,6 +147,47 @@ struct CloudFixture {
   std::unique_ptr<CloudServerConnections> connections;
 };
 
+void AssertCanonicalPriorities(CloudServerConnections& connections) {
+  auto const& servers = connections.servers();
+  for (std::size_t i = 0; i < servers.size(); ++i) {
+    TEST_ASSERT_EQUAL_UINT(static_cast<unsigned int>(i),
+                           static_cast<unsigned int>(servers[i]->priority()));
+  }
+}
+
+void test_CloudQuarantineAndReleasePreserveCanonicalOrder() {
+  auto factory = std::make_unique<CountingNullFactory>();
+  auto* factory_raw = factory.get();
+  CloudFixture f{
+      std::move(factory), factory_raw, {ServerId{8}, ServerId{9}}, /*max*/ 0};
+  auto& servers = f.connections->servers();
+
+  TEST_ASSERT_EQUAL_UINT(ServerId{7}, servers[0]->server_id());
+  TEST_ASSERT_EQUAL_UINT(ServerId{8}, servers[1]->server_id());
+  TEST_ASSERT_EQUAL_UINT(ServerId{9}, servers[2]->server_id());
+  AssertCanonicalPriorities(*f.connections);
+
+  TEST_ASSERT_TRUE(CloudServerConnectionsTestAccess::Quarantine(*f.connections,
+                                                                *servers[0]));
+  TEST_ASSERT_EQUAL_UINT(ServerId{8}, servers[0]->server_id());
+  TEST_ASSERT_EQUAL_UINT(ServerId{9}, servers[1]->server_id());
+  TEST_ASSERT_EQUAL_UINT(ServerId{7}, servers[2]->server_id());
+  AssertCanonicalPriorities(*f.connections);
+
+  TEST_ASSERT_TRUE(CloudServerConnectionsTestAccess::Quarantine(*f.connections,
+                                                                *servers[0]));
+  TEST_ASSERT_EQUAL_UINT(ServerId{9}, servers[0]->server_id());
+  TEST_ASSERT_EQUAL_UINT(ServerId{7}, servers[1]->server_id());
+  TEST_ASSERT_EQUAL_UINT(ServerId{8}, servers[2]->server_id());
+  AssertCanonicalPriorities(*f.connections);
+
+  CloudServerConnectionsTestAccess::Release(*f.connections, *servers[1]);
+  TEST_ASSERT_EQUAL_UINT(ServerId{9}, servers[0]->server_id());
+  TEST_ASSERT_EQUAL_UINT(ServerId{7}, servers[1]->server_id());
+  TEST_ASSERT_EQUAL_UINT(ServerId{8}, servers[2]->server_id());
+  AssertCanonicalPriorities(*f.connections);
+}
+
 void test_CloudQuarantineDoesNotBusyLoop() {
   auto factory = std::make_unique<CountingNullFactory>();
   auto* factory_raw = factory.get();
@@ -122,6 +199,7 @@ void test_CloudQuarantineDoesNotBusyLoop() {
                            "expected first attempt");
   TEST_ASSERT_TRUE_MESSAGE(f.AnyQuarantined(), "expected quarantine");
   TEST_ASSERT_EQUAL_UINT(0, f.connections->count_connections());
+  TEST_ASSERT_EQUAL_UINT(0, f.cloud->servers().at(ServerId{7}).priority);
   auto attempts_after_first = factory_raw->attempts;
 
   f.ctx.PumpAt(t0, 128);
@@ -131,6 +209,70 @@ void test_CloudQuarantineDoesNotBusyLoop() {
       t0 + std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS - 1};
   f.ctx.PumpAt(t_before, 8);
   TEST_ASSERT_EQUAL_INT(attempts_after_first, factory_raw->attempts);
+}
+
+void test_CloudImmediateUnusableCandidatesUseQuarantinePath() {
+  auto factory = std::make_unique<CountingNullFactory>();
+  auto* factory_raw = factory.get();
+  CloudFixture f{std::move(factory), factory_raw, {ServerId{8}}, /*max*/ 2};
+  TEST_ASSERT_TRUE(f.AnyQuarantined());
+
+  std::vector<ServerId> quarantined_server_ids;
+  auto quarantined_sub = f.connections->server_quarantined_event().Subscribe(
+      [&](CloudServerConnection* server) {
+        quarantined_server_ids.emplace_back(server->server_id());
+      });
+
+  // Construction performs the first reconciliation before the event
+  // subscription. Retry both immediately unusable candidates after quarantine
+  // release so their SubscribeToServerState failures are observable here.
+  auto const retry_at =
+      std::chrono::system_clock::now() +
+      std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS + 1};
+  // Release the original quarantine tasks at the simulated expiry. Run the
+  // resulting reconciliation at wall-clock time so quarantine tasks created
+  // by the immediately unusable candidates are not already due.
+  f.ctx.PumpAt(retry_at, 1);
+  f.ctx.PumpAt(std::chrono::system_clock::now(), 1);
+
+  TEST_ASSERT_TRUE_MESSAGE(quarantined_server_ids.size() >= 2,
+                           "expected both candidates to be quarantined");
+  TEST_ASSERT_TRUE(std::find(quarantined_server_ids.begin(),
+                             quarantined_server_ids.end(),
+                             ServerId{7}) != quarantined_server_ids.end());
+  TEST_ASSERT_TRUE(std::find(quarantined_server_ids.begin(),
+                             quarantined_server_ids.end(),
+                             ServerId{8}) != quarantined_server_ids.end());
+  TEST_ASSERT_EQUAL_UINT(0, f.connections->count_connections());
+  for (auto* server : f.connections->servers()) {
+    TEST_ASSERT_TRUE(server->quarantine());
+    TEST_ASSERT_FALSE(CloudServerConnectionsTestAccess::HasStateSubscription(
+        *f.connections, *server));
+    TEST_ASSERT_FALSE(CloudServerConnectionsTestAccess::HasErrorSubscription(
+        *f.connections, *server));
+    TEST_ASSERT_TRUE(CloudServerConnectionsTestAccess::HasQuarantineTask(
+        *f.connections, *server));
+  }
+}
+
+void test_CloudServerPointersRemainStableAcrossQuarantine() {
+  auto factory = std::make_unique<CountingNullFactory>();
+  auto* factory_raw = factory.get();
+  CloudFixture f{
+      std::move(factory), factory_raw, {ServerId{8}, ServerId{9}}, /*max*/ 0};
+  auto const pointers = f.connections->servers();
+
+  TEST_ASSERT_TRUE(CloudServerConnectionsTestAccess::Quarantine(*f.connections,
+                                                                *pointers[0]));
+  CloudServerConnectionsTestAccess::Release(*f.connections, *pointers[0]);
+  TEST_ASSERT_FALSE(CloudServerConnectionsTestAccess::HasQuarantineTask(
+      *f.connections, *pointers[0]));
+
+  for (auto* pointer : pointers) {
+    auto const current = std::find(f.connections->servers().begin(),
+                                   f.connections->servers().end(), pointer);
+    TEST_ASSERT_TRUE(current != f.connections->servers().end());
+  }
 }
 
 void test_CloudQuarantineReleaseAfterExpiry() {
@@ -224,7 +366,10 @@ int run_test_cloud_quarantine_loop() {
   using namespace ae::test_cloud_quarantine_loop;  // NOLINT
 
   UNITY_BEGIN();
+  RUN_TEST(test_CloudQuarantineAndReleasePreserveCanonicalOrder);
   RUN_TEST(test_CloudQuarantineDoesNotBusyLoop);
+  RUN_TEST(test_CloudImmediateUnusableCandidatesUseQuarantinePath);
+  RUN_TEST(test_CloudServerPointersRemainStableAcrossQuarantine);
   RUN_TEST(test_CloudQuarantineReleaseAfterExpiry);
   RUN_TEST(test_CloudQuarantineNoRecursiveLoopSameTimestamp);
   RUN_TEST(test_CloudQuarantineAttemptsBoundedOverSimulatedSecond);

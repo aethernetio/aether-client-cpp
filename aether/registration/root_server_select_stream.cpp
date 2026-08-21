@@ -26,8 +26,7 @@ RootServerSelectStream::RootServerSelectStream(
     : ae_context_{ae_context},
       cloud_{cloud},
       buffer_write_{ae_context,
-                    MethodPtr<&RootServerSelectStream::OnWrite>{this}},
-      server_index_{} {
+                    MethodPtr<&RootServerSelectStream::OnWrite>{this}} {
   SelectServer();
 }
 
@@ -84,13 +83,25 @@ void RootServerSelectStream::SelectServer() {
   auto cloud_ptr = cloud_.Lock();
   assert(cloud_ptr);
 
-  if (server_index_ >= cloud_ptr->servers().size()) {
+  auto const& servers = cloud_ptr->servers();
+  auto server_it = servers.end();
+  // Registration server priorities must be contiguous starting at zero;
+  // gaps and equal-priority registration candidates are UB.
+  for (auto it = servers.begin(); it != servers.end(); ++it) {
+    auto const priority = it->second.priority;
+    if (priority == server_priority_) {
+      server_it = it;
+      break;
+    }
+  }
+  if (server_it == servers.end()) {
     CloudError();
     return;
   }
-  auto& chosen_server = cloud_ptr->servers()[server_index_++];
+  ++server_priority_;
+  auto const& chosen_server = server_it->second;
 
-  server_connection_.emplace(ae_context_, chosen_server.Load());
+  server_connection_.emplace(ae_context_, chosen_server.server.Load());
 
   server_connection_->out_data_event().Subscribe(out_data_event_);
   server_connection_->server_error_event().Subscribe(

@@ -17,23 +17,21 @@
 #ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTION_H_
 
+#include <cstddef>
 #include <memory>
 
 #include "aether/ptr/ptr_view.h"
 
+#include "aether/cloud.h"
+#include "aether/server.h"
 #include "aether/server_connections/client_server_connection.h"
 #include "aether/server_connections/iserver_connection_factory.h"
 
 namespace ae {
-class Server;
-
 class CloudServerConnection {
  public:
-  CloudServerConnection(Ptr<Server> const& server,
+  CloudServerConnection(Ptr<Cloud> const& cloud, ServerId server_id,
                         IServerConnectionFactory& connection_factory);
-
-  std::size_t priority() const;
-  void SetPriority(std::size_t priority);
 
   void Restream();
 
@@ -45,14 +43,21 @@ class CloudServerConnection {
 
   ClientServerConnection* client_connection();
 
-  Ptr<Server> server() const;
+  // The reference is valid only while the owning Cloud and server-map entry
+  // remain unchanged.
+  Server::ptr const& server() const;
+  ServerId server_id() const { return server_id_; }
+  std::size_t priority() const;
+  void SetPriority(std::size_t priority);
 
  private:
-  PtrView<Server> server_;
+  CloudServer& cloud_server() const;
+
+  PtrView<Cloud> cloud_;
+  ServerId server_id_;
   IServerConnectionFactory* connection_factory_;
   std::shared_ptr<ClientServerConnection> client_connection_;
-  std::size_t priority_;
-  bool is_quarantined_;
+  bool is_quarantined_ = false;
 };
 }  // namespace ae
 

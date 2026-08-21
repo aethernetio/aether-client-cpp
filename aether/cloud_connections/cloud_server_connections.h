@@ -16,9 +16,9 @@
 #ifndef AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTIONS_H_
 #define AETHER_CLOUD_CONNECTIONS_CLOUD_SERVER_CONNECTIONS_H_
 
-#include <map>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "aether/ae_context.h"
@@ -56,6 +56,8 @@ class ReplicaWA final : public WriteAction {
 }  // namespace cloud_server_connections_internal
 
 class CloudServerConnections {
+  friend struct CloudServerConnectionsTestAccess;
+
  public:
   using ServersUpdate = Event<void()>;
   using ServerQuarantineEvent = Event<void(CloudServerConnection*)>;
@@ -64,7 +66,6 @@ class CloudServerConnections {
       AeContext const& ae_context, Ptr<Cloud> const& cloud,
       std::unique_ptr<IServerConnectionFactory> connection_factory,
       std::size_t max_connections);
-
   /**
    * \brief The event then top list of the servers were updated.
    */
@@ -76,7 +77,11 @@ class CloudServerConnections {
    */
   std::vector<CloudServerConnection*> const& selected_servers() const;
   /**
-   * \brief List of all server connections including quarantined ones.
+   * \brief List of all server connections in canonical priority order.
+   *
+   * The list contains selected servers in selected_servers() order, followed
+   * by usable non-selected servers, then quarantined servers from oldest to
+   * newest quarantine. A server's persisted priority equals its index.
    */
   std::vector<CloudServerConnection*> const& servers();
 
@@ -122,62 +127,73 @@ class CloudServerConnections {
       return;
     }
     std::invoke(std::forward<TFunc>(func),
-                selected_servers_.at(priority.priority));
+                selected_servers_[priority.priority]);
   }
 
   template <typename TFunc>
   void ForServersImpl(TFunc&& func, RequestPolicy::Replica replica) {
+    auto&& callable = std::forward<TFunc>(func);
     auto visit_count = std::min(selected_servers_.size(), replica.count);
     for (std::size_t i = 0; i < visit_count; ++i) {
-      std::invoke(std::forward<TFunc>(func), selected_servers_.at(i));
+      std::invoke(callable, selected_servers_[i]);
     }
   }
 
   template <typename TFunc>
   void ForServersImpl(TFunc&& func, RequestPolicy::All) {
+    auto&& callable = std::forward<TFunc>(func);
     for (auto* sc : selected_servers_) {
-      std::invoke(std::forward<TFunc>(func), sc);
+      std::invoke(callable, sc);
     }
   }
 
   WriteAction& EmptyWriteAction();
   WriteAction& ReplicaWriteAction(std::vector<WriteAction*>&& swas);
 
-  void InitServerConnections();
-  // Caller must unsubscribe before re-subscribing the same server.
-  void SubscribeToServerState(CloudServerConnection& server_connection);
-  void UnsubscribeFromServerState(CloudServerConnection& server_connection);
-  void QuarantineServer(CloudServerConnection& server_connection);
-  void ReleaseQuarantinedServer(CloudServerConnection& server_connection,
-                                std::uintptr_t key);
-  void ScheduleReconcileServers();
-  void ReconcileServers();
+  struct ServerEntry {
+    ServerEntry(Ptr<Cloud> const& cloud, ServerId server_id,
+                IServerConnectionFactory& connection_factory)
+        : connection{cloud, server_id, connection_factory} {}
 
-  bool IsSelected(CloudServerConnection* sc) const;
-  void UpdateSelectedPriorities();
-  std::vector<CloudServerConnection*> ReplacementCandidates();
-
-  struct ServerSubscriptions {
+    CloudServerConnection connection;
     Subscription state_sub;
     Subscription error_sub;
     TaskSubscription quarantine_sub;
   };
 
+  void InitServerConnections();
+  // Caller must unsubscribe before re-subscribing the same server.
+  bool SubscribeToServerState(CloudServerConnection& server_connection);
+  void UnsubscribeFromServerState(CloudServerConnection& server_connection);
+  bool QuarantineServer(CloudServerConnection& server_connection);
+  void QuarantineAndReconcile(CloudServerConnection& server_connection);
+  void ReleaseQuarantinedServer(CloudServerConnection& server_connection);
+  void ScheduleReconcileServers();
+  void ReconcileServers();
+
+  void NormalizeServerPriorities();
+  ServerEntry& ServerEntryFor(CloudServerConnection& server_connection);
+
   AeContext ae_context_;
   PtrView<Cloud> cloud_;
   std::unique_ptr<IServerConnectionFactory> connection_factory_;
   std::size_t max_connections_;
-  std::vector<CloudServerConnection> server_connections_;
+  // Entries are reserved and populated once before connection pointers are
+  // published. Do not grow or rebuild this vector: callbacks retain pointers
+  // to its connections.
+  std::vector<ServerEntry> server_entries_;
 
+  // Canonical priority order: selected prefix, usable non-selected servers,
+  // then quarantined servers oldest-to-newest. Persisted priorities equal
+  // all_servers_ indices.
   std::vector<CloudServerConnection*> all_servers_;
-  // selected list of servers sorted by the priority
+  // Selected prefix of all_servers_, in selection and priority order.
   std::vector<CloudServerConnection*> selected_servers_;
 
   ServersUpdate servers_update_event_;
   ServerQuarantineEvent server_quarantined_event_;
   ServerQuarantineEvent server_quarantine_release_event_;
 
-  std::map<std::uintptr_t, ServerSubscriptions> server_subs_;
   TaskSubscription defer_sub_;
 
   std::optional<cloud_server_connections_internal::EmptyConnectionsWA>

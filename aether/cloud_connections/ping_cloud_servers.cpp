@@ -24,7 +24,6 @@
 
 #  include "aether/channels/channel.h"
 #  include "aether/executors/executors.h"
-#  include "aether/server.h"
 
 #  include "aether/cloud_connections/cloud_connections_tele.h"
 
@@ -279,17 +278,16 @@ void PingCloudServers::DispatchToServers() {
           AE_TELED_ERROR("Visit empty cloud server connection!");
           return;
         }
-        auto server = cloud_sc->server();
+        auto const& server = cloud_sc->server();
         if (server) {
-          ReconcileServer(server, *cloud_sc);
+          ReconcileServer(*cloud_sc);
         }
       },
       policy_->rx_targets());
 }
 
-void PingCloudServers::ReconcileServer(Ptr<Server> const& server,
-                                       CloudServerConnection& cloud_sc) {
-  auto const server_id = server->server_id;
+void PingCloudServers::ReconcileServer(CloudServerConnection& cloud_sc) {
+  auto const server_id = cloud_sc.server_id();
   auto const priority = cloud_sc.priority();
 
   auto it = server_pings_.find(server_id);
@@ -309,11 +307,7 @@ void PingCloudServers::ServerQuarantined(CloudServerConnection* cloud_sc) {
   if (cloud_sc == nullptr) {
     return;
   }
-  auto server = cloud_sc->server();
-  if (server == nullptr) {
-    return;
-  }
-  auto it = server_pings_.find(server->server_id);
+  auto it = server_pings_.find(cloud_sc->server_id());
   if (it != server_pings_.end()) {
     it->second->Stop();
   }
@@ -324,11 +318,7 @@ void PingCloudServers::ServerQuarantineReleased(
   if (cloud_sc == nullptr) {
     return;
   }
-  auto server = cloud_sc->server();
-  if (server == nullptr) {
-    return;
-  }
-  auto it = server_pings_.find(server->server_id);
+  auto it = server_pings_.find(cloud_sc->server_id());
   if (it != server_pings_.end()) {
     server_pings_.erase(it);
   }

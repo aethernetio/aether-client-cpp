@@ -33,7 +33,6 @@
 #  include "aether/ae_actions/ping.h"
 #  include "aether/client_connectivity_policy.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
-#  include "aether/server.h"
 
 namespace ae {
 class PingCloudServers {
@@ -94,8 +93,7 @@ class PingCloudServers {
  private:
   void ServersUpdate();
   void DispatchToServers();
-  void ReconcileServer(Ptr<Server> const& server,
-                       CloudServerConnection& cloud_sc);
+  void ReconcileServer(CloudServerConnection& cloud_sc);
   void ServerQuarantined(CloudServerConnection* cloud_sc);
   void ServerQuarantineReleased(CloudServerConnection* cloud_sc);
 

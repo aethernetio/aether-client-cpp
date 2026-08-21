@@ -18,33 +18,29 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
-#include <cstdint>
+#include <cstddef>
 #include <utility>
 
 #include "aether/api_protocol/api_protocol.h"
-#include "aether/server.h"
 #include "aether/server_connections/server_connection.h"
 
 #include "aether/cloud_connections/cloud_connections_tele.h"  // IWYU pragma: keep
 
 namespace ae {
-
-namespace {
-auto SelectedServersLog(
-    [[maybe_unused]] std::vector<CloudServerConnection*> const&
-        selected_servers) {
 #if DEBUG
-  std::vector<ServerId> server_ids;
-  server_ids.reserve(selected_servers.size());
-  for (auto* server_connection : selected_servers) {
-    server_ids.emplace_back(server_connection->server()->server_id);
+auto ServerList(std::vector<CloudServerConnection*> const& servers) {
+  std::vector<ServerId> sids;
+  sids.reserve(servers.size());
+  for (auto const* s : servers) {
+    sids.emplace_back(s->server_id());
   }
-  return server_ids;
-#else
-  return "!not a debug!";
-#endif
+  return sids;
 }
-}  // namespace
+#else
+std::string_view ServerList(std::vector<CloudServerConnection*> const&) {
+  return "!no debug!";
+}
+#endif
 
 static constexpr auto kCloudServerQuarantineTime =
     std::chrono::milliseconds{AE_CLOUD_SERVER_QUARANTINE_TIME_MS};
@@ -94,7 +90,9 @@ CloudServerConnections::CloudServerConnections(
       connection_factory_{std::move(connection_factory)},
       max_connections_{max_connections} {
   InitServerConnections();
-  ReconcileServers();
+  if (max_connections_ != 0) {
+    ReconcileServers();
+  }
 }
 
 CloudServerConnections::ServersUpdate::Subscriber
@@ -130,85 +128,90 @@ void CloudServerConnections::Restream() {
 
 void CloudServerConnections::InitServerConnections() {
   auto cloud = cloud_.Lock();
-  assert(cloud != nullptr);
-  server_connections_.clear();
-  server_connections_.reserve(cloud->servers().size());
-  for (auto& server : cloud->servers()) {
-    server_connections_.emplace_back(server.Load(), *connection_factory_);
+  assert(cloud && "cloud must outlive its connections");
+  assert(server_entries_.empty() &&
+         "server entries must be initialized only once");
+  server_entries_.reserve(cloud->servers().size());
+  for (auto const& cloud_server : cloud->servers()) {
+    server_entries_.emplace_back(cloud, cloud_server.first,
+                                 *connection_factory_);
   }
-  all_servers_.clear();
-  all_servers_.reserve(server_connections_.size());
-  for (auto& server : server_connections_) {
-    all_servers_.emplace_back(&server);
+  all_servers_.reserve(server_entries_.size());
+  for (auto& entry : server_entries_) {
+    all_servers_.emplace_back(&entry.connection);
   }
+  std::sort(all_servers_.begin(), all_servers_.end(),
+            [](auto const* left, auto const* right) {
+              return left->priority() < right->priority();
+            });
+  NormalizeServerPriorities();
 }
 
-void CloudServerConnections::SubscribeToServerState(
+bool CloudServerConnections::SubscribeToServerState(
     CloudServerConnection& server_connection) {
   auto* conn = server_connection.client_connection();
-  if (conn == nullptr) {
-    return;
+  if (conn == nullptr ||
+      conn->stream_info().link_state == LinkState::kLinkError) {
+    return false;
   }
 
   if (conn->stream_info().link_state == LinkState::kLinked) {
     AE_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
-                   server_connection.server()->server_id,
-                   server_connection.priority());
+                   server_connection.server_id(), server_connection.priority());
   }
 
-  auto const key = reinterpret_cast<std::uintptr_t>(&server_connection);
-  auto& subs = server_subs_[key] = {};
-  subs.state_sub = conn->stream_update_event().Subscribe(
+  auto& entry = ServerEntryFor(server_connection);
+  entry.state_sub = conn->stream_update_event().Subscribe(
       [this, sc{&server_connection}, conn]() {
         if (conn->stream_info().link_state == LinkState::kLinkError) {
-          QuarantineServer(*sc);
+          QuarantineAndReconcile(*sc);
         } else if (conn->stream_info().link_state == LinkState::kLinked) {
           AE_TELED_DEBUG("CLOUD_SERVER_LINKED server_id={} priority={}",
-                         sc->server()->server_id, sc->priority());
+                         sc->server_id(), sc->priority());
         }
       });
-  subs.error_sub = conn->server_connection().server_error_event().Subscribe(
-      [this, sc{&server_connection}]() { QuarantineServer(*sc); });
+  entry.error_sub = conn->server_connection().server_error_event().Subscribe(
+      [this, sc{&server_connection}]() { QuarantineAndReconcile(*sc); });
+  return true;
 }
 void CloudServerConnections::UnsubscribeFromServerState(
     CloudServerConnection& server_connection) {
-  auto const key = reinterpret_cast<std::uintptr_t>(&server_connection);
-  auto it = server_subs_.find(key);
-  if (it == server_subs_.end()) {
-    return;
-  }
-  it->second.state_sub.Reset();
-  it->second.error_sub.Reset();
-  if (!it->second.quarantine_sub) {
-    server_subs_.erase(it);
-  }
+  auto& entry = ServerEntryFor(server_connection);
+  entry.state_sub.Reset();
+  entry.error_sub.Reset();
 }
 
-void CloudServerConnections::QuarantineServer(
+bool CloudServerConnections::QuarantineServer(
     CloudServerConnection& server_connection) {
-  auto const key = reinterpret_cast<std::uintptr_t>(&server_connection);
   if (server_connection.quarantine()) {
-    return;
+    return false;
   }
   AE_TELED_DEBUG("CLOUD_SERVER_QUARANTINED server_id={} priority={}",
-                 server_connection.server()->server_id,
-                 server_connection.priority());
+                 server_connection.server_id(), server_connection.priority());
   UnsubscribeFromServerState(server_connection);
-  if (std::erase(selected_servers_, &server_connection) != 0) {
-    UpdateSelectedPriorities();
+  auto const was_selected =
+      std::erase(selected_servers_, &server_connection) != 0;
+  assert(!server_entries_.empty() &&
+         "quarantined server must belong to server connections");
+  AE_TELED_DEBUG("CLOUD_SERVER_UNSELECTED server_id={}, selected list={}",
+                 server_connection.server_id(), ServerList(selected_servers_));
+  auto const server_it =
+      std::find(all_servers_.begin(), all_servers_.end(), &server_connection);
+  assert(server_it != all_servers_.end() &&
+         "quarantined server must belong to all servers");
+  std::rotate(server_it, server_it + 1, all_servers_.end());
+  server_connection.SetQuarantine(true);
+  NormalizeServerPriorities();
+  if (was_selected) {
     servers_update_event_.Emit();
   }
-  server_connection.SetPriority(server_connections_.size());
-  server_connection.SetQuarantine(true);
   server_quarantined_event_.Emit(&server_connection);
 
   // One delayed release: Disconnect + clear quarantine + reconcile. Do not
   // Disconnect on the error-callback stack.
-  auto& quarantine_sub = server_subs_[key].quarantine_sub;
+  auto& quarantine_sub = ServerEntryFor(server_connection).quarantine_sub;
   quarantine_sub = ae_context_.scheduler().DelayedTask(
-      [this, sc{&server_connection}, key]() {
-        ReleaseQuarantinedServer(*sc, key);
-      },
+      [this, sc{&server_connection}]() { ReleaseQuarantinedServer(*sc); },
       kCloudServerQuarantineTime);
 
   if (!quarantine_sub) {
@@ -216,27 +219,38 @@ void CloudServerConnections::QuarantineServer(
     assert(false && "failed to schedule quarantine release");
   }
 
-  ScheduleReconcileServers();
+  return true;
+}
+
+void CloudServerConnections::QuarantineAndReconcile(
+    CloudServerConnection& server_connection) {
+  if (QuarantineServer(server_connection)) {
+    ScheduleReconcileServers();
+  }
 }
 
 void CloudServerConnections::ReleaseQuarantinedServer(
-    CloudServerConnection& server_connection, std::uintptr_t key) {
+    CloudServerConnection& server_connection) {
   if (!server_connection.quarantine()) {
     return;
   }
   AE_TELED_DEBUG("CLOUD_SERVER_RELEASED server_id={} priority={}",
-                 server_connection.server()->server_id,
-                 server_connection.priority());
-  server_quarantine_release_event_.Emit(&server_connection);
+                 server_connection.server_id(), server_connection.priority());
   server_connection.Disconnect();
+  auto const first_quarantined =
+      std::find_if(all_servers_.begin(), all_servers_.end(),
+                   [](auto const* server) { return server->quarantine(); });
+  auto const server_it =
+      std::find(all_servers_.begin(), all_servers_.end(), &server_connection);
+  assert(first_quarantined != all_servers_.end() &&
+         "released server must be in quarantined suffix");
+  assert(server_it != all_servers_.end() &&
+         "released server must belong to all servers");
+  std::rotate(first_quarantined, server_it, server_it + 1);
   server_connection.SetQuarantine(false);
-  auto it = server_subs_.find(key);
-  if (it != server_subs_.end()) {
-    it->second.quarantine_sub.Reset();
-    if (!it->second.state_sub && !it->second.error_sub) {
-      server_subs_.erase(it);
-    }
-  }
+  NormalizeServerPriorities();
+  server_quarantine_release_event_.Emit(&server_connection);
+  ServerEntryFor(server_connection).quarantine_sub.Reset();
 
   ScheduleReconcileServers();
 }
@@ -261,66 +275,60 @@ void CloudServerConnections::ReconcileServers() {
     return;
   }
   // Vacancy-fill model: keep the current selected list stable and only append
-  // new non-selected candidates to fill available slots.
-  auto candidates = ReplacementCandidates();
-  AE_TELED_DEBUG(
-      "Reconcile servers vacancy={} candidate_count={} selected_count={}",
-      max_connections_ - selected_servers_.size(), candidates.size(),
-      selected_servers_.size());
+  // usable servers to fill available slots. The selected prefix is skipped;
+  // failed candidates move to the quarantined suffix, so retry the same index.
+  AE_TELED_DEBUG("Reconcile servers vacancy={} selected_count={}",
+                 max_connections_ - selected_servers_.size(),
+                 selected_servers_.size());
   auto emplaced = false;
-  for (auto* candidate : candidates) {
-    if (selected_servers_.size() >= max_connections_) {
-      break;
-    }
-    candidate->SetPriority(selected_servers_.size());
-    AE_TELED_DEBUG("CLOUD_SERVER_RECONNECT_ATTEMPT server_id={} priority={}",
-                   candidate->server()->server_id, candidate->priority());
-    candidate->Connect();
-    auto* conn = candidate->client_connection();
-    if (conn == nullptr ||
-        conn->stream_info().link_state == LinkState::kLinkError) {
-      AE_TELED_DEBUG(
-          "Candidate unusable during reconcile server_id={} priority={}",
-          candidate->server()->server_id, candidate->priority());
-      QuarantineServer(*candidate);
+  auto candidate_index = selected_servers_.size();
+  while (candidate_index < all_servers_.size() &&
+         selected_servers_.size() < max_connections_) {
+    auto* candidate = all_servers_[candidate_index];
+    if (candidate->quarantine()) {
+      ++candidate_index;
       continue;
     }
+    AE_TELED_DEBUG("CLOUD_SERVER_CONNECT_ATTEMPT server_id={} priority={}",
+                   candidate->server_id(), candidate->priority());
+
+    if (!candidate->Connect() || !SubscribeToServerState(*candidate)) {
+      AE_TELED_DEBUG(
+          "Candidate unusable during reconcile server_id={} priority={}",
+          candidate->server_id(), candidate->priority());
+      QuarantineAndReconcile(*candidate);
+      continue;
+    }
+    assert(candidate_index == selected_servers_.size() &&
+           "candidate must follow selected prefix");
     selected_servers_.emplace_back(candidate);
-    SubscribeToServerState(*candidate);
+    candidate_index = selected_servers_.size();
     emplaced = true;
   }
   if (emplaced) {
-    AE_TELED_DEBUG("Selected servers reconciled selected_servers={}",
-                   SelectedServersLog(selected_servers_));
+    NormalizeServerPriorities();
+    AE_TELED_DEBUG("Selected servers reconciled selected_count={}, list={}",
+                   selected_servers_.size(), ServerList(selected_servers_));
     servers_update_event_.Emit();
   }
 }
 
-bool CloudServerConnections::IsSelected(CloudServerConnection* sc) const {
-  return std::find(selected_servers_.begin(), selected_servers_.end(), sc) !=
-         selected_servers_.end();
+CloudServerConnections::ServerEntry& CloudServerConnections::ServerEntryFor(
+    CloudServerConnection& server_connection) {
+  auto const entry_it =
+      std::find_if(server_entries_.begin(), server_entries_.end(),
+                   [&server_connection](ServerEntry const& entry) {
+                     return &entry.connection == &server_connection;
+                   });
+  assert(entry_it != server_entries_.end() &&
+         "server connection must belong to server entries");
+  return *entry_it;
 }
 
-void CloudServerConnections::UpdateSelectedPriorities() {
-  for (std::size_t i = 0; i < selected_servers_.size(); ++i) {
-    selected_servers_.at(i)->SetPriority(i);
+void CloudServerConnections::NormalizeServerPriorities() {
+  for (std::size_t i = 0; i < all_servers_.size(); ++i) {
+    all_servers_[i]->SetPriority(i);
   }
-}
-
-auto CloudServerConnections::ReplacementCandidates()
-    -> std::vector<CloudServerConnection*> {
-  std::vector<CloudServerConnection*> servers;
-  servers.reserve(server_connections_.size());
-  for (auto& s : server_connections_) {
-    if (!s.quarantine() && !IsSelected(&s)) {
-      servers.emplace_back(&s);
-    }
-  }
-  std::sort(servers.begin(), servers.end(),
-            [](auto const* left, auto const* right) {
-              return left->priority() < right->priority();
-            });
-  return servers;
 }
 
 WriteAction& CloudServerConnections::CallApi(ApiCall const& api_caller,
@@ -329,7 +337,10 @@ WriteAction& CloudServerConnections::CallApi(ApiCall const& api_caller,
   ForServers(
       [&](CloudServerConnection* sc) {
         auto* conn = sc->client_connection();
-        assert(conn != nullptr);
+        if (conn == nullptr) {
+          AE_TELED_WARNING("Skipping disconnected selected server");
+          return;
+        }
         swas.emplace_back(&conn->AuthorizedApiCall(
             SubApi<AuthorizedApi>{[&](auto& api) { api_caller(api, sc); }}));
       },

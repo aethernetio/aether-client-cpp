@@ -18,9 +18,9 @@
 
 #include <utility>
 
+#include "aether-miscpp/misc/override.h"
 #include "aether/aether.h"
 #include "aether/server.h"
-#include "aether-miscpp/misc/override.h"
 #include "aether/write_action/write_action.h"
 
 #include "aether/cloud_connections/cloud_connections_tele.h"
@@ -116,7 +116,7 @@ void CloudRequest::MakeRequest() {
 
 void CloudRequest::MakeServerRequest(CloudServerConnection* sc,
                                      ServerRequest& sr) {
-  AE_TELED_DEBUG("Make request to server {}", sc->server()->server_id);
+  AE_TELED_DEBUG("Make request to server {}", sc->server_id());
 
   // Clear previous subscriptions and timeout
   sr.state_subs.Reset();
@@ -162,8 +162,7 @@ void CloudRequest::MakeServerRequest(CloudServerConnection* sc,
   // Set per-server request timeout
   sr.timeout_sub = ae_context_.scheduler().DelayedTask(
       [this, sc]() {
-        AE_TELED_WARNING("Request timeout for server {}",
-                         sc->server()->server_id);
+        AE_TELED_WARNING("Request timeout for server {}", sc->server_id());
         OnServerRequestTimeout(sc);
       },
       request_timeout_);
@@ -183,8 +182,7 @@ void CloudRequest::OnChannelChanged(CloudServerConnection* sc) {
   }
   auto& sr = it->second;
   if (sr.retry_count >= max_retries_) {
-    AE_TELED_WARNING("Server {} retry budget exhausted",
-                     sc->server()->server_id);
+    AE_TELED_WARNING("Server {} retry budget exhausted", sc->server_id());
     sr.exhausted = true;
     EnqueueMakeRequest();
     return;
@@ -202,7 +200,7 @@ void CloudRequest::OnWriteFailed(CloudServerConnection* sc) {
   sr.retry_count++;
   if (sr.retry_count >= max_retries_) {
     AE_TELED_WARNING("Server {} retry budget exhausted on write failure",
-                     sc->server()->server_id);
+                     sc->server_id());
     sr.exhausted = true;
   }
   EnqueueMakeRequest();
@@ -216,7 +214,7 @@ void CloudRequest::OnServerRequestTimeout(CloudServerConnection* sc) {
   auto& sr = it->second;
   if (sr.retry_count >= max_retries_) {
     AE_TELED_WARNING("Server {} retry budget exhausted on timeout",
-                     sc->server()->server_id);
+                     sc->server_id());
     sr.exhausted = true;
     EnqueueMakeRequest();
     return;

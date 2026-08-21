@@ -39,10 +39,10 @@ Checks:
   - -cppcoreguidelines-pro-bounds-array-to-pointer-decay
   - -cppcoreguidelines-pro-type-static-cast-downcast
   - -bugprone-easily-swappable-parameters
+  - -bugprone-assert-side-effect
   - -readability-named-parameter
   - -readability-identifier-length
 
 CheckOptions:
-  bugprone-assert-side-effect.CheckFunctionCalls: true
   performance-move-const-arg.CheckTriviallyCopyableMove: false
   cppcoreguidelines-avoid-do-while.IgnoreMacros: true

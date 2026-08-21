@@ -18,13 +18,13 @@
 
 #include <utility>
 
-#include "aether/obj/obj_ptr.h"
 #include "aether/client.h"
-#include "aether/server.h"
+#include "aether/obj/obj_ptr.h"
 #include "aether/registration_cloud.h"
+#include "aether/server.h"
 
-#include "aether/work_cloud.h"
 #include "aether/registration/registration.h"
+#include "aether/work_cloud.h"
 
 #include "aether/aether_tele.h"
 
@@ -75,9 +75,8 @@ Client::ptr Aether::CreateClient(ClientConfig const& config,
 
   auto client_cloud = WorkCloud::ptr::Create(domain, config.uid);
   [[maybe_unused]] auto res =  // ~(^.^)~
-      client_cloud.WithLoaded([&](auto const& cloud) {
-        cloud->SetServers(std::move(servers));
-      }) &&  // ~(^.^)~
+      client_cloud.WithLoaded(
+          [&](auto const& cloud) { cloud->SetServers(servers); }) &&  // ~(^.^)~
       client.WithLoaded([&](auto const& client) {
         client->SetConfig(client_id, config.parent_uid, config.uid,
                           config.ephemeral_uid, config.master_key,
@@ -135,7 +134,9 @@ Client::ptr Aether::FindClient(std::string const& client_id) {
 
 void Aether::StoreClient(Client::ptr client) {
   assert(client.is_valid() && "Client is invalid");
-  clients_[client.Load()->id()] = std::move(client);
+  auto const loaded_client = client.Load();
+  assert(loaded_client && "Client failed to load");
+  clients_[loaded_client->id()] = std::move(client);
 }
 
 SelectClientAction* Aether::FindSelectClientAction(

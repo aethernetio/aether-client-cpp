@@ -16,15 +16,25 @@
 
 #include <unity.h>
 
+#include "aether/config.h"
+
 void setUp() {}
 void tearDown() {}
 
 extern int run_test_server_connection_recovery();
 extern int run_test_cloud_quarantine_loop();
+extern int run_test_cloud_persistence();
+#if AE_SUPPORT_REGISTRATION
+extern int run_test_registration_root_server_select();
+#endif  // AE_SUPPORT_REGISTRATION
 
 int main() {
   int res = 0;
   res += run_test_server_connection_recovery();
   res += run_test_cloud_quarantine_loop();
+  res += run_test_cloud_persistence();
+#if AE_SUPPORT_REGISTRATION
+  res += run_test_registration_root_server_select();
+#endif  // AE_SUPPORT_REGISTRATION
   return res;
 }
