@@ -17,18 +17,32 @@
 #include "aether/cloud_connections/ping_cloud_servers.h"
 
 #include <cassert>
+#include <chrono>
+#include <cstdint>
 #include <type_traits>
 #include <variant>
 
 #if AE_ENABLE_PING
 
 #  include "aether/channels/channel.h"
+#  include "aether/cloud_connections/ping_bench_hooks.h"
 #  include "aether/executors/executors.h"
 #  include "aether/server.h"
 
 #  include "aether/cloud_connections/cloud_connections_tele.h"
 
 namespace ae {
+namespace {
+
+inline std::int64_t DurationToMs(Duration d) noexcept {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
+}
+
+inline Duration MsToDuration(std::chrono::milliseconds ms) noexcept {
+  return std::chrono::duration_cast<Duration>(ms);
+}
+
+}  // namespace
 
 PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
                                          ClientConnectivityPolicy& policy,
@@ -120,8 +134,32 @@ auto PingCloudServers::ServerPing::MakePing() {
             return ex::set_error(std::move(ctx.receiver), 2);
           }
 
-          ping_.emplace(ae_context_, *cloud_sc_, timing_conf_.interval,
-                        timing_conf_.rx_window, c->ResponseTimeout());
+          effective_actual_ = timing_conf_.interval;
+          effective_announced_ = timing_conf_.interval;
+          effective_rx_window_ = timing_conf_.rx_window;
+          if (auto override = GetPingTimingOverride()) {
+            effective_actual_ = MsToDuration(override->actual_interval);
+            effective_announced_ = MsToDuration(override->announced_next);
+            effective_rx_window_ = MsToDuration(override->rx_window);
+          }
+          ++cycle_index_;
+
+          auto const server_id = cloud_sc_->server()->server_id;
+          EmitPingBenchEvent(PingBenchEvent{
+              PingBenchEventKind::kPingScheduled,
+              0,
+              server_id,
+              priority_,
+              DurationToMs(effective_actual_),
+              DurationToMs(effective_announced_),
+              DurationToMs(effective_rx_window_),
+              cycle_index_,
+          });
+
+          // Announced next is what ping()/set_next_read_delay report to the
+          // server; actual interval drives only local next_ping_time_.
+          ping_.emplace(ae_context_, *cloud_sc_, effective_announced_,
+                        effective_rx_window_, c->ResponseTimeout());
 
           ping_blocker_ = policy_->AcquireSuspendBlock();
           ping_->result_event().Subscribe(
@@ -132,12 +170,32 @@ auto PingCloudServers::ServerPing::MakePing() {
 
           // run ping request and open rx window
           auto const current_time = Now();
+          EmitPingBenchEvent(PingBenchEvent{
+              PingBenchEventKind::kPingWriteBegin,
+              0,
+              server_id,
+              priority_,
+              DurationToMs(effective_actual_),
+              DurationToMs(effective_announced_),
+              DurationToMs(effective_rx_window_),
+              cycle_index_,
+          });
           ping_->Start(current_time);
           OpenRxWindow(current_time);
-          next_ping_time_ = current_time + timing_conf_.interval;
+          next_ping_time_ = current_time + effective_actual_;
           policy_->ReportNextServiceTime(priority_, next_ping_time_);
+          EmitPingBenchEvent(PingBenchEvent{
+              PingBenchEventKind::kNextPingScheduled,
+              0,
+              server_id,
+              priority_,
+              DurationToMs(effective_actual_),
+              DurationToMs(effective_announced_),
+              DurationToMs(effective_rx_window_),
+              cycle_index_,
+          });
           AE_TELED_DEBUG("Next ping time for priority {} at {} after {}",
-                         priority_, next_ping_time_, timing_conf_.interval);
+                         priority_, next_ping_time_, effective_actual_);
 
           return ex::set_value(std::move(ctx.receiver));
         });
@@ -202,6 +260,16 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
       [this, c](auto const& value) {
         using T = std::decay_t<decltype(value)>;
         if constexpr (std::is_same_v<T, Ok<Duration>>) {
+          EmitPingBenchEvent(PingBenchEvent{
+              PingBenchEventKind::kPingServerAck,
+              0,
+              cloud_sc_->server()->server_id,
+              priority_,
+              DurationToMs(effective_actual_),
+              DurationToMs(effective_announced_),
+              DurationToMs(effective_rx_window_),
+              cycle_index_,
+          });
           c->channel_statistics().AddResponseTime(value.value);
         } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
           AE_TELED_DEBUG("Got late ping duration");
@@ -215,11 +283,34 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
 }
 
 void PingCloudServers::ServerPing::OpenRxWindow(TimePoint sent_time) {
-  // keep rx window suspend block for timing_.rx_window time
+  // keep rx window suspend block for effective_rx_window_ time
   rx_window_blocker_ = policy_->AcquireSuspendBlock();
+  auto const server_id = cloud_sc_->server()->server_id;
+  EmitPingBenchEvent(PingBenchEvent{
+      PingBenchEventKind::kRxWindowOpen,
+      0,
+      server_id,
+      priority_,
+      DurationToMs(effective_actual_),
+      DurationToMs(effective_announced_),
+      DurationToMs(effective_rx_window_),
+      cycle_index_,
+  });
   rx_window_sub_ = ae_context_.scheduler().DelayedTask(
-      [this]() { rx_window_blocker_.Reset(); },
-      sent_time + timing_conf_.rx_window);
+      [this, server_id]() {
+        EmitPingBenchEvent(PingBenchEvent{
+            PingBenchEventKind::kRxWindowClose,
+            0,
+            server_id,
+            priority_,
+            DurationToMs(effective_actual_),
+            DurationToMs(effective_announced_),
+            DurationToMs(effective_rx_window_),
+            cycle_index_,
+        });
+        rx_window_blocker_.Reset();
+      },
+      sent_time + effective_rx_window_);
 }
 
 void PingCloudServers::ServerPing::ScheduleRestream() {

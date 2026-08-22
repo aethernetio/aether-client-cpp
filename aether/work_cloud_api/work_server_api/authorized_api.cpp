@@ -28,5 +28,7 @@ AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context)
       send_telemetry{protocol_context},
       set_next_read_delay{protocol_context},
       get_uap{protocol_context},
-      report_applied_config{protocol_context} {}
+      pull_messages{protocol_context},
+      report_applied_config{protocol_context},
+      send_message_with_result{protocol_context} {}
 }  // namespace ae

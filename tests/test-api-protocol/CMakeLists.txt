@@ -18,6 +18,9 @@ list(APPEND test_srcs
   main.cpp
   test-method-call.cpp
   test-peer-uap-schedule.cpp
+  test-delivery-window-bench.cpp
+  ${ROOT_DIR}/examples/benches/aether_delivery_window_bench/common/bench_message.cpp
+  ${ROOT_DIR}/examples/benches/aether_delivery_window_bench/common/bench_ipc.cpp
 )
 
 if(NOT CM_PLATFORM)
@@ -28,6 +31,9 @@ if(NOT CM_PLATFORM)
   target_sources(${PROJECT_NAME} PRIVATE ${test_srcs})
   # for aether
   target_include_directories(${PROJECT_NAME} PRIVATE ${ROOT_DIR})
+  target_include_directories(${PROJECT_NAME} PRIVATE
+    ${ROOT_DIR}/examples/benches/aether_delivery_window_bench
+    ${ROOT_DIR}/examples/benches/aether_delivery_window_bench/common)
   target_link_libraries(${PROJECT_NAME} PRIVATE aether unity gcem)
 
   add_test(NAME ${PROJECT_NAME} COMMAND $<TARGET_FILE:${PROJECT_NAME}>)

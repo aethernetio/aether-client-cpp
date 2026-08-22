@@ -386,6 +386,7 @@ if(AE_BUILD_EXAMPLES)
   add_subdirectory(examples/capi/oddity)
   add_subdirectory(examples/benches/send_message_delays)
   add_subdirectory(examples/benches/send_messages_bandwidth)
+  add_subdirectory(examples/benches/aether_delivery_window_bench)
 endif()
 
 if(AE_BUILD_TESTS)

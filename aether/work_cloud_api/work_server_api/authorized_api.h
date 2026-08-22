@@ -49,7 +49,10 @@ class AuthorizedApi : public ApiClass {
   Method<33, void(std::int64_t delay_ms)> set_next_read_delay;
   Method<34, ApiPromise<Uap>(Uid uid)> get_uap;
 
+  // Existing server wire methods (ids match production server).
+  Method<36, void()> pull_messages;
   Method<38, void(std::vector<AppliedConfig> configs)> report_applied_config;
+  Method<39, ApiPromise<void>(AeMessage message)> send_message_with_result;
 };
 }  // namespace ae
 

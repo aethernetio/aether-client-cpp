@@ -33,6 +33,7 @@
 #  include "aether/ae_actions/ping.h"
 #  include "aether/client_connectivity_policy.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
+#  include "aether/cloud_connections/ping_bench_hooks.h"
 #  include "aether/server.h"
 
 namespace ae {
@@ -83,6 +84,10 @@ class PingCloudServers {
     ClientConnectivityPolicy::SuspendBlocker rx_window_blocker_;
     ClientConnectivityPolicy::SuspendBlocker restream_blocker_;
     TimePoint next_ping_time_;
+    Duration effective_actual_{};
+    Duration effective_announced_{};
+    Duration effective_rx_window_{};
+    std::uint32_t cycle_index_{0};
   };
 
  public:
