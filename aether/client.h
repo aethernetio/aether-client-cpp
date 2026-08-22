@@ -40,6 +40,7 @@
 namespace ae {
 class Aether;
 class Telemetry;
+class PrepareForShutdown;
 
 class Client : public Obj {
   AE_OBJECT(Client, Obj, 0)
@@ -63,6 +64,9 @@ class Client : public Obj {
   ClientCloudManager::ptr const& cloud_manager() const;
   ServerConnectionManager& server_connection_manager();
   CloudServerConnections& cloud_connection();
+  bool has_cloud_connection() const noexcept {
+    return static_cast<bool>(cloud_connection_);
+  }
   ClientConnectivityPolicy::ptr const& connectivity_policy();
   P2pMessageStreamManager& message_stream_manager();
 
@@ -72,6 +76,14 @@ class Client : public Obj {
   // Best-effort: setNextReadDelay(0) on every currently selected own server
   // that receives ping (connectivity_policy.rx_targets(), typically All).
   WriteAction& AnnounceNextPingUnknown();
+
+  // Stop PingCloudServers so no further positive setNextReadDelay can be sent.
+  // Returns true if a ping scheduler existed and was stopped.
+  bool StopPingScheduler();
+
+  // Ordered shutdown: STOP_PING -> setNextReadDelay(0) -> write done|fail|500ms.
+  // Caller must keep pumping Aether Update/WaitUntil until the action finishes.
+  std::unique_ptr<PrepareForShutdown> StartPrepareForShutdown();
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_id_, parent_uid_, uid_,
                              ephemeral_uid_, master_key_, cloud_, server_keys_,
@@ -99,6 +111,7 @@ class Client : public Obj {
 
 #if AE_ENABLE_PING
   std::unique_ptr<PingCloudServers> ping_cloud_servers_;
+  bool ping_scheduler_stopped_{false};
 #endif
 #if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
   std::unique_ptr<Telemetry> telemetry_;

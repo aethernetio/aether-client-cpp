@@ -260,7 +260,24 @@ PingCloudServers::PingCloudServers(
 
 PingCloudServers::~PingCloudServers() { task_sub_.Reset(); }
 
+void PingCloudServers::Stop() {
+  if (stopped_) {
+    return;
+  }
+  stopped_ = true;
+  task_sub_.Reset();
+  for (auto& [id, ping] : server_pings_) {
+    if (ping) {
+      ping->Stop();
+    }
+  }
+  server_pings_.clear();
+}
+
 void PingCloudServers::ServersUpdate() {
+  if (stopped_) {
+    return;
+  }
   AE_TELED_DEBUG("Servers update");
   if (!task_sub_) {
     auto blocker = policy_->AcquireSuspendBlock();
@@ -273,6 +290,9 @@ void PingCloudServers::ServersUpdate() {
 }
 
 void PingCloudServers::DispatchToServers() {
+  if (stopped_) {
+    return;
+  }
   cloud_server_connections_->ForServers(
       [this](CloudServerConnection* cloud_sc) {
         if (cloud_sc == nullptr) {
@@ -289,6 +309,9 @@ void PingCloudServers::DispatchToServers() {
 
 void PingCloudServers::ReconcileServer(Ptr<Server> const& server,
                                        CloudServerConnection& cloud_sc) {
+  if (stopped_) {
+    return;
+  }
   auto const server_id = server->server_id;
   auto const priority = cloud_sc.priority();
 

@@ -66,6 +66,10 @@ class CloudRequest final : public Action {
 
   void Succeeded();
   void Failed();
+  // Listener-side attempt failure: retry / exhaust this server without ending
+  // the whole CloudRequest. Terminal failure still goes through Failed() or
+  // exhausting all servers.
+  void FailAttempt(CloudServerConnection* sc);
 
   ResultEvent::Subscriber result_event();
 

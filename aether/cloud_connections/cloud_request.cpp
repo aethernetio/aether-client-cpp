@@ -71,6 +71,23 @@ void CloudRequest::Failed() {
   result_event_.Emit(false);
 }
 
+void CloudRequest::FailAttempt(CloudServerConnection* sc) {
+  if (sc == nullptr) {
+    // Malformed / no server context: treat as write failure on first entry.
+    for (auto& [ptr, sr] : server_requests_) {
+      if (!sr.exhausted) {
+        sc = ptr;
+        break;
+      }
+    }
+  }
+  if (sc == nullptr) {
+    Failed();
+    return;
+  }
+  OnWriteFailed(sc);
+}
+
 CloudRequest::ResultEvent::Subscriber CloudRequest::result_event() {
   return EventSubscriber{result_event_};
 }

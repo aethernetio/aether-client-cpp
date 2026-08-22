@@ -18,6 +18,7 @@
 
 #include <utility>
 
+#include "aether/ae_actions/prepare_for_shutdown.h"
 #include "aether/ae_actions/telemetry.h"
 
 #include "aether/aether.h"
@@ -73,9 +74,11 @@ CloudServerConnections& Client::cloud_connection() {
         AE_CLOUD_MAX_SERVER_CONNECTIONS);
 
 #if AE_ENABLE_PING
-    ping_cloud_servers_ = std::make_unique<PingCloudServers>(
-        *aether_.Load().as<Aether>(), *cloud_connection_,
-        *connectivity_policy().Load());
+    if (!ping_scheduler_stopped_) {
+      ping_cloud_servers_ = std::make_unique<PingCloudServers>(
+          *aether_.Load().as<Aether>(), *cloud_connection_,
+          *connectivity_policy().Load());
+    }
 #endif
 
 #if TELEMETRY_ENABLED
@@ -129,6 +132,25 @@ WriteAction& Client::AnnounceNextPingUnknown() {
         auth_api->set_next_read_delay(0);
       }},
       policy);
+}
+
+bool Client::StopPingScheduler() {
+#if AE_ENABLE_PING
+  ping_scheduler_stopped_ = true;
+  if (ping_cloud_servers_) {
+    ping_cloud_servers_->Stop();
+    ping_cloud_servers_.reset();
+    return true;
+  }
+  return false;
+#else
+  return false;
+#endif
+}
+
+std::unique_ptr<PrepareForShutdown> Client::StartPrepareForShutdown() {
+  return std::make_unique<PrepareForShutdown>(*aether_.Load().as<Aether>(),
+                                              *this);
 }
 
 void Client::SendTelemetry() {

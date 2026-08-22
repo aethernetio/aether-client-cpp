@@ -91,6 +91,10 @@ class PingCloudServers {
                    ClientConnectivityPolicy& policy);
   ~PingCloudServers();
 
+  // Cancel scheduled pings and refuse to create new ServerPing instances.
+  void Stop();
+  bool stopped() const noexcept { return stopped_; }
+
  private:
   void ServersUpdate();
   void DispatchToServers();
@@ -109,6 +113,7 @@ class PingCloudServers {
   TaskSubscription task_sub_;
 
   std::map<ServerId, std::unique_ptr<ServerPing>> server_pings_;
+  bool stopped_{false};
 };
 }  // namespace ae
 

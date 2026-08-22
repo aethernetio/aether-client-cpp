@@ -190,8 +190,7 @@ void test_RemainingAndSteadyDeadline() {
       MakePeerPingSchedule(server_now, last, delta, ServerId{7}, now);
   TEST_ASSERT_TRUE(schedule.local_deadline.has_value());
   auto const expected =
-      now + std::chrono::milliseconds{4'500} +
-      std::chrono::milliseconds{kPeerPingScheduleGraceMs};
+      SafeSteadyDeadline(now, 4'500, kPeerPingScheduleGraceMs);
   TEST_ASSERT_TRUE(schedule.local_deadline.value() == expected);
   TEST_ASSERT_EQUAL_INT64(server_now, schedule.server_now_ms);
   TEST_ASSERT_EQUAL_INT64(last, schedule.last_ping_server_ms);
@@ -200,17 +199,12 @@ void test_RemainingAndSteadyDeadline() {
 }
 
 void test_ClockSkewDoesNotChangeSteadyDeadline() {
+  // Deadline is derived only from server_now + UAP + steady_now.
+  // Injected wall-clock values must not affect it (they are unused by design).
   auto const last = std::int64_t{2'000'000};
   auto const delta = std::int64_t{10'000};
   auto const server_now = std::int64_t{2'002'000};
   auto const now = std::chrono::steady_clock::now();
-
-  auto const shifted_plus =
-      std::chrono::system_clock::now() + std::chrono::minutes{10};
-  auto const shifted_minus =
-      std::chrono::system_clock::now() - std::chrono::minutes{10};
-  (void)shifted_plus;
-  (void)shifted_minus;
 
   auto const a = MakePeerPingSchedule(server_now, last, delta, ServerId{1}, now);
   auto const b = MakePeerPingSchedule(server_now, last, delta, ServerId{1}, now);
@@ -218,6 +212,25 @@ void test_ClockSkewDoesNotChangeSteadyDeadline() {
   TEST_ASSERT_TRUE(b.local_deadline.has_value());
   TEST_ASSERT_TRUE(a.local_deadline.value() == b.local_deadline.value());
   TEST_ASSERT_EQUAL_INT64(a.server_now_ms, b.server_now_ms);
+  auto const expected =
+      SafeSteadyDeadline(now, /*remaining*/ 8'000, kPeerPingScheduleGraceMs);
+  TEST_ASSERT_TRUE(a.local_deadline.value() == expected);
+}
+
+void test_SafeSteadyDeadlineSaturation() {
+  auto const max_tp = std::chrono::steady_clock::time_point::max();
+  auto const near_max = max_tp - std::chrono::milliseconds{10};
+  auto const saturated =
+      SafeSteadyDeadline(near_max, /*remaining*/ 1'000'000'000,
+                         kPeerPingScheduleGraceMs);
+  TEST_ASSERT_TRUE(saturated == max_tp);
+
+  auto const now = std::chrono::steady_clock::now();
+  auto const neg = SafeSteadyDeadline(now, -5, -10);
+  TEST_ASSERT_TRUE(neg == now);
+
+  auto const normal = SafeSteadyDeadline(now, 100, 50);
+  TEST_ASSERT_TRUE(normal == now + std::chrono::milliseconds{150});
 }
 
 void test_ZeroDeltaHasNoDeadline() {
@@ -288,6 +301,7 @@ int test_peer_uap_schedule() {
   RUN_TEST(ae::test_peer_uap_schedule::test_QueryPacksGetTimeUtcAndGetUap);
   RUN_TEST(ae::test_peer_uap_schedule::test_RemainingAndSteadyDeadline);
   RUN_TEST(ae::test_peer_uap_schedule::test_ClockSkewDoesNotChangeSteadyDeadline);
+  RUN_TEST(ae::test_peer_uap_schedule::test_SafeSteadyDeadlineSaturation);
   RUN_TEST(ae::test_peer_uap_schedule::test_ZeroDeltaHasNoDeadline);
   RUN_TEST(ae::test_peer_uap_schedule::test_NegativeDeltaHasNoDeadline);
   RUN_TEST(ae::test_peer_uap_schedule::test_SaturationAndOverflow);
