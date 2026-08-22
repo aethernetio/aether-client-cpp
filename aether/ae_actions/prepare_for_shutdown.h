@@ -51,6 +51,7 @@ class PrepareForShutdown final : public Action {
 
   ResultEvent::Subscriber result_event() noexcept;
   PrepareForShutdownStatus status() const noexcept { return status_; }
+  bool is_finished() const noexcept { return finished_; }
   bool ping_stopped_before_zero() const noexcept {
     return ping_stopped_before_zero_;
   }
