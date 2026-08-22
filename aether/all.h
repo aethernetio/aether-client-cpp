@@ -86,6 +86,7 @@
 #include "aether/adapters/wifi_adapter.h"
 
 #include "aether/ae_actions/check_access_for_send_message.h"
+#include "aether/ae_actions/query_peer_online_schedule.h"
 #include "aether/ae_actions/get_servers.h"
 #include "aether/ae_actions/ping.h"
 #include "aether/ae_actions/select_client.h"

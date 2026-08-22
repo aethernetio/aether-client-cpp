@@ -26,16 +26,32 @@
 #include "aether/work_cloud_api/ae_message.h"
 #include "aether/work_cloud_api/telemetric.h"
 #include "aether/work_cloud_api/cloud_configs.h"
+#include "aether/work_cloud_api/work_server_api/server_api_by_uid.h"
 
 namespace ae {
 
 class AuthorizedApi : public ApiClass {
+  class ClientProc {
+   public:
+    explicit ClientProc(AuthorizedApi& parent) : parent_{&parent} {}
+
+    auto operator()(Uid uid, SubApi<ServerApiByUid> const& sub_api) {
+      return DefaultArgProc{}(uid, sub_api(parent_->server_api_by_uid_));
+    }
+
+   private:
+    AuthorizedApi* parent_;
+  };
+
  public:
   explicit AuthorizedApi(ProtocolContext& protocol_context);
 
   Method<4, ApiPromise<void>(std::uint64_t next_connect_ms_duration,
                              std::uint64_t rx_window_ms)>
       ping;
+  // ADSL AuthorizedApi.client id=5: uid + ClientApiStream(ServerApiByUid).
+  // Packed as nested SubApi bytes, matching existing C++ child-API pattern.
+  Method<5, void(Uid uid, SubApi<ServerApiByUid> stream), ClientProc> client;
   Method<6, void(AeMessage message)> send_message;
   Method<7, void(std::vector<AeMessage> messages)> send_messages;
   Method<11, ApiPromise<void>(Uid uid)> check_access_for_send_message;
@@ -45,6 +61,11 @@ class AuthorizedApi : public ApiClass {
   Method<18, void(Telemetric telemetric)> send_telemetry;
 
   Method<38, void(std::vector<AppliedConfig> configs)> report_applied_config;
+
+  ServerApiByUid& server_api_by_uid() { return server_api_by_uid_; }
+
+ private:
+  ServerApiByUid server_api_by_uid_;
 };
 }  // namespace ae
 

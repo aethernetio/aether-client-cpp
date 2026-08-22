@@ -20,10 +20,12 @@ void setUp() {}
 void tearDown() {}
 
 extern int test_method_call();
+extern int test_peer_online_schedule();
 
 int main() {
   int res = 0;
   res += test_method_call();
+  res += test_peer_online_schedule();
 
   return res;
 }

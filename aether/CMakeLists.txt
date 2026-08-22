@@ -70,6 +70,7 @@ list(APPEND aether_srcs
             "ae_actions/get_servers.cpp"
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
+            "ae_actions/query_peer_online_schedule.cpp"
             "ae_actions/telemetry.cpp"
             "ae_actions/select_client.cpp")
 
@@ -185,6 +186,7 @@ list(APPEND aether_srcs
 list(APPEND aether_srcs
             "work_cloud_api/work_server_api/login_api.cpp"
             "work_cloud_api/work_server_api/authorized_api.cpp"
+            "work_cloud_api/work_server_api/server_api_by_uid.cpp"
             "work_cloud_api/client_api/client_api_unsafe.cpp"
             "work_cloud_api/client_api/client_api_safe.cpp")
 

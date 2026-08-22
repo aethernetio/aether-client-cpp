@@ -20,11 +20,13 @@ namespace ae {
 AuthorizedApi::AuthorizedApi(ProtocolContext& protocol_context)
     : ApiClass{protocol_context},
       ping{protocol_context},
+      client{protocol_context, ClientProc{*this}},
       send_message{protocol_context},
       send_messages{protocol_context},
       check_access_for_send_message{protocol_context},
       resolver_servers{protocol_context},
       resolver_clouds{protocol_context},
       send_telemetry{protocol_context},
-      report_applied_config{protocol_context} {}
+      report_applied_config{protocol_context},
+      server_api_by_uid_{protocol_context} {}
 }  // namespace ae
