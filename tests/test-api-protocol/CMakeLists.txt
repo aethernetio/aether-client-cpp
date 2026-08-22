@@ -17,6 +17,7 @@ cmake_minimum_required( VERSION 3.16 )
 list(APPEND test_srcs
   main.cpp
   test-method-call.cpp
+  test-peer-uap-schedule.cpp
 )
 
 if(NOT CM_PLATFORM)

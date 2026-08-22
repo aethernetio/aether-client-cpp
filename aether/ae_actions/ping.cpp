@@ -91,7 +91,7 @@ void Ping::Start(TimePoint current_time) {
 
   auto& write_action = cc->AuthorizedApiCall(
       SubApi{[this, current_time](ApiContext<AuthorizedApi>& auth_api) {
-        auto next_ping_hint_ms = static_cast<std::uint64_t>(
+        auto next_ping_interval_ms = static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 next_ping_hint_)
                 .count());
@@ -99,7 +99,13 @@ void Ping::Start(TimePoint current_time) {
             std::chrono::duration_cast<std::chrono::milliseconds>(rx_window_)
                 .count());
 
-        auto pong_promise = auth_api->ping(next_ping_hint_ms, rx_window_ms);
+        // Server ping() stores nextReadDelay = rxWindowMs. Overwrite it in
+        // the same ordered AuthorizedApi write with the next ping interval
+        // so getUap() reports lastReadTimestamp + promised ping interval.
+        auto pong_promise =
+            auth_api->ping(next_ping_interval_ms, rx_window_ms);
+        auth_api->set_next_read_delay(
+            static_cast<std::int64_t>(next_ping_interval_ms));
         auto req_id = pong_promise.request_id();
 
         AE_TELE_DEBUG(kPingSend,

@@ -35,6 +35,7 @@
 #include "aether/connection_manager/server_connection_manager.h"
 
 #include "aether/client_messages/p2p_message_stream_manager.h"
+#include "aether/write_action/write_action.h"
 
 namespace ae {
 class Aether;
@@ -67,6 +68,10 @@ class Client : public Obj {
 
   void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
                  Uid ephemeral_uid, Key master_key, Cloud::ptr c);
+
+  // Best-effort: setNextReadDelay(0) on every currently selected own server
+  // that receives ping (connectivity_policy.rx_targets(), typically All).
+  WriteAction& AnnounceNextPingUnknown();
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_id_, parent_uid_, uid_,
                              ephemeral_uid_, master_key_, cloud_, server_keys_,

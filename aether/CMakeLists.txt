@@ -70,6 +70,7 @@ list(APPEND aether_srcs
             "ae_actions/get_servers.cpp"
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
+            "ae_actions/query_peer_ping_schedule.cpp"
             "ae_actions/telemetry.cpp"
             "ae_actions/select_client.cpp")
 

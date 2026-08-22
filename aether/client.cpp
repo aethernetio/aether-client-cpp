@@ -21,6 +21,8 @@
 #include "aether/ae_actions/telemetry.h"
 
 #include "aether/aether.h"
+#include "aether/cloud_connections/cloud_callbacks.h"
+#include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 namespace ae {
 
@@ -118,6 +120,15 @@ void Client::SetConfig(std::string client_id, Uid parent_uid, Uid uid,
   client_cloud_manager_ = ClientCloudManager::ptr::Create(
       CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault),
       Aether::ptr{aether_}, Client::ptr::MakeFromThis(this));
+}
+
+WriteAction& Client::AnnounceNextPingUnknown() {
+  auto const& policy = connectivity_policy().Load()->rx_targets();
+  return cloud_connection().CallApi(
+      ApiCall{[](ApiContext<AuthorizedApi>& auth_api, auto*) {
+        auth_api->set_next_read_delay(0);
+      }},
+      policy);
 }
 
 void Client::SendTelemetry() {

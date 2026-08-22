@@ -17,6 +17,7 @@
 #ifndef AETHER_WORK_CLOUD_API_WORK_SERVER_API_AUTHORIZED_API_H_
 #define AETHER_WORK_CLOUD_API_WORK_SERVER_API_AUTHORIZED_API_H_
 
+#include <cstdint>
 #include <vector>
 
 #include "aether/types/uid.h"
@@ -24,8 +25,9 @@
 #include "aether/api_protocol/api_protocol.h"
 
 #include "aether/work_cloud_api/ae_message.h"
-#include "aether/work_cloud_api/telemetric.h"
 #include "aether/work_cloud_api/cloud_configs.h"
+#include "aether/work_cloud_api/telemetric.h"
+#include "aether/work_cloud_api/uap.h"
 
 namespace ae {
 
@@ -43,6 +45,9 @@ class AuthorizedApi : public ApiClass {
   Method<13, void(std::vector<Uid> uids)> resolver_clouds;
 
   Method<18, void(Telemetric telemetric)> send_telemetry;
+
+  Method<33, void(std::int64_t delay_ms)> set_next_read_delay;
+  Method<34, ApiPromise<Uap>(Uid uid)> get_uap;
 
   Method<38, void(std::vector<AppliedConfig> configs)> report_applied_config;
 };
