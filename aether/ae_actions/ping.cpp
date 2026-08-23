@@ -25,6 +25,7 @@
 #  include "aether/server.h"
 
 #  include "aether/cloud_connections/cloud_server_connection.h"
+#  include "aether/cloud_connections/ping_schedule_guard.h"
 #  include "aether/work_cloud_api/work_server_api/authorized_api.h"
 
 #  include "aether/ae_actions/ae_actions_tele.h"
@@ -91,13 +92,8 @@ void Ping::Start(TimePoint current_time) {
 
   auto& write_action = cc->AuthorizedApiCall(
       SubApi{[this, current_time](ApiContext<AuthorizedApi>& auth_api) {
-        auto next_ping_hint_ms = static_cast<std::int64_t>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                next_ping_hint_)
-                .count());
-        auto rx_window_ms = static_cast<std::int64_t>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(rx_window_)
-                .count());
+        auto next_ping_hint_ms = DurationToSaturatedInt64Ms(next_ping_hint_);
+        auto rx_window_ms = DurationToSaturatedInt64Ms(rx_window_);
 
         // ping() is the full schedule contract: nextConnectMsDuration and
         // rxWindowMs. Do not follow with set_next_read_delay(interval).

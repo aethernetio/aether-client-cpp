@@ -416,6 +416,30 @@ void test_RetryRaceAndPostSuccessNoRemake() {
   TEST_ASSERT_TRUE(done->state == PeerScheduleState::kExpected);
 }
 
+void test_QuarantinedConfiguredServerMakesSnapshotIncomplete() {
+  PeerTimingQueryState quarantined;
+  quarantined.Begin({20, 21}, true);
+  auto const q20 = quarantined.RegisterSend(20, Tp(0), Ms(40));
+  auto const q21 = quarantined.RegisterSend(21, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(quarantined.ApplyTiming(20, q20, ClientTiming{-1000, -5}));
+  TEST_ASSERT_TRUE(quarantined.ApplyTiming(21, q21, ClientTiming{-800, -8}));
+  auto const unknown = quarantined.TryAggregate();
+  TEST_ASSERT_TRUE(unknown.has_value());
+  TEST_ASSERT_TRUE(unknown->state == PeerScheduleState::kUnknown);
+
+  PeerTimingQueryState later;
+  later.Begin({20, 21, 22});
+  auto const l20 = later.RegisterSend(20, Tp(0), Ms(40));
+  auto const l21 = later.RegisterSend(21, Tp(0), Ms(40));
+  auto const l22 = later.RegisterSend(22, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(later.ApplyTiming(20, l20, ClientTiming{-1000, -5}));
+  TEST_ASSERT_TRUE(later.ApplyTiming(21, l21, ClientTiming{-800, -8}));
+  TEST_ASSERT_TRUE(later.ApplyTiming(22, l22, ClientTiming{-900, -7}));
+  auto const missed = later.TryAggregate();
+  TEST_ASSERT_TRUE(missed.has_value());
+  TEST_ASSERT_TRUE(missed->state == PeerScheduleState::kMissedDeadline);
+}
+
 void test_ThousandQueriesDestroyPendingAndCloudRequestFlags() {
   PeerTimingQueryOrchestrator orch;
   for (int i = 0; i < 1000; ++i) {
@@ -477,5 +501,7 @@ int test_uap_peer_timing() {
   RUN_TEST(ae::test_uap_peer_timing::test_RetryRaceAndPostSuccessNoRemake);
   RUN_TEST(ae::test_uap_peer_timing::
                test_ThousandQueriesDestroyPendingAndCloudRequestFlags);
+  RUN_TEST(ae::test_uap_peer_timing::
+               test_QuarantinedConfiguredServerMakesSnapshotIncomplete);
   return UNITY_END();
 }

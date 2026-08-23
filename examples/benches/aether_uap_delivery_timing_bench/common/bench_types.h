@@ -60,6 +60,7 @@ enum class IpcType : std::uint8_t {
   kShutdown = 9,
   kAck = 10,
   kUdpProof = 11,
+  kPingTrace = 12,
 };
 
 struct SampleRecord {
@@ -85,6 +86,15 @@ struct SampleRecord {
   bool valid{false};
   std::string invalid_reason;
   std::string classification;
+  std::int64_t bob_ping_server_id{0};
+  std::int64_t bob_ping_planned_send_us{0};
+  std::int64_t bob_ping_actual_send_us{0};
+  std::int64_t bob_ping_early_by_us{0};
+  std::int64_t bob_base_rx_window_us{0};
+  std::int64_t bob_effective_wire_rx_window_us{0};
+  std::int64_t bob_required_rx_until_us{0};
+  std::int64_t bob_ping_result_us{0};
+  std::int64_t bob_ping_guard_us{0};
 };
 
 inline char const* ClassificationForOffset(std::int64_t offset_ms) noexcept {

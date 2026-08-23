@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -41,6 +42,7 @@
 #include "aether/channels/channel.h"
 #include "aether/client_messages/p2p_message_stream.h"
 #include "aether/cloud_connections/ping_schedule_guard.h"
+#include "aether/cloud_connections/ping_cloud_servers.h"
 #include "aether/receive_schedule.h"
 #include "aether/server_connections/server_connection.h"
 
@@ -82,6 +84,23 @@ inline std::int64_t SteadyUsNow() {
              std::chrono::steady_clock::now().time_since_epoch())
       .count();
 }
+
+#if AE_ENABLE_PING
+struct PendingPingTrace {
+  PingTraceEvent event;
+  std::int64_t steady_us{0};
+};
+std::vector<PendingPingTrace> g_pending_ping_traces;
+std::vector<PendingPingTrace> g_all_ping_traces;
+
+void OnPingTrace(PingTraceEvent const& event) {
+  PendingPingTrace rec{event, SteadyUsNow()};
+  g_pending_ping_traces.push_back(rec);
+  if (g_all_ping_traces.size() < 4096) {
+    g_all_ping_traces.push_back(rec);
+  }
+}
+#endif
 
 inline void UidToHalves(Uid const& uid, std::int64_t& lo, std::int64_t& hi) {
   std::memcpy(&lo, uid.value.data(), 8);
@@ -170,6 +189,37 @@ struct RoleState {
     frame.k = k;
     frame.l = l;
     return pipe.WriteFrame(frame);
+  }
+
+  void DrainPingTraces() {
+#if AE_ENABLE_PING
+    for (auto const& rec : g_pending_ping_traces) {
+      auto const& e = rec.event;
+      IpcFrame frame{};
+      frame.type = static_cast<std::uint8_t>(IpcType::kPingTrace);
+      frame.side = static_cast<std::uint8_t>(side);
+      frame.event_kind = static_cast<std::uint8_t>(e.kind);
+      frame.run_id_hash = run_id_hash;
+      frame.seq = ++ipc_seq;
+      frame.offset_ms =
+          e.result_type < 0 ? 0 : static_cast<std::uint32_t>(e.result_type);
+      frame.local_steady_us = rec.steady_us;
+      frame.a = static_cast<std::int64_t>(e.server_id);
+      frame.b = TimePointUs(e.planned_send_at);
+      frame.c = TimePointUs(e.actual_send_at);
+      frame.d = DurationUs(e.early_by);
+      frame.e = DurationUs(e.base_rx_window);
+      frame.f = DurationUs(e.effective_wire_rx_window);
+      frame.g = TimePointUs(e.required_rx_until);
+      frame.h = TimePointUs(e.next_planned_send);
+      frame.i = DurationUs(e.ping_guard);
+      frame.j = static_cast<std::int64_t>(e.channel_generation);
+      frame.k = DurationUs(e.min_rtt);
+      frame.l = DurationUs(e.p99_rtt);
+      pipe.WriteFrame(frame);
+    }
+    g_pending_ping_traces.clear();
+#endif
   }
 
   void EmitUdpProof(UdpProofPath path, ChannelProof const& proof) {
@@ -724,6 +774,9 @@ int RunClientRole(ClientArgs const& args) {
             state.exit_requested = true;
             return;
           }
+#if AE_ENABLE_PING
+          SetPingTraceHook(&OnPingTrace);
+#endif
         }
         state.client_ready = true;
         std::int64_t lo = 0;
@@ -738,6 +791,7 @@ int RunClientRole(ClientArgs const& args) {
   while (!state.exit_requested && !state.app->IsExited()) {
     auto const now = Now();
     auto next = state.app->Update(now);
+    state.DrainPingTraces();
     if (auto frame = state.pipe.TryReadFrame(0)) {
       state.HandleIpc(*frame);
     }
@@ -748,6 +802,30 @@ int RunClientRole(ClientArgs const& args) {
     state.app->WaitUntil(
         std::min(next, now + std::chrono::milliseconds{5}));
   }
+#if AE_ENABLE_PING
+  SetPingTraceHook(nullptr);
+  if (args.side == Side::kB && !g_all_ping_traces.empty()) {
+    std::ofstream csv(args.state_dir + "/bob_ping_trace.csv");
+    csv << "kind,server_id,planned_send_us,actual_send_us,early_by_us,"
+           "base_rx_window_us,effective_wire_rx_window_us,required_rx_until_us,"
+           "next_planned_send_us,ping_guard_us,min_rtt_us,p99_rtt_us,"
+           "channel_generation,result_type,steady_us\n";
+    for (auto const& rec : g_all_ping_traces) {
+      auto const& e = rec.event;
+      csv << static_cast<int>(e.kind) << ","
+          << static_cast<std::int64_t>(e.server_id) << ","
+          << TimePointUs(e.planned_send_at) << ","
+          << TimePointUs(e.actual_send_at) << "," << DurationUs(e.early_by)
+          << "," << DurationUs(e.base_rx_window) << ","
+          << DurationUs(e.effective_wire_rx_window) << ","
+          << TimePointUs(e.required_rx_until) << ","
+          << TimePointUs(e.next_planned_send) << ","
+          << DurationUs(e.ping_guard) << "," << DurationUs(e.min_rtt) << ","
+          << DurationUs(e.p99_rtt) << "," << e.channel_generation << ","
+          << e.result_type << "," << rec.steady_us << "\n";
+    }
+  }
+#endif
   return 0;
 }
 

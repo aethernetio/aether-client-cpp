@@ -20,6 +20,7 @@
 #include "aether/config.h"
 #if AE_ENABLE_PING
 
+#  include <cstdint>
 #  include <map>
 #  include <memory>
 #  include <optional>
@@ -33,8 +34,39 @@
 #  include "aether/ae_actions/ping.h"
 #  include "aether/client_connectivity_policy.h"
 #  include "aether/cloud_connections/cloud_server_connections.h"
+#  include "aether/cloud_connections/ping_schedule_guard.h"
 
 namespace ae {
+
+enum class PingTraceKind : std::uint8_t {
+  kPrepared = 0,
+  kSent = 1,
+  kResult = 2,
+  kRxCloseScheduled = 3,
+  kRxClosed = 4,
+};
+
+struct PingTraceEvent {
+  PingTraceKind kind{PingTraceKind::kPrepared};
+  ServerId server_id{};
+  TimePoint planned_send_at{};
+  TimePoint actual_send_at{};
+  Duration early_by{};
+  Duration base_rx_window{};
+  Duration effective_wire_rx_window{};
+  TimePoint required_rx_until{};
+  TimePoint next_planned_send{};
+  Duration min_rtt{};
+  Duration p99_rtt{};
+  Duration ping_guard{};
+  std::uint64_t channel_generation{0};
+  int result_type{-1};
+  TimePoint event_time{};
+};
+
+using PingTraceHook = void (*)(PingTraceEvent const&);
+void SetPingTraceHook(PingTraceHook hook) noexcept;
+
 class PingCloudServers {
   class ServerPing {
    public:
@@ -64,6 +96,8 @@ class PingCloudServers {
     void OpenRxWindow();
     void ScheduleRxWindowClose(TimePoint close_time);
     void CloseRxWindowNow();
+    void MaybeCloseAfterWriteFailure();
+    void EmitTrace(PingTraceKind kind, int result_type = -1) const;
     void ScheduleRestream();
 
     AeContext ae_context_;
@@ -83,7 +117,30 @@ class PingCloudServers {
     ClientConnectivityPolicy::SuspendBlocker ping_blocker_;
     ClientConnectivityPolicy::SuspendBlocker rx_window_blocker_;
     ClientConnectivityPolicy::SuspendBlocker restream_blocker_;
-    TimePoint next_ping_time_;
+    TimePoint next_ping_time_{};
+    std::optional<TimePoint> planned_send_at_{};
+    std::optional<TimePoint> required_rx_until_{};
+    LocalRxWindowState local_rx_{};
+    bool rx_window_held_{false};
+
+    struct PingAttempt {
+      ServerId server_id{};
+      std::optional<TimePoint> planned_send_at{};
+      TimePoint actual_send_at{};
+      Duration early_by{};
+      Duration base_rx_window{};
+      Duration effective_wire_rx_window{};
+      TimePoint required_rx_until{};
+      std::optional<TimePoint> required_rx_until_before{};
+      TimePoint next_planned_send{};
+      Duration min_rtt{};
+      Duration p99_rtt{};
+      Duration ping_guard{};
+      std::uint64_t channel_generation{0};
+      bool write_failed{false};
+    };
+    std::optional<PingAttempt> in_flight_{};
+    std::uint64_t send_generation_{0};
   };
 
  public:

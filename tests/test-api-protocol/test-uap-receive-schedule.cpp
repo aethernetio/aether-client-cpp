@@ -177,6 +177,150 @@ void test_ClassifyReceiveSendOffset() {
                    ReceiveSendPhase::kOutsideReceiveWindow);
 }
 
+void test_EarlyRxWindowComputation() {
+  auto const t0 = TimePoint{};
+  auto at = [&](std::uint32_t ms) { return t0 + Ms(ms); };
+
+  auto none = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_planned_send = false,
+      .actual_send_at = at(100),
+      .base_rx_window = Ms(1000),
+  });
+  TEST_ASSERT_TRUE(none.early_by == Ms(0));
+  TEST_ASSERT_TRUE(none.effective_wire_rx_window == Ms(1000));
+
+  auto on_time = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_planned_send = true,
+      .planned_send_at = at(3000),
+      .actual_send_at = at(3000),
+      .base_rx_window = Ms(1000),
+  });
+  TEST_ASSERT_TRUE(on_time.early_by == Ms(0));
+  TEST_ASSERT_TRUE(on_time.effective_wire_rx_window == Ms(1000));
+
+  auto early700 = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_planned_send = true,
+      .planned_send_at = at(3000),
+      .actual_send_at = at(2300),
+      .base_rx_window = Ms(1000),
+  });
+  TEST_ASSERT_TRUE(early700.early_by == Ms(700));
+  TEST_ASSERT_TRUE(early700.effective_wire_rx_window == Ms(1700));
+
+  auto early1200 = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_planned_send = true,
+      .planned_send_at = at(3000),
+      .actual_send_at = at(1800),
+      .base_rx_window = Ms(1000),
+  });
+  TEST_ASSERT_TRUE(early1200.early_by == Ms(1200));
+  TEST_ASSERT_TRUE(early1200.effective_wire_rx_window == Ms(2200));
+
+  auto late = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_planned_send = true,
+      .planned_send_at = at(3000),
+      .actual_send_at = at(3200),
+      .base_rx_window = Ms(1000),
+  });
+  TEST_ASSERT_TRUE(late.early_by == Ms(0));
+  TEST_ASSERT_TRUE(late.effective_wire_rx_window == Ms(1000));
+
+  auto held = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_planned_send = true,
+      .planned_send_at = at(7000),
+      .actual_send_at = at(7000),
+      .base_rx_window = Ms(1000),
+      .has_required_rx_until = true,
+      .required_rx_until = at(10000),
+  });
+  TEST_ASSERT_TRUE(held.effective_wire_rx_window == Ms(3000));
+
+  auto second = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_planned_send = true,
+      .planned_send_at = at(2800),
+      .actual_send_at = at(2800),
+      .base_rx_window = Ms(1000),
+      .has_required_rx_until = true,
+      .required_rx_until = early1200.required_rx_until,
+  });
+  TEST_ASSERT_TRUE(second.required_rx_until >= early1200.required_rx_until);
+  TEST_ASSERT_TRUE(second.effective_wire_rx_window >=
+                   SaturatingSubTime(early1200.required_rx_until, at(2800)));
+
+  auto zero_base = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_planned_send = true,
+      .planned_send_at = at(3000),
+      .actual_send_at = at(1800),
+      .base_rx_window = Ms(0),
+  });
+  TEST_ASSERT_TRUE(zero_base.effective_wire_rx_window == Ms(1200));
+
+  auto past_planned = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_planned_send = true,
+      .planned_send_at = at(100),
+      .actual_send_at = at(2000),
+      .base_rx_window = Ms(1000),
+  });
+  TEST_ASSERT_TRUE(past_planned.early_by == Ms(0));
+  TEST_ASSERT_TRUE(past_planned.effective_wire_rx_window == Ms(1000));
+
+  auto overflow = SaturatingAddTime(TimePoint::max(), Ms(1000));
+  TEST_ASSERT_TRUE(overflow == TimePoint::max());
+  TEST_ASSERT_TRUE(DurationToSaturatedInt64Ms(Duration::max()) > 0);
+}
+
+void test_LocalRxWindowMonotonicAndStaleTimer() {
+  LocalRxWindowState s{};
+  auto const t0 = TimePoint{};
+  TEST_ASSERT_TRUE(ExtendLocalRxUntil(s, t0 + Ms(5000)));
+  TEST_ASSERT_EQUAL_UINT64(1, s.generation);
+  TEST_ASSERT_TRUE(ExtendLocalRxUntil(s, t0 + Ms(8000)));
+  auto const gen8 = s.generation;
+  TEST_ASSERT_FALSE(ExtendLocalRxUntil(s, t0 + Ms(6000)));
+  TEST_ASSERT_EQUAL_UINT64(gen8, s.generation);
+  TEST_ASSERT_TRUE(s.close_at == t0 + Ms(8000));
+  TEST_ASSERT_FALSE(ShouldApplyCloseTimer(s, 1, t0 + Ms(5000)));
+  TEST_ASSERT_TRUE(ShouldApplyCloseTimer(s, gen8, t0 + Ms(8000)));
+  TEST_ASSERT_FALSE(ShouldCloseLocalRxAfterWriteFailure(
+      s, true, t0 + Ms(8000), t0 + Ms(6000)));
+  TEST_ASSERT_TRUE(ShouldCloseLocalRxAfterWriteFailure(
+      LocalRxWindowState{}, false, TimePoint{}, t0 + Ms(6000)));
+  auto const close_pong =
+      ComputeRxWindowCloseTime(t0 + Ms(1900), Ms(2200));
+  TEST_ASSERT_TRUE(close_pong == t0 + Ms(4100));
+  auto const close_timeout =
+      ComputeRxWindowCloseTime(t0 + Ms(2500), Ms(2200));
+  TEST_ASSERT_TRUE(close_timeout == t0 + Ms(4700));
+  TEST_ASSERT_FALSE(ExtendLocalRxUntil(s, close_timeout));
+  TEST_ASSERT_TRUE(s.close_at == t0 + Ms(8000));
+  TEST_ASSERT_TRUE(ExtendLocalRxUntil(s, t0 + Ms(9000)));
+  TEST_ASSERT_TRUE(s.close_at == t0 + Ms(9000));
+  CloseLocalRx(s);
+  TEST_ASSERT_FALSE(s.open);
+  CloseLocalRx(s);
+  TEST_ASSERT_FALSE(s.open);
+}
+
+void test_ServerWindowInvariantIndependentOfRtt() {
+  auto const t0 = TimePoint{};
+  auto const planned = t0 + Ms(3000);
+  auto const actual = t0 + Ms(1800);
+  auto const base = Ms(1000);
+  auto const out = ComputeEarlyRxWindow(EarlyRxWindowInput{
+      .has_planned_send = true,
+      .planned_send_at = planned,
+      .actual_send_at = actual,
+      .base_rx_window = base,
+  });
+  auto const business_end = planned + base;
+  for (auto delay_ms : {0u, 30u, 50u}) {
+    auto const server_receive = actual + Ms(delay_ms);
+    auto const server_end =
+        SaturatingAddTime(server_receive, out.effective_wire_rx_window);
+    TEST_ASSERT_TRUE(server_end >= business_end);
+  }
+}
+
 }  // namespace ae::test_uap_receive_schedule
 
 int test_uap_receive_schedule() {
@@ -201,5 +345,10 @@ int test_uap_receive_schedule() {
       ae::test_uap_receive_schedule::test_UapWireFieldOrderAndSignedInt64);
   RUN_TEST(ae::test_uap_receive_schedule::test_BenchMessageCrcRoundTrip);
   RUN_TEST(ae::test_uap_receive_schedule::test_ClassifyReceiveSendOffset);
+  RUN_TEST(ae::test_uap_receive_schedule::test_EarlyRxWindowComputation);
+  RUN_TEST(
+      ae::test_uap_receive_schedule::test_LocalRxWindowMonotonicAndStaleTimer);
+  RUN_TEST(
+      ae::test_uap_receive_schedule::test_ServerWindowInvariantIndependentOfRtt);
   return UNITY_END();
 }

@@ -94,12 +94,21 @@ void QueryPeerReceiveSchedule::SnapshotExpectedServers() {
     // successful-negative for MissedDeadline.
     expected.reserve(dest_cloud_->selected_servers().size());
     for (auto* sc : dest_cloud_->selected_servers()) {
-      if (sc != nullptr) {
-        expected.push_back(sc->server_id());
+      if (sc == nullptr) {
+        continue;
       }
+      if (sc->quarantine()) {
+        incomplete = true;
+        continue;
+      }
+      expected.push_back(sc->server_id());
     }
     for (auto* sc : dest_cloud_->servers()) {
-      if (sc == nullptr || sc->quarantine()) {
+      if (sc == nullptr) {
+        continue;
+      }
+      if (sc->quarantine()) {
+        incomplete = true;
         continue;
       }
       bool selected = false;

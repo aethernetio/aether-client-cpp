@@ -19,6 +19,7 @@
 #include "aether/cloud_connections/ping_schedule_guard.h"
 
 #include <cassert>
+#include <cstdint>
 #include <type_traits>
 #include <variant>
 
@@ -30,6 +31,11 @@
 #  include "aether/cloud_connections/cloud_connections_tele.h"
 
 namespace ae {
+namespace {
+PingTraceHook g_ping_trace_hook{nullptr};
+}  // namespace
+
+void SetPingTraceHook(PingTraceHook hook) noexcept { g_ping_trace_hook = hook; }
 
 PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
                                          ClientConnectivityPolicy& policy,
@@ -44,6 +50,10 @@ PingCloudServers::ServerPing::ServerPing(AeContext const& ae_context,
 
   auto const& timings = policy_->rx_timings()[priority_];
   timing_conf_ = timings.conf;
+
+  if (timings.next_rx_point != TimePoint{}) {
+    planned_send_at_ = timings.next_rx_point;
+  }
 
   // if it's to early for next rx wait a bit
   if ((timings.next_rx_point != TimePoint{}) &&
@@ -73,6 +83,8 @@ void PingCloudServers::ServerPing::Stop() {
   ping_blocker_.Reset();
   rx_window_blocker_.Reset();
   restream_blocker_.Reset();
+  rx_window_held_ = false;
+  CloseLocalRx(local_rx_);
 }
 
 template <typename F>
@@ -128,8 +140,59 @@ auto PingCloudServers::ServerPing::MakePing() {
           auto const guard = ComputePingSendGuardFromStats(
               response_stats, timing_conf_.interval);
 
+          Duration min_rtt{};
+          Duration p99_rtt{};
+          if (!response_stats.empty()) {
+            min_rtt = response_stats.min();
+            p99_rtt = response_stats.template percentile<99>();
+          }
+
+          if (required_rx_until_.has_value() &&
+              *required_rx_until_ <= Now() && !local_rx_.open) {
+            required_rx_until_.reset();
+          }
+
+          auto const actual_send_at = Now();
+          EarlyRxWindowInput window_in{};
+          window_in.has_planned_send = planned_send_at_.has_value();
+          if (planned_send_at_.has_value()) {
+            window_in.planned_send_at = *planned_send_at_;
+          }
+          window_in.actual_send_at = actual_send_at;
+          window_in.base_rx_window = timing_conf_.rx_window;
+          window_in.has_required_rx_until = required_rx_until_.has_value();
+          if (required_rx_until_.has_value()) {
+            window_in.required_rx_until = *required_rx_until_;
+          }
+          auto const window_out = ComputeEarlyRxWindow(window_in);
+
+          PingAttempt attempt{};
+          attempt.server_id = cloud_sc_->server_id();
+          attempt.planned_send_at = planned_send_at_;
+          attempt.actual_send_at = actual_send_at;
+          attempt.early_by = window_out.early_by;
+          attempt.base_rx_window = timing_conf_.rx_window;
+          attempt.effective_wire_rx_window = window_out.effective_wire_rx_window;
+          attempt.required_rx_until_before = required_rx_until_;
+          attempt.required_rx_until = window_out.required_rx_until;
+          attempt.min_rtt = min_rtt;
+          attempt.p99_rtt = p99_rtt;
+          attempt.ping_guard = guard;
+          attempt.channel_generation = ++send_generation_;
+
+          if (timing_conf_.interval > Duration{}) {
+            next_ping_time_ = actual_send_at + timing_conf_.interval - guard;
+          } else {
+            next_ping_time_ = TimePoint::max();
+          }
+          attempt.next_planned_send = next_ping_time_;
+          required_rx_until_ = window_out.required_rx_until;
+          in_flight_ = attempt;
+          EmitTrace(PingTraceKind::kPrepared);
+
           ping_.emplace(ae_context_, *cloud_sc_, timing_conf_.interval,
-                        timing_conf_.rx_window, c->ResponseTimeout());
+                        window_out.effective_wire_rx_window,
+                        c->ResponseTimeout());
 
           ping_blocker_ = policy_->AcquireSuspendBlock();
           ping_->result_event().Subscribe(
@@ -138,19 +201,17 @@ auto PingCloudServers::ServerPing::MakePing() {
                 ping_blocker_.Reset();
               });
 
-          // run ping request and open rx capability at send
-          auto const current_time = Now();
-          ping_->Start(current_time);
+          ping_->Start(actual_send_at);
           OpenRxWindow();
+          EmitTrace(PingTraceKind::kSent);
           if (timing_conf_.interval > Duration{}) {
-            next_ping_time_ = current_time + timing_conf_.interval - guard;
             policy_->ReportNextServiceTime(priority_, next_ping_time_);
-          } else {
-            next_ping_time_ = TimePoint::max();
           }
           AE_TELED_DEBUG(
-              "Next ping time for priority {} at {} after {} (guard {})",
-              priority_, next_ping_time_, timing_conf_.interval, guard);
+              "Next ping time for priority {} at {} after {} (guard {}) "
+              "early_by {} wire_rx {}",
+              priority_, next_ping_time_, timing_conf_.interval, guard,
+              window_out.early_by, window_out.effective_wire_rx_window);
 
           return ex::set_value(std::move(ctx.receiver));
         });
@@ -188,6 +249,7 @@ void PingCloudServers::ServerPing::Start() {
         if (res && res->IsOk()) {
           // interval == 0: unknown next ping; do not auto-reschedule.
           if (timing_conf_.interval > Duration{}) {
+            planned_send_at_ = next_ping_time_;
             start_sub_ = ae_context_.scheduler().DelayedTask(
                 [&]() noexcept { Start(); },  // ~['_']~
                 next_ping_time_);
@@ -213,33 +275,35 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
     return;
   }
 
+  auto const wire = in_flight_.has_value() ? in_flight_->effective_wire_rx_window
+                                           : timing_conf_.rx_window;
+
   std::visit(
-      [this, c](auto const& value) {
+      [this, c, wire](auto const& value) {
         using T = std::decay_t<decltype(value)>;
         if constexpr (std::is_same_v<T, Ok<Duration>>) {
           c->channel_statistics().AddResponseTime(value.value);
-          ScheduleRxWindowClose(
-              ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
+          ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
+          EmitTrace(PingTraceKind::kResult, 0);
         } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
           AE_TELED_DEBUG("Got late ping duration");
           c->channel_statistics().AddResponseTime(value.duration);
-          ScheduleRxWindowClose(
-              ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
+          ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
+          EmitTrace(PingTraceKind::kResult, 4);
         } else if constexpr (std::is_same_v<T, Error<int>>) {
           AE_TELED_ERROR("Ping error!");
-          // Error 1 = write failure before/at send: close RX immediately.
-          // Other errors (e.g. timeout after write): close at now + window.
           if (value.error == 1) {
-            CloseRxWindowNow();
+            MaybeCloseAfterWriteFailure();
+            EmitTrace(PingTraceKind::kResult, 1);
           } else {
-            ScheduleRxWindowClose(
-                ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
+            ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
+            EmitTrace(PingTraceKind::kResult, value.error);
           }
           ScheduleRestream();
         } else {
           AE_TELED_ERROR("Ping error!");
-          ScheduleRxWindowClose(
-              ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
+          ScheduleRxWindowClose(ComputeRxWindowCloseTime(Now(), wire));
+          EmitTrace(PingTraceKind::kResult, 3);
           ScheduleRestream();
         }
       },
@@ -247,19 +311,73 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
 }
 
 void PingCloudServers::ServerPing::OpenRxWindow() {
-  // Open RX capability at send; do not schedule close at send + window.
-  rx_window_blocker_ = policy_->AcquireSuspendBlock();
-  rx_window_sub_.Reset();
+  if (!rx_window_held_) {
+    rx_window_blocker_ = policy_->AcquireSuspendBlock();
+    rx_window_held_ = true;
+  }
 }
 
 void PingCloudServers::ServerPing::ScheduleRxWindowClose(TimePoint close_time) {
+  OpenRxWindow();
+  if (!ExtendLocalRxUntil(local_rx_, close_time)) {
+    return;
+  }
+  auto const gen = local_rx_.generation;
   rx_window_sub_ = ae_context_.scheduler().DelayedTask(
-      [this]() { rx_window_blocker_.Reset(); }, close_time);
+      [this, gen]() {
+        if (!ShouldApplyCloseTimer(local_rx_, gen, Now())) {
+          return;
+        }
+        CloseRxWindowNow();
+        EmitTrace(PingTraceKind::kRxClosed);
+      },
+      close_time);
+  EmitTrace(PingTraceKind::kRxCloseScheduled);
 }
 
 void PingCloudServers::ServerPing::CloseRxWindowNow() {
   rx_window_sub_.Reset();
   rx_window_blocker_.Reset();
+  rx_window_held_ = false;
+  CloseLocalRx(local_rx_);
+}
+
+void PingCloudServers::ServerPing::MaybeCloseAfterWriteFailure() {
+  if (in_flight_.has_value()) {
+    in_flight_->write_failed = true;
+    required_rx_until_ = in_flight_->required_rx_until_before;
+  }
+  auto const now = Now();
+  if (ShouldCloseLocalRxAfterWriteFailure(
+          local_rx_, required_rx_until_.has_value(),
+          required_rx_until_.value_or(TimePoint{}), now)) {
+    CloseRxWindowNow();
+  }
+}
+
+void PingCloudServers::ServerPing::EmitTrace(PingTraceKind kind,
+                                             int result_type) const {
+  if (g_ping_trace_hook == nullptr || !in_flight_.has_value()) {
+    return;
+  }
+  auto const& a = *in_flight_;
+  PingTraceEvent event{};
+  event.kind = kind;
+  event.server_id = a.server_id;
+  event.planned_send_at = a.planned_send_at.value_or(a.actual_send_at);
+  event.actual_send_at = a.actual_send_at;
+  event.early_by = a.early_by;
+  event.base_rx_window = a.base_rx_window;
+  event.effective_wire_rx_window = a.effective_wire_rx_window;
+  event.required_rx_until = a.required_rx_until;
+  event.next_planned_send = a.next_planned_send;
+  event.min_rtt = a.min_rtt;
+  event.p99_rtt = a.p99_rtt;
+  event.ping_guard = a.ping_guard;
+  event.channel_generation = a.channel_generation;
+  event.result_type = result_type;
+  event.event_time = Now();
+  g_ping_trace_hook(event);
 }
 
 void PingCloudServers::ServerPing::ScheduleRestream() {
