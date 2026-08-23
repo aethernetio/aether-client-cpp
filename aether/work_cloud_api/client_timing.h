@@ -14,23 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef EXAMPLES_AETHER_UAP_PEER_DEADLINE_TEST_COORDINATOR_H_
-#define EXAMPLES_AETHER_UAP_PEER_DEADLINE_TEST_COORDINATOR_H_
+#ifndef AETHER_WORK_CLOUD_API_CLIENT_TIMING_H_
+#define AETHER_WORK_CLOUD_API_CLIENT_TIMING_H_
 
-#include <string>
+#include <cstdint>
 
-namespace ae::test_uap_peer_deadline {
+#include "aether-miscpp/reflect/reflect.h"
 
-struct CoordinatorArgs {
-  std::string run_id;
-  std::string artifact_dir;
-  std::string exe_path;
-  std::string parent_uid{"3ac93165-3d37-4970-87a6-fa4ee27744e4"};
-  bool unknown_only{false};
+namespace ae {
+
+// Wire DTO for AuthorizedApi.get_client_timing. Field order matches ADSL:
+// nextPingDeltaMs then lastConnectDeltaMs.
+struct ClientTiming {
+  AE_REFLECT_MEMBERS(next_ping_delta_ms, last_connect_delta_ms)
+
+  std::int64_t next_ping_delta_ms{};
+  std::int64_t last_connect_delta_ms{};
 };
 
-int RunCoordinator(CoordinatorArgs args);
+}  // namespace ae
 
-}  // namespace ae::test_uap_peer_deadline
-
-#endif  // EXAMPLES_AETHER_UAP_PEER_DEADLINE_TEST_COORDINATOR_H_
+#endif  // AETHER_WORK_CLOUD_API_CLIENT_TIMING_H_

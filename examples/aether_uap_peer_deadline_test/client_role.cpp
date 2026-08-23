@@ -85,10 +85,10 @@ struct QueryRow {
   std::uint32_t query_index{0};
   std::int64_t query_begin{0};
   std::int64_t query_end{0};
-  std::int64_t last_ping{0};
+  std::int64_t last_online{0};
   std::int64_t next_ping_deadline{-1};
   std::int64_t now{0};
-  int last_ping_advanced{0};
+  int last_online_advanced{0};
   int deadline_passed{0};
   int query_success{0};
 };
@@ -113,6 +113,7 @@ enum class TestPhase {
   kAfterMissConfirm,
   kWaitRestartAck,
   kRecovery,
+  kUnknown,
   kDone,
 };
 
@@ -136,7 +137,7 @@ struct RoleState {
   TimePoint phase_deadline_{};
   TimePoint wait_until_{};
   TimePoint missed_deadline_{};
-  TimePoint missed_anchor_last_ping_{};
+  TimePoint missed_anchor_last_online_{};
   TimePoint recovery_start_{};
   PeerReceiveSchedule previous_{};
   PeerReceiveSchedule p0_{};
@@ -153,6 +154,7 @@ struct RoleState {
   std::string fail_reason_;
   bool passed_{false};
   std::int64_t recovery_ms_{-1};
+  std::int64_t ping_interval_ms{3000};
   std::int64_t deadline_late_by_ms_{-1};
   bool skip_before_deadline_{false};
 
@@ -193,16 +195,16 @@ struct RoleState {
     }
     auto path = artifact_dir_ + "/queries.csv";
     std::ofstream out(path, std::ios::out | std::ios::trunc);
-    out << "phase,query_index,query_begin,query_end,last_ping,"
-           "next_ping_deadline,now,last_ping_advanced,deadline_passed,"
+    out << "phase,query_index,query_begin,query_end,last_online,"
+           "next_ping_deadline,now,last_online_advanced,deadline_passed,"
            "query_success\n";
     auto const origin = TimePointUs(test_start_);
     for (auto const& r : csv_rows_) {
       out << r.phase << ',' << r.query_index << ',' << (r.query_begin - origin)
-          << ',' << (r.query_end - origin) << ',' << (r.last_ping - origin)
+          << ',' << (r.query_end - origin) << ',' << (r.last_online - origin)
           << ','
           << (r.next_ping_deadline < 0 ? -1 : (r.next_ping_deadline - origin))
-          << ',' << (r.now - origin) << ',' << r.last_ping_advanced << ','
+          << ',' << (r.now - origin) << ',' << r.last_online_advanced << ','
           << r.deadline_passed << ',' << r.query_success << '\n';
     }
   }
@@ -217,14 +219,14 @@ struct RoleState {
     row.now = TimePointUs(q.now);
     row.query_success = q.success ? 1 : 0;
     if (q.success) {
-      row.last_ping = TimePointUs(q.schedule.last_ping);
+      row.last_online = TimePointUs(q.schedule.last_online);
       row.next_ping_deadline =
           q.schedule.next_ping_deadline.has_value()
               ? TimePointUs(*q.schedule.next_ping_deadline)
               : -1;
       if (prev != nullptr) {
-        row.last_ping_advanced =
-            IsLastPingAdvanced(prev->last_ping, q.schedule.last_ping) ? 1 : 0;
+        row.last_online_advanced =
+            IsLastOnlineAdvanced(prev->last_online, q.schedule.last_online) ? 1 : 0;
         if (prev->next_ping_deadline.has_value()) {
           row.deadline_passed =
               q.now > *prev->next_ping_deadline ? 1 : 0;
@@ -275,6 +277,13 @@ struct RoleState {
     BeginQuery();
   }
 
+  void StartUnknown() {
+    phase = TestPhase::kUnknown;
+    phase_deadline_ = Now() + std::chrono::seconds{8};
+    wait_until_ = Now();
+    BeginQuery();
+  }
+
   void OnStabilizeTick() {
     if (query_inflight_) {
       return;
@@ -296,7 +305,7 @@ struct RoleState {
         return;
       }
       if (have_previous_ &&
-          IsLastPingAdvanced(previous_.last_ping, q.schedule.last_ping)) {
+          IsLastOnlineAdvanced(previous_.last_online, q.schedule.last_online)) {
         ++advances_seen_;
       }
       previous_ = q.schedule;
@@ -306,12 +315,12 @@ struct RoleState {
         p0_ = q.schedule;
         have_p0_ = true;
         auto const now = q.now;
-        auto const age_ms = MsBetween(now, p0_.last_ping);
+        auto const age_ms = MsBetween(now, p0_.last_online);
         auto const until_ms = MsBetween(*p0_.next_ping_deadline, now);
-        std::cout << "INITIAL last_ping_age_ms=" << age_ms
+        std::cout << "INITIAL last_online_age_ms=" << age_ms
                   << " until_next_ping_ms=" << until_ms << std::endl;
         std::cout << "## Live Bob\n"
-                  << "cycle  last_ping_advanced  until_next_ping_ms\n";
+                  << "cycle  last_online_advanced  until_next_ping_ms\n";
         std::cout << "0      yes                 " << until_ms << std::endl;
         live_cycle_ = 0;
         phase = TestPhase::kLive;
@@ -358,23 +367,23 @@ struct RoleState {
           previous_.next_ping_deadline.has_value()
               ? MsBetween(*previous_.next_ping_deadline, q.now)
               : -1;
-      std::cerr << "FALSE_MISSED_DEADLINE previous_last_ping_rel_us="
-                << (TimePointUs(previous_.last_ping) - TimePointUs(test_start_))
+      std::cerr << "FALSE_MISSED_DEADLINE previous_last_online_rel_us="
+                << (TimePointUs(previous_.last_online) - TimePointUs(test_start_))
                 << " previous_deadline_rel_ms=" << prev_until
-                << " query_last_ping_rel_us="
-                << (TimePointUs(q.schedule.last_ping) - TimePointUs(test_start_))
+                << " query_last_online_rel_us="
+                << (TimePointUs(q.schedule.last_online) - TimePointUs(test_start_))
                 << " query_latency_ms=" << MsBetween(q.end, q.begin)
                 << std::endl;
       Fail("FALSE_MISSED_DEADLINE");
       return;
     }
-    if (!IsLastPingAdvanced(previous_.last_ping, q.schedule.last_ping) ||
+    if (!IsLastOnlineAdvanced(previous_.last_online, q.schedule.last_online) ||
         !q.schedule.next_ping_deadline.has_value() ||
         !(*q.schedule.next_ping_deadline > q.now)) {
       // Harness race: deadline+margin may still land before the server
-      // publishes the new last_ping. Retry until advance or false miss.
+      // publishes the new last_online. Retry until advance or false miss.
       if (Now() > phase_deadline_) {
-        Fail("live last_ping did not advance");
+        Fail("live last_online did not advance");
         return;
       }
       wait_until_ = Now() + kQueryRetry;
@@ -430,7 +439,7 @@ struct RoleState {
       }
       return;
     }
-    missed_anchor_last_ping_ = q.schedule.last_ping;
+    missed_anchor_last_online_ = q.schedule.last_online;
     missed_deadline_ = *q.schedule.next_ping_deadline;
     previous_ = q.schedule;
     last_query_.reset();
@@ -470,7 +479,7 @@ struct RoleState {
       last_query_.reset();
       return;
     }
-    // Still not offline; last_ping may equal anchor.
+    // Still not offline; last_online may equal anchor.
     previous_ = q.schedule;
     last_query_.reset();
     phase = TestPhase::kAfterMiss;
@@ -503,11 +512,14 @@ struct RoleState {
       last_query_.reset();
       return;
     }
-    if (IsLastPingAdvanced(missed_anchor_last_ping_, q.schedule.last_ping)) {
-      Fail("AfterMiss last_ping advanced unexpectedly");
+    if (IsLastOnlineAdvanced(missed_anchor_last_online_, q.schedule.last_online)) {
+      Fail("AfterMiss last_online advanced unexpectedly");
       return;
     }
-    if (!IsMissedDeadline(previous_, q.schedule, q.now)) {
+    if (q.schedule.state == PeerScheduleState::kUnknown) {
+      std::cerr << "AfterMiss aggregate Unknown (non-deterministic servers); "
+                   "last_online frozen, continuing\n";
+    } else if (!IsMissedDeadline(previous_, q.schedule, q.now)) {
       Fail("AfterMiss classification failed");
       return;
     }
@@ -536,16 +548,16 @@ struct RoleState {
       last_query_.reset();
       return;
     }
-    if (IsLastPingAdvanced(missed_anchor_last_ping_, q.schedule.last_ping)) {
-      Fail("AfterMissConfirm last_ping not frozen");
+    if (IsLastOnlineAdvanced(missed_anchor_last_online_, q.schedule.last_online)) {
+      Fail("AfterMissConfirm last_online not frozen");
       return;
     }
     std::cout << "## Missed deadline\n"
-              << "last_ping_frozen: yes\n"
+              << "last_online_frozen: yes\n"
               << "deadline_passed_ms: " << deadline_late_by_ms_ << "\n"
               << "confirmation_after_ms: 1000\n";
     std::cout << "MISSED_DEADLINE deadline_late_by_ms=" << deadline_late_by_ms_
-              << " last_ping_unchanged=1" << std::endl;
+              << " last_online_unchanged=1" << std::endl;
     previous_ = q.schedule;
     last_query_.reset();
     phase = TestPhase::kWaitRestartAck;
@@ -564,16 +576,16 @@ struct RoleState {
         last_query_.reset();
         return;
       }
-      if (IsLastPingAdvanced(missed_anchor_last_ping_, q.schedule.last_ping) &&
+      if (IsLastOnlineAdvanced(missed_anchor_last_online_, q.schedule.last_online) &&
           q.schedule.next_ping_deadline.has_value() &&
           *q.schedule.next_ping_deadline > q.now) {
         recovery_ms_ = MsBetween(q.now, recovery_start_);
         auto const until_ms =
             MsBetween(*q.schedule.next_ping_deadline, q.now);
         std::cout << "## Bob return\n"
-                  << "last_ping_advanced: yes\n"
+                  << "last_online_advanced: yes\n"
                   << "recovery_ms: " << recovery_ms_ << "\n";
-        std::cout << "RETURNED new_last_ping=1 until_next_ping_ms=" << until_ms
+        std::cout << "RETURNED new_last_online=1 until_next_ping_ms=" << until_ms
                   << std::endl;
         WriteCsv();
         if (false_missed_ != 0) {
@@ -590,6 +602,40 @@ struct RoleState {
     }
     if (Now() > recovery_start_ + kRecoveryTimeout) {
       Fail("recovery timeout");
+      return;
+    }
+    if (WaitUntilAe(wait_until_)) {
+      BeginQuery();
+    }
+  }
+
+  void OnUnknownTick() {
+    if (query_inflight_) {
+      return;
+    }
+    if (last_query_.has_value()) {
+      auto const& q = *last_query_;
+      RecordCsv("unknown", q, have_previous_ ? &previous_ : nullptr);
+      if (!q.success) {
+        wait_until_ = Now() + kQueryRetry;
+        last_query_.reset();
+        return;
+      }
+      if (q.schedule.state == PeerScheduleState::kUnknown &&
+          !q.schedule.next_ping_deadline.has_value()) {
+        std::cout << "UNKNOWN_SCHEDULE state=Unknown next_ping_deadline=nullopt"
+                  << std::endl;
+        WriteCsv();
+        std::cout << "UAP_PEER_DEADLINE_UNKNOWN PASS" << std::endl;
+        Pass();
+        return;
+      }
+      wait_until_ = Now() + kQueryRetry;
+      last_query_.reset();
+      return;
+    }
+    if (Now() > phase_deadline_) {
+      Fail("unknown schedule timeout");
       return;
     }
     if (WaitUntilAe(wait_until_)) {
@@ -626,6 +672,9 @@ struct RoleState {
       case TestPhase::kRecovery:
         OnRecoveryTick();
         break;
+      case TestPhase::kUnknown:
+        OnUnknownTick();
+        break;
       default:
         break;
     }
@@ -654,7 +703,11 @@ struct RoleState {
         (void)client->cloud_connection();
         test_start_ = Now();
         test_running = true;
-        StartStabilize();
+        if (f.code == 1) {
+          StartUnknown();
+        } else {
+          StartStabilize();
+        }
         break;
       case IpcType::kBobKilled:
         if (phase == TestPhase::kWaitKillAck) {
@@ -723,6 +776,7 @@ int RunClientRole(ClientArgs const& args) {
     return 2;
   }
 
+  state.ping_interval_ms = args.ping_interval_ms;
   state.app = MakeApp(args.state_dir);
   auto parent = Uid::FromString(args.parent_uid);
   auto& select =
@@ -737,8 +791,8 @@ int RunClientRole(ClientArgs const& args) {
         state.client = res.value();
         if (state.side == Side::kB) {
           auto ok = state.client->SetReceiveSchedule(ReceiveSchedule{
-              .ping_interval =
-                  std::chrono::duration_cast<Duration>(kBobPingInterval),
+              .ping_interval = std::chrono::duration_cast<Duration>(
+                  std::chrono::milliseconds{state.ping_interval_ms}),
               .receive_window =
                   std::chrono::duration_cast<Duration>(kBobReceiveWindow),
           });

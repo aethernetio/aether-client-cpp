@@ -46,6 +46,7 @@
 #include "common/bench_ipc.h"
 #include "common/bench_message.h"
 #include "common/directory_domain_storage.h"
+#include "common/udp_proof.h"
 
 namespace ae::bench::uap {
 namespace {
@@ -92,6 +93,12 @@ struct RoleState {
   Subscription new_port_sub;
   Subscription select_sub;
   Subscription query_sub;
+  Subscription dest_cloud_sub;
+  bool dest_proof_sent{false};
+  bool own_proof_sent{false};
+  std::optional<TimePoint> dest_retry_at_{};
+  ChannelProof own_proof{};
+  ChannelProof dest_proof{};
   std::unordered_map<std::uint32_t, int> seen;
   std::uint32_t ipc_seq{0};
   bool exit_requested{false};
@@ -121,6 +128,66 @@ struct RoleState {
     f.b = b;
     f.c = c;
     return pipe.WriteFrame(f);
+  }
+
+  void EmitUdpProof(UdpProofPath path, ChannelProof const& proof) {
+    if (path == UdpProofPath::kOwn) {
+      own_proof = proof;
+    } else if (path == UdpProofPath::kDestination) {
+      dest_proof = proof;
+    }
+    IpcFrame f{};
+    PackUdpProofFrame(f, path, proof);
+    f.side = static_cast<std::uint8_t>(side);
+    f.run_id_hash = run_id_hash;
+    f.seq = ++ipc_seq;
+    f.local_steady_us = SteadyUsNow();
+    pipe.WriteFrame(f);
+  }
+
+  static bool IsClassifiedWorkProtocol(BenchProtocol protocol) noexcept {
+    return protocol == BenchProtocol::kTcp || protocol == BenchProtocol::kUdp;
+  }
+
+  void TryEmitOwnProof() {
+    if (!client) {
+      return;
+    }
+    (void)client->cloud_connection();
+    auto proof = CollectOwnCloudProof(*client);
+    if (!proof.present || !IsClassifiedWorkProtocol(proof.protocol)) {
+      return;
+    }
+    if (own_proof_sent && own_proof.protocol == proof.protocol) {
+      return;
+    }
+    own_proof_sent = true;
+    EmitUdpProof(UdpProofPath::kOwn, proof);
+  }
+
+  void TryEmitDestProof() {
+    if (dest_proof_sent || !client || !peer_set) {
+      return;
+    }
+    auto const now = Now();
+    if (dest_retry_at_ && now < *dest_retry_at_) {
+      return;
+    }
+    dest_retry_at_ = now + std::chrono::milliseconds{250};
+    dest_cloud_sub.Reset();
+    auto& get_cloud = client->cloud_manager()->GetCloud(peer_uid);
+    dest_cloud_sub = get_cloud.result_event().Subscribe(
+        [this](Result<Cloud::ptr, int> const& res) {
+          if (!res) {
+            return;
+          }
+          auto proof = CollectDestinationProofFromCloud(*client, res.value());
+          if (!proof.present || !IsClassifiedWorkProtocol(proof.protocol)) {
+            return;
+          }
+          dest_proof_sent = true;
+          EmitUdpProof(UdpProofPath::kDestination, proof);
+        });
   }
 
   void EnsureStreams() {
@@ -276,12 +343,25 @@ struct RoleState {
       return;
     }
     auto const schedule = res.value();
+    TryEmitDestProof();
+    if (schedule.state != PeerScheduleState::kExpected ||
+        !schedule.next_ping_deadline.has_value()) {
+      sample_in_flight = false;
+      send_at_.reset();
+      requery_at_.reset();
+      Emit(IpcType::kSampleResult, EventKind::kError, pending_sequence,
+           pending_offset_ms, 4);
+      return;
+    }
     auto const offset = std::chrono::milliseconds{pending_offset_ms};
-    auto const target = schedule.last_ping + offset;
+    auto const cycle_start =
+        *schedule.next_ping_deadline -
+        std::chrono::duration_cast<Duration>(kBobPingInterval);
+    auto const target = cycle_start + offset;
     auto const now = Now();
     pending_last_us_ =
         std::chrono::duration_cast<std::chrono::microseconds>(
-            schedule.last_ping.time_since_epoch())
+            cycle_start.time_since_epoch())
             .count();
     pending_next_us_ =
         schedule.next_ping_deadline
@@ -296,9 +376,9 @@ struct RoleState {
                   *schedule.next_ping_deadline - now)
                   .count()
             : -1;
-    std::cerr << "Alice schedule age_to_last_ms="
+    std::cerr << "Alice schedule age_to_cycle_start_ms="
               << std::chrono::duration_cast<std::chrono::milliseconds>(
-                     now - schedule.last_ping)
+                     now - cycle_start)
                      .count()
               << " to_target_ms="
               << std::chrono::duration_cast<std::chrono::milliseconds>(target -
@@ -377,6 +457,14 @@ struct RoleState {
            pending_offset_ms, 3);
       return;
     }
+    auto const dest_proto =
+        dest_proof.present ? dest_proof.protocol : own_proof.protocol;
+    if (RefuseTcpSample(own_proof.protocol, dest_proto)) {
+      sample_in_flight = false;
+      Emit(IpcType::kSampleResult, EventKind::kSampleSkipped, pending_sequence,
+           pending_offset_ms, pending_last_us_, pending_next_us_, 5);
+      return;
+    }
 
     DeliveryBenchMessage msg{};
     msg.offset_ms = static_cast<std::uint16_t>(pending_offset_ms);
@@ -401,7 +489,8 @@ struct RoleState {
         peer_set = true;
         if (client) {
           // Bob: schedule already applied; Alice: default schedule.
-          (void)client->cloud_connection();
+          TryEmitOwnProof();
+          TryEmitDestProof();
         }
         EnsureStreams();
         Emit(IpcType::kAck, EventKind::kAck);
@@ -410,10 +499,9 @@ struct RoleState {
         if (side == Side::kB) {
           warmup_active = true;
           std::cerr << "Bob WaitWarmup received" << std::endl;
-          if (client) {
-            (void)client->cloud_connection();
-          }
         }
+        TryEmitOwnProof();
+        TryEmitDestProof();
         break;
       case IpcType::kRunSample:
         StartSample(f.sequence, f.offset_ms);
@@ -505,6 +593,8 @@ int RunClientRole(ClientArgs const& args) {
     if (auto frame = state.pipe.TryReadFrame(0)) {
       state.HandleIpc(*frame);
     }
+    state.TryEmitOwnProof();
+    state.TryEmitDestProof();
     state.PollWarmup();
     state.PollSampleTiming();
     state.app->WaitUntil(

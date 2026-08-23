@@ -19,6 +19,7 @@ list(APPEND test_srcs
   test-method-call.cpp
   test-uap-receive-schedule.cpp
   test-uap-peer-deadline-classify.cpp
+  test-uap-peer-timing.cpp
 )
 
 if(NOT CM_PLATFORM)

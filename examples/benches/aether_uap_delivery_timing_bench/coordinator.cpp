@@ -35,6 +35,9 @@
 
 #include "common/bench_ipc.h"
 #include "common/bench_types.h"
+#include "common/udp_proof_types.h"
+
+#include "aether/config.h"
 
 namespace ae::bench::uap {
 namespace {
@@ -52,6 +55,10 @@ struct ChildProc {
   bool ready{false};
   bool uid_ok{false};
   std::uint32_t seq{0};
+  ChannelProof own_proof{};
+  ChannelProof dest_proof{};
+  bool got_own_proof{false};
+  bool got_dest_proof{false};
 };
 
 std::string MakeRunId() {
@@ -93,6 +100,17 @@ void HandleChildFrame(ChildProc& child, IpcFrame const& frame) {
   }
   if (type == IpcType::kChildReady || type == IpcType::kUidReport) {
     child.ready = true;
+  }
+  if (type == IpcType::kUdpProof) {
+    auto proof = UnpackUdpProofFrame(frame);
+    auto const path = static_cast<UdpProofPath>(frame.event_kind);
+    if (path == UdpProofPath::kOwn) {
+      child.own_proof = proof;
+      child.got_own_proof = true;
+    } else if (path == UdpProofPath::kDestination) {
+      child.dest_proof = proof;
+      child.got_dest_proof = true;
+    }
   }
 }
 
@@ -278,11 +296,47 @@ int RunCoordinator(CoordinatorArgs args) {
     }
   }
 
+  SendCmd(alice, IpcType::kWaitWarmup);
+  {
+    auto const deadline = GetTickCount64() + 20000;
+    while (GetTickCount64() < deadline &&
+           (!IsMeasuredProtocolOk(alice.own_proof.protocol) ||
+            !IsMeasuredProtocolOk(bob.own_proof.protocol))) {
+      if (auto f = alice.pipe.TryReadFrame(100)) {
+        HandleChildFrame(alice, *f);
+      }
+      if (auto f = bob.pipe.TryReadFrame(0)) {
+        HandleChildFrame(bob, *f);
+      }
+    }
+  }
+
   std::cout << "## Bob ping statistics\n"
             << "samples=" << warmup_n << " min_rtt_ms=" << warmup_min
             << " p99_rtt_ms=" << warmup_p99 << " guard_ms=" << warmup_guard
             << std::endl
             << std::endl;
+
+  auto const dest_proto = alice.got_dest_proof ? alice.dest_proof.protocol
+                                               : alice.own_proof.protocol;
+  std::cout << "AE_SUPPORT_TCP=" << AE_SUPPORT_TCP
+            << " AE_SUPPORT_UDP=" << AE_SUPPORT_UDP
+            << " selected alice=" << BenchProtocolName(alice.own_proof.protocol)
+            << " bob=" << BenchProtocolName(bob.own_proof.protocol)
+            << " dest=" << BenchProtocolName(dest_proto) << "\n\n";
+  if (!IsMeasuredProtocolOk(alice.own_proof.protocol) ||
+      !IsMeasuredProtocolOk(bob.own_proof.protocol) ||
+      !IsMeasuredProtocolOk(dest_proto)) {
+#if defined(AE_UAP_DELIVERY_REQUIRE_UDP) && AE_UAP_DELIVERY_REQUIRE_UDP
+    std::cerr << "FAIL: measured work path is not UDP "
+                 "(registration may be TCP)\n";
+#else
+    std::cerr << "FAIL: measured work path is not TCP\n";
+#endif
+    StopChild(alice);
+    StopChild(bob);
+    return 6;
+  }
 
   std::map<std::uint32_t, SampleRecord> samples;
   std::uint32_t sequence = 1;

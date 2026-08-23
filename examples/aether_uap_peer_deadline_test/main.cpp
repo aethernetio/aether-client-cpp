@@ -48,6 +48,8 @@ int main(int argc, char** argv) {
     if (!parent.empty()) {
       args.parent_uid = std::string{parent};
     }
+    auto mode = ArgValue(argc, argv, "--mode");
+    args.unknown_only = (mode == "unknown");
     return RunCoordinator(args);
   }
 
@@ -67,6 +69,10 @@ int main(int argc, char** argv) {
     if (args.client_name.empty()) {
       args.client_name =
           args.side == Side::kA ? "uap-deadline-alice" : "uap-deadline-bob";
+    }
+    auto ping_ms = ArgValue(argc, argv, "--ping-interval-ms");
+    if (!ping_ms.empty()) {
+      args.ping_interval_ms = std::strtoll(ping_ms.data(), nullptr, 10);
     }
     return RunClientRole(args);
   }

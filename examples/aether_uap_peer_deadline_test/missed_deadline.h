@@ -27,25 +27,25 @@ namespace ae::test_uap_peer_deadline {
 // cross-query drift is expected. Treat only large moves as a new ping.
 inline constexpr auto kLastPingAdvanceEpsilon = std::chrono::milliseconds{500};
 
-inline bool IsLastPingAdvanced(TimePoint previous_last_ping,
-                               TimePoint current_last_ping) noexcept {
-  return current_last_ping > previous_last_ping + kLastPingAdvanceEpsilon;
+inline bool IsLastOnlineAdvanced(TimePoint previous_last_online,
+                                 TimePoint current_last_online) noexcept {
+  return current_last_online > previous_last_online + kLastPingAdvanceEpsilon;
 }
 
-// Test-local classification only. Not a production Client API.
-// MISSED_DEADLINE =
-//   now > previous.next_ping_deadline &&
-//   !IsLastPingAdvanced(previous.last_ping, queried.last_ping)
+// Test-local helper. Production classification is PeerScheduleState.
 inline bool IsMissedDeadline(PeerReceiveSchedule const& previous,
                              PeerReceiveSchedule const& current,
                              TimePoint now) noexcept {
+  if (current.state == PeerScheduleState::kMissedDeadline) {
+    return true;
+  }
   if (!previous.next_ping_deadline.has_value()) {
     return false;
   }
   if (!(now > *previous.next_ping_deadline)) {
     return false;
   }
-  return !IsLastPingAdvanced(previous.last_ping, current.last_ping);
+  return !IsLastOnlineAdvanced(previous.last_online, current.last_online);
 }
 
 }  // namespace ae::test_uap_peer_deadline

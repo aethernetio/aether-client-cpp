@@ -142,8 +142,12 @@ auto PingCloudServers::ServerPing::MakePing() {
           auto const current_time = Now();
           ping_->Start(current_time);
           OpenRxWindow();
-          next_ping_time_ = current_time + timing_conf_.interval - guard;
-          policy_->ReportNextServiceTime(priority_, next_ping_time_);
+          if (timing_conf_.interval > Duration{}) {
+            next_ping_time_ = current_time + timing_conf_.interval - guard;
+            policy_->ReportNextServiceTime(priority_, next_ping_time_);
+          } else {
+            next_ping_time_ = TimePoint::max();
+          }
           AE_TELED_DEBUG(
               "Next ping time for priority {} at {} after {} (guard {})",
               priority_, next_ping_time_, timing_conf_.interval, guard);
@@ -182,10 +186,12 @@ void PingCloudServers::ServerPing::Start() {
               }),
       [this]<typename R>(std::optional<R>&& res) noexcept {
         if (res && res->IsOk()) {
-          // repeat start on next_ping_time_
-          start_sub_ = ae_context_.scheduler().DelayedTask(
-              [&]() noexcept { Start(); },  // ~['_']~
-              next_ping_time_);
+          // interval == 0: unknown next ping; do not auto-reschedule.
+          if (timing_conf_.interval > Duration{}) {
+            start_sub_ = ae_context_.scheduler().DelayedTask(
+                [&]() noexcept { Start(); },  // ~['_']~
+                next_ping_time_);
+          }
         } else if (res && res->IsErr()) {
           AE_TELED_ERROR("Ping start error {}", std::move(res)->error());
         } else {

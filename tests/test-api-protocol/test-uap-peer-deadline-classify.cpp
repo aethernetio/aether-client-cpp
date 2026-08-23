@@ -32,7 +32,14 @@ TimePoint Tp(std::int64_t ms) {
 PeerReceiveSchedule Make(std::int64_t last_ms,
                          std::optional<std::int64_t> next_ms) {
   PeerReceiveSchedule s{};
-  s.last_ping = Tp(last_ms);
+  s.last_online = Tp(last_ms);
+  if (next_ms.has_value() && *next_ms > last_ms) {
+    s.state = PeerScheduleState::kExpected;
+  } else if (next_ms.has_value()) {
+    s.state = PeerScheduleState::kMissedDeadline;
+  } else {
+    s.state = PeerScheduleState::kUnknown;
+  }
   if (next_ms.has_value()) {
     s.next_ping_deadline = Tp(*next_ms);
   }

@@ -28,11 +28,20 @@ struct ReceiveSchedule {
   Duration receive_window{};
 };
 
+enum class PeerScheduleState {
+  kExpected,
+  kMissedDeadline,
+  kUnknown,
+};
+
 // Library TimePoint / ae::Now() local timeline only (relative offsets; no
 // Unix-epoch wall remapping of server timestamps).
+// last_online is converted from lastConnectDeltaMs (online/activity, not
+// necessarily a ping).
 struct PeerReceiveSchedule {
-  TimePoint last_ping{};
+  TimePoint last_online{};
   std::optional<TimePoint> next_ping_deadline{};
+  PeerScheduleState state{PeerScheduleState::kUnknown};
 };
 
 enum class SetReceiveScheduleError : int {

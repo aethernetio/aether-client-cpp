@@ -101,6 +101,10 @@ bool SpawnChild(ChildProc& child, CoordinatorArgs const& args,
              args.run_id + " --state-dir \"" + state_dir + "\" --pipe \"" +
              pipe_name + "\" --client-name " + client_name + " --parent-uid " +
              args.parent_uid + " --artifact-dir \"" + artifact_dir + "\"";
+  if (child.side == Side::kB) {
+    cmd += " --ping-interval-ms " +
+           std::to_string(args.unknown_only ? 0 : 3000);
+  }
   SECURITY_ATTRIBUTES sa{};
   sa.nLength = sizeof(sa);
   sa.bInheritHandle = TRUE;
@@ -266,7 +270,8 @@ int RunCoordinator(CoordinatorArgs args) {
   (void)bob.pipe.TryReadFrame(5000);
   (void)alice.pipe.TryReadFrame(5000);
 
-  if (!SendCmd(alice, IpcType::kRunTest)) {
+  if (!SendCmd(alice, IpcType::kRunTest, 0, 0, 0,
+               args.unknown_only ? 1 : 0)) {
     std::cerr << "RunTest failed\n";
     return 6;
   }

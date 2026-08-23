@@ -17,10 +17,13 @@
 #ifndef AETHER_AE_ACTIONS_QUERY_PEER_RECEIVE_SCHEDULE_H_
 #define AETHER_AE_ACTIONS_QUERY_PEER_RECEIVE_SCHEDULE_H_
 
+#include <chrono>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "aether-miscpp/types/result.h"
 
@@ -32,41 +35,25 @@
 #include "aether/events/event_subscription.h"
 #include "aether/events/events.h"
 #include "aether/receive_schedule.h"
+#include "aether/types/server_id.h"
 #include "aether/types/uid.h"
+#include "aether/work_cloud_api/client_timing.h"
 
 namespace ae {
 class Client;
 class CloudServerConnections;
+class CloudServerConnection;
 
-inline std::int64_t SaturatingAddI64(std::int64_t a, std::int64_t b) noexcept {
-  auto const max_v = std::numeric_limits<std::int64_t>::max();
-  auto const min_v = std::numeric_limits<std::int64_t>::min();
-  if (b >= 0) {
-    if (a > max_v - b) {
-      return max_v;
-    }
-  } else if (a < min_v - b) {
-    return min_v;
-  }
-  return a + b;
+inline Duration FallbackOneWayPingEstimate() noexcept {
+  return std::chrono::duration_cast<Duration>(std::chrono::milliseconds{100});
 }
 
-inline std::int64_t SaturatingSubI64(std::int64_t a, std::int64_t b) noexcept {
-  auto const max_v = std::numeric_limits<std::int64_t>::max();
-  auto const min_v = std::numeric_limits<std::int64_t>::min();
-  if (b >= 0) {
-    if (a < min_v + b) {
-      return min_v;
-    }
-  } else if (a > max_v + b) {
-    return max_v;
+inline Duration OneWayPingEstimate(bool stats_empty,
+                                   Duration min_rtt) noexcept {
+  if (stats_empty) {
+    return FallbackOneWayPingEstimate();
   }
-  return a - b;
-}
-
-inline TimePoint ComputeLocalAnchor(TimePoint query_begin,
-                                    TimePoint query_end) noexcept {
-  return query_begin + (query_end - query_begin) / 2;
+  return min_rtt / 2;
 }
 
 inline TimePoint TimePointOffsetByMs(TimePoint anchor,
@@ -74,11 +61,19 @@ inline TimePoint TimePointOffsetByMs(TimePoint anchor,
   if (delta_ms == 0) {
     return anchor;
   }
-  // Do not compute (TimePoint::max/min() - anchor): that difference overflows
-  // system_clock::duration::rep on common platforms and falsely clamps to
-  // min/max for ordinary millisecond offsets.
   using ClockDuration = typename TimePoint::duration;
   using Rep = typename ClockDuration::rep;
+  auto const max_safe_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               ClockDuration{std::numeric_limits<Rep>::max() / 4})
+                               .count();
+  if (max_safe_ms > 0) {
+    if (delta_ms > max_safe_ms) {
+      return TimePoint::max();
+    }
+    if (delta_ms < -max_safe_ms) {
+      return TimePoint::min();
+    }
+  }
   auto const offset =
       std::chrono::duration_cast<ClockDuration>(std::chrono::milliseconds{
           delta_ms});
@@ -96,33 +91,176 @@ inline TimePoint TimePointOffsetByMs(TimePoint anchor,
   return TimePoint{ClockDuration{static_cast<Rep>(base + add)}};
 }
 
-inline PeerReceiveSchedule MakePeerReceiveSchedule(
-    TimePoint local_anchor, std::int64_t server_now_ms,
-    std::int64_t last_read_timestamp_ms, std::int64_t delta_ms) noexcept {
-  PeerReceiveSchedule schedule{};
-  auto const age_ms =
-      SaturatingSubI64(server_now_ms, last_read_timestamp_ms);
-  schedule.last_ping = TimePointOffsetByMs(local_anchor, -age_ms);
-  if (delta_ms > 0) {
-    auto const remaining_ms = SaturatingSubI64(
-        SaturatingAddI64(last_read_timestamp_ms, delta_ms), server_now_ms);
-    schedule.next_ping_deadline =
-        TimePointOffsetByMs(local_anchor, remaining_ms);
+struct ConvertedServerTiming {
+  ServerId server_id{};
+  TimePoint last_online{};
+  std::optional<TimePoint> next_ping_deadline{};
+  PeerScheduleState state{PeerScheduleState::kUnknown};
+};
+
+inline ConvertedServerTiming ConvertClientTiming(
+    TimePoint qsend, Duration one_way, ClientTiming const& timing,
+    ServerId server_id = {}) noexcept {
+  auto const qserver = qsend + one_way;
+  ConvertedServerTiming out;
+  out.server_id = server_id;
+  out.last_online =
+      TimePointOffsetByMs(qserver, timing.last_connect_delta_ms);
+  if (timing.next_ping_delta_ms > 0) {
+    out.next_ping_deadline =
+        TimePointOffsetByMs(qserver, timing.next_ping_delta_ms);
+    out.state = PeerScheduleState::kExpected;
+  } else if (timing.next_ping_delta_ms < 0) {
+    out.next_ping_deadline =
+        TimePointOffsetByMs(qserver, timing.next_ping_delta_ms);
+    out.state = PeerScheduleState::kMissedDeadline;
+  } else {
+    out.next_ping_deadline = std::nullopt;
+    out.state = PeerScheduleState::kUnknown;
   }
-  return schedule;
+  return out;
 }
 
-inline bool PeerReceiveScheduleValuesMalformed(
-    std::int64_t server_now_ms, std::int64_t last_read_timestamp_ms) noexcept {
-  return server_now_ms < 0 || last_read_timestamp_ms < 0;
+inline std::optional<PeerReceiveSchedule> AggregatePeerTimings(
+    std::vector<ConvertedServerTiming> const& samples) noexcept {
+  if (samples.empty()) {
+    return std::nullopt;
+  }
+
+  PeerReceiveSchedule out{};
+  out.last_online = samples.front().last_online;
+
+  bool any_future = false;
+  bool any_unknown = false;
+  bool any_missed = false;
+  TimePoint latest_future{};
+  TimePoint latest_missed{};
+
+  for (auto const& sample : samples) {
+    if (sample.last_online > out.last_online) {
+      out.last_online = sample.last_online;
+    }
+    if (sample.state == PeerScheduleState::kExpected &&
+        sample.next_ping_deadline.has_value()) {
+      if (!any_future || *sample.next_ping_deadline > latest_future) {
+        latest_future = *sample.next_ping_deadline;
+      }
+      any_future = true;
+    } else if (sample.state == PeerScheduleState::kUnknown) {
+      any_unknown = true;
+    } else if (sample.state == PeerScheduleState::kMissedDeadline &&
+               sample.next_ping_deadline.has_value()) {
+      if (!any_missed || *sample.next_ping_deadline > latest_missed) {
+        latest_missed = *sample.next_ping_deadline;
+      }
+      any_missed = true;
+    }
+  }
+
+  if (any_future) {
+    out.state = PeerScheduleState::kExpected;
+    out.next_ping_deadline = latest_future;
+  } else if (any_unknown) {
+    out.state = PeerScheduleState::kUnknown;
+    out.next_ping_deadline = std::nullopt;
+  } else {
+    out.state = PeerScheduleState::kMissedDeadline;
+    out.next_ping_deadline = latest_missed;
+  }
+  return out;
 }
+
+enum class ServerTimingAttemptStatus {
+  kInFlight,
+  kSuccess,
+  kError,
+};
+
+struct ServerTimingAttempt {
+  std::uint64_t send_generation{0};
+  TimePoint qsend{};
+  Duration one_way{};
+  ServerTimingAttemptStatus status{ServerTimingAttemptStatus::kInFlight};
+  ConvertedServerTiming converted{};
+};
+
+// Pure helper for unit tests: generation, stale ignore, per-server isolation.
+struct PeerTimingQueryState {
+  std::uint64_t query_generation{0};
+  bool cancelled{false};
+  bool completed{false};
+  int user_callback_count{0};
+  std::map<ServerId, ServerTimingAttempt> attempts;
+
+  std::uint64_t Begin() {
+    ++query_generation;
+    cancelled = false;
+    completed = false;
+    user_callback_count = 0;
+    attempts.clear();
+    return query_generation;
+  }
+
+  bool IsCurrentQuery(std::uint64_t generation) const noexcept {
+    return !cancelled && generation == query_generation;
+  }
+
+  std::uint64_t RegisterSend(ServerId server_id, TimePoint qsend,
+                             Duration one_way) {
+    auto& attempt = attempts[server_id];
+    ++attempt.send_generation;
+    attempt.qsend = qsend;
+    attempt.one_way = one_way;
+    attempt.status = ServerTimingAttemptStatus::kInFlight;
+    attempt.converted = {};
+    return attempt.send_generation;
+  }
+
+  bool ApplyTiming(ServerId server_id, std::uint64_t send_generation,
+                   ClientTiming const& timing) {
+    if (cancelled || completed) {
+      return false;
+    }
+    auto it = attempts.find(server_id);
+    if (it == attempts.end() || it->second.send_generation != send_generation) {
+      return false;
+    }
+    it->second.status = ServerTimingAttemptStatus::kSuccess;
+    it->second.converted = ConvertClientTiming(
+        it->second.qsend, it->second.one_way, timing, server_id);
+    return true;
+  }
+
+  bool ApplyError(ServerId server_id, std::uint64_t send_generation) {
+    if (cancelled || completed) {
+      return false;
+    }
+    auto it = attempts.find(server_id);
+    if (it == attempts.end() || it->second.send_generation != send_generation) {
+      return false;
+    }
+    it->second.status = ServerTimingAttemptStatus::kError;
+    return true;
+  }
+
+  std::optional<PeerReceiveSchedule> TryAggregate() const {
+    std::vector<ConvertedServerTiming> ok;
+    ok.reserve(attempts.size());
+    for (auto const& [id, attempt] : attempts) {
+      if (attempt.status == ServerTimingAttemptStatus::kSuccess) {
+        ok.push_back(attempt.converted);
+      }
+    }
+    return AggregatePeerTimings(ok);
+  }
+
+  void Cancel() { cancelled = true; }
+};
 
 enum class QueryPeerReceiveScheduleError : int {
   kGetCloudFailed = 1,
-  kMainServerUnavailable = 2,
-  kGetTimeUtcFailed = 3,
-  kGetUapFailed = 4,
-  kMalformedResponse = 5,
+  kNoWorkServerAvailable = 2,
+  kGetClientTimingFailed = 3,
 };
 
 class QueryPeerReceiveSchedule final : public Action {
@@ -131,17 +269,20 @@ class QueryPeerReceiveSchedule final : public Action {
 
   QueryPeerReceiveSchedule(AeContext const& ae_context, Client& client,
                            Uid peer_uid);
+  ~QueryPeerReceiveSchedule() override;
 
   AE_CLASS_NO_COPY_MOVE(QueryPeerReceiveSchedule)
 
   ResultEvent::Subscriber result_event() noexcept;
 
  private:
+  Duration OneWayEstimateFor(CloudServerConnection* sc) const;
   void OnCloud(Result<Cloud::ptr, int> result);
   void StartQuery();
-  void BeginAttempt();
-  void OnAttemptPromiseFailed(int error);
-  void MaybeComplete(std::uint64_t generation);
+  void OnServerTiming(CloudServerConnection* sc, std::uint64_t send_generation,
+                      Result<ClientTiming, int> const& res);
+  void MaybeComplete();
+  void Complete(PeerReceiveSchedule const& schedule);
   void Fail(int code);
 
   AeContext ae_context_;
@@ -152,22 +293,9 @@ class QueryPeerReceiveSchedule final : public Action {
   Subscription cloud_request_sub_;
   std::unique_ptr<CloudServerConnections> dest_cloud_;
   std::optional<CloudRequest> cloud_request_;
-  Subscription time_sub_;
-  Subscription uap_sub_;
-
-  std::uint64_t attempt_generation_{0};
-  bool got_time_{false};
-  bool got_uap_{false};
-  bool attempt_failed_{false};
+  std::map<ServerId, Subscription> timing_subs_;
+  PeerTimingQueryState query_state_{};
   bool finished_{false};
-  TimePoint query_begin_{};
-  TimePoint local_anchor_{};
-  std::int64_t server_now_ms_{0};
-  std::int64_t last_ping_ms_{0};
-  std::int64_t delta_ms_{0};
-  int last_attempt_error_{0};
-  CloudRequest* attempt_request_{nullptr};
-  CloudServerConnection* attempt_sc_{nullptr};
 };
 
 }  // namespace ae
