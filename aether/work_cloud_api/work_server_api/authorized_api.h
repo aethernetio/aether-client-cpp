@@ -45,7 +45,8 @@ class AuthorizedApi : public ApiClass {
 
   Method<18, void(Telemetric telemetric)> send_telemetry;
 
-  // Wire-only; may be unused by the client library.
+  // After ping(), call with the announced ping interval so UAP delta_ms is
+  // the interval (server ping() alone stores rx_window as nextReadDelay).
   Method<33, void(std::int64_t delay_ms)> set_next_read_delay;
   Method<34, ApiPromise<Uap>(Uid uid)> get_uap;
 

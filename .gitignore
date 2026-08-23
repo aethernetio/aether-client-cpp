@@ -66,3 +66,6 @@ projects/intel_x86/linux/gcc/aether-client-cpp
 /build-windows*/
 *.log
 
+
+.artifacts/
+

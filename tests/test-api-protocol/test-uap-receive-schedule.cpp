@@ -101,11 +101,16 @@ void test_ConversionUsesLibraryTimePointOnly() {
 
   auto const schedule =
       MakePeerReceiveSchedule(anchor, 10'000, 9'000, 5'000);
-  auto const expected_last = TimePointOffsetByMs(anchor, -1'000);
-  auto const expected_next = TimePointOffsetByMs(anchor, 4'000);
-  TEST_ASSERT_TRUE(schedule.last_ping == expected_last);
+  // Absolute checks: must not clamp to TimePoint::min()/max() for normal ages.
+  TEST_ASSERT_TRUE(schedule.last_ping ==
+                   anchor - std::chrono::milliseconds{1000});
   TEST_ASSERT_TRUE(schedule.next_ping_deadline.has_value());
-  TEST_ASSERT_TRUE(*schedule.next_ping_deadline == expected_next);
+  TEST_ASSERT_TRUE(*schedule.next_ping_deadline ==
+                   anchor + std::chrono::milliseconds{4000});
+  TEST_ASSERT_TRUE(TimePointOffsetByMs(anchor, -1'000) ==
+                   anchor - std::chrono::milliseconds{1000});
+  TEST_ASSERT_TRUE(TimePointOffsetByMs(anchor, 4'000) ==
+                   anchor + std::chrono::milliseconds{4000});
   static_assert(std::is_same_v<decltype(schedule.last_ping), TimePoint>);
 }
 

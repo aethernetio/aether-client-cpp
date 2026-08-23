@@ -307,7 +307,8 @@ int RunCoordinator(CoordinatorArgs args) {
       rec.offset_ms = offset;
       bool got_send = false;
       bool got_recv = false;
-      auto const deadline = GetTickCount64() + 30000;
+      // Allow waiting through a full Bob ping cycle + query RTT + send.
+      auto const deadline = GetTickCount64() + 45000;
       while (GetTickCount64() < deadline && !(got_send && got_recv)) {
         if (auto f = alice.pipe.TryReadFrame(100)) {
           auto const type = static_cast<IpcType>(f->type);
