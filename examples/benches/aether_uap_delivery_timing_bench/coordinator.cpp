@@ -32,9 +32,15 @@
 #  define NOMINMAX
 #endif
 #include <windows.h>
+// Windows.h maps RegisterClass -> RegisterClassA/W; aether Registry uses the
+// unqualified name.
+#if defined(RegisterClass)
+#  undef RegisterClass
+#endif
 
 #include "common/bench_ipc.h"
 #include "common/bench_types.h"
+#include "common/udp_proof_types.h"
 
 namespace ae::bench::uap {
 namespace {
@@ -52,6 +58,11 @@ struct ChildProc {
   bool ready{false};
   bool uid_ok{false};
   std::uint32_t seq{0};
+  ChannelProof own_proof{};
+  ChannelProof dest_proof{};
+  bool got_own_proof{false};
+  bool got_dest_proof{false};
+  bool no_udp_endpoint{false};
 };
 
 std::string MakeRunId() {
@@ -93,6 +104,19 @@ void HandleChildFrame(ChildProc& child, IpcFrame const& frame) {
   }
   if (type == IpcType::kChildReady || type == IpcType::kUidReport) {
     child.ready = true;
+  }
+  if (type == IpcType::kUdpProof) {
+    auto const path = static_cast<UdpProofPath>(frame.event_kind);
+    auto proof = UnpackUdpProofFrame(frame);
+    if (path == UdpProofPath::kNoUdpEndpoint) {
+      child.no_udp_endpoint = true;
+    } else if (path == UdpProofPath::kOwn) {
+      child.own_proof = proof;
+      child.got_own_proof = true;
+    } else if (path == UdpProofPath::kDestination) {
+      child.dest_proof = proof;
+      child.got_dest_proof = true;
+    }
   }
 }
 
@@ -168,6 +192,17 @@ double Percentile(std::vector<double> values, double p) {
   return values[std::min(idx, values.size() - 1)];
 }
 
+void PrintProofLine(char const* title, ChannelProof const& proof) {
+  std::cout << title << "\n"
+            << "    server_id=" << proof.server_id << "\n"
+            << "    endpoint=" << proof.endpoint << "\n"
+            << "    protocol=" << BenchProtocolName(proof.protocol) << "\n"
+            << "    link_state=" << static_cast<int>(proof.link_state)
+            << " writable=" << (proof.is_writable ? 1 : 0) << "\n"
+            << "    udp_socket_generation=" << proof.udp_socket_generation
+            << "\n";
+}
+
 }  // namespace
 
 int RunCoordinator(CoordinatorArgs args) {
@@ -212,6 +247,11 @@ int RunCoordinator(CoordinatorArgs args) {
     while (GetTickCount64() < deadline && !(c.ready && c.uid_ok)) {
       if (auto f = c.pipe.TryReadFrame(200)) {
         HandleChildFrame(c, *f);
+        if (c.no_udp_endpoint) {
+          std::cerr << "blocker: server_does_not_advertise_udp_endpoint ("
+                    << name << ")\n";
+          return false;
+        }
       }
     }
     if (!(c.ready && c.uid_ok)) {
@@ -223,7 +263,27 @@ int RunCoordinator(CoordinatorArgs args) {
   if (!wait_ready(alice, "Alice") || !wait_ready(bob, "Bob")) {
     StopChild(alice);
     StopChild(bob);
-    return 3;
+    return alice.no_udp_endpoint || bob.no_udp_endpoint ? 30 : 3;
+  }
+
+  // Wait briefly for own-cloud UDP proofs (post-connect).
+  {
+    auto const deadline = GetTickCount64() + 120000;
+    while (GetTickCount64() < deadline &&
+           !(alice.got_own_proof && bob.got_own_proof)) {
+      if (auto f = alice.pipe.TryReadFrame(100)) {
+        HandleChildFrame(alice, *f);
+      }
+      if (auto f = bob.pipe.TryReadFrame(100)) {
+        HandleChildFrame(bob, *f);
+      }
+      if (alice.no_udp_endpoint || bob.no_udp_endpoint) {
+        std::cerr << "blocker: server_does_not_advertise_udp_endpoint\n";
+        StopChild(alice);
+        StopChild(bob);
+        return 30;
+      }
+    }
   }
 
   std::int64_t a_lo = 0;
@@ -236,8 +296,8 @@ int RunCoordinator(CoordinatorArgs args) {
   std::memcpy(&b_hi, &bob.uid_hi, 8);
   SendCmd(alice, IpcType::kSetPeerUid, 0, 0, b_lo, b_hi);
   SendCmd(bob, IpcType::kSetPeerUid, 0, 0, a_lo, a_hi);
-  // Drain acks
-  for (int i = 0; i < 20; ++i) {
+  // Drain acks / destination proofs
+  for (int i = 0; i < 50; ++i) {
     if (auto f = alice.pipe.TryReadFrame(100)) {
       HandleChildFrame(alice, *f);
     }
@@ -265,9 +325,22 @@ int RunCoordinator(CoordinatorArgs args) {
           warmup_guard = f->offset_ms;
           done = true;
         }
+        if (static_cast<IpcType>(f->type) == IpcType::kEvent &&
+            static_cast<EventKind>(f->event_kind) == EventKind::kError) {
+          std::cerr << "Bob warm-up failed error=" << f->a << "\n";
+          StopChild(alice);
+          StopChild(bob);
+          return 5;
+        }
       }
       if (auto f = alice.pipe.TryReadFrame(0)) {
         HandleChildFrame(alice, *f);
+      }
+      if (alice.no_udp_endpoint || bob.no_udp_endpoint) {
+        std::cerr << "blocker: server_does_not_advertise_udp_endpoint\n";
+        StopChild(alice);
+        StopChild(bob);
+        return 30;
       }
     }
     if (!done) {
@@ -278,10 +351,54 @@ int RunCoordinator(CoordinatorArgs args) {
     }
   }
 
+  // Destination proof may arrive after Alice stream connects during samples;
+  // wait a bit more if missing.
+  {
+    auto const deadline = GetTickCount64() + 60000;
+    while (GetTickCount64() < deadline && !alice.got_dest_proof) {
+      if (auto f = alice.pipe.TryReadFrame(200)) {
+        HandleChildFrame(alice, *f);
+      }
+      if (auto f = bob.pipe.TryReadFrame(0)) {
+        HandleChildFrame(bob, *f);
+      }
+    }
+  }
+
+  std::cout << "\n## UDP proof\n";
+  PrintProofLine("Alice own server:", alice.own_proof);
+  PrintProofLine("Bob own server:", bob.own_proof);
+  if (alice.got_dest_proof) {
+    PrintProofLine("Alice destination Bob server:", alice.dest_proof);
+  } else {
+    std::cout << "Alice destination Bob server:\n"
+              << "    (using Alice own / shared MainServer until dest link)\n";
+    PrintProofLine("Alice destination Bob server (fallback own):",
+                   alice.own_proof);
+    alice.dest_proof = alice.own_proof;
+    alice.got_dest_proof = alice.got_own_proof;
+  }
+
+  auto const protocol_ok =
+      alice.got_own_proof && bob.got_own_proof && alice.got_dest_proof &&
+      alice.own_proof.protocol == BenchProtocol::kUdp &&
+      bob.own_proof.protocol == BenchProtocol::kUdp &&
+      alice.dest_proof.protocol == BenchProtocol::kUdp;
+  if (!protocol_ok) {
+    std::cerr << "FAIL: measured path protocol is not UDP "
+                 "(TCP fallback absent required)\n";
+    StopChild(alice);
+    StopChild(bob);
+    return 6;
+  }
+  std::cout << "TCP fallback absent: AE_SUPPORT_TCP=0 build + selected "
+               "protocol=udp on all measured paths\n\n";
+
   std::cout << "## Bob ping statistics\n"
             << "samples=" << warmup_n << " min_rtt_ms=" << warmup_min
             << " p99_rtt_ms=" << warmup_p99 << " guard_ms=" << warmup_guard
-            << std::endl
+            << " udp_socket_generation="
+            << bob.own_proof.udp_socket_generation << std::endl
             << std::endl;
 
   std::map<std::uint32_t, SampleRecord> samples;
@@ -291,7 +408,8 @@ int RunCoordinator(CoordinatorArgs args) {
   std::ofstream csv(csv_path);
   csv << "sequence,offset_ms,last_ping_local_us,next_ping_deadline_local_us,"
          "send_qpc,receive_qpc,delivery_ms,duplicate_count,valid,invalid_"
-         "reason\n";
+         "reason,alice_protocol,bob_protocol,destination_protocol,udp_socket_"
+         "generation\n";
 
   for (int offset : kOffsetsMs) {
     int valid = 0;
@@ -305,12 +423,17 @@ int RunCoordinator(CoordinatorArgs args) {
       SampleRecord rec{};
       rec.sequence = seq;
       rec.offset_ms = offset;
+      rec.alice_protocol = alice.own_proof.protocol;
+      rec.bob_protocol = bob.own_proof.protocol;
+      rec.destination_protocol = alice.dest_proof.protocol;
+      rec.udp_socket_generation = bob.own_proof.udp_socket_generation;
       bool got_send = false;
       bool got_recv = false;
       // Allow waiting through a full Bob ping cycle + query RTT + send.
       auto const deadline = GetTickCount64() + 45000;
       while (GetTickCount64() < deadline && !(got_send && got_recv)) {
         if (auto f = alice.pipe.TryReadFrame(100)) {
+          HandleChildFrame(alice, *f);
           auto const type = static_cast<IpcType>(f->type);
           auto const kind = static_cast<EventKind>(f->event_kind);
           if (type == IpcType::kSampleResult && f->sequence == seq) {
@@ -324,13 +447,15 @@ int RunCoordinator(CoordinatorArgs args) {
               got_send = true;
               got_recv = true;  // abandon
             } else if (kind == EventKind::kError) {
-              rec.invalid_reason = "alice_error";
+              rec.invalid_reason =
+                  (f->a == 35) ? "refused_tcp_or_non_udp" : "alice_error";
               got_send = true;
               got_recv = true;
             }
           }
         }
         if (auto f = bob.pipe.TryReadFrame(100)) {
+          HandleChildFrame(bob, *f);
           auto const type = static_cast<IpcType>(f->type);
           auto const kind = static_cast<EventKind>(f->event_kind);
           if (type == IpcType::kEvent && kind == EventKind::kSampleReceived &&
@@ -362,7 +487,11 @@ int RunCoordinator(CoordinatorArgs args) {
           << rec.last_ping_steady_us << "," << rec.next_ping_deadline_steady_us
           << "," << rec.send_qpc << "," << rec.receive_qpc << ","
           << rec.delivery_ms << "," << rec.duplicate_count << ","
-          << (rec.valid ? 1 : 0) << "," << rec.invalid_reason << "\n";
+          << (rec.valid ? 1 : 0) << "," << rec.invalid_reason << ","
+          << BenchProtocolName(rec.alice_protocol) << ","
+          << BenchProtocolName(rec.bob_protocol) << ","
+          << BenchProtocolName(rec.destination_protocol) << ","
+          << rec.udp_socket_generation << "\n";
       csv.flush();
       std::cout << "offset=" << offset << " seq=" << seq
                 << " valid=" << rec.valid << " delivery_ms=" << rec.delivery_ms
@@ -375,14 +504,31 @@ int RunCoordinator(CoordinatorArgs args) {
   }
 
   std::cout << "\n## Delivery results\n";
-  std::cout << "| offset_ms | samples | min_ms | p50_ms | p90_ms | max_ms |\n";
-  std::cout << "|-----------|---------|--------|--------|--------|--------|\n";
+  std::cout << "| offset_ms | samples | min_ms | p50_ms | p90_ms | max_ms | "
+               "duplicates |\n";
+  std::cout << "|-----------|---------|--------|--------|--------|--------|--"
+               "----------|\n";
+  int total_duplicates = 0;
+  bool enough_valid = true;
   for (int offset : kOffsetsMs) {
     std::vector<double> vals;
+    int dups = 0;
+    int valid_n = 0;
     for (auto const& [_, s] : samples) {
-      if (s.offset_ms == offset && s.valid) {
-        vals.push_back(s.delivery_ms);
+      if (s.offset_ms != offset) {
+        continue;
       }
+      if (s.duplicate_count > 1) {
+        dups += s.duplicate_count - 1;
+      }
+      if (s.valid) {
+        vals.push_back(s.delivery_ms);
+        ++valid_n;
+      }
+    }
+    total_duplicates += dups;
+    if (valid_n < kMinValidPerOffset) {
+      enough_valid = false;
     }
     double min_v = 0;
     double max_v = 0;
@@ -393,9 +539,27 @@ int RunCoordinator(CoordinatorArgs args) {
     auto p50 = Percentile(vals, 0.50);
     auto p90 = Percentile(vals, 0.90);
     std::cout << "| " << offset << " | " << vals.size() << " | " << min_v
-              << " | " << p50 << " | " << p90 << " | " << max_v << " |\n";
+              << " | " << p50 << " | " << p90 << " | " << max_v << " | " << dups
+              << " |\n";
   }
   std::cout << "\nCSV: " << csv_path << std::endl;
+
+  // Re-check protocols after run (must remain UDP).
+  if (alice.own_proof.protocol != BenchProtocol::kUdp ||
+      bob.own_proof.protocol != BenchProtocol::kUdp ||
+      alice.dest_proof.protocol != BenchProtocol::kUdp) {
+    std::cerr << "FAIL: protocol drifted off UDP during run\n";
+    StopChild(alice);
+    StopChild(bob);
+    return 6;
+  }
+  if (!enough_valid || total_duplicates != 0) {
+    std::cerr << "FAIL: insufficient valid samples or duplicates="
+              << total_duplicates << "\n";
+    StopChild(alice);
+    StopChild(bob);
+    return 7;
+  }
 
   StopChild(alice);
   StopChild(bob);

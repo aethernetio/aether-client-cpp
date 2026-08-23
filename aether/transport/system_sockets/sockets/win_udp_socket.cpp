@@ -17,6 +17,9 @@
 #include "aether/transport/system_sockets/sockets/win_udp_socket.h"
 #if AE_SUPPORT_UDP && defined WIN_SOCKET_ENABLED
 
+#  include <atomic>
+#  include <cstdint>
+
 #  include <winsock2.h>
 #  include <ws2def.h>
 #  include <ws2ipdef.h>
@@ -27,6 +30,14 @@
 #  include "aether/tele.h"
 
 namespace ae {
+namespace {
+std::atomic<std::uint64_t> g_win_udp_socket_generation{0};
+}  // namespace
+
+std::uint64_t WinUdpSocketGeneration() noexcept {
+  return g_win_udp_socket_generation.load(std::memory_order_relaxed);
+}
+
 WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
     : WinSocket{*poller, 1200} {
   bool created = false;
@@ -54,6 +65,7 @@ WinUdpSocket::WinUdpSocket(Ptr<IPoller> const& poller)
 
   created = true;
   socket_ = sock;
+  g_win_udp_socket_generation.fetch_add(1, std::memory_order_relaxed);
 }
 
 WinUdpSocket::~WinUdpSocket() = default;

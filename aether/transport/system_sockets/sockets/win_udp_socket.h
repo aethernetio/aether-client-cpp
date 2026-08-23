@@ -22,7 +22,12 @@
 
 #if AE_SUPPORT_UDP && WIN_SOCKET_ENABLED
 
+#include <cstdint>
+
 namespace ae {
+// Process-wide count of successfully created WinUdpSocket instances.
+std::uint64_t WinUdpSocketGeneration() noexcept;
+
 class WinUdpSocket final : public WinSocket {
  public:
   explicit WinUdpSocket(Ptr<IPoller> const& poller);

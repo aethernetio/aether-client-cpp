@@ -17,6 +17,7 @@
 #include "client_role.h"
 
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -46,6 +47,7 @@
 #include "common/bench_ipc.h"
 #include "common/bench_message.h"
 #include "common/directory_domain_storage.h"
+#include "common/udp_proof.h"
 
 namespace ae::bench::uap {
 namespace {
@@ -104,6 +106,16 @@ struct RoleState {
   std::optional<TimePoint> requery_at_{};
   std::int64_t pending_last_us_{0};
   std::int64_t pending_next_us_{-1};
+  ChannelProof own_proof_{};
+  ChannelProof dest_proof_{};
+  bool own_proof_sent_{false};
+  bool dest_proof_sent_{false};
+  bool no_udp_endpoint_sent_{false};
+  bool waiting_cloud_link_{false};
+  TimePoint cloud_wait_deadline_{};
+  std::uint64_t warmup_gen_start_{0};
+  Subscription dest_cloud_sub_;
+  Cloud::ptr dest_cloud_;
 
   bool Emit(IpcType type, EventKind kind = EventKind::kAck,
             std::uint32_t sequence = 0, std::uint32_t offset_ms = 0,
@@ -121,6 +133,119 @@ struct RoleState {
     f.b = b;
     f.c = c;
     return pipe.WriteFrame(f);
+  }
+
+  bool EmitUdpProof(UdpProofPath path, ChannelProof const& proof) {
+    IpcFrame f{};
+    PackUdpProofFrame(f, path, proof);
+    f.side = static_cast<std::uint8_t>(side);
+    f.run_id_hash = run_id_hash;
+    f.seq = ++ipc_seq;
+    f.local_steady_us = SteadyUsNow();
+    return pipe.WriteFrame(f);
+  }
+
+  void BeginCloudWait() {
+    if (!client) {
+      return;
+    }
+    (void)client->cloud_connection();
+    waiting_cloud_link_ = true;
+    cloud_wait_deadline_ = Now() + std::chrono::seconds{120};
+  }
+
+  void TryEmitOwnProof() {
+    if (!client || own_proof_sent_ || no_udp_endpoint_sent_) {
+      return;
+    }
+    auto proofs = CollectCloudConnectionProofs(client->cloud_connection());
+    if (proofs.empty()) {
+      if (waiting_cloud_link_ && Now() >= cloud_wait_deadline_) {
+        no_udp_endpoint_sent_ = true;
+        waiting_cloud_link_ = false;
+        ChannelProof empty{};
+        EmitUdpProof(UdpProofPath::kNoUdpEndpoint, empty);
+        Emit(IpcType::kEvent, EventKind::kError, 0, 0, 30);
+        exit_requested = true;
+      }
+      return;
+    }
+    own_proof_ = FirstPresentProof(proofs);
+    if (!own_proof_.present) {
+      return;
+    }
+    if (own_proof_.protocol != BenchProtocol::kUdp) {
+      EmitUdpProof(UdpProofPath::kOwn, own_proof_);
+      own_proof_sent_ = true;
+      waiting_cloud_link_ = false;
+      Emit(IpcType::kEvent, EventKind::kError, 0, 0, 31);
+      exit_requested = true;
+      return;
+    }
+    if (own_proof_.link_state != LinkState::kLinked) {
+      if (waiting_cloud_link_ && Now() >= cloud_wait_deadline_) {
+        no_udp_endpoint_sent_ = true;
+        waiting_cloud_link_ = false;
+        EmitUdpProof(UdpProofPath::kNoUdpEndpoint, own_proof_);
+        Emit(IpcType::kEvent, EventKind::kError, 0, 0, 30);
+        exit_requested = true;
+      }
+      return;
+    }
+    EmitUdpProof(UdpProofPath::kOwn, own_proof_);
+    own_proof_sent_ = true;
+    waiting_cloud_link_ = false;
+    std::cerr << "UDP proof own server_id=" << own_proof_.server_id
+              << " endpoint=" << own_proof_.endpoint
+              << " protocol=" << BenchProtocolName(own_proof_.protocol)
+              << " gen=" << own_proof_.udp_socket_generation << std::endl;
+  }
+
+  void TryEmitDestinationProof() {
+    if (side != Side::kA || !client || !peer_set || dest_proof_sent_) {
+      return;
+    }
+    ChannelProof proof{};
+    if (dest_cloud_) {
+      proof = CollectDestinationProofFromCloud(*client.Load(), dest_cloud_);
+    }
+    if (!proof.present || proof.link_state != LinkState::kLinked) {
+      // Destination may share Alice's own MainServer connection.
+      auto own = CollectOwnCloudProof(*client.Load());
+      if (own.present && own.link_state == LinkState::kLinked) {
+        proof = own;
+      }
+    }
+    if (!proof.present || proof.link_state != LinkState::kLinked) {
+      return;
+    }
+    dest_proof_ = proof;
+    EmitUdpProof(UdpProofPath::kDestination, dest_proof_);
+    dest_proof_sent_ = true;
+    std::cerr << "UDP proof dest server_id=" << dest_proof_.server_id
+              << " endpoint=" << dest_proof_.endpoint
+              << " protocol=" << BenchProtocolName(dest_proof_.protocol)
+              << " gen=" << dest_proof_.udp_socket_generation << std::endl;
+    if (dest_proof_.protocol != BenchProtocol::kUdp) {
+      Emit(IpcType::kEvent, EventKind::kError, 0, 0, 32);
+      exit_requested = true;
+    }
+  }
+
+  void StartDestinationCloudWatch() {
+    if (side != Side::kA || !client || !peer_set) {
+      return;
+    }
+    dest_cloud_sub_.Reset();
+    auto& action = client->cloud_manager()->GetCloud(peer_uid);
+    dest_cloud_sub_ = action.result_event().Subscribe(
+        [this](Result<Cloud::ptr, int> const& res) {
+          if (!res) {
+            return;
+          }
+          dest_cloud_ = res.value();
+          TryEmitDestinationProof();
+        });
   }
 
   void EnsureStreams() {
@@ -204,13 +329,28 @@ struct RoleState {
     if (!warmup_active || side != Side::kB || !client) {
       return;
     }
+    own_proof_ = CollectOwnCloudProof(*client.Load());
+    if (!own_proof_.present || own_proof_.protocol != BenchProtocol::kUdp) {
+      std::cerr << "Bob warmup refused: protocol="
+                << BenchProtocolName(own_proof_.protocol) << std::endl;
+      warmup_active = false;
+      EmitUdpProof(UdpProofPath::kOwn, own_proof_);
+      Emit(IpcType::kEvent, EventKind::kError, 0, 0, 33);
+      exit_requested = true;
+      return;
+    }
+    if (warmup_gen_start_ == 0) {
+      warmup_gen_start_ = own_proof_.udp_socket_generation;
+    }
     Duration min_rtt{};
     Duration p99_rtt{};
     auto const n = CollectResponseStats(&min_rtt, &p99_rtt);
     static std::size_t last_logged = 0;
     if (n != last_logged && (n % 2 == 0 || n >= kWarmupSamples)) {
       last_logged = n;
-      std::cerr << "Bob warmup samples=" << n << std::endl;
+      std::cerr << "Bob warmup samples=" << n
+                << " protocol=" << BenchProtocolName(own_proof_.protocol)
+                << " gen=" << own_proof_.udp_socket_generation << std::endl;
     }
     if (n < kWarmupSamples) {
       return;
@@ -231,10 +371,25 @@ struct RoleState {
                 << " p99=" << p99_ms << "\n";
       return;
     }
+    auto const gen_end = CurrentUdpSocketGeneration();
+    if (gen_end < warmup_gen_start_) {
+      std::cerr << "Bob warmup socket generation went backwards\n";
+      warmup_active = false;
+      Emit(IpcType::kEvent, EventKind::kError, 0, 0, 34);
+      exit_requested = true;
+      return;
+    }
     warmup_active = false;
     std::cout << "## Bob ping statistics (child)\n"
               << "samples=" << n << " min_rtt_ms=" << min_ms
-              << " p99_rtt_ms=" << p99_ms << " guard_ms=" << guard_ms << "\n";
+              << " p99_rtt_ms=" << p99_ms << " guard_ms=" << guard_ms
+              << " udp_gen_start=" << warmup_gen_start_
+              << " udp_gen_end=" << gen_end << "\n";
+    if (!own_proof_sent_) {
+      own_proof_.udp_socket_generation = gen_end;
+      EmitUdpProof(UdpProofPath::kOwn, own_proof_);
+      own_proof_sent_ = true;
+    }
     // sequence unused; offset_ms carries guard_ms; a=n b=min c=p99
     Emit(IpcType::kWarmupDone, EventKind::kWarmupDone, 0,
          static_cast<std::uint32_t>(guard_ms), static_cast<std::int64_t>(n),
@@ -378,6 +533,24 @@ struct RoleState {
       return;
     }
 
+    own_proof_ = CollectOwnCloudProof(*client.Load());
+    TryEmitDestinationProof();
+    auto const own_proto = own_proof_.present ? own_proof_.protocol
+                                              : BenchProtocol::kUnknown;
+    auto const dest_proto = dest_proof_.present ? dest_proof_.protocol
+                                                : own_proto;
+    if (RefuseTcpSample(own_proto, dest_proto) ||
+        own_proto != BenchProtocol::kUdp ||
+        dest_proto != BenchProtocol::kUdp) {
+      sample_in_flight = false;
+      std::cerr << "Alice refuse TCP/non-UDP sample own="
+                << BenchProtocolName(own_proto)
+                << " dest=" << BenchProtocolName(dest_proto) << std::endl;
+      Emit(IpcType::kSampleResult, EventKind::kError, pending_sequence,
+           pending_offset_ms, 35);
+      return;
+    }
+
     DeliveryBenchMessage msg{};
     msg.offset_ms = static_cast<std::uint16_t>(pending_offset_ms);
     msg.sequence = pending_sequence;
@@ -400,16 +573,18 @@ struct RoleState {
         peer_uid = UidFromHalves(f.a, f.b);
         peer_set = true;
         if (client) {
-          // Bob: schedule already applied; Alice: default schedule.
           (void)client->cloud_connection();
         }
         EnsureStreams();
+        StartDestinationCloudWatch();
         Emit(IpcType::kAck, EventKind::kAck);
         break;
       case IpcType::kWaitWarmup:
         if (side == Side::kB) {
           warmup_active = true;
-          std::cerr << "Bob WaitWarmup received" << std::endl;
+          warmup_gen_start_ = CurrentUdpSocketGeneration();
+          std::cerr << "Bob WaitWarmup received gen_start=" << warmup_gen_start_
+                    << std::endl;
           if (client) {
             (void)client->cloud_connection();
           }
@@ -445,22 +620,49 @@ std::unique_ptr<AetherApp> MakeApp(std::string const& state_dir) {
   );
 }
 
+bool RegistrationCloudHasUdpEndpoint(Aether& aether) {
+#if AE_SUPPORT_REGISTRATION
+  // RegistrationCloudFactory hardcodes Protocol::kTcp endpoints only.
+  // With AE_SUPPORT_TCP=0 those endpoints are filtered out of channels.
+  (void)aether;
+  return false;
+#else
+  (void)aether;
+  return true;
+#endif
+}
+
 }  // namespace
 
 int RunClientRole(ClientArgs const& args) {
+  // Unbuffered child logs (coordinator redirects stdout/stderr to files).
+  setvbuf(stdout, nullptr, _IONBF, 0);
+  setvbuf(stderr, nullptr, _IONBF, 0);
+
   RoleState state;
   state.side = args.side;
   state.run_id_hash = HashRunId(args.run_id);
+
+  std::cerr << "Client role start side="
+            << (args.side == Side::kA ? "A" : "B")
+            << " state_dir=" << args.state_dir
+            << " AE_SUPPORT_TCP=" << AE_SUPPORT_TCP
+            << " AE_SUPPORT_UDP=" << AE_SUPPORT_UDP << std::endl;
 
   if (!state.pipe.Connect(args.pipe_name, 60000)) {
     std::cerr << "pipe connect failed: " << args.pipe_name << "\n";
     return 2;
   }
+  std::cerr << "pipe connected\n";
 
   state.app = MakeApp(args.state_dir);
+  std::cerr << "AetherApp constructed; SelectClient...\n";
   auto parent = Uid::FromString(args.parent_uid);
-  auto& select =
-      state.app->aether()->SelectClient(parent, args.client_name);
+  auto& aether = *state.app->aether().Load();
+  auto const reg_has_udp = RegistrationCloudHasUdpEndpoint(aether);
+  std::cerr << "registration_cloud_has_udp=" << (reg_has_udp ? 1 : 0)
+            << std::endl;
+  auto& select = aether.SelectClient(parent, args.client_name);
   state.select_sub = select.result_event().Subscribe(
       [&](Result<Client::ptr, int> const& res) {
         if (!res) {
@@ -484,12 +686,12 @@ int RunClientRole(ClientArgs const& args) {
                     << " (expect ping_interval_ms=" << ping_ms
                     << " receive_window_ms=" << rx_ms << ")" << std::endl;
           if (!ok) {
-            state.Emit(IpcType::kEvent, EventKind::kError, 0, 0, 11);
-            state.exit_requested = true;
-            return;
+            std::cerr << "Bob SetReceiveSchedule soft-fail err=" << ok.error()
+                      << " continuing with persisted policy if any\n";
           }
         }
         state.client_ready = true;
+        state.BeginCloudWait();
         std::int64_t lo = 0;
         std::int64_t hi = 0;
         UidToHalves(state.client->uid(), lo, hi);
@@ -499,12 +701,24 @@ int RunClientRole(ClientArgs const& args) {
         state.Emit(IpcType::kChildReady, EventKind::kChildReady);
       });
 
+  auto const select_deadline = Now() + std::chrono::seconds{45};
   while (!state.exit_requested && !state.app->IsExited()) {
     auto const now = Now();
     auto next = state.app->Update(now);
     if (auto frame = state.pipe.TryReadFrame(0)) {
       state.HandleIpc(*frame);
     }
+    if (!state.client_ready && !reg_has_udp && now >= select_deadline) {
+      std::cerr << "blocker: server_does_not_advertise_udp_endpoint "
+                   "(SelectClient timed out; registration cloud is TCP-only "
+                   "under AE_SUPPORT_TCP=0)\n";
+      ChannelProof empty{};
+      state.EmitUdpProof(UdpProofPath::kNoUdpEndpoint, empty);
+      state.Emit(IpcType::kEvent, EventKind::kError, 0, 0, 30);
+      return 30;
+    }
+    state.TryEmitOwnProof();
+    state.TryEmitDestinationProof();
     state.PollWarmup();
     state.PollSampleTiming();
     state.app->WaitUntil(

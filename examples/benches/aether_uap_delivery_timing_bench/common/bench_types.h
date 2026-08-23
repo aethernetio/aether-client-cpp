@@ -48,6 +48,19 @@ enum class IpcType : std::uint8_t {
   kEvent = 8,
   kShutdown = 9,
   kAck = 10,
+  kUdpProof = 11,
+};
+
+enum class UdpProofPath : std::uint8_t {
+  kOwn = 1,
+  kDestination = 2,
+  kNoUdpEndpoint = 3,
+};
+
+enum class BenchProtocol : std::uint8_t {
+  kUdp = 0,
+  kTcp = 1,
+  kUnknown = 2,
 };
 
 struct SampleRecord {
@@ -61,6 +74,10 @@ struct SampleRecord {
   int duplicate_count{0};
   bool valid{false};
   std::string invalid_reason;
+  BenchProtocol alice_protocol{BenchProtocol::kUnknown};
+  BenchProtocol bob_protocol{BenchProtocol::kUnknown};
+  BenchProtocol destination_protocol{BenchProtocol::kUnknown};
+  std::uint64_t udp_socket_generation{0};
 };
 
 }  // namespace ae::bench::uap

@@ -18,6 +18,7 @@ list(APPEND test_srcs
   main.cpp
   test-method-call.cpp
   test-uap-receive-schedule.cpp
+  test-uap-delivery-udp.cpp
 )
 
 if(NOT CM_PLATFORM)
