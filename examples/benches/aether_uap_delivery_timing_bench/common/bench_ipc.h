@@ -41,11 +41,20 @@ struct IpcFrame {
   std::int64_t a{0};
   std::int64_t b{0};
   std::int64_t c{0};
+  std::int64_t d{0};
+  std::int64_t e{0};
+  std::int64_t f{0};
+  std::int64_t g{0};
+  std::int64_t h{0};
+  std::int64_t i{0};
+  std::int64_t j{0};
+  std::int64_t k{0};
+  std::int64_t l{0};
   std::uint32_t crc{0};
 };
 #pragma pack(pop)
 
-static_assert(sizeof(IpcFrame) < 128);
+static_assert(sizeof(IpcFrame) < 160);
 
 std::uint32_t IpcFrameCrc(IpcFrame const& frame) noexcept;
 void EncodeIpcFrame(IpcFrame& frame) noexcept;

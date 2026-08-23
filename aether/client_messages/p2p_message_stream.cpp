@@ -17,6 +17,7 @@
 #include "aether/client_messages/p2p_message_stream.h"
 
 #include <algorithm>
+#include <cstdint>
 
 #include "aether/config.h"
 
@@ -25,10 +26,53 @@
 
 #include "aether/cloud_connections/cloud_request.h"
 #include "aether/cloud_connections/cloud_subscription.h"
+#include "aether/cloud_connections/request_policy.h"
+#include "aether/server_connections/client_server_connection.h"
 
 #include "aether/client_messages/client_messages_tele.h"
 
 namespace ae {
+namespace {
+P2pSendRouteSnapshot CaptureP2pSendRoute(CloudServerConnections& cloud) {
+  P2pSendRouteSnapshot snap{};
+  cloud.ForServers(
+      [&](CloudServerConnection* sc) {
+        if (snap.present || sc == nullptr) {
+          return;
+        }
+        auto* conn = sc->client_connection();
+        if (conn == nullptr) {
+          return;
+        }
+        snap.present = true;
+        snap.server_id = sc->server_id();
+        auto info = conn->stream_info();
+        snap.linked = info.link_state == LinkState::kLinked;
+        snap.writable = info.is_writable;
+        auto channel = conn->server_connection().current_channel();
+        if (!channel) {
+          return;
+        }
+        snap.route_generation =
+            static_cast<std::uint64_t>(
+                reinterpret_cast<std::uintptr_t>(channel.get()));
+        auto const& stats =
+            channel->channel_statistics().response_time_statistics();
+        snap.ping_sample_count = stats.size();
+        if (!stats.empty()) {
+          snap.min_rtt = stats.min();
+          snap.p99_rtt = stats.percentile<99>();
+        }
+        auto const& props = channel->transport_properties();
+        snap.protocol = props.connection_type == ConnectionType::kConnectionLess
+                            ? Protocol::kUdp
+                            : Protocol::kTcp;
+      },
+      RequestPolicy::MainServer{});
+  return snap;
+}
+}  // namespace
+
 namespace p2p_stream_internal {
 class MessageSendStream final : public IStream<AeMessage, AeMessage> {
  public:
@@ -244,9 +288,23 @@ std::unique_ptr<CloudServerConnections> P2pStream::MakeDestinationCloudConn(
       ae_context_, cloud, std::move(factory), AE_CLOUD_MAX_SERVER_CONNECTIONS);
 }
 
+P2pSendRouteSnapshot P2pStream::InspectSendRoute() const {
+  if (!dest_cloud_conn_) {
+    return {};
+  }
+  return CaptureP2pSendRoute(*dest_cloud_conn_);
+}
+
+P2pSendRouteSnapshot P2pStream::LastSendRoute() const {
+  return last_send_route_;
+}
+
 WriteAction* P2pStream::OnWrite(AeMessage&& message) {
   if (!message_send_stream_) {
     return {};
+  }
+  if (dest_cloud_conn_) {
+    last_send_route_ = CaptureP2pSendRoute(*dest_cloud_conn_);
   }
   return &message_send_stream_->Write(std::move(message));
 }

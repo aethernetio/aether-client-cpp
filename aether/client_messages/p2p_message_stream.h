@@ -28,6 +28,8 @@
 #include "aether/client_messages/p2p_port_handle.h"
 #include "aether/cloud_connections/cloud_server_connections.h"
 #include "aether/connection_manager/client_cloud_manager.h"
+#include "aether/types/address.h"
+#include "aether/types/server_id.h"
 
 namespace ae {
 class Client;
@@ -35,6 +37,20 @@ class Cloud;
 namespace p2p_stream_internal {
 class MessageSendStream;
 }  // namespace p2p_stream_internal
+
+// Diagnostic snapshot of the MainServer destination used by P2pStream::Write.
+// Not a public routing API: production Write does not depend on this.
+struct P2pSendRouteSnapshot {
+  bool present{false};
+  ServerId server_id{};
+  Protocol protocol{Protocol::kTcp};
+  std::uint64_t route_generation{0};
+  bool linked{false};
+  bool writable{false};
+  std::size_t ping_sample_count{0};
+  Duration min_rtt{};
+  Duration p99_rtt{};
+};
 
 class P2pStream final : public ByteIStream {
  public:
@@ -53,6 +69,8 @@ class P2pStream final : public ByteIStream {
 
   void WriteOut(DataBuffer const& data);
   Uid const& destination() const;
+  P2pSendRouteSnapshot InspectSendRoute() const;
+  P2pSendRouteSnapshot LastSendRoute() const;
 
  private:
   void ConnectReceive();
@@ -79,6 +97,7 @@ class P2pStream final : public ByteIStream {
 
   Subscription get_client_cloud_sub_;
   Subscription out_data_sub_;
+  P2pSendRouteSnapshot last_send_route_{};
 };
 
 }  // namespace ae

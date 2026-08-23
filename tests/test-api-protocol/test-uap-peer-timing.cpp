@@ -27,6 +27,7 @@
 #include "aether/ae_actions/query_peer_receive_schedule.h"
 #include "aether/api_protocol/api_protocol.h"
 #include "aether/api_protocol/request_id.h"
+#include "aether/cloud_connections/cloud_request.h"
 #include "aether/receive_schedule.h"
 #include "aether/types/data_buffer.h"
 #include "aether/types/uid.h"
@@ -238,7 +239,8 @@ void test_AggregateMissedUnknownAndErrors() {
       {Sample(9, -1000, PeerScheduleState::kMissedDeadline)});
   TEST_ASSERT_TRUE(one_success->state == PeerScheduleState::kMissedDeadline);
 
-  TEST_ASSERT_FALSE(AggregatePeerTimings({}).has_value());
+  TEST_ASSERT_FALSE(
+      AggregatePeerTimings(std::vector<ConvertedServerTiming>{}).has_value());
 
   PeerTimingQueryState mixed;
   mixed.Begin();
@@ -249,7 +251,9 @@ void test_AggregateMissedUnknownAndErrors() {
   TEST_ASSERT_TRUE(mixed.ApplyError(2, send_err));
   auto const mixed_agg = mixed.TryAggregate();
   TEST_ASSERT_TRUE(mixed_agg.has_value());
-  TEST_ASSERT_TRUE(mixed_agg->state == PeerScheduleState::kMissedDeadline);
+  TEST_ASSERT_TRUE(mixed_agg->state == PeerScheduleState::kUnknown);
+  TEST_ASSERT_FALSE(mixed_agg->next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(mixed.ReadyToComplete());
 
   PeerTimingQueryState all_err;
   all_err.Begin();
@@ -306,6 +310,147 @@ void test_LifecycleOutOfOrderStaleCancelAndNoLeak() {
   }
 }
 
+void test_ConservativeMatrixAndExpectedSnapshot() {
+  PeerTimingQueryState future_err;
+  future_err.Begin({1, 2});
+  auto const f1 = future_err.RegisterSend(1, Tp(0), Ms(40));
+  auto const f2 = future_err.RegisterSend(2, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(future_err.ApplyTiming(1, f1, ClientTiming{1500, -10}));
+  TEST_ASSERT_TRUE(future_err.ApplyError(2, f2));
+  auto const fe = future_err.TryAggregate();
+  TEST_ASSERT_TRUE(fe.has_value());
+  TEST_ASSERT_TRUE(fe->state == PeerScheduleState::kExpected);
+  TEST_ASSERT_TRUE(fe->next_ping_deadline.has_value());
+
+  PeerTimingQueryState unknown_err;
+  unknown_err.Begin({1, 2});
+  auto const u1 = unknown_err.RegisterSend(1, Tp(0), Ms(40));
+  auto const u2 = unknown_err.RegisterSend(2, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(unknown_err.ApplyTiming(1, u1, ClientTiming{0, -10}));
+  TEST_ASSERT_TRUE(unknown_err.ApplyError(2, u2));
+  auto const ue = unknown_err.TryAggregate();
+  TEST_ASSERT_TRUE(ue.has_value());
+  TEST_ASSERT_TRUE(ue->state == PeerScheduleState::kUnknown);
+
+  PeerTimingQueryState snapshot;
+  snapshot.Begin({20, 21, 22});
+  auto const s20 = snapshot.RegisterSend(20, Tp(0), Ms(40));
+  auto const s21 = snapshot.RegisterSend(21, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(snapshot.ApplyTiming(20, s20, ClientTiming{-1000, -5}));
+  TEST_ASSERT_TRUE(snapshot.ApplyTiming(21, s21, ClientTiming{-800, -8}));
+  TEST_ASSERT_FALSE(snapshot.ReadyToComplete());
+  auto const unresolved = snapshot.TryAggregate();
+  TEST_ASSERT_TRUE(unresolved.has_value());
+  TEST_ASSERT_TRUE(unresolved->state == PeerScheduleState::kUnknown);
+  TEST_ASSERT_TRUE(snapshot.ApplyError(22, snapshot.RegisterSend(22, Tp(0), Ms(40))));
+  TEST_ASSERT_TRUE(snapshot.ReadyToComplete());
+  auto const snap_done = snapshot.TryAggregate();
+  TEST_ASSERT_TRUE(snap_done.has_value());
+  TEST_ASSERT_TRUE(snap_done->state == PeerScheduleState::kUnknown);
+
+  PeerTimingQueryState incomplete;
+  incomplete.Begin({20, 21}, true);
+  auto const i20 = incomplete.RegisterSend(20, Tp(0), Ms(40));
+  auto const i21 = incomplete.RegisterSend(21, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(incomplete.ApplyTiming(20, i20, ClientTiming{-1000, -5}));
+  TEST_ASSERT_TRUE(incomplete.ApplyTiming(21, i21, ClientTiming{-800, -8}));
+  auto const inc = incomplete.TryAggregate();
+  TEST_ASSERT_TRUE(inc.has_value());
+  TEST_ASSERT_TRUE(inc->state == PeerScheduleState::kUnknown);
+
+  PeerTimingQueryState all_neg;
+  all_neg.Begin({1, 2});
+  auto const n1 = all_neg.RegisterSend(1, Tp(0), Ms(40));
+  auto const n2 = all_neg.RegisterSend(2, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(all_neg.ApplyTiming(1, n1, ClientTiming{-1000, -20}));
+  TEST_ASSERT_TRUE(all_neg.ApplyTiming(2, n2, ClientTiming{-400, -50}));
+  auto const missed = all_neg.TryAggregate();
+  TEST_ASSERT_TRUE(missed.has_value());
+  TEST_ASSERT_TRUE(missed->state == PeerScheduleState::kMissedDeadline);
+  TEST_ASSERT_TRUE(missed->next_ping_deadline == Tp(0 + 40 - 400));
+  TEST_ASSERT_TRUE(missed->last_online == Tp(0 + 40 - 20));
+}
+
+void test_RetryRaceAndPostSuccessNoRemake() {
+  PeerTimingQueryOrchestrator orch;
+  orch.Start({1, 2});
+  auto const a1 = orch.Send(1, Tp(0), Ms(40));
+  auto const b1 = orch.Send(2, Tp(0), Ms(40));
+  orch.OnTransient(2, b1);
+  TEST_ASSERT_EQUAL_INT(0, orch.callback_count);
+  TEST_ASSERT_FALSE(orch.state.ReadyToComplete());
+  orch.OnSuccess(1, a1, ClientTiming{-1000, -10});
+  TEST_ASSERT_EQUAL_INT(0, orch.callback_count);
+  auto const b2 = orch.Send(2, Tp(10), Ms(40));
+  orch.OnSuccess(2, b2, ClientTiming{2000, -15});
+  TEST_ASSERT_EQUAL_INT(1, orch.callback_count);
+  TEST_ASSERT_TRUE(orch.last_schedule.has_value());
+  TEST_ASSERT_TRUE(orch.last_schedule->state == PeerScheduleState::kExpected);
+
+  PeerTimingQueryOrchestrator reverse;
+  reverse.Start({1, 2});
+  auto const ra = reverse.Send(1, Tp(0), Ms(40));
+  reverse.OnSuccess(1, ra, ClientTiming{-1000, -10});
+  TEST_ASSERT_EQUAL_INT(0, reverse.callback_count);
+  auto const rb = reverse.Send(2, Tp(0), Ms(40));
+  reverse.OnTransient(2, rb);
+  TEST_ASSERT_EQUAL_INT(0, reverse.callback_count);
+  auto const rb2 = reverse.Send(2, Tp(10), Ms(40));
+  reverse.OnSuccess(2, rb2, ClientTiming{2000, -15});
+  TEST_ASSERT_EQUAL_INT(1, reverse.callback_count);
+  TEST_ASSERT_TRUE(reverse.last_schedule->state == PeerScheduleState::kExpected);
+
+  PeerTimingQueryState post;
+  post.Begin({1, 2});
+  auto const p1 = post.RegisterSend(1, Tp(0), Ms(40));
+  auto const p2 = post.RegisterSend(2, Tp(0), Ms(40));
+  TEST_ASSERT_TRUE(post.ApplyTiming(1, p1, ClientTiming{1200, -10}));
+  auto const p1_again = post.RegisterSend(1, Tp(100), Ms(40));
+  TEST_ASSERT_EQUAL_UINT(p1, p1_again);
+  TEST_ASSERT_TRUE(post.attempts[1].status ==
+                   ServerTimingAttemptStatus::kSuccess);
+  TEST_ASSERT_FALSE(post.ApplyError(1, p1));
+  TEST_ASSERT_TRUE(post.attempts[1].converted.next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(post.ApplyTiming(2, p2, ClientTiming{800, -20}));
+  auto const done = post.TryAggregate();
+  TEST_ASSERT_TRUE(done->state == PeerScheduleState::kExpected);
+}
+
+void test_ThousandQueriesDestroyPendingAndCloudRequestFlags() {
+  PeerTimingQueryOrchestrator orch;
+  for (int i = 0; i < 1000; ++i) {
+    orch.Start({1, 2});
+    auto const a = orch.Send(1, Tp(i), Ms(40));
+    auto const b = orch.Send(2, Tp(i), Ms(40));
+    orch.OnSuccess(1, a, ClientTiming{100, -5});
+    orch.OnSuccess(2, b, ClientTiming{200, -6});
+    TEST_ASSERT_EQUAL_INT(1, orch.callback_count);
+    TEST_ASSERT_EQUAL_INT(1, orch.state.user_callback_count);
+  }
+
+  PeerTimingQueryOrchestrator pending;
+  pending.Start({1, 2});
+  auto const pa = pending.Send(1, Tp(0), Ms(40));
+  pending.Destroy();
+  pending.OnSuccess(1, pa, ClientTiming{100, -5});
+  TEST_ASSERT_EQUAL_INT(0, pending.callback_count);
+
+  CloudRequestAttemptState attempt;
+  TEST_ASSERT_FALSE(attempt.ShouldSkipMake());
+  attempt.MarkSucceeded();
+  TEST_ASSERT_TRUE(attempt.ShouldSkipMake());
+  TEST_ASSERT_FALSE(attempt.MarkFailed(5));
+  TEST_ASSERT_FALSE(attempt.exhausted);
+
+  CloudRequestAttemptState fail;
+  TEST_ASSERT_FALSE(fail.MarkFailed(2));
+  TEST_ASSERT_TRUE(fail.MarkFailed(2));
+  TEST_ASSERT_TRUE(fail.ShouldSkipMake());
+  TEST_ASSERT_TRUE(CloudRequestShouldFailAll(false, false));
+  TEST_ASSERT_FALSE(CloudRequestShouldFailAll(false, true));
+  TEST_ASSERT_FALSE(CloudRequestShouldFailAll(true, false));
+}
+
 }  // namespace ae::test_uap_peer_timing
 
 int test_uap_peer_timing() {
@@ -328,5 +473,9 @@ int test_uap_peer_timing() {
                test_AggregateFreshestLastOnlineIndependentOfDeadline);
   RUN_TEST(ae::test_uap_peer_timing::
                test_LifecycleOutOfOrderStaleCancelAndNoLeak);
+  RUN_TEST(ae::test_uap_peer_timing::test_ConservativeMatrixAndExpectedSnapshot);
+  RUN_TEST(ae::test_uap_peer_timing::test_RetryRaceAndPostSuccessNoRemake);
+  RUN_TEST(ae::test_uap_peer_timing::
+               test_ThousandQueriesDestroyPendingAndCloudRequestFlags);
   return UNITY_END();
 }

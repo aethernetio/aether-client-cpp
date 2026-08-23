@@ -247,7 +247,7 @@ struct RoleState {
     query_sub.Reset();
     auto& action = client->QueryPeerReceiveSchedule(peer_uid);
     query_sub = action.result_event().Subscribe(
-        [this, begin](Result<PeerReceiveSchedule, int> const& res) {
+        [this, begin, &action](Result<PeerReceiveSchedule, int> const& res) {
           QueryOutcome out;
           out.begin = begin;
           out.end = Now();
@@ -259,6 +259,16 @@ struct RoleState {
             out.success = true;
             out.schedule = res.value();
           }
+          std::cerr << "timing_diag query=" << query_index_;
+          for (auto const& d : action.server_diagnostics()) {
+            std::cerr << " srv=" << d.server_id
+                      << " status=" << static_cast<int>(d.status);
+            if (d.has_raw) {
+              std::cerr << " next_delta_ms=" << d.raw.next_ping_delta_ms
+                        << " last_connect_ms=" << d.raw.last_connect_delta_ms;
+            }
+          }
+          std::cerr << std::endl;
           last_query_ = out;
           query_inflight_ = false;
         });
