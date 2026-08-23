@@ -26,6 +26,7 @@
 #include "aether/work_cloud_api/ae_message.h"
 #include "aether/work_cloud_api/telemetric.h"
 #include "aether/work_cloud_api/cloud_configs.h"
+#include "aether/work_cloud_api/client_timing.h"
 #include "aether/work_cloud_api/uap.h"
 
 namespace ae {
@@ -34,8 +35,8 @@ class AuthorizedApi : public ApiClass {
  public:
   explicit AuthorizedApi(ProtocolContext& protocol_context);
 
-  Method<4, ApiPromise<void>(std::uint64_t next_connect_ms_duration,
-                             std::uint64_t rx_window_ms)>
+  Method<4, ApiPromise<void>(std::int64_t next_connect_ms_duration,
+                             std::int64_t rx_window_ms)>
       ping;
   Method<6, void(AeMessage message)> send_message;
   Method<7, void(std::vector<AeMessage> messages)> send_messages;
@@ -45,10 +46,11 @@ class AuthorizedApi : public ApiClass {
 
   Method<18, void(Telemetric telemetric)> send_telemetry;
 
-  // After ping(), call with the announced ping interval so UAP delta_ms is
-  // the interval (server ping() alone stores rx_window as nextReadDelay).
+  // Legacy: mutates primary nextReadDelay; not a temporary RX window.
+  // Kept for wire compatibility. The schedule path must not call this.
   Method<33, void(std::int64_t delay_ms)> set_next_read_delay;
   Method<34, ApiPromise<Uap>(Uid uid)> get_uap;
+  Method<35, ApiPromise<ClientTiming>(Uid uid)> get_client_timing;
 
   Method<38, void(std::vector<AppliedConfig> configs)> report_applied_config;
 };

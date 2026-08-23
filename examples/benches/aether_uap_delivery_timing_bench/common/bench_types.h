@@ -37,6 +37,17 @@ enum class EventKind : std::uint8_t {
   kSampleSkipped = 6,
 };
 
+enum class BenchProtocol : std::uint8_t {
+  kUnknown = 0,
+  kUdp = 1,
+  kTcp = 2,
+};
+
+enum class UdpProofPath : std::uint8_t {
+  kOwn = 1,
+  kDestination = 2,
+};
+
 enum class IpcType : std::uint8_t {
   kChildReady = 1,
   kUidReport = 2,
@@ -48,6 +59,7 @@ enum class IpcType : std::uint8_t {
   kEvent = 8,
   kShutdown = 9,
   kAck = 10,
+  kUdpProof = 11,
 };
 
 struct SampleRecord {

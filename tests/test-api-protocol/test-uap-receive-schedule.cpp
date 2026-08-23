@@ -28,6 +28,7 @@
 #include "aether/cloud_connections/ping_schedule_guard.h"
 #include "aether/receive_schedule.h"
 #include "aether/types/statistic_counter.h"
+#include "aether/work_cloud_api/client_timing.h"
 #include "aether/work_cloud_api/uap.h"
 
 #include "examples/benches/aether_uap_delivery_timing_bench/common/bench_message.h"
@@ -94,36 +95,33 @@ void test_RxCloseIsPongPlusWindowNotSendPlusWindow() {
 }
 
 void test_ConversionUsesLibraryTimePointOnly() {
-  auto const begin = TimePoint{} + std::chrono::milliseconds{1000};
-  auto const end = TimePoint{} + std::chrono::milliseconds{1100};
-  auto const anchor = ComputeLocalAnchor(begin, end);
-  TEST_ASSERT_TRUE(anchor == TimePoint{} + std::chrono::milliseconds{1050});
-
-  auto const schedule =
-      MakePeerReceiveSchedule(anchor, 10'000, 9'000, 5'000);
-  // Absolute checks: must not clamp to TimePoint::min()/max() for normal ages.
-  TEST_ASSERT_TRUE(schedule.last_ping ==
-                   anchor - std::chrono::milliseconds{1000});
-  TEST_ASSERT_TRUE(schedule.next_ping_deadline.has_value());
-  TEST_ASSERT_TRUE(*schedule.next_ping_deadline ==
-                   anchor + std::chrono::milliseconds{4000});
-  TEST_ASSERT_TRUE(TimePointOffsetByMs(anchor, -1'000) ==
-                   anchor - std::chrono::milliseconds{1000});
-  TEST_ASSERT_TRUE(TimePointOffsetByMs(anchor, 4'000) ==
-                   anchor + std::chrono::milliseconds{4000});
-  static_assert(std::is_same_v<decltype(schedule.last_ping), TimePoint>);
+  auto const qsend = TimePoint{} + std::chrono::milliseconds{1000};
+  auto const one_way = OneWayPingEstimate(false, Ms(80));
+  TEST_ASSERT_TRUE(one_way == Ms(40));
+  ClientTiming const timing{4'000, -1'000};
+  auto const converted = ConvertClientTiming(qsend, one_way, timing);
+  TEST_ASSERT_TRUE(converted.last_online ==
+                   qsend + one_way - std::chrono::milliseconds{1000});
+  TEST_ASSERT_TRUE(converted.next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(*converted.next_ping_deadline ==
+                   qsend + one_way + std::chrono::milliseconds{4000});
+  TEST_ASSERT_TRUE(TimePointOffsetByMs(qsend, -1'000) ==
+                   qsend - std::chrono::milliseconds{1000});
+  static_assert(std::is_same_v<decltype(converted.last_online), TimePoint>);
 }
 
-void test_DeltaZeroYieldsNulloptDeadline() {
-  auto const schedule = MakePeerReceiveSchedule(
-      TimePoint{} + std::chrono::seconds{5}, 1000, 900, 0);
-  TEST_ASSERT_FALSE(schedule.next_ping_deadline.has_value());
+void test_DeltaZeroYieldsUnknownDeadline() {
+  auto const converted = ConvertClientTiming(
+      TimePoint{} + std::chrono::seconds{5}, Ms(40), ClientTiming{0, -100});
+  TEST_ASSERT_FALSE(converted.next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(converted.state == PeerScheduleState::kUnknown);
 }
 
-void test_NegativeDeltaYieldsNulloptDeadline() {
-  auto const schedule =
-      MakePeerReceiveSchedule(TimePoint{}, 1000, 900, -1);
-  TEST_ASSERT_FALSE(schedule.next_ping_deadline.has_value());
+void test_NegativeDeltaYieldsMissedDeadline() {
+  auto const converted =
+      ConvertClientTiming(TimePoint{}, Ms(40), ClientTiming{-1, -10});
+  TEST_ASSERT_TRUE(converted.next_ping_deadline.has_value());
+  TEST_ASSERT_TRUE(converted.state == PeerScheduleState::kMissedDeadline);
 }
 
 void test_UapWireFieldOrderAndSignedInt64() {
@@ -196,9 +194,9 @@ int test_uap_receive_schedule() {
                test_RxCloseIsPongPlusWindowNotSendPlusWindow);
   RUN_TEST(ae::test_uap_receive_schedule::
                test_ConversionUsesLibraryTimePointOnly);
-  RUN_TEST(ae::test_uap_receive_schedule::test_DeltaZeroYieldsNulloptDeadline);
+  RUN_TEST(ae::test_uap_receive_schedule::test_DeltaZeroYieldsUnknownDeadline);
   RUN_TEST(
-      ae::test_uap_receive_schedule::test_NegativeDeltaYieldsNulloptDeadline);
+      ae::test_uap_receive_schedule::test_NegativeDeltaYieldsMissedDeadline);
   RUN_TEST(
       ae::test_uap_receive_schedule::test_UapWireFieldOrderAndSignedInt64);
   RUN_TEST(ae::test_uap_receive_schedule::test_BenchMessageCrcRoundTrip);

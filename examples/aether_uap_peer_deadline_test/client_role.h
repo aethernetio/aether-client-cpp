@@ -17,6 +17,7 @@
 #ifndef EXAMPLES_AETHER_UAP_PEER_DEADLINE_TEST_CLIENT_ROLE_H_
 #define EXAMPLES_AETHER_UAP_PEER_DEADLINE_TEST_CLIENT_ROLE_H_
 
+#include <cstdint>
 #include <string>
 
 #include "common/deadline_types.h"
@@ -31,6 +32,7 @@ struct ClientArgs {
   std::string client_name;
   std::string parent_uid{"3ac93165-3d37-4970-87a6-fa4ee27744e4"};
   std::string artifact_dir;
+  std::int64_t ping_interval_ms{3000};
 };
 
 int RunClientRole(ClientArgs const& args);
