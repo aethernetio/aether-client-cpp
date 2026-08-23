@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,22 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#ifndef AETHER_UAP_DELIVERY_TIMING_BENCH_COORDINATOR_H_
+#define AETHER_UAP_DELIVERY_TIMING_BENCH_COORDINATOR_H_
 
-void setUp() {}
-void tearDown() {}
+#include <string>
 
-extern int test_method_call();
-extern int test_uap_receive_schedule();
+namespace ae::bench::uap {
 
-int main() {
-  int res = 0;
-  res += test_method_call();
-  res += test_uap_receive_schedule();
+struct CoordinatorArgs {
+  std::string run_id;
+  std::string artifact_dir;
+  std::string exe_path;
+  std::string parent_uid{"3ac93165-3d37-4970-87a6-fa4ee27744e4"};
+};
 
-  return res;
-}
+int RunCoordinator(CoordinatorArgs args);
+
+}  // namespace ae::bench::uap
+
+#endif  // AETHER_UAP_DELIVERY_TIMING_BENCH_COORDINATOR_H_

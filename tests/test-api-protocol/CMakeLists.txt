@@ -17,6 +17,7 @@ cmake_minimum_required( VERSION 3.16 )
 list(APPEND test_srcs
   main.cpp
   test-method-call.cpp
+  test-uap-receive-schedule.cpp
 )
 
 if(NOT CM_PLATFORM)

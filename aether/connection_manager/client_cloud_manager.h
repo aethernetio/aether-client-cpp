@@ -91,6 +91,10 @@ class ClientCloudManager : public Obj {
 
   GetCloudAction& GetCloud(Uid client_uid);
 
+  // Subscribe to server cloud-config pushes. Safe to call after
+  // Client::cloud_connection() has been created; no-op if already listening.
+  void StartCloudUpdateListener();
+
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_, cloud_cache_))
   template <typename Dnv>
   void Load(CurrentVersion, Dnv& dnv) {
@@ -114,6 +118,7 @@ class ClientCloudManager : public Obj {
 
   CloudUpdateEvent cloud_update_event_;
   CloudEventListener cloud_update_sub_;
+  bool cloud_update_listening_{false};
   std::optional<GetCloudActionPool> cloud_actions_;
   std::optional<GetServersPool> get_servers_pool_;
   std::vector<std::unique_ptr<ex::AnyWaiter<

@@ -61,7 +61,9 @@ class PingCloudServers {
     auto MakePing();
 
     void OnPingResult(Ping::PingResult const& res);
-    void OpenRxWindow(TimePoint sent_time);
+    void OpenRxWindow();
+    void ScheduleRxWindowClose(TimePoint close_time);
+    void CloseRxWindowNow();
     void ScheduleRestream();
 
     AeContext ae_context_;

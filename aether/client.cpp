@@ -18,6 +18,7 @@
 
 #include <utility>
 
+#include "aether/ae_actions/query_peer_receive_schedule.h"
 #include "aether/ae_actions/telemetry.h"
 
 #include "aether/aether.h"
@@ -49,8 +50,15 @@ ServerKeys* Client::server_state(ServerId server_id) {
 
 Cloud::ptr const& Client::cloud() const { return cloud_; }
 
-ClientCloudManager::ptr const& Client::cloud_manager() const {
-  assert(client_cloud_manager_.is_valid());
+ClientCloudManager::ptr const& Client::cloud_manager() {
+  // Lazy: ClientCloudManager::Init listens for cloud updates and therefore
+  // calls cloud_connection(), which would start pings before SetReceiveSchedule
+  // can run (SetReceiveSchedule must run after SetConfig, before first ping).
+  if (!client_cloud_manager_) {
+    client_cloud_manager_ = ClientCloudManager::ptr::Create(
+        CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault),
+        Aether::ptr{aether_}, Client::ptr::MakeFromThis(this));
+  }
   return client_cloud_manager_;
 }
 
@@ -81,6 +89,10 @@ CloudServerConnections& Client::cloud_connection() {
     telemetry_ = std::make_unique<Telemetry>(*aether_.Load().as<Aether>(),
                                              *cloud_connection_);
 #endif
+    // Cloud-config push subscription needs a live connection; start it here
+    // (not in ClientCloudManager construction) so SetReceiveSchedule can run
+    // after SetConfig and before the first cloud_connection().
+    cloud_manager().Load()->StartCloudUpdateListener();
   }
 
   return *cloud_connection_;
@@ -115,10 +127,39 @@ void Client::SetConfig(std::string client_id, Uid parent_uid, Uid uid,
 
   connectivity_policy_ = ClientConnectivityPolicy::ptr::Create(
       CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault));
+  // client_cloud_manager_ is created lazily in cloud_manager() so that
+  // SetReceiveSchedule can configure RX timings before pings start.
+}
 
-  client_cloud_manager_ = ClientCloudManager::ptr::Create(
-      CreateWith{domain}.with_flags(ObjFlags::kUnloadedByDefault),
-      Aether::ptr{aether_}, Client::ptr::MakeFromThis(this));
+
+Result<std::monostate, int> Client::SetReceiveSchedule(ReceiveSchedule schedule) {
+  if (cloud_connection_) {
+    return Error{static_cast<int>(SetReceiveScheduleError::kPingAlreadyStarted)};
+  }
+#if AE_ENABLE_PING
+  if (ping_cloud_servers_) {
+    return Error{static_cast<int>(SetReceiveScheduleError::kPingAlreadyStarted)};
+  }
+#endif
+  if (!connectivity_policy_.is_valid()) {
+    return Error{static_cast<int>(SetReceiveScheduleError::kPingAlreadyStarted)};
+  }
+  // Keep the policy loaded: it is created with kUnloadedByDefault, and a bare
+  // Load()/configure would be lost when the temporary Ptr releases.
+  connectivity_policy_keep_alive_ = connectivity_policy_.Load();
+  connectivity_policy_keep_alive_->ConfigureRxTimings().ForAllPriorities(
+      RxTimingConf{.interval = schedule.ping_interval,
+                   .rx_window = schedule.receive_window});
+  // Persist so a later Load() in cloud_connection() cannot revive defaults.
+  connectivity_policy_.Save();
+  return Ok{std::monostate{}};
+}
+
+::ae::QueryPeerReceiveSchedule& Client::QueryPeerReceiveSchedule(Uid peer_uid) {
+  query_peer_receive_schedule_ =
+      std::make_unique<::ae::QueryPeerReceiveSchedule>(
+          AeContext{*aether_.Load().as<Aether>()}, *this, peer_uid);
+  return *query_peer_receive_schedule_;
 }
 
 void Client::SendTelemetry() {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,6 @@
  * limitations under the License.
  */
 
-#include <unity.h>
-
-void setUp() {}
-void tearDown() {}
-
-extern int test_method_call();
-extern int test_uap_receive_schedule();
-
-int main() {
-  int res = 0;
-  res += test_method_call();
-  res += test_uap_receive_schedule();
-
-  return res;
-}
+#pragma once
+#undef AE_TELE_LOG_CONSOLE
+#define AE_TELE_LOG_CONSOLE 0

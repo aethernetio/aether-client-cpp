@@ -16,6 +16,8 @@
 
 #include "aether/cloud_connections/ping_cloud_servers.h"
 
+#include "aether/cloud_connections/ping_schedule_guard.h"
+
 #include <cassert>
 #include <type_traits>
 #include <variant>
@@ -119,6 +121,13 @@ auto PingCloudServers::ServerPing::MakePing() {
             return ex::set_error(std::move(ctx.receiver), 2);
           }
 
+          // Wire still announces full interval + rx_window; local schedule
+          // sends earlier by the response-stats guard.
+          auto const& response_stats =
+              c->channel_statistics().response_time_statistics();
+          auto const guard = ComputePingSendGuardFromStats(
+              response_stats, timing_conf_.interval);
+
           ping_.emplace(ae_context_, *cloud_sc_, timing_conf_.interval,
                         timing_conf_.rx_window, c->ResponseTimeout());
 
@@ -129,14 +138,15 @@ auto PingCloudServers::ServerPing::MakePing() {
                 ping_blocker_.Reset();
               });
 
-          // run ping request and open rx window
+          // run ping request and open rx capability at send
           auto const current_time = Now();
           ping_->Start(current_time);
-          OpenRxWindow(current_time);
-          next_ping_time_ = current_time + timing_conf_.interval;
+          OpenRxWindow();
+          next_ping_time_ = current_time + timing_conf_.interval - guard;
           policy_->ReportNextServiceTime(priority_, next_ping_time_);
-          AE_TELED_DEBUG("Next ping time for priority {} at {} after {}",
-                         priority_, next_ping_time_, timing_conf_.interval);
+          AE_TELED_DEBUG(
+              "Next ping time for priority {} at {} after {} (guard {})",
+              priority_, next_ping_time_, timing_conf_.interval, guard);
 
           return ex::set_value(std::move(ctx.receiver));
         });
@@ -202,23 +212,48 @@ void PingCloudServers::ServerPing::OnPingResult(Ping::PingResult const& res) {
         using T = std::decay_t<decltype(value)>;
         if constexpr (std::is_same_v<T, Ok<Duration>>) {
           c->channel_statistics().AddResponseTime(value.value);
+          ScheduleRxWindowClose(
+              ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
         } else if constexpr (std::is_same_v<T, Ping::LateDuration>) {
           AE_TELED_DEBUG("Got late ping duration");
           c->channel_statistics().AddResponseTime(value.duration);
+          ScheduleRxWindowClose(
+              ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
+        } else if constexpr (std::is_same_v<T, Error<int>>) {
+          AE_TELED_ERROR("Ping error!");
+          // Error 1 = write failure before/at send: close RX immediately.
+          // Other errors (e.g. timeout after write): close at now + window.
+          if (value.error == 1) {
+            CloseRxWindowNow();
+          } else {
+            ScheduleRxWindowClose(
+                ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
+          }
+          ScheduleRestream();
         } else {
           AE_TELED_ERROR("Ping error!");
+          ScheduleRxWindowClose(
+              ComputeRxWindowCloseTime(Now(), timing_conf_.rx_window));
           ScheduleRestream();
         }
       },
       res);
 }
 
-void PingCloudServers::ServerPing::OpenRxWindow(TimePoint sent_time) {
-  // keep rx window suspend block for timing_.rx_window time
+void PingCloudServers::ServerPing::OpenRxWindow() {
+  // Open RX capability at send; do not schedule close at send + window.
   rx_window_blocker_ = policy_->AcquireSuspendBlock();
+  rx_window_sub_.Reset();
+}
+
+void PingCloudServers::ServerPing::ScheduleRxWindowClose(TimePoint close_time) {
   rx_window_sub_ = ae_context_.scheduler().DelayedTask(
-      [this]() { rx_window_blocker_.Reset(); },
-      sent_time + timing_conf_.rx_window);
+      [this]() { rx_window_blocker_.Reset(); }, close_time);
+}
+
+void PingCloudServers::ServerPing::CloseRxWindowNow() {
+  rx_window_sub_.Reset();
+  rx_window_blocker_.Reset();
 }
 
 void PingCloudServers::ServerPing::ScheduleRestream() {

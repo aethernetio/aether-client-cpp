@@ -17,6 +17,8 @@
 #ifndef AETHER_WORK_CLOUD_API_WORK_SERVER_API_LOGIN_API_H_
 #define AETHER_WORK_CLOUD_API_WORK_SERVER_API_LOGIN_API_H_
 
+#include <cstdint>
+
 #include "aether/types/uid.h"
 #include "aether/types/data_buffer.h"
 #include "aether/crypto/icrypto_provider.h"
@@ -43,6 +45,9 @@ class LoginApi : public ApiClass {
  public:
   explicit LoginApi(ProtocolContext& protocol_context,
                     IEncryptProvider& encrypt_provider);
+
+  // Initialized before login_by_uid (ADSL method order).
+  Method<3, ApiPromise<std::int64_t>()> get_time_utc;
 
   Method<4, void(Uid uid, SubApi<AuthorizedApi> sub_api), LoginProc>
       login_by_uid;

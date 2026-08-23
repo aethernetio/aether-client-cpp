@@ -320,7 +320,7 @@ target_compile_options(${TARGET_NAME} PRIVATE
 target_compile_options(${TARGET_NAME} PUBLIC
   $<$<CXX_COMPILER_ID:MSVC>:
       /wd4100 /wd4101 /wd4127 /wd4244 /wd4324
-      /wd4456 /wd4459 /wd4714
+      /wd4456 /wd4459 /wd4702 /wd4714
       >
 )
 
@@ -386,6 +386,7 @@ if(AE_BUILD_EXAMPLES)
   add_subdirectory(examples/capi/oddity)
   add_subdirectory(examples/benches/send_message_delays)
   add_subdirectory(examples/benches/send_messages_bandwidth)
+  add_subdirectory(examples/benches/aether_uap_delivery_timing_bench)
 endif()
 
 if(AE_BUILD_TESTS)
