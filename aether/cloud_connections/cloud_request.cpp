@@ -71,6 +71,25 @@ void CloudRequest::Failed() {
   result_event_.Emit(false);
 }
 
+
+void CloudRequest::FailAttempt(CloudServerConnection* sc) {
+  auto it = server_requests_.find(sc);
+  if (it == server_requests_.end()) {
+    return;
+  }
+  auto& sr = it->second;
+  sr.state_subs.Reset();
+  sr.timeout_sub.Reset();
+  sr.retry_count++;
+  if (sr.retry_count >= max_retries_) {
+    AE_TELED_WARNING("Server {} retry budget exhausted on attempt failure",
+                     sc->server_id());
+    sr.exhausted = true;
+  }
+  EnqueueMakeRequest();
+}
+
+
 CloudRequest::ResultEvent::Subscriber CloudRequest::result_event() {
   return EventSubscriber{result_event_};
 }

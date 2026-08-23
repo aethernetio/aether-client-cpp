@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Aethernet Inc.
+ * Copyright 2026 Aethernet Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,24 @@
  * limitations under the License.
  */
 
-#include <unity.h>
+#ifndef AETHER_WORK_CLOUD_API_UAP_H_
+#define AETHER_WORK_CLOUD_API_UAP_H_
 
-void setUp() {}
-void tearDown() {}
+#include <cstdint>
 
-extern int test_method_call();
-extern int test_uap_receive_schedule();
+#include "aether-miscpp/reflect/reflect.h"
 
-int main() {
-  int res = 0;
-  res += test_method_call();
-  res += test_uap_receive_schedule();
+namespace ae {
 
-  return res;
-}
+// Wire DTO for AuthorizedApi.get_uap. Field order matches ADSL:
+// deltaMs then lastReadTimestamp.
+struct Uap {
+  AE_REFLECT_MEMBERS(delta_ms, last_read_timestamp_ms)
+
+  std::int64_t delta_ms{};
+  std::int64_t last_read_timestamp_ms{};
+};
+
+}  // namespace ae
+
+#endif  // AETHER_WORK_CLOUD_API_UAP_H_

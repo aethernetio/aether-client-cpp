@@ -20,6 +20,9 @@
 #include <cassert>
 #include <map>
 #include <string>
+#include <variant>
+
+#include "aether-miscpp/types/result.h"
 
 #include "aether/client_connectivity_policy.h"
 #include "aether/cloud.h"
@@ -35,10 +38,13 @@
 #include "aether/connection_manager/server_connection_manager.h"
 
 #include "aether/client_messages/p2p_message_stream_manager.h"
+#include "aether/ptr/ptr.h"
+#include "aether/receive_schedule.h"
 
 namespace ae {
 class Aether;
 class Telemetry;
+class QueryPeerReceiveSchedule;
 
 class Client : public Obj {
   AE_OBJECT(Client, Obj, 0)
@@ -59,7 +65,7 @@ class Client : public Obj {
   Uid const& ephemeral_uid() const;
   ServerKeys* server_state(ServerId server_id);
   Cloud::ptr const& cloud() const;
-  ClientCloudManager::ptr const& cloud_manager() const;
+  ClientCloudManager::ptr const& cloud_manager();
   ServerConnectionManager& server_connection_manager();
   CloudServerConnections& cloud_connection();
   ClientConnectivityPolicy::ptr const& connectivity_policy();
@@ -67,6 +73,12 @@ class Client : public Obj {
 
   void SetConfig(std::string client_id, Uid parent_uid, Uid uid,
                  Uid ephemeral_uid, Key master_key, Cloud::ptr c);
+
+  // Must run after SetConfig and before first cloud_connection()/ping start.
+  Result<std::monostate, int> SetReceiveSchedule(ReceiveSchedule schedule);
+
+  // Stores action on Client (replaced each call); returns a live reference.
+  ::ae::QueryPeerReceiveSchedule& QueryPeerReceiveSchedule(Uid peer_uid);
 
   AE_OBJECT_REFLECT(AE_MMBRS(aether_, client_id_, parent_uid_, uid_,
                              ephemeral_uid_, master_key_, cloud_, server_keys_,
@@ -87,6 +99,8 @@ class Client : public Obj {
   std::map<ServerId, ServerKeys> server_keys_;
 
   ClientConnectivityPolicy::ptr connectivity_policy_;
+  // Keeps configured receive-schedule timings resident until/after ping start.
+  Ptr<ClientConnectivityPolicy> connectivity_policy_keep_alive_;
   ClientCloudManager::ptr client_cloud_manager_;
   std::unique_ptr<ServerConnectionManager> server_connection_manager_;
   std::unique_ptr<CloudServerConnections> cloud_connection_;
@@ -95,6 +109,7 @@ class Client : public Obj {
 #if AE_ENABLE_PING
   std::unique_ptr<PingCloudServers> ping_cloud_servers_;
 #endif
+  std::unique_ptr<::ae::QueryPeerReceiveSchedule> query_peer_receive_schedule_;
 #if AE_TELE_ENABLED && AE_TELE_LOG_TO_STATISTICS
   std::unique_ptr<Telemetry> telemetry_;
 #endif

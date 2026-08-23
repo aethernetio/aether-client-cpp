@@ -71,7 +71,8 @@ list(APPEND aether_srcs
             "ae_actions/ping.cpp"
             "ae_actions/check_access_for_send_message.cpp"
             "ae_actions/telemetry.cpp"
-            "ae_actions/select_client.cpp")
+            "ae_actions/select_client.cpp"
+            "ae_actions/query_peer_receive_schedule.cpp")
 
 list(APPEND aether_srcs
             "registration/api/client_reg_api_safe.cpp"
