@@ -381,18 +381,27 @@ int RunCoordinator(CoordinatorArgs args) {
 
   auto const protocol_ok =
       alice.got_own_proof && bob.got_own_proof && alice.got_dest_proof &&
-      alice.own_proof.protocol == BenchProtocol::kUdp &&
-      bob.own_proof.protocol == BenchProtocol::kUdp &&
-      alice.dest_proof.protocol == BenchProtocol::kUdp;
+      IsMeasuredProtocolOk(alice.own_proof.protocol) &&
+      IsMeasuredProtocolOk(bob.own_proof.protocol) &&
+      IsMeasuredProtocolOk(alice.dest_proof.protocol);
   if (!protocol_ok) {
-    std::cerr << "FAIL: measured path protocol is not UDP "
-                 "(TCP fallback absent required)\n";
+    std::cerr << "FAIL: measured path protocol is not usable "
+                 "(need UDP"
+#if AE_SUPPORT_TCP
+                 " or TCP"
+#endif
+                 ")\n";
     StopChild(alice);
     StopChild(bob);
     return 6;
   }
-  std::cout << "TCP fallback absent: AE_SUPPORT_TCP=0 build + selected "
-               "protocol=udp on all measured paths\n\n";
+  std::cout << "AE_SUPPORT_TCP=" << AE_SUPPORT_TCP
+            << " AE_SUPPORT_UDP=" << AE_SUPPORT_UDP
+            << " selected alice="
+            << BenchProtocolName(alice.own_proof.protocol)
+            << " bob=" << BenchProtocolName(bob.own_proof.protocol)
+            << " dest=" << BenchProtocolName(alice.dest_proof.protocol)
+            << "\n\n";
 
   std::cout << "## Bob ping statistics\n"
             << "samples=" << warmup_n << " min_rtt_ms=" << warmup_min
@@ -544,11 +553,11 @@ int RunCoordinator(CoordinatorArgs args) {
   }
   std::cout << "\nCSV: " << csv_path << std::endl;
 
-  // Re-check protocols after run (must remain UDP).
-  if (alice.own_proof.protocol != BenchProtocol::kUdp ||
-      bob.own_proof.protocol != BenchProtocol::kUdp ||
-      alice.dest_proof.protocol != BenchProtocol::kUdp) {
-    std::cerr << "FAIL: protocol drifted off UDP during run\n";
+  // Re-check protocols after run.
+  if (!IsMeasuredProtocolOk(alice.own_proof.protocol) ||
+      !IsMeasuredProtocolOk(bob.own_proof.protocol) ||
+      !IsMeasuredProtocolOk(alice.dest_proof.protocol)) {
+    std::cerr << "FAIL: protocol drifted off measured TCP/UDP during run\n";
     StopChild(alice);
     StopChild(bob);
     return 6;

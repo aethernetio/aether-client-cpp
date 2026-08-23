@@ -174,7 +174,7 @@ struct RoleState {
     if (!own_proof_.present) {
       return;
     }
-    if (own_proof_.protocol != BenchProtocol::kUdp) {
+    if (!IsMeasuredProtocolOk(own_proof_.protocol)) {
       EmitUdpProof(UdpProofPath::kOwn, own_proof_);
       own_proof_sent_ = true;
       waiting_cloud_link_ = false;
@@ -226,7 +226,7 @@ struct RoleState {
               << " endpoint=" << dest_proof_.endpoint
               << " protocol=" << BenchProtocolName(dest_proof_.protocol)
               << " gen=" << dest_proof_.udp_socket_generation << std::endl;
-    if (dest_proof_.protocol != BenchProtocol::kUdp) {
+    if (!IsMeasuredProtocolOk(dest_proof_.protocol)) {
       Emit(IpcType::kEvent, EventKind::kError, 0, 0, 32);
       exit_requested = true;
     }
@@ -330,7 +330,7 @@ struct RoleState {
       return;
     }
     own_proof_ = CollectOwnCloudProof(*client.Load());
-    if (!own_proof_.present || own_proof_.protocol != BenchProtocol::kUdp) {
+    if (!own_proof_.present || !IsMeasuredProtocolOk(own_proof_.protocol)) {
       std::cerr << "Bob warmup refused: protocol="
                 << BenchProtocolName(own_proof_.protocol) << std::endl;
       warmup_active = false;
@@ -540,10 +540,10 @@ struct RoleState {
     auto const dest_proto = dest_proof_.present ? dest_proof_.protocol
                                                 : own_proto;
     if (RefuseTcpSample(own_proto, dest_proto) ||
-        own_proto != BenchProtocol::kUdp ||
-        dest_proto != BenchProtocol::kUdp) {
+        !IsMeasuredProtocolOk(own_proto) ||
+        !IsMeasuredProtocolOk(dest_proto)) {
       sample_in_flight = false;
-      std::cerr << "Alice refuse TCP/non-UDP sample own="
+      std::cerr << "Alice refuse sample own="
                 << BenchProtocolName(own_proto)
                 << " dest=" << BenchProtocolName(dest_proto) << std::endl;
       Emit(IpcType::kSampleResult, EventKind::kError, pending_sequence,

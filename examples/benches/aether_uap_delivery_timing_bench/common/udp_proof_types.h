@@ -21,6 +21,7 @@
 #include <string>
 
 #include "aether/channels/channels_types.h"
+#include "aether/config.h"
 #include "aether/stream_api/istream.h"
 #include "aether/types/address.h"
 #include "aether/types/server_id.h"
@@ -68,7 +69,23 @@ inline BenchProtocol ClassifyWireProtocol(Protocol protocol) noexcept {
 
 inline bool RefuseTcpSample(BenchProtocol own,
                             BenchProtocol destination) noexcept {
+#if AE_SUPPORT_TCP
+  // TCP+UDP build: registration needs TCP; work path may select TCP by
+  // production channel priority. Do not refuse TCP samples in that mode.
+  (void)own;
+  (void)destination;
+  return false;
+#else
   return own == BenchProtocol::kTcp || destination == BenchProtocol::kTcp;
+#endif
+}
+
+inline bool IsMeasuredProtocolOk(BenchProtocol protocol) noexcept {
+#if AE_SUPPORT_TCP
+  return protocol == BenchProtocol::kUdp || protocol == BenchProtocol::kTcp;
+#else
+  return protocol == BenchProtocol::kUdp;
+#endif
 }
 
 inline std::string UnpackIpv4Endpoint(std::uint32_t ipv4,

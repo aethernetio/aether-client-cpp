@@ -22,7 +22,7 @@
 #include "aether/config.h"
 #include "aether/types/address.h"
 
-#include "examples/benches/aether_uap_delivery_timing_bench/common/bench_types.h"
+#include "examples/benches/aether_uap_delivery_timing_bench/common/udp_proof_types.h"
 
 namespace ae::test_uap_delivery_udp {
 namespace {
@@ -35,23 +35,14 @@ Endpoint MakeEndpoint(Protocol protocol) {
   return endpoint;
 }
 
-// Mirrors examples/.../udp_proof.h RefuseTcpSample without pulling Client.
-bool RefuseTcpSample(ae::bench::uap::BenchProtocol own,
-                     ae::bench::uap::BenchProtocol destination) {
-  return own == ae::bench::uap::BenchProtocol::kTcp ||
-         destination == ae::bench::uap::BenchProtocol::kTcp;
-}
-
 }  // namespace
 
 void test_UdpBuildConfigMacros() {
   TEST_ASSERT_EQUAL_INT(1, AE_SUPPORT_UDP);
 #if !AE_SUPPORT_TCP
-  // Expected for config/user_config_uap_delivery_udp.h builds.
   TEST_ASSERT_EQUAL_INT(0, AE_SUPPORT_TCP);
 #else
-  TEST_IGNORE_MESSAGE(
-      "AE_SUPPORT_TCP=1: TCP reject is asserted in the UDP USER_CONFIG build");
+  TEST_ASSERT_EQUAL_INT(1, AE_SUPPORT_TCP);
 #endif
 }
 
@@ -64,9 +55,6 @@ void test_FilterProtocolRejectsTcpAcceptsUdp() {
   TEST_ASSERT_FALSE((FilterProtocol<Protocol::kTcp, Protocol::kUdp>(tcp)));
 #else
   TEST_ASSERT_TRUE((FilterProtocol<Protocol::kTcp, Protocol::kUdp>(tcp)));
-  TEST_IGNORE_MESSAGE(
-      "AE_SUPPORT_TCP=1 in this build; TCP reject asserted only in UDP "
-      "USER_CONFIG tree");
 #endif
 }
 
@@ -77,12 +65,24 @@ void test_ProtocolUdpEnumValue() {
 
 void test_BenchRefusesTcpSample() {
   using ae::bench::uap::BenchProtocol;
+  using ae::bench::uap::IsMeasuredProtocolOk;
+  using ae::bench::uap::RefuseTcpSample;
+#if AE_SUPPORT_TCP
+  // TCP+UDP USER_CONFIG: TCP samples are allowed (registration needs TCP).
+  TEST_ASSERT_FALSE(RefuseTcpSample(BenchProtocol::kTcp, BenchProtocol::kUdp));
+  TEST_ASSERT_FALSE(RefuseTcpSample(BenchProtocol::kUdp, BenchProtocol::kTcp));
+  TEST_ASSERT_TRUE(IsMeasuredProtocolOk(BenchProtocol::kTcp));
+  TEST_ASSERT_TRUE(IsMeasuredProtocolOk(BenchProtocol::kUdp));
+#else
   TEST_ASSERT_TRUE(RefuseTcpSample(BenchProtocol::kTcp, BenchProtocol::kUdp));
   TEST_ASSERT_TRUE(RefuseTcpSample(BenchProtocol::kUdp, BenchProtocol::kTcp));
   TEST_ASSERT_TRUE(RefuseTcpSample(BenchProtocol::kTcp, BenchProtocol::kTcp));
   TEST_ASSERT_FALSE(RefuseTcpSample(BenchProtocol::kUdp, BenchProtocol::kUdp));
   TEST_ASSERT_FALSE(
       RefuseTcpSample(BenchProtocol::kUnknown, BenchProtocol::kUdp));
+  TEST_ASSERT_FALSE(IsMeasuredProtocolOk(BenchProtocol::kTcp));
+  TEST_ASSERT_TRUE(IsMeasuredProtocolOk(BenchProtocol::kUdp));
+#endif
 }
 
 }  // namespace ae::test_uap_delivery_udp

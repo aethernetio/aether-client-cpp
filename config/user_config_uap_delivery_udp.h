@@ -24,9 +24,9 @@
 #define AE_SIGNATURE AE_HYDRO_SIGNATURE
 #define AE_KDF AE_HYDRO_KDF
 
-// UDP-only build for aether_uap_delivery_timing_bench validation.
+// TCP+UDP: registration cloud is TCP-only; work servers also advertise UDP.
 #define AE_SUPPORT_UDP 1
-#define AE_SUPPORT_TCP 0
+#define AE_SUPPORT_TCP 1
 
 #if ESP_PLATFORM
 #  define AE_CLOUD_MAX_SERVER_CONNECTIONS 1
